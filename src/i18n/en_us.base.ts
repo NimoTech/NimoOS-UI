@@ -138,6 +138,8 @@ export default {
   filesBatchLoadFailed: 'Failed to load batch details',
   filesBatchAbandon: 'Abandon this batch',
   filesBatchAbandonFailed: 'Could not abandon the batch — try again',
+  filesBatchRefill: 'Re-upload missing files',
+  filesBatchRefillNoMatch: 'Picked files do not match the missing list',
   filesMountEjectSuccess: 'Eject succeeded',
   filesMountEjectFailed: 'Eject failed',
   filesMountAdd: 'Add mount',

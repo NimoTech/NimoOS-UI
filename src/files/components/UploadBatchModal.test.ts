@@ -96,4 +96,20 @@ describe('UploadBatchModal', () => {
     // away from the control that caused it.
     expect(body().find('.ubm-error').exists()).toBe(true)
   })
+
+  it('emits refill with the target path and missing relative paths', async () => {
+    getBatch.mockResolvedValue(detail)
+    const w = await mountModal()
+    await body().find('.ubm-refill').trigger('click')
+    expect(w.emitted('refill')?.[0]).toEqual([
+      { targetPath: '/DATA/x', missing: ['Trip/a.jpg', 'Trip/b.jpg'] },
+    ])
+    expect(w.emitted('close')).toBeTruthy()
+  })
+
+  it('disables refill when nothing is missing', async () => {
+    getBatch.mockResolvedValue({ batch: detail.batch, missing: [] })
+    await mountModal()
+    expect(body().find('.ubm-refill').attributes('disabled')).toBeDefined()
+  })
 })

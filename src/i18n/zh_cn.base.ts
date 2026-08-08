@@ -138,6 +138,8 @@ export default {
   filesBatchLoadFailed: '无法加载批次详情',
   filesBatchAbandon: '放弃这批',
   filesBatchAbandonFailed: '放弃失败,请重试',
+  filesBatchRefill: '重传缺失文件',
+  filesBatchRefillNoMatch: '选中的文件与缺失清单对不上',
   filesMountEjectSuccess: '弹出成功',
   filesMountEjectFailed: '弹出失败',
   filesMountAdd: '添加挂载',

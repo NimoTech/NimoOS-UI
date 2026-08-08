@@ -178,6 +178,20 @@ function onInputChange(e: Event) {
   input.value = '' // 允许重复选择同一文件再次触发 change
 }
 
+// Re-upload missing files: the dialog only tells us *which* files are wanted —
+// the bytes themselves must be re-picked by the user, because the browser
+// cannot recover them once the page reloads or the tab closes.
+const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(null)
+
+function onRefill(p: { targetPath: string; missing: string[] }): void {
+  refillPending.value = { targetPath: p.targetPath, missing: new Set(p.missing) }
+  // Use the folder picker, not the single-file picker: missing entries can carry
+  // a sub-path (e.g. "Trip/a.jpg"), and only a webkitdirectory input yields
+  // webkitRelativePath — a single-file picker would give back a bare filename.
+  triggerFolderSelect()
+}
+defineExpose({ handleSelectedFiles, onRefill })
+
 // Shared enqueue path for both the file/folder picker and drag-drop: normalize
 // leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
 // any files rejected for being in a protected dir.
@@ -185,6 +199,21 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
   // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
+
+  // Refill branch: the target directory is the batch's own target_path (not the
+  // current directory — the user may have navigated elsewhere before clicking),
+  // and only entries named in the missing list are let through.
+  const pending = refillPending.value
+  if (pending) {
+    refillPending.value = null
+    const wanted = entries.filter((e) => pending.missing.has(e.relativePath))
+    if (!wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+    const sel = toSelectedFiles(wanted, pending.targetPath)
+    const { rejected } = await uploads.addFilesToQueue(sel)
+    for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+    return
+  }
+
   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
   const sel = toSelectedFiles(entries, targetPath)
   const { rejected } = await uploads.addFilesToQueue(sel)
@@ -199,7 +228,6 @@ async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
     })),
   )
 }
-defineExpose({ handleSelectedFiles })
 
 // ── 拖拽落区(.files-main 全域可放)──
 const isDragIn = ref(false)
@@ -589,6 +617,7 @@ onMounted(() => { browse.ensureVolumes() })
       :batch-id="batchModalId"
       @close="batchModalId = ''"
       @abandoned="files.load(files.currentPath)"
+      @refill="onRefill"
     />
   </AreaShell>
 </template>

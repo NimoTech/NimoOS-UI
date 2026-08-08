@@ -7,7 +7,11 @@ import Dialog from '../../components/ui/Dialog.vue'
 import { renderSize } from '../util/format'
 
 const props = defineProps<{ batchId: string }>()
-const emit = defineEmits<{ (e: 'close'): void; (e: 'abandoned'): void }>()
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'abandoned'): void
+  (e: 'refill', payload: { targetPath: string; missing: string[] }): void
+}>()
 const { t } = useI18n()
 
 const loading = ref(true)
@@ -27,6 +31,14 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+function refill(): void {
+  emit('refill', {
+    targetPath: batch.value?.target_path || '',
+    missing: missing.value.map((m) => m.relative_path),
+  })
+  emit('close')
+}
 
 async function abandon(): Promise<void> {
   if (abandoning.value) return
@@ -77,6 +89,9 @@ async function abandon(): Promise<void> {
     <p v-if="errorText" class="ubm-error">{{ errorText }}</p>
 
     <template #footer>
+      <button class="ubm-btn ubm-refill" :disabled="!missing.length" @click="refill">
+        {{ t('filesBatchRefill') }}
+      </button>
       <button class="ubm-btn ubm-danger ubm-abandon" :disabled="abandoning" @click="abandon">
         {{ t('filesBatchAbandon') }}
       </button>

@@ -90,4 +90,56 @@ describe('Files.vue upload wiring', () => {
 
     expect(showSpy).toHaveBeenCalledWith('「AppData/x」位于受保护目录,已跳过。')
   })
+
+  it('refill: only re-enqueues entries named in the missing list, against the batch target_path', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/Elsewhere'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    // The batch's target_path must differ from wherever the user currently is,
+    // so a regression that falls back to files.currentPath fails loudly.
+    expect(files.currentPath).not.toBe('/DATA/x')
+
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+
+    ;(w.vm as any).onRefill({ targetPath: '/DATA/x', missing: ['Trip/a.jpg', 'Trip/b.jpg'] })
+
+    const wanted = { name: 'a.jpg', webkitRelativePath: 'Trip/a.jpg' } as unknown as File
+    const extra = { name: 'c.jpg', webkitRelativePath: 'Trip/c.jpg' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([wanted, extra])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: wanted, targetPath: '/DATA/x', relativePath: 'Trip/a.jpg' },
+    ])
+  })
+
+  it('refill: toasts filesBatchRefillNoMatch and does not enqueue when nothing matches', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    ;(w.vm as any).onRefill({ targetPath: '/DATA/x', missing: ['Trip/a.jpg'] })
+
+    const unrelated = { name: 'z.jpg', webkitRelativePath: 'Other/z.jpg' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([unrelated])
+    await flushPromises()
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesBatchRefillNoMatch)
+  })
 })
