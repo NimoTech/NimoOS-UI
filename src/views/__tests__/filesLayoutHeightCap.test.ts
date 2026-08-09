@@ -16,7 +16,8 @@
 // scrolling once the outer layout stops growing). If any one of the three is missing the
 // layout breaks, so this guard locks all three.
 //
-// jsdom doesn't do layout (getBoundingClientRect always 0), actual behavior is verified on device;
+// jsdom doesn't do layout (getBoundingClientRect always 0), so actual behavior still needs to be
+// verified on device (not yet done as of this writing — see the handoff doc's acceptance checklist);
 // this guard only locks source text and prevents regressions. Always read files with node:fs —
 // `?raw` is always empty in this repo's test environment.
 import { describe, expect, it } from 'vitest'
