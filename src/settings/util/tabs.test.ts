@@ -9,7 +9,7 @@ import {
 } from './tabs'
 
 describe('settings tabs 模型', () => {
-  it('9 个 tab,顺序与 Vue2 一致(rail 7 项 + account + developer)', () => {
+  it('has 10 tabs in Vue2 order (8 rail items + account + developer)', () => {
     expect(SETTINGS_TABS).toEqual([
       'general',
       'storage',
@@ -17,13 +17,14 @@ describe('settings tabs 模型', () => {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
       'folder-permissions',
       'account',
       'developer',
     ])
   })
 
-  it('rail 只有 7 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
+  it('the rail holds 8 items -- account has its own entry, developer sits inside general', () => {
     expect(RAIL_TABS).toEqual([
       'general',
       'storage',
@@ -31,6 +32,7 @@ describe('settings tabs 模型', () => {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
       'folder-permissions',
     ])
   })
@@ -62,7 +64,7 @@ describe('settings tabs 模型', () => {
 
   it('非 admin 看不到 folder-permissions(Vue2 visibleTabs L1034)', () => {
     expect(railTabsFor('user')).not.toContain('folder-permissions')
-    expect(railTabsFor('user')).toHaveLength(6)
+    expect(railTabsFor('user')).toHaveLength(7)
   })
 
   it('role 缺失按非 admin 处理(保守:不泄漏管理项)', () => {

@@ -52,16 +52,16 @@ describe('SettingsShell', () => {
     expect(w.find('.probe').text()).toBe('body')
   })
 
-  it('非 admin(无 user)rail 只有 6 项', async () => {
+  it('非 admin(无 user)rail 只有 7 项', async () => {
     const { w } = await mountShell()
-    expect(w.findAll('.set-rail-item')).toHaveLength(6)
+    expect(w.findAll('.set-rail-item')).toHaveLength(7)
   })
 
-  it('admin rail 有 7 项且含 folder-permissions', async () => {
+  it('admin rail 有 8 项且含 folder-permissions', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const { w } = await mountShell()
     const items = w.findAll('.set-rail-item')
-    expect(items).toHaveLength(7)
+    expect(items).toHaveLength(8)
     expect(items.map((i) => i.attributes('data-tab'))).toContain('folder-permissions')
   })
 
@@ -112,7 +112,7 @@ describe('SettingsShell', () => {
     localStorage.setItem('user', '{not json')
     const { w } = await mountShell()
     expect(w.find('.set-user-name').text()).toBe('admin')
-    expect(w.findAll('.set-rail-item')).toHaveLength(6)
+    expect(w.findAll('.set-rail-item')).toHaveLength(7)
   })
 
   it('回主页按钮 push /', async () => {

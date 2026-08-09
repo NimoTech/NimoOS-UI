@@ -23,7 +23,7 @@ describe('9 个 tab 骨架', () => {
     for (const t of SETTINGS_TABS) {
       expect(PANEL_BY_TAB[t], t).toBeTruthy()
     }
-    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)
+    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(10)
   })
 
   // P1 起 general 已填真实内容(见 GeneralPanel.integration.test.ts),不再有 .set-skeleton;

@@ -9,6 +9,7 @@ export default {
   settingsTabApps: '应用',
   settingsTabTerminal: '终端与日志',
   settingsTabSystemStatus: '系统状态',
+  settingsTabLanDevices: '局域网设备',
   settingsTabFolderPermissions: '文件夹权限',
   settingsTabAccount: '账户',
   settingsTabDeveloper: '开发者模式',
@@ -223,6 +224,17 @@ export default {
   settingsStatusOnline: '在线',
   settingsStatusOffline: '离线',
   settingsStatusNoData: '暂无数据',
+  // ── SP17 lan-devices tab (Vue2 #93) ────────────────────────────────────
+  settingsLanTitle: '局域网设备',
+  settingsLanRescan: '重新扫描',
+  settingsLanSubtitle: '在局域网内发现的 NimoOS 设备',
+  settingsLanScanning: '正在扫描局域网…',
+  settingsLanDeviceFallback: 'NimoOS 设备',
+  settingsLanThisDevice: '当前设备',
+  settingsLanUnknownVersion: '未知版本',
+  settingsLanTruncated: '扫描范围被截断,可能有设备未显示。',
+  settingsLanEmpty: '未发现其他 NimoOS 设备。请确认对方设备已开机且在同一网段。',
+  settingsLanFailed: '扫描失败,请稍后重试。', // new in SP17: Vue2 shows the empty state on failure
   // ── P3 terminal tab ────────────────────────────────────────────────────
   settingsTermTerminal: '终端',
   settingsTermLogs: '日志',
