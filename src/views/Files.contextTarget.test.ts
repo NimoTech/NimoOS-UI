@@ -5,6 +5,7 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
+import FileContextMenu from '../files/components/FileContextMenu.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useClipboardStore } from '../files/stores/clipboard'
@@ -116,8 +117,10 @@ describe('Files.vue context-menu target (F11)', () => {
     ;(w.vm as any).ctxEntry = a
     await w.vm.$nextTick()
 
-    // The menu shown for a must render as single-item shape — otherwise the UI lies:
-    // showing multi-select shape while only acting on a
-    expect((w.vm as any).ctxTargetCount).toBe(1)
+    // Read the prop off the mounted child, not a computed on the parent instance: a
+    // computed can be correct while the template still binds the wrong value to
+    // FileContextMenu, and that template-only regression is exactly what this
+    // test must fail on.
+    expect(w.findComponent(FileContextMenu).props('selectedCount')).toBe(1)
   })
 })
