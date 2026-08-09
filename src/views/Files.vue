@@ -16,9 +16,8 @@ import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
-import FileConflictDialog from '../files/components/FileConflictDialog.vue'
 import { useFileOps } from '../files/composables/useFileOps'
-import { useUploadConflicts } from '../files/composables/useUploadConflicts'
+import { useUploadConflictsStore } from '../files/stores/uploadConflicts'
 import { useViewer } from '../files/viewers/useViewer'
 import ViewerHost from '../files/viewers/ViewerHost.vue'
 import { resolveOpen } from '../files/viewers/resolveOpen'
@@ -66,7 +65,7 @@ const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
 const browse = useSnapshotBrowseStore()
-const conflicts = useUploadConflicts()
+const conflicts = useUploadConflictsStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -715,17 +714,6 @@ onMounted(() => { browse.ensureVolumes() })
     />
     <OperationStatusBar />
     <UploadPanel />
-    <FileConflictDialog
-      :open="conflicts.dialog.value.open"
-      :name="conflicts.dialog.value.name"
-      :target-path="conflicts.dialog.value.targetPath"
-      :is-dir="conflicts.dialog.value.isDir"
-      :allow-merge="conflicts.dialog.value.allowMerge"
-      :queue-index="conflicts.dialog.value.queueIndex"
-      :queue-total="conflicts.dialog.value.queueTotal"
-      @choose="conflicts.onChoose"
-      @cancel="conflicts.onCancel"
-    />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />

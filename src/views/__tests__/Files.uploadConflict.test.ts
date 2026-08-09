@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 import Files from '../Files.vue'
+import UploadConflictHost from '../../files/components/UploadConflictHost.vue'
 import FileConflictDialog from '../../files/components/FileConflictDialog.vue'
 import { useFoldersStore } from '../../home/stores/folders'
 import { useUploadsStore } from '../../files/stores/uploads'
@@ -41,13 +42,28 @@ function makeRouter() {
   })
 }
 
+// Mirrors App.vue's structure: since SP12 Plan B ticket E the conflict prompt is
+// mounted app-level, as a sibling of the view rather than inside it, so mounting
+// Files alone would leave the prompt with nowhere to render. Whether the pairing
+// keeps working is covered by its own suite (Files.conflictHostLifetime.test.ts);
+// here it is just the harness these wiring tests need.
+const AppLike = defineComponent({
+  render: () => h('div', [h(Files), h(UploadConflictHost)]),
+})
+
+// The view's own bindings — the tests drive Files.vue's upload entry points
+// directly, and those now live one level below the mounted root.
+function filesVm(w: ReturnType<typeof mount>): any {
+  return w.findComponent(Files).vm as any
+}
+
 async function mountFiles() {
   const folders = useFoldersStore()
   folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
   const router = makeRouter()
   router.push('/files')
   await router.isReady()
-  const w = mount(Files, { global: { plugins: [router, i18n] } })
+  const w = mount(AppLike, { global: { plugins: [router, i18n] } })
   await flushPromises()
   return w
 }
@@ -99,7 +115,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
 
     const fakeFile = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([fakeFile])
+    const p = filesVm(w).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     expect(w.findComponent(FileConflictDialog).props('name')).toBe('a.txt')
 
@@ -124,7 +140,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const showSpy = vi.spyOn(toast, 'show')
 
     const fakeFile = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([fakeFile])
+    const p = filesVm(w).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'skip', applyToAll: false })
     await waitForDialogClose(w)
@@ -144,7 +160,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const showSpy = vi.spyOn(toast, 'show')
 
     const fakeFile = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([fakeFile])
+    const p = filesVm(w).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('cancel')
     await waitForDialogClose(w)
@@ -177,9 +193,9 @@ describe('Files.vue upload-conflict wiring', () => {
     const uploads = useUploadsStore()
     const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
 
-    ;(w.vm as any).onRefill({ targetPath: '/DATA/Elsewhere', missing: ['Trip/a.jpg'] })
+    ;(filesVm(w)).onRefill({ targetPath: '/DATA/Elsewhere', missing: ['Trip/a.jpg'] })
     const wanted = { name: 'a.jpg', webkitRelativePath: 'Trip/a.jpg' } as unknown as File
-    await (w.vm as any).handleSelectedFiles([wanted])
+    await filesVm(w).handleSelectedFiles([wanted])
     await flushPromises()
 
     expect(service.folder.getList).toHaveBeenCalledWith('/DATA/Elsewhere')
@@ -209,7 +225,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
 
     const fakeFile = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([fakeFile])
+    const p = filesVm(w).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'keep_both', applyToAll: false })
     await waitForDialogClose(w)
@@ -233,7 +249,7 @@ describe('Files.vue upload-conflict wiring', () => {
     vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
 
     const fakeFile = { name: 'a.txt', webkitRelativePath: '/Docs/a.txt' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([fakeFile])
+    const p = filesVm(w).handleSelectedFiles([fakeFile])
     await waitForDialogOpen(w)
     expect(w.findComponent(FileConflictDialog).props('name')).toBe('Docs')
     expect(w.findComponent(FileConflictDialog).props('isDir')).toBe(true)
@@ -275,7 +291,7 @@ describe('Files.vue upload-conflict wiring', () => {
 
     const nested = { name: 'snap.jpg', webkitRelativePath: 'Trip/snap.jpg' } as unknown as File
     const flat = { name: 'Vacation', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([nested, flat])
+    const p = filesVm(w).handleSelectedFiles([nested, flat])
     await waitForDialogOpen(w)
 
     const dlg = w.findComponent(FileConflictDialog)
@@ -306,7 +322,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const showSpy = vi.spyOn(toast, 'show')
 
     const doomed = { name: 'a.txt', webkitRelativePath: 'Documents/a.txt' } as unknown as File
-    await (w.vm as any).handleSelectedFiles([doomed])
+    await filesVm(w).handleSelectedFiles([doomed])
     await flushPromises()
     // Give the dialog every chance the other tests give it: waitForDialogOpen
     // polls 50 ticks, so staying shut across the same window is the honest
@@ -337,7 +353,7 @@ describe('Files.vue upload-conflict wiring', () => {
 
     const doomed = { name: 'x.txt', webkitRelativePath: 'Documents/x.txt' } as unknown as File
     const ok = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
-    const p = (w.vm as any).handleSelectedFiles([doomed, ok])
+    const p = filesVm(w).handleSelectedFiles([doomed, ok])
     await waitForDialogOpen(w)
     // Only the survivor is queued for a decision — the doomed entry is gone
     // before the queue is built, so this reads "1 of 1", not "1 of 2".

@@ -1,6 +1,7 @@
 <template>
   <router-view />
   <WallpaperDialog />
+  <UploadConflictHost />
   <AppToast />
 </template>
 
@@ -9,6 +10,11 @@
 import { defineAsyncComponent, watch, onMounted, onUnmounted } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import AppToast from './components/AppToast.vue'
+// App-level for the same reason as the unload guard below: an upload the user
+// started in /files keeps going after they navigate away, so the question
+// "there is already a file called this -- what now?" has to outlive the view
+// that started it (SP12 Plan B ticket E).
+import UploadConflictHost from './files/components/UploadConflictHost.vue'
 import { useSessionStore } from './stores/session'
 import { useLocaleStore } from './stores/locale'
 import { useWallpaperStore } from './stores/wallpaper'
