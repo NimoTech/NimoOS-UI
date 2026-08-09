@@ -130,5 +130,5 @@ export const useAppsStore = defineStore('home-apps', () => {
   }
 
   setApps([]) // 系统应用立即可用
-  return { apps, order, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
+  return { apps, order, kvmAvailable, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
 })
