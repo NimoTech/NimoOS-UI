@@ -6,7 +6,7 @@ import { useClipboardStore } from './clipboard'
 describe('clipboard store', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('operate(copy) 写入 operateObject,item 含 from(真实路径)+is_dir', () => {
+  it('operate(copy) writes operateObject; item carries from (real path) + is_dir', () => {
     const c = useClipboardStore()
     c.operate('copy', [{ path: '/DATA/a.txt', is_dir: false }, { path: '/DATA/b.txt', is_dir: false }])
     expect(c.operateObject).toEqual({

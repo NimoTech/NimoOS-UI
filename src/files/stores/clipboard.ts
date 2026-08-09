@@ -1,10 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
-// `is_dir` rides along because paste's conflict dialog has to disable Overwrite
+// `is_dir` rides along locally so paste's conflict dialog can disable Overwrite
 // for a directory collision -- the backend cannot overwrite a directory (see
 // NimoOS service/file.go's move/copy style switch, which has no such case).
-// Vue2 added the same field to operateObject.item for exactly this reason.
+// It never reaches the wire: Vue2's FilePanel.vue carries the same field on
+// operateObject.item for the same dialog reason but strips it before
+// submitting (`item.map(entry => ({ from: entry.from }))`), and New-UI's
+// buildPastePayload (fileOps.ts) does the same so the request body matches.
 export interface OperateItem { from: string; is_dir: boolean }
 export interface OperateObject { type: 'copy' | 'move'; item: OperateItem[] }
 
@@ -12,7 +15,8 @@ export const useClipboardStore = defineStore('files-clipboard', () => {
   const operateObject = ref<OperateObject | null>(null)
   const hasPasteData = computed(() => operateObject.value !== null)
 
-  // cut == 'move'(Vue2 无独立 cut 字符串);item 存 from=真实路径 + is_dir,to/style 粘贴时才加
+  // cut is just 'move' (Vue2 has no separate cut string); item stores
+  // from=real path + is_dir, with to/style added only at paste time.
   function operate(type: 'copy' | 'move', entries: { path: string; is_dir: boolean }[]) {
     operateObject.value = { type, item: entries.map((e) => ({ from: e.path, is_dir: !!e.is_dir })) }
   }

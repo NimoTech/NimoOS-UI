@@ -360,7 +360,7 @@ describe('恢复', () => {
     expect(s.restoreProgress).toBeNull()
   })
 
-  it('clears the progress even when a restore throws', async () => {
+  it('clears the progress even when a restore fails', async () => {
     restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
     const s = await inSnapshot()
     await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])

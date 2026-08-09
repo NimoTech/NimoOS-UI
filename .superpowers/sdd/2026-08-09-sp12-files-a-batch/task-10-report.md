@@ -232,15 +232,19 @@ Commit hash: `e2883de`.
   claimed "no other production code path uses it" — that's wrong, and I want to flag it rather
   than let it stand uncorrected. A grep of `src/` turns up two different existing conventions
   for this same jsdom gap:
-  - `src/ai/components/shell/MentionPopover.vue:282`, `SlashPopover.vue:179`,
-    `src/apps/views/AppSettingsPage.vue:71`, and `src/views/PhotosSettings.vue:87` already call
-    it defensively as `el?.scrollIntoView?.(...)`, with comments explicitly saying this is
-    because "jsdom doesn't implement scrollIntoView".
-  - `src/views/Files.vue:457` and `src/files/viewers/MediaViewer.vue:205` call it unguarded
-    (`el.scrollIntoView(...)` / `el?.scrollIntoView(...)`, guarding only element existence, not
-    method existence) — the same shape my `TimeMachineRail.vue` code uses, and presumably relying
-    on per-test stubs the way `TimeMachineRail.test.ts` originally did before this regression
-    surfaced.
+  - `src/ai/components/shell/MentionPopover.vue:282`, `SlashPopover.vue:179`, and
+    `src/apps/views/AppSettingsPage.vue:71` already call it defensively as
+    `el?.scrollIntoView?.(...)`, with comments explicitly saying this is because "jsdom
+    doesn't implement scrollIntoView".
+  - `src/views/Files.vue:457`, `src/files/viewers/MediaViewer.vue:205`, and
+    **`src/views/PhotosSettings.vue:87`** call it unguarded (`el.scrollIntoView(...)` /
+    `el?.scrollIntoView(...)`, guarding only element existence, not method existence) — the
+    same shape my `TimeMachineRail.vue` code uses, and presumably relying on per-test stubs
+    the way `TimeMachineRail.test.ts` originally did before this regression surfaced.
+    (Correction, fix-wave B11: I originally miscounted PhotosSettings.vue:87 into the
+    defensive camp above — its call is `el?.scrollIntoView({...})`, which only guards `el`,
+    not the method, same as the other two in this bullet. The split is 3 defensive / 3
+    unguarded, not 4/2.)
   So the codebase is split, not uniformly (b). Given that split, I kept the global stub (a)
   rather than switching my call site to double-optional-chaining, because (a) fixes the actual
   proximate cause (an environment gap, not a defensive-coding gap) for every current and future
