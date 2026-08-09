@@ -5,6 +5,7 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
+import FileGridView from '../files/components/FileGridView.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
@@ -357,5 +358,95 @@ describe('时间机器入口', () => {
     await flushPromises()
     expect(document.querySelector('.ui-dialog-content')).not.toBeNull()
     expect(w.find('.tm-overlay').exists()).toBe(true)
+  })
+})
+
+// SP12-T9:目录加载失败以前被吞成"空文件夹",与真的空目录一模一样。
+describe('Files.vue 目录加载失败', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+
+  async function mountAt(realPath: string) {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/' + realPath.replace(/^\/DATA/, 'NimoOS-HD')); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    return w
+  }
+
+  it('显示错误条与后端原文,点重试重新加载', async () => {
+    const w = await mountAt('/DATA')
+    const files = useFilesStore()
+    files.error = 'open /DATA/x: permission denied'
+    files.loading = false
+    await w.vm.$nextTick()
+    expect(w.find('.files-error').exists()).toBe(true)
+    expect(w.find('.files-error-detail').text()).toBe('open /DATA/x: permission denied')
+    const spy = vi.spyOn(files, 'load')
+    await w.find('.files-error button').trigger('click')
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('磁盘列表加载失败时落到 /DATA,而不是停在空白页', async () => {
+    localStorage.removeItem('nimoos:location-default')
+    const folders = useFoldersStore()
+    // 磁盘列表整体失败的样子:disks 保持空
+    folders.loadDisks = vi.fn(async () => { folders.disks = [] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toContain('DATA')
+    expect(useFilesStore().currentPath).toBe('/DATA')
+  })
+
+  // SP12-T11:网格虚拟化后,量 DOM 只能量到可视那几行。
+  // 断言落在结果上,不在内部调用上:jsdom 不做布局,量 DOM 拿到的全是 0×0 矩形,
+  // 一个都框不中;走几何这条路才有真实矩形(列宽/行高有兜底常量),因而能选中。
+  it('网格视图的框选矩形取自组件几何,而不是量 DOM', async () => {
+    const files = useFilesStore()
+    files.setView('grid')
+    const w = await mountAt('/DATA')
+    expect(w.findComponent(FileGridView).exists()).toBe(true)
+    expect(files.sortedEntries.length).toBeGreaterThan(0)
+    const wrap = w.find('.files-listwrap')
+    await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
+    // 移动监听装在 window 上(见 Files.vue onMarqueeDown),必须往 window 派发
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
+    await w.vm.$nextTick()
+    expect(files.selectedCount).toBeGreaterThan(0)
+  })
+
+  it('列表视图仍走量 DOM 那条路(未虚拟化)', async () => {
+    const files = useFilesStore()
+    files.setView('list')
+    const w = await mountAt('/DATA')
+    expect(w.findComponent(FileGridView).exists()).toBe(false)
+    const wrap = w.find('.files-listwrap')
+    await wrap.trigger('mousedown', { clientX: 0, clientY: 0, button: 0 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300, bubbles: true }))
+    await w.vm.$nextTick()
+    // 判别式:量 DOM 在 jsdom 下拿到的是 0×0 矩形,一个都框不中。上面那条网格
+    // 用例选中了 >0 个,两条一起钉住「分流真的按视图走」,而不是两边都跑同一条路。
+    expect(files.selectedCount).toBe(0)
+    files.setView('grid')
+  })
+
+  it('加载在途时不显示错误条', async () => {
+    const w = await mountAt('/DATA')
+    const files = useFilesStore()
+    files.error = 'boom'
+    files.loading = true
+    await w.vm.$nextTick()
+    expect(w.find('.files-error').exists()).toBe(false)
   })
 })

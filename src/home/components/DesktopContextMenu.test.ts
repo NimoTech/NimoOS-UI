@@ -90,10 +90,20 @@ describe('DesktopContextMenu', () => {
     // reaching Teleported content.
     let w: ReturnType<typeof mount> | null = null
 
-    afterEach(() => {
+    // This used to tear the menu down by wiping document.body, which did two
+    // bad things: it pulled the open portal out from under reka-ui while its
+    // global layer state still referenced it -- so the NEXT mount refused to
+    // open at all, staying data-state="closed" with an empty teleport however
+    // long the test waited -- and it also yanked nodes out from under Vue's
+    // pending render jobs, which surfaced as an unhandled insertBefore-on-null
+    // rejection. Close the menu the way a user would, let that settle, then
+    // unmount and let Vue's own teardown remove what it created. No wipe.
+    afterEach(async () => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await flushPromises()
       w?.unmount()
       w = null
-      document.body.innerHTML = ''
+      await flushPromises()
     })
 
     async function openMenu() {
@@ -107,7 +117,19 @@ describe('DesktopContextMenu', () => {
       // Same reka-ui timing note as the "handles a right-click on blank canvas"
       // test above: the portal content appears only after an internal
       // await nextTick(), not synchronously within dispatchEvent().
+      //
+      // A bare flushPromises() only drains microtasks, and reka-ui's portal also
+      // waits on timer-backed work before the content lands in the body. That
+      // was enough for the first mount in this block but not reliably for the
+      // second, so this used to fail in the full suite while passing when the
+      // file ran on its own. Poll for the content instead of guessing how many
+      // turns of the event loop it needs; the assertions are unchanged, so a
+      // genuinely missing menu item still fails (it just takes ~200ms to do so).
       await flushPromises()
+      for (let i = 0; i < 20 && !document.body.querySelector('.ctx-change-wallpaper'); i++) {
+        await new Promise((r) => setTimeout(r, 10))
+        await flushPromises()
+      }
       return new DOMWrapper(document.body)
     }
 

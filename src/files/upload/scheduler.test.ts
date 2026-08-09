@@ -5,7 +5,7 @@ import type { UploadItem } from './types'
 const mkItem = (p: Partial<UploadItem>): UploadItem => ({
   id: 'i', file: new Blob(['x']), fileName: 'f', fileType: '', size: 1, targetPath: '/DATA', relativePath: 'f',
   status: 'pending', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '',
-  createdAt: 0, batchId: 'b', batchTotal: 1, restored: false, conflictPolicy: '', oversize: false, ...p,
+  createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '', ...p,
 })
 
 function harness(item: UploadItem, uploadImpl: any) {
@@ -24,6 +24,32 @@ function harness(item: UploadItem, uploadImpl: any) {
 
 describe('scheduler', () => {
   it('has the outer backoff sequence', () => expect(BACKOFF_MS).toEqual([1000, 3000, 9000]))
+
+  // addFilesToQueue is the only source of queue items today (SP12 Plan A removed
+  // syncServerTasks/reattachFiles, the server-side resume sources a non-`fq_` id
+  // used to come from), and it always mints an `fq_`-prefixed id. So the `true`
+  // branch below is unreachable in current production code — these two tests pin
+  // the wire-format contract (what `resumed` would carry for either id shape) for
+  // whenever a future server-resume source reappears, not a state the app can
+  // reach today. Collapsing the expression to a literal `false` is a deliberate
+  // follow-up, not something to do in this pass — see scheduler.ts's comment.
+  it('sends resumed:false for a fresh local (fq_-id) item', async () => {
+    let seenArgs: any
+    const upload = (args: any) => { seenArgs = args; return Promise.resolve() }
+    const { deps } = harness(mkItem({ id: 'fq_123_0_abc' }), upload)
+    await createScheduler(deps).run()
+    expect(seenArgs.resumed).toBe(false)
+  })
+
+  // Pins the `resumed:true` branch of the same expression for a hypothetical
+  // non-`fq_`-id item — nothing in the app mints such an id today.
+  it('sends resumed:true for a server-reported (non fq_-id) item', async () => {
+    let seenArgs: any
+    const upload = (args: any) => { seenArgs = args; return Promise.resolve() }
+    const { deps } = harness(mkItem({ id: 'serverTusHexId' }), upload)
+    await createScheduler(deps).run()
+    expect(seenArgs.resumed).toBe(true)
+  })
 
   it('marks done on success', async () => {
     const { deps, patches } = harness(mkItem({}), () => Promise.resolve())

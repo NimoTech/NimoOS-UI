@@ -1,4 +1,4 @@
-export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'needs_file' | 'conflict' | 'paused'
+export type UploadStatus = 'pending' | 'uploading' | 'done' | 'error' | 'conflict' | 'paused'
 
 export interface UploadItem {
   id: string
@@ -19,9 +19,7 @@ export interface UploadItem {
   doneAt?: number
   batchId: string
   batchTotal: number
-  restored: boolean
   conflictPolicy: '' | 'overwrite' | 'rename' | 'skip'
-  oversize: boolean
   thumbUrl?: string
 }
 

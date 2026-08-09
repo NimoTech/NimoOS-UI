@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
+import { retryRequest } from '../../util/retryRequest'
 
 export interface DiskRoot { name: string; path: string; usb: boolean }
 
@@ -24,7 +25,9 @@ export const useFoldersStore = defineStore('home-folders', () => {
   async function loadDisks() {
     try {
       // SP6-P1:统一走 service.storage.list(行为等价,原 getHttp 直打 /storage)
-      const groups = ((await service.storage.list({ system: 'show' })) as any[]) || []
+      // SP12-T9: a single transient failure used to blank the disk list for good,
+      // and with no disk roots the Files page has no default directory to open.
+      const groups = ((await retryRequest(() => service.storage.list({ system: 'show' }) as Promise<any[]>)) as any[]) || []
       const out: DiskRoot[] = []
       const seen = new Set<string>()
       for (const g of groups) {

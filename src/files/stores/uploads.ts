@@ -1,14 +1,10 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { refreshAccessToken, service } from '@nimotech/nimoos-service'
-import type { ServerUploadTask } from '@nimotech/nimoos-service'
 import { createScheduler, type SchedulerDeps } from '../upload/scheduler'
 import { precheckExisting, conflictKey, decideConflictPolicy } from '../upload/conflict'
-import { canStoreBlob } from '../upload/budget'
 import { safeRandomUUID } from '../upload/uuid'
 import { batchLabel, isBatchSettled } from '../upload/uploadBatches'
-import { persistNewItem, persistItemMeta, dropPersisted, restoreFromIDB, pruneOldItems as prunePersisted } from '../upload/persist'
-import { planServerSync } from '../upload/serverSync'
 import type { UploadItem, SelectedFile } from '../upload/types'
 import { PROTECTED } from '../util/protect'
 import { useFilesStore } from './files'
@@ -18,16 +14,10 @@ import { i18n } from '../../i18n'
 export const useUploadsStore = defineStore('files-uploads', () => {
   const queue = ref<UploadItem[]>([])
   const uploading = ref(false)
-  const restoreNoticeCount = ref(0)
-  // Guards initUploads() to restore exactly once per store lifetime. The
-  // Pinia store is an app-lifetime singleton, but Files.vue mounts/unmounts
-  // on every SPA navigation (no <keep-alive>) and calls initUploads() from
-  // onMounted each time. Without this flag, every revisit re-pushes every
-  // still-persisted IDB row onto `queue` with no dedup, producing duplicate
-  // ids (patch()'s find() only updates the first match) and re-triggering
-  // concurrent re-uploads of the same file. A genuine page refresh recreates
-  // the store fresh (flag resets to false), so restore-on-refresh still works
-  // — this is deliberately a once-per-page-load feature, not once-per-mount.
+  // One-shot latch: Files.vue calls initUploads() from onMounted on every SPA
+  // navigation, but the Pinia store is an app-lifetime singleton. A real page
+  // reload rebuilds the store and resets this flag, so this is still "once
+  // per page load", not "once per mount".
   const initialized = ref(false)
 
   // Batches already toasted (one toast per batch, not per file). Cleared when a
@@ -63,18 +53,10 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     return item
   }
 
-  const VOLATILE = new Set(['progress', 'bytesSent', 'speed'])
   function patch(id: string, p: Partial<UploadItem>) {
     const item = queue.value.find((i) => i.id === id)
     if (!item) return
     Object.assign(item, p)
-    // Persistence: skip high-frequency progress ticks; done → drop; else re-persist meta.
-    const keys = Object.keys(p)
-    const volatileOnly = keys.length > 0 && keys.every((k) => VOLATILE.has(k))
-    if (!volatileOnly) {
-      if (item.status === 'done') dropPersisted(item.id)
-      else persistItemMeta(item)
-    }
     // Reactivation (retry/resume) re-arms the batch toast.
     if (item.status === 'pending' || item.status === 'uploading') toastedBatches.delete(item.batchId)
     // Terminal transition → maybe the whole batch just finished.
@@ -113,7 +95,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       useToast().show(msg, 5000)
     }
     setTimeout(() => {
-      for (const i of queue.value.filter((i) => i.batchId === batchId && i.status === 'done')) dropPersisted(i.id)
       queue.value = queue.value.filter((i) => i.batchId !== batchId || i.status !== 'done')
       if (!queue.value.some((i) => i.batchId === batchId)) toastedBatches.delete(batchId)
     }, 5000)
@@ -172,9 +153,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       createdAt: Date.now(),
       batchId,
       batchTotal: survivors.length,
-      restored: false,
       conflictPolicy: '',
-      oversize: f.file.size > 0 && !canStoreBlob(f.file.size),
     }))
 
     try {
@@ -187,8 +166,23 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       // reject/handle actual conflicts.
     }
 
+    // Report the manifest before enqueuing: it is the server's sole basis for
+    // deciding which files belong to this batch, so it must reach the NAS
+    // before the first chunk does. A failed report only warns — reconciliation
+    // being unavailable is not a reason to refuse the upload.
+    if (items.length > 0) {
+      try {
+        await service.uploadBatches.createBatch({
+          id: batchId,
+          targetPath: items[0].targetPath,
+          items: items.map((i) => ({ relativePath: i.relativePath, size: i.size })),
+        })
+      } catch (e) {
+        console.warn('[uploads] createBatch failed — batch reconciliation unavailable', e)
+      }
+    }
+
     queue.value.push(...items)
-    for (const it of items) persistNewItem(it)
     if (items.some((i) => i.status === 'pending')) startUpload()
     return { rejected }
   }
@@ -213,7 +207,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     const item = queue.value.find((i) => i.id === id)
     const tid = resolveTusId(item)
     if (tid) service.file.cancelUpload(tid).catch(() => {})
-    dropPersisted(id)
     queue.value = queue.value.filter((i) => i.id !== id)
   }
 
@@ -232,7 +225,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       getScheduler().abort(i.id)
       const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
-      dropPersisted(i.id)
     }
     queue.value = queue.value.filter((i) => i.batchId !== batchId)
     toastedBatches.delete(batchId)
@@ -240,13 +232,12 @@ export const useUploadsStore = defineStore('files-uploads', () => {
 
   // Delete EVERY upload task: abort in-flight transfers, cancel server-side
   // staging for any item that has a tusUploadUrl (so nothing leaks), and clear
-  // the queue + IDB. This removes done/error/paused/uploading alike.
+  // the queue. This removes done/error/paused/uploading alike.
   function cancelAll(): void {
     for (const i of queue.value) {
       getScheduler().abort(i.id)
       const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
-      dropPersisted(i.id)
     }
     queue.value = []
     toastedBatches.clear()
@@ -287,106 +278,17 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   }
 
   function clearDone(): void {
-    for (const i of queue.value.filter((i) => i.status === 'done')) dropPersisted(i.id)
     queue.value = queue.value.filter((i) => i.status !== 'done')
-  }
-
-  async function restoreQueue(): Promise<void> {
-    const { items, resumedCount } = await restoreFromIDB()
-    if (items.length) queue.value.push(...items)
-    restoreNoticeCount.value = resumedCount
   }
 
   function resumePending(): void {
     if (queue.value.some((i) => i.status === 'pending' && !!i.file)) startUpload()
   }
 
-  async function reattachFiles(files: SelectedFile[]): Promise<{ matched: number; conflicts: UploadItem[] }> {
-    const byRel = new Map<string, File>()
-    const byName = new Map<string, File>()
-    for (const f of files) {
-      const rel = f.relativePath || f.file.name
-      if (rel) byRel.set(rel, f.file)
-      if (f.file.name) byName.set(f.file.name, f.file)
-    }
-
-    const matches: { it: UploadItem; file: File }[] = []
-    for (const it of queue.value) {
-      if (it.status !== 'needs_file') continue
-      const f = byRel.get(it.relativePath) || byName.get(it.fileName)
-      if (!f) continue
-      // Name matched — size must also match, else it's a different file (skip; let user re-pick).
-      if (it.size && f.size && f.size !== it.size) continue
-      matches.push({ it, file: f })
-    }
-    if (matches.length === 0) return { matched: 0, conflicts: [] }
-
-    let existing = new Set<string>()
-    try {
-      existing = await precheckExisting(
-        matches.map(({ it, file }) => ({ file, targetPath: it.targetPath, relativePath: it.relativePath })),
-      )
-    } catch {
-      // Precheck unavailable — upload everything.
-    }
-
-    let matched = 0
-    const conflicts: UploadItem[] = []
-    for (const { it, file } of matches) {
-      if (existing.has(conflictKey(it.targetPath, it.relativePath))) {
-        patch(it.id, { file, status: 'conflict', error: '', restored: true })
-        conflicts.push(it)
-      } else {
-        patch(it.id, { file, status: 'pending', error: '', restored: true })
-        const updated = queue.value.find((x) => x.id === it.id)
-        if (updated) persistNewItem(updated) // re-store blob so a 2nd refresh stays resumable
-        matched++
-      }
-    }
-    if (matched > 0 && !uploading.value) startUpload()
-    return { matched, conflicts }
-  }
-
-  async function pruneOldItems(days = 30): Promise<void> {
-    await prunePersisted(Date.now() - days * 24 * 60 * 60 * 1000)
-  }
-
-  // Cross-device / cross-browser recovery: pull the server's active upload
-  // tasks and reconcile them against the local queue. Merges resume points
-  // into content-matched local rows; appends server-only tasks as needs_file
-  // (the user re-picks the file to resume from the server offset). Silent on
-  // network error — must never block restore/resume. (Vue2 fileUpload.js:189.)
-  async function syncServerTasks(): Promise<void> {
-    let tasks: ServerUploadTask[] = []
-    try {
-      const res = await service.file.listActiveUploads()
-      tasks = res.tasks || []
-    } catch {
-      return
-    }
-    const { merges, appends } = planServerSync(queue.value, tasks)
-    for (const m of merges) patch(m.id, m.patch)
-    // Server-appended needs_file rows are transient (no blob) — not persisted
-    // to IDB, matching Vue2; they vanish on refresh and re-sync on next init.
-    if (appends.length) queue.value.push(...appends)
-  }
-
   async function initUploads(): Promise<void> {
-    // Set BEFORE the await: two synchronous mounts in the same tick (e.g. a
-    // fast back-and-forth navigation) must not both observe `false` and both
-    // proceed to restore — that would double-push the same IDB rows before
-    // either call's await yields. Latching first, awaiting second, closes
-    // that race; latching only on success would leave the window open.
     if (initialized.value) return
     initialized.value = true
-    try {
-      await restoreQueue()
-      await pruneOldItems(30)
-      await syncServerTasks()
-      resumePending()
-    } catch (e) {
-      console.warn('[uploads] initUploads failed; memory-only mode', e)
-    }
+    resumePending()
   }
 
   const hasActive = computed(() =>
@@ -396,7 +298,6 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   return {
     queue,
     uploading,
-    restoreNoticeCount,
     hasActive,
     patch,
     addFilesToQueue,
@@ -414,11 +315,7 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     pauseAll,
     resumeAll,
     clearDone,
-    restoreQueue,
     resumePending,
-    pruneOldItems,
     initUploads,
-    reattachFiles,
-    syncServerTasks,
   }
 })

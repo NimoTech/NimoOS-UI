@@ -4,6 +4,7 @@ import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
 import type { DisplayNames } from '../util/pathUtils'
 import { fileExt } from '../util/ext'
+import { folderListErrorMsg } from '../util/folderListError'
 
 export interface FileEntry {
   name: string
@@ -12,7 +13,13 @@ export interface FileEntry {
   size?: number | string
   date?: string
   write?: boolean
-  extensions?: { share?: { shared?: string } } | null
+  extensions?: {
+    share?: { shared?: string }
+    // Upload batch status the backend attaches to listing entries (NimoOS
+    // route/v1/file.go:441). `broken` may arrive as a boolean or as a string —
+    // see the leniency in util/uploadBadge.ts.
+    upload?: { broken?: boolean | string; batchId?: string }
+  } | null
 }
 
 const HIDDEN = new Set(['lost+found'])
@@ -24,6 +31,8 @@ export const useFilesStore = defineStore('files', () => {
   const entries = ref<FileEntry[]>([])
   const currentPath = ref('')
   const loading = ref(false)
+  // Empty string = no error. See load() for why this had to exist.
+  const error = ref('')
 
   // displayNames = disks 派生的 map 叠加 mountNames(网络挂载的 host 名)。
   // 单独抽出以便 loadRoots() 重建磁盘 map 时不丢失 setMountNames 写入的网络挂载名。
@@ -54,15 +63,20 @@ export const useFilesStore = defineStore('files', () => {
   async function load(realPath: string) {
     clearSelection()
     loading.value = true
+    error.value = ''
     try {
       const data = await service.folder.getList(realPath)
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
       entries.value = content.filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
       currentPath.value = realPath
     } catch (e) {
+      // This used to be swallowed into an empty listing, which renders exactly
+      // like a genuinely empty folder -- the user could not tell "load failed"
+      // from "nothing here", and had nothing to retry.
       console.warn('[files] load failed', realPath, e)
       entries.value = []
       currentPath.value = realPath
+      error.value = folderListErrorMsg(e)
     } finally {
       loading.value = false
     }
@@ -149,7 +163,7 @@ export const useFilesStore = defineStore('files', () => {
   }
 
   return {
-    displayNames, disks, entries, currentPath, loading, loadRoots, setMountNames, defaultRootReal, load,
+    displayNames, disks, entries, currentPath, loading, error, loadRoots, setMountNames, defaultRootReal, load,
     viewMode, sort, order, sortedEntries, setView, setSort,
     selected, selectionAnchor, isSelected, selectedCount, allSelected,
     toggleSelect, selectOnly, selectRange, selectAll, clearSelection, setSelection,

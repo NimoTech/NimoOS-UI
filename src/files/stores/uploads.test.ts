@@ -9,6 +9,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
     file: {
       uploadPrecheck: vi.fn().mockResolvedValue({ results: [] }),
       cancelUpload: vi.fn().mockResolvedValue(undefined),
+      listActiveUploads: vi.fn().mockResolvedValue({ tasks: [] }),
     },
   },
 }))
@@ -31,16 +32,8 @@ vi.mock('../upload/scheduler', () => ({
 vi.mock('../stores/files', () => ({ useFilesStore: () => ({ currentPath: '/DATA/x', load: vi.fn() }) }))
 vi.mock('../../stores/toast', () => ({ useToast: () => ({ show: h.showSpy }) }))
 vi.mock('../../i18n', () => ({ i18n: { global: { t: (k: string, p?: any) => `${k}:${p?.name ?? ''}` } } }))
-vi.mock('../upload/persist', () => ({
-  persistNewItem: vi.fn(),
-  persistItemMeta: vi.fn(),
-  dropPersisted: vi.fn(),
-  restoreFromIDB: vi.fn().mockResolvedValue({ items: [], resumedCount: 0 }),
-  pruneOldItems: vi.fn().mockResolvedValue(0),
-}))
 
 import { useUploadsStore } from './uploads'
-import * as persist from '../upload/persist'
 import { service } from '@nimotech/nimoos-service'
 
 const sel = (name: string, target = '/DATA/x') =>
@@ -147,74 +140,8 @@ describe('uploads store', () => {
   })
 })
 
-describe('uploads persistence hooks', () => {
-  beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.clearAllMocks()
-  })
-
-  it('addFilesToQueue persists each new item', async () => {
-    const store = useUploadsStore()
-    const file = new File(['x'], 'a.txt', { type: 'text/plain' })
-    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(persist.persistNewItem).toHaveBeenCalledTimes(1)
-  })
-
-  it('volatile-only patch (progress/bytesSent/speed) does NOT persist meta', async () => {
-    const store = useUploadsStore()
-    const file = new File(['x'], 'a.txt')
-    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    vi.clearAllMocks()
-    const id = store.queue[0].id
-    store.patch(id, { progress: 50, bytesSent: 10, speed: 5 })
-    expect(persist.persistItemMeta).not.toHaveBeenCalled()
-    expect(persist.dropPersisted).not.toHaveBeenCalled()
-  })
-
-  it('status→done patch drops persisted record', async () => {
-    const store = useUploadsStore()
-    const file = new File(['x'], 'a.txt')
-    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    vi.clearAllMocks()
-    const id = store.queue[0].id
-    store.patch(id, { status: 'done', progress: 100 })
-    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
-  })
-
-  it('non-volatile status patch persists meta', async () => {
-    const store = useUploadsStore()
-    const file = new File(['x'], 'a.txt')
-    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    vi.clearAllMocks()
-    const id = store.queue[0].id
-    store.patch(id, { tusUploadUrl: '/v2/nimoos/file/upload-tus/abc' })
-    expect(persist.persistItemMeta).toHaveBeenCalled()
-  })
-
-  it('cancelItem drops persisted record', async () => {
-    const store = useUploadsStore()
-    const file = new File(['x'], 'a.txt')
-    await store.addFilesToQueue([{ file, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    const id = store.queue[0].id
-    vi.clearAllMocks()
-    store.cancelItem(id)
-    expect(persist.dropPersisted).toHaveBeenCalledWith(id)
-  })
-})
-
 describe('uploads restore/resume', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
-
-  it('restoreQueue loads items and sets restore notice count', async () => {
-    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({
-      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
-      resumedCount: 1,
-    })
-    const store = useUploadsStore()
-    await store.restoreQueue()
-    expect(store.queue).toHaveLength(1)
-    expect(store.restoreNoticeCount).toBe(1)
-  })
 
   it('resumePending starts upload only when a pending item has a file', () => {
     // No spy on startUpload (that would reshape production code to fit the
@@ -224,7 +151,7 @@ describe('uploads restore/resume', () => {
     // scheduler's run() is an async no-op here, so `uploading` is still true
     // at this point in the synchronous test body.
     const store = useUploadsStore()
-    store.queue.push({ id: 'n', status: 'needs_file', file: null } as any)
+    store.queue.push({ id: 'n', status: 'error', file: null } as any)
     store.resumePending()
     expect(store.uploading).toBe(false)
     store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
@@ -232,29 +159,27 @@ describe('uploads restore/resume', () => {
     expect(store.uploading).toBe(true)
   })
 
-  it('initUploads restores, prunes, then resumes', async () => {
-    ;(persist.restoreFromIDB as any).mockResolvedValueOnce({ items: [], resumedCount: 0 })
-    const store = useUploadsStore()
-    await store.initUploads()
-    expect(persist.restoreFromIDB).toHaveBeenCalled()
-    expect(persist.pruneOldItems).toHaveBeenCalled()
-  })
-
-  it('initUploads is idempotent: a second call on the same store instance does not re-restore', async () => {
+  it('initUploads is a one-shot latch: a second call on the same store instance is a no-op', () => {
     // Regression test for SP4-P3b: Files.vue calls initUploads() from
     // onMounted, but the uploads Pinia store is an app-lifetime singleton
     // while Files.vue unmounts/remounts on every SPA navigation (App.vue's
-    // <router-view /> has no <keep-alive>). Before the guard, every revisit
-    // re-pushed every still-persisted IDB row onto `queue` with no dedup.
-    ;(persist.restoreFromIDB as any).mockResolvedValue({
-      items: [{ id: 'r1', status: 'pending', file: new Blob(['x']), batchId: 'b', batchTotal: 1, size: 1, progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1, targetPath: '/DATA', relativePath: 'a', fileName: 'a', fileType: '', restored: true, conflictPolicy: '', oversize: false }],
-      resumedCount: 1,
-    })
+    // <router-view /> has no <keep-alive>). The `initialized` latch keeps a
+    // revisit from re-running init logic (here: resumePending()).
+    //
+    // Not awaited: initUploads' body is synchronous (no I/O left in it), so
+    // its side effect (uploading flips true via the mocked scheduler's
+    // synchronous no-op run()) is observable immediately, same technique as
+    // the resumePending test above.
     const store = useUploadsStore()
-    await store.initUploads()
-    await store.initUploads()
-    expect(persist.restoreFromIDB).toHaveBeenCalledTimes(1)
-    expect(store.queue).toHaveLength(1)
+    store.queue.push({ id: 'p', status: 'pending', file: new Blob(['x']) } as any)
+    store.initUploads().catch(() => {})
+    expect(store.uploading).toBe(true)
+    // Pretend the in-flight upload finished, then call initUploads() again —
+    // the latch must skip resumePending() this time, so uploading must NOT
+    // flip back to true even though the same pending item is still queued.
+    store.uploading = false
+    store.initUploads().catch(() => {})
+    expect(store.uploading).toBe(false)
   })
 })
 
@@ -265,8 +190,8 @@ describe('uploads pause/resume', () => {
     store.queue.push({
       id: 'x', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
       relativePath: 'a', status: 'uploading', progress: 30, bytesSent: 3, speed: 5, tusUploadUrl: 'u',
-      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
-      conflictPolicy: '', oversize: false, ...over,
+      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1,
+      conflictPolicy: '', ...over,
     })
   }
 
@@ -324,8 +249,8 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
     store.queue.push({
       id: 'x', file: new Blob(['x']), fileName: 'a', fileType: '', size: 1, targetPath: '/DATA',
       relativePath: 'a', status: 'paused', progress: 30, bytesSent: 3, speed: 0, tusUploadUrl: null,
-      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1, restored: false,
-      conflictPolicy: '', oversize: false, ...over,
+      retryCount: 0, error: '', createdAt: 1, batchId: 'b', batchTotal: 1,
+      conflictPolicy: '', ...over,
     })
   }
 
@@ -368,55 +293,5 @@ describe('uploads cancel-after-pause: DELETE server staging', () => {
     expect(service.file.cancelUpload).toHaveBeenCalledWith('one')
     expect(service.file.cancelUpload).toHaveBeenCalledWith('two')
     expect(service.file.cancelUpload).toHaveBeenCalledTimes(2)
-  })
-})
-
-describe('uploads reattachFiles', () => {
-  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
-
-  function seedNeedsFile(store: ReturnType<typeof useUploadsStore>, over: any = {}) {
-    store.queue.push({
-      id: 'nf', file: null, fileName: 'a.txt', fileType: 'text/plain', size: 4,
-      targetPath: '/DATA/x', relativePath: 'a.txt', status: 'needs_file', progress: 0,
-      bytesSent: 0, speed: 0, tusUploadUrl: null, retryCount: 0, error: '', createdAt: 1,
-      batchId: 'b', batchTotal: 1, restored: true, conflictPolicy: '', oversize: false, ...over,
-    } as any)
-  }
-
-  it('size mismatch does not match', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [] })
-    const store = useUploadsStore()
-    seedNeedsFile(store)
-    const wrong = new File(['different-bytes'], 'a.txt') // size != 4
-    const res = await store.reattachFiles([{ file: wrong, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(0)
-    expect(store.queue[0].status).toBe('needs_file')
-  })
-
-  it('match + not existing → pending', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: false }] })
-    const store = useUploadsStore()
-    vi.spyOn(store, 'startUpload').mockImplementation(() => {})
-    seedNeedsFile(store)
-    const f = new File(['data'], 'a.txt') // size 4
-    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(1)
-    expect(store.queue[0].status).toBe('pending')
-    // jsdom's File does not inherit from the Node Blob that vitest.setup.ts
-    // installs as globalThis.Blob (for fake-indexeddb structuredClone compat),
-    // so `toBeInstanceOf(Blob)` is unreliable here; assert the real intent —
-    // the picked file got attached to the queue item.
-    expect(store.queue[0].file).toBe(f)
-  })
-
-  it('match + existing on server → conflict', async () => {
-    ;(service.file.uploadPrecheck as any).mockResolvedValue({ results: [{ relativePath: 'a.txt', exists: true }] })
-    const store = useUploadsStore()
-    seedNeedsFile(store)
-    const f = new File(['data'], 'a.txt')
-    const res = await store.reattachFiles([{ file: f, targetPath: '/DATA/x', relativePath: 'a.txt' }])
-    expect(res.matched).toBe(0)
-    expect(res.conflicts).toHaveLength(1)
-    expect(store.queue[0].status).toBe('conflict')
   })
 })

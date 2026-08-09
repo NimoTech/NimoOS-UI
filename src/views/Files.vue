@@ -10,6 +10,7 @@ import FileListView from '../files/components/FileListView.vue'
 import FileGridView from '../files/components/FileGridView.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
 import NewItemDialog from '../files/components/NewItemDialog.vue'
+import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
@@ -38,6 +39,7 @@ import {
   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
 } from '../files/util/pathUtils'
 import { readDefault } from '../files/util/locationOrder'
+import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
@@ -71,6 +73,7 @@ const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mo
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
+const batchModalId = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
@@ -167,8 +170,22 @@ async function onSetWallpaper(entry: FileEntry | null) {
 // ── 上传:隐藏 input 触发 + 拖拽落区 ──
 const fileInput = ref<HTMLInputElement | null>(null)
 const folderInput = ref<HTMLInputElement | null>(null)
-function triggerFileSelect() { fileInput.value?.click() }
-function triggerFolderSelect() { folderInput.value?.click() }
+
+// Re-upload missing files: the dialog only tells us *which* files are wanted —
+// the bytes themselves must be re-picked by the user, because the browser
+// cannot recover them once the page reloads or the tab closes.
+const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(null)
+
+// Code review fix (cancel leak): cancelling the native folder-picker dialog never fires
+// `change`, so nothing else would clear refillPending on its own — the flag would then
+// silently filter whatever unrelated upload the user tries next. `<input type=file>` does
+// gain a `cancel` event in newer Chromium, but it isn't implemented across browsers this
+// self-hosted UI has to support, so instead every *other* entry point into file selection
+// clears the flag before it can be observed as pending. Only onRefill's own direct click
+// on folderInput (bypassing this wrapper) leaves it set, so it can only ever be consumed
+// by the very picker it opened.
+function triggerFileSelect() { refillPending.value = null; fileInput.value?.click() }
+function triggerFolderSelect() { refillPending.value = null; folderInput.value?.click() }
 
 function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -176,13 +193,47 @@ function onInputChange(e: Event) {
   input.value = '' // 允许重复选择同一文件再次触发 change
 }
 
+function onRefill(p: { targetPath: string; missing: string[] }): void {
+  refillPending.value = { targetPath: p.targetPath, missing: new Set(p.missing) }
+  // Use the folder picker, not the single-file picker: missing entries can carry
+  // a sub-path (e.g. "Trip/a.jpg"), and only a webkitdirectory input yields
+  // webkitRelativePath — a single-file picker would give back a bare filename.
+  // Click the input directly rather than calling triggerFolderSelect(): that wrapper
+  // clears refillPending as its first step for every other caller, which would erase
+  // the filter this line just set.
+  folderInput.value?.click()
+}
+defineExpose({ handleSelectedFiles, onRefill })
+
 // Shared enqueue path for both the file/folder picker and drag-drop: normalize
 // leading slashes (protected-dir check reads split('/')[0]), enqueue, and toast
 // any files rejected for being in a protected dir.
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+  // Code review fix (ordering leak): consume any pending refill filter immediately,
+  // before any guard below can return early. Reading it into a local and nulling the
+  // ref in the same breath makes it strictly single-use no matter which branch exits
+  // next — previously the read lived only inside the `if (pending)` block further down,
+  // so the snapshot-view guard's early return skipped it entirely and left the flag set
+  // for whatever unrelated upload came after the user left the read-only view.
+  const pending = refillPending.value
+  refillPending.value = null
+
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
   // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
+
+  // Refill branch: the target directory is the batch's own target_path (not the
+  // current directory — the user may have navigated elsewhere before clicking),
+  // and only entries named in the missing list are let through.
+  if (pending) {
+    const wanted = entries.filter((e) => pending.missing.has(e.relativePath))
+    if (!wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+    const sel = toSelectedFiles(wanted, pending.targetPath)
+    const { rejected } = await uploads.addFilesToQueue(sel)
+    for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+    return
+  }
+
   const targetPath = files.currentPath // REAL 路径,受保护目录判断按此展开
   const sel = toSelectedFiles(entries, targetPath)
   const { rejected } = await uploads.addFilesToQueue(sel)
@@ -197,7 +248,6 @@ async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
     })),
   )
 }
-defineExpose({ handleSelectedFiles })
 
 // ── 拖拽落区(.files-main 全域可放)──
 const isDragIn = ref(false)
@@ -214,6 +264,10 @@ function onDragLeave() {
 async function onDrop(e: DragEvent) {
   if (dragLeaveTimer) { clearTimeout(dragLeaveTimer); dragLeaveTimer = null }
   isDragIn.value = false
+  // Drag-drop never goes through the refill folder picker, so a stale refillPending
+  // (left behind by a cancelled "re-upload missing files" dialog) must not silently
+  // filter it — see the note on triggerFileSelect/triggerFolderSelect above.
+  refillPending.value = null
   const dropped = await readDroppedEntries(e.dataTransfer)
   if (!dropped.length) return
   await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
@@ -231,6 +285,9 @@ async function onPaste(e: ClipboardEvent) {
   const pasted = extractClipboardFiles(e.clipboardData, t('filesPastedImage'), new Date())
   if (!pasted.length) return
   e.preventDefault()
+  // Paste never goes through the refill folder picker either — same stale-flag
+  // concern as onDrop above.
+  refillPending.value = null
   await commitSelectedFiles(pasted)
 }
 onMounted(() => window.addEventListener('paste', onPaste))
@@ -291,8 +348,10 @@ async function sync() {
   }
   const vp = routeParamToVirtualPath(route.params.path as string | string[] | undefined)
   if (vp === '/') {
-    const rootReal = readDefault() || files.defaultRootReal()
-    if (!rootReal) return
+    // Never bail out here: with no persisted default AND no disk roots (which is
+    // exactly what a failed storage list looks like) returning left the page
+    // blank forever -- no listing, no error, no navigation out of it.
+    const rootReal = resolveDefaultRoot({ persisted: readDefault(), diskRoot: files.defaultRootReal() })
     router.replace('/files/' + virtualPathToRouteParam(toVirtualPath(rootReal, files.displayNames)))
     return
   }
@@ -308,6 +367,18 @@ function applyHighlight() {
   const entry = files.sortedEntries.find((e) => e.name === name)
   if (!entry) return
   nextTick(() => {
+    // 网格视图虚拟化后,目标若在窗口外根本没有元素可以 scrollIntoView ——
+    // 先按行索引把它滚进来,元素随之渲染出来,下一帧再闪。
+    if (files.viewMode === 'grid' && gridRef.value) {
+      gridRef.value.scrollToPath(entry.path)
+      requestAnimationFrame(() => {
+        const node = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
+        if (!node) return
+        node.classList.add('file-flash')
+        setTimeout(() => node.classList.remove('file-flash'), 2500)
+      })
+      return
+    }
     const el = listwrap.value?.querySelector(`[data-path="${CSS.escape(entry.path)}"]`)
     if (!el) return
     el.scrollIntoView({ block: 'center' })
@@ -332,6 +403,7 @@ function onSelect(payload: { entry: FileEntry; mode: 'toggle' | 'range' }) {
 
 // ── 框选(几何真机验;纯 marqueeSelect/rectFromPoints 已单测)──
 const listwrap = ref<HTMLElement | null>(null)
+const gridRef = ref<InstanceType<typeof FileGridView> | null>(null)
 const marquee = ref<{ x1: number; y1: number; x2: number; y2: number } | null>(null)
 const marqueeStyle = computed(() => {
   if (!marquee.value) return {}
@@ -349,14 +421,22 @@ let dragging = false // 已越过阈值,框选进行中
 // preventDefault 它可稳跨浏览器阻止选中文件名/日期/大小等文字(user-select:none 并不可靠)。
 function preventSelectStart(e: Event) { e.preventDefault() }
 
-function collectSelection() {
-  if (!marquee.value) return
-  const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
+// 列表视图未虚拟化,照旧量 DOM。
+function rectsFromDom(): ItemRect[] {
   const items: ItemRect[] = []
   listwrap.value?.querySelectorAll<HTMLElement>('[data-path]').forEach((node) => {
     const b = node.getBoundingClientRect()
     items.push({ path: node.dataset.path as string, rect: { left: b.left, top: b.top, right: b.right, bottom: b.bottom } })
   })
+  return items
+}
+
+function collectSelection() {
+  if (!marquee.value) return
+  const selRect = rectFromPoints(marquee.value.x1, marquee.value.y1, marquee.value.x2, marquee.value.y2)
+  // 网格视图是虚拟化的:屏幕外的行没有 DOM,量节点只会量到可视那几行,
+  // 拖过视口就什么都选不中。改由组件按布局几何给出全部矩形。
+  const items = files.viewMode === 'grid' && gridRef.value ? gridRef.value.itemRects() : rectsFromDom()
   files.setSelection(marqueeSelect(items, selRect))
 }
 
@@ -437,11 +517,16 @@ onMounted(() => {
 onUnmounted(() => { offRecover?.() })
 
 let offUnloadGuard: (() => void) | null = null
-onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue) })
+onMounted(() => { offUnloadGuard = installUnloadGuard(() => uploads.queue, undefined, (id) => service.uploadBatches.interruptBatch(id)) })
 onUnmounted(() => { offUnloadGuard?.() })
 
-// 自动恢复 + 续传:仅在文件区可见时发生(spec §9)。initUploads 内部已 try/catch,
-// 失败降级为内存模式,不阻断文件区渲染。
+// Cross-refresh resume was removed in SP12 Plan A — a reload always starts with an
+// empty in-memory queue, so there is nothing here to recover. In practice this call
+// is a no-op today as well: the queue only becomes non-empty via addFilesToQueue(),
+// which starts the scheduler itself and drains every pending-with-file item before
+// returning, so resumePending() inside initUploads() never finds anything left
+// pending. Kept as a one-shot latch for a possible future recovery path rather than
+// deleted — see uploads.ts's initUploads()/resumePending().
 onMounted(() => { uploads.initUploads() })
 
 // 每会话拉一次快照卷列表:入口按钮(canShowEntry)与只读锁(browseInfo)都依赖它就绪。
@@ -512,13 +597,20 @@ onMounted(() => { browse.ensureVolumes() })
         />
         <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
+            <div v-if="files.error && !files.loading" class="files-error" role="alert">
+              <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
+              <span class="files-error-detail">{{ files.error }}</span>
+              <button class="chip" @click="files.load(files.currentPath)">{{ t('filesRetry') }}</button>
+            </div>
             <FileGridView
               v-if="files.viewMode === 'grid'"
+              ref="gridRef"
               :entries="files.sortedEntries"
               :selected-paths="files.selected"
               @open="openEntry"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
+              @open-batch="(id: string) => (batchModalId = id)"
             />
             <FileListView
               v-else
@@ -530,6 +622,7 @@ onMounted(() => { browse.ensureVolumes() })
               @reorder="files.setSort"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
+              @open-batch="(id: string) => (batchModalId = id)"
             />
             <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
           </div>
@@ -580,6 +673,13 @@ onMounted(() => { browse.ensureVolumes() })
       :mount-point="browse.currentVolume?.mount ?? ''"
       @snapshot-created="overlayRef?.reload()"
     />
+    <UploadBatchModal
+      v-if="batchModalId"
+      :batch-id="batchModalId"
+      @close="batchModalId = ''"
+      @abandoned="files.load(files.currentPath)"
+      @refill="onRefill"
+    />
   </AreaShell>
 </template>
 
@@ -593,6 +693,16 @@ onMounted(() => { browse.ensureVolumes() })
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 .files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+/* A failed listing is not an empty folder: say so, show the backend's own text
+   (which is usually the actionable part), and offer the retry. */
+.files-error {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  margin-bottom: 12px; padding: 12px 14px; border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--remove-fg) 40%, transparent);
+  background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
+}
+.files-error-title { font-size: 13px; font-weight: 600; color: var(--remove-fg); }
+.files-error-detail { font-size: 12px; color: var(--fg-muted); word-break: break-all; }
 .marquee-box { position: fixed; z-index: 20; border: 1px solid var(--accent, #6ea8fe); background: color-mix(in srgb, var(--accent, #6ea8fe) 18%, transparent); pointer-events: none; }
 .files-drop-mask {
   position: absolute; inset: 0; z-index: 30; display: flex; align-items: center; justify-content: center;

@@ -6,7 +6,7 @@ const mk = (p: Partial<UploadItem>): UploadItem => ({
   id: Math.random().toString(36), file: null, fileName: 'f', fileType: '', size: 100,
   targetPath: '/DATA/x', relativePath: 'f', status: 'pending', progress: 0, bytesSent: 0, speed: 0,
   tusUploadUrl: null, retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1,
-  restored: false, conflictPolicy: '', oversize: false, ...p,
+  conflictPolicy: '', ...p,
 })
 
 describe('batchLabel', () => {
@@ -55,18 +55,6 @@ describe('isBatchSettled', () => {
     expect(isBatchSettled([mk({ status: 'done' }), mk({ status: 'uploading' })])).toBe(false)
     expect(isBatchSettled([mk({ status: 'conflict' })])).toBe(false)
     expect(isBatchSettled([])).toBe(false)
-  })
-})
-
-describe('needs_file routing', () => {
-  it('needs_file routes the batch to problem zone with needsFileCount', () => {
-    const q = [
-      { id: 'a', batchId: 'b', batchTotal: 2, status: 'needs_file', size: 10, bytesSent: 0, relativePath: 'a', fileName: 'a' },
-      { id: 'c', batchId: 'b', batchTotal: 2, status: 'pending', size: 10, bytesSent: 0, relativePath: 'c', fileName: 'c' },
-    ] as any
-    const [v] = groupByBatch(q)
-    expect(v.zone).toBe('problem')
-    expect(v.needsFileCount).toBe(1)
   })
 })
 

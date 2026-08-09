@@ -9,6 +9,7 @@ const emit = defineEmits<{
   (e: 'reorder', sort: string): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
+  (e: 'open-batch', batchId: string): void
 }>()
 const { t } = useI18n()
 
@@ -41,6 +42,7 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
       @open="emit('open', $event)"
       @select="emit('select', $event)"
       @contextmenu="emit('contextmenu', $event)"
+      @open-batch="emit('open-batch', $event)"
     />
   </div>
 </template>
