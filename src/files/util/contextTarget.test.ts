@@ -8,33 +8,33 @@ const B = f('b.txt')
 const C = f('c.txt')
 
 describe('contextTargets', () => {
-  it('被点项不在选区内 → 只作用于被点项(F11 的核心回归)', () => {
+  it('acts on the clicked entry alone when it is outside the selection (the F11 regression)', () => {
     expect(contextTargets(A, [B, C])).toEqual([A])
   })
 
-  it('被点项在选区内且选区多于一项 → 作用于整个选区', () => {
+  it('acts on the entire selection when the clicked entry is in it and selection has >1 item', () => {
     expect(contextTargets(B, [B, C])).toEqual([B, C])
   })
 
-  it('选区只有一项 → 只作用于被点项,即便被点项就是那一项', () => {
-    // Vue2 ContextMenu.vue:274 的判据是 length > 1;选区仅一项时走单项分支,
-    // 菜单因此呈单项态(重命名/复制路径可用)。
+  it('acts on the clicked entry only when selection has exactly one item, even if the clicked entry is that one item', () => {
+    // Vue2 ContextMenu.vue:274 gates on length > 1; when selection has one item we take the single-item path,
+    // so the menu renders its single-item shape (rename/copy path enabled).
     expect(contextTargets(B, [B])).toEqual([B])
   })
 
-  it('空选区 → 只作用于被点项', () => {
+  it('acts on the clicked entry when selection is empty', () => {
     expect(contextTargets(A, [])).toEqual([A])
   })
 
-  it('没有被点项(工具栏批量入口)→ 原样返回选区', () => {
+  it('returns the selection unchanged when there is no clicked entry (toolbar batch entry point)', () => {
     expect(contextTargets(null, [B, C])).toEqual([B, C])
   })
 
-  it('没有被点项且选区为空 → 空数组', () => {
+  it('returns empty array when there is no clicked entry and selection is empty', () => {
     expect(contextTargets(null, [])).toEqual([])
   })
 
-  it('按 path 判断"在选区内",不依赖对象同一性', () => {
+  it('membership in selection is determined by path, not object identity', () => {
     const bCopy = { ...B }
     expect(contextTargets(bCopy, [B, C])).toEqual([B, C])
   })
