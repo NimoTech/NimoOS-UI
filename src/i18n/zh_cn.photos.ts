@@ -918,4 +918,6 @@ export default {
   photosMoTypeTheme: '主题',
   // Same Chinese wording as photosSvAddedThisWeek (:612) — not a fresh translation.
   photosMoAddedThisWeek: '本周 +{n}',
+  photosMoHeroTitle: '时刻 · 为你推荐',
+  photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
 }

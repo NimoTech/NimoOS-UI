@@ -41,19 +41,34 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewCard from '../photos/components/SmartViewCard.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
+import MomentCard from '../photos/components/MomentCard.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
+import { usePhotosMoments } from '../photos/stores/moments'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = usePhotosSmartViews()
 const settings = usePhotosSettingsStore()
+const moments = usePhotosMoments()
 
 // P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
 // 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
 // 缺字段/请求失败一律按开启处理(不显示横幅,不吓用户),这条防御性语义已经在
 // store.fetchAiFeatures() 里落实,这里只是消费。
 const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
+
+// SP15-P1-T5(Vue2 899af59b:PhotosSmartViewsView.vue:455) —— the Moments band is hidden
+// outright when there are no moments, and follows the same aiFeatures.smartview switch as
+// the AI banner above (reusing aiSmartViewOff, not a second computed). **On real devices the
+// moments table is 0 rows for now (see spec §2), so "opening the page and not seeing this
+// band" is expected, not a bug.**
+const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
+const moGrid = ref<HTMLElement | null>(null)
+
+function onMomentOpen(id: string): void {
+  router.push('/photos/moments/' + id)
+}
 
 // T5:创建弹窗已接线(T4 的 TODO 兑现)。createOpen 通过 v-model:open 传给
 // SmartViewCreateDialog;创建成功后弹窗 emit('created', id),这里直接跳详情页
@@ -82,6 +97,7 @@ onMounted(() => {
   // 侧栏(PhotosSidebar,本页也挂载它)同帧也会调用 fetchAiFeatures() —— 并发去重收在
   // settings.ts 里,这里不需要关心。
   void settings.fetchAiFeatures()
+  void moments.fetchMoments()
 })
 </script>
 
@@ -110,8 +126,36 @@ onMounted(() => {
           </div>
         </div>
 
+        <!-- ── Moments · For You(Vue2 899af59b :31-44)── -->
+        <div v-if="showMoments" class="mo-section" data-test="mo-section">
+          <div class="mo-hero">
+            <div>
+              <h2>{{ t('photosMoHeroTitle') }}</h2>
+              <p>{{ t('photosMoHeroDesc') }}</p>
+            </div>
+          </div>
+          <div ref="moGrid" class="sv-grid mo-grid">
+            <!--
+              The `??` fallbacks below can never actually fire: sizeMap (moments.ts) is a
+              computed derived from this same `moments.moments` list via assignMomentSizes,
+              keyed by m.id — every id rendered here is guaranteed to have a sizeMap entry in
+              the same tick. Kept only as belt-and-suspenders per the brief; do not mistake it
+              for a real code path — a genuinely absent entry would hand MomentCard 'T1' for a
+              moment with fewer than 2 featured ids, which MomentCard documents itself as
+              relying on never happening (see momentLayout.ts / MomentCard.vue's invariant
+              comment).
+            -->
+            <MomentCard
+              v-for="m in moments.moments" :key="m.id" :moment="m"
+              :size="moments.sizeMap[m.id]?.size ?? 'standard'"
+              :template="moments.sizeMap[m.id]?.template ?? 'T1'"
+              @open="onMomentOpen"
+            />
+          </div>
+        </div>
+
         <!-- ── hero(Vue2 :22-30)── -->
-        <div class="sv-hero">
+        <div class="sv-hero" :class="{ 'sv-hero-secondary': showMoments }">
           <div class="sv-hero-text">
             <h1>{{ t('photosSvSmartViews') }}</h1>
             <p>{{ t('photosSvSavedSearchesStayLive') }}</p>
@@ -174,6 +218,31 @@ onMounted(() => {
 /* §7e-9:真实路由链接,保留 Vue2 视觉上的强调下划线(Vue2 :19 的 `<a>` 本身也没有独立
    hover 规则,这里 1:1 不额外加)。 */
 .svs-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+
+/* ── Moments · For You 分区(Vue2 photos-smartview.scss:144-186)── */
+.mo-section { margin-bottom: 36px; }
+.mo-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
+/* 偏离登记:Vue2 用 var(--font-display) —— 本仓 theme.css 没有这个 token(grep 零命中),
+   不新增,继承页面字体。 */
+.mo-hero h2 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--fg); }
+.mo-hero p { font-size: 13.5px; color: var(--fg-muted); margin: 0; max-width: 520px; line-height: 1.5; }
+
+/* Moments 在上方时,下面的智能视图 hero 补一条分隔线。 */
+.sv-hero.sv-hero-secondary { padding-top: 24px; border-top: 1px solid var(--divider); }
+
+/* .mo-grid 与 .sv-grid 并存,只叠加马赛克专属规则,不碰 .sv-grid 本体。
+   dense 密排 + 固定行高:卡高 = span 乘 132px 再加 (span 减 1) 乘 16px 的 gap。 */
+.mo-grid { margin-bottom: 4px; grid-auto-flow: row dense; grid-auto-rows: 132px; }
+/* 三档 span。高卡用双类选择器顶掉 baseline 的单类选择器,不依赖书写顺序。 */
+.mo-grid :deep(.mo-card) { grid-row: span 3; }
+.mo-grid :deep(.mo-card-wide) { grid-column: span 2; }
+.mo-grid :deep(.mo-card.mo-card-tall) { grid-row: span 5; }
+
+/* 窄容器降级:sv-grid 的 auto-fill minmax(320px, 1fr) 在低于三列临界宽度时降到 1 至 2 列,
+   宽卡横占两列会顶到列数上限,直接用 media 退回一列。高卡纵向占位不受列数影响。 */
+@media (max-width: 1055px) {
+  .mo-grid :deep(.mo-card-wide) { grid-column: span 1; }
+}
 
 /* ── hero(scss:5-19)── */
 .sv-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }

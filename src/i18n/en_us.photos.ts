@@ -911,4 +911,6 @@ export default {
   photosMoTypeFamily: 'Family',
   photosMoTypeTheme: 'Theme',
   photosMoAddedThisWeek: '+{n} this week',
+  photosMoHeroTitle: 'Moments · For You',
+  photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
 }
