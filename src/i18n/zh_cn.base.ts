@@ -24,6 +24,7 @@ export default {
   filesOpFailed: '操作失败',
   filesProtectedDelete: '此项目受保护,无法删除',
   filesDeleteSkippedProtected: '已跳过 {count} 个受保护项',
+  filesCutSkippedProtected: '已跳过 {count} 个受保护项',
   filesProtectedRename: '此项目受保护,无法重命名',
   filesProtectedMove: '此项目受保护,无法移动',
   filesCopiedPath: '已复制路径',

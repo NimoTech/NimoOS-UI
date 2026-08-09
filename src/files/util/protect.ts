@@ -25,15 +25,15 @@ export function splitProtectedUploads<T extends { relativePath: string }>(
 }
 
 // Split a selection into what a destructive batch may actually touch and a
-// count of what it must leave alone. Same shape (and same reasoning) as
-// shareableFolders in shareGate.ts.
+// count of what it must leave alone.
 //
-// Deleting used to be all-or-nothing: one protected member -- a system folder,
-// a shared folder, a mount point -- and the whole batch was refused, so
-// selecting everything in /DATA and pressing delete removed nothing at all
-// (pending-ledger F10). Filtering lets the rest through and leaves the caller
-// to say how many were skipped.
-export function deletableEntries(entries: FileEntry[]): { targets: FileEntry[]; skipped: number } {
+// Both delete and cut used to be all-or-nothing: one protected member -- a
+// system folder, a shared folder, a mount point -- and the whole batch was
+// refused, so selecting everything in /DATA and pressing delete removed
+// nothing at all (pending-ledger F10). Filtering lets the rest through and
+// leaves the caller to say how many were skipped, in its own wording: delete
+// and cut are different verbs and cannot share one message.
+export function operableEntries(entries: FileEntry[]): { targets: FileEntry[]; skipped: number } {
   const targets = entries.filter((e) => canOperate(e))
   return { targets, skipped: entries.length - targets.length }
 }

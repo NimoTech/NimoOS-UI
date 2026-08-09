@@ -5,7 +5,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
-import { canOperate, deletableEntries } from '../util/protect'
+import { canOperate, operableEntries } from '../util/protect'
 import { useClipboardStore } from '../stores/clipboard'
 import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
@@ -64,7 +64,7 @@ export function useFileOps() {
     // whole batch, so selecting everything in /DATA and pressing delete removed
     // nothing at all (pending-ledger F10). Only a selection with nothing
     // deletable in it still bails out, which is what the old message describes.
-    const { targets, skipped } = deletableEntries(entries)
+    const { targets, skipped } = operableEntries(entries)
     if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
     if (skipped > 0) toast.show(t('filesDeleteSkippedProtected', { count: skipped }))
     const paths = targets.map((e) => e.path)
@@ -85,9 +85,17 @@ export function useFileOps() {
     clipboard.operate('copy', entries.map((e) => e.path))
   }
 
+  // Filter rather than refuse: cut used to bail out the whole batch on a
+  // single protected member, the same all-or-nothing bug delete had before it
+  // was fixed (pending-ledger F10). Only a selection with nothing operable in
+  // it still refuses outright, which is what the old message describes.
   function cut(entries: FileEntry[]) {
-    if (entries.some((e) => !canOperate(e))) { toast.show(t('filesProtectedMove')); return }
-    clipboard.operate('move', entries.map((e) => e.path))
+    const { targets, skipped } = operableEntries(entries)
+    if (!targets.length) { toast.show(t('filesProtectedMove')); return }
+    if (skipped > 0) toast.show(t('filesCutSkippedProtected', { count: skipped }))
+    // clipboard.operate still takes path strings until Task 3 switches it to
+    // take entries directly.
+    clipboard.operate('move', targets.map((e) => e.path))
   }
 
   async function paste(style: 'overwrite' | 'skip') {

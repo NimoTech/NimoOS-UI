@@ -30,7 +30,7 @@ import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
-import { splitProtectedUploads, deletableEntries } from '../files/util/protect'
+import { splitProtectedUploads, operableEntries } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
@@ -379,7 +379,7 @@ function onToolbarDelete() {
 // system folder in it confirmed a delete of 8 and deleted 0 (pending-ledger
 // F10). Split first, count what survives, and say how many are being left.
 function askDelete(entries: FileEntry[]) {
-  const { targets, skipped } = deletableEntries(entries)
+  const { targets, skipped } = operableEntries(entries)
   if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
   deleteDlg.value = { open: true, entries: targets, skipped }
 }

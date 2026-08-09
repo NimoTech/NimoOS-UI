@@ -24,6 +24,7 @@ export default {
   filesOpFailed: 'Operation failed',
   filesProtectedDelete: 'This item is protected and cannot be deleted',
   filesDeleteSkippedProtected: 'Skipped {count} protected item(s)',
+  filesCutSkippedProtected: 'Skipped {count} protected item(s)',
   filesProtectedRename: 'This item is protected and cannot be renamed',
   filesProtectedMove: 'This item is protected and cannot be moved',
   filesCopiedPath: 'Path copied',

@@ -165,6 +165,41 @@ describe('useFileOps', () => {
     expect(clip.operateObject?.type).toBe('move')
   })
 
+  // Pending-ledger F10: cut had the same all-or-nothing bug delete used to
+  // have -- one protected member emptied the clipboard for the whole batch.
+  it('cut copies the operable subset to the clipboard instead of refusing the batch', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clipboard = useClipboardStore()
+    const ops = makeOps()
+    const entries = [
+      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+      { name: 'Downloads', path: '/DATA/Downloads', is_dir: true },
+    ]
+    ops.cut(entries as never)
+    expect(clipboard.operateObject?.item.map((i: { from: string }) => i.from)).toEqual(['/DATA/a.txt'])
+  })
+
+  it('cut reports how many protected items it skipped', async () => {
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    const entries = [
+      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+      { name: 'Downloads', path: '/DATA/Downloads', is_dir: true },
+    ]
+    ops.cut(entries as never)
+    expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('1'))
+  })
+
+  it('cut still refuses outright when nothing in the selection can be moved', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clipboard = useClipboardStore()
+    const ops = makeOps()
+    const entries = [{ name: 'Downloads', path: '/DATA/Downloads', is_dir: true }]
+    ops.cut(entries as never)
+    expect(clipboard.operateObject).toBeNull()
+  })
+
   it('paste 发 batch.task({type,item,to,style}) 后清空剪贴板', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
