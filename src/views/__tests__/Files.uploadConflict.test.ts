@@ -289,4 +289,69 @@ describe('Files.vue upload-conflict wiring', () => {
     await p
     await flushPromises()
   })
+
+  // SP12 Plan B outstanding item 7: the protected-directory refusal used to
+  // happen inside addFilesToQueue, i.e. AFTER the conflict prompt. Dropping a
+  // folder called Documents into a directory that already has one walked the
+  // user through "merge / keep both / skip" and only then said it was refused —
+  // asking someone to decide the fate of something already destined for the bin.
+  it('refuses a protected-directory upload before ever opening the conflict prompt', async () => {
+    vi.mocked(service.folder.getList).mockImplementation(async () => ({
+      content: [{ name: 'Documents', path: '/DATA/Documents', is_dir: true }],
+    }))
+    const w = await mountFiles()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const doomed = { name: 'a.txt', webkitRelativePath: 'Documents/a.txt' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([doomed])
+    await flushPromises()
+    // Give the dialog every chance the other tests give it: waitForDialogOpen
+    // polls 50 ticks, so staying shut across the same window is the honest
+    // negative. Before the fix this loop finds it open on an early tick.
+    for (let i = 0; i < 50; i++) {
+      await nextTick()
+      expect(w.findComponent(FileConflictDialog).props('open')).toBe(false)
+    }
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesUploadProtected.replace('{name}', 'Documents/a.txt'))
+  })
+
+  // The other half of the same rule: a batch that mixes a doomed entry with a
+  // legitimate one must still prompt for the legitimate one, and must enqueue it.
+  it('drops only the protected entry and still resolves the rest of the batch', async () => {
+    vi.mocked(service.folder.getList).mockImplementation(async () => ({
+      content: [
+        { name: 'Documents', path: '/DATA/Documents', is_dir: true },
+        { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+      ],
+    }))
+    const w = await mountFiles()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const doomed = { name: 'x.txt', webkitRelativePath: 'Documents/x.txt' } as unknown as File
+    const ok = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
+    const p = (w.vm as any).handleSelectedFiles([doomed, ok])
+    await waitForDialogOpen(w)
+    // Only the survivor is queued for a decision — the doomed entry is gone
+    // before the queue is built, so this reads "1 of 1", not "1 of 2".
+    expect(w.findComponent(FileConflictDialog).props('name')).toBe('a.txt')
+    expect(w.findComponent(FileConflictDialog).props('queueTotal')).toBe(1)
+
+    await w.findComponent(FileConflictDialog).vm.$emit('choose', { action: 'overwrite', applyToAll: false })
+    await waitForDialogClose(w)
+    await p
+    await flushPromises()
+
+    expect(showSpy).toHaveBeenCalledWith(zh.filesUploadProtected.replace('{name}', 'Documents/x.txt'))
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toHaveLength(1)
+    expect(spy.mock.calls[0][0][0].file).toBe(ok)
+  })
 })

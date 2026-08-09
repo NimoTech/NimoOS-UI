@@ -31,6 +31,7 @@ import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
+import { splitProtectedUploads } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
@@ -260,11 +261,21 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
+  // Refuse protected-directory entries BEFORE the conflict prompt, not after.
+  // addFilesToQueue applies the same rule at the end of this function, so these
+  // entries were never going to be uploaded either way — but reaching that point
+  // meant the user first had to answer "merge / keep both / skip" for a folder
+  // that was already destined for the bin (SP12 Plan B outstanding item 7).
+  // The store keeps its own copy of the rule as a last line of defence; the
+  // second loop below still reports anything it catches.
+  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
+  for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
+  if (!allowed.length) return
   // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
   // the interrupted batch created it — so its collision is self-inflicted and
   // merging back into it is the only correct answer. See ResolveOptions
   // .assumeMergeForFolders in useUploadConflicts.ts for the full reasoning.
-  const resolved = await conflicts.resolveEntries(normalized, targetPath, { assumeMergeForFolders: !!pending })
+  const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
   const dropped = resolved.skippedCount + resolved.cancelledCount
 
   if (!resolved.accepted.length) {
