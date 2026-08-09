@@ -113,11 +113,17 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
 const snapshotSelection = computed(() => selectedEntries.value)
 
-// Initiate sharing: right-click single folder (entry non-null, outside selection) → show link dialog after creation;
-// batch multi-select (entry null) → only share unshared folders in batch, do not show link dialog (multiple names to display to user).
-// Already-shared members are filtered here — backend returns SHARE_ALREADY_EXISTS for them and the whole batch fails,
-// but the single-item context menu already hides the action for already-shared items (FileContextMenu's showShare),
-// so batch must follow the same logic to keep the semantics consistent.
+// Share the effective target set (ctxTargets(entry) — the clicked entry is always part of
+// it by the time this runs, see contextTargets/onItemContextmenu). The link dialog pops
+// whenever exactly *one* folder ends up actually shared after filtering, not based on
+// whether the call came from a single right-click or a toolbar batch: a batch of 3 folders
+// where 2 are already shared leaves 1 real target, and showing that folder's link is the
+// useful outcome, not a special case to avoid. With 2+ remaining targets there's no single
+// link to show (multiple names cannot be shown in one dialog), so the dialog is skipped.
+// Already-shared members are filtered here — backend returns SHARE_ALREADY_EXISTS for them
+// and the whole batch fails, but the single-item context menu already hides the action for
+// already-shared items (FileContextMenu's showShare), so batch must follow the same logic
+// to keep the semantics consistent.
 async function onShare(entry: FileEntry | null) {
   const { targets, skipped } = shareableFolders(ctxTargets(entry))
   if (!targets.length) {
