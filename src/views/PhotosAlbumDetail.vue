@@ -281,14 +281,20 @@ function pickSort(s: SortBy): void {
 }
 
 // ── AlbumLibraryPicker(T6)接线 ──
-// SP15-P1-T9 · Step 0:组件泛化后,写库 / 成功失败 toast / 关面板由调用方承担(组件只挑照片)。
-// 行为逐条与泛化前一致:同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(相册名 + 张数)、
-// 同一条 photosAlbumAddFailed、成功才关面板(失败留着让用户重试),以及原 `@added` 接的那次
-// fetchAlbumAssets 刷新。
+// SP15-P1-T9 · Step 0: with the component generalised, the write, the success/failure toasts and
+// closing the panel belong to the caller (the component only picks photos). Behaviour is
+// unchanged from before the refactor: the same addAssetsToAlbum, the same photosAlbumAddedToast
+// (album name + count), the same photosAlbumAddFailed, closing on success only (a failure leaves
+// the panel up so the user can retry), and the fetchAlbumAssets refresh that hung off `@added`.
+//
+// The String() here is load-bearing, not decoration: album assets come back from the API with
+// numeric ids while timeline photos carry string ids, so without it the picker would stop
+// recognising a single already-in photo. Asserted in this page's own test with a numeric fixture.
 const pickerExistingIds = computed(
   () => new Set(albums.assetsOf(albumId.value).map((p) => String(p.id))),
 )
-// 按钮文案带已选张数——泛化后由调用方给,传函数张数才跟得上(见组件文件头偏离登记 b)。
+// The label carries the selected count, so the caller passes a function rather than a fixed
+// string (see deviation b in the component's header).
 function pickerSubmitLabel(count: number): string {
   return t('photosAlbumPickerAdd', { count })
 }

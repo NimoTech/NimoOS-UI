@@ -69,8 +69,10 @@ const { t } = useI18n()
 const timeline = useTimelineStore()
 
 // 选中集合直接存 flat 里给出的原始 id(与 flat 同源,类型天然一致,无需归一);
-// 提交时原样交给调用方,不做类型转换(调用方要什么类型由它自己决定——相册两条路径至今
-// 原样传给 addAssetsToAlbum,请求体一个字节都没变)。
+// 提交时原样传给 addAssetsToAlbum,不做类型转换。
+// [T9] The ids are now handed to the caller unconverted instead — whatever type it wants is its
+// own business. Both album paths still pass them straight to addAssetsToAlbum, so not one byte
+// of the request body changed.
 const selected = ref<Set<string | number>>(new Set())
 const discardConfirm = ref(false)
 
@@ -86,14 +88,16 @@ const flat = computed<Photo[]>(() => {
   return out
 })
 
-// 铁律:String 归一的 Set 值比较——目标集合的资产 id 与时间线照片 id 类型可能不一致。
-// 归一的 caller 侧那一半(建 Set 时 String())在调用方,这里是消费侧的另一半。
+// 铁律:String 归一的 Set 值比较——相册资产 id 与时间线照片 id 类型可能不一致。
+// [T9] Only the consuming half of that normalisation is still here; the producing half (String()
+// while building the Set) moved to whoever owns the target collection. Each caller's test asserts
+// its own half — a numeric album asset id has to reach this component as '5'.
 function isExisting(p: Photo): boolean {
   return props.existingIds.has(String(p.id))
 }
 
-// submitLabel 可以是「跟着已选张数变」的函数(相册两条路径:添加(2)),也可以是固定文案
-// (时刻:添加所选)——见文件头偏离登记 (b)。
+// submitLabel may be a function of the selected count (both album paths: "Add (2)") or a fixed
+// string (moments: "Add selected") — see deviation (b) in the header.
 const submitText = computed(() =>
   typeof props.submitLabel === 'function' ? props.submitLabel(selected.value.size) : props.submitLabel,
 )
@@ -167,8 +171,10 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// 交出已选 id 就到此为止:写库、成功/失败 toast、关面板全在调用方(见文件头 Step 0 登记)。
-// 这里既不清空 selected 也不关闭面板——写失败时调用方让面板留着,用户的选择还在,可以直接重试。
+// Handing over the picked ids is where this component's job ends: the write, the success and
+// failure toasts and the closing all belong to the caller (see the Step 0 note in the header).
+// Neither `selected` nor `open` is touched here — on a failed write the caller leaves the panel
+// up, and the user's selection is still sitting in it, ready to resubmit.
 function confirmAdd(): void {
   if (selected.value.size === 0 || props.submitting) return
   emit('confirm', Array.from(selected.value))

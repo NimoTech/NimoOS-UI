@@ -151,16 +151,23 @@ async function confirmCreate(): Promise<void> {
   }
 }
 
-// SP15-P1-T9 · Step 0: AlbumLibraryPicker 泛化后,写库 / 成功失败 toast / 关面板这三件原本
-// 由组件内部承担的事回到调用方(组件只负责挑照片并把 id 交出来)。这里逐条复刻它此前的行为:
-// 同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(带相册名与张数)、同一条
-// photosAlbumAddFailed、成功才关面板(失败留着,已选内容还在,可以直接重试),以及原
-// `@added` 接的那次 fetchAlbums 刷新。
+// SP15-P1-T9 · Step 0: with AlbumLibraryPicker generalised, three things it used to do itself
+// come back to the caller — the write, the success/failure toasts, and closing the panel (the
+// component now only picks photos and hands the ids over). Everything below reproduces its
+// previous behaviour one for one: the same addAssetsToAlbum, the same photosAlbumAddedToast
+// (album name + count), the same photosAlbumAddFailed, closing on success only (a failure leaves
+// the panel up with the selection still in it, ready to retry), and the fetchAlbums refresh that
+// used to hang off `@added`.
+//
+// The String() here is load-bearing, not decoration: album assets come back from the API with
+// numeric ids while timeline photos carry string ids, so without it the picker would stop
+// recognising a single already-in photo. Asserted in this page's own test with a numeric fixture.
 const pickerExistingIds = computed(
   () => new Set(albums.assetsOf(pickerAlbumId.value).map((p) => String(p.id))),
 )
-// 组件那边的按钮文案原本是 photosAlbumPickerAdd(带已选张数),泛化后由调用方给——传函数
-// 而不是定值,张数才跟得上(见组件文件头偏离登记 b)。
+// The button label used to be photosAlbumPickerAdd (with the selected count) inside the
+// component; the caller supplies it now. Passing a function rather than a fixed string is what
+// keeps the count moving with the selection (see deviation b in the component's header).
 function pickerSubmitLabel(count: number): string {
   return t('photosAlbumPickerAdd', { count })
 }

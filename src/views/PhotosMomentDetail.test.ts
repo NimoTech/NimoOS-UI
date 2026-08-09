@@ -578,7 +578,10 @@ describe('adding and removing photos', () => {
     expect(w.find('[data-test="mo-stat-photos"]').text()).toBe('44')
     // Both grids reload afterwards (featured + all = two requests).
     expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
-    expect(show).toHaveBeenCalledWith(expect.stringContaining('已添加'))
+    // fix round 1 · finding 4: exactly one toast, and it is the success one carrying the count —
+    // a duplicate, or a danger toast fired alongside it, has to fail here.
+    expect(show).toHaveBeenCalledTimes(1)
+    expect(show).toHaveBeenCalledWith(zh.photosMoAddedN.replace('{n}', '2'))
     expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
   })
 
@@ -595,9 +598,18 @@ describe('adding and removing photos', () => {
     await flushPromises()
 
     expect(s.byId('m1')?.assetCount).toBe(42)
+    // fix round 1 · finding 4: only the danger toast — no success toast leaking onto this path.
+    expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
     // The panel stays up with the user's selection still in it (same contract as the album pages).
-    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(true)
+    const picker = w.findComponent(AlbumLibraryPicker)
+    expect(picker.props('open')).toBe(true)
+    // fix round 1 · finding 1: the busy flag has to come back down in the handler's `finally`, or
+    // the panel is left with a permanently disabled "Adding…" button and no way to retry.
+    expect(picker.props('submitting')).toBe(false)
+    picker.vm.$emit('confirm', ['x'])
+    await flushPromises()
+    expect(svc.photos.pinMomentAssets).toHaveBeenCalledTimes(2)
     expect(err).toHaveBeenCalled()
     err.mockRestore()
   })
@@ -620,7 +632,9 @@ describe('adding and removing photos', () => {
     expect(s.byId('m1')?.assetCount).toBe(41)
     expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
     expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
-    expect(show).toHaveBeenCalledWith(expect.stringContaining('已从此时刻移除'))
+    // fix round 1 · finding 4: exactly one toast, and it is the success one with the count.
+    expect(show).toHaveBeenCalledTimes(1)
+    expect(show).toHaveBeenCalledWith(zh.photosMoRemovedN.replace('{n}', '1'))
 
     // Selection mode is really off, not merely hiding a bar that still holds a1: re-entering
     // shows no bar (the same distinction the T8 case above had to make).
@@ -642,6 +656,8 @@ describe('adding and removing photos', () => {
     await flushPromises()
 
     expect(s.byId('m1')?.assetCount).toBe(42)
+    // fix round 1 · finding 4: only the danger toast — no success toast on the failure path.
+    expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
     // Vue2 :386-387 clears the selection in the success branch only — deliberately, so a failed
     // removal leaves the user the selection they were working with.

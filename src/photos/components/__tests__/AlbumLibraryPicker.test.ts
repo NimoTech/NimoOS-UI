@@ -1,8 +1,10 @@
 // Task 6 (SP7-P4 相册): AlbumLibraryPicker.vue —— 从图库挑照片加入本相册(T7「手动挑选」/
 // T8「添加照片」按钮共用)。
 // 挂 Pinia + i18n(真实 zh_cn 词条);mock 共享包 @nimotech/nimoos-service,经由真实
-// useTimelineStore()/usePhotosAlbums() 端到端验证——瓦片来源、已在相册判定都走真实 store,
-// 不是纯白盒断言。(T9 起添加动作本身不再由本组件发起,见下方 Step 0 说明。)
+// useTimelineStore()/usePhotosAlbums()/useToast() 端到端验证——瓦片来源、已在相册判定、
+// 添加动作都走真实 store,不是纯白盒断言。
+// [T9] Superseded in part by the Step 0 note below: the add action itself is no longer issued by
+// this component, so the toast store is no longer involved here.
 //
 // 铁律交叉验证:相册资产用数字 id(经 fetchAlbumAssets→assetToPhoto 真实转换管线得到
 // Photo.id 为 number),时间线照片用字符串 id(同样走 assetToPhoto),existingIds 必须
@@ -149,7 +151,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   // Step 0: the submit button's label still counts up with the selection (the album pages pass a
   // (count) => string label for exactly that), and pressing it hands the raw ids to the caller.
-  it('选中两张 → 主按钮文案含 2;点击 → emit confirm([id1,id2]),原样交出未经类型转换的 id', async () => {
+  it('two tiles selected → the submit label reads 2; pressing it emits confirm([id1, id2]) with the ids unconverted', async () => {
     seedTimeline()
     const w = mountPicker(albumProps())
     await flushPromises()
@@ -173,7 +175,7 @@ describe('AlbumLibraryPicker.vue', () => {
   // Step 0 · the brief's new case: submitting must not reach the album store any more — the write
   // belongs to the caller now. Spying on the real store instance (not the service mock) is what
   // makes this fail if any half of the old album-specific behaviour is left behind.
-  it('SP15-P1-T9 泛化:提交时只 emit confirm,不自己写库、不自己关面板', async () => {
+  it('SP15-P1-T9 generalisation: submitting only emits confirm — it neither writes to the store nor closes itself', async () => {
     seedTimeline()
     const albums = usePhotosAlbums()
     const spy = vi.spyOn(albums, 'addAssetsToAlbum')
@@ -187,34 +189,43 @@ describe('AlbumLibraryPicker.vue', () => {
     expect(spy).not.toHaveBeenCalled()
     expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalled()
     expect(w.emitted('confirm')?.[0]?.[0]).toEqual(['t-newest'])
-    // 关面板也归调用方(它才知道写成功没有)——组件自己一声不吭。
+    // Closing is the caller's call too — it is the one that knows whether the write succeeded.
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
   // Step 0 · the failure path, from the component's side. The write and its failure toast now
   // live in the album pages (asserted there); what this component still owes the user is that a
   // caller which leaves the panel open finds the selection exactly as it was, and can resubmit.
-  it('调用方写失败(面板保持 open)→ 已选中项保留,按钮可用,可以再次提交重试', async () => {
+  //
+  // fix round 1 · finding 1: this deliberately replays the caller's whole lifecycle — submitting
+  // goes true while the write is in flight and back to false in the caller's `finally`. The
+  // earlier version of this case never turned submitting on at all, so "the button recovered"
+  // was true before the click as well and proved nothing. (That the callers really do reset the
+  // flag is asserted in their own tests; here it is the premise.)
+  it("the caller's write fails and it keeps the panel open → the selection survives, the button recovers and a second submit is sent", async () => {
     seedTimeline()
     const w = mountPicker(albumProps())
     await flushPromises()
 
     await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
     await w.get('[data-test="lib-picker-add"]').trigger('click')
+    await w.setProps({ submitting: true })   // caller's write is in flight
+    await w.setProps({ submitting: false })  // …and it failed; the caller's finally clears it
     await flushPromises()
 
-    // 已选中的项保留(仍显示"已选择 1 项"文案,而不是被清空)
+    // The selection is still there (the panel still reads "1 selected", it was not cleared).
     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
-    // 按钮可用,不是卡在提交态
+    // The button is usable again, not stuck in the submitting state.
     expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(false)
 
     await w.get('[data-test="lib-picker-add"]').trigger('click')
     expect(w.emitted('confirm')).toHaveLength(2)
   })
 
-  // Step 0 · submitting 由调用方给(Vue3 的 emit 拿不到父组件那个 promise,见组件文件头
-  // 偏离登记 a):飞行期按钮禁用 + 文案变"添加中…",且再点也不会再发一次 confirm。
-  it('submitting=true(调用方写入飞行中)→ 按钮禁用、文案为添加中,重复点击不再 emit confirm', async () => {
+  // Step 0 · submitting comes from the caller (Vue 3's emit cannot hand back the parent's
+  // promise — see deviation a in the component's header): while the write is in flight the
+  // button is disabled and reads "Adding…", and clicking it again emits nothing.
+  it('submitting=true (the caller\'s write is in flight) → the button is disabled, reads "Adding…", and a repeat click emits no second confirm', async () => {
     seedTimeline()
     const w = mountPicker(albumProps())
     await flushPromises()
@@ -228,9 +239,10 @@ describe('AlbumLibraryPicker.vue', () => {
     expect(w.emitted('confirm')).toBeUndefined()
   })
 
-  // Step 0 · 固定文案的调用方(时刻页传 photosMoAddSelected 这样的定值字符串)——按钮文案不
-  // 带张数,同一个组件两种用法都要成立。
-  it('submitLabel 传定值字符串时按钮就显示该文案(不追加已选张数)', async () => {
+  // Step 0 · a caller with a fixed label (the moment page passes photosMoAddSelected, a plain
+  // string) — the button shows it as is, with no count appended. Both usages of the one
+  // component have to hold.
+  it('a plain-string submitLabel is rendered verbatim, with no selected count appended', async () => {
     seedTimeline()
     const w = mountPicker(albumProps({ submitLabel: '添加所选' }))
     await flushPromises()

@@ -299,13 +299,8 @@ describe('PhotosAlbums.vue', () => {
   // itself — it emits `confirm(ids)` and this page performs the write, the success toast, the
   // close and the fetchAlbums refresh that `@added` used to trigger. All four used to be
   // asserted inside AlbumLibraryPicker.test.ts; they are asserted here now, at their new home.
-  it("source==='select' 挑完照片 → @confirm 触发 addAssetsToAlbum + 成功 toast + 关面板 + fetchAlbums 刷新", async () => {
-    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
-    const { w } = await mountView()
-    const albums = usePhotosAlbums()
-    const toast = useToast()
-    const showSpy = vi.spyOn(toast, 'show')
-
+  /** Runs the create → "select" flow up to the point where the picker is on screen. */
+  async function openPickerViaCreate(w: ReturnType<typeof mount>) {
     await w.find('[data-test="albums-new-btn"]').trigger('click')
     await w.vm.$nextTick()
     await w.find('[data-test="albums-name-input"]').setValue('Picked')
@@ -313,46 +308,83 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
     await w.find('[data-test="albums-confirm-create"]').trigger('click')
     await flushPromises()
+    return w.findComponent(AlbumLibraryPicker)
+  }
 
+  it("source==='select', photos picked → @confirm runs addAssetsToAlbum, the success toast, closes the panel and refreshes with fetchAlbums", async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    const { w } = await mountView()
+    const albums = usePhotosAlbums()
+    const toast = useToast()
+
+    const picker = await openPickerViaCreate(w)
+    // The spy goes on after the create step so the "album created" toast is not in the way and
+    // the count below really is "how many toasts did the add produce".
+    const showSpy = vi.spyOn(toast, 'show')
     const fetchAlbumsSpy = vi.spyOn(albums, 'fetchAlbums')
-    const picker = w.findComponent(AlbumLibraryPicker)
     picker.vm.$emit('confirm', ['p1', 'p2'])
     await flushPromises()
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('new1', ['p1', 'p2'])
-    // 成功 toast 带相册名与张数(与泛化前组件内部弹的是同一条 photosAlbumAddedToast)
-    const shown = showSpy.mock.calls.map((c) => String(c[0]))
-    expect(shown.some((m) => m.includes('Picked') && m.includes('2'))).toBe(true)
+    // fix round 1 · finding 4: exactly one toast, and it is the success one with the album name
+    // and the count — a duplicate, or a stray danger toast alongside it, has to fail here.
+    expect(showSpy).toHaveBeenCalledTimes(1)
+    expect(showSpy).toHaveBeenCalledWith(
+      zh.photosAlbumAddedToast.replace('{count}', '2').replace('{name}', 'Picked'),
+    )
     expect(fetchAlbumsSpy).toHaveBeenCalled()
     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(false)
   })
 
-  // 写失败:失败 toast + 面板留着(用户的选择还在,可以直接重试)。同样是从组件里搬过来的行为。
-  it("source==='select' 挑完照片写库失败 → 失败 toast,面板保持打开", async () => {
+  // A failed write: the failure toast, and the panel stays up with the user's selection still in
+  // it so they can retry. Same behaviour, moved out of the component.
+  it("source==='select', a failed write → failure toast, the panel stays open, and the busy flag is released so a retry is possible", async () => {
     const err = vi.spyOn(console, 'error').mockImplementation(() => {})
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
     svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
     const { w } = await mountView()
     const toast = useToast()
 
-    await w.find('[data-test="albums-new-btn"]').trigger('click')
-    await w.vm.$nextTick()
-    await w.find('[data-test="albums-name-input"]').setValue('Picked')
-    await w.find('[data-test="source-select"]').trigger('click')
-    await w.vm.$nextTick()
-    await w.find('[data-test="albums-confirm-create"]').trigger('click')
-    await flushPromises()
-
+    const picker = await openPickerViaCreate(w)
     const showSpy = vi.spyOn(toast, 'show')
-    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['p1'])
+    picker.vm.$emit('confirm', ['p1'])
     await flushPromises()
     await w.vm.$nextTick()
 
+    // fix round 1 · finding 4: only the danger toast, nothing else — a success toast leaking onto
+    // the failure path would be caught by the count.
+    expect(showSpy).toHaveBeenCalledTimes(1)
     expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
+
+    // fix round 1 · finding 1: the busy flag must come back down in the handler's `finally`.
+    // Without it the panel is left with a permanently disabled button reading "Adding…" and the
+    // user has no way to retry — which is exactly what the assertions below rule out.
+    expect(picker.props('submitting')).toBe(false)
+    picker.vm.$emit('confirm', ['p1'])
+    await flushPromises()
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledTimes(2)
+
     expect(err).toHaveBeenCalled()
     err.mockRestore()
+  })
+
+  // fix round 1 · finding 2: before Step 0 the picker computed existingIds itself and its own
+  // cross-type test proved the String() normalisation. The expression moved here, so the proof
+  // has to move with it: album assets come back from the API with **numeric** ids while timeline
+  // photos carry strings, and without String() not one already-in photo would be recognised.
+  it('the existingIds handed to the picker are String()-normalised (a numeric album asset id arrives as a string)', async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    svc.photos.getAlbum.mockResolvedValue({
+      assets: [{ id: 5, takenAt: '2026-05-01T00:00:00Z', mimeType: 'image/jpeg' }],
+    })
+    const { w } = await mountView()
+    const picker = await openPickerViaCreate(w)
+
+    const ids = picker.props('existingIds') as Set<string>
+    expect([...ids]).toEqual(['5'])
+    expect(ids.has('5')).toBe(true)
   })
 
   it('createAlbum 抛 409 → 渲染重名 toast,模态关闭(照 Vue2 finally 语义)', async () => {
