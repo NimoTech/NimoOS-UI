@@ -247,4 +247,80 @@ describe('staleness guard under concurrency', () => {
 
     expect(s.moments.map((m) => m.id)).toEqual(['second'])
   })
+
+  // fix round 1 · finding 4: listError is shared state, so the guard has to cover it too.
+  it('a late failure from a superseded fetch does not raise listError over the newer success', async () => {
+    let rejectA: (e: unknown) => void = () => {}
+    listMoments.mockImplementationOnce(() => new Promise((_r, rej) => { rejectA = rej }))
+    listMoments.mockResolvedValueOnce([RAW])
+
+    const s = usePhotosMoments()
+    const pA = s.fetchMoments()   // fired first, stays pending
+    const pB = s.fetchMoments()   // fired second, succeeds immediately
+    await pB
+    expect(s.listError).toBe(false)
+    rejectA(new Error('boom'))    // the superseded call fails late
+    await pA
+
+    expect(s.listError).toBe(false)
+    expect(s.moments).toHaveLength(1)
+  })
+})
+
+// fix round 1 · finding 4.
+describe('listError', () => {
+  it('is false before anything is fetched', () => {
+    expect(usePhotosMoments().listError).toBe(false)
+  })
+
+  it('is raised when fetchMoments fails, so consumers can tell a blip from an empty library', async () => {
+    listMoments.mockRejectedValueOnce(new Error('boom'))
+    const s = usePhotosMoments()
+    await s.fetchMoments()
+    expect(s.listError).toBe(true)
+    expect(s.listLoaded).toBe(true)   // still "we are done trying", as before
+  })
+
+  it('is cleared by the next successful load', async () => {
+    listMoments.mockRejectedValueOnce(new Error('boom'))
+    const s = usePhotosMoments()
+    await s.fetchMoments()
+    expect(s.listError).toBe(true)
+    listMoments.mockResolvedValueOnce([RAW])
+    await s.fetchMoments()
+    expect(s.listError).toBe(false)
+  })
+})
+
+// fix round 1 · finding 7.
+describe('ensureLoaded joins an in-flight fetch', () => {
+  // The assertion that bites is `secondSettled === false` *while the request is still on the
+  // wire*, not the state observed after everything settles. A first attempt at this test did
+  // compare the observed list length inside each caller's .then and passed against the old
+  // early-return too: an async function that returns without awaiting still needs a couple of
+  // microtask ticks to deliver, and the store's own continuation happened to win that race. Only
+  // the mutation check caught it. Hence the explicit macrotask boundary below — it removes the
+  // race from the test rather than betting on which side of it lands first.
+  it('a second caller does not resolve while the first request is still on the wire, and only one request is sent', async () => {
+    let resolve: (v: unknown) => void = () => {}
+    listMoments.mockImplementationOnce(() => new Promise((r) => { resolve = r }))
+
+    const s = usePhotosMoments()
+    const p1 = s.ensureLoaded()
+    let secondSettled = false
+    const p2 = s.ensureLoaded().then(() => { secondSettled = true })
+
+    // Drain every pending microtask without answering the request. The old
+    // `if (listLoaded || listLoading) return` resolves the second caller here, because it awaits
+    // nothing; joining the in-flight promise cannot.
+    await new Promise((r) => setTimeout(r, 0))
+    expect(secondSettled, 'the second ensureLoaded() resolved before the list had landed').toBe(false)
+
+    resolve([RAW])
+    await Promise.all([p1, p2])
+
+    expect(secondSettled).toBe(true)
+    expect(s.moments).toHaveLength(1)
+    expect(listMoments).toHaveBeenCalledTimes(1)
+  })
 })

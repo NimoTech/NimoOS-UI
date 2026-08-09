@@ -31,6 +31,11 @@
 //     which wraps these calls in its own try/catch (later tasks) — but is
 //     logged so a later task doesn't assume Vue 2's swallow-and-toast
 //     semantics still hold.
+//  5) (fix round 1) listError + an awaited inFlight promise. Vue 2 needed
+//     neither: its list lived in the view that owned the only fetch, and its
+//     detail page could not be reached without a moment object in hand, so
+//     "the list failed to load" was never a state anything downstream had to
+//     distinguish. On a real route it is — see listError's declaration below.
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
@@ -93,9 +98,19 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
   const moments = ref<Moment[]>([])
   const listLoading = ref(false)
   const listLoaded = ref(false)
+  /** True when the most recent fetchMoments failed. Consumers need this to tell
+   *  "the library is empty / this id is gone" apart from "we could not reach the
+   *  server" — without it the detail page told the user a moment had been deleted
+   *  every time the list request blipped (fix round 1 · finding 4). Cleared by the
+   *  next successful load. */
+  const listError = ref(false)
   // Staleness guard: bumped on every fetchMoments call; only the response
-  // matching the current epoch is allowed to write into moments.
+  // matching the current epoch is allowed to write into moments — or into
+  // listError, which is just as much shared state.
   let fetchEpoch = 0
+  /** The fetch currently in flight, so ensureLoaded can await it rather than
+   *  returning while the list is still on the wire (fix round 1 · finding 7). */
+  let inFlight: Promise<void> | null = null
 
   const sizeMap = computed(() =>
     assignMomentSizes(
@@ -113,25 +128,50 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
   async function fetchMoments(): Promise<void> {
     const epoch = ++fetchEpoch
     listLoading.value = true
-    try {
-      const raw = await service.photos.listMoments()
-      if (epoch !== fetchEpoch) return          // a late response — discard it
-      moments.value = (raw as RawMoment[]).map(toMoment)
-    } catch (e) {
-      // Keep the old list on failure (Vue 2 did the same, just console.error and
-      // nothing else) — clearing the view would make a single network blip look
-      // like "every moment vanished".
-      console.error('[photos-moments] listMoments', e)
-    } finally {
-      if (epoch === fetchEpoch) {
-        listLoading.value = false
-        listLoaded.value = true
+    // The body is a separate promise so it can be published on `inFlight` while it
+    // runs; `inFlight` is assigned below, before this function's first suspension
+    // point, so a second caller entering fetchMoments/ensureLoaded in the same tick
+    // already sees it.
+    const run = (async () => {
+      try {
+        const raw = await service.photos.listMoments()
+        if (epoch !== fetchEpoch) return        // a late response — discard it
+        moments.value = (raw as RawMoment[]).map(toMoment)
+        listError.value = false
+      } catch (e) {
+        // Keep the old list on failure (Vue 2 did the same, just console.error and
+        // nothing else) — clearing the view would make a single network blip look
+        // like "every moment vanished". What is new is recording *that* it failed:
+        // see listError's declaration.
+        console.error('[photos-moments] listMoments', e)
+        if (epoch !== fetchEpoch) return        // a late failure — it is not the current truth
+        listError.value = true
+      } finally {
+        if (epoch === fetchEpoch) {
+          listLoading.value = false
+          listLoaded.value = true
+        }
       }
+    })()
+    inFlight = run
+    try {
+      await run
+    } finally {
+      // Only clear the slot if it is still ours — a newer fetch may have replaced it.
+      if (inFlight === run) inFlight = null
     }
   }
 
   async function ensureLoaded(): Promise<void> {
-    if (listLoaded.value || listLoading.value) return
+    // Await the in-flight fetch rather than returning early. The old
+    // `if (listLoaded || listLoading) return` handed the caller a resolved promise
+    // while the list was still on the wire: the caller then saw byId() === undefined,
+    // gave up, and nothing ever watched listLoaded to try again (fix round 1 · finding 7).
+    if (inFlight) {
+      await inFlight
+      return
+    }
+    if (listLoaded.value) return
     await fetchMoments()
   }
 
@@ -226,7 +266,7 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
   }
 
   return {
-    moments, listLoading, listLoaded, sizeMap,
+    moments, listLoading, listLoaded, listError, sizeMap,
     fetchMoments, ensureLoaded, byId, setOrder, reorder,
     loadDetail, loadAll, pin, exclude, remove, exportAlbum, applyAssetCount,
   }
