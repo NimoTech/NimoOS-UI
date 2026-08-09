@@ -2,7 +2,7 @@
 // directory's current names, works out which top-level groups collide, walks
 // the user through the dialog, and turns the answers into per-entry upload
 // policies. Ported from Vue2 FilePanel.vue's _enqueueUploadEntriesNow.
-import { ref, type Ref } from 'vue'
+import { ref, getCurrentScope, onScopeDispose, type Ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { fetchExistingNames, resolveConflictQueue, type ConflictChoice, type ConflictCandidate } from '../upload/fileConflict'
 import {
@@ -81,6 +81,20 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
 
   function onChoose(choice: ConflictChoice) { settle(choice) }
   function onCancel() { settle(null) }
+
+  // The dialog lives inside whichever component owns this composable (today
+  // Files.vue), but the batch it gates does not: navigating away mid-prompt
+  // tears the dialog down while `run()` is still awaiting the answer. Without
+  // this, `ask()`'s promise would never settle — `run()` never returns, the
+  // caller never enqueues and never toasts, and the user's drop silently does
+  // nothing at all. Settling as `null` routes it through the normal cancelled
+  // path instead, so the caller reports it like any other cancel.
+  // `getCurrentScope()` guard: this composable is also called directly in tests
+  // (and could be called at module level), where onScopeDispose has no scope to
+  // attach to and warns.
+  if (getCurrentScope()) {
+    onScopeDispose(() => { if (resolver) settle(null) })
+  }
 
   async function run(entries: UploadEntry[], targetPath: string): Promise<ResolvedBatch> {
     const passthrough = (): ResolvedBatch => ({

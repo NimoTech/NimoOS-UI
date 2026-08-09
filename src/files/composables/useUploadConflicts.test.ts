@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { effectScope } from 'vue'
 import { useUploadConflicts } from './useUploadConflicts'
 import type { UploadEntry } from '../upload/uploadConflict'
 
@@ -157,6 +158,32 @@ describe('useUploadConflicts', () => {
     c.onChoose({ action: 'skip' } as never)
     const out = await p
     expect(out.skippedCount).toBe(2)
+  })
+
+  // Finding E. The dialog is owned by whichever component instantiated this
+  // composable, but the batch it gates outlives the view: navigating away mid
+  // prompt used to strand `ask()`'s promise forever, so the caller never got to
+  // enqueue anything and never reported anything either.
+  it('tearing down the owning scope settles an open prompt as cancelled instead of hanging', async () => {
+    const scope = effectScope()
+    let c!: ReturnType<typeof useUploadConflicts>
+    scope.run(() => { c = useUploadConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) }) })
+    const p = c.resolveEntries([e('a.txt')], '/DATA')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+
+    scope.stop()
+    const out = await p
+    expect(out.accepted).toEqual([])
+    expect(out.cancelledCount).toBe(1)
+    expect(c.dialog.value.open).toBe(false)
+  })
+
+  it('can be created outside any effect scope without warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const c = useUploadConflicts({ listFolder: listing([]) })
+    expect(c.dialog.value.open).toBe(false)
+    expect(warn).not.toHaveBeenCalled()
   })
 
   it('exposes the queue position to the dialog for a multi-conflict queue', async () => {
