@@ -35,7 +35,8 @@ const lastName = computed(() => (segments.value.length ? segments.value[segments
 
 <style scoped>
 .breadcrumb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
-.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
+.crumb { background: none; border: none; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
+button.crumb { cursor: pointer; }
 button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
 .crumb.current { color: var(--fg); font-weight: 600; }
 .crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
