@@ -112,8 +112,8 @@ export const DELETE = [
   'src/views/PhotosSmartViewDetail.vue',
   'src/views/PhotosSmartViews.vue',
   'src/views/PhotosTrash.vue',
-  // 20 view tests. ⚠️ The first three are NOT under __tests__/: SP15-P1's T5 and T7 and
-  // SP15-P2a's T3 put their tests next to the view, unlike the other 17 in this area — do not
+  // 21 view tests. ⚠️ The first three are NOT under __tests__/: SP15-P1's T5 and T7 and
+  // SP15-P2a's T3 put their tests next to the view, unlike the other 18 in this area — do not
   // assume a glob covers them. (T5's went unregistered and left the leak guard red on 12 hits,
   // the same omission as packages/service/src/photos.moments.test.ts; both are fixed here.)
   'src/views/PhotosMomentDetail.test.ts',
@@ -127,6 +127,11 @@ export const DELETE = [
   'src/views/__tests__/PhotosFavorites.test.ts',
   'src/views/__tests__/photosGlassSurfaces.test.ts',
   'src/views/__tests__/photosLayoutHeightCap.test.ts',
+  // SP15-P2a task 4: the carried-in [data-selected] defect fix's own test, added under
+  // __tests__/ (unlike the three siblings named in the comment above) so a plain glob over
+  // this directory does still find it — it is listed here anyway because this table is
+  // enumerated on principle, not because a glob would miss it.
+  'src/views/__tests__/PhotosMomentDetail.selectionHighlight.test.ts',
   'src/views/__tests__/PhotosPeople.test.ts',
   'src/views/__tests__/PhotosPersonDetail.test.ts',
   'src/views/__tests__/PhotosPlaceAssets.test.ts',
