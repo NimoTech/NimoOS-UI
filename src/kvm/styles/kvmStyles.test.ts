@@ -218,3 +218,26 @@ describe('noVNC 画布几何归 noVNC 管(scaleViewport 生效的前提)', () =>
     expect(canvasBlock).toMatch(/z-index:\s*2/)
   })
 })
+
+describe('KVM 全屏页的 toast 不占用控制台画面', () => {
+  const toast = fs.readFileSync(
+    path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../components/AppToast.vue'),
+    'utf8',
+  )
+
+  it('AppToast 的 bottom 走可覆写变量,默认值不变', () => {
+    expect(toast).toContain('bottom: var(--toast-bottom, 118px)')
+    expect(toast).toContain('z-index: 10100') // 别回退掉「弹窗压不住 toast」那次修复
+  })
+
+  it('覆写落在根元素上,不是 .kvm-page 上', () => {
+    // 实测(真 chromium,不是 jsdom):`.toast-stack` 挂在 App.vue 层、是 `.kvm-page` 的
+    // **兄弟**而不是后代,所以把 --toast-bottom 写在 .kvm-page 上时变量根本继承不到 ——
+    // toast 停在默认的 118px。写成 :root:has(.kvm-page) 才生效。这条断言就是钉住这个
+    // 落点:哪天有人"顺手简化"成 .kvm-page,它会红,而不是静默失效。
+    const override = src.match(/([^\n{}]*)\{[^}]*--toast-bottom:\s*\d+px/)
+    expect(override, '找不到 --toast-bottom 的覆写').not.toBeNull()
+    expect(override![1]).toContain(':root')
+    expect(override![1]).toContain(':has(')
+  })
+})
