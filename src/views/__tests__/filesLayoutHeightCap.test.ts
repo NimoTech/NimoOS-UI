@@ -1,6 +1,6 @@
-// Bidirectional regression guard for the Files area .files-layout height capping —
-// same origin and logic as photosLayoutHeightCap.test.ts in the photos area,
-// except Files has only one page.
+// Bidirectional regression guard for the Files area .files-layout height capping:
+// forward checks the cap is present, backward checks it hasn't regressed back to the
+// old unbounded-growth rule.
 //
 // Background: .files-layout originally had `min-height: 100%` (at least one viewport height,
 // can grow unbounded) instead of `height: 100%`. The sidebar with align-self:stretch then
@@ -8,10 +8,13 @@
 // AreaShell's .area-body ⇒ sidebar and breadcrumb scrolled away with the file listing,
 // and the sidebar's own overflow-y:auto never engaged (can't reach favorites when there are many).
 //
-// Unlike the photos area: photos had 11 pages each with an inner scroll container already,
-// Files has none — so capping must be done together with building the container. Changing
-// .files-layout alone would clip the listing. The three CSS rules are one unit: if any is
-// missing the layout breaks, so this guard locks all three.
+// Files had no inner scroll container before this fix, so capping had to be done together
+// with building one — capping .files-layout alone would clip the listing out of reach.
+// The three CSS rules are one unit: the cap on .files-layout, min-height:0 on .files-main
+// (unblocks the flex shrink chain so the cap actually propagates instead of the child
+// bursting the parent), and overflow-y:auto on .files-listwrap (something has to take over
+// scrolling once the outer layout stops growing). If any one of the three is missing the
+// layout breaks, so this guard locks all three.
 //
 // jsdom doesn't do layout (getBoundingClientRect always 0), actual behavior is verified on device;
 // this guard only locks source text and prevents regressions. Always read files with node:fs —
