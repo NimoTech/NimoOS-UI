@@ -358,7 +358,9 @@ async function doDelete(): Promise<void> {
   try {
     const result = await store.deleteSmartView(s.id)
     if (!result) return
-    void router.push('/photos/smart-views')
+    // SP15-P2b Task 5: smart albums now live inside Albums (Tasks 3/4), so a deleted
+    // smart view's owner list is the Albums page, not this now-Moments-only route.
+    void router.push('/photos/albums')
     // 撤销键复用 P3 回收站已有的既定「撤销」键(grep 本仓 zh_cn.ts 已确认
     // photosTrashUndo = '撤销' / photosPersonUndo 同值,取前者——两者语义都是通用的
     // "撤销"文案,不新增)。duration 5000 照 P5「5 秒可撤销」的既有口径。
@@ -537,16 +539,26 @@ async function onExcludedTileClick(id: string): Promise<void> {
           <div class="sv-not-found-title">{{ t('photosSvNotFound') }}</div>
           <button
             type="button" class="sv-not-found-back" data-test="sv-not-found-back"
-            @click="router.push('/photos/smart-views')"
-          >{{ t('photosSvAllSmartViews') }}</button>
+            @click="router.push('/photos/albums')"
+          >{{ t('photosAlbumBack') }}</button>
         </div>
 
         <!-- 门控③:正常内容 -->
         <template v-else>
           <div class="sv-detail-bar">
-            <button type="button" class="sv-back-btn" @click="router.push('/photos/smart-views')">
+            <!-- Deviation from Vue 2, registered. 939a7d3a:PhotosSmartViewDetail.vue:5 still
+                 labels this button "All Smart Views" even though #112 made its @back return to
+                 the Albums list -- Vue 2 shipped a button whose label lies about where it goes.
+                 A misleading label is a user-visible defect rather than a styling choice, so
+                 this port keeps Vue 2's destination and fixes the label, reusing the album
+                 detail page's existing photosAlbumBack (PhotosAlbumDetail.vue:433) rather than
+                 adding a key. photosSvAllSmartViews is deleted in the same commit. -->
+            <button
+              type="button" class="sv-back-btn" data-test="sv-detail-back"
+              @click="router.push('/photos/albums')"
+            >
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
-              {{ t('photosSvAllSmartViews') }}
+              {{ t('photosAlbumBack') }}
             </button>
             <div style="flex:1" />
             <span class="sv-last-updated">{{ t('photosSvLastUpdatedTime', { time: lastUpdated }) }}</span>

@@ -48,6 +48,8 @@ function makeRouter(initial = '/photos/search') {
       { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: { template: '<div/>' } },
+      // SP15-P2b Task 5: onSaved()'s toast action now lands here instead of smart-views.
+      { path: '/photos/albums', name: 'photos-albums-stub', component: { template: '<div/>' } },
     ],
   })
   router.push(initial)
@@ -997,7 +999,11 @@ describe('保存为智能视图', () => {
   // 列表路由。真值见 Vue2 PhotosSearchView.vue:283-288 的 `.save-toast`(sparkles + 5 秒 +
   // 跳转链接);New-UI 用通用 useToast 的第三参 { label, onClick } 映上,跳转目标是
   // `/photos/smart-views`(相对 Vue2 `#/photos` 的必要偏离,见 onSaved 注释)。
-  it('保存成功 → toast 被调(5s、文案含 name、action label 是跳转键),点 action 跳 /photos/smart-views', async () => {
+  // SP15-P2b Task 5: smart albums moved into Albums (Tasks 3/4), so the "open it" link now
+  // lands on /photos/albums instead of the (now Moments-only) /photos/smart-views route.
+  // The label itself is unchanged — photosSearchOpenSmartViews still reads "打开智能视图"
+  // in the toast, only the landing page changed.
+  it('保存成功 → toast 被调(5s、文案含 name、action label 是跳转键),点 action 跳 /photos/albums', async () => {
     svc.photos.createSmartView.mockResolvedValue({
       id: 'sv-1', name: 'my trip', description: '', conds: [], threshold: 75, live: true, includeVideos: false,
       count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: [], evaluatedAt: '',
@@ -1020,7 +1026,7 @@ describe('保存为智能视图', () => {
 
     const pushSpy = vi.spyOn(router, 'push')
     action?.onClick()
-    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 })
 

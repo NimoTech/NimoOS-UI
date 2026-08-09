@@ -235,3 +235,32 @@ Task 4: complete. Embedded SmartViewCreateDialog (props embedded/initialName, ef
   src/photos/components/__tests__/SmartViewCreateDialog.test.ts src/styles
   src/i18n/parity.test.ts` -> 7 files / 1172 passed. `pnpm exec vue-tsc --noEmit` -> clean.
   Full `pnpm test` run once before commit per Step 8 (see task-4-report.md for the number).
+Task 4: fix round 1/5 (5 addressed, 0 open — dismiss() extracted as the single exit,
+  missing embedded-Cancel test added and mutation-confirmed, overclaiming title fixed,
+  3 minors; commits 0597929..e66e4e6)
+Task 4: complete (commits 1a576c9..e66e4e6, review clean)
+  The Important here is the phase's most instructive so far: a test TITLED as covering
+  "cancel and successful create" only ever clicked create. Embedded cancel went through
+  close()'s embedded branch, a second copy of the same embedded-vs-standalone decision
+  that also lived inline in confirm(). Reverting that branch left BOTH files green while
+  production would swallow the user's Cancel click (host listens for @close, not
+  update:open). Fixed structurally by collapsing the two copies into one dismiss().
+Task 4: no action, ruled: `sv-embed-host` diverges from Vue2's `sv-modal-embed-host`.
+  Reviewer traced the string to MY brief template, not an implementer shortcut. Scoped
+  class, zero visual effect, registered in-file. Left as is.
+Task 4: deferred to real-device acceptance: the short-viewport flex chain
+  (display:contents wrapper + flex:1/min-height:0) was verified algebraically, never in
+  a browser. Acceptance step 4 must check the embedded form's submit button is reachable
+  at a short viewport.
+
+=== FOUNDATION PHASE CLOSED (T1-T4, per-task reviews done) ===
+Score worth remembering: reviews raised 6 Important findings across the four tasks, and
+  3 of them traced to defects in MY OWN PLAN, not to implementer error:
+    - T2: "delete the shared comparator" AND "leave the view calling it" are incompatible
+    - T3: the Vue2 subtitle ternary I copied collides with New-UI's own empty-state panel
+          (same phrase twice on screen; plus a flash before the fetches land)
+    - T4/T3: the flash guard I mandated waited on only one of the two stores
+  Plus both Chinese values my key table guessed were wrong (起稿 not 起草).
+  => A committed plan is not a correct plan. T5-T8 have no per-task review by the owner's
+  ruling, so the whole-branch final review carries that weight alone; brief the finder
+  accordingly and do NOT let it skip the areas T5-T8 touch.

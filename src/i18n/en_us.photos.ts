@@ -637,7 +637,6 @@ export default {
   photosSvAddAnother: 'Add another…',
   photosSvAddCondition: 'Add condition',
   photosSvAllMatches: 'All matches',
-  photosSvAllSmartViews: 'All Smart Views',
   // P7a-T8: <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
   photosSvThreshHelp: 'At {pct}%, expect ~{n} new photos per week.',
   photosSvAutoAddMatches: 'Auto-add new matches',
@@ -661,7 +660,6 @@ export default {
   photosSvDeleteName: 'Delete "{name}"?',
   photosSvDeleteSmartView: 'Delete Smart View',
   photosSvDescribePlainEnglishConditions: 'Describe it in plain English — conditions are inferred below',
-  photosSvDescribeWantSetQuality: 'Describe what you want, set a quality threshold, and Nimo keeps it filled.',
   photosSvDone: 'Done',
   photosSvDuplicate: 'Duplicate',
   photosSvDuplicatedNameOpenCopy: 'Duplicated "{name}" — open the new copy from the list',
@@ -717,7 +715,6 @@ export default {
   photosSvRunEveryUpload: 'Run on every new upload',
   photosSvSaveStaticAlbum: 'Save as static Album',
   photosSvSavedSearchKeepsItself: 'Saved search that keeps itself up to date',
-  photosSvSavedSearchesStayLive: 'Saved searches that stay live. Nimo continuously evaluates new photos and adds matches that score above your threshold.',
   photosSvSettingsSection: 'Settings',
   photosSvSharpDogCatPortraits: 'Sharp dog and cat portraits',
   photosSvBadgeSmartView: 'Smart View',
@@ -947,6 +944,10 @@ export default {
   photosMoAddedThisWeek: '+{n} this week',
   photosMoHeroTitle: 'Moments · For You',
   photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
+  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
+  // settings hint shown when the band is hidden.
+  photosMoForYou: 'For You',
+  photosMoFollowsSmartViewSetting: 'Moments follows the Smart Views setting — turn it back on in',
   // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: 'Failed to save order',
   // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──

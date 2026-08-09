@@ -489,14 +489,16 @@ function openSave(): void {
 // 图标 + 「"{name}" 已保存为智能视图」+「在智能视图中打开 →」跳转链接,:283-288)。这里用
 // 通用 `useToast` 的第三参(撤销 pill 同款签名,`{ label, onClick }`,T6 回收站撤销正在用,
 // src/stores/toast.ts:13-19)1:1 映上:label 是跳转文案,onClick 换成路由跳转。
-// 偏离登记:Vue2 的跳转目标是 `#/photos`(它的智能视图与相册主页同一屏);New-UI 的智能
-// 视图列表是独立路由 `/photos/smart-views`(T4 建、router/index.ts:52 的 `photos-smart-
-// views`),这里跳去这条路由——是相对 Vue2 的必要偏离,不是抄错。
+// 偏离登记:Vue2 的跳转目标是 `#/photos`(它的智能视图与相册主页同一屏);New-UI 曾经
+// 把智能视图列表放在独立路由 `/photos/smart-views`(T4 建),但 SP15-P2b 把智能相册整个
+// 迁进了 Albums 页(见 PhotosAlbums.vue)——这里的跳转目标同步改到 `/photos/albums`,
+// 是相对 Vue2 的必要偏离,不是抄错。文案键 photosSearchOpenSmartViews 本身不改(仍是
+// "在智能视图中打开",只是打开的落点换了)。
 function onSaved(_id: string, name: string): void {
   saved.value = true
   toast.show(t('photosSearchNameSavedSmartView', { name }), 5000, {
     label: t('photosSearchOpenSmartViews'),
-    onClick: () => { void router.push('/photos/smart-views') },
+    onClick: () => { void router.push('/photos/albums') },
   })
 }
 

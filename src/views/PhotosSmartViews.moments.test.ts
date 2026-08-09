@@ -141,20 +141,13 @@ describe('grid', () => {
   })
 })
 
-describe('relationship with the smart-views hero', () => {
-  it('when the band is present, the sv-hero below it gets the sv-hero-secondary divider class', async () => {
-    const { w } = await mountPage()
-    const s = usePhotosMoments()
-    s.moments = [makeMoment()]
-    await nextTick()
-    expect(w.find('.sv-hero').classes()).toContain('sv-hero-secondary')
-  })
-
-  it('when the band is absent, sv-hero does not carry that class', async () => {
-    const { w } = await mountPage()
-    expect(w.find('.sv-hero').classes()).not.toContain('sv-hero-secondary')
-  })
-})
+// SP15-P2b Task 5: the smart-views hero this divider used to react to no longer exists on
+// this page at all (it moved to PhotosAlbums.vue in Tasks 3/4, which has its own layout and
+// no `.sv-hero-secondary` concept). Both cases below asserted a class on `.sv-hero`, an
+// element this page no longer renders — deleted rather than rewritten, since there is no
+// "relationship with the smart-views hero" left on this route to test. No coverage moves
+// anywhere: the two-sections-stacked-with-a-divider layout this guarded was specific to the
+// old combined page and does not have an equivalent on either side of the split.
 
 describe('fetching', () => {
   it('fetches moments once on mount', async () => {
@@ -241,5 +234,52 @@ describe('drag-to-reorder', () => {
     await w.vm.$nextTick()
     await new Promise((r) => setTimeout(r, 0))
     expect(sortableCreate.mock.calls.length).toBeGreaterThan(before)
+  })
+})
+
+// SP15-P2b Task 5: the smart-view grid, hero, create tile and create dialog moved to
+// PhotosAlbums.vue (Tasks 3/4) — this page is now Moments-only. These cases pin down that
+// the removal actually happened (not just "the new stuff still works").
+describe('SP15-P2b: smart-view list responsibilities are gone from this page', () => {
+  it('renders the Moments band as the page\'s only hero (h1), with none of the old smart-view entry points', async () => {
+    const { w } = await mountPage()
+    const s = usePhotosMoments()
+    s.moments = [makeMoment()]
+    await nextTick()
+    // Scoped to .mo-hero: PhotosSidebar carries its own h1 (photosTitle, "相册") that is
+    // unrelated to this page's content and always renders first in DOM order — a bare
+    // `w.find('h1')` would pick that one up instead.
+    const h1 = w.find('.mo-hero h1')
+    expect(h1.exists()).toBe(true)
+    expect(h1.text()).toContain('时刻')
+    // Everything the smart-view list used to own is gone from this page (moved to
+    // PhotosAlbums.vue in Tasks 3/4 — see task-5-report.md for exactly where).
+    expect(w.find('[data-test="sv-hero-create"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-create-card"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-skeleton"]').exists()).toBe(false)
+    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(0)
+  })
+
+  it('no longer fetches the smart view list on this page', async () => {
+    await mountPage()
+    expect(svc.photos.listSmartViews).not.toHaveBeenCalled()
+  })
+
+  it('shows the slim settings hint instead of the band when smart views are off, even with moments present', async () => {
+    const { w } = await mountPage()
+    const s = usePhotosMoments()
+    s.moments = [makeMoment()]
+    const settings = usePhotosSettingsStore()
+    settings.aiFeatures.smartview = false
+    await nextTick()
+    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+    expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(true)
+  })
+
+  it('shows neither the band nor the hint when there are simply no moments (the everyday real-device state)', async () => {
+    const { w } = await mountPage()
+    // No moments fixture set — mountPage's mocked listMoments() already resolved to [].
+    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+    expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(false)
   })
 })

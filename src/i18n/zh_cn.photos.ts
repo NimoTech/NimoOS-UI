@@ -629,7 +629,6 @@ export default {
   photosSvAddAnother: '添加另一个…',
   photosSvAddCondition: '添加条件',
   photosSvAllMatches: '全部匹配',
-  photosSvAllSmartViews: '所有智能视图',
   // P7a-T8:<b> 只包住插值 {n} ⇒ 直接开槽,去掉字面 <b></b>(零 v-html)。
   photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 {n} 张照片。',
   photosSvAutoAddMatches: '自动添加新匹配',
@@ -653,7 +652,6 @@ export default {
   photosSvDeleteName: '删除「{name}」？',
   photosSvDeleteSmartView: '删除智能视图',
   photosSvDescribePlainEnglishConditions: '用自然语言描述——下方会自动推断出条件',
-  photosSvDescribeWantSetQuality: '描述你想要的内容，设置质量阈值，Nimo 会持续为你填充。',
   photosSvDone: '完成',
   photosSvDuplicate: '复制',
   photosSvDuplicatedNameOpenCopy: '已复制「{name}」——可在列表中打开新副本',
@@ -709,7 +707,6 @@ export default {
   photosSvRunEveryUpload: '每次新上传都运行',
   photosSvSaveStaticAlbum: '保存为静态相册',
   photosSvSavedSearchKeepsItself: '已保存的搜索会自动保持最新',
-  photosSvSavedSearchesStayLive: '持续生效的保存搜索。Nimo 会不断评估新照片，把分数超过阈值的都加进来。',
   photosSvSettingsSection: '设置', // 偏离登记:json['Settings']=系统设置,但此处是智能视图右栏段标题误用全局键(Vue2 文案 bug),这里刻意取「设置」而非回源值
   photosSvSharpDogCatPortraits: '清晰的猫狗写真',
   photosSvBadgeSmartView: '智能视图',
@@ -962,6 +959,9 @@ export default {
   photosMoAddedThisWeek: '本周 +{n}',
   photosMoHeroTitle: '时刻 · 为你推荐',
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
+  // SP15-P2b Task 5:侧栏该条目的新标签(原「智能视图」),以及 band 隐藏时的精简设置提示。
+  photosMoForYou: '为你推荐',
+  photosMoFollowsSmartViewSetting: '「时刻」跟随「智能视图」开关——可在以下位置重新开启',
   // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: '排序保存失败',
   // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──

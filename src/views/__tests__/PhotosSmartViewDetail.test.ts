@@ -52,6 +52,9 @@ function makeRouter(initial = '/photos/smart-views/7') {
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+      // SP15-P2b Task 5: smart albums moved into Albums (Tasks 3/4) -- this page's back
+      // links (not-found, detail bar, post-delete) all now land here instead.
+      { path: '/photos/albums', name: 'photos-albums-stub', component: { template: '<div/>' } },
     ],
   })
   router.push(initial)
@@ -159,11 +162,14 @@ describe('数据源三态', () => {
     expect(w.find('[data-test="sv-not-found-back"]').exists()).toBe(true)
   })
 
-  it('返回按钮 → router.push 到列表页', async () => {
+  // SP15-P2b Task 5: smart albums now live in Albums (Tasks 3/4) -- this button's
+  // destination and label both changed (label: photosSvAllSmartViews → photosAlbumBack,
+  // see the deviation comment above PhotosSmartViewDetail.vue's detail-bar back button).
+  it('返回按钮 → router.push 到相册页', async () => {
     const { w, router } = await mountView('999', [makeSv({ id: 7 })])
     const pushSpy = vi.spyOn(router, 'push')
     await w.find('[data-test="sv-not-found-back"]').trigger('click')
-    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 
   it('byId 用 String 归一:store 里 id 是数字 7,route.params.id = "7" → 命中', async () => {
@@ -187,6 +193,21 @@ describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
   it('evaluatedAt 为空 → 兜底显示 "—"(照搬 Vue2 :332 的兜底)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '' })])
     expect(w.find('.sv-last-updated').text()).toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
+  })
+
+  // SP15-P2b Task 5: the back button had no data-test before this task (dispatch-corrected
+  // brief fact 3 -- the brief's original snippet assumed `sv-detail-back` already existed).
+  // Destination changed to Albums (smart albums moved there in Tasks 3/4) and the label
+  // changed from photosSvAllSmartViews to photosAlbumBack -- see the deviation comment
+  // above this button in PhotosSmartViewDetail.vue.
+  it('sends the back button to Albums, where smart albums now live', async () => {
+    const { w, router } = await mountView('7', [makeSv({ id: 7 })])
+    const pushSpy = vi.spyOn(router, 'push')
+    const back = w.find('[data-test="sv-detail-back"]')
+    expect(back.exists()).toBe(true)
+    expect(back.text()).toContain(zh.photosAlbumBack)
+    await back.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 })
 
@@ -634,7 +655,9 @@ describe('删除智能视图', () => {
     expect(w.find('[data-test="sv-confirm-scrim"]').exists()).toBe(true)
   })
 
-  it('点确认 → deleteSmartView 被调 → router.push 到列表页 + 带撤销的 toast', async () => {
+  // SP15-P2b Task 5: after deletion the user lands on Albums, not the now-Moments-only
+  // smart-views route (smart albums moved to Albums in Tasks 3/4).
+  it('点确认 → deleteSmartView 被调 → router.push 到相册页 + 带撤销的 toast', async () => {
     svc.photos.deleteSmartView.mockResolvedValue({})
     const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const pushSpy = vi.spyOn(router, 'push')
@@ -643,7 +666,7 @@ describe('删除智能视图', () => {
     await w.find('[data-test="sv-confirm-ok"]').trigger('click')
     await flushPromises()
     expect(svc.photos.deleteSmartView).toHaveBeenCalledWith('7')
-    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
     expect(useToast().msg).toContain('Sunsets')
     const last = useToast().toasts[useToast().toasts.length - 1]
     expect(last.action?.label).toBe(zh.photosTrashUndo)
@@ -684,7 +707,7 @@ describe('删除智能视图', () => {
     await w.find('[data-test="sv-more-delete"]').trigger('click')
     await w.find('[data-test="sv-confirm-ok"]').trigger('click')
     await flushPromises()
-    expect(pushSpy).not.toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).not.toHaveBeenCalledWith('/photos/albums')
     expect(useToast().msg).toBe(zh.photosSvDeleteFailed)
   })
 })
