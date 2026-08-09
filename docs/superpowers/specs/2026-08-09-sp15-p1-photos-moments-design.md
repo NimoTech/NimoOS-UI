@@ -181,7 +181,12 @@ Vue2 用两个 `watch` 监听「详情 ↔ 列表」切换来重绑 Sortable，�
 ## 7. 分支与并发
 
 - worktree `.claude/worktrees/sp15-photos-moments`，分支 `sp15-photos-moments`，从 `master@9100418` 开
-- 与并行的 `sp12-files-fixes` **零文件重叠**（它全在 `src/files/**`）；`sp12-plan-b` 已于本期开工当天合入 master
+- `sp12-plan-b` 已于本期开工当天合入 master（`9100418`），不再是并发面
+- 与并行的 `sp12-files-fixes` **有两处潜在重叠，不是零重叠**：
+  - `src/i18n/en_us.base.ts` / `src/i18n/zh_cn.base.ts` —— 双方都要加键。**真冲突面**，
+    合并时按行合即可，但**必须在合并结果上重跑 i18n parity**
+  - `src/views/Files.vue` 及其两个测试 —— 本期不碰，无冲突
+  - 其余（`src/files/components`、`src/files/util`）本期不碰
 - 合并前用 `git merge-tree --write-tree A B` 只读预演（退出码 0 + 单行 tree OID = 无冲突）；
   **后合的一方必须在合并结果上重跑全套门**
 
