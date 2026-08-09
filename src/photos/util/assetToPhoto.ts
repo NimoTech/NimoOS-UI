@@ -277,6 +277,7 @@ export interface Photo {
   isVideo: boolean
   hasOcr: boolean
   isNew: boolean
+  pinned: boolean
   isLivePhoto: boolean
   livePhotoVideoId: string | number | null
   duration: string | null
@@ -346,6 +347,11 @@ export function assetToPhoto(asset: Record<string, unknown>): Photo {
     // Smart View per-user annotation: matched but never opened by this user.
     // Drives the dismissible "New" tag on the Recently-added grid.
     isNew: !!asset.isNew,
+    // Smart View per-user annotation: manually pinned into the view rather than
+    // matched by its conditions. Drives the pin badge on the detail page's tiles.
+    // The backend tags this `omitempty`, so false arrives as an absent field —
+    // `!!` is load-bearing, not decoration.
+    pinned: !!asset.pinned,
     isLivePhoto: !!asset.livePhotoVideoId,
     livePhotoVideoId: (asset.livePhotoVideoId as string | number | undefined) || null,
     duration: durationMs ? formatDuration(durationMs) : null,

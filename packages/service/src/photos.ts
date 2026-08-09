@@ -328,6 +328,35 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/smart-views/preview', { condsRaw, description, threshold, includeVideos })
       return body<unknown>(res.data)
     },
+    // ─── Smart view manual asset actions (SP15-P2a) ───
+    // Re-verified against NimoOS-Photos/route/v1/smartviews.go: the shared request
+    // body is svAssetIDsReq {assetIds}, and an empty array is rejected with 400, so
+    // callers must not send one. The three write endpoints return only the counts of
+    // what changed — never the view's own statistics — which is why the store has to
+    // refetch the view afterwards.
+    async pinSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ added?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets`, { assetIds })
+      return body<{ added?: number }>(res.data) ?? {}
+    },
+    // Removal is tiered on the backend: a pinned row is deleted (unpinned), an
+    // automatically matched row is flagged excluded. Hence two counters, not one.
+    async removeSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ unpinned?: number; excluded?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets/remove`, { assetIds })
+      return body<{ unpinned?: number; excluded?: number }>(res.data) ?? {}
+    },
+    async restoreSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ restored?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets/restore`, { assetIds })
+      return body<{ restored?: number }>(res.data) ?? {}
+    },
+    // Bare array, no envelope key — unlike most of the list endpoints in this file.
+    // Deviation from the brief's literal snippet: `body() ?? []` alone only guards
+    // against null/undefined, not against a non-array truthy value (e.g. `{}`) —
+    // Array.isArray() is the correct guard for a "bare array" endpoint.
+    async getSmartViewExcluded(id: string | number): Promise<unknown[]> {
+      const res = await http.get(`/photos/smart-views/${id}/excluded`)
+      const b = body<unknown>(res.data)
+      return Array.isArray(b) ? b : []
+    },
     exportSmartViewUrl(id: string | number, format: string): string {
       return `/v1/photos/smart-views/${id}/export?format=${format}${tokenQ('&')}`
     },

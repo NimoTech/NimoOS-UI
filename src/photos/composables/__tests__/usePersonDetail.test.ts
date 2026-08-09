@@ -29,6 +29,7 @@ function P(id: string | number, extra: Partial<Photo> = {}): Photo {
   return {
     id, title: id, file: '', date: '', time: '', takenAt: null, indexedAt: null,
     mimeType: '', fileSize: 0, isVideo: false, hasOcr: false, isNew: false,
+    pinned: false,
     isLivePhoto: false, livePhotoVideoId: null, duration: null, durationMs: 0,
     fav: false, status: undefined, filePath: '', width: null, height: null,
     dim: null, size: '', latitude: null, longitude: null, coords: null,

@@ -137,6 +137,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   let previewTimer: ReturnType<typeof setTimeout> | null = null
   let previewSeq = 0
 
+  // SP15-P2a: the excluded list belongs here rather than in the view, alongside the
+  // three asset collections this page already reads from the store — splitting one
+  // page's data across two owners is what makes staleness bugs possible.
+  const excluded = ref<Photo[]>([])
+  const excludedLoading = ref(false)
+  // Staleness guard for loadExcluded, same shape as detailSeq: switching smart views
+  // can leave an older request in flight, and it must not overwrite the newer list.
+  let excludedSeq = 0
+  // Mutual exclusion across the three manual write actions: they all mutate the same
+  // membership of the same view, so letting two run at once would race the refetch.
+  const assetBusy = ref(false)
+
   const createBusy = ref(false)
   const patchBusy = ref(false)
   // deleteSmartView / restoreSmartView 共用一把锁——同一份资源(该智能视图在列表中
@@ -357,6 +369,103 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
+  // Refetch one smart view and replace it in the list. Vue 2 needed an in-place
+  // field merge here to preserve the object identity its detail page held as a prop
+  // (#82's MERGE_SMART_VIEW_STATS). That problem does not exist here: the detail
+  // page reads `byId(id)` as a computed, so replacing the array item is enough and
+  // both the header and the list card follow automatically.
+  //
+  // Deliberately swallows its own failure: the caller's write already succeeded, and
+  // reporting a stats refresh error as a write error would be a lie.
+  async function refreshStats(id: string): Promise<void> {
+    try {
+      const raw = await service.photos.getSmartView(id)
+      if (!raw) return
+      const i = smartViews.value.findIndex((s) => String(s.id) === String(id))
+      if (i === -1) return
+      smartViews.value.splice(i, 1, toSmartView(raw))
+    } catch (e) {
+      console.error('[photos-smartviews] refreshStats', e)
+    }
+  }
+
+  // The stats refetch lives inside each of the three write actions rather than at
+  // the call sites. Vue 2 put it at the call sites and shipped #82 to fix the one it
+  // forgot; keeping it here means a caller cannot forget.
+  //
+  // The empty-list early return is not defensive padding — the backend rejects an
+  // empty assetIds with 400 ("assetIds is required").
+  async function pinAssets(id: string, assetIds: string[]): Promise<number> {
+    if (!assetIds.length || assetBusy.value) return 0
+    assetBusy.value = true
+    try {
+      const res = await service.photos.pinSmartViewAssets(id, assetIds)
+      const added = typeof res.added === 'number' ? res.added : 0
+      await refreshStats(id)
+      return added
+    } catch (e) {
+      console.error('[photos-smartviews] pinAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  // Removal is tiered on the backend — a pinned row is deleted, an automatically
+  // matched row is flagged excluded — so both counters come back and the caller
+  // needs both to phrase its confirmation.
+  async function removeAssets(id: string, assetIds: string[]): Promise<{ unpinned: number; excluded: number }> {
+    if (!assetIds.length || assetBusy.value) return { unpinned: 0, excluded: 0 }
+    assetBusy.value = true
+    try {
+      const res = await service.photos.removeSmartViewAssets(id, assetIds)
+      const out = {
+        unpinned: typeof res.unpinned === 'number' ? res.unpinned : 0,
+        excluded: typeof res.excluded === 'number' ? res.excluded : 0,
+      }
+      await refreshStats(id)
+      return out
+    } catch (e) {
+      console.error('[photos-smartviews] removeAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  async function restoreAssets(id: string, assetIds: string[]): Promise<number> {
+    if (!assetIds.length || assetBusy.value) return 0
+    assetBusy.value = true
+    try {
+      const res = await service.photos.restoreSmartViewAssets(id, assetIds)
+      const restored = typeof res.restored === 'number' ? res.restored : 0
+      await refreshStats(id)
+      return restored
+    } catch (e) {
+      console.error('[photos-smartviews] restoreAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  // Failure is swallowed rather than rethrown: the excluded band is a secondary
+  // section, and an error there must not take down the matched grid above it.
+  async function loadExcluded(id: string): Promise<void> {
+    const mine = ++excludedSeq
+    excludedLoading.value = true
+    excluded.value = []
+    try {
+      const raw = await service.photos.getSmartViewExcluded(id)
+      if (mine !== excludedSeq) return
+      excluded.value = (raw ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
+    } catch (e) {
+      console.error('[photos-smartviews] loadExcluded', e)
+    } finally {
+      if (mine === excludedSeq) excludedLoading.value = false
+    }
+  }
+
   // 照 Vue2 refreshPreview :366-382,节奏(300ms debounce)照搬，seq 守卫是新增
   // (偏离登记 9)。thresholdActive 的判据照搬 Vue2 :378:`!res || res.thresholdActive
   // !== false`(即缺字段视为生效)。失败只 console.error，不清空 preview——照搬
@@ -425,6 +534,9 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     recentAssets.value = []
     activity.value = []
     detailLoading.value = false
+    excluded.value = []
+    excludedLoading.value = false
+    assetBusy.value = false
     // 有意不重置 detailSeq/previewSeq:若此刻还有一个 __resetForTest 之前发出的
     // 请求仍在途，把 seq 拨回 0 会让重置后的下一次调用重新落在同一个 mine 值上，
     // 与那个本该作废的旧请求产生别名冲突(同 places.ts __resetForTest 的既有理由)。
@@ -443,11 +555,13 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   return {
     smartViews, listLoaded, listLoading,
     matchedAssets, recentAssets, activity, detailLoading,
+    excluded, excludedLoading, assetBusy,
     preview,
     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
     byId,
     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
     duplicateSmartView, loadDetail, refreshPreview, cancelPreview, exportAlbum,
+    pinAssets, removeAssets, restoreAssets, loadExcluded,
     __resetForTest,
   }
 })
