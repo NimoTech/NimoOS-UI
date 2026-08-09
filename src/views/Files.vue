@@ -695,15 +695,20 @@ onMounted(() => { browse.ensureVolumes() })
 </template>
 
 <style scoped>
-.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+/* Height capping (not min-height) + .files-main's min-height:0 unblocks the flex shrinking chain
+   + .files-listwrap takes over scrolling — these three are one unit. Without min-height:0, child
+   elements burst the parent; without overflow-y, the listing gets clipped. After the change:
+   sidebar and breadcrumb stay put, only the file listing scrolls, and FilesSidebar's own
+   overflow-y:auto finally engages. */
+.files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+.files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
-.files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */
 .files-error {

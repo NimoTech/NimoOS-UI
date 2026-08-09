@@ -1,0 +1,52 @@
+// Bidirectional regression guard for the Files area .files-layout height capping —
+// same origin and logic as photosLayoutHeightCap.test.ts in the photos area,
+// except Files has only one page.
+//
+// Background: .files-layout originally had `min-height: 100%` (at least one viewport height,
+// can grow unbounded) instead of `height: 100%`. The sidebar with align-self:stretch then
+// stretched to content height instead of viewport height, and the only scroller became
+// AreaShell's .area-body ⇒ sidebar and breadcrumb scrolled away with the file listing,
+// and the sidebar's own overflow-y:auto never engaged (can't reach favorites when there are many).
+//
+// Unlike the photos area: photos had 11 pages each with an inner scroll container already,
+// Files has none — so capping must be done together with building the container. Changing
+// .files-layout alone would clip the listing. The three CSS rules are one unit: if any is
+// missing the layout breaks, so this guard locks all three.
+//
+// jsdom doesn't do layout (getBoundingClientRect always 0), actual behavior is verified on device;
+// this guard only locks source text and prevents regressions. Always read files with node:fs —
+// `?raw` is always empty in this repo's test environment.
+import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+
+const SRC = readFileSync('src/views/Files.vue', 'utf8')
+
+describe('Files area .files-layout height capping', () => {
+  it('forward: .files-layout uses height: 100% to cap', () => {
+    expect(SRC).toContain('.files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }')
+  })
+
+  it('backward: must not regress to min-height: 100%', () => {
+    expect(
+      SRC.includes('.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }'),
+      '.files-layout regressed to min-height:100%, sidebar and breadcrumb will scroll away with the file listing again',
+    ).toBe(false)
+  })
+
+  it('.files-main has explicit min-height: 0 (without it child elements burst the parent, capping does nothing)', () => {
+    const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-main {'))
+    expect(rule, 'could not find .files-main rule').toBeTruthy()
+    expect(rule).toContain('min-height: 0')
+  })
+
+  it('.files-listwrap has overflow-y: auto (after capping, it takes over scrolling)', () => {
+    const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-listwrap {'))
+    expect(rule, 'could not find .files-listwrap rule').toBeTruthy()
+    expect(rule).toContain('overflow-y: auto')
+  })
+
+  it('.files-listwrap no longer uses min-height: 200px to prop up height', () => {
+    const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-listwrap {'))
+    expect(rule).not.toContain('min-height: 200px')
+  })
+})
