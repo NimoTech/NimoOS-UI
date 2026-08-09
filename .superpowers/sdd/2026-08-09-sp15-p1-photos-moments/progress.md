@@ -241,3 +241,24 @@ Task 11: complete (commit 5f51060). Controller ran all five gates personally on 
   One earlier full-suite run showed 1 unidentified failure that did not reproduce on
   the next two runs — consistent with the plan's known-flake list.
   Acceptance list at docs/superpowers/2026-08-09-sp15-p1-acceptance.md.
+
+FINAL WHOLE-BRANCH REVIEW (opus) — 4 cross-task findings the per-task reviews were
+  structurally unable to see, all now fixed in one fix wave (1be87c7):
+  - a reorder drag also opened the moment (Sortable's own ignoreNextClick is cleared
+    on the first dragover, so the unprotected case is a drag that DOES reorder)
+  - doDelete was the only write on the page without a re-entrance guard; a double
+    click showed "delete failed" for a delete that had succeeded
+  - the :id watcher reset the asset fields but not the selection, so a selection
+    surviving an id change would send moment A's ids to moment B's exclude endpoint
+  - "Save as Album" had lost Vue 2's primary styling — invisible per-task because
+    each review compared markup against the plan's code block, which never had it
+  Plus two Minors (allLoading raised after the await; failure idioms undocumented)
+  and the previously unregistered badge-star deviation.
+  Scoped re-review: all addressed, no new Critical/Important breakage.
+  Final reviewer UPHELD both controller rulings (the extraction deferral, and routing
+  the breakpoint to device acceptance) but corrected the breakpoint's framing: the
+  grid is container-driven while the query is viewport-driven, so the symptom is wide
+  cards going full-width early between ~1050-1300px, NOT an overflow. The acceptance
+  list asked for a symptom that cannot occur; amended.
+CONTROLLER GATES RERUN after the fix wave, clean tree: vue-tsc clean · pnpm test
+  678 files/10815 passed · styles+parity 1084 · oss zero real leaks · build 18.83s.
