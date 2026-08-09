@@ -132,11 +132,16 @@ export default {
   photosAlbumNew: 'New album',
   photosAlbumNewHint: 'Click to create',
   photosAlbumUntitled: 'Untitled',
-  photosAlbumsEmptyTitle: 'No albums yet',
-  photosAlbumsEmptyHint: 'Create an album to group photos together.',
   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
-  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
-  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+  // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+  // order.
+  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+  // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+  // backed a standalone empty-state panel that duplicated this subtitle's own "No albums
+  // yet" copy once smart albums joined the grid. Vue2 has no such panel either (see the
+  // matching PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature
+  // cut.
   photosAlbumsNoneYetHint: 'No albums yet — create one manually, or let Nimo build a Smart Album that keeps itself updated.',
   photosAlbumSort: 'Sort:',
   photosAlbumSortCreated: 'Recently added',

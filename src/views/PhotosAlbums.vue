@@ -81,7 +81,6 @@ const mixedItems = computed(() =>
   ),
 )
 const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
-const isEmpty = computed(() => albums.albumsLoaded && mixedItems.value.length === 0)
 
 // Vue2 :79-85 moved this banner from the smart-views page to here along with the smart
 // albums themselves. `=== false` is load-bearing: a missing field and a failed fetch both
@@ -302,8 +301,16 @@ onUnmounted(() => {
         </div>
 
         <!-- 终审 Important 1:失败态优先级在空态之前——loadError 一旦为真,albumsLoaded 仍是
-             假(刻意,见 albums.ts 注释),不该再落进 isEmpty 分支渲染一个没有任何提示的空网格。
-             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。 -->
+             假(刻意,见 albums.ts 注释),不该再落进空态分支渲染一个没有任何提示的空网格。
+             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。
+             SP15-P2b Task 3 fix round 1 (Important 3): the standalone "isEmpty" panel that
+             used to sit here (data-test="albums-empty") is gone -- it duplicated the section
+             subtitle below with the exact same "还没有相册" copy once smart albums joined the
+             grid, so a genuinely empty library showed the same message twice on screen at
+             once. Vue2 939a7d3a:PhotosAlbumsView.vue:87-95 never had a separate empty panel
+             either -- the section subtitle *is* the empty state there, with the create tile
+             sitting right beside it. The loadError branch above is untouched: it is a real,
+             separate state (fetch failed, not "fetch succeeded with zero results"). -->
         <div v-if="albums.loadError" class="empty-state" data-test="albums-load-error">
           <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
           <button
@@ -313,10 +320,6 @@ onUnmounted(() => {
             :disabled="retryingAlbums"
             @click="retryAlbums"
           >{{ t('photosRetry') }}</button>
-        </div>
-        <div v-else-if="isEmpty" class="empty-state" data-test="albums-empty">
-          <div class="empty-state-title">{{ t('photosAlbumsEmptyTitle') }}</div>
-          <div class="empty-state-desc">{{ t('photosAlbumsEmptyHint') }}</div>
         </div>
 
         <!-- 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染的分区头
@@ -331,7 +334,12 @@ onUnmounted(() => {
           <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
                939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
                Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
-               .albums-ai-banner*) -- see the style block for the token-for-token rule copy. -->
+               .albums-ai-banner*) -- see the style block for the token-for-token rule copy.
+               fix round 1 (Minor 2): the two registered deviations on the source banner
+               (PhotosSmartViews.vue:177-178 -- the RouterLink replacing Vue2's non-clickable
+               placeholder span, and not copying Vue2's bare trailing period after the link)
+               still apply to this copy; see that file's own header comment for the full
+               rationale, not restated twice. -->
           <div v-if="aiSmartViewOff" class="albums-ai-banner" data-test="albums-ai-banner">
             <div class="albums-ai-banner-icon">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
@@ -348,8 +356,14 @@ onUnmounted(() => {
           <section class="albums-section">
             <div class="albums-section-head">
               <h2>{{ t('photosAlbumsMine') }}</h2>
+              <!-- SP15-P2b Task 3 fix round 1 (Important 3): this subtitle carries the empty
+                   state itself (Vue2 939a7d3a:PhotosAlbumsView.vue:91-93 has no separate empty
+                   panel, this line is it). Gated on `albums.albumsLoaded` so it cannot flash
+                   the "none yet" copy for a full library while the two fetches are still in
+                   flight -- before they resolve, mixedItems.length is 0 for every library, not
+                   just an empty one. -->
               <span class="albums-section-hint">
-                {{ mixedItems.length ? t('photosAlbumsMineHint') : t('photosAlbumsNoneYetHint') }}
+                {{ albums.albumsLoaded && mixedItems.length === 0 ? t('photosAlbumsNoneYetHint') : t('photosAlbumsMineHint') }}
               </span>
             </div>
             <div class="album-grid">
@@ -523,11 +537,13 @@ onUnmounted(() => {
 /* ── 分区头 + Grid ──
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
    滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
-   SP15-P2b Task 3:这里的 minmax(220px, 1fr) 刻意不改成 SmartViewCard 设计时预期的
-   minmax(320px, 1fr)(PhotosSmartViews.vue 的 .sv-grid)——两套卡片现在混在同一个网格里,
-   智能卡在 220px 列宽下会比它自己独占页面时更窄,这是混排本身的既有代价而不是本任务的
-   回归;Vue2 侧同样是两套独立网格类(`.album-grid-user` 与智能视图自己的网格)各自留着
-   自己的列宽,并未统一,这里保持同一处境,不去"顺手"统一列宽。 */
+   SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
+   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's .sv-grid) --
+   the two card kinds now share one grid, and a smart card is narrower at 220px than it is on
+   its own page. That is the accepted cost of mixing, not a regression of this task: Vue 2
+   keeps the same two grids apart too (its own `.album-grid-user` vs the smart-views grid,
+   each with its own column width, never unified), so this leaves both sides in the same
+   position they were already in rather than unifying the column width "while we're here". */
 .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
 .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
 .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }

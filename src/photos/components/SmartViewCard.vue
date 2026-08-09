@@ -24,9 +24,10 @@
 //    对应 token(grep 确认 theme.css 无此 token 也无等价物),故只保留 transform + 阴影
 //    抬升,不引入未定义 token 或裸色字面量。
 //
-// SP15-P2b Task 3(登记新增):根节点原来没有 `data-test`——grep 确认过,组件里此前零个
-// data-test 属性。PhotosAlbums.vue 的混排网格测试需要一个稳定选择器来数「这是几张智能
-// 卡」,补 `data-test="sv-card"`,只加这一处,不动组件其余任何标记。
+// SP15-P2b Task 3 (registered addition): the root element had no `data-test` before this --
+// grep-confirmed zero data-test attributes anywhere in this component. PhotosAlbums.vue's
+// mixed-grid tests need a stable selector to count "how many smart cards", so added
+// `data-test="sv-card"` here, and only here -- no other markup in this file was touched.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'

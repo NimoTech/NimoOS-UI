@@ -136,3 +136,45 @@ Task 3: complete (implementer self-report; per-task review still pending per the
   would currently ship silently. Reverted the mutation, added a registered inline comment
   at the v-for explaining why the prefix is load-bearing, did not add a new speculative
   collision fixture (not asked for by the brief; flagging for the reviewer to triage).
+
+Task 3 review: spec mostly OK, 3 Important + 2 Minor.
+  PLAN DEFECT of mine, second one this phase: the Step 5 subtitle snippet
+  `mixedItems.length ? photosAlbumsMineHint : photosAlbumsNoneYetHint` collides with
+  New-UI's own `.empty-state` panel (photosAlbumsEmptyTitle = "还没有相册"), which
+  renders ABOVE an unconditionally-rendered grid => on an empty library the phrase
+  "还没有相册" appears TWICE at once, and before the fetches resolve it flashes even
+  for a non-empty library. Controller verified against the target: Vue2 939a7d3a
+  PhotosAlbumsView.vue:87-95 has NO separate empty panel — the section subtitle IS
+  the empty state, with the create tile beside it. New-UI's panel plus its two keys
+  are used in exactly one place. => Ruling: delete the isEmpty branch and its two
+  now-dead keys; the subtitle is the empty state, which is also the 1:1 shape.
+  Two more Important: two brand-new comments written in Chinese (SmartViewCard.vue
+  and PhotosAlbums.vue's grid-width note) violate the English-comments rule.
+
+Task 3 fix round 1: complete. Translated the two offending new comments (SmartViewCard.vue
+  data-test registration; PhotosAlbums.vue's grid-width note, leaving the pre-existing
+  Chinese lines in that block untouched). Removed the redundant `.empty-state` isEmpty panel
+  and the now-dead `isEmpty` computed; deleted photosAlbumsEmptyTitle/EmptyHint from both
+  locales (grep-confirmed zero other consumers before deleting); the section subtitle now
+  gates on `albums.albumsLoaded && mixedItems.length === 0` so it cannot flash the empty
+  copy for a full library while the two fetches are in flight. Updated 4 existing tests that
+  asserted on the deleted `[data-test="albums-empty"]` selector to assert on the subtitle
+  text instead; rewrote the "list loaded, empty" test's title/body the same way. Added the
+  brief's two new fixtures (pre-resolution flash guard; manual+smart sharing a raw id).
+  Added the Minor 2 deviation pointer to the copied banner block.
+  Mutation checks: removing the `albums.albumsLoaded &&` guard turned the new
+  "does not flash" test red, as expected (reverted after confirming).
+  HONEST FINDING on the Minor 1 fixture: re-ran the original mutation (drop the `item.kind +
+  '-'` prefix from :key) against the new same-raw-id fixture -- it still does NOT go red,
+  and probing further, no Vue "duplicate keys" warning fires either. Root cause: the two
+  kinds render as different vnode types (a plain div vs the SmartViewCard component), and
+  Vue's patch/dedup logic keys off (type, key) together, not key alone, so a manual/smart
+  cross-kind id collision is not a case Vue's own diffing ever conflates regardless of the
+  prefix -- the fixture documents the intent and gives future readers a concrete render-count
+  assertion, but it does not close the detection gap the way "assert both cards render"
+  implies it would. Flagging for the reviewer/controller to decide whether this needs a
+  different test shape (e.g. forcing a reactive re-render/reorder) or whether the risk is
+  accepted as documentation-only.
+  Covering tests: `pnpm exec vitest run src/views/__tests__/PhotosAlbums.test.ts
+  src/i18n/parity.test.ts src/styles` -> 6 files / 1113 passed. `pnpm exec vue-tsc --noEmit`
+  -> clean. Full suite not re-run per the coordinator's explicit instruction.

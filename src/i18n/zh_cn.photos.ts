@@ -132,11 +132,15 @@ export default {
   photosAlbumNew: '新建相册',
   photosAlbumNewHint: '点击创建',
   photosAlbumUntitled: '未命名',
-  photosAlbumsEmptyTitle: '还没有相册',
-  photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
-  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
-  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+  // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+  // order.
+  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+  // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+  // backed a standalone empty-state panel that duplicated this subtitle's own "还没有相册"
+  // copy once smart albums joined the grid. Vue2 has no such panel either (see the matching
+  // PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature cut.
   photosAlbumsNoneYetHint: '还没有相册——手动创建一个，或者让 Nimo 建一个会自动保持更新的智能相册。',
   photosAlbumSort: '排序：',
   photosAlbumSortCreated: '最近添加',

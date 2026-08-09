@@ -132,11 +132,13 @@ afterEach(() => {
 })
 
 describe('PhotosAlbums.vue', () => {
-  it('albumsLoaded 且列表空 → 渲染空态,「新建」占位卡仍在', async () => {
+  // fix round 1 (Important 3): the standalone [data-test="albums-empty"] panel this test used
+  // to assert on is gone -- the section subtitle carries the empty state now (see
+  // PhotosAlbums.vue's comment above the subtitle span). Assert on that instead.
+  it('albumsLoaded 且列表空 → 分区副标题显示空态文案,「新建」占位卡仍在', async () => {
     const { w } = await mountView()
     const albums = usePhotosAlbums()
     expect(albums.albumsLoaded).toBe(true)
-    expect(w.find('[data-test="albums-empty"]').exists()).toBe(true)
     expect(w.text()).toContain('还没有相册')
     expect(w.find('[data-test="album-create-tile"]').exists()).toBe(true)
   })
@@ -494,7 +496,10 @@ describe('PhotosAlbums.vue', () => {
     const { w } = await mountView()
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
     expect(w.text()).toContain('相册加载失败')
-    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+    // fix round 1 (Important 3): albumsLoaded stays false on a failed fetch (albums.ts), so
+    // the subtitle's `albumsLoaded &&` gate must keep it on photosAlbumsMineHint rather than
+    // flashing the "none yet" copy alongside the error panel above.
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
     expect(w.find('[data-test="album-card"]').exists()).toBe(false)
   })
 
@@ -529,8 +534,10 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
 
     // in-flight:重试还没落定,失败态必须继续可见,不能落到空态分支。
+    // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel --
+    // see the same rationale in the "加载失败时渲染失败态而非空网格" test above.
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
-    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
 
     rejectRetry(new Error('e2'))
     await flushPromises()
@@ -538,16 +545,17 @@ describe('PhotosAlbums.vue', () => {
 
     // 落定后(仍失败):失败态持续可见。
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(true)
-    expect(w.find('[data-test="albums-empty"]').exists()).toBe(false)
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
   })
 
   // 关键区分(挡门用例 1):成功但列表为空 —— 必须仍走空态,不能被 loadError 分支误吞。
+  // fix round 1 (Important 3): asserted on the subtitle now, not a standalone panel.
   it('确认为零相册(成功但列表空)仍走空态,不走失败态', async () => {
     const { w } = await mountView()
     const albums = usePhotosAlbums()
     expect(albums.loadError).toBe(false)
     expect(albums.albumsLoaded).toBe(true)
-    expect(w.find('[data-test="albums-empty"]').exists()).toBe(true)
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsNoneYetHint)
     expect(w.find('[data-test="albums-load-error"]').exists()).toBe(false)
   })
 
@@ -622,10 +630,54 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(some.text()).not.toContain('还没有相册')
   })
 
+  // fix round 1 (Important 3): before this task's fix, this exact assertion would already
+  // pass by accident -- the standalone [data-test="albums-empty"] panel this replaced had no
+  // load gate of its own, but neither did it flash, because mountAlbums() always awaits
+  // flushPromises before returning. This test deliberately does NOT await resolution, so it
+  // exercises the render that happens *before* the two fetches land -- the case the
+  // `albums.albumsLoaded &&` guard on the subtitle exists to cover: mixedItems.length is 0
+  // for any library while listAlbums()/listSmartViews() are in flight, full or not.
+  it('does not flash the none-yet copy before the fetches resolve', async () => {
+    let resolveAlbums: ((v: unknown[]) => void) | undefined
+    svc.photos.listAlbums.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveAlbums = resolve }),
+    )
+    const router = makeRouter()
+    router.push('/photos/albums')
+    await router.isReady()
+    const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
+    await w.vm.$nextTick()
+
+    // Pre-resolution: albumsLoaded is still false, so the subtitle must read the normal
+    // "your albums" copy, not the empty one -- even though mixedItems.length is 0 right now.
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
+
+    resolveAlbums?.([{ id: 'u1', name: 'A' }])
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
+  })
+
   it('keeps the manual grid alive when the smart view fetch fails', async () => {
     // fetchSmartViews swallows its own errors (store contract); the page must not gate
     // the manual half on it.
     const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViewsFails: true })
     expect(w.findAll('[data-test="album-card"]')).toHaveLength(1)
+  })
+
+  // fix round 1 (Minor 1): the mutation check in the original task report showed that
+  // dropping the `item.kind + '-'` prefix from :key was caught by NOTHING in the suite --
+  // every fixture up to now used ids that could never collide across kinds. This one gives
+  // a manual album and a smart view the identical raw id so a future edit that drops the
+  // prefix has something to break.
+  it('renders both a manual album and a smart view that share the same raw id', async () => {
+    const w = await mountAlbums({
+      albums: [{ id: '1', name: 'Manual One' }],
+      smartViews: [{ id: '1', name: 'Smart One' }],
+    })
+    const cards = w.findAll('[data-test="album-card"]')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].text()).toContain('Manual One')
+    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
   })
 })
