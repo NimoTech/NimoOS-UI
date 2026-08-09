@@ -41,6 +41,7 @@ vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock 
 import PhotosSmartViewDetail from '../PhotosSmartViewDetail.vue'
 import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
+import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useToast } from '../../stores/toast'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
 
@@ -731,6 +732,96 @@ describe('复制', () => {
     await w.find('[data-test="sv-more-duplicate"]').trigger('click')
     await flushPromises()
     expect(useToast().msg).toBe(zh.photosSvDuplicateFailed)
+  })
+})
+
+// ── SP15-P2b Task 8: smart album → regular album (reverse of Task 7's convertFromAlbum) ──
+describe('convert to regular album', () => {
+  let convertFromSmartView: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    convertFromSmartView = vi.spyOn(usePhotosAlbums(), 'convertFromSmartView')
+  })
+
+  async function openConvertConfirm(w: Awaited<ReturnType<typeof mountView>>['w']) {
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-convert"]').trigger('click')
+  }
+
+  it('offers Convert to regular album above the destructive separator', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    const menu = w.find('[data-test="sv-more-menu"]')
+    const html = menu.html()
+    expect(menu.find('[data-test="sv-more-convert"]').exists()).toBe(true)
+    // Grouped with rename/duplicate, i.e. before the separator, not next to Delete.
+    expect(html.indexOf('sv-more-convert')).toBeLessThan(html.indexOf('sv-export-sep'))
+  })
+
+  it('asks for confirmation and spells out that the theme is discarded', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
+    const body = w.find('[data-test="sv-convert-confirm"]').text()
+    expect(body).toContain('12')
+    expect(body).toContain(zh.photosSvConvertToAlbumBody.replace('{n}', '12'))
+  })
+
+  it('navigates to the new album on success', async () => {
+    convertFromSmartView.mockResolvedValue({ id: 'al-new' } as never)
+    const { w, router } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    const push = vi.spyOn(router, 'push')
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(push).toHaveBeenCalledWith('/photos/albums/al-new')
+  })
+
+  it('keeps the confirmation open with an inline message when it fails', async () => {
+    convertFromSmartView.mockRejectedValue(new Error('boom'))
+    const { w, router } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    const push = vi.spyOn(router, 'push')
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumConvertFailed)
+    expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/photos/albums/'))
+  })
+
+  it('reuses the duplicate-name copy for a 409', async () => {
+    convertFromSmartView.mockRejectedValue({ response: { status: 409 } })
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumNameExists)
+  })
+
+  it('one Escape closes the convert confirmation along with any other open overlay', async () => {
+    // The existing invariant on this page: independent ifs, never an early return.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
+  })
+
+  it('does not dismiss the confirmation mid-flight', async () => {
+    let release: (v: unknown) => void = () => {}
+    convertFromSmartView.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await w.find('[data-test="sv-convert-cancel"]').trigger('click')
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    // Escape must be refused the same way the Cancel button is -- both route through
+    // closeConvertToAlbum's busy guard rather than one of them poking the flag directly.
+    await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    release({ id: 'al-new' })
+    await flushPromises()
   })
 })
 

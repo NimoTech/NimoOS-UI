@@ -643,6 +643,11 @@ export default {
   photosSvActOneMatchedBold: '1 new photo',
   photosSvActNMatched: '{photo} auto-added',
   photosSvActNMatchedBold: '{n} new photos',
+  // Task 8: converted_from_album activity row (reverse of Task 7's convertFromAlbum). No
+  // <b> in Vue2 for either branch, so these are plain text keys -- no split main-clause +
+  // bold-phrase pair like the matched rows above.
+  photosSvActConvertedFromAlbum: 'Converted from album',
+  photosSvActConvertedFromAlbumN: 'Converted from album · {n} photos locked in',
   photosSvActivity: 'Activity',
   photosSvAdd: 'Add',
   photosSvAddAnother: 'Add another…',
@@ -661,6 +666,12 @@ export default {
   photosSvChangeSmartViewName: 'Change the Smart View name',
   photosSvConditions: 'Conditions',
   photosSvConditionsSettingsUpdated: 'Conditions or settings updated',
+  // ── Task 8: smart album -> regular album conversion (reverse of Task 7) ──
+  photosSvConvertToAlbum: 'Convert to regular album',
+  photosSvConvertToAlbumHint: 'Stop auto-updates and lock in the current matches',
+  photosSvConvertToAlbumTitle: 'Convert "{name}" to a regular album?',
+  photosSvConvertToAlbumBody: 'Auto-updates stop. The current {n} photos become fixed into a regular album — the theme and conditions will be removed.',
+  photosSvConvertedToAlbum: 'Converted to regular album',
   photosSvCopyQuerySv: 'Copy the query as a new SV',
   // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
   // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own

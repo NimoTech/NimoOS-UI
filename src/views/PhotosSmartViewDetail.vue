@@ -60,7 +60,9 @@ import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
+import { usePhotosAlbums } from '../photos/stores/albums'
 import { useToast } from '../stores/toast'
+import { isConflict } from '../photos/util/httpErrors'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { relTime } from '../photos/util/relTime'
 import { formatMB } from '../photos/util/formatBytes'
@@ -69,6 +71,7 @@ import type { Photo } from '../photos/util/assetToPhoto'
 const route = useRoute()
 const router = useRouter()
 const store = usePhotosSmartViews()
+const albums = usePhotosAlbums()
 const toast = useToast()
 const lb = useLightbox()
 const { t, locale } = useI18n()
@@ -235,6 +238,13 @@ const storageText = computed(() => formatMB(sv.value?.storageBytes || 0))
 const exportOpen = ref(false)
 const moreOpen = ref(false)
 const confirmDeleteOpen = ref(false)
+// SP15-P2b Task 8: smart album -> regular album, the reverse of Task 7's
+// AlbumConvertToSmartDialog. Inline in this file rather than a new component (Vue2 inlines
+// its lb-confirm-* version too, and this page already owns a confirmation of the same
+// shape for delete).
+const convertToAlbumOpen = ref(false)
+const convertingToAlbum = ref(false)
+const convertError = ref('')
 const exportBtnRef = ref<HTMLElement | null>(null)
 const exportMenuRef = ref<HTMLElement | null>(null)
 const moreWrapRef = ref<HTMLElement | null>(null)
@@ -261,16 +271,21 @@ function onDocumentMouseDown(e: MouseEvent): void {
   }
 }
 
-// 硬约束:多浮层同开时一次 Esc 必须全关——三个 if 各自独立判断,禁止提前 return
-// (删码验证⑧:在第一个 if 里加 `return` 会让这条用例变红)。
+// Hard constraint: when multiple overlays are open, one Escape must close them all -- four
+// independent ifs, no early return (deletion-check 8: adding `return` inside the first if
+// turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
+// closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
+// dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
+// defined below).
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   if (exportOpen.value) exportOpen.value = false
   if (moreOpen.value) moreOpen.value = false
   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
+  if (convertToAlbumOpen.value) closeConvertToAlbum()
 }
 
-const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value)
+const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value)
 watch(anyOverlayOpen, (open) => {
   if (open) document.addEventListener('keydown', onDocumentKeydown)
   else document.removeEventListener('keydown', onDocumentKeydown)
@@ -400,6 +415,48 @@ async function duplicateSv(): Promise<void> {
   } catch (e) {
     console.error('[photos-smartviews] duplicateSv', e)
     toast.show(t('photosSvDuplicateFailed'))
+  }
+}
+
+// SP15-P2b Task 8 (Vue2 939a7d3a diff's askConvertToAlbum/closeConvertToAlbum/
+// doConvertToAlbum): the reverse of Task 7's convertFromAlbum. Freezes the current matches
+// into a regular album and drops the smart view's conditions/live-updating -- not dressed up
+// as reversible.
+function askConvertToAlbum(): void {
+  moreOpen.value = false
+  convertError.value = ''
+  convertToAlbumOpen.value = true
+}
+
+function closeConvertToAlbum(): void {
+  // No dismissal mid-flight, or the user loses track of whether the request landed --
+  // same guard as AlbumConvertToSmartDialog.vue's close() for the forward direction.
+  if (convertingToAlbum.value) return
+  convertToAlbumOpen.value = false
+}
+
+async function doConvertToAlbum(): Promise<void> {
+  const s = sv.value
+  if (!s || convertingToAlbum.value) return
+  convertingToAlbum.value = true
+  convertError.value = ''
+  try {
+    const album = await albums.convertFromSmartView(s.id)
+    convertToAlbumOpen.value = false
+    toast.show(t('photosSvConvertedToAlbum'))
+    // Vue2 :631-647 emits to its host, which closes the panel, refetches both lists and
+    // opens the new album. Here the destination is a real route that loads the album
+    // itself, and the smart view no longer exists server-side -- no refetch needed.
+    void router.push('/photos/albums/' + String(album.id))
+  } catch (e) {
+    console.error('[photos-smartviews] convertToAlbum', e)
+    // Inline, not a toast: this answers the button just pressed, so it belongs next to it
+    // and must not time out (same call as doConvertToAlbum's sibling AlbumConvertToSmartDialog
+    // .vue). A 409 reuses the album pages' existing duplicate-name wording.
+    convertError.value = isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumConvertFailed')
+  } finally {
+    // Cleared even on failure -- the dialog stays open precisely so retry is one click.
+    convertingToAlbum.value = false
   }
 }
 
@@ -695,6 +752,17 @@ async function onExcludedTileClick(id: string): Promise<void> {
                       <div class="sv-export-desc">{{ t('photosSvCopyQuerySv') }}</div>
                     </div>
                   </button>
+                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate
+                       above the destructive separator, not beside Delete -- this is not a
+                       destructive action, it freezes the current matches into a regular
+                       album. -->
+                  <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
+                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
+                    </div>
+                  </button>
                   <div class="sv-export-sep" />
                   <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
                   <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
@@ -808,13 +876,15 @@ async function onExcludedTileClick(id: string): Promise<void> {
       >{{ t('photosSvRemoveFromView') }}</button>
     </div>
 
-    <!-- SP15-P2a 图库选择器(Vue2 :283-291)。标题复用 photosAlbumPickerTitle ——
-         Vue2 本来就是一个字符串喂两个 picker。
-         submit-label:Vue2 :288 给这个 picker 传的是静态 `$t('Add selected')`(添加所选),
-         不是相册两页那个带计数的 `Add ({count})`。第一版在这里传了相册的计数函数并援引
-         PhotosLibraryPicker 偏离 b —— 但那条偏离说的是"保持相册既有消费方不变",对一个
-         **新**消费方该用哪种一个字都没说(final review, finding 3)。改回静态标签,复用
-         P1 已有的 photosMoAddSelected(同一句 Vue2 文案,不新增键);相册两页照旧传函数。 -->
+    <!-- SP15-P2a library picker (Vue2 :283-291). Title reuses photosAlbumPickerTitle --
+         Vue2 already feeds one string to two pickers.
+         submit-label: Vue2 :288 passes this picker a static `$t('Add selected')`, not the
+         count-bearing `Add ({count})` the two album pages use. The first version passed the
+         album pages' count function here and cited PhotosLibraryPicker deviation b -- but
+         that deviation is about keeping the album pages' existing consumers unchanged, and
+         says nothing about which form a **new** consumer should use (final review, finding
+         3). Reverted to the static label, reusing P1's existing photosMoAddSelected (the
+         same Vue2 copy, no new key); the two album pages still pass the function. -->
     <PhotosLibraryPicker
       v-model:open="pickerOpen"
       :title="t('photosAlbumPickerTitle', { name: sv?.name ?? '' })"
@@ -839,6 +909,28 @@ async function onExcludedTileClick(id: string): Promise<void> {
           <button type="button" class="sv-confirm-ok danger" data-test="sv-confirm-ok" @click="doDelete">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
             {{ t('photosDelete') }}
+          </button>
+        </div>
+      </div>
+    </div>
+    </Transition>
+
+    <!-- SP15-P2b Task 8: convert-to-album confirmation -- same sv-confirm-* visual idiom as
+         the delete confirmation above. The copy spells out all three consequences (updates
+         stop, members are fixed, theme and conditions are removed), not dressed up as
+         reversible. Submit button carries no .danger -- this is not a destructive delete,
+         and Vue2 uses its ordinary primary CTA (trash-btn-cta) rather than the danger variant. -->
+    <Transition name="sv-confirm">
+    <div v-if="convertToAlbumOpen" class="sv-confirm-scrim" data-test="sv-convert-confirm" @click.self="closeConvertToAlbum">
+      <div class="sv-confirm-panel">
+        <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+        <div class="sv-confirm-title">{{ t('photosSvConvertToAlbumTitle', { name: sv?.name }) }}</div>
+        <div class="sv-confirm-body">{{ t('photosSvConvertToAlbumBody', { n: fmtNum(sv?.count ?? 0) }) }}</div>
+        <div v-if="convertError" class="sv-confirm-error" data-test="sv-convert-error">{{ convertError }}</div>
+        <div class="sv-confirm-foot">
+          <button type="button" class="sv-confirm-cancel" data-test="sv-convert-cancel" :disabled="convertingToAlbum" @click="closeConvertToAlbum">{{ t('photosCancel') }}</button>
+          <button type="button" class="sv-confirm-ok" data-test="sv-convert-ok" :disabled="convertingToAlbum" @click="doConvertToAlbum">
+            {{ convertingToAlbum ? t('photosAlbumConverting') : t('photosSvConvertToAlbum') }}
           </button>
         </div>
       </div>
@@ -1106,6 +1198,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
 }
 .sv-confirm-title { font-size: 16px; font-weight: 600; }
 .sv-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+/* SP15-P2b Task 8: inline failure message next to the convert confirmation's submit button
+   (not a toast -- it answers the button just pressed, same reasoning as
+   AlbumConvertToSmartDialog.vue's own .convert-error). */
+.sv-confirm-error { margin-top: 8px; font-size: 12px; color: var(--remove-fg); line-height: 1.4; }
 .sv-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
 .sv-confirm-cancel, .sv-confirm-ok {
   padding: 8px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: transparent;

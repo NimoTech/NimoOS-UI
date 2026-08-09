@@ -292,3 +292,18 @@ Task 6: complete (commit 2094f37). No per-task reviewer; controller spot-check c
   two-column body BROKE TWO SIBLING-COMBINATOR RULES
   (.album-toolbar[data-edit="true"] ~ .tile...), repointed through the new wrapper.
   That class of breakage is invisible to every gate — worth remembering for T7/T8.
+
+Task 7: complete (commit c9a3924). No per-task reviewer; CONTROLLER RAN THE GATES ITSELF
+  because the implementer stalled: it handed its test run to a background monitor and ended
+  its turn waiting for a notification that never comes. Work was already committed and the
+  tree clean — "done but not reported", the known failure mode. Resumed it with an explicit
+  foreground-only instruction.
+  Controller-verified independently: focused suite 7 files / 1137 tests pass, vue-tsc clean,
+  oss export zero real leaks (6/6 written), no newly-authored Chinese outside i18n values,
+  zero color literals in the new component, no `*`-before-`/` comment trap, isConflict reused
+  rather than hand-rolled, reset lives in watch(() => props.open), close() guarded on
+  converting, dialog mounted behind v-if="album" and appended as a template sibling so
+  Task 6's sibling-combinator hazard is not re-triggered.
+Task 7: minor (deferred): the new test file hardcodes Chinese assertion literals
+  ('转换失败', '已存在') instead of referencing the zh locale module — the same Minor that
+  Task 4's review raised and fixed there. Final review should triage; two-line change.
