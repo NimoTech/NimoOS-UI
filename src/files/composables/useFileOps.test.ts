@@ -337,10 +337,18 @@ describe('useFileOps', () => {
   // error and threw it away, always showing the generic fallback text even
   // when the backend explained itself (e.g. "read-only filesystem" for a
   // paste into a read-only mount). The pre-F2 code (one try/catch around both
-  // sequential awaits) DID surface that message via errMsg(e, ...); these
-  // tests now pin both halves of the fix: the backend's own message wins when
-  // present, and the fallback text only shows up when it isn't.
-  it('paste shows the backend\'s own reason when one batch submits and the other fails', async () => {
+  // sequential awaits) DID surface that message via errMsg(e, ...).
+  //
+  // fix-round-3 M2: the round-2 fix over-corrected by REPLACING the whole
+  // toast with errMsg's result. Since errMsg picks the backend's message over
+  // the fallback whenever one exists -- the common case -- a partial failure
+  // with a real backend reason ended up showing ONLY that reason, with no
+  // indication that half the paste had already landed. That made it
+  // byte-for-byte identical to the total-failure toast, defeating the whole
+  // point of F2 (telling the two apart). These tests now pin the corrected
+  // behavior: the reason is INTERPOLATED into the "part landed" template, not
+  // swapped in for it.
+  it('paste keeps the "part landed" framing while including the backend\'s own reason', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
@@ -358,12 +366,14 @@ describe('useFileOps', () => {
     const ops = makeOps()
     await ops.paste()
     expect(batchTask).toHaveBeenCalledTimes(2) // the failing call was still attempted, not skipped
-    expect(toastSpy).toHaveBeenCalledWith('read-only filesystem')
-    expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)
+    expect(toastSpy).toHaveBeenCalledWith(zh.filesPastePartialFailure.replace('{reason}', 'read-only filesystem'))
+    // Must stay distinguishable from the total-failure toast, which is the
+    // bare reason with no "part landed" framing at all.
+    expect(toastSpy).not.toHaveBeenCalledWith('read-only filesystem')
     expect(clip.operateObject).not.toBeNull()
   })
 
-  it('paste falls back to the generic partial-failure message when the backend gives no reason', async () => {
+  it('paste falls back to the generic reason inside the partial-failure template when the backend gives no reason', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
@@ -380,7 +390,7 @@ describe('useFileOps', () => {
     const toastSpy = vi.spyOn(toast, 'show')
     const ops = makeOps()
     await ops.paste()
-    expect(toastSpy).toHaveBeenCalledWith(zh.filesPastePartialFailure)
+    expect(toastSpy).toHaveBeenCalledWith(zh.filesPastePartialFailure.replace('{reason}', zh.filesOpFailed))
     expect(clip.operateObject).not.toBeNull()
   })
 
@@ -455,6 +465,32 @@ describe('useFileOps', () => {
     await ops.paste()
     expect(toastSpy).toHaveBeenCalledWith('disk full')
     expect(clip.operateObject).not.toBeNull()
+  })
+
+  // fix-round-3 M3: when both batches fail for genuinely DIFFERENT reasons
+  // (e.g. the overwrite batch is rejected for a permissions reason while the
+  // rename batch fails for something else entirely), showing only the first
+  // failure's message would silently drop the second one.
+  it('paste shows both reasons when the two batches fail differently', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+      renameItems: [{ from: '/DATA/b', is_dir: false }],
+      skippedCount: 0,
+      cancelledCount: 0,
+    })
+    batchTask.mockRejectedValueOnce(new Error('permission denied')).mockRejectedValueOnce(new Error('disk full'))
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.paste()
+    const shown = toastSpy.mock.calls[0]?.[0] as string
+    expect(shown).toContain('permission denied')
+    expect(shown).toContain('disk full')
   })
 
   it('paste does nothing when the clipboard is empty', async () => {

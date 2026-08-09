@@ -211,18 +211,29 @@ describe('Files.vue browse pipe', () => {
   })
 
   it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
-    // fix-round-2 N1 debugging note: an earlier draft of this test drove the
-    // event through `w.findComponent(FileContextMenu).vm.$emit('action', ...)`.
-    // That call shows up in Vue Test Utils' `emitted()` tracker, but it does
-    // NOT actually invoke the `onAction` prop Files.vue registers via
-    // `@action="onCtxAction"` -- confirmed by instrumenting both `ops.paste()`
-    // and the unrelated `refresh` action and observing neither ever ran, even
-    // though `vnode.props.onAction` was present and callable. Rather than
-    // depend on a technique that turned out not to exercise the real listener
-    // at all, this test stubs reka-ui's ContextMenu/ContextMenuItem the same
-    // way FileContextMenu.test.ts does, and drives an actual DOM click through
+    // fix-round-3 M1 correction: an earlier draft of this comment blamed
+    // `wrapper.vm.$emit()` itself for not invoking the parent listener. That
+    // diagnosis was wrong -- a minimal parent/child repro showed `.vm.$emit()`
+    // reaches a real `onAction` listener just fine, called exactly once.
+    //
+    // The actual root cause is that `Files.vue`'s render tree contains TWO
+    // `FileContextMenu` instances: FilesSidebar.vue's own copy (for the
+    // favourites list, around Files.vue:621) and the main listing's (around
+    // Files.vue:681). `findComponent(FileContextMenu)` -- and `findAll(...)`'s
+    // first result -- resolves to the SIDEBAR's instance, whose
+    // `onFavoriteAction` deliberately no-ops when `entry` is null
+    // (`if (entry) emit('ctx-action', ...)`; blank-area actions like 'paste'
+    // are never forwarded from there). The event genuinely fired -- it just
+    // landed on the wrong instance. This is the SAME ambiguity later hit again
+    // at the DOM level as two `.ctx-paste` elements, not a second, unrelated
+    // bug -- one root cause, two places it showed up.
+    //
+    // The fix stubs reka-ui's ContextMenu/ContextMenuItem the same way
+    // FileContextMenu.test.ts does, and drives an actual DOM click through
     // FileContextMenu's own real `fire()` -> real `emit('action', ...)` ->
-    // real `onAction` prop chain, exactly as production code would.
+    // real `onAction` prop chain, exactly as production code would, then
+    // disambiguates which `.ctx-paste` element belongs to the main listing
+    // (see the `mainMenuPaste` lookup below).
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()

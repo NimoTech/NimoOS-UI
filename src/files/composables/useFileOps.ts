@@ -171,8 +171,27 @@ export function useFileOps() {
       if (cancelledCount === 0) clipboard.clear()
       return
     }
-    if (!succeeded) { toast.show(errMsg(failures[0].error, t('filesOpFailed'))); return }
-    toast.show(errMsg(failures[0].error, t('filesPastePartialFailure')))
+    if (!succeeded) {
+      // Both batches can fail for genuinely different reasons (overwrite
+      // rejected for a permissions reason, rename rejected for a naming
+      // reason) -- showing only failures[0] would silently drop the second
+      // one. Dedup with a Set so the common case (both fail identically,
+      // e.g. the whole destination is read-only) still reads as one reason,
+      // not "X; X" (task-7 fix-round-3 M3).
+      const reasons = [...new Set(failures.map((f) => errMsg(f.error, t('filesOpFailed'))))]
+      toast.show(reasons.join('; '))
+      return
+    }
+    // Interpolate the reason into the partial-failure template rather than
+    // using errMsg's replace-the-whole-string fallback pattern (task-7
+    // fix-round-3 M2): errMsg picks the backend's message OVER the fallback
+    // whenever one exists, which is the common case (e.g. a read-only mount
+    // does return a message) -- replacing outright would show only
+    // "read-only filesystem" with no indication that half the paste had
+    // already landed, making this indistinguishable from the total-failure
+    // toast above. The template always carries the "part landed" framing;
+    // only the parenthetical reason varies with what the backend said.
+    toast.show(t('filesPastePartialFailure', { reason: errMsg(failures[0].error, t('filesOpFailed')) }))
   }
 
   async function download(entries: FileEntry[]) {
