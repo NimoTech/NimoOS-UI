@@ -241,7 +241,6 @@ export default {
   aiMcpAllowedOnce: '已授权本次调用 {tool}',
   aiMcpAlwaysAllowTool: '已设为始终允许 {tool}',
   aiMcpDeniedTool: '已拒绝，Nimo 不会使用 {tool}',
-  aiChange: '更改',
   aiMcpFirstPermission: '首次调用外部 MCP 服务，需要你的许可',
   aiMcpCallAsk: 'Nimo 想通过 MCP 服务「{server}」调用工具 {tool}。',
   aiMcpFirstUse: '这是本次会话第一次使用该服务。',

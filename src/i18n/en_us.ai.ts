@@ -223,7 +223,6 @@ export default {
   aiMcpAllowedOnce: 'Allowed {tool} once',
   aiMcpAlwaysAllowTool: 'Always allow {tool}',
   aiMcpDeniedTool: 'Denied. Nimo will not use {tool}',
-  aiChange: 'Change',
   aiMcpFirstPermission: 'First MCP call needs your permission',
   aiMcpCallAsk: 'Nimo wants to call tool {tool} on MCP server {server}.',
   aiMcpFirstUse: 'This is the first use of this server in this session.',
