@@ -41,6 +41,7 @@ import {
 import { readDefault } from '../files/util/locationOrder'
 import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
+import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
 import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
@@ -93,22 +94,28 @@ function onBlankContextmenu(e: MouseEvent) {
 
 function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } }
 
-// 取选中或右键项(复用于 delete/copy/cut)
-function selectedOr(entry: FileEntry | null): FileEntry[] {
-  const sel = files.entries.filter((e) => files.isSelected(e.path))
-  return sel.length ? sel : entry ? [entry] : []
+// Current selection (in listing order), shared by context-menu target set and batch entry points
+const selectedEntries = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
+
+// Effective target set for context-menu actions — the determination logic is in util/contextTarget.ts,
+// and both menu shape and all actions read the same set to avoid "menu shows multi-select, action acts on one item" mismatches.
+function ctxTargets(entry: FileEntry | null): FileEntry[] {
+  return contextTargets(entry, selectedEntries.value)
 }
 
+// Menu prop: must be the count of the effective target set, not the original selection count
+const ctxTargetCount = computed(() => ctxTargets(ctxEntry.value).length)
+
 // 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
-const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
+const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is_dir))
 
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
-const snapshotSelection = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
+const snapshotSelection = computed(() => selectedEntries.value)
 
 // 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
 // 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
 async function onShare(entry: FileEntry | null) {
-  const folders = selectedOr(entry).filter((e) => e.is_dir)
+  const folders = ctxTargets(entry).filter((e) => e.is_dir)
   if (!folders.length) return
   const ok = await shares.create(folders.map((f) => f.path))
   if (ok) {
@@ -136,14 +143,10 @@ function onCtxAction(action: string, entry: FileEntry | null) {
         else favorites.add({ name: entry.name, path: entry.path })
       }
       break
-    case 'delete': {
-      const sel = files.entries.filter((e) => files.isSelected(e.path))
-      deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
-      break
-    }
-    case 'copy': ops.copy(selectedOr(entry)); break
-    case 'cut': ops.cut(selectedOr(entry)); break
-    case 'download': ops.download(selectedOr(entry)); break
+    case 'delete': deleteDlg.value = { open: true, entries: ctxTargets(entry) }; break
+    case 'copy': ops.copy(ctxTargets(entry)); break
+    case 'cut': ops.cut(ctxTargets(entry)); break
+    case 'download': ops.download(ctxTargets(entry)); break
     case 'paste-overwrite': ops.paste('overwrite'); break
     case 'paste-skip': ops.paste('skip'); break
     case 'upload-file': triggerFileSelect(); break
@@ -595,7 +598,7 @@ onMounted(() => { browse.ensureVolumes() })
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
           @share="onShare(null)"
         />
-        <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+        <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
             <div v-if="files.error && !files.loading" class="files-error" role="alert">
               <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
