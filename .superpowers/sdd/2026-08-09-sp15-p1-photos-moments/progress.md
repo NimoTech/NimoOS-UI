@@ -262,3 +262,8 @@ FINAL WHOLE-BRANCH REVIEW (opus) — 4 cross-task findings the per-task reviews 
   list asked for a symptom that cannot occur; amended.
 CONTROLLER GATES RERUN after the fix wave, clean tree: vue-tsc clean · pnpm test
   678 files/10815 passed · styles+parity 1084 · oss zero real leaks · build 18.83s.
+
+2026-08-09 OWNER DECISION: P1 acceptance is DEFERRED — not to be run now, folded
+  into a single later acceptance pass across phases. The 24-step list at
+  docs/superpowers/2026-08-09-sp15-p1-acceptance.md stands unchanged and unrun.
+  Branch stays unmerged, unpushed, undeployed. P2 continues in THIS worktree.
