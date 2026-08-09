@@ -227,11 +227,22 @@ $ pnpm exec vitest run src/photos src/views/__tests__
       Tests  2464 passed (2464)          # album pages and the other photos views undisturbed
 ```
 
-Full suite (`pnpm exec vitest run`) before committing: **674 passed / 4 failed files,
-10742 passed / 3 failed / 70 skipped**. All four failing files are under `oss/` and all fail for
-one reason, printed by the export script itself: `工作树不干净,导出中止` — the open-source
-export refuses to run against a dirty working tree. They are not related to this wave (nothing
-under `oss/` was touched). Re-run after the commit: see the post-commit line at the bottom.
+Full suite (`pnpm exec vitest run`) **before** committing: 674 passed / 4 failed files,
+10742 passed / 3 failed / 70 skipped. All four failing files were under `oss/` and all failed
+for one reason, printed by the export script itself: `工作树不干净,导出中止` — the open-source
+export refuses to run against a dirty working tree. Nothing under `oss/` was touched.
+
+**After** committing, with the tree clean:
+
+```
+$ pnpm exec vitest run oss
+ Test Files  19 passed (19)
+      Tests  449 passed (449)
+
+$ pnpm exec vitest run
+ Test Files  678 passed (678)
+      Tests  10815 passed (10815)
+```
 
 ## Files changed
 
