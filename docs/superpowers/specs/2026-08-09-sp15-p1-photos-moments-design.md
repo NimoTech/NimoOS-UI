@@ -15,7 +15,7 @@ New-UI 的移植蓝本是 **2026-07-15 的 Vue2**（本地分支 `docs/vue3-migr
 | Part | 内容 | Vue2 提交 | 依赖 |
 |---|---|---|---|
 | **P1** | **Moments 整块**：时刻卡 + 详情页 + 拖拽排序 + pin/exclude/delete + 马赛克布局 + 导出相册 | `#100` `#107`–`#111` | 无 |
-| P2 | Albums / SmartViews 统一：混排、创建二选一、For You 专页、详情对齐、双向互转 | `#112`–`#117` | **依赖 P1** |
+| P2 | Albums / SmartViews 统一：混排、创建二选一、For You 专页、详情对齐、双向互转；**外加 `#79`/`#82` 智能视图手动加/移/恢复照片**（见下方更正 2） | `#79` `#82` `#112`–`#117` | **依赖 P1** |
 | P3 | 时间线性能线：分桶时间线 + 窗口化网格 + 增量写入 + 骨架屏按桶计数 | `#138`–`#140` | 与 P1/P2 低冲突 |
 | P4 | 零散：人物区上线前 P0/P1 修复；**地点地图整块**（对比度 + 自定义配色三修 + 点阵性能重构） | `#137` `#106` | 无 |
 
@@ -32,8 +32,24 @@ New-UI 的移植蓝本是 **2026-07-15 的 Vue2**（本地分支 `docs/vue3-migr
 
 1. **roadmap §4 SP12 那份清单已过期。** 它的基线是 2026-08-07 的 `#136`；重算时 `origin/main` 已到 `#137`，
    多出 4 个动相册的提交（`#137`–`#140`），roadmap 一条都没登记 —— 已收进上表 P3/P4。
-2. **不能按提交列表算范围。** `#79`/`#81`/`#82`（智能视图钉住/移除/恢复）SP7 移植时已经吃掉了
-   （`src/photos/stores/smartViews.ts` 里 `restoreSmartView` 等俱在）。范围以**代码级差集**为准。
+2. **不能按提交列表算范围，但也不能只看名字像不像 —— 我在这条上先错了一次。**
+   最初判定「`#79`/`#81`/`#82` SP7 已吃掉」，依据是 `src/photos/stores/smartViews.ts` 里有
+   `restoreSmartView`。**那是错的**：那个方法是「撤销删除智能视图」，与 `#79` 的
+   「恢复被排除的**照片**」不是一回事。逐方法核对后的真实状态：
+
+   | Vue2 提交 | 真实状态 |
+   |---|---|
+   | `#79` 智能视图手动加/移/恢复照片 | **未吸收**。New-UI 的 `packages/service/src/photos.ts` 里 `pinSmartViewAssets` / `removeSmartViewAssets` / `restoreSmartViewAssets` / `getSmartViewExcluded` **四个全无**（Vue2 `src/service/photos.js:158-161`）。**归 P2**。 |
+   | `#82` 钉住/移除/恢复后刷新统计 | **未吸收**（依赖 `#79`）。**归 P2**。 |
+   | `#81` PhotosToast 兼容 title + 跟随浅色主题 | **不适用**。New-UI 有自己的 `src/stores/toast.ts`，不是 Vue2 那个全局 `window.PhotosToast`，结构性无对应物。 |
+
+   **对 P1 的直接影响**：`#79` 顺带把 `PhotosAlbumLibraryPicker.vue` 泛化成了通用的
+   `PhotosLibraryPicker.vue`（`R072` 重命名 + 43 行改动）。New-UI 没跟上这一步，
+   `src/photos/components/AlbumLibraryPicker.vue` 仍是相册专用（props 是
+   `albumId`/`albumName`，内部直接调 `albums.addAssetsToAlbum`）⇒ **P1 的「Add photos」
+   不能直接复用它**，要先做同款泛化。见 plan Task 9。
+
+   教训：判「已吸收」必须逐方法/逐组件核对，方法名相近不算证据。
 
 ---
 
