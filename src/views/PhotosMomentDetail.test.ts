@@ -46,6 +46,11 @@ const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
 vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosMomentDetail from './PhotosMomentDetail.vue'
+// Raw SFC text, for the two style assertions at the bottom: jsdom does no cascade resolution
+// and cannot enter a hover state, so the winning :hover background has to be computed from
+// the stylesheet source (same helper and same reason as PhotosSmartViewDetail.test.ts:42-45).
+import photosMomentDetailRaw from './PhotosMomentDetail.vue?raw'
+import { extractStyleBlock, winningHoverBackground } from '../photos/components/__tests__/cssCascade'
 import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 import { useToast } from '../stores/toast'
@@ -334,6 +339,57 @@ describe('route parameter changes', () => {
     await flushPromises()
     expect(w.find('[data-test="mo-about-place"]').text()).toBe('place-m2')
   })
+
+  // Final whole-branch review, finding 3 (file-header deviation 21). The watcher cleared the
+  // four asset fields and none of the interaction flags. A selection is the one with a write
+  // consequence: removeSelected() reads momentId.value at *call* time, so a selection carried
+  // across the change would post moment A's asset ids to moment B's exclude endpoint, under a
+  // bar reading "1 selected" over photos that are no longer on screen.
+  it('a selection does not survive an :id change', async () => {
+    svc.photos.getMomentAssets.mockImplementation(async (id?: string, featured?: boolean) =>
+      featured ? { assets: [], members: [], places: [] } : [{ id: `${id}-a1` }])
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'm1' }), makeMoment({ id: 'm2', title: 'Other' })]
+    s.listLoaded = true
+    const { w, router } = await mountDetail('m1')
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    await w.find('[data-test="mo-all-tile"]').trigger('click')
+    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
+
+    await router.push('/photos/moments/m2')
+    await flushPromises()
+
+    // Not merely "the bar is hidden": selection mode itself must be off, and pressing Select
+    // again must reveal an empty selection rather than m1's leftover id.
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+    expect(svc.photos.excludeMomentAssets).not.toHaveBeenCalled()
+  })
+
+  it('an open library picker and an open delete confirmation do not survive an :id change', async () => {
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'm1' }), makeMoment({ id: 'm2', title: 'Other' })]
+    s.listLoaded = true
+    const { w, router } = await mountDetail('m1')
+
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(true)
+
+    await router.push('/photos/moments/m2')
+    await flushPromises()
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(false)
+
+    // The picker's "already in" set is derived from the previous moment's members, so leaving
+    // it open across the change would offer the wrong answer to the wrong question.
+    await w.find('[data-test="mo-add-photos"]').trigger('click')
+    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(true)
+    await router.push('/photos/moments/m1')
+    await flushPromises()
+    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
+  })
 })
 
 // fix round 1 · finding 1. The two asset requests must fail independently; a single Promise.all
@@ -450,6 +506,31 @@ describe('the two photo grids', () => {
     const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
     const { w } = await mountDetail()
     expect(w.findAll('[data-test="mo-pin-tag"]')).toHaveLength(1)
+  })
+
+  // Final whole-branch review, finding 5 (file-header deviation 20). allLoading used to be
+  // raised only after `await store.ensureLoaded()`. The reachable case: the smart-views page's
+  // onMounted refetches the list, so returning to it and opening a moment immediately finds
+  // listLoaded already true (the header renders the real title and count) while ensureLoaded()
+  // awaits the in-flight request — and for that whole round trip the grid claimed the moment
+  // had no photos, before "Loading…" had ever appeared.
+  it('says "loading" rather than "no photos yet" while a list refetch is still in flight underneath', async () => {
+    mockAssets([], [])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    let releaseList: () => void = () => {}
+    svc.photos.listMoments.mockImplementation(
+      () => new Promise((r) => { releaseList = () => r([RAW]) }),
+    )
+    void s.fetchMoments() // the refetch the smart-views page fires on mount — now in flight
+    const { w } = await mountDetail()
+
+    expect(w.text()).toContain('Bozeman')                              // the header is already real
+    expect(w.find('[data-test="mo-all-loading"]').exists()).toBe(true) // …so the grid must not lie
+    expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(false)
+
+    releaseList()
+    await flushPromises()
+    expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(true)
   })
 
   it('shows "no photos yet" once All photos has finished loading and found none', async () => {
@@ -770,6 +851,37 @@ describe('save as album', () => {
     const { w } = await mountDetail('m1', 'zh_cn')
     expect(w.find('[data-test="mo-save-album"]').text()).toContain(zh.photosMoSaveAsAlbum)
   })
+
+  // Final whole-branch review, finding 4 (file-header deviation 23). Vue 2 marks this one
+  // button `data-primary="true"` and scss:553-557 fills it with the accent; the port shipped a
+  // plain .sv-action-btn, so the page's single call-to-action looked exactly like the two
+  // neutral chips beside it. The per-task reviews could not see this because they compared the
+  // markup against the plan's code block, which never carried the attribute — so the check is
+  // written against Vue 2's own marker, and against the two other buttons staying neutral.
+  it('is the bar\'s one primary action: it alone carries Vue 2\'s data-primary marker and the accent class', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    const save = w.find('[data-test="mo-save-album"]')
+    expect(save.attributes('data-primary')).toBe('true')
+    expect(save.classes()).toContain('sv-action-btn-primary')
+    // The neighbours must stay neutral, or "primary" would be meaningless.
+    expect(w.find('[data-test="mo-add-photos"]').classes()).not.toContain('sv-action-btn-primary')
+    expect(w.find('[data-test="mo-select-toggle"]').classes()).not.toContain('sv-action-btn-primary')
+  })
+
+  it('fills that button from the accent token, and its hover rule beats the neutral base rule structurally', () => {
+    const style = extractStyleBlock(photosMomentDetailRaw)
+    expect(style).toContain('.sv-action-btn-primary { background: var(--accent);')
+    const win = winningHoverBackground(style, ['sv-action-btn', 'sv-action-btn-primary'])
+    expect(win.selector).toContain(':hover')
+    expect(win.selector).toContain('sv-action-btn-primary')
+    // Specificity 3 means both classes really are in one compound selector. A single-class
+    // `.sv-action-btn-primary:hover` scores 2 — a tie with the base `.sv-action-btn:hover`,
+    // survived only by source order, which is the exact fragility this repo has been bitten by
+    // (the accent fill gets replaced by the neutral hover background, --on-accent text stays).
+    expect(win.specificity).toBe(3)
+    expect(win.value).toContain('var(--accent)')
+  })
 })
 
 describe('delete moment', () => {
@@ -850,6 +962,81 @@ describe('delete moment', () => {
     expect(removed).toBe(registered)
     addSpy.mockRestore()
     removeSpy.mockRestore()
+  })
+
+  // Final whole-branch review, finding 2 (file-header deviation 22). Vue 2 needed no
+  // re-entrance guard because it closes the dialog before the request; deviation 17 keeps the
+  // dialog open, so two presses land two DELETEs — the first succeeds and navigation starts,
+  // the second 404s, and the dialog then reports "删除失败" for a delete that in fact worked.
+  //
+  // The two clicks are deliberately NOT awaited between: awaiting flushes nextTick, the
+  // :disabled attribute lands, and @vue/test-utils' trigger() then declines to dispatch on a
+  // disabled element — which would leave this case green even with the JS guard deleted. Back
+  // to back, the DOM has not re-rendered yet and `if (deleting.value) return` is the only
+  // thing that can stop the second call.
+  it('double-clicking Delete sends exactly one request', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    let release: () => void = () => {}
+    const remove = vi.spyOn(s, 'remove')
+      .mockImplementation(() => new Promise<void>((r) => { release = () => r() }))
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+
+    const btn = w.find('[data-test="mo-delete-go"]')
+    void btn.trigger('click')
+    void btn.trigger('click')
+    await flushPromises()
+
+    expect(remove).toHaveBeenCalledTimes(1)
+    release()
+    await flushPromises()
+  })
+
+  it('disables the confirm button while the delete is in flight, and re-enables it after a failure', async () => {
+    const err = muteConsoleError()
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    let reject: () => void = () => {}
+    vi.spyOn(s, 'remove').mockImplementation(() => new Promise<void>((_r, rj) => {
+      reject = () => rj(new Error('nope'))
+    }))
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    await w.find('[data-test="mo-delete-go"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find<HTMLButtonElement>('[data-test="mo-delete-go"]').element.disabled).toBe(true)
+
+    reject()
+    await flushPromises()
+    // The dialog is still up (deviation 17) — so the button has to come back, or the user is
+    // left staring at an error next to a control they can never press again.
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(true)
+    expect(w.find<HTMLButtonElement>('[data-test="mo-delete-go"]').element.disabled).toBe(false)
+    err.mockRestore()
+  })
+
+  // Ledger minor folded into finding 2: the success path closed the dialog only as a
+  // side effect of router.push unmounting the page. router.push is stubbed here precisely so
+  // that side effect cannot mask the dialog's own state — Vue 2 :388 and
+  // PhotosSmartViewDetail.vue:332 both close it unconditionally.
+  it('a successful delete closes the confirmation itself and reports it with a toast', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    vi.spyOn(s, 'remove').mockResolvedValue(undefined)
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w, router } = await mountDetail('m1', 'zh_cn')
+    const push = vi.spyOn(router, 'push').mockResolvedValue(undefined)
+
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    await w.find('[data-test="mo-delete-go"]').trigger('click')
+    await flushPromises()
+
+    expect(push).toHaveBeenCalledWith('/photos/smart-views')
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(false)
+    // The success toast had no assertion at all until now.
+    expect(show).toHaveBeenCalledTimes(1)
+    expect(show).toHaveBeenCalledWith(zh.photosMoDeleted.replace('{name}', 'Bozeman'))
   })
 
   it('renders Vue 2\'s own wording for the more menu\'s delete item', async () => {

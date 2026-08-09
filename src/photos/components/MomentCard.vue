@@ -24,6 +24,13 @@
 //     values, no new token added). The gradient collapses to a flat --warn-fg — there is no
 //     second amber token to build a gradient from, logged as a cosmetic-only deviation.
 //  5) .mo-card .sv-name's two-line clamp is copied as-is (scss:254-259).
+//  6) [registered by the SP15-P1 final review, deliberately not acted on] The badge star is
+//     fill-only. Vue 2 renders it through <photos-icon name="star">, which both fills *and*
+//     strokes the same path (PhotosIcon.vue:193 `fillOverride` returns the colour for 'star'
+//     while `strokeOverride` returns it too, at stroke-width 1.6 with round caps and joins).
+//     The path data is identical; only the 1.6px outline is absent. At the 9px this badge
+//     renders at, that outline is sub-pixel, so it stays as-is — logged because this branch
+//     registers every deviation, not because it is worth changing.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'

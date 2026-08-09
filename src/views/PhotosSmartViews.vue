@@ -34,6 +34,10 @@
 //     fix round 1 · I2:这条只解释了背景色的替换,**不覆盖** Vue2 hover 态的
 //     transform: translateY(-1px)(上浮)——那是与颜色 token 无关的独立视觉属性,
 //     之前被静默丢了,已在样式块补回(两者可共存)。
+//  5) [SP15-P1 final fix wave] A reorder drag no longer also opens the moment it dragged.
+//     Vue 2's Moments band has no such guard and does open it; the album grid's guard is
+//     copied here instead. Full rationale, including why Sortable's own `ignoreNextClick`
+//     does not cover the reordering case, sits above `onMomentOpen` below.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -69,10 +73,6 @@ const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
 const moGrid = ref<HTMLElement | null>(null)
 
-function onMomentOpen(id: string): void {
-  router.push('/photos/moments/' + id)
-}
-
 // SP15-P1-T6: drag-to-reorder for the Moments band, reusing the album detail page's
 // drag-sort composable instead of a second Sortable wrapper.
 //
@@ -97,6 +97,29 @@ const drag = useAlbumDragSort({
 async function persistOrder(ids: string[]): Promise<void> {
   const ok = await moments.reorder(ids)
   if (!ok) toast.show(t('photosMoOrderSaveFailed'), 2500, 'danger')
+}
+
+// Declared below `drag` on purpose — the drag guard has to be the first thing it does, and
+// the album grid puts its own equivalent (PhotosAlbumDetail.vue:161-162, "必须在最前面")
+// immediately after its `useAlbumDragSort` call for the same reason.
+//
+// Deviation from Vue 2 (registered here, not a port miss): Vue 2's Moments band has **no**
+// such guard — 899af59b:PhotosSmartViewsView.vue:563-575 creates Sortable without an
+// onStart flag and :604-608 onOpenMoment only checks the AI switch — so a reorder there
+// also opens the moment. Vue 2's *album* grid does guard (:380-384 `_dragging`), and its
+// own comment says the post-drop click misfires selection/lightbox. This port follows the
+// branch rule "the interface 1:1, the logic correct" and takes the album grid's version.
+//
+// Sortable's built-in protection does not cover the reordering case: it sets
+// `ignoreNextClick = true` when a fallback drag starts (sortable.esm.js:1596) and a global
+// capture-phase click listener consumes one click while that flag is up
+// (:1013-1023, commented "issue 1184 fix — Prevent click event on fallback if dragged but item
+// not changed position"), but `_onDragOver` clears the flag again (:1741). Any drag that
+// actually moves the card past a neighbour fires dragover, so exactly the drags that
+// reorder are the ones left unprotected.
+function onMomentOpen(id: string): void {
+  if (drag.isDragging()) return
+  router.push('/photos/moments/' + id)
 }
 
 watch(showMoments, (next) => {

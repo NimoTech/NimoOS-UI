@@ -126,6 +126,38 @@
 //     already exists" as '已有同名相册' — it does not contain the substring '已存在'; a test
 //     asserting that substring would be asserting a mistranslation, not this feature's real
 //     Chinese copy, so the test here asserts '已有同名' instead.
+//
+// ── How this page reports failures ───────────────────────────────────────────────────────
+// Four write paths and the list load answer failures in three different idioms, and which one
+// applies is a property of *where the user's attention already is*, not of the request:
+//   · toast, danger tier — pin (Add photos), exclude (Remove from this moment), export
+//     (Save as Album). The control that started it is in the page chrome and stays put, so a
+//     transient banner is enough and nothing on screen has to make room for the message.
+//   · inline, inside the dialog — delete (deleteError, deviation 17). The user is inside a
+//     modal they must answer; the reply belongs next to the button they just pressed, must
+//     not time out, and must not be delivered by a toast the dismissed modal would have
+//     covered.
+//   · page state with a retry — the moment list itself (loadFailed + `retry`, deviation 12).
+//     There is no content to put a message beside: the whole page is the failure, so the page
+//     becomes the message and carries its own way out.
+// A new write path should pick by that rule rather than by copying whichever neighbour is
+// nearest in the file.
+//
+// The final whole-branch review added three more:
+// 20) allLoading is raised *before* `await store.ensureLoaded()`, matching Vue 2's loadAll()
+//     (:292-293, where it is the first statement). It is still only ever *cleared* under the
+//     epoch check. See load().
+// 21) The :id watcher resets the interaction flags, not only the four asset fields — with the
+//     write consequence being that a selection carried across the change would target the new
+//     moment's exclude endpoint with the old moment's asset ids. See the watcher.
+// 22) doDelete has a re-entrance guard (`deleting`), which Vue 2 did not need because it
+//     closes the dialog before the request; deviation 17 keeps the dialog open and thereby
+//     creates the double-click window. The same ref is the confirm button's :disabled.
+//     Folded in with it: the success path now closes the dialog explicitly instead of relying
+//     on router.push unmounting the page — same as Vue 2 :388 and PhotosSmartViewDetail.vue:332.
+// 23) Save as Album carries Vue 2's `data-primary="true"` and an accent fill again (it had
+//     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
+//     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -174,10 +206,24 @@ let loadEpoch = 0
 
 async function load(): Promise<void> {
   const epoch = ++loadEpoch
-  await store.ensureLoaded()
-  if (epoch !== loadEpoch || !moment.value) return
-  const id = momentId.value
+  // Raised before the await, as Vue 2's loadAll() does (:292-293, `this.allLoading = true` is
+  // its first statement). Raising it only after ensureLoaded() resolved left a window on the
+  // one path where ensureLoaded() actually awaits something *and* the moment is already
+  // known — returning to the smart-views page (whose onMounted refetches the list) and
+  // opening a moment straight away: listLoaded is true, so the header renders with the real
+  // count while the in-flight list request is awaited, and the grid says "this moment has no
+  // photos yet" for the whole round trip before "Loading…" ever appears. See deviation 20.
   allLoading.value = true
+  await store.ensureLoaded()
+  // Cleared only under the epoch check, in both exits as well as at the bottom: a newer load
+  // owns the flag from the moment it bumps loadEpoch, and clearing it from an older one would
+  // blank the newer load's "Loading…" state.
+  if (epoch !== loadEpoch) return
+  if (!moment.value) {
+    allLoading.value = false
+    return
+  }
+  const id = momentId.value
   // Two independently failable requests, each with its own catch and its own epoch check.
   // The T3 store rethrows where Vue 2's equivalents swallowed and toasted internally, so the
   // catch lives here now — but it has to stay per-request: a single Promise.all + single catch
@@ -226,6 +272,25 @@ watch(momentId, () => {
   allAssets.value = []
   manualIds.value = new Set()
   places.value = []
+  // Deviation 21: the interaction flags are keyed to the old moment just as the assets are.
+  // `selecting`/`selectedIds` are the ones with a write consequence — removeSelected() reads
+  // momentId.value at call time, so a selection carried across an :id change would send
+  // moment A's asset ids to moment B's exclude endpoint, under a bar reading "N selected"
+  // over photos that are no longer on screen. `pickerOpen` is the same story from the other
+  // direction (the picker's already-in set comes from the previous moment's members); the
+  // rest are cosmetic but belong to the same "nothing on screen came from the old id" rule.
+  // `deleting` is reset too: it is a guard against consecutive presses of one button for one
+  // moment, which an :id change ends — leaving it up would only disable the new moment's
+  // Delete button for the duration of an unrelated in-flight request, and its own `finally`
+  // still runs either way.
+  selecting.value = false
+  selectedIds.value = []
+  pickerOpen.value = false
+  moreOpen.value = false
+  confirmDeleteOpen.value = false
+  deleteError.value = ''
+  exporting.value = false
+  deleting.value = false
   void load()
 })
 
@@ -413,6 +478,12 @@ const exporting = ref(false)
 const moreOpen = ref(false)
 const confirmDeleteOpen = ref(false)
 const deleteError = ref('')
+// Deviation 22: the one re-entrance guard Vue 2 genuinely did not need. Its doDelete closes
+// the dialog *before* the request (:388), so the button is gone before a second press can
+// land; this port deliberately keeps the dialog open on failure (deviation 17), and that is
+// exactly what opens the double-click window. Doubles as the confirm button's :disabled, so
+// the pending feedback the dialog would otherwise have lost comes back with it.
+const deleting = ref(false)
 const moreWrapRef = ref<HTMLElement | null>(null)
 
 async function saveAsAlbum(): Promise<void> {
@@ -459,10 +530,16 @@ function closeDeleteConfirm(): void {
 }
 
 async function doDelete(): Promise<void> {
+  if (deleting.value) return
+  deleting.value = true
   deleteError.value = ''
   const name = moment.value?.title || ''
   try {
     await store.remove(momentId.value)
+    // Closed here rather than left to the page unmounting under router.push: the dialog's own
+    // state should not depend on a navigation it does not control, which is also what Vue 2
+    // (:388) and PhotosSmartViewDetail.vue:332 both do unconditionally.
+    confirmDeleteOpen.value = false
     toast.show(t('photosMoDeleted', { name }))
     void router.push('/photos/smart-views')
   } catch (e) {
@@ -472,6 +549,8 @@ async function doDelete(): Promise<void> {
     // right next to the button that was just pressed.
     console.error('[photos-moments] deleteMoment', e)
     deleteError.value = t('photosSvDeleteFailed')
+  } finally {
+    deleting.value = false
   }
 }
 </script>
@@ -569,9 +648,14 @@ async function doDelete(): Promise<void> {
                     {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
                   </button>
                   <!-- Save as Album (Vue 2 :20-22), disabled while an export is in flight to
-                       block a double submit — same guard shape as pinning/removing above. -->
+                       block a double submit — same guard shape as pinning/removing above.
+                       It is also this page's single primary action: Vue 2 marks it
+                       `data-primary="true"` and fills it with the accent (scss:553-557).
+                       The attribute is kept for parity and the styling hangs off the
+                       companion class — see the rules at .sv-action-btn-primary below. -->
                   <button
-                    type="button" class="sv-action-btn" data-test="mo-save-album"
+                    type="button" class="sv-action-btn sv-action-btn-primary"
+                    data-test="mo-save-album" data-primary="true"
                     :disabled="exporting" @click="saveAsAlbum"
                   >
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 14l5-4 4 3 3-2 6 5" /></svg>
@@ -753,7 +837,14 @@ async function doDelete(): Promise<void> {
                   type="button" class="sv-confirm-cancel" data-test="mo-delete-cancel"
                   @click="closeDeleteConfirm"
                 >{{ t('photosCancel') }}</button>
-                <button type="button" class="sv-confirm-ok danger" data-test="mo-delete-go" @click="doDelete">
+                <!-- :disabled is the visible half of deviation 22's re-entrance guard — the
+                     dialog stays up across the request, so without it the button invites a
+                     second press that would 404 and report "delete failed" for a delete
+                     that in fact worked. -->
+                <button
+                  type="button" class="sv-confirm-ok danger" data-test="mo-delete-go"
+                  :disabled="deleting" @click="doDelete"
+                >
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
                   {{ t('photosDelete') }}
                 </button>
@@ -830,6 +921,17 @@ async function doDelete(): Promise<void> {
 .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
 .sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
+/* Save as Album is Vue 2's one primary action in this bar (:20 `data-primary="true"`,
+   scss:553-557 `linear-gradient(135deg, var(--accent), var(--accent-hi))` + on-accent text).
+   This repo has no --accent-hi, so it reuses the substitute PhotosSmartViewDetail.vue:709-715
+   already settled on for the very same Vue 2 rule: a flat var(--accent) fill plus a hover
+   brightness lift. --on-accent is legal here because the fill is solid accent.
+   The hover rule is written as a compound selector on purpose: `.sv-action-btn-primary:hover`
+   alone scores (0,2,0), a tie with the base `.sv-action-btn:hover`, and would then survive
+   only by source order — the accent fill would be replaced by the neutral hover background
+   while the text stayed --on-accent. The compound form scores (0,3,0) and wins structurally. */
+.sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
 
 /* ── More menu (scss:407-452 via PhotosSmartViewDetail.vue's own restatement — identical rule
    bodies, same class names, same reason as the two photo grids below: scoped styles do not
@@ -888,6 +990,9 @@ async function doDelete(): Promise<void> {
   color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
 .sv-confirm-cancel:hover { background: var(--chip-bg-hi); }
+/* Deviation 22: the dialog stays up across the request, so the confirm button needs the same
+   in-flight treatment .sv-action-btn:disabled already gives the action bar. */
+.sv-confirm-ok:disabled { opacity: 0.5; cursor: not-allowed; }
 .sv-confirm-ok.danger {
   border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
   color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);

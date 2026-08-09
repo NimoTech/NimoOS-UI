@@ -172,7 +172,7 @@ describe('fetching', () => {
 // "deviation 2"): moment fixtures are set *after* mountPage() resolves, not before —
 // setting them first loses a race against onMounted's real fetchMoments() call, whose
 // mocked listMoments() resolves to [] and would silently overwrite the fixture.
-type CapturedSortableOptions = { onEnd: () => void | Promise<void> }
+type CapturedSortableOptions = { onStart: () => void; onEnd: () => void | Promise<void> }
 describe('drag-to-reorder', () => {
   it('dropping calls store.reorder with the DOM order after the drop', async () => {
     const { w } = await mountPage()
@@ -210,6 +210,27 @@ describe('drag-to-reorder', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(spy).toHaveBeenCalledWith('排序保存失败', expect.anything(), 'danger')
+  })
+
+  // SP15-P1 final fix wave, finding 1. Sortable's own post-drag click suppression
+  // (`ignoreNextClick`) is cleared by the first `dragover`, so a drag that actually
+  // reorders is left unprotected and the drop's click used to navigate into the moment
+  // that was just dragged. The composable exposes isDragging() for exactly this, and the
+  // sibling album grid already consults it.
+  it('a drag in progress suppresses the card click, so a reorder does not also open the moment', async () => {
+    const { w, router } = await mountPage()
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'a' }), makeMoment({ id: 'b' })]
+    vi.spyOn(s, 'reorder').mockResolvedValue(true)
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const opts = sortableCreate.mock.calls[sortableCreate.mock.calls.length - 1][1] as CapturedSortableOptions
+    opts.onStart() // the pointer is now dragging a card
+    await w.find('.mo-card').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.path).toBe('/')
   })
 
   it('rebinds Sortable when the band goes from hidden to shown (a freshly mounted .mo-grid node)', async () => {
