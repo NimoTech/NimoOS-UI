@@ -3,12 +3,16 @@
 > 2026-08-09。分支 `sp12-files-fixes`，隔离在 worktree
 > `.claude/worktrees/sp12-files-fixes`。设计文档：
 > `docs/superpowers/specs/2026-08-09-sp12-files-legacy-fixes-design.md`。
-> 本文档写于 Task 6（收尾门 + 交接文档），HEAD 为 `8fbecf7`。
+> 本文档写于 Task 6（收尾门 + 交接文档），首次成文时 HEAD 为 `8fbecf7`；
+> 六道门里两道红（Gate 2/5）经 Task 5 实现者补一个改注释的提交（`3080275`）修复后，
+> 于 HEAD `3080275` 补验全部六道门，本次修订反映的是补验后的状态。
 
-**⚠️ 收尾门未全绿**：六道门里 Gate 2（全量测试）与 Gate 5（开源导出闸）因同一根因各命中
-一次失败——`sp12-files-fixes` 自身新增的一个测试文件注释里写了两次 "photo"，撞上开源导出
-的软禁词守卫。这是本批次（Task 5）留下的真实缺口，不是环境噪音，也不是本任务允许现场修的
-东西（Global Constraints 规定 Task 6 不改源码）。详情见下方「三、收尾门实测数字」。
+**六道门现状：全绿**。首次跑收尾门时 Gate 2（全量测试）与 Gate 5（开源导出闸）因同一根因
+各命中一次失败——`sp12-files-fixes` 自身新增的一个测试文件注释里两次提到 "photo"，撞上
+开源导出的软禁词守卫。这是本批次（Task 5）留下的真实缺口，当时按 Global Constraints
+未在 Task 6 里现场修（不改源码），只如实记录、留给合并前处理。Task 5 实现者随后用**改写
+注释措辞**（不是加白名单）把它修掉了，六道门在新 HEAD 上全部补验通过。取证链与教训见下方
+「三、收尾门实测数字」。
 
 ---
 
@@ -31,7 +35,8 @@
 防复发闸：`src/views/__tests__/filesLayoutHeightCap.test.ts`（正向断言三条规则都在，反向
 断言不许回退成 `min-height: 100%`，源文本字符串匹配，读盘用 `node:fs`）。
 
-提交：`70c24b0`。
+提交：`70c24b0`；`3080275`（该闸的头部注释改写，见「三、收尾门实测数字」的教训小节，
+不改断言、不改 CSS）。
 
 ### F11 —— 右键一个未选中的文件，动作却作用于当前选区
 
@@ -93,49 +98,49 @@ B、C；删除/剪切/下载同理。菜单本身还按选区条数显示成多�
 
 ---
 
-## 三、收尾门实测数字（Step 1-6 真实输出）
+## 三、收尾门实测数字（Step 1-6 真实输出，HEAD `3080275`）
 
 | # | 门 | 命令 | 结果 |
 |---|---|---|---|
-| 1 | 类型检查 | `pnpm exec vue-tsc --noEmit` | **PASS** — exit 0，零输出 |
-| 2 | 全量测试 | `pnpm test` | **1 个测试文件失败**（见下）。`Test Files 1 failed \| 658 passed (659)`；`Tests 1 failed \| 10509 passed (10510)`。Duration 164.68s |
-| 3 | i18n parity | `pnpm exec vitest run src/i18n/parity.test.ts` | **PASS** — `Test Files 1 passed (1)`；`Tests 9 passed (9)` |
-| 4 | 构建 | `pnpm build` | **PASS** — exit 0，`✓ built in 17.30s`（唯一提示是预置的 >500kB chunk 体积告警，非本批次引入，不是错误） |
-| 5 | 开源导出闸 | `node oss/export.mjs --out /tmp/claude-1000/oss-check --no-commit --allow-dirty-oss` | **FAIL** — exit 1，同一根因（见下） |
-| 6 | 与 sp12-plan-b 合并预演 | `git merge-tree --write-tree sp12-files-fixes sp12-plan-b` | **命令本身报错**（分支已不存在，见下方「合并纪律」的说明） |
+| 1 | 类型检查 | `pnpm exec vue-tsc --noEmit` | **PASS** — exit 0，零输出（在 `3080275` 重新单独确认过；注释改动不影响类型检查，但没有拿"不应该受影响"当证据，是实际重跑的结果） |
+| 2 | 全量测试 | `pnpm test`（前台，167s） | **PASS** — `Test Files 659 passed (659)`；`Tests 10510 passed (10510)`，零失败 |
+| 3 | i18n parity | `pnpm exec vitest run src/i18n/parity.test.ts` | **PASS** — `Test Files 1 passed (1)`；`Tests 9 passed (9)`（与首次跑一致，未受影响） |
+| 4 | 构建 | `pnpm build` | **PASS** — exit 0，`✓ built in 16.80s`（唯一提示仍是预置的 >500kB chunk 体积告警，非本批次引入，不是错误；在 `3080275` 重新单独确认过） |
+| 5 | 开源导出闸 | `pnpm exec vitest run oss/` | **PASS** — `Test Files 6 passed (6)`；`Tests 141 passed (141)` |
+| 6 | 与 `sp12-plan-b` 的重叠面检查 | `git merge-tree --write-tree sp12-files-fixes master`（对象已改为 master，理由见下） | **PASS** — exit 0，单行 tree OID `c9338f2f608d21a8978b5e1531e75dc257bd53f4` ⇒ 无冲突 |
 
-### Gate 2 / Gate 5 的失败根因（同一处，一次说清）
+### Gate 2 / Gate 5 首次跑时的失败，及修复方式（教训：可迁移的经验，别丢）
 
-`pnpm test` 里唯一红的测试文件是 `oss/tree.test.mjs`，具体用例
-`泄漏守卫 > 不带 --skip-guard 也能跑通`；`node oss/export.mjs` 单独跑也是同一失败。
-
-实测输出（两次一致）：
+首次跑收尾门时（HEAD `8fbecf7`），`pnpm test` 里唯一红的测试文件是 `oss/tree.test.mjs`，
+具体用例 `泄漏守卫 > 不带 --skip-guard 也能跑通`；`node oss/export.mjs` 单独跑也是同一
+失败。命中：
 
 ```
 ✗ src/views/__tests__/filesLayoutHeightCap.test.ts:2 [photo] // same origin and logic as photosLayoutHeightCap.test.ts in the photos area,
 ✗ src/views/__tests__/filesLayoutHeightCap.test.ts:11 [photo] // Unlike the photos area: photos had 11 pages each with an inner scroll container already,
-[oss] 失败:泄漏守卫命中 2 处,一个字节都不落盘。修法只有两条:真泄漏就补剥离清单;误报就往 forbidden.mjs 加**精确白名单** —— 禁止放宽词表。
 ```
 
 根因：本批次 Task 5 新增的 `src/views/__tests__/filesLayoutHeightCap.test.ts`
-（提交 `70c24b0`）的头部注释里用 "photo" 一词类比相册区同名守卫
-（`photosLayoutHeightCap.test.ts`）。开源导出对 "photo" 是软禁词——`oss/forbidden.mjs`
-的 `SOFT` 列表要求每一处合法出现都按「文件 + 整行精确匹配」逐条登记白名单（该文件里已有
-40+ 条这样的先例，例如 `dropEntries.test.ts`、`ThemeToggle.vue` 等），而这两行新注释从未
-补登记。
+（提交 `70c24b0`）的头部注释里用 "photo" 一词类比相册区同名守卫文件
+（`photosLayoutHeightCap.test.ts`），还描述了它"11 个页面"这个细节。这是本批次
+（Task 5）引入的真实缺口，不是环境噪音——Task 5 当时大概率只跑了该文件自身的
+vitest，没有跑到会触发开源导出闸的路径，直到 Task 6 的全量收尾门才第一次暴露。
 
-**这是本批次（Task 5）引入的真实缺口，不是环境噪音**——Task 5 当时大概率只跑了该文件自身
-的 vitest，没有跑到会触发开源导出闸的路径，直到 Task 6 的全量收尾门才第一次暴露。
+Task 5 实现者用提交 `3080275`（"reword layout-cap guard comments to drop cross-area
+reference"）修复：**只改了注释措辞，断言与 CSS 一字未动**——技术内容（双向检查、为什么
+三条 CSS 规则是一个整体、jsdom 的局限、为什么要用 `node:fs`）原样保留，只是不再点名
+"photos 区" 或该区的任何文件。
 
-**按本任务的 Global Constraints，此处不现场修**（不改源码）。留给合并前处理，两条候选修法
-（均遵循 `forbidden.mjs` 里的既有约定，不放宽词表）：
-1. 把这两行注释改写成不含 "photo" 字面量的说法（例如把 `photosLayoutHeightCap.test.ts`
-   写成"相册区同名守卫"这类不含该词的引用）；或
-2. 在 `oss/forbidden.mjs` 的 `photo` 词条 `allow` 数组里，为
-   `src/views/__tests__/filesLayoutHeightCap.test.ts` 的这两行加 `exactLine` 精确白名单
-   （做法可直接抄同文件里已有的十几个先例）。
-
-方案 1 更干净（不用碰 `forbidden.mjs`），推荐优先采用。
+**为什么是改写措辞，而不是像其余 40+ 条先例那样往 `oss/forbidden.mjs` 加一条精确白名单**
+——这是本条真正该被记住、可迁移到别处的教训：`forbidden.mjs` 里现存的每一条 `photo` 白
+名单，命中的都是**偶然的字面碰撞**（用户路径 `/DATA/Photos`、测试夹具文件名
+`photo.jpg`、大小写敏感性测试的关键字表……），词面上出现 "photo" 但语义上跟相册 app 毫无
+关系。而这次的两行注释不是偶然碰撞，是**真的在跨区引用一个会被开源导出整个剥离掉的文件**
+——相册区在导出树里根本不存在，这条引用对着一个开源读者打开就是**悬空引用**（指向一个不
+存在的文件、描述一个读者验证不了的细节）。往 `forbidden.mjs` 加白名单只会把这个真实缺陷
+盖住，让守卫对着一个货真价实的问题装哑巴；改写措辞才是对症的修法。**一条通用规律**：
+**守卫注释里只要指向一个会被剥离的区域，就会触发泄漏守卫——这不是误报，是该被修的信号，
+遇到同类命中先检查是不是这一种，再决定改写还是加白名单。**
 
 ### Gate 6 的说明
 
@@ -152,19 +157,23 @@ merge-tree: sp12-plan-b - not something we can merge
 分支与其 worktree 按本仓惯例被清理掉了。brief 撰写时 plan-b 仍在进行中的前提已经不成立。
 
 为了不让 Gate 6 白跑，额外做了一次等价的实质性检查——`sp12-files-fixes` 与**当前
-master**（已经包含 plan-b 的改动）的合并预演：
+master**（已经包含 plan-b 的改动）的合并预演。这次预演跑了两遍：一遍在本分支修复
+Gate 2/5 之前（HEAD `8fbecf7` 对 master `9100418`），一遍在修复之后（HEAD `3080275`
+对同一个 master），两遍都是：
 
 ```bash
 git merge-tree --write-tree sp12-files-fixes master
 ```
 ```
 exit=0
-dc2ecbcf2e2bb661bdd0bf54cc35d478af2e8769
 ```
 
-exit=0 且单行 tree OID ⇒ **无冲突**。spec §7 记录的重叠面（`Files.vue` 与两个 i18n
-base 文件，plan-b 的 hunk 落在 16-31/204-245/492-514/621-639，本期落在
-86-145/687-695）在 plan-b 已合入 master 之后依然验证为不相交。
+第一遍 tree OID 为 `dc2ecbcf2e2bb661bdd0bf54cc35d478af2e8769`，第二遍（`filesLayoutHeightCap.test.ts`
+注释改写之后）为 `c9338f2f608d21a8978b5e1531e75dc257bd53f4`——两次 OID 不同是预期的
+（本分支内容变了，tree 自然不同），**两次都是 exit=0 + 单行 OID，结论一致：无冲突**。
+spec §7 记录的重叠面（`Files.vue` 与两个 i18n base 文件，plan-b 的 hunk 落在
+16-31/204-245/492-514/621-639，本期落在 86-145/687-695）在 plan-b 已合入 master 之后
+依然验证为不相交。
 
 ### 已知无害噪音（未追查，按 brief 要求如实记录）
 
@@ -230,13 +239,14 @@ base 文件，plan-b 的 hunk 落在 16-31/204-245/492-514/621-639，本期落�
   worktree 已按惯例清理。所以 brief 里"与 plan-b 并行"的说法目前已经变成"本分支是后合入
   master 的一方"。
 - **Gate 6 实测结果**：`git merge-tree --write-tree sp12-files-fixes master` → exit 0，
-  单行 tree OID `dc2ecbcf2e2bb661bdd0bf54cc35d478af2e8769` ⇒ 与当前 master（已含 plan-b）
-  仍然无冲突。
-- **合入前必须先处理 Gate 5 的缺口**：`filesLayoutHeightCap.test.ts` 里那两行含 "photo"
-  的注释必须先按上文两条候选修法之一处理掉，否则合入 master 之后开源导出闸在 master 上
-  会是红的（`master` 目前是绿的，这个缺口完全出自 `sp12-files-fixes` 自身，会随合并带
-  进去）。
-- **后合的一方必须在合并结果上重跑全套门，不能拿各自分支上的绿当数**——这条约束依然成立，
-  且需要额外注意：Gate 2/5 在 `sp12-files-fixes` 分支上现在不是绿的，合并到 master 后
-  第一件事就是把这个缺口修掉再重新跑全套门，不能把"master 之前是绿的"当成合并后也绿的
-  证据。
+  单行 tree OID（HEAD `3080275` 对 master `9100418`：`c9338f2f608d21a8978b5e1531e75dc257bd53f4`）
+  ⇒ 与当前 master（已含 plan-b）无冲突。
+- **Gate 2/5 的缺口已在本分支修复**：`filesLayoutHeightCap.test.ts` 那两行含 "photo" 的
+  注释已被提交 `3080275` 改写掉（不是加白名单，理由见「三」的教训小节），HEAD `3080275`
+  上六道门全部重新跑过并全绿，不再是遗留给合并后处理的缺口。
+- **"后合的一方必须在合并结果上重跑全套门，不能拿各自分支上的绿当数"——这条约束现在具体
+  落在 `sp12-files-fixes` 身上**：`sp12-plan-b` 已经先合入了 master，所以"后合的一方"
+  就是本批次。上表 Gate 1-6 的六个结果，是在**本分支自己的 HEAD**（`3080275`）上跑出来
+  的，不是在"本分支合入 master 之后的结果树"上跑的——真正合并（不是 `merge-tree` 的只读
+  预演，而是实际执行 merge/生成合并提交）完成后，必须在**合并结果**上把 Gate 1-5 重新跑
+  一遍，不能因为"这份文档说本分支绿、master 也绿"就假定合并后自动绿。
