@@ -197,6 +197,10 @@ export const SERVICE_DELETE = [
   'src/photos.moments.test.ts',
   'src/photos.persons.test.ts',
   'src/photos.places.test.ts',
+  // SP15-P2a-T1 added an eighth sibling (the smart view pin/remove/restore/excluded endpoints)
+  // and did not list it here either, so the leak guard went red again — 15 hits, all in this one
+  // file. Third time for this exact omission; the remedy is unchanged.
+  'src/photos.smartviewAssets.test.ts',
   'src/photos.uploads.test.ts',
   'src/photos.views.test.ts',
   // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
