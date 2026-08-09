@@ -335,16 +335,18 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/smart-views/${id}/export?format=album`, {})
       return body<unknown>(res.data)
     },
-    // ─── Moments(自动聚合的高光时刻,智能视图页 "For You" 分区)───
-    // 回源核对 NimoOS-Photos/route/v1/moments.go:List 用 {moments:[…]} 包裹键(与本文件
-    // 其它裸数组端点不同);字段是 snake_case(后端注释写明是有意为之)。归一到驼峰在
-    // store 层做,这一层只负责取出包裹键。
+    // ─── Moments (auto-clustered highlights, the "For You" section on the smart-views page) ───
+    // Checked against the backend source: NimoOS-Photos/route/v1/moments.go:List wraps its
+    // payload in a {moments:[…]} key (unlike every other bare-array endpoint in this file);
+    // fields are snake_case (the backend comment there says this is deliberate). Normalising
+    // to camelCase is left to the store layer — this layer only unwraps the envelope key.
     async listMoments(): Promise<unknown[]> {
       const res = await http.get('/photos/moments')
       return body<{ moments?: unknown[] } | undefined>(res.data)?.moments ?? []
     },
-    // withMembers=true 时后端返回 {assets,members,places};不带时是裸数组。
-    // 两种形状原样上抛,由 store 分辨——这层不做归一,免得两个消费方口径分叉。
+    // When withMembers=true the backend returns {assets,members,places}; otherwise a bare array.
+    // Both shapes are passed through as-is for the store to distinguish — normalising here
+    // would let the two callers' expectations drift apart.
     async getMomentAssets(id: string, featured = false, withMembers = false): Promise<unknown> {
       const params: Record<string, number> = {}
       if (featured) params.featured = 1
@@ -356,7 +358,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/moments/${id}/assets`, { ids })
       return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
     },
-    // axios 的 delete 没有 body 位置参数,请求体必须走 config.data。
+    // axios's delete() has no body positional parameter — the request body must go through config.data.
     async excludeMomentAssets(id: string, ids: string[]): Promise<{ ok?: boolean; asset_count?: number }> {
       const res = await http.delete(`/photos/moments/${id}/assets`, { data: { ids } })
       return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
@@ -373,8 +375,9 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.put('/photos/moments/order', { ids })
       return body<unknown>(res.data)
     },
-    // 后端 202 + 异步重算。本期**不接 UI 入口**(Vue2 也没有,见 spec §1.2);
-    // 保留方法是为验收时能在浏览器控制台里调用。
+    // Backend replies 202 and recomputes asynchronously. This phase deliberately does **not**
+    // wire up a UI entry point (neither does Vue2 — see spec §1.2); the method is kept around
+    // so it can be invoked from the browser console during acceptance testing.
     async recomputeMoments(): Promise<unknown> {
       const res = await http.post('/photos/moments/recompute', {})
       return body<unknown>(res.data)

@@ -1,27 +1,31 @@
-// SP15-P1-T2: Moments 马赛克布局引擎 —— 纯函数,无 Date/random/DOM 依赖。
-// 逐行照 Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357
-// 移植(那边就是 module-level `export function`,本就是为可单测设计的),只做
-// snake_case → camelCase 的字段改名与类型标注,规则一字不改。
+// SP15-P1-T2: Moments mosaic layout engine — a pure function, no Date/random/DOM dependency.
+// Ported line-by-line from Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:322-357
+// (that side was already a module-level `export function`, designed to be unit-testable as-is).
+// The only changes are the snake_case → camelCase field rename and the type annotations; the
+// rules themselves are unchanged.
 
 export type MomentSize = 'standard' | 'wide' | 'tall'
 export type MomentTemplate = 'T1' | 'T2' | 'T3' | 'T4' | 'single'
 
-/** 布局只需要这五个字段;刻意不收整个 Moment,让本模块与 store 解耦、便于构造测试夹具。 */
+/** Layout only needs these five fields; deliberately not the whole Moment, so this module
+ *  stays decoupled from the store and test fixtures are easy to construct. */
 export interface MomentLayoutInput {
   id: string
   recipeKey: string
   assetCount: number
-  /** 封面宽高比 w/h。后端约定 0 = 未知(封面尚未 EXIF 索引),不参与判定。 */
+  /** Cover aspect ratio w/h. Backend convention: 0 = unknown (cover not yet EXIF-indexed), and
+   *  does not participate in the classification. */
   coverRatio: number
   featuredAssetIds: string[]
 }
 
 /**
- * 尺寸分档 —— 只看单条时刻自身内容,按顺序判定、首个命中即返回:
- *   tall:     coverRatio ∈ (0, 0.85) —— 竖版封面
- *   wide:     recipeKey 以 'trip' 开头 且 assetCount >= 100 —— 大行程
- *   standard: 其余
- * 不含"间隔配额"(那是序列级规则,见 assignMomentSizes)。
+ * Size classification — looks only at a single moment's own content, checked in order with
+ * the first match winning:
+ *   tall:     coverRatio ∈ (0, 0.85) — portrait cover
+ *   wide:     recipeKey starts with 'trip' AND assetCount >= 100 — a big trip
+ *   standard: everything else
+ * Does not include the "spacing quota" (that's a sequence-level rule, see assignMomentSizes).
  */
 export function classifyMomentSize(moment: MomentLayoutInput): MomentSize {
   const ratio = typeof moment.coverRatio === 'number' ? moment.coverRatio : 0
@@ -33,9 +37,10 @@ export function classifyMomentSize(moment: MomentLayoutInput): MomentSize {
 }
 
 /**
- * 模板选择 —— 由尺寸档 + 精选张数 n 决定,随 n 递减回落:
- *   n >= 2 → 该档自己的模板(tall→T2 / wide→T4 / standard→T1)
- *   n == 1 → 任意档都落 T3(封面与唯一精选左右对半),而不是直接掉单图
+ * Template selection — determined by size class + featured count n, falling back as n decreases:
+ *   n >= 2 → the size class's own template (tall→T2 / wide→T4 / standard→T1)
+ *   n == 1 → any size class falls to T3 (cover and the one featured asset side by side),
+ *            rather than dropping straight to a single image
  *   n == 0 → single
  */
 export function pickMomentTemplate(size: MomentSize, featuredCount: number): MomentTemplate {
@@ -45,12 +50,14 @@ export function pickMomentTemplate(size: MomentSize, featuredCount: number): Mom
 }
 
 /**
- * 主分配函数 —— 按序遍历,在内容驱动的候选尺寸之上叠加"间隔配额"打散:
- * 距上一张 wide 不足 3 位、或距上一张 tall 不足 2 位,降级为 standard,
- * 避免宽卡/高卡挤在一起。
+ * Main assignment function — walks the list in order, layering a "spacing quota" on top of
+ * the content-driven candidate size to break up runs of the same size: if fewer than 3
+ * positions have passed since the last wide, or fewer than 2 since the last tall, downgrade
+ * to standard, so wide/tall cards don't cluster together.
  *
- * 关键:**只有降级之后仍然保留的尺寸才更新"上一张的位置"** —— 若把降级项
- * 也计入基准,后续项会被连锁错误降级(测试里有一条专门钉死这点)。
+ * Key point: **only a size that survives the downgrade updates "the position of the last
+ * one"** — if a downgraded item were also counted as the baseline, later items would be
+ * downgraded in a cascading chain by mistake (one test pins this down specifically).
  */
 export function assignMomentSizes(
   moments: MomentLayoutInput[],

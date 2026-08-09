@@ -1,7 +1,8 @@
-// SP15-P1-T1: moments HTTP 层。回源核对 NimoOS-Photos/route/v1/moments.go —
-// List 返回 {moments:[…]}(带包裹键,不是裸数组);Assets 带 with_members=1 时返回
-// {assets,members,places},不带时是裸数组;Pin/Exclude 返回 {ok,asset_count};
-// CreateAlbum 返回 201 {albumId,name,count}。
+// SP15-P1-T1: moments HTTP layer. Checked against the backend source:
+// NimoOS-Photos/route/v1/moments.go — List returns {moments:[…]} (wrapped in an envelope
+// key, not a bare array); Assets returns {assets,members,places} when with_members=1, and
+// a bare array otherwise; Pin/Exclude return {ok,asset_count}; CreateAlbum returns 201
+// {albumId,name,count}.
 import { describe, it, expect } from 'vitest'
 import type { AxiosInstance } from 'axios'
 import { createPhotos } from './photos.js'
@@ -28,7 +29,7 @@ function harness(reply: unknown = {}) {
 }
 
 describe('photos moments API', () => {
-  it('listMoments 解出 moments 数组,缺字段时兜底空数组', async () => {
+  it('listMoments unwraps the moments array, falling back to empty when the field is missing', async () => {
     const a = harness({ moments: [{ id: 'm1' }] })
     expect(await a.photos.listMoments()).toEqual([{ id: 'm1' }])
     expect(a.calls[0]).toMatchObject({ method: 'get', url: '/photos/moments' })
@@ -37,7 +38,7 @@ describe('photos moments API', () => {
     expect(await b.photos.listMoments()).toEqual([])
   })
 
-  it('getMomentAssets 只在为真时才带 featured / with_members 查询参数', async () => {
+  it('getMomentAssets only includes featured / with_members query params when truthy', async () => {
     const a = harness([])
     await a.photos.getMomentAssets('m1')
     expect(a.calls[0]).toMatchObject({ url: '/photos/moments/m1/assets', params: {} })
@@ -47,7 +48,7 @@ describe('photos moments API', () => {
     expect(b.calls[0].params).toEqual({ featured: 1, with_members: 1 })
   })
 
-  it('getMomentAssets 原样返回两种形状(裸数组 / {assets,members,places}),不在这层归一', async () => {
+  it('getMomentAssets passes both response shapes through unchanged (bare array / {assets,members,places}), no normalisation at this layer', async () => {
     const bare = harness([{ id: 'a1' }])
     expect(await bare.photos.getMomentAssets('m1')).toEqual([{ id: 'a1' }])
 
@@ -59,18 +60,18 @@ describe('photos moments API', () => {
     })
   })
 
-  it('pinMomentAssets / excludeMomentAssets 传 {ids} 并回传 asset_count', async () => {
+  it('pinMomentAssets / excludeMomentAssets send {ids} and echo back asset_count', async () => {
     const a = harness({ ok: true, asset_count: 7 })
     expect(await a.photos.pinMomentAssets('m1', ['x', 'y'])).toEqual({ ok: true, asset_count: 7 })
     expect(a.calls[0]).toMatchObject({ method: 'post', url: '/photos/moments/m1/assets', body: { ids: ['x', 'y'] } })
 
     const b = harness({ ok: true, asset_count: 5 })
     expect(await b.photos.excludeMomentAssets('m1', ['x'])).toEqual({ ok: true, asset_count: 5 })
-    // axios 的 delete 请求体必须放在 config.data 里,不能当第二位置参数
+    // axios's delete() must carry the request body in config.data, not as a second positional argument
     expect(b.calls[0]).toMatchObject({ method: 'delete', url: '/photos/moments/m1/assets', cfg: { data: { ids: ['x'] } } })
   })
 
-  it('deleteMoment / exportMomentAlbum / reorderMoments / recomputeMoments 打对 URL', async () => {
+  it('deleteMoment / exportMomentAlbum / reorderMoments / recomputeMoments hit the right URLs', async () => {
     const a = harness({})
     await a.photos.deleteMoment('m1')
     expect(a.calls[0]).toMatchObject({ method: 'delete', url: '/photos/moments/m1' })
