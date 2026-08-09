@@ -8,7 +8,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import FileContextMenu from './FileContextMenu.vue'
 import { useMountsStore } from '../stores/mounts'
 import { shouldNavigateHome } from '../util/mounts'
-import { iconUrl } from '../util/icons'
+import { iconUrl, iconNameFor } from '../util/icons'
 import { toVirtualPath } from '../util/pathUtils'
 import { applyOrder, readOrder, writeOrder, writeDefault } from '../util/locationOrder'
 import { buildAuthUrl } from '../util/cloudAuth'
@@ -222,7 +222,7 @@ function onDiskDrop(i: number) {
           <li
             v-for="(fav, i) in favorites.list"
             :key="fav.path"
-            class="side-item"
+            class="side-item side-fav"
             :class="{ active: isActive(fav.path) }"
             :data-fav-path="fav.path"
             draggable="true"
@@ -232,7 +232,9 @@ function onDiskDrop(i: number) {
             @dragover.prevent
             @drop="onDrop(i)"
           >
-            <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+            <!-- Favourites are always folders, so the name map in icons.ts is the whole
+                 story -- same as Vue2's FAVORITE_ICON_MAP. -->
+            <img class="side-icon" :src="iconUrl(iconNameFor({ name: fav.name, is_dir: true }))" alt="" />
             <span class="side-name">{{ fav.name }}</span>
             <button class="side-remove" @click.stop="favorites.remove(fav.path)">×</button>
           </li>
