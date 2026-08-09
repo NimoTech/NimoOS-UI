@@ -57,6 +57,21 @@ describe('collage shapes', () => {
     }
   })
 
+  it('T1 / T2 / T3 / T4 each drive a distinct grid layout class on .mo-collage', () => {
+    // The three-image T1/T2/T4 shapes and the two-image T3 shape look identical by img
+    // count/order alone (previous test) — what actually tells them apart is which
+    // mo-tpl-* class lands on .mo-collage, since that is what the grid-template-* CSS
+    // keys off. T1 is the baseline grid and carries none of them.
+    const t1Classes = mountCard({}, 'standard', 'T1').find('.mo-collage').classes()
+    expect(t1Classes).not.toContain('mo-tpl-t2')
+    expect(t1Classes).not.toContain('mo-tpl-t3')
+    expect(t1Classes).not.toContain('mo-tpl-t4')
+
+    expect(mountCard({}, 'standard', 'T2').find('.mo-collage').classes()).toContain('mo-tpl-t2')
+    expect(mountCard({ featuredAssetIds: ['f1'] }, 'standard', 'T3').find('.mo-collage').classes()).toContain('mo-tpl-t3')
+    expect(mountCard({}, 'standard', 'T4').find('.mo-collage').classes()).toContain('mo-tpl-t4')
+  })
+
   it('T3 renders two images: cover + the sole featured asset', () => {
     const w = mountCard({ featuredAssetIds: ['f1'] }, 'standard', 'T3')
     expect(w.findAll('.mo-collage img').map((i) => i.attributes('src')))

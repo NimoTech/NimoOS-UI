@@ -38,7 +38,11 @@ const { t, locale } = useI18n()
 const localeTag = computed(() => locale.value.replace('_', '-'))
 
 // Data source for the three/two/one-slot collage, each slot checked for existence
-// (deviation 2 above).
+// (deviation 2 above). Relies on an invariant this component does not itself enforce:
+// pickMomentTemplate (src/photos/util/momentLayout.ts) only ever hands out T1/T2/T4 when
+// featuredAssetIds has >= 2 entries, and T3 when it has >= 1 — so f[0]/f[1] below are never
+// read out of an empty array in practice, even though .filter(Boolean) would silently
+// tolerate it if that invariant ever broke.
 const collageIds = computed<string[]>(() => {
   const cover = props.moment.coverAssetId
   const f = props.moment.featuredAssetIds
@@ -83,9 +87,8 @@ function thumbUrl(id: string): string {
       <div class="sv-collage-overlay" />
       <div class="sv-collage-badge mo-badge">
         <svg
-          width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        ><path d="M12 2l2.6 6.3L21 9.6l-4.7 4.3 1.3 6.4L12 17l-5.6 3.3 1.3-6.4L3 9.6l6.4-1.3z" /></svg>
+          width="9" height="9" viewBox="0 0 24 24" fill="currentColor"
+        ><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z" /></svg>
         {{ t('photosMoBadge') }}
       </div>
     </div>
