@@ -152,4 +152,60 @@ describe('scheduler', () => {
     await createScheduler(deps).run()
     expect(patches.some(p => p.tusUploadUrl === null)).toBe(false)
   })
+
+  // These two use a `patch` that mutates the item in place (Object.assign),
+  // matching the real store's patch() (uploads.ts) instead of the plain
+  // recording-only `harness` above — the point under test is specifically
+  // whether the SECOND upload() call sees a cleared item.tusUploadUrl, which
+  // only happens if something mutated the in-memory item, not just the
+  // recorded patches array.
+  it('recovers a dead resume URL by creating a fresh upload on the very next attempt', async () => {
+    const item = mkItem({ tusUploadUrl: 'http://nas/upload-tus/gone' })
+    const patches: any[] = []
+    const calls: any[] = []
+    const upload = vi.fn((args: any) => {
+      calls.push(args)
+      if (calls.length === 1) return Promise.reject({ originalResponse: { getStatus: () => 404 } })
+      return Promise.resolve()
+    })
+    let claimed = false
+    const deps = {
+      claimNext: () => { if (claimed) return null; claimed = true; return item },
+      patch: (id: string, p: any) => { Object.assign(item, p); patches.push({ id, ...p }) },
+      refresh: vi.fn(),
+      concurrency: 1,
+      sleepFn: () => Promise.resolve(),
+      upload,
+    }
+    await createScheduler(deps).run()
+    expect(calls.length).toBe(2)
+    expect(calls[0].resumeUrl).toBe('http://nas/upload-tus/gone')
+    expect(calls[1].resumeUrl).toBeUndefined()
+    expect(patches.some((p) => p.status === 'done')).toBe(true)
+  })
+
+  it('gives up with status error, bounded by the attempt count, when the dead URL recurs on every fresh upload too', async () => {
+    const item = mkItem({ tusUploadUrl: 'http://nas/upload-tus/gone' })
+    const patches: any[] = []
+    const calls: any[] = []
+    const upload = vi.fn((args: any) => {
+      calls.push(args)
+      return Promise.reject({ originalResponse: { getStatus: () => 404 } })
+    })
+    let claimed = false
+    const deps = {
+      claimNext: () => { if (claimed) return null; claimed = true; return item },
+      patch: (id: string, p: any) => { Object.assign(item, p); patches.push({ id, ...p }) },
+      refresh: vi.fn(),
+      concurrency: 1,
+      sleepFn: () => Promise.resolve(),
+      upload,
+    }
+    await createScheduler(deps).run()
+    // attempt runs 0..3 inclusive (4 total attempts) — same bound as every
+    // other error path in this scheduler, not a new escape hatch.
+    expect(calls.length).toBe(4)
+    expect(patches.some((p) => p.status === 'error')).toBe(true)
+    expect(patches.some((p) => p.status === 'done')).toBe(false)
+  })
 })
