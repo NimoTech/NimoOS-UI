@@ -914,6 +914,17 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
     await flush()
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已重启')
+
+    // SP16 Task 10:标题一直承诺了强制关机,用例体却从没点过它 —— api.stopVM 早就 mock
+    // 好了但从未触发,于是标题读起来像"有覆盖"而实际没有。补上。与重启同一套就地二次
+    // 确认(OverflowMenu.vue:91 的 isPending('stop') 分支)。文案取自 zh_cn.sp9.ts:437
+    // 的字面量 kvmToastStopped('已停止'),不是照标题猜的。
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!.trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
+    await flush()
+    expect(api.stopVM).toHaveBeenCalledWith('vm-1')
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已停止')
   })
 
   it('自动启动开关两态:开→toast 含"开",再点关→toast 含"已关闭"', async () => {
