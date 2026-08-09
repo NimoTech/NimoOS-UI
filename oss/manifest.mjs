@@ -587,9 +587,26 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
     replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
   { path: 'src/settings/util/appPaths.ts',
-    find: '// 后端(2026-08-01 实测 GET /v1/sys/paths)返回 4 个 key —— app_data / images / database /\n// photos_data,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。',
-    // I5-guard(⑤b)复核:原 replace 仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: '// 后端(2026-08-01 实测 GET /v1/sys/paths)可能返回更多 key,但界面只渲染前 3 个,这里也只产出 3 行。' },
+    find: '// The backend returns four keys -- app_data / images / database / photos_data\n// (verified 2026-08-09). Vue 2 rendered only the first three until #103 added the\n// photos cache row; all four are rendered here.',
+    replace: '// The backend may return additional keys beyond the ones listed in ORDER below;\n// only the keys in ORDER are rendered.' },
+  // ── photos_data 是 HARD 禁词(forbidden.mjs):Task 3(私有侧)让 App 数据存储位置面板
+  //    多出「相册缓存」第四行,消费的是后端 /v1/sys/paths 的 photos_data key —— 这是相册
+  //    功能的落地路径,开源侧没有相册,这一行连同它的落地逻辑必须整体抹掉,不只是抹注释。
+  //    下面三条 PATCH 把 appPaths.ts / migrateBrowse.ts / AppsPanel.vue 都退回三行版本
+  //    (代码退回,不是遮字面量——TS 的字符串字面量类型成员本身会被编译进产物里的运行时
+  //    数组/对象字面量,不能只改注释)。
+  { path: 'src/settings/util/appPaths.ts',
+    find: "export type AppPathKey = 'app_data' | 'images' | 'database' | 'photos_data'",
+    replace: "export type AppPathKey = 'app_data' | 'images' | 'database'" },
+  { path: 'src/settings/util/appPaths.ts',
+    find: "const ORDER: AppPathKey[] = ['app_data', 'images', 'database', 'photos_data']",
+    replace: "const ORDER: AppPathKey[] = ['app_data', 'images', 'database']" },
+  { path: 'src/settings/util/migrateBrowse.ts',
+    find: "  if (type === 'photos_data') return [`${b}/.system_data/photos`]\n",
+    replace: '' },
+  { path: 'src/settings/util/migrateBrowse.ts',
+    find: "consulted, so such entries would be dead code (Vue 2 #105 reached the same result).",
+    replace: 'consulted, so such entries would be dead code here.' },
   { path: 'src/apps/stores/installedApps.ts',
     find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
     replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
@@ -598,6 +615,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     // I5-guard(⑤b)复核:原 replace 仍带 "政策三「做样子」"(内部分级术语,FORBIDDEN 清单
     // 里的"做样子"本就是冲它去的,REPLACE-only 时代未覆盖到 PATCH,漏检)。
     replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
+  { path: 'src/settings/panels/AppsPanel.vue',
+    find: '// 三块:① 「App 数据存储位置」四行(app_data / images / database / photos_data,来自\n//         Task2 buildAppPathRows;photos_data 是 Task3 补的第四行,Vue2 #103)',
+    replace: '// 三块:① 「App 数据存储位置」三行(app_data / images / database,来自 Task2 buildAppPathRows)' },
+  { path: 'src/settings/panels/AppsPanel.vue',
+    find: "  database: 'settingsAppsDatabase',\n  photos_data: 'settingsAppsPhotosData',\n}",
+    replace: "  database: 'settingsAppsDatabase',\n}" },
+  // ── settingsAppsPhotosData 键(相册缓存,HARD 禁词「相册」)只喂上面被退回的第四行,
+  //    退回之后这个键在开源侧彻底没有消费者,两个 locale 一起删,不留孤儿键。
+  { path: 'src/i18n/zh_cn.sp9.ts',
+    find: "  settingsAppsDatabase: '用户数据库',\n  settingsAppsPhotosData: '相册缓存',\n",
+    replace: "  settingsAppsDatabase: '用户数据库',\n" },
+  { path: 'src/i18n/en_us.sp9.ts',
+    find: "  settingsAppsDatabase: 'User Database',\n  settingsAppsPhotosData: 'Photos Cache',\n",
+    replace: "  settingsAppsDatabase: 'User Database',\n" },
 
   // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
   // 2026-08-05 私有侧把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
@@ -1706,9 +1737,29 @@ function mountHome() {
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+  // Task 3(私有侧)给这三条用例都加上了第四行的真实断言(相册缓存,4 行),而不再是
+  // 只改标题字面量——退回三行版本的 appPaths.ts/AppsPanel.vue 之后,这三条整段跟着退回,
+  // 不能只 PATCH 标题(会跟组件实际渲染的行数对不上,变成假绿)。
   { path: 'src/settings/panels/AppsPanel.test.ts',
-    find: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含 photos_data),界面 1:1 只显示 3 行', async () => {",
-    replace: "  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {" },
+    find: `  it('渲染四行数据位置 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', async () => {
+    const w = mountPanel()
+    await flushPromises()
+    const rows = w.findAll('.set-app-row')
+    expect(rows).toHaveLength(4)
+    expect(rows[0].text()).toContain('App 数据')
+    expect(rows[1].text()).toContain('App 镜像集')
+    expect(rows[2].text()).toContain('用户数据库')
+    expect(rows[3].text()).toContain('相册缓存')
+  })`,
+    replace: `  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {
+    const w = mountPanel()
+    await flushPromises()
+    const rows = w.findAll('.set-app-row')
+    expect(rows).toHaveLength(3)
+    expect(rows[0].text()).toContain('App 数据')
+    expect(rows[1].text()).toContain('App 镜像集')
+    expect(rows[2].text()).toContain('用户数据库')
+  })` },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带待相册区迁移的标注(政策三"做样子")\', async () => {',
     // I5-guard(⑤b)复核:原标题仍带 "政策三"做样子""(REPLACE-only 时代未覆盖到 PATCH,漏检)。
@@ -1716,15 +1767,112 @@ function mountHome() {
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实四行', async () => {",
+    replace: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {" },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: `    resolveStorage(RAW_STORAGE)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(4)
+  })
+
+  it('取数失败时四行仍在(空路径),不白屏', async () => {
+    getSystemPaths.mockRejectedValue(new Error('boom'))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.findAll('.set-app-row')).toHaveLength(4)
+  })`,
+    replace: `    resolveStorage(RAW_STORAGE)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(3)
+  })
+
+  it('取数失败时三行仍在(空路径),不白屏', async () => {
+    getSystemPaths.mockRejectedValue(new Error('boom'))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.findAll('.set-app-row')).toHaveLength(3)
+  })` },
 
   // ── appPaths.test.ts:同一份 fixture 的 photos_data 键改名(HARD 禁词)────────
   { path: 'src/settings/util/appPaths.test.ts',
     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
+  // Task 3(私有侧)把这两条也改成了断言真的 4 行(而不是"给了 4 个 key 但只渲染 3 行"
+  // 这个原意),且新增了一条整段测第四行派生逻辑的用例——退回三行版本的 appPaths.ts 后,
+  // 前两条的行数断言与新用例都要跟着退回/删除,不能只 PATCH 标题字面量。
   { path: 'src/settings/util/appPaths.test.ts',
-    find: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),Vue2 只渲染 3 行', () => {",
-    // I5-guard(⑤b)复核:原标题仍带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: "  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {" },
+    find: `  it('恒返回 4 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', () => {
+    const rows = buildAppPathRows(PATHS, [SYS_VOL])
+    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
+  })`,
+    replace: `  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {
+    const rows = buildAppPathRows(PATHS, [SYS_VOL])
+    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database'])
+  })` },
+  { path: 'src/settings/util/appPaths.test.ts',
+    find: `  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的四行,不抛', () => {
+    const rows = buildAppPathRows(null, [SYS_VOL])
+    expect(rows).toHaveLength(4)
+    expect(rows[0]).toMatchObject({ path: '', size: 0 })
+  })
+
+  it('derives a fourth row for the photos cache (Vue2 #103)', () => {
+    const paths = {
+      app_data: { path: '/DATA/AppData', size: 6037987 },
+      database: { path: '/DATA', size: 3557039799 },
+      images: { path: '/DATA/.system_data/.docker & .containerd', size: 58125438307 },
+      photos_data: { path: '/DATA/.system_data/photos', size: 6281536962 },
+    }
+    const rows = buildAppPathRows(paths as never, [])
+    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
+    expect(rows[3].path).toBe('/DATA/.system_data/photos')
+    expect(rows[3].size).toBe(6281536962)
+  })`,
+    replace: `  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的三行,不抛', () => {
+    const rows = buildAppPathRows(null, [SYS_VOL])
+    expect(rows).toHaveLength(3)
+    expect(rows[0]).toMatchObject({ path: '', size: 0 })
+  })` },
+
+  // ── migrateBrowse.test.ts:Task 3 加的两条用例同样跟着 browseDestPaths/appPaths.ts 的
+  //    photos_data 分支一起退回——「目标落在 .system_data/photos」那条整段删(该分支已经
+  //    从 migrateBrowse.ts 里 PATCH 掉,断言会直接落到 database 的四目录分支,真失败);
+  //    dot 过滤那条用 photos_data 当第四个类型只是为了多测一种取值,不是这条用例的重点,
+  //    换掉字面量、去掉标题/注释里的期号即可,不必整条删。
+  { path: 'src/settings/util/migrateBrowse.test.ts',
+    find: `  it('points the photos cache at <target>/.system_data/photos (matches migrate.go)', () => {
+    expect(browseDestPaths('photos_data', '/media/Backup')).toEqual([
+      '/media/Backup/.system_data/photos',
+    ])
+    expect(browseDestPaths('photos_data', '/media/Backup/')).toEqual([
+      '/media/Backup/.system_data/photos',
+    ])
+  })
+`,
+    replace: '' },
+  { path: 'src/settings/util/migrateBrowse.test.ts',
+    find: `  it('drops dot-prefixed folders before the blocked list is ever consulted (Vue2 #105)', () => {
+    // #105 found the dot entries in the blocked list to be dead code: the dot filter
+    // below already removed them. Same holds here, which is why photos_data adds no
+    // \`.system_data\` entry to \`blocked\`.
+    const items = [
+      { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false },
+      { name: '.docker', path: '/DATA/.docker', is_dir: true, is_symlink: false },
+      { name: 'Backup', path: '/DATA/Backup', is_dir: true, is_symlink: false },
+    ]
+    for (const type of ['app_data', 'images', 'database', 'photos_data'] as const) {`,
+    replace: `  it('drops dot-prefixed folders before the blocked list is ever consulted', () => {
+    // The dot filter below already removes any dot-prefixed folder before the blocked
+    // list is even consulted, so an entry like \`.system_data\` would be dead code here.
+    const items = [
+      { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false },
+      { name: '.docker', path: '/DATA/.docker', is_dir: true, is_symlink: false },
+      { name: 'Backup', path: '/DATA/Backup', is_dir: true, is_symlink: false },
+    ]
+    for (const type of ['app_data', 'images', 'database'] as const) {` },
 
   // ── installedApps.test.ts:注释点名 AI agent / Photos ML,措辞对齐 T7 洗白后
   //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────

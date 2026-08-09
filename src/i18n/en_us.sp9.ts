@@ -165,6 +165,7 @@ export default {
   settingsAppsAppData: 'App Data',
   settingsAppsImages: 'App Images',
   settingsAppsDatabase: 'User Database',
+  settingsAppsPhotosData: 'Photos Cache',
   settingsAppsChangeLocation: 'Change storage location',
   settingsAppsDockerCleanTitle: 'Docker Cache Cleanup',
   settingsAppsDockerCleanSub: 'Your Docker environment is optimized.',

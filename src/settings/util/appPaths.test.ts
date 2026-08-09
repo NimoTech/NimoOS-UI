@@ -48,9 +48,9 @@ describe('volumeForPath', () => {
 })
 
 describe('buildAppPathRows', () => {
-  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),Vue2 只渲染 3 行', () => {
+  it('恒返回 4 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
-    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database'])
+    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })
   it('size 与 path 逐字取后端值(images 的 path 是含 & 的展示串)', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
@@ -72,9 +72,22 @@ describe('buildAppPathRows', () => {
   it('连系统卷都没有时 total 为 0', () => {
     expect(buildAppPathRows(PATHS, [])[0].total).toBe(0)
   })
-  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的三行,不抛', () => {
+  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的四行,不抛', () => {
     const rows = buildAppPathRows(null, [SYS_VOL])
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(4)
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
+  })
+
+  it('derives a fourth row for the photos cache (Vue2 #103)', () => {
+    const paths = {
+      app_data: { path: '/DATA/AppData', size: 6037987 },
+      database: { path: '/DATA', size: 3557039799 },
+      images: { path: '/DATA/.system_data/.docker & .containerd', size: 58125438307 },
+      photos_data: { path: '/DATA/.system_data/photos', size: 6281536962 },
+    }
+    const rows = buildAppPathRows(paths as never, [])
+    expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
+    expect(rows[3].path).toBe('/DATA/.system_data/photos')
+    expect(rows[3].size).toBe(6281536962)
   })
 })

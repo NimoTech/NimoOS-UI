@@ -41,14 +41,15 @@ describe('AppsPanel', () => {
   })
   afterEach(() => { document.body.innerHTML = '' })
 
-  it('渲染三行数据位置 —— 后端给了 4 个 key(含 photos_data),界面 1:1 只显示 3 行', async () => {
+  it('渲染四行数据位置 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', async () => {
     const w = mountPanel()
     await flushPromises()
     const rows = w.findAll('.set-app-row')
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(4)
     expect(rows[0].text()).toContain('App 数据')
     expect(rows[1].text()).toContain('App 镜像集')
     expect(rows[2].text()).toContain('用户数据库')
+    expect(rows[3].text()).toContain('相册缓存')
   })
 
   it('路径 chip 经 displayNames 变成虚拟路径', async () => {
@@ -123,7 +124,7 @@ describe('AppsPanel', () => {
   // pathText() 无条件拼四目录后缀,取数没落定时会显示成缺前缀的假路径)。收敛条件选
   // 「两个接口都落定」——这里让 getSystemPaths 立即落定、storage.list 挂住,验证加载态
   // 仍然渲染骨架而不是假数据,直到 storage.list 也落定才切换。
-  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {
+  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实四行', async () => {
     let resolveStorage!: (v: typeof RAW_STORAGE) => void
     const pendingStorage = new Promise<typeof RAW_STORAGE>((res) => { resolveStorage = res })
     storageList.mockReturnValueOnce(pendingStorage)
@@ -135,13 +136,13 @@ describe('AppsPanel', () => {
     resolveStorage(RAW_STORAGE)
     await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
-    expect(w.findAll('.set-app-row')).toHaveLength(3)
+    expect(w.findAll('.set-app-row')).toHaveLength(4)
   })
 
-  it('取数失败时三行仍在(空路径),不白屏', async () => {
+  it('取数失败时四行仍在(空路径),不白屏', async () => {
     getSystemPaths.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()
-    expect(w.findAll('.set-app-row')).toHaveLength(3)
+    expect(w.findAll('.set-app-row')).toHaveLength(4)
   })
 })

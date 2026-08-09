@@ -169,6 +169,7 @@ export default {
   settingsAppsAppData: 'App 数据',
   settingsAppsImages: 'App 镜像集',
   settingsAppsDatabase: '用户数据库',
+  settingsAppsPhotosData: '相册缓存',
   settingsAppsChangeLocation: '更改存储位置',
   settingsAppsDockerCleanTitle: 'Docker 缓存清理',
   settingsAppsDockerCleanSub: '您的 Docker 环境已优化。',

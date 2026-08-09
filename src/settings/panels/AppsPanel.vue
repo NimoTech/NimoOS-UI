@@ -2,7 +2,8 @@
 // 设置 · 应用。对位 Vue2 SettingsPanel.vue apps 分支(模板 L587-665)+
 // loadAppsData()(:1910-1971)+ pruneDocker()(:1973)+ clearLocalUploads()(:2010)。
 //
-// 三块:① 「App 数据存储位置」三行(app_data / images / database,来自 Task2 buildAppPathRows)
+// 三块:① 「App 数据存储位置」四行(app_data / images / database / photos_data,来自
+//         Task2 buildAppPathRows;photos_data 是 Task3 补的第四行,Vue2 #103)
 //      ② Docker 缓存清理(二次确认 + service.container.prune())
 //      ③ 清理本地待上传缓存 —— 政策三「做样子」,见下方专门注释。
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -26,6 +27,7 @@ const ROW_LABEL_KEY: Record<AppPathKey, string> = {
   app_data: 'settingsAppsAppData',
   images: 'settingsAppsImages',
   database: 'settingsAppsDatabase',
+  photos_data: 'settingsAppsPhotosData',
 }
 
 // ── 取数(App 数据存储位置三行) ──────────────────────────────────────────

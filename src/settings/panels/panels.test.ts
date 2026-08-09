@@ -96,15 +96,15 @@ describe('9 个 tab 骨架', () => {
   // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。
   // AppsPanel 用了 useToast()(pinia store),零 mock 下也需要一个 active Pinia,否则
   // setup() 阶段就会因 "no active Pinia" 抛出 —— 只在这一个 it() 里装,不影响其它用例。
-  it('apps 已填真实内容(数据位置三行 + Docker 清理 + 待上传缓存做样子),不再是纯骨架', async () => {
+  it('apps has real content (four data-location rows + Docker cleanup + upload-cache placeholder), no longer a bare skeleton', async () => {
     setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
     // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
-    // 遗漏,是避免落定前露三行 0 值假读数),这里先钉住"确实经过了加载态"。
+    // 遗漏,是避免落定前露四行 0 值假读数),这里先钉住"确实经过了加载态"。
     expect(w.find('.set-skeleton').exists()).toBe(true)
     await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
-    expect(w.findAll('.set-app-row')).toHaveLength(3)
+    expect(w.findAll('.set-app-row')).toHaveLength(4)
     expect(w.find('.set-app-prune').exists()).toBe(true)
     expect(w.find('.set-app-pending-btn').attributes('disabled')).toBeDefined()
   })
