@@ -12,6 +12,8 @@ export interface AlbumView {
   dateRange: string
   createdAt: string | null
   dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
+  videoCount: number // P2b: the detail sidebar's Videos cell
+  dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
 }
 
 // Extract {year, month(1-12)} from a raw taken_at string ('2025-06-03',
@@ -57,6 +59,8 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
     createdAt: (a.createdAt as string | undefined) || null,
     dateEnd: dateEnd || null,
+    videoCount: Number(a.videoCount ?? 0),
+    dateStart: (a.dateStart as string | undefined) || null,
   }
 }
 

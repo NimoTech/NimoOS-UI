@@ -34,6 +34,10 @@ export interface SmartView {
   storageBytes: number
   distribution: number[]
   evaluatedAt: string
+  // Present on the wire since the backend's first version (service/smartview.go:23).
+  // Carried here from SP15-P2b onward because the Albums page's global sort ranks
+  // manual albums and smart albums against each other by creation time.
+  createdAt: string
 }
 
 export interface SmartViewActivity {
@@ -100,6 +104,7 @@ function toSmartView(raw: unknown): SmartView {
     storageBytes: Number(r.storageBytes ?? 0),
     distribution: distribution.length === 10 ? distribution : new Array(10).fill(0),
     evaluatedAt: String(r.evaluatedAt ?? ''),
+    createdAt: String(r.createdAt ?? ''),
   }
 }
 
@@ -343,6 +348,31 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     } finally {
       duplicateBusy.value = false
     }
+  }
+
+  // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
+  // existing member, deletes the album, and hands back the full new smart view, so the
+  // only thing left to do here is put it at the head of the list — no refetch needed.
+  //
+  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched
+  // both lists and then pushed an optimistic copy as a belt-and-braces measure, because
+  // its list page stays mounted while the detail panel swaps in. Here the caller
+  // navigates to the new smart view's own route and any return to the list remounts and
+  // refetches, so neither the double fetch nor the optimistic slot has anything to do.
+  //
+  // Rethrows on failure (this store's established contract, same as createSmartView):
+  // the dialog decides what to show and stays open so the user can retry.
+  async function convertFromAlbum(
+    albumId: string | number,
+    input: { description: string; threshold: number },
+  ): Promise<SmartView> {
+    const raw = await service.photos.convertAlbumToSmart(albumId, {
+      description: input.description,
+      threshold: input.threshold,
+    })
+    const created = toSmartView(raw)
+    smartViews.value.unshift(created)
+    return created
   }
 
   // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
@@ -594,7 +624,7 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
     byId,
     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
-    duplicateSmartView, loadDetail, refreshPreview, cancelPreview, exportAlbum,
+    duplicateSmartView, convertFromAlbum, loadDetail, refreshPreview, cancelPreview, exportAlbum,
     pinAssets, removeAssets, restoreAssets, loadExcluded,
     __resetForTest,
   }

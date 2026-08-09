@@ -12,6 +12,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       batchAddToAlbum: vi.fn(() => Promise.resolve()),
       removeFromAlbum: vi.fn(() => Promise.resolve()),
       reorderAlbumAssets: vi.fn(() => Promise.resolve()),
+      convertSmartToAlbum: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
@@ -457,6 +458,23 @@ describe('photosAlbums store', () => {
       const s = usePhotosAlbums()
       await expect(s.saveAsAlbum('Trip', ['p1'])).rejects.toThrow('409')
       expect(service.photos.batchAddToAlbum).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('convertFromSmartView', () => {
+    it('unshifts the new album and returns the raw object', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N', videoCount: 2 })
+      const s = usePhotosAlbums()
+      const album = await s.convertFromSmartView('sv-1')
+      expect(album.id).toBe('al-new')
+      expect(s.albums[0].id).toBe('al-new')
+    })
+
+    it('rethrows instead of swallowing the failure', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      const s = usePhotosAlbums()
+      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
+      expect(s.albums).toHaveLength(0)
     })
   })
 })

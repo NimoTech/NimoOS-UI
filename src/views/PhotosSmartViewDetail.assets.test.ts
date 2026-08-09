@@ -44,7 +44,7 @@ import zh from '../i18n/zh_cn'
 const SV = {
   id: 'sv1', name: 'Hiking', description: '', conds: ['a'], threshold: 80,
   live: true, includeVideos: false, count: 3, addedThisWeek: 0, seeds: [],
-  median: 0, storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '',
+  median: 0, storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '',
 }
 
 async function mountPage(path = '/photos/smart-views/sv1') {

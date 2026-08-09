@@ -328,6 +328,23 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/smart-views/preview', { condsRaw, description, threshold, includeVideos })
       return body<unknown>(res.data)
     },
+    // ─── Album <-> smart view conversion (SP15-P2b) ───
+    // Both endpoints convert in place and delete the source object, and both answer
+    // with the full new object rather than a change count — the callers push straight
+    // into their store and navigate to the new detail route, so a count would be
+    // useless. `conds` is deliberately optional: leaving it out lets the backend's
+    // svparser derive the conditions from `description`, the same path Create takes.
+    async convertAlbumToSmart(
+      albumId: string | number,
+      payload: { description: string; threshold: number; name?: string; conds?: string[]; includeVideos?: boolean },
+    ): Promise<unknown> {
+      const res = await http.post('/photos/smart-views/from-album', { albumId, ...payload })
+      return body<unknown>(res.data)
+    },
+    async convertSmartToAlbum(smartViewId: string | number): Promise<unknown> {
+      const res = await http.post('/photos/albums/from-smartview', { smartViewId })
+      return body<unknown>(res.data)
+    },
     // ─── Smart view manual asset actions (SP15-P2a) ───
     // Re-verified against NimoOS-Photos/route/v1/smartviews.go: the shared request
     // body is svAssetIDsReq {assetIds}, and an empty array is rejected with 400, so

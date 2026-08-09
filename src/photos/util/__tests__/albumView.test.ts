@@ -29,11 +29,24 @@ describe('albumToView', () => {
     expect(albumToView({ id: 1 }, 'x').count).toBe(0)
   })
   it('coverAssetId 缺失 → null', () => { expect(albumToView({ id: 1 }, 'x').cover).toBeNull() })
+
+  it('carries videoCount and dateStart through for the detail sidebar and the global sort', () => {
+    const v = albumToView({ id: 1, videoCount: 3, dateStart: '2025-06-01' }, 'x')
+    expect(v.videoCount).toBe(3)
+    expect(v.dateStart).toBe('2025-06-01')
+  })
+  it('defaults videoCount to 0 and dateStart to null when absent', () => {
+    // videoCount is not omitempty on the wire (NimoOS-Photos service/types.go:179), so
+    // the fallback only covers a partial fixture, not a real response.
+    const v = albumToView({ id: 1 }, 'x')
+    expect(v.videoCount).toBe(0)
+    expect(v.dateStart).toBeNull()
+  })
 })
 
 describe('sortAlbums', () => {
   const V = (id: string, title: string, count: number, createdAt: string | null, dateEnd: string | null) =>
-    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '' })
+    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '', videoCount: 0, dateStart: null })
   // a/b 在 createdAt 与 dateEnd 上名次互换(仿 sortAlbumPhotos 夹具的手法),
   // 让 'created' 与 'date' 两个分支产生不同排序结果 —— 若未来 'date' 分支被
   // 误改回读 createdAt,这里必须挂红。

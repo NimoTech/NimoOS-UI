@@ -37,6 +37,7 @@ function makeSv(overrides: Partial<SmartView> = {}): SmartView {
     storageBytes: 0,
     distribution: new Array(10).fill(0),
     evaluatedAt: '',
+    createdAt: '',
     ...overrides,
   }
 }

@@ -207,6 +207,9 @@ export const SERVICE_DELETE = [
   // and did not list it here either, so the leak guard went red again — 15 hits, all in this one
   // file. Third time for this exact omission; the remedy is unchanged.
   'src/photos.smartviewAssets.test.ts',
+  // SP15-P2b-T1 added a ninth sibling (album <-> smart view conversion). Same omission
+  // pattern as the two comments above — the leak guard would go red without this line.
+  'src/photos.convert.test.ts',
   'src/photos.uploads.test.ts',
   'src/photos.views.test.ts',
   // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,

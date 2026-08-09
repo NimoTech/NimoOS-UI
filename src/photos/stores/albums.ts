@@ -194,6 +194,20 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     return created
   }
 
+  // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
+  // smartViews.convertFromAlbum — see its comment for why there is no refetch and no
+  // optimistic slot. The raw backend object is stored as-is, matching this store's
+  // convention of keeping albums unmapped (the views map them through albumToView).
+  //
+  // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
+  // that is not the pattern to follow for a user-initiated write.
+  async function convertFromSmartView(smartViewId: string): Promise<RawAlbum> {
+    const raw = await service.photos.convertSmartToAlbum(smartViewId)
+    const album = (raw ?? {}) as RawAlbum
+    albums.value = [album, ...albums.value]
+    return album
+  }
+
   function __resetForTest(): void {
     albums.value = []
     albumsLoaded.value = false
@@ -207,7 +221,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     albumById, assetsOf, isLoadingAssets,
     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
     renameAlbum, setAlbumCover, reorderAlbumAssets,
-    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum,
+    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView,
     __resetForTest,
   }
 })

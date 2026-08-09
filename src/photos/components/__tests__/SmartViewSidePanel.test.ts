@@ -33,6 +33,7 @@ function makeSv(overrides: Partial<SmartView> = {}): SmartView {
     storageBytes: 0,
     distribution: [],
     evaluatedAt: '',
+    createdAt: '',
     ...overrides,
   }
 }
