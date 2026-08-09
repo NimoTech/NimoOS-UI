@@ -256,3 +256,59 @@ describe('useFileConflicts', () => {
     expect(out.skippedCount).toBe(2)
   })
 })
+
+describe('resolvePaste', () => {
+  beforeEach(() => { vi.restoreAllMocks() })
+
+  it('splits by the answers the user gives to each collision', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const items = [
+      { from: '/DATA/src/a.txt', is_dir: false },
+      { from: '/DATA/src/b.txt', is_dir: false },
+    ]
+    const p = c.resolvePaste(items, '/DATA/dst')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt')
+    c.onChoose({ action: 'overwrite' } as never)
+    const out = await p
+    expect(out.overwriteItems.map((i) => i.from)).toEqual(['/DATA/src/a.txt'])
+    expect(out.renameItems.map((i) => i.from)).toEqual(['/DATA/src/b.txt'])
+  })
+
+  it('never opens the dialog when nothing collides', async () => {
+    const c = useFileConflicts({ listFolder: listing([]) })
+    const items = [{ from: '/DATA/src/a.txt', is_dir: false }]
+    const out = await c.resolvePaste(items, '/DATA/dst')
+    expect(c.dialog.value.open).toBe(false)
+    expect(out.renameItems).toEqual(items)
+  })
+
+  it('never offers Merge for a paste collision', async () => {
+    // The backend's move/copy style switch has no merge case; offering it
+    // would render a button that does nothing.
+    const c = useFileConflicts({ listFolder: listing([{ name: 'Trip', is_dir: true }]) })
+    const p = c.resolvePaste([{ from: '/DATA/src/Trip', is_dir: true }], '/DATA/dst')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.allowMerge).toBe(false)
+    expect(c.dialog.value.isDir).toBe(true)
+    c.onChoose({ action: 'skip' } as never)
+    await p
+  })
+
+  it('runs on the same serial chain as upload batches', async () => {
+    // Two flows must never have a dialog open at once.
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const first = c.resolvePaste([{ from: '/DATA/x/a.txt', is_dir: false }], '/DATA/dst')
+    const second = c.resolvePaste([{ from: '/DATA/y/a.txt', is_dir: false }], '/DATA/dst')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.targetPath).toBe('/DATA/dst')
+    expect(c.dialog.value.name).toBe('a.txt')
+    c.onChoose({ action: 'skip' } as never)
+    // The second batch only gets the dialog after the first one is answered.
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    c.onChoose({ action: 'skip' } as never)
+    await Promise.all([first, second])
+  })
+})

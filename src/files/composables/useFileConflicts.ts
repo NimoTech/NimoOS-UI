@@ -9,6 +9,8 @@ import {
   computeUploadConflicts, splitConflictsByKind, applyUploadResolutions, applyInnerResolutions,
   type UploadEntry, type AcceptedEntry, type InnerPrecheckResult,
 } from '../upload/uploadConflict'
+import { computePasteConflicts, splitPasteItems } from '../upload/pasteConflict'
+import type { OperateItem } from '../stores/clipboard'
 
 export interface ConflictDialogState {
   open: boolean
@@ -243,5 +245,25 @@ export function useFileConflicts(deps: FileConflictDeps = {}) {
     return next
   }
 
-  return { dialog, onChoose, onCancel, resolveEntries }
+  /**
+   * Paste's counterpart to `run()`. Shares this composable's dialog, resolver and
+   * serial chain, so an upload batch and a paste can never both be asking.
+   *
+   * `allowMerge` is deliberately never set: the backend's move/copy conflict
+   * switch (NimoOS service/file.go) implements skip / overwrite / rename only.
+   */
+  async function resolvePaste(items: OperateItem[], destDir: string) {
+    const task = async () => {
+      const conflicts = await computePasteConflicts({ items, destDir, listFolder })
+      const resolutions = conflicts.length
+        ? await resolveConflictQueue(conflicts, (conflict, ctx) => ask(conflict, destDir, ctx))
+        : []
+      return splitPasteItems(items, resolutions)
+    }
+    const p = chain.then(task, task)
+    chain = p.then(() => undefined, () => undefined)
+    return p
+  }
+
+  return { dialog, onChoose, onCancel, resolveEntries, resolvePaste }
 }
