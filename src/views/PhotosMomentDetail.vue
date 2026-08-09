@@ -1013,6 +1013,19 @@ async function doDelete(): Promise<void> {
 .sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
 .sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 
+/* SP15-P2a task 4: carried-in defect fix. The template already sets `:data-selected` on both
+   grids' tiles, but scoped styles do not cross component boundaries in this repo (see the block
+   comment above) — every existing `[data-selected]` rule lived in a different component's own
+   scoped style, so this page's selection mode drew the check badge with no highlight around it.
+   Same restatement PhotosSmartViewDetail.vue's own grids just received (Vue2 photos.scss:329-333,
+   the global `.photos-root .tile[data-selected]` rule this page can only reach via a local copy):
+   the wash is a mix of the accent token at 20 percent, standing in for Vue2's flat literal. */
+.sv-grid-photos .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+.sv-grid-photos .tile[data-selected="true"]::before {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
 /* Pin badge (scss:682-692): manual members, Featured only. Background is --overlay-bg —
    the same constant-dark-badge token PhotosTrash.vue's .trash-tile-countdown/
    .trash-tile-select already use for "fixed dark badge over an unpredictable photo" —
