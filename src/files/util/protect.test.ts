@@ -60,13 +60,13 @@ describe('splitProtectedUploads', () => {
 
   it('keeps the surviving entries in order and hands back the very same objects', () => {
     const a = u('a.txt')
-    const b = u('Gallery/pic.jpg')
+    const b = u('Downloads/pic.jpg')
     const c = u('c.txt')
     const { accepted, rejected } = splitProtectedUploads([a, b, c])
     expect(accepted).toEqual([a, b, c].filter((x) => x !== b))
     expect(accepted[0]).toBe(a)
     expect(accepted[1]).toBe(c)
-    expect(rejected).toEqual(['Gallery/pic.jpg'])
+    expect(rejected).toEqual(['Downloads/pic.jpg'])
   })
 
   it('returns two empty lists for an empty batch', () => {

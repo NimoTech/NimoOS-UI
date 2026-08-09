@@ -124,7 +124,7 @@ describe('useFileOps', () => {
     const ops = makeOps()
     await ops.remove([
       { name: 'Documents', path: '/DATA/Documents', is_dir: true },
-      { name: 'Gallery', path: '/DATA/Gallery', is_dir: true },
+      { name: 'Downloads', path: '/DATA/Downloads', is_dir: true },
     ])
     expect(batchDelete).not.toHaveBeenCalled()
     expect(showSpy).toHaveBeenCalledWith(zh.filesProtectedDelete)
