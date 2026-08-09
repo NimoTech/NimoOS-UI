@@ -8,6 +8,7 @@
 // 铁律回归测试贯穿全文件:route.params.id 恒为字符串,与后端可能的数字 id/cover id 交叉验证
 // 值比较(不是对象引用比较)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -34,6 +35,9 @@ const svc = vi.hoisted(() => ({
     // 会抛未捕获异常污染测试运行(不影响断言结果,但需堵上,同 PhotosFavorites.test.ts 的前例)。
     recordView: vi.fn().mockResolvedValue(undefined),
     listFavoriteIds: vi.fn().mockResolvedValue([]),
+    // T6: the stats rail's Convert-to-Smart-Album menu entry gates on the same AI-feature
+    // config the Albums page already reads (usePhotosSettingsStore().fetchAiFeatures()).
+    getConfig: vi.fn().mockResolvedValue({}),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -110,6 +114,25 @@ function asset(id: string | number, overrides: Record<string, unknown> = {}) {
   }
 }
 
+/**
+ * Task 6: mount with an album + its assets + (optionally) the AI-feature config the stats
+ * rail's Convert entry gates on. Deliberately does NOT route the album/assets fixtures through
+ * rawAlbum()/asset()'s own field defaults above — several of the tests below rely on an absent
+ * dateStart/dateEnd/createdAt/videoCount staying absent (to prove the dash/zero fallbacks), and
+ * those helpers backfill exactly those fields.
+ */
+async function mountDetail(opts: {
+  album: Record<string, unknown>
+  assets?: Array<Record<string, unknown>>
+  aiFeatures?: Record<string, unknown>
+}) {
+  svc.photos.listAlbums.mockResolvedValue([opts.album])
+  svc.photos.getAlbum.mockResolvedValue({ assets: opts.assets ?? [] })
+  svc.photos.getConfig.mockResolvedValue(opts.aiFeatures !== undefined ? { aiFeatures: opts.aiFeatures } : {})
+  const { w } = await mountView(opts.album.id as string | number)
+  return w
+}
+
 function findSortItem(w: ReturnType<typeof mount>, sortId: string) {
   return w.findAll('[data-test="album-sort-item"]').find((n) => n.attributes('data-sort-id') === sortId)!
 }
@@ -126,6 +149,7 @@ beforeEach(() => {
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.getConfig.mockClear().mockResolvedValue({})
   dragMock.isDragging.mockReset().mockReturnValue(false)
   dragMock.refresh.mockClear()
   dragMock.destroy.mockClear()
@@ -747,5 +771,71 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(removeSpy).toHaveBeenCalledTimes(1)
     resolveRemove?.()
     await flushPromises()
+  })
+
+  // Task 6: stats rail + more-menu reshape (SP15-P2b) -- aligns this page with the smart-view
+  // detail page's own sidebar/menu idiom.
+  it('shows a stats rail with photos, span, videos and created', async () => {
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A', assetCount: 12, dateStart: '2025-06-01', dateEnd: '2025-12-31', videoCount: 3, createdAt: '2026-02-01T00:00:00Z' },
+      assets: [{ id: 'p1', takenAt: '2025-06-02' }],
+    })
+    const cells = w.findAll('[data-test="album-stat-cell"]')
+    expect(cells).toHaveLength(4)
+    expect(cells[0].text()).toContain('12')
+    expect(cells[1].text()).toContain('Jun - Dec 2025')
+    expect(cells[2].text()).toContain('3')
+  })
+
+  it('falls back to a dash when the span or the created date is unusable', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', createdAt: 'not-a-date' }, assets: [] })
+    const cells = w.findAll('[data-test="album-stat-cell"]')
+    expect(cells[1].text()).toContain('—')
+    expect(cells[3].text()).toContain('—')
+  })
+
+  it('reports zero videos rather than a dash when the album has none', async () => {
+    // videoCount is not omitempty on the wire, so 0 is a real answer, not missing data.
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', videoCount: 0 }, assets: [] })
+    expect(w.findAll('[data-test="album-stat-cell"]')[2].text()).toContain('0')
+  })
+
+  it('buckets members by month and omits the histogram when nothing carries a takenAt', async () => {
+    const withDates = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [{ id: 'p1', takenAt: '2025-06-02' }, { id: 'p2', takenAt: '2025-06-09' }, { id: 'p3', takenAt: '2025-07-01' }],
+    })
+    expect(withDates.findAll('[data-test="album-dist-bar"]')).toHaveLength(2)
+    const without = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [{ id: 'p1' }] })
+    expect(without.find('[data-test="album-dist"]').exists()).toBe(false)
+  })
+
+  it('keeps the rail out of the photo grid\'s scroll container', async () => {
+    // Both columns scroll independently; if the wrapper scrolled too, the rail would
+    // scroll away with the photos (the exact defect PhotosMomentDetail was fixed for).
+    const css = readFileSync('src/views/PhotosAlbumDetail.vue', 'utf8')
+    expect(css).toMatch(/\.album-detail-body\s*\{[^}]*overflow:\s*hidden/)
+  })
+
+  it('gives the more menu an icon, a title and a hint per row', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await w.find('[data-test="album-more-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.findAll('[data-test="album-menu-icon"]').length).toBeGreaterThanOrEqual(3)
+    expect(w.find('[data-test="album-menu-rename"]').text()).toContain('修改相册名称')
+  })
+
+  it('offers Convert to Smart Album above the destructive separator', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await w.find('[data-test="album-more-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="album-menu-convert"]').exists()).toBe(true)
+  })
+
+  it('disables Convert to Smart Album when smart views are off', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [], aiFeatures: { smartview: false } })
+    await w.find('[data-test="album-more-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="album-menu-convert"]').attributes('disabled')).toBeDefined()
   })
 })

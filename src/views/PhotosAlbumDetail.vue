@@ -25,6 +25,7 @@ import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
 import { albumToView, sortAlbumPhotos } from '../photos/util/albumView'
@@ -33,13 +34,19 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 type SortBy = 'manual' | 'taken' | 'added'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
+const settings = usePhotosSettingsStore()
 const toast = useToast()
 const lb = useLightbox()
+
+// T6: this repo's locale ids (`zh_cn`/`en_us`) are not valid BCP-47 tags -- handing one to
+// toLocaleString/toLocaleDateString bare throws a RangeError. Same form as
+// PhotosMomentDetail.vue's own localeTag.
+const localeTag = computed(() => locale.value.replace('_', '-'))
 
 // 铁律 1:route.params.id 恒为字符串——统一在这一处归一,下游所有 store 调用都用它。
 const albumId = computed(() => String(route.params.id))
@@ -109,6 +116,57 @@ const coverBgImage = computed(() => {
   }
   return 'var(--album-cover-fallback)'
 })
+
+// T6: stats rail — the four cells the smart-view detail page has always had.
+const DASH = '—'
+
+// Vue2 :251-253: reuse the human-readable span the list already formats (formatAlbumSpan,
+// same call already backing album.dateRange), not a second formatter.
+const spanLabel = computed(() => album.value?.dateRange || DASH)
+
+// Vue2 :260-262. videoCount is not omitempty on the wire (albumToView reads
+// `Number(a.videoCount ?? 0)`), so 0 is a real answer, not missing data.
+const videoCountLabel = computed(() => (album.value?.videoCount ?? 0).toLocaleString(localeTag.value))
+
+// Vue2 :263-271. Vue2 replaced its own "Recently added" cell with this one in the final review
+// round: that cell also read createdAt, so it duplicated this one and, on an old album, read as
+// though new photos had just arrived.
+const createdLabel = computed(() => {
+  const raw = album.value?.createdAt
+  if (!raw) return DASH
+  const d = new Date(raw)
+  if (isNaN(d.getTime())) return DASH
+  return d.toLocaleDateString(localeTag.value, { month: 'short', day: 'numeric', year: 'numeric' })
+})
+
+// By-month histogram: verbatim port of PhotosMomentDetail.vue's own monthBuckets/distMax/
+// distStyle (same Vue2 source, already through a whole-branch review), with allAssets.value
+// swapped for this page's photos.value.
+interface MonthBucket { key: string; count: number; label: string }
+const monthBuckets = computed<MonthBucket[]>(() => {
+  if (!photos.value.length) return []
+  const map = new Map<string, number>()
+  for (const p of photos.value) {
+    if (!p.takenAt) continue
+    const d = new Date(p.takenAt)
+    if (isNaN(d.getTime())) continue
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+    map.set(key, (map.get(key) ?? 0) + 1)
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([key, count]) => {
+      const [y, m] = key.split('-')
+      const label = new Date(Number(y), Number(m) - 1)
+        .toLocaleDateString(localeTag.value, { month: 'short', year: 'numeric' })
+      return { key, count, label }
+    })
+})
+const distMax = computed(() => Math.max(1, ...monthBuckets.value.map((b) => b.count)))
+function distStyle(b: MonthBucket, i: number): { height: string; opacity: number } {
+  const n = Math.max(1, monthBuckets.value.length - 1)
+  return { height: `${(b.count / distMax.value) * 100}%`, opacity: 0.4 + (i / n) * 0.5 }
+}
 
 function isCover(p: Photo): boolean {
   // 铁律 2:值比较,不管两边谁是字符串谁是数字。
@@ -243,6 +301,18 @@ function askConfirmDelete(): void {
   confirmDelete.value = true
 }
 
+// T6: same criterion as the Albums page's smart-view-create gating (Vue2 :226-229 threads it
+// down as a prop; here both pages read the one settings store directly instead).
+const smartViewDisabled = computed(() => settings.aiFeatures.smartview === false)
+
+// T7 mounts the dialog this stub opens; the body lands there together with the write it makes.
+const convertOpen = ref(false)
+function openConvertModal(): void {
+  if (smartViewDisabled.value) return
+  menuOpen.value = false
+  convertOpen.value = true
+}
+
 // ── 工具条:批量移除 ──
 async function removeSelected(): Promise<void> {
   if (!selected.value.size || removing.value) return
@@ -362,6 +432,9 @@ onMounted(() => {
   void nextTick(() => drag.refresh())
   document.addEventListener('mousedown', onDocMousedown)
   document.addEventListener('keydown', onDocKeydown)
+  // T6: gates the more menu's "Convert to Smart Album" entry — in-flight dedup already lives
+  // inside the store, so a concurrent call from the sidebar/another view is harmless.
+  void settings.fetchAiFeatures()
 })
 onBeforeUnmount(() => {
   drag.destroy()
@@ -487,22 +560,50 @@ watch(gridRef, () => {
                     :data-active="menuOpen"
                     @click="menuOpen = !menuOpen"
                   >⋯</button>
-                  <div v-if="menuOpen" class="album-more-menu" data-test="album-menu">
+                  <!-- T6: reshaped to the same icon/title/hint idiom as
+                       PhotosSmartViewDetail.vue's .sv-export-item rows (markup and classes
+                       taken from that file's :671-693), so the two detail pages' more menus
+                       stop looking like different products. Convert sits above the
+                       destructive separator; Delete stays below it. -->
+                  <div v-if="menuOpen" class="sv-export-menu" data-test="album-menu">
                     <button
                       type="button"
-                      class="album-more-item"
+                      class="sv-export-item"
                       data-test="album-menu-rename"
                       @click="menuOpen = false; startTitleEdit()"
-                    >{{ t('photosAlbumRename') }}</button>
-                    <div class="album-more-sep"></div>
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+                      <div>
+                        <div class="sv-export-title">{{ t('photosAlbumRename') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
+                      </div>
+                    </button>
                     <button
                       type="button"
-                      class="album-more-item danger"
+                      class="sv-export-item"
+                      data-test="album-menu-convert"
+                      :disabled="smartViewDisabled"
+                      :title="smartViewDisabled ? t('photosSvSmartViewsOffCreateHint') : undefined"
+                      @click="openConvertModal"
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
+                      <div>
+                        <div class="sv-export-title">{{ t('photosAlbumConvertToSmart') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
+                      </div>
+                    </button>
+                    <div class="sv-export-sep"></div>
+                    <button
+                      type="button"
+                      class="sv-export-item sv-export-item-danger"
                       data-test="album-menu-delete"
                       @click="askConfirmDelete"
                     >
-                      <div>{{ t('photosAlbumDelete') }}</div>
-                      <div class="album-more-item-hint">{{ t('photosAlbumDeleteHint') }}</div>
+                      <div class="sv-export-icon sv-export-icon-danger" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+                      <div>
+                        <div class="sv-export-title">{{ t('photosAlbumDelete') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumDeleteHint') }}</div>
+                      </div>
                     </button>
                   </div>
                 </div>
@@ -568,39 +669,87 @@ watch(gridRef, () => {
             </template>
           </div>
 
-          <!-- Grid -->
-          <div class="album-photos-wrap scroll">
-            <div v-if="isLoadingPhotos && photos.length === 0" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
-              <div v-for="i in 6" :key="'sk' + i" class="tile album-tile-skeleton"></div>
-            </div>
-            <div v-else-if="isAlbumEmpty" class="empty-state" data-test="album-empty">
-              <div class="empty-state-title">{{ t('photosAlbumEmptyTitle') }}</div>
-              <div class="empty-state-desc">{{ t('photosAlbumEmptyHint') }}</div>
-            </div>
-            <div v-else ref="gridRef" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
-              <div
-                v-for="p in photos" :key="p.id"
-                class="tile"
-                :data-id="p.id"
-                :data-cover="isCover(p)"
-                :data-selected="edit && isSelected(p)"
-                :title="tileHintTitle"
-                @click="onTileClick(p)"
-                @contextmenu.prevent="setCover(p)"
-              >
-                <img :src="thumbnailUrl(p.id, 'small')" alt="">
-                <button
-                  type="button"
-                  class="tile-cover-btn"
-                  :data-on="isCover(p)"
-                  :title="isCover(p) ? t('photosAlbumCurrentCover') : t('photosAlbumSetCover')"
-                  @click.stop="setCover(p)"
-                >★</button>
-                <div v-if="edit" class="tile-select-check" :data-checked="isSelected(p)">
-                  <span v-if="isSelected(p)">✓</span>
+          <!-- Vue2 :90-93: the body is already a 1fr/320px grid; dropping .no-rail is all it
+               takes there. Its own overflow is hidden here because each column scrolls itself --
+               if the wrapper scrolled too, the rail would scroll away with the photos (the exact
+               defect PhotosMomentDetail was fixed for). -->
+          <div class="album-detail-body">
+            <!-- Grid -->
+            <div class="album-photos-wrap scroll">
+              <div v-if="isLoadingPhotos && photos.length === 0" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
+                <div v-for="i in 6" :key="'sk' + i" class="tile album-tile-skeleton"></div>
+              </div>
+              <div v-else-if="isAlbumEmpty" class="empty-state" data-test="album-empty">
+                <div class="empty-state-title">{{ t('photosAlbumEmptyTitle') }}</div>
+                <div class="empty-state-desc">{{ t('photosAlbumEmptyHint') }}</div>
+              </div>
+              <div v-else ref="gridRef" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
+                <div
+                  v-for="p in photos" :key="p.id"
+                  class="tile"
+                  :data-id="p.id"
+                  :data-cover="isCover(p)"
+                  :data-selected="edit && isSelected(p)"
+                  :title="tileHintTitle"
+                  @click="onTileClick(p)"
+                  @contextmenu.prevent="setCover(p)"
+                >
+                  <img :src="thumbnailUrl(p.id, 'small')" alt="">
+                  <button
+                    type="button"
+                    class="tile-cover-btn"
+                    :data-on="isCover(p)"
+                    :title="isCover(p) ? t('photosAlbumCurrentCover') : t('photosAlbumSetCover')"
+                    @click.stop="setCover(p)"
+                  >★</button>
+                  <div v-if="edit" class="tile-select-check" :data-checked="isSelected(p)">
+                    <span v-if="isSelected(p)">✓</span>
+                  </div>
                 </div>
               </div>
             </div>
+
+            <!-- T6: stats rail, ported from Vue2 :101-134. Aligns this page with the smart-view
+                 detail page's own sidebar (PhotosMomentDetail.vue), so the two detail pages stop
+                 looking like different products. -->
+            <aside class="sv-detail-side" data-test="album-side">
+              <div class="sv-side-section">
+                <h3>{{ t('photosMoStats') }}</h3>
+                <div class="sv-stat-grid">
+                  <div class="sv-stat-cell" data-test="album-stat-cell">
+                    <div class="v">{{ album.count.toLocaleString(localeTag) }}</div>
+                    <div class="l">{{ t('photosMoPhotos') }}</div>
+                  </div>
+                  <div class="sv-stat-cell" data-test="album-stat-cell">
+                    <div class="v">{{ spanLabel }}</div>
+                    <div class="l">{{ t('photosMoSpan') }}</div>
+                  </div>
+                  <div class="sv-stat-cell" data-test="album-stat-cell">
+                    <div class="v">{{ videoCountLabel }}</div>
+                    <div class="l">{{ t('photosAlbumStatVideos') }}</div>
+                  </div>
+                  <div class="sv-stat-cell" data-test="album-stat-cell">
+                    <div class="v">{{ createdLabel }}</div>
+                    <div class="l">{{ t('photosAlbumStatCreated') }}</div>
+                  </div>
+                </div>
+              </div>
+              <!-- By month: absent entirely when nothing carries a takenAt (Vue2 has no such
+                   histogram at all here -- this restates PhotosMomentDetail.vue's own gate). -->
+              <div v-if="monthBuckets.length" class="sv-side-section" data-test="album-dist">
+                <h3>{{ t('photosMoByMonth') }}</h3>
+                <div class="sv-distribution">
+                  <div
+                    v-for="(b, i) in monthBuckets" :key="b.key" class="sv-dist-bar"
+                    data-test="album-dist-bar" :style="distStyle(b, i)" :title="b.label + ' · ' + b.count"
+                  />
+                </div>
+                <div class="sv-dist-x">
+                  <span>{{ monthBuckets[0].label }}</span>
+                  <span>{{ monthBuckets[monthBuckets.length - 1].label }}</span>
+                </div>
+              </div>
+            </aside>
           </div>
         </template>
       </main>
@@ -711,6 +860,13 @@ watch(gridRef, () => {
 }
 .album-hero-sub .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6; }
 .album-hero-actions { display: flex; gap: 8px; align-self: flex-end; flex: 0 0 auto; }
+/* SP15-P2b-T6 decision (not a missed port -- registering it so a later reviewer does not read
+   this class name as one): this rule is NOT renamed to .sv-action-btn, the class the smart-view
+   detail page's header buttons use. Vue2 photos.scss:3533-3538 gives .sv-action-btn a dark
+   pill + a pinned light foreground + blur on the darkened cover photo -- exactly the three
+   values this rule below already carries. The rename would be a visually empty diff. Vue2's
+   companion `.sv-action-btn:not([data-primary="true"]):hover` patch (photos.scss, same block)
+   exists to serve its Ask Nimo gradient button, which this page has no counterpart for. */
 .album-hero-actions .bar-btn {
   background: var(--overlay-bg); border-color: var(--card-border);
   /* theme-exception: hero 里的 Edit/Done、⋯ 按钮叠在暗化封面上,需固定浅色(同 Vue2
@@ -718,20 +874,39 @@ watch(gridRef, () => {
   color: #fff;
 }
 .album-more-wrap { position: relative; }
-.album-more-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; min-width: 200px; z-index: 20;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
-  padding: 4px; box-shadow: var(--card-shadow-hi);
+
+/* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies identical to
+   PhotosSmartViewDetail.vue's (:937-960), which this restates because scoped styles do not
+   cross SFCs in this repo. Replaces the old two-item .album-more-item* rules (removed: this
+   page no longer has any element with that class). Vue2 expresses the danger row with an
+   inline coral color literal; this repo already has the -danger classes below walking the
+   --remove-fg token instead, so the literal is never reproduced. ── */
+.sv-export-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
+  box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
 }
-.album-more-item {
-  display: flex; flex-direction: column; width: 100%; align-items: flex-start; gap: 2px;
-  padding: 8px 10px; background: transparent; border: 0; border-radius: 8px; color: var(--fg);
-  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+.sv-export-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
+  border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
 }
-.album-more-item:hover { background: var(--chip-bg-hi); }
-.album-more-item.danger { color: var(--remove-fg); }
-.album-more-item-hint { font-size: 11px; color: var(--fg-muted); }
-.album-more-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
+.sv-export-item:hover { background: var(--chip-bg-hi); }
+/* Not present in PhotosSmartViewDetail.vue's own copy of this rule set (none of its menu items
+   are ever disabled) -- added here because the Convert entry is disabled when Smart Views are
+   off. Same treatment this file already gives .bar-btn:disabled above. */
+.sv-export-item:disabled { opacity: 0.45; cursor: not-allowed; }
+.sv-export-icon {
+  width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
+.sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
+.sv-export-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
+.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
+.sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
+/* Compound selector (0,3,0) beats the base .sv-export-item:hover's (0,2,0) structurally, not by
+   source order -- same fix PhotosSmartViewDetail.vue applies at its own copy of this rule. */
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
 
 /* ── Toolbar ── */
 .album-toolbar { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 4px; flex: 0 0 auto; }
@@ -756,6 +931,17 @@ watch(gridRef, () => {
 .album-density { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
 .album-density button { width: 26px; height: 26px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; }
 .album-density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
+/* ── T6 two-column body: grid + stats rail (Vue2 :90-93 is already a 1fr/320px grid).
+   overflow: hidden on the wrapper itself, not auto -- each column below scrolls itself, and a
+   scrolling wrapper would carry the rail away with the photos (the exact defect
+   PhotosMomentDetail was fixed for; PhotosMomentDetail.vue's own comment on this point applies
+   verbatim here). ── */
+.album-detail-body {
+  flex: 1 1 auto; min-height: 0;
+  display: grid; grid-template-columns: 1fr 320px; gap: 0;
+  overflow: hidden;
+}
 
 /* ── Grid(列宽照 Vue2 photos.scss :3629-3691:comfortable=6 列,compact=9 列)── */
 .album-photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
@@ -789,13 +975,18 @@ watch(gridRef, () => {
 /* 修正(自审发现,与 Vue2 :3743-3745 对齐):edit 态下所有瓦片的 ★ Cover 徽章都要让位给
    多选勾选圈(两者同占左上角),不是只让位给"当前已选中"的瓦片——用 .album-toolbar[data-edit]
    的通用兄弟选择器命中整个网格,而不是按单瓦片 data-selected 判断(后者会让 edit 态里"尚未
-   勾选"的封面瓦片仍然显示徽章,与选择圈重叠)。 */
-.album-toolbar[data-edit="true"] ~ .album-photos-wrap .tile[data-cover="true"]::after { display: none; }
+   勾选"的封面瓦片仍然显示徽章,与选择圈重叠)。
+   T6 note: .album-photos-wrap is no longer a direct sibling of .album-toolbar -- the new
+   .album-detail-body wrapper (see template) now sits between them. The selector below reaches
+   through .album-detail-body instead of writing .album-photos-wrap directly (it is the only
+   branch inside .album-detail-body carrying .tile -- the aside sidebar has none -- so the
+   shallower selector cannot mis-hit it). */
+.album-toolbar[data-edit="true"] ~ .album-detail-body .tile[data-cover="true"]::after { display: none; }
 /* Minor 补齐(Vue2 photos.scss:3685-3688):edit 态每个瓦片加虚线描边,提示"可选中/可拖拽"。
    Vue2 原 token `--line-strong` 在本仓库 theme.css 两套主题里都不存在(只在 Vue2 自己的
    AI/Agent/tokens.scss 局部定义过,不是全局 token)——换用本仓已有、语义等价的 --card-border
    (专门用于卡片/瓦片描边,两套主题都有定义),不新增 token。 */
-.album-toolbar[data-edit="true"] ~ .album-photos-wrap .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
+.album-toolbar[data-edit="true"] ~ .album-detail-body .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
 
 /* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;字形色见下方
    theme-exception(评审 Critical 1 修正:固定 #fff,不用 --on-accent,理由见该行注释)。 */
@@ -844,10 +1035,38 @@ watch(gridRef, () => {
 }
 .album-confirm-ok:hover { background: color-mix(in srgb, var(--remove-fg) 16%, transparent); }
 
+/* ── T6 stats rail: rule bodies identical to PhotosMomentDetail.vue:1059-1090's
+   .sv-side-section, .sv-stat-*, .sv-distribution and .sv-dist-* rules (which themselves
+   restate SmartViewSidePanel.vue's, per that file's own comment). Scoped styles do not cross
+   SFCs in this repo, so this is the third restatement of the same source, not a fresh
+   invention -- extracting a shared stylesheet was explicitly rejected for this task (both
+   closed files would need reworking, and scoped→global changes selector precedence). ── */
+.sv-detail-side {
+  border-left: 1px solid var(--divider); background: var(--panel-bg);
+  overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
+}
+.sv-side-section { margin-bottom: 24px; }
+.sv-side-section h3 {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--fg-faint); margin: 0 0 10px;
+}
+.sv-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sv-stat-cell { background: var(--chip-bg); padding: 10px 12px; border-radius: 8px; }
+.sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
+.sv-stat-cell .l { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-distribution { height: 56px; display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; }
+.sv-dist-bar {
+  flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
+  background: linear-gradient(to top, var(--accent), var(--accent-text));
+}
+.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
+
 /* ≤768px:侧栏已收抽屉,布局单列 */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
   .album-hero { height: 200px; }
   .album-hero-title { font-size: 24px; }
+  .album-detail-body { grid-template-columns: 1fr; }
+  .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
 }
 </style>
