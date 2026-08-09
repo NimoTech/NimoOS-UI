@@ -1902,7 +1902,7 @@ function mountHome() {
   // ── SettingsShell.test.ts:railTabsFor 不再按角色过滤,"admin 看到 folder-
   //    permissions" 这整条用例测的行为已经不存在,整块删除(同 tabs.test.ts 那 3 条)──
   { path: 'src/settings/components/SettingsShell.test.ts',
-    find: `  it('admin rail 有 8 项且含 folder-permissions', async () => {
+    find: `  it('admin rail has 8 items and includes folder-permissions', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const { w } = await mountShell()
     const items = w.findAll('.set-rail-item')

@@ -52,12 +52,12 @@ describe('SettingsShell', () => {
     expect(w.find('.probe').text()).toBe('body')
   })
 
-  it('非 admin(无 user)rail 只有 7 项', async () => {
+  it('non-admin (no user) rail has 7 items', async () => {
     const { w } = await mountShell()
     expect(w.findAll('.set-rail-item')).toHaveLength(7)
   })
 
-  it('admin rail 有 8 项且含 folder-permissions', async () => {
+  it('admin rail has 8 items and includes folder-permissions', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const { w } = await mountShell()
     const items = w.findAll('.set-rail-item')
