@@ -29,6 +29,21 @@ describe('IsoBrowser', () => {
     expect(fetchFn).toHaveBeenCalledWith('/')
   })
 
+  it('折叠开关可聚焦,Enter 与 Space 都能展开(键盘用户的唯一入口)', async () => {
+    const wr = mk()
+    const divider = wr.get('.custom-divider')
+    expect(divider.attributes('role')).toBe('button')
+    expect(divider.attributes('tabindex')).toBe('0')
+    expect(divider.attributes('aria-expanded')).toBe('false')
+
+    await divider.trigger('keydown', { key: 'Enter' })
+    expect(wr.find('.custom-browse').exists()).toBe(true)
+    expect(wr.get('.custom-divider').attributes('aria-expanded')).toBe('true')
+
+    await divider.trigger('keydown', { key: ' ' })
+    expect(wr.find('.custom-browse').exists()).toBe(false)
+  })
+
   it('根目录时上一级按钮 disabled', async () => {
     const wr = mk(); await wr.get('.custom-divider').trigger('click')
     expect(wr.get('.custom-back-btn').attributes('disabled')).toBeDefined()

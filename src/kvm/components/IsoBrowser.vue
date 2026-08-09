@@ -76,10 +76,20 @@ function onItemClick(item: FolderEntry): void {
 
 <template>
   <section class="custom-section">
+    <!-- This divider is the only control that opens local ISO browsing, so a
+         click-only div left keyboard users with no route in at all. It gains a
+         button role, focusability and Enter/Space handling; nothing about it
+         looks different. `.prevent` on Space is required — on a focusable
+         element Space would otherwise scroll the dialog. -->
     <div
       class="custom-divider"
+      role="button"
+      tabindex="0"
+      :aria-expanded="expanded"
       :aria-label="t('kvmToggleCustom')"
       @click="toggle"
+      @keydown.enter.prevent="toggle"
+      @keydown.space.prevent="toggle"
     >
       <span>{{ t('kvmCustom') }}</span>
       <span aria-hidden="true">{{ expanded ? '▴' : '▾' }}</span>
