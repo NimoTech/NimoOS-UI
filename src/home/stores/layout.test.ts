@@ -101,18 +101,23 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
   })
 
-  it('removes the KVM tile once the service has been missing for the grace period', () => {
+  it('removes the KVM tile once the service has been missing for the grace period, and only that tile', () => {
     // The default layout already carries a `vm` tile, so loadInitial() is enough to
     // reproduce what a machine without KVM installed sees on first load. `live` only
     // needs to omit 'vm' -- it stands in for the other system app keys the app grid
-    // would still report (files/storage/settings/appstore), kept short deliberately.
+    // would still report, kept short deliberately.
     const s = useLayoutStore(); s.loadInitial()
     const live = ['files', 'storage', 'settings', 'appstore']
     s.sweepGone(live) // first absence: only starts the clock
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(true)
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'files')).toBe(true)
     vi.advanceTimersByTime(46_000)
     s.sweepGone(live) // absent past the grace period: removed
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(false)
+    // Selectivity: a tile that IS in `live` must survive the very same sweep --
+    // without this, the test would equally pass if sweepGone swept every desktop
+    // tile it didn't recognise, proving nothing specific to 'vm'.
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'files')).toBe(true)
   })
 })
 

@@ -85,7 +85,7 @@ describe('buildAppPathRows', () => {
       images: { path: '/DATA/.system_data/.docker & .containerd', size: 58125438307 },
       photos_data: { path: '/DATA/.system_data/photos', size: 6281536962 },
     }
-    const rows = buildAppPathRows(paths as never, [])
+    const rows = buildAppPathRows(paths, [])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
     expect(rows[3].path).toBe('/DATA/.system_data/photos')
     expect(rows[3].size).toBe(6281536962)

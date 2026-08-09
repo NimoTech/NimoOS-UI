@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore, clampWidgetDecl } from './apps'
 
-// at the top of the file, next to the other imports
 const getGrid = vi.fn()
 const getKvmSettings = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({

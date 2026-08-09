@@ -107,12 +107,12 @@ describe('filterBrowseFolders', () => {
     // below already removed them. Same holds here, which is why photos_data adds no
     // `.system_data` entry to `blocked`.
     const items = [
-      { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false },
-      { name: '.docker', path: '/DATA/.docker', is_dir: true, is_symlink: false },
-      { name: 'Backup', path: '/DATA/Backup', is_dir: true, is_symlink: false },
+      mk('.system_data', '/DATA/.system_data'),
+      mk('.docker', '/DATA/.docker'),
+      mk('Backup', '/DATA/Backup'),
     ]
     for (const type of ['app_data', 'images', 'database', 'photos_data'] as const) {
-      expect(filterBrowseFolders(items as never, type, '').map((i) => i.name)).toEqual(['Backup'])
+      expect(filterBrowseFolders(items, type, '').map((i) => i.name)).toEqual(['Backup'])
     }
   })
 })

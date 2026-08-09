@@ -58,7 +58,7 @@ describe('settings tabs 模型', () => {
     expect(isSettingsTab(['general'])).toBe(false)
   })
 
-  it('admin 看到全部 7 项', () => {
+  it('admin sees all 8 rail items', () => {
     expect(railTabsFor('admin')).toEqual(RAIL_TABS)
   })
 

@@ -1719,7 +1719,7 @@ function mountHome() {
   })` },
   { path: 'src/settings/util/tabs.test.ts',
     find: `
-  it('admin 看到全部 7 项', () => {
+  it('admin sees all 8 rail items', () => {
     expect(railTabsFor('admin')).toEqual(RAIL_TABS)
   })
 
