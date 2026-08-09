@@ -80,7 +80,7 @@ export const DELETE = [
 
   // ═══ SP7-P8b 合流(2026-08-05):相册区整块不进开源版 ═══════════════════════
   // 本表开篇那条"两支合流后必须为 src/photos/** 扩张"的备注,兑现的就是这一段。
-  // 相册面 = 一个域目录 + 13 个视图 + 16 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
+  // 相册面 = 一个域目录 + 14 个视图 + 17 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
   // ⚠️ 逐条列、不用通配:DELETE 路径不存在即 exit 1,清单过期时要能立刻知道
   //    (2026-08-05 清点结果:`ls src/views | grep -i photo` = 13、
   //     `ls src/views/__tests__ | grep -i photo` = 16)。
@@ -94,11 +94,12 @@ export const DELETE = [
   // 它们断言的键一个都不存在,留着必红。
   'src/i18n/__tests__/p8aKeys.test.ts',
   'src/i18n/__tests__/people.i18n.test.ts',
-  // 13 个视图
+  // 14 个视图(SP15-P1-T7 新增 PhotosMomentDetail.vue)
   'src/views/Photos.vue',
   'src/views/PhotosAlbumDetail.vue',
   'src/views/PhotosAlbums.vue',
   'src/views/PhotosFavorites.vue',
+  'src/views/PhotosMomentDetail.vue',
   'src/views/PhotosPeople.vue',
   'src/views/PhotosPersonDetail.vue',
   'src/views/PhotosPlaceAssets.vue',
@@ -108,7 +109,11 @@ export const DELETE = [
   'src/views/PhotosSmartViewDetail.vue',
   'src/views/PhotosSmartViews.vue',
   'src/views/PhotosTrash.vue',
-  // 16 个视图测试
+  // 18 个视图测试。⚠️ 前两条不在 __tests__/ 下:SP15-P1 的 T5/T7 把测试放在视图同目录,
+  // 与本区其余 16 份的惯例不同,别照 glob 想当然。(T5 那份漏登记过,泄漏守卫因此红了 12 处,
+  // 与 packages/service/src/photos.moments.test.ts 同一类遗漏,一并补。)
+  'src/views/PhotosMomentDetail.test.ts',
+  'src/views/PhotosSmartViews.moments.test.ts',
   'src/views/__tests__/Photos.integration.test.ts',
   'src/views/__tests__/Photos.lightbox.test.ts',
   'src/views/__tests__/Photos.route.test.ts',
@@ -182,6 +187,10 @@ export const SERVICE_DELETE = [
   // 留下整套相册接口测试(泄漏守卫实测命中 303 处,过半出自这里)。
   'src/photos.albums.test.ts',
   'src/photos.favorites.test.ts',
+  // SP15-P1-T1/T2 added a seventh sibling and did not list it here, so the leak guard has been
+  // red since (`oss/tree.test.mjs > 泄漏守卫 > 不带 --skip-guard 也能跑通`, 5 hits in this one
+  // file). Same omission the comment above describes, same remedy.
+  'src/photos.moments.test.ts',
   'src/photos.persons.test.ts',
   'src/photos.places.test.ts',
   'src/photos.uploads.test.ts',
@@ -968,7 +977,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
 
-  // ── src/router/index.ts:13 个相册视图 import + 14 条 /photos* 路由 ────────────
+  // ── src/router/index.ts:14 个相册视图 import + 15 条 /photos* 路由 ────────────
   //    两段各自连续,整块摘。DELETE 表已删掉那 13 个 .vue 文件,不摘 import 的话开源侧
   //    vite build 直接找不到模块 —— 这两条补丁与 DELETE 是配对的,少一边都不行。
   { path: 'src/router/index.ts',
@@ -983,6 +992,7 @@ import PhotosPlaces from '../views/PhotosPlaces.vue'
 import PhotosPlaceAssets from '../views/PhotosPlaceAssets.vue'
 import PhotosSmartViews from '../views/PhotosSmartViews.vue'
 import PhotosSmartViewDetail from '../views/PhotosSmartViewDetail.vue'
+import PhotosMomentDetail from '../views/PhotosMomentDetail.vue'
 import PhotosSearch from '../views/PhotosSearch.vue'
 import PhotosSettings from '../views/PhotosSettings.vue'
 `,
@@ -999,6 +1009,8 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   { path: '/photos/places/:key', name: 'photos-place-assets', component: PhotosPlaceAssets },
   { path: '/photos/smart-views', name: 'photos-smart-views', component: PhotosSmartViews },
   { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+  // SP15-P1-T7: append only, never reorder — router/index.test.ts asserts the source line order.
+  { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
   { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
   // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
   // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
