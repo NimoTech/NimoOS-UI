@@ -29,7 +29,7 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
       <span
         v-for="c in COLS"
         :key="c.key"
-        :class="['head-cell', c.cls]"
+        :class="['head-cell', 'is-sortable', c.cls]"
         @click="emit('reorder', c.key)"
       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
       <span class="head-cell col-star"></span>
@@ -49,7 +49,10 @@ function arrow(key: string) { return props.sort === key ? (props.order === 'asc'
 
 <style scoped>
 .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
-.head-cell { cursor: pointer; user-select: none; }
+/* Only the sortable columns react to clicks; the checkbox and star columns
+   are spacers and used to inherit a pointer cursor that promised nothing. */
+.head-cell { user-select: none; }
+.head-cell.is-sortable { cursor: pointer; }
 .col-check { flex: 0 0 28px; }
 .col-name { flex: 1 1 auto; margin-left: 40px; }
 .col-format { flex: 0 0 48px; }

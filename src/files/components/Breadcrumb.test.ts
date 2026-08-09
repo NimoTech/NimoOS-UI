@@ -23,4 +23,23 @@ describe('Breadcrumb', () => {
     const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents', currentRealPath: '/DATA/Documents' }, ...opts })
     expect(w.find('.crumb-star').exists()).toBe(true)
   })
+
+  it('does not navigate when the current directory segment is clicked', async () => {
+    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
+    const crumbs = w.findAll('.crumb')
+    await crumbs[crumbs.length - 1].trigger('click')
+    expect(w.emitted('navigate')).toBeUndefined()
+  })
+
+  it('still navigates from an ancestor segment', async () => {
+    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
+    await w.findAll('.crumb')[0].trigger('click')
+    expect(w.emitted('navigate')).toBeTruthy()
+  })
+
+  it('renders the current segment as a non-interactive element, not a button', () => {
+    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
+    const crumbs = w.findAll('.crumb')
+    expect(crumbs[crumbs.length - 1].element.tagName).not.toBe('BUTTON')
+  })
 })

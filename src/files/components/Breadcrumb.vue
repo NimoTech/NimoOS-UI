@@ -23,7 +23,11 @@ const lastName = computed(() => (segments.value.length ? segments.value[segments
   <nav class="breadcrumb">
     <template v-for="(seg, i) in segments" :key="seg.vpath">
       <span v-if="i > 0" class="crumb-sep">›</span>
-      <button class="crumb" :class="{ current: i === segments.length - 1 }" @click="emit('navigate', seg.vpath)">{{ seg.label }}</button>
+      <!-- The last segment is where you already are: it used to be a live button
+           that navigated to the current directory, with hover feedback promising
+           something would happen. -->
+      <span v-if="i === segments.length - 1" class="crumb current">{{ seg.label }}</span>
+      <button v-else class="crumb" @click="emit('navigate', seg.vpath)">{{ seg.label }}</button>
     </template>
     <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
   </nav>
@@ -31,8 +35,8 @@ const lastName = computed(() => (segments.value.length ? segments.value[segments
 
 <style scoped>
 .breadcrumb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
-.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
-.crumb:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); }
+.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
+button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
 .crumb.current { color: var(--fg); font-weight: 600; }
 .crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
 .crumb-star { margin-left: 4px; }
