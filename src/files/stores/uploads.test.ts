@@ -55,24 +55,24 @@ describe('uploads store', () => {
     expect(s.queue.some(i => i.relativePath === 'AppData/y')).toBe(false)
   })
 
-  it('marks precheck hits as conflict', async () => {
-    const { service } = await import('@nimotech/nimoos-service') as any
-    service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
+  it('carries a per-entry conflictPolicy straight into the queue', async () => {
     const s = useUploadsStore()
-    await s.addFilesToQueue([sel('a.txt')])
-    expect(s.queue.find(i => i.relativePath === 'a.txt')?.status).toBe('conflict')
+    await s.addFilesToQueue([
+      { file: new File(['x'], 'a.txt'), targetPath: '/DATA', relativePath: 'a.txt', conflictPolicy: 'overwrite' },
+      { file: new File(['x'], 'b.txt'), targetPath: '/DATA', relativePath: 'b.txt' },
+    ])
+    expect(s.queue.find((i) => i.relativePath === 'a.txt')?.conflictPolicy).toBe('overwrite')
+    expect(s.queue.find((i) => i.relativePath === 'b.txt')?.conflictPolicy).toBe('')
+    // Cast: UploadStatus no longer includes 'conflict' at all, so this is a
+    // belt-and-suspenders runtime check on top of the type-level guarantee.
+    expect(s.queue.every((i) => (i.status as string) !== 'conflict')).toBe(true)
   })
 
-  it('resolveConflict skip marks done (lingers for clearDone); overwrite re-queues with policy', async () => {
-    const { service } = await import('@nimotech/nimoos-service') as any
-    service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
+  it('does not precheck on its own — conflict resolution happens before enqueue', async () => {
+    const spy = vi.spyOn(service.file, 'uploadPrecheck')
     const s = useUploadsStore()
-    await s.addFilesToQueue([sel('a.txt')])
-    const id = s.queue[0].id
-    s.resolveConflict(id, 'skip')
-    // skip sets done WITHOUT progress 100 → not auto-removed, no success toast
-    expect(s.queue[0].status).toBe('done')
-    expect(h.showSpy).not.toHaveBeenCalled()
+    await s.addFilesToQueue([{ file: new File(['x'], 'a.txt'), targetPath: '/DATA', relativePath: 'a.txt' }])
+    expect(spy).not.toHaveBeenCalled()
   })
 
   it('toasts success and auto-clears the row after 5s', async () => {
@@ -112,12 +112,17 @@ describe('uploads store', () => {
     }
   })
 
-  it('clearDone removes lingering (skip-done) items', async () => {
-    const { service } = await import('@nimotech/nimoos-service') as any
-    service.file.uploadPrecheck.mockResolvedValueOnce({ results: [{ relativePath: 'a.txt', exists: true }] })
+  it('clearDone removes lingering (progress-0 done) items', async () => {
     const s = useUploadsStore()
-    await s.addFilesToQueue([sel('a.txt')])
-    s.resolveConflict(s.queue[0].id, 'skip') // done, progress 0 → lingers
+    // A done item with progress 0 lingers in the queue (it's not a real
+    // upload success, see settleBatch's doneCount check) until clearDone
+    // sweeps it — pushed directly rather than via a since-removed
+    // resolveConflict('skip') path.
+    s.queue.push({
+      id: 'd1', file: null, fileName: 'a.txt', fileType: '', size: 1, targetPath: '/DATA',
+      relativePath: 'a.txt', status: 'done', progress: 0, bytesSent: 0, speed: 0, tusUploadUrl: null,
+      retryCount: 0, error: '', createdAt: 0, batchId: 'b', batchTotal: 1, conflictPolicy: '',
+    } as any)
     s.clearDone()
     expect(s.queue.length).toBe(0)
   })

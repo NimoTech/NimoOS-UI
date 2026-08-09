@@ -195,8 +195,21 @@ describe('color-scheme 单值必须走 theme-exception 豁免(防 I1 同类复�
 // 检测法(与解析器无关,故不依赖 jsdom 的 CSSOM):按 CSS 语义**非贪婪**剥掉 `/* … */`
 // (第一个 `*/` 即闭合,与浏览器一致),然后看有没有以 `*` 开头的行漏在外面 —— 那正是
 // 块注释里那种 ` * 说明文字` 的续行漏到了注释之外。`* { … }` 通用选择器例外。
+// SP16 Task 12:此前这道守卫的语料只有那 5 个独立 `.css`(颜色扫描早就覆盖了 `.vue`,
+// 这一半没跟上)。同样的缺陷发生在任何 `.vue` 的 `<style>` 里,五道门一样全瞎 ——
+// SP9 那次「KVM 页只占半屏」正是这个形态。
+//
+// **不能**把循环源直接换成 `files`:`.vue` 的 `<script>` 里 JS 块注释的 ` * 续行` 极其
+// 常见,会把这道检查淹在误报里。只扫 `<style>` 块。
+const commentCorpus: Record<string, string> = { ...cssFiles }
+for (const [rel, src] of Object.entries(files)) {
+  if (!rel.endsWith('.vue')) continue
+  const blocks = [...src.matchAll(/<style[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1])
+  if (blocks.length) commentCorpus[rel] = blocks.join('\n')
+}
+
 describe('CSS 注释完整性(防「注释里写了 */ 把后面的规则吞掉」)', () => {
-  for (const [rel, src] of Object.entries(cssFiles)) {
+  for (const [rel, src] of Object.entries(commentCorpus)) {
     it(`${rel} 的块注释没有被自身内容提前关闭`, () => {
       const stripped = src.replace(/\/\*[\s\S]*?\*\//g, '')
       const leaked: string[] = []
@@ -206,6 +219,13 @@ describe('CSS 注释完整性(防「注释里写了 */ 把后面的规则吞掉�
         // 例如 `* {` / `*,` / `*::-webkit-scrollbar` / `* > .x`。
         // 漏出来的散文则是 `*` 之后接文字/汉字/括号,例如 ` * 用到的 23 个 token …`。
         if (t.startsWith('*') && !/^\*\s*[{,:.#[>+~]/.test(t)) leaked.push(`  L${i + 1}: ${t.slice(0, 100)}`)
+        // SP16 Task 12 补的第二种形态:上面那条只认「块注释的 ` * 续行` 漏在外面」,
+        // 也就是多行注释的形状。**单行**注释里带 `*/` 时漏出来的残渣不以 `*` 开头
+        // (例如 `/* tokens: --a-*/--b-* */` 剥完剩下 `--b-* */`),整条检查看不见它 ——
+        // 而它一样会吞掉后面那条规则。真浏览器实测过:那条规则从 cssRules 里彻底消失,
+        // 只剩它后面的一条。剥干净之后还剩的 `*/` 必然是没有开括号的孤立闭合符,
+        // 拿它当判据既准确又便宜。
+        else if (t.includes('*/')) leaked.push(`  L${i + 1}: ${t.slice(0, 100)}`)
       })
       expect(
         leaked,

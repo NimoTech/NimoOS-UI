@@ -1,6 +1,7 @@
 import iconFiles from './icons/files.svg'
 import iconPhotos from './icons/photos.svg'
 import iconAi from './icons/ai.svg'
+import iconKnowledge from './icons/knowledge.svg'
 import iconVm from './icons/kvm.svg'
 import iconSettings from './icons/settings.png'
 import iconAppstore from './icons/appstore.svg'
@@ -18,6 +19,7 @@ const G = {
   bag: '<path d="M5.5 8h13l-1 11.2a2 2 0 0 1-2 1.8H8.5a2 2 0 0 1-2-1.8Z"/><path d="M8.5 8a3.5 3.5 0 0 1 7 0"/>',
   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
   drive: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M4 13.5h16"/><circle cx="16.5" cy="15.2" r=".8"/>',
+  book: '<path d="M4.5 5.5A2 2 0 0 1 6.5 3.5H19v15H6.5a2 2 0 0 0-2 2Z"/><path d="M9 7.5h6M9 11h6"/>',
 }
 
 export const SYSTEM_APPS: SystemApp[] = [
@@ -25,6 +27,7 @@ export const SYSTEM_APPS: SystemApp[] = [
   { key: 'storage', name: 'Storage', label: 'appStorage', cls: 'ic-storage', glyph: G.drive, icon: iconStorage },
   { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
   { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
+  { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },
   { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
   { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
   { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },

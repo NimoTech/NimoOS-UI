@@ -1,9 +1,9 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/McpPermissionCard.vue -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/McpPermissionCard.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AgentIcon from '../icons/AgentIcon.vue'
 import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
+import { useConfirmResolve } from '../../composables/useConfirmResolve'
 
 const props = withDefaults(
   defineProps<{ confirmId?: string; server?: string; tool?: string; rememberScope?: string }>(),
@@ -11,37 +11,31 @@ const props = withDefaults(
 )
 const { t } = useI18n()
 const store = useProvidedAgentStore()
+const { decision, submitting, expired, submitError, run, fail } =
+  useConfirmResolve<'allow' | 'always' | 'deny'>()
 
-const decision = ref<'allow' | 'always' | 'deny' | null>(null)
-const submitting = ref(false)
-const error = ref('')
-
-async function resolve(confirmed: boolean, remember: boolean) {
-  if (!props.confirmId) { error.value = t('aiConfirmInvalid'); return }
-  if (submitting.value) return
-  submitting.value = true
-  error.value = ''
-  try {
-    await store.confirmAgentAction(props.confirmId, confirmed, remember)
-    decision.value = !confirmed ? 'deny' : (remember ? 'always' : 'allow')
-  } catch (e: any) {
-    const status = e && e.response && e.response.status
-    if (status === 409) error.value = t('aiConfirmExpired')
-    else error.value = t('aiSubmitFailed', { detail: (e && e.message) || t('aiUnknownError') })
-  } finally {
-    submitting.value = false
-  }
+async function resolve(confirmed: boolean, remember: boolean): Promise<void> {
+  if (!props.confirmId) { fail('aiConfirmInvalid'); return }
+  await run(
+    !confirmed ? 'deny' : (remember ? 'always' : 'allow'),
+    () => store.confirmAgentAction(props.confirmId, confirmed, remember),
+  )
 }
 </script>
 
 <template>
   <div class="mcc-perm">
-    <div v-if="decision" class="mcc-perm-resolved" :data-decision="decision">
+    <!-- expired overrides everything: a consumed confirm_id can never succeed again,
+         so the card must stop offering anything clickable. -->
+    <div v-if="expired" class="mcc-perm-resolved" data-decision="expired">
+      <span class="rico"><AgentIcon name="x" :size="13" /></span>
+      <span>{{ t('aiConfirmExpired') }}</span>
+    </div>
+    <div v-else-if="decision" class="mcc-perm-resolved" :data-decision="decision">
       <span class="rico"><AgentIcon :name="decision === 'deny' ? 'x' : 'check'" :size="13" /></span>
       <span v-if="decision === 'allow'">{{ t('aiMcpAllowedOnce', { tool }) }}</span>
       <span v-else-if="decision === 'always'">{{ t('aiMcpAlwaysAllowTool', { tool }) }}</span>
       <span v-else>{{ t('aiMcpDeniedTool', { tool }) }}</span>
-      <button class="undo" @click="decision = null">{{ t('aiChange') }}</button>
     </div>
     <template v-else>
       <div class="mcc-perm-ribbon">
@@ -63,7 +57,7 @@ async function resolve(confirmed: boolean, remember: boolean) {
         <button class="mcc-btn deny mcc-deny" :disabled="submitting" @click="resolve(false, false)">
           {{ t('aiDeny') }}
         </button>
-        <span v-if="error" class="mcc-err">{{ error }}</span>
+        <span v-if="submitError" class="mcc-err">{{ submitError }}</span>
       </div>
     </template>
   </div>
@@ -116,9 +110,7 @@ async function resolve(confirmed: boolean, remember: boolean) {
 .mcc-perm-resolved[data-decision="allow"] .rico,
 .mcc-perm-resolved[data-decision="always"] .rico { background: var(--success-soft); color: var(--success); }
 .mcc-perm-resolved[data-decision="deny"] .rico { background: var(--danger-soft); color: var(--danger); }
-.mcc-perm-resolved .undo {
-  margin-left: auto; font-size: 12px; font-weight: 500; color: var(--purple);
-  padding: 4px 8px; border-radius: 6px; border: 0; background: transparent; cursor: pointer;
-}
-.mcc-perm-resolved .undo:hover { background: var(--purple-soft); }
+/* expired is not a decision the user made -- neutral gray, not deny's red. */
+.mcc-perm-resolved[data-decision="expired"] .rico { background: var(--bg-chip); color: var(--text-tertiary); }
+.mcc-perm-resolved[data-decision="expired"] { color: var(--text-tertiary); }
 </style>

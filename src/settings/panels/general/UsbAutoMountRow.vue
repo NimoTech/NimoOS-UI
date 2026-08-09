@@ -26,12 +26,22 @@ const warn = ref('')
 let touched = false
 
 onMounted(async () => {
+  // `service.sys` is a getter that throws synchronously before initService() runs.
+  // Reading it while the array literal is being evaluated puts that throw outside
+  // allSettled's protection, so it escapes as an unhandled rejection. Wrapping
+  // each call in an async thunk moves the getter access inside the promise, where
+  // allSettled can catch it. Production never hits this (main.ts initialises
+  // first), but any entry point mounting a settings component earlier would.
   await Promise.allSettled([
-    service.sys.getUsbStatus().then((v) => { if (!touched) on.value = v }),
-    service.sys.hardwareInfo().then((hw) => {
+    (async () => {
+      const v = await service.sys.getUsbStatus()
+      if (!touched) on.value = v
+    })(),
+    (async () => {
+      const hw = await service.sys.hardwareInfo()
       const model = typeof hw.drive_model === 'string' ? hw.drive_model : ''
       isRpi.value = model.toLowerCase().includes('raspberry')
-    }),
+    })(),
   ])
 })
 

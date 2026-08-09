@@ -102,6 +102,10 @@
   color: var(--text-secondary);
 }
 
+// #141: the negotiated MCP protocol version line under a successful test.
+.mcp-test-proto { margin-top: 6px; font-size: 13px; color: var(--text-secondary); }
+.mcp-test-proto.is-legacy { color: var(--warning); }
+
 // 【本期新增,Vue2 无对应物 —— 偏离 D8】测试失败时的「技术详情」折叠区。
 // 用原生 <details>/<summary>,无新依赖、天然可访问、无组件状态。
 .mcp-test-detail {

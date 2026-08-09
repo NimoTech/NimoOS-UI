@@ -438,6 +438,63 @@ describe('测试连接', () => {
     expect(w.find('.mcp-test-result').exists()).toBe(false)
   })
 
+  // #141: which MCP protocol version the server negotiated.
+  it('modern era with two versions declared → "protocol 2025-06-18 · also supports 2024-11-05", tagged .mcp-test-proto without .is-legacy', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: true, tool_count: 1, tools: ['a'],
+      protocol_era: 'modern', protocol_version: '2025-06-18',
+      supported_versions: ['2025-06-18', '2024-11-05'],
+    })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    const proto = w.find('.mcp-test-proto')
+    expect(proto.exists()).toBe(true)
+    expect(proto.text()).toBe('协议 2025-06-18 · 另支持 2024-11-05')
+    expect(proto.classes()).not.toContain('is-legacy')
+  })
+
+  it('legacy era → element carries .is-legacy', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: true, tool_count: 1, tools: ['a'],
+      protocol_era: 'legacy', protocol_version: '2024-11-05',
+      supported_versions: ['2024-11-05'],
+    })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-proto').classes()).toContain('is-legacy')
+  })
+
+  it('unknown era → .mcp-test-proto absent, and "undefined" never appears anywhere on the page', async () => {
+    h.testMCPServer.mockResolvedValue({
+      ok: true, tool_count: 1, tools: ['a'],
+      protocol_era: 'unknown', protocol_version: '2025-06-18',
+      supported_versions: ['2025-06-18'],
+    })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-proto').exists()).toBe(false)
+    expect(w.text()).not.toContain('undefined')
+  })
+
+  // #141: the backend that ships today (NimoOS-AI main, confirmed by grep over
+  // agent/mcp_client/client.py::test_server) never sends protocol_era /
+  // protocol_version / supported_versions at all -- this is the DEFAULT shape,
+  // not a hypothetical edge case, so it needs its own case rather than being
+  // inferred from the "modern"/"legacy"/"unknown" cases above (which all pass
+  // an explicit protocol_era).
+  it('success response entirely omitting the protocol fields (today\'s real backend shape) → .mcp-test-proto absent, no "undefined" anywhere', async () => {
+    h.testMCPServer.mockResolvedValue({ ok: true, tool_count: 2, tools: ['search', 'fetch'] })
+    const w = mountDetail(srv())
+    await w.find('.mcp-test-btn').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcp-test-result').attributes('data-ok')).toBe('true')
+    expect(w.find('.mcp-test-proto').exists()).toBe(false)
+    expect(w.text()).not.toContain('undefined')
+  })
+
   it('finally 守卫:旧请求抛错落地时若新一轮测试进行中,不会把 testing 打回 false', async () => {
     let rejectOld!: (e: unknown) => void
     h.testMCPServer.mockReturnValueOnce(new Promise((_resolve, reject) => { rejectOld = reject }))

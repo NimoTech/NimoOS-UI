@@ -1107,6 +1107,35 @@ export function useAgentStore(agentType?: string) {
     }
 
     /**
+     * Vue2 agentStore.js:519-530 -- The three-state resolution for MCP elicitation.
+     *
+     * Two differences from confirmAgentAction, both deliberate:
+     * 1) Elicitation is three-state (accept / decline / cancel) and an accept can
+     *    carry an answer, so action / content are passed through via `extra`;
+     *    `confirmed` is still sent as before (action === 'accept'), so the backend's
+     *    existing bookkeeping stays exactly as it was.
+     * 2) With no active session this **throws** instead of silently returning the way
+     *    confirmAgentAction does -- a silent return would resolve this promise, the
+     *    card would then flip to "answer sent to X" / "opened in a new tab", while in
+     *    reality not a single byte was sent: the backend callback stays parked in
+     *    wait_elicit (for up to 24h) with the whole tool call hung silently behind it.
+     *    Throwing lets the card's catch surface it instead. confirmAgentAction's path
+     *    does not block the tool call, so it is left as-is.
+     */
+    async function resolveElicitation(
+      confirmId: string,
+      action: 'accept' | 'decline' | 'cancel',
+      content: Record<string, unknown> | null = null,
+    ): Promise<void> {
+      if (!activeSessionId.value) throw new Error('no active session')
+      if (!confirmId) throw new Error('confirm_id missing')
+      await service.ai.confirmAgentAction(
+        activeSessionId.value, confirmId, action === 'accept', false,
+        content === null ? { action } : { action, content },
+      )
+    }
+
+    /**
      * agentStore.js:519-597 —— 继续一个因 max_turns 而暂停的 run。busy 守卫 + 等
      * pendingCancel 落定,与 send() 同一套节奏。先把最近一张未继续的 max_turns 卡
      * 标记为 resumed=true(幂等:防止 busy 恢复后或 run-stream 重连回放时被误点
@@ -1246,6 +1275,7 @@ export function useAgentStore(agentType?: string) {
       stop,
       continueRun,
       confirmAgentAction,
+      resolveElicitation,
     }
   })()
 }

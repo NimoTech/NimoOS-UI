@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
@@ -246,8 +246,23 @@ function askNimoAi(): void {
 function onInteractOutside(e: Event): void {
   if (viewer.open.value) e.preventDefault()
 }
+// 预览的 Esc 处理器与 reka 的都挂在 window 的**冒泡**阶段,所以谁先跑完全取决于注册
+// 顺序 —— 而 Home 挂载时就已经有一个 ViewerHost 注册好了,远早于这个弹窗打开。它因此
+// 先把预览关掉、把 viewer.open 清成 false,守卫再去读时已经是 false,于是不拦,弹窗
+// 跟着一起 dismiss,搜索结果全丢。capture 阶段的监听**必然**早于这两者,所以在这里把
+// "按下这一刻预览是否开着"拍个快照,判断就不再依赖注册顺序。
+//
+// 不改 ViewerHost 让它 stopPropagation():同目标同阶段拦不住(得用
+// stopImmediatePropagation),而且那样是把正确性押在"ViewerHost 恰好先注册"上。
+let viewerOpenAtKeydown = false
+function snapshotViewerState(e: KeyboardEvent): void {
+  if (e.key === 'Escape') viewerOpenAtKeydown = viewer.open.value
+}
+onMounted(() => window.addEventListener('keydown', snapshotViewerState, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', snapshotViewerState, true))
+
 function onEscapeKeyDown(e: Event): void {
-  if (viewer.open.value) e.preventDefault() // 交给 ViewerHost 自己的 Esc 关闭预览
+  if (viewerOpenAtKeydown) e.preventDefault() // 交给 ViewerHost 自己的 Esc 关闭预览
 }
 
 // 每次打开面板都重置状态；关闭时同样 reset()，让在途请求作废（不许再往关掉的面板里写）。

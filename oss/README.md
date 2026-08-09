@@ -29,25 +29,30 @@
    路径重写已经不存在,只剩 lockfile 重算这一件事。)
 5. **泄漏守卫** —— `forbidden.mjs` 的 `scanTree` 扫全部文本文件(HARD 硬禁词 + SOFT 中文
    软禁词,逐条白名单),命中即 `throw`,一个字节都不落盘。
-6. **落盘 + 零历史提交** —— `rsync --delete` 覆盖 `--out` 目录,`git init -b main`(或
-   `--amend` 已有仓库)得到 **rev-list 恒为 1** 的单提交仓库。
+6. **落盘**(+ **只在 `--publish` 时**零历史提交)—— `rsync --delete` 覆盖 `--out` 目录;
+   给了 `--publish` 才会 `git init -b main`(或 `--amend` 已有仓库)得到 **rev-list 恒为 1**
+   的单提交仓库。**不给 `--publish` 就只落盘,不建仓、不提交。**
 
-**正式出包 = 这六步跑完之后,必须人工再跑五道门 + `--frozen-lockfile`。**
-`vue-tsc --noEmit` 是唯一能抓到「PATCH 漏改导致类型不匹配」这类错误的门,**不在任何
-自动测试里**,不可省。确切命令:
+### 两个阶段:预览随便跑,发布才写公开仓
+
+**默认(不带 `--publish`)导到临时预览目录 `/tmp/nimoos-web-preview`,碰不到公开仓。**
+所以"改一版看一眼"想跑几遍跑几遍;只有你确认满意了,才用 `--publish` 发布。
 
 ```bash
 # 门 0:oss/ 自身单测(改完 manifest.mjs / *.mjs 之后先跑这个)
 cd NimoOS-New-UI
 pnpm exec vitest run oss/
 
-# 正式出包(不带 --skip-guard / --allow-dirty-oss —— 工作树必须干净、清单必须描述
-# HEAD 的真实内容)
+# ── 阶段一:预览(安全,可反复跑)─────────────────────────────────────────
+# 不带 --skip-guard / --allow-dirty-oss —— 工作树必须干净、清单必须描述 HEAD 的真实内容
 node oss/export.mjs
-# 期望末行 [oss] 完成 → ../NimoOS-Web,5/6 报「零真实泄漏命中」
+# 期望末行 [oss] 完成 → /tmp/nimoos-web-preview,5/6 报「零真实泄漏命中」
+
+# 五道门跑在预览目录上。`vue-tsc --noEmit` 是唯一能抓到「PATCH 漏改导致类型不匹配」
+# 这类错误的门,**不在任何自动测试里**,不可省。
+cd /tmp/nimoos-web-preview
 
 # 门 1:装依赖(★ C1 的回归保护,CI 默认 --frozen-lockfile,裸 install 测不出这类问题)
-cd ../NimoOS-Web
 rm -rf node_modules
 pnpm install --frozen-lockfile   # 必须 EXIT=0,且装完 lockfile 一字节不变
 
@@ -61,33 +66,45 @@ pnpm exec vue-tsc --noEmit       # 必须 EXIT=0
 pnpm build                       # 必须 EXIT=0(vue-tsc --noEmit + vite build)
 
 # 门 5:构建产物扫描 + 品牌 grep
-cd ../NimoOS-New-UI
-node oss/scan-dist.mjs ../NimoOS-Web/dist   # 必须 EXIT=0,零命中
-grep -ric "nimoos-search\|nimoos-parser\|nimoos-photos\|nimoos-ai" ../NimoOS-Web/dist \
-  | grep -v ':0$'                            # 必须无输出
+cd -
+node oss/scan-dist.mjs /tmp/nimoos-web-preview/dist   # 必须 EXIT=0,零命中
+grep -ric "nimoos-search\|nimoos-parser\|nimoos-photos\|nimoos-ai" \
+  /tmp/nimoos-web-preview/dist | grep -v ':0$'        # 必须无输出
+
+# ── 阶段二:发布(五道门全绿、且你确认满意之后才跑)────────────────────
+node oss/export.mjs --publish
+# 这一步才会 rsync --delete 覆盖 ../NimoOS-Web 并 git commit --amend 改掉它的 HEAD
 ```
 
-再验零历史 + 幂等:
+发布后再验零历史 + 幂等:
 
 ```bash
 git -C ../NimoOS-Web rev-list --count HEAD   # 必须是 1
-git -C ../NimoOS-Web remote -v               # 必须为空
-node oss/export.mjs                          # 再跑一次
+node oss/export.mjs --publish                # 再跑一次
 git -C ../NimoOS-Web status --porcelain      # 应为空(幂等)
 git -C ../NimoOS-Web rev-list --count HEAD   # 仍是 1(--amend,不是新提交)
 ```
 
-## 2. 四个 flag
+> ⚠️ **已知待处理**:本地 `NimoOS-Web` 目前有 **2 个提交**(`748aa8f` + 手工写的 README
+> `4957653`),而上面那条断言要求恒为 1 ⇒ **现在跑 `--publish` 必定在最后一步报错,而且是
+> "先 amend 掉那条 README 提交、再报错"**。发布前要先把这 2 个提交理顺(挤回单提交,
+> 或者放弃零历史约束并改掉 `export.mjs` 里那条断言)。另:本地领先 `origin/main` 一个提交。
+
+## 2. 七个 flag
 
 | flag | 用途 |
 |---|---|
-| `--out <dir>` | 产出目录,默认 `../NimoOS-Web`。 |
+| `--publish` | **发布模式**:产出目录切到公开仓 `../NimoOS-Web` 并建仓提交。**不给它,公开仓一个字节都不会变。** |
+| `--out <dir>` | 指定产出目录,覆盖默认值(默认:不带 `--publish` 时 `/tmp/nimoos-web-preview`,带 `--publish` 时 `../NimoOS-Web`)。 |
+| `--no-commit` | 即使给了 `--publish` 也只落盘、不提交。 |
 | `--skip-guard` | 跳过第 5 步泄漏守卫,**只供开发期**(比如临时确认取源/清单本身没问题,不代表内容安全)。 |
-| `--no-commit` | 跳过第 6 步的 `git init`/`commit`,只落盘文件,不建仓库。配合 `--out /tmp/xxx` 做一次性验证时常用。 |
 | `--keep-temp` | 落盘后不删中间临时目录(取源 + 应用清单之后的那份),排查"清单到底改出了什么"时有用。 |
 | `--allow-dirty-oss` | 放行 `oss/` 目录下的未提交改动(其余源码仍必须干净)。**只供 oss/ 自身的开发迭代**——反复改 `manifest.mjs` 时不用每次都先 commit 才能跑一次导出验证。 |
+| `-h`, `--help` | 打印用法后退出,不执行任何导出。 |
 
-**正式出包一律不带 `--skip-guard` 与 `--allow-dirty-oss`。** 前者会让一次导出完全不经过
+**不认识的参数一律拒绝执行**(白名单校验,先于一切),来由见下面 §8。
+
+**正式发布一律不带 `--skip-guard` 与 `--allow-dirty-oss`。** 前者会让一次导出完全不经过
 安全检查;后者会让产物对不上 `git archive HEAD` 实际取到的源码版本——"清单描述的删改"
 和"清单描述时刻的源码"必须是同一个 commit。
 
@@ -198,3 +215,46 @@ git -C ../NimoOS-Web rev-list --count HEAD   # 仍是 1(--amend,不是新提交)
 提交块从不自动跑（I0/I0-a/I0-c）、泄漏守卫按行扫描漏折行禁词（I1）、`applyPatch` 不校验
 `replace` 字段类型（I2）、`scanDist` 的挖空法重叠绕过（I8）、`assertSafeRelPath` 放行
 `'.'`（M12）等——这些留给"合流前必修"，不在本次修复波范围内，理由见 findings 文档 §0。
+
+---
+
+## 8. 2026-08-08:参数误传导致公开仓被覆盖并提交(已修)
+
+**发生了什么。** 有人想看看这个脚本有哪些参数,敲了 `node oss/export.mjs --help`。当时的
+参数解析只有两个 helper —— `flag()` 是 `argv.includes()`、`opt()` 是 `indexOf()`,**不认识
+的参数不报错,等同于没传**。于是 `--help` 被当成"你什么参数都没传",走完了全套默认值:
+
+- `--out` 默认 `DEFAULT_OUT` = `../../NimoOS-Web`,**真实公开仓**
+- `NO_COMMIT` 默认 `false`,**提交默认开启**
+
+⇒ `rsync --delete` 覆盖公开仓目录 + `git commit --amend` 改掉它的 HEAD
+(`4957653` → `548e53c`,83 文件 / +5339 −2619)。靠 `git reset --hard 4957653` 还原;
+**GitHub 上的 `origin/main` 始终是 `748aa8f`,从未受影响,没有代码泄漏出去。**
+
+**三道本该拦住的关卡为什么都没响:**
+
+| 关卡 | 为什么没拦住 |
+|---|---|
+| `export.mjs` 的 `--out` 护栏 | 判据是"目录里有没有 `.git`/`.export-report.txt`"。真公开仓两样都有 → 判定为"是之前的导出产物" → 放行。**这道护栏防的是手滑指到别的普通目录,恰好不防它最该防的那个目标。** |
+| `checkClean` | 只检查私有仓工作树干净,不看产出仓 |
+| `rev-list --count HEAD` 必须是 1 | **确实响了,但代码顺序是先提交、后检查** —— 响得太晚,等于没响 |
+
+**根因不是某一行逻辑,是默认值的方向:危险动作(写公开仓 + 提交)是默认,安全动作要手动
+叠三个 flag。**
+
+**修法(两条,缺一不可):**
+
+1. **参数白名单校验,先于一切执行** —— 不认识的参数立刻 `exit 1`,不进入任何流程;
+   补上 `--help`/`-h` 打印用法后退出。
+2. **翻转默认值** —— `DEFAULT_OUT` 拆成 `PREVIEW_OUT`(临时目录,默认)与 `PUBLISH_OUT`
+   (公开仓,**只有 `--publish` 才用**);提交也改成只在 `--publish` 时发生。
+
+**回归保护:`oss/cli-args.test.mjs`(5 例)。** 其中"不带 `--publish` 不建仓"与"带
+`--publish` 建仓"两条**必须成对存在** —— 任何单独一条都分辨不出"默认关"和"永远关"
+(RED 阶段实测:后者在未修复的代码上照样通过,单独留它等于没有守卫)。该文件每条用例都
+显式传 `--out <临时目录>`,因为守卫没落地时不传 `--out` 的调用会真的写进公开仓 ——
+**测试本身绝不能重演它要防的那场事故。**
+
+**这类事故的通用形状**(值得推广到别的脚本):一个会造成不可逆外部副作用的工具,把
+"最危险的那条路径"设成了默认值,再配上"不认识的输入 = 沉默"。两者单独都不致命,凑一起
+就变成"手滑一次就发布"。判据很简单:**问一句"什么都不传时它会做什么" —— 答案必须是无害的。**

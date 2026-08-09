@@ -914,6 +914,17 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
     await flush()
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已重启')
+
+    // SP16 Task 10:标题一直承诺了强制关机,用例体却从没点过它 —— api.stopVM 早就 mock
+    // 好了但从未触发,于是标题读起来像"有覆盖"而实际没有。补上。与重启同一套就地二次
+    // 确认(OverflowMenu.vue:91 的 isPending('stop') 分支)。文案取自 zh_cn.sp9.ts:437
+    // 的字面量 kvmToastStopped('已停止'),不是照标题猜的。
+    await w.findAll('.action-btn')[1].trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!.trigger('click')
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
+    await flush()
+    expect(api.stopVM).toHaveBeenCalledWith('vm-1')
+    expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已停止')
   })
 
   it('自动启动开关两态:开→toast 含"开",再点关→toast 含"已关闭"', async () => {
@@ -1800,5 +1811,51 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await openSnapshotsTab(w)
     expect(document.body.querySelector('.cv-error')).toBeNull() // 旧报错没有跟着重新打开露出来
     w.unmount()
+  })
+})
+
+describe('SP16 Task 6:重开 OS 选择器时列表要刷新', () => {
+  it('每次打开都重拉 ISO 列表(Vue2 每次 visible:true 都拉)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mountPage()
+    await flush()
+    const before = api.getISOList.mock.calls.length
+
+    // 直接驱动页面自己的开关 ref —— 打开 OS 选择器的入口藏在创建弹窗内部,
+    // 经它点进去会把「创建流程」也拖进这条用例,断言的东西就不纯粹了。
+    const page = w.vm as unknown as { osSelectorOpen: boolean }
+    page.osSelectorOpen = true
+    await flush()
+    page.osSelectorOpen = false
+    await flush()
+    page.osSelectorOpen = true
+    await flush()
+
+    expect(api.getISOList.mock.calls.length).toBeGreaterThan(before + 1)
+    w.unmount()
+  })
+})
+
+describe('SP16 Task 7:eject 失败不能弹成功提示', () => {
+  it('eject 在途时离开页面,之后失败不再弹「已弹出」', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    let reject!: (e: unknown) => void
+    api.setBootFromDisk.mockReturnValue(new Promise((_, rj) => { reject = rj }))
+    const w = mountPage()
+    await flush()
+    const toast = useToast()
+
+    await w.get('.banner-btn').trigger('click')  // eject 发出,还没 resolve
+    w.unmount()                                  // 请求在途时整页跳走
+    reject(new Error('boom'))                    // 之后才失败
+    await flush()
+
+    // 文案取自 zh_cn.sp9.ts:458 的字面量(kvmEjectSuccess),不是自己编的。
+    // toast 容器挂在 App.vue 层、比本页活得久 ⇒ 这条提示用户真的看得见。
+    expect(toast.toasts.map((x) => x.text))
+      .not.toContain('光盘已弹出，虚拟机将在下次重启时从硬盘引导。')
   })
 })

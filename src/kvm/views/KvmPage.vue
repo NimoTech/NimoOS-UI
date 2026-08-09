@@ -100,10 +100,18 @@ function onOsDownload(id: string): void {
   void isoList.download(id)
 }
 
-// 关闭选择器时清掉可能残留的下载失败报错——不清的话,下次打开(不管是创建弹窗还是
-// 设置弹窗那次)会带出上一次已经不相关的旧报错。
+// SP16 Task 6:自定义(本地 ISO 浏览)区的展开态由本页面持有 —— OsSelector 的内容
+// 每次关闭都被 reka 卸载,状态留在 IsoBrowser 内部就必然归零(Vue2 的选择器是常驻
+// 挂载的,展开一次就一直展开)。
+const isoBrowserExpanded = ref(false)
+
 watch(osSelectorOpen, (open) => {
-  if (!open) isoDownloadError.value = ''
+  // 关闭:清掉可能残留的下载失败报错——不清的话,下次打开(不管是创建弹窗还是
+  // 设置弹窗那次)会带出上一次已经不相关的旧报错。
+  if (!open) { isoDownloadError.value = ''; return }
+  // 打开:Vue2 的选择器每次 visible:true 都重拉一次列表。这里列表是页面持有的 prop,
+  // 不重拉的话,用户在弹窗里下完一个 ISO、关掉再打开,看到的会是那次下载之前的旧列表。
+  void isoList.fetch()
 })
 
 // P6 Task 9:OsSelector 是页面级共用的**同一个**弹窗(z-index 920 叠在上层弹窗之上),
@@ -324,6 +332,10 @@ vnc.onSpicePorts((vmId, ports) => {
 // 的 connect/disconnect 上。
 s.onVncShouldConnect((vm) => { void vnc.connect(vm) })
 s.onVncShouldDisconnect(() => { vnc.disconnect() })
+// SP16 Task 8:重启后把重连交给 kvm:vm_started,但 MessageBus 掉线时那个事件永远不到 ——
+// 此前的净效果是控制台一片黑、界面上零解释。useVmList 的地板计时器在这里说一声。
+// 它不重连(重连必失败,见 useVmList.restart 的推导),只解释现状 + 给出自救动作。
+s.onVncReconnectStalled(() => { toast.show(t('kvmConsoleReconnectStalled')) })
 
 // 切换选中的 VM 时照 Vue2 watch selectedVM(:747-758)的后半段:只在"换成了不同一台
 // VM"时才 connect/disconnect,同一台 VM 原地改 state(电源动作/MessageBus 事件)不
@@ -396,6 +408,12 @@ const isWindowsGuestSelected = computed(() => isWindowsGuest(s.selectedVM.value)
 // ejectBusy 挡"这个按钮的 loading 视觉要不要显示、按钮点击时要不要被 InstallBanner
 // 自己的 onClick 拦下"——功能上有重叠但不是同一份状态,不能互相替代。
 const ejectBusy = ref(false)
+// SP16 Task 7:页面可以在请求还在途时被卸载。useVmList 自己的 `alive` 守卫已经拦住了
+// "往已销毁的 state 里写",但它把那种情况**和成功一样**报成 ''——调用方据此弹了成功
+// 提示。这里自查存活,把 useVmList 的返回值契约原样留着不动。
+let pageAlive = true
+onUnmounted(() => { pageAlive = false })
+
 async function onEjectFinish(): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm || ejectBusy.value) return
@@ -409,13 +427,22 @@ async function onEjectFinish(): Promise<void> {
     // 见 useVmList.test.ts 里的回归测试)。ejectInstallMedia 现在把结果直接作为返回值
     // 交出来(''=成功,非空=这次调用失败的文案),错误天然只属于"这次调用",不会被
     // 任何并发操作污染。
-    ejectError.value = await s.ejectInstallMedia(vm)
+    const err = await s.ejectInstallMedia(vm)
+    // SP16 Task 7:页面没了就什么都不做——既不写 ref,也不弹任何 toast。见下面那段
+    // 关于"''=成功还是=已卸载"的说明。
+    if (!pageAlive) return
+    ejectError.value = err
     // 必修①:成功也要弹 toast(Vue2 handleInstallationFinished :867-870,固定整句文案,
     // 不像电源动作那样拼 vm.name)。ejectInstallMedia 的返回值契约是 ''=成功/被重入守卫
     // 挡下/dispose 后短路,非空=失败文案(见该函数顶部注释)。这里能安全地把 '' 当成功
     // 处理——本函数入口的 `ejectBusy` 已经保证同一时刻只有一次调用在途,不会撞上"被
-    // 重入守卫挡下"的分支;唯一的另一种可能是组件已经卸载(dispose),此时弹不弹 toast
-    // 都没有观众,不影响正确性。
+    // 重入守卫挡下"的分支;另一种可能是组件已经卸载(dispose)。
+    //
+    // ⚠️ SP16 Task 7 订正:这里原来写的是"组件已卸载时弹不弹 toast 都没有观众,不影响
+    // 正确性"——那句是错的,而且正是缺陷的由来。toast 容器挂在应用层、比本页活得久,
+    // 卸载之后弹出的提示用户照样看得见:eject 请求失败 + 页面已跳走 ⇒ ejectInstallMedia
+    // 的 catch 走 `if (!alive) return ''` ⇒ 这里把 '' 当成功 ⇒ 用户在别的页面上看到一条
+    // "光盘已弹出"。上面那道 pageAlive 自查拦的就是这条路。
     if (ejectError.value === '') toast.show(t('kvmEjectSuccess'))
   } finally {
     ejectBusy.value = false
@@ -787,6 +814,7 @@ async function onAction(name: string): Promise<void> {
       v-model:open="osSelectorOpen"
       :isos="isoList.isos.value"
       :download-error="isoDownloadError"
+      v-model:browser-expanded="isoBrowserExpanded"
       @select="onOsSelect"
       @download="onOsDownload"
       @need-wait="toast.show(t('kvmWaitForDownload'))"

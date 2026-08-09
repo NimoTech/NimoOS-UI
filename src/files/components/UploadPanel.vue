@@ -10,7 +10,6 @@ import { toVirtualPath } from '../util/pathUtils'
 import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
 import type { UploadItem } from '../upload/types'
-import Dialog from '../../components/ui/Dialog.vue'
 import AlertDialog from '../../components/ui/AlertDialog.vue'
 
 const store = useUploadsStore()
@@ -33,7 +32,6 @@ const problemBatches = computed(() => batches.value.filter((b) => b.zone === 'pr
 const activeBatches = computed(() => batches.value.filter((b) => b.zone === 'active'))
 const doneBatches = computed(() => batches.value.filter((b) => b.zone === 'done'))
 
-const conflictItem = computed(() => store.queue.find((i) => i.status === 'conflict') ?? null)
 const totalCount = computed(() => store.queue.length)
 
 // PATH SAFETY: only show a directory once it converts to a virtual (display-
@@ -135,11 +133,6 @@ function confirmDelete() {
   deleteOpen.value = false
   run?.()
 }
-
-function resolve(choice: 'overwrite' | 'rename' | 'skip') {
-  const item = conflictItem.value
-  if (item) store.resolveConflict(item.id, choice)
-}
 </script>
 
 <template>
@@ -224,15 +217,6 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
       </div>
     </div>
 
-    <Dialog :open="!!conflictItem" :title="t('filesUploadConflictTitle')" @update:open="(v) => { if (!v) resolve('skip') }">
-      <p>{{ conflictItem ? t('filesUploadConflictMsg', { name: conflictItem.fileName || conflictItem.relativePath }) : '' }}</p>
-      <template #footer>
-        <button class="ui-btn" @click="resolve('skip')">{{ t('filesUploadSkip') }}</button>
-        <button class="ui-btn" @click="resolve('rename')">{{ t('filesUploadRename') }}</button>
-        <button class="ui-btn primary" @click="resolve('overwrite')">{{ t('filesUploadOverwrite') }}</button>
-      </template>
-    </Dialog>
-
     <AlertDialog
       :open="deleteOpen"
       :title="t('filesUploadCancel')"
@@ -295,6 +279,4 @@ function resolve(choice: 'overwrite' | 'rename' | 'skip') {
 .up-subitem { display: flex; align-items: center; gap: 8px; font-size: 11px; }
 .up-subitem-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .up-subitem-pct { flex: 0 0 auto; color: var(--fg-muted, #9aa4bf); }
-.ui-btn { padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.14)); background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); cursor: pointer; font-size: 13px; }
-.ui-btn.primary { background: color-mix(in srgb, var(--accent, #6ea8fe) 32%, transparent); border-color: var(--accent, #6ea8fe); }
 </style>

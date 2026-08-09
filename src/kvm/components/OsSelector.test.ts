@@ -42,7 +42,9 @@ let w: VueWrapper | null = null
 // 一致。这里把 `mk` 改成 async 并在 mount 之后 `await nextTick()`,断言内容一个不减。
 const mk = async (isos: IsoRow[] = [ROW(), ALPINE, WIN], downloadError = '') => {
   w = mount(OsSelector, {
-    props: { open: true, isos, downloadError },
+    // browserExpanded(SP16 Task 6):展开态由页面持有,本组件只透传。这里钉成收起 ——
+    // 自定义区的展开/浏览行为在 IsoBrowser.test.ts 单独覆盖。
+    props: { open: true, isos, downloadError, browserExpanded: false },
     global: { plugins: [i18n] },
     attachTo: document.body,
   })

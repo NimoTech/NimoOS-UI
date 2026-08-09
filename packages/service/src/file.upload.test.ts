@@ -36,4 +36,12 @@ describe('file upload REST', () => {
     await file.cancelUpload('h1')
     expect(http.post).toHaveBeenCalledWith('/v2/nimoos/file/uploads/h1/cancel')
   })
+
+  it('uploadPrecheck passes through size_match and is_dir', async () => {
+    const http = fakeHttp({ data: { success: 200, data: { results: [{ relativePath: 'a.txt', exists: true, size_match: true, is_dir: false }] } } })
+    const file = createFile(http, () => 'tok')
+    const out = await file.uploadPrecheck('/DATA/x', [{ relativePath: 'a.txt', size: 5 }])
+    expect(out.results[0].size_match).toBe(true)
+    expect(out.results[0].is_dir).toBe(false)
+  })
 })

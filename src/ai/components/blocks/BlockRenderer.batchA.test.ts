@@ -1,7 +1,7 @@
 // SP8-P1b Task 8 —— 块渲染器批次 A 冒烟测试:17 个 1:1 移植的渲染器
 // (含 4 张确认卡 + MaxTurnsCard 的 store 交互)+ BlockRenderer 全量 BLOCK_MAP 分发。
 import { describe, expect, it, beforeEach, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
@@ -29,6 +29,8 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const globalOpts = { plugins: [i18n] }
 
 describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
   it('已映射类型(如 tool/thinking)分发到真实渲染器,不再降级为 chip', () => {
     const w1 = mount(BlockRenderer, { props: { block: { type: 'tool', name: 'x' } } }, )
     expect(w1.find('.block-chip').exists()).toBe(false)
@@ -42,6 +44,31 @@ describe('BlockRenderer — full BLOCK_MAP dispatch', () => {
   it('未映射类型仍降级为灰 chip', () => {
     const w = mount(BlockRenderer, { props: { block: { type: 'still_unmapped' } } })
     expect(w.find('.block-chip').text()).toBe('[still_unmapped]')
+  })
+
+  it('mcp_elicit_form 分发到 McpElicitFormCard(非灰 chip,且是表单卡而非 URL 卡)', () => {
+    const w = mount(BlockRenderer, {
+      props: { block: { type: 'mcp_elicit_form', confirmId: 'c1', fields: [] } },
+      global: globalOpts,
+    })
+    expect(w.find('.block-chip').exists()).toBe(false)
+    // .mcc-perm 是两张卡共有的根类,不足以区分分发到了哪一张 —— 用各卡独有的
+    // 结构判定:表单卡有 .mcc-fields / <form>,URL 卡没有。
+    expect(w.find('.mcc-fields').exists()).toBe(true)
+    expect(w.find('form').exists()).toBe(true)
+    expect(w.find('.mcc-url').exists()).toBe(false)
+  })
+
+  it('mcp_elicit_url 分发到 McpElicitUrlCard(非灰 chip,且是 URL 卡而非表单卡)', () => {
+    const w = mount(BlockRenderer, {
+      props: { block: { type: 'mcp_elicit_url', confirmId: 'c2', url: 'https://x.example' } },
+      global: globalOpts,
+    })
+    expect(w.find('.block-chip').exists()).toBe(false)
+    // 同上:用 URL 卡独有的 .mcc-url 结构区分,不是共享的 .mcc-perm 根类。
+    expect(w.find('.mcc-url').exists()).toBe(true)
+    expect(w.find('.mcc-fields').exists()).toBe(false)
+    expect(w.find('form').exists()).toBe(false)
   })
 })
 
@@ -176,6 +203,27 @@ describe('ConfirmCard', () => {
     await w.findAll('button')[1].trigger('click')
     expect(spy).toHaveBeenCalledWith('c1', false)
   })
+
+  it('a 409 collapses the whole card to a single line, with no buttons left', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'confirmAgentAction')
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { response: { status: 409 } }))
+    const w = mount(ConfirmCard, { props: { confirmId: 'c1', description: 'x' }, global: globalOpts })
+    await w.findAll('button')[0].trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('确认已过期')
+    expect(w.findAll('button')).toHaveLength(0)
+  })
+
+  it('a 500 leaves the buttons in place, so the user can retry', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'confirmAgentAction')
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { response: { status: 500 } }))
+    const w = mount(ConfirmCard, { props: { confirmId: 'c1', description: 'x' }, global: globalOpts })
+    await w.findAll('button')[0].trigger('click')
+    await flushPromises()
+    expect(w.findAll('button')).toHaveLength(2)
+  })
 })
 
 describe('PermissionRequestCard', () => {
@@ -254,6 +302,36 @@ describe('McpInstallCard', () => {
     const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
     await w.find('.mcc-deny').trigger('click')
     expect(spy).toHaveBeenCalledWith('c4', false, false)
+  })
+
+  it('the resolved state no longer offers a "Change" action (it would only send the user into another 409)', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'confirmAgentAction').mockResolvedValue(undefined)
+    const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
+    await w.find('.mcc-allow').trigger('click')
+    await flushPromises()
+    expect(w.find('.undo').exists()).toBe(false)
+  })
+
+  it('a 409 collapses the whole card to a single line, with no buttons left', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'confirmAgentAction')
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { response: { status: 409 } }))
+    const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
+    await w.find('.mcc-allow').trigger('click')
+    await flushPromises()
+    expect(w.text()).toContain('确认已过期')
+    expect(w.findAll('button')).toHaveLength(0)
+  })
+
+  it('a 500 leaves the buttons in place, so the user can retry', async () => {
+    const store = useAgentStore()
+    vi.spyOn(store, 'confirmAgentAction')
+      .mockRejectedValueOnce(Object.assign(new Error('x'), { response: { status: 500 } }))
+    const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
+    await w.find('.mcc-allow').trigger('click')
+    await flushPromises()
+    expect(w.find('.mcc-allow').exists()).toBe(true)
   })
 })
 

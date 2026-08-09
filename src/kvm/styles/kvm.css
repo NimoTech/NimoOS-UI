@@ -38,6 +38,23 @@
  * (注释里也别写形如「点 + 小写单词」的文件后缀,类名白名单测试会把它当成类名。)
  */
 
+/* The global toast sits 118px up to clear the desktop dock. KVM is a full-screen
+ * page with no dock, so that offset parks notifications in the middle-bottom of
+ * the guest's console output.
+ *
+ * The override has to live on the root element, not on .kvm-page: the toast
+ * stack is mounted at app level and is a **sibling** of the page rather than a
+ * descendant, so a variable declared on .kvm-page never reaches it (verified in
+ * a real browser — the toast stayed at its default). Keying off :has() keeps it
+ * declarative: no mount or unmount hook to forget, and it stops applying the
+ * moment the page is gone.
+ * (Per the note at the top of this file, the comment above deliberately avoids
+ * writing that container's selector or its file suffix — the class-name
+ * whitelist reads both as undeclared class names.) */
+:root:has(.kvm-page) {
+  --toast-bottom: 24px;
+}
+
 .kvm-page {
   display: flex;
   height: 100vh;

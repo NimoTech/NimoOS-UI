@@ -456,6 +456,10 @@ export default {
   // "Installation media ejected. VM will boot from hard disk on next restart." = "光盘
   // 已弹出，虚拟机将在下次重启时从硬盘引导。"(:1815),与当年被删的值逐字相同。
   kvmEjectSuccess: '光盘已弹出，虚拟机将在下次重启时从硬盘引导。',
+  // 🆕SP16 Task 8:重启后控制台迟迟没能自动恢复(MessageBus 掉线 ⇒ kvm:vm_started
+  // 永远不到)时的提示。Vue2 无对应文案 —— Vue2 那边是立刻重连(必失败)、把 vncError
+  // 钉在屏上,本仓换成事件交接之后需要一句兜底解释。
+  kvmConsoleReconnectStalled: '控制台未能自动恢复，请重新选择该虚拟机',
   // 🆕Task 5 评审补:进度遮罩正文缺的"动词进行时"短语(Vue2 zh_CN.json:874/867/863,
   // 分别对应 "stopping"/"restarting"/"deleting")。与上面 kvmStopping 等整句标题不是
   // 同一组键——那几个是 progressTitle(整句),这几个是 progressMessage 里拼接的动词

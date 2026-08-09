@@ -6,11 +6,14 @@
 
 <script setup lang="ts">
 // Home (and future routes) own their own chrome; AppToast is app-level so any route can show toasts.
-import { defineAsyncComponent, watch } from 'vue'
+import { defineAsyncComponent, watch, onMounted, onUnmounted } from 'vue'
+import { service } from '@nimotech/nimoos-service'
 import AppToast from './components/AppToast.vue'
 import { useSessionStore } from './stores/session'
 import { useLocaleStore } from './stores/locale'
 import { useWallpaperStore } from './stores/wallpaper'
+import { installUnloadGuard } from './files/upload/unloadGuard'
+import { useUploadsStore } from './files/stores/uploads'
 
 // Async on purpose: the two built-in JPEGs total ~3 MB, and this keeps them out
 // of the first-paint bundle. M6 (final review): this does NOT mean they only
@@ -54,4 +57,16 @@ watch(
   },
   { immediate: true },
 )
+
+// Ticket A (SP12 Plan B carry-over): installed here rather than in Files.vue.
+// The upload queue is an app-lifetime Pinia store and keeps transferring
+// after navigating away from /files -- installing this in Files.vue meant
+// closing the tab from any other route sent no interrupt signal and showed
+// no leave-site prompt, leaving the batch to the server's 120s idle sweep.
+const uploads = useUploadsStore()
+let offUnloadGuard: (() => void) | null = null
+onMounted(() => {
+  offUnloadGuard = installUnloadGuard(() => uploads.queue, undefined, (id) => service.uploadBatches.interruptBatch(id))
+})
+onUnmounted(() => { offUnloadGuard?.() })
 </script>

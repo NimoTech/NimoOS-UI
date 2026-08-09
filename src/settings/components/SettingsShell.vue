@@ -239,6 +239,14 @@ const railTabs = computed(() =>
     flex-direction: row;
     gap: 6px;
     overflow-x: auto;
+    /* The tabs are cut off mid-word at 420px. They do scroll, but with no
+       affordance it reads as broken rather than scrollable. A right-edge fade
+       shows there is more; the opaque stop below is a mask channel value, not a
+       visible colour, so it is skin-independent and needs no token. */
+    /* theme-exception: 遮罩通道值,与皮肤无关 */
+    mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
+    /* theme-exception: 遮罩通道值,与皮肤无关 */
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
   }
   .set-rail-item {
     white-space: nowrap;

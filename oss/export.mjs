@@ -5,7 +5,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import {
   DELETE, SERVICE_DELETE, REPLACE, PATCH, SERVICE_PATCH,
-  NEW_UI, DEFAULT_OUT, OSS_DIR, DIRTY_ALLOW,
+  NEW_UI, PREVIEW_OUT, PUBLISH_OUT, OSS_DIR, DIRTY_ALLOW,
 } from './manifest.mjs'
 import { checkClean, applyDelete, applyReplace, applyPatch } from './apply.mjs'
 import { scanTree, isExpectedSkip } from './forbidden.mjs'
@@ -13,9 +13,69 @@ import { scanTree, isExpectedSkip } from './forbidden.mjs'
 const argv = process.argv.slice(2)
 const flag = (n) => argv.includes(n)
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 ? argv[i + 1] : d }
-const OUT = path.resolve(opt('--out', DEFAULT_OUT))
+
+// ── 0. 参数校验 ────────────────────────────────────────────────────────────────
+// 🔴 这一段先于一切执行,是 2026-08-08 事故的修复。当时的解析只有上面两个 helper:
+// `flag()` 是 `argv.includes()`、`opt()` 是 `indexOf()` —— **不认识的参数不报错,等同于
+// 没传**。于是 `node oss/export.mjs --help`(只是想看看有哪些参数)走完了全套默认值:
+// 产出目录 = 真实公开仓、提交 = 开启 ⇒ rsync --delete 覆盖公开仓 + `git commit --amend`
+// 改掉它的 HEAD。脚本最后确实报了错(`rev-list --count` 那句),但那是在提交之后 ——
+// **响得太晚,等于没响**。
+//
+// 所以这里的纪律是两条,缺一不可:
+//   ① 不认识的参数 → 立刻退出,不进入任何流程(白名单,不是黑名单);
+//   ② 危险动作(写公开仓 + 提交)只在显式 --publish 时发生,默认导到临时预览目录。
+// 行为由 oss/cli-args.test.mjs 钉住,其中"不带 --publish 不建仓"与"带 --publish 建仓"
+// 两条**必须成对存在** —— 任何单独一条都分辨不出"默认关"和"永远关"。
+const VALUE_FLAGS = new Set(['--out'])          // 后面紧跟一个值,那个值不参与未知参数校验
+const BOOL_FLAGS = new Set([
+  '--publish', '--skip-guard', '--no-commit', '--keep-temp', '--allow-dirty-oss', '--help', '-h',
+])
+
+const USAGE = `用法:node oss/export.mjs [选项]
+
+  不带 --publish:导出到临时预览目录(${PREVIEW_OUT}),只落盘、不建仓、不提交。
+                  怎么跑都碰不到公开仓,用来检查剥离清单改出了什么。
+  带 --publish  :导出到公开仓(${PUBLISH_OUT}),rsync --delete 覆盖它
+                  并 git commit --amend 成零历史单提交。**这是发布动作。**
+
+选项:
+  --publish            发布模式。不给它,公开仓一个字节都不会变。
+  --out <dir>          指定产出目录,覆盖上面两个默认值。
+  --no-commit          即使给了 --publish 也只落盘、不提交。
+  --skip-guard         跳过第 5 步泄漏守卫。仅开发期,正式出包禁用。
+  --allow-dirty-oss    放行 oss/ 下的未提交改动。仅开发期,正式出包禁用。
+  --keep-temp          保留中间临时目录,排查"清单到底改出了什么"时用。
+  -h, --help           显示本帮助。
+
+不认识的参数一律拒绝执行 —— 2026-08-08 的事故正是 \`--help\` 被当成"没传参",
+于是按默认值真的覆盖并提交了公开仓。详见 oss/README.md 与 oss/cli-args.test.mjs。`
+
+for (let i = 0; i < argv.length; i++) {
+  const a = argv[i]
+  if (VALUE_FLAGS.has(a)) {
+    if (i + 1 >= argv.length) {
+      console.error(`[oss] 失败:${a} 后面缺少值。\n\n${USAGE}`)
+      process.exit(1)
+    }
+    i++                                          // 跳过它的值
+    continue
+  }
+  if (BOOL_FLAGS.has(a)) continue
+  console.error(`[oss] 失败:不认识的参数 ${a}。为免误操作,拒绝执行。\n\n${USAGE}`)
+  process.exit(1)
+}
+
+if (flag('--help') || flag('-h')) {
+  console.log(USAGE)
+  process.exit(0)
+}
+
+const PUBLISH = flag('--publish')
+const OUT = path.resolve(opt('--out', PUBLISH ? PUBLISH_OUT : PREVIEW_OUT))
 const SKIP_GUARD = flag('--skip-guard')
-const NO_COMMIT = flag('--no-commit')
+// 默认不提交:只有明确说了 --publish 才建仓提交,且 --no-commit 仍可单独关掉它。
+const NO_COMMIT = !PUBLISH || flag('--no-commit')
 const KEEP_TEMP = flag('--keep-temp')
 const ALLOW_DIRTY_OSS = flag('--allow-dirty-oss')
 
