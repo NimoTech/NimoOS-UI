@@ -708,6 +708,9 @@ body::after {
 .ic-video    { background: linear-gradient(145deg, #ff8a8a, #ef4444 60%, #b91c1c); }
 .ic-music    { background: linear-gradient(145deg, #ff9a8b, #ff4d8d 60%, #c026d3); }
 .ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }
+/* SP14 #98: matches the amber gradient baked into knowledge.svg's own <linearGradient>
+   (#D97706 -> #FBBF24) -- same brand-identity exception as the rest of this block. */
+.ic-knowledge { background: linear-gradient(145deg, #fbbf24, #d97706 65%, #b45309); }
 .ic-backup   { background: linear-gradient(145deg, #6ee7b7, #10b981 60%, #059669); }
 .ic-download { background: linear-gradient(145deg, #7dd3fc, #0ea5e9 60%, #0369a1); }
 .ic-docker   { background: linear-gradient(145deg, #7cc6ff, #2496ed 60%, #1d6fb8); }

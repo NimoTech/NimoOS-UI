@@ -41,11 +41,17 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       confirmId: string,
       confirmed: boolean,
       remember = false,
+      // MCP elicitation's action / content pass through here: elicitation is a
+      // three-state outcome (accept/decline/cancel) that can carry an answer,
+      // which the two-state `confirmed` cannot express. Every other card never
+      // passes this, so the existing two-state path is unchanged byte-for-byte.
+      extra?: Record<string, unknown>,
     ): Promise<unknown> {
       const res = await http.post(`${PREFIX}/agent/sessions/${sessionId}/confirm`, {
         confirm_id: confirmId,
         confirmed,
         remember,
+        ...(extra || {}),
       })
       return res.data
     },
@@ -384,9 +390,20 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
 
-    /** 连通性测试可能较慢,超时单独放宽到 110s(而非全局默认超时)。 */
+    // The probe timeout chain must nest outside-in: axios > Go > Python, so the
+    // layer holding the subprocess and socket -- the one that can report an
+    // accurate reason -- always gives up first. If this axios timeout were not
+    // the largest of the three, a slow-but-healthy stdio server would be cut
+    // off in the browser and the accurate probe error would never reach the
+    // user.
+    //
+    // Observed values as of NimoOS-AI main@c15e47c (2026-08-06) -- these live in
+    // a separate repo and drift silently, so treat them as a snapshot, not a
+    // contract: Go proxy 25s (http) / 100s (stdio) (route/v2/mcp.go:344,346);
+    // Python TEST_TIMEOUT=20s / STDIO_TEST_TIMEOUT=90s
+    // (agent/mcp_client/client.py:738-739). 135000 > 100s > 90s holds.
     async testMCPServer(id: string | number): Promise<unknown> {
-      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 110000 })
+      const res = await http.post(`${PREFIX}/mcp/servers/${id}/test`, {}, { timeout: 135000 })
       return res.data
     },
 

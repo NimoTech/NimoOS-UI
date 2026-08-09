@@ -230,6 +230,13 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
   })
 
+  it('knowledge 磁贴走应用内路由 /ai/knowledge(SP14 #98,无回退目标)', () => {
+    const { openApp } = useOpenAction()
+    openApp('knowledge')
+    expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
+    expect(hrefs.length).toBe(0)
+  })
+
   it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { sendToAI } = useOpenAction()

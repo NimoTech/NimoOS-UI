@@ -1915,7 +1915,7 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
     expect(bad).toEqual([])
   })
 
-  it('实测的 9 对撞车确实存在且两档同值(证明上面两条不是「扫不到东西」的空转)', () => {
+  it('实测的 8 对撞车确实存在且两档同值(证明上面两条不是「扫不到东西」的空转)', () => {
     const pairs: Array<[string, string]> = [
       ['aiKbCancel', 'filesCancel'],
       ['aiKbCancel', 'startAppCancel'],
@@ -1923,7 +1923,6 @@ describe('SettingsView/T9 —— §9.2/§9.3 双向同族扫描:本刀余零对'
       ['aiKbCancel', 'appsSettingsCancel'],
       ['aiKbCancel', 'aiCancel'],
       ['aiKbCancel', 'aiCfgCancel'],
-      ['aiKbSetChange', 'aiChange'],
       ['aiKbOpFailed', 'filesOpFailed'],
       ['aiKbOpFailed', 'filesShareFailed'],
     ]

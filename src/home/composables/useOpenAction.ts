@@ -44,6 +44,14 @@ export function useOpenAction() {
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
       if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
+      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
+      // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
+      // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
+      // Consequence: setting strangler:disabled:/ai = '1' only rolls the AI tile
+      // back to Vue 2 (line above) -- the Knowledge tile keeps routing into this
+      // app regardless, because it has no Vue 2 counterpart to roll back to. That
+      // partial rollback is correct by necessity, not an oversight.
+      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }

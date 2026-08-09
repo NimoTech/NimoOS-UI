@@ -78,10 +78,18 @@ export function toTestView(body: unknown): McpTestView {
   }
   const b = body as { ok?: unknown; tool_count?: unknown; tools?: unknown; error_key?: unknown }
   if (b.ok === true) {
+    const raw = body as { protocol_era?: unknown; protocol_version?: unknown; supported_versions?: unknown }
     return {
       ok: true,
       toolCount: typeof b.tool_count === 'number' ? b.tool_count : 0,
       tools: Array.isArray(b.tools) ? b.tools : [],
+      // Older backends don't send these three fields — normalize to empty so the
+      // view renders no line at all for them, never `undefined`.
+      protocolEra: typeof raw.protocol_era === 'string' ? raw.protocol_era : '',
+      protocolVersion: typeof raw.protocol_version === 'string' ? raw.protocol_version : '',
+      supportedVersions: Array.isArray(raw.supported_versions)
+        ? raw.supported_versions.filter((v): v is string => typeof v === 'string')
+        : [],
     }
   }
   const detail = detailOf(body)
@@ -90,6 +98,7 @@ export function toTestView(body: unknown): McpTestView {
     case 'connect_failed': return { ok: false, msgKey: 'aiMcpSrvTestErrConnect', detail }
     case 'list_timeout': return { ok: false, msgKey: 'aiMcpSrvTestErrListTimeout', detail }
     case 'list_failed': return { ok: false, msgKey: 'aiMcpSrvTestErrListFailed', detail }
+    case 'connect_timeout': return { ok: false, msgKey: 'aiMcpSrvTestErrConnectTimeout', detail }
     default: return { ok: false, msgKey: 'aiMcpSrvTestFailed', detail }
   }
 }

@@ -37,6 +37,8 @@ export const DELETE = [
   'src/home/stores/photos.ts',
   'src/home/apps/icons/photos.svg',
   'src/home/apps/icons/ai.svg',
+  // SP14 T9(d4d3771):knowledge 桌面磁贴用的图标,同属 AI 区,同一批删除。
+  'src/home/apps/icons/knowledge.svg',
   // 零消费方孤儿工具(T6 删完 bindPhotos、PhotoTile.vue 已在本表):
   // src/home/stores/photos.test.ts 仍直接 import 它,但那份测试本身是
   // "测试同步:整体删除的 9 个"之一(T13 填齐),不在本任务改动范围。
@@ -163,6 +165,12 @@ export const DELETE = [
   'src/settings/util/folderPermissionsSnapshot.test.ts',  // import folderPermissionsSnapshot.ts(已删)
   'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(已删)
   // FolderPickerDialog.test.ts 不用单列:它在 'src/settings/panels/folderPerm'(上面已整目录删除)里面。
+
+  // SP14 T9(d4d3771)新增的孤儿测试:整份文件只有两条用例,一条直接断言 knowledge
+  // 系统应用条目(已在上面 PATCH 摘掉),另一条"keys 去重"虽然本身与 AI 无关,但
+  // 挂在同一个以 knowledge 命名的 describe 下、文件本身也是这次才新建的,不值得为它
+  // PATCH 出一个只剩一条用例的空壳文件——整体删除。
+  'src/home/apps/systemApps.test.ts',
 ]
 
 /** Service 侧的整体删除(相对 packages/service/)。 */
@@ -216,8 +224,14 @@ export const SERVICE_DELETE = [
 /** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
 export const REPLACE = [
   // T9:桌面默认布局重排(开源版无照片磁贴/AI 组件,坐标整体重排,PATCH 无可继承内容)
+  //
+  // SP14 T9(commit d4d3771)复核:私有侧新增一条 `{ kind: 'app', key: 'knowledge', c: 10,
+  // r: 2, ... }`(见 task-9 报告)—— knowledge 是 AI 区磁贴,`oss/files/defaultLayout.ts`
+  // 本就不含任何 photos/ai 磁贴(整份布局早已重排,见上一行注释),所以这次漂移**不需要**
+  // 同步 OSS 侧,只需把下面的哈希钉更新为新值(已现场核过 `oss/files/defaultLayout.ts`
+  // 内容,不是删哈希钉绕过检查)。
   { path: 'src/home/grid/defaultLayout.ts', from: 'defaultLayout.ts',
-    privateSha256: '15da0c4b305f9cdf5cee5ce6a8126cc441d18a889eadc28681ee1b14785e87ed' },
+    privateSha256: '952b6427d6e61832395b6133cb9e51e2c2747dcf98c7c6a2d4d7788b016cba34' },
 
   // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
   // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
@@ -251,6 +265,18 @@ export const PATCH = [
     replace: '' },
   { path: 'src/home/apps/systemApps.ts',
     find: "  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },\n  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },\n",
+    replace: '' },
+
+  // ── systemApps.ts:去 knowledge 系统应用(SP14 T9,commit d4d3771)── 同上一段
+  //    photos/ai 的处理是同一批加进来的第三条系统应用,同样按 import/glyph/条目三处摘除。
+  { path: 'src/home/apps/systemApps.ts',
+    find: "import iconKnowledge from './icons/knowledge.svg'\n",
+    replace: '' },
+  { path: 'src/home/apps/systemApps.ts',
+    find: "  book: '<path d=\"M4.5 5.5A2 2 0 0 1 6.5 3.5H19v15H6.5a2 2 0 0 0-2 2Z\"/><path d=\"M9 7.5h6M9 11h6\"/>',\n",
+    replace: '' },
+  { path: 'src/home/apps/systemApps.ts',
+    find: "  { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },\n",
     replace: '' },
 
   // ── useDock.ts:DEFAULT_FAV 换成开源版的 4 项(补上 storage —— 它在开源版
@@ -297,22 +323,48 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
     replace: '' },
+  // SP14 T9(commit d4d3771)重抓锚点,03e6ba1 又把 knowledge 分支上方的解释性注释从
+  // 3 行拉长到 7 行,同一个六行代码 + 注释 + knowledge 分支的大锚点两期内碎了两次——
+  // 碎因都不是代码变了,是注释被改写/加长。原来这是一条从 appstore 到 tail 的单一
+  // find/replace,注释文本被夹在中间,锚点体量因此跟着注释一起膨胀,每次改注释都要
+  // 重新过一遍整段 replace。拆成三条,把"会变"和"不会变"分开:
+  //   A —— appstore..ai 六行 if,纯代码,两次注释改写都没动过它,不会再因为改注释碎。
+  //   B1 —— knowledge 分支上方那段解释性注释,单独摘掉;它是唯一真正会变的部分,
+  //         下次被改写只碎这一条,四行触达,不牵连 A/B2。
+  //   B2 —— knowledge 分支 + 尾部兜底,纯代码,同样不含注释文本。
+  // 这是 apply.mjs 纯字面子串匹配(无正则)能做到的极限:删除注释这件事本身必须
+  // 逐字匹配到被删的注释,做不到"锚点完全免疫于注释重写";能做的只是不让它
+  // 拖着两侧的代码锚点一起碎。三条拼起来产出与拆分前逐字相同。
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
       if (key === 'photos' && !cutoverDisabled('/photos')) { router.push('/photos'); return }
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
-      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }
+      if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }`,
+    // 开源版没有任何 cutover flag(私有主干那几个分支全靠 cutoverDisabled 才存在),
+    // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
+    // 所以这两个 key 由 B2 兜底的 router.push(SYS_ROUTE[key] || '/') 即可,不再重复
+    // 写成两个 if(那只是一层无谓的间接)。photos / ai 在开源版整个不存在。
+    replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
+      if (key === 'storage') { router.push('/storage'); return }` },
+  { path: 'src/home/composables/useOpenAction.ts',
+    find: `      // Knowledge: an in-app route built at SP8 (eleven routes, nine-item rail);
+      // Vue 2 has no counterpart entry for it, so there is nowhere to fall back to
+      // and no strangler:disabled flag is set here (unlike ai/photos/vm/settings above).
+      // Consequence: setting strangler:disabled:/ai = '1' only rolls the AI tile
+      // back to Vue 2 (line above) -- the Knowledge tile keeps routing into this
+      // app regardless, because it has no Vue 2 counterpart to roll back to. That
+      // partial rollback is correct by necessity, not an oversight.
+`,
+    replace: '' },
+  { path: 'src/home/composables/useOpenAction.ts',
+    // knowledge 与 ai/photos 同属 AI 区,开源版本就不存在这个 key(defaultLayout.ts
+    // 早已不含任何 AI 磁贴),处理方式与 ai/photos 一致:整行去掉,不补等价行。
+    find: `      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
-    // 开源版没有任何 cutover flag(私有主干那五个分支全靠 cutoverDisabled 才存在),
-    // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
-    // 所以这两个 key 由下面那句 router.push(SYS_ROUTE[key] || '/') 兜底即可,
-    // 不再重复写成两个 if(那只是一层无谓的间接)。photos 在开源版整个不存在。
-    replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
-      if (key === 'storage') { router.push('/storage'); return }
-      router.push(SYS_ROUTE[key] || '/')
+    replace: `      router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `    // 桌面照片磁贴:cutover 后进应用内时间线。刻意不带 asset —— Vue2 这里也只是跳
@@ -564,9 +616,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  audioSummary: '摘要',\n  audioTranscript: '转录文稿',\n  audioAsk: '问 Nimo',\n  audioAskPlaceholder: '关于这段音频，尽管问…',\n  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',\n  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',\n  audioHighlightsOnly: '只看重点',\n  audioShowAll: '显示全部',\n  audioSpeakerAll: '全部',\n  audioChapters: '章节',\n  audioAllChapters: '全部章节',\n",
     replace: "" },
-  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除
+  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除;appKnowledge 是 SP14 T9 追加的
+  // 第三个同类孤儿键(knowledge 系统应用条目已在上面的 systemApps.ts PATCH 段摘掉)。
   { path: 'src/i18n/zh_cn.base.ts',
-    find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n",
+    find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n  appKnowledge: '知识库',\n",
     replace: "" },
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiTitle: 'AI 助手',\n  widgetAiDesc: '对话与智能建议',\n",
@@ -596,7 +649,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "  audioSummary: 'Summary',\n  audioTranscript: 'Transcript',\n  audioAsk: 'Ask Nimo',\n  audioAskPlaceholder: 'Ask anything about this audio…',\n  audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',\n  audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',\n  audioHighlightsOnly: 'Highlights only',\n  audioShowAll: 'Show all',\n  audioSpeakerAll: 'All',\n  audioChapters: 'Chapters',\n  audioAllChapters: 'All chapters',\n",
     replace: "" },
   { path: 'src/i18n/en_us.base.ts',
-    find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n",
+    find: "  appPhotos: 'Photos',\n  appAi: 'Nimo AI',\n  appKnowledge: 'Knowledge',\n",
     replace: "" },
   { path: 'src/i18n/en_us.base.ts',
     find: "  widgetAiTitle: 'AI Assistant',\n  widgetAiDesc: 'Chat and smart suggestions',\n",
@@ -1268,6 +1321,11 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   // .ic-ai 消费的 --orb-core 已随上面删除,该规则本身也删
   { path: 'src/styles/theme.css',
     find: ".ic-ai       { background: radial-gradient(circle at 64% 24%, var(--accent2), transparent 40%), radial-gradient(circle at 28% 80%, var(--accent), transparent 46%), var(--orb-core, #1a2050); }\n",
+    replace: "" },
+  // .ic-knowledge:SP14 T9(d4d3771)追加,同属 AI 区磁贴配色,连注释一起删
+  // (systemApps.ts 里 cls: 'ic-knowledge' 那条已在上面摘掉,这里是零消费方孤儿规则)。
+  { path: 'src/styles/theme.css',
+    find: "/* SP14 #98: matches the amber gradient baked into knowledge.svg's own <linearGradient>\n   (#D97706 -> #FBBF24) -- same brand-identity exception as the rest of this block. */\n.ic-knowledge { background: linear-gradient(145deg, #fbbf24, #d97706 65%, #b45309); }\n",
     replace: "" },
   { path: 'src/styles/theme.css',
     find: ".ic-search   { background: linear-gradient(145deg, #c4b5fd, #8b5cf6 60%, #6d28d9); }\n",
@@ -2161,8 +2219,11 @@ describe('AppToast —— AI 区 toast 作用域', () => {
   // ── src/home/composables/useOpenAction.test.ts:T5 新加的 AI cutover 整块 ──
   //    上面 T13 / 修复波两节已有 11 条锚点打在本文件上(实测均未受本次合流影响,
   //    仍 hits=1)。这里补 T5(c547c9d)追加的两处:beforeEach 里的 /ai flag 清理,
-  //    与文件末尾那个 7 条用例的 describe(测 openApp('ai') / widget 小组件 / sendToAI,
+  //    与文件末尾那个 describe(测 openApp('ai') / widget 小组件 / sendToAI,
   //    三者在开源版都已由上面的产品码补丁摘掉)。
+  //    SP14 T9(commit d4d3771)重抓:describe 内部中间插了一条 knowledge 用例(现共 8 条),
+  //    原 7-用例锚点因此 hits=0。knowledge 与 ai 同属被摘掉的产品码分支,replace 仍是
+  //    整块清空,find 只是照现场文本扩到 8 条,不需要单独处理 knowledge 那一条。
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  localStorage.removeItem('strangler:disabled:/ai')\n", replace: '' },
   { path: 'src/home/composables/useOpenAction.test.ts',
@@ -2209,6 +2270,13 @@ describe('AI 区 cutover(SP8-P6)', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('   ')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
+  })
+
+  it('knowledge 磁贴走应用内路由 /ai/knowledge(SP14 #98,无回退目标)', () => {
+    const { openApp } = useOpenAction()
+    openApp('knowledge')
+    expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
+    expect(hrefs.length).toBe(0)
   })
 
   it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {

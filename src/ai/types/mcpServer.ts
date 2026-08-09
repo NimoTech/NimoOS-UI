@@ -93,5 +93,10 @@ export interface McpServerFormPayload {
  *  不直接碰 `McpTestResult`——保证界面永远拿到的是 i18n 键而不是后端原文
  *  (公共约束「界面永不回显后端原文」)。 */
 export type McpTestView =
-  | { ok: true; toolCount: number; tools: string[] }
+  | {
+      ok: true; toolCount: number; tools: string[]
+      // #141: the protocol negotiation result from the backend's 200 body. Older
+      // backends omit these three fields entirely — normalized to '' / [].
+      protocolEra: string; protocolVersion: string; supportedVersions: string[]
+    }
   | { ok: false; msgKey: string; detail: string }
