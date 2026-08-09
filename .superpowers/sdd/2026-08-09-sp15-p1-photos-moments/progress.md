@@ -178,3 +178,10 @@ Task 8: review — spec ✅, quality Approved, but one Important listed and ther
 Task 8: minor (deferred): PhotosMomentDetail.vue is now 638 lines and Tasks 9/10 add
   three more feature areas to the same file; extracting a grid subcomponent will
   likely be worth it after Task 10. Flag, do not act on it mid-plan.
+Task 8: fix round 1/5 (1 addressed, 0 open — lightbox entry-list scoping now
+  asserted with disjoint fixtures + specific mutation check; commits fbe99bc..021b759)
+Task 8: complete (commits b3d0ad9..021b759, review clean; detail page 32, styles 1075,
+  oss 448 on a clean tree, TZ=America/New_York re-verified)
+CONTROLLER NOTE: the OSS gate asserts a clean working tree, so an uncommitted ledger
+  makes it report 445/448. Commit the ledger before running that gate; do NOT stash
+  around it.
