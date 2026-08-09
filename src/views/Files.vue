@@ -538,14 +538,22 @@ function onMarqueeMove(e: MouseEvent) {
   marquee.value = { x1: downX, y1: downY, x2: e.clientX, y2: e.clientY }
   collectSelection()
 }
+// Teardown is reachable from two directions: the drag ending normally
+// (onMarqueeUp) and the view going away underneath an unfinished drag. Only
+// the first one used to exist, which left `selectstart` cancelled on document
+// for the rest of the session -- the whole page became unselectable and only
+// a reload brought it back.
+function teardownMarquee() {
+  window.removeEventListener('mousemove', onMarqueeMove)
+  window.removeEventListener('mouseup', onMarqueeUp)
+  document.removeEventListener('selectstart', preventSelectStart)
+}
 function onMarqueeUp() {
   const wasDragging = dragging
   armed = false
   dragging = false
   marquee.value = null
-  window.removeEventListener('mousemove', onMarqueeMove)
-  window.removeEventListener('mouseup', onMarqueeUp)
-  document.removeEventListener('selectstart', preventSelectStart)
+  teardownMarquee()
   if (wasDragging) {
     // 吞掉拖拽后紧跟的那次 click(否则起拖的行/卡会触发 进目录/选中);仅此一次,下一 tick 撤除。
     const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }
@@ -553,6 +561,11 @@ function onMarqueeUp() {
     setTimeout(() => window.removeEventListener('click', swallow, true), 0)
   }
 }
+onUnmounted(() => {
+  armed = false
+  dragging = false
+  teardownMarquee()
+})
 
 onMounted(async () => {
   await files.loadRoots()
@@ -609,6 +622,7 @@ onMounted(() => { browse.ensureVolumes() })
       <FilesSidebar @navigate="goVirtual" @ctx-action="onFavoriteCtxAction" />
       <div
         class="files-main"
+        data-marquee-surface
         @mousedown="onMarqueeDown"
         @dragover.prevent="onDragOver"
         @dragleave="onDragLeave"
