@@ -241,3 +241,51 @@ describe('KVM 全屏页的 toast 不占用控制台画面', () => {
     expect(override![1]).toContain(':has(')
   })
 })
+
+// SP16 Task 9:变体自带的 hover 背景必须赢过它继承的基类 hover 背景,否则指针一进去
+// 背景被整块换掉、文字色还是变体的 → 白底白字。基类 `.x:hover` 是 (0,2,0)、单类变体
+// 只有 (0,1,0),而 CSS 优先级高者胜**与书写顺序无关**。jsdom 既不级联也进不了 hover,
+// 只能自己算优先级(复用 photos 区那份纯函数,只读不改)。
+//
+// `.cv-btn-create` 不在列:全仓只有 kvm.css 里一句注释提到它(:2078),既没有 CSS 规则
+// 也没有模板引用 ⇒ 死类名。台账那份 6 个的清单把它算进去了,实际是 5 个。
+import { winningHoverBackground, hoverBackgroundRules } from '../../photos/components/__tests__/cssCascade'
+
+// ⚠️ 必须先剥注释:cssCascade 的 parseCssRules 把 `{` 之前的所有文本当选择器,而
+// kvm.css 里几乎每条规则上面都压着一大段中文注释 —— 不剥的话注释会被并进选择器、
+// 匹配全部落空,守卫会"因为找不到规则"而空转(它自己的 extractStyleBlock 在读 SFC 时
+// 也是先剥注释,这里读 .css 走的是 node:fs,得自己做同一步)。
+const cssNoComments = src.replace(/\/\*[\s\S]*?\*\//g, '')
+
+const BUTTONS: Array<{ classes: string[]; variant: string }> = [
+  { classes: ['cv-btn', 'cv-btn-restore'], variant: 'cv-btn-restore' },
+  { classes: ['cv-btn', 'cv-btn-delete'], variant: 'cv-btn-delete' },
+  { classes: ['cv-primary-btn'], variant: 'cv-primary-btn' },
+  // os-action-btn 的 hover 全部写在 `.os-action-btn.is-xxx:hover` 上,所以要带上变体类
+  // 才命中(匹配器要求选择器里的每个类都在 classes 内)。
+  { classes: ['os-action-btn', 'is-download'], variant: 'is-download' },
+  { classes: ['os-action-btn', 'is-selected'], variant: 'is-selected' },
+]
+
+describe('KVM 按钮的 hover 背景没有被基类压过', () => {
+  for (const b of BUTTONS) {
+    it(`.${b.variant} 的 hover 背景来自最具体的那条规则`, () => {
+      // 一条 hover 背景规则都找不到时 winningHoverBackground 会抛 —— 那也该红,
+      // 不能是"没找到 = 通过"。
+      const win = winningHoverBackground(cssNoComments, b.classes)
+      // 赢家必须提到变体自己的类名 —— 基类赢 = 变体的底被整块替换掉了。
+      expect(win.selector, `赢家是 ${win.selector}(优先级 ${win.specificity})`).toContain(b.variant)
+    })
+  }
+
+  // .category-btn 体检的结论是"不适用",单独记下来而不是塞进上面那张表:它的 hover
+  // (:1542 `.category-btn:hover:not(.active)`)**有意**只改 color 与 border-color,
+  // 一个 background 声明都没有 —— 没有背景被替换,就没有"白底白字"这个失效模式。
+  // 断言写成双向:hover 规则必须存在(否则是别的东西坏了,不能静默通过),而且**不能**
+  // 有任何命中它的 hover 背景规则。哪天有人给它(或它的基类)加了 hover 背景,这条会红,
+  // 逼着重新判断它是不是进了上面那张风险表。
+  it('.category-btn 不适用本检查:hover 有意只改文字与描边,没有背景可被替换', () => {
+    expect(src).toMatch(/\.category-btn:hover:not\(\.active\)\s*\{/) // 防空转
+    expect(hoverBackgroundRules(cssNoComments, ['category-btn'])).toEqual([])
+  })
+})
