@@ -1,6 +1,15 @@
-// SP15-P1-T5: the "Moments · For You" band at the top of the smart views page.
-// Target is Vue2 899af59b:PhotosSmartViewsView.vue:31-44 (mo-section) + :46 (sv-hero
-// picking up the sv-hero-secondary divider) + :455 (showMoments gating).
+// SP15-P1-T5: the "Moments · For You" section, now this page's whole content.
+// Target is Vue2 939a7d3a:PhotosSmartViewsView.vue:18-32 (mo-section + mo-hero + the gated
+// grid + the slim hint) and :455 (showMoments itself).
+//
+// ⚠ The target for THIS page is 939a7d3a, not the 899af59b these lines used to cite. That
+// citation was P1's target and predates the IA merge; at 899af59b the page still had its own
+// `sv-hero` above the Moments band, so gating the whole `.mo-section` on showMoments was
+// harmless there. SP15-P2b deleted that hero, which turned the same gate into "the page
+// renders nothing at all" on any device whose moments table is empty -- the everyday state.
+// Vue 2's target renders `.mo-section` and `.mo-hero` unconditionally (:18-19) and gates only
+// `.sv-grid.mo-grid` (:24), with the slim settings hint as the grid's `v-else-if` INSIDE the
+// section (:31). The cases below pin that shape, in both directions.
 //
 // Two mechanical deviations from the plan brief's literal test code, both logged:
 //
@@ -43,6 +52,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 const sortableCreate = vi.hoisted(() => vi.fn((..._args: unknown[]) => ({ destroy: vi.fn() })))
 vi.mock('sortablejs', () => ({ default: { create: sortableCreate } }))
 
+import zh from '../i18n/zh_cn'
 import PhotosSmartViews from './PhotosSmartViews.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -85,29 +95,35 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('band gating', () => {
-  it('renders nothing when there are no moments (the core semantics of Vue2 showMoments)', async () => {
+describe('grid gating', () => {
+  it('keeps the section and its hero, dropping only the grid, when there are no moments', async () => {
     const { w } = await mountPage()
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+    // Vue2 :18-19 put no v-if on either -- gating them here left the page blank on every
+    // device with an empty moments table (the everyday state, see this file's header).
+    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
+    expect(w.find('.mo-hero h1').exists()).toBe(true)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
   })
 
-  it('renders the band when moments exist, with title/description from i18n', async () => {
+  it('renders the grid when moments exist, with title/description from i18n', async () => {
     const { w } = await mountPage()
     const s = usePhotosMoments()
     s.moments = [makeMoment()]
     await nextTick()
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(true)
     expect(w.text()).toContain('时刻 · 为你推荐')
   })
 
-  it('hides the band when aiFeatures.smartview is false, even with moments present', async () => {
+  it('hides the grid when aiFeatures.smartview is false, even with moments present', async () => {
     const { w } = await mountPage()
     const s = usePhotosMoments()
     s.moments = [makeMoment()]
     const settings = usePhotosSettingsStore()
     settings.aiFeatures.smartview = false
     await nextTick()
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
+    // The hero survives the switch being off -- only the grid answers to it.
+    expect(w.find('.mo-hero h1').exists()).toBe(true)
   })
 
   it('treats a missing aiFeatures.smartview field as enabled (no scary default)', async () => {
@@ -115,7 +131,7 @@ describe('band gating', () => {
     const s = usePhotosMoments()
     s.moments = [makeMoment()]
     await nextTick()
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(true)
   })
 })
 
@@ -265,21 +281,34 @@ describe('SP15-P2b: smart-view list responsibilities are gone from this page', (
     expect(svc.photos.listSmartViews).not.toHaveBeenCalled()
   })
 
-  it('shows the slim settings hint instead of the band when smart views are off, even with moments present', async () => {
+  it('shows the hero plus the slim settings hint instead of the grid when smart views are off', async () => {
     const { w } = await mountPage()
     const s = usePhotosMoments()
     s.moments = [makeMoment()]
     const settings = usePhotosSettingsStore()
     settings.aiFeatures.smartview = false
     await nextTick()
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
-    expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(true)
+    // Vue2 :31 keeps the hint inside .mo-section, as the grid's v-else-if -- so the heading
+    // stays on screen and the hint explains why there are no cards under it.
+    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
+    expect(w.find('.mo-hero h1').exists()).toBe(true)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
+    const hint = w.find('[data-test="mo-off-hint"]')
+    expect(hint.exists()).toBe(true)
+    expect(w.find('[data-test="mo-section"]').element.contains(hint.element)).toBe(true)
   })
 
-  it('shows neither the band nor the hint when there are simply no moments (the everyday real-device state)', async () => {
+  it('shows the hero on its own — no grid, no hint — when there are simply no moments (the everyday real-device state)', async () => {
     const { w } = await mountPage()
     // No moments fixture set — mountPage's mocked listMoments() already resolved to [].
-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+    // This is the state the acceptance device is in, and it must not be a blank page: the
+    // hero is what tells the user which page they are on and what it is for.
+    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
+    const h1 = w.find('.mo-hero h1')
+    expect(h1.exists()).toBe(true)
+    expect(h1.text()).toBe(zh.photosMoHeroTitle)
+    expect(w.find('.mo-hero p').text()).toBe(zh.photosMoHeroDesc)
+    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
     expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(false)
   })
 })

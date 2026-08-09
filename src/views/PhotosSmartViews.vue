@@ -15,10 +15,14 @@
 //
 // This task's scope (brief structural spec items 1-9, now narrowed):
 //  1) Shell (AreaShell/PhotosSidebar/.photos-main, unchanged)
-//  2) Moments · For You band -- gated by showMoments, the page's sole content
-//  3) Slim settings hint (v-else-if="aiSmartViewOff"): with the band hidden the page would
-//     be nearly blank, so a one-line pointer to Settings replaces the old full AI banner
-//     (the banner moved to the Albums page along with the smart-view grid).
+//  2) Moments · For You section -- the page's sole content. The section and its hero render
+//     UNCONDITIONALLY (Vue2 939a7d3a:PhotosSmartViewsView.vue:18-23 puts no v-if on either);
+//     only the card grid is gated by showMoments (Vue2 :24). Getting this wrong makes the
+//     whole page blank on a device with zero moments -- see the deviation registry note 5.
+//  3) Slim settings hint (v-else-if="aiSmartViewOff", Vue2 :31, a sibling of the grid INSIDE
+//     the section): with the grid hidden the page would otherwise be just a heading, so a
+//     one-line pointer to Settings replaces the old full AI banner (the banner moved to the
+//     Albums page along with the smart-view grid).
 //
 // Deviation registry:
 //  1) [P8a-T6 already wired, historical record] Vue 2 :15's original banner link was
@@ -35,6 +39,12 @@
 //     Vue 2's Moments band has no such guard and does open it; the album grid's guard is
 //     copied here instead. Full rationale, including why Sortable's own `ignoreNextClick`
 //     does not cover the reordering case, sits above `onMomentOpen` below.
+//  5) [SP15-P2b final fix wave] Not a deviation, a corrected port: this file used to gate the
+//     whole `.mo-section` (hero included) on showMoments, carried over from P1 when the page
+//     still had its own `sv-hero` above it -- harmless then, a completely blank page once this
+//     phase deleted that hero, which is exactly the state the acceptance device is in
+//     (moments table = 0 rows). Vue 2's target renders section + hero unconditionally and
+//     gates only the grid; the gate now sits where Vue 2 has it.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -59,11 +69,12 @@ const toast = useToast()
 // this line only consumes it.
 const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
-// SP15-P1-T5(Vue2 899af59b:PhotosSmartViewsView.vue:455) —— the Moments band is hidden
-// outright when there are no moments, and follows the same aiFeatures.smartview switch as
-// the settings hint below (reusing aiSmartViewOff, not a second computed). **On real devices
-// the moments table is 0 rows for now (see spec §2), so "opening the page and not seeing
-// this band" is expected, not a bug.**
+// SP15-P1-T5(Vue2 939a7d3a:PhotosSmartViewsView.vue:24 + :455) —— the Moments **grid** is
+// hidden outright when there are no moments, and follows the same aiFeatures.smartview switch
+// as the settings hint below (reusing aiSmartViewOff, not a second computed). It gates the
+// grid only: the section and its hero render unconditionally, exactly as Vue 2 :18-23 does.
+// **On real devices the moments table is 0 rows for now (see spec §2), so "opening the page
+// and seeing the heading with no cards under it" is expected, not a bug.**
 const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
 const moGrid = ref<HTMLElement | null>(null)
 
@@ -136,15 +147,18 @@ onMounted(() => {
     <div class="photos-layout">
       <PhotosSidebar />
       <main class="photos-main">
-        <!-- ── Moments · For You (Vue2 899af59b :31-44) -- now this page's sole content ── -->
-        <div v-if="showMoments" class="mo-section" data-test="mo-section">
+        <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
+             The section and the hero carry NO v-if, matching Vue2 :18-19: this page has no
+             other heading since the smart-view hero moved to Albums, so gating them would
+             leave a device with zero moments looking at an empty page. ── -->
+        <div class="mo-section" data-test="mo-section">
           <div class="mo-hero">
             <div>
               <h1>{{ t('photosMoHeroTitle') }}</h1>
               <p>{{ t('photosMoHeroDesc') }}</p>
             </div>
           </div>
-          <div ref="moGrid" class="sv-grid mo-grid">
+          <div v-if="showMoments" ref="moGrid" class="sv-grid mo-grid" data-test="mo-grid">
             <!--
               The `??` fallbacks below can never actually fire: sizeMap (moments.ts) is a
               computed derived from this same `moments.moments` list via assignMomentSizes,
@@ -162,17 +176,18 @@ onMounted(() => {
               @open="onMomentOpen"
             />
           </div>
-        </div>
 
-        <!-- Vue2 :26-31: with the band hidden this page is nearly blank, so a one-line
-             pointer to Settings replaces it. The full stop-updates banner moved to the
-             Albums page along with the smart albums; it is not duplicated here. -->
-        <div v-else-if="aiSmartViewOff" class="mo-off-hint" data-test="mo-off-hint">
-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
-          <span>
-            {{ t('photosMoFollowsSmartViewSetting') }}
-            <RouterLink class="mo-off-hint-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
-          </span>
+          <!-- Vue2 :31 — a sibling of the grid, inside .mo-section: with the grid hidden the
+               page would be just a heading, so a one-line pointer to Settings takes its place.
+               The full stop-updates banner moved to the Albums page along with the smart
+               albums; it is not duplicated here. -->
+          <div v-else-if="aiSmartViewOff" class="mo-off-hint" data-test="mo-off-hint">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            <span>
+              {{ t('photosMoFollowsSmartViewSetting') }}
+              <RouterLink class="mo-off-hint-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
+            </span>
+          </div>
         </div>
       </main>
     </div>
@@ -230,14 +245,19 @@ onMounted(() => {
 
 /* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
    the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
-   [data-tone="warn"]). */
+   [data-tone="warn"]).
+   SP15-P2b final fix wave: geometry now matches Vue2's own slim hint (939a7d3a:
+   PhotosSmartViewsView.vue:31 inline style -- padding:12px 14px, no margin, centred) instead
+   of the deleted full banner's (24px/32px margin, 14px/16px padding, flex-start). The hint is
+   one line of text, so it never needed the banner's icon-above-two-lines alignment, and the
+   32px side margin indented it past everything else on the page. Token family unchanged. */
 .mo-off-hint {
-  margin: 24px 32px 20px; padding: 14px 16px;
+  padding: 12px 14px;
   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
-  display: flex; gap: 10px; align-items: flex-start;
-  color: var(--dem-fg); font-size: 12.5px; line-height: 1.5;
+  display: flex; gap: 8px; align-items: center;
+  color: var(--dem-fg); font-size: 12.5px; line-height: 1.4;
 }
-.mo-off-hint svg { flex-shrink: 0; margin-top: 1px; }
+.mo-off-hint svg { flex-shrink: 0; }
 .mo-off-hint-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
 
 /* ≤768px:侧栏已收抽屉,布局单列 */
