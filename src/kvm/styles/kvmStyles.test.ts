@@ -245,11 +245,11 @@ describe('KVM 全屏页的 toast 不占用控制台画面', () => {
 // SP16 Task 9:变体自带的 hover 背景必须赢过它继承的基类 hover 背景,否则指针一进去
 // 背景被整块换掉、文字色还是变体的 → 白底白字。基类 `.x:hover` 是 (0,2,0)、单类变体
 // 只有 (0,1,0),而 CSS 优先级高者胜**与书写顺序无关**。jsdom 既不级联也进不了 hover,
-// 只能自己算优先级(复用 photos 区那份纯函数,只读不改)。
+// 只能自己算优先级(复用 src/styles/__tests__ 下那份纯函数)。
 //
 // `.cv-btn-create` 不在列:全仓只有 kvm.css 里一句注释提到它(:2078),既没有 CSS 规则
 // 也没有模板引用 ⇒ 死类名。台账那份 6 个的清单把它算进去了,实际是 5 个。
-import { winningHoverBackground, hoverBackgroundRules } from '../../photos/components/__tests__/cssCascade'
+import { winningHoverBackground, hoverBackgroundRules } from '../../styles/__tests__/cssCascade'
 
 // ⚠️ 必须先剥注释:cssCascade 的 parseCssRules 把 `{` 之前的所有文本当选择器,而
 // kvm.css 里几乎每条规则上面都压着一大段中文注释 —— 不剥的话注释会被并进选择器、

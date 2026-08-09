@@ -18,7 +18,7 @@ import zhSp9 from './zh_cn.sp9'
 import enSp9 from './en_us.sp9'
 
 // 与运行时逐字一致:index.ts:9 装进 createI18n 的就是这两个合并结果。
-// (zh_cn.ts 自己已经把 base/photos/ai 三块并好了,sp9 那片是另一套装配路径,得单独并。)
+// (zh_cn.ts 这个出口自己已经把它那几块并好了;sp9 那片走的是另一套装配路径,得单独并。)
 const zh: Record<string, unknown> = { ...zhBase, ...zhSp9 }
 const en: Record<string, unknown> = { ...enBase, ...enSp9 }
 
@@ -69,8 +69,11 @@ describe("t() 引用的 i18n 键在两侧语料里都存在", () => {
 
     // 第二道防空转:正则哪天被改坏(或剥注释剥过了头)会让 checked 掉到 0,
     // 那时 missing 也是空的、测试照样绿 —— 这个下限让"什么都没检查"变成红。
-    // 2026-08-09 实测约 4600 次引用,下限取一个宽松的量级,不会因正常增删而误红。
-    expect(checked, '一个 t() 字面量都没扫到,守卫在空转').toBeGreaterThan(2000)
+    // 2026-08-09 实测:本仓 3207 次引用。下限要同时兼顾**开源产物树** —— 它剥掉了
+    // 两个功能区,只剩约 1570 次(实测),所以门槛不能按本仓的量级定,否则守卫在产物树
+    // 里会因为"少了两个区"而误红。取 800 这个量级:足以抓住"正则坏了→一条都没扫到",
+    // 又不会因为正常增删或剥离而碰到。
+    expect(checked, '一个 t() 字面量都没扫到,守卫在空转').toBeGreaterThan(800)
 
     expect(missing, `\n发现 t() 引用了不存在的键:\n${missing.join('\n')}`).toEqual([])
   })
