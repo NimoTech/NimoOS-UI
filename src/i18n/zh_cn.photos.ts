@@ -947,4 +947,21 @@ export default {
   // translation, this repo's existing generic "loading" ellipsis.
   photosMoLoading: '加载中…',
   photosMoNoPhotosYet: '这个时刻还没有照片。',
+  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // Every string below is Vue 2's own zh_CN copy, taken verbatim from
+  // 899af59b:src/assets/lang/zh_CN.json (:2019/:2020/:2021/:2033/:2045/:2242/:2243 and
+  // "Add failed" at :1598) — not retranslated here.
+  // The picker's *title* deliberately gets no new key: Vue 2 feeds the very same
+  // 'Add photos to {name}' string to the album picker and to the moment picker
+  // (899af59b:PhotosMomentDetail.vue:144), and this repo already has it as
+  // photosAlbumPickerTitle. Reusing it is what reproduces Vue 2 exactly; a second key holding
+  // the identical sentence would not.
+  photosMoAddPhotos: '添加照片',
+  photosMoAlreadyIn: '已在此时刻中',
+  photosMoAddSelected: '添加所选',
+  photosMoAddedN: '已添加 {n} 张到此时刻',
+  photosMoAddFailed: '添加失败',
+  photosMoRemoveFromMoment: '从此时刻中移除',
+  photosMoRemovedN: '已从此时刻移除 {n} 张',
+  photosMoRemoveFailed: '移除失败',
 }

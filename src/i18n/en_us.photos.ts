@@ -940,4 +940,15 @@ export default {
   // translation, this repo's existing generic "loading" ellipsis.
   photosMoLoading: 'Loading…',
   photosMoNoPhotosYet: "This moment doesn't have photos yet.",
+  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // Vue 2's own en_US strings (899af59b:src/assets/lang/en_US.json). The picker's title
+  // deliberately gets no new key — see the note in zh_cn.photos.ts.
+  photosMoAddPhotos: 'Add photos',
+  photosMoAlreadyIn: 'Already in this moment',
+  photosMoAddSelected: 'Add selected',
+  photosMoAddedN: 'Added {n} to this moment',
+  photosMoAddFailed: 'Add failed',
+  photosMoRemoveFromMoment: 'Remove from this moment',
+  photosMoRemovedN: 'Removed {n} from this moment',
+  photosMoRemoveFailed: 'Remove failed',
 }

@@ -20,6 +20,13 @@ const svc = vi.hoisted(() => ({
     thumbnailUrl: vi.fn((id: string, size: string) => `mock://${id}/${size}`),
     listMoments: vi.fn(async (): Promise<unknown> => []),
     getMomentAssets: vi.fn(async (_id?: string, _featured?: boolean, _withMembers?: boolean): Promise<unknown> => []),
+    // SP15-P1-T9: the write endpoints behind store.pin / store.exclude, plus the timeline the
+    // library picker loads when it opens. Mocked at the service boundary rather than by
+    // replacing the store methods, so the count that comes back really does travel
+    // response → store → both views.
+    pinMomentAssets: vi.fn(async (): Promise<unknown> => ({})),
+    excludeMomentAssets: vi.fn(async (): Promise<unknown> => ({})),
+    getTimeline: vi.fn(async (): Promise<unknown> => []),
     // PhotosSidebar is part of this page's shell and reads the photos config on mount. Without
     // this stub the settings store's fetchAiFeatures catches a TypeError and console.errors on
     // every single mount, which buries any real failure in the test output.
@@ -39,7 +46,10 @@ const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
 vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosMomentDetail from './PhotosMomentDetail.vue'
+import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
+import { useToast } from '../stores/toast'
+import zh from '../i18n/zh_cn'
 
 const RAW = {
   id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
@@ -95,6 +105,9 @@ beforeEach(() => {
   svc.photos.listMoments.mockResolvedValue([])
   svc.photos.getMomentAssets.mockResolvedValue([])
   svc.photos.getConfig.mockResolvedValue({})
+  svc.photos.pinMomentAssets.mockResolvedValue({})
+  svc.photos.excludeMomentAssets.mockResolvedValue({})
+  svc.photos.getTimeline.mockResolvedValue([])
 })
 
 describe('cold deep link (a New-UI-only path — the backend has no GET /moments/:id)', () => {
@@ -497,5 +510,178 @@ describe('the two photo grids', () => {
 
     await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter again, nothing picked
     expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+  })
+})
+
+// SP15-P1-T9: adding photos to the moment (pin) and removing them from it (exclude).
+// Ported from Vue2 899af59b:PhotosMomentDetail.vue :26-28 + :122-125 + :143-151 (template) and
+// :340-381 (onPickPhotos / removeSelected).
+//
+// The write endpoints are mocked at the service boundary rather than by replacing store.pin /
+// store.exclude, so the asset_count in the response really does travel response → store → the
+// page's header and Stats — with the store method stubbed out, "the count changed" would only be
+// re-stating the stub. store.pin/exclude are still spied on (call-through) for their arguments.
+describe('adding and removing photos', () => {
+  function mockAssets(all: unknown[], featured: unknown[] = []) {
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) =>
+      f ? { assets: featured, members: [], places: [] } : all)
+  }
+
+  it('the Add photos button opens the library picker with the moment\'s own photos marked as already in', async () => {
+    mockAssets([{ id: 'a1' }, { id: 'a2' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    const picker = w.findComponent(AlbumLibraryPicker)
+    expect(picker.props('open')).toBe(false)
+
+    await w.find('[data-test="mo-add-photos"]').trigger('click')
+    expect(picker.props('open')).toBe(true)
+    // Already-in comes from the full member list, String()-normalised (Vue2 :202 memberIds).
+    expect([...(picker.props('existingIds') as Set<string>)].sort()).toEqual(['a1', 'a2'])
+  })
+
+  it('the Add photos button is disabled while the all-photos list is still loading', async () => {
+    let release: () => void = () => {}
+    const gate = new Promise<void>((r) => { release = r })
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) => {
+      if (f) return { assets: [], members: [], places: [] }
+      await gate
+      return []
+    })
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    expect(w.find<HTMLButtonElement>('[data-test="mo-add-photos"]').element.disabled).toBe(true)
+    release()
+    await flushPromises()
+    expect(w.find<HTMLButtonElement>('[data-test="mo-add-photos"]').element.disabled).toBe(false)
+  })
+
+  it('adding: pins the picked ids, adopts the count from the response, reloads both grids, closes the picker and confirms with a toast', async () => {
+    mockAssets([])
+    svc.photos.pinMomentAssets.mockResolvedValue({ asset_count: 44 })
+    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
+    const pin = vi.spyOn(s, 'pin')
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountDetail('m1', 'zh_cn')
+
+    await w.find('[data-test="mo-add-photos"]').trigger('click')
+    svc.photos.getMomentAssets.mockClear()
+    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x', 'y'])
+    await flushPromises()
+
+    expect(pin).toHaveBeenCalledWith('m1', ['x', 'y'])
+    expect(svc.photos.pinMomentAssets).toHaveBeenCalledWith('m1', ['x', 'y'])
+    // The list entry and the detail page are the same object — no hand-mirroring (store item 1).
+    expect(s.byId('m1')?.assetCount).toBe(44)
+    expect(w.find('[data-test="mo-stat-photos"]').text()).toBe('44')
+    // Both grids reload afterwards (featured + all = two requests).
+    expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
+    expect(show).toHaveBeenCalledWith(expect.stringContaining('已添加'))
+    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
+  })
+
+  it('adding: a failed pin leaves the count untouched, says so in the danger tier and keeps the picker open to retry', async () => {
+    const err = muteConsoleError()
+    mockAssets([])
+    svc.photos.pinMomentAssets.mockRejectedValue(new Error('nope'))
+    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountDetail('m1', 'zh_cn')
+
+    await w.find('[data-test="mo-add-photos"]').trigger('click')
+    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x'])
+    await flushPromises()
+
+    expect(s.byId('m1')?.assetCount).toBe(42)
+    expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
+    // The panel stays up with the user's selection still in it (same contract as the album pages).
+    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(true)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('removing: excludes the selection, adopts the count from the response, leaves selection mode and reloads the grids', async () => {
+    mockAssets([{ id: 'a1' }])
+    svc.photos.excludeMomentAssets.mockResolvedValue({ asset_count: 41 })
+    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
+    const exclude = vi.spyOn(s, 'exclude')
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountDetail('m1', 'zh_cn')
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    await w.find('[data-test="mo-all-tile"]').trigger('click')
+    svc.photos.getMomentAssets.mockClear()
+    await w.find('[data-test="mo-remove-selected"]').trigger('click')
+    await flushPromises()
+
+    expect(exclude).toHaveBeenCalledWith('m1', ['a1'])
+    expect(s.byId('m1')?.assetCount).toBe(41)
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+    expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
+    expect(show).toHaveBeenCalledWith(expect.stringContaining('已从此时刻移除'))
+
+    // Selection mode is really off, not merely hiding a bar that still holds a1: re-entering
+    // shows no bar (the same distinction the T8 case above had to make).
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+  })
+
+  it('removing: a failed exclude keeps selection mode and the selection itself, so the user can retry', async () => {
+    const err = muteConsoleError()
+    mockAssets([{ id: 'a1' }])
+    svc.photos.excludeMomentAssets.mockRejectedValue(new Error('nope'))
+    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountDetail('m1', 'zh_cn')
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    await w.find('[data-test="mo-all-tile"]').trigger('click')
+    await w.find('[data-test="mo-remove-selected"]').trigger('click')
+    await flushPromises()
+
+    expect(s.byId('m1')?.assetCount).toBe(42)
+    expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
+    // Vue2 :386-387 clears the selection in the success branch only — deliberately, so a failed
+    // removal leaves the user the selection they were working with.
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
+    // …and pressing it again really does resend, rather than being wedged in a busy state.
+    await w.find('[data-test="mo-remove-selected"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.excludeMomentAssets).toHaveBeenCalledTimes(2)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('an empty selection cannot fire a removal — the whole bar is absent with nothing picked', async () => {
+    mockAssets([{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+    expect(w.find('[data-test="mo-remove-selected"]').exists()).toBe(false)
+    expect(svc.photos.excludeMomentAssets).not.toHaveBeenCalled()
+  })
+
+  // The removal button's own label and the picker's strings come from this task's new keys; a
+  // missing key would render the key name itself, which no other assertion here would catch.
+  it('renders Vue 2\'s own wording for the two new controls', async () => {
+    mockAssets([{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+
+    expect(w.find('[data-test="mo-add-photos"]').text()).toBe(zh.photosMoAddPhotos)
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    await w.find('[data-test="mo-all-tile"]').trigger('click')
+    expect(w.find('[data-test="mo-remove-selected"]').text()).toBe(zh.photosMoRemoveFromMoment)
+
+    await w.find('[data-test="mo-add-photos"]').trigger('click')
+    const picker = w.findComponent(AlbumLibraryPicker)
+    expect(picker.props('existingLabel')).toBe(zh.photosMoAlreadyIn)
+    expect(picker.props('submitLabel')).toBe(zh.photosMoAddSelected)
+    expect(picker.props('title')).toContain('Bozeman')
   })
 })

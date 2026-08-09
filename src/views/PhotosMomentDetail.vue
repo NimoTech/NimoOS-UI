@@ -74,14 +74,32 @@
 //  9) The selection bar (Vue 2 :127-130) renders only the "{n} selected" count here. The
 //     "Remove from this moment" button beside it calls `excludeMomentAssets` — that request and
 //     its toast are Task 9's bulk-removal wiring, not added yet.
+//     [T9 update: the removal button is now there, and so is Add photos + the library picker.
+//     Save as Album / the more menu / the delete confirmation are still Task 10, so the
+//     document.mousedown listener stays deferred.]
+//
+// Task 9 (add / remove photos) added three more:
+// 13) Vue 2 keeps its own `momentAssetCount` copy and emits `asset-count-changed` up to the list
+//     view after every write (:346-349,:370-372). Here both views read the same store entry and
+//     store.pin/exclude write the response's asset_count straight into it (moments.ts:239-257),
+//     so there is nothing to mirror and no event to port.
+// 14) The library picker's *title* reuses `photosAlbumPickerTitle` instead of getting a moment-
+//     specific key. Vue 2 feeds one and the same 'Add photos to {name}' string to both pickers
+//     (:144), so reuse is what reproduces it — the key's album-flavoured name is history from
+//     when this repo only had the album caller (the component itself carries the same note).
+// 15) Vue 2's picker closes itself by awaiting the parent's confirm handler; Vue 3's emit cannot
+//     return that promise, so this page closes the picker on success and leaves it open on
+//     failure — the same two outcomes the user saw before. See AlbumLibraryPicker.vue's header.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
 import { useLightbox } from '../photos/lightbox/useLightbox'
+import { useToast } from '../stores/toast'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const route = useRoute()
@@ -89,6 +107,7 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const store = usePhotosMoments()
 const lightbox = useLightbox()
+const toast = useToast()
 
 /** The placeholder every empty key/value cell falls back to (Vue 2 used this same em dash
  *  literal inline in five places). */
@@ -292,6 +311,62 @@ function onTileClick(p: Photo, list: Photo[]): void {
   if (selecting.value) toggleSelect(String(p.id))
   else lightbox.openAt(p, list)
 }
+
+// ── SP15-P1-T9: add photos (pin) / remove photos (exclude) ────────────────────────────────
+// Ported from Vue2 :340-381. The two store calls throw where Vue 2's swallowed and toasted
+// internally (moments.ts file-header item 4), so the user-facing half lives here.
+const pickerOpen = ref(false)
+const pinning = ref(false)
+
+// Vue2 :202 memberIds — "already in" for the picker is the moment's full member list, which is
+// exactly what the All photos grid holds. String()-normalised because Photo.id is
+// `string | number` and the picker compares against String(timelinePhoto.id).
+const memberIds = computed(() => new Set(allAssets.value.map((p) => String(p.id))))
+
+async function onPickPhotos(ids: Array<string | number>): Promise<void> {
+  if (pinning.value) return
+  pinning.value = true
+  const assetIds = ids.map((id) => String(id))
+  try {
+    await store.pin(momentId.value, assetIds)
+    toast.show(t('photosMoAddedN', { n: assetIds.length }))
+    // Success closes the panel; a failure leaves it up with the selection intact so the same
+    // picked photos can be resubmitted (deviation 15).
+    pickerOpen.value = false
+    await load()
+  } catch (e) {
+    console.error('[photos-moments] pin', e)
+    toast.show(t('photosMoAddFailed'), 2500, 'danger')
+  } finally {
+    pinning.value = false
+  }
+}
+
+// Re-entrance guard: Vue 2 has none (:361), and double-clicking the button there fires two
+// concurrent excludes for the same ids. Not copied — this repo already made the same correction
+// on PhotosAlbumDetail.vue's `removing` flag (its review finding "Minor 6"), and the port
+// discipline is "the interface 1:1, the logic correct".
+const removing = ref(false)
+
+async function removeSelected(): Promise<void> {
+  const ids = selectedIds.value.slice()
+  if (!ids.length || removing.value) return
+  removing.value = true
+  try {
+    await store.exclude(momentId.value, ids)
+    toast.show(t('photosMoRemovedN', { n: ids.length }))
+    // Cleared on success only — Vue2 :386-387 does the same, and it matters: after a failure the
+    // user still has their selection and can press the button again.
+    selecting.value = false
+    selectedIds.value = []
+    await load()
+  } catch (e) {
+    console.error('[photos-moments] exclude', e)
+    toast.show(t('photosMoRemoveFailed'), 2500, 'danger')
+  } finally {
+    removing.value = false
+  }
+}
 </script>
 
 <template>
@@ -365,6 +440,17 @@ function onTileClick(p: Photo, list: Photo[]): void {
                   </div>
                 </div>
                 <div class="sv-actions">
+                  <!-- Add photos (Vue 2 :26-28), disabled while the all-photos request is still
+                       in flight exactly as there — the picker's "already in" set is derived from
+                       that response, and opening early would offer photos the moment already
+                       has. -->
+                  <button
+                    type="button" class="sv-action-btn" data-test="mo-add-photos"
+                    :disabled="allLoading" @click="pickerOpen = true"
+                  >
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                    {{ t('photosMoAddPhotos') }}
+                  </button>
                   <!-- Text reuses photosPersonSelect/photosCancel verbatim (same wording as
                        Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a
                        fresh pair of keys for the same two words (deviation 7). -->
@@ -482,12 +568,29 @@ function onTileClick(p: Photo, list: Photo[]): void {
             </aside>
           </div>
 
-          <!-- Selection bar (Vue 2 :127-130). This task owns the visible count and the state
-               it reads; the "Remove from this moment" button that sits beside it is Task 9's
-               bulk-removal wiring, not added yet (deviation 9). -->
+          <!-- Selection bar (Vue 2 :122-125): the count plus the removal button. The bar as a
+               whole is absent with nothing selected, which is also why the button can never fire
+               an empty request. -->
           <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="mo-select-bar">
             <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
+            <button
+              type="button" class="sv-action-btn" data-test="mo-remove-selected"
+              :disabled="removing" @click="removeSelected"
+            >{{ t('photosMoRemoveFromMoment') }}</button>
           </div>
+
+          <!-- Library picker (Vue 2 :143-151). Title reuses photosAlbumPickerTitle — Vue 2 feeds
+               the same string to both pickers (deviation 14). The component is shared with the
+               album pages and was generalised for this in T9's Step 0. -->
+          <AlbumLibraryPicker
+            v-model:open="pickerOpen"
+            :title="t('photosAlbumPickerTitle', { name: moment.title })"
+            :existing-ids="memberIds"
+            :existing-label="t('photosMoAlreadyIn')"
+            :submit-label="t('photosMoAddSelected')"
+            :submitting="pinning"
+            @confirm="onPickPhotos"
+          />
         </template>
       </main>
     </div>
