@@ -451,8 +451,128 @@ pnpm exec vue-tsc --noEmit                                                      
 
 ### Concerns going into round 3
 
-- The `.vm.$emit()` non-propagation behavior documented under N1 is empirical, not something I
-  traced to a root cause in Vue's source. If a future test elsewhere in this codebase relies on
-  the same technique to verify parent-child wiring, it may be silently non-functional the same
-  way this one was — worth a broader grep if that pattern shows up again.
+**CORRECTION (fix-round-3, M1): the paragraph above about `.vm.$emit()` not invoking the real
+parent listener is wrong and is retracted.** Round 3's re-review ran a minimal
+`defineComponent` parent/child repro (`child.vm.$emit('action')` against a plain `onAction`
+spy) and got exactly one call — the technique works fine in general. The actual root cause,
+confirmed by testing both `FileContextMenu` instances individually via
+`findAllComponents(FileContextMenu)` (which returns **two** matches in `Files.vue`'s tree):
+`all[1]` (the main listing's instance) responds to `.vm.$emit('action', 'paste', null)` with a
+real `service.batch.task` call; `all[0]` (FilesSidebar.vue's own instance, for the favourites
+list) does not, because `findComponent`/`findAll()` resolve to it first and its
+`onFavoriteAction` deliberately no-ops for a null entry. The event was never silently dropped
+by the test framework — it reached a real listener, just the wrong component's. This is the
+exact same root cause as the "two `.ctx-paste` DOM elements" issue found later in the same
+debugging session, not a second, independent bug. See the "Fix round 3" section below for the
+corrected permanent code comment. No broader grep for `.vm.$emit()` elsewhere in the codebase
+is warranted by this — the technique itself is not the problem.
+
 - No new limitations introduced by N1/N2/N3 beyond what round 1 already disclosed for F2.
+
+---
+
+## Fix round 3
+
+Re-review found N1/N2/N3 all ADDRESSED (reviewer re-ran both mutation directions on N1: whole
+file, 1 failed/25 passed → reverted, 26 passed). This round's re-review used live probes
+against the actual `mount(Files)` tree rather than static reading, and surfaced one Important
+finding that falsifies round 2's own stated root cause (M1), one Important finding that
+undoes half of F2's original fix (M2), and one Minor (M3). Commit: `637c345` — "fix(files):
+correct N1's root cause, interpolate partial-failure reason".
+
+### M1 — round 2's root-cause diagnosis for N1 was wrong (Important — corrected above and in code)
+
+Addressed in full in the "CORRECTION" paragraph immediately above this section, and in the
+rewritten comment at `src/views/Files.test.ts:212-226` (the test itself did not need to
+change — the DOM-based fix from round 2 was already exercising the right code path via the
+`.files-listwrap`-sibling disambiguation; only the explanation of WHY the earlier
+`.vm.$emit()` draft failed was incorrect and needed correcting in the permanent comment, plus
+the equivalent paragraph in this report). No test changes were required for M1 itself.
+
+### M2 — the round-2 fix for N2 undid half of the original F2 fix
+
+**Root cause:** `errMsg(error, fallback)` picks the backend's `.message` over the fallback
+whenever one exists. Round 2's fix (`toast.show(errMsg(failures[0].error,
+t('filesPastePartialFailure')))`) used `filesPastePartialFailure` purely as errMsg's
+*fallback* argument — meaning it only ever appeared when the backend gave NO message at all.
+In the realistic case (a read-only mount genuinely returns "read-only filesystem"), the
+partial-failure toast showed **only** that raw backend text, with zero indication that half
+the paste had already landed. That made it byte-for-byte identical to the total-failure toast
+one line above it (`errMsg(failures[0].error, t('filesOpFailed'))` with the same error) —
+exactly the ambiguity F2 was introduced to eliminate in round 1. Compounding it: round 2's own
+new test pinned this as the expected behavior
+(`expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)`), so nothing would
+have caught the regression.
+
+**Fix:** `filesPastePartialFailure` now takes a `{reason}` placeholder in both locales:
+- zh: `部分粘贴失败,请检查目标目录` → `部分文件已粘贴,另一部分失败({reason}),请检查目标目录`
+- en: `Part of the paste failed — check the destination` →
+  `Part of the paste landed, the rest failed ({reason}) — check the destination`
+
+`useFileOps.ts`'s partial-failure branch now interpolates rather than replaces:
+`toast.show(t('filesPastePartialFailure', { reason: errMsg(failures[0].error,
+t('filesOpFailed')) }))`. The reason is still computed via `errMsg` (backend message if
+present, else the generic fallback text) — only the OUTER wrapping changed from "swap in
+errMsg's result for the whole toast" to "always keep the part-landed framing, drop the reason
+into it." This keeps the total-failure and partial-failure toasts distinguishable regardless
+of whether the backend supplies a message: the partial one always carries the "part landed"
+wording as a prefix/suffix around the same reason text the total-failure toast would show
+bare.
+
+**Tests changed:** the two round-2 tests that pinned the wrong (replace-not-interpolate)
+behavior were rewritten:
+- "paste keeps the 'part landed' framing while including the backend's own reason" (was:
+  "shows the backend's own reason when one batch submits and the other fails") — now asserts
+  `zh.filesPastePartialFailure.replace('{reason}', 'read-only filesystem')` was shown, AND
+  that the bare reason alone (`'read-only filesystem'`) was NOT shown (the previous, wrong
+  behavior).
+- "paste falls back to the generic reason inside the partial-failure template when the
+  backend gives no reason" (was: "falls back to the generic partial-failure message...") —
+  now asserts `zh.filesPastePartialFailure.replace('{reason}', zh.filesOpFailed)` (the
+  fallback text now appears INSIDE the template, not standing alone).
+
+**Mutation test (required):** reverted the interpolation back to a pure `errMsg`-replace call
+(`toast.show(errMsg(failures[0].error, t('filesPastePartialFailure')))`), then ran:
+```
+pnpm exec vitest run src/files/composables/useFileOps.test.ts
+```
+Result: **2 failed, 38 passed.** The two tests above failed as expected — one showed the bare
+`'read-only filesystem'` instead of the templated string; the other showed
+`部分文件已粘贴,另一部分失败(),请检查目标目录` (empty parens — `t()` called with no
+interpolation args left the literal `{reason}` placeholder resolving to nothing) instead of
+the fallback-filled template. Reverted the mutation:
+```
+pnpm exec vitest run src/files/composables/useFileOps.test.ts
+```
+Result: **40 passed** (at that point in the round, before M3's test was added; 41 passed
+after).
+
+### M3 — both-batches-fail only ever showed the first failure's reason (Minor, fixed)
+
+Judged worth fixing rather than just disclosing: the change was small and low-risk. When
+BOTH the overwrite and rename batches fail for genuinely different reasons (e.g. one hits a
+permissions error, the other a disk-space error), `failures[0].error` silently dropped the
+second one. Now collects every failure's message via `errMsg`, dedups with a `Set` (so the
+common case — both fail identically, e.g. the whole destination went read-only — still reads
+as one reason, not "X; X"), and joins the distinct ones with `; `. Added a test ("paste shows
+both reasons when the two batches fail differently") asserting the shown toast contains both
+`'permission denied'` and `'disk full'` when the two batches reject with different messages.
+The existing "both batches fail for the same reason" test (`'disk full'` / `'disk full'`)
+still passes unchanged, confirming the dedup path.
+
+### Test runs this round (all in foreground, per instructions)
+
+```
+pnpm exec vitest run src/files/composables/useFileOps.test.ts                     # 40 passed (pre-M3 test)
+pnpm exec vitest run src/files/composables/useFileOps.test.ts  # mutation: M2 reverted to replace # 2 failed / 38 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts  # reverted                          # 40 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts                     # 41 passed (M3 test added)
+pnpm exec vitest run src/files/composables/useFileOps.test.ts src/files/components/FileContextMenu.test.ts \
+  src/views/Files.test.ts src/i18n/ src/files/upload/pasteConflict.test.ts \
+  src/files/composables/useFileConflicts.test.ts                                  # 13 files / 319 passed
+pnpm exec vue-tsc --noEmit                                                        # clean, no output
+```
+
+### Commit
+
+`637c345` — "fix(files): correct N1's root cause, interpolate partial-failure reason"
