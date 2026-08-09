@@ -37,3 +37,5 @@ FINAL GATES (控制者复跑于修复轮之后,2026-08-09):
 - pnpm build: 成功(仅 chunk>500kB 的既有告警)
 - oss 导出: 一度红 —— 修复轮给 useOpenAction.ts 补注释又打断了 PATCH 锚点(T10 刚重锚过),已在 df3847c 修并把锚点拆细;现 6 文件/141 例全绿,导出树里 knowledge//ai/agent/sendToAI 零命中
 ⚠️ 我曾把这次 oss 红判成「工作树脏」,干净树复跑才证伪 —— 记一笔防复发
+Task 11: complete (commits 7e3f780 + 0868c0f 修复轮, review clean) —— McpInstallCard/ConfirmCard 接入 useConfirmResolve、删「更改」按钮与 aiChange 死键;PermissionRequestCard 按其 409=别处已决 的语义**刻意不动**,只补英文注释
+Task 11: 顺带把 detail 优先级(response.data.detail > e.message)提进 composable,三张新卡也一并受益
