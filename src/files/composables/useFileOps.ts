@@ -168,7 +168,14 @@ export function useFileOps() {
     if (!failures.length) {
       // Cancelling the conflict dialog (Esc) is "not now", not "throw away
       // what I copied" -- only clear when the user never hit cancel.
-      if (cancelledCount === 0) clipboard.clear()
+      //
+      // B7: clear() only if the LIVE clipboard is still the object `o` this
+      // call captured at the top -- `resolvePaste`'s await window (directory
+      // listing, possibly queued behind an in-flight upload conflict) is long
+      // enough for the user to copy/cut something else before this paste
+      // actually submits. Clearing unconditionally would wipe that NEW
+      // clipboard instead of the one this call was resolving.
+      if (cancelledCount === 0 && clipboard.operateObject === o) clipboard.clear()
       return
     }
     if (!succeeded) {

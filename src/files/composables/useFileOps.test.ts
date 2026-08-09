@@ -329,6 +329,29 @@ describe('useFileOps', () => {
     expect(batchTask).toHaveBeenCalledWith(expect.objectContaining({ to: '/DATA/dirA' }))
   })
 
+  // B7: same reentrancy window as F1 above, but on the clipboard instead of
+  // the destination path. `resolvePaste` awaits a directory listing (and
+  // possibly an in-flight upload's conflict chain) before this paste
+  // actually submits; during that window the user can copy/cut something
+  // else entirely. Unconditionally clearing on success would wipe that NEW
+  // clipboard content instead of the one this call was resolving.
+  it('does not clear a different clipboard that was set while this paste was still resolving conflicts', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockImplementation(async () => {
+      // Simulate the user copying something else while this paste's conflict
+      // check is still in flight.
+      clip.operate('copy', [{ path: '/DATA/new-copy.txt', is_dir: false }])
+      return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
+    })
+    const ops = makeOps()
+    await ops.paste()
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/new-copy.txt', is_dir: false }] })
+  })
+
   // fix-round-1 F2: when one batch's submission has already been accepted by
   // the backend and the other one fails, the failure toast must say so instead
   // of "operation failed" -- which would tell the user nothing landed when
