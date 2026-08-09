@@ -39,3 +39,7 @@ FINAL GATES (控制者复跑于修复轮之后,2026-08-09):
 ⚠️ 我曾把这次 oss 红判成「工作树脏」,干净树复跑才证伪 —— 记一笔防复发
 Task 11: complete (commits 7e3f780 + 0868c0f 修复轮, review clean) —— McpInstallCard/ConfirmCard 接入 useConfirmResolve、删「更改」按钮与 aiChange 死键;PermissionRequestCard 按其 409=别处已决 的语义**刻意不动**,只补英文注释
 Task 11: 顺带把 detail 优先级(response.data.detail > e.message)提进 composable,三张新卡也一并受益
+
+MERGE (2026-08-09): master(34 提交,SP12 Plan A+C)已合入本分支,合并提交见 git log;merge-tree 预演零冲突,实合也零冲突
+合并后五门:vitest 663 文件/10574 例(三次全量分别红 1/0/2 条且每次不同文件,单独跑全通过 ⇒ 负载相关偶发,基线上也有) · vue-tsc 0 错 · build 成功 · oss 141 例全绿(锚点未被合并推走)
+🔴 合并后 vue-tsc 一度报 master 侧 service.uploadBatches/UploadBatch 不存在 —— 是 pnpm 硬链接被合并的原子写打断(inode 实测不同),pnpm install 重链后即 0 错。Vitest 走 Vite 解析所以照样全绿,两者不矛盾
