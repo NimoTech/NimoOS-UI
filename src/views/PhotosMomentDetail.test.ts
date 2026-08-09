@@ -86,6 +86,10 @@ async function mountDetail(id = 'm1', locale: 'zh_cn' | 'en_us' = 'en_us') {
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
+      // T10: the save-as-album toast's "Open" action pushes here. vue-router 4 does not move
+      // `currentRoute` off an unmatched path (it stays put and warns "No match found"), so
+      // without this route the navigation assertion in that test would silently no-op.
+      { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },
     ],
   })
   await router.push('/photos/moments/' + id)
@@ -699,5 +703,160 @@ describe('adding and removing photos', () => {
     expect(picker.props('existingLabel')).toBe(zh.photosMoAlreadyIn)
     expect(picker.props('submitLabel')).toBe(zh.photosMoAddSelected)
     expect(picker.props('title')).toContain('Bozeman')
+  })
+})
+
+// SP15-P1-T10: exporting a moment as a static album, and deleting a moment outright. Ported
+// from Vue2 899af59b:PhotosMomentDetail.vue :20-22 (Save as Album button), :29-45 (more menu),
+// :295-305 (the document mousedown listener that closes it — the listener Task 7 deliberately
+// deferred, see this file's own header), :138-152 (delete confirm dialog) and :406-436
+// (saveAsAlbum / askConfirmDelete / doDelete).
+describe('save as album', () => {
+  it('shows a success toast with an "Open" action that navigates to the new album', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    vi.spyOn(s, 'exportAlbum').mockResolvedValue({ albumId: 'al1', name: 'Bozeman', count: 42 })
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w, router } = await mountDetail()
+    await w.find('[data-test="mo-save-album"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    const action = show.mock.calls[0][2] as { label: string; onClick: () => void }
+    expect(action.label).toBeTruthy()
+    action.onClick()
+    // Not `router.isReady()`: that promise settled during mountDetail's own initial navigation
+    // and is already resolved by this point, so awaiting it again does not wait for *this*
+    // second push — flushPromises actually drains the pending navigation's microtasks.
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/photos/albums/al1')
+  })
+
+  // Locale is zh_cn on purpose: the assertion below checks a substring of Vue 2's own Chinese
+  // copy for this key (photosMoAlbumExists), not its English translation.
+  //
+  // The substring is '已有同名', not the brief's original '已存在' — Vue 2's own zh_CN.json
+  // (899af59b:src/assets/lang/zh_CN.json:1960) translates "An album with this name already
+  // exists" as '已有同名相册', which does not contain '已存在'. Asserting that substring would
+  // be checking a mistranslation, not this feature's real copy (file-header deviation 19).
+  it('a 409 (name already exists) gets its own wording instead of the generic failure message', async () => {
+    const err = muteConsoleError()
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    vi.spyOn(s, 'exportAlbum').mockRejectedValue({ response: { status: 409 } })
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountDetail('m1', 'zh_cn')
+    await w.find('[data-test="mo-save-album"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(show.mock.calls[0][0]).toContain('已有同名')
+    // Mutation check for the discriminating power of that substring: the generic failure
+    // message (photosMoAlbumFailed, '相册创建失败') must NOT also satisfy it, or a regression
+    // that always fires the generic branch would still pass this test.
+    expect(zh.photosMoAlbumFailed).not.toContain('已有同名')
+    err.mockRestore()
+  })
+
+  it('disables the button while an export is in flight, to block a double submit', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    let release: () => void = () => {}
+    vi.spyOn(s, 'exportAlbum').mockImplementation(() => new Promise((r) => { release = () => r({}) }))
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-save-album"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find<HTMLButtonElement>('[data-test="mo-save-album"]').element.disabled).toBe(true)
+    release()
+    await flushPromises()
+    expect(w.find<HTMLButtonElement>('[data-test="mo-save-album"]').element.disabled).toBe(false)
+  })
+
+  it('renders Vue 2\'s own wording for the button', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    expect(w.find('[data-test="mo-save-album"]').text()).toContain(zh.photosMoSaveAsAlbum)
+  })
+})
+
+describe('delete moment', () => {
+  it('clicking Delete in the more menu opens a confirmation first — it does not delete immediately', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const remove = vi.spyOn(s, 'remove')
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(true)
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('confirming deletes and navigates back to the smart views page', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    vi.spyOn(s, 'remove').mockResolvedValue(undefined)
+    const { w, router } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    await w.find('[data-test="mo-delete-go"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(router.currentRoute.value.path).toBe('/photos/smart-views')
+  })
+
+  // The two behaviors the brief calls out as deliberate, not oversights: staying on the page
+  // (the dialog itself is not dismissed) and answering inline rather than via a toast.
+  it('a failed delete stays on the page with the dialog open and the message inline, not a toast', async () => {
+    const err = muteConsoleError()
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    vi.spyOn(s, 'remove').mockRejectedValue(new Error('nope'))
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w, router } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    await w.find('[data-test="mo-delete-go"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(router.currentRoute.value.path).toBe('/photos/moments/m1')
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-delete-error"]').exists()).toBe(true)
+    // Strengthened beyond the brief: this really is inline, not merely "a toast that has not
+    // fired yet" — no toast call happens at all on this path.
+    expect(show).not.toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('cancel closes the confirmation dialog without deleting', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const remove = vi.spyOn(s, 'remove')
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    await w.find('[data-test="mo-delete"]').trigger('click')
+    await w.find('[data-test="mo-delete-cancel"]').trigger('click')
+    expect(w.find('[data-test="mo-delete-confirm"]').exists()).toBe(false)
+    expect(remove).not.toHaveBeenCalled()
+  })
+
+  it('clicking outside the more menu closes it', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-more"]').trigger('click')
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="mo-delete"]').exists()).toBe(false)
+  })
+
+  // Self-review requirement: the debt Task 7 deliberately left for this task (file-header
+  // deviation 16) is not just "a listener exists" but "it is torn down on unmount" — a leaked
+  // listener keeps the component instance's closures alive and can fire after teardown.
+  it('removes its document mousedown listener on unmount, leaking none', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const addSpy = vi.spyOn(document, 'addEventListener')
+    const removeSpy = vi.spyOn(document, 'removeEventListener')
+    const { w } = await mountDetail()
+    const registered = addSpy.mock.calls.filter((c) => c[0] === 'mousedown').length
+    expect(registered).toBeGreaterThan(0)
+    w.unmount()
+    const removed = removeSpy.mock.calls.filter((c) => c[0] === 'mousedown').length
+    expect(removed).toBe(registered)
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
+  })
+
+  it('renders Vue 2\'s own wording for the more menu\'s delete item', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    await w.find('[data-test="mo-more"]').trigger('click')
+    expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosMoDeleteMoment)
+    expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosSvPhotosStayLibrary)
   })
 })

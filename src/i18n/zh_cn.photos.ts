@@ -964,4 +964,20 @@ export default {
   photosMoRemoveFromMoment: '从此时刻中移除',
   photosMoRemovedN: '已从此时刻移除 {n} 张',
   photosMoRemoveFailed: '移除失败',
+  // ── SP15-P1-T10: save as album / delete moment ──
+  // Six of the brief's proposed keys already exist verbatim elsewhere in this repo and are
+  // reused rather than duplicated (see PhotosMomentDetail.vue file-header deviation 19):
+  // photosPlacesToastOpen ('打开'), photosSvPhotosStayLibrary ('照片仍保留在你的图库中'),
+  // photosSvDeleteName ('删除「{name}」？'), photosSvDeleteFailed ('删除失败'), photosCancel
+  // ('取消'), photosDelete ('删除'). The seven below are the genuinely new ones — all Vue 2's
+  // own zh_CN copy, taken verbatim from 899af59b:src/assets/lang/zh_CN.json.
+  photosMoSaveAsAlbum: '保存为相册',
+  photosMoAlbumCreated: '已创建相册「{name}」· {count} 张照片',
+  // Vue 2's own translation (:1960) — not '已存在' as the brief's draft test assumed; a test
+  // asserting that substring would be checking a mistranslation, not this feature's real copy.
+  photosMoAlbumExists: '已有同名相册',
+  photosMoAlbumFailed: '相册创建失败',
+  photosMoDeleteMoment: '删除时刻',
+  photosMoDeleteBody: '该时刻会被删除。图库中的 {n} 张照片不受影响。',
+  photosMoDeleted: '时刻「{name}」已删除',
 }

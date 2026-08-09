@@ -951,4 +951,14 @@ export default {
   photosMoRemoveFromMoment: 'Remove from this moment',
   photosMoRemovedN: 'Removed {n} from this moment',
   photosMoRemoveFailed: 'Remove failed',
+  // ── SP15-P1-T10: save as album / delete moment — see the note in zh_cn.photos.ts for the
+  // six keys reused instead of duplicated (photosPlacesToastOpen/photosSvPhotosStayLibrary/
+  // photosSvDeleteName/photosSvDeleteFailed/photosCancel/photosDelete).
+  photosMoSaveAsAlbum: 'Save as Album',
+  photosMoAlbumCreated: 'Album "{name}" created · {count} photos',
+  photosMoAlbumExists: 'An album with this name already exists',
+  photosMoAlbumFailed: 'Could not create album',
+  photosMoDeleteMoment: 'Delete moment',
+  photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
+  photosMoDeleted: 'Moment "{name}" deleted',
 }

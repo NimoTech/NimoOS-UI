@@ -90,7 +90,43 @@
 // 15) Vue 2's picker closes itself by awaiting the parent's confirm handler; Vue 3's emit cannot
 //     return that promise, so this page closes the picker on success and leaves it open on
 //     failure — the same two outcomes the user saw before. See AlbumLibraryPicker.vue's header.
-import { computed, onMounted, ref, watch } from 'vue'
+//
+// Task 10 (save as album / delete moment) added the last four:
+// 16) The document mousedown listener that closes the more menu was deliberately deferred all
+//     the way from Task 7 (no menu existed yet to close, and installing a listener whose body
+//     could never run would just be dead code — see this file's own history above). This task
+//     is the one that finally owns both halves: registered in onMounted, removed in
+//     onBeforeUnmount. Vue 2 :295-305 does the same (mounted/beforeDestroy pair).
+// 17) A failed delete shows its message inline inside the confirmation dialog (deleteError),
+//     not as a toast. Vue 2 :396-401 closes the dialog and fires a toast — for the second or so
+//     before that toast text registers, the screen shows no dialog and nothing else says the
+//     delete failed, which reads as "it worked". The answer to a button press belongs next to
+//     that button and should not time out, so this repo answers in place and keeps the dialog
+//     open instead.
+// 18) The 409 (album name already in use) case on save-as-album gets its own wording
+//     (photosMoAlbumExists) rather than the generic photosMoAlbumFailed — the same branch
+//     Vue 2 :421-423 already has, kept.
+// 19) Six of the brief's thirteen proposed i18n keys turned out, once checked against this
+//     task's own reuse rule (deviation 7: check for an existing key before adding one), to
+//     already exist under other names — every one an exact match of Vue 2's own zh_CN.json
+//     copy for this feature:
+//       photosMoOpen         → photosPlacesToastOpen    ('打开' / 'Open' — same toast-action use,
+//                               PhotosPlaces.vue:306)
+//       photosMoPhotosStay   → photosSvPhotosStayLibrary ('照片仍保留在你的图库中' — the more
+//                               menu's own delete-item description, word for word)
+//       photosMoDeleteTitle  → photosSvDeleteName        ('Delete "{name}"?', same {name} param)
+//       photosMoDeleteFailed → photosSvDeleteFailed      ('删除失败')
+//       photosMoCancel       → photosCancel              ('取消') — the same reuse
+//                               PhotosSmartViewDetail.vue's own confirm dialog already makes
+//       photosMoDelete       → photosDelete               ('删除') — likewise, for its Delete button
+//     The remaining seven (photosMoSaveAsAlbum/photosMoAlbumCreated/photosMoAlbumExists/
+//     photosMoAlbumFailed/photosMoDeleteMoment/photosMoDeleteBody/photosMoDeleted) are
+//     genuinely new — none of the existing keys carry this wording. Separately, Vue 2's own
+//     zh_CN.json (899af59b:src/assets/lang/zh_CN.json:1960) translates "An album with this name
+//     already exists" as '已有同名相册' — it does not contain the substring '已存在'; a test
+//     asserting that substring would be asserting a mistranslation, not this feature's real
+//     Chinese copy, so the test here asserts '已有同名' instead.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
@@ -367,6 +403,77 @@ async function removeSelected(): Promise<void> {
     removing.value = false
   }
 }
+
+// ── SP15-P1-T10: save as album (export) / delete moment ──────────────────────────────────
+// Ported from Vue2 :20-22 (Save as Album button), :29-45 (more menu + its one item), :295-305
+// (document mousedown closes the more menu — the listener Task 7 deliberately deferred, see
+// file-header deviation 16), :138-152 (delete confirm dialog) and :406-436 (saveAsAlbum /
+// askConfirmDelete / doDelete).
+const exporting = ref(false)
+const moreOpen = ref(false)
+const confirmDeleteOpen = ref(false)
+const deleteError = ref('')
+const moreWrapRef = ref<HTMLElement | null>(null)
+
+async function saveAsAlbum(): Promise<void> {
+  if (exporting.value) return
+  exporting.value = true
+  try {
+    const data = await store.exportAlbum(momentId.value)
+    const name = data.name || moment.value?.title || ''
+    const count = data.count ?? 0
+    toast.show(t('photosMoAlbumCreated', { name, count }), 5000, {
+      // Reuses the existing toast-open action label rather than adding a new key for the same
+      // one word — see file-header deviation 19.
+      label: t('photosPlacesToastOpen'),
+      onClick: () => { void router.push('/photos/albums/' + String(data.albumId ?? '')) },
+    })
+  } catch (e) {
+    console.error('[photos-moments] exportAlbum', e)
+    const status = (e as { response?: { status?: number } })?.response?.status
+    // Deviation 18: the 409 (name clash) case gets its own wording, not the generic failure.
+    toast.show(status === 409 ? t('photosMoAlbumExists') : t('photosMoAlbumFailed'), 2500, 'danger')
+  } finally {
+    exporting.value = false
+  }
+}
+
+// Debt from Task 7 (file-header deviation 16): only now does the more menu exist to close, so
+// the listener is finally installed here — with its teardown, not left dangling past unmount.
+function onDocumentMouseDown(e: MouseEvent): void {
+  if (!moreOpen.value) return
+  const wrap = moreWrapRef.value
+  if (wrap && !wrap.contains(e.target as Node)) moreOpen.value = false
+}
+onMounted(() => document.addEventListener('mousedown', onDocumentMouseDown))
+onBeforeUnmount(() => document.removeEventListener('mousedown', onDocumentMouseDown))
+
+function openDeleteConfirm(): void {
+  moreOpen.value = false
+  deleteError.value = ''
+  confirmDeleteOpen.value = true
+}
+function closeDeleteConfirm(): void {
+  confirmDeleteOpen.value = false
+  deleteError.value = ''
+}
+
+async function doDelete(): Promise<void> {
+  deleteError.value = ''
+  const name = moment.value?.title || ''
+  try {
+    await store.remove(momentId.value)
+    toast.show(t('photosMoDeleted', { name }))
+    void router.push('/photos/smart-views')
+  } catch (e) {
+    // Deviation 17: the failure lives inline in the dialog, not a toast — see file-header note.
+    // Vue2 :433-435 closes the dialog and toasts instead; that reads as "it worked" for the
+    // second or so before the toast text registers. This repo keeps the dialog open and answers
+    // right next to the button that was just pressed.
+    console.error('[photos-moments] deleteMoment', e)
+    deleteError.value = t('photosSvDeleteFailed')
+  }
+}
 </script>
 
 <template>
@@ -461,6 +568,40 @@ async function removeSelected(): Promise<void> {
                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
                     {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
                   </button>
+                  <!-- Save as Album (Vue 2 :20-22), disabled while an export is in flight to
+                       block a double submit — same guard shape as pinning/removing above. -->
+                  <button
+                    type="button" class="sv-action-btn" data-test="mo-save-album"
+                    :disabled="exporting" @click="saveAsAlbum"
+                  >
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" /><path d="M3 14l5-4 4 3 3-2 6 5" /></svg>
+                    {{ t('photosMoSaveAsAlbum') }}
+                  </button>
+                  <!-- more menu (Vue 2 :29-45): a single Delete item — Vue 2 has just the one,
+                       so there is no "more" of anything else to add here. -->
+                  <div ref="moreWrapRef" style="position:relative">
+                    <button
+                      type="button" class="sv-action-btn sv-action-btn-icon" data-test="mo-more"
+                      :data-open="moreOpen" @click="moreOpen = !moreOpen"
+                    >
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                    </button>
+                    <Transition name="sv-menu">
+                    <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="mo-more-menu">
+                      <button
+                        type="button" class="sv-export-item sv-export-item-danger" data-test="mo-delete"
+                        @click="openDeleteConfirm"
+                      >
+                        <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+                        <div>
+                          <div class="sv-export-title">{{ t('photosMoDeleteMoment') }}</div>
+                          <!-- Reused verbatim, not a fresh key — file-header deviation 19. -->
+                          <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
+                        </div>
+                      </button>
+                    </div>
+                    </Transition>
+                  </div>
                 </div>
               </div>
 
@@ -591,6 +732,35 @@ async function removeSelected(): Promise<void> {
             :submitting="pinning"
             @confirm="onPickPhotos"
           />
+
+          <!-- Delete confirmation (Vue 2 :138-152). Structure and classes reused verbatim from
+               PhotosSmartViewDetail.vue's own sv-confirm-* dialog (task instruction: do not
+               build a second dialog idiom). The mo-delete-error paragraph is new — deviation 17
+               — Vue 2 has no inline equivalent, it closes the dialog and toasts instead. -->
+          <Transition name="sv-confirm">
+          <div
+            v-if="confirmDeleteOpen" class="sv-confirm-scrim" data-test="mo-delete-confirm"
+            @click.self="closeDeleteConfirm"
+          >
+            <div class="sv-confirm-panel">
+              <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+              <!-- Reused verbatim (photosSvDeleteName), not a fresh key — file-header deviation 19. -->
+              <div class="sv-confirm-title">{{ t('photosSvDeleteName', { name: moment.title }) }}</div>
+              <div class="sv-confirm-body">{{ t('photosMoDeleteBody', { n: fmtNum(momentAssetCount) }) }}</div>
+              <div v-if="deleteError" class="mo-delete-error" data-test="mo-delete-error">{{ deleteError }}</div>
+              <div class="sv-confirm-foot">
+                <button
+                  type="button" class="sv-confirm-cancel" data-test="mo-delete-cancel"
+                  @click="closeDeleteConfirm"
+                >{{ t('photosCancel') }}</button>
+                <button type="button" class="sv-confirm-ok danger" data-test="mo-delete-go" @click="doDelete">
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+                  {{ t('photosDelete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+          </Transition>
         </template>
       </main>
     </div>
@@ -648,15 +818,83 @@ async function removeSelected(): Promise<void> {
 .mo-week-badge { color: var(--success); }
 
 /* ── Action bar (scss:386-404 via PhotosSmartViewDetail.vue's own restatement, same
-   token substitutions it already made). This task adds only the Select toggle — see the
-   deviation note at the template. ── */
+   token substitutions it already made). Task 8 added the Select toggle; Task 10 adds
+   Save as Album, the more-menu icon button and its dropdown — see the deviation notes
+   at the template. ── */
 .sv-actions { display: flex; gap: 8px; align-items: center; }
 .sv-action-btn {
   height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
   color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
 }
 .sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+.sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
+
+/* ── More menu (scss:407-452 via PhotosSmartViewDetail.vue's own restatement — identical rule
+   bodies, same class names, same reason as the two photo grids below: scoped styles do not
+   cross component boundaries in this repo). ── */
+.sv-export-menu {
+  position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
+  box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
+}
+.sv-more-menu { min-width: 220px; }
+.sv-export-item {
+  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
+  border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
+}
+.sv-export-item:hover { background: var(--chip-bg-hi); }
+.sv-export-icon {
+  width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-text);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
+.sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
+/* Vue 2 :34/:35 wrote a coral literal for the delete item's icon/title/description — this repo
+   forbids bare colour literals, so it reuses --remove-fg, same substitution
+   PhotosSmartViewDetail.vue already made for its own delete item. */
+.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
+.sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+.sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
+.sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+
+/* ── Delete confirmation (scss has no independent block for it; PhotosSmartViewDetail.vue's own
+   sv-confirm-* rules, restated verbatim — task instruction: reuse the existing dialog idiom,
+   do not invent a second one). ── */
+.sv-confirm-scrim {
+  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
+  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
+}
+.sv-confirm-panel {
+  width: 380px; max-width: 100%; padding: 22px; border-radius: 16px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow-hi);
+  color: var(--fg);
+}
+.sv-confirm-icon {
+  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 10px;
+  background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg);
+  display: flex; align-items: center; justify-content: center;
+}
+.sv-confirm-title { font-size: 16px; font-weight: 600; }
+.sv-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+/* New-UI only (deviation 17): the inline failure message, in the same danger family as the
+   confirm button below rather than the neutral --fg-muted body text above it. */
+.mo-delete-error { margin-top: 10px; font-size: 12.5px; color: var(--remove-fg); }
+.sv-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.sv-confirm-cancel, .sv-confirm-ok {
+  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: transparent;
+  color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+}
+.sv-confirm-cancel:hover { background: var(--chip-bg-hi); }
+.sv-confirm-ok.danger {
+  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
+  color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
+}
+.sv-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
+.sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
 /* ── Two photo grids (scss:480-513 via PhotosSmartViewDetail.vue's own restatement of the
    same source — identical rule bodies, same class names, same reason: scoped styles do
