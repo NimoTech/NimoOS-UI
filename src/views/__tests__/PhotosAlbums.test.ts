@@ -124,17 +124,18 @@ describe('PhotosAlbums.vue', () => {
     expect(pushSpy).toHaveBeenCalledWith('/photos/albums/42')
   })
 
-  it('切排序为 name → 卡片顺序变为字母序(证明接了 sortAlbums 而非死排)', async () => {
+  it('defaults to created (createdAt descending), then switching to name re-sorts alphabetically', async () => {
     svc.photos.listAlbums.mockResolvedValue([
-      rawAlbum(1, { name: 'Zebra' }),
-      rawAlbum(2, { name: 'Apple' }),
-      rawAlbum(3, { name: 'Mango' }),
+      rawAlbum(1, { name: 'Zebra', createdAt: '2026-05-03T00:00:00Z' }),
+      rawAlbum(2, { name: 'Apple', createdAt: '2026-05-01T00:00:00Z' }),
+      rawAlbum(3, { name: 'Mango', createdAt: '2026-05-02T00:00:00Z' }),
     ])
     const { w } = await mountView()
 
-    // 默认 sort='updated' → 保持后端顺序(sortAlbums 对 'updated' 不重排)
+    // Default sort is 'created': newest createdAt first (Zebra 05-03 > Mango 05-02 >
+    // Apple 05-01) -- proves the default is no longer the dead 'updated' passthrough.
     let titles = w.findAll('[data-test="album-card"] .album-title').map((n) => n.text())
-    expect(titles).toEqual(['Zebra', 'Apple', 'Mango'])
+    expect(titles).toEqual(['Zebra', 'Mango', 'Apple'])
 
     await w.find('[data-test="albums-sort-btn"]').trigger('click')
     await w.vm.$nextTick()

@@ -23,10 +23,31 @@ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
-import { albumToView, sortAlbums, type AlbumView } from '../photos/util/albumView'
+import { albumToView, type AlbumView } from '../photos/util/albumView'
 import { isConflict } from '../photos/util/httpErrors'
 
-type SortId = 'updated' | 'created' | 'name' | 'name-r' | 'count' | 'date'
+type SortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
+
+// SP15-P2b-T2 interim: albumView.sortAlbums was deleted (superseded by
+// util/mixedAlbums.ts's sortMixed, since the Albums page is about to render a mixed
+// manual/smart list ranked by one sort control). This view still renders manual
+// albums only until Task 3 rewires it onto buildMixedAlbums/sortMixed and deletes this
+// local copy -- keeping a temporary duplicate here (rather than wiring in
+// mixedAlbums.ts early) keeps this task's diff to the dead 'updated' option only.
+function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
+  const arr = [...list]
+  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
+    const raw = a[field]
+    const t = raw ? Date.parse(raw) : NaN
+    return isNaN(t) ? 0 : t
+  }
+  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
+  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
+  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
+  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
+  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
+  return arr
+}
 type SourceId = 'empty' | 'recent' | 'select'
 
 const { t } = useI18n()
@@ -35,7 +56,7 @@ const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
 const toast = useToast()
 
-const sort = ref<SortId>('updated')
+const sort = ref<SortId>('created')
 const sortOpen = ref(false)
 const sortMenuRef = ref<HTMLElement | null>(null)
 
@@ -51,7 +72,6 @@ const pickerAlbumName = ref('')
 
 // 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
 const sortOptions = computed(() => [
-  { id: 'updated' as SortId, label: t('photosAlbumSortUpdated'), hint: t('photosAlbumSortUpdatedHint') },
   { id: 'created' as SortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
   { id: 'name' as SortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
   { id: 'name-r' as SortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },

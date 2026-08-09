@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { albumToView, formatAlbumSpan, sortAlbums, sortAlbumPhotos } from '../albumView'
+import { albumToView, formatAlbumSpan, sortAlbumPhotos } from '../albumView'
 
 describe('formatAlbumSpan', () => {
   it('同年同月 → "May 2026"', () => { expect(formatAlbumSpan('2026-05-02', '2026-05-20')).toBe('May 2026') })
@@ -41,32 +41,6 @@ describe('albumToView', () => {
     const v = albumToView({ id: 1 }, 'x')
     expect(v.videoCount).toBe(0)
     expect(v.dateStart).toBeNull()
-  })
-})
-
-describe('sortAlbums', () => {
-  const V = (id: string, title: string, count: number, createdAt: string | null, dateEnd: string | null) =>
-    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '', videoCount: 0, dateStart: null })
-  // a/b 在 createdAt 与 dateEnd 上名次互换(仿 sortAlbumPhotos 夹具的手法),
-  // 让 'created' 与 'date' 两个分支产生不同排序结果 —— 若未来 'date' 分支被
-  // 误改回读 createdAt,这里必须挂红。
-  const list = [V('a', 'Beta', 3, '2026-01-01', '2024-01-01'), V('b', 'Alpha', 9, '2025-01-01', '2026-01-01'), V('c', 'Gamma', 1, null, null)]
-
-  it('name 正序 / name-r 逆序', () => {
-    expect(sortAlbums(list, 'name').map((x) => x.title)).toEqual(['Alpha', 'Beta', 'Gamma'])
-    expect(sortAlbums(list, 'name-r').map((x) => x.title)).toEqual(['Gamma', 'Beta', 'Alpha'])
-  })
-  it('count 降序', () => { expect(sortAlbums(list, 'count').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
-  it('created 按 createdAt 降序,缺失记 0 排最后', () => { expect(sortAlbums(list, 'created').map((x) => x.id)).toEqual(['a', 'b', 'c']) })
-  it('date 按 dateEnd 降序(不是 createdAt),缺失排最后', () => { expect(sortAlbums(list, 'date').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
-  it('updated / 未知值 → 原序', () => {
-    expect(sortAlbums(list, 'updated').map((x) => x.id)).toEqual(['a', 'b', 'c'])
-    expect(sortAlbums(list, 'zzz').map((x) => x.id)).toEqual(['a', 'b', 'c'])
-  })
-  it('不原地修改入参数组', () => {
-    const src = [...list]
-    sortAlbums(src, 'name')
-    expect(src.map((x) => x.id)).toEqual(['a', 'b', 'c'])
   })
 })
 

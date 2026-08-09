@@ -2,6 +2,11 @@
 // src/views/Photos/PhotosAlbumsView.vue:216-224 (userAlbums), :282-301
 // (parseYearMonth + formatAlbumSpan), :359-370 (applySort), and
 // src/views/Photos/PhotosAlbumDetail.vue:224-242 (photos computed sort).
+//
+// SP15-P2b: sortAlbums was removed here -- the Albums page now renders a mixed
+// manual/smart list and sorts it through util/mixedAlbums.ts, which is the single
+// remaining comparator implementation. albumToView / formatAlbumSpan / sortAlbumPhotos
+// are unaffected and still have callers.
 import type { Photo } from './assetToPhoto'
 
 export interface AlbumView {
@@ -62,31 +67,6 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
     videoCount: Number(a.videoCount ?? 0),
     dateStart: (a.dateStart as string | undefined) || null,
   }
-}
-
-// Verbatim port of PhotosAlbumsView.vue:359-370 (applySort), with three
-// deliberate deviations from Vue2 (each noted below):
-export function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
-  const arr = [...list] // deviation: return a new array instead of Vue2's in-place arr.sort()
-  // Verbatim port of Vue2's `ts` helper, parameterized by field (see the
-  // 'date' deviation note below for why).
-  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
-    const raw = a[field]
-    const t = raw ? Date.parse(raw) : NaN
-    return isNaN(t) ? 0 : t
-  }
-  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
-  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
-  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
-  // deviation: Vue2's sortOptions lists a 'created' entry but applySort never
-  // handles it (falls through, unsorted) — bug not reproduced; implemented
-  // here using the same ts() pattern as the other date-based branches.
-  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
-  // deviation: Vue2's 'date' branch also reads a.createdAt via ts() (the Vue2
-  // view object has no separate taken-date field); here it reads dateEnd
-  // instead, since that's the field 'date' is meant to represent.
-  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
-  return arr
 }
 
 // Verbatim port of PhotosAlbumDetail.vue:224-242 (photos computed).

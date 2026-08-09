@@ -135,8 +135,6 @@ export default {
   photosAlbumsEmptyTitle: 'No albums yet',
   photosAlbumsEmptyHint: 'Create an album to group photos together.',
   photosAlbumSort: 'Sort:',
-  photosAlbumSortUpdated: 'Last updated',
-  photosAlbumSortUpdatedHint: 'Server order',
   photosAlbumSortCreated: 'Recently added',
   photosAlbumSortCreatedHint: 'Newest album first',
   photosAlbumSortName: 'Name (A–Z)',
