@@ -97,7 +97,24 @@ describe('selection mode on the moment detail page marks the selected tile', () 
   // scoped styles. Reading the source with node:fs (never `?raw` on a stylesheet — that
   // import is documented elsewhere in this repo to come back empty and let a guard pass for
   // free) reproduces exactly what the browser sees: this SFC's own compiled style block.
-  it('carries its own [data-selected="true"] rule reachable from a .tile element', () => {
+  //
+  // Final review, finding 7: matching `.tile` + `[data-selected]` alone is not reachability.
+  // The shipped rule is scoped under a grid *container* class (`.sv-grid-photos .tile[…]`),
+  // so renaming that container in the template silently unhooked the highlight while this
+  // guard stayed green. The container class is therefore taken from the rendered DOM — the
+  // tile's actual parent — rather than hardcoded, so a rename in the template is what makes
+  // the selector stop containing it.
+  it('carries its own [data-selected="true"] rule reachable from the grid class the template renders', async () => {
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, featured?: boolean) =>
+      featured ? { assets: [], members: [], places: [] } : [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const w = await mountDetail()
+
+    const tile = w.find('[data-test="mo-all-tile"]').element
+    expect([...tile.classList], 'the tile itself must carry .tile').toContain('tile')
+    const gridClasses = [...(tile.parentElement?.classList ?? [])]
+    expect(gridClasses.length, 'the tile must sit inside a classed grid container').toBeGreaterThan(0)
+
     const filePath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../PhotosMomentDetail.vue')
     const src = fs.readFileSync(filePath, 'utf8')
     const styleMatch = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
@@ -106,8 +123,15 @@ describe('selection mode on the moment detail page marks the selected tile', () 
     const rules = style.match(/[^{}]+\{[^{}]*\}/g) ?? []
     const reaches = rules.some((rule) => {
       const selector = rule.slice(0, rule.indexOf('{'))
-      return /\.tile/.test(selector) && /\[data-selected(?:="true")?\]/.test(selector)
+      return /\.tile/.test(selector)
+        && /\[data-selected(?:="true")?\]/.test(selector)
+        // Every class the selector names ahead of `.tile` must be one the tile really sits
+        // under, otherwise the rule cannot reach the element the template produces.
+        && gridClasses.some((c) => selector.includes(`.${c}`))
     })
-    expect(reaches, 'no selector in this file\'s own <style> block can match .tile[data-selected]').toBe(true)
+    expect(
+      reaches,
+      `no selector in this file's own <style> block can match .tile[data-selected] under any of ${gridClasses.join(', ')}`,
+    ).toBe(true)
   })
 })

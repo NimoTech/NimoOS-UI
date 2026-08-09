@@ -36,6 +36,10 @@ vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 import PhotosSmartViewDetail from './PhotosSmartViewDetail.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
 import { useToast } from '../stores/toast'
+// The toast assertions below compare against the real locale entry rather than
+// `expect.any(String)`: a toast that fires with the wrong text, or with the wrong count in
+// it, is exactly the failure these tests exist to catch (final review, coverage holes).
+import zh from '../i18n/zh_cn'
 
 const SV = {
   id: 'sv1', name: 'Hiking', description: '', conds: ['a'], threshold: 80,
@@ -106,7 +110,28 @@ describe('add photos', () => {
     await new Promise((r) => setTimeout(r, 0))
 
     expect(pin).toHaveBeenCalledWith('sv1', ['x', 'y'])
-    expect(show).toHaveBeenCalled()
+    // Not just "a toast fired": the success toast, exactly once, carrying the count the
+    // store reported (2 — not the 3 ids picked, and not a hardcoded number).
+    expect(show).toHaveBeenCalledTimes(1)
+    expect(show).toHaveBeenCalledWith(zh.photosSvPinnedNToView.replace('{n}', '2'))
+    expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+  })
+
+  // Finding 5: `pinAssets` answers null when it drops the call because another write is in
+  // flight. Nothing was sent, so nothing may be claimed — and above all the picker must keep
+  // the user's selection instead of closing on a write that never happened.
+  it('reports nothing and keeps the picker open when the store drops the call as busy', async () => {
+    const s = seed()
+    vi.spyOn(s, 'pinAssets').mockResolvedValue(null)
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountPage()
+
+    await w.find('[data-test="sv-add-photos"]').trigger('click')
+    w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(show).not.toHaveBeenCalled()
+    expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
   })
 
   it('reports a failure and keeps the picker open so the user can retry', async () => {
@@ -129,16 +154,20 @@ describe('add photos', () => {
     expect([...ids]).toContain('5')
   })
 
-  // The count in the picker's submit button only tracks the selection when the label is
-  // handed over as a function of it; a plain string freezes at whatever count was current
-  // when the parent rendered. Asserting the prop's shape is what pins that down.
-  it('passes the submit label as a function of the selected count', async () => {
+  // Final review, finding 3: Vue2 :288 hands this picker a *static* `$t('Add selected')`,
+  // while the album pages hand it their counting `Add ({count})` label. This screen shipped
+  // with the album pages' counting label, deferring to PhotosLibraryPicker's deviation (b) —
+  // but that deviation only justifies leaving the existing album consumers alone; it says
+  // nothing about a new one. The prop accepts either shape, so this asserts the one Vue2
+  // actually passes here.
+  it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {
     seed()
     const { w } = await mountPage()
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     const label = w.findComponent({ name: 'PhotosLibraryPicker' }).props('submitLabel')
-    expect(typeof label).toBe('function')
-    expect((label as (n: number) => string)(2)).toContain('2')
+    expect(label).toBe(zh.photosMoAddSelected)
+    // Belt and braces against a regression back to the album label, which is a function.
+    expect(typeof label).toBe('string')
   })
 })
 
@@ -171,6 +200,38 @@ describe('selection and removal', () => {
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
   })
 
+  // Removal is tiered on the backend: a pinned row is deleted (`unpinned`), an automatically
+  // matched one is flagged excluded (`excluded`). Reporting their *sum* is the defining
+  // behaviour of this action, and it had no assertion anywhere — dropping either term from
+  // the expression left the whole suite green. Both tiers are non-zero and distinct here, so
+  // reporting only one of them, or the wrong one, fails.
+  it('confirms with both removal tiers added together', async () => {
+    const s = seed()
+    vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 2, excluded: 3 })
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountPage()
+    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+    await w.find('[data-test="sv-remove-selected"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(show).toHaveBeenCalledWith(zh.photosSvRemovedNFromView.replace('{n}', '5'))
+  })
+
+  // Finding 5, the removal side: a call the store dropped as busy must not be confirmed, and
+  // must leave the selection alone so the user can press the button again.
+  it('reports nothing and keeps the selection when the store drops the removal as busy', async () => {
+    const s = seed()
+    vi.spyOn(s, 'removeAssets').mockResolvedValue(null)
+    const toast = useToast(); const show = vi.spyOn(toast, 'show')
+    const { w } = await mountPage()
+    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+    await w.find('[data-test="sv-remove-selected"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(show).not.toHaveBeenCalled()
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+  })
+
   it('keeps the selection on failure so the user can retry', async () => {
     const s = seed()
     vi.spyOn(s, 'removeAssets').mockRejectedValue(new Error('nope'))
@@ -194,6 +255,14 @@ describe('selection and removal', () => {
 
   // A selection surviving an :id change would send view A's asset ids to view B's remove
   // endpoint, under a bar counting photos that are no longer on screen.
+  //
+  // Final review, finding 1: checking only that the bar disappears does NOT test the reset.
+  // The bar's `v-if` is `selecting && selectedIds.length`, so clearing `selecting` alone
+  // hides it — deleting `selectedIds.value = []` from the route watcher left this green.
+  // The failure it hides: sv1 selection survives into sv2, `toggleSelecting` only clears on
+  // *exit* so pressing Select on sv2 brings the bar back holding sv1's id, and Remove then
+  // posts view A's asset to view B. Re-entering selection mode after the navigation is what
+  // makes the stale ids observable, so that is what is asserted.
   it('drops the selection and closes the picker when the route id changes', async () => {
     const s = seed()
     s.smartViews = [{ ...SV }, { ...SV, id: 'sv2', name: 'Beach' }]
@@ -208,6 +277,11 @@ describe('selection and removal', () => {
 
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+
+    // The real assertion: enter selection mode on sv2 without picking anything. If the ids
+    // were not cleared, the bar reappears immediately carrying sv1's selection.
+    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
   })
 })
 
@@ -233,6 +307,27 @@ describe('excluded section', () => {
     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
     expect(restore).toHaveBeenCalledWith('sv1', ['e1'])
+  })
+
+  // Final review, finding 4 (file-header deviation 6): every other tile on this page toggles
+  // selection while selecting; an excluded one used to restore instead — an unconfirmed
+  // server write with no toast and no undo, in response to a click meant to tick a checkbox.
+  // Vue2 :167 has the same hole; this branch fixes and registers Vue2 defects rather than
+  // copying them. Excluded assets are not removal candidates either, so the tile is simply
+  // inert: no write, and no selection.
+  it('an excluded tile does nothing while in selection mode', async () => {
+    const s = seed({ excluded: [{ id: 'e1' }] })
+    const restore = vi.spyOn(s, 'restoreAssets').mockResolvedValue(1)
+    const { w } = await mountPage()
+    await w.find('[data-test="sv-excluded-head"]').trigger('click')
+    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+
+    await w.find('[data-test="sv-excluded-tile"]').trigger('click')
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(restore).not.toHaveBeenCalled()
+    // Nor does it become selectable — the select bar needs a selection to exist at all.
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
   })
 
   it('reports a failed restore', async () => {

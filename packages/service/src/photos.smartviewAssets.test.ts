@@ -59,4 +59,17 @@ describe('smart view manual asset API', () => {
     const b = harness(undefined)
     expect(await b.photos.getSmartViewExcluded('sv1')).toEqual([])
   })
+
+  // Final review coverage hole: the method guards with `Array.isArray(b) ? b : []`, and the
+  // only case exercised was `undefined` — which `?? []`, or nothing at all with a `.map()`
+  // downstream, would have handled just as well. `Array.isArray` exists for a *truthy
+  // non-array*: an error object or a `{ items: [...] }` envelope reaching a caller that
+  // immediately calls `.map()` on it is a TypeError at the top of the excluded band. These
+  // are the shapes the guard is actually written for.
+  it('getSmartViewExcluded rejects a truthy non-array body instead of passing it through', async () => {
+    for (const shape of [{ items: [{ id: 'a1' }] }, { message: 'not found' }, 'oops', 42, true]) {
+      const h = harness(shape)
+      expect(await h.photos.getSmartViewExcluded('sv1'), JSON.stringify(shape)).toEqual([])
+    }
+  })
 })

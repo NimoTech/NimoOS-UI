@@ -145,6 +145,9 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   // Staleness guard for loadExcluded, same shape as detailSeq: switching smart views
   // can leave an older request in flight, and it must not overwrite the newer list.
   let excludedSeq = 0
+  // Which view the list currently on screen belongs to. Only used to decide whether a load
+  // has to blank the band before awaiting — see loadExcluded.
+  let excludedFor = ''
   // Mutual exclusion across the three manual write actions: they all mutate the same
   // membership of the same view, so letting two run at once would race the refetch.
   const assetBusy = ref(false)
@@ -395,8 +398,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   //
   // The empty-list early return is not defensive padding — the backend rejects an
   // empty assetIds with 400 ("assetIds is required").
-  async function pinAssets(id: string, assetIds: string[]): Promise<number> {
-    if (!assetIds.length || assetBusy.value) return 0
+  //
+  // ★ Final-review finding 5: "nothing was asked for" and "this call was dropped" must not
+  // return the same value. All three actions used to answer 0 (or zeroes) for both, so a
+  // call swallowed by `assetBusy` still looked like a completed write to the view — it
+  // announced "pinned 0 photos to this view" and closed the picker, discarding a selection
+  // that had never been sent anywhere. `null` is the dropped-because-busy sentinel and is
+  // deliberately distinct from the zero an empty list still returns; every caller must treat
+  // it as "no result" rather than as a count. The busy check therefore comes *first* — with
+  // the two guards merged it is impossible to tell which one fired.
+  async function pinAssets(id: string, assetIds: string[]): Promise<number | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return 0
     assetBusy.value = true
     try {
       const res = await service.photos.pinSmartViewAssets(id, assetIds)
@@ -414,8 +427,10 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   // Removal is tiered on the backend — a pinned row is deleted, an automatically
   // matched row is flagged excluded — so both counters come back and the caller
   // needs both to phrase its confirmation.
-  async function removeAssets(id: string, assetIds: string[]): Promise<{ unpinned: number; excluded: number }> {
-    if (!assetIds.length || assetBusy.value) return { unpinned: 0, excluded: 0 }
+  // `null` when dropped because another write is in flight — see pinAssets above.
+  async function removeAssets(id: string, assetIds: string[]): Promise<{ unpinned: number; excluded: number } | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return { unpinned: 0, excluded: 0 }
     assetBusy.value = true
     try {
       const res = await service.photos.removeSmartViewAssets(id, assetIds)
@@ -433,8 +448,10 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  async function restoreAssets(id: string, assetIds: string[]): Promise<number> {
-    if (!assetIds.length || assetBusy.value) return 0
+  // `null` when dropped because another write is in flight — see pinAssets above.
+  async function restoreAssets(id: string, assetIds: string[]): Promise<number | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return 0
     assetBusy.value = true
     try {
       const res = await service.photos.restoreSmartViewAssets(id, assetIds)
@@ -451,10 +468,26 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
 
   // Failure is swallowed rather than rethrown: the excluded band is a secondary
   // section, and an error there must not take down the matched grid above it.
+  //
+  // ★ Final-review finding 6: this used to blank the list unconditionally before awaiting,
+  // so a transient 500 made the whole "已排除(N)" band disappear — the user was told the
+  // exclusions were gone when they were still on the server, and nothing said otherwise.
+  // The blank is now conditional on the id actually changing, which is the only case it was
+  // ever needed for (showing view A's exclusions under view B's heading, the same rule
+  // loadDetail states above). Refetching the *same* view keeps the list on screen until the
+  // new one lands, so a failure leaves the band exactly as it was.
+  //
+  // This does not weaken the staleness guard: `excludedSeq` is what stops a late-landing
+  // older response from overwriting a newer one, and it is untouched — the two mechanisms
+  // answer different questions ("is this response still wanted" vs "may the previous view's
+  // data stay on screen") and do not conflict.
   async function loadExcluded(id: string): Promise<void> {
     const mine = ++excludedSeq
     excludedLoading.value = true
-    excluded.value = []
+    if (excludedFor !== String(id)) {
+      excluded.value = []
+      excludedFor = String(id)
+    }
     try {
       const raw = await service.photos.getSmartViewExcluded(id)
       if (mine !== excludedSeq) return
@@ -536,6 +569,7 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     detailLoading.value = false
     excluded.value = []
     excludedLoading.value = false
+    excludedFor = ''
     assetBusy.value = false
     // 有意不重置 detailSeq/previewSeq:若此刻还有一个 __resetForTest 之前发出的
     // 请求仍在途，把 seq 拨回 0 会让重置后的下一次调用重新落在同一个 mine 值上，

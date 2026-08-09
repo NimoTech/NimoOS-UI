@@ -40,6 +40,15 @@
 //     `{ q: sv.name, smartViewId: sv.id }`,但全 Vue2 仓库 grep `smartViewId` 只有这一处
 //     写入、零消费方(`grep -rn smartViewId NimoOS-UI/src/` 只命中这一行)。T16 接线只传
 //     `q`,不带这个死参数。
+//  6) SP15-P2a final review, finding 4 — an excluded tile is inert while selecting.
+//     Vue 2 :167 wires `restoreOne` onto the excluded tiles unconditionally, so in
+//     selection mode every tile on the page toggles a checkmark except an excluded one,
+//     which silently writes to the server instead. The user taps expecting selection and
+//     gets an unconfirmed restore with no toast and no undo. Excluded assets are not
+//     removal candidates — the only thing selection leads to here is "remove from view",
+//     which they are already out of — so they are neither selectable nor restorable while
+//     selecting: the click is a no-op. This is one of Vue 2's own defects being fixed and
+//     registered rather than copied, per this branch's porting rule.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -427,12 +436,6 @@ const excludedOpen = ref(false)
 // and a mismatch silently un-dims every tile. Same correction as PhotosAlbums.vue:163.
 const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => String(p.id))))
 
-// Passing a function rather than a fixed string is what keeps the count in the picker's
-// submit button moving with the selection (see deviation b in the component's header).
-function pickerSubmitLabel(count: number): string {
-  return t('photosAlbumPickerAdd', { count })
-}
-
 function toggleSelecting(): void {
   selecting.value = !selecting.value
   if (!selecting.value) selectedIds.value = []
@@ -453,6 +456,10 @@ async function onPickPhotos(assetIds: Array<string | number>): Promise<void> {
   const ids = assetIds.map(String)
   try {
     const n = await store.pinAssets(id, ids)
+    // `null` means the store dropped the call because another write was still in flight —
+    // nothing was sent, so nothing is reported and the picker keeps the user's selection
+    // (final review, finding 5: this used to toast "已钉住 0 张到此视图" and close).
+    if (n === null) return
     toast.show(t('photosSvPinnedNToView', { n }))
     pickerOpen.value = false
     await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
@@ -472,6 +479,9 @@ async function removeSelected(): Promise<void> {
   if (!ids.length) return
   try {
     const r = await store.removeAssets(id, ids)
+    // Dropped because another write was in flight — nothing was sent, so the selection stays
+    // and nothing is claimed (final review, finding 5).
+    if (r === null) return
     // Removal is tiered on the backend — a pinned row is deleted, an automatically matched
     // one is flagged excluded — so the confirmation counts both (Vue2 :474).
     toast.show(t('photosSvRemovedNFromView', { n: r.unpinned + r.excluded }))
@@ -488,10 +498,18 @@ async function removeSelected(): Promise<void> {
 
 // Vue2 :493-503 (restoreOne). Clicking an excluded tile is the whole gesture — there is no
 // separate confirm, which is why the band stays collapsed until asked for.
-async function restoreOne(id: string): Promise<void> {
+//
+// Selection mode makes the tile inert instead (deviation 6 in the file header): Vue 2 fires
+// the restore regardless, so the one tile on the page that does not toggle a checkmark
+// silently writes to the server instead.
+async function onExcludedTileClick(id: string): Promise<void> {
+  if (selecting.value) return
   const svid = svId.value
   try {
-    await store.restoreAssets(svid, [id])
+    const n = await store.restoreAssets(svid, [id])
+    // Dropped because another write was in flight — nothing was sent, so there is nothing to
+    // refetch (final review, finding 5).
+    if (n === null) return
     await Promise.all([store.loadDetail(svid), store.loadExcluded(svid)])
   } catch (e) {
     console.error('[photos-smartviews] restoreAssets', e)
@@ -738,7 +756,8 @@ async function restoreOne(id: string): Promise<void> {
             <div v-if="excludedOpen" class="sv-grid-photos sv-excluded-grid" data-test="sv-excluded-grid">
               <div
                 v-for="p in store.excluded" :key="p.id" class="tile"
-                data-test="sv-excluded-tile" @click="restoreOne(String(p.id))"
+                :data-inert="selecting" data-test="sv-excluded-tile"
+                @click="onExcludedTileClick(String(p.id))"
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
                 <div class="sv-restore-hint">{{ t('photosSvRestore') }}</div>
@@ -778,13 +797,18 @@ async function restoreOne(id: string): Promise<void> {
     </div>
 
     <!-- SP15-P2a 图库选择器(Vue2 :283-291)。标题复用 photosAlbumPickerTitle ——
-         Vue2 本来就是一个字符串喂两个 picker。 -->
+         Vue2 本来就是一个字符串喂两个 picker。
+         submit-label:Vue2 :288 给这个 picker 传的是静态 `$t('Add selected')`(添加所选),
+         不是相册两页那个带计数的 `Add ({count})`。第一版在这里传了相册的计数函数并援引
+         PhotosLibraryPicker 偏离 b —— 但那条偏离说的是"保持相册既有消费方不变",对一个
+         **新**消费方该用哪种一个字都没说(final review, finding 3)。改回静态标签,复用
+         P1 已有的 photosMoAddSelected(同一句 Vue2 文案,不新增键);相册两页照旧传函数。 -->
     <PhotosLibraryPicker
       v-model:open="pickerOpen"
       :title="t('photosAlbumPickerTitle', { name: sv?.name ?? '' })"
       :existing-ids="viewAssetIds"
       :existing-label="t('photosSvAlreadyInView')"
-      :submit-label="pickerSubmitLabel"
+      :submit-label="t('photosMoAddSelected')"
       :submitting="store.assetBusy"
       @confirm="onPickPhotos"
     />
@@ -991,6 +1015,13 @@ async function restoreOne(id: string): Promise<void> {
   opacity: 0; transition: opacity 0.15s ease;
 }
 .sv-excluded-grid .tile:hover .sv-restore-hint { opacity: 1; }
+/* Final review, finding 4 (deviation 6): while selecting, an excluded tile does nothing.
+   The affordance has to say so too — otherwise the Restore hint still invites a click that
+   is now deliberately ignored, which reads as the page being broken rather than as the tile
+   being out of scope. Compound selector, so it beats the plain .tile:hover rule above
+   without depending on source order. */
+.sv-excluded-grid .tile[data-inert="true"] { cursor: default; }
+.sv-excluded-grid .tile[data-inert="true"]:hover .sv-restore-hint { opacity: 0; }
 
 /* Selection bar (scss:724-745): fixed pill, same idiom as this file's own .sv-toast
    (--popup-bg/--card-border/--card-shadow-hi/--blur). */

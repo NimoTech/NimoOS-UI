@@ -747,8 +747,14 @@ export default {
   // not fresh translations. Five more strings this screen needs are already in this file
   // under other names and are reused rather than duplicated: photosPersonSelect ('选择'),
   // photosCancel ('取消'), photosSelectedCount ('已选择 {count} 项' — note the parameter is
-  // `count`, not `n`), photosAlbumPickerTitle and photosAlbumPickerAdd.
-  photosSvAddPhotos: '加照片',
+  // `count`, not `n`), photosAlbumPickerTitle and photosMoAddSelected ('添加所选' — the
+  // static label Vue2 :288 hands this screen's picker, not the album pages' counting one).
+  // Final review, finding 2: this key shipped as '加照片', a local shortening nobody asked
+  // for. Vue2's own zh_CN.json:2020 says `"Add photos": "添加照片"`, and the neighbouring
+  // reused photosAlbumPickerTitle already renders 添加照片到「…」, so the screen contradicted
+  // itself as well as the source. Corrected to the Vue2 value; the rule stands that the
+  // Chinese here is copied from Vue2, never translated here.
+  photosSvAddPhotos: '添加照片',
   photosSvRemoveFromView: '从此视图移除',
   photosSvRemovedNFromView: '已从此视图移除 {n} 张',
   photosSvExcludedN: '已排除（{n}）',

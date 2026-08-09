@@ -117,6 +117,64 @@ describe('restoreAssets', () => {
   })
 })
 
+// Final review, finding 5 + the coverage hole beside it. `assetBusy` guards the three write
+// actions against each other, and nothing tested it at all — removing the flag entirely left
+// the suite green. It also used to make a dropped call indistinguishable from a real zero:
+// the view then announced "已钉住 0 张到此视图" and closed the picker over a request that was
+// never sent. `null` is now the dropped-because-busy answer; an empty list still answers 0.
+describe('assetBusy mutual exclusion', () => {
+  // A write is parked in flight so the second call lands while the flag is up.
+  function hangingPin() {
+    let release: (v: unknown) => void = () => {}
+    pinSmartViewAssets.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    return { release: () => release({ added: 1 }) }
+  }
+
+  it('drops a second write while one is in flight, and says so with null rather than a zero', async () => {
+    getSmartView.mockResolvedValue(RAW_SV)
+    const s = usePhotosSmartViews()
+    await s.fetchSmartViews()
+    const h = hangingPin()
+
+    const inFlight = s.pinAssets('sv1', ['x'])
+    expect(s.assetBusy).toBe(true)
+
+    // All three actions share the one flag, so all three are refused.
+    expect(await s.removeAssets('sv1', ['y'])).toBeNull()
+    expect(await s.restoreAssets('sv1', ['y'])).toBeNull()
+    expect(await s.pinAssets('sv1', ['y'])).toBeNull()
+    expect(removeSmartViewAssets).not.toHaveBeenCalled()
+    expect(restoreSmartViewAssets).not.toHaveBeenCalled()
+    expect(pinSmartViewAssets).toHaveBeenCalledTimes(1)
+
+    h.release()
+    expect(await inFlight).toBe(1)
+    expect(s.assetBusy).toBe(false)
+
+    // And the flag really does clear — the next write goes through.
+    pinSmartViewAssets.mockResolvedValue({ added: 4 })
+    expect(await s.pinAssets('sv1', ['z'])).toBe(4)
+  })
+
+  it('an empty list is still a real zero, not the dropped-call sentinel', async () => {
+    const s = usePhotosSmartViews()
+    await s.fetchSmartViews()
+    expect(await s.pinAssets('sv1', [])).toBe(0)
+    expect(await s.restoreAssets('sv1', [])).toBe(0)
+    expect(await s.removeAssets('sv1', [])).toEqual({ unpinned: 0, excluded: 0 })
+  })
+
+  it('clears the flag after a failure so the next write is not locked out', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    pinSmartViewAssets.mockRejectedValue(new Error('nope'))
+    const s = usePhotosSmartViews()
+    await s.fetchSmartViews()
+    await expect(s.pinAssets('sv1', ['x'])).rejects.toThrow()
+    expect(s.assetBusy).toBe(false)
+    spy.mockRestore()
+  })
+})
+
 describe('loadExcluded', () => {
   it('normalises the bare array through assetToPhoto', async () => {
     getSmartViewExcluded.mockResolvedValue([{ id: 'a1', originalName: 'a.jpg' }])
@@ -126,7 +184,7 @@ describe('loadExcluded', () => {
     expect(s.excluded[0].id).toBe('a1')
   })
 
-  it('leaves the list empty and does not throw when the request fails', async () => {
+  it('leaves the list empty and does not throw when the very first request fails', async () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     getSmartViewExcluded.mockRejectedValue(new Error('nope'))
     const s = usePhotosSmartViews()
@@ -134,6 +192,42 @@ describe('loadExcluded', () => {
     expect(s.excluded).toEqual([])
     expect(s.excludedLoading).toBe(false)
     spy.mockRestore()
+  })
+
+  // Final review, finding 6: the list used to be blanked unconditionally before awaiting, so
+  // a transient 500 on a refetch made the whole "已排除(N)" band vanish — the user was shown
+  // that the exclusions were gone while they were still on the server, with no error anywhere.
+  // A refetch of the same view now keeps what is on screen until a newer list actually lands.
+  it('keeps the loaded list when a refetch of the same view fails', async () => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    getSmartViewExcluded.mockResolvedValueOnce([{ id: 'a1' }, { id: 'a2' }])
+    const s = usePhotosSmartViews()
+    await s.loadExcluded('sv1')
+    expect(s.excluded).toHaveLength(2)
+
+    getSmartViewExcluded.mockRejectedValueOnce(new Error('boom'))
+    await s.loadExcluded('sv1')
+
+    expect(s.excluded.map((p) => String(p.id))).toEqual(['a1', 'a2'])
+    expect(s.excludedLoading).toBe(false)
+    spy.mockRestore()
+  })
+
+  // The other half of the same rule: a *different* view must still blank before awaiting,
+  // or view A's exclusions sit on screen under view B's heading while B loads.
+  it('blanks the band when the view changes, even before the new list arrives', async () => {
+    getSmartViewExcluded.mockResolvedValueOnce([{ id: 'a1' }])
+    const s = usePhotosSmartViews()
+    await s.loadExcluded('sv1')
+    expect(s.excluded).toHaveLength(1)
+
+    let release: (v: unknown) => void = () => {}
+    getSmartViewExcluded.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const p = s.loadExcluded('sv2')
+    expect(s.excluded).toEqual([]) // blanked immediately, not after the await
+    release([{ id: 'b1' }])
+    await p
+    expect(s.excluded.map((p2) => String(p2.id))).toEqual(['b1'])
   })
 
   it('carries a staleness guard: when two loads interleave, the later one wins', async () => {
