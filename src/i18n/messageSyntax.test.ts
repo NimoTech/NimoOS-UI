@@ -1699,7 +1699,9 @@ describe('i18n message syntax', () => {
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiCfgDeleted', axis: 'en' }, //           已删除: Removed vs Deleted
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'aiKbRtRootDeleted', axis: 'en' }, //      已删除: Removed vs Root deleted (within batch, mirror)
         { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'filesRename', axis: 'en' }, //             重命名: Renamed vs Rename
-        { newKey: 'aiKbWkOpRenamed', forbiddenKey: 'filesUploadRename', axis: 'en' }, //       重命名: Renamed vs Rename
+        // 曾经还有一对 aiKbWkOpRenamed|filesUploadRename —— filesUploadRename 在 SP12 冲突弹窗
+        // 换代后成了没人引用的孤儿键并被删除,这一对随之消失。同一语义(重命名: Renamed vs
+        // Rename)仍由下面的 filesRename / photosPersonMenuRename 等对守着,覆盖没有变薄。
         // Direction 2 (§9.3, mirror): en collides, zh must stay distinct. This batch has exactly
         // one — Appendix A §A.3.1a calls it 「本期唯一的 en 单侧撞车」 and it is the reason the
         // en direction cannot be skipped just because the zh column looks clean.
@@ -1719,10 +1721,10 @@ describe('i18n message syntax', () => {
         { newKey: 'aiKbWkOpRemoved', forbiddenKey: 'raidMemberRemoved', axis: 'zh' }, //     Removed: 已删除 vs 已移除
       ]
 
-      it("covers exactly the 27 one-axis-divergent pairs found by this task's own scan (21 原有 + 6 合流后新暴露)", () => {
-        expect(divergent.length).toBe(27)
+      it("covers exactly the 26 one-axis-divergent pairs found by this task's own scan (21 原有 + 6 合流后新暴露 − 1 随孤儿键删除)", () => {
+        expect(divergent.length).toBe(26)
         expect(divergent.filter((d) => d.axis === 'zh').length).toBe(2)
-        expect(divergent.filter((d) => d.axis === 'en').length).toBe(25)
+        expect(divergent.filter((d) => d.axis === 'en').length).toBe(24)
       })
 
       for (const { newKey, forbiddenKey, axis } of divergent) {
@@ -1748,7 +1750,7 @@ describe('i18n message syntax', () => {
       // 21 above. Without this, a future key elsewhere in the app that collides with one of this
       // batch's values on a single axis would appear silently, and the 「登记 per A-1」 discipline
       // would have nothing enforcing it.
-      it('the scan over the whole table finds exactly these 27 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
+      it('the scan over the whole table finds exactly these 26 one-axis-divergent pairs (assume the coordinator table is incomplete — §7.1)', () => {
         const zhAll = zh as Record<string, string>
         const enAll = en as Record<string, string>
         const found: string[] = []
