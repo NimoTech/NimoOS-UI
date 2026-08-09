@@ -19,6 +19,7 @@ import { service } from '@nimotech/nimoos-service'
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: { getList: vi.fn(async () => ({ content: [] })) },
+    file: { uploadPrecheck: vi.fn(async () => ({ results: [] })) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
     snapshot: { listVolumes: vi.fn().mockResolvedValue([]), list: vi.fn().mockResolvedValue([]) },
@@ -154,15 +155,24 @@ describe('Files.vue upload-conflict wiring', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesUploadSkipped.replace('{count}', '1'))
   })
 
-  it('a refill also goes through conflict resolution', async () => {
-    // The batch's own target_path ('/DATA/Elsewhere') is distinct from the
-    // current directory ('/DATA') and deliberately listed empty (no collision),
-    // so this test can assert resolution ran against the RIGHT path without
-    // also having to drive the dialog to a decision.
+  // The batch's own target_path ('/DATA/Elsewhere') is distinct from the current
+  // directory ('/DATA'), so this also proves resolution ran against the RIGHT path.
+  //
+  // The listing deliberately CONTAINS the 'Trip' folder being refilled: that is the
+  // real-world shape, because the interrupted batch itself created that folder before
+  // it stopped. Prompting there would ask the user about a collision they cannot
+  // meaningfully answer, and a reasonable "Keep both" would scatter the remaining
+  // files into 'Trip(1)/' while the already-uploaded ones stay in 'Trip/'. The refill
+  // branch therefore resolves folder groups as an implicit merge — no dialog, and the
+  // entries land back in the original folder.
+  it('a refill merges into the folder it is refilling instead of prompting', async () => {
     vi.mocked(service.folder.getList).mockImplementation(async (path: string) => {
-      if (path === '/DATA/Elsewhere') return { content: [] }
+      if (path === '/DATA/Elsewhere') return { content: [{ name: 'Trip', path: '/DATA/Elsewhere/Trip', is_dir: true }] }
       return { content: [{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }] }
     })
+    // The merge branch always runs a per-path precheck; none of the missing files
+    // exist yet (that is why they are missing), so nothing collides in round 2 either.
+    vi.mocked(service.file.uploadPrecheck).mockResolvedValue({ results: [{ relativePath: 'Trip/a.jpg', exists: false }] } as never)
     const w = await mountFiles()
     const uploads = useUploadsStore()
     const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
@@ -173,6 +183,7 @@ describe('Files.vue upload-conflict wiring', () => {
     await flushPromises()
 
     expect(service.folder.getList).toHaveBeenCalledWith('/DATA/Elsewhere')
+    expect(w.findComponent(FileConflictDialog).props('open')).toBe(false)
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy.mock.calls[0][0]).toEqual([
       { file: wanted, targetPath: '/DATA/Elsewhere', relativePath: 'Trip/a.jpg', conflictPolicy: '' },

@@ -242,7 +242,11 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
-  const resolved = await conflicts.resolveEntries(normalized, targetPath)
+  // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
+  // the interrupted batch created it — so its collision is self-inflicted and
+  // merging back into it is the only correct answer. See ResolveOptions
+  // .assumeMergeForFolders in useUploadConflicts.ts for the full reasoning.
+  const resolved = await conflicts.resolveEntries(normalized, targetPath, { assumeMergeForFolders: !!pending })
   const dropped = resolved.skippedCount + resolved.cancelledCount
 
   if (!resolved.accepted.length) {

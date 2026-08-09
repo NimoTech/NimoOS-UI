@@ -185,6 +185,36 @@ describe('useUploadConflicts', () => {
     expect(out.skippedCount).toBe(0)
   })
 
+  // Finding C. A refill re-uploads the missing files of an interrupted batch into
+  // that batch's OWN target_path, so the folder it is refilling is on disk by
+  // construction and always "collides" with itself.
+  it('assumeMergeForFolders resolves a folder collision as merge without opening the dialog', async () => {
+    const precheck = vi.fn().mockResolvedValue({ results: [{ relativePath: 'Trip/1.jpg', exists: false }] })
+    const c = useUploadConflicts({ listFolder: listing([{ name: 'Trip', is_dir: true }]), precheck })
+    const out = await c.resolveEntries([e('Trip/1.jpg')], '/DATA/x', { assumeMergeForFolders: true })
+    expect(c.dialog.value.open).toBe(false)
+    expect(precheck).toHaveBeenCalledTimes(1)
+    // Merged into the folder it is refilling — NOT keep-both into 'Trip(1)/1.jpg'.
+    expect(out.accepted).toEqual([{ file: expect.any(File), relativePath: 'Trip/1.jpg', conflictPolicy: '' }])
+  })
+
+  it('assumeMergeForFolders still runs the inner round for genuinely colliding files', async () => {
+    const precheck = vi.fn().mockResolvedValue({ results: [{ relativePath: 'Trip/1.jpg', exists: true, is_dir: false }] })
+    const c = useUploadConflicts({ listFolder: listing([{ name: 'Trip', is_dir: true }]), precheck })
+    const p = c.resolveEntries([e('Trip/1.jpg')], '/DATA/x', { assumeMergeForFolders: true })
+    await answer(c, { action: 'overwrite' })
+    const out = await p
+    expect(out.accepted).toEqual([{ file: expect.any(File), relativePath: 'Trip/1.jpg', conflictPolicy: 'overwrite' }])
+  })
+
+  it('assumeMergeForFolders leaves plain file-vs-file conflicts prompting', async () => {
+    const c = useUploadConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }]) })
+    const p = c.resolveEntries([e('a.txt')], '/DATA/x', { assumeMergeForFolders: true })
+    await answer(c, { action: 'overwrite' })
+    const out = await p
+    expect(out.accepted[0].conflictPolicy).toBe('overwrite')
+  })
+
   // Finding E. The dialog is owned by whichever component instantiated this
   // composable, but the batch it gates outlives the view: navigating away mid
   // prompt used to strand `ask()`'s promise forever, so the caller never got to

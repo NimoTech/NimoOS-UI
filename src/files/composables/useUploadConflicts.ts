@@ -30,6 +30,29 @@ const CLOSED: ConflictDialogState = {
   open: false, name: '', targetPath: '', isDir: false, allowMerge: false, queueIndex: 0, queueTotal: 1,
 }
 
+export interface ResolveOptions {
+  /**
+   * Refill mode: resolve every folder-group collision as an implicit `merge`
+   * without ever opening the dialog.
+   *
+   * A refill re-uploads the MISSING files of a partially-interrupted batch into
+   * that batch's own target_path, so a folder upload's top segment ("Trip") is
+   * already on disk — the interrupted batch created it. The collision is
+   * self-inflicted by construction and there is exactly one correct answer:
+   * merge back into the folder being refilled. Asking would put the user in
+   * front of a question they cannot answer well, and a perfectly reasonable
+   * "Keep both" would drop the remaining files into "Trip(1)/" while the
+   * already-uploaded ones stay in "Trip/" — splitting one folder across two
+   * directories and leaving the batch permanently incomplete.
+   *
+   * Only the FOLDER queue is short-circuited. Plain file-vs-file collisions
+   * still prompt (those are real questions), and the merge's second round still
+   * runs the per-path precheck, so inner files that genuinely collide are still
+   * asked about one by one.
+   */
+  assumeMergeForFolders?: boolean
+}
+
 export interface UploadConflictDeps {
   listFolder?: (p: string) => Promise<{ content?: { name: string; is_dir: boolean }[] } | null>
   precheck?: (
@@ -96,7 +119,7 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
     onScopeDispose(() => { if (resolver) settle(null) })
   }
 
-  async function run(entries: UploadEntry[], targetPath: string): Promise<ResolvedBatch> {
+  async function run(entries: UploadEntry[], targetPath: string, opts: ResolveOptions): Promise<ResolvedBatch> {
     const passthrough = (): ResolvedBatch => ({
       accepted: entries.map((entry) => ({ file: entry.file, relativePath: entry.relativePath, conflictPolicy: '' as const })),
       skippedCount: 0,
@@ -139,9 +162,16 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
       // folds them into cancelledCount instead of silently dropping them (and
       // they must not be miscounted as skipped either).
       const { folderConflicts, fileConflicts } = splitConflictsByKind(conflicts, entries, existing)
-      const folderResolutions = folderConflicts.length
-        ? await resolveConflictQueue(folderConflicts, (c, ctx) => ask(c, targetPath, ctx))
-        : []
+      // Refill mode answers the folder queue for the user — see the comment on
+      // ResolveOptions.assumeMergeForFolders for why "merge" is the only correct
+      // answer there. A non-mergeable folder conflict (the target holds a FILE of
+      // that name) cannot be merged at all; applyUploadResolutions degrades those
+      // to keep-both exactly as it would if the dialog had never offered Merge.
+      const folderResolutions = !folderConflicts.length
+        ? []
+        : opts.assumeMergeForFolders
+          ? folderConflicts.map((conflict) => ({ conflict, action: 'merge' as const }))
+          : await resolveConflictQueue(folderConflicts, (c, ctx) => ask(c, targetPath, ctx))
       const folderCancelled = folderResolutions.some((r) => r.action === 'cancelled')
       const fileResolutions = !fileConflicts.length
         ? []
@@ -205,8 +235,8 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
     }
   }
 
-  function resolveEntries(entries: UploadEntry[], targetPath: string): Promise<ResolvedBatch> {
-    const next = chain.then(() => run(entries, targetPath), () => run(entries, targetPath))
+  function resolveEntries(entries: UploadEntry[], targetPath: string, opts: ResolveOptions = {}): Promise<ResolvedBatch> {
+    const next = chain.then(() => run(entries, targetPath, opts), () => run(entries, targetPath, opts))
     // Swallow on the CHAIN copy only, so a rejected batch never breaks the
     // queue; the caller's own promise still rejects normally.
     chain = next.then(() => undefined, () => undefined)
