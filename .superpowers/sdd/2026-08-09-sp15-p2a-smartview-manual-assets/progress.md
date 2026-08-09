@@ -41,3 +41,17 @@ P1 DEFECT FOUND INCIDENTALLY BY TASK 3 — controller verified:
   page renders its own .tile elements. So selection mode there has no visual feedback at
   all — user-visible, and four P1 reviews plus the whole-branch review missed it.
   Folded into Task 4 as a named fix.
+
+Task 4: complete (d32dedf fix + 64e8486 oss + c908ab2 docs) — carried-in defect fixed
+  (PhotosMomentDetail.vue gets its own [data-selected] rule, restated from
+  PhotosSmartViewDetail.vue's; new test reads the SFC via node:fs and reverts-to-confirm
+  the fix, per the task brief's instruction not to trust a `?raw` stylesheet import).
+  Six gates run clean on a committed tree: vue-tsc 0 · test 682/10849 · parity 9/9 ·
+  oss DELETE 78/REPLACE 4/PATCH 258 zero leaks · build 37.73s · styles 1075/1075.
+  First run of test+oss was red (18 leak hits + a product-tree vue-tsc failure) because
+  the new test file — placed under views/__tests__/ but this area's test table is
+  enumerated regardless — was not yet registered in oss/manifest.mjs; same recurring
+  omission Task 3's report already names, fourth occurrence. Fixed and reconfirmed clean.
+  Acceptance doc written with the design's §2.1/§2.2 date-conditioned-smart-view opening
+  verbatim, plus a step naming the carried-in fix. P2a is code-complete; unpushed,
+  undeployed, not merged to master, zero real-device acceptance run.
