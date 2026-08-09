@@ -31,7 +31,7 @@ import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
-import { splitProtectedUploads } from '../files/util/protect'
+import { splitProtectedUploads, deletableEntries } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
@@ -76,7 +76,7 @@ const settingsOpen = ref(false)
 const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
-const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const batchModalId = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
@@ -160,7 +160,7 @@ function onCtxAction(action: string, entry: FileEntry | null) {
         else favorites.add({ name: entry.name, path: entry.path })
       }
       break
-    case 'delete': deleteDlg.value = { open: true, entries: ctxTargets(entry) }; break
+    case 'delete': askDelete(ctxTargets(entry)); break
     case 'copy': ops.copy(ctxTargets(entry)); break
     case 'cut': ops.cut(ctxTargets(entry)); break
     case 'download': ops.download(ctxTargets(entry)); break
@@ -361,7 +361,19 @@ function confirmDelete() {
 function onToolbarDelete() {
   const sel = files.entries.filter((e) => files.isSelected(e.path))
   if (!sel.length) return
-  deleteDlg.value = { open: true, entries: sel }
+  askDelete(sel)
+}
+
+// The confirmation is the last point at which the user can still back out, so
+// it has to describe what will actually happen. It used to report the raw
+// selection size ("delete the selected 8 items?") while the protected members
+// were only discovered afterwards, inside ops.remove — so a selection with one
+// system folder in it confirmed a delete of 8 and deleted 0 (pending-ledger
+// F10). Split first, count what survives, and say how many are being left.
+function askDelete(entries: FileEntry[]) {
+  const { targets, skipped } = deletableEntries(entries)
+  if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
+  deleteDlg.value = { open: true, entries: targets, skipped }
 }
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
@@ -685,7 +697,9 @@ onMounted(() => { browse.ensureVolumes() })
     <AlertDialog
       v-model:open="deleteDlg.open"
       :title="t('filesCtxDelete')"
-      :message="t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
+      :message="deleteDlg.skipped > 0
+        ? t('filesDeleteConfirmWithProtected', { count: deleteDlg.entries.length, skipped: deleteDlg.skipped })
+        : t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
       :confirm-text="t('filesCtxDelete')"
       :cancel-text="t('filesCancel')"
       destructive

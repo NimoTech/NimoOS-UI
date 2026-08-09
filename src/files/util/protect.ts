@@ -24,6 +24,20 @@ export function splitProtectedUploads<T extends { relativePath: string }>(
   return { accepted, rejected }
 }
 
+// Split a selection into what a destructive batch may actually touch and a
+// count of what it must leave alone. Same shape (and same reasoning) as
+// shareableFolders in shareGate.ts.
+//
+// Deleting used to be all-or-nothing: one protected member -- a system folder,
+// a shared folder, a mount point -- and the whole batch was refused, so
+// selecting everything in /DATA and pressing delete removed nothing at all
+// (pending-ledger F10). Filtering lets the rest through and leaves the caller
+// to say how many were skipped.
+export function deletableEntries(entries: FileEntry[]): { targets: FileEntry[]; skipped: number } {
+  const targets = entries.filter((e) => canOperate(e))
+  return { targets, skipped: entries.length - targets.length }
+}
+
 // 可否对该项做重命名/删除/剪切等破坏性操作。复制/下载/收藏不走这里。
 export function canOperate(entry: FileEntry): boolean {
   if (entry.is_dir && PROTECTED.includes(entry.name)) return false // 系统默认文件夹

@@ -92,6 +92,44 @@ describe('useFileOps', () => {
     expect(batchDelete).not.toHaveBeenCalled()
   })
 
+  // Pending-ledger F10: one protected member used to refuse the whole batch, so
+  // selecting everything in /DATA and pressing delete removed nothing at all.
+  it('deletes the operable entries and skips the protected ones instead of refusing the batch', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.remove([
+      { name: 'a', path: '/DATA/a', is_dir: false },
+      { name: 'Documents', path: '/DATA/Documents', is_dir: true },
+      { name: 'b', path: '/DATA/b', is_dir: false },
+    ])
+    expect(batchDelete).toHaveBeenCalledWith(JSON.stringify(['/DATA/a', '/DATA/b']))
+    expect(showSpy).toHaveBeenCalledWith(zh.filesDeleteSkippedProtected.replace('{count}', '1'))
+  })
+
+  it('says nothing about skipping when the whole selection is deletable', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.remove([{ name: 'a', path: '/DATA/a', is_dir: false }])
+    expect(showSpy).not.toHaveBeenCalled()
+  })
+
+  it('still reports the protected toast when nothing in the selection can be deleted', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.remove([
+      { name: 'Documents', path: '/DATA/Documents', is_dir: true },
+      { name: 'Gallery', path: '/DATA/Gallery', is_dir: true },
+    ])
+    expect(batchDelete).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesProtectedDelete)
+  })
+
   it('rename 受保护项被前端挡下,不请求', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { PROTECTED, canOperate, splitProtectedUploads } from './protect'
+import { PROTECTED, canOperate, splitProtectedUploads, deletableEntries } from './protect'
 import type { FileEntry } from '../stores/files'
 
 function e(p: Partial<FileEntry>): FileEntry {
@@ -71,5 +71,34 @@ describe('splitProtectedUploads', () => {
 
   it('returns two empty lists for an empty batch', () => {
     expect(splitProtectedUploads([])).toEqual({ accepted: [], rejected: [] })
+  })
+})
+
+// Same shape as shareableFolders in shareGate.ts: filter to what the operation
+// can actually act on, and report how many were left behind. Pending-ledger F10.
+describe('deletableEntries', () => {
+  it('keeps the operable entries and counts the protected ones', () => {
+    const a = e({ name: 'a.txt', path: '/DATA/a.txt' })
+    const docs = e({ name: 'Documents', is_dir: true, path: '/DATA/Documents' })
+    const b = e({ name: 'b.txt', path: '/DATA/b.txt' })
+    const { targets, skipped } = deletableEntries([a, docs, b])
+    expect(targets).toEqual([a, b])
+    expect(skipped).toBe(1)
+  })
+
+  it('counts shared folders and mount points as skipped, not just system folders', () => {
+    const shared = e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } })
+    const mount = e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any })
+    const { targets, skipped } = deletableEntries([shared, mount])
+    expect(targets).toEqual([])
+    expect(skipped).toBe(2)
+  })
+
+  it('reports nothing skipped when every entry is operable', () => {
+    expect(deletableEntries([e({ name: 'a.txt' })])).toEqual({ targets: [e({ name: 'a.txt' })], skipped: 0 })
+  })
+
+  it('returns an empty split for an empty selection', () => {
+    expect(deletableEntries([])).toEqual({ targets: [], skipped: 0 })
   })
 })

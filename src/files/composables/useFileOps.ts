@@ -5,7 +5,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
-import { canOperate } from '../util/protect'
+import { canOperate, deletableEntries } from '../util/protect'
 import { useClipboardStore } from '../stores/clipboard'
 import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
@@ -60,8 +60,14 @@ export function useFileOps() {
 
   async function remove(entries: FileEntry[]) {
     if (blockedInSnapshot()) return
-    if (entries.some((e) => !canOperate(e))) { toast.show(t('filesProtectedDelete')); return }
-    const paths = entries.map((e) => e.path)
+    // Filter rather than refuse: a single protected member used to abort the
+    // whole batch, so selecting everything in /DATA and pressing delete removed
+    // nothing at all (pending-ledger F10). Only a selection with nothing
+    // deletable in it still bails out, which is what the old message describes.
+    const { targets, skipped } = deletableEntries(entries)
+    if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
+    if (skipped > 0) toast.show(t('filesDeleteSkippedProtected', { count: skipped }))
+    const paths = targets.map((e) => e.path)
     try {
       await service.batch.delete(JSON.stringify(paths))
       for (const p of paths) if (favorites.isFavorite(p)) await favorites.remove(p)
