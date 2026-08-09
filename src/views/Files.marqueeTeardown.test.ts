@@ -9,6 +9,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
 import { useFoldersStore } from '../home/stores/folders'
+import { useFilesStore } from '../files/stores/files'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -87,15 +88,39 @@ describe('Files marquee teardown', () => {
     expect(dispatchSelectStart()).toBe(false) // after unmount: selection must be allowed again
   })
 
-  it('stops tracking pointer movement after the view unmounts mid-drag', async () => {
+  // This test guards one observable property: after unmount, a stray mousemove must
+  // not rewrite the store's selection. It goes red if the whole `onUnmounted` hook is
+  // removed (armed/dragging never reset, so a leaked listener runs collectSelection()
+  // against torn-down grid/list refs and wipes the selection to empty).
+  // It does NOT go red if only the `teardownMarquee()` line inside that hook is
+  // disabled while the `armed`/`dragging` resets stay in place: with `armed` already
+  // false, onMarqueeMove's leading guard makes the still-attached mousemove/mouseup
+  // listeners no-ops, so there is no observable effect left to catch -- that scenario
+  // is a resource leak (dangling window listeners), not a behavior bug, and the
+  // `teardownMarquee()` line already has its own dedicated coverage: the `selectstart`
+  // test above goes red on that exact same mutation.
+  it('does not let a mousemove after unmount overwrite the selection', async () => {
     const wrapper = await mountFiles()
+    const files = useFilesStore()
+
     const surface = wrapper.find('[data-marquee-surface]').element as HTMLElement
     surface.dispatchEvent(new MouseEvent('mousedown', { button: 0, clientX: 10, clientY: 10, bubbles: true }))
-    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 200, clientY: 200 }))
+    // Under jsdom every element reports a zero-width getBoundingClientRect, so the
+    // grid view's virtualized geometry falls back to a single 120x130 column
+    // (see gridVirtual.ts columnsFor(0, ...) === 1). A drag to (100, 100) deterministically
+    // overlaps the first tile's rect {0,0,120,130} and produces a real, non-empty selection.
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 100, clientY: 100 }))
+    const selectionWhileDragging = new Set(files.selected)
+    expect(selectionWhileDragging.size).toBeGreaterThan(0) // sanity: the drag actually selected something
 
     wrapper.unmount()
-    // Moving the pointer after unmount must not throw (onMarqueeMove would otherwise
-    // touch a store that has been torn down).
-    expect(() => window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300 }))).not.toThrow()
+
+    // On the leaking path this listener is still attached and still "dragging": it
+    // re-runs collectSelection() against a view whose grid/list template refs are now
+    // null, which measures zero item rects and overwrites the selection to empty.
+    // A `.not.toThrow()` assertion cannot see this -- nothing throws, the store is
+    // just silently wiped. Asserting on the store's observable selection can.
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 300, clientY: 300 }))
+    expect(new Set(files.selected)).toEqual(selectionWhileDragging)
   })
 })
