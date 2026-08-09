@@ -234,3 +234,10 @@ Task 10: minor (deferred): doDelete never sets confirmDeleteOpen=false on succes
 Task 10: minor (deferred): watch(momentId) resets the asset state but not moreOpen /
   confirmDeleteOpen / deleteError / exporting, so a confirm dialog could relabel
   itself for a different moment mid-interaction. No in-page control triggers this.
+Task 11: complete (commit 5f51060). Controller ran all five gates personally on a
+  clean tree: vue-tsc clean · pnpm test 678 files/10806 passed · parity 9/9 · oss
+  export zero real leaks (DELETE 76 · REPLACE 4 · PATCH 258) · pnpm build 17.09s ·
+  color-guard 1075/1075. CSS early-close self-check done by hand on the three files.
+  One earlier full-suite run showed 1 unidentified failure that did not reproduce on
+  the next two runs — consistent with the plan's known-flake list.
+  Acceptance list at docs/superpowers/2026-08-09-sp15-p1-acceptance.md.
