@@ -335,6 +335,50 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/smart-views/${id}/export?format=album`, {})
       return body<unknown>(res.data)
     },
+    // ─── Moments(自动聚合的高光时刻,智能视图页 "For You" 分区)───
+    // 回源核对 NimoOS-Photos/route/v1/moments.go:List 用 {moments:[…]} 包裹键(与本文件
+    // 其它裸数组端点不同);字段是 snake_case(后端注释写明是有意为之)。归一到驼峰在
+    // store 层做,这一层只负责取出包裹键。
+    async listMoments(): Promise<unknown[]> {
+      const res = await http.get('/photos/moments')
+      return body<{ moments?: unknown[] } | undefined>(res.data)?.moments ?? []
+    },
+    // withMembers=true 时后端返回 {assets,members,places};不带时是裸数组。
+    // 两种形状原样上抛,由 store 分辨——这层不做归一,免得两个消费方口径分叉。
+    async getMomentAssets(id: string, featured = false, withMembers = false): Promise<unknown> {
+      const params: Record<string, number> = {}
+      if (featured) params.featured = 1
+      if (withMembers) params.with_members = 1
+      const res = await http.get(`/photos/moments/${id}/assets`, { params })
+      return body<unknown>(res.data)
+    },
+    async pinMomentAssets(id: string, ids: string[]): Promise<{ ok?: boolean; asset_count?: number }> {
+      const res = await http.post(`/photos/moments/${id}/assets`, { ids })
+      return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
+    },
+    // axios 的 delete 没有 body 位置参数,请求体必须走 config.data。
+    async excludeMomentAssets(id: string, ids: string[]): Promise<{ ok?: boolean; asset_count?: number }> {
+      const res = await http.delete(`/photos/moments/${id}/assets`, { data: { ids } })
+      return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
+    },
+    async deleteMoment(id: string): Promise<unknown> {
+      const res = await http.delete(`/photos/moments/${id}`)
+      return body<unknown>(res.data)
+    },
+    async exportMomentAlbum(id: string): Promise<{ albumId?: string; name?: string; count?: number }> {
+      const res = await http.post(`/photos/moments/${id}/album`, {})
+      return body<{ albumId?: string; name?: string; count?: number }>(res.data) ?? {}
+    },
+    async reorderMoments(ids: string[]): Promise<unknown> {
+      const res = await http.put('/photos/moments/order', { ids })
+      return body<unknown>(res.data)
+    },
+    // 后端 202 + 异步重算。本期**不接 UI 入口**(Vue2 也没有,见 spec §1.2);
+    // 保留方法是为验收时能在浏览器控制台里调用。
+    async recomputeMoments(): Promise<unknown> {
+      const res = await http.post('/photos/moments/recompute', {})
+      return body<unknown>(res.data)
+    },
     // ─── 回收站 ───
     async listTrash(): Promise<unknown[]> {
       const res = await http.get('/photos/trash')
