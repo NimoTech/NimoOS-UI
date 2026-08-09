@@ -13,20 +13,24 @@
 // smart-view list store (usePhotosSmartViews) is no longer imported here at all; this file
 // no longer fetches or renders anything about smart views themselves.
 //
-// 本任务范围(brief 结构规格 1-9,现状已收窄):
-//  1) 外壳(AreaShell/PhotosSidebar/.photos-main,不变)
-//  2) Moments · For You band —— showMoments 门控,唯一的页面主体
-//  3) 精简设置提示(v-else-if="aiSmartViewOff"):band 隐藏时页面几乎空白,给一行指向设置页
-//     的提示,取代原来整块 AI 横幅(横幅连同智能视图网格一起搬进了 Albums 页)。
+// This task's scope (brief structural spec items 1-9, now narrowed):
+//  1) Shell (AreaShell/PhotosSidebar/.photos-main, unchanged)
+//  2) Moments · For You band -- gated by showMoments, the page's sole content
+//  3) Slim settings hint (v-else-if="aiSmartViewOff"): with the band hidden the page would
+//     be nearly blank, so a one-line pointer to Settings replaces the old full AI banner
+//     (the banner moved to the Albums page along with the smart-view grid).
 //
-// 偏离登记:
-//  1) [P8a-T6 已接线,历史记录] Vue2 :15 原横幅链接是 <a href="javascript:void(0)">,点击
-//     $emit('open-settings', 'ai')。设置页落地后换成真实 <RouterLink>——这条已并入下方精简
-//     提示,不再是独立横幅。
-//  2) Vue2 :19 链接文字后还有一个裸英文句点(`</a>.`),中文界面下会中西混排且不在任何
-//     可翻译串里——不复制(同 PhotosPeople.vue 偏离登记 7 的先例)。
-//  3) 精简提示的琥珀色沿用 --dem-fg/--dem-bg/--dem-bd 家族(grep theme.css 已确认两套主题
-//     都有取值,PhotosTrash.vue 的 warn 语义已是这套 token 的既定先例,不新增 token)。
+// Deviation registry:
+//  1) [P8a-T6 already wired, historical record] Vue 2 :15's original banner link was
+//     <a href="javascript:void(0)">, clicking it emitted $emit('open-settings', 'ai'). Once
+//     the settings page landed this became a real <RouterLink> -- that behavior has since
+//     been folded into the slim hint below and is no longer a standalone banner.
+//  2) Vue 2 :19 has a bare English period after the link text (`</a>.`), which would mix
+//     Chinese and English typography in the Chinese UI and sits outside any translatable
+//     string -- not copied (same precedent as PhotosPeople.vue's deviation 7).
+//  3) The slim hint's amber reuses the --dem-fg/--dem-bg/--dem-bd family (grep of theme.css
+//     confirms both themes define values; PhotosTrash.vue's warn semantics are already an
+//     established precedent for this token family -- no new token added).
 //  4) [SP15-P1 final fix wave] A reorder drag no longer also opens the moment it dragged.
 //     Vue 2's Moments band has no such guard and does open it; the album grid's guard is
 //     copied here instead. Full rationale, including why Sortable's own `ignoreNextClick`
@@ -50,8 +54,9 @@ const toast = useToast()
 
 // P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
 // 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
-// 缺字段/请求失败一律按开启处理(不显示横幅/提示,不吓用户),这条防御性语义已经在
-// store.fetchAiFeatures() 里落实,这里只是消费。
+// missing field / request failure is always treated as "on" (no banner/hint, does not
+// scare the user) -- this defensive semantics already lives in store.fetchAiFeatures();
+// this line only consumes it.
 const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
 // SP15-P1-T5(Vue2 899af59b:PhotosSmartViewsView.vue:455) —— the Moments band is hidden
@@ -131,7 +136,7 @@ onMounted(() => {
     <div class="photos-layout">
       <PhotosSidebar />
       <main class="photos-main">
-        <!-- ── Moments · For You(Vue2 899af59b :31-44)—— 现在是本页唯一主体 ── -->
+        <!-- ── Moments · For You (Vue2 899af59b :31-44) -- now this page's sole content ── -->
         <div v-if="showMoments" class="mo-section" data-test="mo-section">
           <div class="mo-hero">
             <div>
@@ -223,8 +228,9 @@ onMounted(() => {
    on top of it (see comment above) and still needs this rule to exist. */
 .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; flex: 1 1 auto; }
 
-/* ── 精简设置提示(SP15-P2b Task 5,取代原 .svs-banner 整块)── 沿用横幅同款 --dem-fg 家族
-   (先例:PhotosTrash.vue .trash-bucket-dot [data-tone="warn"])。 */
+/* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
+   the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
+   [data-tone="warn"]). */
 .mo-off-hint {
   margin: 24px 32px 20px; padding: 14px 16px;
   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;

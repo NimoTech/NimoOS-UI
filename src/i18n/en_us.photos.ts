@@ -796,7 +796,7 @@ export default {
   photosSearchNothingHereYet: 'Nothing here yet',
   photosSearchTypeOcr: 'OCR',
   photosSearchOldest: 'Oldest',
-  photosSearchOpenSmartViews: 'Open in Smart Views →',
+  photosSearchOpenInAlbums: 'Open in Albums →',
   photosSearchPeople: 'People',
   photosSearchTokPerson: 'person',
   photosSearchBadgePhoto: 'Photo',

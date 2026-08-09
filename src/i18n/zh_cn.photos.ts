@@ -808,7 +808,7 @@ export default {
   photosSearchNothingHereYet: '暂无内容',
   photosSearchTypeOcr: 'OCR',
   photosSearchOldest: '最早',
-  photosSearchOpenSmartViews: '在智能视图中打开 →',
+  photosSearchOpenInAlbums: '在相册中打开 →',
   photosSearchPeople: '人物',
   photosSearchTokPerson: '人物',
   photosSearchBadgePhoto: '照片',
@@ -959,7 +959,8 @@ export default {
   photosMoAddedThisWeek: '本周 +{n}',
   photosMoHeroTitle: '时刻 · 为你推荐',
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
-  // SP15-P2b Task 5:侧栏该条目的新标签(原「智能视图」),以及 band 隐藏时的精简设置提示。
+  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
+  // settings hint shown when the band is hidden.
   photosMoForYou: '为你推荐',
   photosMoFollowsSmartViewSetting: '「时刻」跟随「智能视图」开关——可在以下位置重新开启',
   // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
