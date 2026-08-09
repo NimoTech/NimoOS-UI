@@ -137,30 +137,36 @@ function triggerPreview(): void {
   })
 }
 
-function close(): void {
-  // SP15-P2b Task 4 (Vue2 :325 onScrimClick): in embedded mode the host panel owns
-  // dismissal -- it has the scrim, the Cancel button and the Escape handler. Emitting
-  // update:open from here would close the smart form while leaving the host panel open
-  // around an empty hole, so embedded mode asks the host to close everything instead.
+// SP15-P2b Task 4 review fix round 1 · Important: this was a single embedded/standalone
+// branch duplicated in two places (here and inline in confirm()'s success handler). The
+// duplication is what let the Cancel path go untested -- the two copies could drift
+// independently, and one review pass only exercised confirm()'s copy. One function, both
+// callers route through it now.
+//
+// Vue2 :325 onScrimClick: in embedded mode the host panel owns dismissal -- it has the
+// scrim, the Cancel button and the Escape handler. Emitting update:open from here would
+// close the smart form while leaving the host panel open around an empty hole, so embedded
+// mode asks the host to close everything instead.
+function dismiss(): void {
   if (props.embedded) {
     emit('close')
-    return
+  } else {
+    emit('update:open', false)
   }
-  emit('update:open', false)
 }
 
 // SP15-P2b Task 4: the host panel owns the scrim in embedded mode (it has no scrim of
 // its own to click through to), so a self-click on this component's own root must be a
 // no-op there. Standalone mode is unchanged: click.self on the scrim closes as before.
 function onRootClick(): void {
-  if (!props.embedded) close()
+  if (!props.embedded) dismiss()
 }
 
 // 浮层 Esc 走 document 级监听 + watch(open) 挂/摘(P4 血泪，AlbumPickerDialog.vue 既有
 // 范式)。本组件只有一层浮层，没有"多浮层同开"的早退顾虑。
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  close()
+  dismiss()
 }
 
 // 控制器补充 1 的核心:open 变真时重置 draft + 聚焦 + refreshPreview，必须挂在
@@ -277,14 +283,9 @@ async function confirm(): Promise<void> {
     })
     if (created) {
       emit('created', created.id)
-      // SP15-P2b Task 4: embedded mode closes the whole host panel via 'close' (the panel
-      // body *is* this form -- there is no separate 'itself' to close); standalone mode
-      // keeps its own update:open(false) contract unchanged.
-      if (props.embedded) {
-        emit('close')
-      } else {
-        emit('update:open', false)
-      }
+      // Routes through the same dismiss() the Cancel button and Escape use -- see its
+      // definition above for why this decision must not be duplicated inline here.
+      dismiss()
     }
   } catch (e) {
     console.error('[smart-view-create-dialog] confirm', e)
@@ -317,7 +318,7 @@ function thumbUrl(seed: string): string {
             <div class="sv-modal-title">{{ t('photosSvNewSmartView') }}</div>
             <div class="sv-modal-sub">{{ t('photosSvSavedSearchKeepsItself') }}</div>
           </div>
-          <button type="button" class="icon-btn" data-test="sv-close-btn" :aria-label="t('photosClose')" @click="close">
+          <button type="button" class="icon-btn" data-test="sv-close-btn" :aria-label="t('photosClose')" @click="dismiss">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
           </button>
         </div>
@@ -467,7 +468,7 @@ function thumbUrl(seed: string): string {
         </div>
 
         <div class="sv-modal-foot">
-          <button type="button" class="sv-btn-ghost" @click="close">
+          <button type="button" class="sv-btn-ghost" @click="dismiss">
             {{ t('photosCancel') }}
           </button>
           <button

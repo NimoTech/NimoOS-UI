@@ -728,7 +728,10 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await w.find('[data-test="albums-new-btn"]').trigger('click')
     const opt = w.find('[data-test="source-nimo"]')
     expect(opt.attributes('disabled')).toBeDefined()
-    expect(opt.attributes('title')).toContain('智能视图已关闭')
+    // SP15-P2b Task 4 review fix round 1 · Minor 3: reference the imported locale value
+    // (as the sibling assertions elsewhere in this file do) rather than a hardcoded literal,
+    // so a copy change cannot leave this test asserting stale text.
+    expect(opt.attributes('title')).toContain(zh.photosSvSmartViewsOffCreateHint)
     await opt.trigger('click')
     expect(w.find('[data-test="sv-embed-host"]').exists()).toBe(false)
   })
@@ -760,8 +763,10 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await nextTick()
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
     // Vue2 :575-578 stays on the list -- the new card is already there because the store
-    // unshifted it. No navigation.
-    expect(push).not.toHaveBeenCalledWith('/photos/smart-views/sv-new')
+    // unshifted it. No navigation at all -- onSmartAlbumCreated() never calls push, so
+    // assert that directly (SP15-P2b Task 4 review fix round 1 · Minor 2: the previous
+    // `.not.toHaveBeenCalledWith(...)` only ruled out one specific destination).
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('closes the whole panel when the embedded form emits close (cancel path)', async () => {

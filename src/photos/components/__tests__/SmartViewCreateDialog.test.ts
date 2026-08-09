@@ -573,7 +573,7 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
 // :271-277 (effectiveName/canSubmit), :325 (onScrimClick). The Albums page mounts this
 // dialog embedded in place of its own footer when the "Let Nimo draft it" fill option is
 // picked; standalone mode (PhotosSmartViews.vue's own mount) is untouched.
-describe('嵌入模式(SP15-P2b Task 4)', () => {
+describe('embedded mode (SP15-P2b Task 4)', () => {
   it('embedded mode drops its own scrim, header and name field', async () => {
     const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
@@ -614,14 +614,14 @@ describe('嵌入模式(SP15-P2b Task 4)', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await nextTick()
     expect(w.emitted('update:open')).toBeUndefined()
-    // Also assert 'close' was never emitted, not just 'update:open': close() itself already
+    // Also assert 'close' was never emitted, not just 'update:open': dismiss() itself already
     // branches on embedded and would emit 'close' if this listener fired, so checking
     // update:open alone cannot tell "the listener never fired" apart from "it fired and took
     // the embedded branch" -- both leave update:open undefined either way.
     expect(w.emitted('close')).toBeUndefined()
   })
 
-  it('embedded mode emits close (not update:open) on cancel and on successful create', async () => {
+  it('embedded mode emits close (not update:open) on successful create', async () => {
     const store = usePhotosSmartViews()
     vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv({ id: 'sv-embed-1' }))
     const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
@@ -630,6 +630,20 @@ describe('嵌入模式(SP15-P2b Task 4)', () => {
     await w.vm.$nextTick()
     expect(w.emitted('close')).toBeTruthy()
     expect(w.emitted('created')).toEqual([['sv-embed-1']])
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+
+  // SP15-P2b Task 4 review fix round 1 · Important: in embedded mode the ghost Cancel
+  // button is the *only* way to back out without submitting -- it is not gated by
+  // v-if="!embedded" the way the header close button and Name field are, and the Escape
+  // listener is never attached in embedded mode (see the test above), so it cannot cover
+  // this path either. This was previously untested: dismiss()'s embedded branch and
+  // confirm()'s success-path embedded branch used to be two separately-written copies of
+  // the same decision, and only the confirm() copy had a test.
+  it('embedded mode emits close (not update:open) when Cancel is clicked', async () => {
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    await w.find('.sv-btn-ghost').trigger('click')
+    expect(w.emitted('close')).toBeTruthy()
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
