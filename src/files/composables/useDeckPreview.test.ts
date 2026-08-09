@@ -131,4 +131,30 @@ describe('useDeckPreview', () => {
     await flush()
     expect(api.previews.value.snap1.entries.map((t) => t.name)).toEqual(['b.jpg'])
   })
+
+  it('retries a preview that failed once the visible set changes again', async () => {
+    getListMock.mockRejectedValueOnce(new Error('network')).mockResolvedValue({ content: CONTENT })
+    const { api, visible } = setup(['snap1'])
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('failed')
+
+    visible.value = ['snap1', 'snap2'] // dial the ring one notch
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('ready')
+  })
+
+  it('does not retry a preview that came back 404 (missing)', async () => {
+    // "no such folder at that point in time" is a stable fact, not a blip -- retrying is just a wasted request.
+    getListMock.mockRejectedValue(Object.assign(new Error('no'), { code: 404 }))
+    const { api, visible } = setup(['snap1'])
+    const snap1Calls = () => getListMock.mock.calls.filter((c) => String(c[0]).includes('snap1')).length
+
+    await flush()
+    expect(api.previews.value.snap1.status).toBe('missing')
+    expect(snap1Calls()).toBe(1)
+
+    visible.value = ['snap1', 'snap2'] // dial the ring one notch
+    await flush()
+    expect(snap1Calls()).toBe(1) // still 1: missing is never retried
+  })
 })
