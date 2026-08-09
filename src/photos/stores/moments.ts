@@ -5,7 +5,7 @@
 // Backend contract cross-checked against NimoOS-Photos/route/v1/moments.go:39-73
 // (momentResponse).
 //
-// Two deliberate differences from Vue 2 (logged individually):
+// Four deliberate differences from Vue 2 (logged individually):
 //  1) Vue 2 kept list state in the view component and detail assets in the detail
 //     component, each maintaining its own copy of asset_count and syncing them by
 //     hand via a `$emit('asset-count-changed')`. Here it is folded into one store:
@@ -16,11 +16,26 @@
 //     two calls never overlapped. Here the detail page's return-to-list path
 //     refetches too, so two fetchMoments calls can interleave, and a late
 //     response would otherwise clobber a newer one.
+//  3) setOrder requires `ids` to be a genuine permutation of the current list
+//     (right length, no duplicates, every id known) rather than just checking
+//     length equality. Vue 2's persistMomentsOrder used the weaker length-only
+//     check (899af59b:PhotosSmartViewsView.vue:586 — `if (reordered.length !==
+//     snapshot.length) return`), which silently drops an entry: a duplicate id
+//     maps to the same moment twice, the resulting array's length still matches
+//     the original, and the guard lets it through while a different moment
+//     quietly vanishes from state. Deliberately not preserved — fixed instead.
+//  4) pin / exclude / remove / loadDetail / loadAll throw through on failure,
+//     whereas Vue 2's counterparts caught, swallowed, and toasted internally
+//     (899af59b:PhotosMomentDetail.vue:376-400,427-428). Throwing through is
+//     correct here — user-facing error feedback belongs to the view layer,
+//     which wraps these calls in its own try/catch (later tasks) — but is
+//     logged so a later task doesn't assume Vue 2's swallow-and-toast
+//     semantics still hold.
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
-import { assignMomentSizes, type MomentSize, type MomentTemplate } from '../util/momentLayout'
+import { assignMomentSizes } from '../util/momentLayout'
 
 export interface Moment {
   id: string
@@ -88,7 +103,7 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
         id: m.id, recipeKey: m.recipeKey, assetCount: m.assetCount,
         coverRatio: m.coverRatio, featuredAssetIds: m.featuredAssetIds,
       })),
-    ) as Record<string, { size: MomentSize; template: MomentTemplate }>,
+    ),
   )
 
   function byId(id: string): Moment | undefined {
@@ -120,11 +135,23 @@ export const usePhotosMoments = defineStore('photosMoments', () => {
     await fetchMoments()
   }
 
-  /** Reorders local state only, no request — used internally by reorder() and by tests. */
+  /** Reorders local state only, no request — used internally by reorder() and by tests.
+   *  Requires `ids` to be a genuine permutation of the current list: same length, every
+   *  id known, and no duplicates. A duplicate would otherwise map to the same moment
+   *  twice while the resulting array's length still happens to match — silently
+   *  dropping whichever other moment never got picked (see file-header item 3). */
   function setOrder(ids: string[]): boolean {
+    if (ids.length !== moments.value.length) return false  // wrong length — bail out conservatively
     const byIdMap = new Map(moments.value.map((m) => [m.id, m]))
-    const next = ids.map((id) => byIdMap.get(id)).filter((m): m is Moment => m != null)
-    if (next.length !== moments.value.length) return false  // mismatched ids — bail out conservatively rather than drop entries
+    const seen = new Set<string>()
+    const next: Moment[] = []
+    for (const id of ids) {
+      if (seen.has(id)) return false          // duplicate — not a true permutation
+      const m = byIdMap.get(id)
+      if (!m) return false                    // unknown id
+      seen.add(id)
+      next.push(m)
+    }
     moments.value = next
     return true
   }

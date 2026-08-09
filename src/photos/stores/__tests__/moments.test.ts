@@ -131,6 +131,18 @@ describe('reordering', () => {
     expect(reorderMoments).not.toHaveBeenCalled()
     expect(s.moments.map((m) => m.id)).toEqual(['m1', 'm2'])
   })
+
+  it('rejects a duplicate id instead of silently dropping the entry it displaces', async () => {
+    listMoments.mockResolvedValue([RAW, { ...RAW, id: 'm2' }])
+    const s = usePhotosMoments()
+    await s.fetchMoments()
+    // Same length as the current list (2), every id individually known, but 'm1'
+    // appears twice — a naive length-only check would let this through and 'm2'
+    // would vanish from state with no error.
+    expect(await s.reorder(['m1', 'm1'])).toBe(false)
+    expect(reorderMoments).not.toHaveBeenCalled()
+    expect(s.moments.map((m) => m.id)).toEqual(['m1', 'm2'])
+  })
 })
 
 describe('detail assets', () => {
