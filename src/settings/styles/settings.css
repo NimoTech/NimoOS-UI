@@ -80,7 +80,8 @@
 .set-list-item.clickable {
   cursor: pointer;
 }
-.set-list-item.clickable:hover {
+/* A disabled row still lit up under the pointer, which reads as clickable. */
+.set-list-item.clickable:not(:disabled):hover {
   color: var(--accent-text);
 }
 .set-list-item:disabled {

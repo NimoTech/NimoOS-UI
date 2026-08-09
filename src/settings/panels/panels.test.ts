@@ -123,3 +123,16 @@ describe('9 个 tab 骨架', () => {
   // account 之间挪窝)P4 起没有骨架可查了,已随上面那条一起收口。tab 标题的译文完整性
   // 由 util/tabs.test.ts(TAB_LABEL_KEY 全表)+ i18n/parity.test.ts 一起守。
 })
+
+describe('禁用的设置行悬停不变强调色', () => {
+  it('.set-list-item.clickable:hover 带 :not(:disabled) 限定', () => {
+    const css = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../styles/settings.css'),
+      'utf8',
+    )
+    // 断在源文本上:jsdom 不做级联,也进不了 hover 态,getComputedStyle 读不出结果。
+    const hoverRules = css.match(/\.set-list-item\.clickable[^{]*:hover[^{]*\{/g) ?? []
+    expect(hoverRules.length).toBeGreaterThan(0) // 防空转:规则改名了就该红,而不是静默通过
+    for (const r of hoverRules) expect(r).toContain(':not(:disabled)')
+  })
+})
