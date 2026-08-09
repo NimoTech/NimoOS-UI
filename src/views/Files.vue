@@ -17,7 +17,7 @@ import AlertDialog from '../components/ui/AlertDialog.vue'
 import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
 import { useFileOps } from '../files/composables/useFileOps'
-import { useUploadConflictsStore } from '../files/stores/uploadConflicts'
+import { useFileConflictsStore } from '../files/stores/fileConflicts'
 import { useViewer } from '../files/viewers/useViewer'
 import ViewerHost from '../files/viewers/ViewerHost.vue'
 import { resolveOpen } from '../files/viewers/resolveOpen'
@@ -65,7 +65,7 @@ const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
 const browse = useSnapshotBrowseStore()
-const conflicts = useUploadConflictsStore()
+const conflicts = useFileConflictsStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -282,7 +282,7 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
   // the interrupted batch created it — so its collision is self-inflicted and
   // merging back into it is the only correct answer. See ResolveOptions
-  // .assumeMergeForFolders in useUploadConflicts.ts for the full reasoning.
+  // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
   const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
   const dropped = resolved.skippedCount + resolved.cancelledCount
 

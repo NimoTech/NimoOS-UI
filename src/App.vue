@@ -1,7 +1,7 @@
 <template>
   <router-view />
   <WallpaperDialog />
-  <UploadConflictHost />
+  <FileConflictHost />
   <AppToast />
 </template>
 
@@ -14,7 +14,7 @@ import AppToast from './components/AppToast.vue'
 // started in /files keeps going after they navigate away, so the question
 // "there is already a file called this -- what now?" has to outlive the view
 // that started it (SP12 Plan B ticket E).
-import UploadConflictHost from './files/components/UploadConflictHost.vue'
+import FileConflictHost from './files/components/FileConflictHost.vue'
 import { useSessionStore } from './stores/session'
 import { useLocaleStore } from './stores/locale'
 import { useWallpaperStore } from './stores/wallpaper'

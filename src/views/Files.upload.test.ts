@@ -16,7 +16,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: {
       // SP12 Plan B: every commitSelectedFiles call now lists the target
-      // directory first to detect same-name conflicts (useUploadConflicts),
+      // directory first to detect same-name conflicts (useFileConflicts),
       // so the fixture name must NOT collide with any file this suite
       // uploads — 'existing.txt' rather than 'a.txt', which several tests
       // below upload themselves and would otherwise spuriously collide with.

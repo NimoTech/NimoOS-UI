@@ -6,7 +6,7 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 import Files from '../Files.vue'
-import UploadConflictHost from '../../files/components/UploadConflictHost.vue'
+import FileConflictHost from '../../files/components/FileConflictHost.vue'
 import FileConflictDialog from '../../files/components/FileConflictDialog.vue'
 import { useFoldersStore } from '../../home/stores/folders'
 import { useUploadsStore } from '../../files/stores/uploads'
@@ -48,7 +48,7 @@ function makeRouter() {
 // keeps working is covered by its own suite (Files.conflictHostLifetime.test.ts);
 // here it is just the harness these wiring tests need.
 const AppLike = defineComponent({
-  render: () => h('div', [h(Files), h(UploadConflictHost)]),
+  render: () => h('div', [h(Files), h(FileConflictHost)]),
 })
 
 // The view's own bindings — the tests drive Files.vue's upload entry points
@@ -83,7 +83,7 @@ async function waitForDialogOpen(w: ReturnType<typeof mount>) {
 // Mirrors waitForDialogOpen for the other direction: after emitting choose/cancel
 // on the real child, poll for `open` to flip back to false. A broken @choose/@cancel
 // forward means conflicts.onChoose/onCancel is never called, so the resolver inside
-// useUploadConflicts.ts never settles and `open` stays true forever — polling with a
+// useFileConflicts.ts never settles and `open` stays true forever — polling with a
 // bounded loop turns that into a fast, NAMED failure here rather than the caller's
 // `await p` silently hanging until vitest's default 5000ms test timeout (which reads
 // as CI flake, not as "this exact binding is missing").

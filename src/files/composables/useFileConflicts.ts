@@ -53,7 +53,7 @@ export interface ResolveOptions {
   assumeMergeForFolders?: boolean
 }
 
-export interface UploadConflictDeps {
+export interface FileConflictDeps {
   listFolder?: (p: string) => Promise<{ content?: { name: string; is_dir: boolean }[] } | null>
   precheck?: (
     targetPath: string,
@@ -61,7 +61,7 @@ export interface UploadConflictDeps {
   ) => Promise<{ results: InnerPrecheckResult[] }>
 }
 
-export function useUploadConflicts(deps: UploadConflictDeps = {}) {
+export function useFileConflicts(deps: FileConflictDeps = {}) {
   const listFolder = deps.listFolder || ((p: string) => service.folder.getList(p))
   const precheck = deps.precheck || ((t: string, f: { relativePath: string; size: number }[]) => service.file.uploadPrecheck(t, f))
 

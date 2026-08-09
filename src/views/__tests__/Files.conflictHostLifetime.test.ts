@@ -6,7 +6,7 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 import Files from '../Files.vue'
-import UploadConflictHost from '../../files/components/UploadConflictHost.vue'
+import FileConflictHost from '../../files/components/FileConflictHost.vue'
 import FileConflictDialog from '../../files/components/FileConflictDialog.vue'
 import { useFoldersStore } from '../../home/stores/folders'
 import { useUploadsStore } from '../../files/stores/uploads'
@@ -44,7 +44,7 @@ function makeRouter() {
 const AppLike = defineComponent({
   data: () => ({ showFiles: true }),
   render() {
-    return h('div', [this.showFiles ? h(Files) : null, h(UploadConflictHost)])
+    return h('div', [this.showFiles ? h(Files) : null, h(FileConflictHost)])
   },
 })
 

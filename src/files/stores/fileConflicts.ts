@@ -1,8 +1,12 @@
 import { defineStore } from 'pinia'
-import { useUploadConflicts } from '../composables/useUploadConflicts'
+import { useFileConflicts } from '../composables/useFileConflicts'
 
 /**
  * App-lifetime holder for the upload-conflict orchestration.
+ *
+ * Named for conflicts in general, not uploads: paste reuses this same instance
+ * so the two flows share one dialog and one serial chain. Two independent
+ * stores would each be free to open a dialog, and the user would get two.
  *
  * The composable itself is unchanged and still takes injectable deps -- its own
  * tests keep calling it directly. What this store adds is a single instance
@@ -24,4 +28,4 @@ import { useUploadConflicts } from '../composables/useUploadConflicts'
  * Note the unwrapping: `dialog` is a ref inside the composable, so store
  * consumers read `store.dialog.open`, not `store.dialog.value.open`.
  */
-export const useUploadConflictsStore = defineStore('uploadConflicts', () => useUploadConflicts())
+export const useFileConflictsStore = defineStore('fileConflicts', () => useFileConflicts())
