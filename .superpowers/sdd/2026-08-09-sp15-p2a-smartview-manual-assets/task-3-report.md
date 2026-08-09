@@ -9,6 +9,13 @@
 | `bdd9fb0` | fix(oss): strip the smart view asset service test from the export |
 | `ba3c0ec` | feat(photos): let a smart view's photos be pinned, removed and restored |
 | `9feac00` | fix(oss): strip this task's new view test from the export |
+| `740ae91` | docs(sp15): record the P2a task 3 report |
+| `c5e274c` | docs(sp15): add the P2a task 3 brief |
+
+> 最后一个提交连带处理了硬约束 12:`.superpowers/sdd/.gitignore`(内容就是一行 `*`)
+> 又出现了,正在把本任务的简报挡在版本库外(task-1/task-2 的简报都已入库,只有 task-3 的
+> 没有)。该文件本身未被跟踪,删掉它不产生 diff,所以只能从「简报终于能 add 进来」这件事
+> 上看出来。已删除,未重建。
 
 > 第三个提交在功能提交之后 —— 原因见「OSS 前置修复」第 2 段:导出守卫要求工作树干净,
 > 所以本任务自己新增的 `src/views/PhotosSmartViewDetail.assets.test.ts` 只有在功能提交
