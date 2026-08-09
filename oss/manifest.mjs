@@ -1755,7 +1755,10 @@ function mountHome() {
   //    the description matches what the reverted component actually renders.
   { path: 'src/settings/panels/panels.test.ts',
     find: '  // Task 9 起 apps 也填了真实内容(数据位置四行 + Docker 缓存清理 + 待上传缓存做样子,见',
-    replace: '  // Task 9 起 apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存做样子,见' },
+    // 跟上面 P4 那条同一处理:丢掉 "TaskN 起" 这个内部期号前缀,句子从主语直接起;顺手把
+    // "做样子"(FORBIDDEN 词表内部分级术语)也换掉——两个词此前从未入过 PATCH 的 replace,
+    // 一直未受检地随 find/replace 同步演进,这次为了改行数措辞把这句纳入 PATCH,一起洗白。
+    replace: '  // apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存占位,见' },
   { path: 'src/settings/panels/panels.test.ts',
     find: '  // 的静态标记:四行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。',
     replace: '  // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。' },
