@@ -89,7 +89,7 @@
 //     when this repo only had the album caller (the component itself carries the same note).
 // 15) Vue 2's picker closes itself by awaiting the parent's confirm handler; Vue 3's emit cannot
 //     return that promise, so this page closes the picker on success and leaves it open on
-//     failure — the same two outcomes the user saw before. See AlbumLibraryPicker.vue's header.
+//     failure — the same two outcomes the user saw before. See PhotosLibraryPicker.vue's header.
 //
 // Task 10 (save as album / delete moment) added the last four:
 // 16) The document mousedown listener that closes the more menu was deliberately deferred all
@@ -164,7 +164,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { useToast } from '../stores/toast'
@@ -807,7 +807,7 @@ async function doDelete(): Promise<void> {
           <!-- Library picker (Vue 2 :143-151). Title reuses photosAlbumPickerTitle — Vue 2 feeds
                the same string to both pickers (deviation 14). The component is shared with the
                album pages and was generalised for this in T9's Step 0. -->
-          <AlbumLibraryPicker
+          <PhotosLibraryPicker
             v-model:open="pickerOpen"
             :title="t('photosAlbumPickerTitle', { name: moment.title })"
             :existing-ids="memberIds"

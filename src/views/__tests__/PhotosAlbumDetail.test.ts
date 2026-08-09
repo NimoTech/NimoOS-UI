@@ -61,7 +61,7 @@ import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
-import AlbumLibraryPicker from '../../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 
 const lb = useLightbox()
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -445,7 +445,7 @@ describe('PhotosAlbumDetail.vue', () => {
 
   // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album itself —
   // it emits `confirm(ids)` and this page performs the write, the toast, the close and the
-  // refresh. Those four were previously asserted inside AlbumLibraryPicker.test.ts; they are
+  // refresh. Those four were previously asserted inside PhotosLibraryPicker.test.ts; they are
   // asserted here now, at their new home, so nothing that moved lost its coverage.
   /** Enters edit mode and opens the library picker from the toolbar. */
   async function openPicker(w: ReturnType<typeof mount>) {
@@ -453,10 +453,10 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.vm.$nextTick()
     await w.find('[data-test="album-add-photos"]').trigger('click')
     await w.vm.$nextTick()
-    return w.findComponent(AlbumLibraryPicker)
+    return w.findComponent(PhotosLibraryPicker)
   }
 
-  it("pressing Add photos opens AlbumLibraryPicker; its @confirm runs addAssetsToAlbum, the success toast, closes the panel and refreshes with fetchAlbumAssets", async () => {
+  it("pressing Add photos opens PhotosLibraryPicker; its @confirm runs addAssetsToAlbum, the success toast, closes the panel and refreshes with fetchAlbumAssets", async () => {
     const { w } = await mountView('7') // beforeEach already names album 7 "Trip"
     const albums = usePhotosAlbums()
     const fetchSpy = vi.spyOn(albums, 'fetchAlbumAssets')
@@ -632,7 +632,7 @@ describe('PhotosAlbumDetail.vue', () => {
     // mockResolvedValue rather than …Once, so both fetches see the same assets.
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     dragMock.refresh.mockClear()
-    const picker = w.findComponent(AlbumLibraryPicker)
+    const picker = w.findComponent(PhotosLibraryPicker)
     picker.vm.$emit('confirm', ['a', 'b'])
     await flushPromises()
     await w.vm.$nextTick()
@@ -667,7 +667,7 @@ describe('PhotosAlbumDetail.vue', () => {
   })
 
   // Task 9: 灯箱「加入相册」→ 打开 AlbumPickerDialog(assetIds=[当前项 id])。只接灯箱这一处——
-  // edit 工具条的「添加照片」(AlbumLibraryPicker)已有自己的语义,不重复放「加入相册」;
+  // edit 工具条的「添加照片」(PhotosLibraryPicker)已有自己的语义,不重复放「加入相册」;
   // 加到的是别的相册,不需要刷新本相册的资产列表。
   it('灯箱「加入相册」→ AlbumPickerDialog 打开(不刷新本相册资产)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })

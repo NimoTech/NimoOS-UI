@@ -23,11 +23,11 @@
 // picking itself. Vue 2 made this exact change in #79 (ccaccd36, PhotosAlbumLibraryPicker.vue →
 // PhotosLibraryPicker.vue).
 //
-// ⚠️ The file name now understates the component: it is no longer album-specific. Vue 2 renamed
-// it in the same commit that generalised it; here the rename is deliberately deferred — it
-// travels with the rest of #79 in P2, and doing it now would drag every import, test path and the
-// oss manifest through a churn that has nothing to do with moments. Read "Album" in the name as
-// history, not as scope.
+// ✅ Debt paid in SP15-P2a (2026-08-09): this file (previously AlbumLibraryPicker.vue, plus its
+// test) is renamed to PhotosLibraryPicker.vue, matching what Vue 2 already did in the same #79
+// commit that generalised it. Rename only — every import, test path and the oss manifest were
+// updated to follow; props, emits, template and logic are untouched, and the album pages' existing
+// tests carry over unchanged as the evidence.
 //
 // Two shape deviations from Vue 2's #79, both to keep the two album consumers pixel-identical to
 // what they render today (the whole point of a refactor step is that nothing visible moves):

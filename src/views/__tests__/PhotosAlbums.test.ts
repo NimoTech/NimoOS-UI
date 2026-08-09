@@ -27,7 +27,7 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosAlbums from '../PhotosAlbums.vue'
-import AlbumLibraryPicker from '../../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -278,7 +278,7 @@ describe('PhotosAlbums.vue', () => {
     expect(addSpy).toHaveBeenCalledWith('new1', ['warm1']) // 非空 id 集,不是被静默跳过
   })
 
-  it("source==='select' → 提交后 AlbumLibraryPicker 渲染(open===true)", async () => {
+  it("source==='select' → 提交后 PhotosLibraryPicker 渲染(open===true)", async () => {
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
     const { w } = await mountView()
 
@@ -298,7 +298,7 @@ describe('PhotosAlbums.vue', () => {
   // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album store
   // itself — it emits `confirm(ids)` and this page performs the write, the success toast, the
   // close and the fetchAlbums refresh that `@added` used to trigger. All four used to be
-  // asserted inside AlbumLibraryPicker.test.ts; they are asserted here now, at their new home.
+  // asserted inside PhotosLibraryPicker.test.ts; they are asserted here now, at their new home.
   /** Runs the create → "select" flow up to the point where the picker is on screen. */
   async function openPickerViaCreate(w: ReturnType<typeof mount>) {
     await w.find('[data-test="albums-new-btn"]').trigger('click')
@@ -308,7 +308,7 @@ describe('PhotosAlbums.vue', () => {
     await w.vm.$nextTick()
     await w.find('[data-test="albums-confirm-create"]').trigger('click')
     await flushPromises()
-    return w.findComponent(AlbumLibraryPicker)
+    return w.findComponent(PhotosLibraryPicker)
   }
 
   it("source==='select', photos picked → @confirm runs addAssetsToAlbum, the success toast, closes the panel and refreshes with fetchAlbums", async () => {

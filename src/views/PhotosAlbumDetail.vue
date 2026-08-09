@@ -2,7 +2,7 @@
 // Task 8 (SP7-P4 相册): 相册详情视图——本期最大的一件。结构/时序逐段对照 Vue2 NimoOS-UI
 // src/views/Photos/PhotosAlbumDetail.vue(419 行)移植:hero(封面/改名/编辑切换/⋯菜单删除)
 // + 工具条(批量移除/添加照片,或排序+密度)+ 自绘网格(拖拽排序/封面星标/多选)+ 删除确认模态
-// + AlbumLibraryPicker(T6,添加照片)+ PhotoLightbox(P2,查看/删除)。路由 /photos/albums/:id
+// + PhotosLibraryPicker(T6,添加照片)+ PhotoLightbox(P2,查看/删除)。路由 /photos/albums/:id
 // 注册留给 T11。去掉 Slideshow(Vue2 本身也只弹"敬请期待" toast)与 Ask Nimo(归 SP8)。
 //
 // 铁律(逐条落实,见文件内注释登记):
@@ -19,7 +19,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -61,7 +61,7 @@ const confirmDelete = ref(false)
 const removing = ref(false)
 const pickerOpen = ref(false)
 // Task 9(SP7-P4 相册):灯箱「加入相册」→ 加到别的相册(不是本相册)—— 命名与上面
-// AlbumLibraryPicker 的 pickerOpen(本相册「添加照片」)区分,避免同名 ref 混淆两个不同面板。
+// PhotosLibraryPicker 的 pickerOpen(本相册「添加照片」)区分,避免同名 ref 混淆两个不同面板。
 const albumPickerOpen = ref(false)
 const albumPickerIds = ref<Array<string | number>>([])
 function openAlbumPicker(ids: Array<string | number>) {
@@ -280,7 +280,7 @@ function pickSort(s: SortBy): void {
   sortMenuOpen.value = false
 }
 
-// ── AlbumLibraryPicker(T6)接线 ──
+// ── PhotosLibraryPicker(T6)接线 ──
 // SP15-P1-T9 · Step 0: with the component generalised, the write, the success/failure toasts and
 // closing the panel belong to the caller (the component only picks photos). Behaviour is
 // unchanged from before the refactor: the same addAssetsToAlbum, the same photosAlbumAddedToast
@@ -626,7 +626,7 @@ watch(gridRef, () => {
     </div>
   </div>
 
-  <AlbumLibraryPicker
+  <PhotosLibraryPicker
     :open="pickerOpen"
     :title="t('photosAlbumPickerTitle', { name: album?.title ?? '' })"
     :existing-ids="pickerExistingIds"

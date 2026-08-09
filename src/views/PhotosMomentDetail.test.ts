@@ -51,7 +51,7 @@ import PhotosMomentDetail from './PhotosMomentDetail.vue'
 // the stylesheet source (same helper and same reason as PhotosSmartViewDetail.test.ts:42-45).
 import photosMomentDetailRaw from './PhotosMomentDetail.vue?raw'
 import { extractStyleBlock, winningHoverBackground } from '../photos/components/__tests__/cssCascade'
-import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 import { useToast } from '../stores/toast'
 import zh from '../i18n/zh_cn'
@@ -385,10 +385,10 @@ describe('route parameter changes', () => {
     // The picker's "already in" set is derived from the previous moment's members, so leaving
     // it open across the change would offer the wrong answer to the wrong question.
     await w.find('[data-test="mo-add-photos"]').trigger('click')
-    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(true)
+    expect(w.findComponent(PhotosLibraryPicker).props('open')).toBe(true)
     await router.push('/photos/moments/m1')
     await flushPromises()
-    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
+    expect(w.findComponent(PhotosLibraryPicker).props('open')).toBe(false)
   })
 })
 
@@ -617,7 +617,7 @@ describe('adding and removing photos', () => {
     const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
     const { w } = await mountDetail()
 
-    const picker = w.findComponent(AlbumLibraryPicker)
+    const picker = w.findComponent(PhotosLibraryPicker)
     expect(picker.props('open')).toBe(false)
 
     await w.find('[data-test="mo-add-photos"]').trigger('click')
@@ -653,7 +653,7 @@ describe('adding and removing photos', () => {
 
     await w.find('[data-test="mo-add-photos"]').trigger('click')
     svc.photos.getMomentAssets.mockClear()
-    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x', 'y'])
+    w.findComponent(PhotosLibraryPicker).vm.$emit('confirm', ['x', 'y'])
     await flushPromises()
 
     expect(pin).toHaveBeenCalledWith('m1', ['x', 'y'])
@@ -667,7 +667,7 @@ describe('adding and removing photos', () => {
     // a duplicate, or a danger toast fired alongside it, has to fail here.
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(zh.photosMoAddedN.replace('{n}', '2'))
-    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
+    expect(w.findComponent(PhotosLibraryPicker).props('open')).toBe(false)
   })
 
   it('adding: a failed pin leaves the count untouched, says so in the danger tier and keeps the picker open to retry', async () => {
@@ -679,7 +679,7 @@ describe('adding and removing photos', () => {
     const { w } = await mountDetail('m1', 'zh_cn')
 
     await w.find('[data-test="mo-add-photos"]').trigger('click')
-    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x'])
+    w.findComponent(PhotosLibraryPicker).vm.$emit('confirm', ['x'])
     await flushPromises()
 
     expect(s.byId('m1')?.assetCount).toBe(42)
@@ -687,7 +687,7 @@ describe('adding and removing photos', () => {
     expect(show).toHaveBeenCalledTimes(1)
     expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
     // The panel stays up with the user's selection still in it (same contract as the album pages).
-    const picker = w.findComponent(AlbumLibraryPicker)
+    const picker = w.findComponent(PhotosLibraryPicker)
     expect(picker.props('open')).toBe(true)
     // fix round 1 · finding 1: the busy flag has to come back down in the handler's `finally`, or
     // the panel is left with a permanently disabled "Adding…" button and no way to retry.
@@ -780,7 +780,7 @@ describe('adding and removing photos', () => {
     expect(w.find('[data-test="mo-remove-selected"]').text()).toBe(zh.photosMoRemoveFromMoment)
 
     await w.find('[data-test="mo-add-photos"]').trigger('click')
-    const picker = w.findComponent(AlbumLibraryPicker)
+    const picker = w.findComponent(PhotosLibraryPicker)
     expect(picker.props('existingLabel')).toBe(zh.photosMoAlreadyIn)
     expect(picker.props('submitLabel')).toBe(zh.photosMoAddSelected)
     expect(picker.props('title')).toContain('Bozeman')

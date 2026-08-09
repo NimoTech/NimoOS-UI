@@ -11,7 +11,7 @@
 // 排序:接 T1 sortAlbums(不在本视图重写排序逻辑)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
 // 一律 document 级监听(onMounted 挂一次、onUnmounted 摘干净),不用模板 @keydown.esc——
 // 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
-// (不是像 T6 AlbumLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
+// (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
 // 不需要 T5/T6 那种「随 open prop watch 增删监听」的写法。
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -19,7 +19,7 @@ import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
@@ -115,7 +115,7 @@ async function confirmCreate(): Promise<void> {
       // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
       // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
       // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
-      // 终审 Minor 5:判空条件统一改用 timeline.months(AlbumLibraryPicker.vue:114 已是这个
+      // 终审 Minor 5:判空条件统一改用 timeline.months(PhotosLibraryPicker.vue:114 已是这个
       // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
       // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
       if (timeline.months.length === 0) {
@@ -132,7 +132,7 @@ async function confirmCreate(): Promise<void> {
         await albums.addAssetsToAlbum(albumId, ids)
       }
     } else if (newAlbumSource.value === 'select' && albumId != null) {
-      // 预取相册资产,使 AlbumLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
+      // 预取相册资产,使 PhotosLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
       await albums.fetchAlbumAssets(albumId)
       pickerAlbumId.value = albumId
       pickerAlbumName.value = title
@@ -151,7 +151,7 @@ async function confirmCreate(): Promise<void> {
   }
 }
 
-// SP15-P1-T9 · Step 0: with AlbumLibraryPicker generalised, three things it used to do itself
+// SP15-P1-T9 · Step 0: with PhotosLibraryPicker generalised, three things it used to do itself
 // come back to the caller — the write, the success/failure toasts, and closing the panel (the
 // component now only picks photos and hands the ids over). Everything below reproduces its
 // previous behaviour one for one: the same addAssetsToAlbum, the same photosAlbumAddedToast
@@ -398,7 +398,7 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <AlbumLibraryPicker
+  <PhotosLibraryPicker
     :open="pickerOpen"
     :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
     :existing-ids="pickerExistingIds"

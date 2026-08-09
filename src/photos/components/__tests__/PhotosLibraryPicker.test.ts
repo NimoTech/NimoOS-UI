@@ -1,4 +1,4 @@
-// Task 6 (SP7-P4 相册): AlbumLibraryPicker.vue —— 从图库挑照片加入本相册(T7「手动挑选」/
+// Task 6 (SP7-P4 相册): PhotosLibraryPicker.vue —— 从图库挑照片加入本相册(T7「手动挑选」/
 // T8「添加照片」按钮共用)。
 // 挂 Pinia + i18n(真实 zh_cn 词条);mock 共享包 @nimotech/nimoos-service,经由真实
 // useTimelineStore()/usePhotosAlbums()/useToast() 端到端验证——瓦片来源、已在相册判定、
@@ -35,7 +35,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-import AlbumLibraryPicker from '../AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../PhotosLibraryPicker.vue'
 import { usePhotosAlbums } from '../../stores/albums'
 import { useTimelineStore } from '../../stores/timeline'
 
@@ -65,7 +65,7 @@ function albumProps(over: Partial<PickerProps> = {}): PickerProps {
 }
 
 function mountPicker(props: PickerProps) {
-  return mount(AlbumLibraryPicker, { props, global: { plugins: [i18n] } })
+  return mount(PhotosLibraryPicker, { props, global: { plugins: [i18n] } })
 }
 
 // 三张时间线照片,takenAt 乱序摆放,验证展平后按 takenAt 降序重排(不是原始顺序、不按月分组)。
@@ -97,7 +97,7 @@ beforeEach(() => {
   svc.photos.thumbnailUrl.mockClear()
 })
 
-describe('AlbumLibraryPicker.vue', () => {
+describe('PhotosLibraryPicker.vue', () => {
   it('展平时间线照片按 takenAt 降序渲染瓦片(首个为最新的 t-newest)', async () => {
     seedTimeline()
     const w = mountPicker(albumProps())
