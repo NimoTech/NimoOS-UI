@@ -332,6 +332,10 @@ vnc.onSpicePorts((vmId, ports) => {
 // 的 connect/disconnect 上。
 s.onVncShouldConnect((vm) => { void vnc.connect(vm) })
 s.onVncShouldDisconnect(() => { vnc.disconnect() })
+// SP16 Task 8:重启后把重连交给 kvm:vm_started,但 MessageBus 掉线时那个事件永远不到 ——
+// 此前的净效果是控制台一片黑、界面上零解释。useVmList 的地板计时器在这里说一声。
+// 它不重连(重连必失败,见 useVmList.restart 的推导),只解释现状 + 给出自救动作。
+s.onVncReconnectStalled(() => { toast.show(t('kvmConsoleReconnectStalled')) })
 
 // 切换选中的 VM 时照 Vue2 watch selectedVM(:747-758)的后半段:只在"换成了不同一台
 // VM"时才 connect/disconnect,同一台 VM 原地改 state(电源动作/MessageBus 事件)不

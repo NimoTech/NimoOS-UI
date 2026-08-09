@@ -569,3 +569,55 @@ describe('update', () => {
     expect(vm).toEqual(before)
   })
 })
+
+// SP16 Task 8:restart 成功后**故意**把重连交给 kvm:vm_started(立刻重连必失败,因为
+// VNC 端口还没起来)。MessageBus 掉线时那个事件永远不到,于是断开之后再没人连回来 ——
+// 控制台一片黑、界面上零解释。这里守的是"至少说一声"这条兜底。
+describe('重启后的 VNC 重连兜底', () => {
+  it('kvm:vm_started 迟迟不来时通知调用方(而不是无声黑屏)', async () => {
+    vi.useFakeTimers()
+    const s = useVmList()
+    const stalled = vi.fn()
+    s.onVncReconnectStalled(stalled)
+    await s.fetchVMs()                       // 自动选中 vm-1
+
+    await s.restart(s.selectedVM.value!)
+    expect(stalled).not.toHaveBeenCalled()   // 刚断开时还不该报
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(stalled).toHaveBeenCalledTimes(1)
+    s.dispose()
+    vi.useRealTimers()
+  })
+
+  it('kvm:vm_started 按时到达就不报', async () => {
+    vi.useFakeTimers()
+    const s = useVmList()
+    const stalled = vi.fn()
+    s.onVncReconnectStalled(stalled)
+    await s.fetchVMs()
+
+    await s.restart(s.selectedVM.value!)
+    emit('kvm:vm_started', { vm_id: 'vm-1' })
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(stalled).not.toHaveBeenCalled()
+    s.dispose()
+    vi.useRealTimers()
+  })
+
+  it('dispose 之后计时器不再回调', async () => {
+    vi.useFakeTimers()
+    const s = useVmList()
+    const stalled = vi.fn()
+    s.onVncReconnectStalled(stalled)
+    await s.fetchVMs()
+
+    await s.restart(s.selectedVM.value!)
+    s.dispose()
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(stalled).not.toHaveBeenCalled()
+    vi.useRealTimers()
+  })
+})

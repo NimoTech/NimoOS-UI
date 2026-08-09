@@ -35,6 +35,21 @@ export function useVmList() {
   // 不需要 UI 消费,同 ejectingIds 的写法(就地一个 Set,不抽公共 guard)。
   const restartPending = new Set<string>()
 
+  // SP16 Task 8:restart 把重连交给 kvm:vm_started 是有意的——VM 刚重启时 VNC 端口通常
+  // 还没监听,立刻重连必失败,还会把 vncError 永久钉在屏上(见 restart() 里的完整推导)。
+  // 但 MessageBus 掉线时那个事件永远不会到,断开之后就再没有任何人连回来:控制台一片黑,
+  // 界面上没有一句解释,用户只能自己猜要重选 VM。这个计时器就是那种情况的地板。
+  // 它**故意不重连** —— 重连就把事件交接本来要避免的失败又请回来了 —— 只负责让页面说一声。
+  const RECONNECT_STALL_MS = 20_000
+  const stallTimers = new Map<string, ReturnType<typeof setTimeout>>()
+  let stalledCb: (() => void) | undefined
+  function onVncReconnectStalled(cb: () => void): void { stalledCb = cb }
+
+  function clearStallTimer(id: string): void {
+    const t = stallTimers.get(id)
+    if (t) { clearTimeout(t); stallTimers.delete(id) }
+  }
+
   // 就地代际守卫:每次 fetchVMs 自增,回写前比对是否仍是最新一次调用。
   // 记忆记过「别抽公共 guard」的教训——就地写,别为了复用抽象出个 helper。
   let listEpoch = 0
@@ -159,6 +174,7 @@ export function useVmList() {
       // 只要这里已经重新建过连接,就清掉 restartPending 标记:告诉 restart() 的
       // onSuccess"不用你再断开一次了,画面已经是新的了"。
       restartPending.delete(id)
+      clearStallTimer(id) // 重连落地了,没什么要警告的
     } else {
       void fetchVMs()
     }
@@ -198,6 +214,8 @@ export function useVmList() {
 
   function dispose(): void {
     alive = false
+    stallTimers.forEach((t) => clearTimeout(t))
+    stallTimers.clear()
     unsubs.forEach((off) => off())
     unsubs.length = 0
   }
@@ -271,7 +289,15 @@ export function useVmList() {
     try {
       return await runAction(vm, (id) => service.kvm.restartVM(id), (v) => {
         setVMState(v.id, 'running')
-        if (restartPending.has(v.id) && selectedVM.value?.id === v.id) disconnectCb?.()
+        if (restartPending.has(v.id) && selectedVM.value?.id === v.id) {
+          disconnectCb?.()
+          // 断开了、且重连的责任已经完全交给 kvm:vm_started ⇒ 起一个地板计时器。
+          clearStallTimer(v.id)
+          stallTimers.set(v.id, setTimeout(() => {
+            stallTimers.delete(v.id)
+            if (alive && selectedVM.value?.id === v.id) stalledCb?.()
+          }, RECONNECT_STALL_MS))
+        }
       }, 'kvmFailedToRestart')
     } finally {
       restartPending.delete(vm.id)
@@ -489,6 +515,7 @@ export function useVmList() {
     update,
     onVncShouldConnect,
     onVncShouldDisconnect,
+    onVncReconnectStalled,
     dispose,
   }
 }

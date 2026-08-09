@@ -410,6 +410,10 @@ export default {
   // Necessary fix ①: eject success also needs a toast (Vue2 handleInstallationFinished
   // :867-870). Restored after being deleted as a dead key in Task 8 review.
   kvmEjectSuccess: 'Installation media ejected. VM will boot from hard disk on next restart.',
+  // 🆕SP16 Task 8: shown when a restarted console never reconnects on its own
+  // (bus down => kvm:vm_started never arrives). No Vue2 counterpart — Vue2
+  // reconnected immediately, which failed and pinned vncError on screen.
+  kvmConsoleReconnectStalled: 'The console did not come back on its own — reselect the VM',
   kvmStoppingShort: 'stopping',
   kvmRestartingShort: 'restarting',
   kvmDeletingShort: 'deleting',
