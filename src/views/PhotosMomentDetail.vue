@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// SP15-P1-T7: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
+// SP15-P1-T7/T8: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
 // Ported section by section from Vue 2 NimoOS-UI 899af59b:src/views/Photos/PhotosMomentDetail.vue
 // (template :1-121, computed :203-291, distStyle :418-421) and photos-smartview.scss.
 // It reuses the sv-detail-* two-column skeleton already established by
@@ -42,6 +42,9 @@
 //     state they need is already loaded and exposed by this task, since Stats and the By-month
 //     histogram read it too. Consequently Vue 2's `document.mousedown` listener that closes the
 //     more menu is also deferred to Task 10 — there is no menu here yet to close.
+//     [T8 update: the two photo grids and the Select toggle in the action bar are now here —
+//     see deviations 6-9 below. Add photos / Save as Album / the more menu / delete confirmation
+//     / library picker are still Tasks 9/10, so the document.mousedown listener stays deferred.]
 //
 // Fix round 1 added three more:
 // 10) The two asset requests fail independently (see load()). An earlier revision put them in
@@ -55,18 +58,37 @@
 //     reach this page without a moment object, so it had neither state. Having only one of them
 //     meant a network blip told the user their moment had been deleted — wrong, and stated with
 //     confidence. Needs `listError` on the store, added in the same round.
+//
+// Task 8 (the two photo grids + selection state) added four more:
+//  6) Only the Select toggle joins `.sv-actions` here. Vue 2 :30-45 has four buttons in that bar
+//     (Add photos / Select / Save as Album / more menu); Add photos needs the library picker
+//     (Task 10) and Save as Album/more-menu need the export/delete wiring (Task 9/10) — adding
+//     inert buttons for those now would just mean re-touching this exact markup twice.
+//  7) The Select/Cancel button text reuses `photosPersonSelect`/`photosCancel` verbatim rather
+//     than adding a fresh pair of keys for the same two words Vue 2 uses (`$t('Select')`/
+//     `$t('Cancel')`) — same cross-file wording reuse as deviation 3's typeLabel ladder.
+//  8) The pin badge's icon is the same outline pin path already used for the header's place
+//     condition (`M12 21s7-6.3…`/`circle r=2.5`, scaled to r=2.2), not Vue 2's separate filled-
+//     teardrop `<photos-icon name="pin">` glyph (PhotosIcon.vue:172-174) — one pin shape per
+//     file rather than two, both render as the same recognisable map pin.
+//  9) The selection bar (Vue 2 :127-130) renders only the "{n} selected" count here. The
+//     "Remove from this moment" button beside it calls `excludeMomentAssets` — that request and
+//     its toast are Task 9's bulk-removal wiring, not added yet.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
+import { useLightbox } from '../photos/lightbox/useLightbox'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const store = usePhotosMoments()
+const lightbox = useLightbox()
 
 /** The placeholder every empty key/value cell falls back to (Vue 2 used this same em dash
  *  literal inline in five places). */
@@ -243,6 +265,33 @@ const placesTitle = computed(() =>
 function backToAll(): void {
   void router.push('/photos/smart-views')
 }
+
+// ── SP15-P1-T8: selection state, consumed by Task 9's bulk removal ─────────────────────────
+// Ported from Vue2 :98/:112-121 (selecting/selectedIds + toggleSelecting/toggleSelect/
+// onTileClick). Photo.id is `string | number` (assetToPhoto.ts:268); selectedIds is kept as
+// string[] and every comparison goes through String() so a numeric id from an older backend
+// still compares equal to itself.
+const selecting = ref(false)
+const selectedIds = ref<string[]>([])
+
+function toggleSelecting(): void {
+  selecting.value = !selecting.value
+  if (!selecting.value) selectedIds.value = []
+}
+function toggleSelect(id: string): void {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter((x) => x !== id)
+    : [...selectedIds.value, id]
+}
+// Vue2 :114-117: selection mode suppresses the lightbox — a tap either selects or opens,
+// never both. `list` is whichever grid the tile came from (Featured or All), matching
+// Vue2's own per-section list argument (:57/:71 pass `featuredAssets`/`allAssets`
+// respectively) so paging through the lightbox from a Featured tile stays inside the
+// Featured subset rather than jumping into the full list.
+function onTileClick(p: Photo, list: Photo[]): void {
+  if (selecting.value) toggleSelect(String(p.id))
+  else lightbox.openAt(p, list)
+}
 </script>
 
 <template>
@@ -295,7 +344,10 @@ function backToAll(): void {
 
           <div class="sv-detail-layout mo-detail-layout">
             <div class="sv-detail-main">
-              <!-- Header (Vue 2 :12-30). The action bar that sits to its right is Task 9/10. -->
+              <!-- Header (Vue 2 :12-30). Vue2's action bar has four buttons (Add photos /
+                   Select / Save as Album / more menu, :30-45); only Select belongs to this
+                   task's own scope (it drives selecting/selectedIds, tested here) — the
+                   other three stay Task 9/10 placeholders (deviation 6). -->
               <div class="sv-header">
                 <div style="flex:1;min-width:0">
                   <h1>{{ moment.title }}</h1>
@@ -312,8 +364,70 @@ function backToAll(): void {
                     <span v-if="moment.addedThisWeek > 0" class="mo-week-badge">{{ t('photosMoAddedThisWeek', { n: moment.addedThisWeek }) }}</span>
                   </div>
                 </div>
+                <div class="sv-actions">
+                  <!-- Text reuses photosPersonSelect/photosCancel verbatim (same wording as
+                       Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a
+                       fresh pair of keys for the same two words (deviation 7). -->
+                  <button
+                    type="button" class="sv-action-btn" data-test="mo-select-toggle"
+                    :data-open="selecting" @click="toggleSelecting"
+                  >
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                    {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
+                  </button>
+                </div>
               </div>
-              <!-- Task 8 mounts the Featured and All-photos grids here. -->
+
+              <!-- Featured (Vue 2 :52-61): rendered only when non-empty — no empty shell. -->
+              <template v-if="featuredAssets.length">
+                <div class="sv-section-head" data-test="mo-featured-head">
+                  {{ t('photosMoFeatured') }} <span class="pill">{{ featuredAssets.length }}</span>
+                </div>
+                <div class="sv-grid-photos mo-grid-featured">
+                  <div
+                    v-for="p in featuredAssets" :key="p.id" class="tile"
+                    :data-selected="selecting && selectedIds.includes(String(p.id))"
+                    data-test="mo-featured-tile"
+                    @click="onTileClick(p, featuredAssets)"
+                  >
+                    <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                    <!-- Pin badge: manual members only, and only inside Featured (Vue 2 :57) —
+                         the All photos grid below never carries it (deviation 8: it reuses the
+                         same outline pin path as the header's place icon above, rather than
+                         Vue2's separate filled-teardrop `pin` icon — one pin glyph per file). -->
+                    <div v-if="manualIds.has(String(p.id))" class="sv-pin-tag" data-test="mo-pin-tag">
+                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+                    </div>
+                    <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- All photos (Vue 2 :63-79): loading / populated / empty are mutually exclusive. -->
+              <div class="sv-section-head" data-test="mo-all-head">
+                {{ t('photosMoAllPhotos') }} <span class="pill">{{ fmtNum(momentAssetCount) }}</span>
+              </div>
+              <div v-if="allLoading && !allAssets.length" class="mo-all-loading" data-test="mo-all-loading">
+                {{ t('photosMoLoading') }}
+              </div>
+              <template v-else>
+                <div v-if="allAssets.length" class="sv-grid-photos">
+                  <div
+                    v-for="p in allAssets" :key="p.id" class="tile"
+                    :data-selected="selecting && selectedIds.includes(String(p.id))"
+                    data-test="mo-all-tile"
+                    @click="onTileClick(p, allAssets)"
+                  >
+                    <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                    <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                    </div>
+                  </div>
+                </div>
+                <div v-else class="mo-all-empty" data-test="mo-all-empty">{{ t('photosMoNoPhotosYet') }}</div>
+              </template>
             </div>
 
             <aside class="sv-detail-side">
@@ -366,6 +480,13 @@ function backToAll(): void {
                 </div>
               </div>
             </aside>
+          </div>
+
+          <!-- Selection bar (Vue 2 :127-130). This task owns the visible count and the state
+               it reads; the "Remove from this moment" button that sits beside it is Task 9's
+               bulk-removal wiring, not added yet (deviation 9). -->
+          <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="mo-select-bar">
+            <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
           </div>
         </template>
       </main>
@@ -422,6 +543,59 @@ function backToAll(): void {
 /* Vue 2 :24 wrote an inline green literal here; --success is this repo's token for it, same
    substitution as MomentCard.vue:209. */
 .mo-week-badge { color: var(--success); }
+
+/* ── Action bar (scss:386-404 via PhotosSmartViewDetail.vue's own restatement, same
+   token substitutions it already made). This task adds only the Select toggle — see the
+   deviation note at the template. ── */
+.sv-actions { display: flex; gap: 8px; align-items: center; }
+.sv-action-btn {
+  height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
+  color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+}
+.sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+/* ── Two photo grids (scss:480-513 via PhotosSmartViewDetail.vue's own restatement of the
+   same source — identical rule bodies, same class names, same reason: scoped styles do
+   not cross component boundaries in this repo). ── */
+.sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+.sv-section-head .pill { padding: 1px 8px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
+.sv-grid-photos { padding: 0 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+/* Vue2 :52 inline `style="padding-bottom:18px"` — only on the Featured grid, giving it
+   breathing room above the "All photos" heading below it. */
+.mo-grid-featured { padding-bottom: 18px; }
+.sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
+.sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Pin badge (scss:682-692): manual members, Featured only. Background is --overlay-bg —
+   the same constant-dark-badge token PhotosTrash.vue's .trash-tile-countdown/
+   .trash-tile-select already use for "fixed dark badge over an unpredictable photo" —
+   instead of Vue2's literal half-opaque black. */
+.sv-pin-tag {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--overlay-bg); backdrop-filter: blur(6px);
+  display: inline-flex; align-items: center; justify-content: center; z-index: 3;
+  color: #fff; /* theme-exception: badge glyph sits on unpredictable photo content inside a
+    fixed dark badge — same reasoning as PhotosTrash.vue's .trash-tile-countdown/.trash-tile-select. */
+}
+/* Selection check (scss:693-701): left side, so it never collides with the pin badge above
+   on the right — Vue2's own placement rule (see the code comment above the template). */
+.sv-tile-check {
+  position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); display: inline-flex; align-items: center; justify-content: center; z-index: 4;
+  color: var(--on-accent); /* --on-accent's one legal use: icon sits on a solid --accent fill. */
+}
+.mo-all-loading, .mo-all-empty { padding: 8px 32px; color: var(--fg-muted); font-size: 12.5px; }
+
+/* ── Selection bar (scss:723-745): fixed pill, same idiom as PhotosSmartViewDetail.vue's
+   own .sv-toast (--popup-bg/--card-border/--card-shadow-hi/--blur). ── */
+.sv-select-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 14px;
+  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur);
+}
+.sv-select-bar span { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 
 /* ── Sidebar sections (scss:748-756, :846-877) — rule bodies identical to
    SmartViewSidePanel.vue's, which ported the same source. ── */

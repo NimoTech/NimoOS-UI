@@ -28,6 +28,16 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
+// SP15-P1-T8: useLightbox is a module-level singleton — every call to useLightbox()
+// returns a **fresh object literal**, but its `openAt` property points at the same
+// module-top-level function either way. `vi.spyOn(freshObject, 'openAt')` only shadows
+// that one object's own property; the component's separate `useLightbox()` call gets a
+// different object whose `openAt` is still the unpatched original, so the spy is never
+// invoked (established precedent: PhotosSmartViewDetail.test.ts:33-39 hit the exact same
+// trap first and mocks the whole module instead — same fix here).
+const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
+
 import PhotosMomentDetail from './PhotosMomentDetail.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 
@@ -78,7 +88,7 @@ async function mountDetail(id = 'm1', locale: 'zh_cn' | 'en_us' = 'en_us') {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  vi.clearAllMocks()
+  vi.clearAllMocks() // also clears lbMock.openAt — it is a vi.fn(), tracked globally
   // clearAllMocks() only wipes the call records — an implementation installed with
   // mockResolvedValue/mockImplementation inside one test survives into the next. Reinstall the
   // defaults here so the `places` and `By month` cases cannot leak into the cases after them.
@@ -138,12 +148,22 @@ describe('About sidebar', () => {
   // Asserted by equality, not by "does not contain an en dash": the placeholder DASH is an *em*
   // dash, so the old negative assertion was equally satisfied by the label collapsing to the
   // placeholder — the range branch went untested either way (fix round 1 · finding 3).
+  //
+  // fix round 2 (task 8 carry-over): the fixture used to be '01:00Z' / '09:00Z'. That is the
+  // same calendar day only from roughly UTC−2 eastward — at UTC−3 or further west (e.g.
+  // America/New_York, UTC−4/−5) 01:00Z is still the *previous* local day, so `fmt(from)` and
+  // `fmt(to)` land on different dates and the component renders a range instead of one date,
+  // which made this test fail under `TZ=America/New_York` despite the comment above claiming
+  // "timezone-safe on any machine". Moving both timestamps to the middle of the UTC day
+  // (12:00Z / 13:00Z) keeps them on the same local calendar day for every real IANA zone
+  // (the widest offsets in use are UTC−12 to UTC+14, comfortably inside a one-hour gap centred
+  // on noon UTC), so the claim is now actually true rather than only checked in one timezone.
   it('time window: shows exactly one date when the two ends fall on the same day', async () => {
     const s = usePhotosMoments()
-    s.moments = [makeMoment({ timeFrom: '2016-11-20T01:00:00Z', timeTo: '2016-11-20T09:00:00Z' })]
+    s.moments = [makeMoment({ timeFrom: '2016-11-20T12:00:00Z', timeTo: '2016-11-20T13:00:00Z' })]
     s.listLoaded = true
     const { w } = await mountDetail()
-    expect(w.find('[data-test="mo-about-time"]').text()).toBe(day('2016-11-20T01:00:00Z'))
+    expect(w.find('[data-test="mo-about-time"]').text()).toBe(day('2016-11-20T12:00:00Z'))
   })
 
   it('time window: shows the full "from – to" range when the two ends differ', async () => {
@@ -377,5 +397,82 @@ describe('a failed list fetch is not reported as a deleted moment', () => {
     expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(false)
     expect(w.text()).toContain('Bozeman')
     err.mockRestore()
+  })
+})
+
+// SP15-P1-T8: the two photo grids (Featured + All photos) and the selection state that
+// backs Task 9's bulk removal. Ported from Vue2 899af59b:PhotosMomentDetail.vue :52-79
+// (template) and photos-smartview.scss (.sv-grid-photos/.tile/.sv-pin-tag/.sv-tile-check/
+// .sv-select-bar rule bodies).
+describe('the two photo grids', () => {
+  function mockAssets(featured: unknown[], all: unknown[], members: unknown[] = []) {
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) =>
+      f ? { assets: featured, members, places: [] } : all)
+  }
+
+  it('renders the Featured section with a photo count in its heading when it has assets', async () => {
+    mockAssets([{ id: 'f1' }, { id: 'f2' }], [{ id: 'f1' }, { id: 'f2' }, { id: 'a3' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    expect(w.find('[data-test="mo-featured-head"]').text()).toContain('2')
+    expect(w.findAll('[data-test="mo-featured-tile"]')).toHaveLength(2)
+  })
+
+  it('renders no Featured section at all — not an empty shell — when Featured has no assets', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    expect(w.find('[data-test="mo-featured-head"]').exists()).toBe(false)
+  })
+
+  it('shows a pin badge on manual Featured members and not on non-manual ones', async () => {
+    mockAssets([{ id: 'f1' }, { id: 'f2' }], [], [
+      { asset_id: 'f1', manual: true, featured: true },
+      { asset_id: 'f2', manual: false, featured: true },
+    ])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    expect(w.findAll('[data-test="mo-pin-tag"]')).toHaveLength(1)
+  })
+
+  it('shows "no photos yet" once All photos has finished loading and found none', async () => {
+    mockAssets([], [])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(true)
+  })
+
+  it('opens the lightbox on a tile click outside selection mode; inside selection mode a click only toggles selection', async () => {
+    mockAssets([], [{ id: 'a1' }, { id: 'a2' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click')
+    await w.findAll('[data-test="mo-all-tile"]')[1].trigger('click')
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1) // not opened again
+    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
+  })
+
+  // Strengthened beyond the brief's original assertion (self-review requirement: a test
+  // must fail if the behavior it names is removed). The bar's own `v-if` is
+  // `selecting && selectedIds.length` — turning `selecting` off already hides the bar for
+  // free, so asserting only "the bar is gone right after leaving" would pass even if
+  // `toggleSelecting` forgot to clear `selectedIds.value`. Re-entering selection mode
+  // without picking anything is the case that actually distinguishes "cleared" from
+  // "still holds a stale id, just temporarily hidden".
+  it('leaving selection mode clears the selection, not just the bar\'s visibility', async () => {
+    mockAssets([], [{ id: 'a1' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+    await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter
+    await w.find('[data-test="mo-all-tile"]').trigger('click')      // select a1
+    await w.find('[data-test="mo-select-toggle"]').trigger('click') // leave
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+
+    await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter again, nothing picked
+    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
   })
 })

@@ -941,4 +941,10 @@ export default {
   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
   // Deliberately says nothing about whether the moment exists — we do not know.
   photosMoLoadFailed: '时刻加载失败',
+  // ── SP15-P1-T8: the two photo grids ──
+  photosMoAllPhotos: '全部照片',
+  // Same Chinese wording as filesViewerLoading/aiMentionLoading/etc. — not a fresh
+  // translation, this repo's existing generic "loading" ellipsis.
+  photosMoLoading: '加载中…',
+  photosMoNoPhotosYet: '这个时刻还没有照片。',
 }

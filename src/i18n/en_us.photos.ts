@@ -934,4 +934,10 @@ export default {
   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
   // Deliberately says nothing about whether the moment exists — we do not know.
   photosMoLoadFailed: "Couldn't load moments",
+  // ── SP15-P1-T8: the two photo grids ──
+  photosMoAllPhotos: 'All photos',
+  // Same English wording as filesViewerLoading/appsSourcesLoading/etc. — not a fresh
+  // translation, this repo's existing generic "loading" ellipsis.
+  photosMoLoading: 'Loading…',
+  photosMoNoPhotosYet: "This moment doesn't have photos yet.",
 }
