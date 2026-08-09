@@ -1,5 +1,131 @@
 # Task 5 report: For You page + sidebar label + back-link redirects
 
+## Fix report (review round 2 — coordinator spot-check findings)
+
+The coordinator's spot-check confirmed the substance of the original work (deletions
+complete, `.sv-grid` kept, `h2`→`h1` in both places, three dead keys gone / `photosSvSmartViews`
+retained, sidebar `id`/`route` untouched, all four redirects done, both `PhotosMomentDetail`
+links untouched) and raised two findings, treated as review findings since there is no
+per-task reviewer for T5–T8.
+
+### Important 1 — newly-added Chinese comment text
+
+`git diff e66e4e6 5ce4d58` showed roughly twenty new Chinese comment lines across
+`src/views/PhotosSmartViews.vue` (the rewritten header's scope list, its three deviation
+notes, the `Moments · For You` template comment, and the `精简设置提示` style-block comment)
+and `src/views/PhotosSearch.vue` (the five-line deviation-registration block). The
+English-only rule covers text this task authored, with no carve-out for "matches the
+surrounding convention."
+
+**Fix:** translated every comment line this task added to English, same content and detail
+level, in both files. Left every pre-existing Chinese line this task did not author exactly
+as it was (e.g. the two-line preamble at `PhotosSmartViews.vue`'s `aiSmartViewOff` comment
+and the `onMounted` sidebar-dedup comment, both pre-existing). Verified with
+`git diff e66e4e6 -- <file> | grep '^+' | grep -P '[\x{4e00}-\x{9fff}]'` on both files —
+zero newly-added Chinese lines remain in either. Also found and fixed one instance the
+coordinator didn't call out by name: a new comment I'd added inside `src/i18n/zh_cn.photos.ts`
+(above the `photosMoForYou`/`photosMoFollowsSmartViewSetting` keys) was still in Chinese —
+translated to match its `en_us.photos.ts` counterpart, which was already English.
+
+Kept the Moments band's `(Vue2 899af59b :31-44)` citation exactly as instructed — that
+target is correct (the band is Task P1's, not this phase's `939a7d3a`), only reworded the
+trailing Chinese clause I'd appended to that same comment line into English.
+
+Ran the two-line CSS-comment-balance check again after editing the `.mo-off-hint` style
+comment (multi-line rewrite): `/*`/`*/` counts still balance and no `*` sits immediately
+before `/` mid-comment — confirmed with the same depth-tracking script used in the original
+report, output `final depth 0 issues []`.
+
+### Important 2 — search page's toast label lied about its destination
+
+`src/views/PhotosSearch.vue:500` (pre-fix) still labelled the toast action
+`photosSearchOpenSmartViews` = "在智能视图中打开 →" / "Open in Smart Views →", while `:501`
+navigated to `/photos/albums`. My original report flagged this as a judgment call and left
+it — the coordinator ruled the call goes the other way: this is the same defect class as the
+`PhotosSmartViewDetail.vue` back button fixed earlier in this task (a control whose label
+names a destination it does not go to is a user-visible defect, not a styling choice), so
+consistency requires fixing the label here too.
+
+**Fix:**
+1. Renamed the key (not re-valued) in both locales: `photosSearchOpenSmartViews` →
+   `photosSearchOpenInAlbums`, values `在相册中打开 →` / `Open in Albums →` (trailing
+   space-and-arrow preserved verbatim).
+2. Updated the call site at `PhotosSearch.vue:509` (`t('photosSearchOpenInAlbums')`) and the
+   test assertion at `PhotosSearch.test.ts:1028` (`zh.photosSearchOpenInAlbums`).
+3. Rewrote the `:492-505` deviation note in English, stating what's actually true now: Vue 2
+   at `939a7d3a` still labels this "Open in Smart Views →" pointing at its combined
+   `#/photos` screen (Vue 2 never receives this branch's Task 3/4 IA merge); this port
+   changes both the destination and the label together since smart albums moved into
+   Albums, citing the same reasoning as the `PhotosSmartViewDetail.vue` back-button
+   deviation note so the two read as one decision. Also corrected my own "round 1" test
+   comment at `PhotosSearch.test.ts:1002-1005`, which had asserted the label was
+   intentionally left unchanged — that assertion was the very judgment call being reversed,
+   so it needed to say why round 2 disagrees with round 1, not just restate round 1.
+4. `grep -rn photosSearchOpenSmartViews src/` → two survivors, both comments referencing the
+   old key name for historical context (`PhotosSearch.vue:499`'s deviation note explaining
+   the rename, and `PhotosSearch.test.ts:1004`'s comment describing what round 1 got wrong).
+   Zero live `t(...)`/`zh.`/`en.` references remain.
+
+### Covering tests run
+
+```
+$ pnpm exec vitest run src/views/__tests__/PhotosSearch.test.ts \
+    src/views/__tests__/PhotosSmartViews.test.ts src/i18n/parity.test.ts \
+    src/styles --reporter=verbose
+ Test Files  7 passed (7)
+      Tests  1163 passed (1163)
+
+$ pnpm exec vue-tsc --noEmit
+(clean, no output)
+```
+
+Per the coordinator's instruction, did not re-run the full suite for this fix round.
+
+### Grep result for the renamed key
+
+```
+$ grep -rn photosSearchOpenSmartViews src/
+src/views/PhotosSearch.vue:499:// key is renamed photosSearchOpenSmartViews -> photosSearchOpenInAlbums (not just
+src/views/__tests__/PhotosSearch.test.ts:1004:  // /photos/smart-views route. Round 1 left the label as photosSearchOpenSmartViews
+
+$ grep -rn photosSearchOpenInAlbums src/
+src/i18n/zh_cn.photos.ts:811:  photosSearchOpenInAlbums: '在相册中打开 →',
+src/i18n/en_us.photos.ts:799:  photosSearchOpenInAlbums: 'Open in Albums →',
+src/views/PhotosSearch.vue:499:// key is renamed photosSearchOpenSmartViews -> photosSearchOpenInAlbums (not just
+src/views/PhotosSearch.vue:509:    label: t('photosSearchOpenInAlbums'),
+src/views/__tests__/PhotosSearch.test.ts:1008:  // to photosSearchOpenInAlbums ("在相册中打开") along with the destination.
+src/views/__tests__/PhotosSearch.test.ts:1028:    expect(action?.label).toBe(zh.photosSearchOpenInAlbums)
+```
+
+Only comment-text survivors of the old key name; all live references migrated.
+
+### Files changed (this fix round)
+
+- `src/views/PhotosSmartViews.vue`
+- `src/views/PhotosSearch.vue`
+- `src/i18n/zh_cn.photos.ts`
+- `src/i18n/en_us.photos.ts`
+- `src/views/__tests__/PhotosSearch.test.ts`
+
+### Scope note
+
+The coordinator's Important 1 named exactly two files (`PhotosSmartViews.vue`,
+`PhotosSearch.vue`). While auditing for stray new Chinese comment lines I also checked every
+other file this task touched (`PhotosSmartViewDetail.vue`, `PhotosSidebar.vue`, and all five
+test files) via the same `git diff e66e4e6 -- <file> | grep '^+' | grep -P '[CJK]'` technique.
+Those five source-adjacent files had no newly-added Chinese *comment prose* — the only
+Chinese in their diffs is either (a) test assertion values asserting the app's actual
+rendered Chinese copy (e.g. `expect(items[4].text()).toContain('为你推荐')`), which is data
+under test, not narrative commentary, or (b) `it()`/`describe()` title strings in Chinese,
+which is a separate, softer house convention ("test descriptions English from this period
+on") that the coordinator did not raise here. Left those untouched to stay inside the two
+findings actually given, rather than expanding scope unrequested.
+
+Commit: `985b49d fix(photos): translate new comments to English, fix search's stale
+smart-view label`.
+
+---
+
 ## What was implemented
 
 - **`src/views/PhotosSmartViews.vue`** slimmed to Moments-only:
