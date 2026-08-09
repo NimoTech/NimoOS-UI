@@ -145,7 +145,7 @@ describe('FileContextMenu', () => {
     expect(w.find('.ctx-copy').exists()).toBe(true)
   })
 
-  it('空白区:有剪贴板内容时出现 粘贴(覆盖)/(跳过)', () => {
+  it('offers a single Paste entry, not a pre-chosen overwrite/skip pair', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
     useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
@@ -153,13 +153,14 @@ describe('FileContextMenu', () => {
       props: { entry: null, selectedCount: 0 },
       global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
     })
-    expect(w.find('.ctx-paste-overwrite').exists()).toBe(true)
-    expect(w.find('.ctx-paste-skip').exists()).toBe(true)
+    expect(w.findAll('.ctx-paste')).toHaveLength(1)
+    expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
+    expect(w.find('.ctx-paste-skip').exists()).toBe(false)
   })
 
   it('空白区:无剪贴板内容时无粘贴项', () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
-    expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
+    expect(w.find('.ctx-paste').exists()).toBe(false)
   })
 
   it('文件项菜单含「下载」项且恒显(单选)', () => {

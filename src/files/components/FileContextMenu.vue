@@ -61,8 +61,7 @@ function fire(action: string) { emit('action', action, props.entry) }
         <ContextMenuItem class="ui-ctx-item ctx-refresh" @select="fire('refresh')">{{ t('filesCtxRefresh') }}</ContextMenuItem>
         <template v-if="clipboard.hasPasteData && !inSnapshot">
           <ContextMenuSeparator class="ui-ctx-sep" />
-          <ContextMenuItem class="ui-ctx-item ctx-paste-overwrite" @select="fire('paste-overwrite')">{{ t('filesCtxPasteOverwrite') }}</ContextMenuItem>
-          <ContextMenuItem class="ui-ctx-item ctx-paste-skip" @select="fire('paste-skip')">{{ t('filesCtxPasteSkip') }}</ContextMenuItem>
+          <ContextMenuItem class="ui-ctx-item ctx-paste" @select="fire('paste')">{{ t('filesPaste') }}</ContextMenuItem>
         </template>
         <ContextMenuSeparator v-if="!inSnapshot" class="ui-ctx-sep" />
         <ContextMenuItem v-if="!inSnapshot" class="ui-ctx-item ctx-upload-file" @select="fire('upload-file')">{{ t('filesCtxUploadFile') }}</ContextMenuItem>

@@ -8,6 +8,7 @@ import { useFileOps } from './useFileOps'
 import { useFilesStore } from '../stores/files'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useToast } from '../../stores/toast'
+import { useFileConflictsStore } from '../stores/fileConflicts'
 
 const folderCreate = vi.fn().mockResolvedValue(undefined)
 const fileCreate = vi.fn().mockResolvedValue(undefined)
@@ -200,20 +201,85 @@ describe('useFileOps', () => {
     expect(clipboard.operateObject).toBeNull()
   })
 
-  it('paste 发 batch.task({type,item,to,style}) 后清空剪贴板', async () => {
+  it('paste submits one overwrite task and one keep-both task', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [
+      { path: '/DATA/a', is_dir: false },
+      { path: '/DATA/b', is_dir: false },
+    ])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+      renameItems: [{ from: '/DATA/b', is_dir: false }],
+      skippedCount: 0,
+    })
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).toHaveBeenCalledTimes(2)
+    expect(batchTask.mock.calls.map((c) => (c[0] as { style: string }).style).sort())
+      .toEqual(['overwrite', 'rename'])
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b', is_dir: false }], to: '/DATA/dst', style: 'rename' })
+    expect(clip.operateObject).toBeNull()
+  })
+
+  it('paste submits a single task when nothing was overwritten', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [],
+      renameItems: [{ from: '/DATA/a', is_dir: false }],
+      skippedCount: 0,
+    })
     const ops = makeOps()
-    await ops.paste('overwrite')
-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
+    await ops.paste()
+    expect(batchTask).toHaveBeenCalledTimes(1)
+    expect(batchTask.mock.calls[0][0]).toMatchObject({ style: 'rename' })
+  })
+
+  it('paste tells the user how many items it skipped', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [],
+      renameItems: [],
+      skippedCount: 2,
+    })
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.paste()
+    expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('2'))
+  })
+
+  it('paste clears the clipboard and submits nothing when every item was skipped', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [],
+      renameItems: [],
+      skippedCount: 1,
+    })
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).not.toHaveBeenCalled()
     expect(clip.operateObject).toBeNull()
   })
 
-  it('paste 无剪贴板内容时不发请求', async () => {
+  it('paste does nothing when the clipboard is empty', async () => {
     const ops = makeOps()
-    await ops.paste('overwrite')
+    await ops.paste()
     expect(batchTask).not.toHaveBeenCalled()
   })
 
@@ -309,7 +375,7 @@ describe('useFileOps', () => {
       const { useClipboardStore } = await import('../stores/clipboard')
       useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
       const ops = makeOps()
-      await ops.paste('overwrite')
+      await ops.paste()
       expect(batchTask).not.toHaveBeenCalled()
     })
     it('不在快照里时这些操作照常放行', async () => {

@@ -7,6 +7,7 @@ import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate, operableEntries } from '../util/protect'
 import { useClipboardStore } from '../stores/clipboard'
+import { useFileConflictsStore } from '../stores/fileConflicts'
 import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
 import { triggerIframeDownload } from '../util/iframeDownload'
@@ -96,12 +97,23 @@ export function useFileOps() {
     clipboard.operate('move', targets)
   }
 
-  async function paste(style: 'overwrite' | 'skip') {
+  // Paste used to make the user pre-choose "overwrite" or "skip" from the context
+  // menu, before anything had looked at whether a collision existed at all. Now
+  // it checks first and asks only about real collisions, the same way uploads do.
+  //
+  // Two tasks, not one: the backend's `style` applies to a whole batch, so the
+  // items the user chose to overwrite and the items that keep both have to be
+  // submitted separately.
+  async function paste() {
     if (blockedInSnapshot()) return
     const o = clipboard.operateObject
     if (!o) return
+    const conflicts = useFileConflictsStore()
     try {
-      await service.batch.task(buildPastePayload(o, files.currentPath, style))
+      const { overwriteItems, renameItems, skippedCount } = await conflicts.resolvePaste(o.item, files.currentPath)
+      if (skippedCount > 0) toast.show(t('filesPasteSkipped', { count: skippedCount }))
+      if (overwriteItems.length) await service.batch.task(buildPastePayload({ ...o, item: overwriteItems }, files.currentPath, 'overwrite'))
+      if (renameItems.length) await service.batch.task(buildPastePayload({ ...o, item: renameItems }, files.currentPath, 'rename'))
       clipboard.clear()
     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }

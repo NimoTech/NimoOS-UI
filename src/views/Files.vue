@@ -166,8 +166,7 @@ function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry
     case 'copy': ops.copy(targets); break
     case 'cut': ops.cut(targets); break
     case 'download': ops.download(targets); break
-    case 'paste-overwrite': ops.paste('overwrite'); break
-    case 'paste-skip': ops.paste('skip'); break
+    case 'paste': ops.paste(); break
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
     case 'share': onShare(entry, targets); break
@@ -642,7 +641,7 @@ onMounted(() => { browse.ensureVolumes() })
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
               <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
-              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste('overwrite')">{{ t('filesPaste') }}</button>
+              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
