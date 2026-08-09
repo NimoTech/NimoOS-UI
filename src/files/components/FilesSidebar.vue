@@ -2,8 +2,10 @@
 import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useFilesStore } from '../stores/files'
+import { service } from '@nimotech/nimoos-service'
+import { useFilesStore, type FileEntry } from '../stores/files'
 import { useFavoritesStore } from '../stores/favorites'
+import FileContextMenu from './FileContextMenu.vue'
 import { useMountsStore } from '../stores/mounts'
 import { shouldNavigateHome } from '../util/mounts'
 import { iconUrl } from '../util/icons'
@@ -19,7 +21,10 @@ import NetworkStorageDialog from './NetworkStorageDialog.vue'
 import GoogleDriveAuthDialog from './GoogleDriveAuthDialog.vue'
 import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 
-const emit = defineEmits<{ (e: 'navigate', virtualPath: string): void }>()
+const emit = defineEmits<{
+  (e: 'navigate', virtualPath: string): void
+  (e: 'ctx-action', action: string, entry: FileEntry): void
+}>()
 const router = useRouter()
 const route = useRoute()
 const files = useFilesStore()
@@ -46,6 +51,48 @@ watch(drawerOpen, (o) => {
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
 onMounted(() => { diskUsage.load().catch((e) => console.warn('[files] disk usage load failed', e)) })
+
+// ── Favourite right-click (F3) ──
+// A favourite is stored as a name and a path and nothing else, but the menu's
+// gating reads is_dir, extensions.share and extensions.mounted. Only folders can
+// ever be favourited (FileContextMenu only offers the action for directories),
+// so is_dir is known; the extensions have to come from the parent listing.
+//
+// The menu opens on the native contextmenu event, which is synchronous — there
+// is no point at which we could await the listing first without the menu
+// flashing the blank-area variant. So the clicked favourite is turned into an
+// entry immediately and refined when the listing lands, well before a human can
+// travel to a menu item. If the listing fails, the synthesised entry stands:
+// no extensions reads exactly like a folder that is neither shared nor mounted,
+// which is the safe direction (an already-shared folder would offer Share, and
+// the batch share filters it out with a toast rather than failing).
+const favCtxEntry = ref<FileEntry | null>(null)
+
+function parentOf(path: string): string {
+  const cut = path.lastIndexOf('/')
+  return cut > 0 ? path.slice(0, cut) : '/'
+}
+
+async function onFavoriteContextmenu(fav: { name: string; path: string }) {
+  favCtxEntry.value = { name: fav.name, path: fav.path, is_dir: true }
+  try {
+    const listing = await service.folder.getList(parentOf(fav.path))
+    const found = (listing?.content || []).find((e) => e.path === fav.path)
+    // Only adopt it if the menu is still about this favourite: a fast
+    // right-click on a second one must not be overwritten by the first's
+    // late-arriving listing.
+    if (found && favCtxEntry.value?.path === fav.path) favCtxEntry.value = found as FileEntry
+  } catch (e) {
+    console.warn('[files] favourite listing failed — context menu runs on the synthesised entry', e)
+  }
+}
+
+// The view owns every dialog and every operation, so the sidebar only reports
+// what was chosen. It passes the entry explicitly: the listing's selection is
+// unrelated to what was right-clicked over here.
+function onFavoriteAction(action: string, entry: FileEntry | null) {
+  if (entry) emit('ctx-action', action, entry)
+}
 
 // Fixed positioning, anchored to the viewport: the sidebar is itself a scroll
 // container, so an absolutely-positioned tip would be clipped by it.
@@ -170,23 +217,27 @@ function onDiskDrop(i: number) {
     <section class="side-section">
       <h4 class="side-title">{{ t('filesFavorites') }}</h4>
       <p v-if="!favorites.list.length" class="side-empty">{{ t('filesNoFavorites') }}</p>
-      <ul class="side-list">
-        <li
-          v-for="(fav, i) in favorites.list"
-          :key="fav.path"
-          class="side-item"
-          :class="{ active: isActive(fav.path) }"
-          draggable="true"
-          @click="go(fav.path)"
-          @dragstart="onDragStart(i)"
-          @dragover.prevent
-          @drop="onDrop(i)"
-        >
-          <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
-          <span class="side-name">{{ fav.name }}</span>
-          <button class="side-remove" @click.stop="favorites.remove(fav.path)">×</button>
-        </li>
-      </ul>
+      <FileContextMenu :entry="favCtxEntry" :selected-count="1" @action="onFavoriteAction">
+        <ul class="side-list">
+          <li
+            v-for="(fav, i) in favorites.list"
+            :key="fav.path"
+            class="side-item"
+            :class="{ active: isActive(fav.path) }"
+            :data-fav-path="fav.path"
+            draggable="true"
+            @click="go(fav.path)"
+            @contextmenu="onFavoriteContextmenu(fav)"
+            @dragstart="onDragStart(i)"
+            @dragover.prevent
+            @drop="onDrop(i)"
+          >
+            <img class="side-icon" :src="iconUrl('folder-default')" alt="" />
+            <span class="side-name">{{ fav.name }}</span>
+            <button class="side-remove" @click.stop="favorites.remove(fav.path)">×</button>
+          </li>
+        </ul>
+      </FileContextMenu>
     </section>
     <section class="side-section">
       <h4 class="side-title">{{ t('filesDisks') }}</h4>

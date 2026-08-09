@@ -126,8 +126,8 @@ const snapshotSelection = computed(() => selectedEntries.value)
 // and the whole batch fails, but the single-item context menu already hides the action for
 // already-shared items (FileContextMenu's showShare), so batch must follow the same logic
 // to keep the semantics consistent.
-async function onShare(entry: FileEntry | null) {
-  const { targets, skipped } = shareableFolders(ctxTargets(entry))
+async function onShare(entry: FileEntry | null, candidates: FileEntry[] = ctxTargets(entry)) {
+  const { targets, skipped } = shareableFolders(candidates)
   if (!targets.length) {
     // The selection really is all folders, just all already shared — explain why so user doesn't think the button is broken
     if (skipped) toast.show(t('filesShareAllAlreadyShared'))
@@ -141,7 +141,10 @@ async function onShare(entry: FileEntry | null) {
 }
 
 // 右键菜单动作分发
-function onCtxAction(action: string, entry: FileEntry | null) {
+// `targets` defaults to the effective target set of the listing's context menu.
+// The sidebar passes it explicitly: a right-click on a favourite is about that
+// one folder, and the listing's selection has nothing to do with it (F3).
+function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry[] = ctxTargets(entry)) {
   switch (action) {
     case 'new-folder': openNew('folder'); break
     case 'new-file': openNew('file'); break
@@ -159,18 +162,24 @@ function onCtxAction(action: string, entry: FileEntry | null) {
         else favorites.add({ name: entry.name, path: entry.path })
       }
       break
-    case 'delete': askDelete(ctxTargets(entry)); break
-    case 'copy': ops.copy(ctxTargets(entry)); break
-    case 'cut': ops.cut(ctxTargets(entry)); break
-    case 'download': ops.download(ctxTargets(entry)); break
+    case 'delete': askDelete(targets); break
+    case 'copy': ops.copy(targets); break
+    case 'cut': ops.cut(targets); break
+    case 'download': ops.download(targets); break
     case 'paste-overwrite': ops.paste('overwrite'); break
     case 'paste-skip': ops.paste('skip'); break
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
-    case 'share': onShare(entry); break
+    case 'share': onShare(entry, targets); break
     case 'restore-original': if (entry) browse.restore([entry]); break
     case 'set-wallpaper': onSetWallpaper(entry); break
   }
+}
+
+// Sidebar favourites route into the very same dispatcher, with the clicked
+// favourite forced as the only target — see the `targets` parameter above.
+function onFavoriteCtxAction(action: string, entry: FileEntry) {
+  onCtxAction(action, entry, [entry])
 }
 
 async function onSetWallpaper(entry: FileEntry | null) {
@@ -597,7 +606,7 @@ onMounted(() => { browse.ensureVolumes() })
 <template>
   <AreaShell :title="t('filesTitle')">
     <div class="files-layout">
-      <FilesSidebar @navigate="goVirtual" />
+      <FilesSidebar @navigate="goVirtual" @ctx-action="onFavoriteCtxAction" />
       <div
         class="files-main"
         @mousedown="onMarqueeDown"
