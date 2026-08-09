@@ -910,4 +910,12 @@ export default {
   photosAlbumLoadFailed: '相册加载失败',
   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
   photosRetry: '重试',
+  // ── SP15-P1 Moments ──
+  photosMoBadge: '时刻',
+  photosMoTypeTrip: '行程',
+  photosMoTypePets: '宠物',
+  photosMoTypeFamily: '家人',
+  photosMoTypeTheme: '主题',
+  // Same Chinese wording as photosSvAddedThisWeek (:612) — not a fresh translation.
+  photosMoAddedThisWeek: '本周 +{n}',
 }

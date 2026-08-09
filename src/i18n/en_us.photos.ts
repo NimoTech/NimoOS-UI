@@ -904,4 +904,11 @@ export default {
   photosAlbumLoadFailed: "Couldn't load this album",
   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
   photosRetry: 'Retry',
+  // ── SP15-P1 Moments ──
+  photosMoBadge: 'Moment',
+  photosMoTypeTrip: 'Trip',
+  photosMoTypePets: 'Pets',
+  photosMoTypeFamily: 'Family',
+  photosMoTypeTheme: 'Theme',
+  photosMoAddedThisWeek: '+{n} this week',
 }
