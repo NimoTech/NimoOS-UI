@@ -1,0 +1,467 @@
+# Review package: f44c44b..HEAD
+
+## Commits
+e3164eb feat(photos): add the moments store
+
+## Files changed
+ src/photos/stores/__tests__/moments.test.ts | 238 ++++++++++++++++++++++++++++
+ src/photos/stores/moments.ts                | 206 ++++++++++++++++++++++++
+ 2 files changed, 444 insertions(+)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/moments.test.ts b/src/photos/stores/__tests__/moments.test.ts
+new file mode 100644
+index 0000000..45b9e38
+--- /dev/null
++++ b/src/photos/stores/__tests__/moments.test.ts
+@@ -0,0 +1,238 @@
++// SP15-P1-T3: moments store. Cross-checked against the momentResponse shape in
++// NimoOS-Photos/route/v1/moments.go:39-73 — featured_asset_ids / added_this_week /
++// cover_ratio are always emitted; cover_asset_id / time_from / time_to / place /
++// sort_order carry `omitempty` and may be absent; **updated_at is never sent by the
++// backend at all** (see plan Global Constraints).
++import { beforeEach, describe, expect, it, vi } from 'vitest'
++import { createPinia, setActivePinia } from 'pinia'
++
++const listMoments = vi.fn()
++const getMomentAssets = vi.fn()
++const pinMomentAssets = vi.fn()
++const excludeMomentAssets = vi.fn()
++const deleteMoment = vi.fn()
++const exportMomentAlbum = vi.fn()
++const reorderMoments = vi.fn()
++
++vi.mock('@nimotech/nimoos-service', () => ({
++  service: {
++    photos: {
++      listMoments: (...a: unknown[]) => listMoments(...a),
++      getMomentAssets: (...a: unknown[]) => getMomentAssets(...a),
++      pinMomentAssets: (...a: unknown[]) => pinMomentAssets(...a),
++      excludeMomentAssets: (...a: unknown[]) => excludeMomentAssets(...a),
++      deleteMoment: (...a: unknown[]) => deleteMoment(...a),
++      exportMomentAlbum: (...a: unknown[]) => exportMomentAlbum(...a),
++      reorderMoments: (...a: unknown[]) => reorderMoments(...a),
++      thumbnailUrl: (id: string, size: string) => `mock://${id}/${size}`,
++    },
++  },
++}))
++
++import { usePhotosMoments } from '../moments'
++
++const RAW = {
++  id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
++  asset_count: 42, time_from: '2016-11-20T00:46:46Z', time_to: '2016-11-22T04:04:35Z',
++  place: 'Bozeman', recipe_key: 'trip:1', named_by_llm: false, sort_order: 0,
++  featured_asset_ids: ['f1', 'f2'], added_this_week: 3, cover_ratio: 1.5,
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('normalisation', () => {
++  it('converts snake_case fields to camelCase field by field', async () => {
++    listMoments.mockResolvedValue([RAW])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(s.moments[0]).toEqual({
++      id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', place: 'Bozeman',
++      recipeKey: 'trip:1', coverAssetId: 'c1', featuredAssetIds: ['f1', 'f2'],
++      assetCount: 42, addedThisWeek: 3, coverRatio: 1.5,
++      timeFrom: '2016-11-20T00:46:46Z', timeTo: '2016-11-22T04:04:35Z', updatedAt: '',
++    })
++  })
++
++  it('defaults absent omitempty fields instead of leaving them undefined', async () => {
++    listMoments.mockResolvedValue([{ id: 'm2', title: 'T', asset_count: 0, recipe_key: 'theme:food', featured_asset_ids: [], added_this_week: 0, cover_ratio: 0 }])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(s.moments[0]).toMatchObject({ subtitle: '', place: '', coverAssetId: '', timeFrom: '', timeTo: '', updatedAt: '' })
++  })
++
++  it('normalises id to String unconditionally (a numeric backend id must not blow up)', async () => {
++    listMoments.mockResolvedValue([{ ...RAW, id: 7 }])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(s.moments[0].id).toBe('7')
++  })
++})
++
++describe('list and sizeMap', () => {
++  it('sizeMap tracks moments and is the result of assignMomentSizes', async () => {
++    listMoments.mockResolvedValue([RAW])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(s.sizeMap.m1).toEqual({ size: 'standard', template: 'T1' })
++  })
++
++  it('keeps the old list and still sets listLoaded when fetchMoments fails, instead of clearing the view', async () => {
++    listMoments.mockResolvedValueOnce([RAW])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    listMoments.mockRejectedValueOnce(new Error('boom'))
++    await s.fetchMoments()
++    expect(s.moments).toHaveLength(1)
++    expect(s.listLoaded).toBe(true)
++  })
++
++  it('ensureLoaded only fetches once; byId returns undefined before load', async () => {
++    listMoments.mockResolvedValue([RAW])
++    const s = usePhotosMoments()
++    expect(s.byId('m1')).toBeUndefined()
++    await s.ensureLoaded()
++    await s.ensureLoaded()
++    expect(listMoments).toHaveBeenCalledTimes(1)
++    expect(s.byId('m1')?.title).toBe('Bozeman')
++  })
++})
++
++describe('reordering', () => {
++  it('applies the optimistic reorder up front and keeps it on success', async () => {
++    listMoments.mockResolvedValue([RAW, { ...RAW, id: 'm2' }])
++    reorderMoments.mockResolvedValue({})
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    const ok = await s.reorder(['m2', 'm1'])
++    expect(ok).toBe(true)
++    expect(s.moments.map((m) => m.id)).toEqual(['m2', 'm1'])
++    expect(reorderMoments).toHaveBeenCalledWith(['m2', 'm1'])
++  })
++
++  it('refetches the list to fully revert on failure, and returns false', async () => {
++    listMoments.mockResolvedValue([RAW, { ...RAW, id: 'm2' }])
++    reorderMoments.mockRejectedValue(new Error('nope'))
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    const ok = await s.reorder(['m2', 'm1'])
++    expect(ok).toBe(false)
++    expect(s.moments.map((m) => m.id)).toEqual(['m1', 'm2'])
++  })
++
++  it('bails out conservatively when ids do not match the current list, sending no request and dropping no entries', async () => {
++    listMoments.mockResolvedValue([RAW, { ...RAW, id: 'm2' }])
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(await s.reorder(['m2'])).toBe(false)
++    expect(await s.reorder(['m2', 'nope'])).toBe(false)
++    expect(reorderMoments).not.toHaveBeenCalled()
++    expect(s.moments.map((m) => m.id)).toEqual(['m1', 'm2'])
++  })
++})
++
++describe('detail assets', () => {
++  it('loadDetail parses {assets,members,places} and camel-cases members', async () => {
++    getMomentAssets.mockResolvedValue({
++      assets: [{ id: 'a1', takenAt: '2016-11-20T00:00:00Z' }],
++      members: [{ asset_id: 'a1', manual: true, featured: true }],
++      places: [{ name: 'Bozeman', count: 323 }],
++    })
++    const s = usePhotosMoments()
++    const d = await s.loadDetail('m1')
++    expect(getMomentAssets).toHaveBeenCalledWith('m1', true, true)
++    expect(d.members).toEqual([{ assetId: 'a1', manual: true, featured: true }])
++    expect(d.places).toEqual([{ name: 'Bozeman', count: 323 }])
++    expect(d.assets).toHaveLength(1)
++  })
++
++  it('tolerates the older backend bare-array shape (members/places default to empty arrays)', async () => {
++    getMomentAssets.mockResolvedValue([{ id: 'a1' }])
++    const s = usePhotosMoments()
++    const d = await s.loadDetail('m1')
++    expect(d.members).toEqual([])
++    expect(d.places).toEqual([])
++    expect(d.assets).toHaveLength(1)
++  })
++
++  it('loadAll requests without featured/withMembers and returns a flat Photo array', async () => {
++    getMomentAssets.mockResolvedValue([{ id: 'a1' }, { id: 'a2' }])
++    const s = usePhotosMoments()
++    const list = await s.loadAll('m1')
++    expect(getMomentAssets).toHaveBeenCalledWith('m1', false, false)
++    expect(list).toHaveLength(2)
++  })
++})
++
++describe('write operations', () => {
++  it('pin writes the returned asset_count back onto the list item on success', async () => {
++    listMoments.mockResolvedValue([RAW])
++    pinMomentAssets.mockResolvedValue({ ok: true, asset_count: 50 })
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(await s.pin('m1', ['x'])).toBe(50)
++    expect(s.byId('m1')?.assetCount).toBe(50)
++  })
++
++  it('exclude behaves the same way', async () => {
++    listMoments.mockResolvedValue([RAW])
++    excludeMomentAssets.mockResolvedValue({ ok: true, asset_count: 41 })
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(await s.exclude('m1', ['x'])).toBe(41)
++    expect(s.byId('m1')?.assetCount).toBe(41)
++  })
++
++  it('keeps the previous value instead of writing undefined when the backend omits asset_count', async () => {
++    listMoments.mockResolvedValue([RAW])
++    pinMomentAssets.mockResolvedValue({ ok: true })
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    expect(await s.pin('m1', ['x'])).toBeNull()
++    expect(s.byId('m1')?.assetCount).toBe(42)
++  })
++
++  it('remove drops the entry from the list on success, and sizeMap recomputes accordingly', async () => {
++    listMoments.mockResolvedValue([RAW, { ...RAW, id: 'm2' }])
++    deleteMoment.mockResolvedValue({})
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    await s.remove('m1')
++    expect(s.moments.map((m) => m.id)).toEqual(['m2'])
++    expect(s.sizeMap.m1).toBeUndefined()
++  })
++
++  it('remove throws and leaves the list untouched on failure', async () => {
++    listMoments.mockResolvedValue([RAW])
++    deleteMoment.mockRejectedValue(new Error('nope'))
++    const s = usePhotosMoments()
++    await s.fetchMoments()
++    await expect(s.remove('m1')).rejects.toThrow()
++    expect(s.moments).toHaveLength(1)
++  })
++
++  it('exportAlbum passes {albumId,name,count} through unchanged', async () => {
++    exportMomentAlbum.mockResolvedValue({ albumId: 'al1', name: 'Bozeman', count: 42 })
++    const s = usePhotosMoments()
++    expect(await s.exportAlbum('m1')).toEqual({ albumId: 'al1', name: 'Bozeman', count: 42 })
++  })
++})
++
++describe('staleness guard under concurrency', () => {
++  it('when two fetchMoments calls interleave, the later call wins (the late-arriving earlier response is discarded)', async () => {
++    let resolveA: (v: unknown) => void = () => {}
++    listMoments.mockImplementationOnce(() => new Promise((r) => { resolveA = r }))
++    listMoments.mockResolvedValueOnce([{ ...RAW, id: 'second' }])
++
++    const s = usePhotosMoments()
++    const pA = s.fetchMoments()   // fired first, stays pending
++    const pB = s.fetchMoments()   // fired second, resolves immediately
++    await pB
++    resolveA([{ ...RAW, id: 'first' }])  // the first call's response arrives late
++    await pA
++
++    expect(s.moments.map((m) => m.id)).toEqual(['second'])
++  })
++})
+diff --git a/src/photos/stores/moments.ts b/src/photos/stores/moments.ts
+new file mode 100644
+index 0000000..b136c59
+--- /dev/null
++++ b/src/photos/stores/moments.ts
+@@ -0,0 +1,206 @@
++// SP15-P1-T3: Moments store.
++// Ported from Vue2 NimoOS-UI 899af59b:src/views/Photos/PhotosSmartViewsView.vue:553-624
++// (fetchMoments/persistMomentsOrder/onMomentDeleted/onMomentAssetCountChanged) and
++// PhotosMomentDetail.vue:307-338 (loadFeatured/loadAll).
++// Backend contract cross-checked against NimoOS-Photos/route/v1/moments.go:39-73
++// (momentResponse).
++//
++// Two deliberate differences from Vue 2 (logged individually):
++//  1) Vue 2 kept list state in the view component and detail assets in the detail
++//     component, each maintaining its own copy of asset_count and syncing them by
++//     hand via a `$emit('asset-count-changed')`. Here it is folded into one store:
++//     the detail page finishes a write by calling applyAssetCount, and the list
++//     item is the very same object — there is nothing left to synchronise.
++//  2) fetchMoments carries an epoch staleness guard (see plan Global Constraints
++//     §6). Vue 2 did not need one — its fetchMoments only ran once on mount, so
++//     two calls never overlapped. Here the detail page's return-to-list path
++//     refetches too, so two fetchMoments calls can interleave, and a late
++//     response would otherwise clobber a newer one.
++import { ref, computed } from 'vue'
++import { defineStore } from 'pinia'
++import { service } from '@nimotech/nimoos-service'
++import { assetToPhoto, type Photo } from '../util/assetToPhoto'
++import { assignMomentSizes, type MomentSize, type MomentTemplate } from '../util/momentLayout'
++
++export interface Moment {
++  id: string
++  title: string
++  subtitle: string
++  place: string
++  recipeKey: string
++  coverAssetId: string
++  featuredAssetIds: string[]
++  assetCount: number
++  addedThisWeek: number
++  /** Cover aspect ratio w/h; backend convention: 0 = unknown. */
++  coverRatio: number
++  timeFrom: string
++  timeTo: string
++  /** ⚠️ momentResponse does **not** include updated_at — this is always the empty
++   *  string, and the detail page renders '—' for it. The field is kept so that if
++   *  the backend ever adds it, no type change is needed; it is not real data today. */
++  updatedAt: string
++}
++
++export interface MomentMember { assetId: string; manual: boolean; featured: boolean }
++export interface MomentPlace { name: string; count: number }
++export interface MomentDetailAssets { assets: Photo[]; members: MomentMember[]; places: MomentPlace[] }
++
++interface RawMoment {
++  id?: unknown; title?: unknown; subtitle?: unknown; place?: unknown
++  recipe_key?: unknown; cover_asset_id?: unknown; featured_asset_ids?: unknown
++  asset_count?: unknown; added_this_week?: unknown; cover_ratio?: unknown
++  time_from?: unknown; time_to?: unknown; updated_at?: unknown
++}
++
++const str = (v: unknown): string => (typeof v === 'string' ? v : v == null ? '' : String(v))
++const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
++
++function toMoment(raw: RawMoment): Moment {
++  return {
++    id: str(raw.id),
++    title: str(raw.title),
++    subtitle: str(raw.subtitle),
++    place: str(raw.place),
++    recipeKey: str(raw.recipe_key),
++    coverAssetId: str(raw.cover_asset_id),
++    featuredAssetIds: Array.isArray(raw.featured_asset_ids) ? raw.featured_asset_ids.map(str) : [],
++    assetCount: num(raw.asset_count),
++    addedThisWeek: num(raw.added_this_week),
++    coverRatio: num(raw.cover_ratio),
++    timeFrom: str(raw.time_from),
++    timeTo: str(raw.time_to),
++    updatedAt: str(raw.updated_at),
++  }
++}
++
++export const usePhotosMoments = defineStore('photosMoments', () => {
++  const moments = ref<Moment[]>([])
++  const listLoading = ref(false)
++  const listLoaded = ref(false)
++  // Staleness guard: bumped on every fetchMoments call; only the response
++  // matching the current epoch is allowed to write into moments.
++  let fetchEpoch = 0
++
++  const sizeMap = computed(() =>
++    assignMomentSizes(
++      moments.value.map((m) => ({
++        id: m.id, recipeKey: m.recipeKey, assetCount: m.assetCount,
++        coverRatio: m.coverRatio, featuredAssetIds: m.featuredAssetIds,
++      })),
++    ) as Record<string, { size: MomentSize; template: MomentTemplate }>,
++  )
++
++  function byId(id: string): Moment | undefined {
++    return moments.value.find((m) => m.id === String(id))
++  }
++
++  async function fetchMoments(): Promise<void> {
++    const epoch = ++fetchEpoch
++    listLoading.value = true
++    try {
++      const raw = await service.photos.listMoments()
++      if (epoch !== fetchEpoch) return          // a late response — discard it
++      moments.value = (raw as RawMoment[]).map(toMoment)
++    } catch (e) {
++      // Keep the old list on failure (Vue 2 did the same, just console.error and
++      // nothing else) — clearing the view would make a single network blip look
++      // like "every moment vanished".
++      console.error('[photos-moments] listMoments', e)
++    } finally {
++      if (epoch === fetchEpoch) {
++        listLoading.value = false
++        listLoaded.value = true
++      }
++    }
++  }
++
++  async function ensureLoaded(): Promise<void> {
++    if (listLoaded.value || listLoading.value) return
++    await fetchMoments()
++  }
++
++  /** Reorders local state only, no request — used internally by reorder() and by tests. */
++  function setOrder(ids: string[]): boolean {
++    const byIdMap = new Map(moments.value.map((m) => [m.id, m]))
++    const next = ids.map((id) => byIdMap.get(id)).filter((m): m is Moment => m != null)
++    if (next.length !== moments.value.length) return false  // mismatched ids — bail out conservatively rather than drop entries
++    moments.value = next
++    return true
++  }
++
++  async function reorder(ids: string[]): Promise<boolean> {
++    if (!setOrder(ids)) return false
++    try {
++      await service.photos.reorderMoments(ids)
++      return true
++    } catch (e) {
++      console.error('[photos-moments] reorderMoments', e)
++      await fetchMoments()   // fully revert to server order
++      return false
++    }
++  }
++
++  async function loadDetail(id: string): Promise<MomentDetailAssets> {
++    const data = await service.photos.getMomentAssets(String(id), true, true)
++    // Older backends (or during a deploy window) return a bare array; both
++    // shapes must be accepted.
++    if (Array.isArray(data)) {
++      return { assets: data.map(assetToPhoto), members: [], places: [] }
++    }
++    const d = (data ?? {}) as { assets?: Record<string, unknown>[]; members?: unknown[]; places?: unknown[] }
++    return {
++      assets: (d.assets ?? []).map(assetToPhoto),
++      members: (d.members ?? []).map((m) => {
++        const r = m as { asset_id?: unknown; manual?: unknown; featured?: unknown }
++        return { assetId: str(r.asset_id), manual: !!r.manual, featured: !!r.featured }
++      }),
++      places: (d.places ?? []).map((p) => {
++        const r = p as { name?: unknown; count?: unknown }
++        return { name: str(r.name), count: num(r.count) }
++      }),
++    }
++  }
++
++  async function loadAll(id: string): Promise<Photo[]> {
++    const data = await service.photos.getMomentAssets(String(id), false, false)
++    return (Array.isArray(data) ? data : []).map(assetToPhoto)
++  }
++
++  /** Writes the latest count back onto the list item; keeps the previous value
++   *  when the backend omits asset_count. */
++  function applyAssetCount(id: string, count: number | null | undefined): void {
++    if (count == null) return
++    const m = byId(id)
++    if (m) m.assetCount = count
++  }
++
++  async function pin(id: string, assetIds: string[]): Promise<number | null> {
++    const res = await service.photos.pinMomentAssets(String(id), assetIds)
++    const count = typeof res.asset_count === 'number' ? res.asset_count : null
++    applyAssetCount(id, count)
++    return count
++  }
++
++  async function exclude(id: string, assetIds: string[]): Promise<number | null> {
++    const res = await service.photos.excludeMomentAssets(String(id), assetIds)
++    const count = typeof res.asset_count === 'number' ? res.asset_count : null
++    applyAssetCount(id, count)
++    return count
++  }
++
++  async function remove(id: string): Promise<void> {
++    await service.photos.deleteMoment(String(id))
++    moments.value = moments.value.filter((m) => m.id !== String(id))
++  }
++
++  async function exportAlbum(id: string): Promise<{ albumId?: string; name?: string; count?: number }> {
++    return await service.photos.exportMomentAlbum(String(id))
++  }
++
++  return {
++    moments, listLoading, listLoaded, sizeMap,
++    fetchMoments, ensureLoaded, byId, setOrder, reorder,
++    loadDetail, loadAll, pin, exclude, remove, exportAlbum, applyAssetCount,
++  }
++})

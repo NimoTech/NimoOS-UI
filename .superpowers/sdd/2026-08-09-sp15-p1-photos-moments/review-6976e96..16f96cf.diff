@@ -1,0 +1,387 @@
+# Review package: 6976e96..HEAD
+
+## Commits
+16f96cf feat(photos): show the For You moments band on the smart views page
+
+## Files changed
+ src/i18n/en_us.photos.ts                   |   2 +
+ src/i18n/zh_cn.photos.ts                   |   2 +
+ src/views/PhotosSmartViews.moments.test.ts | 158 +++++++++++++++++++++++++++++
+ src/views/PhotosSmartViews.vue             |  71 ++++++++++++-
+ 4 files changed, 232 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 82ba096..4936e7f 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -904,11 +904,13 @@ export default {
+   photosAlbumLoadFailed: "Couldn't load this album",
+   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+   photosRetry: 'Retry',
+   // ── SP15-P1 Moments ──
+   photosMoBadge: 'Moment',
+   photosMoTypeTrip: 'Trip',
+   photosMoTypePets: 'Pets',
+   photosMoTypeFamily: 'Family',
+   photosMoTypeTheme: 'Theme',
+   photosMoAddedThisWeek: '+{n} this week',
++  photosMoHeroTitle: 'Moments · For You',
++  photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
+ }
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index a4df21d..2093d2c 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -911,11 +911,13 @@ export default {
+   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+   photosRetry: '重试',
+   // ── SP15-P1 Moments ──
+   photosMoBadge: '时刻',
+   photosMoTypeTrip: '行程',
+   photosMoTypePets: '宠物',
+   photosMoTypeFamily: '家人',
+   photosMoTypeTheme: '主题',
+   // Same Chinese wording as photosSvAddedThisWeek (:612) — not a fresh translation.
+   photosMoAddedThisWeek: '本周 +{n}',
++  photosMoHeroTitle: '时刻 · 为你推荐',
++  photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
+ }
+diff --git a/src/views/PhotosSmartViews.moments.test.ts b/src/views/PhotosSmartViews.moments.test.ts
+new file mode 100644
+index 0000000..f38affa
+--- /dev/null
++++ b/src/views/PhotosSmartViews.moments.test.ts
+@@ -0,0 +1,158 @@
++// SP15-P1-T5: the "Moments · For You" band at the top of the smart views page.
++// Target is Vue2 899af59b:PhotosSmartViewsView.vue:31-44 (mo-section) + :46 (sv-hero
++// picking up the sv-hero-secondary divider) + :455 (showMoments gating).
++//
++// Two mechanical deviations from the plan brief's literal test code, both logged:
++//
++//  1) Does not build its own createI18n instance. vitest.setup.ts already installs the
++//     src/i18n singleton into `config.global.plugins` for every mount, and @vue/test-utils
++//     concatenates that with any plugin array passed via `global.plugins` on an individual
++//     mount() call rather than replacing it — a second createI18n() would get installed on
++//     the very same app alongside the global one, and vue-i18n's install() unconditionally
++//     registers its components/directives, producing "already registered" [Vue warn] noise
++//     on every mount. Same fix already applied at MomentCard.test.ts:5-14 and
++//     PhotosToolbar.test.ts:7-12 (project memory: "New-UI 测试别另建 createI18n"). The global
++//     singleton defaults to 'zh_cn', which is all this file needs.
++//  2) Moment/settings fixtures are written into the stores *after* `mountPage()` returns
++//     (which flushes the mount's initial promises), not before. Both PhotosSmartViews.vue's
++//     onMounted fires a real `moments.fetchMoments()` and `settings.fetchAiFeatures()` against
++//     the mocked service — writing test data into the store *before* mounting loses a race
++//     against that real fetch's resolution (the mocked `listMoments`/`getConfig` responses
++///    resolve in a microtask and unconditionally overwrite `moments.value` / `aiFeatures.value`
++//     once the fetch settles). Setting fixtures after the initial fetch has already settled
++//     avoids the race outright, rather than trying to out-time it.
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { nextTick } from 'vue'
++import { setActivePinia, createPinia } from 'pinia'
++import { createRouter, createWebHashHistory } from 'vue-router'
++
++const svc = vi.hoisted(() => ({
++  photos: {
++    thumbnailUrl: vi.fn((id: string, size: string) => `mock://${id}/${size}`),
++    listMoments: vi.fn(async () => []),
++    listSmartViews: vi.fn(async () => []),
++    getConfig: vi.fn(async () => ({})),
++    reorderMoments: vi.fn(async () => ({})),
++  },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++import PhotosSmartViews from './PhotosSmartViews.vue'
++import { usePhotosMoments, type Moment } from '../photos/stores/moments'
++import { usePhotosSettingsStore } from '../photos/stores/settings'
++
++function makeMoment(over: Partial<Moment> = {}): Moment {
++  return {
++    id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', place: 'Bozeman',
++    recipeKey: 'trip:1', coverAssetId: 'c1', featuredAssetIds: ['f1', 'f2'],
++    assetCount: 42, addedThisWeek: 0, coverRatio: 1.5,
++    timeFrom: '', timeTo: '', updatedAt: '', ...over,
++  }
++}
++
++function makeRouter() {
++  return createRouter({
++    history: createWebHashHistory(),
++    routes: [
++      { path: '/', component: { template: '<div/>' } },
++      { path: '/photos/smart-views/:id', component: { template: '<div/>' } },
++      { path: '/photos/moments/:id', name: 'photos-moment-detail', component: { template: '<div/>' } },
++      { path: '/photos/settings', component: { template: '<div/>' } },
++    ],
++  })
++}
++
++async function mountPage() {
++  const router = makeRouter()
++  await router.push('/')
++  await router.isReady()
++  const w = mount(PhotosSmartViews, { global: { plugins: [router] } })
++  // Let onMounted's fetchMoments()/fetchAiFeatures() calls settle against the mocked
++  // service before any test overwrites store state (deviation 2 above).
++  await flushPromises()
++  return { w, router }
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  vi.clearAllMocks()
++})
++
++describe('band gating', () => {
++  it('renders nothing when there are no moments (the core semantics of Vue2 showMoments)', async () => {
++    const { w } = await mountPage()
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
++  })
++
++  it('renders the band when moments exist, with title/description from i18n', async () => {
++    const { w } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment()]
++    await nextTick()
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    expect(w.text()).toContain('时刻 · 为你推荐')
++  })
++
++  it('hides the band when aiFeatures.smartview is false, even with moments present', async () => {
++    const { w } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment()]
++    const settings = usePhotosSettingsStore()
++    settings.aiFeatures.smartview = false
++    await nextTick()
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
++  })
++
++  it('treats a missing aiFeatures.smartview field as enabled (no scary default)', async () => {
++    const { w } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment()]
++    await nextTick()
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++  })
++})
++
++describe('grid', () => {
++  it('renders one card per moment, sizing/template pulled from the store sizeMap', async () => {
++    const { w } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment({ id: 'a' }), makeMoment({ id: 'b', coverRatio: 0.6 })]
++    await nextTick()
++    const cards = w.findAll('.mo-card')
++    expect(cards).toHaveLength(2)
++    expect(cards[1].classes()).toContain('mo-card-tall')
++  })
++
++  it('clicking a card navigates to /photos/moments/:id', async () => {
++    const { w, router } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment({ id: 'zz' })]
++    await nextTick()
++    await w.find('.mo-card').trigger('click')
++    await flushPromises()
++    expect(router.currentRoute.value.path).toBe('/photos/moments/zz')
++  })
++})
++
++describe('relationship with the smart-views hero', () => {
++  it('when the band is present, the sv-hero below it gets the sv-hero-secondary divider class', async () => {
++    const { w } = await mountPage()
++    const s = usePhotosMoments()
++    s.moments = [makeMoment()]
++    await nextTick()
++    expect(w.find('.sv-hero').classes()).toContain('sv-hero-secondary')
++  })
++
++  it('when the band is absent, sv-hero does not carry that class', async () => {
++    const { w } = await mountPage()
++    expect(w.find('.sv-hero').classes()).not.toContain('sv-hero-secondary')
++  })
++})
++
++describe('fetching', () => {
++  it('fetches moments once on mount', async () => {
++    await mountPage()
++    expect(svc.photos.listMoments).toHaveBeenCalledTimes(1)
++  })
++})
+diff --git a/src/views/PhotosSmartViews.vue b/src/views/PhotosSmartViews.vue
+index 5110ddb..21c3827 100644
+--- a/src/views/PhotosSmartViews.vue
++++ b/src/views/PhotosSmartViews.vue
+@@ -34,34 +34,49 @@
+ //     fix round 1 · I2:这条只解释了背景色的替换,**不覆盖** Vue2 hover 态的
+ //     transform: translateY(-1px)(上浮)——那是与颜色 token 无关的独立视觉属性,
+ //     之前被静默丢了,已在样式块补回(两者可共存)。
+ import { computed, onMounted, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import SmartViewCard from '../photos/components/SmartViewCard.vue'
+ import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
++import MomentCard from '../photos/components/MomentCard.vue'
+ import { usePhotosSmartViews } from '../photos/stores/smartViews'
+ import { usePhotosSettingsStore } from '../photos/stores/settings'
++import { usePhotosMoments } from '../photos/stores/moments'
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ const store = usePhotosSmartViews()
+ const settings = usePhotosSettingsStore()
++const moments = usePhotosMoments()
+ 
+ // P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
+ // 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
+ // 缺字段/请求失败一律按开启处理(不显示横幅,不吓用户),这条防御性语义已经在
+ // store.fetchAiFeatures() 里落实,这里只是消费。
+ const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
+ 
++// SP15-P1-T5(Vue2 899af59b:PhotosSmartViewsView.vue:455) —— the Moments band is hidden
++// outright when there are no moments, and follows the same aiFeatures.smartview switch as
++// the AI banner above (reusing aiSmartViewOff, not a second computed). **On real devices the
++// moments table is 0 rows for now (see spec §2), so "opening the page and not seeing this
++// band" is expected, not a bug.**
++const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
++const moGrid = ref<HTMLElement | null>(null)
++
++function onMomentOpen(id: string): void {
++  router.push('/photos/moments/' + id)
++}
++
+ // T5:创建弹窗已接线(T4 的 TODO 兑现)。createOpen 通过 v-model:open 传给
+ // SmartViewCreateDialog;创建成功后弹窗 emit('created', id),这里直接跳详情页
+ // (同 onCardOpen 的目标路径)。
+ const createOpen = ref(false)
+ function openCreate(): void {
+   createOpen.value = true
+ }
+ 
+ function onCardOpen(id: string): void {
+   router.push('/photos/smart-views/' + id)
+@@ -75,20 +90,21 @@ function onCreated(id: string): void {
+ // PlacesMap.vue 的既有 defineExpose 先例,暴露这个 ref 供测试直接读取,而不是新增一个
+ // 纯为了测试存在的隐藏 DOM 标记节点。T5 接上真弹窗后,这个 ref 仍会是 v-model:open 的
+ // 绑定目标,defineExpose 可以留着或按 T5 实际需要收窄。
+ defineExpose({ createOpen })
+ 
+ onMounted(() => {
+   void store.fetchSmartViews()
+   // 侧栏(PhotosSidebar,本页也挂载它)同帧也会调用 fetchAiFeatures() —— 并发去重收在
+   // settings.ts 里,这里不需要关心。
+   void settings.fetchAiFeatures()
++  void moments.fetchMoments()
+ })
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('photosTitle')">
+     <div class="photos-layout">
+       <PhotosSidebar />
+       <main class="photos-main">
+         <!-- ── AI 横幅(Vue2 :15-19,内联 style 改 class)── -->
+         <div v-if="aiSmartViewOff" class="svs-banner" data-test="svs-ai-banner">
+@@ -103,22 +119,50 @@ onMounted(() => {
+                    见文件头注释)。偏离登记 2:不复制 Vue2 链接后的裸英文句点。 -->
+               <RouterLink
+                 class="svs-banner-link"
+                 data-test="svs-settings-link"
+                 to="/photos/settings?section=ai"
+               >{{ t('photosPeopleFacesOffLink') }}</RouterLink>
+             </div>
+           </div>
+         </div>
+ 
++        <!-- ── Moments · For You(Vue2 899af59b :31-44)── -->
++        <div v-if="showMoments" class="mo-section" data-test="mo-section">
++          <div class="mo-hero">
++            <div>
++              <h2>{{ t('photosMoHeroTitle') }}</h2>
++              <p>{{ t('photosMoHeroDesc') }}</p>
++            </div>
++          </div>
++          <div ref="moGrid" class="sv-grid mo-grid">
++            <!--
++              The `??` fallbacks below can never actually fire: sizeMap (moments.ts) is a
++              computed derived from this same `moments.moments` list via assignMomentSizes,
++              keyed by m.id — every id rendered here is guaranteed to have a sizeMap entry in
++              the same tick. Kept only as belt-and-suspenders per the brief; do not mistake it
++              for a real code path — a genuinely absent entry would hand MomentCard 'T1' for a
++              moment with fewer than 2 featured ids, which MomentCard documents itself as
++              relying on never happening (see momentLayout.ts / MomentCard.vue's invariant
++              comment).
++            -->
++            <MomentCard
++              v-for="m in moments.moments" :key="m.id" :moment="m"
++              :size="moments.sizeMap[m.id]?.size ?? 'standard'"
++              :template="moments.sizeMap[m.id]?.template ?? 'T1'"
++              @open="onMomentOpen"
++            />
++          </div>
++        </div>
++
+         <!-- ── hero(Vue2 :22-30)── -->
+-        <div class="sv-hero">
++        <div class="sv-hero" :class="{ 'sv-hero-secondary': showMoments }">
+           <div class="sv-hero-text">
+             <h1>{{ t('photosSvSmartViews') }}</h1>
+             <p>{{ t('photosSvSavedSearchesStayLive') }}</p>
+           </div>
+           <button type="button" class="sv-create-btn" data-test="sv-hero-create" @click="openCreate">
+             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+             {{ t('photosSvCreateSmartView') }}
+           </button>
+         </div>
+ 
+@@ -168,20 +212,45 @@ onMounted(() => {
+   width: 26px; height: 26px; border-radius: 7px;
+   background: color-mix(in srgb, var(--dem-fg) 18%, transparent); color: var(--dem-fg);
+   display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+ }
+ .svs-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
+ .svs-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
+ /* §7e-9:真实路由链接,保留 Vue2 视觉上的强调下划线(Vue2 :19 的 `<a>` 本身也没有独立
+    hover 规则,这里 1:1 不额外加)。 */
+ .svs-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+ 
++/* ── Moments · For You 分区(Vue2 photos-smartview.scss:144-186)── */
++.mo-section { margin-bottom: 36px; }
++.mo-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
++/* 偏离登记:Vue2 用 var(--font-display) —— 本仓 theme.css 没有这个 token(grep 零命中),
++   不新增,继承页面字体。 */
++.mo-hero h2 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--fg); }
++.mo-hero p { font-size: 13.5px; color: var(--fg-muted); margin: 0; max-width: 520px; line-height: 1.5; }
++
++/* Moments 在上方时,下面的智能视图 hero 补一条分隔线。 */
++.sv-hero.sv-hero-secondary { padding-top: 24px; border-top: 1px solid var(--divider); }
++
++/* .mo-grid 与 .sv-grid 并存,只叠加马赛克专属规则,不碰 .sv-grid 本体。
++   dense 密排 + 固定行高:卡高 = span 乘 132px 再加 (span 减 1) 乘 16px 的 gap。 */
++.mo-grid { margin-bottom: 4px; grid-auto-flow: row dense; grid-auto-rows: 132px; }
++/* 三档 span。高卡用双类选择器顶掉 baseline 的单类选择器,不依赖书写顺序。 */
++.mo-grid :deep(.mo-card) { grid-row: span 3; }
++.mo-grid :deep(.mo-card-wide) { grid-column: span 2; }
++.mo-grid :deep(.mo-card.mo-card-tall) { grid-row: span 5; }
++
++/* 窄容器降级:sv-grid 的 auto-fill minmax(320px, 1fr) 在低于三列临界宽度时降到 1 至 2 列,
++   宽卡横占两列会顶到列数上限,直接用 media 退回一列。高卡纵向占位不受列数影响。 */
++@media (max-width: 1055px) {
++  .mo-grid :deep(.mo-card-wide) { grid-column: span 1; }
++}
++
+ /* ── hero(scss:5-19)── */
+ .sv-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
+ .sv-hero-text h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--fg); }
+ .sv-hero-text p { font-size: 13.5px; color: var(--fg-muted); margin: 0; max-width: 520px; line-height: 1.5; }
+ .sv-create-btn {
+   display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto;
+   padding: 9px 16px; border-radius: 99px; border: 0;
+   background: var(--accent); color: var(--on-accent);
+   font: inherit; font-weight: 500; font-size: 13px; cursor: pointer;
+ }

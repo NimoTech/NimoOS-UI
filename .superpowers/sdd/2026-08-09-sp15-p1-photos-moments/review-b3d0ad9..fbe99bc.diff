@@ -1,0 +1,585 @@
+# Review package: b3d0ad9..HEAD
+
+## Commits
+fbe99bc feat(photos): render the moment's featured and full photo grids
+
+## Files changed
+ src/i18n/en_us.photos.ts             |   6 ++
+ src/i18n/zh_cn.photos.ts             |   6 ++
+ src/views/PhotosMomentDetail.test.ts | 103 +++++++++++++++++++-
+ src/views/PhotosMomentDetail.vue     | 180 ++++++++++++++++++++++++++++++++++-
+ 4 files changed, 289 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 3803c5b..fc569a1 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -927,11 +927,17 @@ export default {
+   photosMoPlace: 'Place',
+   photosMoByMonth: 'By month',
+   photosMoSpan: 'Span',
+   photosMoSpanDays: '{n} days',
+   photosMoLastUpdate: 'Last update',
+   photosMoPhotos: 'Photos',
+   photosMoFeatured: 'Featured',
+   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+   // Deliberately says nothing about whether the moment exists — we do not know.
+   photosMoLoadFailed: "Couldn't load moments",
++  // ── SP15-P1-T8: the two photo grids ──
++  photosMoAllPhotos: 'All photos',
++  // Same English wording as filesViewerLoading/appsSourcesLoading/etc. — not a fresh
++  // translation, this repo's existing generic "loading" ellipsis.
++  photosMoLoading: 'Loading…',
++  photosMoNoPhotosYet: "This moment doesn't have photos yet.",
+ }
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index 82b0630..d623621 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -934,11 +934,17 @@ export default {
+   photosMoPlace: '地点',
+   photosMoByMonth: '按月份',
+   photosMoSpan: '跨度',
+   photosMoSpanDays: '{n} 天',
+   photosMoLastUpdate: '最后更新',
+   photosMoPhotos: '照片',
+   photosMoFeatured: '精选',
+   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+   // Deliberately says nothing about whether the moment exists — we do not know.
+   photosMoLoadFailed: '时刻加载失败',
++  // ── SP15-P1-T8: the two photo grids ──
++  photosMoAllPhotos: '全部照片',
++  // Same Chinese wording as filesViewerLoading/aiMentionLoading/etc. — not a fresh
++  // translation, this repo's existing generic "loading" ellipsis.
++  photosMoLoading: '加载中…',
++  photosMoNoPhotosYet: '这个时刻还没有照片。',
+ }
+diff --git a/src/views/PhotosMomentDetail.test.ts b/src/views/PhotosMomentDetail.test.ts
+index ade6e8e..0805ace 100644
+--- a/src/views/PhotosMomentDetail.test.ts
++++ b/src/views/PhotosMomentDetail.test.ts
+@@ -21,20 +21,30 @@ const svc = vi.hoisted(() => ({
+     listMoments: vi.fn(async (): Promise<unknown> => []),
+     getMomentAssets: vi.fn(async (_id?: string, _featured?: boolean, _withMembers?: boolean): Promise<unknown> => []),
+     // PhotosSidebar is part of this page's shell and reads the photos config on mount. Without
+     // this stub the settings store's fetchAiFeatures catches a TypeError and console.errors on
+     // every single mount, which buries any real failure in the test output.
+     getConfig: vi.fn(async (): Promise<unknown> => ({})),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
++// SP15-P1-T8: useLightbox is a module-level singleton — every call to useLightbox()
++// returns a **fresh object literal**, but its `openAt` property points at the same
++// module-top-level function either way. `vi.spyOn(freshObject, 'openAt')` only shadows
++// that one object's own property; the component's separate `useLightbox()` call gets a
++// different object whose `openAt` is still the unpatched original, so the spy is never
++// invoked (established precedent: PhotosSmartViewDetail.test.ts:33-39 hit the exact same
++// trap first and mocks the whole module instead — same fix here).
++const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
++vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
++
+ import PhotosMomentDetail from './PhotosMomentDetail.vue'
+ import { usePhotosMoments, type Moment } from '../photos/stores/moments'
+ 
+ const RAW = {
+   id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
+   asset_count: 42, time_from: '2016-11-20T00:00:00Z', time_to: '2016-11-22T00:00:00Z',
+   place: 'Bozeman', recipe_key: 'trip:1', featured_asset_ids: ['f1'],
+   added_this_week: 3, cover_ratio: 1.5,
+ }
+ 
+@@ -71,21 +81,21 @@ async function mountDetail(id = 'm1', locale: 'zh_cn' | 'en_us' = 'en_us') {
+   await router.push('/photos/moments/' + id)
+   await router.isReady()
+   i18n.global.locale.value = locale
+   const w = mount(PhotosMomentDetail, { global: { plugins: [router] } })
+   await new Promise((r) => setTimeout(r, 0))
+   return { w, router }
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+-  vi.clearAllMocks()
++  vi.clearAllMocks() // also clears lbMock.openAt — it is a vi.fn(), tracked globally
+   // clearAllMocks() only wipes the call records — an implementation installed with
+   // mockResolvedValue/mockImplementation inside one test survives into the next. Reinstall the
+   // defaults here so the `places` and `By month` cases cannot leak into the cases after them.
+   svc.photos.listMoments.mockResolvedValue([])
+   svc.photos.getMomentAssets.mockResolvedValue([])
+   svc.photos.getConfig.mockResolvedValue({})
+ })
+ 
+ describe('cold deep link (a New-UI-only path — the backend has no GET /moments/:id)', () => {
+   it('fetches the whole list and looks the id up in it when the store is empty', async () => {
+@@ -131,26 +141,36 @@ describe('top bar and header', () => {
+     const s = usePhotosMoments(); s.moments = [makeMoment({ addedThisWeek: 0 })]; s.listLoaded = true
+     const { w } = await mountDetail()
+     expect(w.find('.mo-week-badge').exists()).toBe(false)
+   })
+ })
+ 
+ describe('About sidebar', () => {
+   // Asserted by equality, not by "does not contain an en dash": the placeholder DASH is an *em*
+   // dash, so the old negative assertion was equally satisfied by the label collapsing to the
+   // placeholder — the range branch went untested either way (fix round 1 · finding 3).
++  //
++  // fix round 2 (task 8 carry-over): the fixture used to be '01:00Z' / '09:00Z'. That is the
++  // same calendar day only from roughly UTC−2 eastward — at UTC−3 or further west (e.g.
++  // America/New_York, UTC−4/−5) 01:00Z is still the *previous* local day, so `fmt(from)` and
++  // `fmt(to)` land on different dates and the component renders a range instead of one date,
++  // which made this test fail under `TZ=America/New_York` despite the comment above claiming
++  // "timezone-safe on any machine". Moving both timestamps to the middle of the UTC day
++  // (12:00Z / 13:00Z) keeps them on the same local calendar day for every real IANA zone
++  // (the widest offsets in use are UTC−12 to UTC+14, comfortably inside a one-hour gap centred
++  // on noon UTC), so the claim is now actually true rather than only checked in one timezone.
+   it('time window: shows exactly one date when the two ends fall on the same day', async () => {
+     const s = usePhotosMoments()
+-    s.moments = [makeMoment({ timeFrom: '2016-11-20T01:00:00Z', timeTo: '2016-11-20T09:00:00Z' })]
++    s.moments = [makeMoment({ timeFrom: '2016-11-20T12:00:00Z', timeTo: '2016-11-20T13:00:00Z' })]
+     s.listLoaded = true
+     const { w } = await mountDetail()
+-    expect(w.find('[data-test="mo-about-time"]').text()).toBe(day('2016-11-20T01:00:00Z'))
++    expect(w.find('[data-test="mo-about-time"]').text()).toBe(day('2016-11-20T12:00:00Z'))
+   })
+ 
+   it('time window: shows the full "from – to" range when the two ends differ', async () => {
+     const s = usePhotosMoments()
+     s.moments = [makeMoment({ timeFrom: '2016-11-20T00:00:00Z', timeTo: '2016-11-22T00:00:00Z' })]
+     s.listLoaded = true
+     const { w } = await mountDetail()
+     expect(w.find('[data-test="mo-about-time"]').text())
+       .toBe(`${day('2016-11-20T00:00:00Z')} – ${day('2016-11-22T00:00:00Z')}`)
+   })
+@@ -372,10 +392,87 @@ describe('a failed list fetch is not reported as a deleted moment', () => {
+ 
+     svc.photos.listMoments.mockResolvedValueOnce([RAW])
+     await w.find('[data-test="mo-load-failed-retry"]').trigger('click')
+     await flushPromises()
+ 
+     expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(false)
+     expect(w.text()).toContain('Bozeman')
+     err.mockRestore()
+   })
+ })
++
++// SP15-P1-T8: the two photo grids (Featured + All photos) and the selection state that
++// backs Task 9's bulk removal. Ported from Vue2 899af59b:PhotosMomentDetail.vue :52-79
++// (template) and photos-smartview.scss (.sv-grid-photos/.tile/.sv-pin-tag/.sv-tile-check/
++// .sv-select-bar rule bodies).
++describe('the two photo grids', () => {
++  function mockAssets(featured: unknown[], all: unknown[], members: unknown[] = []) {
++    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) =>
++      f ? { assets: featured, members, places: [] } : all)
++  }
++
++  it('renders the Featured section with a photo count in its heading when it has assets', async () => {
++    mockAssets([{ id: 'f1' }, { id: 'f2' }], [{ id: 'f1' }, { id: 'f2' }, { id: 'a3' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-featured-head"]').text()).toContain('2')
++    expect(w.findAll('[data-test="mo-featured-tile"]')).toHaveLength(2)
++  })
++
++  it('renders no Featured section at all — not an empty shell — when Featured has no assets', async () => {
++    mockAssets([], [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-featured-head"]').exists()).toBe(false)
++  })
++
++  it('shows a pin badge on manual Featured members and not on non-manual ones', async () => {
++    mockAssets([{ id: 'f1' }, { id: 'f2' }], [], [
++      { asset_id: 'f1', manual: true, featured: true },
++      { asset_id: 'f2', manual: false, featured: true },
++    ])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.findAll('[data-test="mo-pin-tag"]')).toHaveLength(1)
++  })
++
++  it('shows "no photos yet" once All photos has finished loading and found none', async () => {
++    mockAssets([], [])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(true)
++  })
++
++  it('opens the lightbox on a tile click outside selection mode; inside selection mode a click only toggles selection', async () => {
++    mockAssets([], [{ id: 'a1' }, { id: 'a2' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++
++    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
++    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.findAll('[data-test="mo-all-tile"]')[1].trigger('click')
++    expect(lbMock.openAt).toHaveBeenCalledTimes(1) // not opened again
++    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
++  })
++
++  // Strengthened beyond the brief's original assertion (self-review requirement: a test
++  // must fail if the behavior it names is removed). The bar's own `v-if` is
++  // `selecting && selectedIds.length` — turning `selecting` off already hides the bar for
++  // free, so asserting only "the bar is gone right after leaving" would pass even if
++  // `toggleSelecting` forgot to clear `selectedIds.value`. Re-entering selection mode
++  // without picking anything is the case that actually distinguishes "cleared" from
++  // "still holds a stale id, just temporarily hidden".
++  it('leaving selection mode clears the selection, not just the bar\'s visibility', async () => {
++    mockAssets([], [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter
++    await w.find('[data-test="mo-all-tile"]').trigger('click')      // select a1
++    await w.find('[data-test="mo-select-toggle"]').trigger('click') // leave
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter again, nothing picked
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++  })
++})
+diff --git a/src/views/PhotosMomentDetail.vue b/src/views/PhotosMomentDetail.vue
+index 260ebb7..a954b66 100644
+--- a/src/views/PhotosMomentDetail.vue
++++ b/src/views/PhotosMomentDetail.vue
+@@ -1,12 +1,12 @@
+ <script setup lang="ts">
+-// SP15-P1-T7: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
++// SP15-P1-T7/T8: PhotosMomentDetail.vue — the moment detail page (route /photos/moments/:id).
+ // Ported section by section from Vue 2 NimoOS-UI 899af59b:src/views/Photos/PhotosMomentDetail.vue
+ // (template :1-121, computed :203-291, distStyle :418-421) and photos-smartview.scss.
+ // It reuses the sv-detail-* two-column skeleton already established by
+ // PhotosSmartViewDetail.vue — Vue 2 did the same, its top bar is literally commented
+ // "same as sv-detail-bar". Scoped styles do not cross component boundaries in this repo, so the
+ // handful of sv-* rules needed here are restated (same technique as MomentCard.vue, which
+ // restates SmartViewCard.vue's rules).
+ //
+ // ★★★ The structural difference from Vue 2 — read this before changing anything ★★★
+ // In Vue 2 this is an inline child component of PhotosSmartViewsView and the moment object
+@@ -35,45 +35,67 @@
+ //     Vue 2 did this for the dates but left the counts on a bare `toLocaleString()` (browser
+ //     locale, unpredictable); here both follow the app's language setting. This repo's locales
+ //     are `zh_cn`/`en_us`, which are not valid BCP-47 — passing one raw throws a RangeError, so
+ //     the underscore must be replaced (precedent: SmartViewCard.vue).
+ //  5) The action bar (Add photos / Select / Save as Album / more menu), the two photo grids, the
+ //     selection bar, the delete confirmation and the library picker are NOT here: they are
+ //     Tasks 8/9/10. The `featuredAssets` / `allAssets` / `allLoading` / `manualIds` / `places`
+ //     state they need is already loaded and exposed by this task, since Stats and the By-month
+ //     histogram read it too. Consequently Vue 2's `document.mousedown` listener that closes the
+ //     more menu is also deferred to Task 10 — there is no menu here yet to close.
++//     [T8 update: the two photo grids and the Select toggle in the action bar are now here —
++//     see deviations 6-9 below. Add photos / Save as Album / the more menu / delete confirmation
++//     / library picker are still Tasks 9/10, so the document.mousedown listener stays deferred.]
+ //
+ // Fix round 1 added three more:
+ // 10) The two asset requests fail independently (see load()). An earlier revision put them in
+ //     one Promise.all under one catch, which discarded an already-resolved detail response
+ //     whenever the all-assets one rejected. Vue 2 runs them as two separate statements with two
+ //     try/catch blocks (:307-338) and never loses one to the other; this restores that.
+ // 11) Switching :id clears the previous moment's assets before refetching. Vue 2's detail
+ //     component was v-if'd by its parent, so a switch remounted it and reset everything for
+ //     free. A route does not remount on a params-only change, so the reset is explicit.
+ // 12) A failed list fetch renders its own state, separate from "not found". Vue 2 could not
+ //     reach this page without a moment object, so it had neither state. Having only one of them
+ //     meant a network blip told the user their moment had been deleted — wrong, and stated with
+ //     confidence. Needs `listError` on the store, added in the same round.
++//
++// Task 8 (the two photo grids + selection state) added four more:
++//  6) Only the Select toggle joins `.sv-actions` here. Vue 2 :30-45 has four buttons in that bar
++//     (Add photos / Select / Save as Album / more menu); Add photos needs the library picker
++//     (Task 10) and Save as Album/more-menu need the export/delete wiring (Task 9/10) — adding
++//     inert buttons for those now would just mean re-touching this exact markup twice.
++//  7) The Select/Cancel button text reuses `photosPersonSelect`/`photosCancel` verbatim rather
++//     than adding a fresh pair of keys for the same two words Vue 2 uses (`$t('Select')`/
++//     `$t('Cancel')`) — same cross-file wording reuse as deviation 3's typeLabel ladder.
++//  8) The pin badge's icon is the same outline pin path already used for the header's place
++//     condition (`M12 21s7-6.3…`/`circle r=2.5`, scaled to r=2.2), not Vue 2's separate filled-
++//     teardrop `<photos-icon name="pin">` glyph (PhotosIcon.vue:172-174) — one pin shape per
++//     file rather than two, both render as the same recognisable map pin.
++//  9) The selection bar (Vue 2 :127-130) renders only the "{n} selected" count here. The
++//     "Remove from this moment" button beside it calls `excludeMomentAssets` — that request and
++//     its toast are Task 9's bulk-removal wiring, not added yet.
+ import { computed, onMounted, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRoute, useRouter } from 'vue-router'
++import { service } from '@nimotech/nimoos-service'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
++import { useLightbox } from '../photos/lightbox/useLightbox'
+ import type { Photo } from '../photos/util/assetToPhoto'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const { t, locale } = useI18n()
+ const store = usePhotosMoments()
++const lightbox = useLightbox()
+ 
+ /** The placeholder every empty key/value cell falls back to (Vue 2 used this same em dash
+  *  literal inline in five places). */
+ const DASH = '—'
+ 
+ const momentId = computed(() => String(route.params.id ?? ''))
+ const moment = computed(() => store.byId(momentId.value))
+ // The three no-content outcomes are mutually exclusive and all require `!moment`, so a moment
+ // we do hold is always rendered — even if a later list refresh failed underneath it.
+ const loadFailed = computed(() => store.listLoaded && !moment.value && store.listError)
+@@ -236,20 +258,47 @@ const placesLabel = computed(() => {
+ })
+ // Hover hint: the complete place list with counts, e.g. "Bozeman (323) · Rexburg (76) · …".
+ // With no places there are no counts to hint at, so no title is attached.
+ const placesTitle = computed(() =>
+   places.value.length ? places.value.map((p) => `${p.name} (${p.count})`).join(' · ') : '',
+ )
+ 
+ function backToAll(): void {
+   void router.push('/photos/smart-views')
+ }
++
++// ── SP15-P1-T8: selection state, consumed by Task 9's bulk removal ─────────────────────────
++// Ported from Vue2 :98/:112-121 (selecting/selectedIds + toggleSelecting/toggleSelect/
++// onTileClick). Photo.id is `string | number` (assetToPhoto.ts:268); selectedIds is kept as
++// string[] and every comparison goes through String() so a numeric id from an older backend
++// still compares equal to itself.
++const selecting = ref(false)
++const selectedIds = ref<string[]>([])
++
++function toggleSelecting(): void {
++  selecting.value = !selecting.value
++  if (!selecting.value) selectedIds.value = []
++}
++function toggleSelect(id: string): void {
++  selectedIds.value = selectedIds.value.includes(id)
++    ? selectedIds.value.filter((x) => x !== id)
++    : [...selectedIds.value, id]
++}
++// Vue2 :114-117: selection mode suppresses the lightbox — a tap either selects or opens,
++// never both. `list` is whichever grid the tile came from (Featured or All), matching
++// Vue2's own per-section list argument (:57/:71 pass `featuredAssets`/`allAssets`
++// respectively) so paging through the lightbox from a Featured tile stays inside the
++// Featured subset rather than jumping into the full list.
++function onTileClick(p: Photo, list: Photo[]): void {
++  if (selecting.value) toggleSelect(String(p.id))
++  else lightbox.openAt(p, list)
++}
+ </script>
+ 
+ <template>
+   <AreaShell :title="moment ? moment.title : t('photosMoBackToAll')">
+     <div class="photos-layout">
+       <PhotosSidebar />
+       <main class="photos-main">
+         <!-- Gate 1: the list has not arrived yet (New-UI only — Vue 2 always had the object). -->
+         <div v-if="!store.listLoaded" class="mo-skeleton" data-test="mo-skeleton">
+           <div class="mo-skel-bar" />
+@@ -288,39 +337,104 @@ function backToAll(): void {
+             <button type="button" class="sv-back-btn" data-test="mo-back" @click="backToAll">
+               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
+               {{ t('photosMoBackToAll') }}
+             </button>
+             <div style="flex:1" />
+             <span class="sv-last-updated" data-test="mo-last-updated">{{ t('photosMoLastUpdated', { time: lastUpdated }) }}</span>
+           </div>
+ 
+           <div class="sv-detail-layout mo-detail-layout">
+             <div class="sv-detail-main">
+-              <!-- Header (Vue 2 :12-30). The action bar that sits to its right is Task 9/10. -->
++              <!-- Header (Vue 2 :12-30). Vue2's action bar has four buttons (Add photos /
++                   Select / Save as Album / more menu, :30-45); only Select belongs to this
++                   task's own scope (it drives selecting/selectedIds, tested here) — the
++                   other three stay Task 9/10 placeholders (deviation 6). -->
+               <div class="sv-header">
+                 <div style="flex:1;min-width:0">
+                   <h1>{{ moment.title }}</h1>
+                   <div class="sv-header-conds">
+                     <span class="sv-cond mo-type-pill">{{ typeLabel }}</span>
+                     <span v-if="moment.place" class="sv-cond">
+                       <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.5" /></svg>
+                       {{ moment.place }}
+                     </span>
+                   </div>
+                   <div class="sv-header-stats">
+                     <span v-if="moment.subtitle">{{ moment.subtitle }}</span>
+                     <span><b>{{ fmtNum(momentAssetCount) }}</b> {{ t('photosSvPhotosCount') }}</span>
+                     <span v-if="moment.addedThisWeek > 0" class="mo-week-badge">{{ t('photosMoAddedThisWeek', { n: moment.addedThisWeek }) }}</span>
+                   </div>
+                 </div>
++                <div class="sv-actions">
++                  <!-- Text reuses photosPersonSelect/photosCancel verbatim (same wording as
++                       Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a
++                       fresh pair of keys for the same two words (deviation 7). -->
++                  <button
++                    type="button" class="sv-action-btn" data-test="mo-select-toggle"
++                    :data-open="selecting" @click="toggleSelecting"
++                  >
++                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
++                    {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
++                  </button>
++                </div>
++              </div>
++
++              <!-- Featured (Vue 2 :52-61): rendered only when non-empty — no empty shell. -->
++              <template v-if="featuredAssets.length">
++                <div class="sv-section-head" data-test="mo-featured-head">
++                  {{ t('photosMoFeatured') }} <span class="pill">{{ featuredAssets.length }}</span>
++                </div>
++                <div class="sv-grid-photos mo-grid-featured">
++                  <div
++                    v-for="p in featuredAssets" :key="p.id" class="tile"
++                    :data-selected="selecting && selectedIds.includes(String(p.id))"
++                    data-test="mo-featured-tile"
++                    @click="onTileClick(p, featuredAssets)"
++                  >
++                    <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
++                    <!-- Pin badge: manual members only, and only inside Featured (Vue 2 :57) —
++                         the All photos grid below never carries it (deviation 8: it reuses the
++                         same outline pin path as the header's place icon above, rather than
++                         Vue2's separate filled-teardrop `pin` icon — one pin glyph per file). -->
++                    <div v-if="manualIds.has(String(p.id))" class="sv-pin-tag" data-test="mo-pin-tag">
++                      <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
++                    </div>
++                    <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
++                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
++                    </div>
++                  </div>
++                </div>
++              </template>
++
++              <!-- All photos (Vue 2 :63-79): loading / populated / empty are mutually exclusive. -->
++              <div class="sv-section-head" data-test="mo-all-head">
++                {{ t('photosMoAllPhotos') }} <span class="pill">{{ fmtNum(momentAssetCount) }}</span>
++              </div>
++              <div v-if="allLoading && !allAssets.length" class="mo-all-loading" data-test="mo-all-loading">
++                {{ t('photosMoLoading') }}
+               </div>
+-              <!-- Task 8 mounts the Featured and All-photos grids here. -->
++              <template v-else>
++                <div v-if="allAssets.length" class="sv-grid-photos">
++                  <div
++                    v-for="p in allAssets" :key="p.id" class="tile"
++                    :data-selected="selecting && selectedIds.includes(String(p.id))"
++                    data-test="mo-all-tile"
++                    @click="onTileClick(p, allAssets)"
++                  >
++                    <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
++                    <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
++                      <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
++                    </div>
++                  </div>
++                </div>
++                <div v-else class="mo-all-empty" data-test="mo-all-empty">{{ t('photosMoNoPhotosYet') }}</div>
++              </template>
+             </div>
+ 
+             <aside class="sv-detail-side">
+               <!-- About (Vue 2 :86-92) -->
+               <div class="sv-side-section">
+                 <h3>{{ t('photosMoAbout') }}</h3>
+                 <div class="mo-about-row"><span>{{ t('photosMoType') }}</span><b>{{ typeLabel }}</b></div>
+                 <div class="mo-about-row"><span>{{ t('photosMoTime') }}</span><b data-test="mo-about-time">{{ timeWindowLabel }}</b></div>
+                 <div class="mo-about-row">
+                   <span>{{ t('photosMoPlace') }}</span>
+@@ -360,20 +474,27 @@ function backToAll(): void {
+                     data-test="mo-dist-bar" :style="distStyle(b, i)" :title="b.label + ' · ' + b.count"
+                   />
+                 </div>
+                 <div class="sv-dist-x">
+                   <span>{{ monthBuckets[0].label }}</span>
+                   <span>{{ monthBuckets[monthBuckets.length - 1].label }}</span>
+                 </div>
+               </div>
+             </aside>
+           </div>
++
++          <!-- Selection bar (Vue 2 :127-130). This task owns the visible count and the state
++               it reads; the "Remove from this moment" button that sits beside it is Task 9's
++               bulk-removal wiring, not added yet (deviation 9). -->
++          <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="mo-select-bar">
++            <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
++          </div>
+         </template>
+       </main>
+     </div>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ /* height (not min-height): this screen is capped and only the inner containers scroll — same
+    fix, and the same Vue 2 source, as the note at the matching rule in src/views/Photos.vue.
+    Registered in views/__tests__/photosLayoutHeightCap.test.ts under CAPPED. */
+@@ -416,20 +537,73 @@ function backToAll(): void {
+    this repo forbids bare colour literals, so it reuses the existing --warn-bg / --warn-fg pair
+    (theme.css has values for both in both themes) — same substitution MomentCard.vue made in T4.
+    The compound selector keeps it ahead of the plain .sv-cond above without !important. */
+ .sv-cond.mo-type-pill { background: var(--warn-bg); color: var(--warn-fg); font-weight: 600; }
+ .sv-header-stats { display: flex; gap: 20px; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+ .sv-header-stats b { color: var(--fg); font-weight: 600; }
+ /* Vue 2 :24 wrote an inline green literal here; --success is this repo's token for it, same
+    substitution as MomentCard.vue:209. */
+ .mo-week-badge { color: var(--success); }
+ 
++/* ── Action bar (scss:386-404 via PhotosSmartViewDetail.vue's own restatement, same
++   token substitutions it already made). This task adds only the Select toggle — see the
++   deviation note at the template. ── */
++.sv-actions { display: flex; gap: 8px; align-items: center; }
++.sv-action-btn {
++  height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
++  color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
++}
++.sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
++.sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
++
++/* ── Two photo grids (scss:480-513 via PhotosSmartViewDetail.vue's own restatement of the
++   same source — identical rule bodies, same class names, same reason: scoped styles do
++   not cross component boundaries in this repo). ── */
++.sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
++.sv-section-head .pill { padding: 1px 8px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
++.sv-grid-photos { padding: 0 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
++/* Vue2 :52 inline `style="padding-bottom:18px"` — only on the Featured grid, giving it
++   breathing room above the "All photos" heading below it. */
++.mo-grid-featured { padding-bottom: 18px; }
++.sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
++.sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
++
++/* Pin badge (scss:682-692): manual members, Featured only. Background is --overlay-bg —
++   the same constant-dark-badge token PhotosTrash.vue's .trash-tile-countdown/
++   .trash-tile-select already use for "fixed dark badge over an unpredictable photo" —
++   instead of Vue2's literal half-opaque black. */
++.sv-pin-tag {
++  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
++  background: var(--overlay-bg); backdrop-filter: blur(6px);
++  display: inline-flex; align-items: center; justify-content: center; z-index: 3;
++  color: #fff; /* theme-exception: badge glyph sits on unpredictable photo content inside a
++    fixed dark badge — same reasoning as PhotosTrash.vue's .trash-tile-countdown/.trash-tile-select. */
++}
++/* Selection check (scss:693-701): left side, so it never collides with the pin badge above
++   on the right — Vue2's own placement rule (see the code comment above the template). */
++.sv-tile-check {
++  position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;
++  background: var(--accent); display: inline-flex; align-items: center; justify-content: center; z-index: 4;
++  color: var(--on-accent); /* --on-accent's one legal use: icon sits on a solid --accent fill. */
++}
++.mo-all-loading, .mo-all-empty { padding: 8px 32px; color: var(--fg-muted); font-size: 12.5px; }
++
++/* ── Selection bar (scss:723-745): fixed pill, same idiom as PhotosSmartViewDetail.vue's
++   own .sv-toast (--popup-bg/--card-border/--card-shadow-hi/--blur). ── */
++.sv-select-bar {
++  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
++  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
++  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 14px;
++  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur);
++}
++.sv-select-bar span { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
++
+ /* ── Sidebar sections (scss:748-756, :846-877) — rule bodies identical to
+    SmartViewSidePanel.vue's, which ported the same source. ── */
+ .sv-side-section { margin-bottom: 24px; }
+ .sv-side-section h3 {
+   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+   color: var(--fg-faint); margin: 0 0 10px;
+ }
+ 
+ /* About key/value rows (scss:281-289). The hairline is --divider. */
+ .mo-about-row {

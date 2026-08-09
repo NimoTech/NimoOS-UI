@@ -307,3 +307,21 @@ Task 7: complete (commit c9a3924). No per-task reviewer; CONTROLLER RAN THE GATE
 Task 7: minor (deferred): the new test file hardcodes Chinese assertion literals
   ('转换失败', '已存在') instead of referencing the zh locale module — the same Minor that
   Task 4's review raised and fixed there. Final review should triage; two-line change.
+
+Task 8: complete (commit ebb54d7). No per-task reviewer; controller spot-check clean —
+  zero newly-authored Chinese, the parked P2a comment is gone (translated), anyOverlayOpen
+  is now four flags and the Escape branch routes through closeConvertToAlbum() so the
+  keyboard cannot dismiss what Cancel refuses.
+  The implementer found a real gap in MY brief's own test: the "does not dismiss mid-flight"
+  case only clicked Cancel, so mutation (b) — Escape bypassing the guard — would have
+  survived undetected. It extended the test to dispatch Escape mid-flight too. That is the
+  eighth plan/brief defect this phase.
+  It also caught itself writing two new Chinese comments before committing, via the grep the
+  dispatch mandated. Fourth occurrence of that pull this phase; the pre-commit grep is what
+  now catches it every time.
+Task 7: minor (deferred): the convert dialog's Escape dismissal path is not independently
+  tested — it shares close() with Cancel and only Cancel is exercised. Task 8 hit the same
+  shape and closed it there; T7's is still open. Final review should triage.
+
+=== ALL IMPLEMENTATION TASKS COMPLETE (T1-T8) ===
+Commit range: ff72714..ebb54d7

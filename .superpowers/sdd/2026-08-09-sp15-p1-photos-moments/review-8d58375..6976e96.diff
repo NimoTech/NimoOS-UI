@@ -1,0 +1,108 @@
+# Review package: 8d58375..HEAD
+
+## Commits
+6976e96 fix(photos): restore the real Moment badge star and test the collage templates it hides
+
+## Files changed
+ src/photos/components/MomentCard.vue               | 11 +++++++----
+ src/photos/components/__tests__/MomentCard.test.ts | 15 +++++++++++++++
+ 2 files changed, 22 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/photos/components/MomentCard.vue b/src/photos/components/MomentCard.vue
+index 0efb933..e1d7c97 100644
+--- a/src/photos/components/MomentCard.vue
++++ b/src/photos/components/MomentCard.vue
+@@ -31,21 +31,25 @@ import type { Moment } from '../stores/moments'
+ import type { MomentSize, MomentTemplate } from '../util/momentLayout'
+ 
+ const props = defineProps<{ moment: Moment; size: MomentSize; template: MomentTemplate }>()
+ const emit = defineEmits<{ (e: 'open', id: string): void }>()
+ 
+ const { t, locale } = useI18n()
+ // BCP-47 conversion (this repo's established pattern, see SmartViewCard.vue:38).
+ const localeTag = computed(() => locale.value.replace('_', '-'))
+ 
+ // Data source for the three/two/one-slot collage, each slot checked for existence
+-// (deviation 2 above).
++// (deviation 2 above). Relies on an invariant this component does not itself enforce:
++// pickMomentTemplate (src/photos/util/momentLayout.ts) only ever hands out T1/T2/T4 when
++// featuredAssetIds has >= 2 entries, and T3 when it has >= 1 — so f[0]/f[1] below are never
++// read out of an empty array in practice, even though .filter(Boolean) would silently
++// tolerate it if that invariant ever broke.
+ const collageIds = computed<string[]>(() => {
+   const cover = props.moment.coverAssetId
+   const f = props.moment.featuredAssetIds
+   if (props.template === 'single') return [cover].filter(Boolean)
+   if (props.template === 'T3') return [cover, f[0]].filter(Boolean)
+   return [cover, f[0], f[1]].filter(Boolean)
+ })
+ 
+ const typeLabel = computed(() => {
+   const key = props.moment.recipeKey || ''
+@@ -76,23 +80,22 @@ function thumbUrl(id: string): string {
+         'mo-tpl-t4': template === 'T4',
+       }"
+     >
+       <img
+         v-for="(id, i) in collageIds" :key="id"
+         :class="{ 'sv-collage-main': i === 0 }" :src="thumbUrl(id)" alt=""
+       >
+       <div class="sv-collage-overlay" />
+       <div class="sv-collage-badge mo-badge">
+         <svg
+-          width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+-          stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+-        ><path d="M12 2l2.6 6.3L21 9.6l-4.7 4.3 1.3 6.4L12 17l-5.6 3.3 1.3-6.4L3 9.6l6.4-1.3z" /></svg>
++          width="9" height="9" viewBox="0 0 24 24" fill="currentColor"
++        ><path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z" /></svg>
+         {{ t('photosMoBadge') }}
+       </div>
+     </div>
+     <div class="sv-meta">
+       <h3 class="sv-name">
+         {{ moment.title }}
+       </h3>
+       <div class="sv-conds">
+         <span class="sv-cond">{{ typeLabel }}</span>
+         <span v-if="moment.place" class="sv-cond">{{ moment.place }}</span>
+diff --git a/src/photos/components/__tests__/MomentCard.test.ts b/src/photos/components/__tests__/MomentCard.test.ts
+index d473d70..7f16544 100644
+--- a/src/photos/components/__tests__/MomentCard.test.ts
++++ b/src/photos/components/__tests__/MomentCard.test.ts
+@@ -50,20 +50,35 @@ function mountCard(
+ describe('collage shapes', () => {
+   it('T1 / T2 / T4 render three images: cover + two featured, fixed order', () => {
+     for (const tpl of ['T1', 'T2', 'T4'] as MomentTemplate[]) {
+       const w = mountCard({}, 'standard', tpl)
+       const srcs = w.findAll('.mo-collage img').map((i) => i.attributes('src'))
+       expect(srcs).toEqual(['mock://c1/large', 'mock://f1/large', 'mock://f2/large'])
+       expect(w.find('.sv-collage-main').exists()).toBe(true)
+     }
+   })
+ 
++  it('T1 / T2 / T3 / T4 each drive a distinct grid layout class on .mo-collage', () => {
++    // The three-image T1/T2/T4 shapes and the two-image T3 shape look identical by img
++    // count/order alone (previous test) — what actually tells them apart is which
++    // mo-tpl-* class lands on .mo-collage, since that is what the grid-template-* CSS
++    // keys off. T1 is the baseline grid and carries none of them.
++    const t1Classes = mountCard({}, 'standard', 'T1').find('.mo-collage').classes()
++    expect(t1Classes).not.toContain('mo-tpl-t2')
++    expect(t1Classes).not.toContain('mo-tpl-t3')
++    expect(t1Classes).not.toContain('mo-tpl-t4')
++
++    expect(mountCard({}, 'standard', 'T2').find('.mo-collage').classes()).toContain('mo-tpl-t2')
++    expect(mountCard({ featuredAssetIds: ['f1'] }, 'standard', 'T3').find('.mo-collage').classes()).toContain('mo-tpl-t3')
++    expect(mountCard({}, 'standard', 'T4').find('.mo-collage').classes()).toContain('mo-tpl-t4')
++  })
++
+   it('T3 renders two images: cover + the sole featured asset', () => {
+     const w = mountCard({ featuredAssetIds: ['f1'] }, 'standard', 'T3')
+     expect(w.findAll('.mo-collage img').map((i) => i.attributes('src')))
+       .toEqual(['mock://c1/large', 'mock://f1/large'])
+   })
+ 
+   it('single renders only the cover, and attaches mo-collage-single', () => {
+     const w = mountCard({ featuredAssetIds: [] }, 'standard', 'single')
+     expect(w.findAll('.mo-collage img')).toHaveLength(1)
+     expect(w.find('.mo-collage').classes()).toContain('mo-collage-single')
