@@ -123,4 +123,37 @@ describe('Files.vue context-menu target (F11)', () => {
     // test must fail on.
     expect(w.findComponent(FileContextMenu).props('selectedCount')).toBe(1)
   })
+
+  // The tests above set `ctxEntry` directly, which constructs a state the UI can never
+  // reach on its own: `onItemContextmenu` (Files.vue) always narrows the selection to the
+  // clicked entry *before* it records it, so `ctxEntry` is never observed while the
+  // selection still holds other entries. This test goes through the real path instead —
+  // a native `contextmenu` DOM event on a rendered row — to document what a user actually
+  // gets: right-clicking an unselected entry collapses the selection to it first, so the
+  // old "batch acts on the previous selection" bug (pending-ledger F11) was never reachable
+  // through the UI. `contextTargets`/`ctxTargets` are still correct defence-in-depth (single
+  // source of truth, no duplicated `delete` logic), just not a fix for an observable defect.
+  it('Real contextmenu on an unselected row collapses selection to it, and a subsequent copy acts on it alone', async () => {
+    const w = await mountFiles()
+    const files = useFilesStore()
+    files.setView('list') // deterministic DOM shape regardless of the localStorage-persisted default
+    await w.vm.$nextTick()
+    files.setSelection(['/DATA/b.txt', '/DATA/c.txt'])
+
+    const rowA = w.find('[data-path="/DATA/a.txt"]')
+    expect(rowA.exists()).toBe(true)
+    rowA.element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await w.vm.$nextTick()
+
+    // Selection contract: right-clicking unselected A drops B, C and selects only A.
+    expect(files.isSelected('/DATA/a.txt')).toBe(true)
+    expect(files.selected.size).toBe(1)
+
+    const ctxEntry = (w.vm as any).ctxEntry
+    expect(ctxEntry?.path).toBe('/DATA/a.txt')
+    ;(w.vm as any).onCtxAction('copy', ctxEntry)
+
+    const clip = useClipboardStore()
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt' }] })
+  })
 })
