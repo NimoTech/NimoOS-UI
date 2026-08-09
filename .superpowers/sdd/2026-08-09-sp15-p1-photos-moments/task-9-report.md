@@ -242,3 +242,109 @@ toast 名字取 `album.value?.title ?? ''`(与组件此前拿的 `props.albumNam
    这个按钮会有一段可见的禁用期——这是 Vue2 的既有行为,不是本任务引入的。
 4. 真机验收仍受「moments 表 0 行」限制(见记忆:验收第 0 步要先在控制台触发重算),本任务无法在设备上
    自证。
+
+---
+
+# Fix round 1(2026-08-09)
+
+提交 `2dd1458` — *test(photos): pin down two guarantees the picker refactor left uncovered*
+(三个 Important + 一个折进来的 Minor 一并处理,与前两个提交分开)。
+
+## Finding 1(Important)—— 忙碌标志复位真的没人守
+
+评审说得对:我报告里那句「无删除、无减弱」在这一条上不成立。泛化前 picker 有一条用例证明
+**失败之后按钮会从提交态恢复**;我的替代用例在一个 `submitting` 从来没为真过的场景里断言「按钮可用」,
+证不了任何东西。而这份责任现在落在三个 `finally` 里(`PhotosAlbums.vue` / `PhotosAlbumDetail.vue` /
+`PhotosMomentDetail.vue`),一条测试都没盖。
+
+改法(三处失败用例都加,采用评审建议里更强的那种——再点一次、断言真的又发了一次写入):
+
+- `PhotosAlbums.test.ts` 失败用例:`expect(picker.props('submitting')).toBe(false)` + 再 emit 一次
+  `confirm` → `batchAddToAlbum` 被调 **2** 次。
+- `PhotosAlbumDetail.test.ts` 失败用例:同上。
+- `PhotosMomentDetail.test.ts` 加入失败用例:`props('submitting')` 为 false + 再 emit 一次 →
+  `pinMomentAssets` 被调 **2** 次。(移出失败用例本来就已经是这种强形式,连点两次断言
+  `excludeMomentAssets` 两次,守的是 `removing` 那个 `finally`。)
+- 组件侧那条失败用例也重写了:现在会**真的把 `submitting` 打开再关掉**(模拟调用方「飞行中 → finally
+  清掉」的完整生命周期),再断言选择保留 / 按钮恢复 / 二次提交发得出去。原来的版本从头到尾没让
+  `submitting` 为真,所以「按钮恢复了」这句话在点击之前就已经成立。
+
+**变异验证(三处都做了,评审只要求一处)**
+
+| 变异 | 结果 |
+|---|---|
+| 删 `PhotosAlbums.vue` 的 `finally { pickerAdding.value = false }` | 「a failed write → … the busy flag is released」变红,其余全绿 ✔ |
+| 删 `PhotosMomentDetail.vue` 的 `finally { pinning.value = false }` | 「adding: a failed pin …」变红(40 例里只红这一条)✔ |
+| (`PhotosAlbumDetail.vue` 与 PhotosAlbums 同构,断言逐字相同) | —— |
+
+## Finding 2(Important)—— String() 归一被搬出了它的测试
+
+也确认成立。泛化前 `new Set(assetsOf(id).map(p => String(p.id)))` 在组件里,组件那条跨类型用例
+(数字 5 ↔ 字符串 '5')证的就是它;搬走之后组件测试的 `existingIds` 来自**测试自己的 helper**,证的
+只是 fixture 会归一。两个相册页测试当时一句 `existingIds` 都没断言,时刻页那条的 fixture 又本来就是字符串。
+
+改法:两个相册页各加一条用例,fixture 用**数字 id 的相册资产**(经真实 `getAlbum → assetToPhoto`
+管线,`Photo.id` 确为 number),断言传给 picker 的 `existingIds` 里是 `'5'`:
+
+- `PhotosAlbums.test.ts` · `the existingIds handed to the picker are String()-normalised …`
+- `PhotosAlbumDetail.test.ts` · 同名用例
+
+组件侧对应的注释也改了,写明「归一现在只剩消费那一半在这里,生产那一半由各调用方自测」。
+
+**变异验证**:把 `PhotosAlbumDetail.vue` 的 `.map(p => String(p.id))` 改成 `.map(p => p.id)` →
+该用例变红(`expected [ 5 ] to deeply equal [ '5' ]`),其余 52 例全绿;还原后 53 全绿。
+
+## Finding 3(Important)—— 英文注释规则只在时刻那一半执行了
+
+属实,已全部翻成英文(**意译不直译**,行号/出处原样保留):
+
+- `src/photos/components/AlbumLibraryPicker.vue` —— 头部以下我新写的三处注释
+- `src/photos/components/__tests__/AlbumLibraryPicker.test.ts` —— 5 条 `it` 标题 + 内联注释
+- `src/views/__tests__/PhotosAlbums.test.ts` —— 2 条 `it` 标题 + 注释
+- `src/views/__tests__/PhotosAlbumDetail.test.ts` —— 改写/新增的 `it` 标题 + 注释(含「两次拉取」那段)
+- `src/views/PhotosAlbums.vue` · `src/views/PhotosAlbumDetail.vue` —— 整块 Step 0 说明
+
+处理原则两条:(1)**被我改动过的既有中文注释一律还原成原文**,我的补充另起一行用英文写(例如组件里
+「选中集合直接存原始 id」那段、测试文件头那段——都恢复原句 + `[T9]` 英文补注),这样「既有中文别动」
+与「新写的用英文」两条规则不打架;(2)**中文作为数据的一律不动**:i18n 值、`zh.photosAlbumAddFailed`
+这类断言、以及作为 prop 传进去被断言的 `'添加所选'`。
+
+自查手法:`git diff <本任务起点> -- src/ | grep '^+' | grep -P '[\x{4e00}-\x{9fff}]'`,逐条确认剩下的
+命中项全部是上述「数据」类。
+
+## Finding 4(Minor,折入)—— 成功 toast 的断言在搬家途中变松了
+
+也属实:`showSpy.mock.calls.map(...).some(m => m.includes(...))` 这种写法,弹两条、或者失败路径上顺手
+多弹一条成功 toast,都抓不到。四条相关用例改成**先钉数量再钉内容**:
+
+- 两个相册页的成功用例:`toHaveBeenCalledTimes(1)` + 完整串
+  `zh.photosAlbumAddedToast.replace('{count}','2').replace('{name}','Trip'/'Picked')`;
+  spy 改成在「新建相册」那一步**之后**才装,免得把「相册已创建」那条也算进来。
+- 两个相册页的失败用例、时刻页的加入/移出成功与失败用例:同样 `toHaveBeenCalledTimes(1)`,失败路径
+  额外确认只有 danger 那一条(成功 toast 漏到失败路径会被数量抓住)。
+
+## 各道门(fix round 1 后的实测)
+
+| 门 | 结果 | 与 round 0 相比 |
+|---|---|---|
+| `AlbumLibraryPicker.test.ts` | **15 passed** | 15 → 15(基线 12) |
+| `views/__tests__/PhotosAlbums.test.ts` | **20 passed** | 19 → 20(基线 17) |
+| `views/__tests__/PhotosAlbumDetail.test.ts` | **33 passed** | 32 → 33(基线 31) |
+| `views/PhotosMomentDetail.test.ts` | **40 passed** | 40 → 40(基线 32) |
+| 四文件合计 | **108 passed** | 106 → 108(基线 92) |
+| `src/i18n/parity.test.ts` | **9 passed** | 不变 |
+| `src/styles` | **1075 passed** | 不变(仍未新增任何 CSS) |
+| `oss` | **448 passed / 19 files** | 不变 |
+| `pnpm exec vue-tsc --noEmit` | 干净(exit 0) | 不变 |
+
+`oss` 依旧是在 `git worktree add --detach <scratchpad> HEAD` 的干净检出里跑的(软链 node_modules,跑完
+撤掉):主工作树始终因控制器自己的 `.superpowers/sdd/.../progress.md` 处于 dirty 状态,导出脚本会拒跑并
+连带 skip 70 例——按约定我不碰、不 stash 它。另外 `.superpowers/sdd/.gitignore`(单行 `*`)在本轮开始时
+又出现了一次,已按约定删除且未重建。
+
+## 本轮仍存的判断
+
+- 组件那条失败用例现在把「调用方会复位 submitting」当作**前提**来演(setProps 手动拨回 false),真正
+  证明这个前提成立的是三个调用方各自的用例——这是刻意的分工:组件测组件的、页面测页面的。
+- 「空选不能发移出请求」那条依旧是「整条选择栏不渲染」的存在性断言,变异不敏感(实现里的
+  `if (!ids.length) return` 从 UI 走不到)。留着当回归护栏,没有把它包装成更强的样子。
