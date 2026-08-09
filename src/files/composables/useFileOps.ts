@@ -145,24 +145,34 @@ export function useFileOps() {
     // 'ok') so a lone attempted batch that fails is correctly read as a total
     // failure, not a partial one -- the other "batch" never existed at all,
     // it just had nothing to submit.
-    type SubmitOutcome = 'empty' | 'ok' | 'failed'
+    //
+    // The caught error is carried along (not discarded) so the toast can still
+    // show the backend's own reason -- e.g. "read-only filesystem" for a paste
+    // into a read-only mount -- the same way the single try/catch this replaced
+    // used to (task-7 fix-round-2 N2: a bare 'failed' flag was throwing that
+    // message away and forcing every failure through the generic fallback).
+    type SubmitOutcome = { status: 'empty' } | { status: 'ok' } | { status: 'failed'; error: unknown }
     const submit = async (items: OperateItem[], style: 'overwrite' | 'rename'): Promise<SubmitOutcome> => {
-      if (!items.length) return 'empty'
-      try { await service.batch.task(buildPastePayload({ ...o, item: items }, dest, style)); return 'ok' }
-      catch { return 'failed' }
+      if (!items.length) return { status: 'empty' }
+      try {
+        await service.batch.task(buildPastePayload({ ...o, item: items }, dest, style))
+        return { status: 'ok' }
+      } catch (e) {
+        return { status: 'failed', error: e }
+      }
     }
-    const outcomes = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
-    const failed = outcomes.includes('failed')
-    const succeeded = outcomes.includes('ok')
+    const results = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
+    const failures = results.filter((r): r is { status: 'failed'; error: unknown } => r.status === 'failed')
+    const succeeded = results.some((r) => r.status === 'ok')
 
-    if (!failed) {
+    if (!failures.length) {
       // Cancelling the conflict dialog (Esc) is "not now", not "throw away
       // what I copied" -- only clear when the user never hit cancel.
       if (cancelledCount === 0) clipboard.clear()
       return
     }
-    if (!succeeded) { toast.show(t('filesOpFailed')); return }
-    toast.show(t('filesPastePartialFailure'))
+    if (!succeeded) { toast.show(errMsg(failures[0].error, t('filesOpFailed'))); return }
+    toast.show(errMsg(failures[0].error, t('filesPastePartialFailure')))
   }
 
   async function download(entries: FileEntry[]) {

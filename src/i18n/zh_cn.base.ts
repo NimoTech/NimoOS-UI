@@ -32,7 +32,7 @@ export default {
   filesNewFile: '新建文件',
   filesPaste: '粘贴',
   filesPasteSkipped: '已跳过 {count} 项',
-  filesPastePartialFailure: '部分粘贴失败,请检查目标目录后重试',
+  filesPastePartialFailure: '部分粘贴失败,请检查目标目录',
   filesDownloadPreparing: '正在准备下载…',
   filesDownload: '下载',
   filesViewerClose: '关闭',

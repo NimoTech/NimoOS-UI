@@ -7,7 +7,6 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
 import FileGridView from '../files/components/FileGridView.vue'
-import FileContextMenu from '../files/components/FileContextMenu.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
@@ -39,6 +38,20 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
+// Same reka-ui stand-ins as FileContextMenu.test.ts: the real ContextMenuItem
+// injects a MenuRootContext that only a real ContextMenuRoot provides, and
+// throws when mounted without one. These stubs render the #menu slot content
+// unconditionally (no Portal/positioning), so a real click drives FileContextMenu's
+// own real emit -- unlike calling `.vm.$emit()` directly on the child (see the
+// "context menu paste action" test below for why that doesn't work).
+const ContextMenuStub = {
+  template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
+}
+const ContextMenuItemStub = {
+  emits: ['select'],
+  template: '<div @click="$emit(\'select\')"><slot /></div>',
+}
+
 function makeRouter() {
   return createRouter({
     history: createWebHashHistory('/app/'),
@@ -53,6 +66,12 @@ function makeRouter() {
 describe('Files.vue browse pipe', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    // service.batch.task is a module-level vi.fn() shared by every test in this
+    // file. Without clearing it here, a call recorded by an earlier test (e.g.
+    // the toolbar Paste button test) can make a later toHaveBeenCalledWith
+    // assertion pass even if the code under test is completely broken -- see
+    // task-7 fix-round-2 N1.
+    vi.clearAllMocks()
     ;(globalThis as any).IntersectionObserver = class {
       cb: (e: { isIntersecting: boolean }[]) => void
       constructor(cb: any) { this.cb = cb }
@@ -192,18 +211,43 @@ describe('Files.vue browse pipe', () => {
   })
 
   it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
+    // fix-round-2 N1 debugging note: an earlier draft of this test drove the
+    // event through `w.findComponent(FileContextMenu).vm.$emit('action', ...)`.
+    // That call shows up in Vue Test Utils' `emitted()` tracker, but it does
+    // NOT actually invoke the `onAction` prop Files.vue registers via
+    // `@action="onCtxAction"` -- confirmed by instrumenting both `ops.paste()`
+    // and the unrelated `refresh` action and observing neither ever ran, even
+    // though `vnode.props.onAction` was present and callable. Rather than
+    // depend on a technique that turned out not to exercise the real listener
+    // at all, this test stubs reka-ui's ContextMenu/ContextMenuItem the same
+    // way FileContextMenu.test.ts does, and drives an actual DOM click through
+    // FileContextMenu's own real `fire()` -> real `emit('action', ...)` ->
+    // real `onAction` prop chain, exactly as production code would.
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
     router.push('/files/NimoOS-HD'); await router.isReady()
-    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    const w = mount(Files, {
+      global: {
+        plugins: [router, i18n],
+        stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
+      },
+    })
     await flushPromises()
     useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
     await w.vm.$nextTick()
-    // Fire the SAME event string the real menu item emits (verified separately
-    // in FileContextMenu.test.ts), without needing to drive reka-ui's real
-    // popover positioning through jsdom.
-    w.findComponent(FileContextMenu).vm.$emit('action', 'paste', null)
+    // FilesSidebar.vue ALSO renders a FileContextMenu (for the favourites list),
+    // so the stub produces two `.ctx-paste` buttons in the tree -- one wired to
+    // Files.vue's real ops.paste() and one wired to the sidebar's
+    // onFavoriteAction, which silently no-ops for a null entry (blank-area
+    // actions like 'paste' are never forwarded there, by design -- see
+    // FilesSidebar.vue's onFavoriteAction). Disambiguate by picking the one
+    // whose sibling in the stub's rendered tree is `.files-listwrap`, the
+    // trigger content Files.vue itself passes into <FileContextMenu>.
+    const mainMenuPaste = w.findAll('.ctx-paste')
+      .find((btn) => btn.element.parentElement?.parentElement?.querySelector('.files-listwrap'))
+    expect(mainMenuPaste).toBeTruthy()
+    await mainMenuPaste!.trigger('click')
     await flushPromises()
     expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
