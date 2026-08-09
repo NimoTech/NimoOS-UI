@@ -80,10 +80,13 @@ export const DELETE = [
 
   // ═══ SP7-P8b 合流(2026-08-05):相册区整块不进开源版 ═══════════════════════
   // 本表开篇那条"两支合流后必须为 src/photos/** 扩张"的备注,兑现的就是这一段。
-  // 相册面 = 一个域目录 + 14 个视图 + 17 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
+  // 相册面 = 一个域目录 + 14 个视图 + 19 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
   // ⚠️ 逐条列、不用通配:DELETE 路径不存在即 exit 1,清单过期时要能立刻知道
   //    (2026-08-05 清点结果:`ls src/views | grep -i photo` = 13、
   //     `ls src/views/__tests__ | grep -i photo` = 16)。
+  //    Recounted 2026-08-09 (SP15-P1): 14 views, and 19 view tests — 17 in views/__tests__/
+  //    plus the 2 that SP15 put next to their views. The route/import counts below were
+  //    recounted from src/router/index.ts at the same time.
   'src/photos',                                   // 组件/store/composable/灯箱/util 全区
   // i18n 分片:702 个 photos* 键。它们当初就是为了能在这里一行删掉才从主文件拆出来的
   // (拆之前散在 90 多个区段,剥它们要约 90 条锚点补丁 × 2 语言,改一条文案就打红导出)。
@@ -94,7 +97,7 @@ export const DELETE = [
   // 它们断言的键一个都不存在,留着必红。
   'src/i18n/__tests__/p8aKeys.test.ts',
   'src/i18n/__tests__/people.i18n.test.ts',
-  // 14 个视图(SP15-P1-T7 新增 PhotosMomentDetail.vue)
+  // 14 views (SP15-P1-T7 added PhotosMomentDetail.vue)
   'src/views/Photos.vue',
   'src/views/PhotosAlbumDetail.vue',
   'src/views/PhotosAlbums.vue',
@@ -109,9 +112,10 @@ export const DELETE = [
   'src/views/PhotosSmartViewDetail.vue',
   'src/views/PhotosSmartViews.vue',
   'src/views/PhotosTrash.vue',
-  // 18 个视图测试。⚠️ 前两条不在 __tests__/ 下:SP15-P1 的 T5/T7 把测试放在视图同目录,
-  // 与本区其余 16 份的惯例不同,别照 glob 想当然。(T5 那份漏登记过,泄漏守卫因此红了 12 处,
-  // 与 packages/service/src/photos.moments.test.ts 同一类遗漏,一并补。)
+  // 19 view tests. ⚠️ The first two are NOT under __tests__/: SP15-P1's T5 and T7 put their
+  // tests next to the view, unlike the other 17 in this area — do not assume a glob covers them.
+  // (T5's went unregistered and left the leak guard red on 12 hits, the same omission as
+  // packages/service/src/photos.moments.test.ts; both are fixed here.)
   'src/views/PhotosMomentDetail.test.ts',
   'src/views/PhotosSmartViews.moments.test.ts',
   'src/views/__tests__/Photos.integration.test.ts',
@@ -977,8 +981,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
 
-  // ── src/router/index.ts:14 个相册视图 import + 15 条 /photos* 路由 ────────────
-  //    两段各自连续,整块摘。DELETE 表已删掉那 13 个 .vue 文件,不摘 import 的话开源侧
+  // ── src/router/index.ts:14 个相册视图 import + 14 条 /photos* 路由 ────────────
+  //    两段各自连续,整块摘。DELETE 表已删掉那 14 个 .vue 文件,不摘 import 的话开源侧
   //    vite build 直接找不到模块 —— 这两条补丁与 DELETE 是配对的,少一边都不行。
   { path: 'src/router/index.ts',
     find: `import Photos from '../views/Photos.vue'
