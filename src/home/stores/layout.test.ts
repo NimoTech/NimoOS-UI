@@ -66,7 +66,10 @@ const DIMS = { cols: 12, rows: 8 }
 const dl = (key: string, widget?: { w: number; h: number }): DesktopAppDecl => ({ key, widget })
 
 describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => {
-  beforeEach(() => vi.useFakeTimers())
+  // Isolate each test's pinia + localStorage, same as the sibling autoPin describes below —
+  // without this, sweepGone's own save()/saveLocal() leak pruned layouts across tests via
+  // localStorage, and a later test's loadInitial() silently inherits an earlier test's cuts.
+  beforeEach(() => { setActivePinia(createPinia()); localStorage.clear(); vi.useFakeTimers() })
   afterEach(() => vi.useRealTimers())
 
   it('手动固定的磁贴:应用消失满宽限期后被清,宽限期内保留', () => {
@@ -96,6 +99,20 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true) // seen 守卫豁免
     s.evict('test-nginx', { force: true })
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
+  })
+
+  it('removes the KVM tile once the service has been missing for the grace period', () => {
+    // The default layout already carries a `vm` tile, so loadInitial() is enough to
+    // reproduce what a machine without KVM installed sees on first load. `live` only
+    // needs to omit 'vm' -- it stands in for the other system app keys the app grid
+    // would still report (files/storage/settings/appstore), kept short deliberately.
+    const s = useLayoutStore(); s.loadInitial()
+    const live = ['files', 'storage', 'settings', 'appstore']
+    s.sweepGone(live) // first absence: only starts the clock
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(true)
+    vi.advanceTimersByTime(46_000)
+    s.sweepGone(live) // absent past the grace period: removed
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(false)
   })
 })
 

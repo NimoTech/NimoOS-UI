@@ -27,14 +27,20 @@ export interface AppMeta {
 export const useAppsStore = defineStore('home-apps', () => {
   const apps = ref<Record<string, AppMeta>>({})
   const order = ref<string[]>([])
+  // null = not probed yet. Unknown must render as "available": the store calls
+  // setApps([]) at init so the desktop has its system tiles before any request has
+  // been made, and hiding the tile there would make it blink out and back in.
+  const kvmAvailable = ref<boolean | null>(null)
 
   function setApps(container: AppGridItem[], links?: LinkApp[]) {
     const map: Record<string, AppMeta> = {}
     const ord: string[] = []
-    SYSTEM_APPS.forEach((s) => {
-      map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
-      ord.push(s.key)
-    })
+    SYSTEM_APPS
+      .filter((s) => s.requiresService !== 'kvm' || kvmAvailable.value !== false)
+      .forEach((s) => {
+        map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
+        ord.push(s.key)
+      })
     ;(container || []).forEach((a) => {
       const key = a.name
       if (!key || map[key]) return // 不覆盖系统应用
@@ -67,8 +73,25 @@ export const useAppsStore = defineStore('home-apps', () => {
     order.value = ord
   }
 
+  /** Any failure -- not registered with the gateway, unreachable, timing out -- means
+   *  "not available" here. It is not an error worth surfacing: a machine without KVM
+   *  installed is the normal case (Vue 2 AppSection.checkKvmAvailability). */
+  async function probeKvm(): Promise<boolean> {
+    try {
+      await service.kvm.getSettings()
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function loadGrid() {
-    const [list, links] = await Promise.all([service.apps.getGrid(), listLinkApps().catch(() => [])])
+    const [list, links, kvmOk] = await Promise.all([
+      service.apps.getGrid(),
+      listLinkApps().catch(() => []),
+      probeKvm(),
+    ])
+    kvmAvailable.value = kvmOk
     setApps(list || [], links)
   }
 
