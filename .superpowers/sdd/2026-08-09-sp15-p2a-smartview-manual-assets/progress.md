@@ -55,3 +55,31 @@ Task 4: complete (d32dedf fix + 64e8486 oss + c908ab2 docs) — carried-in defec
   Acceptance doc written with the design's §2.1/§2.2 date-conditioned-smart-view opening
   verbatim, plus a step naming the carried-in fix. P2a is code-complete; unpushed,
   undeployed, not merged to master, zero real-device acceptance run.
+
+Task 4: complete (d32dedf + 64e8486 + c908ab2) — carried-in P1 fix + gates + acceptance list.
+
+FINAL WHOLE-BRANCH REVIEW (opus, the phase's ONLY review by owner's choice):
+  1 Important + 6 Minor + 5 "tests that pass regardless" + 1 structural fix.
+  The Important one landed on this branch's own stated invariant: the route-change
+  selection reset was asserted only via the select bar's visibility, and the bar's
+  v-if is `selecting && selectedIds.length` — so clearing `selecting` alone hid it and
+  deleting `selectedIds.value = []` left the whole suite green, while the real failure
+  sends view A's asset ids to view B's remove endpoint.
+  Also caught two 1:1 breaks the plan itself introduced: `photosSvAddPhotos` was
+  self-translated (`加照片` vs Vue 2's `添加照片`), and the picker's submit label used
+  the album pages' counting label where Vue 2 passes a static "Add selected".
+  Fix wave (3cdfcb0) addressed all of it; scoped re-review confirmed, no new breakage.
+  Structural fix landed: oss/photosStripCoverage.test.mjs now fails fast when a
+  /photo/i file under the three enumerated directories is missing from the strip
+  manifest — the omission that had gone red four times across P1 and P2a.
+
+PARKED (controller ruling, not fixed): the fix wave wrote ONE new template comment in
+  Chinese in PhotosSmartViewDetail.vue (~:1168-1173), matching that file's own
+  surrounding convention but violating the owner's English-comment ruling. Real but
+  cosmetic and not load-bearing; dispatching another agent for a single comment is
+  disproportionate at this point. Recorded here so it is not silently discarded —
+  fold it into whichever task next edits that file.
+
+CONTROLLER GATES RERUN after the fix wave, clean tree: vue-tsc clean · pnpm test
+  683 files / 10862 passed · parity+styles 1084 · oss export zero real leaks ·
+  pnpm build 17.87s.
