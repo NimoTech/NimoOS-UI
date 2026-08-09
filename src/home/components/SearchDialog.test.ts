@@ -526,3 +526,65 @@ describe('深链 ?q=(SP9-P8 cutover:Vue2 /search 绞杀到桌面)', () => {
     expect(agentTool).toHaveBeenLastCalledWith('invoice')
   })
 })
+
+// SP16 Task 13:搜 → 点结果开预览 → 按**一次** Esc,预览关了、搜索面板也跟着关了,
+// 结果全丢。根因是时序:reka 的 DismissableLayer 与 ViewerHost 的 Esc 处理器都挂在
+// window 的**冒泡**阶段,谁先跑取决于注册顺序 —— 而 Home 挂载时就有一个 ViewerHost
+// 注册好了,远早于这个弹窗打开。于是它先把 viewer.open 置 false,守卫再去读已经是 false,
+// 不 preventDefault,弹窗照常 dismiss。
+describe('Esc 只关预览,不连搜索面板一起关', () => {
+  // 扮演「Home 那个早就注册好的 ViewerHost」:冒泡阶段、在本弹窗之前注册,收到 Esc
+  // 就把预览关掉。**必须在 mount 之前挂**,顺序就是这个缺陷的全部成因 ——
+  // 若在之后挂,守卫恰好还读得到 true,测试会因为错的理由而通过(第一版就是这么写的)。
+  let offViewerHost: (() => void) | null = null
+  function registerEarlierViewerHost(): void {
+    const viewer = useViewer()
+    const h = (e: KeyboardEvent): void => { if (e.key === 'Escape' && viewer.open.value) viewer.open.value = false }
+    window.addEventListener('keydown', h)
+    offViewerHost = () => window.removeEventListener('keydown', h)
+  }
+  afterEach(() => { offViewerHost?.(); offViewerHost = null })
+
+  const pressEscape = (): void => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  }
+
+  it('预览开着时按一次 Esc:面板与结果都还在', async () => {
+    agentTool.mockResolvedValue(REAL)
+    registerEarlierViewerHost()
+    await open()
+    await search('receipt')
+    const homeUi = useHomeUiStore()
+    expect(homeUi.searchOpen).toBe(true)
+    expect(document.body.querySelectorAll('.result').length).toBeGreaterThan(0)
+
+    const viewer = useViewer()
+    viewer.open.value = true
+    await nextTick()
+
+    // 一次真实的 window 事件,三方都在这一次 dispatch 里跑完:capture 阶段(本任务新加的
+    // 快照监听)→ 先注册的 ViewerHost 冒泡监听把 open 置 false → reka 的冒泡监听读守卫。
+    pressEscape()
+    await nextTick()
+    await nextTick()
+
+    expect(viewer.open.value).toBe(false)      // 预览该关(ViewerHost 的活)
+    expect(homeUi.searchOpen).toBe(true)       // 面板必须还开着
+    expect(document.body.querySelectorAll('.result').length).toBeGreaterThan(0) // 结果没丢
+  })
+
+  it('没有预览时按 Esc 仍然正常关掉面板(别把正常路径也挡了)', async () => {
+    agentTool.mockResolvedValue(REAL)
+    registerEarlierViewerHost()
+    await open()
+    await search('receipt')
+    const homeUi = useHomeUiStore()
+    expect(useViewer().open.value).toBe(false)
+
+    pressEscape()
+    await nextTick()
+    await nextTick()
+
+    expect(homeUi.searchOpen).toBe(false)
+  })
+})
