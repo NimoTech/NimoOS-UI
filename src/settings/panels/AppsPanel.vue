@@ -2,8 +2,9 @@
 // 设置 · 应用。对位 Vue2 SettingsPanel.vue apps 分支(模板 L587-665)+
 // loadAppsData()(:1910-1971)+ pruneDocker()(:1973)+ clearLocalUploads()(:2010)。
 //
-// 三块:① 「App 数据存储位置」四行(app_data / images / database / photos_data,来自
-//         Task2 buildAppPathRows;photos_data 是 Task3 补的第四行,Vue2 #103)
+// 三块:① 「App 数据存储位置」four rows (app_data / images / database / photos_data;
+//         from Task 2's buildAppPathRows, photos_data is the fourth row Task 3 added,
+//         matching Vue 2 #103)
 //      ② Docker 缓存清理(二次确认 + service.container.prune())
 //      ③ 清理本地待上传缓存 —— 政策三「做样子」,见下方专门注释。
 import { ref, computed, onMounted, onUnmounted } from 'vue'
@@ -30,12 +31,12 @@ const ROW_LABEL_KEY: Record<AppPathKey, string> = {
   photos_data: 'settingsAppsPhotosData',
 }
 
-// ── 取数(App 数据存储位置三行) ──────────────────────────────────────────
+// ── 取数(App 数据存储位置四行) ──────────────────────────────────────────
 const paths = ref<SystemPaths | null>(null)
 const volumes = ref<StorageVolume[]>([])
 const rows = computed(() => buildAppPathRows(paths.value, volumes.value))
 
-// 评审 Important #3:取数在途时不能渲染三行 0 值——尤其是「用户数据库」那行,pathText()
+// 评审 Important #3:取数在途时不能渲染四行 0 值——尤其是「用户数据库」那行,pathText()
 // 无条件拼四目录后缀,取数未落定时会显示成缺前缀的假路径(如
 // "/Documents & Downloads & Gallery & Media")。加载态收敛条件选「两个接口都落定」,
 // 不是「路径那条落定即可」:因为 pathText() 依赖 displayNames(由 volumes 算出),

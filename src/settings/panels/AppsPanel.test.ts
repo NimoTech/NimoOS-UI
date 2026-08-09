@@ -41,7 +41,7 @@ describe('AppsPanel', () => {
   })
   afterEach(() => { document.body.innerHTML = '' })
 
-  it('渲染四行数据位置 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', async () => {
+  it('renders all four data-location rows -- backend sent 4 keys (incl. photos_data), all four render (#103)', async () => {
     const w = mountPanel()
     await flushPromises()
     const rows = w.findAll('.set-app-row')
@@ -120,11 +120,11 @@ describe('AppsPanel', () => {
     expect(w.text()).toContain('待相册区迁移完成后启用')
   })
 
-  // 评审 Important #3:取数在途时不能渲染三行 0 值假读数(尤其是「用户数据库」那行,
+  // 评审 Important #3:取数在途时不能渲染四行 0 值假读数(尤其是「用户数据库」那行,
   // pathText() 无条件拼四目录后缀,取数没落定时会显示成缺前缀的假路径)。收敛条件选
   // 「两个接口都落定」——这里让 getSystemPaths 立即落定、storage.list 挂住,验证加载态
   // 仍然渲染骨架而不是假数据,直到 storage.list 也落定才切换。
-  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实四行', async () => {
+  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real four rows only after both endpoints settle', async () => {
     let resolveStorage!: (v: typeof RAW_STORAGE) => void
     const pendingStorage = new Promise<typeof RAW_STORAGE>((res) => { resolveStorage = res })
     storageList.mockReturnValueOnce(pendingStorage)
@@ -139,7 +139,7 @@ describe('AppsPanel', () => {
     expect(w.findAll('.set-app-row')).toHaveLength(4)
   })
 
-  it('取数失败时四行仍在(空路径),不白屏', async () => {
+  it('still shows four rows (with empty paths) when the fetch fails -- no blank screen', async () => {
     getSystemPaths.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()

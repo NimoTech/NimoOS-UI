@@ -589,12 +589,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/settings/util/appPaths.ts',
     find: '// The backend returns four keys -- app_data / images / database / photos_data\n// (verified 2026-08-09). Vue 2 rendered only the first three until #103 added the\n// photos cache row; all four are rendered here.',
     replace: '// The backend may return additional keys beyond the ones listed in ORDER below;\n// only the keys in ORDER are rendered.' },
-  // ── photos_data 是 HARD 禁词(forbidden.mjs):Task 3(私有侧)让 App 数据存储位置面板
-  //    多出「相册缓存」第四行,消费的是后端 /v1/sys/paths 的 photos_data key —— 这是相册
-  //    功能的落地路径,开源侧没有相册,这一行连同它的落地逻辑必须整体抹掉,不只是抹注释。
-  //    下面三条 PATCH 把 appPaths.ts / migrateBrowse.ts / AppsPanel.vue 都退回三行版本
-  //    (代码退回,不是遮字面量——TS 的字符串字面量类型成员本身会被编译进产物里的运行时
-  //    数组/对象字面量,不能只改注释)。
+  // -- The file-header summary line also says "four rows" in the private source
+  //    (Task 3's real behavior) -- the open-source side reverts to three rows below,
+  //    so this description must match what the reverted code actually derives.
+  { path: 'src/settings/util/appPaths.ts',
+    find: '// 设置 · 应用 —— 「App 数据存储位置」四行的派生。',
+    replace: '// 设置 · 应用 —— 「App 数据存储位置」三行的派生。' },
+  // -- photos_data is a HARD-banned word (forbidden.mjs): Task 3 (private-side) gives
+  //    the App data location panel a fourth "photos cache" row, backed by the
+  //    /v1/sys/paths photos_data key -- this is exactly the landing path for the
+  //    Photos feature, and the open-source side has no Photos, so this row and its
+  //    underlying logic must be stripped entirely, not just the comment mentioning it.
+  //    The PATCH entries below revert appPaths.ts / migrateBrowse.ts / AppsPanel.vue
+  //    back to the three-row version (reverting code, not hiding the literal --
+  //    TypeScript string-literal type members get compiled into runtime
+  //    arrays/object literals in the bundle, so a comment-only fix would not be enough).
   { path: 'src/settings/util/appPaths.ts',
     find: "export type AppPathKey = 'app_data' | 'images' | 'database' | 'photos_data'",
     replace: "export type AppPathKey = 'app_data' | 'images' | 'database'" },
@@ -616,13 +625,22 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     // 里的"做样子"本就是冲它去的,REPLACE-only 时代未覆盖到 PATCH,漏检)。
     replace: '// 「清理本地待上传缓存」:界面 1:1、按钮禁用——该功能依赖的后端能力尚未提供。\n//    数据源是本地 IndexedDB 上传队列(与文件区上传队列是两套独立实现,见下一行)。' },
   { path: 'src/settings/panels/AppsPanel.vue',
-    find: '// 三块:① 「App 数据存储位置」四行(app_data / images / database / photos_data,来自\n//         Task2 buildAppPathRows;photos_data 是 Task3 补的第四行,Vue2 #103)',
+    find: '// 三块:① 「App 数据存储位置」four rows (app_data / images / database / photos_data;\n//         from Task 2\'s buildAppPathRows, photos_data is the fourth row Task 3 added,\n//         matching Vue 2 #103)',
     replace: '// 三块:① 「App 数据存储位置」三行(app_data / images / database,来自 Task2 buildAppPathRows)' },
   { path: 'src/settings/panels/AppsPanel.vue',
     find: "  database: 'settingsAppsDatabase',\n  photos_data: 'settingsAppsPhotosData',\n}",
     replace: "  database: 'settingsAppsDatabase',\n}" },
-  // ── settingsAppsPhotosData 键(相册缓存,HARD 禁词「相册」)只喂上面被退回的第四行,
-  //    退回之后这个键在开源侧彻底没有消费者,两个 locale 一起删,不留孤儿键。
+  // -- Two more comments in this file say "four rows" in the private source; revert
+  //    both to "three rows" so they match the reverted (three-row) code below.
+  { path: 'src/settings/panels/AppsPanel.vue',
+    find: '// ── 取数(App 数据存储位置四行) ──────────────────────────────────────────',
+    replace: '// ── 取数(App 数据存储位置三行) ──────────────────────────────────────────' },
+  { path: 'src/settings/panels/AppsPanel.vue',
+    find: '// 评审 Important #3:取数在途时不能渲染四行 0 值——尤其是「用户数据库」那行,pathText()',
+    replace: '// 评审 Important #3:取数在途时不能渲染三行 0 值——尤其是「用户数据库」那行,pathText()' },
+  // -- The settingsAppsPhotosData key ("Photos Cache" / HARD-banned word "相册") only
+  //    feeds the fourth row reverted above; once reverted, this key has zero consumers
+  //    on the open-source side, so delete it from both locales together -- no orphan.
   { path: 'src/i18n/zh_cn.sp9.ts',
     find: "  settingsAppsDatabase: '用户数据库',\n  settingsAppsPhotosData: '相册缓存',\n",
     replace: "  settingsAppsDatabase: '用户数据库',\n" },
@@ -1730,6 +1748,36 @@ function mountHome() {
   // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。`,
     replace: `  // account 也填了真实内容(见 AccountPanel.test.ts)——**至此所有 tab 全部实现完毕,
   // 骨架抽查已经没有对象了**(原来那条 it.each 与「骨架的文案 key 都有译文」两条随之收口)。` },
+  // -- Important (review round 2): this file asserts against the live AppsPanel, whose
+  //    ORDER got reverted to three rows above -- if this test file keeps asserting 4,
+  //    the open-source repo would ship a test that is guaranteed to fail. Revert the
+  //    row count and the two "four rows" wordings in the surrounding comments/title so
+  //    the description matches what the reverted component actually renders.
+  { path: 'src/settings/panels/panels.test.ts',
+    find: '  // Task 9 起 apps 也填了真实内容(数据位置四行 + Docker 缓存清理 + 待上传缓存做样子,见',
+    replace: '  // Task 9 起 apps 也填了真实内容(数据位置三行 + Docker 缓存清理 + 待上传缓存做样子,见' },
+  { path: 'src/settings/panels/panels.test.ts',
+    find: '  // 的静态标记:四行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。',
+    replace: '  // 的静态标记:三行数据位置骨架恒定渲染(取数是否落定不影响行数,同 storage 的既有先例)。' },
+  { path: 'src/settings/panels/panels.test.ts',
+    find: `  it('apps has real content (four data-location rows + Docker cleanup + upload-cache placeholder), no longer a bare skeleton', async () => {
+    setActivePinia(createPinia())
+    const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
+    // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
+    // 遗漏,是避免落定前露四行 0 值假读数),这里先钉住"确实经过了加载态"。
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(4)`,
+    replace: `  it('apps has real content (three data-location rows + Docker cleanup + upload-cache placeholder), no longer a bare skeleton', async () => {
+    setActivePinia(createPinia())
+    const w = mount(PANEL_BY_TAB.apps, { global: { plugins: [i18n] } })
+    // 评审 Important #3 新增了真实加载态:两个接口都落定前先渲染 .set-skeleton(不是
+    // 遗漏,是避免落定前露三行 0 值假读数),这里先钉住"确实经过了加载态"。
+    expect(w.find('.set-skeleton').exists()).toBe(true)
+    await flushPromises()
+    expect(w.find('.set-skeleton').exists()).toBe(false)
+    expect(w.findAll('.set-app-row')).toHaveLength(3)` },
 
   // ── AppsPanel.test.ts:fixture 第 4 个 key 改名(photos_data 是 HARD 禁词,
   //    且组件本身只认 app_data/images/database,第 4 个 key 叫什么都无所谓)+
@@ -1737,11 +1785,13 @@ function mountHome() {
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
-  // Task 3(私有侧)给这三条用例都加上了第四行的真实断言(相册缓存,4 行),而不再是
-  // 只改标题字面量——退回三行版本的 appPaths.ts/AppsPanel.vue 之后,这三条整段跟着退回,
-  // 不能只 PATCH 标题(会跟组件实际渲染的行数对不上,变成假绿)。
+  // -- Task 3 (private-side) turned these three test cases into real assertions about
+  //    the fourth row (photos cache, 4 rows) instead of just a title string -- once
+  //    appPaths.ts/AppsPanel.vue are reverted to the three-row version, these three
+  //    cases must revert as whole blocks too; patching only the title would leave them
+  //    asserting a row count the component no longer renders (a false green).
   { path: 'src/settings/panels/AppsPanel.test.ts',
-    find: `  it('渲染四行数据位置 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', async () => {
+    find: `  it('renders all four data-location rows -- backend sent 4 keys (incl. photos_data), all four render (#103)', async () => {
     const w = mountPanel()
     await flushPromises()
     const rows = w.findAll('.set-app-row')
@@ -1767,8 +1817,14 @@ function mountHome() {
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
+  // -- The comment right above this test still said "four rows" in the private source
+  //    (Task 3's real behavior); the open-source side reverts to three, so the comment
+  //    describing the guard has to match what the reverted code actually renders.
   { path: 'src/settings/panels/AppsPanel.test.ts',
-    find: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实四行', async () => {",
+    find: '  // 评审 Important #3:取数在途时不能渲染四行 0 值假读数(尤其是「用户数据库」那行,',
+    replace: '  // 评审 Important #3:取数在途时不能渲染三行 0 值假读数(尤其是「用户数据库」那行,' },
+  { path: 'src/settings/panels/AppsPanel.test.ts',
+    find: "  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real four rows only after both endpoints settle', async () => {",
     replace: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: `    resolveStorage(RAW_STORAGE)
@@ -1777,7 +1833,7 @@ function mountHome() {
     expect(w.findAll('.set-app-row')).toHaveLength(4)
   })
 
-  it('取数失败时四行仍在(空路径),不白屏', async () => {
+  it('still shows four rows (with empty paths) when the fetch fails -- no blank screen', async () => {
     getSystemPaths.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()
@@ -1800,11 +1856,14 @@ function mountHome() {
   { path: 'src/settings/util/appPaths.test.ts',
     find: "  photos_data: { path: '/DATA/.system_data/photos', size: 6242024935 },\n",
     replace: "  other_data: { path: '/DATA/.system_data/other', size: 6242024935 },\n" },
-  // Task 3(私有侧)把这两条也改成了断言真的 4 行(而不是"给了 4 个 key 但只渲染 3 行"
-  // 这个原意),且新增了一条整段测第四行派生逻辑的用例——退回三行版本的 appPaths.ts 后,
-  // 前两条的行数断言与新用例都要跟着退回/删除,不能只 PATCH 标题字面量。
+  // -- Task 3 (private-side) also turned these two tests into assertions of a real 4
+  //    (rather than the original "backend sent 4 keys but only 3 render" intent), and
+  //    added a new test exercising the fourth-row derivation end to end -- once
+  //    appPaths.ts is reverted to the three-row version, the first two tests' length
+  //    assertions and the new test must revert/delete along with it; patching only the
+  //    title string is not enough.
   { path: 'src/settings/util/appPaths.test.ts',
-    find: `  it('恒返回 4 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', () => {
+    find: `  it('always returns 4 rows in a fixed order -- backend sent 4 keys (incl. photos_data), all four render (#103)', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })`,
@@ -1813,7 +1872,7 @@ function mountHome() {
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database'])
   })` },
   { path: 'src/settings/util/appPaths.test.ts',
-    find: `  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的四行,不抛', () => {
+    find: `  it('gives four empty-path, zero-size rows (not a throw) when backend data is null / missing keys', () => {
     const rows = buildAppPathRows(null, [SYS_VOL])
     expect(rows).toHaveLength(4)
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
@@ -1837,11 +1896,14 @@ function mountHome() {
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
   })` },
 
-  // ── migrateBrowse.test.ts:Task 3 加的两条用例同样跟着 browseDestPaths/appPaths.ts 的
-  //    photos_data 分支一起退回——「目标落在 .system_data/photos」那条整段删(该分支已经
-  //    从 migrateBrowse.ts 里 PATCH 掉,断言会直接落到 database 的四目录分支,真失败);
-  //    dot 过滤那条用 photos_data 当第四个类型只是为了多测一种取值,不是这条用例的重点,
-  //    换掉字面量、去掉标题/注释里的期号即可,不必整条删。
+  // -- migrateBrowse.test.ts: the two test cases Task 3 added likewise follow the
+  //    browseDestPaths/appPaths.ts photos_data branch back down -- the "destination
+  //    lands in .system_data/photos" test is deleted as a whole block (that branch has
+  //    already been PATCHed out of migrateBrowse.ts, so the assertion would fall
+  //    through to database's four-directory branch and genuinely fail); the dot-filter
+  //    test only used photos_data as a fourth type value to exercise one more case, not
+  //    the point of the test, so swapping out the literal is enough -- no need to
+  //    delete the whole thing.
   { path: 'src/settings/util/migrateBrowse.test.ts',
     find: `  it('points the photos cache at <target>/.system_data/photos (matches migrate.go)', () => {
     expect(browseDestPaths('photos_data', '/media/Backup')).toEqual([

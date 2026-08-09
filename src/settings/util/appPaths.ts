@@ -1,4 +1,4 @@
-// 设置 · 应用 —— 「App 数据存储位置」三行的派生。
+// 设置 · 应用 —— 「App 数据存储位置」四行的派生。
 // Vue2 对位:SettingsPanel.vue:1910-1971 loadAppsData() 里的 enrichPathData / getPath。
 //
 // 移植纪律(登记,Vue2 的东西不照抄):

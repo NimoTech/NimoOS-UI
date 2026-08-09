@@ -48,7 +48,7 @@ describe('volumeForPath', () => {
 })
 
 describe('buildAppPathRows', () => {
-  it('恒返回 4 行且顺序固定 —— 后端给了 4 个 key(含 photos_data),四行全部渲染(#103)', () => {
+  it('always returns 4 rows in a fixed order -- backend sent 4 keys (incl. photos_data), all four render (#103)', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })
@@ -72,7 +72,7 @@ describe('buildAppPathRows', () => {
   it('连系统卷都没有时 total 为 0', () => {
     expect(buildAppPathRows(PATHS, [])[0].total).toBe(0)
   })
-  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的四行,不抛', () => {
+  it('gives four empty-path, zero-size rows (not a throw) when backend data is null / missing keys', () => {
     const rows = buildAppPathRows(null, [SYS_VOL])
     expect(rows).toHaveLength(4)
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
