@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePhotosSmartViews } from '../smartViews'
+import { usePhotosAlbums } from '../albums'
 
 const listSmartViews = vi.fn()
 const createSmartViewApi = vi.fn()
@@ -490,6 +491,29 @@ describe('convertFromAlbum', () => {
     const s = usePhotosSmartViews()
     await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
     expect(s.smartViews).toHaveLength(0)
+  })
+
+  // Final fix wave, mirror of the albums store's own case: the backend deletes the source
+  // album, so it must leave the albums store too. Without this, albums.albumsLoaded stays true,
+  // PhotosAlbumDetail.vue:442 skips its own fetch, and one browser Back press lands on a fully
+  // interactive detail page for an album the server has already deleted.
+  it('evicts the source album from the albums store', async () => {
+    convertAlbumToSmartApi.mockResolvedValue({ id: 'sv-new', name: 'N' })
+    const albums = usePhotosAlbums()
+    albums.albums = [{ id: 'al-1', name: 'A' }, { id: 'al-2', name: 'B' }]
+    const s = usePhotosSmartViews()
+    await s.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
+    expect(albums.albums.map((a) => a.id)).toEqual(['al-2'])
+    expect(s.smartViews[0].id).toBe('sv-new')
+  })
+
+  it('leaves the source album alone when the conversion fails', async () => {
+    convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
+    const albums = usePhotosAlbums()
+    albums.albums = [{ id: 'al-1', name: 'A' }]
+    const s = usePhotosSmartViews()
+    await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
+    expect(albums.albums.map((a) => a.id)).toEqual(['al-1'])
   })
 })
 

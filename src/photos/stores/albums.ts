@@ -6,6 +6,12 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
+// SP15-P2b final fix wave: the two conversion actions are mirror images living in the two
+// stores they create into, so each has to evict the source object from the other store. That
+// makes this import pair mutual (smartViews.ts imports this file for the same reason). Safe
+// because neither side touches the other's binding at module-evaluation time -- both calls sit
+// inside an async action body, by which point both modules are fully initialised.
+import { usePhotosSmartViews } from './smartViews'
 
 type RawAlbum = Record<string, unknown>
 
@@ -52,6 +58,15 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     const next = albums.value.slice()
     next[idx] = { ...next[idx], ...patch }
     albums.value = next
+  }
+  // SP15-P2b final fix wave: drop an album the server no longer has, without a refetch.
+  // Exported because the *smart views* store needs it -- convertFromAlbum deletes the source
+  // album server-side, and leaving it in this list keeps a detail route alive for an object
+  // that is gone (albumsLoaded stays true, so PhotosAlbumDetail.vue:442 never refetches).
+  // Replaces the ref immutably, matching this file's convention throughout.
+  function dropAlbumLocal(id: string | number): void {
+    albums.value = albums.value.filter((a) => key(a.id as string | number) !== key(id))
+    removeAlbumAssets(id)
   }
 
   // ── actions ──
@@ -195,9 +210,14 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   }
 
   // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
-  // smartViews.convertFromAlbum — see its comment for why there is no refetch and no
-  // optimistic slot. The raw backend object is stored as-is, matching this store's
-  // convention of keeping albums unmapped (the views map them through albumToView).
+  // smartViews.convertFromAlbum — see its comment for why there is no refetch. The raw backend
+  // object is stored as-is, matching this store's convention of keeping albums unmapped (the
+  // views map them through albumToView).
+  //
+  // The source smart view MUST leave the other store (final fix wave): the backend deletes it,
+  // but smartViews.listLoaded stays true and PhotosSmartViewDetail.vue:96 skips its own fetch
+  // when it is, so one browser Back press after a successful conversion would otherwise land on
+  // a fully interactive detail page for a smart view the server has already deleted.
   //
   // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
   // that is not the pattern to follow for a user-initiated write.
@@ -205,6 +225,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     const raw = await service.photos.convertSmartToAlbum(smartViewId)
     const album = (raw ?? {}) as RawAlbum
     albums.value = [album, ...albums.value]
+    usePhotosSmartViews().dropSmartViewLocal(smartViewId)
     return album
   }
 
@@ -221,7 +242,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     albumById, assetsOf, isLoadingAssets,
     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
     renameAlbum, setAlbumCover, reorderAlbumAssets,
-    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView,
+    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView, dropAlbumLocal,
     __resetForTest,
   }
 })

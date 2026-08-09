@@ -918,18 +918,24 @@ async function onExcludedTileClick(id: string): Promise<void> {
     <!-- SP15-P2b Task 8: convert-to-album confirmation -- same sv-confirm-* visual idiom as
          the delete confirmation above. The copy spells out all three consequences (updates
          stop, members are fixed, theme and conditions are removed), not dressed up as
-         reversible. Submit button carries no .danger -- this is not a destructive delete,
-         and Vue2 uses its ordinary primary CTA (trash-btn-cta) rather than the danger variant. -->
+         reversible.
+         Final fix wave: the submit button carries `.primary`, not `.danger` and not the bare
+         base class. Vue2 uses its filled primary CTA here (`trash-btn-cta`,
+         939a7d3a:photos.scss:2203-2213 -- filled accent, light text, weight 600), while the
+         delete dialog above uses the danger variant. With neither modifier the button rendered
+         as a ghost pixel-identical to the Cancel beside it, with no hover feedback at all.
+         The icon disc likewise takes `.accent`: Vue2 :298 tints this album glyph with
+         var(--accent-hi) and only the delete dialog's trash glyph (:279) is red. -->
     <Transition name="sv-confirm">
     <div v-if="convertToAlbumOpen" class="sv-confirm-scrim" data-test="sv-convert-confirm" @click.self="closeConvertToAlbum">
       <div class="sv-confirm-panel">
-        <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+        <div class="sv-confirm-icon accent"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
         <div class="sv-confirm-title">{{ t('photosSvConvertToAlbumTitle', { name: sv?.name }) }}</div>
         <div class="sv-confirm-body">{{ t('photosSvConvertToAlbumBody', { n: fmtNum(sv?.count ?? 0) }) }}</div>
         <div v-if="convertError" class="sv-confirm-error" data-test="sv-convert-error">{{ convertError }}</div>
         <div class="sv-confirm-foot">
           <button type="button" class="sv-confirm-cancel" data-test="sv-convert-cancel" :disabled="convertingToAlbum" @click="closeConvertToAlbum">{{ t('photosCancel') }}</button>
-          <button type="button" class="sv-confirm-ok" data-test="sv-convert-ok" :disabled="convertingToAlbum" @click="doConvertToAlbum">
+          <button type="button" class="sv-confirm-ok primary" data-test="sv-convert-ok" :disabled="convertingToAlbum" @click="doConvertToAlbum">
             {{ convertingToAlbum ? t('photosAlbumConverting') : t('photosSvConvertToAlbum') }}
           </button>
         </div>
@@ -1196,6 +1202,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
   background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg);
   display: flex; align-items: center; justify-content: center;
 }
+/* SP15-P2b final fix wave: the base disc is red because the only dialog that had one was the
+   delete confirmation. Vue2 differentiates deliberately -- 939a7d3a:PhotosSmartViewDetail.vue
+   :279 tints the delete dialog's trash glyph red, :298 tints the convert dialog's album glyph
+   with var(--accent-hi) -- so a non-destructive action must not wear the delete colour. Reuses
+   the --accent-soft/--accent-text pair the .sv-export-icon discs on this same page already use. */
+.sv-confirm-icon.accent { background: var(--accent-soft); color: var(--accent-text); }
 .sv-confirm-title { font-size: 16px; font-weight: 600; }
 .sv-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
 /* SP15-P2b Task 8: inline failure message next to the convert confirmation's submit button
@@ -1207,12 +1219,28 @@ async function onExcludedTileClick(id: string): Promise<void> {
   padding: 8px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: transparent;
   color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
 }
-.sv-confirm-cancel:hover { background: var(--chip-bg-hi); }
+/* :not(:disabled) for the same reason as the .primary hover below -- Cancel is disabled while
+   the conversion is in flight and must not light up under the cursor then. */
+.sv-confirm-cancel:hover:not(:disabled) { background: var(--chip-bg-hi); }
 .sv-confirm-ok.danger {
   border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
   color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
 }
 .sv-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
+/* SP15-P2b final fix wave: filled primary CTA for a non-destructive confirmation, standing in
+   for Vue2's `trash-btn-cta` (939a7d3a:photos.scss:2203-2213 -- filled accent gradient, light
+   text, weight 600; the gradient's literals are replaced by the --accent token per this repo's
+   colour rule). Without a modifier this button inherited the base ghost look and was
+   indistinguishable from the Cancel next to it. The hover mirrors .sv-action-btn-primary:hover
+   on this same page. Both selectors below are two-class compounds (0,2,0), so they outrank the
+   shared `.sv-confirm-cancel, .sv-confirm-ok` base (0,1,0) structurally, not by source order. */
+.sv-confirm-ok.primary { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 600; }
+/* :not(:disabled) rather than a later :disabled override -- CSS applies :hover to disabled
+   buttons too, and the mid-flight state must not brighten under the cursor. */
+.sv-confirm-ok.primary:hover:not(:disabled) { filter: brightness(1.08); }
+/* Both buttons are disabled while the conversion is in flight (the delete dialog above never
+   disables either), so this pair only ever shows up on the convert confirmation. */
+.sv-confirm-cancel:disabled, .sv-confirm-ok:disabled { opacity: 0.6; cursor: not-allowed; }
 /* fix round 1 · I2:Vue2 :239 包 `<transition name="lb-confirm">`,规则在
    photos.scss:702-707(opacity + scale(0.95),200ms)。类名不沿用 `lb-confirm`(同上方
    scrim/panel 命名理由,避免与 PhotoLightbox.vue 已有的同名 transition 混淆)。 */

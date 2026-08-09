@@ -608,7 +608,9 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
 
   it('counts both kinds in the header total', async () => {
     const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [{ id: 's1', name: 'S' }] })
-    expect(w.text()).toContain('2')
+    // Assert the rendered subtitle, not a bare '2' anywhere on the page -- with this fixture a
+    // bare digit matched by luck (card counts, dates), so the assertion had no mutation power.
+    expect(w.text()).toContain(zh.photosAlbumsCount.replace('{count}', '2'))
   })
 
   it('opens the smart view detail route when a smart card is clicked', async () => {

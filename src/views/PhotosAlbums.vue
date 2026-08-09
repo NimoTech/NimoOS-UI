@@ -560,14 +560,17 @@ onUnmounted(() => {
 .sort-text .lbl { font-weight: 500; }
 .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
 
-/* ── SP15-P2b Task 3: AI-off banner ── copied rule bodies verbatim from
-   PhotosSmartViews.vue's .svs-banner* (renamed .albums-ai-banner*) -- token values, sizes and
-   spacing are not to drift from that page's banner, they are the same UI moved to a second
-   surface. See that file's own header comment for why --dem-fg/--dem-bg/--dem-bd (not the
-   Vue2 source's inline amber literals) and why the 20px bottom margin deviates from Vue2's
-   literal 0. PhotosSmartViews.vue still renders its own copy for now -- Task 5 removes it. */
+/* ── SP15-P2b Task 3: AI-off banner ── token values and inner sizes copied from
+   PhotosSmartViews.vue's old .svs-banner* (renamed .albums-ai-banner*); see that file's own
+   header comment for why --dem-fg/--dem-bg/--dem-bd rather than the Vue2 source's inline amber
+   literals.
+   Final fix wave -- the OUTER margin is not copied from there. The right reference for this
+   surface is Vue2's own Albums-page banner (939a7d3a:PhotosAlbumsView.vue:79,
+   `margin:0 0 20px`): it sits flush with the section head and the grid below it. Inheriting the
+   other page's `24px 32px 20px` indented this banner 32px further in than everything else on
+   the page. */
 .albums-ai-banner {
-  margin: 24px 32px 20px; padding: 14px 16px;
+  margin: 0 0 20px; padding: 14px 16px;
   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
   display: flex; gap: 10px; align-items: flex-start;
 }
@@ -584,12 +587,12 @@ onUnmounted(() => {
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
    滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
    SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
-   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's .sv-grid) --
-   the two card kinds now share one grid, and a smart card is narrower at 220px than it is on
-   its own page. That is the accepted cost of mixing, not a regression of this task: Vue 2
-   keeps the same two grids apart too (its own `.album-grid-user` vs the smart-views grid,
-   each with its own column width, never unified), so this leaves both sides in the same
-   position they were already in rather than unifying the column width "while we're here". */
+   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's old .sv-grid) --
+   the two card kinds now share one grid, and a smart card is therefore narrower here than it
+   used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
+   apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
+   minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
+   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width. */
 .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
 .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
 .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }

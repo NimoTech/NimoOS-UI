@@ -575,8 +575,13 @@ watch(gridRef, () => {
                        PhotosSmartViewDetail.vue's .sv-export-item rows (markup and classes
                        taken from that file's :671-693), so the two detail pages' more menus
                        stop looking like different products. Convert sits above the
-                       destructive separator; Delete stays below it. -->
-                  <div v-if="menuOpen" class="sv-export-menu" data-test="album-menu">
+                       destructive separator; Delete stays below it.
+                       Final fix wave: `sv-more-menu` is the width modifier the sibling page
+                       puts on this same kind of menu (PhotosSmartViewDetail.vue:740). It was
+                       omitted when the rules were restated, leaving this menu at the export
+                       menu's 280px; Vue2 hard-codes 220px on both (939a7d3a:
+                       PhotosAlbumDetail.vue:61 `style="min-width:220px"`). -->
+                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu">
                     <button
                       type="button"
                       class="sv-export-item"
@@ -745,8 +750,11 @@ watch(gridRef, () => {
                   </div>
                 </div>
               </div>
-              <!-- By month: absent entirely when nothing carries a takenAt (Vue2 has no such
-                   histogram at all here -- this restates PhotosMomentDetail.vue's own gate). -->
+              <!-- By month: absent entirely when nothing carries a takenAt. Vue2 has exactly
+                   this histogram behind exactly this gate (939a7d3a:PhotosAlbumDetail.vue
+                   :218-224, `v-if="monthBuckets.length"`); the earlier comment here claiming
+                   otherwise was wrong. PhotosMomentDetail.vue carries the same gate, which is
+                   where the restated rule bodies below come from. -->
               <div v-if="monthBuckets.length" class="sv-side-section" data-test="album-dist">
                 <h3>{{ t('photosMoByMonth') }}</h3>
                 <div class="sv-distribution">
@@ -896,22 +904,30 @@ watch(gridRef, () => {
 }
 .album-more-wrap { position: relative; }
 
-/* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies identical to
-   PhotosSmartViewDetail.vue's (:937-960), which this restates because scoped styles do not
-   cross SFCs in this repo. Replaces the old two-item .album-more-item* rules (removed: this
-   page no longer has any element with that class). Vue2 expresses the danger row with an
-   inline coral color literal; this repo already has the -danger classes below walking the
-   --remove-fg token instead, so the literal is never reproduced. ── */
+/* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from
+   PhotosSmartViewDetail.vue's (:937-960) because scoped styles do not cross SFCs in this repo.
+   Not a byte-for-byte copy of that block: the `:disabled` rules below are additions this page
+   needs, and the final fix wave restored the `.sv-more-menu` width modifier that the original
+   restatement dropped. Replaces the old two-item .album-more-item* rules (removed: this page
+   no longer has any element with that class). Vue2 expresses the danger row with an inline
+   coral color literal; this repo already has the -danger classes below walking the --remove-fg
+   token instead, so the literal is never reproduced. ── */
 .sv-export-menu {
   position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
   box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
 }
+/* The only menu this page has is the more menu, so the base 280px above is never used on its
+   own -- restated all the same, so the block stays a faithful copy of the sibling's rule set
+   and a future export menu here inherits the right width. */
+.sv-more-menu { min-width: 220px; }
 .sv-export-item {
   display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
   border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
 }
-.sv-export-item:hover { background: var(--chip-bg-hi); }
+/* :not(:disabled) -- CSS applies :hover to disabled buttons too, so without it the greyed-out
+   Convert row still lit up under the cursor and read as clickable. */
+.sv-export-item:hover:not(:disabled) { background: var(--chip-bg-hi); }
 /* Not present in PhotosSmartViewDetail.vue's own copy of this rule set (none of its menu items
    are ever disabled) -- added here because the Convert entry is disabled when Smart Views are
    off. Same treatment this file already gives .bar-btn:disabled above. */

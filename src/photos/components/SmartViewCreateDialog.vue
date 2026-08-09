@@ -103,6 +103,11 @@ function emptyDraft(): Draft {
 
 const draft = reactive<Draft>(emptyDraft())
 const nameInputRef = ref<HTMLInputElement | null>(null)
+// SP15-P2b final fix wave: in embedded mode the name field does not exist (`v-if="!embedded"`
+// -- the host panel owns the name), so focusing nameInputRef focused nothing at all and the
+// fused create panel opened with no cursor anywhere. The description is the first field the
+// user actually fills in there, so it takes the focus instead.
+const descInputRef = ref<HTMLTextAreaElement | null>(null)
 
 const templates: readonly QuickTemplate[] = SV_QUICK_TEMPLATES
 
@@ -187,7 +192,7 @@ watch(
       // leak if `embedded` changed mid-life -- the right general rule to keep this file
       // consistent with, even though withDefaults' static default makes it moot here).
       if (!props.embedded) document.addEventListener('keydown', onDocumentKeydown)
-      void nextTick(() => nameInputRef.value?.focus())
+      void nextTick(() => (props.embedded ? descInputRef.value : nameInputRef.value)?.focus())
       triggerPreview()
     } else {
       document.removeEventListener('keydown', onDocumentKeydown)
@@ -343,6 +348,7 @@ function thumbUrl(seed: string): string {
                 <span class="sv-field-hint">{{ t('photosSvDescribePlainEnglishConditions') }}</span>
               </span>
               <textarea
+                ref="descInputRef"
                 v-model="draft.desc"
                 class="sv-input sv-textarea"
                 data-test="sv-desc-textarea"

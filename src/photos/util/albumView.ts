@@ -16,7 +16,6 @@ export interface AlbumView {
   count: number
   dateRange: string
   createdAt: string | null
-  dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
   videoCount: number // P2b: the detail sidebar's Videos cell
   dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
 }
@@ -49,11 +48,14 @@ export function formatAlbumSpan(startRaw: unknown, endRaw: unknown): string {
 
 // Verbatim port of PhotosAlbumsView.vue:216-224 (userAlbums computed), minus
 // the `kind: 'user'` field (shared-album section is out of scope, see brief)
-// and plus `dateEnd` (see AlbumView doc comment above).
+// and plus videoCount / dateStart (see the AlbumView doc comment above).
+// SP15-P2b final fix wave: the P4-era `dateEnd` field is gone. Its only consumer was
+// sortAlbums('date'), deleted this phase in favour of util/mixedAlbums.ts (which reads
+// dateStart, matching Vue2's dateTakenMs). `a.dateEnd` is still read below -- but straight off
+// the raw backend record, to render the span; nothing needed it on the view object.
 export function albumToView(a: Record<string, unknown>, untitled: string): AlbumView {
   const assets = a.assets as unknown[] | undefined
   const assetCount = a.assetCount as number | null | undefined
-  const dateEnd = a.dateEnd as string | undefined
   return {
     id: a.id as string | number,
     title: (a.name as string) || (a.title as string) || untitled,
@@ -63,7 +65,6 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
     count: assetCount != null ? assetCount : ((assets && assets.length) || 0),
     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
     createdAt: (a.createdAt as string | undefined) || null,
-    dateEnd: dateEnd || null,
     videoCount: Number(a.videoCount ?? 0),
     dateStart: (a.dateStart as string | undefined) || null,
   }

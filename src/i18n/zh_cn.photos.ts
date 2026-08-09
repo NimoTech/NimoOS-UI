@@ -130,7 +130,7 @@ export default {
   photosAlbumsMine: '我的相册',
   photosAlbumsMineHint: '你创建的相册',
   photosAlbumNew: '新建相册',
-  photosAlbumNewHint: '点击创建',
+  photosAlbumNewHint: '点击创建或询问 Nimo',
   photosAlbumUntitled: '未命名',
   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
   // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
@@ -187,7 +187,7 @@ export default {
   photosAlbumConvertedToSmart: '已转为智能相册',
   photosAlbumConvertFailed: '转换失败',
   photosAlbumStatVideos: '视频',
-  photosAlbumStatCreated: '创建时间',
+  photosAlbumStatCreated: '创建于',
   photosAlbumDelete: '删除相册',
   photosAlbumDeleteHint: '照片会保留在图库中',
   photosAlbumDeleteTitle: '删除「{name}」?',
@@ -997,7 +997,7 @@ export default {
   photosMoType: '类型',
   photosMoTime: '时间',
   photosMoPlace: '地点',
-  photosMoByMonth: '按月份',
+  photosMoByMonth: '按月分布',
   photosMoSpan: '跨度',
   photosMoSpanDays: '{n} 天',
   photosMoLastUpdate: '最后更新',

@@ -18,7 +18,7 @@ describe('formatAlbumSpan', () => {
 describe('albumToView', () => {
   it('映射后端字段(name/coverAssetId/assetCount/dateStart..dateEnd)', () => {
     const v = albumToView({ id: 7, name: '旅行', coverAssetId: 'a1', assetCount: 12, dateStart: '2025-06-01', dateEnd: '2025-06-30', createdAt: '2025-07-01T00:00:00Z' }, '未命名')
-    expect(v).toMatchObject({ id: 7, title: '旅行', cover: 'a1', count: 12, dateRange: 'Jun 2025', createdAt: '2025-07-01T00:00:00Z', dateEnd: '2025-06-30' })
+    expect(v).toMatchObject({ id: 7, title: '旅行', cover: 'a1', count: 12, dateRange: 'Jun 2025', createdAt: '2025-07-01T00:00:00Z', dateStart: '2025-06-01' })
   })
   it('无 name 用 title 兜底,再无则用传入的 untitled', () => {
     expect(albumToView({ id: 1, title: 'T' }, '未命名').title).toBe('T')

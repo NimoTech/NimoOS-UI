@@ -8,7 +8,7 @@ import type { SmartView } from '../../stores/smartViews'
 
 const view = (o: Partial<AlbumView>): AlbumView => ({
   id: 'u', title: '', cover: null, count: 0, dateRange: '',
-  createdAt: null, dateEnd: null, videoCount: 0, dateStart: null, ...o,
+  createdAt: null, videoCount: 0, dateStart: null, ...o,
 })
 const sv = (o: Partial<SmartView>): SmartView => ({
   id: 's', name: '', description: '', conds: [], threshold: 0, live: false,

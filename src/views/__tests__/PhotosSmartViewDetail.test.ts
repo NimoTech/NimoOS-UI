@@ -11,6 +11,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { readFileSync } from 'node:fs'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
 
@@ -798,13 +799,44 @@ describe('convert to regular album', () => {
     expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumNameExists)
   })
 
-  it('one Escape closes the convert confirmation along with any other open overlay', async () => {
-    // The existing invariant on this page: independent ifs, never an early return.
+  it('closes the convert confirmation on Escape', async () => {
+    // Retitled in the final fix wave: the old title claimed this covered "along with any
+    // other open overlay", but askConvertToAlbum closes the more menu on its way in, so no
+    // second overlay is ever open here. The multi-overlay invariant (independent ifs, never
+    // an early return) is covered by the existing export-menu + more-menu case.
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
     await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
     expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
+  })
+
+  it('dresses the confirm button as the filled primary CTA, not a second Cancel', async () => {
+    // Vue2 uses trash-btn-cta here (939a7d3a:photos.scss:2203-2213) and reserves the danger
+    // variant for the delete dialog. Without the modifier this button rendered with the base
+    // ghost rule -- pixel-identical to the Cancel beside it, and with no hover at all.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    const ok = w.find('[data-test="sv-convert-ok"]')
+    expect(ok.classes()).toContain('primary')
+    expect(ok.classes()).not.toContain('danger')
+    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
+    expect(css).toMatch(/\.sv-confirm-ok\.primary\s*\{[^}]*background:\s*var\(--accent\)/)
+    expect(css).toMatch(/\.sv-confirm-ok\.primary:hover:not\(:disabled\)\s*\{/)
+  })
+
+  it('tints the convert dialog icon with the accent, not the delete red', async () => {
+    // Vue2 :298 passes var(--accent-hi) for this album glyph; only :279's trash glyph is red.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    expect(w.find('[data-test="sv-convert-confirm"] .sv-confirm-icon').classes()).toContain('accent')
+    // The delete dialog keeps the red disc (no .accent).
+    await w.find('[data-test="sv-convert-cancel"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-delete"]').trigger('click')
+    expect(w.find('[data-test="sv-confirm-scrim"] .sv-confirm-icon').classes()).not.toContain('accent')
+    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
+    expect(css).toMatch(/\.sv-confirm-icon\.accent\s*\{[^}]*background:\s*var\(--accent-soft\)/)
   })
 
   it('does not dismiss the confirmation mid-flight', async () => {

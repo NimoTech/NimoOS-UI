@@ -18,6 +18,15 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosAlbums } from '../albums'
+import { usePhotosSmartViews, type SmartView } from '../smartViews'
+
+function makeSv(id: string): SmartView {
+  return {
+    id, name: id, description: '', conds: [], threshold: 80, live: true, includeVideos: false,
+    count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0,
+    distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '',
+  }
+}
 
 describe('photosAlbums store', () => {
   beforeEach(() => {
@@ -475,6 +484,29 @@ describe('photosAlbums store', () => {
       const s = usePhotosAlbums()
       await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
       expect(s.albums).toHaveLength(0)
+    })
+
+    // Final fix wave: the backend deletes the source smart view, so it must leave the other
+    // store too. Without this, smartViews.listLoaded stays true, PhotosSmartViewDetail.vue:96
+    // skips its own fetch, and one browser Back press lands on a fully interactive detail page
+    // for an object the server has already deleted.
+    it('evicts the source smart view from the smart views store', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N' })
+      const sv = usePhotosSmartViews()
+      sv.smartViews = [makeSv('sv-1'), makeSv('sv-2')]
+      const s = usePhotosAlbums()
+      await s.convertFromSmartView('sv-1')
+      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-2'])
+      expect(s.albums[0].id).toBe('al-new')
+    })
+
+    it('leaves the source smart view alone when the conversion fails', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      const sv = usePhotosSmartViews()
+      sv.smartViews = [makeSv('sv-1')]
+      const s = usePhotosAlbums()
+      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
+      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-1'])
     })
   })
 })

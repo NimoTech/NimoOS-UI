@@ -130,7 +130,7 @@ export default {
   photosAlbumsMine: 'My Albums',
   photosAlbumsMineHint: 'Albums you created',
   photosAlbumNew: 'New album',
-  photosAlbumNewHint: 'Click to create',
+  photosAlbumNewHint: 'Click to create or ask Nimo',
   photosAlbumUntitled: 'Untitled',
   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
   // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the

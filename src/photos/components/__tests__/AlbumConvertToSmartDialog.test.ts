@@ -125,6 +125,41 @@ describe('AlbumConvertToSmartDialog.vue', () => {
     await w.vm.$nextTick()
   })
 
+  // Final fix wave: Escape had no test that could fail. Deleting the
+  // `document.addEventListener('keydown', onDocumentKeydown)` line inside watch(open) left the
+  // whole suite green -- nothing here dispatched a keydown, and no host test reaches this
+  // dialog's keyboard path. Same pair PhotosSmartViewDetail.test.ts already has for its own
+  // inline confirmation.
+  it('dismisses on Escape while open', async () => {
+    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('ignores Escape while the request is in flight', async () => {
+    // Escape must be refused exactly the way the Cancel button is -- it routes through close()'s
+    // busy guard rather than poking the flag itself.
+    let release: (v: unknown) => void = () => {}
+    convertFromAlbum.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
+    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
+    await w.find('[data-test="convert-desc"]').setValue('sunsets')
+    await w.find('[data-test="convert-submit"]').trigger('click')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+    release(fullSv())
+    await flushPromises()
+  })
+
+  it('stops listening for Escape once closed', async () => {
+    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
+    await w.setProps({ open: false })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+
   it('resets the draft each time it opens', async () => {
     // Persistent mount + prop-driven visibility: reset belongs in watch(open), not
     // onMounted (this area's recurring trap).

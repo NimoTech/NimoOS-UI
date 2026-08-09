@@ -18,6 +18,11 @@ import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 // 守卫存在两处副本。既有跨区引用先例:PhotosSidebar.vue 引 files/util/format、
 // PhotoInfoPanel.vue 引 files/util/clipboard。
 import { safeRandomUUID } from '../../files/upload/uuid'
+// SP15-P2b final fix wave: mutual import with albums.ts -- the two conversion actions are
+// mirror images, and each has to evict the source object from the other store. See the twin
+// comment in albums.ts for why the cycle is safe (the call sits inside an async action body,
+// never at module-evaluation time).
+import { usePhotosAlbums } from './albums'
 
 export interface SmartView {
   id: string
@@ -351,14 +356,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   }
 
   // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
-  // existing member, deletes the album, and hands back the full new smart view, so the
-  // only thing left to do here is put it at the head of the list — no refetch needed.
+  // existing member, **deletes the source album**, and hands back the full new smart view,
+  // so both stores have to move: the new smart view goes to the head of this list, and the
+  // now-deleted album has to leave the albums store.
   //
-  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched
-  // both lists and then pushed an optimistic copy as a belt-and-braces measure, because
-  // its list page stays mounted while the detail panel swaps in. Here the caller
-  // navigates to the new smart view's own route and any return to the list remounts and
-  // refetches, so neither the double fetch nor the optimistic slot has anything to do.
+  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched both
+  // lists. Two local mutations are strictly cheaper and reach the same end state.
+  //
+  // The source album MUST be dropped (final fix wave -- the earlier version of this comment
+  // argued a remount covers it, which is only true of the *list*): albums.albumsLoaded stays
+  // true, and PhotosAlbumDetail.vue:442 skips its own fetch when it is, so one browser Back
+  // press after a successful conversion would otherwise land on a fully interactive detail
+  // page for an album the server has already deleted -- every action on it 404s.
   //
   // Rethrows on failure (this store's established contract, same as createSmartView):
   // the dialog decides what to show and stays open so the user can retry.
@@ -372,7 +381,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     })
     const created = toSmartView(raw)
     smartViews.value.unshift(created)
+    usePhotosAlbums().dropAlbumLocal(albumId)
     return created
+  }
+
+  // SP15-P2b final fix wave: drop a smart view the server no longer has, without a refetch.
+  // Exported because the *albums* store needs it -- convertFromSmartView deletes the source
+  // smart view server-side. Mutates in place, matching this file's convention throughout
+  // (:224/:288/:321/:344 all mutate `smartViews.value` rather than replacing the ref).
+  function dropSmartViewLocal(id: string | number): void {
+    const idx = smartViews.value.findIndex(s => String(s.id) === String(id))
+    if (idx < 0) return
+    smartViews.value.splice(idx, 1)
   }
 
   // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
@@ -624,7 +644,8 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
     byId,
     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
-    duplicateSmartView, convertFromAlbum, loadDetail, refreshPreview, cancelPreview, exportAlbum,
+    duplicateSmartView, convertFromAlbum, dropSmartViewLocal,
+    loadDetail, refreshPreview, cancelPreview, exportAlbum,
     pinAssets, removeAssets, restoreAssets, loadExcluded,
     __resetForTest,
   }

@@ -581,6 +581,30 @@ describe('embedded mode (SP15-P2b Task 4)', () => {
     expect(w.find('[data-test="sv-name-input"]').exists()).toBe(false)
   })
 
+  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode that ref
+  // is null (the name field is v-if="!embedded"), so opening the fused panel focused nothing.
+  it('focuses the description in embedded mode, the name field otherwise', async () => {
+    const embedded = mount(SmartViewCreateDialog, {
+      props: { open: false, embedded: true, initialName: 'Trip' },
+      global: { plugins: [makeI18n()] },
+      attachTo: document.body,
+    })
+    await embedded.setProps({ open: true })
+    await nextTick()
+    expect(document.activeElement).toBe(embedded.find('[data-test="sv-desc-textarea"]').element)
+    embedded.unmount()
+
+    const standalone = mount(SmartViewCreateDialog, {
+      props: { open: false },
+      global: { plugins: [makeI18n()] },
+      attachTo: document.body,
+    })
+    await standalone.setProps({ open: true })
+    await nextTick()
+    expect(document.activeElement).toBe(standalone.find('[data-test="sv-name-input"]').element)
+    standalone.unmount()
+  })
+
   it('embedded mode submits the host-supplied name, live as the host edits it', async () => {
     const w = mountDialog({ open: true, embedded: true, initialName: '' })
     // Empty host name => cannot submit even with a description present.
