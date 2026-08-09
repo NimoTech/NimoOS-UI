@@ -325,3 +325,68 @@ Task 7: minor (deferred): the convert dialog's Escape dismissal path is not inde
 
 === ALL IMPLEMENTATION TASKS COMPLETE (T1-T8) ===
 Commit range: ff72714..ebb54d7
+
+=== FINAL WHOLE-BRANCH REVIEW (opus) — 1 Critical + 8 Important + 12 Minor ===
+
+THE CRITICAL vindicates the whole review step, and it landed on MY OWN acceptance doc:
+  PhotosSmartViews.vue gated the ENTIRE .mo-section — including the page's only <h1> —
+  on v-if="showMoments". Vue2's target (939a7d3a:PhotosSmartViewsView.vue:18-31) renders
+  .mo-section and .mo-hero UNCONDITIONALLY and gates only .sv-grid.mo-grid, with the
+  slim AI-off hint as the grid's v-else-if INSIDE .mo-section. Controller verified this
+  against the target directly before dispatching the fix.
+  With the device at moments=0, the "For You" sidebar entry opened a page containing
+  nothing but the sidebar. Three things had made it invisible:
+    (a) a test titled "shows neither the band nor the hint ... (the everyday real-device
+        state)" PINNED the blank page as correct;
+    (b) MY acceptance checklist step 0 pre-declared 「看到近乎空白是预期行为」, so the
+        owner following the checklist would have SIGNED OFF a blank page;
+    (c) root cause visible in the file's own header comment, which cited the target as
+        `Vue2 899af59b :31-44` — the pre-merge trap commit that spec §0.1 exists to warn
+        about. At 899af59b the page still had its sv-hero, so gating the whole section was
+        harmless; it became a blank page the moment T5 deleted that hero.
+  => The lesson is not "P1 wrote a bad gate". It is that a stale target citation survived
+  a refactor and turned a harmless gate into a blank page, and that BOTH the test and the
+  acceptance doc were written to match the broken behaviour rather than the target.
+
+Eight Importants, six of them 1:1 breaks no gate can see: convert confirmation's primary
+  button was a ghost identical to Cancel with no hover; its icon wore the delete red;
+  self-translated 创建时间 (target: 创建于); #112's create-tile copy change never ported;
+  the AI banner indented 32px past everything else because it was copied from the other
+  page's banner instead of Vue2's Albums-page one; the reshaped menu was 280px not the
+  220px it claimed. Plus two behavioural: neither conversion evicted its source object
+  from the store, so ONE Back press after any successful conversion reached a fully
+  interactive detail page for a server-deleted object (both directions); and the convert
+  dialog's Escape had no test that could fail.
+
+FIX WAVE (00fd8c8 + 63142a3 + f09b392): all 21 items addressed, scoped re-review confirms
+  zero open, zero new breakage. Two mechanical corrections to my findings list: the
+  Critical's named mutation is not literally applicable (moving the v-if back while also
+  removing it from the grid is a Vue compile error, since v-else-if needs an adjacent
+  v-if) so the defect-reproducing half was used; and Important 8's cited lines were stale.
+  Controller corrected the acceptance checklist's step 0 itself (f09b392) — it is my
+  document and it carried the dangerous claim.
+
+CROSS-STORE CYCLE, ruled KEEP: the eviction made albums.ts and smartViews.ts import each
+  other, the directory's first mutual store import. Re-reviewer read both files in full:
+  neither has a top-level useXStore(), a default-parameter invocation, or a module-level
+  constant touching the other's binding; both cross-calls sit inside async action bodies,
+  which is the pattern Pinia's own docs prescribe for exactly this. Kept in the stores
+  rather than moved to call sites because smartViews.ts:445-447's own comment states the
+  local rule: the post-write refetch lives inside the action "so a caller cannot forget."
+  Moving eviction out reproduces the failure mode that comment was written to prevent.
+
+CONTROLLER GATES RERUN on the fixed tree (f09b392), clean tree, all six green:
+  vue-tsc clean · pnpm test 686 files / 10930 passed · parity 9/9 ·
+  color-guard 4 files / 1078 · oss DELETE 78 / REPLACE 4 / PATCH 258 zero real leaks ·
+  pnpm build 17.09s · git merge-tree vs master = 1 line, NO CONFLICT.
+
+WORKSPACE KEPT ON PURPOSE (deviating from the skill's "delete it" step): in this repo
+  .superpowers/sdd is a TRACKED artifact since 2026-08-05, and prior phases' ledgers are
+  read at the start of later phases — this session began by reading P2a's. Deleting would
+  remove committed files the next phase needs.
+
+=== PHASE CLOSED — code-complete, NOT accepted ===
+Range ff72714..f09b392 (19 commits). Undeployed, unpushed, not merged to master.
+Acceptance: docs/superpowers/2026-08-10-sp15-p2b-acceptance.md — 12 steps, ZERO run.
+Plan/dispatch defects found this phase: 10. Reviews+spot-checks found 1 Critical +
+  17 Important total across the phase.
