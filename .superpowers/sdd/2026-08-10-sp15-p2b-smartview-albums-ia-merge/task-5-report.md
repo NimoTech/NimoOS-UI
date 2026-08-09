@@ -232,6 +232,21 @@ No leftover live references to any deleted key or symbol.
   failure is solely a function of uncommitted state at test-run time, not a defect in this
   task's code. They will pass once this commit lands and the tree is clean again.
 
+## Final full-suite confirmation (post-commit, clean tree)
+
+```
+$ git status --short   → (nothing; tree clean after the commit)
+$ pnpm test
+ Test Files  1 failed | 684 passed (685)
+      Tests  1 failed | 10889 passed (10890)
+```
+
+The single failure is `src/home/components/DesktopContextMenu.test.ts > ... handles a
+right-click on blank canvas` — a file this task never touched, unrelated to Photos entirely.
+Confirmed order-dependent/flaky: `pnpm exec vitest run src/home/components/
+DesktopContextMenu.test.ts` in isolation passes 6/6. The `oss/*` failures seen during
+in-progress runs (dirty tree) are gone now that the tree is clean, exactly as predicted.
+
 ## Issues or concerns
 
 - None outstanding. The `oss/*` transient failures above are the only "failures" seen during
