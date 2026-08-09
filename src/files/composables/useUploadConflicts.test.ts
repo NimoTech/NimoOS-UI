@@ -160,6 +160,31 @@ describe('useUploadConflicts', () => {
     expect(out.skippedCount).toBe(2)
   })
 
+  // Finding D. A Cancel means "stop asking about the rest of this batch", and the
+  // folder queue already honoured that for the file queue. Round 2 (the per-file
+  // check inside a folder that was merged in round 1) was not covered: the dialog
+  // closed on the a.txt prompt and immediately reopened for Trip/1.jpg.
+  it('cancel in the file queue also suppresses the merged folder second round', async () => {
+    const precheck = vi.fn().mockResolvedValue({ results: [{ relativePath: 'Trip/1.jpg', exists: true, is_dir: false }] })
+    const c = useUploadConflicts({
+      listFolder: listing([{ name: 'Trip', is_dir: true }, { name: 'a.txt', is_dir: false }]),
+      precheck,
+    })
+    const p = c.resolveEntries([e('Trip/1.jpg'), e('a.txt')], '/DATA')
+    await answer(c, { action: 'merge' })  // folder queue runs first — merge Trip
+    await answer(c, null)                 // file queue — cancel on a.txt
+    // Give round 2 every chance it would need to (wrongly) reopen the dialog.
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(false)
+    const out = await p
+    expect(precheck).not.toHaveBeenCalled()
+    expect(out.accepted).toEqual([])
+    // Both the cancelled a.txt and the no-longer-asked-about Trip/1.jpg count as
+    // cancelled, never as skipped — the two counts mean different things.
+    expect(out.cancelledCount).toBe(2)
+    expect(out.skippedCount).toBe(0)
+  })
+
   // Finding E. The dialog is owned by whichever component instantiated this
   // composable, but the batch it gates outlives the view: navigating away mid
   // prompt used to strand `ask()`'s promise forever, so the caller never got to

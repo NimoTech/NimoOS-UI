@@ -157,7 +157,18 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
       const mergeEntries = applied.accepted.filter((entry) => entry.pendingInnerCheck)
       let settled = applied.accepted.filter((entry) => !entry.pendingInnerCheck)
 
-      if (mergeEntries.length) {
+      // Same rule as the folder->file guard above, applied to round 2: Cancel
+      // means "stop asking about the rest of THIS BATCH", and round 2 is still
+      // this batch. Without it, cancelling the a.txt prompt closes the dialog
+      // and it immediately reopens for Trip/1.jpg — the inner files of a folder
+      // merged in round 1. The entries fold into cancelledCount rather than
+      // skippedCount: the two are reported separately and mean different things
+      // (the user chose to skip vs. the user stopped answering).
+      const batchCancelled = folderCancelled || fileResolutions.some((r) => r.action === 'cancelled')
+
+      if (mergeEntries.length && batchCancelled) {
+        cancelledCount += mergeEntries.length
+      } else if (mergeEntries.length) {
         let innerResults: InnerPrecheckResult[] | null = null
         try {
           const res = await precheck(targetPath, mergeEntries.map((entry) => ({ relativePath: entry.relativePath, size: entry.file.size })))
