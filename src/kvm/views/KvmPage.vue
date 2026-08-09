@@ -100,10 +100,18 @@ function onOsDownload(id: string): void {
   void isoList.download(id)
 }
 
-// 关闭选择器时清掉可能残留的下载失败报错——不清的话,下次打开(不管是创建弹窗还是
-// 设置弹窗那次)会带出上一次已经不相关的旧报错。
+// SP16 Task 6:自定义(本地 ISO 浏览)区的展开态由本页面持有 —— OsSelector 的内容
+// 每次关闭都被 reka 卸载,状态留在 IsoBrowser 内部就必然归零(Vue2 的选择器是常驻
+// 挂载的,展开一次就一直展开)。
+const isoBrowserExpanded = ref(false)
+
 watch(osSelectorOpen, (open) => {
-  if (!open) isoDownloadError.value = ''
+  // 关闭:清掉可能残留的下载失败报错——不清的话,下次打开(不管是创建弹窗还是
+  // 设置弹窗那次)会带出上一次已经不相关的旧报错。
+  if (!open) { isoDownloadError.value = ''; return }
+  // 打开:Vue2 的选择器每次 visible:true 都重拉一次列表。这里列表是页面持有的 prop,
+  // 不重拉的话,用户在弹窗里下完一个 ISO、关掉再打开,看到的会是那次下载之前的旧列表。
+  void isoList.fetch()
 })
 
 // P6 Task 9:OsSelector 是页面级共用的**同一个**弹窗(z-index 920 叠在上层弹窗之上),
@@ -787,6 +795,7 @@ async function onAction(name: string): Promise<void> {
       v-model:open="osSelectorOpen"
       :isos="isoList.isos.value"
       :download-error="isoDownloadError"
+      v-model:browser-expanded="isoBrowserExpanded"
       @select="onOsSelect"
       @download="onOsDownload"
       @need-wait="toast.show(t('kvmWaitForDownload'))"

@@ -9,7 +9,7 @@
 // 不同:本地目录浏览状态(当前路径/列表/loading)只在"自定义区展开"这段交互里才有意义,
 // 没有跨组件复用或需要在关闭弹窗后继续推进的理由(不像 ISO 下载进度),所以让
 // IsoBrowser 自己创建 useIsoBrowser() 实例,组件卸载时 dispose() 即可。
-import { ref, onUnmounted } from 'vue'
+import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import { useIsoBrowser } from '../composables/useIsoBrowser'
@@ -18,8 +18,18 @@ import { osIconFor } from '../util/format'
 import type { IsoRow } from '../composables/useIsoList'
 import type { SelectedOs } from './OsSelector.vue'
 
-const props = defineProps<{ isos: IsoRow[] }>()
-const emit = defineEmits<{ select: [os: SelectedOs] }>()
+const props = defineProps<{
+  isos: IsoRow[]
+  /** SP16 Task 6:展开态由父组件持有。Vue2 的选择器组件是常驻挂载的,所以这个区一旦
+   * 展开就一直是展开的;这里的弹窗内容由 reka 在每次关闭时卸载,状态留在组件内部就
+   * 必然归零 —— 用户展开、选完、再打开,又得重新展开一次。父组件(KvmPage)持有它,
+   * 本组件只上报开关动作。显式 props/emit 而不是 defineModel,同本仓既有约定。 */
+  expanded: boolean
+}>()
+const emit = defineEmits<{
+  select: [os: SelectedOs]
+  'update:expanded': [v: boolean]
+}>()
 
 const { t } = useI18n()
 
@@ -33,15 +43,20 @@ const { t } = useI18n()
 const browser = useIsoBrowser()
 onUnmounted(() => browser.dispose())
 
-const expanded = ref(false)
+const expanded = computed(() => props.expanded)
 
 function toggle(): void {
-  expanded.value = !expanded.value
-  // 照 Vue2 mounted/watch(visible)(:130-136):打开时拉取当前路径的目录内容。
-  // Vue2 每次重新挂载都强制拉根目录;这里保留同样的"首次展开即拉一次"的效果——
-  // path 初值就是 '/',composable 生命周期与本组件绑定,不需要额外的"是否已拉过"判断。
-  if (expanded.value) browser.fetch(browser.path.value)
+  emit('update:expanded', !expanded.value)
 }
+
+// 照 Vue2 mounted/watch(visible)(:130-136):展开时拉取当前路径的目录内容。
+// 受控化之后 toggle() 不再直接改值,所以这一步从 toggle 里挪到对 expanded 的 watch 上
+// —— 语义不变,而且多覆盖了一种新出现的情况:父组件保活的展开态让本组件**挂载时**就
+// 已经是展开的,此时 watch 不会触发(值没变),但目录列表随组件卸载归零了,必须补拉一次。
+// `immediate` 正好同时管住这两条路径(初值 false 时它什么都不做)。
+watch(expanded, (v) => {
+  if (v) browser.fetch(browser.path.value)
+}, { immediate: true })
 
 function onItemClick(item: FolderEntry): void {
   if (item.is_dir) {

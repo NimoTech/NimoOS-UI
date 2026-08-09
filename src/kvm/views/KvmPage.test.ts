@@ -1802,3 +1802,25 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     w.unmount()
   })
 })
+
+describe('SP16 Task 6:重开 OS 选择器时列表要刷新', () => {
+  it('每次打开都重拉 ISO 列表(Vue2 每次 visible:true 都拉)', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
+    const w = mountPage()
+    await flush()
+    const before = api.getISOList.mock.calls.length
+
+    // 直接驱动页面自己的开关 ref —— 打开 OS 选择器的入口藏在创建弹窗内部,
+    // 经它点进去会把「创建流程」也拖进这条用例,断言的东西就不纯粹了。
+    const page = w.vm as unknown as { osSelectorOpen: boolean }
+    page.osSelectorOpen = true
+    await flush()
+    page.osSelectorOpen = false
+    await flush()
+    page.osSelectorOpen = true
+    await flush()
+
+    expect(api.getISOList.mock.calls.length).toBeGreaterThan(before + 1)
+    w.unmount()
+  })
+})

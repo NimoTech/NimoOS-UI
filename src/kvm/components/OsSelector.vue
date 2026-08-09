@@ -48,6 +48,9 @@ const props = defineProps<{
    * 用户没有任何可见的失败解释。Vue2 能用 buefy toast 是因为它的 toast z-index 高于
    * 它自己的 modal,这里 z 轴关系相反,不能照抄。 */
   downloadError: string
+  /** SP16 Task 6:自定义(本地 ISO 浏览)区的展开态。本组件的内容由 reka 在关闭时卸载,
+   * 所以这个状态必须由页面持有才能跨越"关掉再打开";本组件只透传,不自己解释。 */
+  browserExpanded: boolean
 }>()
 const emit = defineEmits<{
   'update:open': [v: boolean]
@@ -55,6 +58,7 @@ const emit = defineEmits<{
   download: [id: string]
   /** 点了正在下载的卡片 —— 视图层弹「请等待下载完成」,本组件不管怎么弹,只上报动作。 */
   'need-wait': []
+  'update:browserExpanded': [v: boolean]
 }>()
 
 const { t } = useI18n()
@@ -194,7 +198,12 @@ function onLocalSelect(os: SelectedOs): void {
         </div>
       </section>
 
-      <IsoBrowser :isos="props.isos" @select="onLocalSelect" />
+      <IsoBrowser
+        :isos="props.isos"
+        :expanded="props.browserExpanded"
+        @update:expanded="emit('update:browserExpanded', $event)"
+        @select="onLocalSelect"
+      />
     </div>
   </KvmDialog>
 </template>

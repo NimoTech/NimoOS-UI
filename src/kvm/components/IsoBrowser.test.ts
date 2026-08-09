@@ -14,8 +14,24 @@ vi.mock('../composables/useIsoBrowser', () => ({
 const ISOS = [{ id: 'win11', name: 'Windows 11', version: '24H2', category: 'windows', size: '5.8 GB', status: 'available', progress: 0, recommendedVcpu: 2, recommendedMemory: 8192, minMemory: 4096, minDisk: 60, _downloading: false, _downloaded: false, _progress: 0, _downloadedBytes: 0 }]
 
 let w: VueWrapper | null = null
-const mk = () => {
-  w = mount(IsoBrowser, { props: { isos: ISOS as never }, global: { plugins: [i18n] } })
+// SP16 Task 6:展开态受控化之后,组件自己不再持有它 —— 所以这个辅助扮演父组件
+// (KvmPage 就是这么接的):收到 update:expanded 就把新值写回 prop。既有用例的
+// 「点一下就展开」因此逐字不变,同时组件真的是受控的。
+const mk = (extra: Record<string, unknown> = {}) => {
+  w = mount(IsoBrowser, {
+    props: {
+      isos: ISOS as never,
+      expanded: false,
+      'onUpdate:expanded': (v: boolean) => { void w?.setProps({ expanded: v }) },
+      ...extra,
+    },
+    global: { plugins: [i18n] },
+  })
+  return w
+}
+// 不回写的挂载 —— 用来证明「受控」不是假的(组件内部没有偷偷留一份状态)。
+const mkUncontrolled = (extra: Record<string, unknown> = {}) => {
+  w = mount(IsoBrowser, { props: { isos: ISOS as never, expanded: false, ...extra }, global: { plugins: [i18n] } })
   return w
 }
 afterEach(() => { w?.unmount(); w = null; items.value = []; isLoading.value = false; path.value = '/'; fetchFn.mockReset(); upFn.mockReset() })
@@ -99,5 +115,30 @@ describe('IsoBrowser', () => {
     // 过滤发生在 composable 层,这里模拟"漏进来"的情况,组件也不该派发
     await wr.get('.custom-file-item').trigger('click')
     expect(wr.emitted('select')).toBeUndefined()
+  })
+})
+
+// SP16 Task 6:展开态受控化 —— 弹窗内容每次重开都被 reka 重建,展开态若留在组件内部
+// 就必然归零。父组件持有它,本组件只上报开关动作。
+describe('IsoBrowser 的展开态由父组件持有', () => {
+  it('父组件传 expanded=true 时直接展开,并拉一次当前路径(重开后列表不能是空的)', () => {
+    const wr = mk({ expanded: true })
+    expect(wr.find('.custom-browse').exists()).toBe(true)
+    expect(wr.get('.custom-divider').attributes('aria-expanded')).toBe('true')
+    expect(fetchFn).toHaveBeenCalledWith('/')
+  })
+
+  it('点标题条只 emit update:expanded,不自己改状态(受控)', async () => {
+    const wr = mkUncontrolled()
+    await wr.get('.custom-divider').trigger('click')
+    expect(wr.emitted('update:expanded')).toEqual([[true]])
+    // 父组件没有回写 prop ⇒ 界面保持收起,证明它真的受控而不是内部还留了一份状态
+    expect(wr.find('.custom-browse').exists()).toBe(false)
+  })
+
+  it('已展开时点标题条 emit false', async () => {
+    const wr = mk({ expanded: true })
+    await wr.get('.custom-divider').trigger('click')
+    expect(wr.emitted('update:expanded')).toEqual([[false]])
   })
 })
