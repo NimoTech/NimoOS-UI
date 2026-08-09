@@ -5,6 +5,7 @@ import { ContextMenuItem, ContextMenuSeparator } from 'reka-ui'
 import ContextMenu from '../../components/ui/ContextMenu.vue'
 import type { FileEntry } from '../stores/files'
 import { canOperate } from '../util/protect'
+import { isAlreadyShared } from '../util/shareGate'
 import { canBeWallpaper } from '../util/wallpaperExt'
 import { useFavoritesStore } from '../stores/favorites'
 import { useClipboardStore } from '../stores/clipboard'
@@ -20,7 +21,7 @@ const browse = useSnapshotBrowseStore()
 const single = computed(() => props.selectedCount <= 1)
 const operable = computed(() => (props.entry ? canOperate(props.entry) : false))
 const favorited = computed(() => (props.entry ? favorites.isFavorite(props.entry.path) : false))
-const alreadyShared = computed(() => props.entry?.extensions?.share?.shared === 'true')
+const alreadyShared = computed(() => (props.entry ? isAlreadyShared(props.entry) : false))
 // 只读快照:第一道防线,把写入相关的菜单项从各自 show* computed 里裁掉(而不是在模板上
 // 再叠一层条件),避免两处判断漂移。
 const inSnapshot = computed(() => browse.isSnapshotView)

@@ -28,6 +28,7 @@ import { useUploadsStore } from '../files/stores/uploads'
 import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
+import { shareableFolders } from '../files/util/shareGate'
 import { useToast } from '../stores/toast'
 import { installUnloadGuard } from '../files/upload/unloadGuard'
 import { readDroppedEntries } from '../files/upload/dropEntries'
@@ -112,16 +113,23 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
 const snapshotSelection = computed(() => selectedEntries.value)
 
-// 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
-// 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
+// Initiate sharing: right-click single folder (entry non-null, outside selection) → show link dialog after creation;
+// batch multi-select (entry null) → only share unshared folders in batch, do not show link dialog (multiple names to display to user).
+// Already-shared members are filtered here — backend returns SHARE_ALREADY_EXISTS for them and the whole batch fails,
+// but the single-item context menu already hides the action for already-shared items (FileContextMenu's showShare),
+// so batch must follow the same logic to keep the semantics consistent.
 async function onShare(entry: FileEntry | null) {
-  const folders = ctxTargets(entry).filter((e) => e.is_dir)
-  if (!folders.length) return
-  const ok = await shares.create(folders.map((f) => f.path))
-  if (ok) {
-    ops.refresh() // 刷新列表,让刚共享的文件夹 extensions.share.shared 更新(否则右键仍显示「共享到局域网」)
-    if (folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
+  const { targets, skipped } = shareableFolders(ctxTargets(entry))
+  if (!targets.length) {
+    // The selection really is all folders, just all already shared — explain why so user doesn't think the button is broken
+    if (skipped) toast.show(t('filesShareAllAlreadyShared'))
+    return
   }
+  const ok = await shares.create(targets.map((f) => f.path))
+  if (!ok) return
+  ops.refresh() // Refresh the listing so shared folders get their extensions.share.shared updated (else context menu still shows "Share to LAN")
+  if (skipped) toast.show(t('filesShareSkippedShared', { count: skipped }))
+  if (targets.length === 1) shareDlg.value = { open: true, name: shareName(targets[0].path) }
 }
 
 // 右键菜单动作分发

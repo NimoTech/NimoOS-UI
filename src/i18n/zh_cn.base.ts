@@ -180,6 +180,8 @@ export default {
   filesShareToLan: '共享到局域网',
   filesShareDone: '已共享',
   filesShareBatchDone: '已共享 {count} 个文件夹',
+  filesShareSkippedShared: '已跳过 {count} 个已共享项',
+  filesShareAllAlreadyShared: '所选文件夹都已共享',
   filesShareFailed: '操作失败',
   filesUnshareDone: '已取消共享',
   filesShareGetLink: '获取链接',

@@ -180,6 +180,8 @@ export default {
   filesShareToLan: 'Share to local network',
   filesShareDone: 'Shared',
   filesShareBatchDone: 'Shared {count} folder(s)',
+  filesShareSkippedShared: 'Skipped {count} already-shared item(s)',
+  filesShareAllAlreadyShared: 'All selected folders are already shared',
   filesShareFailed: 'Operation failed',
   filesUnshareDone: 'Unshared',
   filesShareGetLink: 'Get link',
