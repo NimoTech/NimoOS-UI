@@ -34,9 +34,16 @@ describe('fileOps util', () => {
   })
 
   it('buildPastePayload 组装 {type,item,to,style}', () => {
-    const o = { type: 'move' as const, item: [{ from: '/DATA/a' }] }
+    const o = { type: 'move' as const, item: [{ from: '/DATA/a', is_dir: false }] }
     expect(buildPastePayload(o, '/DATA/dst', 'skip')).toEqual({
-      type: 'move', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'skip',
+      type: 'move', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'skip',
+    })
+  })
+
+  it('buildPastePayload accepts the keep-both style the backend calls "rename"', () => {
+    const o = { type: 'copy' as const, item: [{ from: '/DATA/a', is_dir: false }] }
+    expect(buildPastePayload(o, '/DATA/dst', 'rename')).toEqual({
+      type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'rename',
     })
   })
 

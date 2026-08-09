@@ -148,7 +148,7 @@ describe('FileContextMenu', () => {
   it('空白区:有剪贴板内容时出现 粘贴(覆盖)/(跳过)', () => {
     const pinia = createPinia()
     setActivePinia(pinia)
-    useClipboardStore().operate('copy', ['/DATA/a'])
+    useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
     const w = mount(FileContextMenu, {
       props: { entry: null, selectedCount: 0 },
       global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },

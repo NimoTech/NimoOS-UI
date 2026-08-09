@@ -82,7 +82,7 @@ export function useFileOps() {
   }
 
   function copy(entries: FileEntry[]) {
-    clipboard.operate('copy', entries.map((e) => e.path))
+    clipboard.operate('copy', entries)
   }
 
   // Filter rather than refuse: cut used to bail out the whole batch on a
@@ -93,9 +93,7 @@ export function useFileOps() {
     const { targets, skipped } = operableEntries(entries)
     if (!targets.length) { toast.show(t('filesProtectedMove')); return }
     if (skipped > 0) toast.show(t('filesCutSkippedProtected', { count: skipped }))
-    // clipboard.operate still takes path strings until Task 3 switches it to
-    // take entries directly.
-    clipboard.operate('move', targets.map((e) => e.path))
+    clipboard.operate('move', targets)
   }
 
   async function paste(style: 'overwrite' | 'skip') {

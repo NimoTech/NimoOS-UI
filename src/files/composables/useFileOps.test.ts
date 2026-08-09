@@ -152,7 +152,7 @@ describe('useFileOps', () => {
     const clip = useClipboardStore()
     const ops = makeOps()
     ops.copy([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
-    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a' }] })
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }] })
   })
 
   it('cut 写 type:move;受保护项被挡(不写剪贴板)', async () => {
@@ -203,11 +203,11 @@ describe('useFileOps', () => {
   it('paste 发 batch.task({type,item,to,style}) 后清空剪贴板', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
-    clip.operate('copy', ['/DATA/a'])
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
     const files = useFilesStore(); files.currentPath = '/DATA/dst'
     const ops = makeOps()
     await ops.paste('overwrite')
-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
     expect(clip.operateObject).toBeNull()
   })
 
@@ -307,7 +307,7 @@ describe('useFileOps', () => {
     it('粘贴被拦', async () => {
       enterSnapshot()
       const { useClipboardStore } = await import('../stores/clipboard')
-      useClipboardStore().operate('copy', ['/DATA/a'])
+      useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
       const ops = makeOps()
       await ops.paste('overwrite')
       expect(batchTask).not.toHaveBeenCalled()

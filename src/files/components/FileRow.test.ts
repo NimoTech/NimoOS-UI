@@ -59,13 +59,13 @@ describe('FileRow', () => {
   })
 
   it('剪切态给行加 cut class', () => {
-    useClipboardStore().operate('move', ['/DATA/a.txt'])
+    useClipboardStore().operate('move', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-row').classes()).toContain('cut')
   })
 
   it('复制态不加 cut class', () => {
-    useClipboardStore().operate('copy', ['/DATA/a.txt'])
+    useClipboardStore().operate('copy', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-row').classes()).not.toContain('cut')
   })

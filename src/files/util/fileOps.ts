@@ -30,7 +30,7 @@ export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
   return tasks.some((t) => t.finished && t.to === currentPath)
 }
 
-export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'skip') {
+export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'skip' | 'rename') {
   return { type: o.type, item: o.item, to, style }
 }
 
