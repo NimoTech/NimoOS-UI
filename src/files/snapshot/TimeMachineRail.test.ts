@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import TimeMachineRail from './TimeMachineRail.vue'
@@ -16,6 +17,14 @@ const GROUPS = [
 ]
 const mountIt = (props = {}) =>
   mount(TimeMachineRail, { props: { groups: GROUPS, selectedIndex: 0, ...props }, global: { plugins: [i18n] } })
+
+// Enough snapshots to overflow the rail's own scroll container, so the
+// "scroll the selected tick into view" behavior actually has somewhere to scroll to.
+const manyGroups = () => [
+  { dayKey: '2026-07-30', labelText: '今天', items: Array.from({ length: 50 }, (_, i) => (
+    { flatIndex: i, time: `${String(i).padStart(2, '0')}:00`, typeKind: 'auto' as const }
+  )) },
+]
 
 // 造一个假 DOMRect,只填组件用到的 top/height 两个字段;其余字段用 0 占位满足类型。
 const fakeRect = (top: number, height = 10): DOMRect =>
@@ -153,5 +162,29 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 10 })
     w.unmount()
     expect(caf).toHaveBeenCalledWith(77)
+  })
+
+  // ↓ Task 10: with enough snapshots to overflow the rail's own scroll container,
+  // stepping the selection past the visible range must scroll the rail too -- the deck
+  // and the bottom bar already followed the selection, but the rail looked frozen.
+  it('scrolls the newly selected tick into view', async () => {
+    const spy = vi.fn()
+    // jsdom does not implement scrollIntoView
+    Element.prototype.scrollIntoView = spy
+    const w = mountIt({ groups: manyGroups(), selectedIndex: 0 })
+    spy.mockClear()
+    await w.setProps({ selectedIndex: 40 })
+    await nextTick()
+    expect(spy).toHaveBeenCalled()
+  })
+
+  it('does not scroll when the selection did not change', async () => {
+    const spy = vi.fn()
+    Element.prototype.scrollIntoView = spy
+    const w = mountIt({ groups: manyGroups(), selectedIndex: 3 })
+    spy.mockClear()
+    await w.setProps({ groups: manyGroups() })
+    await nextTick()
+    expect(spy).not.toHaveBeenCalled()
   })
 })
