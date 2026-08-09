@@ -185,3 +185,26 @@ Task 8: complete (commits b3d0ad9..021b759, review clean; detail page 32, styles
 CONTROLLER NOTE: the OSS gate asserts a clean working tree, so an uncommitted ledger
   makes it report 445/448. Commit the ledger before running that gate; do NOT stash
   around it.
+
+Task 9: review (opus) — spec ❌, quality Needs fixes. 3 Important + 5 Minor.
+  Important 1: the "no assertion lost" claim failed in exactly one place — the
+    picker's old "busy flag resets after failure" case. That guarantee now lives in
+    three finally blocks and NO test covers any of them; deleting one leaves a user
+    with a permanently disabled "adding…" button and the suite still green.
+  Important 2: Step 0 moved the String()-id normalisation from the picker into each
+    album page, and the coverage did not follow — the picker test now proves its own
+    fixture normalises, not the pages. Numeric ids from the API would stop matching
+    string timeline ids and nothing would go red.
+  Important 3: the English-comment ruling was applied to the moment side only; all
+    six album/picker-side files got new Chinese comments and it titles.
+  All four declared deviations UPHELD, each verified against Vue 2's real
+    PhotosLibraryPicker: `submitting` is forced by Vue 3 emit discarding return
+    values; the function-form submitLabel is the smaller mechanism; both i18n
+    omissions are the actual 1:1 reproduction; the re-entrance guard is registered.
+  Controller resolved the ⚠️: commit split verified — 143dc0f holds exactly the six
+    Step 0 files, b384c00 the four feature files.
+Task 9: minor (deferred): picker close now happens before the grid reload rather than
+  after it as in Vue 2 — panel closes immediately and grids fill in behind. Arguably
+  better; registered only as "close on success", not the timing.
+Task 9: minor (deferred): PhotosMomentDetail.vue now 741 lines; Task 10 adds three
+  more feature areas. The "extract a grid subcomponent after Task 10" note stands.
