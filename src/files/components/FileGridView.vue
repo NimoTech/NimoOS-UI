@@ -47,8 +47,10 @@ const visibleRows = computed(() => rows.value.slice(range.value.start, range.val
 const padTop = computed(() => range.value.start * rowHeight.value)
 const padBottom = computed(() => Math.max(0, (rows.value.length - range.value.end) * rowHeight.value))
 
-// The nearest scrollable ancestor -- AreaShell's .area-body in practice, but
-// resolved rather than hard-coded so a different host still works.
+// The nearest scrollable ancestor -- Files.vue's .files-listwrap in practice
+// (it took over scrolling from AreaShell's .area-body once .files-layout was
+// height-capped), but resolved rather than hard-coded so a different host
+// still works.
 function findScrollParent(el: HTMLElement | null): HTMLElement | Window {
   let node = el?.parentElement ?? null
   while (node) {
