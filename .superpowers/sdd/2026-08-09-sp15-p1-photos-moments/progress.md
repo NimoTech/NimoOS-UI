@@ -142,3 +142,39 @@ CONTROLLER ACTION: removed a stray .superpowers/sdd/.gitignore containing a sing
   parent .superpowers/.gitignore rule (markdown in, replayable machine output out),
   these must be committed at the end — do NOT delete the workspace as the SDD skill
   would otherwise have it.
+NOTE: the superpowers `review-package` script RECREATES .superpowers/sdd/.gitignore
+  (a single `*`) on every run. Delete it again immediately before the final ledger
+  commit, or the stage's markdown silently stops being trackable.
+Task 7: fix round 1/5 (7 addressed, 0 open; commits 7069012..b3d0ad9, 4 commits).
+  Re-review also upheld three beyond-scope changes the implementer made: a retry
+  button on the new failure state (verified it really refetches, not a no-op), a
+  self-initiated fix so switching :id clears the previous moment's assets (verified
+  safe against the staleness guard), and a rewritten finding-7 test after the first
+  version turned out to be a fake gate that only the mutation check caught.
+Task 7: complete (commits d9fe4c1..b3d0ad9, review clean; detail page 25, store 25,
+  router 25, parity 9, styles 1075, oss 448, full suite 10772/678 files)
+Task 7: minor (CARRIED INTO TASK 8, not deferred): the same-day time-window fixture
+  uses 01:00Z/09:00Z, which is not the same LOCAL day at UTC-2 or further west —
+  reviewer reproduced a failure under TZ=America/New_York — while a comment added
+  this round claims the expectations are "timezone-safe on any machine". One-token
+  fix (12:00Z/13:00Z). Task 8 edits this file anyway.
+Task 7: minor (deferred): listLoading is now exported but read by nobody.
+Task 7: minor (deferred): the failure screen gives no pending feedback during retry.
+Task 7: minor (deferred): listError is only cleared by a successful fetchMoments, so
+  after one failed list fetch a genuinely deleted moment shows "couldn't load"
+  instead of not-found for the rest of the session. Conservative, not wrong.
+
+Task 8: review — spec ✅, quality Approved, but one Important listed and therefore
+  entering the loop: the lightbox test asserts only that openAt was called once,
+  never its arguments, and never clicks a Featured tile — so tile-to-list scoping
+  (Featured tile pages the featured strip, not the whole library) is unguarded, and
+  Task 9 leans on it. Plan-mandated test design; fixing it fulfils the test's own
+  stated intent rather than contradicting the plan.
+  Reviewer upheld both implementer deviations: the useLightbox module mock is
+  necessary (useLightbox() returns a fresh object literal per call, so the brief's
+  vi.spyOn on the test's own copy could never intercept the component's), and the
+  strengthened clear-selection test is real. Carried-over TZ fixture fix verified
+  under TZ=America/New_York.
+Task 8: minor (deferred): PhotosMomentDetail.vue is now 638 lines and Tasks 9/10 add
+  three more feature areas to the same file; extracting a grid subcomponent will
+  likely be worth it after Task 10. Flag, do not act on it mid-plan.
