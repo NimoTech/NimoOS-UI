@@ -119,6 +119,23 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     // tile it didn't recognise, proving nothing specific to 'vm'.
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'files')).toBe(true)
   })
+
+  it('evict(force) on a confirmed-unreachable KVM tile is immediate (no timer needed), and the tile can be pinned back manually afterward', () => {
+    // This is the fast path Home.vue's refreshApps() takes as soon as apps.kvmAvailable
+    // flips to false -- unlike the sweep above, it needs no grace period and no timer
+    // advance at all.
+    const s = useLayoutStore(); s.loadInitial()
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(true)
+    s.evict('vm', { force: true })
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(false)
+    // Once KVM answers again, the apps store re-lists 'vm' in `order` (see apps.test.ts
+    // "brings the tile back once KVM answers again"), which is what makes it show up in
+    // the Add Apps panel (AddPanel.vue iterates appsStore.order); from there the user
+    // pins it back exactly like any other tile -- evict(force) clears `seen` too, so
+    // there is no stale bookkeeping left over to block the re-add.
+    s.pin({ kind: 'app', key: 'vm', c: 1, r: 1, w: 1, h: 1 })
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(true)
+  })
 })
 
 describe('autoPin', () => {
