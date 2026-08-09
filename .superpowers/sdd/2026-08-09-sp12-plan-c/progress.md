@@ -3,7 +3,8 @@
 - 分支:`sp12-plan-c`,工作树 `.claude/worktrees/sp12-plan-c`
 - 起点:本地 `master` **4d8485b**(**不是** `origin/master` 0a7e6fb —— 后者落后 100+ 提交、不含 Plan A)
 - 计划:`docs/superpowers/plans/2026-08-09-sp12-plan-c-load-robustness-grid-virtualization.md`
-- 状态:**编码全完成,五道收尾门全绿,未部署、未推 origin、真机验收 9 步一步没跑**
+- 状态:**编码全完成,五道收尾门全绿;2026-08-09 已快进合入 master(`fde639e`);未部署、未推 origin**
+- **验收:机主 2026-08-09 明示先不验收,dev server(5290)已关,9 步清单挂账,等 SP12 各线做完统一验。**
 
 ---
 
@@ -115,10 +116,35 @@ d23032f feat(files): derive marquee rects from grid geometry
 
 ---
 
-## 6. 欠的:真机验收 9 步(一步没跑)
+## 5.5 合并(2026-08-09)
+
+**已快进合入 master:`4d8485b` → `fde639e`**(master 当时未被其它会话推进,故是纯快进,零冲突)。
+主工作树那 3 个 `design-export` staged 删除与 `oss/*` 改动(别人的活)**未受影响** —— 本分支
+与它们零交集(合并前 `git diff --name-only 4d8485b..HEAD | grep -E '^(oss/|design-export/)'` 为空)。
+
+**与 sp12-plan-b 的先后顺序:实测无影响。** 合并前用 `git merge-tree --write-tree sp12-plan-c
+sp12-plan-b` 做过只读三方预演,**git 退出码 0、无冲突段 ⇒ 两条线可无冲突合并**。
+共享文件恰好 4 个,改的是不同区域:
+
+| 文件 | Plan C 改了什么 | plan-b 改了什么 |
+|---|---|---|
+| `src/i18n/zh_cn.base.ts` / `en_us.base.ts` | 追加 6 个键(加载失败/重试/容量四条) | 追加冲突弹窗的键 |
+| `src/styles/theme.css` | 新增 `--usage-track`(两个主题块) | 冲突弹窗相关 token |
+| `src/views/Files.vue` | 错误条、默认目录兜底、`gridRef` + 框选分流、高亮按行滚 | 冲突弹窗接线、`unloadGuard` 移走 |
+
+> ⚠️ **无文本冲突 ≠ 合并结果已验证。** 两条分支各自的全绿只覆盖自己那半;
+> **后合的一方必须在合并结果上重跑全套门(全量 + vue-tsc + parity + build + oss)**,
+> 不能拿分支上的绿数交差。plan-b 合的时候记得。
+
+> 顺带:plan-b 已经把 Plan A 挂的两张后续票做掉了(`ba24ee3` unloadGuard 移到 App 级、
+> `59e4f7c`/`9a16076` 死 tus URL 循环),交接时别重复开票。
+
+---
+
+## 6. 欠的:真机验收 9 步(一步没跑 —— 机主 2026-08-09 明示先不验,等统一验)
 
 验收 = `pnpm dev --host --port 5273`(**不是** `deploy.sh` —— 本期不是 cutover 期)。
-⚠️ 5273 是 master 那条线的端口,若被占用改 5299 并在报告里写明。
+⚠️ 5273 是 master 那条线的端口;本期曾起在 5290,**已按机主要求关闭**。
 
 1. 侧栏磁盘行悬停 → 出现 `⋮`;鼠标移上 `⋮` → 弹出用量窗:「已用 x / y」+ 进度条 + 百分比 + 可用。
 2. 点 `⋮` **不会**跳转目录。
