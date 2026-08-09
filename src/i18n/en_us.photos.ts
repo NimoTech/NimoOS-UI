@@ -134,6 +134,10 @@ export default {
   photosAlbumUntitled: 'Untitled',
   photosAlbumsEmptyTitle: 'No albums yet',
   photosAlbumsEmptyHint: 'Create an album to group photos together.',
+  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
+  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
+  photosAlbumsNoneYetHint: 'No albums yet — create one manually, or let Nimo build a Smart Album that keeps itself updated.',
   photosAlbumSort: 'Sort:',
   photosAlbumSortCreated: 'Recently added',
   photosAlbumSortCreatedHint: 'Newest album first',

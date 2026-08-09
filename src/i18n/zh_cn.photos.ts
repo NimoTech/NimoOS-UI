@@ -134,6 +134,10 @@ export default {
   photosAlbumUntitled: '未命名',
   photosAlbumsEmptyTitle: '还没有相册',
   photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
+  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
+  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
+  photosAlbumsNoneYetHint: '还没有相册——手动创建一个，或者让 Nimo 建一个会自动保持更新的智能相册。',
   photosAlbumSort: '排序：',
   photosAlbumSortCreated: '最近添加',
   photosAlbumSortCreatedHint: '最新的相册在前',

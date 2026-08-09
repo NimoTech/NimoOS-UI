@@ -100,3 +100,39 @@ Task 2 review: spec OK, 1 Important + 2 Minor.
   round was already required.
 Task 2: minor (deferred): the interim `views` path has no coverage for the
   date/name-r/count branches. Throwaway code T3 replaces; final review may triage.
+Task 2: fix round 1/5 (2 addressed, 0 open — stale duplicate comparator removed and
+  a live-path regression test added; msOf isNaN fixture added; commits e85dec4..95efa6f)
+Task 2: complete (commits 85efc7d..95efa6f, review clean)
+  Implementer found TWO arithmetic errors in the plan's own expected orderings
+  (`name`/`name-r` and `date` had s2/u2 transposed) and hand-verified the corrections;
+  the re-reviewer independently recomputed both and confirmed. Plan was wrong, code is
+  right. Implementer also caught a near-miss in its own new fixture where garbage and
+  valid values sat on the sides that made pre-sort and expected order coincide, masking
+  the mutation — found via the mandated mutation check, then fixed.
+INTENTIONAL BEHAVIOUR CHANGE on the live page, recorded so it is not read as a
+  regression later: the `date` sort now ranks by `dateStart` (earliest member's
+  taken_at) instead of the deleted sortAlbums' `dateEnd`. sortAlbums' use of dateEnd
+  was itself a registered New-UI deviation; Vue2's target dateTakenMs reads dateStart,
+  so the new path is the 1:1-correct one. No existing test exercised the `date` id,
+  so nothing regressed silently.
+
+Task 3: complete (implementer self-report; per-task review still pending per the ledger's
+  T1-T4 process). PhotosAlbums.vue's `views` computed replaced with the real `mixedItems`
+  (buildMixedAlbums/sortMixed over albums + smartViews.smartViews, no more empty smart
+  list); isEmpty now checks mixedItems.length; added aiSmartViewOff computed + the AI-off
+  banner (markup/tokens copied verbatim from PhotosSmartViews.vue's .svs-banner*, renamed
+  .albums-ai-banner*, PhotosSmartViews.vue's own copy left in place for Task 5 to remove);
+  added openSmartCard; onMounted fires fetchSmartViews/fetchAiFeatures fire-and-forget
+  alongside fetchAlbums. 1 i18n key added (photosAlbumsNoneYetHint, both locales).
+  SmartViewCard.vue had zero `data-test` attributes (grep-verified, contra the brief's
+  assumption) -- added `data-test="sv-card"` to its root, registered in-file and in the
+  task report.
+  6 new tests added (TDD: RED confirmed before implementation, GREEN after); full repo
+  suite 685 files / 10883 tests, 3 oss/*.test.mjs failures explained entirely by the dirty
+  working tree per the CONTROLLER FACT above (re-verify after commit); vue-tsc clean.
+  Mutation checks: forcing aiSmartViewOff to always-true caught by the banner test (red);
+  dropping the kind prefix from the grid `:key` was NOT caught by any test in the suite --
+  no fixture makes a manual album id and a smart id collide, so a duplicate-key regression
+  would currently ship silently. Reverted the mutation, added a registered inline comment
+  at the v-for explaining why the prefix is load-bearing, did not add a new speculative
+  collision fixture (not asked for by the brief; flagging for the reviewer to triage).

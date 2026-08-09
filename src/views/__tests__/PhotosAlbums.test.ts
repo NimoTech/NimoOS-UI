@@ -22,6 +22,10 @@ const svc = vi.hoisted(() => ({
     reorderAlbumAssets: vi.fn().mockResolvedValue(undefined),
     getTimeline: vi.fn().mockResolvedValue([]),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+    // SP15-P2b Task 3: the page now also fetches the smart-view list and the AI
+    // feature flags (for the smart-views-off banner) alongside albums.
+    listSmartViews: vi.fn().mockResolvedValue([]),
+    getConfig: vi.fn().mockResolvedValue({}),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -40,6 +44,12 @@ function makeRouter() {
     routes: [
       { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
       { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },
+      // SP15-P2b Task 3: smart-card clicks route here now that the grid is mixed.
+      { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail-stub', component: { template: '<div/>' } },
+      // The AI-off banner's settings link resolves to this path (?section=ai query) -- a stub
+      // route lets RouterLink resolve a real href instead of vue-router warning "no match"
+      // (same fix PhotosSmartViews.test.ts already applies for its own copy of this banner).
+      { path: '/photos/settings', name: 'photos-settings-stub', component: { template: '<div/>' } },
     ],
   })
 }
@@ -52,6 +62,44 @@ async function mountView() {
   await flushPromises()
   await w.vm.$nextTick()
   return { w, router }
+}
+
+// SP15-P2b Task 3: shared spy for the mixed-grid test block below, reassigned on every
+// mountAlbums() call so each test's assertion reads the router instance it actually mounted
+// against (mirrors the existing mountView()/router pattern, just hoisted to module scope so
+// the brief's test bodies -- which reference a bare `push` -- can call it without destructuring).
+let push: ReturnType<typeof vi.fn>
+
+/**
+ * Mount PhotosAlbums with albums + smart views + AI-feature fixtures seeded in one call.
+ * `aiFeatures`, when provided, is nested under `getConfig()`'s `aiFeatures` field (the shape
+ * `usePhotosSettingsStore().fetchAiFeatures()` actually reads via readAiFeatures() in
+ * settings.ts); omitting it (as most tests do) leaves getConfig() resolving `{}`, which
+ * readAiFeatures() treats as "all features on" -- the same default the store assumes on any
+ * other real page.
+ */
+async function mountAlbums(opts: {
+  albums?: Array<Record<string, unknown>>
+  smartViews?: Array<Record<string, unknown>>
+  aiFeatures?: Record<string, unknown>
+  smartViewsFails?: boolean
+} = {}) {
+  svc.photos.listAlbums.mockResolvedValue(opts.albums ?? [])
+  if (opts.smartViewsFails) {
+    svc.photos.listSmartViews.mockRejectedValueOnce(new Error('smart views failed'))
+  } else {
+    svc.photos.listSmartViews.mockResolvedValue(opts.smartViews ?? [])
+  }
+  svc.photos.getConfig.mockResolvedValue(opts.aiFeatures !== undefined ? { aiFeatures: opts.aiFeatures } : {})
+
+  const router = makeRouter()
+  router.push('/photos/albums')
+  await router.isReady()
+  push = vi.spyOn(router, 'push')
+  const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
+  await flushPromises()
+  await w.vm.$nextTick()
+  return w
 }
 
 function rawAlbum(id: string | number, overrides: Record<string, unknown> = {}) {
@@ -75,6 +123,8 @@ beforeEach(() => {
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   svc.photos.getTimeline.mockClear().mockResolvedValue([])
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.listSmartViews.mockClear().mockResolvedValue([])
+  svc.photos.getConfig.mockClear().mockResolvedValue({})
 })
 
 afterEach(() => {
@@ -530,5 +580,52 @@ describe('PhotosAlbums.vue', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await w.vm.$nextTick()
     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
+  })
+})
+
+// SP15-P2b Task 3: Albums page renders manual albums and smart albums in one grid, ranked
+// by the single Sort control, plus the AI-off banner ported over from the smart-views page.
+describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
+  it('renders smart albums and manual albums in one grid', async () => {
+    // 2 manual + 1 smart => 3 cards plus the create tile.
+    const w = await mountAlbums({
+      albums: [{ id: 'u1', name: 'A' }, { id: 'u2', name: 'B' }],
+      smartViews: [{ id: 's1', name: 'S', seeds: ['x'], conds: [], count: 4 }],
+    })
+    expect(w.findAll('[data-test="album-card"]')).toHaveLength(2)
+    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
+  })
+
+  it('counts both kinds in the header total', async () => {
+    const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [{ id: 's1', name: 'S' }] })
+    expect(w.text()).toContain('2')
+  })
+
+  it('opens the smart view detail route when a smart card is clicked', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [{ id: 's1', name: 'S' }] })
+    await w.find('[data-test="sv-card"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/photos/smart-views/s1')
+  })
+
+  it('shows the smart-views-off banner only when the backend says it is off', async () => {
+    const off = await mountAlbums({ albums: [], aiFeatures: { smartview: false } })
+    expect(off.find('[data-test="albums-ai-banner"]').exists()).toBe(true)
+    // Missing field and fetch failure both mean "on" -- never scare the user.
+    const unknown = await mountAlbums({ albums: [], aiFeatures: {} })
+    expect(unknown.find('[data-test="albums-ai-banner"]').exists()).toBe(false)
+  })
+
+  it('swaps the section subtitle for the nothing-yet copy when both kinds are empty', async () => {
+    const empty = await mountAlbums({ albums: [], smartViews: [] })
+    expect(empty.text()).toContain('还没有相册')
+    const some = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [] })
+    expect(some.text()).not.toContain('还没有相册')
+  })
+
+  it('keeps the manual grid alive when the smart view fetch fails', async () => {
+    // fetchSmartViews swallows its own errors (store contract); the page must not gate
+    // the manual half on it.
+    const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViewsFails: true })
+    expect(w.findAll('[data-test="album-card"]')).toHaveLength(1)
   })
 })

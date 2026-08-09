@@ -21,23 +21,27 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+import SmartViewCard from '../photos/components/SmartViewCard.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosSmartViews } from '../photos/stores/smartViews'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import { albumToView, type AlbumView } from '../photos/util/albumView'
-import { buildMixedAlbums, sortMixed } from '../photos/util/mixedAlbums'
+import { buildMixedAlbums, sortMixed, type MixedSortId } from '../photos/util/mixedAlbums'
 import { isConflict } from '../photos/util/httpErrors'
 
-type SortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
 type SourceId = 'empty' | 'recent' | 'select'
 
 const { t } = useI18n()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
+const smartViews = usePhotosSmartViews()
+const settings = usePhotosSettingsStore()
 const toast = useToast()
 
-const sort = ref<SortId>('created')
+const sort = ref<MixedSortId>('created')
 const sortOpen = ref(false)
 const sortMenuRef = ref<HTMLElement | null>(null)
 
@@ -53,11 +57,11 @@ const pickerAlbumName = ref('')
 
 // 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
 const sortOptions = computed(() => [
-  { id: 'created' as SortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
-  { id: 'name' as SortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
-  { id: 'name-r' as SortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
-  { id: 'count' as SortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
-  { id: 'date' as SortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
+  { id: 'created' as MixedSortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
+  { id: 'name' as MixedSortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
+  { id: 'name-r' as MixedSortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
+  { id: 'count' as MixedSortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
+  { id: 'date' as MixedSortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
 ])
 const sourceOptions = computed(() => [
   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
@@ -65,20 +69,24 @@ const sourceOptions = computed(() => [
   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
 ])
 
-// Interim (SP15-P2b Task 2): this page still renders manual albums only -- Task 3
-// swaps it for the real mixed list. Until then it goes through buildMixedAlbums /
-// sortMixed with an empty smart list rather than keeping a second comparator alive,
-// so there is exactly one implementation of the missing-timestamp rule and this page
-// already gets the corrected "missing sorts first" ordering.
-const views = computed<AlbumView[]>(() => {
-  const userViews = albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled')))
-  const mixed = sortMixed(buildMixedAlbums(userViews, []), sort.value)
-  return mixed
-    .map((item): AlbumView | null => (item.kind === 'user' ? item.view : null))
-    .filter((v): v is AlbumView => v !== null)
-})
+// SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
+// by the single Sort control -- smart albums are no longer pinned to the front.
+const mixedItems = computed(() =>
+  sortMixed(
+    buildMixedAlbums(
+      albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))),
+      smartViews.smartViews,
+    ),
+    sort.value,
+  ),
+)
 const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
-const isEmpty = computed(() => albums.albumsLoaded && albums.albums.length === 0)
+const isEmpty = computed(() => albums.albumsLoaded && mixedItems.value.length === 0)
+
+// Vue2 :79-85 moved this banner from the smart-views page to here along with the smart
+// albums themselves. `=== false` is load-bearing: a missing field and a failed fetch both
+// mean "on" (settings.ts already encodes that), and only an explicit off should warn.
+const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
 function coverUrl(view: AlbumView): string {
   // 只有真实资产 id 才生成缩略图 URL;空相册/无封面落到 .album-cover-fallback 渐变占位
@@ -87,13 +95,17 @@ function coverUrl(view: AlbumView): string {
   return service.photos.thumbnailUrl(view.cover, 'large')
 }
 
-function pickSort(s: { id: SortId }): void {
+function pickSort(s: { id: MixedSortId }): void {
   sort.value = s.id
   sortOpen.value = false
 }
 
 function openCard(view: AlbumView): void {
   router.push('/photos/albums/' + view.id)
+}
+
+function openSmartCard(id: string): void {
+  router.push('/photos/smart-views/' + id)
 }
 
 function openCreate(): void {
@@ -234,6 +246,12 @@ function onDocKeydown(e: KeyboardEvent): void {
 
 onMounted(() => {
   void albums.fetchAlbums()
+  // Both fetches are fire-and-forget: the two halves of the grid render independently,
+  // so a smart-view failure must not gate the manual albums. Vue2 :414-417 awaited both
+  // because its deep-link arbitration needed them together -- New-UI has no such
+  // arbitration (usePhotosDeepLinks sends ?smartview= straight to the detail route).
+  void smartViews.fetchSmartViews()
+  void settings.fetchAiFeatures()
   document.addEventListener('mousedown', onDocMousedown)
   document.addEventListener('keydown', onDocKeydown)
 })
@@ -251,7 +269,7 @@ onUnmounted(() => {
         <div class="albums-banner">
           <div>
             <h1>{{ t('photosAlbumsTitle') }}</h1>
-            <div class="albums-sub">{{ t('photosAlbumsCount', { count: views.length }) }}</div>
+            <div class="albums-sub">{{ t('photosAlbumsCount', { count: mixedItems.length }) }}</div>
           </div>
           <div class="albums-actions">
             <div ref="sortMenuRef" class="albums-sort-wrap">
@@ -310,10 +328,29 @@ onUnmounted(() => {
              .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
              .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
         <div class="albums-scroll scroll">
+          <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
+               939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
+               Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
+               .albums-ai-banner*) -- see the style block for the token-for-token rule copy. -->
+          <div v-if="aiSmartViewOff" class="albums-ai-banner" data-test="albums-ai-banner">
+            <div class="albums-ai-banner-icon">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            </div>
+            <div>
+              <div class="albums-ai-banner-title">{{ t('photosSvSmartViewsAutoUpdate') }}</div>
+              <div class="albums-ai-banner-desc">
+                {{ t('photosSvTheseSavedSearchesStay') }}
+                <RouterLink class="albums-ai-banner-link" data-test="albums-settings-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
+              </div>
+            </div>
+          </div>
+
           <section class="albums-section">
             <div class="albums-section-head">
               <h2>{{ t('photosAlbumsMine') }}</h2>
-              <span class="albums-section-hint">{{ t('photosAlbumsMineHint') }}</span>
+              <span class="albums-section-hint">
+                {{ mixedItems.length ? t('photosAlbumsMineHint') : t('photosAlbumsNoneYetHint') }}
+              </span>
             </div>
             <div class="album-grid">
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
@@ -321,28 +358,34 @@ onUnmounted(() => {
                 <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
                 <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
               </div>
-              <div
-                v-for="view in views" :key="view.id"
-                class="album-card"
-                data-test="album-card"
-                :data-id="view.id"
-                @click="openCard(view)"
-              >
-                <div class="album-cover">
-                  <img v-if="coverUrl(view)" :src="coverUrl(view)" :alt="view.title">
-                  <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
-                    <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+              <!-- The kind prefix on :key is load-bearing, not decoration: a manual album's
+                   numeric id and a smart album's string id can collide once they share a
+                   grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split). -->
+              <template v-for="item in mixedItems" :key="item.kind + '-' + item.id">
+                <SmartViewCard v-if="item.kind === 'smart'" :sv="item.sv" @open="openSmartCard" />
+                <div
+                  v-else
+                  class="album-card"
+                  data-test="album-card"
+                  :data-id="item.view.id"
+                  @click="openCard(item.view)"
+                >
+                  <div class="album-cover">
+                    <img v-if="coverUrl(item.view)" :src="coverUrl(item.view)" :alt="item.view.title">
+                    <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
+                      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+                    </div>
+                  </div>
+                  <div class="album-title">{{ item.view.title }}</div>
+                  <div class="album-meta">
+                    <span>{{ t('photosItemsCount', { count: item.view.count }) }}</span>
+                    <template v-if="item.view.dateRange">
+                      <span class="sep"></span>
+                      <span>{{ item.view.dateRange }}</span>
+                    </template>
                   </div>
                 </div>
-                <div class="album-title">{{ view.title }}</div>
-                <div class="album-meta">
-                  <span>{{ t('photosItemsCount', { count: view.count }) }}</span>
-                  <template v-if="view.dateRange">
-                    <span class="sep"></span>
-                    <span>{{ view.dateRange }}</span>
-                  </template>
-                </div>
-              </div>
+              </template>
             </div>
           </section>
         </div>
@@ -457,9 +500,34 @@ onUnmounted(() => {
 .sort-text .lbl { font-weight: 500; }
 .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
 
+/* ── SP15-P2b Task 3: AI-off banner ── copied rule bodies verbatim from
+   PhotosSmartViews.vue's .svs-banner* (renamed .albums-ai-banner*) -- token values, sizes and
+   spacing are not to drift from that page's banner, they are the same UI moved to a second
+   surface. See that file's own header comment for why --dem-fg/--dem-bg/--dem-bd (not the
+   Vue2 source's inline amber literals) and why the 20px bottom margin deviates from Vue2's
+   literal 0. PhotosSmartViews.vue still renders its own copy for now -- Task 5 removes it. */
+.albums-ai-banner {
+  margin: 24px 32px 20px; padding: 14px 16px;
+  background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.albums-ai-banner-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: color-mix(in srgb, var(--dem-fg) 18%, transparent); color: var(--dem-fg);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
+.albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
+.albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+
 /* ── 分区头 + Grid ──
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
-   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。 */
+   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
+   SP15-P2b Task 3:这里的 minmax(220px, 1fr) 刻意不改成 SmartViewCard 设计时预期的
+   minmax(320px, 1fr)(PhotosSmartViews.vue 的 .sv-grid)——两套卡片现在混在同一个网格里,
+   智能卡在 220px 列宽下会比它自己独占页面时更窄,这是混排本身的既有代价而不是本任务的
+   回归;Vue2 侧同样是两套独立网格类(`.album-grid-user` 与智能视图自己的网格)各自留着
+   自己的列宽,并未统一,这里保持同一处境,不去"顺手"统一列宽。 */
 .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
 .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
 .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
