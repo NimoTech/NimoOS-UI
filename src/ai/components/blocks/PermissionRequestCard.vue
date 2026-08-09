@@ -40,6 +40,12 @@ async function resolve(confirmed: boolean) {
     const status = e && e.response && e.response.status
     const detail = e && e.response && e.response.data && e.response.data.detail
     if (status === 409) {
+      // Intentional divergence from useConfirmResolve (src/ai/composables/useConfirmResolve.ts):
+      // that composable turns 409 into a terminal "expired" state with an error message,
+      // because for its three MCP confirm cards a 409 means the confirm_id is simply gone.
+      // Here a 409 means the access request was already decided elsewhere (another tab,
+      // or before a reconnect) -- not that this confirm_id never existed. Showing an error
+      // would be misleading, so this silently marks the request resolved instead.
       // 已在别处（其它 Tab / 重连前）解决：静默置为已解决，不报红框。
       resolved.value = true
       resolvedValue.value = confirmed

@@ -61,6 +61,25 @@ describe('useConfirmResolve', () => {
     expect(api.submitError.value).toContain('Network Error')
   })
 
+  it('非 409 错误优先用 response.data.detail(字符串),而不是 e.message', async () => {
+    const { api } = host()
+    const err = Object.assign(new Error('Request failed with status code 500'), {
+      response: { status: 500, data: { detail: 'disk quota exceeded' } },
+    })
+    await api.run('accept', async () => { throw err })
+    expect(api.submitError.value).toContain('disk quota exceeded')
+    expect(api.submitError.value).not.toContain('Request failed with status code 500')
+  })
+
+  it('detail 不是字符串(如后端返回对象)时退回 e.message', async () => {
+    const { api } = host()
+    const err = Object.assign(new Error('boom'), {
+      response: { status: 500, data: { detail: { code: 'x' } } },
+    })
+    await api.run('accept', async () => { throw err })
+    expect(api.submitError.value).toContain('boom')
+  })
+
   it('submitting 期间的重入被挡住', async () => {
     const { api } = host()
     let release: () => void = () => {}

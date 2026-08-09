@@ -1,9 +1,9 @@
 <!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ConfirmCard.vue -->
 <script setup lang="ts">
-import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AgentIcon from '../icons/AgentIcon.vue'
 import { useProvidedAgentStore } from '../../composables/useProvidedAgentStore'
+import { useConfirmResolve } from '../../composables/useConfirmResolve'
 
 const props = withDefaults(
   defineProps<{ confirmId?: string; action?: string; description?: string; command?: string }>(),
@@ -11,35 +11,12 @@ const props = withDefaults(
 )
 const { t } = useI18n()
 const store = useProvidedAgentStore()
+const { decision, submitting, expired, submitError, run, fail } =
+  useConfirmResolve<'yes' | 'no'>()
 
-const resolved = ref(false)
-const resolvedValue = ref<boolean | null>(null)
-const submitting = ref(false)
-const error = ref('')
-
-async function resolve(confirmed: boolean) {
-  if (!props.confirmId) {
-    error.value = t('aiConfirmInvalid')
-    return
-  }
-  if (submitting.value) return
-  submitting.value = true
-  error.value = ''
-  try {
-    await store.confirmAgentAction(props.confirmId, confirmed)
-    resolved.value = true
-    resolvedValue.value = confirmed
-  } catch (e: any) {
-    const status = e && e.response && e.response.status
-    const detail = e && e.response && e.response.data && e.response.data.detail
-    if (status === 409) {
-      error.value = t('aiConfirmExpired')
-    } else {
-      error.value = t('aiSubmitFailed', { detail: detail || (e && e.message) || t('aiUnknownError') })
-    }
-  } finally {
-    submitting.value = false
-  }
+async function resolve(confirmed: boolean): Promise<void> {
+  if (!props.confirmId) { fail('aiConfirmInvalid'); return }
+  await run(confirmed ? 'yes' : 'no', () => store.confirmAgentAction(props.confirmId, confirmed))
 }
 </script>
 
@@ -59,7 +36,15 @@ async function resolve(confirmed: boolean) {
         {{ description }}
       </div>
       <div v-if="command" class="code-block" style="margin-bottom: 12px">{{ command }}</div>
-      <div v-if="!resolved" style="display: flex; gap: 8px; align-items: center">
+      <!-- expired overrides everything: a consumed confirm_id can never succeed again,
+           so the card must stop offering anything clickable. -->
+      <div v-if="expired" style="font-size: 12px; color: var(--text-tertiary)">
+        {{ t('aiConfirmExpired') }}
+      </div>
+      <div v-else-if="decision" style="font-size: 12px; color: var(--text-tertiary)">
+        {{ decision === 'yes' ? t('aiAccepted') : t('aiDenied') }} · {{ new Date().toLocaleTimeString() }}
+      </div>
+      <div v-else style="display: flex; gap: 8px; align-items: center">
         <button class="composer-tool"
                 style="padding: 7px 14px; background: var(--accent); color: var(--text-on-accent); border-radius: 999px; font-weight: 500"
                 :disabled="submitting"
@@ -72,11 +57,8 @@ async function resolve(confirmed: boolean) {
                 @click="resolve(false)">
           <AgentIcon name="x" :size="13" /> {{ t('aiDeny') }}
         </button>
-        <span v-if="error"
-              style="font-size: 12px; color: var(--danger); margin-left: 4px">{{ error }}</span>
-      </div>
-      <div v-else style="font-size: 12px; color: var(--text-tertiary)">
-        {{ resolvedValue ? t('aiAccepted') : t('aiDenied') }} · {{ new Date().toLocaleTimeString() }}
+        <span v-if="submitError"
+              style="font-size: 12px; color: var(--danger); margin-left: 4px">{{ submitError }}</span>
       </div>
     </div>
   </div>

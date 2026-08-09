@@ -44,7 +44,16 @@ export function useConfirmResolve<A extends string>(): ConfirmResolveApi<A> {
         expired.value = true
         submitError.value = t('aiConfirmExpired')
       } else {
-        const detail = (e as Error | null)?.message || t('aiUnknownError')
+        // Prefer a string detail from the backend's error body over the generic
+        // Error#message: `e.message` is usually just the HTTP client's own
+        // "Request failed with status code 500", which tells the user nothing the
+        // status code didn't already say. response.data.detail is what the backend
+        // actually wrote for a human to read, when it wrote anything at all.
+        const respDetail = (e as { response?: { data?: { detail?: unknown } } } | null)
+          ?.response?.data?.detail
+        const detail = (typeof respDetail === 'string' ? respDetail : undefined)
+          ?? (e as Error | null)?.message
+          ?? t('aiUnknownError')
         submitError.value = t('aiSubmitFailed', { detail })
       }
     } finally {
