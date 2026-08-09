@@ -1,3 +1,4 @@
+import os from 'node:os'
 import path from 'node:path'
 
 // ⚠️ 关于范围(E10):用户 2026-08-04 拍板 —— sp7-photos / sp8-ai 两支在快照发布后
@@ -8,7 +9,19 @@ import path from 'node:path'
 const HERE = path.dirname(new URL(import.meta.url).pathname)
 export const OSS_DIR = HERE
 export const NEW_UI = path.resolve(HERE, '..')
-export const DEFAULT_OUT = path.resolve(HERE, '../../NimoOS-Web')
+// 产出目录有两个,对应两种意图,**默认必须是安全的那个**:
+//   · PREVIEW_OUT —— 不带 --publish 时用。落在系统临时目录下,被 rsync --delete 清空
+//     也没有任何损失,想跑几遍跑几遍。
+//   · PUBLISH_OUT —— 只有显式 --publish 才用。这是**真实公开仓**,写进去意味着
+//     rsync --delete 覆盖它 + git commit --amend 改掉它的 HEAD。
+//
+// 🔴 这两个常量以前是**一个**(DEFAULT_OUT,直接指向公开仓)。2026-08-08 出过事故:
+// `node oss/export.mjs --help` —— 脚本既不认识 --help 又不校验未知参数,当成"没传参"
+// 处理,于是按默认值真的覆盖并提交了公开仓(4957653 → 548e53c,靠 reset --hard 还原,
+// GitHub 上的 origin/main 未受影响)。拆成两个常量 + 参数白名单是那次事故的修复:
+// **危险动作必须是显式的,安全动作才是默认的**。改动前先读 oss/cli-args.test.mjs。
+export const PREVIEW_OUT = path.join(os.tmpdir(), 'nimoos-web-preview')
+export const PUBLISH_OUT = path.resolve(HERE, '../../NimoOS-Web')
 
 // 主工作树 index 里长期躺着 3 个 design-export/* 的删除态,不属任何一方(spec §10.3)
 export const DIRTY_ALLOW = [/design-export\//]
