@@ -277,3 +277,182 @@ pnpm exec vue-tsc --noEmit                                                      
 
 `0f45fec` — "fix(files): pin paste's destination, don't clear on cancel, report partial
 failure"
+
+---
+
+## Fix round 2
+
+Re-review came back on the round-1 diff: F1/F2/F3/F5 all ADDRESSED (mutation tests re-run by
+the reviewer, both directions genuinely red/green). F2's stated residual limitation (a retry
+after partial failure can re-trigger a conflict prompt or hit a vanished source path) was
+judged "honestly disclosed, acceptable as a tracked debt." But the round-1 diff introduced two
+new Important findings (N1, N2) plus one Minor (N3). All three addressed below. Commit:
+`19840e5` — "fix(files): make the FileContextMenu wiring test real, keep backend error text".
+
+### N1 — the F4 wiring test was a false positive (the most serious one)
+
+**Two independent bugs stacked on top of each other here**, and fixing only one would have
+left the test still not proving what it claimed to prove.
+
+**Bug 1 — no mock isolation.** `Files.test.ts`'s `beforeEach` never called
+`vi.clearAllMocks()`, while `service.batch.task` is a module-level `vi.fn()` shared across
+every test in the file. The "toolbar Paste button" test (which runs first in file order) left
+a real `{ style: 'rename', to: '/DATA' }` call in that mock's history. The "context menu
+paste action" test's `toHaveBeenCalledWith(...)` assertion then matched that leftover call
+regardless of whether the test's own trigger did anything at all. The reviewer's own
+mutation evidence: changing `Files.vue`'s `case 'paste':` to `case 'paste-overwrite':` and
+running with `-t "paste"` (both tests together) stayed green; only running the single test in
+isolation went red. **That is precisely backwards from what the test exists to catch** — in a
+real `pnpm test` run, every test in the file executes together, so the regression this test
+was added for would have shipped silently.
+
+Fix: added `vi.clearAllMocks()` to the outer `beforeEach` (`src/views/Files.test.ts:48`),
+matching the existing convention already in `useFileOps.test.ts:49`.
+
+**Bug 2 — once isolated, the test's own trigger mechanism turned out not to work at all.**
+With mocks properly cleared, the "context menu paste action" test started failing outright
+(0 calls to `service.batch.task`) — not because of a real bug in `Files.vue`, but because the
+test's own technique was broken. I had driven the event via
+`w.findComponent(FileContextMenu).vm.$emit('action', 'paste', null)`. Debugging (instrumenting
+both `ops.paste()` and a control `ops.refresh()` with temporary `console.log`s, since neither
+function is exposed for a spy) showed:
+- `menu.emitted('action')` DID record the call — Vue Test Utils' own tracking layer saw it.
+- `vnode.props.onAction` WAS present, typed `function`, and correctly resolved.
+- Neither `ops.paste()` NOR `ops.refresh()` ever actually ran when triggered this way — no
+  `console.log` output, no `service.folder.getList` call from `ops.refresh()`'s `files.load()`.
+
+Conclusion: calling `.vm.$emit(...)` directly on a `<script setup>` child component's public
+instance gets recorded by VTU's own `emitted()` bookkeeping but, in this Vue 3.4 /
+`@vue/test-utils` 2.x combination, does **not** actually invoke the parent's `onXxx` listener
+prop the way a real emitted event does. I could not find this documented anywhere and did not
+chase down why in Vue's internals — I'm flagging it here as an empirically-confirmed technique
+that doesn't do what it looks like it does, in case it resurfaces elsewhere in this codebase's
+tests. `grep -rn "vm\.\$emit" src/` currently returns nothing else, so this was the only place
+using it.
+
+**Fix:** rewrote the test to stub reka-ui's `ContextMenu`/`ContextMenuItem` primitives —
+the exact same `ContextMenuStub`/`ContextMenuItemStub` pattern `FileContextMenu.test.ts`
+already uses for the reason documented there (the real `ContextMenuItem` injects a
+`MenuRootContext` that only a real `ContextMenuRoot` provides, and throws without one) — then
+drive an actual DOM `click` on the real (stub-rendered) `.ctx-paste` element. This goes through
+`FileContextMenu.vue`'s own real `fire()` → real `emit('action', ...)` → real `onAction` prop,
+with nothing manually simulated.
+
+**A second wiring wrinkle surfaced immediately**: `FilesSidebar.vue` also renders its own
+`FileContextMenu` (for the favourites list), so the stub produces **two** `.ctx-paste`
+elements in the tree once both are stubbed. `w.get('.ctx-paste')` picks the first DOM match,
+which turned out to be the sidebar's — wired to `FilesSidebar.vue`'s `onFavoriteAction`, which
+intentionally no-ops for a null entry (`if (entry) emit('ctx-action', action, entry)` — blank-
+area actions like 'paste' are never forwarded from there by design). The test now
+disambiguates by picking the `.ctx-paste` whose sibling in the stub's rendered tree is
+`.files-listwrap` — the actual trigger content `Files.vue` passes into its own
+`<FileContextMenu>` — rather than relying on DOM order.
+
+**Mutation test (required, whole file, not `-t`):**
+```
+# mutated: case 'paste': -> case 'paste-overwrite': in src/views/Files.vue:169
+pnpm exec vitest run src/views/Files.test.ts
+```
+Result: **1 failed, 25 passed** — `context menu "paste" action reaches ops.paste()...` failed
+with `Number of calls: 0`, while every other test (including the toolbar-button test that
+previously propped this one up) still passed independently. This is the key confirmation: the
+false-positive coupling from Bug 1 is gone, since the toolbar test's own successful call no
+longer leaks into this test's assertion.
+```
+# reverted
+pnpm exec vitest run src/views/Files.test.ts
+```
+Result: **26 passed**.
+
+### N2 — `submit()` discarded the caught error, forcing every failure through the generic toast
+
+**Root cause:** the round-1 `submit()` helper returned a bare `'empty' | 'ok' | 'failed'`
+string, catching the batch-task error only to throw it away (`catch { return 'failed' }`).
+Every failure — regardless of cause — surfaced as the hardcoded `filesOpFailed` /
+`filesPastePartialFailure` text. The code this replaced (`resolvePaste`'s own `catch (e) {
+toast.show(errMsg(e, t('filesOpFailed'))) }`, still present a few lines above, unchanged)
+correctly showed the backend's own message when there was one. Concrete scenario named by the
+reviewer: pasting into a read-only mount used to tell the user why; the round-1 version just
+said "operation failed".
+
+**Fix:** `SubmitOutcome` is now a discriminated object (`{ status: 'empty' }` /
+`{ status: 'ok' }` / `{ status: 'failed'; error: unknown }`) so the caught error travels
+alongside the outcome instead of being dropped. Both the total-failure and partial-failure
+toasts now run through `errMsg(failures[0].error, ...)` — the same helper `resolvePaste`'s
+catch uses — so the two error-reporting paths in this one function are consistent again
+instead of diverging (one showing real backend text, the other always generic). The three-way
+`'empty'/'ok'/'failed'` classification logic from F2 is otherwise untouched: `failures.length`
+replaces the old `outcomes.includes('failed')` boolean, `succeeded` is computed the same way,
+and both failure branches still leave the clipboard uncleared.
+
+**Test changes:** the three round-1 tests that asserted the hardcoded fallback text
+(`paste reports a partial failure...`, `...only batch it needed to submit fails`, `...both
+batches fail`) were rejecting with `new Error('network blip')` / `new Error('a')` /
+`new Error('b')` — real messages that the N2 fix now surfaces verbatim, so those exact
+assertions would have gone red against the FIXED code (they were pinning the bug, not the
+fix). Replaced with five tests that pin both halves of the corrected behavior:
+- "shows the backend's own reason when one batch submits and the other fails" (partial,
+  message present)
+- "falls back to the generic partial-failure message when the backend gives no reason"
+  (partial, `new Error()` with no message)
+- "shows the backend's own reason when the only batch it needed to submit fails" (total
+  failure, message present — this is literally the read-only-mount scenario)
+- "falls back to the generic failure message when both batches fail without a specific
+  reason" (total failure, no message)
+- "shows the backend's own reason when both batches fail for the same reason" (total failure,
+  message present, both rejects carry it)
+
+**Mutation test (self-imposed, matching the pattern from round 1's F2 self-check):** reverted
+both toast lines to the hardcoded `t('filesOpFailed')` / `t('filesPastePartialFailure')` (no
+`errMsg`), then ran:
+```
+pnpm exec vitest run src/files/composables/useFileOps.test.ts
+```
+Result: **3 failed, 37 passed** — the three "shows the backend's own reason..." tests failed,
+each showing the fallback text instead of the specific message (`"read-only filesystem"` /
+`"disk full"` expected, hardcoded Chinese fallback text received). Reverted the mutation; full
+file re-run: 40/40 passed.
+
+### N3 — partial-failure message invited a retry into a known bad outcome (Minor)
+
+`filesPastePartialFailure` said "check the destination and **try again**" /
+"请检查目标目录后**重试**" — but the round-1 report's own disclosed F2 limitation is that a
+retry after a partial failure re-triggers the conflict dialog for a copy's already-landed half,
+or targets a vanished source path for a cut's already-moved half. The message was steering the
+user toward exactly the rough edge being disclosed as a known limitation.
+
+**Fix:** dropped the "try again" / "重试" wording from both locales.
+- zh: `部分粘贴失败,请检查目标目录后重试` → `部分粘贴失败,请检查目标目录`
+- en: `Part of the paste failed — check the destination and try again` →
+  `Part of the paste failed — check the destination`
+
+Tests reference `zh.filesPastePartialFailure` dynamically (not a hardcoded literal), so no
+test needed updating for the wording change itself.
+
+### Test runs this round (all in foreground, per instructions)
+
+```
+pnpm exec vitest run src/views/Files.test.ts                                     # 26 passed
+pnpm exec vitest run src/views/Files.test.ts   # mutation: case 'paste-overwrite' # 1 failed / 25 passed
+pnpm exec vitest run src/views/Files.test.ts   # reverted                        # 26 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts                    # 40 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts  # mutation: no errMsg # 3 failed / 37 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts  # reverted        # 40 passed
+pnpm exec vitest run src/files/composables/useFileOps.test.ts \
+  src/files/components/FileContextMenu.test.ts src/views/Files.test.ts \
+  src/i18n/ src/files/upload/pasteConflict.test.ts \
+  src/files/composables/useFileConflicts.test.ts                                # 13 files / 318 passed
+pnpm exec vue-tsc --noEmit                                                       # clean, no output
+```
+
+### Commit
+
+`19840e5` — "fix(files): make the FileContextMenu wiring test real, keep backend error text"
+
+### Concerns going into round 3
+
+- The `.vm.$emit()` non-propagation behavior documented under N1 is empirical, not something I
+  traced to a root cause in Vue's source. If a future test elsewhere in this codebase relies on
+  the same technique to verify parent-child wiring, it may be silently non-functional the same
+  way this one was — worth a broader grep if that pattern shows up again.
+- No new limitations introduced by N1/N2/N3 beyond what round 1 already disclosed for F2.
