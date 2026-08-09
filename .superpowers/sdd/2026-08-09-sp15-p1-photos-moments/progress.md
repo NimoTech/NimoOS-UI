@@ -215,3 +215,22 @@ Task 9: complete (commits 021b759..1d65e35, review clean; picker 15, PhotosAlbum
 Task 9: minor (deferred): the two album failure tests use mockRejectedValueOnce (so
   the retry succeeds) while the moment one uses mockRejectedValue (retry still fails)
   — both prove a second write is dispatched, but the asymmetry is unflagged.
+Task 10: complete (commits 1d65e35..ae577c7, review clean first pass, spec ✅ Approved;
+  detail page 51, parity 9, styles 1075, vue-tsc clean)
+Task 10: CONTROLLER RULING on the reviewer's one Important — it is a process gap, not
+  a code defect: the ledger's "extract a grid subcomponent after Task 10" note was
+  never answered. Answering it now. PhotosMomentDetail.vue is 979 lines. The
+  extraction is genuinely warranted, but doing it here would rewrite, in the last
+  feature task, a file that four reviews just verified line by line against Vue 2 —
+  trading verified fidelity for tidiness at the worst possible moment. RE-DEFERRED to
+  a follow-up ticket, to be raised at branch handover. This entry is the record.
+Task 10: minor (deferred): the success-path delete toast (photosMoDeleted, added by
+  the implementer beyond the brief's draft and correct — Vue 2 has it) has no test;
+  dropping that line would go undetected.
+Task 10: minor (deferred): doDelete never sets confirmDeleteOpen=false on success,
+  relying on the page unmounting via router.push. Vue 2 and PhotosSmartViewDetail
+  both close it unconditionally; a stray render between the await resolving and the
+  navigation completing could show the dialog blank for one tick.
+Task 10: minor (deferred): watch(momentId) resets the asset state but not moreOpen /
+  confirmDeleteOpen / deleteError / exporting, so a confirm dialog could relabel
+  itself for a different moment mid-interaction. No in-page control triggers this.
