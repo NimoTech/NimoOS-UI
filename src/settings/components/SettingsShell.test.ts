@@ -1,3 +1,8 @@
+/// <reference types="node" />
+// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"(同 color-guard.test.ts)。
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -121,5 +126,19 @@ describe('SettingsShell', () => {
     const { w } = await mountShell()
     expect(w.find('.set-rail-foot .pf-shutdown').exists()).toBe(true)
     expect(w.find('.set-rail-foot .pf-restart').exists()).toBe(true)
+  })
+})
+
+describe('窄屏设置侧栏有可滚动提示', () => {
+  it('.set-rail-list 的窄屏分支带边缘渐隐遮罩', () => {
+    const src = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SettingsShell.vue'),
+      'utf8',
+    )
+    // 只看窄屏媒体查询那一段:宽屏是纵向排列,不需要提示。
+    const narrow = src.slice(src.indexOf('@media'))
+    const rail = narrow.slice(narrow.indexOf('.set-rail-list'))
+    expect(rail).toContain('overflow-x: auto') // 防空转:布局改了就该红
+    expect(rail).toMatch(/mask-image/)
   })
 })
