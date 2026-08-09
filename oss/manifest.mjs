@@ -1888,7 +1888,7 @@ function mountHome() {
       images: { path: '/DATA/.system_data/.docker & .containerd', size: 58125438307 },
       photos_data: { path: '/DATA/.system_data/photos', size: 6281536962 },
     }
-    const rows = buildAppPathRows(paths as never, [])
+    const rows = buildAppPathRows(paths, [])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
     expect(rows[3].path).toBe('/DATA/.system_data/photos')
     expect(rows[3].size).toBe(6281536962)
@@ -1924,18 +1924,18 @@ function mountHome() {
     // below already removed them. Same holds here, which is why photos_data adds no
     // \`.system_data\` entry to \`blocked\`.
     const items = [
-      { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false },
-      { name: '.docker', path: '/DATA/.docker', is_dir: true, is_symlink: false },
-      { name: 'Backup', path: '/DATA/Backup', is_dir: true, is_symlink: false },
+      mk('.system_data', '/DATA/.system_data'),
+      mk('.docker', '/DATA/.docker'),
+      mk('Backup', '/DATA/Backup'),
     ]
     for (const type of ['app_data', 'images', 'database', 'photos_data'] as const) {`,
     replace: `  it('drops dot-prefixed folders before the blocked list is ever consulted', () => {
     // The dot filter below already removes any dot-prefixed folder before the blocked
     // list is even consulted, so an entry like \`.system_data\` would be dead code here.
     const items = [
-      { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false },
-      { name: '.docker', path: '/DATA/.docker', is_dir: true, is_symlink: false },
-      { name: 'Backup', path: '/DATA/Backup', is_dir: true, is_symlink: false },
+      mk('.system_data', '/DATA/.system_data'),
+      mk('.docker', '/DATA/.docker'),
+      mk('Backup', '/DATA/Backup'),
     ]
     for (const type of ['app_data', 'images', 'database'] as const) {` },
 
