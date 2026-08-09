@@ -66,6 +66,7 @@ import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
+import AlbumConvertToSmartDialog from '../../photos/components/AlbumConvertToSmartDialog.vue'
 
 const lb = useLightbox()
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -131,6 +132,18 @@ async function mountDetail(opts: {
   svc.photos.getConfig.mockResolvedValue(opts.aiFeatures !== undefined ? { aiFeatures: opts.aiFeatures } : {})
   const { w } = await mountView(opts.album.id as string | number)
   return w
+}
+
+// Task 7: same setup as mountDetail, but also hands back the router so a test can spy on
+// router.push (the navigation-on-success case has no other observable effect -- the source
+// album is gone server-side, there is nothing left in this page's own state to assert on).
+async function mountDetailWithRouter(opts: {
+  album: Record<string, unknown>
+  assets?: Array<Record<string, unknown>>
+}) {
+  svc.photos.listAlbums.mockResolvedValue([opts.album])
+  svc.photos.getAlbum.mockResolvedValue({ assets: opts.assets ?? [] })
+  return mountView(opts.album.id as string | number)
 }
 
 function findSortItem(w: ReturnType<typeof mount>, sortId: string) {
@@ -837,5 +850,13 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.find('[data-test="album-more-btn"]').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('[data-test="album-menu-convert"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('navigates to the new smart view once the conversion lands', async () => {
+    const { w, router } = await mountDetailWithRouter({ album: { id: 'a1', name: 'A' }, assets: [] })
+    const push = vi.spyOn(router, 'push')
+    await w.findComponent(AlbumConvertToSmartDialog).vm.$emit('converted', { id: 'sv-new' })
+    await w.vm.$nextTick()
+    expect(push).toHaveBeenCalledWith('/photos/smart-views/sv-new')
   })
 })

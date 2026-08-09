@@ -21,9 +21,11 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import AlbumConvertToSmartDialog from '../photos/components/AlbumConvertToSmartDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosAlbums } from '../photos/stores/albums'
+import type { SmartView } from '../photos/stores/smartViews'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
@@ -311,6 +313,15 @@ function openConvertModal(): void {
   if (smartViewDisabled.value) return
   menuOpen.value = false
   convertOpen.value = true
+}
+
+// Vue2 :721-743 closes the album detail, refetches both lists, then opens the new smart
+// view's detail. Here the navigation does all of that: the source album no longer exists
+// server-side, and the destination route loads the new smart view itself. No refetch, no
+// nextTick dance -- Vue2 needed those because two mergeQuery calls in one tick raced over the
+// same query snapshot, and New-UI has no query-based deep link here at all.
+function onConverted(sv: SmartView): void {
+  void router.push('/photos/smart-views/' + sv.id)
 }
 
 // ── 工具条:批量移除 ──
@@ -792,6 +803,16 @@ watch(gridRef, () => {
     @add-to-album="(id) => openAlbumPicker([id])"
   />
   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+
+  <AlbumConvertToSmartDialog
+    v-if="album"
+    :open="convertOpen"
+    :album-id="album.id"
+    :album-name="album.title"
+    :album-count="album.count"
+    @update:open="convertOpen = $event"
+    @converted="onConverted"
+  />
 </template>
 
 <style scoped>

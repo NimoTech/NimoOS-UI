@@ -180,6 +180,12 @@ export default {
   photosAlbumRenameHint: '修改相册名称',
   photosAlbumConvertToSmart: '转为智能相册',
   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
+  // ── Task 7: 相册 → 智能相册转换弹窗 ──
+  photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
+  photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
+  photosAlbumConverting: '转换中…',
+  photosAlbumConvertedToSmart: '已转为智能相册',
+  photosAlbumConvertFailed: '转换失败',
   photosAlbumStatVideos: '视频',
   photosAlbumStatCreated: '创建时间',
   photosAlbumDelete: '删除相册',

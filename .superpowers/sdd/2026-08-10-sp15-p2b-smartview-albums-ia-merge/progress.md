@@ -264,3 +264,31 @@ Score worth remembering: reviews raised 6 Important findings across the four tas
   => A committed plan is not a correct plan. T5-T8 have no per-task review by the owner's
   ruling, so the whole-branch final review carries that weight alone; brief the finder
   accordingly and do NOT let it skip the areas T5-T8 touch.
+
+Task 5: complete (commits e66e4e6..e89cebc). NO per-task reviewer (owner's ruling);
+  the controller spot-check served as the gate and found TWO real issues, both fixed:
+  - Third occurrence this phase of new comments written in Chinese (~20 lines across
+    PhotosSmartViews.vue and PhotosSearch.vue). The implementer was rewriting the file's
+    own Chinese header block, so it "matched the surrounding convention" — but that
+    carve-out only protects lines you do not author.
+  - MY DISPATCH SCOPED IT WRONG (4th plan/dispatch defect this phase): I told T5 the
+    search page's link was "redirect only", so its toast label still read
+    「在智能视图中打开」while navigating to /photos/albums — the SAME lying-label defect
+    I had just ruled must be fixed for the back button, in the same task. Resolved by
+    renaming photosSearchOpenSmartViews -> photosSearchOpenInAlbums (在相册中打开 →).
+  Controller re-verified after the fix: zero newly-added Chinese in the whole T5 range,
+  zero live references to the old key, both locales carry the new one.
+  Test cases deleted with their coverage relocated are listed in task-5-report.md.
+
+Task 6: complete (commit 2094f37). No per-task reviewer; controller spot-check clean —
+  no newly-authored Chinese (the one Chinese +line is a pre-existing sentence pushed onto
+  a new line by an extended comment), zero color literals in the new code,
+  .album-detail-body carries overflow:hidden, the orphaned .album-more-item* rules are
+  gone, openConvertModal is still a stub, localeTag added.
+  The implementer's OWN self-review caught three of the traps the dispatch warned about
+  before committing: a Chinese comment sentence, a hex literal quoted inside a comment
+  (which tripped color-guard), and a `*` immediately before `/` closing a comment early.
+  It also found a defect the plan never mentioned: wrapping the photo grid in the new
+  two-column body BROKE TWO SIBLING-COMBINATOR RULES
+  (.album-toolbar[data-edit="true"] ~ .tile...), repointed through the new wrapper.
+  That class of breakage is invisible to every gate — worth remembering for T7/T8.

@@ -181,6 +181,12 @@ export default {
   photosAlbumRenameHint: 'Change the album name',
   photosAlbumConvertToSmart: 'Convert to Smart Album',
   photosAlbumConvertToSmartHint: 'Nimo keeps adding matches automatically',
+  // ── Task 7: album -> smart album conversion dialog ──
+  photosAlbumConvertSuggestHint: 'Nimo suggests these conditions — final matching is decided when the Smart Album is created',
+  photosAlbumConvertLockHint: 'Your {n} photos stay locked in. Nimo will keep adding new matches for this theme.',
+  photosAlbumConverting: 'Converting…',
+  photosAlbumConvertedToSmart: 'Converted to Smart Album',
+  photosAlbumConvertFailed: 'Convert failed',
   photosAlbumStatVideos: 'Videos',
   photosAlbumStatCreated: 'Created',
   photosAlbumDelete: 'Delete album',
