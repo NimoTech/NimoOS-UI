@@ -17,3 +17,27 @@ Pre-flight facts (controller, verified before Task 1):
 - Device: 9 smart views, all semantic + paused + never evaluated;
   smart_view_matches = 0 => the excluded band is unreachable without first
   creating a date-conditioned live view. Recorded in the plan's Task 4.
+
+Task 1: complete (e702f2c) — service 5, store +11 (existing 52 unchanged), vue-tsc clean.
+  Implementer caught a contradiction in the plan: the test harness's default parameter
+  means harness(undefined) replies {}, so `body() ?? []` could never fall through;
+  replaced with an Array.isArray guard, which is strictly more robust.
+Task 2: complete (f8000b6) — rename only, 15/33/20 case counts unchanged.
+  TWO plan errors corrected by the implementer: PhotosMomentDetail.vue was ALREADY a
+  third consumer (P1-T9 wired it), and oss/manifest.mjs strips src/photos wholesale so
+  no manifest edit was needed there. The design doc's "2 consumers" claim was wrong.
+Task 3: complete (bdd9fb0 + ba3c0ec + 9feac00) — new file 16, existing page test 71
+  unchanged, parity 9; styles 1075; oss 465 green after TWO manifest fixes (the export
+  guard aborts on a dirty tree, so a newly added test only becomes visible to the leak
+  guard after it is committed — the second fix could not have been predicted).
+  Plan error corrected: the brief's seed() wrote assets straight into the store, but
+  loadDetail/loadExcluded blank their targets on mount; driving the service mocks is
+  the only way that works.
+
+P1 DEFECT FOUND INCIDENTALLY BY TASK 3 — controller verified:
+  PhotosMomentDetail.vue:700,730 set :data-selected with NO matching CSS rule anywhere
+  that can reach them. Every data-selected rule in the repo lives in another component's
+  SCOPED styles (PhotosGrid / PersonAssetGrid / PhotosLibraryPicker), and P1's moment
+  page renders its own .tile elements. So selection mode there has no visual feedback at
+  all — user-visible, and four P1 reviews plus the whole-branch review missed it.
+  Folded into Task 4 as a named fix.
