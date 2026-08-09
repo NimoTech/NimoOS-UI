@@ -42,8 +42,9 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 // injects a MenuRootContext that only a real ContextMenuRoot provides, and
 // throws when mounted without one. These stubs render the #menu slot content
 // unconditionally (no Portal/positioning), so a real click drives FileContextMenu's
-// own real emit -- unlike calling `.vm.$emit()` directly on the child (see the
-// "context menu paste action" test below for why that doesn't work).
+// own real emit -- the same real DOM-click path production code goes through.
+// (Not because `.vm.$emit()` on the child doesn't work -- it does; see the
+// "context menu paste action" test below for what the actual failure mode was.)
 const ContextMenuStub = {
   template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
 }
@@ -218,7 +219,8 @@ describe('Files.vue browse pipe', () => {
     //
     // The actual root cause is that `Files.vue`'s render tree contains TWO
     // `FileContextMenu` instances: FilesSidebar.vue's own copy (for the
-    // favourites list, around Files.vue:621) and the main listing's (around
+    // favourites list, inside FilesSidebar.vue:220 -- Files.vue:621 is only
+    // where `<FilesSidebar>` itself is mounted) and the main listing's (around
     // Files.vue:681). `findComponent(FileContextMenu)` -- and `findAll(...)`'s
     // first result -- resolves to the SIDEBAR's instance, whose
     // `onFavoriteAction` deliberately no-ops when `entry` is null

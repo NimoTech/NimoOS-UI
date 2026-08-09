@@ -30,8 +30,13 @@ export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
   return tasks.some((t) => t.finished && t.to === currentPath)
 }
 
-export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'skip' | 'rename') {
-  return { type: o.type, item: o.item, to, style }
+// B6: `is_dir` rides on clipboard items purely so the conflict dialog can tell
+// files from folders (see clipboard.ts) -- it never belonged on the wire.
+// Vue2's FilePanel.vue submitPasteTask keeps the request body byte-for-byte
+// the shape the backend already expects (`item.map(entry => ({ from: entry.from }))`);
+// stripping it here matches that instead of passing OperateItem through as-is.
+export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'rename') {
+  return { type: o.type, item: o.item.map((entry) => ({ from: entry.from })), to, style }
 }
 
 export function taskPercent(task: FileTask): number {

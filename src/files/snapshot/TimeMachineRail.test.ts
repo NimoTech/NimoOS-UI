@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -167,6 +167,11 @@ describe('TimeMachineRail', () => {
   // ↓ Task 10: with enough snapshots to overflow the rail's own scroll container,
   // stepping the selection past the visible range must scroll the rail too -- the deck
   // and the bottom bar already followed the selection, but the rail looked frozen.
+  // B4: these two tests replace the global no-op stub (vitest.setup.ts) with a
+  // per-test spy and never restored it, so any test that ran afterward in this
+  // file inherited a spy from a previous, already-finished test.
+  afterEach(() => { Element.prototype.scrollIntoView = () => {} })
+
   it('scrolls the newly selected tick into view', async () => {
     const spy = vi.fn()
     // jsdom does not implement scrollIntoView

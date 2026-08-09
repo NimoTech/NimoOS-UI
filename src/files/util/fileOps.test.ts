@@ -33,17 +33,24 @@ describe('fileOps util', () => {
     expect(shouldReload([mk({ finished: false, to: '/DATA/here' })], '/DATA/here')).toBe(false)
   })
 
-  it('buildPastePayload 组装 {type,item,to,style}', () => {
-    const o = { type: 'move' as const, item: [{ from: '/DATA/a', is_dir: false }] }
-    expect(buildPastePayload(o, '/DATA/dst', 'skip')).toEqual({
-      type: 'move', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'skip',
-    })
-  })
-
+  // B5: 'skip' was never a real backend style -- the new conflict flow filters
+  // skipped/cancelled items out before submitting anything, so buildPastePayload
+  // never actually receives it. The dead 'skip' branch in its type signature is
+  // removed alongside this test.
   it('buildPastePayload accepts the keep-both style the backend calls "rename"', () => {
     const o = { type: 'copy' as const, item: [{ from: '/DATA/a', is_dir: false }] }
     expect(buildPastePayload(o, '/DATA/dst', 'rename')).toEqual({
-      type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'rename',
+      type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'rename',
+    })
+  })
+
+  // B6: is_dir rides on OperateItem purely for the local conflict dialog (see
+  // clipboard.ts) and must never reach the backend -- Vue2's FilePanel.vue
+  // strips it before submitting for the same reason.
+  it('buildPastePayload strips is_dir before the request body leaves the client', () => {
+    const o = { type: 'copy' as const, item: [{ from: '/DATA/Trip', is_dir: true }, { from: '/DATA/a.txt', is_dir: false }] }
+    expect(buildPastePayload(o, '/DATA/dst', 'overwrite')).toEqual({
+      type: 'copy', item: [{ from: '/DATA/Trip' }, { from: '/DATA/a.txt' }], to: '/DATA/dst', style: 'overwrite',
     })
   })
 

@@ -221,8 +221,10 @@ describe('useFileOps', () => {
     expect(batchTask).toHaveBeenCalledTimes(2)
     expect(batchTask.mock.calls.map((c) => (c[0] as { style: string }).style).sort())
       .toEqual(['overwrite', 'rename'])
-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b', is_dir: false }], to: '/DATA/dst', style: 'rename' })
+    // B6: is_dir is local-only bookkeeping for the conflict dialog and must not
+    // reach the backend -- buildPastePayload strips it before submitting.
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b' }], to: '/DATA/dst', style: 'rename' })
     expect(clip.operateObject).toBeNull()
   })
 
@@ -420,7 +422,13 @@ describe('useFileOps', () => {
     await ops.paste()
     expect(toastSpy).toHaveBeenCalledWith('read-only filesystem')
     expect(toastSpy).not.toHaveBeenCalledWith(zh.filesOpFailed)
-    expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)
+    // B1: `zh.filesPastePartialFailure` is the un-interpolated template
+    // ('部分文件已粘贴,另一部分失败({reason}),请检查目标目录') -- toast.show is
+    // never called with that raw string, so asserting not-called-with it is
+    // vacuously true regardless of what actually happened. Match on the
+    // template's own text instead so this still catches a regression that
+    // shows the "part landed" framing for what is really a total failure.
+    expect(toastSpy).not.toHaveBeenCalledWith(expect.stringContaining('部分文件已粘贴'))
     expect(clip.operateObject).not.toBeNull()
   })
 
