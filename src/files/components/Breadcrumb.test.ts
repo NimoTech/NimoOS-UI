@@ -24,7 +24,7 @@ function extractStyle(src: string): string {
 // because no rule matching it (by both tag and class) declares `cursor: pointer`.
 // This walks every selector of every rule and requires a leading type name (if
 // any) to match the element's actual tag, so it reflects real CSS matching
-// instead of doing a substring search that a same-named-but-differently-scoped
+// instead of doing a substring match that a same-named-but-differently-scoped
 // rule elsewhere in the file could silently satisfy.
 function selectorMatchesElement(selector: string, tag: string, classes: string[]): boolean {
   const bare = selector.replace(/:[\w-]+(?:\([^)]*\))?/g, '')

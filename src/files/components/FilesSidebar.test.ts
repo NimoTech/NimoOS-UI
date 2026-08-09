@@ -78,8 +78,8 @@ describe('FilesSidebar', () => {
   })
 
   // SP12-T9: favourites are always folders, and the file listing already picks a
-  // per-name icon (Downloads/Gallery/Media/Documents/AppData) via icons.ts's
-  // FOLDER_BY_NAME — the sidebar hardcoded the generic folder icon instead.
+  // per-name icon for well-known folder names via icons.ts's FOLDER_BY_NAME map —
+  // the sidebar hardcoded the generic folder icon instead.
   describe('favourite icons match the file listing (F9)', () => {
     it('gives a favourite the icon its name maps to, not the generic folder', () => {
       seedFiles()

@@ -80,7 +80,7 @@ describe('Files.vue context-menu target (F11)', () => {
     ;(w.vm as any).onCtxAction('copy', a)
 
     const clip = useClipboardStore()
-    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt' }] })
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt', is_dir: false }] })
   })
 
   it('Copy on selected b when b,c are selected → clipboard contains b,c', async () => {
@@ -154,6 +154,6 @@ describe('Files.vue context-menu target (F11)', () => {
     ;(w.vm as any).onCtxAction('copy', ctxEntry)
 
     const clip = useClipboardStore()
-    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt' }] })
+    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt', is_dir: false }] })
   })
 })

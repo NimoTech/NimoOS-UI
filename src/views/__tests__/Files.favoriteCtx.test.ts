@@ -100,7 +100,7 @@ describe('Files.vue favourite context actions (F3)', () => {
     w.findComponent(FilesSidebar).vm.$emit('ctx-action', 'copy', WORK)
     await flushPromises()
 
-    expect(useClipboardStore().operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/Work' }] })
+    expect(useClipboardStore().operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/Work', is_dir: true }] })
   })
 
   it('opens the rename dialog on the favourite', async () => {
