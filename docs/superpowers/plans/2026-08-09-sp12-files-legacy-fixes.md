@@ -63,33 +63,33 @@ const B = f('b.txt')
 const C = f('c.txt')
 
 describe('contextTargets', () => {
-  it('被点项不在选区内 → 只作用于被点项(F11 的核心回归)', () => {
+  it('acts on the clicked entry alone when it is outside the selection (the F11 regression)', () => {
     expect(contextTargets(A, [B, C])).toEqual([A])
   })
 
-  it('被点项在选区内且选区多于一项 → 作用于整个选区', () => {
+  it('acts on the entire selection when the clicked entry is in it and selection has >1 item', () => {
     expect(contextTargets(B, [B, C])).toEqual([B, C])
   })
 
-  it('选区只有一项 → 只作用于被点项,即便被点项就是那一项', () => {
-    // Vue2 ContextMenu.vue:274 的判据是 length > 1;选区仅一项时走单项分支,
-    // 菜单因此呈单项态(重命名/复制路径可用)。
+  it('acts on the clicked entry only when selection has exactly one item, even if the clicked entry is that one item', () => {
+    // Vue2 ContextMenu.vue:274 gates on length > 1; when selection has one item we take the single-item path,
+    // so the menu renders its single-item shape (rename/copy path enabled).
     expect(contextTargets(B, [B])).toEqual([B])
   })
 
-  it('空选区 → 只作用于被点项', () => {
+  it('acts on the clicked entry when selection is empty', () => {
     expect(contextTargets(A, [])).toEqual([A])
   })
 
-  it('没有被点项(工具栏批量入口)→ 原样返回选区', () => {
+  it('returns the selection unchanged when there is no clicked entry (toolbar batch entry point)', () => {
     expect(contextTargets(null, [B, C])).toEqual([B, C])
   })
 
-  it('没有被点项且选区为空 → 空数组', () => {
+  it('returns empty array when there is no clicked entry and selection is empty', () => {
     expect(contextTargets(null, [])).toEqual([])
   })
 
-  it('按 path 判断"在选区内",不依赖对象同一性', () => {
+  it('membership in selection is determined by path, not object identity', () => {
     const bCopy = { ...B }
     expect(contextTargets(bCopy, [B, C])).toEqual([B, C])
   })
@@ -175,6 +175,7 @@ import Files from './Files.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useClipboardStore } from '../files/stores/clipboard'
+import FileContextMenu from '../files/components/FileContextMenu.vue'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -225,7 +226,7 @@ async function mountFiles() {
   return w
 }
 
-describe('Files.vue 右键作用对象(F11)', () => {
+describe('Files.vue context-menu target (F11)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     ;(globalThis as any).IntersectionObserver = class {
@@ -236,7 +237,7 @@ describe('Files.vue 右键作用对象(F11)', () => {
     }
   })
 
-  it('选中 b、c 后右键点未选中的 a 再复制 → 剪贴板里只有 a', async () => {
+  it('Copy on unselected a when b,c are selected → clipboard contains only a', async () => {
     const w = await mountFiles()
     const files = useFilesStore()
     files.setSelection(['/DATA/b.txt', '/DATA/c.txt'])
@@ -249,7 +250,7 @@ describe('Files.vue 右键作用对象(F11)', () => {
     expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt' }] })
   })
 
-  it('选中 b、c 后右键点选区内的 b 再复制 → 剪贴板里是 b、c', async () => {
+  it('Copy on selected b when b,c are selected → clipboard contains b,c', async () => {
     const w = await mountFiles()
     const files = useFilesStore()
     files.setSelection(['/DATA/b.txt', '/DATA/c.txt'])
@@ -262,7 +263,7 @@ describe('Files.vue 右键作用对象(F11)', () => {
     expect(clip.operateObject!.item.map((i) => i.from)).toEqual(['/DATA/b.txt', '/DATA/c.txt'])
   })
 
-  it('删除分支同样只吃被点项(delete 曾是内联的第二处实现)', async () => {
+  it('Delete branch also acts on clicked entry only (delete was once a second inline implementation)', async () => {
     const w = await mountFiles()
     const files = useFilesStore()
     files.setSelection(['/DATA/b.txt', '/DATA/c.txt'])
@@ -274,7 +275,7 @@ describe('Files.vue 右键作用对象(F11)', () => {
     expect((w.vm as any).deleteDlg.entries.map((e: any) => e.path)).toEqual(['/DATA/a.txt'])
   })
 
-  it('菜单 prop 跟着有效目标集走,不是原始选区条数', async () => {
+  it('Menu prop reflects the effective target set, not the original selection count', async () => {
     const w = await mountFiles()
     const files = useFilesStore()
     files.setSelection(['/DATA/b.txt', '/DATA/c.txt'])
@@ -283,8 +284,12 @@ describe('Files.vue 右键作用对象(F11)', () => {
     ;(w.vm as any).ctxEntry = a
     await w.vm.$nextTick()
 
-    // 为 a 弹出的菜单必须呈单项态 —— 否则界面在说谎:显示多选态却只操作 a
-    expect((w.vm as any).ctxTargetCount).toBe(1)
+    // The menu shown for a must render as single-item shape — otherwise the UI lies:
+    // showing multi-select shape while only acting on a.
+    // Read the prop off the CHILD, not the parent's computed: a template-only
+    // regression on the binding must fail this test, and asserting the parent's
+    // `ctxTargetCount` cannot see the binding at all.
+    expect(w.findComponent(FileContextMenu).props('selectedCount')).toBe(1)
   })
 })
 ```
@@ -292,7 +297,7 @@ describe('Files.vue 右键作用对象(F11)', () => {
 - [ ] **Step 2: 跑测试确认它红**
 
 Run: `pnpm exec vitest run src/views/Files.contextTarget.test.ts`
-Expected: FAIL —— 第 1 例剪贴板里是 b、c 而非 a；第 4 例 `ctxTargetCount` is undefined
+Expected: FAIL —— 第 1 例剪贴板里是 b、c 而非 a；第 4 例收到的 selectedCount 是 2 而非 1
 
 - [ ] **Step 3: 改 `Files.vue` 的 script**
 
@@ -305,16 +310,16 @@ import { contextTargets } from '../files/util/contextTarget'
 ② 把现有的 `selectedOr`（约 `:93-96`）整块换掉：
 
 ```ts
-// 当前选区(按列表顺序),右键目标集与批量入口共用
+// Current selection (in listing order), shared by context-menu target set and batch entry points
 const selectedEntries = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
 
-// 右键动作的有效目标集 —— 判据在 util/contextTarget.ts,菜单形态与所有动作共用同一份,
-// 避免"菜单显示多选态、动作只作用一项"这类两处漂移。
+// Effective target set for context-menu actions — the determination logic is in util/contextTarget.ts,
+// and both menu shape and all actions read the same set to avoid "menu shows multi-select, action acts on one item" mismatches.
 function ctxTargets(entry: FileEntry | null): FileEntry[] {
   return contextTargets(entry, selectedEntries.value)
 }
 
-// 菜单 prop:必须是有效目标集的条数,不是原始选区条数
+// Menu prop: must be the count of the effective target set, not the original selection count
 const ctxTargetCount = computed(() => ctxTargets(ctxEntry.value).length)
 ```
 
@@ -425,49 +430,49 @@ const dir = (name: string, shared?: string): FileEntry => ({
 const file = (name: string): FileEntry => ({ name, path: `/DATA/${name}`, is_dir: false })
 
 describe('isAlreadyShared', () => {
-  it('extensions.share.shared === "true" 才算已共享', () => {
+  it('only entries with extensions.share.shared === "true" count as already shared', () => {
     expect(isAlreadyShared(dir('x', 'true'))).toBe(true)
   })
 
-  it('字符串 "false" 不算已共享', () => {
+  it('string "false" does not count as already shared', () => {
     expect(isAlreadyShared(dir('x', 'false'))).toBe(false)
   })
 
-  it('没有 extensions 不算已共享', () => {
+  it('entries without extensions are not already shared', () => {
     expect(isAlreadyShared(dir('x'))).toBe(false)
   })
 
-  it('extensions 为 null 不算已共享(后端会真的返回 null)', () => {
+  it('extensions being null does not count as already shared (backend really returns null)', () => {
     expect(isAlreadyShared({ name: 'x', path: '/DATA/x', is_dir: true, extensions: null })).toBe(false)
   })
 })
 
 describe('shareableFolders', () => {
-  it('全部可共享 → 全进 targets,skipped 为 0', () => {
+  it('all shareable → all go into targets, skipped is 0', () => {
     const r = shareableFolders([dir('a'), dir('b')])
     expect(r.targets.map((e) => e.name)).toEqual(['a', 'b'])
     expect(r.skipped).toBe(0)
   })
 
-  it('部分已共享 → 只留未共享的,skipped 计已共享数', () => {
+  it('some already shared → only unshareable remain, skipped counts the already-shared', () => {
     const r = shareableFolders([dir('a'), dir('b', 'true'), dir('c'), dir('d', 'true')])
     expect(r.targets.map((e) => e.name)).toEqual(['a', 'c'])
     expect(r.skipped).toBe(2)
   })
 
-  it('全部已共享 → targets 空,skipped 计数', () => {
+  it('all already shared → targets empty, skipped counts all', () => {
     const r = shareableFolders([dir('a', 'true'), dir('b', 'true')])
     expect(r.targets).toEqual([])
     expect(r.skipped).toBe(2)
   })
 
-  it('非文件夹被剔除,且不计入 skipped(跳过数只表达"因已共享而跳过")', () => {
+  it('non-folders are dropped and not counted in skipped (skipped only means "would be shared but already is")', () => {
     const r = shareableFolders([dir('a'), file('b.txt')])
     expect(r.targets.map((e) => e.name)).toEqual(['a'])
     expect(r.skipped).toBe(0)
   })
 
-  it('空输入 → 空 targets、skipped 为 0', () => {
+  it('empty input → empty targets, skipped is 0', () => {
     expect(shareableFolders([])).toEqual({ targets: [], skipped: 0 })
   })
 })
@@ -516,7 +521,7 @@ export function shareableFolders(entries: FileEntry[]): { targets: FileEntry[]; 
 - [ ] **Step 4: 跑测试确认它绿**
 
 Run: `pnpm exec vitest run src/files/util/shareGate.test.ts`
-Expected: PASS，10 例
+Expected: PASS，9 例（isAlreadyShared 4 + shareableFolders 5）
 
 - [ ] **Step 5: 提交**
 
@@ -579,7 +584,10 @@ import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useToast } from '../stores/toast'
 
-const createShare = vi.fn().mockResolvedValue(undefined)
+// vi.hoisted is required: vitest hoists vi.mock() above module-level consts, so a
+// plain `const createShare = vi.fn()` referenced inside the factory throws a
+// ReferenceError at load. Same convention as src/files/stores/shares.test.ts.
+const { createShare } = vi.hoisted(() => ({ createShare: vi.fn().mockResolvedValue(undefined) }))
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -634,7 +642,7 @@ async function mountFiles() {
   return w
 }
 
-describe('Files.vue 批量共享门控(F12)', () => {
+describe('Files.vue batch share gating (F12)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     createShare.mockClear()
@@ -646,7 +654,7 @@ describe('Files.vue 批量共享门控(F12)', () => {
     }
   })
 
-  it('选区混有已共享项 → 只共享未共享的,不把已共享项发给后端', async () => {
+  it('Selection with already-shared mixed in → only share the unshareable, do not send already-shared to backend', async () => {
     const w = await mountFiles()
     useFilesStore().setSelection(['/DATA/plain', '/DATA/shared', '/DATA/plain2'])
 
@@ -657,19 +665,19 @@ describe('Files.vue 批量共享门控(F12)', () => {
     expect(createShare.mock.calls[0][0]).toEqual(['/DATA/plain', '/DATA/plain2'])
   })
 
-  it('选区混有已共享项 → toast 告知跳过了几个', async () => {
+  it('Selection with already-shared mixed in → toast says how many were skipped', async () => {
     const w = await mountFiles()
     useFilesStore().setSelection(['/DATA/plain', '/DATA/shared'])
 
     await (w.vm as any).onShare(null)
     await flushPromises()
 
-    // toast 是堆叠的(stores/toast.ts:31 `toasts` 数组),所以成功提示与跳过提示
-    // 会同时在屏上 —— 断言整个栈里有这条,而不是断言"最后一条"。
+    // Toasts stack (the `toasts` array in stores/toast.ts:31), so the success and skipped notices
+    // are on screen at the same time — assert the whole stack contains this one, not just "the last one".
     expect(useToast().toasts.map((x) => x.text)).toContain('已跳过 1 个已共享项')
   })
 
-  it('选区全是已共享项 → 一个请求都不发,直接说明原因', async () => {
+  it('Selection with all already-shared → send no request, explain why directly', async () => {
     const w = await mountFiles()
     useFilesStore().setSelection(['/DATA/shared'])
 
@@ -680,7 +688,7 @@ describe('Files.vue 批量共享门控(F12)', () => {
     expect(useToast().toasts.map((x) => x.text)).toEqual(['所选文件夹都已共享'])
   })
 
-  it('无已共享项 → 行为与从前一致,不弹跳过提示', async () => {
+  it('Selection with no already-shared → behavior same as before, no skipped notice', async () => {
     const w = await mountFiles()
     useFilesStore().setSelection(['/DATA/plain', '/DATA/plain2'])
 
@@ -713,21 +721,21 @@ import { shareableFolders } from '../files/util/shareGate'
 把整个 `onShare`（约 `:105-115`）换成：
 
 ```ts
-// 发起共享:右键单文件夹(entry 非空、不在选区内)→ 创建后自动弹出链接对话框;
-// 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
-// 已共享的成员在这里滤掉 —— 后端对它们返回 SHARE_ALREADY_EXISTS 会让整批失败,
-// 而单项右键菜单本就把已共享项的入口藏了(FileContextMenu 的 showShare),
-// 批量不跟上就是同一语义的两套判定。
+// Initiate sharing: right-click single folder (entry non-null, outside selection) → show link dialog after creation;
+// batch multi-select (entry null) → only share unshared folders in batch, do not show link dialog (multiple names to display to user).
+// Already-shared members are filtered here — backend returns SHARE_ALREADY_EXISTS for them and the whole batch fails,
+// but the single-item context menu already hides the action for already-shared items (FileContextMenu's showShare),
+// so batch must follow the same logic to keep the semantics consistent.
 async function onShare(entry: FileEntry | null) {
   const { targets, skipped } = shareableFolders(ctxTargets(entry))
   if (!targets.length) {
-    // 选中的确实都是文件夹、只是全都共享过了 —— 说清楚原因,别让用户以为按钮坏了
+    // The selection really is all folders, just all already shared — explain why so user doesn't think the button is broken
     if (skipped) toast.show(t('filesShareAllAlreadyShared'))
     return
   }
   const ok = await shares.create(targets.map((f) => f.path))
   if (!ok) return
-  ops.refresh() // 刷新列表,让刚共享的文件夹 extensions.share.shared 更新(否则右键仍显示「共享到局域网」)
+  ops.refresh() // Refresh the listing so shared folders get their extensions.share.shared updated (else context menu still shows "Share to LAN")
   if (skipped) toast.show(t('filesShareSkippedShared', { count: skipped }))
   if (targets.length === 1) shareDlg.value = { open: true, name: shareName(targets[0].path) }
 }
@@ -784,50 +792,54 @@ skipped, and send nothing at all when every folder is already shared."
 创建 `src/views/__tests__/filesLayoutHeightCap.test.ts`：
 
 ```ts
-// 文件区 `.files-layout` 高度封顶的双向回归闸 —— 与相册区的
-// photosLayoutHeightCap.test.ts 同源同理,只是 Files 只有一页。
+// Bidirectional regression guard for the Files area .files-layout height capping —
+// same origin and logic as photosLayoutHeightCap.test.ts in the photos area,
+// except Files has only one page.
 //
-// 背景:`.files-layout` 原本写 `min-height: 100%`(至少一屏、可无限长高)而不是
-// `height: 100%`。侧栏 align-self:stretch 于是拉到内容高度而非视口高度,唯一的滚动
-// 容器变成 AreaShell 的 .area-body ⇒ 侧栏与面包屑跟着文件列表一起滚出屏幕,而侧栏
-// 自己的 overflow-y:auto 永远不触发(收藏项一多就够不着)。
+// Background: .files-layout originally had `min-height: 100%` (at least one viewport height,
+// can grow unbounded) instead of `height: 100%`. The sidebar with align-self:stretch then
+// stretched to content height instead of viewport height, and the only scroller became
+// AreaShell's .area-body ⇒ sidebar and breadcrumb scrolled away with the file listing,
+// and the sidebar's own overflow-y:auto never engaged (can't reach favorites when there are many).
 //
-// 与相册区不同的是:相册那 11 页本来就有内层滚动容器,Files 没有 —— 所以封顶必须
-// 连着建容器一起做,只改 .files-layout 会把列表裁掉。三条规则是一个整体,任缺一条
-// 布局都不成立,故本闸三条都锁。
+// Unlike the photos area: photos had 11 pages each with an inner scroll container already,
+// Files has none — so capping must be done together with building the container. Changing
+// .files-layout alone would clip the listing. The three CSS rules are one unit: if any is
+// missing the layout breaks, so this guard locks all three.
 //
-// jsdom 不做布局(getBoundingClientRect 恒 0),真效果以真机验收为准;这道闸只锁源
-// 文本、防复发。读盘一律 node:fs —— `?raw` 在本仓测试环境恒空。
+// jsdom doesn't do layout (getBoundingClientRect always 0), actual behavior is verified on device;
+// this guard only locks source text and prevents regressions. Always read files with node:fs —
+// `?raw` is always empty in this repo's test environment.
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 
 const SRC = readFileSync('src/views/Files.vue', 'utf8')
 
-describe('文件区 .files-layout 高度封顶', () => {
-  it('正向:.files-layout 用 height: 100% 封顶', () => {
+describe('Files area .files-layout height capping', () => {
+  it('forward: .files-layout uses height: 100% to cap', () => {
     expect(SRC).toContain('.files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }')
   })
 
-  it('反向:不许回退成 min-height: 100%', () => {
+  it('backward: must not regress to min-height: 100%', () => {
     expect(
       SRC.includes('.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }'),
-      '.files-layout 回退成了 min-height:100%,侧栏与面包屑会重新跟着文件列表滚走',
+      '.files-layout regressed to min-height:100%, sidebar and breadcrumb will scroll away with the file listing again',
     ).toBe(false)
   })
 
-  it('.files-main 显式 min-height: 0(不清零则子元素撑破父容器,封顶等于白封)', () => {
+  it('.files-main has explicit min-height: 0 (without it child elements burst the parent, capping does nothing)', () => {
     const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-main {'))
-    expect(rule, '找不到 .files-main 规则').toBeTruthy()
+    expect(rule, 'could not find .files-main rule').toBeTruthy()
     expect(rule).toContain('min-height: 0')
   })
 
-  it('.files-listwrap 自带 overflow-y: auto(封顶后由它接管滚动)', () => {
+  it('.files-listwrap has overflow-y: auto (after capping, it takes over scrolling)', () => {
     const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-listwrap {'))
-    expect(rule, '找不到 .files-listwrap 规则').toBeTruthy()
+    expect(rule, 'could not find .files-listwrap rule').toBeTruthy()
     expect(rule).toContain('overflow-y: auto')
   })
 
-  it('.files-listwrap 不再用 min-height: 200px 顶住高度', () => {
+  it('.files-listwrap no longer uses min-height: 200px to prop up height', () => {
     const rule = SRC.split('\n').find((l) => l.trimStart().startsWith('.files-listwrap {'))
     expect(rule).not.toContain('min-height: 200px')
   })
@@ -844,18 +856,19 @@ Expected: FAIL，5 例中 4 例红（只有「反向不许回退」那条此刻�
 `src/views/Files.vue` 的 `<style scoped>`，`:687-688` 与 `:695`：
 
 ```css
-/* height(非 min-height)封顶 + .files-main 的 min-height:0 打通 flex 收缩链 + 由
-   .files-listwrap 接管滚动 —— 三条是一个整体。缺 min-height:0 则子元素撑破父容器,
-   缺 overflow-y 则列表被裁掉够不着。改动后侧栏与面包屑钉住,只有文件列表自己滚,
-   FilesSidebar 自己的 overflow-y:auto 也终于能触发。 */
+/* Height capping (not min-height) + .files-main's min-height:0 unblocks the flex shrinking chain
+   + .files-listwrap takes over scrolling — these three are one unit. Without min-height:0, child
+   elements burst the parent; without overflow-y, the listing gets clipped. After the change:
+   sidebar and breadcrumb stay put, only the file listing scrolls, and FilesSidebar's own
+   overflow-y:auto finally engages. */
 .files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
-.files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+.files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
 ```
 
 以及 `.files-listwrap`：
 
 ```css
-.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区;封顶后由本容器接管滚动 */
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 ```
 
 - [ ] **Step 4: 跑测试确认它绿**
