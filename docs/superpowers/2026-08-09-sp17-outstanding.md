@@ -1,9 +1,8 @@
 # SP17 设置区补迁 —— 交接与真机验收清单
 
-**状态**:4 个 Task 全部编码完成,逐个评审 clean(见 `.superpowers/sdd/2026-08-09-sp17-settings-catchup/progress.md`),**未合并 master、未部署、未推 origin、未做真机验收**。
-**分支**:`sp17-settings-catchup`(base = New-UI `master@6f8f742`,即本分支与 `master` 的 merge-base)
-**worktree**:`.claude/worktrees/sp17-settings-catchup`
-**代码末位**:`b0f7233`
+**状态**:编码 + 逐任务评审 + 整支终审全部完成,**已快进合入 New-UI `master`**;**未推 origin、未部署、未做真机验收**——本文档的验收清单一步都还没跑。
+**合并后末位**:`af61179`(分支 `sp17-settings-catchup` 共 19 提交,base = `master@6f8f742`)
+**worktree / 分支**:均已删除(回收 404M)。本期工作现在直接在 `master` 主检出上,过程台账(brief/report)已随收尾一并删除,该留的都在本文档里。
 
 对应的 roadmap 记录在 `NimoOS-UI` 仓(Vue2)`docs/vue3-migration-roadmap.md` §4 「SP17 — 设置区补迁」一节——那边是给跨期读者看的概览,本文档是给接手真机验收/合并的人看的操作清单,两者内容有意重叠但角度不同。
 
@@ -14,7 +13,9 @@
 | 1. 共享 service 包新增 `getLanDiscovery()`(裸 JSON,无信封) | `#93` 的一部分 | `00871cf` |
 | 2. 设置侧栏新增「局域网设备」标签 | `#93` | `7b68025`、`3590881`(oss 导出清单同步)、`e16d931`(两处测试标题补译英文) |
 | 3. App 数据存储位置新增「相册缓存」行 + 清理浏览黑名单死代码 | `#103`、`#105` | `1e99477`、`82a1f69`、`dd0b01e`(均为 oss 导出清单同步/修复) |
-| 4. 桌面 KVM 磁贴按服务可用性门控 | `#125` | `b0f7233` |
+| 4. 桌面 KVM 磁贴按服务可用性门控 | `#125` | `b0f7233`,以及终审修复波 `5b9d058`(改成即刻清位,见下)、`b3bacd0`、`9377b0c`、`85fe026` |
+
+**整支终审逮到、并已修掉的一件**(只有跨任务视角才看得见):KVM 磁贴原本走 `layout.sweepGone()` 的 45 秒缺席宽限期,而那个 `missingSince` 是**内存态 Map、每次刷新重置**,宽限期又只在 30 秒轮询的节拍上判定 ⇒ 最早 60 秒才消失,**刷新比这勤的用户永远等不到**;期间磁贴全亮、点击静默无反应,而 Dock 早已把它去掉,两个界面互相矛盾。已改成探测确认失败即刻 `layout.evict('vm', { force: true })`。顺带修掉 Task 4 遗留的一处真 bug:`kvmAvailable` 没写进 store 的 `return`,外部读恒为 `undefined`(当期评审看不出来,因为那时还没有外部读者)。
 
 **两处刻意偏离 Vue2(机主已拍板,代码注释同步登记,均在 `LanDevicesPanel.vue` 里)**:
 - 局域网扫描失败时显示一行错误提示(`.set-lan-error`),而不是 Vue2 的静默空态。
@@ -25,7 +26,7 @@
 | # | 门 | 命令 | 结果 |
 |---|---|---|---|
 | 1 | 类型检查 | `pnpm exec vue-tsc --noEmit` | **0 错误**(无任何输出,exit code 0) |
-| 2 | 全量测试 | `pnpm test` | **675 个文件全绿(675 passed)/ 10943 个用例全绿(10943 passed),0 failed**。耗时 204.27s。已知 flake `src/files/upload/persist.test.ts:55` 本次随大盘一起跑**未复现**(整体全绿,未触发需要单独隔离重跑的分支) |
+| 2 | 全量测试 | `pnpm test` | **675 个文件全绿(675 passed)/ 10943 个用例全绿(10943 passed),0 failed**。耗时 204.27s。已知 flake `src/files/upload/persist.test.ts:55` 本次随大盘一起跑**未复现**(整体全绿,未触发需要单独隔离重跑的分支)。**⚠️ 此后终审修复波又加了 2 条用例,最终数字是 675 文件 / 10945 例——见下方补记** |
 | 3 | i18n 键对齐 | `pnpm exec vitest run src/i18n/parity.test.ts` | **1 个文件全绿(1 passed)/ 9 个用例全绿(9 passed)** |
 | 4 | 开源导出 | `node oss/export.mjs --out <scratchpad>/sp17-oss --no-commit --allow-dirty-oss` | exit code 0。清单:DELETE 73 · REPLACE 4 · PATCH 278。**零真实泄漏命中**;3 个文件按二进制跳过扫描(预期内,不计入泄漏判定):`src/assets/wallpaper/wallpaper01.jpg`、`src/assets/wallpaper/wallpaper02.jpg`、`src/home/apps/icons/settings.png` |
 | 5 | 构建 | `pnpm build` | **成功**。`vite build` 自报 `built in 18.44s`;含前置 `vue-tsc --noEmit` 的整条命令总耗时 38.16s。只有常规 chunk 体量警告(最大一块 `index-BQnRorZI.js` 7,366.96 kB / gzip 2,066.56 kB),不是错误 |
@@ -34,13 +35,15 @@
 >
 > 各 Task 自己的报告(`task-1..4-report.md`)记录的中间数字略有出入(如 675/10934、675/10937)——这是因为每个 Task 在自己完工时各自重跑过一次全量测试,数字随后续 Task 新增的测试逐步递增,彼此不矛盾。**上表是 Task 6 在四个 Task 全部完成后,按本期五道收尾门的口径独立跑出的最终状态,是本文档里唯一应该被引用的数字。**
 
+**补记(终审修复波之后 + 合并之后的最终数字)**:修复波给 KVM 那条加了 2 条用例,合并进 `master` 后在**将要保留的这棵树上**又完整重跑过一次——`pnpm test` **675 文件 / 10945 例,0 failed**;`vue-tsc --noEmit` **0 错**;`pnpm exec vitest run oss/` **7 文件 / 146 例全绿**。因为是快进合并,合并结果与分支末位是同一棵树,故类型检查/导出/构建三门不必再跑一遍。**引用本期数字时以这一段为准,上表是修复波之前的中间态。**
+
 ## 真机验收清单
 
-**前提**:设备已跑着后端各服务(Gateway/UserService/LocalStorage/…/KVM 若已安装),浏览器能访问设备。以下步骤是在本 worktree 起一个**独立的 dev server**,**不执行 `./scripts/deploy.sh`**——设备上 `/var/lib/nimoos/www/app/` 这一个部署目录被多条并行分支分时占用,部署会覆盖别人正在验收的版本;`5273`/`5277`/`5288` 三个端口已被其它并行分支占用,故本分支固定用 `5279`。
+**前提**:设备已跑着后端各服务(Gateway/UserService/LocalStorage/…/KVM 若已安装),浏览器能访问设备。以下步骤是起一个**独立的 dev server**,**不执行 `./scripts/deploy.sh`**——设备上 `/var/lib/nimoos/www/app/` 这一个部署目录被多条并行分支分时占用,部署会覆盖别人正在验收的版本;`5273`/`5277`/`5288` 三个端口已被其它并行分支占用,故本分支固定用 `5279`。
 
-1. 起 dev server:
+1. 起 dev server(**本期已合入 master、worktree 已删,所以在主检出上起**):
    ```bash
-   cd <本仓>/.claude/worktrees/sp17-settings-catchup
+   cd /home/nimo/NimoTech/NimoOS-New-UI    # master,本期代码已在里面
    pnpm dev --host --port 5279
    ```
    浏览器打开 `http://<设备IP>:5279/app/`,登录。
@@ -93,6 +96,7 @@
 
 ## 下一步(给合并/验收的人)
 
-1. 走完上面的真机验收清单,记录哪些通过、哪些不通过。
-2. 验收通过后,决定是否合并进 `master`(本期未做,评审记录见 `.superpowers/sdd/2026-08-09-sp17-settings-catchup/progress.md` 与各 `review-*.diff`)。
-3. 合并后如需部署,走本仓约定的唯一入口 `./scripts/deploy.sh`,不要手写 rsync。
+1. 走完上面的真机验收清单,记录哪些通过、哪些不通过。**代码已经在 `master` 上了**,所以这一步是「验一个已合并但没验过的东西」,不是合并前的把关。
+2. 若验出问题,直接在 `master` 上修(分支与 worktree 都已删,不必也无法回到分支上改)。
+3. 如需部署,走本仓约定的唯一入口 `./scripts/deploy.sh`,不要手写 rsync;注意设备上 `/var/lib/nimoos/www/app/` 只有一份,多条并行分支分时占用,部署会覆盖别人正在验收的版本。
+4. 未推 origin——本仓惯例如此,推送时机由机主定。
