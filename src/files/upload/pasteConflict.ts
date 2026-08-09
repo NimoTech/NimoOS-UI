@@ -41,15 +41,27 @@ export async function computePasteConflicts(args: {
  * actual collision, so a conflict-free item submitted with style='rename' is
  * byte-for-byte the old silent default. There is nothing to distinguish the two
  * by once both mean "just land it, renaming only if it turns out to collide".
+ *
+ * `skippedCount` folds in both 'skip' and 'cancelled' resolutions -- from the
+ * user's point of view an item that was never landed is "skipped" either way,
+ * and the toast that reports this count doesn't need to tell them apart.
+ * `cancelledCount` additionally isolates just the cancelled ones: unlike an
+ * explicit skip, hitting Esc mid-dialog means "stop asking, I'm not sure I
+ * want to do this at all" rather than "I've decided against these specific
+ * items" -- the caller uses it to decide whether it's still safe to clear the
+ * clipboard (see task-7 fix-round-1 F3: cancelling a paste must not discard
+ * what the user copied).
  */
 export function splitPasteItems(
   items: OperateItem[],
   resolutions: ConflictResolution[],
-): { overwriteItems: OperateItem[]; renameItems: OperateItem[]; skippedCount: number } {
+): { overwriteItems: OperateItem[]; renameItems: OperateItem[]; skippedCount: number; cancelledCount: number } {
   const skipped = new Set<string>()
+  const cancelled = new Set<string>()
   const overwriteSet = new Set<string>()
   for (const { conflict, action } of resolutions || []) {
-    if (action === 'skip' || action === 'cancelled') skipped.add(conflict.groupKey)
+    if (action === 'cancelled') cancelled.add(conflict.groupKey)
+    else if (action === 'skip') skipped.add(conflict.groupKey)
     else if (action === 'overwrite') overwriteSet.add(conflict.groupKey)
     // 'keep_both' (and 'merge', which paste never offers) need no bookkeeping:
     // they are the renameItems default below.
@@ -58,10 +70,12 @@ export function splitPasteItems(
   const overwriteItems: OperateItem[] = []
   const renameItems: OperateItem[] = []
   let skippedCount = 0
+  let cancelledCount = 0
   for (const item of items || []) {
+    if (cancelled.has(item.from)) { skippedCount++; cancelledCount++; continue }
     if (skipped.has(item.from)) { skippedCount++; continue }
     if (overwriteSet.has(item.from)) overwriteItems.push(item)
     else renameItems.push(item)
   }
-  return { overwriteItems, renameItems, skippedCount }
+  return { overwriteItems, renameItems, skippedCount, cancelledCount }
 }

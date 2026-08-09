@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { service } from '@nimotech/nimoos-service'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
 import FileGridView from '../files/components/FileGridView.vue'
+import FileContextMenu from '../files/components/FileContextMenu.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
+import { useClipboardStore } from '../files/stores/clipboard'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -20,6 +23,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
         ],
       })),
     },
+    batch: { task: vi.fn().mockResolvedValue(undefined) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
     // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
@@ -165,6 +169,43 @@ describe('Files.vue browse pipe', () => {
     await flushPromises()
     expect(w.find('.tb-new-folder').exists()).toBe(true)
     expect(w.find('.tb-new-file').exists()).toBe(true)
+  })
+
+  // These two close the exact gap fix-round-1 F4 flagged: FileContextMenu.test.ts
+  // only proves the menu ITEM fires action 'paste'; nothing proved Files.vue's
+  // dispatcher still listens for that string. Both routes into ops.paste() --
+  // the toolbar button and the context-menu action -- get their own test so a
+  // stale case label (e.g. still matching 'paste-overwrite') would go red here
+  // even though FileContextMenu.test.ts and useFileOps.test.ts both stay green.
+  it('toolbar Paste button reaches ops.paste() and submits the clipboard contents', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
+    await w.vm.$nextTick()
+    await w.get('.tb-paste').trigger('click')
+    await flushPromises()
+    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
+  })
+
+  it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
+    await w.vm.$nextTick()
+    // Fire the SAME event string the real menu item emits (verified separately
+    // in FileContextMenu.test.ts), without needing to drive reka-ui's real
+    // popover positioning through jsdom.
+    w.findComponent(FileContextMenu).vm.$emit('action', 'paste', null)
+    await flushPromises()
+    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
 
   it('右键未选中的行会选中它(为右键菜单定目标);冒泡到容器不应清空该选中', async () => {

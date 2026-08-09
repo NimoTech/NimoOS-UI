@@ -32,6 +32,7 @@ export default {
   filesNewFile: 'New file',
   filesPaste: 'Paste',
   filesPasteSkipped: 'Skipped {count} item(s)',
+  filesPastePartialFailure: 'Part of the paste failed — check the destination and try again',
   filesDownloadPreparing: 'Preparing download…',
   filesDownload: 'Download',
   filesViewerClose: 'Close',

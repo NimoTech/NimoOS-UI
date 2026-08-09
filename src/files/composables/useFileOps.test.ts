@@ -214,6 +214,7 @@ describe('useFileOps', () => {
       overwriteItems: [{ from: '/DATA/a', is_dir: false }],
       renameItems: [{ from: '/DATA/b', is_dir: false }],
       skippedCount: 0,
+      cancelledCount: 0,
     })
     const ops = makeOps()
     await ops.paste()
@@ -235,6 +236,7 @@ describe('useFileOps', () => {
       overwriteItems: [],
       renameItems: [{ from: '/DATA/a', is_dir: false }],
       skippedCount: 0,
+      cancelledCount: 0,
     })
     const ops = makeOps()
     await ops.paste()
@@ -252,6 +254,7 @@ describe('useFileOps', () => {
       overwriteItems: [],
       renameItems: [],
       skippedCount: 2,
+      cancelledCount: 0,
     })
     const toast = useToast()
     const toastSpy = vi.spyOn(toast, 'show')
@@ -260,7 +263,7 @@ describe('useFileOps', () => {
     expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('2'))
   })
 
-  it('paste clears the clipboard and submits nothing when every item was skipped', async () => {
+  it('paste clears the clipboard and submits nothing when every item was explicitly skipped', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
@@ -270,11 +273,133 @@ describe('useFileOps', () => {
       overwriteItems: [],
       renameItems: [],
       skippedCount: 1,
+      cancelledCount: 0,
     })
     const ops = makeOps()
     await ops.paste()
     expect(batchTask).not.toHaveBeenCalled()
     expect(clip.operateObject).toBeNull()
+  })
+
+  // fix-round-1 F3: hitting Esc mid-dialog means "not now", not "throw away what
+  // I copied". resolveConflictQueue marks the cancelled item's conflict as
+  // 'cancelled', which splitPasteItems folds into skippedCount same as an
+  // explicit skip -- but it also surfaces separately as cancelledCount, and only
+  // that should gate clearing the clipboard.
+  it('paste does not clear the clipboard when the user cancels the conflict dialog', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [],
+      renameItems: [],
+      skippedCount: 1,
+      cancelledCount: 1,
+    })
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).not.toHaveBeenCalled()
+    expect(clip.operateObject).not.toBeNull()
+  })
+
+  // fix-round-1 F1: `resolvePaste` awaits a directory listing (and possibly a
+  // queued upload-conflict chain) before resolving. During that window the UI
+  // is fully interactive, so the user can navigate to a different directory
+  // before the paste actually submits. The destination used for the actual
+  // submission must be the one paste started in, not wherever the user ends
+  // up while it was thinking.
+  it('paste submits to the directory it started in, even if the user navigates away before the conflict check resolves', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dirA'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockImplementation(async () => {
+      // Simulate the user clicking into a different folder while the
+      // directory listing for dirA is still in flight.
+      files.currentPath = '/DATA/dirB'
+      return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
+    })
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).toHaveBeenCalledWith(expect.objectContaining({ to: '/DATA/dirA' }))
+  })
+
+  // fix-round-1 F2: when one batch's submission has already been accepted by
+  // the backend and the other one fails, the failure toast must say so instead
+  // of "operation failed" -- which would tell the user nothing landed when
+  // half of it actually did. The clipboard also must not be cleared, since
+  // that would discard the batch that never got submitted.
+  it('paste reports a partial failure when one batch submits and the other does not, and keeps the clipboard', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+      renameItems: [{ from: '/DATA/b', is_dir: false }],
+      skippedCount: 0,
+      cancelledCount: 0,
+    })
+    batchTask.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('network blip'))
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).toHaveBeenCalledTimes(2) // the failing call was still attempted, not skipped
+    expect(toastSpy).toHaveBeenCalledWith(zh.filesPastePartialFailure)
+    expect(clip.operateObject).not.toBeNull()
+  })
+
+  it('paste reports a plain failure when the only batch it needed to submit fails', async () => {
+    // Only one style is actually needed (nothing conflicted, so everything
+    // lands in renameItems) and that lone submission fails. This must read as
+    // a total failure, not a "partial" one -- there was never a second batch
+    // to have partially succeeded.
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [],
+      renameItems: [{ from: '/DATA/a', is_dir: false }],
+      skippedCount: 0,
+      cancelledCount: 0,
+    })
+    batchTask.mockRejectedValueOnce(new Error('network blip'))
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.paste()
+    expect(toastSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+    expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)
+    expect(clip.operateObject).not.toBeNull()
+  })
+
+  it('paste reports a plain failure when both batches fail', async () => {
+    const { useClipboardStore } = await import('../stores/clipboard')
+    const clip = useClipboardStore()
+    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+    const files = useFilesStore(); files.currentPath = '/DATA/dst'
+    const conflicts = useFileConflictsStore()
+    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+      renameItems: [{ from: '/DATA/b', is_dir: false }],
+      skippedCount: 0,
+      cancelledCount: 0,
+    })
+    batchTask.mockRejectedValueOnce(new Error('a')).mockRejectedValueOnce(new Error('b'))
+    const toast = useToast()
+    const toastSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.paste()
+    expect(batchTask).toHaveBeenCalledTimes(2)
+    expect(toastSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+    expect(clip.operateObject).not.toBeNull()
   })
 
   it('paste does nothing when the clipboard is empty', async () => {

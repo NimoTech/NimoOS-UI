@@ -158,7 +158,7 @@ describe('FileContextMenu', () => {
     expect(w.find('.ctx-paste-skip').exists()).toBe(false)
   })
 
-  it('空白区:无剪贴板内容时无粘贴项', () => {
+  it('blank area: no Paste entry when the clipboard is empty', () => {
     const w = mountMenu({ entry: null, selectedCount: 0 })
     expect(w.find('.ctx-paste').exists()).toBe(false)
   })

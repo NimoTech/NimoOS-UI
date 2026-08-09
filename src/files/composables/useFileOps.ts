@@ -6,7 +6,7 @@ import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate, operableEntries } from '../util/protect'
-import { useClipboardStore } from '../stores/clipboard'
+import { useClipboardStore, type OperateItem } from '../stores/clipboard'
 import { useFileConflictsStore } from '../stores/fileConflicts'
 import { buildPastePayload } from '../util/fileOps'
 import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
@@ -108,14 +108,61 @@ export function useFileOps() {
     if (blockedInSnapshot()) return
     const o = clipboard.operateObject
     if (!o) return
+    // Read the destination once, up front, and reuse it for every await below.
+    // `resolvePaste` has to await a directory listing (and may queue behind an
+    // in-flight upload's conflict chain) before anything is even asked -- the
+    // UI stays fully interactive for that whole window with no modal blocking
+    // it. Re-reading `files.currentPath` after that await would attach
+    // whatever answers the user just gave for THIS directory to wherever they
+    // happened to navigate to while waiting (task-7 fix-round-1 F1).
+    //
+    // `blockedInSnapshot()` is deliberately checked only once, here, and not
+    // again before submitting: it reports on `files.currentPath` at the
+    // moment this call started, which is exactly `dest`. A directory's
+    // snapshot-ness cannot change out from under a fixed path while this
+    // function is running, so re-checking after the await would just be
+    // asking about whatever directory the user is CURRENTLY looking at --
+    // unrelated to where `dest` actually points.
+    const dest = files.currentPath
     const conflicts = useFileConflictsStore()
+    let overwriteItems: OperateItem[] = []
+    let renameItems: OperateItem[] = []
+    let skippedCount = 0
+    let cancelledCount = 0
     try {
-      const { overwriteItems, renameItems, skippedCount } = await conflicts.resolvePaste(o.item, files.currentPath)
-      if (skippedCount > 0) toast.show(t('filesPasteSkipped', { count: skippedCount }))
-      if (overwriteItems.length) await service.batch.task(buildPastePayload({ ...o, item: overwriteItems }, files.currentPath, 'overwrite'))
-      if (renameItems.length) await service.batch.task(buildPastePayload({ ...o, item: renameItems }, files.currentPath, 'rename'))
-      clipboard.clear()
-    } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+      ({ overwriteItems, renameItems, skippedCount, cancelledCount } = await conflicts.resolvePaste(o.item, dest))
+    } catch (e) {
+      toast.show(errMsg(e, t('filesOpFailed')))
+      return
+    }
+    if (skippedCount > 0) toast.show(t('filesPasteSkipped', { count: skippedCount }))
+
+    // Submitted independently rather than under one try/catch: the backend
+    // already accepted whichever batch's request succeeded, so a failure in
+    // the SECOND call must not be reported as "operation failed" -- that
+    // would tell the user nothing landed when half of it actually did
+    // (task-7 fix-round-1 F2). 'empty' is its own outcome (not folded into
+    // 'ok') so a lone attempted batch that fails is correctly read as a total
+    // failure, not a partial one -- the other "batch" never existed at all,
+    // it just had nothing to submit.
+    type SubmitOutcome = 'empty' | 'ok' | 'failed'
+    const submit = async (items: OperateItem[], style: 'overwrite' | 'rename'): Promise<SubmitOutcome> => {
+      if (!items.length) return 'empty'
+      try { await service.batch.task(buildPastePayload({ ...o, item: items }, dest, style)); return 'ok' }
+      catch { return 'failed' }
+    }
+    const outcomes = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
+    const failed = outcomes.includes('failed')
+    const succeeded = outcomes.includes('ok')
+
+    if (!failed) {
+      // Cancelling the conflict dialog (Esc) is "not now", not "throw away
+      // what I copied" -- only clear when the user never hit cancel.
+      if (cancelledCount === 0) clipboard.clear()
+      return
+    }
+    if (!succeeded) { toast.show(t('filesOpFailed')); return }
+    toast.show(t('filesPastePartialFailure'))
   }
 
   async function download(entries: FileEntry[]) {

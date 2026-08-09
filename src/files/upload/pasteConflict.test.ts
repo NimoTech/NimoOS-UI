@@ -51,11 +51,15 @@ describe('splitPasteItems', () => {
     expect(out.renameItems).toEqual([b])
   })
 
-  it('drops skipped and cancelled items and counts them', () => {
+  it('drops skipped and cancelled items and counts them together in skippedCount', () => {
     const out = splitPasteItems([a, b, c], [res(a.from, 'skip'), res(b.from, 'cancelled')])
     expect(out.overwriteItems).toEqual([])
     expect(out.renameItems).toEqual([c])
     expect(out.skippedCount).toBe(2)
+    // cancelledCount isolates the cancelled subset -- callers use it to tell
+    // "the user cancelled the dialog" apart from "the user explicitly skipped
+    // everything", which matters for whether it's safe to clear the clipboard.
+    expect(out.cancelledCount).toBe(1)
   })
 
   it('sends never-conflicting items with the keep-both style, same as an explicit keep_both', () => {
