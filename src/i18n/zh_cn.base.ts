@@ -801,6 +801,7 @@ export default {
   snapBrowseRestoreInvalid: '路径无效,无法恢复',
   snapBrowseRestoreFailed: '恢复失败,请稍后再试',
   snapBrowseRestoredPartial: '已恢复 {ok} 项,{fail} 项失败',
+  snapBrowseRestoringProgress: '正在恢复 {done}/{total}',
 
   tmEntry: '时间机器',
   tmViewingFolder: '正在查看 {path} 的历史版本',

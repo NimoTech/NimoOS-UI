@@ -20,6 +20,10 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   const volumes = ref<SnapshotVolumeLike[]>([])
   const wheelOpen = ref(false)
   const restoring = ref(false)
+  // The backend takes one path per call, so the loop below stays serial. What
+  // it cannot stay is silent: picking forty files meant a disabled button and
+  // no sign of life until every one of them had come back.
+  const restoreProgress = ref<{ done: number; total: number } | null>(null)
   const files = useFilesStore()
 
   // 同一次会话里并发调用共用这一个在途 Promise,避免文件区挂载与深链解析各发一次请求
@@ -106,6 +110,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       // 发生,防御性兜底)真的还没加载,先拉一次,避免把"还没数据"误判成每一条都恢复失败。
       if (!volumes.value.length) await ensureVolumes()
       const results = []
+      restoreProgress.value = { done: 0, total: list.length }
       for (const item of list) {
         results.push(await performSnapshotRestore({
           item,
@@ -113,6 +118,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
           listVolumes: async () => volumes.value,
           restore: (body) => service.snapshot.restore(body),
         }))
+        restoreProgress.value = { done: results.length, total: list.length }
       }
       const ok = results.filter((r) => r.ok) as { ok: true; restoredPath: string }[]
       const failed = results.filter((r) => !r.ok) as { ok: false; reason: string }[]
@@ -134,6 +140,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
       }
     } finally {
       restoring.value = false
+      restoreProgress.value = null
     }
   }
 
@@ -146,7 +153,7 @@ export const useSnapshotBrowseStore = defineStore('snapshotBrowse', () => {
   }
 
   return {
-    status, volumes, wheelOpen, restoring,
+    status, volumes, wheelOpen, restoring, restoreProgress,
     parsed, isSnapshotView, browseInfo, currentVolume, canShowEntry,
     ensureVolumes, openWheel, closeWheel, reset, restore,
   }

@@ -800,6 +800,7 @@ export default {
   snapBrowseRestoreInvalid: 'Invalid path — cannot restore',
   snapBrowseRestoreFailed: 'Restore failed, please try again',
   snapBrowseRestoredPartial: 'Restored {ok} items, {fail} failed',
+  snapBrowseRestoringProgress: 'Restoring {done}/{total}',
 
   tmEntry: 'Time Machine',
   tmViewingFolder: 'Browsing earlier versions of {path}',

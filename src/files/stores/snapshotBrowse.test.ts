@@ -326,4 +326,44 @@ describe('恢复', () => {
     expect(listVolumesMock).toHaveBeenCalledTimes(1)
     expect(useToast().msg).toContain('/DATA/Photos/a.restored-1')
   })
+
+  // Task 11: the backend restores one path per call, so a 40-item batch stays
+  // serial — but a single disabled button gave no sign of life for the whole
+  // wait. Each restore call is gated on a manually-resolved promise so the
+  // test can assert progress mid-batch.
+  it('reports how far a batch restore has got', async () => {
+    const gates: Array<() => void> = []
+    restoreMock.mockImplementation(() => new Promise((res) => {
+      gates.push(() => res({ restored_path: '/DATA/x.restored-1' }))
+    }))
+    const s = await inSnapshot()
+    expect(s.restoreProgress).toBeNull()
+
+    const p = s.restore([
+      { path: '/DATA/.snapshots/snap1/a' },
+      { path: '/DATA/.snapshots/snap1/b' },
+      { path: '/DATA/.snapshots/snap1/c' },
+    ])
+    await vi.waitFor(() => expect(restoreMock).toHaveBeenCalledTimes(1))
+    expect(s.restoreProgress).toEqual({ done: 0, total: 3 })
+
+    gates[0]!()
+    await vi.waitFor(() => expect(restoreMock).toHaveBeenCalledTimes(2))
+    expect(s.restoreProgress).toEqual({ done: 1, total: 3 })
+
+    gates[1]!()
+    await vi.waitFor(() => expect(restoreMock).toHaveBeenCalledTimes(3))
+    expect(s.restoreProgress).toEqual({ done: 2, total: 3 })
+
+    gates[2]!()
+    await p
+    expect(s.restoreProgress).toBeNull()
+  })
+
+  it('clears the progress even when a restore throws', async () => {
+    restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
+    const s = await inSnapshot()
+    await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+    expect(s.restoreProgress).toBeNull()
+  })
 })

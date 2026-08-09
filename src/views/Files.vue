@@ -661,6 +661,7 @@ onMounted(() => { browse.ensureVolumes() })
           v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
           :count="files.selectedCount"
           :restoring="browse.restoring"
+          :restore-progress="browse.restoreProgress"
           @restore="browse.restore(snapshotSelection)"
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
           @clear="files.clearSelection"
