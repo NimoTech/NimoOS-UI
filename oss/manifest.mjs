@@ -550,12 +550,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/settings/util/tabs.ts',
     find: '//   - data().tabs (L855-863) —— 侧栏 rail 的 7 项\n//   - visibleTabs (L1034)    —— 非 admin 过滤掉 folder-permissions\n',
     replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) —— 侧栏 rail 项与按角色的可见性裁剪\n' },
+  // SP17:lan-devices(Vue2 #93)插进了 system-status 与 folder-permissions 之间,且是
+  // 公开面功能(局域网设备发现,不含任何管理员专属信息)——FIND 锚点跟着私有侧新增的这一行走,
+  // REPLACE 仍只摘掉 folder-permissions,lan-devices 保留在开源产物里。
   { path: 'src/settings/util/tabs.ts',
-    find: "  'system-status',\n  'folder-permissions',\n  'account',",
-    replace: "  'system-status',\n  'account'," },
+    find: "  'system-status',\n  'lan-devices',\n  'folder-permissions',\n  'account',",
+    replace: "  'system-status',\n  'lan-devices',\n  'account'," },
   { path: 'src/settings/util/tabs.ts',
-    find: "/** 侧栏 rail 上可见的 7 项(account / developer 有各自入口,不在 rail 上)。 */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 7)",
-    replace: "/** 侧栏 rail 上可见的 6 项(account / developer 有各自入口,不在 rail 上)。 */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 6)" },
+    find: "/** The 8 tabs visible on the sidebar rail (account / developer have their own entry points, not on the rail). */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 8)",
+    replace: "/** The 7 tabs visible on the sidebar rail (account / developer have their own entry points, not on the rail). */\nexport const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 7)" },
   { path: 'src/settings/util/tabs.ts',
     find: "  'folder-permissions': 'settingsTabFolderPermissions',\n", replace: '' },
   { path: 'src/settings/util/tabs.ts',
@@ -1610,8 +1613,11 @@ function mountHome() {
 } from './tabs'`,
     replace: `  isSettingsTab,
 } from './tabs'` },
+  // SP17 起私有侧的两条标题已经是英文(Task 2 brief 直接给的英文文案,不再提 "Vue2"),
+  // 这两条 FIND/REPLACE 跟着改成英文;lan-devices 是公开面功能,保留在 REPLACE 里,只摘
+  // folder-permissions。
   { path: 'src/settings/util/tabs.test.ts',
-    find: `  it('9 个 tab,顺序与 Vue2 一致(rail 7 项 + account + developer)', () => {
+    find: `  it('has 10 tabs in Vue2 order (8 rail items + account + developer)', () => {
     expect(SETTINGS_TABS).toEqual([
       'general',
       'storage',
@@ -1619,13 +1625,13 @@ function mountHome() {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
       'folder-permissions',
       'account',
       'developer',
     ])
   })`,
-    // I5-guard(⑤b)复核:原标题带 "Vue2"(REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: `  it('8 个 tab,顺序固定(rail 6 项 + account + developer)', () => {
+    replace: `  it('has 9 tabs in a fixed order (7 rail items + account + developer)', () => {
     expect(SETTINGS_TABS).toEqual([
       'general',
       'storage',
@@ -1633,12 +1639,13 @@ function mountHome() {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
       'account',
       'developer',
     ])
   })` },
   { path: 'src/settings/util/tabs.test.ts',
-    find: `  it('rail 只有 7 项 —— account 走用户块、developer 走 general 页内入口(Vue2 L855-863/L13/L315)', () => {
+    find: `  it('the rail holds 8 items -- account has its own entry, developer sits inside general', () => {
     expect(RAIL_TABS).toEqual([
       'general',
       'storage',
@@ -1646,12 +1653,11 @@ function mountHome() {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
       'folder-permissions',
     ])
   })`,
-    // I5-guard(⑤b)复核:原标题带 "Vue2 L855-863/L13/L315"(旧代码具体行号引用,
-    // REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: `  it('rail 只有 6 项 —— account 走用户块、developer 走 general 页内入口', () => {
+    replace: `  it('the rail holds 7 items -- account has its own entry, developer sits inside general', () => {
     expect(RAIL_TABS).toEqual([
       'general',
       'storage',
@@ -1659,6 +1665,7 @@ function mountHome() {
       'apps',
       'terminal',
       'system-status',
+      'lan-devices',
     ])
   })` },
   { path: 'src/settings/util/tabs.test.ts',
@@ -1669,7 +1676,7 @@ function mountHome() {
 
   it('非 admin 看不到 folder-permissions(Vue2 visibleTabs L1034)', () => {
     expect(railTabsFor('user')).not.toContain('folder-permissions')
-    expect(railTabsFor('user')).toHaveLength(6)
+    expect(railTabsFor('user')).toHaveLength(7)
   })
 
   it('role 缺失按非 admin 处理(保守:不泄漏管理项)', () => {
@@ -1684,8 +1691,8 @@ function mountHome() {
   // ── panels.test.ts:folder-permissions 那个 tab 没了,PANEL_BY_TAB 键数 9→8,
   //    历史注释里有一处点名了已删的 FolderPermissionsPanel.test.ts(悬空引用)───
   { path: 'src/settings/panels/panels.test.ts',
-    find: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)\n',
-    replace: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(8)\n' },
+    find: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(10)\n',
+    replace: '    expect(Object.keys(PANEL_BY_TAB)).toHaveLength(9)\n' },
   { path: 'src/settings/panels/panels.test.ts',
     find: `  // P4 起 folder-permissions 与 account 也填了真实内容
   // (见 FolderPermissionsPanel.test.ts / AccountPanel.test.ts)——**至此 9 个 tab 全部实现完毕,
@@ -1895,11 +1902,11 @@ function mountHome() {
   // ── SettingsShell.test.ts:railTabsFor 不再按角色过滤,"admin 看到 folder-
   //    permissions" 这整条用例测的行为已经不存在,整块删除(同 tabs.test.ts 那 3 条)──
   { path: 'src/settings/components/SettingsShell.test.ts',
-    find: `  it('admin rail 有 7 项且含 folder-permissions', async () => {
+    find: `  it('admin rail 有 8 项且含 folder-permissions', async () => {
     localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
     const { w } = await mountShell()
     const items = w.findAll('.set-rail-item')
-    expect(items).toHaveLength(7)
+    expect(items).toHaveLength(8)
     expect(items.map((i) => i.attributes('data-tab'))).toContain('folder-permissions')
   })
 
