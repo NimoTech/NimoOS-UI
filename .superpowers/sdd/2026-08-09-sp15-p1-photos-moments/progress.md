@@ -208,3 +208,10 @@ Task 9: minor (deferred): picker close now happens before the grid reload rather
   better; registered only as "close on success", not the timing.
 Task 9: minor (deferred): PhotosMomentDetail.vue now 741 lines; Task 10 adds three
   more feature areas. The "extract a grid subcomponent after Task 10" note stands.
+Task 9: fix round 1/5 (4 addressed, 0 open; commits d75e15f..1d65e35)
+Task 9: complete (commits 021b759..1d65e35, review clean; picker 15, PhotosAlbums 20,
+  PhotosAlbumDetail 33, MomentDetail 40 = 108 from a 92 baseline — no case dropped;
+  parity 9, styles 1075, oss 448)
+Task 9: minor (deferred): the two album failure tests use mockRejectedValueOnce (so
+  the retry succeeds) while the moment one uses mockRejectedValue (retry still fails)
+  — both prove a second write is dispatched, but the asymmetry is unflagged.
