@@ -404,6 +404,12 @@ const isWindowsGuestSelected = computed(() => isWindowsGuest(s.selectedVM.value)
 // ejectBusy 挡"这个按钮的 loading 视觉要不要显示、按钮点击时要不要被 InstallBanner
 // 自己的 onClick 拦下"——功能上有重叠但不是同一份状态,不能互相替代。
 const ejectBusy = ref(false)
+// SP16 Task 7:页面可以在请求还在途时被卸载。useVmList 自己的 `alive` 守卫已经拦住了
+// "往已销毁的 state 里写",但它把那种情况**和成功一样**报成 ''——调用方据此弹了成功
+// 提示。这里自查存活,把 useVmList 的返回值契约原样留着不动。
+let pageAlive = true
+onUnmounted(() => { pageAlive = false })
+
 async function onEjectFinish(): Promise<void> {
   const vm = s.selectedVM.value
   if (!vm || ejectBusy.value) return
@@ -417,13 +423,22 @@ async function onEjectFinish(): Promise<void> {
     // 见 useVmList.test.ts 里的回归测试)。ejectInstallMedia 现在把结果直接作为返回值
     // 交出来(''=成功,非空=这次调用失败的文案),错误天然只属于"这次调用",不会被
     // 任何并发操作污染。
-    ejectError.value = await s.ejectInstallMedia(vm)
+    const err = await s.ejectInstallMedia(vm)
+    // SP16 Task 7:页面没了就什么都不做——既不写 ref,也不弹任何 toast。见下面那段
+    // 关于"''=成功还是=已卸载"的说明。
+    if (!pageAlive) return
+    ejectError.value = err
     // 必修①:成功也要弹 toast(Vue2 handleInstallationFinished :867-870,固定整句文案,
     // 不像电源动作那样拼 vm.name)。ejectInstallMedia 的返回值契约是 ''=成功/被重入守卫
     // 挡下/dispose 后短路,非空=失败文案(见该函数顶部注释)。这里能安全地把 '' 当成功
     // 处理——本函数入口的 `ejectBusy` 已经保证同一时刻只有一次调用在途,不会撞上"被
-    // 重入守卫挡下"的分支;唯一的另一种可能是组件已经卸载(dispose),此时弹不弹 toast
-    // 都没有观众,不影响正确性。
+    // 重入守卫挡下"的分支;另一种可能是组件已经卸载(dispose)。
+    //
+    // ⚠️ SP16 Task 7 订正:这里原来写的是"组件已卸载时弹不弹 toast 都没有观众,不影响
+    // 正确性"——那句是错的,而且正是缺陷的由来。toast 容器挂在应用层、比本页活得久,
+    // 卸载之后弹出的提示用户照样看得见:eject 请求失败 + 页面已跳走 ⇒ ejectInstallMedia
+    // 的 catch 走 `if (!alive) return ''` ⇒ 这里把 '' 当成功 ⇒ 用户在别的页面上看到一条
+    // "光盘已弹出"。上面那道 pageAlive 自查拦的就是这条路。
     if (ejectError.value === '') toast.show(t('kvmEjectSuccess'))
   } finally {
     ejectBusy.value = false

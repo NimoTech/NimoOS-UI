@@ -1824,3 +1824,27 @@ describe('SP16 Task 6:重开 OS 选择器时列表要刷新', () => {
     w.unmount()
   })
 })
+
+describe('SP16 Task 7:eject 失败不能弹成功提示', () => {
+  it('eject 在途时离开页面,之后失败不再弹「已弹出」', async () => {
+    api.getVMList.mockResolvedValue({
+      data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
+      total: 1,
+    })
+    let reject!: (e: unknown) => void
+    api.setBootFromDisk.mockReturnValue(new Promise((_, rj) => { reject = rj }))
+    const w = mountPage()
+    await flush()
+    const toast = useToast()
+
+    await w.get('.banner-btn').trigger('click')  // eject 发出,还没 resolve
+    w.unmount()                                  // 请求在途时整页跳走
+    reject(new Error('boom'))                    // 之后才失败
+    await flush()
+
+    // 文案取自 zh_cn.sp9.ts:458 的字面量(kvmEjectSuccess),不是自己编的。
+    // toast 容器挂在 App.vue 层、比本页活得久 ⇒ 这条提示用户真的看得见。
+    expect(toast.toasts.map((x) => x.text))
+      .not.toContain('光盘已弹出，虚拟机将在下次重启时从硬盘引导。')
+  })
+})
