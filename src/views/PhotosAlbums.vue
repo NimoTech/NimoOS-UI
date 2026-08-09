@@ -8,7 +8,8 @@
 // 点卡片跳真路由(Vue2 是页内 openAlbumId state)——router.push('/photos/albums/' + view.id),
 // 铁律:id 可能是数字,字符串拼接自动 toString(),不需要额外 String() 包一层。
 //
-// 排序:接 T1 sortAlbums(不在本视图重写排序逻辑)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
+// 排序:接 util/mixedAlbums.ts 的 sortMixed(不在本视图重写排序逻辑;T2 收官修复见下方
+// views computed 的注释)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
 // 一律 document 级监听(onMounted 挂一次、onUnmounted 摘干净),不用模板 @keydown.esc——
 // 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
 // (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
@@ -24,30 +25,10 @@ import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import { albumToView, type AlbumView } from '../photos/util/albumView'
+import { buildMixedAlbums, sortMixed } from '../photos/util/mixedAlbums'
 import { isConflict } from '../photos/util/httpErrors'
 
 type SortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
-
-// SP15-P2b-T2 interim: albumView.sortAlbums was deleted (superseded by
-// util/mixedAlbums.ts's sortMixed, since the Albums page is about to render a mixed
-// manual/smart list ranked by one sort control). This view still renders manual
-// albums only until Task 3 rewires it onto buildMixedAlbums/sortMixed and deletes this
-// local copy -- keeping a temporary duplicate here (rather than wiring in
-// mixedAlbums.ts early) keeps this task's diff to the dead 'updated' option only.
-function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
-  const arr = [...list]
-  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
-    const raw = a[field]
-    const t = raw ? Date.parse(raw) : NaN
-    return isNaN(t) ? 0 : t
-  }
-  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
-  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
-  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
-  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
-  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
-  return arr
-}
 type SourceId = 'empty' | 'recent' | 'select'
 
 const { t } = useI18n()
@@ -84,9 +65,18 @@ const sourceOptions = computed(() => [
   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
 ])
 
-const views = computed<AlbumView[]>(() =>
-  sortAlbums(albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))), sort.value),
-)
+// Interim (SP15-P2b Task 2): this page still renders manual albums only -- Task 3
+// swaps it for the real mixed list. Until then it goes through buildMixedAlbums /
+// sortMixed with an empty smart list rather than keeping a second comparator alive,
+// so there is exactly one implementation of the missing-timestamp rule and this page
+// already gets the corrected "missing sorts first" ordering.
+const views = computed<AlbumView[]>(() => {
+  const userViews = albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled')))
+  const mixed = sortMixed(buildMixedAlbums(userViews, []), sort.value)
+  return mixed
+    .map((item): AlbumView | null => (item.kind === 'user' ? item.view : null))
+    .filter((v): v is AlbumView => v !== null)
+})
 const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
 const isEmpty = computed(() => albums.albumsLoaded && albums.albums.length === 0)
 

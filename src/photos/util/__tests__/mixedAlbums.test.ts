@@ -66,6 +66,24 @@ describe('sortMixed', () => {
     expect(ids(sortMixed(items, 'created'))).toEqual(['s2', 's1', 'u1', 'u2'])
   })
 
+  // Distinct from the '' (empty-string) createdAt exercised above -- '' short-circuits on
+  // `msOf`'s `!raw` check before Date.parse ever runs, so it cannot catch a broken
+  // `isNaN` branch. This fixture is non-empty but unparseable, so it only lands in the
+  // missing-first group if msOf's `isNaN(t) ? null : t` fires.
+  it('treats an unparseable createdAt as missing, same as an absent one', () => {
+    // 'valid' is smart, 'garbage' is user, so buildMixedAlbums' pre-sort order is
+    // already ['valid', 'garbage'] (smart-first concatenation) -- the opposite of the
+    // expected post-sort order below. That is deliberate: a broken isNaN check that
+    // lets NaN leak into the subtraction makes the comparator a no-op (NaN - x is NaN,
+    // which V8's sort treats as "no swap"), silently preserving the pre-sort order and
+    // passing for the wrong reason if the two orders happened to coincide.
+    const garbage = buildMixedAlbums(
+      [view({ id: 'garbage', createdAt: 'not-a-date' })],
+      [sv({ id: 'valid', createdAt: '2026-01-01T00:00:00Z' })],
+    )
+    expect(ids(sortMixed(garbage, 'created'))).toEqual(['garbage', 'valid'])
+  })
+
   it('ranks a missing date FIRST too, and reads dateStart for manual albums', () => {
     // u2's dateStart (2026-01-01) beats u1's (2024-01-01) even though u1 was created
     // later, which is what proves 'date' does not just fall through to createdAt for

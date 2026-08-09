@@ -75,3 +75,28 @@ Task 1: minor RESOLVED by controller, no change needed: the two mirror actions u
   matches ITS OWN file's established idiom — albums.ts replaces the ref immutably
   throughout (:54, :72, :212), smartViews.ts mutates in place throughout
   (:224, :253, :288, :321, :344). Consistency is with the file, which is correct.
+
+CONTROLLER FACT, verified 2026-08-10 (kills a recurring false alarm): the
+  `oss/*.test.mjs` suite asserts a CLEAN working tree. Both T1's and T2's
+  implementers reported it "failing at baseline"; measured on a stashed clean tree
+  it is 21 files / 472 tests ALL PASSING. The failures are entirely an artifact of
+  the untracked task-N-report.md file. => Any implementer report claiming a
+  pre-existing oss failure is explaining a dirty tree, not a real red. At T9 the
+  ledger and reports must be committed BEFORE running the gates.
+
+Task 2 review: spec OK, 1 Important + 2 Minor.
+  The Important is rooted in a PLAN CONTRADICTION of mine, recorded so the same
+  mistake is not repeated: plan Step 6 told T2 to delete the shared `sortAlbums`
+  AND to leave PhotosAlbums.vue rendering through its old `views` computed. Those
+  two cannot both hold, so the implementer kept the tree compiling by pasting a
+  byte-for-byte private copy of the deleted function into the view -- including its
+  OLD "missing timestamp sorts last" semantics, i.e. the exact behaviour this task
+  existed to invert, live on the only surface a user can reach, with nothing that
+  would fail if T3 forgot to remove it.
+  Fix dispatched: drop the copy and have the interim `views` computed delegate to
+  buildMixedAlbums/sortMixed with an empty smart list, so there is one comparator
+  and the live page gets the corrected ordering now. Bundled Minor 1 (no fixture
+  exercises msOf's unparseable-but-non-empty branch) into the same round since the
+  round was already required.
+Task 2: minor (deferred): the interim `views` path has no coverage for the
+  date/name-r/count branches. Throwaway code T3 replaces; final review may triage.

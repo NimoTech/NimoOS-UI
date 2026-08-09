@@ -147,6 +147,23 @@ describe('PhotosAlbums.vue', () => {
     expect(titles).toEqual(['Apple', 'Mango', 'Zebra'])
   })
 
+  // Regression for the T2 fix-round finding: the page's `views` computed used to carry a
+  // private, byte-for-byte copy of the deleted albumView.sortAlbums, which coerced a
+  // missing createdAt to epoch 0 (sorts LAST) -- the opposite of the rule
+  // util/mixedAlbums.ts's sortMixed implements (sorts FIRST). `views` now delegates to
+  // buildMixedAlbums/sortMixed directly, so this asserts the page a user can actually
+  // reach gets the corrected ordering, not just the not-yet-wired module.
+  it('ranks an album with a missing createdAt FIRST under the default created sort', async () => {
+    svc.photos.listAlbums.mockResolvedValue([
+      rawAlbum(1, { name: 'Has Date', createdAt: '2026-05-01T00:00:00Z' }),
+      rawAlbum(2, { name: 'No Date', createdAt: null }),
+    ])
+    const { w } = await mountView()
+
+    const titles = w.findAll('[data-test="album-card"] .album-title').map((n) => n.text())
+    expect(titles).toEqual(['No Date', 'Has Date'])
+  })
+
   it('点「新建」→ 模态出现;名称空时主按钮 disabled;填名+empty 提交 → createAlbum 被调 + 成功 toast + 模态关闭', async () => {
     svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Trip' })
     const { w } = await mountView()
