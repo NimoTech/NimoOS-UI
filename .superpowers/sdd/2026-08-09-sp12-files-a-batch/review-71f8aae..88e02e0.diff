@@ -1,0 +1,245 @@
+# Review package: 71f8aae..88e02e0
+
+## Commits
+88e02e0 docs(sdd): add task-10 report for time machine rail scroll-into-view fix
+4960cd2 fix(files): keep the selected tick in view on the time machine rail
+
+## Files changed
+ .../task-10-report.md                              | 94 ++++++++++++++++++++++
+ src/files/snapshot/TimeMachineRail.test.ts         | 33 ++++++++
+ src/files/snapshot/TimeMachineRail.vue             | 16 +++-
+ 3 files changed, 142 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+new file mode 100644
+index 0000000..2110887
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+@@ -0,0 +1,94 @@
++# Task 10 report — rail scrolls the selected tick into view
++
++## Files changed
++
++- `src/files/snapshot/TimeMachineRail.vue` — added `watch(() => props.selectedIndex, ...)` that scrolls the newly-selected tick into view with `scrollIntoView({ block: 'nearest' })`. Added `nextTick` and `watch` to the `vue` import list (previously `computed, onUnmounted, ref`).
++- `src/files/snapshot/TimeMachineRail.test.ts` — added a `manyGroups()` helper (50 items, enough to overflow the rail's scroll container) and two new tests: `scrolls the newly selected tick into view` and `does not scroll when the selection did not change`. Added `nextTick` import from `vue`.
++
++No other files touched. No colors changed. No i18n keys added (no new user-facing text).
++
++## Step 2: confirm red
++
++Command: `pnpm exec vitest run src/files/snapshot/TimeMachineRail.test.ts`
++
++Output (before implementing the watch):
++
++```
++❯ src/files/snapshot/TimeMachineRail.test.ts (17 tests | 1 failed) 113ms
++     × scrolls the newly selected tick into view 20ms
++
++⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
++
++ FAIL  src/files/snapshot/TimeMachineRail.test.ts > TimeMachineRail > scrolls the newly selected tick into view
++AssertionError: expected "vi.fn()" to be called at least once
++ ❯ src/files/snapshot/TimeMachineRail.test.ts:178:17
++    176|     await w.setProps({ selectedIndex: 40 })
++    177|     await nextTick()
++    178|     expect(spy).toHaveBeenCalled()
++       |                 ^
++    179|   })
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 16 passed (17)
++```
++
++Note: the second new test (`does not scroll when the selection did not change`) was green even before the implementation existed — that's expected and correct, since it asserts the *absence* of a call, and there's nothing to call it yet. The meaningful red/green signal is entirely on the first test. This is called out explicitly per the "report honestly if a test passes for the wrong reason" instruction — it is not a false-positive here, just a test whose assertion direction happens to be satisfied trivially in the pre-implementation state, which is the correct/expected behavior for that assertion.
++
++## Step 4: confirm green
++
++Command: `pnpm exec vitest run src/files/snapshot/TimeMachineRail.test.ts`
++
++Output (after implementing the watch):
++
++```
++ Test Files  1 passed (1)
++      Tests  17 passed (17)
++   Start at  00:14:47
++   Duration  858ms
++```
++
++All 17 tests (15 pre-existing + 2 new) pass.
++
++## Mutation verification
++
++Commented out the entire `watch(...)` block in `TimeMachineRail.vue` (replaced with a single-line `// MUTATION TEST: temporarily disabled...` comment, no other change), then re-ran:
++
++Command: `pnpm exec vitest run src/files/snapshot/TimeMachineRail.test.ts`
++
++Output (watch disabled):
++
++```
++❯ src/files/snapshot/TimeMachineRail.test.ts (17 tests | 1 failed) 114ms
++     × scrolls the newly selected tick into view 20ms
++
++ FAIL  src/files/snapshot/TimeMachineRail.test.ts > TimeMachineRail > scrolls the newly selected tick into view
++AssertionError: expected "vi.fn()" to be called at least once
++ ❯ src/files/snapshot/TimeMachineRail.test.ts:178:17
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 16 passed (17)
++```
++
++Restored the `watch` block (copied back from a pre-mutation backup), re-ran:
++
++```
++ Test Files  1 passed (1)
++      Tests  17 passed (17)
++```
++
++The mutation confirms `scrolls the newly selected tick into view` is load-bearing on the new `watch`: red without it, green with it. `does not scroll when the selection did not change` stayed green in both directions, as expected for a negative assertion (it doesn't independently prove the watch exists, but it does guard against a future implementation that scrolls unconditionally on every prop update, e.g. inside a `computed`/render-triggered scroll rather than a `selectedIndex`-keyed watch).
++
++## Concerns / things I'm not 100% certain about
++
++- The "does not scroll" test only proves the scroll isn't wired to *unrelated* prop changes (`groups` changing while `selectedIndex` stays put); it would not catch an implementation that scrolls on every render tick regardless of cause. This is inherent to a negative assertion and matches what the brief's Step 1 code specified verbatim — flagging it rather than silently accepting it as a complete guarantee.
++- Did not run `pnpm exec vue-tsc --noEmit` or the full `pnpm test` suite per the task's explicit instruction to only run the single test file with `vitest run` and not the full suite.
++
++## Commit
++
++```
++git add src/files/snapshot/TimeMachineRail.vue src/files/snapshot/TimeMachineRail.test.ts
++git commit -m "fix(files): keep the selected tick in view on the time machine rail
++
++With a hundred snapshots the rail scrolls, and stepping past the visible
++range moved the deck and the bar but left the rail looking frozen."
++```
+diff --git a/src/files/snapshot/TimeMachineRail.test.ts b/src/files/snapshot/TimeMachineRail.test.ts
+index 4e16540..59a1c8d 100644
+--- a/src/files/snapshot/TimeMachineRail.test.ts
++++ b/src/files/snapshot/TimeMachineRail.test.ts
+@@ -1,29 +1,38 @@
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { nextTick } from 'vue'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import TimeMachineRail from './TimeMachineRail.vue'
+ import zh from '../../i18n/zh_cn'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ const GROUPS = [
+   { dayKey: '2026-07-30', labelText: '今天', items: [
+     { flatIndex: 0, time: '14:30', typeKind: 'manual' as const },
+     { flatIndex: 1, time: '09:00', typeKind: 'auto' as const },
+   ] },
+   { dayKey: '2026-07-29', labelText: '昨天', items: [
+     { flatIndex: 2, time: '09:00', typeKind: 'preop' as const },
+   ] },
+ ]
+ const mountIt = (props = {}) =>
+   mount(TimeMachineRail, { props: { groups: GROUPS, selectedIndex: 0, ...props }, global: { plugins: [i18n] } })
+ 
++// Enough snapshots to overflow the rail's own scroll container, so the
++// "scroll the selected tick into view" behavior actually has somewhere to scroll to.
++const manyGroups = () => [
++  { dayKey: '2026-07-30', labelText: '今天', items: Array.from({ length: 50 }, (_, i) => (
++    { flatIndex: i, time: `${String(i).padStart(2, '0')}:00`, typeKind: 'auto' as const }
++  )) },
++]
++
+ // 造一个假 DOMRect,只填组件用到的 top/height 两个字段;其余字段用 0 占位满足类型。
+ const fakeRect = (top: number, height = 10): DOMRect =>
+   ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
+ 
+ beforeEach(() => {
+   vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => { cb(0); return 1 })
+   vi.stubGlobal('cancelAnimationFrame', () => {})
+ })
+ 
+ describe('TimeMachineRail', () => {
+@@ -147,11 +156,35 @@ describe('TimeMachineRail', () => {
+   })
+   it('（补测约束#4)组件卸载时取消挂起的 rAF', async () => {
+     const caf = vi.fn()
+     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 77))
+     vi.stubGlobal('cancelAnimationFrame', caf)
+     const w = mountIt()
+     await w.find('.tm-rail').trigger('mousemove', { clientY: 10 })
+     w.unmount()
+     expect(caf).toHaveBeenCalledWith(77)
+   })
++
++  // ↓ Task 10: with enough snapshots to overflow the rail's own scroll container,
++  // stepping the selection past the visible range must scroll the rail too -- the deck
++  // and the bottom bar already followed the selection, but the rail looked frozen.
++  it('scrolls the newly selected tick into view', async () => {
++    const spy = vi.fn()
++    // jsdom does not implement scrollIntoView
++    Element.prototype.scrollIntoView = spy
++    const w = mountIt({ groups: manyGroups(), selectedIndex: 0 })
++    spy.mockClear()
++    await w.setProps({ selectedIndex: 40 })
++    await nextTick()
++    expect(spy).toHaveBeenCalled()
++  })
++
++  it('does not scroll when the selection did not change', async () => {
++    const spy = vi.fn()
++    Element.prototype.scrollIntoView = spy
++    const w = mountIt({ groups: manyGroups(), selectedIndex: 3 })
++    spy.mockClear()
++    await w.setProps({ groups: manyGroups() })
++    await nextTick()
++    expect(spy).not.toHaveBeenCalled()
++  })
+ })
+diff --git a/src/files/snapshot/TimeMachineRail.vue b/src/files/snapshot/TimeMachineRail.vue
+index 5ab2148..4796546 100644
+--- a/src/files/snapshot/TimeMachineRail.vue
++++ b/src/files/snapshot/TimeMachineRail.vue
+@@ -1,12 +1,12 @@
+ <script setup lang="ts">
+-import { computed, onUnmounted, ref } from 'vue'
++import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { buildRailNodes, computeFisheyeScales } from '../util/timeMachineMath'
+ 
+ export interface RailItem { flatIndex: number; time: string; typeKind: 'auto' | 'manual' | 'preop' }
+ export interface RailGroup { dayKey: string; labelText: string; items: RailItem[] }
+ 
+ const props = defineProps<{ groups: RailGroup[]; selectedIndex: number }>()
+ const emit = defineEmits<{ (e: 'select', index: number): void }>()
+ const { t } = useI18n()
+ 
+@@ -65,20 +65,34 @@ function onMouseLeave() {
+ // 主刻度与子刻度共用这一个 handler:子刻度传的是它吸附到的 anchorIndex,所以浮出的
+ // 标签内容天然就是"这条子刻度所属主刻度"的时间,和点击吸附的目标保持一致。
+ function onTickHover(e: MouseEvent, flatIndex: number) {
+   hoveredIndex.value = flatIndex
+   const el = e.currentTarget as HTMLElement
+   hoverLabelTop.value = el.offsetTop + el.offsetHeight / 2
+ }
+ 
+ onUnmounted(() => { if (rafHandle !== null) cancelAnimationFrame(rafHandle) })
+ 
++// The rail scrolls once the snapshots outgrow its height, and the deck/bottom
++// bar were the only things following the selection -- pressing up/down past the
++// visible range moved everything except the rail, which looked frozen.
++//
++// `block: 'nearest'` so an already-visible tick is left exactly where it is;
++// anything else would yank the whole rail on every keypress.
++watch(() => props.selectedIndex, async (index) => {
++  await nextTick()
++  const root = railEl.value
++  if (!root) return
++  const el = root.querySelector<HTMLElement>(`[data-flat-index="${index}"]`)
++  el?.scrollIntoView({ block: 'nearest' })
++})
++
+ function scaleStyle(flatIndex: number) {
+   const s = scales.value[flatIndex]
+   return s ? { transform: `scaleX(${s})` } : undefined
+ }
+ 
+ const hoveredItem = computed(() => (hoveredIndex.value !== null ? itemByIndex.value[hoveredIndex.value] : null))
+ </script>
+ 
+ <template>
+   <div ref="railEl" class="tm-rail" @mousemove="onMouseMove" @mouseleave="onMouseLeave">
