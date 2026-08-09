@@ -922,4 +922,20 @@ export default {
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
   // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: '排序保存失败',
+  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  photosMoBackToAll: '全部时刻',
+  photosMoLastUpdated: '最后更新 {time}',
+  // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
+  photosMoNotFound: '找不到这个时刻',
+  photosMoAbout: '关于',
+  photosMoStats: '统计',
+  photosMoType: '类型',
+  photosMoTime: '时间',
+  photosMoPlace: '地点',
+  photosMoByMonth: '按月份',
+  photosMoSpan: '跨度',
+  photosMoSpanDays: '{n} 天',
+  photosMoLastUpdate: '最后更新',
+  photosMoPhotos: '照片',
+  photosMoFeatured: '精选',
 }

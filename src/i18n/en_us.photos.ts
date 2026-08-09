@@ -915,4 +915,20 @@ export default {
   photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
   // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
   photosMoOrderSaveFailed: 'Failed to save order',
+  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  photosMoBackToAll: 'All Moments',
+  photosMoLastUpdated: 'Last updated {time}',
+  // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
+  photosMoNotFound: 'This moment no longer exists',
+  photosMoAbout: 'About',
+  photosMoStats: 'Stats',
+  photosMoType: 'Type',
+  photosMoTime: 'Time',
+  photosMoPlace: 'Place',
+  photosMoByMonth: 'By month',
+  photosMoSpan: 'Span',
+  photosMoSpanDays: '{n} days',
+  photosMoLastUpdate: 'Last update',
+  photosMoPhotos: 'Photos',
+  photosMoFeatured: 'Featured',
 }
