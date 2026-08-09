@@ -13,29 +13,65 @@
 // 形态偏离登记(与 T5 同理由,记账):Vue2 用 window.confirm 做「放弃未保存选择」二次确认
 // (:112);本仓无 window.confirm 惯例,改为面板内联确认条(discardConfirm 状态),行为语义
 // 不变——有未保存选择时点取消先展示确认条,确认后才真正关闭。
+//
+// ★★★ SP15-P1-T9 · Step 0: generalised away from albums ★★★
+// It used to hardcode the album store for both halves of its job — reading which assets are
+// already in (`albums.assetsOf(props.albumId)`) and writing the chosen ones back
+// (`albums.addAssetsToAlbum`) — plus the success/failure toasts around that write. Moments need
+// the same picker against a different collection, so both halves moved out to the caller: the
+// caller passes `existingIds` and receives the picked ids on `confirm`. What is left here is the
+// picking itself. Vue 2 made this exact change in #79 (ccaccd36, PhotosAlbumLibraryPicker.vue →
+// PhotosLibraryPicker.vue).
+//
+// ⚠️ The file name now understates the component: it is no longer album-specific. Vue 2 renamed
+// it in the same commit that generalised it; here the rename is deliberately deferred — it
+// travels with the rest of #79 in P2, and doing it now would drag every import, test path and the
+// oss manifest through a churn that has nothing to do with moments. Read "Album" in the name as
+// history, not as scope.
+//
+// Two shape deviations from Vue 2's #79, both to keep the two album consumers pixel-identical to
+// what they render today (the whole point of a refactor step is that nothing visible moves):
+//  a) `submitting` is a prop, not local state. Vue 2 kept the busy flag inside the component
+//     because it could `await this.$listeners.confirm(...)` — a Vue 2 listener is a plain
+//     function and returns the parent's promise. Vue 3's `emit()` discards the handler's return
+//     value, so the component cannot know when the parent's write finished; the flag follows the
+//     write to the caller. Same rendered result: the button reads "Adding…" and is disabled for
+//     exactly as long as the request is in flight.
+//  b) `submitLabel` accepts a `(count) => string` as well as a plain string. Vue 2's #79 turned
+//     the album button from "Add ({n})" into a static "Add selected", silently dropping the count
+//     from a screen that had it. The album pages here keep their count by passing a function;
+//     moments pass a plain string, exactly Vue 2's "Add selected".
+// Closing on success also moves to the caller for the same reason as (a): the component can no
+// longer tell success from failure. Every caller closes on success and leaves the panel open on
+// failure — which is Vue 2's observable behaviour, kept intact.
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
-import { usePhotosAlbums } from '../stores/albums'
 import { useTimelineStore } from '../stores/timeline'
-import { useToast } from '../../stores/toast'
 import type { Photo } from '../util/assetToPhoto'
 
-const props = defineProps<{ open: boolean; albumId: string | number; albumName: string }>()
+const props = defineProps<{
+  open: boolean
+  title: string
+  /** Ids already in the target collection, String()-normalised by the caller (see the iron rule
+   *  above — the caller owns the collection, so it owns the normalisation of its own ids). */
+  existingIds: Set<string>
+  existingLabel: string
+  submitLabel: string | ((count: number) => string)
+  submitting?: boolean
+}>()
 const emit = defineEmits<{
   (e: 'update:open', value: boolean): void
-  (e: 'added', count: number): void
+  (e: 'confirm', ids: Array<string | number>): void
 }>()
 
 const { t } = useI18n()
-const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
-const toast = useToast()
 
 // 选中集合直接存 flat 里给出的原始 id(与 flat 同源,类型天然一致,无需归一);
-// 提交时原样传给 addAssetsToAlbum,不做类型转换。
+// 提交时原样交给调用方,不做类型转换(调用方要什么类型由它自己决定——相册两条路径至今
+// 原样传给 addAssetsToAlbum,请求体一个字节都没变)。
 const selected = ref<Set<string | number>>(new Set())
-const adding = ref(false)
 const discardConfirm = ref(false)
 
 // 照 Vue2 flat computed(:73-85):展平所有月份的照片,按 takenAt 降序。时间线本身已有
@@ -50,12 +86,17 @@ const flat = computed<Photo[]>(() => {
   return out
 })
 
-// 铁律:String 归一的 Set 值比较——相册资产 id 与时间线照片 id 类型可能不一致。
-const existingIds = computed(() => new Set(albums.assetsOf(props.albumId).map((p) => String(p.id))))
-
+// 铁律:String 归一的 Set 值比较——目标集合的资产 id 与时间线照片 id 类型可能不一致。
+// 归一的 caller 侧那一半(建 Set 时 String())在调用方,这里是消费侧的另一半。
 function isExisting(p: Photo): boolean {
-  return existingIds.value.has(String(p.id))
+  return props.existingIds.has(String(p.id))
 }
+
+// submitLabel 可以是「跟着已选张数变」的函数(相册两条路径:添加(2)),也可以是固定文案
+// (时刻:添加所选)——见文件头偏离登记 (b)。
+const submitText = computed(() =>
+  typeof props.submitLabel === 'function' ? props.submitLabel(selected.value.size) : props.submitLabel,
+)
 function isSelected(p: Photo): boolean {
   return selected.value.has(p.id)
 }
@@ -116,7 +157,6 @@ watch(
     if (isOpen) {
       selected.value = new Set()
       discardConfirm.value = false
-      adding.value = false
       if (timeline.months.length === 0) void timeline.fetchTimeline()
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
@@ -127,23 +167,11 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-async function confirmAdd(): Promise<void> {
-  if (selected.value.size === 0 || adding.value) return
-  adding.value = true
-  const ids = Array.from(selected.value)
-  const count = ids.length
-  try {
-    await albums.addAssetsToAlbum(props.albumId, ids)
-    toast.show(t('photosAlbumAddedToast', { count, name: props.albumName }))
-    emit('added', count)
-    closeNow()
-  } catch (e) {
-    console.error('[album-library-picker] addAssetsToAlbum', e)
-    toast.show(t('photosAlbumAddFailed'))
-    // 失败不关闭面板;已选中项保留(selected 不清空);adding 复位由 finally 处理。
-  } finally {
-    adding.value = false
-  }
+// 交出已选 id 就到此为止:写库、成功/失败 toast、关面板全在调用方(见文件头 Step 0 登记)。
+// 这里既不清空 selected 也不关闭面板——写失败时调用方让面板留着,用户的选择还在,可以直接重试。
+function confirmAdd(): void {
+  if (selected.value.size === 0 || props.submitting) return
+  emit('confirm', Array.from(selected.value))
 }
 </script>
 
@@ -157,7 +185,7 @@ async function confirmAdd(): Promise<void> {
     <div class="lib-picker-panel">
       <div class="lib-picker-head">
         <div class="lib-picker-head-text">
-          <div class="lib-picker-title">{{ t('photosAlbumPickerTitle', { name: albumName }) }}</div>
+          <div class="lib-picker-title">{{ title }}</div>
           <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
         </div>
         <button
@@ -187,7 +215,7 @@ async function confirmAdd(): Promise<void> {
             <img :src="thumb(p.id)" alt="" class="lib-picker-tile-img" :class="{ 'is-dimmed': isExisting(p) }">
             <div v-if="isExisting(p)" class="lib-picker-already" data-test="lib-picker-already">
               <span class="lib-picker-already-icon">&#10003;</span>
-              <span>{{ t('photosAlbumPickerAlready') }}</span>
+              <span>{{ existingLabel }}</span>
             </div>
             <div v-else-if="isSelected(p)" class="lib-picker-check" data-test="lib-picker-selected-check">&#10003;</div>
           </div>
@@ -202,10 +230,10 @@ async function confirmAdd(): Promise<void> {
           type="button"
           class="lib-picker-btn-cta"
           data-test="lib-picker-add"
-          :disabled="selected.size === 0 || adding"
+          :disabled="selected.size === 0 || submitting"
           @click="confirmAdd"
         >
-          {{ adding ? t('photosAlbumPickerAdding') : t('photosAlbumPickerAdd', { count: selected.size }) }}
+          {{ submitting ? t('photosAlbumPickerAdding') : submitText }}
         </button>
       </div>
       <div v-else class="lib-picker-discard" data-test="lib-picker-discard-bar">

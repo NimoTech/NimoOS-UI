@@ -1,12 +1,22 @@
 // Task 6 (SP7-P4 相册): AlbumLibraryPicker.vue —— 从图库挑照片加入本相册(T7「手动挑选」/
 // T8「添加照片」按钮共用)。
 // 挂 Pinia + i18n(真实 zh_cn 词条);mock 共享包 @nimotech/nimoos-service,经由真实
-// useTimelineStore()/usePhotosAlbums()/useToast() 端到端验证——瓦片来源、已在相册判定、
-// 添加动作都走真实 store,不是纯白盒断言。
+// useTimelineStore()/usePhotosAlbums() 端到端验证——瓦片来源、已在相册判定都走真实 store,
+// 不是纯白盒断言。(T9 起添加动作本身不再由本组件发起,见下方 Step 0 说明。)
 //
 // 铁律交叉验证:相册资产用数字 id(经 fetchAlbumAssets→assetToPhoto 真实转换管线得到
 // Photo.id 为 number),时间线照片用字符串 id(同样走 assetToPhoto),existingIds 必须
 // String() 归一才能命中——这是本任务的核心断言。
+//
+// SP15-P1-T9 · Step 0 (generalisation): the component's props moved from the album-specific
+// {open, albumId, albumName} to the generic {open, title, existingIds, existingLabel,
+// submitLabel, submitting}, and submitting no longer writes to the album store — it emits
+// `confirm` and the caller writes. Every case below therefore mounts with the props the album
+// pages now pass (albumProps(), which builds the exact same strings from the same zh keys, and
+// derives existingIds through the same real store pipeline), so what these cases assert is still
+// what the album pages render. The write / success toast / failure toast / post-add refresh that
+// left this component are asserted at their new home, in PhotosAlbums.test.ts and
+// PhotosAlbumDetail.test.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -24,13 +34,35 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import AlbumLibraryPicker from '../AlbumLibraryPicker.vue'
-import { useToast } from '../../../stores/toast'
 import { usePhotosAlbums } from '../../stores/albums'
 import { useTimelineStore } from '../../stores/timeline'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-function mountPicker(props: { open: boolean; albumId: string | number; albumName: string }) {
+interface PickerProps {
+  open: boolean
+  title: string
+  existingIds: Set<string>
+  existingLabel: string
+  submitLabel: string | ((count: number) => string)
+  submitting?: boolean
+}
+
+/** The props both album pages pass — same i18n keys, same String()-normalised existingIds
+ *  expression — so these cases keep asserting what the album pages actually render. */
+function albumProps(over: Partial<PickerProps> = {}): PickerProps {
+  const albums = usePhotosAlbums()
+  return {
+    open: true,
+    title: zh.photosAlbumPickerTitle.replace('{name}', 'Trip'),
+    existingIds: new Set(albums.assetsOf('a1').map((p) => String(p.id))),
+    existingLabel: zh.photosAlbumPickerAlready,
+    submitLabel: (count: number) => zh.photosAlbumPickerAdd.replace('{count}', String(count)),
+    ...over,
+  }
+}
+
+function mountPicker(props: PickerProps) {
   return mount(AlbumLibraryPicker, { props, global: { plugins: [i18n] } })
 }
 
@@ -66,7 +98,7 @@ beforeEach(() => {
 describe('AlbumLibraryPicker.vue', () => {
   it('展平时间线照片按 takenAt 降序渲染瓦片(首个为最新的 t-newest)', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
 
     const tiles = w.findAll('[data-test="lib-picker-tile"]')
@@ -98,7 +130,7 @@ describe('AlbumLibraryPicker.vue', () => {
     await albums.fetchAlbumAssets('a1')
     expect(albums.assetsOf('a1').map((p) => p.id)).toEqual([5]) // 确认真实转换得到 number
 
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
 
     const tileFive = w.get('[data-asset-id="5"]')
@@ -115,11 +147,12 @@ describe('AlbumLibraryPicker.vue', () => {
     expect(addBtn.element.disabled).toBe(true)
   })
 
-  it('选中两张 → 主按钮文案含 2;点击 → addAssetsToAlbum(albumId,[id1,id2]) 被调 → emit added(2) + update:open(false) + toast', async () => {
+  // Step 0: the submit button's label still counts up with the selection (the album pages pass a
+  // (count) => string label for exactly that), and pressing it hands the raw ids to the caller.
+  it('选中两张 → 主按钮文案含 2;点击 → emit confirm([id1,id2]),原样交出未经类型转换的 id', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
-    const toast = useToast()
 
     const tiles = w.findAll('[data-test="lib-picker-tile"]')
     await tiles[0]!.trigger('click') // t-newest
@@ -134,39 +167,83 @@ describe('AlbumLibraryPicker.vue', () => {
     await addBtn.trigger('click')
     await flushPromises()
 
-    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('a1', ['t-newest', 't-mid'])
-    expect(w.emitted('added')).toEqual([[2]])
-    expect(w.emitted('update:open')).toEqual([[false]])
-    expect(toast.toasts.length).toBe(1)
-    expect(toast.toasts[0]!.text).toContain('Trip')
-    expect(toast.toasts[0]!.text).toContain('2')
+    expect(w.emitted('confirm')).toEqual([[['t-newest', 't-mid']]])
   })
 
-  it('store 抛错(addAssetsToAlbum 失败)→ 面板仍 open,失败 toast,按钮恢复可用,已选中项保留', async () => {
-    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
+  // Step 0 · the brief's new case: submitting must not reach the album store any more — the write
+  // belongs to the caller now. Spying on the real store instance (not the service mock) is what
+  // makes this fail if any half of the old album-specific behaviour is left behind.
+  it('SP15-P1-T9 泛化:提交时只 emit confirm,不自己写库、不自己关面板', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
-    await flushPromises()
-    const toast = useToast()
-
-    const tiles = w.findAll('[data-test="lib-picker-tile"]')
-    await tiles[0]!.trigger('click')
-    const addBtn = w.get<HTMLButtonElement>('[data-test="lib-picker-add"]')
-    await addBtn.trigger('click')
+    const albums = usePhotosAlbums()
+    const spy = vi.spyOn(albums, 'addAssetsToAlbum')
+    const w = mountPicker(albumProps())
     await flushPromises()
 
+    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click') // t-newest
+    await w.get('[data-test="lib-picker-add"]').trigger('click')
+    await flushPromises()
+
+    expect(spy).not.toHaveBeenCalled()
+    expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalled()
+    expect(w.emitted('confirm')?.[0]?.[0]).toEqual(['t-newest'])
+    // 关面板也归调用方(它才知道写成功没有)——组件自己一声不吭。
     expect(w.emitted('update:open')).toBeUndefined()
-    expect(w.emitted('added')).toBeUndefined()
-    expect(toast.toasts[0]!.text).toBe(zh.photosAlbumAddFailed)
-    // 按钮恢复可用(不是卡在 adding 态)
-    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(false)
+  })
+
+  // Step 0 · the failure path, from the component's side. The write and its failure toast now
+  // live in the album pages (asserted there); what this component still owes the user is that a
+  // caller which leaves the panel open finds the selection exactly as it was, and can resubmit.
+  it('调用方写失败(面板保持 open)→ 已选中项保留,按钮可用,可以再次提交重试', async () => {
+    seedTimeline()
+    const w = mountPicker(albumProps())
+    await flushPromises()
+
+    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
+    await w.get('[data-test="lib-picker-add"]').trigger('click')
+    await flushPromises()
+
     // 已选中的项保留(仍显示"已选择 1 项"文案,而不是被清空)
     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+    // 按钮可用,不是卡在提交态
+    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(false)
+
+    await w.get('[data-test="lib-picker-add"]').trigger('click')
+    expect(w.emitted('confirm')).toHaveLength(2)
+  })
+
+  // Step 0 · submitting 由调用方给(Vue3 的 emit 拿不到父组件那个 promise,见组件文件头
+  // 偏离登记 a):飞行期按钮禁用 + 文案变"添加中…",且再点也不会再发一次 confirm。
+  it('submitting=true(调用方写入飞行中)→ 按钮禁用、文案为添加中,重复点击不再 emit confirm', async () => {
+    seedTimeline()
+    const w = mountPicker(albumProps())
+    await flushPromises()
+    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
+
+    await w.setProps({ submitting: true })
+    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(true)
+    expect(w.text()).toContain(zh.photosAlbumPickerAdding)
+
+    await w.get('[data-test="lib-picker-add"]').trigger('click')
+    expect(w.emitted('confirm')).toBeUndefined()
+  })
+
+  // Step 0 · 固定文案的调用方(时刻页传 photosMoAddSelected 这样的定值字符串)——按钮文案不
+  // 带张数,同一个组件两种用法都要成立。
+  it('submitLabel 传定值字符串时按钮就显示该文案(不追加已选张数)', async () => {
+    seedTimeline()
+    const w = mountPicker(albumProps({ submitLabel: '添加所选' }))
+    await flushPromises()
+    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
+
+    const addBtn = w.get('[data-test="lib-picker-add"]')
+    expect(addBtn.text()).toBe('添加所选')
+    expect(addBtn.text()).not.toContain('1')
   })
 
   it('有选择时点取消 → 出确认条;再确认才关闭;无选择时点取消直接关闭', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
 
     // 无选择 → 直接关闭
@@ -191,7 +268,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   it('确认条里点"返回"(取消放弃)→ 确认条收起,面板仍 open,已选内容保留', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
     const tiles = w.findAll('[data-test="lib-picker-tile"]')
     await tiles[0]!.trigger('click')
@@ -209,7 +286,7 @@ describe('AlbumLibraryPicker.vue', () => {
   // brief 结构清单没列出它,但本期「界面严格 1:1 照 Vue2」的纪律要求补上。
   it('头部 X 关闭按钮:有选中时点击 → 出确认条,update:open 未 emit;无选中时点击 → 直接关闭', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
 
     // 有选中 → 出确认条,不直接关
@@ -233,7 +310,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   it('无可添加照片(时间线为空)→ 渲染 photosAlbumPickerEmpty', async () => {
     svc.photos.getTimeline.mockResolvedValue([])
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
     expect(w.find('[data-test="lib-picker-empty"]').exists()).toBe(true)
     expect(w.text()).toContain(zh.photosAlbumPickerEmpty)
@@ -243,7 +320,7 @@ describe('AlbumLibraryPicker.vue', () => {
     svc.photos.getTimeline.mockResolvedValueOnce([
       { year: 2026, month: 7, assets: [{ id: 'x1', takenAt: '2026-07-01T00:00:00Z', mimeType: 'image/jpeg' }] },
     ])
-    const w = mountPicker({ open: false, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps({ open: false }))
     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
     await w.setProps({ open: true })
     await flushPromises()
@@ -253,7 +330,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   it('open 由 false→true 时清空本地 selected(上次未提交的选择不残留到下次打开)', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
     const tiles = w.findAll('[data-test="lib-picker-tile"]')
     await tiles[0]!.trigger('click')
@@ -267,7 +344,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   it('瓦片缩略图用共享包 thumbnailUrl 生成(不手拼 /v1/photos/... URL)', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
     expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('t-newest', 'small')
     const img = w.get('[data-asset-id="t-newest"] img')
@@ -276,7 +353,7 @@ describe('AlbumLibraryPicker.vue', () => {
 
   it('Esc 分层(document 级派发):确认条展开时先收起确认条(面板仍 open);无选择时 Esc 直接关闭', async () => {
     seedTimeline()
-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
+    const w = mountPicker(albumProps())
     await flushPromises()
     const tiles = w.findAll('[data-test="lib-picker-tile"]')
     await tiles[0]!.trigger('click')

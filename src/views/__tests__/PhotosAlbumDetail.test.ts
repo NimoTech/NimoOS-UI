@@ -443,10 +443,16 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(coverSpy).toHaveBeenCalledWith('7', 'a')
   })
 
-  it('点「添加照片」→ AlbumLibraryPicker open===true;其 @added → fetchAlbumAssets 被再调', async () => {
-    const { w } = await mountView('7')
+  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album itself —
+  // it emits `confirm(ids)` and this page performs the write, the toast, the close and the
+  // refresh. Those four were previously asserted inside AlbumLibraryPicker.test.ts; they are
+  // asserted here now, at their new home, so nothing that moved lost its coverage.
+  it('点「添加照片」→ AlbumLibraryPicker open===true;其 @confirm → addAssetsToAlbum + 成功 toast + 关面板 + fetchAlbumAssets 再刷新', async () => {
+    const { w } = await mountView('7') // beforeEach 已把 7 号相册的名字设为 Trip
     const albums = usePhotosAlbums()
     const fetchSpy = vi.spyOn(albums, 'fetchAlbumAssets')
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
 
     await w.find('[data-test="album-edit-toggle"]').trigger('click')
     await w.vm.$nextTick()
@@ -458,10 +464,38 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(picker.props('open')).toBe(true)
 
     fetchSpy.mockClear()
-    picker.vm.$emit('added', 2)
+    picker.vm.$emit('confirm', ['x', 'y'])
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x', 'y'])
+    expect(fetchSpy).toHaveBeenCalledWith('7')
+    // 成功 toast 带相册名与张数(与泛化前组件内部弹的是同一条 photosAlbumAddedToast)
+    const added = showSpy.mock.calls.map((c) => String(c[0]))
+    expect(added.some((m) => m.includes('Trip') && m.includes('2'))).toBe(true)
+    expect(picker.props('open')).toBe(false)
+  })
+
+  // 写失败:面板留着(用户的选择还在,可以直接重试)+ 失败 toast。同样是从组件里搬过来的行为。
+  it('@confirm 写库失败 → 失败 toast,面板保持 open', async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView('7')
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="album-add-photos"]').trigger('click')
     await w.vm.$nextTick()
 
-    expect(fetchSpy).toHaveBeenCalledWith('7')
+    const picker = w.findComponent(AlbumLibraryPicker)
+    picker.vm.$emit('confirm', ['x'])
+    await flushPromises()
+
+    expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
+    expect(picker.props('open')).toBe(true)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
   })
 
   it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
@@ -565,10 +599,13 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.find('[data-test="album-edit-toggle"]').trigger('click')
     await w.vm.$nextTick()
 
-    svc.photos.getAlbum.mockResolvedValueOnce({ assets: [asset('a'), asset('b')] })
+    // T9 · Step 0: 走 @confirm 后这条路径会拉两次资产(store 的 addAssetsToAlbum 自己拉一次,
+    // 本页成功分支再拉一次刷新——泛化前也是这两次,只是第一次发生在组件内部),所以这里用
+    // mockResolvedValue 而不是 …Once,两次都得到同一批资产。
+    svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     dragMock.refresh.mockClear()
     const picker = w.findComponent(AlbumLibraryPicker)
-    picker.vm.$emit('added', 2)
+    picker.vm.$emit('confirm', ['a', 'b'])
     await flushPromises()
     await w.vm.$nextTick()
 

@@ -151,8 +151,36 @@ async function confirmCreate(): Promise<void> {
   }
 }
 
-function onPickerAdded(): void {
-  void albums.fetchAlbums()
+// SP15-P1-T9 · Step 0: AlbumLibraryPicker 泛化后,写库 / 成功失败 toast / 关面板这三件原本
+// 由组件内部承担的事回到调用方(组件只负责挑照片并把 id 交出来)。这里逐条复刻它此前的行为:
+// 同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(带相册名与张数)、同一条
+// photosAlbumAddFailed、成功才关面板(失败留着,已选内容还在,可以直接重试),以及原
+// `@added` 接的那次 fetchAlbums 刷新。
+const pickerExistingIds = computed(
+  () => new Set(albums.assetsOf(pickerAlbumId.value).map((p) => String(p.id))),
+)
+// 组件那边的按钮文案原本是 photosAlbumPickerAdd(带已选张数),泛化后由调用方给——传函数
+// 而不是定值,张数才跟得上(见组件文件头偏离登记 b)。
+function pickerSubmitLabel(count: number): string {
+  return t('photosAlbumPickerAdd', { count })
+}
+const pickerAdding = ref(false)
+async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
+  if (pickerAdding.value) return
+  pickerAdding.value = true
+  const albumId = pickerAlbumId.value
+  const name = pickerAlbumName.value
+  try {
+    await albums.addAssetsToAlbum(albumId, ids)
+    toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
+    pickerOpen.value = false
+    void albums.fetchAlbums()
+  } catch (e) {
+    console.error('[albums] addAssetsToAlbum', e)
+    toast.show(t('photosAlbumAddFailed'))
+  } finally {
+    pickerAdding.value = false
+  }
 }
 
 // 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
@@ -365,10 +393,13 @@ onUnmounted(() => {
 
   <AlbumLibraryPicker
     :open="pickerOpen"
-    :album-id="pickerAlbumId"
-    :album-name="pickerAlbumName"
+    :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
+    :existing-ids="pickerExistingIds"
+    :existing-label="t('photosAlbumPickerAlready')"
+    :submit-label="pickerSubmitLabel"
+    :submitting="pickerAdding"
     @update:open="pickerOpen = $event"
-    @added="onPickerAdded"
+    @confirm="onPickerConfirm"
   />
 </template>
 

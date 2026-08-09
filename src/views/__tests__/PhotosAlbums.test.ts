@@ -27,6 +27,7 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosAlbums from '../PhotosAlbums.vue'
+import AlbumLibraryPicker from '../../photos/components/AlbumLibraryPicker.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -292,6 +293,66 @@ describe('PhotosAlbums.vue', () => {
 
     expect(svc.photos.getAlbum).toHaveBeenCalledWith('new1')
     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
+  })
+
+  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album store
+  // itself — it emits `confirm(ids)` and this page performs the write, the success toast, the
+  // close and the fetchAlbums refresh that `@added` used to trigger. All four used to be
+  // asserted inside AlbumLibraryPicker.test.ts; they are asserted here now, at their new home.
+  it("source==='select' 挑完照片 → @confirm 触发 addAssetsToAlbum + 成功 toast + 关面板 + fetchAlbums 刷新", async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    const { w } = await mountView()
+    const albums = usePhotosAlbums()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Picked')
+    await w.find('[data-test="source-select"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+
+    const fetchAlbumsSpy = vi.spyOn(albums, 'fetchAlbums')
+    const picker = w.findComponent(AlbumLibraryPicker)
+    picker.vm.$emit('confirm', ['p1', 'p2'])
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('new1', ['p1', 'p2'])
+    // 成功 toast 带相册名与张数(与泛化前组件内部弹的是同一条 photosAlbumAddedToast)
+    const shown = showSpy.mock.calls.map((c) => String(c[0]))
+    expect(shown.some((m) => m.includes('Picked') && m.includes('2'))).toBe(true)
+    expect(fetchAlbumsSpy).toHaveBeenCalled()
+    expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(false)
+  })
+
+  // 写失败:失败 toast + 面板留着(用户的选择还在,可以直接重试)。同样是从组件里搬过来的行为。
+  it("source==='select' 挑完照片写库失败 → 失败 toast,面板保持打开", async () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Picked')
+    await w.find('[data-test="source-select"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+
+    const showSpy = vi.spyOn(toast, 'show')
+    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['p1'])
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
+    expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
   })
 
   it('createAlbum 抛 409 → 渲染重名 toast,模态关闭(照 Vue2 finally 语义)', async () => {

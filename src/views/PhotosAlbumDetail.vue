@@ -281,8 +281,34 @@ function pickSort(s: SortBy): void {
 }
 
 // ── AlbumLibraryPicker(T6)接线 ──
-function onPickerAdded(): void {
-  void albums.fetchAlbumAssets(albumId.value)
+// SP15-P1-T9 · Step 0:组件泛化后,写库 / 成功失败 toast / 关面板由调用方承担(组件只挑照片)。
+// 行为逐条与泛化前一致:同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(相册名 + 张数)、
+// 同一条 photosAlbumAddFailed、成功才关面板(失败留着让用户重试),以及原 `@added` 接的那次
+// fetchAlbumAssets 刷新。
+const pickerExistingIds = computed(
+  () => new Set(albums.assetsOf(albumId.value).map((p) => String(p.id))),
+)
+// 按钮文案带已选张数——泛化后由调用方给,传函数张数才跟得上(见组件文件头偏离登记 b)。
+function pickerSubmitLabel(count: number): string {
+  return t('photosAlbumPickerAdd', { count })
+}
+const pickerAdding = ref(false)
+async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
+  if (pickerAdding.value) return
+  pickerAdding.value = true
+  const id = albumId.value
+  const name = album.value?.title ?? ''
+  try {
+    await albums.addAssetsToAlbum(id, ids)
+    toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
+    pickerOpen.value = false
+    void albums.fetchAlbumAssets(id)
+  } catch (e) {
+    console.error('[album-detail] addAssetsToAlbum', e)
+    toast.show(t('photosAlbumAddFailed'))
+  } finally {
+    pickerAdding.value = false
+  }
 }
 
 // ── PhotoLightbox(P2)接线——@delete + @add-to-album(T9:只接灯箱一处,edit 工具条
@@ -596,10 +622,13 @@ watch(gridRef, () => {
 
   <AlbumLibraryPicker
     :open="pickerOpen"
-    :album-id="albumId"
-    :album-name="album?.title ?? ''"
+    :title="t('photosAlbumPickerTitle', { name: album?.title ?? '' })"
+    :existing-ids="pickerExistingIds"
+    :existing-label="t('photosAlbumPickerAlready')"
+    :submit-label="pickerSubmitLabel"
+    :submitting="pickerAdding"
     @update:open="pickerOpen = $event"
-    @added="onPickerAdded"
+    @confirm="onPickerConfirm"
   />
 
   <PhotoLightbox
