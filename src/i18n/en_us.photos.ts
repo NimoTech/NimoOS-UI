@@ -652,6 +652,11 @@ export default {
   photosSvConditions: 'Conditions',
   photosSvConditionsSettingsUpdated: 'Conditions or settings updated',
   photosSvCopyQuerySv: 'Copy the query as a new SV',
+  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
+  // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
+  // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
+  // both modes into one component).
+  photosSvCreateSmartAlbum: 'Create Smart Album',
   photosSvCreateSmartView: 'Create Smart View',
   photosSvDeleteName: 'Delete "{name}"?',
   photosSvDeleteSmartView: 'Delete Smart View',
@@ -671,6 +676,10 @@ export default {
   photosSvKeepLive: 'Keep it live',
   photosSvLastUpdate: 'Last update',
   photosSvLastUpdatedTime: 'Last updated {time}',
+  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
+  // verbatim from zh_CN.json:1987-1988's English source strings, not the plan's guesses).
+  photosSvLetNimoDraft: 'Let Nimo draft it',
+  photosSvLetNimoDraftHint: 'Describe the theme, let AI fill it in',
   photosSvLive: 'Live',
   photosSvLivePreview: 'Live preview',
   photosSvLoose: 'Loose',
@@ -717,6 +726,9 @@ export default {
   photosSvSmartViewRenamed: 'Smart View renamed',
   photosSvSmartViews: 'Smart Views',
   photosSvSmartViewsAutoUpdate: 'Smart Views auto-update is off',
+  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
+  // choice when the smartview AI feature is off.
+  photosSvSmartViewsOffCreateHint: 'Smart Views are turned off — re-enable them in Settings · AI behavior to create new ones.',
   photosSvSnapshotCurrentMatchesStops: 'Snapshot the current matches — stops updating',
   photosSvStats: 'Stats',
   photosSvStrict: 'Strict',

@@ -5,6 +5,7 @@
 // + 一条 Esc 关模态(硬约束:document 级监听,不是模板 @keydown.esc,值得单独断言真实生效)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -32,6 +33,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosAlbums from '../PhotosAlbums.vue'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
+import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -658,6 +660,35 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
   })
 
+  // SP15-P2b Task 4 (fold-in from Task 3's incomplete flash guard, see progress.md): the
+  // subtitle's gate used to read only `albums.albumsLoaded`, so a library with zero manual
+  // albums but pending smart views still flashed the "none yet" copy in the window between
+  // the two fetches -- mixedItems.length is 0 for that library too, but only because the
+  // smart half hasn't landed, not because it is truly empty. The albums fetch resolving
+  // first must not be enough; the guard must wait on both.
+  it('does not flash the none-yet copy when albums resolve but smart views are still pending', async () => {
+    let resolveSmartViews: ((v: unknown[]) => void) | undefined
+    svc.photos.listAlbums.mockResolvedValue([])
+    svc.photos.listSmartViews.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveSmartViews = resolve }),
+    )
+    const router = makeRouter()
+    router.push('/photos/albums')
+    await router.isReady()
+    const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // Albums resolved (empty), smart views still in flight: must not flash the empty copy.
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsMineHint)
+
+    resolveSmartViews?.([])
+    await flushPromises()
+    await w.vm.$nextTick()
+    // Both resolved, both truly empty: now the empty copy is correct.
+    expect(w.find('.albums-section-hint').text()).toBe(zh.photosAlbumsNoneYetHint)
+  })
+
   it('keeps the manual grid alive when the smart view fetch fails', async () => {
     // fetchSmartViews swallows its own errors (store contract); the page must not gate
     // the manual half on it.
@@ -679,5 +710,74 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
     expect(cards).toHaveLength(1)
     expect(cards[0].text()).toContain('Manual One')
     expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
+  })
+})
+
+// SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue:147-225/:329-336/:519-530/:575-578):
+// picking the "Let Nimo draft it" fill option swaps the panel body for the embedded smart
+// form instead of opening a second modal.
+describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)', () => {
+  it('offers a fourth fill option that drafts a smart album', async () => {
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    expect(w.find('[data-test="source-nimo"]').exists()).toBe(true)
+  })
+
+  it('disables the nimo option and explains why when smart views are off', async () => {
+    const w = await mountAlbums({ albums: [], aiFeatures: { smartview: false } })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    const opt = w.find('[data-test="source-nimo"]')
+    expect(opt.attributes('disabled')).toBeDefined()
+    expect(opt.attributes('title')).toContain('智能视图已关闭')
+    await opt.trigger('click')
+    expect(w.find('[data-test="sv-embed-host"]').exists()).toBe(false)
+  })
+
+  it('swaps its own footer for the embedded smart form when nimo is picked', async () => {
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.find('[data-test="source-nimo"]').trigger('click')
+    expect(w.find('[data-test="sv-embed-host"]').exists()).toBe(true)
+    // Two submit entry points side by side would be ambiguous, so the host footer goes.
+    expect(w.find('[data-test="albums-confirm-create"]').exists()).toBe(false)
+  })
+
+  it('never creates an empty manual album when nimo is the picked source', async () => {
+    // Vue2 :525-530 short-circuits here; the old behaviour created a throwaway album first.
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.find('[data-test="albums-name-input"]').setValue('Trip')
+    await w.find('[data-test="source-nimo"]').trigger('click')
+    await w.find('[data-test="albums-name-input"]').trigger('keydown.enter')
+    expect(svc.photos.createAlbum).not.toHaveBeenCalled()
+  })
+
+  it('closes the whole panel once the embedded form reports success', async () => {
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.find('[data-test="source-nimo"]').trigger('click')
+    w.findComponent(SmartViewCreateDialog).vm.$emit('created', 'sv-new')
+    await nextTick()
+    expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
+    // Vue2 :575-578 stays on the list -- the new card is already there because the store
+    // unshifted it. No navigation.
+    expect(push).not.toHaveBeenCalledWith('/photos/smart-views/sv-new')
+  })
+
+  it('closes the whole panel when the embedded form emits close (cancel path)', async () => {
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.find('[data-test="source-nimo"]').trigger('click')
+    w.findComponent(SmartViewCreateDialog).vm.$emit('close')
+    await nextTick()
+    expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
+  })
+
+  it('feeds the current Album name field into the embedded form as initial-name', async () => {
+    const w = await mountAlbums({ albums: [] })
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.find('[data-test="albums-name-input"]').setValue('Tokyo Trip')
+    await w.find('[data-test="source-nimo"]').trigger('click')
+    expect(w.findComponent(SmartViewCreateDialog).props('initialName')).toBe('Tokyo Trip')
   })
 })

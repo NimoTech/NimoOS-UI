@@ -22,6 +22,7 @@ import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCard from '../photos/components/SmartViewCard.vue'
+import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
@@ -31,7 +32,10 @@ import { albumToView, type AlbumView } from '../photos/util/albumView'
 import { buildMixedAlbums, sortMixed, type MixedSortId } from '../photos/util/mixedAlbums'
 import { isConflict } from '../photos/util/httpErrors'
 
-type SourceId = 'empty' | 'recent' | 'select'
+// SP15-P2b Task 4: 'nimo' is the fourth fill option (Vue2 939a7d3a:PhotosAlbumsView.vue
+// :329-336's sourceOptions, 4th entry) -- picking it swaps the panel body for the
+// embedded smart-view creation form.
+type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -67,6 +71,9 @@ const sourceOptions = computed(() => [
   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
   { id: 'recent' as SourceId, label: t('photosAlbumFillRecent'), hint: t('photosAlbumFillRecentHint') },
   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
+  // SP15-P2b Task 4 (Vue2 :329-336, 4th entry): picking this swaps the panel body for the
+  // embedded SmartViewCreateDialog instead of opening a second modal.
+  { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
 
 // SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
@@ -117,8 +124,29 @@ function closeCreate(): void {
   createOpen.value = false
 }
 
-// 照 Vue2 :309-358(去掉 nimo 分支):建成功 → 按 source 分支处理 → toast → finally 关模态。
+// SP15-P2b Task 4 (Vue2 :521-524): clicking the disabled nimo option is a no-op, the same
+// defensive guard the old standalone New Smart Album button had. Reuses `aiSmartViewOff`
+// directly rather than a same-meaning synonym computed.
+function selectSource(s: { id: SourceId }): void {
+  if (s.id === 'nimo' && aiSmartViewOff.value) return
+  newAlbumSource.value = s.id
+}
+
+// SP15-P2b Task 4 (Vue2 :575-578): the embedded form reports success -- the store already
+// unshifted the new smart view into the list, so there is nothing to insert and nowhere to
+// navigate. Just close the shared panel and stay on the list.
+function onSmartAlbumCreated(): void {
+  closeCreate()
+}
+
+// 照 Vue2 :309-358(去掉 nimo 分支,Task 4 补回短路):建成功 → 按 source 分支处理 →
+// toast → finally 关模态。
 async function confirmCreate(): Promise<void> {
+  // SP15-P2b Task 4 (Vue2 :525-530): with nimo picked, the panel body *is* the smart form
+  // and it owns its own submit (SmartViewCreateDialog's confirm()). Falling through here
+  // used to create a throwaway empty manual album first before handing off -- Vue2's own
+  // fix for that bug, ported here rather than reintroduced.
+  if (newAlbumSource.value === 'nimo') return
   const title = newAlbumTitle.value.trim()
   if (!title || creating.value) return
   creating.value = true
@@ -358,12 +386,16 @@ onUnmounted(() => {
               <h2>{{ t('photosAlbumsMine') }}</h2>
               <!-- SP15-P2b Task 3 fix round 1 (Important 3): this subtitle carries the empty
                    state itself (Vue2 939a7d3a:PhotosAlbumsView.vue:91-93 has no separate empty
-                   panel, this line is it). Gated on `albums.albumsLoaded` so it cannot flash
-                   the "none yet" copy for a full library while the two fetches are still in
-                   flight -- before they resolve, mixedItems.length is 0 for every library, not
-                   just an empty one. -->
+                   panel, this line is it). Gated on both `albums.albumsLoaded` AND
+                   `smartViews.listLoaded` so it cannot flash the "none yet" copy while either
+                   fetch is still in flight -- before both resolve, mixedItems.length is 0 for
+                   every library, not just an empty one. SP15-P2b Task 4 (fold-in from Task 3's
+                   incomplete guard, see progress.md): the grid is now mixed, so a library with
+                   zero manual albums but pending/nonzero smart views needs the smart half's own
+                   loaded flag too -- gating on the albums fetch alone left a window where the
+                   smart half hadn't landed yet but the guard already read "loaded". -->
               <span class="albums-section-hint">
-                {{ albums.albumsLoaded && mixedItems.length === 0 ? t('photosAlbumsNoneYetHint') : t('photosAlbumsMineHint') }}
+                {{ albums.albumsLoaded && smartViews.listLoaded && mixedItems.length === 0 ? t('photosAlbumsNoneYetHint') : t('photosAlbumsMineHint') }}
               </span>
             </div>
             <div class="album-grid">
@@ -413,7 +445,7 @@ onUnmounted(() => {
     data-test="albums-create-modal"
     @click.self="closeCreate"
   >
-    <div class="albums-modal">
+    <div class="albums-modal" :class="{ 'albums-modal-wide': newAlbumSource === 'nimo' }">
       <div class="albums-modal-head">
         <div class="albums-modal-head-text">
           <div class="albums-modal-title">{{ t('photosAlbumCreateTitle') }}</div>
@@ -440,7 +472,9 @@ onUnmounted(() => {
           class="albums-source-item"
           :data-active="newAlbumSource === s.id"
           :data-test="'source-' + s.id"
-          @click="newAlbumSource = s.id"
+          :disabled="s.id === 'nimo' && aiSmartViewOff"
+          :title="s.id === 'nimo' && aiSmartViewOff ? t('photosSvSmartViewsOffCreateHint') : undefined"
+          @click="selectSource(s)"
         >
           <div class="radio" :data-active="newAlbumSource === s.id"><div v-if="newAlbumSource === s.id" class="dot"></div></div>
           <div class="src-text">
@@ -450,7 +484,19 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="albums-modal-foot">
+      <!-- SP15-P2b Task 4 (Vue2 :519-524's mirror on the panel body): source==='nimo'
+           swaps the panel body for the embedded smart form, owning its own submit --
+           two submit entry points side by side would be ambiguous, so the host footer
+           hides while it is shown. -->
+      <SmartViewCreateDialog
+        v-if="newAlbumSource === 'nimo'"
+        :open="true"
+        embedded
+        :initial-name="newAlbumTitle"
+        @created="onSmartAlbumCreated"
+        @close="closeCreate"
+      />
+      <div v-else class="albums-modal-foot">
         <button type="button" class="albums-btn-ghost" @click="closeCreate">{{ t('photosCancel') }}</button>
         <button
           type="button"
@@ -592,6 +638,18 @@ onUnmounted(() => {
   width: min(440px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
   border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 20px 22px 18px;
 }
+/* SP15-P2b Task 4 (Vue2 photos.scss's .albums-modal.albums-modal-wide): the embedded form
+   is a two-column layout (body + preview rail); 440px cannot hold it. Widen to the
+   standalone dialog's own width and become a flex column so the embedded .sv-modal's
+   flex:1 (SmartViewCreateDialog.vue's .sv-modal.sv-modal-embedded) has a fixed-height
+   column to fill instead of being sized by its own content and clipped. */
+.albums-modal.albums-modal-wide {
+  width: min(820px, 100%);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 .albums-modal-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 .albums-modal-head-text { flex: 1 1 auto; min-width: 0; }
 .albums-modal-title { font-size: 16px; font-weight: 600; color: var(--fg); }
@@ -617,6 +675,9 @@ onUnmounted(() => {
 }
 .albums-source-item:hover { background: var(--chip-bg-hi); }
 .albums-source-item[data-active="true"] { border-color: var(--accent); background: var(--accent-soft); }
+/* SP15-P2b Task 4: the nimo option's disabled state when Smart Views are off (Vue2 :521-524's
+   own defensive guard, same as the old standalone New Smart Album button's disabled style). */
+.albums-source-item:disabled { opacity: 0.5; cursor: not-allowed; }
 .radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--chip-border); flex: 0 0 auto; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
 .radio[data-active="true"] { border-color: var(--accent); }
 .radio .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }

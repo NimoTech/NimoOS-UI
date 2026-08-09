@@ -178,3 +178,60 @@ Task 3 fix round 1: complete. Translated the two offending new comments (SmartVi
   Covering tests: `pnpm exec vitest run src/views/__tests__/PhotosAlbums.test.ts
   src/i18n/parity.test.ts src/styles` -> 6 files / 1113 passed. `pnpm exec vue-tsc --noEmit`
   -> clean. Full suite not re-run per the coordinator's explicit instruction.
+Task 3: fix round 1/5 (5 addressed, 0 open — two new Chinese comments translated;
+  duplicate empty-state panel + dead isEmpty + 2 dead keys removed and the subtitle
+  gated on albumsLoaded, mutation-confirmed; same-id fixture and banner deviation
+  pointer added; commits 1040729..1a576c9)
+Task 3: complete (commits 95efa6f..1a576c9, review clean)
+  Honest negative result worth keeping: the grid's kind-prefix `:key` guard is NOT
+  mutation-observable. Vue's isSameVNodeType compares (type, key) as a pair, so a
+  plain <div> album card and a <SmartViewCard> are never confused whatever the key;
+  and the re-reviewer traced further that the dev "Duplicate keys" warning lives only
+  in patchKeyedChildren's middle-diff branch, which a 0->2 first render never reaches.
+  => The prefix stays (it matches Vue2 and costs nothing) but no test can guard it.
+  Recorded so nobody spends another round trying.
+Task 3: minor -> FOLDED INTO TASK 4 (T4 edits the same file): the mandated flash guard
+  `albums.albumsLoaded && mixedItems.length === 0` waits only on the ALBUMS fetch and
+  ignores smartViews' own `listLoaded` (smartViews.ts:125). A library with zero manual
+  albums but some smart views still flashes photosAlbumsNoneYetHint in the window
+  between the two resolutions. My mandated resolution was incomplete, not the
+  implementer's work.
+
+CONTROLLER-VERIFIED i18n values for Task 4 (plan Step 1 discharged; BOTH of my
+  guessed values in the plan's key table were WRONG):
+    "Let Nimo draft it"                        -> 让 Nimo 起稿        (plan guessed 让 Nimo 起草)
+    "Describe the theme, let AI fill it in"    -> 你描述主题，交给 AI 填充  (plan guessed 描述主题，让 AI 帮你填充)
+    "Create Smart Album"                       -> 创建智能相册        (plan's guess was right)
+  Source: git -C /home/nimo/NimoTech/NimoOS-UI show 939a7d3a:src/assets/lang/zh_CN.json:1987,1988,2090
+
+Task 4: complete. Embedded SmartViewCreateDialog (props embedded/initialName, effectiveName
+  computed, close()/onRootClick() branching on embedded, Escape listener guarded by
+  !props.embedded, confirm() emits 'close' instead of update:open(false) when embedded, 4th
+  submit-label swap) + host side (SourceId +'nimo', 4th sourceOptions entry, selectSource()
+  reusing aiSmartViewOff directly per dispatch instruction, confirmCreate() short-circuit for
+  nimo, albums-modal-wide class + embedded mount replacing the footer, onSmartAlbumCreated()
+  just closes the panel) + folded-in flash-guard fix (both albums.albumsLoaded AND
+  smartViews.listLoaded required) + 4 new i18n keys in both locale files.
+  Naming deviation registered in-file: Vue2's actual class names are `sv-modal-embed-host` /
+  `sv-modal.sv-modal-embedded` (confirmed by reading 939a7d3a source directly, not the plan's
+  paraphrase); this file uses `sv-embed-host` for the wrapper (the dispatch's test fixtures
+  hard-code that data-test name) and keeps `sv-modal-embedded` for the modifier -- cosmetic
+  only, no structural difference, registered in the CSS comment.
+  Also read the actual Vue2 source further than the dispatch quoted and found: Vue2's
+  `closeCreate()` always emits 'close' for every dismissal (button/cancel/scrim) -- there is
+  no update:open contract in the Vue2 component at all, because Vue2 never had a standalone
+  mode for this component (that only exists in New-UI, which merged two separate Vue2 files
+  into one). The dispatch's plan (keep update:open for standalone, add 'close' for embedded)
+  is the correct 1:1-adapted shape given that difference, not a deviation from Vue2 -- noting
+  this so nobody re-derives it and worries it's wrong.
+  Mutation self-review caught a real test gap during the exercise, fixed before reporting:
+  the brief's literal "leaves Escape to the host" test only asserted `update:open` was
+  undefined, but close() already branches on `embedded` and would emit 'close' whether or
+  not the listener actually fired -- checking update:open alone could not tell "listener
+  never attached" apart from "listener fired, took the embedded branch". Strengthened to
+  also assert `close` is undefined; confirmed red against the original (correct) test before
+  the fix, green after.
+  Covering tests: `pnpm exec vitest run src/views/__tests__/PhotosAlbums.test.ts
+  src/photos/components/__tests__/SmartViewCreateDialog.test.ts src/styles
+  src/i18n/parity.test.ts` -> 7 files / 1172 passed. `pnpm exec vue-tsc --noEmit` -> clean.
+  Full `pnpm test` run once before commit per Step 8 (see task-4-report.md for the number).

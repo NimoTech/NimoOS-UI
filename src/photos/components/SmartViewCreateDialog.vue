@@ -60,10 +60,22 @@ import { useToast } from '../../stores/toast'
 import { inferChips, SV_QUICK_TEMPLATES, type QuickTemplate } from '../util/smartViewSuggest'
 import PhotosThreshSlider from './PhotosThreshSlider.vue'
 
-const props = defineProps<{ open: boolean }>()
+const props = withDefaults(defineProps<{
+  open: boolean
+  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosSmartAlbumCreate.vue:232-240). Embedded mode is
+  // what the Albums page's "Let Nimo draft it" fill option renders in place of its own
+  // footer -- the panel body *is* the smart form, instead of opening a second modal.
+  embedded?: boolean
+  initialName?: string
+}>(), { embedded: false, initialName: '' })
 const emit = defineEmits<{
   (e: 'update:open', v: boolean): void
   (e: 'created', id: string): void
+  // Embedded mode only: the host closes its whole panel. Vue2 :322/:325 emits the same
+  // 'close' event for every dismissal path (this dialog also has a v-model :open contract
+  // for its standalone mount, which Vue2's embedded-only component never had -- 'close' is
+  // net-new to carry the "close the whole host panel" meaning 'update:open' can't).
+  (e: 'close'): void
 }>()
 
 const { t, locale } = useI18n()
@@ -103,9 +115,15 @@ const threshMuted = computed(
   () => !store.preview.thresholdActive && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
 
-// 照 Vue2 canSubmit computed :319-322。
+// SP15-P2b Task 4 (Vue2 PhotosSmartAlbumCreate.vue :271-273): embedded mode reads the
+// host's Album name field live rather than copying it into the draft on open. Vue2
+// :237-239 explains why -- a one-time seed leaves the user stuck if they pick the nimo
+// option before typing a name: the host field keeps being the single source of truth.
+const effectiveName = computed(() => (props.embedded ? props.initialName : draft.name).trim())
+
+// 照 Vue2 canSubmit computed :319-322,name 判据换成 effectiveName(Task 4)。
 const canSubmit = computed(
-  () => draft.name.trim().length > 0 && (draft.chips.length > 0 || draft.desc.trim().length > 0),
+  () => effectiveName.value.length > 0 && (draft.chips.length > 0 || draft.desc.trim().length > 0),
 )
 
 // 照 Vue2 refreshPreview 的调用形态,description 在送出前 trim(Vue2 :372 在 store 方法
@@ -120,7 +138,22 @@ function triggerPreview(): void {
 }
 
 function close(): void {
+  // SP15-P2b Task 4 (Vue2 :325 onScrimClick): in embedded mode the host panel owns
+  // dismissal -- it has the scrim, the Cancel button and the Escape handler. Emitting
+  // update:open from here would close the smart form while leaving the host panel open
+  // around an empty hole, so embedded mode asks the host to close everything instead.
+  if (props.embedded) {
+    emit('close')
+    return
+  }
   emit('update:open', false)
+}
+
+// SP15-P2b Task 4: the host panel owns the scrim in embedded mode (it has no scrim of
+// its own to click through to), so a self-click on this component's own root must be a
+// no-op there. Standalone mode is unchanged: click.self on the scrim closes as before.
+function onRootClick(): void {
+  if (!props.embedded) close()
 }
 
 // 浮层 Esc 走 document 级监听 + watch(open) 挂/摘(P4 血泪，AlbumPickerDialog.vue 既有
@@ -140,7 +173,14 @@ watch(
   (isOpen) => {
     if (isOpen) {
       Object.assign(draft, emptyDraft())
-      document.addEventListener('keydown', onDocumentKeydown)
+      // SP15-P2b Task 4: Escape belongs to the host in embedded mode -- the host's own
+      // document keydown handler (PhotosAlbums.vue) closes the whole panel. Attaching this
+      // listener too would fire twice / race which one wins. The unconditional
+      // removeEventListener calls below and in onUnmounted stay unconditional on purpose
+      // (removing a listener that was never added is a no-op; guarding the removal would
+      // leak if `embedded` changed mid-life -- the right general rule to keep this file
+      // consistent with, even though withDefaults' static default makes it moot here).
+      if (!props.embedded) document.addEventListener('keydown', onDocumentKeydown)
       void nextTick(() => nameInputRef.value?.focus())
       triggerPreview()
     } else {
@@ -228,7 +268,7 @@ async function confirm(): Promise<void> {
   if (!canSubmit.value || store.createBusy) return
   try {
     const created = await store.createSmartView({
-      name: draft.name.trim(),
+      name: effectiveName.value,
       description: draft.desc.trim() || undefined,
       conds: [...draft.chips],
       threshold: draft.thresh,
@@ -237,7 +277,14 @@ async function confirm(): Promise<void> {
     })
     if (created) {
       emit('created', created.id)
-      emit('update:open', false)
+      // SP15-P2b Task 4: embedded mode closes the whole host panel via 'close' (the panel
+      // body *is* this form -- there is no separate 'itself' to close); standalone mode
+      // keeps its own update:open(false) contract unchanged.
+      if (props.embedded) {
+        emit('close')
+      } else {
+        emit('update:open', false)
+      }
     }
   } catch (e) {
     console.error('[smart-view-create-dialog] confirm', e)
@@ -255,9 +302,14 @@ function thumbUrl(seed: string): string {
 
 <template>
   <Transition name="sv-modal">
-    <div v-if="open" class="sv-modal-scrim" data-test="sv-modal-scrim" @click.self="close">
-      <div class="sv-modal" role="dialog" :aria-label="t('photosSvNewSmartView')">
-        <div class="sv-modal-head">
+    <div
+      v-if="open"
+      :class="embedded ? 'sv-embed-host' : 'sv-modal-scrim'"
+      :data-test="embedded ? 'sv-embed-host' : 'sv-modal-scrim'"
+      @click.self="onRootClick"
+    >
+      <div class="sv-modal" :class="{ 'sv-modal-embedded': embedded }" :role="embedded ? undefined : 'dialog'" :aria-label="embedded ? undefined : t('photosSvNewSmartView')">
+        <div v-if="!embedded" class="sv-modal-head">
           <div class="sv-modal-icon">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /><circle cx="12" cy="12" r="3" /></svg>
           </div>
@@ -272,7 +324,7 @@ function thumbUrl(seed: string): string {
 
         <div class="sv-modal-body">
           <div class="sv-modal-form">
-            <label class="sv-field">
+            <label v-if="!embedded" class="sv-field">
               <span class="sv-field-label">{{ t('photosSvName') }}</span>
               <input
                 ref="nameInputRef"
@@ -423,7 +475,7 @@ function thumbUrl(seed: string): string {
             :disabled="!canSubmit || store.createBusy" @click="confirm"
           >
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" /><circle cx="12" cy="12" r="3" /></svg>
-            {{ t('photosSvCreateSmartView') }}
+            {{ embedded ? t('photosSvCreateSmartAlbum') : t('photosSvCreateSmartView') }}
           </button>
         </div>
       </div>
@@ -462,6 +514,30 @@ function thumbUrl(seed: string): string {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+/* SP15-P2b Task 4 embedded mode (Vue2 photos-smartview.scss's `.sv-modal-embed-host` /
+   `.sv-modal.sv-modal-embedded` -- this file names the wrapper class `.sv-embed-host`
+   instead, a cosmetic naming difference registered here, not a structural one; the
+   modifier class on .sv-modal itself keeps Vue2's literal name).
+   This wrapper removes itself from the box model so the host panel's flex column hands
+   the remaining height straight to .sv-modal, instead of this style-less div being sized
+   by its content and then clipped. */
+.sv-embed-host { display: contents; }
+/* Strip only the standalone chrome (fixed width, radius, border, shadow, viewport-relative
+   max-height) -- the host already provides those. The flex column and overflow:hidden stay,
+   because .sv-modal-body / .sv-modal-form / .sv-modal-side rely on them for their own
+   scrolling; without flex:1;min-height:0 a short viewport clips the submit button out of
+   reach. */
+.sv-modal.sv-modal-embedded {
+  width: auto;
+  max-width: none;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .sv-modal-head {

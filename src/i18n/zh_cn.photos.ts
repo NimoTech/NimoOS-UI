@@ -644,6 +644,11 @@ export default {
   photosSvConditions: '条件',
   photosSvConditionsSettingsUpdated: '条件或设置已更新',
   photosSvCopyQuerySv: '将查询复制为新的智能视图',
+  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
+  // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
+  // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
+  // both modes into one component).
+  photosSvCreateSmartAlbum: '创建智能相册',
   photosSvCreateSmartView: '创建智能视图',
   photosSvDeleteName: '删除「{name}」？',
   photosSvDeleteSmartView: '删除智能视图',
@@ -663,6 +668,10 @@ export default {
   photosSvKeepLive: '保持实时更新',
   photosSvLastUpdate: '最近更新',
   photosSvLastUpdatedTime: '最近更新 {time}',
+  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
+  // verbatim from zh_CN.json:1987-1988, not the plan's guessed values).
+  photosSvLetNimoDraft: '让 Nimo 起稿',
+  photosSvLetNimoDraftHint: '你描述主题，交给 AI 填充',
   photosSvLive: '即时生效',
   photosSvLivePreview: '实时预览',
   photosSvLoose: '宽松',
@@ -709,6 +718,9 @@ export default {
   photosSvSmartViewRenamed: '智能视图已重命名',
   photosSvSmartViews: '智能视图',
   photosSvSmartViewsAutoUpdate: '智能视图自动更新已关闭',
+  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
+  // choice when the smartview AI feature is off.
+  photosSvSmartViewsOffCreateHint: '智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。',
   photosSvSnapshotCurrentMatchesStops: '快照当前匹配 —— 停止更新',
   photosSvStats: '统计',
   photosSvStrict: '严格',
