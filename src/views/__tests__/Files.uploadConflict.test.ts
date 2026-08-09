@@ -262,7 +262,7 @@ describe('Files.vue upload-conflict wiring', () => {
     const uploads = useUploadsStore()
     vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
 
-    const nested = { name: 'photo.jpg', webkitRelativePath: 'Trip/photo.jpg' } as unknown as File
+    const nested = { name: 'snap.jpg', webkitRelativePath: 'Trip/snap.jpg' } as unknown as File
     const flat = { name: 'Vacation', webkitRelativePath: '' } as unknown as File
     const p = (w.vm as any).handleSelectedFiles([nested, flat])
     await waitForDialogOpen(w)

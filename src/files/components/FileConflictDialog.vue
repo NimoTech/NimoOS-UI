@@ -139,7 +139,7 @@ defineExpose({ choose })
   padding: 7px 16px; border-radius: 999px; font-size: 13px; cursor: pointer;
   border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
 }
-.fc-btn:hover:not(:disabled) { background: var(--chip-bg-hover, var(--chip-border)); }
+.fc-btn:hover:not(:disabled) { background: var(--chip-bg-hi); }
 .fc-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* Every variant redeclares its own :hover background. A bare .fc-btn:hover is

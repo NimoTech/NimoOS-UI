@@ -5,10 +5,10 @@
 // Why upload needs grouping at all (paste/restore don't): a picked or dragged
 // folder flattens to one entry per file inside it, so an entry can carry a
 // multi-level relativePath like "Trip/Day1/1.jpg". Prompting per entry would
-// ask about every photo inside "Trip". Instead the conflict is judged on the
-// relativePath's TOP segment — the thing that actually lands as a sibling of
-// an existing name — and every entry sharing that top segment is resolved as
-// one unit.
+// ask about every single file inside "Trip". Instead the conflict is judged on
+// the relativePath's TOP segment — the thing that actually lands as a sibling
+// of an existing name — and every entry sharing that top segment is resolved
+// as one unit.
 import { findConflicts, type ConflictCandidate, type ConflictResolution, type ConflictAction } from './fileConflict'
 
 export interface UploadEntry {
