@@ -34,7 +34,7 @@
 //     fix round 1 · I2:这条只解释了背景色的替换,**不覆盖** Vue2 hover 态的
 //     transform: translateY(-1px)(上浮)——那是与颜色 token 无关的独立视觉属性,
 //     之前被静默丢了,已在样式块补回(两者可共存)。
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
@@ -45,12 +45,15 @@ import MomentCard from '../photos/components/MomentCard.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
+import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
+import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
 const router = useRouter()
 const store = usePhotosSmartViews()
 const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
+const toast = useToast()
 
 // P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
 // 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
@@ -69,6 +72,39 @@ const moGrid = ref<HTMLElement | null>(null)
 function onMomentOpen(id: string): void {
   router.push('/photos/moments/' + id)
 }
+
+// SP15-P1-T6: drag-to-reorder for the Moments band, reusing the album detail page's
+// drag-sort composable instead of a second Sortable wrapper.
+//
+// This is the spot most likely to be copied wrong. Vue2 (899af59b:PhotosSmartViewsView.vue
+// :480-497) rebinds Sortable from three watchers: two watch an inline detail view
+// collapsing back to the list, one watches showMoments going from hidden to shown. The
+// first two have **no counterpart here** — the detail page is its own route, so leaving
+// this page unmounts the whole component and returning remounts it; there is no "same
+// instance, detail state just collapsed" case to watch for. Copying those two would
+// produce watchers that can never fire. Only the third case survives: when the band goes
+// from hidden to shown, `.mo-grid` is a freshly mounted DOM node and any prior Sortable
+// instance (from before the band was hidden) is stale.
+const drag = useAlbumDragSort({
+  container: moGrid,
+  enabled: () => showMoments.value,
+  onOrder: (ids) => { void persistOrder(ids) },
+  itemSelector: '.mo-card[data-id]',
+  ghostClass: 'mo-drag-ghost',
+  chosenClass: 'mo-drag-chosen',
+})
+
+async function persistOrder(ids: string[]): Promise<void> {
+  const ok = await moments.reorder(ids)
+  if (!ok) toast.show(t('photosMoOrderSaveFailed'), 2500, 'danger')
+}
+
+watch(showMoments, (next) => {
+  if (next) void nextTick(() => drag.refresh())
+  else drag.destroy()
+}, { immediate: true })
+
+onBeforeUnmount(() => drag.destroy())
 
 // T5:创建弹窗已接线(T4 的 TODO 兑现)。createOpen 通过 v-model:open 传给
 // SmartViewCreateDialog;创建成功后弹窗 emit('created', id),这里直接跳详情页
@@ -248,6 +284,17 @@ onMounted(() => {
 @media (max-width: 1055px) {
   .mo-grid :deep(.mo-card-wide) { grid-column: span 1; }
 }
+
+/* Drag states (Vue2 photos-smartview.scss:292-299). Vue2 uses an inline purple color
+   literal there; this repo forbids bare color literals, so these use the --accent
+   family via color-mix instead (same technique as SmartViewCard's .sv-collage-badge) —
+   token-based, not a literal, so no theme-exception comment is needed. */
+.mo-grid :deep(.mo-drag-ghost) {
+  opacity: 0.4;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  outline: 2px dashed color-mix(in srgb, var(--accent) 60%, transparent);
+}
+.mo-grid :deep(.mo-drag-chosen) { cursor: grabbing; }
 
 /* ── hero(scss:5-19)── */
 .sv-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 28px; }

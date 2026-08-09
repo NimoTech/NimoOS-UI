@@ -913,4 +913,6 @@ export default {
   photosMoAddedThisWeek: '+{n} this week',
   photosMoHeroTitle: 'Moments · For You',
   photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
+  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  photosMoOrderSaveFailed: 'Failed to save order',
 }

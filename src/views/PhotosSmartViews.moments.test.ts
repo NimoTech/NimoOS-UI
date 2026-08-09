@@ -38,9 +38,15 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
+// SP15-P1-T6: fake sortablejs so drag-drop can be simulated by invoking the captured
+// onEnd callback directly, same technique as useAlbumDragSort.test.ts.
+const sortableCreate = vi.hoisted(() => vi.fn((..._args: unknown[]) => ({ destroy: vi.fn() })))
+vi.mock('sortablejs', () => ({ default: { create: sortableCreate } }))
+
 import PhotosSmartViews from './PhotosSmartViews.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
+import { useToast } from '../stores/toast'
 
 function makeMoment(over: Partial<Moment> = {}): Moment {
   return {
@@ -154,5 +160,65 @@ describe('fetching', () => {
   it('fetches moments once on mount', async () => {
     await mountPage()
     expect(svc.photos.listMoments).toHaveBeenCalledTimes(1)
+  })
+})
+
+// SP15-P1-T6: drag-to-reorder. The band reuses useAlbumDragSort (already covered by
+// useAlbumDragSort.test.ts) — these cases only check the wiring: the DOM order read by
+// the composable's onEnd reaches store.reorder(), a failed reorder toasts, and the
+// hidden→shown transition rebinds a fresh Sortable instance.
+//
+// Deviation from the brief's literal snippet (same reasoning as this file's header
+// "deviation 2"): moment fixtures are set *after* mountPage() resolves, not before —
+// setting them first loses a race against onMounted's real fetchMoments() call, whose
+// mocked listMoments() resolves to [] and would silently overwrite the fixture.
+type CapturedSortableOptions = { onEnd: () => void | Promise<void> }
+describe('drag-to-reorder', () => {
+  it('dropping calls store.reorder with the DOM order after the drop', async () => {
+    const { w } = await mountPage()
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'a' }), makeMoment({ id: 'b' })]
+    const spy = vi.spyOn(s, 'reorder').mockResolvedValue(true)
+    await nextTick()
+    // Let the hidden->shown watch's nextTick(drag.refresh()) run before grabbing the
+    // latest Sortable.create() call.
+    await new Promise((r) => setTimeout(r, 0))
+
+    // Simulate Sortable having reordered the DOM on drop.
+    const grid = w.find('.mo-grid').element
+    grid.appendChild(grid.firstElementChild!) // "a" moves to the end
+    const opts = sortableCreate.mock.calls[sortableCreate.mock.calls.length - 1][1] as CapturedSortableOptions
+    opts.onEnd()
+
+    expect(spy).toHaveBeenCalledWith(['b', 'a'])
+  })
+
+  it('toasts a failure message when reorder() resolves false', async () => {
+    const { w } = await mountPage()
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'a' }), makeMoment({ id: 'b' })]
+    vi.spyOn(s, 'reorder').mockResolvedValue(false)
+    const toast = useToast()
+    const spy = vi.spyOn(toast, 'show')
+    await nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+
+    const grid = w.find('.mo-grid').element
+    grid.appendChild(grid.firstElementChild!)
+    const opts = sortableCreate.mock.calls[sortableCreate.mock.calls.length - 1][1] as CapturedSortableOptions
+    await opts.onEnd()
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(spy).toHaveBeenCalledWith('排序保存失败', expect.anything(), 'danger')
+  })
+
+  it('rebinds Sortable when the band goes from hidden to shown (a freshly mounted .mo-grid node)', async () => {
+    const { w } = await mountPage()
+    const before = sortableCreate.mock.calls.length
+    const s = usePhotosMoments()
+    s.moments = [makeMoment()]
+    await w.vm.$nextTick()
+    await new Promise((r) => setTimeout(r, 0))
+    expect(sortableCreate.mock.calls.length).toBeGreaterThan(before)
   })
 })

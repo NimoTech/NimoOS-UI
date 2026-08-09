@@ -920,4 +920,6 @@ export default {
   photosMoAddedThisWeek: '本周 +{n}',
   photosMoHeroTitle: '时刻 · 为你推荐',
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
+  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  photosMoOrderSaveFailed: '排序保存失败',
 }

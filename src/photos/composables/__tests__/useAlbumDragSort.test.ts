@@ -144,4 +144,38 @@ describe('useAlbumDragSort', () => {
     await nextTick()
     expect(s.isDragging()).toBe(false)
   })
+
+  // SP15-P1-T6: the Moments band reuses this composable instead of a second Sortable
+  // wrapper. The item selector and the two class names become optional, defaulting to
+  // today's hardcoded album-page values, so the album page needs no edit. Nested inside
+  // this describe (rather than a sibling) so it gets makeContainer and the beforeEach's
+  // mockCreate reset/implementation for free.
+  describe('SP15-P1-T6: optional selector/class overrides', () => {
+    it('defaults are unchanged when the new options are omitted (.tile[data-id] + tile-drag-ghost)', () => {
+      // The existing cases above already cover the default path end to end; this one only
+      // pins down that the defaults themselves were not touched.
+      const container = ref<HTMLElement | null>(makeContainer())
+      const s = useAlbumDragSort({ container, enabled: () => true, onOrder: vi.fn() })
+      s.refresh()
+      expect(mockCreate).toHaveBeenLastCalledWith(container.value, expect.objectContaining({ ghostClass: 'tile-drag-ghost' }))
+      s.destroy()
+    })
+
+    it('passes overrides through to Sortable, and reads DOM order using the custom selector', () => {
+      const container = document.createElement('div')
+      container.innerHTML = '<div class="mo-card" data-id="b"></div><div class="mo-card" data-id="a"></div>'
+      const el = ref<HTMLElement | null>(container)
+      const onOrder = vi.fn()
+      const s = useAlbumDragSort({
+        container: el, enabled: () => true, onOrder,
+        itemSelector: '.mo-card[data-id]', ghostClass: 'mo-drag-ghost', chosenClass: 'mo-drag-chosen',
+      })
+      s.refresh()
+      const opts = mockCreate.mock.calls[mockCreate.mock.calls.length - 1][1] as FakeOptions & { chosenClass?: string }
+      expect(opts).toMatchObject({ ghostClass: 'mo-drag-ghost', chosenClass: 'mo-drag-chosen' })
+      opts.onEnd()
+      expect(onOrder).toHaveBeenCalledWith(['b', 'a'])
+      s.destroy()
+    })
+  })
 })
