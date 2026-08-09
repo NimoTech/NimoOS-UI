@@ -49,6 +49,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewConditionEditor from '../photos/components/SmartViewConditionEditor.vue'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
 import { useToast } from '../stores/toast'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -82,10 +83,24 @@ const lastUpdated = computed(() => (sv.value?.evaluatedAt ? relTime(sv.value.eva
 onMounted(async () => {
   if (!store.listLoaded) await store.fetchSmartViews()
   await store.loadDetail(svId.value)
+  void store.loadExcluded(svId.value)
 })
 watch(() => route.params.id, (raw) => {
   if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
+  // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
+  // resets here. `selecting`/`selectedIds` are the pair with a write consequence —
+  // removeSelected() reads svId.value at call time, so a selection carried across an :id
+  // change would send view A's asset ids to view B's remove endpoint, under a bar counting
+  // photos that are no longer on screen. `pickerOpen` is the same story from the other side
+  // (its already-in set comes from the previous view's members) and `excludedOpen` is the
+  // cosmetic remainder of the same rule: nothing on screen may come from the old id. Vue 2
+  // could not hit any of this — its detail component was v-if'd and remounted per view.
+  selecting.value = false
+  selectedIds.value = []
+  pickerOpen.value = false
+  excludedOpen.value = false
   void store.loadDetail(String(raw))
+  void store.loadExcluded(String(raw))
 })
 
 // ── 标题编辑(结构规格 3、8)───────────────────────────────────────────────
@@ -383,12 +398,105 @@ async function duplicateSv(): Promise<void> {
 // `this.$emit('open-photo', p, this.matchedAssets)`(两段网格在 Vue2 里也共用这一个方法)。
 // 不传第四参(query)⇒ 不激活 OCR 高亮,与 Vue2 一致。
 function onTileClick(p: Photo): void {
+  // Vue2 :456-459 (onTileClick): selection mode suppresses the lightbox — a tap either
+  // selects or opens, never both. This has to come first, before the "New" badge is
+  // optimistically cleared: selecting a recently-added photo must not mark it as seen.
+  if (selecting.value) {
+    toggleSelect(String(p.id))
+    return
+  }
   const r = store.recentAssets.find((x) => String(x.id) === String(p.id))
   // 就地改 recentAssets 里那个元素的属性(不是替换数组/新建对象):店内乐观清除,提前隐藏
   // "New" 角标——真实浏览记录由 lb.openAt 内部的 recordView 之类的动作在后端异步落地,
   // 这里只是即时反馈,刻意写注释说明这处直接改 store ref 元素属性是有意为之。
   if (r && r.isNew) r.isNew = false
   lb.openAt(p, store.matchedAssets, 0)
+}
+
+// ── SP15-P2a: manual asset actions (Vue2 :456-534) ───────────────────────────────────────
+// A smart view's membership is generated from its conditions; these four actions are the
+// annotations layered on top of it — pin a photo the conditions missed, remove one (which
+// either unpins it or flags it excluded), and put an excluded one back.
+const pickerOpen = ref(false)
+const selecting = ref(false)
+const selectedIds = ref<string[]>([])
+const excludedOpen = ref(false)
+
+// The ids the picker must show as already-in. Normalising with String() here is load-bearing:
+// asset ids arrive from the API as numbers on some paths while timeline photo ids are strings,
+// and a mismatch silently un-dims every tile. Same correction as PhotosAlbums.vue:163.
+const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => String(p.id))))
+
+// Passing a function rather than a fixed string is what keeps the count in the picker's
+// submit button moving with the selection (see deviation b in the component's header).
+function pickerSubmitLabel(count: number): string {
+  return t('photosAlbumPickerAdd', { count })
+}
+
+function toggleSelecting(): void {
+  selecting.value = !selecting.value
+  if (!selecting.value) selectedIds.value = []
+}
+
+function toggleSelect(id: string): void {
+  selectedIds.value = selectedIds.value.includes(id)
+    ? selectedIds.value.filter((x) => x !== id)
+    : [...selectedIds.value, id]
+}
+
+// Vue2 :516-534 (onPickPhotos). The store action already refetches this view's statistics,
+// so only the asset grids are reloaded here. Both refreshes are needed: a pinned photo joins
+// the matched grid, and pinning one that was previously excluded takes it out of the
+// excluded band.
+async function onPickPhotos(assetIds: Array<string | number>): Promise<void> {
+  const id = svId.value
+  const ids = assetIds.map(String)
+  try {
+    const n = await store.pinAssets(id, ids)
+    toast.show(t('photosSvPinnedNToView', { n }))
+    pickerOpen.value = false
+    await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
+  } catch (e) {
+    console.error('[photos-smartviews] pinAssets', e)
+    // The picker deliberately stays open on failure — the user still has their selection
+    // and can retry without picking everything again (Vue2 rethrows from its handler to get
+    // the same effect, its picker closing itself only on a resolved confirm).
+    toast.show(t('photosSvAddFailed'), 2500, 'danger')
+  }
+}
+
+// Vue2 :470-488 (removeSelected).
+async function removeSelected(): Promise<void> {
+  const id = svId.value
+  const ids = selectedIds.value.slice()
+  if (!ids.length) return
+  try {
+    const r = await store.removeAssets(id, ids)
+    // Removal is tiered on the backend — a pinned row is deleted, an automatically matched
+    // one is flagged excluded — so the confirmation counts both (Vue2 :474).
+    toast.show(t('photosSvRemovedNFromView', { n: r.unpinned + r.excluded }))
+    // Cleared on success only, as in Vue2 :486: after a failure the selection is exactly
+    // what the user needs in order to press the button again.
+    selecting.value = false
+    selectedIds.value = []
+    await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
+  } catch (e) {
+    console.error('[photos-smartviews] removeAssets', e)
+    toast.show(t('photosSvRemoveFailed'), 2500, 'danger')
+  }
+}
+
+// Vue2 :493-503 (restoreOne). Clicking an excluded tile is the whole gesture — there is no
+// separate confirm, which is why the band stays collapsed until asked for.
+async function restoreOne(id: string): Promise<void> {
+  const svid = svId.value
+  try {
+    await store.restoreAssets(svid, [id])
+    await Promise.all([store.loadDetail(svid), store.loadExcluded(svid)])
+  } catch (e) {
+    console.error('[photos-smartviews] restoreAssets', e)
+    toast.show(t('photosSvRestoreFailed'), 2500, 'danger')
+  }
 }
 </script>
 
@@ -470,6 +578,22 @@ function onTileClick(p: Photo): void {
                 <svg v-if="paused" viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                 <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
                 {{ t(paused ? 'photosSvResume' : 'photosSvPause') }}
+              </button>
+
+              <!-- SP15-P2a (Vue2 :71-76): add photos, and the selection toggle. The toggle's
+                   text reuses photosPersonSelect/photosCancel verbatim (the same two words as
+                   Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a fresh
+                   pair of keys — same call PhotosMomentDetail.vue made. -->
+              <button type="button" class="sv-action-btn" data-test="sv-add-photos" @click="pickerOpen = true">
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+                {{ t('photosSvAddPhotos') }}
+              </button>
+              <button
+                type="button" class="sv-action-btn" data-test="sv-select-toggle"
+                :data-open="selecting" @click="toggleSelecting"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
               </button>
 
               <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
@@ -564,10 +688,19 @@ function onTileClick(p: Photo): void {
             <div class="sv-grid-photos sv-grid-photos-recent" data-test="sv-recent-grid">
               <div
                 v-for="p in store.recentAssets" :key="p.id" class="tile" :class="{ recent: p.isNew }"
+                :data-selected="selecting && selectedIds.includes(String(p.id))"
                 data-test="sv-recent-tile" @click="onTileClick(p)"
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
                 <div v-if="p.isNew" class="new-tag">{{ t('photosSvNew') }}</div>
+                <!-- SP15-P2a (Vue2 :146-147): pin badge on the right, selection check on the
+                     left, so the two never collide on the same tile. Both grids carry both. -->
+                <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
+                  <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+                </div>
+                <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                </div>
               </div>
             </div>
           </template>
@@ -579,11 +712,39 @@ function onTileClick(p: Photo): void {
           <div class="sv-grid-photos" data-test="sv-all-grid">
             <div
               v-for="p in store.matchedAssets" :key="p.id" class="tile"
+              :data-selected="selecting && selectedIds.includes(String(p.id))"
               data-test="sv-all-tile" @click="onTileClick(p)"
             >
               <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+              <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
+                <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+              </div>
+              <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+              </div>
             </div>
           </div>
+
+          <!-- SP15-P2a 「已排除」分节(Vue2 :161-172):整块只在有排除项时出现,且默认折叠——
+               它是过去决定的记录,不是这个视图的内容。点一张即恢复,没有二次确认。 -->
+          <template v-if="store.excluded.length">
+            <div
+              class="sv-section-head sv-excluded-head" data-test="sv-excluded-head"
+              @click="excludedOpen = !excludedOpen"
+            >
+              {{ t('photosSvExcludedN', { n: store.excluded.length }) }}
+              <span class="pill">{{ excludedOpen ? t('photosSvHide') : t('photosSvShow') }}</span>
+            </div>
+            <div v-if="excludedOpen" class="sv-grid-photos sv-excluded-grid" data-test="sv-excluded-grid">
+              <div
+                v-for="p in store.excluded" :key="p.id" class="tile"
+                data-test="sv-excluded-tile" @click="restoreOne(String(p.id))"
+              >
+                <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                <div class="sv-restore-hint">{{ t('photosSvRestore') }}</div>
+              </div>
+            </div>
+          </template>
           </div>
 
           <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
@@ -605,6 +766,28 @@ function onTileClick(p: Photo): void {
         {{ exportToast.text }}
       </div>
     </transition>
+
+    <!-- SP15-P2a 选择栏(Vue2 :262-265):计数 + 移除按钮。整条在没有选中项时不存在,这也
+         是移除按钮永远不会发出空请求的原因。 -->
+    <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="sv-select-bar">
+      <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
+      <button
+        type="button" class="sv-action-btn" data-test="sv-remove-selected"
+        :disabled="store.assetBusy" @click="removeSelected"
+      >{{ t('photosSvRemoveFromView') }}</button>
+    </div>
+
+    <!-- SP15-P2a 图库选择器(Vue2 :283-291)。标题复用 photosAlbumPickerTitle ——
+         Vue2 本来就是一个字符串喂两个 picker。 -->
+    <PhotosLibraryPicker
+      v-model:open="pickerOpen"
+      :title="t('photosAlbumPickerTitle', { name: sv?.name ?? '' })"
+      :existing-ids="viewAssetIds"
+      :existing-label="t('photosSvAlreadyInView')"
+      :submit-label="pickerSubmitLabel"
+      :submitting="store.assetBusy"
+      @confirm="onPickPhotos"
+    />
 
     <!-- 删除确认弹窗(结构规格 9,照搬 Vue2 :239-253 的内容与文案;类名不沿用 Vue2 借用
          灯箱的 lb-confirm-* 命名——本仓 PhotoLightbox.vue 已有一份同名但作用域不同的样式,
@@ -766,6 +949,59 @@ function onTileClick(p: Photo): void {
   pointer-events: none;
   box-shadow: inset 0 0 0 2px color-mix(in srgb, black 40%, transparent);
 }
+/* ── SP15-P2a: selection, pin badge, excluded band, selection bar ── */
+/* Selected tile (Vue2 photos.scss:329-333, the global `.photos-root .tile[data-selected]`
+   rule its grids inherit). The wash over the photo is Vue2's flat accent literal at 20%,
+   restated as a mix of the accent token so it follows the theme. */
+.sv-grid-photos .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+.sv-grid-photos .tile[data-selected="true"]::before {
+  content: ""; position: absolute; inset: 0; z-index: 2;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+/* Pin badge (scss:683-692). Background is --overlay-bg — the constant-dark-badge token
+   PhotosTrash.vue's .trash-tile-countdown/.trash-tile-select already use for "fixed dark
+   badge over an unpredictable photo" — instead of Vue2's literal half-opaque black. */
+.sv-pin-tag {
+  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--overlay-bg); backdrop-filter: blur(6px);
+  display: inline-flex; align-items: center; justify-content: center; z-index: 3;
+  color: #fff; /* theme-exception: badge glyph sits on unpredictable photo content inside a
+    fixed dark badge — same reasoning as PhotosMomentDetail.vue's own .sv-pin-tag. */
+}
+/* Selection check (scss:693-701): left side, so it never collides with the pin badge on the
+   right — Vue2's own placement rule. */
+.sv-tile-check {
+  position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;
+  background: var(--accent); display: inline-flex; align-items: center; justify-content: center; z-index: 4;
+  color: var(--on-accent); /* --on-accent's one legal use: icon sits on a solid --accent fill. */
+}
+
+/* Excluded band (scss:704-721): the tiles are dimmed and the Restore hint only surfaces on
+   hover, which is what keeps a record of past decisions from reading as part of the view. */
+.sv-excluded-head { cursor: pointer; user-select: none; }
+.sv-excluded-head:hover { color: var(--fg); }
+.sv-excluded-grid .tile { opacity: 0.7; transition: opacity 0.15s ease; }
+.sv-excluded-grid .tile:hover { opacity: 1; }
+.sv-excluded-grid .tile .sv-restore-hint {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 4px 0; z-index: 3;
+  text-align: center; font-size: 10.5px; font-weight: 600;
+  color: #fff; /* theme-exception: label sits on unpredictable photo content inside a fixed
+    dark strip — same reasoning as .sv-pin-tag above. */
+  background: var(--overlay-bg); backdrop-filter: blur(4px);
+  opacity: 0; transition: opacity 0.15s ease;
+}
+.sv-excluded-grid .tile:hover .sv-restore-hint { opacity: 1; }
+
+/* Selection bar (scss:724-745): fixed pill, same idiom as this file's own .sv-toast
+   (--popup-bg/--card-border/--card-shadow-hi/--blur). */
+.sv-select-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 14px;
+  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur);
+}
+.sv-select-bar span { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+
 .sv-grid-photos .new-tag {
   position: absolute; top: 6px; left: 6px; padding: 2px 7px; border-radius: 99px; background: var(--accent);
   /* --on-accent 唯一合法场景:底色是 var(--accent) 饱和实底。 */

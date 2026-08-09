@@ -738,6 +738,21 @@ export default {
   photosSvUpdateFailed: 'Update failed',
   photosSvDeleteFailed: 'Delete failed',
   photosSvDuplicateFailed: 'Duplicate failed',
+  // ── SP15-P2a: manual asset actions ──
+  // English values are Vue2's literal source strings. See the zh_cn.ts comment for the five
+  // strings this screen reuses from elsewhere in the file instead of adding again.
+  photosSvAddPhotos: 'Add photos',
+  photosSvRemoveFromView: 'Remove from this view',
+  photosSvRemovedNFromView: 'Removed {n} from this view',
+  photosSvExcludedN: 'Excluded ({n})',
+  photosSvAlreadyInView: 'Already in this view',
+  photosSvPinnedNToView: 'Pinned {n} to this view',
+  photosSvRestoreFailed: 'Restore failed',
+  photosSvRemoveFailed: 'Remove failed',
+  photosSvAddFailed: 'Add failed',
+  photosSvShow: 'Show',
+  photosSvHide: 'Hide',
+  photosSvRestore: 'Restore',
   // ---- P7a-T9: search panel (filter bar + popovers) 54 keys, see the matching
   // zh_cn.ts comment. English values are the Vue2 PhotosSearchView.vue literal
   // English strings (= the Vue2 en dict keys), 1:1. ----

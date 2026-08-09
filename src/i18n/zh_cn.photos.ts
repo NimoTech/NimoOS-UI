@@ -742,6 +742,24 @@ export default {
   // 删除/复制失败的 toast(Vue2 均无 catch,New-UI 补上,照既定命名惯例)。
   photosSvDeleteFailed: '删除失败',
   photosSvDuplicateFailed: '复制失败',
+  // ── SP15-P2a: manual asset actions ──
+  // Chinese values are Vue2's own zh_CN.json entries for the same English source strings,
+  // not fresh translations. Five more strings this screen needs are already in this file
+  // under other names and are reused rather than duplicated: photosPersonSelect ('选择'),
+  // photosCancel ('取消'), photosSelectedCount ('已选择 {count} 项' — note the parameter is
+  // `count`, not `n`), photosAlbumPickerTitle and photosAlbumPickerAdd.
+  photosSvAddPhotos: '加照片',
+  photosSvRemoveFromView: '从此视图移除',
+  photosSvRemovedNFromView: '已从此视图移除 {n} 张',
+  photosSvExcludedN: '已排除（{n}）',
+  photosSvAlreadyInView: '已在此视图',
+  photosSvPinnedNToView: '已钉住 {n} 张到此视图',
+  photosSvRestoreFailed: '恢复失败',
+  photosSvRemoveFailed: '移除失败',
+  photosSvAddFailed: '添加失败',
+  photosSvShow: '显示',
+  photosSvHide: '隐藏',
+  photosSvRestore: '恢复',
   // ---- P7a-T9: 搜索面板(过滤条 + 弹层)54 键,照 Vue2 PhotosSearchView.vue 的
   // 英文键逐条核对(zh 值取自 Vue2 src/assets/lang/zh_CN.json),接在文件末尾追加,
   // 不与前面已有键重排。与 T1 已加键语义相同的(Cancel/Close 等)不重复添加。 ----
