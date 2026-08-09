@@ -442,18 +442,41 @@ describe('the two photo grids', () => {
     expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(true)
   })
 
-  it('opens the lightbox on a tile click outside selection mode; inside selection mode a click only toggles selection', async () => {
+  it('opens the lightbox on a tile click outside selection mode, with the all-photos list as the entry list; inside selection mode a click only toggles selection', async () => {
     mockAssets([], [{ id: 'a1' }, { id: 'a2' }])
     const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
     const { w } = await mountDetail()
 
     await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
     expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const [photo, list] = lbMock.openAt.mock.calls[0] as [{ id: unknown }, Array<{ id: unknown }>]
+    expect(photo.id).toBe('a1')
+    expect(list.map((p) => p.id)).toEqual(['a1', 'a2'])
 
     await w.find('[data-test="mo-select-toggle"]').trigger('click')
     await w.findAll('[data-test="mo-all-tile"]')[1].trigger('click')
     expect(lbMock.openAt).toHaveBeenCalledTimes(1) // not opened again
     expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
+  })
+
+  // fix round 1 (Important): the case above never clicks a Featured tile, so a regression
+  // that always passed `allAssets` as the entry list — even for a Featured tile — kept every
+  // existing test green. Featured and All photos here deliberately hold disjoint ids ('f1' vs
+  // 'a1'/'a2') so that passing the wrong list is detectable by content, not just by length.
+  // Mutation-checked: temporarily hard-coding `onTileClick` to always call
+  // `lightbox.openAt(p, allAssets)` turns this case red (list.map(id) comes back
+  // ['a1', 'a2'] instead of ['f1']) while leaving every other test in this file green;
+  // reverting restores green.
+  it('opens the lightbox with the Featured list as the entry list when a Featured tile is clicked, not the all-photos list', async () => {
+    mockAssets([{ id: 'f1' }], [{ id: 'a1' }, { id: 'a2' }])
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    await w.find('[data-test="mo-featured-tile"]').trigger('click')
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const [photo, list] = lbMock.openAt.mock.calls[0] as [{ id: unknown }, Array<{ id: unknown }>]
+    expect(photo.id).toBe('f1')
+    expect(list.map((p) => p.id)).toEqual(['f1'])
   })
 
   // Strengthened beyond the brief's original assertion (self-review requirement: a test
