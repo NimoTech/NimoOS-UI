@@ -118,6 +118,25 @@ export function createScheduler(deps: SchedulerDeps) {
           return
         }
         const status = tusErrorStatus(err)
+        // The staging area this URL points at is gone (interrupt clears it
+        // immediately; the server's sweeper clears it after the idle grace
+        // period). Keeping the URL would make every retry HEAD the same dead
+        // endpoint forever, reported as a bare "network error". Clear it and,
+        // if attempts remain, take another turn of THIS loop with no resumeUrl
+        // so the very next upload() call creates a fresh upload instead of
+        // resuming the dead one — one press of "resume" should just work.
+        // Not routed through isRetryableTusError/BACKOFF_MS: those govern
+        // transient mid-transfer failures, and 404/410 is a permanent
+        // condition of this specific URL, not the network. deps.patch already
+        // mutates `item` in place (the store's patch() does
+        // Object.assign(item, p)), so item.tusUploadUrl is already null by the
+        // time the next attempt reads it — no separate write needed.
+        if (status === 404 || status === 410) {
+          deps.patch(item.id, { tusUploadUrl: null, bytesSent: 0, progress: 0 })
+          if (attempt < 3) continue
+          deps.patch(item.id, { status: 'error', error: humanize(status), retryCount: attempt, speed: 0 })
+          return
+        }
         if (status === 409) {
           deps.patch(item.id, { status: 'done', progress: 100, error: 'duplicate', speed: 0 })
           return

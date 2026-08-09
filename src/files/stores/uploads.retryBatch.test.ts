@@ -16,6 +16,14 @@ vi.mock('../upload/scheduler', () => ({
 }))
 
 import { useUploadsStore } from './uploads'
+import type { UploadItem } from '../upload/types'
+
+const mk = (p: Partial<UploadItem> & { id: string; batchId: string }): UploadItem => ({
+  file: new Blob(['x']) as unknown as File, fileName: 'a', fileType: '', size: 1,
+  targetPath: '/DATA', relativePath: 'a', status: 'error', progress: 50, bytesSent: 1, speed: 0,
+  tusUploadUrl: null, retryCount: 1, error: 'server', createdAt: 0, batchTotal: 1,
+  conflictPolicy: '', ...p,
+})
 
 describe('retryBatch resets error items back to pending', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
@@ -31,5 +39,19 @@ describe('retryBatch resets error items back to pending', () => {
     s.retryBatch('b')
     expect(s.queue[0].status).toBe('pending')
     expect(s.queue[0].error).toBe('')
+  })
+
+  it('retry clears the stale tus URL so a cleared staging area is recreated', () => {
+    const s = useUploadsStore()
+    s.queue.push(mk({ id: 'i1', status: 'error', tusUploadUrl: 'http://nas/upload-tus/gone', batchId: 'b1' }))
+    s.retryBatch('b1')
+    expect(s.queue[0].tusUploadUrl).toBeNull()
+  })
+
+  it('retryItem clears it too', () => {
+    const s = useUploadsStore()
+    s.queue.push(mk({ id: 'i2', status: 'error', tusUploadUrl: 'http://nas/upload-tus/gone', batchId: 'b2' }))
+    s.retryItem('i2')
+    expect(s.queue[0].tusUploadUrl).toBeNull()
   })
 })

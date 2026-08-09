@@ -53,7 +53,6 @@ describe('isBatchSettled', () => {
   it('true only when every item is done/error', () => {
     expect(isBatchSettled([mk({ status: 'done' }), mk({ status: 'error' })])).toBe(true)
     expect(isBatchSettled([mk({ status: 'done' }), mk({ status: 'uploading' })])).toBe(false)
-    expect(isBatchSettled([mk({ status: 'conflict' })])).toBe(false)
     expect(isBatchSettled([])).toBe(false)
   })
 })

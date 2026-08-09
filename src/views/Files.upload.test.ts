@@ -15,10 +15,15 @@ import { service } from '@nimotech/nimoos-service'
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: {
+      // SP12 Plan B: every commitSelectedFiles call now lists the target
+      // directory first to detect same-name conflicts (useUploadConflicts),
+      // so the fixture name must NOT collide with any file this suite
+      // uploads — 'existing.txt' rather than 'a.txt', which several tests
+      // below upload themselves and would otherwise spuriously collide with.
       getList: vi.fn(async (path: string) => ({
         content: [
           { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
-          { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+          { name: 'existing.txt', path: '/DATA/existing.txt', is_dir: false },
         ],
       })),
     },
@@ -84,7 +89,7 @@ describe('Files.vue upload wiring', () => {
     await flushPromises()
 
     expect(spy).toHaveBeenCalledWith([
-      { file: fakeFile, targetPath: files.currentPath, relativePath: 'a.txt' },
+      { file: fakeFile, targetPath: files.currentPath, relativePath: 'a.txt', conflictPolicy: '' },
     ])
   })
 
@@ -133,7 +138,7 @@ describe('Files.vue upload wiring', () => {
 
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy).toHaveBeenCalledWith([
-      { file: wanted, targetPath: '/DATA/x', relativePath: 'Trip/a.jpg' },
+      { file: wanted, targetPath: '/DATA/x', relativePath: 'Trip/a.jpg', conflictPolicy: '' },
     ])
   })
 
@@ -192,7 +197,7 @@ describe('Files.vue upload wiring', () => {
 
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy).toHaveBeenCalledWith([
-      { file: unrelated, targetPath: files.currentPath, relativePath: 'Somewhere/z.jpg' },
+      { file: unrelated, targetPath: files.currentPath, relativePath: 'Somewhere/z.jpg', conflictPolicy: '' },
     ])
   })
 
@@ -234,7 +239,7 @@ describe('Files.vue upload wiring', () => {
 
     expect(spy).toHaveBeenCalledTimes(1)
     expect(spy).toHaveBeenCalledWith([
-      { file: unrelated, targetPath: files.currentPath, relativePath: 'z.jpg' },
+      { file: unrelated, targetPath: files.currentPath, relativePath: 'z.jpg', conflictPolicy: '' },
     ])
   })
 
