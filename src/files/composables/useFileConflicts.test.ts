@@ -311,4 +311,72 @@ describe('resolvePaste', () => {
     c.onChoose({ action: 'skip' } as never)
     await Promise.all([first, second])
   })
+
+  // Fix-wave I2: the test above only proves two PASTES never overlap. The
+  // actual invariant this composable exists to guarantee is that an upload
+  // batch (resolveEntries) and a paste (resolvePaste) never have a dialog
+  // open at the same time either -- they are two different call sites sharing
+  // one `chain`. A reviewer swapping resolvePaste onto its own private chain
+  // left every existing test (including the one above) green, because none of
+  // them ever start an upload and a paste concurrently.
+  it('an upload batch already asking blocks a paste from opening its own dialog', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const uploadP = c.resolveEntries([e('a.txt')], '/DATA')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt')
+
+    const pasteP = c.resolvePaste([{ from: '/DATA/src/b.txt', is_dir: false }], '/DATA')
+    // Give the paste every chance it would need to (wrongly) open its own
+    // dialog before the upload's conflict has been answered.
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt') // still the upload's conflict
+
+    c.onChoose({ action: 'overwrite' } as never)
+    await uploadP
+    for (let i = 0; i < 50 && c.dialog.value.name !== 'b.txt'; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('b.txt') // paste only gets its turn now
+    c.onChoose({ action: 'skip' } as never)
+    await pasteP
+  })
+
+  it('a paste already asking blocks an upload batch from opening its own dialog', async () => {
+    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
+    const pasteP = c.resolvePaste([{ from: '/DATA/src/a.txt', is_dir: false }], '/DATA')
+    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt')
+
+    const uploadP = c.resolveEntries([e('b.txt')], '/DATA')
+    for (let i = 0; i < 50; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('a.txt') // still the paste's conflict
+
+    c.onChoose({ action: 'skip' } as never)
+    await pasteP
+    for (let i = 0; i < 50 && c.dialog.value.name !== 'b.txt'; i++) await Promise.resolve()
+    expect(c.dialog.value.open).toBe(true)
+    expect(c.dialog.value.name).toBe('b.txt') // upload only gets its turn now
+    c.onChoose({ action: 'overwrite' } as never)
+    await uploadP
+  })
+
+  // Fix-wave I4 (B8 sibling): resolvePaste had no degradation symmetric to
+  // run()'s "a failing listing degrades to accepting everything as-is" --  a
+  // network blip on the target-directory listing must not throw the whole
+  // paste away.
+  it('a failing listing degrades to submitting everything as rename, without opening the dialog', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const c = useFileConflicts({ listFolder: vi.fn().mockRejectedValue(new Error('offline')) })
+    const items = [{ from: '/DATA/src/a.txt', is_dir: false }]
+    const out = await c.resolvePaste(items, '/DATA/dst')
+    expect(c.dialog.value.open).toBe(false)
+    expect(out.overwriteItems).toEqual([])
+    expect(out.renameItems).toEqual(items)
+    expect(out.skippedCount).toBe(0)
+    expect(out.cancelledCount).toBe(0)
+    expect(warn).toHaveBeenCalled()
+  })
 })

@@ -254,7 +254,19 @@ export function useFileConflicts(deps: FileConflictDeps = {}) {
    */
   async function resolvePaste(items: OperateItem[], destDir: string) {
     const task = async () => {
-      const conflicts = await computePasteConflicts({ items, destDir, listFolder })
+      // Symmetric with run()'s degradation above: a listing failure here used
+      // to reject the whole batch (paste() would catch it and toast a bare
+      // "operation failed", submitting nothing), while the exact same failure
+      // in the upload path just warns and lets everything through. Fixed to
+      // match -- everything falls through to the rename group, which is the
+      // same "just land it" default a conflict-free item gets.
+      let conflicts: ConflictCandidate[]
+      try {
+        conflicts = await computePasteConflicts({ items, destDir, listFolder })
+      } catch (err) {
+        console.warn('[paste] listing the target directory failed — conflict detection degraded, everything submitted as-is', err)
+        return { overwriteItems: [], renameItems: [...items], skippedCount: 0, cancelledCount: 0 }
+      }
       const resolutions = conflicts.length
         ? await resolveConflictQueue(conflicts, (conflict, ctx) => ask(conflict, destDir, ctx))
         : []
