@@ -654,6 +654,7 @@ onMounted(() => { browse.ensureVolumes() })
           :restoring="browse.restoring"
           :can-restore="snapshotSelection.length > 0"
           :is-container="browse.isSnapshotView && !browse.browseInfo"
+          :restore-progress="browse.restoreProgress"
           @exit="exitSnapshot"
           @restore="browse.restore(snapshotSelection)"
         />

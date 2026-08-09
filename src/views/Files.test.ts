@@ -402,6 +402,63 @@ describe('快照只读横幅', () => {
     expect(w.find('.snap-sel').exists()).toBe(true)
     expect(w.find('.snap-sel-restore').exists()).toBe(true)
   })
+
+  // Fix-wave I3: SnapshotSelectionToolbar has its own test proving it renders
+  // whatever `restoreProgress` prop it's given, and the snapshotBrowse store
+  // has its own test proving `restoreProgress` transitions correctly during a
+  // restore -- but nothing exercises the actual `:restore-progress="browse.
+  // restoreProgress"` binding in Files.vue that connects the two. Deleting
+  // that one line left both of those other test files green (59 files / 865
+  // examples across src/views + src/files/snapshot + src/files/stores).
+  it('wires the snapshot store\'s restore progress into the selection toolbar', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(w.find('.snap-sel-restore').exists()).toBe(true)
+
+    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+    const browse = useSnapshotBrowseStore()
+    browse.restoring = true
+    browse.restoreProgress = { done: 3, total: 40 }
+    await w.vm.$nextTick()
+
+    const btnText = w.get('.snap-sel-restore').text()
+    expect(btnText).toContain('3')
+    expect(btnText).toContain('40')
+  })
+
+  // Fix-wave I4: the banner's own restore button fires the exact same
+  // `browse.restore(snapshotSelection)` call and is the only entry point that
+  // stays enabled for a multi-select restore (its `canRestore` is
+  // `snapshotSelection.length > 0`) -- it must show the same running count
+  // instead of just sitting there grayed out next to a sibling button that
+  // does show progress.
+  it('wires the snapshot store\'s restore progress into the banner\'s own restore button too', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(w.find('.snap-banner-restore').exists()).toBe(true)
+
+    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+    const browse = useSnapshotBrowseStore()
+    browse.restoring = true
+    browse.restoreProgress = { done: 3, total: 40 }
+    await w.vm.$nextTick()
+
+    const btnText = w.get('.snap-banner-restore').text()
+    expect(btnText).toContain('3')
+    expect(btnText).toContain('40')
+  })
 })
 
 describe('时间机器入口', () => {
