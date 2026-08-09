@@ -219,27 +219,32 @@ onMounted(() => {
    hover 规则,这里 1:1 不额外加)。 */
 .svs-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
 
-/* ── Moments · For You 分区(Vue2 photos-smartview.scss:144-186)── */
+/* ── Moments · For You band (Vue2 photos-smartview.scss:144-186) ── */
 .mo-section { margin-bottom: 36px; }
 .mo-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
-/* 偏离登记:Vue2 用 var(--font-display) —— 本仓 theme.css 没有这个 token(grep 零命中),
-   不新增,继承页面字体。 */
+/* Deviation logged: Vue2 uses var(--font-display) — this repo's theme.css has no such token
+   (grep turns up zero hits); not adding one, inherits the page's font instead. */
 .mo-hero h2 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--fg); }
 .mo-hero p { font-size: 13.5px; color: var(--fg-muted); margin: 0; max-width: 520px; line-height: 1.5; }
 
-/* Moments 在上方时,下面的智能视图 hero 补一条分隔线。 */
+/* When the Moments band sits above it, give the smart-views hero below a divider line. */
 .sv-hero.sv-hero-secondary { padding-top: 24px; border-top: 1px solid var(--divider); }
 
-/* .mo-grid 与 .sv-grid 并存,只叠加马赛克专属规则,不碰 .sv-grid 本体。
-   dense 密排 + 固定行高:卡高 = span 乘 132px 再加 (span 减 1) 乘 16px 的 gap。 */
+/* .mo-grid coexists with .sv-grid, only layering mosaic-specific rules on top — it never
+   touches .sv-grid itself. Dense packing plus a fixed row height: a card's rendered height
+   works out to its row span multiplied by 132px, plus its span minus one multiplied by the
+   16px gap. */
 .mo-grid { margin-bottom: 4px; grid-auto-flow: row dense; grid-auto-rows: 132px; }
-/* 三档 span。高卡用双类选择器顶掉 baseline 的单类选择器,不依赖书写顺序。 */
+/* Three span tiers. The tall card uses a two-class selector so it outranks the baseline
+   single-class selector regardless of source order. */
 .mo-grid :deep(.mo-card) { grid-row: span 3; }
 .mo-grid :deep(.mo-card-wide) { grid-column: span 2; }
 .mo-grid :deep(.mo-card.mo-card-tall) { grid-row: span 5; }
 
-/* 窄容器降级:sv-grid 的 auto-fill minmax(320px, 1fr) 在低于三列临界宽度时降到 1 至 2 列,
-   宽卡横占两列会顶到列数上限,直接用 media 退回一列。高卡纵向占位不受列数影响。 */
+/* Narrow-container fallback: .sv-grid's auto-fill minmax(320px, 1fr) drops to one or two
+   columns below the three-column breakpoint, and a wide card spanning two columns would then
+   overrun the column count — the media query below drops it back to one column. The tall
+   card's vertical span is unaffected by column count. */
 @media (max-width: 1055px) {
   .mo-grid :deep(.mo-card-wide) { grid-column: span 1; }
 }

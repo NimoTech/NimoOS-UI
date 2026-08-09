@@ -20,6 +20,10 @@ const svc = vi.hoisted(() => ({
     // 抛"not a function"、污染下一条测试——照 smartViews.test.ts 的既有 mock 补齐,
     // 即便本文件的用例都不等那 300ms。
     previewSmartView: vi.fn().mockResolvedValue({ count: 0, seeds: [], thresholdActive: true }),
+    // SP15-P1-T5 fix round 1: PhotosSmartViews.vue's onMounted now also unconditionally
+    // calls moments.fetchMoments(); without this mock it throws "not a function" on every
+    // mount here (caught and console.error'd by the store by design, but still noisy).
+    listMoments: vi.fn(async () => []),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
