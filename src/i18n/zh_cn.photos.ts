@@ -938,4 +938,7 @@ export default {
   photosMoLastUpdate: '最后更新',
   photosMoPhotos: '照片',
   photosMoFeatured: '精选',
+  // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+  // Deliberately says nothing about whether the moment exists — we do not know.
+  photosMoLoadFailed: '时刻加载失败',
 }

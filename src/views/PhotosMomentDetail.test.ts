@@ -47,6 +47,19 @@ function makeMoment(over: Partial<Moment> = {}): Moment {
   }
 }
 
+// Expected date strings are built here with plain Intl rather than by reaching into the
+// component, so the assertion is an independent expectation and not a restatement of the
+// implementation — while still being timezone-safe on any machine.
+function day(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-us', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+/** Silences and captures the component's console.error for the cases that deliberately make a
+ *  request reject, so a real unexpected error still stands out in the output. */
+function muteConsoleError() {
+  return vi.spyOn(console, 'error').mockImplementation(() => {})
+}
+
 async function mountDetail(id = 'm1', locale: 'zh_cn' | 'en_us' = 'en_us') {
   const router = createRouter({
     history: createWebHashHistory(),
@@ -122,13 +135,24 @@ describe('top bar and header', () => {
 })
 
 describe('About sidebar', () => {
-  it('time window: shows a single date when the two ends fall on the same day', async () => {
+  // Asserted by equality, not by "does not contain an en dash": the placeholder DASH is an *em*
+  // dash, so the old negative assertion was equally satisfied by the label collapsing to the
+  // placeholder — the range branch went untested either way (fix round 1 · finding 3).
+  it('time window: shows exactly one date when the two ends fall on the same day', async () => {
     const s = usePhotosMoments()
     s.moments = [makeMoment({ timeFrom: '2016-11-20T01:00:00Z', timeTo: '2016-11-20T09:00:00Z' })]
     s.listLoaded = true
     const { w } = await mountDetail()
-    const txt = w.find('[data-test="mo-about-time"]').text()
-    expect(txt).not.toContain('–')
+    expect(w.find('[data-test="mo-about-time"]').text()).toBe(day('2016-11-20T01:00:00Z'))
+  })
+
+  it('time window: shows the full "from – to" range when the two ends differ', async () => {
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ timeFrom: '2016-11-20T00:00:00Z', timeTo: '2016-11-22T00:00:00Z' })]
+    s.listLoaded = true
+    const { w } = await mountDetail()
+    expect(w.find('[data-test="mo-about-time"]').text())
+      .toBe(`${day('2016-11-20T00:00:00Z')} – ${day('2016-11-22T00:00:00Z')}`)
   })
 
   it('falls back to subtitle when the time window is missing, and to the placeholder without one', async () => {
@@ -191,7 +215,10 @@ describe('Stats and the month distribution', () => {
     const { w } = await mountDetail()
     const bars = w.findAll('[data-test="mo-dist-bar"]')
     expect(bars).toHaveLength(2)
-    expect(bars[0].attributes('title')).toContain('2')  // November holds two, so it sorts first
+    // Asserted by equality: `toContain('2')` was satisfied by December's title too ('Dec 2016 · 1'
+    // contains the 2 of the year), so reversing the sort left it green (fix round 1 · finding 2).
+    expect(bars[0].attributes('title')).toBe('Nov 2016 · 2')
+    expect(bars[1].attributes('title')).toBe('Dec 2016 · 1')
   })
 
   it('drops the whole By month section when nothing has a takenAt', async () => {
@@ -242,5 +269,113 @@ describe('route parameter changes', () => {
     releaseM1()                                        // m1's stale response finally arrives
     await flushPromises()
     expect(w.find('[data-test="mo-about-place"]').text()).toBe('place-m2')
+  })
+
+  // fix round 1 · deviation 11. Vue 2 got this for free because its detail component was v-if'd
+  // and remounted on every switch; a params-only route change does not remount.
+  it('clears the previous moment assets on an :id change instead of showing them under the new title', async () => {
+    let releaseM2: () => void = () => {}
+    const m2Gate = new Promise<void>((r) => { releaseM2 = r })
+    svc.photos.getMomentAssets.mockImplementation(async (id?: string, featured?: boolean) => {
+      if (id === 'm2') await m2Gate
+      if (!featured) return []
+      return { assets: [], members: [], places: [{ name: `place-${id}`, count: 1 }] }
+    })
+
+    const s = usePhotosMoments()
+    s.moments = [makeMoment({ id: 'm1', place: '' }), makeMoment({ id: 'm2', title: 'Other', place: '' })]
+    s.listLoaded = true
+    const { w, router } = await mountDetail('m1')
+    expect(w.find('[data-test="mo-about-place"]').text()).toBe('place-m1')
+
+    await router.push('/photos/moments/m2')
+    await flushPromises()
+    // m2's response has not landed yet — the row must not still be advertising m1's place.
+    expect(w.find('[data-test="mo-about-place"]').text()).toBe('—')
+
+    releaseM2()
+    await flushPromises()
+    expect(w.find('[data-test="mo-about-place"]').text()).toBe('place-m2')
+  })
+})
+
+// fix round 1 · finding 1. The two asset requests must fail independently; a single Promise.all
+// under a single catch threw away whichever response had already arrived.
+describe('partial load failures', () => {
+  it('a rejected all-assets request does not discard the detail response that already arrived', async () => {
+    const err = muteConsoleError()
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, featured?: boolean) => {
+      if (!featured) throw new Error('boom')
+      return { assets: [{ id: 'f1' }], members: [], places: [{ name: 'Kept', count: 3 }] }
+    })
+    const s = usePhotosMoments(); s.moments = [makeMoment({ place: '' })]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    expect(w.find('[data-test="mo-about-place"]').text()).toBe('Kept')
+    expect(w.find('[data-test="mo-stat-featured"]').text()).toBe('1')
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
+
+  it('a rejected detail request does not discard the all-assets response that already arrived', async () => {
+    const err = muteConsoleError()
+    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, featured?: boolean) => {
+      if (featured) throw new Error('boom')
+      return [{ id: 'a', takenAt: '2016-11-20T00:00:00Z' }]
+    })
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail()
+
+    // The By month histogram is derived from the all-assets response, so its presence is the
+    // proof that response survived the other request's rejection.
+    expect(w.find('[data-test="mo-dist"]').exists()).toBe(true)
+    expect(w.findAll('[data-test="mo-dist-bar"]')).toHaveLength(1)
+    expect(err).toHaveBeenCalled()
+    err.mockRestore()
+  })
+})
+
+// fix round 1 · finding 4. Three outcomes, three distinct screens.
+describe('a failed list fetch is not reported as a deleted moment', () => {
+  it('renders its own failure state, not not-found, when the list request fails', async () => {
+    const err = muteConsoleError()
+    svc.photos.listMoments.mockRejectedValueOnce(new Error('offline'))
+    const { w } = await mountDetail('m1')
+
+    expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-not-found"]').exists()).toBe(false)
+    err.mockRestore()
+  })
+
+  it('renders not-found when the list came back clean and simply has no such id', async () => {
+    svc.photos.listMoments.mockResolvedValueOnce([])
+    const { w } = await mountDetail('nope')
+
+    expect(w.find('[data-test="mo-not-found"]').exists()).toBe(true)
+    expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(false)
+  })
+
+  it('renders the moment, and neither failure state, when the list came back with it', async () => {
+    svc.photos.listMoments.mockResolvedValueOnce([RAW])
+    const { w } = await mountDetail('m1')
+
+    expect(w.text()).toContain('Bozeman')
+    expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(false)
+    expect(w.find('[data-test="mo-not-found"]').exists()).toBe(false)
+  })
+
+  it('retry refetches the list and recovers into the loaded state', async () => {
+    const err = muteConsoleError()
+    svc.photos.listMoments.mockRejectedValueOnce(new Error('offline'))
+    const { w } = await mountDetail('m1')
+    expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(true)
+
+    svc.photos.listMoments.mockResolvedValueOnce([RAW])
+    await w.find('[data-test="mo-load-failed-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(w.find('[data-test="mo-load-failed"]').exists()).toBe(false)
+    expect(w.text()).toContain('Bozeman')
+    err.mockRestore()
   })
 })

@@ -42,6 +42,19 @@
 //     state they need is already loaded and exposed by this task, since Stats and the By-month
 //     histogram read it too. Consequently Vue 2's `document.mousedown` listener that closes the
 //     more menu is also deferred to Task 10 — there is no menu here yet to close.
+//
+// Fix round 1 added three more:
+// 10) The two asset requests fail independently (see load()). An earlier revision put them in
+//     one Promise.all under one catch, which discarded an already-resolved detail response
+//     whenever the all-assets one rejected. Vue 2 runs them as two separate statements with two
+//     try/catch blocks (:307-338) and never loses one to the other; this restores that.
+// 11) Switching :id clears the previous moment's assets before refetching. Vue 2's detail
+//     component was v-if'd by its parent, so a switch remounted it and reset everything for
+//     free. A route does not remount on a params-only change, so the reset is explicit.
+// 12) A failed list fetch renders its own state, separate from "not found". Vue 2 could not
+//     reach this page without a moment object, so it had neither state. Having only one of them
+//     meant a network blip told the user their moment had been deleted — wrong, and stated with
+//     confidence. Needs `listError` on the store, added in the same round.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -61,7 +74,10 @@ const DASH = '—'
 
 const momentId = computed(() => String(route.params.id ?? ''))
 const moment = computed(() => store.byId(momentId.value))
-const notFound = computed(() => store.listLoaded && !moment.value)
+// The three no-content outcomes are mutually exclusive and all require `!moment`, so a moment
+// we do hold is always rendered — even if a later list refresh failed underneath it.
+const loadFailed = computed(() => store.listLoaded && !moment.value && store.listError)
+const notFound = computed(() => store.listLoaded && !moment.value && !store.listError)
 
 const featuredAssets = ref<Photo[]>([])
 const allAssets = ref<Photo[]>([])
@@ -83,31 +99,58 @@ async function load(): Promise<void> {
   const epoch = ++loadEpoch
   await store.ensureLoaded()
   if (epoch !== loadEpoch || !moment.value) return
+  const id = momentId.value
   allLoading.value = true
-  try {
-    const [detail, all] = await Promise.all([
-      store.loadDetail(momentId.value),
-      store.loadAll(momentId.value),
-    ])
-    if (epoch !== loadEpoch) return
-    featuredAssets.value = detail.assets
-    manualIds.value = new Set(detail.members.filter((m: MomentMember) => m.manual).map((m) => m.assetId))
-    places.value = detail.places
-    allAssets.value = all
-  } catch (e) {
-    // The T3 store rethrows where Vue 2's equivalents swallowed and toasted internally, so the
-    // catch lives here now. Nothing user-facing yet: the page still renders from the list entry,
-    // only the asset-derived panels (Featured count, By month, Place) stay empty.
-    console.error('[photos-moments] load detail', e)
-  } finally {
-    if (epoch === loadEpoch) allLoading.value = false
-  }
+  // Two independently failable requests, each with its own catch and its own epoch check.
+  // The T3 store rethrows where Vue 2's equivalents swallowed and toasted internally, so the
+  // catch lives here now — but it has to stay per-request: a single Promise.all + single catch
+  // throws away an already-resolved detail response just because the all-assets one rejected,
+  // blanking the Featured count, About→Place and manualIds for no reason. Vue 2 never did that;
+  // its loadFeatured() and loadAll() are two separate statements with two try/catch blocks
+  // (899af59b:PhotosMomentDetail.vue:307-338). See deviation 10.
+  const detailDone = store.loadDetail(id).then(
+    (detail) => {
+      if (epoch !== loadEpoch) return
+      featuredAssets.value = detail.assets
+      manualIds.value = new Set(detail.members.filter((m: MomentMember) => m.manual).map((m) => m.assetId))
+      places.value = detail.places
+    },
+    (e: unknown) => { console.error('[photos-moments] loadDetail', e) },
+  )
+  const allDone = store.loadAll(id).then(
+    (all) => {
+      if (epoch !== loadEpoch) return
+      allAssets.value = all
+    },
+    (e: unknown) => { console.error('[photos-moments] loadAll', e) },
+  )
+  // Neither handler can reject, so this settles once both are done either way.
+  await Promise.all([detailDone, allDone])
+  if (epoch === loadEpoch) allLoading.value = false
+}
+
+/** The error state's only way out. ensureLoaded() would short-circuit here (listLoaded is
+ *  already true), so the list has to be refetched explicitly before reloading the page's data. */
+async function retry(): Promise<void> {
+  await store.fetchMoments()
+  await load()
 }
 
 onMounted(load)
 // Changing only the params does not remount — the watcher is mandatory, writing this in
 // onMounted alone is a known recurring defect in this repo.
-watch(momentId, () => { void load() })
+watch(momentId, () => {
+  // Drop the previous moment's assets first: they are keyed to the old id, and leaving them up
+  // shows one moment's photos, Featured count and Place under another moment's title until the
+  // new responses land. Vue 2 could not hit this — its detail component was v-if'd, so switching
+  // moments remounted it and reset everything. Ours does not remount (that is the whole point of
+  // the watcher), so the reset has to be explicit. See deviation 11.
+  featuredAssets.value = []
+  allAssets.value = []
+  manualIds.value = new Set()
+  places.value = []
+  void load()
+})
 
 // ── computed, ported one by one from Vue 2 :203-291 ────────────────────────────────────────
 const momentAssetCount = computed(() => moment.value?.assetCount ?? 0)
@@ -213,7 +256,18 @@ function backToAll(): void {
           <div class="mo-skel-header" />
         </div>
 
-        <!-- Gate 2: the list arrived but byId found nothing (deviation 1). -->
+        <!-- Gate 2: the list request failed, so we cannot say anything about this id. Distinct
+             from gate 3 on purpose — saying "this moment no longer exists" after a network blip
+             is confidently wrong (deviation 12). -->
+        <div v-else-if="loadFailed" class="mo-not-found" data-test="mo-load-failed">
+          <div class="mo-not-found-title">{{ t('photosMoLoadFailed') }}</div>
+          <button
+            type="button" class="mo-not-found-back" data-test="mo-load-failed-retry"
+            @click="retry"
+          >{{ t('photosRetry') }}</button>
+        </div>
+
+        <!-- Gate 3: the list arrived clean but byId found nothing (deviation 1). -->
         <div v-else-if="notFound" class="mo-not-found" data-test="mo-not-found">
           <div class="mo-not-found-title">{{ t('photosMoNotFound') }}</div>
           <button
@@ -222,8 +276,8 @@ function backToAll(): void {
           >{{ t('photosMoBackToAll') }}</button>
         </div>
 
-        <!-- Gate 3: the real content. `v-else-if="moment"` rather than a bare `v-else`: gates 1
-             and 2 have already excluded every other case, so the two are equivalent at runtime,
+        <!-- Gate 4: the real content. `v-else-if="moment"` rather than a bare `v-else`: gates 1
+             to 3 have already excluded every other case, so the two are equivalent at runtime,
              but only the explicit test narrows `moment` from `Moment | undefined` to `Moment` for
              vue-tsc. (PhotosSmartViewDetail.vue gets the same narrowing from a bare `v-else`
              because its gate 2 is `v-else-if="!sv"` — a direct negation of the same ref. Ours

@@ -931,4 +931,7 @@ export default {
   photosMoLastUpdate: 'Last update',
   photosMoPhotos: 'Photos',
   photosMoFeatured: 'Featured',
+  // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+  // Deliberately says nothing about whether the moment exists — we do not know.
+  photosMoLoadFailed: "Couldn't load moments",
 }
