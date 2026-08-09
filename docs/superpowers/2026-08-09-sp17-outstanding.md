@@ -20,16 +20,19 @@
 - 局域网扫描失败时显示一行错误提示(`.set-lan-error`),而不是 Vue2 的静默空态。
 - 扫描带世代守卫(generation guard):发起新一次扫描时给请求打一个递增序号,只有最新序号的响应才会落地,防止一次慢的旧请求把更新的结果覆盖回去。
 
-## 收尾门实测结果(2026-08-09,New-UI@`b0f7233`,干净工作树,本任务内独立重跑,不是抄任务报告)
+## 收尾门实测结果(Task 6,2026-08-09,New-UI@`6ee3699`——即代码末位 `b0f7233` 之后只叠了两个文档提交,干净工作树,五道门按 task-6-brief 的顺序逐条独立重跑,不是抄前面 Task 的报告)
 
-| 门 | 命令 | 结果 |
-|---|---|---|
-| 全量测试 | `pnpm test` | **675 文件全绿(675) / 10943 例全绿(10943),0 failed** |
-| 类型检查 | `pnpm exec vue-tsc --noEmit` | 0 错误 |
-| 开源导出守卫 | `pnpm exec vitest run oss/` | **7 文件全绿(7) / 146 例全绿(146),0 failed** |
-| 构建 | `pnpm build` | 成功(36.82s,仅常规 chunk 体量警告,非错误) |
+| # | 门 | 命令 | 结果 |
+|---|---|---|---|
+| 1 | 类型检查 | `pnpm exec vue-tsc --noEmit` | **0 错误**(无任何输出,exit code 0) |
+| 2 | 全量测试 | `pnpm test` | **675 个文件全绿(675 passed)/ 10943 个用例全绿(10943 passed),0 failed**。耗时 204.27s。已知 flake `src/files/upload/persist.test.ts:55` 本次随大盘一起跑**未复现**(整体全绿,未触发需要单独隔离重跑的分支) |
+| 3 | i18n 键对齐 | `pnpm exec vitest run src/i18n/parity.test.ts` | **1 个文件全绿(1 passed)/ 9 个用例全绿(9 passed)** |
+| 4 | 开源导出 | `node oss/export.mjs --out <scratchpad>/sp17-oss --no-commit --allow-dirty-oss` | exit code 0。清单:DELETE 73 · REPLACE 4 · PATCH 278。**零真实泄漏命中**;3 个文件按二进制跳过扫描(预期内,不计入泄漏判定):`src/assets/wallpaper/wallpaper01.jpg`、`src/assets/wallpaper/wallpaper02.jpg`、`src/home/apps/icons/settings.png` |
+| 5 | 构建 | `pnpm build` | **成功**。`vite build` 自报 `built in 18.44s`;含前置 `vue-tsc --noEmit` 的整条命令总耗时 38.16s。只有常规 chunk 体量警告(最大一块 `index-BQnRorZI.js` 7,366.96 kB / gzip 2,066.56 kB),不是错误 |
 
-> 各 Task 自己的报告(`task-1..4-report.md`)记录的中间数字略有出入(如 675/10934、675/10937)——这是因为每个 Task 在自己完工时各自重跑过一次全量测试,数字随后续 Task 新增的测试逐步递增,彼此不矛盾。**上表是四个 Task 全部完成后的最终状态,是本文档里唯一应该被引用的数字。**
+> **与更早提交(`45be595`/`6ee3699`)里旧表格的对照**:全量测试(675/10943)与类型检查(0 错误)两项数字**与旧表一致,没有出入**。构建耗时旧表写的是 36.82s,本次是 38.16s——同一命令、不同次运行的正常抖动,不代表回归。**开源导出这一门旧表记的其实是另一条命令** `pnpm exec vitest run oss/`(oss 守卫自身的单元测试,7 文件 / 146 例,全绿,这条本身没错但不是 task-6-brief 指定的第 4 步),**不等于**本 brief 第 4 步要求的 `node oss/export.mjs --out ... --no-commit --allow-dirty-oss`(对整棵源码树做一次真实导出+泄漏扫描)。本任务已按 brief 原文命令补跑,结果见上表第 4 行,两条命令都是绿的,互不矛盾,只是覆盖面不同。
+>
+> 各 Task 自己的报告(`task-1..4-report.md`)记录的中间数字略有出入(如 675/10934、675/10937)——这是因为每个 Task 在自己完工时各自重跑过一次全量测试,数字随后续 Task 新增的测试逐步递增,彼此不矛盾。**上表是 Task 6 在四个 Task 全部完成后,按本期五道收尾门的口径独立跑出的最终状态,是本文档里唯一应该被引用的数字。**
 
 ## 真机验收清单
 
