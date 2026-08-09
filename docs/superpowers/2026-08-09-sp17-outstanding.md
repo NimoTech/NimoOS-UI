@@ -58,7 +58,8 @@
 
 7. **KVM 磁贴可见 · 默认路径**:回到桌面。本机 KVM 服务是可用的(`GET /v1/kvm/settings` 返回 200),所以磁贴应该正常显示、点击能正常打开。
 
-8. **KVM 磁贴隐藏 · 服务不可用路径**:在浏览器 devtools 里把 `/v1/kvm/settings` 这一条请求拦成失败(Network 面板右键该请求 → Block request URL,或用请求拦截插件/代理),刷新桌面页面。**等待约 1 分钟**,磁贴才会从桌面消失——别在 45 秒时就下结论说"没消失=坏了"。机制(`src/views/Home.vue:95-96` + `src/home/stores/layout.ts:133`):刷新触发的那次 `refreshApps()` 是 t=0,只是把 `vm` 记为"从这一刻起缺失";之后每 **30 秒**才轮询一次,而"缺失多久算数"的宽限期是 **45 秒**,且只在轮询节拍上判定——t=30s 那次 `30s < 45s`,还不够,不会消失;要等到 t=60s 那次 `60s ≥ 45s` 才会消失。所以实际最长要等**约 1 分钟**,不是 45 秒。
+8. **KVM 磁贴隐藏 · 服务不可用路径**:在浏览器 devtools 里把 `/v1/kvm/settings` 这一条请求拦成失败(Network 面板右键该请求 → Block request URL,或用请求拦截插件/代理),刷新桌面页面。**磁贴应在页面首次加载完成后几秒内就消失,不需要等 30/45/60 秒的任何轮询节拍**——`src/views/Home.vue` 的 `refreshApps()` 现在在探测*确认* KVM 不可达的同一次调用里就会 `layout.evict('vm', { force: true })` 强制清位(见 `src/home/stores/apps.ts` 的 `probeKvm()`/`kvmAvailable` 与 `src/views/Home.vue` 的 `refreshApps()`),不再依赖 `layout.sweepGone()` 的 45 秒宽限期——那条宽限期兜底仍然存在,但只用于"应用从列表里悄悄消失"这类含糊信号,probe 明确失败属于确定信号,走的是立即清位这条快路径(同 `APP_UNINSTALL_END` 那一类)。**通过标准**:刷新后,首次 `loadGrid()` 完成(浏览器里几乎感觉不到延迟,是网络请求往返的时间,不是计时器)磁贴就从桌面消失;不应看到磁贴还停留大几十秒才消失——如果停留了,才是真的坏。
+   - 另需注意:探测不只发生在 30 秒轮询上——切到别的标签页再切回来(`window.focus`)、容器事件去抖刷新之后也都会重新触发一次 `loadGrid()`/`probeKvm()`,所以在这个场景下"多久探测一次"没有单一答案,不要用"每 30 秒探测一次"简化描述这个机制。
    - 恢复拦截(取消 Block)后再刷新一次页面 → 磁贴**不会**自动回来(布局已经把它移除了,这是预期行为,不是缺陷);打开「添加应用」面板,应能看到 KVM 磁贴,点击可以把它重新加回桌面。
 
 ## 未做的事与原因
@@ -76,6 +77,17 @@
 
 ## 已知遗留(挂账,不在本期范围)
 
+- **相册缓存迁移的真实执行路径从未被跑过**——不是隐患,是一处坦白的覆盖缺口。真机验收
+  第 6 步刻意停在"打开迁移弹窗、看到目标路径"就关掉,不点「开始迁移」,所以
+  `service.sys.migrateAppPath(type, targetMount)` 传 `type: 'photos_data'` 这条真实调用
+  从未被验证过(编码期也没有单测覆盖这个具体 type 值)。共享包里的签名是
+  `migrateAppPath(type: string, targetMount: string)`(`packages/service/src/sys.ts:55`)——
+  `type` 是裸 `string`,编译期不约束取值,`'photos_data'` 传下去与 `'app_data'` 一样合法,
+  TS 不会替我们发现拼写错误。后端契约已读代码确认过(`NimoOS/service/migrate.go:29,371`
+  接受 `photos_data` 并落到 `<target>/.system_data/photos`),所以这不是"没查过会不会崩"的
+  隐患,而是"没有自动化证据"——下一期若要关这个缺口,应该给 `migrateAppPath` 的 `type`
+  参数收紧成 `AppPathKey`(见 `src/settings/util/appPaths.ts`)这类联合类型,并补一条真的
+  调用 `type: 'photos_data'`、断言请求体的测试。
 - **`SettingsShell.test.ts`/`panels.test.ts` 等约 8 个既有设置面板测试文件有 `[Vue warn]` 插件重复注册噪音**(Task 2 报告已 root-cause:这些文件各自用局部 `createI18n()` 挂载,和 `vitest.setup.ts` 装的全局默认 i18n 实例重复注册了 `i18n-t`/`I18nT` 等组件)。本期新写的测试文件没有这个问题(已避开同一坑),但既有文件没有动——修复面是仓库级的测试装配问题,超出单个设置标签的范围,建议独立开票统一清理。
 - **全仓 37 个源文件 / 54 处注释仍把共享包指路到 `NimoOS-Service/src/*.ts`**(SP13 遗留的票②,本期未碰,详见 `NimoOS-UI` 仓(Vue2)`docs/vue3-migration-roadmap.md:1185` 的 SP13 节「票②」——**不是本仓**,New-UI 这个仓里没有这份 roadmap 文件)。
 
