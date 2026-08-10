@@ -298,20 +298,39 @@ export class RTCPeer extends Peer {
     this.channel = channel
   }
 
+  /** A real termination: both roles surface the break, then the caller re-dials.
+   *  The old code returned early for the callee, which meant a receiver whose
+   *  sender vanished got no signal at all. */
   private onChannelClosed(): void {
-    // Both roles must surface the break; only the caller re-dials. The old
-    // code returned early for the callee, which meant a receiver whose sender
-    // vanished got no signal at all.
     this.handleDisconnect('disconnected')
+    this.redialIfCaller()
+  }
+
+  /** Re-open the channel. Only the caller dials; the callee waits to be dialled
+   *  (Vue2 同). Separate from onChannelClosed() because a transient ICE state
+   *  needs the re-dial WITHOUT the break report -- see onConnectionStateChange. */
+  private redialIfCaller(): void {
     if (!this.isCaller) return
-    this.connectRtc(this._peerId, true) // 重开通道(Vue2 同)
+    this.connectRtc(this._peerId, true)
   }
 
   private onConnectionStateChange(): void {
     if (!this.conn) return
     switch (this.conn.connectionState) {
-      case 'disconnected': this.onChannelClosed(); break
-      case 'closed': this.onChannelClosed(); break
+      case 'disconnected':
+        // NOT a termination. Chrome enters 'disconnected' after a few seconds of
+        // failed consent checks and routinely returns to 'connected' (Wi-Fi
+        // roam, interface flap); the SCTP association and the data channel
+        // survive it. Reporting here threw away a receiver's half-assembled
+        // multi-GB file over a 2-second blip. Re-dial, say nothing: if it never
+        // recovers, the sender is still bounded by ACK_TIMEOUT_MS and the
+        // receiver by DropItem.vue's stall watchdog, so nothing is unbounded.
+        this.redialIfCaller()
+        break
+      // Terminal states. 'closed' nulls conn for the same reason 'failed' does:
+      // the re-dial must build a fresh RTCPeerConnection, because
+      // createDataChannel on a closed one throws.
+      case 'closed': this.conn = null; this.onChannelClosed(); break
       case 'failed': this.conn = null; this.onChannelClosed(); break
     }
   }

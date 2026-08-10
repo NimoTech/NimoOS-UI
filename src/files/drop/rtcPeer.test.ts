@@ -209,6 +209,55 @@ describe('RTCPeer disconnect branches', () => {
     expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
   })
 
+  it('rides out a transient ICE disconnected state without touching the incoming file', () => {
+    // 'disconnected' is not a termination: Chrome enters it after a few seconds
+    // of failed consent checks and routinely returns to 'connected' (Wi-Fi roam,
+    // interface flap) with the data channel intact. Reporting here threw away a
+    // receiver's half-assembled multi-GB file over a two-second blip.
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+    const inner = (p as unknown as { conn: FakeConn | null })
+    inner.conn = new FakeConn()
+    inner.conn.connectionState = 'disconnected'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
+    expect(p.hasActiveTransfer()).toBe(true) // digester still holding the bytes
+  })
+
+  it('reports through the data channel own onclose handler, not only the private method', () => {
+    // The wiring, not just the callback: onChannelOpened is what installs
+    // onclose, and a channel that really closes is a real termination.
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+    const channel = { binaryType: '', onmessage: null, onclose: null as null | (() => void) }
+    ;(p as unknown as { onChannelOpened: (c: unknown) => void }).onChannelOpened(channel)
+
+    channel.onclose!()
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
+
+  it('replaces the connection when it reaches the closed state, so the re-dial can open a channel', () => {
+    // 'failed' already nulled conn; 'closed' did not, and connectRtc() only
+    // builds a new RTCPeerConnection when conn is null -- so the caller re-dialled
+    // on the dead object and createDataChannel would throw on a real one.
+    const ev = makeEvents()
+    const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev) // non-null peerId => caller
+    const inner = (p as unknown as { conn: FakeConn | null })
+    const original = inner.conn
+    expect(original).not.toBeNull()
+    original!.connectionState = 'closed'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(inner.conn).not.toBeNull()
+    expect(inner.conn).not.toBe(original)
+  })
+
   it('reports a disconnect when a chunk cannot be sent because the channel is gone', () => {
     const ev = makeEvents()
     const p = makeRtcPeer(ev)
