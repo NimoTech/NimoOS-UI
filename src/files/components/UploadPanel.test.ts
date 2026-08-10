@@ -136,6 +136,32 @@ describe('UploadPanel file-operation group', () => {
     expect(w.find('.up-title').text()).toBe(i18n.global.t('filesUploadHeaderProcessing'))
   })
 
+  it('labels the collapsed toggle by what is actually running, not always "upload"', async () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask()]
+    const w = mount(UploadPanel, { global: { plugins: [i18n] } })
+    await w.find('.up-close').trigger('click') // collapse it
+
+    const toggle = w.find('.upload-panel-toggle')
+    expect(toggle.exists()).toBe(true)
+    expect(toggle.text()).toContain(i18n.global.t('filesUploadHeaderProcessing'))
+    // Not merely "contains the right words": the old label was the bare
+    // filesUploadTitle, which must be gone entirely.
+    expect(toggle.text()).not.toContain(i18n.global.t('filesUploadTitle'))
+    expect(toggle.text()).toContain('(1)')
+  })
+
+  it('paints cancel-all as destructive, like every other destructive control here', () => {
+    // jsdom resolves neither the cascade nor var(), so assert on the stylesheet
+    // itself: the rule must exist, must use the danger token (no literal), and
+    // must be compound so it outranks .up-link-btn's accent colour.
+    const source = readFileSync(path.join(__dirname, 'UploadPanel.vue'), 'utf-8')
+    const rules = source.match(/[^{}]*\.up-ops-cancel-all[^{}]*\{[^}]*\}/g) ?? []
+    expect(rules.length).toBe(1)
+    expect(rules[0]).toMatch(/\.up-link-btn\.up-ops-cancel-all/)
+    expect(rules[0]).toMatch(/color:\s*var\(--remove-fg\)/)
+  })
+
   it('cancels every operation through the store when cancel-all is pressed', async () => {
     const ops = useFileOpsStore()
     ops.active = [opsTask()]

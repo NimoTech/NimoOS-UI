@@ -169,8 +169,12 @@ function confirmDelete() {
 
 <template>
   <div v-if="panelVisible" class="upload-panel-wrap">
+    <!-- Same three-state wording as the expanded header. The count was widened
+         to include file operations but the label was not, so a user who pasted a
+         6 GB file and collapsed the panel read "Upload (1)" -- an upload that
+         does not exist. -->
     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
-      {{ t('filesUploadTitle') }} ({{ totalCount + opsCount }})
+      {{ headerText }} ({{ totalCount + opsCount }})
     </button>
 
     <div v-else class="upload-panel">
@@ -298,6 +302,11 @@ function confirmDelete() {
 .up-link-btn.up-del { color: var(--remove-fg, #ff8a8a); }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
 .up-link-btn.up-delete-all { color: var(--remove-fg, #ff8a8a); }
+/* "Cancel all" stops every server-side file operation at once. It had no rule of
+   its own, so it rendered as an ordinary accent link -- indistinguishable from
+   Pause / Resume beside it. Same compound-selector trick as the two rules above
+   so red beats .up-link-btn's accent regardless of stylesheet order. */
+.up-link-btn.up-ops-cancel-all { color: var(--remove-fg); }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-zone { margin-top: 6px; }
 .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
