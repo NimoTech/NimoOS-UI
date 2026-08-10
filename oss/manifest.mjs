@@ -166,11 +166,12 @@ export const DELETE = [
   'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(已删)
   // FolderPickerDialog.test.ts 不用单列:它在 'src/settings/panels/folderPerm'(上面已整目录删除)里面。
 
-  // SP14 T9(d4d3771)新增的孤儿测试:整份文件只有两条用例,一条直接断言 knowledge
-  // 系统应用条目(已在上面 PATCH 摘掉),另一条"keys 去重"虽然本身与 AI 无关,但
-  // 挂在同一个以 knowledge 命名的 describe 下、文件本身也是这次才新建的,不值得为它
-  // PATCH 出一个只剩一条用例的空壳文件——整体删除。
-  'src/home/apps/systemApps.test.ts',
+  // src/home/apps/systemApps.test.ts 不再整体删除 —— 见下面 PATCH 段。任务复审
+  // Important:这份 DELETE 的旧理由("只有两条 knowledge 用例")已经过期,SP18 给
+  // 这份文件加了 kvm+terminal 的服务门控 describe(公开面功能,terminal 磁贴与
+  // kvm 磁贴都原样保留在开源版里)。整体删除会让开源版把 terminal 磁贴的门控行为
+  // 发布出去却零测试覆盖,连带静默丢掉本来就该保留的 kvm 门控用例——改成 PATCH,
+  // 只摘掉 knowledge 专属的 describe 块,kvm/terminal 那个 describe 原样保留。
 ]
 
 /** Service 侧的整体删除(相对 packages/service/)。 */
@@ -278,6 +279,34 @@ export const PATCH = [
   { path: 'src/home/apps/systemApps.ts',
     find: "  { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },\n",
     replace: '' },
+
+  // ── systemApps.test.ts:只摘 knowledge 专属 describe(任务复审 Important,见上面
+  //    DELETE 表的注释)—— 这份文件不再整体删除。knowledge 的两条用例都要去掉:
+  //    第一条直接断言 `a.key === 'knowledge'` / `'appKnowledge'`,第二条("keys are
+  //    unique")本身与 knowledge 无关,只是恰好挂在同一个 describe 下,把它提出来
+  //    保留(用的是 SYSTEM_APP_KEYS,不摘的话这个 import 会变成死代码)。摘完之后
+  //    紧接着的 kvm/terminal 门控 describe 原样不动 —— 它是公开面功能(kvm 磁贴与
+  //    SP18 新增的 terminal 磁贴都留在开源版里),不受这条 PATCH 影响,也不受下面
+  //    FORBIDDEN 词表守卫约束(那条守卫只查 REPLACE 与 PATCH.replace 的字面内容,
+  //    这段 describe 标题里的 "SP17"/"SP18" 是原文保留、不是本条 PATCH 写入的,
+  //    与 src/home/stores/apps.test.ts 那份原样导出的 "KVM tile gating (SP17 #125)"
+  //    describe 是同一情形)。
+  { path: 'src/home/apps/systemApps.test.ts',
+    find: `describe('SYSTEM_APPS -- knowledge (SP14 #98)', () => {
+  it('knowledge is registered with an i18n label and an icon', () => {
+    const k = SYSTEM_APPS.find((a) => a.key === 'knowledge')
+    expect(k).toBeDefined()
+    expect(k!.label).toBe('appKnowledge')
+    expect(k!.icon).toBeTruthy()
+  })
+
+  it('keys are unique (Dock and AddPanel both dedupe by key)', () => {
+    expect(new Set(SYSTEM_APP_KEYS).size).toBe(SYSTEM_APP_KEYS.length)
+  })
+})`,
+    replace: `it('keys are unique (Dock and AddPanel both dedupe by key)', () => {
+  expect(new Set(SYSTEM_APP_KEYS).size).toBe(SYSTEM_APP_KEYS.length)
+})` },
 
   // ── useDock.ts:DEFAULT_FAV 换成开源版的 4 项(补上 storage —— 它在开源版
   //    的默认桌面上没有磁贴,Dock 是唯一入口) ─────────────────────────────
