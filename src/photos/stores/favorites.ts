@@ -12,11 +12,21 @@ import { groupPhotosByMonth } from '../util/groupPhotosByMonth'
 
 const VIEW_THROTTLE_MS = 60_000
 
+// Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into 500, so this
+// list has to be paged or it silently truncates. A generation counter guards the shared state: a
+// slow page that lands after a refresh must be dropped whole rather than appended to a list it no
+// longer belongs to.
+const FAVORITES_PAGE_SIZE = 500
+
 export const usePhotosFavorites = defineStore('photosFavorites', () => {
   const favIds = ref<Set<string>>(new Set())
   const favIdsLoaded = ref(false)
   const favoritesList = ref<Photo[] | null>(null)
   const favoritesLoaded = ref(false)
+  const favoritesExhausted = ref(false)
+  const loadingMore = ref(false)
+  let _offset = 0
+  let _generation = 0
   // Task 9 (P8a, P3 遗留收口): 独立失败标志——绝不与 favoritesLoaded 合并/复用。
   // favoritesLoaded 仅成功路径置真是刻意的(见下方 fetchFavorites 注释);一次瞬时失败
   // 必须能被视图区分出「加载失败」而不是「正在加载」或「确认为空」,这就是 loadError 存在
@@ -31,6 +41,13 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   }
   const favoritesMonths = computed<Month[]>(() => groupPhotosByMonth(favoritesList.value ?? []))
 
+  // Exact count from the server's full id list. favoritesList.length is only the pages
+  // fetched so far, and favIds lands independently — falling back to the loaded length
+  // keeps the header from flashing 0 while ids are in flight.
+  const favoritesTotal = computed(() =>
+    favIdsLoaded.value ? favIds.value.size : (favoritesList.value?.length ?? 0),
+  )
+
   async function reconcileFavIds(): Promise<void> {
     try {
       const ids = await service.photos.listFavoriteIds()
@@ -42,6 +59,8 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     }
   }
 
+  // Task 11: fetchFavorites now always fetches page one and resets the cursor — call it
+  // for the initial load and for any refresh (toggle invalidation, delete refresh, retry).
   async function fetchFavorites(): Promise<void> {
     // Task 9 correction: `loadError` used to be reset to false at the top of
     // this function (before the await), mirroring the "reset before attempt"
@@ -55,9 +74,15 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     // continuously visible from the first failure until a retry actually
     // succeeds — no window where the view can fall through to the wrong
     // branch.
+    const gen = ++_generation
+    loadingMore.value = false
     try {
-      const list = (await service.photos.listFavorites()) as unknown[]
-      favoritesList.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
+      const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, 0)) as unknown[]
+      if (gen !== _generation) return
+      const rows = list ?? []
+      favoritesList.value = rows.map((a) => assetToPhoto(a as Record<string, unknown>))
+      _offset = rows.length
+      favoritesExhausted.value = rows.length < FAVORITES_PAGE_SIZE
       // Only mark loaded on success — a transient fetch failure must stay
       // distinguishable from "confirmed zero favorites", otherwise consumers
       // gating a refetch on `!favoritesLoaded` (e.g. the Favorites view) would
@@ -65,9 +90,39 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       favoritesLoaded.value = true
       loadError.value = false
     } catch (e) {
+      if (gen !== _generation) return
       favoritesList.value = []
+      _offset = 0
+      favoritesExhausted.value = false
       loadError.value = true
       console.error('[photos-favorites] fetchFavorites', e)
+    }
+  }
+
+  // Task 11: appends the next page behind the load-more button. A generation counter
+  // guards against a page landing after a refresh happened mid-flight — that page must
+  // be dropped whole, not appended to a list it no longer belongs to.
+  async function loadMoreFavorites(): Promise<void> {
+    if (favoritesExhausted.value || loadingMore.value) return
+    const gen = _generation
+    loadingMore.value = true
+    try {
+      const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, _offset)) as unknown[]
+      // A refresh happened while this page was in flight: drop it entirely.
+      if (gen !== _generation) return
+      const rows = list ?? []
+      favoritesList.value = [
+        ...(favoritesList.value ?? []),
+        ...rows.map((a) => assetToPhoto(a as Record<string, unknown>)),
+      ]
+      _offset += rows.length
+      if (rows.length < FAVORITES_PAGE_SIZE) favoritesExhausted.value = true
+    } catch (e) {
+      // Leave the cursor where it was so the retry asks for the same page again
+      // rather than skipping it.
+      console.error('[photos-favorites] loadMoreFavorites', e)
+    } finally {
+      if (gen === _generation) loadingMore.value = false
     }
   }
 
@@ -85,6 +140,11 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       else await service.photos.favorite(id)
       // Invalidate the cached favorites list — next view re-fetches.
       favoritesLoaded.value = false
+      // Task 11: reset the pagination cursor too, so the next fetchFavorites() starts a
+      // fresh page one instead of leaving a stale "exhausted" flag that would hide the
+      // load-more button while the list is actually smaller than what was loaded before.
+      favoritesExhausted.value = false
+      _offset = 0
     } catch (e) {
       // Roll back + log only — do NOT rethrow. Every caller invokes this
       // fire-and-forget (`void fav.toggle(id)`, mirroring P2's
@@ -122,12 +182,18 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     favoritesList.value = null
     favoritesLoaded.value = false
     loadError.value = false
+    favoritesExhausted.value = false
+    loadingMore.value = false
+    _offset = 0
+    _generation = 0
     _viewTs.clear()
   }
 
   return {
     favIds, favIdsLoaded, favoritesList, favoritesLoaded, loadError,
+    favoritesExhausted, loadingMore, favoritesTotal,
     isFav, favoritesMonths,
-    reconcileFavIds, fetchFavorites, toggle, recordView, exportZip, __resetForTest,
+    reconcileFavIds, fetchFavorites, loadMoreFavorites, toggle, recordView, exportZip,
+    __resetForTest,
   }
 })

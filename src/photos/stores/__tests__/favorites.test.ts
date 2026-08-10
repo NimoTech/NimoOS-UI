@@ -126,4 +126,105 @@ describe('photosFavorites store', () => {
     s.exportZip()
     expect(service.photos.exportFavoritesUrl).toHaveBeenCalled()
   })
+
+  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into
+  // 500, so the favorites list has to be paged or it silently truncates.
+  describe('pagination (Task 11)', () => {
+    const A = (id: string) => ({ id, mimeType: 'image/jpeg' })
+    const page = (n: number, from = 0) => Array.from({ length: n }, (_, i) => A(`f${from + i}`))
+
+    it('fetchFavorites asks for one page and reports exhaustion on a short page', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
+      await s.fetchFavorites()
+      expect(service.photos.listFavorites).toHaveBeenCalledWith(500, 0)
+      expect(s.favoritesExhausted).toBe(true)
+    })
+
+    it('loadMoreFavorites appends the next page and advances the offset', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      expect(s.favoritesExhausted).toBe(false)
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(2, 500))
+      await s.loadMoreFavorites()
+      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
+      expect(s.favoritesList).toHaveLength(502)
+      expect(s.favoritesExhausted).toBe(true)
+    })
+
+    it('refuses to page past the end', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
+      await s.fetchFavorites()
+      await s.loadMoreFavorites()
+      expect(service.photos.listFavorites).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not run two loadMore requests at once', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValue(page(500, 500))
+      await Promise.all([s.loadMoreFavorites(), s.loadMoreFavorites()])
+      // first page (fetchFavorites) + exactly one loadMore — the second concurrent
+      // call must be a no-op, not a second in-flight request.
+      expect(service.photos.listFavorites).toHaveBeenCalledTimes(2)
+    })
+
+    it('discards a stale in-flight page after a refresh (interleaved)', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      let release: (v: unknown) => void = () => {}
+      ;(service.photos.listFavorites as any).mockImplementationOnce(
+        () => new Promise((r) => { release = r }),
+      )
+      const slow = s.loadMoreFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1))
+      await s.fetchFavorites() // generation bumps here
+      release(page(500, 500)) // the slow page comes back afterwards
+      await slow
+      expect(s.favoritesList).toHaveLength(1)
+      expect(s.loadingMore).toBe(false)
+    })
+
+    it('resets the cursor on a failed page so the next attempt does not skip rows', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('boom'))
+      await s.loadMoreFavorites()
+      expect(s.loadingMore).toBe(false)
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1, 500))
+      await s.loadMoreFavorites()
+      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
+    })
+
+    it('reports the exact total from the id list, and the loaded length before ids land', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      expect(s.favoritesTotal).toBe(500) // favIds not loaded yet: no flash of 0
+      ;(service.photos.listFavoriteIds as any).mockResolvedValueOnce(
+        Array.from({ length: 1234 }, (_, i) => `f${i}`),
+      )
+      await s.reconcileFavIds()
+      expect(s.favoritesTotal).toBe(1234)
+    })
+
+    it('toggling a favorite resets the cursor so the next fetch starts from page one', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      expect(s.favoritesExhausted).toBe(false)
+      await s.toggle('f0')
+      // fetchFavorites always asks offset 0 regardless, but exhaustion must be reset
+      // too so a stale "exhausted" flag doesn't hide the load-more button on next entry.
+      expect(s.favoritesExhausted).toBe(false)
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
+    })
+  })
 })

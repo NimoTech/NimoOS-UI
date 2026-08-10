@@ -601,4 +601,63 @@ describe('PhotosFavorites.vue', () => {
       expect(cards[2].findAll('.fav-stat-bar span')).toHaveLength(5) // 5 个年份,不裁
     })
   })
+
+  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit into 500, so this page has
+  // to page and say out loud that its derived stats only cover what's loaded so far.
+  describe('pagination (Task 11)', () => {
+    const page = (n: number, from = 0) =>
+      Array.from({ length: n }, (_, i) => photo(`f${from + i}`))
+
+    it('shows the load-more button only while pages remain', async () => {
+      // A short first page (< 500) means favoritesExhausted is true right away — no button.
+      svc.photos.listFavorites.mockResolvedValueOnce(page(3))
+      const wDone = await mountView()
+      expect(wDone.find('[data-test="fav-load-more"]').exists()).toBe(false)
+
+      // A full page (500) means more may remain — button shows.
+      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
+      const wMore = await mountView()
+      expect(wMore.find('[data-test="fav-load-more"]').exists()).toBe(true)
+
+      // Clicking it calls loadMoreFavorites, which asks for the next page.
+      svc.photos.listFavorites.mockResolvedValueOnce(page(2, 500))
+      await wMore.find('[data-test="fav-load-more"]').trigger('click')
+      await flushPromises()
+      await wMore.vm.$nextTick()
+      expect(svc.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
+      // The next page was short (2 < 500): now exhausted, button disappears.
+      expect(wMore.find('[data-test="fav-load-more"]').exists()).toBe(false)
+    })
+
+    it('shows the loaded-subset hint with the loaded count', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
+      const w = await mountView()
+      const fav = usePhotosFavorites()
+      expect(fav.favoritesExhausted).toBe(false)
+
+      const hint = w.find('[data-test="fav-loaded-hint"]')
+      expect(hint.exists()).toBe(true)
+      expect(hint.text()).toContain('500')
+
+      // Once exhausted, the hint disappears — the loaded set is the whole set.
+      svc.photos.listFavorites.mockResolvedValueOnce(page(1, 500))
+      await w.find('[data-test="fav-load-more"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+      expect(w.find('[data-test="fav-loaded-hint"]').exists()).toBe(false)
+    })
+
+    it('shows the exact total in the All chip, not the loaded length', async () => {
+      // First page is a full 500-row page — more remain, so favoritesList.length (500) would
+      // under-report against the real total once favIds lands.
+      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(
+        Array.from({ length: 1234 }, (_, i) => `f${i}`),
+      )
+      const w = await mountView()
+
+      expect(w.find('.fav-count').text()).toContain('1234')
+      expect(w.find('.fav-count').text()).not.toContain('500')
+    })
+  })
 })

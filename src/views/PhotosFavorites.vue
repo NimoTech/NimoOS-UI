@@ -202,7 +202,7 @@ onMounted(() => {
             :disabled="!(fav.favoritesList?.length)"
             @click="openSaveAlbum"
           >{{ t('photosFavSaveAlbum') }}</button>
-          <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesList?.length ?? 0 }) }}</span>
+          <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesTotal }) }}</span>
         </div>
 
         <!-- Task 9(P3 遗留收口):失败态优先级在空态之前——loadError 一旦为真,就不该
@@ -222,6 +222,12 @@ onMounted(() => {
           <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
         </div>
         <template v-else>
+          <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
+               fav.favoritesList, which is only the pages fetched so far while pagination is
+               still catching up — say so out loud instead of silently under-reporting. -->
+          <div v-if="!fav.favoritesExhausted" class="fav-loaded-hint" data-test="fav-loaded-hint">
+            {{ t('photosLoadedSubsetHint', { n: fav.favoritesList?.length ?? 0 }) }}
+          </div>
           <!-- Task 15A: hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue:56-84,只在非空分支渲染
                (Vue2 :47-53/:54 的 v-if/v-else,空态整页走别的分支,三卡不渲染)。 -->
           <div class="fav-stats">
@@ -271,6 +277,17 @@ onMounted(() => {
               @open="onOpenTile"
               @toggle-select="toggleSelect"
             />
+          </div>
+          <!-- Task 11: the backend caps a single request at 500 rows now (NimoOS-Photos#54),
+               so anything past the first page only shows up once this is clicked. -->
+          <div v-if="!fav.favoritesExhausted" class="fav-load-more">
+            <button
+              type="button"
+              class="bar-btn"
+              data-test="fav-load-more"
+              :disabled="fav.loadingMore"
+              @click="fav.loadMoreFavorites()"
+            >{{ t('photosLoadMore') }}</button>
           </div>
         </template>
       </main>
@@ -333,6 +350,12 @@ onMounted(() => {
 
 .fav-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 8px; }
 .fav-count { color: var(--fg-muted); font-size: 13px; }
+
+/* Task 11 (SP15-P3): same small-muted-text treatment as .fav-count above (--fg-muted, 13px) —
+   no new color, just a differently-positioned instance of the same token usage. */
+.fav-loaded-hint { color: var(--fg-muted); font-size: 13px; margin-bottom: 10px; }
+.fav-load-more { display: flex; justify-content: center; padding: 16px 0; }
+.fav-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .fav-export {
   padding: 6px 14px; border-radius: var(--chip-radius); border: 1px solid var(--chip-border);
   background: var(--chip-bg); color: var(--fg); font-size: 13px; cursor: pointer;

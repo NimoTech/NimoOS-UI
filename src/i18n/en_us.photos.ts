@@ -970,6 +970,11 @@ export default {
   photosAlbumLoadFailed: "Couldn't load this album",
   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
   photosRetry: 'Retry',
+  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
+  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
+  // equivalent (Vue2 never paged this endpoint).
+  photosLoadedSubsetHint: 'Stats reflect the first {n} loaded items',
+  photosLoadMore: 'Load more',
   // ── SP15-P1 Moments ──
   photosMoBadge: 'Moment',
   photosMoTypeTrip: 'Trip',
