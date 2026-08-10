@@ -226,6 +226,7 @@ export default {
   filesDropLanTitle: 'Local network access',
   filesDropLanHint: 'Open this address on another device',
   filesDropMenuSend: 'Send files',
+  filesDropMenuCancel: 'Cancel sending',
   filesDropUnsupported: 'Peer does not support P2P transfer',
   authUsername: 'Username',
   authPassword: 'Password',

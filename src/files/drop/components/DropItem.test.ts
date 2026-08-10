@@ -8,7 +8,10 @@ const device = (over = {}) => ({ id: 'a', name: { model: 'desktop', deviceName: 
 const mountItem = (props = {}) =>
   mount(DropItem, {
     props: { device: device(), isSelf: false, isFloat: true, ...props },
-    global: { plugins: [createPinia(), i18n] },
+    // i18n is already installed globally by vitest.setup.ts; only Pinia needs
+    // wiring here (re-passing i18n double-installs the plugin and emits a
+    // hidden [Vue warn] that the default reporter swallows).
+    global: { plugins: [createPinia()] },
   })
 
 describe('DropItem', () => {
@@ -44,5 +47,48 @@ describe('DropItem', () => {
     const w = mountItem({ transfer: { progress: 40, sending: true, count: 2 } })
     expect(w.find('.drop-ring').exists()).toBe(true)
     expect(w.text()).toContain(i18n.global.t('filesDropSending', { num: 2 }))
+  })
+})
+
+// reka-ui's real ContextMenuContent only renders ContextMenuItem into a portal
+// while the menu is OPEN, and its real ContextMenuItem injects a MenuRootContext
+// that only a real ContextMenuRoot provides — mounting it outside one throws.
+// FileContextMenu.test.ts already solved this exact problem for the same
+// components/ui/ContextMenu.vue wrapper: stub ContextMenu to render the
+// default + #menu slots inline (no portal, no open/close state), and stub
+// ContextMenuItem to a plain element that re-emits 'select' on click. This
+// proves both "which items render under which props" and "clicking wires to
+// the right emit" — the same two facts the real portal would prove, without
+// needing to drive reka-ui's open/close state machine in jsdom.
+const ContextMenuStub = {
+  template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
+}
+const ContextMenuItemStub = {
+  emits: ['select'],
+  template: '<div class="ctx-item" @click="$emit(\'select\')"><slot /></div>',
+}
+function mountItemWithMenuStub(props: Record<string, unknown>) {
+  return mount(DropItem, {
+    props: { device: device(), isSelf: false, isFloat: true, ...props },
+    global: {
+      plugins: [createPinia()],
+      stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
+    },
+  })
+}
+
+describe('DropItem cancel entry', () => {
+  it('offers cancelling only while a transfer is running', () => {
+    const idle = mountItemWithMenuStub({})
+    expect(idle.find('.menu').text()).not.toContain(i18n.global.t('filesDropMenuCancel'))
+  })
+
+  it('emits cancel-transfer when the menu entry is chosen', async () => {
+    const w = mountItemWithMenuStub({ transfer: { progress: 40, sending: true, count: 1 } })
+    const items = w.findAll('.menu .ctx-item')
+    const cancel = items.find((it) => it.text() === i18n.global.t('filesDropMenuCancel'))
+    expect(cancel).toBeTruthy()
+    await cancel!.trigger('click')
+    expect(w.emitted('cancel-transfer')).toBeTruthy()
   })
 })

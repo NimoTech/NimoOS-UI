@@ -226,6 +226,7 @@ export default {
   filesDropLanTitle: '局域网访问',
   filesDropLanHint: '用另一台设备打开以下地址',
   filesDropMenuSend: '发送文件',
+  filesDropMenuCancel: '取消发送',
   filesDropUnsupported: '对方设备不支持点对点传输',
   authUsername: '用户名',
   authPassword: '密码',

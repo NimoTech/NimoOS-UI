@@ -16,7 +16,7 @@ const props = defineProps<{
   transfer?: TransferState
   suspended?: boolean
 }>()
-const emit = defineEmits<{ 'select-files': [files: File[]] }>()
+const emit = defineEmits<{ 'select-files': [files: File[]]; 'cancel-transfer': [] }>()
 const { t } = useI18n()
 
 const inputEl = ref<HTMLInputElement | null>(null)
@@ -85,6 +85,11 @@ function pick() { if (!disabled.value) inputEl.value?.click() }
       </button>
       <template #menu>
         <ContextMenuItem class="ui-ctx-item" @select="pick">{{ t('filesDropMenuSend') }}</ContextMenuItem>
+        <ContextMenuItem
+          v-if="transfer"
+          class="ui-ctx-item danger"
+          @select="emit('cancel-transfer')"
+        >{{ t('filesDropMenuCancel') }}</ContextMenuItem>
       </template>
     </ContextMenu>
     <button v-else class="drop-bubble" :class="{ offline: device.offline }" :title="tip" disabled>
