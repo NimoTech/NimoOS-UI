@@ -245,3 +245,23 @@ load-bearing。实际相反 —— 守卫生效后，唯一可能往 `bucketAsse
 ## 闸门
 
 见提交信息与控制器复核；本文不复述数字，以免与最终一次运行不一致。
+
+---
+
+## 闸门（本波最终一次运行，提交 `4a7923a8`，工作树干净）
+
+| 闸 | 结果 |
+|---|---|
+| `pnpm exec vue-tsc --noEmit` | 0 错误 |
+| `pnpm test src/photos src/views/__tests__` | 131 files / 2732 tests passed |
+| `pnpm test`（全量） | **689 files / 11105 tests passed**（基线 4e87233 是 689 / 11086 ⇒ 净 +19 例） |
+| `pnpm test oss` | 21 files / 487 tests passed |
+| `src/styles/color-guard.test.ts` + `selectPopup.test.ts` | 1060 tests passed（本波未新增任何颜色字面量） |
+
+已知无关噪音（非本波引入）：`favorites.test.ts:126` 的 jsdom
+`Not implemented: navigation`（`exportZip` 写 `location.href`）；一条
+`/tmp/nimoos-www-*` 目录不可写的 stderr（部署脚本相关测试的既有输出）。
+
+开源导出面无风险点：本波所有代码改动都在 `src/photos/**` 与 `src/views/Photos.vue`，
+两者都在 `oss/manifest.mjs` 的 **DELETE** 表里整块剥离，**没有碰任何 PATCH 锚点**，
+也没有新增/删除文件（`photosStripCoverage` 这类结构守卫无需更新）。
