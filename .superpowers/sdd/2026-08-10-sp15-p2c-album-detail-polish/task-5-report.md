@@ -204,3 +204,108 @@ the full targeted test file after the reinstall to make sure nothing else moved 
 - Left two small pre-existing i18n-text drifts (`photosAlbumConvertToSmartHint`,
   `photosAlbumDeleteHint`) undisturbed, per the brief's explicit "keep desc unchanged" scope —
   recorded above for whoever eventually reconciles them.
+
+## Fix round 1 (coordinator review, Important) — the ZIP test couldn't detect a broken navigation
+
+**Finding**: `it('navigates to the zip url built by the service', ...)` asserted only
+`expect(svc.photos.exportAlbumZipUrl).toHaveBeenCalledWith('a1')`. The production code is
+`window.location.href = service.photos.exportAlbumZipUrl(albumId.value)` — a mutant that calls
+the builder and discards the return value, never assigning to `location.href`, still passes that
+assertion. The test covered URL-computation only, nothing about navigation actually firing.
+Provenance per the coordinator: this shape traces back to the brief's own test skeleton and
+mirrors `favorites.test.ts`'s existing (equally weak) precedent — not a lapse introduced here,
+but still worth closing since Download-as-ZIP is a new capability whose real-device acceptance
+depends on the navigation actually happening.
+
+### Interception mechanism, and why
+
+jsdom does not implement real navigation (`window.location.href = ...` logs "Not implemented:
+navigation" and leaves `href` unchanged), so the assigned *value* can't be read back. Searched
+this repo for an existing precedent before inventing one — found four: `src/home/components/
+widgets/AiWidget.test.ts`, `src/home/components/HomeDock.test.ts`, `src/home/components/
+GridItem.click.test.ts`, `src/home/composables/useOpenAction.test.ts`, and (closest to this
+task, inside the Photos area itself) `src/views/__tests__/PhotosSmartViewDetail.test.ts:577`. All
+five redefine `window.location` with `Object.defineProperty(window, 'location', { configurable:
+true, value: { set href(v) { hrefs.push(v) }, get href() { return '' } } })` and assert on the
+captured `hrefs` array — the "least invasive mechanism that lets the test observe the assigned
+value" the coordinator asked for already has a house style. Followed it verbatim rather than
+inventing a different one.
+
+Two placement decisions, both deliberate:
+
+- **Stub installed *after* `mountDetail`/`openMenu`, not before.** This test file's router uses
+  real `createWebHashHistory`, which reads several `window.location` properties (`hash`, `pathname`,
+  etc.) during route resolution — a stub that only defines `href` would break mounting/navigation
+  if installed before it. `downloadZip()` only touches `window.location.href` at click time, so
+  stubbing immediately before that click (menu already open, component already mounted) is both
+  sufficient and safe.
+- **Restored in a describe-scoped `afterEach`, not inline at the end of the test body.** An inline
+  `Object.defineProperty(window, 'location', { value: original })` placed after the assertions
+  would never run if an assertion throws first (exactly the coordinator's leak concern: "a leaked
+  `window.location` stub is the kind of thing that makes an unrelated test fail later and looks
+  like a flake"). Captured the pristine `window.location` once at module scope
+  (`const originalWindowLocation = window.location`, right after the file's `i18n` setup, before
+  any test can have touched it) and added an `afterEach` **inside** the `'P2c album more menu'`
+  describe block (not the file's existing top-level `afterEach`) that unconditionally restores it
+  — `afterEach` runs whether the test passed or threw, and scoping it to this describe keeps the
+  restore next to the one test in the whole file that touches `window.location`, rather than
+  making every other test in the file pay for a concern that's local to this one.
+
+### Mutation result — the specific one the coordinator asked for
+
+Removed the assignment while keeping the builder call:
+
+```diff
+-  window.location.href = service.photos.exportAlbumZipUrl(albumId.value)
++  service.photos.exportAlbumZipUrl(albumId.value) // MUTATION: return value discarded, no navigation
+```
+
+`pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts -t "navigates to the zip url"`:
+
+```
+FAIL  src/views/__tests__/PhotosAlbumDetail.test.ts > P2c album more menu > navigates to the zip url built by the service
+AssertionError: expected [] to deeply equal [ 'mock://export/a1' ]
+- [ "mock://export/a1" ]
++ []
+Tests  1 failed | 79 skipped (80)
+```
+
+Red, for exactly the reason the coordinator described — `exportAlbumZipUrl` is still called
+(the first assertion would have passed on its own), but nothing is assigned to `href`, so `hrefs`
+stays empty. Reverted; re-ran the same `-t` filter to confirm 1/1 passed again before moving on.
+
+### Covering tests / commands / output
+
+`pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts src/i18n/parity.test.ts src/styles`:
+
+```
+Test Files  6 passed (6)
+     Tests  1167 passed (1167)
+```
+
+Re-ran with `--reporter=verbose`: no `[Vue warn]` beyond the pre-existing file-wide i18n-plugin-
+registration noise (unrelated, present on every test in this file already), and — notably — the
+`Error: Not implemented: navigation` stderr line that appeared in the original round-1 report is
+now **gone** for this test: the stub intercepts the assignment before jsdom's real `Location`
+setter ever runs, so the fix also happens to quiet a line of pre-existing noise for this one test.
+
+`pnpm exec vue-tsc --noEmit`: clean, no output.
+
+Ran the leak check by hand: the full target command above exercises every other test in this file
+(including several that do real `router.push` navigations both before and after the "P2c album
+more menu" describe block) and all 1167 passed — if the stub had leaked past its own test,
+`createWebHashHistory`-driven navigation in a later test would have broken against the minimal
+`{ href }`-only stub object. It didn't.
+
+### Files changed (this fix round)
+
+- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/__tests__/PhotosAlbumDetail.test.ts`
+  — module-scope `originalWindowLocation` capture, describe-scoped `afterEach` restore, and the
+  rewritten "navigates to the zip url" test. No production-code change was needed for this round
+  (`PhotosAlbumDetail.vue` was untouched, restored to its pre-mutation state after verification).
+
+### Also for the record
+
+Logged the coordinator's third i18n-drift finding (`photosAlbumNameExists`: `'已存在同名相册'`
+here vs `'已有同名相册'` in the target) — not fixed in this round, per the coordinator's explicit
+instruction to defer it to the later reconciliation pass.

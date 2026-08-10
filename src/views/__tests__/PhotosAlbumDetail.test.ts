@@ -74,6 +74,10 @@ import AlbumConvertToSmartDialog from '../../photos/components/AlbumConvertToSma
 
 const lb = useLightbox()
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+// Coordinator review fix (Task 5 Important): captured once, before any test can have replaced
+// `window.location` -- the "P2c album more menu" describe block's own afterEach restores this
+// exact reference so a stubbed location can never leak into a later test in this file.
+const originalWindowLocation = window.location
 
 function makeRouter() {
   return createRouter({
@@ -1268,6 +1272,16 @@ describe('P2c album more menu', () => {
     await w.vm.$nextTick()
   }
 
+  // Coordinator review fix (Important): restores the real `window.location` after every test in
+  // this block, unconditionally (afterEach runs whether the test passed or threw) -- so the
+  // "navigates to the zip url" test's stub below can never leak into a later test, in this file
+  // or (since vitest tears down per file but shares the jsdom global across the whole run) beyond
+  // it. Scoped to this describe rather than the file's own top-level afterEach: this is the only
+  // test in the file that touches `window.location`, so the restore belongs next to it.
+  afterEach(() => {
+    Object.defineProperty(window, 'location', { configurable: true, value: originalWindowLocation })
+  })
+
   it('renders exactly five entries in the target order', async () => {
     const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
     await openMenu(w)
@@ -1323,12 +1337,30 @@ describe('P2c album more menu', () => {
     expect(svc.photos.createAlbum).toHaveBeenCalledTimes(1)
   })
 
+  // Coordinator review fix (Important): the old version of this test asserted only that
+  // `exportAlbumZipUrl` was called -- a mutant that computes the URL and then discards it (never
+  // assigning to `location.href`) still passed. Intercepts the assignment itself, following this
+  // repo's own established precedent for the same problem (jsdom does not implement real
+  // navigation): `src/home/components/widgets/AiWidget.test.ts`, `src/home/components/HomeDock.test.ts`,
+  // `src/views/__tests__/PhotosSmartViewDetail.test.ts:577` all stub `window.location` with a
+  // capturing `href` setter rather than asserting the (jsdom-unreliable) read-back value. Stubbed
+  // *after* mount/menu-open (mounting depends on the router reading the real `window.location`
+  // for hash-history setup) and restored by this describe block's own afterEach above.
   it('navigates to the zip url built by the service', async () => {
     const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
     await openMenu(w)
+
+    const hrefs: string[] = []
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { set href(v: string) { hrefs.push(v) }, get href() { return '' } },
+    })
+
     await w.find('[data-test="album-menu-zip"]').trigger('click')
     await w.vm.$nextTick()
+
     expect(svc.photos.exportAlbumZipUrl).toHaveBeenCalledWith('a1')
+    expect(hrefs).toEqual(['mock://export/a1'])
   })
 
   it('shows the estimated size in the zip entry description', async () => {
