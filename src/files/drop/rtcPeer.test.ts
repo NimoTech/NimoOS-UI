@@ -509,6 +509,57 @@ describe('Peer send-side timeouts', () => {
   })
 })
 
+describe('Peer send-then-receive interleaving', () => {
+  // `files` is the only thing stores/drop.ts uses to decide `sending`, and
+  // DropItem.vue starts its stall watchdog only when sending === false. So a
+  // `files` list left over from a finished send does more than mislabel the card:
+  // it removes the ONLY bound on the receive path (there is no ack timer there),
+  // and the trigger is the ordinary back-and-forth this page exists for.
+  const progressArgs = (ev: PeerEvents) =>
+    (ev.onFileProgress as ReturnType<typeof vi.fn>).mock.calls.map(
+      (c) => c[0] as { files: File[] },
+    )
+
+  it('reports a receive that follows a completed send as receiving, not sending', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.sendFiles([new File([new Uint8Array(10)], 'out.bin')], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
+    p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+    p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
+    ;(ev.onFileProgress as ReturnType<typeof vi.fn>).mockClear()
+
+    // Now the other direction: that same peer sends us a file.
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'in.bin', mime: '', size: 10000, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+
+    const calls = progressArgs(ev)
+    expect(calls.length).toBeGreaterThan(0)
+    for (const e of calls) expect(e.files).toEqual([])
+  })
+
+  it('keeps calling a multi-file send a send between its files', async () => {
+    // Why the clearing is conditional on a drained queue rather than
+    // unconditional: file 2 of a two-file send is still outgoing.
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    const f = (n: string) => new File([new Uint8Array(10)], n)
+    p.sendFiles([f('one.bin'), f('two.bin')], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(1))
+    p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(2))
+    ;(ev.onFileProgress as ReturnType<typeof vi.fn>).mockClear()
+
+    // The sender's own progress comes from the receiver's throttled `progress`
+    // messages -- this is the event that draws file 2's ring.
+    p.handleChannelMessage(JSON.stringify({ type: 'progress', progress: 0.5 }))
+
+    const calls = progressArgs(ev)
+    expect(calls.length).toBe(1)
+    expect(calls[0].files.map((x) => x.name)).toEqual(['one.bin', 'two.bin'])
+  })
+})
+
 describe('Peer cancellation', () => {
   it('tells the peer, clears local state, and reports the cancellation', async () => {
     const ev = makeEvents()

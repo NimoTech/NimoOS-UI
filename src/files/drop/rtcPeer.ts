@@ -172,6 +172,15 @@ export class Peer {
     // belonging to the file that just started.
     this.chunker = null
     this.pendingAckOffset = null
+    // `files` is what stores/drop.ts reads to decide `sending`, so it must stop
+    // describing a send that is over. A stale non-empty list made the NEXT
+    // incoming transfer from this peer look outgoing: the card claimed "sending",
+    // and DropItem.vue's stall watchdog (receive-side only) never started, so a
+    // dead receive had nothing bounding it at all -- there is no ack timer on the
+    // receive path. Checked BEFORE dequeueFile() and only once the queue has
+    // drained: a multi-file send must keep reporting `sending: true` between its
+    // files, and dequeueFile() would have already refilled `busy` by then.
+    if (!this.filesQueue.length) this.files = []
     this.dequeueFile()
     this.events.onTransferComplete()
   }
@@ -325,8 +334,9 @@ export class RTCPeer extends Peer {
   }
 
   /** Re-open the channel. Only the caller dials; the callee waits to be dialled
-   *  (Vue2 同). Separate from onChannelClosed() because a transient ICE state
-   *  needs the re-dial WITHOUT the break report -- see onConnectionStateChange. */
+   *  (same as Vue2). Separate from onChannelClosed() because a transient ICE
+   *  state needs the re-dial WITHOUT the break report -- see
+   *  onConnectionStateChange. */
   private redialIfCaller(): void {
     if (!this.isCaller) return
     this.connectRtc(this._peerId, true)
@@ -341,8 +351,13 @@ export class RTCPeer extends Peer {
         // roam, interface flap); the SCTP association and the data channel
         // survive it. Reporting here threw away a receiver's half-assembled
         // multi-GB file over a 2-second blip. Re-dial, say nothing: if it never
-        // recovers, the sender is still bounded by ACK_TIMEOUT_MS and the
-        // receiver by DropItem.vue's stall watchdog, so nothing is unbounded.
+        // recovers, a send is still bounded by ACK_TIMEOUT_MS and a receive that
+        // has got far enough to show a progress card by DropItem.vue's stall
+        // watchdog. Two pre-existing gaps in that second bound (both ticketed,
+        // not fixed here): the watchdog returns early while the rounded percent
+        // is still 0, and a header whose first chunk never arrives creates no
+        // card at all -- so a receive that dies in its first moments is still
+        // unbounded.
         this.redialIfCaller()
         break
       // Terminal states. 'closed' nulls conn for the same reason 'failed' does:
