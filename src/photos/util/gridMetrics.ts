@@ -83,7 +83,10 @@ export function skeletonItemCount(
   // counter, so it is derived — estimating 0 would stop every month past the
   // first viewport from ever being requested.
   if (tab === 'photo') return Math.max(0, total - videos)
-  // The doc/OCR tab has no directory counter at all; unloaded months stay hidden
-  // there (registered limitation, see the P3 spec).
+  // The OCR tab ('ocr' — see PhotosToolbar.vue's tab ids, there is no 'doc' tab)
+  // has no directory counter at all: the bucket carries count/videoCount but
+  // nothing OCR-specific, so this branch cannot estimate and returns 0, which
+  // means an unloaded month never gets a skeleton on that tab and stays hidden
+  // until it is actually loaded (registered limitation, see the P3 spec §5.4).
   return 0
 }

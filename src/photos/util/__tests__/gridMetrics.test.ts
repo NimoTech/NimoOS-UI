@@ -59,8 +59,8 @@ describe('skeletonItemCount', () => {
     expect(skeletonItemCount({ tab: 'video', count: 100, videoCount: 12, loaded: false, loadedLength: 0 })).toBe(12)
     expect(skeletonItemCount({ tab: 'all', count: 100, videoCount: 12, loaded: false, loadedLength: 0 })).toBe(100)
   })
-  it('estimates nothing on the doc tab, which the directory has no counter for', () => {
-    expect(skeletonItemCount({ tab: 'doc', count: 100, videoCount: 12, loaded: false, loadedLength: 0 })).toBe(0)
+  it('estimates nothing on the ocr tab, which the directory has no counter for', () => {
+    expect(skeletonItemCount({ tab: 'ocr', count: 100, videoCount: 12, loaded: false, loadedLength: 0 })).toBe(0)
   })
   it('uses the real length for already-loaded groups that carry no directory counts', () => {
     // Favorites and the place-assets page feed synthetic month groups: no count,

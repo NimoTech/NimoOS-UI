@@ -814,7 +814,7 @@ watch(gridRef, () => {
                   @click="onTileClick(p)"
                   @contextmenu.prevent="setCover(p)"
                 >
-                  <img :src="thumbnailUrl(p.id, 'small')" alt="">
+                  <img :src="thumbnailUrl(p.id, 'small')" alt="" loading="lazy">
                   <button
                     type="button"
                     class="tile-cover-btn"
