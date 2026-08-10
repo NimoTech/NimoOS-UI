@@ -626,6 +626,63 @@ describe('SP15-P2c Task 6: header action row', () => {
     expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
   })
 
+  // SP15-P2c Task 9 (target :96/:107 -- onTileClick(p, list), photoSet/recentSet passed from
+  // the template). Before this task, both grids' tiles shared one handler that always handed
+  // the lightbox `store.matchedAssets` -- the backend's match-score order -- regardless of
+  // what Sort was showing. The fixture below is built so the two orders genuinely diverge:
+  // "all matches" comes back m1/m2/m3 (score order) but taken-date-desc reorders it to
+  // m2/m3/m1, so a lightbox handed the stale order would open on the wrong photo.
+  it('hands the lightbox the order the "all matches" grid is showing, not the backend order', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      const matched = [
+        asset('m1', { takenAt: '2026-01-10T00:00:00Z' }),
+        asset('m2', { takenAt: '2026-03-05T00:00:00Z' }),
+        asset('m3', { takenAt: '2026-02-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? [] : matched
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await pickSortOption(w, 'taken')
+    // Sorted (taken desc): m2, m3, m1 -- the third tile is m1, not m3.
+    await w.findAll('[data-test="sv-all-tile"]')[2].trigger('click')
+
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const call = lbMock.openAt.mock.calls[0]
+    expect((call[0] as { id: string }).id).toBe('m1')
+    expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['m2', 'm3', 'm1'])
+    // startMs, not an index -- untouched by this task (useLightbox.openAt computes the index
+    // itself from the list and the photo).
+    expect(call[2]).toBe(0)
+  })
+
+  // The "recently added" band has its own Sort-applied order (recentSet), independent of the
+  // "all matches" band's (matchedSet). A fix that wires both grids' clicks to the same list --
+  // e.g. always matchedSet -- would pass this test's sibling above but fail here, because the
+  // two lists are built to have no assets in common.
+  it('keeps the "recently added" grid on its own sorted list, not the all-matches one', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      const matched = [
+        asset('m1', { takenAt: '2026-01-10T00:00:00Z' }),
+        asset('m2', { takenAt: '2026-03-05T00:00:00Z' }),
+        asset('m3', { takenAt: '2026-02-01T00:00:00Z' }),
+      ]
+      const recent = [
+        asset('r2', { takenAt: '2026-01-01T00:00:00Z' }),
+        asset('r1', { takenAt: '2026-04-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? recent : matched
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
+    await pickSortOption(w, 'taken')
+    // Sorted (taken desc): r1, r2 -- the backend handed them back the other way round.
+    await w.findAll('[data-test="sv-recent-tile"]')[0].trigger('click')
+
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const call = lbMock.openAt.mock.calls[0]
+    expect((call[0] as { id: string }).id).toBe('r1')
+    expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['r1', 'r2'])
+  })
+
   it('switches both grids to the compact density', async () => {
     svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 1 })])
@@ -1192,7 +1249,14 @@ describe('两段照片网格', () => {
     expect(w.findAll('[data-test="sv-all-tile"]')).toHaveLength(3)
   })
 
-  it('点 tile → lb.openAt 被调,第二参是 store.matchedAssets 全集、第三参 0、第四参 undefined', async () => {
+  // SP15-P2c Task 9: this used to assert `call[1]).toBe(store.matchedAssets)` -- the raw store
+  // array, by reference. Task 9 hands the lightbox `matchedSet` (the Sort-applied view) instead,
+  // and `sortAlbumPhotos` always returns a fresh `[...photos]` copy (util/albumView.ts) even in
+  // the default 'score' ordering, so the reference check would now fail even though the content
+  // is identical. Content is what matters here (there is only one asset, so score-order content
+  // is indistinguishable from taken-order content) -- the ordering divergence is covered by the
+  // two tests above.
+  it('tile click still calls lb.openAt with content matching store.matchedAssets (now a separate sorted snapshot, not the same reference), startMs 0, no query', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [] : [asset('a1')]
     })
@@ -1201,7 +1265,8 @@ describe('两段照片网格', () => {
     const store = usePhotosSmartViews()
     expect(lbMock.openAt).toHaveBeenCalledTimes(1)
     const call = lbMock.openAt.mock.calls[0]
-    expect(call[1]).toBe(store.matchedAssets)
+    expect(call[1]).toEqual(store.matchedAssets)
+    expect(call[1]).not.toBe(store.matchedAssets)
     expect(call[2]).toBe(0)
     expect(call[3]).toBeUndefined()
   })

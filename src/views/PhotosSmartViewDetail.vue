@@ -292,9 +292,9 @@ function pickSort(s: SvSortBy): void {
 }
 
 // The display order for each grid. The store's arrays stay untouched: `viewAssetIds` looks ids
-// up rather than reading positions, and the lightbox still receives the store's own array --
-// aligning the lightbox's navigation order with what the grid shows is Task 9's job, and this
-// is the state it consumes.
+// up rather than reading positions. Task 9 hands the lightbox these two computeds (not the raw
+// store arrays) at the template call sites below, so its navigation order matches what each
+// grid is showing.
 const matchedSet = computed(() => sortAlbumPhotos(store.matchedAssets, sortBy.value))
 const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.value))
 
@@ -539,11 +539,16 @@ async function doConvertToAlbum(): Promise<void> {
 }
 
 // ── 两段照片网格(结构规格 10)─────────────────────────────────────────────────
-// lightbox 的浏览范围限定为该智能视图的**全部匹配**(不是整个图库),两段网格共用同一个
-// handler、都传 matchedAssets 全集 —— 照搬 Vue2 openInLightbox :404-408 的
-// `this.$emit('open-photo', p, this.matchedAssets)`(两段网格在 Vue2 里也共用这一个方法)。
-// 不传第四参(query)⇒ 不激活 OCR 高亮,与 Vue2 一致。
-function onTileClick(p: Photo): void {
+// The lightbox's browsing range is scoped to this smart view's full match set (not the whole
+// library). Both grids share this one handler, but SP15-P2c Task 9 (target 33b05636 :96/:107
+// `onTileClick(p, list)`) stopped always forwarding `store.matchedAssets`: each grid now passes
+// in *its own* currently-sorted display order (`recentSet`/`matchedSet`, already run through
+// sortBy) from the template's v-for scope, and this just forwards it on to `lb.openAt`. E8's
+// finding: once Task 6 added the Sort capsule, the grid re-orders on sortBy but the lightbox
+// kept getting the unsorted store array, so "next" in the lightbox jumped to a photo that was
+// not adjacent on screen -- this signature change is that fix.
+// No fourth arg (query) => no OCR highlighting, matching Vue2.
+function onTileClick(p: Photo, list: Photo[]): void {
   // Vue2 :456-459 (onTileClick): selection mode suppresses the lightbox — a tap either
   // selects or opens, never both. This has to come first, before the "New" badge is
   // optimistically cleared: selecting a recently-added photo must not mark it as seen.
@@ -556,7 +561,10 @@ function onTileClick(p: Photo): void {
   // "New" 角标——真实浏览记录由 lb.openAt 内部的 recordView 之类的动作在后端异步落地,
   // 这里只是即时反馈,刻意写注释说明这处直接改 store ref 元素属性是有意为之。
   if (r && r.isNew) r.isNew = false
-  lb.openAt(p, store.matchedAssets, 0)
+  // The third arg is startMs (only meaningful for isVideo), not an index -- openAt computes the
+  // index itself from the photo's position in `list` (useLightbox.ts's photoIndexById), so this
+  // stays 0 unchanged from before this task.
+  lb.openAt(p, list, 0)
 }
 
 // ── SP15-P2a: manual asset actions (Vue2 :456-534) ───────────────────────────────────────
@@ -868,7 +876,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
               <div
                 v-for="p in recentSet" :key="p.id" class="tile" :class="{ recent: p.isNew }"
                 :data-selected="edit && selectedIds.includes(String(p.id))"
-                data-test="sv-recent-tile" @click="onTileClick(p)"
+                data-test="sv-recent-tile" @click="onTileClick(p, recentSet)"
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
                 <div v-if="p.isNew" class="new-tag">{{ t('photosSvNew') }}</div>
@@ -893,7 +901,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
             <div
               v-for="p in matchedSet" :key="p.id" class="tile"
               :data-selected="edit && selectedIds.includes(String(p.id))"
-              data-test="sv-all-tile" @click="onTileClick(p)"
+              data-test="sv-all-tile" @click="onTileClick(p, matchedSet)"
             >
               <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
               <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
