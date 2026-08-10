@@ -248,9 +248,14 @@ onUnmounted(() => {
             @update:tab="tab = $event" @update:density="density = $event"
           >
             <template #after-tabs>
-              <!-- facet 源恒取全库 allPhotos,不用 gridMonths —— 否则筛掉某个年份后,
-                   该年份就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths
-                   而非 gridMonths)。 -->
+              <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
+                   就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
+                   gridMonths)。
+                   Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
+                   模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
+                   photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
+                   变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
+                   只是把注释改成实情。 -->
               <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
             </template>
           </PhotosToolbar>

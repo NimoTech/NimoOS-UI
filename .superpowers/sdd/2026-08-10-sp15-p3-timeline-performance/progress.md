@@ -185,3 +185,37 @@ Task 13: complete (commit 85383b4) — 收尾任务，做了三件事：(1) 相�
 
 **状态**：分支 `sp15-photos-moments`，未部署、未推 origin、未合 master。合并预演干净，
 等机主统一验收。
+Task 13: complete (commits 7c59096..4e87233, code half review clean; acceptance doc fact-checked by the controller)
+CONTROLLER-VERIFIED GATES (re-run independently on 4e87233, clean tree): vue-tsc 0 errors ·
+  pnpm test 689 files / 11086 tests passed (166s) · pnpm test oss 21 files / 487 tests passed (18.7s) ·
+  pnpm build ok (vite 17.2s). The favorites.test.ts:126 stderr trace is the known pre-existing jsdom
+  "Not implemented: navigation" noise from exportZip setting location.href, not a new defect.
+
+---
+
+## 整支终审后的单波修复（2026-08-11）
+
+整支终审在「任务之间的接缝」上找出 1 Critical + 5 Important + 6 minor，全部在一波内修完，
+逐条报告见 **`final-fix-report.md`**（同目录）。摘要：
+
+| 项 | 内容 | 结果 |
+|---|---|---|
+| Critical 1 | 切 tab 往返后观察器不再注册 ⇒ 被隐藏过的月份永久骨架 | 已修（watch 已渲染集合 + `FakeIO.fireIfObserved`） |
+| Important 2 | `need-bucket` 只在进入边沿触发 ⇒ 在屏月份被判废/失败后不再重取 | 已修（电平触发 `requestPendingBuckets`） |
+| Important 3 | 占位高度重复计入月头、每次 resync 棘轮（= 滚动条会跳） | 已修（量 `.grid` body + hydrate 守卫），**真 Chromium 实测证据在报告里** |
+| Important 4 | 点星标产出假的 Load more 并复制第一页 | 已修（`toggle()` 不再 rewind 游标） |
+| Important 5 | `fetchTimeline` 刷新目录不差分、且不退出分桶模式 | 已修（抽 `applyDirectory`） |
+| Important 6 | OCR tab 在分桶模式下是死胡同（永久空） | 已修，**spec §5.4 已按新行为改写并留档原文** |
+| minor 7-12 | 死常量+不可能失败的测试 / 平价闸缺 `aspect-ratio`（含变异验证）/ 首帧灰闪 / `fetchBucket` 目录守卫 / 注释说谎 / picker 不满屏不翻页 | 全部已修 |
+
+**两处与终审意见的出入（已在报告里给证据，不是悄悄跳过）**：
+1. minor 10 用**按 key 比对**而不是全局目录计数器 —— 后者会在索引期把大月份的加载饿死。
+2. 同一条里「第二个清理循环因此变成 load-bearing」的判断不成立：守卫生效后没有写入方会
+   造孤儿 key，`staleBucketKeys` 也已把消失的桶判 stale ⇒ 它是纵深防御。循环按指示保留，
+   注释写的是实情。
+
+**未验证项**（诚实登记，详见报告末节）：首帧灰闪只验了机制没抓帧 · 未部署故真机全未验 ·
+OCR tab 在多月份大库上的并发请求数只有推算。
+
+**台账更正**：deferred-minor #11（Task 8b「a bucket fetch failing mid-scroll ... traced
+correct by inspection」）的判断**是错的** —— 那条路径当时确实不会恢复，本波 Important 2 修掉。

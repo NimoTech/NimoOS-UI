@@ -213,25 +213,55 @@ describe('photosFavorites store', () => {
       expect(s.favoritesTotal).toBe(1234)
     })
 
-    it('toggling a favorite resets the cursor so the next fetch starts from page one', async () => {
+    // Whole-branch review, Important 4: this used to assert that toggle() itself
+    // reset the cursor/exhaustion flag. It does not any more, and it never needed
+    // to — fetchFavorites() rewinds both unconditionally on every path, which is
+    // what this test now pins. (The old version could not fail either way: its
+    // first page was a full 500 rows, so `favoritesExhausted` was already false
+    // before the toggle.)
+    it('a refresh after a toggle starts from page one and re-decides exhaustion itself', async () => {
       const s = usePhotosFavorites()
       ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
       await s.fetchFavorites()
-      expect(s.favoritesExhausted).toBe(false)
       await s.toggle('f0')
-      // fetchFavorites always asks offset 0 regardless, but exhaustion must be reset
-      // too so a stale "exhausted" flag doesn't hide the load-more button on next entry.
-      expect(s.favoritesExhausted).toBe(false)
-      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
       await s.fetchFavorites()
       expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
+      expect(s.favoritesList).toHaveLength(3)
+      expect(s.favoritesExhausted).toBe(true)
     })
 
-    // Review fix (Important 2): toggle()'s success path resets _offset/favoritesExhausted
-    // without bumping _generation, which a purely sequential test cannot see. Interleave a
-    // slow loadMoreFavorites() with a toggle() that lands first: the stale page must be
-    // dropped whole (not appended on top of the offset toggle() already rewound to zero),
-    // or the list silently duplicates rows and the cursor is corrupted.
+    // Whole-branch review, Important 4: the defect this replaces. With fewer than one
+    // page of favorites the list is complete, and starring a photo must not make it
+    // advertise itself as partial — the view's subset hint and "Load more" button are
+    // both `v-if="!favoritesExhausted"`, and pressing that button re-requested (500, 0)
+    // and appended a second copy of every row.
+    it('a toggle on a complete list leaves it complete, with nothing more to load', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
+      await s.fetchFavorites()
+      expect(s.favoritesExhausted).toBe(true)
+
+      await s.toggle('f0')
+      expect(s.favoritesExhausted).toBe(true) // no bogus "Load more" / subset hint
+
+      // Even if something did press it, the store refuses to page past the end, so no
+      // duplicate rows can appear.
+      ;(service.photos.listFavorites as any).mockClear()
+      await s.loadMoreFavorites()
+      expect(service.photos.listFavorites).not.toHaveBeenCalled()
+      expect(s.favoritesList).toHaveLength(3)
+    })
+
+    // Review fix (Important 2): toggle()'s success path did not bump _generation, which a
+    // purely sequential test cannot see. Interleave a slow loadMoreFavorites() with a
+    // toggle() that lands first: the stale page must be dropped whole, or the list
+    // silently duplicates rows.
+    //
+    // Whole-branch review, Important 4: toggle() no longer rewinds the cursor, so the tail
+    // of this test now pins the cursor staying WHERE THE LIST ACTUALLY ENDS (page two)
+    // instead of the rewound zero. The property under test is unchanged: the dropped page
+    // must not have moved the cursor by its own row count.
     it('a toggle landing while loadMoreFavorites is in flight does not corrupt the cursor', async () => {
       const s = usePhotosFavorites()
       ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
@@ -253,12 +283,12 @@ describe('photosFavorites store', () => {
       expect(s.favoritesList).toHaveLength(500)
       expect(s.loadingMore).toBe(false)
 
-      // The cursor toggle() rewound to zero must not have been clobbered by the stale
-      // page's `_offset += rows.length` — the next load-more has to re-ask from page one,
-      // not from the corrupted 500 the bug would have produced.
+      // The cursor must not have been advanced by the stale page's `_offset +=
+      // rows.length` — the next load-more asks for the page that follows the 500 rows the
+      // list actually holds, not the 1000 the bug would have produced.
       ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1))
       await s.loadMoreFavorites()
-      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
+      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
     })
 
     // Review fix round 2: `loadingMore` must have a call-scoped owner, separate from

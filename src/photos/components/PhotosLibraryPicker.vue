@@ -44,7 +44,7 @@
 // Closing on success also moves to the caller for the same reason as (a): the component can no
 // longer tell success from failure. Every caller closes on success and leaves the panel open on
 // failure — which is Vue 2's observable behaviour, kept intact.
-import { computed, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useTimelineStore } from '../stores/timeline'
@@ -76,6 +76,9 @@ const timeline = useTimelineStore()
 // of the request body changed.
 const selected = ref<Set<string | number>>(new Set())
 const discardConfirm = ref(false)
+// The scrolling list itself — needed to answer "can the user scroll at all?"
+// (see fillViewport below). Declared here, ahead of the open-watch that reaches it.
+const bodyRef = ref<HTMLElement | null>(null)
 
 // 照 Vue2 flat computed(:73-85):展平所有月份的照片,按 takenAt 降序。时间线本身已有
 // allPhotos 展平 computed(timeline.ts:61),这里复用它再排序,不重写展平逻辑。
@@ -176,6 +179,13 @@ watch(
       void (async () => {
         if (needsTimeline) await timeline.fetchTimeline()
         await timeline.fetchNewestBuckets(3)
+        // Whole-branch review fix (minor 12): paging used to happen ONLY on a
+        // `scroll` event, so a library whose three newest months fit inside the
+        // panel never fired one and every earlier month was unreachable — the
+        // picker looked like the library ended three months ago. If the list does
+        // not overflow there is nothing for the user to scroll, so keep pulling
+        // months in until it does (or until the library runs out).
+        await fillViewport()
       })()
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
@@ -193,19 +203,44 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 // fetchBucket already dedupes per key, but without this guard one scroll gesture could kick
 // off requests for a dozen different buckets before the first one lands.
 let loadingMore = false
-async function onListScroll(e: Event): Promise<void> {
-  const el = e.target as HTMLElement
-  if (el.scrollHeight - el.scrollTop - el.clientHeight > 200) return
-  if (loadingMore) return
+// Returns false when there was nothing to page in (no unloaded dated bucket left,
+// or a load is already in flight), so callers can stop asking.
+async function pageInNextBucket(): Promise<boolean> {
+  if (loadingMore) return false
   const next = timeline.buckets.find(
     (b) => !(b.year === 0 && b.month === 0) && !timeline.bucketAssets.has(bucketKey(b)),
   )
-  if (!next) return
+  if (!next) return false
   loadingMore = true
   try {
     await timeline.fetchBucket(bucketKey(next))
   } finally {
     loadingMore = false
+  }
+  return true
+}
+
+async function onListScroll(e: Event): Promise<void> {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight > 200) return
+  await pageInNextBucket()
+}
+
+// A panel that cannot scroll gives the user no way to ask for more (minor 12).
+// Capped so a run of months that add no tiles (all-video months on a photo-only
+// list, an empty bucket) cannot turn into an unbounded walk back through the
+// library — the user can still scroll for the rest.
+const MAX_AUTO_FILL_PAGES = 10
+async function fillViewport(): Promise<void> {
+  for (let i = 0; i < MAX_AUTO_FILL_PAGES; i++) {
+    await nextTick()
+    const el = bodyRef.value
+    if (!el) return
+    // Not laid out (clientHeight 0 — a closed/hidden panel, and everything in
+    // jsdom): whether it overflows is unknowable, so decide nothing.
+    if (el.clientHeight === 0) return
+    if (el.scrollHeight > el.clientHeight) return // scrollable now: the user drives
+    if (!(await pageInNextBucket())) return // nothing left to page in
   }
 }
 
@@ -241,7 +276,7 @@ function confirmAdd(): void {
         >&#215;</button>
       </div>
 
-      <div class="lib-picker-body" @scroll="onListScroll">
+      <div ref="bodyRef" class="lib-picker-body" @scroll="onListScroll">
         <div v-if="flat.length === 0" class="lib-picker-empty" data-test="lib-picker-empty">
           {{ t('photosAlbumPickerEmpty') }}
         </div>

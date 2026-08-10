@@ -28,10 +28,14 @@ export const CONTENT_INSET = 68
 // loader with nothing to react to.
 export const FALLBACK_CONTAINER_WIDTH = 1200
 
-// .month-head is `padding: 4px 2px 10px` around a 15px/600 title — about 32px
-// tall. Only an estimate, and only used until a section has rendered once: after
-// that the grid remembers its measured height instead.
-export const MONTH_HEAD_HEIGHT = 32
+// Whole-branch review fix (minor 7): MONTH_HEAD_HEIGHT used to live here as a
+// 32px allowance for `.month-head`, with a comment describing a behaviour that
+// never existed — nothing imported it, and its only test asserted a literal was
+// greater than zero. The head is not part of any estimate: the estimate sizes the
+// section *body*, and `.month-placeholder` is a sibling of the head, not its
+// parent. Adding a head allowance to either would have been the same
+// double-counting bug the measured path had (Important 3), so the constant is
+// gone rather than wired up.
 
 function metricsFor(density: string): { minColWidth: number; gap: number } {
   return GRID_METRICS[density as Density] ?? GRID_METRICS.comfortable
@@ -85,8 +89,26 @@ export function skeletonItemCount(
   if (tab === 'photo') return Math.max(0, total - videos)
   // The OCR tab ('ocr' — see PhotosToolbar.vue's tab ids, there is no 'doc' tab)
   // has no directory counter at all: the bucket carries count/videoCount but
-  // nothing OCR-specific, so this branch cannot estimate and returns 0, which
-  // means an unloaded month never gets a skeleton on that tab and stays hidden
-  // until it is actually loaded (registered limitation, see the P3 spec §5.4).
+  // nothing OCR-specific. This function only ever reports what the directory
+  // actually knows (the grid also prints it as the month's item count), so the
+  // honest answer is 0 — inventing a number here would print a lie in the month
+  // head. What the grid does with a 0 is its own decision: see
+  // tabHasDirectoryEstimate below and PhotosGrid.vue's hasContent /
+  // sectionBodyHeight (spec §5.4).
   return 0
+}
+
+// Does the directory carry a counter this tab can be sized from? The bucket
+// directory has `count` and `videoCount` and nothing else, so 'all' / 'video' /
+// 'photo' are sizable and every other tab (today: 'ocr') is not.
+//
+// Whole-branch review fix (Important 6): the grid needs this as a distinct
+// question from "how many items". On an unsizable tab skeletonItemCount is 0 for
+// an unloaded month, which used to make the grid render no container for it — and
+// the container is the only thing the IntersectionObserver can watch, so the tab
+// could never load anything and permanently claimed the library was empty. The
+// grid now keeps the container (sized with a one-row stand-in) on such a tab, so
+// loading is still driven and the tab converges.
+export function tabHasDirectoryEstimate(tab: string): boolean {
+  return tab === 'all' || tab === 'video' || tab === 'photo'
 }

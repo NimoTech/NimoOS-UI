@@ -165,16 +165,24 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       else await service.photos.favorite(id)
       // Invalidate the cached favorites list — next view re-fetches.
       favoritesLoaded.value = false
-      // Task 11: reset the pagination cursor too, so the next fetchFavorites() starts a
-      // fresh page one instead of leaving a stale "exhausted" flag that would hide the
-      // load-more button while the list is actually smaller than what was loaded before.
-      // Review fix (Important 2): bump _generation along with the cursor reset. Without
-      // this, a loadMoreFavorites() already in flight when toggle() lands would still
-      // carry the old (now-stale) generation, be judged fresh, and append its page on top
-      // of a list/offset toggle() just rewound to zero — corrupting _offset and, on the
-      // next load-more, re-requesting and duplicating rows already present.
-      favoritesExhausted.value = false
-      _offset = 0
+      // Bump _generation so a loadMoreFavorites() already in flight when this toggle
+      // lands is judged stale and its page dropped whole, rather than appended to a list
+      // whose membership just changed underneath it.
+      //
+      // Whole-branch review fix (Important 4): this used to ALSO set
+      // `favoritesExhausted = false` and `_offset = 0` while leaving favoritesList
+      // populated. Both were wrong and both were unnecessary:
+      //  - wrong, because the Favorites view has no watcher that refetches — only
+      //    onMounted. So with fewer than one page of favorites, starring a photo made a
+      //    complete list advertise itself as partial: the subset hint and the "Load more"
+      //    button appeared, and pressing it re-requested (500, 0) and appended a second
+      //    copy of every row — duplicate :key, doubled hero stats, doubled ids handed to
+      //    save-as-album.
+      //  - unnecessary, because fetchFavorites() sets both unconditionally on both its
+      //    success and its failure path, so a later refresh never depended on this reset.
+      // The list stays as it is (it is still what the server last said, minus one star's
+      // worth of membership) and its cursor stays consistent with it, so "Load more" keeps
+      // asking for the page that actually comes next.
       _generation++
     } catch (e) {
       // Roll back + log only — do NOT rethrow. Every caller invokes this

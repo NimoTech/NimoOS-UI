@@ -397,6 +397,72 @@ describe('photos-timeline bucket mode', () => {
     expect(s.bucketMode).toBe(true)
   })
 
+  // Whole-branch review, Important 5: fetchTimeline runs on every mount of
+  // /photos and on every socket reconnect, and it used to overwrite `buckets`
+  // without the staleness diff that only refreshBuckets ran. So the caches it
+  // invalidated were never dropped — and no later refresh could catch up, because
+  // the next refreshBuckets diffs the new directory against the same new directory
+  // and finds nothing stale.
+  it('re-entering the page drops the cache of a month whose count moved while away', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 10, videoCount: 0 }])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce(
+      Array.from({ length: 10 }, (_, i) => ({ id: `a${i}`, mimeType: 'image/jpeg' })),
+    )
+    await s.fetchBucket('2026-08')
+    expect(s.months[0].photos).toHaveLength(10)
+
+    // Away on /photos/albums, a photo is added to August from somewhere else; the
+    // user comes back and Photos.vue calls fetchTimeline() again.
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 11, videoCount: 0 }])
+    await s.fetchTimeline()
+
+    // The month must be unloaded, not left showing its cached 10 under a header
+    // that says 11 (with any deleted asset still holding a tile that 404s).
+    expect(s.months[0].loaded).toBe(false)
+    expect(s.totalCount).toBe(11)
+
+    // And a later refresh must not be the thing that was supposed to catch it.
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 11, videoCount: 0 }])
+    await s.refreshBuckets()
+    expect(s.months[0].loaded).toBe(false)
+  })
+
+  it('re-entering the page keeps an unchanged month byte-identical', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([{ id: 'a1', mimeType: 'image/jpeg' }])
+    await s.fetchBucket('2026-08')
+    const before = s.months[0].photos
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    // The whole point of the diff: a re-entry must not throw away caches it did
+    // not have to, or every navigation back to /photos refetches the library.
+    expect(s.months[0].photos).toBe(before)
+  })
+
+  // Same finding, second half: a non-404 blip while ALREADY in bucket mode fell
+  // through to the whole-library request this phase exists to eliminate, with
+  // bucketMode still true — so `months` ignored the response (dead memory) and the
+  // grid kept rendering a directory nothing was refreshing.
+  it('leaves bucket mode before falling back to the legacy timeline', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.bucketMode).toBe(true)
+
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(new Error('network down'))
+    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+    await s.fetchTimeline()
+
+    expect(s.bucketMode).toBe(false)
+    // The legacy answer is actually on screen, rather than being fetched and then
+    // ignored while a stale directory keeps rendering.
+    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+  })
+
   it('drops legacy groups when it switches into bucket mode', async () => {
     // Both sources feeding `months` at once would double every month.
     const s = useTimelineStore()
@@ -547,7 +613,11 @@ describe('photos-timeline fetchBucket', () => {
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
   })
 
-  it('leaves a month unloaded on failure so scrolling back retries it', async () => {
+  // Retitled in the whole-branch review (Important 2): recovery does NOT depend on
+  // the month leaving the window and coming back — the grid's request is
+  // level-triggered, so a month that failed while it was on screen the whole time
+  // is asked for again. All this store owes is: stay unloaded, and accept a retry.
+  it('leaves a month unloaded on failure and accepts the next request for it', async () => {
     const s = useTimelineStore()
     await enterBucketMode(s)
     svc.photos.getTimelineBucket.mockRejectedValueOnce(new Error('boom'))
@@ -556,6 +626,73 @@ describe('photos-timeline fetchBucket', () => {
     svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
     await s.fetchBucket('2026-08')
     expect(s.months[0].loaded).toBe(true)
+  })
+
+  // Whole-branch review, minor 10: the pages land after a refresh has already made
+  // its staleness decision, so writing them would cache a month from a directory
+  // that no longer exists — and the next refresh, diffing new against new, would
+  // never clear it.
+  it('drops its pages when the month it was loading changed under it', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    let release: (v: unknown) => void = () => {}
+    svc.photos.getTimelineBucket.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const slow = s.fetchBucket('2026-08')
+
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 13, videoCount: 3 },
+      { year: 2026, month: 7, count: 5, videoCount: 0 },
+    ])
+    await s.refreshBuckets()
+
+    release([asset('a1')])
+    await slow
+
+    const aug = s.months.find((m) => m.key === '2026-08')
+    expect(aug?.loaded).toBe(false)
+    expect(s.bucketAssets.has('2026-08')).toBe(false)
+  })
+
+  it('drops its pages when the month it was loading vanished from the directory', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    let release: (v: unknown) => void = () => {}
+    svc.photos.getTimelineBucket.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const slow = s.fetchBucket('2026-08')
+
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 7, count: 5, videoCount: 0 }])
+    await s.refreshBuckets()
+
+    release([asset('a1')])
+    await slow
+
+    // No orphan key surviving for the lifetime of the page.
+    expect(s.bucketAssets.has('2026-08')).toBe(false)
+    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+  })
+
+  it('keeps its pages when the refresh left that month alone', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    let release: (v: unknown) => void = () => {}
+    svc.photos.getTimelineBucket.mockImplementationOnce(() => new Promise((r) => { release = r }))
+    const slow = s.fetchBucket('2026-08')
+
+    // Only July moved. A global directory counter would drop August's pages here
+    // too, and while indexing (a refresh every few seconds) a big month could then
+    // never finish loading at all.
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 12, videoCount: 3 },
+      { year: 2026, month: 7, count: 9, videoCount: 1 },
+    ])
+    await s.refreshBuckets()
+
+    release([asset('a1')])
+    await slow
+
+    const aug = s.months.find((m) => m.key === '2026-08')
+    expect(aug?.loaded).toBe(true)
+    expect(aug?.photos.map((p) => p.id)).toEqual(['a1'])
   })
 
   it('ignores an unknown key instead of firing a request with NaN', async () => {

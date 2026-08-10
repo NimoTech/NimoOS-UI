@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  GRID_METRICS, CONTENT_INSET, FALLBACK_CONTAINER_WIDTH, MONTH_HEAD_HEIGHT,
-  columnsFor, tileEdge, estimateSectionBodyHeight, skeletonItemCount,
+  GRID_METRICS, CONTENT_INSET, FALLBACK_CONTAINER_WIDTH,
+  columnsFor, tileEdge, estimateSectionBodyHeight, skeletonItemCount, tabHasDirectoryEstimate,
 } from '../gridMetrics'
 
 describe('columnsFor', () => {
@@ -76,7 +76,25 @@ describe('constants', () => {
   it('exposes the three densities the grid CSS defines', () => {
     expect(Object.keys(GRID_METRICS).sort()).toEqual(['comfortable', 'compact', 'loose'])
   })
-  it('keeps a positive month-head allowance', () => {
-    expect(MONTH_HEAD_HEIGHT).toBeGreaterThan(0)
+  // MONTH_HEAD_HEIGHT and its `expect(32).toBeGreaterThan(0)` test are gone
+  // (whole-branch review, minor 7): nothing imported the constant, its comment
+  // described behaviour that did not exist, and the assertion could not fail. The
+  // head is not part of any height the grid computes — see gridMetrics.ts.
+})
+
+describe('tabHasDirectoryEstimate', () => {
+  it('is true exactly for the tabs the directory can size', () => {
+    expect(tabHasDirectoryEstimate('all')).toBe(true)
+    expect(tabHasDirectoryEstimate('photo')).toBe(true)
+    expect(tabHasDirectoryEstimate('video')).toBe(true)
+  })
+  // The grid uses this to decide whether to keep an unloaded month's container at
+  // all: on a tab with no counter the container is the only thing the observer can
+  // watch, so dropping it left the tab unable to ever load anything (Important 6).
+  it('is false for the ocr tab, which the directory carries no counter for', () => {
+    expect(tabHasDirectoryEstimate('ocr')).toBe(false)
+  })
+  it('is false for an unknown tab id, so a future tab defaults to the safe side', () => {
+    expect(tabHasDirectoryEstimate('faces')).toBe(false)
   })
 })

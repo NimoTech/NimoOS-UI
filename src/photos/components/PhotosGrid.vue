@@ -26,7 +26,9 @@ import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
 import { matchesTab } from '../util/tabFilter'
-import { estimateSectionBodyHeight, skeletonItemCount } from '../util/gridMetrics'
+import {
+  columnsFor, estimateSectionBodyHeight, skeletonItemCount, tabHasDirectoryEstimate,
+} from '../util/gridMetrics'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
@@ -101,19 +103,48 @@ function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
     loadedLength: m.filtered.length,
   })
 }
+// Is the directory's count meaningful for the current tab? On a tab it cannot
+// size (OCR) an unloaded month's count would print as 0 items, which is a guess
+// dressed up as a fact — the head shows the title alone until the month loads.
+function showCount(m: Month & { filtered: Photo[] }): boolean {
+  return isLoaded(m) || tabHasDirectoryEstimate(props.tab)
+}
 // A month is worth a container if it has tiles to show OR a non-zero estimate to
 // stand in for. Without the second half, bucket mode's first paint would fall
 // through to the empty state and no anchor would exist to scroll to.
 function hasContent(m: Month & { filtered: Photo[] }): boolean {
-  return m.filtered.length > 0 || skeletonCountOf(m) > 0
+  if (m.filtered.length > 0 || skeletonCountOf(m) > 0) return true
+  // Whole-branch review fix (Important 6): on a tab the directory cannot size,
+  // an unloaded month scores 0 — and dropping its container made the tab a dead
+  // end, because the container is the only thing the observer can watch, so
+  // `need-bucket` was never emitted and the tab claimed the library had no
+  // documents forever. Keep the container: the month loads, and then drops out
+  // again by the first clause above if it really has nothing for this tab.
+  return m.loaded === false && !tabHasDirectoryEstimate(props.tab)
 }
 const anyContent = computed(() => filteredMonths.value.some(hasContent))
 function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
-  return estimateSectionBodyHeight({
-    containerWidth: wrapWidth.value,
-    density: props.density,
-    itemCount: skeletonCountOf(m),
-  })
+  const itemCount = skeletonCountOf(m)
+  if (itemCount > 0) {
+    return estimateSectionBodyHeight({
+      containerWidth: wrapWidth.value,
+      density: props.density,
+      itemCount,
+    })
+  }
+  // Unloaded, on a tab with no directory dimension (Important 6). One row of
+  // tiles is a deliberate stand-in, not an estimate of anything: it gives the
+  // section enough height that only a handful of months sit inside the
+  // observer's window at a time, so this tab pages in progressively like every
+  // other tab instead of firing a request for the whole directory at once.
+  if (m.loaded === false && !tabHasDirectoryEstimate(props.tab)) {
+    return estimateSectionBodyHeight({
+      containerWidth: wrapWidth.value,
+      density: props.density,
+      itemCount: columnsFor(wrapWidth.value, props.density),
+    })
+  }
+  return 0
 }
 function isLoaded(m: Month & { filtered: Photo[] }): boolean {
   return m.loaded !== false
@@ -137,27 +168,66 @@ const windowingActive = ref(false)
 function keyOf(el: Element): string { return (el.id || '').replace(/^m-/, '') }
 
 function onIntersect(entries: IntersectionObserverEntry[]) {
+  // Whole-branch review fix (minor 9): windowing switches on here, on the first
+  // notification, not in onMounted. Flipping it at mount meant one painted frame
+  // where windowing was on but activeKeys was still empty, so consumers that
+  // already hold every photo (favorites, place assets) flashed grey shimmer over
+  // photos they could have painted immediately.
+  windowingActive.value = true
   const next = new Set(activeKeys.value)
   for (const entry of entries) {
     const key = keyOf(entry.target)
     if (!key) continue
     if (entry.isIntersecting) {
       next.add(key)
-      const m = filteredMonths.value.find((x) => x.key === key)
-      // Only bucket-backed months have something to fetch; a synthetic group
-      // (favorites, place assets) has loaded === undefined and must never emit.
-      if (m && m.loaded === false) emit('need-bucket', key)
     } else {
-      const el = entry.target as HTMLElement
-      const h = el.offsetHeight
-      // Record before dropping the tiles: once they are gone the height is
-      // the placeholder's own, which would ratchet the section down over time.
+      // Whole-branch review fix (Important 3): measure the section BODY, never
+      // the whole `.month-group`. The group's height includes `.month-head`,
+      // while the height is applied to `.month-placeholder`, which is the head's
+      // *sibling* — storing the group height made every collapsed section a
+      // head taller than it was hydrated, and because a re-sync re-delivers
+      // `isIntersecting: false` for sections that are already collapsed, each
+      // re-sync added another head on top of the last (a ratchet, i.e. exactly
+      // the scrollbar jump the placeholder exists to prevent).
+      //
+      // The `.grid` lookup is also the "was it hydrated?" guard: the body only
+      // exists in the DOM while the tiles are mounted, so an already-collapsed
+      // section finds nothing and keeps the height it was measured at.
+      const body = (entry.target as HTMLElement).querySelector('.grid') as HTMLElement | null
+      const h = body?.offsetHeight ?? 0
       if (h > 0) measuredHeights.set(key, h)
       next.delete(key)
     }
   }
   activeKeys.value = next
 }
+
+// Whole-branch review fix (Important 2): asking for a bucket is level-triggered,
+// not edge-triggered. "This month is inside the window and still has no assets"
+// is a state, and the events that produce it do not always come with an
+// intersection boundary being crossed:
+//  - a write patches the directory while the month is on screen (a photo is
+//    uploaded and indexed, or deleted elsewhere): its cache is invalidated,
+//    `loaded` flips back to false and the tiles the user is looking at are
+//    replaced by a skeleton — with no boundary crossed, the old enter-only emit
+//    never re-requested and the shimmer stayed until the user scrolled two
+//    viewports away and back;
+//  - a bucket fetch fails while the month is on screen: it never left the
+//    window, so there is no "scroll back to it" to retry on.
+// Re-emitting is free: the store dedupes per key (_bucketInflight, and
+// bucketAssets.has for an already-loaded month).
+function requestPendingBuckets() {
+  for (const m of filteredMonths.value) {
+    // Only bucket-backed months have something to fetch; a synthetic group
+    // (favorites, place assets) has loaded === undefined and must never emit.
+    if (m.loaded === false && activeKeys.value.has(m.key)) emit('need-bucket', m.key)
+  }
+}
+// `activeKeys` is replaced wholesale on every notification batch (a new Set even
+// when the membership is unchanged), so a repeated "still intersecting" or a
+// re-sync also re-evaluates the pending set. `props.months` covers the directory
+// side: any store write that invalidates a cache produces a new array.
+watch([activeKeys, () => props.months], requestPendingBuckets)
 
 function syncObserver() {
   // Drop measured heights for months that no longer exist (directory refresh
@@ -370,9 +440,18 @@ function onVideoLeave() {
   spriteUrl.value = ''
 }
 
-// Month set changing (directory refresh adds/removes months) invalidates both
-// the width measurement and which containers the observer is watching.
-watch(() => filteredMonths.value.map((m) => m.key).join('|'), () => {
+// The set of RENDERED containers changing invalidates both the width measurement
+// and which elements the observer is watching.
+//
+// Whole-branch review fix (Critical 1): this used to watch every month key, but
+// which containers exist is decided by `hasContent`, which is tab-dependent
+// (skeletonItemCount reads the tab) while the month list is not. So a tab round
+// trip — Photos -> Videos, which unmounts every month with videoCount 0, and back
+// again, which mounts brand-new elements — never changed the watched string,
+// nobody re-registered the new elements, and those months could never emit
+// `need-bucket` again: permanent skeletons until a page reload. Watching the
+// rendered set makes registration follow the elements that actually exist.
+watch(() => filteredMonths.value.filter((m) => hasContent(m)).map((m) => m.key).join('|'), () => {
   void nextTick().then(() => { measureWrap(); syncObserver() })
 })
 
@@ -383,7 +462,6 @@ onMounted(() => {
   onScroll()
   if (typeof IntersectionObserver !== 'undefined') {
     observer = new IntersectionObserver(onIntersect, { root: wrapRef.value, rootMargin: WINDOW_MARGIN })
-    windowingActive.value = true
     syncObserver()
   }
 })
@@ -414,7 +492,7 @@ onBeforeUnmount(() => {
           <div v-if="hasContent(m)" :id="'m-' + m.key" class="month-group">
             <div class="month-head">
               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
-              <div class="month-count">
+              <div v-if="showCount(m)" class="month-count">
                 {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
               </div>
             </div>
@@ -471,8 +549,10 @@ onBeforeUnmount(() => {
               data-test="month-placeholder"
               :style="{ height: placeholderHeight(m) + 'px' }"
             ></div>
+            <!-- A zero-height shimmer would be a decoration nobody can see; the
+                 head alone is the section's body-less state (see hasContent). -->
             <div
-              v-else
+              v-else-if="sectionBodyHeight(m) > 0"
               class="month-skeleton"
               data-test="month-skeleton"
               :style="{ height: sectionBodyHeight(m) + 'px' }"

@@ -144,13 +144,40 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       : allPhotos.value.filter(p => !p.isVideo).length,
   )
 
+  // Replacing the directory is never just an assignment: the caches that hang off
+  // it have to be reconciled in the same breath, or the grid renders assets the
+  // directory no longer describes.
+  //
+  // Whole-branch review fix (Important 5): this used to live only inside
+  // refreshBuckets, while fetchTimeline — which runs on every mount of /photos and
+  // on every socket reconnect — overwrote `buckets` raw. So leaving /photos and
+  // coming back after something else added to or deleted from a month left the
+  // summary saying 11 and the month showing its cached 10 forever: the next
+  // refreshBuckets diffs new-against-new and finds nothing stale, and a deleted
+  // asset keeps a tile that 404s in the lightbox. Both entry points go through
+  // here now.
+  function applyDirectory(next: BucketMeta[]): void {
+    const stale = staleBucketKeys(buckets.value, next, bucketAssets.value.keys())
+    const live = new Set(next.map((b) => bucketKey(b)))
+    const map = new Map(bucketAssets.value)
+    for (const key of stale) map.delete(key)
+    // Defence in depth, kept deliberately (T5 review flagged it as dead): the only
+    // writer that can put a key into bucketAssets is fetchBucket, and it now
+    // refuses to write a bucket whose directory entry changed or vanished while it
+    // was in flight (see below). If that guard is ever weakened, this loop is what
+    // stops an orphan key surviving for the lifetime of the page.
+    for (const key of [...map.keys()]) if (!live.has(key)) map.delete(key)
+    buckets.value = next
+    bucketAssets.value = map
+  }
+
   async function fetchTimeline() {
     loading.value = true
     try {
       if (Date.now() >= _bucketProbeRetryAfter) {
         try {
           const raw = await service.photos.getTimelineBuckets()
-          buckets.value = normalizeBuckets(raw)
+          applyDirectory(normalizeBuckets(raw))
           bucketMode.value = true
           // Both sources feed `months`; leaving legacy groups behind would
           // render every month twice.
@@ -166,6 +193,13 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
           }
         }
       }
+      // Whole-branch review fix (Important 5, second half): leave bucket mode
+      // BEFORE falling through. Reaching this line means we are about to make the
+      // whole-library request this phase exists to eliminate, and if bucketMode
+      // stayed true `months` would ignore the answer entirely — the response would
+      // be dead memory while the grid kept rendering a directory nobody is
+      // refreshing any more.
+      bucketMode.value = false
       const res = await service.photos.getTimeline()
       timelineGroups.value = (res as TimelineGroup[] | null | undefined) ?? []
     } catch (e) {
@@ -329,12 +363,36 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
             console.warn('[photos-timeline] bucket truncated at the page ceiling', key, photos.length)
           }
         }
+        // Whole-branch review fix (minor 10): a directory refresh can land while
+        // these pages are in flight, and it makes its staleness decision before
+        // this write happens — so without this check the month would be cached
+        // from a directory that no longer exists, and the NEXT refresh (diffing
+        // new against new) would never find it stale. A bucket that vanished
+        // outright would leak its key for the lifetime of the page.
+        //
+        // The check is per-key rather than a global directory counter on purpose.
+        // A counter would drop this write on ANY refresh, and while indexing the
+        // directory refreshes every few seconds — a big month that takes longer
+        // than that to page in would be re-requested and re-dropped forever. The
+        // condition below is the same one staleBucketKeys uses (count or
+        // videoCount moved, or the bucket is gone), so a month that did not change
+        // keeps the pages it just paid for, and one that did change is refetched
+        // by the grid's level-triggered request.
+        const nowMeta = buckets.value.find((b) => bucketKey(b) === key)
+        if (!nowMeta || nowMeta.count !== meta.count || nowMeta.videoCount !== meta.videoCount) {
+          console.warn('[photos-timeline] bucket changed while loading, dropping the page', key)
+          return
+        }
         const map = new Map(bucketAssets.value)
         map.set(key, photos)
         bucketAssets.value = map
       } catch (e) {
-        // Leave the month unloaded: scrolling back to it retries naturally, so
-        // no extra retry machinery is needed.
+        // Leave the month unloaded. The grid re-asks for it on its own: the
+        // request is level-triggered on "inside the window and still unloaded"
+        // (PhotosGrid.vue's requestPendingBuckets), so recovery does not depend on
+        // the user scrolling the month out of the window and back — which was the
+        // claim this comment used to make, and it was wrong for the common case of
+        // a month that failed while it was on screen the whole time.
         console.error('[photos-timeline] fetchBucket', key, e)
       } finally {
         const done = new Set(bucketLoading.value)
@@ -354,14 +412,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     if (!bucketMode.value) return
     try {
       const raw = await service.photos.getTimelineBuckets()
-      const next = normalizeBuckets(raw)
-      const stale = staleBucketKeys(buckets.value, next, bucketAssets.value.keys())
-      const live = new Set(next.map((b) => bucketKey(b)))
-      const map = new Map(bucketAssets.value)
-      for (const key of stale) map.delete(key)
-      for (const key of [...map.keys()]) if (!live.has(key)) map.delete(key)
-      buckets.value = next
-      bucketAssets.value = map
+      applyDirectory(normalizeBuckets(raw))
     } catch (e) {
       console.error('[photos-timeline] refreshBuckets', e)
     }

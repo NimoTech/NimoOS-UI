@@ -459,4 +459,55 @@ describe('PhotosLibraryPicker.vue', () => {
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(4)
     expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 5, 500, 0)
   })
+
+  // Whole-branch review fix (minor 12): paging used to be reachable ONLY from a
+  // `scroll` event, so a library whose three newest months fit inside the panel
+  // never fired one — no scrollbar, nothing to drag, and every earlier month
+  // unreachable. The picker looked like the library ended three months ago.
+  it('pages in more months when the newest three do not fill the panel', async () => {
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+      { year: 2026, month: 5, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    const w = mountPicker(albumProps({ open: false }))
+    await flushPromises()
+
+    // Open it, then stand in for a layout where the content does NOT overflow —
+    // jsdom reports 0 for both, which the component reads as "not laid out yet"
+    // and deliberately refuses to act on.
+    await w.setProps({ open: true })
+    const body = w.get('.lib-picker-body')
+    Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
+    Object.defineProperty(body.element, 'scrollHeight', { value: 100, configurable: true })
+    await flushPromises()
+
+    // The newest three, plus the fourth month nobody could have scrolled to.
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 5, 500, 0)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(4)
+  })
+
+  it('leaves paging to the user once the list overflows', async () => {
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+      { year: 2026, month: 5, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    const w = mountPicker(albumProps({ open: false }))
+    await flushPromises()
+
+    await w.setProps({ open: true })
+    const body = w.get('.lib-picker-body')
+    Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
+    Object.defineProperty(body.element, 'scrollHeight', { value: 2000, configurable: true })
+    await flushPromises()
+
+    // There is a scrollbar: the rest is the user's to ask for, so the panel must
+    // not walk back through the whole library on its own.
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(3)
+  })
 })

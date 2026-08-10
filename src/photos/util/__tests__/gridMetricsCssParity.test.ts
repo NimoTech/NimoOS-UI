@@ -37,4 +37,13 @@ describe('gridMetrics matches PhotosGrid.vue CSS', () => {
   it('CONTENT_INSET matches .photos-wrap padding-right', () => {
     expect(numberAfter(ruleLine('.photos-wrap {'), /padding-right:\s*(\d+)px/)).toBe(CONTENT_INSET)
   })
+  // Whole-branch review, minor 8: the fourth number this file has to defend is
+  // the one that is not written as a number. tileEdge() returns a WIDTH and
+  // estimateSectionBodyHeight multiplies it by a row count — that is only sound
+  // because a tile is square. Drop `aspect-ratio: 1` from .tile (or change it to
+  // 4/3) and every unloaded month gets the wrong height, silently, with the TS
+  // side still self-consistent and no other gate able to notice.
+  it('tileEdge doubling as a row height requires .tile to stay square', () => {
+    expect(ruleLine('.tile {')).toMatch(/aspect-ratio:\s*1\s*;/)
+  })
 })
