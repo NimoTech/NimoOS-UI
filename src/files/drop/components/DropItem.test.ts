@@ -44,7 +44,7 @@ describe('DropItem', () => {
     expect(w.find('.drop-bubble').attributes('disabled')).toBeDefined()
   })
   it('传输中显示进度环与计数文案', () => {
-    const w = mountItem({ transfer: { progress: 40, sending: true, count: 2 } })
+    const w = mountItem({ transfer: { progress: 40, raw: 0.4, sending: true, count: 2 } })
     expect(w.find('.drop-ring').exists()).toBe(true)
     expect(w.text()).toContain(i18n.global.t('filesDropSending', { num: 2 }))
   })
@@ -84,7 +84,7 @@ describe('DropItem cancel entry', () => {
   })
 
   it('emits cancel-transfer when the menu entry is chosen', async () => {
-    const w = mountItemWithMenuStub({ transfer: { progress: 40, sending: true, count: 1 } })
+    const w = mountItemWithMenuStub({ transfer: { progress: 40, raw: 0.4, sending: true, count: 1 } })
     const items = w.findAll('.menu .ctx-item')
     const cancel = items.find((it) => it.text() === i18n.global.t('filesDropMenuCancel'))
     expect(cancel).toBeTruthy()
@@ -93,11 +93,19 @@ describe('DropItem cancel entry', () => {
   })
 })
 
+// The watchdog only ever runs on the RECEIVING side and only ever watches the
+// unrounded `raw` fraction -- see the long note in DropItem.vue. Every fixture
+// here is therefore `sending: false`, and the ones that represent a live
+// transfer move `raw`, not `progress`.
+const receiving = (over: Partial<{ progress: number; raw: number; count: number }> = {}) => ({
+  progress: 40, raw: 0.4, sending: false, count: 1, ...over,
+})
+
 describe('DropItem stall watchdog', () => {
   it('reports a stall when progress stops moving for long enough', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      const w = mountItem({ transfer: receiving() })
       vi.advanceTimersByTime(20000)
       await w.vm.$nextTick()
       expect(w.emitted('transfer-stalled')).toBeTruthy()
@@ -109,10 +117,46 @@ describe('DropItem stall watchdog', () => {
   it('keeps quiet while progress is still advancing', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      const w = mountItem({ transfer: receiving() })
       vi.advanceTimersByTime(10000)
-      await w.setProps({ transfer: { progress: 55, sending: true, count: 1 } })
+      await w.setProps({ transfer: receiving({ progress: 55, raw: 0.55 }) })
       vi.advanceTimersByTime(10000)
+      await w.vm.$nextTick()
+      expect(w.emitted('transfer-stalled')).toBeFalsy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('leaves a big slow download alone while it advances in sub-percent steps', async () => {
+    // A 5 GB file at ~2 MB/s: one whole percent takes ~25s, so the rounded
+    // `progress` sits still far longer than STALL_LIMIT_MS while 64 KB chunks
+    // keep arriving. Watching the rounded percent cancels this transfer at
+    // t=15s and the partial file is thrown away; watching `raw` does not.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({ transfer: receiving({ progress: 40, raw: 0.4 }) })
+      for (let i = 1; i <= 12; i++) {
+        vi.advanceTimersByTime(5000)
+        // Same integer percent every time (0.4 -> 0.4048 all round to 40).
+        await w.setProps({ transfer: receiving({ progress: 40, raw: 0.4 + i * 0.0004 }) })
+      }
+      vi.advanceTimersByTime(5000)
+      await w.vm.$nextTick()
+      expect(w.emitted('transfer-stalled')).toBeFalsy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('never watches the sending side, which ACK_TIMEOUT_MS already bounds', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({ transfer: { progress: 40, raw: 0.4, sending: true, count: 1 } })
+      // Assert on the pending-timer count, not just the absent emit: the point
+      // is that no interval is scheduled for a send at all.
+      expect(vi.getTimerCount()).toBe(0)
+      vi.advanceTimersByTime(60000)
       await w.vm.$nextTick()
       expect(w.emitted('transfer-stalled')).toBeFalsy()
     } finally {
@@ -140,7 +184,7 @@ describe('DropItem stall watchdog', () => {
   it('stops its timer on unmount so a torn-down card cannot fire', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
-      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      const w = mountItem({ transfer: receiving() })
       w.unmount()
       // Vue's own emit() already no-ops after unmount (instance.isUnmounted
       // guard), so an emitted-event assertion alone would pass even with a

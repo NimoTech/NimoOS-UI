@@ -19,9 +19,22 @@ const props = defineProps<{
 const emit = defineEmits<{ 'select-files': [files: File[]]; 'cancel-transfer': []; 'transfer-stalled': [] }>()
 const { t } = useI18n()
 
-// Task 8's ack timeout only covers a sender waiting for an acknowledgement.
-// A connection that stays open while bytes stop flowing raises no channel
-// event at all, so "progress has not moved" is the only signal left.
+// A connection that stays open while bytes stop flowing raises no channel event
+// at all, so "progress has not moved" is the only signal left. Two things about
+// this watchdog are deliberate, and both exist because the first version
+// false-cancelled healthy large transfers:
+//
+// 1. RECEIVING SIDE ONLY. A sender's liveness is already bounded by
+//    ACK_TIMEOUT_MS -- 30s per 1 MB partition, i.e. a floor of ~34 KB/s that
+//    does not get stricter as the file grows. A second, size-dependent bound on
+//    top of that can only ever fire early.
+// 2. IT WATCHES `raw`, NOT `progress`. `progress` is a rounded integer percent,
+//    so it moves at most once per 1 % of the file: to keep it moving within
+//    STALL_LIMIT_MS a transfer must sustain filesize/1500 B/s -- 350 KB/s for
+//    500 MB, 2.8 MB/s for 4 GB, 7.2 MB/s for 10 GB. Large files over slow links
+//    could therefore never be sent at all. `raw` is refreshed on every 64 KB
+//    chunk, so 15s of silence means under ~4.3 KB/s regardless of file size --
+//    a genuinely dead link.
 const STALL_CHECK_MS = 5000
 const STALL_LIMIT_MS = 15000
 
@@ -29,7 +42,7 @@ let lastMovedAt = Date.now()
 let stallTimer: ReturnType<typeof setInterval> | null = null
 
 watch(
-  () => props.transfer?.progress,
+  () => props.transfer?.raw,
   () => { lastMovedAt = Date.now() },
 )
 
@@ -51,8 +64,10 @@ function startWatchdog() {
   }, STALL_CHECK_MS)
 }
 
+// Receiving only (see note 1 above): a send in progress must not schedule the
+// interval at all.
 watch(
-  () => !!props.transfer,
+  () => !!props.transfer && props.transfer.sending === false,
   (active) => { if (active) startWatchdog(); else stopWatchdog() },
   { immediate: true },
 )

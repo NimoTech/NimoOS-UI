@@ -64,12 +64,24 @@ describe('useDropStore', () => {
     s.init()
     const ev = h.capturedEvents!
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 0.5, filesQueue: 2, files: [new File(['x'], 'x')] })
-    expect(s.transfers['a']).toEqual({ progress: 50, sending: true, count: 2 })
+    expect(s.transfers['a']).toEqual({ progress: 50, raw: 0.5, sending: true, count: 2 })
     ;(ev.onTextReceived as (e: unknown) => void)({ text: '3', sender: 'b' })
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'b', progress: 0.2, filesQueue: 1, files: [] })
-    expect(s.transfers['b']).toEqual({ progress: 20, sending: false, count: 3 })
+    expect(s.transfers['b']).toEqual({ progress: 20, raw: 0.2, sending: false, count: 3 })
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 1, filesQueue: 1, files: [new File(['x'], 'x')] })
     expect(s.transfers['a']).toBeUndefined()
+  })
+  it('keeps the unrounded fraction alongside the rounded percent', () => {
+    // The stall watchdog in DropItem.vue watches `raw`, so it must survive the
+    // rounding: a 64 KB chunk of a multi-GB file moves the fraction by far less
+    // than one percent, and if `raw` were rounded too the watchdog would be back
+    // to seeing a frozen number on a perfectly healthy transfer.
+    const s = useDropStore()
+    s.init()
+    const ev = h.capturedEvents!
+    ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 0.4048, filesQueue: 1, files: [] })
+    expect(s.transfers['a'].progress).toBe(40)
+    expect(s.transfers['a'].raw).toBe(0.4048)
   })
   it('接收队列:onFileReceived 入队;saveCurrent/ignoreCurrent 出队', () => {
     const s = useDropStore()
