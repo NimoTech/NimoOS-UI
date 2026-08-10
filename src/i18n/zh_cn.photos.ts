@@ -207,6 +207,9 @@ export default {
   photosDetailCreatedAt: '创建于 {date}',
   photosDetailItems: '项',
   photosDetailVideos: '视频',
+  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // own About row calls its third field "Time", a different label for a different thing).
+  photosDetailTimeSpan: '时间跨度',
   photosAlbumCurrentCover: '当前封面',
   photosAlbumSetCover: '设为相册封面',
   photosAlbumEmptyTitle: '相册是空的',

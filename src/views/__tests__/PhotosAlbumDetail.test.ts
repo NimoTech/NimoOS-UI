@@ -791,29 +791,25 @@ describe('PhotosAlbumDetail.vue', () => {
 
   // Task 6: stats rail + more-menu reshape (SP15-P2b) -- aligns this page with the smart-view
   // detail page's own sidebar/menu idiom.
-  it('shows a stats rail with photos, span, videos and created', async () => {
+  //
+  // Task 4 re-home: the target trims the stats rail from 4 cells to 2 (Span/Created moved to the
+  // new About section as their own rows, see the 'P2c detail sidebar' describe block below) --
+  // this test used to assert all 4, updated to assert only what the trimmed rail still carries.
+  it('shows a stats rail with photos and videos', async () => {
     const w = await mountDetail({
       album: { id: 'a1', name: 'A', assetCount: 12, dateStart: '2025-06-01', dateEnd: '2025-12-31', videoCount: 3, createdAt: '2026-02-01T00:00:00Z' },
       assets: [{ id: 'p1', takenAt: '2025-06-02' }],
     })
     const cells = w.findAll('[data-test="album-stat-cell"]')
-    expect(cells).toHaveLength(4)
+    expect(cells).toHaveLength(2)
     expect(cells[0].text()).toContain('12')
-    expect(cells[1].text()).toContain('Jun - Dec 2025')
-    expect(cells[2].text()).toContain('3')
-  })
-
-  it('falls back to a dash when the span or the created date is unusable', async () => {
-    const w = await mountDetail({ album: { id: 'a1', name: 'A', createdAt: 'not-a-date' }, assets: [] })
-    const cells = w.findAll('[data-test="album-stat-cell"]')
-    expect(cells[1].text()).toContain('—')
-    expect(cells[3].text()).toContain('—')
+    expect(cells[1].text()).toContain('3')
   })
 
   it('reports zero videos rather than a dash when the album has none', async () => {
     // videoCount is not omitempty on the wire, so 0 is a real answer, not missing data.
     const w = await mountDetail({ album: { id: 'a1', name: 'A', videoCount: 0 }, assets: [] })
-    expect(w.findAll('[data-test="album-stat-cell"]')[2].text()).toContain('0')
+    expect(w.findAll('[data-test="album-stat-cell"]')[1].text()).toContain('0')
   })
 
   it('buckets members by month and omits the histogram when nothing carries a takenAt', async () => {
@@ -1050,5 +1046,130 @@ describe('P2c detail skeleton', () => {
     // A stale selection here would send the previous session's ids on the next Remove press.
     expect(w.find('.sv-select-bar [data-test="album-remove-selected"]').attributes('disabled')).toBeDefined()
     expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDragCover)
+  })
+
+  // Task 3 review finding, folded into Task 4 (this task edits the file, so it inherits the
+  // fix): the select bar used to live inside the `v-else-if="album"` branch, so "no album ->
+  // no bar" came for free. Once the P2c skeleton pulled it out to a `v-if="edit"` sibling, the
+  // route-id watcher clearing `selected`/the title draft (but never `edit`) left the bar floating
+  // over the "Album not found" screen with Add photos still reachable. Reproduce exactly that
+  // path: enter edit mode on a real album, then navigate to an id that isn't in the store.
+  it("navigating to a missing album while mid-edit hides the select bar instead of floating it over 'Album not found'", async () => {
+    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' })])
+    const { w, router } = await mountView('7')
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').exists()).toBe(true)
+
+    await router.push('/photos/albums/999')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-not-found"]').exists()).toBe(true)
+    expect(w.find('.sv-select-bar').exists()).toBe(false)
+  })
+})
+
+// Task 4 (Vue2 33b05636:PhotosAlbumDetail.vue:145-300, :591-613). About section + trimmed
+// stats + the by-month histogram it keeps unchanged. `fmtDate` mirrors createdLabel/
+// timeSpanLabel's own formatter — this file's i18n locale is 'zh_cn' (see the module-level
+// createI18n above), so localeTag is 'zh-cn', not the 'en-us' PhotosMomentDetail.test.ts uses.
+function fmtDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('zh-cn', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+describe('P2c detail sidebar', () => {
+  it('renders the About section with type, created, time span and place rows', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    const rows = w.findAll('.sv-side-section .mo-about-row')
+    expect(rows).toHaveLength(4)
+  })
+
+  // 5 distinct places; frequency counts (C=3, E=2, A=B=D=1) deliberately diverge from
+  // first-appearance order (A,B,C,D,E) so a mutant that drops the frequency sort would produce a
+  // different string ("A · B · C +2") than the correct one below.
+  it('shows the top three places joined by a middle dot and a +N remainder', async () => {
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [
+        asset('p1', { placeName: 'A' }),
+        asset('p2', { placeName: 'B' }),
+        asset('p3', { placeName: 'C' }),
+        asset('p4', { placeName: 'D' }),
+        asset('p5', { placeName: 'E' }),
+        asset('p6', { placeName: 'C' }),
+        asset('p7', { placeName: 'C' }),
+        asset('p8', { placeName: 'E' }),
+      ],
+    })
+    expect(w.find('[data-test="album-about-place"] b').text()).toBe('C · E · A +2')
+  })
+
+  it('orders places by frequency, not by the order they appear in the asset list', async () => {
+    // 'Rome' appears once and first; 'Paris' appears three times, all later -- the frequent one
+    // must lead despite arriving after Rome in the asset list.
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [
+        asset('p1', { placeName: 'Rome' }),
+        asset('p2', { placeName: 'Paris' }),
+        asset('p3', { placeName: 'Paris' }),
+        asset('p4', { placeName: 'Paris' }),
+      ],
+    })
+    expect(w.find('[data-test="album-about-place"] b').text()).toBe('Paris · Rome')
+  })
+
+  it('puts every place with its count in the title attribute', async () => {
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [
+        asset('p1', { placeName: 'Rome' }),
+        asset('p2', { placeName: 'Paris' }),
+        asset('p3', { placeName: 'Paris' }),
+        asset('p4', { placeName: 'Paris' }),
+      ],
+    })
+    expect(w.find('[data-test="album-about-place"] b').attributes('title')).toBe('Paris (3) · Rome (1)')
+  })
+
+  it('falls back to the placeholder when no member has a place', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('p1'), asset('p2')] })
+    const place = w.find('[data-test="album-about-place"] b')
+    expect(place.text()).toBe('—')
+    // Not the placeholder -- there is nothing to hint at, so the title attribute must be empty.
+    expect(place.attributes('title')).toBe('')
+  })
+
+  it('derives the time span from loaded members when the album carries no dateRange', async () => {
+    // No dateStart/dateEnd on the album -> formatAlbumSpan returns '' -> spanLabel falls to DASH,
+    // so timeSpanLabel must compute its own min/max from the loaded members' takenAt instead.
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [asset('p1', { takenAt: '2025-06-02T00:00:00Z' }), asset('p2', { takenAt: '2025-07-10T00:00:00Z' })],
+    })
+    const expected = `${fmtDate('2025-06-02T00:00:00Z')} – ${fmtDate('2025-07-10T00:00:00Z')}`
+    expect(w.find('[data-test="album-about-timespan"] b').text()).toBe(expected)
+  })
+
+  it('falls back to the placeholder for Created and Time span when both are unusable', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', createdAt: 'not-a-date' }, assets: [] })
+    expect(w.find('[data-test="album-about-created"] b').text()).toBe('—')
+    expect(w.find('[data-test="album-about-timespan"] b').text()).toBe('—')
+  })
+
+  it('renders exactly two stat cells, photos and videos', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    const cells = w.findAll('.sv-stat-grid .sv-stat-cell')
+    expect(cells).toHaveLength(2)
+  })
+
+  it('keeps the monthly histogram section', async () => {
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A' },
+      assets: [asset('p1', { takenAt: '2025-06-02' }), asset('p2', { takenAt: '2025-07-01' })],
+    })
+    expect(w.find('[data-test="album-dist"]').exists()).toBe(true)
+    expect(w.findAll('[data-test="album-dist-bar"]')).toHaveLength(2)
   })
 })

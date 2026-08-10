@@ -208,6 +208,9 @@ export default {
   photosDetailCreatedAt: 'Created {date}',
   photosDetailItems: 'items',
   photosDetailVideos: 'videos',
+  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // own About row calls its third field "Time", a different label for a different thing).
+  photosDetailTimeSpan: 'Time span',
   photosAlbumCurrentCover: 'Current cover',
   photosAlbumSetCover: 'Set as album cover',
   photosAlbumEmptyTitle: 'This album is empty',

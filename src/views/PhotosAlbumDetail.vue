@@ -162,6 +162,52 @@ function distStyle(b: MonthBucket, i: number): { height: string; opacity: number
   return { height: `${(b.count / distMax.value) * 100}%`, opacity: 0.4 + (i / n) * 0.5 }
 }
 
+// Task 4 (Vue2 :570-579). About·Time span — prefer the human-readable span the album list
+// already formats (spanLabel/album.dateRange); when that's the placeholder, derive it from the
+// currently-loaded members' takenAt (min/max), same locale-aware fmt as createdLabel. DASH only
+// when neither source has anything.
+const timeSpanLabel = computed(() => {
+  if (spanLabel.value !== DASH) return spanLabel.value
+  const times = photos.value
+    .map((p) => (p.takenAt ? new Date(p.takenAt) : null))
+    .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+  if (!times.length) return DASH
+  const fmt = (d: Date) => d.toLocaleDateString(localeTag.value, { month: 'short', day: 'numeric', year: 'numeric' })
+  const min = new Date(Math.min(...times.map((d) => d.getTime())))
+  const max = new Date(Math.max(...times.map((d) => d.getTime())))
+  const a = fmt(min)
+  const b = fmt(max)
+  return a === b ? a : `${a} – ${b}`
+})
+
+// Task 4 (Vue2 :588-599). About·Place — assetToPhoto already resolves each loaded member's
+// `place` (placeName, or a coordinate-derived country fallback), so this aggregates by
+// frequency locally instead of issuing a separate request.
+interface PlaceCount { name: string; count: number }
+const placesAgg = computed<PlaceCount[]>(() => {
+  const freq = new Map<string, number>()
+  for (const p of photos.value) {
+    if (!p.place) continue
+    freq.set(p.place, (freq.get(p.place) ?? 0) + 1)
+  }
+  return Array.from(freq.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([name, count]) => ({ name, count }))
+})
+// Vue2 :601-607. Top three by frequency joined with " · ", "+N" for whatever is left over.
+const placesLabel = computed(() => {
+  if (!placesAgg.value.length) return DASH
+  const top = placesAgg.value.slice(0, 3).map((p) => p.name)
+  const rest = placesAgg.value.length - top.length
+  return rest > 0 ? `${top.join(' · ')} +${rest}` : top.join(' · ')
+})
+// Vue2 :609-613. Hover hint: every place with its count. Empty string (not DASH) when there is
+// nothing to hint at — driven by the same `placesAgg.value.length` gate as placesLabel above, so
+// the two can never drift out of sync (one shared source, not two placeholder literals).
+const placesTitle = computed(() =>
+  placesAgg.value.length ? placesAgg.value.map((p) => `${p.name} (${p.count})`).join(' · ') : '',
+)
+
 function isCover(p: Photo): boolean {
   // 铁律 2:值比较,不管两边谁是字符串谁是数字。
   return String(p.id) === String(album.value?.cover)
@@ -743,6 +789,23 @@ watch(gridRef, () => {
                  detail page's own sidebar (PhotosMomentDetail.vue), so the two detail pages stop
                  looking like different products. -->
             <aside class="sv-detail-side" data-test="album-side">
+              <!-- Task 4 (Vue2 :283-290). About — Type/Created/Time span/Place, same
+                   mo-about-row idiom as PhotosMomentDetail.vue's own About section. Type/Created/
+                   Place reuse existing keys verbatim (photosAlbumLabel/photosAlbumStatCreated/
+                   photosMoPlace already carry the exact Chinese the Vue2 target uses for these
+                   labels); only "Time span" is new — PhotosMomentDetail's own About row calls its
+                   third field "Time" (photosMoTime), a different label for a different thing. -->
+              <div class="sv-side-section" data-test="album-about">
+                <h3>{{ t('photosMoAbout') }}</h3>
+                <div class="mo-about-row" data-test="album-about-type"><span>{{ t('photosMoType') }}</span><b>{{ t('photosAlbumLabel') }}</b></div>
+                <div class="mo-about-row" data-test="album-about-created"><span>{{ t('photosAlbumStatCreated') }}</span><b>{{ createdLabel }}</b></div>
+                <div class="mo-about-row" data-test="album-about-timespan"><span>{{ t('photosDetailTimeSpan') }}</span><b>{{ timeSpanLabel }}</b></div>
+                <div class="mo-about-row" data-test="album-about-place"><span>{{ t('photosMoPlace') }}</span><b :title="placesTitle">{{ placesLabel }}</b></div>
+              </div>
+
+              <!-- Task 4 (Vue2 :292-309). Stats — trimmed from 4 cells to 2: Span/Created are the
+                   exact same data as the two About rows just above (duplicated, not a distinct
+                   metric), so the target drops them and keeps only Photos/Videos. -->
               <div class="sv-side-section">
                 <h3>{{ t('photosMoStats') }}</h3>
                 <div class="sv-stat-grid">
@@ -751,16 +814,8 @@ watch(gridRef, () => {
                     <div class="l">{{ t('photosMoPhotos') }}</div>
                   </div>
                   <div class="sv-stat-cell" data-test="album-stat-cell">
-                    <div class="v">{{ spanLabel }}</div>
-                    <div class="l">{{ t('photosMoSpan') }}</div>
-                  </div>
-                  <div class="sv-stat-cell" data-test="album-stat-cell">
                     <div class="v">{{ videoCountLabel }}</div>
                     <div class="l">{{ t('photosAlbumStatVideos') }}</div>
-                  </div>
-                  <div class="sv-stat-cell" data-test="album-stat-cell">
-                    <div class="v">{{ createdLabel }}</div>
-                    <div class="l">{{ t('photosAlbumStatCreated') }}</div>
                   </div>
                 </div>
               </div>
@@ -794,8 +849,20 @@ watch(gridRef, () => {
          the target says so explicitly at :326 and has to, because the hint copy only ever shows
          with an empty selection and Add photos would otherwise be unreachable in an empty album.
          The bar is a sibling of .photos-layout, as on PhotosSmartViewDetail.vue (:871): it is
-         position:fixed, so nesting it inside the scrolling column would buy nothing. -->
-    <div v-if="edit" class="sv-select-bar">
+         position:fixed, so nesting it inside the scrolling column would buy nothing.
+
+         Task 4 fold-in fix: this container used to live inside the `v-else-if="album"` branch
+         above (before the P2c skeleton rebuild pulled it out to be a fixed-position sibling), so
+         it inherited "no album -> not rendered" for free. Gating on `edit` alone lost that: the
+         route-id watcher clears `selected`/the title draft but never resets `edit`, so navigating
+         from an album in edit mode to a missing id left this bar floating over the "Album not
+         found" screen with Add photos still reachable -- and its confirm handler would have
+         called batchAddToAlbum on an id with no album behind it. `edit && album` restores the
+         original invariant directly (this is what the condition actually depends on) rather than
+         indirectly through a watcher, so it also covers the case where `album` disappears without
+         a route change (e.g. a concurrent fetchAlbums no longer finds it) -- a watcher on
+         route.params.id alone would miss that. -->
+    <div v-if="edit && album" class="sv-select-bar">
       <span class="group">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
         {{ editHintText }}
@@ -1152,6 +1219,15 @@ watch(gridRef, () => {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--fg-faint); margin: 0 0 10px;
 }
+/* Task 4: About key/value rows -- rule body identical to PhotosMomentDetail.vue's own
+   .mo-about-row (scoped styles do not cross SFCs in this repo). The hairline is --divider. */
+.mo-about-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
+  font-size: 12.5px; color: var(--fg-muted); padding: 7px 0;
+  border-bottom: 1px solid var(--divider);
+}
+.mo-about-row:last-child { border-bottom: 0; }
+.mo-about-row b { color: var(--fg); font-weight: 600; text-align: right; }
 .sv-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sv-stat-cell { background: var(--chip-bg); padding: 10px 12px; border-radius: 8px; }
 .sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
