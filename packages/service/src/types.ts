@@ -265,6 +265,9 @@ export interface GatewayComponent {
   name: string; category: string; version: string; status: string; error: string; probed_at: string
 }
 export interface GatewayDeviceInfo { hostname: string; os: string; version: string }
+// Gateway LAN discovery (GET /gateway/lan-discovery). Bare JSON, see sys.ts.
+export interface LanDevice { ip: string; hostname: string; version: string; self: boolean }
+export interface LanDiscovery { devices: LanDevice[]; truncated: boolean }
 export interface MigrateStatus {
   id: string; type: string; status: string; phase: string
   stopping_apps: number; progress: number

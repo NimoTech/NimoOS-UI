@@ -9,7 +9,14 @@ import iconStorage from './icons/storage.svg'
 
 // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
 // `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
-export interface SystemApp { key: string; name: string; label: string; cls: string; glyph: string; icon: string }
+// `requiresService` marks a tile that only belongs on this machine when the named
+// service is actually reachable -- KVM is optional and is not installed everywhere.
+// The static entry deliberately carries no status: the apps store decides both
+// visibility and status once the probe has answered (Vue 2 #125).
+export interface SystemApp {
+  key: string; name: string; label: string; cls: string; glyph: string; icon: string
+  requiresService?: 'kvm'
+}
 
 const G = {
   folder: '<path d="M3.5 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.5.7l1 1.3h7.1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2Z"/>',
@@ -28,7 +35,7 @@ export const SYSTEM_APPS: SystemApp[] = [
   { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },
   { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },
   { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },
-  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm },
+  { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm, requiresService: 'kvm' },
   { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
   { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
 ]

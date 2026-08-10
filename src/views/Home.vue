@@ -76,6 +76,13 @@ let containerEventBridge: ReturnType<typeof createContainerEventHandler> | null 
 function refreshApps() {
   apps.loadGrid().then(() => {
     useDock().refresh()
+    // A confirmed probe failure is a definite "not here" signal, the same class as
+    // APP_UNINSTALL_END below -- not the ambiguous "missing from a possibly-flaky
+    // grid fetch" that sweepGone's grace period exists for. Evict right away instead
+    // of waiting on the sweep: missingSince is an in-memory Map that resets on every
+    // page load, so a user who reloads more often than the 45s grace would otherwise
+    // never reach removal at all (#125 review finding 1).
+    if (apps.kvmAvailable === false) layout.evict('vm', { force: true })
     layout.autoPin(apps.desktopDecls(), DIMS, apps.stoppedDesktopKeys())
     // 统一清扫:已卸载/已删除的应用(含手动固定、LinkApp),缺席满宽限期后磁贴移除
     layout.sweepGone(Object.keys(apps.apps))

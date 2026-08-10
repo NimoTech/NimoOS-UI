@@ -11,6 +11,7 @@ vi.mock('@nimotech/nimoos-service', async () => {
     ...actual,
     service: {
       apps: { getGrid: vi.fn(async () => []) },
+      kvm: { getSettings: vi.fn(async () => { throw new Error('ECONNREFUSED') }) },
       photos: { listAssets: vi.fn(async () => []), thumbnailUrl: vi.fn(() => '') },
       sys: { getUtilization: vi.fn(async () => null) },
       users: {
@@ -91,5 +92,21 @@ describe('Home integration', () => {
 
     w.unmount()
     vi.useRealTimers()
+  })
+
+  // #125 review finding 1: the KVM tile must not linger for up to 45s (or forever,
+  // across reloads) once the probe has confirmed the service is unreachable. This
+  // fails against the pre-fix code, which only let sweepGone's grace-period clock
+  // start on the first missing poll -- the DEFAULT-layout `vm` tile would still be
+  // present here since no timer is advanced at all.
+  it('evicts the KVM tile immediately once the probe confirms KVM is unreachable, without waiting on any timer', async () => {
+    const w = mountHome()
+    const layout = useLayoutStore()
+    expect(layout.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(true) // DEFAULT layout ships a vm tile
+    // loadServerSeen() -> refreshApps() -> loadGrid() -> setApps() is several promise
+    // hops deep; one flushPromises() alone does not drain all of them.
+    await flushPromises(); await flushPromises(); await flushPromises()
+    expect(layout.items.some((i) => i.kind === 'app' && i.key === 'vm')).toBe(false)
+    w.unmount()
   })
 })

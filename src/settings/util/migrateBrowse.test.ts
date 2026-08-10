@@ -34,6 +34,14 @@ describe('browseDestPaths —— 与 migrate.go 追加的子目录逐字一致',
   it('base 尾部斜杠被吃掉,不产生 //', () => {
     expect(browseDestPaths('app_data', '/media/Backup/')).toEqual(['/media/Backup/AppData'])
   })
+  it('points the photos cache at <target>/.system_data/photos (matches migrate.go)', () => {
+    expect(browseDestPaths('photos_data', '/media/Backup')).toEqual([
+      '/media/Backup/.system_data/photos',
+    ])
+    expect(browseDestPaths('photos_data', '/media/Backup/')).toEqual([
+      '/media/Backup/.system_data/photos',
+    ])
+  })
 })
 
 describe('browseCrumbs', () => {
@@ -93,6 +101,19 @@ describe('filterBrowseFolders', () => {
     const names = filterBrowseFolders(items, 'app_data', '/DATA/AppData').map((f) => f.name)
     expect(names).not.toContain('AppData')      // 源目录自身仍被排除
     expect(names).toContain('AppDataOld')       // 兄弟目录不该被牵连
+  })
+  it('drops dot-prefixed folders before the blocked list is ever consulted (Vue2 #105)', () => {
+    // #105 found the dot entries in the blocked list to be dead code: the dot filter
+    // below already removed them. Same holds here, which is why photos_data adds no
+    // `.system_data` entry to `blocked`.
+    const items = [
+      mk('.system_data', '/DATA/.system_data'),
+      mk('.docker', '/DATA/.docker'),
+      mk('Backup', '/DATA/Backup'),
+    ]
+    for (const type of ['app_data', 'images', 'database', 'photos_data'] as const) {
+      expect(filterBrowseFolders(items, type, '').map((i) => i.name)).toEqual(['Backup'])
+    }
   })
 })
 

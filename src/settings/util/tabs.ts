@@ -13,6 +13,7 @@ export const SETTINGS_TABS = [
   'apps',
   'terminal',
   'system-status',
+  'lan-devices',
   'folder-permissions',
   'account',
   'developer',
@@ -20,8 +21,8 @@ export const SETTINGS_TABS = [
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]
 
-/** 侧栏 rail 上可见的 7 项(account / developer 有各自入口,不在 rail 上)。 */
-export const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 7)
+/** The 8 tabs visible on the sidebar rail (account / developer have their own entry points, not on the rail). */
+export const RAIL_TABS: readonly SettingsTab[] = SETTINGS_TABS.slice(0, 8)
 
 export const DEFAULT_TAB: SettingsTab = 'general'
 
@@ -32,6 +33,7 @@ export const TAB_LABEL_KEY: Record<SettingsTab, string> = {
   apps: 'settingsTabApps',
   terminal: 'settingsTabTerminal',
   'system-status': 'settingsTabSystemStatus',
+  'lan-devices': 'settingsTabLanDevices',
   'folder-permissions': 'settingsTabFolderPermissions',
   account: 'settingsTabAccount',
   developer: 'settingsTabDeveloper',

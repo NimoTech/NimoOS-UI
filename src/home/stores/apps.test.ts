@@ -1,6 +1,16 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAppsStore, clampWidgetDecl } from './apps'
+
+const getGrid = vi.fn()
+const getKvmSettings = vi.fn()
+vi.mock('@nimotech/nimoos-service', () => ({
+  service: {
+    apps: { getGrid: () => getGrid() },
+    kvm: { getSettings: () => getKvmSettings() },
+  },
+}))
+vi.mock('../../apps/util/linkApps', () => ({ listLinkApps: () => Promise.resolve([]) }))
 
 describe('useAppsStore', () => {
   beforeEach(() => setActivePinia(createPinia()))
@@ -171,5 +181,44 @@ describe('LinkApp 桌面拼接(setApps 第二参)', () => {
     s.setApps([{ name: 'jellyfin', title: { en_us: 'J' }, status: 'running' }] as never)
     expect(s.app('jellyfin')?.name).toBe('J')
     expect(s.order).not.toContain('MyNAS')
+  })
+})
+
+describe('KVM tile gating (SP17 #125)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    getGrid.mockReset(); getKvmSettings.mockReset()
+    getGrid.mockResolvedValue([])
+  })
+
+  it('keeps the tile before the probe has answered -- the first frame must not flicker', () => {
+    const s = useAppsStore()
+    expect(s.app('vm')).toBeDefined() // store init calls setApps([]) with no probe result yet
+  })
+
+  it('keeps the tile when the KVM service answers', async () => {
+    getKvmSettings.mockResolvedValue({ cpuCores: 6 })
+    const s = useAppsStore()
+    await s.loadGrid()
+    expect(s.app('vm')).toBeDefined()
+    expect(s.order).toContain('vm')
+  })
+
+  it('drops the tile when the KVM service is unreachable, without failing the load', async () => {
+    getKvmSettings.mockRejectedValue(new Error('ECONNREFUSED'))
+    const s = useAppsStore()
+    await expect(s.loadGrid()).resolves.toBeUndefined()
+    expect(s.app('vm')).toBeUndefined()
+    expect(s.order).not.toContain('vm')
+    expect(s.app('files')).toBeDefined() // the other system tiles are untouched
+  })
+
+  it('brings the tile back once KVM answers again', async () => {
+    getKvmSettings.mockRejectedValueOnce(new Error('down')).mockResolvedValueOnce({ cpuCores: 6 })
+    const s = useAppsStore()
+    await s.loadGrid()
+    expect(s.app('vm')).toBeUndefined()
+    await s.loadGrid()
+    expect(s.app('vm')).toBeDefined()
   })
 })

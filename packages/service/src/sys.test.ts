@@ -248,6 +248,33 @@ describe('createSys 网关端点(信封层数按端点不同)', () => {
     const s = createSys(http({ '/gateway/device-info': { hostname: 'NimoOS', os: 'nimoos', version: '1.9.3-alpha1+28.g0dc16d6' } }))
     expect(await s.getDeviceInfo()).toEqual({ hostname: 'NimoOS', os: 'nimoos', version: '1.9.3-alpha1+28.g0dc16d6' })
   })
+
+  it('getLanDiscovery reads bare JSON -- it must not go through unwrap', async () => {
+    // Real response captured on the device 2026-08-09: no success/message/data envelope.
+    const s = createSys(http({ '/gateway/lan-discovery': {
+      devices: [
+        { ip: '192.168.1.49', hostname: 'NimoOS', version: 'dev', self: false },
+        { ip: '192.168.1.143', hostname: 'NimoOS', version: '1.9.3-alpha1+28.g0dc16d6', self: true },
+        { ip: '192.168.1.189', hostname: 'debian', version: '1.9.4-alpha1+430', self: false },
+      ],
+      truncated: false,
+    } }))
+    const res = await s.getLanDiscovery()
+    expect(res.devices).toHaveLength(3)
+    expect(res.devices[1].self).toBe(true)
+    expect(res.devices[2].hostname).toBe('debian')
+    expect(res.truncated).toBe(false)
+  })
+
+  it('getLanDiscovery keeps truncated true', async () => {
+    const s = createSys(http({ '/gateway/lan-discovery': { devices: [], truncated: true } }))
+    expect(await s.getLanDiscovery()).toEqual({ devices: [], truncated: true })
+  })
+
+  it('getLanDiscovery tolerates a body without devices/truncated', async () => {
+    const s = createSys(http({ '/gateway/lan-discovery': {} }))
+    expect(await s.getLanDiscovery()).toEqual({ devices: [], truncated: false })
+  })
 })
 
 describe('createSys USB 自动挂载', () => {

@@ -13,3 +13,11 @@ describe('SYSTEM_APPS -- knowledge (SP14 #98)', () => {
     expect(new Set(SYSTEM_APP_KEYS).size).toBe(SYSTEM_APP_KEYS.length)
   })
 })
+
+describe('SYSTEM_APPS -- optional services (SP17 #125)', () => {
+  it('kvm is the only tile gated on a service being reachable', () => {
+    const gated = SYSTEM_APPS.filter((a) => a.requiresService)
+    expect(gated.map((a) => a.key)).toEqual(['vm'])
+    expect(gated[0].requiresService).toBe('kvm')
+  })
+})

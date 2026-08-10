@@ -1,4 +1,4 @@
-// 设置 · 应用 —— 「App 数据存储位置」三行的派生。
+// 设置 · 应用 —— 「App 数据存储位置」四行的派生。
 // Vue2 对位:SettingsPanel.vue:1910-1971 loadAppsData() 里的 enrichPathData / getPath。
 //
 // 移植纪律(登记,Vue2 的东西不照抄):
@@ -10,12 +10,13 @@
 //     失败写死 970GB。mount_point 是挂载点(本机 '/'),永远不含 'ZimaOS-HD'(那是
 //     CasaOS/ZimaOS 血统的卷 label),所以那段恒走 970GB 死值。这里改成回退到**系统卷**容量。
 //
-// 后端(2026-08-01 实测 GET /v1/sys/paths)返回 4 个 key —— app_data / images / database /
-// photos_data,而 Vue2 只渲染前 3 个。界面 1:1 → 这里也只产出 3 行。
+// The backend returns four keys -- app_data / images / database / photos_data
+// (verified 2026-08-09). Vue 2 rendered only the first three until #103 added the
+// photos cache row; all four are rendered here.
 import type { SystemPaths } from '@nimotech/nimoos-service'
 import type { StorageVolume } from '../../storage/util/storageMap'
 
-export type AppPathKey = 'app_data' | 'images' | 'database'
+export type AppPathKey = 'app_data' | 'images' | 'database' | 'photos_data'
 
 export interface AppPathRow {
   key: AppPathKey
@@ -24,7 +25,7 @@ export interface AppPathRow {
   total: number
 }
 
-const ORDER: AppPathKey[] = ['app_data', 'images', 'database']
+const ORDER: AppPathKey[] = ['app_data', 'images', 'database', 'photos_data']
 
 /** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。
  *

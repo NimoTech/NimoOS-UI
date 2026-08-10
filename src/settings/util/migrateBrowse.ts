@@ -25,6 +25,7 @@ export function browseDestPaths(type: AppPathKey, base: string): string[] {
   const b = base.replace(/\/$/, '')
   if (type === 'images') return [`${b}/.docker`, `${b}/.containerd`]
   if (type === 'app_data') return [`${b}/AppData`]
+  if (type === 'photos_data') return [`${b}/.system_data/photos`]
   return ['Documents', 'Downloads', 'Gallery', 'Media'].map((d) => `${b}/${d}`)
 }
 
@@ -50,9 +51,11 @@ export function browseCrumbs(
 export function filterBrowseFolders(
   items: FolderEntry[], type: AppPathKey, currentPath: string,
 ): FolderEntry[] {
+  // Dot-prefixed folders (.docker/.containerd/.system_data) need no entry here: the
+  // filter below drops every item whose name starts with '.' before `blocked` is even
+  // consulted, so such entries would be dead code (Vue 2 #105 reached the same result).
   const blocked: string[] = []
   if (type !== 'app_data') blocked.push('AppData')
-  if (type !== 'images') blocked.push('.docker', '.containerd')
   if (type !== 'database') blocked.push('Documents', 'Downloads', 'Gallery', 'Media')
   const src = currentPath ? currentPath.replace(/\/$/, '') : ''
   return items.filter((it) => {

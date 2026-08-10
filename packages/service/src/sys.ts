@@ -1,7 +1,7 @@
 import type { AxiosInstance } from 'axios'
 import type {
   Utilization, HardwareInfo, UpdateCheck, SysBaseInfo, SystemPaths,
-  SSLConfig, SSLConfigInput, GatewayComponent, GatewayDeviceInfo, MigrateStatus,
+  SSLConfig, SSLConfigInput, GatewayComponent, GatewayDeviceInfo, LanDiscovery, MigrateStatus,
 } from './types.js'
 import { parseUtil } from './parseUtil.js'
 import { unwrap } from './unwrap.js'
@@ -117,6 +117,14 @@ export function createSys(http: AxiosInstance) {
     async getDeviceInfo(): Promise<GatewayDeviceInfo> {
       const res = await http.get('/gateway/device-info')
       return res.data as GatewayDeviceInfo
+    },
+    // Bare JSON as well -- {"devices":[…],"truncated":false}, no success/message/data
+    // envelope (verified with curl on the device 2026-08-09). unwrap() would throw here
+    // because it treats a missing `success: 200` as a failed request.
+    async getLanDiscovery(): Promise<LanDiscovery> {
+      const res = await http.get('/gateway/lan-discovery')
+      const body = res.data as Partial<LanDiscovery> | null
+      return { devices: body?.devices ?? [], truncated: body?.truncated ?? false }
     },
 
     // 后端存的是字符串 "True"/"False"(NimoOS-LocalStorage/route/v1/usb.go:37/40),

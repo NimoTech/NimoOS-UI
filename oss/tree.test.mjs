@@ -214,10 +214,12 @@ describe('类 3 · 桌面侧补丁', () => {
 })
 
 describe('类 3 · 设置与 Service 侧补丁', () => {
-  it('设置 tab 从 9 降到 8,rail 从 7 降到 6,folder-permissions 全无', () => {
+  // SP17 起私有侧多了 lan-devices(第 10 个 tab,rail 里的第 8 项),这条断言的两个数字
+  // 跟着往上挪一位;去掉的仍然只有 folder-permissions,数字本身不是要守的东西。
+  it('设置 tab 从 10 降到 9,rail 从 8 降到 7,folder-permissions 全无', () => {
     const s = read('src/settings/util/tabs.ts')
     expect(s).not.toMatch(/folder-permissions|FolderPermissions/)
-    expect(s).toContain('SETTINGS_TABS.slice(0, 6)')
+    expect(s).toContain('SETTINGS_TABS.slice(0, 7)')
     expect(read('src/settings/panels/index.ts')).not.toMatch(/FolderPermissions/)
   })
 
@@ -630,7 +632,7 @@ describe('类 4 · 测试同步', () => {
     const s = read('src/settings/util/tabs.test.ts')
     expect(s).not.toMatch(/railTabsFor\(/) // 按角色过滤的三条用例已随功能一起删除
     expect(s).not.toContain('folder-permissions')
-    expect(read('src/settings/panels/panels.test.ts')).toContain('toHaveLength(8)')
+    expect(read('src/settings/panels/panels.test.ts')).toContain('toHaveLength(9)')
   })
 
   it('复审:HomeDock/SettingsShell 两个实测才暴露的漏网之鱼(brief 原始清单未覆盖)', () => {
@@ -640,7 +642,10 @@ describe('类 4 · 测试同步', () => {
     expect(dock).not.toContain('toBeGreaterThanOrEqual(6)') // oss 只有 5 个系统应用
     const shell = read('src/settings/components/SettingsShell.test.ts')
     expect(shell).not.toContain('folder-permissions')
-    expect(shell).not.toMatch(/toHaveLength\(7\)/)
+    // 8 was the admin-only rail count (deleted along with its test block); 7 is the
+    // legitimate universal rail count post-redaction (SP17 added lan-devices) and is
+    // expected to remain in the other, untouched assertions.
+    expect(shell).not.toMatch(/toHaveLength\(8\)/)
   })
 
   it('内嵌 Service 不依赖预构建 dist/:package.json 指向 TS 源码入口', () => {
