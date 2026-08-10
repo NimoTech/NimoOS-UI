@@ -30,6 +30,8 @@ vi.mock('../peersManager', () => ({
 vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}) }))
 
 import { useDropStore } from './drop'
+import { useToast } from '../../../stores/toast'
+import { i18n } from '../../../i18n'
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
 // destroy() 摘掉 window 上的 pagehide/visibilitychange 监听——不清会跨用例累积,dispatchEvent 就会打到历史用例的残留监听器
@@ -142,6 +144,25 @@ describe('useDropStore', () => {
     expect(s.hasActiveTransfers()).toBe(false)
     expect(h.pmHasActiveTransfers).not.toHaveBeenCalled()
   })
+  it('names a user cancellation differently from a break nobody chose', () => {
+    // All three reasons arrive through onTransferBroken, and until now all three
+    // rendered "transfer interrupted" -- so cancelling a transfer on purpose read
+    // like a failure.
+    const s = useDropStore()
+    s.init()
+    const ev = h.capturedEvents!
+    const texts = () => useToast().toasts.map((x) => x.text)
+
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'cancelled' })
+    expect(texts()).toEqual([i18n.global.t('filesDropCancelled')])
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'timeout' })
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'disconnected' })
+    expect(texts().slice(1)).toEqual([
+      i18n.global.t('filesDropInterrupted'),
+      i18n.global.t('filesDropInterrupted'),
+    ])
+  })
+
   it('cancelTransfer forwards the peerId to the manager', () => {
     const s = useDropStore()
     s.init()

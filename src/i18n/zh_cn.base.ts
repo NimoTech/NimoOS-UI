@@ -222,6 +222,7 @@ export default {
   filesDropIgnore: '忽略',
   filesDropDone: '文件传输完成',
   filesDropInterrupted: '传输已中断',
+  filesDropCancelled: '已取消传输',
   filesDropLost: '连接断开,5 秒后重连…',
   filesDropLanTitle: '局域网访问',
   filesDropLanHint: '用另一台设备打开以下地址',

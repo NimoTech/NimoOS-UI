@@ -102,7 +102,10 @@ export const useDropStore = defineStore('drop', () => {
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
       onTransferBroken: (e) => {
         delete transfers.value[e.peerId]
-        useToast().show(t('filesDropInterrupted'), 3000)
+        // A transfer the user stopped themselves is not an interruption -- both
+        // ends route through the same event, so the wording has to split here.
+        // 'disconnected' / 'timeout' keep the interrupted wording.
+        useToast().show(t(e.reason === 'cancelled' ? 'filesDropCancelled' : 'filesDropInterrupted'), 3000)
       },
     })
     document.addEventListener('visibilitychange', onVisibility)

@@ -222,6 +222,7 @@ export default {
   filesDropIgnore: 'Ignore',
   filesDropDone: 'File transfer completed',
   filesDropInterrupted: 'Transfer interrupted',
+  filesDropCancelled: 'Transfer cancelled',
   filesDropLost: 'Connection lost. Retrying in 5 seconds…',
   filesDropLanTitle: 'Local network access',
   filesDropLanHint: 'Open this address on another device',

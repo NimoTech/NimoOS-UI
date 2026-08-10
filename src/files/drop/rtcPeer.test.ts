@@ -258,6 +258,23 @@ describe('RTCPeer disconnect branches', () => {
     expect(inner.conn).not.toBe(original)
   })
 
+  it('reports the cancellation once even when the channel is already gone', () => {
+    // The real RTCPeer.sendRaw, with channel === null, routes into
+    // handleDisconnect('disconnected') -- which reports and resets by itself. If
+    // the cancel message goes out before this transfer is reset, that report
+    // fires first and cancelTransfer's own report follows: two "transfer broken"
+    // toasts from one click on Cancel.
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+    expect((p as unknown as { channel: unknown }).channel).toBeNull()
+
+    p.cancelTransfer()
+
+    expect(ev.onTransferBroken).toHaveBeenCalledTimes(1)
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'cancelled' })
+  })
+
   it('reports a disconnect when a chunk cannot be sent because the channel is gone', () => {
     const ev = makeEvents()
     const p = makeRtcPeer(ev)

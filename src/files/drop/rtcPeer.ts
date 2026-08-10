@@ -193,12 +193,18 @@ export class Peer {
   /** User-initiated stop. Silent when nothing is running so a stray click
    *  cannot spam the peer with cancel messages. `resetTransferState()`
    *  already aborts the chunker, so there is nothing left to do here beyond
-   *  telling the other side and reporting locally. */
+   *  telling the other side and reporting locally.
+   *
+   *  Order matters: reset and report FIRST, put the message on the wire LAST.
+   *  sendJSON on a dead channel routes into handleDisconnect(), which reports
+   *  and resets on its own -- doing that while this transfer still looked
+   *  active produced two "transfer broken" toasts for one click. Sending last
+   *  means handleDisconnect finds nothing in flight and stays quiet. */
   cancelTransfer(): void {
     if (!this.hasActiveTransfer()) return
-    this.sendJSON({ type: 'transfer-cancel' })
     this.resetTransferState()
     this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+    this.sendJSON({ type: 'transfer-cancel' })
   }
 
   private armAck(): void {
