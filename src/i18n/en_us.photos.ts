@@ -119,6 +119,10 @@ export default {
   photosTrashRestoredToast: '{count} item(s) restored to Library',
   photosTrashPurgedToast: '{count} item(s) permanently deleted · {size} MB freed',
   photosTrashEmptiedToast: 'Trash emptied · {size} MB freed',
+  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // loaded subset — these size-less variants are used instead until trashExhausted.
+  photosTrashEmptiedToastPartial: 'Trash emptied',
+  photosTrashEmptyBodyPartial: "This frees up space on the NAS. Once gone, the originals can't be recovered.",
   photosTrashRestoreFailed: 'Restore failed',
   photosTrashDeleteFailed: 'Delete failed',
   photosTrashEmptyFailed: 'Empty failed',

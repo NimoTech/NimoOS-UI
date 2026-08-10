@@ -119,6 +119,10 @@ export default {
   photosTrashRestoredToast: '{count} 项已恢复到资料库',
   photosTrashPurgedToast: '{count} 项已永久删除 · 释放 {size} MB',
   photosTrashEmptiedToast: '最近删除已清空 · 释放 {size} MB',
+  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // loaded subset — these size-less variants are used instead until trashExhausted.
+  photosTrashEmptiedToastPartial: '最近删除已清空',
+  photosTrashEmptyBodyPartial: '这将释放 NAS 上的空间，原始文件将无法恢复。',
   photosTrashRestoreFailed: '恢复失败',
   photosTrashDeleteFailed: '删除失败',
   photosTrashEmptyFailed: '清空失败',

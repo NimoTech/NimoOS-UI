@@ -178,16 +178,21 @@ function emptyTrash() {
   if (!trash.items.length) return
   const count = trash.items.length
   const size = totalSize.value
+  // Task 12 (SP15-P3): totalSize is only a sum over the loaded page(s) — while more pages
+  // remain, quoting it as "the" freeable size would misstate how much space emptying the
+  // trash actually frees. Drop the megabyte figure entirely until trashExhausted confirms
+  // every row has been loaded.
+  const exact = trash.trashExhausted
   askConfirm({
     title: t('photosTrashEmptyTitle2', { count }),
-    body: t('photosTrashEmptyBody', { size }),
+    body: exact ? t('photosTrashEmptyBody', { size }) : t('photosTrashEmptyBodyPartial'),
     ctaLabel: t('photosTrashEmpty'),
     danger: true,
     onConfirm: async () => {
       undoIds = null
       try {
         await trash.empty()
-        toast.show(t('photosTrashEmptiedToast', { size }), 4500)
+        toast.show(exact ? t('photosTrashEmptiedToast', { size }) : t('photosTrashEmptiedToastPartial'), 4500)
       } catch {
         toast.show(t('photosTrashEmptyFailed'), 4500)
       }
@@ -215,6 +220,12 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <b>{{ trash.items.length }}</b> {{ t('photosTrashItems') }} ·
               {{ t('photosCountSummary', { photos: photoCount, videos: videoCount }) }} ·
               <b>{{ totalSize }} MB</b> {{ t('photosTrashCanFree') }}
+              <!-- Task 12 (SP15-P3): totalSize sums sizeMb over trash.items, which is only the
+                   pages fetched so far while pagination is still catching up — say so out loud
+                   instead of silently under-reporting (same pattern as PhotosFavorites.vue). -->
+              <span v-if="!trash.trashExhausted" data-test="trash-loaded-hint">
+                · {{ t('photosLoadedSubsetHint', { n: trash.items.length }) }}
+              </span>
             </div>
           </div>
           <div class="trash-hero-actions">
@@ -302,6 +313,18 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               </div>
             </div>
           </div>
+
+          <!-- Task 12 (SP15-P3): the backend caps a single request at 500 rows now
+               (NimoOS-Photos#54), so anything past the first page only shows up once clicked. -->
+          <div v-if="!trash.trashExhausted" class="trash-load-more">
+            <button
+              type="button"
+              class="bar-btn"
+              data-test="trash-load-more"
+              :disabled="trash.loadingMore"
+              @click="trash.loadMoreTrash()"
+            >{{ t('photosLoadMore') }}</button>
+          </div>
         </template>
       </main>
     </div>
@@ -339,6 +362,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-hero-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; color: var(--fg); }
 .trash-hero-sub { font-size: 12.5px; color: var(--fg-muted); }
 .trash-hero-sub b { color: var(--fg); font-weight: 600; }
+/* Task 12 (SP15-P3): reuses the same muted-text treatment already used throughout this line
+   (--fg-muted, inherited 12.5px) — no new token, just a conditional trailing span. */
+.trash-hero-sub [data-test="trash-loaded-hint"] { color: var(--fg-muted); }
 .trash-hero-actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
 .trash-hero-actions .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 /* .trash-btn-danger 复用 .bar-btn 玻璃胶囊形态,仅改前景色为既有危险色 token(浅色主题=深红,
@@ -372,6 +398,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-sort { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
 .trash-sort button { height: 22px; padding: 0 10px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer; }
 .trash-sort button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
+/* Task 12 (SP15-P3): same secondary-button treatment as .fav-load-more in
+   PhotosFavorites.vue — reuses .bar-btn, no new token. */
+.trash-load-more { display: flex; justify-content: center; padding: 16px 0; }
+.trash-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── Bucketed grid ── */
 .trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }

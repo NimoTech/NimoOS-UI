@@ -26,22 +26,82 @@ function refreshTimelineAfterTrashChange(): void {
   else void timeline.fetchTimeline()
 }
 
+// Task 12 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into 500, so
+// this list has to be paged or it silently truncates — same fix, same shape, as Task 11's
+// favorites.ts. See that file for the fuller rationale behind the two counters below.
+const TRASH_PAGE_SIZE = 500
+
 export const usePhotosTrash = defineStore('photosTrash', () => {
   const items = ref<TrashPhoto[]>([])
   const loaded = ref(false)
   const retentionDays = ref(30)
+  const trashExhausted = ref(false)
+  const loadingMore = ref(false)
+  let _offset = 0
+  let _generation = 0
+  // Task 12 review lesson carried over from Task 11 round 2: a separate ownership sequence
+  // for `loadingMore`, distinct from `_generation`. `_generation` answers "is this page's data
+  // still current"; `loadingMore` answers "does this call still own the load-more button" —
+  // a fetchTrash() reset forces loadingMore false unconditionally (correct: it's a full
+  // reset), but a loadMoreTrash() call already in flight before that reset — and whose page
+  // still arrives after a *second* loadMoreTrash() has since started — must not be allowed to
+  // clear the second call's flag out from under it in its `finally`.
+  let _loadMoreSeq = 0
 
+  // Task 12: fetchTrash now always fetches page one and resets the cursor — call it for the
+  // initial load and for any refresh (restore/purge/empty/undoRestore all end with it, which
+  // is exactly "go back to page one").
   async function fetchTrash(): Promise<void> {
+    const gen = ++_generation
+    _loadMoreSeq++
+    loadingMore.value = false
     try {
-      const list = (await service.photos.listTrash()) as unknown[]
-      items.value = (list ?? []).map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value))
+      const list = (await service.photos.listTrash(TRASH_PAGE_SIZE, 0)) as unknown[]
+      if (gen !== _generation) return
+      const rows = list ?? []
+      items.value = rows.map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value))
+      _offset = rows.length
+      trashExhausted.value = rows.length < TRASH_PAGE_SIZE
       // Only mark loaded on success — a transient fetch failure must stay
       // distinguishable from "confirmed empty trash" so callers can retry,
       // mirroring the favIdsLoaded/favoritesLoaded precedent in favorites.ts.
       loaded.value = true
     } catch (e) {
+      if (gen !== _generation) return
       items.value = []
+      _offset = 0
+      trashExhausted.value = false
       console.error('[photos-trash] fetchTrash', e)
+    }
+  }
+
+  // Task 12: appends the next page behind the load-more button. A generation counter guards
+  // against a page landing after a refresh happened mid-flight — that page must be dropped
+  // whole, not appended to a list it no longer belongs to.
+  async function loadMoreTrash(): Promise<void> {
+    if (trashExhausted.value || loadingMore.value) return
+    const gen = _generation
+    const seq = ++_loadMoreSeq
+    loadingMore.value = true
+    try {
+      const list = (await service.photos.listTrash(TRASH_PAGE_SIZE, _offset)) as unknown[]
+      // A refresh happened while this page was in flight: drop it entirely.
+      if (gen !== _generation) return
+      const rows = list ?? []
+      items.value = [
+        ...items.value,
+        ...rows.map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value)),
+      ]
+      _offset += rows.length
+      if (rows.length < TRASH_PAGE_SIZE) trashExhausted.value = true
+    } catch (e) {
+      // Leave the cursor where it was so the retry asks for the same page again
+      // rather than skipping it.
+      console.error('[photos-trash] loadMoreTrash', e)
+    } finally {
+      // Only clear the flag if this call still owns it — see the comment on
+      // `_loadMoreSeq` above.
+      if (seq === _loadMoreSeq) loadingMore.value = false
     }
   }
 
@@ -109,13 +169,21 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
     items.value = []
     loaded.value = false
     retentionDays.value = 30
+    trashExhausted.value = false
+    loadingMore.value = false
+    _offset = 0
+    _generation = 0
+    _loadMoreSeq = 0
   }
 
   return {
     items,
     loaded,
     retentionDays,
+    trashExhausted,
+    loadingMore,
     fetchTrash,
+    loadMoreTrash,
     restore,
     restoreAll,
     purge,

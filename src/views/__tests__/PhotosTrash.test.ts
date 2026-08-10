@@ -233,4 +233,48 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(true)
     expect(w.find('.trash-tile').attributes('data-selected')).toBe('true')
   })
+
+  // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the
+  // loaded subset — the empty-trash confirmation must not present it as the whole truth.
+  const fullPage = () => Array.from({ length: 500 }, (_, i) => asset(`p${i}`, '2026-06-30T00:00:00Z'))
+
+  it('uses the size-less empty copy while pages remain', async () => {
+    svc.photos.listTrash.mockResolvedValue(fullPage())
+    const w = await mountView()
+    const trash = usePhotosTrash()
+    expect(trash.trashExhausted).toBe(false)
+
+    await w.find('[data-test="trash-empty-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const body = w.find('.trash-modal-body').text()
+    expect(body).toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+    expect(body).not.toMatch(/MB/)
+  })
+
+  it('uses the exact copy with the freed size once everything is loaded', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountView()
+    const trash = usePhotosTrash()
+    expect(trash.trashExhausted).toBe(true)
+
+    await w.find('[data-test="trash-empty-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const body = w.find('.trash-modal-body').text()
+    expect(body).toContain('MB')
+    expect(body).not.toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+  })
+
+  it('shows the load-more button only while pages remain', async () => {
+    svc.photos.listTrash.mockResolvedValue(fullPage())
+    const w = await mountView()
+    expect(w.find('[data-test="trash-load-more"]').exists()).toBe(true)
+    expect(w.find('[data-test="trash-loaded-hint"]').exists()).toBe(true)
+
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w2 = await mountView()
+    expect(w2.find('[data-test="trash-load-more"]').exists()).toBe(false)
+    expect(w2.find('[data-test="trash-loaded-hint"]').exists()).toBe(false)
+  })
 })
