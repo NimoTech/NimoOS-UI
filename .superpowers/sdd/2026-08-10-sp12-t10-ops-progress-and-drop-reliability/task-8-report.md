@@ -187,3 +187,49 @@ pnpm exec vue-tsc --noEmit
 ```
 
 No full-suite run performed (dirty-tree OSS export gate), per instructions.
+
+---
+
+# Fix round 2 of 5 (reviewer feedback)
+
+Reviewer verdicted round-1 fixes ADDRESSED, but found one new Important consequence created by round 1's `close()` change itself.
+
+## Important — `peer-left` mid-send went silent, leaving a stale transfer card
+
+Before round 1, "the other device vanished mid-transfer" got reported by accident: `close()` nulled the channel but left the chunker running, so its next `onChunk` → `sendRaw` found `this.channel === null` and called `handleDisconnect('disconnected')` itself — which is also what fired the (unwanted) `refresh()` re-dial of a peer that had just left.
+
+Round 1's `close()` → `resetTransferState()` fix correctly killed that accidental path for `PeersManager.destroy()` (navigating away from `/files/drop`, where silence is intended), but it also killed it for `peer-left` (the other device actually vanishing while the user is still watching), where `resetTransferState()` now aborts the chunker before it can ever detect the null channel — so the send dies with no report, and since `stores/drop.ts` only clears `transfers.value[peerId]` from the `onTransferBroken` handler, the progress card for that peer would stay on screen forever.
+
+**Fix** (`src/files/drop/peersManager.ts`, `peer-left` branch): added `peer?.handleDisconnect('disconnected')` immediately before `peer?.close()`, exactly as prescribed — order matters because `handleDisconnect` must run while transfer state is still live (`hasActiveTransfer()` true), and `close()`'s own `resetTransferState()` afterwards is a harmless no-op second reset. `destroy()` was deliberately left untouched (navigating away stays silent). Comment on the change names the pre-existing accidental-`refresh()` bug this deliberately avoids reintroducing, per the reviewer's note.
+
+**Tests added** (`src/files/drop/peersManager.test.ts`):
+- Extended `makeFakePeer()`'s shape with a `handleDisconnect: vi.fn()` slot (harmless addition; existing tests unaffected).
+- `peer-left with an in-flight transfer reports onTransferBroken exactly once with reason disconnected`: injects a fake peer via the existing `makePeer` hook whose `handleDisconnect` mock mirrors the real `Peer.handleDisconnect`'s `wasActive`-guard behavior for the "active" case (calls `ev.onTransferBroken`), then asserts the event fired exactly once with `{ peerId: 'a', reason: 'disconnected' }` and that call order is `handleDisconnect` → `onTransferBroken` → `close` (verifying `handleDisconnect` genuinely runs before `close()`, not just that both get called).
+- `peer-left for an idle peer reports nothing`: fake peer's `handleDisconnect` never calls `onTransferBroken` (mirroring the real guard when idle); asserts `onTransferBroken` is never called.
+
+**Mutation check**: removed `peer?.handleDisconnect('disconnected')` from the `peer-left` branch. Reran `pnpm exec vitest run src/files/drop/peersManager.test.ts`:
+```
+Tests  1 failed | 5 passed (6)
+FAIL  ... > PeersManager > peer-left with an in-flight transfer reports onTransferBroken exactly once with reason disconnected
+  AssertionError: expected "vi.fn()" to be called once, but got 0 times
+```
+Exactly the target test went red (the idle test is unaffected either way, as expected for a "reports nothing" assertion). Restored the line; reran `pnpm exec vitest run src/files/drop/`: 67/67 green.
+
+## Regression check: round-1 tests still correct
+
+Re-ran both round-1 mutations against the current code:
+- Reverted `RTCPeer.close()` to the pre-round-1 two-line body (no `resetTransferState()`) → exactly `RTCPeer close() resets transfer state > clears an in-flight ack timer, so leaving the page never reports a broken transfer 30s later` went red (`onTransferBroken` called with `reason: 'timeout'`), 19/20 else green. Restored → 20/20 green.
+- Reverted `partition-received`'s `else if (this.chunker) this.armAck()` to bare `else this.armAck()` → exactly `ignores a stray partition-received while idle, so it cannot arm a timer that later kills an unrelated incoming transfer` went red (same symptom), 19/20 else green. Restored → 20/20 green.
+
+## Final verification
+
+```
+pnpm exec vitest run src/files/drop/
+ Test Files  12 passed (12)
+      Tests  67 passed (67)
+
+pnpm exec vue-tsc --noEmit
+(no output — clean)
+```
+
+No full-suite run performed (dirty-tree OSS export gate), per instructions.

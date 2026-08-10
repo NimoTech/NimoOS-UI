@@ -40,6 +40,15 @@ export class PeersManager {
       case 'peer-left': {
         const peer = this.peers[msg.peerId]
         delete this.peers[msg.peerId]
+        // The other device vanished while the user may still be watching an
+        // in-flight transfer -- report it (and let the store clear the
+        // stale progress card) while transfer state is still live, so
+        // hasActiveTransfer() is accurate. Must run before close(), whose
+        // own resetTransferState() would otherwise make this look idle.
+        // Deliberately not routed through the old sendRaw-detects-null-
+        // channel path: that also called refresh(), which re-dialled a peer
+        // that had just left.
+        peer?.handleDisconnect('disconnected')
         peer?.close()
         break
       }

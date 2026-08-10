@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest'
 import { PeersManager } from './peersManager'
 import type { PeerEvents } from './rtcPeer'
+import type { TransferBrokenReason } from './protocol'
 
 function makeFakePeer() {
   return {
     onServerMessage: vi.fn(), refresh: vi.fn(), close: vi.fn(),
-    sendText: vi.fn(), sendFiles: vi.fn(),
+    sendText: vi.fn(), sendFiles: vi.fn(), handleDisconnect: vi.fn(),
   }
 }
 const events: PeerEvents = {
@@ -53,5 +54,60 @@ describe('PeersManager', () => {
     expect(made[0].close).toHaveBeenCalledOnce()
     pm.destroy()
     expect(made[1].close).toHaveBeenCalledOnce()
+  })
+
+  it('peer-left with an in-flight transfer reports onTransferBroken exactly once with reason disconnected', () => {
+    const order: string[] = []
+    const ev: PeerEvents = {
+      onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+      onTransferComplete: vi.fn(), onTransferBroken: vi.fn(() => order.push('onTransferBroken')),
+    }
+    const pm = new PeersManager({ send: vi.fn() }, ev, {
+      rtcSupported: true,
+      makePeer: () => ({
+        onServerMessage: vi.fn(), refresh: vi.fn(),
+        close: vi.fn(() => order.push('close')),
+        sendText: vi.fn(), sendFiles: vi.fn(),
+        // Mirrors the real Peer.handleDisconnect's wasActive guard: only
+        // report when something was actually in flight. handleDisconnect
+        // must run while transfer state is still live -- if PeersManager
+        // called close() first, the real Peer's own resetTransferState()
+        // would make this peer look idle and the guard would suppress it.
+        handleDisconnect: vi.fn((reason: TransferBrokenReason) => {
+          order.push('handleDisconnect')
+          ev.onTransferBroken({ peerId: 'a', reason })
+        }),
+      } as never),
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+
+    pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
+
+    expect(ev.onTransferBroken).toHaveBeenCalledOnce()
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'a', reason: 'disconnected' })
+    expect(order).toEqual(['handleDisconnect', 'onTransferBroken', 'close'])
+  })
+
+  it('peer-left for an idle peer reports nothing', () => {
+    const ev: PeerEvents = {
+      onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+      onTransferComplete: vi.fn(), onTransferBroken: vi.fn(),
+    }
+    const pm = new PeersManager({ send: vi.fn() }, ev, {
+      rtcSupported: true,
+      makePeer: () => ({
+        onServerMessage: vi.fn(), refresh: vi.fn(), close: vi.fn(),
+        sendText: vi.fn(), sendFiles: vi.fn(),
+        // Idle: the real Peer's wasActive guard would suppress the report,
+        // so this fake's handleDisconnect (like the real one when idle)
+        // never calls onTransferBroken.
+        handleDisconnect: vi.fn(),
+      } as never),
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+
+    pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
+
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
   })
 })
