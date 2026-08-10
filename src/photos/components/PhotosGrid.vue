@@ -26,6 +26,7 @@ import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
 import { matchesTab } from '../util/tabFilter'
+import { estimateSectionBodyHeight, skeletonItemCount, MONTH_HEAD_HEIGHT } from '../util/gridMetrics'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
@@ -49,6 +50,10 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   (e: 'open', photo: Photo, list: undefined, startMs: number): void
   (e: 'toggle-select', id: string | number): void
+  // Bucket mode: the grid knows which months are on screen, the parent owns the
+  // store. Emitting keeps this component usable by the two consumers that have
+  // no buckets at all (favorites, place assets).
+  (e: 'need-bucket', key: string): void
 }>()
 
 const { t } = useI18n()
@@ -79,6 +84,39 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
   ...m,
   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
 })))
+
+// Container width drives the column count (auto-fill/minmax), so it is read from
+// the scroll wrap. It stays a ref rather than a getter because a resize has to
+// re-run the estimates.
+const wrapWidth = ref(0)
+function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
+
+function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
+  return skeletonItemCount({
+    tab: props.tab,
+    count: m.count,
+    videoCount: m.videoCount,
+    loaded: m.loaded,
+    loadedLength: m.filtered.length,
+  })
+}
+// A month is worth a container if it has tiles to show OR a non-zero estimate to
+// stand in for. Without the second half, bucket mode's first paint would fall
+// through to the empty state and no anchor would exist to scroll to.
+function hasContent(m: Month & { filtered: Photo[] }): boolean {
+  return m.filtered.length > 0 || skeletonCountOf(m) > 0
+}
+const anyContent = computed(() => filteredMonths.value.some(hasContent))
+function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
+  return estimateSectionBodyHeight({
+    containerWidth: wrapWidth.value,
+    density: props.density,
+    itemCount: skeletonCountOf(m),
+  })
+}
+function isLoaded(m: Month & { filtered: Photo[] }): boolean {
+  return m.loaded !== false
+}
 
 const selecting = computed(() => props.selected.length > 0)
 
@@ -254,7 +292,8 @@ function onVideoLeave() {
 }
 
 onMounted(() => {
-  const first = filteredMonths.value.find(m => (m.filtered || []).length > 0)
+  measureWrap()
+  const first = filteredMonths.value.find(hasContent)
   if (first) activeMonth.value = first.key
   onScroll()
 })
@@ -270,7 +309,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="photos-grid-root">
     <div ref="wrapRef" class="photos-wrap scroll" @scroll="onScroll">
-      <div v-if="filteredMonths.every(m => m.filtered.length === 0)" class="empty-state" data-test="empty-state">
+      <div v-if="!anyContent" class="empty-state" data-test="empty-state">
         <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
         <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
       </div>
@@ -280,12 +319,14 @@ onBeforeUnmount(() => {
              evaluates before v-for's scope var exists) — wrap with <template>
              so `m` stays in scope, matching Vue2's per-item v-if filtering. -->
         <template v-for="m in filteredMonths" :key="m.key">
-          <div v-if="m.filtered.length > 0" :id="'m-' + m.key" class="month-group">
+          <div v-if="hasContent(m)" :id="'m-' + m.key" class="month-group">
             <div class="month-head">
               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
-              <div class="month-count">{{ t('photosItemsCount', { count: m.filtered.length }) }}</div>
+              <div class="month-count">
+                {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
+              </div>
             </div>
-            <div class="grid" :data-density="density">
+            <div v-if="isLoaded(m)" class="grid" :data-density="density">
               <div
                 v-for="p in m.filtered" :key="p.id"
                 class="tile"
@@ -332,6 +373,12 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+            <div
+              v-else
+              class="month-skeleton"
+              data-test="month-skeleton"
+              :style="{ height: sectionBodyHeight(m) + 'px' }"
+            ></div>
           </div>
         </template>
       </template>
@@ -339,7 +386,7 @@ onBeforeUnmount(() => {
       <div style="height:80px"></div>
     </div>
 
-    <div v-if="filteredMonths.some(m => m.filtered.length > 0)" ref="scrubberRef" class="scrubber">
+    <div v-if="anyContent" ref="scrubberRef" class="scrubber">
       <div class="scrubber-inner" :style="{ height: scrubberInnerHeight }">
         <div
           v-for="(tk, i) in scrubberTicks" :key="tk.key"
@@ -379,6 +426,25 @@ onBeforeUnmount(() => {
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
 .grid[data-density="compact"] { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
 .grid[data-density="loose"] { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+
+/* Unloaded month placeholder. The gentle sweep is the only thing telling the
+   user this block is still arriving rather than empty; it reuses the existing
+   surface tokens so both skins stay correct. */
+.month-skeleton {
+  border-radius: 8px;
+  background: var(--chip-bg);
+  background-image: linear-gradient(90deg, transparent 0%, var(--hover) 50%, transparent 100%);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: month-skeleton-sweep 1.4s ease-in-out infinite;
+}
+@keyframes month-skeleton-sweep {
+  0% { background-position: -40% 0; }
+  100% { background-position: 140% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .month-skeleton { animation: none; }
+}
 
 .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }

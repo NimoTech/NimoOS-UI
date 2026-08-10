@@ -90,13 +90,6 @@ export function __resetBucketProbeForTest(): void {
   _bucketInflight.clear()
 }
 
-// `months` returns a plain Month in the legacy branch and a
-// Month & {loaded, count, videoCount} in the bucket branch (bucketToMonth's
-// return type — see timelineBuckets.ts). Widening `Month` itself belongs to
-// Task 6, so this store-local type (optional extra fields) covers what
-// `months` actually produces without touching the shared interface.
-type TimelineMonth = Month & { loaded?: boolean; count?: number; videoCount?: number }
-
 export const useTimelineStore = defineStore('photos-timeline', () => {
   const timelineGroups = ref<TimelineGroup[]>([])
   const loading = ref(false)
@@ -108,7 +101,11 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
   const bucketLoading = ref<Set<string>>(new Set())
   const bucketMode = ref(false)
 
-  const months = computed<TimelineMonth[]>(() => {
+  // Returns a plain Month in the legacy branch and a Month with the SP15-P3
+  // bucket fields populated (loaded/count/videoCount) in the bucket branch —
+  // see bucketToMonth in timelineBuckets.ts. Month itself carries those fields
+  // as optional (assetToPhoto.ts), so no store-local widening type is needed.
+  const months = computed<Month[]>(() => {
     if (bucketMode.value) {
       return buckets.value.map((b) => bucketToMonth(b, bucketAssets.value.get(bucketKey(b)) ?? null))
     }

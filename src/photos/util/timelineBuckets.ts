@@ -59,7 +59,7 @@ export function normalizeBuckets(raw: unknown): BucketMeta[] {
 // `photos === null` means "not fetched yet" and `[]` means "fetched, and this
 // month really is empty". Collapsing the two would make the grid re-request an
 // empty bucket on every scroll pass.
-export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month & { loaded: boolean; count: number; videoCount: number } {
+export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month {
   const base = groupToMonth({ year: b.year, month: b.month })
   return {
     ...base,

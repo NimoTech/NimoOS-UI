@@ -418,3 +418,69 @@ describe('PhotosGrid', () => {
     })
   })
 })
+
+function bucketMonth(key: string, title: string, count: number, videoCount = 0): Month {
+  return { key, title, loc: '', photos: [], loaded: false, count, videoCount }
+}
+
+describe('PhotosGrid bucket-mode skeletons', () => {
+  it('renders a sized skeleton for an unloaded month instead of the empty state', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(false)
+    const sk = w.find('[data-test="month-skeleton"]')
+    expect(sk.exists()).toBe(true)
+    expect(Number.parseFloat(sk.attributes('style')?.match(/height:\s*([\d.]+)px/)?.[1] ?? '0')).toBeGreaterThan(0)
+  })
+
+  it('keeps the month head visible on a skeleton, with the estimated count', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('.month-title').text()).toBe('August 2026')
+    // photo tab estimate = count - videoCount = 9
+    expect(w.find('.month-count').text()).toContain('9')
+  })
+
+  it('renders the month container so jump anchors exist before anything loads', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('#m-2026-08').exists()).toBe(true)
+  })
+
+  it('keeps the scrubber visible while every month is still a skeleton', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [bucketMonth('2026-08', 'August 2026', 12), bucketMonth('2026-07', 'July 2026', 4)], tab: 'photo' },
+    })
+    await nextTick()
+    expect(w.find('.scrubber').exists()).toBe(true)
+    expect(w.findAll('.scrubber-tick').length).toBeGreaterThan(0)
+  })
+
+  it('hides an unloaded month on the doc tab, which has no directory counter', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'doc' } })
+    await nextTick()
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
+  })
+
+  it('still shows the empty state when there are no months at all', async () => {
+    const w = mount(PhotosGrid, { props: { months: [], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
+  })
+
+  it('renders real tiles once a month is loaded', async () => {
+    const m: Month = { key: '2026-08', title: 'August 2026', loc: '', photos: [photo('a1')], loaded: true, count: 1, videoCount: 0 }
+    const w = mount(PhotosGrid, { props: { months: [m], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+
+  it('leaves legacy month groups (no loaded field) rendering exactly as before', async () => {
+    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+})
