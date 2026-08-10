@@ -1,7 +1,7 @@
 <!-- src/files/drop/components/DropPage.vue -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../../components/shell/AreaShell.vue'
 import FilesSidebar from '../../components/FilesSidebar.vue'
@@ -9,10 +9,12 @@ import DropItem from './DropItem.vue'
 import DropCenter from './DropCenter.vue'
 import DropAddButton from './DropAddButton.vue'
 import ReceivePrompt from './ReceivePrompt.vue'
+import AlertDialog from '../../../components/ui/AlertDialog.vue'
 import { useDropStore } from '../stores/drop'
 import { useFilesStore } from '../../stores/files'
 import { contentsBox, positionFor, DISPLAY_ORDER } from '../dropLayout'
 import { virtualPathToRouteParam } from '../../util/pathUtils'
+import { installDropUnloadGuard } from '../leaveGuard'
 
 const router = useRouter()
 const { t } = useI18n()
@@ -43,14 +45,58 @@ const placed = computed(() =>
   })),
 )
 
+// Leave-page confirmation: transfers only exist while this page is mounted
+// (onBeforeUnmount below tears the connections down), so both the route
+// guard and the beforeunload guard live here rather than at App.vue -- see
+// the doc comment in leaveGuard.ts for why that's the opposite of the
+// upload queue's app-level guard.
+const leaveOpen = ref(false)
+let leaveResolver: ((ok: boolean) => void) | null = null
+
+function settleLeave(ok: boolean) {
+  const r = leaveResolver
+  if (!r) return
+  leaveResolver = null
+  leaveOpen.value = false
+  r(ok)
+}
+
+// reka-ui's AlertDialogAction fires update:open(false) on the SAME click that
+// runs our @confirm, and the order between the two handlers is not
+// guaranteed (see the note in UploadPanel.vue). Deferring the cancel answer
+// by a tick lets a confirm that lands in the same task win first (settleLeave
+// is idempotent once leaveResolver is cleared); a real cancel has no confirm
+// behind it, so its deferred answer still runs.
+function onLeaveOpenChange(v: boolean) {
+  leaveOpen.value = v
+  if (!v) setTimeout(() => settleLeave(false), 0)
+}
+
+function askLeave(): Promise<boolean> {
+  return new Promise((resolve) => {
+    leaveResolver = resolve
+    leaveOpen.value = true
+  })
+}
+
+onBeforeRouteLeave(async () => {
+  if (!drop.hasActiveTransfers()) return true
+  return await askLeave()
+})
+
+let offUnloadGuard: (() => void) | null = null
+
 onMounted(() => {
   window.addEventListener('resize', resize)
   resize()
   drop.init()
   if (!files.disks.length) files.loadRoots() // 侧栏盘符列表(对齐 SharesPage;漏掉则 DISKS 区恒空)
+  offUnloadGuard = installDropUnloadGuard(() => drop.hasActiveTransfers())
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
+  offUnloadGuard?.()
+  offUnloadGuard = null
   drop.destroy()
 })
 </script>
@@ -82,6 +128,16 @@ onBeforeUnmount(() => {
         <ReceivePrompt />
       </main>
     </div>
+    <AlertDialog
+      :open="leaveOpen"
+      :title="t('filesDropLeaveTitle')"
+      :message="t('filesDropLeaveMessage')"
+      :confirm-text="t('filesDropLeaveConfirm')"
+      :cancel-text="t('filesCancel')"
+      destructive
+      @update:open="onLeaveOpenChange"
+      @confirm="settleLeave(true)"
+    />
   </AreaShell>
 </template>
 
