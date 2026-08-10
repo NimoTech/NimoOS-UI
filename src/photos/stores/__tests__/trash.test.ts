@@ -12,9 +12,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
     updateConfig: vi.fn(() => Promise.resolve()),
   } },
 }))
-// timeline store 依赖:mock 其 fetchTimeline/refreshBuckets,避免真跑网络。
-// bucketMode is mutable per-test (default false = legacy) so bucket-mode cases
-// can flip it before calling the trash action under test.
+// Stub the timeline store's fetchTimeline/refreshBuckets so these tests make
+// no real request. bucketMode is mutable per-test (default false = legacy) so
+// bucket-mode cases can flip it before calling the trash action under test.
 const timelineStub = vi.hoisted(() => ({
   bucketMode: false,
   fetchTimeline: vi.fn(),
@@ -61,7 +61,7 @@ describe('photosTrash store', () => {
     expect(s.loaded).toBe(true)
   })
 
-  it('restore 调 batch 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+  it('restore re-fetches trash and, in legacy mode, refetches the full timeline', async () => {
     const s = usePhotosTrash()
     await s.restore(['t1'])
     expect(service.photos.restoreTrashBatch).toHaveBeenCalledWith(['t1'])
@@ -70,7 +70,7 @@ describe('photosTrash store', () => {
     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
-  it('restoreAll 调 restoreAllTrash 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+  it('restoreAll re-fetches trash and, in legacy mode, refetches the full timeline', async () => {
     const s = usePhotosTrash()
     await s.restoreAll()
     expect(service.photos.restoreAllTrash).toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('photosTrash store', () => {
     spy.mockRestore()
   })
 
-  it('undoRestore 逐个 deleteAsset 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+  it('undoRestore deletes each asset and, in legacy mode, refetches the full timeline', async () => {
     const s = usePhotosTrash()
     await s.undoRestore(['t1'])
     expect(service.photos.deleteAsset).toHaveBeenCalledWith('t1')

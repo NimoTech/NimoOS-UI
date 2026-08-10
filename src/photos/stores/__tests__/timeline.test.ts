@@ -671,6 +671,7 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     svc.photos.deleteAsset.mockResolvedValue(undefined)
     svc.photos.getTimelineBuckets.mockClear()
     svc.photos.getTimeline.mockClear()
+    svc.photos.getTimelineBucket.mockClear()
 
     expect(await s.deleteAssets(['v1'])).toBe(1)
     expect(s.months[0].photos.map((p) => p.id)).toEqual(['a1'])
@@ -678,6 +679,7 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
     expect(s.months[0].videoCount).toBe(0)
     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
     expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
+    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
   })
 
   it('decrements by what actually got deleted, not by what was asked for', async () => {
