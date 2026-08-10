@@ -67,9 +67,12 @@ export function createHttp(config: ServiceConfig, adapter?: AxiosAdapter): Axios
   instance.interceptors.response.use(
     (res) => res,
     async (error: AxiosError) => {
-      const original = error.config as (typeof error.config & { _retried?: boolean }) | undefined
+      // _noAuthRetry: per-request opt-out of the refresh-and-replay below. Password-
+      // carrying terminal requests set it — replaying a wrong password would burn two
+      // of the backend's 5-per-15min lockout attempts per typo (SP18, spec §4-6).
+      const original = error.config as (typeof error.config & { _retried?: boolean; _noAuthRetry?: boolean }) | undefined
       const status = error.response?.status
-      if (status === 401 && original && !original._retried && original.url !== '/v1/users/refresh') {
+      if (status === 401 && original && !original._retried && !original._noAuthRetry && original.url !== '/v1/users/refresh') {
         original._retried = true
         try {
           const token = await refresh()

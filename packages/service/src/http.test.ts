@@ -70,6 +70,21 @@ describe('createHttp', () => {
     await expect(http.get('/sys/utilization')).rejects.toThrow()
     expect(cfg.onAuthFail).toHaveBeenCalled()
   })
+
+  it('does not refresh-replay a 401 when the request opts out via _noAuthRetry', async () => {
+    const cfg = makeConfig()
+    let attempts = 0
+    let refreshCalls = 0
+    const adapter = makeAdapter((c) => {
+      if (c.url === '/v1/users/refresh') { refreshCalls++; return { status: 200, data: { success: 200, data: { access_token: 'NEW', refresh_token: 'NEWR', expires_at: '999' } } } }
+      attempts++
+      return { status: 401, data: { password_required: true } }
+    })
+    const http = createHttp(cfg, adapter)
+    await expect(http.post('/terminal/session', { password: 'x' }, { _noAuthRetry: true } as never)).rejects.toBeTruthy()
+    expect(attempts).toBe(1) // never replayed
+    expect(refreshCalls).toBe(0) // never refreshed
+  })
 })
 
 describe('refreshAccessToken (module-level single-flight)', () => {
