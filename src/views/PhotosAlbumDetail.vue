@@ -719,6 +719,11 @@ watch(gridRef, () => {
                         <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
                       </button>
                       <div v-if="sortMenuOpen" class="album-sort-menu" data-test="album-sort-menu">
+                        <!-- Task 11 (b): the target (PhotosAlbumDetail.vue:88-101) marks the active
+                             option with a check glyph and keeps every label at the same x with a
+                             same-width empty spacer on the inactive rows. This page used to render a
+                             bare label with only the data-active background, which left it visibly
+                             out of step with the smart-view page's identical dropdown. -->
                         <button
                           v-for="s in sortOptions" :key="s.id"
                           type="button"
@@ -727,7 +732,11 @@ watch(gridRef, () => {
                           :data-sort-id="s.id"
                           :data-active="s.id === sortBy"
                           @click="pickSort(s.id)"
-                        >{{ s.label }}</button>
+                        >
+                          <svg v-if="s.id === sortBy" class="album-sort-check" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                          <span v-else class="album-sort-check" />
+                          <span class="lbl">{{ s.label }}</span>
+                        </button>
                       </div>
                     </div>
                     <div class="album-detail-actions-sep"></div>
@@ -1230,18 +1239,29 @@ watch(gridRef, () => {
    its own :disabled rule above); the .bar-btn left on this page are the not-found / load-error
    branches, and the rule stays for them. */
 .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
+/* Sort popup. Vue2 photos.scss:3122-3153 (.albums-sort-menu / .albums-sort-item), the same source
+   PhotosSmartViewDetail.vue's .sv-sort-menu restates -- the rule bodies are duplicated rather than
+   shared because scoped styles do not cross SFCs in this repo (the KEEP-THE-DUPLICATION ruling from
+   P2b). Task 11 (a): min-width is the target's 240px, not the 180px this page carried.
+   `.album-sort-check` is the fixed-width slot the check glyph sits in; it renders as an empty span
+   on the inactive rows, which is how the target keeps every label at the same x (its own version
+   writes style="width:12px;display:inline-block" inline). Vue2 tints the glyph with --accent-hi,
+   a token this repo does not have; --accent-text is the pair used against --accent-soft here. */
 .album-sort-wrap { position: relative; }
 .album-sort-menu {
-  position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
+  position: absolute; top: calc(100% + 4px); right: 0; min-width: 240px; z-index: 20;
   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
   padding: 4px; box-shadow: var(--card-shadow-hi);
 }
 .album-sort-item {
-  display: block; width: 100%; padding: 8px 10px; background: transparent; border: 0; border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+  display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px;
+  background: transparent; border: 0; border-radius: 8px; color: var(--fg);
+  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
 }
 .album-sort-item:hover { background: var(--chip-bg-hi); }
 .album-sort-item[data-active="true"] { background: var(--accent-soft); }
+.album-sort-item .album-sort-check { width: 12px; flex-shrink: 0; color: var(--accent-text); }
+.album-sort-item .lbl { display: block; font-weight: 500; }
 
 /* ── SP15-P2c Task 3: edit-mode select bar ──
    Same bar as PhotosSmartViewDetail.vue's `.sv-select-bar` (:1138-1144) -- the rule bodies are
