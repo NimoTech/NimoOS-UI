@@ -200,6 +200,13 @@ export default {
   photosAlbumSortManual: '手动排序',
   photosAlbumSortTaken: '拍摄日期',
   photosAlbumSortAdded: '添加日期',
+  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
+  // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
+  // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
+  photosDetailCreatedAt: '创建于 {date}',
+  photosDetailItems: '项',
+  photosDetailVideos: '视频',
   photosAlbumCurrentCover: '当前封面',
   photosAlbumSetCover: '设为相册封面',
   photosAlbumEmptyTitle: '相册是空的',

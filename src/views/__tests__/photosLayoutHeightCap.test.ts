@@ -31,7 +31,7 @@ const CAPPED = [
   'PhotosPersonDetail.vue',     // .detail-body
   'PhotosAlbums.vue',           // .albums-scroll
   'PhotosPeople.vue',           // .people-body
-  'PhotosAlbumDetail.vue',      // .album-photos-wrap
+  'PhotosAlbumDetail.vue',      // SP15-P2c: .sv-detail-main / .sv-detail-side, same as above (was .album-photos-wrap)
   'PhotosSettings.vue',         // .ps-scroll
 ]
 

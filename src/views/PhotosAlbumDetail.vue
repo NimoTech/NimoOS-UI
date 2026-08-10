@@ -5,6 +5,12 @@
 // + PhotosLibraryPicker(T6,添加照片)+ PhotoLightbox(P2,查看/删除)。路由 /photos/albums/:id
 // 注册留给 T11。去掉 Slideshow(Vue2 本身也只弹"敬请期待" toast)与 Ask Nimo(归 SP8)。
 //
+// ★ SP15-P2c Task 3 supersedes the two structures named above. The cover hero and the toolbar
+// band are both gone; the page now wears the same skeleton as PhotosSmartViewDetail.vue --
+// .sv-detail-bar, then .sv-detail-layout splitting into a scrolling .sv-detail-main (header +
+// action row + photo grid) and the .sv-detail-side rail. Edit mode's two buttons moved to a
+// floating .sv-select-bar at the bottom. Target: 33b05636:src/views/Photos/PhotosAlbumDetail.vue.
+//
 // 铁律(逐条落实,见文件内注释登记):
 //  1) route.params.id 恒为字符串;albumId 统一走 String(route.params.id),所有对 store 的调用
 //     (fetchAlbumAssets/renameAlbum/setAlbumCover/removeAssetsFromAlbum/deleteAlbum/
@@ -101,23 +107,9 @@ const photos = computed<Photo[]>(() => sortAlbumPhotos(albums.assetsOf(albumId.v
 const isLoadingPhotos = computed(() => albums.isLoadingAssets(albumId.value))
 const isAlbumEmpty = computed(() => !isLoadingPhotos.value && photos.value.length === 0)
 
-// hero 背景:有封面走共享包缩略图生成器(带 token),无封面渐变占位。
-// 偏离登记:Vue2 coverUrl(:282-289) 只认 typeof seed==='string' 的封面 id,数字 id 一律
-// 返回空串退化到渐变——这是 Vue2 自身的历史遗留限制(注释称"only real asset id"),而 T1/T2
-// 早已把 album.cover 定义为 string|number 通用 id(封面判定铁律本身就要求支持数字 cover)。
-// T7 PhotosAlbums.vue 的同名 coverUrl 逻辑已经统一按"非 null/非空即认为是有效 id"处理
-// (不做 typeof 限制),这里跟随该已定型的姐妹页写法,不复刻 Vue2 的 typeof 限制。
-// var(--hero-tint) 在本仓库 theme.css 中不存在,T7 同一处 fallback 已用
-// color-mix(accent 35% + panel-bg) 替代——这里复用同一方案。
-// 终审 Minor 4:与 PhotosAlbums.vue 的 .album-cover-fallback 逐字相同的渐变表达式已提成
-// theme.css 的 --album-cover-fallback token,这里改用 var() 引用而非重复内联公式。
-const coverBgImage = computed(() => {
-  const cover = album.value?.cover
-  if (cover != null && cover !== '') {
-    return `url(${service.photos.thumbnailUrl(cover, 'large')})`
-  }
-  return 'var(--album-cover-fallback)'
-})
+// SP15-P2c Task 3: `coverBgImage` is gone with the cover hero it painted. The
+// `--album-cover-fallback` token it referenced stays in theme.css -- PhotosAlbums.vue's
+// .album-cover-fallback is still a consumer (grep-verified before the deletion).
 
 // T6: stats rail — the four cells the smart-view detail page has always had.
 const DASH = '—'
@@ -501,8 +493,12 @@ watch(gridRef, () => {
         </div>
 
         <!-- 还没加载完:骨架 -->
+        <!-- SP15-P2c Task 3: the placeholder used to be a 260px hero-shaped block. With the hero
+             gone it stands in for the detail bar + header instead, which is what actually
+             arrives when the album lands. -->
         <div v-else-if="!album && !albums.albumsLoaded" class="album-loading" data-test="album-loading">
-          <div class="album-hero album-hero-skeleton"></div>
+          <div class="album-skel-bar"></div>
+          <div class="album-skel-header"></div>
         </div>
 
         <!-- 加载完了确实没有:New-UI 补齐项 -->
@@ -518,52 +514,130 @@ watch(gridRef, () => {
         </div>
 
         <template v-else-if="album">
-          <!-- Hero -->
-          <div class="album-hero">
-            <div class="album-hero-bg" :style="{ backgroundImage: coverBgImage }"></div>
-            <button
-              type="button"
-              class="album-hero-back"
-              data-test="album-back"
-              @click="goToAlbumsList"
-            >‹ {{ t('photosAlbumBack') }}</button>
-            <div class="album-hero-inner">
-              <div class="album-hero-text">
-                <div class="album-hero-badge">{{ t('photosAlbumLabel') }}</div>
-                <div
-                  v-if="!titleEditing"
-                  class="album-hero-title"
-                  data-test="album-title"
-                  :title="t('photosAlbumClickToRename')"
-                  @click="startTitleEdit"
-                >{{ album.title }}</div>
-                <input
-                  v-else
-                  ref="titleInputRef"
-                  v-model="titleDraft"
-                  class="album-hero-title album-hero-title-input"
-                  data-test="album-title-input"
-                  @keydown.enter.prevent="commitTitle"
-                  @keydown.esc.prevent="cancelTitleEdit"
-                  @blur="commitTitle"
-                >
-                <div class="album-hero-sub">
-                  <span>{{ t('photosItemsCount', { count: album.count }) }}</span>
-                  <template v-if="album.dateRange">
-                    <span class="dot"></span>
-                    <span>{{ album.dateRange }}</span>
-                  </template>
+          <!-- SP15-P2c Task 3 (Vue2 33b05636:PhotosAlbumDetail.vue:5-11): the same top bar the
+               smart-view/moment detail pages carry -- back on the left, the creation date on the
+               right. The date span does not render at all when createdLabel is the placeholder. -->
+          <div class="sv-detail-bar">
+            <button type="button" class="back" data-test="album-back" @click="goToAlbumsList">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+              {{ t('photosAlbumBack') }}
+            </button>
+            <div class="sv-detail-bar-spacer"></div>
+            <span v-if="createdLabel !== DASH" class="sv-detail-created" data-test="album-created">
+              {{ t('photosDetailCreatedAt', { date: createdLabel }) }}
+            </span>
+          </div>
+
+          <!-- Two-column skeleton (Vue2 :20-21), the same one PhotosSmartViewDetail.vue uses:
+               the main column holds the header and the grid and scrolls as one, the sidebar
+               scrolls on its own. The old .album-toolbar band and .album-detail-body wrapper are
+               both gone -- the band's "{n} items shown" repeated the header stats verbatim, and
+               the body's two-column job is done by .sv-detail-layout. -->
+          <div class="sv-detail-layout">
+            <div class="sv-detail-main">
+              <div class="sv-header">
+                <div class="sv-header-text">
+                  <h1>
+                    <span
+                      v-if="!titleEditing"
+                      class="sv-title"
+                      data-test="album-title"
+                      :title="t('photosAlbumClickToRename')"
+                      @click="startTitleEdit"
+                    >{{ album.title }}</span>
+                    <input
+                      v-else
+                      ref="titleInputRef"
+                      v-model="titleDraft"
+                      class="sv-title-input"
+                      data-test="album-title-input"
+                      @keydown.enter.prevent="commitTitle"
+                      @keydown.esc.prevent="cancelTitleEdit"
+                      @blur="commitTitle"
+                    >
+                    <!-- Vue2 :67: the date range rides the h1 row as a flex sibling of the
+                         title, not a chips row of its own (that row held only this pill and the
+                         type badge, and both left). -->
+                    <span v-if="album.dateRange" class="sv-cond" data-test="album-date-pill">{{ album.dateRange }}</span>
+                  </h1>
+                  <div class="sv-header-stats">
+                    <span data-test="album-header-items"><b>{{ album.count.toLocaleString(localeTag) }}</b> {{ t('photosDetailItems') }}</span>
+                    <span v-if="album.videoCount > 0" data-test="album-header-videos"><b>{{ album.videoCount.toLocaleString(localeTag) }}</b> {{ t('photosDetailVideos') }}</span>
+                  </div>
                 </div>
-              </div>
-              <div class="album-hero-actions">
-                <button
-                  type="button"
-                  class="bar-btn"
-                  data-test="album-edit-toggle"
-                  :data-active="edit"
-                  @click="toggleEditMode"
-                >{{ edit ? t('photosAlbumDone') : t('photosAlbumEdit') }}</button>
-                <div ref="morePopRef" class="album-more-wrap">
+
+                <!-- Vue2 :80-121: Sort pill -> separator -> Edit/Done -> separator -> density.
+                     Sort and density render outside edit mode only (the old toolbar band drew
+                     the same distinction); Edit/Done is always there, and in edit mode it is the
+                     only one of the three still rendered. Each separator comes along with the
+                     group next to it, so neither is ever left dangling. -->
+                <div class="sv-actions">
+                  <template v-if="!edit">
+                    <span class="group">{{ t('photosAlbumSort') }}</span>
+                    <div ref="sortMenuRef" class="album-sort-wrap">
+                      <button
+                        type="button"
+                        class="order-pill"
+                        data-test="album-sort-btn"
+                        @click.stop="sortMenuOpen = !sortMenuOpen"
+                      >
+                        {{ currentSortLabel }}
+                        <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                      </button>
+                      <div v-if="sortMenuOpen" class="album-sort-menu" data-test="album-sort-menu">
+                        <button
+                          v-for="s in sortOptions" :key="s.id"
+                          type="button"
+                          class="album-sort-item"
+                          data-test="album-sort-item"
+                          :data-sort-id="s.id"
+                          :data-active="s.id === sortBy"
+                          @click="pickSort(s.id)"
+                        >{{ s.label }}</button>
+                      </div>
+                    </div>
+                    <div class="album-detail-actions-sep"></div>
+                  </template>
+                  <button
+                    type="button"
+                    class="sv-action-btn"
+                    data-test="album-edit-toggle"
+                    :data-open="edit"
+                    @click="toggleEditMode"
+                  >
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
+                    {{ edit ? t('photosAlbumDone') : t('photosAlbumEdit') }}
+                  </button>
+                  <template v-if="!edit">
+                    <div class="album-detail-actions-sep"></div>
+                    <!-- Density keeps New-UI's own enum values ('comfortable'/'compact'); Vue2
+                         spells the first one 'comfort'. That name is never visible, and changing
+                         it would churn this page's existing tests for no visual gain. -->
+                    <div class="density">
+                      <button
+                        type="button"
+                        :data-active="density === 'comfortable'"
+                        :title="t('photosDensityComfortable')"
+                        @click="density = 'comfortable'"
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1" /><rect x="13" y="3" width="8" height="8" rx="1" /><rect x="3" y="13" width="8" height="8" rx="1" /><rect x="13" y="13" width="8" height="8" rx="1" /></svg>
+                      </button>
+                      <button
+                        type="button"
+                        :data-active="density === 'compact'"
+                        :title="t('photosDensityCompact')"
+                        @click="density = 'compact'"
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /><rect x="3" y="19" width="6" height="2" /><rect x="11" y="19" width="6" height="2" /></svg>
+                      </button>
+                    </div>
+                  </template>
+                  <!-- TEMPORARY HOME, registered: the "..." menu's own home in the target is the
+                       sidebar's .sv-side-actions, which Task 5 builds together with the
+                       five-entry menu that goes in it. Its previous container
+                       (.album-hero-actions) is deleted by this task, so the markup parks here
+                       unchanged in the meantime rather than being dropped and rebuilt. -->
+                  <div ref="morePopRef" class="album-more-wrap">
                   <button
                     type="button"
                     class="bar-btn album-more-btn"
@@ -622,76 +696,15 @@ watch(gridRef, () => {
                       </div>
                     </button>
                   </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
 
-          <!-- Toolbar -->
-          <div class="album-toolbar" :data-edit="edit">
-            <span class="album-toolbar-muted">{{ t('photosAlbumItemsShown', { count: photos.length }) }}</span>
-            <div class="album-toolbar-spacer"></div>
-            <template v-if="edit">
-              <span class="album-toolbar-group">{{ editHintText }}</span>
-              <button
-                type="button"
-                class="bar-btn"
-                data-test="album-remove-selected"
-                :disabled="!selected.size || removing"
-                @click="removeSelected"
-              >{{ t('photosAlbumRemoveFrom') }}</button>
-              <button
-                type="button"
-                class="bar-btn"
-                data-test="album-add-photos"
-                @click="pickerOpen = true"
-              >{{ t('photosAlbumAddPhotos') }}</button>
-            </template>
-            <template v-else>
-              <span class="album-toolbar-group">{{ t('photosAlbumSort') }}</span>
-              <div ref="sortMenuRef" class="album-sort-wrap">
-                <button
-                  type="button"
-                  class="bar-btn"
-                  data-test="album-sort-btn"
-                  @click.stop="sortMenuOpen = !sortMenuOpen"
-                >{{ currentSortLabel }}</button>
-                <div v-if="sortMenuOpen" class="album-sort-menu" data-test="album-sort-menu">
-                  <button
-                    v-for="s in sortOptions" :key="s.id"
-                    type="button"
-                    class="album-sort-item"
-                    data-test="album-sort-item"
-                    :data-sort-id="s.id"
-                    :data-active="s.id === sortBy"
-                    @click="pickSort(s.id)"
-                  >{{ s.label }}</button>
-                </div>
-              </div>
-              <div class="album-density">
-                <button
-                  type="button"
-                  :data-active="density === 'comfortable'"
-                  :title="t('photosDensityComfortable')"
-                  @click="density = 'comfortable'"
-                >▦</button>
-                <button
-                  type="button"
-                  :data-active="density === 'compact'"
-                  :title="t('photosDensityCompact')"
-                  @click="density = 'compact'"
-                >▪</button>
-              </div>
-            </template>
-          </div>
-
-          <!-- Vue2 :90-93: the body is already a 1fr/320px grid; dropping .no-rail is all it
-               takes there. Its own overflow is hidden here because each column scrolls itself --
-               if the wrapper scrolled too, the rail would scroll away with the photos (the exact
-               defect PhotosMomentDetail was fixed for). -->
-          <div class="album-detail-body">
-            <!-- Grid -->
-            <div class="album-photos-wrap scroll">
+              <!-- Grid. E5 re-anchor: the edit flag used to live on the deleted .album-toolbar,
+                   with two rules reaching the tiles through a sibling combinator. The target
+                   (Vue2 :124) marks the grid container itself, so those two rules are now plain
+                   descendant selectors on this element -- see the style block. -->
+              <div class="album-photos-wrap" :data-edit="edit">
               <div v-if="isLoadingPhotos && photos.length === 0" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
                 <div v-for="i in 6" :key="'sk' + i" class="tile album-tile-skeleton"></div>
               </div>
@@ -722,6 +735,7 @@ watch(gridRef, () => {
                     <span v-if="isSelected(p)">✓</span>
                   </div>
                 </div>
+              </div>
               </div>
             </div>
 
@@ -772,6 +786,39 @@ watch(gridRef, () => {
           </div>
         </template>
       </main>
+    </div>
+
+    <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
+         buttons live now, plus the hint line the band also carried. Deviation from the plan's
+         prose, registered: it renders on `edit` alone, not only once something is selected --
+         the target says so explicitly at :326 and has to, because the hint copy only ever shows
+         with an empty selection and Add photos would otherwise be unreachable in an empty album.
+         The bar is a sibling of .photos-layout, as on PhotosSmartViewDetail.vue (:871): it is
+         position:fixed, so nesting it inside the scrolling column would buy nothing. -->
+    <div v-if="edit" class="sv-select-bar">
+      <span class="group">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+        {{ editHintText }}
+      </span>
+      <button
+        type="button"
+        class="sv-action-btn"
+        data-test="album-remove-selected"
+        :disabled="!selected.size || removing"
+        @click="removeSelected"
+      >
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+        {{ t('photosAlbumRemoveFrom') }}
+      </button>
+      <button
+        type="button"
+        class="sv-action-btn"
+        data-test="album-add-photos"
+        @click="pickerOpen = true"
+      >
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
+        {{ t('photosAlbumAddPhotos') }}
+      </button>
     </div>
   </AreaShell>
 
@@ -834,74 +881,88 @@ watch(gridRef, () => {
 .empty-state-desc { font-size: 13px; max-width: 340px; }
 .empty-state .bar-btn { margin-top: 10px; }
 
-/* ── Hero ── */
-.album-hero { position: relative; height: 260px; border-radius: 20px; overflow: hidden; margin: 4px 4px 16px; flex: 0 0 auto; }
-.album-hero-skeleton { background: var(--skeleton-bg); }
-.album-hero-bg {
-  position: absolute; inset: 0; background-size: cover; background-position: center;
-  filter: brightness(0.55) saturate(1.1);
+/* ── SP15-P2c Task 3: loading placeholder ──
+   The 260px cover hero it used to imitate is gone; it now stands in for the detail bar and the
+   header, which is what the album actually renders on arrival. */
+.album-loading { display: flex; flex-direction: column; gap: 14px; padding: 16px 32px; }
+.album-skel-bar { height: 20px; width: 200px; border-radius: 6px; background: var(--skeleton-bg); }
+.album-skel-header { height: 90px; border-radius: 12px; background: var(--skeleton-bg); }
+
+/* ── SP15-P2c Task 3: detail bar / two-column skeleton / header / action row ──
+   Rule bodies restated from PhotosSmartViewDetail.vue's own (:968-1019, :1164-1176) and from
+   Vue2 photos-smartview.scss (:261-274 the bar, :325-334 the header, :372 the h1 pill,
+   :409-432 stats/separator/actions) + photos.scss (:285-288 density, :3458-3475 .group and
+   .order-pill). Scoped styles do not cross SFCs in this repo, so this is the same
+   KEEP-THE-DUPLICATION ruling P2b made, not a missed extraction. */
+.sv-detail-bar { padding: 16px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--divider); flex: 0 0 auto; }
+.sv-detail-bar .back {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px 6px 8px;
+  border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
+  color: var(--fg-muted); font: inherit; font-size: 12px; cursor: pointer;
 }
-.album-hero-bg::after {
-  content: ""; position: absolute; inset: 0;
-  /* theme-exception: 叠在任意封面照片上的固定暗化渐变,保证文字/按钮对比度,皮肤无关。 */
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.05) 0%, rgba(0, 0, 0, 0.55) 100%);
+.sv-detail-bar .back:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-detail-bar-spacer { flex: 1; }
+.sv-detail-created { font-size: 12px; color: var(--fg-muted); }
+
+.sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
+.sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
+
+.sv-header { padding: 24px 32px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.sv-header-text { flex: 1; min-width: 0; }
+/* Vue2 :329-334 also sets `font-family: var(--font-display)`. That token does not exist in this
+   repo (registered in P1), so the h1 keeps the app font and only the size/weight/tracking
+   travel over. */
+.sv-header h1 { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
+.sv-title { cursor: text; color: var(--fg); }
+/* Vue2 writes this inline on the input (:56). Everything there is reproduced except the
+   `font-family: var(--font-display)` (see above); the colours go through tokens instead of the
+   inline literals. */
+.sv-title-input {
+  background: var(--chip-bg); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 2px 10px; color: var(--fg); font: inherit; font-size: 28px; font-weight: 600;
+  letter-spacing: -0.02em; outline: none; min-width: 300px;
 }
-.album-hero-back {
-  position: absolute; top: 16px; left: 16px; z-index: 2;
-  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
-  border-radius: 999px; border: 1px solid var(--card-border); background: var(--overlay-bg);
-  backdrop-filter: var(--blur); cursor: pointer; font-size: 12.5px;
-  /* theme-exception: 叠在暗化封面照片上的 hero chrome,两套主题都需固定浅色(同 Vue2
-     photos.scss:3571 "pinned … in both themes" 与 PhotosTrash.vue .trash-tile-countdown 惯例)。 */
-  color: #fff;
+/* Vue2 photos-smartview.scss:81-87 (base .sv-cond) with :372's h1-row size bump folded in --
+   the pill only ever appears on the h1 row here, so the two layers collapse into one rule, the
+   same shape AlbumConvertToSmartDialog.vue:310 already uses for this chip. Vue2's --surface-3
+   maps to --chip-bg here to stay with the two .sv-cond restatements this repo already ships
+   (that one and MomentCard.vue:213). Weight and tracking are deliberately NOT reset: in Vue2 the
+   pill inherits the h1's 600 / -0.02em, and resetting them would be a visible deviation. */
+.sv-header h1 .sv-cond {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px;
+  background: var(--chip-bg); color: var(--fg-muted); font-size: 11.5px;
 }
-.album-hero-inner { position: relative; height: 100%; display: flex; align-items: flex-end; padding: 22px 26px; gap: 24px; }
-.album-hero-text { flex: 1 1 auto; min-width: 0; }
-.album-hero-badge {
-  display: inline-flex; padding: 3px 10px; border-radius: 999px; font-size: 10.5px; font-weight: 600;
-  letter-spacing: 0.04em; text-transform: uppercase; background: var(--overlay-bg);
-  margin-bottom: 8px;
-  /* theme-exception: 叠在暗化封面照片上的 hero chrome,两套主题都需固定浅色(同 Vue2
-     photos.scss:3571 "pinned … in both themes" 惯例)。 */
-  color: #fff;
+.sv-header-stats { display: flex; gap: 20px; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.sv-header-stats b { color: var(--fg); font-weight: 600; }
+
+.sv-actions { display: flex; gap: 8px; align-items: center; }
+.sv-action-btn {
+  height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
+  color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
 }
-.album-hero-title {
-  font-size: 32px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; cursor: text;
-  /* theme-exception: 标题叠在任意封面照片上,两套主题都需固定浅色保证可读(同 Vue2
-     photos.scss:3571 "pinned … in both themes" 惯例——--on-accent 默认深色主题下是深藏青
-     16 进制那个深蓝色,铺在暗化封面上不可读,评审 Critical 1 修正)。 */
-  color: #fff;
-  /* theme-exception: 同上,配套阴影保证可读性(照 Vue2 photos.scss:3507),固定黑色不随主题翻转。 */
-  text-shadow: 0 2px 30px rgba(0, 0, 0, 0.5);
+.sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+
+.group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
+.sv-actions .order-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
+  font: inherit; font-size: 12px; cursor: pointer;
 }
-.album-hero-title-input {
-  background: var(--overlay-bg); border: 1px solid var(--card-border); border-radius: 8px;
-  padding: 2px 10px; font: inherit; outline: none; width: 100%; max-width: 480px;
-  /* theme-exception: 同 .album-hero-title,input 叠在同一块暗化封面上,需同款固定浅色。 */
-  color: #fff;
+.sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.album-detail-actions-sep { width: 1px; height: 18px; background: var(--divider); flex-shrink: 0; }
+
+/* Vue2 photos.scss:285-288. Replaces the pill-shaped .album-density this page carried while the
+   controls lived on the toolbar band. */
+.density { display: inline-flex; gap: 2px; background: var(--chip-bg); border-radius: 8px; padding: 3px; }
+.density button {
+  width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer;
 }
-.album-hero-sub {
-  font-size: 13px; opacity: 0.85; margin-top: 8px; display: flex; align-items: center; gap: 10px;
-  /* theme-exception: 同 .album-hero-title,叠在暗化封面上需固定浅色(照 Vue2 photos.scss:3521-3530)。 */
-  color: #fff;
-  /* theme-exception: 配套阴影(照 Vue2 photos.scss:3529),固定黑色不随主题翻转。 */
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
-}
-.album-hero-sub .dot { width: 4px; height: 4px; border-radius: 50%; background: currentColor; opacity: 0.6; }
-.album-hero-actions { display: flex; gap: 8px; align-self: flex-end; flex: 0 0 auto; }
-/* SP15-P2b-T6 decision (not a missed port -- registering it so a later reviewer does not read
-   this class name as one): this rule is NOT renamed to .sv-action-btn, the class the smart-view
-   detail page's header buttons use. Vue2 photos.scss:3533-3538 gives .sv-action-btn a dark
-   pill + a pinned light foreground + blur on the darkened cover photo -- exactly the three
-   values this rule below already carries. The rename would be a visually empty diff. Vue2's
-   companion `.sv-action-btn:not([data-primary="true"]):hover` patch (photos.scss, same block)
-   exists to serve its Ask Nimo gradient button, which this page has no counterpart for. */
-.album-hero-actions .bar-btn {
-  background: var(--overlay-bg); border-color: var(--card-border);
-  /* theme-exception: hero 里的 Edit/Done、⋯ 按钮叠在暗化封面上,需固定浅色(同 Vue2
-     photos.scss:3563-3575 "pinned: dark pill sits on the darkened cover photo in both themes")。 */
-  color: #fff;
-}
+.density button:hover { color: var(--fg); }
+.density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
 .album-more-wrap { position: relative; }
 
 /* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from
@@ -945,13 +1006,12 @@ watch(gridRef, () => {
    source order -- same fix PhotosSmartViewDetail.vue applies at its own copy of this rule. */
 .sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
 
-/* ── Toolbar ── */
-.album-toolbar { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 4px; flex: 0 0 auto; }
-.album-toolbar-muted { font-size: 12px; color: var(--fg-muted); }
-.album-toolbar-spacer { flex: 1; }
-.album-toolbar-group { font-size: 12px; color: var(--fg-muted); }
-/* Minor 补齐:.bar-btn(theme.css:308)显式设了 background+color,盖掉浏览器默认的 disabled
-   变淡视觉——同期 PhotosTrash.vue:341 的写法,"移除选中" 0 选中时 disabled 但看起来和平时一样。 */
+/* ── Sort dropdown ── */
+/* .bar-btn (theme.css:308) sets background and color explicitly, which overrides the browser's
+   default dimming of a disabled button -- same wording PhotosTrash.vue:341 carries.
+   SP15-P2c Task 3: the edit-mode buttons this was written for now wear .sv-action-btn (which has
+   its own :disabled rule above); the .bar-btn left on this page are the not-found / load-error
+   branches, and the rule stays for them. */
 .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 .album-sort-wrap { position: relative; }
 .album-sort-menu {
@@ -965,23 +1025,27 @@ watch(gridRef, () => {
 }
 .album-sort-item:hover { background: var(--chip-bg-hi); }
 .album-sort-item[data-active="true"] { background: var(--accent-soft); }
-.album-density { display: inline-flex; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
-.album-density button { width: 26px; height: 26px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); cursor: pointer; }
-.album-density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
 
-/* ── T6 two-column body: grid + stats rail (Vue2 :90-93 is already a 1fr/320px grid).
-   overflow: hidden on the wrapper itself, not auto -- each column below scrolls itself, and a
-   scrolling wrapper would carry the rail away with the photos (the exact defect
-   PhotosMomentDetail was fixed for; PhotosMomentDetail.vue's own comment on this point applies
-   verbatim here). ── */
-.album-detail-body {
-  flex: 1 1 auto; min-height: 0;
-  display: grid; grid-template-columns: 1fr 320px; gap: 0;
-  overflow: hidden;
+/* ── SP15-P2c Task 3: edit-mode select bar ──
+   Same bar as PhotosSmartViewDetail.vue's `.sv-select-bar` (:1138-1144) -- the rule bodies are
+   restated here rather than shared because scoped styles do not cross SFCs in this repo (the
+   KEEP-THE-DUPLICATION ruling from P2b). Vue2 photos-smartview.scss:623-641 is the common
+   source; its literal drop shadow and blur go through --card-shadow-hi / --blur. */
+.sv-select-bar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
+  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 14px;
+  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur);
 }
+/* Vue2 :639-641 sizes the bar's own label; here that label is the `.group` hint line, which the
+   base .group rule already colours. */
+.sv-select-bar .group { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 
 /* ── Grid(列宽照 Vue2 photos.scss :3629-3691:comfortable=6 列,compact=9 列)── */
-.album-photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+/* SP15-P2c Task 3: no scroll container of its own any more -- .sv-detail-main scrolls the header
+   and the grid together (Vue2 photos.scss:3486-3489), and two nested scrollers would put two
+   scrollbars side by side. Padding matches the header's 32px gutter. */
+.album-photos-wrap { min-width: 0; padding: 16px 32px 0; }
 .album-photo-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
 .album-photo-grid.is-compact { grid-template-columns: repeat(9, 1fr); }
 .tile { aspect-ratio: 1; position: relative; border-radius: 3px; overflow: hidden; background: var(--chip-bg); cursor: pointer; }
@@ -1009,21 +1073,22 @@ watch(gridRef, () => {
   background: color-mix(in srgb, var(--accent) 85%, transparent);
   backdrop-filter: var(--blur);
 }
-/* 修正(自审发现,与 Vue2 :3743-3745 对齐):edit 态下所有瓦片的 ★ Cover 徽章都要让位给
-   多选勾选圈(两者同占左上角),不是只让位给"当前已选中"的瓦片——用 .album-toolbar[data-edit]
-   的通用兄弟选择器命中整个网格,而不是按单瓦片 data-selected 判断(后者会让 edit 态里"尚未
-   勾选"的封面瓦片仍然显示徽章,与选择圈重叠)。
-   T6 note: .album-photos-wrap is no longer a direct sibling of .album-toolbar -- the new
-   .album-detail-body wrapper (see template) now sits between them. The selector below reaches
-   through .album-detail-body instead of writing .album-photos-wrap directly (it is the only
-   branch inside .album-detail-body carrying .tile -- the aside sidebar has none -- so the
-   shallower selector cannot mis-hit it). */
-.album-toolbar[data-edit="true"] ~ .album-detail-body .tile[data-cover="true"]::after { display: none; }
+/* Aligned with Vue2 photos.scss:3743-3745: in edit mode EVERY tile's "★ Cover" badge gives way
+   to the multi-select check (both sit top-left), not only the tile that happens to be selected.
+   Hence a rule that hits the whole grid rather than one keyed on a tile's own data-selected --
+   the latter would leave the badge showing on an as-yet-unselected cover tile, overlapping the
+   check.
+   SP15-P2c Task 3 (E5 re-anchor): this rule and the one below used to hang off
+   `.album-toolbar[data-edit="true"] ~ .album-detail-body`. Both of those containers are gone,
+   which would have silently killed both rules -- no gate in this repo can see a selector that
+   stopped matching. The target's answer (Vue2 photos.scss:3546, :3604) is to mark the grid
+   container itself, so they are plain descendant selectors on .album-photos-wrap now. */
+.album-photos-wrap[data-edit="true"] .tile[data-cover="true"]::after { display: none; }
 /* Minor 补齐(Vue2 photos.scss:3685-3688):edit 态每个瓦片加虚线描边,提示"可选中/可拖拽"。
    Vue2 原 token `--line-strong` 在本仓库 theme.css 两套主题里都不存在(只在 Vue2 自己的
    AI/Agent/tokens.scss 局部定义过,不是全局 token)——换用本仓已有、语义等价的 --card-border
    (专门用于卡片/瓦片描边,两套主题都有定义),不新增 token。 */
-.album-toolbar[data-edit="true"] ~ .album-detail-body .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
+.album-photos-wrap[data-edit="true"] .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
 
 /* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;字形色见下方
    theme-exception(评审 Critical 1 修正:固定 #fff,不用 --on-accent,理由见该行注释)。 */
@@ -1101,9 +1166,8 @@ watch(gridRef, () => {
 /* ≤768px:侧栏已收抽屉,布局单列 */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
-  .album-hero { height: 200px; }
-  .album-hero-title { font-size: 24px; }
-  .album-detail-body { grid-template-columns: 1fr; }
+  .sv-header h1 { font-size: 24px; }
+  .sv-detail-layout { grid-template-columns: 1fr; }
   .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
 }
 </style>

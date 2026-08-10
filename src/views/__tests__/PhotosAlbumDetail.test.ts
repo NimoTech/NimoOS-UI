@@ -180,10 +180,13 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.text()).toContain('Trip')
     expect(w.text()).toContain('3')
     expect(w.text()).toContain('May 2026')
-    // hero 背景走共享包生成器(带 token),不手拼 URL
-    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('cover-1', 'large')
-    const hero = w.find('.album-hero-bg')
-    expect(hero.attributes('style')).toContain('mock://thumb/cover-1/large')
+    // SP15-P2c Task 3 re-home: the two cover-thumbnail assertions that used to sit here belonged
+    // to the deleted hero background. Their subject moved to 'no longer renders the cover hero or
+    // the toolbar band' below, which asserts no large cover thumbnail is requested at all now.
+    // What stays here is where the three strings above land in the new skeleton.
+    expect(w.find('.sv-header h1 .sv-title').text()).toBe('Trip')
+    expect(w.find('[data-test="album-header-items"]').text()).toContain('3')
+    expect(w.find('.sv-header h1 .sv-cond').text()).toBe('May 2026')
   })
 
   it('albumsLoaded=false(还没加载完)→ 渲染加载骨架,不是"相册不存在"', async () => {
@@ -824,10 +827,17 @@ describe('PhotosAlbumDetail.vue', () => {
   })
 
   it('keeps the rail out of the photo grid\'s scroll container', async () => {
-    // Both columns scroll independently; if the wrapper scrolled too, the rail would
+    // Both columns scroll independently; if a shared wrapper scrolled instead, the rail would
     // scroll away with the photos (the exact defect PhotosMomentDetail was fixed for).
+    // SP15-P2c Task 3 re-home: the container is .sv-detail-layout now, not .album-detail-body,
+    // and it holds the columns apart with `min-height: 0` on a grid whose two cells each own an
+    // `overflow-y: auto` -- so the assertion moves onto those two cells. The grid wrapper must
+    // NOT have a scroller of its own any more, or the main column gets two nested scrollbars.
     const css = readFileSync('src/views/PhotosAlbumDetail.vue', 'utf8')
-    expect(css).toMatch(/\.album-detail-body\s*\{[^}]*overflow:\s*hidden/)
+    expect(css).toMatch(/\.sv-detail-layout\s*\{[^}]*min-height:\s*0/)
+    expect(css).toMatch(/\.sv-detail-main\s*\{[^}]*overflow-y:\s*auto/)
+    expect(css).toMatch(/\.sv-detail-side\s*\{[^}]*overflow-y:\s*auto/)
+    expect(css).not.toMatch(/\.album-photos-wrap\s*\{[^}]*overflow/)
   })
 
   it('gives the more menu an icon, a title and a hint per row', async () => {
@@ -858,5 +868,187 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.findComponent(AlbumConvertToSmartDialog).vm.$emit('converted', { id: 'sv-new' })
     await w.vm.$nextTick()
     expect(push).toHaveBeenCalledWith('/photos/smart-views/sv-new')
+  })
+})
+
+// SP15-P2c Task 3: the cover hero and the toolbar band are gone; the page now wears the same
+// skeleton as the smart-view detail page (detail bar -> two-column layout -> sv-header with the
+// action row -> photo grid), and edit mode's two buttons live in a floating bottom bar.
+describe('P2c detail skeleton', () => {
+  it('renders the detail bar with a back button and the created date', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', createdAt: '2026-05-01T00:00:00Z' }, assets: [] })
+    expect(w.find('.sv-detail-bar').exists()).toBe(true)
+    expect(w.find('.sv-detail-bar .back').exists()).toBe(true)
+    // The rendered date itself is ICU output for the active locale, so assert the wrapper copy
+    // rather than restating the formatter here.
+    const prefix = zh.photosDetailCreatedAt.split('{date}')[0]
+    expect(w.find('[data-test="album-created"]').text().startsWith(prefix)).toBe(true)
+  })
+
+  it('omits the created date entirely when the album has no creation timestamp', async () => {
+    // createdLabel falls back to the em-dash placeholder -> the span must not render at all.
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    expect(w.find('.sv-detail-bar').exists()).toBe(true)
+    expect(w.find('[data-test="album-created"]').exists()).toBe(false)
+  })
+
+  it('goes back to the albums list from the detail bar', async () => {
+    const { w, router } = await mountDetailWithRouter({ album: { id: 'a1', name: 'A' }, assets: [] })
+    const push = vi.spyOn(router, 'push')
+    await w.find('[data-test="album-back"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/photos/albums')
+  })
+
+  it('no longer renders the cover hero or the toolbar band', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', coverAssetId: 'cover-1' }, assets: [] })
+    expect(w.find('.album-hero').exists()).toBe(false)
+    expect(w.find('.album-toolbar').exists()).toBe(false)
+    // The hero was the only consumer of the large cover thumbnail, so the request goes with it.
+    expect(svc.photos.thumbnailUrl).not.toHaveBeenCalledWith('cover-1', 'large')
+  })
+
+  it('renders the two-column layout with the main column and the sidebar', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    expect(w.find('.sv-detail-layout .sv-detail-main .sv-header').exists()).toBe(true)
+    expect(w.find('.sv-detail-layout > .sv-detail-side').exists()).toBe(true)
+    expect(w.find('.sv-detail-main .album-photos-wrap').exists()).toBe(true)
+  })
+
+  it('puts the date range pill on the h1 row, not in a separate chips row', async () => {
+    const w = await mountDetail({
+      album: { id: 'a1', name: 'A', dateStart: '2026-01-01', dateEnd: '2026-03-01' },
+      assets: [],
+    })
+    expect(w.find('.sv-header h1 .sv-cond').text()).toBe('Jan - Mar 2026')
+  })
+
+  it('shows the items count and hides the videos count when there are no videos', async () => {
+    // One mount per test: the albums store only fetches while `albumsLoaded` is false, so a
+    // second mountDetail in the same test would silently keep the first album's fixture.
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', assetCount: 12, videoCount: 0 }, assets: [] })
+    expect(w.find('[data-test="album-header-items"]').text()).toContain('12')
+    expect(w.find('[data-test="album-header-videos"]').exists()).toBe(false)
+  })
+
+  it('shows the videos count alongside the items count when the album has videos', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', assetCount: 12, videoCount: 3 }, assets: [] })
+    expect(w.find('[data-test="album-header-items"]').text()).toContain('12')
+    expect(w.find('[data-test="album-header-videos"]').text()).toContain('3')
+  })
+
+  it('hides sort and density in edit mode but keeps Edit/Done', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    expect(w.find('.order-pill').exists()).toBe(true)
+    expect(w.find('.density').exists()).toBe(true)
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('.order-pill').exists()).toBe(false)
+    expect(w.find('.density').exists()).toBe(false)
+    expect(w.find('[data-test="album-edit-toggle"]').exists()).toBe(true)
+    // The two separators only exist to part Sort/density from Edit, so they leave with them.
+    expect(w.findAll('.album-detail-actions-sep')).toHaveLength(0)
+  })
+
+  it('marks the photo grid wrapper with the edit flag so the cover badge and tile outline rules can key off it', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+    expect(w.find('.album-photos-wrap').attributes('data-edit')).toBe('false')
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.album-photos-wrap').attributes('data-edit')).toBe('true')
+  })
+
+  it('still opens the lightbox from a tile click outside edit mode', async () => {
+    // Regression guard: the grid moved into a new container, the click path must survive.
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a'), asset('b')] })
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    expect(lb.open.value).toBe(true)
+    expect(lb.list.value.map((p) => p.id)).toEqual(['a', 'b'])
+  })
+
+  // ── Edit-mode bottom select bar ──
+  // Deviation from the brief, registered: the brief said the bar renders only with at least one
+  // selection. The target (33b05636:PhotosAlbumDetail.vue:326-327) renders it on `edit` alone and
+  // says so in its own comment, and it has to -- the bar carries the "Click to select · Drag to
+  // reorder" hint (dead copy if it only appeared after a selection) and the Add photos button
+  // (unreachable in an empty album otherwise). The Vue 2 source wins per the branch's 1:1 rule.
+  it('shows the select bar in edit mode even before anything is selected', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+    expect(w.find('.sv-select-bar').exists()).toBe(false)
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').exists()).toBe(true)
+    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDragCover)
+
+    await w.find('.tile').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+  })
+
+  it('removes the selected photos and keeps the guard against a double click', async () => {
+    let resolveRemove: (() => void) | undefined
+    const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
+      () => new Promise((resolve) => { resolveRemove = () => resolve(undefined) }),
+    )
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a'), asset('b')] })
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.tile').trigger('click')
+    await w.vm.$nextTick()
+
+    const btn = w.find('.sv-select-bar [data-test="album-remove-selected"]')
+    expect(btn.exists()).toBe(true)
+    await btn.trigger('click')
+    await btn.trigger('click') // second press lands before the first request resolves
+    await flushPromises()
+
+    expect(removeSpy).toHaveBeenCalledTimes(1)
+    expect(removeSpy).toHaveBeenCalledWith('a1', ['a'])
+    resolveRemove?.()
+    await flushPromises()
+  })
+
+  it('opens the library picker from the select bar', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.findComponent(PhotosLibraryPicker).props('open')).toBe(false)
+    await w.find('.sv-select-bar [data-test="album-add-photos"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.findComponent(PhotosLibraryPicker).props('open')).toBe(true)
+  })
+
+  it('hides the select bar again after leaving edit mode', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').exists()).toBe(true)
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').exists()).toBe(false)
+  })
+
+  it('clears the selection when leaving edit mode so a later edit session starts empty', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a'), asset('b')] })
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.tile').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar [data-test="album-remove-selected"]').attributes('disabled')).toBeUndefined()
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // leave
+    await w.vm.$nextTick()
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // and come back
+    await w.vm.$nextTick()
+
+    // A stale selection here would send the previous session's ids on the next Remove press.
+    expect(w.find('.sv-select-bar [data-test="album-remove-selected"]').attributes('disabled')).toBeDefined()
+    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDragCover)
   })
 })

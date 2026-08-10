@@ -201,6 +201,13 @@ export default {
   photosAlbumSortManual: 'Manual order',
   photosAlbumSortTaken: 'Date taken',
   photosAlbumSortAdded: 'Date added',
+  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
+  // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
+  // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
+  photosDetailCreatedAt: 'Created {date}',
+  photosDetailItems: 'items',
+  photosDetailVideos: 'videos',
   photosAlbumCurrentCover: 'Current cover',
   photosAlbumSetCover: 'Set as album cover',
   photosAlbumEmptyTitle: 'This album is empty',
