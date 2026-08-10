@@ -79,7 +79,7 @@ describe('9 个 tab 骨架', () => {
   // covered by TerminalPanel.test.ts and TerminalSecuritySection.test.ts (both mock
   // service.terminal). This test keeps only the static, mock-free assertion: no
   // section title, and the logs card is present regardless of admin state.
-  it('terminal 无标题(对位 Vue2 L51),现为真实的日志卡 + 管理员专属终端安全区(SP18)', () => {
+  it('terminal has no title (matches Vue2 L51); now a real logs card + admin-only security section (SP18)', () => {
     setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.terminal, { global: { plugins: [i18n] } })
     expect(w.find('.set-section-head').exists()).toBe(false)

@@ -62,7 +62,7 @@ describe('TerminalPanel', () => {
     expect(w.find('[data-test="logs-pre"]').text()).toContain('hello')
   })
 
-  it('管理员登录且 Terminal 服务不可用时,安全区呈现空态(历史授权偏离 #9 的行为并入了区块内部)', async () => {
+  it('admin session with Terminal service unavailable: the security section shows the empty state (former deviation #9 behavior folded into the section)', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'admin' }))
     getSettings.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
@@ -70,7 +70,7 @@ describe('TerminalPanel', () => {
     expect(w.find('.set-term-empty').text()).toContain('终端服务暂不可用')
   })
 
-  it('管理员登录时渲染终端安全区(SP18)', async () => {
+  it('renders the terminal security section for an admin session (SP18)', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'admin' }))
     const w = mountPanel()
     await flushPromises()
@@ -79,7 +79,7 @@ describe('TerminalPanel', () => {
     expect(w.find('[data-test="logs-pre"]').exists()).toBe(true)
   })
 
-  it('非管理员登录时不渲染终端安全区,日志卡片仍照常展示', async () => {
+  it('does not render the terminal security section for a non-admin session; the logs card still renders', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'user' }))
     const w = mountPanel()
     await flushPromises()
