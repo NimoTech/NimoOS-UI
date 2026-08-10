@@ -141,6 +141,14 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       return `/v1/photos/favorites/export${tokenQ('?')}`
     },
     // ─── 相册 ───
+    // SP15-P2c Task 2. Same GET + token shape as exportFavoritesUrl above: the backend serves
+    // this as a plain download URL the browser navigates to, and Photos exempts the
+    // `/albums/:id/export` suffix from JWT so the query token is the only credential
+    // (NimoOS-Photos route/router.go:52, :178). The Vue2 comment claiming this endpoint was
+    // "in parallel development" is stale -- the handler already exists (route/v1/albums.go:84).
+    exportAlbumZipUrl(id: string | number): string {
+      return `/v1/photos/albums/${id}/export${tokenQ('?')}`
+    },
     async listAlbums(): Promise<unknown[]> {
       const res = await http.get('/photos/albums')
       return body<unknown[]>(res.data)

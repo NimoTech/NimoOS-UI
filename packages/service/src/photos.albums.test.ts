@@ -44,4 +44,12 @@ describe('photos 相册', () => {
     expect(calls[3]).toMatchObject({ method: 'patch', url: '/photos/albums/3', body: { name: '新名' } })
     expect(calls[4]).toMatchObject({ method: 'patch', url: '/photos/albums/3/assets/order', body: { assetIds: ['a2', 'a1'] } })
   })
+  it('exportAlbumZipUrl builds the zip export url with the injected getToken', () => {
+    const p = createPhotos({} as AxiosInstance, () => 'tok123')
+    expect(p.exportAlbumZipUrl(7)).toBe('/v1/photos/albums/7/export?token=tok123')
+  })
+  it('exportAlbumZipUrl omits the query string when there is no token', () => {
+    const p = createPhotos({} as AxiosInstance, noToken)
+    expect(p.exportAlbumZipUrl(7)).toBe('/v1/photos/albums/7/export')
+  })
 })

@@ -470,6 +470,78 @@ describe('photosAlbums store', () => {
     })
   })
 
+  describe('duplicateAlbum', () => {
+    it('creates a new album with "<title> copy" and batch-adds the source members, create before add', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.getAlbum as any).mockResolvedValueOnce({
+        assets: [{ id: 'p1', takenAt: null }, { id: 'p2', takenAt: null }],
+      })
+      await s.fetchAlbumAssets('a1')
+
+      const order: string[] = []
+      ;(service.photos.createAlbum as any).mockImplementationOnce(async () => {
+        order.push('createAlbum')
+        return { id: 'new2', name: 'Trip copy' }
+      })
+      ;(service.photos.batchAddToAlbum as any).mockImplementationOnce(async () => {
+        order.push('batchAddToAlbum')
+      })
+      ;(service.photos.listAlbums as any).mockImplementationOnce(async () => {
+        order.push('listAlbums')
+        return [{ id: 'new2', name: 'Trip copy' }, { id: 'a1', name: 'Trip' }]
+      })
+
+      const created = await s.duplicateAlbum('a1')
+      expect(service.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
+      expect(service.photos.batchAddToAlbum).toHaveBeenCalledWith('new2', ['p1', 'p2'])
+      expect(order).toEqual(['createAlbum', 'batchAddToAlbum', 'listAlbums'])
+      expect(created).toEqual({ id: 'new2', name: 'Trip copy' })
+    })
+
+    it('prepends the duplicate to the album list so it is visible without a refetch', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.createAlbum as any).mockResolvedValueOnce({ id: 'new2', name: 'Trip copy' })
+      // Mirrors the real backend contract: ListAlbums orders by created_at DESC
+      // (NimoOS-Photos service/album.go:83), so the just-created row comes back first.
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([
+        { id: 'new2', name: 'Trip copy' },
+        { id: 'a1', name: 'Trip' },
+      ])
+      const created = await s.duplicateAlbum('a1')
+      expect(s.albums[0].id).toBe(created.id)
+    })
+
+    it('ignores a second duplicate call while the first is still in flight', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      let resolveCreate: (v: unknown) => void
+      ;(service.photos.createAlbum as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveCreate = resolve }),
+      )
+      const p1 = s.duplicateAlbum('a1')
+      const p2 = s.duplicateAlbum('a1').catch(() => {}) // second call is rejected by the guard
+      resolveCreate!({ id: 'new2', name: 'Trip copy' })
+      await Promise.all([p1, p2])
+      expect(service.photos.createAlbum).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the in-flight guard after a failure so a retry can proceed', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.createAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      await expect(s.duplicateAlbum('a1')).rejects.toThrow('boom')
+      ;(service.photos.createAlbum as any).mockResolvedValueOnce({ id: 'new2', name: 'Trip copy' })
+      const created = await s.duplicateAlbum('a1')
+      expect(created).toEqual({ id: 'new2', name: 'Trip copy' })
+    })
+  })
+
   describe('convertFromSmartView', () => {
     it('unshifts the new album and returns the raw object', async () => {
       ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N', videoCount: 2 })
