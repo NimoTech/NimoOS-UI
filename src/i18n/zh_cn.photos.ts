@@ -176,15 +176,14 @@ export default {
   photosAlbumClickToRename: '点击重命名',
   photosAlbumEdit: '编辑',
   photosAlbumDone: '完成',
-  photosAlbumRename: '重命名相册',
   photosAlbumRenameHint: '修改相册名称',
   photosAlbumConvertToSmart: '转为智能相册',
   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
   // Task 5 (#117 短标题): "..." 菜单主标题改短——Rename/Duplicate/Download as ZIP 三项复用既有
   // 短键(photosSvRename/photosSvDuplicate/photosFavExport,与靶子译文逐字一致),Delete 复用
-  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。上面两个长标题 key
-  // (photosAlbumRename/photosAlbumConvertToSmart)在此之后失去这处唯一引用,按本期约定先不删
-  // (Task 11 统一做孤儿清理)。
+  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。
+  // Task 11 孤儿清理:photosAlbumRename 失去了唯一引用,已删;photosAlbumConvertToSmart
+  // 留下——AlbumConvertToSmartDialog 的标题/确认按钮仍在用它。
   photosAlbumMenuConvert: '转换',
   // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
   // zh_CN.json:"把照片复制为一个新相册")。
@@ -201,7 +200,6 @@ export default {
   photosAlbumDeleteHint: '照片会保留在图库中',
   photosAlbumDeleteTitle: '删除「{name}」?',
   photosAlbumDeleteBody: '只删除相册本身,其中 {count} 张照片仍保留在图库中。',
-  photosAlbumItemsShown: '显示 {count} 项',
   photosAlbumHintSelectDragCover: '点击选择 · 拖拽排序 · ★ 设为封面',
   photosAlbumHintSelectCover: '点击选择 · ★ 设为封面',
   photosAlbumRemoveFrom: '从相册移除',
@@ -644,7 +642,6 @@ export default {
   photosPlacesInsightHomeBase: '大本营',
   // ---- P7a-T1: 智能视图(Smart Views)107 键,追加于 photosPlacesInsightHomeBase 之后 ----
   // (表里原列 115 行,其中 8 行与既有键值重复,按 brief 第 7 条改为复用既有键,未新增,见任务报告)
-  photosSvNameSnapshotSavedAlbum: '「{name}」的快照已保存为新相册',
   photosSvAddedThisWeek: '本周 +{n}',
   // P7a-T8 fix round 1 · I3:去掉字面 <b>,改 <i18n-t> 具名插槽(零 v-html)。回源核实
   // zh_CN.json 后两条都是"插值 + 语言相关静态词"整个短语加粗(`<b>1 张新照片</b>` /
@@ -660,9 +657,7 @@ export default {
   photosSvActConvertedFromAlbum: '由相册转换而来',
   photosSvActConvertedFromAlbumN: '由相册转换而来 · 锁定 {n} 张照片',
   photosSvActivity: '活动',
-  photosSvAdd: '添加',
   photosSvAddAnother: '添加另一个…',
-  photosSvAddCondition: '添加条件',
   photosSvAllMatches: '全部匹配',
   // P7a-T8:<b> 只包住插值 {n} ⇒ 直接开槽,去掉字面 <b></b>(零 v-html)。
   photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 {n} 张照片。',
@@ -691,14 +686,10 @@ export default {
   photosSvCreateSmartAlbum: '创建智能相册',
   photosSvCreateSmartView: '创建智能视图',
   photosSvDeleteName: '删除「{name}」？',
-  photosSvDeleteSmartView: '删除智能视图',
   photosSvDescribePlainEnglishConditions: '用自然语言描述——下方会自动推断出条件',
-  photosSvDone: '完成',
   photosSvDuplicate: '复制',
   photosSvDuplicatedNameOpenCopy: '已复制「{name}」——可在列表中打开新副本',
   photosSvEGSaraTokyo: '例如:Sara · 东京 · 日落',
-  photosSvEGSceneSunset: '如 scene: sunset',
-  photosSvExport: '导出',
   photosSvExportedDetail: '已导出为 {detail}',
   photosSvFamilyWeekends: '家庭周末',
   photosSvFamilyWeekendsPark: '在公园度过的家庭周末',
@@ -722,7 +713,6 @@ export default {
   photosSvMedianMatch: '匹配中位数',
   photosSvName: '名称',
   photosSvNew: '新',
-  photosSvNewCondition: '新条件',
   photosSvNewSmartView: '新建智能视图',
   photosSvNimoSuggests: 'Nimo 建议',
   photosSvStartTemplate: '或从模板开始',
@@ -746,7 +736,6 @@ export default {
   photosSvResume: '恢复',
   photosSvResumeAutoUpdates: '恢复自动更新',
   photosSvRunEveryUpload: '每次新上传都运行',
-  photosSvSaveStaticAlbum: '保存为静态相册',
   photosSvSavedSearchKeepsItself: '已保存的搜索会自动保持最新',
   photosSvSettingsSection: '设置', // 偏离登记:json['Settings']=系统设置,但此处是智能视图右栏段标题误用全局键(Vue2 文案 bug),这里刻意取「设置」而非回源值
   photosSvSharpDogCatPortraits: '清晰的猫狗写真',
@@ -759,11 +748,9 @@ export default {
   // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
   // choice when the smartview AI feature is off.
   photosSvSmartViewsOffCreateHint: '智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。',
-  photosSvSnapshotCurrentMatchesStops: '快照当前匹配 —— 停止更新',
   photosSvStats: '统计',
   photosSvStrict: '严格',
   photosSvStrictOnlyHighestConfidence: '严格 —— 只保留置信度最高的匹配。',
-  photosSvSuggestions: '建议',
   photosSvSunsetsRoad: '旅途中的日落',
   photosSvSunsetsWhileTravelingNot: '旅行途中而非在家看到的日落',
   photosSvSunsetsSaraOurTokyo: '去年春天在东京和 Sara 一起看的日落',

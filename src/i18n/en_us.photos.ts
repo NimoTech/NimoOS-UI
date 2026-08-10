@@ -177,7 +177,6 @@ export default {
   photosAlbumClickToRename: 'Click to rename',
   photosAlbumEdit: 'Edit',
   photosAlbumDone: 'Done',
-  photosAlbumRename: 'Rename album',
   photosAlbumRenameHint: 'Change the album name',
   photosAlbumConvertToSmart: 'Convert to Smart Album',
   photosAlbumConvertToSmartHint: 'Nimo keeps adding matches automatically',
@@ -197,7 +196,6 @@ export default {
   photosAlbumDeleteHint: 'Photos stay in your library',
   photosAlbumDeleteTitle: 'Delete "{name}"?',
   photosAlbumDeleteBody: 'The album wrapper is removed but the {count} items stay in your library.',
-  photosAlbumItemsShown: '{count} items shown',
   photosAlbumHintSelectDragCover: 'Click to select · Drag to reorder · ★ to set cover',
   photosAlbumHintSelectCover: 'Click to select · ★ to set cover',
   photosAlbumRemoveFrom: 'Remove from album',
@@ -646,7 +644,6 @@ export default {
   photosPlacesInsightHomeBase: 'home base',
   // ---- P7a-T1: Smart Views, 107 new keys appended after photosPlacesInsightHomeBase ----
   // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
-  photosSvNameSnapshotSavedAlbum: '"{name}" snapshot saved as a new album',
   photosSvAddedThisWeek: '+{n} this week',
   // P7a-T8 fix round 1 · I3: strip literal <b>, switch to <i18n-t> named slots (zero
   // v-html). Re-checked zh_CN.json source: both rows bold the whole "interpolation +
@@ -663,9 +660,7 @@ export default {
   photosSvActConvertedFromAlbum: 'Converted from album',
   photosSvActConvertedFromAlbumN: 'Converted from album · {n} photos locked in',
   photosSvActivity: 'Activity',
-  photosSvAdd: 'Add',
   photosSvAddAnother: 'Add another…',
-  photosSvAddCondition: 'Add condition',
   photosSvAllMatches: 'All matches',
   // P7a-T8: <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
   photosSvThreshHelp: 'At {pct}%, expect ~{n} new photos per week.',
@@ -694,14 +689,10 @@ export default {
   photosSvCreateSmartAlbum: 'Create Smart Album',
   photosSvCreateSmartView: 'Create Smart View',
   photosSvDeleteName: 'Delete "{name}"?',
-  photosSvDeleteSmartView: 'Delete Smart View',
   photosSvDescribePlainEnglishConditions: 'Describe it in plain English — conditions are inferred below',
-  photosSvDone: 'Done',
   photosSvDuplicate: 'Duplicate',
   photosSvDuplicatedNameOpenCopy: 'Duplicated "{name}" — open the new copy from the list',
   photosSvEGSaraTokyo: 'e.g. Sara · Tokyo · sunsets',
-  photosSvEGSceneSunset: 'e.g. scene: sunset',
-  photosSvExport: 'Export',
   photosSvExportedDetail: 'Exported as {detail}',
   photosSvFamilyWeekends: 'Family weekends',
   photosSvFamilyWeekendsPark: 'Family weekends in the park',
@@ -725,7 +716,6 @@ export default {
   photosSvMedianMatch: 'Median match',
   photosSvName: 'Name',
   photosSvNew: 'New',
-  photosSvNewCondition: 'New condition',
   photosSvNewSmartView: 'New Smart View',
   photosSvNimoSuggests: 'Nimo suggests',
   photosSvStartTemplate: 'Or start from a template',
@@ -749,7 +739,6 @@ export default {
   photosSvResume: 'Resume',
   photosSvResumeAutoUpdates: 'Resume auto-updates',
   photosSvRunEveryUpload: 'Run on every new upload',
-  photosSvSaveStaticAlbum: 'Save as static Album',
   photosSvSavedSearchKeepsItself: 'Saved search that keeps itself up to date',
   photosSvSettingsSection: 'Settings',
   photosSvSharpDogCatPortraits: 'Sharp dog and cat portraits',
@@ -762,11 +751,9 @@ export default {
   // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
   // choice when the smartview AI feature is off.
   photosSvSmartViewsOffCreateHint: 'Smart Views are turned off — re-enable them in Settings · AI behavior to create new ones.',
-  photosSvSnapshotCurrentMatchesStops: 'Snapshot the current matches — stops updating',
   photosSvStats: 'Stats',
   photosSvStrict: 'Strict',
   photosSvStrictOnlyHighestConfidence: 'Strict — only the highest-confidence matches.',
-  photosSvSuggestions: 'Suggestions',
   photosSvSunsetsRoad: 'Sunsets on the road',
   photosSvSunsetsWhileTravelingNot: 'Sunsets while traveling, not at home',
   photosSvSunsetsSaraOurTokyo: 'Sunsets with Sara from our Tokyo trip last spring',
