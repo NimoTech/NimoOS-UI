@@ -146,3 +146,94 @@ Yes, trivially and expectedly: the two tests unrelated to the mutated line (`doe
 - None found in scope. The `cancelTransfer()`/`transfer-cancel` receiver pair is fully symmetric with the existing `handleDisconnect`/timeout trunk: both go through `resetTransferState()` (which already aborts the chunker per Task 6) and then report via `onTransferBroken` with the new `'cancelled'` reason that Task 6/7 already added to `TransferBrokenReason`.
 - `cancelTransfer()` is not yet wired to any UI affordance (no button/composable calls it) — that's outside this task's stated scope (the brief only covers protocol.ts / rtcPeer.ts / tests), but flagging it so the wiring isn't assumed done.
 - Test file diff stat: `+37` lines to `rtcPeer.test.ts`, `+17` to `rtcPeer.ts`, `+1` to `protocol.ts`. `chunker.ts` and `chunker.test.ts` untouched, as expected.
+
+## Fix round 1 of 5
+
+**Important finding (from reviewer, correctly identified as a plan-text oversight, not a design decision):** the receiver's `transfer-cancel` branch called `resetTransferState()` + `onTransferBroken()` unconditionally, bypassing the `wasActive` guard that `handleDisconnect()` uses for exactly this situation. A `transfer-cancel` arriving while nothing was active on the receiving side (transfer already completed a moment earlier, or a stray message survives a reconnect) would fire a spurious "transfer broken" report for something that, from this side, never existed or already succeeded.
+
+**Fix applied.** Replaced the branch body:
+
+```diff
+ case 'transfer-cancel':
+-  // The other side gave up. Drop whatever we were assembling; a later
+-  // transfer must not inherit these bytes.
+-  this.resetTransferState()
+-  this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+-  break
++  // The other side gave up. Drop whatever we were assembling; a later
++  // transfer must not inherit these bytes. Routed through
++  // handleDisconnect so the wasActive guard applies here too -- a
++  // stray/late transfer-cancel (already-finished receive, or a message
++  // surviving a reconnect) must not report a broken transfer that from
++  // this side never existed or already succeeded.
++  this.handleDisconnect('cancelled')
++  break
+```
+
+Verified by reading `handleDisconnect` (rtcPeer.ts:153-157) before making the change: it computes `wasActive = this.hasActiveTransfer()`, calls `this.resetTransferState()` unconditionally, then calls `this.events.onTransferBroken({ peerId: this._peerId, reason })` only `if (wasActive)`. `reason` is typed `TransferBrokenReason`, which already includes `'cancelled'` (protocol.ts), so `handleDisconnect('cancelled')` reproduces exactly what the old branch did when a transfer IS active (reset + report with the same `{ peerId, reason: 'cancelled' }` payload shape), and additionally suppresses the report when idle.
+
+**Test added** — receiving side, idle case (the assignment noted existing test 2 only covers the *sending*-side idle guard):
+
+```ts
+it('ignores a stray transfer-cancel while idle, so it cannot report a broken transfer that never existed on this side', () => {
+  const ev = makeEvents()
+  const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+
+  p.handleChannelMessage(JSON.stringify({ type: 'transfer-cancel' }))
+
+  expect(ev.onTransferBroken).not.toHaveBeenCalled()
+  expect(p.hasActiveTransfer()).toBe(false)
+})
+```
+
+Added inside the existing `describe('Peer cancellation', ...)` block, after "discards the partly received file when the sender cancels".
+
+### Verification (foreground)
+
+```
+pnpm exec vitest run src/files/drop/
+```
+```
+ Test Files  12 passed (12)
+      Tests  71 passed (71)
+```
+(70 → 71: the one new idle-receiver test.)
+
+```
+pnpm exec vue-tsc --noEmit
+```
+Output: empty (clean).
+
+### Mutation checks
+
+**New mutation — revert `this.handleDisconnect('cancelled')` back to the unguarded pair of statements:**
+
+```diff
+ case 'transfer-cancel':
+-  this.handleDisconnect('cancelled')
++  this.resetTransferState()
++  this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+   break
+```
+
+`pnpm exec vitest run src/files/drop/rtcPeer.test.ts`:
+```
+ Tests  1 failed | 23 passed (24)
+ FAIL  src/files/drop/rtcPeer.test.ts > Peer cancellation > ignores a stray transfer-cancel while idle, so it cannot report a broken transfer that never existed on this side
+AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+Received: 1st vi.fn() call: [ { "peerId": "peer2", "reason": "cancelled" } ]
+ ❯ src/files/drop/rtcPeer.test.ts:425:37
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
+```
+Exactly the intended new test went red, for the right reason. Reverted; confirmed 71/71 green and `vue-tsc --noEmit` clean again afterward.
+
+**Re-verified the two original mutations from the initial submission still behave correctly** now that the branch body is `this.handleDisconnect('cancelled')` instead of the old two-line pair:
+
+- Removing `this.sendJSON({ type: 'transfer-cancel' })` from `cancelTransfer()` → `pnpm exec vitest run src/files/drop/rtcPeer.test.ts` → `1 failed | 23 passed (24)`, failure is exactly `Peer cancellation > tells the peer, clears local state, and reports the cancellation` (`expected false to be true` on the `jsonOut(p).some(m => m.type === 'transfer-cancel')` assertion). Reverted.
+- Removing the entire `case 'transfer-cancel':` branch (now the `handleDisconnect('cancelled')` version) → `1 failed | 23 passed (24)`, failure is exactly `Peer cancellation > discards the partly received file when the sender cancels` (`expected true to be false` on `p.hasActiveTransfer()`). Reverted.
+
+All three original tests (`tells the peer...`, `does nothing at all when there is no transfer to cancel`, `discards the partly received file when the sender cancels`) still pass in the restored state and still fail under their own targeted mutations. Full suite confirmed green (71/71) and `vue-tsc --noEmit` clean after every revert, with the final state matching the fix above.
+
+### Known limitation (recorded, not fixed — per controller instruction)
+
+`resetTransferState()` wipes both send and receive state together. A peer that is simultaneously sending one file and receiving another will have its unrelated outbound send silently killed by an inbound `transfer-cancel` (the cancel is only supposed to affect the transfer it was sent for). This is pre-existing behaviour already shared by `handleDisconnect('disconnected')` and `handleDisconnect('timeout')` — `cancelTransfer`/`transfer-cancel` did not introduce it, they just route through the same shared reset. Not restructured per the controller's ruling; flagging for whoever eventually splits send/receive state.

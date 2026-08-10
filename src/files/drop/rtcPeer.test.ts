@@ -415,6 +415,16 @@ describe('Peer cancellation', () => {
     p.handleChannelMessage(new Uint8Array(8).buffer)
     expect(ev.onFileReceived).not.toHaveBeenCalled()
   })
+
+  it('ignores a stray transfer-cancel while idle, so it cannot report a broken transfer that never existed on this side', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+
+    p.handleChannelMessage(JSON.stringify({ type: 'transfer-cancel' }))
+
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
+    expect(p.hasActiveTransfer()).toBe(false)
+  })
 })
 
 describe('RTCPeer close() resets transfer state', () => {

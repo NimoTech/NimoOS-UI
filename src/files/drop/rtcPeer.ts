@@ -83,9 +83,12 @@ export class Peer {
       case 'text': this.events.onTextReceived({ text: decodeText(msg.text), sender: this._peerId }); break
       case 'transfer-cancel':
         // The other side gave up. Drop whatever we were assembling; a later
-        // transfer must not inherit these bytes.
-        this.resetTransferState()
-        this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+        // transfer must not inherit these bytes. Routed through
+        // handleDisconnect so the wasActive guard applies here too -- a
+        // stray/late transfer-cancel (already-finished receive, or a message
+        // surviving a reconnect) must not report a broken transfer that from
+        // this side never existed or already succeeded.
+        this.handleDisconnect('cancelled')
         break
     }
   }
