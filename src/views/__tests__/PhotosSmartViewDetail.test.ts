@@ -221,50 +221,66 @@ describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
 })
 
 // fix round 1 · M5(brief §3 明文要求的挂载点断言,原版 grep 0 命中)──────────────
-// P7a-T7:sv-cond-editor-mount 的 stub 断言("空壳,children.length===0")在这里升级成
-// 真组件断言——SmartViewConditionEditor 自己的结构/交互/cssCascade 覆盖已在
-// SmartViewConditionEditor.test.ts,这里只钉住"宿主接线对不对":conds 从 sv.conds 来、
-// add/remove 翻译成 store.updateSmartView(id, { conds: [...] }) 的正确形状、busy 转发
-// store.patchBusy。
-describe('T7:加条件弹层 + 条件 chip(挂载点兑现为真组件)', () => {
-  it('sv-cond-editor-mount 渲染 SmartViewConditionEditor,chip 数量与 sv.conds 一致', async () => {
+// P7a-T7 originally mounted a dedicated SmartViewConditionEditor component here (chips +
+// an "Add condition" popover). Task 8 (SP15-P2c, ported from Vue2 NimoOS-UI 33b05636
+// PhotosSmartViewDetail.vue:26-30/:700-710, "用户追加需求") removes the add entry as a
+// deliberate product decision -- only removable chips survive. Once `add` was gone the
+// component was down to a bare v-for with no local state, so it no longer earned its own
+// file (see task-8-report.md for the full call) and folded back into this page. These
+// tests were re-homed accordingly; the popover/suggestion/busy-forwarding tests that only
+// exercised the add path had no capability left to cover and were deleted, not silently
+// dropped (disposition table in the report).
+describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
+  it('renders one removable chip per sv.conds entry', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
-    const mountEl = w.find('[data-test="sv-cond-editor-mount"]')
+    const mountEl = w.find('[data-test="sv-header-conds"]')
     expect(mountEl.exists()).toBe(true)
     expect(mountEl.findAll('[data-test="sv-cond-chip"]').length).toBe(2)
   })
 
-  it('点 chip 删除 → store.updateSmartView 收到过滤后的 conds(condsRaw)', async () => {
+  it('no longer offers an add-condition entry (button and popover both gone)', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
+    expect(w.find('[data-test="sv-cond-add-btn"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-cond-pop"]').exists()).toBe(false)
+  })
+
+  it('clicking a chip → store.updateSmartView receives the filtered conds (condsRaw), and the chip is actually gone once the round trip resolves', async () => {
     svc.photos.updateSmartView.mockResolvedValue(null)
     const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
     await w.findAll('[data-test="sv-cond-chip"]')[0].trigger('click')
     await flushPromises()
     expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
+    // End-to-end, not just "the call was made with the right args": the store's local merge
+    // (smartViews.ts's `splice(i, 1, { ...old, ...patch })` fallback for a null response)
+    // updates `sv.conds`, the page's `sv` computed follows it, and the chip actually
+    // disappears from the DOM -- not merely still present with a stale click handler.
+    await w.vm.$nextTick()
+    const remaining = w.findAll('[data-test="sv-cond-chip"]')
+    expect(remaining.length).toBe(1)
+    expect(remaining[0].text()).toContain('place: Japan')
   })
 
-  it('弹层输入 + Enter → store.updateSmartView 收到追加后的 conds(condsRaw)', async () => {
-    svc.photos.updateSmartView.mockResolvedValue(null)
-    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
-    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
-    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
-    await input.setValue('object: dog')
-    await input.trigger('keydown.enter')
-    await flushPromises()
-    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['scene: sunset', 'object: dog'] })
-  })
-
-  it('store.patchBusy 期间转发为 SmartViewConditionEditor 的 busy=true(primary 按钮禁用)', async () => {
+  it('store.patchBusy blocks a second click on the same chip from firing another PATCH', async () => {
     let resolveFn: ((v: unknown) => void) | undefined
     svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
-    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
-    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
-    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
-    await input.setValue('object: dog')
-    await input.trigger('keydown.enter')
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-cond-submit"]').attributes('disabled')).toBeDefined()
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    const chip = w.findAll('[data-test="sv-cond-chip"]')[0]
+    await chip.trigger('click')
+    expect(svc.photos.updateSmartView).toHaveBeenCalledTimes(1)
+    expect(chip.attributes('data-busy')).toBe('true')
+    await chip.trigger('click')
+    expect(svc.photos.updateSmartView).toHaveBeenCalledTimes(1)
     resolveFn?.(null)
     await flushPromises()
+  })
+
+  it('leaves no orphaned add-condition identifiers behind in the page source', () => {
+    for (const ident of [
+      'openAddCond', 'closeAddCond', 'submitCond', 'addCondSuggestion', 'addCond',
+      'SmartViewConditionEditor',
+    ]) {
+      expect(photosSmartViewDetailRaw).not.toContain(ident)
+    }
   })
 })
 

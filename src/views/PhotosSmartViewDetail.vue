@@ -55,7 +55,6 @@ import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import SmartViewConditionEditor from '../photos/components/SmartViewConditionEditor.vue'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
@@ -210,23 +209,27 @@ function refineInSearch(): void {
   void router.push({ path: '/photos/search', query: { q: s.name } })
 }
 
-// ── T7 接线:条件编辑器 add/remove → store.updateSmartView(结构规格 T7)───────────
-// SmartViewConditionEditor 自己不碰 store,只发 add/remove;这里负责把它翻译成
-// store.updateSmartView(id, { conds: [...] })。照 Vue2 removeCond/submitCond/
-// addCondSuggestion(:445-477)的请求体形状——`conds` 整体替换,不是增量 patch。
-// 不需要额外 .then(loadDetail):§7e-2 的 byId(id) 让 sv 计算属性在 store 数组项更新后
-// 自动跟着变,SmartViewConditionEditor 的 conds prop 立刻拿到新值。
-async function addCond(cond: string): Promise<void> {
-  const s = sv.value
-  if (!s) return
-  try {
-    await store.updateSmartView(s.id, { conds: [...s.conds, cond] })
-  } catch (e) {
-    console.error('[photos-smartviews] addCond', e)
-    toast.show(t('photosSvUpdateFailed'))
-  }
-}
+// ── T7 wiring, shrunk by SP15-P2c Task 8 (structure spec T7) ────────────────────
+// SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30 +
+// :700-710 ("用户追加需求" -- a deliberate product decision, not an oversight): the
+// "Add condition" entry (button + popover) is deleted along with the four Vue2 methods
+// that only served it, and this repo's equivalents inside the now-deleted, formerly
+// separate condition-editor component (see task-8-report.md for the exact names on both
+// sides). The function that translated the editor's "add" emit into a store call went
+// with it -- it had no other caller. `removeCond` survives (Vue2 keeps "existing
+// condition, click to remove") and is now called directly from this page's own template
+// instead of via the deleted component's "remove" emit.
+//
+// The `if (store.patchBusy) return` guard is net-new versus Vue2 (Vue2's removeCond has no
+// reentry guard at :697-701) and was already reviewed/tested when it lived inside
+// the deleted condition-editor component -- kept here rather than silently dropped when folding the
+// component back in, per this repo's "port visually, fix logic, don't regress" convention.
+// It is technically redundant with store.updateSmartView's own `if (patchBusy.value) return`
+// (smartViews.ts:246) -- both guards no-op a concurrent call -- but removing it would also
+// mean losing the `data-busy` visual affordance's justification, so it stays as
+// belt-and-suspenders documentation of intent, not dead code.
 async function removeCond(cond: string): Promise<void> {
+  if (store.patchBusy) return
   const s = sv.value
   if (!s) return
   try {
@@ -237,11 +240,13 @@ async function removeCond(cond: string): Promise<void> {
   }
 }
 
-// ── T8 接线:右栏(阈值/设置开关)→ store.updateSmartView(结构规格 T8)─────────────
-// SmartViewSidePanel 自己不碰 store,只做本地 draft/debounce + 派生量,只发一个统一的
-// `patch` emit;这里负责把它翻译成 store.updateSmartView(id, patch)。不需要额外
-// .then(loadDetail):同 addCond/removeCond 的道理,§7e-2 的 byId(id) 让 sv 计算属性在
-// store 数组项更新后自动跟着变,SmartViewSidePanel 的 sv prop 立刻拿到新值。
+// ── T8 wiring: right rail (threshold/settings toggles) -> store.updateSmartView
+// (structure spec T8) ─────────────────────────────────────────────────────────
+// SmartViewSidePanel doesn't touch the store itself -- it only keeps local draft/debounce
+// state and derived values, and emits a single unified `patch`; this translates that into
+// store.updateSmartView(id, patch). No extra .then(loadDetail) needed, same reasoning as
+// removeCond: §7e-2's byId(id) makes the `sv` computed follow along once the store's array
+// entry updates, so SmartViewSidePanel's `sv` prop picks up the new value immediately.
 async function onSidePatch(patch: { threshold?: number; live?: boolean; includeVideos?: boolean }): Promise<void> {
   const s = sv.value
   if (!s) return
@@ -744,11 +749,22 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 ><span class="live-dot" /> {{ t(paused ? 'photosSvPaused' : 'photosSvLive') }}</span>
               </h1>
 
-              <div class="sv-header-conds" data-test="sv-cond-editor-mount">
-                <SmartViewConditionEditor
-                  :conds="sv.conds" :busy="store.patchBusy"
-                  @add="addCond" @remove="removeCond"
-                />
+              <!-- SP15-P2c Task 8: "Add condition" button + popover deleted here (ported from
+                   Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30, "用户追加需求") --
+                   only the removable chips survive. This used to mount a dedicated
+                   condition-editor component; once `add` was gone it was down to a
+                   bare v-for with no local state, so it folded back in here (see
+                   task-8-report.md for the reasoning). -->
+              <div class="sv-header-conds" data-test="sv-header-conds">
+                <span
+                  v-for="c in sv.conds" :key="c" class="sv-cond sv-cond-removable" data-test="sv-cond-chip"
+                  :data-busy="store.patchBusy" :title="t('photosSvRemoveC', { c })" @click="removeCond(c)"
+                >
+                  {{ c }}
+                  <span class="sv-cond-x">
+                    <svg viewBox="0 0 24 24" width="9" height="9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                  </span>
+                </span>
               </div>
 
               <div class="sv-header-stats">
@@ -1218,6 +1234,50 @@ async function onExcludedTileClick(id: string): Promise<void> {
 
 /* T7 兑现:Vue2 scss:252 的容器布局(T6 只留了 min-height 占位)。 */
 .sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
+
+/* SP15-P2c Task 8: chip styles moved in from the deleted condition-editor component
+   (only the removable-chip half survives -- the add button / popover rules were dropped
+   with the capability, not kept as dead selectors). Vue2 base .sv-cond
+   (photos-smartview.scss:96-102 base + :253 header override) has no `:hover` rule of its
+   own; the hover below is scss:255-282's `.sv-cond-removable`. */
+.sv-cond {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--chip-bg-hi);
+  color: var(--fg-muted);
+  font-size: 11.5px;
+}
+.sv-cond-removable {
+  gap: 4px;
+  cursor: pointer;
+  padding-right: 6px;
+  transition: background 0.12s, color 0.12s, padding 0.12s;
+}
+.sv-cond-x {
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  color: var(--fg-faint);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.14s, transform 0.14s, background 0.12s;
+}
+/* Vue2's hardcoded coral-red literal maps to the --remove-fg family, matching this file's
+   existing precedent (.sv-export-item-danger etc.). */
+.sv-cond-removable:hover {
+  background: color-mix(in srgb, var(--remove-fg) 14%, transparent);
+  color: var(--remove-fg);
+}
+.sv-cond-removable:hover .sv-cond-x {
+  opacity: 1;
+  transform: scale(1);
+  background: color-mix(in srgb, var(--remove-fg) 22%, transparent);
+  color: var(--remove-fg);
+}
+.sv-cond-removable[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 
 .sv-header-stats { display: flex; gap: 20px; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .sv-header-stats b { color: var(--fg); font-weight: 600; }
