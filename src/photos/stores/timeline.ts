@@ -90,6 +90,16 @@ export function __resetBucketProbeForTest(): void {
   _bucketInflight.clear()
 }
 
+// Indexing polls every 5s and each tick used to refetch the whole timeline. The
+// directory is cheap enough to poll, but not free — debounce it so a burst of
+// index progress cannot turn into a burst of requests.
+const INDEX_REFRESH_DEBOUNCE_MS = 3_000
+let _lastIndexRefreshAt = 0
+
+export function __resetIndexRefreshForTest(): void {
+  _lastIndexRefreshAt = 0
+}
+
 export const useTimelineStore = defineStore('photos-timeline', () => {
   const timelineGroups = ref<TimelineGroup[]>([])
   const loading = ref(false)
@@ -192,7 +202,15 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       // appear automatically. Quiet refresh (no loading flip) avoids a flash
       // every 5s.
       if (nextIndexed > prevIndexed) {
-        void refreshTimelineQuiet()
+        if (bucketMode.value) {
+          const now = Date.now()
+          if (now - _lastIndexRefreshAt >= INDEX_REFRESH_DEBOUNCE_MS) {
+            _lastIndexRefreshAt = now
+            void refreshBuckets()
+          }
+        } else {
+          void refreshTimelineQuiet()
+        }
       }
 
       // Level-triggered reconciliation: clear stale/stuck index tasks, trusting
@@ -430,6 +448,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     for (const t of _doneRemovalTimers.values()) clearTimeout(t)
     _doneRemovalTimers.clear()
     __resetBucketProbeForTest()
+    __resetIndexRefreshForTest()
     resetState()
   }
 

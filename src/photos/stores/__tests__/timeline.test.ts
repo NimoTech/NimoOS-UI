@@ -411,6 +411,65 @@ describe('photos-timeline bucket mode', () => {
   })
 })
 
+// Task 10: indexing polls index status every 5s, and every tick that saw progress
+// used to refetch the whole timeline. In bucket mode the directory is cheap enough
+// to poll instead, but a debounce keeps a burst of index progress from becoming a
+// burst of directory requests.
+describe('photos-timeline fetchIndexStatus directory refresh (bucket mode)', () => {
+  // Same isolation as the other bucket-mode describes above.
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+
+  it('refreshes only the directory while indexing progresses', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBuckets.mockClear()
+    svc.photos.getTimeline.mockClear()
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
+    await s.fetchIndexStatus()
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 2 })
+    await s.fetchIndexStatus()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
+    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
+  })
+
+  it('debounces the directory refresh to at most one per 3 seconds', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValue(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBuckets.mockClear()
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
+    await s.fetchIndexStatus()
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 2 })
+    await s.fetchIndexStatus()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(3001)
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 3 })
+    await s.fetchIndexStatus()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps the legacy quiet refresh when buckets are unavailable', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
+    await s.fetchTimeline()
+    svc.photos.getTimeline.mockClear()
+    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
+    await s.fetchIndexStatus()
+    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('photos-timeline fetchBucket', () => {
   // Same isolation as the "photos-timeline bucket mode" describe above: a fresh
   // Pinia + cleared mocks per test, so one test's paging/dedupe call counts
