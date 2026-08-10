@@ -187,7 +187,7 @@ function back() { router.push({ name: 'apps' }) }
 .settings-yaml-editor { flex: 1 1 auto; min-height: 320px; }
 .set-conflict {
   /* 全仓库其它「危险/冲突」提示均用半透明 --drop-bad 当底 + --remove-fg 当字(见 GridGhost.vue .bad、
-     OperationStatusBar.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
+     UploadPanel.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
      接近,深色主题下几乎不出对比度),改用 --drop-bad 保持可读,同为 token,不算新增字面量色。 */
   margin-bottom: 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);

@@ -11,7 +11,8 @@ export interface FileTask {
   to: string
 }
 
-// socket props.file_operate 是 JSON 串 → { data: FileTask[] }(移植 Vue2 OperationStatusBar)
+// socket props.file_operate is a JSON string -> { data: FileTask[] } (ported
+// from Vue2's FilePanel socket handler).
 export function parseFileOperate(props: unknown): FileTask[] {
   const s = (props as { file_operate?: unknown } | null)?.file_operate
   if (typeof s !== 'string') return []

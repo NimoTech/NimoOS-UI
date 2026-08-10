@@ -14,7 +14,6 @@ import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
-import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
 import { useFileOps } from '../files/composables/useFileOps'
 import { useFileConflictsStore } from '../files/stores/fileConflicts'
@@ -736,7 +735,6 @@ onMounted(() => { browse.ensureVolumes() })
       :cancel-text="t('filesCancel')"
       @confirm="confirmDownload"
     />
-    <OperationStatusBar />
     <UploadPanel />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
