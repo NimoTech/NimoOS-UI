@@ -1,5 +1,13 @@
-// Peer 传输状态机 + RTCPeer:逐字移植 Vue2 Network.js。
-// 差异仅:全局 $EventBus → 注入回调;sdpSemantics 删除(spec D6);TS 类型化。
+// Peer transfer state machine + RTCPeer. The wire protocol (message shapes,
+// 64 KB chunks, 1 MB partitions, the header/partition/ack/complete sequence) is
+// a faithful port of Vue2 Network.js and MUST stay compatible -- old and new
+// pages transfer to each other. The reliability layer around it is NOT a port
+// and has no Vue2 counterpart: a single disconnect trunk (handleDisconnect) that
+// reports only when something was in flight, ACK_TIMEOUT_MS bounds on both of
+// the sender's waits with per-partition ack matching, user-initiated
+// cancellation, chunker aborts on reset, and a transient-vs-terminal split of
+// the ICE connection states. Also differs from Vue2: global $EventBus ->
+// injected callbacks; sdpSemantics dropped (spec D6); TS types.
 import { FileChunker } from './chunker'
 import { FileDigester } from './digester'
 import {

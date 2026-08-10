@@ -22,8 +22,8 @@ const { t } = useI18n()
 // Initial open state must consider both queues -- a mount with file
 // operations already in flight (e.g. a paste task started just before this
 // panel first renders) should show them immediately, not wait for a
-// subsequent change event that will never fire because there was no
-// empty -> non-empty transition after mount.
+// subsequent change event that will never fire because the length never
+// increases again after mount.
 const open = ref(
   shouldAutoOpenUploadList(0, store.queue.length) || shouldAutoOpenUploadList(0, ops.active.length),
 )
@@ -50,9 +50,11 @@ const totalCount = computed(() => store.queue.length)
 const opsCount = computed(() => ops.active.length)
 const panelVisible = computed(() => totalCount.value > 0 || opsCount.value > 0)
 
-// Same rule for file operations: an empty -> non-empty transition pops the
-// panel open. Reuses the upload helper so both queues share one definition of
-// "something just started".
+// Same rule for file operations. Note what the shared helper actually says:
+// `shouldAutoOpenUploadList` is `curLen > prevLen`, so ANY increase re-opens a
+// panel the user had collapsed -- not only the empty -> non-empty transition.
+// Reuses the upload helper so both queues share one definition of "something
+// just started".
 watch(
   opsCount,
   (cur, prev) => {
