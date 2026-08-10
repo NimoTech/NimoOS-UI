@@ -160,6 +160,13 @@ function onIntersect(entries: IntersectionObserverEntry[]) {
 }
 
 function syncObserver() {
+  // Drop measured heights for months that no longer exist (directory refresh
+  // removed them) — otherwise they'd sit in the map for the component's
+  // whole lifetime.
+  const currentKeys = new Set(filteredMonths.value.map((m) => m.key))
+  for (const key of measuredHeights.keys()) {
+    if (!currentKeys.has(key)) measuredHeights.delete(key)
+  }
   if (!observer) return
   observer.disconnect()
   // Scan for `.month-group` and match by id string rather than

@@ -546,8 +546,16 @@ describe('PhotosGrid windowing', () => {
     const io = FakeIO.instances[0]
     io.fire(el, true)
     await nextTick()
-    // jsdom reports offsetHeight 0; stub it so the measurement path is exercised.
-    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 321 })
+    // jsdom reports offsetHeight 0 unconditionally, so a static stub can't tell
+    // "read before dropping the tiles" from "read after" — it would return 321
+    // either way. A getter that only answers 321 while the tiles are still
+    // mounted pins the ordering: a read taken after the swap sees the
+    // placeholder-only subtree (no `.grid`) and gets 0, which surfaces as a
+    // 0px placeholder height and fails the assertion below.
+    Object.defineProperty(el, 'offsetHeight', {
+      configurable: true,
+      get: () => (el.querySelector('.grid') ? 321 : 0),
+    })
     io.fire(el, false)
     await nextTick()
     expect(w.findAll('.tile')).toHaveLength(0)
