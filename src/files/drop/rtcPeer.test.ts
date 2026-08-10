@@ -305,10 +305,118 @@ describe('Peer send-side timeouts', () => {
       // by the wasActive guard in handleDisconnect -- silently, with no
       // onTransferBroken call either way. That would make this test pass
       // whether or not the timer was actually cleared. The real danger is a
-      // stale native timeout still pending underneath: it survives
-      // reassigning `ackTimer` and can misfire mid-flight against whatever
-      // transfer to this peer happens to be active 30s later.
+      // stale native timeout handle: it is NOT cancelled just because
+      // `ackTimer` gets reassigned later (armAck() clears the old handle
+      // first, but only if something calls arm/clear again before the
+      // handle's own deadline). It survives untouched until the next arm or
+      // clear call, and fires on its own 30s later if nothing ever makes
+      // one. The test right after this one shows what that firing can do to
+      // an unrelated later transfer.
       expect((p as unknown as { ackTimer: unknown }).ackTimer).toBeNull()
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a timer surviving transfer-complete cannot kill a later unrelated incoming transfer to the same peer', async () => {
+    // Observable-behaviour companion to the internal-state check above: even
+    // without reaching into `ackTimer`, a leaked timer's real-world damage is
+    // visible here. The receive path never touches ackTimer, so a stray timer
+    // from a completed send would misfire straight into an in-flight receive.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(10)], 'small.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
+      p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+
+      // A healthy, unrelated incoming transfer starts afterwards and is
+      // still in flight (well short of size and below PROGRESS_NOTIFY_STEP,
+      // so it doesn't itself send anything back out) when the timer's
+      // original deadline would have arrived.
+      p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 10000, from: 'peer2' }))
+      p.handleChannelMessage(new Uint8Array(8).buffer)
+      expect(p.hasActiveTransfer()).toBe(true)
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).not.toHaveBeenCalled()
+      expect(p.hasActiveTransfer()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('ignores a stray partition-received while idle, so it cannot arm a timer that later kills an unrelated incoming transfer', () => {
+    // Two real routes reach this: a stray/duplicate ack arriving after a
+    // reset-plus-re-dial, or chunker.abort() racing an in-flight
+    // onPartitionEnd. Either way, chunker is null when the ack lands.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 0 }))
+
+      // A healthy, unrelated incoming transfer starts and is still in flight.
+      p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 10000, from: 'peer2' }))
+      p.handleChannelMessage(new Uint8Array(8).buffer)
+      expect(p.hasActiveTransfer()).toBe(true)
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).not.toHaveBeenCalled()
+      expect(p.hasActiveTransfer()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
+describe('RTCPeer close() resets transfer state', () => {
+  class FakeConn {
+    connectionState = 'new'
+    onicecandidate: unknown = null
+    onconnectionstatechange: unknown = null
+    ondatachannel: unknown = null
+    createDataChannel() { return { send: vi.fn(), close: vi.fn(), readyState: 'connecting' } }
+    createOffer() { return Promise.resolve({ type: 'offer', sdp: '' }) }
+    setLocalDescription() { return Promise.resolve() }
+    setRemoteDescription() { return Promise.resolve() }
+    addIceCandidate() { return Promise.resolve() }
+    close() {}
+  }
+  class TestRTCPeer extends RTCPeer {
+    out: (string | ArrayBuffer)[] = []
+    protected sendRaw(d: string | ArrayBuffer) { this.out.push(d) }
+  }
+
+  beforeEach(() => { vi.stubGlobal('RTCPeerConnection', FakeConn) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  it('clears an in-flight ack timer, so leaving the page never reports a broken transfer 30s later', async () => {
+    // RTCPeerConnection.close() does not fire connectionstatechange, so
+    // nothing else routes into the disconnect trunk -- close() itself has to
+    // do the reset, or the timer armed by the send in progress outlives the
+    // page.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestRTCPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(10)], 'small.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() =>
+        expect(p.out.some((m) => typeof m === 'string' && (JSON.parse(m) as { type: string }).type === 'partition')).toBe(true),
+      )
+
+      p.close()
 
       vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
 

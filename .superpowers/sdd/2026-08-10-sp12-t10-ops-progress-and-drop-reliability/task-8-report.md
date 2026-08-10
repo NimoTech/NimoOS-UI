@@ -108,3 +108,82 @@ So 3 of the 4 tests fail against pre-Task-8 code for the intended reason; the 4t
 - Two of the four test bodies had to be corrected from the brief's literal text (see "Deviations" above) because they didn't hold given the actual `CHUNK_SIZE`/`MAX_PARTITION_SIZE` constants and the `wasActive` guard's interaction with `onTransferCompleted()`. Both corrections are behavior-preserving relative to the brief's *design intent* (bounding both waits; last-partition ack arms completion wait; transfer-complete clears the timer) — only the test fixtures/assertions were wrong, not the prescribed `protocol.ts`/`rtcPeer.ts` implementation, which was applied exactly as written.
 - No test currently exercises the true "dangling timer fires mid-flight against a *new*, unrelated transfer" scenario end-to-end (only the direct internal-state check for the `transfer-complete` case). Constructing that deterministically would require controlling `FileChunker`'s async timing precisely against the 30s deadline, which felt like overkill for this task; flagging it here in case a future task wants a stronger regression test for correctness point 3.
 - Did not run the full `pnpm test` suite per instructions (dirty tree breaks `oss/export.mjs` gate); scoped to `src/files/drop/` + `vue-tsc --noEmit`, both clean.
+
+---
+
+# Fix round 1 of 5 (reviewer feedback)
+
+Reviewer (more capable model) found two Important bugs, each with its own probe, plus one comment-accuracy issue on code from this task's original pass. All three fixed.
+
+## Important 1 — `RTCPeer.close()` never reset transfer state
+
+`close()` nulled `conn`/`channel` but never called `resetTransferState()`/`clearAck()`. `RTCPeerConnection.close()` does not fire `connectionstatechange`, so nothing else routes into the disconnect trunk on that path. `PeersManager` calls `close()` on `peer-left` and from `destroy()` (which `stores/drop.ts` calls when the user leaves `/files/drop`), so an in-flight send's `ackTimer` would outlive the page and fire 30s later against a `Peer` nobody is looking at — reporting a broken transfer through the app-global toast store on whatever page the user has since navigated to. This was inert before Task 8 (there was no timer to leak); Task 8's `ackTimer` addition made it reachable.
+
+**Fix** (`src/files/drop/rtcPeer.ts`, `RTCPeer.close()`): added `this.resetTransferState()` as the last line, with a comment explaining why `close()` itself has to do it (no `connectionstatechange` event to hook).
+
+**Test added**: `RTCPeer close() resets transfer state > clears an in-flight ack timer, so leaving the page never reports a broken transfer 30s later`. Uses a new `TestRTCPeer` (extends `RTCPeer`, overrides `sendRaw` to capture output like `TestPeer` does for the base class) plus the same minimal `FakeConn` stub pattern already used by the `RTCPeer disconnect branches` describe block. Starts a send, waits for the first `partition` message (which arms the timer), calls `close()`, advances past `ACK_TIMEOUT_MS`, asserts `onTransferBroken` was never called.
+
+**Mutation check**: reverted `close()` to the original two-line body (no reset). Reran `pnpm exec vitest run src/files/drop/rtcPeer.test.ts`:
+```
+Tests  1 failed | 19 passed (20)
+FAIL  ... > RTCPeer close() resets transfer state > clears an in-flight ack timer, so leaving the page never reports a broken transfer 30s later
+  AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+  Received: [{ peerId: 'peer2', reason: 'timeout' }]
+```
+Exactly the target test went red, nothing else. Restored the fix; reran: 20/20 green.
+
+## Important 2 — bare `else this.armAck()` armed even with no chunker
+
+In the `partition-received` case, the `else` branch ran unconditionally, so a stray/duplicate `partition-received` arriving while `this.chunker` is `null` (idle peer, or a chunker whose `abort()` raced an in-flight `onPartitionEnd`) would still arm a 30s timer. The receive path never touches `ackTimer`, so nothing would cancel it — if a healthy incoming transfer happened to be active 30s later, the stray timer would fire, `hasActiveTransfer()` would read true (`digester !== null`), and `handleDisconnect('timeout')` would drop the half-assembled file and report a phantom broken transfer.
+
+**Fix** (`src/files/drop/rtcPeer.ts`): `else this.armAck()` → `else if (this.chunker) this.armAck()`, with a comment naming both reachable routes (post-reset re-dial stray ack; chunker abort racing `onPartitionEnd`).
+
+**Test added**: `Peer send-side timeouts > ignores a stray partition-received while idle, so it cannot arm a timer that later kills an unrelated incoming transfer`. Sends a stray `partition-received` on an idle `TestPeer` (no chunker), then starts a healthy incoming transfer that is deliberately left in-flight (header + one short chunk, below `PROGRESS_NOTIFY_STEP` so it doesn't itself emit anything), advances past `ACK_TIMEOUT_MS`, and asserts both `onTransferBroken` was never called and `hasActiveTransfer()` is still `true` (the incoming transfer must be untouched, not just "no report").
+
+**Mutation check**: reverted to bare `else this.armAck()`. Reran `pnpm exec vitest run src/files/drop/rtcPeer.test.ts`:
+```
+Tests  1 failed | 19 passed (20)
+FAIL  ... > Peer send-side timeouts > ignores a stray partition-received while idle, so it cannot arm a timer that later kills an unrelated incoming transfer
+  AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+  Received: [{ peerId: 'peer2', reason: 'timeout' }]
+```
+Exactly the target test went red, nothing else. Restored the fix; reran: 20/20 green.
+
+## Minor — inaccurate comment on the private-field assertion
+
+The comment on the `ackTimer`-reaching-into-private-field assertion (in "clears the timer on transfer-complete...") claimed the stale handle "survives reassigning `ackTimer`" — false, since `armAck()` calls `clearAck()` before assigning, so two live timers can never coexist under the field. Rewrote it to say what's actually true: the handle is untouched (and still counting down) until *something* calls arm or clear again, and fires on its own if nothing does within the timeout.
+
+Per the reviewer's note, also added the observable-behaviour companion test they verified independently: `Peer send-side timeouts > a timer surviving transfer-complete cannot kill a later unrelated incoming transfer to the same peer` — completes a small file's send fully (through `transfer-complete`), then starts a healthy incoming transfer left in-flight, advances past `ACK_TIMEOUT_MS`, and asserts neither `onTransferBroken` fires nor the incoming transfer gets touched.
+
+**Kept both** the private-field test and the new observable-behaviour test, rather than replacing one with the other: the private-field version pinpoints the exact defect (a live timer object where there should be `null`) immediately after the triggering event, with no dependency on a second transfer; the observable-behaviour version proves the real-world consequence the reviewer's probe described (a healthy unrelated transfer actually gets killed). Together they cover both "is the bug present" and "does the bug matter," and the second one is a direct regression test for the reviewer's exact probe.
+
+**Mutation check** (removing `clearAck()` from the `transfer-complete` case, same mutation as Important-2's sibling from the original pass) now turns **both** of these tests red together:
+```
+Tests  2 failed | 18 passed (20)
+FAIL  ... > clears the timer on transfer-complete so a finished send never reports a timeout
+  AssertionError: expected { refed: true, ... } to be null
+FAIL  ... > a timer surviving transfer-complete cannot kill a later unrelated incoming transfer to the same peer
+  AssertionError: expected "vi.fn()" to not be called at all, but actually been called 1 times
+  Received: [{ peerId: 'peer2', reason: 'timeout' }]
+```
+Restored; reran: 20/20 green.
+
+## Regression check: original three Task-8 tests still correct under the updated code
+
+With both Important fixes now in place (the `if (this.chunker)` guard and the `close()` reset), re-ran the two original Step-5 mutations from the first pass to confirm they still behave correctly:
+
+- Deleting `else if (this.chunker) this.armAck()` entirely → exactly `arms the same timeout while waiting for the final transfer-complete` went red (`Tests 1 failed | 19 passed`), all else green. Restored → 20/20 green.
+- Deleting `this.clearAck()` from the `transfer-complete` case → covered above (now turns two tests red instead of one, both for the same underlying reason). Restored → 20/20 green.
+
+## Final verification
+
+```
+pnpm exec vitest run src/files/drop/
+ Test Files  12 passed (12)
+      Tests  65 passed (65)
+
+pnpm exec vue-tsc --noEmit
+(no output — clean)
+```
+
+No full-suite run performed (dirty-tree OSS export gate), per instructions.

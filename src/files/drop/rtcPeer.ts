@@ -72,8 +72,11 @@ export class Peer {
         this.clearAck()
         if (this.chunker && !this.chunker.isFileEnd()) this.chunker.nextPartition()
         // Last partition acknowledged: now we are waiting for the receiver to
-        // finish assembling and say transfer-complete. Same bound applies.
-        else this.armAck()
+        // finish assembling and say transfer-complete. Same bound applies --
+        // but only when there is actually a chunker: a stray/duplicate ack
+        // (post-reset re-dial, or a chunker whose abort() raced onPartitionEnd)
+        // must not arm a timer that later kills an unrelated transfer.
+        else if (this.chunker) this.armAck()
         break
       case 'progress': this.onDownloadProgress(msg.progress); break
       case 'transfer-complete': this.clearAck(); this.onTransferCompleted(); break
@@ -275,6 +278,11 @@ export class RTCPeer extends Peer {
   close(): void {
     if (this.conn) { this.conn.close(); this.conn = null }
     this.channel = null
+    // RTCPeerConnection.close() does not fire connectionstatechange, so
+    // nothing else routes into the disconnect trunk here. Without this, an
+    // in-flight ackTimer survives the user leaving the page and fires 30s
+    // later against a Peer nobody is looking at anymore.
+    this.resetTransferState()
   }
 
   protected sendRaw(data: string | ArrayBuffer): void {
