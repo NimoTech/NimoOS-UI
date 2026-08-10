@@ -35,6 +35,8 @@ export type ChannelMessage =
   | { type: 'transfer-complete' }
   | { type: 'text'; text: string }
 
+export type TransferBrokenReason = 'disconnected' | 'timeout' | 'cancelled'
+
 export interface ReceivedFile { name: string; mime: string; size: number; blob: Blob }
 
 // 文本 base64(UTF-8):逐字对齐 Vue2(deprecated unescape/escape 是故意的,为 wire 兼容)

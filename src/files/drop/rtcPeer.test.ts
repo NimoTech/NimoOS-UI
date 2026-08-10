@@ -8,7 +8,10 @@ class TestPeer extends Peer {
   protected sendRaw(d: string | ArrayBuffer) { this.out.push(d) }
 }
 function makeEvents(): PeerEvents {
-  return { onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(), onTransferComplete: vi.fn() }
+  return {
+    onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+    onTransferComplete: vi.fn(), onTransferBroken: vi.fn(),
+  }
 }
 const jsonOut = (p: TestPeer) => p.out.filter((x): x is string => typeof x === 'string').map((s) => JSON.parse(s))
 
@@ -51,5 +54,56 @@ describe('Peer 传输状态机(wire 形状=Vue2)', () => {
     expect(jsonOut(p)).toContainEqual({ type: 'text', text: encodeText('2') })
     p.handleChannelMessage(JSON.stringify({ type: 'text', text: encodeText('中文') }))
     expect(ev.onTextReceived).toHaveBeenCalledWith({ text: '中文', sender: 'peer2' })
+  })
+})
+
+describe('Peer disconnect handling', () => {
+  it('reports a broken transfer and unblocks the queue when the peer goes away mid-send', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    const f = (n: string) => new File([new Uint8Array(10)], n)
+    p.sendFiles([f('1')], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(1))
+
+    p.handleDisconnect('disconnected')
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+    expect(p.hasActiveTransfer()).toBe(false)
+  })
+
+  it('accepts a brand new send after a disconnect, instead of staying wedged forever', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    const f = (n: string) => new File([new Uint8Array(10)], n)
+    p.sendFiles([f('first')], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(1))
+    p.handleDisconnect('disconnected')
+
+    p.sendFiles([f('second')], 'self1')
+
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(2))
+    const headers = jsonOut(p).filter((m) => m.type === 'header')
+    expect(headers[1].name).toBe('second')
+  })
+
+  it('drops the half-assembled incoming file so a later transfer does not inherit its bytes', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 16, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+    expect(p.hasActiveTransfer()).toBe(true)
+
+    p.handleDisconnect('disconnected')
+
+    expect(p.hasActiveTransfer()).toBe(false)
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+    expect(ev.onFileReceived).not.toHaveBeenCalled()
+  })
+
+  it('stays silent when nothing was in flight, so idle reconnects do not nag the user', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.handleDisconnect('disconnected')
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
   })
 })

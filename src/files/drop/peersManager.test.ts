@@ -8,7 +8,10 @@ function makeFakePeer() {
     sendText: vi.fn(), sendFiles: vi.fn(),
   }
 }
-const events: PeerEvents = { onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(), onTransferComplete: vi.fn() }
+const events: PeerEvents = {
+  onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+  onTransferComplete: vi.fn(), onTransferBroken: vi.fn(),
+}
 const peerInfo = (id: string, rtc = true) => ({ id, name: { model: 'desktop', deviceName: 'd', displayName: 'D' }, rtcSupported: rtc })
 
 describe('PeersManager', () => {

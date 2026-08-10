@@ -96,6 +96,10 @@ export const useDropStore = defineStore('drop', () => {
       onFileReceived: (e) => { receiveQueue.value.push(e) },
       onTextReceived: (e) => { receivingCount[e.sender] = Number(e.text) || 1 },
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
+      onTransferBroken: (e) => {
+        delete transfers.value[e.peerId]
+        useToast().show(t('filesDropInterrupted'), 3000)
+      },
     })
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)

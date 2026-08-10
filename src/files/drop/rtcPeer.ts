@@ -2,13 +2,17 @@
 // 差异仅:全局 $EventBus → 注入回调;sdpSemantics 删除(spec D6);TS 类型化。
 import { FileChunker } from './chunker'
 import { FileDigester } from './digester'
-import { encodeText, decodeText, PROGRESS_NOTIFY_STEP, type ChannelMessage, type ReceivedFile } from './protocol'
+import {
+  encodeText, decodeText, PROGRESS_NOTIFY_STEP,
+  type ChannelMessage, type ReceivedFile, type TransferBrokenReason,
+} from './protocol'
 
 export interface PeerEvents {
   onFileProgress: (e: { sender: string; progress: number; filesQueue: number; files: File[] }) => void
   onFileReceived: (e: { file: ReceivedFile; from: string }) => void
   onTextReceived: (e: { text: string; sender: string }) => void
   onTransferComplete: () => void
+  onTransferBroken: (e: { peerId: string; reason: TransferBrokenReason }) => void
 }
 export interface SignalChannel { send(message: object): void }
 
@@ -115,6 +119,33 @@ export class Peer {
   // 子类实现真实发送;基类抛错防误用
   protected sendRaw(_data: string | ArrayBuffer): void {
     throw new Error('Peer.sendRaw must be overridden')
+  }
+
+  /** True while this peer is sending or assembling something. */
+  hasActiveTransfer(): boolean {
+    return this.busy || this.digester !== null
+  }
+
+  /**
+   * The single place a transfer dies. Resets the peer so the next send starts
+   * clean, then tells the UI -- but only when something was actually in
+   * flight. Channels close routinely during idle reconnects; reporting those
+   * would train the user to ignore the message that matters.
+   */
+  handleDisconnect(reason: TransferBrokenReason): void {
+    const wasActive = this.hasActiveTransfer()
+    this.resetTransferState()
+    if (wasActive) this.events.onTransferBroken({ peerId: this._peerId, reason })
+  }
+
+  protected resetTransferState(): void {
+    this.busy = false
+    this.chunker = null
+    this.digester = null
+    this.filesQueue = []
+    this.files = []
+    this.lastProgress = 0
+    this.incomingFrom = ''
   }
 }
 
