@@ -998,7 +998,31 @@ async function onExcludedTileClick(id: string): Promise<void> {
                   <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
                     <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
                     <div>
-                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
+                      <!-- Task 7 review fix: the target shortened both this title and Delete's
+                           below specifically so the two "matching" detail pages' menus read the
+                           same (33b05636 :143-147's own comment on the change). This entry used
+                           `photosSvConvertToAlbum` ("转为普通相册"), the long form Task 8 wrote
+                           before this page had a sibling to match against -- the album page's
+                           own Convert entry (Task 5) already reuses `photosAlbumMenuConvert`
+                           ("转换", the target's exact short copy), so this switches to the same
+                           key rather than coining a new SV-specific one. The confirm dialog's
+                           own submit button (further down this file) still reads
+                           `photosSvConvertToAlbum` unchanged -- that button predates this task,
+                           is not one of the two rows the reviewer flagged, and the target itself
+                           gives it the same short "Convert" copy too, so revisiting it is a
+                           separate, larger cleanup outside this fix's scope. -->
+                      <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
+                      <!-- Desc intentionally NOT realigned to the target's shorter
+                           "停止自动更新,固化当前照片": `photosSvConvertToAlbumHint`
+                           ("停止自动更新，固化当前已匹配的照片") is semantically identical and
+                           was a deliberate registration back in SP15-P2b (this page's Convert
+                           entry existed before this task). Only the two titles were shortened
+                           in the target's own commit for cross-page parity; the descs were
+                           left alone there too ("Vue2 :119-123 三处内联的那个珊瑚红字面量" note
+                           below shows Vue2 continuing to carry its own full desc copy
+                           unchanged). Realigning this desc now would be scope creep onto a
+                           different task's registered decision for a wording difference with
+                           no user-visible parity gap -- recorded here rather than changed. -->
                       <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
                     </div>
                   </button>
@@ -1007,7 +1031,13 @@ async function onExcludedTileClick(id: string): Promise<void> {
                   <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
                     <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
                     <div>
-                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
+                      <!-- Task 7 review fix: same reasoning as Convert above -- the target
+                           shortened this to plain "Delete" ("删除") for cross-page parity.
+                           `photosDelete` already carries exactly that copy and is already the
+                           key this page's own delete-confirmation button uses (below), so no
+                           new key is needed; `photosSvDeleteSmartView` ("删除智能视图") is left
+                           in place, unused by this entry now, for Task 11's orphan sweep. -->
+                      <div class="sv-export-title">{{ t('photosDelete') }}</div>
                       <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
                     </div>
                   </button>

@@ -194,3 +194,108 @@ brief's own required test) + 6 (brief's 6 required tests) = 1200. Matches the ob
   template consumer, the Export button, is deleted). Left in place and flagged in a comment,
   matching this phase's existing posture on i18n orphans, but it is still dead code sitting in
   the file until someone sweeps it.
+
+---
+
+## Fix round 1 (coordinator review, Important)
+
+**Finding**: two of the five menu titles were not the target's shortened copy. The target
+(33b05636 :210/:218, confirmed against `src/assets/lang/zh_CN.json`) shortened both Convert and
+Delete's titles specifically so this page's menu and `PhotosAlbumDetail.vue`'s menu (Task 5)
+read the same word for the same row — that page already uses the target's short copy
+(`photosAlbumMenuConvert` = 转换, `photosDelete` = 删除), while this page's own two entries were
+still using the long-form keys Task 8 wrote before this page had a sibling to match against
+(`photosSvConvertToAlbum` = 转为普通相册, `photosSvDeleteSmartView` = 删除智能视图).
+
+**Fix**: `src/views/PhotosSmartViewDetail.vue`'s Convert menu entry now reads
+`t('photosAlbumMenuConvert')`; the Delete menu entry now reads `t('photosDelete')` — reusing the
+album page's own keys rather than coining new ones, since both already carry the target's exact
+short copy and `photosDelete` was already this page's own delete-*confirmation* button's key
+(so the same word is now used twice on this page, not introduced fresh). No new i18n keys.
+
+**What did NOT change, and why**:
+- The confirm dialog's own submit button (further down the same file) still reads
+  `t('photosSvConvertToAlbum')` unchanged. It predates this task (SP15-P2b Task 8), is not one
+  of the two menu rows the reviewer flagged, and the target gives that button the same short
+  "Convert" copy too — revisiting it is a separate cleanup, out of this fix's scope.
+- `photosSvConvertToAlbum` and `photosSvDeleteSmartView` are left in `zh_cn.ts`/`en_us.ts`,
+  unused by the menu now, per Task 11's orphan sweep convention (not touched here).
+
+**Judgement call, recorded**: the Convert entry's *desc* is left as
+`photosSvConvertToAlbumHint` ("停止自动更新，固化当前已匹配的照片") rather than realigned to
+the target's shorter "停止自动更新,固化当前照片". Reasoning: semantically identical (both say
+"stop auto-updates, freeze the matched/current photos"); it was a deliberate registration made
+back in SP15-P2b when this entry was first written, before this task's cross-page-parity
+question existed; and the target's own commit that shortened the *titles* left the *descs*
+alone in both pages (the reviewer's own message confirms this: "The descs stay as they are —
+only the titles were shortened"). Realigning a semantically-equivalent desc for a wording
+difference with no visible parity gap would be scope creep onto a different task's already-
+reviewed decision. Left as-is, registered here rather than changed silently.
+
+**Copy assertion added**: extended `renders exactly five menu entries in the target order`
+(the same test the brief required) with a second assertion — each entry's `.sv-export-title`
+text, in order, against `zh.photosSvRename`/`zh.photosSvDuplicate`/`zh.photosFavExport`/
+`zh.photosAlbumMenuConvert`/`zh.photosDelete`. This is the gate the reviewer asked for: the
+previous version only pinned `data-test` ids, which says nothing about rendered copy — exactly
+how the drift went undetected.
+
+**Mutation check**: reverted the Delete entry's title back to `t('photosSvDeleteSmartView')`
+and re-ran the extended test in isolation:
+
+```
+$ pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "renders exactly five menu entries"
+AssertionError: expected [ '重命名', '复制', '下载为 ZIP', '转换', …(1) ] to deeply equal [ '重命名', '复制', '下载为 ZIP', '转换', '删除' ]
+  [
+    "重命名", "复制", "下载为 ZIP", "转换",
+-   "删除",
++   "删除智能视图",
+  ]
+ Tests  1 failed | 92 skipped (93)
+```
+
+RED as expected. Reverted the mutation; re-ran the full targeted suite to confirm clean GREEN.
+
+**Covering tests**: `renders exactly five menu entries in the target order` (extended, the one
+that now catches this class of drift) and the pre-existing `does not dismiss the confirmation
+mid-flight` / convert-flow tests (unaffected — they exercise the confirm dialog's own button,
+not the menu entry, and that button's key was not touched).
+
+**Command and output** (foreground, exact commands from the coordinator's message):
+
+```
+$ pnpm exec vitest run src/views/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/i18n/parity.test.ts src/styles
+ Test Files  6 passed (6)
+      Tests  1107 passed (1107)
+```
+
+Note: this literal path (`src/views/PhotosSmartViewDetail.test.ts`) does not exist — the main
+test file lives at `src/views/__tests__/PhotosSmartViewDetail.test.ts` (as it has since before
+this task; vitest silently drops a pattern that matches nothing rather than erroring, which is
+why this still reports a clean pass at a lower count). Re-ran with the correct path to actually
+exercise the fix:
+
+```
+$ pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/i18n/parity.test.ts src/styles
+ Test Files  7 passed (7)
+      Tests  1200 passed (1200)
+```
+
+```
+$ pnpm exec vue-tsc --noEmit
+(no output — clean)
+```
+
+## Also found, for the report only (not fixed this round, per instruction)
+
+Logged, left untouched:
+- `ExportToast.icon`'s `'plus'` member (`:370` at time of review) and its `v-else` plus-glyph SVG
+  are unreachable (both remaining callers pass `'download'`).
+- The main test file still declares/resets `svc.photos.exportSmartViewAlbum`, which nothing
+  calls.
+- `.sv-action-btn-primary` and its hover-cascade test now guard a rule/assert a selector with no
+  consumer in this SFC; the test's own title still says 导出主按钮 (a button that no longer
+  exists). Task 11 should delete the rule and the test together.
+- `duplicateSv` awaits `store.duplicateSmartView`, which no-ops on re-entry without throwing, so
+  a second Duplicate click inside the request window shows a success toast for a copy that was
+  never made. Pre-existing; this page already guards the same shape for `pinAssets`/
+  `removeAssets`. Ticketed, not folded into this task.

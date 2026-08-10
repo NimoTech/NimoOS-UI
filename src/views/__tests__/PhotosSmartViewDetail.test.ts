@@ -774,6 +774,20 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
       'sv-more-convert',
       'sv-more-delete',
     ])
+    // Review fix: the previous version of this test only pinned the `data-test` order, which
+    // says nothing about the rendered copy -- exactly how the Convert/Delete titles drifted
+    // from the target's own shortened copy (33b05636 :143-147's own "shortened so the two
+    // pages read the same" comment) without any gate catching it, until a human read the diff.
+    // Titles here must match the target's short-form copy (verified against
+    // 33b05636:src/assets/lang/zh_CN.json's `Convert`/`Delete` entries: 转换/删除); descs are
+    // deliberately excluded -- only the titles were shortened in the target's own change.
+    expect(items.map((i) => i.find('.sv-export-title').text())).toEqual([
+      zh.photosSvRename,
+      zh.photosSvDuplicate,
+      zh.photosFavExport,
+      zh.photosAlbumMenuConvert,
+      zh.photosDelete,
+    ])
   })
 
   it('no longer renders a separate export section in the menu', async () => {
