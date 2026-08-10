@@ -1,12 +1,12 @@
 <script setup lang="ts">
 // 设置 · 终端与日志。对位 Vue2 SettingsPanel.vue 的 terminal 分支(L350-373)。
 //
-// 授权偏离 #9(用户 2026-08-01 拍板):**终端位与终端安全设置合成一块空态**。
-//   实测 GET /v1/sys/wsssh → 404(NimoOS/route/v1.go:106 已被注释)、
-//        GET /v1/terminal/settings → 404(整个 Terminal 服务不存在,
-//        /v1/gateway/components 里 "Terminal" 也是 unexpected status Not Found)。
-//   政策二:不放连不上的 xterm 假装能用;也不放一个只会 404 失败的密码表单
-//   (Vue2 的 TerminalSecuritySection 要求输入账户密码才能改锁定策略)。债务 D7 / D25。
+// 历史记录(授权偏离 #9,用户 2026-08-01 拍板,已被后续进展取代):当时
+//   GET /v1/sys/wsssh 与 GET /v1/terminal/settings 均 404,整个 Terminal 服务不存在,
+//   所以终端位与终端安全设置合成一块空态,不放连不上的假 xterm / 只会 404 的密码表单。
+//   Terminal 服务在 2026-08-10 上线后,该偏离已作废:SP18 落地了下面的
+//   TerminalSecuritySection(锁定策略表单),取代原先的空态;日志卡片本身不受影响,
+//   保持原样。
 //
 // 移植纪律(登记):Vue2 的 5 秒轮询定时器靠 watch(currentTab) 清,组件直接销毁时会漏 →
 //   这里在 onUnmounted 里清。
@@ -15,10 +15,13 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import SettingsSection from '../components/SettingsSection.vue'
 import LogsCard from './terminal/LogsCard.vue'
+import TerminalSecuritySection from './terminal/TerminalSecuritySection.vue'
 import { formatSysLog, downloadLogsUrl } from '../util/sysLog'
+import { useSessionStore } from '../../stores/session'
 import '../styles/settings.css'
 
 const { t } = useI18n()
+const session = useSessionStore()
 const logText = ref('')
 const downloadUrl = computed(() => downloadLogsUrl(localStorage.getItem('access_token')))
 let timer: ReturnType<typeof setInterval> | undefined
@@ -50,10 +53,11 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
 
 <template>
   <SettingsSection>
-    <div class="set-term-empty">
-      <p class="set-row-label">{{ t('settingsTermUnavailable') }}</p>
-      <p class="set-row-sub">{{ t('settingsTermUnavailableHint') }}</p>
-    </div>
+    <!-- SP18: the Security section replaces the former unavailable empty state.
+         Admin-gated on the frontend, 1:1 with Vue2 (v-if isAdmin); non-admins
+         see only the logs card below. The section itself falls back to the
+         unavailable empty state when the service does not answer. -->
+    <TerminalSecuritySection v-if="session.isAdmin" />
 
     <p class="set-comp-group-title">{{ t('settingsTermLogs') }}</p>
     <LogsCard :text="logText">

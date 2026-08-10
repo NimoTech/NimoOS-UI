@@ -70,10 +70,21 @@ describe('9 个 tab 骨架', () => {
     expect(leftovers).toEqual([])
   })
 
-  it('terminal 无标题(对位 Vue2 L51),现为真实的日志卡 + 终端空态', () => {
+  // SP18: the bare "unavailable" empty state moved inside TerminalSecuritySection,
+  // which is now admin-gated (useSessionStore().isAdmin) and only reachable after the
+  // async getSettings() load settles — so it's no longer a synchronous, zero-mock
+  // assertion target. TerminalPanel now calls useSessionStore() unconditionally in
+  // setup(), which requires an active Pinia (same exclusion reason as the `apps` case
+  // below). Real interaction (admin gate, load-failure fallback, save/confirm flow) is
+  // covered by TerminalPanel.test.ts and TerminalSecuritySection.test.ts (both mock
+  // service.terminal). This test keeps only the static, mock-free assertion: no
+  // section title, and the logs card is present regardless of admin state.
+  it('terminal 无标题(对位 Vue2 L51),现为真实的日志卡 + 管理员专属终端安全区(SP18)', () => {
+    setActivePinia(createPinia())
     const w = mount(PANEL_BY_TAB.terminal, { global: { plugins: [i18n] } })
     expect(w.find('.set-section-head').exists()).toBe(false)
-    expect(w.find('.set-term-empty').exists()).toBe(true)
+    expect(w.find('[data-test="logs-pre"]').exists()).toBe(true)
+    expect(w.find('[data-test="mode-row"]').exists()).toBe(false) // no admin user in localStorage
   })
 
   // storage 的真实交互(容量口径、8% 启发式、跳转 /storage、失败空态、过期守卫)已迁到

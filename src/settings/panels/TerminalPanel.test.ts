@@ -1,18 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 import TerminalPanel from './TerminalPanel.vue'
 import { i18n } from '../../i18n'
 
 const getLogs = vi.fn()
+const getSettings = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
-  service: { sys: { getLogs: () => getLogs() } },
+  service: {
+    sys: { getLogs: () => getLogs() },
+    terminal: { getSettings: () => getSettings() },
+  },
 }))
 
 const mountPanel = () => mount(TerminalPanel, { global: { plugins: [i18n] } })
 
 describe('TerminalPanel', () => {
-  beforeEach(() => { vi.useFakeTimers(); getLogs.mockReset(); getLogs.mockResolvedValue('2026-04-13T15:38:19.417-0400\tinfo\thello\n') })
-  afterEach(() => { vi.useRealTimers() })
+  beforeEach(() => {
+    vi.useFakeTimers()
+    setActivePinia(createPinia()) // TerminalPanel now calls useSessionStore() unconditionally (SP18 admin gate)
+    getLogs.mockReset(); getLogs.mockResolvedValue('2026-04-13T15:38:19.417-0400\tinfo\thello\n')
+    getSettings.mockReset().mockResolvedValue({ mode: 'idle', idle_minutes: 15 })
+    localStorage.removeItem('user')
+  })
+  afterEach(() => { vi.useRealTimers(); localStorage.removeItem('user') })
 
   it('挂载即拉一次日志并渲染(时间戳前缀已裁掉)', async () => {
     const w = mountPanel()
@@ -51,9 +62,30 @@ describe('TerminalPanel', () => {
     expect(w.find('[data-test="logs-pre"]').text()).toContain('hello')
   })
 
-  it('渲染终端服务不可用的空态(后端 /v1/sys/wsssh 与 /v1/terminal/settings 都是 404)', () => {
+  it('管理员登录且 Terminal 服务不可用时,安全区呈现空态(历史授权偏离 #9 的行为并入了区块内部)', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'admin' }))
+    getSettings.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
+    await flushPromises()
     expect(w.find('.set-term-empty').text()).toContain('终端服务暂不可用')
+  })
+
+  it('管理员登录时渲染终端安全区(SP18)', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'admin' }))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.find('[data-test="mode-row"]').exists()).toBe(true)
+    // Logs card stays regardless of the admin gate.
+    expect(w.find('[data-test="logs-pre"]').exists()).toBe(true)
+  })
+
+  it('非管理员登录时不渲染终端安全区,日志卡片仍照常展示', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'user' }))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.find('[data-test="mode-row"]').exists()).toBe(false)
+    expect(w.find('[data-test="term-sec-unavailable"]').exists()).toBe(false)
+    expect(w.find('[data-test="logs-pre"]').exists()).toBe(true)
   })
 
   it('下载日志的链接带 token 查询参数', async () => {
