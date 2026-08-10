@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { Peer, type PeerEvents } from './rtcPeer'
-import { encodeText } from './protocol'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { Peer, RTCPeer, type PeerEvents } from './rtcPeer'
+import { encodeText, type TransferBrokenReason } from './protocol'
 
 // 测试用子类:捕获 sendRaw,免 WebRTC
 class TestPeer extends Peer {
@@ -147,5 +147,76 @@ describe('Peer disconnect handling', () => {
     // arriving after its header is a stale chunk from the big file.
     expect(binaryFramesAfter).toEqual([expect.any(ArrayBuffer)])
     expect(binaryFramesAfter[0].byteLength).toBe(10)
+  })
+})
+
+describe('RTCPeer disconnect branches', () => {
+  class FakeConn {
+    connectionState = 'new'
+    onicecandidate: unknown = null
+    onconnectionstatechange: unknown = null
+    ondatachannel: unknown = null
+    createDataChannel() { return { send: vi.fn(), close: vi.fn(), readyState: 'connecting' } }
+    createOffer() { return Promise.resolve({ type: 'offer', sdp: '' }) }
+    setLocalDescription() { return Promise.resolve() }
+    setRemoteDescription() { return Promise.resolve() }
+    addIceCandidate() { return Promise.resolve() }
+    close() {}
+  }
+
+  beforeEach(() => { vi.stubGlobal('RTCPeerConnection', FakeConn) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
+  function makeRtcPeer(ev: PeerEvents) {
+    // A null peerId skips the constructor's connectRtc() -- this is the real
+    // "callee waits for the caller to dial" path, not a test-only backdoor.
+    const p = new RTCPeer({ send: vi.fn() }, null, ev)
+    ;(p as unknown as { _peerId: string })._peerId = 'peer2'
+    return p
+  }
+
+  function startIncoming(p: RTCPeer) {
+    // Deliberately far short of `size` (8 / 10000 bytes) and below
+    // PROGRESS_NOTIFY_STEP (1%), so the partial chunk does not itself trigger
+    // a `progress` message back out through sendRaw. With a null channel,
+    // that outbound message would call handleDisconnect from inside this
+    // helper, making every test below pass regardless of the branch it
+    // claims to exercise -- caught by the Step 5 mutation check.
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 10000, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+  }
+
+  it('reports a disconnect when the data channel closes on the receiving side', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+
+    ;(p as unknown as { onChannelClosed: () => void }).onChannelClosed()
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
+
+  it('reports a disconnect when the connection reaches the closed state', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+    const inner = (p as unknown as { conn: FakeConn | null })
+    inner.conn = new FakeConn()
+    inner.conn.connectionState = 'closed'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
+
+  it('reports a disconnect when a chunk cannot be sent because the channel is gone', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p) // makes hasActiveTransfer() true so the report is not suppressed
+    expect((p as unknown as { channel: unknown }).channel).toBeNull()
+
+    ;(p as unknown as { sendRaw: (d: string) => void }).sendRaw('anything')
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
   })
 })

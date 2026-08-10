@@ -233,6 +233,10 @@ export class RTCPeer extends Peer {
   }
 
   private onChannelClosed(): void {
+    // Both roles must surface the break; only the caller re-dials. The old
+    // code returned early for the callee, which meant a receiver whose sender
+    // vanished got no signal at all.
+    this.handleDisconnect('disconnected')
     if (!this.isCaller) return
     this.connectRtc(this._peerId, true) // 重开通道(Vue2 同)
   }
@@ -241,6 +245,7 @@ export class RTCPeer extends Peer {
     if (!this.conn) return
     switch (this.conn.connectionState) {
       case 'disconnected': this.onChannelClosed(); break
+      case 'closed': this.onChannelClosed(); break
       case 'failed': this.conn = null; this.onChannelClosed(); break
     }
   }
@@ -256,7 +261,14 @@ export class RTCPeer extends Peer {
   }
 
   protected sendRaw(data: string | ArrayBuffer): void {
-    if (!this.channel) { this.refresh(); return }
+    if (!this.channel) {
+      // Previously this dropped the chunk and called refresh(), so the
+      // transfer stalled with nobody told. Treat a missing channel as what it
+      // is -- the transfer cannot continue.
+      this.handleDisconnect('disconnected')
+      this.refresh()
+      return
+    }
     // TS 的 send 重载不接受联合类型,按实际类型分派
     if (typeof data === 'string') this.channel.send(data)
     else this.channel.send(data)
