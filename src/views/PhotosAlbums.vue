@@ -442,17 +442,21 @@ onUnmounted(() => {
                      seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the
                      title and the meta row. Conditions and the threshold are off the card face
                      -- the detail page carries the full picture, the card only has to be
-                     recognisable. -->
+                     recognisable.
+                     Task 11 (d): the @click below passes item.sv.id straight through, with no
+                     String() wrapper. SmartView.id is typed `string` (smartViews.ts:28) and every
+                     write path into the store normalises it through toSmartView (smartViews.ts:98),
+                     so the cast was a no-op. -->
                 <div
                   v-if="item.kind === 'smart'"
                   class="album-card"
                   data-test="album-smart-card"
                   :data-id="item.sv.id"
-                  @click="openSmartCard(String(item.sv.id))"
+                  @click="openSmartCard(item.sv.id)"
                 >
                   <div class="album-cover">
                     <img v-if="smartCoverUrl(item.sv)" :src="smartCoverUrl(item.sv)" :alt="item.sv.name">
-                    <div v-else class="album-cover-fallback">
+                    <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
                       <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
                     </div>
                     <div class="al-smart-badge">
