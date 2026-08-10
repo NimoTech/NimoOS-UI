@@ -580,3 +580,66 @@ describe('photos-timeline refreshBuckets', () => {
     expect(s.buckets).toEqual(BUCKETS)
   })
 })
+
+// Task 8b: two real consumers (the "make an album from the last 30 days" flow and the
+// library picker) flatten `allPhotos` and used to assume "months is non-empty" implies
+// "allPhotos is non-empty" — an invariant bucket mode breaks, since the directory arrives
+// before any bucket's photos do. fetchNewestBuckets(n) is what lets them ask for actual
+// photos rather than just directory structure.
+describe('photos-timeline fetchNewestBuckets', () => {
+  // Same isolation as the other bucket-mode describes above.
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+
+  it('fetchNewestBuckets loads the newest N dated buckets', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+    ])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    await s.fetchNewestBuckets(2)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(2)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 8, 500, 0)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 7, 500, 0)
+  })
+
+  it('skips the unknown-date bucket when picking the newest', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 0, month: 0, count: 5, videoCount: 0 },
+    ])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    await s.fetchNewestBuckets(2)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 8, 500, 0)
+  })
+
+  it('does not refetch a bucket it already holds', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 1, videoCount: 0 }])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    await s.fetchBucket('2026-08')
+    await s.fetchNewestBuckets(3)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+  })
+
+  it('is a no-op outside bucket mode', async () => {
+    const s = useTimelineStore()
+    await s.fetchNewestBuckets(2)
+    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+  })
+})

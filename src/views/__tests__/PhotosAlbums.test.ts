@@ -22,6 +22,11 @@ const svc = vi.hoisted(() => ({
     removeFromAlbum: vi.fn().mockResolvedValue(undefined),
     reorderAlbumAssets: vi.fn().mockResolvedValue(undefined),
     getTimeline: vi.fn().mockResolvedValue([]),
+    // Task 8b: fetchTimeline() probes this before falling back to getTimeline(). Defaulted
+    // to a 404 rejection in beforeEach below so every pre-existing test in this file keeps
+    // exercising the legacy path unchanged; only the bucket-mode tests override it.
+    getTimelineBuckets: vi.fn(),
+    getTimelineBucket: vi.fn(),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
     // SP15-P2b Task 3: the page now also fetches the smart-view list and the AI
     // feature flags (for the smart-views-off banner) alongside albums.
@@ -39,10 +44,16 @@ import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
-import { useTimelineStore } from '../../photos/stores/timeline'
+import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+
+// Task 8b: models "this backend predates the bucket endpoints" for fetchTimeline()'s probe --
+// see timeline.test.ts's own notFound() for the same rationale.
+function notFound() {
+  return Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } })
+}
 
 function makeRouter() {
   return createRouter({
@@ -123,11 +134,18 @@ function rawAlbum(id: string | number, overrides: Record<string, unknown> = {}) 
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  // Task 8b: the bucket probe's 404 backoff is a module-level timestamp, not store state --
+  // it survives across tests within this file unless explicitly cleared, which would silently
+  // skip the probe (and thus never enter bucket mode) for whichever bucket-mode test runs
+  // after an earlier 404 has already set the backoff window.
+  __resetBucketProbeForTest()
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.createAlbum.mockClear()
   svc.photos.getAlbum.mockClear().mockResolvedValue({ assets: [] })
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
   svc.photos.getTimeline.mockClear().mockResolvedValue([])
+  svc.photos.getTimelineBuckets.mockClear().mockRejectedValue(notFound())
+  svc.photos.getTimelineBucket.mockClear()
   svc.photos.thumbnailUrl.mockClear()
   svc.photos.listSmartViews.mockClear().mockResolvedValue([])
   svc.photos.getConfig.mockClear().mockResolvedValue({})
@@ -352,6 +370,81 @@ describe('PhotosAlbums.vue', () => {
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     expect(addSpy).toHaveBeenCalledWith('new1', ['warm1']) // 非空 id 集,不是被静默跳过
+  })
+
+  // Task 8b: in bucket mode, `months` arrives (the directory) with no photos in hand yet --
+  // the old guard `months.length === 0 → fetchTimeline()` is already satisfied by the
+  // directory alone, so without fetchNewestBuckets the album would be created empty. This
+  // asserts the fix: the two newest dated buckets get fetched before the album is created,
+  // and addAssetsToAlbum only receives ids the fetch actually filled in.
+  it("source==='recent' in bucket mode → the two newest buckets are fetched before the album exists, and addAssetsToAlbum only gets photos actually in hand", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'BucketRecent' })
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockImplementation((year: number, month: number) => {
+      if (year === 2026 && month === 7) {
+        return Promise.resolve([{ id: 'bkt-recent', takenAt: '2026-07-20T00:00:00Z', mimeType: 'image/jpeg' }])
+      }
+      if (year === 2026 && month === 6) {
+        // Older than the 30-day cutoff -- present to prove the fetch happened, filtered out
+        // of the ids handed to addAssetsToAlbum.
+        return Promise.resolve([{ id: 'bkt-old', takenAt: '2026-05-01T00:00:00Z', mimeType: 'image/jpeg' }])
+      }
+      return Promise.resolve([])
+    })
+    const { w } = await mountView()
+    const albums = usePhotosAlbums()
+    const addSpy = vi.spyOn(albums, 'addAssetsToAlbum')
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('BucketRecent')
+    await w.find('[data-test="source-recent"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 7, 500, 0)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 6, 500, 0)
+    expect(svc.photos.createAlbum).toHaveBeenCalledWith('BucketRecent')
+    expect(addSpy).toHaveBeenCalledWith('new1', ['bkt-recent'])
+  })
+
+  // Task 8b guard: when the newest buckets really do hold zero photos within the 30-day
+  // window, no album is created at all and the user sees a failure, not a silent empty
+  // "success".
+  it("source==='recent' in bucket mode, no photos within 30 days → createAlbum is never called and the toast reports failure, not success", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-27T00:00:00Z'))
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue([
+      { id: 'ancient', takenAt: '2020-01-01T00:00:00Z', mimeType: 'image/jpeg' },
+    ])
+    const { w } = await mountView()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Empty30d')
+    await w.find('[data-test="source-recent"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.createAlbum).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumCreateFailed)
+    expect(showSpy).not.toHaveBeenCalledWith(expect.stringContaining('Empty30d'))
+    expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
   })
 
   it("source==='select' → 提交后 PhotosLibraryPicker 渲染(open===true)", async () => {

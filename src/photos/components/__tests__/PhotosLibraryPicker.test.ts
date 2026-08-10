@@ -31,15 +31,26 @@ const svc = vi.hoisted(() => ({
     getAlbum: vi.fn(),
     batchAddToAlbum: vi.fn(),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+    // Task 8b: fetchTimeline() probes this before falling back to getTimeline(). Defaulted
+    // to a 404 rejection in beforeEach below so every pre-existing test here keeps exercising
+    // the legacy path unchanged; only the bucket-mode tests override it.
+    getTimelineBuckets: vi.fn(),
+    getTimelineBucket: vi.fn(),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosLibraryPicker from '../PhotosLibraryPicker.vue'
 import { usePhotosAlbums } from '../../stores/albums'
-import { useTimelineStore } from '../../stores/timeline'
+import { useTimelineStore, __resetBucketProbeForTest } from '../../stores/timeline'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+
+// Task 8b: models "this backend predates the bucket endpoints" for fetchTimeline()'s probe --
+// see timeline.test.ts's own notFound() for the same rationale.
+function notFound() {
+  return Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } })
+}
 
 interface PickerProps {
   open: boolean
@@ -91,9 +102,16 @@ function seedTimeline() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  // Task 8b: the bucket probe's 404 backoff is a module-level timestamp, not store state --
+  // it survives across tests in this file unless explicitly cleared, which would silently
+  // skip the probe (and thus never enter bucket mode) for whichever bucket-mode test runs
+  // after an earlier 404 has already set the backoff window.
+  __resetBucketProbeForTest()
   svc.photos.getTimeline.mockReset()
   svc.photos.getAlbum.mockReset().mockResolvedValue({ assets: [] })
   svc.photos.batchAddToAlbum.mockReset().mockResolvedValue(undefined)
+  svc.photos.getTimelineBuckets.mockReset().mockRejectedValue(notFound())
+  svc.photos.getTimelineBucket.mockReset()
   svc.photos.thumbnailUrl.mockClear()
 })
 
@@ -385,5 +403,60 @@ describe('PhotosLibraryPicker.vue', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(w.emitted('update:open')).toContainEqual([false])
+  })
+
+  // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos are in
+  // hand -- this grid is `timeline.allPhotos` flattened, so without fetchNewestBuckets the
+  // picker would render empty even though the directory says the library has photos.
+  it('打开时(分桶模式)调用 fetchNewestBuckets 拉最新几个月,而不是只等目录到达', async () => {
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    const timeline = useTimelineStore()
+    const fetchSpy = vi.spyOn(timeline, 'fetchNewestBuckets')
+    const w = mountPicker(albumProps({ open: false }))
+    await flushPromises()
+    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+
+    await w.setProps({ open: true })
+    await flushPromises()
+
+    expect(fetchSpy).toHaveBeenCalledWith(3)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 8, 500, 0)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 7, 500, 0)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 6, 500, 0)
+  })
+
+  // Task 8b (owner ruling, second half): scrolling near the bottom pages in the next
+  // unloaded dated bucket. Two scroll events fired back to back (before the first bucket's
+  // photos have landed) must not fire two requests for that same month.
+  it('滚到接近底部时拉下一个未加载的有日期桶;连续两次滚动不重复请求同一个桶', async () => {
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 1, videoCount: 0 },
+      { year: 2026, month: 7, count: 1, videoCount: 0 },
+      { year: 2026, month: 6, count: 1, videoCount: 0 },
+      { year: 2026, month: 5, count: 1, videoCount: 0 },
+    ])
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue([{ id: 'a1', mimeType: 'image/jpeg' }])
+    const w = mountPicker(albumProps())
+    await flushPromises()
+    // open watch's immediate fetchNewestBuckets(3) already loaded 08/07/06, leaving 05
+    // the only unloaded dated bucket.
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(3)
+
+    const body = w.get('.lib-picker-body')
+    Object.defineProperty(body.element, 'scrollHeight', { value: 1000, configurable: true })
+    Object.defineProperty(body.element, 'clientHeight', { value: 500, configurable: true })
+    body.element.scrollTop = 550 // 1000 - 550 - 500 = -50 < 200 → near the bottom
+
+    await body.trigger('scroll')
+    await body.trigger('scroll') // fired again before the first request settles
+    await flushPromises()
+
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(4)
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 5, 500, 0)
   })
 })

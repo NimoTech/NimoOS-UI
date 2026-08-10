@@ -349,6 +349,17 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     }
   }
 
+  // Consumers that need actual photos rather than just structure (the library
+  // picker, "make an album from the last 30 days") cannot work off the directory
+  // alone. They ask for the newest N months, which is cheap and enough: both use
+  // cases care about recent photos first, and the picker pages further back as
+  // the user scrolls.
+  async function fetchNewestBuckets(n: number): Promise<void> {
+    if (!bucketMode.value || n <= 0) return
+    const dated = buckets.value.filter((b) => !(b.year === 0 && b.month === 0))
+    await Promise.all(dated.slice(0, n).map((b) => fetchBucket(bucketKey(b))))
+  }
+
   async function deleteAssets(ids: string[]): Promise<number> {
     let successCount = 0
     for (const id of ids) {
@@ -411,6 +422,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     ingestTaskBus,
     deleteAssets,
     fetchBucket,
+    fetchNewestBuckets,
     refreshBuckets,
     __resetForTest,
   }

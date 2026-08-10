@@ -48,6 +48,7 @@ import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { useTimelineStore } from '../stores/timeline'
+import { bucketKey } from '../util/timelineBuckets'
 import type { Photo } from '../util/assetToPhoto'
 
 const props = defineProps<{
@@ -161,7 +162,21 @@ watch(
     if (isOpen) {
       selected.value = new Set()
       discardConfirm.value = false
-      if (timeline.months.length === 0) void timeline.fetchTimeline()
+      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos
+      // are in hand yet -- this grid reads timeline.allPhotos (via `flat` above), so
+      // without this the picker would open on an empty grid even though the directory says
+      // the library isn't empty. Load the newest few months up front; fetchNewestBuckets is
+      // a no-op outside bucket mode, so legacy behaviour is unchanged. Scrolling to the
+      // bottom (onListScroll below) pages in earlier months as the user asks for them.
+      //
+      // fetchNewestBuckets must wait for fetchTimeline to resolve first when the latter is
+      // needed -- firing both in parallel would read bucketMode before the probe that sets
+      // it has had a chance to run, silently no-op'ing on every fresh mount.
+      const needsTimeline = timeline.months.length === 0
+      void (async () => {
+        if (needsTimeline) await timeline.fetchTimeline()
+        await timeline.fetchNewestBuckets(3)
+      })()
       document.addEventListener('keydown', onDocumentKeydown)
     } else {
       document.removeEventListener('keydown', onDocumentKeydown)
@@ -170,6 +185,29 @@ watch(
   { immediate: true },
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
+
+// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the
+// already-loaded buckets. Scrolling near the bottom fetches the next unloaded dated bucket
+// so the user can keep paging back through the library instead of the whole thing being
+// pulled down at once. `loadingMore` caps it to one in-flight bucket load at a time --
+// fetchBucket already dedupes per key, but without this guard one scroll gesture could kick
+// off requests for a dozen different buckets before the first one lands.
+let loadingMore = false
+async function onListScroll(e: Event): Promise<void> {
+  const el = e.target as HTMLElement
+  if (el.scrollHeight - el.scrollTop - el.clientHeight > 200) return
+  if (loadingMore) return
+  const next = timeline.buckets.find(
+    (b) => !(b.year === 0 && b.month === 0) && !timeline.bucketAssets.has(bucketKey(b)),
+  )
+  if (!next) return
+  loadingMore = true
+  try {
+    await timeline.fetchBucket(bucketKey(next))
+  } finally {
+    loadingMore = false
+  }
+}
 
 // Handing over the picked ids is where this component's job ends: the write, the success and
 // failure toasts and the closing all belong to the caller (see the Step 0 note in the header).
@@ -203,7 +241,7 @@ function confirmAdd(): void {
         >&#215;</button>
       </div>
 
-      <div class="lib-picker-body">
+      <div class="lib-picker-body" @scroll="onListScroll">
         <div v-if="flat.length === 0" class="lib-picker-empty" data-test="lib-picker-empty">
           {{ t('photosAlbumPickerEmpty') }}
         </div>

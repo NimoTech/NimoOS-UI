@@ -161,35 +161,51 @@ async function confirmCreate(): Promise<void> {
   if (!title || creating.value) return
   creating.value = true
   try {
-    const created = await albums.createAlbum(title)
-    const albumId = created?.id as string | number | undefined
-
-    if (newAlbumSource.value === 'recent' && albumId != null) {
-      // 刻意偏离 Vue2 的地方(评审 Important 裁定为新缺陷,本轮已修):Vue2 的相册列表
-      // 从来不是独立路由——它是 PhotosTimeline.vue 内部按 activeNav 切换的 v-else-if 子块
-      // (NimoOS-UI src/router/route.js:206-208 只注册了一个 /photos 路由),而
-      // PhotosTimeline.mounted() 无条件 dispatch fetchTimeline,与 activeNav 无关,所以
-      // Vue2 下"时间线数据必然已加载"是父组件预热带来的结构性保证。New-UI 把相册改成了
-      // 独立真路由(/photos/albums),这层保证不再成立:用户直链/刷新进本页且从未访问过
-      // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
-      // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
-      // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
-      // 终审 Minor 5:判空条件统一改用 timeline.months(PhotosLibraryPicker.vue:114 已是这个
-      // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
-      // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+    // 刻意偏离 Vue2 的地方(评审 Important 裁定为新缺陷,本轮已修):Vue2 的相册列表
+    // 从来不是独立路由——它是 PhotosTimeline.vue 内部按 activeNav 切换的 v-else-if 子块
+    // (NimoOS-UI src/router/route.js:206-208 只注册了一个 /photos 路由),而
+    // PhotosTimeline.mounted() 无条件 dispatch fetchTimeline,与 activeNav 无关,所以
+    // Vue2 下"时间线数据必然已加载"是父组件预热带来的结构性保证。New-UI 把相册改成了
+    // 独立真路由(/photos/albums),这层保证不再成立:用户直链/刷新进本页且从未访问过
+    // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
+    // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
+    // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
+    // 终审 Minor 5:判空条件统一改用 timeline.months(PhotosLibraryPicker.vue:114 已是这个
+    // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
+    // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+    //
+    // Task 8b: bucket mode hands us months without their photos -- the guard above is
+    // satisfied while allPhotos is still empty, which used to make this create an empty
+    // album and report success. Two buckets always cover a 30-day window (the current
+    // month plus the previous one). fetchNewestBuckets is a no-op outside bucket mode, so
+    // the legacy behaviour above is unchanged.
+    let recentIds: Array<string | number> | null = null
+    if (newAlbumSource.value === 'recent') {
       if (timeline.months.length === 0) {
         await timeline.fetchTimeline()
       }
+      await timeline.fetchNewestBuckets(2)
       const cutoff = Date.now() - 30 * 86400000
-      const ids = timeline.allPhotos
+      recentIds = timeline.allPhotos
         .filter((p) => {
           const ts = p.takenAt ? Date.parse(String(p.takenAt)) : 0
           return ts >= cutoff
         })
         .map((p) => p.id)
-      if (ids.length) {
-        await albums.addAssetsToAlbum(albumId, ids)
+      // Task 8b guard: no recent photos in hand -- do not create an empty album and do
+      // not report success. (Previously this always created the album first, then silently
+      // skipped addAssetsToAlbum when ids was empty while still showing the success toast.)
+      if (recentIds.length === 0) {
+        toast.show(t('photosAlbumCreateFailed'))
+        return
       }
+    }
+
+    const created = await albums.createAlbum(title)
+    const albumId = created?.id as string | number | undefined
+
+    if (recentIds && albumId != null) {
+      await albums.addAssetsToAlbum(albumId, recentIds)
     } else if (newAlbumSource.value === 'select' && albumId != null) {
       // 预取相册资产,使 PhotosLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
       await albums.fetchAlbumAssets(albumId)
