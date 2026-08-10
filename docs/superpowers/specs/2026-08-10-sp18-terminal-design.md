@@ -136,10 +136,16 @@ createTerminal(http): {
 4. 设置段服务不可用 → 空态(见 §3.4-2)。
 5. 其余状态机分支逐条 1:1(429/403/5xx、`password_required` 判定、idle 只在活动后续票、
    预警 60s 提前量、窗口 409/改名空白规则)。
+6. **带密码的请求必须退出共享 401 刷新重放**(plan 期核实的新发现):`packages/service/src/http.ts`
+   对任何 401 都会「刷新 token + 原样重发一次」——输错密码的 `POST /session` / `PUT /settings`
+   会被原样重发,一次手滑烧掉后端 5 次/15 分钟冻结配额里的**两次**。修法:http.ts 加
+   `_noAuthRetry` 退出口(与既有 `_retried` 并列判定),terminal.ts 只在这两个带密码的调用上设它;
+   无密码的请求(provision/keepalive/windows)保持默认刷新重放——那对「JWT 过期」是正确自愈。
 
 ## 5. i18n
 
-新增分期文件 `src/i18n/zh_cn.sp18.ts` / `en_us.sp18.ts`(照 sp9 组织方式,扁平 camelCase 键):
+新键追加进 `src/i18n/zh_cn.sp9.ts` / `en_us.sp9.ts`(分片名是历史名,SP17 的键也在这里 ——
+plan 期核实的惯例,不新建 sp18 分片,免动 index.ts/parity.test.ts 装配),扁平 camelCase 键:
 
 - Vue2 `terminal.*` 22 键 → `termLoading / termAdminOnly / termUnavailable / termRetry / termLockedTitle /
   termPwPlaceholder / termPwWrong / termUnlock / termFrozen / termIdleWarn / termSecTitle / termModeOff /
