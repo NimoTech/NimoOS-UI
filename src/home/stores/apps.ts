@@ -5,6 +5,7 @@ import type { WidgetSize } from '../grid/types'
 import { APP_WIDGET_SIZE, appWidgetRange } from '../widgets/appWidgetSize'
 import { SYSTEM_APPS } from '../apps/systemApps'
 import { listLinkApps, type LinkApp } from '../../apps/util/linkApps'
+import { useSessionStore } from '../../stores/session'
 
 export interface DesktopAppDecl { key: string; widget?: { w: number; h: number } }
 
@@ -25,18 +26,23 @@ export interface AppMeta {
 }
 
 export const useAppsStore = defineStore('home-apps', () => {
+  const session = useSessionStore()
   const apps = ref<Record<string, AppMeta>>({})
   const order = ref<string[]>([])
   // null = not probed yet. Unknown must render as "available": the store calls
   // setApps([]) at init so the desktop has its system tiles before any request has
   // been made, and hiding the tile there would make it blink out and back in.
   const kvmAvailable = ref<boolean | null>(null)
+  const terminalAvailable = ref<boolean | null>(null)
 
   function setApps(container: AppGridItem[], links?: LinkApp[]) {
     const map: Record<string, AppMeta> = {}
     const ord: string[] = []
     SYSTEM_APPS
-      .filter((s) => s.requiresService !== 'kvm' || kvmAvailable.value !== false)
+      .filter((s) =>
+        (s.requiresService !== 'kvm' || kvmAvailable.value !== false)
+        && (s.requiresService !== 'terminal' || terminalAvailable.value !== false)
+        && (!s.adminOnly || session.isAdmin))
       .forEach((s) => {
         map[s.key] = { name: s.label, cls: s.cls, glyph: s.glyph, icon: s.icon, system: true, status: 'running' }
         ord.push(s.key)
@@ -85,13 +91,29 @@ export const useAppsStore = defineStore('home-apps', () => {
     }
   }
 
+  /** Probe the optional terminal service. Unlike probeKvm, an auth-shaped refusal
+   *  (401/403) still proves the service is registered and answering — ttyd may
+   *  simply be talking to a non-admin. Only "route not there" (404), server
+   *  errors and network failures count as not installed (spec §3.3). */
+  async function probeTerminal(): Promise<boolean> {
+    try {
+      await service.terminal.getSettings()
+      return true
+    } catch (e) {
+      const st = (e as { response?: { status?: number } })?.response?.status
+      return st === 401 || st === 403
+    }
+  }
+
   async function loadGrid() {
-    const [list, links, kvmOk] = await Promise.all([
+    const [list, links, kvmOk, termOk] = await Promise.all([
       service.apps.getGrid(),
       listLinkApps().catch(() => []),
       probeKvm(),
+      probeTerminal(),
     ])
     kvmAvailable.value = kvmOk
+    terminalAvailable.value = termOk
     setApps(list || [], links)
   }
 
@@ -130,5 +152,5 @@ export const useAppsStore = defineStore('home-apps', () => {
   }
 
   setApps([]) // 系统应用立即可用
-  return { apps, order, kvmAvailable, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
+  return { apps, order, kvmAvailable, terminalAvailable, setApps, loadGrid, app, isStopped, desktopDecls, stoppedDesktopKeys }
 })

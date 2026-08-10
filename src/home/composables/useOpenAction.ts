@@ -52,6 +52,10 @@ export function useOpenAction() {
       // app regardless, because it has no Vue 2 counterpart to roll back to. That
       // partial rollback is correct by necessity, not an oversight.
       if (key === 'knowledge') { router.push('/ai/knowledge'); return }
+      // Terminal: SP18 in-app route. Like knowledge above, Vue2 no longer exists
+      // on-device (retired 08-07), so there is no fallback target and no
+      // strangler:disabled flag — the tile always routes into this app.
+      if (key === 'terminal') { router.push('/terminal'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return
     }

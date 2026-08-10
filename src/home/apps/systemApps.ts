@@ -6,6 +6,7 @@ import iconVm from './icons/kvm.svg'
 import iconSettings from './icons/settings.png'
 import iconAppstore from './icons/appstore.svg'
 import iconStorage from './icons/storage.svg'
+import iconTerminal from './icons/terminal.svg'
 
 // `label` holds an i18n key (translated at render via t(label)) — see AppTile/GridItem.
 // `icon` 来自旧 Vue2 UI(NimoOS-UI/src/assets/img/app/),cls/glyph 保留作无图兜底。
@@ -15,7 +16,9 @@ import iconStorage from './icons/storage.svg'
 // visibility and status once the probe has answered (Vue 2 #125).
 export interface SystemApp {
   key: string; name: string; label: string; cls: string; glyph: string; icon: string
-  requiresService?: 'kvm'
+  requiresService?: 'kvm' | 'terminal'
+  /** Frontend-filtered, 1:1 with Vue2 builtInApps' adminOnly Terminal entry. */
+  adminOnly?: true
 }
 
 const G = {
@@ -27,6 +30,7 @@ const G = {
   ai: '<path d="M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z"/>',
   drive: '<rect x="4" y="7" width="16" height="10" rx="2"/><path d="M4 13.5h16"/><circle cx="16.5" cy="15.2" r=".8"/>',
   book: '<path d="M4.5 5.5A2 2 0 0 1 6.5 3.5H19v15H6.5a2 2 0 0 0-2 2Z"/><path d="M9 7.5h6M9 11h6"/>',
+  terminal: '<path d="M4.5 5.5h15a1.5 1.5 0 0 1 1.5 1.5v10a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17V7a1.5 1.5 0 0 1 1.5-1.5Z"/><path d="m7 9.5 3 2.5-3 2.5M12.5 14.5H17"/>',
 }
 
 export const SYSTEM_APPS: SystemApp[] = [
@@ -38,6 +42,8 @@ export const SYSTEM_APPS: SystemApp[] = [
   { key: 'vm', name: 'KVM', label: 'appVm', cls: 'ic-vm', glyph: G.vm, icon: iconVm, requiresService: 'kvm' },
   { key: 'settings', name: 'Settings', label: 'appSettings', cls: 'ic-settings', glyph: G.gear, icon: iconSettings },
   { key: 'appstore', name: 'App Store', label: 'appAppStore', cls: 'ic-appstore', glyph: G.bag, icon: iconAppstore },
+  // Appended last so existing persisted grids keep their order (spec §3.3).
+  { key: 'terminal', name: 'Terminal', label: 'appTerminal', cls: 'ic-terminal', glyph: G.terminal, icon: iconTerminal, requiresService: 'terminal', adminOnly: true },
 ]
 
 export const SYSTEM_APP_KEYS = SYSTEM_APPS.map((a) => a.key)

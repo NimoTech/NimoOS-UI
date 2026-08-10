@@ -4,10 +4,12 @@ import { useAppsStore, clampWidgetDecl } from './apps'
 
 const getGrid = vi.fn()
 const getKvmSettings = vi.fn()
+const getTerminalSettings = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     apps: { getGrid: () => getGrid() },
     kvm: { getSettings: () => getKvmSettings() },
+    terminal: { getSettings: () => getTerminalSettings() },
   },
 }))
 vi.mock('../../apps/util/linkApps', () => ({ listLinkApps: () => Promise.resolve([]) }))
@@ -220,5 +222,53 @@ describe('KVM tile gating (SP17 #125)', () => {
     expect(s.app('vm')).toBeUndefined()
     await s.loadGrid()
     expect(s.app('vm')).toBeDefined()
+  })
+})
+
+function httpErr(status?: number) {
+  const e = new Error('http') as Error & { response?: { status: number } }
+  if (status !== undefined) e.response = { status }
+  return e
+}
+
+describe('terminal tile gating (SP18)', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.setItem('user', JSON.stringify({ username: 'nimo', role: 'admin' }))
+    getGrid.mockReset(); getKvmSettings.mockReset(); getTerminalSettings.mockReset()
+    getGrid.mockResolvedValue([])
+    getKvmSettings.mockResolvedValue({})
+  })
+  afterEach(() => localStorage.removeItem('user'))
+
+  it('renders the tile before the probe answers (null must read as available)', () => {
+    const s = useAppsStore()
+    expect(s.order).toContain('terminal')
+  })
+
+  it('keeps the tile when the probe answers 403 — a 403 proves the service is alive', async () => {
+    getTerminalSettings.mockRejectedValue(httpErr(403))
+    const s = useAppsStore()
+    await s.loadGrid()
+    expect(s.order).toContain('terminal')
+  })
+
+  it('drops the tile when the route is not registered (404) or the network fails', async () => {
+    getTerminalSettings.mockRejectedValue(httpErr(404))
+    const s = useAppsStore()
+    await s.loadGrid()
+    expect(s.order).not.toContain('terminal')
+
+    getTerminalSettings.mockRejectedValue(httpErr())
+    await s.loadGrid()
+    expect(s.order).not.toContain('terminal')
+  })
+
+  it('hides the tile from non-admins regardless of the probe', async () => {
+    localStorage.setItem('user', JSON.stringify({ username: 'guest', role: 'user' }))
+    getTerminalSettings.mockResolvedValue({ mode: 'off', idle_minutes: 15 })
+    const s = useAppsStore()
+    await s.loadGrid()
+    expect(s.order).not.toContain('terminal')
   })
 })
