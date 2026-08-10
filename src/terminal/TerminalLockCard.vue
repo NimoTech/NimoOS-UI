@@ -5,7 +5,9 @@
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
-defineProps<{ pwError: boolean; frozenSeconds: number }>()
+// submitting mirrors the composable's in-flight guard: the double-emit
+// (Enter + click) is deduped there; disabling here is the visual half.
+defineProps<{ pwError: boolean; frozenSeconds: number; submitting: boolean }>()
 const emit = defineEmits<{ submit: [pw: string] }>()
 const { t } = useI18n()
 const password = ref('')
@@ -24,12 +26,12 @@ function submit() { emit('submit', password.value) }
         type="password"
         class="lock-input"
         :placeholder="t('termPwPlaceholder')"
-        :disabled="frozenSeconds > 0"
+        :disabled="submitting || frozenSeconds > 0"
         @keyup.enter="submit"
       />
       <p v-if="pwError" class="lock-error" data-test="pw-error">{{ t('termPwWrong') }}</p>
       <p v-if="frozenSeconds > 0" class="lock-error" data-test="pw-frozen">{{ t('termFrozen', { s: frozenSeconds }) }}</p>
-      <button data-test="pw-submit" type="button" class="lock-submit" :disabled="frozenSeconds > 0" @click="submit">
+      <button data-test="pw-submit" type="button" class="lock-submit" :disabled="submitting || frozenSeconds > 0" @click="submit">
         {{ t('termUnlock') }}
       </button>
     </div>

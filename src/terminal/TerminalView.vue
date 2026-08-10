@@ -15,7 +15,7 @@ import { useTerminalWindows } from './useTerminalWindows'
 const { t } = useI18n()
 const router = useRouter()
 
-const { state, mode, frameSrc, pwError, frozenSeconds, warning, provision, submitPassword, notifyActivity, lock, maybeDeleteSession, dispose } = useTerminalSession()
+const { state, mode, frameSrc, pwError, submitting, frozenSeconds, warning, provision, submitPassword, notifyActivity, lock, maybeDeleteSession, dispose } = useTerminalSession()
 const windows = useTerminalWindows(lock)
 
 const frame = ref<HTMLIFrameElement | null>(null)
@@ -110,7 +110,7 @@ onUnmounted(() => {
           <span>{{ t('termUnavailable') }}</span>
           <button type="button" class="term-retry" data-test="term-retry" @click="provision()">{{ t('termRetry') }}</button>
         </div>
-        <TerminalLockCard v-else-if="state === 'locked'" :pw-error="pwError" :frozen-seconds="frozenSeconds" @submit="submitPassword" />
+        <TerminalLockCard v-else-if="state === 'locked'" :pw-error="pwError" :frozen-seconds="frozenSeconds" :submitting="submitting" @submit="submitPassword" />
         <iframe v-show="state === 'ready'" ref="frame" class="term-frame" :src="frameSrc" title="NimoOS Terminal" @load="onFrameLoad" />
         <div v-if="warning" class="term-warn" data-test="term-warn">{{ t('termIdleWarn') }}</div>
       </div>

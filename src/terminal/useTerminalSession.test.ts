@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 const createSession = vi.fn()
 const keepalive = vi.fn()
 const deleteSession = vi.fn()
+const refreshAccessToken = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     terminal: {
@@ -11,6 +12,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       deleteSession: () => deleteSession(),
     },
   },
+  refreshAccessToken: () => refreshAccessToken(),
 }))
 
 import { useTerminalSession } from './useTerminalSession'
@@ -34,8 +36,10 @@ beforeEach(() => {
   createSession.mockReset()
   keepalive.mockReset().mockResolvedValue(undefined)
   deleteSession.mockReset().mockResolvedValue(undefined)
+  refreshAccessToken.mockReset().mockResolvedValue('token')
+  localStorage.removeItem('expires_at')
 })
-afterEach(() => { vi.useRealTimers() })
+afterEach(() => { vi.useRealTimers(); localStorage.removeItem('expires_at') })
 
 describe('useTerminalSession — provisioning', () => {
   it('goes ready and exposes the iframe src on a passwordless success', async () => {
@@ -132,6 +136,77 @@ describe('useTerminalSession — password step-up', () => {
     await s.submitPassword('right')
     expect(s.state.value).toBe('ready')
     expect(s.frameSrc.value).toBe('/v1/terminal/')
+  })
+
+  it('ignores a second submit while the first is still in flight (double-submit guard)', async () => {
+    const s = await lockedSession()
+    // Fresh token so the pre-POST refresh is skipped — this test pins the
+    // in-flight guard alone, not the refresh path.
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
+    const gate = deferred<{ mode: string; idle_minutes: number }>()
+    createSession.mockClear()
+    createSession.mockReturnValueOnce(gate.promise)
+    const first = s.submitPassword('right')
+    expect(s.submitting.value).toBe(true)
+    // The lock card emits twice for one intent (Enter + click) — the duplicate
+    // must not reach the backend: each POST burns a 5-per-15min lockout attempt.
+    await s.submitPassword('right')
+    expect(createSession).toHaveBeenCalledTimes(1)
+    gate.resolve({ mode: 'on_open', idle_minutes: 15 })
+    await first
+    // State resolved solely from the first submit's response.
+    expect(s.state.value).toBe('ready')
+    expect(s.submitting.value).toBe(false)
+  })
+})
+
+describe('useTerminalSession — proactive token refresh before unlock', () => {
+  // The locked screen has no other traffic (keepalive/window polling stopped)
+  // and the password POST skips the shared 401 refresh-replay, so submitPassword
+  // must refresh a stale JWT itself before POSTing.
+  async function lockedSession() {
+    createSession.mockRejectedValueOnce(httpErr(401, { password_required: true, mode: 'on_open', idle_minutes: 15 }))
+    const s = useTerminalSession()
+    await s.provision()
+    return s
+  }
+
+  it('refreshes the token before the password POST when expires_at is expired', async () => {
+    const s = await lockedSession()
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) - 10))
+    createSession.mockClear()
+    createSession.mockResolvedValue({ mode: 'on_open', idle_minutes: 15 })
+    await s.submitPassword('right')
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1)
+    // The refresh must strictly precede the password POST.
+    expect(refreshAccessToken.mock.invocationCallOrder[0]).toBeLessThan(createSession.mock.invocationCallOrder[0])
+    expect(s.state.value).toBe('ready')
+  })
+
+  it('refreshes conservatively when expires_at is missing (download pre-refresh precedent)', async () => {
+    const s = await lockedSession()
+    createSession.mockResolvedValue({ mode: 'on_open', idle_minutes: 15 })
+    await s.submitPassword('right')
+    expect(refreshAccessToken).toHaveBeenCalledTimes(1)
+    expect(s.state.value).toBe('ready')
+  })
+
+  it('skips the refresh while the token is still fresh', async () => {
+    const s = await lockedSession()
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
+    createSession.mockResolvedValue({ mode: 'on_open', idle_minutes: 15 })
+    await s.submitPassword('right')
+    expect(refreshAccessToken).not.toHaveBeenCalled()
+    expect(s.state.value).toBe('ready')
+  })
+
+  it('a failed refresh still lets the password submit proceed', async () => {
+    const s = await lockedSession()
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) - 10))
+    refreshAccessToken.mockRejectedValue(new Error('refresh endpoint down'))
+    createSession.mockResolvedValue({ mode: 'on_open', idle_minutes: 15 })
+    await s.submitPassword('right')
+    expect(s.state.value).toBe('ready')
   })
 })
 

@@ -18,6 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       renameWindow: vi.fn(),
     },
   },
+  refreshAccessToken: vi.fn().mockResolvedValue('token'),
 }))
 // The view only calls router.push('/') from the back button; a spy router keeps
 // the test free of the full route table.

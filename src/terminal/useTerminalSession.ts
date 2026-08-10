@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { service, type TerminalMode } from '@nimotech/nimoos-service'
+import { service, refreshAccessToken, type TerminalMode } from '@nimotech/nimoos-service'
+import { shouldRefreshToken } from '../util/tokenExpiry'
 import { statusOf, errorBody } from './terminalHttp'
 
 export type TerminalState = 'loading' | 'forbidden' | 'error' | 'locked' | 'ready'
@@ -14,6 +15,7 @@ export function useTerminalSession() {
   const idleMinutes = ref(15)
   const frameSrc = ref('')
   const pwError = ref(false)
+  const submitting = ref(false)
   const frozenSeconds = ref(0)
   const warning = ref(false)
 
@@ -49,10 +51,30 @@ export function useTerminalSession() {
   }
 
   async function submitPassword(pw: string) {
-    if (frozenSeconds.value > 0) return
+    // In-flight guard: Enter + button click emit two submits for one intent.
+    // A duplicate POST would burn a second of the backend's 5-per-15min
+    // lockout attempts, and two concurrent submits share one epoch — a slow
+    // older response could overwrite state after a newer success landed.
+    if (frozenSeconds.value > 0 || submitting.value) return
+    submitting.value = true
     const myEpoch = epoch
     pwError.value = false
     try {
+      // Proactive JWT refresh before the password POST. The locked screen is a
+      // seam with no other traffic to keep the token fresh (keepalive/window
+      // polling are stopped), and the password-carrying POST deliberately opts
+      // out of the shared 401 refresh-replay (_noAuthRetry) — replaying a
+      // wrong password would burn two lockout attempts. Without this, sitting
+      // on the lock screen past access-token expiry turns a CORRECT password
+      // into a plain 401 rendered as "wrong password", forever. Refresh
+      // failures are swallowed: the POST then fails and surfaces as today.
+      // expires_at is unix seconds — same parsing as useFileOps download,
+      // Drop serverConnection and the apps-console TerminalPane.
+      const raw = localStorage.getItem('expires_at')
+      const expiresAt = raw != null && raw !== '' ? Number(raw) : null
+      if (shouldRefreshToken(expiresAt, Date.now())) {
+        await refreshAccessToken().catch(() => { /* proceed — failure surfaces via the POST */ })
+      }
       const d = await service.terminal.createSession(pw)
       if (myEpoch !== epoch) return
       onUnlocked(d)
@@ -64,6 +86,8 @@ export function useTerminalSession() {
       // Network/timeout or 5xx is a service problem, not a wrong password (1:1 Vue2).
       else if (st === undefined || st >= 500) state.value = 'error'
       else pwError.value = true
+    } finally {
+      submitting.value = false
     }
   }
 
@@ -156,5 +180,5 @@ export function useTerminalSession() {
     frozenSeconds.value = 0
   }
 
-  return { state, mode, idleMinutes, frameSrc, pwError, frozenSeconds, warning, provision, submitPassword, notifyActivity, lock, maybeDeleteSession, dispose }
+  return { state, mode, idleMinutes, frameSrc, pwError, submitting, frozenSeconds, warning, provision, submitPassword, notifyActivity, lock, maybeDeleteSession, dispose }
 }
