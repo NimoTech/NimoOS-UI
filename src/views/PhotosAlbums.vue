@@ -21,11 +21,10 @@ import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
-import SmartViewCard from '../photos/components/SmartViewCard.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
-import { usePhotosSmartViews } from '../photos/stores/smartViews'
+import { usePhotosSmartViews, type SmartView } from '../photos/stores/smartViews'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import { albumToView, type AlbumView } from '../photos/util/albumView'
@@ -99,6 +98,17 @@ function coverUrl(view: AlbumView): string {
   // (Vue2 :274-281 同语义,但 New-UI 一律走 service.photos.thumbnailUrl,不手拼 URL)。
   if (view.cover == null || view.cover === '') return ''
   return service.photos.thumbnailUrl(view.cover, 'large')
+}
+
+// SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue's smartCoverUrl): a smart album card
+// now shows a single cover, seeds[0], exactly like a manual album card -- not the old
+// three-image collage. Missing or empty seeds return '' so the template falls through to the
+// same .album-cover-fallback the manual card uses; it must never render an <img> with an
+// empty src.
+function smartCoverUrl(sv: SmartView): string {
+  const seed = sv.seeds[0]
+  if (!seed) return ''
+  return service.photos.thumbnailUrl(seed, 'large')
 }
 
 function pickSort(s: { id: MixedSortId }): void {
@@ -399,16 +409,76 @@ onUnmounted(() => {
               </span>
             </div>
             <div class="album-grid">
+              <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:96-107): the create
+                   tile matches an album card's total height -- the dashed frame narrows to a
+                   cover-sized .album-create-cover, and two invisible lines of the same spec as
+                   .album-title/.album-meta pad out the rest. Deliberately no hardcoded pixel
+                   height: it follows the theme's own font metrics. -->
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
-                <div class="plus">+</div>
-                <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
-                <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+                <div class="album-create-cover">
+                  <div class="plus">+</div>
+                  <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
+                  <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+                </div>
+                <div class="album-title" aria-hidden="true" style="visibility:hidden">&nbsp;</div>
+                <div class="album-meta" aria-hidden="true" style="visibility:hidden">&nbsp;</div>
               </div>
               <!-- The kind prefix on :key is load-bearing, not decoration: a manual album's
                    numeric id and a smart album's string id can collide once they share a
-                   grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split). -->
+                   grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split).
+                   SP15-P2c Task 10: it got teeth here. While the smart card was a component
+                   and the manual card a plain <div>, Vue's isSameVNodeType compared (type,
+                   key) as a pair, so a raw-id collision could never be conflated whatever the
+                   key said. Both kinds are plain <div>s now, so this prefix is the only thing
+                   separating them. Measured cost of dropping it (task-10-report.md): the
+                   rendered text stays correct, but every re-sort tears both colliding cards
+                   down and rebuilds them instead of moving them, so their cover images are
+                   re-fetched and re-decoded. Guarded by PhotosAlbums.test.ts's "moves, rather
+                   than rebuilds, a manual album and a smart view that share the same raw id". -->
               <template v-for="item in mixedItems" :key="item.kind + '-' + item.id">
-                <SmartViewCard v-if="item.kind === 'smart'" :sv="item.sv" @open="openSmartCard" />
+                <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:108-146): the smart
+                     album card is rendered inline with the manual card's shape instead of the
+                     standalone SmartViewCard box (deleted in this task). One cover from
+                     seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the
+                     title and the meta row. Conditions and the threshold are off the card face
+                     -- the detail page carries the full picture, the card only has to be
+                     recognisable. -->
+                <div
+                  v-if="item.kind === 'smart'"
+                  class="album-card"
+                  data-test="album-smart-card"
+                  :data-id="item.sv.id"
+                  @click="openSmartCard(String(item.sv.id))"
+                >
+                  <div class="album-cover">
+                    <img v-if="smartCoverUrl(item.sv)" :src="smartCoverUrl(item.sv)" :alt="item.sv.name">
+                    <div v-else class="album-cover-fallback">
+                      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+                    </div>
+                    <div class="al-smart-badge">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>
+                      {{ t('photosSvBadgeSmartView') }}
+                    </div>
+                    <div
+                      class="al-live-dot"
+                      :data-paused="!item.sv.live"
+                      :title="item.sv.live ? t('photosSvLive') : t('photosSvPaused')"
+                    >
+                      <span class="live-dot"></span>
+                    </div>
+                  </div>
+                  <div class="album-title">{{ item.sv.name }}</div>
+                  <div class="album-meta">
+                    <!-- Vue2 renders `{n} photos` here, not the manual card's `{n} items`.
+                         Reusing photosPeoplePhotosCount rather than adding a fifth copy of
+                         that string: its value in both locales is exactly Vue2's own copy for
+                         it, and this repo already reuses that key well outside the People page
+                         (PhotosFavorites.vue:231/239, PersonPlacesTab.vue:86). -->
+                    <span>{{ t('photosPeoplePhotosCount', { n: item.sv.count }) }}</span>
+                    <span class="sep"></span>
+                    <span>{{ item.sv.live ? t('photosSvLive') : t('photosSvPaused') }}</span>
+                  </div>
+                </div>
                 <div
                   v-else
                   class="album-card"
@@ -600,13 +670,18 @@ onUnmounted(() => {
 .album-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
 }
-.album-create {
+/* SP15-P2c Task 10 (Vue2 9f7e941f:photos.scss's .album-create split): the tile's outer box is
+   now the same vertical flex column as .album-card, and the dashed frame moved inward to
+   .album-create-cover so the two invisible text lines below it can pad the tile out to a
+   card's total height. */
+.album-create { display: flex; flex-direction: column; gap: 8px; padding: 4px; cursor: pointer; }
+.album-create-cover {
   aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
   background: var(--chip-bg); display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 10px; color: var(--fg-muted); cursor: pointer;
+  justify-content: center; gap: 10px; color: var(--fg-muted);
   transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
 }
-.album-create:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+.album-create:hover .album-create-cover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
 .album-create .plus { width: 40px; height: 40px; border-radius: 50%; background: var(--chip-bg-hi); display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .album-create-label { font-size: 12.5px; font-weight: 500; }
 .album-create-hint { font-size: 11px; opacity: 0.75; }
@@ -629,6 +704,55 @@ onUnmounted(() => {
 .album-title { font-size: 14px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; padding: 0 4px; }
 .album-meta { font-size: 11.5px; color: var(--fg-muted); padding: 0 4px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .album-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--fg-muted); opacity: 0.6; }
+
+/* ── SP15-P2c Task 10: Smart badge + Live/Paused dot overlaid on a smart album's cover
+   (Vue2 9f7e941f:photos.scss's .al-smart-badge / .al-live-dot). Both are new class names on
+   purpose: the old .sv-collage-badge / .sv-collage-status pair was sized for the 16:9 collage
+   and is still in use by MomentCard, so these are a size smaller to fit the 4:5 cover. */
+.al-smart-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px 2px 5px; border-radius: var(--chip-radius, 999px);
+  /* accent family via color-mix -- this repo has no --accent-rgb, same technique as the
+     badge on MomentCard. Not a literal, so no exemption needed. */
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
+  backdrop-filter: var(--blur);
+  font-size: 9.5px; font-weight: 600;
+  /* theme-exception: badge text and icon sit on top of the cover photograph and need a fixed
+     light foreground in both themes. --on-accent is wrong here (in the dark theme it is a deep
+     navy, meant for text on a solid accent fill). Same precedent as PhotosGrid.vue .tile-vid. */
+  color: #fff;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.al-live-dot {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  /* theme-exception: fixed dark bubble pinned over the cover photograph, constant across
+     themes so the dot inside it stays readable. Same precedent as PhotosGrid.vue .tile-vid. */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: var(--blur);
+}
+/* The second sub-commit of Vue2 9f7e941f. Every pre-existing .live-dot rule was a descendant
+   selector bound to a different ancestor, so inside .al-live-dot the dot inherited nothing and
+   rendered as a hollow ring. Size, colour and the breathing animation are restated explicitly
+   here; the values match the ones the old collage status pill used. */
+.al-live-dot .live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  /* theme-exception: live indicator fixed on the dark bubble above, constant across themes. */
+  background: #34C759; box-shadow: 0 0 6px #34C759;
+  animation: pulse 1.6s infinite;
+}
+.al-live-dot[data-paused="true"] .live-dot {
+  /* theme-exception: paused indicator, same fixed-bubble rationale as the live one above. */
+  background: #FF9F0A; box-shadow: 0 0 6px #FF9F0A;
+  animation: none;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
 
 /* ── New album modal ── */
 .albums-modal-scrim {

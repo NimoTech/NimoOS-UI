@@ -32,6 +32,10 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosAlbums from '../PhotosAlbums.vue'
+// SP15-P2c Task 10: the two CSS assertions at the bottom of this file read the style block's
+// source text (jsdom does not cascade or paint). `?raw` on a .vue file is the established way
+// here -- see the same import in the SmartViewCard test this task replaced.
+import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
@@ -603,7 +607,9 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
       smartViews: [{ id: 's1', name: 'S', seeds: ['x'], conds: [], count: 4 }],
     })
     expect(w.findAll('[data-test="album-card"]')).toHaveLength(2)
-    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
+    // SP15-P2c Task 10: the smart card is no longer the standalone SmartViewCard component;
+    // its selector moved with it (see the Task 10 describe block at the bottom of this file).
+    expect(w.findAll('[data-test="album-smart-card"]')).toHaveLength(1)
   })
 
   it('counts both kinds in the header total', async () => {
@@ -615,7 +621,7 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
 
   it('opens the smart view detail route when a smart card is clicked', async () => {
     const w = await mountAlbums({ albums: [], smartViews: [{ id: 's1', name: 'S' }] })
-    await w.find('[data-test="sv-card"]').trigger('click')
+    await w.find('[data-test="album-smart-card"]').trigger('click')
     expect(push).toHaveBeenCalledWith('/photos/smart-views/s1')
   })
 
@@ -703,15 +709,194 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
   // every fixture up to now used ids that could never collide across kinds. This one gives
   // a manual album and a smart view the identical raw id so a future edit that drops the
   // prefix has something to break.
-  it('renders both a manual album and a smart view that share the same raw id', async () => {
+  //
+  // SP15-P2c Task 10: this got teeth in this task, though not the teeth the plan expected.
+  // While the two kinds were different vnode types (a plain <div> vs the SmartViewCard
+  // component) Vue's isSameVNodeType compared (type, key) as a pair, so a raw-id collision
+  // could never be conflated whatever the key said. Both kinds are plain <div>s inside the
+  // same keyed <template v-for> now, so the prefix is all that separates their fragments.
+  //
+  // What that costs when the prefix is dropped was measured, not assumed (task-10-report.md):
+  // the rendered text stays CORRECT even with duplicate keys, because each v-if branch carries
+  // its own compiler-generated key (0/1), so whichever old fragment a new one is patched into,
+  // the subtree is rebuilt from the new vnode. The real, and user-visible, consequence is that
+  // it IS rebuilt: on every re-sort both cards are torn down and recreated instead of moved,
+  // so every cover <img> is a brand-new element the browser has to fetch and decode again.
+  // Hence the assertion below is on DOM element identity, not on the text -- an assertion on
+  // the text passes with or without the prefix and would have been a test that guards nothing.
+  it('moves, rather than rebuilds, a manual album and a smart view that share the same raw id', async () => {
     const w = await mountAlbums({
       albums: [{ id: '1', name: 'Manual One' }],
       smartViews: [{ id: '1', name: 'Smart One' }],
     })
-    const cards = w.findAll('[data-test="album-card"]')
-    expect(cards).toHaveLength(1)
-    expect(cards[0].text()).toContain('Manual One')
-    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
+    expect(w.findAll('[data-test="album-card"]')).toHaveLength(1)
+    expect(w.findAll('[data-test="album-smart-card"]')).toHaveLength(1)
+    const smartEl = w.find('[data-test="album-smart-card"]').element
+    const manualEl = w.find('[data-test="album-card"]').element
+
+    // Neither fixture carries a usable createdAt, so the default 'created' sort leaves them
+    // in build order (smart, then manual); switching to 'name' puts Manual One first. That
+    // reorder is what forces the keyed patch.
+    await w.find('[data-test="albums-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    const nameItem = w.findAll('[data-test="albums-sort-item"]').find((n) => n.attributes('data-sort-id') === 'name')!
+    await nameItem.trigger('click')
+    await w.vm.$nextTick()
+
+    const titles = w.findAll('.album-card .album-title').map((n) => n.text())
+    expect(titles).toEqual(['Manual One', 'Smart One'])
+    expect(w.find('[data-test="album-smart-card"]').element, 'the smart card was rebuilt instead of moved').toBe(smartEl)
+    expect(w.find('[data-test="album-card"]').element, 'the manual card was rebuilt instead of moved').toBe(manualEl)
+  })
+})
+
+// SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:93-146, both sub-commits): the smart
+// album card is rendered inline with exactly the manual album card's shape -- one cover from
+// seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the title and a meta
+// row. The collage, the condition chips and the threshold pill are off the card face.
+describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
+  /**
+   * The SFC's style block with block comments stripped. Stripping matters: the rules below
+   * are documented with comments that name the very tokens the assertions rule out, and a
+   * raw match would then fail on the explanation rather than on the code.
+   */
+  function styleBlock(): string {
+    const m = /<style[^>]*>([\s\S]*)<\/style>/.exec(photosAlbumsRaw)
+    expect(m, 'no style block in PhotosAlbums.vue').not.toBeNull()
+    return m![1].replace(/\/\*[\s\S]*?\*\//g, '')
+  }
+
+  const smartFixture = {
+    id: 's1',
+    name: 'Sunsets',
+    seeds: ['seed-a', 'seed-b', 'seed-c'],
+    conds: ['scene: sunset', 'place: Kyoto'],
+    threshold: 72,
+    count: 1234,
+    live: true,
+  }
+
+  it('renders a smart album with the same card shape as a manual album', async () => {
+    const w = await mountAlbums({
+      albums: [{ id: 'u1', name: 'Manual' }],
+      smartViews: [smartFixture],
+    })
+    // One manual + one smart, both plain .album-card boxes now.
+    expect(w.findAll('.album-card')).toHaveLength(2)
+    expect(w.find('.sv-card').exists()).toBe(false)
+    const smart = w.find('[data-test="album-smart-card"]')
+    expect(smart.classes()).toContain('album-card')
+    expect(smart.find('.album-cover').exists()).toBe(true)
+    expect(smart.find('.album-title').text()).toBe('Sunsets')
+    expect(smart.find('.album-meta').exists()).toBe(true)
+  })
+
+  it('uses the first seed as the smart card cover, and only that one', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [smartFixture] })
+    const imgs = w.findAll('[data-test="album-smart-card"] .album-cover img')
+    // A single cover, not the old three-image collage.
+    expect(imgs).toHaveLength(1)
+    expect(imgs[0].attributes('src')).toBe('mock://thumb/seed-a/large')
+    expect(imgs[0].attributes('alt')).toBe('Sunsets')
+    expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('seed-a', 'large')
+    // Re-homed from the deleted SmartViewCard.test.ts: seeds[1]/seeds[2] no longer reach the
+    // card face at all, so nothing must be requested for them either.
+    expect(svc.photos.thumbnailUrl).not.toHaveBeenCalledWith('seed-b', 'large')
+  })
+
+  it('falls back to the neutral cover when the smart view has no seeds', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [{ ...smartFixture, seeds: [] }] })
+    const smart = w.find('[data-test="album-smart-card"]')
+    expect(smart.find('.album-cover-fallback').exists()).toBe(true)
+    // Never an <img> with an empty src -- the browser treats that as a broken image.
+    expect(smart.find('.album-cover img').exists()).toBe(false)
+  })
+
+  it('shows the smart badge and the live dot on the cover', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [smartFixture] })
+    const cover = w.find('[data-test="album-smart-card"] .album-cover')
+    expect(cover.find('.al-smart-badge').text()).toContain(zh.photosSvBadgeSmartView)
+    const dot = cover.find('.al-live-dot')
+    expect(dot.exists()).toBe(true)
+    expect(dot.attributes('data-paused')).toBe('false')
+    expect(dot.attributes('title')).toBe(zh.photosSvLive)
+    expect(dot.find('.live-dot').exists()).toBe(true)
+  })
+
+  it('shows the paused state in both the dot and the meta row', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [{ ...smartFixture, live: false }] })
+    const smart = w.find('[data-test="album-smart-card"]')
+    expect(smart.find('.al-live-dot').attributes('data-paused')).toBe('true')
+    expect(smart.find('.al-live-dot').attributes('title')).toBe(zh.photosSvPaused)
+    expect(smart.find('.album-meta').text()).toContain(zh.photosSvPaused)
+  })
+
+  it('puts the photo count and the live state in the meta row', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [smartFixture] })
+    const meta = w.find('[data-test="album-smart-card"] .album-meta')
+    expect(meta.text()).toContain(zh.photosPeoplePhotosCount.replace('{n}', '1234'))
+    expect(meta.text()).toContain(zh.photosSvLive)
+  })
+
+  it('no longer puts conditions or the threshold on the card face', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [smartFixture] })
+    const smart = w.find('[data-test="album-smart-card"]')
+    expect(smart.find('.sv-cond').exists()).toBe(false)
+    expect(smart.find('.sv-thresh-mini').exists()).toBe(false)
+    expect(smart.text()).not.toContain('scene: sunset')
+    expect(smart.text()).not.toContain('72')
+  })
+
+  it('opens the smart view detail when the card is clicked, with a numeric wire id too', async () => {
+    // Re-homed from the deleted SmartViewCard.test.ts, which proved the component's own
+    // String() on the id. That normalisation lives in the store now (smartViews.ts's
+    // `id: String(r.id)`), so this asserts the behaviour end to end rather than the mechanism.
+    const w = await mountAlbums({ albums: [], smartViews: [{ ...smartFixture, id: 7 }] })
+    await w.find('[data-test="album-smart-card"]').trigger('click')
+    expect(push).toHaveBeenCalledWith('/photos/smart-views/7')
+  })
+
+  it('gives the create tile the same total height as an album card', async () => {
+    const w = await mountAlbums({ albums: [], smartViews: [] })
+    const tile = w.find('[data-test="album-create-tile"]')
+    // The dashed frame narrows to a cover-sized area...
+    expect(tile.find('.album-create-cover').exists()).toBe(true)
+    // ...and two invisible text lines of the same spec as a card's title/meta pad it out to
+    // the same total height. No hardcoded pixel height: it follows the theme's font metrics.
+    expect(tile.find('.album-title').attributes('style')).toContain('visibility: hidden')
+    expect(tile.find('.album-meta').attributes('style')).toContain('visibility: hidden')
+    expect(tile.find('.album-title').attributes('aria-hidden')).toBe('true')
+    expect(tile.find('.album-meta').attributes('aria-hidden')).toBe('true')
+  })
+
+  // The second sub-commit of Vue2 9f7e941f, which added explicit .al-live-dot dot styles:
+  // every pre-existing
+  // .live-dot rule was a descendant selector bound to a different ancestor, so inside
+  // .al-live-dot the dot rendered as a hollow ring. jsdom neither cascades nor paints, so
+  // this is asserted on the style block's source text -- the same technique color-guard.test.ts
+  // and photosGlassSurfaces.test.ts use for CSS that no unit test can observe.
+  it('styles the breathing dot explicitly inside .al-live-dot (the #116 follow-up fix)', () => {
+    const style = styleBlock()
+    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
+    expect(rule, 'no explicit .al-live-dot .live-dot rule -- the dot renders as a hollow ring').not.toBeNull()
+    expect(rule![1]).toMatch(/width\s*:/)
+    expect(rule![1]).toMatch(/height\s*:/)
+    expect(rule![1]).toMatch(/background\s*:/)
+    expect(rule![1]).toMatch(/animation\s*:/)
+    // The paused variant has to turn the animation off, or a paused view keeps breathing.
+    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
+    expect(paused, 'no paused variant for the dot').not.toBeNull()
+    expect(paused![1]).toMatch(/animation\s*:\s*none/)
+  })
+
+  // Re-homed from the deleted SmartViewCard.test.ts's foreground-compliance block: --on-accent is the
+  // readable foreground *on an accent fill*, which in the dark theme is a deep navy -- wrong
+  // for a badge that sits on top of a photograph.
+  it('does not use --on-accent for the badge sitting on the cover photo', () => {
+    const style = styleBlock()
+    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(style)
+    expect(badge, 'no .al-smart-badge rule').not.toBeNull()
+    expect(badge![1]).not.toMatch(/--on-accent/)
   })
 })
 
