@@ -6,6 +6,7 @@ export class FileChunker {
   private offset = 0
   private partitionSize = 0
   private reader = new FileReader()
+  private aborted = false
 
   constructor(
     private file: File,
@@ -22,12 +23,21 @@ export class FileChunker {
     this.readChunk()
   }
 
+  /** Stops the read loop. The FileReader's load callback holds its own
+   *  reference to this chunker, so nulling the caller's handle is not enough
+   *  to stop bytes from flowing. */
+  abort(): void {
+    this.aborted = true
+    try { this.reader.abort() } catch { /* reader may already be idle */ }
+  }
+
   private readChunk(): void {
     const chunk = this.file.slice(this.offset, this.offset + CHUNK_SIZE)
     this.reader.readAsArrayBuffer(chunk)
   }
 
   private onChunkRead(chunk: ArrayBuffer): void {
+    if (this.aborted) return
     this.offset += chunk.byteLength
     this.partitionSize += chunk.byteLength
     this.onChunk(chunk)

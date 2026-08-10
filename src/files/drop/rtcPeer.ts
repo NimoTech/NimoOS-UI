@@ -86,9 +86,13 @@ export class Peer {
   }
 
   private onChunkReceived(chunk: ArrayBuffer): void {
-    if (!chunk.byteLength || !this.digester) return
-    this.digester.unchunk(chunk)
-    const progress = this.digester.progress
+    // Captured locally: on the final chunk, unchunk() synchronously invokes
+    // onFileReceived, which now clears this.digester (Fix Round 1 / Critical
+    // 1). Reading through `this.digester` after that call would crash.
+    const digester = this.digester
+    if (!chunk.byteLength || !digester) return
+    digester.unchunk(chunk)
+    const progress = digester.progress
     this.onDownloadProgress(progress)
     if (progress - this.lastProgress < PROGRESS_NOTIFY_STEP) return
     this.lastProgress = progress
@@ -107,6 +111,12 @@ export class Peer {
   private onFileReceived(file: ReceivedFile): void {
     this.events.onFileReceived({ file, from: this.incomingFrom })
     this.sendJSON({ type: 'transfer-complete' })
+    // Clear receive state on success -- otherwise `digester !== null` keeps
+    // reporting "active" forever after a completed receive, and the next
+    // idle disconnect wrongly looks like a broken transfer.
+    this.digester = null
+    this.lastProgress = 0
+    this.incomingFrom = ''
   }
 
   private onTransferCompleted(): void {
@@ -140,6 +150,11 @@ export class Peer {
 
   protected resetTransferState(): void {
     this.busy = false
+    // Stop the chunker's read loop before dropping the reference: its
+    // FileReader 'load' callback closes over `this` directly and is not
+    // gated on `this.chunker` still pointing at it, so nulling the field
+    // alone does not stop stale chunks from continuing onto the wire.
+    this.chunker?.abort()
     this.chunker = null
     this.digester = null
     this.filesQueue = []

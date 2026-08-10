@@ -106,4 +106,46 @@ describe('Peer disconnect handling', () => {
     p.handleDisconnect('disconnected')
     expect(ev.onTransferBroken).not.toHaveBeenCalled()
   })
+
+  it('a completed receive does not leave the peer looking active, so a later idle disconnect stays silent', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'b.bin', mime: '', size: 8, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+    expect(ev.onFileReceived).toHaveBeenCalledOnce()
+
+    expect(p.hasActiveTransfer()).toBe(false)
+
+    p.handleDisconnect('disconnected')
+
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
+  })
+
+  it('does not leak stale chunks from an aborted send into the next transfer', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    const big = new File([new Uint8Array(200000)], 'big.bin')
+    p.sendFiles([big], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(1))
+
+    p.handleDisconnect('disconnected')
+    const small = new File([new Uint8Array(10)], 'small.bin')
+    p.sendFiles([small], 'self1')
+
+    // Wait for the small file's own transfer to finish, then give any stale
+    // reads from the aborted big-file chunker a chance to leak in if the
+    // abort didn't actually stop them.
+    await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition' && m.offset === 10)).toBe(true))
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    const smallHeaderIndex = p.out.findIndex(
+      (m) => typeof m === 'string' && (JSON.parse(m) as { type: string; name?: string }).name === 'small.bin',
+    )
+    const framesAfterSmallHeader = p.out.slice(smallHeaderIndex + 1)
+    const binaryFramesAfter = framesAfterSmallHeader.filter((f): f is ArrayBuffer => typeof f !== 'string')
+    // The small file is a single 10-byte chunk -- any other binary frame
+    // arriving after its header is a stale chunk from the big file.
+    expect(binaryFramesAfter).toEqual([expect.any(ArrayBuffer)])
+    expect(binaryFramesAfter[0].byteLength).toBe(10)
+  })
 })
