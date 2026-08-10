@@ -1,0 +1,132 @@
+# Review package: aa03660..HEAD
+
+## Commits
+2c9b86d test(photos): translate touched trash.test.ts lines, tighten delete assertion
+
+## Files changed
+ src/photos/stores/__tests__/timeline.test.ts |  2 ++
+ src/photos/stores/__tests__/trash.test.ts    | 12 ++++++------
+ 2 files changed, 8 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/timeline.test.ts b/src/photos/stores/__tests__/timeline.test.ts
+index daf847a..980942d 100644
+--- a/src/photos/stores/__tests__/timeline.test.ts
++++ b/src/photos/stores/__tests__/timeline.test.ts
+@@ -664,27 +664,29 @@ describe('photos-timeline deleteAssets (bucket patching)', () => {
+     const s = useTimelineStore()
+     svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 1 }])
+     await s.fetchTimeline()
+     svc.photos.getTimelineBucket.mockResolvedValueOnce([
+       { id: 'a1', mimeType: 'image/jpeg' }, { id: 'v1', mimeType: 'video/mp4' },
+     ])
+     await s.fetchBucket('2026-08')
+     svc.photos.deleteAsset.mockResolvedValue(undefined)
+     svc.photos.getTimelineBuckets.mockClear()
+     svc.photos.getTimeline.mockClear()
++    svc.photos.getTimelineBucket.mockClear()
+ 
+     expect(await s.deleteAssets(['v1'])).toBe(1)
+     expect(s.months[0].photos.map((p) => p.id)).toEqual(['a1'])
+     expect(s.months[0].count).toBe(1)
+     expect(s.months[0].videoCount).toBe(0)
+     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
+     expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
++    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+   })
+ 
+   it('decrements by what actually got deleted, not by what was asked for', async () => {
+     // A partial failure must not leave the directory count lying.
+     const s = useTimelineStore()
+     svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 0 }])
+     await s.fetchTimeline()
+     svc.photos.getTimelineBucket.mockResolvedValueOnce([
+       { id: 'a1', mimeType: 'image/jpeg' }, { id: 'a2', mimeType: 'image/jpeg' },
+     ])
+diff --git a/src/photos/stores/__tests__/trash.test.ts b/src/photos/stores/__tests__/trash.test.ts
+index 68e185d..73b2163 100644
+--- a/src/photos/stores/__tests__/trash.test.ts
++++ b/src/photos/stores/__tests__/trash.test.ts
+@@ -5,23 +5,23 @@ vi.mock('@nimotech/nimoos-service', () => ({
+     listTrash: vi.fn(() => Promise.resolve([{ id: 't1', mimeType: 'image/jpeg', deletedAt: '2026-07-20T00:00:00Z', fileSize: 1048576 }])),
+     restoreTrashBatch: vi.fn(() => Promise.resolve()),
+     restoreAllTrash: vi.fn(() => Promise.resolve()),
+     purgeTrash: vi.fn(() => Promise.resolve()),
+     emptyTrash: vi.fn(() => Promise.resolve()),
+     deleteAsset: vi.fn(() => Promise.resolve()),
+     getConfig: vi.fn(() => Promise.resolve({ watchDirs: ['/DATA/Gallery'], retentionDays: 15 })),
+     updateConfig: vi.fn(() => Promise.resolve()),
+   } },
+ }))
+-// timeline store 依赖:mock 其 fetchTimeline/refreshBuckets,避免真跑网络。
+-// bucketMode is mutable per-test (default false = legacy) so bucket-mode cases
+-// can flip it before calling the trash action under test.
++// Stub the timeline store's fetchTimeline/refreshBuckets so these tests make
++// no real request. bucketMode is mutable per-test (default false = legacy) so
++// bucket-mode cases can flip it before calling the trash action under test.
+ const timelineStub = vi.hoisted(() => ({
+   bucketMode: false,
+   fetchTimeline: vi.fn(),
+   refreshBuckets: vi.fn(),
+ }))
+ vi.mock('../timeline', () => ({ useTimelineStore: () => timelineStub }))
+ import { service } from '@nimotech/nimoos-service'
+ import { usePhotosTrash } from '../trash'
+ 
+ describe('photosTrash store', () => {
+@@ -54,30 +54,30 @@ describe('photosTrash store', () => {
+     spy.mockRestore()
+   })
+ 
+   it('fetchTrash 成功后置 loaded=true', async () => {
+     const s = usePhotosTrash()
+     expect(s.loaded).toBe(false)
+     await s.fetchTrash()
+     expect(s.loaded).toBe(true)
+   })
+ 
+-  it('restore 调 batch 后重拉,legacy 模式下仍全量刷新时间线', async () => {
++  it('restore re-fetches trash and, in legacy mode, refetches the full timeline', async () => {
+     const s = usePhotosTrash()
+     await s.restore(['t1'])
+     expect(service.photos.restoreTrashBatch).toHaveBeenCalledWith(['t1'])
+     expect(service.photos.listTrash).toHaveBeenCalled()
+     expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+-  it('restoreAll 调 restoreAllTrash 后重拉,legacy 模式下仍全量刷新时间线', async () => {
++  it('restoreAll re-fetches trash and, in legacy mode, refetches the full timeline', async () => {
+     const s = usePhotosTrash()
+     await s.restoreAll()
+     expect(service.photos.restoreAllTrash).toHaveBeenCalled()
+     expect(service.photos.listTrash).toHaveBeenCalled()
+     expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+   it('empty 调 emptyTrash 后重拉', async () => {
+     const s = usePhotosTrash()
+@@ -96,21 +96,21 @@ describe('photosTrash store', () => {
+     ;(service.photos.purgeTrash as any)
+       .mockImplementationOnce(() => Promise.reject(new Error('boom')))
+       .mockImplementationOnce(() => Promise.resolve())
+     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+     await s.purge(['t1', 't2'])
+     expect(spy).toHaveBeenCalledWith('[photos-trash] purge', 't1', expect.any(Error))
+     expect(service.photos.listTrash).toHaveBeenCalled()
+     spy.mockRestore()
+   })
+ 
+-  it('undoRestore 逐个 deleteAsset 后重拉,legacy 模式下仍全量刷新时间线', async () => {
++  it('undoRestore deletes each asset and, in legacy mode, refetches the full timeline', async () => {
+     const s = usePhotosTrash()
+     await s.undoRestore(['t1'])
+     expect(service.photos.deleteAsset).toHaveBeenCalledWith('t1')
+     expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+     expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+   it('undoRestore 单项失败时吞错并记日志', async () => {
+     const s = usePhotosTrash()
+     ;(service.photos.deleteAsset as any).mockRejectedValueOnce(new Error('boom'))

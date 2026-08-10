@@ -1,0 +1,80 @@
+# Review package: 6aa423d..HEAD
+
+## Commits
+a48df46 fix(photos): pin the measure-before-drop ordering with a stateful stub
+
+## Files changed
+ src/photos/components/PhotosGrid.vue               |  7 +++++++
+ src/photos/components/__tests__/PhotosGrid.test.ts | 12 ++++++++++--
+ 2 files changed, 17 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/src/photos/components/PhotosGrid.vue b/src/photos/components/PhotosGrid.vue
+index 5f08ac6..2207440 100644
+--- a/src/photos/components/PhotosGrid.vue
++++ b/src/photos/components/PhotosGrid.vue
+@@ -153,20 +153,27 @@ function onIntersect(entries: IntersectionObserverEntry[]) {
+       // Record before dropping the tiles: once they are gone the height is
+       // the placeholder's own, which would ratchet the section down over time.
+       if (h > 0) measuredHeights.set(key, h)
+       next.delete(key)
+     }
+   }
+   activeKeys.value = next
+ }
+ 
+ function syncObserver() {
++  // Drop measured heights for months that no longer exist (directory refresh
++  // removed them) — otherwise they'd sit in the map for the component's
++  // whole lifetime.
++  const currentKeys = new Set(filteredMonths.value.map((m) => m.key))
++  for (const key of measuredHeights.keys()) {
++    if (!currentKeys.has(key)) measuredHeights.delete(key)
++  }
+   if (!observer) return
+   observer.disconnect()
+   // Scan for `.month-group` and match by id string rather than
+   // document.getElementById or a CSS id-selector: @vue/test-utils mounts
+   // components detached from the live document (getElementById only ever
+   // searches the document tree), and month keys like "2026-08" would need
+   // escaping to be a valid CSS id-selector token in the first place.
+   const root = wrapRef.value
+   if (!root) return
+   const wanted = new Set(filteredMonths.value.filter(hasContent).map((m) => `m-${m.key}`))
+diff --git a/src/photos/components/__tests__/PhotosGrid.test.ts b/src/photos/components/__tests__/PhotosGrid.test.ts
+index 2fefd3f..4f7c293 100644
+--- a/src/photos/components/__tests__/PhotosGrid.test.ts
++++ b/src/photos/components/__tests__/PhotosGrid.test.ts
+@@ -539,22 +539,30 @@ describe('PhotosGrid windowing', () => {
+     expect(w.emitted('need-bucket')).toBeUndefined()
+   })
+ 
+   it('swaps a rendered month for a measured placeholder when it leaves the window', async () => {
+     const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' } })
+     await nextTick()
+     const el = w.find('#m-2026-08').element as HTMLElement
+     const io = FakeIO.instances[0]
+     io.fire(el, true)
+     await nextTick()
+-    // jsdom reports offsetHeight 0; stub it so the measurement path is exercised.
+-    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 321 })
++    // jsdom reports offsetHeight 0 unconditionally, so a static stub can't tell
++    // "read before dropping the tiles" from "read after" — it would return 321
++    // either way. A getter that only answers 321 while the tiles are still
++    // mounted pins the ordering: a read taken after the swap sees the
++    // placeholder-only subtree (no `.grid`) and gets 0, which surfaces as a
++    // 0px placeholder height and fails the assertion below.
++    Object.defineProperty(el, 'offsetHeight', {
++      configurable: true,
++      get: () => (el.querySelector('.grid') ? 321 : 0),
++    })
+     io.fire(el, false)
+     await nextTick()
+     expect(w.findAll('.tile')).toHaveLength(0)
+     const ph = w.find('[data-test="month-placeholder"]')
+     expect(ph.exists()).toBe(true)
+     expect(ph.attributes('style')).toContain('321px')
+   })
+ 
+   it('renders tiles again when the month comes back into the window', async () => {
+     const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })

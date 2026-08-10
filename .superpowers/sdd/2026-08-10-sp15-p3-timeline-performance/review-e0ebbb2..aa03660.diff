@@ -1,0 +1,426 @@
+# Review package: e0ebbb2..HEAD
+
+## Commits
+aa03660 perf(photos): patch buckets on delete instead of refetching everything
+
+## Files changed
+ src/photos/stores/__tests__/timeline.test.ts | 72 ++++++++++++++++++++++++++++
+ src/photos/stores/__tests__/trash.test.ts    | 63 +++++++++++++++++++++---
+ src/photos/stores/timeline.ts                | 45 +++++++++++++++--
+ src/photos/stores/trash.ts                   | 17 +++++--
+ 4 files changed, 183 insertions(+), 14 deletions(-)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/timeline.test.ts b/src/photos/stores/__tests__/timeline.test.ts
+index d8f695b..daf847a 100644
+--- a/src/photos/stores/__tests__/timeline.test.ts
++++ b/src/photos/stores/__tests__/timeline.test.ts
+@@ -636,10 +636,82 @@ describe('photos-timeline fetchNewestBuckets', () => {
+     await s.fetchNewestBuckets(3)
+     expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+   })
+ 
+   it('is a no-op outside bucket mode', async () => {
+     const s = useTimelineStore()
+     await s.fetchNewestBuckets(2)
+     expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+   })
+ })
++
++// Task 9: deleting an asset used to refetch the whole timeline. In bucket mode
++// the loaded buckets are patched locally instead, so a delete costs zero
++// directory/timeline requests.
++describe('photos-timeline deleteAssets (bucket patching)', () => {
++  // Same isolation as the other bucket-mode describes above.
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++    vi.useFakeTimers()
++    __resetBucketProbeForTest()
++  })
++  afterEach(() => {
++    useTimelineStore().__resetForTest()
++    vi.useRealTimers()
++  })
++
++  it('deleteAssets patches the loaded buckets instead of refetching the timeline', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 1 }])
++    await s.fetchTimeline()
++    svc.photos.getTimelineBucket.mockResolvedValueOnce([
++      { id: 'a1', mimeType: 'image/jpeg' }, { id: 'v1', mimeType: 'video/mp4' },
++    ])
++    await s.fetchBucket('2026-08')
++    svc.photos.deleteAsset.mockResolvedValue(undefined)
++    svc.photos.getTimelineBuckets.mockClear()
++    svc.photos.getTimeline.mockClear()
++
++    expect(await s.deleteAssets(['v1'])).toBe(1)
++    expect(s.months[0].photos.map((p) => p.id)).toEqual(['a1'])
++    expect(s.months[0].count).toBe(1)
++    expect(s.months[0].videoCount).toBe(0)
++    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
++    expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
++  })
++
++  it('decrements by what actually got deleted, not by what was asked for', async () => {
++    // A partial failure must not leave the directory count lying.
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 0 }])
++    await s.fetchTimeline()
++    svc.photos.getTimelineBucket.mockResolvedValueOnce([
++      { id: 'a1', mimeType: 'image/jpeg' }, { id: 'a2', mimeType: 'image/jpeg' },
++    ])
++    await s.fetchBucket('2026-08')
++    svc.photos.deleteAsset.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('nope'))
++    expect(await s.deleteAssets(['a1', 'a2'])).toBe(1)
++    expect(s.months[0].count).toBe(1)
++    expect(s.months[0].photos.map((p) => p.id)).toEqual(['a2'])
++  })
++
++  it('still refetches the legacy timeline when buckets are unavailable', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
++    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
++    await s.fetchTimeline()
++    svc.photos.deleteAsset.mockResolvedValue(undefined)
++    svc.photos.getTimeline.mockClear()
++    await s.deleteAssets(['a1'])
++    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(1)
++  })
++
++  it('leaves an unloaded bucket count alone (nothing local to patch)', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 5, videoCount: 0 }])
++    await s.fetchTimeline()
++    svc.photos.deleteAsset.mockResolvedValue(undefined)
++    await s.deleteAssets(['whatever'])
++    expect(s.months[0].count).toBe(5)
++  })
++})
+diff --git a/src/photos/stores/__tests__/trash.test.ts b/src/photos/stores/__tests__/trash.test.ts
+index a576383..68e185d 100644
+--- a/src/photos/stores/__tests__/trash.test.ts
++++ b/src/photos/stores/__tests__/trash.test.ts
+@@ -5,27 +5,39 @@ vi.mock('@nimotech/nimoos-service', () => ({
+     listTrash: vi.fn(() => Promise.resolve([{ id: 't1', mimeType: 'image/jpeg', deletedAt: '2026-07-20T00:00:00Z', fileSize: 1048576 }])),
+     restoreTrashBatch: vi.fn(() => Promise.resolve()),
+     restoreAllTrash: vi.fn(() => Promise.resolve()),
+     purgeTrash: vi.fn(() => Promise.resolve()),
+     emptyTrash: vi.fn(() => Promise.resolve()),
+     deleteAsset: vi.fn(() => Promise.resolve()),
+     getConfig: vi.fn(() => Promise.resolve({ watchDirs: ['/DATA/Gallery'], retentionDays: 15 })),
+     updateConfig: vi.fn(() => Promise.resolve()),
+   } },
+ }))
+-// timeline store 依赖:mock 其 fetchTimeline,避免真跑网络
+-vi.mock('../timeline', () => ({ useTimelineStore: () => ({ fetchTimeline: vi.fn() }) }))
++// timeline store 依赖:mock 其 fetchTimeline/refreshBuckets,避免真跑网络。
++// bucketMode is mutable per-test (default false = legacy) so bucket-mode cases
++// can flip it before calling the trash action under test.
++const timelineStub = vi.hoisted(() => ({
++  bucketMode: false,
++  fetchTimeline: vi.fn(),
++  refreshBuckets: vi.fn(),
++}))
++vi.mock('../timeline', () => ({ useTimelineStore: () => timelineStub }))
+ import { service } from '@nimotech/nimoos-service'
+ import { usePhotosTrash } from '../trash'
+ 
+ describe('photosTrash store', () => {
+-  beforeEach(() => { setActivePinia(createPinia()) })
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    timelineStub.bucketMode = false
++    timelineStub.fetchTimeline.mockClear()
++    timelineStub.refreshBuckets.mockClear()
++  })
+   afterEach(() => vi.restoreAllMocks())
+ 
+   it('fetchTrash 映射 trashAssetToPhoto,容忍 null', async () => {
+     const s = usePhotosTrash()
+     await s.fetchTrash()
+     expect(s.items.length).toBe(1)
+     expect(s.items[0].id).toBe('t1')
+     ;(service.photos.listTrash as any).mockResolvedValueOnce(null)
+     await s.fetchTrash()
+     expect(s.items.length).toBe(0)
+@@ -42,32 +54,36 @@ describe('photosTrash store', () => {
+     spy.mockRestore()
+   })
+ 
+   it('fetchTrash 成功后置 loaded=true', async () => {
+     const s = usePhotosTrash()
+     expect(s.loaded).toBe(false)
+     await s.fetchTrash()
+     expect(s.loaded).toBe(true)
+   })
+ 
+-  it('restore 调 batch 后重拉', async () => {
++  it('restore 调 batch 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+     const s = usePhotosTrash()
+     await s.restore(['t1'])
+     expect(service.photos.restoreTrashBatch).toHaveBeenCalledWith(['t1'])
+     expect(service.photos.listTrash).toHaveBeenCalled()
++    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
++    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+-  it('restoreAll 调 restoreAllTrash 后重拉', async () => {
++  it('restoreAll 调 restoreAllTrash 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+     const s = usePhotosTrash()
+     await s.restoreAll()
+     expect(service.photos.restoreAllTrash).toHaveBeenCalled()
+     expect(service.photos.listTrash).toHaveBeenCalled()
++    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
++    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+   it('empty 调 emptyTrash 后重拉', async () => {
+     const s = usePhotosTrash()
+     await s.empty()
+     expect(service.photos.emptyTrash).toHaveBeenCalled()
+   })
+ 
+   it('purge 逐个删后重拉', async () => {
+     const s = usePhotosTrash()
+@@ -80,24 +96,26 @@ describe('photosTrash store', () => {
+     ;(service.photos.purgeTrash as any)
+       .mockImplementationOnce(() => Promise.reject(new Error('boom')))
+       .mockImplementationOnce(() => Promise.resolve())
+     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+     await s.purge(['t1', 't2'])
+     expect(spy).toHaveBeenCalledWith('[photos-trash] purge', 't1', expect.any(Error))
+     expect(service.photos.listTrash).toHaveBeenCalled()
+     spy.mockRestore()
+   })
+ 
+-  it('undoRestore 逐个 deleteAsset 后重拉', async () => {
++  it('undoRestore 逐个 deleteAsset 后重拉,legacy 模式下仍全量刷新时间线', async () => {
+     const s = usePhotosTrash()
+     await s.undoRestore(['t1'])
+     expect(service.photos.deleteAsset).toHaveBeenCalledWith('t1')
++    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
++    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
+   })
+ 
+   it('undoRestore 单项失败时吞错并记日志', async () => {
+     const s = usePhotosTrash()
+     ;(service.photos.deleteAsset as any).mockRejectedValueOnce(new Error('boom'))
+     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+     await s.undoRestore(['t1'])
+     expect(spy).toHaveBeenCalledWith('[photos-trash] undoRestore', 't1', expect.any(Error))
+     spy.mockRestore()
+   })
+@@ -118,10 +136,43 @@ describe('photosTrash store', () => {
+     spy.mockRestore()
+   })
+ 
+   it('setRetention 先 GET watchDirs 再 PUT', async () => {
+     const s = usePhotosTrash()
+     await s.setRetention(60)
+     expect(service.photos.updateConfig).toHaveBeenCalledWith(['/DATA/Gallery'], 60)
+     expect(s.retentionDays).toBe(60)
+   })
+ })
++
++// Task 9: restoring out of the trash used to always do a full timeline refetch.
++// In bucket mode it should refresh the (cheap) directory instead.
++describe('photosTrash store — bucket mode refresh routing', () => {
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    timelineStub.bucketMode = true
++    timelineStub.fetchTimeline.mockClear()
++    timelineStub.refreshBuckets.mockClear()
++  })
++  afterEach(() => vi.restoreAllMocks())
++
++  it('restore refreshes the bucket directory rather than the whole timeline', async () => {
++    const s = usePhotosTrash()
++    await s.restore(['t1'])
++    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
++    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
++  })
++
++  it('restoreAll refreshes the bucket directory rather than the whole timeline', async () => {
++    const s = usePhotosTrash()
++    await s.restoreAll()
++    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
++    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
++  })
++
++  it('undoRestore refreshes the bucket directory rather than the whole timeline', async () => {
++    const s = usePhotosTrash()
++    await s.undoRestore(['t1'])
++    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
++    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
++  })
++})
+diff --git a/src/photos/stores/timeline.ts b/src/photos/stores/timeline.ts
+index 0a2b2c5..e3cec1a 100644
+--- a/src/photos/stores/timeline.ts
++++ b/src/photos/stores/timeline.ts
+@@ -353,34 +353,69 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
+   // picker, "make an album from the last 30 days") cannot work off the directory
+   // alone. They ask for the newest N months, which is cheap and enough: both use
+   // cases care about recent photos first, and the picker pages further back as
+   // the user scrolls.
+   async function fetchNewestBuckets(n: number): Promise<void> {
+     if (!bucketMode.value || n <= 0) return
+     const dated = buckets.value.filter((b) => !(b.year === 0 && b.month === 0))
+     await Promise.all(dated.slice(0, n).map((b) => fetchBucket(bucketKey(b))))
+   }
+ 
++  // Remove ids from every loaded bucket and take the directory counts down by
++  // what was actually removed locally. Counting the requested ids instead would
++  // leave the header lying whenever a delete partially failed.
++  function removeAssetsFromBuckets(ids: string[]): void {
++    if (!bucketMode.value || ids.length === 0) return
++    const doomed = new Set(ids.map(String))
++    const map = new Map(bucketAssets.value)
++    const removedPerKey = new Map<string, { total: number; videos: number }>()
++    for (const [key, photos] of map) {
++      let total = 0
++      let videos = 0
++      const kept = photos.filter((p) => {
++        if (!doomed.has(String(p.id))) return true
++        total++
++        if (p.isVideo) videos++
++        return false
++      })
++      if (total === 0) continue
++      map.set(key, kept)
++      removedPerKey.set(key, { total, videos })
++    }
++    if (removedPerKey.size === 0) return
++    bucketAssets.value = map
++    buckets.value = buckets.value.map((b) => {
++      const hit = removedPerKey.get(bucketKey(b))
++      if (!hit) return b
++      return {
++        ...b,
++        count: Math.max(0, b.count - hit.total),
++        videoCount: Math.max(0, b.videoCount - hit.videos),
++      }
++    })
++  }
++
+   async function deleteAssets(ids: string[]): Promise<number> {
+-    let successCount = 0
++    const deleted: string[] = []
+     for (const id of ids) {
+       try {
+         await service.photos.deleteAsset(id)
+-        successCount++
++        deleted.push(id)
+       } catch (e) {
+         console.error('[photos-timeline] deleteAsset', id, e)
+       }
+     }
+-    if (successCount > 0) {
+-      await refreshTimelineQuiet()
++    if (deleted.length > 0) {
++      if (bucketMode.value) removeAssetsFromBuckets(deleted)
++      else await refreshTimelineQuiet()
+     }
+-    return successCount
++    return deleted.length
+   }
+ 
+   // Pinia setup-stores don't get an automatic $reset() (that's option-store
+   // only) — implement our own state reset, mirroring how other setup stores
+   // in this codebase would if they needed a test-only teardown hook.
+   function resetState() {
+     timelineGroups.value = []
+     loading.value = false
+     indexStatus.value = emptyIndexStatus()
+     tasks.value = []
+diff --git a/src/photos/stores/trash.ts b/src/photos/stores/trash.ts
+index e946db5..d37b15c 100644
+--- a/src/photos/stores/trash.ts
++++ b/src/photos/stores/trash.ts
+@@ -8,20 +8,31 @@
+ //
+ // No optimistic updates (true to Vue2): every mutating action awaits the
+ // backend, then fully re-fetches trash (and the timeline, where the Vue2
+ // action also did) rather than patching local state in place.
+ import { ref } from 'vue'
+ import { defineStore } from 'pinia'
+ import { service } from '@nimotech/nimoos-service'
+ import { trashAssetToPhoto, type TrashPhoto } from '../util/trashAssetToPhoto'
+ import { useTimelineStore } from './timeline'
+ 
++// Buckets patch themselves on delete; a restore/undo out of the trash only
++// needs the directory counts to come back, not the whole timeline. On a
++// legacy backend bucketMode stays false and this falls back to the full
++// refetch, same as before. Shared by restore/restoreAll/undoRestore so the
++// branch isn't pasted three times.
++function refreshTimelineAfterTrashChange(): void {
++  const timeline = useTimelineStore()
++  if (timeline.bucketMode) void timeline.refreshBuckets()
++  else void timeline.fetchTimeline()
++}
++
+ export const usePhotosTrash = defineStore('photosTrash', () => {
+   const items = ref<TrashPhoto[]>([])
+   const loaded = ref(false)
+   const retentionDays = ref(30)
+ 
+   async function fetchTrash(): Promise<void> {
+     try {
+       const list = (await service.photos.listTrash()) as unknown[]
+       items.value = (list ?? []).map((a) => trashAssetToPhoto(a as Record<string, unknown>, retentionDays.value))
+       // Only mark loaded on success — a transient fetch failure must stay
+@@ -30,27 +41,27 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
+       loaded.value = true
+     } catch (e) {
+       items.value = []
+       console.error('[photos-trash] fetchTrash', e)
+     }
+   }
+ 
+   async function restore(ids: Array<string | number>): Promise<void> {
+     await service.photos.restoreTrashBatch(ids)
+     await fetchTrash()
+-    void useTimelineStore().fetchTimeline()
++    refreshTimelineAfterTrashChange()
+   }
+ 
+   async function restoreAll(): Promise<void> {
+     await service.photos.restoreAllTrash()
+     await fetchTrash()
+-    void useTimelineStore().fetchTimeline()
++    refreshTimelineAfterTrashChange()
+   }
+ 
+   async function purge(ids: Array<string | number>): Promise<void> {
+     await Promise.all(
+       ids.map((id) =>
+         service.photos.purgeTrash(id).then(undefined, (e) => {
+           console.error('[photos-trash] purge', id, e)
+         }),
+       ),
+     )
+@@ -64,21 +75,21 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
+ 
+   async function undoRestore(ids: Array<string | number>): Promise<void> {
+     await Promise.all(
+       ids.map((id) =>
+         service.photos.deleteAsset(id).then(undefined, (e) => {
+           console.error('[photos-trash] undoRestore', id, e)
+         }),
+       ),
+     )
+     await fetchTrash()
+-    void useTimelineStore().fetchTimeline()
++    refreshTimelineAfterTrashChange()
+   }
+ 
+   async function fetchRetention(): Promise<void> {
+     try {
+       const cfg = (await service.photos.getConfig()) as Record<string, unknown>
+       const d = Number(cfg?.retentionDays)
+       if (d > 0) retentionDays.value = d
+     } catch (e) {
+       console.error('[photos-trash] fetchRetention', e)
+     }

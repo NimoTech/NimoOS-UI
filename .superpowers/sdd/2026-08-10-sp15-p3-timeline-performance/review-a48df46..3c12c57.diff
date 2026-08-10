@@ -1,0 +1,412 @@
+# Review package: a48df46..HEAD
+
+## Commits
+3c12c57 feat(photos): wire bucket loading into the timeline view
+
+## Files changed
+ oss/manifest.mjs                                   |   2 +
+ src/photos/components/PhotosGrid.vue               |  23 ++--
+ src/photos/components/__tests__/PhotosGrid.test.ts |  32 +++++
+ src/views/Photos.vue                               |  18 ++-
+ src/views/__tests__/Photos.buckets.test.ts         | 147 +++++++++++++++++++++
+ 5 files changed, 209 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/oss/manifest.mjs b/oss/manifest.mjs
+index 224a893..d4829e4 100644
+--- a/oss/manifest.mjs
++++ b/oss/manifest.mjs
+@@ -112,20 +112,22 @@ export const DELETE = [
+   'src/views/PhotosSmartViewDetail.vue',
+   'src/views/PhotosSmartViews.vue',
+   'src/views/PhotosTrash.vue',
+   // 21 view tests. ⚠️ The first three are NOT under __tests__/: SP15-P1's T5 and T7 and
+   // SP15-P2a's T3 put their tests next to the view, unlike the other 18 in this area — do not
+   // assume a glob covers them. (T5's went unregistered and left the leak guard red on 12 hits,
+   // the same omission as packages/service/src/photos.moments.test.ts; both are fixed here.)
+   'src/views/PhotosMomentDetail.test.ts',
+   'src/views/PhotosSmartViewDetail.assets.test.ts',
+   'src/views/PhotosSmartViews.moments.test.ts',
++  // SP15-P3: bucket-mode wiring test for Photos.vue.
++  'src/views/__tests__/Photos.buckets.test.ts',
+   'src/views/__tests__/Photos.integration.test.ts',
+   'src/views/__tests__/Photos.lightbox.test.ts',
+   'src/views/__tests__/Photos.route.test.ts',
+   'src/views/__tests__/PhotosAlbumDetail.test.ts',
+   'src/views/__tests__/PhotosAlbums.test.ts',
+   'src/views/__tests__/PhotosFavorites.test.ts',
+   'src/views/__tests__/photosGlassSurfaces.test.ts',
+   'src/views/__tests__/photosLayoutHeightCap.test.ts',
+   // SP15-P2a task 4: the carried-in [data-selected] defect fix's own test, added under
+   // __tests__/ (unlike the three siblings named in the comment above) so a plain glob over
+diff --git a/src/photos/components/PhotosGrid.vue b/src/photos/components/PhotosGrid.vue
+index 2207440..1332147 100644
+--- a/src/photos/components/PhotosGrid.vue
++++ b/src/photos/components/PhotosGrid.vue
+@@ -190,34 +190,37 @@ function isWindowed(m: Month & { filtered: Photo[] }): boolean {
+   return activeKeys.value.has(m.key)
+ }
+ function placeholderHeight(m: Month & { filtered: Photo[] }): number | null {
+   const h = measuredHeights.get(m.key)
+   return h != null && h > 0 ? h : null
+ }
+ 
+ const selecting = computed(() => props.selected.length > 0)
+ 
+ const scrubberTicks = computed(() => {
+-  const ticks: Array<{ label: string; major: boolean; key: string }> = []
++  const ticks: Array<{ label: string; major: boolean; key: string; disabled: boolean }> = []
+   const seenYears = new Set<string>()
+-  ;(props.months || []).forEach(m => {
++  // Read the same array the template's v-if reads, so a tick's disabled state can
++  // never disagree with whether that month actually renders.
++  for (const m of filteredMonths.value) {
+     // Skip groups without a YYYY-MM key (synthetic single groups), which have
+     // no month tick and must not crash the split below.
+-    if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) return
++    if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) continue
+     const [year, mo] = m.key.split('-')
+     if (!seenYears.has(year)) {
+       seenYears.add(year)
+-      ticks.push({ label: year, major: true, key: `y-${year}` })
++      // Year ticks are never disabled — they are not click targets to begin with.
++      ticks.push({ label: year, major: true, key: `y-${year}`, disabled: false })
+     }
+     const abbr = new Date(+year, +mo - 1).toLocaleString('en', { month: 'short' })
+-    ticks.push({ label: abbr, major: false, key: m.key })
+-  })
++    ticks.push({ label: abbr, major: false, key: m.key, disabled: !hasContent(m) })
++  }
+   return ticks
+ })
+ 
+ const activeIdx = computed(() => scrubberTicks.value.findIndex(tk => tk.key === activeMonth.value))
+ const scrubberInnerHeight = computed(() => `${scrubberTicks.value.length * TICK_STEP + TICK_PAD * 2}px`)
+ 
+ function tickTop(i: number): string { return `${TICK_PAD + (i + 0.5) * TICK_STEP}px` }
+ 
+ function ensureActiveVisible() {
+   const el = scrubberRef.value
+@@ -479,23 +482,23 @@ onBeforeUnmount(() => {
+       </template>
+ 
+       <div style="height:80px"></div>
+     </div>
+ 
+     <div v-if="anyContent" ref="scrubberRef" class="scrubber">
+       <div class="scrubber-inner" :style="{ height: scrubberInnerHeight }">
+         <div
+           v-for="(tk, i) in scrubberTicks" :key="tk.key"
+           class="scrubber-tick" :ref="(el) => setTickRef(el as Element | null, i)"
+-          :data-major="tk.major" :data-active="tk.key === activeMonth"
+-          :style="{ top: tickTop(i), cursor: tk.major ? 'default' : 'pointer' }"
+-          @click="!tk.major && jumpTo(tk.key)"
++          :data-major="tk.major" :data-active="tk.key === activeMonth" :data-disabled="tk.disabled"
++          :style="{ top: tickTop(i), cursor: (tk.major || tk.disabled) ? 'default' : 'pointer' }"
++          @click="!tk.major && !tk.disabled && jumpTo(tk.key)"
+         >{{ tk.label }}</div>
+         <div v-if="activeIdx >= 0" class="scrubber-thumb" :style="{ top: tickTop(activeIdx) }">
+           {{ scrubberTicks[activeIdx].label.slice(0, 3) }}
+         </div>
+       </div>
+     </div>
+   </div>
+ </template>
+ 
+ <style scoped>
+@@ -600,16 +603,18 @@ onBeforeUnmount(() => {
+   overflow-y: auto; scrollbar-width: none;
+ }
+ .scrubber::-webkit-scrollbar { display: none; }
+ .scrubber-inner { position: relative; }
+ .scrubber-tick {
+   position: absolute; right: 6px; transform: translateY(-50%);
+   font-size: 10px; color: var(--fg-muted); white-space: nowrap;
+ }
+ .scrubber-tick[data-major="true"] { font-weight: 700; color: var(--fg); font-size: 11px; }
+ .scrubber-tick[data-active="true"] { color: var(--accent); }
++/* A month hidden by the current tab or filter has no anchor to jump to. */
++.scrubber-tick[data-disabled="true"] { opacity: 0.35; }
+ .scrubber-thumb {
+   position: absolute; right: 6px; transform: translateY(-50%);
+   padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;
+   background: var(--accent); color: var(--on-accent);
+ }
+ </style>
+diff --git a/src/photos/components/__tests__/PhotosGrid.test.ts b/src/photos/components/__tests__/PhotosGrid.test.ts
+index 4f7c293..5caafac 100644
+--- a/src/photos/components/__tests__/PhotosGrid.test.ts
++++ b/src/photos/components/__tests__/PhotosGrid.test.ts
+@@ -476,20 +476,52 @@ describe('PhotosGrid bucket-mode skeletons', () => {
+     expect(w.findAll('.tile')).toHaveLength(1)
+     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+   })
+ 
+   it('leaves legacy month groups (no loaded field) rendering exactly as before', async () => {
+     const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+     await nextTick()
+     expect(w.findAll('.tile')).toHaveLength(1)
+     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+   })
++
++  // SP15-P3-T8: the tick's disabled state must come from the SAME array the
++  // template renders month containers from (filteredMonths), not the raw
++  // props.months — otherwise a month hidden by the current tab still gets a
++  // clickable tick that jumps nowhere.
++  //
++  // Cannot use a single unloaded month here: on the doc tab an unloaded month
++  // has no OCR estimate, so hasContent() is false for every month, anyContent
++  // is false, and the scrubber's own v-if removes the whole block — there
++  // would be no ticks to assert on at all. So this needs a SECOND month that
++  // does have doc-tab content, which keeps the scrubber rendered while the
++  // bucket month's tick is the one under test.
++  //
++  // Note: `tab: 'doc'` is not a tab matchesTab recognizes by name — it falls
++  // through to the same default branch as 'photo' (`!isVideo && !hasOcr`), the
++  // same as every unrecognized tab string. So the "has content on this tab"
++  // month below must be a PLAIN photo (no hasOcr), not one with hasOcr:true —
++  // an OCR-tagged photo does NOT match under 'doc' (only the literal 'ocr' tab
++  // matches hasOcr), which would leave both months contentless and the whole
++  // scrubber unmounted, same failure mode as the single-month version above.
++  it('disables the tick of a month the current tab hides', async () => {
++    const docMonth: Month = {
++      key: '2026-09', title: 'September 2026', loc: '',
++      photos: [photo('d1')], loaded: true, count: 1, videoCount: 0,
++    }
++    const w = mount(PhotosGrid, {
++      props: { months: [docMonth, bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'doc' },
++    })
++    await nextTick()
++    const tick = w.findAll('.scrubber-tick').find((t) => t.attributes('data-major') !== 'true' && t.text() === 'Aug')
++    expect(tick?.attributes('data-disabled')).toBe('true')
++  })
+ })
+ 
+ class FakeIO {
+   static instances: FakeIO[] = []
+   cb: IntersectionObserverCallback
+   targets: Element[] = []
+   constructor(cb: IntersectionObserverCallback) { this.cb = cb; FakeIO.instances.push(this) }
+   observe(el: Element) { this.targets.push(el) }
+   unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el) }
+   disconnect() { this.targets = [] }
+diff --git a/src/views/Photos.vue b/src/views/Photos.vue
+index cfd89f5..4c562c5 100644
+--- a/src/views/Photos.vue
++++ b/src/views/Photos.vue
+@@ -62,27 +62,36 @@ const tab = ref('photo')
+ usePhotosDeepLinks({ setTab: (v) => { tab.value = v } })
+ 
+ const density = ref('comfortable')
+ const selected = ref<Array<string | number>>([])
+ 
+ // P7b-T4:EXIF 筛选态。照 Vue2 PhotosTimeline.vue:116 的 activeFilters,但只保留三个
+ // facet 键——Vue2 那个对象上还挂着 placeKey/spotKey 两个 spot 跳转用的键,New-UI 的
+ // 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
+ const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
+ 
+-// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份。
+-// 空月份必须在这里丢——PhotosGrid 的月份刻度尺读的是未按标签页过滤的 props.months
+-// (PhotosGrid.vue:88),留着空月份会在刻度尺上留下点不到的死刻度。
++// SP15-P3-T8: is an EXIF filter actually narrowing anything right now? Only
++// then does "unknown membership" become a real problem for an unloaded month.
++const exifFilterActive = computed(() => {
++  const f = exifFilter.value
++  return f.years.length > 0 || f.places.length > 0 || f.cameras.length > 0
++})
++
++// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份 —— 除了一种情况。
++// 分桶模式下未加载的月份 photos 恒为空数组,不能被这条 filter 吃掉 —— 它是 PhotosGrid
++// 画骨架、也是滚动条长度与跳月锚点的来源。
++// 一旦 EXIF 筛选生效就恢复原样丢弃:未加载月份里到底有没有符合筛选的照片,前端无从得知
++// (spec §5.1 已登记为遗留限制,真正的修法是后端筛选)。
+ const gridMonths = computed(() =>
+   store.months
+     .map((m) => ({ ...m, photos: applyExifFilters(m.photos, exifFilter.value) }))
+-    .filter((m) => m.photos.length > 0),
++    .filter((m) => m.photos.length > 0 || (m.loaded === false && !exifFilterActive.value)),
+ )
+ 
+ // Grid does tab-filtering internally; mirror the same predicate here (hoisted
+ // to photos/util/tabFilter.ts, Fix 3) to feed the toolbar's item count (Vue2
+ // passed the filtered count, PhotosGrid.vue filteredMonths logic ported at task-7).
+ // D20(用户 2026-08-03 拍板):计数跟着 EXIF 筛选一起减,与用户所见一致。
+ // (Vue2 传的是 allPhotos.length,既不跟标签页也不跟筛选;New-UI 在 P1 已把它改成跟标签页
+ // 走的 sanctioned 偏离,这里把 EXIF 叠进同一个 computed,方向一致。)
+ const filteredCount = computed(() =>
+   gridMonths.value.reduce((sum, m) => sum + m.photos.filter((p) => matchesTab(p, tab.value)).length, 0),
+@@ -239,20 +248,21 @@ onUnmounted(() => {
+                    该年份就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths
+                    而非 gridMonths)。 -->
+               <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
+             </template>
+           </PhotosToolbar>
+           <div class="photos-grid-slot">
+             <PhotosGrid
+               :months="gridMonths" :tab="tab" :density="density" :selected="selected"
+               @open="onOpenTile"
+               @toggle-select="toggleSelect"
++              @need-bucket="(k: string) => store.fetchBucket(k)"
+             />
+           </div>
+         </template>
+       </main>
+     </div>
+   </AreaShell>
+   <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
+        此处空接即可,无需再往上冒泡处理。 -->
+   <PhotoLightbox
+     @delete="onLightboxDelete"
+diff --git a/src/views/__tests__/Photos.buckets.test.ts b/src/views/__tests__/Photos.buckets.test.ts
+new file mode 100644
+index 0000000..248ef4f
+--- /dev/null
++++ b/src/views/__tests__/Photos.buckets.test.ts
+@@ -0,0 +1,147 @@
++// SP15-P3-T8: Photos.vue's bucket-mode wiring. Ported test scaffolding (mock
++// set, mountPhotos harness) from Photos.integration.test.ts — see that file for
++// the full non-bucket integration coverage; this file only covers the three
++// things task-8-brief.md's Step 1 calls out:
++//  1. an unloaded bucket month must survive `gridMonths` (Photos.vue:75-79's
++//     filter used to drop every month with photos.length === 0, which in
++//     bucket mode is every month the user has not scrolled to yet — the grid
++//     would receive nothing to render and the whole phase would be a no-op);
++//  2. once an EXIF filter narrows the view, that same unloaded month is
++//     dropped again — a registered limitation (spec §5.1): its membership is
++//     genuinely unknown to the frontend, so it is hidden rather than guessed;
++//  3. PhotosGrid's `need-bucket` emit reaches `store.fetchBucket`.
++import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { mount, flushPromises } from '@vue/test-utils'
++import { setActivePinia, createPinia } from 'pinia'
++import { createRouter, createWebHashHistory } from 'vue-router'
++
++const svc = vi.hoisted(() => ({
++  photos: {
++    getTimeline: vi.fn().mockResolvedValue([]),
++    getStatus: vi.fn().mockResolvedValue({}),
++    listTasks: vi.fn().mockResolvedValue({ tasks: [] }),
++    deleteAsset: vi.fn().mockResolvedValue(undefined),
++    thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
++    previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
++    spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
++    spriteMeta: vi.fn(),
++    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
++    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
++    recordView: vi.fn().mockResolvedValue(undefined),
++    getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
++    getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
++    listFavoriteIds: vi.fn().mockResolvedValue([]),
++    favorite: vi.fn().mockResolvedValue(undefined),
++    unfavorite: vi.fn().mockResolvedValue(undefined),
++    listAlbums: vi.fn().mockResolvedValue([]),
++    batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
++  },
++}))
++vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
++
++// useMessageBus opens a real socket.io connection in the browser — mock it
++// (same precedent as Photos.integration.test.ts) so mounting Photos.vue never
++// touches the network for the task-progress subscription.
++const busOn = vi.hoisted(() => vi.fn((_event: string, _cb: (...a: unknown[]) => void) => () => {}))
++vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: busOn }) }))
++
++import Photos from '../Photos.vue'
++import PhotosGrid from '../../photos/components/PhotosGrid.vue'
++import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
++import { useTimelineStore } from '../../photos/stores/timeline'
++
++function makeRouter() {
++  return createRouter({
++    history: createWebHashHistory('/app/'),
++    routes: [{ path: '/photos', name: 'photos', component: Photos }],
++  })
++}
++
++async function mountPhotos() {
++  const router = makeRouter()
++  router.push('/photos')
++  await router.isReady()
++  const w = mount(Photos, { global: { plugins: [router] } })
++  await flushPromises()
++  return w
++}
++
++beforeEach(() => {
++  setActivePinia(createPinia())
++  busOn.mockClear()
++  svc.photos.getTimeline.mockClear().mockResolvedValue([])
++  svc.photos.getStatus.mockClear().mockResolvedValue({})
++  svc.photos.listTasks.mockClear().mockResolvedValue({ tasks: [] })
++  svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
++  svc.photos.listAlbums.mockClear().mockResolvedValue([])
++})
++
++// Puts the store directly into bucket mode with one unloaded month, bypassing
++// fetchTimeline's real bucket-probe network call (mocked to reject/resolve
++// generically above) — this test cares about what Photos.vue does with the
++// store's `months`, not how bucketMode gets flipped (that is T2/T5's territory).
++function seedUnloadedBucket(store: ReturnType<typeof useTimelineStore>) {
++  store.bucketMode = true
++  store.buckets = [{ year: 2026, month: 8, count: 10, videoCount: 2 }]
++}
++
++describe('Photos.vue bucket-mode wiring (SP15-P3-T8)', () => {
++  it('keeps unloaded months in gridMonths so the grid can render skeletons', async () => {
++    const w = await mountPhotos()
++    const store = useTimelineStore()
++    seedUnloadedBucket(store)
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    // Sanity: the store really does carry an unloaded month with photos===[].
++    const unloaded = store.months.find((m) => m.key === '2026-08')
++    expect(unloaded?.loaded).toBe(false)
++    expect(unloaded?.photos).toHaveLength(0)
++
++    // Photos.vue:75-79's old `.filter(m => m.photos.length > 0)` would have
++    // dropped this month entirely — the grid must still receive it.
++    const gridMonths = w.findComponent(PhotosGrid).props('months') as Array<{ key: string; loaded?: boolean }>
++    const forwarded = gridMonths.find((m) => m.key === '2026-08')
++    expect(forwarded).toBeTruthy()
++    expect(forwarded?.loaded).toBe(false)
++  })
++
++  it('drops unloaded months once an EXIF filter is active', async () => {
++    const w = await mountPhotos()
++    const store = useTimelineStore()
++    seedUnloadedBucket(store)
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    // Confirm it is present before the filter narrows anything.
++    expect(
++      (w.findComponent(PhotosGrid).props('months') as Array<{ key: string }>)
++        .some((m) => m.key === '2026-08'),
++    ).toBe(true)
++
++    await w.findComponent(PhotosFilterBar).vm.$emit(
++      'update:filter', { years: ['2020'], places: [], cameras: [] },
++    )
++    await w.vm.$nextTick()
++
++    // Registered limitation (spec §5.1): the unloaded month's membership under
++    // the active filter is unknown, so it is hidden rather than guessed at.
++    expect(
++      (w.findComponent(PhotosGrid).props('months') as Array<{ key: string }>)
++        .some((m) => m.key === '2026-08'),
++    ).toBe(false)
++  })
++
++  it('forwards need-bucket to the store', async () => {
++    const w = await mountPhotos()
++    const store = useTimelineStore()
++    const fetchBucketSpy = vi.spyOn(store, 'fetchBucket').mockResolvedValue(undefined)
++    seedUnloadedBucket(store)
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    await w.findComponent(PhotosGrid).vm.$emit('need-bucket', '2026-08')
++
++    expect(fetchBucketSpy).toHaveBeenCalledWith('2026-08')
++  })
++})
