@@ -19,8 +19,8 @@ const ESTIMATED_MENU_HEIGHT = 340
 export function useFixedMenuPosition(
   open: Ref<boolean>,
   btnRef: Ref<HTMLElement | null>,
-): { menuStyle: Ref<Record<string, string | number>> } {
-  const menuStyle = ref<Record<string, string | number>>({})
+): { menuStyle: Ref<Record<string, string>> } {
+  const menuStyle = ref<Record<string, string>>({})
   let onScrollOrResize: (() => void) | null = null
 
   function unbind(): void {
@@ -45,10 +45,10 @@ export function useFixedMenuPosition(
     if (!btn) return
     const rect = btn.getBoundingClientRect()
     const spaceBelow = window.innerHeight - rect.bottom
-    const style: Record<string, string | number> = {
+    const style: Record<string, string> = {
       position: 'fixed',
       right: `${window.innerWidth - rect.right}px`,
-      zIndex: 260,
+      zIndex: '260',
     }
     if (spaceBelow < ESTIMATED_MENU_HEIGHT && rect.top > spaceBelow) {
       style.bottom = `${window.innerHeight - rect.top + 6}px`

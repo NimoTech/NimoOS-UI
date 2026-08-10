@@ -35,7 +35,7 @@ describe('useFixedMenuPosition', () => {
     expect(h1.style.top).toBe('136px')          // rect.bottom + 6
     expect(h1.style.right).toBe('300px')        // innerWidth - rect.right
     expect(h1.style.bottom).toBeUndefined()
-    expect(h1.style.zIndex).toBe(260)
+    expect(h1.style.zIndex).toBe('260')
   })
 
   it('flips upward when the space below is smaller than the estimate and the space above is larger', async () => {
@@ -52,8 +52,11 @@ describe('useFixedMenuPosition', () => {
   it('does not flip when the space below is short but the space above is even shorter', async () => {
     window.innerHeight = 400
     window.innerWidth = 1200
-    // spaceBelow = 400 - 300 = 100 < 340, but rect.top (270) > 100 -> flips.
-    // Use a genuinely smaller top to prove the second half of the condition is load-bearing.
+    // spaceBelow = 400 - 300 = 100 < 340, so the first half of the flip condition holds.
+    // But rect.top (50) is NOT greater than spaceBelow (100), so the second half fails and
+    // the menu must still open downward. This is what gives the mutation that drops
+    // "&& rect.top > spaceBelow" its discriminating power: without that half, the code
+    // would flip here too and the assertions below would fail.
     const h1 = mountHost({ top: 50, bottom: 300, right: 900 })
     h1.open.value = true
     await nextTick()
