@@ -199,3 +199,89 @@ H 那一轮是本波唯一一次抓到自己写的覆盖不成立,记录在此�
 2. **同尺寸文件的 offset 歧义**(CRITICAL 1 末段)——理论残余,实测走不到,未加 per-file token。
 3. **真机验收一步没跑**。本波改的东西里有三件只能在两台设备上验:大文件慢链路不再被误杀(IMPORTANT 2)、Wi-Fi 漫游期间接收不中断(IMPORTANT 3)、取消只弹一个 toast 且文案是「已取消传输」(M6+M7)。IMPORTANT 4 与 M10 单机可验(粘贴 GB 级文件 → 折叠面板文案 / 「全部取消」是红的,浅色深色各看一遍)。
 4. 未部署、未推 origin、未合 master。
+
+---
+
+# 二次(定向)评审后的收尾波 · `05b064c`
+
+> 九条 finding 全部裁定 ADDRESSED。本波只处理二次评审新发现的 1 条 Important(**由我的 I2 门引入**)+ 2 条硬约束小疏漏,并按要求改写三处措辞。
+
+## IMPORTANT(新)—— 任何一次成功发送之后,来自该 peer 的下一次**接收**完全没有看门狗
+
+### 根因
+
+`Peer.files` 由 `sendFiles()` 写入,只有 `resetTransferState()` 会清——`onTransferCompleted()` 不清。
+所以给 peer X 发完一个文件后 `files.length` 恒为 1;X 反过来发文件时,接收侧的进度事件仍带 `files.length === 1`
+⇒ store 的 `sending = e.files.length > 0` 判为 **true** ⇒ 我新加的门(`props.transfer.sending === false`)**永不放行**,
+这次接收从头到尾没有看门狗。
+
+**为什么是我引入的**:`sending` 的陈旧误标本身是既有问题(卡片会写「正在发送」),但**改动前的门是 `!!props.transfer`,
+看门狗照样跑,死掉的接收仍然有界**。换成只看接收侧之后,这条路径上**唯一**的界就没了——接收路径没有 ack 定时器、
+通道还开着、卡片冻住、半组装的文件永不丢弃、也不弹 toast。触发条件正是这个页面存在的意义:给一台设备发一个文件,再收它发回来的。
+
+### 改法与我的取舍(评审要求明确表态)
+
+`onTransferCompleted()` 里清 `this.files`,**但带 `filesQueue` 已排空的条件**,并且放在 `dequeueFile()` **之前**:
+
+```ts
+if (!this.filesQueue.length) this.files = []
+this.dequeueFile()
+```
+
+**选条件清、不选无条件清**,理由是多文件发送:`sendFiles([f1,f2])` 时 `files=[f1,f2]`,f1 完成后 f2 还在发,
+`sending` 必须继续为 true(否则 f2 的整段发送期会被当成接收,既标错卡片又给它套上一个本不该有的看门狗)。
+放在 `dequeueFile()` 之前是因为 `dequeueFile()` 会把 f2 移出队列并把 `busy` 重新置真,之后再看 `filesQueue.length`
+就分不出「刚开始发下一个」和「真的发完了」。(等价写法是 dequeue 之后判 `!this.busy`;选了前者,因为它把
+「这是队列里最后一个文件」这句话直接说出来。)
+
+顺带修掉了那条既有的误标:发完之后 peer 空闲时卡片不再声称「正在发送」。
+
+### 测试与变异
+
+新增 describe `Peer send/receive interleaving`,两条:
+
+- `reports a receive that follows a completed send as receiving, not sending`
+  —— 发完一个文件(含真 wire 顺序的 transfer-complete + trailing ack),清空 mock,再喂 header+chunk,
+  断言**每一条** `onFileProgress` 的 `files` 都是 `[]`。
+- `keeps calling a multi-file send a send between its files`
+  —— 两文件队列,f1 完成、f2 开始后喂一条对端的 `progress` 消息(发送侧的进度就是从这里来的),
+  断言 `files` 仍是 `['one.bin','two.bin']`。这条守的是「条件清」这个取舍。
+
+| 变异 | 结果 |
+|---|---|
+| R:整句 `if (!this.filesQueue.length) this.files = []` 删掉(回到评审发现的状态) | `1 failed \| 32 passed` —— `reports a receive that follows a completed send as receiving, not sending`,`AssertionError: expected [ File{ …(1) } ] to deeply equal []` |
+| S:改成无条件 `this.files = []` | `1 failed \| 32 passed` —— `keeps calling a multi-file send a send between its files`,`AssertionError: expected [] to deeply equal [ 'one.bin', 'two.bin' ]` |
+
+**链路闭合说明**:「看门狗真的启动了」这一半不需要新用例——`DropItem.vue` 侧已有
+`never watches the sending side…`(sending=true ⇒ `vi.getTimerCount() === 0`)与三条 sending=false 的看门狗用例,
+store 侧已有 `files: []` ⇒ `sending: false` 的断言;唯一缺的一环就是引擎的 `files`,由上面第一条用例补上。
+
+## 两条硬约束疏漏
+
+1. `rtcPeer.ts` `redialIfCaller()` 的 JSDoc 里残留中文片段 `(Vue2 同)` → 改为 `(same as Vue2)`。代码注释英文-only。
+2. `src/files/stores/fileOps.test.ts` 的用例标题我上一波改成了 `'ingest 只保留活动任务'`——**动过就算我的**,
+   按本期「测试描述一律英文」的裁定译为 `'keeps only the active tasks on ingest'`。
+
+## 措辞改写(按二次评审要求)
+
+`onConnectionStateChange()` 里 `'disconnected'` 分支那句 “so nothing is unbounded” 过于乐观,已改写为:
+发送受 `ACK_TIMEOUT_MS`、接收**在已经画出进度卡之后**受看门狗,并点名两个既有盲区(取整百分比仍为 0 时看门狗直接 return;
+header 到了但第一个 chunk 没到时压根不生成 `transfers` 条目)⇒ 在最初那一小段里死掉的接收**仍然无界**,已挂票、本波不动。
+
+## 挂账(按要求只记录,不改)
+
+1. **同尺寸 offset 歧义:上一波我写「实测走不到」,措辞过强,已按二次评审更正为「万一发生也无害」**。
+   二次评审用探针证伪了「不可能」:文件 1 = 1 024 000 B、文件 2 = 2 500 000 B(其第一个 partition 恰好也在 1 024 000 结束),
+   若让文件 2 的首次读取先于 trailing ack 落地完成,那条陈旧 ack **会**被当成文件 2 的而被消费掉;
+   HTML 规范并不保证 datachannel `message` 任务与 `FileReader` load 任务之间的先后。
+   后果经其确认是良性的:传输照常完成、不卡死,最坏是多一个未被确认的 partition(≤1 MB)在途。
+   **不实现 per-file token**(评审明示)。
+2. **远端腿的误标**:`case 'transfer-cancel'` 无条件上报 `'cancelled'`,而线上消息不带 reason
+   ⇒ peer B 的**看门狗**停机会让 peer A 读到「已取消传输」。需要给协议加一个附加字段,受兼容性约束 ⇒ 开票,不在本波改。
+3. **两个既有看门狗盲区**(上面「措辞改写」那段点名的两条)⇒ 只软化注释,不重构。
+
+## 本波的门
+
+- `pnpm exec vitest run src/files/drop/ src/files/stores/ src/i18n/`:**34 文件 / 412 例全绿**(前台跑)
+- `pnpm exec vue-tsc --noEmit`:0 错
+- 提交后全量:见下方返回摘要
