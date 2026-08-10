@@ -22,6 +22,7 @@ import { createRaid } from './raid.js'
 import { createSnapshot } from './snapshot.js'
 import { createNetwork, networkErrorText } from './network.js'
 import { createKvm } from './kvm.js'
+import { createTerminal } from './terminal.js'
 import { createSearch } from './search.js'
 import { createAi } from './ai.js'
 import { sseRequest } from './sse.js'
@@ -39,6 +40,7 @@ export type { ComposeContainerSummary, ComposeContainersInfo } from './compose.j
 export type { RaidStatus, RaidMemberDisk } from './raid.js'
 export type { SnapshotVolume, SnapshotPolicy } from './snapshot.js'
 export type { KvmVM, KvmVMList, KvmVncInfo, KvmSettings, KvmSettingsUpdate, KvmISO, KvmISODownloadProgress, KvmSnapshot, KvmCreateVMRequest, KvmUpdateVMRequest } from './kvm.js'
+export type { TerminalMode, TerminalSessionInfo, TerminalSettings, TerminalWindow } from './terminal.js'
 export type { SearchSource, SearchFilePath, SearchCite, SemanticHit, FileNameHit, ImageHit, NoteHit, NormalizedAggregate } from './search.js'
 export type { Note, CreateNoteFields, UpdateNoteFields, NotesSettings, SettingsFields, NotesDistillSettings, DistillSettingsPatch, DistillJob, DistillJobsView } from './notes.js'
 export type { WikiRoot, WikiCandidate, WikiTreeNode, WikiChildMapEntry, WikiRecentChange, WikiNode } from './wiki.js'
@@ -107,6 +109,9 @@ export const service = {
   },
   get kvm(): ReturnType<typeof createKvm> {
     return createKvm(getHttp() as AxiosInstance)
+  },
+  get terminal(): ReturnType<typeof createTerminal> {
+    return createTerminal(getHttp() as AxiosInstance)
   },
   get search(): ReturnType<typeof createSearch> {
     return createSearch(getHttp() as AxiosInstance)
