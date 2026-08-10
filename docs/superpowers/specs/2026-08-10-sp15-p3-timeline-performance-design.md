@@ -332,21 +332,28 @@ fetchTimeline()
 
 ## 4. i18n
 
-新键（`src/i18n/locales/zh_cn.photos.ts` + `en_us.photos.ts`，两 locale 同步；
-parity 测试会检查两边键集相等）：
+locale 文件是 **`src/i18n/zh_cn.photos.ts` + `src/i18n/en_us.photos.ts`**（**不是** `locales/`
+子目录；相册区的键单独分片在 `*.photos.ts` 里）。`src/i18n/parity.test.ts` 断言两边键集完全相等。
 
-| 键 | zh_CN | 用处 |
-|---|---|---|
-| `Stats reflect the first {n} loaded items` | 统计基于已加载的前 {n} 项 | 收藏页未取完提示 |
-| `Load more` | 加载更多 | 两页的加载更多按钮（若现有键已有则复用，不新增）|
-| `Restore all items in trash?` | 恢复回收站中的所有项？ | 未取完时的确认标题 |
-| `Permanently delete all items in trash?` | 永久删除回收站中的所有项？ | 同上 |
-| `This frees up space on the NAS. Once gone, the originals can't be recovered — not by Restore, not by Nimo.` | 这将释放 NAS 上的空间。一旦删除，原始文件将无法恢复——恢复功能和 Nimo 都无法找回。 | 未取完时的不带容量版正文 |
-| `All items restored to Library` | 所有项已恢复到资料库 | 未取完时的成功 toast |
-| `Trash emptied` | 回收站已清空 | 同上 |
+**键名风格**：本仓用 `photosXxx` 驼峰键，**不用英文原文当键**（与 Vue2 相反）。新键：
 
-zh_CN 文案以 Vue2 `zh_CN.json` 现有值为准（这 7 条在 Vue2 `#140` 里已存在，逐字取）。
-**无日期桶不需要新键** —— 它的标题沿用 `groupToMonth` 既有的硬编码 `'Unknown Date'`（§3.2）。
+| 键 | zh_CN | en_US | 用处 |
+|---|---|---|---|
+| `photosLoadMore` | 加载更多 | Load more | 收藏页/回收站的加载更多按钮 |
+| `photosLoadedSubsetHint` | 统计基于已加载的前 {n} 项 | Stats reflect the first {n} loaded items | 收藏页未取完提示 |
+| `photosTrashEmptyBodyPartial` | 这将释放 NAS 上的空间，原始文件将无法恢复。 | This frees up space on the NAS. Once gone, the originals can't be recovered. | 未取完时的清空正文（**不带 `{size}`**）|
+| `photosTrashEmptiedToastPartial` | 最近删除已清空 | Trash emptied | 未取完时的清空成功 toast（不带 `{size}`）|
+
+对照的现有键（**复用，不要新增同义键**）：`photosTrashEmptyBody`（带 `{size}`，
+`zh_cn.photos.ts:117`）、`photosTrashEmptiedToast`（带 `{size}`，`:121`）、
+`photosTrashRestoreAllTitle` / `photosTrashRestoreAllBody` / `photosTrashRestoredToast`
+（这三条本来就不带容量 ⇒ **恢复全部一路不需要降级文案**，只有「清空」那一路需要）。
+
+`photosSearchLoading`（'正在加载更多…'）是搜索页的加载态文案，**不是**按钮标签，别拿来当
+`photosLoadMore` 复用。
+
+**无日期桶不需要新键** —— 它的标题沿用 `groupToMonth` 既有的硬编码 `'Unknown Date'`（§3.2）；
+`PhotosGrid.vue:285` 已经在渲染时把 `'unknown'` 键换成现有的 `photosUnknownDate`。
 
 实现期必须先查现有键，**已存在就复用，不新增同义键**（P2c 栽过一次：一个键服务两个不同目标串）。
 
