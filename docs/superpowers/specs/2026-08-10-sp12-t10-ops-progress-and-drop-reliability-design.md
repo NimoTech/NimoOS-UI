@@ -121,7 +121,8 @@ msg["file_operate"] = string(json.Marshal(map[string]interface{}{"file_operate":
 **新建 `src/files/drop/leaveGuard.ts`**:不依赖 Vue 实例的纯函数 + 两处接线
 - **路由离开**:`DropPage.vue` 用 `onBeforeRouteLeave`,有活动传输时弹确认
 - **关页/刷新**:`beforeunload` 挽留
-- ⚠️ **形态照 `src/files/upload/unloadGuard.ts`,但装载位置不照抄**:票 A 已判定 `unloadGuard` 装在 `Files.vue` 是错的(上传队列是应用级 Pinia store,导航走了照传)。**互传传输只在 drop 页发生**,装在 `DropPage` 是对的。这条差异要写成英文注释,免得后人「照先例」抄错方向。
+- ⚠️ **形态照 `src/files/upload/unloadGuard.ts`,但装载位置故意相反 —— 理由不是「那边装错了」。**
+  **写计划时实测更正**:票 A 已经修好并随 master 合并进来(`installUnloadGuard` 现装在 `src/App.vue:75`,有 `src/App.unloadGuard.test.ts` 守着)。正确的对比是**作用域**:上传队列是应用级 store、导航走了照传 ⇒ 守卫在应用级;互传传输只在 drop 页存在(`DropPage.onBeforeUnmount` 就 `drop.destroy()`)⇒ 守卫在页面级。装到应用级只会常驻一个恒假的监听器。
 
 ### 2.4 明确不做(写进设计,免得后人当漏做)
 
@@ -176,7 +177,8 @@ msg["file_operate"] = string(json.Marshal(map[string]interface{}{"file_operate":
 
 - 后端票:`pushSingleFileNotify` 双重包裹(见 E6 附注)
 - #90 未做的四块:背压 / 流式落盘 / 接收确认握手 / ICE 诊断
-- 票 A(`installUnloadGuard` 装错生命周期)、票 B(重试撞死 URL 死循环)—— 机主本批未选
+- ~~票 A(`installUnloadGuard` 装错生命周期)~~ —— **写计划时核实:已修**,`installUnloadGuard` 现装在 `src/App.vue:75`,`src/App.unloadGuard.test.ts` 守着。此项从挂账里划掉。
+- 票 B(重试撞死 URL 死循环)—— 机主本批未选,仍挂账
 - I1(Esc 取消粘贴时不撞名的文件已落地)—— 待机主拍板
 - plan-b 已知未修 #2/#5/#6
 - 三批真机验收清单(12 步 + 10 步 + 18 步)一步没跑
