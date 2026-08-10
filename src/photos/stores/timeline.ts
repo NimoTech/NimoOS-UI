@@ -11,11 +11,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import { groupToMonth, type Month, type Photo } from '../util/assetToPhoto'
+import { groupToMonth, assetToPhoto, type Month, type Photo } from '../util/assetToPhoto'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../util/taskBus'
 import { isNotFound } from '../util/httpErrors'
 import {
-  bucketKey, bucketToMonth, normalizeBuckets, type BucketMeta,
+  bucketKey, bucketToMonth, normalizeBuckets, parseBucketKey, staleBucketKeys, type BucketMeta,
 } from '../util/timelineBuckets'
 
 export interface TimelineGroup {
@@ -75,8 +75,19 @@ function _cancelDoneRemoval(id: string | number): void {
 const BUCKET_PROBE_BACKOFF_MS = 10 * 60_000
 let _bucketProbeRetryAfter = 0
 
+// The backend clamps a bucket page to 500 rows, so paging is not optional for a
+// busy month. The page ceiling is a runaway guard, not a product limit: 40 pages
+// is 20k assets in one month, far past any real library.
+const BUCKET_PAGE_SIZE = 500
+const BUCKET_MAX_PAGES = 40
+
+// Promises are not store state. Keyed so two viewport events for the same month
+// share one request instead of racing.
+const _bucketInflight = new Map<string, Promise<void>>()
+
 export function __resetBucketProbeForTest(): void {
   _bucketProbeRetryAfter = 0
+  _bucketInflight.clear()
 }
 
 // `months` returns a plain Month in the legacy branch and a
@@ -273,6 +284,74 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     }
   }
 
+  async function fetchBucket(key: string): Promise<void> {
+    if (!bucketMode.value) return
+    if (bucketAssets.value.has(key)) return
+    const inflight = _bucketInflight.get(key)
+    if (inflight) return inflight
+    const ym = parseBucketKey(key)
+    if (!ym) return
+    const meta = buckets.value.find((b) => bucketKey(b) === key)
+    if (!meta) return
+
+    const run = (async () => {
+      const next = new Set(bucketLoading.value)
+      next.add(key)
+      bucketLoading.value = next
+      try {
+        const photos: Photo[] = []
+        for (let page = 0; page < BUCKET_MAX_PAGES; page++) {
+          const raw = await service.photos.getTimelineBucket(
+            ym.year, ym.month, BUCKET_PAGE_SIZE, page * BUCKET_PAGE_SIZE,
+          )
+          const list = (raw as unknown[] | null | undefined) ?? []
+          photos.push(...list.map((a) => assetToPhoto(a as Record<string, unknown>)))
+          // A short page means the month is exhausted; the directory count is
+          // only an upper bound (an asset can be deleted between the two calls).
+          if (list.length < BUCKET_PAGE_SIZE) break
+          if (photos.length >= meta.count) break
+          if (page === BUCKET_MAX_PAGES - 1) {
+            console.warn('[photos-timeline] bucket truncated at the page ceiling', key, photos.length)
+          }
+        }
+        const map = new Map(bucketAssets.value)
+        map.set(key, photos)
+        bucketAssets.value = map
+      } catch (e) {
+        // Leave the month unloaded: scrolling back to it retries naturally, so
+        // no extra retry machinery is needed.
+        console.error('[photos-timeline] fetchBucket', key, e)
+      } finally {
+        const done = new Set(bucketLoading.value)
+        done.delete(key)
+        bucketLoading.value = done
+        _bucketInflight.delete(key)
+      }
+    })()
+    _bucketInflight.set(key, run)
+    return run
+  }
+
+  // Refresh the directory only — a few hundred bytes — and drop just the caches
+  // it invalidates. Untouched months keep their exact photo arrays so the grid
+  // does not re-render them.
+  async function refreshBuckets(): Promise<void> {
+    if (!bucketMode.value) return
+    try {
+      const raw = await service.photos.getTimelineBuckets()
+      const next = normalizeBuckets(raw)
+      const stale = staleBucketKeys(buckets.value, next, bucketAssets.value.keys())
+      const live = new Set(next.map((b) => bucketKey(b)))
+      const map = new Map(bucketAssets.value)
+      for (const key of stale) map.delete(key)
+      for (const key of [...map.keys()]) if (!live.has(key)) map.delete(key)
+      buckets.value = next
+      bucketAssets.value = map
+    } catch (e) {
+      console.error('[photos-timeline] refreshBuckets', e)
+    }
+  }
+
   async function deleteAssets(ids: string[]): Promise<number> {
     let successCount = 0
     for (const id of ids) {
@@ -334,6 +413,8 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     fetchTasks,
     ingestTaskBus,
     deleteAssets,
+    fetchBucket,
+    refreshBuckets,
     __resetForTest,
   }
 })

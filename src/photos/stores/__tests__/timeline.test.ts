@@ -410,3 +410,173 @@ describe('photos-timeline bucket mode', () => {
     expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
   })
 })
+
+describe('photos-timeline fetchBucket', () => {
+  // Same isolation as the "photos-timeline bucket mode" describe above: a fresh
+  // Pinia + cleared mocks per test, so one test's paging/dedupe call counts
+  // (and its bucketAssets cache) cannot leak into the next test's assertions.
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+
+  async function enterBucketMode(s: ReturnType<typeof useTimelineStore>, list = BUCKETS) {
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(list)
+    await s.fetchTimeline()
+  }
+  const asset = (id: string, video = false) => ({ id, mimeType: video ? 'video/mp4' : 'image/jpeg' })
+
+  it('fetches one month and marks it loaded', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1'), asset('a2')])
+    await s.fetchBucket('2026-08')
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(2026, 8, 500, 0)
+    const aug = s.months.find((m) => m.key === '2026-08')
+    expect(aug?.loaded).toBe(true)
+    expect(aug?.photos.map((p) => p.id)).toEqual(['a1', 'a2'])
+  })
+
+  it('sends the unknown bucket as a zero pair, never a half-zero key', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s, [{ year: 0, month: 0, count: 1, videoCount: 0 }])
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('u1')])
+    await s.fetchBucket('unknown')
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledWith(0, 0, 500, 0)
+  })
+
+  it('pages until the directory count is covered', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s, [{ year: 2026, month: 8, count: 501, videoCount: 0 }])
+    svc.photos.getTimelineBucket
+      .mockResolvedValueOnce(Array.from({ length: 500 }, (_, i) => asset(`p${i}`)))
+      .mockResolvedValueOnce([asset('p500')])
+    await s.fetchBucket('2026-08')
+    expect(svc.photos.getTimelineBucket).toHaveBeenNthCalledWith(2, 2026, 8, 500, 500)
+    expect(s.months[0].photos).toHaveLength(501)
+  })
+
+  it('stops paging early when a page comes back short', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s, [{ year: 2026, month: 8, count: 900, videoCount: 0 }])
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('p0')])
+    await s.fetchBucket('2026-08')
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+    expect(s.months[0].loaded).toBe(true)
+  })
+
+  it('dedupes concurrent requests for the same month', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    svc.photos.getTimelineBucket.mockResolvedValue([asset('a1')])
+    await Promise.all([s.fetchBucket('2026-08'), s.fetchBucket('2026-08')])
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not refetch a month it already holds', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
+    await s.fetchBucket('2026-08')
+    await s.fetchBucket('2026-08')
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a month unloaded on failure so scrolling back retries it', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    svc.photos.getTimelineBucket.mockRejectedValueOnce(new Error('boom'))
+    await s.fetchBucket('2026-08')
+    expect(s.months[0].loaded).toBe(false)
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
+    await s.fetchBucket('2026-08')
+    expect(s.months[0].loaded).toBe(true)
+  })
+
+  it('ignores an unknown key instead of firing a request with NaN', async () => {
+    const s = useTimelineStore()
+    await enterBucketMode(s)
+    await s.fetchBucket('search')
+    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+  })
+
+  it('does nothing outside bucket mode', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+    await s.fetchTimeline()
+    await s.fetchBucket('2026-07')
+    expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
+  })
+})
+
+describe('photos-timeline refreshBuckets', () => {
+  // Same isolation rationale as the fetchBucket describe above.
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+  const asset = (id: string) => ({ id, mimeType: 'image/jpeg' })
+
+  it('keeps an unchanged month byte-identical so the grid does not flash', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
+    await s.fetchBucket('2026-08')
+    const before = s.months[0].photos
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.refreshBuckets()
+    expect(s.months[0].photos).toBe(before)
+  })
+
+  it('drops the cache for a month whose count changed', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
+    await s.fetchBucket('2026-08')
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 13, videoCount: 3 }, BUCKETS[1]])
+    await s.refreshBuckets()
+    expect(s.months[0].loaded).toBe(false)
+    expect(s.months[0].count).toBe(13)
+  })
+
+  it('drops a month that vanished entirely', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([asset('a1')])
+    await s.fetchBucket('2026-08')
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([BUCKETS[1]])
+    await s.refreshBuckets()
+    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+  })
+
+  it('is a no-op outside bucket mode', async () => {
+    const s = useTimelineStore()
+    await s.refreshBuckets()
+    expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
+  })
+
+  it('keeps the old directory when the refresh fails', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(new Error('boom'))
+    await s.refreshBuckets()
+    expect(s.buckets).toEqual(BUCKETS)
+  })
+})
