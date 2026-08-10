@@ -82,7 +82,6 @@ export default {
   filesCtxCopy: '复制',
   filesCtxDownload: '下载',
   filesCtxCut: '剪切',
-  filesTasksTitle: '当前任务',
   filesCancelAll: '全部取消',
   filesOpCopy: '复制',
   filesOpMove: '移动',

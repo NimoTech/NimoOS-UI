@@ -82,7 +82,6 @@ export default {
   filesCtxCopy: 'Copy',
   filesCtxDownload: 'Download',
   filesCtxCut: 'Cut',
-  filesTasksTitle: 'Current tasks',
   filesCancelAll: 'Cancel all',
   filesOpCopy: 'Copy',
   filesOpMove: 'Move',

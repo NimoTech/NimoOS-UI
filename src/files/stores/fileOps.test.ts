@@ -23,12 +23,11 @@ const task = (o: Record<string, unknown>) => ({
 describe('fileOps store', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
 
-  it('ingest 只保留活动任务,visible 随之切换', () => {
+  it('ingest 只保留活动任务', () => {
     const s = useFileOpsStore()
-    expect(s.visible).toBe(false)
+    expect(s.active).toEqual([])
     s.ingest(envelope([task({ id: '1', finished: false }), task({ id: '2', finished: true })]))
     expect(s.active.map((t) => t.id)).toEqual(['1'])
-    expect(s.visible).toBe(true)
   })
 
   it('ingest:已完成任务 to===当前目录 → reload 当前目录', () => {
