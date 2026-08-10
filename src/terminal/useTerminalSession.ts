@@ -147,6 +147,13 @@ export function useTerminalSession() {
     clearTimeout(idleTimer); idleTimer = undefined
     clearTimeout(warnTimer); warnTimer = undefined
     activitySince = false
+    // Reset the freeze countdown whenever timers are torn down (lock/provision/dispose).
+    // Without this, a stranded frozenSeconds > 0 (e.g. provision() re-landing in
+    // 'locked' while a prior freeze window was still counting down) would make
+    // submitPassword's early-return guard block the form forever. The backend
+    // still enforces the freeze server-side and re-arms it with a fresh 429, so
+    // clearing the UI counter here is safe and self-healing.
+    frozenSeconds.value = 0
   }
 
   return { state, mode, idleMinutes, frameSrc, pwError, frozenSeconds, warning, provision, submitPassword, notifyActivity, lock, maybeDeleteSession, dispose }

@@ -95,6 +95,29 @@ describe('useTerminalSession — password step-up', () => {
     expect(s.frozenSeconds.value).toBe(0)
   })
 
+  it('a teardown while still frozen resets the counter so a later retry is not blocked forever (regression)', async () => {
+    const s = await lockedSession()
+    createSession.mockRejectedValue(httpErr(429, { retry_after_seconds: 5 }))
+    await s.submitPassword('x')
+    expect(s.frozenSeconds.value).toBe(5)
+    // Still frozen — the user retries via a fresh provision() call (e.g. an
+    // error-state Retry button), which tears down the frozen timer mid-countdown.
+    createSession.mockRejectedValue(httpErr(500, {}))
+    await s.provision()
+    expect(s.state.value).toBe('error')
+    // Retrying again lands back in 'locked'. frozenSeconds must not be stranded
+    // above zero by the earlier teardown, or submitPassword would block forever.
+    createSession.mockRejectedValue(httpErr(401, { password_required: true, mode: 'on_open', idle_minutes: 15 }))
+    await s.provision()
+    expect(s.state.value).toBe('locked')
+    expect(s.frozenSeconds.value).toBe(0)
+    createSession.mockResolvedValue({ mode: 'on_open', idle_minutes: 15 })
+    createSession.mockClear()
+    await s.submitPassword('right')
+    expect(createSession).toHaveBeenCalled()
+    expect(s.state.value).toBe('ready')
+  })
+
   it('treats 5xx during step-up as service error, not a wrong password', async () => {
     const s = await lockedSession()
     createSession.mockRejectedValue(httpErr(500, {}))
