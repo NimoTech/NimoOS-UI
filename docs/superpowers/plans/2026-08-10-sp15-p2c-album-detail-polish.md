@@ -27,7 +27,7 @@
 5. **CSS 注释里不要让 `*` 紧贴 `/`** —— 会提前关闭注释块并吞掉后面整条规则，而五道门全部看不见
    （类名白名单 / 裸色扫描 / color-guard 只看源文本，vue-tsc 不看 CSS，build 不报错，jsdom 不做布局）。
 6. **每个任务结束时跑覆盖测试 + `pnpm exec vue-tsc --noEmit`，然后提交。** 全量 `pnpm test` 只在
-   T12 收尾跑一次（单次约 90 秒）。
+   T11 收尾跑一次（单次约 90 秒）。
 7. **`oss/*.test.mjs` 断言工作树干净。** 台账/报告文件未提交时它报的失败是假红。跑它之前先提交。
 8. **提交台账前先 `rm -f .superpowers/sdd/.gitignore`** —— `review-package` 脚本每跑一次就重建一次
    那个一行 `*` 的文件（机主 `0eec6ad` 专门删过它）。台账一律 `git add -f`。
@@ -53,12 +53,12 @@
 | E4 | **删 `SmartViewCard.vue` 与它的测试不需要改开源剥离清单** —— manifest 的 `DELETE` 表有 `'src/photos'` 整目录条目（`oss/manifest.mjs:90`），`src/photos/**` 下的文件被整体覆盖。`photosStripCoverage.test.mjs` 的 CASES 也只覆盖 `src/views`、`src/views/__tests__`、`packages/service/src` 三处 | `oss/manifest.mjs:90`、`oss/photosStripCoverage.test.mjs` 头部注释 |
 | E5 | `.album-toolbar` 目前是**两条**兄弟选择器的锚点，删容器时必须重锚 | `src/views/PhotosAlbumDetail.vue:1021`、`:1026` |
 | E6 | `sv-select-bar` 已存在于 SV 详情（P2a 建，带 `data-test="sv-select-bar"`），但 scoped ⇒ 相册详情要自写一份 CSS | `src/views/PhotosSmartViewDetail.assets.test.ts:180` 等 |
-| E7 | **New-UI 的 SV 详情完全没有 Sort 与密度控件**（`sortBy`/`density`/`order-pill`/`sortMenu` 全仓零命中）⇒ T7 是新建，不是搬家 | grep `src/views/PhotosSmartViewDetail.vue` |
-| E8 | SV 详情灯箱现在传的是 `store.matchedAssets`（未排序）⇒ T10 要改成排序后的列表 | `src/views/PhotosSmartViewDetail.vue:481` |
+| E7 | **New-UI 的 SV 详情完全没有 Sort 与密度控件**（`sortBy`/`density`/`order-pill`/`sortMenu` 全仓零命中）⇒ T6 是新建，不是搬家 | grep `src/views/PhotosSmartViewDetail.vue` |
+| E8 | SV 详情灯箱现在传的是 `store.matchedAssets`（未排序）⇒ T9 要改成排序后的列表 | `src/views/PhotosSmartViewDetail.vue:481` |
 | E9 | `Photo.place` 字段存在，源自 `asset.placeName`，无则 `countryFromCoords` 按经纬度反查国家名 | `src/photos/util/assetToPhoto.ts:295`、`:367-373` |
 | E10 | P2b 修的转换确认框在 `PhotosSmartViewDetail.vue`（`askConvertToAlbum`/`closeConvertToAlbum`/`doConvertToAlbum`，`:421-460`），**修复仍在** ⇒ `#117` 第一条子提交不重做 | `src/views/PhotosSmartViewDetail.vue:421` |
 
-⚠️ **E4 推翻了 spec §2.3 的一句话**（"删文件必须同步开源剥离清单"）。spec 那句按当时未取证的判断写的，实际不需要。T11 据此简化，spec 不改（保留原文可看出判断是怎么修正的）。
+⚠️ **E4 推翻了 spec §2.3 的一句话**（"删文件必须同步开源剥离清单"）。spec 那句按当时未取证的判断写的，实际不需要。T10 据此简化，spec 不改（保留原文可看出判断是怎么修正的）。
 
 ---
 
@@ -76,18 +76,18 @@ New-UI 键名按本仓 `photosXxx` 驼峰惯例新造；中文值用下表右列
 | `photosDetailCreatedAt` | `Created {date}` | 创建于 {date} | T3 |
 | `photosDetailItems` | `items` | 项 | T3 |
 | `photosDetailVideos` | `videos` | 视频 | T3 |
-| `photosSortLabel` | `Sort:` | 排序： | T3/T7 |
+| `photosSortLabel` | `Sort:` | 排序： | T3/T6 |
 | `photosSortManual` | `Manual order` | 手动排序 | T3 |
-| `photosSortTaken` | `Date taken` | 拍摄日期 | T3/T7 |
+| `photosSortTaken` | `Date taken` | 拍摄日期 | T3/T6 |
 | `photosSortAdded` | `Date added` | 添加日期 | T3 |
-| `photosSortScore` | `Match score` | 匹配分数 | T7 |
-| `photosDensityComfort` | `Comfortable` | 舒适 | T3/T7 |
-| `photosDensityCompact` | `Compact` | 紧凑 | T3/T7 |
-| `photosMenuRename` | `Rename` | 重命名 | T5/T8 |
-| `photosMenuDuplicate` | `Duplicate` | 复制 | T5/T8 |
-| `photosMenuDownloadZip` | `Download as ZIP` | 下载为 ZIP | T5/T8 |
-| `photosMenuConvert` | `Convert` | 转换 | T5/T8 |
-| `photosMenuDelete` | `Delete` | 删除 | T5/T8 |
+| `photosSortScore` | `Match score` | 匹配分数 | T6 |
+| `photosDensityComfort` | `Comfortable` | 舒适 | T3/T6 |
+| `photosDensityCompact` | `Compact` | 紧凑 | T3/T6 |
+| `photosMenuRename` | `Rename` | 重命名 | T5/T7 |
+| `photosMenuDuplicate` | `Duplicate` | 复制 | T5/T7 |
+| `photosMenuDownloadZip` | `Download as ZIP` | 下载为 ZIP | T5/T7 |
+| `photosMenuConvert` | `Convert` | 转换 | T5/T7 |
+| `photosMenuDelete` | `Delete` | 删除 | T5/T7 |
 | `photosMenuRenameAlbumHint` | `Change the album name` | 修改相册名称 | T5 |
 | `photosMenuDuplicateHint` | `Copy the photos as a new album` | 把照片复制为一个新相册 | T5 |
 | `photosMenuZipHint` | `{n} photos · ~{mb} MB` | {n} 张照片 · 约 {mb} MB | T5 |
@@ -99,10 +99,10 @@ New-UI 键名按本仓 `photosXxx` 驼峰惯例新造；中文值用下表右列
 `photosSvPause`/`photosSvResume` · 智能视图关闭提示句（Vue2 `Smart Views are turned off — …` →
 「智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。」，New-UI 已有，T5 复用勿新造）。
 
-**T12 要清理的孤儿键**：靶子里 `Rename album` / `Add condition` 两个键已**不存在**（改短 / 删功能所致）。
+**T11 要清理的孤儿键**：靶子里 `Rename album` / `Add condition` 两个键已**不存在**（改短 / 删功能所致）。
 New-UI 对应的 `photosAlbumRename`、`photosAlbumRenameHint`、`photosAlbumConvertToSmart`、
 `photosAlbumConvertToSmartHint`、`photosAlbumDelete`、`photosAlbumDeleteHint` 在 T5 换成新键后
-是否还有消费者，T12 逐个 grep 后决定去留 —— **grep 确认零消费者才删**。
+是否还有消费者，T11 逐个 grep 后决定去留 —— **grep 确认零消费者才删**。
 
 ---
 
@@ -115,10 +115,10 @@ New-UI 对应的 `photosAlbumRename`、`photosAlbumRenameHint`、`photosAlbumCon
 | `packages/service/src/photos.ts` | 加 `exportAlbumZipUrl(id)` | T2 |
 | `src/photos/stores/albums.ts` | 加 `duplicateAlbum(id)` | T2 |
 | `src/views/PhotosAlbumDetail.vue` | 主战场：骨架换血 / 侧栏三节 / 菜单五项 / 编辑态浮条 | T3–T6 |
-| `src/views/PhotosSmartViewDetail.vue` | 动作区重排 / 侧栏动作节 / 菜单五项 / 删 Add condition / 灯箱排序 | T7–T10 |
-| `src/views/PhotosAlbums.vue` | 智能卡同构渲染 + 创建卡尺寸 | T11 |
-| `src/photos/components/SmartViewCard.vue` + 其测试 | **删除** | T11 |
-| `src/i18n/zh_cn.ts` / `en_us.ts` | 随各任务增删，T12 清孤儿 | T3–T12 |
+| `src/views/PhotosSmartViewDetail.vue` | 动作区重排 / 侧栏动作节 / 菜单五项 / 删 Add condition / 灯箱排序 | T6–T9 |
+| `src/views/PhotosAlbums.vue` | 智能卡同构渲染 + 创建卡尺寸 | T10 |
+| `src/photos/components/SmartViewCard.vue` + 其测试 | **删除** | T10 |
+| `src/i18n/zh_cn.ts` / `en_us.ts` | 随各任务增删，T11 清孤儿 | T3–T11 |
 
 ---
 
@@ -132,7 +132,7 @@ New-UI 对应的 `photosAlbumRename`、`photosAlbumRenameHint`、`photosAlbumCon
 
 **Interfaces:**
 - Produces: `useFixedMenuPosition(open: Ref<boolean>, btnRef: Ref<HTMLElement | null>): { menuStyle: Ref<Record<string, string>> }`
-  T5 与 T8 都会消费它。
+  T5 与 T7 都会消费它。
 
 **适配点（Vue2 mixin → Vue 3 composable）:**
 - mixin 的 `data.moreMenuStyle` → 返回的 `menuStyle` ref；宿主用 `:style="menuStyle"` 绑到 `.sv-export-menu`
@@ -519,7 +519,13 @@ git commit -m "feat(photos): add album zip export url and album duplication"
 
 ---
 
-## Task 3: 相册详情骨架换血
+> **2026-08-10 pre-flight 修正（控制器，执行前）**：原计划把「删 `.album-toolbar`」（T3）与
+> 「编辑态按钮落到底部浮条」（原 T6）拆成两个任务 —— 但那两个按钮就住在被删的容器里，拆开会让
+> T4/T5 两个任务期间功能缺失，且 T3 的既有测试无处可搬。**原 T6 已并入 T3**，`.sv-side-actions`
+> 容器改由 T5 自建（原 T4 不再建空壳）。**任务数 12 → 11，原 T7-T12 顺延为 T6-T11。**
+> 这与 P2b「删共享比较器 + 视图仍调用它」是同一形状的计划缺陷，这次在派工前扫出来了。
+
+## Task 3: 相册详情骨架换血 + 编辑态底部浮条
 
 **Files:**
 - Modify: `src/views/PhotosAlbumDetail.vue`（模板 `:520-690`、CSS `:949-952`/`:1013-1026`、脚本 `coverBgImage` 等）
@@ -543,6 +549,15 @@ git commit -m "feat(photos): add album zip export url and album duplication"
 - `.sv-actions`：`Sort:` 文案 + `.order-pill` 排序胶囊 + 分隔线 + Edit·Done + 分隔线 + 密度二钮
   - **Sort 与密度只在 `!edit` 时渲染；Edit·Done 常驻**
   - 两条 `.album-detail-actions-sep` 分隔线，只在相邻的 Sort/density 实际渲染时才带出
+- **编辑态底部浮条 `.sv-select-bar`**（原 T6，pre-flight 并入本任务）：`.album-toolbar` 被删后
+  「移除选中 / 添加照片」两个按钮的新家。形态与 SV 详情一致
+  （**New-UI 参照物：`src/views/PhotosSmartViewDetail.vue` 的 `sv-select-bar`，E6，P2a 建**）。
+  - SV 详情那份是 scoped ⇒ **自写一份 CSS**（延续 P2b 的 KEEP THE DUPLICATION 裁定），
+    CSS 块上写一条登记注释指明与 `PhotosSmartViewDetail.vue` 同源
+  - **保留既有的 `removing` 重入守卫**（`:69`，P2b 终审 Minor 6 加的），搬家时不要丢
+  - 选中数为 0 时浮条不渲染（照 SV 详情既有行为）
+  - 离开编辑态要清空选择态 —— P1 终审逮到过同类形状（「切 id 只清资产不清选择态 ⇒
+    把 A 的照片 id 发给 B 的接口」）
 
 **E5 重锚（关键，无自动门可见）:** 现有两条兄弟选择器
 
@@ -616,6 +631,13 @@ describe('P2c detail skeleton', () => {
   it('still opens the lightbox from a tile click outside edit mode', async () => {
     // regression guard: the grid moved into a new container, the click path must survive
   })
+
+  // ── 编辑态底部浮条（原 T6，pre-flight 并入）──
+  it('shows the select bar only in edit mode with at least one selection', async () => {})
+  it('removes the selected photos and keeps the guard against a double click', async () => {})
+  it('opens the library picker from the select bar', async () => {})
+  it('hides the select bar again after leaving edit mode', async () => {})
+  it('clears the selection when leaving edit mode so a later edit session starts empty', async () => {})
 })
 ```
 
@@ -642,6 +664,8 @@ Run: `pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts src/i18
 1. 把 `.album-photos-wrap` 的 `:data-edit="edit"` 删掉 → 「marks the photo grid wrapper」应红
 2. 让 Sort/density 在编辑态也渲染 → 「hides sort and density in edit mode」应红
 3. 把日期胶囊挪回独立 chips 行 → 「puts the date range pill on the h1 row」应红
+4. 去掉 `removing` 重入守卫 → 「keeps the guard against a double click」应红
+5. 离开编辑态不清选择态 → 「clears the selection when leaving edit mode」应红
 
 - [ ] **Step 7: 类型检查 + 提交**
 
@@ -663,7 +687,6 @@ git commit -m "refactor(photos): rebuild the album detail on the smart-view skel
 + `:591-613`（`placesAgg`/`placesLabel`/`placesTitle`）+ `timeSpanLabel`
 
 **建立:**
-- `.sv-side-actions` 空壳（T5 往里放 ⋯ 菜单）—— 本任务只建容器与 CSS
 - About 节：`.sv-side-section` > `h3` + 四行 `.mo-about-row`（Type / Created / Time span / Place）
 - Stats 节：**从 4 格裁到 2 格**（Photos / Videos），删掉 Span 与 Created 两格
 - 按月直方图：**保持不动**（P2b Task 6 已建）
@@ -743,10 +766,14 @@ git commit -m "feat(photos): give the album detail sidebar an About section and 
 ## Task 5: 相册详情 ⋯ 菜单五项 + fixed 定位
 
 **Files:**
-- Modify: `src/views/PhotosAlbumDetail.vue`（`.sv-side-actions` 内）
+- Modify: `src/views/PhotosAlbumDetail.vue`（`aside.sv-detail-side` 顶部）
 - Test: `src/views/__tests__/PhotosAlbumDetail.test.ts`
 
 **Vue2 源码坐标:** `33b05636:src/views/Photos/PhotosAlbumDetail.vue:212-283`（五项菜单全文）
+
+**本任务自建 `.sv-side-actions` 容器**（pre-flight 修正：原计划让 T4 建空壳，改由这里连内容一起建），
+位置在 `aside.sv-detail-side` 顶部、About 节之上。New-UI 只放 ⋯ 菜单一个按钮
+（Slideshow 不做，spec §1.2），容器仍用 `flex-wrap` 形态以便与 SV 详情侧一致。
 
 **Interfaces:**
 - Consumes: T1 的 `useFixedMenuPosition(open, btnRef)`；T2 的 `exportAlbumZipUrl` / `duplicateAlbum`
@@ -822,54 +849,7 @@ git add src/views/PhotosAlbumDetail.vue src/views/__tests__/PhotosAlbumDetail.te
 git commit -m "feat(photos): align the album menu on the five-entry shape"
 ```
 
----
-
-## Task 6: 相册详情编辑态底部浮条
-
-**Files:**
-- Modify: `src/views/PhotosAlbumDetail.vue`
-- Test: `src/views/__tests__/PhotosAlbumDetail.test.ts`
-
-**Vue2 源码坐标:** `33b05636:src/views/Photos/PhotosAlbumDetail.vue` 的 `.sv-select-bar` 段
-**New-UI 参照物:** `src/views/PhotosSmartViewDetail.vue` 的 `sv-select-bar`（E6，P2a 建）
-
-**做:** T3 删掉 `.album-toolbar` 时，编辑态的「移除选中 / 添加照片」两个按钮无家可归。本任务把它们
-落到底部浮条 `.sv-select-bar`，形态与 SV 详情一致。
-
-**适配点:**
-- SV 详情那份是 scoped ⇒ 相册详情**自写一份 CSS**（延续 P2b 的 KEEP THE DUPLICATION 裁定），
-  并在 CSS 块上写一条登记注释指明它与 `PhotosSmartViewDetail.vue` 同源。
-- 保留既有的 `removing` 重入守卫（`:69`，P2b 终审 Minor 6 加的），不要在搬家时丢掉。
-- 选中数为 0 时浮条不渲染（照 SV 详情既有行为）。
-
-- [ ] **Step 1: 写失败测试**
-
-```ts
-it('shows the select bar only in edit mode with at least one selection', async () => {})
-it('removes the selected photos and keeps the guard against a double click', async () => {})
-it('opens the library picker from the select bar', async () => {})
-it('hides the select bar again after leaving edit mode', async () => {})
-it('clears the selection when leaving edit mode so a later edit session starts empty', async () => {})
-```
-
-> 最后一条是 P1 终审逮到过的形状（「切 id 只清资产不清选择态 ⇒ 把 A 的照片 id 发给 B 的接口」）的
-> 同类防护，务必留着。
-
-- [ ] **Step 2: 跑测试确认失败**
-- [ ] **Step 3: 实现**
-- [ ] **Step 4: 跑测试确认通过**
-- [ ] **Step 5: 变异验证** —— 去掉 `removing` 守卫 → 双击用例应红；离开编辑态不清选择 → 末条应红
-- [ ] **Step 6: 类型检查 + 提交**
-
-```bash
-pnpm exec vue-tsc --noEmit
-git add src/views/PhotosAlbumDetail.vue src/views/__tests__/PhotosAlbumDetail.test.ts
-git commit -m "feat(photos): move the album edit actions into a bottom select bar"
-```
-
----
-
-## Task 7: SV 详情头部动作排重排 + Sort/密度新建
+## Task 6: SV 详情头部动作排重排 + Sort/密度新建
 
 **Files:**
 - Modify: `src/views/PhotosSmartViewDetail.vue`（`.sv-actions` `:663-705`）
@@ -887,7 +867,7 @@ git commit -m "feat(photos): move the album edit actions into a bottom select ba
 **密度枚举值必须与相册侧一致**（T3 已确定沿用 New-UI 现值 `'comfortable'` / `'compact'`，
 而不是 Vue2 的 `'comfort'`）。两页不一致会让共享的 `.density` CSS 与 `data-active` 判定各写一套。
 
-**搬走的（去向 T8）:** Refine in search、⋯ 菜单
+**搬走的（去向 T7）:** Refine in search、⋯ 菜单
 **改形态的:** Add photos + Select → 由 Edit·Done 一个按钮进出编辑态；Add photos 落到编辑态底部浮条
 
 **适配点:**
@@ -923,7 +903,7 @@ git commit -m "feat(photos): rebuild the smart-view header actions with sort and
 
 ---
 
-## Task 8: SV 详情侧栏动作节 + ⋯ 菜单五项统一
+## Task 7: SV 详情侧栏动作节 + ⋯ 菜单五项统一
 
 **Files:**
 - Modify: `src/views/PhotosSmartViewDetail.vue`（`aside.sv-detail-side` `:850+`、原菜单 `:705-780`）
@@ -980,7 +960,7 @@ git commit -m "feat(photos): move the smart-view actions into the sidebar and un
 
 ---
 
-## Task 9: 删除 SV 详情的 Add condition 入口
+## Task 8: 删除 SV 详情的 Add condition 入口
 
 **Files:**
 - Modify: `src/views/PhotosSmartViewDetail.vue`（`.sv-header-conds` `:648-652`）
@@ -1026,7 +1006,7 @@ git commit -m "feat(photos): drop the add-condition entry from the smart-view de
 
 ---
 
-## Task 10: SV 详情灯箱导航序对齐当前排序
+## Task 9: SV 详情灯箱导航序对齐当前排序
 
 **Files:**
 - Modify: `src/views/PhotosSmartViewDetail.vue`（`:481` 的 `lb.openAt`）
@@ -1034,10 +1014,10 @@ git commit -m "feat(photos): drop the add-condition entry from the smart-view de
 
 **Vue2 源码坐标:** `33b05636` 的 `#117` 子提交「SV 详情灯箱导航序对齐当前排序」
 
-**取证依据 E8:** 现在传的是 `store.matchedAssets`（未排序）。T7 建立了 `sortBy` 后，网格按排序渲染，
+**取证依据 E8:** 现在传的是 `store.matchedAssets`（未排序）。T6 建立了 `sortBy` 后，网格按排序渲染，
 而灯箱仍按原始顺序导航 ⇒ 用户在灯箱里按「下一张」会跳到屏幕上并不相邻的照片。
 
-**Interfaces:** Consumes T7 的 `sortBy`
+**Interfaces:** Consumes T6 的 `sortBy`
 
 **做:** 把 `lb.openAt(p, store.matchedAssets, 0)` 的第二参数换成**与网格同一份排序后的列表**，
 且起始下标要用该照片在排序后列表里的位置（**不是恒定 0**，除非现有实现的第三参数另有语义 ——
@@ -1072,7 +1052,7 @@ git commit -m "fix(photos): open the lightbox in the order the smart-view grid s
 
 ---
 
-## Task 11: Albums 页智能卡同构渲染 + 删 SmartViewCard
+## Task 10: Albums 页智能卡同构渲染 + 删 SmartViewCard
 
 **Files:**
 - Modify: `src/views/PhotosAlbums.vue`（`:411` 的 `<SmartViewCard>`、`:24` 的 import、CSS）
@@ -1150,7 +1130,7 @@ git commit -m "refactor(photos): render smart albums with the manual album card 
 
 ---
 
-## Task 12: i18n 孤儿清理 + 收尾全量门
+## Task 11: i18n 孤儿清理 + 收尾全量门
 
 **Files:**
 - Modify: `src/i18n/zh_cn.ts`、`src/i18n/en_us.ts`
@@ -1160,7 +1140,7 @@ git commit -m "refactor(photos): render smart albums with the manual album card 
 
 - [ ] **Step 1: 孤儿键清点**
 
-对 T5/T8 换掉的旧键逐个 grep，**零消费者才删**：
+对 T5/T7 换掉的旧键逐个 grep，**零消费者才删**：
 
 ```bash
 for k in photosAlbumRename photosAlbumRenameHint photosAlbumConvertToSmart \
@@ -1230,7 +1210,7 @@ git commit -m "docs(sp15): write the P2c real-device acceptance checklist"
 
 ## 收尾整支终审
 
-12 个任务全部关账后，对整支 `<base>..HEAD` 做一次 opus 整支终审。**终审人必须拿到的上下文:**
+11 个任务全部关账后，对整支 `<base>..HEAD` 做一次 opus 整支终审。**终审人必须拿到的上下文:**
 
 - 靶子是 `33b05636`，比对基准是 Vue2 源码不是本计划
 - P2b 终审 8 个 Important 里 6 个是 1:1 视觉破绽（配色/文案/间距/尺寸），任何自动门看不见 ——
