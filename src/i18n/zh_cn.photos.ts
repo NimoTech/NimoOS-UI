@@ -185,6 +185,13 @@ export default {
   // Task 11 孤儿清理:photosAlbumRename 失去了唯一引用,已删;photosAlbumConvertToSmart
   // 留下——AlbumConvertToSmartDialog 的标题/确认按钮仍在用它。
   photosAlbumMenuConvert: '转换',
+  // Whole-branch review, Important 2: the "..." menu's Convert entry has its own desc in the
+  // target (33b05636 PhotosAlbumDetail.vue:266 "Turn into a Smart Album that keeps updating",
+  // zh_CN.json:2836). It is NOT the same string as photosAlbumConvertToSmartHint above, which
+  // the target uses only as the convert modal's subtitle (:375) -- the menu entry pointed at
+  // that one for the whole phase because this key was specified in the plan's i18n table but
+  // never created. AlbumConvertToSmartDialog.vue stays on the modal key.
+  photosAlbumMenuConvertHint: '转为持续自动更新的智能相册',
   // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
   // zh_CN.json:"把照片复制为一个新相册")。
   photosAlbumDuplicateHint: '把照片复制为一个新相册',
@@ -200,7 +207,15 @@ export default {
   photosAlbumDeleteHint: '照片会保留在图库中',
   photosAlbumDeleteTitle: '删除「{name}」?',
   photosAlbumDeleteBody: '只删除相册本身,其中 {count} 张照片仍保留在图库中。',
-  photosAlbumHintSelectDragCover: '点击选择 · 拖拽排序 · ★ 设为封面',
+  // Whole-branch review, Important 3: the target keeps the select bar's copy and the tile
+  // tooltip's copy deliberately distinct -- only the tooltip mentions "★ to set cover"
+  // (33b05636 PhotosAlbumDetail.vue:330 vs :799-800). photosAlbumHintSelectDrag is the bar's
+  // manual-sort branch; the plain-sort branch reuses photosSvClickToSelect, which already
+  // carries the target's "Click to select" verbatim and is what the smart-view bar uses.
+  // Value from zh_CN.json:2011 (「拖动排序」 -- the two *Cover keys below said 「拖拽排序」,
+  // corrected here in the same pass so one page does not show both words).
+  photosAlbumHintSelectDrag: '点击选择 · 拖动排序',
+  photosAlbumHintSelectDragCover: '点击选择 · 拖动排序 · ★ 设为封面',
   photosAlbumHintSelectCover: '点击选择 · ★ 设为封面',
   photosAlbumRemoveFrom: '从相册移除',
   photosAlbumAddPhotos: '添加照片',
@@ -642,7 +657,9 @@ export default {
   photosPlacesInsightHomeBase: '大本营',
   // ---- P7a-T1: 智能视图(Smart Views)107 键,追加于 photosPlacesInsightHomeBase 之后 ----
   // (表里原列 115 行,其中 8 行与既有键值重复,按 brief 第 7 条改为复用既有键,未新增,见任务报告)
-  photosSvAddedThisWeek: '本周 +{n}',
+  // Whole-branch review, Minor 6: photosSvAddedThisWeek ("+{n} this week") was SmartViewCard.vue's
+  // only consumer. That component was deleted this phase (Task 10); grep confirmed zero consumers
+  // left, so the key is removed here in both locales.
   // P7a-T8 fix round 1 · I3:去掉字面 <b>,改 <i18n-t> 具名插槽(零 v-html)。回源核实
   // zh_CN.json 后两条都是"插值 + 语言相关静态词"整个短语加粗(`<b>1 张新照片</b>` /
   // `<b>{n} 张新照片</b>` 形态完全对称)⇒ 都拆成主句键 + 加粗短语键,不再区分对待
@@ -993,7 +1010,8 @@ export default {
   photosMoTypePets: '宠物',
   photosMoTypeFamily: '家人',
   photosMoTypeTheme: '主题',
-  // Same Chinese wording as photosSvAddedThisWeek (:612) — not a fresh translation.
+  // Same Chinese wording the now-deleted photosSvAddedThisWeek carried (see Minor 6 note in the
+  // Smart Views block above) — not a fresh translation.
   photosMoAddedThisWeek: '本周 +{n}',
   photosMoHeroTitle: '时刻 · 为你推荐',
   photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',

@@ -183,6 +183,9 @@ export default {
   // Task 5 (#117 short titles): see zh_cn.photos.ts's comment on this pair -- Rename/Duplicate/
   // Download as ZIP/Delete reuse existing short keys verbatim; only Convert is new.
   photosAlbumMenuConvert: 'Convert',
+  // Whole-branch review, Important 2: see zh_cn.photos.ts's comment on this key -- the menu
+  // entry's desc is a distinct target string from the convert modal's subtitle above.
+  photosAlbumMenuConvertHint: 'Turn into a Smart Album that keeps updating',
   photosAlbumDuplicateHint: 'Copy the photos as a new album',
   // ── Task 7: album -> smart album conversion dialog ──
   photosAlbumConvertSuggestHint: 'Nimo suggests these conditions — final matching is decided when the Smart Album is created',
@@ -196,6 +199,9 @@ export default {
   photosAlbumDeleteHint: 'Photos stay in your library',
   photosAlbumDeleteTitle: 'Delete "{name}"?',
   photosAlbumDeleteBody: 'The album wrapper is removed but the {count} items stay in your library.',
+  // Whole-branch review, Important 3: see zh_cn.photos.ts -- the select bar's copy is distinct
+  // from the tile tooltip's in the target and must not mention the cover shortcut.
+  photosAlbumHintSelectDrag: 'Click to select · Drag to reorder',
   photosAlbumHintSelectDragCover: 'Click to select · Drag to reorder · ★ to set cover',
   photosAlbumHintSelectCover: 'Click to select · ★ to set cover',
   photosAlbumRemoveFrom: 'Remove from album',
@@ -644,7 +650,8 @@ export default {
   photosPlacesInsightHomeBase: 'home base',
   // ---- P7a-T1: Smart Views, 107 new keys appended after photosPlacesInsightHomeBase ----
   // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
-  photosSvAddedThisWeek: '+{n} this week',
+  // Whole-branch review, Minor 6: photosSvAddedThisWeek was deleted along with its only consumer,
+  // SmartViewCard.vue (removed in Task 10). See zh_cn.photos.ts for the grep note.
   // P7a-T8 fix round 1 · I3: strip literal <b>, switch to <i18n-t> named slots (zero
   // v-html). Re-checked zh_CN.json source: both rows bold the whole "interpolation +
   // language-specific word" phrase (`<b>1 张新照片</b>` / `<b>{n} 张新照片</b>` are

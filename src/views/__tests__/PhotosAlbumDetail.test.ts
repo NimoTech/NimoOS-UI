@@ -1064,7 +1064,10 @@ describe('P2c detail skeleton', () => {
     await w.find('[data-test="album-edit-toggle"]').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.sv-select-bar').exists()).toBe(true)
-    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDragCover)
+    // Whole-branch review, Important 3: the bar's own copy, not the tile tooltip's -- the bar
+    // offers no way to set a cover, so it must not advertise "★ to set cover".
+    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDrag)
+    expect(w.find('.sv-select-bar').text()).not.toContain('★')
 
     await w.find('.tile').trigger('click')
     await w.vm.$nextTick()
@@ -1132,7 +1135,7 @@ describe('P2c detail skeleton', () => {
 
     // A stale selection here would send the previous session's ids on the next Remove press.
     expect(w.find('.sv-select-bar [data-test="album-remove-selected"]').attributes('disabled')).toBeDefined()
-    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDragCover)
+    expect(w.find('.sv-select-bar').text()).toContain(zh.photosAlbumHintSelectDrag)
   })
 
   // Task 3 review finding, folded into Task 4 (this task edits the file, so it inherits the
@@ -1399,5 +1402,60 @@ describe('P2c album more menu', () => {
     document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
     expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
+  })
+
+  // Whole-branch review, Important 2: the Convert entry's desc is the target's own menu string
+  // ("Turn into a Smart Album that keeps updating"), NOT the convert modal's subtitle
+  // ("Nimo keeps adding matches automatically"). One key served both for the whole phase, so
+  // the menu read the modal's copy. Asserting the rendered desc text is what pins the two apart
+  // -- asserting the key name would pass either way.
+  it('describes the Convert entry with the menu string, not the convert modal subtitle', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await openMenu(w)
+    const desc = w.find('[data-test="album-menu-convert"] .sv-export-desc').text()
+    expect(desc).toBe(zh.photosAlbumMenuConvertHint)
+    expect(desc).not.toBe(zh.photosAlbumConvertToSmartHint)
+  })
+})
+
+// Whole-branch review fixes that do not belong to any single earlier task's block.
+describe('P2c whole-branch review fixes', () => {
+  // Important 1: the defect PhotosSmartViewDetail.vue already fixed, ported here. Activating
+  // Edit from the keyboard (Space/Enter on the focused button) fires a `click` with no
+  // `mousedown` -- the only event that dismisses the sort menu. VTU's `.trigger('click')` has
+  // the identical shape (no synthetic mousedown), so it reproduces the real path exactly: open
+  // the sort menu, flip edit on and back off through the toggle alone, and the popup must not
+  // spring back once the capsule remounts.
+  it('does not leave the sort menu stuck open after toggling edit mode via the Edit button', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await w.find('[data-test="album-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="album-sort-menu"]').exists()).toBe(true)
+
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // enter edit mode
+    await w.vm.$nextTick()
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // leave edit mode again
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="album-sort-menu"]').exists()).toBe(false)
+  })
+
+  // Minor 7: the check-glyph / empty-spacer pair drifted from the target for the whole phase
+  // before Task 11 caught it, with nothing guarding it. The spacer is the half a future edit
+  // drops, and dropping it shifts every label between active and inactive rows -- so assert
+  // both halves: every option carries exactly one slot, and only the active one holds a glyph.
+  it('gives every sort option a check slot and the glyph only to the active one', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await w.find('[data-test="album-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const items = w.findAll('[data-test="album-sort-item"]')
+    expect(items.length).toBeGreaterThan(1)
+    for (const item of items) {
+      expect(item.findAll('.album-sort-check')).toHaveLength(1)
+      const hasGlyph = item.find('.album-sort-check').element.tagName.toLowerCase() === 'svg'
+      expect(hasGlyph).toBe(item.attributes('data-active') === 'true')
+    }
+    expect(items.filter((n) => n.attributes('data-active') === 'true')).toHaveLength(1)
   })
 })

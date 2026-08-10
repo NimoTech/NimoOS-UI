@@ -964,10 +964,15 @@ async function onExcludedTileClick(id: string): Promise<void> {
                  bound to `moreBtnRef`'s rect); `morePopRef` still wraps both the button and the
                  menu for click-outside dismissal (onDocumentMouseDown above) -- the composable
                  only computes coordinates, it does not touch open/close. Vue2 wraps this same
-                 menu in <transition name="sv-menu"> (33b05636 :78) -- kept here, even though
-                 PhotosAlbumDetail.vue's own copy (Task 5) does not carry one; the target is the
-                 tie-breaker per this phase's rule, and this page already had the transition and
-                 its CSS from Task 6's header version, so keeping it costs nothing. -->
+                 menu in <transition name="sv-menu"> (33b05636 :78) -- kept here.
+
+                 Correction (whole-branch review, Important 4): this note used to justify the
+                 asymmetry with PhotosAlbumDetail.vue by claiming the target's album page carries
+                 no such transition. That claim was factually wrong -- 33b05636
+                 src/views/Photos/PhotosAlbumDetail.vue:223/:278 wraps its own menu in exactly
+                 the same <transition name="sv-menu">. The album page has since been given the
+                 wrapper and the two .sv-menu-* rules, so the two menus now animate identically
+                 and there is no asymmetry left to justify. -->
             <div class="sv-side-actions">
               <button
                 type="button" class="sv-action-btn" data-test="sv-action-refine"

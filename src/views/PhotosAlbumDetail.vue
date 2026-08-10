@@ -235,10 +235,15 @@ const sortOptions = computed(() => [
 ])
 const currentSortLabel = computed(() => sortOptions.value.find((s) => s.id === sortBy.value)?.label ?? '')
 
-// Vue2 tileTitle()/:377-378 的提示语——edit 态且手动排序才提"拖拽排序"。
+// The edit-mode bottom bar's hint. Whole-branch review, Important 3: this used to reuse
+// tileHintTitle's keys, so the bar advertised "★ to set cover" -- an affordance the bar does not
+// offer (only a tile does). The target keeps the two deliberately distinct: the bar reads
+// "Click to select · Drag to reorder" / "Click to select" (33b05636 PhotosAlbumDetail.vue:330),
+// the "★ to set cover" halves live only in tileTitle() (:799-800). The plain branch reuses
+// photosSvClickToSelect, the exact key the smart-view page's own bar already uses.
 const editHintText = computed(() => {
   if (selected.value.size > 0) return t('photosSelectedCount', { count: selected.value.size })
-  return sortBy.value === 'manual' ? t('photosAlbumHintSelectDragCover') : t('photosAlbumHintSelectCover')
+  return sortBy.value === 'manual' ? t('photosAlbumHintSelectDrag') : t('photosSvClickToSelect')
 })
 const tileHintTitle = computed(() => {
   if (!edit.value) return ''
@@ -344,6 +349,14 @@ async function retryAlbums(): Promise<void> {
 function toggleEditMode(): void {
   edit.value = !edit.value
   if (!edit.value) selected.value.clear()
+  // Whole-branch review, Important 1 -- the same defect PhotosSmartViewDetail.vue:toggleEdit
+  // already fixed, kept in step here. Keyboard-activating this button (Space/Enter on a focused
+  // element) fires a `click` but no `mousedown` -- the event onDocMousedown listens for to close
+  // the sort menu. Without this, entering edit mode that way leaves `sortMenuOpen` true while the
+  // template unmounts the sort capsule (`v-if="!edit"`), and the popup springs back the moment
+  // edit mode is left again, with no visible trigger for it. Sort has no meaning in edit mode
+  // either way, so closing it unconditionally here -- entering or leaving -- is safe.
+  sortMenuOpen.value = false
 }
 function askConfirmDelete(): void {
   menuOpen.value = false
@@ -852,6 +865,13 @@ watch(gridRef, () => {
                   >
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
                   </button>
+                  <!-- Whole-branch review, Important 4: the target wraps this menu in
+                       <transition name="sv-menu"> too (33b05636 PhotosAlbumDetail.vue:223/:278),
+                       exactly as PhotosSmartViewDetail.vue's copy does. This page rendered it
+                       bare for the whole phase, so the two otherwise-identical menus animated
+                       differently. The two .sv-menu-* rules are duplicated into this file's
+                       scoped style block (below) because scoped styles do not cross files. -->
+                  <Transition name="sv-menu">
                   <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu" :style="menuStyle">
                     <button
                       type="button"
@@ -909,7 +929,10 @@ watch(gridRef, () => {
                       <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
                       <div>
                         <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
-                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
+                        <!-- Whole-branch review, Important 2: the menu entry's desc is the
+                             target's :266 string, not the convert modal's :375 subtitle -- the
+                             two were collapsed onto one key for the whole phase. -->
+                        <div class="sv-export-desc">{{ t('photosAlbumMenuConvertHint') }}</div>
                       </div>
                     </button>
                     <div class="sv-export-sep"></div>
@@ -931,6 +954,7 @@ watch(gridRef, () => {
                       </div>
                     </button>
                   </div>
+                  </Transition>
                 </div>
               </div>
 
@@ -1190,6 +1214,15 @@ watch(gridRef, () => {
    margin-bottom keeps the same 24px rhythm as .sv-side-section below it. */
 .sv-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
 .album-more-wrap { position: relative; }
+
+/* Whole-branch review, Important 4: the target wraps this page's "..." menu in
+   `transition name="sv-menu"` (33b05636 PhotosAlbumDetail.vue:223/:278), rules in
+   photos-smartview.scss:454-455 (opacity 0.14s + translateY(-4px) scale(0.97)).
+   Same two rules PhotosSmartViewDetail.vue carries; scoped styles do not cross files, so the
+   pair is repeated rather than shared. Vue 3 spells the start state `-enter-from`
+   (Vue 2's `-enter`). */
+.sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
+.sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
 /* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from
    PhotosSmartViewDetail.vue's (:937-960) because scoped styles do not cross SFCs in this repo.

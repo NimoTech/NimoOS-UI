@@ -220,7 +220,7 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
   // per-album asset refetch) that Vue2's duplicateAlbum never exercises. No cover copying is
   // done -- the target has no such step either.
   //
-  // `source.name` mirrors albumToView.ts:61's `(a.name as string) || (a.title as string)`
+  // `source.name` mirrors albumView.ts:61's `(a.name as string) || (a.title as string)`
   // fallback -- this store keeps raw backend objects (field `name`), and the view layer is
   // what maps that to the `.title` Vue2's `this.album.title` reads.
   //

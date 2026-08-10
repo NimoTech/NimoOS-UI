@@ -603,6 +603,26 @@ describe('SP15-P2c Task 6: header action row', () => {
     expect(items[1].attributes('data-active')).toBe('false')
   })
 
+  // Whole-branch review, Minor 7: nothing guarded the check glyph / empty-spacer pair on either
+  // detail page, and the album page's copy had already drifted from the target once. The spacer
+  // is the half a future edit drops, and dropping it shifts every label between the active and
+  // inactive rows -- so assert both halves: every option carries exactly one slot, and only the
+  // active one holds a glyph. Mirror of the album page's own assertion.
+  it('gives every sort option a check slot and the glyph only to the active one', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const items = w.findAll('[data-test="sv-sort-item"]')
+    expect(items.length).toBeGreaterThan(1)
+    for (const item of items) {
+      expect(item.findAll('.sv-sort-check')).toHaveLength(1)
+      const hasGlyph = item.find('.sv-sort-check').element.tagName.toLowerCase() === 'svg'
+      expect(hasGlyph).toBe(item.attributes('data-active') === 'true')
+    }
+    expect(items.filter((n) => n.attributes('data-active') === 'true')).toHaveLength(1)
+  })
+
   it('re-sorts both grids by taken date when that option is picked, and relabels the capsule', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       // Deliberately handed back in the backend's own (match score) order, oldest first, so
