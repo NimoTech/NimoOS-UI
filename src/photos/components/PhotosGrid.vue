@@ -26,7 +26,7 @@ import { service } from '@nimotech/nimoos-service'
 import type { Month, Photo } from '../util/assetToPhoto'
 import { computeFrameFromX } from '../util/hoverScrub'
 import { matchesTab } from '../util/tabFilter'
-import { estimateSectionBodyHeight, skeletonItemCount, MONTH_HEAD_HEIGHT } from '../util/gridMetrics'
+import { estimateSectionBodyHeight, skeletonItemCount } from '../util/gridMetrics'
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
@@ -86,8 +86,9 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
 })))
 
 // Container width drives the column count (auto-fill/minmax), so it is read from
-// the scroll wrap. Measured once at mount below; re-measuring on resize/window
-// changes is not wired up yet (Task 7 owns the observer that will do it).
+// the scroll wrap. Measured at mount, and re-measured whenever the month set
+// changes (see the windowing watch below) — there is no resize listener, so a
+// bare window resize with the same set of months does not re-measure.
 const wrapWidth = ref(0)
 function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
 
@@ -116,6 +117,74 @@ function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
 }
 function isLoaded(m: Month & { filtered: Photo[] }): boolean {
   return m.loaded !== false
+}
+
+// ─── month-section windowing ────────────────────────────────────────────
+// Far-away months keep their container (anchors and scroll length depend on
+// it) but drop their tiles, so the DOM stays a constant size no matter how
+// far the user scrolls. Which months count as near is left to the browser:
+// rootMargin gives it two viewports of slack in both directions.
+const WINDOW_MARGIN = '200% 0px'
+const activeKeys = ref<Set<string>>(new Set())
+// Measured heights survive a section being torn down, so a placeholder can
+// keep the exact height its tiles had — this is what stops the scrollbar
+// from jumping. Not reactive: it is only read while rendering a section that
+// just changed.
+const measuredHeights = new Map<string, number>()
+let observer: IntersectionObserver | null = null
+const windowingActive = ref(false)
+
+function keyOf(el: Element): string { return (el.id || '').replace(/^m-/, '') }
+
+function onIntersect(entries: IntersectionObserverEntry[]) {
+  const next = new Set(activeKeys.value)
+  for (const entry of entries) {
+    const key = keyOf(entry.target)
+    if (!key) continue
+    if (entry.isIntersecting) {
+      next.add(key)
+      const m = filteredMonths.value.find((x) => x.key === key)
+      // Only bucket-backed months have something to fetch; a synthetic group
+      // (favorites, place assets) has loaded === undefined and must never emit.
+      if (m && m.loaded === false) emit('need-bucket', key)
+    } else {
+      const el = entry.target as HTMLElement
+      const h = el.offsetHeight
+      // Record before dropping the tiles: once they are gone the height is
+      // the placeholder's own, which would ratchet the section down over time.
+      if (h > 0) measuredHeights.set(key, h)
+      next.delete(key)
+    }
+  }
+  activeKeys.value = next
+}
+
+function syncObserver() {
+  if (!observer) return
+  observer.disconnect()
+  // Scan for `.month-group` and match by id string rather than
+  // document.getElementById or a CSS id-selector: @vue/test-utils mounts
+  // components detached from the live document (getElementById only ever
+  // searches the document tree), and month keys like "2026-08" would need
+  // escaping to be a valid CSS id-selector token in the first place.
+  const root = wrapRef.value
+  if (!root) return
+  const wanted = new Set(filteredMonths.value.filter(hasContent).map((m) => `m-${m.key}`))
+  root.querySelectorAll('.month-group').forEach((el) => {
+    if (wanted.has(el.id)) observer!.observe(el)
+  })
+}
+
+function isWindowed(m: Month & { filtered: Photo[] }): boolean {
+  // No IntersectionObserver in the environment (jsdom, or an older browser)
+  // -> render everything, exactly the pre-windowing behaviour. Every test in
+  // this file that does NOT install FakeIO relies on this fallback.
+  if (!windowingActive.value) return true
+  return activeKeys.value.has(m.key)
+}
+function placeholderHeight(m: Month & { filtered: Photo[] }): number | null {
+  const h = measuredHeights.get(m.key)
+  return h != null && h > 0 ? h : null
 }
 
 const selecting = computed(() => props.selected.length > 0)
@@ -291,11 +360,22 @@ function onVideoLeave() {
   spriteUrl.value = ''
 }
 
+// Month set changing (directory refresh adds/removes months) invalidates both
+// the width measurement and which containers the observer is watching.
+watch(() => filteredMonths.value.map((m) => m.key).join('|'), () => {
+  void nextTick().then(() => { measureWrap(); syncObserver() })
+})
+
 onMounted(() => {
   measureWrap()
   const first = filteredMonths.value.find(hasContent)
   if (first) activeMonth.value = first.key
   onScroll()
+  if (typeof IntersectionObserver !== 'undefined') {
+    observer = new IntersectionObserver(onIntersect, { root: wrapRef.value, rootMargin: WINDOW_MARGIN })
+    windowingActive.value = true
+    syncObserver()
+  }
 })
 onBeforeUnmount(() => {
   stopAutoAdvance()
@@ -303,6 +383,8 @@ onBeforeUnmount(() => {
   hoverToken++ // invalidate any in-flight sprite request so it can't set state after unmount
   cancelAnimationFrame(moveRaf)
   moveRaf = 0
+  observer?.disconnect()
+  observer = null
 })
 </script>
 
@@ -326,7 +408,7 @@ onBeforeUnmount(() => {
                 {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
               </div>
             </div>
-            <div v-if="isLoaded(m)" class="grid" :data-density="density">
+            <div v-if="isLoaded(m) && isWindowed(m)" class="grid" :data-density="density">
               <div
                 v-for="p in m.filtered" :key="p.id"
                 class="tile"
@@ -373,6 +455,12 @@ onBeforeUnmount(() => {
                 </div>
               </div>
             </div>
+            <div
+              v-else-if="isLoaded(m) && placeholderHeight(m) !== null"
+              class="month-placeholder"
+              data-test="month-placeholder"
+              :style="{ height: placeholderHeight(m) + 'px' }"
+            ></div>
             <div
               v-else
               class="month-skeleton"
@@ -455,6 +543,10 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .month-skeleton::after { animation: none; }
 }
+
+/* A section that has been rendered once and scrolled away: same height, no
+   content, no shimmer — nothing is pending here. */
+.month-placeholder { border-radius: 8px; }
 
 .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }

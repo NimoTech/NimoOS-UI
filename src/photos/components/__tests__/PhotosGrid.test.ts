@@ -10,7 +10,7 @@
 //    and the selection action bar moved out of this component entirely — it
 //    now lives in the parent as PhotosSelectionToolbar.vue, so this component
 //    no longer emits batch-delete/cancel.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
@@ -482,5 +482,112 @@ describe('PhotosGrid bucket-mode skeletons', () => {
     await nextTick()
     expect(w.findAll('.tile')).toHaveLength(1)
     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+})
+
+class FakeIO {
+  static instances: FakeIO[] = []
+  cb: IntersectionObserverCallback
+  targets: Element[] = []
+  constructor(cb: IntersectionObserverCallback) { this.cb = cb; FakeIO.instances.push(this) }
+  observe(el: Element) { this.targets.push(el) }
+  unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el) }
+  disconnect() { this.targets = [] }
+  takeRecords(): IntersectionObserverEntry[] { return [] }
+  fire(el: Element, isIntersecting: boolean) {
+    this.cb(
+      [{ target: el, isIntersecting } as unknown as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    )
+  }
+}
+
+describe('PhotosGrid windowing', () => {
+  beforeEach(() => {
+    FakeIO.instances = []
+    ;(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIO
+  })
+  afterEach(() => {
+    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
+  })
+
+  const loadedMonth = (key: string, ids: string[]): Month => ({
+    key, title: key, loc: '', photos: ids.map((id) => photo(id)), loaded: true, count: ids.length, videoCount: 0,
+  })
+
+  it('observes every month container', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
+    await nextTick()
+    expect(FakeIO.instances[0].targets).toHaveLength(2)
+  })
+
+  it('asks for a bucket when an unloaded month enters the window', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')?.[0]).toEqual(['2026-08'])
+  })
+
+  it('never asks for a bucket for a group that has no bucket at all', async () => {
+    // Favorites and place-assets feed synthetic groups: loaded is undefined.
+    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+    await nextTick()
+    FakeIO.instances[0].fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')).toBeUndefined()
+  })
+
+  it('swaps a rendered month for a measured placeholder when it leaves the window', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' } })
+    await nextTick()
+    const el = w.find('#m-2026-08').element as HTMLElement
+    const io = FakeIO.instances[0]
+    io.fire(el, true)
+    await nextTick()
+    // jsdom reports offsetHeight 0; stub it so the measurement path is exercised.
+    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 321 })
+    io.fire(el, false)
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(0)
+    const ph = w.find('[data-test="month-placeholder"]')
+    expect(ph.exists()).toBe(true)
+    expect(ph.attributes('style')).toContain('321px')
+  })
+
+  it('renders tiles again when the month comes back into the window', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    const el = w.find('#m-2026-08').element as HTMLElement
+    const io = FakeIO.instances[0]
+    io.fire(el, true); await nextTick()
+    io.fire(el, false); await nextTick()
+    io.fire(el, true); await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+  })
+
+  it('renders everything when IntersectionObserver is missing', async () => {
+    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(2)
+    expect(w.find('[data-test="month-placeholder"]').exists()).toBe(false)
+  })
+
+  it('disconnects the observer on unmount', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    w.unmount()
+    expect(io.targets).toHaveLength(0)
+  })
+
+  it('observes a month that appears after a directory refresh', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    await w.setProps({ months: [loadedMonth('2026-08', ['a1']), bucketMonth('2026-07', 'July 2026', 4)] })
+    await nextTick()
+    expect(FakeIO.instances[0].targets).toHaveLength(2)
   })
 })
