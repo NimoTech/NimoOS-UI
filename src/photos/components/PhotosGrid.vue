@@ -86,8 +86,8 @@ const filteredMonths = computed(() => (props.months || []).map(m => ({
 })))
 
 // Container width drives the column count (auto-fill/minmax), so it is read from
-// the scroll wrap. It stays a ref rather than a getter because a resize has to
-// re-run the estimates.
+// the scroll wrap. Measured once at mount below; re-measuring on resize/window
+// changes is not wired up yet (Task 7 owns the observer that will do it).
 const wrapWidth = ref(0)
 function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
 
@@ -427,12 +427,22 @@ onBeforeUnmount(() => {
 .grid[data-density="compact"] { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
 .grid[data-density="loose"] { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 
-/* Unloaded month placeholder. The gentle sweep is the only thing telling the
-   user this block is still arriving rather than empty; it reuses the existing
-   surface tokens so both skins stay correct. */
+/* Unloaded month placeholder. In :root, --chip-bg is a gradient (no solid
+   background-color component) — putting the sweep's `background-image` on the
+   same rule as `background: var(--chip-bg)` would overwrite that gradient
+   outright, leaving nothing but the sweep in the dark theme. Layering the
+   sweep on ::after instead keeps both: the surface tint on the element itself,
+   the moving highlight on a separate paint layer on top of it. */
 .month-skeleton {
+  position: relative;
+  overflow: hidden;
   border-radius: 8px;
   background: var(--chip-bg);
+}
+.month-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   background-image: linear-gradient(90deg, transparent 0%, var(--hover) 50%, transparent 100%);
   background-size: 40% 100%;
   background-repeat: no-repeat;
@@ -443,7 +453,7 @@ onBeforeUnmount(() => {
   100% { background-position: 140% 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .month-skeleton { animation: none; }
+  .month-skeleton::after { animation: none; }
 }
 
 .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
