@@ -565,6 +565,56 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(ids.has('5')).toBe(true)
   })
 
+  // Coordinator review, fix round 2 · Important: an *already-open* picker used to survive a
+  // route-id change untouched -- `:open="pickerOpen"` had no `album` gate of its own, the id
+  // watcher never reset `pickerOpen`, and `onPickerConfirm` reads `albumId.value` fresh at call
+  // time. Confirming after navigating away therefore wrote into whatever album the route now
+  // pointed at, silently, with a success toast. Reproduce the exact scenario: open the picker on
+  // album 7, navigate to a *different, real* album 999 (not a missing one -- that is the sibling
+  // 'P2c detail sidebar' test below), then fire the same confirm event the picker would fire.
+  it('closes the picker instead of writing to whatever album the route now points at when the id changes while it is open', async () => {
+    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(999, { name: 'Other' })])
+    const { w, router } = await mountView('7')
+    const picker = await openPicker(w)
+    expect(picker.props('open')).toBe(true)
+
+    svc.photos.batchAddToAlbum.mockClear()
+    await router.push('/photos/albums/999')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // Closed -- a real user could no longer reach the confirm button (PhotosLibraryPicker.vue
+    // gates its whole template on `v-if="open"`).
+    expect(picker.props('open')).toBe(false)
+    // A confirm event fired directly on the (still-mounted) component instance -- the exact shape
+    // the tests above use to exercise this handler without going through the picker's own
+    // internal UI -- simulates the one race a real click can't produce (the click and the
+    // navigation landing in the same synchronous tick). It must never write to 999: the
+    // `pickerAlbumId` snapshot pins the write to the album the picker was actually opened for.
+    picker.vm.$emit('confirm', ['x'])
+    await flushPromises()
+    expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalledWith('999', ['x'])
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
+  })
+
+  // Coordinator review, fix round 2 · Minor: `edit` itself was never reset by the id watcher, so
+  // navigating from album 7 mid-edit to a different, perfectly valid album 8 dropped the user
+  // into edit mode on 8 without choosing it.
+  it('leaves edit mode when the route id changes to a different album', async () => {
+    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(8, { name: 'Other' })])
+    const { w, router } = await mountView('7')
+    await w.find('[data-test="album-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.sv-select-bar').exists()).toBe(true)
+
+    await router.push('/photos/albums/8')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('.sv-select-bar').exists()).toBe(false)
+    expect(w.find('[data-test="album-edit-toggle"]').attributes('data-open')).toBe('false')
+  })
+
   it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
     const { w } = await mountView('7')
     expect(dragMock.refresh).toHaveBeenCalled()

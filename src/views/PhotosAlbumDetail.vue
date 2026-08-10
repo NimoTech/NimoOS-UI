@@ -418,10 +418,26 @@ function pickerSubmitLabel(count: number): string {
   return t('photosAlbumPickerAdd', { count })
 }
 const pickerAdding = ref(false)
+// Fix round 2 (coordinator review, Important): onPickerConfirm used to read `albumId.value`
+// fresh at call time. If the picker was left open while the route's id moved to a *different,
+// real* album, a confirm arriving after that point would silently write into the newly-viewed
+// album instead of the one the user actually picked photos for. `pickerAlbumId` snapshots the id
+// the moment the picker opens (see `openPicker()` below) so the write always targets the album
+// the picker was opened for, never whatever `route.params.id` happens to be when the confirm
+// resolves. The id watcher additionally closes the dialog (`pickerOpen.value = false`) on every
+// id change, so in real usage the confirm button is gone by then anyway (PhotosLibraryPicker.vue
+// gates its whole template on `v-if="open"`) — the snapshot is what keeps a synthetic/in-flight
+// confirm harmless too, without having to block on `pickerOpen` itself (which is also flipped by
+// unrelated tests that exercise this handler directly, without ever opening the dialog).
+const pickerAlbumId = ref(albumId.value)
+function openPicker(): void {
+  pickerAlbumId.value = albumId.value
+  pickerOpen.value = true
+}
 async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
   if (pickerAdding.value) return
   pickerAdding.value = true
-  const id = albumId.value
+  const id = pickerAlbumId.value
   const name = album.value?.title ?? ''
   try {
     await albums.addAssetsToAlbum(id, ids)
@@ -491,6 +507,20 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocKeydown)
 })
 
+// Task 4 fix round 2 (coordinator review): the invariant this watcher exists to hold is that
+// any state scoped to "the album currently being viewed" must not survive an id change --
+// `selected`/`titleEditing`/`titleDraft` were already reset on that basis; `edit` and
+// `pickerOpen` are exactly the same kind of state and were missing from the list.
+//
+// Without this, two real bugs: (a) Minor -- leaving edit mode never happened on navigation, so
+// switching from album 7 (mid-edit) to a different, perfectly valid album 8 dropped the user
+// into edit mode on 8 without choosing it. (b) Important -- an *already-open* Add-photos picker
+// survived the navigation (`PhotosLibraryPicker`'s `:open="pickerOpen"` has no `album` gate of
+// its own, unlike the select bar's `v-if="edit && album"` a few lines down). Resetting
+// `pickerOpen` here closes the dialog on every id change (matching what PhotosLibraryPicker.vue's
+// own `v-if="open"` does -- a real user can no longer reach the confirm button once this fires);
+// `onPickerConfirm`'s own `pickerAlbumId` snapshot (see its comment) is the belt-and-suspenders
+// half, covering a confirm that is already in flight the instant this watcher runs.
 watch(() => route.params.id, () => {
   selected.value.clear()
   // Minor 修正(刻意不照抄 Vue2 的潜在 bug——本期纪律:界面照 Vue2,逻辑 bug 不照抄):Vue2
@@ -500,6 +530,8 @@ watch(() => route.params.id, () => {
   // 提交给相册 8——这是真实数据损坏路径,不是"细枝末节",所以在此清掉。
   titleEditing.value = false
   titleDraft.value = ''
+  edit.value = false
+  pickerOpen.value = false
   void albums.fetchAlbumAssets(albumId.value)
   void nextTick(() => drag.refresh())
 })
@@ -853,15 +885,20 @@ watch(gridRef, () => {
 
          Task 4 fold-in fix: this container used to live inside the `v-else-if="album"` branch
          above (before the P2c skeleton rebuild pulled it out to be a fixed-position sibling), so
-         it inherited "no album -> not rendered" for free. Gating on `edit` alone lost that: the
-         route-id watcher clears `selected`/the title draft but never resets `edit`, so navigating
-         from an album in edit mode to a missing id left this bar floating over the "Album not
-         found" screen with Add photos still reachable -- and its confirm handler would have
-         called batchAddToAlbum on an id with no album behind it. `edit && album` restores the
-         original invariant directly (this is what the condition actually depends on) rather than
-         indirectly through a watcher, so it also covers the case where `album` disappears without
-         a route change (e.g. a concurrent fetchAlbums no longer finds it) -- a watcher on
-         route.params.id alone would miss that. -->
+         it inherited "no album -> not rendered" for free. Gating on `edit` alone lost that: at the
+         time this was written, the route-id watcher cleared `selected`/the title draft but never
+         reset `edit`, so navigating from an album in edit mode to a missing id left this bar
+         floating over the "Album not found" screen with Add photos still reachable.
+         `edit && album` restores the original invariant directly (this is what the condition
+         actually depends on) rather than indirectly through a watcher, so it also covers the case
+         where `album` disappears without a route change (e.g. a concurrent fetchAlbums no longer
+         finds it) -- a watcher on route.params.id alone would miss that.
+
+         Fix round 2 (coordinator review): the watcher below now also resets `edit` on every id
+         change (not just a missing one), closing the sibling Minor finding -- edit mode used to
+         survive navigating between two perfectly valid albums. The two fixes are complementary,
+         not redundant: the watcher handles "the id changed", this `&& album` guard handles
+         "the album vanished without the id changing". -->
     <div v-if="edit && album" class="sv-select-bar">
       <span class="group">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
@@ -881,7 +918,7 @@ watch(gridRef, () => {
         type="button"
         class="sv-action-btn"
         data-test="album-add-photos"
-        @click="pickerOpen = true"
+        @click="openPicker"
       >
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
         {{ t('photosAlbumAddPhotos') }}
