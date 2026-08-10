@@ -805,6 +805,11 @@ export default {
   photosSvShow: 'Show',
   photosSvHide: 'Hide',
   photosSvRestore: 'Restore',
+  // ── SP15-P2c Task 6: sort capsule + the edit-mode bar's empty-selection hint. English
+  // values are Vue2's literal source strings. See the zh_cn.photos.ts comment for the nine
+  // strings the rebuilt row reuses from elsewhere in this file instead of adding again.
+  photosSortScore: 'Match score',
+  photosSvClickToSelect: 'Click to select',
   // ---- P7a-T9: search panel (filter bar + popovers) 54 keys, see the matching
   // zh_cn.ts comment. English values are the Vue2 PhotosSearchView.vue literal
   // English strings (= the Vue2 en dict keys), 1:1. ----

@@ -78,6 +78,26 @@ function seed(opts: { matched?: unknown[]; excluded?: unknown[] } = {}) {
   return s
 }
 
+// SP15-P2c Task 6 re-homing. Two things moved under every test below:
+//   * `sv-select-toggle` (Select/Cancel, in the header) became `sv-edit-toggle` (Edit/Done) --
+//     the same `selecting` state, renamed `edit`, reached from the target's single toggle.
+//   * `sv-add-photos` left the header for the edit-mode bottom bar, so it is only reachable
+//     after entering edit mode.
+// The bar itself is now gated on `edit` alone rather than `edit && selectedIds.length`, which
+// costs the assertions below their old shorthand: "the bar is gone" used to prove "nothing is
+// selected" and no longer does. Wherever a test leaned on that, it now asserts the selection
+// directly -- the count in the bar, or the tiles carrying data-selected. That is a stronger
+// assertion than the one it replaces, not a weaker one.
+/** Enters edit mode (the only way to reach the selection gestures and Add photos). */
+async function enterEdit(w: ReturnType<typeof mount>) {
+  await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+  await w.vm.$nextTick()
+}
+/** The ids of the tiles currently drawn as selected -- what `selectedIds` looks like on screen. */
+function selectedTiles(w: ReturnType<typeof mount>): number {
+  return w.findAll('.tile[data-selected="true"]').length
+}
+
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
@@ -105,6 +125,7 @@ describe('add photos', () => {
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
 
+    await enterEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x', 'y'])
     await new Promise((r) => setTimeout(r, 0))
@@ -126,6 +147,7 @@ describe('add photos', () => {
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
 
+    await enterEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
     await new Promise((r) => setTimeout(r, 0))
@@ -139,6 +161,7 @@ describe('add photos', () => {
     vi.spyOn(s, 'pinAssets').mockRejectedValue(new Error('nope'))
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
+    await enterEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
     await new Promise((r) => setTimeout(r, 0))
@@ -149,6 +172,7 @@ describe('add photos', () => {
   it('hands the picker the ids already in the view, String()-normalised', async () => {
     seed({ matched: [{ id: 5 }] })
     const { w } = await mountPage()
+    await enterEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     const ids = w.findComponent({ name: 'PhotosLibraryPicker' }).props('existingIds') as Set<string>
     expect([...ids]).toContain('5')
@@ -163,6 +187,7 @@ describe('add photos', () => {
   it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {
     seed()
     const { w } = await mountPage()
+    await enterEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     const label = w.findComponent({ name: 'PhotosLibraryPicker' }).props('submitLabel')
     expect(label).toBe(zh.photosMoAddSelected)
@@ -172,32 +197,34 @@ describe('add photos', () => {
 })
 
 describe('selection and removal', () => {
-  it('suppresses the lightbox while selecting, and shows the count', async () => {
+  it('suppresses the lightbox while in edit mode, and shows the count', async () => {
     seed()
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
     expect(lbMock.openAt).not.toHaveBeenCalled()
   })
 
-  it('still opens the lightbox when not selecting', async () => {
+  it('still opens the lightbox outside edit mode', async () => {
     seed()
     const { w } = await mountPage()
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     expect(lbMock.openAt).toHaveBeenCalled()
   })
 
-  it('removes the selection, then leaves selection mode', async () => {
+  it('removes the selection, then leaves edit mode', async () => {
     const s = seed()
     const remove = vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 1, excluded: 0 })
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
     expect(remove).toHaveBeenCalledWith('sv1', ['a1'])
+    // Leaving edit mode is now visible on the toggle as well as on the bar (Task 6).
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-edit-toggle"]').attributes('data-open')).toBe('false')
   })
 
   // Removal is tiered on the backend: a pinned row is deleted (`unpinned`), an automatically
@@ -210,7 +237,7 @@ describe('selection and removal', () => {
     vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 2, excluded: 3 })
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
@@ -224,64 +251,82 @@ describe('selection and removal', () => {
     vi.spyOn(s, 'removeAssets').mockResolvedValue(null)
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
     expect(show).not.toHaveBeenCalled()
-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+    // Re-homed (Task 6): the bar stays up in edit mode no matter what, so "still selected" is
+    // read off the tile and the bar's count instead of the bar's presence.
+    expect(selectedTiles(w)).toBe(1)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
   })
 
   it('keeps the selection on failure so the user can retry', async () => {
     const s = seed()
     vi.spyOn(s, 'removeAssets').mockRejectedValue(new Error('nope'))
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+    // Re-homed (Task 6), same reason as the busy case above.
+    expect(selectedTiles(w)).toBe(1)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
   })
 
-  it('leaving selection mode clears what was selected', async () => {
+  // Re-homed (Task 6): leaving and re-entering edit mode no longer makes the bar disappear, so
+  // "the bar is gone" is not evidence of anything here any more. What the test is actually
+  // about -- the selection being dropped on the way out -- is asserted on the tiles and on the
+  // bar's own hint line, which falls back to the empty-selection copy.
+  it('leaving edit mode clears what was selected', async () => {
     seed()
     const { w } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+    expect(selectedTiles(w)).toBe(1)
+
+    await enterEdit(w) // leave
+    await enterEdit(w) // and come back
+
+    expect(selectedTiles(w)).toBe(0)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
   })
 
   // A selection surviving an :id change would send view A's asset ids to view B's remove
   // endpoint, under a bar counting photos that are no longer on screen.
   //
   // Final review, finding 1: checking only that the bar disappears does NOT test the reset.
-  // The bar's `v-if` is `selecting && selectedIds.length`, so clearing `selecting` alone
-  // hides it — deleting `selectedIds.value = []` from the route watcher left this green.
-  // The failure it hides: sv1 selection survives into sv2, `toggleSelecting` only clears on
-  // *exit* so pressing Select on sv2 brings the bar back holding sv1's id, and Remove then
-  // posts view A's asset to view B. Re-entering selection mode after the navigation is what
-  // makes the stale ids observable, so that is what is asserted.
+  // Clearing the mode flag alone hides the bar — deleting `selectedIds.value = []` from the
+  // route watcher left this green. The failure it hides: sv1 selection survives into sv2,
+  // `toggleEdit` only clears on *exit* so pressing Edit on sv2 brings the bar back holding
+  // sv1's id, and Remove then posts view A's asset to view B. Re-entering edit mode after the
+  // navigation is what makes the stale ids observable, so that is what is asserted.
+  // Re-homed (Task 6): the same trap, one step worse — the bar is now gated on `edit` alone, so
+  // it reappears on sv2 whether or not the ids were cleared. The stale-id assertion moved onto
+  // the tiles and the bar's hint line.
   it('drops the selection and closes the picker when the route id changes', async () => {
     const s = seed()
     s.smartViews = [{ ...SV }, { ...SV, id: 'sv2', name: 'Beach' }]
     const { w, router } = await mountPage()
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+    expect(selectedTiles(w)).toBe(1)
 
     await router.push('/photos/smart-views/sv2')
     await new Promise((r) => setTimeout(r, 0))
 
+    // Edit mode itself is left behind with the id, so the bar goes with it.
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
 
-    // The real assertion: enter selection mode on sv2 without picking anything. If the ids
-    // were not cleared, the bar reappears immediately carrying sv1's selection.
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+    // The real assertion: enter edit mode on sv2 without picking anything. If the ids were not
+    // cleared, the bar comes back counting sv1's selection and sv1's tile stays ticked.
+    await enterEdit(w)
+    expect(selectedTiles(w)).toBe(0)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
   })
 })
 
@@ -315,19 +360,21 @@ describe('excluded section', () => {
   // Vue2 :167 has the same hole; this branch fixes and registers Vue2 defects rather than
   // copying them. Excluded assets are not removal candidates either, so the tile is simply
   // inert: no write, and no selection.
-  it('an excluded tile does nothing while in selection mode', async () => {
+  it('an excluded tile does nothing while in edit mode', async () => {
     const s = seed({ excluded: [{ id: 'e1' }] })
     const restore = vi.spyOn(s, 'restoreAssets').mockResolvedValue(1)
     const { w } = await mountPage()
     await w.find('[data-test="sv-excluded-head"]').trigger('click')
-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+    await enterEdit(w)
 
     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
 
     expect(restore).not.toHaveBeenCalled()
-    // Nor does it become selectable — the select bar needs a selection to exist at all.
-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+    // Nor does it become selectable. Re-homed (Task 6): the bar is up in edit mode regardless,
+    // so this now reads the selection itself instead of the bar's presence.
+    expect(selectedTiles(w)).toBe(0)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
   })
 
   it('reports a failed restore', async () => {

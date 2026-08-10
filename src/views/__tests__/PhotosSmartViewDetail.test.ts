@@ -514,6 +514,180 @@ describe('header 统计四格', () => {
   })
 })
 
+// ── SP15-P2c Task 6: header action row (sort capsule / pause / edit / density) ────────────
+// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:49-90. Sort and density are new
+// construction on this page -- it never had either control -- so these tests describe the
+// target's row, not a rearrangement of what was here.
+describe('SP15-P2c Task 6: header action row', () => {
+  /** Opens the sort menu and returns the option button carrying `sortId`. */
+  async function pickSortOption(w: ReturnType<typeof mount>, sortId: string) {
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    const item = w.findAll('[data-test="sv-sort-item"]').find((n) => n.attributes('data-sort-id') === sortId)!
+    await item.trigger('click')
+    await w.vm.$nextTick()
+  }
+
+  it('renders sort and density in the header outside edit mode', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('.sv-actions .group').text()).toBe(zh.photosAlbumSort)
+    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosSortScore)
+    expect(w.findAll('.density button')).toHaveLength(2)
+    // The target's order, element by element: Sort label -> capsule -> separator -> Pause ->
+    // Edit -> separator -> density. Asserting the sequence is the only way a reordering is
+    // caught; each element existing on its own says nothing about where it sits.
+    const row = w.findAll('.sv-actions > *').map((n) => {
+      const cls = n.classes()
+      return n.attributes('data-test') ?? (cls.includes('group') ? 'group' : cls[0])
+    })
+    expect(row.slice(0, 7)).toEqual([
+      'group',
+      'sv-sort-wrap',
+      'album-detail-actions-sep',
+      'sv-action-pause',
+      'sv-edit-toggle',
+      'album-detail-actions-sep',
+      'density',
+    ])
+  })
+
+  it('offers match score and date taken as the two sort options', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    const items = w.findAll('[data-test="sv-sort-item"]')
+    expect(items.map((n) => n.attributes('data-sort-id'))).toEqual(['score', 'taken'])
+    expect(items.map((n) => n.text())).toEqual([zh.photosSortScore, zh.photosAlbumSortTaken])
+    // Score is the default (the backend already returns match_score DESC), so it is the one
+    // marked active before anything is picked.
+    expect(items[0].attributes('data-active')).toBe('true')
+    expect(items[1].attributes('data-active')).toBe('false')
+  })
+
+  it('re-sorts both grids by taken date when that option is picked, and relabels the capsule', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      // Deliberately handed back in the backend's own (match score) order, oldest first, so
+      // "sorted by taken date desc" is a different sequence from "left alone".
+      const rows = [
+        asset('old', { takenAt: '2026-01-01T00:00:00Z' }),
+        asset('new', { takenAt: '2026-06-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? rows : rows
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
+    const ids = (sel: string) => w.findAll(sel).map((n) => n.find('img').attributes('src'))
+    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/old/large', 'mock://thumb/new/large'])
+
+    await pickSortOption(w, 'taken')
+
+    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
+    expect(ids('[data-test="sv-recent-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
+    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosAlbumSortTaken)
+    // Picking closes the menu (Vue2 pickSort).
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+  })
+
+  it('switches both grids to the compact density', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 1 })])
+    expect(w.find('[data-test="sv-all-grid"]').classes()).not.toContain('is-compact')
+    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('true')
+
+    await w.find('[data-test="sv-density-compact"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-all-grid"]').classes()).toContain('is-compact')
+    expect(w.find('[data-test="sv-recent-grid"]').classes()).toContain('is-compact')
+    expect(w.find('[data-test="sv-density-compact"]').attributes('data-active')).toBe('true')
+    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('false')
+  })
+
+  it('keeps pause and edit visible in edit mode while sort and density disappear', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(true)
+    expect(w.find('.density').exists()).toBe(true)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(false)
+    expect(w.find('.density').exists()).toBe(false)
+    expect(w.find('[data-test="sv-action-pause"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-edit-toggle"]').exists()).toBe(true)
+    // Each separator travels with the group it parts, so neither is left dangling.
+    expect(w.findAll('.album-detail-actions-sep')).toHaveLength(0)
+  })
+
+  it('enters and leaves edit mode from the single edit toggle', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    const toggle = () => w.find('[data-test="sv-edit-toggle"]')
+    expect(toggle().text()).toBe(zh.photosAlbumEdit)
+    expect(toggle().attributes('data-open')).toBe('false')
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+
+    await toggle().trigger('click')
+    await w.vm.$nextTick()
+    expect(toggle().text()).toBe(zh.photosAlbumDone)
+    expect(toggle().attributes('data-open')).toBe('true')
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+
+    await toggle().trigger('click')
+    await w.vm.$nextTick()
+    expect(toggle().text()).toBe(zh.photosAlbumEdit)
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+  })
+
+  it('shows add-photos in the bottom select bar rather than the header', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    expect(w.find('.sv-actions [data-test="sv-add-photos"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-add-photos"]').exists()).toBe(false)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    // In the bar, and nowhere else -- and reachable with nothing selected, which is the whole
+    // reason the bar is gated on edit alone (target :318).
+    expect(w.find('[data-test="sv-select-bar"] [data-test="sv-add-photos"]').exists()).toBe(true)
+    expect(w.findAll('[data-test="sv-add-photos"]')).toHaveLength(1)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+
+    await w.find('[data-test="sv-add-photos"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+  })
+
+  it('disables Remove until something is selected', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => (opts?.recent ? [] : [asset('a1')]))
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeDefined()
+
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+  })
+
+  it('closes the sort menu on an outside mousedown and on Escape', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+  })
+})
+
 // ── 「在搜索中细化」——T16 兑现:去 disabled,接 router.push ─────────────────
 describe('「在搜索中细化」按钮(T16 已接线)', () => {
   it('不再 disabled,也没有 photosSvSearchPending 的 title', async () => {

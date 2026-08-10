@@ -822,6 +822,16 @@ export default {
   photosSvShow: '显示',
   photosSvHide: '隐藏',
   photosSvRestore: '恢复',
+  // ── SP15-P2c Task 6: the smart-view detail header's sort capsule + the edit-mode bar's
+  // empty-selection hint. Chinese values are Vue2's own zh_CN.json entries for the same
+  // English source strings (:2145 "Match score", :2012 "Click to select"), not fresh
+  // translations. Everything else the rebuilt row needs already exists in this file and is
+  // reused verbatim rather than duplicated: photosAlbumSort ('排序：'), photosAlbumSortTaken
+  // ('拍摄日期'), photosAlbumEdit ('编辑'), photosAlbumDone ('完成'),
+  // photosDensityComfortable ('舒适'), photosDensityCompact ('紧凑'), photosSelectedCount,
+  // photosSvAddPhotos and photosSvRemoveFromView.
+  photosSortScore: '匹配分数',
+  photosSvClickToSelect: '点击选择',
   // ---- P7a-T9: 搜索面板(过滤条 + 弹层)54 键,照 Vue2 PhotosSearchView.vue 的
   // 英文键逐条核对(zh 值取自 Vue2 src/assets/lang/zh_CN.json),接在文件末尾追加,
   // 不与前面已有键重排。与 T1 已加键语义相同的(Cancel/Close 等)不重复添加。 ----

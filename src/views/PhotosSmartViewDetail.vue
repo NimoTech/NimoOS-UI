@@ -65,6 +65,15 @@ import { useToast } from '../stores/toast'
 import { isConflict } from '../photos/util/httpErrors'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { relTime } from '../photos/util/relTime'
+// SP15-P2c Task 6: reused, not re-implemented. Despite the name this is a plain photo
+// comparator keyed off a string mode (util/albumView.ts:74) -- its 'taken' branch is
+// byte-for-byte the comparator Vue2 writes inline here as `sortedByMode` (33b05636
+// :577-587), and its fallback branch returns the list untouched, which is exactly what Vue2
+// means by 'score' -- its own comment there says "the order as it stands", because the backend
+// already returns match_score DESC. Writing a second copy of the same two branches on this
+// page is what the ruling against duplicated TS (phase ruling: option B on sharing) exists to
+// prevent.
+import { sortAlbumPhotos } from '../photos/util/albumView'
 import { formatMB } from '../photos/util/formatBytes'
 import type { Photo } from '../photos/util/assetToPhoto'
 
@@ -100,14 +109,14 @@ onMounted(async () => {
 watch(() => route.params.id, (raw) => {
   if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
   // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
-  // resets here. `selecting`/`selectedIds` are the pair with a write consequence —
+  // resets here. `edit`/`selectedIds` are the pair with a write consequence —
   // removeSelected() reads svId.value at call time, so a selection carried across an :id
   // change would send view A's asset ids to view B's remove endpoint, under a bar counting
   // photos that are no longer on screen. `pickerOpen` is the same story from the other side
   // (its already-in set comes from the previous view's members) and `excludedOpen` is the
   // cosmetic remainder of the same rule: nothing on screen may come from the old id. Vue 2
   // could not hit any of this — its detail component was v-if'd and remounted per view.
-  selecting.value = false
+  edit.value = false
   selectedIds.value = []
   pickerOpen.value = false
   excludedOpen.value = false
@@ -234,6 +243,41 @@ const newCount = computed(() => sv.value?.addedThisWeek || 0)
 const median = computed(() => sv.value?.median || 0)
 const storageText = computed(() => formatMB(sv.value?.storageBytes || 0))
 
+// ── SP15-P2c Task 6: sort capsule + density pair (target :49-90) ─────────────────────────
+// New construction: this page never had either control. Both are display-only preferences --
+// they change what the two grids show and in what order, and send nothing to the backend
+// (Vue2's own note at :457-459).
+//
+// 'score' is the identity ordering: the backend already returns matches by match_score DESC,
+// so the mode exists to name the default rather than to reorder anything.
+type SvSortBy = 'score' | 'taken'
+const sortBy = ref<SvSortBy>('score')
+const sortMenuOpen = ref(false)
+const sortMenuRef = ref<HTMLElement | null>(null)
+// Enum values match PhotosAlbumDetail.vue's (Vue2 spells the first one 'comfort'). The two
+// detail pages have to agree: the value is never visible, and a split would mean two
+// spellings of the same `data-active` test and the same `.density` rules.
+const density = ref<'comfortable' | 'compact'>('comfortable')
+
+// Two options here, against the album page's three -- a smart view has no manual order and no
+// separate "date added" (target :56-67).
+const sortOptions = computed(() => [
+  { id: 'score' as SvSortBy, label: t('photosSortScore') },
+  { id: 'taken' as SvSortBy, label: t('photosAlbumSortTaken') },
+])
+const currentSortLabel = computed(() => sortOptions.value.find((s) => s.id === sortBy.value)?.label ?? '')
+function pickSort(s: SvSortBy): void {
+  sortBy.value = s
+  sortMenuOpen.value = false
+}
+
+// The display order for each grid. The store's arrays stay untouched: `viewAssetIds` looks ids
+// up rather than reading positions, and the lightbox still receives the store's own array --
+// aligning the lightbox's navigation order with what the grid shows is Task 9's job, and this
+// is the state it consumes.
+const matchedSet = computed(() => sortAlbumPhotos(store.matchedAssets, sortBy.value))
+const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.value))
+
 // ── 导出菜单 / more 菜单 / 删除确认:一个 mousedown 监听 + 一个 keydown 监听 ──────
 const exportOpen = ref(false)
 const moreOpen = ref(false)
@@ -269,11 +313,17 @@ function onDocumentMouseDown(e: MouseEvent): void {
     const w = moreWrapRef.value
     if (w && !w.contains(target)) moreOpen.value = false
   }
+  // SP15-P2c Task 6: the sort menu closes on an outside click the same way (Vue2 :545-548
+  // adds its own click-outside for exactly this popup).
+  if (sortMenuOpen.value) {
+    const s = sortMenuRef.value
+    if (s && !s.contains(target)) sortMenuOpen.value = false
+  }
 }
 
-// Hard constraint: when multiple overlays are open, one Escape must close them all -- four
-// independent ifs, no early return (deletion-check 8: adding `return` inside the first if
-// turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
+// Hard constraint: when multiple overlays are open, one Escape must close them all -- five
+// independent ifs (four before SP15-P2c Task 6 added the sort menu), no early return
+// (deletion-check 8: adding `return` inside the first if turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
 // closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
 // dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
 // defined below).
@@ -283,9 +333,14 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   if (moreOpen.value) moreOpen.value = false
   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
   if (convertToAlbumOpen.value) closeConvertToAlbum()
+  // SP15-P2c Task 6. Vue2 gives the sort popup a click-outside but no Escape; PhotosAlbumDetail
+  // .vue:539 already closes its own sort menu on Escape, and a popup that ignores the key its
+  // three neighbours on this same page answer reads as broken. Registered deviation, added as
+  // a fifth independent `if` so it does not disturb the "one Escape closes everything" rule.
+  if (sortMenuOpen.value) sortMenuOpen.value = false
 }
 
-const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value)
+const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
 watch(anyOverlayOpen, (open) => {
   if (open) document.addEventListener('keydown', onDocumentKeydown)
   else document.removeEventListener('keydown', onDocumentKeydown)
@@ -469,7 +524,7 @@ function onTileClick(p: Photo): void {
   // Vue2 :456-459 (onTileClick): selection mode suppresses the lightbox — a tap either
   // selects or opens, never both. This has to come first, before the "New" badge is
   // optimistically cleared: selecting a recently-added photo must not mark it as seen.
-  if (selecting.value) {
+  if (edit.value) {
     toggleSelect(String(p.id))
     return
   }
@@ -486,18 +541,37 @@ function onTileClick(p: Photo): void {
 // annotations layered on top of it — pin a photo the conditions missed, remove one (which
 // either unpins it or flags it excluded), and put an excluded one back.
 const pickerOpen = ref(false)
-const selecting = ref(false)
+// SP15-P2c Task 6 -- state decision, registered as the brief asks. P2a's `selecting` is REUSED
+// and renamed `edit` rather than a second flag being added beside it. Vue2 made the identical
+// call and said so at :449-451 ("behaviour unchanged, only the name and the entry point"): the
+// flag Edit/Done drives is the same one that suppresses the lightbox, draws the tile checkmarks
+// and gates the bottom bar. A separate `edit` alongside `selecting` would be two names for one mode, and
+// every predicate on this page (onTileClick, the route watcher, removeSelected,
+// onExcludedTileClick, both grids' `data-selected`) would have to pick one and stay right
+// about it forever. The button's copy changes with the name -- photosPersonSelect/photosCancel
+// give way to photosAlbumEdit/photosAlbumDone -- and both old keys keep other consumers
+// (PersonAssetGrid.vue:124 and PhotosMomentDetail.vue:648; photosCancel has 38 more), so
+// neither is orphaned by this rename.
+const edit = ref(false)
 const selectedIds = ref<string[]>([])
 const excludedOpen = ref(false)
+
+// Target :319-322: the bar's own label covers the empty case, which is why the bar can appear
+// before anything is picked.
+const selectHint = computed(() => (
+  selectedIds.value.length
+    ? t('photosSelectedCount', { count: selectedIds.value.length })
+    : t('photosSvClickToSelect')
+))
 
 // The ids the picker must show as already-in. Normalising with String() here is load-bearing:
 // asset ids arrive from the API as numbers on some paths while timeline photo ids are strings,
 // and a mismatch silently un-dims every tile. Same correction as PhotosAlbums.vue:163.
 const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => String(p.id))))
 
-function toggleSelecting(): void {
-  selecting.value = !selecting.value
-  if (!selecting.value) selectedIds.value = []
+function toggleEdit(): void {
+  edit.value = !edit.value
+  if (!edit.value) selectedIds.value = []
 }
 
 function toggleSelect(id: string): void {
@@ -546,7 +620,7 @@ async function removeSelected(): Promise<void> {
     toast.show(t('photosSvRemovedNFromView', { n: r.unpinned + r.excluded }))
     // Cleared on success only, as in Vue2 :486: after a failure the selection is exactly
     // what the user needs in order to press the button again.
-    selecting.value = false
+    edit.value = false
     selectedIds.value = []
     await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
   } catch (e) {
@@ -562,7 +636,7 @@ async function removeSelected(): Promise<void> {
 // the restore regardless, so the one tile on the page that does not toggle a checkmark
 // silently writes to the server instead.
 async function onExcludedTileClick(id: string): Promise<void> {
-  if (selecting.value) return
+  if (edit.value) return
   const svid = svId.value
   try {
     const n = await store.restoreAssets(svid, [id])
@@ -660,28 +734,79 @@ async function onExcludedTileClick(id: string): Promise<void> {
               </div>
             </div>
 
+            <!-- SP15-P2c Task 6 (target :49-90). The row reads: Sort label -> capsule ->
+                 separator -> Pause/Resume -> Edit/Done -> separator -> density. Sort and
+                 density render outside edit mode only; Pause and Edit are unconditional, so in
+                 edit mode those two are all that is left and Edit is how you get back out. Each
+                 separator is inside the `v-if` of the group it parts, so neither can be left
+                 dangling. P2a's separate Add photos and Select buttons are gone: Select's job
+                 is now Edit/Done, and Add photos moved into the edit-mode bar at the bottom of
+                 this file (target :318-333).
+                 PARKED, NOT KEPT: Refine in Search, the Export menu and the "..." menu all sit
+                 at the END of this row until Task 7 gives them their target home in the sidebar
+                 (.sv-side-actions) and folds Export's two items into the "..." menu. Removing
+                 them here would leave rename/duplicate/convert/delete/export unreachable for a
+                 whole task -- the same call Task 3 made on the album page's own "..." menu,
+                 which Task 5 then moved. Everything before them is already in the target's
+                 order, so Task 7 only has to lift them out. -->
             <div class="sv-actions">
+              <template v-if="!edit">
+                <span class="group">{{ t('photosAlbumSort') }}</span>
+                <div ref="sortMenuRef" class="sv-sort-wrap">
+                  <button type="button" class="order-pill" data-test="sv-sort-btn" @click.stop="sortMenuOpen = !sortMenuOpen">
+                    {{ currentSortLabel }}
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+                  </button>
+                  <div v-if="sortMenuOpen" class="sv-sort-menu" data-test="sv-sort-menu">
+                    <!-- Target :57-68 marks the active option with a check glyph and holds the
+                         labels in line with a same-width spacer when there is none. -->
+                    <button
+                      v-for="s in sortOptions" :key="s.id"
+                      type="button" class="sv-sort-item" data-test="sv-sort-item"
+                      :data-sort-id="s.id" :data-active="s.id === sortBy"
+                      @click="pickSort(s.id)"
+                    >
+                      <svg v-if="s.id === sortBy" class="sv-sort-check" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                      <span v-else class="sv-sort-check" />
+                      <span class="lbl">{{ s.label }}</span>
+                    </button>
+                  </div>
+                </div>
+                <div class="album-detail-actions-sep" />
+              </template>
+
               <button type="button" class="sv-action-btn" data-test="sv-action-pause" @click="togglePaused">
                 <svg v-if="paused" viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
                 <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
                 {{ t(paused ? 'photosSvResume' : 'photosSvPause') }}
               </button>
-
-              <!-- SP15-P2a (Vue2 :71-76): add photos, and the selection toggle. The toggle's
-                   text reuses photosPersonSelect/photosCancel verbatim (the same two words as
-                   Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a fresh
-                   pair of keys — same call PhotosMomentDetail.vue made. -->
-              <button type="button" class="sv-action-btn" data-test="sv-add-photos" @click="pickerOpen = true">
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
-                {{ t('photosSvAddPhotos') }}
-              </button>
               <button
-                type="button" class="sv-action-btn" data-test="sv-select-toggle"
-                :data-open="selecting" @click="toggleSelecting"
+                type="button" class="sv-action-btn" data-test="sv-edit-toggle"
+                :data-open="edit" @click="toggleEdit"
               >
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
-                {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
+                {{ edit ? t('photosAlbumDone') : t('photosAlbumEdit') }}
               </button>
+
+              <template v-if="!edit">
+                <div class="album-detail-actions-sep" />
+                <div class="density">
+                  <button
+                    type="button" data-test="sv-density-comfortable"
+                    :data-active="density === 'comfortable'" :title="t('photosDensityComfortable')"
+                    @click="density = 'comfortable'"
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1" /><rect x="13" y="3" width="8" height="8" rx="1" /><rect x="3" y="13" width="8" height="8" rx="1" /><rect x="13" y="13" width="8" height="8" rx="1" /></svg>
+                  </button>
+                  <button
+                    type="button" data-test="sv-density-compact"
+                    :data-active="density === 'compact'" :title="t('photosDensityCompact')"
+                    @click="density = 'compact'"
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /><rect x="3" y="19" width="6" height="2" /><rect x="11" y="19" width="6" height="2" /></svg>
+                  </button>
+                </div>
+              </template>
 
               <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
                    名字作查询词。Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,
@@ -778,15 +903,17 @@ async function onExcludedTileClick(id: string): Promise<void> {
             </div>
           </div>
 
-          <!-- 「最近添加」段:仅 newCount > 0 时渲染,tile 走 store.recentAssets -->
+          <!-- "Recently added" band: rendered only while newCount > 0. Its tiles read
+               `recentSet` -- store.recentAssets in the order the Sort capsule currently asks
+               for (SP15-P2c Task 6). -->
           <template v-if="newCount > 0">
             <div class="sv-section-head" data-test="sv-recent-head">
               {{ t('photosSvRecentlyAdded') }} <span class="pill">{{ t('photosSvNNewThisWeek', { n: newCount }) }}</span>
             </div>
-            <div class="sv-grid-photos sv-grid-photos-recent" data-test="sv-recent-grid">
+            <div class="sv-grid-photos sv-grid-photos-recent" :class="{ 'is-compact': density === 'compact' }" data-test="sv-recent-grid">
               <div
-                v-for="p in store.recentAssets" :key="p.id" class="tile" :class="{ recent: p.isNew }"
-                :data-selected="selecting && selectedIds.includes(String(p.id))"
+                v-for="p in recentSet" :key="p.id" class="tile" :class="{ recent: p.isNew }"
+                :data-selected="edit && selectedIds.includes(String(p.id))"
                 data-test="sv-recent-tile" @click="onTileClick(p)"
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
@@ -796,28 +923,29 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
                   <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
                 </div>
-                <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                <div v-if="edit && selectedIds.includes(String(p.id))" class="sv-tile-check">
                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
                 </div>
               </div>
             </div>
           </template>
 
-          <!-- 「全部匹配」段:tile 走 store.matchedAssets -->
+          <!-- "All matches" band: tiles read `matchedSet` -- store.matchedAssets in the order
+               the Sort capsule currently asks for (SP15-P2c Task 6). -->
           <div class="sv-section-head" data-test="sv-all-head">
             {{ t('photosSvAllMatches') }} <span class="pill">{{ fmtNum(sv.count) }}</span>
           </div>
-          <div class="sv-grid-photos" data-test="sv-all-grid">
+          <div class="sv-grid-photos" :class="{ 'is-compact': density === 'compact' }" data-test="sv-all-grid">
             <div
-              v-for="p in store.matchedAssets" :key="p.id" class="tile"
-              :data-selected="selecting && selectedIds.includes(String(p.id))"
+              v-for="p in matchedSet" :key="p.id" class="tile"
+              :data-selected="edit && selectedIds.includes(String(p.id))"
               data-test="sv-all-tile" @click="onTileClick(p)"
             >
               <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
               <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
               </div>
-              <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
+              <div v-if="edit && selectedIds.includes(String(p.id))" class="sv-tile-check">
                 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
               </div>
             </div>
@@ -836,7 +964,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
             <div v-if="excludedOpen" class="sv-grid-photos sv-excluded-grid" data-test="sv-excluded-grid">
               <div
                 v-for="p in store.excluded" :key="p.id" class="tile"
-                :data-inert="selecting" data-test="sv-excluded-tile"
+                :data-inert="edit" data-test="sv-excluded-tile"
                 @click="onExcludedTileClick(String(p.id))"
               >
                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
@@ -866,14 +994,32 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </transition>
 
-    <!-- SP15-P2a 选择栏(Vue2 :262-265):计数 + 移除按钮。整条在没有选中项时不存在,这也
-         是移除按钮永远不会发出空请求的原因。 -->
-    <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="sv-select-bar">
-      <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
+    <!-- Edit-mode bottom bar (target :318-333). SP15-P2c Task 6 reshapes P2a's version into the
+         target's three elements — hint, Remove, Add photos — and re-gates it on `edit` alone
+         instead of `edit && selectedIds.length`. The gate has to change: the bar now carries
+         the hint line that speaks for the empty selection, and Add photos, which would be
+         unreachable in a smart view with nothing selected otherwise. What used to keep an empty
+         Remove request impossible is now the button's own `disabled` (plus removeSelected's own
+         early return), which is where the album page puts it too.
+         `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar is a sibling of
+         .photos-layout, outside the `v-else` that requires a smart view, so without it the bar
+         would float over the not-found state if the view vanished without the id changing. -->
+    <div v-if="edit && sv" class="sv-select-bar" data-test="sv-select-bar">
+      <span class="group">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+        {{ selectHint }}
+      </span>
       <button
         type="button" class="sv-action-btn" data-test="sv-remove-selected"
-        :disabled="store.assetBusy" @click="removeSelected"
-      >{{ t('photosSvRemoveFromView') }}</button>
+        :disabled="!selectedIds.length || store.assetBusy" @click="removeSelected"
+      >
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+        {{ t('photosSvRemoveFromView') }}
+      </button>
+      <button type="button" class="sv-action-btn" data-test="sv-add-photos" @click="pickerOpen = true">
+        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
+        {{ t('photosSvAddPhotos') }}
+      </button>
     </div>
 
     <!-- SP15-P2a library picker (Vue2 :283-291). Title reuses photosAlbumPickerTitle --
@@ -1031,6 +1177,52 @@ async function onExcludedTileClick(id: string): Promise<void> {
    (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
 .sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
 
+/* ── SP15-P2c Task 6: sort capsule, separators, density pair ──
+   Rule bodies restated from PhotosAlbumDetail.vue's own (:1161-1176), which Task 3 in turn
+   restated from Vue2 photos.scss (:3458-3475 .group / .order-pill, :285-288 .density) and
+   photos-smartview.scss (.album-detail-actions-sep). Scoped styles do not cross SFCs in this
+   repo, so this duplication is the phase's KEEP-THE-DUPLICATION ruling, not a missed
+   extraction -- and it is what makes the two detail pages render the same row. */
+.group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
+.sv-actions .order-pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
+  font: inherit; font-size: 12px; cursor: pointer;
+}
+.sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.album-detail-actions-sep { width: 1px; height: 18px; background: var(--divider); flex-shrink: 0; }
+
+.density { display: inline-flex; gap: 2px; background: var(--chip-bg); border-radius: 8px; padding: 3px; }
+.density button {
+  width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer;
+}
+.density button:hover { color: var(--fg); }
+.density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
+/* Sort popup. Vue2 photos.scss:3122-3153 (.albums-sort-menu / .albums-sort-item): a flex row
+   per item so the check glyph and the label line up, and the active row carries --accent-soft.
+   `.sv-sort-check` is the fixed-width slot the glyph sits in -- rendered as an empty span when
+   the option is not the active one, which is how the target keeps every label at the same x
+   (its own version writes `style="width:12px;display:inline-block"` inline). Vue2 tints the
+   glyph with --accent-hi, a token this repo does not have (see .sv-action-btn-primary above);
+   --accent-text is the pair this file's own .sv-export-icon already uses against --accent-soft. */
+.sv-sort-wrap { position: relative; }
+.sv-sort-menu {
+  position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
+  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
+  padding: 4px; box-shadow: var(--card-shadow-hi);
+}
+.sv-sort-item {
+  display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px;
+  background: transparent; border: 0; border-radius: 8px; color: var(--fg);
+  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
+}
+.sv-sort-item:hover { background: var(--chip-bg-hi); }
+.sv-sort-item[data-active="true"] { background: var(--accent-soft); }
+.sv-sort-item .sv-sort-check { width: 12px; flex-shrink: 0; color: var(--accent-text); }
+.sv-sort-item .lbl { display: block; font-weight: 500; }
+
 /* ── 导出 / more 菜单(scss:407-452)── */
 .sv-export-menu {
   position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
@@ -1072,6 +1264,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
    给该段留出与下方"全部匹配"标题的呼吸间距。审计时发现模板已加了这个类但样式块漏写,
    补上——同类漏渲染是本工程最高频缺陷,回源逐条核对时揪出。 */
 .sv-grid-photos-recent { padding-bottom: 18px; }
+/* SP15-P2c Task 6, compact density (Vue2 photos-smartview.scss:557-559): the only change is
+   the auto-fill minimum, 180px down to 120px, so more thumbnails fit per row. Both grids on
+   this page take the modifier; the excluded band deliberately does not, exactly as in the
+   target. */
+.sv-grid-photos.is-compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 .sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
 .sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 /* fix round 1 · I3:Vue2 scss:506-513 在 accent 边框内侧还叠一圈半透明黑色内阴影,作用是
