@@ -77,6 +77,29 @@ describe('FilesSidebar', () => {
     expect(fav.list.find((f) => f.path === '/DATA/Documents')).toBeUndefined()
   })
 
+  // SP12-T9: favourites are always folders, and the file listing already picks a
+  // per-name icon for well-known folder names via icons.ts's FOLDER_BY_NAME map —
+  // the sidebar hardcoded the generic folder icon instead.
+  describe('favourite icons match the file listing (F9)', () => {
+    it('gives a favourite the icon its name maps to, not the generic folder', () => {
+      seedFiles()
+      const fav = useFavoritesStore()
+      fav.list = [{ name: 'Downloads', path: '/DATA/Downloads' }] as any
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      const src = w.find('.side-fav .side-icon').attributes('src')
+      expect(src).toContain('folder-download')
+    })
+
+    it('falls back to the generic folder icon for an unmapped name', () => {
+      seedFiles()
+      const fav = useFavoritesStore()
+      fav.list = [{ name: 'Trip 2026', path: '/DATA/Trip 2026' }] as any
+      const w = mount(FilesSidebar, { global: { plugins: [i18n, testRouter] } })
+      const src = w.find('.side-fav .side-icon').attributes('src')
+      expect(src).toContain('folder-default')
+    })
+  })
+
   it('dragging a disk reorders the rendered list in the same tick and persists order+default', async () => {
     const files = useFilesStore()
     files.disks = [

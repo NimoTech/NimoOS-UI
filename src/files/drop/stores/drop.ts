@@ -4,11 +4,15 @@ import { ref } from 'vue'
 import { refreshAccessToken } from '@nimotech/nimoos-service'
 import { ServerConnection } from '../serverConnection'
 import { PeersManager } from '../peersManager'
-import type { PeerInfo, ReceivedFile, ServerMessage } from '../protocol'
+import type { PeerInfo, ReceivedFile, ServerMessage, TransferBrokenReason } from '../protocol'
 import { useToast } from '../../../stores/toast'
 import { i18n } from '../../../i18n'
 
-export interface TransferState { progress: number; sending: boolean; count: number }
+// `progress` is a rounded integer percent, for display. `raw` is the same value
+// unrounded (0..1) -- the receiving side updates it on every 64 KB chunk, while
+// `progress` can only change once per 1 % of the file, which on a big file over
+// a slow link is minutes apart. Anything watching for liveness must use `raw`.
+export interface TransferState { progress: number; raw: number; sending: boolean; count: number }
 
 export const useDropStore = defineStore('drop', () => {
   const peers = ref<PeerInfo[]>([])
@@ -91,11 +95,18 @@ export const useDropStore = defineStore('drop', () => {
         const sending = e.files.length > 0
         const count = sending ? e.filesQueue : (receivingCount[e.sender] ?? 1)
         if (e.progress >= 1) { delete transfers.value[e.sender]; return }
-        transfers.value[e.sender] = { progress: Math.round(e.progress * 100), sending, count }
+        transfers.value[e.sender] = { progress: Math.round(e.progress * 100), raw: e.progress, sending, count }
       },
       onFileReceived: (e) => { receiveQueue.value.push(e) },
       onTextReceived: (e) => { receivingCount[e.sender] = Number(e.text) || 1 },
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
+      onTransferBroken: (e) => {
+        delete transfers.value[e.peerId]
+        // A transfer the user stopped themselves is not an interruption -- both
+        // ends route through the same event, so the wording has to split here.
+        // 'disconnected' / 'timeout' keep the interrupted wording.
+        useToast().show(t(e.reason === 'cancelled' ? 'filesDropCancelled' : 'filesDropInterrupted'), 3000)
+      },
     })
     document.addEventListener('visibilitychange', onVisibility)
     window.addEventListener('pagehide', onPageHide)
@@ -138,5 +149,18 @@ export const useDropStore = defineStore('drop', () => {
 
   function ignoreCurrent() { receiveQueue.value.shift() }
 
-  return { peers, selfId, connected, transfers, receiveQueue, init, destroy, sendFiles, saveCurrent, ignoreCurrent, deviceName }
+  function hasActiveTransfers(): boolean {
+    return manager?.hasActiveTransfers() ?? false
+  }
+
+  // `reason` decides the toast wording: the stall watchdog passes 'timeout'
+  // because nobody chose to stop, a menu click leaves it at the default.
+  function cancelTransfer(peerId: string, reason?: TransferBrokenReason): void {
+    manager?.cancelTransfer(peerId, reason)
+  }
+
+  return {
+    peers, selfId, connected, transfers, receiveQueue, init, destroy, sendFiles,
+    saveCurrent, ignoreCurrent, deviceName, hasActiveTransfers, cancelTransfer,
+  }
 })

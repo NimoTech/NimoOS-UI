@@ -1,0 +1,949 @@
+# Review package: cfccf31..b58561c
+
+## Commits
+b58561c docs(sdd): final fix-wave report for SP12 files A-batch review findings
+125f560 docs+i18n(files): translate this-batch comments, correct records (B9-B12)
+56c617d fix(files): guard paste's clipboard.clear() against a reentrant copy (B7)
+a811c23 fix(files): tighten review-fix-wave test hygiene (B1-B5)
+a86c2ac test(files): pin Files.vue's restore-progress wiring for the toolbar (I3)
+8e62ecd test(files): pin upload/paste as one serial conflict chain (I2)
+
+## Files changed
+ .../final-fix-report.md                            | 118 +++++++++++++++++++++
+ .../task-10-report.md                              |  22 ++--
+ .../specs/2026-07-30-files-time-machine-design.md  |   1 -
+ src/files/composables/useFileConflicts.test.ts     |  68 ++++++++++++
+ src/files/composables/useFileConflicts.ts          |  14 ++-
+ src/files/composables/useFileOps.test.ts           |  37 ++++++-
+ src/files/composables/useFileOps.ts                |   9 +-
+ src/files/snapshot/SnapshotBanner.test.ts          |  12 +++
+ src/files/snapshot/SnapshotBanner.vue              |  12 ++-
+ src/files/snapshot/TimeMachineRail.test.ts         |   7 +-
+ src/files/stores/clipboard.test.ts                 |   2 +-
+ src/files/stores/clipboard.ts                      |  10 +-
+ src/files/stores/snapshotBrowse.test.ts            |   2 +-
+ src/files/util/fileOps.test.ts                     |  23 ++--
+ src/files/util/fileOps.ts                          |   9 +-
+ src/views/Files.test.ts                            |  65 +++++++++++-
+ src/views/Files.vue                                |   1 +
+ 17 files changed, 377 insertions(+), 35 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/final-fix-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/final-fix-report.md
+new file mode 100644
+index 0000000..9e68353
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/final-fix-report.md
+@@ -0,0 +1,118 @@
++# SP12 Files A-batch — final fix wave
++
++Single repair pass after the whole-branch review. All findings below were
++addressed in one sitting (worktree `sp12-files-fixes`, branch
++`sp12-files-fixes`). Commits, in order:
++
++1. `8e62ecd` — I2 (test) + B8 (fix): serial-chain interleave tests, paste
++   listing-failure degradation.
++2. `a86c2ac` — I3 (test) + I4 (feat+test): restore-progress wiring test for
++   the toolbar, banner restore-progress binding + test.
++3. `a811c23` — B1–B5: vacuous assertion, stale comments, leaking spy, dead
++   'skip' style.
++4. `56c617d` — B7 (fix+test): paste's `clipboard.clear()` reentrancy guard.
++5. `125f560` — B9–B12: comment translation/correction, doc token-table fix,
++   report correction, misleading test name.
++
++(B6 landed inside commit 3, folded together with B5 since both touch
++`buildPastePayload`'s signature/tests in the same hunk.)
++
++## Important findings
++
++### I2 — upload/paste serial-chain interleave was untested
++
++**File:** `src/files/composables/useFileConflicts.ts` (no production change;
++`resolvePaste` already correctly shares `chain` with `run()`).
++**Test:** `src/files/composables/useFileConflicts.test.ts`, two new cases
++under `describe('resolvePaste')`:
++- `an upload batch already asking blocks a paste from opening its own dialog`
++- `a paste already asking blocks an upload batch from opening its own dialog`
++
++**Mutation verification** (swapped `resolvePaste` onto a private `pasteChain`,
++per the review's own repro):
++- Before revert: `2 failed | 24 passed (26)` — both new tests failed with
++  `expected 'b.txt' to be 'a.txt'` (the paste's dialog opened immediately
++  instead of waiting for the upload's still-open prompt).
++- After revert: `26 passed (26)`.
++
++The existing `runs on the same serial chain as upload batches` test was left
++as-is (it still correctly pins two-pastes-never-overlap); the new tests cover
++the actually-missing upload↔paste axis.
++
++### I3 — Files.vue's `:restore-progress` binding to the toolbar was unwired in tests
++
++**File:** `src/views/Files.vue` — no change (the binding at line 664/665
++already existed); **test:** `src/views/Files.test.ts`, new case
++`wires the snapshot store's restore progress into the selection toolbar`.
++
++**Mutation verification** (deleted `:restore-progress="browse.restoreProgress"`
++from the `SnapshotSelectionToolbar` instance):
++- Before revert: `1 failed | 1 passed | 26 skipped (28)` — 
++  `expected '恢复' to contain '3'`.
++- After revert: full `Files.test.ts` + `SnapshotBanner.test.ts` +
++  `SnapshotSelectionToolbar.test.ts` → `44 passed (44)`.
++
++### I4 — SnapshotBanner's restore button had no progress display (the actual batch entry point)
++
++**Files:**
++- `src/files/snapshot/SnapshotBanner.vue` — added `restoreProgress?: { done, total } | null`
++  prop; button text now reads `t('snapBrowseRestoringProgress', {...})` when set,
++  otherwise `t('snapBrowseRestore')` (reused the existing key, no new i18n
++  entries — matches SnapshotSelectionToolbar's own logic byte-for-byte).
++- `src/views/Files.vue` — added `:restore-progress="browse.restoreProgress"` to
++  the `<SnapshotBanner>` instance (it already had this on `SnapshotSelectionToolbar`,
++  just missing on the banner).
++- Tests: `SnapshotBanner.test.ts` new case (`shows the running count while a
++  batch restore is in flight, reusing the toolbar's own text`) +
++  `Files.test.ts` new case (`wires the snapshot store's restore progress into
++  the banner's own restore button too`).
++
++**Mutation verification** (deleted the new `:restore-progress` binding on
++`<SnapshotBanner>`):
++- Before revert: `1 failed | 1 passed | 26 skipped (28)` —
++  `expected '恢复' to contain '3'`.
++- After revert: `44 passed (44)` across the same three files.
++
++No new styling/tokens — button reuses `.snap-banner-restore`'s existing
++classes/tokens.
++
++## Minor findings
++
++| # | File(s) | What changed |
++|---|---|---|
++| B1 | `useFileOps.test.ts` | Vacuous `not.toHaveBeenCalledWith(zh.filesPastePartialFailure)` (raw un-interpolated template is never what's passed to `toast.show`) → `not.toHaveBeenCalledWith(expect.stringContaining('部分文件已粘贴'))`. |
++| B2 | `Files.test.ts:44-46` | Comment rewritten to stop repeating the superseded ".vm.$emit() doesn't work" diagnosis; now consistent with the corrected explanation at (what was) line 214+. |
++| B3 | `Files.test.ts:220-222` | Fixed line reference: `FileContextMenu` itself lives at `FilesSidebar.vue:220`, not `Files.vue:621` (that line only mounts `<FilesSidebar>`). |
++| B4 | `TimeMachineRail.test.ts` | Two tests reassigned `Element.prototype.scrollIntoView` to a local spy and never restored it. Added `afterEach(() => { Element.prototype.scrollIntoView = () => {} })` to reset to the global no-op stub. |
++| B5 | `fileOps.ts`, `fileOps.test.ts` | Removed dead `'skip'` branch from `buildPastePayload`'s `style` union (the conflict flow never submits skipped/cancelled items) and its test. |
++| B6 | `fileOps.ts`, `fileOps.test.ts`, `useFileOps.test.ts`, `clipboard.ts` | `buildPastePayload` now strips `is_dir` before building the request body (`item.map(entry => ({ from: entry.from }))`), matching Vue2's `FilePanel.vue submitPasteTask`. Updated the two payload-shape tests plus the misleading `OperateItem` doc comment (which implied `is_dir` reaches the backend — it doesn't, it's local-only for the conflict dialog). |
++| B7 | `useFileOps.ts`, `useFileOps.test.ts` | `paste()`'s `clipboard.clear()` on success now checks `clipboard.operateObject === o` (the object captured at the top of the call) before clearing — a reentrant copy/cut made while `resolvePaste` is still resolving conflicts no longer gets wiped. New test: `does not clear a different clipboard that was set while this paste was still resolving conflicts`. Ad hoc mutation check (removed the `=== o` guard): test failed with `Received: null` (clipboard wiped) vs expected the new copy's object; restored → green. |
++| B8 | `useFileConflicts.ts`, `useFileConflicts.test.ts` | `resolvePaste` now degrades the same way `run()` does when the target-directory listing fails: warns to console and treats it as "no conflicts" (`renameItems: [...items]`) instead of rejecting the whole batch. New test: `a failing listing degrades to submitting everything as rename, without opening the dialog`. |
++| B9 | `clipboard.ts`, `clipboard.test.ts` | Translated the two Chinese comment/description lines edited earlier in this same batch (commit `d4b8aa1`) to English, per this period's "translate legacy Chinese comments when already editing that code" rule. |
++| B10 | `docs/superpowers/specs/2026-07-30-files-time-machine-design.md` | Removed the `--tm-star` row from the token table (the token itself was deleted in `be5b7e9`). |
++| B11 | `.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md` | Corrected the defensive/unguarded `scrollIntoView` split: `PhotosSettings.vue:87` was miscounted into the defensive camp; its call (`el?.scrollIntoView({...})`) only guards the element, not the method — it belongs with the 3 unguarded call sites (Files.vue:457, MediaViewer.vue:205), making the split 3/3, not 4/2. |
++| B12 | `snapshotBrowse.test.ts` | Renamed `clears the progress even when a restore throws` → `...fails` (the mocked rejection is caught inside `performSnapshotRestore` and converted to an `{ok:false}` result; `restore()` has no reachable throw path today). |
++
++## Five-gate results (final, after all commits)
++
++- **`pnpm exec vitest run` (full suite):** `Test Files 686 passed (686)` /
++  `Tests 11042 passed (11042)`. (Two blocks of pre-existing, unrelated stderr
++  noise appear in the log — jsdom's "Not implemented: navigation" from
++  `src/photos/stores/favorites.ts`'s `exportZip` and one `/tmp/nimoos-www-*`
++  permission warning from an unrelated fixture; neither is a failure, both
++  predate this fix wave, and grep confirms `src/photos` was untouched here.)
++- **`pnpm exec vue-tsc --noEmit`:** clean, no output.
++- **`node oss/export.mjs --out /tmp/claude-1000/oss-fixwave --no-commit
++  --allow-dirty-oss`:** `DELETE 73 · REPLACE 4 · PATCH 258`, **零真实泄漏命中**
++  (3 binary/symlink files skipped as expected: two wallpapers + one PNG icon).
++- **`pnpm build`:** succeeded (`✓ built in 17.00s`), only the pre-existing
++  "chunks larger than 500kB" advisory (unrelated to this change).
++
++All `src/**` changes were committed before running the OSS gate, per the
++instructions, to avoid `checkClean` false-reds.
++
++## Not done / disagreements
++
++None. All 3 Important + 12 Minor items were implemented as specified. No
++scope was skipped, no `useFileOps.ts` Esc/cancel semantics were touched, no
++`oss/forbidden.mjs` changes, no master merge, no deploy, no push.
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+index 8f8918d..47fd869 100644
+--- a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+@@ -225,28 +225,32 @@ the same prototype property for the duration of that test."
+ Commit hash: `e2883de`.
+ 
+ ### Concerns
+ 
+ - Did not run the full repo-wide `pnpm test` (only `src/files/snapshot/` and the single rail
+   test file), per the coordinator's explicit instructions for this follow-up.
+ - **Correction to my own earlier reasoning**: while drafting the "(a) vs (b)" justification I
+   claimed "no other production code path uses it" — that's wrong, and I want to flag it rather
+   than let it stand uncorrected. A grep of `src/` turns up two different existing conventions
+   for this same jsdom gap:
+-  - `src/ai/components/shell/MentionPopover.vue:282`, `SlashPopover.vue:179`,
+-    `src/apps/views/AppSettingsPage.vue:71`, and `src/views/PhotosSettings.vue:87` already call
+-    it defensively as `el?.scrollIntoView?.(...)`, with comments explicitly saying this is
+-    because "jsdom doesn't implement scrollIntoView".
+-  - `src/views/Files.vue:457` and `src/files/viewers/MediaViewer.vue:205` call it unguarded
+-    (`el.scrollIntoView(...)` / `el?.scrollIntoView(...)`, guarding only element existence, not
+-    method existence) — the same shape my `TimeMachineRail.vue` code uses, and presumably relying
+-    on per-test stubs the way `TimeMachineRail.test.ts` originally did before this regression
+-    surfaced.
++  - `src/ai/components/shell/MentionPopover.vue:282`, `SlashPopover.vue:179`, and
++    `src/apps/views/AppSettingsPage.vue:71` already call it defensively as
++    `el?.scrollIntoView?.(...)`, with comments explicitly saying this is because "jsdom
++    doesn't implement scrollIntoView".
++  - `src/views/Files.vue:457`, `src/files/viewers/MediaViewer.vue:205`, and
++    **`src/views/PhotosSettings.vue:87`** call it unguarded (`el.scrollIntoView(...)` /
++    `el?.scrollIntoView(...)`, guarding only element existence, not method existence) — the
++    same shape my `TimeMachineRail.vue` code uses, and presumably relying on per-test stubs
++    the way `TimeMachineRail.test.ts` originally did before this regression surfaced.
++    (Correction, fix-wave B11: I originally miscounted PhotosSettings.vue:87 into the
++    defensive camp above — its call is `el?.scrollIntoView({...})`, which only guards `el`,
++    not the method, same as the other two in this bullet. The split is 3 defensive / 3
++    unguarded, not 4/2.)
+   So the codebase is split, not uniformly (b). Given that split, I kept the global stub (a)
+   rather than switching my call site to double-optional-chaining, because (a) fixes the actual
+   proximate cause (an environment gap, not a defensive-coding gap) for every current and future
+   caller in the unguarded-style camp at once, matches the coordinator's stated preference, and
+   is what I already verified end-to-end. I'm flagging the mixed precedent rather than silently
+   picking a side — a reasonable case exists for retrofitting `?.scrollIntoView?.()` onto
+   `Files.vue`/`MediaViewer.vue`/`TimeMachineRail.vue` for consistency with the other four call
+   sites, but that's a separate, pre-existing inconsistency this task did not introduce and is
+   out of this task's scope to unify.
+diff --git a/docs/superpowers/specs/2026-07-30-files-time-machine-design.md b/docs/superpowers/specs/2026-07-30-files-time-machine-design.md
+index 9d63404..7075826 100644
+--- a/docs/superpowers/specs/2026-07-30-files-time-machine-design.md
++++ b/docs/superpowers/specs/2026-07-30-files-time-machine-design.md
+@@ -206,21 +206,20 @@ TimeMachineOverlay ──> storage/stores/snapshot.loadSnapshots(uuid)
+       └─(enter)─> router.push(快照侧当前相对路径)
+ ```
+ 
+ ### 3.2 主题 token
+ 
+ 新增一组 `--tm-*`,**两套主题块各给一套值**(不复用硬编码):
+ 
+ | token | 深色(默认) | 浅色 |
+ |---|---|---|
+ | `--tm-bg` | 深空径向渐变 + 深蓝底 | 米白纸感 + 极淡光晕 |
+-| `--tm-star` | 星点色 | `transparent`(浅色无星空) |
+ | `--tm-card-bg` / `--tm-card-bd` | 玻璃白叠加 / 描边 | 纸白 / 淡灰描边 |
+ | `--tm-rail` / `--tm-rail-sub` | 刻度常态 / 子刻度 | 同义浅色值 |
+ | `--tm-fg` / `--tm-fg-muted` | 覆盖层前景 | 同义浅色值 |
+ 
+ 其余(选中刻度、进入按钮、类型着色)直接用既有 `--accent` / `--on-accent` / `--nrm-fg` / `--dem-fg`。**零硬编码色值**(CLAUDE.md 硬约束)。
+ 
+ ---
+ 
+ ## 4. 有意偏离 Vue2 的清单
+ 
+diff --git a/src/files/composables/useFileConflicts.test.ts b/src/files/composables/useFileConflicts.test.ts
+index b7cd451..b15e8f4 100644
+--- a/src/files/composables/useFileConflicts.test.ts
++++ b/src/files/composables/useFileConflicts.test.ts
+@@ -304,11 +304,79 @@ describe('resolvePaste', () => {
+     for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
+     expect(c.dialog.value.targetPath).toBe('/DATA/dst')
+     expect(c.dialog.value.name).toBe('a.txt')
+     c.onChoose({ action: 'skip' } as never)
+     // The second batch only gets the dialog after the first one is answered.
+     for (let i = 0; i < 50; i++) await Promise.resolve()
+     expect(c.dialog.value.open).toBe(true)
+     c.onChoose({ action: 'skip' } as never)
+     await Promise.all([first, second])
+   })
++
++  // Fix-wave I2: the test above only proves two PASTES never overlap. The
++  // actual invariant this composable exists to guarantee is that an upload
++  // batch (resolveEntries) and a paste (resolvePaste) never have a dialog
++  // open at the same time either -- they are two different call sites sharing
++  // one `chain`. A reviewer swapping resolvePaste onto its own private chain
++  // left every existing test (including the one above) green, because none of
++  // them ever start an upload and a paste concurrently.
++  it('an upload batch already asking blocks a paste from opening its own dialog', async () => {
++    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
++    const uploadP = c.resolveEntries([e('a.txt')], '/DATA')
++    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('a.txt')
++
++    const pasteP = c.resolvePaste([{ from: '/DATA/src/b.txt', is_dir: false }], '/DATA')
++    // Give the paste every chance it would need to (wrongly) open its own
++    // dialog before the upload's conflict has been answered.
++    for (let i = 0; i < 50; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('a.txt') // still the upload's conflict
++
++    c.onChoose({ action: 'overwrite' } as never)
++    await uploadP
++    for (let i = 0; i < 50 && c.dialog.value.name !== 'b.txt'; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('b.txt') // paste only gets its turn now
++    c.onChoose({ action: 'skip' } as never)
++    await pasteP
++  })
++
++  it('a paste already asking blocks an upload batch from opening its own dialog', async () => {
++    const c = useFileConflicts({ listFolder: listing([{ name: 'a.txt', is_dir: false }, { name: 'b.txt', is_dir: false }]) })
++    const pasteP = c.resolvePaste([{ from: '/DATA/src/a.txt', is_dir: false }], '/DATA')
++    for (let i = 0; i < 50 && !c.dialog.value.open; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('a.txt')
++
++    const uploadP = c.resolveEntries([e('b.txt')], '/DATA')
++    for (let i = 0; i < 50; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('a.txt') // still the paste's conflict
++
++    c.onChoose({ action: 'skip' } as never)
++    await pasteP
++    for (let i = 0; i < 50 && c.dialog.value.name !== 'b.txt'; i++) await Promise.resolve()
++    expect(c.dialog.value.open).toBe(true)
++    expect(c.dialog.value.name).toBe('b.txt') // upload only gets its turn now
++    c.onChoose({ action: 'overwrite' } as never)
++    await uploadP
++  })
++
++  // Fix-wave I4 (B8 sibling): resolvePaste had no degradation symmetric to
++  // run()'s "a failing listing degrades to accepting everything as-is" --  a
++  // network blip on the target-directory listing must not throw the whole
++  // paste away.
++  it('a failing listing degrades to submitting everything as rename, without opening the dialog', async () => {
++    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
++    const c = useFileConflicts({ listFolder: vi.fn().mockRejectedValue(new Error('offline')) })
++    const items = [{ from: '/DATA/src/a.txt', is_dir: false }]
++    const out = await c.resolvePaste(items, '/DATA/dst')
++    expect(c.dialog.value.open).toBe(false)
++    expect(out.overwriteItems).toEqual([])
++    expect(out.renameItems).toEqual(items)
++    expect(out.skippedCount).toBe(0)
++    expect(out.cancelledCount).toBe(0)
++    expect(warn).toHaveBeenCalled()
++  })
+ })
+diff --git a/src/files/composables/useFileConflicts.ts b/src/files/composables/useFileConflicts.ts
+index b82e56c..e486f97 100644
+--- a/src/files/composables/useFileConflicts.ts
++++ b/src/files/composables/useFileConflicts.ts
+@@ -247,21 +247,33 @@ export function useFileConflicts(deps: FileConflictDeps = {}) {
+ 
+   /**
+    * Paste's counterpart to `run()`. Shares this composable's dialog, resolver and
+    * serial chain, so an upload batch and a paste can never both be asking.
+    *
+    * `allowMerge` is deliberately never set: the backend's move/copy conflict
+    * switch (NimoOS service/file.go) implements skip / overwrite / rename only.
+    */
+   async function resolvePaste(items: OperateItem[], destDir: string) {
+     const task = async () => {
+-      const conflicts = await computePasteConflicts({ items, destDir, listFolder })
++      // Symmetric with run()'s degradation above: a listing failure here used
++      // to reject the whole batch (paste() would catch it and toast a bare
++      // "operation failed", submitting nothing), while the exact same failure
++      // in the upload path just warns and lets everything through. Fixed to
++      // match -- everything falls through to the rename group, which is the
++      // same "just land it" default a conflict-free item gets.
++      let conflicts: ConflictCandidate[]
++      try {
++        conflicts = await computePasteConflicts({ items, destDir, listFolder })
++      } catch (err) {
++        console.warn('[paste] listing the target directory failed — conflict detection degraded, everything submitted as-is', err)
++        return { overwriteItems: [], renameItems: [...items], skippedCount: 0, cancelledCount: 0 }
++      }
+       const resolutions = conflicts.length
+         ? await resolveConflictQueue(conflicts, (conflict, ctx) => ask(conflict, destDir, ctx))
+         : []
+       return splitPasteItems(items, resolutions)
+     }
+     const p = chain.then(task, task)
+     chain = p.then(() => undefined, () => undefined)
+     return p
+   }
+ 
+diff --git a/src/files/composables/useFileOps.test.ts b/src/files/composables/useFileOps.test.ts
+index 6a3ba11..89a4177 100644
+--- a/src/files/composables/useFileOps.test.ts
++++ b/src/files/composables/useFileOps.test.ts
+@@ -214,22 +214,24 @@ describe('useFileOps', () => {
+       overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+       renameItems: [{ from: '/DATA/b', is_dir: false }],
+       skippedCount: 0,
+       cancelledCount: 0,
+     })
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).toHaveBeenCalledTimes(2)
+     expect(batchTask.mock.calls.map((c) => (c[0] as { style: string }).style).sort())
+       .toEqual(['overwrite', 'rename'])
+-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
+-    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b', is_dir: false }], to: '/DATA/dst', style: 'rename' })
++    // B6: is_dir is local-only bookkeeping for the conflict dialog and must not
++    // reach the backend -- buildPastePayload strips it before submitting.
++    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
++    expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b' }], to: '/DATA/dst', style: 'rename' })
+     expect(clip.operateObject).toBeNull()
+   })
+ 
+   it('paste submits a single task when nothing was overwritten', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+@@ -320,20 +322,43 @@ describe('useFileOps', () => {
+       // Simulate the user clicking into a different folder while the
+       // directory listing for dirA is still in flight.
+       files.currentPath = '/DATA/dirB'
+       return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
+     })
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).toHaveBeenCalledWith(expect.objectContaining({ to: '/DATA/dirA' }))
+   })
+ 
++  // B7: same reentrancy window as F1 above, but on the clipboard instead of
++  // the destination path. `resolvePaste` awaits a directory listing (and
++  // possibly an in-flight upload's conflict chain) before this paste
++  // actually submits; during that window the user can copy/cut something
++  // else entirely. Unconditionally clearing on success would wipe that NEW
++  // clipboard content instead of the one this call was resolving.
++  it('does not clear a different clipboard that was set while this paste was still resolving conflicts', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dst'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockImplementation(async () => {
++      // Simulate the user copying something else while this paste's conflict
++      // check is still in flight.
++      clip.operate('copy', [{ path: '/DATA/new-copy.txt', is_dir: false }])
++      return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
++    })
++    const ops = makeOps()
++    await ops.paste()
++    expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/new-copy.txt', is_dir: false }] })
++  })
++
+   // fix-round-1 F2: when one batch's submission has already been accepted by
+   // the backend and the other one fails, the failure toast must say so instead
+   // of "operation failed" -- which would tell the user nothing landed when
+   // half of it actually did. The clipboard also must not be cleared, since
+   // that would discard the batch that never got submitted.
+   //
+   // fix-round-2 N2: the first draft of this fix caught the failed submission's
+   // error and threw it away, always showing the generic fallback text even
+   // when the backend explained itself (e.g. "read-only filesystem" for a
+   // paste into a read-only mount). The pre-F2 code (one try/catch around both
+@@ -413,21 +438,27 @@ describe('useFileOps', () => {
+       skippedCount: 0,
+       cancelledCount: 0,
+     })
+     batchTask.mockRejectedValueOnce(new Error('read-only filesystem'))
+     const toast = useToast()
+     const toastSpy = vi.spyOn(toast, 'show')
+     const ops = makeOps()
+     await ops.paste()
+     expect(toastSpy).toHaveBeenCalledWith('read-only filesystem')
+     expect(toastSpy).not.toHaveBeenCalledWith(zh.filesOpFailed)
+-    expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)
++    // B1: `zh.filesPastePartialFailure` is the un-interpolated template
++    // ('部分文件已粘贴,另一部分失败({reason}),请检查目标目录') -- toast.show is
++    // never called with that raw string, so asserting not-called-with it is
++    // vacuously true regardless of what actually happened. Match on the
++    // template's own text instead so this still catches a regression that
++    // shows the "part landed" framing for what is really a total failure.
++    expect(toastSpy).not.toHaveBeenCalledWith(expect.stringContaining('部分文件已粘贴'))
+     expect(clip.operateObject).not.toBeNull()
+   })
+ 
+   it('paste falls back to the generic failure message when both batches fail without a specific reason', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+diff --git a/src/files/composables/useFileOps.ts b/src/files/composables/useFileOps.ts
+index 6eae632..3632b9d 100644
+--- a/src/files/composables/useFileOps.ts
++++ b/src/files/composables/useFileOps.ts
+@@ -161,21 +161,28 @@ export function useFileOps() {
+         return { status: 'failed', error: e }
+       }
+     }
+     const results = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
+     const failures = results.filter((r): r is { status: 'failed'; error: unknown } => r.status === 'failed')
+     const succeeded = results.some((r) => r.status === 'ok')
+ 
+     if (!failures.length) {
+       // Cancelling the conflict dialog (Esc) is "not now", not "throw away
+       // what I copied" -- only clear when the user never hit cancel.
+-      if (cancelledCount === 0) clipboard.clear()
++      //
++      // B7: clear() only if the LIVE clipboard is still the object `o` this
++      // call captured at the top -- `resolvePaste`'s await window (directory
++      // listing, possibly queued behind an in-flight upload conflict) is long
++      // enough for the user to copy/cut something else before this paste
++      // actually submits. Clearing unconditionally would wipe that NEW
++      // clipboard instead of the one this call was resolving.
++      if (cancelledCount === 0 && clipboard.operateObject === o) clipboard.clear()
+       return
+     }
+     if (!succeeded) {
+       // Both batches can fail for genuinely different reasons (overwrite
+       // rejected for a permissions reason, rename rejected for a naming
+       // reason) -- showing only failures[0] would silently drop the second
+       // one. Dedup with a Set so the common case (both fail identically,
+       // e.g. the whole destination is read-only) still reads as one reason,
+       // not "X; X" (task-7 fix-round-3 M3).
+       const reasons = [...new Set(failures.map((f) => errMsg(f.error, t('filesOpFailed'))))]
+diff --git a/src/files/snapshot/SnapshotBanner.test.ts b/src/files/snapshot/SnapshotBanner.test.ts
+index 605fe29..807f612 100644
+--- a/src/files/snapshot/SnapshotBanner.test.ts
++++ b/src/files/snapshot/SnapshotBanner.test.ts
+@@ -43,20 +43,32 @@ describe('SnapshotBanner', () => {
+     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeDefined()
+     await w.find('.snap-banner-restore').trigger('click')
+     expect(w.emitted('restore')).toBeUndefined()
+   })
+   it('恢复在途时按钮禁用并显示忙态', async () => {
+     const w = mountIt({ restoring: true })
+     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeDefined()
+     expect(w.find('.snap-banner-restore').classes()).toContain('is-busy')
+   })
+ 
++  // Fix-wave I4: this banner's restore button fires the exact same
++  // `browse.restore(...)` as SnapshotSelectionToolbar's, and is the only
++  // restore entry point that stays clickable when the user picked a batch
++  // (canRestore only turns true for a multi-select) -- it must show the same
++  // running count instead of just going gray while its sibling shows progress.
++  it('shows the running count while a batch restore is in flight, reusing the toolbar\'s own text', () => {
++    const w = mountIt({ restoring: true, restoreProgress: { done: 3, total: 40 } })
++    const text = w.find('.snap-banner-restore').text()
++    expect(text).toContain('3')
++    expect(text).toContain('40')
++  })
++
+   // 评审修复(Critical 1 加分项):`.snapshots` 容器目录本身没有具体快照名,info 恒为
+   // null,原实现下横幅整条不渲染——只读锁生效却没有任何提示,像是"锁了但没人告诉你"。
+   describe('.snapshots 容器目录(info 为 null,isContainer 为 true)', () => {
+     it('显示无时间的引导文案,没有恢复/退出按钮', () => {
+       const w = mountIt({ info: null, isContainer: true })
+       expect(w.find('.snap-banner').exists()).toBe(true)
+       expect(w.text()).toContain('请选择一个快照')
+       expect(w.find('.snap-banner-restore').exists()).toBe(false)
+       expect(w.find('.snap-banner-exit').exists()).toBe(false)
+     })
+diff --git a/src/files/snapshot/SnapshotBanner.vue b/src/files/snapshot/SnapshotBanner.vue
+index 1cdbbaa..8eb3fe9 100644
+--- a/src/files/snapshot/SnapshotBanner.vue
++++ b/src/files/snapshot/SnapshotBanner.vue
+@@ -8,20 +8,28 @@ const props = defineProps<{
+   /** 恢复在途:禁用按钮,防重复提交 */
+   restoring: boolean
+   /** 当前有没有可恢复的选中项 */
+   canRestore: boolean
+   /** 加分项(Critical 1 修复的一部分):`<挂载点>/.snapshots` 容器目录本身——没有具体
+    *  快照名,parseSnapshotBrowsePath 对它返回 null,所以 info 恒为 null,没有时间可显示。
+    *  但只读锁已经生效,不该让用户看见一个"什么提示都没有"的只读横幅缺失——给一句
+    *  无时间的引导文案,没有恢复/退出按钮(两者都没有明确目标:没有选中快照就没有
+    *  "恢复到哪个快照",也没有"退出"要回去的相对路径)。 */
+   isContainer?: boolean
++  // Fix-wave I4: SnapshotSelectionToolbar's restore button already shows this;
++  // this banner's own restore button fires the exact same `browse.restore(...)`
++  // call and is the ONLY restore entry point when the selection isn't a
++  // multi-select (canRestore only turns true here for a batch, per Files.vue's
++  // `:can-restore="snapshotSelection.length > 0"`). Without this, a 40-item
++  // batch showed live progress on one button while this one merely went gray
++  // right next to it.
++  restoreProgress?: { done: number; total: number } | null
+ }>()
+ const emit = defineEmits<{ (e: 'exit'): void; (e: 'restore'): void }>()
+ const { t } = useI18n()
+ 
+ const bannerTime = computed(() => (props.info ? formatSnapshotBannerTime(props.info.snapshotName) : ''))
+ const restoreDisabled = computed(() => props.restoring || !props.canRestore)
+ 
+ function onRestore() {
+   if (restoreDisabled.value) return
+   emit('restore')
+@@ -30,21 +38,23 @@ function onRestore() {
+ 
+ <template>
+   <div v-if="props.info" class="snap-banner">
+     <div class="snap-banner-row">
+       <span class="snap-banner-text">{{ t('snapBrowseBanner', { time: bannerTime }) }}</span>
+       <button
+         class="snap-banner-btn snap-banner-restore"
+         :class="{ 'is-busy': props.restoring }"
+         :disabled="restoreDisabled"
+         @click="onRestore"
+-      >{{ t('snapBrowseRestore') }}</button>
++      >{{ props.restoreProgress
++        ? t('snapBrowseRestoringProgress', { done: props.restoreProgress.done, total: props.restoreProgress.total })
++        : t('snapBrowseRestore') }}</button>
+       <button class="snap-banner-btn snap-banner-exit" @click="emit('exit')">{{ t('snapBrowseExit') }}</button>
+     </div>
+     <!-- 常驻提示,不是一次性 toast:Vue2 M2-F2 的教训是一闪而过的提示没人看见,
+          而"选中之后还要点恢复"这一步不说清楚,用户会以为进来就能改。 -->
+     <div class="snap-banner-hint">{{ t('snapBrowseHint') }}</div>
+   </div>
+   <!-- `.snapshots` 容器目录本身:没有具体快照名,没有时间可显示,也没有恢复/退出的
+        明确目标——只给一句无时间的引导文案,不摆按钮。 -->
+   <div v-else-if="props.isContainer" class="snap-banner">
+     <div class="snap-banner-row">
+diff --git a/src/files/snapshot/TimeMachineRail.test.ts b/src/files/snapshot/TimeMachineRail.test.ts
+index 59a1c8d..52d305a 100644
+--- a/src/files/snapshot/TimeMachineRail.test.ts
++++ b/src/files/snapshot/TimeMachineRail.test.ts
+@@ -1,11 +1,11 @@
+-import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+ import { nextTick } from 'vue'
+ import { mount } from '@vue/test-utils'
+ import { createI18n } from 'vue-i18n'
+ import TimeMachineRail from './TimeMachineRail.vue'
+ import zh from '../../i18n/zh_cn'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ const GROUPS = [
+   { dayKey: '2026-07-30', labelText: '今天', items: [
+     { flatIndex: 0, time: '14:30', typeKind: 'manual' as const },
+@@ -160,20 +160,25 @@ describe('TimeMachineRail', () => {
+     vi.stubGlobal('cancelAnimationFrame', caf)
+     const w = mountIt()
+     await w.find('.tm-rail').trigger('mousemove', { clientY: 10 })
+     w.unmount()
+     expect(caf).toHaveBeenCalledWith(77)
+   })
+ 
+   // ↓ Task 10: with enough snapshots to overflow the rail's own scroll container,
+   // stepping the selection past the visible range must scroll the rail too -- the deck
+   // and the bottom bar already followed the selection, but the rail looked frozen.
++  // B4: these two tests replace the global no-op stub (vitest.setup.ts) with a
++  // per-test spy and never restored it, so any test that ran afterward in this
++  // file inherited a spy from a previous, already-finished test.
++  afterEach(() => { Element.prototype.scrollIntoView = () => {} })
++
+   it('scrolls the newly selected tick into view', async () => {
+     const spy = vi.fn()
+     // jsdom does not implement scrollIntoView
+     Element.prototype.scrollIntoView = spy
+     const w = mountIt({ groups: manyGroups(), selectedIndex: 0 })
+     spy.mockClear()
+     await w.setProps({ selectedIndex: 40 })
+     await nextTick()
+     expect(spy).toHaveBeenCalled()
+   })
+diff --git a/src/files/stores/clipboard.test.ts b/src/files/stores/clipboard.test.ts
+index 1c2dd77..e8bb330 100644
+--- a/src/files/stores/clipboard.test.ts
++++ b/src/files/stores/clipboard.test.ts
+@@ -1,19 +1,19 @@
+ // src/files/stores/clipboard.test.ts
+ import { describe, it, expect, beforeEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { useClipboardStore } from './clipboard'
+ 
+ describe('clipboard store', () => {
+   beforeEach(() => setActivePinia(createPinia()))
+ 
+-  it('operate(copy) 写入 operateObject,item 含 from(真实路径)+is_dir', () => {
++  it('operate(copy) writes operateObject; item carries from (real path) + is_dir', () => {
+     const c = useClipboardStore()
+     c.operate('copy', [{ path: '/DATA/a.txt', is_dir: false }, { path: '/DATA/b.txt', is_dir: false }])
+     expect(c.operateObject).toEqual({
+       type: 'copy',
+       item: [{ from: '/DATA/a.txt', is_dir: false }, { from: '/DATA/b.txt', is_dir: false }],
+     })
+     expect(c.hasPasteData).toBe(true)
+   })
+ 
+   it('operate(move) 写 type:move', () => {
+diff --git a/src/files/stores/clipboard.ts b/src/files/stores/clipboard.ts
+index f1c1660..fec76c0 100644
+--- a/src/files/stores/clipboard.ts
++++ b/src/files/stores/clipboard.ts
+@@ -1,25 +1,29 @@
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ 
+-// `is_dir` rides along because paste's conflict dialog has to disable Overwrite
++// `is_dir` rides along locally so paste's conflict dialog can disable Overwrite
+ // for a directory collision -- the backend cannot overwrite a directory (see
+ // NimoOS service/file.go's move/copy style switch, which has no such case).
+-// Vue2 added the same field to operateObject.item for exactly this reason.
++// It never reaches the wire: Vue2's FilePanel.vue carries the same field on
++// operateObject.item for the same dialog reason but strips it before
++// submitting (`item.map(entry => ({ from: entry.from }))`), and New-UI's
++// buildPastePayload (fileOps.ts) does the same so the request body matches.
+ export interface OperateItem { from: string; is_dir: boolean }
+ export interface OperateObject { type: 'copy' | 'move'; item: OperateItem[] }
+ 
+ export const useClipboardStore = defineStore('files-clipboard', () => {
+   const operateObject = ref<OperateObject | null>(null)
+   const hasPasteData = computed(() => operateObject.value !== null)
+ 
+-  // cut == 'move'(Vue2 无独立 cut 字符串);item 存 from=真实路径 + is_dir,to/style 粘贴时才加
++  // cut is just 'move' (Vue2 has no separate cut string); item stores
++  // from=real path + is_dir, with to/style added only at paste time.
+   function operate(type: 'copy' | 'move', entries: { path: string; is_dir: boolean }[]) {
+     operateObject.value = { type, item: entries.map((e) => ({ from: e.path, is_dir: !!e.is_dir })) }
+   }
+ 
+   // 仅剪切(move)且命中才灰显;复制不灰显(移植 Vue2 getCardState)
+   function isCut(realPath: string): boolean {
+     const o = operateObject.value
+     return !!o && o.type === 'move' && o.item.some((i) => i.from === realPath)
+   }
+ 
+diff --git a/src/files/stores/snapshotBrowse.test.ts b/src/files/stores/snapshotBrowse.test.ts
+index 079d0bf..4572e75 100644
+--- a/src/files/stores/snapshotBrowse.test.ts
++++ b/src/files/stores/snapshotBrowse.test.ts
+@@ -353,17 +353,17 @@ describe('恢复', () => {
+ 
+     gates[1]!()
+     await vi.waitFor(() => expect(restoreMock).toHaveBeenCalledTimes(3))
+     expect(s.restoreProgress).toEqual({ done: 2, total: 3 })
+ 
+     gates[2]!()
+     await p
+     expect(s.restoreProgress).toBeNull()
+   })
+ 
+-  it('clears the progress even when a restore throws', async () => {
++  it('clears the progress even when a restore fails', async () => {
+     restoreMock.mockRejectedValue(Object.assign(new Error('gone'), { code: 404 }))
+     const s = await inSnapshot()
+     await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
+     expect(s.restoreProgress).toBeNull()
+   })
+ })
+diff --git a/src/files/util/fileOps.test.ts b/src/files/util/fileOps.test.ts
+index 1a6e078..cf2b6b1 100644
+--- a/src/files/util/fileOps.test.ts
++++ b/src/files/util/fileOps.test.ts
+@@ -26,30 +26,37 @@ describe('fileOps util', () => {
+     expect(filterActive(list).map((t) => t.id)).toEqual(['1'])
+   })
+ 
+   it('shouldReload:有已完成任务且 to===当前目录 → true', () => {
+     const list = [mk({ finished: true, to: '/DATA/here' })]
+     expect(shouldReload(list, '/DATA/here')).toBe(true)
+     expect(shouldReload(list, '/DATA/elsewhere')).toBe(false)
+     expect(shouldReload([mk({ finished: false, to: '/DATA/here' })], '/DATA/here')).toBe(false)
+   })
+ 
+-  it('buildPastePayload 组装 {type,item,to,style}', () => {
+-    const o = { type: 'move' as const, item: [{ from: '/DATA/a', is_dir: false }] }
+-    expect(buildPastePayload(o, '/DATA/dst', 'skip')).toEqual({
+-      type: 'move', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'skip',
+-    })
+-  })
+-
++  // B5: 'skip' was never a real backend style -- the new conflict flow filters
++  // skipped/cancelled items out before submitting anything, so buildPastePayload
++  // never actually receives it. The dead 'skip' branch in its type signature is
++  // removed alongside this test.
+   it('buildPastePayload accepts the keep-both style the backend calls "rename"', () => {
+     const o = { type: 'copy' as const, item: [{ from: '/DATA/a', is_dir: false }] }
+     expect(buildPastePayload(o, '/DATA/dst', 'rename')).toEqual({
+-      type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'rename',
++      type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'rename',
++    })
++  })
++
++  // B6: is_dir rides on OperateItem purely for the local conflict dialog (see
++  // clipboard.ts) and must never reach the backend -- Vue2's FilePanel.vue
++  // strips it before submitting for the same reason.
++  it('buildPastePayload strips is_dir before the request body leaves the client', () => {
++    const o = { type: 'copy' as const, item: [{ from: '/DATA/Trip', is_dir: true }, { from: '/DATA/a.txt', is_dir: false }] }
++    expect(buildPastePayload(o, '/DATA/dst', 'overwrite')).toEqual({
++      type: 'copy', item: [{ from: '/DATA/Trip' }, { from: '/DATA/a.txt' }], to: '/DATA/dst', style: 'overwrite',
+     })
+   })
+ 
+   it('taskPercent:floor(50/100*100)=50;total 0 → 0', () => {
+     expect(taskPercent(mk({ processed_size: 50, total_size: 100 }) as never)).toBe(50)
+     expect(taskPercent(mk({ processed_size: 1, total_size: 3 }) as never)).toBe(33)
+     expect(taskPercent(mk({ processed_size: 5, total_size: 0 }) as never)).toBe(0)
+   })
+ })
+diff --git a/src/files/util/fileOps.ts b/src/files/util/fileOps.ts
+index e30d375..88e5b84 100644
+--- a/src/files/util/fileOps.ts
++++ b/src/files/util/fileOps.ts
+@@ -23,18 +23,23 @@ export function parseFileOperate(props: unknown): FileTask[] {
+ 
+ export function filterActive(tasks: FileTask[]): FileTask[] {
+   return tasks.filter((t) => !t.finished)
+ }
+ 
+ // 移植 Vue2 FilePanel:已完成任务的目的地 === 当前目录 → 需要 reload
+ export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
+   return tasks.some((t) => t.finished && t.to === currentPath)
+ }
+ 
+-export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'skip' | 'rename') {
+-  return { type: o.type, item: o.item, to, style }
++// B6: `is_dir` rides on clipboard items purely so the conflict dialog can tell
++// files from folders (see clipboard.ts) -- it never belonged on the wire.
++// Vue2's FilePanel.vue submitPasteTask keeps the request body byte-for-byte
++// the shape the backend already expects (`item.map(entry => ({ from: entry.from }))`);
++// stripping it here matches that instead of passing OperateItem through as-is.
++export function buildPastePayload(o: OperateObject, to: string, style: 'overwrite' | 'rename') {
++  return { type: o.type, item: o.item.map((entry) => ({ from: entry.from })), to, style }
+ }
+ 
+ export function taskPercent(task: FileTask): number {
+   if (!task.total_size || task.total_size <= 0) return 0
+   return Math.floor((task.processed_size / task.total_size) * 100)
+ }
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index 598829c..2c59053 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -35,22 +35,23 @@ vi.mock('@nimotech/nimoos-service', () => ({
+   },
+   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
+ }))
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+ // Same reka-ui stand-ins as FileContextMenu.test.ts: the real ContextMenuItem
+ // injects a MenuRootContext that only a real ContextMenuRoot provides, and
+ // throws when mounted without one. These stubs render the #menu slot content
+ // unconditionally (no Portal/positioning), so a real click drives FileContextMenu's
+-// own real emit -- unlike calling `.vm.$emit()` directly on the child (see the
+-// "context menu paste action" test below for why that doesn't work).
++// own real emit -- the same real DOM-click path production code goes through.
++// (Not because `.vm.$emit()` on the child doesn't work -- it does; see the
++// "context menu paste action" test below for what the actual failure mode was.)
+ const ContextMenuStub = {
+   template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
+ }
+ const ContextMenuItemStub = {
+   emits: ['select'],
+   template: '<div @click="$emit(\'select\')"><slot /></div>',
+ }
+ 
+ function makeRouter() {
+   return createRouter({
+@@ -211,21 +212,22 @@ describe('Files.vue browse pipe', () => {
+   })
+ 
+   it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
+     // fix-round-3 M1 correction: an earlier draft of this comment blamed
+     // `wrapper.vm.$emit()` itself for not invoking the parent listener. That
+     // diagnosis was wrong -- a minimal parent/child repro showed `.vm.$emit()`
+     // reaches a real `onAction` listener just fine, called exactly once.
+     //
+     // The actual root cause is that `Files.vue`'s render tree contains TWO
+     // `FileContextMenu` instances: FilesSidebar.vue's own copy (for the
+-    // favourites list, around Files.vue:621) and the main listing's (around
++    // favourites list, inside FilesSidebar.vue:220 -- Files.vue:621 is only
++    // where `<FilesSidebar>` itself is mounted) and the main listing's (around
+     // Files.vue:681). `findComponent(FileContextMenu)` -- and `findAll(...)`'s
+     // first result -- resolves to the SIDEBAR's instance, whose
+     // `onFavoriteAction` deliberately no-ops when `entry` is null
+     // (`if (entry) emit('ctx-action', ...)`; blank-area actions like 'paste'
+     // are never forwarded from there). The event genuinely fired -- it just
+     // landed on the wrong instance. This is the SAME ambiguity later hit again
+     // at the DOM level as two `.ctx-paste` elements, not a second, unrelated
+     // bug -- one root cause, two places it showed up.
+     //
+     // The fix stubs reka-ui's ContextMenu/ContextMenuItem the same way
+@@ -395,20 +397,77 @@ describe('快照只读横幅', () => {
+     const w = mount(Files, { global: { plugins: [router, i18n] } })
+     await flushPromises()
+     await w.get('.view-toggle-list').trigger('click')
+     const row = w.findAll('.file-row')[0]
+     await row.trigger('click', { ctrlKey: true })
+     const files = useFilesStore()
+     expect(files.selectedCount).toBe(1)
+     expect(w.find('.snap-sel').exists()).toBe(true)
+     expect(w.find('.snap-sel-restore').exists()).toBe(true)
+   })
++
++  // Fix-wave I3: SnapshotSelectionToolbar has its own test proving it renders
++  // whatever `restoreProgress` prop it's given, and the snapshotBrowse store
++  // has its own test proving `restoreProgress` transitions correctly during a
++  // restore -- but nothing exercises the actual `:restore-progress="browse.
++  // restoreProgress"` binding in Files.vue that connects the two. Deleting
++  // that one line left both of those other test files green (59 files / 865
++  // examples across src/views + src/files/snapshot + src/files/stores).
++  it('wires the snapshot store\'s restore progress into the selection toolbar', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    await w.get('.view-toggle-list').trigger('click')
++    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
++    expect(w.find('.snap-sel-restore').exists()).toBe(true)
++
++    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
++    const browse = useSnapshotBrowseStore()
++    browse.restoring = true
++    browse.restoreProgress = { done: 3, total: 40 }
++    await w.vm.$nextTick()
++
++    const btnText = w.get('.snap-sel-restore').text()
++    expect(btnText).toContain('3')
++    expect(btnText).toContain('40')
++  })
++
++  // Fix-wave I4: the banner's own restore button fires the exact same
++  // `browse.restore(snapshotSelection)` call and is the only entry point that
++  // stays enabled for a multi-select restore (its `canRestore` is
++  // `snapshotSelection.length > 0`) -- it must show the same running count
++  // instead of just sitting there grayed out next to a sibling button that
++  // does show progress.
++  it('wires the snapshot store\'s restore progress into the banner\'s own restore button too', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    await w.get('.view-toggle-list').trigger('click')
++    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
++    expect(w.find('.snap-banner-restore').exists()).toBe(true)
++
++    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
++    const browse = useSnapshotBrowseStore()
++    browse.restoring = true
++    browse.restoreProgress = { done: 3, total: 40 }
++    await w.vm.$nextTick()
++
++    const btnText = w.get('.snap-banner-restore').text()
++    expect(btnText).toContain('3')
++    expect(btnText).toContain('40')
++  })
+ })
+ 
+ describe('时间机器入口', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     ;(globalThis as any).IntersectionObserver = class {
+       cb: (e: { isIntersecting: boolean }[]) => void
+       constructor(cb: any) { this.cb = cb }
+       observe() { this.cb([{ isIntersecting: true }]) }
+       disconnect() {}
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index 5aa6d55..5a3deaf 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -647,20 +647,21 @@ onMounted(() => { browse.ensureVolumes() })
+               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
+               <button class="chip view-toggle-list" :class="{ active: files.viewMode === 'list' }" @click="files.setView('list')">{{ t('filesViewList') }}</button>
+             </div>
+           </div>
+         </div>
+         <SnapshotBanner
+           :info="browse.browseInfo"
+           :restoring="browse.restoring"
+           :can-restore="snapshotSelection.length > 0"
+           :is-container="browse.isSnapshotView && !browse.browseInfo"
++          :restore-progress="browse.restoreProgress"
+           @exit="exitSnapshot"
+           @restore="browse.restore(snapshotSelection)"
+         />
+         <SnapshotSelectionToolbar
+           v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
+           :count="files.selectedCount"
+           :restoring="browse.restoring"
+           :restore-progress="browse.restoreProgress"
+           @restore="browse.restore(snapshotSelection)"
+           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"

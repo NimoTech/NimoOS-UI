@@ -1,0 +1,370 @@
+# Review package: 49f9d44..8a27872
+
+## Commits
+8a27872 fix(files): cut the operable subset instead of refusing the whole batch
+
+## Files changed
+ src/files/composables/useFileOps.test.ts | 35 ++++++++++++++++++++++++++++++++
+ src/files/composables/useFileOps.ts      | 16 +++++++++++----
+ src/files/util/protect.test.ts           | 22 ++++++++++++++------
+ src/files/util/protect.ts                | 16 +++++++--------
+ src/i18n/en_us.base.ts                   |  1 +
+ src/i18n/zh_cn.base.ts                   |  1 +
+ src/views/Files.vue                      |  4 ++--
+ 7 files changed, 75 insertions(+), 20 deletions(-)
+
+## Diff
+diff --git a/src/files/composables/useFileOps.test.ts b/src/files/composables/useFileOps.test.ts
+index 5bb7592..ff5c1cc 100644
+--- a/src/files/composables/useFileOps.test.ts
++++ b/src/files/composables/useFileOps.test.ts
+@@ -158,20 +158,55 @@ describe('useFileOps', () => {
+   it('cut 写 type:move;受保护项被挡(不写剪贴板)', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     const ops = makeOps()
+     ops.cut([{ name: 'AppData', path: '/DATA/AppData', is_dir: true } as never])
+     expect(clip.operateObject).toBeNull() // 受保护 → 挡下
+     ops.cut([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
+     expect(clip.operateObject?.type).toBe('move')
+   })
+ 
++  // Pending-ledger F10: cut had the same all-or-nothing bug delete used to
++  // have -- one protected member emptied the clipboard for the whole batch.
++  it('cut copies the operable subset to the clipboard instead of refusing the batch', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clipboard = useClipboardStore()
++    const ops = makeOps()
++    const entries = [
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++      { name: 'Downloads', path: '/DATA/Downloads', is_dir: true },
++    ]
++    ops.cut(entries as never)
++    expect(clipboard.operateObject?.item.map((i: { from: string }) => i.from)).toEqual(['/DATA/a.txt'])
++  })
++
++  it('cut reports how many protected items it skipped', async () => {
++    const toast = useToast()
++    const toastSpy = vi.spyOn(toast, 'show')
++    const ops = makeOps()
++    const entries = [
++      { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
++      { name: 'Downloads', path: '/DATA/Downloads', is_dir: true },
++    ]
++    ops.cut(entries as never)
++    expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('1'))
++  })
++
++  it('cut still refuses outright when nothing in the selection can be moved', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clipboard = useClipboardStore()
++    const ops = makeOps()
++    const entries = [{ name: 'Downloads', path: '/DATA/Downloads', is_dir: true }]
++    ops.cut(entries as never)
++    expect(clipboard.operateObject).toBeNull()
++  })
++
+   it('paste 发 batch.task({type,item,to,style}) 后清空剪贴板', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', ['/DATA/a'])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const ops = makeOps()
+     await ops.paste('overwrite')
+     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a' }], to: '/DATA/dst', style: 'overwrite' })
+     expect(clip.operateObject).toBeNull()
+   })
+diff --git a/src/files/composables/useFileOps.ts b/src/files/composables/useFileOps.ts
+index 7061f69..83b013b 100644
+--- a/src/files/composables/useFileOps.ts
++++ b/src/files/composables/useFileOps.ts
+@@ -1,18 +1,18 @@
+ import { useI18n } from 'vue-i18n'
+ import { service, refreshAccessToken } from '@nimotech/nimoos-service'
+ import { useFilesStore, type FileEntry } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useToast } from '../../stores/toast'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { joinPath, renameTo } from '../util/pathOps'
+-import { canOperate, deletableEntries } from '../util/protect'
++import { canOperate, operableEntries } from '../util/protect'
+ import { useClipboardStore } from '../stores/clipboard'
+ import { buildPastePayload } from '../util/fileOps'
+ import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
+ import { triggerIframeDownload } from '../util/iframeDownload'
+ import { copyText } from '../util/clipboard'
+ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
+ import { blockedBySnapshotView } from '../util/snapshotRestore'
+ 
+ function errMsg(e: unknown, fallback: string): string {
+   const m = (e as { message?: string } | undefined)?.message
+@@ -57,44 +57,52 @@ export function useFileOps() {
+     try { await service.file.rename(entry.path, renameTo(entry.path, newName)); await refresh() }
+     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+   }
+ 
+   async function remove(entries: FileEntry[]) {
+     if (blockedInSnapshot()) return
+     // Filter rather than refuse: a single protected member used to abort the
+     // whole batch, so selecting everything in /DATA and pressing delete removed
+     // nothing at all (pending-ledger F10). Only a selection with nothing
+     // deletable in it still bails out, which is what the old message describes.
+-    const { targets, skipped } = deletableEntries(entries)
++    const { targets, skipped } = operableEntries(entries)
+     if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
+     if (skipped > 0) toast.show(t('filesDeleteSkippedProtected', { count: skipped }))
+     const paths = targets.map((e) => e.path)
+     try {
+       await service.batch.delete(JSON.stringify(paths))
+       for (const p of paths) if (favorites.isFavorite(p)) await favorites.remove(p)
+       await refresh()
+     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+   }
+ 
+   async function copyPath(entry: FileEntry) {
+     const vp = toVirtualPath(entry.path, files.displayNames)
+     try { await copyText(vp); toast.show(t('filesCopiedPath')) }
+     catch { toast.show(t('filesOpFailed')) }
+   }
+ 
+   function copy(entries: FileEntry[]) {
+     clipboard.operate('copy', entries.map((e) => e.path))
+   }
+ 
++  // Filter rather than refuse: cut used to bail out the whole batch on a
++  // single protected member, the same all-or-nothing bug delete had before it
++  // was fixed (pending-ledger F10). Only a selection with nothing operable in
++  // it still refuses outright, which is what the old message describes.
+   function cut(entries: FileEntry[]) {
+-    if (entries.some((e) => !canOperate(e))) { toast.show(t('filesProtectedMove')); return }
+-    clipboard.operate('move', entries.map((e) => e.path))
++    const { targets, skipped } = operableEntries(entries)
++    if (!targets.length) { toast.show(t('filesProtectedMove')); return }
++    if (skipped > 0) toast.show(t('filesCutSkippedProtected', { count: skipped }))
++    // clipboard.operate still takes path strings until Task 3 switches it to
++    // take entries directly.
++    clipboard.operate('move', targets.map((e) => e.path))
+   }
+ 
+   async function paste(style: 'overwrite' | 'skip') {
+     if (blockedInSnapshot()) return
+     const o = clipboard.operateObject
+     if (!o) return
+     try {
+       await service.batch.task(buildPastePayload(o, files.currentPath, style))
+       clipboard.clear()
+     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
+diff --git a/src/files/util/protect.test.ts b/src/files/util/protect.test.ts
+index 7412881..d42c7ca 100644
+--- a/src/files/util/protect.test.ts
++++ b/src/files/util/protect.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, it, expect } from 'vitest'
+-import { PROTECTED, canOperate, splitProtectedUploads, deletableEntries } from './protect'
++import { PROTECTED, canOperate, splitProtectedUploads, operableEntries } from './protect'
+ import type { FileEntry } from '../stores/files'
+ 
+ function e(p: Partial<FileEntry>): FileEntry {
+   return { name: 'x', path: '/DATA/x', is_dir: false, ...p }
+ }
+ 
+ describe('protect', () => {
+   it('PROTECTED 列出 5 个系统默认文件夹', () => {
+     expect(PROTECTED).toEqual(['AppData', 'Documents', 'Downloads', 'Gallery', 'Media'])
+   })
+@@ -69,36 +69,46 @@ describe('splitProtectedUploads', () => {
+     expect(rejected).toEqual(['Downloads/pic.jpg'])
+   })
+ 
+   it('returns two empty lists for an empty batch', () => {
+     expect(splitProtectedUploads([])).toEqual({ accepted: [], rejected: [] })
+   })
+ })
+ 
+ // Same shape as shareableFolders in shareGate.ts: filter to what the operation
+ // can actually act on, and report how many were left behind. Pending-ledger F10.
+-describe('deletableEntries', () => {
++describe('operableEntries', () => {
+   it('keeps the operable entries and counts the protected ones', () => {
+     const a = e({ name: 'a.txt', path: '/DATA/a.txt' })
+     const docs = e({ name: 'Documents', is_dir: true, path: '/DATA/Documents' })
+     const b = e({ name: 'b.txt', path: '/DATA/b.txt' })
+-    const { targets, skipped } = deletableEntries([a, docs, b])
++    const { targets, skipped } = operableEntries([a, docs, b])
+     expect(targets).toEqual([a, b])
+     expect(skipped).toBe(1)
+   })
+ 
+   it('counts shared folders and mount points as skipped, not just system folders', () => {
+     const shared = e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } })
+     const mount = e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any })
+-    const { targets, skipped } = deletableEntries([shared, mount])
++    const { targets, skipped } = operableEntries([shared, mount])
+     expect(targets).toEqual([])
+     expect(skipped).toBe(2)
+   })
+ 
+   it('reports nothing skipped when every entry is operable', () => {
+-    expect(deletableEntries([e({ name: 'a.txt' })])).toEqual({ targets: [e({ name: 'a.txt' })], skipped: 0 })
++    expect(operableEntries([e({ name: 'a.txt' })])).toEqual({ targets: [e({ name: 'a.txt' })], skipped: 0 })
+   })
+ 
+   it('returns an empty split for an empty selection', () => {
+-    expect(deletableEntries([])).toEqual({ targets: [], skipped: 0 })
++    expect(operableEntries([])).toEqual({ targets: [], skipped: 0 })
++  })
++
++  it('operableEntries keeps the operable ones and counts the rest', () => {
++    const entries = [
++      { name: 'notes.txt', path: '/DATA/notes.txt', is_dir: false },
++      { name: 'Documents', path: '/DATA/Documents', is_dir: true },
++    ] as FileEntry[]
++    const { targets, skipped } = operableEntries(entries)
++    expect(targets.map((e) => e.name)).toEqual(['notes.txt'])
++    expect(skipped).toBe(1)
+   })
+ })
+diff --git a/src/files/util/protect.ts b/src/files/util/protect.ts
+index 60cd78c..e161009 100644
+--- a/src/files/util/protect.ts
++++ b/src/files/util/protect.ts
+@@ -18,29 +18,29 @@ export function splitProtectedUploads<T extends { relativePath: string }>(
+   const accepted: T[] = []
+   const rejected: string[] = []
+   for (const entry of entries) {
+     if (PROTECTED.includes(entry.relativePath.split('/')[0])) rejected.push(entry.relativePath)
+     else accepted.push(entry)
+   }
+   return { accepted, rejected }
+ }
+ 
+ // Split a selection into what a destructive batch may actually touch and a
+-// count of what it must leave alone. Same shape (and same reasoning) as
+-// shareableFolders in shareGate.ts.
++// count of what it must leave alone.
+ //
+-// Deleting used to be all-or-nothing: one protected member -- a system folder,
+-// a shared folder, a mount point -- and the whole batch was refused, so
+-// selecting everything in /DATA and pressing delete removed nothing at all
+-// (pending-ledger F10). Filtering lets the rest through and leaves the caller
+-// to say how many were skipped.
+-export function deletableEntries(entries: FileEntry[]): { targets: FileEntry[]; skipped: number } {
++// Both delete and cut used to be all-or-nothing: one protected member -- a
++// system folder, a shared folder, a mount point -- and the whole batch was
++// refused, so selecting everything in /DATA and pressing delete removed
++// nothing at all (pending-ledger F10). Filtering lets the rest through and
++// leaves the caller to say how many were skipped, in its own wording: delete
++// and cut are different verbs and cannot share one message.
++export function operableEntries(entries: FileEntry[]): { targets: FileEntry[]; skipped: number } {
+   const targets = entries.filter((e) => canOperate(e))
+   return { targets, skipped: entries.length - targets.length }
+ }
+ 
+ // 可否对该项做重命名/删除/剪切等破坏性操作。复制/下载/收藏不走这里。
+ export function canOperate(entry: FileEntry): boolean {
+   if (entry.is_dir && PROTECTED.includes(entry.name)) return false // 系统默认文件夹
+   if (isAlreadyShared(entry)) return false // 已分享
+   if ((entry.extensions as { mounted?: boolean } | null | undefined)?.mounted) return false // 挂载点
+   return true
+diff --git a/src/i18n/en_us.base.ts b/src/i18n/en_us.base.ts
+index 5c273f2..546231c 100644
+--- a/src/i18n/en_us.base.ts
++++ b/src/i18n/en_us.base.ts
+@@ -17,20 +17,21 @@ export default {
+   filesColSize: 'Size',
+   filesFavorites: 'Favorites',
+   filesDisks: 'Disks',
+   filesNoFavorites: 'No favorites yet',
+   filesSelectedCount: '{count} selected',
+   filesSelectAll: 'Select all',
+   filesClearSel: 'Clear',
+   filesOpFailed: 'Operation failed',
+   filesProtectedDelete: 'This item is protected and cannot be deleted',
+   filesDeleteSkippedProtected: 'Skipped {count} protected item(s)',
++  filesCutSkippedProtected: 'Skipped {count} protected item(s)',
+   filesProtectedRename: 'This item is protected and cannot be renamed',
+   filesProtectedMove: 'This item is protected and cannot be moved',
+   filesCopiedPath: 'Path copied',
+   filesNewFolder: 'New folder',
+   filesNewFile: 'New file',
+   filesPaste: 'Paste',
+   filesDownloadPreparing: 'Preparing download…',
+   filesDownload: 'Download',
+   filesViewerClose: 'Close',
+   filesViewerLoading: 'Loading…',
+diff --git a/src/i18n/zh_cn.base.ts b/src/i18n/zh_cn.base.ts
+index fec631c..05101df 100644
+--- a/src/i18n/zh_cn.base.ts
++++ b/src/i18n/zh_cn.base.ts
+@@ -17,20 +17,21 @@ export default {
+   filesColSize: '大小',
+   filesFavorites: '收藏',
+   filesDisks: '磁盘',
+   filesNoFavorites: '暂无收藏',
+   filesSelectedCount: '已选 {count} 项',
+   filesSelectAll: '全选',
+   filesClearSel: '清空',
+   filesOpFailed: '操作失败',
+   filesProtectedDelete: '此项目受保护,无法删除',
+   filesDeleteSkippedProtected: '已跳过 {count} 个受保护项',
++  filesCutSkippedProtected: '已跳过 {count} 个受保护项',
+   filesProtectedRename: '此项目受保护,无法重命名',
+   filesProtectedMove: '此项目受保护,无法移动',
+   filesCopiedPath: '已复制路径',
+   filesNewFolder: '新建文件夹',
+   filesNewFile: '新建文件',
+   filesPaste: '粘贴',
+   filesDownloadPreparing: '正在准备下载…',
+   filesDownload: '下载',
+   filesViewerClose: '关闭',
+   filesViewerLoading: '加载中…',
+diff --git a/src/views/Files.vue b/src/views/Files.vue
+index ae1557e..cb32f0e 100644
+--- a/src/views/Files.vue
++++ b/src/views/Files.vue
+@@ -23,21 +23,21 @@ import ViewerHost from '../files/viewers/ViewerHost.vue'
+ import { resolveOpen } from '../files/viewers/resolveOpen'
+ import { useFilesStore, type FileEntry } from '../files/stores/files'
+ import { useFavoritesStore } from '../files/stores/favorites'
+ import { useFileOpsStore } from '../files/stores/fileOps'
+ import { useClipboardStore } from '../files/stores/clipboard'
+ import { useUploadsStore } from '../files/stores/uploads'
+ import { useMountsStore } from '../files/stores/mounts'
+ import { useSharesStore } from '../files/stores/shares'
+ import { shareName } from '../files/util/sambaPath'
+ import { shareableFolders } from '../files/util/shareGate'
+-import { splitProtectedUploads, deletableEntries } from '../files/util/protect'
++import { splitProtectedUploads, operableEntries } from '../files/util/protect'
+ import { useToast } from '../stores/toast'
+ import { readDroppedEntries } from '../files/upload/dropEntries'
+ import { extractClipboardFiles } from '../files/upload/pasteFiles'
+ import { toSelectedFiles } from '../files/upload/selectedFiles'
+ import { useMessageBus } from '../composables/useMessageBus'
+ import { marqueeSelect, rectFromPoints, type ItemRect } from '../files/util/marquee'
+ import {
+   toRealPath, toVirtualPath, virtualPathToRouteParam, routeParamToVirtualPath, resolveInputPath,
+ } from '../files/util/pathUtils'
+ import { readDefault } from '../files/util/locationOrder'
+@@ -372,21 +372,21 @@ function onToolbarDelete() {
+   askDelete(sel)
+ }
+ 
+ // The confirmation is the last point at which the user can still back out, so
+ // it has to describe what will actually happen. It used to report the raw
+ // selection size ("delete the selected 8 items?") while the protected members
+ // were only discovered afterwards, inside ops.remove — so a selection with one
+ // system folder in it confirmed a delete of 8 and deleted 0 (pending-ledger
+ // F10). Split first, count what survives, and say how many are being left.
+ function askDelete(entries: FileEntry[]) {
+-  const { targets, skipped } = deletableEntries(entries)
++  const { targets, skipped } = operableEntries(entries)
+   if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
+   deleteDlg.value = { open: true, entries: targets, skipped }
+ }
+ 
+ const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
+ 
+ // 时间机器要知道当前目录相对卷根的位置:卡片按它展示"那一刻的这个文件夹",
+ // 进入后也落在同一个相对路径上。
+ const snapshotRelPath = computed(() => relPathUnderMount(browse.currentVolume?.mount ?? '', files.currentPath))
+ 

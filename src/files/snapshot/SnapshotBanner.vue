@@ -15,6 +15,14 @@ const props = defineProps<{
    *  无时间的引导文案,没有恢复/退出按钮(两者都没有明确目标:没有选中快照就没有
    *  "恢复到哪个快照",也没有"退出"要回去的相对路径)。 */
   isContainer?: boolean
+  // Fix-wave I4: SnapshotSelectionToolbar's restore button already shows this;
+  // this banner's own restore button fires the exact same `browse.restore(...)`
+  // call and is the ONLY restore entry point when the selection isn't a
+  // multi-select (canRestore only turns true here for a batch, per Files.vue's
+  // `:can-restore="snapshotSelection.length > 0"`). Without this, a 40-item
+  // batch showed live progress on one button while this one merely went gray
+  // right next to it.
+  restoreProgress?: { done: number; total: number } | null
 }>()
 const emit = defineEmits<{ (e: 'exit'): void; (e: 'restore'): void }>()
 const { t } = useI18n()
@@ -37,7 +45,9 @@ function onRestore() {
         :class="{ 'is-busy': props.restoring }"
         :disabled="restoreDisabled"
         @click="onRestore"
-      >{{ t('snapBrowseRestore') }}</button>
+      >{{ props.restoreProgress
+        ? t('snapBrowseRestoringProgress', { done: props.restoreProgress.done, total: props.restoreProgress.total })
+        : t('snapBrowseRestore') }}</button>
       <button class="snap-banner-btn snap-banner-exit" @click="emit('exit')">{{ t('snapBrowseExit') }}</button>
     </div>
     <!-- 常驻提示,不是一次性 toast:Vue2 M2-F2 的教训是一闪而过的提示没人看见,

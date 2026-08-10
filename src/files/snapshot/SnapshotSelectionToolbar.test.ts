@@ -32,4 +32,12 @@ describe('SnapshotSelectionToolbar', () => {
     await w.find('.snap-sel-restore').trigger('click')
     expect(w.emitted('restore')).toBeUndefined()
   })
+  // Task 11: a batch restore is serial (backend takes one path per call), so
+  // picking forty items meant a disabled button with no sign of life. Once a
+  // batch is in flight, the button shows "Restoring N/total" instead.
+  it('shows the running count while a batch restore is in flight', () => {
+    const w = mountIt({ restoring: true, restoreProgress: { done: 2, total: 5 } })
+    expect(w.text()).toContain('2')
+    expect(w.text()).toContain('5')
+  })
 })

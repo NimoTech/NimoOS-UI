@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   pmHandle: vi.fn(),
   pmSendFiles: vi.fn(() => true),
   pmDestroy: vi.fn(),
+  pmHasActiveTransfers: vi.fn(() => false),
+  pmCancelTransfer: vi.fn(),
   capturedDeps: null as Record<string, unknown> | null,
   capturedEvents: null as Record<string, (...a: never[]) => void> | null,
 }))
@@ -22,11 +24,14 @@ vi.mock('../peersManager', () => ({
   PeersManager: class {
     constructor(_s: unknown, events: Record<string, (...a: never[]) => void>) { h.capturedEvents = events }
     handleServerMessage = h.pmHandle; sendFiles = h.pmSendFiles; destroy = h.pmDestroy
+    hasActiveTransfers = h.pmHasActiveTransfers; cancelTransfer = h.pmCancelTransfer
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}) }))
 
 import { useDropStore } from './drop'
+import { useToast } from '../../../stores/toast'
+import { i18n } from '../../../i18n'
 
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); localStorage.clear() })
 // destroy() 摘掉 window 上的 pagehide/visibilitychange 监听——不清会跨用例累积,dispatchEvent 就会打到历史用例的残留监听器
@@ -61,12 +66,24 @@ describe('useDropStore', () => {
     s.init()
     const ev = h.capturedEvents!
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 0.5, filesQueue: 2, files: [new File(['x'], 'x')] })
-    expect(s.transfers['a']).toEqual({ progress: 50, sending: true, count: 2 })
+    expect(s.transfers['a']).toEqual({ progress: 50, raw: 0.5, sending: true, count: 2 })
     ;(ev.onTextReceived as (e: unknown) => void)({ text: '3', sender: 'b' })
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'b', progress: 0.2, filesQueue: 1, files: [] })
-    expect(s.transfers['b']).toEqual({ progress: 20, sending: false, count: 3 })
+    expect(s.transfers['b']).toEqual({ progress: 20, raw: 0.2, sending: false, count: 3 })
     ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 1, filesQueue: 1, files: [new File(['x'], 'x')] })
     expect(s.transfers['a']).toBeUndefined()
+  })
+  it('keeps the unrounded fraction alongside the rounded percent', () => {
+    // The stall watchdog in DropItem.vue watches `raw`, so it must survive the
+    // rounding: a 64 KB chunk of a multi-GB file moves the fraction by far less
+    // than one percent, and if `raw` were rounded too the watchdog would be back
+    // to seeing a frozen number on a perfectly healthy transfer.
+    const s = useDropStore()
+    s.init()
+    const ev = h.capturedEvents!
+    ;(ev.onFileProgress as (e: unknown) => void)({ sender: 'a', progress: 0.4048, filesQueue: 1, files: [] })
+    expect(s.transfers['a'].progress).toBe(40)
+    expect(s.transfers['a'].raw).toBe(0.4048)
   })
   it('接收队列:onFileReceived 入队;saveCurrent/ignoreCurrent 出队', () => {
     const s = useDropStore()
@@ -113,5 +130,52 @@ describe('useDropStore', () => {
     expect(s.peers[0].id).toBe('me1')
     expect(s.peers[0].name.displayName).toBe('Me')
     expect(s.peers[1].id).toBe('a')
+  })
+  it('hasActiveTransfers forwards to the manager', () => {
+    const s = useDropStore()
+    s.init()
+    h.pmHasActiveTransfers.mockReturnValueOnce(true)
+    expect(s.hasActiveTransfers()).toBe(true)
+    h.pmHasActiveTransfers.mockReturnValueOnce(false)
+    expect(s.hasActiveTransfers()).toBe(false)
+  })
+  it('hasActiveTransfers is false before init (no manager yet)', () => {
+    const s = useDropStore()
+    expect(s.hasActiveTransfers()).toBe(false)
+    expect(h.pmHasActiveTransfers).not.toHaveBeenCalled()
+  })
+  it('names a user cancellation differently from a break nobody chose', () => {
+    // All three reasons arrive through onTransferBroken, and until now all three
+    // rendered "transfer interrupted" -- so cancelling a transfer on purpose read
+    // like a failure.
+    const s = useDropStore()
+    s.init()
+    const ev = h.capturedEvents!
+    const texts = () => useToast().toasts.map((x) => x.text)
+
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'cancelled' })
+    expect(texts()).toEqual([i18n.global.t('filesDropCancelled')])
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'timeout' })
+    ;(ev.onTransferBroken as (e: unknown) => void)({ peerId: 'a', reason: 'disconnected' })
+    expect(texts().slice(1)).toEqual([
+      i18n.global.t('filesDropInterrupted'),
+      i18n.global.t('filesDropInterrupted'),
+    ])
+  })
+
+  it('cancelTransfer forwards the peerId and the reason to the manager', () => {
+    const s = useDropStore()
+    s.init()
+    s.cancelTransfer('peer-x')
+    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-x', undefined)
+    // The stall watchdog's stop is not a user cancellation, and the reason has
+    // to survive the trip to the peer for the toast to say so.
+    s.cancelTransfer('peer-y', 'timeout')
+    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-y', 'timeout')
+  })
+  it('cancelTransfer is a no-op before init (no manager yet)', () => {
+    const s = useDropStore()
+    expect(() => s.cancelTransfer('peer-x')).not.toThrow()
+    expect(h.pmCancelTransfer).not.toHaveBeenCalled()
   })
 })

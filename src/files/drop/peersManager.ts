@@ -1,6 +1,6 @@
 // 设备连接管理:移植 Vue2 PeersManager。差异:WSPeer 兜底不移植(Vue2 即空壳)——
 // 不支持 RTC 的 peer 不建连接,sendFiles 返回 false 由 store 弹提示。
-import { isRtcSupported, type ServerMessage } from './protocol'
+import { isRtcSupported, type ServerMessage, type TransferBrokenReason } from './protocol'
 import { RTCPeer, type PeerEvents, type SignalChannel } from './rtcPeer'
 
 type MakePeer = (signal: SignalChannel, peerId: string | null, events: PeerEvents) => RTCPeer
@@ -40,6 +40,15 @@ export class PeersManager {
       case 'peer-left': {
         const peer = this.peers[msg.peerId]
         delete this.peers[msg.peerId]
+        // The other device vanished while the user may still be watching an
+        // in-flight transfer -- report it (and let the store clear the
+        // stale progress card) while transfer state is still live, so
+        // hasActiveTransfer() is accurate. Must run before close(), whose
+        // own resetTransferState() would otherwise make this look idle.
+        // Deliberately not routed through the old sendRaw-detects-null-
+        // channel path: that also called refresh(), which re-dialled a peer
+        // that had just left.
+        peer?.handleDisconnect('disconnected')
         peer?.close()
         break
       }
@@ -58,5 +67,13 @@ export class PeersManager {
   destroy(): void {
     for (const id of Object.keys(this.peers)) this.peers[id].close()
     this.peers = {}
+  }
+
+  hasActiveTransfers(): boolean {
+    return Object.values(this.peers).some((p) => p.hasActiveTransfer())
+  }
+
+  cancelTransfer(peerId: string, reason?: TransferBrokenReason): void {
+    this.peers[peerId]?.cancelTransfer(reason)
   }
 }

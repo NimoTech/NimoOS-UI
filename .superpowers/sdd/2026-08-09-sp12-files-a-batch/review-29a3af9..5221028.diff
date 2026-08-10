@@ -1,0 +1,829 @@
+# Review package: 29a3af9..5221028
+
+## Commits
+5221028 docs(sdd): append fix-round-1 findings to task-7 report, correct F2 claim
+0f45fec fix(files): pin paste's destination, don't clear on cancel, report partial failure
+
+## Files changed
+ .../2026-08-09-sp12-files-a-batch/task-7-report.md | 186 ++++++++++++++++++++-
+ src/files/components/FileContextMenu.test.ts       |   2 +-
+ src/files/composables/useFileOps.test.ts           | 127 +++++++++++++-
+ src/files/composables/useFileOps.ts                |  61 ++++++-
+ src/files/upload/pasteConflict.test.ts             |   6 +-
+ src/files/upload/pasteConflict.ts                  |  20 ++-
+ src/i18n/en_us.base.ts                             |   1 +
+ src/i18n/zh_cn.base.ts                             |   1 +
+ src/views/Files.test.ts                            |  41 +++++
+ 9 files changed, 425 insertions(+), 20 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-7-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-7-report.md
+index 4abfcc1..b8e1108 100644
+--- a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-7-report.md
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-7-report.md
+@@ -72,36 +72,208 @@ as the brief's code specifies:
+ - If `resolvePaste` throws (e.g. a `listFolder` network hiccup during conflict detection),
+   the `catch` fires, we toast `filesOpFailed`, and `clipboard.clear()` is **never reached** —
+   the user's clipboard selection survives so they can retry paste without re-selecting.
+ - If everything is skipped (`overwriteItems`/`renameItems` both empty), no task is submitted
+   but `clipboard.clear()` still runs — this matches Step 1's test
+   ("paste clears the clipboard and submits nothing when every item was skipped") and the
+   brief's stated behavior: a fully-skipped paste is still a completed decision, not a failure.
+ - If the first `batch.task` call (overwrite) succeeds but the second (rename) throws, the
+   `catch` fires and `clipboard.clear()` is skipped — the already-submitted overwrite items
+   are already in flight server-side, but the clipboard is left intact rather than silently
+-  losing track of the not-yet-submitted rename batch. This is the asymmetric edge case flagged
+-  in control point 3/4; I did not change the design for it since the brief's implementation
+-  already leans toward "don't clear on any exception," which is the safer of the two failure
+-  modes (worst case: user re-pastes and gets asked about collisions again for items already
+-  moved, which resolvePaste will simply not find as conflicts).
++  losing track of the not-yet-submitted rename batch. I flagged this as an asymmetric edge
++  case worth being aware of but did not change the design for it in this round.
+ 
+-No case seemed bad enough to warrant stopping and asking — the try/catch degrades to "toast a
+-failure, keep the clipboard" uniformly, which never discards the user's copy/cut selection.
++**CORRECTION (fix-round-1, F2): the parenthetical above about what happens on retry was
++backwards and is retracted.** I had written that re-pasting after this partial failure would
++be safe because "resolvePaste will simply not find [the already-moved items] as conflicts."
++That is wrong on both counts the reviewer named: (1) for a **copy**, the already-landed items
++are sitting at the destination with the same name, so a retry's conflict check finds them
++again and re-asks the user — not a silent no-op; (2) for a **move/cut**, the already-moved
++items' source path no longer exists, so a retry would try to move a path that isn't there
++anymore. Neither of those is "no problem on retry." See the "Fix round 1" section below for
++what actually changed in response (F2): the two batches are now submitted independently with
++tracked per-batch outcomes, so a partial failure gets its own distinguishable toast instead of
++being silently retried as if nothing had happened, and the user is told a batch may need
++manual follow-up rather than being invited to just paste again.
++
++No case in the original round seemed bad enough to warrant stopping and asking — the
++try/catch degraded to "toast a failure, keep the clipboard" uniformly, which never discarded
++the user's copy/cut selection. That much was correct; only the retry-safety claim above was not.
+ 
+ ## Commit
+ 
+ `7b8f966` — "feat(files): detect paste collisions instead of pre-choosing a policy"
+ (message text taken verbatim from the brief).
+ 
+ ## Concerns / things I'm not fully sure about
+ 
+ - Per control point 3, `computePasteConflicts` failure inside `resolvePaste` is *not* handled
+   with graceful degradation the way the upload path's `run()` is — it propagates and the
+   outer `try/catch` in `paste()` turns it into a single `filesOpFailed` toast for the whole
+   batch. I judged this doesn't rise to "worse than a toast" (clipboard isn't cleared, no data
+   loss, user can just retry), so I implemented exactly what the brief specified rather than
+   changing the design. Flagging per the controller's instruction, not asking for a redesign.
+ - I translated the pre-existing Chinese test description "paste 无剪贴板内容时不发请求" to
+   English ("paste does nothing when the clipboard is empty") since I was already touching
+   that exact line to drop the `'overwrite'` argument — a one-line, in-place rename, not a
+   broader sweep of the file's other (untouched) Chinese descriptions.
++
++---
++
++## Fix round 1
++
++Review came back: spec check passed, and the reviewer's own mutation test passed (deleting
++`renameItems` from the return produced two real red tests). Five open findings came back
++(F1-F3 upgraded to Important by the controller, F4/F5 Minor). All five addressed below.
++Commit: `0f45fec` — "fix(files): pin paste's destination, don't clear on cancel, report
++partial failure".
++
++### F1 — destination read twice, could drift mid-await
++
++**Root cause:** `paste()` called `conflicts.resolvePaste(o.item, files.currentPath)` once,
++then read `files.currentPath` again (live) in each `buildPastePayload(...)` call after the
++`await`. Between those two reads, `resolvePaste` has to await a directory listing (and may
++queue behind an in-flight upload's own conflict chain) with no modal blocking the UI — the
++user can navigate to a different folder in that window. The conflict answers gathered for
++directory A would then get submitted against whatever directory the user is looking at when
++the promise resolves.
++
++**Fix:** `const dest = files.currentPath` captured once at the top of `paste()`, before the
++first `await`, and reused for the conflict check and both submissions. See
++`src/files/composables/useFileOps.ts:126`.
++
++**Side question the controller raised:** should `blockedInSnapshot()` also be re-checked
++after the await? I judged no, and left a comment explaining why:
++`blockedBySnapshotView()` (in `src/files/util/snapshotRestore.ts`) only inspects the boolean
++`browse.isSnapshotView` — it is not parameterized by path at all. Re-running it after the
++await would answer "is the view the user is CURRENTLY looking at a snapshot", which has
++nothing to do with `dest` (now frozen to the directory paste actually started in). A
++directory's snapshot-ness doesn't change retroactively while `dest` sits still, so the single
++check at the top — made while `files.currentPath === dest` — already correctly gates the
++actual write target. Re-checking would be asking the right-sounding question about the wrong
++directory.
++
++**Mutation test (required):** reverted the fix by changing the `submit` closure's
++`buildPastePayload({ ...o, item: items }, dest, style)` back to
++`buildPastePayload({ ...o, item: items }, files.currentPath, style)`, then ran:
++```
++pnpm exec vitest run src/files/composables/useFileOps.test.ts -t "paste submits to the directory it started in"
++```
++Result: **1 failed** — `to: '/DATA/dirB'` (live, wrong) instead of the expected
++`to: '/DATA/dirA'` (frozen, correct). Reverted the mutation; full file re-run afterward: 35/35
++passed at that point (38/38 after the F2 tests were added later in this round).
++
++### F2 — partial-failure cleanup was wrong, and my earlier justification for it was backwards
++
++**Root cause:** the two `service.batch.task` calls ran under one `try` — if the overwrite
++batch's request succeeded and the rename batch's then threw, the `catch` produced a single
++generic "operation failed" toast, even though the backend had already accepted the first
++batch. My original report defended the "don't clear on any exception" fallback with a claim
++that retrying would be harmless; the controller correctly called that claim backwards (see the
++correction inserted above in the original report body).
++
++**Fix (chose option (a), not a plain debt ticket):** the two batches are now submitted
++independently via a `submit()` helper returning a three-way outcome — `'empty'` (nothing to
++send), `'ok'`, or `'failed'` — for each of the overwrite/rename groups. The three-way return
++matters: a first draft used a plain boolean (`true` meaning "ok or nothing to send"), and that
++version misclassified "the only non-empty batch failed" as a **partial** failure (because the
++empty batch trivially counted as "ok"), when it should read as a **total** failure since there
++was never a second batch to partially succeed. Decision table on the two outcomes:
++- no `'failed'` in the pair → success path; clipboard clears unless `cancelledCount > 0` (F3).
++- `'failed'` present and no `'ok'` present → total failure, `filesOpFailed` toast, clipboard
++  kept.
++- `'failed'` present and `'ok'` present → partial failure, new `filesPastePartialFailure`
++  toast, clipboard kept (so the un-submitted/failed batch isn't silently discarded).
++
++New i18n key `filesPastePartialFailure`: zh `部分粘贴失败,请检查目标目录后重试` / en
++`Part of the paste failed — check the destination and try again`. Added to both
++`zh_cn.base.ts` and `en_us.base.ts`.
++
++**Residual limitation, stated plainly (not hidden this time):** on a partial failure the
++clipboard is left holding the FULL original item list, including the items that already
++landed successfully. If the user pastes again, the successful batch's items will be
++re-evaluated for conflicts against a destination that now already contains them (for copy,
++this re-triggers the conflict dialog for something already handled; for move/cut, the source
++of the successful items no longer exists and a retry attempt on those specific items would
++fail server-side). This is a known trade-off of choosing "never silently discard clipboard
++state on any failure" over "always compute the exact still-pending remainder" — the latter
++would need to persist per-item completion state across a failed batch, which felt like more
++mechanism than this ticket's scope. Flagging it as a real limitation rather than asserting
++retries are safe.
++
++**Tests added:** `useFileOps.test.ts` — "paste reports a partial failure when one batch
++submits and the other does not, and keeps the clipboard", "paste reports a plain failure when
++the only batch it needed to submit fails" (the one that would have caught the boolean-based
++first draft), "paste reports a plain failure when both batches fail".
++
++**Mutation check (self-imposed, not required by the controller for F2, but the three-way
++outcome fix was itself a bug I found while testing my own first draft):** reverted `'empty'`
++to `return 'ok'` in the `submit` helper (recreating the boolean-style bug) and ran:
++```
++pnpm exec vitest run src/files/composables/useFileOps.test.ts -t "reports a plain failure when the only batch"
++```
++Result: **1 failed** — toast was `filesPastePartialFailure` instead of the expected
++`filesOpFailed`. Reverted the mutation.
++
++### F3 — Esc-to-cancel cleared the clipboard
++
++**Root cause:** `resolveConflictQueue` marks a cancelled conflict (and everything queued
++behind it) with action `'cancelled'`, and `splitPasteItems` folded that into the same
++`skippedCount` bucket as an explicit `'skip'`. When every item ended up cancelled, both
++`overwriteItems` and `renameItems` came back empty — indistinguishable from "the user
++explicitly chose to skip everything" — and `paste()` cleared the clipboard either way. Esc
++means "not now", not "discard what I copied".
++
++**Fix:** `splitPasteItems` (in `src/files/upload/pasteConflict.ts`) now also returns
++`cancelledCount`, counting only `'cancelled'` resolutions (kept as a strict subset that is
++also still folded into `skippedCount`, per the controller's note that the toast count itself
++was fine as-is). `paste()` only calls `clipboard.clear()` when the success path is reached
++AND `cancelledCount === 0`.
++
++**Mutation test (required):** reverted the fix by changing `if (cancelledCount === 0)
++clipboard.clear()` back to an unconditional `clipboard.clear()`, then ran:
++```
++pnpm exec vitest run src/files/composables/useFileOps.test.ts -t "paste does not clear the clipboard when the user cancels"
++```
++Result: **1 failed** — `expected null not to be null` (clipboard had been cleared). Reverted
++the mutation.
++
++### F4 — no test on the FileContextMenu → Files.vue wiring seam
++
++Added two tests to `src/views/Files.test.ts`:
++- "toolbar Paste button reaches ops.paste() and submits the clipboard contents" — clicks the
++  real `.tb-paste` button.
++- "context menu 'paste' action reaches ops.paste(), not a stale paste-overwrite/paste-skip
++  handler" — calls `w.findComponent(FileContextMenu).vm.$emit('action', 'paste', null)`
++  directly on the real (non-stubbed) `FileContextMenu` instance, so it exercises Files.vue's
++  actual `case 'paste':` dispatch without needing to drive reka-ui's real popover positioning
++  through jsdom. Combined with FileContextMenu.test.ts's existing assertion that the real menu
++  item fires `action === 'paste'`, the two together close the gap: one proves the menu emits
++  the string, the other proves the dispatcher still listens for it.
++
++Both required adding `batch: { task: vi.fn().mockResolvedValue(undefined) }` to the
++`@nimotech/nimoos-service` mock at the top of `Files.test.ts` (it wasn't there before — no
++prior test in that file needed it) and importing `service` directly so the tests can assert
++against the same mock function object.
++
++### F5 — one remaining Chinese test description in the same file
++
++`FileContextMenu.test.ts:161` — `'空白区:无剪贴板内容时无粘贴项'` → `'blank area: no Paste
++entry when the clipboard is empty'`.
++
++### Test runs this round (all in foreground, per instructions)
++
++```
++pnpm exec vitest run src/files/upload/pasteConflict.test.ts                      # 7 passed
++pnpm exec vitest run src/files/composables/useFileOps.test.ts                    # 38 passed
++pnpm exec vitest run src/views/Files.test.ts                                     # 26 passed
++pnpm exec vitest run src/files/composables/useFileOps.test.ts \
++  src/files/components/FileContextMenu.test.ts src/views/Files.test.ts \
++  src/i18n/ src/files/upload/pasteConflict.test.ts \
++  src/files/composables/useFileConflicts.test.ts                                # 13 files / 316 passed
++pnpm exec vue-tsc --noEmit                                                       # clean, no output
++```
++
++### Commit
++
++`0f45fec` — "fix(files): pin paste's destination, don't clear on cancel, report partial
++failure"
+diff --git a/src/files/components/FileContextMenu.test.ts b/src/files/components/FileContextMenu.test.ts
+index 3be1550..055cf93 100644
+--- a/src/files/components/FileContextMenu.test.ts
++++ b/src/files/components/FileContextMenu.test.ts
+@@ -151,21 +151,21 @@ describe('FileContextMenu', () => {
+     useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
+     const w = mount(FileContextMenu, {
+       props: { entry: null, selectedCount: 0 },
+       global: { plugins: [pinia, i18n], stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } },
+     })
+     expect(w.findAll('.ctx-paste')).toHaveLength(1)
+     expect(w.find('.ctx-paste-overwrite').exists()).toBe(false)
+     expect(w.find('.ctx-paste-skip').exists()).toBe(false)
+   })
+ 
+-  it('空白区:无剪贴板内容时无粘贴项', () => {
++  it('blank area: no Paste entry when the clipboard is empty', () => {
+     const w = mountMenu({ entry: null, selectedCount: 0 })
+     expect(w.find('.ctx-paste').exists()).toBe(false)
+   })
+ 
+   it('文件项菜单含「下载」项且恒显(单选)', () => {
+     const wrapper = mountMenu({ entry: { name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, selectedCount: 1 })
+     expect(wrapper.find('.ctx-download').exists()).toBe(true)
+   })
+ 
+   it('多选时「下载」仍显示', () => {
+diff --git a/src/files/composables/useFileOps.test.ts b/src/files/composables/useFileOps.test.ts
+index 1eb9c33..7919043 100644
+--- a/src/files/composables/useFileOps.test.ts
++++ b/src/files/composables/useFileOps.test.ts
+@@ -207,20 +207,21 @@ describe('useFileOps', () => {
+     clip.operate('copy', [
+       { path: '/DATA/a', is_dir: false },
+       { path: '/DATA/b', is_dir: false },
+     ])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+       overwriteItems: [{ from: '/DATA/a', is_dir: false }],
+       renameItems: [{ from: '/DATA/b', is_dir: false }],
+       skippedCount: 0,
++      cancelledCount: 0,
+     })
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).toHaveBeenCalledTimes(2)
+     expect(batchTask.mock.calls.map((c) => (c[0] as { style: string }).style).sort())
+       .toEqual(['overwrite', 'rename'])
+     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }], to: '/DATA/dst', style: 'overwrite' })
+     expect(batchTask).toHaveBeenCalledWith({ type: 'copy', item: [{ from: '/DATA/b', is_dir: false }], to: '/DATA/dst', style: 'rename' })
+     expect(clip.operateObject).toBeNull()
+   })
+@@ -228,62 +229,186 @@ describe('useFileOps', () => {
+   it('paste submits a single task when nothing was overwritten', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+       overwriteItems: [],
+       renameItems: [{ from: '/DATA/a', is_dir: false }],
+       skippedCount: 0,
++      cancelledCount: 0,
+     })
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).toHaveBeenCalledTimes(1)
+     expect(batchTask.mock.calls[0][0]).toMatchObject({ style: 'rename' })
+   })
+ 
+   it('paste tells the user how many items it skipped', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+       overwriteItems: [],
+       renameItems: [],
+       skippedCount: 2,
++      cancelledCount: 0,
+     })
+     const toast = useToast()
+     const toastSpy = vi.spyOn(toast, 'show')
+     const ops = makeOps()
+     await ops.paste()
+     expect(toastSpy).toHaveBeenCalledWith(expect.stringContaining('2'))
+   })
+ 
+-  it('paste clears the clipboard and submits nothing when every item was skipped', async () => {
++  it('paste clears the clipboard and submits nothing when every item was explicitly skipped', async () => {
+     const { useClipboardStore } = await import('../stores/clipboard')
+     const clip = useClipboardStore()
+     clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
+     const files = useFilesStore(); files.currentPath = '/DATA/dst'
+     const conflicts = useFileConflictsStore()
+     vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+       overwriteItems: [],
+       renameItems: [],
+       skippedCount: 1,
++      cancelledCount: 0,
+     })
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).not.toHaveBeenCalled()
+     expect(clip.operateObject).toBeNull()
+   })
+ 
++  // fix-round-1 F3: hitting Esc mid-dialog means "not now", not "throw away what
++  // I copied". resolveConflictQueue marks the cancelled item's conflict as
++  // 'cancelled', which splitPasteItems folds into skippedCount same as an
++  // explicit skip -- but it also surfaces separately as cancelledCount, and only
++  // that should gate clearing the clipboard.
++  it('paste does not clear the clipboard when the user cancels the conflict dialog', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dst'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
++      overwriteItems: [],
++      renameItems: [],
++      skippedCount: 1,
++      cancelledCount: 1,
++    })
++    const ops = makeOps()
++    await ops.paste()
++    expect(batchTask).not.toHaveBeenCalled()
++    expect(clip.operateObject).not.toBeNull()
++  })
++
++  // fix-round-1 F1: `resolvePaste` awaits a directory listing (and possibly a
++  // queued upload-conflict chain) before resolving. During that window the UI
++  // is fully interactive, so the user can navigate to a different directory
++  // before the paste actually submits. The destination used for the actual
++  // submission must be the one paste started in, not wherever the user ends
++  // up while it was thinking.
++  it('paste submits to the directory it started in, even if the user navigates away before the conflict check resolves', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dirA'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockImplementation(async () => {
++      // Simulate the user clicking into a different folder while the
++      // directory listing for dirA is still in flight.
++      files.currentPath = '/DATA/dirB'
++      return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
++    })
++    const ops = makeOps()
++    await ops.paste()
++    expect(batchTask).toHaveBeenCalledWith(expect.objectContaining({ to: '/DATA/dirA' }))
++  })
++
++  // fix-round-1 F2: when one batch's submission has already been accepted by
++  // the backend and the other one fails, the failure toast must say so instead
++  // of "operation failed" -- which would tell the user nothing landed when
++  // half of it actually did. The clipboard also must not be cleared, since
++  // that would discard the batch that never got submitted.
++  it('paste reports a partial failure when one batch submits and the other does not, and keeps the clipboard', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dst'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
++      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
++      renameItems: [{ from: '/DATA/b', is_dir: false }],
++      skippedCount: 0,
++      cancelledCount: 0,
++    })
++    batchTask.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('network blip'))
++    const toast = useToast()
++    const toastSpy = vi.spyOn(toast, 'show')
++    const ops = makeOps()
++    await ops.paste()
++    expect(batchTask).toHaveBeenCalledTimes(2) // the failing call was still attempted, not skipped
++    expect(toastSpy).toHaveBeenCalledWith(zh.filesPastePartialFailure)
++    expect(clip.operateObject).not.toBeNull()
++  })
++
++  it('paste reports a plain failure when the only batch it needed to submit fails', async () => {
++    // Only one style is actually needed (nothing conflicted, so everything
++    // lands in renameItems) and that lone submission fails. This must read as
++    // a total failure, not a "partial" one -- there was never a second batch
++    // to have partially succeeded.
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dst'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
++      overwriteItems: [],
++      renameItems: [{ from: '/DATA/a', is_dir: false }],
++      skippedCount: 0,
++      cancelledCount: 0,
++    })
++    batchTask.mockRejectedValueOnce(new Error('network blip'))
++    const toast = useToast()
++    const toastSpy = vi.spyOn(toast, 'show')
++    const ops = makeOps()
++    await ops.paste()
++    expect(toastSpy).toHaveBeenCalledWith(zh.filesOpFailed)
++    expect(toastSpy).not.toHaveBeenCalledWith(zh.filesPastePartialFailure)
++    expect(clip.operateObject).not.toBeNull()
++  })
++
++  it('paste reports a plain failure when both batches fail', async () => {
++    const { useClipboardStore } = await import('../stores/clipboard')
++    const clip = useClipboardStore()
++    clip.operate('copy', [{ path: '/DATA/a', is_dir: false }, { path: '/DATA/b', is_dir: false }])
++    const files = useFilesStore(); files.currentPath = '/DATA/dst'
++    const conflicts = useFileConflictsStore()
++    vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
++      overwriteItems: [{ from: '/DATA/a', is_dir: false }],
++      renameItems: [{ from: '/DATA/b', is_dir: false }],
++      skippedCount: 0,
++      cancelledCount: 0,
++    })
++    batchTask.mockRejectedValueOnce(new Error('a')).mockRejectedValueOnce(new Error('b'))
++    const toast = useToast()
++    const toastSpy = vi.spyOn(toast, 'show')
++    const ops = makeOps()
++    await ops.paste()
++    expect(batchTask).toHaveBeenCalledTimes(2)
++    expect(toastSpy).toHaveBeenCalledWith(zh.filesOpFailed)
++    expect(clip.operateObject).not.toBeNull()
++  })
++
+   it('paste does nothing when the clipboard is empty', async () => {
+     const ops = makeOps()
+     await ops.paste()
+     expect(batchTask).not.toHaveBeenCalled()
+   })
+ 
+   it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
+     localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
+     const ops = makeOps()
+     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
+diff --git a/src/files/composables/useFileOps.ts b/src/files/composables/useFileOps.ts
+index 4420284..e07bf51 100644
+--- a/src/files/composables/useFileOps.ts
++++ b/src/files/composables/useFileOps.ts
+@@ -1,19 +1,19 @@
+ import { useI18n } from 'vue-i18n'
+ import { service, refreshAccessToken } from '@nimotech/nimoos-service'
+ import { useFilesStore, type FileEntry } from '../stores/files'
+ import { useFavoritesStore } from '../stores/favorites'
+ import { useToast } from '../../stores/toast'
+ import { toVirtualPath } from '../util/pathUtils'
+ import { joinPath, renameTo } from '../util/pathOps'
+ import { canOperate, operableEntries } from '../util/protect'
+-import { useClipboardStore } from '../stores/clipboard'
++import { useClipboardStore, type OperateItem } from '../stores/clipboard'
+ import { useFileConflictsStore } from '../stores/fileConflicts'
+ import { buildPastePayload } from '../util/fileOps'
+ import { planDownload, shouldRefreshBeforeDownload } from '../util/download'
+ import { triggerIframeDownload } from '../util/iframeDownload'
+ import { copyText } from '../util/clipboard'
+ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
+ import { blockedBySnapshotView } from '../util/snapshotRestore'
+ 
+ function errMsg(e: unknown, fallback: string): string {
+   const m = (e as { message?: string } | undefined)?.message
+@@ -101,28 +101,75 @@ export function useFileOps() {
+   // menu, before anything had looked at whether a collision existed at all. Now
+   // it checks first and asks only about real collisions, the same way uploads do.
+   //
+   // Two tasks, not one: the backend's `style` applies to a whole batch, so the
+   // items the user chose to overwrite and the items that keep both have to be
+   // submitted separately.
+   async function paste() {
+     if (blockedInSnapshot()) return
+     const o = clipboard.operateObject
+     if (!o) return
++    // Read the destination once, up front, and reuse it for every await below.
++    // `resolvePaste` has to await a directory listing (and may queue behind an
++    // in-flight upload's conflict chain) before anything is even asked -- the
++    // UI stays fully interactive for that whole window with no modal blocking
++    // it. Re-reading `files.currentPath` after that await would attach
++    // whatever answers the user just gave for THIS directory to wherever they
++    // happened to navigate to while waiting (task-7 fix-round-1 F1).
++    //
++    // `blockedInSnapshot()` is deliberately checked only once, here, and not
++    // again before submitting: it reports on `files.currentPath` at the
++    // moment this call started, which is exactly `dest`. A directory's
++    // snapshot-ness cannot change out from under a fixed path while this
++    // function is running, so re-checking after the await would just be
++    // asking about whatever directory the user is CURRENTLY looking at --
++    // unrelated to where `dest` actually points.
++    const dest = files.currentPath
+     const conflicts = useFileConflictsStore()
++    let overwriteItems: OperateItem[] = []
++    let renameItems: OperateItem[] = []
++    let skippedCount = 0
++    let cancelledCount = 0
+     try {
+-      const { overwriteItems, renameItems, skippedCount } = await conflicts.resolvePaste(o.item, files.currentPath)
+-      if (skippedCount > 0) toast.show(t('filesPasteSkipped', { count: skippedCount }))
+-      if (overwriteItems.length) await service.batch.task(buildPastePayload({ ...o, item: overwriteItems }, files.currentPath, 'overwrite'))
+-      if (renameItems.length) await service.batch.task(buildPastePayload({ ...o, item: renameItems }, files.currentPath, 'rename'))
+-      clipboard.clear()
+-    } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
++      ({ overwriteItems, renameItems, skippedCount, cancelledCount } = await conflicts.resolvePaste(o.item, dest))
++    } catch (e) {
++      toast.show(errMsg(e, t('filesOpFailed')))
++      return
++    }
++    if (skippedCount > 0) toast.show(t('filesPasteSkipped', { count: skippedCount }))
++
++    // Submitted independently rather than under one try/catch: the backend
++    // already accepted whichever batch's request succeeded, so a failure in
++    // the SECOND call must not be reported as "operation failed" -- that
++    // would tell the user nothing landed when half of it actually did
++    // (task-7 fix-round-1 F2). 'empty' is its own outcome (not folded into
++    // 'ok') so a lone attempted batch that fails is correctly read as a total
++    // failure, not a partial one -- the other "batch" never existed at all,
++    // it just had nothing to submit.
++    type SubmitOutcome = 'empty' | 'ok' | 'failed'
++    const submit = async (items: OperateItem[], style: 'overwrite' | 'rename'): Promise<SubmitOutcome> => {
++      if (!items.length) return 'empty'
++      try { await service.batch.task(buildPastePayload({ ...o, item: items }, dest, style)); return 'ok' }
++      catch { return 'failed' }
++    }
++    const outcomes = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
++    const failed = outcomes.includes('failed')
++    const succeeded = outcomes.includes('ok')
++
++    if (!failed) {
++      // Cancelling the conflict dialog (Esc) is "not now", not "throw away
++      // what I copied" -- only clear when the user never hit cancel.
++      if (cancelledCount === 0) clipboard.clear()
++      return
++    }
++    if (!succeeded) { toast.show(t('filesOpFailed')); return }
++    toast.show(t('filesPastePartialFailure'))
+   }
+ 
+   async function download(entries: FileEntry[]) {
+     if (!entries.length) return
+     toast.show(t('filesDownloadPreparing'))
+     // 过期预刷新:iframe 下载 fire-and-forget 无法反应式重试,过期须先刷 token(唯一修法)。
+     const raw = localStorage.getItem('expires_at') // 后端下发 unix 秒
+     const expiresAt = raw != null && raw !== '' ? Number(raw) : null
+     if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
+       try { await refreshAccessToken() }
+diff --git a/src/files/upload/pasteConflict.test.ts b/src/files/upload/pasteConflict.test.ts
+index b02ab9f..f86497f 100644
+--- a/src/files/upload/pasteConflict.test.ts
++++ b/src/files/upload/pasteConflict.test.ts
+@@ -44,25 +44,29 @@ describe('splitPasteItems', () => {
+   const c: OperateItem = { from: '/DATA/src/c.txt', is_dir: false }
+   const res = (from: string, action: ConflictResolution['action']): ConflictResolution =>
+     ({ conflict: { name: baseName(from), isDir: false, groupKey: from }, action })
+ 
+   it('routes overwrite answers to the overwrite batch', () => {
+     const out = splitPasteItems([a, b], [res(a.from, 'overwrite')])
+     expect(out.overwriteItems).toEqual([a])
+     expect(out.renameItems).toEqual([b])
+   })
+ 
+-  it('drops skipped and cancelled items and counts them', () => {
++  it('drops skipped and cancelled items and counts them together in skippedCount', () => {
+     const out = splitPasteItems([a, b, c], [res(a.from, 'skip'), res(b.from, 'cancelled')])
+     expect(out.overwriteItems).toEqual([])
+     expect(out.renameItems).toEqual([c])
+     expect(out.skippedCount).toBe(2)
++    // cancelledCount isolates the cancelled subset -- callers use it to tell
++    // "the user cancelled the dialog" apart from "the user explicitly skipped
++    // everything", which matters for whether it's safe to clear the clipboard.
++    expect(out.cancelledCount).toBe(1)
+   })
+ 
+   it('sends never-conflicting items with the keep-both style, same as an explicit keep_both', () => {
+     // The backend's style only fires ON a real collision, so a conflict-free
+     // item submitted as 'rename' behaves exactly like the old silent default.
+     const out = splitPasteItems([a, b], [res(a.from, 'keep_both')])
+     expect(out.renameItems).toEqual([a, b])
+     expect(out.skippedCount).toBe(0)
+   })
+ })
+diff --git a/src/files/upload/pasteConflict.ts b/src/files/upload/pasteConflict.ts
+index 70b5c20..a1964aa 100644
+--- a/src/files/upload/pasteConflict.ts
++++ b/src/files/upload/pasteConflict.ts
+@@ -34,34 +34,48 @@ export async function computePasteConflicts(args: {
+ 
+ /**
+  * Splits the FULL item list into the two batches the backend's per-batch
+  * `style` needs.
+  *
+  * Items the user never saw a conflict for fall through to the rename group by
+  * the same default as an explicit 'keep_both': `style` only ever triggers ON an
+  * actual collision, so a conflict-free item submitted with style='rename' is
+  * byte-for-byte the old silent default. There is nothing to distinguish the two
+  * by once both mean "just land it, renaming only if it turns out to collide".
++ *
++ * `skippedCount` folds in both 'skip' and 'cancelled' resolutions -- from the
++ * user's point of view an item that was never landed is "skipped" either way,
++ * and the toast that reports this count doesn't need to tell them apart.
++ * `cancelledCount` additionally isolates just the cancelled ones: unlike an
++ * explicit skip, hitting Esc mid-dialog means "stop asking, I'm not sure I
++ * want to do this at all" rather than "I've decided against these specific
++ * items" -- the caller uses it to decide whether it's still safe to clear the
++ * clipboard (see task-7 fix-round-1 F3: cancelling a paste must not discard
++ * what the user copied).
+  */
+ export function splitPasteItems(
+   items: OperateItem[],
+   resolutions: ConflictResolution[],
+-): { overwriteItems: OperateItem[]; renameItems: OperateItem[]; skippedCount: number } {
++): { overwriteItems: OperateItem[]; renameItems: OperateItem[]; skippedCount: number; cancelledCount: number } {
+   const skipped = new Set<string>()
++  const cancelled = new Set<string>()
+   const overwriteSet = new Set<string>()
+   for (const { conflict, action } of resolutions || []) {
+-    if (action === 'skip' || action === 'cancelled') skipped.add(conflict.groupKey)
++    if (action === 'cancelled') cancelled.add(conflict.groupKey)
++    else if (action === 'skip') skipped.add(conflict.groupKey)
+     else if (action === 'overwrite') overwriteSet.add(conflict.groupKey)
+     // 'keep_both' (and 'merge', which paste never offers) need no bookkeeping:
+     // they are the renameItems default below.
+   }
+ 
+   const overwriteItems: OperateItem[] = []
+   const renameItems: OperateItem[] = []
+   let skippedCount = 0
++  let cancelledCount = 0
+   for (const item of items || []) {
++    if (cancelled.has(item.from)) { skippedCount++; cancelledCount++; continue }
+     if (skipped.has(item.from)) { skippedCount++; continue }
+     if (overwriteSet.has(item.from)) overwriteItems.push(item)
+     else renameItems.push(item)
+   }
+-  return { overwriteItems, renameItems, skippedCount }
++  return { overwriteItems, renameItems, skippedCount, cancelledCount }
+ }
+diff --git a/src/i18n/en_us.base.ts b/src/i18n/en_us.base.ts
+index 3c1df93..a9ad497 100644
+--- a/src/i18n/en_us.base.ts
++++ b/src/i18n/en_us.base.ts
+@@ -25,20 +25,21 @@ export default {
+   filesProtectedDelete: 'This item is protected and cannot be deleted',
+   filesDeleteSkippedProtected: 'Skipped {count} protected item(s)',
+   filesCutSkippedProtected: 'Skipped {count} protected item(s)',
+   filesProtectedRename: 'This item is protected and cannot be renamed',
+   filesProtectedMove: 'This item is protected and cannot be moved',
+   filesCopiedPath: 'Path copied',
+   filesNewFolder: 'New folder',
+   filesNewFile: 'New file',
+   filesPaste: 'Paste',
+   filesPasteSkipped: 'Skipped {count} item(s)',
++  filesPastePartialFailure: 'Part of the paste failed — check the destination and try again',
+   filesDownloadPreparing: 'Preparing download…',
+   filesDownload: 'Download',
+   filesViewerClose: 'Close',
+   filesViewerLoading: 'Loading…',
+   audioSummary: 'Summary',
+   audioTranscript: 'Transcript',
+   audioAsk: 'Ask Nimo',
+   audioAskPlaceholder: 'Ask anything about this audio…',
+   audioAskEmpty: 'This transcript is vectorized — ask Nimo about anything in it.',
+   audioAskDemo: '(demo) This transcript is vectorized. Once the AI backend is connected, answers grounded in the audio — with clickable timestamps — will appear here.',
+diff --git a/src/i18n/zh_cn.base.ts b/src/i18n/zh_cn.base.ts
+index 33a388b..e569346 100644
+--- a/src/i18n/zh_cn.base.ts
++++ b/src/i18n/zh_cn.base.ts
+@@ -25,20 +25,21 @@ export default {
+   filesProtectedDelete: '此项目受保护,无法删除',
+   filesDeleteSkippedProtected: '已跳过 {count} 个受保护项',
+   filesCutSkippedProtected: '已跳过 {count} 个受保护项',
+   filesProtectedRename: '此项目受保护,无法重命名',
+   filesProtectedMove: '此项目受保护,无法移动',
+   filesCopiedPath: '已复制路径',
+   filesNewFolder: '新建文件夹',
+   filesNewFile: '新建文件',
+   filesPaste: '粘贴',
+   filesPasteSkipped: '已跳过 {count} 项',
++  filesPastePartialFailure: '部分粘贴失败,请检查目标目录后重试',
+   filesDownloadPreparing: '正在准备下载…',
+   filesDownload: '下载',
+   filesViewerClose: '关闭',
+   filesViewerLoading: '加载中…',
+   audioSummary: '摘要',
+   audioTranscript: '转录文稿',
+   audioAsk: '问 Nimo',
+   audioAskPlaceholder: '关于这段音频，尽管问…',
+   audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',
+   audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',
+diff --git a/src/views/Files.test.ts b/src/views/Files.test.ts
+index cd29eca..7ef0f5e 100644
+--- a/src/views/Files.test.ts
++++ b/src/views/Files.test.ts
+@@ -1,32 +1,36 @@
+ import { describe, it, expect, beforeEach, vi } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
++import { service } from '@nimotech/nimoos-service'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createWebHashHistory } from 'vue-router'
+ import zh from '../i18n/zh_cn'
+ import Files from './Files.vue'
+ import FileGridView from '../files/components/FileGridView.vue'
++import FileContextMenu from '../files/components/FileContextMenu.vue'
+ import { useFilesStore } from '../files/stores/files'
+ import { useFoldersStore } from '../home/stores/folders'
+ import { useFavoritesStore } from '../files/stores/favorites'
++import { useClipboardStore } from '../files/stores/clipboard'
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     folder: {
+       getList: vi.fn(async (path: string) => ({
+         content: [
+           { name: 'Documents', path: (path === '/DATA' ? '/DATA' : path) + '/Documents', is_dir: true },
+           { name: 'a.txt', path: '/DATA/a.txt', is_dir: false },
+         ],
+       })),
+     },
++    batch: { task: vi.fn().mockResolvedValue(undefined) },
+     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
+     // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
+     samba: { listConnections: vi.fn().mockResolvedValue([]) },
+     cloud: { list: vi.fn().mockResolvedValue([]), umount: vi.fn().mockResolvedValue(undefined) },
+     snapshot: {
+       listVolumes: vi.fn().mockResolvedValue([{ volume_uuid: 'u-data', mount: '/DATA', supported: true }]),
+       list: vi.fn().mockResolvedValue([]),
+     },
+   },
+@@ -160,20 +164,57 @@ describe('Files.vue browse pipe', () => {
+     const folders = useFoldersStore()
+     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+     const router = makeRouter()
+     router.push('/files/NimoOS-HD'); await router.isReady()
+     const w = mount(Files, { global: { plugins: [router, i18n] } })
+     await flushPromises()
+     expect(w.find('.tb-new-folder').exists()).toBe(true)
+     expect(w.find('.tb-new-file').exists()).toBe(true)
+   })
+ 
++  // These two close the exact gap fix-round-1 F4 flagged: FileContextMenu.test.ts
++  // only proves the menu ITEM fires action 'paste'; nothing proved Files.vue's
++  // dispatcher still listens for that string. Both routes into ops.paste() --
++  // the toolbar button and the context-menu action -- get their own test so a
++  // stale case label (e.g. still matching 'paste-overwrite') would go red here
++  // even though FileContextMenu.test.ts and useFileOps.test.ts both stay green.
++  it('toolbar Paste button reaches ops.paste() and submits the clipboard contents', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
++    await w.vm.$nextTick()
++    await w.get('.tb-paste').trigger('click')
++    await flushPromises()
++    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
++  })
++
++  it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
++    const folders = useFoldersStore()
++    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
++    const router = makeRouter()
++    router.push('/files/NimoOS-HD'); await router.isReady()
++    const w = mount(Files, { global: { plugins: [router, i18n] } })
++    await flushPromises()
++    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
++    await w.vm.$nextTick()
++    // Fire the SAME event string the real menu item emits (verified separately
++    // in FileContextMenu.test.ts), without needing to drive reka-ui's real
++    // popover positioning through jsdom.
++    w.findComponent(FileContextMenu).vm.$emit('action', 'paste', null)
++    await flushPromises()
++    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
++  })
++
+   it('右键未选中的行会选中它(为右键菜单定目标);冒泡到容器不应清空该选中', async () => {
+     const folders = useFoldersStore()
+     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+     const router = makeRouter()
+     router.push('/files/NimoOS-HD'); await router.isReady()
+     const w = mount(Files, { global: { plugins: [router, i18n] } })
+     await flushPromises()
+     await w.get('.view-toggle-list').trigger('click')
+     const files = useFilesStore()
+     const row = w.findAll('.file-row')[0]

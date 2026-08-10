@@ -20,13 +20,13 @@ describe('FileTile', () => {
   })
 
   it('剪切态给卡加 cut class', () => {
-    useClipboardStore().operate('move', ['/DATA/a.txt'])
+    useClipboardStore().operate('move', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileTile, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-tile').classes()).toContain('cut')
   })
 
   it('复制态不加 cut class', () => {
-    useClipboardStore().operate('copy', ['/DATA/a.txt'])
+    useClipboardStore().operate('copy', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileTile, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-tile').classes()).not.toContain('cut')
   })

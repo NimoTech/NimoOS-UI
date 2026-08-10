@@ -9,6 +9,8 @@ import {
   computeUploadConflicts, splitConflictsByKind, applyUploadResolutions, applyInnerResolutions,
   type UploadEntry, type AcceptedEntry, type InnerPrecheckResult,
 } from '../upload/uploadConflict'
+import { computePasteConflicts, splitPasteItems } from '../upload/pasteConflict'
+import type { OperateItem } from '../stores/clipboard'
 
 export interface ConflictDialogState {
   open: boolean
@@ -53,7 +55,7 @@ export interface ResolveOptions {
   assumeMergeForFolders?: boolean
 }
 
-export interface UploadConflictDeps {
+export interface FileConflictDeps {
   listFolder?: (p: string) => Promise<{ content?: { name: string; is_dir: boolean }[] } | null>
   precheck?: (
     targetPath: string,
@@ -61,7 +63,7 @@ export interface UploadConflictDeps {
   ) => Promise<{ results: InnerPrecheckResult[] }>
 }
 
-export function useUploadConflicts(deps: UploadConflictDeps = {}) {
+export function useFileConflicts(deps: FileConflictDeps = {}) {
   const listFolder = deps.listFolder || ((p: string) => service.folder.getList(p))
   const precheck = deps.precheck || ((t: string, f: { relativePath: string; size: number }[]) => service.file.uploadPrecheck(t, f))
 
@@ -243,5 +245,37 @@ export function useUploadConflicts(deps: UploadConflictDeps = {}) {
     return next
   }
 
-  return { dialog, onChoose, onCancel, resolveEntries }
+  /**
+   * Paste's counterpart to `run()`. Shares this composable's dialog, resolver and
+   * serial chain, so an upload batch and a paste can never both be asking.
+   *
+   * `allowMerge` is deliberately never set: the backend's move/copy conflict
+   * switch (NimoOS service/file.go) implements skip / overwrite / rename only.
+   */
+  async function resolvePaste(items: OperateItem[], destDir: string) {
+    const task = async () => {
+      // Symmetric with run()'s degradation above: a listing failure here used
+      // to reject the whole batch (paste() would catch it and toast a bare
+      // "operation failed", submitting nothing), while the exact same failure
+      // in the upload path just warns and lets everything through. Fixed to
+      // match -- everything falls through to the rename group, which is the
+      // same "just land it" default a conflict-free item gets.
+      let conflicts: ConflictCandidate[]
+      try {
+        conflicts = await computePasteConflicts({ items, destDir, listFolder })
+      } catch (err) {
+        console.warn('[paste] listing the target directory failed — conflict detection degraded, everything submitted as-is', err)
+        return { overwriteItems: [], renameItems: [...items], skippedCount: 0, cancelledCount: 0 }
+      }
+      const resolutions = conflicts.length
+        ? await resolveConflictQueue(conflicts, (conflict, ctx) => ask(conflict, destDir, ctx))
+        : []
+      return splitPasteItems(items, resolutions)
+    }
+    const p = chain.then(task, task)
+    chain = p.then(() => undefined, () => undefined)
+    return p
+  }
+
+  return { dialog, onChoose, onCancel, resolveEntries, resolvePaste }
 }

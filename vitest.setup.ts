@@ -24,3 +24,17 @@ vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return { open: vi
 import { config } from '@vue/test-utils'
 import { i18n } from './src/i18n'
 config.global.plugins = [...(config.global.plugins ?? []), i18n]
+
+// jsdom does not implement Element.prototype.scrollIntoView (it's a layout API,
+// and jsdom does no layout). Any component that calls it -- e.g.
+// TimeMachineRail.vue's "keep the selected tick in view" watch -- throws
+// "scrollIntoView is not a function" the moment it mounts, even in tests that
+// never assert anything about scrolling. Because that call sits inside an
+// `async` watch callback, the throw becomes an *unhandled promise rejection*
+// rather than a normal test failure: the test itself still goes green, but the
+// suite run prints a wall of "Unhandled Rejection" noise that can bury a real
+// failure. Stub it globally as a no-op so every mount gets a working method;
+// tests that need to observe calls (e.g. TimeMachineRail.test.ts) reassign
+// `Element.prototype.scrollIntoView` to their own spy per-test, which simply
+// overwrites this default for the duration of that test.
+Element.prototype.scrollIntoView = () => {}

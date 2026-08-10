@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUploadsStore } from '../stores/uploads'
 import { useFilesStore } from '../stores/files'
+import { useFileOpsStore } from '../stores/fileOps'
 import { shouldAutoOpenUploadList } from '../upload/uploadListVisibility'
 import { groupByBatch, type BatchView, type BatchLabel } from '../upload/uploadBatches'
 import { toVirtualPath } from '../util/pathUtils'
@@ -11,12 +12,21 @@ import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
 import type { UploadItem } from '../upload/types'
 import AlertDialog from '../../components/ui/AlertDialog.vue'
+import { opsTaskPercent, opsTaskLabelKey, opsTaskBasename, resolveUploaderHeader } from '../util/opsRow'
 
 const store = useUploadsStore()
 const files = useFilesStore()
+const ops = useFileOpsStore()
 const { t } = useI18n()
 
-const open = ref(shouldAutoOpenUploadList(0, store.queue.length))
+// Initial open state must consider both queues -- a mount with file
+// operations already in flight (e.g. a paste task started just before this
+// panel first renders) should show them immediately, not wait for a
+// subsequent change event that will never fire because the length never
+// increases again after mount.
+const open = ref(
+  shouldAutoOpenUploadList(0, store.queue.length) || shouldAutoOpenUploadList(0, ops.active.length),
+)
 
 watch(
   () => store.queue.length,
@@ -33,6 +43,30 @@ const activeBatches = computed(() => batches.value.filter((b) => b.zone === 'act
 const doneBatches = computed(() => batches.value.filter((b) => b.zone === 'done'))
 
 const totalCount = computed(() => store.queue.length)
+
+// The panel is shared by two independent queues. `totalCount` is the upload
+// queue alone; gating on it would hide the file-operation group in the most
+// common case of all -- a paste with nothing uploading.
+const opsCount = computed(() => ops.active.length)
+const panelVisible = computed(() => totalCount.value > 0 || opsCount.value > 0)
+
+// Same rule for file operations. Note what the shared helper actually says:
+// `shouldAutoOpenUploadList` is `curLen > prevLen`, so ANY increase re-opens a
+// panel the user had collapsed -- not only the empty -> non-empty transition.
+// Reuses the upload helper so both queues share one definition of "something
+// just started".
+watch(
+  opsCount,
+  (cur, prev) => {
+    if (shouldAutoOpenUploadList(prev ?? 0, cur)) open.value = true
+  },
+)
+
+// Header wording: uploads win over file-ops when both queues are non-empty
+// (see resolveUploaderHeader doc comment for why).
+const headerText = computed(() =>
+  t(resolveUploaderHeader({ uploadCount: totalCount.value, opsCount: opsCount.value })),
+)
 
 // PATH SAFETY: only show a directory once it converts to a virtual (display-
 // name-rooted) path; otherwise render nothing rather than leak /DATA or /media.
@@ -136,14 +170,18 @@ function confirmDelete() {
 </script>
 
 <template>
-  <div v-if="totalCount" class="upload-panel-wrap">
+  <div v-if="panelVisible" class="upload-panel-wrap">
+    <!-- Same three-state wording as the expanded header. The count was widened
+         to include file operations but the label was not, so a user who pasted a
+         6 GB file and collapsed the panel read "Upload (1)" -- an upload that
+         does not exist. -->
     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
-      {{ t('filesUploadTitle') }} ({{ totalCount }})
+      {{ headerText }} ({{ totalCount + opsCount }})
     </button>
 
     <div v-else class="upload-panel">
       <div class="up-head">
-        <span class="up-title">{{ t('filesUploadTitle') }}</span>
+        <span class="up-title">{{ headerText }}</span>
         <div class="up-head-actions">
           <button v-if="anyRunning" class="up-link-btn" @click="store.pauseAll()">{{ t('filesUploadPauseAll') }}</button>
           <button v-else-if="anyPaused" class="up-link-btn" @click="store.resumeAll()">{{ t('filesUploadResumeAll') }}</button>
@@ -168,6 +206,22 @@ function confirmDelete() {
             <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
             <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="opsCount" class="up-zone">
+        <div class="up-zone-head">
+          <span class="up-zone-title">{{ t('filesUploadZoneOps') }}</span>
+          <button class="up-link-btn up-ops-cancel-all" @click="ops.cancelAll()">{{ t('filesCancelAll') }}</button>
+        </div>
+        <div v-for="task in ops.active" :key="task.id" class="up-item up-ops-item">
+          <div class="up-item-line">
+            <span class="up-item-name">{{ t(opsTaskLabelKey(task)) }} · {{ opsTaskBasename(task.processing_path) }}</span>
+            <span v-if="opsTaskPercent(task) !== null" class="up-item-pct">{{ opsTaskPercent(task) }}%</span>
+          </div>
+          <div class="up-progress">
+            <div class="up-progress-fill" :style="{ width: (opsTaskPercent(task) ?? 0) + '%' }"></div>
           </div>
         </div>
       </div>
@@ -250,9 +304,15 @@ function confirmDelete() {
 .up-link-btn.up-del { color: var(--remove-fg, #ff8a8a); }
 .up-head-actions { display: flex; align-items: center; gap: 10px; }
 .up-link-btn.up-delete-all { color: var(--remove-fg, #ff8a8a); }
+/* "Cancel all" stops every server-side file operation at once. It had no rule of
+   its own, so it rendered as an ordinary accent link -- indistinguishable from
+   Pause / Resume beside it. Same compound-selector trick as the two rules above
+   so red beats .up-link-btn's accent regardless of stylesheet order. */
+.up-link-btn.up-ops-cancel-all { color: var(--remove-fg); }
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-zone { margin-top: 6px; }
 .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
+.up-zone-head { display: flex; align-items: center; justify-content: space-between; }
 .up-item { margin-top: 8px; }
 .up-item-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .up-item-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

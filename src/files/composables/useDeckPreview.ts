@@ -92,7 +92,12 @@ export function useDeckPreview(opts: {
       if (key !== cacheKey) { cacheKey = key; previews.value = {}; epoch += 1 }
       if (!opts.mountPoint()) return
       for (const name of opts.visibleNames()) {
-        if (!previews.value[name]) fetchOne(name, epoch)
+        const cached = previews.value[name]
+        // A `failed` entry means the request blew up -- usually a blip. It used to
+        // count as "already fetched" and the card stayed a text card for as long as
+        // it remained visible, even after the network came back. `missing` (404) is
+        // a stable fact about that snapshot and is never retried.
+        if (!cached || cached.status === 'failed') fetchOne(name, epoch)
       }
     },
     { immediate: true },

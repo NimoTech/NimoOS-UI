@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-const props = defineProps<{ count: number; restoring: boolean }>()
+const props = defineProps<{
+  count: number
+  restoring: boolean
+  // Task 11: only set while a batch restore is in flight. The backend takes
+  // one path per call, so a 40-item batch stays serial — this is what makes
+  // that wait visible instead of just a disabled button.
+  restoreProgress?: { done: number; total: number } | null
+}>()
 const emit = defineEmits<{ (e: 'restore'): void; (e: 'download'): void; (e: 'clear'): void }>()
 const { t } = useI18n()
 function onRestore() { if (!props.restoring) emit('restore') }
@@ -13,7 +20,9 @@ function onRestore() { if (!props.restoring) emit('restore') }
   <div class="selection-toolbar snap-sel">
     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
     <button class="sel-btn snap-sel-restore" :disabled="props.restoring" @click="onRestore">
-      {{ t('snapBrowseRestore') }}
+      {{ props.restoreProgress
+        ? t('snapBrowseRestoringProgress', { done: props.restoreProgress.done, total: props.restoreProgress.total })
+        : t('snapBrowseRestore') }}
     </button>
     <button class="sel-btn snap-sel-download" @click="emit('download')">{{ t('filesCtxDownload') }}</button>
     <button class="sel-btn snap-sel-clear" @click="emit('clear')">{{ t('filesClearSel') }}</button>

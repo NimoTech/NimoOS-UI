@@ -14,11 +14,9 @@ import UploadBatchModal from '../files/components/UploadBatchModal.vue'
 import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
-import OperationStatusBar from '../files/components/OperationStatusBar.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
-import FileConflictDialog from '../files/components/FileConflictDialog.vue'
 import { useFileOps } from '../files/composables/useFileOps'
-import { useUploadConflicts } from '../files/composables/useUploadConflicts'
+import { useFileConflictsStore } from '../files/stores/fileConflicts'
 import { useViewer } from '../files/viewers/useViewer'
 import ViewerHost from '../files/viewers/ViewerHost.vue'
 import { resolveOpen } from '../files/viewers/resolveOpen'
@@ -30,6 +28,8 @@ import { useUploadsStore } from '../files/stores/uploads'
 import { useMountsStore } from '../files/stores/mounts'
 import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
+import { shareableFolders } from '../files/util/shareGate'
+import { splitProtectedUploads, operableEntries } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
@@ -42,6 +42,7 @@ import {
 import { readDefault } from '../files/util/locationOrder'
 import { resolveDefaultRoot } from '../files/util/defaultRoot'
 import { parseRecover } from '../files/util/recoverEvent'
+import { contextTargets } from '../files/util/contextTarget'
 import SnapshotBanner from '../files/snapshot/SnapshotBanner.vue'
 import SnapshotSelectionToolbar from '../files/snapshot/SnapshotSelectionToolbar.vue'
 import TimeMachineOverlay from '../files/snapshot/TimeMachineOverlay.vue'
@@ -63,7 +64,7 @@ const uploads = useUploadsStore()
 const mounts = useMountsStore()
 const shares = useSharesStore()
 const browse = useSnapshotBrowseStore()
-const conflicts = useUploadConflicts()
+const conflicts = useFileConflictsStore()
 const toast = useToast()
 const bus = useMessageBus()
 const { t } = useI18n()
@@ -73,7 +74,7 @@ const settingsOpen = ref(false)
 const overlayRef = ref<InstanceType<typeof TimeMachineOverlay> | null>(null)
 const newDlg = ref<{ open: boolean; mode: 'file' | 'folder' }>({ open: false, mode: 'folder' })
 const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
-const deleteDlg = ref<{ open: boolean; entries: FileEntry[] }>({ open: false, entries: [] })
+const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const batchModalId = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
@@ -95,32 +96,54 @@ function onBlankContextmenu(e: MouseEvent) {
 
 function openNew(mode: 'file' | 'folder') { newDlg.value = { open: true, mode } }
 
-// 取选中或右键项(复用于 delete/copy/cut)
-function selectedOr(entry: FileEntry | null): FileEntry[] {
-  const sel = files.entries.filter((e) => files.isSelected(e.path))
-  return sel.length ? sel : entry ? [entry] : []
+// Current selection (in listing order), shared by context-menu target set and batch entry points
+const selectedEntries = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
+
+// Effective target set for context-menu actions — the determination logic is in util/contextTarget.ts,
+// and both menu shape and all actions read the same set to avoid "menu shows multi-select, action acts on one item" mismatches.
+function ctxTargets(entry: FileEntry | null): FileEntry[] {
+  return contextTargets(entry, selectedEntries.value)
 }
 
+// Menu prop: must be the count of the effective target set, not the original selection count
+const ctxTargetCount = computed(() => ctxTargets(ctxEntry.value).length)
+
 // 多选工具栏「共享」按钮是否显示:选区内含至少一个文件夹
-const selectionHasFolder = computed(() => files.entries.some((e) => files.isSelected(e.path) && e.is_dir))
+const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is_dir))
 
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
-const snapshotSelection = computed(() => files.entries.filter((e) => files.isSelected(e.path)))
+const snapshotSelection = computed(() => selectedEntries.value)
 
-// 发起共享:右键单文件夹(entry 非空、无选区)→ 创建后自动弹出链接对话框;
-// 多选批量(entry 为 null)→ 仅取文件夹成员批量创建,不弹链接对话框(多个名字无从展示)。
-async function onShare(entry: FileEntry | null) {
-  const folders = selectedOr(entry).filter((e) => e.is_dir)
-  if (!folders.length) return
-  const ok = await shares.create(folders.map((f) => f.path))
-  if (ok) {
-    ops.refresh() // 刷新列表,让刚共享的文件夹 extensions.share.shared 更新(否则右键仍显示「共享到局域网」)
-    if (folders.length === 1) shareDlg.value = { open: true, name: shareName(folders[0].path) }
+// Share the effective target set (ctxTargets(entry) — the clicked entry is always part of
+// it by the time this runs, see contextTargets/onItemContextmenu). The link dialog pops
+// whenever exactly *one* folder ends up actually shared after filtering, not based on
+// whether the call came from a single right-click or a toolbar batch: a batch of 3 folders
+// where 2 are already shared leaves 1 real target, and showing that folder's link is the
+// useful outcome, not a special case to avoid. With 2+ remaining targets there's no single
+// link to show (multiple names cannot be shown in one dialog), so the dialog is skipped.
+// Already-shared members are filtered here — backend returns SHARE_ALREADY_EXISTS for them
+// and the whole batch fails, but the single-item context menu already hides the action for
+// already-shared items (FileContextMenu's showShare), so batch must follow the same logic
+// to keep the semantics consistent.
+async function onShare(entry: FileEntry | null, candidates: FileEntry[] = ctxTargets(entry)) {
+  const { targets, skipped } = shareableFolders(candidates)
+  if (!targets.length) {
+    // The selection really is all folders, just all already shared — explain why so user doesn't think the button is broken
+    if (skipped) toast.show(t('filesShareAllAlreadyShared'))
+    return
   }
+  const ok = await shares.create(targets.map((f) => f.path))
+  if (!ok) return
+  ops.refresh() // Refresh the listing so shared folders get their extensions.share.shared updated (else context menu still shows "Share to LAN")
+  if (skipped) toast.show(t('filesShareSkippedShared', { count: skipped }))
+  if (targets.length === 1) shareDlg.value = { open: true, name: shareName(targets[0].path) }
 }
 
 // 右键菜单动作分发
-function onCtxAction(action: string, entry: FileEntry | null) {
+// `targets` defaults to the effective target set of the listing's context menu.
+// The sidebar passes it explicitly: a right-click on a favourite is about that
+// one folder, and the listing's selection has nothing to do with it (F3).
+function onCtxAction(action: string, entry: FileEntry | null, targets: FileEntry[] = ctxTargets(entry)) {
   switch (action) {
     case 'new-folder': openNew('folder'); break
     case 'new-file': openNew('file'); break
@@ -138,22 +161,23 @@ function onCtxAction(action: string, entry: FileEntry | null) {
         else favorites.add({ name: entry.name, path: entry.path })
       }
       break
-    case 'delete': {
-      const sel = files.entries.filter((e) => files.isSelected(e.path))
-      deleteDlg.value = { open: true, entries: sel.length ? sel : entry ? [entry] : [] }
-      break
-    }
-    case 'copy': ops.copy(selectedOr(entry)); break
-    case 'cut': ops.cut(selectedOr(entry)); break
-    case 'download': ops.download(selectedOr(entry)); break
-    case 'paste-overwrite': ops.paste('overwrite'); break
-    case 'paste-skip': ops.paste('skip'); break
+    case 'delete': askDelete(targets); break
+    case 'copy': ops.copy(targets); break
+    case 'cut': ops.cut(targets); break
+    case 'download': ops.download(targets); break
+    case 'paste': ops.paste(); break
     case 'upload-file': triggerFileSelect(); break
     case 'upload-folder': triggerFolderSelect(); break
-    case 'share': onShare(entry); break
+    case 'share': onShare(entry, targets); break
     case 'restore-original': if (entry) browse.restore([entry]); break
     case 'set-wallpaper': onSetWallpaper(entry); break
   }
+}
+
+// Sidebar favourites route into the very same dispatcher, with the clicked
+// favourite forced as the only target — see the `targets` parameter above.
+function onFavoriteCtxAction(action: string, entry: FileEntry) {
+  onCtxAction(action, entry, [entry])
 }
 
 async function onSetWallpaper(entry: FileEntry | null) {
@@ -243,11 +267,21 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
+  // Refuse protected-directory entries BEFORE the conflict prompt, not after.
+  // addFilesToQueue applies the same rule at the end of this function, so these
+  // entries were never going to be uploaded either way — but reaching that point
+  // meant the user first had to answer "merge / keep both / skip" for a folder
+  // that was already destined for the bin (SP12 Plan B outstanding item 7).
+  // The store keeps its own copy of the rule as a last line of defence; the
+  // second loop below still reports anything it catches.
+  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
+  for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
+  if (!allowed.length) return
   // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
   // the interrupted batch created it — so its collision is self-inflicted and
   // merging back into it is the only correct answer. See ResolveOptions
-  // .assumeMergeForFolders in useUploadConflicts.ts for the full reasoning.
-  const resolved = await conflicts.resolveEntries(normalized, targetPath, { assumeMergeForFolders: !!pending })
+  // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
+  const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
   const dropped = resolved.skippedCount + resolved.cancelledCount
 
   if (!resolved.accepted.length) {
@@ -333,7 +367,19 @@ function confirmDelete() {
 function onToolbarDelete() {
   const sel = files.entries.filter((e) => files.isSelected(e.path))
   if (!sel.length) return
-  deleteDlg.value = { open: true, entries: sel }
+  askDelete(sel)
+}
+
+// The confirmation is the last point at which the user can still back out, so
+// it has to describe what will actually happen. It used to report the raw
+// selection size ("delete the selected 8 items?") while the protected members
+// were only discovered afterwards, inside ops.remove — so a selection with one
+// system folder in it confirmed a delete of 8 and deleted 0 (pending-ledger
+// F10). Split first, count what survives, and say how many are being left.
+function askDelete(entries: FileEntry[]) {
+  const { targets, skipped } = operableEntries(entries)
+  if (!targets.length) { toast.show(t('filesProtectedDelete')); return }
+  deleteDlg.value = { open: true, entries: targets, skipped }
 }
 
 const currentVirtual = computed(() => toVirtualPath(files.currentPath, files.displayNames))
@@ -490,14 +536,22 @@ function onMarqueeMove(e: MouseEvent) {
   marquee.value = { x1: downX, y1: downY, x2: e.clientX, y2: e.clientY }
   collectSelection()
 }
+// Teardown is reachable from two directions: the drag ending normally
+// (onMarqueeUp) and the view going away underneath an unfinished drag. Only
+// the first one used to exist, which left `selectstart` cancelled on document
+// for the rest of the session -- the whole page became unselectable and only
+// a reload brought it back.
+function teardownMarquee() {
+  window.removeEventListener('mousemove', onMarqueeMove)
+  window.removeEventListener('mouseup', onMarqueeUp)
+  document.removeEventListener('selectstart', preventSelectStart)
+}
 function onMarqueeUp() {
   const wasDragging = dragging
   armed = false
   dragging = false
   marquee.value = null
-  window.removeEventListener('mousemove', onMarqueeMove)
-  window.removeEventListener('mouseup', onMarqueeUp)
-  document.removeEventListener('selectstart', preventSelectStart)
+  teardownMarquee()
   if (wasDragging) {
     // 吞掉拖拽后紧跟的那次 click(否则起拖的行/卡会触发 进目录/选中);仅此一次,下一 tick 撤除。
     const swallow = (ev: MouseEvent) => { ev.stopPropagation(); ev.preventDefault() }
@@ -505,6 +559,11 @@ function onMarqueeUp() {
     setTimeout(() => window.removeEventListener('click', swallow, true), 0)
   }
 }
+onUnmounted(() => {
+  armed = false
+  dragging = false
+  teardownMarquee()
+})
 
 onMounted(async () => {
   await files.loadRoots()
@@ -558,9 +617,10 @@ onMounted(() => { browse.ensureVolumes() })
 <template>
   <AreaShell :title="t('filesTitle')">
     <div class="files-layout">
-      <FilesSidebar @navigate="goVirtual" />
+      <FilesSidebar @navigate="goVirtual" @ctx-action="onFavoriteCtxAction" />
       <div
         class="files-main"
+        data-marquee-surface
         @mousedown="onMarqueeDown"
         @dragover.prevent="onDragOver"
         @dragleave="onDragLeave"
@@ -580,7 +640,7 @@ onMounted(() => { browse.ensureVolumes() })
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
               <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
-              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste('overwrite')">{{ t('filesPaste') }}</button>
+              <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
               <button class="chip view-toggle-grid" :class="{ active: files.viewMode === 'grid' }" @click="files.setView('grid')">{{ t('filesViewGrid') }}</button>
@@ -593,6 +653,7 @@ onMounted(() => { browse.ensureVolumes() })
           :restoring="browse.restoring"
           :can-restore="snapshotSelection.length > 0"
           :is-container="browse.isSnapshotView && !browse.browseInfo"
+          :restore-progress="browse.restoreProgress"
           @exit="exitSnapshot"
           @restore="browse.restore(snapshotSelection)"
         />
@@ -600,6 +661,7 @@ onMounted(() => { browse.ensureVolumes() })
           v-if="browse.isSnapshotView && !!browse.browseInfo && files.selectedCount > 0"
           :count="files.selectedCount"
           :restoring="browse.restoring"
+          :restore-progress="browse.restoreProgress"
           @restore="browse.restore(snapshotSelection)"
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
           @clear="files.clearSelection"
@@ -617,7 +679,7 @@ onMounted(() => { browse.ensureVolumes() })
           @download="ops.download(files.entries.filter((e) => files.isSelected(e.path)))"
           @share="onShare(null)"
         />
-        <FileContextMenu :entry="ctxEntry" :selected-count="files.selectedCount" @action="onCtxAction">
+        <FileContextMenu :entry="ctxEntry" :selected-count="ctxTargetCount" @action="onCtxAction">
           <div ref="listwrap" class="files-listwrap" @contextmenu="onBlankContextmenu">
             <div v-if="files.error && !files.loading" class="files-error" role="alert">
               <span class="files-error-title">{{ t('filesLoadFailed') }}</span>
@@ -657,7 +719,9 @@ onMounted(() => { browse.ensureVolumes() })
     <AlertDialog
       v-model:open="deleteDlg.open"
       :title="t('filesCtxDelete')"
-      :message="t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
+      :message="deleteDlg.skipped > 0
+        ? t('filesDeleteConfirmWithProtected', { count: deleteDlg.entries.length, skipped: deleteDlg.skipped })
+        : t('filesDeleteConfirm', { count: deleteDlg.entries.length })"
       :confirm-text="t('filesCtxDelete')"
       :cancel-text="t('filesCancel')"
       destructive
@@ -671,19 +735,7 @@ onMounted(() => { browse.ensureVolumes() })
       :cancel-text="t('filesCancel')"
       @confirm="confirmDownload"
     />
-    <OperationStatusBar />
     <UploadPanel />
-    <FileConflictDialog
-      :open="conflicts.dialog.value.open"
-      :name="conflicts.dialog.value.name"
-      :target-path="conflicts.dialog.value.targetPath"
-      :is-dir="conflicts.dialog.value.isDir"
-      :allow-merge="conflicts.dialog.value.allowMerge"
-      :queue-index="conflicts.dialog.value.queueIndex"
-      :queue-total="conflicts.dialog.value.queueTotal"
-      @choose="conflicts.onChoose"
-      @cancel="conflicts.onCancel"
-    />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
@@ -717,15 +769,20 @@ onMounted(() => { browse.ensureVolumes() })
 </template>
 
 <style scoped>
-.files-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
-.files-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; } /* 撑满右侧高度,使列表下方空白也可起框 */
+/* Height capping (not min-height) + .files-main's min-height:0 unblocks the flex shrinking chain
+   + .files-listwrap takes over scrolling — these three are one unit. Without min-height:0, child
+   elements burst the parent; without overflow-y, the listing gets clipped. After the change:
+   sidebar and breadcrumb stay put, only the file listing scrolls, and FilesSidebar's own
+   overflow-y:auto finally engages. */
+.files-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+.files-main { position: relative; flex: 1 1 auto; min-width: 0; min-height: 0; align-self: stretch; display: flex; flex-direction: column; } /* Stretches to fill right-side height, so whitespace below the listing can be a right-click target */
 .files-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 14px; }
 .files-topbar-right { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
 .files-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 .files-viewtoggle { display: flex; gap: 8px; flex: 0 0 auto; }
 .chip { padding: 6px 14px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: var(--chip-bg, rgba(255,255,255,0.05)); color: var(--fg); cursor: pointer; font-size: 13px; }
 .chip.active { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
-.files-listwrap { position: relative; flex: 1 1 auto; min-height: 200px; user-select: none; } /* flex:1 让列表下方空白也归入 reka-ui 右键触发区 */
+.files-listwrap { position: relative; flex: 1 1 auto; min-height: 0; overflow-y: auto; user-select: none; } /* flex:1 makes whitespace below the listing part of the reka-ui right-click trigger area; after capping, this container takes over scrolling */
 /* A failed listing is not an empty folder: say so, show the backend's own text
    (which is usually the actionable part), and offer the retry. */
 .files-error {

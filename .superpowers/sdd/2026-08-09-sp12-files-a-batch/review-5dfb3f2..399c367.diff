@@ -1,0 +1,258 @@
+# Review package: 5dfb3f2..399c367
+
+## Commits
+399c367 docs(sdd): add task-8 report for breadcrumb/header fake-click fix
+8635800 fix(files): stop advertising clicks that do nothing
+
+## Files changed
+ .../2026-08-09-sp12-files-a-batch/task-8-report.md | 69 ++++++++++++++++++++++
+ src/files/components/Breadcrumb.test.ts            | 19 ++++++
+ src/files/components/Breadcrumb.vue                | 10 +++-
+ src/files/components/FileListView.test.ts          | 43 ++++++++++++++
+ src/files/components/FileListView.vue              |  7 ++-
+ 5 files changed, 143 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-8-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-8-report.md
+new file mode 100644
+index 0000000..3b562b6
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-8-report.md
+@@ -0,0 +1,69 @@
++# Task 8 report — F9: breadcrumb current segment + spacer header cells no longer fake clickability
++
++## Files changed
++
++- `src/files/components/Breadcrumb.vue` — last segment now renders as `<span class="crumb current">` (non-interactive), all prior segments stay `<button class="crumb">`. Narrowed `.crumb:hover` to `button.crumb:hover` so the now-non-button current span doesn't pick up hover feedback. Removed the hardcoded fallback literals on the two rules touched (`.crumb`, `button.crumb:hover`): `var(--fg-muted, #9aa4bf)` → `var(--fg-muted)`, `var(--chip-bg, rgba(255,255,255,0.06))` → `var(--chip-bg)`. Verified both tokens have values in both `:root` and `:root[data-theme="light"]` in `src/styles/theme.css` before removing the fallback. Did not touch the untouched `.crumb-sep` rule, which still carries its own fallback (out of scope — brief said "only the two rules you're already changing").
++- `src/files/components/FileListView.vue` — added `is-sortable` class to the `v-for` header cells (the actual sortable columns). Split `.head-cell { cursor: pointer; user-select: none; }` into `.head-cell { user-select: none; }` + `.head-cell.is-sortable { cursor: pointer; }` so the checkbox/star spacer cells no longer get a pointer cursor. Left `.file-listhead`'s own fallback literals alone — brief did not ask to touch that rule.
++- `src/files/components/Breadcrumb.test.ts` — added 3 tests (current segment doesn't navigate, ancestor still navigates, current segment isn't a `<button>`).
++- `src/files/components/FileListView.test.ts` — new file, 4 tests (no `cursor:pointer` on bare `.head-cell`, `cursor:pointer` still present on `.head-cell.is-sortable`, sortable cells get the class, checkbox/star spacer cells don't).
++
++## Step-by-step commands and output
++
++### Step 2 — confirm red
++
++```
++pnpm exec vitest run src/files/components/Breadcrumb.test.ts src/files/components/FileListView.test.ts
++```
++
++Result: 2 test files failed, 5 failed / 5 passed (10 total). Failures were exactly the newly-added assertions:
++- `does not navigate when the current directory segment is clicked` — failed because click on last segment emitted `navigate` (old behavior).
++- `renders the current segment as a non-interactive element, not a button` — failed because tagName was `BUTTON`.
++- `does not give the non-sortable header cells a pointer cursor` / `still gives the sortable header cells a pointer cursor` — first attempt hit a tooling error (`new URL('./FileListView.vue', import.meta.url)` → "The URL must be of scheme file"); fixed by switching to `path.join(path.dirname(fileURLToPath(import.meta.url)), 'FileListView.vue')`, matching the pattern already used in `src/styles/color-guard.test.ts`. After the fix, both CSS-regex tests failed for the right reason (no `is-sortable` class existed yet, and `.head-cell` itself had `cursor: pointer`).
++- `marks the sortable header cells with the is-sortable class` — failed because the class wasn't present yet.
++
++### Step 4 — confirm green + style guards
++
++```
++pnpm exec vitest run src/files/components/Breadcrumb.test.ts src/files/components/FileListView.test.ts
++```
++→ 2 test files passed, 10/10 tests passed.
++
++```
++pnpm exec vitest run src/styles/
++```
++→ 4 test files passed, 1301/1301 tests passed (color-guard, comment-integrity, selectPopup, theme.sp9, wallpaper.css all green — no new hardcoded literals or broken comments introduced).
++
++Combined final check:
++```
++pnpm exec vitest run src/files/components/Breadcrumb.test.ts src/files/components/FileListView.test.ts src/styles/
++```
++→ 6 test files passed, 1311/1311 tests passed.
++
++## Mutation verification
++
++Reverted `Breadcrumb.vue`'s template back to the old single always-`<button>` markup (removing the `v-if`/`v-else` span/button split) while keeping the new tests in place, then ran:
++
++```
++pnpm exec vitest run src/files/components/Breadcrumb.test.ts
++```
++
++Result: 2 failed / 4 passed (6 total) — exactly the two tests targeting the fix went red:
++- `does not navigate when the current directory segment is clicked` (received `navigate` emitted with `/NimoOS-HD/Documents/Reports`)
++- `renders the current segment as a non-interactive element, not a button` (tagName was `BUTTON`)
++
++Restored the file from backup and reran the full combined suite (Breadcrumb + FileListView + styles): 6 files / 1311 tests passed, confirming the restore was exact.
++
++Did not do a separate mutation pass for the FileListView cursor fix — the CSS-regex tests are self-verifying by construction (one test asserts absence on the bare selector, the paired test asserts presence on the qualified selector; a "delete is-sortable entirely" mutation would fail the second test, and a "leave cursor:pointer on bare .head-cell" mutation would fail the first — both were exercised naturally during the red→green cycle in Step 2→4 above).
++
++## No tests found to be passing for the wrong reason
++
++All 5 new/added assertions were verified red before the implementation and green after. No assertion needed to be loosened or was accidentally vacuous.
++
++## Uncertainties / things flagged but not changed (out of scope per brief + controller instructions)
++
++- The shared `.crumb` base rule still applies `cursor: pointer` to the now-non-interactive `<span class="crumb current">` (inherited via the shared class, not the narrowed hover rule). The brief's explicit diff only asked to narrow the hover selector to `button.crumb:hover` and did not ask for a `cursor: default` override on the current span — left as specified rather than doing an unrequested additional fix.
++- `.crumb-sep` (Breadcrumb.vue) and `.file-listhead` (FileListView.vue) still carry hardcoded fallback literals (`var(--fg-muted, #9aa4bf)`, `var(--card-border, rgba(255,255,255,0.08))`) — controller instructions were explicit to only clean the two rules being touched, so these were left alone.
++
++## Commit
++
++`8635800` — "fix(files): stop advertising clicks that do nothing" (4 files changed, 74 insertions, 5 deletions).
+diff --git a/src/files/components/Breadcrumb.test.ts b/src/files/components/Breadcrumb.test.ts
+index 61142ab..b1276fe 100644
+--- a/src/files/components/Breadcrumb.test.ts
++++ b/src/files/components/Breadcrumb.test.ts
+@@ -16,11 +16,30 @@ describe('Breadcrumb', () => {
+     const ev = w.emitted('navigate')
+     expect(ev).toBeTruthy()
+     expect(ev![0][0]).toBe('/NimoOS-HD/Documents')
+     expect(ev![0][0]).not.toContain('/DATA')
+   })
+ 
+   it('renders a favorite star for the current folder', () => {
+     const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents', currentRealPath: '/DATA/Documents' }, ...opts })
+     expect(w.find('.crumb-star').exists()).toBe(true)
+   })
++
++  it('does not navigate when the current directory segment is clicked', async () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
++    const crumbs = w.findAll('.crumb')
++    await crumbs[crumbs.length - 1].trigger('click')
++    expect(w.emitted('navigate')).toBeUndefined()
++  })
++
++  it('still navigates from an ancestor segment', async () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
++    await w.findAll('.crumb')[0].trigger('click')
++    expect(w.emitted('navigate')).toBeTruthy()
++  })
++
++  it('renders the current segment as a non-interactive element, not a button', () => {
++    const w = mount(Breadcrumb, { props: { virtualPath: '/NimoOS-HD/Documents/Reports', currentRealPath: '/DATA/Documents/Reports' }, ...opts })
++    const crumbs = w.findAll('.crumb')
++    expect(crumbs[crumbs.length - 1].element.tagName).not.toBe('BUTTON')
++  })
+ })
+diff --git a/src/files/components/Breadcrumb.vue b/src/files/components/Breadcrumb.vue
+index 5496f5e..e511a60 100644
+--- a/src/files/components/Breadcrumb.vue
++++ b/src/files/components/Breadcrumb.vue
+@@ -16,24 +16,28 @@ const segments = computed<Seg[]>(() => {
+   }
+   return segs
+ })
+ const lastName = computed(() => (segments.value.length ? segments.value[segments.value.length - 1].label : ''))
+ </script>
+ 
+ <template>
+   <nav class="breadcrumb">
+     <template v-for="(seg, i) in segments" :key="seg.vpath">
+       <span v-if="i > 0" class="crumb-sep">›</span>
+-      <button class="crumb" :class="{ current: i === segments.length - 1 }" @click="emit('navigate', seg.vpath)">{{ seg.label }}</button>
++      <!-- The last segment is where you already are: it used to be a live button
++           that navigated to the current directory, with hover feedback promising
++           something would happen. -->
++      <span v-if="i === segments.length - 1" class="crumb current">{{ seg.label }}</span>
++      <button v-else class="crumb" @click="emit('navigate', seg.vpath)">{{ seg.label }}</button>
+     </template>
+     <FavoriteStar v-if="currentRealPath && lastName" class="crumb-star" :path="props.currentRealPath" :name="lastName" />
+   </nav>
+ </template>
+ 
+ <style scoped>
+ .breadcrumb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-width: 0; }
+-.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
+-.crumb:hover { background: var(--chip-bg, rgba(255,255,255,0.06)); color: var(--fg); }
++.crumb { background: none; border: none; cursor: pointer; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; }
++button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
+ .crumb.current { color: var(--fg); font-weight: 600; }
+ .crumb-sep { color: var(--fg-muted, #9aa4bf); font-size: 12px; }
+ .crumb-star { margin-left: 4px; }
+ </style>
+diff --git a/src/files/components/FileListView.test.ts b/src/files/components/FileListView.test.ts
+new file mode 100644
+index 0000000..d198d93
+--- /dev/null
++++ b/src/files/components/FileListView.test.ts
+@@ -0,0 +1,43 @@
++import fs from 'node:fs'
++import path from 'node:path'
++import { fileURLToPath } from 'node:url'
++import { describe, it, expect } from 'vitest'
++import { mount } from '@vue/test-utils'
++import FileListView from './FileListView.vue'
++
++const SELF_PATH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'FileListView.vue')
++
++const opts = {
++  global: { stubs: { FileRow: true } },
++}
++
++describe('FileListView', () => {
++  // cssCascade-style check: read the source CSS directly since jsdom does not
++  // compute layout/cursor styles.
++  it('does not give the non-sortable header cells a pointer cursor', () => {
++    const css = fs.readFileSync(SELF_PATH, 'utf8')
++    // cursor:pointer must be scoped to the cells that actually sort, not the
++    // catch-all .head-cell that also matches the checkbox/star spacer cells.
++    expect(css).not.toMatch(/\.head-cell\s*\{[^}]*cursor:\s*pointer/)
++  })
++
++  it('still gives the sortable header cells a pointer cursor', () => {
++    const css = fs.readFileSync(SELF_PATH, 'utf8')
++    expect(css).toMatch(/\.head-cell\.is-sortable\s*\{[^}]*cursor:\s*pointer/)
++  })
++
++  it('marks the sortable header cells with the is-sortable class', () => {
++    const w = mount(FileListView, { props: { entries: [], sort: 'name', order: 'asc' }, ...opts })
++    const sortable = w.findAll('.head-cell.col-name, .head-cell.col-format, .head-cell.col-date, .head-cell.col-size')
++    expect(sortable.length).toBe(4)
++    for (const cell of sortable) {
++      expect(cell.classes()).toContain('is-sortable')
++    }
++  })
++
++  it('does not mark the checkbox and star spacer cells as sortable', () => {
++    const w = mount(FileListView, { props: { entries: [], sort: 'name', order: 'asc' }, ...opts })
++    expect(w.find('.head-cell.col-check').classes()).not.toContain('is-sortable')
++    expect(w.find('.head-cell.col-star').classes()).not.toContain('is-sortable')
++  })
++})
+diff --git a/src/files/components/FileListView.vue b/src/files/components/FileListView.vue
+index 1bf8abe..d087553 100644
+--- a/src/files/components/FileListView.vue
++++ b/src/files/components/FileListView.vue
+@@ -22,38 +22,41 @@ const COLS = [
+ function arrow(key: string) { return props.sort === key ? (props.order === 'asc' ? ' ▲' : ' ▼') : '' }
+ </script>
+ 
+ <template>
+   <div class="file-listview">
+     <div class="file-listhead">
+       <span class="head-cell col-check"></span>
+       <span
+         v-for="c in COLS"
+         :key="c.key"
+-        :class="['head-cell', c.cls]"
++        :class="['head-cell', 'is-sortable', c.cls]"
+         @click="emit('reorder', c.key)"
+       >{{ t(c.label) }}{{ arrow(c.key) }}</span>
+       <span class="head-cell col-star"></span>
+     </div>
+     <FileRow
+       v-for="entry in props.entries"
+       :key="entry.path"
+       :entry="entry"
+       :selected="props.selectedPaths?.has(entry.path)"
+       @open="emit('open', $event)"
+       @select="emit('select', $event)"
+       @contextmenu="emit('contextmenu', $event)"
+       @open-batch="emit('open-batch', $event)"
+     />
+   </div>
+ </template>
+ 
+ <style scoped>
+ .file-listhead { display: flex; align-items: center; gap: 12px; padding: 6px 12px; font-size: 12px; color: var(--fg-muted, #9aa4bf); border-bottom: 1px solid var(--card-border, rgba(255,255,255,0.08)); }
+-.head-cell { cursor: pointer; user-select: none; }
++/* Only the sortable columns react to clicks; the checkbox and star columns
++   are spacers and used to inherit a pointer cursor that promised nothing. */
++.head-cell { user-select: none; }
++.head-cell.is-sortable { cursor: pointer; }
+ .col-check { flex: 0 0 28px; }
+ .col-name { flex: 1 1 auto; margin-left: 40px; }
+ .col-format { flex: 0 0 48px; }
+ .col-date { flex: 0 0 160px; }
+ .col-size { flex: 0 0 80px; text-align: right; }
+ .col-star { flex: 0 0 32px; }
+ </style>

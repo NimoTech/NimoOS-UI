@@ -27,4 +27,18 @@ describe('FileChunker', () => {
     expect(partitions[1]).toBe(1_500_000)
     expect(c.isFileEnd()).toBe(true)
   })
+  it('abort() called from inside onChunk stops the read loop, so no further chunks are delivered', async () => {
+    const chunks: number[] = []
+    let c!: FileChunker
+    c = new FileChunker(
+      makeFile(200_000),
+      () => { chunks.push(chunks.length); c.abort() },
+      () => {},
+    )
+    c.nextPartition()
+    await vi.waitFor(() => expect(chunks.length).toBeGreaterThanOrEqual(1))
+    // Give the reader loop a chance to keep going if abort() didn't actually stop it.
+    await new Promise((resolve) => setTimeout(resolve, 50))
+    expect(chunks.length).toBe(1)
+  })
 })

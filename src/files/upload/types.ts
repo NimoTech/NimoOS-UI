@@ -20,7 +20,7 @@ export interface UploadItem {
   batchId: string
   batchTotal: number
   // Decided BEFORE enqueue by the conflict dialog flow (see
-  // composables/useUploadConflicts.ts). 'skip' is not a policy — a skipped
+  // composables/useFileConflicts.ts). 'skip' is not a policy — a skipped
   // entry never reaches the queue at all.
   conflictPolicy: '' | 'overwrite' | 'rename'
   thumbUrl?: string

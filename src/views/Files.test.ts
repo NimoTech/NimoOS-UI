@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { service } from '@nimotech/nimoos-service'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -9,6 +10,7 @@ import FileGridView from '../files/components/FileGridView.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useFavoritesStore } from '../files/stores/favorites'
+import { useClipboardStore } from '../files/stores/clipboard'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -20,6 +22,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
         ],
       })),
     },
+    batch: { task: vi.fn().mockResolvedValue(undefined) },
     users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
     image: { thumbUrl: (p: string) => `/v1/image?path=${encodeURIComponent(p)}&type=thumbnail` },
     // Files.vue 的挂载区 socket 刷新在 onMounted 里调用 mounts.loadMounts();mock 之以避免无关的控制台告警。
@@ -35,6 +38,21 @@ vi.mock('@nimotech/nimoos-service', () => ({
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
+// Same reka-ui stand-ins as FileContextMenu.test.ts: the real ContextMenuItem
+// injects a MenuRootContext that only a real ContextMenuRoot provides, and
+// throws when mounted without one. These stubs render the #menu slot content
+// unconditionally (no Portal/positioning), so a real click drives FileContextMenu's
+// own real emit -- the same real DOM-click path production code goes through.
+// (Not because `.vm.$emit()` on the child doesn't work -- it does; see the
+// "context menu paste action" test below for what the actual failure mode was.)
+const ContextMenuStub = {
+  template: '<div><slot /><div class="menu"><slot name="menu" /></div></div>',
+}
+const ContextMenuItemStub = {
+  emits: ['select'],
+  template: '<div @click="$emit(\'select\')"><slot /></div>',
+}
+
 function makeRouter() {
   return createRouter({
     history: createWebHashHistory('/app/'),
@@ -49,6 +67,12 @@ function makeRouter() {
 describe('Files.vue browse pipe', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    // service.batch.task is a module-level vi.fn() shared by every test in this
+    // file. Without clearing it here, a call recorded by an earlier test (e.g.
+    // the toolbar Paste button test) can make a later toHaveBeenCalledWith
+    // assertion pass even if the code under test is completely broken -- see
+    // task-7 fix-round-2 N1.
+    vi.clearAllMocks()
     ;(globalThis as any).IntersectionObserver = class {
       cb: (e: { isIntersecting: boolean }[]) => void
       constructor(cb: any) { this.cb = cb }
@@ -165,6 +189,80 @@ describe('Files.vue browse pipe', () => {
     await flushPromises()
     expect(w.find('.tb-new-folder').exists()).toBe(true)
     expect(w.find('.tb-new-file').exists()).toBe(true)
+  })
+
+  // These two close the exact gap fix-round-1 F4 flagged: FileContextMenu.test.ts
+  // only proves the menu ITEM fires action 'paste'; nothing proved Files.vue's
+  // dispatcher still listens for that string. Both routes into ops.paste() --
+  // the toolbar button and the context-menu action -- get their own test so a
+  // stale case label (e.g. still matching 'paste-overwrite') would go red here
+  // even though FileContextMenu.test.ts and useFileOps.test.ts both stay green.
+  it('toolbar Paste button reaches ops.paste() and submits the clipboard contents', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
+    await w.vm.$nextTick()
+    await w.get('.tb-paste').trigger('click')
+    await flushPromises()
+    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
+  })
+
+  it('context menu "paste" action reaches ops.paste(), not a stale paste-overwrite/paste-skip handler', async () => {
+    // fix-round-3 M1 correction: an earlier draft of this comment blamed
+    // `wrapper.vm.$emit()` itself for not invoking the parent listener. That
+    // diagnosis was wrong -- a minimal parent/child repro showed `.vm.$emit()`
+    // reaches a real `onAction` listener just fine, called exactly once.
+    //
+    // The actual root cause is that `Files.vue`'s render tree contains TWO
+    // `FileContextMenu` instances: FilesSidebar.vue's own copy (for the
+    // favourites list, inside FilesSidebar.vue:220 -- Files.vue:621 is only
+    // where `<FilesSidebar>` itself is mounted) and the main listing's (around
+    // Files.vue:681). `findComponent(FileContextMenu)` -- and `findAll(...)`'s
+    // first result -- resolves to the SIDEBAR's instance, whose
+    // `onFavoriteAction` deliberately no-ops when `entry` is null
+    // (`if (entry) emit('ctx-action', ...)`; blank-area actions like 'paste'
+    // are never forwarded from there). The event genuinely fired -- it just
+    // landed on the wrong instance. This is the SAME ambiguity later hit again
+    // at the DOM level as two `.ctx-paste` elements, not a second, unrelated
+    // bug -- one root cause, two places it showed up.
+    //
+    // The fix stubs reka-ui's ContextMenu/ContextMenuItem the same way
+    // FileContextMenu.test.ts does, and drives an actual DOM click through
+    // FileContextMenu's own real `fire()` -> real `emit('action', ...)` ->
+    // real `onAction` prop chain, exactly as production code would, then
+    // disambiguates which `.ctx-paste` element belongs to the main listing
+    // (see the `mainMenuPaste` lookup below).
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD'); await router.isReady()
+    const w = mount(Files, {
+      global: {
+        plugins: [router, i18n],
+        stubs: { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub },
+      },
+    })
+    await flushPromises()
+    useClipboardStore().operate('copy', [{ path: '/DATA/other-file.txt', is_dir: false }])
+    await w.vm.$nextTick()
+    // FilesSidebar.vue ALSO renders a FileContextMenu (for the favourites list),
+    // so the stub produces two `.ctx-paste` buttons in the tree -- one wired to
+    // Files.vue's real ops.paste() and one wired to the sidebar's
+    // onFavoriteAction, which silently no-ops for a null entry (blank-area
+    // actions like 'paste' are never forwarded there, by design -- see
+    // FilesSidebar.vue's onFavoriteAction). Disambiguate by picking the one
+    // whose sibling in the stub's rendered tree is `.files-listwrap`, the
+    // trigger content Files.vue itself passes into <FileContextMenu>.
+    const mainMenuPaste = w.findAll('.ctx-paste')
+      .find((btn) => btn.element.parentElement?.parentElement?.querySelector('.files-listwrap'))
+    expect(mainMenuPaste).toBeTruthy()
+    await mainMenuPaste!.trigger('click')
+    await flushPromises()
+    expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
 
   it('右键未选中的行会选中它(为右键菜单定目标);冒泡到容器不应清空该选中', async () => {
@@ -305,6 +403,63 @@ describe('快照只读横幅', () => {
     expect(files.selectedCount).toBe(1)
     expect(w.find('.snap-sel').exists()).toBe(true)
     expect(w.find('.snap-sel-restore').exists()).toBe(true)
+  })
+
+  // Fix-wave I3: SnapshotSelectionToolbar has its own test proving it renders
+  // whatever `restoreProgress` prop it's given, and the snapshotBrowse store
+  // has its own test proving `restoreProgress` transitions correctly during a
+  // restore -- but nothing exercises the actual `:restore-progress="browse.
+  // restoreProgress"` binding in Files.vue that connects the two. Deleting
+  // that one line left both of those other test files green (59 files / 865
+  // examples across src/views + src/files/snapshot + src/files/stores).
+  it('wires the snapshot store\'s restore progress into the selection toolbar', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(w.find('.snap-sel-restore').exists()).toBe(true)
+
+    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+    const browse = useSnapshotBrowseStore()
+    browse.restoring = true
+    browse.restoreProgress = { done: 3, total: 40 }
+    await w.vm.$nextTick()
+
+    const btnText = w.get('.snap-sel-restore').text()
+    expect(btnText).toContain('3')
+    expect(btnText).toContain('40')
+  })
+
+  // Fix-wave I4: the banner's own restore button fires the exact same
+  // `browse.restore(snapshotSelection)` call and is the only entry point that
+  // stays enabled for a multi-select restore (its `canRestore` is
+  // `snapshotSelection.length > 0`) -- it must show the same running count
+  // instead of just sitting there grayed out next to a sibling button that
+  // does show progress.
+  it('wires the snapshot store\'s restore progress into the banner\'s own restore button too', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files/NimoOS-HD/.snapshots/20260713T061900Z_manual/Photos'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    await w.get('.view-toggle-list').trigger('click')
+    await w.findAll('.file-row')[0].trigger('click', { ctrlKey: true })
+    expect(w.find('.snap-banner-restore').exists()).toBe(true)
+
+    const { useSnapshotBrowseStore } = await import('../files/stores/snapshotBrowse')
+    const browse = useSnapshotBrowseStore()
+    browse.restoring = true
+    browse.restoreProgress = { done: 3, total: 40 }
+    await w.vm.$nextTick()
+
+    const btnText = w.get('.snap-banner-restore').text()
+    expect(btnText).toContain('3')
+    expect(btnText).toContain('40')
   })
 })
 

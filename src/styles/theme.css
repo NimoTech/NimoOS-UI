@@ -197,7 +197,6 @@
     radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
     radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
     linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
-  --tm-star: rgba(255, 255, 255, 0.85);
   --tm-fg: #f1f5f9;
   --tm-fg-muted: rgba(241, 245, 249, 0.62);
   /* 评审修复(Important):卡堆绝对定位相互重叠,后排卡还带 opacity 0.86/0.7/… 的大字——
@@ -542,12 +541,11 @@
   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
 
-  /* 时间机器 —— 浅色纸感:没有星空(--tm-star 透明),背景是米白 + 极淡光晕 */
+  /* 时间机器 —— 浅色纸感:没有星空,背景是米白 + 极淡光晕 */
   --tm-bg:
     radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
     radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
     linear-gradient(160deg, #fbfaf6 0%, #f3f0e8 55%, #ebe7dd 100%);
-  --tm-star: transparent;
   --tm-fg: #1c1b19;
   --tm-fg-muted: #6e6a61;
   --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);

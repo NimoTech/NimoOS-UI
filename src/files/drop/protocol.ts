@@ -5,6 +5,11 @@ export const CHUNK_SIZE = 64000 // 64 KB(Vue2 _chunkSize)
 export const MAX_PARTITION_SIZE = 1e6 // 1 MB(Vue2 _maxPartitionSize)
 export const PROGRESS_NOTIFY_STEP = 0.01 // 进度变化 ≥1% 才通知对端
 
+// A sender that has shipped a partition waits for the peer's acknowledgement.
+// Without a bound, a peer that simply vanished leaves the queue wedged for the
+// lifetime of the tab.
+export const ACK_TIMEOUT_MS = 30000
+
 export interface PeerName {
   model: string // 后端 UA 解析:desktop | mobile | tablet
   deviceName: string
@@ -34,6 +39,9 @@ export type ChannelMessage =
   | { type: 'progress'; progress: number }
   | { type: 'transfer-complete' }
   | { type: 'text'; text: string }
+  | { type: 'transfer-cancel' }
+
+export type TransferBrokenReason = 'disconnected' | 'timeout' | 'cancelled'
 
 export interface ReceivedFile { name: string; mime: string; size: number; blob: Blob }
 

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { buildRailNodes, computeFisheyeScales } from '../util/timeMachineMath'
 
@@ -71,6 +71,20 @@ function onTickHover(e: MouseEvent, flatIndex: number) {
 }
 
 onUnmounted(() => { if (rafHandle !== null) cancelAnimationFrame(rafHandle) })
+
+// The rail scrolls once the snapshots outgrow its height, and the deck/bottom
+// bar were the only things following the selection -- pressing up/down past the
+// visible range moved everything except the rail, which looked frozen.
+//
+// `block: 'nearest'` so an already-visible tick is left exactly where it is;
+// anything else would yank the whole rail on every keypress.
+watch(() => props.selectedIndex, async (index) => {
+  await nextTick()
+  const root = railEl.value
+  if (!root) return
+  const el = root.querySelector<HTMLElement>(`[data-flat-index="${index}"]`)
+  el?.scrollIntoView({ block: 'nearest' })
+})
 
 function scaleStyle(flatIndex: number) {
   const s = scales.value[flatIndex]

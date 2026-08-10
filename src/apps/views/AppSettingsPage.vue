@@ -186,9 +186,14 @@ function back() { router.push({ name: 'apps' }) }
 .settings-yaml-panel { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
 .settings-yaml-editor { flex: 1 1 auto; min-height: 320px; }
 .set-conflict {
-  /* 全仓库其它「危险/冲突」提示均用半透明 --drop-bad 当底 + --remove-fg 当字(见 GridGhost.vue .bad、
-     OperationStatusBar.vue 等)——brief 原稿写的 background: var(--remove-bg) 与本行 color 撞色(两者色相/明度
-     接近,深色主题下几乎不出对比度),改用 --drop-bad 保持可读,同为 token,不算新增字面量色。 */
+  /* Every other "danger / conflict" surface in the repo pairs a translucent
+     --drop-bad fill with --remove-fg text (GridGhost.vue .bad, CustomAppsPage.vue
+     .set-conflict, the conflict badges on FileTile.vue / FileRow.vue). The brief's
+     original background: var(--remove-bg) collides with the color on the line
+     below -- close hue and lightness, almost no contrast under the dark theme --
+     so this uses --drop-bad instead. Still a token, not a new literal colour.
+     (The earlier version of this comment cited UploadPanel.vue, which has never
+     used --drop-bad.) */
   margin-bottom: 14px; padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
 }

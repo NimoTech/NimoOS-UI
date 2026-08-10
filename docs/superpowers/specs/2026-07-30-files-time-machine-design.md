@@ -213,7 +213,6 @@ TimeMachineOverlay ──> storage/stores/snapshot.loadSnapshots(uuid)
 | token | 深色(默认) | 浅色 |
 |---|---|---|
 | `--tm-bg` | 深空径向渐变 + 深蓝底 | 米白纸感 + 极淡光晕 |
-| `--tm-star` | 星点色 | `transparent`(浅色无星空) |
 | `--tm-card-bg` / `--tm-card-bd` | 玻璃白叠加 / 描边 | 纸白 / 淡灰描边 |
 | `--tm-rail` / `--tm-rail-sub` | 刻度常态 / 子刻度 | 同义浅色值 |
 | `--tm-fg` / `--tm-fg-muted` | 覆盖层前景 | 同义浅色值 |

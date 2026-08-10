@@ -1,0 +1,270 @@
+# Review package: b576b62..e2e7852
+
+## Commits
+e2e7852 docs(sdd): append task-10 regression fix (scrollIntoView unhandled rejection)
+e2883de fix(test): stub scrollIntoView globally to stop unhandled rejections
+be5b7e9 chore(styles): drop the unused --tm-star token
+
+## Files changed
+ .../task-10-report.md                              | 158 +++++++++++++++++++++
+ src/styles/theme.css                               |   4 +-
+ vitest.setup.ts                                    |  14 ++
+ 3 files changed, 173 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+index 2110887..8f8918d 100644
+--- a/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
++++ b/.superpowers/sdd/2026-08-09-sp12-files-a-batch/task-10-report.md
+@@ -85,10 +85,168 @@ The mutation confirms `scrolls the newly selected tick into view` is load-bearin
+ 
+ ## Commit
+ 
+ ```
+ git add src/files/snapshot/TimeMachineRail.vue src/files/snapshot/TimeMachineRail.test.ts
+ git commit -m "fix(files): keep the selected tick in view on the time machine rail
+ 
+ With a hundred snapshots the rail scrolls, and stepping past the visible
+ range moved the deck and the bar but left the rail looking frozen."
+ ```
++
++---
++
++## Follow-up: regression fix (unhandled rejection from scrollIntoView)
++
++Reported by the coordinator after Task 13 ran the wider `src/files/snapshot/` suite and
++surfaced 31 "Unhandled Rejection" errors that Task 13 (incorrectly) treated as a pre-existing
++issue. Confirmed the regression is mine: `git show 71f8aae:src/files/snapshot/TimeMachineRail.vue
++| grep -c scrollIntoView` returns 0, i.e. the call did not exist before this task's commit.
++
++### Root cause
++
++jsdom does not implement `Element.prototype.scrollIntoView`. My own test file
++(`TimeMachineRail.test.ts`) stubs it per-test with `Element.prototype.scrollIntoView = spy`,
++so it never saw the gap. But `TimeMachineOverlay.test.ts` (and other tests in the same
++directory) also mount `TimeMachineRail` without that stub, and every one of those mounts
++now hits the new `watch` and throws `TypeError: el?.scrollIntoView is not a function`. Because
++the throw happens inside an `async` watch callback (`await nextTick()` before the call), it
++surfaces as an *unhandled promise rejection* rather than a synchronous test failure — so the
++affected tests still reported green, but the suite run printed 31 error blocks.
++
++### Fix chosen: (a) global no-op stub in `vitest.setup.ts`
++
++Went with the coordinator's preferred option: added a no-op stub for
++`Element.prototype.scrollIntoView` to `vitest.setup.ts`, with a comment explaining the jsdom
++gap and why the throw manifested as an unhandled rejection rather than a normal failure.
++
++Reasoning for (a) over (b) (`el?.scrollIntoView?.(...)` in production code): the missing
++capability lives in the test environment, not in production robustness — real browsers all
++implement `scrollIntoView`, so an optional-call guard in production code would only ever
++protect against a jsdom-only gap while silently masking a genuine "element not found" bug in
++production (the `el?.` check already handles "no element", which is the real defensive case).
++Fixing the environment gap once, globally, benefits every current and future test that mounts
++`TimeMachineRail` (or any future component that scrolls), rather than special-casing one
++call site.
++
++Confirmed the global stub coexists correctly with the per-test spy in
++`TimeMachineRail.test.ts`: the setup file's `Element.prototype.scrollIntoView = () => {}` runs
++once when the test file's module graph loads (before any test body runs), and each test in
++`TimeMachineRail.test.ts` that needs to observe calls does `Element.prototype.scrollIntoView =
++spy` inside the test body, which simply reassigns the same prototype property and overwrites
++the default for that test — no ordering conflict, evidenced by all 17 tests in that file
++staying green after the setup change (see below).
++
++### File changed
++
++- `vitest.setup.ts` — added `Element.prototype.scrollIntoView = () => {}` with an explanatory
++  comment. No other file touched (`TimeMachineRail.vue` and `TimeMachineRail.test.ts` are
++  unchanged from the original Task 10 commit).
++
++### Verification: before the fix
++
++Command: `pnpm exec vitest run src/files/snapshot/`
++
++```
++ Test Files  8 passed (8)
++      Tests  100 passed (100)
++     Errors  31 errors
++   Start at  00:35:53
++```
++
++(31 "Unhandled Rejection — TypeError: el?.scrollIntoView is not a function" blocks printed,
++all attributed to `TimeMachineOverlay.test.ts` mounting the rail without a stub.)
++
++### Verification: after the fix
++
++Command: `pnpm exec vitest run src/files/snapshot/`
++
++```
++ Test Files  8 passed (8)
++      Tests  100 passed (100)
++   Start at  00:36:10
++   Duration  2.45s (transform 2.72s, setup 2.15s, import 3.38s, tests 1.44s, environment 3.02s)
++```
++
++No `Errors` line at all — vitest only prints that line when the count is nonzero, so its
++absence here means **Errors: 0** (confirmed by full untruncated output, not just tail).
++
++Command: `pnpm exec vitest run src/files/snapshot/TimeMachineRail.test.ts`
++
++```
++ Test Files  1 passed (1)
++      Tests  17 passed (17)
++   Start at  00:36:19
++   Duration  827ms (transform 270ms, setup 293ms, import 94ms, tests 116ms, environment 217ms)
++```
++
++Also zero errors, and the original two Task 10 tests still pass alongside the other 15.
++
++### Mutation verification re-run (with the global stub now in place)
++
++Re-commented out the entire `watch(...)` block in `TimeMachineRail.vue` (same single-line
++`// MUTATION TEST: ...` replacement as before) and re-ran:
++
++Command: `pnpm exec vitest run src/files/snapshot/TimeMachineRail.test.ts`
++
++```
++❯ src/files/snapshot/TimeMachineRail.test.ts (17 tests | 1 failed) 142ms
++     × scrolls the newly selected tick into view 24ms
++
++ FAIL  src/files/snapshot/TimeMachineRail.test.ts > TimeMachineRail > scrolls the newly selected tick into view
++AssertionError: expected "vi.fn()" to be called at least once
++ ❯ src/files/snapshot/TimeMachineRail.test.ts:178:17
++
++ Test Files  1 failed (1)
++      Tests  1 failed | 16 passed (17)
++```
++
++Confirms the global stub did not neuter the mutation test: the first new test still goes red
++when the `watch` is removed, because the per-test spy still overrides the global no-op and
++still observes zero calls. Restored the `watch` block and re-ran both suites (results shown
++above under "after the fix") — all green, zero errors.
++
++### Commit
++
++```
++git add vitest.setup.ts
++git commit -m "fix(test): stub scrollIntoView globally to stop unhandled rejections
++
++jsdom does not implement Element.prototype.scrollIntoView. TimeMachineRail's
++new "keep the selected tick in view" watch (introduced in 4960cd2) calls it
++from an async callback, so any other test that mounts the rail without its
++own spy -- e.g. TimeMachineOverlay.test.ts -- throws inside an unhandled
++promise rejection rather than a normal assertion failure. The affected tests
++still passed, but the suite printed 31 "Unhandled Rejection" errors that
++could bury a real failure. Stub the method as a no-op in the global test
++setup; per-test spies (TimeMachineRail.test.ts) still work by reassigning
++the same prototype property for the duration of that test."
++```
++
++Commit hash: `e2883de`.
++
++### Concerns
++
++- Did not run the full repo-wide `pnpm test` (only `src/files/snapshot/` and the single rail
++  test file), per the coordinator's explicit instructions for this follow-up.
++- **Correction to my own earlier reasoning**: while drafting the "(a) vs (b)" justification I
++  claimed "no other production code path uses it" — that's wrong, and I want to flag it rather
++  than let it stand uncorrected. A grep of `src/` turns up two different existing conventions
++  for this same jsdom gap:
++  - `src/ai/components/shell/MentionPopover.vue:282`, `SlashPopover.vue:179`,
++    `src/apps/views/AppSettingsPage.vue:71`, and `src/views/PhotosSettings.vue:87` already call
++    it defensively as `el?.scrollIntoView?.(...)`, with comments explicitly saying this is
++    because "jsdom doesn't implement scrollIntoView".
++  - `src/views/Files.vue:457` and `src/files/viewers/MediaViewer.vue:205` call it unguarded
++    (`el.scrollIntoView(...)` / `el?.scrollIntoView(...)`, guarding only element existence, not
++    method existence) — the same shape my `TimeMachineRail.vue` code uses, and presumably relying
++    on per-test stubs the way `TimeMachineRail.test.ts` originally did before this regression
++    surfaced.
++  So the codebase is split, not uniformly (b). Given that split, I kept the global stub (a)
++  rather than switching my call site to double-optional-chaining, because (a) fixes the actual
++  proximate cause (an environment gap, not a defensive-coding gap) for every current and future
++  caller in the unguarded-style camp at once, matches the coordinator's stated preference, and
++  is what I already verified end-to-end. I'm flagging the mixed precedent rather than silently
++  picking a side — a reasonable case exists for retrofitting `?.scrollIntoView?.()` onto
++  `Files.vue`/`MediaViewer.vue`/`TimeMachineRail.vue` for consistency with the other four call
++  sites, but that's a separate, pre-existing inconsistency this task did not introduce and is
++  out of this task's scope to unify.
+diff --git a/src/styles/theme.css b/src/styles/theme.css
+index f479c6a..1f6ddab 100644
+--- a/src/styles/theme.css
++++ b/src/styles/theme.css
+@@ -190,21 +190,20 @@
+      浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+ 
+   /* 时间机器覆盖层。跟随主题(用户拍板):深色是深空,浅色是纸感 —— 两套各自成立,
+      不是一套深色硬塞进浅色主题里。 */
+   --tm-bg:
+     radial-gradient(ellipse at 28% 22%, rgba(76, 61, 158, 0.35) 0%, rgba(10, 13, 33, 0) 55%),
+     radial-gradient(ellipse at 78% 78%, rgba(30, 64, 140, 0.28) 0%, rgba(10, 13, 33, 0) 55%),
+     linear-gradient(160deg, #131a3a 0%, #0a0e21 45%, #05060f 100%);
+-  --tm-star: rgba(255, 255, 255, 0.85);
+   --tm-fg: #f1f5f9;
+   --tm-fg-muted: rgba(241, 245, 249, 0.62);
+   /* 评审修复(Important):卡堆绝对定位相互重叠,后排卡还带 opacity 0.86/0.7/… 的大字——
+      纯玻璃渐变最大 alpha 只有 0.16,深色主题下(默认主题,本期门面)后面卡片的文字透过
+      前面那张卡直接看得见,互相叠印。垫一层不透明底色(与 --bg:#1a2138 / --card:#232a45
+      协调、比两者更深一点贴合 --tm-bg 的深空基调),玻璃观感保留,叠印消失。 */
+   --tm-card-bg: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.03)), #161d3d;
+   --tm-card-bd: rgba(255, 255, 255, 0.18);
+   /* 卡片抬头(日期时间 / 类型)与下方文件网格之间的分隔线,比卡片外边框更淡 */
+   --tm-card-divider: rgba(255, 255, 255, 0.1);
+@@ -535,26 +534,25 @@
+   --photos-seg-other: rgba(28, 27, 25, 0.25);
+ 
+   /* P6 终端/日志控制台(终端语义固定深色,不随主题翻转;两套主题块同值,与 Vue2 旧实现一致) */
+   --console-bg: #1e1e1e;
+   --console-fg: #d4d4d4;
+   /* 固定深底区域(monokai 编辑器/日志/终端)的滚动条拇指:全局滚动条颜色随主题翻转,
+      浅色主题下会变成深拇指、落在这些固定深底上不可见——故单独给亮色拇指,两套主题同值 */
+   --console-scroll-thumb: rgba(255, 255, 255, 0.32);
+   --console-scroll-thumb-hover: rgba(255, 255, 255, 0.5);
+ 
+-  /* 时间机器 —— 浅色纸感:没有星空(--tm-star 透明),背景是米白 + 极淡光晕 */
++  /* 时间机器 —— 浅色纸感:没有星空,背景是米白 + 极淡光晕 */
+   --tm-bg:
+     radial-gradient(ellipse at 26% 20%, rgba(59, 91, 219, 0.10) 0%, rgba(247, 245, 239, 0) 58%),
+     radial-gradient(ellipse at 80% 80%, rgba(110, 90, 224, 0.08) 0%, rgba(247, 245, 239, 0) 58%),
+     linear-gradient(160deg, #fbfaf6 0%, #f3f0e8 55%, #ebe7dd 100%);
+-  --tm-star: transparent;
+   --tm-fg: #1c1b19;
+   --tm-fg-muted: #6e6a61;
+   --tm-card-bg: linear-gradient(155deg, #ffffff, #f6f4ee);
+   --tm-card-bd: rgba(28, 27, 25, 0.12);
+   --tm-card-divider: rgba(28, 27, 25, 0.1);
+   --tm-card-shadow: 0 18px 44px rgba(28, 27, 25, 0.18);
+   --tm-rail: rgba(28, 27, 25, 0.45);
+   --tm-rail-sub: rgba(28, 27, 25, 0.16);
+ }
+ 
+diff --git a/vitest.setup.ts b/vitest.setup.ts
+index 168b876..678802d 100644
+--- a/vitest.setup.ts
++++ b/vitest.setup.ts
+@@ -17,10 +17,24 @@ vi.mock('lottie-web', () => ({ default: { loadAnimation: vi.fn(() => ({ addEvent
+ // Global mock, same remedy as lottie-web above; components that need real xterm behavior
+ // (TerminalPane.test.ts, AppConsolePage.test.ts) mock it themselves with more detail anyway.
+ vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return { open: vi.fn(), loadAddon: vi.fn(), dispose: vi.fn(), cols: 80, rows: 24 } }) }))
+ 
+ // Install i18n globally for all component mounts so any component using
+ // useI18n()/$t works without each test wiring the plugin. Tests that pass their
+ // own i18n instance via `global.plugins` still override this (applied later).
+ import { config } from '@vue/test-utils'
+ import { i18n } from './src/i18n'
+ config.global.plugins = [...(config.global.plugins ?? []), i18n]
++
++// jsdom does not implement Element.prototype.scrollIntoView (it's a layout API,
++// and jsdom does no layout). Any component that calls it -- e.g.
++// TimeMachineRail.vue's "keep the selected tick in view" watch -- throws
++// "scrollIntoView is not a function" the moment it mounts, even in tests that
++// never assert anything about scrolling. Because that call sits inside an
++// `async` watch callback, the throw becomes an *unhandled promise rejection*
++// rather than a normal test failure: the test itself still goes green, but the
++// suite run prints a wall of "Unhandled Rejection" noise that can bury a real
++// failure. Stub it globally as a no-op so every mount gets a working method;
++// tests that need to observe calls (e.g. TimeMachineRail.test.ts) reassign
++// `Element.prototype.scrollIntoView` to their own spy per-test, which simply
++// overwrites this default for the duration of that test.
++Element.prototype.scrollIntoView = () => {}
