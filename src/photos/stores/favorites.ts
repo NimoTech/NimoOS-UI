@@ -27,6 +27,14 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   const loadingMore = ref(false)
   let _offset = 0
   let _generation = 0
+  // Review fix round 2: a separate ownership sequence for `loadingMore`, distinct from
+  // `_generation`. `_generation` answers "is this page's data still current"; `loadingMore`
+  // answers "does this call still own the load-more button" — those are different questions.
+  // fetchFavorites() forces loadingMore false unconditionally (correct: it is a full reset),
+  // but a loadMoreFavorites() call that was in flight *before* that reset, and whose page
+  // still arrives after a *second* loadMoreFavorites() has since started, must not be allowed
+  // to clear the second call's flag out from under it in its `finally`.
+  let _loadMoreSeq = 0
   // Task 9 (P8a, P3 遗留收口): 独立失败标志——绝不与 favoritesLoaded 合并/复用。
   // favoritesLoaded 仅成功路径置真是刻意的(见下方 fetchFavorites 注释);一次瞬时失败
   // 必须能被视图区分出「加载失败」而不是「正在加载」或「确认为空」,这就是 loadError 存在
@@ -75,6 +83,11 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     // succeeds — no window where the view can fall through to the wrong
     // branch.
     const gen = ++_generation
+    // Review fix round 2: bump the load-more ownership sequence too, so a loadMoreFavorites()
+    // call already in flight loses ownership of `loadingMore` — its `finally` cannot clobber
+    // whatever a later loadMoreFavorites() call sets after this reset. Forcing the value to
+    // false here directly is still correct: this is a full reset, not "let the owner decide".
+    _loadMoreSeq++
     loadingMore.value = false
     try {
       const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, 0)) as unknown[]
@@ -105,6 +118,14 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
   async function loadMoreFavorites(): Promise<void> {
     if (favoritesExhausted.value || loadingMore.value) return
     const gen = _generation
+    // Review fix round 2: `seq` is this call's claim on `loadingMore`, separate from `gen`.
+    // `gen` alone is not enough to gate the `finally` reset: fetchFavorites() legitimately
+    // forces `loadingMore` false (and bumps `_loadMoreSeq`) while this call is still in
+    // flight, which lets a *later* loadMoreFavorites() start and take ownership before this
+    // one settles. If this call's `finally` reset loadingMore unconditionally (or gated only
+    // on `gen`, which the later call would also share after another refresh), it could clear
+    // the later call's flag while that call is genuinely still in flight.
+    const seq = ++_loadMoreSeq
     loadingMore.value = true
     try {
       const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, _offset)) as unknown[]
@@ -122,15 +143,11 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       // rather than skipping it.
       console.error('[photos-favorites] loadMoreFavorites', e)
     } finally {
-      // Review fix follow-up: reset unconditionally, not only `if (gen === _generation)`.
-      // The reentrancy guard above means at most one loadMoreFavorites() call is ever in
-      // flight, so there is never a second, still-current in-flight call whose loadingMore
-      // this could stomp on. Gating the reset on a generation match instead left the flag
-      // stuck true forever whenever *anything else* (fetchFavorites, or toggle() per
-      // Important 2) bumped the generation while this call was in flight and did not itself
-      // clear loadingMore — permanently disabling the load-more button with no in-flight
-      // request left to explain it.
-      loadingMore.value = false
+      // Only clear the flag if this call still owns it — if a fetchFavorites() reset (or
+      // another loadMoreFavorites(), impossible today given the reentrancy guard above, but
+      // this reads correctly regardless) has since claimed a newer sequence number, this
+      // stale call must not touch loadingMore at all.
+      if (seq === _loadMoreSeq) loadingMore.value = false
     }
   }
 
@@ -200,6 +217,7 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
     loadingMore.value = false
     _offset = 0
     _generation = 0
+    _loadMoreSeq = 0
     _viewTs.clear()
   }
 

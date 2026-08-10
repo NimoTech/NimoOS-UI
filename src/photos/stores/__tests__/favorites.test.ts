@@ -260,5 +260,53 @@ describe('photosFavorites store', () => {
       await s.loadMoreFavorites()
       expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
     })
+
+    // Review fix round 2: `loadingMore` must have a call-scoped owner, separate from
+    // `_generation`. fetchFavorites() forces `loadingMore` false unconditionally (correct:
+    // it is a full reset), which lets a *second* loadMoreFavorites() start and claim the
+    // flag before the *first* one (still in flight from before the reset) settles. If the
+    // first call's `finally` cleared `loadingMore` unconditionally — or gated only on
+    // `_generation`, which by then both calls could share — it would clobber the second
+    // call's flag while that call is genuinely still in flight, re-enabling the button mid
+    // request. `_loadMoreSeq` gives each call its own claim so only the call that still owns
+    // the flag may clear it.
+    it('a delete-triggered fetchFavorites landing mid-flight does not let the stale loadMoreFavorites call clear a newer one\'s loadingMore', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+
+      // Call A: load-more starts, held open (simulates the network still in flight when
+      // the user deletes a favorited photo).
+      let releaseA: (v: unknown) => void = () => {}
+      ;(service.photos.listFavorites as any).mockImplementationOnce(
+        () => new Promise((r) => { releaseA = r }),
+      )
+      const a = s.loadMoreFavorites()
+
+      // The delete refreshes the list via fetchFavorites(), completing fully while A is
+      // still pending — this is what onLightboxDelete/onBatchDelete do today.
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500, 500))
+      await s.fetchFavorites()
+
+      // The button is enabled again (fetchFavorites forced loadingMore false); the user
+      // clicks it, starting call B, itself held open too.
+      let releaseB: (v: unknown) => void = () => {}
+      ;(service.photos.listFavorites as any).mockImplementationOnce(
+        () => new Promise((r) => { releaseB = r }),
+      )
+      const b = s.loadMoreFavorites()
+      expect(s.loadingMore).toBe(true) // B owns the flag now
+
+      // A's stale page finally lands. It must be dropped (generation mismatch) — and,
+      // the point of this test, must NOT clear loadingMore out from under B.
+      releaseA(page(1, 900))
+      await a
+      expect(s.loadingMore).toBe(true) // still B's flag, not reset by stale A
+
+      // Clean up: let B settle too, restoring the normal end state.
+      releaseB(page(1, 1000))
+      await b
+      expect(s.loadingMore).toBe(false)
+    })
   })
 })
