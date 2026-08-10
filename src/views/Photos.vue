@@ -76,11 +76,15 @@ const exifFilterActive = computed(() => {
   return f.years.length > 0 || f.places.length > 0 || f.cameras.length > 0
 })
 
-// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份 —— 除了一种情况。
-// 分桶模式下未加载的月份 photos 恒为空数组,不能被这条 filter 吃掉 —— 它是 PhotosGrid
-// 画骨架、也是滚动条长度与跳月锚点的来源。
-// 一旦 EXIF 筛选生效就恢复原样丢弃:未加载月份里到底有没有符合筛选的照片,前端无从得知
-// (spec §5.1 已登记为遗留限制,真正的修法是后端筛选)。
+// Aligned with Vue2 gridMonths' library branch (:170-172): filter each month,
+// then drop the ones left empty — except for one case. In bucket mode an
+// unloaded month's `photos` is always an empty array, so that unconditional
+// filter would drop exactly the months the grid needs in order to paint
+// structure — they are also where the scroll length and the jump anchors come
+// from. Once an EXIF filter is active the drop is restored: an unloaded
+// month's membership under that filter is genuinely unknown to the frontend
+// (owner ruling 2026-08-10, spec §5.1 — a registered limitation, not an
+// oversight; the real fix is backend-side filtering).
 const gridMonths = computed(() =>
   store.months
     .map((m) => ({ ...m, photos: applyExifFilters(m.photos, exifFilter.value) }))

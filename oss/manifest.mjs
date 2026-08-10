@@ -112,8 +112,8 @@ export const DELETE = [
   'src/views/PhotosSmartViewDetail.vue',
   'src/views/PhotosSmartViews.vue',
   'src/views/PhotosTrash.vue',
-  // 21 view tests. ⚠️ The first three are NOT under __tests__/: SP15-P1's T5 and T7 and
-  // SP15-P2a's T3 put their tests next to the view, unlike the other 18 in this area — do not
+  // 22 view tests. ⚠️ The first three are NOT under __tests__/: SP15-P1's T5 and T7 and
+  // SP15-P2a's T3 put their tests next to the view, unlike the other 19 in this area — do not
   // assume a glob covers them. (T5's went unregistered and left the leak guard red on 12 hits,
   // the same omission as packages/service/src/photos.moments.test.ts; both are fixed here.)
   'src/views/PhotosMomentDetail.test.ts',
