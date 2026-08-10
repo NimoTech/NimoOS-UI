@@ -360,20 +360,55 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     await Promise.all(dated.slice(0, n).map((b) => fetchBucket(bucketKey(b))))
   }
 
+  // Remove ids from every loaded bucket and take the directory counts down by
+  // what was actually removed locally. Counting the requested ids instead would
+  // leave the header lying whenever a delete partially failed.
+  function removeAssetsFromBuckets(ids: string[]): void {
+    if (!bucketMode.value || ids.length === 0) return
+    const doomed = new Set(ids.map(String))
+    const map = new Map(bucketAssets.value)
+    const removedPerKey = new Map<string, { total: number; videos: number }>()
+    for (const [key, photos] of map) {
+      let total = 0
+      let videos = 0
+      const kept = photos.filter((p) => {
+        if (!doomed.has(String(p.id))) return true
+        total++
+        if (p.isVideo) videos++
+        return false
+      })
+      if (total === 0) continue
+      map.set(key, kept)
+      removedPerKey.set(key, { total, videos })
+    }
+    if (removedPerKey.size === 0) return
+    bucketAssets.value = map
+    buckets.value = buckets.value.map((b) => {
+      const hit = removedPerKey.get(bucketKey(b))
+      if (!hit) return b
+      return {
+        ...b,
+        count: Math.max(0, b.count - hit.total),
+        videoCount: Math.max(0, b.videoCount - hit.videos),
+      }
+    })
+  }
+
   async function deleteAssets(ids: string[]): Promise<number> {
-    let successCount = 0
+    const deleted: string[] = []
     for (const id of ids) {
       try {
         await service.photos.deleteAsset(id)
-        successCount++
+        deleted.push(id)
       } catch (e) {
         console.error('[photos-timeline] deleteAsset', id, e)
       }
     }
-    if (successCount > 0) {
-      await refreshTimelineQuiet()
+    if (deleted.length > 0) {
+      if (bucketMode.value) removeAssetsFromBuckets(deleted)
+      else await refreshTimelineQuiet()
     }
-    return successCount
+    return deleted.length
   }
 
   // Pinia setup-stores don't get an automatic $reset() (that's option-store

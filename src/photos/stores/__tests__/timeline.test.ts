@@ -643,3 +643,75 @@ describe('photos-timeline fetchNewestBuckets', () => {
     expect(svc.photos.getTimelineBucket).not.toHaveBeenCalled()
   })
 })
+
+// Task 9: deleting an asset used to refetch the whole timeline. In bucket mode
+// the loaded buckets are patched locally instead, so a delete costs zero
+// directory/timeline requests.
+describe('photos-timeline deleteAssets (bucket patching)', () => {
+  // Same isolation as the other bucket-mode describes above.
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+
+  it('deleteAssets patches the loaded buckets instead of refetching the timeline', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 1 }])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([
+      { id: 'a1', mimeType: 'image/jpeg' }, { id: 'v1', mimeType: 'video/mp4' },
+    ])
+    await s.fetchBucket('2026-08')
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+    svc.photos.getTimelineBuckets.mockClear()
+    svc.photos.getTimeline.mockClear()
+
+    expect(await s.deleteAssets(['v1'])).toBe(1)
+    expect(s.months[0].photos.map((p) => p.id)).toEqual(['a1'])
+    expect(s.months[0].count).toBe(1)
+    expect(s.months[0].videoCount).toBe(0)
+    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
+    expect(svc.photos.getTimelineBuckets).not.toHaveBeenCalled()
+  })
+
+  it('decrements by what actually got deleted, not by what was asked for', async () => {
+    // A partial failure must not leave the directory count lying.
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 2, videoCount: 0 }])
+    await s.fetchTimeline()
+    svc.photos.getTimelineBucket.mockResolvedValueOnce([
+      { id: 'a1', mimeType: 'image/jpeg' }, { id: 'a2', mimeType: 'image/jpeg' },
+    ])
+    await s.fetchBucket('2026-08')
+    svc.photos.deleteAsset.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('nope'))
+    expect(await s.deleteAssets(['a1', 'a2'])).toBe(1)
+    expect(s.months[0].count).toBe(1)
+    expect(s.months[0].photos.map((p) => p.id)).toEqual(['a2'])
+  })
+
+  it('still refetches the legacy timeline when buckets are unavailable', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
+    await s.fetchTimeline()
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+    svc.photos.getTimeline.mockClear()
+    await s.deleteAssets(['a1'])
+    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves an unloaded bucket count alone (nothing local to patch)', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([{ year: 2026, month: 8, count: 5, videoCount: 0 }])
+    await s.fetchTimeline()
+    svc.photos.deleteAsset.mockResolvedValue(undefined)
+    await s.deleteAssets(['whatever'])
+    expect(s.months[0].count).toBe(5)
+  })
+})

@@ -15,6 +15,17 @@ import { service } from '@nimotech/nimoos-service'
 import { trashAssetToPhoto, type TrashPhoto } from '../util/trashAssetToPhoto'
 import { useTimelineStore } from './timeline'
 
+// Buckets patch themselves on delete; a restore/undo out of the trash only
+// needs the directory counts to come back, not the whole timeline. On a
+// legacy backend bucketMode stays false and this falls back to the full
+// refetch, same as before. Shared by restore/restoreAll/undoRestore so the
+// branch isn't pasted three times.
+function refreshTimelineAfterTrashChange(): void {
+  const timeline = useTimelineStore()
+  if (timeline.bucketMode) void timeline.refreshBuckets()
+  else void timeline.fetchTimeline()
+}
+
 export const usePhotosTrash = defineStore('photosTrash', () => {
   const items = ref<TrashPhoto[]>([])
   const loaded = ref(false)
@@ -37,13 +48,13 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
   async function restore(ids: Array<string | number>): Promise<void> {
     await service.photos.restoreTrashBatch(ids)
     await fetchTrash()
-    void useTimelineStore().fetchTimeline()
+    refreshTimelineAfterTrashChange()
   }
 
   async function restoreAll(): Promise<void> {
     await service.photos.restoreAllTrash()
     await fetchTrash()
-    void useTimelineStore().fetchTimeline()
+    refreshTimelineAfterTrashChange()
   }
 
   async function purge(ids: Array<string | number>): Promise<void> {
@@ -71,7 +82,7 @@ export const usePhotosTrash = defineStore('photosTrash', () => {
       ),
     )
     await fetchTrash()
-    void useTimelineStore().fetchTimeline()
+    refreshTimelineAfterTrashChange()
   }
 
   async function fetchRetention(): Promise<void> {

@@ -12,13 +12,25 @@ vi.mock('@nimotech/nimoos-service', () => ({
     updateConfig: vi.fn(() => Promise.resolve()),
   } },
 }))
-// timeline store 依赖:mock 其 fetchTimeline,避免真跑网络
-vi.mock('../timeline', () => ({ useTimelineStore: () => ({ fetchTimeline: vi.fn() }) }))
+// timeline store 依赖:mock 其 fetchTimeline/refreshBuckets,避免真跑网络。
+// bucketMode is mutable per-test (default false = legacy) so bucket-mode cases
+// can flip it before calling the trash action under test.
+const timelineStub = vi.hoisted(() => ({
+  bucketMode: false,
+  fetchTimeline: vi.fn(),
+  refreshBuckets: vi.fn(),
+}))
+vi.mock('../timeline', () => ({ useTimelineStore: () => timelineStub }))
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosTrash } from '../trash'
 
 describe('photosTrash store', () => {
-  beforeEach(() => { setActivePinia(createPinia()) })
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    timelineStub.bucketMode = false
+    timelineStub.fetchTimeline.mockClear()
+    timelineStub.refreshBuckets.mockClear()
+  })
   afterEach(() => vi.restoreAllMocks())
 
   it('fetchTrash 映射 trashAssetToPhoto,容忍 null', async () => {
@@ -49,18 +61,22 @@ describe('photosTrash store', () => {
     expect(s.loaded).toBe(true)
   })
 
-  it('restore 调 batch 后重拉', async () => {
+  it('restore 调 batch 后重拉,legacy 模式下仍全量刷新时间线', async () => {
     const s = usePhotosTrash()
     await s.restore(['t1'])
     expect(service.photos.restoreTrashBatch).toHaveBeenCalledWith(['t1'])
     expect(service.photos.listTrash).toHaveBeenCalled()
+    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
-  it('restoreAll 调 restoreAllTrash 后重拉', async () => {
+  it('restoreAll 调 restoreAllTrash 后重拉,legacy 模式下仍全量刷新时间线', async () => {
     const s = usePhotosTrash()
     await s.restoreAll()
     expect(service.photos.restoreAllTrash).toHaveBeenCalled()
     expect(service.photos.listTrash).toHaveBeenCalled()
+    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
   it('empty 调 emptyTrash 后重拉', async () => {
@@ -87,10 +103,12 @@ describe('photosTrash store', () => {
     spy.mockRestore()
   })
 
-  it('undoRestore 逐个 deleteAsset 后重拉', async () => {
+  it('undoRestore 逐个 deleteAsset 后重拉,legacy 模式下仍全量刷新时间线', async () => {
     const s = usePhotosTrash()
     await s.undoRestore(['t1'])
     expect(service.photos.deleteAsset).toHaveBeenCalledWith('t1')
+    expect(timelineStub.fetchTimeline).toHaveBeenCalledTimes(1)
+    expect(timelineStub.refreshBuckets).not.toHaveBeenCalled()
   })
 
   it('undoRestore 单项失败时吞错并记日志', async () => {
@@ -123,5 +141,38 @@ describe('photosTrash store', () => {
     await s.setRetention(60)
     expect(service.photos.updateConfig).toHaveBeenCalledWith(['/DATA/Gallery'], 60)
     expect(s.retentionDays).toBe(60)
+  })
+})
+
+// Task 9: restoring out of the trash used to always do a full timeline refetch.
+// In bucket mode it should refresh the (cheap) directory instead.
+describe('photosTrash store — bucket mode refresh routing', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    timelineStub.bucketMode = true
+    timelineStub.fetchTimeline.mockClear()
+    timelineStub.refreshBuckets.mockClear()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('restore refreshes the bucket directory rather than the whole timeline', async () => {
+    const s = usePhotosTrash()
+    await s.restore(['t1'])
+    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
+    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
+  })
+
+  it('restoreAll refreshes the bucket directory rather than the whole timeline', async () => {
+    const s = usePhotosTrash()
+    await s.restoreAll()
+    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
+    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
+  })
+
+  it('undoRestore refreshes the bucket directory rather than the whole timeline', async () => {
+    const s = usePhotosTrash()
+    await s.undoRestore(['t1'])
+    expect(timelineStub.refreshBuckets).toHaveBeenCalledTimes(1)
+    expect(timelineStub.fetchTimeline).not.toHaveBeenCalled()
   })
 })
