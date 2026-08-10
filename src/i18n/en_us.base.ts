@@ -132,6 +132,7 @@ export default {
   filesConflictOverwrite: 'Overwrite',
   filesUploadSkipped: 'Skipped {count} item(s)',
   filesUploadZoneProblem: 'Needs action',
+  filesUploadZoneOps: 'File operations',
   filesUploadZoneActive: 'Uploading',
   filesUploadZoneDone: 'Completed',
   filesUploadProtected: '"{name}" is in a protected directory and was skipped.',

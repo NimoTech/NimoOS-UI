@@ -12,13 +12,21 @@ import { renderSize } from '../util/format'
 import { uploadErrorKey } from '../upload/statusText'
 import type { UploadItem } from '../upload/types'
 import AlertDialog from '../../components/ui/AlertDialog.vue'
+import { opsTaskPercent, opsTaskLabelKey, opsTaskBasename, resolveUploaderHeader } from '../util/opsRow'
 
 const store = useUploadsStore()
 const files = useFilesStore()
 const ops = useFileOpsStore()
 const { t } = useI18n()
 
-const open = ref(shouldAutoOpenUploadList(0, store.queue.length))
+// Initial open state must consider both queues -- a mount with file
+// operations already in flight (e.g. a paste task started just before this
+// panel first renders) should show them immediately, not wait for a
+// subsequent change event that will never fire because there was no
+// empty -> non-empty transition after mount.
+const open = ref(
+  shouldAutoOpenUploadList(0, store.queue.length) || shouldAutoOpenUploadList(0, ops.active.length),
+)
 
 watch(
   () => store.queue.length,
@@ -50,6 +58,12 @@ watch(
   (cur, prev) => {
     if (shouldAutoOpenUploadList(prev ?? 0, cur)) open.value = true
   },
+)
+
+// Header wording: uploads win over file-ops when both queues are non-empty
+// (see resolveUploaderHeader doc comment for why).
+const headerText = computed(() =>
+  t(resolveUploaderHeader({ uploadCount: totalCount.value, opsCount: opsCount.value })),
 )
 
 // PATH SAFETY: only show a directory once it converts to a virtual (display-
@@ -161,7 +175,7 @@ function confirmDelete() {
 
     <div v-else class="upload-panel">
       <div class="up-head">
-        <span class="up-title">{{ t('filesUploadTitle') }}</span>
+        <span class="up-title">{{ headerText }}</span>
         <div class="up-head-actions">
           <button v-if="anyRunning" class="up-link-btn" @click="store.pauseAll()">{{ t('filesUploadPauseAll') }}</button>
           <button v-else-if="anyPaused" class="up-link-btn" @click="store.resumeAll()">{{ t('filesUploadResumeAll') }}</button>
@@ -186,6 +200,22 @@ function confirmDelete() {
             <button v-if="b.errorCount > 0" class="up-link-btn" @click="onRetry(b)">{{ t('filesUploadRetry') }}</button>
             <button v-if="b.pausedCount > 0" class="up-link-btn" @click="onResume(b)">{{ t('filesUploadResume') }}</button>
             <button class="up-link-btn up-del" @click="askDelete(t('filesUploadDeleteOne', { name: labelText(b.label) }), () => onCancel(b))">{{ t('filesUploadCancel') }}</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="opsCount" class="up-zone">
+        <div class="up-zone-head">
+          <span class="up-zone-title">{{ t('filesUploadZoneOps') }}</span>
+          <button class="up-link-btn up-ops-cancel-all" @click="ops.cancelAll()">{{ t('filesCancelAll') }}</button>
+        </div>
+        <div v-for="task in ops.active" :key="task.id" class="up-item up-ops-item">
+          <div class="up-item-line">
+            <span class="up-item-name">{{ t(opsTaskLabelKey(task)) }} · {{ opsTaskBasename(task.processing_path) }}</span>
+            <span v-if="opsTaskPercent(task) !== null" class="up-item-pct">{{ opsTaskPercent(task) }}%</span>
+          </div>
+          <div class="up-progress">
+            <div class="up-progress-fill" :style="{ width: (opsTaskPercent(task) ?? 0) + '%' }"></div>
           </div>
         </div>
       </div>
@@ -271,6 +301,7 @@ function confirmDelete() {
 .up-close { background: transparent; border: none; color: var(--fg-muted, #9aa4bf); cursor: pointer; font-size: 16px; line-height: 1; }
 .up-zone { margin-top: 6px; }
 .up-zone-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 8px 0 4px; }
+.up-zone-head { display: flex; align-items: center; justify-content: space-between; }
 .up-item { margin-top: 8px; }
 .up-item-line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .up-item-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -132,6 +132,7 @@ export default {
   filesConflictOverwrite: '覆盖',
   filesUploadSkipped: '已跳过 {count} 项',
   filesUploadZoneProblem: '需要处理',
+  filesUploadZoneOps: '文件操作',
   filesUploadZoneActive: '上传中',
   filesUploadZoneDone: '已完成',
   filesUploadProtected: '「{name}」位于受保护目录,已跳过。',

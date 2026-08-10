@@ -101,3 +101,48 @@ describe('UploadPanel visibility', () => {
     expect(w.find('.upload-panel').exists()).toBe(true)
   })
 })
+
+describe('UploadPanel file-operation group', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('renders one row per active operation, showing only the basename', () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask({ id: 'a' }), opsTask({ id: 'b', processing_path: '/DATA/Media/movie.mkv' })]
+    const w = mount(UploadPanel)
+    const rows = w.findAll('.up-ops-item')
+    expect(rows.length).toBe(2)
+    expect(rows[1].text()).toContain('movie.mkv')
+    expect(rows[1].text()).not.toContain('/DATA')
+  })
+
+  it('shows the percentage when the size is known', () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask({ processed_size: 30, total_size: 100 })]
+    const w = mount(UploadPanel)
+    expect(w.find('.up-ops-item').text()).toContain('30%')
+  })
+
+  it('omits the percentage entirely when the total size is unknown', () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask({ total_size: 0 })]
+    const w = mount(UploadPanel)
+    expect(w.find('.up-ops-item').text()).not.toContain('%')
+  })
+
+  it('switches the header to the processing wording when only operations run', () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask()]
+    const w = mount(UploadPanel)
+    expect(w.find('.up-title').text()).toBe(i18n.global.t('filesUploadHeaderProcessing'))
+  })
+
+  it('cancels every operation through the store when cancel-all is pressed', async () => {
+    const ops = useFileOpsStore()
+    ops.active = [opsTask()]
+    let called = 0
+    ops.cancelAll = async () => { called += 1 }
+    const w = mount(UploadPanel)
+    await w.find('.up-ops-cancel-all').trigger('click')
+    expect(called).toBe(1)
+  })
+})
