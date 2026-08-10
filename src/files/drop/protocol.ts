@@ -39,6 +39,7 @@ export type ChannelMessage =
   | { type: 'progress'; progress: number }
   | { type: 'transfer-complete' }
   | { type: 'text'; text: string }
+  | { type: 'transfer-cancel' }
 
 export type TransferBrokenReason = 'disconnected' | 'timeout' | 'cancelled'
 

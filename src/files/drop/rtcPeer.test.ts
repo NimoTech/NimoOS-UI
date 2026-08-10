@@ -380,6 +380,43 @@ describe('Peer send-side timeouts', () => {
   })
 })
 
+describe('Peer cancellation', () => {
+  it('tells the peer, clears local state, and reports the cancellation', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.sendFiles([new File([new Uint8Array(10)], 'x')], 'self1')
+    await vi.waitFor(() => expect(p.hasActiveTransfer()).toBe(true))
+
+    p.cancelTransfer()
+
+    expect(jsonOut(p).some((m) => m.type === 'transfer-cancel')).toBe(true)
+    expect(p.hasActiveTransfer()).toBe(false)
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'cancelled' })
+  })
+
+  it('does nothing at all when there is no transfer to cancel', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.cancelTransfer()
+    expect(p.out.length).toBe(0)
+    expect(ev.onTransferBroken).not.toHaveBeenCalled()
+  })
+
+  it('discards the partly received file when the sender cancels', () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 16, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+
+    p.handleChannelMessage(JSON.stringify({ type: 'transfer-cancel' }))
+
+    expect(p.hasActiveTransfer()).toBe(false)
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'cancelled' })
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+    expect(ev.onFileReceived).not.toHaveBeenCalled()
+  })
+})
+
 describe('RTCPeer close() resets transfer state', () => {
   class FakeConn {
     connectionState = 'new'

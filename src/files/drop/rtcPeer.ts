@@ -81,6 +81,12 @@ export class Peer {
       case 'progress': this.onDownloadProgress(msg.progress); break
       case 'transfer-complete': this.clearAck(); this.onTransferCompleted(); break
       case 'text': this.events.onTextReceived({ text: decodeText(msg.text), sender: this._peerId }); break
+      case 'transfer-cancel':
+        // The other side gave up. Drop whatever we were assembling; a later
+        // transfer must not inherit these bytes.
+        this.resetTransferState()
+        this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+        break
     }
   }
 
@@ -154,6 +160,17 @@ export class Peer {
     const wasActive = this.hasActiveTransfer()
     this.resetTransferState()
     if (wasActive) this.events.onTransferBroken({ peerId: this._peerId, reason })
+  }
+
+  /** User-initiated stop. Silent when nothing is running so a stray click
+   *  cannot spam the peer with cancel messages. `resetTransferState()`
+   *  already aborts the chunker, so there is nothing left to do here beyond
+   *  telling the other side and reporting locally. */
+  cancelTransfer(): void {
+    if (!this.hasActiveTransfer()) return
+    this.sendJSON({ type: 'transfer-cancel' })
+    this.resetTransferState()
+    this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
   }
 
   private armAck(): void {
