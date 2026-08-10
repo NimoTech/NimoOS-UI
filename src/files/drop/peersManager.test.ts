@@ -3,10 +3,12 @@ import { PeersManager } from './peersManager'
 import type { PeerEvents } from './rtcPeer'
 import type { TransferBrokenReason } from './protocol'
 
-function makeFakePeer() {
+function makeFakePeer(opts: { hasActiveTransfer?: () => boolean } = {}) {
   return {
     onServerMessage: vi.fn(), refresh: vi.fn(), close: vi.fn(),
     sendText: vi.fn(), sendFiles: vi.fn(), handleDisconnect: vi.fn(),
+    hasActiveTransfer: opts.hasActiveTransfer ?? vi.fn(() => false),
+    cancelTransfer: vi.fn(),
   }
 }
 const events: PeerEvents = {
@@ -109,5 +111,53 @@ describe('PeersManager', () => {
     pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
 
     expect(ev.onTransferBroken).not.toHaveBeenCalled()
+  })
+})
+
+describe('PeersManager transfer control', () => {
+  it('reports an active transfer when any peer has one', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => {
+        const p = makeFakePeer({ hasActiveTransfer: () => made.length === 1 })
+        made.push(p)
+        return p as never
+      },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.hasActiveTransfers()).toBe(true)
+  })
+
+  it('reports no active transfer when no peer has one', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => makeFakePeer() as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.hasActiveTransfers()).toBe(false)
+  })
+
+  it('cancels only the peer it was asked about', () => {
+    const made: Record<string, ReturnType<typeof makeFakePeer>> = {}
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: (_s, id) => {
+        const p = makeFakePeer({ hasActiveTransfer: () => true })
+        made[String(id)] = p
+        return p as never
+      },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a'), peerInfo('b')] })
+
+    pm.cancelTransfer('b')
+
+    expect(made.a.cancelTransfer).not.toHaveBeenCalled()
+    expect(made.b.cancelTransfer).toHaveBeenCalledOnce()
+  })
+
+  it('ignores a cancel for a peer that is not connected', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, { rtcSupported: true })
+    expect(() => pm.cancelTransfer('nobody')).not.toThrow()
   })
 })

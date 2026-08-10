@@ -9,6 +9,8 @@ const h = vi.hoisted(() => ({
   pmHandle: vi.fn(),
   pmSendFiles: vi.fn(() => true),
   pmDestroy: vi.fn(),
+  pmHasActiveTransfers: vi.fn(() => false),
+  pmCancelTransfer: vi.fn(),
   capturedDeps: null as Record<string, unknown> | null,
   capturedEvents: null as Record<string, (...a: never[]) => void> | null,
 }))
@@ -22,6 +24,7 @@ vi.mock('../peersManager', () => ({
   PeersManager: class {
     constructor(_s: unknown, events: Record<string, (...a: never[]) => void>) { h.capturedEvents = events }
     handleServerMessage = h.pmHandle; sendFiles = h.pmSendFiles; destroy = h.pmDestroy
+    hasActiveTransfers = h.pmHasActiveTransfers; cancelTransfer = h.pmCancelTransfer
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ refreshAccessToken: vi.fn(async () => {}) }))
@@ -113,5 +116,29 @@ describe('useDropStore', () => {
     expect(s.peers[0].id).toBe('me1')
     expect(s.peers[0].name.displayName).toBe('Me')
     expect(s.peers[1].id).toBe('a')
+  })
+  it('hasActiveTransfers forwards to the manager', () => {
+    const s = useDropStore()
+    s.init()
+    h.pmHasActiveTransfers.mockReturnValueOnce(true)
+    expect(s.hasActiveTransfers()).toBe(true)
+    h.pmHasActiveTransfers.mockReturnValueOnce(false)
+    expect(s.hasActiveTransfers()).toBe(false)
+  })
+  it('hasActiveTransfers is false before init (no manager yet)', () => {
+    const s = useDropStore()
+    expect(s.hasActiveTransfers()).toBe(false)
+    expect(h.pmHasActiveTransfers).not.toHaveBeenCalled()
+  })
+  it('cancelTransfer forwards the peerId to the manager', () => {
+    const s = useDropStore()
+    s.init()
+    s.cancelTransfer('peer-x')
+    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-x')
+  })
+  it('cancelTransfer is a no-op before init (no manager yet)', () => {
+    const s = useDropStore()
+    expect(() => s.cancelTransfer('peer-x')).not.toThrow()
+    expect(h.pmCancelTransfer).not.toHaveBeenCalled()
   })
 })

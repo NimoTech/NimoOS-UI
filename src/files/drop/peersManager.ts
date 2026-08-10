@@ -68,4 +68,12 @@ export class PeersManager {
     for (const id of Object.keys(this.peers)) this.peers[id].close()
     this.peers = {}
   }
+
+  hasActiveTransfers(): boolean {
+    return Object.values(this.peers).some((p) => p.hasActiveTransfer())
+  }
+
+  cancelTransfer(peerId: string): void {
+    this.peers[peerId]?.cancelTransfer()
+  }
 }

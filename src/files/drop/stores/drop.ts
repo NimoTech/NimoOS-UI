@@ -142,5 +142,16 @@ export const useDropStore = defineStore('drop', () => {
 
   function ignoreCurrent() { receiveQueue.value.shift() }
 
-  return { peers, selfId, connected, transfers, receiveQueue, init, destroy, sendFiles, saveCurrent, ignoreCurrent, deviceName }
+  function hasActiveTransfers(): boolean {
+    return manager?.hasActiveTransfers() ?? false
+  }
+
+  function cancelTransfer(peerId: string): void {
+    manager?.cancelTransfer(peerId)
+  }
+
+  return {
+    peers, selfId, connected, transfers, receiveQueue, init, destroy, sendFiles,
+    saveCurrent, ignoreCurrent, deviceName, hasActiveTransfers, cancelTransfer,
+  }
 })
