@@ -4,6 +4,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useUploadsStore } from '../stores/uploads'
 import { useFilesStore } from '../stores/files'
+import { useFileOpsStore } from '../stores/fileOps'
 import { shouldAutoOpenUploadList } from '../upload/uploadListVisibility'
 import { groupByBatch, type BatchView, type BatchLabel } from '../upload/uploadBatches'
 import { toVirtualPath } from '../util/pathUtils'
@@ -14,6 +15,7 @@ import AlertDialog from '../../components/ui/AlertDialog.vue'
 
 const store = useUploadsStore()
 const files = useFilesStore()
+const ops = useFileOpsStore()
 const { t } = useI18n()
 
 const open = ref(shouldAutoOpenUploadList(0, store.queue.length))
@@ -33,6 +35,22 @@ const activeBatches = computed(() => batches.value.filter((b) => b.zone === 'act
 const doneBatches = computed(() => batches.value.filter((b) => b.zone === 'done'))
 
 const totalCount = computed(() => store.queue.length)
+
+// The panel is shared by two independent queues. `totalCount` is the upload
+// queue alone; gating on it would hide the file-operation group in the most
+// common case of all -- a paste with nothing uploading.
+const opsCount = computed(() => ops.active.length)
+const panelVisible = computed(() => totalCount.value > 0 || opsCount.value > 0)
+
+// Same rule for file operations: an empty -> non-empty transition pops the
+// panel open. Reuses the upload helper so both queues share one definition of
+// "something just started".
+watch(
+  opsCount,
+  (cur, prev) => {
+    if (shouldAutoOpenUploadList(prev ?? 0, cur)) open.value = true
+  },
+)
 
 // PATH SAFETY: only show a directory once it converts to a virtual (display-
 // name-rooted) path; otherwise render nothing rather than leak /DATA or /media.
@@ -136,9 +154,9 @@ function confirmDelete() {
 </script>
 
 <template>
-  <div v-if="totalCount" class="upload-panel-wrap">
+  <div v-if="panelVisible" class="upload-panel-wrap">
     <button v-if="!open" class="upload-panel-toggle" @click="open = true">
-      {{ t('filesUploadTitle') }} ({{ totalCount }})
+      {{ t('filesUploadTitle') }} ({{ totalCount + opsCount }})
     </button>
 
     <div v-else class="upload-panel">
