@@ -437,3 +437,47 @@ Task 10: minor (no action, agreed): PhotosSmartViews.moments.test.ts:276's sv-ca
   construction. Regression negatives are supposed to look like that.
 Task 10: minor (pre-existing): PhotosAlbums.test.ts emits 7 [Vue warn] "already registered" lines
   per test from a module-scope createI18n beside the setup singleton — the known repo trap.
+
+Task 11: complete (commits 0a8f476..7da60bb, review clean, 5 minors deferred)
+  THE SWEEP VINDICATED ITS OWN RULE: of the 14 "also check" candidates I listed, SEVEN were still
+  live. Blind deletion would have blanked five on-screen strings (PhotosAlbumDetail.vue:867/912/
+  930/1055 and AlbumConvertToSmartDialog.vue:125). 13 deleted, 8 kept, every verdict grep-backed.
+  The reviewer re-ran the grep in BOTH directions at HEAD and confirmed all 13 deletions have zero
+  real consumers (the one surviving textual hit is a comment) and all 8 kept keys are live at the
+  claimed sites. It also extracted both locale key sets: 768 keys each, sets identical.
+  Word-boundary matching mattered and held — photosSvAdd does not collide with photosSvAddAnother.
+  Both folded-in visual fixes landed on BOTH pages, and the reviewer checked the SHAPE not just
+  presence: the target renders a check icon on the active row AND a same-width spacer on inactive
+  ones so labels do not shift between states. Both pages now carry both halves.
+  The dead .sv-action-btn-primary rule and its cascade test were removed together, and the three
+  cross-reference comments that would have pointed at the deleted rule were rewritten — one
+  rehomed to the surviving copy on PhotosMomentDetail.vue.
+  SIX GATES GREEN on a clean tree: vue-tsc 0 · pnpm test 685 files / 10954 · parity+styles 5/1081 ·
+  oss 8/149 (DELETE 78 / REPLACE 4 / PATCH 258, zero real leaks) · build 17.11s ·
+  merge-tree vs master = single tree OID, NO CONFLICT.
+Task 11: minor (deferred, FOR THE FINAL FIX WAVE — these two are in the OWNER-FACING deliverable):
+  acceptance.md:60 points at 「第 9 步」 for the seed-photos-first instructions; they are at the head
+  of step 10. That prerequisite is the one the report itself calls the most-likely-to-be-skipped
+  item, and following the wrong pointer turns steps 10 and 13 into "nothing happened".
+  acceptance.md:95's "common starting point" back-reference says 「第 3/4/5/6/7/8 步」 but step 9 and
+  step 13's last item also start there.
+Task 11: minor (deferred, FOR THE FINAL FIX WAVE): the check-glyph fix shipped with NO regression
+  coverage on either page. This is the exact defect class the phase says no automated gate can see,
+  and the album page silently drifted for the whole phase before this task caught it — nothing
+  stops it drifting back. The hook exists (PhotosAlbumDetail.test.ts:158 already finds the items).
+  The spacer is the half a future edit is most likely to drop.
+Task 11: minor (deferred): the report's sweep table has stale line numbers and omits two candidates
+  (photosSvRename/photosSvDuplicate, both live) — nothing wrongly deleted, but the table is the
+  audit trail a future sweep would trust.
+Task 11: minor (recorded, no action): PhotosAlbumDetail.vue:1268 uses align-items:center where the
+  target uses flex-start (the target supports an optional .desc second line New-UI does not render).
+  Matches the smart-view page, so cross-page consistency is preserved.
+
+=== ALL 11 IMPLEMENTATION TASKS COMPLETE ===
+Commit range: df2a75d..7da60bb
+
+TOOLING HAZARD, second occurrence this project, worth fixing in the tool rather than per phase:
+  the review-package script recreates .superpowers/sdd/.gitignore containing a single `*`. That
+  hides the ENTIRE ledger while `git status` still reads clean — 31 ledger files were invisible
+  until Task 11 removed it. A controller trusting `git status` would believe the ledger was
+  committed when it was not.
