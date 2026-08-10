@@ -8,7 +8,6 @@ import { createI18n } from 'vue-i18n'
 import UploadPanel from './UploadPanel.vue'
 import { useUploadsStore } from '../stores/uploads'
 import { useFileOpsStore } from '../stores/fileOps'
-import { i18n as sharedI18n } from '../../i18n'
 import zh from '../../i18n/zh_cn'
 import type { FileTask } from '../util/fileOps'
 
@@ -83,20 +82,20 @@ describe('UploadPanel visibility', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
   it('stays hidden when neither uploads nor file operations are running', () => {
-    const w = mount(UploadPanel, { global: { plugins: [sharedI18n] } })
+    const w = mount(UploadPanel)
     expect(w.find('.upload-panel-wrap').exists()).toBe(false)
   })
 
   it('appears for file operations alone, with no uploads queued at all', () => {
     const ops = useFileOpsStore()
     ops.active = [opsTask()]
-    const w = mount(UploadPanel, { global: { plugins: [sharedI18n] } })
+    const w = mount(UploadPanel)
     expect(w.find('.upload-panel-wrap').exists()).toBe(true)
   })
 
   it('opens itself when a file operation starts while the panel sits collapsed', async () => {
     const ops = useFileOpsStore()
-    const w = mount(UploadPanel, { global: { plugins: [sharedI18n] } })
+    const w = mount(UploadPanel)
     ops.active = [opsTask()]
     await w.vm.$nextTick()
     expect(w.find('.upload-panel').exists()).toBe(true)
