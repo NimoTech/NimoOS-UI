@@ -1354,16 +1354,21 @@ describe('样式:hover 级联归属变体', () => {
     expect(win.specificity).toBe(3)
   })
 
-  // SP15-P2c Task 8, coordinator review fix: this rehomes the deleted
+  // SP15-P2c Task 8, coordinator review fix round 2: this rehomes the deleted
   // SmartViewConditionEditor.test.ts's cssCascade assertion for the condition chip's own
-  // hover rule, moved in from that component along with the markup. `.sv-cond-removable` has
-  // no separate base-class-vs-variant fight (unlike the two tests above) -- there is only one
-  // rule with a `:hover` on this element -- so the risk this guards against is the base `.sv-cond`
-  // never accidentally growing its own `:hover` that would outrank or shadow this one, and the
-  // `.sv-cond-removable:hover` rule not silently disappearing during any future edit.
-  it('.sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself', () => {
+  // hover rule, moved in from that component along with the markup. Query with the SAME
+  // two-class form the two sibling tests above use (base + variant), not a single-class
+  // query -- a single-class query silently drops any base `.sv-cond:hover` rule from
+  // consideration before the cascade comparison ever runs (the helper filters candidates by
+  // class-membership against the list passed in), which would make this test blind to the
+  // exact base-beats-variant regression it exists to catch. `.sv-cond` has no `:hover` rule
+  // today, but the query still has to include it so the test would actually fail if one were
+  // ever added with equal-or-higher specificity than `.sv-cond-removable:hover` -- see the
+  // mutation check in task-8-report.md for proof this form (not the single-class form tried
+  // first) actually reddens on that scenario.
+  it('.sv-cond / .sv-cond-removable (condition chip) hover-winning rule contains :hover and belongs to the variant', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
-    const win = winningHoverBackground(style, ['sv-cond-removable'])
+    const win = winningHoverBackground(style, ['sv-cond', 'sv-cond-removable'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('sv-cond-removable')
   })

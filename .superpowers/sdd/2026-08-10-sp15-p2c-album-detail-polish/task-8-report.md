@@ -159,7 +159,7 @@ alone.
 | `SmartViewConditionEditor.test.ts`: "busy: Enter 被拦" + "busy: 点建议 chip 不发 add" (the other 2 of the 3 "busy" tests) | — | **Deleted**, not re-homed — corrected in this round. The first pass of this table lumped all 3 "busy" tests into one row and implied all were re-homed; only the remove-blocking one was. These two exercised the Enter-submit and suggestion-click paths, both gone with the add popover. |
 | `SmartViewConditionEditor.test.ts`: "点外部关闭" (3 tests) | — | **Deleted.** No popover to click outside of. |
 | `SmartViewConditionEditor.test.ts`: "Esc" (2 tests, incl. the "return only in non-Escape branch" source-text guard) | — | **Deleted.** No document-level Esc listener left to guard once the popover is gone. |
-| `SmartViewConditionEditor.test.ts`: "cssCascade" — `.sv-cond-removable` hover variant ownership | `PhotosSmartViewDetail.test.ts` "`.sv-cond-removable` (condition chip) has a winning hover rule that contains `:hover` and targets itself" | **Re-homed — added in the coordinator-review round, not present in the original commit.** The first pass of this table claimed this was already covered by the page's existing hover-cascade describe block; that was false (verified: neither of the two pre-existing tests there passes `['sv-cond-removable']`). Fixed by adding the test; mutation-verified (see "Coordinator review fix round" below). |
+| `SmartViewConditionEditor.test.ts`: "cssCascade" — `.sv-cond-removable` hover variant ownership | `PhotosSmartViewDetail.test.ts` "`.sv-cond` / `.sv-cond-removable` (condition chip) hover-winning rule contains `:hover` and belongs to the variant" | **Re-homed — added in the coordinator-review round, not present in the original commit; query widened to the base+variant form in a second review round after the first version was shown to be structurally unable to detect a base-beats-variant regression.** The first pass of this table claimed this was already covered by the page's existing hover-cascade describe block; that was false (verified: neither of the two pre-existing tests there passes `['sv-cond-removable']`). See "Coordinator review fix round" / "Fix round 2" below for both the coverage-gap fix and the query-shape fix, each mutation-verified against the actual failure mode it targets. |
 | `SmartViewConditionEditor.test.ts`: "cssCascade" — `.sv-cond-add[data-open]` == `:hover` invariant | — | **Deleted**, correctly (this part of the original table entry was accurate). The rule itself is gone; there is nothing left to assert an invariant about. |
 | `SmartViewConditionEditor.test.ts`: "cssCascade.ts 共享 helper 回归" (2 synthetic-CSS tests, no dependency on this component's own styles) | — | **Deleted**, but harmlessly — these were regression tests for `cssCascade.ts` itself using synthetic CSS strings, unrelated to any markup in this component. If Task 11 or a future reviewer wants this coverage kept, it belongs in `cssCascade.test.ts` (the shared helper's own test file), not resurrected here — flagging as a possible gap, not silently dropping meaningful coverage. |
 | `PhotosSmartViewDetail.test.ts` (pre-existing, Task 7): "sv-cond-editor-mount 渲染 SmartViewConditionEditor…" | "renders one removable chip per sv.conds entry" | **Re-homed**, `data-test` renamed `sv-cond-editor-mount` → `sv-header-conds`. |
@@ -194,9 +194,9 @@ remove-via-X with nothing catching it. The "busy" row also overstated coverage b
 original tests into one "re-homed" verdict when only one of the three (the remove-blocking one)
 actually had a successor — corrected in the table above.
 
-### Fix 1: added and mutation-verified the hover-cascade test
+### Fix 1 (round 1, later found insufficient — see "Fix round 2" below): added the hover-cascade test with a single-class query
 
-Added to `src/views/__tests__/PhotosSmartViewDetail.test.ts`, inside the existing `describe('样式:hover 级联归属变体', …)` block (mirroring the file's own convention, no new helper):
+Added to `src/views/__tests__/PhotosSmartViewDetail.test.ts`, inside the existing `describe('样式:hover 级联归属变体', …)` block, initially with:
 
 ```ts
 it('.sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself', () => {
@@ -212,31 +212,74 @@ same `describe` block -- caught and corrected to English on self-review before c
 newly authored test descriptions must be English per this phase's rule; the pre-existing Chinese
 sibling titles and the describe block's own name are untouched, as they predate this task.)
 
-This matches the deleted component test's own scope exactly (`winningHoverBackground(style, ['sv-cond-removable'])`, single class — not the two-class base+variant form the other two tests in
-that block use, because Vue2's base `.sv-cond` genuinely has no `:hover` rule of its own, so there
-is no base-vs-variant contest to arbitrate here, only "does the hover rule exist and target the
-right element."
+This matched the deleted component test's own query exactly (single class, `['sv-cond-removable']`)
+— which is precisely the problem the coordinator's second review caught (see "Fix round 2"
+immediately below). The round-1 mutation check (deleting `.sv-cond-removable:hover`'s
+pseudo-class entirely, making the helper throw for zero candidates) genuinely reddened, but for a
+different failure mode than the one the test exists to guard against — a rule vanishing outright,
+not a base rule silently outranking the variant. Recorded here for the paper trail; **do not cite
+this as evidence the guard works** — Fix round 2 below carries the mutation that actually matters.
+
+### Fix round 2 (coordinator review #2): widened the query to the base+variant form and mutation-checked the real regression shape
+
+**Finding**: `winningHoverBackground`/`hoverBackgroundRules` (`src/photos/components/__tests__/cssCascade.ts:47-86`)
+filters candidate rules by requiring every class token in a selector to be a member of the
+`classes` array passed in. Querying with `['sv-cond-removable']` alone means a hypothetical
+`.sv-cond:hover` rule — the base class — is excluded from consideration *before* the cascade
+comparison runs, because `'sv-cond'` is not in that one-element array. So the single-class query
+could never detect a base-beats-variant regression, no matter what CSS actually shipped; the test
+was only checking "does the hover-declaring rule with a `sv-cond-removable` class exist and win
+against *other rules restricted to the same single class*," which is a strictly narrower and less
+useful claim than the two sibling tests in the same `describe` block make (both query
+`[base, variant]`, e.g. `['sv-action-btn', 'sv-action-btn-primary']`).
+
+**Fix**: widened the query to match the sibling tests' own convention:
+
+```ts
+it('.sv-cond / .sv-cond-removable (condition chip) hover-winning rule contains :hover and belongs to the variant', () => {
+  const style = extractStyleBlock(photosSmartViewDetailRaw)
+  const win = winningHoverBackground(style, ['sv-cond', 'sv-cond-removable'])
+  expect(win.selector).toContain(':hover')
+  expect(win.selector).toContain('sv-cond-removable')
+})
+```
 
 **GREEN** (before mutation):
 ```
-pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "winning hover rule that contains"
+pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "hover-winning rule contains"
 ```
 → `Test Files 1 passed (1)` / `Tests 1 passed | 95 skipped (96)`.
 
-**Mutation check**: temporarily changed `.sv-cond-removable:hover {` to `.sv-cond-removable {`
-(dropping the pseudo-class, so the rule stops declaring any hover-state background) in
-`src/views/PhotosSmartViewDetail.vue`, re-ran the same command:
+**Mutation check — the correct scenario this time**: added a temporary rule to
+`src/views/PhotosSmartViewDetail.vue`, directly after `.sv-cond-removable:hover { … }` (later
+source order, equal specificity — one class + one pseudo-class = 2 for both selectors, matching
+exactly how the real base-beats-variant bug this repo has shipped actually manifests):
+
+```css
+.sv-cond:hover {
+  background: var(--chip-bg-hi);
+}
 ```
-❯ .sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself
-Error: 没有任何 background 规则命中 .sv-cond-removable
- ❯ Module.winningHoverBackground src/photos/components/__tests__/cssCascade.ts:92:33
+
+Re-ran the same command:
 ```
-(The error message itself is pre-existing Chinese from `cssCascade.ts`, a shared test helper this
-task did not touch -- quoted verbatim, not something authored here.)
-**Reddened as expected** — `winningHoverBackground` throws when no candidate rule has both a
-`:hover` and every class within the allowed set, exactly the failure mode this guard exists to
-catch. Reverted the mutation (`git diff` confirmed clean, byte-for-byte back to the pre-mutation
-file) and re-ran to confirm green again before moving on.
+FAIL src/views/__tests__/PhotosSmartViewDetail.test.ts > 样式:hover 级联归属变体 > .sv-cond / .sv-cond-removable (condition chip) hover-winning rule contains :hover and belongs to the variant
+AssertionError: expected '.sv-cond:hover' to contain 'sv-cond-removable'
+
+Expected: "sv-cond-removable"
+Received: ".sv-cond:hover"
+```
+
+**Reddened as expected, and for the right reason**: with the base rule added later in source
+order at equal specificity, `winningHoverBackground`'s tie-break-by-source-order picks
+`.sv-cond:hover` — the base rule — over `.sv-cond-removable:hover`, exactly the white-on-white
+bug shape this repo has shipped before. The two-class query form correctly detects this; the
+round-1 single-class form (proven above to reddened only on rule-deletion) would have stayed
+green through this exact mutation.
+
+Reverted the mutation immediately after (`git diff --stat -- src/views/PhotosSmartViewDetail.vue`
+showed no output, confirming a byte-for-byte clean revert) and re-ran the same command to confirm
+green again before moving on.
 
 ### Fix 2: added the missing ✕-icon click test
 
@@ -263,14 +306,16 @@ Number of calls: 0
 **Reddened as expected** — with propagation stopped, the parent chip's click handler never
 fires, `updateSmartView` is never called. Reverted the mutation and re-ran to confirm green.
 
-### Final foreground verification (after both fixes)
+### Final foreground verification (after fix round 2)
 
 ```
 pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/photos/util/__tests__/smartViewSuggest.test.ts src/i18n/parity.test.ts src/styles
 ```
-→ `Test Files 8 passed (8)` / `Tests 1209 passed (1209)` (up from 1207 in the original pass — the
-2 new tests, no regressions). File count still 8 (4 named files + 4 under `src/styles`), same
-sanity check as the original pass — no path silently skipped.
+→ `Test Files 8 passed (8)` / `Tests 1209 passed (1209)` (2 new tests added across both fix
+rounds vs. the original 1207, no regressions; the round-2 fix widened an existing test's query
+rather than adding a new one, so the count didn't change again between round 1 and round 2).
+File count still 8 (4 named files + 4 under `src/styles`), same sanity check as every prior
+pass — no path silently skipped.
 
 ```
 pnpm exec vue-tsc --noEmit
@@ -327,10 +372,18 @@ Six keys orphaned: `photosSvAddCondition`, `photosSvNewCondition`, `photosSvEGSc
 - **Testing**: RED confirmed before deletion (3 failures for the right reasons, 2 pre-existing
   passes correctly not touched), GREEN after, `vue-tsc --noEmit` clean, `--reporter=verbose`
   stderr diffed against a stashed baseline to rule out newly introduced warnings. Coordinator
-  review round: two disposition-table rows were found to claim coverage that didn't exist
+  review round 1: two disposition-table rows were found to claim coverage that didn't exist
   (hover cascade for `.sv-cond-removable`, and the ✕-icon click path) — both fixed with real
-  tests, and both mutation-verified (broke the underlying behavior, confirmed the new test
-  reddens, reverted, confirmed green again) rather than trusted on inspection alone.
+  tests. Coordinator review round 2: the hover-cascade fix's own mutation check was itself
+  shown to be checking the wrong failure mode — a single-class `winningHoverBackground` query
+  can never see a base-class rule at all (the helper filters candidates by class membership
+  against the exact list passed in), so it could pass the guard's stated purpose (catch
+  base-beats-variant) while remaining structurally blind to it. Widened the query to the
+  base+variant form the two sibling tests already use, and re-ran the mutation with the actual
+  regression shape (a same-specificity `.sv-cond:hover` added *after* the variant rule) —
+  confirmed that reddens, the round-1 form does not. Lesson applied going forward in this task:
+  a mutation that reddens is not sufficient evidence on its own — it has to redden on the
+  *specific* scenario the guard is named for, not merely on *some* way of breaking the CSS.
 - **No newly authored Chinese**: `git diff --cached | grep -nP '^\+.*[\x{4e00}-\x{9fff}]'`
   returns only four lines, all of them the literal quoted phrase "用户追加需求" cited verbatim
   from the Vue2 source's own comment (and from the task brief, which quotes the same phrase) —
