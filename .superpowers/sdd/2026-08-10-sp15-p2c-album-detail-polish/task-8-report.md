@@ -151,14 +151,16 @@ alone.
 | `SmartViewConditionEditor.test.ts`: "conds 3 条 → 3 个 .sv-cond-removable + 1 个 .sv-cond-add" | — | **Deleted.** Add button capability gone; the "3 removable chips" half is covered by the re-homed page-level chip-count test. |
 | `SmartViewConditionEditor.test.ts`: "conds 为 [] → 0 removable + 1 add" | — | **Deleted.** Same reason. |
 | `SmartViewConditionEditor.test.ts`: "点 chip 任意处 → remove 事件" | `PhotosSmartViewDetail.test.ts` "clicking a chip → store.updateSmartView receives…" | **Re-homed**, upgraded from asserting an emit to asserting the actual store call + DOM after round trip (there is no emit anymore — the page calls `removeCond` directly). |
-| `SmartViewConditionEditor.test.ts`: "点叉 → 同样触发 remove" | Covered structurally: the folded-in markup's `.sv-cond-x` is inside the same clickable `<span>` as before (click bubbles to the parent handler exactly as it did inside the deleted component) | **Re-homed implicitly** — not a separate test, because the DOM structure (✕ nested inside the whole-chip click target) is unchanged and the parent-click test already covers the bubbling path. |
+| `SmartViewConditionEditor.test.ts`: "点叉 → 同样触发 remove" | `PhotosSmartViewDetail.test.ts` "clicking the ✕ icon specifically…" | **Re-homed** (fixed in the coordinator-review round — see below; the first pass of this table wrongly claimed this was "covered structurally" by the whole-chip click test, which never actually dispatches a click through `.sv-cond-x`). |
 | `SmartViewConditionEditor.test.ts`: "弹层开关 + 聚焦" (2 tests) | — | **Deleted.** No popover left. |
 | `SmartViewConditionEditor.test.ts`: "提交条件" (3 tests: submit, empty+Enter, dedup) | — | **Deleted.** No add path left. |
 | `SmartViewConditionEditor.test.ts`: "建议区" (4 tests) | — | **Deleted.** `COND_SUGGESTIONS`/`condSuggestionsFor` deleted with them. |
-| `SmartViewConditionEditor.test.ts`: "busy" (3 tests: submit disabled, Enter blocked, suggestion-click blocked) | `PhotosSmartViewDetail.test.ts` "store.patchBusy blocks a second click on the same chip…" | **Re-homed** as the one busy scenario that still applies (remove reentry), since submit/Enter/suggestion no longer exist. |
+| `SmartViewConditionEditor.test.ts`: "busy: submit 按钮 disabled + chip 删除点击不发 remove" (1 of the 3 "busy" tests — the only one that touches remove at all) | `PhotosSmartViewDetail.test.ts` "store.patchBusy blocks a second click on the same chip…" | **Re-homed**, re-targeted from asserting the (gone) submit button's `disabled` + a blocked `remove` emit, to asserting the call count stays at 1 and `data-busy="true"` on the chip. |
+| `SmartViewConditionEditor.test.ts`: "busy: Enter 被拦" + "busy: 点建议 chip 不发 add" (the other 2 of the 3 "busy" tests) | — | **Deleted**, not re-homed — corrected in this round. The first pass of this table lumped all 3 "busy" tests into one row and implied all were re-homed; only the remove-blocking one was. These two exercised the Enter-submit and suggestion-click paths, both gone with the add popover. |
 | `SmartViewConditionEditor.test.ts`: "点外部关闭" (3 tests) | — | **Deleted.** No popover to click outside of. |
 | `SmartViewConditionEditor.test.ts`: "Esc" (2 tests, incl. the "return only in non-Escape branch" source-text guard) | — | **Deleted.** No document-level Esc listener left to guard once the popover is gone. |
-| `SmartViewConditionEditor.test.ts`: "cssCascade" (2 tests: `.sv-cond-removable:hover` variant ownership; `.sv-cond-add[data-open]` == `:hover` invariant) | The `.sv-cond-removable:hover` half is covered by `PhotosSmartViewDetail.test.ts`'s existing "样式:hover 级联归属变体" describe block, which already runs the same `winningHoverBackground` check against the page's own style block (now containing the moved-in `.sv-cond-removable:hover` rule) | **Re-homed for `.sv-cond-removable`**, **deleted for `.sv-cond-add[data-open]`** (the rule itself is gone, there is nothing left to assert an invariant about). |
+| `SmartViewConditionEditor.test.ts`: "cssCascade" — `.sv-cond-removable` hover variant ownership | `PhotosSmartViewDetail.test.ts` "`.sv-cond-removable` (condition chip) has a winning hover rule that contains `:hover` and targets itself" | **Re-homed — added in the coordinator-review round, not present in the original commit.** The first pass of this table claimed this was already covered by the page's existing hover-cascade describe block; that was false (verified: neither of the two pre-existing tests there passes `['sv-cond-removable']`). Fixed by adding the test; mutation-verified (see "Coordinator review fix round" below). |
+| `SmartViewConditionEditor.test.ts`: "cssCascade" — `.sv-cond-add[data-open]` == `:hover` invariant | — | **Deleted**, correctly (this part of the original table entry was accurate). The rule itself is gone; there is nothing left to assert an invariant about. |
 | `SmartViewConditionEditor.test.ts`: "cssCascade.ts 共享 helper 回归" (2 synthetic-CSS tests, no dependency on this component's own styles) | — | **Deleted**, but harmlessly — these were regression tests for `cssCascade.ts` itself using synthetic CSS strings, unrelated to any markup in this component. If Task 11 or a future reviewer wants this coverage kept, it belongs in `cssCascade.test.ts` (the shared helper's own test file), not resurrected here — flagging as a possible gap, not silently dropping meaningful coverage. |
 | `PhotosSmartViewDetail.test.ts` (pre-existing, Task 7): "sv-cond-editor-mount 渲染 SmartViewConditionEditor…" | "renders one removable chip per sv.conds entry" | **Re-homed**, `data-test` renamed `sv-cond-editor-mount` → `sv-header-conds`. |
 | `PhotosSmartViewDetail.test.ts`: "点 chip 删除 → store.updateSmartView…" | "clicking a chip → store.updateSmartView receives the filtered conds…" | **Re-homed**, strengthened with the post-round-trip DOM assertion (see above). |
@@ -168,6 +170,115 @@ alone.
 New test added (not a rehome): "leaves no orphaned add-condition identifiers behind in the page
 source" — a source-text grep-in-test guard per the brief's own Step 1 template, using the raw
 `?raw` import the file already had for other source-text assertions.
+
+## Coordinator review fix round
+
+The coordinator's first-pass review caught one **Important**: the disposition table claimed the
+deleted component's `.sv-cond-removable` hover-cascade test was "covered by
+`PhotosSmartViewDetail.test.ts`'s existing 样式:hover 级联归属变体 describe block" — false. That
+block (at the time of the claim) contained exactly two tests,
+`winningHoverBackground(style, ['sv-action-btn', 'sv-action-btn-primary'])` and
+`winningHoverBackground(style, ['sv-export-item', 'sv-export-item-danger'])` — neither call
+passes `['sv-cond-removable']`, and nothing else in the file does either. The guard against
+base-`:hover`-beats-variant (a bug shape this repo has actually shipped, per the review) had been
+dropped for the condition chip, not re-homed.
+
+**Re-reading the rest of the disposition table with the same scepticism, per the coordinator's
+request, turned up one more instance of the same failure mode** (see the corrected table above):
+the "点叉 → 同样触发 remove" row claimed the ✕-icon click path was "covered structurally" because
+the DOM structure is unchanged. That claim was also never backed by an actual test — the only
+post-refactor test clicks the whole chip `<span>` directly via `w.findAll('[data-test="sv-cond-chip"]')`,
+which invokes the parent's `@click` handler directly and never dispatches through the nested
+`.sv-cond-x` at all. A future `@click.stop` added to the ✕ icon would have broken click-to-
+remove-via-X with nothing catching it. The "busy" row also overstated coverage by lumping three
+original tests into one "re-homed" verdict when only one of the three (the remove-blocking one)
+actually had a successor — corrected in the table above.
+
+### Fix 1: added and mutation-verified the hover-cascade test
+
+Added to `src/views/__tests__/PhotosSmartViewDetail.test.ts`, inside the existing `describe('样式:hover 级联归属变体', …)` block (mirroring the file's own convention, no new helper):
+
+```ts
+it('.sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself', () => {
+  const style = extractStyleBlock(photosSmartViewDetailRaw)
+  const win = winningHoverBackground(style, ['sv-cond-removable'])
+  expect(win.selector).toContain(':hover')
+  expect(win.selector).toContain('sv-cond-removable')
+})
+```
+
+(The test title was initially drafted in Chinese, matching the pre-existing sibling tests in the
+same `describe` block -- caught and corrected to English on self-review before committing, since
+newly authored test descriptions must be English per this phase's rule; the pre-existing Chinese
+sibling titles and the describe block's own name are untouched, as they predate this task.)
+
+This matches the deleted component test's own scope exactly (`winningHoverBackground(style, ['sv-cond-removable'])`, single class — not the two-class base+variant form the other two tests in
+that block use, because Vue2's base `.sv-cond` genuinely has no `:hover` rule of its own, so there
+is no base-vs-variant contest to arbitrate here, only "does the hover rule exist and target the
+right element."
+
+**GREEN** (before mutation):
+```
+pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "winning hover rule that contains"
+```
+→ `Test Files 1 passed (1)` / `Tests 1 passed | 95 skipped (96)`.
+
+**Mutation check**: temporarily changed `.sv-cond-removable:hover {` to `.sv-cond-removable {`
+(dropping the pseudo-class, so the rule stops declaring any hover-state background) in
+`src/views/PhotosSmartViewDetail.vue`, re-ran the same command:
+```
+❯ .sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself
+Error: 没有任何 background 规则命中 .sv-cond-removable
+ ❯ Module.winningHoverBackground src/photos/components/__tests__/cssCascade.ts:92:33
+```
+(The error message itself is pre-existing Chinese from `cssCascade.ts`, a shared test helper this
+task did not touch -- quoted verbatim, not something authored here.)
+**Reddened as expected** — `winningHoverBackground` throws when no candidate rule has both a
+`:hover` and every class within the allowed set, exactly the failure mode this guard exists to
+catch. Reverted the mutation (`git diff` confirmed clean, byte-for-byte back to the pre-mutation
+file) and re-ran to confirm green again before moving on.
+
+### Fix 2: added the missing ✕-icon click test
+
+Added directly after the whole-chip click test in the same file:
+
+```ts
+it('clicking the ✕ icon specifically (not just the chip body) still fires removeCond via bubbling', async () => {
+  svc.photos.updateSmartView.mockResolvedValue(null)
+  const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+  await w.find('.sv-cond-x').trigger('click')
+  await flushPromises()
+  expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
+})
+```
+
+**GREEN** (before mutation): `pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "clicking the"` → `Test Files 1 passed (1)` / `Tests 1 passed | 95 skipped (96)`.
+
+**Mutation check**: temporarily added `@click.stop` to the `.sv-cond-x` span in
+`src/views/PhotosSmartViewDetail.vue`, re-ran the same command:
+```
+AssertionError: expected "vi.fn()" to be called with arguments: [ '7', …(1) ]
+Number of calls: 0
+```
+**Reddened as expected** — with propagation stopped, the parent chip's click handler never
+fires, `updateSmartView` is never called. Reverted the mutation and re-ran to confirm green.
+
+### Final foreground verification (after both fixes)
+
+```
+pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/photos/util/__tests__/smartViewSuggest.test.ts src/i18n/parity.test.ts src/styles
+```
+→ `Test Files 8 passed (8)` / `Tests 1209 passed (1209)` (up from 1207 in the original pass — the
+2 new tests, no regressions). File count still 8 (4 named files + 4 under `src/styles`), same
+sanity check as the original pass — no path silently skipped.
+
+```
+pnpm exec vue-tsc --noEmit
+```
+→ clean, no output.
+
+Both commands run as single blocking foreground calls this round, per the coordinator's explicit
+instruction — no background job, no watcher.
 
 ## i18n keys this removal orphans (for Task 11)
 
@@ -215,7 +326,11 @@ Six keys orphaned: `photosSvAddCondition`, `photosSvNewCondition`, `photosSvEGSc
   defaulting to "keep the file to minimize diff."
 - **Testing**: RED confirmed before deletion (3 failures for the right reasons, 2 pre-existing
   passes correctly not touched), GREEN after, `vue-tsc --noEmit` clean, `--reporter=verbose`
-  stderr diffed against a stashed baseline to rule out newly introduced warnings.
+  stderr diffed against a stashed baseline to rule out newly introduced warnings. Coordinator
+  review round: two disposition-table rows were found to claim coverage that didn't exist
+  (hover cascade for `.sv-cond-removable`, and the ✕-icon click path) — both fixed with real
+  tests, and both mutation-verified (broke the underlying behavior, confirmed the new test
+  reddens, reverted, confirmed green again) rather than trusted on inspection alone.
 - **No newly authored Chinese**: `git diff --cached | grep -nP '^\+.*[\x{4e00}-\x{9fff}]'`
   returns only four lines, all of them the literal quoted phrase "用户追加需求" cited verbatim
   from the Vue2 source's own comment (and from the task brief, which quotes the same phrase) —
@@ -237,3 +352,17 @@ Six keys orphaned: `photosSvAddCondition`, `photosSvNewCondition`, `photosSvEGSc
   (out of scope — flagging for whoever next touches `cssCascade.ts`).
 - None of the six orphaned i18n keys were removed here per explicit instruction; Task 11 should
   delete all six once it re-confirms zero consumers itself.
+- `src/photos/components/SmartViewSidePanel.vue:27` still names `SmartViewConditionEditor.vue`
+  as the origin of its busy-guard convention. Accurate as history (that is genuinely where the
+  convention started), but it is now a dead lead for a future grep — someone searching for
+  `SmartViewConditionEditor` to understand the busy-guard pattern will land on a comment
+  pointing at a file that no longer exists. Per the coordinator's explicit instruction, **not
+  changed in this round** — noted here only.
+- First-pass review caught one false coverage claim in this report's disposition table (the
+  `.sv-cond-removable` hover-cascade row); re-reading the rest of the table with the same
+  scepticism caught a second, related instance (the ✕-icon click row) that had the same shape —
+  "the DOM/structure didn't change, so it must still be covered" without actually checking
+  whether a test exercises that specific path. Both are now fixed with real, mutation-verified
+  tests rather than corrected prose. Worth flagging as a pattern to watch for in future
+  fold-in/deletion tasks: "nothing moved, therefore still covered" is exactly the kind of claim
+  that needs a test, not an inference from the diff.

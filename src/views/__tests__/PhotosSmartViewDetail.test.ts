@@ -260,6 +260,22 @@ describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
     expect(remaining[0].text()).toContain('place: Japan')
   })
 
+  // SP15-P2c Task 8, coordinator review fix: re-homes the deleted
+  // SmartViewConditionEditor.test.ts's "点叉(.sv-cond-x)→同样触发remove(冒泡到整个chip)".
+  // The first pass of this task's disposition table claimed this was "covered structurally"
+  // by the whole-chip click test above on the strength of the DOM being unchanged -- that
+  // claim was never actually exercised by a test (clicking the parent span directly never
+  // dispatches a click on the nested `.sv-cond-x`, so a future `@click.stop` added to the X
+  // icon would silently break click-to-remove-via-X with nothing here to catch it). Fixed by
+  // adding this test rather than just softening the prose.
+  it('clicking the ✕ icon specifically (not just the chip body) still fires removeCond via bubbling', async () => {
+    svc.photos.updateSmartView.mockResolvedValue(null)
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    await w.find('.sv-cond-x').trigger('click')
+    await flushPromises()
+    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
+  })
+
   it('store.patchBusy blocks a second click on the same chip from firing another PATCH', async () => {
     let resolveFn: ((v: unknown) => void) | undefined
     svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
@@ -1336,6 +1352,20 @@ describe('样式:hover 级联归属变体', () => {
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('sv-export-item-danger')
     expect(win.specificity).toBe(3)
+  })
+
+  // SP15-P2c Task 8, coordinator review fix: this rehomes the deleted
+  // SmartViewConditionEditor.test.ts's cssCascade assertion for the condition chip's own
+  // hover rule, moved in from that component along with the markup. `.sv-cond-removable` has
+  // no separate base-class-vs-variant fight (unlike the two tests above) -- there is only one
+  // rule with a `:hover` on this element -- so the risk this guards against is the base `.sv-cond`
+  // never accidentally growing its own `:hover` that would outrank or shadow this one, and the
+  // `.sv-cond-removable:hover` rule not silently disappearing during any future edit.
+  it('.sv-cond-removable (condition chip) has a winning hover rule that contains :hover and targets itself', () => {
+    const style = extractStyleBlock(photosSmartViewDetailRaw)
+    const win = winningHoverBackground(style, ['sv-cond-removable'])
+    expect(win.selector).toContain(':hover')
+    expect(win.selector).toContain('sv-cond-removable')
   })
 })
 
