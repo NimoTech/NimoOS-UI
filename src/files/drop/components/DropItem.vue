@@ -1,6 +1,6 @@
 <!-- src/files/drop/components/DropItem.vue -->
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ContextMenuItem } from 'reka-ui'
 import ContextMenu from '../../../components/ui/ContextMenu.vue'
@@ -16,8 +16,48 @@ const props = defineProps<{
   transfer?: TransferState
   suspended?: boolean
 }>()
-const emit = defineEmits<{ 'select-files': [files: File[]]; 'cancel-transfer': [] }>()
+const emit = defineEmits<{ 'select-files': [files: File[]]; 'cancel-transfer': []; 'transfer-stalled': [] }>()
 const { t } = useI18n()
+
+// Task 8's ack timeout only covers a sender waiting for an acknowledgement.
+// A connection that stays open while bytes stop flowing raises no channel
+// event at all, so "progress has not moved" is the only signal left.
+const STALL_CHECK_MS = 5000
+const STALL_LIMIT_MS = 15000
+
+let lastMovedAt = Date.now()
+let stallTimer: ReturnType<typeof setInterval> | null = null
+
+watch(
+  () => props.transfer?.progress,
+  () => { lastMovedAt = Date.now() },
+)
+
+function stopWatchdog() {
+  if (stallTimer === null) return
+  clearInterval(stallTimer)
+  stallTimer = null
+}
+
+function startWatchdog() {
+  stopWatchdog()
+  lastMovedAt = Date.now()
+  stallTimer = setInterval(() => {
+    const t = props.transfer
+    if (!t || t.progress <= 0 || t.progress >= 100) return
+    if (Date.now() - lastMovedAt < STALL_LIMIT_MS) return
+    stopWatchdog()
+    emit('transfer-stalled')
+  }, STALL_CHECK_MS)
+}
+
+watch(
+  () => !!props.transfer,
+  (active) => { if (active) startWatchdog(); else stopWatchdog() },
+  { immediate: true },
+)
+
+onBeforeUnmount(stopWatchdog)
 
 const inputEl = ref<HTMLInputElement | null>(null)
 const dragOver = ref(false)

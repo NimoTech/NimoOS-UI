@@ -92,3 +92,66 @@ describe('DropItem cancel entry', () => {
     expect(w.emitted('cancel-transfer')).toBeTruthy()
   })
 })
+
+describe('DropItem stall watchdog', () => {
+  it('reports a stall when progress stops moving for long enough', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      vi.advanceTimersByTime(20000)
+      await w.vm.$nextTick()
+      expect(w.emitted('transfer-stalled')).toBeTruthy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps quiet while progress is still advancing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      vi.advanceTimersByTime(10000)
+      await w.setProps({ transfer: { progress: 55, sending: true, count: 1 } })
+      vi.advanceTimersByTime(10000)
+      await w.vm.$nextTick()
+      expect(w.emitted('transfer-stalled')).toBeFalsy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not run at all when no transfer is in flight', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({})
+      // Assert the watchdog interval was never scheduled in the first place,
+      // not just that it never happened to emit — a mutant that starts the
+      // interval unconditionally but still no-ops inside on a missing
+      // transfer would otherwise pass this test while leaking a timer.
+      expect(vi.getTimerCount()).toBe(0)
+      vi.advanceTimersByTime(60000)
+      await w.vm.$nextTick()
+      expect(w.emitted('transfer-stalled')).toBeFalsy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stops its timer on unmount so a torn-down card cannot fire', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
+      w.unmount()
+      // Vue's own emit() already no-ops after unmount (instance.isUnmounted
+      // guard), so an emitted-event assertion alone would pass even with a
+      // leaked interval — it only proves the symptom, not the cause. Assert
+      // directly on the pending-timer count so the mutation that actually
+      // matters (a leaked setInterval outliving the component) gets caught.
+      expect(vi.getTimerCount()).toBe(0)
+      vi.advanceTimersByTime(60000)
+      expect(w.emitted('transfer-stalled')).toBeFalsy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
