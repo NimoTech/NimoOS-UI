@@ -1,0 +1,940 @@
+# Review package: faf808b..ebe69b5
+
+## Commits
+ebe69b5 feat(photos): align the album menu on the five-entry shape
+
+## Files changed
+ .../task-5-report.md                               | 206 +++++++++++++++++
+ src/i18n/en_us.photos.ts                           |   4 +
+ src/i18n/zh_cn.photos.ts                           |   9 +
+ src/views/PhotosAlbumDetail.vue                    | 245 +++++++++++++++------
+ src/views/__tests__/PhotosAlbumDetail.test.ts      | 146 ++++++++++++
+ 5 files changed, 544 insertions(+), 66 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-5-report.md b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-5-report.md
+new file mode 100644
+index 0000000..df15994
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-5-report.md
+@@ -0,0 +1,206 @@
++# Task 5 report: album detail "..." menu (five entries) + sidebar container + fixed positioning
++
++## What was implemented
++
++`src/views/PhotosAlbumDetail.vue`:
++
++1. **Built `.sv-side-actions`** at the top of `aside.sv-detail-side`, above the About section
++   (target 33b05636:PhotosAlbumDetail.vue :211-283). Holds a single child (the "..." button +
++   menu) — New-UI never carries a Slideshow button; the target's own version only ever popped a
++   "coming soon" toast, and no tile-fullscreen player exists in this codebase to open. Kept
++   `flex-wrap` anyway to match the target's own container shape (restated CSS, since scoped
++   styles don't cross SFCs in this repo, per the phase's standing KEEP-THE-DUPLICATION ruling).
++2. **Moved the "..." menu** out of its Task-3 parking spot in the header's `.sv-actions` into the
++   new container. `morePopRef` (click-outside wrapper) stayed; added the new `moreBtnRef` bound
++   directly to the `<button>`, per the brief — the composable only reads the button's rect, it
++   doesn't touch open/close.
++3. **Expanded the menu to five entries**, in the target's fixed order: Rename, Duplicate,
++   Download as ZIP, Convert, Delete. Titles shortened per #117 (Rename album→Rename, Convert to
++   Smart Album→Convert, Delete album→Delete); desc lines kept the longer disambiguating copy.
++4. **Wired T1's `useFixedMenuPosition(menuOpen, moreBtnRef)`**, binding the returned `menuStyle`
++   to the menu root's `:style`. The menu is now `position: fixed`, computed from the button's
++   rect, and no longer clips against the sidebar's own `overflow-y: auto`.
++5. **New handlers**: `duplicateAlbum()` (thin wrapper around T2's `albums.duplicateAlbum`) and
++   `downloadZip()` (GET+token navigation via T2's `service.photos.exportAlbumZipUrl`).
++6. **Folded-in fix**: `onPickerConfirm`'s success-toast name now comes from a new
++   `pickerAlbumName` ref, snapshotted alongside `pickerAlbumId` in `openPicker()`, instead of
++   reading the live `album.value?.title` computed at resolve time.
++7. Added CSS: `.sv-side-actions` (restated from Vue2 photos-smartview.scss) and
++   `.sv-action-btn-icon` (restated from `PhotosSmartViewDetail.vue:1018`) for the icon-only
++   toggle button.
++
++## The Vue2 target vs the brief — where they disagreed
++
++The brief pointed at `PhotosSmartViewDetail.vue`'s `downloadZip` as the precedent for the ZIP
++entry's navigation mechanism. Reading that function shows it does a `fetch` + `Authorization`
++header + blob download — because that endpoint (`/v1/photos/smart-views/:id/export`) is
++**POST-only and not JWT-exempt**. Reading the actual Vue2 target's `runExportZip`
++(33b05636:PhotosAlbumDetail.vue:736-738) shows the opposite: `window.location.href =
++photosService.exportAlbumZipUrl(this.album.id)` — a plain GET+token navigation, matching this
++page's own `exportAlbumZipUrl` (T2, JWT-exempt via query token, same shape as
++`favorites.ts`'s `exportZip`). **Followed the target and `favorites.ts`, not the brief's
++pointer** — the two backend endpoints have genuinely different contracts, and copying
++`downloadZip`'s fetch+blob mechanism here would have been solving a problem (missing
++Authorization header) that this endpoint doesn't have.
++
++Test-technique consequence: `window.location.href = ...` throws jsdom's "Not implemented:
++navigation" to stderr (it doesn't actually navigate or update `location.href` in jsdom) — the
++exact same behaviour `favorites.ts`'s own `exportZip` already produces in its existing tests
++(`src/photos/stores/__tests__/favorites.test.ts`, `src/views/__tests__/PhotosFavorites.test.ts`).
++Rather than asserting on the (jsdom-unreliable) `location.href` value, the new test asserts the
++service call instead (`expect(svc.photos.exportAlbumZipUrl).toHaveBeenCalledWith('a1')`), which
++is assertable without depending on real navigation — this is the established pattern in this
++codebase for the same class of GET+token export link.
++
++No other target/brief disagreements found. The brief's five-entry table, key names, and
++`~3.2 MB/photo` constant all held up against the target; only the concrete i18n key *names*
++in the brief's table turned out to be mostly replaceable by existing keys (see below).
++
++## i18n — new vs reused
++
++Grepped `zh_cn.photos.ts`/`en_us.photos.ts` before adding anything, then cross-checked every
++candidate against the actual Vue2 target's `src/assets/lang/zh_CN.json` (not just its English
++literal) to confirm exact-text reuse, not a near-synonym:
++
++| Slot | Key used | New or reused |
++|---|---|---|
++| Rename title | `photosSvRename` | Reused (PhotosSmartViewDetail's own short "Rename"; target zh_CN.json confirms `"Rename": "重命名"`) |
++| Rename desc | `photosAlbumRenameHint` | Unchanged (already correct) |
++| Duplicate title | `photosSvDuplicate` | Reused (target: `"Duplicate": "复制"`) |
++| Duplicate desc | `photosAlbumDuplicateHint` | **New** — no existing key matched "Copy the photos as a new album" (target zh: "把照片复制为一个新相册") |
++| Duplicate success toast | `photosSvDuplicatedNameOpenCopy` | Reused — target's own literal copy for this exact toast (`'Duplicated "{name}" — open the new copy from the list'`) already lives under this key for the smart-view sibling |
++| Duplicate 409 toast | `photosAlbumNameExists` | Reused — target's `duplicateAlbum` reuses the same "name already exists" copy the rename path uses for its own 409 |
++| Duplicate failure toast | `photosSvDuplicateFailed` | Reused (target: `"Duplicate failed": "复制失败"`) |
++| ZIP title | `photosFavExport` | Reused (target: `"Download as ZIP": "下载为 ZIP"`) |
++| ZIP desc | `photosSvNPhotosMbMb` | Reused — exact `'{n} 张照片 · 约 {mb} MB'` interpolation shape, already used by `PhotosSmartViewDetail.vue`'s own zip entry |
++| ZIP toast | `photosSvPreparingZipNPhotos` | Reused (target: `"Preparing ZIP — {n} photos"`) |
++| Convert title | `photosAlbumMenuConvert` | **New** — no existing generic "转换"/"Convert" key in the photos domain (`appsCustomConvert` exists but is a different domain/feature) |
++| Convert desc | `photosAlbumConvertToSmartHint` | Unchanged (already used here; noted below) |
++| Convert disabled tooltip | `photosSvSmartViewsOffCreateHint` | Already wired by Task 3 — no change needed |
++| Delete title | `photosDelete` | Reused (target: `"Delete": "删除"`) — already used by `PhotosMomentDetail.vue`/`PhotosSmartViewDetail.vue` for the same "Delete" button copy |
++| Delete desc | `photosAlbumDeleteHint` | Unchanged (already used here) |
++
++**Net new keys: 2** — `photosAlbumMenuConvert` and `photosAlbumDuplicateHint`, added to both
++`zh_cn.photos.ts` and `en_us.photos.ts`. The old long-form keys `photosAlbumRename` and
++`photosAlbumConvertToSmart` lose their only reference in this file but were **not deleted** per
++the brief's instruction (Task 11 does the orphan sweep). `photosAlbumDelete` keeps its second
++reference (the delete-confirm modal's button) and is therefore not orphaned at all.
++
++**Aside, out of scope**: while cross-checking against the target's zh_CN.json I found that this
++page's existing `photosAlbumConvertToSmartHint` ("Nimo 会自动持续加入匹配的新照片") and
++`photosAlbumDeleteHint` ("照片会保留在图库中") both drift slightly from the target's current
++copy ("转为持续自动更新的智能相册" / "照片仍保留在你的图库中你的图库中"[sic, target has "你的
++图库中"]). This predates Task 5 (an earlier task's decision) and the brief explicitly says to
++keep desc lines unchanged here, so I left both as-is and am only flagging the drift for the
++record.
++
++## TDD evidence
++
++**RED** — `pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts` after writing all
++nine new tests in the `P2c album more menu` describe block plus the folded-in toast-name
++regression test, before touching the component:
++
++```
++Test Files  1 failed (1)
++     Tests  8 failed | 72 passed (80)
++```
++
++(8 of 9 new menu tests failed for the expected reasons — missing entries, missing
++`.sv-side-actions`, `Cannot call trigger on an empty DOMWrapper` for `album-menu-duplicate`/
++`album-menu-zip`, `attributes('style')` undefined. The 9th — "closes the menu when clicking
++outside it" — passed even before implementation, since that behaviour was already correct and
++unaffected by this task; kept per the brief as an explicit regression check.)
++
++**GREEN** — after implementing:
++`pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts src/i18n/parity.test.ts src/styles`:
++
++```
++Test Files  6 passed (6)
++     Tests  1167 passed (1167)
++```
++
++Re-ran with `--reporter=verbose`: only pre-existing noise present — the file-wide
++`[Vue warn]: Component "i18n-*"/"I18nT" has already been registered` lines (present on every
++test in this file already, unrelated to this task) and one `Error: Not implemented: navigation`
++per test that exercises `downloadZip` — the exact same jsdom limitation `favorites.ts`'s own
++`exportZip` already produces in its existing tests. No new/unexpected stderr from this task's
++own code (confirmed the re-entry catch in `duplicateAlbum` never logs for the expected-rejection
++path).
++
++## Mutation verification (Step 5) — all four confirmed load-bearing
++
++1. **Swapped the Duplicate and Download-as-ZIP `<button>` blocks.**
++   `pnpm exec vitest run ... -t "renders exactly five entries"` → red:
++   `['重命名', '下载为 ZIP', '复制', '转换', '删除']` vs expected order. Reverted; suite green.
++2. **Removed `:disabled="smartViewDisabled"` from the Convert entry.**
++   `pnpm exec vitest run ... -t "disables Convert"` → red on **both** the pre-existing test
++   ("disables Convert to Smart Album when smart views are off") and the new one (`expected
++   undefined to be defined`). Reverted; suite green.
++3. **Removed `:style="menuStyle"` from the menu root.**
++   `pnpm exec vitest run ... -t "applies the fixed position style"` → red (`attributes('style')`
++   undefined, assertion errors on the missing-value combination). Reverted; suite green.
++4. **Folded-in fix — reverted `pickerAlbumName.value` back to live `album.value?.title ?? ''`.**
++   `pnpm exec vitest run ... -t "names the success toast after the album"` → red:
++   `expected "已添加 1 项到「Trip」" but got "已添加 1 项到「Other」"` — reproduces exactly the
++   bug the fix addresses. Reverted; suite green.
++
++Full re-run after all reverts: `pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts src/i18n/parity.test.ts src/styles` → **1167/1167 passed**.
++
++## Type check
++
++`pnpm exec vue-tsc --noEmit` — clean, **after** fixing a broken pnpm hardlink (see below).
++
++**Hardlink gotcha hit during this task** (documented in this repo's own `CLAUDE.md`): the first
++`vue-tsc` run failed with `Property 'exportAlbumZipUrl' does not exist on type '{...}'`, even
++though `packages/service/src/photos.ts` clearly defines it (added in Task 2). `stat -c '%i'`
++showed the working copy and the `.pnpm`-linked copy had different inodes — the hardlink had
++been broken by an earlier atomic-write edit in this session, before I even touched this task.
++`pnpm install` re-linked them (inodes matched afterward); `vue-tsc` then passed clean. Re-ran
++the full targeted test file after the reinstall to make sure nothing else moved — still
++1167/1167.
++
++## Files changed
++
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/PhotosAlbumDetail.vue`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/__tests__/PhotosAlbumDetail.test.ts`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/i18n/zh_cn.photos.ts`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/i18n/en_us.photos.ts`
++
++## Self-review
++
++- **Completeness**: five entries present in the target's order (verified by test + mutation);
++  `.sv-side-actions` built at the top of the sidebar, above About (verified by a dedicated DOM-
++  order test); menu physically moved out of the header (the old `.album-more-wrap` block and its
++  "TEMPORARY HOME" comment are gone from `.sv-actions`); folded-in toast fix done and covered by
++  a regression test.
++- **Quality/YAGNI**: reused nine existing i18n keys before adding the two genuinely new ones;
++  reused the sibling page's `.sv-action-btn`/`.sv-action-btn-icon` classes and dot-icon SVG for
++  the toggle button (swapped from the Task-3 parking spot's plain "⋯" glyph + `.bar-btn`, which
++  was explicitly a stopgap) rather than inventing new markup, so the two detail pages' more
++  buttons now look and behave alike, matching this file's own repeated design intent comments.
++- **No newly authored Chinese** outside i18n values: `git diff -- <changed files> | grep -nP
++  '^\+.*[\x{4e00}-\x{9fff}]'` hits only (a) comments inside `zh_cn.photos.ts` (the locale file
++  carve-out — every pre-existing Task 2-4 comment in that file is Chinese too) and (b) literal
++  Chinese assertion strings in the test file (`'重命名'`, `'10 张照片 · 约 32 MB'`, etc.), which
++  are locale-value assertions, not authored prose. The mirrored `en_us.photos.ts` comments are
++  English.
++- **No colour literals**: the two new CSS rules (`.sv-side-actions`, `.sv-action-btn-icon`) use
++  only `display`/`flex-wrap`/`gap`/`margin-bottom`/`padding`/`min-width`/`justify-content` — no
++  colour properties at all.
++- **No `*` immediately before `/` in CSS comments**: checked both new comment blocks by hand —
++  each has exactly one legitimate closing `*/`.
++- **Click-outside still works with `position: fixed`**: unchanged `onDocMousedown` logic
++  (`morePopRef.value.contains(e.target)`) still wraps both the button and the menu in the DOM;
++  covered by the "closes the menu when clicking outside it" regression test in the new describe
++  block (passes both before and after this task's changes, as expected — it was never broken by
++  the `position: fixed` change).
++
++## Concerns
++
++- The `downloadZip` test necessarily triggers jsdom's "Not implemented: navigation" stderr
++  (unavoidable given the mechanism the target actually specifies, and the same noise the
++  sibling `favorites.ts` feature already produces) — flagged above as a known, pre-existing-
++  pattern trade-off rather than a defect.
++- Left two small pre-existing i18n-text drifts (`photosAlbumConvertToSmartHint`,
++  `photosAlbumDeleteHint`) undisturbed, per the brief's explicit "keep desc unchanged" scope —
++  recorded above for whoever eventually reconciles them.
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index ceac329..778a403 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -174,20 +174,24 @@ export default {
+   // ── Photos: Detail view ──
+   photosAlbumBack: 'Albums',
+   photosAlbumLabel: 'Album',
+   photosAlbumClickToRename: 'Click to rename',
+   photosAlbumEdit: 'Edit',
+   photosAlbumDone: 'Done',
+   photosAlbumRename: 'Rename album',
+   photosAlbumRenameHint: 'Change the album name',
+   photosAlbumConvertToSmart: 'Convert to Smart Album',
+   photosAlbumConvertToSmartHint: 'Nimo keeps adding matches automatically',
++  // Task 5 (#117 short titles): see zh_cn.photos.ts's comment on this pair -- Rename/Duplicate/
++  // Download as ZIP/Delete reuse existing short keys verbatim; only Convert is new.
++  photosAlbumMenuConvert: 'Convert',
++  photosAlbumDuplicateHint: 'Copy the photos as a new album',
+   // ── Task 7: album -> smart album conversion dialog ──
+   photosAlbumConvertSuggestHint: 'Nimo suggests these conditions — final matching is decided when the Smart Album is created',
+   photosAlbumConvertLockHint: 'Your {n} photos stay locked in. Nimo will keep adding new matches for this theme.',
+   photosAlbumConverting: 'Converting…',
+   photosAlbumConvertedToSmart: 'Converted to Smart Album',
+   photosAlbumConvertFailed: 'Convert failed',
+   photosAlbumStatVideos: 'Videos',
+   photosAlbumStatCreated: 'Created',
+   photosAlbumDelete: 'Delete album',
+   photosAlbumDeleteHint: 'Photos stay in your library',
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index b004cae..f16d566 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -173,20 +173,29 @@ export default {
+   // ── 相册:详情页 ──
+   photosAlbumBack: '相册',
+   photosAlbumLabel: '相册',
+   photosAlbumClickToRename: '点击重命名',
+   photosAlbumEdit: '编辑',
+   photosAlbumDone: '完成',
+   photosAlbumRename: '重命名相册',
+   photosAlbumRenameHint: '修改相册名称',
+   photosAlbumConvertToSmart: '转为智能相册',
+   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
++  // Task 5 (#117 短标题): "..." 菜单主标题改短——Rename/Duplicate/Download as ZIP 三项复用既有
++  // 短键(photosSvRename/photosSvDuplicate/photosFavExport,与靶子译文逐字一致),Delete 复用
++  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。上面两个长标题 key
++  // (photosAlbumRename/photosAlbumConvertToSmart)在此之后失去这处唯一引用,按本期约定先不删
++  // (Task 11 统一做孤儿清理)。
++  photosAlbumMenuConvert: '转换',
++  // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
++  // zh_CN.json:"把照片复制为一个新相册")。
++  photosAlbumDuplicateHint: '把照片复制为一个新相册',
+   // ── Task 7: 相册 → 智能相册转换弹窗 ──
+   photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
+   photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
+   photosAlbumConverting: '转换中…',
+   photosAlbumConvertedToSmart: '已转为智能相册',
+   photosAlbumConvertFailed: '转换失败',
+   photosAlbumStatVideos: '视频',
+   photosAlbumStatCreated: '创建于',
+   photosAlbumDelete: '删除相册',
+   photosAlbumDeleteHint: '照片会保留在图库中',
+diff --git a/src/views/PhotosAlbumDetail.vue b/src/views/PhotosAlbumDetail.vue
+index e0df5e7..915d8a8 100644
+--- a/src/views/PhotosAlbumDetail.vue
++++ b/src/views/PhotosAlbumDetail.vue
+@@ -29,20 +29,21 @@ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+ import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+ import AlbumConvertToSmartDialog from '../photos/components/AlbumConvertToSmartDialog.vue'
+ import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+ import { useLightbox } from '../photos/lightbox/useLightbox'
+ import { usePhotosAlbums } from '../photos/stores/albums'
+ import type { SmartView } from '../photos/stores/smartViews'
+ import { useTimelineStore } from '../photos/stores/timeline'
+ import { usePhotosSettingsStore } from '../photos/stores/settings'
+ import { useToast } from '../stores/toast'
+ import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
++import { useFixedMenuPosition } from '../photos/composables/useFixedMenuPosition'
+ import { albumToView, sortAlbumPhotos } from '../photos/util/albumView'
+ import { isConflict } from '../photos/util/httpErrors'
+ import type { Photo } from '../photos/util/assetToPhoto'
+ 
+ type SortBy = 'manual' | 'taken' | 'added'
+ 
+ const { t, locale } = useI18n()
+ const route = useRoute()
+ const router = useRouter()
+ const albums = usePhotosAlbums()
+@@ -82,23 +83,31 @@ const albumPickerIds = ref<Array<string | number>>([])
+ function openAlbumPicker(ids: Array<string | number>) {
+   albumPickerIds.value = ids
+   albumPickerOpen.value = true
+ }
+ // 加到的是别的相册,不是本相册——无需 fetchAlbumAssets 刷新(brief 明确)。空函数只为占位,
+ // 与 Photos.vue/PhotosFavorites.vue 的同名接线保持一致的可读性。
+ function onAlbumPickerAdded(): void {}
+ 
+ const titleInputRef = ref<HTMLInputElement | null>(null)
+ const morePopRef = ref<HTMLElement | null>(null)
++// Task 5: the composable only takes the trigger button's rect, not the click-outside wrapper's --
++// morePopRef stays the click-outside container (onDocMousedown below), moreBtnRef is new and
++// exists solely to hand the button element to useFixedMenuPosition. Neither replaces the other.
++const moreBtnRef = ref<HTMLElement | null>(null)
+ const sortMenuRef = ref<HTMLElement | null>(null)
+ const gridRef = ref<HTMLElement | null>(null)
+ 
++// Task 5 (T1): pins the more menu to the viewport via the trigger button's rect, so it no longer
++// clips against .sv-detail-side's own overflow-y:auto once the menu grew to five entries.
++const { menuStyle } = useFixedMenuPosition(menuOpen, moreBtnRef)
++
+ // ── 派生数据 ──
+ // album 为 null 有两种子情形(区分见模板):albumsLoaded===false → 还没加载完,渲染骨架;
+ // albumsLoaded===true 但仍是 null → 相册真不存在(New-UI 补齐项,Vue2 因页内 state 不会
+ // 出现此情形,记账)。
+ const album = computed(() => {
+   const raw = albums.albumById(albumId.value)
+   return raw ? albumToView(raw, t('photosAlbumUntitled')) : null
+ })
+ const notFound = computed(() => albums.albumsLoaded && album.value === null)
+ 
+@@ -334,20 +343,58 @@ async function retryAlbums(): Promise<void> {
+ // ── Hero:编辑态/⋯菜单 ──
+ function toggleEditMode(): void {
+   edit.value = !edit.value
+   if (!edit.value) selected.value.clear()
+ }
+ function askConfirmDelete(): void {
+   menuOpen.value = false
+   confirmDelete.value = true
+ }
+ 
++// Task 5 (Vue2 :708-730 duplicateAlbum). Thin page-level wrapper around the store's own
++// duplicateAlbum (T2): close the menu, delegate name/asset-id computation and the re-entry guard
++// to the store, and translate its outcome into a toast. Unlike this page's other guarded writes
++// (removing/pickerAdding), there is no local busy ref here -- the store's `duplicateBusy` throws
++// on re-entry rather than resolving quietly (T2's own comment explains why: unlike its smart-view
++// sibling, this one must resolve to a value on the success path). The catch below discriminates
++// that expected rejection from a real failure by reading `albums.duplicateBusy` at the moment the
++// rejection is observed: the store's own `finally` always clears the flag before a genuine
++// failure rethrows, so it can only still read true here for the synchronous re-entrant throw.
++async function duplicateAlbum(): Promise<void> {
++  menuOpen.value = false
++  const name = album.value?.title ?? ''
++  try {
++    await albums.duplicateAlbum(albumId.value)
++    // Target's own success copy (33b05636:PhotosAlbumDetail.vue:713-716) -- identical wording to
++    // the smart-view sidebar's own duplicate toast, hence the shared key.
++    toast.show(t('photosSvDuplicatedNameOpenCopy', { name }))
++  } catch (e) {
++    if (albums.duplicateBusy) return // a second click while the first is still in flight -- not a failure
++    console.error('[album-detail] duplicateAlbum', e)
++    // Target reuses the same "name already exists" copy the rename path shows for its own 409.
++    toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosSvDuplicateFailed'))
++  }
++}
++
++// Task 5 (Vue2 :736-743 runExportZip). GET+token navigation -- exportAlbumZipUrl (T2) is
++// JWT-exempt via the query token, same shape as favorites.ts's own exportZip, so a plain
++// navigation is enough here. Not the fetch+blob dance PhotosSmartViewDetail.vue's downloadZip
++// uses: that endpoint is POST-only and not JWT-exempt, a different backend contract entirely --
++// the target confirms this page's own contract is the simple GET one (:736-738's literal
++// `window.location.href = photosService.exportAlbumZipUrl(...)`).
++function downloadZip(): void {
++  menuOpen.value = false
++  window.location.href = service.photos.exportAlbumZipUrl(albumId.value)
++  const n = album.value?.count ?? 0
++  toast.show(t('photosSvPreparingZipNPhotos', { n: n.toLocaleString(localeTag.value) }))
++}
++
+ // T6: same criterion as the Albums page's smart-view-create gating (Vue2 :226-229 threads it
+ // down as a prop; here both pages read the one settings store directly instead).
+ const smartViewDisabled = computed(() => settings.aiFeatures.smartview === false)
+ 
+ // T7 mounts the dialog this stub opens; the body lands there together with the write it makes.
+ const convertOpen = ref(false)
+ function openConvertModal(): void {
+   if (smartViewDisabled.value) return
+   menuOpen.value = false
+   convertOpen.value = true
+@@ -423,29 +470,38 @@ const pickerAdding = ref(false)
+ // real* album, a confirm arriving after that point would silently write into the newly-viewed
+ // album instead of the one the user actually picked photos for. `pickerAlbumId` snapshots the id
+ // the moment the picker opens (see `openPicker()` below) so the write always targets the album
+ // the picker was opened for, never whatever `route.params.id` happens to be when the confirm
+ // resolves. The id watcher additionally closes the dialog (`pickerOpen.value = false`) on every
+ // id change, so in real usage the confirm button is gone by then anyway (PhotosLibraryPicker.vue
+ // gates its whole template on `v-if="open"`) — the snapshot is what keeps a synthetic/in-flight
+ // confirm harmless too, without having to block on `pickerOpen` itself (which is also flipped by
+ // unrelated tests that exercise this handler directly, without ever opening the dialog).
+ const pickerAlbumId = ref(albumId.value)
++// Task 5 (Task 4 re-review fold-in): the id snapshot above pins the *write*, but the success
++// toast's `{name}` used to read `album.value?.title` live at resolve time -- a computed that
++// tracks whatever album the route currently points at, not the one the write actually landed on.
++// After a navigation to a different, real album while the picker was open, the toast would name
++// the *new* album while the write still landed on the *snapshotted* one (see `pickerAlbumId`'s own
++// comment): two different albums, one confirm. Snapshotting the name alongside the id here keeps
++// the toast and the write pointed at the same album, always.
++const pickerAlbumName = ref(album.value?.title ?? '')
+ function openPicker(): void {
+   pickerAlbumId.value = albumId.value
++  pickerAlbumName.value = album.value?.title ?? ''
+   pickerOpen.value = true
+ }
+ async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
+   if (pickerAdding.value) return
+   pickerAdding.value = true
+   const id = pickerAlbumId.value
+-  const name = album.value?.title ?? ''
++  const name = pickerAlbumName.value
+   try {
+     await albums.addAssetsToAlbum(id, ids)
+     toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
+     pickerOpen.value = false
+     void albums.fetchAlbumAssets(id)
+   } catch (e) {
+     console.error('[album-detail] addAssetsToAlbum', e)
+     toast.show(t('photosAlbumAddFailed'))
+   } finally {
+     pickerAdding.value = false
+@@ -703,85 +759,20 @@ watch(gridRef, () => {
+                       <button
+                         type="button"
+                         :data-active="density === 'compact'"
+                         :title="t('photosDensityCompact')"
+                         @click="density = 'compact'"
+                       >
+                         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /><rect x="3" y="19" width="6" height="2" /><rect x="11" y="19" width="6" height="2" /></svg>
+                       </button>
+                     </div>
+                   </template>
+-                  <!-- TEMPORARY HOME, registered: the "..." menu's own home in the target is the
+-                       sidebar's .sv-side-actions, which Task 5 builds together with the
+-                       five-entry menu that goes in it. Its previous container
+-                       (.album-hero-actions) is deleted by this task, so the markup parks here
+-                       unchanged in the meantime rather than being dropped and rebuilt. -->
+-                  <div ref="morePopRef" class="album-more-wrap">
+-                  <button
+-                    type="button"
+-                    class="bar-btn album-more-btn"
+-                    data-test="album-more-btn"
+-                    :data-active="menuOpen"
+-                    @click="menuOpen = !menuOpen"
+-                  >⋯</button>
+-                  <!-- T6: reshaped to the same icon/title/hint idiom as
+-                       PhotosSmartViewDetail.vue's .sv-export-item rows (markup and classes
+-                       taken from that file's :671-693), so the two detail pages' more menus
+-                       stop looking like different products. Convert sits above the
+-                       destructive separator; Delete stays below it.
+-                       Final fix wave: `sv-more-menu` is the width modifier the sibling page
+-                       puts on this same kind of menu (PhotosSmartViewDetail.vue:740). It was
+-                       omitted when the rules were restated, leaving this menu at the export
+-                       menu's 280px; Vue2 hard-codes 220px on both (939a7d3a:
+-                       PhotosAlbumDetail.vue:61 `style="min-width:220px"`). -->
+-                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu">
+-                    <button
+-                      type="button"
+-                      class="sv-export-item"
+-                      data-test="album-menu-rename"
+-                      @click="menuOpen = false; startTitleEdit()"
+-                    >
+-                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+-                      <div>
+-                        <div class="sv-export-title">{{ t('photosAlbumRename') }}</div>
+-                        <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
+-                      </div>
+-                    </button>
+-                    <button
+-                      type="button"
+-                      class="sv-export-item"
+-                      data-test="album-menu-convert"
+-                      :disabled="smartViewDisabled"
+-                      :title="smartViewDisabled ? t('photosSvSmartViewsOffCreateHint') : undefined"
+-                      @click="openConvertModal"
+-                    >
+-                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
+-                      <div>
+-                        <div class="sv-export-title">{{ t('photosAlbumConvertToSmart') }}</div>
+-                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
+-                      </div>
+-                    </button>
+-                    <div class="sv-export-sep"></div>
+-                    <button
+-                      type="button"
+-                      class="sv-export-item sv-export-item-danger"
+-                      data-test="album-menu-delete"
+-                      @click="askConfirmDelete"
+-                    >
+-                      <div class="sv-export-icon sv-export-icon-danger" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+-                      <div>
+-                        <div class="sv-export-title">{{ t('photosAlbumDelete') }}</div>
+-                        <div class="sv-export-desc">{{ t('photosAlbumDeleteHint') }}</div>
+-                      </div>
+-                    </button>
+-                  </div>
+-                  </div>
+                 </div>
+               </div>
+ 
+               <!-- Grid. E5 re-anchor: the edit flag used to live on the deleted .album-toolbar,
+                    with two rules reaching the tiles through a sibling combinator. The target
+                    (Vue2 :124) marks the grid container itself, so those two rules are now plain
+                    descendant selectors on this element -- see the style block. -->
+               <div class="album-photos-wrap" :data-edit="edit">
+               <div v-if="isLoadingPhotos && photos.length === 0" class="album-photo-grid" :class="{ 'is-compact': density === 'compact' }">
+                 <div v-for="i in 6" :key="'sk' + i" class="tile album-tile-skeleton"></div>
+@@ -814,20 +805,133 @@ watch(gridRef, () => {
+                   </div>
+                 </div>
+               </div>
+               </div>
+             </div>
+ 
+             <!-- T6: stats rail, ported from Vue2 :101-134. Aligns this page with the smart-view
+                  detail page's own sidebar (PhotosMomentDetail.vue), so the two detail pages stop
+                  looking like different products. -->
+             <aside class="sv-detail-side" data-test="album-side">
++              <!-- Task 5 (Vue2 33b05636:PhotosAlbumDetail.vue :211-283). The "..." menu's target
++                   home -- moved here from the header's .sv-actions, where Task 3 parked it
++                   unchanged (mounting it in this overflow-y:auto sidebar before the fixed-position
++                   composable existed would have reproduced the exact clipping bug that composable
++                   fixes). New-UI never carries a Slideshow button here (the target has one; Vue2's
++                   own version only ever popped a "coming soon" toast, and this repo never built the
++                   tile-fullscreen player it would open), so this container holds a single child --
++                   still flex-wrap to match the target's own .sv-side-actions shape (Vue2
++                   photos-smartview.scss, restated below since scoped styles don't cross SFCs in
++                   this repo).
++                   The five entries are the target's full set, in its order (not reorderable):
++                   Rename/Duplicate/Download as ZIP/Convert/Delete. Main titles are shortened per
++                   #117 (Rename album -> Rename, Convert to Smart Album -> Convert, Delete album ->
++                   Delete); desc lines keep the longer copy that disambiguates context. The menu
++                   itself is position:fixed via `menuStyle` (T1's useFixedMenuPosition bound to
++                   `moreBtnRef`'s rect) so it no longer clips against this aside's own
++                   overflow-y:auto; `morePopRef` still wraps both the button and the menu for
++                   click-outside dismissal (onDocMousedown below) -- the composable only computes
++                   coordinates, it does not touch open/close. -->
++              <div class="sv-side-actions">
++                <div ref="morePopRef" class="album-more-wrap">
++                  <button
++                    ref="moreBtnRef"
++                    type="button"
++                    class="sv-action-btn sv-action-btn-icon"
++                    data-test="album-more-btn"
++                    :data-open="menuOpen"
++                    @click="menuOpen = !menuOpen"
++                  >
++                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
++                  </button>
++                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu" :style="menuStyle">
++                    <button
++                      type="button"
++                      class="sv-export-item"
++                      data-test="album-menu-rename"
++                      @click="menuOpen = false; startTitleEdit()"
++                    >
++                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
++                      <div>
++                        <!-- Reuses PhotosSmartViewDetail.vue's own short "Rename" key -- same
++                             product copy, and it already carries the exact target string. -->
++                        <div class="sv-export-title">{{ t('photosSvRename') }}</div>
++                        <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
++                      </div>
++                    </button>
++                    <button
++                      type="button"
++                      class="sv-export-item"
++                      data-test="album-menu-duplicate"
++                      @click="duplicateAlbum"
++                    >
++                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
++                      <div>
++                        <!-- Same reuse: PhotosSmartViewDetail.vue's own short "Duplicate" key. -->
++                        <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
++                        <div class="sv-export-desc">{{ t('photosAlbumDuplicateHint') }}</div>
++                      </div>
++                    </button>
++                    <button
++                      type="button"
++                      class="sv-export-item"
++                      data-test="album-menu-zip"
++                      @click="downloadZip"
++                    >
++                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
++                      <div>
++                        <!-- photosFavExport is the favourites page's own "Download as ZIP" title
++                             -- identical target copy, reused rather than coining a near-synonym.
++                             The desc's {n}/{mb} interpolation (photosSvNPhotosMbMb) is the exact
++                             key PhotosSmartViewDetail.vue's own zip entry already uses; 3.2 is
++                             Vue2's own hard-coded MB-per-photo estimate (33b05636 :266), not a
++                             measured figure -- registered here as it was there. -->
++                        <div class="sv-export-title">{{ t('photosFavExport') }}</div>
++                        <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: album.count.toLocaleString(localeTag), mb: Math.round(album.count * 3.2).toLocaleString(localeTag) }) }}</div>
++                      </div>
++                    </button>
++                    <button
++                      type="button"
++                      class="sv-export-item"
++                      data-test="album-menu-convert"
++                      :disabled="smartViewDisabled"
++                      :title="smartViewDisabled ? t('photosSvSmartViewsOffCreateHint') : undefined"
++                      @click="openConvertModal"
++                    >
++                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
++                      <div>
++                        <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
++                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
++                      </div>
++                    </button>
++                    <div class="sv-export-sep"></div>
++                    <button
++                      type="button"
++                      class="sv-export-item sv-export-item-danger"
++                      data-test="album-menu-delete"
++                      @click="askConfirmDelete"
++                    >
++                      <div class="sv-export-icon sv-export-icon-danger" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
++                      <div>
++                        <!-- Reuses the generic photosDelete key ("Delete") already used by
++                             PhotosMomentDetail.vue's and PhotosSmartViewDetail.vue's own confirm/
++                             selection-toolbar buttons -- the long-form "Delete album" stays at
++                             photosAlbumDelete, still alive via this page's own confirm-modal
++                             button (below), so it is not orphaned by this change. -->
++                        <div class="sv-export-title">{{ t('photosDelete') }}</div>
++                        <div class="sv-export-desc">{{ t('photosAlbumDeleteHint') }}</div>
++                      </div>
++                    </button>
++                  </div>
++                </div>
++              </div>
++
+               <!-- Task 4 (Vue2 :283-290). About — Type/Created/Time span/Place, same
+                    mo-about-row idiom as PhotosMomentDetail.vue's own About section. Type/Created/
+                    Place reuse existing keys verbatim (photosAlbumLabel/photosAlbumStatCreated/
+                    photosMoPlace already carry the exact Chinese the Vue2 target uses for these
+                    labels); only "Time span" is new — PhotosMomentDetail's own About row calls its
+                    third field "Time" (photosMoTime), a different label for a different thing. -->
+               <div class="sv-side-section" data-test="album-about">
+                 <h3>{{ t('photosMoAbout') }}</h3>
+                 <div class="mo-about-row" data-test="album-about-type"><span>{{ t('photosMoType') }}</span><b>{{ t('photosAlbumLabel') }}</b></div>
+                 <div class="mo-about-row" data-test="album-about-created"><span>{{ t('photosAlbumStatCreated') }}</span><b>{{ createdLabel }}</b></div>
+@@ -1040,40 +1144,49 @@ watch(gridRef, () => {
+ .sv-header-stats b { color: var(--fg); font-weight: 600; }
+ 
+ .sv-actions { display: flex; gap: 8px; align-items: center; }
+ .sv-action-btn {
+   height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
+   color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+ }
+ .sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+ .sv-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+ .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
++/* Task 5: icon-only modifier for the sidebar's "..." toggle -- rule body restated from
++   PhotosSmartViewDetail.vue's own .sv-action-btn-icon (:1018) because scoped styles don't cross
++   SFCs in this repo. */
++.sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
+ 
+ .group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
+ .sv-actions .order-pill {
+   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+   background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
+   font: inherit; font-size: 12px; cursor: pointer;
+ }
+ .sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
+ .album-detail-actions-sep { width: 1px; height: 18px; background: var(--divider); flex-shrink: 0; }
+ 
+ /* Vue2 photos.scss:285-288. Replaces the pill-shaped .album-density this page carried while the
+    controls lived on the toolbar band. */
+ .density { display: inline-flex; gap: 2px; background: var(--chip-bg); border-radius: 8px; padding: 3px; }
+ .density button {
+   width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
+   border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer;
+ }
+ .density button:hover { color: var(--fg); }
+ .density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+ 
++/* Task 5: the sidebar's top action row -- rule body restated from Vue2 photos-smartview.scss's
++   own `.sv-side-actions` (flex-wrap so a narrow sidebar can still fit multiple buttons on their
++   own line each; this page only ever renders one, see the template comment on this container).
++   margin-bottom keeps the same 24px rhythm as .sv-side-section below it. */
++.sv-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+ .album-more-wrap { position: relative; }
+ 
+ /* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from
+    PhotosSmartViewDetail.vue's (:937-960) because scoped styles do not cross SFCs in this repo.
+    Not a byte-for-byte copy of that block: the `:disabled` rules below are additions this page
+    needs, and the final fix wave restored the `.sv-more-menu` width modifier that the original
+    restatement dropped. Replaces the old two-item .album-more-item* rules (removed: this page
+    no longer has any element with that class). Vue2 expresses the danger row with an inline
+    coral color literal; this repo already has the -danger classes below walking the --remove-fg
+    token instead, so the literal is never reproduced. ── */
+diff --git a/src/views/__tests__/PhotosAlbumDetail.test.ts b/src/views/__tests__/PhotosAlbumDetail.test.ts
+index 82f2e39..e411435 100644
+--- a/src/views/__tests__/PhotosAlbumDetail.test.ts
++++ b/src/views/__tests__/PhotosAlbumDetail.test.ts
+@@ -18,20 +18,24 @@ import zh from '../../i18n/zh_cn'
+ const svc = vi.hoisted(() => ({
+   photos: {
+     listAlbums: vi.fn().mockResolvedValue([]),
+     getAlbum: vi.fn().mockResolvedValue({ assets: [] }),
+     updateAlbum: vi.fn().mockResolvedValue({}),
+     deleteAlbum: vi.fn().mockResolvedValue(undefined),
+     reorderAlbumAssets: vi.fn().mockResolvedValue(undefined),
+     removeFromAlbum: vi.fn().mockResolvedValue(undefined),
+     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+     deleteAsset: vi.fn().mockResolvedValue(undefined),
++    // Task 5: duplicateAlbum (store) reuses saveAsAlbum, which calls createAlbum -- needed once
++    // the more menu grows a Duplicate entry. exportAlbumZipUrl backs the Download-as-ZIP entry.
++    createAlbum: vi.fn().mockResolvedValue({ id: 'new1', name: 'copy' }),
++    exportAlbumZipUrl: vi.fn((id: string | number) => `mock://export/${id}`),
+     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+     originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+     liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
+     getAsset: vi.fn().mockRejectedValue(new Error('no hydrate in test')),
+     getAssetOcr: vi.fn().mockResolvedValue({ lines: [] }),
+     // usePhotosFavorites() 是 useLightbox.openAt/isFav 的既有依赖(P2/P3 既定行为,非本任务
+     // 新增)——即便本任务不测收藏态,openAt() 内部仍会调用 recordView/listFavoriteIds,缺 mock
+     // 会抛未捕获异常污染测试运行(不影响断言结果,但需堵上,同 PhotosFavorites.test.ts 的前例)。
+     recordView: vi.fn().mockResolvedValue(undefined),
+     listFavoriteIds: vi.fn().mockResolvedValue([]),
+@@ -156,20 +160,22 @@ beforeEach(() => {
+   svc.photos.listAlbums.mockClear().mockResolvedValue([rawAlbum(7, { name: 'Trip', coverAssetId: 'cover-1' })])
+   svc.photos.getAlbum.mockClear().mockResolvedValue({ assets: [] })
+   svc.photos.updateAlbum.mockClear().mockResolvedValue({})
+   svc.photos.deleteAlbum.mockClear().mockResolvedValue(undefined)
+   svc.photos.reorderAlbumAssets.mockClear().mockResolvedValue(undefined)
+   svc.photos.removeFromAlbum.mockClear().mockResolvedValue(undefined)
+   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+   svc.photos.thumbnailUrl.mockClear()
+   svc.photos.getConfig.mockClear().mockResolvedValue({})
++  svc.photos.createAlbum.mockClear().mockResolvedValue({ id: 'new1', name: 'copy' })
++  svc.photos.exportAlbumZipUrl.mockClear()
+   dragMock.isDragging.mockReset().mockReturnValue(false)
+   dragMock.refresh.mockClear()
+   dragMock.destroy.mockClear()
+   useAlbumDragSortSpy.mockClear()
+ })
+ 
+ afterEach(() => {
+   vi.useRealTimers()
+   lb.__resetForTest()
+ })
+@@ -590,20 +596,47 @@ describe('PhotosAlbumDetail.vue', () => {
+     // the tests above use to exercise this handler without going through the picker's own
+     // internal UI -- simulates the one race a real click can't produce (the click and the
+     // navigation landing in the same synchronous tick). It must never write to 999: the
+     // `pickerAlbumId` snapshot pins the write to the album the picker was actually opened for.
+     picker.vm.$emit('confirm', ['x'])
+     await flushPromises()
+     expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalledWith('999', ['x'])
+     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
+   })
+ 
++  // Task 4 re-review, folded into Task 5 (this task edits the same handler for the toast-name
++  // carve-out): `onPickerConfirm` snapshots the write target (`pickerAlbumId`) but used to read
++  // the success toast's `{name}` live off `album.value?.title` at resolve time. Reusing the exact
++  // "confirm survives a navigation to a different real album" scenario above: after the id
++  // changes to 999 ("Other"), `album.value.title` is "Other" even though the write still lands on
++  // 7 ("Trip") -- the toast must say "Trip" (the album the picker was actually opened for), not
++  // whatever the route happens to point at when the confirm resolves.
++  it('names the success toast after the album the picker was opened for, not whatever album the route now points at when it resolves', async () => {
++    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(999, { name: 'Other' })])
++    const { w, router } = await mountView('7')
++    const picker = await openPicker(w)
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    await router.push('/photos/albums/999')
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    picker.vm.$emit('confirm', ['x'])
++    await flushPromises()
++
++    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
++    expect(showSpy).toHaveBeenCalledWith(
++      zh.photosAlbumAddedToast.replace('{count}', '1').replace('{name}', 'Trip'),
++    )
++  })
++
+   // Coordinator review, fix round 2 · Minor: `edit` itself was never reset by the id watcher, so
+   // navigating from album 7 mid-edit to a different, perfectly valid album 8 dropped the user
+   // into edit mode on 8 without choosing it.
+   it('leaves edit mode when the route id changes to a different album', async () => {
+     svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(8, { name: 'Other' })])
+     const { w, router } = await mountView('7')
+     await w.find('[data-test="album-edit-toggle"]').trigger('click')
+     await w.vm.$nextTick()
+     expect(w.find('.sv-select-bar').exists()).toBe(true)
+ 
+@@ -1216,10 +1249,123 @@ describe('P2c detail sidebar', () => {
+ 
+   it('keeps the monthly histogram section', async () => {
+     const w = await mountDetail({
+       album: { id: 'a1', name: 'A' },
+       assets: [asset('p1', { takenAt: '2025-06-02' }), asset('p2', { takenAt: '2025-07-01' })],
+     })
+     expect(w.find('[data-test="album-dist"]').exists()).toBe(true)
+     expect(w.findAll('[data-test="album-dist-bar"]')).toHaveLength(2)
+   })
+ })
++
++// Task 5 (Vue2 33b05636:PhotosAlbumDetail.vue :211-283). The more menu grows from the three
++// entries Task 3 parked in the header (Rename/Convert/Delete) to the target's full five
++// (Rename/Duplicate/Download as ZIP/Convert/Delete), and its container moves into the sidebar's
++// .sv-side-actions (above the About section), fixed-positioned via useFixedMenuPosition (T1) so
++// it no longer clips against .sv-detail-side's own overflow-y:auto.
++describe('P2c album more menu', () => {
++  async function openMenu(w: ReturnType<typeof mount>) {
++    await w.find('[data-test="album-more-btn"]').trigger('click')
++    await w.vm.$nextTick()
++  }
++
++  it('renders exactly five entries in the target order', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
++    await openMenu(w)
++    const titles = w.findAll('.sv-export-title').map((n) => n.text())
++    expect(titles).toEqual(['重命名', '复制', '下载为 ZIP', '转换', '删除'])
++  })
++
++  it("lives in the sidebar's .sv-side-actions container, above the About section", async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
++    const side = w.find('[data-test="album-side"]')
++    const actions = side.find('.sv-side-actions')
++    expect(actions.exists()).toBe(true)
++    expect(actions.find('[data-test="album-more-btn"]').exists()).toBe(true)
++    const children = Array.from(side.element.children)
++    const actionsIndex = children.indexOf(actions.element)
++    const aboutIndex = children.findIndex((c) => c.getAttribute('data-test') === 'album-about')
++    expect(actionsIndex).toBeGreaterThanOrEqual(0)
++    expect(actionsIndex).toBeLessThan(aboutIndex)
++  })
++
++  it('duplicates the album and closes the menu', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
++    const albums = usePhotosAlbums()
++    const toast = useToast()
++    const dupSpy = vi.spyOn(albums, 'duplicateAlbum')
++    const showSpy = vi.spyOn(toast, 'show')
++
++    await openMenu(w)
++    await w.find('[data-test="album-menu-duplicate"]').trigger('click')
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    expect(dupSpy).toHaveBeenCalledWith('a1')
++    expect(svc.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
++    expect(showSpy).toHaveBeenCalledWith(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
++    expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
++  })
++
++  it('does not fire a second duplicate while the first is in flight', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
++    let resolveCreate!: (v: unknown) => void
++    svc.photos.createAlbum.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
++
++    await openMenu(w)
++    await w.find('[data-test="album-menu-duplicate"]').trigger('click') // first call: store guard now busy
++    await openMenu(w) // duplicateAlbum() closes the menu synchronously -- reopen it
++    await w.find('[data-test="album-menu-duplicate"]').trigger('click') // second call: guard rejects it
++    await flushPromises()
++
++    resolveCreate({ id: 'new1', name: 'Trip copy' })
++    await flushPromises()
++
++    expect(svc.photos.createAlbum).toHaveBeenCalledTimes(1)
++  })
++
++  it('navigates to the zip url built by the service', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
++    await openMenu(w)
++    await w.find('[data-test="album-menu-zip"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(svc.photos.exportAlbumZipUrl).toHaveBeenCalledWith('a1')
++  })
++
++  it('shows the estimated size in the zip entry description', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A', assetCount: 10 }, assets: [] })
++    await openMenu(w)
++    expect(w.find('[data-test="album-menu-zip"]').text()).toContain('10 张照片 · 约 32 MB')
++  })
++
++  it('disables Convert and shows the smart-views-off title when the feature is off', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [], aiFeatures: { smartview: false } })
++    await openMenu(w)
++    const convert = w.find('[data-test="album-menu-convert"]')
++    expect(convert.attributes('disabled')).toBeDefined()
++    expect(convert.attributes('title')).toBe(zh.photosSvSmartViewsOffCreateHint)
++  })
++
++  it('keeps Convert clickable when the feature is on', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [], aiFeatures: { smartview: true } })
++    await openMenu(w)
++    expect(w.find('[data-test="album-menu-convert"]').attributes('disabled')).toBeUndefined()
++  })
++
++  it('applies the fixed position style to the menu when it opens', async () => {
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
++    await openMenu(w)
++    expect(w.find('.sv-export-menu').attributes('style')).toContain('position: fixed')
++  })
++
++  it('closes the menu when clicking outside it', async () => {
++    // Regression: morePopRef (click-outside) must still work now that the menu itself is
++    // position:fixed -- the composable only computes coordinates, dismissal stays this page's job.
++    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
++    await openMenu(w)
++    expect(w.find('[data-test="album-menu"]').exists()).toBe(true)
++
++    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
++  })
++})

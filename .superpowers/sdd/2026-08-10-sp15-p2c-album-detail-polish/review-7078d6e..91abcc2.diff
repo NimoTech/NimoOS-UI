@@ -1,0 +1,1476 @@
+# Review package: 7078d6e..91abcc2
+
+## Commits
+91abcc2 feat(photos): move the smart-view actions into the sidebar and unify its menu
+
+## Files changed
+ .../task-7-report.md                               | 196 +++++++++++++
+ src/views/PhotosSmartViewDetail.assets.test.ts     |  41 +--
+ src/views/PhotosSmartViewDetail.vue                | 324 ++++++++++++---------
+ src/views/__tests__/PhotosSmartViewDetail.test.ts  | 211 ++++++++++----
+ 4 files changed, 561 insertions(+), 211 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md
+new file mode 100644
+index 0000000..f990fde
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md
+@@ -0,0 +1,196 @@
++# Task 7 report: SV detail sidebar action section + unified five-entry "..." menu
++
++## What was implemented
++
++`src/views/PhotosSmartViewDetail.vue`:
++
++- New `.sv-side-actions` container at the top of `aside.sv-detail-side`, holding **Refine in
++  Search** + the **"..." menu trigger** — moved verbatim (same handlers, same copy) from the
++  header's `.sv-actions` row, where Task 6 had parked them.
++- The header's Export button/menu and the separate "..." button/menu are both gone from
++  `.sv-actions`. Their markup is now the sidebar's unified menu.
++- The "..." menu is now **exactly five entries, in the target's order**: Rename · Duplicate ·
++  Download as ZIP · Convert · Delete.
++  - ZIP is the old Export section's `sv-export-zip` item, folded in unchanged (same
++    `downloadZip` handler, same copy) as the new menu's third entry, data-test renamed to
++    `sv-more-zip`.
++  - "Save as static album" (`exportAlbumAction` / `sv-export-album`) is **deleted**, not
++    re-homed — see "Convert vs save-as-static-album" below.
++  - Rename/Duplicate/Convert/Delete keep their existing handlers and data-test ids
++    (`sv-more-rename`/`sv-more-duplicate`/`sv-more-convert`/`sv-more-delete`) unchanged.
++- Wired `useFixedMenuPosition(moreOpen, moreBtnRef)` (T1's composable) and bound `menuStyle` to
++  the menu root's `:style`, matching `PhotosAlbumDetail.vue`'s own wiring (Task 5). `morePopRef`
++  wraps the button + menu for click-outside; `moreBtnRef` only feeds the composable's rect calc.
++- `<Transition name="sv-menu">` is **kept** around the unified menu, matching the Vue2 target
++  (33b05636 :78), even though `PhotosAlbumDetail.vue`'s own copy of this menu (Task 5) dropped
++  the transition wrapper without a registered reason. Per the phase rule ("target wins over
++  brief/sibling precedent when they disagree"), the target's own transition wins here — flagged
++  as a possible follow-up to bring the album page in line, not fixed in this task.
++
++## Convert vs save-as-static-album in the target
++
++Opened the target (`33b05636:src/views/Photos/PhotosSmartViewDetail.vue`) and grepped its own
++comment history rather than guessing. The target's file **already contains the answer, dated
++2026-07-31 in its own comments**: "Save as static Album 子项整体删除" ("the Save as static
++Album entry is deleted entirely") — Vue2 itself killed this exact button in the same commit
++range that produced the five-entry menu, keeping only the backend endpoint
++(`photosService.exportSmartViewAlbum`) with no frontend caller. The target's final menu has
++**five** entries, not six: Rename, Duplicate, Download as ZIP, Convert, Delete — Convert is the
++sole survivor and it means "freeze the current matches into a regular album," which is a
++different action from "export the current matches as a *new* static album" (the deleted one)
++only in the sense that Convert also retires the smart view itself; functionally they overlap
++enough that Vue2's own team judged the export-copy redundant once Convert existed.
++
++Following the same empirically-verified precedent (not a guess), this task deletes New-UI's
++`exportAlbumAction`/`sv-export-album` the same way: the function is removed from the component
++entirely (was the only caller of `store.exportAlbum`). `store.exportAlbum` (`smartViews.ts`) and
++`service.photos.exportSmartViewAlbum` are left untouched, mirroring Vue2's choice to keep the
++backend capability while dropping the frontend trigger — same shape Vue2's own history leaves
++behind. Convert (`askConvertToAlbum`/`doConvertToAlbum` → `albums.convertFromSmartView`) was
++already correct and unchanged; it already matched the target's Convert semantics exactly
++(freeze + stop auto-updates + navigate to the new album).
++
++## Where the Vue2 target disagreed with the brief
++
++The brief's own text flagged this as open ("检查它是否仍存在... 若不是同一件事,保留"). The
++target settled it: there is no sixth "save as static album" entry in the final Vue2 state, so
++New-UI's `exportAlbumAction` is deleted rather than folded in as a sixth menu item. This is the
++only brief/target disagreement surfaced in this task.
++
++## Five folded-in findings
++
++**(a)** — `sortBy`/`density` are display preferences, not view-keyed write-consequential state
++(unlike `edit`/`selectedIds`/`pickerOpen`/`excludedOpen`, nothing downstream reads them keyed to
++a specific smart-view id, so carrying them across a navigation cannot mislabel a request).
++Corrected the route watcher's comment to carve them out explicitly rather than reset them,
++matching `PhotosAlbumDetail.vue`'s own route-id watcher (Task 3/4), which likewise resets
++`selected`/`titleEditing`/`titleDraft`/`edit`/`pickerOpen` but leaves its own `sortBy` (and
++`density`) untouched — verified by grep (`density.value =` / `sortBy.value =` never appear in
++that watcher). No test added (no behavioural change; comment-only fix), consistent with the
++sibling page's precedent.
++
++**(b)** — One line in `toggleEdit`: `sortMenuOpen.value = false`, unconditional. Added a
++regression test ("does not leave the sort menu stuck open after toggling edit mode via the Edit
++button") and confirmed it reddens when the line is reverted (mutation below).
++
++**(c)** — `PhotosSmartViewDetail.assets.test.ts`: renamed `enterEdit(w)` → `toggleEdit(w)`
++(all 16 call sites via `sed`), matching the component's own `toggleEdit` naming. Rewrote the
++"leaving edit mode clears what was selected" test's two consecutive calls with comments that add
++information (`// leaves edit mode, clearing selectedIds` / `// re-enters it`) instead of
++restating the old function name.
++
++**(d)** — Added `getSmartViewExcluded: vi.fn()` to the main test file's `svc.photos` mock (with a
++`mockReset().mockResolvedValue([])` in `beforeEach`), removing 77 caught-`TypeError`
++`console.error` lines per run. Left `getConfig` alone, as instructed — verified it is genuinely
++unmocked in the main test file and that its 79 caught-TypeError lines (from `PhotosSidebar`'s own
++`fetchAiFeatures` call, not this page) are pre-existing and unrelated to this task.
++
++**(e)** — Corrected the `sortAlbumPhotos` import comment: `albumView.ts:88` returns
++`[...photos]` (a fresh shallow copy) on the fallback branch, not the list "untouched" — order is
++untouched, reference is not. Verified against the actual source line.
++
++## i18n
++
++**Zero new keys.** Every menu-entry copy key the unified menu needs already existed and was
++already in use by this page's own (now-removed) Export/More menus:
++`photosSvRename`/`photosSvChangeSmartViewName`, `photosSvDuplicate`/`photosSvCopyQuerySv`,
++`photosFavExport`/`photosSvNPhotosMbMb`, `photosSvConvertToAlbum`/`photosSvConvertToAlbumHint`,
++`photosSvDeleteSmartView`/`photosSvPhotosStayLibrary`, and `photosSvRefineSearch` for the Refine
++button. Verified each exists in `src/i18n/zh_cn.photos.ts` before writing any template code.
++`photosSvSaveStaticAlbum`/`photosSvSnapshotCurrentMatchesStops`/`photosSvNameSnapshotSavedAlbum`
++(the deleted capability's copy) are left in place per the "no orphan sweep this task" rule —
++Task 11's job.
++
++## TDD evidence
++
++RED (`pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts`, before any
++component changes, after test-file edits): **10 failing** — all 6 of the brief's required tests
++plus the 4 re-homed tests (ZIP entries via `sv-more-zip`, the Transition-block count).
++
++GREEN (same command, after implementation): **1200 passed (7 files)**, up from a baseline of
++1197 (net +3 after re-homing/deletions — see the table below for the net accounting).
++
++## Per-mutation results
++
++| Mutation | Command | Result |
++|---|---|---|
++| Remove `:style="menuStyle"` from the menu root | `-t "applies the fixed position style"` | RED — `expected '' to contain 'position: fixed'` |
++| Swap the Duplicate/ZIP entries' `data-test` (scrambles the order assertion without touching the DOM order) | `-t "renders exactly five menu entries"` | RED — order mismatch reported exactly at the swapped pair |
++| Revert finding (b)'s one-line fix in `toggleEdit` | `-t "does not leave the sort menu stuck open"` | RED — `expected true to be false` (sort menu reappears after leaving edit mode) |
++
++All three mutations reverted; full suite re-confirmed green (1200/1200) after each revert.
++
++## Assertion re-homing table (original → new home)
++
++| Original | New home |
++|---|---|
++| `导出菜单与 more 菜单 > 点导出按钮 → 菜单出现两项(ZIP / 静态相册)` | Split: ZIP existence → new `SP15-P2c Task 7 > renders exactly five menu entries in the target order`; static-album absence → new `SP15-P2c Task 7 > no longer renders a separate export section in the menu` |
++| `导出菜单与 more 菜单 > photosSvNPhotosMbMb 的 {mb} 在 count=1000 时是千分位 "3,200"` | `more 菜单 > (same title)`, `sv-export-toggle`/`sv-export-zip` → `sv-more-toggle`/`sv-more-zip` |
++| `导出 ZIP` describe's 3 tests (fetch+Authorization / `<a download>` / 401 toast) | Same describe, same titles/assertions, `sv-export-toggle`/`sv-export-zip` → `sv-more-toggle`/`sv-more-zip` |
++| `导出相册` describe's 2 tests (success/failure toast) | **Deleted**, not re-homed — capability removal, see "Convert vs save-as-static-album" above |
++| `浮层 > 先开 export 再开 more,一次 Esc 两者都关` | `浮层 > opens the sort menu then the more menu, and one Escape closes both` — same invariant (independent `if`s, no early return), re-paired onto sort-menu+more-menu since the export menu no longer exists as an independent overlay |
++| `浮层 > 点菜单外部(mousedown,bubbles:true)→ 关闭` | `SP15-P2c Task 7 > still closes the menu on an outside click` (brief's own required title), `sv-export-toggle`/`sv-export-menu` → `sv-more-toggle`/`sv-more-menu` |
++| `<Transition> 包裹 > 导出菜单 / more 菜单的 data-test... (expects 2 blocks)` | `the more menu's data-test marker sits inside its <Transition name="sv-menu"> pair` (expects 1 block, `sv-more-menu` only) |
++
++Net test count: 1197 (baseline) − 2 (`导出相册` deleted) − 1 (`点菜单外部` merged into the
++brief's own required test) + 6 (brief's 6 required tests) = 1200. Matches the observed count.
++
++## Files changed
++
++- `src/views/PhotosSmartViewDetail.vue` — sidebar action section, unified menu, script wiring,
++  five folded-in-finding fixes, comment English-only fixes.
++- `src/views/__tests__/PhotosSmartViewDetail.test.ts` — new Task 7 describe block (6 brief tests
++  + 1 finding-(b) regression test), re-homed/deleted tests per the table above, finding-(d) mock.
++- `src/views/PhotosSmartViewDetail.assets.test.ts` — finding-(c) rename.
++- `src/i18n/zh_cn.ts` / `src/i18n/en_us.ts` — **untouched** (no new keys needed).
++
++## Self-review
++
++- **Completeness**: five entries present in the target's order (test-verified), sidebar
++  container built and matches `PhotosAlbumDetail.vue`'s shape, header controls actually removed
++  (verified no `sv-export-toggle`/`sv-export-menu` remain), all five folded-in findings addressed
++  with either a fix+test (b) or a comment/mock/rename fix (a, c, d, e).
++- **Quality/YAGNI**: no new CSS needed beyond `.sv-side-actions`/`.sv-more-wrap` — every menu-item
++  visual class (`.sv-export-item`, `.sv-export-icon`, `.sv-export-sep`, `-danger` variants) was
++  already present and is reused verbatim.
++- **Discipline**: `.sv-action-btn-primary` (the deleted Export button's only consumer) is left in
++  place, flagged with a comment, rather than pruned along with its dedicated hover-cascade test —
++  same posture this phase already uses for i18n orphans (Task 11's job).
++- **Testing**: TDD RED→GREEN shown above; 3 mutations named in the brief plus finding (b)'s own,
++  all confirmed red then reverted; `--reporter=verbose` run confirms no new stderr noise (finding
++  (d)'s fix actually reduced it, verified by exact TypeError-line counts before/after).
++- No newly authored Chinese: `git diff --cached | grep -nP '^\+.*[\x{4e00}-\x{9fff}]'` (before
++  staging, run against the working diff) surfaced only (i) verbatim-relocated pre-existing
++  Chinese comment blocks (F7 magnifier-glyph note, the danger-color-literal note) that were moved
++  but not edited, (ii) one pre-existing Chinese sentence fragment left in place because only the
++  comment's closing delimiter moved around it, (iii) a direct quotation of the Vue2 target's own
++  Chinese comment text used as cited evidence (with an English gloss added alongside it), and
++  (iv) my own English re-homing comments quoting old Chinese test-title strings for
++  grep-traceability (an established convention already present in this file before this task).
++  No new Chinese prose was authored.
++- No color literals introduced (grepped the diff for hex/rgb/rgba outside `color-mix`).
++- No `*` immediately before `/` in any new CSS comment (checked both `*/` occurrences in the
++  diff — both are the intended closing delimiters).
++- Click-outside still dismisses the now-`position:fixed` menu: `morePopRef` wraps both the
++  button and the menu exactly as it did before (as `moreWrapRef`), and
++  `onDocumentMouseDown`'s logic is unchanged apart from the rename — test-verified
++  ("still closes the menu on an outside click").
++- Each menu entry calls this page's own backend, not the album page's: Duplicate →
++  `store.duplicateSmartView` (smartViews.ts:342), ZIP → this page's own `downloadZip`
++  (POST+Authorization, not JWT-exempt), Convert → `askConvertToAlbum`/
++  `albums.convertFromSmartView` (smart→regular, opposite direction from the album page's
++  `AlbumConvertToSmartDialog`) — all pre-existing handlers on this page, none borrowed from
++  `PhotosAlbumDetail.vue`.
++
++## Concerns
++
++- `PhotosAlbumDetail.vue`'s own more-menu does **not** wrap its menu in `<Transition
++  name="sv-menu">`, while the Vue2 target and this page (after this task) both do. This is a
++  divergence between the two "matching" detail pages that pre-dates this task (Task 5's own
++  choice, unexplained in its comments) and is now slightly more visible because this task
++  explicitly registered the target's transition as the tie-breaker. Not fixed here — out of this
++  task's file scope — but flagged for whoever next touches the album page's menu.
++- `.sv-action-btn-primary` and its dedicated hover-cascade test are now dead code (their only
++  template consumer, the Export button, is deleted). Left in place and flagged in a comment,
++  matching this phase's existing posture on i18n orphans, but it is still dead code sitting in
++  the file until someone sweeps it.
+diff --git a/src/views/PhotosSmartViewDetail.assets.test.ts b/src/views/PhotosSmartViewDetail.assets.test.ts
+index 0b92e61..4628231 100644
+--- a/src/views/PhotosSmartViewDetail.assets.test.ts
++++ b/src/views/PhotosSmartViewDetail.assets.test.ts
+@@ -81,22 +81,27 @@ function seed(opts: { matched?: unknown[]; excluded?: unknown[] } = {}) {
+ // SP15-P2c Task 6 re-homing. Two things moved under every test below:
+ //   * `sv-select-toggle` (Select/Cancel, in the header) became `sv-edit-toggle` (Edit/Done) --
+ //     the same `selecting` state, renamed `edit`, reached from the target's single toggle.
+ //   * `sv-add-photos` left the header for the edit-mode bottom bar, so it is only reachable
+ //     after entering edit mode.
+ // The bar itself is now gated on `edit` alone rather than `edit && selectedIds.length`, which
+ // costs the assertions below their old shorthand: "the bar is gone" used to prove "nothing is
+ // selected" and no longer does. Wherever a test leaned on that, it now asserts the selection
+ // directly -- the count in the bar, or the tiles carrying data-selected. That is a stronger
+ // assertion than the one it replaces, not a weaker one.
+-/** Enters edit mode (the only way to reach the selection gestures and Add photos). */
+-async function enterEdit(w: ReturnType<typeof mount>) {
++// Task 7, folded-in finding (c): this used to be named `enterEdit` and was called twice in a
++// row (with `// leave` / `// and come back` comments) to leave and then re-enter edit mode --
++// the name lied about what the second call did, and the comments were doing the job the name
++// should have. Renamed to `toggleEdit`, which is honest about both calls: it flips whatever
++// state the toggle button is currently in, same as the production `toggleEdit` it drives.
++/** Clicks the Edit/Done toggle once, flipping edit mode. */
++async function toggleEdit(w: ReturnType<typeof mount>) {
+   await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+   await w.vm.$nextTick()
+ }
+ /** The ids of the tiles currently drawn as selected -- what `selectedIds` looks like on screen. */
+ function selectedTiles(w: ReturnType<typeof mount>): number {
+   return w.findAll('.tile[data-selected="true"]').length
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+@@ -118,21 +123,21 @@ describe('pin badge', () => {
+   })
+ })
+ 
+ describe('add photos', () => {
+   it('opens the picker, pins what it confirms, and reports the count it was told', async () => {
+     const s = seed()
+     const pin = vi.spyOn(s, 'pinAssets').mockResolvedValue(2)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+ 
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x', 'y'])
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(pin).toHaveBeenCalledWith('sv1', ['x', 'y'])
+     // Not just "a toast fired": the success toast, exactly once, carrying the count the
+     // store reported (2 — not the 3 ids picked, and not a hardcoded number).
+     expect(show).toHaveBeenCalledTimes(1)
+     expect(show).toHaveBeenCalledWith(zh.photosSvPinnedNToView.replace('{n}', '2'))
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+@@ -140,161 +145,161 @@ describe('add photos', () => {
+ 
+   // Finding 5: `pinAssets` answers null when it drops the call because another write is in
+   // flight. Nothing was sent, so nothing may be claimed — and above all the picker must keep
+   // the user's selection instead of closing on a write that never happened.
+   it('reports nothing and keeps the picker open when the store drops the call as busy', async () => {
+     const s = seed()
+     vi.spyOn(s, 'pinAssets').mockResolvedValue(null)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+ 
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(show).not.toHaveBeenCalled()
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+   })
+ 
+   it('reports a failure and keeps the picker open so the user can retry', async () => {
+     const s = seed()
+     vi.spyOn(s, 'pinAssets').mockRejectedValue(new Error('nope'))
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'danger')
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+   })
+ 
+   it('hands the picker the ids already in the view, String()-normalised', async () => {
+     seed({ matched: [{ id: 5 }] })
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     const ids = w.findComponent({ name: 'PhotosLibraryPicker' }).props('existingIds') as Set<string>
+     expect([...ids]).toContain('5')
+   })
+ 
+   // Final review, finding 3: Vue2 :288 hands this picker a *static* `$t('Add selected')`,
+   // while the album pages hand it their counting `Add ({count})` label. This screen shipped
+   // with the album pages' counting label, deferring to PhotosLibraryPicker's deviation (b) —
+   // but that deviation only justifies leaving the existing album consumers alone; it says
+   // nothing about a new one. The prop accepts either shape, so this asserts the one Vue2
+   // actually passes here.
+   it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {
+     seed()
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     const label = w.findComponent({ name: 'PhotosLibraryPicker' }).props('submitLabel')
+     expect(label).toBe(zh.photosMoAddSelected)
+     // Belt and braces against a regression back to the album label, which is a function.
+     expect(typeof label).toBe('string')
+   })
+ })
+ 
+ describe('selection and removal', () => {
+   it('suppresses the lightbox while in edit mode, and shows the count', async () => {
+     seed()
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+     expect(lbMock.openAt).not.toHaveBeenCalled()
+   })
+ 
+   it('still opens the lightbox outside edit mode', async () => {
+     seed()
+     const { w } = await mountPage()
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     expect(lbMock.openAt).toHaveBeenCalled()
+   })
+ 
+   it('removes the selection, then leaves edit mode', async () => {
+     const s = seed()
+     const remove = vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 1, excluded: 0 })
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(remove).toHaveBeenCalledWith('sv1', ['a1'])
+     // Leaving edit mode is now visible on the toggle as well as on the bar (Task 6).
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-edit-toggle"]').attributes('data-open')).toBe('false')
+   })
+ 
+   // Removal is tiered on the backend: a pinned row is deleted (`unpinned`), an automatically
+   // matched one is flagged excluded (`excluded`). Reporting their *sum* is the defining
+   // behaviour of this action, and it had no assertion anywhere — dropping either term from
+   // the expression left the whole suite green. Both tiers are non-zero and distinct here, so
+   // reporting only one of them, or the wrong one, fails.
+   it('confirms with both removal tiers added together', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 2, excluded: 3 })
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).toHaveBeenCalledWith(zh.photosSvRemovedNFromView.replace('{n}', '5'))
+   })
+ 
+   // Finding 5, the removal side: a call the store dropped as busy must not be confirmed, and
+   // must leave the selection alone so the user can press the button again.
+   it('reports nothing and keeps the selection when the store drops the removal as busy', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockResolvedValue(null)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).not.toHaveBeenCalled()
+     // Re-homed (Task 6): the bar stays up in edit mode no matter what, so "still selected" is
+     // read off the tile and the bar's count instead of the bar's presence.
+     expect(selectedTiles(w)).toBe(1)
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+   })
+ 
+   it('keeps the selection on failure so the user can retry', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockRejectedValue(new Error('nope'))
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     // Re-homed (Task 6), same reason as the busy case above.
+     expect(selectedTiles(w)).toBe(1)
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+   })
+ 
+   // Re-homed (Task 6): leaving and re-entering edit mode no longer makes the bar disappear, so
+   // "the bar is gone" is not evidence of anything here any more. What the test is actually
+   // about -- the selection being dropped on the way out -- is asserted on the tiles and on the
+   // bar's own hint line, which falls back to the empty-selection copy.
+   it('leaving edit mode clears what was selected', async () => {
+     seed()
+     const { w } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     expect(selectedTiles(w)).toBe(1)
+ 
+-    await enterEdit(w) // leave
+-    await enterEdit(w) // and come back
++    await toggleEdit(w) // leaves edit mode, clearing selectedIds
++    await toggleEdit(w) // re-enters it
+ 
+     expect(selectedTiles(w)).toBe(0)
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+ 
+   // A selection surviving an :id change would send view A's asset ids to view B's remove
+   // endpoint, under a bar counting photos that are no longer on screen.
+   //
+   // Final review, finding 1: checking only that the bar disappears does NOT test the reset.
+   // Clearing the mode flag alone hides the bar — deleting `selectedIds.value = []` from the
+@@ -302,36 +307,36 @@ describe('selection and removal', () => {
+   // `toggleEdit` only clears on *exit* so pressing Edit on sv2 brings the bar back holding
+   // sv1's id, and Remove then posts view A's asset to view B. Re-entering edit mode after the
+   // navigation is what makes the stale ids observable, so that is what is asserted.
+   // Re-homed (Task 6): the same trap, one step worse — the bar is now gated on `edit` alone, so
+   // it reappears on sv2 whether or not the ids were cleared. The stale-id assertion moved onto
+   // the tiles and the bar's hint line.
+   it('drops the selection and closes the picker when the route id changes', async () => {
+     const s = seed()
+     s.smartViews = [{ ...SV }, { ...SV, id: 'sv2', name: 'Beach' }]
+     const { w, router } = await mountPage()
+-    await enterEdit(w)
++    await toggleEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+     expect(selectedTiles(w)).toBe(1)
+ 
+     await router.push('/photos/smart-views/sv2')
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     // Edit mode itself is left behind with the id, so the bar goes with it.
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+ 
+     // The real assertion: enter edit mode on sv2 without picking anything. If the ids were not
+     // cleared, the bar comes back counting sv1's selection and sv1's tile stays ticked.
+-    await enterEdit(w)
++    await toggleEdit(w)
+     expect(selectedTiles(w)).toBe(0)
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+ })
+ 
+ describe('excluded section', () => {
+   it('stays hidden when nothing is excluded', async () => {
+     seed()
+     const { w } = await mountPage()
+     expect(w.find('[data-test="sv-excluded-head"]').exists()).toBe(false)
+@@ -358,21 +363,21 @@ describe('excluded section', () => {
+   // selection while selecting; an excluded one used to restore instead — an unconfirmed
+   // server write with no toast and no undo, in response to a click meant to tick a checkbox.
+   // Vue2 :167 has the same hole; this branch fixes and registers Vue2 defects rather than
+   // copying them. Excluded assets are not removal candidates either, so the tile is simply
+   // inert: no write, and no selection.
+   it('an excluded tile does nothing while in edit mode', async () => {
+     const s = seed({ excluded: [{ id: 'e1' }] })
+     const restore = vi.spyOn(s, 'restoreAssets').mockResolvedValue(1)
+     const { w } = await mountPage()
+     await w.find('[data-test="sv-excluded-head"]').trigger('click')
+-    await enterEdit(w)
++    await toggleEdit(w)
+ 
+     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(restore).not.toHaveBeenCalled()
+     // Nor does it become selectable. Re-homed (Task 6): the bar is up in edit mode regardless,
+     // so this now reads the selection itself instead of the bar's presence.
+     expect(selectedTiles(w)).toBe(0)
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+diff --git a/src/views/PhotosSmartViewDetail.vue b/src/views/PhotosSmartViewDetail.vue
+index e553df6..5983293 100644
+--- a/src/views/PhotosSmartViewDetail.vue
++++ b/src/views/PhotosSmartViewDetail.vue
+@@ -61,28 +61,30 @@ import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vu
+ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+ import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
+ import { usePhotosAlbums } from '../photos/stores/albums'
+ import { useToast } from '../stores/toast'
+ import { isConflict } from '../photos/util/httpErrors'
+ import { useLightbox } from '../photos/lightbox/useLightbox'
+ import { relTime } from '../photos/util/relTime'
+ // SP15-P2c Task 6: reused, not re-implemented. Despite the name this is a plain photo
+ // comparator keyed off a string mode (util/albumView.ts:74) -- its 'taken' branch is
+ // byte-for-byte the comparator Vue2 writes inline here as `sortedByMode` (33b05636
+-// :577-587), and its fallback branch returns the list untouched, which is exactly what Vue2
+-// means by 'score' -- its own comment there says "the order as it stands", because the backend
+-// already returns match_score DESC. Writing a second copy of the same two branches on this
+-// page is what the ruling against duplicated TS (phase ruling: option B on sharing) exists to
+-// prevent.
++// :577-587). Task 7 fold-in, finding (e): the fallback branch does not return the list
++// "untouched" -- albumView.ts:88 returns `[...photos]`, a fresh shallow copy. The *order* is
++// untouched (exactly what Vue2 means by 'score': its own comment there says "the order as it
++// stands", because the backend already returns match_score DESC), the *reference* is not.
++// Writing a second copy of the same two branches on this page is what the ruling against
++// duplicated TS (phase ruling: option B on sharing) exists to prevent.
+ import { sortAlbumPhotos } from '../photos/util/albumView'
+ import { formatMB } from '../photos/util/formatBytes'
+ import type { Photo } from '../photos/util/assetToPhoto'
++import { useFixedMenuPosition } from '../photos/composables/useFixedMenuPosition'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const store = usePhotosSmartViews()
+ const albums = usePhotosAlbums()
+ const toast = useToast()
+ const lb = useLightbox()
+ const { t, locale } = useI18n()
+ 
+ // 唯一的归一点(铁律:按 id 找对象一律 String() 比较)。
+@@ -107,22 +109,35 @@ onMounted(async () => {
+   void store.loadExcluded(svId.value)
+ })
+ watch(() => route.params.id, (raw) => {
+   if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
+   // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
+   // resets here. `edit`/`selectedIds` are the pair with a write consequence —
+   // removeSelected() reads svId.value at call time, so a selection carried across an :id
+   // change would send view A's asset ids to view B's remove endpoint, under a bar counting
+   // photos that are no longer on screen. `pickerOpen` is the same story from the other side
+   // (its already-in set comes from the previous view's members) and `excludedOpen` is the
+-  // cosmetic remainder of the same rule: nothing on screen may come from the old id. Vue 2
+-  // could not hit any of this — its detail component was v-if'd and remounted per view.
++  // cosmetic remainder of the same rule. Vue 2 could not hit any of this — its detail
++  // component was v-if'd and remounted per view.
++  //
++  // Task 7 fold-in, finding (a): `sortBy`/`density` (added by Task 6) are deliberately NOT in
++  // this list, so the comment above no longer claims "nothing on screen may come from the old
++  // id" -- that was true before Task 6 and stopped being the rule this watcher enforces.
++  // Sort order and grid density are display preferences, not write-consequential state: unlike
++  // `selected`/`pickerOpen`, nothing downstream reads them keyed to a specific view id, so
++  // carrying them across a navigation cannot mislabel or misdirect a request the way a stale
++  // selection can. PhotosAlbumDetail.vue's own route-id watcher (Task 3/4, the sibling this
++  // page is being brought in line with) already sets this precedent -- it resets
++  // `selected`/`titleEditing`/`titleDraft`/`edit`/`pickerOpen` but leaves its own `sortBy`
++  // untouched too. Treating "the user prefers date-taken order at compact density" as a
++  // per-session preference that survives switching views is the deliberate, matching choice
++  // here, not an oversight.
+   edit.value = false
+   selectedIds.value = []
+   pickerOpen.value = false
+   excludedOpen.value = false
+   void store.loadDetail(String(raw))
+   void store.loadExcluded(String(raw))
+ })
+ 
+ // ── 标题编辑(结构规格 3、8)───────────────────────────────────────────────
+ const titleEdit = ref(false)
+@@ -271,83 +286,82 @@ function pickSort(s: SvSortBy): void {
+   sortMenuOpen.value = false
+ }
+ 
+ // The display order for each grid. The store's arrays stay untouched: `viewAssetIds` looks ids
+ // up rather than reading positions, and the lightbox still receives the store's own array --
+ // aligning the lightbox's navigation order with what the grid shows is Task 9's job, and this
+ // is the state it consumes.
+ const matchedSet = computed(() => sortAlbumPhotos(store.matchedAssets, sortBy.value))
+ const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.value))
+ 
+-// ── 导出菜单 / more 菜单 / 删除确认:一个 mousedown 监听 + 一个 keydown 监听 ──────
+-const exportOpen = ref(false)
++// ── more menu (spec 8, 9) / delete confirmation: one mousedown listener + one keydown listener ──
++// Task 7: the Export button/menu is gone -- `exportOpen`/`exportBtnRef`/`exportMenuRef` went
++// with it (ZIP is now the unified menu's third entry; "Save as static album" is a deleted
++// capability, see `exportAlbumAction`'s own removal note below). `moreWrapRef` is renamed
++// `morePopRef` and `moreBtnRef` is new, matching PhotosAlbumDetail.vue's own naming (Task 5):
++// `morePopRef` wraps both the trigger button and the menu for click-outside purposes,
++// `moreBtnRef` exists solely to hand the button's rect to `useFixedMenuPosition` -- neither
++// replaces the other.
+ const moreOpen = ref(false)
+ const confirmDeleteOpen = ref(false)
+ // SP15-P2b Task 8: smart album -> regular album, the reverse of Task 7's
+ // AlbumConvertToSmartDialog. Inline in this file rather than a new component (Vue2 inlines
+ // its lb-confirm-* version too, and this page already owns a confirmation of the same
+ // shape for delete).
+ const convertToAlbumOpen = ref(false)
+ const convertingToAlbum = ref(false)
+ const convertError = ref('')
+-const exportBtnRef = ref<HTMLElement | null>(null)
+-const exportMenuRef = ref<HTMLElement | null>(null)
+-const moreWrapRef = ref<HTMLElement | null>(null)
+-
+-// 照搬 Vue2 :75/:99(exportOpen = !exportOpen / moreOpen = !moreOpen)——两个菜单相互独立,
+-// 不是互斥单选:Vue2 没有"开一个就关另一个"的逻辑,浮层同开是合法状态(本测试套件的
+-// "先开 export 再开 more,一次 Esc 两者都关"用例正是钉住这一点)。
+-function toggleExportMenu(): void {
+-  exportOpen.value = !exportOpen.value
+-}
++const morePopRef = ref<HTMLElement | null>(null)
++const moreBtnRef = ref<HTMLElement | null>(null)
++
++// Task 7 (T1): pins the unified menu to the viewport via the trigger button's rect, so it no
++// longer clips against .sv-detail-side's own overflow-y:auto once the menu grew to five
++// entries (the same fix Task 5 already applied to PhotosAlbumDetail.vue's own more menu).
++const { menuStyle } = useFixedMenuPosition(moreOpen, moreBtnRef)
++
+ function toggleMoreMenu(): void {
+   moreOpen.value = !moreOpen.value
+ }
+ 
+ function onDocumentMouseDown(e: MouseEvent): void {
+   const target = e.target as Node
+-  if (exportOpen.value) {
+-    const m = exportMenuRef.value, b = exportBtnRef.value
+-    if (m && !m.contains(target) && b && !b.contains(target)) exportOpen.value = false
+-  }
+   if (moreOpen.value) {
+-    const w = moreWrapRef.value
++    const w = morePopRef.value
+     if (w && !w.contains(target)) moreOpen.value = false
+   }
+   // SP15-P2c Task 6: the sort menu closes on an outside click the same way (Vue2 :545-548
+   // adds its own click-outside for exactly this popup).
+   if (sortMenuOpen.value) {
+     const s = sortMenuRef.value
+     if (s && !s.contains(target)) sortMenuOpen.value = false
+   }
+ }
+ 
+-// Hard constraint: when multiple overlays are open, one Escape must close them all -- five
+-// independent ifs (four before SP15-P2c Task 6 added the sort menu), no early return
++// Hard constraint: when multiple overlays are open, one Escape must close them all -- four
++// independent ifs (five before Task 7 removed the export menu's own), no early return
+ // (deletion-check 8: adding `return` inside the first if turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
+ // closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
+ // dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
+ // defined below).
+ function onDocumentKeydown(e: KeyboardEvent): void {
+   if (e.key !== 'Escape') return
+-  if (exportOpen.value) exportOpen.value = false
+   if (moreOpen.value) moreOpen.value = false
+   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
+   if (convertToAlbumOpen.value) closeConvertToAlbum()
+   // SP15-P2c Task 6. Vue2 gives the sort popup a click-outside but no Escape; PhotosAlbumDetail
+   // .vue:539 already closes its own sort menu on Escape, and a popup that ignores the key its
+   // three neighbours on this same page answer reads as broken. Registered deviation, added as
+   // a fifth independent `if` so it does not disturb the "one Escape closes everything" rule.
+   if (sortMenuOpen.value) sortMenuOpen.value = false
+ }
+ 
+-const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
++const anyOverlayOpen = computed(() => moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
+ watch(anyOverlayOpen, (open) => {
+   if (open) document.addEventListener('keydown', onDocumentKeydown)
+   else document.removeEventListener('keydown', onDocumentKeydown)
+ })
+ onMounted(() => document.addEventListener('mousedown', onDocumentMouseDown))
+ onBeforeUnmount(() => {
+   document.removeEventListener('mousedown', onDocumentMouseDown)
+   document.removeEventListener('keydown', onDocumentKeydown)
+   if (toastTimer) clearTimeout(toastTimer)
+ })
+@@ -362,21 +376,23 @@ function showExportToast(icon: ExportToast['icon'], text: string): void {
+   toastTimer = setTimeout(() => { exportToast.value = null }, 2800) // 照搬 Vue2 :499
+ }
+ 
+ // exportSmartViewUrl 走的 /v1/photos/smart-views/:id/export 不在后端 mediaGetSkip
+ // 豁免表里(只有 /favorites/export 后缀被豁免),且 Photos 的 JWT 中间件只从
+ // Authorization 头取 token、没有 query 通路 —— 所以 Vue2 的 window.location.href
+ // 必然 401(plan Global Constraints §7e-1,已回源实证 NimoOS-Photos/route/router.go)。
+ // 这里改成带 Authorization 的 fetch + blob 下载。
+ async function downloadZip(): Promise<void> {
+   const s = sv.value
+-  exportOpen.value = false
++  // Task 7: this used to close the export menu (`exportOpen`); ZIP is now the unified menu's
++  // third entry, so it closes that one instead.
++  moreOpen.value = false
+   if (!s) return
+   try {
+     const url = service.photos.exportSmartViewUrl(String(s.id), 'zip')
+     // ⚠ 不要加 'Bearer ' 前缀 —— 本仓存的是裸 token:共享包拦截器是
+     // `cfg.headers.Authorization = token`(NimoOS-Service/src/http.ts:59-60),token 来自
+     // `localStorage.getItem('access_token')`(main.ts:24 的 getToken 回调),全仓 grep 不到
+     // 任何 'Bearer' 字面量。后端 `strings.TrimPrefix(auth, "Bearer ")` 对裸 token 是恒等的,
+     // 两种都能过,但这里与共享包保持同一口径(删码验证⑤的主体)。
+     // fix round 1 · C1(Critical,已回源实证):这个端点 `route/v1/smartviews.go:34` 只注册了
+     // `g.POST(...)`,全仓 grep `"/smart-views/:id/export"` 只有这一条、没有 GET 版本——
+@@ -394,34 +410,36 @@ async function downloadZip(): Promise<void> {
+     a.click()
+     a.remove()
+     URL.revokeObjectURL(href) // 删码验证⑥的主体
+     showExportToast('download', t('photosSvPreparingZipNPhotos', { n: fmtNum(s.count) }))
+   } catch (e) {
+     console.error('[photos-smartviews] downloadZip', e)
+     showExportToast('download', t('photosFavExportFailed'))
+   }
+ }
+ 
+-async function exportAlbumAction(): Promise<void> {
+-  const s = sv.value
+-  exportOpen.value = false
+-  if (!s) return
+-  try {
+-    await store.exportAlbum(s.id)
+-    showExportToast('plus', t('photosSvNameSnapshotSavedAlbum', { name: s.name }))
+-  } catch (e) {
+-    console.error('[photos-smartviews] exportAlbumAction', e)
+-    showExportToast('download', t('photosFavExportFailed'))
+-  }
+-}
+-
+-// ── more 菜单:重命名 / 复制 / 删除(结构规格 8、9)───────────────────────────
++// Task 7: `exportAlbumAction` ("Save as static album" / sv-export-album) is deleted, not
++// re-homed into the unified menu. This is an empirically-verified capability removal, not a
++// guess: the Vue2 target's own final state (933a7d3a comment restated at 33b05636
++// :184-189) records that Vue2 killed the identical button ("Save as static Album 子项整体
++// 删除", i.e. "the Save as static Album entry is deleted entirely") in the same commit range
++// that produced the five-entry menu, keeping only the backend
++// endpoint (`photosService.exportSmartViewAlbum`) as a capability with no frontend caller.
++// This page's Convert entry (`askConvertToAlbum` below) already does the equivalent job --
++// freezing the current matches into a regular album -- so nothing reachable through the UI is
++// lost. `store.exportAlbum` (smartViews.ts) and `service.photos.exportSmartViewAlbum` are left
++// untouched, mirroring Vue2's own choice to keep the backend capability while dropping the
++// frontend trigger; both become currently-unused exports of their respective modules, which is
++// fine for a store action returned from its public API object (no unused-local warning) and is
++// the exact shape Vue2's own history leaves behind.
++
++// ── more menu: rename / duplicate / delete / convert / ZIP (spec 8, 9) ──────────────
+ function openDeleteConfirm(): void {
+   moreOpen.value = false
+   confirmDeleteOpen.value = true
+ }
+ function closeDeleteConfirm(): void { confirmDeleteOpen.value = false }
+ 
+ async function doDelete(): Promise<void> {
+   const s = sv.value
+   confirmDeleteOpen.value = false
+   if (!s) return
+@@ -565,20 +583,27 @@ const selectHint = computed(() => (
+ ))
+ 
+ // The ids the picker must show as already-in. Normalising with String() here is load-bearing:
+ // asset ids arrive from the API as numbers on some paths while timeline photo ids are strings,
+ // and a mismatch silently un-dims every tile. Same correction as PhotosAlbums.vue:163.
+ const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => String(p.id))))
+ 
+ function toggleEdit(): void {
+   edit.value = !edit.value
+   if (!edit.value) selectedIds.value = []
++  // Task 7 fold-in, finding (b): keyboard-activating this button (Space/Enter on a focused
++  // element) fires a `click` but no `mousedown` -- the event onDocumentMouseDown listens for
++  // to close the sort menu. Without this, entering edit mode that way leaves `sortMenuOpen`
++  // true while the template unmounts the sort capsule (`v-if="!edit"`), and the popup
++  // reappears the moment edit mode is left again, with no visible trigger for it. Sort has no
++  // meaning in edit mode either way, so it is safe to always close it here, entering or leaving.
++  sortMenuOpen.value = false
+ }
+ 
+ function toggleSelect(id: string): void {
+   selectedIds.value = selectedIds.value.includes(id)
+     ? selectedIds.value.filter((x) => x !== id)
+     : [...selectedIds.value, id]
+ }
+ 
+ // Vue2 :516-534 (onPickPhotos). The store action already refetches this view's statistics,
+ // so only the asset grids are reloaded here. Both refreshes are needed: a pinned photo joins
+@@ -801,112 +826,25 @@ async function onExcludedTileClick(id: string): Promise<void> {
+                   <button
+                     type="button" data-test="sv-density-compact"
+                     :data-active="density === 'compact'" :title="t('photosDensityCompact')"
+                     @click="density = 'compact'"
+                   >
+                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /><rect x="3" y="19" width="6" height="2" /><rect x="11" y="19" width="6" height="2" /></svg>
+                   </button>
+                 </div>
+               </template>
+ 
+-              <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
+-                   名字作查询词。Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,
+-                   死参数不迁(见文件头偏离登记 5),这里只传 q。 -->
+-              <button
+-                type="button" class="sv-action-btn" data-test="sv-action-refine"
+-                @click="refineInSearch"
+-              >
+-                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
+-                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
+-                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
+-                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
+-                     放大镜手柄长度此前会跳一下——改成统一值。 -->
+-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+-                {{ t('photosSvRefineSearch') }}
+-              </button>
+-
+-              <div style="position:relative">
+-                <button
+-                  ref="exportBtnRef" type="button" class="sv-action-btn sv-action-btn-primary"
+-                  data-test="sv-export-toggle" data-primary="true" :data-open="exportOpen"
+-                  @click="toggleExportMenu"
+-                >
+-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+-                  {{ t('photosSvExport') }}
+-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" style="margin-left:2px;opacity:0.85"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
+-                </button>
+-                <Transition name="sv-menu">
+-                <div v-if="exportOpen" ref="exportMenuRef" class="sv-export-menu" data-test="sv-export-menu">
+-                  <button type="button" class="sv-export-item" data-test="sv-export-zip" @click="downloadZip">
+-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosFavExport') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
+-                    </div>
+-                  </button>
+-                  <button type="button" class="sv-export-item" data-test="sv-export-album" @click="exportAlbumAction">
+-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosSvSaveStaticAlbum') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvSnapshotCurrentMatchesStops') }}</div>
+-                    </div>
+-                  </button>
+-                </div>
+-                </Transition>
+-              </div>
+-
+-              <div ref="moreWrapRef" style="position:relative">
+-                <button
+-                  type="button" class="sv-action-btn sv-action-btn-icon" data-test="sv-more-toggle"
+-                  :data-open="moreOpen" @click="toggleMoreMenu"
+-                >
+-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+-                </button>
+-                <Transition name="sv-menu">
+-                <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="sv-more-menu">
+-                  <button type="button" class="sv-export-item" data-test="sv-more-rename" @click="startTitleEdit">
+-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosSvRename') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvChangeSmartViewName') }}</div>
+-                    </div>
+-                  </button>
+-                  <button type="button" class="sv-export-item" data-test="sv-more-duplicate" @click="duplicateSv">
+-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvCopyQuerySv') }}</div>
+-                    </div>
+-                  </button>
+-                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate
+-                       above the destructive separator, not beside Delete -- this is not a
+-                       destructive action, it freezes the current matches into a regular
+-                       album. -->
+-                  <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
+-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
+-                    </div>
+-                  </button>
+-                  <div class="sv-export-sep" />
+-                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
+-                  <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
+-                    <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+-                    <div>
+-                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
+-                      <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
+-                    </div>
+-                  </button>
+-                </div>
+-                </Transition>
+-              </div>
++              <!-- Task 7: Refine in Search and the "..." menu are no longer in this row --
++                   both moved to the new `.sv-side-actions` container at the top of
++                   `aside.sv-detail-side` (target 33b05636 :127-225; see that container's own
++                   comment for the full trail). Task 6 parked them here only because the
++                   fixed-position composable did not exist yet at that point. -->
+             </div>
+           </div>
+ 
+           <!-- "Recently added" band: rendered only while newCount > 0. Its tiles read
+                `recentSet` -- store.recentAssets in the order the Sort capsule currently asks
+                for (SP15-P2c Task 6). -->
+           <template v-if="newCount > 0">
+             <div class="sv-section-head" data-test="sv-recent-head">
+               {{ t('photosSvRecentlyAdded') }} <span class="pill">{{ t('photosSvNNewThisWeek', { n: newCount }) }}</span>
+             </div>
+@@ -969,20 +907,122 @@ async function onExcludedTileClick(id: string): Promise<void> {
+               >
+                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                 <div class="sv-restore-hint">{{ t('photosSvRestore') }}</div>
+               </div>
+             </div>
+           </template>
+           </div>
+ 
+           <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
+           <aside class="sv-detail-side" data-test="sv-side-mount">
++            <!-- Task 7 (target 33b05636 :127-225). The "..." menu's target home -- moved here
++                 from the header's .sv-actions, where Task 6 parked it unchanged (mounting it
++                 in this overflow-y:auto sidebar before the fixed-position composable existed
++                 would have reproduced the exact clipping bug that composable fixes; see
++                 PhotosAlbumDetail.vue's own identical note, Task 5, which this container's
++                 structure matches on purpose -- the point of this task is that the two detail
++                 pages end up the same).
++
++                 The five entries are the target's full set, in its order: Rename / Duplicate /
++                 Download as ZIP / Convert / Delete. Unlike PhotosAlbumDetail.vue's own copy of
++                 this menu, THIS page's entries call THIS page's existing backends, not the
++                 album page's (brief's own warning, verified against each): Duplicate is
++                 `store.duplicateSmartView` (smartViews.ts:342, no-ops on re-entry rather than
++                 throwing -- not albums.ts's `duplicateAlbum`), Download as ZIP is this page's
++                 own `downloadZip` (POST + Authorization header, not JWT-exempt -- not
++                 `exportAlbumZipUrl`'s GET+token navigation), and Convert goes the opposite
++                 direction from the album page's (smart view -> regular album, via
++                 `askConvertToAlbum`/`albums.convertFromSmartView`, not regular -> smart via
++                 `AlbumConvertToSmartDialog`). "Save as static album" does NOT reappear as a
++                 sixth entry -- see `exportAlbumAction`'s own removal note above the more-menu
++                 handlers for why that capability is deleted rather than folded in.
++
++                 The menu itself is position:fixed via `menuStyle` (T1's useFixedMenuPosition
++                 bound to `moreBtnRef`'s rect); `morePopRef` still wraps both the button and the
++                 menu for click-outside dismissal (onDocumentMouseDown above) -- the composable
++                 only computes coordinates, it does not touch open/close. Vue2 wraps this same
++                 menu in <transition name="sv-menu"> (33b05636 :78) -- kept here, even though
++                 PhotosAlbumDetail.vue's own copy (Task 5) does not carry one; the target is the
++                 tie-breaker per this phase's rule, and this page already had the transition and
++                 its CSS from Task 6's header version, so keeping it costs nothing. -->
++            <div class="sv-side-actions">
++              <button
++                type="button" class="sv-action-btn" data-test="sv-action-refine"
++                @click="refineInSearch"
++              >
++                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
++                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
++                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
++                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
++                     放大镜手柄长度此前会跳一下——改成统一值。 -->
++                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
++                {{ t('photosSvRefineSearch') }}
++              </button>
++
++              <div ref="morePopRef" class="sv-more-wrap">
++                <button
++                  ref="moreBtnRef" type="button" class="sv-action-btn sv-action-btn-icon" data-test="sv-more-toggle"
++                  :data-open="moreOpen" @click="toggleMoreMenu"
++                >
++                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
++                </button>
++                <Transition name="sv-menu">
++                <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="sv-more-menu" :style="menuStyle">
++                  <button type="button" class="sv-export-item" data-test="sv-more-rename" @click="startTitleEdit">
++                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
++                    <div>
++                      <div class="sv-export-title">{{ t('photosSvRename') }}</div>
++                      <div class="sv-export-desc">{{ t('photosSvChangeSmartViewName') }}</div>
++                    </div>
++                  </button>
++                  <button type="button" class="sv-export-item" data-test="sv-more-duplicate" @click="duplicateSv">
++                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
++                    <div>
++                      <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
++                      <div class="sv-export-desc">{{ t('photosSvCopyQuerySv') }}</div>
++                    </div>
++                  </button>
++                  <!-- Task 7: the Export section's ZIP item (sv-export-zip) folds in here as
++                       the menu's third entry, between Duplicate and Convert -- the target's own
++                       order. Same handler (`downloadZip`), same copy, new data-test. -->
++                  <button type="button" class="sv-export-item" data-test="sv-more-zip" @click="downloadZip">
++                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
++                    <div>
++                      <div class="sv-export-title">{{ t('photosFavExport') }}</div>
++                      <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
++                    </div>
++                  </button>
++                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate/zip
++                       above the destructive separator, not beside Delete -- this is not a
++                       destructive action, it freezes the current matches into a regular
++                       album. -->
++                  <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
++                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
++                    <div>
++                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
++                      <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
++                    </div>
++                  </button>
++                  <div class="sv-export-sep" />
++                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
++                  <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
++                    <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
++                    <div>
++                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
++                      <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
++                    </div>
++                  </button>
++                </div>
++                </Transition>
++              </div>
++            </div>
++
+             <SmartViewSidePanel :sv="sv" :busy="store.patchBusy" @patch="onSidePatch" />
+             <SmartViewActivityFeed :activity="store.activity" />
+           </aside>
+           </div>
+         </template>
+       </main>
+     </div>
+ 
+     <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
+          useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。 -->
+@@ -1161,29 +1201,41 @@ async function onExcludedTileClick(id: string): Promise<void> {
+ }
+ .sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+ .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+ .sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
+ .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+ /* fix round 1(评审折中方案,控制器裁定):Vue2 `[data-primary="true"]` 是渐变
+    `linear-gradient(135deg, accent, accent-hi)`——本仓没有 `--accent-hi`(全局约定 §33),
+    改成 `var(--accent)` 实底 + hover `filter: brightness(1.08)`,先例见
+    `PhotosPersonDetail.vue:1142`/`ClusterActionDialog.vue:331-332` 等。DOM 上仍保留
+    `data-primary="true"` 属性(与 Vue2 一致),但样式选择器改用伴生类
+-   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。 */
++   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。
++   Task 7 note: the Export button that carried this class and `data-primary="true"` is deleted
++   (see the component's own comment on the merge into the unified menu). Nothing in this
++   template's markup uses either any more; left in place rather than pruned, same posture as
++   the i18n orphan-key convention this phase already follows (Task 11's job, not this one's) --
++   flagged here for whoever does that sweep next. */
+ .sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+ /* fix round 1(第一版曾用单类 `.sv-action-btn-primary:hover`,被评审判定"更弱"——那与基类
+    `.sv-action-btn:hover` 同为 (0,2,0),平局时只靠书写顺序才不被基类的灰底盖成白底白字,
+    属于本期"hover 硬约束"明确要防的脆弱写法)。改成复合选择器
+    `.sv-action-btn.sv-action-btn-primary:hover`,真实优先级 (0,3,0),结构上稳赢基类的
+    (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
+ .sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
+ 
++/* ── Task 7: sidebar top action row -- rule body restated from PhotosAlbumDetail.vue's own
++   `.sv-side-actions` (Task 5; scoped styles do not cross SFCs in this repo). flex-wrap lets a
++   narrow sidebar keep both buttons on their own line if needed. margin-bottom keeps the same
++   24px rhythm as .sv-side-section below it. ── */
++.sv-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
++.sv-more-wrap { position: relative; }
++
+ /* ── SP15-P2c Task 6: sort capsule, separators, density pair ──
+    Rule bodies restated from PhotosAlbumDetail.vue's own (:1161-1176), which Task 3 in turn
+    restated from Vue2 photos.scss (:3458-3475 .group / .order-pill, :285-288 .density) and
+    photos-smartview.scss (.album-detail-actions-sep). Scoped styles do not cross SFCs in this
+    repo, so this duplication is the phase's KEEP-THE-DUPLICATION ruling, not a missed
+    extraction -- and it is what makes the two detail pages render the same row. */
+ .group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
+ .sv-actions .order-pill {
+   display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
+   background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
+diff --git a/src/views/__tests__/PhotosSmartViewDetail.test.ts b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+index 693c596..e69c412 100644
+--- a/src/views/__tests__/PhotosSmartViewDetail.test.ts
++++ b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+@@ -20,20 +20,26 @@ const svc = vi.hoisted(() => ({
+     listSmartViews: vi.fn(),
+     getSmartViewAssets: vi.fn(),
+     getSmartViewActivity: vi.fn(),
+     updateSmartView: vi.fn(),
+     deleteSmartView: vi.fn(),
+     createSmartView: vi.fn(), // restoreSmartView 的底层调用
+     duplicateSmartView: vi.fn(),
+     exportSmartViewAlbum: vi.fn(),
+     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
+     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
++    // Task 7, folded-in finding (d): the page's own onMounted/route watcher calls
++    // store.loadExcluded, which hits this endpoint. `loadExcluded` catches and leaves
++    // `excluded` empty (smartViews.ts:534-547) -- exactly the end state a `[]` mock produces --
++    // so this carries none of getConfig's coupling risk (see the comment on that one below) and
++    // was simply missing. Adding it removes 77 caught-TypeError console.error lines per run.
++    getSmartViewExcluded: vi.fn(),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ // useLightbox 是模块级单例:每次调用 useLightbox() 都会返回一个**新的对象字面量**,但其
+ // `openAt` 属性指向同一个模块顶层函数——在这个新字面量上 `vi.spyOn(obj, 'openAt')` 只会
+ // 影子这一个对象自身的属性,不会影响组件内部另一次 `useLightbox()` 调用拿到的另一份对象
+ // (它的 `openAt` 仍指向未被拦截的真实函数)。本组件只用到 `lb.openAt` 这一个方法,直接
+ // mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `lbMock.openAt`。
+ const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+@@ -121,20 +127,21 @@ beforeEach(() => {
+   svc.photos.listSmartViews.mockReset()
+   svc.photos.getSmartViewAssets.mockReset().mockResolvedValue([])
+   svc.photos.getSmartViewActivity.mockReset().mockResolvedValue([])
+   svc.photos.updateSmartView.mockReset()
+   svc.photos.deleteSmartView.mockReset()
+   svc.photos.createSmartView.mockReset()
+   svc.photos.duplicateSmartView.mockReset()
+   svc.photos.exportSmartViewAlbum.mockReset()
+   svc.photos.exportSmartViewUrl.mockClear()
+   svc.photos.thumbnailUrl.mockClear()
++  svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
+   lbMock.openAt.mockClear()
+ })
+ afterEach(() => {
+   usePhotosSmartViews().__resetForTest()
+   vi.restoreAllMocks()
+ })
+ 
+ // ── 数据源三态(§7e-2 结构规格 1)────────────────────────────────────────────
+ describe('数据源三态', () => {
+   it('listLoaded 假(请求未 resolve)→ 骨架,不渲染 header', async () => {
+@@ -703,41 +710,144 @@ describe('「在搜索中细化」按钮(T16 已接线)', () => {
+     await w.find('[data-test="sv-action-refine"]').trigger('click')
+     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'Sunsets' } })
+   })
+ 
+   it('photosSvSearchPending 键已从两个 locale 删除(死键随 T16 一并清理)', () => {
+     expect('photosSvSearchPending' in zh).toBe(false)
+     expect('photosSvSearchPending' in en).toBe(false)
+   })
+ })
+ 
+-// ── 导出菜单 / more 菜单 ─────────────────────────────────────────────────
+-describe('导出菜单与 more 菜单', () => {
+-  it('点导出按钮 → 菜单出现两项(ZIP / 静态相册)', async () => {
+-    const { w } = await mountView('7', [makeSv({ id: 7 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-export-zip"]').exists()).toBe(true)
+-    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(true)
+-  })
+-
+-  it('点 more 按钮 → 菜单出现三项(重命名 / 复制 / 删除)', async () => {
++// ── more menu (unified into five entries as of Task 7; the Export button/menu is folded in
++//    entirely, see the "SP15-P2c Task 7" describe block below) ─────────────────────────────
++describe('more menu', () => {
++  // Re-homed (Task 7): the old "菜单出现三项(重命名/复制/删除)" case is now a strict subset
++  // of "renders exactly five menu entries in the target order" below, which also pins the
++  // order -- this one stays only because it predates Convert/ZIP and is still true unchanged.
++  it('opens the more menu and shows at least three entries (rename / duplicate / delete)', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7 })])
+     await w.find('[data-test="sv-more-toggle"]').trigger('click')
+     expect(w.find('[data-test="sv-more-rename"]').exists()).toBe(true)
+     expect(w.find('[data-test="sv-more-duplicate"]').exists()).toBe(true)
+     expect(w.find('[data-test="sv-more-delete"]').exists()).toBe(true)
+   })
+ 
++  // Re-homed (Task 7): was '点导出按钮...' + 'photosSvNPhotosMbMb...', reading
++  // sv-export-toggle/sv-export-zip. The export button is gone; ZIP is now the third entry of
++  // the unified menu, reached through sv-more-toggle, and its data-test is sv-more-zip.
+   it('photosSvNPhotosMbMb 的 {mb} 在 count=1000 时是千分位 "3,200"', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7, count: 1000 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-export-zip"]').text()).toContain('3,200')
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    expect(w.find('[data-test="sv-more-zip"]').text()).toContain('3,200')
++  })
++})
++
++// ── SP15-P2c Task 7: sidebar action section + unified five-entry "..." menu ────────────────
++// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:127-225. Refine in Search and
++// the "..." menu move from the header row (where Task 6 parked them) into a new
++// `.sv-side-actions` container at the top of the sidebar, matching PhotosAlbumDetail.vue's own
++// (Task 5). The Export button/menu is gone entirely: ZIP folds into the unified menu as its
++// third entry, and "Save as static album" (sv-export-album / exportAlbumAction) is deleted --
++// the target's own history (933a7d3a comment, restated in PhotosSmartViewDetail.vue's header)
++// records that Vue2 killed this same button in the same commit range and kept only the backend
++// capability, which is exactly the call made here too (see the component's own comment on the
++// deletion for the full trail).
++describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
++  it('renders the sidebar action section with refine and the more button', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    const side = w.find('[data-test="sv-side-mount"]')
++    const actions = side.find('.sv-side-actions')
++    expect(actions.exists()).toBe(true)
++    expect(actions.find('[data-test="sv-action-refine"]').exists()).toBe(true)
++    expect(actions.find('[data-test="sv-more-toggle"]').exists()).toBe(true)
++  })
++
++  it('renders exactly five menu entries in the target order', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++    const items = w.find('[data-test="sv-more-menu"]').findAll('.sv-export-item')
++    expect(items).toHaveLength(5)
++    expect(items.map((i) => i.attributes('data-test'))).toEqual([
++      'sv-more-rename',
++      'sv-more-duplicate',
++      'sv-more-zip',
++      'sv-more-convert',
++      'sv-more-delete',
++    ])
++  })
++
++  it('no longer renders a separate export section in the menu', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    expect(w.find('[data-test="sv-export-toggle"]').exists()).toBe(false)
++    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    // "Save as static album" is a deleted capability, not something that moved -- see the
++    // describe block's own header comment.
++    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(false)
++  })
++
++  it('applies the fixed position style when the menu opens', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++    const style = w.find('[data-test="sv-more-menu"]').attributes('style') ?? ''
++    expect(style).toContain('position: fixed')
++  })
++
++  // Re-homed (Task 7): was '点菜单外部(mousedown,bubbles:true)→ 关闭' in the export-menu
++  // describe block, reading sv-export-toggle/sv-export-menu -- both gone. Same behaviour, new
++  // trigger.
++  it('still closes the menu on an outside click', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
++    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
++  })
++
++  // Regression guard against E10 recurring (SP15-P2b's Important finding: the convert
++  // confirmation's primary-action colour and its Escape guard). The full flow (colour, Escape
++  // mid-flight, 409 copy, navigation) is already covered end-to-end by the "convert to regular
++  // album" describe block below Task 6's edit; this test's job is narrower and specific to
++  // Task 7's relocation -- proving the *new* sidebar entry point still reaches that flow at all.
++  it('keeps the convert-to-album confirmation flow working from the new entry', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.find('[data-test="sv-more-convert"]').trigger('click')
++    await w.vm.$nextTick()
++    const confirm = w.find('[data-test="sv-convert-confirm"]')
++    expect(confirm.exists()).toBe(true)
++    const ok = confirm.find('[data-test="sv-convert-ok"]')
++    expect(ok.classes()).toContain('primary')
++    expect(ok.classes()).not.toContain('danger')
++  })
++
++  // Folded-in finding (b): a keyboard activation of Edit/Done (Space/Enter on a focused
++  // button) fires a `click` without a `mousedown` -- the event onDocumentMouseDown listens
++  // for to close the sort menu. VTU's own `.trigger('click')` has the identical shape (no
++  // synthetic mousedown either), so this reproduces the real bug without any extra event
++  // plumbing: open the sort menu, flip edit mode on and back off through the toggle alone, and
++  // check the sort popup does not silently reappear.
++  it('does not leave the sort menu stuck open after toggling edit mode via the Edit button', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
++
++    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // enter edit mode
++    await w.vm.$nextTick()
++    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // leave edit mode again
++    await w.vm.$nextTick()
++
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+   })
+ })
+ 
+ // ── 导出 ZIP(§7e-1 修 401)───────────────────────────────────────────────
+ describe('导出 ZIP', () => {
+   function mockFetchOk() {
+     const blob = new Blob(['zipdata'])
+     return vi.fn().mockResolvedValue({ ok: true, status: 200, blob: () => Promise.resolve(blob) })
+   }
+ 
+@@ -747,22 +857,22 @@ describe('导出 ZIP', () => {
+     const createObjectURL = vi.fn(() => 'blob://x')
+     const revokeObjectURL = vi.fn()
+     vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL })
+     const hrefSpy = vi.fn()
+     Object.defineProperty(window, 'location', {
+       value: { ...window.location, set href(v: string) { hrefSpy(v) }, get href() { return 'unchanged' } },
+       writable: true,
+     })
+ 
+     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets', count: 1000 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-export-zip"]').trigger('click')
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.find('[data-test="sv-more-zip"]').trigger('click')
+     await flushPromises()
+ 
+     expect(fetchSpy).toHaveBeenCalledTimes(1)
+     const [url, opts] = fetchSpy.mock.calls[0]
+     expect(String(url)).toContain('/export')
+     // fix round 1 · C1(Critical):这个端点只注册了 POST(route/v1/smartviews.go:34),
+     // 默认 GET 会被 Echo 拒成 405——不带这条断言,方法写错也测不出来(评审的反向变异实测过)。
+     expect((opts as { method?: string }).method).toBe('POST')
+     expect((opts as { headers: Record<string, string> }).headers.Authorization).toBe('tok-123')
+     expect(hrefSpy).not.toHaveBeenCalled()
+@@ -772,62 +882,48 @@ describe('导出 ZIP', () => {
+     vi.unstubAllGlobals()
+   })
+ 
+   it('<a download> 的 download 属性含 .zip', async () => {
+     const fetchSpy = mockFetchOk()
+     vi.stubGlobal('fetch', fetchSpy)
+     vi.stubGlobal('URL', { ...URL, createObjectURL: vi.fn(() => 'blob://x'), revokeObjectURL: vi.fn() })
+     const appendSpy = vi.spyOn(document.body, 'appendChild')
+ 
+     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-export-zip"]').trigger('click')
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.find('[data-test="sv-more-zip"]').trigger('click')
+     await flushPromises()
+ 
+     const anchor = appendSpy.mock.calls.map((c) => c[0]).find((n) => (n as HTMLElement).tagName === 'A') as HTMLAnchorElement
+     expect(anchor).toBeDefined()
+     expect(anchor.download).toContain('.zip')
+ 
+     vi.unstubAllGlobals()
+   })
+ 
+   it('fetch 返 401(!ok)→ toast 是 photosSvExportFailed', async () => {
+     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
+     const { w } = await mountView('7', [makeSv({ id: 7 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-export-zip"]').trigger('click')
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.find('[data-test="sv-more-zip"]').trigger('click')
+     await flushPromises()
+     expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
+     vi.unstubAllGlobals()
+   })
+ })
+ 
+-// ── 导出相册 ─────────────────────────────────────────────────────────────
+-describe('导出相册', () => {
+-  it('成功 → toast 文案含 name', async () => {
+-    svc.photos.exportSmartViewAlbum.mockResolvedValue({})
+-    const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-export-album"]').trigger('click')
+-    await flushPromises()
+-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain('Sunsets')
+-  })
+-
+-  it('失败 → toast 是 photosSvExportFailed(照搬 photosFavExportFailed 复用)', async () => {
+-    svc.photos.exportSmartViewAlbum.mockRejectedValue(new Error('500'))
+-    const { w } = await mountView('7', [makeSv({ id: 7 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-export-album"]').trigger('click')
+-    await flushPromises()
+-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
+-  })
+-})
++// SP15-P2c Task 7: the '导出相册' describe block (Save as static album, exportAlbumAction/
++// sv-export-album) is deleted here, not re-homed -- the capability itself is gone. The Vue2
++// target's own history records the same deletion in the same commit range (see
++// PhotosSmartViewDetail.vue's comment on `exportAlbumAction`'s removal for the full trail);
++// this page's Convert entry already does the equivalent job (freezing the current matches
++// into a regular album), so nothing the user could do is lost.
+ 
+ // ── 删除 ──────────────────────────────────────────────────────────────────
+ describe('删除智能视图', () => {
+   it('点 more → 删除项 → 确认弹窗出现', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7 })])
+     await w.find('[data-test="sv-more-toggle"]').trigger('click')
+     await w.find('[data-test="sv-more-delete"]').trigger('click')
+     expect(w.find('[data-test="sv-confirm-scrim"]').exists()).toBe(true)
+   })
+ 
+@@ -1072,40 +1168,40 @@ describe('两段照片网格', () => {
+     const tile = w.find('[data-test="sv-recent-tile"]')
+     expect(tile.find('.new-tag').exists()).toBe(true)
+     await tile.trigger('click')
+     await w.vm.$nextTick()
+     expect(tile.find('.new-tag').exists()).toBe(false)
+   })
+ })
+ 
+ // ── 浮层 ──────────────────────────────────────────────────────────────────
+ describe('浮层:菜单同开 + Esc + 点外部关闭', () => {
+-  it('先开 export 再开 more,一次 Esc 两者都关', async () => {
++  // Re-homed (Task 7): was '先开 export 再开 more,一次 Esc 两者都关'. The export menu no
++  // longer exists as an independent overlay -- ZIP is now inside the unified more menu. The
++  // invariant this test guards (multiple independent `if`s in onDocumentKeydown, never an
++  // early return, so one Escape closes every open overlay) still needs two *independent*
++  // overlays to be meaningful; the sort menu and the more menu are the pair left on this page.
++  it('opens the sort menu then the more menu, and one Escape closes both', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+     await w.find('[data-test="sv-more-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
+     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
+     await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+     await w.vm.$nextTick()
+-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
+   })
+ 
+-  it('点菜单外部(mousedown,bubbles:true)→ 关闭', async () => {
+-    const { w } = await mountView('7', [makeSv({ id: 7 })])
+-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
+-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+-    await w.vm.$nextTick()
+-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+-  })
++  // '点菜单外部(mousedown,bubbles:true)→ 关闭' (used to read sv-export-toggle/sv-export-menu)
++  // is superseded by "SP15-P2c Task 7" describe block's own "still closes the menu on an
++  // outside click" -- identical mechanism, same assertion, sv-more-toggle/sv-more-menu instead.
+ })
+ 
+ // ── 非颜色视觉属性:先锚定规则体、再断言属性(全文件级 toContain 恒真,不算断言)──
+ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', () => {
+   it('.sv-grid-photos-recent 保留 Vue2 :136 内联的 padding-bottom:18px(全部匹配段没有这条)', () => {
+     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos-recent')
+     expect(rule).toBeDefined()
+     expect(rule?.body).toContain('padding-bottom: 18px')
+   })
+@@ -1166,28 +1262,29 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)',
+   it('.sv-grid-photos .tile.recent::after 保留 Vue2 的 inset box-shadow', () => {
+     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
+     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-grid-photos .tile.recent::after')
+     expect(rule).toBeDefined()
+     expect(rule?.body).toContain('box-shadow: inset 0 0 0 2px')
+   })
+ })
+ 
+ // fix round 1 · I2(菜单/弹窗真的套了 <Transition>,不是样式定义了但模板没用上)────
+ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是样式块躺尸)', () => {
+-  it('导出菜单 / more 菜单 的 data-test 标记都出现在 <Transition name="sv-menu"> 与其配对的 </Transition> 之间', () => {
+-    // 用配对计数而不是简单 indexOf 区间——模板里有两个 sv-menu Transition,分别包导出菜单与
+-    // more 菜单,逐个核对各自的 data-test 落在“离它最近的那对 sv-menu 开闭标签”之间。
++  // Re-homed (Task 7): the export menu's own <Transition name="sv-menu"> is gone along with
++  // the button that opened it, leaving exactly one -- the unified more menu's. The target
++  // (33b05636 :78) wraps its own merged menu in <transition name="sv-menu"> too, so the wrapper
++  // itself is 1:1 with Vue2; only the *count* here (one, not two) is New-UI-specific fallout
++  // from Task 6 having parked two separate menus that Task 7 then merged into one.
++  it('the more menu\'s data-test marker sits inside its <Transition name="sv-menu"> pair', () => {
+     const menuBlocks = [...photosSmartViewDetailRaw.matchAll(/<Transition name="sv-menu">([\s\S]*?)<\/Transition>/g)]
+-    expect(menuBlocks.length).toBe(2)
+-    const combined = menuBlocks.map((m) => m[1]).join('\n')
+-    expect(combined).toContain('data-test="sv-export-menu"')
+-    expect(combined).toContain('data-test="sv-more-menu"')
++    expect(menuBlocks.length).toBe(1)
++    expect(menuBlocks[0][1]).toContain('data-test="sv-more-menu"')
+   })
+ 
+   it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {
+     const m = /<Transition name="sv-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
+     expect(m).not.toBeNull()
+     expect(m![1]).toContain('data-test="sv-confirm-scrim"')
+   })
+ })
+ 
+ // ── cssCascade:hover 归属变体 ─────────────────────────────────────────────

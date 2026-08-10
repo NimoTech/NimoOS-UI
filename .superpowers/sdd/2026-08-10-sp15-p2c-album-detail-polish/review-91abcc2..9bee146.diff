@@ -1,0 +1,238 @@
+# Review package: 91abcc2..9bee146
+
+## Commits
+9bee146 fix(photos): match the album page's short Convert/Delete menu copy
+
+## Files changed
+ .../task-7-report.md                               | 105 +++++++++++++++++++++
+ src/views/PhotosSmartViewDetail.vue                |  34 ++++++-
+ src/views/__tests__/PhotosSmartViewDetail.test.ts  |  14 +++
+ 3 files changed, 151 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md
+index f990fde..1250d00 100644
+--- a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md
++++ b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-7-report.md
+@@ -187,10 +187,115 @@ brief's own required test) + 6 (brief's 6 required tests) = 1200. Matches the ob
+ - `PhotosAlbumDetail.vue`'s own more-menu does **not** wrap its menu in `<Transition
+   name="sv-menu">`, while the Vue2 target and this page (after this task) both do. This is a
+   divergence between the two "matching" detail pages that pre-dates this task (Task 5's own
+   choice, unexplained in its comments) and is now slightly more visible because this task
+   explicitly registered the target's transition as the tie-breaker. Not fixed here — out of this
+   task's file scope — but flagged for whoever next touches the album page's menu.
+ - `.sv-action-btn-primary` and its dedicated hover-cascade test are now dead code (their only
+   template consumer, the Export button, is deleted). Left in place and flagged in a comment,
+   matching this phase's existing posture on i18n orphans, but it is still dead code sitting in
+   the file until someone sweeps it.
++
++---
++
++## Fix round 1 (coordinator review, Important)
++
++**Finding**: two of the five menu titles were not the target's shortened copy. The target
++(33b05636 :210/:218, confirmed against `src/assets/lang/zh_CN.json`) shortened both Convert and
++Delete's titles specifically so this page's menu and `PhotosAlbumDetail.vue`'s menu (Task 5)
++read the same word for the same row — that page already uses the target's short copy
++(`photosAlbumMenuConvert` = 转换, `photosDelete` = 删除), while this page's own two entries were
++still using the long-form keys Task 8 wrote before this page had a sibling to match against
++(`photosSvConvertToAlbum` = 转为普通相册, `photosSvDeleteSmartView` = 删除智能视图).
++
++**Fix**: `src/views/PhotosSmartViewDetail.vue`'s Convert menu entry now reads
++`t('photosAlbumMenuConvert')`; the Delete menu entry now reads `t('photosDelete')` — reusing the
++album page's own keys rather than coining new ones, since both already carry the target's exact
++short copy and `photosDelete` was already this page's own delete-*confirmation* button's key
++(so the same word is now used twice on this page, not introduced fresh). No new i18n keys.
++
++**What did NOT change, and why**:
++- The confirm dialog's own submit button (further down the same file) still reads
++  `t('photosSvConvertToAlbum')` unchanged. It predates this task (SP15-P2b Task 8), is not one
++  of the two menu rows the reviewer flagged, and the target gives that button the same short
++  "Convert" copy too — revisiting it is a separate cleanup, out of this fix's scope.
++- `photosSvConvertToAlbum` and `photosSvDeleteSmartView` are left in `zh_cn.ts`/`en_us.ts`,
++  unused by the menu now, per Task 11's orphan sweep convention (not touched here).
++
++**Judgement call, recorded**: the Convert entry's *desc* is left as
++`photosSvConvertToAlbumHint` ("停止自动更新，固化当前已匹配的照片") rather than realigned to
++the target's shorter "停止自动更新,固化当前照片". Reasoning: semantically identical (both say
++"stop auto-updates, freeze the matched/current photos"); it was a deliberate registration made
++back in SP15-P2b when this entry was first written, before this task's cross-page-parity
++question existed; and the target's own commit that shortened the *titles* left the *descs*
++alone in both pages (the reviewer's own message confirms this: "The descs stay as they are —
++only the titles were shortened"). Realigning a semantically-equivalent desc for a wording
++difference with no visible parity gap would be scope creep onto a different task's already-
++reviewed decision. Left as-is, registered here rather than changed silently.
++
++**Copy assertion added**: extended `renders exactly five menu entries in the target order`
++(the same test the brief required) with a second assertion — each entry's `.sv-export-title`
++text, in order, against `zh.photosSvRename`/`zh.photosSvDuplicate`/`zh.photosFavExport`/
++`zh.photosAlbumMenuConvert`/`zh.photosDelete`. This is the gate the reviewer asked for: the
++previous version only pinned `data-test` ids, which says nothing about rendered copy — exactly
++how the drift went undetected.
++
++**Mutation check**: reverted the Delete entry's title back to `t('photosSvDeleteSmartView')`
++and re-ran the extended test in isolation:
++
++```
++$ pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts -t "renders exactly five menu entries"
++AssertionError: expected [ '重命名', '复制', '下载为 ZIP', '转换', …(1) ] to deeply equal [ '重命名', '复制', '下载为 ZIP', '转换', '删除' ]
++  [
++    "重命名", "复制", "下载为 ZIP", "转换",
++-   "删除",
+++   "删除智能视图",
++  ]
++ Tests  1 failed | 92 skipped (93)
++```
++
++RED as expected. Reverted the mutation; re-ran the full targeted suite to confirm clean GREEN.
++
++**Covering tests**: `renders exactly five menu entries in the target order` (extended, the one
++that now catches this class of drift) and the pre-existing `does not dismiss the confirmation
++mid-flight` / convert-flow tests (unaffected — they exercise the confirm dialog's own button,
++not the menu entry, and that button's key was not touched).
++
++**Command and output** (foreground, exact commands from the coordinator's message):
++
++```
++$ pnpm exec vitest run src/views/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/i18n/parity.test.ts src/styles
++ Test Files  6 passed (6)
++      Tests  1107 passed (1107)
++```
++
++Note: this literal path (`src/views/PhotosSmartViewDetail.test.ts`) does not exist — the main
++test file lives at `src/views/__tests__/PhotosSmartViewDetail.test.ts` (as it has since before
++this task; vitest silently drops a pattern that matches nothing rather than erroring, which is
++why this still reports a clean pass at a lower count). Re-ran with the correct path to actually
++exercise the fix:
++
++```
++$ pnpm exec vitest run src/views/__tests__/PhotosSmartViewDetail.test.ts src/views/PhotosSmartViewDetail.assets.test.ts src/i18n/parity.test.ts src/styles
++ Test Files  7 passed (7)
++      Tests  1200 passed (1200)
++```
++
++```
++$ pnpm exec vue-tsc --noEmit
++(no output — clean)
++```
++
++## Also found, for the report only (not fixed this round, per instruction)
++
++Logged, left untouched:
++- `ExportToast.icon`'s `'plus'` member (`:370` at time of review) and its `v-else` plus-glyph SVG
++  are unreachable (both remaining callers pass `'download'`).
++- The main test file still declares/resets `svc.photos.exportSmartViewAlbum`, which nothing
++  calls.
++- `.sv-action-btn-primary` and its hover-cascade test now guard a rule/assert a selector with no
++  consumer in this SFC; the test's own title still says 导出主按钮 (a button that no longer
++  exists). Task 11 should delete the rule and the test together.
++- `duplicateSv` awaits `store.duplicateSmartView`, which no-ops on re-entry without throwing, so
++  a second Duplicate click inside the request window shows a success toast for a copy that was
++  never made. Pre-existing; this page already guards the same shape for `pinAssets`/
++  `removeAssets`. Ticketed, not folded into this task.
+diff --git a/src/views/PhotosSmartViewDetail.vue b/src/views/PhotosSmartViewDetail.vue
+index 5983293..91b5af1 100644
+--- a/src/views/PhotosSmartViewDetail.vue
++++ b/src/views/PhotosSmartViewDetail.vue
+@@ -991,30 +991,60 @@ async function onExcludedTileClick(id: string): Promise<void> {
+                       <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
+                     </div>
+                   </button>
+                   <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate/zip
+                        above the destructive separator, not beside Delete -- this is not a
+                        destructive action, it freezes the current matches into a regular
+                        album. -->
+                   <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
+                     <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+                     <div>
+-                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
++                      <!-- Task 7 review fix: the target shortened both this title and Delete's
++                           below specifically so the two "matching" detail pages' menus read the
++                           same (33b05636 :143-147's own comment on the change). This entry used
++                           `photosSvConvertToAlbum` ("转为普通相册"), the long form Task 8 wrote
++                           before this page had a sibling to match against -- the album page's
++                           own Convert entry (Task 5) already reuses `photosAlbumMenuConvert`
++                           ("转换", the target's exact short copy), so this switches to the same
++                           key rather than coining a new SV-specific one. The confirm dialog's
++                           own submit button (further down this file) still reads
++                           `photosSvConvertToAlbum` unchanged -- that button predates this task,
++                           is not one of the two rows the reviewer flagged, and the target itself
++                           gives it the same short "Convert" copy too, so revisiting it is a
++                           separate, larger cleanup outside this fix's scope. -->
++                      <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
++                      <!-- Desc intentionally NOT realigned to the target's shorter
++                           "停止自动更新,固化当前照片": `photosSvConvertToAlbumHint`
++                           ("停止自动更新，固化当前已匹配的照片") is semantically identical and
++                           was a deliberate registration back in SP15-P2b (this page's Convert
++                           entry existed before this task). Only the two titles were shortened
++                           in the target's own commit for cross-page parity; the descs were
++                           left alone there too ("Vue2 :119-123 三处内联的那个珊瑚红字面量" note
++                           below shows Vue2 continuing to carry its own full desc copy
++                           unchanged). Realigning this desc now would be scope creep onto a
++                           different task's registered decision for a wording difference with
++                           no user-visible parity gap -- recorded here rather than changed. -->
+                       <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
+                     </div>
+                   </button>
+                   <div class="sv-export-sep" />
+                   <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
+                   <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
+                     <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+                     <div>
+-                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
++                      <!-- Task 7 review fix: same reasoning as Convert above -- the target
++                           shortened this to plain "Delete" ("删除") for cross-page parity.
++                           `photosDelete` already carries exactly that copy and is already the
++                           key this page's own delete-confirmation button uses (below), so no
++                           new key is needed; `photosSvDeleteSmartView` ("删除智能视图") is left
++                           in place, unused by this entry now, for Task 11's orphan sweep. -->
++                      <div class="sv-export-title">{{ t('photosDelete') }}</div>
+                       <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
+                     </div>
+                   </button>
+                 </div>
+                 </Transition>
+               </div>
+             </div>
+ 
+             <SmartViewSidePanel :sv="sv" :busy="store.patchBusy" @patch="onSidePatch" />
+             <SmartViewActivityFeed :activity="store.activity" />
+diff --git a/src/views/__tests__/PhotosSmartViewDetail.test.ts b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+index e69c412..6ba7a42 100644
+--- a/src/views/__tests__/PhotosSmartViewDetail.test.ts
++++ b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+@@ -767,20 +767,34 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
+     await w.vm.$nextTick()
+     const items = w.find('[data-test="sv-more-menu"]').findAll('.sv-export-item')
+     expect(items).toHaveLength(5)
+     expect(items.map((i) => i.attributes('data-test'))).toEqual([
+       'sv-more-rename',
+       'sv-more-duplicate',
+       'sv-more-zip',
+       'sv-more-convert',
+       'sv-more-delete',
+     ])
++    // Review fix: the previous version of this test only pinned the `data-test` order, which
++    // says nothing about the rendered copy -- exactly how the Convert/Delete titles drifted
++    // from the target's own shortened copy (33b05636 :143-147's own "shortened so the two
++    // pages read the same" comment) without any gate catching it, until a human read the diff.
++    // Titles here must match the target's short-form copy (verified against
++    // 33b05636:src/assets/lang/zh_CN.json's `Convert`/`Delete` entries: 转换/删除); descs are
++    // deliberately excluded -- only the titles were shortened in the target's own change.
++    expect(items.map((i) => i.find('.sv-export-title').text())).toEqual([
++      zh.photosSvRename,
++      zh.photosSvDuplicate,
++      zh.photosFavExport,
++      zh.photosAlbumMenuConvert,
++      zh.photosDelete,
++    ])
+   })
+ 
+   it('no longer renders a separate export section in the menu', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7 })])
+     expect(w.find('[data-test="sv-export-toggle"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+     await w.find('[data-test="sv-more-toggle"]').trigger('click')
+     // "Save as static album" is a deleted capability, not something that moved -- see the
+     // describe block's own header comment.
+     expect(w.find('[data-test="sv-export-album"]').exists()).toBe(false)
