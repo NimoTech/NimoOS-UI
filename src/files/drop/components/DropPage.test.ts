@@ -64,6 +64,23 @@ describe('DropPage', () => {
     expect(w.findAllComponents({ name: 'DropItem' }).length).toBe(2)
     expect(w.text()).toContain('Pad')
   })
+  it('tells the store which kind of stop each device event is', async () => {
+    // Both events land on cancelTransfer, but only the menu item is the user
+    // choosing to stop. A watchdog stall has to arrive as 'timeout' or the toast
+    // tells the user they cancelled something they did not touch.
+    const s = useDropStore()
+    s.peers.push({ id: 'b', name: { model: 'tablet', deviceName: 'd', displayName: 'Pad' }, rtcSupported: true })
+    const calls: unknown[][] = []
+    s.cancelTransfer = (...args: unknown[]) => { calls.push(args) }
+    const w = mountPage()
+    await flushPromises()
+    const item = w.findComponent({ name: 'DropItem' })
+
+    item.vm.$emit('cancel-transfer')
+    item.vm.$emit('transfer-stalled')
+
+    expect(calls).toEqual([['b'], ['b', 'timeout']])
+  })
   it('侧栏 @navigate 事件跳转到目标路径', async () => {
     const w = mount(DropPage, {
       global: {

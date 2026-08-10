@@ -207,11 +207,15 @@ export class Peer {
    *  sendJSON on a dead channel routes into handleDisconnect(), which reports
    *  and resets on its own -- doing that while this transfer still looked
    *  active produced two "transfer broken" toasts for one click. Sending last
-   *  means handleDisconnect finds nothing in flight and stays quiet. */
-  cancelTransfer(): void {
+   *  means handleDisconnect finds nothing in flight and stays quiet.
+   *
+   *  `reason` only changes what this side reports; the wire message is the same
+   *  either way. The stall watchdog uses this same path but is not the user
+   *  choosing to stop, so it passes 'timeout' and gets the interrupted wording. */
+  cancelTransfer(reason: TransferBrokenReason = 'cancelled'): void {
     if (!this.hasActiveTransfer()) return
     this.resetTransferState()
-    this.events.onTransferBroken({ peerId: this._peerId, reason: 'cancelled' })
+    this.events.onTransferBroken({ peerId: this._peerId, reason })
     this.sendJSON({ type: 'transfer-cancel' })
   }
 

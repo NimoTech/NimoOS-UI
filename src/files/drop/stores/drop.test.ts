@@ -163,11 +163,15 @@ describe('useDropStore', () => {
     ])
   })
 
-  it('cancelTransfer forwards the peerId to the manager', () => {
+  it('cancelTransfer forwards the peerId and the reason to the manager', () => {
     const s = useDropStore()
     s.init()
     s.cancelTransfer('peer-x')
-    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-x')
+    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-x', undefined)
+    // The stall watchdog's stop is not a user cancellation, and the reason has
+    // to survive the trip to the peer for the toast to say so.
+    s.cancelTransfer('peer-y', 'timeout')
+    expect(h.pmCancelTransfer).toHaveBeenCalledWith('peer-y', 'timeout')
   })
   it('cancelTransfer is a no-op before init (no manager yet)', () => {
     const s = useDropStore()

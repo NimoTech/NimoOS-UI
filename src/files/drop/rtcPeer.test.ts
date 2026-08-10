@@ -523,6 +523,21 @@ describe('Peer cancellation', () => {
     expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'cancelled' })
   })
 
+  it('can report the stop under a different reason while sending the same message', async () => {
+    // The stall watchdog stops a transfer through this same method, but nobody
+    // chose to stop it -- so it must not be reported as a user cancellation. The
+    // peer on the other end still gets the identical transfer-cancel.
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    p.sendFiles([new File([new Uint8Array(10)], 'x')], 'self1')
+    await vi.waitFor(() => expect(p.hasActiveTransfer()).toBe(true))
+
+    p.cancelTransfer('timeout')
+
+    expect(jsonOut(p).some((m) => m.type === 'transfer-cancel')).toBe(true)
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'timeout' })
+  })
+
   it('does nothing at all when there is no transfer to cancel', () => {
     const ev = makeEvents()
     const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)

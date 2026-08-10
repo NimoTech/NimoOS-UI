@@ -120,7 +120,7 @@ onBeforeUnmount(() => {
             :suspended="!drop.connected"
             @select-files="(files) => drop.sendFiles(p.peer.id, files)"
             @cancel-transfer="drop.cancelTransfer(p.peer.id)"
-            @transfer-stalled="drop.cancelTransfer(p.peer.id)"
+            @transfer-stalled="drop.cancelTransfer(p.peer.id, 'timeout')"
           />
         </div>
         <DropCenter v-if="!isNarrow" />

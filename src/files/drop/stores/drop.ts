@@ -4,7 +4,7 @@ import { ref } from 'vue'
 import { refreshAccessToken } from '@nimotech/nimoos-service'
 import { ServerConnection } from '../serverConnection'
 import { PeersManager } from '../peersManager'
-import type { PeerInfo, ReceivedFile, ServerMessage } from '../protocol'
+import type { PeerInfo, ReceivedFile, ServerMessage, TransferBrokenReason } from '../protocol'
 import { useToast } from '../../../stores/toast'
 import { i18n } from '../../../i18n'
 
@@ -153,8 +153,10 @@ export const useDropStore = defineStore('drop', () => {
     return manager?.hasActiveTransfers() ?? false
   }
 
-  function cancelTransfer(peerId: string): void {
-    manager?.cancelTransfer(peerId)
+  // `reason` decides the toast wording: the stall watchdog passes 'timeout'
+  // because nobody chose to stop, a menu click leaves it at the default.
+  function cancelTransfer(peerId: string, reason?: TransferBrokenReason): void {
+    manager?.cancelTransfer(peerId, reason)
   }
 
   return {
