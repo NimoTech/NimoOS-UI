@@ -26,6 +26,11 @@ export class Peer {
   private lastProgress = 0
   private incomingFrom = ''
   private ackTimer: ReturnType<typeof setTimeout> | null = null
+  // Offset of the partition whose acknowledgement we are currently waiting for,
+  // or null when we are waiting for none. An ack that does not match it belongs
+  // to a partition that is already history and must be ignored -- see the
+  // `partition-received` branch.
+  private pendingAckOffset: number | null = null
 
   constructor(protected signal: SignalChannel, peerId: string | null, protected events: PeerEvents) {
     this._peerId = peerId ?? ''
@@ -54,7 +59,11 @@ export class Peer {
     this.chunker = new FileChunker(
       file,
       (chunk) => this.sendRaw(chunk),
-      (offset) => { this.sendJSON({ type: 'partition', offset }); this.armAck() },
+      (offset) => {
+        this.sendJSON({ type: 'partition', offset })
+        this.pendingAckOffset = offset
+        this.armAck()
+      },
     )
     this.chunker.nextPartition()
   }
@@ -69,14 +78,24 @@ export class Peer {
       case 'header': this.onFileHeader(msg); break
       case 'partition': this.sendJSON({ type: 'partition-received', offset: msg.offset }); break
       case 'partition-received':
+        // An ack only counts for the partition we are actually waiting on.
+        // "A non-null chunker means a send is in flight" was the earlier guard
+        // and it is false: the wire order at the end of a file is always
+        // transfer-complete FIRST (the receiver completes on the last chunk),
+        // trailing partition-received SECOND, so every successful send used to
+        // be followed by a stray ack. That ack then either armed a 30s timer on
+        // an idle peer (which later killed the next INCOMING transfer) or, when
+        // a second queued file had already started, drove nextPartition() on
+        // the WRONG chunker mid-read (InvalidStateError + broken flow control).
+        // Matching the offset makes the ack belong to a specific partition, so
+        // both go away.
+        if (this.pendingAckOffset === null || msg.offset !== this.pendingAckOffset) break
+        this.pendingAckOffset = null
         this.clearAck()
         if (this.chunker && !this.chunker.isFileEnd()) this.chunker.nextPartition()
         // Last partition acknowledged: now we are waiting for the receiver to
-        // finish assembling and say transfer-complete. Same bound applies --
-        // but only when there is actually a chunker: a stray/duplicate ack
-        // (post-reset re-dial, or a chunker whose abort() raced onPartitionEnd)
-        // must not arm a timer that later kills an unrelated transfer.
-        else if (this.chunker) this.armAck()
+        // finish assembling and say transfer-complete. Same bound applies.
+        else this.armAck()
         break
       case 'progress': this.onDownloadProgress(msg.progress); break
       case 'transfer-complete': this.clearAck(); this.onTransferCompleted(); break
@@ -139,6 +158,12 @@ export class Peer {
   private onTransferCompleted(): void {
     this.onDownloadProgress(1)
     this.busy = false
+    // The finished file's chunker (and the ack offset it was waiting on) must go
+    // before dequeueFile() installs the next one -- otherwise the trailing
+    // partition-received of the file that just completed lands on state
+    // belonging to the file that just started.
+    this.chunker = null
+    this.pendingAckOffset = null
     this.dequeueFile()
     this.events.onTransferComplete()
   }
@@ -196,6 +221,7 @@ export class Peer {
     // alone does not stop stale chunks from continuing onto the wire.
     this.chunker?.abort()
     this.chunker = null
+    this.pendingAckOffset = null
     this.digester = null
     this.filesQueue = []
     this.files = []

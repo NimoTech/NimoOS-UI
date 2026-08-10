@@ -288,6 +288,15 @@ describe('Peer send-side timeouts', () => {
     }
   })
 
+  // ── The real end-of-file wire order ──────────────────────────────────────
+  // The two tests below used to feed `partition-received` BEFORE
+  // `transfer-complete`, an order the protocol cannot produce: the receiver
+  // completes on the last *chunk* and only then reads the trailing `partition`
+  // message, so over an ordered channel `transfer-complete` always goes out
+  // first and the final ack trails it. Fed the impossible order, both tests
+  // passed against code that leaked a 30s timer onto every successful send --
+  // they certified the bug they were written to catch. They now use the real
+  // order.
   it('clears the timer on transfer-complete so a finished send never reports a timeout', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
@@ -296,8 +305,8 @@ describe('Peer send-side timeouts', () => {
       const file = new File([new Uint8Array(10)], 'small.bin')
       p.sendFiles([file], 'self1')
       await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
-      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
       p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
 
       // Check the timer handle directly, not just the absence of a report:
       // onTransferCompleted() already sets busy=false, so a leaked timer
@@ -313,6 +322,10 @@ describe('Peer send-side timeouts', () => {
       // one. The test right after this one shows what that firing can do to
       // an unrelated later transfer.
       expect((p as unknown as { ackTimer: unknown }).ackTimer).toBeNull()
+      // Postcondition of the other half of the fix: a completed send releases
+      // its chunker, so nothing that arrives later can be mistaken for that
+      // send still being in flight.
+      expect((p as unknown as { chunker: unknown }).chunker).toBeNull()
 
       vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
 
@@ -334,8 +347,8 @@ describe('Peer send-side timeouts', () => {
       const file = new File([new Uint8Array(10)], 'small.bin')
       p.sendFiles([file], 'self1')
       await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
-      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
       p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
 
       // A healthy, unrelated incoming transfer starts afterwards and is
       // still in flight (well short of size and below PROGRESS_NOTIFY_STEP,
@@ -349,6 +362,56 @@ describe('Peer send-side timeouts', () => {
 
       expect(ev.onTransferBroken).not.toHaveBeenCalled()
       expect(p.hasActiveTransfer()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let a finished file\'s trailing acknowledgement derail the next file in the queue', async () => {
+    const ev = makeEvents()
+    const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+    const first = new File([new Uint8Array(10)], 'first.bin')
+    // Spans two partitions so it is still mid-read when the stale ack lands.
+    const second = new File([new Uint8Array(1100000)], 'second.bin')
+    p.sendFiles([first, second], 'self1')
+    await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition' && m.offset === 10)).toBe(true))
+
+    // Both messages arrive in the same batch of channel.onmessage callbacks, so
+    // no await in between: transfer-complete synchronously dequeues second.bin
+    // and starts its first FileReader read, and the trailing ack for first.bin
+    // then lands with that read still in flight.
+    p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+    expect(jsonOut(p).filter((m) => m.type === 'header').length).toBe(2)
+    expect(() =>
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 })),
+    ).not.toThrow() // pre-fix: nextPartition() on a reading FileReader -> InvalidStateError
+
+    // second.bin keeps its own flow control: 16 x 64000 = 1024000 >= 1 MB.
+    await vi.waitFor(() =>
+      expect(jsonOut(p).some((m) => m.type === 'partition' && m.offset === 1024000)).toBe(true),
+    )
+  })
+
+  it('cancels the previous partition timer the moment its acknowledgement arrives', async () => {
+    // The leading clearAck() in the partition-received branch is what does
+    // this. Without it the previous partition's 30s handle stays live for the
+    // whole of the next partition's read; armAck() only replaces it once that
+    // read ends, so a read slower than the timeout would kill a healthy send.
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(1100000)], 'a.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'partition').length).toBe(1))
+      expect((p as unknown as { ackTimer: unknown }).ackTimer).not.toBeNull()
+
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 1024000 }))
+
+      // Synchronously after the ack the next partition's read has only just
+      // started, so nothing has re-armed yet -- any handle still sitting here
+      // is the previous partition's.
+      expect((p as unknown as { ackTimer: unknown }).ackTimer).toBeNull()
     } finally {
       vi.useRealTimers()
     }
@@ -464,6 +527,12 @@ describe('RTCPeer close() resets transfer state', () => {
       )
 
       p.close()
+
+      // Positive postconditions, not only "nobody complained": the absence of a
+      // report is also what a peer that never armed anything looks like, so
+      // assert the state close() is responsible for.
+      expect((p as unknown as { ackTimer: unknown }).ackTimer).toBeNull()
+      expect(p.hasActiveTransfer()).toBe(false)
 
       vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
 
