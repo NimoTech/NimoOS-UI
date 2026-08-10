@@ -25,3 +25,14 @@ export function opsTaskLabelKey(task: FileTask): string {
 export function opsTaskBasename(path: string): string {
   return path.split('/').filter(Boolean).pop() || path
 }
+
+/**
+ * i18n key for the upload panel header. Mixed state deliberately shows the
+ * uploading header (matches Vue2): uploads carry bytes the user would lose on
+ * navigation, file operations run server-side and survive it.
+ */
+export function resolveUploaderHeader(counts: { uploadCount: number; opsCount: number }): string {
+  if (counts.uploadCount > 0) return 'filesUploadHeaderUploading'
+  if (counts.opsCount > 0) return 'filesUploadHeaderProcessing'
+  return 'filesUploadTitle'
+}

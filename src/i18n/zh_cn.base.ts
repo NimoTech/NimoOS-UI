@@ -93,6 +93,8 @@ export default {
   filesCtxSetWallpaper: '设为壁纸',
   filesUpload: '上传',
   filesUploadTitle: '上传',
+  filesUploadHeaderUploading: '正在上传',
+  filesUploadHeaderProcessing: '正在处理文件',
   filesUploadTo: '上传到 {name}',
   filesUploadDrop: '拖放文件到此处上传',
   filesUploadClearDone: '清除已完成',

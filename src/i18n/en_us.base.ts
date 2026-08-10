@@ -93,6 +93,8 @@ export default {
   filesCtxSetWallpaper: 'Set as wallpaper',
   filesUpload: 'Upload',
   filesUploadTitle: 'Upload',
+  filesUploadHeaderUploading: 'Uploading',
+  filesUploadHeaderProcessing: 'Processing files',
   filesUploadTo: 'Upload to {name}',
   filesUploadDrop: 'Drop files here to upload',
   filesUploadClearDone: 'Clear completed',

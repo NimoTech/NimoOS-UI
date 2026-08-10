@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { opsTaskPercent, opsTaskLabelKey, opsTaskBasename } from './opsRow'
+import { opsTaskPercent, opsTaskLabelKey, opsTaskBasename, resolveUploaderHeader } from './opsRow'
 import type { FileTask } from './fileOps'
+import zh from '../../i18n/zh_cn'
+import en from '../../i18n/en_us'
 
 function task(over: Partial<FileTask> = {}): FileTask {
   return {
@@ -54,5 +56,35 @@ describe('opsTaskBasename', () => {
   it('returns the input unchanged when there is no separator to strip', () => {
     expect(opsTaskBasename('report.pdf')).toBe('report.pdf')
     expect(opsTaskBasename('')).toBe('')
+  })
+})
+
+describe('resolveUploaderHeader', () => {
+  it('shows the uploading header whenever an upload is in flight', () => {
+    expect(resolveUploaderHeader({ uploadCount: 3, opsCount: 0 })).toBe('filesUploadHeaderUploading')
+  })
+
+  it('prefers uploading over processing when both are running', () => {
+    expect(resolveUploaderHeader({ uploadCount: 1, opsCount: 5 })).toBe('filesUploadHeaderUploading')
+  })
+
+  it('shows the processing header when only file operations are running', () => {
+    expect(resolveUploaderHeader({ uploadCount: 0, opsCount: 2 })).toBe('filesUploadHeaderProcessing')
+  })
+
+  it('falls back to the plain title when nothing is running', () => {
+    expect(resolveUploaderHeader({ uploadCount: 0, opsCount: 0 })).toBe('filesUploadTitle')
+  })
+
+  it('resolves every header key it can return in both locales', () => {
+    const keys = [
+      resolveUploaderHeader({ uploadCount: 1, opsCount: 0 }),
+      resolveUploaderHeader({ uploadCount: 0, opsCount: 1 }),
+      resolveUploaderHeader({ uploadCount: 0, opsCount: 0 }),
+    ]
+    for (const k of keys) {
+      expect(zh[k as keyof typeof zh]).toBeTruthy()
+      expect(en[k as keyof typeof en]).toBeTruthy()
+    }
   })
 })
