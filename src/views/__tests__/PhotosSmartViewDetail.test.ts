@@ -1400,16 +1400,10 @@ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是
 
 // ── cssCascade:hover 归属变体 ─────────────────────────────────────────────
 describe('样式:hover 级联归属变体', () => {
-  it('.sv-action-btn / .sv-action-btn-primary(导出主按钮)hover 胜出规则含 :hover 且归属变体', () => {
-    const style = extractStyleBlock(photosSmartViewDetailRaw)
-    const win = winningHoverBackground(style, ['sv-action-btn', 'sv-action-btn-primary'])
-    expect(win.selector).toContain(':hover')
-    expect(win.selector).toContain('sv-action-btn-primary')
-    // fix round 1(评审折中方案):必须是真实优先级 3(复合选择器 `.a.b:hover`)取胜,不是
-    // 优先级打平后靠源码顺序苟活——specificity===3 才说明两个类都算进了同一条选择器里
-    // (单类 `.sv-action-btn-primary:hover` 只会算出 2,与基类同级)。
-    expect(win.specificity).toBe(3)
-  })
+  // Task 11 (c): the `.sv-action-btn-primary` cascade regression that used to open this block is
+  // gone with the rule it guarded -- Task 7 folded the Export button (the class's only consumer)
+  // into the unified "..." menu, so the selector this test queried no longer exists on the page.
+  // The same variant, and the same regression, still live on PhotosMomentDetail.test.ts:874-880.
 
   it('.sv-export-item / .sv-export-item-danger(删除项)hover 胜出规则含 :hover 且归属变体', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)

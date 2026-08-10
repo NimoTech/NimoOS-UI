@@ -1059,8 +1059,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
                            shortened this to plain "Delete" ("删除") for cross-page parity.
                            `photosDelete` already carries exactly that copy and is already the
                            key this page's own delete-confirmation button uses (below), so no
-                           new key is needed; `photosSvDeleteSmartView` ("删除智能视图") is left
-                           in place, unused by this entry now, for Task 11's orphan sweep. -->
+                           new key is needed; `photosSvDeleteSmartView` ("删除智能视图") lost its
+                           last consumer here and Task 11's orphan sweep removed it. -->
                       <div class="sv-export-title">{{ t('photosDelete') }}</div>
                       <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
                     </div>
@@ -1301,24 +1301,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
 .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
-/* fix round 1(评审折中方案,控制器裁定):Vue2 `[data-primary="true"]` 是渐变
-   `linear-gradient(135deg, accent, accent-hi)`——本仓没有 `--accent-hi`(全局约定 §33),
-   改成 `var(--accent)` 实底 + hover `filter: brightness(1.08)`,先例见
-   `PhotosPersonDetail.vue:1142`/`ClusterActionDialog.vue:331-332` 等。DOM 上仍保留
-   `data-primary="true"` 属性(与 Vue2 一致),但样式选择器改用伴生类
-   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。
-   Task 7 note: the Export button that carried this class and `data-primary="true"` is deleted
-   (see the component's own comment on the merge into the unified menu). Nothing in this
-   template's markup uses either any more; left in place rather than pruned, same posture as
-   the i18n orphan-key convention this phase already follows (Task 11's job, not this one's) --
-   flagged here for whoever does that sweep next. */
-.sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
-/* fix round 1(第一版曾用单类 `.sv-action-btn-primary:hover`,被评审判定"更弱"——那与基类
-   `.sv-action-btn:hover` 同为 (0,2,0),平局时只靠书写顺序才不被基类的灰底盖成白底白字,
-   属于本期"hover 硬约束"明确要防的脆弱写法)。改成复合选择器
-   `.sv-action-btn.sv-action-btn-primary:hover`,真实优先级 (0,3,0),结构上稳赢基类的
-   (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
-.sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
+/* Task 11 (c): the `.sv-action-btn-primary` pair that used to live here is gone. Task 7 folded
+   this page's Export button into the unified "..." menu, and that button was the class's only
+   consumer -- no element on this page carries it any more. The identical filled-accent variant
+   still lives on PhotosMomentDetail.vue (:933-934), including its compound-selector hover and
+   the cssCascade regression that guards it; look there for the reasoning that used to sit here. */
 
 /* ── Task 7: sidebar top action row -- rule body restated from PhotosAlbumDetail.vue's own
    `.sv-side-actions` (Task 5; scoped styles do not cross SFCs in this repo). flex-wrap lets a
@@ -1355,11 +1342,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
    `.sv-sort-check` is the fixed-width slot the glyph sits in -- rendered as an empty span when
    the option is not the active one, which is how the target keeps every label at the same x
    (its own version writes `style="width:12px;display:inline-block"` inline). Vue2 tints the
-   glyph with --accent-hi, a token this repo does not have (see .sv-action-btn-primary above);
+   glyph with --accent-hi, a token this repo does not have (global convention: no --accent-hi);
    --accent-text is the pair this file's own .sv-export-icon already uses against --accent-soft. */
 .sv-sort-wrap { position: relative; }
+/* Task 11 (a): min-width is the target's 240px (photos.scss:3126), not the 180px written here first. */
 .sv-sort-menu {
-  position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
+  position: absolute; top: calc(100% + 4px); right: 0; min-width: 240px; z-index: 20;
   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
   padding: 4px; box-shadow: var(--card-shadow-hi);
 }
@@ -1395,8 +1383,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 /* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。 */
 .sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
 .sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
-/* fix round 1:同上 .sv-action-btn-primary 的道理——复合选择器 (0,3,0) 稳赢基类
-   `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
+/* fix round 1:复合选择器 (0,3,0) 稳赢基类 `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
 .sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
 
 /* fix round 1 · I2:Vue2 :79/:102 各包一层 `<transition name="sv-menu">`,规则在
@@ -1578,8 +1565,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
    for Vue2's `trash-btn-cta` (939a7d3a:photos.scss:2203-2213 -- filled accent gradient, light
    text, weight 600; the gradient's literals are replaced by the --accent token per this repo's
    colour rule). Without a modifier this button inherited the base ghost look and was
-   indistinguishable from the Cancel next to it. The hover mirrors .sv-action-btn-primary:hover
-   on this same page. Both selectors below are two-class compounds (0,2,0), so they outrank the
+   indistinguishable from the Cancel next to it. The hover mirrors the filled-accent variant on
+   PhotosMomentDetail.vue:934. Both selectors below are two-class compounds (0,2,0), so they outrank the
    shared `.sv-confirm-cancel, .sv-confirm-ok` base (0,1,0) structurally, not by source order. */
 .sv-confirm-ok.primary { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 600; }
 /* :not(:disabled) rather than a later :disabled override -- CSS applies :hover to disabled
