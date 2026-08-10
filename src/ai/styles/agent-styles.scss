@@ -27,7 +27,19 @@
   // styles.css:110. Without it, browsers paint the default 2px button border
   // and every <button> on the page (composer tools, topbar toggles, sidebar,
   // right-panel tabs) gets an ugly thick outline.
-  button {
+  //
+  // [2026-08-10 leak fix — do NOT revert to a bare `button {`] The Settings
+  // page root carries BOTH `agent-app` (token scope) and `set-app` (layout)
+  // classes. In Vue2 these were two separate page roots, so this reset never
+  // reached the settings page. A bare `button` compiles to `.agent-app button`
+  // (0,1,1), which overrides the flat single-class button styles (0,1,0) in
+  // settings-styles.scss / sk-shared.scss — stripping their padding/background/
+  // border (reported as "huge text in tiny buttons"). `:where()` adds zero
+  // specificity: the compiled selector stays at (0,1,1), so the Agent page
+  // (root has only `agent-app`) behaves byte-for-byte the same, while the
+  // dual-class settings root is excluded — including modals that portal back
+  // into `.set-app` (SkModal etc.). Guarded by agentStyles.test.ts.
+  &:where(:not(.set-app)) button {
     font-family: inherit;
     cursor: pointer;
     border: 0;
