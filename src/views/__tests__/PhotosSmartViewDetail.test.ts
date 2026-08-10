@@ -27,6 +27,12 @@ const svc = vi.hoisted(() => ({
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
+    // Task 7, folded-in finding (d): the page's own onMounted/route watcher calls
+    // store.loadExcluded, which hits this endpoint. `loadExcluded` catches and leaves
+    // `excluded` empty (smartViews.ts:534-547) -- exactly the end state a `[]` mock produces --
+    // so this carries none of getConfig's coupling risk (see the comment on that one below) and
+    // was simply missing. Adding it removes 77 caught-TypeError console.error lines per run.
+    getSmartViewExcluded: vi.fn(),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -128,6 +134,7 @@ beforeEach(() => {
   svc.photos.exportSmartViewAlbum.mockReset()
   svc.photos.exportSmartViewUrl.mockClear()
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
   lbMock.openAt.mockClear()
 })
 afterEach(() => {
@@ -710,16 +717,13 @@ describe('「在搜索中细化」按钮(T16 已接线)', () => {
   })
 })
 
-// ── 导出菜单 / more 菜单 ─────────────────────────────────────────────────
-describe('导出菜单与 more 菜单', () => {
-  it('点导出按钮 → 菜单出现两项(ZIP / 静态相册)', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-zip"]').exists()).toBe(true)
-    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(true)
-  })
-
-  it('点 more 按钮 → 菜单出现三项(重命名 / 复制 / 删除)', async () => {
+// ── more menu (unified into five entries as of Task 7; the Export button/menu is folded in
+//    entirely, see the "SP15-P2c Task 7" describe block below) ─────────────────────────────
+describe('more menu', () => {
+  // Re-homed (Task 7): the old "菜单出现三项(重命名/复制/删除)" case is now a strict subset
+  // of "renders exactly five menu entries in the target order" below, which also pins the
+  // order -- this one stays only because it predates Convert/ZIP and is still true unchanged.
+  it('opens the more menu and shows at least three entries (rename / duplicate / delete)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     expect(w.find('[data-test="sv-more-rename"]').exists()).toBe(true)
@@ -727,10 +731,116 @@ describe('导出菜单与 more 菜单', () => {
     expect(w.find('[data-test="sv-more-delete"]').exists()).toBe(true)
   })
 
+  // Re-homed (Task 7): was '点导出按钮...' + 'photosSvNPhotosMbMb...', reading
+  // sv-export-toggle/sv-export-zip. The export button is gone; ZIP is now the third entry of
+  // the unified menu, reached through sv-more-toggle, and its data-test is sv-more-zip.
   it('photosSvNPhotosMbMb 的 {mb} 在 count=1000 时是千分位 "3,200"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 1000 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-zip"]').text()).toContain('3,200')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    expect(w.find('[data-test="sv-more-zip"]').text()).toContain('3,200')
+  })
+})
+
+// ── SP15-P2c Task 7: sidebar action section + unified five-entry "..." menu ────────────────
+// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:127-225. Refine in Search and
+// the "..." menu move from the header row (where Task 6 parked them) into a new
+// `.sv-side-actions` container at the top of the sidebar, matching PhotosAlbumDetail.vue's own
+// (Task 5). The Export button/menu is gone entirely: ZIP folds into the unified menu as its
+// third entry, and "Save as static album" (sv-export-album / exportAlbumAction) is deleted --
+// the target's own history (933a7d3a comment, restated in PhotosSmartViewDetail.vue's header)
+// records that Vue2 killed this same button in the same commit range and kept only the backend
+// capability, which is exactly the call made here too (see the component's own comment on the
+// deletion for the full trail).
+describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
+  it('renders the sidebar action section with refine and the more button', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    const side = w.find('[data-test="sv-side-mount"]')
+    const actions = side.find('.sv-side-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.find('[data-test="sv-action-refine"]').exists()).toBe(true)
+    expect(actions.find('[data-test="sv-more-toggle"]').exists()).toBe(true)
+  })
+
+  it('renders exactly five menu entries in the target order', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    const items = w.find('[data-test="sv-more-menu"]').findAll('.sv-export-item')
+    expect(items).toHaveLength(5)
+    expect(items.map((i) => i.attributes('data-test'))).toEqual([
+      'sv-more-rename',
+      'sv-more-duplicate',
+      'sv-more-zip',
+      'sv-more-convert',
+      'sv-more-delete',
+    ])
+  })
+
+  it('no longer renders a separate export section in the menu', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('[data-test="sv-export-toggle"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    // "Save as static album" is a deleted capability, not something that moved -- see the
+    // describe block's own header comment.
+    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(false)
+  })
+
+  it('applies the fixed position style when the menu opens', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    const style = w.find('[data-test="sv-more-menu"]').attributes('style') ?? ''
+    expect(style).toContain('position: fixed')
+  })
+
+  // Re-homed (Task 7): was '点菜单外部(mousedown,bubbles:true)→ 关闭' in the export-menu
+  // describe block, reading sv-export-toggle/sv-export-menu -- both gone. Same behaviour, new
+  // trigger.
+  it('still closes the menu on an outside click', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
+  })
+
+  // Regression guard against E10 recurring (SP15-P2b's Important finding: the convert
+  // confirmation's primary-action colour and its Escape guard). The full flow (colour, Escape
+  // mid-flight, 409 copy, navigation) is already covered end-to-end by the "convert to regular
+  // album" describe block below Task 6's edit; this test's job is narrower and specific to
+  // Task 7's relocation -- proving the *new* sidebar entry point still reaches that flow at all.
+  it('keeps the convert-to-album confirmation flow working from the new entry', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-convert"]').trigger('click')
+    await w.vm.$nextTick()
+    const confirm = w.find('[data-test="sv-convert-confirm"]')
+    expect(confirm.exists()).toBe(true)
+    const ok = confirm.find('[data-test="sv-convert-ok"]')
+    expect(ok.classes()).toContain('primary')
+    expect(ok.classes()).not.toContain('danger')
+  })
+
+  // Folded-in finding (b): a keyboard activation of Edit/Done (Space/Enter on a focused
+  // button) fires a `click` without a `mousedown` -- the event onDocumentMouseDown listens
+  // for to close the sort menu. VTU's own `.trigger('click')` has the identical shape (no
+  // synthetic mousedown either), so this reproduces the real bug without any extra event
+  // plumbing: open the sort menu, flip edit mode on and back off through the toggle alone, and
+  // check the sort popup does not silently reappear.
+  it('does not leave the sort menu stuck open after toggling edit mode via the Edit button', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // enter edit mode
+    await w.vm.$nextTick()
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // leave edit mode again
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
   })
 })
 
@@ -754,8 +864,8 @@ describe('导出 ZIP', () => {
     })
 
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets', count: 1000 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -779,8 +889,8 @@ describe('导出 ZIP', () => {
     const appendSpy = vi.spyOn(document.body, 'appendChild')
 
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
 
     const anchor = appendSpy.mock.calls.map((c) => c[0]).find((n) => (n as HTMLElement).tagName === 'A') as HTMLAnchorElement
@@ -793,34 +903,20 @@ describe('导出 ZIP', () => {
   it('fetch 返 401(!ok)→ toast 是 photosSvExportFailed', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
     const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
     vi.unstubAllGlobals()
   })
 })
 
-// ── 导出相册 ─────────────────────────────────────────────────────────────
-describe('导出相册', () => {
-  it('成功 → toast 文案含 name', async () => {
-    svc.photos.exportSmartViewAlbum.mockResolvedValue({})
-    const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-album"]').trigger('click')
-    await flushPromises()
-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain('Sunsets')
-  })
-
-  it('失败 → toast 是 photosSvExportFailed(照搬 photosFavExportFailed 复用)', async () => {
-    svc.photos.exportSmartViewAlbum.mockRejectedValue(new Error('500'))
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-album"]').trigger('click')
-    await flushPromises()
-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
-  })
-})
+// SP15-P2c Task 7: the '导出相册' describe block (Save as static album, exportAlbumAction/
+// sv-export-album) is deleted here, not re-homed -- the capability itself is gone. The Vue2
+// target's own history records the same deletion in the same commit range (see
+// PhotosSmartViewDetail.vue's comment on `exportAlbumAction`'s removal for the full trail);
+// this page's Convert entry already does the equivalent job (freezing the current matches
+// into a regular album), so nothing the user could do is lost.
 
 // ── 删除 ──────────────────────────────────────────────────────────────────
 describe('删除智能视图', () => {
@@ -1079,26 +1175,26 @@ describe('两段照片网格', () => {
 
 // ── 浮层 ──────────────────────────────────────────────────────────────────
 describe('浮层:菜单同开 + Esc + 点外部关闭', () => {
-  it('先开 export 再开 more,一次 Esc 两者都关', async () => {
+  // Re-homed (Task 7): was '先开 export 再开 more,一次 Esc 两者都关'. The export menu no
+  // longer exists as an independent overlay -- ZIP is now inside the unified more menu. The
+  // invariant this test guards (multiple independent `if`s in onDocumentKeydown, never an
+  // early return, so one Escape closes every open overlay) still needs two *independent*
+  // overlays to be meaningful; the sort menu and the more menu are the pair left on this page.
+  it('opens the sort menu then the more menu, and one Escape closes both', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
     await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
   })
 
-  it('点菜单外部(mousedown,bubbles:true)→ 关闭', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
-  })
+  // '点菜单外部(mousedown,bubbles:true)→ 关闭' (used to read sv-export-toggle/sv-export-menu)
+  // is superseded by "SP15-P2c Task 7" describe block's own "still closes the menu on an
+  // outside click" -- identical mechanism, same assertion, sv-more-toggle/sv-more-menu instead.
 })
 
 // ── 非颜色视觉属性:先锚定规则体、再断言属性(全文件级 toContain 恒真,不算断言)──
@@ -1173,14 +1269,15 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
 
 // fix round 1 · I2(菜单/弹窗真的套了 <Transition>,不是样式定义了但模板没用上)────
 describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是样式块躺尸)', () => {
-  it('导出菜单 / more 菜单 的 data-test 标记都出现在 <Transition name="sv-menu"> 与其配对的 </Transition> 之间', () => {
-    // 用配对计数而不是简单 indexOf 区间——模板里有两个 sv-menu Transition,分别包导出菜单与
-    // more 菜单,逐个核对各自的 data-test 落在“离它最近的那对 sv-menu 开闭标签”之间。
+  // Re-homed (Task 7): the export menu's own <Transition name="sv-menu"> is gone along with
+  // the button that opened it, leaving exactly one -- the unified more menu's. The target
+  // (33b05636 :78) wraps its own merged menu in <transition name="sv-menu"> too, so the wrapper
+  // itself is 1:1 with Vue2; only the *count* here (one, not two) is New-UI-specific fallout
+  // from Task 6 having parked two separate menus that Task 7 then merged into one.
+  it('the more menu\'s data-test marker sits inside its <Transition name="sv-menu"> pair', () => {
     const menuBlocks = [...photosSmartViewDetailRaw.matchAll(/<Transition name="sv-menu">([\s\S]*?)<\/Transition>/g)]
-    expect(menuBlocks.length).toBe(2)
-    const combined = menuBlocks.map((m) => m[1]).join('\n')
-    expect(combined).toContain('data-test="sv-export-menu"')
-    expect(combined).toContain('data-test="sv-more-menu"')
+    expect(menuBlocks.length).toBe(1)
+    expect(menuBlocks[0][1]).toContain('data-test="sv-more-menu"')
   })
 
   it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {

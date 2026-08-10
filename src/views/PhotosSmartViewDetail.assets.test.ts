@@ -88,8 +88,13 @@ function seed(opts: { matched?: unknown[]; excluded?: unknown[] } = {}) {
 // selected" and no longer does. Wherever a test leaned on that, it now asserts the selection
 // directly -- the count in the bar, or the tiles carrying data-selected. That is a stronger
 // assertion than the one it replaces, not a weaker one.
-/** Enters edit mode (the only way to reach the selection gestures and Add photos). */
-async function enterEdit(w: ReturnType<typeof mount>) {
+// Task 7, folded-in finding (c): this used to be named `enterEdit` and was called twice in a
+// row (with `// leave` / `// and come back` comments) to leave and then re-enter edit mode --
+// the name lied about what the second call did, and the comments were doing the job the name
+// should have. Renamed to `toggleEdit`, which is honest about both calls: it flips whatever
+// state the toggle button is currently in, same as the production `toggleEdit` it drives.
+/** Clicks the Edit/Done toggle once, flipping edit mode. */
+async function toggleEdit(w: ReturnType<typeof mount>) {
   await w.find('[data-test="sv-edit-toggle"]').trigger('click')
   await w.vm.$nextTick()
 }
@@ -125,7 +130,7 @@ describe('add photos', () => {
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
 
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x', 'y'])
     await new Promise((r) => setTimeout(r, 0))
@@ -147,7 +152,7 @@ describe('add photos', () => {
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
 
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
     await new Promise((r) => setTimeout(r, 0))
@@ -161,7 +166,7 @@ describe('add photos', () => {
     vi.spyOn(s, 'pinAssets').mockRejectedValue(new Error('nope'))
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
     await new Promise((r) => setTimeout(r, 0))
@@ -172,7 +177,7 @@ describe('add photos', () => {
   it('hands the picker the ids already in the view, String()-normalised', async () => {
     seed({ matched: [{ id: 5 }] })
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     const ids = w.findComponent({ name: 'PhotosLibraryPicker' }).props('existingIds') as Set<string>
     expect([...ids]).toContain('5')
@@ -187,7 +192,7 @@ describe('add photos', () => {
   it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {
     seed()
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     const label = w.findComponent({ name: 'PhotosLibraryPicker' }).props('submitLabel')
     expect(label).toBe(zh.photosMoAddSelected)
@@ -200,7 +205,7 @@ describe('selection and removal', () => {
   it('suppresses the lightbox while in edit mode, and shows the count', async () => {
     seed()
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
     expect(lbMock.openAt).not.toHaveBeenCalled()
@@ -217,7 +222,7 @@ describe('selection and removal', () => {
     const s = seed()
     const remove = vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 1, excluded: 0 })
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
@@ -237,7 +242,7 @@ describe('selection and removal', () => {
     vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 2, excluded: 3 })
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
@@ -251,7 +256,7 @@ describe('selection and removal', () => {
     vi.spyOn(s, 'removeAssets').mockResolvedValue(null)
     const toast = useToast(); const show = vi.spyOn(toast, 'show')
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
@@ -266,7 +271,7 @@ describe('selection and removal', () => {
     const s = seed()
     vi.spyOn(s, 'removeAssets').mockRejectedValue(new Error('nope'))
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-remove-selected"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))
@@ -282,12 +287,12 @@ describe('selection and removal', () => {
   it('leaving edit mode clears what was selected', async () => {
     seed()
     const { w } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     expect(selectedTiles(w)).toBe(1)
 
-    await enterEdit(w) // leave
-    await enterEdit(w) // and come back
+    await toggleEdit(w) // leaves edit mode, clearing selectedIds
+    await toggleEdit(w) // re-enters it
 
     expect(selectedTiles(w)).toBe(0)
     expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
@@ -309,7 +314,7 @@ describe('selection and removal', () => {
     const s = seed()
     s.smartViews = [{ ...SV }, { ...SV, id: 'sv2', name: 'Beach' }]
     const { w, router } = await mountPage()
-    await enterEdit(w)
+    await toggleEdit(w)
     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
@@ -324,7 +329,7 @@ describe('selection and removal', () => {
 
     // The real assertion: enter edit mode on sv2 without picking anything. If the ids were not
     // cleared, the bar comes back counting sv1's selection and sv1's tile stays ticked.
-    await enterEdit(w)
+    await toggleEdit(w)
     expect(selectedTiles(w)).toBe(0)
     expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
   })
@@ -365,7 +370,7 @@ describe('excluded section', () => {
     const restore = vi.spyOn(s, 'restoreAssets').mockResolvedValue(1)
     const { w } = await mountPage()
     await w.find('[data-test="sv-excluded-head"]').trigger('click')
-    await enterEdit(w)
+    await toggleEdit(w)
 
     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
     await new Promise((r) => setTimeout(r, 0))

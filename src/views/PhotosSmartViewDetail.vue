@@ -68,14 +68,16 @@ import { relTime } from '../photos/util/relTime'
 // SP15-P2c Task 6: reused, not re-implemented. Despite the name this is a plain photo
 // comparator keyed off a string mode (util/albumView.ts:74) -- its 'taken' branch is
 // byte-for-byte the comparator Vue2 writes inline here as `sortedByMode` (33b05636
-// :577-587), and its fallback branch returns the list untouched, which is exactly what Vue2
-// means by 'score' -- its own comment there says "the order as it stands", because the backend
-// already returns match_score DESC. Writing a second copy of the same two branches on this
-// page is what the ruling against duplicated TS (phase ruling: option B on sharing) exists to
-// prevent.
+// :577-587). Task 7 fold-in, finding (e): the fallback branch does not return the list
+// "untouched" -- albumView.ts:88 returns `[...photos]`, a fresh shallow copy. The *order* is
+// untouched (exactly what Vue2 means by 'score': its own comment there says "the order as it
+// stands", because the backend already returns match_score DESC), the *reference* is not.
+// Writing a second copy of the same two branches on this page is what the ruling against
+// duplicated TS (phase ruling: option B on sharing) exists to prevent.
 import { sortAlbumPhotos } from '../photos/util/albumView'
 import { formatMB } from '../photos/util/formatBytes'
 import type { Photo } from '../photos/util/assetToPhoto'
+import { useFixedMenuPosition } from '../photos/composables/useFixedMenuPosition'
 
 const route = useRoute()
 const router = useRouter()
@@ -114,8 +116,21 @@ watch(() => route.params.id, (raw) => {
   // change would send view A's asset ids to view B's remove endpoint, under a bar counting
   // photos that are no longer on screen. `pickerOpen` is the same story from the other side
   // (its already-in set comes from the previous view's members) and `excludedOpen` is the
-  // cosmetic remainder of the same rule: nothing on screen may come from the old id. Vue 2
-  // could not hit any of this — its detail component was v-if'd and remounted per view.
+  // cosmetic remainder of the same rule. Vue 2 could not hit any of this — its detail
+  // component was v-if'd and remounted per view.
+  //
+  // Task 7 fold-in, finding (a): `sortBy`/`density` (added by Task 6) are deliberately NOT in
+  // this list, so the comment above no longer claims "nothing on screen may come from the old
+  // id" -- that was true before Task 6 and stopped being the rule this watcher enforces.
+  // Sort order and grid density are display preferences, not write-consequential state: unlike
+  // `selected`/`pickerOpen`, nothing downstream reads them keyed to a specific view id, so
+  // carrying them across a navigation cannot mislabel or misdirect a request the way a stale
+  // selection can. PhotosAlbumDetail.vue's own route-id watcher (Task 3/4, the sibling this
+  // page is being brought in line with) already sets this precedent -- it resets
+  // `selected`/`titleEditing`/`titleDraft`/`edit`/`pickerOpen` but leaves its own `sortBy`
+  // untouched too. Treating "the user prefers date-taken order at compact density" as a
+  // per-session preference that survives switching views is the deliberate, matching choice
+  // here, not an oversight.
   edit.value = false
   selectedIds.value = []
   pickerOpen.value = false
@@ -278,8 +293,14 @@ function pickSort(s: SvSortBy): void {
 const matchedSet = computed(() => sortAlbumPhotos(store.matchedAssets, sortBy.value))
 const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.value))
 
-// ── 导出菜单 / more 菜单 / 删除确认:一个 mousedown 监听 + 一个 keydown 监听 ──────
-const exportOpen = ref(false)
+// ── more menu (spec 8, 9) / delete confirmation: one mousedown listener + one keydown listener ──
+// Task 7: the Export button/menu is gone -- `exportOpen`/`exportBtnRef`/`exportMenuRef` went
+// with it (ZIP is now the unified menu's third entry; "Save as static album" is a deleted
+// capability, see `exportAlbumAction`'s own removal note below). `moreWrapRef` is renamed
+// `morePopRef` and `moreBtnRef` is new, matching PhotosAlbumDetail.vue's own naming (Task 5):
+// `morePopRef` wraps both the trigger button and the menu for click-outside purposes,
+// `moreBtnRef` exists solely to hand the button's rect to `useFixedMenuPosition` -- neither
+// replaces the other.
 const moreOpen = ref(false)
 const confirmDeleteOpen = ref(false)
 // SP15-P2b Task 8: smart album -> regular album, the reverse of Task 7's
@@ -289,28 +310,22 @@ const confirmDeleteOpen = ref(false)
 const convertToAlbumOpen = ref(false)
 const convertingToAlbum = ref(false)
 const convertError = ref('')
-const exportBtnRef = ref<HTMLElement | null>(null)
-const exportMenuRef = ref<HTMLElement | null>(null)
-const moreWrapRef = ref<HTMLElement | null>(null)
+const morePopRef = ref<HTMLElement | null>(null)
+const moreBtnRef = ref<HTMLElement | null>(null)
 
-// 照搬 Vue2 :75/:99(exportOpen = !exportOpen / moreOpen = !moreOpen)——两个菜单相互独立,
-// 不是互斥单选:Vue2 没有"开一个就关另一个"的逻辑,浮层同开是合法状态(本测试套件的
-// "先开 export 再开 more,一次 Esc 两者都关"用例正是钉住这一点)。
-function toggleExportMenu(): void {
-  exportOpen.value = !exportOpen.value
-}
+// Task 7 (T1): pins the unified menu to the viewport via the trigger button's rect, so it no
+// longer clips against .sv-detail-side's own overflow-y:auto once the menu grew to five
+// entries (the same fix Task 5 already applied to PhotosAlbumDetail.vue's own more menu).
+const { menuStyle } = useFixedMenuPosition(moreOpen, moreBtnRef)
+
 function toggleMoreMenu(): void {
   moreOpen.value = !moreOpen.value
 }
 
 function onDocumentMouseDown(e: MouseEvent): void {
   const target = e.target as Node
-  if (exportOpen.value) {
-    const m = exportMenuRef.value, b = exportBtnRef.value
-    if (m && !m.contains(target) && b && !b.contains(target)) exportOpen.value = false
-  }
   if (moreOpen.value) {
-    const w = moreWrapRef.value
+    const w = morePopRef.value
     if (w && !w.contains(target)) moreOpen.value = false
   }
   // SP15-P2c Task 6: the sort menu closes on an outside click the same way (Vue2 :545-548
@@ -321,15 +336,14 @@ function onDocumentMouseDown(e: MouseEvent): void {
   }
 }
 
-// Hard constraint: when multiple overlays are open, one Escape must close them all -- five
-// independent ifs (four before SP15-P2c Task 6 added the sort menu), no early return
+// Hard constraint: when multiple overlays are open, one Escape must close them all -- four
+// independent ifs (five before Task 7 removed the export menu's own), no early return
 // (deletion-check 8: adding `return` inside the first if turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
 // closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
 // dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
 // defined below).
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  if (exportOpen.value) exportOpen.value = false
   if (moreOpen.value) moreOpen.value = false
   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
   if (convertToAlbumOpen.value) closeConvertToAlbum()
@@ -340,7 +354,7 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   if (sortMenuOpen.value) sortMenuOpen.value = false
 }
 
-const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
+const anyOverlayOpen = computed(() => moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
 watch(anyOverlayOpen, (open) => {
   if (open) document.addEventListener('keydown', onDocumentKeydown)
   else document.removeEventListener('keydown', onDocumentKeydown)
@@ -369,7 +383,9 @@ function showExportToast(icon: ExportToast['icon'], text: string): void {
 // 这里改成带 Authorization 的 fetch + blob 下载。
 async function downloadZip(): Promise<void> {
   const s = sv.value
-  exportOpen.value = false
+  // Task 7: this used to close the export menu (`exportOpen`); ZIP is now the unified menu's
+  // third entry, so it closes that one instead.
+  moreOpen.value = false
   if (!s) return
   try {
     const url = service.photos.exportSmartViewUrl(String(s.id), 'zip')
@@ -401,20 +417,22 @@ async function downloadZip(): Promise<void> {
   }
 }
 
-async function exportAlbumAction(): Promise<void> {
-  const s = sv.value
-  exportOpen.value = false
-  if (!s) return
-  try {
-    await store.exportAlbum(s.id)
-    showExportToast('plus', t('photosSvNameSnapshotSavedAlbum', { name: s.name }))
-  } catch (e) {
-    console.error('[photos-smartviews] exportAlbumAction', e)
-    showExportToast('download', t('photosFavExportFailed'))
-  }
-}
+// Task 7: `exportAlbumAction` ("Save as static album" / sv-export-album) is deleted, not
+// re-homed into the unified menu. This is an empirically-verified capability removal, not a
+// guess: the Vue2 target's own final state (933a7d3a comment restated at 33b05636
+// :184-189) records that Vue2 killed the identical button ("Save as static Album 子项整体
+// 删除", i.e. "the Save as static Album entry is deleted entirely") in the same commit range
+// that produced the five-entry menu, keeping only the backend
+// endpoint (`photosService.exportSmartViewAlbum`) as a capability with no frontend caller.
+// This page's Convert entry (`askConvertToAlbum` below) already does the equivalent job --
+// freezing the current matches into a regular album -- so nothing reachable through the UI is
+// lost. `store.exportAlbum` (smartViews.ts) and `service.photos.exportSmartViewAlbum` are left
+// untouched, mirroring Vue2's own choice to keep the backend capability while dropping the
+// frontend trigger; both become currently-unused exports of their respective modules, which is
+// fine for a store action returned from its public API object (no unused-local warning) and is
+// the exact shape Vue2's own history leaves behind.
 
-// ── more 菜单:重命名 / 复制 / 删除(结构规格 8、9)───────────────────────────
+// ── more menu: rename / duplicate / delete / convert / ZIP (spec 8, 9) ──────────────
 function openDeleteConfirm(): void {
   moreOpen.value = false
   confirmDeleteOpen.value = true
@@ -572,6 +590,13 @@ const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => Strin
 function toggleEdit(): void {
   edit.value = !edit.value
   if (!edit.value) selectedIds.value = []
+  // Task 7 fold-in, finding (b): keyboard-activating this button (Space/Enter on a focused
+  // element) fires a `click` but no `mousedown` -- the event onDocumentMouseDown listens for
+  // to close the sort menu. Without this, entering edit mode that way leaves `sortMenuOpen`
+  // true while the template unmounts the sort capsule (`v-if="!edit"`), and the popup
+  // reappears the moment edit mode is left again, with no visible trigger for it. Sort has no
+  // meaning in edit mode either way, so it is safe to always close it here, entering or leaving.
+  sortMenuOpen.value = false
 }
 
 function toggleSelect(id: string): void {
@@ -808,98 +833,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 </div>
               </template>
 
-              <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
-                   名字作查询词。Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,
-                   死参数不迁(见文件头偏离登记 5),这里只传 q。 -->
-              <button
-                type="button" class="sv-action-btn" data-test="sv-action-refine"
-                @click="refineInSearch"
-              >
-                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
-                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
-                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
-                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
-                     放大镜手柄长度此前会跳一下——改成统一值。 -->
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-                {{ t('photosSvRefineSearch') }}
-              </button>
-
-              <div style="position:relative">
-                <button
-                  ref="exportBtnRef" type="button" class="sv-action-btn sv-action-btn-primary"
-                  data-test="sv-export-toggle" data-primary="true" :data-open="exportOpen"
-                  @click="toggleExportMenu"
-                >
-                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
-                  {{ t('photosSvExport') }}
-                  <svg width="9" height="9" viewBox="0 0 12 12" fill="none" style="margin-left:2px;opacity:0.85"><path d="M3 4.5l3 3 3-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" /></svg>
-                </button>
-                <Transition name="sv-menu">
-                <div v-if="exportOpen" ref="exportMenuRef" class="sv-export-menu" data-test="sv-export-menu">
-                  <button type="button" class="sv-export-item" data-test="sv-export-zip" @click="downloadZip">
-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosFavExport') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
-                    </div>
-                  </button>
-                  <button type="button" class="sv-export-item" data-test="sv-export-album" @click="exportAlbumAction">
-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosSvSaveStaticAlbum') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvSnapshotCurrentMatchesStops') }}</div>
-                    </div>
-                  </button>
-                </div>
-                </Transition>
-              </div>
-
-              <div ref="moreWrapRef" style="position:relative">
-                <button
-                  type="button" class="sv-action-btn sv-action-btn-icon" data-test="sv-more-toggle"
-                  :data-open="moreOpen" @click="toggleMoreMenu"
-                >
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
-                </button>
-                <Transition name="sv-menu">
-                <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="sv-more-menu">
-                  <button type="button" class="sv-export-item" data-test="sv-more-rename" @click="startTitleEdit">
-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosSvRename') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvChangeSmartViewName') }}</div>
-                    </div>
-                  </button>
-                  <button type="button" class="sv-export-item" data-test="sv-more-duplicate" @click="duplicateSv">
-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvCopyQuerySv') }}</div>
-                    </div>
-                  </button>
-                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate
-                       above the destructive separator, not beside Delete -- this is not a
-                       destructive action, it freezes the current matches into a regular
-                       album. -->
-                  <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
-                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
-                    </div>
-                  </button>
-                  <div class="sv-export-sep" />
-                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
-                  <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
-                    <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
-                    <div>
-                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
-                      <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
-                    </div>
-                  </button>
-                </div>
-                </Transition>
-              </div>
+              <!-- Task 7: Refine in Search and the "..." menu are no longer in this row --
+                   both moved to the new `.sv-side-actions` container at the top of
+                   `aside.sv-detail-side` (target 33b05636 :127-225; see that container's own
+                   comment for the full trail). Task 6 parked them here only because the
+                   fixed-position composable did not exist yet at that point. -->
             </div>
           </div>
 
@@ -976,6 +914,108 @@ async function onExcludedTileClick(id: string): Promise<void> {
 
           <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
           <aside class="sv-detail-side" data-test="sv-side-mount">
+            <!-- Task 7 (target 33b05636 :127-225). The "..." menu's target home -- moved here
+                 from the header's .sv-actions, where Task 6 parked it unchanged (mounting it
+                 in this overflow-y:auto sidebar before the fixed-position composable existed
+                 would have reproduced the exact clipping bug that composable fixes; see
+                 PhotosAlbumDetail.vue's own identical note, Task 5, which this container's
+                 structure matches on purpose -- the point of this task is that the two detail
+                 pages end up the same).
+
+                 The five entries are the target's full set, in its order: Rename / Duplicate /
+                 Download as ZIP / Convert / Delete. Unlike PhotosAlbumDetail.vue's own copy of
+                 this menu, THIS page's entries call THIS page's existing backends, not the
+                 album page's (brief's own warning, verified against each): Duplicate is
+                 `store.duplicateSmartView` (smartViews.ts:342, no-ops on re-entry rather than
+                 throwing -- not albums.ts's `duplicateAlbum`), Download as ZIP is this page's
+                 own `downloadZip` (POST + Authorization header, not JWT-exempt -- not
+                 `exportAlbumZipUrl`'s GET+token navigation), and Convert goes the opposite
+                 direction from the album page's (smart view -> regular album, via
+                 `askConvertToAlbum`/`albums.convertFromSmartView`, not regular -> smart via
+                 `AlbumConvertToSmartDialog`). "Save as static album" does NOT reappear as a
+                 sixth entry -- see `exportAlbumAction`'s own removal note above the more-menu
+                 handlers for why that capability is deleted rather than folded in.
+
+                 The menu itself is position:fixed via `menuStyle` (T1's useFixedMenuPosition
+                 bound to `moreBtnRef`'s rect); `morePopRef` still wraps both the button and the
+                 menu for click-outside dismissal (onDocumentMouseDown above) -- the composable
+                 only computes coordinates, it does not touch open/close. Vue2 wraps this same
+                 menu in <transition name="sv-menu"> (33b05636 :78) -- kept here, even though
+                 PhotosAlbumDetail.vue's own copy (Task 5) does not carry one; the target is the
+                 tie-breaker per this phase's rule, and this page already had the transition and
+                 its CSS from Task 6's header version, so keeping it costs nothing. -->
+            <div class="sv-side-actions">
+              <button
+                type="button" class="sv-action-btn" data-test="sv-action-refine"
+                @click="refineInSearch"
+              >
+                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
+                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
+                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
+                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
+                     放大镜手柄长度此前会跳一下——改成统一值。 -->
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+                {{ t('photosSvRefineSearch') }}
+              </button>
+
+              <div ref="morePopRef" class="sv-more-wrap">
+                <button
+                  ref="moreBtnRef" type="button" class="sv-action-btn sv-action-btn-icon" data-test="sv-more-toggle"
+                  :data-open="moreOpen" @click="toggleMoreMenu"
+                >
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                </button>
+                <Transition name="sv-menu">
+                <div v-if="moreOpen" class="sv-export-menu sv-more-menu" data-test="sv-more-menu" :style="menuStyle">
+                  <button type="button" class="sv-export-item" data-test="sv-more-rename" @click="startTitleEdit">
+                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosSvRename') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvChangeSmartViewName') }}</div>
+                    </div>
+                  </button>
+                  <button type="button" class="sv-export-item" data-test="sv-more-duplicate" @click="duplicateSv">
+                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvCopyQuerySv') }}</div>
+                    </div>
+                  </button>
+                  <!-- Task 7: the Export section's ZIP item (sv-export-zip) folds in here as
+                       the menu's third entry, between Duplicate and Convert -- the target's own
+                       order. Same handler (`downloadZip`), same copy, new data-test. -->
+                  <button type="button" class="sv-export-item" data-test="sv-more-zip" @click="downloadZip">
+                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosFavExport') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: fmtNum(sv.count), mb: fmtNum(Math.round(sv.count * 3.2)) }) }}</div>
+                    </div>
+                  </button>
+                  <!-- SP15-P2b Task 8 (Vue2 939a7d3a diff): grouped with rename/duplicate/zip
+                       above the destructive separator, not beside Delete -- this is not a
+                       destructive action, it freezes the current matches into a regular
+                       album. -->
+                  <button type="button" class="sv-export-item" data-test="sv-more-convert" @click="askConvertToAlbum">
+                    <div class="sv-export-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosSvConvertToAlbum') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvConvertToAlbumHint') }}</div>
+                    </div>
+                  </button>
+                  <div class="sv-export-sep" />
+                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
+                  <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
+                    <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+                    <div>
+                      <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
+                      <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
+                    </div>
+                  </button>
+                </div>
+                </Transition>
+              </div>
+            </div>
+
             <SmartViewSidePanel :sv="sv" :busy="store.patchBusy" @patch="onSidePatch" />
             <SmartViewActivityFeed :activity="store.activity" />
           </aside>
@@ -1168,7 +1208,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
    改成 `var(--accent)` 实底 + hover `filter: brightness(1.08)`,先例见
    `PhotosPersonDetail.vue:1142`/`ClusterActionDialog.vue:331-332` 等。DOM 上仍保留
    `data-primary="true"` 属性(与 Vue2 一致),但样式选择器改用伴生类
-   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。 */
+   `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。
+   Task 7 note: the Export button that carried this class and `data-primary="true"` is deleted
+   (see the component's own comment on the merge into the unified menu). Nothing in this
+   template's markup uses either any more; left in place rather than pruned, same posture as
+   the i18n orphan-key convention this phase already follows (Task 11's job, not this one's) --
+   flagged here for whoever does that sweep next. */
 .sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 /* fix round 1(第一版曾用单类 `.sv-action-btn-primary:hover`,被评审判定"更弱"——那与基类
    `.sv-action-btn:hover` 同为 (0,2,0),平局时只靠书写顺序才不被基类的灰底盖成白底白字,
@@ -1176,6 +1221,13 @@ async function onExcludedTileClick(id: string): Promise<void> {
    `.sv-action-btn.sv-action-btn-primary:hover`,真实优先级 (0,3,0),结构上稳赢基类的
    (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
 .sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
+
+/* ── Task 7: sidebar top action row -- rule body restated from PhotosAlbumDetail.vue's own
+   `.sv-side-actions` (Task 5; scoped styles do not cross SFCs in this repo). flex-wrap lets a
+   narrow sidebar keep both buttons on their own line if needed. margin-bottom keeps the same
+   24px rhythm as .sv-side-section below it. ── */
+.sv-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+.sv-more-wrap { position: relative; }
 
 /* ── SP15-P2c Task 6: sort capsule, separators, density pair ──
    Rule bodies restated from PhotosAlbumDetail.vue's own (:1161-1176), which Task 3 in turn
