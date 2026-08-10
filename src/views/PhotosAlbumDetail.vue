@@ -36,6 +36,7 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
 import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
+import { useFixedMenuPosition } from '../photos/composables/useFixedMenuPosition'
 import { albumToView, sortAlbumPhotos } from '../photos/util/albumView'
 import { isConflict } from '../photos/util/httpErrors'
 import type { Photo } from '../photos/util/assetToPhoto'
@@ -89,8 +90,16 @@ function onAlbumPickerAdded(): void {}
 
 const titleInputRef = ref<HTMLInputElement | null>(null)
 const morePopRef = ref<HTMLElement | null>(null)
+// Task 5: the composable only takes the trigger button's rect, not the click-outside wrapper's --
+// morePopRef stays the click-outside container (onDocMousedown below), moreBtnRef is new and
+// exists solely to hand the button element to useFixedMenuPosition. Neither replaces the other.
+const moreBtnRef = ref<HTMLElement | null>(null)
 const sortMenuRef = ref<HTMLElement | null>(null)
 const gridRef = ref<HTMLElement | null>(null)
+
+// Task 5 (T1): pins the more menu to the viewport via the trigger button's rect, so it no longer
+// clips against .sv-detail-side's own overflow-y:auto once the menu grew to five entries.
+const { menuStyle } = useFixedMenuPosition(menuOpen, moreBtnRef)
 
 // ── 派生数据 ──
 // album 为 null 有两种子情形(区分见模板):albumsLoaded===false → 还没加载完,渲染骨架;
@@ -341,6 +350,44 @@ function askConfirmDelete(): void {
   confirmDelete.value = true
 }
 
+// Task 5 (Vue2 :708-730 duplicateAlbum). Thin page-level wrapper around the store's own
+// duplicateAlbum (T2): close the menu, delegate name/asset-id computation and the re-entry guard
+// to the store, and translate its outcome into a toast. Unlike this page's other guarded writes
+// (removing/pickerAdding), there is no local busy ref here -- the store's `duplicateBusy` throws
+// on re-entry rather than resolving quietly (T2's own comment explains why: unlike its smart-view
+// sibling, this one must resolve to a value on the success path). The catch below discriminates
+// that expected rejection from a real failure by reading `albums.duplicateBusy` at the moment the
+// rejection is observed: the store's own `finally` always clears the flag before a genuine
+// failure rethrows, so it can only still read true here for the synchronous re-entrant throw.
+async function duplicateAlbum(): Promise<void> {
+  menuOpen.value = false
+  const name = album.value?.title ?? ''
+  try {
+    await albums.duplicateAlbum(albumId.value)
+    // Target's own success copy (33b05636:PhotosAlbumDetail.vue:713-716) -- identical wording to
+    // the smart-view sidebar's own duplicate toast, hence the shared key.
+    toast.show(t('photosSvDuplicatedNameOpenCopy', { name }))
+  } catch (e) {
+    if (albums.duplicateBusy) return // a second click while the first is still in flight -- not a failure
+    console.error('[album-detail] duplicateAlbum', e)
+    // Target reuses the same "name already exists" copy the rename path shows for its own 409.
+    toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosSvDuplicateFailed'))
+  }
+}
+
+// Task 5 (Vue2 :736-743 runExportZip). GET+token navigation -- exportAlbumZipUrl (T2) is
+// JWT-exempt via the query token, same shape as favorites.ts's own exportZip, so a plain
+// navigation is enough here. Not the fetch+blob dance PhotosSmartViewDetail.vue's downloadZip
+// uses: that endpoint is POST-only and not JWT-exempt, a different backend contract entirely --
+// the target confirms this page's own contract is the simple GET one (:736-738's literal
+// `window.location.href = photosService.exportAlbumZipUrl(...)`).
+function downloadZip(): void {
+  menuOpen.value = false
+  window.location.href = service.photos.exportAlbumZipUrl(albumId.value)
+  const n = album.value?.count ?? 0
+  toast.show(t('photosSvPreparingZipNPhotos', { n: n.toLocaleString(localeTag.value) }))
+}
+
 // T6: same criterion as the Albums page's smart-view-create gating (Vue2 :226-229 threads it
 // down as a prop; here both pages read the one settings store directly instead).
 const smartViewDisabled = computed(() => settings.aiFeatures.smartview === false)
@@ -430,15 +477,24 @@ const pickerAdding = ref(false)
 // confirm harmless too, without having to block on `pickerOpen` itself (which is also flipped by
 // unrelated tests that exercise this handler directly, without ever opening the dialog).
 const pickerAlbumId = ref(albumId.value)
+// Task 5 (Task 4 re-review fold-in): the id snapshot above pins the *write*, but the success
+// toast's `{name}` used to read `album.value?.title` live at resolve time -- a computed that
+// tracks whatever album the route currently points at, not the one the write actually landed on.
+// After a navigation to a different, real album while the picker was open, the toast would name
+// the *new* album while the write still landed on the *snapshotted* one (see `pickerAlbumId`'s own
+// comment): two different albums, one confirm. Snapshotting the name alongside the id here keeps
+// the toast and the write pointed at the same album, always.
+const pickerAlbumName = ref(album.value?.title ?? '')
 function openPicker(): void {
   pickerAlbumId.value = albumId.value
+  pickerAlbumName.value = album.value?.title ?? ''
   pickerOpen.value = true
 }
 async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
   if (pickerAdding.value) return
   pickerAdding.value = true
   const id = pickerAlbumId.value
-  const name = album.value?.title ?? ''
+  const name = pickerAlbumName.value
   try {
     await albums.addAssetsToAlbum(id, ids)
     toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
@@ -710,71 +766,6 @@ watch(gridRef, () => {
                       </button>
                     </div>
                   </template>
-                  <!-- TEMPORARY HOME, registered: the "..." menu's own home in the target is the
-                       sidebar's .sv-side-actions, which Task 5 builds together with the
-                       five-entry menu that goes in it. Its previous container
-                       (.album-hero-actions) is deleted by this task, so the markup parks here
-                       unchanged in the meantime rather than being dropped and rebuilt. -->
-                  <div ref="morePopRef" class="album-more-wrap">
-                  <button
-                    type="button"
-                    class="bar-btn album-more-btn"
-                    data-test="album-more-btn"
-                    :data-active="menuOpen"
-                    @click="menuOpen = !menuOpen"
-                  >⋯</button>
-                  <!-- T6: reshaped to the same icon/title/hint idiom as
-                       PhotosSmartViewDetail.vue's .sv-export-item rows (markup and classes
-                       taken from that file's :671-693), so the two detail pages' more menus
-                       stop looking like different products. Convert sits above the
-                       destructive separator; Delete stays below it.
-                       Final fix wave: `sv-more-menu` is the width modifier the sibling page
-                       puts on this same kind of menu (PhotosSmartViewDetail.vue:740). It was
-                       omitted when the rules were restated, leaving this menu at the export
-                       menu's 280px; Vue2 hard-codes 220px on both (939a7d3a:
-                       PhotosAlbumDetail.vue:61 `style="min-width:220px"`). -->
-                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu">
-                    <button
-                      type="button"
-                      class="sv-export-item"
-                      data-test="album-menu-rename"
-                      @click="menuOpen = false; startTitleEdit()"
-                    >
-                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
-                      <div>
-                        <div class="sv-export-title">{{ t('photosAlbumRename') }}</div>
-                        <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      class="sv-export-item"
-                      data-test="album-menu-convert"
-                      :disabled="smartViewDisabled"
-                      :title="smartViewDisabled ? t('photosSvSmartViewsOffCreateHint') : undefined"
-                      @click="openConvertModal"
-                    >
-                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
-                      <div>
-                        <div class="sv-export-title">{{ t('photosAlbumConvertToSmart') }}</div>
-                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
-                      </div>
-                    </button>
-                    <div class="sv-export-sep"></div>
-                    <button
-                      type="button"
-                      class="sv-export-item sv-export-item-danger"
-                      data-test="album-menu-delete"
-                      @click="askConfirmDelete"
-                    >
-                      <div class="sv-export-icon sv-export-icon-danger" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
-                      <div>
-                        <div class="sv-export-title">{{ t('photosAlbumDelete') }}</div>
-                        <div class="sv-export-desc">{{ t('photosAlbumDeleteHint') }}</div>
-                      </div>
-                    </button>
-                  </div>
-                  </div>
                 </div>
               </div>
 
@@ -821,6 +812,119 @@ watch(gridRef, () => {
                  detail page's own sidebar (PhotosMomentDetail.vue), so the two detail pages stop
                  looking like different products. -->
             <aside class="sv-detail-side" data-test="album-side">
+              <!-- Task 5 (Vue2 33b05636:PhotosAlbumDetail.vue :211-283). The "..." menu's target
+                   home -- moved here from the header's .sv-actions, where Task 3 parked it
+                   unchanged (mounting it in this overflow-y:auto sidebar before the fixed-position
+                   composable existed would have reproduced the exact clipping bug that composable
+                   fixes). New-UI never carries a Slideshow button here (the target has one; Vue2's
+                   own version only ever popped a "coming soon" toast, and this repo never built the
+                   tile-fullscreen player it would open), so this container holds a single child --
+                   still flex-wrap to match the target's own .sv-side-actions shape (Vue2
+                   photos-smartview.scss, restated below since scoped styles don't cross SFCs in
+                   this repo).
+                   The five entries are the target's full set, in its order (not reorderable):
+                   Rename/Duplicate/Download as ZIP/Convert/Delete. Main titles are shortened per
+                   #117 (Rename album -> Rename, Convert to Smart Album -> Convert, Delete album ->
+                   Delete); desc lines keep the longer copy that disambiguates context. The menu
+                   itself is position:fixed via `menuStyle` (T1's useFixedMenuPosition bound to
+                   `moreBtnRef`'s rect) so it no longer clips against this aside's own
+                   overflow-y:auto; `morePopRef` still wraps both the button and the menu for
+                   click-outside dismissal (onDocMousedown below) -- the composable only computes
+                   coordinates, it does not touch open/close. -->
+              <div class="sv-side-actions">
+                <div ref="morePopRef" class="album-more-wrap">
+                  <button
+                    ref="moreBtnRef"
+                    type="button"
+                    class="sv-action-btn sv-action-btn-icon"
+                    data-test="album-more-btn"
+                    :data-open="menuOpen"
+                    @click="menuOpen = !menuOpen"
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+                  </button>
+                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu" :style="menuStyle">
+                    <button
+                      type="button"
+                      class="sv-export-item"
+                      data-test="album-menu-rename"
+                      @click="menuOpen = false; startTitleEdit()"
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+                      <div>
+                        <!-- Reuses PhotosSmartViewDetail.vue's own short "Rename" key -- same
+                             product copy, and it already carries the exact target string. -->
+                        <div class="sv-export-title">{{ t('photosSvRename') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="sv-export-item"
+                      data-test="album-menu-duplicate"
+                      @click="duplicateAlbum"
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2" /><path d="M5 15V5a2 2 0 012-2h10" /></svg></div>
+                      <div>
+                        <!-- Same reuse: PhotosSmartViewDetail.vue's own short "Duplicate" key. -->
+                        <div class="sv-export-title">{{ t('photosSvDuplicate') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumDuplicateHint') }}</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="sv-export-item"
+                      data-test="album-menu-zip"
+                      @click="downloadZip"
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg></div>
+                      <div>
+                        <!-- photosFavExport is the favourites page's own "Download as ZIP" title
+                             -- identical target copy, reused rather than coining a near-synonym.
+                             The desc's {n}/{mb} interpolation (photosSvNPhotosMbMb) is the exact
+                             key PhotosSmartViewDetail.vue's own zip entry already uses; 3.2 is
+                             Vue2's own hard-coded MB-per-photo estimate (33b05636 :266), not a
+                             measured figure -- registered here as it was there. -->
+                        <div class="sv-export-title">{{ t('photosFavExport') }}</div>
+                        <div class="sv-export-desc">{{ t('photosSvNPhotosMbMb', { n: album.count.toLocaleString(localeTag), mb: Math.round(album.count * 3.2).toLocaleString(localeTag) }) }}</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      class="sv-export-item"
+                      data-test="album-menu-convert"
+                      :disabled="smartViewDisabled"
+                      :title="smartViewDisabled ? t('photosSvSmartViewsOffCreateHint') : undefined"
+                      @click="openConvertModal"
+                    >
+                      <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9l-4.9 1.8L12 16l-1.8-5.2L5 9l5.2-1.1L12 3zM19 15l.9 2.5L22 18l-2.5.9L19 21l-.9-2.5L16 18l2.5-.9L19 15z" /></svg></div>
+                      <div>
+                        <div class="sv-export-title">{{ t('photosAlbumMenuConvert') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumConvertToSmartHint') }}</div>
+                      </div>
+                    </button>
+                    <div class="sv-export-sep"></div>
+                    <button
+                      type="button"
+                      class="sv-export-item sv-export-item-danger"
+                      data-test="album-menu-delete"
+                      @click="askConfirmDelete"
+                    >
+                      <div class="sv-export-icon sv-export-icon-danger" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+                      <div>
+                        <!-- Reuses the generic photosDelete key ("Delete") already used by
+                             PhotosMomentDetail.vue's and PhotosSmartViewDetail.vue's own confirm/
+                             selection-toolbar buttons -- the long-form "Delete album" stays at
+                             photosAlbumDelete, still alive via this page's own confirm-modal
+                             button (below), so it is not orphaned by this change. -->
+                        <div class="sv-export-title">{{ t('photosDelete') }}</div>
+                        <div class="sv-export-desc">{{ t('photosAlbumDeleteHint') }}</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
               <!-- Task 4 (Vue2 :283-290). About — Type/Created/Time span/Place, same
                    mo-about-row idiom as PhotosMomentDetail.vue's own About section. Type/Created/
                    Place reuse existing keys verbatim (photosAlbumLabel/photosAlbumStatCreated/
@@ -1047,6 +1151,10 @@ watch(gridRef, () => {
 .sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
 .sv-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+/* Task 5: icon-only modifier for the sidebar's "..." toggle -- rule body restated from
+   PhotosSmartViewDetail.vue's own .sv-action-btn-icon (:1018) because scoped styles don't cross
+   SFCs in this repo. */
+.sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
 
 .group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
 .sv-actions .order-pill {
@@ -1067,6 +1175,11 @@ watch(gridRef, () => {
 .density button:hover { color: var(--fg); }
 .density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
 
+/* Task 5: the sidebar's top action row -- rule body restated from Vue2 photos-smartview.scss's
+   own `.sv-side-actions` (flex-wrap so a narrow sidebar can still fit multiple buttons on their
+   own line each; this page only ever renders one, see the template comment on this container).
+   margin-bottom keeps the same 24px rhythm as .sv-side-section below it. */
+.sv-side-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
 .album-more-wrap { position: relative; }
 
 /* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from

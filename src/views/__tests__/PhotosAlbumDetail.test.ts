@@ -25,6 +25,10 @@ const svc = vi.hoisted(() => ({
     removeFromAlbum: vi.fn().mockResolvedValue(undefined),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
     deleteAsset: vi.fn().mockResolvedValue(undefined),
+    // Task 5: duplicateAlbum (store) reuses saveAsAlbum, which calls createAlbum -- needed once
+    // the more menu grows a Duplicate entry. exportAlbumZipUrl backs the Download-as-ZIP entry.
+    createAlbum: vi.fn().mockResolvedValue({ id: 'new1', name: 'copy' }),
+    exportAlbumZipUrl: vi.fn((id: string | number) => `mock://export/${id}`),
     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
     originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
     liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
@@ -163,6 +167,8 @@ beforeEach(() => {
   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
   svc.photos.thumbnailUrl.mockClear()
   svc.photos.getConfig.mockClear().mockResolvedValue({})
+  svc.photos.createAlbum.mockClear().mockResolvedValue({ id: 'new1', name: 'copy' })
+  svc.photos.exportAlbumZipUrl.mockClear()
   dragMock.isDragging.mockReset().mockReturnValue(false)
   dragMock.refresh.mockClear()
   dragMock.destroy.mockClear()
@@ -595,6 +601,33 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
     expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalledWith('999', ['x'])
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
+  })
+
+  // Task 4 re-review, folded into Task 5 (this task edits the same handler for the toast-name
+  // carve-out): `onPickerConfirm` snapshots the write target (`pickerAlbumId`) but used to read
+  // the success toast's `{name}` live off `album.value?.title` at resolve time. Reusing the exact
+  // "confirm survives a navigation to a different real album" scenario above: after the id
+  // changes to 999 ("Other"), `album.value.title` is "Other" even though the write still lands on
+  // 7 ("Trip") -- the toast must say "Trip" (the album the picker was actually opened for), not
+  // whatever the route happens to point at when the confirm resolves.
+  it('names the success toast after the album the picker was opened for, not whatever album the route now points at when it resolves', async () => {
+    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(999, { name: 'Other' })])
+    const { w, router } = await mountView('7')
+    const picker = await openPicker(w)
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await router.push('/photos/albums/999')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    picker.vm.$emit('confirm', ['x'])
+    await flushPromises()
+
+    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
+    expect(showSpy).toHaveBeenCalledWith(
+      zh.photosAlbumAddedToast.replace('{count}', '1').replace('{name}', 'Trip'),
+    )
   })
 
   // Coordinator review, fix round 2 · Minor: `edit` itself was never reset by the id watcher, so
@@ -1221,5 +1254,118 @@ describe('P2c detail sidebar', () => {
     })
     expect(w.find('[data-test="album-dist"]').exists()).toBe(true)
     expect(w.findAll('[data-test="album-dist-bar"]')).toHaveLength(2)
+  })
+})
+
+// Task 5 (Vue2 33b05636:PhotosAlbumDetail.vue :211-283). The more menu grows from the three
+// entries Task 3 parked in the header (Rename/Convert/Delete) to the target's full five
+// (Rename/Duplicate/Download as ZIP/Convert/Delete), and its container moves into the sidebar's
+// .sv-side-actions (above the About section), fixed-positioned via useFixedMenuPosition (T1) so
+// it no longer clips against .sv-detail-side's own overflow-y:auto.
+describe('P2c album more menu', () => {
+  async function openMenu(w: ReturnType<typeof mount>) {
+    await w.find('[data-test="album-more-btn"]').trigger('click')
+    await w.vm.$nextTick()
+  }
+
+  it('renders exactly five entries in the target order', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await openMenu(w)
+    const titles = w.findAll('.sv-export-title').map((n) => n.text())
+    expect(titles).toEqual(['重命名', '复制', '下载为 ZIP', '转换', '删除'])
+  })
+
+  it("lives in the sidebar's .sv-side-actions container, above the About section", async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    const side = w.find('[data-test="album-side"]')
+    const actions = side.find('.sv-side-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.find('[data-test="album-more-btn"]').exists()).toBe(true)
+    const children = Array.from(side.element.children)
+    const actionsIndex = children.indexOf(actions.element)
+    const aboutIndex = children.findIndex((c) => c.getAttribute('data-test') === 'album-about')
+    expect(actionsIndex).toBeGreaterThanOrEqual(0)
+    expect(actionsIndex).toBeLessThan(aboutIndex)
+  })
+
+  it('duplicates the album and closes the menu', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
+    const albums = usePhotosAlbums()
+    const toast = useToast()
+    const dupSpy = vi.spyOn(albums, 'duplicateAlbum')
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await openMenu(w)
+    await w.find('[data-test="album-menu-duplicate"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(dupSpy).toHaveBeenCalledWith('a1')
+    expect(svc.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
+    expect(showSpy).toHaveBeenCalledWith(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
+    expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
+  })
+
+  it('does not fire a second duplicate while the first is in flight', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
+    let resolveCreate!: (v: unknown) => void
+    svc.photos.createAlbum.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
+
+    await openMenu(w)
+    await w.find('[data-test="album-menu-duplicate"]').trigger('click') // first call: store guard now busy
+    await openMenu(w) // duplicateAlbum() closes the menu synchronously -- reopen it
+    await w.find('[data-test="album-menu-duplicate"]').trigger('click') // second call: guard rejects it
+    await flushPromises()
+
+    resolveCreate({ id: 'new1', name: 'Trip copy' })
+    await flushPromises()
+
+    expect(svc.photos.createAlbum).toHaveBeenCalledTimes(1)
+  })
+
+  it('navigates to the zip url built by the service', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await openMenu(w)
+    await w.find('[data-test="album-menu-zip"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(svc.photos.exportAlbumZipUrl).toHaveBeenCalledWith('a1')
+  })
+
+  it('shows the estimated size in the zip entry description', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A', assetCount: 10 }, assets: [] })
+    await openMenu(w)
+    expect(w.find('[data-test="album-menu-zip"]').text()).toContain('10 张照片 · 约 32 MB')
+  })
+
+  it('disables Convert and shows the smart-views-off title when the feature is off', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [], aiFeatures: { smartview: false } })
+    await openMenu(w)
+    const convert = w.find('[data-test="album-menu-convert"]')
+    expect(convert.attributes('disabled')).toBeDefined()
+    expect(convert.attributes('title')).toBe(zh.photosSvSmartViewsOffCreateHint)
+  })
+
+  it('keeps Convert clickable when the feature is on', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [], aiFeatures: { smartview: true } })
+    await openMenu(w)
+    expect(w.find('[data-test="album-menu-convert"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('applies the fixed position style to the menu when it opens', async () => {
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await openMenu(w)
+    expect(w.find('.sv-export-menu').attributes('style')).toContain('position: fixed')
+  })
+
+  it('closes the menu when clicking outside it', async () => {
+    // Regression: morePopRef (click-outside) must still work now that the menu itself is
+    // position:fixed -- the composable only computes coordinates, dismissal stays this page's job.
+    const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [] })
+    await openMenu(w)
+    expect(w.find('[data-test="album-menu"]').exists()).toBe(true)
+
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
   })
 })

@@ -180,6 +180,15 @@ export default {
   photosAlbumRenameHint: '修改相册名称',
   photosAlbumConvertToSmart: '转为智能相册',
   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
+  // Task 5 (#117 短标题): "..." 菜单主标题改短——Rename/Duplicate/Download as ZIP 三项复用既有
+  // 短键(photosSvRename/photosSvDuplicate/photosFavExport,与靶子译文逐字一致),Delete 复用
+  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。上面两个长标题 key
+  // (photosAlbumRename/photosAlbumConvertToSmart)在此之后失去这处唯一引用,按本期约定先不删
+  // (Task 11 统一做孤儿清理)。
+  photosAlbumMenuConvert: '转换',
+  // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
+  // zh_CN.json:"把照片复制为一个新相册")。
+  photosAlbumDuplicateHint: '把照片复制为一个新相册',
   // ── Task 7: 相册 → 智能相册转换弹窗 ──
   photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
   photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
