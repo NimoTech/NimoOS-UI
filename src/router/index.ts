@@ -20,6 +20,7 @@ import StorageRaidCreate from '../views/StorageRaidCreate.vue'
 import StorageRaidDetail from '../views/StorageRaidDetail.vue'
 import { settingsRoutes } from '../settings/settingsRoutes'
 import KvmPage from '../kvm/views/KvmPage.vue'
+import TerminalView from '../terminal/TerminalView.vue'
 import Photos from '../views/Photos.vue'
 import PhotosFavorites from '../views/PhotosFavorites.vue'
 import PhotosTrash from '../views/PhotosTrash.vue'
@@ -59,6 +60,8 @@ const routes: RouteRecordRaw[] = [
   // P5 KVM 地基(桌面磁贴翻路由归 P8,现在只能手输 #/kvm)。必须放在下面的通配兜底
   // /files/:path(.*)* 之前,否则会被那条吃掉。
   { path: '/kvm', name: 'kvm', component: KvmPage },
+  // SP18: admin-only web terminal (ttyd iframe). Same catch-all caveat as /kvm above.
+  { path: '/terminal', name: 'terminal', component: TerminalView },
   { path: '/files/:path(.*)*', name: 'files-path', component: Files },
   { path: '/photos', name: 'photos', component: Photos },
   { path: '/photos/favorites', name: 'photos-favorites', component: PhotosFavorites },
