@@ -27,6 +27,21 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/timeline')
       return body<unknown>(res.data)
     },
+    // Bucketed timeline (SP15-P3). The directory is the cheap half: one row per
+    // month, so the grid can render structure before any asset arrives. Bare
+    // camelCase array from the backend, no envelope.
+    async getTimelineBuckets(): Promise<unknown> {
+      const res = await http.get('/photos/timeline/buckets')
+      return body<unknown>(res.data)
+    },
+    // One month's assets. The backend clamps limit to 500 (limit <= 0 or > 500
+    // both become 500), so 500 is the honest default rather than "unlimited".
+    // year and month must be zero together for the unknown-date bucket — the
+    // backend rejects a half-zero key with 400.
+    async getTimelineBucket(year: number, month: number, limit = 500, offset = 0): Promise<unknown> {
+      const res = await http.get('/photos/timeline/bucket', { params: { year, month, limit, offset } })
+      return body<unknown>(res.data)
+    },
     async getAsset(id: string | number): Promise<PhotoAsset> {
       const res = await http.get(`/photos/assets/${id}`)
       return body<PhotoAsset>(res.data)
@@ -437,8 +452,13 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       return body<unknown>(res.data)
     },
     // ─── 回收站 ───
-    async listTrash(): Promise<unknown[]> {
-      const res = await http.get('/photos/trash')
+    // limit/offset mirror listFavorites: omitted (limit = 0) leaves the backend
+    // to apply its own default, which since NimoOS-Photos#54 is 500 rather than
+    // "everything" — callers that must see the whole list have to page.
+    async listTrash(limit = 0, offset = 0): Promise<unknown[]> {
+      const params: Record<string, number> = {}
+      if (limit > 0) { params.limit = limit; params.offset = offset }
+      const res = await http.get('/photos/trash', { params })
       return body<unknown[]>(res.data)
     },
     async restoreFromTrash(id: string | number): Promise<unknown> {
