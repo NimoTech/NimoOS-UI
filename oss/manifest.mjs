@@ -361,10 +361,20 @@ function cutoverDisabled(from: string): boolean {
   { path: 'src/home/composables/useOpenAction.ts',
     // knowledge 与 ai/photos 同属 AI 区,开源版本就不存在这个 key(defaultLayout.ts
     // 早已不含任何 AI 磁贴),处理方式与 ai/photos 一致:整行去掉,不补等价行。
+    // terminal(SP18)不属于这次摘除范围 —— 它是公开面功能(settings 那边的
+    // terminal rail tab 一直留在 REPLACE 里),原样保留只是措辞去掉"knowledge above"
+    // 这个在开源版不存在的指代。
     find: `      if (key === 'knowledge') { router.push('/ai/knowledge'); return }
+      // Terminal: SP18 in-app route. Like knowledge above, Vue2 no longer exists
+      // on-device (retired 08-07), so there is no fallback target and no
+      // strangler:disabled flag — the tile always routes into this app.
+      if (key === 'terminal') { router.push('/terminal'); return }
       window.location.href = SYS_ROUTE[key] || '/#/legacy'
       return`,
-    replace: `      router.push(SYS_ROUTE[key] || '/')
+    replace: `      // Terminal has no counterpart to fall back to, so it always routes
+      // into this app.
+      if (key === 'terminal') { router.push('/terminal'); return }
+      router.push(SYS_ROUTE[key] || '/')
       return` },
   { path: 'src/home/composables/useOpenAction.ts',
     find: `    // 桌面照片磁贴:cutover 后进应用内时间线。刻意不带 asset —— Vue2 这里也只是跳

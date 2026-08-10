@@ -114,11 +114,11 @@ describe('内嵌共享包', () => {
 })
 
 describe('类 3 · 桌面侧补丁', () => {
-  it('系统应用清单只剩 5 个,photos/ai 的 import 与 glyph 都没了', () => {
+  it('系统应用清单只剩 6 个(含 terminal),photos/ai 的 import 与 glyph 都没了', () => {
     const s = read('src/home/apps/systemApps.ts')
     expect(s).not.toMatch(/photos|iconAi|G\.ai/)
-    expect(s.match(/\{ key: '/g)).toHaveLength(5)
-    for (const k of ['files', 'storage', 'vm', 'settings', 'appstore']) expect(s).toContain(`key: '${k}'`)
+    expect(s.match(/\{ key: '/g)).toHaveLength(6)
+    for (const k of ['files', 'storage', 'vm', 'settings', 'appstore', 'terminal']) expect(s).toContain(`key: '${k}'`)
   })
 
   it('Dock 默认收藏 = files/storage/vm/appstore', () => {
