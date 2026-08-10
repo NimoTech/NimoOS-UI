@@ -823,58 +823,78 @@ import { Peer, RTCPeer, type PeerEvents } from './rtcPeer'
 import { encodeText, type TransferBrokenReason } from './protocol'
 ```
 
-```ts
-// RTCPeer needs a real-ish RTCPeerConnection; these tests only exercise the
-// branches that do not touch WebRTC, via a subclass that skips construction.
-class ChannelLessPeer extends TestPeer {
-  broken: TransferBrokenReason[] = []
-  handleDisconnect(reason: TransferBrokenReason) {
-    this.broken.push(reason)
-    super.handleDisconnect(reason)
-  }
-}
+这三条分支都在 `RTCPeer` 上,必须真的走到那些分支才算数 —— **不要用「直接调 `handleDisconnect()`」冒充**,那只是重测了 Task 6,测试名会说谎。
 
-describe('Peer send path without a channel', () => {
-  it('reports a disconnect instead of silently dropping the chunk', async () => {
-    const ev = makeEvents()
-    const p = new ChannelLessPeer({ send: vi.fn() }, 'peer2', ev)
-    // Simulate "channel went away": make sendRaw throw the way RTCPeer's
-    // no-channel branch will now signal it.
-    const f = new File([new Uint8Array(10)], 'x')
-    p.sendFiles([f], 'self1')
-    await vi.waitFor(() => expect(p.hasActiveTransfer()).toBe(true))
-    p.handleDisconnect('disconnected')
-    expect(p.broken).toContain('disconnected')
-    expect(p.hasActiveTransfer()).toBe(false)
-  })
-})
-```
-
-⚠️ 上面这条只覆盖基类语义。`RTCPeer` 那三条分支要用下面这个**直接实例化但绕开 WebRTC** 的手法测:
+`RTCPeer` 的构造与 `refresh()` 都会 `new RTCPeerConnection(...)`,而 jsdom 没有这个全局,所以先备一个最小替身:
 
 ```ts
 describe('RTCPeer disconnect branches', () => {
+  class FakeConn {
+    connectionState = 'new'
+    onicecandidate: unknown = null
+    onconnectionstatechange: unknown = null
+    ondatachannel: unknown = null
+    createDataChannel() { return { send: vi.fn(), close: vi.fn(), readyState: 'connecting' } }
+    createOffer() { return Promise.resolve({ type: 'offer', sdp: '' }) }
+    setLocalDescription() { return Promise.resolve() }
+    setRemoteDescription() { return Promise.resolve() }
+    addIceCandidate() { return Promise.resolve() }
+    close() {}
+  }
+
+  beforeEach(() => { vi.stubGlobal('RTCPeerConnection', FakeConn) })
+  afterEach(() => { vi.unstubAllGlobals() })
+
   function makeRtcPeer(ev: PeerEvents) {
-    // Bypass the constructor's connectRtc() by passing a null peerId, then
-    // assign the id directly -- exactly the "callee waits for the caller"
-    // path the real code already supports.
+    // A null peerId skips the constructor's connectRtc() -- this is the real
+    // "callee waits for the caller to dial" path, not a test-only backdoor.
     const p = new RTCPeer({ send: vi.fn() }, null, ev)
     ;(p as unknown as { _peerId: string })._peerId = 'peer2'
     return p
   }
 
+  function startIncoming(p: RTCPeer) {
+    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 16, from: 'peer2' }))
+    p.handleChannelMessage(new Uint8Array(8).buffer)
+  }
+
   it('reports a disconnect when the data channel closes on the receiving side', () => {
     const ev = makeEvents()
     const p = makeRtcPeer(ev)
-    p.handleChannelMessage(JSON.stringify({ type: 'header', name: 'x.bin', mime: '', size: 16, from: 'peer2' }))
-    p.handleChannelMessage(new Uint8Array(8).buffer)
+    startIncoming(p)
 
     ;(p as unknown as { onChannelClosed: () => void }).onChannelClosed()
 
     expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
   })
+
+  it('reports a disconnect when the connection reaches the closed state', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p)
+    const inner = (p as unknown as { conn: FakeConn | null })
+    inner.conn = new FakeConn()
+    inner.conn.connectionState = 'closed'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
+
+  it('reports a disconnect when a chunk cannot be sent because the channel is gone', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    startIncoming(p) // makes hasActiveTransfer() true so the report is not suppressed
+    expect((p as unknown as { channel: unknown }).channel).toBeNull()
+
+    ;(p as unknown as { sendRaw: (d: string) => void }).sendRaw('anything')
+
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
 })
 ```
+
+⚠️ 最后一条会顺带走进 `refresh()` → `connectRtc()`,这就是上面必须备 `FakeConn` 的原因。**若它因为替身缺方法而报错,补替身,不要改生产代码去迁就测试。**
 
 - [ ] **Step 2: 跑测试确认失败**
 
@@ -958,10 +978,12 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: 写失败测试(追加)**
 
+⚠️ **fake timers 必须用 `{ shouldAdvanceTime: true }`**(下面代码里已经是)。`FileChunker` 靠 `FileReader` 真异步推进,而 `vi.waitFor` 用 `setTimeout` 轮询 —— 普通 fake timers 会把两者一起冻住,测试挂死而不是变红。这一条同样适用于 Task 12。
+
 ```ts
 describe('Peer send-side timeouts', () => {
   it('gives up on a partition acknowledgement that never comes, and unblocks the queue', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const ev = makeEvents()
       const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
@@ -981,7 +1003,7 @@ describe('Peer send-side timeouts', () => {
   })
 
   it('does not fire once the acknowledgement arrives in time', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const ev = makeEvents()
       const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
@@ -999,7 +1021,7 @@ describe('Peer send-side timeouts', () => {
   })
 
   it('arms the same timeout while waiting for the final transfer-complete', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const ev = makeEvents()
       const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
@@ -1017,7 +1039,7 @@ describe('Peer send-side timeouts', () => {
   })
 
   it('clears the timer on transfer-complete so a finished send never reports a timeout', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const ev = makeEvents()
       const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
@@ -1509,7 +1531,7 @@ import { vi } from 'vitest'
 
 describe('DropItem stall watchdog', () => {
   it('reports a stall when progress stops moving for long enough', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
       vi.advanceTimersByTime(20000)
@@ -1521,7 +1543,7 @@ describe('DropItem stall watchdog', () => {
   })
 
   it('keeps quiet while progress is still advancing', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
       vi.advanceTimersByTime(10000)
@@ -1535,7 +1557,7 @@ describe('DropItem stall watchdog', () => {
   })
 
   it('does not run at all when no transfer is in flight', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const w = mountItem({})
       vi.advanceTimersByTime(60000)
@@ -1547,7 +1569,7 @@ describe('DropItem stall watchdog', () => {
   })
 
   it('stops its timer on unmount so a torn-down card cannot fire', async () => {
-    vi.useFakeTimers()
+    vi.useFakeTimers({ shouldAdvanceTime: true })
     try {
       const w = mountItem({ transfer: { progress: 40, sending: true, count: 1 } })
       w.unmount()
