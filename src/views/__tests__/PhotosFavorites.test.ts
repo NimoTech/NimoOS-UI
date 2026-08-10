@@ -77,6 +77,12 @@ function photo(id: string, opts: Partial<{ takenAt: string | null; mimeType: str
   }
 }
 
+// Task 11 (SP15-P3): a page of raw favorite() rows for pagination tests, shared by the
+// "pagination" describe block below and the save-as-album pagination tests.
+function pageAssets(n: number, from = 0) {
+  return Array.from({ length: n }, (_, i) => photo(`f${from + i}`))
+}
+
 beforeEach(() => {
   setActivePinia(createPinia())
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
@@ -381,6 +387,10 @@ describe('PhotosFavorites.vue', () => {
 
     it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名,副标题/脚注文案渲染', async () => {
       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
+      // Task 11 review fix: the subtitle now reads the exact total (favoritesTotal), which
+      // comes from favIds once loaded — keep the id list in sync with the loaded page so
+      // this fixture still reflects "2 favorites" rather than the default empty id list.
+      svc.photos.listFavoriteIds.mockResolvedValue(['a', 'b'])
       const w = await mountView()
 
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
@@ -415,6 +425,72 @@ describe('PhotosFavorites.vue', () => {
       expect(saveSpy).toHaveBeenCalledWith('Trip', ['a', 'b'])
       expect(showSpy).toHaveBeenCalledWith('「Trip」已保存 · 2 张照片')
       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
+
+    // Review fix (Important 1, Task 11 follow-up): before this task favoritesList WAS the
+    // whole set. Now it is at most one page, so submitting straight from it would silently
+    // save a truncated album — the exact defect this task exists to remove, recreated in
+    // this modal. Confirming must page in the rest first.
+    it('submitting with more than one page of favorites pages in the rest first, then saves with the exact total', async () => {
+      svc.photos.listFavorites.mockReset()
+      svc.photos.listFavorites
+        .mockResolvedValueOnce(pageAssets(500)) // initial fetchFavorites page
+        .mockResolvedValueOnce(pageAssets(300, 500)) // loadMoreFavorites: short page, exhausts
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(
+        Array.from({ length: 800 }, (_, i) => `f${i}`),
+      )
+      const w = await mountView()
+      const fav = usePhotosFavorites()
+      expect(fav.favoritesExhausted).toBe(false)
+
+      const albums = usePhotosAlbums()
+      const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockResolvedValue({ id: 1, name: 'Trip' })
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      // The modal shows the exact total (800), not the one loaded page (500).
+      expect(w.find('[data-test="fav-savealbum-sub"]').text()).toContain('800')
+
+      await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(svc.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
+      expect(fav.favoritesExhausted).toBe(true)
+      expect(saveSpy).toHaveBeenCalledTimes(1)
+      expect(saveSpy.mock.calls[0][0]).toBe('Trip')
+      expect(saveSpy.mock.calls[0][1]).toHaveLength(800) // all 500 + 300, not just the first page
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+    })
+
+    // Review fix (Important 1): a page that fails while paging in the rest must not result
+    // in a knowingly-partial album — surface the same failure copy this view already uses
+    // for saveAsAlbum errors, and leave the modal open so the user can retry.
+    it('a pagination failure during submit does not create a partial album, shows the save-failed toast, and leaves the modal open', async () => {
+      svc.photos.listFavorites.mockReset()
+      svc.photos.listFavorites
+        .mockResolvedValueOnce(pageAssets(500))
+        .mockRejectedValueOnce(new Error('network'))
+      const w = await mountView()
+      const fav = usePhotosFavorites()
+      expect(fav.favoritesExhausted).toBe(false)
+
+      const albums = usePhotosAlbums()
+      const saveSpy = vi.spyOn(albums, 'saveAsAlbum')
+      const toast = useToast()
+      const showSpy = vi.spyOn(toast, 'show')
+
+      await w.find('.fav-save-album').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
+      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(saveSpy).not.toHaveBeenCalled()
+      expect(showSpy).toHaveBeenCalledWith(zh.photosFavSaveFailed)
+      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
     })
 
     it('名称 trim 为空时主按钮 disabled 且点击不触发 saveAsAlbum', async () => {

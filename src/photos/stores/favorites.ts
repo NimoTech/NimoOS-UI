@@ -122,7 +122,15 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       // rather than skipping it.
       console.error('[photos-favorites] loadMoreFavorites', e)
     } finally {
-      if (gen === _generation) loadingMore.value = false
+      // Review fix follow-up: reset unconditionally, not only `if (gen === _generation)`.
+      // The reentrancy guard above means at most one loadMoreFavorites() call is ever in
+      // flight, so there is never a second, still-current in-flight call whose loadingMore
+      // this could stomp on. Gating the reset on a generation match instead left the flag
+      // stuck true forever whenever *anything else* (fetchFavorites, or toggle() per
+      // Important 2) bumped the generation while this call was in flight and did not itself
+      // clear loadingMore — permanently disabling the load-more button with no in-flight
+      // request left to explain it.
+      loadingMore.value = false
     }
   }
 
@@ -143,8 +151,14 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
       // Task 11: reset the pagination cursor too, so the next fetchFavorites() starts a
       // fresh page one instead of leaving a stale "exhausted" flag that would hide the
       // load-more button while the list is actually smaller than what was loaded before.
+      // Review fix (Important 2): bump _generation along with the cursor reset. Without
+      // this, a loadMoreFavorites() already in flight when toggle() lands would still
+      // carry the old (now-stale) generation, be judged fresh, and append its page on top
+      // of a list/offset toggle() just rewound to zero — corrupting _offset and, on the
+      // next load-more, re-requesting and duplicating rows already present.
       favoritesExhausted.value = false
       _offset = 0
+      _generation++
     } catch (e) {
       // Roll back + log only — do NOT rethrow. Every caller invokes this
       // fire-and-forget (`void fav.toggle(id)`, mirroring P2's

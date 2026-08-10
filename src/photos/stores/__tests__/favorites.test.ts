@@ -226,5 +226,39 @@ describe('photosFavorites store', () => {
       await s.fetchFavorites()
       expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
     })
+
+    // Review fix (Important 2): toggle()'s success path resets _offset/favoritesExhausted
+    // without bumping _generation, which a purely sequential test cannot see. Interleave a
+    // slow loadMoreFavorites() with a toggle() that lands first: the stale page must be
+    // dropped whole (not appended on top of the offset toggle() already rewound to zero),
+    // or the list silently duplicates rows and the cursor is corrupted.
+    it('a toggle landing while loadMoreFavorites is in flight does not corrupt the cursor', async () => {
+      const s = usePhotosFavorites()
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+      await s.fetchFavorites()
+
+      let release: (v: unknown) => void = () => {}
+      ;(service.photos.listFavorites as any).mockImplementationOnce(
+        () => new Promise((r) => { release = r }),
+      )
+      const slow = s.loadMoreFavorites() // captures generation before toggle() bumps it
+
+      await s.toggle('f0') // success: resets _offset/favoritesExhausted AND _generation
+
+      release(page(500, 500)) // the slow page's response lands after the toggle
+      await slow
+
+      // The stale page must have been dropped whole: still exactly the first page, not
+      // 1000 rows from a duplicate append.
+      expect(s.favoritesList).toHaveLength(500)
+      expect(s.loadingMore).toBe(false)
+
+      // The cursor toggle() rewound to zero must not have been clobbered by the stale
+      // page's `_offset += rows.length` — the next load-more has to re-ask from page one,
+      // not from the corrupted 500 the bug would have produced.
+      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1))
+      await s.loadMoreFavorites()
+      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
+    })
   })
 })

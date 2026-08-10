@@ -99,11 +99,39 @@ function openSaveAlbum(): void {
 function closeSaveAlbum(): void {
   saveAlbumOpen.value = false
 }
+// Review fix (Important 1, Task 11 follow-up): before this task, favoritesList WAS the
+// whole set, so building assetIds straight from it was correct. Now the page loads at most
+// FAVORITES_PAGE_SIZE rows, so a user with more favorites than that who never pressed
+// "load more" would get an album silently truncated to the first page — the exact
+// silent-truncation defect Task 11 exists to remove, recreated in this modal. Page the rest
+// in before saving so the count the user agreed to is the count they get. Progress is
+// detected by list-length growth (a successful page always either appends rows or reaches
+// exhaustion; a failed page does neither), so a stuck cursor is caught without the store
+// exposing its private offset.
+async function loadRemainingFavoritesForSave(): Promise<boolean> {
+  while (!fav.favoritesExhausted) {
+    const before = fav.favoritesList?.length ?? 0
+    await fav.loadMoreFavorites()
+    const after = fav.favoritesList?.length ?? 0
+    if (after === before && !fav.favoritesExhausted) return false // stuck: the page failed
+  }
+  return true
+}
+
 async function confirmSaveAlbum(): Promise<void> {
   const name = saveAlbumName.value.trim()
   if (!name || saveAlbumSaving.value) return
   saveAlbumSaving.value = true
   try {
+    if (!fav.favoritesExhausted) {
+      const loadedAll = await loadRemainingFavoritesForSave()
+      if (!loadedAll) {
+        // Same failure copy the rest of this view already uses — do not create a
+        // knowingly-partial album, and leave the modal open so the user can retry.
+        toast.show(t('photosFavSaveFailed'))
+        return
+      }
+    }
     // 照 Vue2 :467:`this.favorites.map(p => p.id)` —— favorites === favoritesList。
     const assetIds = fav.favoritesList?.map((p) => p.id) ?? []
     await albums.saveAsAlbum(name, assetIds)
@@ -311,9 +339,11 @@ onMounted(() => {
         <div class="favsave-head-text">
           <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
           <!-- 评审 Important 2:补 Vue2 :267-268 的动态副标题(结构照同期 T7
-               PhotosAlbums.vue:269 .albums-modal-sub)。 -->
+               PhotosAlbums.vue:269 .albums-modal-sub)。
+               Task 11 review fix: use the exact total, not the loaded-page length — the
+               number shown here is what confirmSaveAlbum now actually pages in and saves. -->
           <div class="favsave-sub" data-test="fav-savealbum-sub">
-            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesList?.length ?? 0 }) }}
+            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
           </div>
         </div>
         <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
