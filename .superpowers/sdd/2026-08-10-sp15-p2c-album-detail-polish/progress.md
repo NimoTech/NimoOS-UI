@@ -481,3 +481,70 @@ TOOLING HAZARD, second occurrence this project, worth fixing in the tool rather 
   hides the ENTIRE ledger while `git status` still reads clean — 31 ledger files were invisible
   until Task 11 removed it. A controller trusting `git status` would believe the ledger was
   committed when it was not.
+
+=== FINAL WHOLE-BRANCH REVIEW (opus) — 0 Critical + 5 Important + 11 Minor ===
+
+EVERY ONE OF THE FIVE IMPORTANTS WAS STRUCTURALLY INVISIBLE TO PER-TASK REVIEW, and that is the
+case for keeping this step:
+  1. The album page carried the SAME stuck-sort-menu bug the SV page had — keyboard-activating
+     Edit leaves sortMenuOpen true while the capsule unmounts, so the popup springs back on exit.
+     Task 7 found it, fixed it AND wrote a regression test — on the SV page only. No per-task
+     reviewer could see the other page.
+  2. The Convert menu entry rendered the convert MODAL's subtitle instead of the menu entry's own
+     desc. The correct value was sitting in MY OWN PLAN's i18n table the entire time; the key was
+     never created, so one key served two different target strings. It survived eleven per-task
+     reviews and had been mis-triaged in this very ledger as "pre-existing drift".
+  3. The edit-mode select bar reused the tile tooltip's copy, so it advertised 「★ 设为封面」 —
+     an affordance the bar does not offer. The target keeps the four strings deliberately separate.
+  4. The album menu had no open/close transition while the SV menu did — AND the reason recorded
+     in-code ("the target only has it on the SV side, the target is the tie-breaker") was FALSE.
+     The target wraps both. A wrong fact in a comment had been accepted by a per-task review.
+  5. The acceptance checklist pointed the owner at the wrong step for its most-skippable
+     prerequisite.
+
+FIX WAVE (136582d + f35557a): all six dispatched items fixed; scoped re-review confirms every
+  finding ADDRESSED with no new Critical/Important breakage.
+  The fixer found a SECOND collision the final review had not reported: the old step 12
+  (SV -> album) destroyed step 13's starting point too, so the reviewer's suggested "move step 9"
+  would not have been enough. Resolved by giving step 9 its own second album AND swapping 12/13,
+  then re-checking all 21 cross-references. The re-reviewer independently walked all 23 step
+  pointers and confirmed 相册 A survives to step 15 under the new order.
+  Both mutations re-derived rather than trusted: for the sort-menu reset the re-reviewer
+  enumerated every write site of sortMenuOpen to prove none fires on the test's path; for the
+  check glyph it confirmed the class sits on the <svg> and on the v-else spacer, so deleting the
+  spacer really does drop inactive rows to zero matches.
+
+CONTROLLER GATES (run by the fix wave on a clean tree, all green):
+  vue-tsc 0 · pnpm test 685 files / 10958 · oss 8/149 · build 17.0s ·
+  merge-tree vs master = single tree OID 588ddf7, NO CONFLICT.
+
+=== RESIDUAL MINORS — PARKED WITH RULINGS (no second fix wave per the skill) ===
+Three sit in the OWNER-FACING acceptance document. Parked, but they must be surfaced to the owner
+before acceptance rather than left silent:
+  P1. acceptance.md:259 — step 13's parenthetical 「第 12 步验完后仍停在这里」 is false; step 12's
+      last checkbox sends the owner back to 相册 A. Misleads, does not block: step 10 spells out
+      the path back.
+      RULING: park. The page is reachable and the owner will be told.
+  P2. acceptance.md:268 — the leftover enumeration only holds if the owner took step 10's SECOND
+      entry path; on the 「接第 9 步」 path the step-9 smart view IS the one step 13 freezes.
+      RULING: park. Affects cleanup guidance only, not any verification step.
+  P3. acceptance.md:72 — the 相册 A back-reference enumerates 2/3/4/5/6/7/8 and 12 but omits 15,
+      which also starts there. Same omission class as the finding that produced it.
+      RULING: park. 相册 A survives to step 15 and :291 spells out its own path.
+  P4. PhotosAlbumDetail.vue:1219 — the new comment cites photos-smartview.scss:454-455 for the
+      transition rules; the real location is :500-501. The fixer copied the citation verbatim from
+      the pre-existing PhotosSmartViewDetail.vue:1395 comment without re-verifying, propagating a
+      wrong citation into new code on a branch whose Minor 8 was exactly this defect class.
+      RULING: park. The VALUES are correct and byte-identical to the target; only the line
+      pointer is wrong. Worth noting that the pre-existing citation it copied (:78 for the SV
+      page's own transition, actually :167) is also wrong — a stale citation reproduced itself.
+
+WORKSPACE KEPT ON PURPOSE (same ruling as the previous phase): .superpowers/sdd is a TRACKED
+  artifact in this repo since 2026-08-05 and later phases read earlier ledgers — this phase began
+  by reading P2a's and P2b's. Deleting would remove committed files the next phase needs.
+
+=== PHASE CLOSED — code-complete, NOT accepted ===
+Range df2a75d..f35557a. Undeployed, unpushed, not merged to master.
+Acceptance: docs/superpowers/2026-08-10-sp15-p2c-acceptance.md — 15 steps, ZERO run.
+Plan/dispatch defects found this phase: 16. Reviews found 0 Critical + 12 Important across the
+  phase (7 in per-task reviews, 5 in the final whole-branch review).
