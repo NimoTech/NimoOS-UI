@@ -197,20 +197,23 @@ function placeholderHeight(m: Month & { filtered: Photo[] }): number | null {
 const selecting = computed(() => props.selected.length > 0)
 
 const scrubberTicks = computed(() => {
-  const ticks: Array<{ label: string; major: boolean; key: string }> = []
+  const ticks: Array<{ label: string; major: boolean; key: string; disabled: boolean }> = []
   const seenYears = new Set<string>()
-  ;(props.months || []).forEach(m => {
+  // Read the same array the template's v-if reads, so a tick's disabled state can
+  // never disagree with whether that month actually renders.
+  for (const m of filteredMonths.value) {
     // Skip groups without a YYYY-MM key (synthetic single groups), which have
     // no month tick and must not crash the split below.
-    if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) return
+    if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) continue
     const [year, mo] = m.key.split('-')
     if (!seenYears.has(year)) {
       seenYears.add(year)
-      ticks.push({ label: year, major: true, key: `y-${year}` })
+      // Year ticks are never disabled — they are not click targets to begin with.
+      ticks.push({ label: year, major: true, key: `y-${year}`, disabled: false })
     }
     const abbr = new Date(+year, +mo - 1).toLocaleString('en', { month: 'short' })
-    ticks.push({ label: abbr, major: false, key: m.key })
-  })
+    ticks.push({ label: abbr, major: false, key: m.key, disabled: !hasContent(m) })
+  }
   return ticks
 })
 
@@ -486,9 +489,9 @@ onBeforeUnmount(() => {
         <div
           v-for="(tk, i) in scrubberTicks" :key="tk.key"
           class="scrubber-tick" :ref="(el) => setTickRef(el as Element | null, i)"
-          :data-major="tk.major" :data-active="tk.key === activeMonth"
-          :style="{ top: tickTop(i), cursor: tk.major ? 'default' : 'pointer' }"
-          @click="!tk.major && jumpTo(tk.key)"
+          :data-major="tk.major" :data-active="tk.key === activeMonth" :data-disabled="tk.disabled"
+          :style="{ top: tickTop(i), cursor: (tk.major || tk.disabled) ? 'default' : 'pointer' }"
+          @click="!tk.major && !tk.disabled && jumpTo(tk.key)"
         >{{ tk.label }}</div>
         <div v-if="activeIdx >= 0" class="scrubber-thumb" :style="{ top: tickTop(activeIdx) }">
           {{ scrubberTicks[activeIdx].label.slice(0, 3) }}
@@ -607,6 +610,8 @@ onBeforeUnmount(() => {
 }
 .scrubber-tick[data-major="true"] { font-weight: 700; color: var(--fg); font-size: 11px; }
 .scrubber-tick[data-active="true"] { color: var(--accent); }
+/* A month hidden by the current tab or filter has no anchor to jump to. */
+.scrubber-tick[data-disabled="true"] { opacity: 0.35; }
 .scrubber-thumb {
   position: absolute; right: 6px; transform: translateY(-50%);
   padding: 2px 7px; border-radius: 999px; font-size: 10px; font-weight: 600;

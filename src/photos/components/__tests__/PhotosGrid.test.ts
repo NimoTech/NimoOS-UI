@@ -483,6 +483,38 @@ describe('PhotosGrid bucket-mode skeletons', () => {
     expect(w.findAll('.tile')).toHaveLength(1)
     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
   })
+
+  // SP15-P3-T8: the tick's disabled state must come from the SAME array the
+  // template renders month containers from (filteredMonths), not the raw
+  // props.months — otherwise a month hidden by the current tab still gets a
+  // clickable tick that jumps nowhere.
+  //
+  // Cannot use a single unloaded month here: on the doc tab an unloaded month
+  // has no OCR estimate, so hasContent() is false for every month, anyContent
+  // is false, and the scrubber's own v-if removes the whole block — there
+  // would be no ticks to assert on at all. So this needs a SECOND month that
+  // does have doc-tab content, which keeps the scrubber rendered while the
+  // bucket month's tick is the one under test.
+  //
+  // Note: `tab: 'doc'` is not a tab matchesTab recognizes by name — it falls
+  // through to the same default branch as 'photo' (`!isVideo && !hasOcr`), the
+  // same as every unrecognized tab string. So the "has content on this tab"
+  // month below must be a PLAIN photo (no hasOcr), not one with hasOcr:true —
+  // an OCR-tagged photo does NOT match under 'doc' (only the literal 'ocr' tab
+  // matches hasOcr), which would leave both months contentless and the whole
+  // scrubber unmounted, same failure mode as the single-month version above.
+  it('disables the tick of a month the current tab hides', async () => {
+    const docMonth: Month = {
+      key: '2026-09', title: 'September 2026', loc: '',
+      photos: [photo('d1')], loaded: true, count: 1, videoCount: 0,
+    }
+    const w = mount(PhotosGrid, {
+      props: { months: [docMonth, bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'doc' },
+    })
+    await nextTick()
+    const tick = w.findAll('.scrubber-tick').find((t) => t.attributes('data-major') !== 'true' && t.text() === 'Aug')
+    expect(tick?.attributes('data-disabled')).toBe('true')
+  })
 })
 
 class FakeIO {

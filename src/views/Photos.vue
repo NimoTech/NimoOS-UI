@@ -69,13 +69,22 @@ const selected = ref<Array<string | number>>([])
 // 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
 
-// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份。
-// 空月份必须在这里丢——PhotosGrid 的月份刻度尺读的是未按标签页过滤的 props.months
-// (PhotosGrid.vue:88),留着空月份会在刻度尺上留下点不到的死刻度。
+// SP15-P3-T8: is an EXIF filter actually narrowing anything right now? Only
+// then does "unknown membership" become a real problem for an unloaded month.
+const exifFilterActive = computed(() => {
+  const f = exifFilter.value
+  return f.years.length > 0 || f.places.length > 0 || f.cameras.length > 0
+})
+
+// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份 —— 除了一种情况。
+// 分桶模式下未加载的月份 photos 恒为空数组,不能被这条 filter 吃掉 —— 它是 PhotosGrid
+// 画骨架、也是滚动条长度与跳月锚点的来源。
+// 一旦 EXIF 筛选生效就恢复原样丢弃:未加载月份里到底有没有符合筛选的照片,前端无从得知
+// (spec §5.1 已登记为遗留限制,真正的修法是后端筛选)。
 const gridMonths = computed(() =>
   store.months
     .map((m) => ({ ...m, photos: applyExifFilters(m.photos, exifFilter.value) }))
-    .filter((m) => m.photos.length > 0),
+    .filter((m) => m.photos.length > 0 || (m.loaded === false && !exifFilterActive.value)),
 )
 
 // Grid does tab-filtering internally; mirror the same predicate here (hoisted
@@ -246,6 +255,7 @@ onUnmounted(() => {
               :months="gridMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
               @toggle-select="toggleSelect"
+              @need-bucket="(k: string) => store.fetchBucket(k)"
             />
           </div>
         </template>

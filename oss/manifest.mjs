@@ -119,6 +119,8 @@ export const DELETE = [
   'src/views/PhotosMomentDetail.test.ts',
   'src/views/PhotosSmartViewDetail.assets.test.ts',
   'src/views/PhotosSmartViews.moments.test.ts',
+  // SP15-P3: bucket-mode wiring test for Photos.vue.
+  'src/views/__tests__/Photos.buckets.test.ts',
   'src/views/__tests__/Photos.integration.test.ts',
   'src/views/__tests__/Photos.lightbox.test.ts',
   'src/views/__tests__/Photos.route.test.ts',
