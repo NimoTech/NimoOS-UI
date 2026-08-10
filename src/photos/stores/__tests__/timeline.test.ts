@@ -7,11 +7,13 @@ const svc = vi.hoisted(() => ({
     getStatus: vi.fn(),
     listTasks: vi.fn(),
     deleteAsset: vi.fn(),
+    getTimelineBuckets: vi.fn(),
+    getTimelineBucket: vi.fn(),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-import { useTimelineStore } from '../timeline'
+import { useTimelineStore, __resetBucketProbeForTest } from '../timeline'
 
 const GROUP_A = { year: 2026, month: 7, assets: [{ id: 'a1', mimeType: 'image/jpeg', originalName: 'a1.jpg' }] }
 const GROUP_B = {
@@ -23,11 +25,23 @@ const GROUP_B = {
   ],
 }
 
+function notFound() {
+  return Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } })
+}
+
 describe('photos-timeline store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     vi.useFakeTimers()
+    // fetchTimeline now probes the bucket directory before falling back to the
+    // legacy endpoint. These pre-existing tests model a backend that predates
+    // the bucket endpoints, so the probe must 404 by default — otherwise an
+    // unconfigured getTimelineBuckets() mock resolves to `undefined` (not a
+    // rejection), which normalizeBuckets() reads as "zero buckets, but a real
+    // directory" and incorrectly flips bucketMode on, short-circuiting the
+    // legacy getTimeline() call these tests assert on.
+    svc.photos.getTimelineBuckets.mockRejectedValue(notFound())
   })
   afterEach(() => {
     useTimelineStore().__resetForTest()
@@ -294,5 +308,105 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toEqual([])
     // 计时器已随 reset 清掉;之后即使继续推进时间也不该抛错或访问已重置的 state。
     expect(() => vi.advanceTimersByTime(10000)).not.toThrow()
+  })
+})
+
+const BUCKETS = [
+  { year: 2026, month: 8, count: 12, videoCount: 3 },
+  { year: 2026, month: 7, count: 5, videoCount: 0 },
+]
+
+describe('photos-timeline bucket mode', () => {
+  beforeEach(() => {
+    // Same isolation as the describe block above (fresh Pinia + cleared mocks +
+    // fake timers) — this suite makes exact call-count assertions per test, and
+    // one test's leftover store/mock state would corrupt the next test's count.
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    __resetBucketProbeForTest()
+  })
+  afterEach(() => {
+    useTimelineStore().__resetForTest()
+    vi.useRealTimers()
+  })
+
+  it('fetchTimeline probes the directory and enters bucket mode', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.bucketMode).toBe(true)
+    expect(s.buckets).toEqual(BUCKETS)
+    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
+    expect(s.loading).toBe(false)
+  })
+
+  it('exposes every directory month as an unloaded group, newest first', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
+    expect(s.months.every((m) => m.loaded === false && m.photos.length === 0)).toBe(true)
+    expect(s.months[0]).toMatchObject({ count: 12, videoCount: 3 })
+  })
+
+  it('counts from the directory, so the totals are exact before anything loads', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.totalCount).toBe(17)
+    expect(s.videoCount).toBe(3)
+    expect(s.photoCount).toBe(14)
+  })
+
+  it('falls back to the legacy timeline on 404 and stays out of bucket mode', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+    await s.fetchTimeline()
+    expect(s.bucketMode).toBe(false)
+    expect(s.timelineGroups).toEqual([GROUP_A])
+    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+    expect(s.months[0].loaded).toBeUndefined()
+  })
+
+  it('does not re-probe the directory for 10 minutes after a 404', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
+    await s.fetchTimeline()
+    await s.fetchTimeline()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
+    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(2)
+    vi.advanceTimersByTime(10 * 60_000 + 1)
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
+    expect(s.bucketMode).toBe(true)
+  })
+
+  it('keeps probing after a non-404 failure — a blip must not pin the user on the legacy path', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(new Error('network down'))
+    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
+    await s.fetchTimeline()
+    expect(s.bucketMode).toBe(false)
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
+    expect(s.bucketMode).toBe(true)
+  })
+
+  it('drops legacy groups when it switches into bucket mode', async () => {
+    // Both sources feeding `months` at once would double every month.
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
+    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+    await s.fetchTimeline()
+    __resetBucketProbeForTest()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.timelineGroups).toEqual([])
+    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
   })
 })

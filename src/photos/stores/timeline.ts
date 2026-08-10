@@ -11,8 +11,12 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import { groupToMonth, type Month } from '../util/assetToPhoto'
+import { groupToMonth, type Month, type Photo } from '../util/assetToPhoto'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../util/taskBus'
+import { isNotFound } from '../util/httpErrors'
+import {
+  bucketKey, bucketToMonth, normalizeBuckets, type BucketMeta,
+} from '../util/timelineBuckets'
 
 export interface TimelineGroup {
   year: number
@@ -64,21 +68,86 @@ function _cancelDoneRemoval(id: string | number): void {
   }
 }
 
+// A legacy backend answers 404 on the bucket directory every single time. Probing
+// on every page entry is pure noise, so a 404 parks the probe for a while. This
+// is a timestamp, not store state — it must not be reactive, and __resetForTest
+// has to clear it or one test's 404 would silence the next test's probe.
+const BUCKET_PROBE_BACKOFF_MS = 10 * 60_000
+let _bucketProbeRetryAfter = 0
+
+export function __resetBucketProbeForTest(): void {
+  _bucketProbeRetryAfter = 0
+}
+
+// `months` returns a plain Month in the legacy branch and a
+// Month & {loaded, count, videoCount} in the bucket branch (bucketToMonth's
+// return type — see timelineBuckets.ts). Widening `Month` itself belongs to
+// Task 6, so this store-local type (optional extra fields) covers what
+// `months` actually produces without touching the shared interface.
+type TimelineMonth = Month & { loaded?: boolean; count?: number; videoCount?: number }
+
 export const useTimelineStore = defineStore('photos-timeline', () => {
   const timelineGroups = ref<TimelineGroup[]>([])
   const loading = ref(false)
   const indexStatus = ref<IndexStatus>(emptyIndexStatus())
   const tasks = ref<TaskBusPayload[]>([])
 
-  const months = computed<Month[]>(() => timelineGroups.value.map(g => groupToMonth(g)))
+  const buckets = ref<BucketMeta[]>([])
+  const bucketAssets = ref<Map<string, Photo[]>>(new Map())
+  const bucketLoading = ref<Set<string>>(new Set())
+  const bucketMode = ref(false)
+
+  const months = computed<TimelineMonth[]>(() => {
+    if (bucketMode.value) {
+      return buckets.value.map((b) => bucketToMonth(b, bucketAssets.value.get(bucketKey(b)) ?? null))
+    }
+    return timelineGroups.value.map(g => groupToMonth(g))
+  })
   const allPhotos = computed(() => months.value.flatMap(m => m.photos))
   const isIndexing = computed(() => indexStatus.value.pending > 0 || indexStatus.value.queueLen > 0)
-  const photoCount = computed(() => allPhotos.value.filter(p => !p.isVideo).length)
-  const videoCount = computed(() => allPhotos.value.filter(p => p.isVideo).length)
+
+  // In bucket mode the directory knows the whole library, so these are exact
+  // before a single asset has been fetched. The legacy branch can only count
+  // what it holds — which was always wrong for a large library, and stays as it
+  // was because that path has no directory to consult.
+  const totalCount = computed(() =>
+    bucketMode.value
+      ? buckets.value.reduce((s, b) => s + b.count, 0)
+      : allPhotos.value.length,
+  )
+  const videoCount = computed(() =>
+    bucketMode.value
+      ? buckets.value.reduce((s, b) => s + b.videoCount, 0)
+      : allPhotos.value.filter(p => p.isVideo).length,
+  )
+  const photoCount = computed(() =>
+    bucketMode.value
+      ? Math.max(0, totalCount.value - videoCount.value)
+      : allPhotos.value.filter(p => !p.isVideo).length,
+  )
 
   async function fetchTimeline() {
     loading.value = true
     try {
+      if (Date.now() >= _bucketProbeRetryAfter) {
+        try {
+          const raw = await service.photos.getTimelineBuckets()
+          buckets.value = normalizeBuckets(raw)
+          bucketMode.value = true
+          // Both sources feed `months`; leaving legacy groups behind would
+          // render every month twice.
+          timelineGroups.value = []
+          return
+        } catch (e) {
+          if (isNotFound(e)) {
+            _bucketProbeRetryAfter = Date.now() + BUCKET_PROBE_BACKOFF_MS
+          } else {
+            // A network blip must not pin the user on the legacy path for ten
+            // minutes — only a 404 (this backend has no bucket endpoints) does.
+            console.error('[photos-timeline] bucket probe', e)
+          }
+        }
+      }
       const res = await service.photos.getTimeline()
       timelineGroups.value = (res as TimelineGroup[] | null | undefined) ?? []
     } catch (e) {
@@ -228,12 +297,17 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     loading.value = false
     indexStatus.value = emptyIndexStatus()
     tasks.value = []
+    buckets.value = []
+    bucketAssets.value = new Map()
+    bucketLoading.value = new Set()
+    bucketMode.value = false
   }
 
   function __resetForTest() {
     stopIndexPoll()
     for (const t of _doneRemovalTimers.values()) clearTimeout(t)
     _doneRemovalTimers.clear()
+    __resetBucketProbeForTest()
     resetState()
   }
 
@@ -242,11 +316,16 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
     loading,
     indexStatus,
     tasks,
+    buckets,
+    bucketAssets,
+    bucketLoading,
+    bucketMode,
     months,
     allPhotos,
     isIndexing,
     photoCount,
     videoCount,
+    totalCount,
     fetchTimeline,
     refreshTimelineQuiet,
     fetchIndexStatus,
