@@ -3,7 +3,7 @@
 import { FileChunker } from './chunker'
 import { FileDigester } from './digester'
 import {
-  encodeText, decodeText, PROGRESS_NOTIFY_STEP,
+  encodeText, decodeText, PROGRESS_NOTIFY_STEP, ACK_TIMEOUT_MS,
   type ChannelMessage, type ReceivedFile, type TransferBrokenReason,
 } from './protocol'
 
@@ -25,6 +25,7 @@ export class Peer {
   private digester: FileDigester | null = null
   private lastProgress = 0
   private incomingFrom = ''
+  private ackTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(protected signal: SignalChannel, peerId: string | null, protected events: PeerEvents) {
     this._peerId = peerId ?? ''
@@ -53,7 +54,7 @@ export class Peer {
     this.chunker = new FileChunker(
       file,
       (chunk) => this.sendRaw(chunk),
-      (offset) => this.sendJSON({ type: 'partition', offset }),
+      (offset) => { this.sendJSON({ type: 'partition', offset }); this.armAck() },
     )
     this.chunker.nextPartition()
   }
@@ -68,10 +69,14 @@ export class Peer {
       case 'header': this.onFileHeader(msg); break
       case 'partition': this.sendJSON({ type: 'partition-received', offset: msg.offset }); break
       case 'partition-received':
+        this.clearAck()
         if (this.chunker && !this.chunker.isFileEnd()) this.chunker.nextPartition()
+        // Last partition acknowledged: now we are waiting for the receiver to
+        // finish assembling and say transfer-complete. Same bound applies.
+        else this.armAck()
         break
       case 'progress': this.onDownloadProgress(msg.progress); break
-      case 'transfer-complete': this.onTransferCompleted(); break
+      case 'transfer-complete': this.clearAck(); this.onTransferCompleted(); break
       case 'text': this.events.onTextReceived({ text: decodeText(msg.text), sender: this._peerId }); break
     }
   }
@@ -148,7 +153,19 @@ export class Peer {
     if (wasActive) this.events.onTransferBroken({ peerId: this._peerId, reason })
   }
 
+  private armAck(): void {
+    this.clearAck()
+    this.ackTimer = setTimeout(() => this.handleDisconnect('timeout'), ACK_TIMEOUT_MS)
+  }
+
+  private clearAck(): void {
+    if (this.ackTimer === null) return
+    clearTimeout(this.ackTimer)
+    this.ackTimer = null
+  }
+
   protected resetTransferState(): void {
+    this.clearAck()
     this.busy = false
     // Stop the chunker's read loop before dropping the reference: its
     // FileReader 'load' callback closes over `this` directly and is not

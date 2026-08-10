@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Peer, RTCPeer, type PeerEvents } from './rtcPeer'
-import { encodeText, type TransferBrokenReason } from './protocol'
+import { encodeText, ACK_TIMEOUT_MS, type TransferBrokenReason } from './protocol'
 
 // 测试用子类:捕获 sendRaw,免 WebRTC
 class TestPeer extends Peer {
@@ -218,5 +218,103 @@ describe('RTCPeer disconnect branches', () => {
     ;(p as unknown as { sendRaw: (d: string) => void }).sendRaw('anything')
 
     expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'disconnected' })
+  })
+})
+
+describe('Peer send-side timeouts', () => {
+  it('gives up on a partition acknowledgement that never comes, and unblocks the queue', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(70000)], 'a.bin')
+      p.sendFiles([file], 'self1')
+      // FileReader is async even under fake timers; drain the microtask/macro
+      // queue until the first partition marker has gone out.
+      await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'timeout' })
+      expect(p.hasActiveTransfer()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not fire once the acknowledgement arrives in time', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      // Must span two partitions (MAX_PARTITION_SIZE = 1e6): a file that fits
+      // in a single partition makes the only 'partition-received' the FINAL
+      // one, which by design re-arms the timer to wait for transfer-complete
+      // -- that would make this fixture indistinguishable from the "arms the
+      // final wait" test below. Acking both partitions plus transfer-complete
+      // is what "arrives in time" actually means end to end.
+      const file = new File([new Uint8Array(1100000)], 'a.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'partition').length).toBe(1))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 1024000 }))
+
+      await vi.waitFor(() => expect(jsonOut(p).filter((m) => m.type === 'partition').length).toBe(2))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 1100000 }))
+      p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('arms the same timeout while waiting for the final transfer-complete', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(10)], 'small.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'peer2', reason: 'timeout' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('clears the timer on transfer-complete so a finished send never reports a timeout', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const ev = makeEvents()
+      const p = new TestPeer({ send: vi.fn() }, 'peer2', ev)
+      const file = new File([new Uint8Array(10)], 'small.bin')
+      p.sendFiles([file], 'self1')
+      await vi.waitFor(() => expect(jsonOut(p).some((m) => m.type === 'partition')).toBe(true))
+      p.handleChannelMessage(JSON.stringify({ type: 'partition-received', offset: 10 }))
+      p.handleChannelMessage(JSON.stringify({ type: 'transfer-complete' }))
+
+      // Check the timer handle directly, not just the absence of a report:
+      // onTransferCompleted() already sets busy=false, so a leaked timer
+      // firing later would find hasActiveTransfer() false and get swallowed
+      // by the wasActive guard in handleDisconnect -- silently, with no
+      // onTransferBroken call either way. That would make this test pass
+      // whether or not the timer was actually cleared. The real danger is a
+      // stale native timeout still pending underneath: it survives
+      // reassigning `ackTimer` and can misfire mid-flight against whatever
+      // transfer to this peer happens to be active 30s later.
+      expect((p as unknown as { ackTimer: unknown }).ackTimer).toBeNull()
+
+      vi.advanceTimersByTime(ACK_TIMEOUT_MS + 1)
+
+      expect(ev.onTransferBroken).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
