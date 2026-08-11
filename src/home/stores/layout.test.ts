@@ -41,6 +41,41 @@ describe('useLayoutStore', () => {
     expect(s.items[0].key).toBe('files')
   })
 
+  it('loadInitial respects a saved empty layout (user cleared the desktop)', () => {
+    localStorage.setItem('nimoos-home-layout-v2', '[]')
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items).toHaveLength(0)
+  })
+
+  it('loadInitial still falls back to DEFAULT when a saved layout sanitizes to nothing', () => {
+    // 全部是已下线 widget:这不是用户主动清空,回落默认桌面
+    localStorage.setItem('nimoos-home-layout-v2', JSON.stringify([
+      { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 },
+    ]))
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items).toHaveLength(DEFAULT.length)
+  })
+
+  it('loadServer applies a server-side empty layout (cleared on another device)', async () => {
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items.length).toBeGreaterThan(0)
+    getCustomStorage.mockResolvedValueOnce([])
+    await s.loadServer()
+    expect(s.items).toHaveLength(0)
+  })
+
+  it('loadServer keeps current items when the key was never saved (backend returns "")', async () => {
+    const s = useLayoutStore()
+    s.loadInitial()
+    const before = s.items.length
+    getCustomStorage.mockResolvedValueOnce('')
+    await s.loadServer()
+    expect(s.items).toHaveLength(before)
+  })
+
   it('serialize strips id', () => {
     const s = useLayoutStore(); s.loadInitial()
     expect(s.serialize()[0]).not.toHaveProperty('id')
