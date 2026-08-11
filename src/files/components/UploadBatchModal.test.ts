@@ -5,12 +5,12 @@ import UploadBatchModal from './UploadBatchModal.vue'
 import { i18n } from '../../i18n'
 
 const getBatch = vi.fn()
-const abandonBatch = vi.fn()
+const abandonUnder = vi.fn()
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     uploadBatches: {
       getBatch: (...a: unknown[]) => getBatch(...a),
-      abandonBatch: (...a: unknown[]) => abandonBatch(...a),
+      abandonUnder: (...a: unknown[]) => abandonUnder(...a),
     },
   },
 }))
@@ -30,14 +30,18 @@ const detail = {
 const body = () => new DOMWrapper(document.body)
 
 async function mountModal() {
-  const w = mount(UploadBatchModal, { props: { batchId: 'b1' }, global: { plugins: [i18n] }, attachTo: document.body })
+  const w = mount(UploadBatchModal, {
+    props: { batchId: 'b1', entryPath: '/DATA/Media/Trip' },
+    global: { plugins: [i18n] },
+    attachTo: document.body,
+  })
   await nextTick()
   await flushPromises()
   return w
 }
 
 describe('UploadBatchModal', () => {
-  beforeEach(() => { getBatch.mockReset(); abandonBatch.mockReset() })
+  beforeEach(() => { getBatch.mockReset(); abandonUnder.mockReset() })
   afterEach(() => { document.body.innerHTML = '' })
 
   it('lists the missing files and the done/total count', async () => {
@@ -58,33 +62,26 @@ describe('UploadBatchModal', () => {
     expect(body().find('.ubm-missing-item').exists()).toBe(false)
   })
 
-  it('abandons and closes on success', async () => {
+  // Abandon goes through abandon-under with the badged entry's path, NOT the
+  // single batch id: several interrupted batches can stack on one folder (each
+  // canceled retry leaves one) while the badge only carries one id — abandoning
+  // by id made the badge reappear with the next batch's id on the next listing.
+  // A stale badge (#122, batch already swept) is also covered for free: the
+  // bulk endpoint just reports 0 abandoned instead of a 404.
+  it('abandons everything under the badged entry and closes on success', async () => {
     getBatch.mockResolvedValue(detail)
-    abandonBatch.mockResolvedValue(undefined)
+    abandonUnder.mockResolvedValue(undefined)
     const w = await mountModal()
     await body().find('.ubm-abandon').trigger('click')
     await flushPromises()
-    expect(abandonBatch).toHaveBeenCalledWith('b1')
+    expect(abandonUnder).toHaveBeenCalledWith('/DATA/Media/Trip')
     expect(w.emitted('abandoned')).toBeTruthy()
     expect(w.emitted('close')).toBeTruthy()
   })
 
-  // #122: the batch was already swept away server-side -> 404. The user's goal was
-  // just "make the badge disappear," so this shouldn't pop an error and block them.
-  it('treats a 404 on abandon as already abandoned', async () => {
+  it('keeps the dialog open and shows the error on failure', async () => {
     getBatch.mockResolvedValue(detail)
-    abandonBatch.mockRejectedValue({ response: { status: 404 } })
-    const w = await mountModal()
-    await body().find('.ubm-abandon').trigger('click')
-    await flushPromises()
-    expect(w.emitted('abandoned')).toBeTruthy()
-    expect(w.emitted('close')).toBeTruthy()
-    expect(body().find('.ubm-error').exists()).toBe(false)
-  })
-
-  it('keeps the dialog open and shows the error on a non-404 failure', async () => {
-    getBatch.mockResolvedValue(detail)
-    abandonBatch.mockRejectedValue({ response: { status: 500 } })
+    abandonUnder.mockRejectedValue({ response: { status: 500 } })
     const w = await mountModal()
     await body().find('.ubm-abandon').trigger('click')
     await flushPromises()

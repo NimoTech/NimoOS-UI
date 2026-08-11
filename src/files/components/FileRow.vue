@@ -13,7 +13,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
-  (e: 'open-batch', batchId: string): void
+  (e: 'open-batch', batchId: string, entryPath: string): void
 }>()
 
 function onClick(e: MouseEvent) {
@@ -48,7 +48,7 @@ function onClick(e: MouseEvent) {
       type="button"
       class="upload-broken-badge"
       :title="$t('filesUploadBrokenBadge')"
-      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry))"
+      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry), props.entry.path)"
     >!</button>
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>

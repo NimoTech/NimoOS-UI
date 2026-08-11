@@ -27,7 +27,9 @@ describe.each([['FileTile', FileTile], ['FileRow', FileRow]] as const)('%s torn 
   it('emits open-batch and does NOT emit open/select when the badge is clicked', async () => {
     const w = mount(Comp, { props: { entry: broken }, global: { plugins: [i18n] } })
     await w.find('.upload-broken-badge').trigger('click')
-    expect(w.emitted('open-batch')?.[0]).toEqual(['b1'])
+    // Payload carries the entry path too: the abandon flow clears every
+    // interrupted batch under the badged entry, not just the id on the badge.
+    expect(w.emitted('open-batch')?.[0]).toEqual(['b1', '/DATA/x/a.txt'])
     // The badge is a <button> nested inside the card's own @click handler
     // (FileTile.vue / FileRow.vue), so without .stop the click would bubble up
     // and also fire the card's open/select — this guard exists for that reason.
