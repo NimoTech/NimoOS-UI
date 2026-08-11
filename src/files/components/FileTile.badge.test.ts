@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, it, expect, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
@@ -35,5 +37,19 @@ describe.each([['FileTile', FileTile], ['FileRow', FileRow]] as const)('%s torn 
     // not applicable here.)
     expect(w.emitted('open')).toBeUndefined()
     expect(w.emitted('select')).toBeUndefined()
+  })
+})
+
+describe('FileTile badge/star corner ownership', () => {
+  // jsdom does no layout, so this guards the source: both .tile-star and
+  // .upload-broken-badge anchor at top:6px/right:6px, and a favorited folder
+  // with an interrupted batch rendered them stacked on top of each other
+  // (found in SP12 Plan A real-device acceptance, 2026-08-11). The :has rule
+  // shifts the star aside whenever a badge is present; source-text matching is
+  // the same trade-off as the F17 anti-regression gate (a harmless reformat
+  // will turn this red — update the expected string alongside).
+  it('shifts the favorite star left when the broken badge is present', () => {
+    const src = readFileSync(join(__dirname, 'FileTile.vue'), 'utf8')
+    expect(src).toContain('.file-tile:has(.upload-broken-badge) .tile-star { right: 30px; }')
   })
 })
