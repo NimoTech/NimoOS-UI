@@ -11,6 +11,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
       cancelUpload: vi.fn().mockResolvedValue(undefined),
       listActiveUploads: vi.fn().mockResolvedValue({ tasks: [] }),
     },
+    uploadBatches: {
+      createBatch: vi.fn().mockResolvedValue(undefined),
+      abandonBatch: vi.fn().mockResolvedValue(undefined),
+      removeBatchItems: vi.fn().mockResolvedValue(undefined),
+    },
   },
 }))
 // Scheduler stub. When h.autoComplete is true it drains the queue marking each

@@ -257,6 +257,14 @@ export const useUploadsStore = defineStore('files-uploads', () => {
     const item = byId.get(id)
     const tid = resolveTusId(item)
     if (tid) service.file.cancelUpload(tid).catch(() => {})
+    // Drop the file from the server-side batch manifest too: the manifest is
+    // what draws the broken badge, so a canceled file left on it keeps the
+    // batch permanently incomplete and the sweeper badges the folder two
+    // minutes after the user explicitly gave the file up. Done items are
+    // accounting history and stay. Fire-and-forget like cancelUpload.
+    if (item && item.batchId && item.status !== 'done') {
+      service.uploadBatches.removeBatchItems(item.batchId, [item.relativePath]).catch(() => {})
+    }
     queue.value = queue.value.filter((i) => i.id !== id)
     rebuildIndexes()
   }
@@ -279,6 +287,10 @@ export const useUploadsStore = defineStore('files-uploads', () => {
       const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
     }
+    // Abandon the server-side batch ledger as well (see cancelItem). The
+    // endpoint is a no-op on an already-completed batch, so this is safe even
+    // when every item finished.
+    if (batchId) service.uploadBatches.abandonBatch(batchId).catch(() => {})
     queue.value = queue.value.filter((i) => i.batchId !== batchId)
     rebuildIndexes()
     toastedBatches.delete(batchId)
@@ -288,11 +300,15 @@ export const useUploadsStore = defineStore('files-uploads', () => {
   // staging for any item that has a tusUploadUrl (so nothing leaks), and clear
   // the queue. This removes done/error/paused/uploading alike.
   function cancelAll(): void {
+    const batchIds = new Set<string>()
     for (const i of queue.value) {
       getScheduler().abort(i.id)
       const tid = resolveTusId(i)
       if (tid) service.file.cancelUpload(tid).catch(() => {})
+      if (i.batchId) batchIds.add(i.batchId)
     }
+    // Abandon every batch ledger in one pass (see cancelItem for why).
+    for (const bid of batchIds) service.uploadBatches.abandonBatch(bid).catch(() => {})
     queue.value = []
     rebuildIndexes()
     toastedBatches.clear()
