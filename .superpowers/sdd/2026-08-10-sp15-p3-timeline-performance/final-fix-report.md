@@ -265,3 +265,75 @@ load-bearing。实际相反 —— 守卫生效后，唯一可能往 `bucketAsse
 开源导出面无风险点：本波所有代码改动都在 `src/photos/**` 与 `src/views/Photos.vue`，
 两者都在 `oss/manifest.mjs` 的 **DELETE** 表里整块剥离，**没有碰任何 PATCH 锚点**，
 也没有新增/删除文件（`photosStripCoverage` 这类结构守卫无需更新）。
+
+---
+
+# R1/R2 追加一小波（2026-08-11，机主批准）
+
+整支修复波自己带进来两条 Important 回归，逐条如下。两条都在 `src/photos/stores/timeline.ts`，
+本波不碰其他文件的运行代码。
+
+## R1 — m10 守卫在**健康后端**上重造了「永久骨架」
+
+**根因链**（复审已端到端复现，我在本仓也复现了）：用户正看着八月、上传在索引 →
+5s 轮询的 `refreshBuckets` 把八月的 count 改了，而它的分页请求**还在飞** →
+`applyDirectory` 发布新目录 → 我的电平触发确实 emit 了 `need-bucket` →
+**这一发被 `_bucketInflight` 去重吞掉**（注定要被丢弃的那次 run 此刻仍登记在册）→
+那次 run 随后丢弃分页、`return`，而丢弃路径**碰不到任何网格在看的状态**
+（`bucketLoading` 既不是 `months` 的依赖，也不是 `Photos.vue` 的 `gridMonths` 的依赖）⇒
+再也没有下一次重算、下一次 emit。八月无限微光，恢复要等下一次目录变化或滚过 200% rootMargin。
+
+**改法**：不重入，改成**丢弃路径必须发信号**。在 `finally` 里、**本次 run 从
+`_bucketInflight` 注销之后**，把 `bucketAssets` 以**新身份、同内容**重新发布一次
+（`bucketAssets.value = new Map(bucketAssets.value)`）⇒ `months` 重算 ⇒ 网格的电平触发重新
+评估「在窗口内且仍未加载」⇒ 这次去重已解除，重问落地，按**新目录**重走分页。
+
+为什么信号必须发在 `finally` 而不是丢弃分支里：在丢弃分支里发，去重仍然武装着，那一发还是
+会被吞 —— 这正是 R1 的成因本身，换个地方发等于原地打转。
+
+**怎么定界（机主要求说明）**：不是靠计数器，是**构造性有界** —— 只有「目录变化」能让一次
+分页走废，所以**每次目录变化最多多付一次分页走查**；而目录变化本身是限速的
+（索引期 `refreshBuckets` 去抖到 3s 一次），没走废的那次会写入并终结循环。**没有任何被丢弃
+的 run 重入自己**，所以链式重入不可能发生。
+
+**回归测试（就是那个复现）**：`src/views/__tests__/Photos.buckets.test.ts` →
+`recovers when a directory refresh dooms the pages that were already in flight`。
+它是 grid + store + FakeIO 的整链：一次挂起的分页 → 一次把该月 count 改动的目录刷新 →
+放行挂起分页 → 断言该月**最终 loaded**（不是「又发了一次请求」），并断言用户眼前是 11 张
+瓷砖、没有骨架。
+
+**修前/修后**：修前 `× ... expected false to be true`（`aug.loaded` 为 false = 永久骨架，
+与复审「`getTimelineBucket` 调用数停在 1」同一现象）；修后绿。
+
+**测试脚手架上的一个坑（值得记下来）**：`Photos.vue` 在 `onMounted` 的 `fetchTimeline` 把
+`store.loading` 翻真之前**已经画了一帧**，所以 PhotosGrid 会被挂载、被 `v-if` 卸载、再挂载
+一次 ⇒ **存在两个 IntersectionObserver 实例，只有最后一个在观察东西**。第一版测试拿
+`FakeIO.instances[0]`，那是个已 `disconnect()` 的死观察器（targets 为空），于是「开火」什么
+也没发生、断言 0 次调用 —— 测试因此失败，但**理由是错的**（不是产品缺陷）。现在测试用
+`liveIO()` 取最后一个实例，并**先断言该容器确实在 `targets` 里**再开火。
+
+## R2 — 双端点同时失败会把一个存在的库画成空
+
+**根因**：`bucketMode = false` 写在 `await getTimeline()` **之前**。会话中后端重启 ⇒ 探测非
+404 失败 + 老接口也失败 ⇒ `timelineGroups` 还是进入分桶模式时写下的 `[]`，`months` 因此为空，
+页面在一个**存在的库**上画出「没有照片」，而 `Photos.vue` 只有 `store.loading` 分支、没有错误
+分支 ⇒ 一直空到用户离开页面。（我这条 Important 5 修之前，至少还留着旧目录在屏上。）
+
+**改法**：`const res = await service.photos.getTimeline()` → **然后**才
+`bucketMode.value = false` → `timelineGroups.value = res ?? []`。两行之间没有 await，所以不存在
+「分桶模式已关、groups 还没到」的中间渲染。Important 5 的要求仍然满足：落回老接口成功时，
+`months` 渲染的就是老接口的结果，不会有死内存。
+
+**回归测试**：`timeline.test.ts` → `keeps the previous directory on screen when both endpoints
+fail`（探测非 404 + `getTimeline` 也 reject ⇒ `bucketMode` 保持 true、`months` 仍是上一份目录的
+两个月、`totalCount` 仍是 17、`loading` 收尾为 false）。
+**修前/修后**：修前 `× expected false to be true`（`bucketMode` 已被翻成 false ⇒ 空库）；修后绿。
+
+顺带把前一波那条测试的标题从 `leaves bucket mode before falling back to the legacy timeline`
+改成 `leaves bucket mode once the legacy timeline answers` —— 它断言的东西没变（老接口的答案
+必须真的是页面渲染的东西），但「before falling back」这个说法在 R2 之后已经不是实情，留着就是
+下一个人的假靶子。
+
+## 本波闸门（提交 `bc4b9d3`…见下方实际值，工作树干净）
+
+见本文件末尾「R1/R2 闸门」小节。

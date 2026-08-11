@@ -447,7 +447,11 @@ describe('photos-timeline bucket mode', () => {
   // through to the whole-library request this phase exists to eliminate, with
   // bucketMode still true — so `months` ignored the response (dead memory) and the
   // grid kept rendering a directory nothing was refreshing.
-  it('leaves bucket mode before falling back to the legacy timeline', async () => {
+  //
+  // Retitled for R2: the flag is flipped once the legacy call has ANSWERED, not
+  // before it is made (see the next test for why). What matters to this one is
+  // unchanged — the legacy answer must actually be what the page renders.
+  it('leaves bucket mode once the legacy timeline answers', async () => {
     const s = useTimelineStore()
     svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
     await s.fetchTimeline()
@@ -461,6 +465,29 @@ describe('photos-timeline bucket mode', () => {
     // The legacy answer is actually on screen, rather than being fetched and then
     // ignored while a stale directory keeps rendering.
     expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
+  })
+
+  // R2: a backend restart mid-session fails BOTH endpoints. Flipping bucketMode off
+  // before the legacy request meant `timelineGroups` was still the `[]` that
+  // entering bucket mode wrote, so `months` came out empty and the page rendered
+  // the "No photos" empty state over a library that exists — with no error branch
+  // in Photos.vue (only `store.loading`) it stayed that way until the user
+  // navigated away. Before the Important 5 fix the stale directory at least stayed
+  // on screen; it has to stay on screen now too.
+  it('keeps the previous directory on screen when both endpoints fail', async () => {
+    const s = useTimelineStore()
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+    await s.fetchTimeline()
+    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
+
+    svc.photos.getTimelineBuckets.mockRejectedValueOnce(new Error('network down'))
+    svc.photos.getTimeline.mockRejectedValueOnce(new Error('network down'))
+    await s.fetchTimeline()
+
+    expect(s.bucketMode).toBe(true)
+    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
+    expect(s.totalCount).toBe(17) // the directory's own counts, not a blank page
+    expect(s.loading).toBe(false)
   })
 
   it('drops legacy groups when it switches into bucket mode', async () => {

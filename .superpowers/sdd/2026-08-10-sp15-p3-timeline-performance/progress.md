@@ -219,3 +219,46 @@ OCR tab 在多月份大库上的并发请求数只有推算。
 
 **台账更正**：deferred-minor #11（Task 8b「a bucket fetch failing mid-scroll ... traced
 correct by inspection」）的判断**是错的** —— 那条路径当时确实不会恢复，本波 Important 2 修掉。
+
+=== WHOLE-BRANCH REVIEW + FIX WAVE (2026-08-11) ===
+Final review (Opus, range 43006b9..85383b4): 1 Critical + 5 Important + 6 Minor, all seam-level
+  (per-task reviews structurally could not see them). Headline: a tab round trip left the months it
+  hid permanently stuck as skeletons, because the observer resync watched a tab-independent key set
+  while container existence is tab-dependent, and need-bucket was emitted only on an entering
+  intersection.
+Fix wave (one dispatch, Opus, commit 4a7923a8 + docs 5931ca44): all 12 addressed. Scoped re-review
+  (Opus) independently re-verified every fix red-pre-fix in an out-of-tree copy, re-ran the CSS
+  aspect-ratio mutation itself, and judged the real-browser evidence (group - grid = head = 31px,
+  old target ratchets +31px per resync, new delta 0).
+RESIDUAL — TWO NEW IMPORTANTS INTRODUCED BY THE FIX WAVE (owner approved one more pass; BOTH FIXED, see R1/R2 PASS below):
+  R1 (timeline.ts:381-385) the m10 per-key guard drops in-flight pages, and Important 2's
+     level-triggered re-request is swallowed by _bucketInflight dedupe before the drop, while the drop
+     path touches no state the grid watches => an idle user watching August during an upload can be
+     left on a shimmer indefinitely WITH A HEALTHY BACKEND. Confirmed empirically by the re-reviewer
+     (getTimelineBucket call count stays 1). Fix: make the drop path touch watched state, or re-enter
+     fetchBucket after _bucketInflight.delete.
+  R2 (timeline.ts:202) bucketMode is set false BEFORE `await getTimeline()`, so if the legacy call
+     also fails the page renders the empty state over a library that exists (timelineGroups is still
+     the [] bucket mode wrote, and Photos.vue has no error branch). Fix: flip the flag after a
+     successful legacy fetch.
+Per the skill there is no second fix wave without the owner's call — both are load-bearing, so they went
+  to the owner rather than being parked. The owner approved the pass; see R1/R2 PASS below.
+R1/R2 PASS (owner-approved, 2026-08-11): both fixed in timeline.ts, one regression test each.
+  R1 — the drop path now sends a signal the grid actually watches: bucketAssets is republished under
+     a new identity (same content) in `finally`, AFTER the run deregisters from _bucketInflight, so the
+     level-triggered request re-asks and walks the pages against the fresh directory. No re-entry, so
+     nothing chains; bounded by construction (only a directory change can doom a walk => at most one
+     extra walk per directory change, and those are debounced to one per 3s). Regression test is the
+     full reproduction (grid + store + FakeIO) in src/views/__tests__/Photos.buckets.test.ts and
+     asserts the month ends up LOADED, not merely that a second request went out. Red pre-fix
+     (aug.loaded === false).
+     ⚠️ Scaffolding trap found while writing it: Photos.vue paints once before onMounted flips
+     store.loading, so PhotosGrid mounts, unmounts and mounts again => TWO IntersectionObserver
+     instances and only the LAST one observes anything. instances[0] is a disconnected observer with
+     empty targets; the first version of the test fired into it and failed for the wrong reason. The
+     test now takes the last instance and asserts the container is in its targets before firing.
+  R2 — bucketMode flips only after `await getTimeline()` resolves, so a double-endpoint failure keeps
+     the previous directory on screen instead of rendering "No photos" over a library that exists.
+     Important 5's requirement still holds (no dead-memory legacy fetch under a live bucket mode).
+     Red pre-fix (bucketMode === false). Also retitled the previous wave's "leaves bucket mode before falling
+     back..." test, whose wording stopped being true.

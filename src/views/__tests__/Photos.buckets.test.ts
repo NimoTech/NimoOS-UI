@@ -18,6 +18,12 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 const svc = vi.hoisted(() => ({
   photos: {
     getTimeline: vi.fn().mockResolvedValue([]),
+    // The directory endpoints. The default rejection is deliberately NOT a 404: it
+    // reproduces what this fixture did before these two mocks existed (calling an
+    // undefined member threw), so the probe fails without arming the 10-minute
+    // backoff that would then leak into the next test.
+    getTimelineBuckets: vi.fn().mockRejectedValue(new Error('no directory in this fixture')),
+    getTimelineBucket: vi.fn().mockResolvedValue([]),
     getStatus: vi.fn().mockResolvedValue({}),
     listTasks: vi.fn().mockResolvedValue({ tasks: [] }),
     deleteAsset: vi.fn().mockResolvedValue(undefined),
@@ -48,7 +54,7 @@ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: 
 import Photos from '../Photos.vue'
 import PhotosGrid from '../../photos/components/PhotosGrid.vue'
 import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
-import { useTimelineStore } from '../../photos/stores/timeline'
+import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 
 function makeRouter() {
   return createRouter({
@@ -68,7 +74,10 @@ async function mountPhotos() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
+  __resetBucketProbeForTest()
   busOn.mockClear()
+  svc.photos.getTimelineBuckets.mockClear().mockRejectedValue(new Error('no directory in this fixture'))
+  svc.photos.getTimelineBucket.mockClear().mockResolvedValue([])
   svc.photos.getTimeline.mockClear().mockResolvedValue([])
   svc.photos.getStatus.mockClear().mockResolvedValue({})
   svc.photos.listTasks.mockClear().mockResolvedValue({ tasks: [] })
@@ -143,5 +152,106 @@ describe('Photos.vue bucket-mode wiring (SP15-P3-T8)', () => {
     await w.findComponent(PhotosGrid).vm.$emit('need-bucket', '2026-08')
 
     expect(fetchBucketSpy).toHaveBeenCalledWith('2026-08')
+  })
+})
+
+// A month container has to be observed for anything to happen, and jsdom has no
+// IntersectionObserver — so the whole grid/store loop can only be reproduced with
+// one installed. Only elements it is actually observing may be notified.
+class FakeIO {
+  static instances: FakeIO[] = []
+  cb: IntersectionObserverCallback
+  targets: Element[] = []
+  constructor(cb: IntersectionObserverCallback) { this.cb = cb; FakeIO.instances.push(this) }
+  observe(el: Element) { this.targets.push(el) }
+  unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el) }
+  disconnect() { this.targets = [] }
+  takeRecords(): IntersectionObserverEntry[] { return [] }
+  fire(el: Element, isIntersecting: boolean) {
+    this.cb(
+      [{ target: el, isIntersecting } as unknown as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    )
+  }
+}
+
+// R1: the minor-10 "drop the pages if the directory moved under them" guard
+// recreated the permanent-skeleton symptom that the level-triggered request exists
+// to remove — and on a HEALTHY backend, in the most ordinary flow there is (looking
+// at a month while an upload indexes).
+//
+// The whole loop has to be in one test, because the defect lives between the two
+// halves: the emit the directory change produces is swallowed by the store's
+// in-flight dedupe (the doomed run is still registered at that instant), and the
+// drop path then touches nothing the grid watches — `bucketLoading` is a dependency
+// of neither `months` nor `gridMonths`. So the assertion is not "a second request
+// was issued" but "the month is loaded in the end".
+describe('Photos.vue: a month whose pages are dropped mid-flight still loads (R1)', () => {
+  beforeEach(() => {
+    FakeIO.instances = []
+    ;(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIO
+  })
+  afterEach(() => {
+    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
+  })
+
+  const asset = (id: string) => ({ id, mimeType: 'image/jpeg' })
+
+  // Photos.vue paints once before onMounted's fetchTimeline flips `store.loading`,
+  // so the grid is mounted, unmounted by the `v-if`, and mounted again — two
+  // observers exist and only the last one is watching anything. Reaching for
+  // instances[0] silently tests a disconnected observer (its targets are empty
+  // because onBeforeUnmount disconnected it).
+  const liveIO = () => FakeIO.instances[FakeIO.instances.length - 1]
+
+  it('recovers when a directory refresh dooms the pages that were already in flight', async () => {
+    // The library: one month, ten photos, nothing loaded yet.
+    svc.photos.getTimelineBuckets.mockReset().mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 10, videoCount: 0 },
+    ])
+    // Every later request answers with the eleven photos the month has AFTER the
+    // upload lands; the first one is held open so the refresh can overtake it.
+    svc.photos.getTimelineBucket.mockReset().mockResolvedValue(
+      Array.from({ length: 11 }, (_, i) => asset(`a${i}`)),
+    )
+    let releaseFirstPage: (v: unknown) => void = () => {}
+    svc.photos.getTimelineBucket.mockImplementationOnce(
+      () => new Promise((r) => { releaseFirstPage = r }),
+    )
+
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    expect(store.bucketMode).toBe(true)
+
+    // August scrolls into the window: the grid asks, the store starts paging.
+    const group = w.find('#m-2026-08')
+    expect(group.exists()).toBe(true)
+    expect(liveIO().targets).toContain(group.element) // it really is being watched
+    liveIO().fire(group.element, true)
+    await flushPromises()
+    expect(svc.photos.getTimelineBucket).toHaveBeenCalledTimes(1)
+
+    // The 5s index poll notices progress and refreshes the directory while those
+    // pages are still in flight: August is 11 now, so the run in flight is doomed.
+    svc.photos.getTimelineBuckets.mockResolvedValueOnce([
+      { year: 2026, month: 8, count: 11, videoCount: 0 },
+    ])
+    await store.refreshBuckets()
+    await flushPromises()
+
+    // The doomed pages finally arrive and are thrown away.
+    releaseFirstPage(Array.from({ length: 10 }, (_, i) => asset(`old${i}`)))
+    await flushPromises()
+    await flushPromises()
+
+    // Before the fix this stayed at 1 and the month shimmered indefinitely.
+    const aug = store.months.find((m) => m.key === '2026-08')
+    expect(aug?.loaded).toBe(true)
+    expect(aug?.photos.map((p) => p.id)).toEqual(
+      Array.from({ length: 11 }, (_, i) => `a${i}`),
+    )
+    // And the user is looking at tiles, not a skeleton.
+    expect(w.findAll('.tile')).toHaveLength(11)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
   })
 })

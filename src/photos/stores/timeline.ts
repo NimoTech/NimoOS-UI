@@ -193,14 +193,24 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
           }
         }
       }
-      // Whole-branch review fix (Important 5, second half): leave bucket mode
-      // BEFORE falling through. Reaching this line means we are about to make the
-      // whole-library request this phase exists to eliminate, and if bucketMode
-      // stayed true `months` would ignore the answer entirely — the response would
-      // be dead memory while the grid kept rendering a directory nobody is
-      // refreshing any more.
-      bucketMode.value = false
+      // Whole-branch review fix (Important 5, second half): the fall-through must
+      // not leave a working bucket mode rendering a directory nobody refreshes any
+      // more — if bucketMode stayed true, `months` would ignore this response
+      // entirely and it would be dead memory.
+      //
+      // R2 (regression from the first version of that fix): the flag is flipped
+      // AFTER the legacy call answers, not before it. Flipping first meant a
+      // double failure — the probe blips and the legacy endpoint is down too, i.e.
+      // a backend restart mid-session — left bucketMode false while
+      // `timelineGroups` was still the `[]` that entering bucket mode wrote: an
+      // empty `months`, so the page rendered "No photos" over a library that
+      // exists, and Photos.vue has no error branch (only `store.loading`) to say
+      // otherwise. Keeping the previous directory on screen is the lesser evil, and
+      // the next mount or socket reconnect probes again. There is no await between
+      // the two lines below, so no render can catch bucket mode off with the groups
+      // not yet in place.
       const res = await service.photos.getTimeline()
+      bucketMode.value = false
       timelineGroups.value = (res as TimelineGroup[] | null | undefined) ?? []
     } catch (e) {
       console.error('[photos-timeline] fetchTimeline', e)
@@ -347,6 +357,10 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
       const next = new Set(bucketLoading.value)
       next.add(key)
       bucketLoading.value = next
+      // Set when the pages are thrown away because the directory moved under
+      // them. Read in `finally`, after this run has deregistered itself — see the
+      // comment there for why the signal cannot be sent from the drop branch.
+      let droppedByDirectoryChange = false
       try {
         const photos: Photo[] = []
         for (let page = 0; page < BUCKET_MAX_PAGES; page++) {
@@ -381,6 +395,7 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         const nowMeta = buckets.value.find((b) => bucketKey(b) === key)
         if (!nowMeta || nowMeta.count !== meta.count || nowMeta.videoCount !== meta.videoCount) {
           console.warn('[photos-timeline] bucket changed while loading, dropping the page', key)
+          droppedByDirectoryChange = true
           return
         }
         const map = new Map(bucketAssets.value)
@@ -399,6 +414,31 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         done.delete(key)
         bucketLoading.value = done
         _bucketInflight.delete(key)
+        // R1 (regression introduced by the minor-10 guard): a dropped run must not
+        // end in silence. The directory change that doomed it did make the grid
+        // emit `need-bucket` — but that emit landed while this run was still
+        // registered above, so the dedupe swallowed it, and then this run returned
+        // without writing anything. Nothing else in the drop path is reactive
+        // (`bucketLoading` is not a dependency of `months`, nor of Photos.vue's
+        // `gridMonths`), so the month shimmered until some unrelated event moved
+        // the directory again or the user scrolled across a rootMargin boundary —
+        // exactly the permanent skeleton the level-triggered request exists to
+        // remove, and now on a perfectly healthy backend.
+        //
+        // Republishing bucketAssets under a new identity (same content) makes
+        // `months` recompute, which re-runs the grid's level-triggered request; by
+        // now this key is out of `_bucketInflight`, so the re-ask goes through and
+        // walks the pages again against the fresh directory. It is sent from
+        // `finally`, after deregistration, for exactly that reason — from the drop
+        // branch itself the dedupe would still be armed.
+        //
+        // Bounded by construction rather than by a counter: only a directory
+        // change can doom a walk, so each directory change costs at most one extra
+        // walk. Directory changes are themselves rate-limited (refreshBuckets is
+        // debounced to one per 3s while indexing), and a walk that is not doomed
+        // writes its pages and ends the cycle. No dropped run re-enters itself, so
+        // nothing can chain.
+        if (droppedByDirectoryChange) bucketAssets.value = new Map(bucketAssets.value)
       }
     })()
     _bucketInflight.set(key, run)
