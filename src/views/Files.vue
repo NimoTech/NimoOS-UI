@@ -286,10 +286,16 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   const normalized = toSelectedFiles(wanted, targetPath)
   // 超长路径前置过滤:后端 tus ingest 对 ENAMETOOLONG 是异步静默失败,前端会先报
   // "上传成功"(bug.txt #2)。relativePath 逐段查 NAME_MAX,拼接目标全路径查 PATH_MAX。
+  // 空目录同样要过这道检查(评审发现:此前只过滤了文件,拖拽一个深路径的空文件夹
+  // 会绕过前置提示,直接撞上后端那句没有信息量的 "Fail")——relativePath 已由
+  // dropEntries 去掉了前导斜杠,与文件条目走的是同一套判定,故复用同一个 fitsLimits。
   const fitsLimits = (rel: string) =>
     !rel.split('/').some(nameTooLong) && !pathTooLong(joinPath(targetPath, rel))
   const withinLimits = normalized.filter((e) => fitsLimits(e.relativePath))
-  const tooLong = normalized.length - withinLimits.length
+  const withinLimitsDirs = emptyDirs.filter(fitsLimits)
+  // 文件与空目录合并成一条 toast,而不是分别弹两条——用户看到的是同一批拖拽操作,
+  // 拆开报会显得像出了两个问题。
+  const tooLong = (normalized.length - withinLimits.length) + (emptyDirs.length - withinLimitsDirs.length)
   if (tooLong > 0) toast.show(t('filesUploadPathTooLong', { count: tooLong }))
   // Refuse protected-directory entries BEFORE the conflict prompt, not after.
   // addFilesToQueue applies the same rule at the end of this function, so these
@@ -305,7 +311,7 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // (bug.txt #4): a dropped folder named "AppData" must be refused the same way
   // whether it carries files or is empty.
   const { accepted: dirsAllowed, rejected: dirsProtected } =
-    splitProtectedUploads(emptyDirs.map((p) => ({ relativePath: p })))
+    splitProtectedUploads(withinLimitsDirs.map((p) => ({ relativePath: p })))
   for (const name of dirsProtected) toast.show(t('filesUploadProtected', { name }))
 
   // A batch made of ONLY empty dirs (no files survived the protected filter, or
