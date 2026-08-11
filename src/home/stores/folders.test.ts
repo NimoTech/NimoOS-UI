@@ -8,6 +8,9 @@ vi.mock('@nimotech/nimoos-service', async () => {
     service: {
       folder: { getList: vi.fn(async () => ({ content: [
         { name: 'a', path: '/DATA/a', is_dir: true }, { name: 'f.txt', path: '/DATA/f.txt', is_dir: false },
+        // 隐藏条目:与 Files 区同一套过滤规则(点开头 + lost+found),选择器不得展示
+        { name: '.system_data', path: '/DATA/.system_data', is_dir: true },
+        { name: 'lost+found', path: '/DATA/lost+found', is_dir: true },
       ] })) },
       storage: { list: vi.fn() }
     }
@@ -27,6 +30,16 @@ describe('useFoldersStore', () => {
       const s = useFoldersStore()
       await s.loadFolder('/DATA')
       expect(s.cache['/DATA']).toEqual([{ name: 'a', path: '/DATA/a' }])
+    })
+
+    // 主页添加面板的文件夹列表必须与 Files 区同规则隐藏系统条目,
+    // 否则 .system_data 这类目录能被看到并拖上桌面(2026-08-11 机主报障)。
+    it('hides dot-entries and lost+found like the files area', async () => {
+      const s = useFoldersStore()
+      await s.loadFolder('/DATA')
+      const names = (s.cache['/DATA'] ?? []).map((x) => x.name)
+      expect(names).not.toContain('.system_data')
+      expect(names).not.toContain('lost+found')
     })
   })
 

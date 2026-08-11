@@ -5,6 +5,7 @@ import { useFoldersStore } from '../../home/stores/folders'
 import type { DisplayNames } from '../util/pathUtils'
 import { fileExt } from '../util/ext'
 import { folderListErrorMsg } from '../util/folderListError'
+import { isHiddenEntry } from '../../util/hiddenEntries'
 
 export interface FileEntry {
   name: string
@@ -21,8 +22,6 @@ export interface FileEntry {
     upload?: { broken?: boolean | string; batchId?: string }
   } | null
 }
-
-const HIDDEN = new Set(['lost+found'])
 
 export const useFilesStore = defineStore('files', () => {
   const displayNames = ref<DisplayNames>({})
@@ -67,7 +66,7 @@ export const useFilesStore = defineStore('files', () => {
     try {
       const data = await service.folder.getList(realPath)
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
-      entries.value = content.filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
+      entries.value = content.filter((e) => !isHiddenEntry(e.name))
       currentPath.value = realPath
     } catch (e) {
       // This used to be swallowed into an empty listing, which renders exactly
