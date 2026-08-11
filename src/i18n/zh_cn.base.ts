@@ -130,6 +130,7 @@ export default {
   filesConflictSkip: '跳过',
   filesConflictOverwrite: '覆盖',
   filesUploadSkipped: '已跳过 {count} 项',
+  filesEmptyDirsCreated: '已创建 {count} 个空文件夹',
   filesUploadZoneProblem: '需要处理',
   filesUploadZoneOps: '文件操作',
   filesUploadZoneActive: '上传中',
