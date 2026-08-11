@@ -262,3 +262,43 @@ R1/R2 PASS (owner-approved, 2026-08-11): both fixed in timeline.ts, one regressi
      Important 5's requirement still holds (no dead-memory legacy fetch under a live bucket mode).
      Red pre-fix (bucketMode === false). Also retitled the previous wave's "leaves bucket mode before falling
      back..." test, whose wording stopped being true.
+R1/R2 PASS (owner approved a second small pass 2026-08-11): commit aa3f5b83 + docs 5aff37ca.
+  R1 fixed by having the dropped walk republish bucketAssets under a new identity in `finally` after it
+    deregisters, so the level-trigger re-asks and walks the fresh directory; the test is the full
+    grid+store+FakeIO reproduction asserting the month ends LOADED, not merely that a request re-fired.
+  R2 fixed by flipping bucketMode only after getTimeline() resolves, with no await before the groups
+    assignment; the test asserts a double endpoint failure keeps bucketMode true and the previous
+    directory painted instead of an empty state over a real library.
+  Scoped re-review (Opus): both ADDRESSED; both new tests independently verified load-bearing by
+    reverting each fix in an out-of-tree copy; reviewer explicitly would not hold the branch.
+    Gates on aa3f5b83: vue-tsc 0 - pnpm test 689 files / 11107 - oss 487 - focused 131 files / 2734.
+  RESIDUAL MINOR (open): timeline.ts:431-433's last sentence claims that signalling from the drop branch
+    would be swallowed by the armed dedupe. Disproven by mutation - the watcher flushes on a microtask,
+    so republishing before the deregistration, or from the drop branch itself, also passes. The placement
+    is fine; only the stated reason is wrong. Fifth instance on this branch of a comment asserting
+    behavior the code does not have.
+  RESIDUAL MINOR (open): bucketMode now stays true across the legacy fall-through's await, so a
+    grid-issued fetchBucket can be orphaned when the flag flips - bounded to one legacy round trip,
+    not user-visible.
+  PRE-EXISTING, not a finding: Photos.vue gates the grid on store.loading, which onMounted flips after
+    the first paint, so PhotosGrid mounts/unmounts/remounts and two observers exist (the first has no
+    targets and is disconnected on unmount). Harmless at runtime, but it IS a test trap - the new R1
+    test guards against firing into the dead one.
+  ^ that residual is now CLOSED: commit 5c577410 rewrote the sentence (placement is for clarity, not
+    necessity, since the watcher flushes on a microtask). vue-tsc 0, timeline.test.ts 64/64.
+
+WORKSPACE KEPT ON PURPOSE (same ruling as P2c): .superpowers/sdd is a tracked artifact in this repo and
+  later phases read earlier ledgers — this phase began by reading P1/P2a/P2b/P2c's. The blanket `*` in
+  .superpowers/sdd/.gitignore is rebuilt by the workspace script every run, so committing anything here
+  needs `git add -f`.
+
+=== PHASE CLOSED — code-complete, NOT accepted ===
+Range 43006b9..5c577410 (26 commits). Undeployed, unpushed, not merged to master.
+Acceptance: docs/superpowers/2026-08-10-sp15-p3-acceptance.md — steps 1-4 runnable on the current
+  backend; step 5 (legacy fallback) is no longer reachable on this device now that the new backend is
+  deployed, and the document says so rather than pretending otherwise.
+Reviews: 0 Critical survived; every Critical/Important found was closed. Whole-branch review found
+  1 Critical + 5 Important that no per-task review could see. Fix waves introduced 2 Importants of their
+  own, both then closed. Deferred minors: 18 triaged by the final reviewer, 2 promoted to fix-now (both
+  fixed), the rest stay deferred with reasons.
+Plan defects found during execution: 12 (four of them mine, caught by implementers via TDD).
