@@ -6,6 +6,8 @@ import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate, operableEntries } from '../util/protect'
+import { createBlocked } from '../util/pathLimits'
+import { folderListErrorMsg } from '../util/folderListError'
 import { useClipboardStore, type OperateItem } from '../stores/clipboard'
 import { useFileConflictsStore } from '../stores/fileConflicts'
 import { buildPastePayload } from '../util/fileOps'
@@ -16,8 +18,10 @@ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { blockedBySnapshotView } from '../util/snapshotRestore'
 
 function errMsg(e: unknown, fallback: string): string {
-  const m = (e as { message?: string } | undefined)?.message
-  return m || fallback
+  // detail → response.data.data → message 的取值顺序与目录列表报错一致;后端把
+  // 意外 errno(如 ENAMETOOLONG)映射成字面 "Fail",无信息量,落回本地文案。
+  const m = folderListErrorMsg(e)
+  return !m || m === 'Fail' ? fallback : m
 }
 
 export function useFileOps() {
@@ -41,12 +45,16 @@ export function useFileOps() {
 
   async function createFolder(name: string) {
     if (blockedInSnapshot()) return
+    const blocked = createBlocked(files.currentPath, name)
+    if (blocked) { toast.show(t(blocked === 'name' ? 'filesNameTooLong' : 'filesPathTooLong')); return }
     try { await service.folder.create(joinPath(files.currentPath, name)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 
   async function createFile(name: string) {
     if (blockedInSnapshot()) return
+    const blocked = createBlocked(files.currentPath, name)
+    if (blocked) { toast.show(t(blocked === 'name' ? 'filesNameTooLong' : 'filesPathTooLong')); return }
     try { await service.file.create(joinPath(files.currentPath, name)); await refresh() }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
