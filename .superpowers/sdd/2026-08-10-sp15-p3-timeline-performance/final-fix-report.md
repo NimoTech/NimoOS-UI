@@ -337,3 +337,15 @@ fail`（探测非 404 + `getTimeline` 也 reject ⇒ `bucketMode` 保持 true、
 ## 本波闸门（提交 `bc4b9d3`…见下方实际值，工作树干净）
 
 见本文件末尾「R1/R2 闸门」小节。
+
+## R1/R2 闸门（提交 `aa3f5b83`，工作树干净）
+
+| 闸 | 结果 |
+|---|---|
+| `pnpm test src/photos src/views/__tests__` | 131 files / **2734** tests passed（上一波 2732 ⇒ +2） |
+| `pnpm exec vue-tsc --noEmit` | 0 错误 |
+| `pnpm test`（全量） | 689 files / **11107** tests passed（上一波 11105 ⇒ +2） |
+| `pnpm test oss` | 21 files / 487 tests passed |
+
+本波只改 `src/photos/stores/timeline.ts`（运行代码）+ 两个测试文件 + 台账/报告；
+未新增/删除文件，开源导出面无新增风险点（`src/photos/**` 整块在 DELETE 表里）。
