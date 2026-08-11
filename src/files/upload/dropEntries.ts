@@ -11,6 +11,7 @@ interface FsEntry {
   createReader?: () => { readEntries: (ok: (e: FsEntry[]) => void, err?: () => void) => void }
 }
 export interface DroppedFile { file: File; relativePath: string }
+export interface DroppedTree { files: DroppedFile[]; emptyDirs: string[] }
 
 function stripLead(p: string): string { return p.replace(/^\/+/, '') }
 
@@ -36,7 +37,7 @@ function entryToFile(entry: FsEntry): Promise<File | null> {
   })
 }
 
-async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
+async function walk(entry: FsEntry | null, out: DroppedFile[], emptyDirs: string[]): Promise<void> {
   if (!entry) return
   if (entry.isFile) {
     const f = await entryToFile(entry)
@@ -45,13 +46,18 @@ async function walk(entry: FsEntry | null, out: DroppedFile[]): Promise<void> {
   }
   if (entry.isDirectory && entry.createReader) {
     const children = await readAllEntries(entry.createReader())
-    for (const child of children) await walk(child, out)
+    // 空目录:整条管线只有"文件"实体,目录本是文件落盘的副作用;不在这里记下相对
+    // 路径,空目录就从上传里消失(bug.txt #4)。只记叶子:父链由后端 MkdirAll 补齐。
+    // webkitdirectory 选择器按规范拿不到空目录,那个入口无法修,只有拖拽走得到这里。
+    if (!children.length) { emptyDirs.push(stripLead(entry.fullPath || entry.name)); return }
+    for (const child of children) await walk(child, out, emptyDirs)
   }
 }
 
-export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedFile[]> {
+export async function readDroppedEntries(dt: DataTransfer | null): Promise<DroppedTree> {
   const out: DroppedFile[] = []
-  if (!dt) return out
+  const emptyDirs: string[] = []
+  if (!dt) return { files: out, emptyDirs }
   const items = dt.items as unknown as (DataTransferItem & { webkitGetAsEntry?: () => FsEntry | null })[] | null
   const supportsEntries = !!(items && items.length && items[0].webkitGetAsEntry)
   if (supportsEntries) {
@@ -62,11 +68,11 @@ export async function readDroppedEntries(dt: DataTransfer | null): Promise<Dropp
       if (items![i].kind === 'file') entries.push(items![i].webkitGetAsEntry!())
     }
     for (const entry of entries) {
-      try { await walk(entry, out) } catch (e) { console.error('[files][drop] walk failed', e) }
+      try { await walk(entry, out, emptyDirs) } catch (e) { console.error('[files][drop] walk failed', e) }
     }
-    return out
+    return { files: out, emptyDirs }
   }
-  // Fallback: flat file list (no folder traversal possible).
+  // Fallback: flat file list (no folder traversal possible, so no directories at all).
   for (const f of Array.from(dt.files || [])) out.push({ file: f, relativePath: f.name })
-  return out
+  return { files: out, emptyDirs }
 }

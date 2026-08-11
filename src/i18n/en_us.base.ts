@@ -130,6 +130,7 @@ export default {
   filesConflictSkip: 'Skip',
   filesConflictOverwrite: 'Overwrite',
   filesUploadSkipped: 'Skipped {count} item(s)',
+  filesEmptyDirsCreated: 'Created {count} empty folder(s)',
   filesUploadZoneProblem: 'Needs action',
   filesUploadZoneOps: 'File operations',
   filesUploadZoneActive: 'Uploading',

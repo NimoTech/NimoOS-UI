@@ -32,6 +32,7 @@ import { shareableFolders } from '../files/util/shareGate'
 import { splitProtectedUploads, operableEntries } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
+import { createEmptyDirs } from '../files/upload/emptyDirs'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -234,7 +235,17 @@ defineExpose({ handleSelectedFiles, onRefill })
 // Shared enqueue path for both the file/folder picker and drag-drop: resolve
 // same-name conflicts, enqueue what survives, and toast anything skipped,
 // cancelled, or rejected for being in a protected dir.
-async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+// 落地空目录:createEmptyDirs 建目录(容忍已存在),按结果 toast,只有目标目录就是
+// 当前所在目录时才刷新列表(在别处上传的批次不该打断用户正在看的页面)。
+async function commitEmptyDirs(dirs: { relativePath: string }[], targetPath: string) {
+  if (!dirs.length) return
+  const { created, failed } = await createEmptyDirs(dirs.map((d) => d.relativePath), targetPath)
+  if (created) toast.show(t('filesEmptyDirsCreated', { count: created }))
+  if (failed.length) toast.show(t('filesOpFailed'))
+  if (created && targetPath === files.currentPath) await files.load(files.currentPath)
+}
+
+async function commitSelectedFiles(entries: { file: File; relativePath: string }[], emptyDirs: string[] = []) {
   // Code review fix (ordering leak): consume any pending refill filter immediately,
   // before any guard below can return early. Reading it into a local and nulling the
   // ref in the same breath makes it strictly single-use no matter which branch exits
@@ -245,14 +256,18 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   refillPending.value = null
 
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
-  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
+  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。这道守卫对空目录同样
+  // 适用 —— 空目录批次也走 commitEmptyDirs 写盘,不能绕过只读视图的拦截。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
 
   // Refill branch: the target directory is the batch's own target_path (not the
   // current directory — the user may have navigated elsewhere before clicking),
-  // and only entries named in the missing list are let through.
+  // and only entries named in the missing list are let through. Refill never
+  // carries emptyDirs (only onDrop passes them, and onDrop always clears
+  // refillPending first), but guard it anyway so this early return can never
+  // silently swallow a future caller's empty-dir batch.
   const wanted = pending ? entries.filter((e) => pending.missing.has(e.relativePath)) : entries
-  if (pending && !wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+  if (pending && !wanted.length && !emptyDirs.length) { toast.show(t('filesBatchRefillNoMatch')); return }
 
   const targetPath = pending ? pending.targetPath : files.currentPath // REAL path — the protected-dir check expands against this.
 
@@ -276,28 +291,39 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // second loop below still reports anything it catches.
   const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
   for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
-  if (!allowed.length) return
-  // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
-  // the interrupted batch created it — so its collision is self-inflicted and
-  // merging back into it is the only correct answer. See ResolveOptions
-  // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
-  const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
-  const dropped = resolved.skippedCount + resolved.cancelledCount
 
-  if (!resolved.accepted.length) {
+  // Empty dirs go through the exact same protected-directory gate as files
+  // (bug.txt #4): a dropped folder named "AppData" must be refused the same way
+  // whether it carries files or is empty.
+  const { accepted: dirsAllowed, rejected: dirsProtected } =
+    splitProtectedUploads(emptyDirs.map((p) => ({ relativePath: p })))
+  for (const name of dirsProtected) toast.show(t('filesUploadProtected', { name }))
+
+  // A batch made of ONLY empty dirs (no files survived the protected filter, or
+  // none were dropped in the first place) must still reach commitEmptyDirs below
+  // — it must NOT bail out here just because there is nothing left to upload.
+  if (allowed.length) {
+    // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
+    // the interrupted batch created it — so its collision is self-inflicted and
+    // merging back into it is the only correct answer. See ResolveOptions
+    // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
+    const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
+    const dropped = resolved.skippedCount + resolved.cancelledCount
+
+    if (resolved.accepted.length) {
+      const sel = resolved.accepted.map((a) => ({
+        file: a.file,
+        targetPath,
+        relativePath: a.relativePath,
+        conflictPolicy: a.conflictPolicy,
+      }))
+      const { rejected } = await uploads.addFilesToQueue(sel)
+      for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+    }
     if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
-    return
   }
 
-  const sel = resolved.accepted.map((a) => ({
-    file: a.file,
-    targetPath,
-    relativePath: a.relativePath,
-    conflictPolicy: a.conflictPolicy,
-  }))
-  const { rejected } = await uploads.addFilesToQueue(sel)
-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
-  if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
+  await commitEmptyDirs(dirsAllowed, targetPath)
 }
 
 async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
@@ -329,8 +355,11 @@ async function onDrop(e: DragEvent) {
   // filter it — see the note on triggerFileSelect/triggerFolderSelect above.
   refillPending.value = null
   const dropped = await readDroppedEntries(e.dataTransfer)
-  if (!dropped.length) return
-  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+  if (!dropped.files.length && !dropped.emptyDirs.length) return
+  await commitSelectedFiles(
+    dropped.files.map((d) => ({ file: d.file, relativePath: d.relativePath })),
+    dropped.emptyDirs,
+  )
 }
 
 // ── Ctrl+V 粘贴上传:截图/复制的文件传到当前目录,复用 commitSelectedFiles ──
