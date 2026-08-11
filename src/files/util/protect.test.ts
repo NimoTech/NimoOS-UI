@@ -19,8 +19,9 @@ describe('protect', () => {
   it('普通文件夹可操作', () => {
     expect(canOperate(e({ name: 'MyStuff', is_dir: true }))).toBe(true)
   })
-  it('已分享的目录不可操作', () => {
-    expect(canOperate(e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } }))).toBe(false)
+  it('已共享目录可以删除/剪切/重命名(后端会自行清理共享记录,Vue2 也从不拦截)', () => {
+    const shared = { name: 'aaa', path: '/media/RAID_x/aaa', is_dir: true, extensions: { share: { shared: 'true' } } } as unknown as FileEntry
+    expect(canOperate(shared)).toBe(true)
   })
   it('挂载点不可操作', () => {
     expect(canOperate(e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any }))).toBe(false)
@@ -86,12 +87,12 @@ describe('operableEntries', () => {
     expect(skipped).toBe(1)
   })
 
-  it('counts shared folders and mount points as skipped, not just system folders', () => {
+  it('counts mount points as skipped but lets shared folders through (bug.txt #7)', () => {
     const shared = e({ name: 'Shared', is_dir: true, extensions: { share: { shared: 'true' } } })
     const mount = e({ name: 'Disk', is_dir: true, extensions: { mounted: true } as any })
     const { targets, skipped } = operableEntries([shared, mount])
-    expect(targets).toEqual([])
-    expect(skipped).toBe(2)
+    expect(targets).toEqual([shared])
+    expect(skipped).toBe(1)
   })
 
   it('reports nothing skipped when every entry is operable', () => {
