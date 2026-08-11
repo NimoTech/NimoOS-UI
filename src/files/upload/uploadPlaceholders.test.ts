@@ -22,8 +22,8 @@ describe('uploadPlaceholders', () => {
   })
 
   it('makes a file entry for a bare single-file upload', () => {
-    const out = uploadPlaceholders([item({ relativePath: 'photo.png' })], '/DATA/x')
-    expect(out).toEqual([{ name: 'photo.png', path: '/DATA/x/photo.png', is_dir: false, uploading: true }])
+    const out = uploadPlaceholders([item({ relativePath: 'report.pdf' })], '/DATA/x')
+    expect(out).toEqual([{ name: 'report.pdf', path: '/DATA/x/report.pdf', is_dir: false, uploading: true }])
   })
 
   it('ignores uploads targeting a different directory', () => {
