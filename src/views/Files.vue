@@ -82,6 +82,9 @@ const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false,
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const batchModalId = ref('')
+// The badged entry's absolute path — abandon-under needs it to clear every
+// interrupted batch stacked on that entry, not just the id the badge carried.
+const batchModalPath = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
@@ -779,7 +782,7 @@ onMounted(() => { browse.ensureVolumes() })
               @open="openEntry"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
-              @open-batch="(id: string) => (batchModalId = id)"
+              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
             />
             <FileListView
               v-else
@@ -791,7 +794,7 @@ onMounted(() => { browse.ensureVolumes() })
               @reorder="files.setSort"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
-              @open-batch="(id: string) => (batchModalId = id)"
+              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
             />
             <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
           </div>
@@ -847,6 +850,7 @@ onMounted(() => { browse.ensureVolumes() })
     <UploadBatchModal
       v-if="batchModalId"
       :batch-id="batchModalId"
+      :entry-path="batchModalPath"
       @close="batchModalId = ''"
       @abandoned="files.load(files.currentPath)"
       @refill="onRefill"

@@ -11,7 +11,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
-  (e: 'open-batch', batchId: string): void
+  (e: 'open-batch', batchId: string, entryPath: string): void
 }>()
 
 // Must stay in lockstep with the .file-grid CSS at the bottom of this file.
@@ -177,7 +177,7 @@ defineExpose({ itemRects, scrollToPath })
           @open="emit('open', $event)"
           @select="emit('select', $event)"
           @contextmenu="emit('contextmenu', $event)"
-          @open-batch="emit('open-batch', $event)"
+          @open-batch="(id: string, p: string) => emit('open-batch', id, p)"
         />
       </div>
     </div>

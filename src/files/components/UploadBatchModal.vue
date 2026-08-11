@@ -6,7 +6,7 @@ import type { UploadBatch, UploadBatchItem } from '@nimotech/nimoos-service'
 import Dialog from '../../components/ui/Dialog.vue'
 import { renderSize } from '../util/format'
 
-const props = defineProps<{ batchId: string }>()
+const props = defineProps<{ batchId: string; entryPath: string }>()
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'abandoned'): void
@@ -45,27 +45,23 @@ async function abandon(): Promise<void> {
   abandoning.value = true
   errorText.value = ''
   try {
-    await service.uploadBatches.abandonBatch(props.batchId)
+    // abandon-under with the badged entry's path, NOT abandonBatch(batchId):
+    // several interrupted batches can stack on one folder (each canceled retry
+    // leaves one) while the badge only carries one id — abandoning by id made
+    // the badge reappear with the next batch's id on the next listing. This
+    // also absorbs the stale-badge race the old 404-as-success branch covered
+    // (#122): a batch already swept just counts 0 here instead of erroring.
+    await service.uploadBatches.abandonUnder(props.entryPath)
     emit('abandoned')
     emit('close')
-  } catch (e) {
-    // A 404 means the batch is already gone server-side (expired and swept, or a stale
-    // badge race). The user's goal in clicking this button was to make the badge
-    // disappear, so we treat this as success and refresh the listing instead of
-    // reporting a server error, which would strand the user in a dialog with nothing
-    // left to do.
-    if ((e as { response?: { status?: number } })?.response?.status === 404) {
-      emit('abandoned')
-      emit('close')
-    } else {
-      // Errors inside the dialog must be shown inline, not as a toast: this failure is
-      // the answer to the button the user just pressed inside this dialog, so it needs
-      // to stay pinned next to that button and stay on screen while they decide what to
-      // do next. A toast auto-dismisses and renders away from the control that caused
-      // it, so it would not stick around long enough, or in the right place, to answer
-      // "why didn't abandoning work?".
-      errorText.value = t('filesBatchAbandonFailed')
-    }
+  } catch {
+    // Errors inside the dialog must be shown inline, not as a toast: this failure is
+    // the answer to the button the user just pressed inside this dialog, so it needs
+    // to stay pinned next to that button and stay on screen while they decide what to
+    // do next. A toast auto-dismisses and renders away from the control that caused
+    // it, so it would not stick around long enough, or in the right place, to answer
+    // "why didn't abandoning work?".
+    errorText.value = t('filesBatchAbandonFailed')
   } finally {
     abandoning.value = false
   }

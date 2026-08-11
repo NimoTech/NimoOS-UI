@@ -21,7 +21,7 @@ function entries(n: number): FileEntry[] {
 const originalClientWidth = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'clientWidth')
 const originalOffsetHeight = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetHeight')
 
-const TILE_STUB = { FileTile: { template: '<div class="tile" @click="$emit(\'open-batch\', \'b1\')"/>' } }
+const TILE_STUB = { FileTile: { template: '<div class="tile" @click="$emit(\'open-batch\', \'b1\', \'/DATA/f0\')"/>' } }
 
 beforeEach(() => {
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get: () => 614 })
@@ -75,7 +75,7 @@ describe('FileGridView virtualization', () => {
     const w = mount(FileGridView, { props: { entries: entries(3) }, global: { stubs: TILE_STUB } })
     await w.vm.$nextTick()
     await w.find('.tile').trigger('click')
-    expect(w.emitted('open-batch')?.[0]).toEqual(['b1'])
+    expect(w.emitted('open-batch')?.[0]).toEqual(['b1', '/DATA/f0'])
   })
 
   it('renders nothing but does not throw for an empty folder', async () => {
