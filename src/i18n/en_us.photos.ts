@@ -119,6 +119,10 @@ export default {
   photosTrashRestoredToast: '{count} item(s) restored to Library',
   photosTrashPurgedToast: '{count} item(s) permanently deleted · {size} MB freed',
   photosTrashEmptiedToast: 'Trash emptied · {size} MB freed',
+  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // loaded subset — these size-less variants are used instead until trashExhausted.
+  photosTrashEmptiedToastPartial: 'Trash emptied',
+  photosTrashEmptyBodyPartial: "This frees up space on the NAS. Once gone, the originals can't be recovered.",
   photosTrashRestoreFailed: 'Restore failed',
   photosTrashDeleteFailed: 'Delete failed',
   photosTrashEmptyFailed: 'Empty failed',
@@ -130,13 +134,20 @@ export default {
   photosAlbumsMine: 'My Albums',
   photosAlbumsMineHint: 'Albums you created',
   photosAlbumNew: 'New album',
-  photosAlbumNewHint: 'Click to create',
+  photosAlbumNewHint: 'Click to create or ask Nimo',
   photosAlbumUntitled: 'Untitled',
-  photosAlbumsEmptyTitle: 'No albums yet',
-  photosAlbumsEmptyHint: 'Create an album to group photos together.',
+  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+  // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+  // order.
+  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+  // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+  // backed a standalone empty-state panel that duplicated this subtitle's own "No albums
+  // yet" copy once smart albums joined the grid. Vue2 has no such panel either (see the
+  // matching PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature
+  // cut.
+  photosAlbumsNoneYetHint: 'No albums yet — create one manually, or let Nimo build a Smart Album that keeps itself updated.',
   photosAlbumSort: 'Sort:',
-  photosAlbumSortUpdated: 'Last updated',
-  photosAlbumSortUpdatedHint: 'Server order',
   photosAlbumSortCreated: 'Recently added',
   photosAlbumSortCreatedHint: 'Newest album first',
   photosAlbumSortName: 'Name (A–Z)',
@@ -170,12 +181,31 @@ export default {
   photosAlbumClickToRename: 'Click to rename',
   photosAlbumEdit: 'Edit',
   photosAlbumDone: 'Done',
-  photosAlbumRename: 'Rename album',
+  photosAlbumRenameHint: 'Change the album name',
+  photosAlbumConvertToSmart: 'Convert to Smart Album',
+  photosAlbumConvertToSmartHint: 'Nimo keeps adding matches automatically',
+  // Task 5 (#117 short titles): see zh_cn.photos.ts's comment on this pair -- Rename/Duplicate/
+  // Download as ZIP/Delete reuse existing short keys verbatim; only Convert is new.
+  photosAlbumMenuConvert: 'Convert',
+  // Whole-branch review, Important 2: see zh_cn.photos.ts's comment on this key -- the menu
+  // entry's desc is a distinct target string from the convert modal's subtitle above.
+  photosAlbumMenuConvertHint: 'Turn into a Smart Album that keeps updating',
+  photosAlbumDuplicateHint: 'Copy the photos as a new album',
+  // ── Task 7: album -> smart album conversion dialog ──
+  photosAlbumConvertSuggestHint: 'Nimo suggests these conditions — final matching is decided when the Smart Album is created',
+  photosAlbumConvertLockHint: 'Your {n} photos stay locked in. Nimo will keep adding new matches for this theme.',
+  photosAlbumConverting: 'Converting…',
+  photosAlbumConvertedToSmart: 'Converted to Smart Album',
+  photosAlbumConvertFailed: 'Convert failed',
+  photosAlbumStatVideos: 'Videos',
+  photosAlbumStatCreated: 'Created',
   photosAlbumDelete: 'Delete album',
   photosAlbumDeleteHint: 'Photos stay in your library',
   photosAlbumDeleteTitle: 'Delete "{name}"?',
   photosAlbumDeleteBody: 'The album wrapper is removed but the {count} items stay in your library.',
-  photosAlbumItemsShown: '{count} items shown',
+  // Whole-branch review, Important 3: see zh_cn.photos.ts -- the select bar's copy is distinct
+  // from the tile tooltip's in the target and must not mention the cover shortcut.
+  photosAlbumHintSelectDrag: 'Click to select · Drag to reorder',
   photosAlbumHintSelectDragCover: 'Click to select · Drag to reorder · ★ to set cover',
   photosAlbumHintSelectCover: 'Click to select · ★ to set cover',
   photosAlbumRemoveFrom: 'Remove from album',
@@ -183,6 +213,16 @@ export default {
   photosAlbumSortManual: 'Manual order',
   photosAlbumSortTaken: 'Date taken',
   photosAlbumSortAdded: 'Date added',
+  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
+  // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
+  // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
+  photosDetailCreatedAt: 'Created {date}',
+  photosDetailItems: 'items',
+  photosDetailVideos: 'videos',
+  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // own About row calls its third field "Time", a different label for a different thing).
+  photosDetailTimeSpan: 'Time span',
   photosAlbumCurrentCover: 'Current cover',
   photosAlbumSetCover: 'Set as album cover',
   photosAlbumEmptyTitle: 'This album is empty',
@@ -614,8 +654,8 @@ export default {
   photosPlacesInsightHomeBase: 'home base',
   // ---- P7a-T1: Smart Views, 107 new keys appended after photosPlacesInsightHomeBase ----
   // (table listed 115 rows; 8 duplicate pre-existing keys per brief item 7 and are reused, not re-added — see task report)
-  photosSvNameSnapshotSavedAlbum: '"{name}" snapshot saved as a new album',
-  photosSvAddedThisWeek: '+{n} this week',
+  // Whole-branch review, Minor 6: photosSvAddedThisWeek was deleted along with its only consumer,
+  // SmartViewCard.vue (removed in Task 10). See zh_cn.photos.ts for the grep note.
   // P7a-T8 fix round 1 · I3: strip literal <b>, switch to <i18n-t> named slots (zero
   // v-html). Re-checked zh_CN.json source: both rows bold the whole "interpolation +
   // language-specific word" phrase (`<b>1 张新照片</b>` / `<b>{n} 张新照片</b>` are
@@ -625,12 +665,14 @@ export default {
   photosSvActOneMatchedBold: '1 new photo',
   photosSvActNMatched: '{photo} auto-added',
   photosSvActNMatchedBold: '{n} new photos',
+  // Task 8: converted_from_album activity row (reverse of Task 7's convertFromAlbum). No
+  // <b> in Vue2 for either branch, so these are plain text keys -- no split main-clause +
+  // bold-phrase pair like the matched rows above.
+  photosSvActConvertedFromAlbum: 'Converted from album',
+  photosSvActConvertedFromAlbumN: 'Converted from album · {n} photos locked in',
   photosSvActivity: 'Activity',
-  photosSvAdd: 'Add',
   photosSvAddAnother: 'Add another…',
-  photosSvAddCondition: 'Add condition',
   photosSvAllMatches: 'All matches',
-  photosSvAllSmartViews: 'All Smart Views',
   // P7a-T8: <b> only wraps the interpolation {n} ⇒ slot directly, strip literal <b></b>.
   photosSvThreshHelp: 'At {pct}%, expect ~{n} new photos per week.',
   photosSvAutoAddMatches: 'Auto-add new matches',
@@ -644,18 +686,24 @@ export default {
   photosSvChangeSmartViewName: 'Change the Smart View name',
   photosSvConditions: 'Conditions',
   photosSvConditionsSettingsUpdated: 'Conditions or settings updated',
+  // ── Task 8: smart album -> regular album conversion (reverse of Task 7) ──
+  photosSvConvertToAlbum: 'Convert to regular album',
+  photosSvConvertToAlbumHint: 'Stop auto-updates and lock in the current matches',
+  photosSvConvertToAlbumTitle: 'Convert "{name}" to a regular album?',
+  photosSvConvertToAlbumBody: 'Auto-updates stop. The current {n} photos become fixed into a regular album — the theme and conditions will be removed.',
+  photosSvConvertedToAlbum: 'Converted to regular album',
   photosSvCopyQuerySv: 'Copy the query as a new SV',
+  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
+  // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
+  // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
+  // both modes into one component).
+  photosSvCreateSmartAlbum: 'Create Smart Album',
   photosSvCreateSmartView: 'Create Smart View',
   photosSvDeleteName: 'Delete "{name}"?',
-  photosSvDeleteSmartView: 'Delete Smart View',
   photosSvDescribePlainEnglishConditions: 'Describe it in plain English — conditions are inferred below',
-  photosSvDescribeWantSetQuality: 'Describe what you want, set a quality threshold, and Nimo keeps it filled.',
-  photosSvDone: 'Done',
   photosSvDuplicate: 'Duplicate',
   photosSvDuplicatedNameOpenCopy: 'Duplicated "{name}" — open the new copy from the list',
   photosSvEGSaraTokyo: 'e.g. Sara · Tokyo · sunsets',
-  photosSvEGSceneSunset: 'e.g. scene: sunset',
-  photosSvExport: 'Export',
   photosSvExportedDetail: 'Exported as {detail}',
   photosSvFamilyWeekends: 'Family weekends',
   photosSvFamilyWeekendsPark: 'Family weekends in the park',
@@ -664,6 +712,10 @@ export default {
   photosSvKeepLive: 'Keep it live',
   photosSvLastUpdate: 'Last update',
   photosSvLastUpdatedTime: 'Last updated {time}',
+  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
+  // verbatim from zh_CN.json:1987-1988's English source strings, not the plan's guesses).
+  photosSvLetNimoDraft: 'Let Nimo draft it',
+  photosSvLetNimoDraftHint: 'Describe the theme, let AI fill it in',
   photosSvLive: 'Live',
   photosSvLivePreview: 'Live preview',
   photosSvLoose: 'Loose',
@@ -675,7 +727,6 @@ export default {
   photosSvMedianMatch: 'Median match',
   photosSvName: 'Name',
   photosSvNew: 'New',
-  photosSvNewCondition: 'New condition',
   photosSvNewSmartView: 'New Smart View',
   photosSvNimoSuggests: 'Nimo suggests',
   photosSvStartTemplate: 'Or start from a template',
@@ -699,9 +750,7 @@ export default {
   photosSvResume: 'Resume',
   photosSvResumeAutoUpdates: 'Resume auto-updates',
   photosSvRunEveryUpload: 'Run on every new upload',
-  photosSvSaveStaticAlbum: 'Save as static Album',
   photosSvSavedSearchKeepsItself: 'Saved search that keeps itself up to date',
-  photosSvSavedSearchesStayLive: 'Saved searches that stay live. Nimo continuously evaluates new photos and adds matches that score above your threshold.',
   photosSvSettingsSection: 'Settings',
   photosSvSharpDogCatPortraits: 'Sharp dog and cat portraits',
   photosSvBadgeSmartView: 'Smart View',
@@ -710,11 +759,12 @@ export default {
   photosSvSmartViewRenamed: 'Smart View renamed',
   photosSvSmartViews: 'Smart Views',
   photosSvSmartViewsAutoUpdate: 'Smart Views auto-update is off',
-  photosSvSnapshotCurrentMatchesStops: 'Snapshot the current matches — stops updating',
+  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
+  // choice when the smartview AI feature is off.
+  photosSvSmartViewsOffCreateHint: 'Smart Views are turned off — re-enable them in Settings · AI behavior to create new ones.',
   photosSvStats: 'Stats',
   photosSvStrict: 'Strict',
   photosSvStrictOnlyHighestConfidence: 'Strict — only the highest-confidence matches.',
-  photosSvSuggestions: 'Suggestions',
   photosSvSunsetsRoad: 'Sunsets on the road',
   photosSvSunsetsWhileTravelingNot: 'Sunsets while traveling, not at home',
   photosSvSunsetsSaraOurTokyo: 'Sunsets with Sara from our Tokyo trip last spring',
@@ -738,6 +788,26 @@ export default {
   photosSvUpdateFailed: 'Update failed',
   photosSvDeleteFailed: 'Delete failed',
   photosSvDuplicateFailed: 'Duplicate failed',
+  // ── SP15-P2a: manual asset actions ──
+  // English values are Vue2's literal source strings. See the zh_cn.ts comment for the five
+  // strings this screen reuses from elsewhere in the file instead of adding again.
+  photosSvAddPhotos: 'Add photos',
+  photosSvRemoveFromView: 'Remove from this view',
+  photosSvRemovedNFromView: 'Removed {n} from this view',
+  photosSvExcludedN: 'Excluded ({n})',
+  photosSvAlreadyInView: 'Already in this view',
+  photosSvPinnedNToView: 'Pinned {n} to this view',
+  photosSvRestoreFailed: 'Restore failed',
+  photosSvRemoveFailed: 'Remove failed',
+  photosSvAddFailed: 'Add failed',
+  photosSvShow: 'Show',
+  photosSvHide: 'Hide',
+  photosSvRestore: 'Restore',
+  // ── SP15-P2c Task 6: sort capsule + the edit-mode bar's empty-selection hint. English
+  // values are Vue2's literal source strings. See the zh_cn.photos.ts comment for the nine
+  // strings the rebuilt row reuses from elsewhere in this file instead of adding again.
+  photosSortScore: 'Match score',
+  photosSvClickToSelect: 'Click to select',
   // ---- P7a-T9: search panel (filter bar + popovers) 54 keys, see the matching
   // zh_cn.ts comment. English values are the Vue2 PhotosSearchView.vue literal
   // English strings (= the Vue2 en dict keys), 1:1. ----
@@ -765,7 +835,7 @@ export default {
   photosSearchNothingHereYet: 'Nothing here yet',
   photosSearchTypeOcr: 'OCR',
   photosSearchOldest: 'Oldest',
-  photosSearchOpenSmartViews: 'Open in Smart Views →',
+  photosSearchOpenInAlbums: 'Open in Albums →',
   photosSearchPeople: 'People',
   photosSearchTokPerson: 'person',
   photosSearchBadgePhoto: 'Photo',
@@ -904,4 +974,70 @@ export default {
   photosAlbumLoadFailed: "Couldn't load this album",
   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
   photosRetry: 'Retry',
+  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
+  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
+  // equivalent (Vue2 never paged this endpoint).
+  photosLoadedSubsetHint: 'Stats reflect the first {n} loaded items',
+  photosLoadMore: 'Load more',
+  // ── SP15-P1 Moments ──
+  photosMoBadge: 'Moment',
+  photosMoTypeTrip: 'Trip',
+  photosMoTypePets: 'Pets',
+  photosMoTypeFamily: 'Family',
+  photosMoTypeTheme: 'Theme',
+  photosMoAddedThisWeek: '+{n} this week',
+  photosMoHeroTitle: 'Moments · For You',
+  photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
+  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
+  // settings hint shown when the band is hidden.
+  photosMoForYou: 'For You',
+  photosMoFollowsSmartViewSetting: 'Moments follows the Smart Views setting — turn it back on in',
+  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  photosMoOrderSaveFailed: 'Failed to save order',
+  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  photosMoBackToAll: 'All Moments',
+  photosMoLastUpdated: 'Last updated {time}',
+  // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
+  photosMoNotFound: 'This moment no longer exists',
+  photosMoAbout: 'About',
+  photosMoStats: 'Stats',
+  photosMoType: 'Type',
+  photosMoTime: 'Time',
+  photosMoPlace: 'Place',
+  photosMoByMonth: 'By month',
+  photosMoSpan: 'Span',
+  photosMoSpanDays: '{n} days',
+  photosMoLastUpdate: 'Last update',
+  photosMoPhotos: 'Photos',
+  photosMoFeatured: 'Featured',
+  // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+  // Deliberately says nothing about whether the moment exists — we do not know.
+  photosMoLoadFailed: "Couldn't load moments",
+  // ── SP15-P1-T8: the two photo grids ──
+  photosMoAllPhotos: 'All photos',
+  // Same English wording as filesViewerLoading/appsSourcesLoading/etc. — not a fresh
+  // translation, this repo's existing generic "loading" ellipsis.
+  photosMoLoading: 'Loading…',
+  photosMoNoPhotosYet: "This moment doesn't have photos yet.",
+  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // Vue 2's own en_US strings (899af59b:src/assets/lang/en_US.json). The picker's title
+  // deliberately gets no new key — see the note in zh_cn.photos.ts.
+  photosMoAddPhotos: 'Add photos',
+  photosMoAlreadyIn: 'Already in this moment',
+  photosMoAddSelected: 'Add selected',
+  photosMoAddedN: 'Added {n} to this moment',
+  photosMoAddFailed: 'Add failed',
+  photosMoRemoveFromMoment: 'Remove from this moment',
+  photosMoRemovedN: 'Removed {n} from this moment',
+  photosMoRemoveFailed: 'Remove failed',
+  // ── SP15-P1-T10: save as album / delete moment — see the note in zh_cn.photos.ts for the
+  // six keys reused instead of duplicated (photosPlacesToastOpen/photosSvPhotosStayLibrary/
+  // photosSvDeleteName/photosSvDeleteFailed/photosCancel/photosDelete).
+  photosMoSaveAsAlbum: 'Save as Album',
+  photosMoAlbumCreated: 'Album "{name}" created · {count} photos',
+  photosMoAlbumExists: 'An album with this name already exists',
+  photosMoAlbumFailed: 'Could not create album',
+  photosMoDeleteMoment: 'Delete moment',
+  photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
+  photosMoDeleted: 'Moment "{name}" deleted',
 }

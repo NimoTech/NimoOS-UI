@@ -28,7 +28,7 @@ const props = defineProps<{ activity: SmartViewActivity[]; now?: number }>()
 
 const { t, locale } = useI18n()
 
-type Kind = 'created' | 'updated' | 'matchedOne' | 'matchedN' | 'exported' | 'renamed'
+type Kind = 'created' | 'updated' | 'matchedOne' | 'matchedN' | 'exported' | 'renamed' | 'convertedFromAlbumN' | 'convertedFromAlbum'
 interface Row { a: SmartViewActivity; kind: Kind; n: number }
 
 // 未知 eventType 在这里被过滤掉(不进 rows),因此模板里不需要任何"默认/兜底"分支——
@@ -55,6 +55,15 @@ const rows = computed<Row[]>(() => {
       case 'renamed':
         out.push({ a, kind: 'renamed', n: 0 })
         break
+      // SP15-P2b Task 8: the backend records this when ConvertFromAlbum finishes; assetIds
+      // is the original album's full membership, so the count is real when present. Absent
+      // is defensive only -- keep the count-free wording rather than printing "0 photos
+      // locked in".
+      case 'converted_from_album': {
+        const n = (a.assetIds && a.assetIds.length) || 0
+        out.push({ a, kind: n > 0 ? 'convertedFromAlbumN' : 'convertedFromAlbum', n })
+        break
+      }
       default:
         console.warn('[photos-smartviews] unknown activity eventType', a.eventType)
     }
@@ -95,6 +104,8 @@ function timeOf(a: SmartViewActivity): string {
             </i18n-t>
             <template v-else-if="row.kind === 'exported'">{{ t('photosSvExportedDetail', { detail: row.a.detail || t('photosSvExportFile') }) }}</template>
             <template v-else-if="row.kind === 'renamed'">{{ t('photosSvSmartViewRenamed') }}</template>
+            <template v-else-if="row.kind === 'convertedFromAlbumN'">{{ t('photosSvActConvertedFromAlbumN', { n: row.n }) }}</template>
+            <template v-else-if="row.kind === 'convertedFromAlbum'">{{ t('photosSvActConvertedFromAlbum') }}</template>
           </div>
           <div class="sv-activity-time">{{ timeOf(row.a) }}</div>
         </div>

@@ -1,0 +1,420 @@
+# Review package: 6b93d58..faf808b
+
+## Commits
+faf808b fix(photos): stop an open Add-photos picker writing to the wrong album on navigation
+
+## Files changed
+ .../task-4-report.md                               | 161 +++++++++++++++++++++
+ src/views/PhotosAlbumDetail.vue                    |  59 ++++++--
+ src/views/__tests__/PhotosAlbumDetail.test.ts      |  50 +++++++
+ 3 files changed, 259 insertions(+), 11 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-4-report.md b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-4-report.md
+index 566054b..b398f02 100644
+--- a/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-4-report.md
++++ b/.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-4-report.md
+@@ -211,10 +211,171 @@ next mutation.
+   `placesTitle()` at `:609-613`), and that decision is driven by the same
+   `placesAgg.value.length` gate as `placesLabel`, so the two can't drift out of sync — documented
+   in the code comment.
+ - **YAGNI**: no extra abstraction added; `PlaceCount` is a 6-line local interface, not a shared
+   type, since nothing else in the file needs it.
+ 
+ ## Concerns
+ 
+ None. The task's scope (About section, stats trim, histogram left alone, the folded-in select-bar
+ fix) is fully implemented, tested, and verified; no blockers encountered.
++
++---
++
++# Fix round 2 (coordinator review)
++
++The coordinator's review found the folded-in select-bar fix (`v-if="edit && album"`) closed only
++half the hole: it stops the bar floating over a missing album and stops the picker being *newly
++opened* for one, but an **already-open** picker survived a navigation to a *different, real*
++album untouched, and `edit` itself was never reset on navigation either (a sibling Minor).
++
++## What changed
++
++`src/views/PhotosAlbumDetail.vue`:
++
++1. **The route-id watcher now also resets `edit.value = false` and `pickerOpen.value = false`**,
++   alongside the `selected`/`titleEditing`/`titleDraft` resets it already did. Stated as an
++   explicit invariant in a new comment above the watcher: state scoped to "the album currently
++   being viewed" must not survive an id change.
++2. **`onPickerConfirm` now writes to a snapshot of the album id (`pickerAlbumId`) taken the moment
++   the picker opens, not `albumId.value` read fresh at confirm time.** A new `openPicker()`
++   function (replacing the inline `@click="pickerOpen = true"`) sets the snapshot and opens the
++   dialog together.
++
++## Which shape I chose and why
++
++The coordinator offered three shapes: gate the picker on `album` too; reset `pickerOpen` (and
++`edit`) in the route-id watcher; or snapshot the album id when the picker opens and use it in
++`onPickerConfirm`. **I used the second and third together, not the first.**
++
++I started with "reset `pickerOpen` in the watcher" plus a blocking guard
++(`if (!pickerOpen.value) return`) at the top of `onPickerConfirm` — the natural reading of
++"treat `pickerOpen` as per-album state, same as `selected`" and cheap to add. Running the full
++suite immediately caught a real regression: the pre-existing test `评审 Important 2 回归:空相册
++edit 态下添加照片…` (line 704) enters edit mode but **never clicks "Add photos"** — it calls
++`picker.vm.$emit('confirm', …)` directly on the always-mounted `PhotosLibraryPicker` component
++without ever setting `pickerOpen` true at all. That test's own point (gridRef remounting drag
++support when the grid goes from absent to present) has nothing to do with the picker's open
++state; it just reuses the existing convention of poking the handler directly. A blocking guard on
++`pickerOpen` breaks that convention for every test that exercises `onPickerConfirm` this way, not
++just the ones this fix is about.
++
++So I dropped the blocking guard and replaced it with the snapshot (shape 3): `pickerAlbumId` is
++set once, when the picker actually opens, and `onPickerConfirm` always writes to that snapshot
++rather than the live `albumId.value`. This:
++
++- Never blocks the handler from running at all (no regression on tests that call it without ever
++  opening the dialog — confirmed by re-running the full targeted suite, see below).
++- Still fully closes the coordinator's Important scenario: after navigating to album 999, even a
++  confirm fired directly on the (still-mounted) component writes to the *snapshot* id (7), never
++  to 999 — `svc.photos.batchAddToAlbum` is asserted `not.toHaveBeenCalledWith('999', …)`.
++- Is reinforced by the watcher's `pickerOpen.value = false` reset (shape 2), which is what makes
++  the dialog actually **closed** for a real user — `PhotosLibraryPicker.vue` gates its whole
++  template on `v-if="open"` (verified by reading the component), so once `pickerOpen` flips
++  false the confirm button is gone from the DOM entirely. A genuine user click can't race the
++  navigation here anyway: `confirmAdd()` in `PhotosLibraryPicker.vue` emits `confirm`
++  synchronously on click, with no `await` in between, so the only way to reach `onPickerConfirm`
++  after the id has changed is the synthetic/programmatic route the tests use — which is exactly
++  what the snapshot neutralises.
++
++I did not use shape 1 (`:open="pickerOpen && !!album"`) at all: gating only the `open` **prop**
++does nothing about `onPickerConfirm` itself, since a component's emitted event reaches the
++parent's listener regardless of what prop value the parent is currently passing down — the same
++class of gap the coordinator's review was pointing at in the first place.
++
++**Stated invariant** (per the coordinator's ask), now in the code:  `edit`, `pickerOpen`, and
++`pickerAlbumId`'s use are all per-"album currently being viewed" — `edit`/`pickerOpen` must not
++survive an id change (hence the watcher reset) and `pickerAlbumId` must never be re-derived from
++the live id after the picker has already opened (hence the snapshot, not a second read of
++`albumId.value`).
++
++## Tests
++
++Two new tests in the `PhotosAlbumDetail.vue` describe block, both inserted right after the
++existing picker-wiring tests:
++
++- `closes the picker instead of writing to whatever album the route now points at when the id
++  changes while it is open` — opens the picker on album 7 (two real albums seeded: 7 and 999),
++  navigates to `/photos/albums/999`, asserts `picker.props('open')` is `false`, then fires
++  `picker.vm.$emit('confirm', ['x'])` directly and asserts `batchAddToAlbum` is never called with
++  `'999'` (and, to make the fix's actual behaviour explicit rather than just "not this", that it
++  **is** called with `'7'` — the album the picker was actually opened for).
++- `leaves edit mode when the route id changes to a different album` — enters edit mode on album
++  7, navigates to `/photos/albums/8` (a different, valid album), asserts `.sv-select-bar` is gone
++  and the edit-toggle button's `data-open` attribute is `'false'`.
++
++### RED (before this fix round)
++
++```
++$ git stash push -- src/views/PhotosAlbumDetail.vue   # keep test changes, drop the fix
++$ pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts
++...
++ Test Files  1 failed (1)
++      Tests  2 failed | 67 passed (69)
++```
++
++Both new tests failed, nothing else did:
++- `closes the picker instead of writing to whatever album...` → `expected true to be false` on
++  `picker.props('open')`.
++- `leaves edit mode when the route id changes...` → `expected true to be false` on
++  `.sv-select-bar` existing.
++
++`git stash pop` restored the fix.
++
++### GREEN (after)
++
++```
++$ pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts src/i18n/parity.test.ts src/styles
++ Test Files  6 passed (6)
++      Tests  1156 passed (1156)
++```
++
++No regressions — in particular `评审 Important 2 回归` (the test that exercises `onPickerConfirm`
++without ever opening the dialog) still passes, confirming the snapshot approach doesn't reintroduce
++the blocking-guard regression found during development.
++
++## Mutation verification (3, this round)
++
++All applied via `Edit`, confirmed the target test reddened with a scoped `vitest run -t`, then
++reverted and re-ran the full targeted suite (1156/1156) before the next mutation.
++
++1. **Reverted the snapshot** (`onPickerConfirm` back to reading `albumId.value` instead of
++   `pickerAlbumId.value`), keeping the watcher's `pickerOpen` reset. →
++   `closes the picker instead of writing to whatever album...` **RED**:
++   `expected "vi.fn()" to not be called with arguments: [ '999', [ 'x' ] ]` — 1 call recorded,
++   i.e. it *was* called with `'999'`. Reverted.
++2. **Removed `edit.value = false` from the watcher.** →
++   `leaves edit mode when the route id changes...` **RED**: `expected true to be false` (the
++   select bar was still present after navigating to album 8). Reverted.
++3. **Removed `pickerOpen.value = false` from the watcher** (keeping the snapshot and the `edit`
++   reset). → `closes the picker instead of writing to whatever album...` **RED**:
++   `expected true to be false` on `picker.props('open')` — confirms the `pickerOpen` reset and the
++   `pickerAlbumId` snapshot are two independent, both load-bearing halves of this fix, not one
++   subsuming the other. Reverted.
++
++## Type check
++
++`pnpm exec vue-tsc --noEmit` → no output, clean.
++
++## Self-review (this round)
++
++- **Chinese**: `git diff -- src/views/PhotosAlbumDetail.vue | grep -nP '^\+.*[\x{4e00}-\x{9fff}]'`
++  → no hits. No newly-authored Chinese.
++- **Color literals**: `git diff -- src/views/PhotosAlbumDetail.vue | grep -nE '^\+.*(#[0-9a-fA-F]{3,8}\b|rgb\(|rgba\()' | grep -v "var(--"`
++  → no hits. This round touched only `<script setup>` and template attribute bindings, no CSS.
++- **`*` immediately before `/` in comments**: no CSS comments were added or touched this round
++  (only JS `//` line comments and one HTML `<!-- -->` block, neither uses `*/`).
++- **No stray blocking behaviour**: deliberately did not keep the `if (!pickerOpen.value) return`
++  guard once it was shown to regress an existing, legitimate test — the snapshot achieves the same
++  correctness goal without that side effect.
++
++## Files changed (this round)
++
++- `src/views/PhotosAlbumDetail.vue`
++- `src/views/__tests__/PhotosAlbumDetail.test.ts`
++- `.superpowers/sdd/2026-08-10-sp15-p2c-album-detail-polish/task-4-report.md` (this file)
++
++## Concerns
++
++None. Both findings (Important and Minor) are fixed, covered by tests that fail without the fix
++(verified both by an initial RED run and by targeted mutation), and the full targeted suite is
++green with no regressions.
+diff --git a/src/views/PhotosAlbumDetail.vue b/src/views/PhotosAlbumDetail.vue
+index 87e81bc..e0df5e7 100644
+--- a/src/views/PhotosAlbumDetail.vue
++++ b/src/views/PhotosAlbumDetail.vue
+@@ -411,24 +411,40 @@ function pickSort(s: SortBy): void {
+ // recognising a single already-in photo. Asserted in this page's own test with a numeric fixture.
+ const pickerExistingIds = computed(
+   () => new Set(albums.assetsOf(albumId.value).map((p) => String(p.id))),
+ )
+ // The label carries the selected count, so the caller passes a function rather than a fixed
+ // string (see deviation b in the component's header).
+ function pickerSubmitLabel(count: number): string {
+   return t('photosAlbumPickerAdd', { count })
+ }
+ const pickerAdding = ref(false)
++// Fix round 2 (coordinator review, Important): onPickerConfirm used to read `albumId.value`
++// fresh at call time. If the picker was left open while the route's id moved to a *different,
++// real* album, a confirm arriving after that point would silently write into the newly-viewed
++// album instead of the one the user actually picked photos for. `pickerAlbumId` snapshots the id
++// the moment the picker opens (see `openPicker()` below) so the write always targets the album
++// the picker was opened for, never whatever `route.params.id` happens to be when the confirm
++// resolves. The id watcher additionally closes the dialog (`pickerOpen.value = false`) on every
++// id change, so in real usage the confirm button is gone by then anyway (PhotosLibraryPicker.vue
++// gates its whole template on `v-if="open"`) — the snapshot is what keeps a synthetic/in-flight
++// confirm harmless too, without having to block on `pickerOpen` itself (which is also flipped by
++// unrelated tests that exercise this handler directly, without ever opening the dialog).
++const pickerAlbumId = ref(albumId.value)
++function openPicker(): void {
++  pickerAlbumId.value = albumId.value
++  pickerOpen.value = true
++}
+ async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
+   if (pickerAdding.value) return
+   pickerAdding.value = true
+-  const id = albumId.value
++  const id = pickerAlbumId.value
+   const name = album.value?.title ?? ''
+   try {
+     await albums.addAssetsToAlbum(id, ids)
+     toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
+     pickerOpen.value = false
+     void albums.fetchAlbumAssets(id)
+   } catch (e) {
+     console.error('[album-detail] addAssetsToAlbum', e)
+     toast.show(t('photosAlbumAddFailed'))
+   } finally {
+@@ -484,29 +500,45 @@ onMounted(() => {
+   // T6: gates the more menu's "Convert to Smart Album" entry — in-flight dedup already lives
+   // inside the store, so a concurrent call from the sidebar/another view is harmless.
+   void settings.fetchAiFeatures()
+ })
+ onBeforeUnmount(() => {
+   drag.destroy()
+   document.removeEventListener('mousedown', onDocMousedown)
+   document.removeEventListener('keydown', onDocKeydown)
+ })
+ 
++// Task 4 fix round 2 (coordinator review): the invariant this watcher exists to hold is that
++// any state scoped to "the album currently being viewed" must not survive an id change --
++// `selected`/`titleEditing`/`titleDraft` were already reset on that basis; `edit` and
++// `pickerOpen` are exactly the same kind of state and were missing from the list.
++//
++// Without this, two real bugs: (a) Minor -- leaving edit mode never happened on navigation, so
++// switching from album 7 (mid-edit) to a different, perfectly valid album 8 dropped the user
++// into edit mode on 8 without choosing it. (b) Important -- an *already-open* Add-photos picker
++// survived the navigation (`PhotosLibraryPicker`'s `:open="pickerOpen"` has no `album` gate of
++// its own, unlike the select bar's `v-if="edit && album"` a few lines down). Resetting
++// `pickerOpen` here closes the dialog on every id change (matching what PhotosLibraryPicker.vue's
++// own `v-if="open"` does -- a real user can no longer reach the confirm button once this fires);
++// `onPickerConfirm`'s own `pickerAlbumId` snapshot (see its comment) is the belt-and-suspenders
++// half, covering a confirm that is already in flight the instant this watcher runs.
+ watch(() => route.params.id, () => {
+   selected.value.clear()
+   // Minor 修正(刻意不照抄 Vue2 的潜在 bug——本期纪律:界面照 Vue2,逻辑 bug 不照抄):Vue2
+   // 同名 watch(PhotosAlbumDetail.vue:258-260)只重拉资产,没清标题编辑态。同一组件实例路由切换
+   // (hash 跳到另一个相册,组件不销毁重建)场景下:给相册 7 改名,还没提交就切到相册 8,
+   // titleEditing/titleDraft 会带着相册 7 的草稿名残留到相册 8 上,之后 blur/回车会把草稿名
+   // 提交给相册 8——这是真实数据损坏路径,不是"细枝末节",所以在此清掉。
+   titleEditing.value = false
+   titleDraft.value = ''
++  edit.value = false
++  pickerOpen.value = false
+   void albums.fetchAlbumAssets(albumId.value)
+   void nextTick(() => drag.refresh())
+ })
+ watch([edit, sortBy], () => {
+   void nextTick(() => drag.refresh())
+ })
+ // 评审 Important 2 修正:`gridRef` 只绑在骨架/空态/真实网格三个 v-if 分支里最后一支——
+ // 骨架态和空态是不同元素,Vue 3 给每个 v-if 分支各自隐式 key,元素不复用,所以这两支渲染期间
+ // gridRef 恒为 null(useAlbumDragSort.refresh() 见容器为 null 直接 bail)。原有三个触发点
+ // (onMounted / route.params.id watch / [edit,sortBy] watch)全部挂在"用户改的状态"上,没有一个
+@@ -846,49 +878,54 @@ watch(gridRef, () => {
+     <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
+          buttons live now, plus the hint line the band also carried. Deviation from the plan's
+          prose, registered: it renders on `edit` alone, not only once something is selected --
+          the target says so explicitly at :326 and has to, because the hint copy only ever shows
+          with an empty selection and Add photos would otherwise be unreachable in an empty album.
+          The bar is a sibling of .photos-layout, as on PhotosSmartViewDetail.vue (:871): it is
+          position:fixed, so nesting it inside the scrolling column would buy nothing.
+ 
+          Task 4 fold-in fix: this container used to live inside the `v-else-if="album"` branch
+          above (before the P2c skeleton rebuild pulled it out to be a fixed-position sibling), so
+-         it inherited "no album -> not rendered" for free. Gating on `edit` alone lost that: the
+-         route-id watcher clears `selected`/the title draft but never resets `edit`, so navigating
+-         from an album in edit mode to a missing id left this bar floating over the "Album not
+-         found" screen with Add photos still reachable -- and its confirm handler would have
+-         called batchAddToAlbum on an id with no album behind it. `edit && album` restores the
+-         original invariant directly (this is what the condition actually depends on) rather than
+-         indirectly through a watcher, so it also covers the case where `album` disappears without
+-         a route change (e.g. a concurrent fetchAlbums no longer finds it) -- a watcher on
+-         route.params.id alone would miss that. -->
++         it inherited "no album -> not rendered" for free. Gating on `edit` alone lost that: at the
++         time this was written, the route-id watcher cleared `selected`/the title draft but never
++         reset `edit`, so navigating from an album in edit mode to a missing id left this bar
++         floating over the "Album not found" screen with Add photos still reachable.
++         `edit && album` restores the original invariant directly (this is what the condition
++         actually depends on) rather than indirectly through a watcher, so it also covers the case
++         where `album` disappears without a route change (e.g. a concurrent fetchAlbums no longer
++         finds it) -- a watcher on route.params.id alone would miss that.
++
++         Fix round 2 (coordinator review): the watcher below now also resets `edit` on every id
++         change (not just a missing one), closing the sibling Minor finding -- edit mode used to
++         survive navigating between two perfectly valid albums. The two fixes are complementary,
++         not redundant: the watcher handles "the id changed", this `&& album` guard handles
++         "the album vanished without the id changing". -->
+     <div v-if="edit && album" class="sv-select-bar">
+       <span class="group">
+         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
+         {{ editHintText }}
+       </span>
+       <button
+         type="button"
+         class="sv-action-btn"
+         data-test="album-remove-selected"
+         :disabled="!selected.size || removing"
+         @click="removeSelected"
+       >
+         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
+         {{ t('photosAlbumRemoveFrom') }}
+       </button>
+       <button
+         type="button"
+         class="sv-action-btn"
+         data-test="album-add-photos"
+-        @click="pickerOpen = true"
++        @click="openPicker"
+       >
+         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
+         {{ t('photosAlbumAddPhotos') }}
+       </button>
+     </div>
+   </AreaShell>
+ 
+   <!-- 删除相册确认模态(唯一带二次确认的操作) -->
+   <div
+     v-if="confirmDelete"
+diff --git a/src/views/__tests__/PhotosAlbumDetail.test.ts b/src/views/__tests__/PhotosAlbumDetail.test.ts
+index 91257c0..82f2e39 100644
+--- a/src/views/__tests__/PhotosAlbumDetail.test.ts
++++ b/src/views/__tests__/PhotosAlbumDetail.test.ts
+@@ -558,20 +558,70 @@ describe('PhotosAlbumDetail.vue', () => {
+   it('the existingIds handed to the picker are String()-normalised (a numeric album asset id arrives as a string)', async () => {
+     svc.photos.getAlbum.mockResolvedValue({ assets: [asset(5)] })
+     const { w } = await mountView('7')
+     const picker = await openPicker(w)
+ 
+     const ids = picker.props('existingIds') as Set<string>
+     expect([...ids]).toEqual(['5'])
+     expect(ids.has('5')).toBe(true)
+   })
+ 
++  // Coordinator review, fix round 2 · Important: an *already-open* picker used to survive a
++  // route-id change untouched -- `:open="pickerOpen"` had no `album` gate of its own, the id
++  // watcher never reset `pickerOpen`, and `onPickerConfirm` reads `albumId.value` fresh at call
++  // time. Confirming after navigating away therefore wrote into whatever album the route now
++  // pointed at, silently, with a success toast. Reproduce the exact scenario: open the picker on
++  // album 7, navigate to a *different, real* album 999 (not a missing one -- that is the sibling
++  // 'P2c detail sidebar' test below), then fire the same confirm event the picker would fire.
++  it('closes the picker instead of writing to whatever album the route now points at when the id changes while it is open', async () => {
++    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(999, { name: 'Other' })])
++    const { w, router } = await mountView('7')
++    const picker = await openPicker(w)
++    expect(picker.props('open')).toBe(true)
++
++    svc.photos.batchAddToAlbum.mockClear()
++    await router.push('/photos/albums/999')
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    // Closed -- a real user could no longer reach the confirm button (PhotosLibraryPicker.vue
++    // gates its whole template on `v-if="open"`).
++    expect(picker.props('open')).toBe(false)
++    // A confirm event fired directly on the (still-mounted) component instance -- the exact shape
++    // the tests above use to exercise this handler without going through the picker's own
++    // internal UI -- simulates the one race a real click can't produce (the click and the
++    // navigation landing in the same synchronous tick). It must never write to 999: the
++    // `pickerAlbumId` snapshot pins the write to the album the picker was actually opened for.
++    picker.vm.$emit('confirm', ['x'])
++    await flushPromises()
++    expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalledWith('999', ['x'])
++    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x'])
++  })
++
++  // Coordinator review, fix round 2 · Minor: `edit` itself was never reset by the id watcher, so
++  // navigating from album 7 mid-edit to a different, perfectly valid album 8 dropped the user
++  // into edit mode on 8 without choosing it.
++  it('leaves edit mode when the route id changes to a different album', async () => {
++    svc.photos.listAlbums.mockResolvedValue([rawAlbum(7, { name: 'Trip' }), rawAlbum(8, { name: 'Other' })])
++    const { w, router } = await mountView('7')
++    await w.find('[data-test="album-edit-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.find('.sv-select-bar').exists()).toBe(true)
++
++    await router.push('/photos/albums/8')
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    expect(w.find('.sv-select-bar').exists()).toBe(false)
++    expect(w.find('[data-test="album-edit-toggle"]').attributes('data-open')).toBe('false')
++  })
++
+   it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
+     const { w } = await mountView('7')
+     expect(dragMock.refresh).toHaveBeenCalled()
+     const afterMount = dragMock.refresh.mock.calls.length
+ 
+     await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit: false->true
+     await w.vm.$nextTick()
+     expect(dragMock.refresh.mock.calls.length).toBeGreaterThan(afterMount)
+     const afterEdit = dragMock.refresh.mock.calls.length
+ 

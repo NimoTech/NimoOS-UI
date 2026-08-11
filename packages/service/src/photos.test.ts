@@ -43,6 +43,34 @@ describe('createPhotos', () => {
     const p = createPhotos(http, () => null)
     expect(await p.listAssets()).toEqual([{ id: 9 }])
   })
+  it('getTimelineBuckets hits the bucket directory endpoint with no params', async () => {
+    const { http, calls } = capture([{ year: 2026, month: 8, count: 3, videoCount: 1 }])
+    const p = createPhotos(http, noToken)
+    expect(await p.getTimelineBuckets()).toEqual([{ year: 2026, month: 8, count: 3, videoCount: 1 }])
+    expect(calls[0]).toMatchObject({ method: 'get', url: '/photos/timeline/buckets' })
+    expect(calls[0].params).toBeUndefined()
+  })
+  it('getTimelineBucket passes year/month/limit/offset', async () => {
+    const { http, calls } = capture([])
+    const p = createPhotos(http, noToken)
+    await p.getTimelineBucket(2026, 8, 500, 1000)
+    expect(calls[0].url).toBe('/photos/timeline/bucket')
+    expect(calls[0].params).toEqual({ year: 2026, month: 8, limit: 500, offset: 1000 })
+  })
+  it('getTimelineBucket defaults to the backend page cap and offset 0', async () => {
+    const { http, calls } = capture([])
+    const p = createPhotos(http, noToken)
+    await p.getTimelineBucket(0, 0)
+    expect(calls[0].params).toEqual({ year: 0, month: 0, limit: 500, offset: 0 })
+  })
+  it('listTrash omits paging params when limit is 0 and passes them when set', async () => {
+    const { http, calls } = capture([])
+    const p = createPhotos(http, noToken)
+    await p.listTrash()
+    expect(calls[0].params).toEqual({})
+    await p.listTrash(500, 500)
+    expect(calls[1].params).toEqual({ limit: 500, offset: 500 })
+  })
 })
 
 describe('photos 核心块', () => {

@@ -11,6 +11,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { readFileSync } from 'node:fs'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
 
@@ -26,6 +27,12 @@ const svc = vi.hoisted(() => ({
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
+    // Task 7, folded-in finding (d): the page's own onMounted/route watcher calls
+    // store.loadExcluded, which hits this endpoint. `loadExcluded` catches and leaves
+    // `excluded` empty (smartViews.ts:534-547) -- exactly the end state a `[]` mock produces --
+    // so this carries none of getConfig's coupling risk (see the comment on that one below) and
+    // was simply missing. Adding it removes 77 caught-TypeError console.error lines per run.
+    getSmartViewExcluded: vi.fn(),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -41,6 +48,7 @@ vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock 
 import PhotosSmartViewDetail from '../PhotosSmartViewDetail.vue'
 import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
+import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useToast } from '../../stores/toast'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
 
@@ -52,6 +60,9 @@ function makeRouter(initial = '/photos/smart-views/7') {
     routes: [
       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+      // SP15-P2b Task 5: smart albums moved into Albums (Tasks 3/4) -- this page's back
+      // links (not-found, detail bar, post-delete) all now land here instead.
+      { path: '/photos/albums', name: 'photos-albums-stub', component: { template: '<div/>' } },
     ],
   })
   router.push(initial)
@@ -123,6 +134,7 @@ beforeEach(() => {
   svc.photos.exportSmartViewAlbum.mockReset()
   svc.photos.exportSmartViewUrl.mockClear()
   svc.photos.thumbnailUrl.mockClear()
+  svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
   lbMock.openAt.mockClear()
 })
 afterEach(() => {
@@ -159,11 +171,14 @@ describe('数据源三态', () => {
     expect(w.find('[data-test="sv-not-found-back"]').exists()).toBe(true)
   })
 
-  it('返回按钮 → router.push 到列表页', async () => {
+  // SP15-P2b Task 5: smart albums now live in Albums (Tasks 3/4) -- this button's
+  // destination and label both changed (label: photosSvAllSmartViews → photosAlbumBack,
+  // see the deviation comment above PhotosSmartViewDetail.vue's detail-bar back button).
+  it('返回按钮 → router.push 到相册页', async () => {
     const { w, router } = await mountView('999', [makeSv({ id: 7 })])
     const pushSpy = vi.spyOn(router, 'push')
     await w.find('[data-test="sv-not-found-back"]').trigger('click')
-    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
   })
 
   it('byId 用 String 归一:store 里 id 是数字 7,route.params.id = "7" → 命中', async () => {
@@ -188,53 +203,100 @@ describe('.sv-detail-bar —— 返回入口 + 最近更新时间', () => {
     const { w } = await mountView('7', [makeSv({ id: 7, evaluatedAt: '' })])
     expect(w.find('.sv-last-updated').text()).toBe(zh.photosSvLastUpdatedTime.replace('{time}', '—'))
   })
+
+  // SP15-P2b Task 5: the back button had no data-test before this task (dispatch-corrected
+  // brief fact 3 -- the brief's original snippet assumed `sv-detail-back` already existed).
+  // Destination changed to Albums (smart albums moved there in Tasks 3/4) and the label
+  // changed from photosSvAllSmartViews to photosAlbumBack -- see the deviation comment
+  // above this button in PhotosSmartViewDetail.vue.
+  it('sends the back button to Albums, where smart albums now live', async () => {
+    const { w, router } = await mountView('7', [makeSv({ id: 7 })])
+    const pushSpy = vi.spyOn(router, 'push')
+    const back = w.find('[data-test="sv-detail-back"]')
+    expect(back.exists()).toBe(true)
+    expect(back.text()).toContain(zh.photosAlbumBack)
+    await back.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
+  })
 })
 
 // fix round 1 · M5(brief §3 明文要求的挂载点断言,原版 grep 0 命中)──────────────
-// P7a-T7:sv-cond-editor-mount 的 stub 断言("空壳,children.length===0")在这里升级成
-// 真组件断言——SmartViewConditionEditor 自己的结构/交互/cssCascade 覆盖已在
-// SmartViewConditionEditor.test.ts,这里只钉住"宿主接线对不对":conds 从 sv.conds 来、
-// add/remove 翻译成 store.updateSmartView(id, { conds: [...] }) 的正确形状、busy 转发
-// store.patchBusy。
-describe('T7:加条件弹层 + 条件 chip(挂载点兑现为真组件)', () => {
-  it('sv-cond-editor-mount 渲染 SmartViewConditionEditor,chip 数量与 sv.conds 一致', async () => {
+// P7a-T7 originally mounted a dedicated SmartViewConditionEditor component here (chips +
+// an "Add condition" popover). Task 8 (SP15-P2c, ported from Vue2 NimoOS-UI 33b05636
+// PhotosSmartViewDetail.vue:26-30/:700-710, "用户追加需求") removes the add entry as a
+// deliberate product decision -- only removable chips survive. Once `add` was gone the
+// component was down to a bare v-for with no local state, so it no longer earned its own
+// file (see task-8-report.md for the full call) and folded back into this page. These
+// tests were re-homed accordingly; the popover/suggestion/busy-forwarding tests that only
+// exercised the add path had no capability left to cover and were deleted, not silently
+// dropped (disposition table in the report).
+describe('T7/T8: condition chips (remove-only, add entry removed)', () => {
+  it('renders one removable chip per sv.conds entry', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
-    const mountEl = w.find('[data-test="sv-cond-editor-mount"]')
+    const mountEl = w.find('[data-test="sv-header-conds"]')
     expect(mountEl.exists()).toBe(true)
     expect(mountEl.findAll('[data-test="sv-cond-chip"]').length).toBe(2)
   })
 
-  it('点 chip 删除 → store.updateSmartView 收到过滤后的 conds(condsRaw)', async () => {
+  it('no longer offers an add-condition entry (button and popover both gone)', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
+    expect(w.find('[data-test="sv-cond-add-btn"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-cond-pop"]').exists()).toBe(false)
+  })
+
+  it('clicking a chip → store.updateSmartView receives the filtered conds (condsRaw), and the chip is actually gone once the round trip resolves', async () => {
     svc.photos.updateSmartView.mockResolvedValue(null)
     const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
     await w.findAll('[data-test="sv-cond-chip"]')[0].trigger('click')
     await flushPromises()
     expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
+    // End-to-end, not just "the call was made with the right args": the store's local merge
+    // (smartViews.ts's `splice(i, 1, { ...old, ...patch })` fallback for a null response)
+    // updates `sv.conds`, the page's `sv` computed follows it, and the chip actually
+    // disappears from the DOM -- not merely still present with a stale click handler.
+    await w.vm.$nextTick()
+    const remaining = w.findAll('[data-test="sv-cond-chip"]')
+    expect(remaining.length).toBe(1)
+    expect(remaining[0].text()).toContain('place: Japan')
   })
 
-  it('弹层输入 + Enter → store.updateSmartView 收到追加后的 conds(condsRaw)', async () => {
+  // SP15-P2c Task 8, coordinator review fix: re-homes the deleted
+  // SmartViewConditionEditor.test.ts's "点叉(.sv-cond-x)→同样触发remove(冒泡到整个chip)".
+  // The first pass of this task's disposition table claimed this was "covered structurally"
+  // by the whole-chip click test above on the strength of the DOM being unchanged -- that
+  // claim was never actually exercised by a test (clicking the parent span directly never
+  // dispatches a click on the nested `.sv-cond-x`, so a future `@click.stop` added to the X
+  // icon would silently break click-to-remove-via-X with nothing here to catch it). Fixed by
+  // adding this test rather than just softening the prose.
+  it('clicking the ✕ icon specifically (not just the chip body) still fires removeCond via bubbling', async () => {
     svc.photos.updateSmartView.mockResolvedValue(null)
-    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
-    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
-    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
-    await input.setValue('object: dog')
-    await input.trigger('keydown.enter')
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    await w.find('.sv-cond-x').trigger('click')
     await flushPromises()
-    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['scene: sunset', 'object: dog'] })
+    expect(svc.photos.updateSmartView).toHaveBeenCalledWith('7', { condsRaw: ['place: Japan'] })
   })
 
-  it('store.patchBusy 期间转发为 SmartViewConditionEditor 的 busy=true(primary 按钮禁用)', async () => {
+  it('store.patchBusy blocks a second click on the same chip from firing another PATCH', async () => {
     let resolveFn: ((v: unknown) => void) | undefined
     svc.photos.updateSmartView.mockImplementation(() => new Promise((res) => { resolveFn = res }))
-    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset'] })])
-    await w.find('[data-test="sv-cond-add-btn"]').trigger('click')
-    const input = w.find<HTMLInputElement>('[data-test="sv-cond-pop-input"]')
-    await input.setValue('object: dog')
-    await input.trigger('keydown.enter')
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-cond-submit"]').attributes('disabled')).toBeDefined()
+    const { w } = await mountView('7', [makeSv({ id: 7, conds: ['scene: sunset', 'place: Japan'] })])
+    const chip = w.findAll('[data-test="sv-cond-chip"]')[0]
+    await chip.trigger('click')
+    expect(svc.photos.updateSmartView).toHaveBeenCalledTimes(1)
+    expect(chip.attributes('data-busy')).toBe('true')
+    await chip.trigger('click')
+    expect(svc.photos.updateSmartView).toHaveBeenCalledTimes(1)
     resolveFn?.(null)
     await flushPromises()
+  })
+
+  it('leaves no orphaned add-condition identifiers behind in the page source', () => {
+    for (const ident of [
+      'openAddCond', 'closeAddCond', 'submitCond', 'addCondSuggestion', 'addCond',
+      'SmartViewConditionEditor',
+    ]) {
+      expect(photosSmartViewDetailRaw).not.toContain(ident)
+    }
   })
 })
 
@@ -491,6 +553,257 @@ describe('header 统计四格', () => {
   })
 })
 
+// ── SP15-P2c Task 6: header action row (sort capsule / pause / edit / density) ────────────
+// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:49-90. Sort and density are new
+// construction on this page -- it never had either control -- so these tests describe the
+// target's row, not a rearrangement of what was here.
+describe('SP15-P2c Task 6: header action row', () => {
+  /** Opens the sort menu and returns the option button carrying `sortId`. */
+  async function pickSortOption(w: ReturnType<typeof mount>, sortId: string) {
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    const item = w.findAll('[data-test="sv-sort-item"]').find((n) => n.attributes('data-sort-id') === sortId)!
+    await item.trigger('click')
+    await w.vm.$nextTick()
+  }
+
+  it('renders sort and density in the header outside edit mode', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('.sv-actions .group').text()).toBe(zh.photosAlbumSort)
+    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosSortScore)
+    expect(w.findAll('.density button')).toHaveLength(2)
+    // The target's order, element by element: Sort label -> capsule -> separator -> Pause ->
+    // Edit -> separator -> density. Asserting the sequence is the only way a reordering is
+    // caught; each element existing on its own says nothing about where it sits.
+    const row = w.findAll('.sv-actions > *').map((n) => {
+      const cls = n.classes()
+      return n.attributes('data-test') ?? (cls.includes('group') ? 'group' : cls[0])
+    })
+    expect(row.slice(0, 7)).toEqual([
+      'group',
+      'sv-sort-wrap',
+      'album-detail-actions-sep',
+      'sv-action-pause',
+      'sv-edit-toggle',
+      'album-detail-actions-sep',
+      'density',
+    ])
+  })
+
+  it('offers match score and date taken as the two sort options', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    const items = w.findAll('[data-test="sv-sort-item"]')
+    expect(items.map((n) => n.attributes('data-sort-id'))).toEqual(['score', 'taken'])
+    expect(items.map((n) => n.text())).toEqual([zh.photosSortScore, zh.photosAlbumSortTaken])
+    // Score is the default (the backend already returns match_score DESC), so it is the one
+    // marked active before anything is picked.
+    expect(items[0].attributes('data-active')).toBe('true')
+    expect(items[1].attributes('data-active')).toBe('false')
+  })
+
+  // Whole-branch review, Minor 7: nothing guarded the check glyph / empty-spacer pair on either
+  // detail page, and the album page's copy had already drifted from the target once. The spacer
+  // is the half a future edit drops, and dropping it shifts every label between the active and
+  // inactive rows -- so assert both halves: every option carries exactly one slot, and only the
+  // active one holds a glyph. Mirror of the album page's own assertion.
+  it('gives every sort option a check slot and the glyph only to the active one', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const items = w.findAll('[data-test="sv-sort-item"]')
+    expect(items.length).toBeGreaterThan(1)
+    for (const item of items) {
+      expect(item.findAll('.sv-sort-check')).toHaveLength(1)
+      const hasGlyph = item.find('.sv-sort-check').element.tagName.toLowerCase() === 'svg'
+      expect(hasGlyph).toBe(item.attributes('data-active') === 'true')
+    }
+    expect(items.filter((n) => n.attributes('data-active') === 'true')).toHaveLength(1)
+  })
+
+  it('re-sorts both grids by taken date when that option is picked, and relabels the capsule', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      // Deliberately handed back in the backend's own (match score) order, oldest first, so
+      // "sorted by taken date desc" is a different sequence from "left alone".
+      const rows = [
+        asset('old', { takenAt: '2026-01-01T00:00:00Z' }),
+        asset('new', { takenAt: '2026-06-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? rows : rows
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
+    const ids = (sel: string) => w.findAll(sel).map((n) => n.find('img').attributes('src'))
+    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/old/large', 'mock://thumb/new/large'])
+
+    await pickSortOption(w, 'taken')
+
+    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
+    expect(ids('[data-test="sv-recent-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
+    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosAlbumSortTaken)
+    // Picking closes the menu (Vue2 pickSort).
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+  })
+
+  // SP15-P2c Task 9 (target :96/:107 -- onTileClick(p, list), photoSet/recentSet passed from
+  // the template). Before this task, both grids' tiles shared one handler that always handed
+  // the lightbox `store.matchedAssets` -- the backend's match-score order -- regardless of
+  // what Sort was showing. The fixture below is built so the two orders genuinely diverge:
+  // "all matches" comes back m1/m2/m3 (score order) but taken-date-desc reorders it to
+  // m2/m3/m1, so a lightbox handed the stale order would open on the wrong photo.
+  it('hands the lightbox the order the "all matches" grid is showing, not the backend order', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      const matched = [
+        asset('m1', { takenAt: '2026-01-10T00:00:00Z' }),
+        asset('m2', { takenAt: '2026-03-05T00:00:00Z' }),
+        asset('m3', { takenAt: '2026-02-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? [] : matched
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await pickSortOption(w, 'taken')
+    // Sorted (taken desc): m2, m3, m1 -- the third tile is m1, not m3.
+    await w.findAll('[data-test="sv-all-tile"]')[2].trigger('click')
+
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const call = lbMock.openAt.mock.calls[0]
+    expect((call[0] as { id: string }).id).toBe('m1')
+    expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['m2', 'm3', 'm1'])
+    // startMs, not an index -- untouched by this task (useLightbox.openAt computes the index
+    // itself from the list and the photo).
+    expect(call[2]).toBe(0)
+  })
+
+  // The "recently added" band has its own Sort-applied order (recentSet), independent of the
+  // "all matches" band's (matchedSet). A fix that wires both grids' clicks to the same list --
+  // e.g. always matchedSet -- would pass this test's sibling above but fail here, because the
+  // two lists are built to have no assets in common.
+  it('keeps the "recently added" grid on its own sorted list, not the all-matches one', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      const matched = [
+        asset('m1', { takenAt: '2026-01-10T00:00:00Z' }),
+        asset('m2', { takenAt: '2026-03-05T00:00:00Z' }),
+        asset('m3', { takenAt: '2026-02-01T00:00:00Z' }),
+      ]
+      const recent = [
+        asset('r2', { takenAt: '2026-01-01T00:00:00Z' }),
+        asset('r1', { takenAt: '2026-04-01T00:00:00Z' }),
+      ]
+      return opts?.recent ? recent : matched
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
+    await pickSortOption(w, 'taken')
+    // Sorted (taken desc): r1, r2 -- the backend handed them back the other way round.
+    await w.findAll('[data-test="sv-recent-tile"]')[0].trigger('click')
+
+    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
+    const call = lbMock.openAt.mock.calls[0]
+    expect((call[0] as { id: string }).id).toBe('r1')
+    expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['r1', 'r2'])
+  })
+
+  it('switches both grids to the compact density', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 1 })])
+    expect(w.find('[data-test="sv-all-grid"]').classes()).not.toContain('is-compact')
+    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('true')
+
+    await w.find('[data-test="sv-density-compact"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-all-grid"]').classes()).toContain('is-compact')
+    expect(w.find('[data-test="sv-recent-grid"]').classes()).toContain('is-compact')
+    expect(w.find('[data-test="sv-density-compact"]').attributes('data-active')).toBe('true')
+    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('false')
+  })
+
+  it('keeps pause and edit visible in edit mode while sort and density disappear', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(true)
+    expect(w.find('.density').exists()).toBe(true)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(false)
+    expect(w.find('.density').exists()).toBe(false)
+    expect(w.find('[data-test="sv-action-pause"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-edit-toggle"]').exists()).toBe(true)
+    // Each separator travels with the group it parts, so neither is left dangling.
+    expect(w.findAll('.album-detail-actions-sep')).toHaveLength(0)
+  })
+
+  it('enters and leaves edit mode from the single edit toggle', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    const toggle = () => w.find('[data-test="sv-edit-toggle"]')
+    expect(toggle().text()).toBe(zh.photosAlbumEdit)
+    expect(toggle().attributes('data-open')).toBe('false')
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+
+    await toggle().trigger('click')
+    await w.vm.$nextTick()
+    expect(toggle().text()).toBe(zh.photosAlbumDone)
+    expect(toggle().attributes('data-open')).toBe('true')
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
+
+    await toggle().trigger('click')
+    await w.vm.$nextTick()
+    expect(toggle().text()).toBe(zh.photosAlbumEdit)
+    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+  })
+
+  it('shows add-photos in the bottom select bar rather than the header', async () => {
+    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    expect(w.find('.sv-actions [data-test="sv-add-photos"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-add-photos"]').exists()).toBe(false)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+
+    // In the bar, and nowhere else -- and reachable with nothing selected, which is the whole
+    // reason the bar is gated on edit alone (target :318).
+    expect(w.find('[data-test="sv-select-bar"] [data-test="sv-add-photos"]').exists()).toBe(true)
+    expect(w.findAll('[data-test="sv-add-photos"]')).toHaveLength(1)
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+
+    await w.find('[data-test="sv-add-photos"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+  })
+
+  it('disables Remove until something is selected', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => (opts?.recent ? [] : [asset('a1')]))
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeDefined()
+
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeUndefined()
+    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+  })
+
+  it('closes the sort menu on an outside mousedown and on Escape', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
+  })
+})
+
 // ── 「在搜索中细化」——T16 兑现:去 disabled,接 router.push ─────────────────
 describe('「在搜索中细化」按钮(T16 已接线)', () => {
   it('不再 disabled,也没有 photosSvSearchPending 的 title', async () => {
@@ -513,16 +826,13 @@ describe('「在搜索中细化」按钮(T16 已接线)', () => {
   })
 })
 
-// ── 导出菜单 / more 菜单 ─────────────────────────────────────────────────
-describe('导出菜单与 more 菜单', () => {
-  it('点导出按钮 → 菜单出现两项(ZIP / 静态相册)', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-zip"]').exists()).toBe(true)
-    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(true)
-  })
-
-  it('点 more 按钮 → 菜单出现三项(重命名 / 复制 / 删除)', async () => {
+// ── more menu (unified into five entries as of Task 7; the Export button/menu is folded in
+//    entirely, see the "SP15-P2c Task 7" describe block below) ─────────────────────────────
+describe('more menu', () => {
+  // Re-homed (Task 7): the old "菜单出现三项(重命名/复制/删除)" case is now a strict subset
+  // of "renders exactly five menu entries in the target order" below, which also pins the
+  // order -- this one stays only because it predates Convert/ZIP and is still true unchanged.
+  it('opens the more menu and shows at least three entries (rename / duplicate / delete)', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     expect(w.find('[data-test="sv-more-rename"]').exists()).toBe(true)
@@ -530,10 +840,130 @@ describe('导出菜单与 more 菜单', () => {
     expect(w.find('[data-test="sv-more-delete"]').exists()).toBe(true)
   })
 
+  // Re-homed (Task 7): was '点导出按钮...' + 'photosSvNPhotosMbMb...', reading
+  // sv-export-toggle/sv-export-zip. The export button is gone; ZIP is now the third entry of
+  // the unified menu, reached through sv-more-toggle, and its data-test is sv-more-zip.
   it('photosSvNPhotosMbMb 的 {mb} 在 count=1000 时是千分位 "3,200"', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 1000 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-zip"]').text()).toContain('3,200')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    expect(w.find('[data-test="sv-more-zip"]').text()).toContain('3,200')
+  })
+})
+
+// ── SP15-P2c Task 7: sidebar action section + unified five-entry "..." menu ────────────────
+// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:127-225. Refine in Search and
+// the "..." menu move from the header row (where Task 6 parked them) into a new
+// `.sv-side-actions` container at the top of the sidebar, matching PhotosAlbumDetail.vue's own
+// (Task 5). The Export button/menu is gone entirely: ZIP folds into the unified menu as its
+// third entry, and "Save as static album" (sv-export-album / exportAlbumAction) is deleted --
+// the target's own history (933a7d3a comment, restated in PhotosSmartViewDetail.vue's header)
+// records that Vue2 killed this same button in the same commit range and kept only the backend
+// capability, which is exactly the call made here too (see the component's own comment on the
+// deletion for the full trail).
+describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
+  it('renders the sidebar action section with refine and the more button', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    const side = w.find('[data-test="sv-side-mount"]')
+    const actions = side.find('.sv-side-actions')
+    expect(actions.exists()).toBe(true)
+    expect(actions.find('[data-test="sv-action-refine"]').exists()).toBe(true)
+    expect(actions.find('[data-test="sv-more-toggle"]').exists()).toBe(true)
+  })
+
+  it('renders exactly five menu entries in the target order', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    const items = w.find('[data-test="sv-more-menu"]').findAll('.sv-export-item')
+    expect(items).toHaveLength(5)
+    expect(items.map((i) => i.attributes('data-test'))).toEqual([
+      'sv-more-rename',
+      'sv-more-duplicate',
+      'sv-more-zip',
+      'sv-more-convert',
+      'sv-more-delete',
+    ])
+    // Review fix: the previous version of this test only pinned the `data-test` order, which
+    // says nothing about the rendered copy -- exactly how the Convert/Delete titles drifted
+    // from the target's own shortened copy (33b05636 :143-147's own "shortened so the two
+    // pages read the same" comment) without any gate catching it, until a human read the diff.
+    // Titles here must match the target's short-form copy (verified against
+    // 33b05636:src/assets/lang/zh_CN.json's `Convert`/`Delete` entries: 转换/删除); descs are
+    // deliberately excluded -- only the titles were shortened in the target's own change.
+    expect(items.map((i) => i.find('.sv-export-title').text())).toEqual([
+      zh.photosSvRename,
+      zh.photosSvDuplicate,
+      zh.photosFavExport,
+      zh.photosAlbumMenuConvert,
+      zh.photosDelete,
+    ])
+  })
+
+  it('no longer renders a separate export section in the menu', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    expect(w.find('[data-test="sv-export-toggle"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    // "Save as static album" is a deleted capability, not something that moved -- see the
+    // describe block's own header comment.
+    expect(w.find('[data-test="sv-export-album"]').exists()).toBe(false)
+  })
+
+  it('applies the fixed position style when the menu opens', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.vm.$nextTick()
+    const style = w.find('[data-test="sv-more-menu"]').attributes('style') ?? ''
+    expect(style).toContain('position: fixed')
+  })
+
+  // Re-homed (Task 7): was '点菜单外部(mousedown,bubbles:true)→ 关闭' in the export-menu
+  // describe block, reading sv-export-toggle/sv-export-menu -- both gone. Same behaviour, new
+  // trigger.
+  it('still closes the menu on an outside click', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
+    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
+  })
+
+  // Regression guard against E10 recurring (SP15-P2b's Important finding: the convert
+  // confirmation's primary-action colour and its Escape guard). The full flow (colour, Escape
+  // mid-flight, 409 copy, navigation) is already covered end-to-end by the "convert to regular
+  // album" describe block below Task 6's edit; this test's job is narrower and specific to
+  // Task 7's relocation -- proving the *new* sidebar entry point still reaches that flow at all.
+  it('keeps the convert-to-album confirmation flow working from the new entry', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-convert"]').trigger('click')
+    await w.vm.$nextTick()
+    const confirm = w.find('[data-test="sv-convert-confirm"]')
+    expect(confirm.exists()).toBe(true)
+    const ok = confirm.find('[data-test="sv-convert-ok"]')
+    expect(ok.classes()).toContain('primary')
+    expect(ok.classes()).not.toContain('danger')
+  })
+
+  // Folded-in finding (b): a keyboard activation of Edit/Done (Space/Enter on a focused
+  // button) fires a `click` without a `mousedown` -- the event onDocumentMouseDown listens
+  // for to close the sort menu. VTU's own `.trigger('click')` has the identical shape (no
+  // synthetic mousedown either), so this reproduces the real bug without any extra event
+  // plumbing: open the sort menu, flip edit mode on and back off through the toggle alone, and
+  // check the sort popup does not silently reappear.
+  it('does not leave the sort menu stuck open after toggling edit mode via the Edit button', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7 })])
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
+
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // enter edit mode
+    await w.vm.$nextTick()
+    await w.find('[data-test="sv-edit-toggle"]').trigger('click') // leave edit mode again
+    await w.vm.$nextTick()
+
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
   })
 })
 
@@ -557,8 +987,8 @@ describe('导出 ZIP', () => {
     })
 
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets', count: 1000 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
 
     expect(fetchSpy).toHaveBeenCalledTimes(1)
@@ -582,8 +1012,8 @@ describe('导出 ZIP', () => {
     const appendSpy = vi.spyOn(document.body, 'appendChild')
 
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
 
     const anchor = appendSpy.mock.calls.map((c) => c[0]).find((n) => (n as HTMLElement).tagName === 'A') as HTMLAnchorElement
@@ -596,34 +1026,20 @@ describe('导出 ZIP', () => {
   it('fetch 返 401(!ok)→ toast 是 photosSvExportFailed', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401 }))
     const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-zip"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-zip"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
     vi.unstubAllGlobals()
   })
 })
 
-// ── 导出相册 ─────────────────────────────────────────────────────────────
-describe('导出相册', () => {
-  it('成功 → toast 文案含 name', async () => {
-    svc.photos.exportSmartViewAlbum.mockResolvedValue({})
-    const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-album"]').trigger('click')
-    await flushPromises()
-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain('Sunsets')
-  })
-
-  it('失败 → toast 是 photosSvExportFailed(照搬 photosFavExportFailed 复用)', async () => {
-    svc.photos.exportSmartViewAlbum.mockRejectedValue(new Error('500'))
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    await w.find('[data-test="sv-export-album"]').trigger('click')
-    await flushPromises()
-    expect(w.find('[data-test="sv-export-toast"]').text()).toContain(zh.photosFavExportFailed)
-  })
-})
+// SP15-P2c Task 7: the '导出相册' describe block (Save as static album, exportAlbumAction/
+// sv-export-album) is deleted here, not re-homed -- the capability itself is gone. The Vue2
+// target's own history records the same deletion in the same commit range (see
+// PhotosSmartViewDetail.vue's comment on `exportAlbumAction`'s removal for the full trail);
+// this page's Convert entry already does the equivalent job (freezing the current matches
+// into a regular album), so nothing the user could do is lost.
 
 // ── 删除 ──────────────────────────────────────────────────────────────────
 describe('删除智能视图', () => {
@@ -634,7 +1050,9 @@ describe('删除智能视图', () => {
     expect(w.find('[data-test="sv-confirm-scrim"]').exists()).toBe(true)
   })
 
-  it('点确认 → deleteSmartView 被调 → router.push 到列表页 + 带撤销的 toast', async () => {
+  // SP15-P2b Task 5: after deletion the user lands on Albums, not the now-Moments-only
+  // smart-views route (smart albums moved to Albums in Tasks 3/4).
+  it('点确认 → deleteSmartView 被调 → router.push 到相册页 + 带撤销的 toast', async () => {
     svc.photos.deleteSmartView.mockResolvedValue({})
     const { w, router } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     const pushSpy = vi.spyOn(router, 'push')
@@ -643,7 +1061,7 @@ describe('删除智能视图', () => {
     await w.find('[data-test="sv-confirm-ok"]').trigger('click')
     await flushPromises()
     expect(svc.photos.deleteSmartView).toHaveBeenCalledWith('7')
-    expect(pushSpy).toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).toHaveBeenCalledWith('/photos/albums')
     expect(useToast().msg).toContain('Sunsets')
     const last = useToast().toasts[useToast().toasts.length - 1]
     expect(last.action?.label).toBe(zh.photosTrashUndo)
@@ -684,7 +1102,7 @@ describe('删除智能视图', () => {
     await w.find('[data-test="sv-more-delete"]').trigger('click')
     await w.find('[data-test="sv-confirm-ok"]').trigger('click')
     await flushPromises()
-    expect(pushSpy).not.toHaveBeenCalledWith('/photos/smart-views')
+    expect(pushSpy).not.toHaveBeenCalledWith('/photos/albums')
     expect(useToast().msg).toBe(zh.photosSvDeleteFailed)
   })
 })
@@ -711,6 +1129,127 @@ describe('复制', () => {
   })
 })
 
+// ── SP15-P2b Task 8: smart album → regular album (reverse of Task 7's convertFromAlbum) ──
+describe('convert to regular album', () => {
+  let convertFromSmartView: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    convertFromSmartView = vi.spyOn(usePhotosAlbums(), 'convertFromSmartView')
+  })
+
+  async function openConvertConfirm(w: Awaited<ReturnType<typeof mountView>>['w']) {
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-convert"]').trigger('click')
+  }
+
+  it('offers Convert to regular album above the destructive separator', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    const menu = w.find('[data-test="sv-more-menu"]')
+    const html = menu.html()
+    expect(menu.find('[data-test="sv-more-convert"]').exists()).toBe(true)
+    // Grouped with rename/duplicate, i.e. before the separator, not next to Delete.
+    expect(html.indexOf('sv-more-convert')).toBeLessThan(html.indexOf('sv-export-sep'))
+  })
+
+  it('asks for confirmation and spells out that the theme is discarded', async () => {
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
+    const body = w.find('[data-test="sv-convert-confirm"]').text()
+    expect(body).toContain('12')
+    expect(body).toContain(zh.photosSvConvertToAlbumBody.replace('{n}', '12'))
+  })
+
+  it('navigates to the new album on success', async () => {
+    convertFromSmartView.mockResolvedValue({ id: 'al-new' } as never)
+    const { w, router } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    const push = vi.spyOn(router, 'push')
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(push).toHaveBeenCalledWith('/photos/albums/al-new')
+  })
+
+  it('keeps the confirmation open with an inline message when it fails', async () => {
+    convertFromSmartView.mockRejectedValue(new Error('boom'))
+    const { w, router } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    const push = vi.spyOn(router, 'push')
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumConvertFailed)
+    expect(push).not.toHaveBeenCalledWith(expect.stringContaining('/photos/albums/'))
+  })
+
+  it('reuses the duplicate-name copy for a 409', async () => {
+    convertFromSmartView.mockRejectedValue({ response: { status: 409 } })
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumNameExists)
+  })
+
+  it('closes the convert confirmation on Escape', async () => {
+    // Retitled in the final fix wave: the old title claimed this covered "along with any
+    // other open overlay", but askConvertToAlbum closes the more menu on its way in, so no
+    // second overlay is ever open here. The multi-overlay invariant (independent ifs, never
+    // an early return) is covered by the existing export-menu + more-menu case.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
+  })
+
+  it('dresses the confirm button as the filled primary CTA, not a second Cancel', async () => {
+    // Vue2 uses trash-btn-cta here (939a7d3a:photos.scss:2203-2213) and reserves the danger
+    // variant for the delete dialog. Without the modifier this button rendered with the base
+    // ghost rule -- pixel-identical to the Cancel beside it, and with no hover at all.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    const ok = w.find('[data-test="sv-convert-ok"]')
+    expect(ok.classes()).toContain('primary')
+    expect(ok.classes()).not.toContain('danger')
+    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
+    expect(css).toMatch(/\.sv-confirm-ok\.primary\s*\{[^}]*background:\s*var\(--accent\)/)
+    expect(css).toMatch(/\.sv-confirm-ok\.primary:hover:not\(:disabled\)\s*\{/)
+  })
+
+  it('tints the convert dialog icon with the accent, not the delete red', async () => {
+    // Vue2 :298 passes var(--accent-hi) for this album glyph; only :279's trash glyph is red.
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    expect(w.find('[data-test="sv-convert-confirm"] .sv-confirm-icon').classes()).toContain('accent')
+    // The delete dialog keeps the red disc (no .accent).
+    await w.find('[data-test="sv-convert-cancel"]').trigger('click')
+    await w.find('[data-test="sv-more-toggle"]').trigger('click')
+    await w.find('[data-test="sv-more-delete"]').trigger('click')
+    expect(w.find('[data-test="sv-confirm-scrim"] .sv-confirm-icon').classes()).not.toContain('accent')
+    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
+    expect(css).toMatch(/\.sv-confirm-icon\.accent\s*\{[^}]*background:\s*var\(--accent-soft\)/)
+  })
+
+  it('does not dismiss the confirmation mid-flight', async () => {
+    let release: (v: unknown) => void = () => {}
+    convertFromSmartView.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await w.find('[data-test="sv-convert-cancel"]').trigger('click')
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    // Escape must be refused the same way the Cancel button is -- both route through
+    // closeConvertToAlbum's busy guard rather than one of them poking the flag directly.
+    await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+    release({ id: 'al-new' })
+    await flushPromises()
+  })
+})
+
 // ── 两段网格 ─────────────────────────────────────────────────────────────
 describe('两段照片网格', () => {
   it('newCount > 0 →「最近添加」段在;=== 0 → 不在', async () => {
@@ -730,7 +1269,14 @@ describe('两段照片网格', () => {
     expect(w.findAll('[data-test="sv-all-tile"]')).toHaveLength(3)
   })
 
-  it('点 tile → lb.openAt 被调,第二参是 store.matchedAssets 全集、第三参 0、第四参 undefined', async () => {
+  // SP15-P2c Task 9: this used to assert `call[1]).toBe(store.matchedAssets)` -- the raw store
+  // array, by reference. Task 9 hands the lightbox `matchedSet` (the Sort-applied view) instead,
+  // and `sortAlbumPhotos` always returns a fresh `[...photos]` copy (util/albumView.ts) even in
+  // the default 'score' ordering, so the reference check would now fail even though the content
+  // is identical. Content is what matters here (there is only one asset, so score-order content
+  // is indistinguishable from taken-order content) -- the ordering divergence is covered by the
+  // two tests above.
+  it('tile click still calls lb.openAt with content matching store.matchedAssets (now a separate sorted snapshot, not the same reference), startMs 0, no query', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [] : [asset('a1')]
     })
@@ -739,7 +1285,8 @@ describe('两段照片网格', () => {
     const store = usePhotosSmartViews()
     expect(lbMock.openAt).toHaveBeenCalledTimes(1)
     const call = lbMock.openAt.mock.calls[0]
-    expect(call[1]).toBe(store.matchedAssets)
+    expect(call[1]).toEqual(store.matchedAssets)
+    expect(call[1]).not.toBe(store.matchedAssets)
     expect(call[2]).toBe(0)
     expect(call[3]).toBeUndefined()
   })
@@ -759,26 +1306,26 @@ describe('两段照片网格', () => {
 
 // ── 浮层 ──────────────────────────────────────────────────────────────────
 describe('浮层:菜单同开 + Esc + 点外部关闭', () => {
-  it('先开 export 再开 more,一次 Esc 两者都关', async () => {
+  // Re-homed (Task 7): was '先开 export 再开 more,一次 Esc 两者都关'. The export menu no
+  // longer exists as an independent overlay -- ZIP is now inside the unified more menu. The
+  // invariant this test guards (multiple independent `if`s in onDocumentKeydown, never an
+  // early return, so one Escape closes every open overlay) still needs two *independent*
+  // overlays to be meaningful; the sort menu and the more menu are the pair left on this page.
+  it('opens the sort menu then the more menu, and one Escape closes both', async () => {
     const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
+    await w.find('[data-test="sv-sort-btn"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(true)
     await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-more-menu"]').exists()).toBe(false)
   })
 
-  it('点菜单外部(mousedown,bubbles:true)→ 关闭', async () => {
-    const { w } = await mountView('7', [makeSv({ id: 7 })])
-    await w.find('[data-test="sv-export-toggle"]').trigger('click')
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(true)
-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
-    await w.vm.$nextTick()
-    expect(w.find('[data-test="sv-export-menu"]').exists()).toBe(false)
-  })
+  // '点菜单外部(mousedown,bubbles:true)→ 关闭' (used to read sv-export-toggle/sv-export-menu)
+  // is superseded by "SP15-P2c Task 7" describe block's own "still closes the menu on an
+  // outside click" -- identical mechanism, same assertion, sv-more-toggle/sv-more-menu instead.
 })
 
 // ── 非颜色视觉属性:先锚定规则体、再断言属性(全文件级 toContain 恒真,不算断言)──
@@ -853,14 +1400,15 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
 
 // fix round 1 · I2(菜单/弹窗真的套了 <Transition>,不是样式定义了但模板没用上)────
 describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是样式块躺尸)', () => {
-  it('导出菜单 / more 菜单 的 data-test 标记都出现在 <Transition name="sv-menu"> 与其配对的 </Transition> 之间', () => {
-    // 用配对计数而不是简单 indexOf 区间——模板里有两个 sv-menu Transition,分别包导出菜单与
-    // more 菜单,逐个核对各自的 data-test 落在“离它最近的那对 sv-menu 开闭标签”之间。
+  // Re-homed (Task 7): the export menu's own <Transition name="sv-menu"> is gone along with
+  // the button that opened it, leaving exactly one -- the unified more menu's. The target
+  // (33b05636 :78) wraps its own merged menu in <transition name="sv-menu"> too, so the wrapper
+  // itself is 1:1 with Vue2; only the *count* here (one, not two) is New-UI-specific fallout
+  // from Task 6 having parked two separate menus that Task 7 then merged into one.
+  it('the more menu\'s data-test marker sits inside its <Transition name="sv-menu"> pair', () => {
     const menuBlocks = [...photosSmartViewDetailRaw.matchAll(/<Transition name="sv-menu">([\s\S]*?)<\/Transition>/g)]
-    expect(menuBlocks.length).toBe(2)
-    const combined = menuBlocks.map((m) => m[1]).join('\n')
-    expect(combined).toContain('data-test="sv-export-menu"')
-    expect(combined).toContain('data-test="sv-more-menu"')
+    expect(menuBlocks.length).toBe(1)
+    expect(menuBlocks[0][1]).toContain('data-test="sv-more-menu"')
   })
 
   it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {
@@ -872,16 +1420,10 @@ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是
 
 // ── cssCascade:hover 归属变体 ─────────────────────────────────────────────
 describe('样式:hover 级联归属变体', () => {
-  it('.sv-action-btn / .sv-action-btn-primary(导出主按钮)hover 胜出规则含 :hover 且归属变体', () => {
-    const style = extractStyleBlock(photosSmartViewDetailRaw)
-    const win = winningHoverBackground(style, ['sv-action-btn', 'sv-action-btn-primary'])
-    expect(win.selector).toContain(':hover')
-    expect(win.selector).toContain('sv-action-btn-primary')
-    // fix round 1(评审折中方案):必须是真实优先级 3(复合选择器 `.a.b:hover`)取胜,不是
-    // 优先级打平后靠源码顺序苟活——specificity===3 才说明两个类都算进了同一条选择器里
-    // (单类 `.sv-action-btn-primary:hover` 只会算出 2,与基类同级)。
-    expect(win.specificity).toBe(3)
-  })
+  // Task 11 (c): the `.sv-action-btn-primary` cascade regression that used to open this block is
+  // gone with the rule it guarded -- Task 7 folded the Export button (the class's only consumer)
+  // into the unified "..." menu, so the selector this test queried no longer exists on the page.
+  // The same variant, and the same regression, still live on PhotosMomentDetail.test.ts:874-880.
 
   it('.sv-export-item / .sv-export-item-danger(删除项)hover 胜出规则含 :hover 且归属变体', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
@@ -889,6 +1431,25 @@ describe('样式:hover 级联归属变体', () => {
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('sv-export-item-danger')
     expect(win.specificity).toBe(3)
+  })
+
+  // SP15-P2c Task 8, coordinator review fix round 2: this rehomes the deleted
+  // SmartViewConditionEditor.test.ts's cssCascade assertion for the condition chip's own
+  // hover rule, moved in from that component along with the markup. Query with the SAME
+  // two-class form the two sibling tests above use (base + variant), not a single-class
+  // query -- a single-class query silently drops any base `.sv-cond:hover` rule from
+  // consideration before the cascade comparison ever runs (the helper filters candidates by
+  // class-membership against the list passed in), which would make this test blind to the
+  // exact base-beats-variant regression it exists to catch. `.sv-cond` has no `:hover` rule
+  // today, but the query still has to include it so the test would actually fail if one were
+  // ever added with equal-or-higher specificity than `.sv-cond-removable:hover` -- see the
+  // mutation check in task-8-report.md for proof this form (not the single-class form tried
+  // first) actually reddens on that scenario.
+  it('.sv-cond / .sv-cond-removable (condition chip) hover-winning rule contains :hover and belongs to the variant', () => {
+    const style = extractStyleBlock(photosSmartViewDetailRaw)
+    const win = winningHoverBackground(style, ['sv-cond', 'sv-cond-removable'])
+    expect(win.selector).toContain(':hover')
+    expect(win.selector).toContain('sv-cond-removable')
   })
 })
 

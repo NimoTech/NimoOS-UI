@@ -12,11 +12,21 @@ vi.mock('@nimotech/nimoos-service', () => ({
       batchAddToAlbum: vi.fn(() => Promise.resolve()),
       removeFromAlbum: vi.fn(() => Promise.resolve()),
       reorderAlbumAssets: vi.fn(() => Promise.resolve()),
+      convertSmartToAlbum: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
 import { service } from '@nimotech/nimoos-service'
 import { usePhotosAlbums } from '../albums'
+import { usePhotosSmartViews, type SmartView } from '../smartViews'
+
+function makeSv(id: string): SmartView {
+  return {
+    id, name: id, description: '', conds: [], threshold: 80, live: true, includeVideos: false,
+    count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0,
+    distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '',
+  }
+}
 
 describe('photosAlbums store', () => {
   beforeEach(() => {
@@ -457,6 +467,118 @@ describe('photosAlbums store', () => {
       const s = usePhotosAlbums()
       await expect(s.saveAsAlbum('Trip', ['p1'])).rejects.toThrow('409')
       expect(service.photos.batchAddToAlbum).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('duplicateAlbum', () => {
+    it('creates a new album with "<title> copy" and batch-adds the source members, create before add', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.getAlbum as any).mockResolvedValueOnce({
+        assets: [{ id: 'p1', takenAt: null }, { id: 'p2', takenAt: null }],
+      })
+      await s.fetchAlbumAssets('a1')
+
+      const order: string[] = []
+      ;(service.photos.createAlbum as any).mockImplementationOnce(async () => {
+        order.push('createAlbum')
+        return { id: 'new2', name: 'Trip copy' }
+      })
+      ;(service.photos.batchAddToAlbum as any).mockImplementationOnce(async () => {
+        order.push('batchAddToAlbum')
+      })
+      ;(service.photos.listAlbums as any).mockImplementationOnce(async () => {
+        order.push('listAlbums')
+        return [{ id: 'new2', name: 'Trip copy' }, { id: 'a1', name: 'Trip' }]
+      })
+
+      const created = await s.duplicateAlbum('a1')
+      expect(service.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
+      expect(service.photos.batchAddToAlbum).toHaveBeenCalledWith('new2', ['p1', 'p2'])
+      expect(order).toEqual(['createAlbum', 'batchAddToAlbum', 'listAlbums'])
+      expect(created).toEqual({ id: 'new2', name: 'Trip copy' })
+    })
+
+    it('prepends the duplicate to the album list so it is visible without a refetch', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.createAlbum as any).mockResolvedValueOnce({ id: 'new2', name: 'Trip copy' })
+      // Mirrors the real backend contract: ListAlbums orders by created_at DESC
+      // (NimoOS-Photos service/album.go:83), so the just-created row comes back first.
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([
+        { id: 'new2', name: 'Trip copy' },
+        { id: 'a1', name: 'Trip' },
+      ])
+      const created = await s.duplicateAlbum('a1')
+      expect(s.albums[0].id).toBe(created.id)
+    })
+
+    it('ignores a second duplicate call while the first is still in flight', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      let resolveCreate: (v: unknown) => void
+      ;(service.photos.createAlbum as any).mockImplementationOnce(
+        () => new Promise((resolve) => { resolveCreate = resolve }),
+      )
+      const p1 = s.duplicateAlbum('a1')
+      const p2 = s.duplicateAlbum('a1').catch(() => {}) // second call is rejected by the guard
+      resolveCreate!({ id: 'new2', name: 'Trip copy' })
+      await Promise.all([p1, p2])
+      expect(service.photos.createAlbum).toHaveBeenCalledTimes(1)
+    })
+
+    it('clears the in-flight guard after a failure so a retry can proceed', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Trip' }])
+      const s = usePhotosAlbums()
+      await s.fetchAlbums()
+      ;(service.photos.createAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      await expect(s.duplicateAlbum('a1')).rejects.toThrow('boom')
+      ;(service.photos.createAlbum as any).mockResolvedValueOnce({ id: 'new2', name: 'Trip copy' })
+      const created = await s.duplicateAlbum('a1')
+      expect(created).toEqual({ id: 'new2', name: 'Trip copy' })
+    })
+  })
+
+  describe('convertFromSmartView', () => {
+    it('unshifts the new album and returns the raw object', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N', videoCount: 2 })
+      const s = usePhotosAlbums()
+      const album = await s.convertFromSmartView('sv-1')
+      expect(album.id).toBe('al-new')
+      expect(s.albums[0].id).toBe('al-new')
+    })
+
+    it('rethrows instead of swallowing the failure', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      const s = usePhotosAlbums()
+      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
+      expect(s.albums).toHaveLength(0)
+    })
+
+    // Final fix wave: the backend deletes the source smart view, so it must leave the other
+    // store too. Without this, smartViews.listLoaded stays true, PhotosSmartViewDetail.vue:96
+    // skips its own fetch, and one browser Back press lands on a fully interactive detail page
+    // for an object the server has already deleted.
+    it('evicts the source smart view from the smart views store', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N' })
+      const sv = usePhotosSmartViews()
+      sv.smartViews = [makeSv('sv-1'), makeSv('sv-2')]
+      const s = usePhotosAlbums()
+      await s.convertFromSmartView('sv-1')
+      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-2'])
+      expect(s.albums[0].id).toBe('al-new')
+    })
+
+    it('leaves the source smart view alone when the conversion fails', async () => {
+      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
+      const sv = usePhotosSmartViews()
+      sv.smartViews = [makeSv('sv-1')]
+      const s = usePhotosAlbums()
+      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
+      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-1'])
     })
   })
 })

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { usePhotosSmartViews } from '../smartViews'
+import { usePhotosAlbums } from '../albums'
 
 const listSmartViews = vi.fn()
 const createSmartViewApi = vi.fn()
@@ -11,6 +12,7 @@ const getSmartViewAssets = vi.fn()
 const getSmartViewActivity = vi.fn()
 const previewSmartViewApi = vi.fn()
 const exportSmartViewAlbumApi = vi.fn()
+const convertAlbumToSmartApi = vi.fn()
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -24,6 +26,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
       getSmartViewActivity: (...a: unknown[]) => getSmartViewActivity(...a),
       previewSmartView: (...a: unknown[]) => previewSmartViewApi(...a),
       exportSmartViewAlbum: (...a: unknown[]) => exportSmartViewAlbumApi(...a),
+      convertAlbumToSmart: (...a: unknown[]) => convertAlbumToSmartApi(...a),
     },
   },
 }))
@@ -37,7 +40,7 @@ const FULL_SV = {
   conds: ['a', 'b'], threshold: 80, live: true, includeVideos: false,
   count: 40, addedThisWeek: 3, seeds: ['s1'],
   median: 55, storageBytes: 1024, distribution: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-  evaluatedAt: '2026-01-01T00:00:00Z',
+  evaluatedAt: '2026-01-01T00:00:00Z', createdAt: '2025-12-31T00:00:00Z',
 }
 const MINIMAL_SV = {
   id: 7, name: 'X', conds: null, threshold: 50, live: true, includeVideos: false,
@@ -133,8 +136,21 @@ describe('toSmartView 兜底', () => {
       conds: ['a', 'b'], threshold: 80, live: true, includeVideos: false,
       count: 40, addedThisWeek: 3, seeds: ['s1'],
       median: 55, storageBytes: 1024, distribution: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-      evaluatedAt: '2026-01-01T00:00:00Z',
+      evaluatedAt: '2026-01-01T00:00:00Z', createdAt: '2025-12-31T00:00:00Z',
     })
+  })
+
+  it('createdAt is normalised off the wire and falls back to an empty string when absent', async () => {
+    // The backend has always returned it (NimoOS-Photos service/smartview.go:23); the
+    // front-end type simply never carried it until the global album sort needed it.
+    listSmartViews.mockResolvedValue([
+      { ...MINIMAL_SV, createdAt: '2026-01-02T03:04:05Z' },
+      MINIMAL_SV,
+    ])
+    const s = usePhotosSmartViews()
+    await s.fetchSmartViews()
+    expect(s.smartViews[0].createdAt).toBe('2026-01-02T03:04:05Z')
+    expect(s.smartViews[1].createdAt).toBe('')
   })
 })
 
@@ -458,6 +474,46 @@ describe('duplicateSmartView', () => {
     await s.duplicateSmartView('sv-1')
     expect(duplicateSmartViewApi).toHaveBeenCalledTimes(2)
     spy.mockRestore()
+  })
+})
+
+describe('convertFromAlbum', () => {
+  it('unshifts the new smart view and returns it', async () => {
+    convertAlbumToSmartApi.mockResolvedValue({ id: 'sv-new', name: 'N', createdAt: '2026-02-01T00:00:00Z' })
+    const s = usePhotosSmartViews()
+    const sv = await s.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
+    expect(sv.id).toBe('sv-new')
+    expect(s.smartViews[0].id).toBe('sv-new')
+  })
+
+  it('rethrows so the caller can keep its dialog open', async () => {
+    convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
+    const s = usePhotosSmartViews()
+    await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
+    expect(s.smartViews).toHaveLength(0)
+  })
+
+  // Final fix wave, mirror of the albums store's own case: the backend deletes the source
+  // album, so it must leave the albums store too. Without this, albums.albumsLoaded stays true,
+  // PhotosAlbumDetail.vue:442 skips its own fetch, and one browser Back press lands on a fully
+  // interactive detail page for an album the server has already deleted.
+  it('evicts the source album from the albums store', async () => {
+    convertAlbumToSmartApi.mockResolvedValue({ id: 'sv-new', name: 'N' })
+    const albums = usePhotosAlbums()
+    albums.albums = [{ id: 'al-1', name: 'A' }, { id: 'al-2', name: 'B' }]
+    const s = usePhotosSmartViews()
+    await s.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
+    expect(albums.albums.map((a) => a.id)).toEqual(['al-2'])
+    expect(s.smartViews[0].id).toBe('sv-new')
+  })
+
+  it('leaves the source album alone when the conversion fails', async () => {
+    convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
+    const albums = usePhotosAlbums()
+    albums.albums = [{ id: 'al-1', name: 'A' }]
+    const s = usePhotosSmartViews()
+    await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
+    expect(albums.albums.map((a) => a.id)).toEqual(['al-1'])
   })
 })
 

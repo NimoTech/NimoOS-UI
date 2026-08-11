@@ -3,8 +3,6 @@ import {
   SV_SUGGEST_POOL,
   inferChips,
   SV_QUICK_TEMPLATES,
-  COND_SUGGESTIONS,
-  condSuggestionsFor,
 } from '../smartViewSuggest'
 import zh from '../../../i18n/zh_cn'
 import en from '../../../i18n/en_us'
@@ -94,23 +92,7 @@ describe('SV_QUICK_TEMPLATES', () => {
   })
 })
 
-describe('COND_SUGGESTIONS / condSuggestionsFor', () => {
-  it('COND_SUGGESTIONS 共 12 条', () => {
-    expect(COND_SUGGESTIONS.length).toBe(12)
-  })
-
-  it('condSuggestionsFor(["scene: sunset"]) 不含该项且长度 8', () => {
-    const out = condSuggestionsFor(['scene: sunset'])
-    expect(out).not.toContain('scene: sunset')
-    expect(out.length).toBe(8)
-  })
-
-  it('condSuggestionsFor([]) 长度 8', () => {
-    expect(condSuggestionsFor([]).length).toBe(8)
-  })
-
-  it('condSuggestionsFor(前 10 条) 长度 2', () => {
-    const out = condSuggestionsFor(COND_SUGGESTIONS.slice(0, 10) as string[])
-    expect(out.length).toBe(2)
-  })
-})
+// COND_SUGGESTIONS / condSuggestionsFor and their tests were deleted in SP15-P2c Task 8
+// along with the "Add condition" popover that was their only consumer (see
+// task-8-report.md's assertion disposition table -- deleted, not re-homed, because the
+// capability itself is gone).

@@ -1,0 +1,356 @@
+# Review package: 748d79e..HEAD
+
+## Commits
+7418075 fix(photos): page in the rest of favorites before saving as an album
+
+## Files changed
+ src/photos/stores/__tests__/favorites.test.ts | 34 ++++++++++++
+ src/photos/stores/favorites.ts                | 16 +++++-
+ src/views/PhotosFavorites.vue                 | 34 +++++++++++-
+ src/views/__tests__/PhotosFavorites.test.ts   | 76 +++++++++++++++++++++++++++
+ 4 files changed, 157 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/favorites.test.ts b/src/photos/stores/__tests__/favorites.test.ts
+index 4efac24..9ee6f4e 100644
+--- a/src/photos/stores/__tests__/favorites.test.ts
++++ b/src/photos/stores/__tests__/favorites.test.ts
+@@ -219,12 +219,46 @@ describe('photosFavorites store', () => {
+       await s.fetchFavorites()
+       expect(s.favoritesExhausted).toBe(false)
+       await s.toggle('f0')
+       // fetchFavorites always asks offset 0 regardless, but exhaustion must be reset
+       // too so a stale "exhausted" flag doesn't hide the load-more button on next entry.
+       expect(s.favoritesExhausted).toBe(false)
+       ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
+       await s.fetchFavorites()
+       expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
+     })
++
++    // Review fix (Important 2): toggle()'s success path resets _offset/favoritesExhausted
++    // without bumping _generation, which a purely sequential test cannot see. Interleave a
++    // slow loadMoreFavorites() with a toggle() that lands first: the stale page must be
++    // dropped whole (not appended on top of the offset toggle() already rewound to zero),
++    // or the list silently duplicates rows and the cursor is corrupted.
++    it('a toggle landing while loadMoreFavorites is in flight does not corrupt the cursor', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++
++      let release: (v: unknown) => void = () => {}
++      ;(service.photos.listFavorites as any).mockImplementationOnce(
++        () => new Promise((r) => { release = r }),
++      )
++      const slow = s.loadMoreFavorites() // captures generation before toggle() bumps it
++
++      await s.toggle('f0') // success: resets _offset/favoritesExhausted AND _generation
++
++      release(page(500, 500)) // the slow page's response lands after the toggle
++      await slow
++
++      // The stale page must have been dropped whole: still exactly the first page, not
++      // 1000 rows from a duplicate append.
++      expect(s.favoritesList).toHaveLength(500)
++      expect(s.loadingMore).toBe(false)
++
++      // The cursor toggle() rewound to zero must not have been clobbered by the stale
++      // page's `_offset += rows.length` — the next load-more has to re-ask from page one,
++      // not from the corrupted 500 the bug would have produced.
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1))
++      await s.loadMoreFavorites()
++      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
++    })
+   })
+ })
+diff --git a/src/photos/stores/favorites.ts b/src/photos/stores/favorites.ts
+index 625696a..bb4961a 100644
+--- a/src/photos/stores/favorites.ts
++++ b/src/photos/stores/favorites.ts
+@@ -115,43 +115,57 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
+         ...(favoritesList.value ?? []),
+         ...rows.map((a) => assetToPhoto(a as Record<string, unknown>)),
+       ]
+       _offset += rows.length
+       if (rows.length < FAVORITES_PAGE_SIZE) favoritesExhausted.value = true
+     } catch (e) {
+       // Leave the cursor where it was so the retry asks for the same page again
+       // rather than skipping it.
+       console.error('[photos-favorites] loadMoreFavorites', e)
+     } finally {
+-      if (gen === _generation) loadingMore.value = false
++      // Review fix follow-up: reset unconditionally, not only `if (gen === _generation)`.
++      // The reentrancy guard above means at most one loadMoreFavorites() call is ever in
++      // flight, so there is never a second, still-current in-flight call whose loadingMore
++      // this could stomp on. Gating the reset on a generation match instead left the flag
++      // stuck true forever whenever *anything else* (fetchFavorites, or toggle() per
++      // Important 2) bumped the generation while this call was in flight and did not itself
++      // clear loadingMore — permanently disabling the load-more button with no in-flight
++      // request left to explain it.
++      loadingMore.value = false
+     }
+   }
+ 
+   // Single-item optimistic flip + failure rollback (true to Vue2 toggleFav:
+   // flips again to roll back, not a snapshot restore).
+   async function toggle(id: string | number): Promise<void> {
+     const key = String(id)
+     const wasFav = favIds.value.has(key)
+     const flipped = new Set(favIds.value)
+     if (wasFav) flipped.delete(key)
+     else flipped.add(key)
+     favIds.value = flipped
+     try {
+       if (wasFav) await service.photos.unfavorite(id)
+       else await service.photos.favorite(id)
+       // Invalidate the cached favorites list — next view re-fetches.
+       favoritesLoaded.value = false
+       // Task 11: reset the pagination cursor too, so the next fetchFavorites() starts a
+       // fresh page one instead of leaving a stale "exhausted" flag that would hide the
+       // load-more button while the list is actually smaller than what was loaded before.
++      // Review fix (Important 2): bump _generation along with the cursor reset. Without
++      // this, a loadMoreFavorites() already in flight when toggle() lands would still
++      // carry the old (now-stale) generation, be judged fresh, and append its page on top
++      // of a list/offset toggle() just rewound to zero — corrupting _offset and, on the
++      // next load-more, re-requesting and duplicating rows already present.
+       favoritesExhausted.value = false
+       _offset = 0
++      _generation++
+     } catch (e) {
+       // Roll back + log only — do NOT rethrow. Every caller invokes this
+       // fire-and-forget (`void fav.toggle(id)`, mirroring P2's
+       // useLightbox.toggleFav precedent); rethrowing here would surface as an
+       // unhandled promise rejection instead of the UI-consistent rollback +
+       // diagnostic log this store already provides.
+       const rollback = new Set(favIds.value)
+       if (wasFav) rollback.add(key)
+       else rollback.delete(key)
+       favIds.value = rollback
+diff --git a/src/views/PhotosFavorites.vue b/src/views/PhotosFavorites.vue
+index 3d45599..f5021f8 100644
+--- a/src/views/PhotosFavorites.vue
++++ b/src/views/PhotosFavorites.vue
+@@ -92,25 +92,53 @@ const saveAlbumSaving = ref(false)
+ 
+ function openSaveAlbum(): void {
+   // 照 Vue2 openSaveAlbum:455-459 —— 每次打开都重新预填(不是只在首次 data() 里固化一份)。
+   saveAlbumName.value = t('photosFavSaveAlbumDefault', { year: new Date().getFullYear() })
+   saveAlbumOpen.value = true
+   void nextTick(() => { saveAlbumInputRef.value?.focus() })
+ }
+ function closeSaveAlbum(): void {
+   saveAlbumOpen.value = false
+ }
++// Review fix (Important 1, Task 11 follow-up): before this task, favoritesList WAS the
++// whole set, so building assetIds straight from it was correct. Now the page loads at most
++// FAVORITES_PAGE_SIZE rows, so a user with more favorites than that who never pressed
++// "load more" would get an album silently truncated to the first page — the exact
++// silent-truncation defect Task 11 exists to remove, recreated in this modal. Page the rest
++// in before saving so the count the user agreed to is the count they get. Progress is
++// detected by list-length growth (a successful page always either appends rows or reaches
++// exhaustion; a failed page does neither), so a stuck cursor is caught without the store
++// exposing its private offset.
++async function loadRemainingFavoritesForSave(): Promise<boolean> {
++  while (!fav.favoritesExhausted) {
++    const before = fav.favoritesList?.length ?? 0
++    await fav.loadMoreFavorites()
++    const after = fav.favoritesList?.length ?? 0
++    if (after === before && !fav.favoritesExhausted) return false // stuck: the page failed
++  }
++  return true
++}
++
+ async function confirmSaveAlbum(): Promise<void> {
+   const name = saveAlbumName.value.trim()
+   if (!name || saveAlbumSaving.value) return
+   saveAlbumSaving.value = true
+   try {
++    if (!fav.favoritesExhausted) {
++      const loadedAll = await loadRemainingFavoritesForSave()
++      if (!loadedAll) {
++        // Same failure copy the rest of this view already uses — do not create a
++        // knowingly-partial album, and leave the modal open so the user can retry.
++        toast.show(t('photosFavSaveFailed'))
++        return
++      }
++    }
+     // 照 Vue2 :467:`this.favorites.map(p => p.id)` —— favorites === favoritesList。
+     const assetIds = fav.favoritesList?.map((p) => p.id) ?? []
+     await albums.saveAsAlbum(name, assetIds)
+     // 只有成功分支才关模态(照 Vue2 :461-478;失败两个分支都不关,见下方 catch)。
+     saveAlbumOpen.value = false
+     toast.show(t('photosFavSavedToast', { name, count: assetIds.length }))
+   } catch (e) {
+     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosFavSaveFailed'))
+     // 模态保持打开、输入内容保留 —— 不清空 saveAlbumName、不 close。
+   } finally {
+@@ -304,23 +332,25 @@ onMounted(() => {
+     v-if="saveAlbumOpen"
+     class="favsave-scrim"
+     data-test="fav-savealbum-modal"
+     @click.self="closeSaveAlbum"
+   >
+     <div class="favsave-modal">
+       <div class="favsave-head">
+         <div class="favsave-head-text">
+           <div class="favsave-title">{{ t('photosFavSaveAlbumTitle') }}</div>
+           <!-- 评审 Important 2:补 Vue2 :267-268 的动态副标题(结构照同期 T7
+-               PhotosAlbums.vue:269 .albums-modal-sub)。 -->
++               PhotosAlbums.vue:269 .albums-modal-sub)。
++               Task 11 review fix: use the exact total, not the loaded-page length — the
++               number shown here is what confirmSaveAlbum now actually pages in and saves. -->
+           <div class="favsave-sub" data-test="fav-savealbum-sub">
+-            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesList?.length ?? 0 }) }}
++            {{ t('photosFavSaveAlbumSub', { count: fav.favoritesTotal }) }}
+           </div>
+         </div>
+         <button type="button" class="favsave-close" :aria-label="t('photosCancel')" @click="closeSaveAlbum">&#215;</button>
+       </div>
+       <input
+         ref="saveAlbumInputRef"
+         v-model="saveAlbumName"
+         class="favsave-input"
+         data-test="fav-savealbum-input"
+         @keydown.enter.prevent="confirmSaveAlbum"
+diff --git a/src/views/__tests__/PhotosFavorites.test.ts b/src/views/__tests__/PhotosFavorites.test.ts
+index d869446..75abab3 100644
+--- a/src/views/__tests__/PhotosFavorites.test.ts
++++ b/src/views/__tests__/PhotosFavorites.test.ts
+@@ -70,20 +70,26 @@ function photo(id: string, opts: Partial<{ takenAt: string | null; mimeType: str
+   return {
+     id,
+     takenAt: opts.takenAt === null ? null : (opts.takenAt || '2026-07-01T00:00:00Z'),
+     mimeType: opts.mimeType || 'image/jpeg',
+     originalName: `${id}.jpg`,
+     faces: opts.faces,
+     placeName: opts.placeName,
+   }
+ }
+ 
++// Task 11 (SP15-P3): a page of raw favorite() rows for pagination tests, shared by the
++// "pagination" describe block below and the save-as-album pagination tests.
++function pageAssets(n: number, from = 0) {
++  return Array.from({ length: n }, (_, i) => photo(`f${from + i}`))
++}
++
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
+   svc.photos.listFavorites.mockClear().mockResolvedValue([])
+   svc.photos.exportFavoritesUrl.mockClear().mockReturnValue('/v1/photos/favorites/export?token=T1')
+   svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+   svc.photos.recordView.mockClear().mockResolvedValue(undefined)
+   svc.photos.listAlbums.mockClear().mockResolvedValue([])
+   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+   lb.__resetForTest()
+@@ -374,20 +380,24 @@ describe('PhotosFavorites.vue', () => {
+       await wEmpty.vm.$nextTick()
+       expect(wEmpty.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+ 
+       svc.photos.listFavorites.mockResolvedValue([photo('a')])
+       const wFull = await mountView()
+       expect(wFull.find('.fav-save-album').attributes('disabled')).toBeUndefined()
+     })
+ 
+     it('点击「存为相册」→ 模态出现,input 预填含当前年份的默认名,副标题/脚注文案渲染', async () => {
+       svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
++      // Task 11 review fix: the subtitle now reads the exact total (favoritesTotal), which
++      // comes from favIds once loaded — keep the id list in sync with the loaded page so
++      // this fixture still reflects "2 favorites" rather than the default empty id list.
++      svc.photos.listFavoriteIds.mockResolvedValue(['a', 'b'])
+       const w = await mountView()
+ 
+       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+       await w.find('.fav-save-album').trigger('click')
+       await w.vm.$nextTick()
+ 
+       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
+       const input = w.find('[data-test="fav-savealbum-input"]')
+       expect((input.element as HTMLInputElement).value).toContain(String(new Date().getFullYear()))
+       // 评审 Important 2:补 Vue2 :267-268 动态副标题(count 反映当前收藏数)与
+@@ -410,20 +420,86 @@ describe('PhotosFavorites.vue', () => {
+       await input.setValue('Trip')
+       await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
+       await flushPromises()
+       await w.vm.$nextTick()
+ 
+       expect(saveSpy).toHaveBeenCalledWith('Trip', ['a', 'b'])
+       expect(showSpy).toHaveBeenCalledWith('「Trip」已保存 · 2 张照片')
+       expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
+     })
+ 
++    // Review fix (Important 1, Task 11 follow-up): before this task favoritesList WAS the
++    // whole set. Now it is at most one page, so submitting straight from it would silently
++    // save a truncated album — the exact defect this task exists to remove, recreated in
++    // this modal. Confirming must page in the rest first.
++    it('submitting with more than one page of favorites pages in the rest first, then saves with the exact total', async () => {
++      svc.photos.listFavorites.mockReset()
++      svc.photos.listFavorites
++        .mockResolvedValueOnce(pageAssets(500)) // initial fetchFavorites page
++        .mockResolvedValueOnce(pageAssets(300, 500)) // loadMoreFavorites: short page, exhausts
++      svc.photos.listFavoriteIds.mockResolvedValueOnce(
++        Array.from({ length: 800 }, (_, i) => `f${i}`),
++      )
++      const w = await mountView()
++      const fav = usePhotosFavorites()
++      expect(fav.favoritesExhausted).toBe(false)
++
++      const albums = usePhotosAlbums()
++      const saveSpy = vi.spyOn(albums, 'saveAsAlbum').mockResolvedValue({ id: 1, name: 'Trip' })
++
++      await w.find('.fav-save-album').trigger('click')
++      await w.vm.$nextTick()
++      // The modal shows the exact total (800), not the one loaded page (500).
++      expect(w.find('[data-test="fav-savealbum-sub"]').text()).toContain('800')
++
++      await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
++      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
++      await flushPromises()
++      await w.vm.$nextTick()
++
++      expect(svc.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
++      expect(fav.favoritesExhausted).toBe(true)
++      expect(saveSpy).toHaveBeenCalledTimes(1)
++      expect(saveSpy.mock.calls[0][0]).toBe('Trip')
++      expect(saveSpy.mock.calls[0][1]).toHaveLength(800) // all 500 + 300, not just the first page
++      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(false)
++    })
++
++    // Review fix (Important 1): a page that fails while paging in the rest must not result
++    // in a knowingly-partial album — surface the same failure copy this view already uses
++    // for saveAsAlbum errors, and leave the modal open so the user can retry.
++    it('a pagination failure during submit does not create a partial album, shows the save-failed toast, and leaves the modal open', async () => {
++      svc.photos.listFavorites.mockReset()
++      svc.photos.listFavorites
++        .mockResolvedValueOnce(pageAssets(500))
++        .mockRejectedValueOnce(new Error('network'))
++      const w = await mountView()
++      const fav = usePhotosFavorites()
++      expect(fav.favoritesExhausted).toBe(false)
++
++      const albums = usePhotosAlbums()
++      const saveSpy = vi.spyOn(albums, 'saveAsAlbum')
++      const toast = useToast()
++      const showSpy = vi.spyOn(toast, 'show')
++
++      await w.find('.fav-save-album').trigger('click')
++      await w.vm.$nextTick()
++      await w.find('[data-test="fav-savealbum-input"]').setValue('Trip')
++      await w.find('[data-test="fav-savealbum-confirm"]').trigger('click')
++      await flushPromises()
++      await w.vm.$nextTick()
++
++      expect(saveSpy).not.toHaveBeenCalled()
++      expect(showSpy).toHaveBeenCalledWith(zh.photosFavSaveFailed)
++      expect(w.find('[data-test="fav-savealbum-modal"]').exists()).toBe(true)
++    })
++
+     it('名称 trim 为空时主按钮 disabled 且点击不触发 saveAsAlbum', async () => {
+       svc.photos.listFavorites.mockResolvedValue([photo('a')])
+       const w = await mountView()
+       const albums = usePhotosAlbums()
+       const saveSpy = vi.spyOn(albums, 'saveAsAlbum')
+ 
+       await w.find('.fav-save-album').trigger('click')
+       await w.vm.$nextTick()
+       const input = w.find('[data-test="fav-savealbum-input"]')
+       await input.setValue('   ')

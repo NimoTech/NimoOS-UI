@@ -29,6 +29,12 @@ export function useAlbumDragSort(opts: {
   container: Ref<HTMLElement | null>
   enabled: () => boolean
   onOrder: (assetIds: string[]) => void
+  /** SP15-P1-T6: the Moments grid reuses this composable. These three optional
+   *  fields default to the album page's current values, so existing call sites need
+   *  no edit and behave byte-identically to before this change. */
+  itemSelector?: string
+  ghostClass?: string
+  chosenClass?: string
 }): AlbumDragSort {
   let inst: Sortable | null = null
   // Plain closure variable, not a ref — mirrors Vue2's this._dragging:
@@ -48,9 +54,14 @@ export function useAlbumDragSort(opts: {
     destroy()
     if (!opts.enabled() || opts.container.value == null) return
     const el = opts.container.value
+    const itemSelector = opts.itemSelector ?? '.tile[data-id]'
     inst = Sortable.create(el, {
       animation: 150,
-      ghostClass: 'tile-drag-ghost',
+      ghostClass: opts.ghostClass ?? 'tile-drag-ghost',
+      // Only present when a caller passes one — the album page never did, and
+      // Sortable treats an omitted chosenClass differently from an explicit
+      // undefined, so this must not add the key at all in the default case.
+      ...(opts.chosenClass ? { chosenClass: opts.chosenClass } : {}),
       forceFallback: true,
       fallbackOnBody: true,
       // Guard the post-drop click so a drag doesn't also toggle selection.
@@ -58,7 +69,7 @@ export function useAlbumDragSort(opts: {
         dragging = true
       },
       onEnd: () => {
-        const ids = Array.from(el.querySelectorAll('.tile[data-id]'))
+        const ids = Array.from(el.querySelectorAll(itemSelector))
           .map((n) => n.getAttribute('data-id'))
           .filter((id): id is string => id !== null)
         opts.onOrder(ids)

@@ -76,20 +76,7 @@ export const SV_QUICK_TEMPLATES: readonly QuickTemplate[] = [
   { labelKey: 'photosSvPetPortraits', descKey: 'photosSvSharpDogCatPortraits', descEn: 'Sharp dog and cat portraits', thresh: 85 },
 ]
 
-// 只推荐后端 svparser 真实支持的条件：date / place / scene / object / ocr。
-// 照搬 PhotosSmartViewDetail.vue:336-341。
-//
-// 已知瑕疵(照搬 + 登记,不改):'year: 2026' / 'year: 2025' 是写死年份 —— 与 §7c-1 的
-// "This year" 同类问题,但这里只是「建议列表」不是「过滤判据」,一个 2027 年的用户看到
-// "year: 2026" 只是个不那么有用的建议,不会算错结果。改成动态年份会让 COND_SUGGESTIONS
-// 从常量变成函数,牵动 T7 的契约,收益不抵成本。
-export const COND_SUGGESTIONS: readonly string[] = [
-  'year: 2026', 'year: 2025', 'captured: last 30 days',
-  'place: Japan', 'scene: sunset', 'scene: landscape',
-  'scene: food', 'scene: portrait', 'object: dog',
-  'ocr: receipt', 'scene: travel', 'scene: city at night',
-]
-
-export function condSuggestionsFor(existing: string[]): string[] {
-  return COND_SUGGESTIONS.filter((c) => !existing.includes(c)).slice(0, 8)
-}
+// COND_SUGGESTIONS / condSuggestionsFor (the "Add condition" popover's suggestion chips)
+// were removed here in SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636
+// PhotosSmartViewDetail.vue:26-30 ("用户追加需求") -- the popover they fed is gone and
+// they had no other caller (grep confirmed zero remaining references before deletion).

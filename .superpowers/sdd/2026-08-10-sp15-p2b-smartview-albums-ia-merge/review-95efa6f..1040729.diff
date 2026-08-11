@@ -1,0 +1,692 @@
+# Review package: 95efa6f..HEAD
+
+## Commits
+1040729 feat(photos): mix smart albums into the Albums grid
+
+## Files changed
+ .../progress.md                                    |  36 +++++
+ src/i18n/en_us.photos.ts                           |   4 +
+ src/i18n/zh_cn.photos.ts                           |   4 +
+ src/photos/components/SmartViewCard.vue            |   6 +-
+ src/views/PhotosAlbums.vue                         | 158 +++++++++++++++------
+ src/views/__tests__/PhotosAlbums.test.ts           |  97 +++++++++++++
+ 6 files changed, 259 insertions(+), 46 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md
+index e0831e1..b679e57 100644
+--- a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md
++++ b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md
+@@ -93,10 +93,46 @@ Task 2 review: spec OK, 1 Important + 2 Minor.
+   OLD "missing timestamp sorts last" semantics, i.e. the exact behaviour this task
+   existed to invert, live on the only surface a user can reach, with nothing that
+   would fail if T3 forgot to remove it.
+   Fix dispatched: drop the copy and have the interim `views` computed delegate to
+   buildMixedAlbums/sortMixed with an empty smart list, so there is one comparator
+   and the live page gets the corrected ordering now. Bundled Minor 1 (no fixture
+   exercises msOf's unparseable-but-non-empty branch) into the same round since the
+   round was already required.
+ Task 2: minor (deferred): the interim `views` path has no coverage for the
+   date/name-r/count branches. Throwaway code T3 replaces; final review may triage.
++Task 2: fix round 1/5 (2 addressed, 0 open — stale duplicate comparator removed and
++  a live-path regression test added; msOf isNaN fixture added; commits e85dec4..95efa6f)
++Task 2: complete (commits 85efc7d..95efa6f, review clean)
++  Implementer found TWO arithmetic errors in the plan's own expected orderings
++  (`name`/`name-r` and `date` had s2/u2 transposed) and hand-verified the corrections;
++  the re-reviewer independently recomputed both and confirmed. Plan was wrong, code is
++  right. Implementer also caught a near-miss in its own new fixture where garbage and
++  valid values sat on the sides that made pre-sort and expected order coincide, masking
++  the mutation — found via the mandated mutation check, then fixed.
++INTENTIONAL BEHAVIOUR CHANGE on the live page, recorded so it is not read as a
++  regression later: the `date` sort now ranks by `dateStart` (earliest member's
++  taken_at) instead of the deleted sortAlbums' `dateEnd`. sortAlbums' use of dateEnd
++  was itself a registered New-UI deviation; Vue2's target dateTakenMs reads dateStart,
++  so the new path is the 1:1-correct one. No existing test exercised the `date` id,
++  so nothing regressed silently.
++
++Task 3: complete (implementer self-report; per-task review still pending per the ledger's
++  T1-T4 process). PhotosAlbums.vue's `views` computed replaced with the real `mixedItems`
++  (buildMixedAlbums/sortMixed over albums + smartViews.smartViews, no more empty smart
++  list); isEmpty now checks mixedItems.length; added aiSmartViewOff computed + the AI-off
++  banner (markup/tokens copied verbatim from PhotosSmartViews.vue's .svs-banner*, renamed
++  .albums-ai-banner*, PhotosSmartViews.vue's own copy left in place for Task 5 to remove);
++  added openSmartCard; onMounted fires fetchSmartViews/fetchAiFeatures fire-and-forget
++  alongside fetchAlbums. 1 i18n key added (photosAlbumsNoneYetHint, both locales).
++  SmartViewCard.vue had zero `data-test` attributes (grep-verified, contra the brief's
++  assumption) -- added `data-test="sv-card"` to its root, registered in-file and in the
++  task report.
++  6 new tests added (TDD: RED confirmed before implementation, GREEN after); full repo
++  suite 685 files / 10883 tests, 3 oss/*.test.mjs failures explained entirely by the dirty
++  working tree per the CONTROLLER FACT above (re-verify after commit); vue-tsc clean.
++  Mutation checks: forcing aiSmartViewOff to always-true caught by the banner test (red);
++  dropping the kind prefix from the grid `:key` was NOT caught by any test in the suite --
++  no fixture makes a manual album id and a smart id collide, so a duplicate-key regression
++  would currently ship silently. Reverted the mutation, added a registered inline comment
++  at the v-for explaining why the prefix is load-bearing, did not add a new speculative
++  collision fixture (not asked for by the brief; flagging for the reviewer to triage).
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 45606e1..d05b24c 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -127,20 +127,24 @@ export default {
+   photosAlbums: 'Albums',
+   photosAlbumsTitle: 'Albums',
+   photosAlbumsCount: '{count} albums',
+   photosAlbumsMine: 'My Albums',
+   photosAlbumsMineHint: 'Albums you created',
+   photosAlbumNew: 'New album',
+   photosAlbumNewHint: 'Click to create',
+   photosAlbumUntitled: 'Untitled',
+   photosAlbumsEmptyTitle: 'No albums yet',
+   photosAlbumsEmptyHint: 'Create an album to group photos together.',
++  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
++  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
++  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
++  photosAlbumsNoneYetHint: 'No albums yet — create one manually, or let Nimo build a Smart Album that keeps itself updated.',
+   photosAlbumSort: 'Sort:',
+   photosAlbumSortCreated: 'Recently added',
+   photosAlbumSortCreatedHint: 'Newest album first',
+   photosAlbumSortName: 'Name (A–Z)',
+   photosAlbumSortNameHint: 'Alphabetical',
+   photosAlbumSortNameR: 'Name (Z–A)',
+   photosAlbumSortNameRHint: 'Reverse alphabetical',
+   photosAlbumSortCount: 'Photo count',
+   photosAlbumSortCountHint: 'Largest first',
+   photosAlbumSortDate: 'Date taken',
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index b93a173..880990d 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -127,20 +127,24 @@ export default {
+   photosAlbums: '相册',
+   photosAlbumsTitle: '相册',
+   photosAlbumsCount: '{count} 个相册',
+   photosAlbumsMine: '我的相册',
+   photosAlbumsMineHint: '你创建的相册',
+   photosAlbumNew: '新建相册',
+   photosAlbumNewHint: '点击创建',
+   photosAlbumUntitled: '未命名',
+   photosAlbumsEmptyTitle: '还没有相册',
+   photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
++  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
++  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here (alphabetically after the
++  // adjacent EmptyTitle/EmptyHint pair) rather than by the family's scattered global order.
++  photosAlbumsNoneYetHint: '还没有相册——手动创建一个，或者让 Nimo 建一个会自动保持更新的智能相册。',
+   photosAlbumSort: '排序：',
+   photosAlbumSortCreated: '最近添加',
+   photosAlbumSortCreatedHint: '最新的相册在前',
+   photosAlbumSortName: '名称(A–Z)',
+   photosAlbumSortNameHint: '按字母序',
+   photosAlbumSortNameR: '名称(Z–A)',
+   photosAlbumSortNameRHint: '反字母序',
+   photosAlbumSortCount: '照片数量',
+   photosAlbumSortCountHint: '最多的在前',
+   photosAlbumSortDate: '拍摄日期',
+diff --git a/src/photos/components/SmartViewCard.vue b/src/photos/components/SmartViewCard.vue
+index f859566..71d9730 100644
+--- a/src/photos/components/SmartViewCard.vue
++++ b/src/photos/components/SmartViewCard.vue
+@@ -16,20 +16,24 @@
+ //  - emit('open', id) 只传 id(字符串),不像 Vue2 那样传整个 sv 对象——详情页改为
+ //    byId(id) 现取(§7e-2,T2 store 的 byId 已就位),消灭引用陈旧的可能性。
+ //  - 千分位跟 locale:`sv.count.toLocaleString(locale)`,而不是 Vue2 的裸
+ //    `toLocaleString()`(依赖运行环境默认 locale,不确定)。
+ //  - `.sv-name` 补齐单行省略三件套(Vue2 没有,长名会撑破卡片)。
+ //  - 本周新增绿色:Vue2 是内联 `style="color:#34C759"`,这里改用 `--success` token
+ //    (grep theme.css 已确认存在两套主题取值的绿色 token,不新增)。
+ //  - `.sv-card:hover` 的 border-color 变化(Vue2 `scss:37` 用 `--line-strong`)在本仓没有
+ //    对应 token(grep 确认 theme.css 无此 token 也无等价物),故只保留 transform + 阴影
+ //    抬升,不引入未定义 token 或裸色字面量。
++//
++// SP15-P2b Task 3(登记新增):根节点原来没有 `data-test`——grep 确认过,组件里此前零个
++// data-test 属性。PhotosAlbums.vue 的混排网格测试需要一个稳定选择器来数「这是几张智能
++// 卡」,补 `data-test="sv-card"`,只加这一处,不动组件其余任何标记。
+ import { computed } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import type { SmartView } from '../stores/smartViews'
+ 
+ const props = defineProps<{ sv: SmartView }>()
+ const emit = defineEmits<{ (e: 'open', id: string): void }>()
+ 
+ const { t, locale } = useI18n()
+ // BCP-47 转换(本仓既定写法,照 PlacesRail.vue:84 / PersonHero.vue:113 / relTime.ts:21
+@@ -56,21 +60,21 @@ function thumbUrl(seedId: string): string {
+ 
+ const condsShown = computed(() => props.sv.conds.slice(0, 3))
+ const extraConds = computed(() => props.sv.conds.length - 3)
+ 
+ function onClick(): void {
+   emit('open', String(props.sv.id))
+ }
+ </script>
+ 
+ <template>
+-  <div class="sv-card" @click="onClick">
++  <div class="sv-card" data-test="sv-card" @click="onClick">
+     <div class="sv-collage">
+       <template v-for="(slot, i) in collageSlots" :key="i">
+         <img
+           v-if="slot.seed"
+           :class="{ 'sv-collage-main': slot.main }"
+           :src="thumbUrl(slot.seed)"
+           alt=""
+         >
+         <div v-else class="sv-collage-ph" :class="{ 'sv-collage-main': slot.main }">
+           <svg
+diff --git a/src/views/PhotosAlbums.vue b/src/views/PhotosAlbums.vue
+index 13a843a..ae263d4 100644
+--- a/src/views/PhotosAlbums.vue
++++ b/src/views/PhotosAlbums.vue
+@@ -14,95 +14,107 @@
+ // 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
+ // (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
+ // 不需要 T5/T6 那种「随 open prop watch 增删监听」的写法。
+ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
++import SmartViewCard from '../photos/components/SmartViewCard.vue'
+ import { usePhotosAlbums } from '../photos/stores/albums'
+ import { useTimelineStore } from '../photos/stores/timeline'
++import { usePhotosSmartViews } from '../photos/stores/smartViews'
++import { usePhotosSettingsStore } from '../photos/stores/settings'
+ import { useToast } from '../stores/toast'
+ import { albumToView, type AlbumView } from '../photos/util/albumView'
+-import { buildMixedAlbums, sortMixed } from '../photos/util/mixedAlbums'
++import { buildMixedAlbums, sortMixed, type MixedSortId } from '../photos/util/mixedAlbums'
+ import { isConflict } from '../photos/util/httpErrors'
+ 
+-type SortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
+ type SourceId = 'empty' | 'recent' | 'select'
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ const albums = usePhotosAlbums()
+ const timeline = useTimelineStore()
++const smartViews = usePhotosSmartViews()
++const settings = usePhotosSettingsStore()
+ const toast = useToast()
+ 
+-const sort = ref<SortId>('created')
++const sort = ref<MixedSortId>('created')
+ const sortOpen = ref(false)
+ const sortMenuRef = ref<HTMLElement | null>(null)
+ 
+ const createOpen = ref(false)
+ const creating = ref(false)
+ const newAlbumTitle = ref('')
+ const newAlbumSource = ref<SourceId>('empty')
+ const newAlbumInputRef = ref<HTMLInputElement | null>(null)
+ 
+ const pickerOpen = ref(false)
+ const pickerAlbumId = ref<string | number>('')
+ const pickerAlbumName = ref('')
+ 
+ // 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
+ const sortOptions = computed(() => [
+-  { id: 'created' as SortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
+-  { id: 'name' as SortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
+-  { id: 'name-r' as SortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
+-  { id: 'count' as SortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
+-  { id: 'date' as SortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
++  { id: 'created' as MixedSortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
++  { id: 'name' as MixedSortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
++  { id: 'name-r' as MixedSortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
++  { id: 'count' as MixedSortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
++  { id: 'date' as MixedSortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
+ ])
+ const sourceOptions = computed(() => [
+   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
+   { id: 'recent' as SourceId, label: t('photosAlbumFillRecent'), hint: t('photosAlbumFillRecentHint') },
+   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
+ ])
+ 
+-// Interim (SP15-P2b Task 2): this page still renders manual albums only -- Task 3
+-// swaps it for the real mixed list. Until then it goes through buildMixedAlbums /
+-// sortMixed with an empty smart list rather than keeping a second comparator alive,
+-// so there is exactly one implementation of the missing-timestamp rule and this page
+-// already gets the corrected "missing sorts first" ordering.
+-const views = computed<AlbumView[]>(() => {
+-  const userViews = albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled')))
+-  const mixed = sortMixed(buildMixedAlbums(userViews, []), sort.value)
+-  return mixed
+-    .map((item): AlbumView | null => (item.kind === 'user' ? item.view : null))
+-    .filter((v): v is AlbumView => v !== null)
+-})
++// SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
++// by the single Sort control -- smart albums are no longer pinned to the front.
++const mixedItems = computed(() =>
++  sortMixed(
++    buildMixedAlbums(
++      albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))),
++      smartViews.smartViews,
++    ),
++    sort.value,
++  ),
++)
+ const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
+-const isEmpty = computed(() => albums.albumsLoaded && albums.albums.length === 0)
++const isEmpty = computed(() => albums.albumsLoaded && mixedItems.value.length === 0)
++
++// Vue2 :79-85 moved this banner from the smart-views page to here along with the smart
++// albums themselves. `=== false` is load-bearing: a missing field and a failed fetch both
++// mean "on" (settings.ts already encodes that), and only an explicit off should warn.
++const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
+ 
+ function coverUrl(view: AlbumView): string {
+   // 只有真实资产 id 才生成缩略图 URL;空相册/无封面落到 .album-cover-fallback 渐变占位
+   // (Vue2 :274-281 同语义,但 New-UI 一律走 service.photos.thumbnailUrl,不手拼 URL)。
+   if (view.cover == null || view.cover === '') return ''
+   return service.photos.thumbnailUrl(view.cover, 'large')
+ }
+ 
+-function pickSort(s: { id: SortId }): void {
++function pickSort(s: { id: MixedSortId }): void {
+   sort.value = s.id
+   sortOpen.value = false
+ }
+ 
+ function openCard(view: AlbumView): void {
+   router.push('/photos/albums/' + view.id)
+ }
+ 
++function openSmartCard(id: string): void {
++  router.push('/photos/smart-views/' + id)
++}
++
+ function openCreate(): void {
+   newAlbumTitle.value = ''
+   newAlbumSource.value = 'empty'
+   createOpen.value = true
+   void nextTick(() => { newAlbumInputRef.value?.focus() })
+ }
+ function closeCreate(): void {
+   createOpen.value = false
+ }
+ 
+@@ -227,38 +239,44 @@ function onDocKeydown(e: KeyboardEvent): void {
+   if (e.key !== 'Escape') return
+   if (createOpen.value) {
+     closeCreate()
+     return
+   }
+   if (sortOpen.value) sortOpen.value = false
+ }
+ 
+ onMounted(() => {
+   void albums.fetchAlbums()
++  // Both fetches are fire-and-forget: the two halves of the grid render independently,
++  // so a smart-view failure must not gate the manual albums. Vue2 :414-417 awaited both
++  // because its deep-link arbitration needed them together -- New-UI has no such
++  // arbitration (usePhotosDeepLinks sends ?smartview= straight to the detail route).
++  void smartViews.fetchSmartViews()
++  void settings.fetchAiFeatures()
+   document.addEventListener('mousedown', onDocMousedown)
+   document.addEventListener('keydown', onDocKeydown)
+ })
+ onUnmounted(() => {
+   document.removeEventListener('mousedown', onDocMousedown)
+   document.removeEventListener('keydown', onDocKeydown)
+ })
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('photosAlbumsTitle')">
+     <div class="photos-layout">
+       <PhotosSidebar />
+       <main class="photos-main">
+         <div class="albums-banner">
+           <div>
+             <h1>{{ t('photosAlbumsTitle') }}</h1>
+-            <div class="albums-sub">{{ t('photosAlbumsCount', { count: views.length }) }}</div>
++            <div class="albums-sub">{{ t('photosAlbumsCount', { count: mixedItems.length }) }}</div>
+           </div>
+           <div class="albums-actions">
+             <div ref="sortMenuRef" class="albums-sort-wrap">
+               <button type="button" class="bar-btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
+                 {{ t('photosAlbumSort') }} {{ currentSort.label }}
+                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+               </button>
+               <div v-if="sortOpen" class="albums-sort-menu" data-test="albums-sort-menu">
+                 <button
+                   v-for="s in sortOptions" :key="s.id"
+@@ -303,53 +321,78 @@ onUnmounted(() => {
+ 
+         <!-- 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染的分区头
+              (「我的相册 / 你创建的相册」)——New-UI 曾直接从 banner 落到网格,漏渲染整段,
+              连带两个专为它准备的 i18n 键(photosAlbumsMine/photosAlbumsMineHint)成了死码。
+              滚动容器安置:Vue2 的滚动容器是外层 .albums-body(photos.scss:3202-3206),分区头
+              和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构,把
+              flex:1+overflow-y:auto 从 .album-grid 挪到新包一层的 .albums-scroll 上,
+              .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
+              .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
+         <div class="albums-scroll scroll">
++          <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
++               939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
++               Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
++               .albums-ai-banner*) -- see the style block for the token-for-token rule copy. -->
++          <div v-if="aiSmartViewOff" class="albums-ai-banner" data-test="albums-ai-banner">
++            <div class="albums-ai-banner-icon">
++              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
++            </div>
++            <div>
++              <div class="albums-ai-banner-title">{{ t('photosSvSmartViewsAutoUpdate') }}</div>
++              <div class="albums-ai-banner-desc">
++                {{ t('photosSvTheseSavedSearchesStay') }}
++                <RouterLink class="albums-ai-banner-link" data-test="albums-settings-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
++              </div>
++            </div>
++          </div>
++
+           <section class="albums-section">
+             <div class="albums-section-head">
+               <h2>{{ t('photosAlbumsMine') }}</h2>
+-              <span class="albums-section-hint">{{ t('photosAlbumsMineHint') }}</span>
++              <span class="albums-section-hint">
++                {{ mixedItems.length ? t('photosAlbumsMineHint') : t('photosAlbumsNoneYetHint') }}
++              </span>
+             </div>
+             <div class="album-grid">
+               <div class="album-create" data-test="album-create-tile" @click="openCreate">
+                 <div class="plus">+</div>
+                 <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
+                 <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+               </div>
+-              <div
+-                v-for="view in views" :key="view.id"
+-                class="album-card"
+-                data-test="album-card"
+-                :data-id="view.id"
+-                @click="openCard(view)"
+-              >
+-                <div class="album-cover">
+-                  <img v-if="coverUrl(view)" :src="coverUrl(view)" :alt="view.title">
+-                  <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
+-                    <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
++              <!-- The kind prefix on :key is load-bearing, not decoration: a manual album's
++                   numeric id and a smart album's string id can collide once they share a
++                   grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split). -->
++              <template v-for="item in mixedItems" :key="item.kind + '-' + item.id">
++                <SmartViewCard v-if="item.kind === 'smart'" :sv="item.sv" @open="openSmartCard" />
++                <div
++                  v-else
++                  class="album-card"
++                  data-test="album-card"
++                  :data-id="item.view.id"
++                  @click="openCard(item.view)"
++                >
++                  <div class="album-cover">
++                    <img v-if="coverUrl(item.view)" :src="coverUrl(item.view)" :alt="item.view.title">
++                    <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
++                      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
++                    </div>
++                  </div>
++                  <div class="album-title">{{ item.view.title }}</div>
++                  <div class="album-meta">
++                    <span>{{ t('photosItemsCount', { count: item.view.count }) }}</span>
++                    <template v-if="item.view.dateRange">
++                      <span class="sep"></span>
++                      <span>{{ item.view.dateRange }}</span>
++                    </template>
+                   </div>
+                 </div>
+-                <div class="album-title">{{ view.title }}</div>
+-                <div class="album-meta">
+-                  <span>{{ t('photosItemsCount', { count: view.count }) }}</span>
+-                  <template v-if="view.dateRange">
+-                    <span class="sep"></span>
+-                    <span>{{ view.dateRange }}</span>
+-                  </template>
+-                </div>
+-              </div>
++              </template>
+             </div>
+           </section>
+         </div>
+       </main>
+     </div>
+   </AreaShell>
+ 
+   <div
+     v-if="createOpen"
+     class="albums-modal-scrim"
+@@ -450,23 +493,48 @@ onUnmounted(() => {
+   background: transparent; border: 0; border-radius: 8px; color: var(--fg); font: inherit;
+   font-size: 12.5px; cursor: pointer; text-align: left;
+ }
+ .albums-sort-item:hover { background: var(--chip-bg-hi); }
+ .albums-sort-item[data-active="true"] { background: var(--accent-soft); }
+ .sort-check { width: 14px; flex: 0 0 auto; color: var(--accent-text); }
+ .sort-text { flex: 1 1 auto; display: flex; flex-direction: column; }
+ .sort-text .lbl { font-weight: 500; }
+ .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+ 
++/* ── SP15-P2b Task 3: AI-off banner ── copied rule bodies verbatim from
++   PhotosSmartViews.vue's .svs-banner* (renamed .albums-ai-banner*) -- token values, sizes and
++   spacing are not to drift from that page's banner, they are the same UI moved to a second
++   surface. See that file's own header comment for why --dem-fg/--dem-bg/--dem-bd (not the
++   Vue2 source's inline amber literals) and why the 20px bottom margin deviates from Vue2's
++   literal 0. PhotosSmartViews.vue still renders its own copy for now -- Task 5 removes it. */
++.albums-ai-banner {
++  margin: 24px 32px 20px; padding: 14px 16px;
++  background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
++  display: flex; gap: 10px; align-items: flex-start;
++}
++.albums-ai-banner-icon {
++  width: 26px; height: 26px; border-radius: 7px;
++  background: color-mix(in srgb, var(--dem-fg) 18%, transparent); color: var(--dem-fg);
++  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
++}
++.albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
++.albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
++.albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
++
+ /* ── 分区头 + Grid ──
+    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
+-   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。 */
++   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
++   SP15-P2b Task 3:这里的 minmax(220px, 1fr) 刻意不改成 SmartViewCard 设计时预期的
++   minmax(320px, 1fr)(PhotosSmartViews.vue 的 .sv-grid)——两套卡片现在混在同一个网格里,
++   智能卡在 220px 列宽下会比它自己独占页面时更窄,这是混排本身的既有代价而不是本任务的
++   回归;Vue2 侧同样是两套独立网格类(`.album-grid-user` 与智能视图自己的网格)各自留着
++   自己的列宽,并未统一,这里保持同一处境,不去"顺手"统一列宽。 */
+ .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+ .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
+ .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
+ .albums-section-hint { font-size: 12px; color: var(--fg-muted); }
+ .album-grid {
+   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
+ }
+ .album-create {
+   aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
+   background: var(--chip-bg); display: flex; flex-direction: column; align-items: center;
+diff --git a/src/views/__tests__/PhotosAlbums.test.ts b/src/views/__tests__/PhotosAlbums.test.ts
+index f17ed25..e2ed994 100644
+--- a/src/views/__tests__/PhotosAlbums.test.ts
++++ b/src/views/__tests__/PhotosAlbums.test.ts
+@@ -15,52 +15,100 @@ const svc = vi.hoisted(() => ({
+     listAlbums: vi.fn().mockResolvedValue([]),
+     createAlbum: vi.fn(),
+     getAlbum: vi.fn().mockResolvedValue({ assets: [] }),
+     deleteAlbum: vi.fn().mockResolvedValue(undefined),
+     updateAlbum: vi.fn().mockResolvedValue({}),
+     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+     removeFromAlbum: vi.fn().mockResolvedValue(undefined),
+     reorderAlbumAssets: vi.fn().mockResolvedValue(undefined),
+     getTimeline: vi.fn().mockResolvedValue([]),
+     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
++    // SP15-P2b Task 3: the page now also fetches the smart-view list and the AI
++    // feature flags (for the smart-views-off banner) alongside albums.
++    listSmartViews: vi.fn().mockResolvedValue([]),
++    getConfig: vi.fn().mockResolvedValue({}),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ import PhotosAlbums from '../PhotosAlbums.vue'
+ import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
+ import { usePhotosAlbums } from '../../photos/stores/albums'
+ import { useTimelineStore } from '../../photos/stores/timeline'
+ import { useToast } from '../../stores/toast'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+ function makeRouter() {
+   return createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+       { path: '/photos/albums', name: 'photos-albums', component: PhotosAlbums },
+       { path: '/photos/albums/:id', name: 'photos-album-detail', component: { template: '<div/>' } },
++      // SP15-P2b Task 3: smart-card clicks route here now that the grid is mixed.
++      { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail-stub', component: { template: '<div/>' } },
++      // The AI-off banner's settings link resolves to this path (?section=ai query) -- a stub
++      // route lets RouterLink resolve a real href instead of vue-router warning "no match"
++      // (same fix PhotosSmartViews.test.ts already applies for its own copy of this banner).
++      { path: '/photos/settings', name: 'photos-settings-stub', component: { template: '<div/>' } },
+     ],
+   })
+ }
+ 
+ async function mountView() {
+   const router = makeRouter()
+   router.push('/photos/albums')
+   await router.isReady()
+   const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
+   await flushPromises()
+   await w.vm.$nextTick()
+   return { w, router }
+ }
+ 
++// SP15-P2b Task 3: shared spy for the mixed-grid test block below, reassigned on every
++// mountAlbums() call so each test's assertion reads the router instance it actually mounted
++// against (mirrors the existing mountView()/router pattern, just hoisted to module scope so
++// the brief's test bodies -- which reference a bare `push` -- can call it without destructuring).
++let push: ReturnType<typeof vi.fn>
++
++/**
++ * Mount PhotosAlbums with albums + smart views + AI-feature fixtures seeded in one call.
++ * `aiFeatures`, when provided, is nested under `getConfig()`'s `aiFeatures` field (the shape
++ * `usePhotosSettingsStore().fetchAiFeatures()` actually reads via readAiFeatures() in
++ * settings.ts); omitting it (as most tests do) leaves getConfig() resolving `{}`, which
++ * readAiFeatures() treats as "all features on" -- the same default the store assumes on any
++ * other real page.
++ */
++async function mountAlbums(opts: {
++  albums?: Array<Record<string, unknown>>
++  smartViews?: Array<Record<string, unknown>>
++  aiFeatures?: Record<string, unknown>
++  smartViewsFails?: boolean
++} = {}) {
++  svc.photos.listAlbums.mockResolvedValue(opts.albums ?? [])
++  if (opts.smartViewsFails) {
++    svc.photos.listSmartViews.mockRejectedValueOnce(new Error('smart views failed'))
++  } else {
++    svc.photos.listSmartViews.mockResolvedValue(opts.smartViews ?? [])
++  }
++  svc.photos.getConfig.mockResolvedValue(opts.aiFeatures !== undefined ? { aiFeatures: opts.aiFeatures } : {})
++
++  const router = makeRouter()
++  router.push('/photos/albums')
++  await router.isReady()
++  push = vi.spyOn(router, 'push')
++  const w = mount(PhotosAlbums, { global: { plugins: [i18n, router] } })
++  await flushPromises()
++  await w.vm.$nextTick()
++  return w
++}
++
+ function rawAlbum(id: string | number, overrides: Record<string, unknown> = {}) {
+   return {
+     id,
+     name: overrides.name ?? `Album ${id}`,
+     coverAssetId: overrides.coverAssetId ?? null,
+     assetCount: overrides.assetCount ?? 3,
+     dateStart: overrides.dateStart ?? '2026-05-01',
+     dateEnd: overrides.dateEnd ?? '2026-05-10',
+     createdAt: overrides.createdAt ?? '2026-05-01T00:00:00Z',
+     ...overrides,
+@@ -68,20 +116,22 @@ function rawAlbum(id: string | number, overrides: Record<string, unknown> = {})
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   svc.photos.listAlbums.mockClear().mockResolvedValue([])
+   svc.photos.createAlbum.mockClear()
+   svc.photos.getAlbum.mockClear().mockResolvedValue({ assets: [] })
+   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+   svc.photos.getTimeline.mockClear().mockResolvedValue([])
+   svc.photos.thumbnailUrl.mockClear()
++  svc.photos.listSmartViews.mockClear().mockResolvedValue([])
++  svc.photos.getConfig.mockClear().mockResolvedValue({})
+ })
+ 
+ afterEach(() => {
+   vi.useRealTimers()
+ })
+ 
+ describe('PhotosAlbums.vue', () => {
+   it('albumsLoaded 且列表空 → 渲染空态,「新建」占位卡仍在', async () => {
+     const { w } = await mountView()
+     const albums = usePhotosAlbums()
+@@ -525,10 +575,57 @@ describe('PhotosAlbums.vue', () => {
+ 
+     await w.find('[data-test="albums-new-btn"]').trigger('click')
+     await w.vm.$nextTick()
+     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(true)
+ 
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+     await w.vm.$nextTick()
+     expect(w.find('[data-test="albums-create-modal"]').exists()).toBe(false)
+   })
+ })
++
++// SP15-P2b Task 3: Albums page renders manual albums and smart albums in one grid, ranked
++// by the single Sort control, plus the AI-off banner ported over from the smart-views page.
++describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
++  it('renders smart albums and manual albums in one grid', async () => {
++    // 2 manual + 1 smart => 3 cards plus the create tile.
++    const w = await mountAlbums({
++      albums: [{ id: 'u1', name: 'A' }, { id: 'u2', name: 'B' }],
++      smartViews: [{ id: 's1', name: 'S', seeds: ['x'], conds: [], count: 4 }],
++    })
++    expect(w.findAll('[data-test="album-card"]')).toHaveLength(2)
++    expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
++  })
++
++  it('counts both kinds in the header total', async () => {
++    const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [{ id: 's1', name: 'S' }] })
++    expect(w.text()).toContain('2')
++  })
++
++  it('opens the smart view detail route when a smart card is clicked', async () => {
++    const w = await mountAlbums({ albums: [], smartViews: [{ id: 's1', name: 'S' }] })
++    await w.find('[data-test="sv-card"]').trigger('click')
++    expect(push).toHaveBeenCalledWith('/photos/smart-views/s1')
++  })
++
++  it('shows the smart-views-off banner only when the backend says it is off', async () => {
++    const off = await mountAlbums({ albums: [], aiFeatures: { smartview: false } })
++    expect(off.find('[data-test="albums-ai-banner"]').exists()).toBe(true)
++    // Missing field and fetch failure both mean "on" -- never scare the user.
++    const unknown = await mountAlbums({ albums: [], aiFeatures: {} })
++    expect(unknown.find('[data-test="albums-ai-banner"]').exists()).toBe(false)
++  })
++
++  it('swaps the section subtitle for the nothing-yet copy when both kinds are empty', async () => {
++    const empty = await mountAlbums({ albums: [], smartViews: [] })
++    expect(empty.text()).toContain('还没有相册')
++    const some = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [] })
++    expect(some.text()).not.toContain('还没有相册')
++  })
++
++  it('keeps the manual grid alive when the smart view fetch fails', async () => {
++    // fetchSmartViews swallows its own errors (store contract); the page must not gate
++    // the manual half on it.
++    const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViewsFails: true })
++    expect(w.findAll('[data-test="album-card"]')).toHaveLength(1)
++  })
++})

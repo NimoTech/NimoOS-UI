@@ -43,7 +43,7 @@ function fullSv(overrides: Partial<SmartView> = {}): SmartView {
   return {
     id: 'sv-new', name: 'X', description: '', conds: [], threshold: 80, live: true, includeVideos: false,
     count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: new Array(10).fill(0),
-    evaluatedAt: '', ...overrides,
+    evaluatedAt: '', createdAt: '', ...overrides,
   }
 }
 

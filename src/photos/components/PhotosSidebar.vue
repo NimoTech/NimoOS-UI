@@ -41,7 +41,11 @@ const NAV_ALL = [
   { id: 'places', route: '/photos/places', labelKey: 'photosPlaces' },
   // SP7-P7a-T4:插在 places 之后、favorites 之前,照 Vue2 PhotosSidebar.vue:114-118 的顺序
   // (library / albums / people / places / smart)。7 项(原 6 项),favorites/trash 下标各 +1。
-  { id: 'smart-views', route: '/photos/smart-views', labelKey: 'photosSvSmartViews' },
+  // SP15-P2b (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
+  // Moments-only "For You" page -- the smart albums moved into Albums. Only the label
+  // changes; id and route stay so the ?view=smart deep link and the hide-when-off filter
+  // keep working.
+  { id: 'smart-views', route: '/photos/smart-views', labelKey: 'photosMoForYou' },
   { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites' },
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]

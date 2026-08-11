@@ -2,6 +2,11 @@
 // src/views/Photos/PhotosAlbumsView.vue:216-224 (userAlbums), :282-301
 // (parseYearMonth + formatAlbumSpan), :359-370 (applySort), and
 // src/views/Photos/PhotosAlbumDetail.vue:224-242 (photos computed sort).
+//
+// SP15-P2b: sortAlbums was removed here -- the Albums page now renders a mixed
+// manual/smart list and sorts it through util/mixedAlbums.ts, which is the single
+// remaining comparator implementation. albumToView / formatAlbumSpan / sortAlbumPhotos
+// are unaffected and still have callers.
 import type { Photo } from './assetToPhoto'
 
 export interface AlbumView {
@@ -11,7 +16,8 @@ export interface AlbumView {
   count: number
   dateRange: string
   createdAt: string | null
-  dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
+  videoCount: number // P2b: the detail sidebar's Videos cell
+  dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
 }
 
 // Extract {year, month(1-12)} from a raw taken_at string ('2025-06-03',
@@ -42,11 +48,14 @@ export function formatAlbumSpan(startRaw: unknown, endRaw: unknown): string {
 
 // Verbatim port of PhotosAlbumsView.vue:216-224 (userAlbums computed), minus
 // the `kind: 'user'` field (shared-album section is out of scope, see brief)
-// and plus `dateEnd` (see AlbumView doc comment above).
+// and plus videoCount / dateStart (see the AlbumView doc comment above).
+// SP15-P2b final fix wave: the P4-era `dateEnd` field is gone. Its only consumer was
+// sortAlbums('date'), deleted this phase in favour of util/mixedAlbums.ts (which reads
+// dateStart, matching Vue2's dateTakenMs). `a.dateEnd` is still read below -- but straight off
+// the raw backend record, to render the span; nothing needed it on the view object.
 export function albumToView(a: Record<string, unknown>, untitled: string): AlbumView {
   const assets = a.assets as unknown[] | undefined
   const assetCount = a.assetCount as number | null | undefined
-  const dateEnd = a.dateEnd as string | undefined
   return {
     id: a.id as string | number,
     title: (a.name as string) || (a.title as string) || untitled,
@@ -56,33 +65,9 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
     count: assetCount != null ? assetCount : ((assets && assets.length) || 0),
     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
     createdAt: (a.createdAt as string | undefined) || null,
-    dateEnd: dateEnd || null,
+    videoCount: Number(a.videoCount ?? 0),
+    dateStart: (a.dateStart as string | undefined) || null,
   }
-}
-
-// Verbatim port of PhotosAlbumsView.vue:359-370 (applySort), with three
-// deliberate deviations from Vue2 (each noted below):
-export function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
-  const arr = [...list] // deviation: return a new array instead of Vue2's in-place arr.sort()
-  // Verbatim port of Vue2's `ts` helper, parameterized by field (see the
-  // 'date' deviation note below for why).
-  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
-    const raw = a[field]
-    const t = raw ? Date.parse(raw) : NaN
-    return isNaN(t) ? 0 : t
-  }
-  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
-  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
-  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
-  // deviation: Vue2's sortOptions lists a 'created' entry but applySort never
-  // handles it (falls through, unsorted) — bug not reproduced; implemented
-  // here using the same ts() pattern as the other date-based branches.
-  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
-  // deviation: Vue2's 'date' branch also reads a.createdAt via ts() (the Vue2
-  // view object has no separate taken-date field); here it reads dateEnd
-  // instead, since that's the field 'date' is meant to represent.
-  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
-  return arr
 }
 
 // Verbatim port of PhotosAlbumDetail.vue:224-242 (photos computed).

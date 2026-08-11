@@ -27,6 +27,21 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/timeline')
       return body<unknown>(res.data)
     },
+    // Bucketed timeline (SP15-P3). The directory is the cheap half: one row per
+    // month, so the grid can render structure before any asset arrives. Bare
+    // camelCase array from the backend, no envelope.
+    async getTimelineBuckets(): Promise<unknown> {
+      const res = await http.get('/photos/timeline/buckets')
+      return body<unknown>(res.data)
+    },
+    // One month's assets. The backend clamps limit to 500 (limit <= 0 or > 500
+    // both become 500), so 500 is the honest default rather than "unlimited".
+    // year and month must be zero together for the unknown-date bucket — the
+    // backend rejects a half-zero key with 400.
+    async getTimelineBucket(year: number, month: number, limit = 500, offset = 0): Promise<unknown> {
+      const res = await http.get('/photos/timeline/bucket', { params: { year, month, limit, offset } })
+      return body<unknown>(res.data)
+    },
     async getAsset(id: string | number): Promise<PhotoAsset> {
       const res = await http.get(`/photos/assets/${id}`)
       return body<PhotoAsset>(res.data)
@@ -141,6 +156,14 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       return `/v1/photos/favorites/export${tokenQ('?')}`
     },
     // ─── 相册 ───
+    // SP15-P2c Task 2. Same GET + token shape as exportFavoritesUrl above: the backend serves
+    // this as a plain download URL the browser navigates to, and Photos exempts the
+    // `/albums/:id/export` suffix from JWT so the query token is the only credential
+    // (NimoOS-Photos route/router.go:52, :178). The Vue2 comment claiming this endpoint was
+    // "in parallel development" is stale -- the handler already exists (route/v1/albums.go:84).
+    exportAlbumZipUrl(id: string | number): string {
+      return `/v1/photos/albums/${id}/export${tokenQ('?')}`
+    },
     async listAlbums(): Promise<unknown[]> {
       const res = await http.get('/photos/albums')
       return body<unknown[]>(res.data)
@@ -328,6 +351,52 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/smart-views/preview', { condsRaw, description, threshold, includeVideos })
       return body<unknown>(res.data)
     },
+    // ─── Album <-> smart view conversion (SP15-P2b) ───
+    // Both endpoints convert in place and delete the source object, and both answer
+    // with the full new object rather than a change count — the callers push straight
+    // into their store and navigate to the new detail route, so a count would be
+    // useless. `conds` is deliberately optional: leaving it out lets the backend's
+    // svparser derive the conditions from `description`, the same path Create takes.
+    async convertAlbumToSmart(
+      albumId: string | number,
+      payload: { description: string; threshold: number; name?: string; conds?: string[]; includeVideos?: boolean },
+    ): Promise<unknown> {
+      const res = await http.post('/photos/smart-views/from-album', { albumId, ...payload })
+      return body<unknown>(res.data)
+    },
+    async convertSmartToAlbum(smartViewId: string | number): Promise<unknown> {
+      const res = await http.post('/photos/albums/from-smartview', { smartViewId })
+      return body<unknown>(res.data)
+    },
+    // ─── Smart view manual asset actions (SP15-P2a) ───
+    // Re-verified against NimoOS-Photos/route/v1/smartviews.go: the shared request
+    // body is svAssetIDsReq {assetIds}, and an empty array is rejected with 400, so
+    // callers must not send one. The three write endpoints return only the counts of
+    // what changed — never the view's own statistics — which is why the store has to
+    // refetch the view afterwards.
+    async pinSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ added?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets`, { assetIds })
+      return body<{ added?: number }>(res.data) ?? {}
+    },
+    // Removal is tiered on the backend: a pinned row is deleted (unpinned), an
+    // automatically matched row is flagged excluded. Hence two counters, not one.
+    async removeSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ unpinned?: number; excluded?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets/remove`, { assetIds })
+      return body<{ unpinned?: number; excluded?: number }>(res.data) ?? {}
+    },
+    async restoreSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ restored?: number }> {
+      const res = await http.post(`/photos/smart-views/${id}/assets/restore`, { assetIds })
+      return body<{ restored?: number }>(res.data) ?? {}
+    },
+    // Bare array, no envelope key — unlike most of the list endpoints in this file.
+    // Deviation from the brief's literal snippet: `body() ?? []` alone only guards
+    // against null/undefined, not against a non-array truthy value (e.g. `{}`) —
+    // Array.isArray() is the correct guard for a "bare array" endpoint.
+    async getSmartViewExcluded(id: string | number): Promise<unknown[]> {
+      const res = await http.get(`/photos/smart-views/${id}/excluded`)
+      const b = body<unknown>(res.data)
+      return Array.isArray(b) ? b : []
+    },
     exportSmartViewUrl(id: string | number, format: string): string {
       return `/v1/photos/smart-views/${id}/export?format=${format}${tokenQ('&')}`
     },
@@ -335,9 +404,61 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/smart-views/${id}/export?format=album`, {})
       return body<unknown>(res.data)
     },
+    // ─── Moments (auto-clustered highlights, the "For You" section on the smart-views page) ───
+    // Checked against the backend source: NimoOS-Photos/route/v1/moments.go:List wraps its
+    // payload in a {moments:[…]} key (unlike every other bare-array endpoint in this file);
+    // fields are snake_case (the backend comment there says this is deliberate). Normalising
+    // to camelCase is left to the store layer — this layer only unwraps the envelope key.
+    async listMoments(): Promise<unknown[]> {
+      const res = await http.get('/photos/moments')
+      return body<{ moments?: unknown[] } | undefined>(res.data)?.moments ?? []
+    },
+    // When withMembers=true the backend returns {assets,members,places}; otherwise a bare array.
+    // Both shapes are passed through as-is for the store to distinguish — normalising here
+    // would let the two callers' expectations drift apart.
+    async getMomentAssets(id: string, featured = false, withMembers = false): Promise<unknown> {
+      const params: Record<string, number> = {}
+      if (featured) params.featured = 1
+      if (withMembers) params.with_members = 1
+      const res = await http.get(`/photos/moments/${id}/assets`, { params })
+      return body<unknown>(res.data)
+    },
+    async pinMomentAssets(id: string, ids: string[]): Promise<{ ok?: boolean; asset_count?: number }> {
+      const res = await http.post(`/photos/moments/${id}/assets`, { ids })
+      return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
+    },
+    // axios's delete() has no body positional parameter — the request body must go through config.data.
+    async excludeMomentAssets(id: string, ids: string[]): Promise<{ ok?: boolean; asset_count?: number }> {
+      const res = await http.delete(`/photos/moments/${id}/assets`, { data: { ids } })
+      return body<{ ok?: boolean; asset_count?: number }>(res.data) ?? {}
+    },
+    async deleteMoment(id: string): Promise<unknown> {
+      const res = await http.delete(`/photos/moments/${id}`)
+      return body<unknown>(res.data)
+    },
+    async exportMomentAlbum(id: string): Promise<{ albumId?: string; name?: string; count?: number }> {
+      const res = await http.post(`/photos/moments/${id}/album`, {})
+      return body<{ albumId?: string; name?: string; count?: number }>(res.data) ?? {}
+    },
+    async reorderMoments(ids: string[]): Promise<unknown> {
+      const res = await http.put('/photos/moments/order', { ids })
+      return body<unknown>(res.data)
+    },
+    // Backend replies 202 and recomputes asynchronously. This phase deliberately does **not**
+    // wire up a UI entry point (neither does Vue2 — see spec §1.2); the method is kept around
+    // so it can be invoked from the browser console during acceptance testing.
+    async recomputeMoments(): Promise<unknown> {
+      const res = await http.post('/photos/moments/recompute', {})
+      return body<unknown>(res.data)
+    },
     // ─── 回收站 ───
-    async listTrash(): Promise<unknown[]> {
-      const res = await http.get('/photos/trash')
+    // limit/offset mirror listFavorites: omitted (limit = 0) leaves the backend
+    // to apply its own default, which since NimoOS-Photos#54 is 500 rather than
+    // "everything" — callers that must see the whole list have to page.
+    async listTrash(limit = 0, offset = 0): Promise<unknown[]> {
+      const params: Record<string, number> = {}
+      if (limit > 0) { params.limit = limit; params.offset = offset }
+      const res = await http.get('/photos/trash', { params })
       return body<unknown[]>(res.data)
     },
     async restoreFromTrash(id: string | number): Promise<unknown> {

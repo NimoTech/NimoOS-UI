@@ -1,0 +1,183 @@
+# Review package: 2c9b86d..HEAD
+
+## Commits
+b2126ee perf(photos): refresh only the directory while indexing
+
+## Files changed
+ src/photos/stores/__tests__/timeline.test.ts | 59 ++++++++++++++++++++++++++++
+ src/photos/stores/timeline.ts                | 21 +++++++++-
+ 2 files changed, 79 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/timeline.test.ts b/src/photos/stores/__tests__/timeline.test.ts
+index 980942d..52ddc4c 100644
+--- a/src/photos/stores/__tests__/timeline.test.ts
++++ b/src/photos/stores/__tests__/timeline.test.ts
+@@ -404,20 +404,79 @@ describe('photos-timeline bucket mode', () => {
+     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+     await s.fetchTimeline()
+     __resetBucketProbeForTest()
+     svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
+     await s.fetchTimeline()
+     expect(s.timelineGroups).toEqual([])
+     expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
+   })
+ })
+ 
++// Task 10: indexing polls index status every 5s, and every tick that saw progress
++// used to refetch the whole timeline. In bucket mode the directory is cheap enough
++// to poll instead, but a debounce keeps a burst of index progress from becoming a
++// burst of directory requests.
++describe('photos-timeline fetchIndexStatus directory refresh (bucket mode)', () => {
++  // Same isolation as the other bucket-mode describes above.
++  beforeEach(() => {
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++    vi.useFakeTimers()
++    __resetBucketProbeForTest()
++  })
++  afterEach(() => {
++    useTimelineStore().__resetForTest()
++    vi.useRealTimers()
++  })
++
++  it('refreshes only the directory while indexing progresses', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    svc.photos.getTimelineBuckets.mockClear()
++    svc.photos.getTimeline.mockClear()
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
++    await s.fetchIndexStatus()
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 2 })
++    await s.fetchIndexStatus()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
++    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
++  })
++
++  it('debounces the directory refresh to at most one per 3 seconds', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValue(BUCKETS)
++    await s.fetchTimeline()
++    svc.photos.getTimelineBuckets.mockClear()
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
++    await s.fetchIndexStatus()
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 2 })
++    await s.fetchIndexStatus()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
++    vi.advanceTimersByTime(3001)
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 3 })
++    await s.fetchIndexStatus()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
++  })
++
++  it('keeps the legacy quiet refresh when buckets are unavailable', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
++    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
++    await s.fetchTimeline()
++    svc.photos.getTimeline.mockClear()
++    svc.photos.getStatus.mockResolvedValueOnce({ indexed: 1 })
++    await s.fetchIndexStatus()
++    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(1)
++  })
++})
++
+ describe('photos-timeline fetchBucket', () => {
+   // Same isolation as the "photos-timeline bucket mode" describe above: a fresh
+   // Pinia + cleared mocks per test, so one test's paging/dedupe call counts
+   // (and its bucketAssets cache) cannot leak into the next test's assertions.
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     vi.clearAllMocks()
+     vi.useFakeTimers()
+     __resetBucketProbeForTest()
+   })
+diff --git a/src/photos/stores/timeline.ts b/src/photos/stores/timeline.ts
+index e3cec1a..2da351a 100644
+--- a/src/photos/stores/timeline.ts
++++ b/src/photos/stores/timeline.ts
+@@ -83,20 +83,30 @@ const BUCKET_MAX_PAGES = 40
+ 
+ // Promises are not store state. Keyed so two viewport events for the same month
+ // share one request instead of racing.
+ const _bucketInflight = new Map<string, Promise<void>>()
+ 
+ export function __resetBucketProbeForTest(): void {
+   _bucketProbeRetryAfter = 0
+   _bucketInflight.clear()
+ }
+ 
++// Indexing polls every 5s and each tick used to refetch the whole timeline. The
++// directory is cheap enough to poll, but not free — debounce it so a burst of
++// index progress cannot turn into a burst of requests.
++const INDEX_REFRESH_DEBOUNCE_MS = 3_000
++let _lastIndexRefreshAt = 0
++
++export function __resetIndexRefreshForTest(): void {
++  _lastIndexRefreshAt = 0
++}
++
+ export const useTimelineStore = defineStore('photos-timeline', () => {
+   const timelineGroups = ref<TimelineGroup[]>([])
+   const loading = ref(false)
+   const indexStatus = ref<IndexStatus>(emptyIndexStatus())
+   const tasks = ref<TaskBusPayload[]>([])
+ 
+   const buckets = ref<BucketMeta[]>([])
+   const bucketAssets = ref<Map<string, Photo[]>>(new Map())
+   const bucketLoading = ref<Set<string>>(new Set())
+   const bucketMode = ref(false)
+@@ -185,21 +195,29 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
+       const next = (res as Partial<IndexStatus> | null | undefined) ?? emptyIndexStatus()
+       indexStatus.value = { ...emptyIndexStatus(), ...next }
+       const nextIndexed = indexStatus.value.indexed ?? 0
+ 
+       // Indexing is async (upload complete !== timeline-visible; backend still
+       // has to run EXIF/thumbnail/CLIP/faces/OCR). When polling observes
+       // "indexed count grew", refresh the photo wall so newly-indexed photos
+       // appear automatically. Quiet refresh (no loading flip) avoids a flash
+       // every 5s.
+       if (nextIndexed > prevIndexed) {
+-        void refreshTimelineQuiet()
++        if (bucketMode.value) {
++          const now = Date.now()
++          if (now - _lastIndexRefreshAt >= INDEX_REFRESH_DEBOUNCE_MS) {
++            _lastIndexRefreshAt = now
++            void refreshBuckets()
++          }
++        } else {
++          void refreshTimelineQuiet()
++        }
+       }
+ 
+       // Level-triggered reconciliation: clear stale/stuck index tasks, trusting
+       // DB truth. Uploads are sequential (one file at a time), so a momentary
+       // pending==0 && queueLen==0 gap can appear between two files; clearing
+       // index tasks right then would make the task bar disappear and
+       // immediately reappear (jarring). So index tasks are only cleared when
+       // the local task list also shows no active upload in flight.
+       const indexIdle = (indexStatus.value.pending || 0) === 0 && (indexStatus.value.queueLen || 0) === 0
+       const uploadsActive = tasks.value.some(
+@@ -423,20 +441,21 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
+     bucketAssets.value = new Map()
+     bucketLoading.value = new Set()
+     bucketMode.value = false
+   }
+ 
+   function __resetForTest() {
+     stopIndexPoll()
+     for (const t of _doneRemovalTimers.values()) clearTimeout(t)
+     _doneRemovalTimers.clear()
+     __resetBucketProbeForTest()
++    __resetIndexRefreshForTest()
+     resetState()
+   }
+ 
+   return {
+     timelineGroups,
+     loading,
+     indexStatus,
+     tasks,
+     buckets,
+     bucketAssets,

@@ -1,0 +1,368 @@
+# Review package: 148a390..HEAD
+
+## Commits
+6aa81b2 feat(photos): probe the bucket directory and expose exact library counts
+
+## Files changed
+ src/photos/stores/__tests__/timeline.test.ts | 116 ++++++++++++++++++++++++++-
+ src/photos/stores/timeline.ts                |  87 +++++++++++++++++++-
+ 2 files changed, 198 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/src/photos/stores/__tests__/timeline.test.ts b/src/photos/stores/__tests__/timeline.test.ts
+index bea7833..582d85d 100644
+--- a/src/photos/stores/__tests__/timeline.test.ts
++++ b/src/photos/stores/__tests__/timeline.test.ts
+@@ -1,40 +1,54 @@
+ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+ import { setActivePinia, createPinia } from 'pinia'
+ 
+ const svc = vi.hoisted(() => ({
+   photos: {
+     getTimeline: vi.fn(),
+     getStatus: vi.fn(),
+     listTasks: vi.fn(),
+     deleteAsset: vi.fn(),
++    getTimelineBuckets: vi.fn(),
++    getTimelineBucket: vi.fn(),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+-import { useTimelineStore } from '../timeline'
++import { useTimelineStore, __resetBucketProbeForTest } from '../timeline'
+ 
+ const GROUP_A = { year: 2026, month: 7, assets: [{ id: 'a1', mimeType: 'image/jpeg', originalName: 'a1.jpg' }] }
+ const GROUP_B = {
+   year: 2026,
+   month: 6,
+   assets: [
+     { id: 'v1', mimeType: 'video/mp4', originalName: 'v1.mp4' },
+     { id: 'a2', mimeType: 'image/png', originalName: 'a2.png' },
+   ],
+ }
+ 
++function notFound() {
++  return Object.assign(new Error('Request failed with status code 404'), { response: { status: 404 } })
++}
++
+ describe('photos-timeline store', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     vi.clearAllMocks()
+     vi.useFakeTimers()
++    // fetchTimeline now probes the bucket directory before falling back to the
++    // legacy endpoint. These pre-existing tests model a backend that predates
++    // the bucket endpoints, so the probe must 404 by default — otherwise an
++    // unconfigured getTimelineBuckets() mock resolves to `undefined` (not a
++    // rejection), which normalizeBuckets() reads as "zero buckets, but a real
++    // directory" and incorrectly flips bucketMode on, short-circuiting the
++    // legacy getTimeline() call these tests assert on.
++    svc.photos.getTimelineBuckets.mockRejectedValue(notFound())
+   })
+   afterEach(() => {
+     useTimelineStore().__resetForTest()
+     vi.useRealTimers()
+   })
+ 
+   it('fetchTimeline: 裸数组落 state,loading 包裹', async () => {
+     const s = useTimelineStore()
+     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
+     const p = s.fetchTimeline()
+@@ -289,10 +303,110 @@ describe('photos-timeline store', () => {
+ 
+   it('__resetForTest 清掉挂起的 done 移除计时器(不留潜在的跨测试污染)', () => {
+     const s = useTimelineStore()
+     s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
+     s.__resetForTest()
+     expect(s.tasks).toEqual([])
+     // 计时器已随 reset 清掉;之后即使继续推进时间也不该抛错或访问已重置的 state。
+     expect(() => vi.advanceTimersByTime(10000)).not.toThrow()
+   })
+ })
++
++const BUCKETS = [
++  { year: 2026, month: 8, count: 12, videoCount: 3 },
++  { year: 2026, month: 7, count: 5, videoCount: 0 },
++]
++
++describe('photos-timeline bucket mode', () => {
++  beforeEach(() => {
++    // Same isolation as the describe block above (fresh Pinia + cleared mocks +
++    // fake timers) — this suite makes exact call-count assertions per test, and
++    // one test's leftover store/mock state would corrupt the next test's count.
++    setActivePinia(createPinia())
++    vi.clearAllMocks()
++    vi.useFakeTimers()
++    __resetBucketProbeForTest()
++  })
++  afterEach(() => {
++    useTimelineStore().__resetForTest()
++    vi.useRealTimers()
++  })
++
++  it('fetchTimeline probes the directory and enters bucket mode', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(s.bucketMode).toBe(true)
++    expect(s.buckets).toEqual(BUCKETS)
++    expect(svc.photos.getTimeline).not.toHaveBeenCalled()
++    expect(s.loading).toBe(false)
++  })
++
++  it('exposes every directory month as an unloaded group, newest first', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
++    expect(s.months.every((m) => m.loaded === false && m.photos.length === 0)).toBe(true)
++    expect(s.months[0]).toMatchObject({ count: 12, videoCount: 3 })
++  })
++
++  it('counts from the directory, so the totals are exact before anything loads', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(s.totalCount).toBe(17)
++    expect(s.videoCount).toBe(3)
++    expect(s.photoCount).toBe(14)
++  })
++
++  it('falls back to the legacy timeline on 404 and stays out of bucket mode', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
++    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
++    await s.fetchTimeline()
++    expect(s.bucketMode).toBe(false)
++    expect(s.timelineGroups).toEqual([GROUP_A])
++    expect(s.months.map((m) => m.key)).toEqual(['2026-07'])
++    expect(s.months[0].loaded).toBeUndefined()
++  })
++
++  it('does not re-probe the directory for 10 minutes after a 404', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
++    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
++    await s.fetchTimeline()
++    await s.fetchTimeline()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(1)
++    expect(svc.photos.getTimeline).toHaveBeenCalledTimes(2)
++    vi.advanceTimersByTime(10 * 60_000 + 1)
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
++    expect(s.bucketMode).toBe(true)
++  })
++
++  it('keeps probing after a non-404 failure — a blip must not pin the user on the legacy path', async () => {
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(new Error('network down'))
++    svc.photos.getTimeline.mockResolvedValue([GROUP_A])
++    await s.fetchTimeline()
++    expect(s.bucketMode).toBe(false)
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(svc.photos.getTimelineBuckets).toHaveBeenCalledTimes(2)
++    expect(s.bucketMode).toBe(true)
++  })
++
++  it('drops legacy groups when it switches into bucket mode', async () => {
++    // Both sources feeding `months` at once would double every month.
++    const s = useTimelineStore()
++    svc.photos.getTimelineBuckets.mockRejectedValueOnce(notFound())
++    svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
++    await s.fetchTimeline()
++    __resetBucketProbeForTest()
++    svc.photos.getTimelineBuckets.mockResolvedValueOnce(BUCKETS)
++    await s.fetchTimeline()
++    expect(s.timelineGroups).toEqual([])
++    expect(s.months.map((m) => m.key)).toEqual(['2026-08', '2026-07'])
++  })
++})
+diff --git a/src/photos/stores/timeline.ts b/src/photos/stores/timeline.ts
+index 43cfb95..82faa24 100644
+--- a/src/photos/stores/timeline.ts
++++ b/src/photos/stores/timeline.ts
+@@ -4,22 +4,26 @@
+ //
+ // Photos backend has NO standard {Success,Message,Data} envelope — the shared
+ // service package passes response bodies through as-is. getTimeline()
+ // resolves to a bare array (or undefined/null on 204) → always `?? []`.
+ // listTasks() resolves to a bare `{ tasks: [...] }` wrapper — this store
+ // extracts `.tasks` itself.
+ 
+ import { defineStore } from 'pinia'
+ import { ref, computed } from 'vue'
+ import { service } from '@nimotech/nimoos-service'
+-import { groupToMonth, type Month } from '../util/assetToPhoto'
++import { groupToMonth, type Month, type Photo } from '../util/assetToPhoto'
+ import { unwrapTaskBusPayload, type TaskBusPayload } from '../util/taskBus'
++import { isNotFound } from '../util/httpErrors'
++import {
++  bucketKey, bucketToMonth, normalizeBuckets, type BucketMeta,
++} from '../util/timelineBuckets'
+ 
+ export interface TimelineGroup {
+   year: number
+   month: number
+   assets?: unknown[]
+ }
+ 
+ export interface IndexStatus {
+   pending: number
+   indexed: number
+@@ -57,35 +61,100 @@ let _pollTimer: ReturnType<typeof setInterval> | null = null
+ const _doneRemovalTimers = new Map<string | number, ReturnType<typeof setTimeout>>()
+ 
+ function _cancelDoneRemoval(id: string | number): void {
+   const t = _doneRemovalTimers.get(id)
+   if (t !== undefined) {
+     clearTimeout(t)
+     _doneRemovalTimers.delete(id)
+   }
+ }
+ 
++// A legacy backend answers 404 on the bucket directory every single time. Probing
++// on every page entry is pure noise, so a 404 parks the probe for a while. This
++// is a timestamp, not store state — it must not be reactive, and __resetForTest
++// has to clear it or one test's 404 would silence the next test's probe.
++const BUCKET_PROBE_BACKOFF_MS = 10 * 60_000
++let _bucketProbeRetryAfter = 0
++
++export function __resetBucketProbeForTest(): void {
++  _bucketProbeRetryAfter = 0
++}
++
++// `months` returns a plain Month in the legacy branch and a
++// Month & {loaded, count, videoCount} in the bucket branch (bucketToMonth's
++// return type — see timelineBuckets.ts). Widening `Month` itself belongs to
++// Task 6, so this store-local type (optional extra fields) covers what
++// `months` actually produces without touching the shared interface.
++type TimelineMonth = Month & { loaded?: boolean; count?: number; videoCount?: number }
++
+ export const useTimelineStore = defineStore('photos-timeline', () => {
+   const timelineGroups = ref<TimelineGroup[]>([])
+   const loading = ref(false)
+   const indexStatus = ref<IndexStatus>(emptyIndexStatus())
+   const tasks = ref<TaskBusPayload[]>([])
+ 
+-  const months = computed<Month[]>(() => timelineGroups.value.map(g => groupToMonth(g)))
++  const buckets = ref<BucketMeta[]>([])
++  const bucketAssets = ref<Map<string, Photo[]>>(new Map())
++  const bucketLoading = ref<Set<string>>(new Set())
++  const bucketMode = ref(false)
++
++  const months = computed<TimelineMonth[]>(() => {
++    if (bucketMode.value) {
++      return buckets.value.map((b) => bucketToMonth(b, bucketAssets.value.get(bucketKey(b)) ?? null))
++    }
++    return timelineGroups.value.map(g => groupToMonth(g))
++  })
+   const allPhotos = computed(() => months.value.flatMap(m => m.photos))
+   const isIndexing = computed(() => indexStatus.value.pending > 0 || indexStatus.value.queueLen > 0)
+-  const photoCount = computed(() => allPhotos.value.filter(p => !p.isVideo).length)
+-  const videoCount = computed(() => allPhotos.value.filter(p => p.isVideo).length)
++
++  // In bucket mode the directory knows the whole library, so these are exact
++  // before a single asset has been fetched. The legacy branch can only count
++  // what it holds — which was always wrong for a large library, and stays as it
++  // was because that path has no directory to consult.
++  const totalCount = computed(() =>
++    bucketMode.value
++      ? buckets.value.reduce((s, b) => s + b.count, 0)
++      : allPhotos.value.length,
++  )
++  const videoCount = computed(() =>
++    bucketMode.value
++      ? buckets.value.reduce((s, b) => s + b.videoCount, 0)
++      : allPhotos.value.filter(p => p.isVideo).length,
++  )
++  const photoCount = computed(() =>
++    bucketMode.value
++      ? Math.max(0, totalCount.value - videoCount.value)
++      : allPhotos.value.filter(p => !p.isVideo).length,
++  )
+ 
+   async function fetchTimeline() {
+     loading.value = true
+     try {
++      if (Date.now() >= _bucketProbeRetryAfter) {
++        try {
++          const raw = await service.photos.getTimelineBuckets()
++          buckets.value = normalizeBuckets(raw)
++          bucketMode.value = true
++          // Both sources feed `months`; leaving legacy groups behind would
++          // render every month twice.
++          timelineGroups.value = []
++          return
++        } catch (e) {
++          if (isNotFound(e)) {
++            _bucketProbeRetryAfter = Date.now() + BUCKET_PROBE_BACKOFF_MS
++          } else {
++            // A network blip must not pin the user on the legacy path for ten
++            // minutes — only a 404 (this backend has no bucket endpoints) does.
++            console.error('[photos-timeline] bucket probe', e)
++          }
++        }
++      }
+       const res = await service.photos.getTimeline()
+       timelineGroups.value = (res as TimelineGroup[] | null | undefined) ?? []
+     } catch (e) {
+       console.error('[photos-timeline] fetchTimeline', e)
+     } finally {
+       loading.value = false
+     }
+   }
+ 
+   // Silent refresh: refetch and replace the timeline without flipping `loading`.
+@@ -221,39 +290,49 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
+   }
+ 
+   // Pinia setup-stores don't get an automatic $reset() (that's option-store
+   // only) — implement our own state reset, mirroring how other setup stores
+   // in this codebase would if they needed a test-only teardown hook.
+   function resetState() {
+     timelineGroups.value = []
+     loading.value = false
+     indexStatus.value = emptyIndexStatus()
+     tasks.value = []
++    buckets.value = []
++    bucketAssets.value = new Map()
++    bucketLoading.value = new Set()
++    bucketMode.value = false
+   }
+ 
+   function __resetForTest() {
+     stopIndexPoll()
+     for (const t of _doneRemovalTimers.values()) clearTimeout(t)
+     _doneRemovalTimers.clear()
++    __resetBucketProbeForTest()
+     resetState()
+   }
+ 
+   return {
+     timelineGroups,
+     loading,
+     indexStatus,
+     tasks,
++    buckets,
++    bucketAssets,
++    bucketLoading,
++    bucketMode,
+     months,
+     allPhotos,
+     isIndexing,
+     photoCount,
+     videoCount,
++    totalCount,
+     fetchTimeline,
+     refreshTimelineQuiet,
+     fetchIndexStatus,
+     startIndexPoll,
+     stopIndexPoll,
+     fetchTasks,
+     ingestTaskBus,
+     deleteAssets,
+     __resetForTest,
+   }

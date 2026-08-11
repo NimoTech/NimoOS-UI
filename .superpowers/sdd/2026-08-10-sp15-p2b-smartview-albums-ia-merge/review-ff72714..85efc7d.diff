@@ -1,0 +1,728 @@
+# Review package: ff727145..HEAD
+
+## Commits
+85efc7d feat(photos): add the album <-> smart view conversion data layer
+
+## Files changed
+ oss/manifest.mjs                                   |  3 ++
+ packages/service/src/photos.convert.test.ts        | 55 ++++++++++++++++++++++
+ packages/service/src/photos.ts                     | 17 +++++++
+ .../__tests__/SearchSaveSmartView.test.ts          |  2 +-
+ .../components/__tests__/SmartViewCard.test.ts     |  1 +
+ .../__tests__/SmartViewCreateDialog.test.ts        |  2 +-
+ .../__tests__/SmartViewSidePanel.test.ts           |  1 +
+ src/photos/stores/__tests__/albums.test.ts         | 18 +++++++
+ src/photos/stores/__tests__/smartViews.test.ts     | 36 +++++++++++++-
+ src/photos/stores/albums.ts                        | 16 ++++++-
+ src/photos/stores/smartViews.ts                    | 32 ++++++++++++-
+ src/photos/util/__tests__/albumView.test.ts        | 15 +++++-
+ src/photos/util/albumView.ts                       |  4 ++
+ src/views/PhotosSmartViewDetail.assets.test.ts     |  2 +-
+ 14 files changed, 196 insertions(+), 8 deletions(-)
+
+## Diff
+diff --git a/oss/manifest.mjs b/oss/manifest.mjs
+index f9e251b..224a893 100644
+--- a/oss/manifest.mjs
++++ b/oss/manifest.mjs
+@@ -200,20 +200,23 @@ export const SERVICE_DELETE = [
+   // SP15-P1-T1/T2 added a seventh sibling and did not list it here, so the leak guard has been
+   // red since (`oss/tree.test.mjs > 泄漏守卫 > 不带 --skip-guard 也能跑通`, 5 hits in this one
+   // file). Same omission the comment above describes, same remedy.
+   'src/photos.moments.test.ts',
+   'src/photos.persons.test.ts',
+   'src/photos.places.test.ts',
+   // SP15-P2a-T1 added an eighth sibling (the smart view pin/remove/restore/excluded endpoints)
+   // and did not list it here either, so the leak guard went red again — 15 hits, all in this one
+   // file. Third time for this exact omission; the remedy is unchanged.
+   'src/photos.smartviewAssets.test.ts',
++  // SP15-P2b-T1 added a ninth sibling (album <-> smart view conversion). Same omission
++  // pattern as the two comments above — the leak guard would go red without this line.
++  'src/photos.convert.test.ts',
+   'src/photos.uploads.test.ts',
+   'src/photos.views.test.ts',
+   // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
+   // 唯一消费方是已删的 SearchDialog.vue / src/home/search/**。
+   // 光删这两个文件不够 —— index.ts 里还有三处接线(见下方 SERVICE_PATCH),
+   // 不打那三个补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试全绿。
+   'src/search.ts',
+   'src/search.test.ts',
+ 
+   // SP8-P6-T8(2026-08-06):Service 仓自己的台账目录。
+diff --git a/packages/service/src/photos.convert.test.ts b/packages/service/src/photos.convert.test.ts
+new file mode 100644
+index 0000000..ce55672
+--- /dev/null
++++ b/packages/service/src/photos.convert.test.ts
+@@ -0,0 +1,55 @@
++// SP15-P2b-T1: the two album <-> smart-view conversion endpoints. Verified against
++// NimoOS-Photos/route/v1/smartviews.go (FromAlbum) and route/v1/albums.go
++// (FromSmartView): both return the full new object, not a change count, and the
++// album-name collision surfaces as HTTP 409.
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import { createPhotos } from './photos.js'
++
++type Call = { method: string; url: string; body?: unknown }
++
++function harness(reply: unknown = {}) {
++  const calls: Call[] = []
++  const http = {
++    post: async (url: string, body?: unknown) => { calls.push({ method: 'post', url, body }); return { data: reply } },
++  } as unknown as AxiosInstance
++  return { calls, photos: createPhotos(http, () => 'TOK') }
++}
++
++describe('album <-> smart view conversion API', () => {
++  it('convertAlbumToSmart posts albumId alongside the payload and returns the new smart view', async () => {
++    const a = harness({ id: 'sv-new', name: 'Trip' })
++    const out = await a.photos.convertAlbumToSmart('al-1', { description: 'sunsets', threshold: 80 })
++    expect(out).toEqual({ id: 'sv-new', name: 'Trip' })
++    expect(a.calls[0]).toMatchObject({
++      method: 'post',
++      url: '/photos/smart-views/from-album',
++      body: { albumId: 'al-1', description: 'sunsets', threshold: 80 },
++    })
++  })
++
++  it('convertAlbumToSmart keeps a numeric album id intact in the body', async () => {
++    const a = harness({ id: 'sv-new' })
++    await a.photos.convertAlbumToSmart(7, { description: 'x', threshold: 60 })
++    expect((a.calls[0].body as { albumId: unknown }).albumId).toBe(7)
++  })
++
++  it('convertAlbumToSmart forwards the optional fields when given', async () => {
++    const a = harness({ id: 'sv-new' })
++    await a.photos.convertAlbumToSmart('al-1', {
++      description: 'x', threshold: 70, name: 'N', conds: ['scene: sunset'], includeVideos: true,
++    })
++    expect(a.calls[0].body).toEqual({
++      albumId: 'al-1', description: 'x', threshold: 70, name: 'N', conds: ['scene: sunset'], includeVideos: true,
++    })
++  })
++
++  it('convertSmartToAlbum posts only smartViewId and returns the new album', async () => {
++    const a = harness({ id: 'al-new', name: 'Trip' })
++    const out = await a.photos.convertSmartToAlbum('sv-1')
++    expect(out).toEqual({ id: 'al-new', name: 'Trip' })
++    expect(a.calls[0]).toMatchObject({
++      method: 'post', url: '/photos/albums/from-smartview', body: { smartViewId: 'sv-1' },
++    })
++  })
++})
+diff --git a/packages/service/src/photos.ts b/packages/service/src/photos.ts
+index 7a02aee..e47cba5 100644
+--- a/packages/service/src/photos.ts
++++ b/packages/service/src/photos.ts
+@@ -321,20 +321,37 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
+       return body<unknown>(res.data)
+     },
+     async getSmartViewActivity(id: string | number, limit = 10): Promise<unknown> {
+       const res = await http.get(`/photos/smart-views/${id}/activity`, { params: { limit } })
+       return body<unknown>(res.data)
+     },
+     async previewSmartView({ condsRaw, description, threshold, includeVideos }: { condsRaw?: unknown; description?: string; threshold?: number; includeVideos?: boolean }): Promise<unknown> {
+       const res = await http.post('/photos/smart-views/preview', { condsRaw, description, threshold, includeVideos })
+       return body<unknown>(res.data)
+     },
++    // ─── Album <-> smart view conversion (SP15-P2b) ───
++    // Both endpoints convert in place and delete the source object, and both answer
++    // with the full new object rather than a change count — the callers push straight
++    // into their store and navigate to the new detail route, so a count would be
++    // useless. `conds` is deliberately optional: leaving it out lets the backend's
++    // svparser derive the conditions from `description`, the same path Create takes.
++    async convertAlbumToSmart(
++      albumId: string | number,
++      payload: { description: string; threshold: number; name?: string; conds?: string[]; includeVideos?: boolean },
++    ): Promise<unknown> {
++      const res = await http.post('/photos/smart-views/from-album', { albumId, ...payload })
++      return body<unknown>(res.data)
++    },
++    async convertSmartToAlbum(smartViewId: string | number): Promise<unknown> {
++      const res = await http.post('/photos/albums/from-smartview', { smartViewId })
++      return body<unknown>(res.data)
++    },
+     // ─── Smart view manual asset actions (SP15-P2a) ───
+     // Re-verified against NimoOS-Photos/route/v1/smartviews.go: the shared request
+     // body is svAssetIDsReq {assetIds}, and an empty array is rejected with 400, so
+     // callers must not send one. The three write endpoints return only the counts of
+     // what changed — never the view's own statistics — which is why the store has to
+     // refetch the view afterwards.
+     async pinSmartViewAssets(id: string | number, assetIds: string[]): Promise<{ added?: number }> {
+       const res = await http.post(`/photos/smart-views/${id}/assets`, { assetIds })
+       return body<{ added?: number }>(res.data) ?? {}
+     },
+diff --git a/src/photos/components/__tests__/SearchSaveSmartView.test.ts b/src/photos/components/__tests__/SearchSaveSmartView.test.ts
+index 13d930c..99e5e21 100644
+--- a/src/photos/components/__tests__/SearchSaveSmartView.test.ts
++++ b/src/photos/components/__tests__/SearchSaveSmartView.test.ts
+@@ -36,21 +36,21 @@ function mountDialog(props: Partial<Props> = {}, i18n = makeI18n()) {
+ // fix round 1 · I1:点外部 mousedown 关闭的用例需要真实挂到 document 上,事件才能从
+ // 目标节点冒泡到 document 级监听器(同 PlacesThemeMenu.test.ts 的既定手法)。
+ function mountDialogAttached(props: Partial<Props> = {}, i18n = makeI18n()) {
+   return mount(SearchSaveSmartView, { props: baseProps(props), global: { plugins: [i18n] }, attachTo: document.body })
+ }
+ 
+ function fullSv(overrides: Partial<SmartView> = {}): SmartView {
+   return {
+     id: 'sv-new', name: 'X', description: '', conds: [], threshold: 80, live: true, includeVideos: false,
+     count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: new Array(10).fill(0),
+-    evaluatedAt: '', ...overrides,
++    evaluatedAt: '', createdAt: '', ...overrides,
+   }
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+ })
+ afterEach(() => {
+   usePhotosSmartViews().__resetForTest()
+   vi.restoreAllMocks()
+   document.body.innerHTML = ''
+diff --git a/src/photos/components/__tests__/SmartViewCard.test.ts b/src/photos/components/__tests__/SmartViewCard.test.ts
+index aae3cb4..c3fa4c6 100644
+--- a/src/photos/components/__tests__/SmartViewCard.test.ts
++++ b/src/photos/components/__tests__/SmartViewCard.test.ts
+@@ -30,20 +30,21 @@ function makeSv(overrides: Partial<SmartView> = {}): SmartView {
+     threshold: 72,
+     live: true,
+     includeVideos: false,
+     count: 1234,
+     addedThisWeek: 0,
+     seeds: ['seed-a', 'seed-b', 'seed-c'],
+     median: 0,
+     storageBytes: 0,
+     distribution: new Array(10).fill(0),
+     evaluatedAt: '',
++    createdAt: '',
+     ...overrides,
+   }
+ }
+ 
+ function mountCard(sv: Partial<SmartView> = {}, i18n = makeI18n()) {
+   return mount(SmartViewCard, {
+     props: { sv: makeSv(sv) },
+     global: { plugins: [i18n] },
+   })
+ }
+diff --git a/src/photos/components/__tests__/SmartViewCreateDialog.test.ts b/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
+index 792356d..41ba80c 100644
+--- a/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
++++ b/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
+@@ -33,21 +33,21 @@ function mountDialog(props: { open?: boolean } = {}, i18n = makeI18n()) {
+   return mount(SmartViewCreateDialog, {
+     props: { open: false, ...props },
+     global: { plugins: [i18n] },
+   })
+ }
+ 
+ function fullSv(overrides: Partial<SmartView> = {}): SmartView {
+   return {
+     id: 'sv-new', name: 'X', description: '', conds: [], threshold: 80, live: true, includeVideos: false,
+     count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: new Array(10).fill(0),
+-    evaluatedAt: '', ...overrides,
++    evaluatedAt: '', createdAt: '', ...overrides,
+   }
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   svc.photos.thumbnailUrl.mockClear()
+ })
+ afterEach(() => {
+   usePhotosSmartViews().__resetForTest()
+   vi.restoreAllMocks()
+diff --git a/src/photos/components/__tests__/SmartViewSidePanel.test.ts b/src/photos/components/__tests__/SmartViewSidePanel.test.ts
+index 2ad94d3..a438e5d 100644
+--- a/src/photos/components/__tests__/SmartViewSidePanel.test.ts
++++ b/src/photos/components/__tests__/SmartViewSidePanel.test.ts
+@@ -26,20 +26,21 @@ function makeSv(overrides: Partial<SmartView> = {}): SmartView {
+     threshold: 72,
+     live: true,
+     includeVideos: false,
+     count: 1000,
+     addedThisWeek: 3,
+     seeds: [],
+     median: 0,
+     storageBytes: 0,
+     distribution: [],
+     evaluatedAt: '',
++    createdAt: '',
+     ...overrides,
+   }
+ }
+ 
+ function mountPanel(sv: SmartView, busy = false, i18n = makeI18n()): VueWrapper {
+   return mount(SmartViewSidePanel, { props: { sv, busy }, global: { plugins: [i18n] } })
+ }
+ 
+ describe('三段各存在', () => {
+   it('h3 三个、range 一个、两个 role=switch、stat-grid 4 格、distribution 10 根柱、dist-x 三刻度', () => {
+diff --git a/src/photos/stores/__tests__/albums.test.ts b/src/photos/stores/__tests__/albums.test.ts
+index ac5b573..6e41477 100644
+--- a/src/photos/stores/__tests__/albums.test.ts
++++ b/src/photos/stores/__tests__/albums.test.ts
+@@ -5,20 +5,21 @@ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     photos: {
+       listAlbums: vi.fn(() => Promise.resolve([])),
+       createAlbum: vi.fn(() => Promise.resolve({ id: 'new1', name: 'New' })),
+       getAlbum: vi.fn(() => Promise.resolve({ assets: [] })),
+       deleteAlbum: vi.fn(() => Promise.resolve()),
+       updateAlbum: vi.fn(() => Promise.resolve({})),
+       batchAddToAlbum: vi.fn(() => Promise.resolve()),
+       removeFromAlbum: vi.fn(() => Promise.resolve()),
+       reorderAlbumAssets: vi.fn(() => Promise.resolve()),
++      convertSmartToAlbum: vi.fn(() => Promise.resolve({})),
+     },
+   },
+ }))
+ import { service } from '@nimotech/nimoos-service'
+ import { usePhotosAlbums } from '../albums'
+ 
+ describe('photosAlbums store', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     vi.clearAllMocks()
+@@ -452,11 +453,28 @@ describe('photosAlbums store', () => {
+       expect(service.photos.batchAddToAlbum).toHaveBeenCalledWith('new2', ['p1', 'p2'])
+       expect(order).toEqual(['createAlbum', 'batchAddToAlbum', 'listAlbums'])
+     })
+     it('createAlbum reject(409) → 抛出且 batchAddToAlbum 未被调', async () => {
+       ;(service.photos.createAlbum as any).mockRejectedValueOnce(new Error('409 conflict'))
+       const s = usePhotosAlbums()
+       await expect(s.saveAsAlbum('Trip', ['p1'])).rejects.toThrow('409')
+       expect(service.photos.batchAddToAlbum).not.toHaveBeenCalled()
+     })
+   })
++
++  describe('convertFromSmartView', () => {
++    it('unshifts the new album and returns the raw object', async () => {
++      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N', videoCount: 2 })
++      const s = usePhotosAlbums()
++      const album = await s.convertFromSmartView('sv-1')
++      expect(album.id).toBe('al-new')
++      expect(s.albums[0].id).toBe('al-new')
++    })
++
++    it('rethrows instead of swallowing the failure', async () => {
++      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
++      const s = usePhotosAlbums()
++      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
++      expect(s.albums).toHaveLength(0)
++    })
++  })
+ })
+diff --git a/src/photos/stores/__tests__/smartViews.test.ts b/src/photos/stores/__tests__/smartViews.test.ts
+index 9074b24..53d3ed8 100644
+--- a/src/photos/stores/__tests__/smartViews.test.ts
++++ b/src/photos/stores/__tests__/smartViews.test.ts
+@@ -4,47 +4,49 @@ import { usePhotosSmartViews } from '../smartViews'
+ 
+ const listSmartViews = vi.fn()
+ const createSmartViewApi = vi.fn()
+ const updateSmartViewApi = vi.fn()
+ const deleteSmartViewApi = vi.fn()
+ const duplicateSmartViewApi = vi.fn()
+ const getSmartViewAssets = vi.fn()
+ const getSmartViewActivity = vi.fn()
+ const previewSmartViewApi = vi.fn()
+ const exportSmartViewAlbumApi = vi.fn()
++const convertAlbumToSmartApi = vi.fn()
+ 
+ vi.mock('@nimotech/nimoos-service', () => ({
+   service: {
+     photos: {
+       listSmartViews: (...a: unknown[]) => listSmartViews(...a),
+       createSmartView: (...a: unknown[]) => createSmartViewApi(...a),
+       updateSmartView: (...a: unknown[]) => updateSmartViewApi(...a),
+       deleteSmartView: (...a: unknown[]) => deleteSmartViewApi(...a),
+       duplicateSmartView: (...a: unknown[]) => duplicateSmartViewApi(...a),
+       getSmartViewAssets: (...a: unknown[]) => getSmartViewAssets(...a),
+       getSmartViewActivity: (...a: unknown[]) => getSmartViewActivity(...a),
+       previewSmartView: (...a: unknown[]) => previewSmartViewApi(...a),
+       exportSmartViewAlbum: (...a: unknown[]) => exportSmartViewAlbumApi(...a),
++      convertAlbumToSmart: (...a: unknown[]) => convertAlbumToSmartApi(...a),
+     },
+   },
+ }))
+ 
+ /* 回源核对(NimoOS-Photos/service/smartview.go:21-34 SmartView 结构体):
+    id/name/description/conds/threshold/live/includeVideos/count/addedThisWeek/seeds
+    恒在(count/addedThisWeek/conds/seeds 无 omitempty),median/storageBytes/distribution/
+    evaluatedAt 带 omitempty 可缺。 */
+ const FULL_SV = {
+   id: 'sv-1', name: 'Foo', description: 'Bar',
+   conds: ['a', 'b'], threshold: 80, live: true, includeVideos: false,
+   count: 40, addedThisWeek: 3, seeds: ['s1'],
+   median: 55, storageBytes: 1024, distribution: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-  evaluatedAt: '2026-01-01T00:00:00Z',
++  evaluatedAt: '2026-01-01T00:00:00Z', createdAt: '2025-12-31T00:00:00Z',
+ }
+ const MINIMAL_SV = {
+   id: 7, name: 'X', conds: null, threshold: 50, live: true, includeVideos: false,
+   count: 1, addedThisWeek: 0,
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks()
+ })
+@@ -126,23 +128,36 @@ describe('toSmartView 兜底', () => {
+ 
+   it('完整字段原样归一(数字→字符串 id,数值/布尔透传)', async () => {
+     listSmartViews.mockResolvedValue([FULL_SV])
+     const s = usePhotosSmartViews()
+     await s.fetchSmartViews()
+     expect(s.smartViews[0]).toEqual({
+       id: 'sv-1', name: 'Foo', description: 'Bar',
+       conds: ['a', 'b'], threshold: 80, live: true, includeVideos: false,
+       count: 40, addedThisWeek: 3, seeds: ['s1'],
+       median: 55, storageBytes: 1024, distribution: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+-      evaluatedAt: '2026-01-01T00:00:00Z',
++      evaluatedAt: '2026-01-01T00:00:00Z', createdAt: '2025-12-31T00:00:00Z',
+     })
+   })
++
++  it('createdAt is normalised off the wire and falls back to an empty string when absent', async () => {
++    // The backend has always returned it (NimoOS-Photos service/smartview.go:23); the
++    // front-end type simply never carried it until the global album sort needed it.
++    listSmartViews.mockResolvedValue([
++      { ...MINIMAL_SV, createdAt: '2026-01-02T03:04:05Z' },
++      MINIMAL_SV,
++    ])
++    const s = usePhotosSmartViews()
++    await s.fetchSmartViews()
++    expect(s.smartViews[0].createdAt).toBe('2026-01-02T03:04:05Z')
++    expect(s.smartViews[1].createdAt).toBe('')
++  })
+ })
+ 
+ describe('byId(§7e-2 结构性修复)', () => {
+   it('后端 id 是数字 7 时 byId(\'7\') 命中(String 归一主守卫)', async () => {
+     listSmartViews.mockResolvedValue([MINIMAL_SV])
+     const s = usePhotosSmartViews()
+     await s.fetchSmartViews()
+     expect(s.byId('7')?.name).toBe('X')
+   })
+ 
+@@ -454,20 +469,37 @@ describe('duplicateSmartView', () => {
+     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+     const s = usePhotosSmartViews()
+     await expect(s.duplicateSmartView('sv-1')).rejects.toThrow('boom')
+     duplicateSmartViewApi.mockResolvedValueOnce({ ...FULL_SV, id: 'sv-1-copy2' })
+     await s.duplicateSmartView('sv-1')
+     expect(duplicateSmartViewApi).toHaveBeenCalledTimes(2)
+     spy.mockRestore()
+   })
+ })
+ 
++describe('convertFromAlbum', () => {
++  it('unshifts the new smart view and returns it', async () => {
++    convertAlbumToSmartApi.mockResolvedValue({ id: 'sv-new', name: 'N', createdAt: '2026-02-01T00:00:00Z' })
++    const s = usePhotosSmartViews()
++    const sv = await s.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
++    expect(sv.id).toBe('sv-new')
++    expect(s.smartViews[0].id).toBe('sv-new')
++  })
++
++  it('rethrows so the caller can keep its dialog open', async () => {
++    convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
++    const s = usePhotosSmartViews()
++    await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
++    expect(s.smartViews).toHaveLength(0)
++  })
++})
++
+ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
+   it('三个请求的参数逐字断言', async () => {
+     getSmartViewAssets.mockResolvedValue([])
+     getSmartViewActivity.mockResolvedValue([])
+     const s = usePhotosSmartViews()
+     await s.loadDetail('sv-1')
+     expect(getSmartViewAssets).toHaveBeenNthCalledWith(1, 'sv-1', { limit: 60, offset: 0 })
+     expect(getSmartViewAssets).toHaveBeenNthCalledWith(2, 'sv-1', { limit: 12, offset: 0, recent: true })
+     expect(getSmartViewActivity).toHaveBeenCalledWith('sv-1', 10)
+   })
+diff --git a/src/photos/stores/albums.ts b/src/photos/stores/albums.ts
+index 8056aa3..e42b4de 100644
+--- a/src/photos/stores/albums.ts
++++ b/src/photos/stores/albums.ts
+@@ -187,27 +187,41 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
+   }
+ 
+   // Vue2 :756-761 —— 建相册 + 批量塞入 + 重拉列表,返回新相册。无 try/catch,异常(含 409 重名)上抛。
+   async function saveAsAlbum(name: string, assetIds: Array<string | number>): Promise<RawAlbum> {
+     const created = (await service.photos.createAlbum(name)) as RawAlbum
+     await service.photos.batchAddToAlbum(created.id as string | number, assetIds)
+     await fetchAlbums()
+     return created
+   }
+ 
++  // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
++  // smartViews.convertFromAlbum — see its comment for why there is no refetch and no
++  // optimistic slot. The raw backend object is stored as-is, matching this store's
++  // convention of keeping albums unmapped (the views map them through albumToView).
++  //
++  // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
++  // that is not the pattern to follow for a user-initiated write.
++  async function convertFromSmartView(smartViewId: string): Promise<RawAlbum> {
++    const raw = await service.photos.convertSmartToAlbum(smartViewId)
++    const album = (raw ?? {}) as RawAlbum
++    albums.value = [album, ...albums.value]
++    return album
++  }
++
+   function __resetForTest(): void {
+     albums.value = []
+     albumsLoaded.value = false
+     loadError.value = false
+     albumAssetsByID.value = {}
+     albumAssetsLoading.value = {}
+   }
+ 
+   return {
+     albums, albumsLoaded, loadError, albumAssetsByID, albumAssetsLoading,
+     albumById, assetsOf, isLoadingAssets,
+     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
+     renameAlbum, setAlbumCover, reorderAlbumAssets,
+-    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum,
++    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView,
+     __resetForTest,
+   }
+ })
+diff --git a/src/photos/stores/smartViews.ts b/src/photos/stores/smartViews.ts
+index 80c649d..dba7f9d 100644
+--- a/src/photos/stores/smartViews.ts
++++ b/src/photos/stores/smartViews.ts
+@@ -27,20 +27,24 @@ export interface SmartView {
+   threshold: number
+   live: boolean
+   includeVideos: boolean
+   count: number
+   addedThisWeek: number
+   seeds: string[]
+   median: number
+   storageBytes: number
+   distribution: number[]
+   evaluatedAt: string
++  // Present on the wire since the backend's first version (service/smartview.go:23).
++  // Carried here from SP15-P2b onward because the Albums page's global sort ranks
++  // manual albums and smart albums against each other by creation time.
++  createdAt: string
+ }
+ 
+ export interface SmartViewActivity {
+   id: string
+   eventType: string
+   detail: string
+   assetIds: string[]
+   occurredAt: string
+ }
+ 
+@@ -93,20 +97,21 @@ function toSmartView(raw: unknown): SmartView {
+     threshold: Number(r.threshold ?? 0),
+     live: Boolean(r.live),
+     includeVideos: Boolean(r.includeVideos),
+     count: Number(r.count ?? 0),
+     addedThisWeek: Number(r.addedThisWeek ?? 0),
+     seeds: Array.isArray(r.seeds) ? (r.seeds as string[]) : [],
+     median: Number(r.median ?? 0),
+     storageBytes: Number(r.storageBytes ?? 0),
+     distribution: distribution.length === 10 ? distribution : new Array(10).fill(0),
+     evaluatedAt: String(r.evaluatedAt ?? ''),
++    createdAt: String(r.createdAt ?? ''),
+   }
+ }
+ 
+ function toActivity(raw: unknown): SmartViewActivity {
+   const r = (raw ?? {}) as Record<string, unknown>
+   return {
+     id: String(r.id),
+     eventType: String(r.eventType ?? ''),
+     detail: String(r.detail ?? ''),
+     assetIds: Array.isArray(r.assetIds) ? (r.assetIds as unknown[]).map(String) : [],
+@@ -338,20 +343,45 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
+       const i = smartViews.value.findIndex(s => String(s.id) === String(id))
+       smartViews.value.splice(i + 1, 0, copy)
+     } catch (e) {
+       console.error('[photos-smartviews] duplicateSmartView', e)
+       throw e
+     } finally {
+       duplicateBusy.value = false
+     }
+   }
+ 
++  // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
++  // existing member, deletes the album, and hands back the full new smart view, so the
++  // only thing left to do here is put it at the head of the list — no refetch needed.
++  //
++  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched
++  // both lists and then pushed an optimistic copy as a belt-and-braces measure, because
++  // its list page stays mounted while the detail panel swaps in. Here the caller
++  // navigates to the new smart view's own route and any return to the list remounts and
++  // refetches, so neither the double fetch nor the optimistic slot has anything to do.
++  //
++  // Rethrows on failure (this store's established contract, same as createSmartView):
++  // the dialog decides what to show and stays open so the user can retry.
++  async function convertFromAlbum(
++    albumId: string | number,
++    input: { description: string; threshold: number },
++  ): Promise<SmartView> {
++    const raw = await service.photos.convertAlbumToSmart(albumId, {
++      description: input.description,
++      threshold: input.threshold,
++    })
++    const created = toSmartView(raw)
++    smartViews.value.unshift(created)
++    return created
++  }
++
+   // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
+   // (偏离登记 9,§7e-7):三个请求 Promise.all 并行，成功路径与清空都要过 seq 门控。
+   async function loadDetail(id: string): Promise<void> {
+     const mine = ++detailSeq
+     detailLoading.value = true
+     // 成功路径也要先清旧数据 —— 否则第二次加载时骨架门控已过，会继续渲染上一个
+     // 智能视图的照片与活动流(P6b 终审 I2 的同型缺陷，清空必须在 await 之前)。
+     matchedAssets.value = []
+     recentAssets.value = []
+     activity.value = []
+@@ -587,15 +617,15 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
+   }
+ 
+   return {
+     smartViews, listLoaded, listLoading,
+     matchedAssets, recentAssets, activity, detailLoading,
+     excluded, excludedLoading, assetBusy,
+     preview,
+     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
+     byId,
+     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
+-    duplicateSmartView, loadDetail, refreshPreview, cancelPreview, exportAlbum,
++    duplicateSmartView, convertFromAlbum, loadDetail, refreshPreview, cancelPreview, exportAlbum,
+     pinAssets, removeAssets, restoreAssets, loadExcluded,
+     __resetForTest,
+   }
+ })
+diff --git a/src/photos/util/__tests__/albumView.test.ts b/src/photos/util/__tests__/albumView.test.ts
+index 55c7e5d..7c6abf2 100644
+--- a/src/photos/util/__tests__/albumView.test.ts
++++ b/src/photos/util/__tests__/albumView.test.ts
+@@ -22,25 +22,38 @@ describe('albumToView', () => {
+   })
+   it('无 name 用 title 兜底,再无则用传入的 untitled', () => {
+     expect(albumToView({ id: 1, title: 'T' }, '未命名').title).toBe('T')
+     expect(albumToView({ id: 1 }, '未命名').title).toBe('未命名')
+   })
+   it('assetCount 缺失时回退 assets.length,再缺回 0', () => {
+     expect(albumToView({ id: 1, assets: [{}, {}] }, 'x').count).toBe(2)
+     expect(albumToView({ id: 1 }, 'x').count).toBe(0)
+   })
+   it('coverAssetId 缺失 → null', () => { expect(albumToView({ id: 1 }, 'x').cover).toBeNull() })
++
++  it('carries videoCount and dateStart through for the detail sidebar and the global sort', () => {
++    const v = albumToView({ id: 1, videoCount: 3, dateStart: '2025-06-01' }, 'x')
++    expect(v.videoCount).toBe(3)
++    expect(v.dateStart).toBe('2025-06-01')
++  })
++  it('defaults videoCount to 0 and dateStart to null when absent', () => {
++    // videoCount is not omitempty on the wire (NimoOS-Photos service/types.go:179), so
++    // the fallback only covers a partial fixture, not a real response.
++    const v = albumToView({ id: 1 }, 'x')
++    expect(v.videoCount).toBe(0)
++    expect(v.dateStart).toBeNull()
++  })
+ })
+ 
+ describe('sortAlbums', () => {
+   const V = (id: string, title: string, count: number, createdAt: string | null, dateEnd: string | null) =>
+-    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '' })
++    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '', videoCount: 0, dateStart: null })
+   // a/b 在 createdAt 与 dateEnd 上名次互换(仿 sortAlbumPhotos 夹具的手法),
+   // 让 'created' 与 'date' 两个分支产生不同排序结果 —— 若未来 'date' 分支被
+   // 误改回读 createdAt,这里必须挂红。
+   const list = [V('a', 'Beta', 3, '2026-01-01', '2024-01-01'), V('b', 'Alpha', 9, '2025-01-01', '2026-01-01'), V('c', 'Gamma', 1, null, null)]
+ 
+   it('name 正序 / name-r 逆序', () => {
+     expect(sortAlbums(list, 'name').map((x) => x.title)).toEqual(['Alpha', 'Beta', 'Gamma'])
+     expect(sortAlbums(list, 'name-r').map((x) => x.title)).toEqual(['Gamma', 'Beta', 'Alpha'])
+   })
+   it('count 降序', () => { expect(sortAlbums(list, 'count').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
+diff --git a/src/photos/util/albumView.ts b/src/photos/util/albumView.ts
+index a96c499..18a9566 100644
+--- a/src/photos/util/albumView.ts
++++ b/src/photos/util/albumView.ts
+@@ -5,20 +5,22 @@
+ import type { Photo } from './assetToPhoto'
+ 
+ export interface AlbumView {
+   id: string | number
+   title: string
+   cover: string | number | null // = coverAssetId, an asset id, not a URL
+   count: number
+   dateRange: string
+   createdAt: string | null
+   dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
++  videoCount: number // P2b: the detail sidebar's Videos cell
++  dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
+ }
+ 
+ // Extract {year, month(1-12)} from a raw taken_at string ('2025-06-03',
+ // '2025-06-03 12:00:00', RFC3339, …) without relying on Date parsing.
+ // Verbatim port of PhotosAlbumsView.vue:284-288 (parseYearMonth).
+ function parseYearMonth(s: unknown): { year: number; month: number } | null {
+   const m = String(s || '').match(/^(\d{4})-(\d{2})/)
+   if (!m) return null
+   return { year: Number(m[1]), month: Number(m[2]) }
+ }
+@@ -50,20 +52,22 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
+   return {
+     id: a.id as string | number,
+     title: (a.name as string) || (a.title as string) || untitled,
+     // `||` (not `??`) — matches Vue2 PhotosAlbumsView.vue:219 exactly; an
+     // empty-string coverAssetId falls through to null, same as Vue2.
+     cover: (a.coverAssetId as string | number | undefined) || null,
+     count: assetCount != null ? assetCount : ((assets && assets.length) || 0),
+     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
+     createdAt: (a.createdAt as string | undefined) || null,
+     dateEnd: dateEnd || null,
++    videoCount: Number(a.videoCount ?? 0),
++    dateStart: (a.dateStart as string | undefined) || null,
+   }
+ }
+ 
+ // Verbatim port of PhotosAlbumsView.vue:359-370 (applySort), with three
+ // deliberate deviations from Vue2 (each noted below):
+ export function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
+   const arr = [...list] // deviation: return a new array instead of Vue2's in-place arr.sort()
+   // Verbatim port of Vue2's `ts` helper, parameterized by field (see the
+   // 'date' deviation note below for why).
+   const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
+diff --git a/src/views/PhotosSmartViewDetail.assets.test.ts b/src/views/PhotosSmartViewDetail.assets.test.ts
+index 5bccb09..bc026af 100644
+--- a/src/views/PhotosSmartViewDetail.assets.test.ts
++++ b/src/views/PhotosSmartViewDetail.assets.test.ts
+@@ -37,21 +37,21 @@ import PhotosSmartViewDetail from './PhotosSmartViewDetail.vue'
+ import { usePhotosSmartViews } from '../photos/stores/smartViews'
+ import { useToast } from '../stores/toast'
+ // The toast assertions below compare against the real locale entry rather than
+ // `expect.any(String)`: a toast that fires with the wrong text, or with the wrong count in
+ // it, is exactly the failure these tests exist to catch (final review, coverage holes).
+ import zh from '../i18n/zh_cn'
+ 
+ const SV = {
+   id: 'sv1', name: 'Hiking', description: '', conds: ['a'], threshold: 80,
+   live: true, includeVideos: false, count: 3, addedThisWeek: 0, seeds: [],
+-  median: 0, storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '',
++  median: 0, storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '',
+ }
+ 
+ async function mountPage(path = '/photos/smart-views/sv1') {
+   const router = createRouter({
+     history: createWebHashHistory(),
+     routes: [
+       { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
+       { path: '/photos/smart-views/:id', name: 'photos-smart-view-detail', component: PhotosSmartViewDetail },
+     ],
+   })

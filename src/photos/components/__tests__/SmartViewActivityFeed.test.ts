@@ -90,6 +90,31 @@ describe('6 种 eventType 各一条', () => {
   })
 })
 
+// ── SP15-P2b Task 8: converted_from_album (Task 8's reverse of Task 7's convertFromAlbum) ──
+describe('converted_from_album', () => {
+  const NOW = '2026-07-31T00:00:00Z'
+
+  it('renders the converted-from-album event, with the locked-in count when available', () => {
+    const w = mountFeed([act({ id: '1', eventType: 'converted_from_album', assetIds: ['a', 'b'], occurredAt: NOW })])
+    expect(w.text()).toContain(zh.photosSvActConvertedFromAlbumN.replace('{n}', '2'))
+  })
+
+  it('falls back to the count-free wording when the event carries no asset ids', () => {
+    const w = mountFeed([act({ id: '1', eventType: 'converted_from_album', assetIds: [], occurredAt: NOW })])
+    expect(w.text()).toContain(zh.photosSvActConvertedFromAlbum)
+    // The count-bearing variant's suffix (everything past the shared prefix) must not leak
+    // into the count-free branch -- derived from the locale module, not a literal.
+    const countSuffix = zh.photosSvActConvertedFromAlbumN.slice(zh.photosSvActConvertedFromAlbum.length)
+    expect(w.text()).not.toContain(countSuffix.replace('{n}', '0'))
+    expect(w.text()).not.toContain(countSuffix.replace('{n}', '2'))
+  })
+
+  it('still drops genuinely unknown event types', () => {
+    const w = mountFeed([act({ id: '1', eventType: 'no_such_thing', assetIds: [], occurredAt: NOW })])
+    expect(w.findAll('[data-test="sv-activity-row"]')).toHaveLength(0)
+  })
+})
+
 describe('未知 eventType(偏离登记:Vue2 :278 把内部枚举值吐给用户,这里改跳过 + warn)', () => {
   it('单独出现 → 该行不渲染,console.warn 恰好一次(按前缀过滤)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})

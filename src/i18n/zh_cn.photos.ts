@@ -119,6 +119,10 @@ export default {
   photosTrashRestoredToast: '{count} 项已恢复到资料库',
   photosTrashPurgedToast: '{count} 项已永久删除 · 释放 {size} MB',
   photosTrashEmptiedToast: '最近删除已清空 · 释放 {size} MB',
+  // Task 12 (SP15-P3): while pages remain, the freed-size figure is only computed from the
+  // loaded subset — these size-less variants are used instead until trashExhausted.
+  photosTrashEmptiedToastPartial: '最近删除已清空',
+  photosTrashEmptyBodyPartial: '这将释放 NAS 上的空间，原始文件将无法恢复。',
   photosTrashRestoreFailed: '恢复失败',
   photosTrashDeleteFailed: '删除失败',
   photosTrashEmptyFailed: '清空失败',
@@ -130,13 +134,19 @@ export default {
   photosAlbumsMine: '我的相册',
   photosAlbumsMineHint: '你创建的相册',
   photosAlbumNew: '新建相册',
-  photosAlbumNewHint: '点击创建',
+  photosAlbumNewHint: '点击创建或询问 Nimo',
   photosAlbumUntitled: '未命名',
-  photosAlbumsEmptyTitle: '还没有相册',
-  photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
+  // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+  // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+  // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+  // order.
+  // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+  // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+  // backed a standalone empty-state panel that duplicated this subtitle's own "还没有相册"
+  // copy once smart albums joined the grid. Vue2 has no such panel either (see the matching
+  // PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature cut.
+  photosAlbumsNoneYetHint: '还没有相册——手动创建一个，或者让 Nimo 建一个会自动保持更新的智能相册。',
   photosAlbumSort: '排序：',
-  photosAlbumSortUpdated: '最近更新',
-  photosAlbumSortUpdatedHint: '保持服务端顺序',
   photosAlbumSortCreated: '最近添加',
   photosAlbumSortCreatedHint: '最新的相册在前',
   photosAlbumSortName: '名称(A–Z)',
@@ -170,19 +180,62 @@ export default {
   photosAlbumClickToRename: '点击重命名',
   photosAlbumEdit: '编辑',
   photosAlbumDone: '完成',
-  photosAlbumRename: '重命名相册',
+  photosAlbumRenameHint: '修改相册名称',
+  photosAlbumConvertToSmart: '转为智能相册',
+  photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
+  // Task 5 (#117 短标题): "..." 菜单主标题改短——Rename/Duplicate/Download as ZIP 三项复用既有
+  // 短键(photosSvRename/photosSvDuplicate/photosFavExport,与靶子译文逐字一致),Delete 复用
+  // photosDelete;只有 Convert 没有现成的通用短键,新增这一个。
+  // Task 11 孤儿清理:photosAlbumRename 失去了唯一引用,已删;photosAlbumConvertToSmart
+  // 留下——AlbumConvertToSmartDialog 的标题/确认按钮仍在用它。
+  photosAlbumMenuConvert: '转换',
+  // Whole-branch review, Important 2: the "..." menu's Convert entry has its own desc in the
+  // target (33b05636 PhotosAlbumDetail.vue:266 "Turn into a Smart Album that keeps updating",
+  // zh_CN.json:2836). It is NOT the same string as photosAlbumConvertToSmartHint above, which
+  // the target uses only as the convert modal's subtitle (:375) -- the menu entry pointed at
+  // that one for the whole phase because this key was specified in the plan's i18n table but
+  // never created. AlbumConvertToSmartDialog.vue stays on the modal key.
+  photosAlbumMenuConvertHint: '转为持续自动更新的智能相册',
+  // Task 5:Duplicate 项的 desc——靶子字面 "Copy the photos as a new album"(33b05636
+  // zh_CN.json:"把照片复制为一个新相册")。
+  photosAlbumDuplicateHint: '把照片复制为一个新相册',
+  // ── Task 7: 相册 → 智能相册转换弹窗 ──
+  photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
+  photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
+  photosAlbumConverting: '转换中…',
+  photosAlbumConvertedToSmart: '已转为智能相册',
+  photosAlbumConvertFailed: '转换失败',
+  photosAlbumStatVideos: '视频',
+  photosAlbumStatCreated: '创建于',
   photosAlbumDelete: '删除相册',
   photosAlbumDeleteHint: '照片会保留在图库中',
   photosAlbumDeleteTitle: '删除「{name}」?',
   photosAlbumDeleteBody: '只删除相册本身,其中 {count} 张照片仍保留在图库中。',
-  photosAlbumItemsShown: '显示 {count} 项',
-  photosAlbumHintSelectDragCover: '点击选择 · 拖拽排序 · ★ 设为封面',
+  // Whole-branch review, Important 3: the target keeps the select bar's copy and the tile
+  // tooltip's copy deliberately distinct -- only the tooltip mentions "★ to set cover"
+  // (33b05636 PhotosAlbumDetail.vue:330 vs :799-800). photosAlbumHintSelectDrag is the bar's
+  // manual-sort branch; the plain-sort branch reuses photosSvClickToSelect, which already
+  // carries the target's "Click to select" verbatim and is what the smart-view bar uses.
+  // Value from zh_CN.json:2011 (「拖动排序」 -- the two *Cover keys below said 「拖拽排序」,
+  // corrected here in the same pass so one page does not show both words).
+  photosAlbumHintSelectDrag: '点击选择 · 拖动排序',
+  photosAlbumHintSelectDragCover: '点击选择 · 拖动排序 · ★ 设为封面',
   photosAlbumHintSelectCover: '点击选择 · ★ 设为封面',
   photosAlbumRemoveFrom: '从相册移除',
   photosAlbumAddPhotos: '添加照片',
   photosAlbumSortManual: '手动排序',
   photosAlbumSortTaken: '拍摄日期',
   photosAlbumSortAdded: '添加日期',
+  // SP15-P2c Task 3: the detail-page skeleton shared with the smart-view detail page.
+  // photosDetailItems/photosDetailVideos are the lowercase header-stats words that follow a
+  // bold number ("12 items"), not the sidebar stat-cell captions (photosMoPhotos /
+  // photosAlbumStatVideos) -- the English differs in case, so they are separate keys.
+  photosDetailCreatedAt: '创建于 {date}',
+  photosDetailItems: '项',
+  photosDetailVideos: '视频',
+  // Task 4: About section's "Time span" row label. Distinct from photosMoTime (moment detail's
+  // own About row calls its third field "Time", a different label for a different thing).
+  photosDetailTimeSpan: '时间跨度',
   photosAlbumCurrentCover: '当前封面',
   photosAlbumSetCover: '设为相册封面',
   photosAlbumEmptyTitle: '相册是空的',
@@ -608,8 +661,9 @@ export default {
   photosPlacesInsightHomeBase: '大本营',
   // ---- P7a-T1: 智能视图(Smart Views)107 键,追加于 photosPlacesInsightHomeBase 之后 ----
   // (表里原列 115 行,其中 8 行与既有键值重复,按 brief 第 7 条改为复用既有键,未新增,见任务报告)
-  photosSvNameSnapshotSavedAlbum: '「{name}」的快照已保存为新相册',
-  photosSvAddedThisWeek: '本周 +{n}',
+  // Whole-branch review, Minor 6: photosSvAddedThisWeek ("+{n} this week") was SmartViewCard.vue's
+  // only consumer. That component was deleted this phase (Task 10); grep confirmed zero consumers
+  // left, so the key is removed here in both locales.
   // P7a-T8 fix round 1 · I3:去掉字面 <b>,改 <i18n-t> 具名插槽(零 v-html)。回源核实
   // zh_CN.json 后两条都是"插值 + 语言相关静态词"整个短语加粗(`<b>1 张新照片</b>` /
   // `<b>{n} 张新照片</b>` 形态完全对称)⇒ 都拆成主句键 + 加粗短语键,不再区分对待
@@ -618,12 +672,14 @@ export default {
   photosSvActOneMatchedBold: '1 张新照片',
   photosSvActNMatched: '{photo} 已自动添加',
   photosSvActNMatchedBold: '{n} 张新照片',
+  // Task 8: converted_from_album activity row (reverse of Task 7's convertFromAlbum). No
+  // <b> in Vue2 for either branch, so these are plain text keys -- no split main-clause +
+  // bold-phrase pair like the matched rows above.
+  photosSvActConvertedFromAlbum: '由相册转换而来',
+  photosSvActConvertedFromAlbumN: '由相册转换而来 · 锁定 {n} 张照片',
   photosSvActivity: '活动',
-  photosSvAdd: '添加',
   photosSvAddAnother: '添加另一个…',
-  photosSvAddCondition: '添加条件',
   photosSvAllMatches: '全部匹配',
-  photosSvAllSmartViews: '所有智能视图',
   // P7a-T8:<b> 只包住插值 {n} ⇒ 直接开槽,去掉字面 <b></b>(零 v-html)。
   photosSvThreshHelp: '阈值 {pct}% 时，预计每周新增约 {n} 张照片。',
   photosSvAutoAddMatches: '自动添加新匹配',
@@ -637,18 +693,24 @@ export default {
   photosSvChangeSmartViewName: '修改智能视图名称',
   photosSvConditions: '条件',
   photosSvConditionsSettingsUpdated: '条件或设置已更新',
+  // ── Task 8: smart album -> regular album conversion (reverse of Task 7) ──
+  photosSvConvertToAlbum: '转为普通相册',
+  photosSvConvertToAlbumHint: '停止自动更新，固化当前已匹配的照片',
+  photosSvConvertToAlbumTitle: '将「{name}」转为普通相册？',
+  photosSvConvertToAlbumBody: '停止自动更新，当前 {n} 张照片将固化为普通相册，主题与条件将被移除。',
+  photosSvConvertedToAlbum: '已转为普通相册',
   photosSvCopyQuerySv: '将查询复制为新的智能视图',
+  // SP15-P2b Task 4: embedded-mode label for the same submit button that reads
+  // photosSvCreateSmartView in standalone mode (Vue2 PhotosSmartAlbumCreate.vue's own
+  // hard-coded 'Create Smart Album' string, ported here as a key since this file merges
+  // both modes into one component).
+  photosSvCreateSmartAlbum: '创建智能相册',
   photosSvCreateSmartView: '创建智能视图',
   photosSvDeleteName: '删除「{name}」？',
-  photosSvDeleteSmartView: '删除智能视图',
   photosSvDescribePlainEnglishConditions: '用自然语言描述——下方会自动推断出条件',
-  photosSvDescribeWantSetQuality: '描述你想要的内容，设置质量阈值，Nimo 会持续为你填充。',
-  photosSvDone: '完成',
   photosSvDuplicate: '复制',
   photosSvDuplicatedNameOpenCopy: '已复制「{name}」——可在列表中打开新副本',
   photosSvEGSaraTokyo: '例如:Sara · 东京 · 日落',
-  photosSvEGSceneSunset: '如 scene: sunset',
-  photosSvExport: '导出',
   photosSvExportedDetail: '已导出为 {detail}',
   photosSvFamilyWeekends: '家庭周末',
   photosSvFamilyWeekendsPark: '在公园度过的家庭周末',
@@ -657,6 +719,10 @@ export default {
   photosSvKeepLive: '保持实时更新',
   photosSvLastUpdate: '最近更新',
   photosSvLastUpdatedTime: '最近更新 {time}',
+  // SP15-P2b Task 4 (Vue2 939a7d3a:PhotosAlbumsView.vue's `sourceOptions`, 4th entry --
+  // verbatim from zh_CN.json:1987-1988, not the plan's guessed values).
+  photosSvLetNimoDraft: '让 Nimo 起稿',
+  photosSvLetNimoDraftHint: '你描述主题，交给 AI 填充',
   photosSvLive: '即时生效',
   photosSvLivePreview: '实时预览',
   photosSvLoose: '宽松',
@@ -668,7 +734,6 @@ export default {
   photosSvMedianMatch: '匹配中位数',
   photosSvName: '名称',
   photosSvNew: '新',
-  photosSvNewCondition: '新条件',
   photosSvNewSmartView: '新建智能视图',
   photosSvNimoSuggests: 'Nimo 建议',
   photosSvStartTemplate: '或从模板开始',
@@ -692,9 +757,7 @@ export default {
   photosSvResume: '恢复',
   photosSvResumeAutoUpdates: '恢复自动更新',
   photosSvRunEveryUpload: '每次新上传都运行',
-  photosSvSaveStaticAlbum: '保存为静态相册',
   photosSvSavedSearchKeepsItself: '已保存的搜索会自动保持最新',
-  photosSvSavedSearchesStayLive: '持续生效的保存搜索。Nimo 会不断评估新照片，把分数超过阈值的都加进来。',
   photosSvSettingsSection: '设置', // 偏离登记:json['Settings']=系统设置,但此处是智能视图右栏段标题误用全局键(Vue2 文案 bug),这里刻意取「设置」而非回源值
   photosSvSharpDogCatPortraits: '清晰的猫狗写真',
   photosSvBadgeSmartView: '智能视图',
@@ -703,11 +766,12 @@ export default {
   photosSvSmartViewRenamed: '智能视图已重命名',
   photosSvSmartViews: '智能视图',
   photosSvSmartViewsAutoUpdate: '智能视图自动更新已关闭',
-  photosSvSnapshotCurrentMatchesStops: '快照当前匹配 —— 停止更新',
+  // SP15-P2b Task 4: disabled-option title on the Albums "New album" panel's 4th fill
+  // choice when the smartview AI feature is off.
+  photosSvSmartViewsOffCreateHint: '智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。',
   photosSvStats: '统计',
   photosSvStrict: '严格',
   photosSvStrictOnlyHighestConfidence: '严格 —— 只保留置信度最高的匹配。',
-  photosSvSuggestions: '建议',
   photosSvSunsetsRoad: '旅途中的日落',
   photosSvSunsetsWhileTravelingNot: '旅行途中而非在家看到的日落',
   photosSvSunsetsSaraOurTokyo: '去年春天在东京和 Sara 一起看的日落',
@@ -742,6 +806,40 @@ export default {
   // 删除/复制失败的 toast(Vue2 均无 catch,New-UI 补上,照既定命名惯例)。
   photosSvDeleteFailed: '删除失败',
   photosSvDuplicateFailed: '复制失败',
+  // ── SP15-P2a: manual asset actions ──
+  // Chinese values are Vue2's own zh_CN.json entries for the same English source strings,
+  // not fresh translations. Five more strings this screen needs are already in this file
+  // under other names and are reused rather than duplicated: photosPersonSelect ('选择'),
+  // photosCancel ('取消'), photosSelectedCount ('已选择 {count} 项' — note the parameter is
+  // `count`, not `n`), photosAlbumPickerTitle and photosMoAddSelected ('添加所选' — the
+  // static label Vue2 :288 hands this screen's picker, not the album pages' counting one).
+  // Final review, finding 2: this key shipped as '加照片', a local shortening nobody asked
+  // for. Vue2's own zh_CN.json:2020 says `"Add photos": "添加照片"`, and the neighbouring
+  // reused photosAlbumPickerTitle already renders 添加照片到「…」, so the screen contradicted
+  // itself as well as the source. Corrected to the Vue2 value; the rule stands that the
+  // Chinese here is copied from Vue2, never translated here.
+  photosSvAddPhotos: '添加照片',
+  photosSvRemoveFromView: '从此视图移除',
+  photosSvRemovedNFromView: '已从此视图移除 {n} 张',
+  photosSvExcludedN: '已排除（{n}）',
+  photosSvAlreadyInView: '已在此视图',
+  photosSvPinnedNToView: '已钉住 {n} 张到此视图',
+  photosSvRestoreFailed: '恢复失败',
+  photosSvRemoveFailed: '移除失败',
+  photosSvAddFailed: '添加失败',
+  photosSvShow: '显示',
+  photosSvHide: '隐藏',
+  photosSvRestore: '恢复',
+  // ── SP15-P2c Task 6: the smart-view detail header's sort capsule + the edit-mode bar's
+  // empty-selection hint. Chinese values are Vue2's own zh_CN.json entries for the same
+  // English source strings (:2145 "Match score", :2012 "Click to select"), not fresh
+  // translations. Everything else the rebuilt row needs already exists in this file and is
+  // reused verbatim rather than duplicated: photosAlbumSort ('排序：'), photosAlbumSortTaken
+  // ('拍摄日期'), photosAlbumEdit ('编辑'), photosAlbumDone ('完成'),
+  // photosDensityComfortable ('舒适'), photosDensityCompact ('紧凑'), photosSelectedCount,
+  // photosSvAddPhotos and photosSvRemoveFromView.
+  photosSortScore: '匹配分数',
+  photosSvClickToSelect: '点击选择',
   // ---- P7a-T9: 搜索面板(过滤条 + 弹层)54 键,照 Vue2 PhotosSearchView.vue 的
   // 英文键逐条核对(zh 值取自 Vue2 src/assets/lang/zh_CN.json),接在文件末尾追加,
   // 不与前面已有键重排。与 T1 已加键语义相同的(Cancel/Close 等)不重复添加。 ----
@@ -769,7 +867,7 @@ export default {
   photosSearchNothingHereYet: '暂无内容',
   photosSearchTypeOcr: 'OCR',
   photosSearchOldest: '最早',
-  photosSearchOpenSmartViews: '在智能视图中打开 →',
+  photosSearchOpenInAlbums: '在相册中打开 →',
   photosSearchPeople: '人物',
   photosSearchTokPerson: '人物',
   photosSearchBadgePhoto: '照片',
@@ -910,4 +1008,84 @@ export default {
   photosAlbumLoadFailed: '相册加载失败',
   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
   photosRetry: '重试',
+  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
+  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
+  // equivalent (Vue2 never paged this endpoint).
+  photosLoadedSubsetHint: '统计基于已加载的前 {n} 项',
+  photosLoadMore: '加载更多',
+  // ── SP15-P1 Moments ──
+  photosMoBadge: '时刻',
+  photosMoTypeTrip: '行程',
+  photosMoTypePets: '宠物',
+  photosMoTypeFamily: '家人',
+  photosMoTypeTheme: '主题',
+  // Same Chinese wording the now-deleted photosSvAddedThisWeek carried (see Minor 6 note in the
+  // Smart Views block above) — not a fresh translation.
+  photosMoAddedThisWeek: '本周 +{n}',
+  photosMoHeroTitle: '时刻 · 为你推荐',
+  photosMoHeroDesc: 'Nimo 会自动把你最好的照片聚成时刻 —— 行程、人物，以及值得重温的主题。',
+  // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
+  // settings hint shown when the band is hidden.
+  photosMoForYou: '为你推荐',
+  photosMoFollowsSmartViewSetting: '「时刻」跟随「智能视图」开关——可在以下位置重新开启',
+  // SP15-P1-T6: shown when moments.reorder() fails a drag-drop and reverts to server order.
+  photosMoOrderSaveFailed: '排序保存失败',
+  // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+  photosMoBackToAll: '全部时刻',
+  photosMoLastUpdated: '最后更新 {time}',
+  // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
+  photosMoNotFound: '找不到这个时刻',
+  photosMoAbout: '关于',
+  photosMoStats: '统计',
+  photosMoType: '类型',
+  photosMoTime: '时间',
+  photosMoPlace: '地点',
+  photosMoByMonth: '按月分布',
+  photosMoSpan: '跨度',
+  photosMoSpanDays: '{n} 天',
+  photosMoLastUpdate: '最后更新',
+  photosMoPhotos: '照片',
+  photosMoFeatured: '精选',
+  // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+  // Deliberately says nothing about whether the moment exists — we do not know.
+  photosMoLoadFailed: '时刻加载失败',
+  // ── SP15-P1-T8: the two photo grids ──
+  photosMoAllPhotos: '全部照片',
+  // Same Chinese wording as filesViewerLoading/aiMentionLoading/etc. — not a fresh
+  // translation, this repo's existing generic "loading" ellipsis.
+  photosMoLoading: '加载中…',
+  photosMoNoPhotosYet: '这个时刻还没有照片。',
+  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
+  // Every string below is Vue 2's own zh_CN copy, taken verbatim from
+  // 899af59b:src/assets/lang/zh_CN.json (:2019/:2020/:2021/:2033/:2045/:2242/:2243 and
+  // "Add failed" at :1598) — not retranslated here.
+  // The picker's *title* deliberately gets no new key: Vue 2 feeds the very same
+  // 'Add photos to {name}' string to the album picker and to the moment picker
+  // (899af59b:PhotosMomentDetail.vue:144), and this repo already has it as
+  // photosAlbumPickerTitle. Reusing it is what reproduces Vue 2 exactly; a second key holding
+  // the identical sentence would not.
+  photosMoAddPhotos: '添加照片',
+  photosMoAlreadyIn: '已在此时刻中',
+  photosMoAddSelected: '添加所选',
+  photosMoAddedN: '已添加 {n} 张到此时刻',
+  photosMoAddFailed: '添加失败',
+  photosMoRemoveFromMoment: '从此时刻中移除',
+  photosMoRemovedN: '已从此时刻移除 {n} 张',
+  photosMoRemoveFailed: '移除失败',
+  // ── SP15-P1-T10: save as album / delete moment ──
+  // Six of the brief's proposed keys already exist verbatim elsewhere in this repo and are
+  // reused rather than duplicated (see PhotosMomentDetail.vue file-header deviation 19):
+  // photosPlacesToastOpen ('打开'), photosSvPhotosStayLibrary ('照片仍保留在你的图库中'),
+  // photosSvDeleteName ('删除「{name}」？'), photosSvDeleteFailed ('删除失败'), photosCancel
+  // ('取消'), photosDelete ('删除'). The seven below are the genuinely new ones — all Vue 2's
+  // own zh_CN copy, taken verbatim from 899af59b:src/assets/lang/zh_CN.json.
+  photosMoSaveAsAlbum: '保存为相册',
+  photosMoAlbumCreated: '已创建相册「{name}」· {count} 张照片',
+  // Vue 2's own translation (:1960) — not '已存在' as the brief's draft test assumed; a test
+  // asserting that substring would be checking a mistranslation, not this feature's real copy.
+  photosMoAlbumExists: '已有同名相册',
+  photosMoAlbumFailed: '相册创建失败',
+  photosMoDeleteMoment: '删除时刻',
+  photosMoDeleteBody: '该时刻会被删除。图库中的 {n} 张照片不受影响。',
+  photosMoDeleted: '时刻「{name}」已删除',
 }

@@ -8,10 +8,11 @@
 // 点卡片跳真路由(Vue2 是页内 openAlbumId state)——router.push('/photos/albums/' + view.id),
 // 铁律:id 可能是数字,字符串拼接自动 toString(),不需要额外 String() 包一层。
 //
-// 排序:接 T1 sortAlbums(不在本视图重写排序逻辑)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
+// 排序:接 util/mixedAlbums.ts 的 sortMixed(不在本视图重写排序逻辑;T2 收官修复见下方
+// views computed 的注释)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
 // 一律 document 级监听(onMounted 挂一次、onUnmounted 摘干净),不用模板 @keydown.esc——
 // 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
-// (不是像 T6 AlbumLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
+// (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
 // 不需要 T5/T6 那种「随 open prop watch 增删监听」的写法。
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -19,23 +20,31 @@ import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosSmartViews, type SmartView } from '../photos/stores/smartViews'
+import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { useToast } from '../stores/toast'
-import { albumToView, sortAlbums, type AlbumView } from '../photos/util/albumView'
+import { albumToView, type AlbumView } from '../photos/util/albumView'
+import { buildMixedAlbums, sortMixed, type MixedSortId } from '../photos/util/mixedAlbums'
 import { isConflict } from '../photos/util/httpErrors'
 
-type SortId = 'updated' | 'created' | 'name' | 'name-r' | 'count' | 'date'
-type SourceId = 'empty' | 'recent' | 'select'
+// SP15-P2b Task 4: 'nimo' is the fourth fill option (Vue2 939a7d3a:PhotosAlbumsView.vue
+// :329-336's sourceOptions, 4th entry) -- picking it swaps the panel body for the
+// embedded smart-view creation form.
+type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
+const smartViews = usePhotosSmartViews()
+const settings = usePhotosSettingsStore()
 const toast = useToast()
 
-const sort = ref<SortId>('updated')
+const sort = ref<MixedSortId>('created')
 const sortOpen = ref(false)
 const sortMenuRef = ref<HTMLElement | null>(null)
 
@@ -51,24 +60,38 @@ const pickerAlbumName = ref('')
 
 // 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
 const sortOptions = computed(() => [
-  { id: 'updated' as SortId, label: t('photosAlbumSortUpdated'), hint: t('photosAlbumSortUpdatedHint') },
-  { id: 'created' as SortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
-  { id: 'name' as SortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
-  { id: 'name-r' as SortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
-  { id: 'count' as SortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
-  { id: 'date' as SortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
+  { id: 'created' as MixedSortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
+  { id: 'name' as MixedSortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
+  { id: 'name-r' as MixedSortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
+  { id: 'count' as MixedSortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
+  { id: 'date' as MixedSortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
 ])
 const sourceOptions = computed(() => [
   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
   { id: 'recent' as SourceId, label: t('photosAlbumFillRecent'), hint: t('photosAlbumFillRecentHint') },
   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
+  // SP15-P2b Task 4 (Vue2 :329-336, 4th entry): picking this swaps the panel body for the
+  // embedded SmartViewCreateDialog instead of opening a second modal.
+  { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
 
-const views = computed<AlbumView[]>(() =>
-  sortAlbums(albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))), sort.value),
+// SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
+// by the single Sort control -- smart albums are no longer pinned to the front.
+const mixedItems = computed(() =>
+  sortMixed(
+    buildMixedAlbums(
+      albums.albums.map((a) => albumToView(a, t('photosAlbumUntitled'))),
+      smartViews.smartViews,
+    ),
+    sort.value,
+  ),
 )
 const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
-const isEmpty = computed(() => albums.albumsLoaded && albums.albums.length === 0)
+
+// Vue2 :79-85 moved this banner from the smart-views page to here along with the smart
+// albums themselves. `=== false` is load-bearing: a missing field and a failed fetch both
+// mean "on" (settings.ts already encodes that), and only an explicit off should warn.
+const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
 function coverUrl(view: AlbumView): string {
   // 只有真实资产 id 才生成缩略图 URL;空相册/无封面落到 .album-cover-fallback 渐变占位
@@ -77,13 +100,28 @@ function coverUrl(view: AlbumView): string {
   return service.photos.thumbnailUrl(view.cover, 'large')
 }
 
-function pickSort(s: { id: SortId }): void {
+// SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue's smartCoverUrl): a smart album card
+// now shows a single cover, seeds[0], exactly like a manual album card -- not the old
+// three-image collage. Missing or empty seeds return '' so the template falls through to the
+// same .album-cover-fallback the manual card uses; it must never render an <img> with an
+// empty src.
+function smartCoverUrl(sv: SmartView): string {
+  const seed = sv.seeds[0]
+  if (!seed) return ''
+  return service.photos.thumbnailUrl(seed, 'large')
+}
+
+function pickSort(s: { id: MixedSortId }): void {
   sort.value = s.id
   sortOpen.value = false
 }
 
 function openCard(view: AlbumView): void {
   router.push('/photos/albums/' + view.id)
+}
+
+function openSmartCard(id: string): void {
+  router.push('/photos/smart-views/' + id)
 }
 
 function openCreate(): void {
@@ -96,43 +134,80 @@ function closeCreate(): void {
   createOpen.value = false
 }
 
-// 照 Vue2 :309-358(去掉 nimo 分支):建成功 → 按 source 分支处理 → toast → finally 关模态。
+// SP15-P2b Task 4 (Vue2 :521-524): clicking the disabled nimo option is a no-op, the same
+// defensive guard the old standalone New Smart Album button had. Reuses `aiSmartViewOff`
+// directly rather than a same-meaning synonym computed.
+function selectSource(s: { id: SourceId }): void {
+  if (s.id === 'nimo' && aiSmartViewOff.value) return
+  newAlbumSource.value = s.id
+}
+
+// SP15-P2b Task 4 (Vue2 :575-578): the embedded form reports success -- the store already
+// unshifted the new smart view into the list, so there is nothing to insert and nowhere to
+// navigate. Just close the shared panel and stay on the list.
+function onSmartAlbumCreated(): void {
+  closeCreate()
+}
+
+// 照 Vue2 :309-358(去掉 nimo 分支,Task 4 补回短路):建成功 → 按 source 分支处理 →
+// toast → finally 关模态。
 async function confirmCreate(): Promise<void> {
+  // SP15-P2b Task 4 (Vue2 :525-530): with nimo picked, the panel body *is* the smart form
+  // and it owns its own submit (SmartViewCreateDialog's confirm()). Falling through here
+  // used to create a throwaway empty manual album first before handing off -- Vue2's own
+  // fix for that bug, ported here rather than reintroduced.
+  if (newAlbumSource.value === 'nimo') return
   const title = newAlbumTitle.value.trim()
   if (!title || creating.value) return
   creating.value = true
   try {
-    const created = await albums.createAlbum(title)
-    const albumId = created?.id as string | number | undefined
-
-    if (newAlbumSource.value === 'recent' && albumId != null) {
-      // 刻意偏离 Vue2 的地方(评审 Important 裁定为新缺陷,本轮已修):Vue2 的相册列表
-      // 从来不是独立路由——它是 PhotosTimeline.vue 内部按 activeNav 切换的 v-else-if 子块
-      // (NimoOS-UI src/router/route.js:206-208 只注册了一个 /photos 路由),而
-      // PhotosTimeline.mounted() 无条件 dispatch fetchTimeline,与 activeNav 无关,所以
-      // Vue2 下"时间线数据必然已加载"是父组件预热带来的结构性保证。New-UI 把相册改成了
-      // 独立真路由(/photos/albums),这层保证不再成立:用户直链/刷新进本页且从未访问过
-      // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
-      // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
-      // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
-      // 终审 Minor 5:判空条件统一改用 timeline.months(AlbumLibraryPicker.vue:114 已是这个
-      // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
-      // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+    // 刻意偏离 Vue2 的地方(评审 Important 裁定为新缺陷,本轮已修):Vue2 的相册列表
+    // 从来不是独立路由——它是 PhotosTimeline.vue 内部按 activeNav 切换的 v-else-if 子块
+    // (NimoOS-UI src/router/route.js:206-208 只注册了一个 /photos 路由),而
+    // PhotosTimeline.mounted() 无条件 dispatch fetchTimeline,与 activeNav 无关,所以
+    // Vue2 下"时间线数据必然已加载"是父组件预热带来的结构性保证。New-UI 把相册改成了
+    // 独立真路由(/photos/albums),这层保证不再成立:用户直链/刷新进本页且从未访问过
+    // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
+    // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
+    // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
+    // 终审 Minor 5:判空条件统一改用 timeline.months(PhotosLibraryPicker.vue:114 已是这个
+    // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
+    // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+    //
+    // Task 8b: bucket mode hands us months without their photos -- the guard above is
+    // satisfied while allPhotos is still empty, which used to make this create an empty
+    // album and report success. Two buckets always cover a 30-day window (the current
+    // month plus the previous one). fetchNewestBuckets is a no-op outside bucket mode, so
+    // the legacy behaviour above is unchanged.
+    let recentIds: Array<string | number> | null = null
+    if (newAlbumSource.value === 'recent') {
       if (timeline.months.length === 0) {
         await timeline.fetchTimeline()
       }
+      await timeline.fetchNewestBuckets(2)
       const cutoff = Date.now() - 30 * 86400000
-      const ids = timeline.allPhotos
+      recentIds = timeline.allPhotos
         .filter((p) => {
           const ts = p.takenAt ? Date.parse(String(p.takenAt)) : 0
           return ts >= cutoff
         })
         .map((p) => p.id)
-      if (ids.length) {
-        await albums.addAssetsToAlbum(albumId, ids)
+      // Task 8b guard: no recent photos in hand -- do not create an empty album and do
+      // not report success. (Previously this always created the album first, then silently
+      // skipped addAssetsToAlbum when ids was empty while still showing the success toast.)
+      if (recentIds.length === 0) {
+        toast.show(t('photosAlbumCreateFailed'))
+        return
       }
+    }
+
+    const created = await albums.createAlbum(title)
+    const albumId = created?.id as string | number | undefined
+
+    if (recentIds && albumId != null) {
+      await albums.addAssetsToAlbum(albumId, recentIds)
     } else if (newAlbumSource.value === 'select' && albumId != null) {
-      // 预取相册资产,使 AlbumLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
+      // 预取相册资产,使 PhotosLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
       await albums.fetchAlbumAssets(albumId)
       pickerAlbumId.value = albumId
       pickerAlbumName.value = title
@@ -151,8 +226,43 @@ async function confirmCreate(): Promise<void> {
   }
 }
 
-function onPickerAdded(): void {
-  void albums.fetchAlbums()
+// SP15-P1-T9 · Step 0: with PhotosLibraryPicker generalised, three things it used to do itself
+// come back to the caller — the write, the success/failure toasts, and closing the panel (the
+// component now only picks photos and hands the ids over). Everything below reproduces its
+// previous behaviour one for one: the same addAssetsToAlbum, the same photosAlbumAddedToast
+// (album name + count), the same photosAlbumAddFailed, closing on success only (a failure leaves
+// the panel up with the selection still in it, ready to retry), and the fetchAlbums refresh that
+// used to hang off `@added`.
+//
+// The String() here is load-bearing, not decoration: album assets come back from the API with
+// numeric ids while timeline photos carry string ids, so without it the picker would stop
+// recognising a single already-in photo. Asserted in this page's own test with a numeric fixture.
+const pickerExistingIds = computed(
+  () => new Set(albums.assetsOf(pickerAlbumId.value).map((p) => String(p.id))),
+)
+// The button label used to be photosAlbumPickerAdd (with the selected count) inside the
+// component; the caller supplies it now. Passing a function rather than a fixed string is what
+// keeps the count moving with the selection (see deviation b in the component's header).
+function pickerSubmitLabel(count: number): string {
+  return t('photosAlbumPickerAdd', { count })
+}
+const pickerAdding = ref(false)
+async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
+  if (pickerAdding.value) return
+  pickerAdding.value = true
+  const albumId = pickerAlbumId.value
+  const name = pickerAlbumName.value
+  try {
+    await albums.addAssetsToAlbum(albumId, ids)
+    toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
+    pickerOpen.value = false
+    void albums.fetchAlbums()
+  } catch (e) {
+    console.error('[albums] addAssetsToAlbum', e)
+    toast.show(t('photosAlbumAddFailed'))
+  } finally {
+    pickerAdding.value = false
+  }
 }
 
 // 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
@@ -189,6 +299,12 @@ function onDocKeydown(e: KeyboardEvent): void {
 
 onMounted(() => {
   void albums.fetchAlbums()
+  // Both fetches are fire-and-forget: the two halves of the grid render independently,
+  // so a smart-view failure must not gate the manual albums. Vue2 :414-417 awaited both
+  // because its deep-link arbitration needed them together -- New-UI has no such
+  // arbitration (usePhotosDeepLinks sends ?smartview= straight to the detail route).
+  void smartViews.fetchSmartViews()
+  void settings.fetchAiFeatures()
   document.addEventListener('mousedown', onDocMousedown)
   document.addEventListener('keydown', onDocKeydown)
 })
@@ -206,7 +322,7 @@ onUnmounted(() => {
         <div class="albums-banner">
           <div>
             <h1>{{ t('photosAlbumsTitle') }}</h1>
-            <div class="albums-sub">{{ t('photosAlbumsCount', { count: views.length }) }}</div>
+            <div class="albums-sub">{{ t('photosAlbumsCount', { count: mixedItems.length }) }}</div>
           </div>
           <div class="albums-actions">
             <div ref="sortMenuRef" class="albums-sort-wrap">
@@ -239,8 +355,16 @@ onUnmounted(() => {
         </div>
 
         <!-- 终审 Important 1:失败态优先级在空态之前——loadError 一旦为真,albumsLoaded 仍是
-             假(刻意,见 albums.ts 注释),不该再落进 isEmpty 分支渲染一个没有任何提示的空网格。
-             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。 -->
+             假(刻意,见 albums.ts 注释),不该再落进空态分支渲染一个没有任何提示的空网格。
+             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。
+             SP15-P2b Task 3 fix round 1 (Important 3): the standalone "isEmpty" panel that
+             used to sit here (data-test="albums-empty") is gone -- it duplicated the section
+             subtitle below with the exact same "还没有相册" copy once smart albums joined the
+             grid, so a genuinely empty library showed the same message twice on screen at
+             once. Vue2 939a7d3a:PhotosAlbumsView.vue:87-95 never had a separate empty panel
+             either -- the section subtitle *is* the empty state there, with the create tile
+             sitting right beside it. The loadError branch above is untouched: it is a real,
+             separate state (fetch failed, not "fetch succeeded with zero results"). -->
         <div v-if="albums.loadError" class="empty-state" data-test="albums-load-error">
           <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
           <button
@@ -250,10 +374,6 @@ onUnmounted(() => {
             :disabled="retryingAlbums"
             @click="retryAlbums"
           >{{ t('photosRetry') }}</button>
-        </div>
-        <div v-else-if="isEmpty" class="empty-state" data-test="albums-empty">
-          <div class="empty-state-title">{{ t('photosAlbumsEmptyTitle') }}</div>
-          <div class="empty-state-desc">{{ t('photosAlbumsEmptyHint') }}</div>
         </div>
 
         <!-- 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染的分区头
@@ -265,39 +385,143 @@ onUnmounted(() => {
              .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
              .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
         <div class="albums-scroll scroll">
+          <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
+               939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
+               Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
+               .albums-ai-banner*) -- see the style block for the token-for-token rule copy.
+               fix round 1 (Minor 2): the two registered deviations on the source banner
+               (PhotosSmartViews.vue:177-178 -- the RouterLink replacing Vue2's non-clickable
+               placeholder span, and not copying Vue2's bare trailing period after the link)
+               still apply to this copy; see that file's own header comment for the full
+               rationale, not restated twice. -->
+          <div v-if="aiSmartViewOff" class="albums-ai-banner" data-test="albums-ai-banner">
+            <div class="albums-ai-banner-icon">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+            </div>
+            <div>
+              <div class="albums-ai-banner-title">{{ t('photosSvSmartViewsAutoUpdate') }}</div>
+              <div class="albums-ai-banner-desc">
+                {{ t('photosSvTheseSavedSearchesStay') }}
+                <RouterLink class="albums-ai-banner-link" data-test="albums-settings-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
+              </div>
+            </div>
+          </div>
+
           <section class="albums-section">
             <div class="albums-section-head">
               <h2>{{ t('photosAlbumsMine') }}</h2>
-              <span class="albums-section-hint">{{ t('photosAlbumsMineHint') }}</span>
+              <!-- SP15-P2b Task 3 fix round 1 (Important 3): this subtitle carries the empty
+                   state itself (Vue2 939a7d3a:PhotosAlbumsView.vue:91-93 has no separate empty
+                   panel, this line is it). Gated on both `albums.albumsLoaded` AND
+                   `smartViews.listLoaded` so it cannot flash the "none yet" copy while either
+                   fetch is still in flight -- before both resolve, mixedItems.length is 0 for
+                   every library, not just an empty one. SP15-P2b Task 4 (fold-in from Task 3's
+                   incomplete guard, see progress.md): the grid is now mixed, so a library with
+                   zero manual albums but pending/nonzero smart views needs the smart half's own
+                   loaded flag too -- gating on the albums fetch alone left a window where the
+                   smart half hadn't landed yet but the guard already read "loaded". -->
+              <span class="albums-section-hint">
+                {{ albums.albumsLoaded && smartViews.listLoaded && mixedItems.length === 0 ? t('photosAlbumsNoneYetHint') : t('photosAlbumsMineHint') }}
+              </span>
             </div>
             <div class="album-grid">
+              <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:96-107): the create
+                   tile matches an album card's total height -- the dashed frame narrows to a
+                   cover-sized .album-create-cover, and two invisible lines of the same spec as
+                   .album-title/.album-meta pad out the rest. Deliberately no hardcoded pixel
+                   height: it follows the theme's own font metrics. -->
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
-                <div class="plus">+</div>
-                <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
-                <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+                <div class="album-create-cover">
+                  <div class="plus">+</div>
+                  <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
+                  <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
+                </div>
+                <div class="album-title" aria-hidden="true" style="visibility:hidden">&nbsp;</div>
+                <div class="album-meta" aria-hidden="true" style="visibility:hidden">&nbsp;</div>
               </div>
-              <div
-                v-for="view in views" :key="view.id"
-                class="album-card"
-                data-test="album-card"
-                :data-id="view.id"
-                @click="openCard(view)"
-              >
-                <div class="album-cover">
-                  <img v-if="coverUrl(view)" :src="coverUrl(view)" :alt="view.title">
-                  <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
-                    <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+              <!-- The kind prefix on :key is load-bearing, not decoration: a manual album's
+                   numeric id and a smart album's string id can collide once they share a
+                   grid (Vue2 :104/:111 uses the same 'sv-' + item.id / item.id split).
+                   SP15-P2c Task 10: it got teeth here. While the smart card was a component
+                   and the manual card a plain <div>, Vue's isSameVNodeType compared (type,
+                   key) as a pair, so a raw-id collision could never be conflated whatever the
+                   key said. Both kinds are plain <div>s now, so this prefix is the only thing
+                   separating them. Measured cost of dropping it (task-10-report.md): the
+                   rendered text stays correct, but every re-sort tears both colliding cards
+                   down and rebuilds them instead of moving them, so their cover images are
+                   re-fetched and re-decoded. Guarded by PhotosAlbums.test.ts's "moves, rather
+                   than rebuilds, a manual album and a smart view that share the same raw id". -->
+              <template v-for="item in mixedItems" :key="item.kind + '-' + item.id">
+                <!-- SP15-P2c Task 10 (Vue2 9f7e941f:PhotosAlbumsView.vue:108-146): the smart
+                     album card is rendered inline with the manual card's shape instead of the
+                     standalone SmartViewCard box (deleted in this task). One cover from
+                     seeds[0], a Smart badge and a Live/Paused breathing dot over it, then the
+                     title and the meta row. Conditions and the threshold are off the card face
+                     -- the detail page carries the full picture, the card only has to be
+                     recognisable.
+                     Task 11 (d): the @click below passes item.sv.id straight through, with no
+                     String() wrapper. SmartView.id is typed `string` (smartViews.ts:28) and every
+                     write path into the store normalises it through toSmartView (smartViews.ts:98),
+                     so the cast was a no-op. -->
+                <div
+                  v-if="item.kind === 'smart'"
+                  class="album-card"
+                  data-test="album-smart-card"
+                  :data-id="item.sv.id"
+                  @click="openSmartCard(item.sv.id)"
+                >
+                  <div class="album-cover">
+                    <img v-if="smartCoverUrl(item.sv)" :src="smartCoverUrl(item.sv)" :alt="item.sv.name">
+                    <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
+                      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+                    </div>
+                    <div class="al-smart-badge">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/><circle cx="12" cy="12" r="3"/></svg>
+                      {{ t('photosSvBadgeSmartView') }}
+                    </div>
+                    <div
+                      class="al-live-dot"
+                      :data-paused="!item.sv.live"
+                      :title="item.sv.live ? t('photosSvLive') : t('photosSvPaused')"
+                    >
+                      <span class="live-dot"></span>
+                    </div>
+                  </div>
+                  <div class="album-title">{{ item.sv.name }}</div>
+                  <div class="album-meta">
+                    <!-- Vue2 renders `{n} photos` here, not the manual card's `{n} items`.
+                         Reusing photosPeoplePhotosCount rather than adding a fifth copy of
+                         that string: its value in both locales is exactly Vue2's own copy for
+                         it, and this repo already reuses that key well outside the People page
+                         (PhotosFavorites.vue:231/239, PersonPlacesTab.vue:86). -->
+                    <span>{{ t('photosPeoplePhotosCount', { n: item.sv.count }) }}</span>
+                    <span class="sep"></span>
+                    <span>{{ item.sv.live ? t('photosSvLive') : t('photosSvPaused') }}</span>
                   </div>
                 </div>
-                <div class="album-title">{{ view.title }}</div>
-                <div class="album-meta">
-                  <span>{{ t('photosItemsCount', { count: view.count }) }}</span>
-                  <template v-if="view.dateRange">
-                    <span class="sep"></span>
-                    <span>{{ view.dateRange }}</span>
-                  </template>
+                <div
+                  v-else
+                  class="album-card"
+                  data-test="album-card"
+                  :data-id="item.view.id"
+                  @click="openCard(item.view)"
+                >
+                  <div class="album-cover">
+                    <img v-if="coverUrl(item.view)" :src="coverUrl(item.view)" :alt="item.view.title">
+                    <div v-else class="album-cover-fallback" data-test="album-cover-fallback">
+                      <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" class="album-cover-icon"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10.5" r="1.5"/><path d="M21 15l-5-5L5 19"/></svg>
+                    </div>
+                  </div>
+                  <div class="album-title">{{ item.view.title }}</div>
+                  <div class="album-meta">
+                    <span>{{ t('photosItemsCount', { count: item.view.count }) }}</span>
+                    <template v-if="item.view.dateRange">
+                      <span class="sep"></span>
+                      <span>{{ item.view.dateRange }}</span>
+                    </template>
+                  </div>
                 </div>
-              </div>
+              </template>
             </div>
           </section>
         </div>
@@ -311,7 +535,7 @@ onUnmounted(() => {
     data-test="albums-create-modal"
     @click.self="closeCreate"
   >
-    <div class="albums-modal">
+    <div class="albums-modal" :class="{ 'albums-modal-wide': newAlbumSource === 'nimo' }">
       <div class="albums-modal-head">
         <div class="albums-modal-head-text">
           <div class="albums-modal-title">{{ t('photosAlbumCreateTitle') }}</div>
@@ -338,7 +562,9 @@ onUnmounted(() => {
           class="albums-source-item"
           :data-active="newAlbumSource === s.id"
           :data-test="'source-' + s.id"
-          @click="newAlbumSource = s.id"
+          :disabled="s.id === 'nimo' && aiSmartViewOff"
+          :title="s.id === 'nimo' && aiSmartViewOff ? t('photosSvSmartViewsOffCreateHint') : undefined"
+          @click="selectSource(s)"
         >
           <div class="radio" :data-active="newAlbumSource === s.id"><div v-if="newAlbumSource === s.id" class="dot"></div></div>
           <div class="src-text">
@@ -348,7 +574,19 @@ onUnmounted(() => {
         </button>
       </div>
 
-      <div class="albums-modal-foot">
+      <!-- SP15-P2b Task 4 (Vue2 :519-524's mirror on the panel body): source==='nimo'
+           swaps the panel body for the embedded smart form, owning its own submit --
+           two submit entry points side by side would be ambiguous, so the host footer
+           hides while it is shown. -->
+      <SmartViewCreateDialog
+        v-if="newAlbumSource === 'nimo'"
+        :open="true"
+        embedded
+        :initial-name="newAlbumTitle"
+        @created="onSmartAlbumCreated"
+        @close="closeCreate"
+      />
+      <div v-else class="albums-modal-foot">
         <button type="button" class="albums-btn-ghost" @click="closeCreate">{{ t('photosCancel') }}</button>
         <button
           type="button"
@@ -363,12 +601,15 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <AlbumLibraryPicker
+  <PhotosLibraryPicker
     :open="pickerOpen"
-    :album-id="pickerAlbumId"
-    :album-name="pickerAlbumName"
+    :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
+    :existing-ids="pickerExistingIds"
+    :existing-label="t('photosAlbumPickerAlready')"
+    :submit-label="pickerSubmitLabel"
+    :submitting="pickerAdding"
     @update:open="pickerOpen = $event"
-    @added="onPickerAdded"
+    @confirm="onPickerConfirm"
   />
 </template>
 
@@ -409,9 +650,39 @@ onUnmounted(() => {
 .sort-text .lbl { font-weight: 500; }
 .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
 
+/* ── SP15-P2b Task 3: AI-off banner ── token values and inner sizes copied from
+   PhotosSmartViews.vue's old .svs-banner* (renamed .albums-ai-banner*); see that file's own
+   header comment for why --dem-fg/--dem-bg/--dem-bd rather than the Vue2 source's inline amber
+   literals.
+   Final fix wave -- the OUTER margin is not copied from there. The right reference for this
+   surface is Vue2's own Albums-page banner (939a7d3a:PhotosAlbumsView.vue:79,
+   `margin:0 0 20px`): it sits flush with the section head and the grid below it. Inheriting the
+   other page's `24px 32px 20px` indented this banner 32px further in than everything else on
+   the page. */
+.albums-ai-banner {
+  margin: 0 0 20px; padding: 14px 16px;
+  background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.albums-ai-banner-icon {
+  width: 26px; height: 26px; border-radius: 7px;
+  background: color-mix(in srgb, var(--dem-fg) 18%, transparent); color: var(--dem-fg);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
+.albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
+.albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+
 /* ── 分区头 + Grid ──
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
-   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。 */
+   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
+   SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
+   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's old .sv-grid) --
+   the two card kinds now share one grid, and a smart card is therefore narrower here than it
+   used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
+   apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
+   minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
+   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width. */
 .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
 .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
 .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
@@ -419,13 +690,18 @@ onUnmounted(() => {
 .album-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
 }
-.album-create {
+/* SP15-P2c Task 10 (Vue2 9f7e941f:photos.scss's .album-create split): the tile's outer box is
+   now the same vertical flex column as .album-card, and the dashed frame moved inward to
+   .album-create-cover so the two invisible text lines below it can pad the tile out to a
+   card's total height. */
+.album-create { display: flex; flex-direction: column; gap: 8px; padding: 4px; cursor: pointer; }
+.album-create-cover {
   aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
   background: var(--chip-bg); display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 10px; color: var(--fg-muted); cursor: pointer;
+  justify-content: center; gap: 10px; color: var(--fg-muted);
   transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
 }
-.album-create:hover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
+.album-create:hover .album-create-cover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
 .album-create .plus { width: 40px; height: 40px; border-radius: 50%; background: var(--chip-bg-hi); display: flex; align-items: center; justify-content: center; font-size: 20px; }
 .album-create-label { font-size: 12.5px; font-weight: 500; }
 .album-create-hint { font-size: 11px; opacity: 0.75; }
@@ -449,6 +725,55 @@ onUnmounted(() => {
 .album-meta { font-size: 11.5px; color: var(--fg-muted); padding: 0 4px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
 .album-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--fg-muted); opacity: 0.6; }
 
+/* ── SP15-P2c Task 10: Smart badge + Live/Paused dot overlaid on a smart album's cover
+   (Vue2 9f7e941f:photos.scss's .al-smart-badge / .al-live-dot). Both are new class names on
+   purpose: the old .sv-collage-badge / .sv-collage-status pair was sized for the 16:9 collage
+   and is still in use by MomentCard, so these are a size smaller to fit the 4:5 cover. */
+.al-smart-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 1;
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px 2px 5px; border-radius: var(--chip-radius, 999px);
+  /* accent family via color-mix -- this repo has no --accent-rgb, same technique as the
+     badge on MomentCard. Not a literal, so no exemption needed. */
+  background: color-mix(in srgb, var(--accent) 85%, transparent);
+  backdrop-filter: var(--blur);
+  font-size: 9.5px; font-weight: 600;
+  /* theme-exception: badge text and icon sit on top of the cover photograph and need a fixed
+     light foreground in both themes. --on-accent is wrong here (in the dark theme it is a deep
+     navy, meant for text on a solid accent fill). Same precedent as PhotosGrid.vue .tile-vid. */
+  color: #fff;
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.al-live-dot {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  /* theme-exception: fixed dark bubble pinned over the cover photograph, constant across
+     themes so the dot inside it stays readable. Same precedent as PhotosGrid.vue .tile-vid. */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: var(--blur);
+}
+/* The second sub-commit of Vue2 9f7e941f. Every pre-existing .live-dot rule was a descendant
+   selector bound to a different ancestor, so inside .al-live-dot the dot inherited nothing and
+   rendered as a hollow ring. Size, colour and the breathing animation are restated explicitly
+   here; the values match the ones the old collage status pill used. */
+.al-live-dot .live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  /* theme-exception: live indicator fixed on the dark bubble above, constant across themes. */
+  background: #34C759; box-shadow: 0 0 6px #34C759;
+  animation: pulse 1.6s infinite;
+}
+.al-live-dot[data-paused="true"] .live-dot {
+  /* theme-exception: paused indicator, same fixed-bubble rationale as the live one above. */
+  background: #FF9F0A; box-shadow: 0 0 6px #FF9F0A;
+  animation: none;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── New album modal ── */
 .albums-modal-scrim {
   position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
@@ -459,6 +784,18 @@ onUnmounted(() => {
 .albums-modal {
   width: min(440px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
   border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 20px 22px 18px;
+}
+/* SP15-P2b Task 4 (Vue2 photos.scss's .albums-modal.albums-modal-wide): the embedded form
+   is a two-column layout (body + preview rail); 440px cannot hold it. Widen to the
+   standalone dialog's own width and become a flex column so the embedded .sv-modal's
+   flex:1 (SmartViewCreateDialog.vue's .sv-modal.sv-modal-embedded) has a fixed-height
+   column to fill instead of being sized by its own content and clipped. */
+.albums-modal.albums-modal-wide {
+  width: min(820px, 100%);
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 .albums-modal-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
 .albums-modal-head-text { flex: 1 1 auto; min-width: 0; }
@@ -485,6 +822,9 @@ onUnmounted(() => {
 }
 .albums-source-item:hover { background: var(--chip-bg-hi); }
 .albums-source-item[data-active="true"] { border-color: var(--accent); background: var(--accent-soft); }
+/* SP15-P2b Task 4: the nimo option's disabled state when Smart Views are off (Vue2 :521-524's
+   own defensive guard, same as the old standalone New Smart Album button's disabled style). */
+.albums-source-item:disabled { opacity: 0.5; cursor: not-allowed; }
 .radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--chip-border); flex: 0 0 auto; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
 .radio[data-active="true"] { border-color: var(--accent); }
 .radio .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }

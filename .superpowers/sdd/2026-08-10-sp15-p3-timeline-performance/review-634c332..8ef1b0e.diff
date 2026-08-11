@@ -1,0 +1,91 @@
+# Review package: 634c332..HEAD
+
+## Commits
+8ef1b0e fix(photos): layer month-skeleton sweep on ::after instead of overwriting chip-bg
+
+## Files changed
+ src/photos/components/PhotosGrid.vue | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+## Diff
+diff --git a/src/photos/components/PhotosGrid.vue b/src/photos/components/PhotosGrid.vue
+index f57c9af..d37013f 100644
+--- a/src/photos/components/PhotosGrid.vue
++++ b/src/photos/components/PhotosGrid.vue
+@@ -79,22 +79,22 @@ const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | InstanceTyp
+ const activeMonth = ref('')
+ const TICK_STEP = 55
+ const TICK_PAD = 12
+ 
+ const filteredMonths = computed(() => (props.months || []).map(m => ({
+   ...m,
+   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
+ })))
+ 
+ // Container width drives the column count (auto-fill/minmax), so it is read from
+-// the scroll wrap. It stays a ref rather than a getter because a resize has to
+-// re-run the estimates.
++// the scroll wrap. Measured once at mount below; re-measuring on resize/window
++// changes is not wired up yet (Task 7 owns the observer that will do it).
+ const wrapWidth = ref(0)
+ function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
+ 
+ function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
+   return skeletonItemCount({
+     tab: props.tab,
+     count: m.count,
+     videoCount: m.videoCount,
+     loaded: m.loaded,
+     loadedLength: m.filtered.length,
+@@ -420,37 +420,47 @@ onBeforeUnmount(() => {
+ 
+ .month-group { margin-bottom: 22px; }
+ .month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px 10px; }
+ .month-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+ .month-count { margin-left: auto; font-size: 12px; color: var(--fg-muted); }
+ 
+ .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
+ .grid[data-density="compact"] { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
+ .grid[data-density="loose"] { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+ 
+-/* Unloaded month placeholder. The gentle sweep is the only thing telling the
+-   user this block is still arriving rather than empty; it reuses the existing
+-   surface tokens so both skins stay correct. */
++/* Unloaded month placeholder. In :root, --chip-bg is a gradient (no solid
++   background-color component) — putting the sweep's `background-image` on the
++   same rule as `background: var(--chip-bg)` would overwrite that gradient
++   outright, leaving nothing but the sweep in the dark theme. Layering the
++   sweep on ::after instead keeps both: the surface tint on the element itself,
++   the moving highlight on a separate paint layer on top of it. */
+ .month-skeleton {
++  position: relative;
++  overflow: hidden;
+   border-radius: 8px;
+   background: var(--chip-bg);
++}
++.month-skeleton::after {
++  content: '';
++  position: absolute;
++  inset: 0;
+   background-image: linear-gradient(90deg, transparent 0%, var(--hover) 50%, transparent 100%);
+   background-size: 40% 100%;
+   background-repeat: no-repeat;
+   animation: month-skeleton-sweep 1.4s ease-in-out infinite;
+ }
+ @keyframes month-skeleton-sweep {
+   0% { background-position: -40% 0; }
+   100% { background-position: 140% 0; }
+ }
+ @media (prefers-reduced-motion: reduce) {
+-  .month-skeleton { animation: none; }
++  .month-skeleton::after { animation: none; }
+ }
+ 
+ .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
+ .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+ .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+ 
+ .tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
+ .tile-check-box { opacity: 0; cursor: pointer; }
+ .tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
+ 

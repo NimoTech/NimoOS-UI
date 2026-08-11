@@ -1,0 +1,419 @@
+# Review package: 8ef1b0e..HEAD
+
+## Commits
+6aa423d feat(photos): window month sections with an IntersectionObserver
+
+## Files changed
+ src/photos/components/PhotosGrid.vue               | 100 ++++++++++++++++++-
+ src/photos/components/__tests__/PhotosGrid.test.ts | 109 ++++++++++++++++++++-
+ 2 files changed, 204 insertions(+), 5 deletions(-)
+
+## Diff
+diff --git a/src/photos/components/PhotosGrid.vue b/src/photos/components/PhotosGrid.vue
+index d37013f..5f08ac6 100644
+--- a/src/photos/components/PhotosGrid.vue
++++ b/src/photos/components/PhotosGrid.vue
+@@ -19,21 +19,21 @@
+ //     (Vuex `isSearchMode` dependency dropped).
+ //  4. i18n: `$t('English source')` -> `t('photosXxx')` (Task 4 key table).
+ //  5. Styling rebuilt on New-UI tokens; fixed video-chrome colors (badge bg/fg)
+ //     carry `theme-exception` comments, same precedent as MediaViewer/ViewerShell.
+ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import type { Month, Photo } from '../util/assetToPhoto'
+ import { computeFrameFromX } from '../util/hoverScrub'
+ import { matchesTab } from '../util/tabFilter'
+-import { estimateSectionBodyHeight, skeletonItemCount, MONTH_HEAD_HEIGHT } from '../util/gridMetrics'
++import { estimateSectionBodyHeight, skeletonItemCount } from '../util/gridMetrics'
+ import { usePhotosFavorites } from '../stores/favorites'
+ import VideoHoverPreview from './VideoHoverPreview.vue'
+ 
+ // P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
+ // 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
+ // 硬编码渲染 `.tile-check` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
+ // 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
+ const props = withDefaults(defineProps<{
+   months: Month[]
+   tab?: string
+@@ -79,22 +79,23 @@ const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | InstanceTyp
+ const activeMonth = ref('')
+ const TICK_STEP = 55
+ const TICK_PAD = 12
+ 
+ const filteredMonths = computed(() => (props.months || []).map(m => ({
+   ...m,
+   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
+ })))
+ 
+ // Container width drives the column count (auto-fill/minmax), so it is read from
+-// the scroll wrap. Measured once at mount below; re-measuring on resize/window
+-// changes is not wired up yet (Task 7 owns the observer that will do it).
++// the scroll wrap. Measured at mount, and re-measured whenever the month set
++// changes (see the windowing watch below) — there is no resize listener, so a
++// bare window resize with the same set of months does not re-measure.
+ const wrapWidth = ref(0)
+ function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
+ 
+ function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
+   return skeletonItemCount({
+     tab: props.tab,
+     count: m.count,
+     videoCount: m.videoCount,
+     loaded: m.loaded,
+     loadedLength: m.filtered.length,
+@@ -111,20 +112,88 @@ function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
+   return estimateSectionBodyHeight({
+     containerWidth: wrapWidth.value,
+     density: props.density,
+     itemCount: skeletonCountOf(m),
+   })
+ }
+ function isLoaded(m: Month & { filtered: Photo[] }): boolean {
+   return m.loaded !== false
+ }
+ 
++// ─── month-section windowing ────────────────────────────────────────────
++// Far-away months keep their container (anchors and scroll length depend on
++// it) but drop their tiles, so the DOM stays a constant size no matter how
++// far the user scrolls. Which months count as near is left to the browser:
++// rootMargin gives it two viewports of slack in both directions.
++const WINDOW_MARGIN = '200% 0px'
++const activeKeys = ref<Set<string>>(new Set())
++// Measured heights survive a section being torn down, so a placeholder can
++// keep the exact height its tiles had — this is what stops the scrollbar
++// from jumping. Not reactive: it is only read while rendering a section that
++// just changed.
++const measuredHeights = new Map<string, number>()
++let observer: IntersectionObserver | null = null
++const windowingActive = ref(false)
++
++function keyOf(el: Element): string { return (el.id || '').replace(/^m-/, '') }
++
++function onIntersect(entries: IntersectionObserverEntry[]) {
++  const next = new Set(activeKeys.value)
++  for (const entry of entries) {
++    const key = keyOf(entry.target)
++    if (!key) continue
++    if (entry.isIntersecting) {
++      next.add(key)
++      const m = filteredMonths.value.find((x) => x.key === key)
++      // Only bucket-backed months have something to fetch; a synthetic group
++      // (favorites, place assets) has loaded === undefined and must never emit.
++      if (m && m.loaded === false) emit('need-bucket', key)
++    } else {
++      const el = entry.target as HTMLElement
++      const h = el.offsetHeight
++      // Record before dropping the tiles: once they are gone the height is
++      // the placeholder's own, which would ratchet the section down over time.
++      if (h > 0) measuredHeights.set(key, h)
++      next.delete(key)
++    }
++  }
++  activeKeys.value = next
++}
++
++function syncObserver() {
++  if (!observer) return
++  observer.disconnect()
++  // Scan for `.month-group` and match by id string rather than
++  // document.getElementById or a CSS id-selector: @vue/test-utils mounts
++  // components detached from the live document (getElementById only ever
++  // searches the document tree), and month keys like "2026-08" would need
++  // escaping to be a valid CSS id-selector token in the first place.
++  const root = wrapRef.value
++  if (!root) return
++  const wanted = new Set(filteredMonths.value.filter(hasContent).map((m) => `m-${m.key}`))
++  root.querySelectorAll('.month-group').forEach((el) => {
++    if (wanted.has(el.id)) observer!.observe(el)
++  })
++}
++
++function isWindowed(m: Month & { filtered: Photo[] }): boolean {
++  // No IntersectionObserver in the environment (jsdom, or an older browser)
++  // -> render everything, exactly the pre-windowing behaviour. Every test in
++  // this file that does NOT install FakeIO relies on this fallback.
++  if (!windowingActive.value) return true
++  return activeKeys.value.has(m.key)
++}
++function placeholderHeight(m: Month & { filtered: Photo[] }): number | null {
++  const h = measuredHeights.get(m.key)
++  return h != null && h > 0 ? h : null
++}
++
+ const selecting = computed(() => props.selected.length > 0)
+ 
+ const scrubberTicks = computed(() => {
+   const ticks: Array<{ label: string; major: boolean; key: string }> = []
+   const seenYears = new Set<string>()
+   ;(props.months || []).forEach(m => {
+     // Skip groups without a YYYY-MM key (synthetic single groups), which have
+     // no month tick and must not crash the split below.
+     if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) return
+     const [year, mo] = m.key.split('-')
+@@ -284,32 +353,45 @@ function onVideoLeave() {
+   clearTimeout(hoverTimer)
+   stopAutoAdvance()
+   hoverToken++ // ★ invalidate any in-flight request
+   cancelAnimationFrame(moveRaf)
+   moveRaf = 0
+   previewVisible.value = false
+   hoveredVideo.value = null
+   spriteUrl.value = ''
+ }
+ 
++// Month set changing (directory refresh adds/removes months) invalidates both
++// the width measurement and which containers the observer is watching.
++watch(() => filteredMonths.value.map((m) => m.key).join('|'), () => {
++  void nextTick().then(() => { measureWrap(); syncObserver() })
++})
++
+ onMounted(() => {
+   measureWrap()
+   const first = filteredMonths.value.find(hasContent)
+   if (first) activeMonth.value = first.key
+   onScroll()
++  if (typeof IntersectionObserver !== 'undefined') {
++    observer = new IntersectionObserver(onIntersect, { root: wrapRef.value, rootMargin: WINDOW_MARGIN })
++    windowingActive.value = true
++    syncObserver()
++  }
+ })
+ onBeforeUnmount(() => {
+   stopAutoAdvance()
+   clearTimeout(hoverTimer)
+   hoverToken++ // invalidate any in-flight sprite request so it can't set state after unmount
+   cancelAnimationFrame(moveRaf)
+   moveRaf = 0
++  observer?.disconnect()
++  observer = null
+ })
+ </script>
+ 
+ <template>
+   <div class="photos-grid-root">
+     <div ref="wrapRef" class="photos-wrap scroll" @scroll="onScroll">
+       <div v-if="!anyContent" class="empty-state" data-test="empty-state">
+         <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
+         <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
+       </div>
+@@ -319,21 +401,21 @@ onBeforeUnmount(() => {
+              evaluates before v-for's scope var exists) — wrap with <template>
+              so `m` stays in scope, matching Vue2's per-item v-if filtering. -->
+         <template v-for="m in filteredMonths" :key="m.key">
+           <div v-if="hasContent(m)" :id="'m-' + m.key" class="month-group">
+             <div class="month-head">
+               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
+               <div class="month-count">
+                 {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
+               </div>
+             </div>
+-            <div v-if="isLoaded(m)" class="grid" :data-density="density">
++            <div v-if="isLoaded(m) && isWindowed(m)" class="grid" :data-density="density">
+               <div
+                 v-for="p in m.filtered" :key="p.id"
+                 class="tile"
+                 :data-selected="isSelected(p.id)"
+                 @click="onTileClick(p)"
+                 @mouseenter="p.isVideo && onVideoEnter(p, $event)"
+                 @mousemove="p.isVideo && onVideoMove($event)"
+                 @mouseleave="p.isVideo && onVideoLeave()"
+               >
+                 <img :src="thumbnailSrc(p.id)" alt="" loading="lazy" @error="onThumbError">
+@@ -366,20 +448,26 @@ onBeforeUnmount(() => {
+                   :aria-label="fav.isFav(p.id) ? t('photosUnfavorite') : t('photosFavorite')"
+                   @click.stop="fav.toggle(p.id)"
+                 >
+                   <svg viewBox="0 0 24 24" width="14" height="14" :fill="fav.isFav(p.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+                 </button>
+                 <div v-if="p.isVideo" class="tile-vid">
+                   <span class="vid-play">▶</span> {{ p.duration }}
+                 </div>
+               </div>
+             </div>
++            <div
++              v-else-if="isLoaded(m) && placeholderHeight(m) !== null"
++              class="month-placeholder"
++              data-test="month-placeholder"
++              :style="{ height: placeholderHeight(m) + 'px' }"
++            ></div>
+             <div
+               v-else
+               class="month-skeleton"
+               data-test="month-skeleton"
+               :style="{ height: sectionBodyHeight(m) + 'px' }"
+             ></div>
+           </div>
+         </template>
+       </template>
+ 
+@@ -449,20 +537,24 @@ onBeforeUnmount(() => {
+   animation: month-skeleton-sweep 1.4s ease-in-out infinite;
+ }
+ @keyframes month-skeleton-sweep {
+   0% { background-position: -40% 0; }
+   100% { background-position: 140% 0; }
+ }
+ @media (prefers-reduced-motion: reduce) {
+   .month-skeleton::after { animation: none; }
+ }
+ 
++/* A section that has been rendered once and scrolled away: same height, no
++   content, no shimmer — nothing is pending here. */
++.month-placeholder { border-radius: 8px; }
++
+ .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
+ .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+ .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+ 
+ .tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
+ .tile-check-box { opacity: 0; cursor: pointer; }
+ .tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
+ 
+ .tile-fav {
+   position: absolute; top: 6px; right: 6px; z-index: 2;
+diff --git a/src/photos/components/__tests__/PhotosGrid.test.ts b/src/photos/components/__tests__/PhotosGrid.test.ts
+index f5a5b6f..2fefd3f 100644
+--- a/src/photos/components/__tests__/PhotosGrid.test.ts
++++ b/src/photos/components/__tests__/PhotosGrid.test.ts
+@@ -3,21 +3,21 @@
+ //  - thumbnailSrc/hoverVideoSrc/spriteUrl go through the shared `service.photos.*`
+ //    package (mocked below), never hand-built `/v1/...` strings.
+ //  - spriteMeta resolves { frames, durationMs, frameW, frameH } directly (no
+ //    {ok,stale,url} envelope) — the component itself must guard staleness via
+ //    hoverToken, matching Vue2's loadSpriteMeta semantics.
+ //  - P1 restyle (SP7 acceptance feedback): per-tile checkbox is now the
+ //    Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`),
+ //    and the selection action bar moved out of this component entirely — it
+ //    now lives in the parent as PhotosSelectionToolbar.vue, so this component
+ //    no longer emits batch-delete/cancel.
+-import { describe, it, expect, vi, beforeEach } from 'vitest'
++import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { nextTick } from 'vue'
+ import { createPinia, setActivePinia } from 'pinia'
+ 
+ const svc = vi.hoisted(() => ({
+   photos: {
+     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
+     spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
+     spriteMeta: vi.fn(),
+@@ -477,10 +477,117 @@ describe('PhotosGrid bucket-mode skeletons', () => {
+     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+   })
+ 
+   it('leaves legacy month groups (no loaded field) rendering exactly as before', async () => {
+     const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+     await nextTick()
+     expect(w.findAll('.tile')).toHaveLength(1)
+     expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+   })
+ })
++
++class FakeIO {
++  static instances: FakeIO[] = []
++  cb: IntersectionObserverCallback
++  targets: Element[] = []
++  constructor(cb: IntersectionObserverCallback) { this.cb = cb; FakeIO.instances.push(this) }
++  observe(el: Element) { this.targets.push(el) }
++  unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el) }
++  disconnect() { this.targets = [] }
++  takeRecords(): IntersectionObserverEntry[] { return [] }
++  fire(el: Element, isIntersecting: boolean) {
++    this.cb(
++      [{ target: el, isIntersecting } as unknown as IntersectionObserverEntry],
++      this as unknown as IntersectionObserver,
++    )
++  }
++}
++
++describe('PhotosGrid windowing', () => {
++  beforeEach(() => {
++    FakeIO.instances = []
++    ;(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIO
++  })
++  afterEach(() => {
++    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
++  })
++
++  const loadedMonth = (key: string, ids: string[]): Month => ({
++    key, title: key, loc: '', photos: ids.map((id) => photo(id)), loaded: true, count: ids.length, videoCount: 0,
++  })
++
++  it('observes every month container', async () => {
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
++    await nextTick()
++    expect(FakeIO.instances[0].targets).toHaveLength(2)
++  })
++
++  it('asks for a bucket when an unloaded month enters the window', async () => {
++    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
++    await nextTick()
++    const io = FakeIO.instances[0]
++    io.fire(w.find('#m-2026-08').element, true)
++    await nextTick()
++    expect(w.emitted('need-bucket')?.[0]).toEqual(['2026-08'])
++  })
++
++  it('never asks for a bucket for a group that has no bucket at all', async () => {
++    // Favorites and place-assets feed synthetic groups: loaded is undefined.
++    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
++    await nextTick()
++    FakeIO.instances[0].fire(w.find('#m-2026-08').element, true)
++    await nextTick()
++    expect(w.emitted('need-bucket')).toBeUndefined()
++  })
++
++  it('swaps a rendered month for a measured placeholder when it leaves the window', async () => {
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' } })
++    await nextTick()
++    const el = w.find('#m-2026-08').element as HTMLElement
++    const io = FakeIO.instances[0]
++    io.fire(el, true)
++    await nextTick()
++    // jsdom reports offsetHeight 0; stub it so the measurement path is exercised.
++    Object.defineProperty(el, 'offsetHeight', { configurable: true, value: 321 })
++    io.fire(el, false)
++    await nextTick()
++    expect(w.findAll('.tile')).toHaveLength(0)
++    const ph = w.find('[data-test="month-placeholder"]')
++    expect(ph.exists()).toBe(true)
++    expect(ph.attributes('style')).toContain('321px')
++  })
++
++  it('renders tiles again when the month comes back into the window', async () => {
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
++    await nextTick()
++    const el = w.find('#m-2026-08').element as HTMLElement
++    const io = FakeIO.instances[0]
++    io.fire(el, true); await nextTick()
++    io.fire(el, false); await nextTick()
++    io.fire(el, true); await nextTick()
++    expect(w.findAll('.tile')).toHaveLength(1)
++  })
++
++  it('renders everything when IntersectionObserver is missing', async () => {
++    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
++    await nextTick()
++    expect(w.findAll('.tile')).toHaveLength(2)
++    expect(w.find('[data-test="month-placeholder"]').exists()).toBe(false)
++  })
++
++  it('disconnects the observer on unmount', async () => {
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
++    await nextTick()
++    const io = FakeIO.instances[0]
++    w.unmount()
++    expect(io.targets).toHaveLength(0)
++  })
++
++  it('observes a month that appears after a directory refresh', async () => {
++    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
++    await nextTick()
++    await w.setProps({ months: [loadedMonth('2026-08', ['a1']), bucketMonth('2026-07', 'July 2026', 4)] })
++    await nextTick()
++    expect(FakeIO.instances[0].targets).toHaveLength(2)
++  })
++})

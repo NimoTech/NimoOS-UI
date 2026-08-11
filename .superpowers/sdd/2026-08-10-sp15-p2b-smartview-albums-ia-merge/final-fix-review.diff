@@ -1,0 +1,1735 @@
+# Scoped re-review package — SP15-P2b final fix wave
+# Range: caae33f..HEAD
+
+## Commits
+f09b392 docs(sp15): correct the P2b acceptance checklist's step 0
+24b1b89 docs(sp15): record the P2b final fix wave and acceptance checklist
+63142a3 fix(photos): finish the album/smart-view conversion round trip
+00fd8c8 fix(photos): keep the For You hero when there are no moments
+
+## Stat
+ .../final-fix-report.md                            | 287 +++++++++++++++++++++
+ docs/superpowers/2026-08-10-sp15-p2b-acceptance.md | 154 +++++++++++
+ src/i18n/en_us.photos.ts                           |   2 +-
+ src/i18n/zh_cn.photos.ts                           |   6 +-
+ src/photos/components/SmartViewCreateDialog.vue    |   8 +-
+ .../__tests__/AlbumConvertToSmartDialog.test.ts    |  35 +++
+ .../__tests__/SmartViewCreateDialog.test.ts        |  24 ++
+ src/photos/stores/__tests__/albums.test.ts         |  32 +++
+ src/photos/stores/__tests__/smartViews.test.ts     |  24 ++
+ src/photos/stores/albums.ts                        |  29 ++-
+ src/photos/stores/smartViews.ts                    |  37 ++-
+ src/photos/util/__tests__/albumView.test.ts        |   2 +-
+ src/photos/util/__tests__/mixedAlbums.test.ts      |   2 +-
+ src/photos/util/albumView.ts                       |   9 +-
+ src/views/PhotosAlbumDetail.vue                    |  38 ++-
+ src/views/PhotosAlbums.vue                         |  29 ++-
+ src/views/PhotosSmartViewDetail.vue                |  38 ++-
+ src/views/PhotosSmartViews.moments.test.ts         |  61 +++--
+ src/views/PhotosSmartViews.vue                     |  74 ++++--
+ src/views/__tests__/PhotosAlbums.test.ts           |   4 +-
+ src/views/__tests__/PhotosSmartViewDetail.test.ts  |  36 ++-
+ 21 files changed, 833 insertions(+), 98 deletions(-)
+
+## Full diff (-U10)
+diff --git a/docs/superpowers/2026-08-10-sp15-p2b-acceptance.md b/docs/superpowers/2026-08-10-sp15-p2b-acceptance.md
+new file mode 100644
+index 0000000..9942939
+--- /dev/null
++++ b/docs/superpowers/2026-08-10-sp15-p2b-acceptance.md
+@@ -0,0 +1,154 @@
++# SP15-P2b 真机验收清单（智能视图并入 Albums·IA 合并）
++
++> 分支 `sp15-photos-moments`，代码末位 `caae33f`。**未部署、未推 origin、未合 master。**
++> 六道门在 `caae33f` 上全绿：vue-tsc 干净 · `pnpm test` 686 文件/10920 例 ·
++> i18n parity 9 例 · oss 导出 DELETE 78/REPLACE 4/PATCH 258 零真实泄漏 ·
++> `pnpm build` 17.09s · color-guard 4 文件/1078 例。与 master 无冲突。
++
++---
++
++## 第 0 步（必读，跳过会验出假缺陷）
++
++`/photos/smart-views` **现在是「时刻 · 为你推荐」专页** —— 智能视图的网格、创建入口、
++停更横幅全部搬去了 `/photos/albums`。
++
++本机 `moments` 表是 **0 行**。**隐藏的只有卡片网格，标题必须始终在。**
++
++> ⚠️ **这一条在终审后被推翻过，务必照现在这版验。** 初版清单曾写「看到近乎空白是预期行为」——
++> 那是错的，而且错得很危险：当时 `.mo-section` 连 `<h1>` 一起被关进了 `v-if="showMoments"`，
++> 0 个时刻时整页除侧栏外**什么都没有**，而清单把它预先声明成了"预期"，还有一条测试把它钉成
++> 了"正确"。回源 Vue2 目标态（`939a7d3a:PhotosSmartViewsView.vue:18-31`）确认：`.mo-section`
++> 与 `.mo-hero` 是**无条件渲染**的，只有 `.sv-grid.mo-grid` 带 `v-if`。已修（`00fd8c8`）。
++
++所以这一页在 0 个时刻时的**正确**表现是：
++- 「时刻 · 为你推荐」大标题 + 副标题**在**
++- 卡片网格**不在**
++- AI 开关开着时也**没有**提示条（提示条只在开关关闭时出现）
++
++要看到卡片，先在浏览器 F12 控制台发一次重算，再刷新：
++
++要看到内容，先在浏览器 F12 控制台发一次重算，再刷新：
++
++```js
++// 在 /app/ 任意页面的控制台里执行（带上 localStorage 里的 token）
++await fetch('/v1/photos/moments/recompute', {
++  method: 'POST',
++  headers: { Authorization: 'Bearer ' + JSON.parse(localStorage.getItem('nimoos-token')).access_token },
++})
++```
++
++> `curl` 直打必 401 —— Photos 的 localhost 白名单是 fail-closed 精确匹配，只放行
++> `POST /search/smart` 与 `GET /albums`。token 的 localStorage 键名以现场为准，
++> 上面那行按当前实现写；取不到就在控制台 `localStorage` 里翻一下。
++
++## 降级声明（照 SP14 `#136`/`#141` 先例提前说明，不假装验过）
++
++本机 9 个智能视图**全是语义条件且从未评估过**，撞的是 BE-1
++（`text.token_embedding.weight` 缺 1.1 GB）。所以：
++
++- 新建的智能相册若用**语义**主题，匹配数恒为 0 —— 这是后端模型缺件，不是本期缺陷。
++- 第 9 步因此**指定用日期类主题**（如「2025 年 6 月」），绕开 CLIP。
++
++---
++
++## 验收步骤
++
++数据前提：相册 5 个 / `album_assets` 40 行 / 智能视图 9 个。
++
++### 1. 混排网格
++打开 `/app/#/photos/albums`。
++- 网格里应有 **14 张卡** + 1 个「新建相册」磁贴（5 手动 + 9 智能）
++- 智能卡带 `Smart View` 角标与 `Live`/`Paused` 状态点；手动卡是封面 + 标题 + 张数
++- 顶部计数应显示 **14**（不是 5）
++
++### 2. 全局排序
++点 `排序:` 下拉。
++- 只有 **5 项**：最近添加 / 名称（A–Z）/ 名称（Z–A）/ 照片数 / 拍摄日期
++- **不应有「最近更新」**（本期移除）
++- 默认是「最近添加」
++- **逐项切一遍，重点看智能卡与手动卡是否交错出现** —— 智能全排在前就是缺陷
++
++### 3. 智能卡进详情并返回
++点任一智能卡 → 落到 `/photos/smart-views/<id>` 详情。
++- 点左上返回按钮 → 回到 `/photos/albums`
++- **按钮文案应是「相册」**，不是「所有智能视图」（Vue2 那个按钮写着智能视图却回相册，是它自己的说谎标签，本期已改正并在代码里登记）
++
++### 4. 创建融合
++在 `/photos/albums` 点「新建相册」。
++- 填一个名字
++- 「怎么填充它」应有 **4 个选项**，第 4 个是「让 Nimo 起稿」
++- 选中它 → **面板变宽**、出现双栏智能创建表单（左表单 + 右预览）、原来的「取消 / 创建相册」脚**消失**
++- **回头改上面的名字** → 表单底部的「创建智能相册」按钮可用性应随之变化（名字空则不可提交）
++- **把浏览器窗口高度压到很矮**（约 600px 以下）→ 表单应内部滚动，**提交按钮必须始终可达**，不能被裁掉
++
++### 5. 嵌入表单提交
++在第 4 步的表单里填一个主题 → 提交。
++- 整个面板关闭
++- **新卡片立即出现在列表里**
++- **不应跳转**到任何详情页（留在列表）
++
++### 6. AI 开关关闭态
++去 `/photos/settings?section=ai` 关掉智能视图开关，回 `/photos/albums`。
++- 顶部出现**完整**停更横幅（琥珀色，带「设置 · AI 行为」链接）
++- 「新建相册」面板里「让 Nimo 起稿」**置灰**，鼠标悬停显示「智能视图已关闭——请在「设置 · AI 行为」中重新开启后再创建。」，点它无反应
++- `/photos/smart-views` 出现**一行精简提示**（不是完整横幅），**且大标题仍在**
++- 侧栏「为你推荐」条目**消失** —— 注意这是 Vue2 的既有怪癖并被如实照搬：
++  开关一关，入口就没了，所以那条提示只能靠直接输地址到达
++- **验完把开关打开**，否则后面几步做不了
++
++### 7. 相册详情统计侧栏
++进任一有照片的相册详情。
++- 右侧出现统计侧栏，**四格**：照片数 / 时间跨度 / 视频 / 创建时间
++- 无视频的相册「视频」格应显示 **0**（不是「—」）
++- 下方出现「按月」直方图
++- **滚动左边的照片网格** → 右侧侧栏**不应跟着滚**（两列各自滚动）
++- 顺便确认编辑态的封面星标/虚线框还在（本期包了一层容器，兄弟选择器已重接）
++
++### 8. 更多菜单形态
++相册详情右上 `⋯`。
++- **三项都有图标 + 标题 + 描述**（不是纯文字两行）
++- 顺序：重命名 → **转为智能相册** → 分隔线 → 删除相册
++- 「转为智能相册」在分隔线**上方**
++
++### 9. 相册 → 智能相册
++点「转为智能相册」。
++- 弹窗标题「转为智能相册」，副标题「Nimo 会自动持续加入匹配的新照片」
++- **主题填日期类**，例如 `2025 年 6 月`（避开语义条件，见降级声明）
++- 输入时下方出现「Nimo 建议以下条件…」的条件预览 chips（只读，不可删）
++- 阈值滑块可拖，右上显示 `≥ NN%`
++- 底部提示「现有 N 张照片将保持锁定…」，N 应等于该相册张数
++- 提交 → 落到**新智能相册的详情页**
++- 回 `/photos/albums`：**原相册已消失**，新智能相册在列表里
++- 反向试一次失败路径：再转一个**与已有相册同名**的，应在弹窗内**内联**显示「已存在同名相册」，弹窗**不关**，按钮可再点
++
++### 10. 智能相册 → 普通相册
++在第 9 步得到的智能相册详情，点 `⋯`。
++- 出现「转为普通相册」，位置在分隔线**上方**（与重命名/复制同组）
++- 点它 → 确认框应写明**三件事**：停止自动更新、当前 N 张照片固化、**主题与条件将被移除**
++- N 应等于该视图张数
++- 确认 → 落到**新相册的详情页**
++- 右栏活动流应出现「**由相册转换而来 · 锁定 N 张照片**」
++- 请求在飞行中时（网络慢的话）**点取消与按 Esc 都不应关掉确认框**
++
++### 11. 双主题
++浅色 / 深色各走一遍第 1、4、7、10 步。
++- 无白底白字、无雾白、无看穿
++- 特别看：第 4 步的嵌入表单（它剥了外壳、靠宿主提供边框）、第 7 步的统计格与直方图、
++  第 10 步的确认框
++
++### 12. 侧栏与深链
++- 侧栏第 5 项标签应是「**为你推荐**」（原「智能视图」）
++- 地址栏手打 `/app/#/photos?view=smart` → 应落到「为你推荐」页
++- 地址栏手打 `/app/#/photos?smartview=<某个智能视图id>` → 应直接落到该视图详情
++
++---
++
++## 已知挂账（不在本期修）
++
++- **未部署、未推 origin、未合 master**，本清单一步未跑。
++- 第 4 步的矮视口表现只做过代码层推演（`display:contents` + `flex:1;min-height:0` 链路），
++  **没有在真浏览器里量过** —— 这是第 4 步最后那条要重点看的原因。
++- 网格 `:key` 的防撞前缀在测试里**无法被变异检出**（Vue 的 `isSameVNodeType` 把
++  `(type, key)` 成对比较，`<div>` 与组件永不混淆）。前缀保留，但没有测试守着它。
++- 两条小项等终审裁定是否随本期修：转智能相册弹窗的 Esc 路径无独立测试；
++  该弹窗测试里有两处硬编码中文字面量而非引用 locale 模块。
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 37d46c4..dc13083 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -123,21 +123,21 @@ export default {
+   photosTrashDeleteFailed: 'Delete failed',
+   photosTrashEmptyFailed: 'Empty failed',
+   photosFavExportFailed: 'Export failed',
+   // ── Photos: Sidebar / List view ──
+   photosAlbums: 'Albums',
+   photosAlbumsTitle: 'Albums',
+   photosAlbumsCount: '{count} albums',
+   photosAlbumsMine: 'My Albums',
+   photosAlbumsMineHint: 'Albums you created',
+   photosAlbumNew: 'New album',
+-  photosAlbumNewHint: 'Click to create',
++  photosAlbumNewHint: 'Click to create or ask Nimo',
+   photosAlbumUntitled: 'Untitled',
+   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+   // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+   // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+   // order.
+   // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+   // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+   // backed a standalone empty-state panel that duplicated this subtitle's own "No albums
+   // yet" copy once smart albums joined the grid. Vue2 has no such panel either (see the
+   // matching PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index 6171131..255ced7 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -123,21 +123,21 @@ export default {
+   photosTrashDeleteFailed: '删除失败',
+   photosTrashEmptyFailed: '清空失败',
+   photosFavExportFailed: '导出失败',
+   // ── 相册:侧栏 / 列表页 ──
+   photosAlbums: '相册',
+   photosAlbumsTitle: '相册',
+   photosAlbumsCount: '{count} 个相册',
+   photosAlbumsMine: '我的相册',
+   photosAlbumsMineHint: '你创建的相册',
+   photosAlbumNew: '新建相册',
+-  photosAlbumNewHint: '点击创建',
++  photosAlbumNewHint: '点击创建或询问 Nimo',
+   photosAlbumUntitled: '未命名',
+   // SP15-P2b Task 3: the mixed grid's section subtitle when both manual and smart albums
+   // are empty (939a7d3a:PhotosAlbumsView.vue). Inserted here, next to the rest of the
+   // "no albums" copy cluster, rather than by the photosAlbums* family's scattered global
+   // order.
+   // fix round 1 (Important 3): photosAlbumsEmptyTitle/photosAlbumsEmptyHint, which used to
+   // sit right above this key, are deleted (grep-confirmed zero other consumers) -- they
+   // backed a standalone empty-state panel that duplicated this subtitle's own "还没有相册"
+   // copy once smart albums joined the grid. Vue2 has no such panel either (see the matching
+   // PhotosAlbums.vue comment), so removing it is a 1:1 correction, not a feature cut.
+@@ -180,21 +180,21 @@ export default {
+   photosAlbumRenameHint: '修改相册名称',
+   photosAlbumConvertToSmart: '转为智能相册',
+   photosAlbumConvertToSmartHint: 'Nimo 会自动持续加入匹配的新照片',
+   // ── Task 7: 相册 → 智能相册转换弹窗 ──
+   photosAlbumConvertSuggestHint: 'Nimo 建议以下条件——最终匹配结果以智能相册创建时为准',
+   photosAlbumConvertLockHint: '现有 {n} 张照片将保持锁定，Nimo 会按这个主题持续加入新照片。',
+   photosAlbumConverting: '转换中…',
+   photosAlbumConvertedToSmart: '已转为智能相册',
+   photosAlbumConvertFailed: '转换失败',
+   photosAlbumStatVideos: '视频',
+-  photosAlbumStatCreated: '创建时间',
++  photosAlbumStatCreated: '创建于',
+   photosAlbumDelete: '删除相册',
+   photosAlbumDeleteHint: '照片会保留在图库中',
+   photosAlbumDeleteTitle: '删除「{name}」?',
+   photosAlbumDeleteBody: '只删除相册本身,其中 {count} 张照片仍保留在图库中。',
+   photosAlbumItemsShown: '显示 {count} 项',
+   photosAlbumHintSelectDragCover: '点击选择 · 拖拽排序 · ★ 设为封面',
+   photosAlbumHintSelectCover: '点击选择 · ★ 设为封面',
+   photosAlbumRemoveFrom: '从相册移除',
+   photosAlbumAddPhotos: '添加照片',
+   photosAlbumSortManual: '手动排序',
+@@ -990,21 +990,21 @@ export default {
+   // ── SP15-P1-T7: moment detail page (Vue2 899af59b:PhotosMomentDetail.vue) ──
+   photosMoBackToAll: '全部时刻',
+   photosMoLastUpdated: '最后更新 {time}',
+   // New-UI only: Vue 2 received the moment as a prop and could never hit a missing id.
+   photosMoNotFound: '找不到这个时刻',
+   photosMoAbout: '关于',
+   photosMoStats: '统计',
+   photosMoType: '类型',
+   photosMoTime: '时间',
+   photosMoPlace: '地点',
+-  photosMoByMonth: '按月份',
++  photosMoByMonth: '按月分布',
+   photosMoSpan: '跨度',
+   photosMoSpanDays: '{n} 天',
+   photosMoLastUpdate: '最后更新',
+   photosMoPhotos: '照片',
+   photosMoFeatured: '精选',
+   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+   // Deliberately says nothing about whether the moment exists — we do not know.
+   photosMoLoadFailed: '时刻加载失败',
+   // ── SP15-P1-T8: the two photo grids ──
+   photosMoAllPhotos: '全部照片',
+diff --git a/src/photos/components/SmartViewCreateDialog.vue b/src/photos/components/SmartViewCreateDialog.vue
+index 8b4e58b..6b8ea31 100644
+--- a/src/photos/components/SmartViewCreateDialog.vue
++++ b/src/photos/components/SmartViewCreateDialog.vue
+@@ -96,20 +96,25 @@ interface Draft {
+   includeVideos: boolean
+ }
+ 
+ // 照 Vue2 _emptyDraft :359-365 逐字段核对:默认阈值 80、live 默认 true。
+ function emptyDraft(): Draft {
+   return { name: '', desc: '', customChip: '', chips: [], thresh: 80, live: true, includeVideos: false }
+ }
+ 
+ const draft = reactive<Draft>(emptyDraft())
+ const nameInputRef = ref<HTMLInputElement | null>(null)
++// SP15-P2b final fix wave: in embedded mode the name field does not exist (`v-if="!embedded"`
++// -- the host panel owns the name), so focusing nameInputRef focused nothing at all and the
++// fused create panel opened with no cursor anywhere. The description is the first field the
++// user actually fills in there, so it takes the focus instead.
++const descInputRef = ref<HTMLTextAreaElement | null>(null)
+ 
+ const templates: readonly QuickTemplate[] = SV_QUICK_TEMPLATES
+ 
+ // 照 Vue2 suggestedChips computed :308-310。
+ const suggestedChips = computed(() => inferChips(draft.desc).filter((c) => !draft.chips.includes(c)))
+ 
+ // 照 Vue2 threshMuted computed :315-318(连注释一起照搬):空表单不算"阈值失效"，滑块
+ // 保持可拖动。
+ const threshMuted = computed(
+   () => !store.preview.thresholdActive && (draft.chips.length > 0 || draft.desc.trim().length > 0),
+@@ -180,21 +185,21 @@ watch(
+     if (isOpen) {
+       Object.assign(draft, emptyDraft())
+       // SP15-P2b Task 4: Escape belongs to the host in embedded mode -- the host's own
+       // document keydown handler (PhotosAlbums.vue) closes the whole panel. Attaching this
+       // listener too would fire twice / race which one wins. The unconditional
+       // removeEventListener calls below and in onUnmounted stay unconditional on purpose
+       // (removing a listener that was never added is a no-op; guarding the removal would
+       // leak if `embedded` changed mid-life -- the right general rule to keep this file
+       // consistent with, even though withDefaults' static default makes it moot here).
+       if (!props.embedded) document.addEventListener('keydown', onDocumentKeydown)
+-      void nextTick(() => nameInputRef.value?.focus())
++      void nextTick(() => (props.embedded ? descInputRef.value : nameInputRef.value)?.focus())
+       triggerPreview()
+     } else {
+       document.removeEventListener('keydown', onDocumentKeydown)
+       store.cancelPreview()
+     }
+   },
+   { immediate: true },
+ )
+ // fix round 1 · M7:组件真的被卸载时(如离开路由,宿主 v-if 掉整个页面),弹窗若还开着
+ // 且已排好的 300ms 防抖预览请求尚未触发/尚在途,不清的话会成为孤儿请求照常发出
+@@ -336,20 +341,21 @@ function thumbUrl(seed: string): string {
+                 @keydown.enter.prevent="confirm"
+               >
+             </label>
+ 
+             <label class="sv-field">
+               <span class="sv-field-label">
+                 {{ t('photosSvNimoMatch') }}
+                 <span class="sv-field-hint">{{ t('photosSvDescribePlainEnglishConditions') }}</span>
+               </span>
+               <textarea
++                ref="descInputRef"
+                 v-model="draft.desc"
+                 class="sv-input sv-textarea"
+                 data-test="sv-desc-textarea"
+                 :placeholder="t('photosSvSunsetsSaraOurTokyo')"
+                 @input="triggerPreview"
+               />
+             </label>
+ 
+             <div v-if="suggestedChips.length > 0" class="sv-suggest">
+               <div class="sv-suggest-head">
+diff --git a/src/photos/components/__tests__/AlbumConvertToSmartDialog.test.ts b/src/photos/components/__tests__/AlbumConvertToSmartDialog.test.ts
+index 96f32c8..f4156e2 100644
+--- a/src/photos/components/__tests__/AlbumConvertToSmartDialog.test.ts
++++ b/src/photos/components/__tests__/AlbumConvertToSmartDialog.test.ts
+@@ -118,20 +118,55 @@ describe('AlbumConvertToSmartDialog.vue', () => {
+     convertFromAlbum.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
+     const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
+     await w.find('[data-test="convert-desc"]').setValue('sunsets')
+     await w.find('[data-test="convert-submit"]').trigger('click')
+     await w.find('[data-test="convert-cancel"]').trigger('click')
+     expect(w.emitted('update:open')).toBeUndefined()
+     release(fullSv())
+     await w.vm.$nextTick()
+   })
+ 
++  // Final fix wave: Escape had no test that could fail. Deleting the
++  // `document.addEventListener('keydown', onDocumentKeydown)` line inside watch(open) left the
++  // whole suite green -- nothing here dispatched a keydown, and no host test reaches this
++  // dialog's keyboard path. Same pair PhotosSmartViewDetail.test.ts already has for its own
++  // inline confirmation.
++  it('dismisses on Escape while open', async () => {
++    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.emitted('update:open')).toEqual([[false]])
++  })
++
++  it('ignores Escape while the request is in flight', async () => {
++    // Escape must be refused exactly the way the Cancel button is -- it routes through close()'s
++    // busy guard rather than poking the flag itself.
++    let release: (v: unknown) => void = () => {}
++    convertFromAlbum.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
++    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
++    await w.find('[data-test="convert-desc"]').setValue('sunsets')
++    await w.find('[data-test="convert-submit"]').trigger('click')
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.emitted('update:open')).toBeUndefined()
++    release(fullSv())
++    await flushPromises()
++  })
++
++  it('stops listening for Escape once closed', async () => {
++    const w = mountConvert({ open: true, albumId: 'a1', albumName: 'A', albumCount: 12 })
++    await w.setProps({ open: false })
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.emitted('update:open')).toBeUndefined()
++  })
++
+   it('resets the draft each time it opens', async () => {
+     // Persistent mount + prop-driven visibility: reset belongs in watch(open), not
+     // onMounted (this area's recurring trap).
+     const w = mountConvert({ open: false, albumId: 'a1', albumName: 'A', albumCount: 12 })
+     await w.setProps({ open: true })
+     await w.find('[data-test="convert-desc"]').setValue('sunsets')
+     await w.setProps({ open: false })
+     await w.setProps({ open: true })
+     expect((w.find('[data-test="convert-desc"]').element as HTMLTextAreaElement).value).toBe('')
+   })
+diff --git a/src/photos/components/__tests__/SmartViewCreateDialog.test.ts b/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
+index 1370a85..209f252 100644
+--- a/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
++++ b/src/photos/components/__tests__/SmartViewCreateDialog.test.ts
+@@ -574,20 +574,44 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
+ // dialog embedded in place of its own footer when the "Let Nimo draft it" fill option is
+ // picked; standalone mode (PhotosSmartViews.vue's own mount) is untouched.
+ describe('embedded mode (SP15-P2b Task 4)', () => {
+   it('embedded mode drops its own scrim, header and name field', async () => {
+     const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-close-btn"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-name-input"]').exists()).toBe(false)
+   })
+ 
++  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode that ref
++  // is null (the name field is v-if="!embedded"), so opening the fused panel focused nothing.
++  it('focuses the description in embedded mode, the name field otherwise', async () => {
++    const embedded = mount(SmartViewCreateDialog, {
++      props: { open: false, embedded: true, initialName: 'Trip' },
++      global: { plugins: [makeI18n()] },
++      attachTo: document.body,
++    })
++    await embedded.setProps({ open: true })
++    await nextTick()
++    expect(document.activeElement).toBe(embedded.find('[data-test="sv-desc-textarea"]').element)
++    embedded.unmount()
++
++    const standalone = mount(SmartViewCreateDialog, {
++      props: { open: false },
++      global: { plugins: [makeI18n()] },
++      attachTo: document.body,
++    })
++    await standalone.setProps({ open: true })
++    await nextTick()
++    expect(document.activeElement).toBe(standalone.find('[data-test="sv-name-input"]').element)
++    standalone.unmount()
++  })
++
+   it('embedded mode submits the host-supplied name, live as the host edits it', async () => {
+     const w = mountDialog({ open: true, embedded: true, initialName: '' })
+     // Empty host name => cannot submit even with a description present.
+     await w.find('[data-test="sv-desc-textarea"]').setValue('sunsets')
+     expect(w.find('[data-test="sv-confirm-btn"]').attributes('disabled')).toBeDefined()
+     // The host field is the single source of truth, not a copy seeded on open, so a name
+     // typed after picking the nimo option still arrives.
+     await w.setProps({ initialName: 'Trip' })
+     expect(w.find('[data-test="sv-confirm-btn"]').attributes('disabled')).toBeUndefined()
+     const store = usePhotosSmartViews()
+diff --git a/src/photos/stores/__tests__/albums.test.ts b/src/photos/stores/__tests__/albums.test.ts
+index 6e41477..07b8d26 100644
+--- a/src/photos/stores/__tests__/albums.test.ts
++++ b/src/photos/stores/__tests__/albums.test.ts
+@@ -11,20 +11,29 @@ vi.mock('@nimotech/nimoos-service', () => ({
+       updateAlbum: vi.fn(() => Promise.resolve({})),
+       batchAddToAlbum: vi.fn(() => Promise.resolve()),
+       removeFromAlbum: vi.fn(() => Promise.resolve()),
+       reorderAlbumAssets: vi.fn(() => Promise.resolve()),
+       convertSmartToAlbum: vi.fn(() => Promise.resolve({})),
+     },
+   },
+ }))
+ import { service } from '@nimotech/nimoos-service'
+ import { usePhotosAlbums } from '../albums'
++import { usePhotosSmartViews, type SmartView } from '../smartViews'
++
++function makeSv(id: string): SmartView {
++  return {
++    id, name: id, description: '', conds: [], threshold: 80, live: true, includeVideos: false,
++    count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0,
++    distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '',
++  }
++}
+ 
+ describe('photosAlbums store', () => {
+   beforeEach(() => {
+     setActivePinia(createPinia())
+     vi.clearAllMocks()
+   })
+ 
+   describe('fetchAlbums', () => {
+     it('成功 → albums 填充 + albumsLoaded===true', async () => {
+       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 7, name: 'A' }])
+@@ -469,12 +478,35 @@ describe('photosAlbums store', () => {
+       expect(album.id).toBe('al-new')
+       expect(s.albums[0].id).toBe('al-new')
+     })
+ 
+     it('rethrows instead of swallowing the failure', async () => {
+       ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
+       const s = usePhotosAlbums()
+       await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
+       expect(s.albums).toHaveLength(0)
+     })
++
++    // Final fix wave: the backend deletes the source smart view, so it must leave the other
++    // store too. Without this, smartViews.listLoaded stays true, PhotosSmartViewDetail.vue:96
++    // skips its own fetch, and one browser Back press lands on a fully interactive detail page
++    // for an object the server has already deleted.
++    it('evicts the source smart view from the smart views store', async () => {
++      ;(service.photos.convertSmartToAlbum as any).mockResolvedValueOnce({ id: 'al-new', name: 'N' })
++      const sv = usePhotosSmartViews()
++      sv.smartViews = [makeSv('sv-1'), makeSv('sv-2')]
++      const s = usePhotosAlbums()
++      await s.convertFromSmartView('sv-1')
++      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-2'])
++      expect(s.albums[0].id).toBe('al-new')
++    })
++
++    it('leaves the source smart view alone when the conversion fails', async () => {
++      ;(service.photos.convertSmartToAlbum as any).mockRejectedValueOnce(new Error('boom'))
++      const sv = usePhotosSmartViews()
++      sv.smartViews = [makeSv('sv-1')]
++      const s = usePhotosAlbums()
++      await expect(s.convertFromSmartView('sv-1')).rejects.toBeTruthy()
++      expect(sv.smartViews.map((v) => v.id)).toEqual(['sv-1'])
++    })
+   })
+ })
+diff --git a/src/photos/stores/__tests__/smartViews.test.ts b/src/photos/stores/__tests__/smartViews.test.ts
+index 53d3ed8..a827f6c 100644
+--- a/src/photos/stores/__tests__/smartViews.test.ts
++++ b/src/photos/stores/__tests__/smartViews.test.ts
+@@ -1,13 +1,14 @@
+ import { beforeEach, describe, expect, it, vi } from 'vitest'
+ import { createPinia, setActivePinia } from 'pinia'
+ import { usePhotosSmartViews } from '../smartViews'
++import { usePhotosAlbums } from '../albums'
+ 
+ const listSmartViews = vi.fn()
+ const createSmartViewApi = vi.fn()
+ const updateSmartViewApi = vi.fn()
+ const deleteSmartViewApi = vi.fn()
+ const duplicateSmartViewApi = vi.fn()
+ const getSmartViewAssets = vi.fn()
+ const getSmartViewActivity = vi.fn()
+ const previewSmartViewApi = vi.fn()
+ const exportSmartViewAlbumApi = vi.fn()
+@@ -484,20 +485,43 @@ describe('convertFromAlbum', () => {
+     expect(sv.id).toBe('sv-new')
+     expect(s.smartViews[0].id).toBe('sv-new')
+   })
+ 
+   it('rethrows so the caller can keep its dialog open', async () => {
+     convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
+     const s = usePhotosSmartViews()
+     await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
+     expect(s.smartViews).toHaveLength(0)
+   })
++
++  // Final fix wave, mirror of the albums store's own case: the backend deletes the source
++  // album, so it must leave the albums store too. Without this, albums.albumsLoaded stays true,
++  // PhotosAlbumDetail.vue:442 skips its own fetch, and one browser Back press lands on a fully
++  // interactive detail page for an album the server has already deleted.
++  it('evicts the source album from the albums store', async () => {
++    convertAlbumToSmartApi.mockResolvedValue({ id: 'sv-new', name: 'N' })
++    const albums = usePhotosAlbums()
++    albums.albums = [{ id: 'al-1', name: 'A' }, { id: 'al-2', name: 'B' }]
++    const s = usePhotosSmartViews()
++    await s.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
++    expect(albums.albums.map((a) => a.id)).toEqual(['al-2'])
++    expect(s.smartViews[0].id).toBe('sv-new')
++  })
++
++  it('leaves the source album alone when the conversion fails', async () => {
++    convertAlbumToSmartApi.mockRejectedValueOnce(new Error('boom'))
++    const albums = usePhotosAlbums()
++    albums.albums = [{ id: 'al-1', name: 'A' }]
++    const s = usePhotosSmartViews()
++    await expect(s.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
++    expect(albums.albums.map((a) => a.id)).toEqual(['al-1'])
++  })
+ })
+ 
+ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
+   it('三个请求的参数逐字断言', async () => {
+     getSmartViewAssets.mockResolvedValue([])
+     getSmartViewActivity.mockResolvedValue([])
+     const s = usePhotosSmartViews()
+     await s.loadDetail('sv-1')
+     expect(getSmartViewAssets).toHaveBeenNthCalledWith(1, 'sv-1', { limit: 60, offset: 0 })
+     expect(getSmartViewAssets).toHaveBeenNthCalledWith(2, 'sv-1', { limit: 12, offset: 0, recent: true })
+diff --git a/src/photos/stores/albums.ts b/src/photos/stores/albums.ts
+index e42b4de..51b6231 100644
+--- a/src/photos/stores/albums.ts
++++ b/src/photos/stores/albums.ts
+@@ -1,18 +1,24 @@
+ // Ported from Vue2 NimoOS-UI src/store/modules/photos.js:272-274 (state),
+ // :455-473 (mutations), :756-761 + :900-994 (album actions).
+ // 每个 action 的乐观策略都不同,逐个保真——见文件内逐条注释。
+ // Photos v1 后端无信封:列表一律 `?? []`。
+ import { ref } from 'vue'
+ import { defineStore } from 'pinia'
+ import { service } from '@nimotech/nimoos-service'
+ import { assetToPhoto, type Photo } from '../util/assetToPhoto'
++// SP15-P2b final fix wave: the two conversion actions are mirror images living in the two
++// stores they create into, so each has to evict the source object from the other store. That
++// makes this import pair mutual (smartViews.ts imports this file for the same reason). Safe
++// because neither side touches the other's binding at module-evaluation time -- both calls sit
++// inside an async action body, by which point both modules are fully initialised.
++import { usePhotosSmartViews } from './smartViews'
+ 
+ type RawAlbum = Record<string, unknown>
+ 
+ export const usePhotosAlbums = defineStore('photosAlbums', () => {
+   // Vue2 state.albums 存的是**原始后端对象**(视图层再 map 成 AlbumView),照搬。
+   const albums = ref<RawAlbum[]>([])
+   // New-UI 增:空态门控。只在 fetchAlbums 成功路径置 true,失败留 false 可重试
+   // (P3 血泪:无条件置位会让瞬时失败与「确认零相册」不可区分)。
+   const albumsLoaded = ref(false)
+   // Task 9 (P8a, P4 遗留收口): 独立失败标志——绝不与 albumsLoaded 合并/复用。
+@@ -46,20 +52,29 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
+     albumAssetsByID.value = next
+   }
+   // Vue2 UPDATE_ALBUM_LOCAL:按 id 找到后浅合并替换;找不到静默 no-op。
+   function updateAlbumLocal(id: string | number, patch: RawAlbum): void {
+     const idx = albums.value.findIndex((a) => key(a.id as string | number) === key(id))
+     if (idx < 0) return
+     const next = albums.value.slice()
+     next[idx] = { ...next[idx], ...patch }
+     albums.value = next
+   }
++  // SP15-P2b final fix wave: drop an album the server no longer has, without a refetch.
++  // Exported because the *smart views* store needs it -- convertFromAlbum deletes the source
++  // album server-side, and leaving it in this list keeps a detail route alive for an object
++  // that is gone (albumsLoaded stays true, so PhotosAlbumDetail.vue:442 never refetches).
++  // Replaces the ref immutably, matching this file's convention throughout.
++  function dropAlbumLocal(id: string | number): void {
++    albums.value = albums.value.filter((a) => key(a.id as string | number) !== key(id))
++    removeAlbumAssets(id)
++  }
+ 
+   // ── actions ──
+ 
+   // Vue2 :910-917 —— 全量覆盖,catch 只打日志不抛(唯一「吞错」的 album action)。
+   // Task 9 correction: `loadError` used to be reset to false at the top of
+   // this function (before the await). That created a window, on every retry
+   // (success *or* failure), where loadError was already false but
+   // albumsLoaded was still false too — i.e. a transient "nothing failed"
+   // reading during a fetch that hasn't settled yet. Clearing loadError only
+   // on confirmed success means the failure UI stays continuously visible
+@@ -188,40 +203,46 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
+ 
+   // Vue2 :756-761 —— 建相册 + 批量塞入 + 重拉列表,返回新相册。无 try/catch,异常(含 409 重名)上抛。
+   async function saveAsAlbum(name: string, assetIds: Array<string | number>): Promise<RawAlbum> {
+     const created = (await service.photos.createAlbum(name)) as RawAlbum
+     await service.photos.batchAddToAlbum(created.id as string | number, assetIds)
+     await fetchAlbums()
+     return created
+   }
+ 
+   // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
+-  // smartViews.convertFromAlbum — see its comment for why there is no refetch and no
+-  // optimistic slot. The raw backend object is stored as-is, matching this store's
+-  // convention of keeping albums unmapped (the views map them through albumToView).
++  // smartViews.convertFromAlbum — see its comment for why there is no refetch. The raw backend
++  // object is stored as-is, matching this store's convention of keeping albums unmapped (the
++  // views map them through albumToView).
++  //
++  // The source smart view MUST leave the other store (final fix wave): the backend deletes it,
++  // but smartViews.listLoaded stays true and PhotosSmartViewDetail.vue:96 skips its own fetch
++  // when it is, so one browser Back press after a successful conversion would otherwise land on
++  // a fully interactive detail page for a smart view the server has already deleted.
+   //
+   // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
+   // that is not the pattern to follow for a user-initiated write.
+   async function convertFromSmartView(smartViewId: string): Promise<RawAlbum> {
+     const raw = await service.photos.convertSmartToAlbum(smartViewId)
+     const album = (raw ?? {}) as RawAlbum
+     albums.value = [album, ...albums.value]
++    usePhotosSmartViews().dropSmartViewLocal(smartViewId)
+     return album
+   }
+ 
+   function __resetForTest(): void {
+     albums.value = []
+     albumsLoaded.value = false
+     loadError.value = false
+     albumAssetsByID.value = {}
+     albumAssetsLoading.value = {}
+   }
+ 
+   return {
+     albums, albumsLoaded, loadError, albumAssetsByID, albumAssetsLoading,
+     albumById, assetsOf, isLoadingAssets,
+     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
+     renameAlbum, setAlbumCover, reorderAlbumAssets,
+-    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView,
++    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView, dropAlbumLocal,
+     __resetForTest,
+   }
+ })
+diff --git a/src/photos/stores/smartViews.ts b/src/photos/stores/smartViews.ts
+index dba7f9d..670d3c0 100644
+--- a/src/photos/stores/smartViews.ts
++++ b/src/photos/stores/smartViews.ts
+@@ -11,20 +11,25 @@
+ import { ref } from 'vue'
+ import { defineStore } from 'pinia'
+ import { service } from '@nimotech/nimoos-service'
+ import { assetToPhoto, type Photo } from '../util/assetToPhoto'
+ // 跨区 import,刻意不搬文件/不抄这 6 行(控制器决策,fix round 1 · C1):它带一条实打实
+ // 的守卫——本设备典型是 HTTP LAN 地址,非安全上下文下 `crypto.randomUUID` 是 undefined,
+ // SP4-P3a 曾因丢这个守卫让上传整功能挂掉。搬文件会动 SP4 文件区的消费方,抄一份会让这条
+ // 守卫存在两处副本。既有跨区引用先例:PhotosSidebar.vue 引 files/util/format、
+ // PhotoInfoPanel.vue 引 files/util/clipboard。
+ import { safeRandomUUID } from '../../files/upload/uuid'
++// SP15-P2b final fix wave: mutual import with albums.ts -- the two conversion actions are
++// mirror images, and each has to evict the source object from the other store. See the twin
++// comment in albums.ts for why the cycle is safe (the call sits inside an async action body,
++// never at module-evaluation time).
++import { usePhotosAlbums } from './albums'
+ 
+ export interface SmartView {
+   id: string
+   name: string
+   description: string
+   conds: string[]
+   threshold: number
+   live: boolean
+   includeVideos: boolean
+   count: number
+@@ -344,44 +349,59 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
+       smartViews.value.splice(i + 1, 0, copy)
+     } catch (e) {
+       console.error('[photos-smartviews] duplicateSmartView', e)
+       throw e
+     } finally {
+       duplicateBusy.value = false
+     }
+   }
+ 
+   // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
+-  // existing member, deletes the album, and hands back the full new smart view, so the
+-  // only thing left to do here is put it at the head of the list — no refetch needed.
++  // existing member, **deletes the source album**, and hands back the full new smart view,
++  // so both stores have to move: the new smart view goes to the head of this list, and the
++  // now-deleted album has to leave the albums store.
+   //
+-  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched
+-  // both lists and then pushed an optimistic copy as a belt-and-braces measure, because
+-  // its list page stays mounted while the detail panel swaps in. Here the caller
+-  // navigates to the new smart view's own route and any return to the list remounts and
+-  // refetches, so neither the double fetch nor the optimistic slot has anything to do.
++  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched both
++  // lists. Two local mutations are strictly cheaper and reach the same end state.
++  //
++  // The source album MUST be dropped (final fix wave -- the earlier version of this comment
++  // argued a remount covers it, which is only true of the *list*): albums.albumsLoaded stays
++  // true, and PhotosAlbumDetail.vue:442 skips its own fetch when it is, so one browser Back
++  // press after a successful conversion would otherwise land on a fully interactive detail
++  // page for an album the server has already deleted -- every action on it 404s.
+   //
+   // Rethrows on failure (this store's established contract, same as createSmartView):
+   // the dialog decides what to show and stays open so the user can retry.
+   async function convertFromAlbum(
+     albumId: string | number,
+     input: { description: string; threshold: number },
+   ): Promise<SmartView> {
+     const raw = await service.photos.convertAlbumToSmart(albumId, {
+       description: input.description,
+       threshold: input.threshold,
+     })
+     const created = toSmartView(raw)
+     smartViews.value.unshift(created)
++    usePhotosAlbums().dropAlbumLocal(albumId)
+     return created
+   }
+ 
++  // SP15-P2b final fix wave: drop a smart view the server no longer has, without a refetch.
++  // Exported because the *albums* store needs it -- convertFromSmartView deletes the source
++  // smart view server-side. Mutates in place, matching this file's convention throughout
++  // (:224/:288/:321/:344 all mutate `smartViews.value` rather than replacing the ref).
++  function dropSmartViewLocal(id: string | number): void {
++    const idx = smartViews.value.findIndex(s => String(s.id) === String(id))
++    if (idx < 0) return
++    smartViews.value.splice(idx, 1)
++  }
++
+   // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
+   // (偏离登记 9,§7e-7):三个请求 Promise.all 并行，成功路径与清空都要过 seq 门控。
+   async function loadDetail(id: string): Promise<void> {
+     const mine = ++detailSeq
+     detailLoading.value = true
+     // 成功路径也要先清旧数据 —— 否则第二次加载时骨架门控已过，会继续渲染上一个
+     // 智能视图的照片与活动流(P6b 终审 I2 的同型缺陷，清空必须在 await 之前)。
+     matchedAssets.value = []
+     recentAssets.value = []
+     activity.value = []
+@@ -617,15 +637,16 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
+   }
+ 
+   return {
+     smartViews, listLoaded, listLoading,
+     matchedAssets, recentAssets, activity, detailLoading,
+     excluded, excludedLoading, assetBusy,
+     preview,
+     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
+     byId,
+     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
+-    duplicateSmartView, convertFromAlbum, loadDetail, refreshPreview, cancelPreview, exportAlbum,
++    duplicateSmartView, convertFromAlbum, dropSmartViewLocal,
++    loadDetail, refreshPreview, cancelPreview, exportAlbum,
+     pinAssets, removeAssets, restoreAssets, loadExcluded,
+     __resetForTest,
+   }
+ })
+diff --git a/src/photos/util/__tests__/albumView.test.ts b/src/photos/util/__tests__/albumView.test.ts
+index d355d4a..76b222b 100644
+--- a/src/photos/util/__tests__/albumView.test.ts
++++ b/src/photos/util/__tests__/albumView.test.ts
+@@ -11,21 +11,21 @@ describe('formatAlbumSpan', () => {
+     expect(formatAlbumSpan('bad', 'bad')).toBe('')
+   })
+   it('带时间的 RFC3339 也能解析(不依赖 Date)', () => {
+     expect(formatAlbumSpan('2026-05-02T10:00:00Z', '2026-05-20T23:59:59Z')).toBe('May 2026')
+   })
+ })
+ 
+ describe('albumToView', () => {
+   it('映射后端字段(name/coverAssetId/assetCount/dateStart..dateEnd)', () => {
+     const v = albumToView({ id: 7, name: '旅行', coverAssetId: 'a1', assetCount: 12, dateStart: '2025-06-01', dateEnd: '2025-06-30', createdAt: '2025-07-01T00:00:00Z' }, '未命名')
+-    expect(v).toMatchObject({ id: 7, title: '旅行', cover: 'a1', count: 12, dateRange: 'Jun 2025', createdAt: '2025-07-01T00:00:00Z', dateEnd: '2025-06-30' })
++    expect(v).toMatchObject({ id: 7, title: '旅行', cover: 'a1', count: 12, dateRange: 'Jun 2025', createdAt: '2025-07-01T00:00:00Z', dateStart: '2025-06-01' })
+   })
+   it('无 name 用 title 兜底,再无则用传入的 untitled', () => {
+     expect(albumToView({ id: 1, title: 'T' }, '未命名').title).toBe('T')
+     expect(albumToView({ id: 1 }, '未命名').title).toBe('未命名')
+   })
+   it('assetCount 缺失时回退 assets.length,再缺回 0', () => {
+     expect(albumToView({ id: 1, assets: [{}, {}] }, 'x').count).toBe(2)
+     expect(albumToView({ id: 1 }, 'x').count).toBe(0)
+   })
+   it('coverAssetId 缺失 → null', () => { expect(albumToView({ id: 1 }, 'x').cover).toBeNull() })
+diff --git a/src/photos/util/__tests__/mixedAlbums.test.ts b/src/photos/util/__tests__/mixedAlbums.test.ts
+index 830ed3d..8e2d1d4 100644
+--- a/src/photos/util/__tests__/mixedAlbums.test.ts
++++ b/src/photos/util/__tests__/mixedAlbums.test.ts
+@@ -1,21 +1,21 @@
+ // SP15-P2b-T2: the mixed manual/smart album list and the global sort that ranks both
+ // kinds against each other. Ported from Vue2 939a7d3a:PhotosAlbumsView.vue:381-393
+ // (smartAlbums / mixedAlbums) and :670-700 (applySort).
+ import { describe, it, expect } from 'vitest'
+ import { buildMixedAlbums, sortMixed, type MixedAlbumItem } from '../mixedAlbums'
+ import type { AlbumView } from '../albumView'
+ import type { SmartView } from '../../stores/smartViews'
+ 
+ const view = (o: Partial<AlbumView>): AlbumView => ({
+   id: 'u', title: '', cover: null, count: 0, dateRange: '',
+-  createdAt: null, dateEnd: null, videoCount: 0, dateStart: null, ...o,
++  createdAt: null, videoCount: 0, dateStart: null, ...o,
+ })
+ const sv = (o: Partial<SmartView>): SmartView => ({
+   id: 's', name: '', description: '', conds: [], threshold: 0, live: false,
+   includeVideos: false, count: 0, addedThisWeek: 0, seeds: [], median: 0,
+   storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '', ...o,
+ })
+ const ids = (items: MixedAlbumItem[]) => items.map((i) => String(i.id))
+ 
+ describe('buildMixedAlbums', () => {
+   it('tags each entry with its kind and keeps the payload reachable', () => {
+diff --git a/src/photos/util/albumView.ts b/src/photos/util/albumView.ts
+index 7f53bed..7ee606b 100644
+--- a/src/photos/util/albumView.ts
++++ b/src/photos/util/albumView.ts
+@@ -9,21 +9,20 @@
+ // are unaffected and still have callers.
+ import type { Photo } from './assetToPhoto'
+ 
+ export interface AlbumView {
+   id: string | number
+   title: string
+   cover: string | number | null // = coverAssetId, an asset id, not a URL
+   count: number
+   dateRange: string
+   createdAt: string | null
+-  dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
+   videoCount: number // P2b: the detail sidebar's Videos cell
+   dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
+ }
+ 
+ // Extract {year, month(1-12)} from a raw taken_at string ('2025-06-03',
+ // '2025-06-03 12:00:00', RFC3339, …) without relying on Date parsing.
+ // Verbatim port of PhotosAlbumsView.vue:284-288 (parseYearMonth).
+ function parseYearMonth(s: unknown): { year: number; month: number } | null {
+   const m = String(s || '').match(/^(\d{4})-(\d{2})/)
+   if (!m) return null
+@@ -42,35 +41,37 @@ export function formatAlbumSpan(startRaw: unknown, endRaw: unknown): string {
+   const a = parseYearMonth(startRaw)
+   const b = parseYearMonth(endRaw)
+   if (!a || !b) return ''
+   if (a.year !== b.year) return `${a.year}-${b.year}`
+   if (a.month === b.month) return `${MONTHS[a.month - 1]} ${a.year}`
+   return `${MONTHS[a.month - 1]} - ${MONTHS[b.month - 1]} ${a.year}`
+ }
+ 
+ // Verbatim port of PhotosAlbumsView.vue:216-224 (userAlbums computed), minus
+ // the `kind: 'user'` field (shared-album section is out of scope, see brief)
+-// and plus `dateEnd` (see AlbumView doc comment above).
++// and plus videoCount / dateStart (see the AlbumView doc comment above).
++// SP15-P2b final fix wave: the P4-era `dateEnd` field is gone. Its only consumer was
++// sortAlbums('date'), deleted this phase in favour of util/mixedAlbums.ts (which reads
++// dateStart, matching Vue2's dateTakenMs). `a.dateEnd` is still read below -- but straight off
++// the raw backend record, to render the span; nothing needed it on the view object.
+ export function albumToView(a: Record<string, unknown>, untitled: string): AlbumView {
+   const assets = a.assets as unknown[] | undefined
+   const assetCount = a.assetCount as number | null | undefined
+-  const dateEnd = a.dateEnd as string | undefined
+   return {
+     id: a.id as string | number,
+     title: (a.name as string) || (a.title as string) || untitled,
+     // `||` (not `??`) — matches Vue2 PhotosAlbumsView.vue:219 exactly; an
+     // empty-string coverAssetId falls through to null, same as Vue2.
+     cover: (a.coverAssetId as string | number | undefined) || null,
+     count: assetCount != null ? assetCount : ((assets && assets.length) || 0),
+     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
+     createdAt: (a.createdAt as string | undefined) || null,
+-    dateEnd: dateEnd || null,
+     videoCount: Number(a.videoCount ?? 0),
+     dateStart: (a.dateStart as string | undefined) || null,
+   }
+ }
+ 
+ // Verbatim port of PhotosAlbumDetail.vue:224-242 (photos computed).
+ export function sortAlbumPhotos(photos: Photo[], sortBy: string): Photo[] {
+   if (sortBy === 'taken') {
+     return [...photos].sort((a, b) => {
+       const ta = a.takenAt ? Date.parse(a.takenAt as string) : 0
+diff --git a/src/views/PhotosAlbumDetail.vue b/src/views/PhotosAlbumDetail.vue
+index a6dfdc0..5993840 100644
+--- a/src/views/PhotosAlbumDetail.vue
++++ b/src/views/PhotosAlbumDetail.vue
+@@ -568,22 +568,27 @@ watch(gridRef, () => {
+                     type="button"
+                     class="bar-btn album-more-btn"
+                     data-test="album-more-btn"
+                     :data-active="menuOpen"
+                     @click="menuOpen = !menuOpen"
+                   >⋯</button>
+                   <!-- T6: reshaped to the same icon/title/hint idiom as
+                        PhotosSmartViewDetail.vue's .sv-export-item rows (markup and classes
+                        taken from that file's :671-693), so the two detail pages' more menus
+                        stop looking like different products. Convert sits above the
+-                       destructive separator; Delete stays below it. -->
+-                  <div v-if="menuOpen" class="sv-export-menu" data-test="album-menu">
++                       destructive separator; Delete stays below it.
++                       Final fix wave: `sv-more-menu` is the width modifier the sibling page
++                       puts on this same kind of menu (PhotosSmartViewDetail.vue:740). It was
++                       omitted when the rules were restated, leaving this menu at the export
++                       menu's 280px; Vue2 hard-codes 220px on both (939a7d3a:
++                       PhotosAlbumDetail.vue:61 `style="min-width:220px"`). -->
++                  <div v-if="menuOpen" class="sv-export-menu sv-more-menu" data-test="album-menu">
+                     <button
+                       type="button"
+                       class="sv-export-item"
+                       data-test="album-menu-rename"
+                       @click="menuOpen = false; startTitleEdit()"
+                     >
+                       <div class="sv-export-icon" data-test="album-menu-icon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg></div>
+                       <div>
+                         <div class="sv-export-title">{{ t('photosAlbumRename') }}</div>
+                         <div class="sv-export-desc">{{ t('photosAlbumRenameHint') }}</div>
+@@ -738,22 +743,25 @@ watch(gridRef, () => {
+                   <div class="sv-stat-cell" data-test="album-stat-cell">
+                     <div class="v">{{ videoCountLabel }}</div>
+                     <div class="l">{{ t('photosAlbumStatVideos') }}</div>
+                   </div>
+                   <div class="sv-stat-cell" data-test="album-stat-cell">
+                     <div class="v">{{ createdLabel }}</div>
+                     <div class="l">{{ t('photosAlbumStatCreated') }}</div>
+                   </div>
+                 </div>
+               </div>
+-              <!-- By month: absent entirely when nothing carries a takenAt (Vue2 has no such
+-                   histogram at all here -- this restates PhotosMomentDetail.vue's own gate). -->
++              <!-- By month: absent entirely when nothing carries a takenAt. Vue2 has exactly
++                   this histogram behind exactly this gate (939a7d3a:PhotosAlbumDetail.vue
++                   :218-224, `v-if="monthBuckets.length"`); the earlier comment here claiming
++                   otherwise was wrong. PhotosMomentDetail.vue carries the same gate, which is
++                   where the restated rule bodies below come from. -->
+               <div v-if="monthBuckets.length" class="sv-side-section" data-test="album-dist">
+                 <h3>{{ t('photosMoByMonth') }}</h3>
+                 <div class="sv-distribution">
+                   <div
+                     v-for="(b, i) in monthBuckets" :key="b.key" class="sv-dist-bar"
+                     data-test="album-dist-bar" :style="distStyle(b, i)" :title="b.label + ' · ' + b.count"
+                   />
+                 </div>
+                 <div class="sv-dist-x">
+                   <span>{{ monthBuckets[0].label }}</span>
+@@ -889,36 +897,44 @@ watch(gridRef, () => {
+    companion `.sv-action-btn:not([data-primary="true"]):hover` patch (photos.scss, same block)
+    exists to serve its Ask Nimo gradient button, which this page has no counterpart for. */
+ .album-hero-actions .bar-btn {
+   background: var(--overlay-bg); border-color: var(--card-border);
+   /* theme-exception: hero 里的 Edit/Done、⋯ 按钮叠在暗化封面上,需固定浅色(同 Vue2
+      photos.scss:3563-3575 "pinned: dark pill sits on the darkened cover photo in both themes")。 */
+   color: #fff;
+ }
+ .album-more-wrap { position: relative; }
+ 
+-/* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies identical to
+-   PhotosSmartViewDetail.vue's (:937-960), which this restates because scoped styles do not
+-   cross SFCs in this repo. Replaces the old two-item .album-more-item* rules (removed: this
+-   page no longer has any element with that class). Vue2 expresses the danger row with an
+-   inline coral color literal; this repo already has the -danger classes below walking the
+-   --remove-fg token instead, so the literal is never reproduced. ── */
++/* ── T6: more menu reshaped to the sv-export-item idiom -- rule bodies restated from
++   PhotosSmartViewDetail.vue's (:937-960) because scoped styles do not cross SFCs in this repo.
++   Not a byte-for-byte copy of that block: the `:disabled` rules below are additions this page
++   needs, and the final fix wave restored the `.sv-more-menu` width modifier that the original
++   restatement dropped. Replaces the old two-item .album-more-item* rules (removed: this page
++   no longer has any element with that class). Vue2 expresses the danger row with an inline
++   coral color literal; this repo already has the -danger classes below walking the --remove-fg
++   token instead, so the literal is never reproduced. ── */
+ .sv-export-menu {
+   position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
+   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
+   box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
+ }
++/* The only menu this page has is the more menu, so the base 280px above is never used on its
++   own -- restated all the same, so the block stays a faithful copy of the sibling's rule set
++   and a future export menu here inherits the right width. */
++.sv-more-menu { min-width: 220px; }
+ .sv-export-item {
+   display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
+   border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
+ }
+-.sv-export-item:hover { background: var(--chip-bg-hi); }
++/* :not(:disabled) -- CSS applies :hover to disabled buttons too, so without it the greyed-out
++   Convert row still lit up under the cursor and read as clickable. */
++.sv-export-item:hover:not(:disabled) { background: var(--chip-bg-hi); }
+ /* Not present in PhotosSmartViewDetail.vue's own copy of this rule set (none of its menu items
+    are ever disabled) -- added here because the Convert entry is disabled when Smart Views are
+    off. Same treatment this file already gives .bar-btn:disabled above. */
+ .sv-export-item:disabled { opacity: 0.45; cursor: not-allowed; }
+ .sv-export-icon {
+   width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-text);
+   display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+ }
+ .sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
+ .sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
+diff --git a/src/views/PhotosAlbums.vue b/src/views/PhotosAlbums.vue
+index aa63ca5..14f6084 100644
+--- a/src/views/PhotosAlbums.vue
++++ b/src/views/PhotosAlbums.vue
+@@ -553,50 +553,53 @@ onUnmounted(() => {
+   background: transparent; border: 0; border-radius: 8px; color: var(--fg); font: inherit;
+   font-size: 12.5px; cursor: pointer; text-align: left;
+ }
+ .albums-sort-item:hover { background: var(--chip-bg-hi); }
+ .albums-sort-item[data-active="true"] { background: var(--accent-soft); }
+ .sort-check { width: 14px; flex: 0 0 auto; color: var(--accent-text); }
+ .sort-text { flex: 1 1 auto; display: flex; flex-direction: column; }
+ .sort-text .lbl { font-weight: 500; }
+ .sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+ 
+-/* ── SP15-P2b Task 3: AI-off banner ── copied rule bodies verbatim from
+-   PhotosSmartViews.vue's .svs-banner* (renamed .albums-ai-banner*) -- token values, sizes and
+-   spacing are not to drift from that page's banner, they are the same UI moved to a second
+-   surface. See that file's own header comment for why --dem-fg/--dem-bg/--dem-bd (not the
+-   Vue2 source's inline amber literals) and why the 20px bottom margin deviates from Vue2's
+-   literal 0. PhotosSmartViews.vue still renders its own copy for now -- Task 5 removes it. */
++/* ── SP15-P2b Task 3: AI-off banner ── token values and inner sizes copied from
++   PhotosSmartViews.vue's old .svs-banner* (renamed .albums-ai-banner*); see that file's own
++   header comment for why --dem-fg/--dem-bg/--dem-bd rather than the Vue2 source's inline amber
++   literals.
++   Final fix wave -- the OUTER margin is not copied from there. The right reference for this
++   surface is Vue2's own Albums-page banner (939a7d3a:PhotosAlbumsView.vue:79,
++   `margin:0 0 20px`): it sits flush with the section head and the grid below it. Inheriting the
++   other page's `24px 32px 20px` indented this banner 32px further in than everything else on
++   the page. */
+ .albums-ai-banner {
+-  margin: 24px 32px 20px; padding: 14px 16px;
++  margin: 0 0 20px; padding: 14px 16px;
+   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
+   display: flex; gap: 10px; align-items: flex-start;
+ }
+ .albums-ai-banner-icon {
+   width: 26px; height: 26px; border-radius: 7px;
+   background: color-mix(in srgb, var(--dem-fg) 18%, transparent); color: var(--dem-fg);
+   display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
+ }
+ .albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
+ .albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
+ .albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+ 
+ /* ── 分区头 + Grid ──
+    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
+    滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
+    SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
+-   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's .sv-grid) --
+-   the two card kinds now share one grid, and a smart card is narrower at 220px than it is on
+-   its own page. That is the accepted cost of mixing, not a regression of this task: Vue 2
+-   keeps the same two grids apart too (its own `.album-grid-user` vs the smart-views grid,
+-   each with its own column width, never unified), so this leaves both sides in the same
+-   position they were already in rather than unifying the column width "while we're here". */
++   minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's old .sv-grid) --
++   the two card kinds now share one grid, and a smart card is therefore narrower here than it
++   used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
++   apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
++   minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
++   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width. */
+ .albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+ .albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
+ .albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
+ .albums-section-hint { font-size: 12px; color: var(--fg-muted); }
+ .album-grid {
+   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
+ }
+ .album-create {
+   aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
+   background: var(--chip-bg); display: flex; flex-direction: column; align-items: center;
+diff --git a/src/views/PhotosSmartViewDetail.vue b/src/views/PhotosSmartViewDetail.vue
+index b6a45f2..65b6a85 100644
+--- a/src/views/PhotosSmartViewDetail.vue
++++ b/src/views/PhotosSmartViewDetail.vue
+@@ -911,32 +911,38 @@ async function onExcludedTileClick(id: string): Promise<void> {
+             {{ t('photosDelete') }}
+           </button>
+         </div>
+       </div>
+     </div>
+     </Transition>
+ 
+     <!-- SP15-P2b Task 8: convert-to-album confirmation -- same sv-confirm-* visual idiom as
+          the delete confirmation above. The copy spells out all three consequences (updates
+          stop, members are fixed, theme and conditions are removed), not dressed up as
+-         reversible. Submit button carries no .danger -- this is not a destructive delete,
+-         and Vue2 uses its ordinary primary CTA (trash-btn-cta) rather than the danger variant. -->
++         reversible.
++         Final fix wave: the submit button carries `.primary`, not `.danger` and not the bare
++         base class. Vue2 uses its filled primary CTA here (`trash-btn-cta`,
++         939a7d3a:photos.scss:2203-2213 -- filled accent, light text, weight 600), while the
++         delete dialog above uses the danger variant. With neither modifier the button rendered
++         as a ghost pixel-identical to the Cancel beside it, with no hover feedback at all.
++         The icon disc likewise takes `.accent`: Vue2 :298 tints this album glyph with
++         var(--accent-hi) and only the delete dialog's trash glyph (:279) is red. -->
+     <Transition name="sv-confirm">
+     <div v-if="convertToAlbumOpen" class="sv-confirm-scrim" data-test="sv-convert-confirm" @click.self="closeConvertToAlbum">
+       <div class="sv-confirm-panel">
+-        <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
++        <div class="sv-confirm-icon accent"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M12 11v6M9 14h6" /><path d="M8 7V5a2 2 0 012-2h4a2 2 0 012 2v2" /></svg></div>
+         <div class="sv-confirm-title">{{ t('photosSvConvertToAlbumTitle', { name: sv?.name }) }}</div>
+         <div class="sv-confirm-body">{{ t('photosSvConvertToAlbumBody', { n: fmtNum(sv?.count ?? 0) }) }}</div>
+         <div v-if="convertError" class="sv-confirm-error" data-test="sv-convert-error">{{ convertError }}</div>
+         <div class="sv-confirm-foot">
+           <button type="button" class="sv-confirm-cancel" data-test="sv-convert-cancel" :disabled="convertingToAlbum" @click="closeConvertToAlbum">{{ t('photosCancel') }}</button>
+-          <button type="button" class="sv-confirm-ok" data-test="sv-convert-ok" :disabled="convertingToAlbum" @click="doConvertToAlbum">
++          <button type="button" class="sv-confirm-ok primary" data-test="sv-convert-ok" :disabled="convertingToAlbum" @click="doConvertToAlbum">
+             {{ convertingToAlbum ? t('photosAlbumConverting') : t('photosSvConvertToAlbum') }}
+           </button>
+         </div>
+       </div>
+     </div>
+     </Transition>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+@@ -1189,37 +1195,59 @@ async function onExcludedTileClick(id: string): Promise<void> {
+ .sv-confirm-panel {
+   width: 380px; max-width: 100%; padding: 22px; border-radius: 16px;
+   background: var(--popup-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow-hi);
+   color: var(--fg);
+ }
+ .sv-confirm-icon {
+   width: 44px; height: 44px; border-radius: 50%; margin-bottom: 10px;
+   background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg);
+   display: flex; align-items: center; justify-content: center;
+ }
++/* SP15-P2b final fix wave: the base disc is red because the only dialog that had one was the
++   delete confirmation. Vue2 differentiates deliberately -- 939a7d3a:PhotosSmartViewDetail.vue
++   :279 tints the delete dialog's trash glyph red, :298 tints the convert dialog's album glyph
++   with var(--accent-hi) -- so a non-destructive action must not wear the delete colour. Reuses
++   the --accent-soft/--accent-text pair the .sv-export-icon discs on this same page already use. */
++.sv-confirm-icon.accent { background: var(--accent-soft); color: var(--accent-text); }
+ .sv-confirm-title { font-size: 16px; font-weight: 600; }
+ .sv-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+ /* SP15-P2b Task 8: inline failure message next to the convert confirmation's submit button
+    (not a toast -- it answers the button just pressed, same reasoning as
+    AlbumConvertToSmartDialog.vue's own .convert-error). */
+ .sv-confirm-error { margin-top: 8px; font-size: 12px; color: var(--remove-fg); line-height: 1.4; }
+ .sv-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
+ .sv-confirm-cancel, .sv-confirm-ok {
+   padding: 8px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: transparent;
+   color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+ }
+-.sv-confirm-cancel:hover { background: var(--chip-bg-hi); }
++/* :not(:disabled) for the same reason as the .primary hover below -- Cancel is disabled while
++   the conversion is in flight and must not light up under the cursor then. */
++.sv-confirm-cancel:hover:not(:disabled) { background: var(--chip-bg-hi); }
+ .sv-confirm-ok.danger {
+   border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
+   color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
+ }
+ .sv-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
++/* SP15-P2b final fix wave: filled primary CTA for a non-destructive confirmation, standing in
++   for Vue2's `trash-btn-cta` (939a7d3a:photos.scss:2203-2213 -- filled accent gradient, light
++   text, weight 600; the gradient's literals are replaced by the --accent token per this repo's
++   colour rule). Without a modifier this button inherited the base ghost look and was
++   indistinguishable from the Cancel next to it. The hover mirrors .sv-action-btn-primary:hover
++   on this same page. Both selectors below are two-class compounds (0,2,0), so they outrank the
++   shared `.sv-confirm-cancel, .sv-confirm-ok` base (0,1,0) structurally, not by source order. */
++.sv-confirm-ok.primary { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 600; }
++/* :not(:disabled) rather than a later :disabled override -- CSS applies :hover to disabled
++   buttons too, and the mid-flight state must not brighten under the cursor. */
++.sv-confirm-ok.primary:hover:not(:disabled) { filter: brightness(1.08); }
++/* Both buttons are disabled while the conversion is in flight (the delete dialog above never
++   disables either), so this pair only ever shows up on the convert confirmation. */
++.sv-confirm-cancel:disabled, .sv-confirm-ok:disabled { opacity: 0.6; cursor: not-allowed; }
+ /* fix round 1 · I2:Vue2 :239 包 `<transition name="lb-confirm">`,规则在
+    photos.scss:702-707(opacity + scale(0.95),200ms)。类名不沿用 `lb-confirm`(同上方
+    scrim/panel 命名理由,避免与 PhotoLightbox.vue 已有的同名 transition 混淆)。 */
+ .sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
+ .sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
+ 
+ /* ≤768px:侧栏已收抽屉,布局单列(本区既定形态);详情页自己的两列(内容/右栏)同样
+    塌成单列,右栏排到内容下方。 */
+ @media (max-width: 768px) {
+   .photos-layout { gap: 0; }
+diff --git a/src/views/PhotosSmartViews.moments.test.ts b/src/views/PhotosSmartViews.moments.test.ts
+index e65233e..d642265 100644
+--- a/src/views/PhotosSmartViews.moments.test.ts
++++ b/src/views/PhotosSmartViews.moments.test.ts
+@@ -1,13 +1,22 @@
+-// SP15-P1-T5: the "Moments · For You" band at the top of the smart views page.
+-// Target is Vue2 899af59b:PhotosSmartViewsView.vue:31-44 (mo-section) + :46 (sv-hero
+-// picking up the sv-hero-secondary divider) + :455 (showMoments gating).
++// SP15-P1-T5: the "Moments · For You" section, now this page's whole content.
++// Target is Vue2 939a7d3a:PhotosSmartViewsView.vue:18-32 (mo-section + mo-hero + the gated
++// grid + the slim hint) and :455 (showMoments itself).
++//
++// ⚠ The target for THIS page is 939a7d3a, not the 899af59b these lines used to cite. That
++// citation was P1's target and predates the IA merge; at 899af59b the page still had its own
++// `sv-hero` above the Moments band, so gating the whole `.mo-section` on showMoments was
++// harmless there. SP15-P2b deleted that hero, which turned the same gate into "the page
++// renders nothing at all" on any device whose moments table is empty -- the everyday state.
++// Vue 2's target renders `.mo-section` and `.mo-hero` unconditionally (:18-19) and gates only
++// `.sv-grid.mo-grid` (:24), with the slim settings hint as the grid's `v-else-if` INSIDE the
++// section (:31). The cases below pin that shape, in both directions.
+ //
+ // Two mechanical deviations from the plan brief's literal test code, both logged:
+ //
+ //  1) Does not build its own createI18n instance. vitest.setup.ts already installs the
+ //     src/i18n singleton into `config.global.plugins` for every mount, and @vue/test-utils
+ //     concatenates that with any plugin array passed via `global.plugins` on an individual
+ //     mount() call rather than replacing it — a second createI18n() would get installed on
+ //     the very same app alongside the global one, and vue-i18n's install() unconditionally
+ //     registers its components/directives, producing "already registered" [Vue warn] noise
+ //     on every mount. Same fix already applied at MomentCard.test.ts:5-14 and
+@@ -36,20 +45,21 @@ const svc = vi.hoisted(() => ({
+     reorderMoments: vi.fn(async () => ({})),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ // SP15-P1-T6: fake sortablejs so drag-drop can be simulated by invoking the captured
+ // onEnd callback directly, same technique as useAlbumDragSort.test.ts.
+ const sortableCreate = vi.hoisted(() => vi.fn((..._args: unknown[]) => ({ destroy: vi.fn() })))
+ vi.mock('sortablejs', () => ({ default: { create: sortableCreate } }))
+ 
++import zh from '../i18n/zh_cn'
+ import PhotosSmartViews from './PhotosSmartViews.vue'
+ import { usePhotosMoments, type Moment } from '../photos/stores/moments'
+ import { usePhotosSettingsStore } from '../photos/stores/settings'
+ import { useToast } from '../stores/toast'
+ 
+ function makeMoment(over: Partial<Moment> = {}): Moment {
+   return {
+     id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', place: 'Bozeman',
+     recipeKey: 'trip:1', coverAssetId: 'c1', featuredAssetIds: ['f1', 'f2'],
+     assetCount: 42, addedThisWeek: 0, coverRatio: 1.5,
+@@ -78,51 +88,57 @@ async function mountPage() {
+   // service before any test overwrites store state (deviation 2 above).
+   await flushPromises()
+   return { w, router }
+ }
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks()
+ })
+ 
+-describe('band gating', () => {
+-  it('renders nothing when there are no moments (the core semantics of Vue2 showMoments)', async () => {
++describe('grid gating', () => {
++  it('keeps the section and its hero, dropping only the grid, when there are no moments', async () => {
+     const { w } = await mountPage()
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
++    // Vue2 :18-19 put no v-if on either -- gating them here left the page blank on every
++    // device with an empty moments table (the everyday state, see this file's header).
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    expect(w.find('.mo-hero h1').exists()).toBe(true)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
+   })
+ 
+-  it('renders the band when moments exist, with title/description from i18n', async () => {
++  it('renders the grid when moments exist, with title/description from i18n', async () => {
+     const { w } = await mountPage()
+     const s = usePhotosMoments()
+     s.moments = [makeMoment()]
+     await nextTick()
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(true)
+     expect(w.text()).toContain('时刻 · 为你推荐')
+   })
+ 
+-  it('hides the band when aiFeatures.smartview is false, even with moments present', async () => {
++  it('hides the grid when aiFeatures.smartview is false, even with moments present', async () => {
+     const { w } = await mountPage()
+     const s = usePhotosMoments()
+     s.moments = [makeMoment()]
+     const settings = usePhotosSettingsStore()
+     settings.aiFeatures.smartview = false
+     await nextTick()
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
++    // The hero survives the switch being off -- only the grid answers to it.
++    expect(w.find('.mo-hero h1').exists()).toBe(true)
+   })
+ 
+   it('treats a missing aiFeatures.smartview field as enabled (no scary default)', async () => {
+     const { w } = await mountPage()
+     const s = usePhotosMoments()
+     s.moments = [makeMoment()]
+     await nextTick()
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(true)
+   })
+ })
+ 
+ describe('grid', () => {
+   it('renders one card per moment, sizing/template pulled from the store sizeMap', async () => {
+     const { w } = await mountPage()
+     const s = usePhotosMoments()
+     s.moments = [makeMoment({ id: 'a' }), makeMoment({ id: 'b', coverRatio: 0.6 })]
+     await nextTick()
+     const cards = w.findAll('.mo-card')
+@@ -258,28 +274,41 @@ describe('SP15-P2b: smart-view list responsibilities are gone from this page', (
+     expect(w.find('[data-test="sv-create-card"]').exists()).toBe(false)
+     expect(w.find('[data-test="sv-skeleton"]').exists()).toBe(false)
+     expect(w.findAll('[data-test="sv-card"]')).toHaveLength(0)
+   })
+ 
+   it('no longer fetches the smart view list on this page', async () => {
+     await mountPage()
+     expect(svc.photos.listSmartViews).not.toHaveBeenCalled()
+   })
+ 
+-  it('shows the slim settings hint instead of the band when smart views are off, even with moments present', async () => {
++  it('shows the hero plus the slim settings hint instead of the grid when smart views are off', async () => {
+     const { w } = await mountPage()
+     const s = usePhotosMoments()
+     s.moments = [makeMoment()]
+     const settings = usePhotosSettingsStore()
+     settings.aiFeatures.smartview = false
+     await nextTick()
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
+-    expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(true)
++    // Vue2 :31 keeps the hint inside .mo-section, as the grid's v-else-if -- so the heading
++    // stays on screen and the hint explains why there are no cards under it.
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    expect(w.find('.mo-hero h1').exists()).toBe(true)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
++    const hint = w.find('[data-test="mo-off-hint"]')
++    expect(hint.exists()).toBe(true)
++    expect(w.find('[data-test="mo-section"]').element.contains(hint.element)).toBe(true)
+   })
+ 
+-  it('shows neither the band nor the hint when there are simply no moments (the everyday real-device state)', async () => {
++  it('shows the hero on its own — no grid, no hint — when there are simply no moments (the everyday real-device state)', async () => {
+     const { w } = await mountPage()
+     // No moments fixture set — mountPage's mocked listMoments() already resolved to [].
+-    expect(w.find('[data-test="mo-section"]').exists()).toBe(false)
++    // This is the state the acceptance device is in, and it must not be a blank page: the
++    // hero is what tells the user which page they are on and what it is for.
++    expect(w.find('[data-test="mo-section"]').exists()).toBe(true)
++    const h1 = w.find('.mo-hero h1')
++    expect(h1.exists()).toBe(true)
++    expect(h1.text()).toBe(zh.photosMoHeroTitle)
++    expect(w.find('.mo-hero p').text()).toBe(zh.photosMoHeroDesc)
++    expect(w.find('[data-test="mo-grid"]').exists()).toBe(false)
+     expect(w.find('[data-test="mo-off-hint"]').exists()).toBe(false)
+   })
+ })
+diff --git a/src/views/PhotosSmartViews.vue b/src/views/PhotosSmartViews.vue
+index fd1b6c9..905c230 100644
+--- a/src/views/PhotosSmartViews.vue
++++ b/src/views/PhotosSmartViews.vue
+@@ -8,40 +8,50 @@
+ //
+ // SP15-P2b Task 5 (Vue2 939a7d3a:src/views/Photos/PhotosSmartViewsView.vue, the whole
+ // 317-line file): the smart-view grid, its hero, the create tile, and the create dialog all
+ // moved to PhotosAlbums.vue in this branch's Tasks 3/4 — smart albums now live mixed into
+ // the Albums grid. What is left on this route is Moments-only: a "For You" page. The
+ // smart-view list store (usePhotosSmartViews) is no longer imported here at all; this file
+ // no longer fetches or renders anything about smart views themselves.
+ //
+ // This task's scope (brief structural spec items 1-9, now narrowed):
+ //  1) Shell (AreaShell/PhotosSidebar/.photos-main, unchanged)
+-//  2) Moments · For You band -- gated by showMoments, the page's sole content
+-//  3) Slim settings hint (v-else-if="aiSmartViewOff"): with the band hidden the page would
+-//     be nearly blank, so a one-line pointer to Settings replaces the old full AI banner
+-//     (the banner moved to the Albums page along with the smart-view grid).
++//  2) Moments · For You section -- the page's sole content. The section and its hero render
++//     UNCONDITIONALLY (Vue2 939a7d3a:PhotosSmartViewsView.vue:18-23 puts no v-if on either);
++//     only the card grid is gated by showMoments (Vue2 :24). Getting this wrong makes the
++//     whole page blank on a device with zero moments -- see the deviation registry note 5.
++//  3) Slim settings hint (v-else-if="aiSmartViewOff", Vue2 :31, a sibling of the grid INSIDE
++//     the section): with the grid hidden the page would otherwise be just a heading, so a
++//     one-line pointer to Settings replaces the old full AI banner (the banner moved to the
++//     Albums page along with the smart-view grid).
+ //
+ // Deviation registry:
+ //  1) [P8a-T6 already wired, historical record] Vue 2 :15's original banner link was
+ //     <a href="javascript:void(0)">, clicking it emitted $emit('open-settings', 'ai'). Once
+ //     the settings page landed this became a real <RouterLink> -- that behavior has since
+ //     been folded into the slim hint below and is no longer a standalone banner.
+ //  2) Vue 2 :19 has a bare English period after the link text (`</a>.`), which would mix
+ //     Chinese and English typography in the Chinese UI and sits outside any translatable
+ //     string -- not copied (same precedent as PhotosPeople.vue's deviation 7).
+ //  3) The slim hint's amber reuses the --dem-fg/--dem-bg/--dem-bd family (grep of theme.css
+ //     confirms both themes define values; PhotosTrash.vue's warn semantics are already an
+ //     established precedent for this token family -- no new token added).
+ //  4) [SP15-P1 final fix wave] A reorder drag no longer also opens the moment it dragged.
+ //     Vue 2's Moments band has no such guard and does open it; the album grid's guard is
+ //     copied here instead. Full rationale, including why Sortable's own `ignoreNextClick`
+ //     does not cover the reordering case, sits above `onMomentOpen` below.
++//  5) [SP15-P2b final fix wave] Not a deviation, a corrected port: this file used to gate the
++//     whole `.mo-section` (hero included) on showMoments, carried over from P1 when the page
++//     still had its own `sv-hero` above it -- harmless then, a completely blank page once this
++//     phase deleted that hero, which is exactly the state the acceptance device is in
++//     (moments table = 0 rows). Vue 2's target renders section + hero unconditionally and
++//     gates only the grid; the gate now sits where Vue 2 has it.
+ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import MomentCard from '../photos/components/MomentCard.vue'
+ import { usePhotosSettingsStore } from '../photos/stores/settings'
+ import { usePhotosMoments } from '../photos/stores/moments'
+ import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
+ import { useToast } from '../stores/toast'
+@@ -52,25 +62,26 @@ const settings = usePhotosSettingsStore()
+ const moments = usePhotosMoments()
+ const toast = useToast()
+ 
+ // P8a-T6(§7e-10):aiFeatures.smartview 曾经是本页自己 onMounted 直读一次 /photos/config
+ // 的临时实现(P8 归属前没有共享 store)。现在改读 T1 的 photosSettings store —— 语义不变:
+ // missing field / request failure is always treated as "on" (no banner/hint, does not
+ // scare the user) -- this defensive semantics already lives in store.fetchAiFeatures();
+ // this line only consumes it.
+ const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
+ 
+-// SP15-P1-T5(Vue2 899af59b:PhotosSmartViewsView.vue:455) —— the Moments band is hidden
+-// outright when there are no moments, and follows the same aiFeatures.smartview switch as
+-// the settings hint below (reusing aiSmartViewOff, not a second computed). **On real devices
+-// the moments table is 0 rows for now (see spec §2), so "opening the page and not seeing
+-// this band" is expected, not a bug.**
++// SP15-P1-T5(Vue2 939a7d3a:PhotosSmartViewsView.vue:24 + :455) —— the Moments **grid** is
++// hidden outright when there are no moments, and follows the same aiFeatures.smartview switch
++// as the settings hint below (reusing aiSmartViewOff, not a second computed). It gates the
++// grid only: the section and its hero render unconditionally, exactly as Vue 2 :18-23 does.
++// **On real devices the moments table is 0 rows for now (see spec §2), so "opening the page
++// and seeing the heading with no cards under it" is expected, not a bug.**
+ const showMoments = computed(() => !aiSmartViewOff.value && moments.moments.length > 0)
+ const moGrid = ref<HTMLElement | null>(null)
+ 
+ // SP15-P1-T6: drag-to-reorder for the Moments band, reusing the album detail page's
+ // drag-sort composable instead of a second Sortable wrapper.
+ //
+ // This is the spot most likely to be copied wrong. Vue2 (899af59b:PhotosSmartViewsView.vue
+ // :480-497) rebinds Sortable from three watchers: two watch an inline detail view
+ // collapsing back to the list, one watches showMoments going from hidden to shown. The
+ // first two have **no counterpart here** — the detail page is its own route, so leaving
+@@ -129,57 +140,61 @@ onMounted(() => {
+   void settings.fetchAiFeatures()
+   void moments.fetchMoments()
+ })
+ </script>
+ 
+ <template>
+   <AreaShell :title="t('photosTitle')">
+     <div class="photos-layout">
+       <PhotosSidebar />
+       <main class="photos-main">
+-        <!-- ── Moments · For You (Vue2 899af59b :31-44) -- now this page's sole content ── -->
+-        <div v-if="showMoments" class="mo-section" data-test="mo-section">
++        <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
++             The section and the hero carry NO v-if, matching Vue2 :18-19: this page has no
++             other heading since the smart-view hero moved to Albums, so gating them would
++             leave a device with zero moments looking at an empty page. ── -->
++        <div class="mo-section" data-test="mo-section">
+           <div class="mo-hero">
+             <div>
+               <h1>{{ t('photosMoHeroTitle') }}</h1>
+               <p>{{ t('photosMoHeroDesc') }}</p>
+             </div>
+           </div>
+-          <div ref="moGrid" class="sv-grid mo-grid">
++          <div v-if="showMoments" ref="moGrid" class="sv-grid mo-grid" data-test="mo-grid">
+             <!--
+               The `??` fallbacks below can never actually fire: sizeMap (moments.ts) is a
+               computed derived from this same `moments.moments` list via assignMomentSizes,
+               keyed by m.id — every id rendered here is guaranteed to have a sizeMap entry in
+               the same tick. Kept only as belt-and-suspenders per the brief; do not mistake it
+               for a real code path — a genuinely absent entry would hand MomentCard 'T1' for a
+               moment with fewer than 2 featured ids, which MomentCard documents itself as
+               relying on never happening (see momentLayout.ts / MomentCard.vue's invariant
+               comment).
+             -->
+             <MomentCard
+               v-for="m in moments.moments" :key="m.id" :moment="m"
+               :size="moments.sizeMap[m.id]?.size ?? 'standard'"
+               :template="moments.sizeMap[m.id]?.template ?? 'T1'"
+               @open="onMomentOpen"
+             />
+           </div>
+-        </div>
+ 
+-        <!-- Vue2 :26-31: with the band hidden this page is nearly blank, so a one-line
+-             pointer to Settings replaces it. The full stop-updates banner moved to the
+-             Albums page along with the smart albums; it is not duplicated here. -->
+-        <div v-else-if="aiSmartViewOff" class="mo-off-hint" data-test="mo-off-hint">
+-          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+-          <span>
+-            {{ t('photosMoFollowsSmartViewSetting') }}
+-            <RouterLink class="mo-off-hint-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
+-          </span>
++          <!-- Vue2 :31 — a sibling of the grid, inside .mo-section: with the grid hidden the
++               page would be just a heading, so a one-line pointer to Settings takes its place.
++               The full stop-updates banner moved to the Albums page along with the smart
++               albums; it is not duplicated here. -->
++          <div v-else-if="aiSmartViewOff" class="mo-off-hint" data-test="mo-off-hint">
++            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
++            <span>
++              {{ t('photosMoFollowsSmartViewSetting') }}
++              <RouterLink class="mo-off-hint-link" to="/photos/settings?section=ai">{{ t('photosPeopleFacesOffLink') }}</RouterLink>
++            </span>
++          </div>
+         </div>
+       </main>
+     </div>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ .photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+ .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+ 
+@@ -223,25 +238,30 @@ onMounted(() => {
+ }
+ .mo-grid :deep(.mo-drag-chosen) { cursor: grabbing; }
+ 
+ /* Base grid used by .mo-grid above -- kept here even though this page no longer has a
+    smart-view grid of its own (SP15-P2b Task 5): .mo-grid only layers mosaic-specific rules
+    on top of it (see comment above) and still needs this rule to exist. */
+ .sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; flex: 1 1 auto; }
+ 
+ /* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
+    the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
+-   [data-tone="warn"]). */
++   [data-tone="warn"]).
++   SP15-P2b final fix wave: geometry now matches Vue2's own slim hint (939a7d3a:
++   PhotosSmartViewsView.vue:31 inline style -- padding:12px 14px, no margin, centred) instead
++   of the deleted full banner's (24px/32px margin, 14px/16px padding, flex-start). The hint is
++   one line of text, so it never needed the banner's icon-above-two-lines alignment, and the
++   32px side margin indented it past everything else on the page. Token family unchanged. */
+ .mo-off-hint {
+-  margin: 24px 32px 20px; padding: 14px 16px;
++  padding: 12px 14px;
+   background: var(--dem-bg); border: 1px solid var(--dem-bd); border-radius: 10px;
+-  display: flex; gap: 10px; align-items: flex-start;
+-  color: var(--dem-fg); font-size: 12.5px; line-height: 1.5;
++  display: flex; gap: 8px; align-items: center;
++  color: var(--dem-fg); font-size: 12.5px; line-height: 1.4;
+ }
+-.mo-off-hint svg { flex-shrink: 0; margin-top: 1px; }
++.mo-off-hint svg { flex-shrink: 0; }
+ .mo-off-hint-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+ 
+ /* ≤768px:侧栏已收抽屉,布局单列 */
+ @media (max-width: 768px) {
+   .photos-layout { gap: 0; }
+ }
+ </style>
+diff --git a/src/views/__tests__/PhotosAlbums.test.ts b/src/views/__tests__/PhotosAlbums.test.ts
+index 5c2ba42..4915a74 100644
+--- a/src/views/__tests__/PhotosAlbums.test.ts
++++ b/src/views/__tests__/PhotosAlbums.test.ts
+@@ -601,21 +601,23 @@ describe('PhotosAlbums.vue — mixed grid (SP15-P2b)', () => {
+     const w = await mountAlbums({
+       albums: [{ id: 'u1', name: 'A' }, { id: 'u2', name: 'B' }],
+       smartViews: [{ id: 's1', name: 'S', seeds: ['x'], conds: [], count: 4 }],
+     })
+     expect(w.findAll('[data-test="album-card"]')).toHaveLength(2)
+     expect(w.findAll('[data-test="sv-card"]')).toHaveLength(1)
+   })
+ 
+   it('counts both kinds in the header total', async () => {
+     const w = await mountAlbums({ albums: [{ id: 'u1', name: 'A' }], smartViews: [{ id: 's1', name: 'S' }] })
+-    expect(w.text()).toContain('2')
++    // Assert the rendered subtitle, not a bare '2' anywhere on the page -- with this fixture a
++    // bare digit matched by luck (card counts, dates), so the assertion had no mutation power.
++    expect(w.text()).toContain(zh.photosAlbumsCount.replace('{count}', '2'))
+   })
+ 
+   it('opens the smart view detail route when a smart card is clicked', async () => {
+     const w = await mountAlbums({ albums: [], smartViews: [{ id: 's1', name: 'S' }] })
+     await w.find('[data-test="sv-card"]').trigger('click')
+     expect(push).toHaveBeenCalledWith('/photos/smart-views/s1')
+   })
+ 
+   it('shows the smart-views-off banner only when the backend says it is off', async () => {
+     const off = await mountAlbums({ albums: [], aiFeatures: { smartview: false } })
+diff --git a/src/views/__tests__/PhotosSmartViewDetail.test.ts b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+index a28bbad..c651f41 100644
+--- a/src/views/__tests__/PhotosSmartViewDetail.test.ts
++++ b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+@@ -4,20 +4,21 @@
+ // 测试策略:store(usePhotosSmartViews)用真实实现,只 mock 共享包 service —— byId 的
+ // "改 store 后视图自动跟着变"是 §7e-2 本期核心修复的主守卫,必须走真实 store 才有意义。
+ // useLightbox 是模块级单例(同 PhotosAlbumDetail.test.ts 的既有手法),这里 spy 掉
+ // openAt 本体(mockImplementation 空函数),只断言调用参数,不放真实 hydrate 链路进来
+ // (那需要额外 mock getAsset/getAssetOcr/favorites,与本任务无关)。
+ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import { createRouter, createWebHashHistory } from 'vue-router'
++import { readFileSync } from 'node:fs'
+ import zh from '../../i18n/zh_cn'
+ import en from '../../i18n/en_us'
+ 
+ const svc = vi.hoisted(() => ({
+   photos: {
+     listSmartViews: vi.fn(),
+     getSmartViewAssets: vi.fn(),
+     getSmartViewActivity: vi.fn(),
+     updateSmartView: vi.fn(),
+     deleteSmartView: vi.fn(),
+@@ -791,29 +792,60 @@ describe('convert to regular album', () => {
+ 
+   it('reuses the duplicate-name copy for a 409', async () => {
+     convertFromSmartView.mockRejectedValue({ response: { status: 409 } })
+     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+     await openConvertConfirm(w)
+     await w.find('[data-test="sv-convert-ok"]').trigger('click')
+     await flushPromises()
+     expect(w.find('[data-test="sv-convert-error"]').text()).toContain(zh.photosAlbumNameExists)
+   })
+ 
+-  it('one Escape closes the convert confirmation along with any other open overlay', async () => {
+-    // The existing invariant on this page: independent ifs, never an early return.
++  it('closes the convert confirmation on Escape', async () => {
++    // Retitled in the final fix wave: the old title claimed this covered "along with any
++    // other open overlay", but askConvertToAlbum closes the more menu on its way in, so no
++    // second overlay is ever open here. The multi-overlay invariant (independent ifs, never
++    // an early return) is covered by the existing export-menu + more-menu case.
+     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+     await openConvertConfirm(w)
+     await document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+     await w.vm.$nextTick()
+     expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
+   })
+ 
++  it('dresses the confirm button as the filled primary CTA, not a second Cancel', async () => {
++    // Vue2 uses trash-btn-cta here (939a7d3a:photos.scss:2203-2213) and reserves the danger
++    // variant for the delete dialog. Without the modifier this button rendered with the base
++    // ghost rule -- pixel-identical to the Cancel beside it, and with no hover at all.
++    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
++    await openConvertConfirm(w)
++    const ok = w.find('[data-test="sv-convert-ok"]')
++    expect(ok.classes()).toContain('primary')
++    expect(ok.classes()).not.toContain('danger')
++    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
++    expect(css).toMatch(/\.sv-confirm-ok\.primary\s*\{[^}]*background:\s*var\(--accent\)/)
++    expect(css).toMatch(/\.sv-confirm-ok\.primary:hover:not\(:disabled\)\s*\{/)
++  })
++
++  it('tints the convert dialog icon with the accent, not the delete red', async () => {
++    // Vue2 :298 passes var(--accent-hi) for this album glyph; only :279's trash glyph is red.
++    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
++    await openConvertConfirm(w)
++    expect(w.find('[data-test="sv-convert-confirm"] .sv-confirm-icon').classes()).toContain('accent')
++    // The delete dialog keeps the red disc (no .accent).
++    await w.find('[data-test="sv-convert-cancel"]').trigger('click')
++    await w.find('[data-test="sv-more-toggle"]').trigger('click')
++    await w.find('[data-test="sv-more-delete"]').trigger('click')
++    expect(w.find('[data-test="sv-confirm-scrim"] .sv-confirm-icon').classes()).not.toContain('accent')
++    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
++    expect(css).toMatch(/\.sv-confirm-icon\.accent\s*\{[^}]*background:\s*var\(--accent-soft\)/)
++  })
++
+   it('does not dismiss the confirmation mid-flight', async () => {
+     let release: (v: unknown) => void = () => {}
+     convertFromSmartView.mockReturnValue(new Promise((r) => { release = r as (v: unknown) => void }))
+     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+     await openConvertConfirm(w)
+     await w.find('[data-test="sv-convert-ok"]').trigger('click')
+     await w.find('[data-test="sv-convert-cancel"]').trigger('click')
+     expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(true)
+     // Escape must be refused the same way the Cancel button is -- both route through
+     // closeConvertToAlbum's busy guard rather than one of them poking the flag directly.

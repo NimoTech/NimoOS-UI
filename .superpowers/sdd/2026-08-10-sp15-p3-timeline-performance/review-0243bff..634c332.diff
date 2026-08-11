@@ -1,0 +1,444 @@
+# Review package: 0243bff..HEAD
+
+## Commits
+634c332 feat(photos): render unloaded months as sized skeletons
+
+## Files changed
+ src/photos/components/PhotosGrid.vue               | 78 ++++++++++++++++++++--
+ src/photos/components/__tests__/PhotosGrid.test.ts | 66 ++++++++++++++++++
+ src/photos/stores/timeline.ts                      | 13 ++--
+ src/photos/util/assetToPhoto.ts                    |  6 ++
+ src/photos/util/timelineBuckets.ts                 |  2 +-
+ 5 files changed, 150 insertions(+), 15 deletions(-)
+
+## Diff
+diff --git a/src/photos/components/PhotosGrid.vue b/src/photos/components/PhotosGrid.vue
+index 35233c2..f57c9af 100644
+--- a/src/photos/components/PhotosGrid.vue
++++ b/src/photos/components/PhotosGrid.vue
+@@ -19,20 +19,21 @@
+ //     (Vuex `isSearchMode` dependency dropped).
+ //  4. i18n: `$t('English source')` -> `t('photosXxx')` (Task 4 key table).
+ //  5. Styling rebuilt on New-UI tokens; fixed video-chrome colors (badge bg/fg)
+ //     carry `theme-exception` comments, same precedent as MediaViewer/ViewerShell.
+ import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+ import type { Month, Photo } from '../util/assetToPhoto'
+ import { computeFrameFromX } from '../util/hoverScrub'
+ import { matchesTab } from '../util/tabFilter'
++import { estimateSectionBodyHeight, skeletonItemCount, MONTH_HEAD_HEIGHT } from '../util/gridMetrics'
+ import { usePhotosFavorites } from '../stores/favorites'
+ import VideoHoverPreview from './VideoHoverPreview.vue'
+ 
+ // P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
+ // 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
+ // 硬编码渲染 `.tile-check` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
+ // 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
+ const props = withDefaults(defineProps<{
+   months: Month[]
+   tab?: string
+@@ -42,20 +43,24 @@ const props = withDefaults(defineProps<{
+ }>(), {
+   tab: 'all',
+   density: 'comfortable',
+   selected: () => [],
+   selectable: true,
+ })
+ 
+ const emit = defineEmits<{
+   (e: 'open', photo: Photo, list: undefined, startMs: number): void
+   (e: 'toggle-select', id: string | number): void
++  // Bucket mode: the grid knows which months are on screen, the parent owns the
++  // store. Emitting keeps this component usable by the two consumers that have
++  // no buckets at all (favorites, place assets).
++  (e: 'need-bucket', key: string): void
+ }>()
+ 
+ const { t } = useI18n()
+ 
+ // 收藏是全局横切态(与 open/toggle-select 的视图级 emit 分工不同)——grid 直接消费
+ // store,不新增 emit。星标显隐/is-fav 判定一律走 fav.isFav(id) 值比较,不用对象引用
+ // (P1 铁律:时间线静默刷新在同一 keyed 节点上重建 Photo 对象,引用比较会误判)。
+ const fav = usePhotosFavorites()
+ 
+ // ─── DOM refs ────────────────────────────────────────────────────────────
+@@ -73,20 +78,53 @@ const hoverPreviewRef = ref<InstanceType<typeof VideoHoverPreview> | InstanceTyp
+ // ─── month scrubber ──────────────────────────────────────────────────────
+ const activeMonth = ref('')
+ const TICK_STEP = 55
+ const TICK_PAD = 12
+ 
+ const filteredMonths = computed(() => (props.months || []).map(m => ({
+   ...m,
+   filtered: m.photos.filter(p => matchesTab(p, props.tab)),
+ })))
+ 
++// Container width drives the column count (auto-fill/minmax), so it is read from
++// the scroll wrap. It stays a ref rather than a getter because a resize has to
++// re-run the estimates.
++const wrapWidth = ref(0)
++function measureWrap() { wrapWidth.value = wrapRef.value?.clientWidth ?? 0 }
++
++function skeletonCountOf(m: Month & { filtered: Photo[] }): number {
++  return skeletonItemCount({
++    tab: props.tab,
++    count: m.count,
++    videoCount: m.videoCount,
++    loaded: m.loaded,
++    loadedLength: m.filtered.length,
++  })
++}
++// A month is worth a container if it has tiles to show OR a non-zero estimate to
++// stand in for. Without the second half, bucket mode's first paint would fall
++// through to the empty state and no anchor would exist to scroll to.
++function hasContent(m: Month & { filtered: Photo[] }): boolean {
++  return m.filtered.length > 0 || skeletonCountOf(m) > 0
++}
++const anyContent = computed(() => filteredMonths.value.some(hasContent))
++function sectionBodyHeight(m: Month & { filtered: Photo[] }): number {
++  return estimateSectionBodyHeight({
++    containerWidth: wrapWidth.value,
++    density: props.density,
++    itemCount: skeletonCountOf(m),
++  })
++}
++function isLoaded(m: Month & { filtered: Photo[] }): boolean {
++  return m.loaded !== false
++}
++
+ const selecting = computed(() => props.selected.length > 0)
+ 
+ const scrubberTicks = computed(() => {
+   const ticks: Array<{ label: string; major: boolean; key: string }> = []
+   const seenYears = new Set<string>()
+   ;(props.months || []).forEach(m => {
+     // Skip groups without a YYYY-MM key (synthetic single groups), which have
+     // no month tick and must not crash the split below.
+     if (!m.key || m.key === 'unknown' || m.key === 'search' || !m.key.includes('-')) return
+     const [year, mo] = m.key.split('-')
+@@ -247,52 +285,55 @@ function onVideoLeave() {
+   stopAutoAdvance()
+   hoverToken++ // ★ invalidate any in-flight request
+   cancelAnimationFrame(moveRaf)
+   moveRaf = 0
+   previewVisible.value = false
+   hoveredVideo.value = null
+   spriteUrl.value = ''
+ }
+ 
+ onMounted(() => {
+-  const first = filteredMonths.value.find(m => (m.filtered || []).length > 0)
++  measureWrap()
++  const first = filteredMonths.value.find(hasContent)
+   if (first) activeMonth.value = first.key
+   onScroll()
+ })
+ onBeforeUnmount(() => {
+   stopAutoAdvance()
+   clearTimeout(hoverTimer)
+   hoverToken++ // invalidate any in-flight sprite request so it can't set state after unmount
+   cancelAnimationFrame(moveRaf)
+   moveRaf = 0
+ })
+ </script>
+ 
+ <template>
+   <div class="photos-grid-root">
+     <div ref="wrapRef" class="photos-wrap scroll" @scroll="onScroll">
+-      <div v-if="filteredMonths.every(m => m.filtered.length === 0)" class="empty-state" data-test="empty-state">
++      <div v-if="!anyContent" class="empty-state" data-test="empty-state">
+         <div class="empty-state-title">{{ t('photosNoPhotos') }}</div>
+         <div class="empty-state-desc">{{ t('photosNoPhotosHint') }}</div>
+       </div>
+ 
+       <template v-else>
+         <!-- v-for + v-if on the SAME element would break in Vue3 (v-if now
+              evaluates before v-for's scope var exists) — wrap with <template>
+              so `m` stays in scope, matching Vue2's per-item v-if filtering. -->
+         <template v-for="m in filteredMonths" :key="m.key">
+-          <div v-if="m.filtered.length > 0" :id="'m-' + m.key" class="month-group">
++          <div v-if="hasContent(m)" :id="'m-' + m.key" class="month-group">
+             <div class="month-head">
+               <div class="month-title">{{ m.key === 'unknown' ? t('photosUnknownDate') : m.title }}</div>
+-              <div class="month-count">{{ t('photosItemsCount', { count: m.filtered.length }) }}</div>
++              <div class="month-count">
++                {{ t('photosItemsCount', { count: isLoaded(m) ? m.filtered.length : skeletonCountOf(m) }) }}
++              </div>
+             </div>
+-            <div class="grid" :data-density="density">
++            <div v-if="isLoaded(m)" class="grid" :data-density="density">
+               <div
+                 v-for="p in m.filtered" :key="p.id"
+                 class="tile"
+                 :data-selected="isSelected(p.id)"
+                 @click="onTileClick(p)"
+                 @mouseenter="p.isVideo && onVideoEnter(p, $event)"
+                 @mousemove="p.isVideo && onVideoMove($event)"
+                 @mouseleave="p.isVideo && onVideoLeave()"
+               >
+                 <img :src="thumbnailSrc(p.id)" alt="" loading="lazy" @error="onThumbError">
+@@ -325,28 +366,34 @@ onBeforeUnmount(() => {
+                   :aria-label="fav.isFav(p.id) ? t('photosUnfavorite') : t('photosFavorite')"
+                   @click.stop="fav.toggle(p.id)"
+                 >
+                   <svg viewBox="0 0 24 24" width="14" height="14" :fill="fav.isFav(p.id) ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z"/></svg>
+                 </button>
+                 <div v-if="p.isVideo" class="tile-vid">
+                   <span class="vid-play">▶</span> {{ p.duration }}
+                 </div>
+               </div>
+             </div>
++            <div
++              v-else
++              class="month-skeleton"
++              data-test="month-skeleton"
++              :style="{ height: sectionBodyHeight(m) + 'px' }"
++            ></div>
+           </div>
+         </template>
+       </template>
+ 
+       <div style="height:80px"></div>
+     </div>
+ 
+-    <div v-if="filteredMonths.some(m => m.filtered.length > 0)" ref="scrubberRef" class="scrubber">
++    <div v-if="anyContent" ref="scrubberRef" class="scrubber">
+       <div class="scrubber-inner" :style="{ height: scrubberInnerHeight }">
+         <div
+           v-for="(tk, i) in scrubberTicks" :key="tk.key"
+           class="scrubber-tick" :ref="(el) => setTickRef(el as Element | null, i)"
+           :data-major="tk.major" :data-active="tk.key === activeMonth"
+           :style="{ top: tickTop(i), cursor: tk.major ? 'default' : 'pointer' }"
+           @click="!tk.major && jumpTo(tk.key)"
+         >{{ tk.label }}</div>
+         <div v-if="activeIdx >= 0" class="scrubber-thumb" :style="{ top: tickTop(activeIdx) }">
+           {{ scrubberTicks[activeIdx].label.slice(0, 3) }}
+@@ -373,20 +420,39 @@ onBeforeUnmount(() => {
+ 
+ .month-group { margin-bottom: 22px; }
+ .month-head { display: flex; align-items: baseline; gap: 8px; padding: 4px 2px 10px; }
+ .month-title { font-size: 15px; font-weight: 600; color: var(--fg); }
+ .month-count { margin-left: auto; font-size: 12px; color: var(--fg-muted); }
+ 
+ .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; }
+ .grid[data-density="compact"] { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 2px; }
+ .grid[data-density="loose"] { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+ 
++/* Unloaded month placeholder. The gentle sweep is the only thing telling the
++   user this block is still arriving rather than empty; it reuses the existing
++   surface tokens so both skins stay correct. */
++.month-skeleton {
++  border-radius: 8px;
++  background: var(--chip-bg);
++  background-image: linear-gradient(90deg, transparent 0%, var(--hover) 50%, transparent 100%);
++  background-size: 40% 100%;
++  background-repeat: no-repeat;
++  animation: month-skeleton-sweep 1.4s ease-in-out infinite;
++}
++@keyframes month-skeleton-sweep {
++  0% { background-position: -40% 0; }
++  100% { background-position: 140% 0; }
++}
++@media (prefers-reduced-motion: reduce) {
++  .month-skeleton { animation: none; }
++}
++
+ .tile { position: relative; aspect-ratio: 1; overflow: hidden; border-radius: 8px; background: var(--chip-bg); cursor: pointer; }
+ .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+ .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+ 
+ .tile-check { position: absolute; top: 6px; left: 6px; z-index: 2; }
+ .tile-check-box { opacity: 0; cursor: pointer; }
+ .tile:hover .tile-check-box, .tile[data-selected="true"] .tile-check-box { opacity: 1; }
+ 
+ .tile-fav {
+   position: absolute; top: 6px; right: 6px; z-index: 2;
+diff --git a/src/photos/components/__tests__/PhotosGrid.test.ts b/src/photos/components/__tests__/PhotosGrid.test.ts
+index 81bb832..f5a5b6f 100644
+--- a/src/photos/components/__tests__/PhotosGrid.test.ts
++++ b/src/photos/components/__tests__/PhotosGrid.test.ts
+@@ -411,10 +411,76 @@ describe('PhotosGrid', () => {
+       const fav = usePhotosFavorites()
+       await fav.reconcileFavIds()
+       const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+       const stars = w.findAll('.tile-fav')
+       expect(stars[0].attributes('aria-label')).toBe('取消收藏')
+       expect(stars[1].attributes('aria-label')).toBe('收藏')
+     })
+   })
+ })
++
++function bucketMonth(key: string, title: string, count: number, videoCount = 0): Month {
++  return { key, title, loc: '', photos: [], loaded: false, count, videoCount }
++}
++
++describe('PhotosGrid bucket-mode skeletons', () => {
++  it('renders a sized skeleton for an unloaded month instead of the empty state', async () => {
++    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
++    await nextTick()
++    expect(w.find('[data-test="empty-state"]').exists()).toBe(false)
++    const sk = w.find('[data-test="month-skeleton"]')
++    expect(sk.exists()).toBe(true)
++    expect(Number.parseFloat(sk.attributes('style')?.match(/height:\s*([\d.]+)px/)?.[1] ?? '0')).toBeGreaterThan(0)
++  })
++
++  it('keeps the month head visible on a skeleton, with the estimated count', async () => {
++    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
++    await nextTick()
++    expect(w.find('.month-title').text()).toBe('August 2026')
++    // photo tab estimate = count - videoCount = 9
++    expect(w.find('.month-count').text()).toContain('9')
++  })
++
++  it('renders the month container so jump anchors exist before anything loads', async () => {
++    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
++    await nextTick()
++    expect(w.find('#m-2026-08').exists()).toBe(true)
++  })
++
++  it('keeps the scrubber visible while every month is still a skeleton', async () => {
++    const w = mount(PhotosGrid, {
++      props: { months: [bucketMonth('2026-08', 'August 2026', 12), bucketMonth('2026-07', 'July 2026', 4)], tab: 'photo' },
++    })
++    await nextTick()
++    expect(w.find('.scrubber').exists()).toBe(true)
++    expect(w.findAll('.scrubber-tick').length).toBeGreaterThan(0)
++  })
++
++  it('hides an unloaded month on the doc tab, which has no directory counter', async () => {
++    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'doc' } })
++    await nextTick()
++    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
++    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
++  })
++
++  it('still shows the empty state when there are no months at all', async () => {
++    const w = mount(PhotosGrid, { props: { months: [], tab: 'photo' } })
++    await nextTick()
++    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
++  })
++
++  it('renders real tiles once a month is loaded', async () => {
++    const m: Month = { key: '2026-08', title: 'August 2026', loc: '', photos: [photo('a1')], loaded: true, count: 1, videoCount: 0 }
++    const w = mount(PhotosGrid, { props: { months: [m], tab: 'photo' } })
++    await nextTick()
++    expect(w.findAll('.tile')).toHaveLength(1)
++    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
++  })
++
++  it('leaves legacy month groups (no loaded field) rendering exactly as before', async () => {
++    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
++    await nextTick()
++    expect(w.findAll('.tile')).toHaveLength(1)
++    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
++  })
++})
+diff --git a/src/photos/stores/timeline.ts b/src/photos/stores/timeline.ts
+index 515fcb8..52962ce 100644
+--- a/src/photos/stores/timeline.ts
++++ b/src/photos/stores/timeline.ts
+@@ -83,39 +83,36 @@ const BUCKET_MAX_PAGES = 40
+ 
+ // Promises are not store state. Keyed so two viewport events for the same month
+ // share one request instead of racing.
+ const _bucketInflight = new Map<string, Promise<void>>()
+ 
+ export function __resetBucketProbeForTest(): void {
+   _bucketProbeRetryAfter = 0
+   _bucketInflight.clear()
+ }
+ 
+-// `months` returns a plain Month in the legacy branch and a
+-// Month & {loaded, count, videoCount} in the bucket branch (bucketToMonth's
+-// return type — see timelineBuckets.ts). Widening `Month` itself belongs to
+-// Task 6, so this store-local type (optional extra fields) covers what
+-// `months` actually produces without touching the shared interface.
+-type TimelineMonth = Month & { loaded?: boolean; count?: number; videoCount?: number }
+-
+ export const useTimelineStore = defineStore('photos-timeline', () => {
+   const timelineGroups = ref<TimelineGroup[]>([])
+   const loading = ref(false)
+   const indexStatus = ref<IndexStatus>(emptyIndexStatus())
+   const tasks = ref<TaskBusPayload[]>([])
+ 
+   const buckets = ref<BucketMeta[]>([])
+   const bucketAssets = ref<Map<string, Photo[]>>(new Map())
+   const bucketLoading = ref<Set<string>>(new Set())
+   const bucketMode = ref(false)
+ 
+-  const months = computed<TimelineMonth[]>(() => {
++  // Returns a plain Month in the legacy branch and a Month with the SP15-P3
++  // bucket fields populated (loaded/count/videoCount) in the bucket branch —
++  // see bucketToMonth in timelineBuckets.ts. Month itself carries those fields
++  // as optional (assetToPhoto.ts), so no store-local widening type is needed.
++  const months = computed<Month[]>(() => {
+     if (bucketMode.value) {
+       return buckets.value.map((b) => bucketToMonth(b, bucketAssets.value.get(bucketKey(b)) ?? null))
+     }
+     return timelineGroups.value.map(g => groupToMonth(g))
+   })
+   const allPhotos = computed(() => months.value.flatMap(m => m.photos))
+   const isIndexing = computed(() => indexStatus.value.pending > 0 || indexStatus.value.queueLen > 0)
+ 
+   // In bucket mode the directory knows the whole library, so these are exact
+   // before a single asset has been fetched. The legacy branch can only count
+diff --git a/src/photos/util/assetToPhoto.ts b/src/photos/util/assetToPhoto.ts
+index 6dc7f4a..d587088 100644
+--- a/src/photos/util/assetToPhoto.ts
++++ b/src/photos/util/assetToPhoto.ts
+@@ -403,20 +403,26 @@ export function assetToPhoto(asset: Record<string, unknown>): Photo {
+     // favorites listing (backend attaches them there), empty elsewhere.
+     faces: Array.isArray(asset.faces) ? asset.faces : [],
+   }
+ }
+ 
+ export interface Month {
+   key: string
+   title: string
+   loc: string
+   photos: Photo[]
++  // SP15-P3 bucket metadata. Absent on legacy timeline groups and on every
++  // synthetic group (search results, favorites, place assets) — `loaded`
++  // undefined must be read as "already loaded", never as "pending".
++  loaded?: boolean
++  count?: number
++  videoCount?: number
+ }
+ 
+ export function groupToMonth(g: { year: number; month: number; assets?: unknown[] }): Month {
+   const key = g.month === 0 ? 'unknown' : `${g.year}-${String(g.month).padStart(2, '0')}`
+   const title = g.month === 0 ? 'Unknown Date' : `${MONTH_NAMES[g.month - 1]} ${g.year}`
+   return {
+     key,
+     title,
+     loc: '',
+     photos: (g.assets || []).map(a => assetToPhoto(a as Record<string, unknown>)),
+diff --git a/src/photos/util/timelineBuckets.ts b/src/photos/util/timelineBuckets.ts
+index bc4327a..30c57c4 100644
+--- a/src/photos/util/timelineBuckets.ts
++++ b/src/photos/util/timelineBuckets.ts
+@@ -52,21 +52,21 @@ export function normalizeBuckets(raw: unknown): BucketMeta[] {
+       count: intOr(r.count, 0),
+       videoCount: intOr(r.videoCount, 0),
+     })
+   }
+   return out
+ }
+ 
+ // `photos === null` means "not fetched yet" and `[]` means "fetched, and this
+ // month really is empty". Collapsing the two would make the grid re-request an
+ // empty bucket on every scroll pass.
+-export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month & { loaded: boolean; count: number; videoCount: number } {
++export function bucketToMonth(b: BucketMeta, photos: Photo[] | null): Month {
+   const base = groupToMonth({ year: b.year, month: b.month })
+   return {
+     ...base,
+     photos: photos ?? [],
+     loaded: photos !== null,
+     count: b.count,
+     videoCount: b.videoCount,
+   }
+ }
+ 

@@ -7,6 +7,7 @@
 // 更直接)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -29,7 +30,10 @@ function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
 }
 
-function mountDialog(props: { open?: boolean } = {}, i18n = makeI18n()) {
+function mountDialog(
+  props: { open?: boolean; embedded?: boolean; initialName?: string } = {},
+  i18n = makeI18n(),
+) {
   return mount(SmartViewCreateDialog, {
     props: { open: false, ...props },
     global: { plugins: [i18n] },
@@ -40,7 +44,7 @@ function fullSv(overrides: Partial<SmartView> = {}): SmartView {
   return {
     id: 'sv-new', name: 'X', description: '', conds: [], threshold: 80, live: true, includeVideos: false,
     count: 0, addedThisWeek: 0, seeds: [], median: 0, storageBytes: 0, distribution: new Array(10).fill(0),
-    evaluatedAt: '', ...overrides,
+    evaluatedAt: '', createdAt: '', ...overrides,
   }
 }
 
@@ -561,5 +565,116 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
     expect(rule).toBeDefined()
     expect(rule?.body).toMatch(/box-shadow:\s*0 1px 3px color-mix\(/)
+  })
+})
+
+// ══════════════════════════ SP15-P2b Task 4: embedded mode ══════════════════════════
+// Vue2 939a7d3a:PhotosSmartAlbumCreate.vue:20-21 (two-layer wrapper), :232-241 (props),
+// :271-277 (effectiveName/canSubmit), :325 (onScrimClick). The Albums page mounts this
+// dialog embedded in place of its own footer when the "Let Nimo draft it" fill option is
+// picked; standalone mode (PhotosSmartViews.vue's own mount) is untouched.
+describe('embedded mode (SP15-P2b Task 4)', () => {
+  it('embedded mode drops its own scrim, header and name field', async () => {
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-close-btn"]').exists()).toBe(false)
+    expect(w.find('[data-test="sv-name-input"]').exists()).toBe(false)
+  })
+
+  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode that ref
+  // is null (the name field is v-if="!embedded"), so opening the fused panel focused nothing.
+  it('focuses the description in embedded mode, the name field otherwise', async () => {
+    const embedded = mount(SmartViewCreateDialog, {
+      props: { open: false, embedded: true, initialName: 'Trip' },
+      global: { plugins: [makeI18n()] },
+      attachTo: document.body,
+    })
+    await embedded.setProps({ open: true })
+    await nextTick()
+    expect(document.activeElement).toBe(embedded.find('[data-test="sv-desc-textarea"]').element)
+    embedded.unmount()
+
+    const standalone = mount(SmartViewCreateDialog, {
+      props: { open: false },
+      global: { plugins: [makeI18n()] },
+      attachTo: document.body,
+    })
+    await standalone.setProps({ open: true })
+    await nextTick()
+    expect(document.activeElement).toBe(standalone.find('[data-test="sv-name-input"]').element)
+    standalone.unmount()
+  })
+
+  it('embedded mode submits the host-supplied name, live as the host edits it', async () => {
+    const w = mountDialog({ open: true, embedded: true, initialName: '' })
+    // Empty host name => cannot submit even with a description present.
+    await w.find('[data-test="sv-desc-textarea"]').setValue('sunsets')
+    expect(w.find('[data-test="sv-confirm-btn"]').attributes('disabled')).toBeDefined()
+    // The host field is the single source of truth, not a copy seeded on open, so a name
+    // typed after picking the nimo option still arrives.
+    await w.setProps({ initialName: 'Trip' })
+    expect(w.find('[data-test="sv-confirm-btn"]').attributes('disabled')).toBeUndefined()
+    const store = usePhotosSmartViews()
+    const createSmartView = vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv())
+    await w.find('[data-test="sv-confirm-btn"]').trigger('click')
+    expect(createSmartView).toHaveBeenCalledWith(expect.objectContaining({ name: 'Trip' }))
+  })
+
+  it('standalone mode still owns its scrim, header and name field', () => {
+    const w = mountDialog({ open: true })
+    expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
+    expect(w.find('[data-test="sv-name-input"]').exists()).toBe(true)
+  })
+
+  it('embedded mode does not close on a click inside its own root', async () => {
+    // The host panel owns the scrim; a stray self-click here must not shut the panel.
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    await w.find('[data-test="sv-embed-host"]').trigger('click')
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+
+  it('embedded mode leaves Escape to the host', async () => {
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await nextTick()
+    expect(w.emitted('update:open')).toBeUndefined()
+    // Also assert 'close' was never emitted, not just 'update:open': dismiss() itself already
+    // branches on embedded and would emit 'close' if this listener fired, so checking
+    // update:open alone cannot tell "the listener never fired" apart from "it fired and took
+    // the embedded branch" -- both leave update:open undefined either way.
+    expect(w.emitted('close')).toBeUndefined()
+  })
+
+  it('embedded mode emits close (not update:open) on successful create', async () => {
+    const store = usePhotosSmartViews()
+    vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv({ id: 'sv-embed-1' }))
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    await w.find('[data-test="sv-desc-textarea"]').setValue('sunsets')
+    await w.find('[data-test="sv-confirm-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.emitted('close')).toBeTruthy()
+    expect(w.emitted('created')).toEqual([['sv-embed-1']])
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+
+  // SP15-P2b Task 4 review fix round 1 · Important: in embedded mode the ghost Cancel
+  // button is the *only* way to back out without submitting -- it is not gated by
+  // v-if="!embedded" the way the header close button and Name field are, and the Escape
+  // listener is never attached in embedded mode (see the test above), so it cannot cover
+  // this path either. This was previously untested: dismiss()'s embedded branch and
+  // confirm()'s success-path embedded branch used to be two separately-written copies of
+  // the same decision, and only the confirm() copy had a test.
+  it('embedded mode emits close (not update:open) when Cancel is clicked', async () => {
+    const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    await w.find('.sv-btn-ghost').trigger('click')
+    expect(w.emitted('close')).toBeTruthy()
+    expect(w.emitted('update:open')).toBeUndefined()
+  })
+
+  it('embedded mode uses the "Create Smart Album" label, standalone keeps "Create Smart View"', () => {
+    const embedded = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
+    expect(embedded.find('[data-test="sv-confirm-btn"]').text()).toContain(zh.photosSvCreateSmartAlbum)
+    const standalone = mountDialog({ open: true })
+    expect(standalone.find('[data-test="sv-confirm-btn"]').text()).toContain(zh.photosSvCreateSmartView)
   })
 })

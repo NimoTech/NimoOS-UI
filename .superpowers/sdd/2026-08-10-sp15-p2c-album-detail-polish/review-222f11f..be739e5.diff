@@ -1,0 +1,1248 @@
+# Review package: 222f11f..be739e5
+
+## Commits
+be739e5 feat(photos): rebuild the smart-view header actions with sort and density
+
+## Files changed
+ src/i18n/en_us.photos.ts                          |   5 +
+ src/i18n/zh_cn.photos.ts                          |  10 +
+ src/views/PhotosSmartViewDetail.assets.test.ts    | 107 +++++---
+ src/views/PhotosSmartViewDetail.vue               | 283 ++++++++++++++++++----
+ src/views/__tests__/PhotosSmartViewDetail.test.ts | 174 +++++++++++++
+ 5 files changed, 506 insertions(+), 73 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 778a403..2543761 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -798,20 +798,25 @@ export default {
+   photosSvRemovedNFromView: 'Removed {n} from this view',
+   photosSvExcludedN: 'Excluded ({n})',
+   photosSvAlreadyInView: 'Already in this view',
+   photosSvPinnedNToView: 'Pinned {n} to this view',
+   photosSvRestoreFailed: 'Restore failed',
+   photosSvRemoveFailed: 'Remove failed',
+   photosSvAddFailed: 'Add failed',
+   photosSvShow: 'Show',
+   photosSvHide: 'Hide',
+   photosSvRestore: 'Restore',
++  // ── SP15-P2c Task 6: sort capsule + the edit-mode bar's empty-selection hint. English
++  // values are Vue2's literal source strings. See the zh_cn.photos.ts comment for the nine
++  // strings the rebuilt row reuses from elsewhere in this file instead of adding again.
++  photosSortScore: 'Match score',
++  photosSvClickToSelect: 'Click to select',
+   // ---- P7a-T9: search panel (filter bar + popovers) 54 keys, see the matching
+   // zh_cn.ts comment. English values are the Vue2 PhotosSearchView.vue literal
+   // English strings (= the Vue2 en dict keys), 1:1. ----
+   photosSearchAlbums: 'Albums',
+   photosSearchApply: 'Apply',
+   photosSearchAskNimoSearchDifferently: 'Ask Nimo to search differently',
+   photosSearchClearAll: 'Clear all',
+   photosSearchDate: 'Date',
+   photosSearchDescribeReLookingPeople: "Describe what you're looking for — people, places, scenes, or a whole sentence. Press ↵ to search.",
+   photosSearchFileType: 'File type',
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index f16d566..df878b5 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -815,20 +815,30 @@ export default {
+   photosSvRemovedNFromView: '已从此视图移除 {n} 张',
+   photosSvExcludedN: '已排除（{n}）',
+   photosSvAlreadyInView: '已在此视图',
+   photosSvPinnedNToView: '已钉住 {n} 张到此视图',
+   photosSvRestoreFailed: '恢复失败',
+   photosSvRemoveFailed: '移除失败',
+   photosSvAddFailed: '添加失败',
+   photosSvShow: '显示',
+   photosSvHide: '隐藏',
+   photosSvRestore: '恢复',
++  // ── SP15-P2c Task 6: the smart-view detail header's sort capsule + the edit-mode bar's
++  // empty-selection hint. Chinese values are Vue2's own zh_CN.json entries for the same
++  // English source strings (:2145 "Match score", :2012 "Click to select"), not fresh
++  // translations. Everything else the rebuilt row needs already exists in this file and is
++  // reused verbatim rather than duplicated: photosAlbumSort ('排序：'), photosAlbumSortTaken
++  // ('拍摄日期'), photosAlbumEdit ('编辑'), photosAlbumDone ('完成'),
++  // photosDensityComfortable ('舒适'), photosDensityCompact ('紧凑'), photosSelectedCount,
++  // photosSvAddPhotos and photosSvRemoveFromView.
++  photosSortScore: '匹配分数',
++  photosSvClickToSelect: '点击选择',
+   // ---- P7a-T9: 搜索面板(过滤条 + 弹层)54 键,照 Vue2 PhotosSearchView.vue 的
+   // 英文键逐条核对(zh 值取自 Vue2 src/assets/lang/zh_CN.json),接在文件末尾追加,
+   // 不与前面已有键重排。与 T1 已加键语义相同的(Cancel/Close 等)不重复添加。 ----
+   photosSearchAlbums: '相册',
+   photosSearchApply: '提交',
+   photosSearchAskNimoSearchDifferently: '让 Nimo 换个方式搜索',
+   photosSearchClearAll: '清除全部',
+   photosSearchDate: '日期',
+   photosSearchDescribeReLookingPeople: '描述你要找的内容——人物、地点、场景，或者一整句话。按 ↵ 搜索。',
+   photosSearchFileType: '文件类型',
+diff --git a/src/views/PhotosSmartViewDetail.assets.test.ts b/src/views/PhotosSmartViewDetail.assets.test.ts
+index bc026af..0b92e61 100644
+--- a/src/views/PhotosSmartViewDetail.assets.test.ts
++++ b/src/views/PhotosSmartViewDetail.assets.test.ts
+@@ -71,20 +71,40 @@ function seed(opts: { matched?: unknown[]; excluded?: unknown[] } = {}) {
+   const s = usePhotosSmartViews()
+   s.smartViews = [{ ...SV }]
+   s.listLoaded = true
+   svc.photos.getSmartViewAssets.mockResolvedValue(
+     (opts.matched ?? [{ id: 'a1', pinned: true }, { id: 'a2', pinned: false }]) as never,
+   )
+   svc.photos.getSmartViewExcluded.mockResolvedValue((opts.excluded ?? []) as never)
+   return s
+ }
+ 
++// SP15-P2c Task 6 re-homing. Two things moved under every test below:
++//   * `sv-select-toggle` (Select/Cancel, in the header) became `sv-edit-toggle` (Edit/Done) --
++//     the same `selecting` state, renamed `edit`, reached from the target's single toggle.
++//   * `sv-add-photos` left the header for the edit-mode bottom bar, so it is only reachable
++//     after entering edit mode.
++// The bar itself is now gated on `edit` alone rather than `edit && selectedIds.length`, which
++// costs the assertions below their old shorthand: "the bar is gone" used to prove "nothing is
++// selected" and no longer does. Wherever a test leaned on that, it now asserts the selection
++// directly -- the count in the bar, or the tiles carrying data-selected. That is a stronger
++// assertion than the one it replaces, not a weaker one.
++/** Enters edit mode (the only way to reach the selection gestures and Add photos). */
++async function enterEdit(w: ReturnType<typeof mount>) {
++  await w.find('[data-test="sv-edit-toggle"]').trigger('click')
++  await w.vm.$nextTick()
++}
++/** The ids of the tiles currently drawn as selected -- what `selectedIds` looks like on screen. */
++function selectedTiles(w: ReturnType<typeof mount>): number {
++  return w.findAll('.tile[data-selected="true"]').length
++}
++
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks()
+   // clearAllMocks wipes recorded calls but keeps any mockResolvedValue a previous test set,
+   // so the data mocks are put back to their defaults explicitly.
+   svc.photos.getSmartViewAssets.mockReset().mockResolvedValue([] as never)
+   svc.photos.getSmartViewActivity.mockReset().mockResolvedValue([] as never)
+   svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([] as never)
+   svc.photos.getSmartView.mockReset().mockResolvedValue({} as never)
+   lbMock.openAt.mockReset()
+@@ -98,20 +118,21 @@ describe('pin badge', () => {
+   })
+ })
+ 
+ describe('add photos', () => {
+   it('opens the picker, pins what it confirms, and reports the count it was told', async () => {
+     const s = seed()
+     const pin = vi.spyOn(s, 'pinAssets').mockResolvedValue(2)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+ 
++    await enterEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x', 'y'])
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(pin).toHaveBeenCalledWith('sv1', ['x', 'y'])
+     // Not just "a toast fired": the success toast, exactly once, carrying the count the
+     // store reported (2 — not the 3 ids picked, and not a hardcoded number).
+     expect(show).toHaveBeenCalledTimes(1)
+     expect(show).toHaveBeenCalledWith(zh.photosSvPinnedNToView.replace('{n}', '2'))
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+@@ -119,176 +140,200 @@ describe('add photos', () => {
+ 
+   // Finding 5: `pinAssets` answers null when it drops the call because another write is in
+   // flight. Nothing was sent, so nothing may be claimed — and above all the picker must keep
+   // the user's selection instead of closing on a write that never happened.
+   it('reports nothing and keeps the picker open when the store drops the call as busy', async () => {
+     const s = seed()
+     vi.spyOn(s, 'pinAssets').mockResolvedValue(null)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+ 
++    await enterEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(show).not.toHaveBeenCalled()
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+   })
+ 
+   it('reports a failure and keeps the picker open so the user can retry', async () => {
+     const s = seed()
+     vi.spyOn(s, 'pinAssets').mockRejectedValue(new Error('nope'))
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
++    await enterEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     w.findComponent({ name: 'PhotosLibraryPicker' }).vm.$emit('confirm', ['x'])
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).toHaveBeenCalledWith(expect.any(String), expect.anything(), 'danger')
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+   })
+ 
+   it('hands the picker the ids already in the view, String()-normalised', async () => {
+     seed({ matched: [{ id: 5 }] })
+     const { w } = await mountPage()
++    await enterEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     const ids = w.findComponent({ name: 'PhotosLibraryPicker' }).props('existingIds') as Set<string>
+     expect([...ids]).toContain('5')
+   })
+ 
+   // Final review, finding 3: Vue2 :288 hands this picker a *static* `$t('Add selected')`,
+   // while the album pages hand it their counting `Add ({count})` label. This screen shipped
+   // with the album pages' counting label, deferring to PhotosLibraryPicker's deviation (b) —
+   // but that deviation only justifies leaving the existing album consumers alone; it says
+   // nothing about a new one. The prop accepts either shape, so this asserts the one Vue2
+   // actually passes here.
+   it('passes the static "Add selected" submit label Vue2 gives this picker, not the counting one', async () => {
+     seed()
+     const { w } = await mountPage()
++    await enterEdit(w)
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     const label = w.findComponent({ name: 'PhotosLibraryPicker' }).props('submitLabel')
+     expect(label).toBe(zh.photosMoAddSelected)
+     // Belt and braces against a regression back to the album label, which is a function.
+     expect(typeof label).toBe('string')
+   })
+ })
+ 
+ describe('selection and removal', () => {
+-  it('suppresses the lightbox while selecting, and shows the count', async () => {
++  it('suppresses the lightbox while in edit mode, and shows the count', async () => {
+     seed()
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+     expect(lbMock.openAt).not.toHaveBeenCalled()
+   })
+ 
+-  it('still opens the lightbox when not selecting', async () => {
++  it('still opens the lightbox outside edit mode', async () => {
+     seed()
+     const { w } = await mountPage()
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     expect(lbMock.openAt).toHaveBeenCalled()
+   })
+ 
+-  it('removes the selection, then leaves selection mode', async () => {
++  it('removes the selection, then leaves edit mode', async () => {
+     const s = seed()
+     const remove = vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 1, excluded: 0 })
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(remove).toHaveBeenCalledWith('sv1', ['a1'])
++    // Leaving edit mode is now visible on the toggle as well as on the bar (Task 6).
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++    expect(w.find('[data-test="sv-edit-toggle"]').attributes('data-open')).toBe('false')
+   })
+ 
+   // Removal is tiered on the backend: a pinned row is deleted (`unpinned`), an automatically
+   // matched one is flagged excluded (`excluded`). Reporting their *sum* is the defining
+   // behaviour of this action, and it had no assertion anywhere — dropping either term from
+   // the expression left the whole suite green. Both tiers are non-zero and distinct here, so
+   // reporting only one of them, or the wrong one, fails.
+   it('confirms with both removal tiers added together', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockResolvedValue({ unpinned: 2, excluded: 3 })
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).toHaveBeenCalledWith(zh.photosSvRemovedNFromView.replace('{n}', '5'))
+   })
+ 
+   // Finding 5, the removal side: a call the store dropped as busy must not be confirmed, and
+   // must leave the selection alone so the user can press the button again.
+   it('reports nothing and keeps the selection when the store drops the removal as busy', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockResolvedValue(null)
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+     expect(show).not.toHaveBeenCalled()
+-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
++    // Re-homed (Task 6): the bar stays up in edit mode no matter what, so "still selected" is
++    // read off the tile and the bar's count instead of the bar's presence.
++    expect(selectedTiles(w)).toBe(1)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+   })
+ 
+   it('keeps the selection on failure so the user can retry', async () => {
+     const s = seed()
+     vi.spyOn(s, 'removeAssets').mockRejectedValue(new Error('nope'))
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-remove-selected"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
++    // Re-homed (Task 6), same reason as the busy case above.
++    expect(selectedTiles(w)).toBe(1)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain('1')
+   })
+ 
+-  it('leaving selection mode clears what was selected', async () => {
++  // Re-homed (Task 6): leaving and re-entering edit mode no longer makes the bar disappear, so
++  // "the bar is gone" is not evidence of anything here any more. What the test is actually
++  // about -- the selection being dropped on the way out -- is asserted on the tiles and on the
++  // bar's own hint line, which falls back to the empty-selection copy.
++  it('leaving edit mode clears what was selected', async () => {
+     seed()
+     const { w } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++    expect(selectedTiles(w)).toBe(1)
++
++    await enterEdit(w) // leave
++    await enterEdit(w) // and come back
++
++    expect(selectedTiles(w)).toBe(0)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+ 
+   // A selection surviving an :id change would send view A's asset ids to view B's remove
+   // endpoint, under a bar counting photos that are no longer on screen.
+   //
+   // Final review, finding 1: checking only that the bar disappears does NOT test the reset.
+-  // The bar's `v-if` is `selecting && selectedIds.length`, so clearing `selecting` alone
+-  // hides it — deleting `selectedIds.value = []` from the route watcher left this green.
+-  // The failure it hides: sv1 selection survives into sv2, `toggleSelecting` only clears on
+-  // *exit* so pressing Select on sv2 brings the bar back holding sv1's id, and Remove then
+-  // posts view A's asset to view B. Re-entering selection mode after the navigation is what
+-  // makes the stale ids observable, so that is what is asserted.
++  // Clearing the mode flag alone hides the bar — deleting `selectedIds.value = []` from the
++  // route watcher left this green. The failure it hides: sv1 selection survives into sv2,
++  // `toggleEdit` only clears on *exit* so pressing Edit on sv2 brings the bar back holding
++  // sv1's id, and Remove then posts view A's asset to view B. Re-entering edit mode after the
++  // navigation is what makes the stale ids observable, so that is what is asserted.
++  // Re-homed (Task 6): the same trap, one step worse — the bar is now gated on `edit` alone, so
++  // it reappears on sv2 whether or not the ids were cleared. The stale-id assertion moved onto
++  // the tiles and the bar's hint line.
+   it('drops the selection and closes the picker when the route id changes', async () => {
+     const s = seed()
+     s.smartViews = [{ ...SV }, { ...SV, id: 'sv2', name: 'Beach' }]
+     const { w, router } = await mountPage()
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+     await w.findAll('[data-test="sv-all-tile"]')[0].trigger('click')
+     await w.find('[data-test="sv-add-photos"]').trigger('click')
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
++    expect(selectedTiles(w)).toBe(1)
+ 
+     await router.push('/photos/smart-views/sv2')
+     await new Promise((r) => setTimeout(r, 0))
+ 
++    // Edit mode itself is left behind with the id, so the bar goes with it.
+     expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
+     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(false)
+ 
+-    // The real assertion: enter selection mode on sv2 without picking anything. If the ids
+-    // were not cleared, the bar reappears immediately carrying sv1's selection.
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
+-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++    // The real assertion: enter edit mode on sv2 without picking anything. If the ids were not
++    // cleared, the bar comes back counting sv1's selection and sv1's tile stays ticked.
++    await enterEdit(w)
++    expect(selectedTiles(w)).toBe(0)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+ })
+ 
+ describe('excluded section', () => {
+   it('stays hidden when nothing is excluded', async () => {
+     seed()
+     const { w } = await mountPage()
+     expect(w.find('[data-test="sv-excluded-head"]').exists()).toBe(false)
+   })
+ 
+@@ -308,33 +353,35 @@ describe('excluded section', () => {
+     await new Promise((r) => setTimeout(r, 0))
+     expect(restore).toHaveBeenCalledWith('sv1', ['e1'])
+   })
+ 
+   // Final review, finding 4 (file-header deviation 6): every other tile on this page toggles
+   // selection while selecting; an excluded one used to restore instead — an unconfirmed
+   // server write with no toast and no undo, in response to a click meant to tick a checkbox.
+   // Vue2 :167 has the same hole; this branch fixes and registers Vue2 defects rather than
+   // copying them. Excluded assets are not removal candidates either, so the tile is simply
+   // inert: no write, and no selection.
+-  it('an excluded tile does nothing while in selection mode', async () => {
++  it('an excluded tile does nothing while in edit mode', async () => {
+     const s = seed({ excluded: [{ id: 'e1' }] })
+     const restore = vi.spyOn(s, 'restoreAssets').mockResolvedValue(1)
+     const { w } = await mountPage()
+     await w.find('[data-test="sv-excluded-head"]').trigger('click')
+-    await w.find('[data-test="sv-select-toggle"]').trigger('click')
++    await enterEdit(w)
+ 
+     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+ 
+     expect(restore).not.toHaveBeenCalled()
+-    // Nor does it become selectable — the select bar needs a selection to exist at all.
+-    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++    // Nor does it become selectable. Re-homed (Task 6): the bar is up in edit mode regardless,
++    // so this now reads the selection itself instead of the bar's presence.
++    expect(selectedTiles(w)).toBe(0)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
+   })
+ 
+   it('reports a failed restore', async () => {
+     const s = seed({ excluded: [{ id: 'e1' }] })
+     vi.spyOn(s, 'restoreAssets').mockRejectedValue(new Error('nope'))
+     const toast = useToast(); const show = vi.spyOn(toast, 'show')
+     const { w } = await mountPage()
+     await w.find('[data-test="sv-excluded-head"]').trigger('click')
+     await w.find('[data-test="sv-excluded-tile"]').trigger('click')
+     await new Promise((r) => setTimeout(r, 0))
+diff --git a/src/views/PhotosSmartViewDetail.vue b/src/views/PhotosSmartViewDetail.vue
+index 65b6a85..e553df6 100644
+--- a/src/views/PhotosSmartViewDetail.vue
++++ b/src/views/PhotosSmartViewDetail.vue
+@@ -58,20 +58,29 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import SmartViewConditionEditor from '../photos/components/SmartViewConditionEditor.vue'
+ import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
+ import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
+ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+ import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
+ import { usePhotosAlbums } from '../photos/stores/albums'
+ import { useToast } from '../stores/toast'
+ import { isConflict } from '../photos/util/httpErrors'
+ import { useLightbox } from '../photos/lightbox/useLightbox'
+ import { relTime } from '../photos/util/relTime'
++// SP15-P2c Task 6: reused, not re-implemented. Despite the name this is a plain photo
++// comparator keyed off a string mode (util/albumView.ts:74) -- its 'taken' branch is
++// byte-for-byte the comparator Vue2 writes inline here as `sortedByMode` (33b05636
++// :577-587), and its fallback branch returns the list untouched, which is exactly what Vue2
++// means by 'score' -- its own comment there says "the order as it stands", because the backend
++// already returns match_score DESC. Writing a second copy of the same two branches on this
++// page is what the ruling against duplicated TS (phase ruling: option B on sharing) exists to
++// prevent.
++import { sortAlbumPhotos } from '../photos/util/albumView'
+ import { formatMB } from '../photos/util/formatBytes'
+ import type { Photo } from '../photos/util/assetToPhoto'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const store = usePhotosSmartViews()
+ const albums = usePhotosAlbums()
+ const toast = useToast()
+ const lb = useLightbox()
+ const { t, locale } = useI18n()
+@@ -93,28 +102,28 @@ const lastUpdated = computed(() => (sv.value?.evaluatedAt ? relTime(sv.value.eva
+ 
+ // ── 加载(结构规格 1)────────────────────────────────────────────────────────
+ onMounted(async () => {
+   if (!store.listLoaded) await store.fetchSmartViews()
+   await store.loadDetail(svId.value)
+   void store.loadExcluded(svId.value)
+ })
+ watch(() => route.params.id, (raw) => {
+   if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
+   // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
+-  // resets here. `selecting`/`selectedIds` are the pair with a write consequence —
++  // resets here. `edit`/`selectedIds` are the pair with a write consequence —
+   // removeSelected() reads svId.value at call time, so a selection carried across an :id
+   // change would send view A's asset ids to view B's remove endpoint, under a bar counting
+   // photos that are no longer on screen. `pickerOpen` is the same story from the other side
+   // (its already-in set comes from the previous view's members) and `excludedOpen` is the
+   // cosmetic remainder of the same rule: nothing on screen may come from the old id. Vue 2
+   // could not hit any of this — its detail component was v-if'd and remounted per view.
+-  selecting.value = false
++  edit.value = false
+   selectedIds.value = []
+   pickerOpen.value = false
+   excludedOpen.value = false
+   void store.loadDetail(String(raw))
+   void store.loadExcluded(String(raw))
+ })
+ 
+ // ── 标题编辑(结构规格 3、8)───────────────────────────────────────────────
+ const titleEdit = ref(false)
+ const titleDraft = ref('')
+@@ -227,20 +236,55 @@ async function onSidePatch(patch: { threshold?: number; live?: boolean; includeV
+     console.error('[photos-smartviews] onSidePatch', e)
+     toast.show(t('photosSvUpdateFailed'))
+   }
+ }
+ 
+ // ── header 统计四格(结构规格 3)──────────────────────────────────────────────
+ const newCount = computed(() => sv.value?.addedThisWeek || 0)
+ const median = computed(() => sv.value?.median || 0)
+ const storageText = computed(() => formatMB(sv.value?.storageBytes || 0))
+ 
++// ── SP15-P2c Task 6: sort capsule + density pair (target :49-90) ─────────────────────────
++// New construction: this page never had either control. Both are display-only preferences --
++// they change what the two grids show and in what order, and send nothing to the backend
++// (Vue2's own note at :457-459).
++//
++// 'score' is the identity ordering: the backend already returns matches by match_score DESC,
++// so the mode exists to name the default rather than to reorder anything.
++type SvSortBy = 'score' | 'taken'
++const sortBy = ref<SvSortBy>('score')
++const sortMenuOpen = ref(false)
++const sortMenuRef = ref<HTMLElement | null>(null)
++// Enum values match PhotosAlbumDetail.vue's (Vue2 spells the first one 'comfort'). The two
++// detail pages have to agree: the value is never visible, and a split would mean two
++// spellings of the same `data-active` test and the same `.density` rules.
++const density = ref<'comfortable' | 'compact'>('comfortable')
++
++// Two options here, against the album page's three -- a smart view has no manual order and no
++// separate "date added" (target :56-67).
++const sortOptions = computed(() => [
++  { id: 'score' as SvSortBy, label: t('photosSortScore') },
++  { id: 'taken' as SvSortBy, label: t('photosAlbumSortTaken') },
++])
++const currentSortLabel = computed(() => sortOptions.value.find((s) => s.id === sortBy.value)?.label ?? '')
++function pickSort(s: SvSortBy): void {
++  sortBy.value = s
++  sortMenuOpen.value = false
++}
++
++// The display order for each grid. The store's arrays stay untouched: `viewAssetIds` looks ids
++// up rather than reading positions, and the lightbox still receives the store's own array --
++// aligning the lightbox's navigation order with what the grid shows is Task 9's job, and this
++// is the state it consumes.
++const matchedSet = computed(() => sortAlbumPhotos(store.matchedAssets, sortBy.value))
++const recentSet = computed(() => sortAlbumPhotos(store.recentAssets, sortBy.value))
++
+ // ── 导出菜单 / more 菜单 / 删除确认:一个 mousedown 监听 + 一个 keydown 监听 ──────
+ const exportOpen = ref(false)
+ const moreOpen = ref(false)
+ const confirmDeleteOpen = ref(false)
+ // SP15-P2b Task 8: smart album -> regular album, the reverse of Task 7's
+ // AlbumConvertToSmartDialog. Inline in this file rather than a new component (Vue2 inlines
+ // its lb-confirm-* version too, and this page already owns a confirmation of the same
+ // shape for delete).
+ const convertToAlbumOpen = ref(false)
+ const convertingToAlbum = ref(false)
+@@ -262,37 +306,48 @@ function toggleMoreMenu(): void {
+ function onDocumentMouseDown(e: MouseEvent): void {
+   const target = e.target as Node
+   if (exportOpen.value) {
+     const m = exportMenuRef.value, b = exportBtnRef.value
+     if (m && !m.contains(target) && b && !b.contains(target)) exportOpen.value = false
+   }
+   if (moreOpen.value) {
+     const w = moreWrapRef.value
+     if (w && !w.contains(target)) moreOpen.value = false
+   }
++  // SP15-P2c Task 6: the sort menu closes on an outside click the same way (Vue2 :545-548
++  // adds its own click-outside for exactly this popup).
++  if (sortMenuOpen.value) {
++    const s = sortMenuRef.value
++    if (s && !s.contains(target)) sortMenuOpen.value = false
++  }
+ }
+ 
+-// Hard constraint: when multiple overlays are open, one Escape must close them all -- four
+-// independent ifs, no early return (deletion-check 8: adding `return` inside the first if
+-// turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
++// Hard constraint: when multiple overlays are open, one Escape must close them all -- five
++// independent ifs (four before SP15-P2c Task 6 added the sort menu), no early return
++// (deletion-check 8: adding `return` inside the first if turns that test red). SP15-P2b Task 8 adds convertToAlbumOpen: this branch routes through
+ // closeConvertToAlbum() rather than setting the flag directly, or Escape could dismiss the
+ // dialog mid-flight while the Cancel button's own guard refuses to (closeConvertToAlbum
+ // defined below).
+ function onDocumentKeydown(e: KeyboardEvent): void {
+   if (e.key !== 'Escape') return
+   if (exportOpen.value) exportOpen.value = false
+   if (moreOpen.value) moreOpen.value = false
+   if (confirmDeleteOpen.value) confirmDeleteOpen.value = false
+   if (convertToAlbumOpen.value) closeConvertToAlbum()
++  // SP15-P2c Task 6. Vue2 gives the sort popup a click-outside but no Escape; PhotosAlbumDetail
++  // .vue:539 already closes its own sort menu on Escape, and a popup that ignores the key its
++  // three neighbours on this same page answer reads as broken. Registered deviation, added as
++  // a fifth independent `if` so it does not disturb the "one Escape closes everything" rule.
++  if (sortMenuOpen.value) sortMenuOpen.value = false
+ }
+ 
+-const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value)
++const anyOverlayOpen = computed(() => exportOpen.value || moreOpen.value || confirmDeleteOpen.value || convertToAlbumOpen.value || sortMenuOpen.value)
+ watch(anyOverlayOpen, (open) => {
+   if (open) document.addEventListener('keydown', onDocumentKeydown)
+   else document.removeEventListener('keydown', onDocumentKeydown)
+ })
+ onMounted(() => document.addEventListener('mousedown', onDocumentMouseDown))
+ onBeforeUnmount(() => {
+   document.removeEventListener('mousedown', onDocumentMouseDown)
+   document.removeEventListener('keydown', onDocumentKeydown)
+   if (toastTimer) clearTimeout(toastTimer)
+ })
+@@ -462,49 +517,68 @@ async function doConvertToAlbum(): Promise<void> {
+ 
+ // ── 两段照片网格(结构规格 10)─────────────────────────────────────────────────
+ // lightbox 的浏览范围限定为该智能视图的**全部匹配**(不是整个图库),两段网格共用同一个
+ // handler、都传 matchedAssets 全集 —— 照搬 Vue2 openInLightbox :404-408 的
+ // `this.$emit('open-photo', p, this.matchedAssets)`(两段网格在 Vue2 里也共用这一个方法)。
+ // 不传第四参(query)⇒ 不激活 OCR 高亮,与 Vue2 一致。
+ function onTileClick(p: Photo): void {
+   // Vue2 :456-459 (onTileClick): selection mode suppresses the lightbox — a tap either
+   // selects or opens, never both. This has to come first, before the "New" badge is
+   // optimistically cleared: selecting a recently-added photo must not mark it as seen.
+-  if (selecting.value) {
++  if (edit.value) {
+     toggleSelect(String(p.id))
+     return
+   }
+   const r = store.recentAssets.find((x) => String(x.id) === String(p.id))
+   // 就地改 recentAssets 里那个元素的属性(不是替换数组/新建对象):店内乐观清除,提前隐藏
+   // "New" 角标——真实浏览记录由 lb.openAt 内部的 recordView 之类的动作在后端异步落地,
+   // 这里只是即时反馈,刻意写注释说明这处直接改 store ref 元素属性是有意为之。
+   if (r && r.isNew) r.isNew = false
+   lb.openAt(p, store.matchedAssets, 0)
+ }
+ 
+ // ── SP15-P2a: manual asset actions (Vue2 :456-534) ───────────────────────────────────────
+ // A smart view's membership is generated from its conditions; these four actions are the
+ // annotations layered on top of it — pin a photo the conditions missed, remove one (which
+ // either unpins it or flags it excluded), and put an excluded one back.
+ const pickerOpen = ref(false)
+-const selecting = ref(false)
++// SP15-P2c Task 6 -- state decision, registered as the brief asks. P2a's `selecting` is REUSED
++// and renamed `edit` rather than a second flag being added beside it. Vue2 made the identical
++// call and said so at :449-451 ("behaviour unchanged, only the name and the entry point"): the
++// flag Edit/Done drives is the same one that suppresses the lightbox, draws the tile checkmarks
++// and gates the bottom bar. A separate `edit` alongside `selecting` would be two names for one mode, and
++// every predicate on this page (onTileClick, the route watcher, removeSelected,
++// onExcludedTileClick, both grids' `data-selected`) would have to pick one and stay right
++// about it forever. The button's copy changes with the name -- photosPersonSelect/photosCancel
++// give way to photosAlbumEdit/photosAlbumDone -- and both old keys keep other consumers
++// (PersonAssetGrid.vue:124 and PhotosMomentDetail.vue:648; photosCancel has 38 more), so
++// neither is orphaned by this rename.
++const edit = ref(false)
+ const selectedIds = ref<string[]>([])
+ const excludedOpen = ref(false)
+ 
++// Target :319-322: the bar's own label covers the empty case, which is why the bar can appear
++// before anything is picked.
++const selectHint = computed(() => (
++  selectedIds.value.length
++    ? t('photosSelectedCount', { count: selectedIds.value.length })
++    : t('photosSvClickToSelect')
++))
++
+ // The ids the picker must show as already-in. Normalising with String() here is load-bearing:
+ // asset ids arrive from the API as numbers on some paths while timeline photo ids are strings,
+ // and a mismatch silently un-dims every tile. Same correction as PhotosAlbums.vue:163.
+ const viewAssetIds = computed(() => new Set(store.matchedAssets.map((p) => String(p.id))))
+ 
+-function toggleSelecting(): void {
+-  selecting.value = !selecting.value
+-  if (!selecting.value) selectedIds.value = []
++function toggleEdit(): void {
++  edit.value = !edit.value
++  if (!edit.value) selectedIds.value = []
+ }
+ 
+ function toggleSelect(id: string): void {
+   selectedIds.value = selectedIds.value.includes(id)
+     ? selectedIds.value.filter((x) => x !== id)
+     : [...selectedIds.value, id]
+ }
+ 
+ // Vue2 :516-534 (onPickPhotos). The store action already refetches this view's statistics,
+ // so only the asset grids are reloaded here. Both refreshes are needed: a pinned photo joins
+@@ -539,37 +613,37 @@ async function removeSelected(): Promise<void> {
+   try {
+     const r = await store.removeAssets(id, ids)
+     // Dropped because another write was in flight — nothing was sent, so the selection stays
+     // and nothing is claimed (final review, finding 5).
+     if (r === null) return
+     // Removal is tiered on the backend — a pinned row is deleted, an automatically matched
+     // one is flagged excluded — so the confirmation counts both (Vue2 :474).
+     toast.show(t('photosSvRemovedNFromView', { n: r.unpinned + r.excluded }))
+     // Cleared on success only, as in Vue2 :486: after a failure the selection is exactly
+     // what the user needs in order to press the button again.
+-    selecting.value = false
++    edit.value = false
+     selectedIds.value = []
+     await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
+   } catch (e) {
+     console.error('[photos-smartviews] removeAssets', e)
+     toast.show(t('photosSvRemoveFailed'), 2500, 'danger')
+   }
+ }
+ 
+ // Vue2 :493-503 (restoreOne). Clicking an excluded tile is the whole gesture — there is no
+ // separate confirm, which is why the band stays collapsed until asked for.
+ //
+ // Selection mode makes the tile inert instead (deviation 6 in the file header): Vue 2 fires
+ // the restore regardless, so the one tile on the page that does not toggle a checkmark
+ // silently writes to the server instead.
+ async function onExcludedTileClick(id: string): Promise<void> {
+-  if (selecting.value) return
++  if (edit.value) return
+   const svid = svId.value
+   try {
+     const n = await store.restoreAssets(svid, [id])
+     // Dropped because another write was in flight — nothing was sent, so there is nothing to
+     // refetch (final review, finding 5).
+     if (n === null) return
+     await Promise.all([store.loadDetail(svid), store.loadExcluded(svid)])
+   } catch (e) {
+     console.error('[photos-smartviews] restoreAssets', e)
+     toast.show(t('photosSvRestoreFailed'), 2500, 'danger')
+@@ -653,43 +727,94 @@ async function onExcludedTileClick(id: string): Promise<void> {
+               </div>
+ 
+               <div class="sv-header-stats">
+                 <span><b data-test="sv-stat-count">{{ fmtNum(sv.count) }}</b> {{ t('photosSvPhotosCount') }}</span>
+                 <span v-if="newCount > 0" data-test="sv-stat-delta"><b class="delta">+{{ newCount }}</b> {{ t('photosSvThisWeek') }}</span>
+                 <span>{{ t('photosSvMedianMatch') }} <b data-test="sv-stat-median">{{ median }}%</b></span>
+                 <span>{{ t('photosStorage') }} <b data-test="sv-stat-storage">{{ storageText }}</b></span>
+               </div>
+             </div>
+ 
++            <!-- SP15-P2c Task 6 (target :49-90). The row reads: Sort label -> capsule ->
++                 separator -> Pause/Resume -> Edit/Done -> separator -> density. Sort and
++                 density render outside edit mode only; Pause and Edit are unconditional, so in
++                 edit mode those two are all that is left and Edit is how you get back out. Each
++                 separator is inside the `v-if` of the group it parts, so neither can be left
++                 dangling. P2a's separate Add photos and Select buttons are gone: Select's job
++                 is now Edit/Done, and Add photos moved into the edit-mode bar at the bottom of
++                 this file (target :318-333).
++                 PARKED, NOT KEPT: Refine in Search, the Export menu and the "..." menu all sit
++                 at the END of this row until Task 7 gives them their target home in the sidebar
++                 (.sv-side-actions) and folds Export's two items into the "..." menu. Removing
++                 them here would leave rename/duplicate/convert/delete/export unreachable for a
++                 whole task -- the same call Task 3 made on the album page's own "..." menu,
++                 which Task 5 then moved. Everything before them is already in the target's
++                 order, so Task 7 only has to lift them out. -->
+             <div class="sv-actions">
++              <template v-if="!edit">
++                <span class="group">{{ t('photosAlbumSort') }}</span>
++                <div ref="sortMenuRef" class="sv-sort-wrap">
++                  <button type="button" class="order-pill" data-test="sv-sort-btn" @click.stop="sortMenuOpen = !sortMenuOpen">
++                    {{ currentSortLabel }}
++                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6" /></svg>
++                  </button>
++                  <div v-if="sortMenuOpen" class="sv-sort-menu" data-test="sv-sort-menu">
++                    <!-- Target :57-68 marks the active option with a check glyph and holds the
++                         labels in line with a same-width spacer when there is none. -->
++                    <button
++                      v-for="s in sortOptions" :key="s.id"
++                      type="button" class="sv-sort-item" data-test="sv-sort-item"
++                      :data-sort-id="s.id" :data-active="s.id === sortBy"
++                      @click="pickSort(s.id)"
++                    >
++                      <svg v-if="s.id === sortBy" class="sv-sort-check" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
++                      <span v-else class="sv-sort-check" />
++                      <span class="lbl">{{ s.label }}</span>
++                    </button>
++                  </div>
++                </div>
++                <div class="album-detail-actions-sep" />
++              </template>
++
+               <button type="button" class="sv-action-btn" data-test="sv-action-pause" @click="togglePaused">
+                 <svg v-if="paused" viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+                 <svg v-else viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></svg>
+                 {{ t(paused ? 'photosSvResume' : 'photosSvPause') }}
+               </button>
+-
+-              <!-- SP15-P2a (Vue2 :71-76): add photos, and the selection toggle. The toggle's
+-                   text reuses photosPersonSelect/photosCancel verbatim (the same two words as
+-                   Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a fresh
+-                   pair of keys — same call PhotosMomentDetail.vue made. -->
+-              <button type="button" class="sv-action-btn" data-test="sv-add-photos" @click="pickerOpen = true">
+-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+-                {{ t('photosSvAddPhotos') }}
+-              </button>
+               <button
+-                type="button" class="sv-action-btn" data-test="sv-select-toggle"
+-                :data-open="selecting" @click="toggleSelecting"
++                type="button" class="sv-action-btn" data-test="sv-edit-toggle"
++                :data-open="edit" @click="toggleEdit"
+               >
+-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+-                {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
++                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4z" /></svg>
++                {{ edit ? t('photosAlbumDone') : t('photosAlbumEdit') }}
+               </button>
+ 
++              <template v-if="!edit">
++                <div class="album-detail-actions-sep" />
++                <div class="density">
++                  <button
++                    type="button" data-test="sv-density-comfortable"
++                    :data-active="density === 'comfortable'" :title="t('photosDensityComfortable')"
++                    @click="density = 'comfortable'"
++                  >
++                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1" /><rect x="13" y="3" width="8" height="8" rx="1" /><rect x="3" y="13" width="8" height="8" rx="1" /><rect x="13" y="13" width="8" height="8" rx="1" /></svg>
++                  </button>
++                  <button
++                    type="button" data-test="sv-density-compact"
++                    :data-active="density === 'compact'" :title="t('photosDensityCompact')"
++                    @click="density = 'compact'"
++                  >
++                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /><rect x="3" y="19" width="6" height="2" /><rect x="11" y="19" width="6" height="2" /></svg>
++                  </button>
++                </div>
++              </template>
++
+               <!-- T16 兑现:搜索路由(/photos/search)已建,细化跳到搜索页并用该智能视图的
+                    名字作查询词。Vue2 :520 的 payload 另带 smartViewId,全仓 grep 零消费方,
+                    死参数不迁(见文件头偏离登记 5),这里只传 q。 -->
+               <button
+                 type="button" class="sv-action-btn" data-test="sv-action-refine"
+                 @click="refineInSearch"
+               >
+                 <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
+                      其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
+                      都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
+@@ -771,79 +896,82 @@ async function onExcludedTileClick(id: string): Promise<void> {
+                       <div class="sv-export-title">{{ t('photosSvDeleteSmartView') }}</div>
+                       <div class="sv-export-desc">{{ t('photosSvPhotosStayLibrary') }}</div>
+                     </div>
+                   </button>
+                 </div>
+                 </Transition>
+               </div>
+             </div>
+           </div>
+ 
+-          <!-- 「最近添加」段:仅 newCount > 0 时渲染,tile 走 store.recentAssets -->
++          <!-- "Recently added" band: rendered only while newCount > 0. Its tiles read
++               `recentSet` -- store.recentAssets in the order the Sort capsule currently asks
++               for (SP15-P2c Task 6). -->
+           <template v-if="newCount > 0">
+             <div class="sv-section-head" data-test="sv-recent-head">
+               {{ t('photosSvRecentlyAdded') }} <span class="pill">{{ t('photosSvNNewThisWeek', { n: newCount }) }}</span>
+             </div>
+-            <div class="sv-grid-photos sv-grid-photos-recent" data-test="sv-recent-grid">
++            <div class="sv-grid-photos sv-grid-photos-recent" :class="{ 'is-compact': density === 'compact' }" data-test="sv-recent-grid">
+               <div
+-                v-for="p in store.recentAssets" :key="p.id" class="tile" :class="{ recent: p.isNew }"
+-                :data-selected="selecting && selectedIds.includes(String(p.id))"
++                v-for="p in recentSet" :key="p.id" class="tile" :class="{ recent: p.isNew }"
++                :data-selected="edit && selectedIds.includes(String(p.id))"
+                 data-test="sv-recent-tile" @click="onTileClick(p)"
+               >
+                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                 <div v-if="p.isNew" class="new-tag">{{ t('photosSvNew') }}</div>
+                 <!-- SP15-P2a (Vue2 :146-147): pin badge on the right, selection check on the
+                      left, so the two never collide on the same tile. Both grids carry both. -->
+                 <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
+                   <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+                 </div>
+-                <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
++                <div v-if="edit && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                   <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                 </div>
+               </div>
+             </div>
+           </template>
+ 
+-          <!-- 「全部匹配」段:tile 走 store.matchedAssets -->
++          <!-- "All matches" band: tiles read `matchedSet` -- store.matchedAssets in the order
++               the Sort capsule currently asks for (SP15-P2c Task 6). -->
+           <div class="sv-section-head" data-test="sv-all-head">
+             {{ t('photosSvAllMatches') }} <span class="pill">{{ fmtNum(sv.count) }}</span>
+           </div>
+-          <div class="sv-grid-photos" data-test="sv-all-grid">
++          <div class="sv-grid-photos" :class="{ 'is-compact': density === 'compact' }" data-test="sv-all-grid">
+             <div
+-              v-for="p in store.matchedAssets" :key="p.id" class="tile"
+-              :data-selected="selecting && selectedIds.includes(String(p.id))"
++              v-for="p in matchedSet" :key="p.id" class="tile"
++              :data-selected="edit && selectedIds.includes(String(p.id))"
+               data-test="sv-all-tile" @click="onTileClick(p)"
+             >
+               <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+               <div v-if="p.pinned" class="sv-pin-tag" data-test="sv-pin-tag">
+                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z" /><circle cx="12" cy="10" r="2.2" /></svg>
+               </div>
+-              <div v-if="selecting && selectedIds.includes(String(p.id))" class="sv-tile-check">
++              <div v-if="edit && selectedIds.includes(String(p.id))" class="sv-tile-check">
+                 <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+               </div>
+             </div>
+           </div>
+ 
+           <!-- SP15-P2a 「已排除」分节(Vue2 :161-172):整块只在有排除项时出现,且默认折叠——
+                它是过去决定的记录,不是这个视图的内容。点一张即恢复,没有二次确认。 -->
+           <template v-if="store.excluded.length">
+             <div
+               class="sv-section-head sv-excluded-head" data-test="sv-excluded-head"
+               @click="excludedOpen = !excludedOpen"
+             >
+               {{ t('photosSvExcludedN', { n: store.excluded.length }) }}
+               <span class="pill">{{ excludedOpen ? t('photosSvHide') : t('photosSvShow') }}</span>
+             </div>
+             <div v-if="excludedOpen" class="sv-grid-photos sv-excluded-grid" data-test="sv-excluded-grid">
+               <div
+                 v-for="p in store.excluded" :key="p.id" class="tile"
+-                :data-inert="selecting" data-test="sv-excluded-tile"
++                :data-inert="edit" data-test="sv-excluded-tile"
+                 @click="onExcludedTileClick(String(p.id))"
+               >
+                 <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="" loading="lazy">
+                 <div class="sv-restore-hint">{{ t('photosSvRestore') }}</div>
+               </div>
+             </div>
+           </template>
+           </div>
+ 
+           <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
+@@ -859,28 +987,46 @@ async function onExcludedTileClick(id: string): Promise<void> {
+     <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
+          useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。 -->
+     <transition name="sv-toast-fade">
+       <div v-if="exportToast" class="sv-toast" data-test="sv-export-toast">
+         <svg v-if="exportToast.icon === 'download'" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
+         <svg v-else viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
+         {{ exportToast.text }}
+       </div>
+     </transition>
+ 
+-    <!-- SP15-P2a 选择栏(Vue2 :262-265):计数 + 移除按钮。整条在没有选中项时不存在,这也
+-         是移除按钮永远不会发出空请求的原因。 -->
+-    <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="sv-select-bar">
+-      <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
++    <!-- Edit-mode bottom bar (target :318-333). SP15-P2c Task 6 reshapes P2a's version into the
++         target's three elements — hint, Remove, Add photos — and re-gates it on `edit` alone
++         instead of `edit && selectedIds.length`. The gate has to change: the bar now carries
++         the hint line that speaks for the empty selection, and Add photos, which would be
++         unreachable in a smart view with nothing selected otherwise. What used to keep an empty
++         Remove request impossible is now the button's own `disabled` (plus removeSelected's own
++         early return), which is where the album page puts it too.
++         `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar is a sibling of
++         .photos-layout, outside the `v-else` that requires a smart view, so without it the bar
++         would float over the not-found state if the view vanished without the id changing. -->
++    <div v-if="edit && sv" class="sv-select-bar" data-test="sv-select-bar">
++      <span class="group">
++        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
++        {{ selectHint }}
++      </span>
+       <button
+         type="button" class="sv-action-btn" data-test="sv-remove-selected"
+-        :disabled="store.assetBusy" @click="removeSelected"
+-      >{{ t('photosSvRemoveFromView') }}</button>
++        :disabled="!selectedIds.length || store.assetBusy" @click="removeSelected"
++      >
++        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
++        {{ t('photosSvRemoveFromView') }}
++      </button>
++      <button type="button" class="sv-action-btn" data-test="sv-add-photos" @click="pickerOpen = true">
++        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" /></svg>
++        {{ t('photosSvAddPhotos') }}
++      </button>
+     </div>
+ 
+     <!-- SP15-P2a library picker (Vue2 :283-291). Title reuses photosAlbumPickerTitle --
+          Vue2 already feeds one string to two pickers.
+          submit-label: Vue2 :288 passes this picker a static `$t('Add selected')`, not the
+          count-bearing `Add ({count})` the two album pages use. The first version passed the
+          album pages' count function here and cited PhotosLibraryPicker deviation b -- but
+          that deviation is about keeping the album pages' existing consumers unchanged, and
+          says nothing about which form a **new** consumer should use (final review, finding
+          3). Reverted to the static label, reusing P1's existing photosMoAddSelected (the
+@@ -1024,20 +1170,66 @@ async function onExcludedTileClick(id: string): Promise<void> {
+    `data-primary="true"` 属性(与 Vue2 一致),但样式选择器改用伴生类
+    `.sv-action-btn-primary`,理由见下一条 hover 选择器的注释。 */
+ .sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+ /* fix round 1(第一版曾用单类 `.sv-action-btn-primary:hover`,被评审判定"更弱"——那与基类
+    `.sv-action-btn:hover` 同为 (0,2,0),平局时只靠书写顺序才不被基类的灰底盖成白底白字,
+    属于本期"hover 硬约束"明确要防的脆弱写法)。改成复合选择器
+    `.sv-action-btn.sv-action-btn-primary:hover`,真实优先级 (0,3,0),结构上稳赢基类的
+    (0,2,0),不依赖行序——`cssCascade.ts` 的 `classSpecificity` 按类/伪类计数,算出来正好是 3。 */
+ .sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
+ 
++/* ── SP15-P2c Task 6: sort capsule, separators, density pair ──
++   Rule bodies restated from PhotosAlbumDetail.vue's own (:1161-1176), which Task 3 in turn
++   restated from Vue2 photos.scss (:3458-3475 .group / .order-pill, :285-288 .density) and
++   photos-smartview.scss (.album-detail-actions-sep). Scoped styles do not cross SFCs in this
++   repo, so this duplication is the phase's KEEP-THE-DUPLICATION ruling, not a missed
++   extraction -- and it is what makes the two detail pages render the same row. */
++.group { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-muted); }
++.sv-actions .order-pill {
++  display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px;
++  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
++  font: inherit; font-size: 12px; cursor: pointer;
++}
++.sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
++.album-detail-actions-sep { width: 1px; height: 18px; background: var(--divider); flex-shrink: 0; }
++
++.density { display: inline-flex; gap: 2px; background: var(--chip-bg); border-radius: 8px; padding: 3px; }
++.density button {
++  width: 28px; height: 24px; display: inline-flex; align-items: center; justify-content: center;
++  border: 0; border-radius: 5px; background: transparent; color: var(--fg-muted); cursor: pointer;
++}
++.density button:hover { color: var(--fg); }
++.density button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
++
++/* Sort popup. Vue2 photos.scss:3122-3153 (.albums-sort-menu / .albums-sort-item): a flex row
++   per item so the check glyph and the label line up, and the active row carries --accent-soft.
++   `.sv-sort-check` is the fixed-width slot the glyph sits in -- rendered as an empty span when
++   the option is not the active one, which is how the target keeps every label at the same x
++   (its own version writes `style="width:12px;display:inline-block"` inline). Vue2 tints the
++   glyph with --accent-hi, a token this repo does not have (see .sv-action-btn-primary above);
++   --accent-text is the pair this file's own .sv-export-icon already uses against --accent-soft. */
++.sv-sort-wrap { position: relative; }
++.sv-sort-menu {
++  position: absolute; top: calc(100% + 4px); right: 0; min-width: 180px; z-index: 20;
++  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
++  padding: 4px; box-shadow: var(--card-shadow-hi);
++}
++.sv-sort-item {
++  display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px;
++  background: transparent; border: 0; border-radius: 8px; color: var(--fg);
++  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
++}
++.sv-sort-item:hover { background: var(--chip-bg-hi); }
++.sv-sort-item[data-active="true"] { background: var(--accent-soft); }
++.sv-sort-item .sv-sort-check { width: 12px; flex-shrink: 0; color: var(--accent-text); }
++.sv-sort-item .lbl { display: block; font-weight: 500; }
++
+ /* ── 导出 / more 菜单(scss:407-452)── */
+ .sv-export-menu {
+   position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
+   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
+   box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
+ }
+ .sv-more-menu { min-width: 220px; }
+ .sv-export-item {
+   display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
+   border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
+@@ -1065,20 +1257,25 @@ async function onExcludedTileClick(id: string): Promise<void> {
+ .sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+ 
+ /* ── 两段网格(scss:480-525)── */
+ .sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
+ .sv-section-head .pill { padding: 1px 8px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
+ .sv-grid-photos { padding: 0 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
+ /* Vue2 :136 内联 `padding-bottom:18px` 只加在"最近添加"段的网格上(全部匹配段没有这条),
+    给该段留出与下方"全部匹配"标题的呼吸间距。审计时发现模板已加了这个类但样式块漏写,
+    补上——同类漏渲染是本工程最高频缺陷,回源逐条核对时揪出。 */
+ .sv-grid-photos-recent { padding-bottom: 18px; }
++/* SP15-P2c Task 6, compact density (Vue2 photos-smartview.scss:557-559): the only change is
++   the auto-fill minimum, 180px down to 120px, so more thumbnails fit per row. Both grids on
++   this page take the modifier; the excluded band deliberately does not, exactly as in the
++   target. */
++.sv-grid-photos.is-compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+ .sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
+ .sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+ /* fix round 1 · I3:Vue2 scss:506-513 在 accent 边框内侧还叠一圈半透明黑色内阴影,作用是
+    在浅色照片上把 accent 环压出对比(纯白照片上单靠 2px accent 边框太容易被背景冲淡)。
+    `color-mix(in srgb, black 40%, transparent)` 复刻同样的暗度,不写字面 hex/rgb 函数——
+    `black` 关键字加 color-mix 有本仓先例 `PhotosTrash.vue:405`。 */
+ .sv-grid-photos .tile.recent::after {
+   content: ""; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: inherit;
+   pointer-events: none;
+   box-shadow: inset 0 0 0 2px color-mix(in srgb, black 40%, transparent);
+diff --git a/src/views/__tests__/PhotosSmartViewDetail.test.ts b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+index c651f41..693c596 100644
+--- a/src/views/__tests__/PhotosSmartViewDetail.test.ts
++++ b/src/views/__tests__/PhotosSmartViewDetail.test.ts
+@@ -507,20 +507,194 @@ describe('header 统计四格', () => {
+     const { w } = await mountView('7', [makeSv({ id: 7, storageBytes: 1572864 })])
+     expect(w.find('[data-test="sv-stat-storage"]').text()).toContain('2 MB')
+   })
+ 
+   it('formatMB 三档:2147483648 → "2.0 GB"', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7, storageBytes: 2147483648 })])
+     expect(w.find('[data-test="sv-stat-storage"]').text()).toContain('2.0 GB')
+   })
+ })
+ 
++// ── SP15-P2c Task 6: header action row (sort capsule / pause / edit / density) ────────────
++// Target: 33b05636:src/views/Photos/PhotosSmartViewDetail.vue:49-90. Sort and density are new
++// construction on this page -- it never had either control -- so these tests describe the
++// target's row, not a rearrangement of what was here.
++describe('SP15-P2c Task 6: header action row', () => {
++  /** Opens the sort menu and returns the option button carrying `sortId`. */
++  async function pickSortOption(w: ReturnType<typeof mount>, sortId: string) {
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    const item = w.findAll('[data-test="sv-sort-item"]').find((n) => n.attributes('data-sort-id') === sortId)!
++    await item.trigger('click')
++    await w.vm.$nextTick()
++  }
++
++  it('renders sort and density in the header outside edit mode', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    expect(w.find('.sv-actions .group').text()).toBe(zh.photosAlbumSort)
++    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosSortScore)
++    expect(w.findAll('.density button')).toHaveLength(2)
++    // The target's order, element by element: Sort label -> capsule -> separator -> Pause ->
++    // Edit -> separator -> density. Asserting the sequence is the only way a reordering is
++    // caught; each element existing on its own says nothing about where it sits.
++    const row = w.findAll('.sv-actions > *').map((n) => {
++      const cls = n.classes()
++      return n.attributes('data-test') ?? (cls.includes('group') ? 'group' : cls[0])
++    })
++    expect(row.slice(0, 7)).toEqual([
++      'group',
++      'sv-sort-wrap',
++      'album-detail-actions-sep',
++      'sv-action-pause',
++      'sv-edit-toggle',
++      'album-detail-actions-sep',
++      'density',
++    ])
++  })
++
++  it('offers match score and date taken as the two sort options', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    const items = w.findAll('[data-test="sv-sort-item"]')
++    expect(items.map((n) => n.attributes('data-sort-id'))).toEqual(['score', 'taken'])
++    expect(items.map((n) => n.text())).toEqual([zh.photosSortScore, zh.photosAlbumSortTaken])
++    // Score is the default (the backend already returns match_score DESC), so it is the one
++    // marked active before anything is picked.
++    expect(items[0].attributes('data-active')).toBe('true')
++    expect(items[1].attributes('data-active')).toBe('false')
++  })
++
++  it('re-sorts both grids by taken date when that option is picked, and relabels the capsule', async () => {
++    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
++      // Deliberately handed back in the backend's own (match score) order, oldest first, so
++      // "sorted by taken date desc" is a different sequence from "left alone".
++      const rows = [
++        asset('old', { takenAt: '2026-01-01T00:00:00Z' }),
++        asset('new', { takenAt: '2026-06-01T00:00:00Z' }),
++      ]
++      return opts?.recent ? rows : rows
++    })
++    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 2 })])
++    const ids = (sel: string) => w.findAll(sel).map((n) => n.find('img').attributes('src'))
++    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/old/large', 'mock://thumb/new/large'])
++
++    await pickSortOption(w, 'taken')
++
++    expect(ids('[data-test="sv-all-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
++    expect(ids('[data-test="sv-recent-tile"]')).toEqual(['mock://thumb/new/large', 'mock://thumb/old/large'])
++    expect(w.find('[data-test="sv-sort-btn"]').text()).toContain(zh.photosAlbumSortTaken)
++    // Picking closes the menu (Vue2 pickSort).
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
++  })
++
++  it('switches both grids to the compact density', async () => {
++    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
++    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 1 })])
++    expect(w.find('[data-test="sv-all-grid"]').classes()).not.toContain('is-compact')
++    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('true')
++
++    await w.find('[data-test="sv-density-compact"]').trigger('click')
++    await w.vm.$nextTick()
++
++    expect(w.find('[data-test="sv-all-grid"]').classes()).toContain('is-compact')
++    expect(w.find('[data-test="sv-recent-grid"]').classes()).toContain('is-compact')
++    expect(w.find('[data-test="sv-density-compact"]').attributes('data-active')).toBe('true')
++    expect(w.find('[data-test="sv-density-comfortable"]').attributes('data-active')).toBe('false')
++  })
++
++  it('keeps pause and edit visible in edit mode while sort and density disappear', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(true)
++    expect(w.find('.density').exists()).toBe(true)
++
++    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++
++    expect(w.find('[data-test="sv-sort-btn"]').exists()).toBe(false)
++    expect(w.find('.density').exists()).toBe(false)
++    expect(w.find('[data-test="sv-action-pause"]').exists()).toBe(true)
++    expect(w.find('[data-test="sv-edit-toggle"]').exists()).toBe(true)
++    // Each separator travels with the group it parts, so neither is left dangling.
++    expect(w.findAll('.album-detail-actions-sep')).toHaveLength(0)
++  })
++
++  it('enters and leaves edit mode from the single edit toggle', async () => {
++    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
++    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
++    const toggle = () => w.find('[data-test="sv-edit-toggle"]')
++    expect(toggle().text()).toBe(zh.photosAlbumEdit)
++    expect(toggle().attributes('data-open')).toBe('false')
++    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++
++    await toggle().trigger('click')
++    await w.vm.$nextTick()
++    expect(toggle().text()).toBe(zh.photosAlbumDone)
++    expect(toggle().attributes('data-open')).toBe('true')
++    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(true)
++
++    await toggle().trigger('click')
++    await w.vm.$nextTick()
++    expect(toggle().text()).toBe(zh.photosAlbumEdit)
++    expect(w.find('[data-test="sv-select-bar"]').exists()).toBe(false)
++  })
++
++  it('shows add-photos in the bottom select bar rather than the header', async () => {
++    svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
++    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
++    expect(w.find('.sv-actions [data-test="sv-add-photos"]').exists()).toBe(false)
++    expect(w.find('[data-test="sv-add-photos"]').exists()).toBe(false)
++
++    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++
++    // In the bar, and nowhere else -- and reachable with nothing selected, which is the whole
++    // reason the bar is gated on edit alone (target :318).
++    expect(w.find('[data-test="sv-select-bar"] [data-test="sv-add-photos"]').exists()).toBe(true)
++    expect(w.findAll('[data-test="sv-add-photos"]')).toHaveLength(1)
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSvClickToSelect)
++
++    await w.find('[data-test="sv-add-photos"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
++  })
++
++  it('disables Remove until something is selected', async () => {
++    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => (opts?.recent ? [] : [asset('a1')]))
++    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
++    await w.find('[data-test="sv-edit-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeDefined()
++
++    await w.find('[data-test="sv-all-tile"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-remove-selected"]').attributes('disabled')).toBeUndefined()
++    expect(w.find('[data-test="sv-select-bar"]').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
++  })
++
++  it('closes the sort menu on an outside mousedown and on Escape', async () => {
++    const { w } = await mountView('7', [makeSv({ id: 7 })])
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(true)
++    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
++
++    await w.find('[data-test="sv-sort-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
++    await w.vm.$nextTick()
++    expect(w.find('[data-test="sv-sort-menu"]').exists()).toBe(false)
++  })
++})
++
+ // ── 「在搜索中细化」——T16 兑现:去 disabled,接 router.push ─────────────────
+ describe('「在搜索中细化」按钮(T16 已接线)', () => {
+   it('不再 disabled,也没有 photosSvSearchPending 的 title', async () => {
+     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
+     const btn = w.find('[data-test="sv-action-refine"]')
+     expect(btn.attributes('disabled')).toBeUndefined()
+     expect(btn.attributes('title')).toBeUndefined()
+   })
+ 
+   it('点击 → router.push({ path: "/photos/search", query: { q: sv.name } })', async () => {

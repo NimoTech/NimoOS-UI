@@ -27,10 +27,11 @@ const CAPPED = [
   'PhotosTrash.vue',            // .trash-scroll
   'PhotosSearch.vue',           // PhotosSearchGrid 组件根 .photos-wrap(flex:1 + overflow-y:auto)
   'PhotosSmartViewDetail.vue',  // .sv-detail-main / .sv-detail-side 两个网格格子各自滚
+  'PhotosMomentDetail.vue',     // same as above — reuses that sv-detail-* two-column skeleton (SP15-P1-T7)
   'PhotosPersonDetail.vue',     // .detail-body
   'PhotosAlbums.vue',           // .albums-scroll
   'PhotosPeople.vue',           // .people-body
-  'PhotosAlbumDetail.vue',      // .album-photos-wrap
+  'PhotosAlbumDetail.vue',      // SP15-P2c: .sv-detail-main / .sv-detail-side, same as above (was .album-photos-wrap)
   'PhotosSettings.vue',         // .ps-scroll
 ]
 

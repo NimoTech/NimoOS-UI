@@ -1,0 +1,1567 @@
+# Review package: 85efc7d..HEAD
+
+## Commits
+e85dec4 feat(photos): rank manual and smart albums with one comparator
+
+## Files changed
+ .../progress.md                                    |  77 +++++
+ .../task-1-brief.md                                | 375 +++++++++++++++++++++
+ .../task-1-report.md                               | 284 ++++++++++++++++
+ .../task-2-brief.md                                | 293 ++++++++++++++++
+ src/i18n/en_us.photos.ts                           |   2 -
+ src/i18n/zh_cn.photos.ts                           |   2 -
+ src/photos/util/__tests__/albumView.test.ts        |  28 +-
+ src/photos/util/__tests__/mixedAlbums.test.ts      |  88 +++++
+ src/photos/util/albumView.ts                       |  30 +-
+ src/photos/util/mixedAlbums.ts                     |  86 +++++
+ src/views/PhotosAlbums.vue                         |  28 +-
+ src/views/__tests__/PhotosAlbums.test.ts           |  13 +-
+ 12 files changed, 1240 insertions(+), 66 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md
+new file mode 100644
+index 0000000..e82342f
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/progress.md
+@@ -0,0 +1,77 @@
++# SDD ledger — plan: docs/superpowers/plans/2026-08-10-sp15-p2b-smartview-albums-ia-merge.md
++
++Branch: sp15-photos-moments (continues from P1 + P2a; base = P2a close-out baec949)
++Plan commit: ff72714 · Spec commit: d5b139e
++Branch merge-base with master: 9100418
++
++Process: OWNER-CHOSEN HYBRID (2026-08-10) — T1-T4 each get a per-task review
++  (they are the foundation every later task builds on); T5-T8 go straight into the
++  closing whole-branch review; T9 is the close-out. Do NOT add per-task review
++  rounds to T5-T8, and do NOT skip them for T1-T4.
++
++Pre-flight facts (controller, verified before Task 1):
++- 1:1 target is 939a7d3a, NOT the 899af59b that P1/P2a used. 899af59b is #112's
++  parent, so reading sources there yields the pre-merge versions. Proven:
++  PhotosSmartAlbumCreate.vue does not exist at 899af59b, is 372 lines at 939a7d3a.
++- Both conversion endpoints already exist with Go HTTP tests
++  (route/v1/smartviews.go FromAlbum, route/v1/albums.go FromSmartView); both return
++  the full new object; album-name collision is 409.
++- Backend SmartView has carried createdAt from the start (service/smartview.go:23);
++  only the front-end type was missing it. Vue2 #113's "waiting on the backend"
++  comment is stale.
++- Album DTO carries photoCount/videoCount (NOT omitempty) plus dateStart/dateEnd/
++  createdAt, so all four stats cells have real data.
++- Roughly half of #112/#113 has no counterpart here (routed details vs in-page
++  panels). Enumerated per row in the spec's §2 table.
++- New-UI's .album-hero-actions .bar-btn already equals Vue2's target
++  .sv-action-btn values line for line => the action-row reskin is a visual no-op
++  and is explicitly out of scope (spec §3①).
++- createSmartView already unshifts into the store, so the Vue2 optimistic slots
++  (localSmartViews/localAlbums) have no problem to solve here.
++- Device data: albums 5 / album_assets 40 / smart_views 9 (all semantic, paused,
++  never evaluated) / moments 0. The For You page being blank is expected.
++
++Carried-in debt from P2a (fold into whichever task edits the file):
++- PhotosSmartViewDetail.vue has ONE Chinese template comment from P2a's fix wave
++  (~:1168-1173 at that time; line numbers drift). Assigned to Task 8, which edits
++  that file. Locate by grep, not by line number.
++
++Pre-flight conflict scan -> owner rulings (2026-08-10), binding for the whole phase:
++- CSS rule blocks restated across components (T6 copies ~7 groups from
++  PhotosMomentDetail.vue / PhotosSmartViewDetail.vue): KEEP THE DUPLICATION.
++  Scoped styles cannot cross SFCs, and the repo already did exactly this once --
++  PhotosMomentDetail.vue:1059 says "rule bodies identical to SmartViewSidePanel.vue's,
++  which ported the same source" and passed a whole-branch review. Third copy gets the
++  same registered comment. Extracting a shared stylesheet or shared components was
++  rejected: both would rework two already-closed files (SP7 and P1 output), and
++  scoped->global changes selector precedence.
++- The two deliberate 1:1 deviations: BOTH STAND.
++  (a) The album detail action row is NOT renamed to .sv-action-btn -- New-UI's
++      .album-hero-actions .bar-btn already equals Vue2's target values line for line,
++      so the rename is a visually empty diff.
++  (b) The smart-view detail back button switches from photosSvAllSmartViews to the
++      existing photosAlbumBack -- Vue2's target still labels it "All Smart Views" while
++      #112 made it return to the album list, i.e. Vue 2 shipped a lying label.
++  Both carry an in-code deviation note with Vue 2 line numbers.
++  If a reviewer flags either, it is plan-mandated + owner-ruled: park with this entry
++  as the ruling. Do NOT pre-judge it in the reviewer prompt.
++
++Task 1: complete (commits ff72714..85efc7d, review clean) — service 2 methods,
++  SmartView.createdAt, 2 store actions, AlbumView +videoCount/+dateStart.
++  Post-commit gates: pnpm test 684 files / 10873 passing, vue-tsc clean.
++  Reviewer's one warn item RESOLVED by controller: full commit body verified
++  present and English, matching plan Step 13 verbatim.
++  Brief corrections the implementer found (5 fixture files outside the brief's
++  file list needed a one-line `createdAt: ''` / videoCount / dateStart addition to
++  keep vue-tsc green after widening the two interfaces): SearchSaveSmartView.test.ts,
++  SmartViewCard.test.ts, SmartViewCreateDialog.test.ts, SmartViewSidePanel.test.ts,
++  PhotosSmartViewDetail.assets.test.ts. Reviewer confirmed no assertion was weakened.
++Task 1: minor (deferred): failure-path tests use `.rejects.toBeTruthy()` where a
++  sibling in the same file uses the stronger `.rejects.toThrow('409')`
++  (albums.test.ts:308-313, smartViews.test.ts:429-434). Plan-mandated wording from
++  brief Step 9, not the implementer's judgment. Final review should triage.
++Task 1: minor RESOLVED by controller, no change needed: the two mirror actions use
++  different prepend styles (smartViews `unshift`, albums `[album, ...]`), but each
++  matches ITS OWN file's established idiom — albums.ts replaces the ref immutably
++  throughout (:54, :72, :212), smartViews.ts mutates in place throughout
++  (:224, :253, :288, :321, :344). Consistency is with the file, which is correct.
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-brief.md b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-brief.md
+new file mode 100644
+index 0000000..1a76685
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-brief.md
+@@ -0,0 +1,375 @@
++## Task 1: 数据层（service + store + AlbumView 扩字段）← 逐任务评审
++
++**Files:**
++- Modify: `packages/service/src/photos.ts`（在 `previewSmartView` 之后、
++  `// ─── Smart view manual asset actions (SP15-P2a) ───` 之前插入）
++- Create: `packages/service/src/photos.convert.test.ts`
++- Modify: `src/photos/stores/smartViews.ts`
++- Modify: `src/photos/stores/albums.ts`
++- Modify: `src/photos/util/albumView.ts`
++- Modify: `src/photos/util/__tests__/albumView.test.ts`
++- Modify: `oss/manifest.mjs`
++- Test: `packages/service/src/photos.convert.test.ts` ·
++  `src/photos/stores/__tests__/smartViews.test.ts`（追加）·
++  `src/photos/stores/__tests__/albums.test.ts`（追加）·
++  `src/photos/util/__tests__/albumView.test.ts`（追加）
++
++> 测试文件的**确切路径**先用
++> `ls src/photos/stores/__tests__/ src/photos/util/__tests__/` 核一次；本仓测试与实现
++> 同目录或同目录 `__tests__/` 两种形态都有，照该 store 已有测试的实际位置追加，
++> **不要新建第二个位置**。
++
++**Interfaces:**
++- Produces（T2/T3/T7/T8 依赖这些确切签名）：
++  - `service.photos.convertAlbumToSmart(albumId: string | number, payload: { description: string; threshold: number; name?: string; conds?: string[]; includeVideos?: boolean }): Promise<unknown>`
++  - `service.photos.convertSmartToAlbum(smartViewId: string | number): Promise<unknown>`
++  - `interface SmartView { …; createdAt: string }`（新增字段，缺失归一成 `''`）
++  - `smartViewsStore.convertFromAlbum(albumId: string | number, input: { description: string; threshold: number }): Promise<SmartView>` —— 成功返回新 SmartView 并已 `unshift` 进 `smartViews`；失败 **throw**
++  - `albumsStore.convertFromSmartView(smartViewId: string): Promise<Record<string, unknown>>` —— 成功返回新 album 原始对象并已插入 `albums`；失败 **throw**
++  - `interface AlbumView { …; videoCount: number; dateStart: string | null }`
++
++---
++
++- [ ] **Step 1: 核对后端契约（只读，不改代码）**
++
++跑这三条，把输出贴进任务报告 —— 后面每一步都以它们为准，不要凭本计划的转述：
++
++```bash
++cd /home/nimo/NimoTech/NimoOS-Photos
++sed -n '230,265p' route/v1/smartviews.go        # FromAlbum：请求字段 + 400/404
++sed -n '286,315p' route/v1/albums.go            # FromSmartView：请求字段 + 400/404/409
++grep -n "CreatedAt" service/smartview.go        # 确认 SmartView DTO 有 createdAt
++```
++
++预期结论：`POST /photos/smart-views/from-album` 收
++`{albumId, name?, description, conds?, threshold, includeVideos?}`、返回**完整 SmartView**；
++`POST /photos/albums/from-smartview` 收 `{smartViewId}`、返回**完整 Album**，撞名 **409**；
++`service/smartview.go:23` 有 `CreatedAt time.Time \`json:"createdAt"\``。
++
++**若任一条与预期不符，停下来在报告里写清差异，不要按本计划继续。**
++
++- [ ] **Step 2: 写失败测试（service 层）**
++
++Create `packages/service/src/photos.convert.test.ts`。harness 逐字照
++`packages/service/src/photos.smartviewAssets.test.ts:1-20` 的既有形态（同一个仓、同一层）：
++
++```ts
++// SP15-P2b-T1: the two album <-> smart-view conversion endpoints. Verified against
++// NimoOS-Photos/route/v1/smartviews.go (FromAlbum) and route/v1/albums.go
++// (FromSmartView): both return the full new object, not a change count, and the
++// album-name collision surfaces as HTTP 409.
++import { describe, it, expect } from 'vitest'
++import type { AxiosInstance } from 'axios'
++import { createPhotos } from './photos.js'
++
++type Call = { method: string; url: string; body?: unknown }
++
++function harness(reply: unknown = {}) {
++  const calls: Call[] = []
++  const http = {
++    post: async (url: string, body?: unknown) => { calls.push({ method: 'post', url, body }); return { data: reply } },
++  } as unknown as AxiosInstance
++  return { calls, photos: createPhotos(http, () => 'TOK') }
++}
++
++describe('album <-> smart view conversion API', () => {
++  it('convertAlbumToSmart posts albumId alongside the payload and returns the new smart view', async () => {
++    const a = harness({ id: 'sv-new', name: 'Trip' })
++    const out = await a.photos.convertAlbumToSmart('al-1', { description: 'sunsets', threshold: 80 })
++    expect(out).toEqual({ id: 'sv-new', name: 'Trip' })
++    expect(a.calls[0]).toMatchObject({
++      method: 'post',
++      url: '/photos/smart-views/from-album',
++      body: { albumId: 'al-1', description: 'sunsets', threshold: 80 },
++    })
++  })
++
++  it('convertAlbumToSmart keeps a numeric album id intact in the body', async () => {
++    const a = harness({ id: 'sv-new' })
++    await a.photos.convertAlbumToSmart(7, { description: 'x', threshold: 60 })
++    expect((a.calls[0].body as { albumId: unknown }).albumId).toBe(7)
++  })
++
++  it('convertAlbumToSmart forwards the optional fields when given', async () => {
++    const a = harness({ id: 'sv-new' })
++    await a.photos.convertAlbumToSmart('al-1', {
++      description: 'x', threshold: 70, name: 'N', conds: ['scene: sunset'], includeVideos: true,
++    })
++    expect(a.calls[0].body).toEqual({
++      albumId: 'al-1', description: 'x', threshold: 70, name: 'N', conds: ['scene: sunset'], includeVideos: true,
++    })
++  })
++
++  it('convertSmartToAlbum posts only smartViewId and returns the new album', async () => {
++    const a = harness({ id: 'al-new', name: 'Trip' })
++    const out = await a.photos.convertSmartToAlbum('sv-1')
++    expect(out).toEqual({ id: 'al-new', name: 'Trip' })
++    expect(a.calls[0]).toMatchObject({
++      method: 'post', url: '/photos/albums/from-smartview', body: { smartViewId: 'sv-1' },
++    })
++  })
++})
++```
++
++- [ ] **Step 3: 跑测试确认失败**
++
++```bash
++pnpm exec vitest run packages/service/src/photos.convert.test.ts
++```
++
++预期：FAIL —— `photos.convertAlbumToSmart is not a function`。
++
++- [ ] **Step 4: 实现两个 service 方法**
++
++在 `packages/service/src/photos.ts` 的 `previewSmartView` 之后插入。**不要**给
++`payload` 加默认值（Vue2 那个 `= {}` 默认参数在本仓没有调用方会用到，加了只会让
++`description` 可能缺失而后端解析不出条件）：
++
++```ts
++    // ─── Album <-> smart view conversion (SP15-P2b) ───
++    // Both endpoints convert in place and delete the source object, and both answer
++    // with the full new object rather than a change count — the callers push straight
++    // into their store and navigate to the new detail route, so a count would be
++    // useless. `conds` is deliberately optional: leaving it out lets the backend's
++    // svparser derive the conditions from `description`, the same path Create takes.
++    async convertAlbumToSmart(
++      albumId: string | number,
++      payload: { description: string; threshold: number; name?: string; conds?: string[]; includeVideos?: boolean },
++    ): Promise<unknown> {
++      const res = await http.post('/photos/smart-views/from-album', { albumId, ...payload })
++      return body<unknown>(res.data)
++    },
++    async convertSmartToAlbum(smartViewId: string | number): Promise<unknown> {
++      const res = await http.post('/photos/albums/from-smartview', { smartViewId })
++      return body<unknown>(res.data)
++    },
++```
++
++- [ ] **Step 5: 跑测试确认通过**
++
++```bash
++pnpm exec vitest run packages/service/src/photos.convert.test.ts
++```
++
++预期：4 例全绿。
++
++- [ ] **Step 6: 登记新测试文件到 oss/manifest.mjs**
++
++`packages/service/src/photos.*.test.ts` 在 `oss/manifest.mjs` 里是**逐个枚举**的
++（见 `'src/photos.smartviewAssets.test.ts'` 那一段）。在同一段里加：
++
++```js
++  'src/photos.convert.test.ts',
++```
++
++（注意：那份清单的路径是**相对内嵌共享包根**的，所以是 `src/photos.convert.test.ts`
++而不是 `packages/service/src/...` —— 照它同段邻居的写法，不要自己推。）
++
++- [ ] **Step 7: 写失败测试（`SmartView.createdAt`）**
++
++在 smartViews store 的既有测试文件里追加：
++
++```ts
++  it('normalises createdAt off the wire and falls back to an empty string', () => {
++    // The backend has always returned it (NimoOS-Photos service/smartview.go:23);
++    // the front-end type simply never carried it until the global album sort needed it.
++    const store = usePhotosSmartViews()
++    store.__seedForTest?.([])
++    expect(toSmartViewForTest({ id: 'a', createdAt: '2026-01-02T03:04:05Z' }).createdAt)
++      .toBe('2026-01-02T03:04:05Z')
++    expect(toSmartViewForTest({ id: 'a' }).createdAt).toBe('')
++  })
++```
++
++⚠ `toSmartView` 是模块私有函数，**没有**导出。实现者两条路选一条，**不要新增
++`__resetForTest` 之外的测试后门**：
++
++- 优先：通过 `fetchSmartViews` 的既有 service mock 喂一条带/不带 `createdAt` 的原始
++  对象，再断言 `store.smartViews[0].createdAt`（该文件已有此形态的用例，照抄）。
++- 备选（仅当上一条在该文件里不可行）：把断言写成上面那样，并**同时**导出 `toSmartView`，
++  在导出处写明「为测试导出，属归一函数、无副作用」。
++
++- [ ] **Step 8: 跑测试确认失败，然后实现**
++
++```bash
++pnpm exec vitest run src/photos/stores/__tests__/smartViews.test.ts
++```
++
++预期 FAIL（`createdAt` 是 `undefined`）。然后：
++
++- `interface SmartView` 在 `evaluatedAt` 之后加一行：
++
++```ts
++  // Present on the wire since the backend's first version (service/smartview.go:23).
++  // Carried here from SP15-P2b onward because the Albums page's global sort ranks
++  // manual albums and smart albums against each other by creation time.
++  createdAt: string
++```
++
++- `toSmartView` 在 `evaluatedAt` 之后加一行：
++
++```ts
++    createdAt: String(r.createdAt ?? ''),
++```
++
++再跑，预期绿。
++
++- [ ] **Step 9: 写失败测试（两个 store 的 convert action）**
++
++smartViews store 测试追加（service mock 的形态照该文件既有用例）：
++
++```ts
++  it('convertFromAlbum unshifts the new smart view and returns it', async () => {
++    // ...mock service.photos.convertAlbumToSmart -> { id: 'sv-new', name: 'N', createdAt: '2026-02-01T00:00:00Z' }
++    const store = usePhotosSmartViews()
++    const sv = await store.convertFromAlbum('al-1', { description: 'sunsets', threshold: 80 })
++    expect(sv.id).toBe('sv-new')
++    expect(store.smartViews[0].id).toBe('sv-new')
++  })
++
++  it('convertFromAlbum rethrows so the caller can keep its dialog open', async () => {
++    // ...mock convertAlbumToSmart -> rejects
++    const store = usePhotosSmartViews()
++    await expect(store.convertFromAlbum('al-1', { description: 'x', threshold: 80 })).rejects.toBeTruthy()
++    expect(store.smartViews).toHaveLength(0)
++  })
++```
++
++albums store 测试追加：
++
++```ts
++  it('convertFromSmartView unshifts the new album and returns the raw object', async () => {
++    // ...mock service.photos.convertSmartToAlbum -> { id: 'al-new', name: 'N', videoCount: 2 }
++    const store = usePhotosAlbums()
++    const album = await store.convertFromSmartView('sv-1')
++    expect(album.id).toBe('al-new')
++    expect(store.albums[0].id).toBe('al-new')
++  })
++
++  it('convertFromSmartView rethrows instead of swallowing the failure', async () => {
++    // ...mock convertSmartToAlbum -> rejects
++    const store = usePhotosAlbums()
++    await expect(store.convertFromSmartView('sv-1')).rejects.toBeTruthy()
++    expect(store.albums).toHaveLength(0)
++  })
++```
++
++- [ ] **Step 10: 实现两个 action**
++
++`src/photos/stores/smartViews.ts` —— 放在 `duplicateSmartView` 之后，并加进 `return {}`：
++
++```ts
++  // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
++  // existing member, deletes the album, and hands back the full new smart view, so the
++  // only thing left to do here is put it at the head of the list — no refetch needed.
++  //
++  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched
++  // both lists and then pushed an optimistic copy as a belt-and-braces measure, because
++  // its list page stays mounted while the detail panel swaps in. Here the caller
++  // navigates to the new smart view's own route and any return to the list remounts and
++  // refetches, so neither the double fetch nor the optimistic slot has anything to do.
++  //
++  // Rethrows on failure (this store's established contract, same as createSmartView):
++  // the dialog decides what to show and stays open so the user can retry.
++  async function convertFromAlbum(
++    albumId: string | number,
++    input: { description: string; threshold: number },
++  ): Promise<SmartView> {
++    const raw = await service.photos.convertAlbumToSmart(albumId, {
++      description: input.description,
++      threshold: input.threshold,
++    })
++    const created = toSmartView(raw)
++    smartViews.value.unshift(created)
++    return created
++  }
++```
++
++`src/photos/stores/albums.ts` —— 放在 `saveAsAlbum` 之后，并加进 `return {}`：
++
++```ts
++  // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
++  // smartViews.convertFromAlbum — see its comment for why there is no refetch and no
++  // optimistic slot. The raw backend object is stored as-is, matching this store's
++  // convention of keeping albums unmapped (the views map them through albumToView).
++  //
++  // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
++  // that is not the pattern to follow for a user-initiated write.
++  async function convertFromSmartView(smartViewId: string): Promise<RawAlbum> {
++    const raw = await service.photos.convertSmartToAlbum(smartViewId)
++    const album = (raw ?? {}) as RawAlbum
++    albums.value = [album, ...albums.value]
++    return album
++  }
++```
++
++**不要**给这两个 action 加 `busy` 守卫 —— 调用方（弹窗）自己持有 `converting` 状态并
++用它 disable 按钮，在 store 里再加一层会让"失败后立刻重试"被静默吞掉。
++
++- [ ] **Step 11: 跑测试确认通过**
++
++```bash
++pnpm exec vitest run src/photos/stores
++```
++
++- [ ] **Step 12: `AlbumView` 扩两个字段**
++
++先在 `src/photos/util/__tests__/albumView.test.ts` 的 `albumToView` describe 里追加：
++
++```ts
++  it('carries videoCount and dateStart through for the detail sidebar and the global sort', () => {
++    const v = albumToView({ id: 1, videoCount: 3, dateStart: '2025-06-01' }, 'x')
++    expect(v.videoCount).toBe(3)
++    expect(v.dateStart).toBe('2025-06-01')
++  })
++  it('defaults videoCount to 0 and dateStart to null when absent', () => {
++    // videoCount is not omitempty on the wire (NimoOS-Photos service/types.go:179), so
++    // the fallback only covers a partial fixture, not a real response.
++    const v = albumToView({ id: 1 }, 'x')
++    expect(v.videoCount).toBe(0)
++    expect(v.dateStart).toBeNull()
++  })
++```
++
++再改 `albumView.ts`：`interface AlbumView` 加
++
++```ts
++  videoCount: number // P2b: the detail sidebar's Videos cell
++  dateStart: string | null // P2b: raw taken_at of the earliest member; drives the 'date' sort
++```
++
++`albumToView` 的返回对象加
++
++```ts
++    videoCount: Number(a.videoCount ?? 0),
++    dateStart: (a.dateStart as string | undefined) || null,
++```
++
++跑 `pnpm exec vitest run src/photos/util/__tests__/albumView.test.ts`，预期绿。
++
++- [ ] **Step 13: vue-tsc + 提交**
++
++```bash
++pnpm exec vue-tsc --noEmit
++git add -A
++git commit -m "feat(photos): add the album <-> smart view conversion data layer
++
++The two endpoints have existed on the backend since before this UI work
++(route/v1/smartviews.go FromAlbum, route/v1/albums.go FromSmartView) and both
++answer with the full new object, so the store actions just put it at the head of
++their list; there is no refetch and no optimistic slot because the callers
++navigate to the new detail route and any return to a list remounts it.
++
++SmartView gains createdAt. The field has been on the wire from the start
++(service/smartview.go:23) but the front-end type never carried it, and the
++Albums page's forthcoming global sort ranks manual and smart albums against each
++other by creation time -- without the field every smart album would silently
++fall into the missing-value branch and the tests would pass for the wrong
++reason.
++
++AlbumView gains videoCount and dateStart for the detail sidebar's Videos cell
++and the 'date' sort's earliest-member semantics."
++```
++
++---
++
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-report.md b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-report.md
+new file mode 100644
+index 0000000..5229eb1
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-1-report.md
+@@ -0,0 +1,284 @@
++# Task 1 report: 数据层（service + store + AlbumView 扩字段）
++
++## Step 1: backend contract check (read-only)
++
++Ran from `/home/nimo/NimoTech/NimoOS-Photos`:
++
++```
++$ sed -n '230,265p' route/v1/smartviews.go
++type fromAlbumReq struct {
++	AlbumID       string   `json:"albumId"`
++	Name          string   `json:"name"`
++	Description   string   `json:"description"`
++	Conds         []string `json:"conds"`
++	Threshold     int      `json:"threshold"`
++	IncludeVideos bool     `json:"includeVideos"`
++}
++func (h *SmartViewsHandler) FromAlbum(c echo.Context) error {
++	var req fromAlbumReq
++	if err := c.Bind(&req); err != nil || req.AlbumID == "" {
++		return echo.NewHTTPError(http.StatusBadRequest, "albumId is required")
++	}
++	sv, err := h.svc.SmartViews().ConvertFromAlbum(service.ConvertFromAlbumInput{...})
++	if errors.Is(err, service.ErrNotFound) {
++		return echo.NewHTTPError(http.StatusNotFound, "album not found")
++	}
++	...
++	return c.JSON(http.StatusOK, sv)
++}
++```
++
++```
++$ sed -n '286,315p' route/v1/albums.go
++type fromSmartViewReq struct {
++	SmartViewID string `json:"smartViewId"`
++}
++// POST /v1/photos/albums/from-smartview
++func (h *AlbumsHandler) FromSmartView(c echo.Context) error {
++	var req fromSmartViewReq
++	if err := c.Bind(&req); err != nil || req.SmartViewID == "" {
++		return echo.NewHTTPError(http.StatusBadRequest, "smartViewId is required")
++	}
++	album, err := h.svc.SmartViews().ConvertToAlbum(req.SmartViewID)
++	if errors.Is(err, service.ErrNotFound) {
++		return echo.NewHTTPError(http.StatusNotFound, "smart view not found")
++	}
++	if errors.Is(err, service.ErrAlbumNameExists) {
++		return echo.NewHTTPError(http.StatusConflict, "album name already exists")
++	}
++	...
++	return c.JSON(http.StatusOK, album)
++}
++```
++
++```
++$ grep -n "CreatedAt" service/smartview.go
++23:	CreatedAt     time.Time  `json:"createdAt"`
++134:		&sv.ID, &sv.Name, &desc, &rawJSON, &sv.Threshold, &liveI, &vidI, &evaluatedAt, &sv.CreatedAt)
++```
++
++**Result: all three findings match the brief's predicted conclusions exactly.**
++`FromAlbum` receives `{albumId, name?, description, conds?, threshold, includeVideos?}` and
++returns the full `SmartView`; `FromSmartView` receives `{smartViewId}` and returns the full
++`Album`, with a 409 on album-name collision (`ErrAlbumNameExists`); `CreatedAt` is present on
++the DTO at `service/smartview.go:23`. Proceeded with the plan as written.
++
++Also verified (used later, in Step 12): `AlbumView.videoCount` maps to
++`NimoOS-Photos/service/types.go:179` — `VideoCount int \`json:"videoCount"\`` with no
++`omitempty`, confirming the brief's comment about the wire contract for that field.
++
++## What was implemented
++
++- `packages/service/src/photos.ts` — two new methods `convertAlbumToSmart` /
++  `convertSmartToAlbum`, inserted between `previewSmartView` and the SP15-P2a asset-actions
++  comment, verbatim per the brief.
++- `packages/service/src/photos.convert.test.ts` — new file, 4 tests, verbatim per the brief.
++- `oss/manifest.mjs` — registered the new test file in the `SERVICE_DELETE` enumeration next
++  to its `smartviewAssets.test.ts` sibling, with a comment following the pattern of the two
++  prior omissions logged in that same block.
++- `src/photos/stores/smartViews.ts` — `SmartView.createdAt: string`, `toSmartView` normalises
++  it (`String(r.createdAt ?? '')`), and a new `convertFromAlbum` action placed after
++  `duplicateSmartView` and exported from the store's `return {}`.
++- `src/photos/stores/albums.ts` — new `convertFromSmartView` action placed after
++  `saveAsAlbum` and exported from the store's `return {}`.
++- `src/photos/util/albumView.ts` — `AlbumView.videoCount: number` and
++  `AlbumView.dateStart: string | null`, both populated in `albumToView`.
++- Tests appended to `src/photos/stores/__tests__/smartViews.test.ts`,
++  `src/photos/stores/__tests__/albums.test.ts`, `src/photos/util/__tests__/albumView.test.ts`.
++- Test-directory location confirmed via `ls src/photos/stores/__tests__/
++  src/photos/util/__tests__/` (Step 1's instruction) — both are sibling `__tests__/`
++  directories, matching the existing files in the same dirs; no new location created.
++
++### Ambiguity resolution used (Step 7)
++
++Took the brief's first-offered route: drove `fetchSmartViews` through the existing
++`listSmartViews` service mock with raw objects that do/don't carry `createdAt`, then
++asserted `store.smartViews[0].createdAt` / `store.smartViews[1].createdAt`. `toSmartView`
++remains module-private, not exported; no test backdoor beyond the pre-existing
++`__resetForTest` was added.
++
++## TDD evidence
++
++### Batch 1 — service layer (`photos.convert.test.ts`)
++
++RED:
++```
++$ pnpm exec vitest run packages/service/src/photos.convert.test.ts
++FAIL ... TypeError: a.photos.convertAlbumToSmart is not a function (x2)
++FAIL ... TypeError: a.photos.convertSmartToAlbum is not a function
++Test Files  1 failed (1)
++     Tests  4 failed (4)
++```
++Expected: the two methods did not exist yet on the `createPhotos` return object.
++
++GREEN (after adding `convertAlbumToSmart`/`convertSmartToAlbum` to `photos.ts`):
++```
++$ pnpm exec vitest run packages/service/src/photos.convert.test.ts
++Test Files  1 passed (1)
++     Tests  4 passed (4)
++```
++
++### Batch 2 — `SmartView.createdAt`
++
++RED (added `createdAt` assertions to the "toSmartView 兜底" describe block, plus extended
++`FULL_SV` fixture and its exact-equality test to keep that test internally consistent once
++the field lands):
++```
++$ pnpm exec vitest run src/photos/stores/__tests__/smartViews.test.ts
++FAIL ... toSmartView 兜底 > 完整字段原样归一 — actual object missing "createdAt" key
++FAIL ... toSmartView 兜底 > createdAt is normalised off the wire ... — expected undefined to be '2026-01-02T03:04:05Z'
++Tests  2 failed | 51 passed (53)
++```
++Expected: the interface field and the `toSmartView` normalisation line did not exist yet.
++
++GREEN (after adding the interface field + `createdAt: String(r.createdAt ?? '')`):
++```
++$ pnpm exec vitest run src/photos/stores/__tests__/smartViews.test.ts
++Test Files  1 passed (1)
++     Tests  53 passed (53)
++```
++
++### Batch 3 — store actions (`convertFromAlbum` / `convertFromSmartView`)
++
++RED:
++```
++$ pnpm exec vitest run src/photos/stores
++FAIL src/photos/stores/__tests__/albums.test.ts > convertFromSmartView > unshifts... — TypeError: s.convertFromSmartView is not a function
++FAIL src/photos/stores/__tests__/albums.test.ts > convertFromSmartView > rethrows... — TypeError: s.convertFromSmartView is not a function
++FAIL src/photos/stores/__tests__/smartViews.test.ts > convertFromAlbum > unshifts... — TypeError: s.convertFromAlbum is not a function
++FAIL src/photos/stores/__tests__/smartViews.test.ts > convertFromAlbum > rethrows... — TypeError: s.convertFromAlbum is not a function
++Test Files  2 failed | 9 passed (11)
++     Tests  4 failed | 345 passed (349)
++```
++Expected: neither action existed on either store yet.
++
++GREEN (after adding both actions and wiring them into each store's `return {}`):
++```
++$ pnpm exec vitest run src/photos/stores
++Test Files  11 passed (11)
++     Tests  349 passed (349)
++```
++(One benign pre-existing jsdom stderr line — "Not implemented: navigation" from
++`favorites.ts:exportZip` — prints during `favorites.test.ts` regardless of this task's
++changes; the test it comes from still passes. Confirmed unrelated by running
++`favorites.test.ts` alone before touching any Task 1 code.)
++
++### Batch 4 — `AlbumView.videoCount` / `AlbumView.dateStart`
++
++RED:
++```
++$ pnpm exec vitest run src/photos/util/__tests__/albumView.test.ts
++FAIL ... carries videoCount and dateStart through... — expected undefined to be 3
++FAIL ... defaults videoCount to 0 and dateStart to null when absent — expected undefined to be 0
++Tests  2 failed | 18 passed (20)
++```
++Expected: neither field existed on `AlbumView` yet.
++
++GREEN:
++```
++$ pnpm exec vitest run src/photos/util/__tests__/albumView.test.ts
++Test Files  1 passed (1)
++     Tests  20 passed (20)
++```
++
++## Mutation check (self-review)
++
++Reverted `createdAt: String(r.createdAt ?? '')` in `toSmartView` back out and re-ran:
++```
++$ pnpm exec vitest run src/photos/stores/__tests__/smartViews.test.ts
++FAIL ... createdAt is normalised off the wire ... — expected undefined to be '2026-01-02T03:04:05Z'
++Tests  2 failed | 53 passed (55)
++```
++Confirms the new test is load-bearing (fails when the implementation is broken). Restored
++the line and re-ran green (55 passed).
++
++## Files changed
++
++- `packages/service/src/photos.ts` (implementation)
++- `packages/service/src/photos.convert.test.ts` (new)
++- `src/photos/stores/smartViews.ts` (implementation)
++- `src/photos/stores/albums.ts` (implementation)
++- `src/photos/stores/__tests__/smartViews.test.ts` (tests)
++- `src/photos/stores/__tests__/albums.test.ts` (tests)
++- `src/photos/util/albumView.ts` (implementation)
++- `src/photos/util/__tests__/albumView.test.ts` (tests)
++- `oss/manifest.mjs` (registration)
++- Fallout fixture fixes required to keep `vue-tsc --noEmit` green after widening
++  `SmartView`/`AlbumView` (see "Corrections" below):
++  `src/photos/components/__tests__/SearchSaveSmartView.test.ts`,
++  `src/photos/components/__tests__/SmartViewCard.test.ts`,
++  `src/photos/components/__tests__/SmartViewCreateDialog.test.ts`,
++  `src/photos/components/__tests__/SmartViewSidePanel.test.ts`,
++  `src/views/PhotosSmartViewDetail.assets.test.ts`
++
++Commit: `85efc7d feat(photos): add the album <-> smart view conversion data layer`
++
++## Self-review findings
++
++- **Completeness**: all 13 brief steps executed in order. Both stores' `return {}` blocks
++  updated (`convertFromAlbum` exported from `smartViews.ts`, `convertFromSmartView` from
++  `albums.ts`) — verified reachable via the store test files calling them directly on the
++  returned object.
++- **Quality**: signatures match the "Interfaces" list verbatim
++  (`convertAlbumToSmart(albumId, payload)`, `convertSmartToAlbum(smartViewId)`,
++  `SmartView.createdAt: string`, `convertFromAlbum(albumId, {description, threshold})`,
++  `convertFromSmartView(smartViewId): Promise<Record<string, unknown>>`,
++  `AlbumView.videoCount: number`, `AlbumView.dateStart: string | null`). All new comments are
++  in English and explain *why* (deviation from Vue2, why no refetch/optimistic slot, why the
++  fallback for videoCount only covers partial fixtures).
++- **Discipline**: `mixedAlbums.ts` was not touched. `sortAlbums` was not deleted; the
++  `'updated'` sort option is untouched (still present, its own test still asserts
++  no-op-on-unknown/'updated' sort at line ~63 of `albumView.test.ts`, unmodified). No busy
++  guards were added to either new store action, per the brief's explicit instruction — the
++  test "rethrows so the caller can keep its dialog open" / "rethrows instead of swallowing
++  the failure" would fail on a second call if a busy guard silently short-circuited retries,
++  and neither test does a second-call check by design, matching the brief's stated reason
++  for omitting the guard.
++- **Testing**: mutation check above confirms the new `createdAt` test is load-bearing. All
++  new test descriptions and comments are in English per the global constraint. Output is
++  pristine except the one pre-existing/unrelated jsdom stderr line from `favorites.ts`
++  (confirmed present before this task's changes, not introduced by it).
++
++## Issues or concerns
++
++- Hit the documented "hardlink broken by atomic write" trap (NimoOS-New-UI/CLAUDE.md):
++  after editing `packages/service/src/photos.ts`, `vue-tsc --noEmit` reported
++  `convertAlbumToSmart`/`convertSmartToAlbum` as missing on the `service.photos` type even
++  though the object literal plainly had them. `stat -c '%i %n'` on the file vs. its
++  `.pnpm`-linked counterpart showed different inodes (link broken by this session's earlier
++  Edit-tool writes, unrelated to this specific edit). One `pnpm install` re-linked it; no
++  `--force`, no cache-clear needed, consistent with the documented remedy.
++- Two `oss/*.test.mjs` integration tests (`export-rsync.test.mjs`,
++  `cli-args.test.mjs --publish`) fail whenever the working tree has *any* uncommitted change
++  outside `oss/` — they explicitly refuse to export with `工作树不干净` (working tree not
++  clean) and `--allow-dirty-oss` only tolerates dirtiness inside `oss/` itself. This is not a
++  defect in this task's code; it is inherent to running `pnpm test` mid-TDD before committing.
++  Final `pnpm test` run was executed after the commit landed to get a true signal (see below).
++- One flaky, unrelated failure appeared in one of the full-suite runs taken mid-task:
++  `src/home/components/DesktopContextMenu.test.ts > handles a right-click on blank canvas`.
++  Confirmed pre-existing/unrelated: passes in isolation
++  (`pnpm exec vitest run src/home/components/DesktopContextMenu.test.ts` → 6/6 green), and
++  this task never touched anything under `src/home/`.
++
++## Final verification (post-commit)
++
++```
++$ git status --short
++(clean)
++$ pnpm exec vue-tsc --noEmit
++(no output, exit 0)
++$ pnpm test
++ Test Files  684 passed (684)
++      Tests  10873 passed (10873)
++```
++
++Confirms the two `oss/*.test.mjs` dirty-tree failures and the `DesktopContextMenu.test.ts`
++flake seen during mid-task runs were both transient/unrelated, not caused by this task's code.
++
++## Corrections to the brief
++
++1. **Step 7's suggested test description text used a Chinese-adjacent placeholder** ("该文件已有此形态" etc. — not actually wrong, just noting the ambiguity-resolution note in the task instructions pre-empted this; no correction needed here, the assigned route worked cleanly.)
++2. **The brief's file list for Task 1 did not account for the fallout of widening `SmartView`/`AlbumView` on files outside the listed set.** Making `createdAt` a required (non-optional) field on `SmartView`, and `videoCount`/`dateStart` required fields on `AlbumView`, broke `vue-tsc --noEmit` in five files not in the brief's file list: `src/photos/components/__tests__/SearchSaveSmartView.test.ts`, `SmartViewCard.test.ts`, `SmartViewCreateDialog.test.ts`, `SmartViewSidePanel.test.ts` (all build inline `SmartView` fixtures), and `src/views/PhotosSmartViewDetail.assets.test.ts` (same, three call sites sharing one `SV` const). Each needed one line (`createdAt: ''`) added to its fixture. This is necessary fallout of the interface change the brief specifies, not scope creep — Step 13 requires a clean `vue-tsc --noEmit`, which is unreachable without these fixes.
++3. **The `sortAlbums` describe block inside `albumView.test.ts` (a file already in Task 1's list) builds its own `AlbumView`-shaped fixture (`V(...)`) that the brief's Step 12 diff doesn't mention.** It also needed `videoCount: 0, dateStart: null` added to stay assignable to the now-wider `AlbumView` type. Fixed in the same file already scheduled for editing; did not touch `sortAlbums` itself, its `'updated'` branch, or delete anything from it, per the explicit "Task 2 only" boundary.
++4. **`pnpm test` cannot be green while the working tree is dirty outside `oss/`** — two `oss/*.test.mjs` tests assert a clean tree as a precondition for a real export run. This means "run `pnpm test` once before your final commit" (from the parent task instructions) will show 2 unrelated failures by design; the meaningful signal comes from running it once more right after the commit. Worth flagging for later tasks in this same plan so they don't chase a phantom regression.
++5. **Hit the repo's documented hardlink-breaks-on-atomic-write trap** while editing `packages/service/src/photos.ts` — not a brief error, but worth naming since it cost a `vue-tsc` debugging detour; the fix was the one-line `pnpm install` the project CLAUDE.md already prescribes.
+diff --git a/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-2-brief.md b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-2-brief.md
+new file mode 100644
+index 0000000..8f86b54
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-10-sp15-p2b-smartview-albums-ia-merge/task-2-brief.md
+@@ -0,0 +1,293 @@
++## Task 2: 混排模型与全局排序（纯函数） ← 逐任务评审
++
++**Files:**
++- Create: `src/photos/util/mixedAlbums.ts`
++- Create: `src/photos/util/__tests__/mixedAlbums.test.ts`
++- Modify: `src/photos/util/albumView.ts`（**删除** `sortAlbums`）
++- Modify: `src/photos/util/__tests__/albumView.test.ts`（删除 `sortAlbums` 的 describe）
++- Modify: `src/i18n/zh_cn.photos.ts` · `src/i18n/en_us.photos.ts`（删 2 死键）
++- Modify: `oss/manifest.mjs`
++
++**Interfaces:**
++- Consumes: `AlbumView`（含 T1 新加的 `videoCount`/`dateStart`）、`SmartView`（含 T1 的 `createdAt`）
++- Produces（T3 依赖这些确切签名）：
++  - `export type MixedSortId = 'created' | 'name' | 'name-r' | 'count' | 'date'`
++  - `export type MixedAlbumItem = { kind: 'user'; id: string | number; view: AlbumView } | { kind: 'smart'; id: string; sv: SmartView }`
++  - `export function buildMixedAlbums(views: AlbumView[], svs: SmartView[]): MixedAlbumItem[]`
++  - `export function sortMixed(items: MixedAlbumItem[], sort: MixedSortId | string): MixedAlbumItem[]`
++- **`sortAlbums` 不再存在。** T3 之后它零调用方，留着就是死导出。
++
++---
++
++- [ ] **Step 1: 写失败测试**
++
++Create `src/photos/util/__tests__/mixedAlbums.test.ts`：
++
++```ts
++// SP15-P2b-T2: the mixed manual/smart album list and the global sort that ranks both
++// kinds against each other. Ported from Vue2 939a7d3a:PhotosAlbumsView.vue:381-393
++// (smartAlbums / mixedAlbums) and :670-700 (applySort).
++import { describe, it, expect } from 'vitest'
++import { buildMixedAlbums, sortMixed, type MixedAlbumItem } from '../mixedAlbums'
++import type { AlbumView } from '../albumView'
++import type { SmartView } from '../../stores/smartViews'
++
++const view = (o: Partial<AlbumView>): AlbumView => ({
++  id: 'u', title: '', cover: null, count: 0, dateRange: '',
++  createdAt: null, dateEnd: null, videoCount: 0, dateStart: null, ...o,
++})
++const sv = (o: Partial<SmartView>): SmartView => ({
++  id: 's', name: '', description: '', conds: [], threshold: 0, live: false,
++  includeVideos: false, count: 0, addedThisWeek: 0, seeds: [], median: 0,
++  storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '', ...o,
++})
++const ids = (items: MixedAlbumItem[]) => items.map((i) => String(i.id))
++
++describe('buildMixedAlbums', () => {
++  it('tags each entry with its kind and keeps the payload reachable', () => {
++    const out = buildMixedAlbums([view({ id: 'u1', title: 'A' })], [sv({ id: 's1', name: 'B' })])
++    const user = out.find((i) => i.kind === 'user')
++    const smart = out.find((i) => i.kind === 'smart')
++    expect(user?.kind === 'user' && user.view.title).toBe('A')
++    expect(smart?.kind === 'smart' && smart.sv.name).toBe('B')
++  })
++
++  it('surfaces the id at the top level so callers do not reach into the payload for keys', () => {
++    const out = buildMixedAlbums([view({ id: 7 })], [sv({ id: 's1' })])
++    expect(ids(out).sort()).toEqual(['7', 's1'])
++  })
++})
++
++describe('sortMixed', () => {
++  // Titles, counts and dates are deliberately staggered across the two kinds so that a
++  // comparator that only ever looks at one kind's field cannot pass.
++  const items = buildMixedAlbums(
++    [
++      view({ id: 'u1', title: 'Beta', count: 3, createdAt: '2026-01-01T00:00:00Z', dateStart: '2024-01-01' }),
++      view({ id: 'u2', title: 'Delta', count: 9, createdAt: '2025-01-01T00:00:00Z', dateStart: '2026-01-01' }),
++    ],
++    [
++      sv({ id: 's1', name: 'Alpha', count: 5, createdAt: '2026-06-01T00:00:00Z' }),
++      sv({ id: 's2', name: 'Gamma', count: 1, createdAt: '' }),
++    ],
++  )
++
++  it('sorts by name across both kinds, not smart-first', () => {
++    expect(ids(sortMixed(items, 'name'))).toEqual(['s1', 'u1', 's2', 'u2'])
++    expect(ids(sortMixed(items, 'name-r'))).toEqual(['u2', 's2', 'u1', 's1'])
++  })
++
++  it('sorts by photo count descending across both kinds', () => {
++    expect(ids(sortMixed(items, 'count'))).toEqual(['u2', 's1', 'u1', 's2'])
++  })
++
++  // THE POINT OF THIS TASK. Vue2 939a7d3a:PhotosAlbumsView.vue:686-693 puts a missing
++  // timestamp FIRST, with its own comment explaining why: treating it as epoch 0 would
++  // bury it at the end instead. This is the opposite of what albumView.sortAlbums used
++  // to assert ("缺失记 0 排最后"), and reverting it is a regression, not a cleanup.
++  it('ranks a missing createdAt FIRST, not last', () => {
++    expect(ids(sortMixed(items, 'created'))).toEqual(['s2', 's1', 'u1', 'u2'])
++  })
++
++  it('ranks a missing date FIRST too, and reads dateStart for manual albums', () => {
++    // u2's dateStart (2026) beats u1's (2024) even though u1 was created later, which is
++    // what proves 'date' does not just fall through to createdAt for manual albums.
++    // Smart albums have no earliest-member aggregate, so they fall back to createdAt
++    // (Vue2 :684) -- a real degradation, not a defect.
++    expect(ids(sortMixed(items, 'date'))).toEqual(['s2', 'u2', 's1', 'u1'])
++  })
++
++  it('leaves the order untouched for an unknown sort id', () => {
++    expect(ids(sortMixed(items, 'zzz'))).toEqual(ids(items))
++  })
++
++  it('does not mutate its input', () => {
++    const before = ids(items)
++    sortMixed(items, 'name')
++    expect(ids(items)).toEqual(before)
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认失败**
++
++```bash
++pnpm exec vitest run src/photos/util/__tests__/mixedAlbums.test.ts
++```
++
++预期：FAIL —— 模块不存在。
++
++- [ ] **Step 3: 实现 `mixedAlbums.ts`**
++
++Create `src/photos/util/mixedAlbums.ts`：
++
++```ts
++// SP15-P2b: the Albums page shows manual albums and smart albums in one grid, ranked
++// against each other by a single sort control. Ported from Vue2
++// 939a7d3a:PhotosAlbumsView.vue:381-393 (smartAlbums / mixedAlbums) and :670-700
++// (applySort).
++//
++// This lives in a pure module rather than in the view for one reason: the comparators
++// have to read a different field per kind and treat a missing timestamp specially, and
++// that is exactly the kind of branch where a component-level test passes for the wrong
++// reason (the same trap momentLayout.ts was pulled out for in P1).
++//
++// Deviation from Vue2, registered: its `applySort` sorts in place and returns the same
++// array. Here it returns a new one, matching the convention the rest of this directory
++// already follows.
++//
++// Supersedes albumView.sortAlbums, which was deleted in the same commit: once the page
++// renders a mixed list there is no caller left for an AlbumView-only comparator, and
++// keeping both would mean two copies of the same comparators drifting apart.
++import type { AlbumView } from './albumView'
++import type { SmartView } from '../stores/smartViews'
++
++export type MixedSortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
++
++export type MixedAlbumItem =
++  | { kind: 'user'; id: string | number; view: AlbumView }
++  | { kind: 'smart'; id: string; sv: SmartView }
++
++// Vue2 :392 concatenates smart then user and lets the sort decide the final order; the
++// same here. The pre-sort order is only observable through the 'unknown sort id' path.
++export function buildMixedAlbums(views: AlbumView[], svs: SmartView[]): MixedAlbumItem[] {
++  return [
++    ...svs.map((sv): MixedAlbumItem => ({ kind: 'smart', id: sv.id, sv })),
++    ...views.map((view): MixedAlbumItem => ({ kind: 'user', id: view.id, view })),
++  ]
++}
++
++function titleOf(item: MixedAlbumItem): string {
++  return item.kind === 'smart' ? item.sv.name : item.view.title
++}
++
++function countOf(item: MixedAlbumItem): number {
++  return item.kind === 'smart' ? item.sv.count : item.view.count
++}
++
++// null means "no usable timestamp". Kept distinct from 0 on purpose -- see byMsDesc.
++function msOf(raw: string | null | undefined): number | null {
++  if (!raw) return null
++  const t = Date.parse(raw)
++  return isNaN(t) ? null : t
++}
++
++function createdMs(item: MixedAlbumItem): number | null {
++  return msOf(item.kind === 'smart' ? item.sv.createdAt : item.view.createdAt)
++}
++
++// Vue2 :679-685. A manual album's 'date taken' is the taken_at of its earliest member;
++// a smart album has no equivalent aggregate on the wire, so it falls back to createdAt.
++// That fallback is a documented degradation, not a bug to fix here.
++function dateTakenMs(item: MixedAlbumItem): number | null {
++  if (item.kind === 'user') return msOf(item.view.dateStart)
++  return createdMs(item)
++}
++
++// Vue2 :686-693, including the reason its comment gives: a missing timestamp sorts
++// FIRST. Coercing it to 0 would send it to the very end instead, which is the opposite
++// of the intent -- an album whose creation time cannot be compared should not be
++// presented as the oldest thing in the library.
++function byMsDesc(get: (i: MixedAlbumItem) => number | null) {
++  return (a: MixedAlbumItem, b: MixedAlbumItem): number => {
++    const av = get(a)
++    const bv = get(b)
++    if (av === null && bv === null) return 0
++    if (av === null) return -1
++    if (bv === null) return 1
++    return bv - av
++  }
++}
++
++export function sortMixed(items: MixedAlbumItem[], sort: MixedSortId | string): MixedAlbumItem[] {
++  const arr = [...items]
++  if (sort === 'name') arr.sort((a, b) => titleOf(a).localeCompare(titleOf(b)))
++  else if (sort === 'name-r') arr.sort((a, b) => titleOf(b).localeCompare(titleOf(a)))
++  else if (sort === 'count') arr.sort((a, b) => countOf(b) - countOf(a))
++  else if (sort === 'date') arr.sort(byMsDesc(dateTakenMs))
++  else if (sort === 'created') arr.sort(byMsDesc(createdMs))
++  return arr
++}
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++```bash
++pnpm exec vitest run src/photos/util/__tests__/mixedAlbums.test.ts
++```
++
++全 8 例绿。若 `name` / `date` 两条的期望顺序与实现不符，**先手算一遍夹具**再改 —— 不要
++为了让测试变绿而改期望值。
++
++- [ ] **Step 5: 删除 `sortAlbums` 及其测试**
++
++- `src/photos/util/albumView.ts`：删掉整个 `export function sortAlbums(...)`（含它上方
++  那段 `// Verbatim port of PhotosAlbumsView.vue:359-370` 注释块）。在文件顶部注释里
++  补一行：
++
++```ts
++// SP15-P2b: sortAlbums was removed here -- the Albums page now renders a mixed
++// manual/smart list and sorts it through util/mixedAlbums.ts, which is the single
++// remaining comparator implementation. albumToView / formatAlbumSpan / sortAlbumPhotos
++// are unaffected and still have callers.
++```
++
++- `src/photos/util/__tests__/albumView.test.ts`：删掉整个 `describe('sortAlbums', …)`，
++  并把 import 里的 `sortAlbums` 去掉。
++
++- [ ] **Step 6: 删 2 个死 i18n 键**
++
++`src/i18n/zh_cn.photos.ts` 与 `src/i18n/en_us.photos.ts` 各删两行：
++`photosAlbumSortUpdated` / `photosAlbumSortUpdatedHint`。
++
++> 这两个键此刻仍被 `PhotosAlbums.vue` 的 `sortOptions` 引用 —— **T2 结束时该文件会因此
++> 编译不过**。这是刻意的顺序：T3 第一步就是重写 `sortOptions`。为了让 T2 能独立提交，
++> **本步顺手把 `PhotosAlbums.vue` 的 `sortOptions` 里那一项与 `SortId` 里的 `'updated'`
++> 一并删掉，并把 `sort` 的初值从 `'updated'` 改成 `'created'`**，其余不动（网格仍走
++> 旧的 `views` computed —— T3 再换）。同时修 `src/views/__tests__/PhotosAlbums.test.ts`
++> 里那条依赖 `默认 sort='updated'` 的断言（约 :135），改成断言默认 `created` 下按
++> `createdAt` 降序。
++
++- [ ] **Step 7: 跑相关测试 + 类型检查**
++
++```bash
++pnpm exec vitest run src/photos/util src/views/__tests__/PhotosAlbums.test.ts src/i18n/parity.test.ts
++pnpm exec vue-tsc --noEmit
++```
++
++- [ ] **Step 8: 登记新测试文件**
++
++`oss/manifest.mjs` 里 `src/photos` 是**整目录**剥离（见清单里那行 `'src/photos'`），
++所以 `src/photos/util/__tests__/mixedAlbums.test.ts` **不需要**单独登记。
++跑一次确认：
++
++```bash
++node oss/export.mjs --out /tmp/claude-1000/-home-nimo-NimoTech/4bd5688e-62a4-4e15-b431-6eedc1501e05/scratchpad/oss-t2 --no-commit --allow-dirty-oss
++```
++
++零泄漏即可。**若报出该文件**，说明整目录剥离的假设错了，按报错提示登记并在报告里写明。
++
++- [ ] **Step 9: 提交**
++
++```bash
++git add -A
++git commit -m "feat(photos): rank manual and smart albums with one comparator
++
++The Albums page is about to show both kinds in a single grid, so the sort has to
++read a different field per kind and can no longer live in an AlbumView-only
++helper. sortAlbums is deleted rather than kept alongside the new module: with the
++page on a mixed list it has no caller, and two copies of the same comparators
++would drift.
++
++The missing-timestamp rule is inverted from what this repo asserted before. Vue 2
++puts an unusable createdAt first and says why -- coercing it to epoch 0 buries it
++at the end, presenting an album whose creation time cannot be compared as the
++oldest thing in the library. The test names that intent so a later reader does
++not 'fix' it back.
++
++The 'updated' sort option goes away with its two now-dead copy keys, and the
++default moves to 'created'."
++```
++
++---
++
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index be3b0e2..45606e1 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -128,22 +128,20 @@ export default {
+   photosAlbumsTitle: 'Albums',
+   photosAlbumsCount: '{count} albums',
+   photosAlbumsMine: 'My Albums',
+   photosAlbumsMineHint: 'Albums you created',
+   photosAlbumNew: 'New album',
+   photosAlbumNewHint: 'Click to create',
+   photosAlbumUntitled: 'Untitled',
+   photosAlbumsEmptyTitle: 'No albums yet',
+   photosAlbumsEmptyHint: 'Create an album to group photos together.',
+   photosAlbumSort: 'Sort:',
+-  photosAlbumSortUpdated: 'Last updated',
+-  photosAlbumSortUpdatedHint: 'Server order',
+   photosAlbumSortCreated: 'Recently added',
+   photosAlbumSortCreatedHint: 'Newest album first',
+   photosAlbumSortName: 'Name (A–Z)',
+   photosAlbumSortNameHint: 'Alphabetical',
+   photosAlbumSortNameR: 'Name (Z–A)',
+   photosAlbumSortNameRHint: 'Reverse alphabetical',
+   photosAlbumSortCount: 'Photo count',
+   photosAlbumSortCountHint: 'Largest first',
+   photosAlbumSortDate: 'Date taken',
+   photosAlbumSortDateHint: 'Newest moments first',
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index f7d5daf..b93a173 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -128,22 +128,20 @@ export default {
+   photosAlbumsTitle: '相册',
+   photosAlbumsCount: '{count} 个相册',
+   photosAlbumsMine: '我的相册',
+   photosAlbumsMineHint: '你创建的相册',
+   photosAlbumNew: '新建相册',
+   photosAlbumNewHint: '点击创建',
+   photosAlbumUntitled: '未命名',
+   photosAlbumsEmptyTitle: '还没有相册',
+   photosAlbumsEmptyHint: '新建一个相册,把照片归到一起。',
+   photosAlbumSort: '排序：',
+-  photosAlbumSortUpdated: '最近更新',
+-  photosAlbumSortUpdatedHint: '保持服务端顺序',
+   photosAlbumSortCreated: '最近添加',
+   photosAlbumSortCreatedHint: '最新的相册在前',
+   photosAlbumSortName: '名称(A–Z)',
+   photosAlbumSortNameHint: '按字母序',
+   photosAlbumSortNameR: '名称(Z–A)',
+   photosAlbumSortNameRHint: '反字母序',
+   photosAlbumSortCount: '照片数量',
+   photosAlbumSortCountHint: '最多的在前',
+   photosAlbumSortDate: '拍摄日期',
+   photosAlbumSortDateHint: '最新的瞬间在前',
+diff --git a/src/photos/util/__tests__/albumView.test.ts b/src/photos/util/__tests__/albumView.test.ts
+index 7c6abf2..d355d4a 100644
+--- a/src/photos/util/__tests__/albumView.test.ts
++++ b/src/photos/util/__tests__/albumView.test.ts
+@@ -1,12 +1,12 @@
+ import { describe, it, expect } from 'vitest'
+-import { albumToView, formatAlbumSpan, sortAlbums, sortAlbumPhotos } from '../albumView'
++import { albumToView, formatAlbumSpan, sortAlbumPhotos } from '../albumView'
+ 
+ describe('formatAlbumSpan', () => {
+   it('同年同月 → "May 2026"', () => { expect(formatAlbumSpan('2026-05-02', '2026-05-20')).toBe('May 2026') })
+   it('同年跨月 → "Jun - Dec 2025"', () => { expect(formatAlbumSpan('2025-06-03', '2025-12-31')).toBe('Jun - Dec 2025') })
+   it('跨年 → "2023-2025"', () => { expect(formatAlbumSpan('2023-01-01', '2025-08-09')).toBe('2023-2025') })
+   it('缺任一端或非法格式 → 空串', () => {
+     expect(formatAlbumSpan(null, '2025-01-01')).toBe('')
+     expect(formatAlbumSpan('2025-01-01', undefined)).toBe('')
+     expect(formatAlbumSpan('bad', 'bad')).toBe('')
+   })
+@@ -37,43 +37,17 @@ describe('albumToView', () => {
+   })
+   it('defaults videoCount to 0 and dateStart to null when absent', () => {
+     // videoCount is not omitempty on the wire (NimoOS-Photos service/types.go:179), so
+     // the fallback only covers a partial fixture, not a real response.
+     const v = albumToView({ id: 1 }, 'x')
+     expect(v.videoCount).toBe(0)
+     expect(v.dateStart).toBeNull()
+   })
+ })
+ 
+-describe('sortAlbums', () => {
+-  const V = (id: string, title: string, count: number, createdAt: string | null, dateEnd: string | null) =>
+-    ({ id, title, count, createdAt, dateEnd, cover: null, dateRange: '', videoCount: 0, dateStart: null })
+-  // a/b 在 createdAt 与 dateEnd 上名次互换(仿 sortAlbumPhotos 夹具的手法),
+-  // 让 'created' 与 'date' 两个分支产生不同排序结果 —— 若未来 'date' 分支被
+-  // 误改回读 createdAt,这里必须挂红。
+-  const list = [V('a', 'Beta', 3, '2026-01-01', '2024-01-01'), V('b', 'Alpha', 9, '2025-01-01', '2026-01-01'), V('c', 'Gamma', 1, null, null)]
+-
+-  it('name 正序 / name-r 逆序', () => {
+-    expect(sortAlbums(list, 'name').map((x) => x.title)).toEqual(['Alpha', 'Beta', 'Gamma'])
+-    expect(sortAlbums(list, 'name-r').map((x) => x.title)).toEqual(['Gamma', 'Beta', 'Alpha'])
+-  })
+-  it('count 降序', () => { expect(sortAlbums(list, 'count').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
+-  it('created 按 createdAt 降序,缺失记 0 排最后', () => { expect(sortAlbums(list, 'created').map((x) => x.id)).toEqual(['a', 'b', 'c']) })
+-  it('date 按 dateEnd 降序(不是 createdAt),缺失排最后', () => { expect(sortAlbums(list, 'date').map((x) => x.id)).toEqual(['b', 'a', 'c']) })
+-  it('updated / 未知值 → 原序', () => {
+-    expect(sortAlbums(list, 'updated').map((x) => x.id)).toEqual(['a', 'b', 'c'])
+-    expect(sortAlbums(list, 'zzz').map((x) => x.id)).toEqual(['a', 'b', 'c'])
+-  })
+-  it('不原地修改入参数组', () => {
+-    const src = [...list]
+-    sortAlbums(src, 'name')
+-    expect(src.map((x) => x.id)).toEqual(['a', 'b', 'c'])
+-  })
+-})
+-
+ describe('sortAlbumPhotos', () => {
+   const P = (id: string, takenAt: string | null, indexedAt: string | null) => ({ id, takenAt, indexedAt } as never)
+   const ps = [P('a', '2024-01-01', '2026-01-01'), P('b', '2026-01-01', '2024-01-01'), P('c', null, null)]
+   it('taken 按 takenAt 降序', () => { expect(sortAlbumPhotos(ps, 'taken').map((p) => p.id)).toEqual(['b', 'a', 'c']) })
+   it('added 按 indexedAt 降序', () => { expect(sortAlbumPhotos(ps, 'added').map((p) => p.id)).toEqual(['a', 'b', 'c']) })
+   it('manual 原序', () => { expect(sortAlbumPhotos(ps, 'manual').map((p) => p.id)).toEqual(['a', 'b', 'c']) })
+ })
+diff --git a/src/photos/util/__tests__/mixedAlbums.test.ts b/src/photos/util/__tests__/mixedAlbums.test.ts
+new file mode 100644
+index 0000000..5305f83
+--- /dev/null
++++ b/src/photos/util/__tests__/mixedAlbums.test.ts
+@@ -0,0 +1,88 @@
++// SP15-P2b-T2: the mixed manual/smart album list and the global sort that ranks both
++// kinds against each other. Ported from Vue2 939a7d3a:PhotosAlbumsView.vue:381-393
++// (smartAlbums / mixedAlbums) and :670-700 (applySort).
++import { describe, it, expect } from 'vitest'
++import { buildMixedAlbums, sortMixed, type MixedAlbumItem } from '../mixedAlbums'
++import type { AlbumView } from '../albumView'
++import type { SmartView } from '../../stores/smartViews'
++
++const view = (o: Partial<AlbumView>): AlbumView => ({
++  id: 'u', title: '', cover: null, count: 0, dateRange: '',
++  createdAt: null, dateEnd: null, videoCount: 0, dateStart: null, ...o,
++})
++const sv = (o: Partial<SmartView>): SmartView => ({
++  id: 's', name: '', description: '', conds: [], threshold: 0, live: false,
++  includeVideos: false, count: 0, addedThisWeek: 0, seeds: [], median: 0,
++  storageBytes: 0, distribution: new Array(10).fill(0), evaluatedAt: '', createdAt: '', ...o,
++})
++const ids = (items: MixedAlbumItem[]) => items.map((i) => String(i.id))
++
++describe('buildMixedAlbums', () => {
++  it('tags each entry with its kind and keeps the payload reachable', () => {
++    const out = buildMixedAlbums([view({ id: 'u1', title: 'A' })], [sv({ id: 's1', name: 'B' })])
++    const user = out.find((i) => i.kind === 'user')
++    const smart = out.find((i) => i.kind === 'smart')
++    expect(user?.kind === 'user' && user.view.title).toBe('A')
++    expect(smart?.kind === 'smart' && smart.sv.name).toBe('B')
++  })
++
++  it('surfaces the id at the top level so callers do not reach into the payload for keys', () => {
++    const out = buildMixedAlbums([view({ id: 7 })], [sv({ id: 's1' })])
++    expect(ids(out).sort()).toEqual(['7', 's1'])
++  })
++})
++
++describe('sortMixed', () => {
++  // Titles, counts and dates are deliberately staggered across the two kinds so that a
++  // comparator that only ever looks at one kind's field cannot pass.
++  const items = buildMixedAlbums(
++    [
++      view({ id: 'u1', title: 'Beta', count: 3, createdAt: '2026-01-01T00:00:00Z', dateStart: '2024-01-01' }),
++      view({ id: 'u2', title: 'Delta', count: 9, createdAt: '2025-01-01T00:00:00Z', dateStart: '2026-01-01' }),
++    ],
++    [
++      sv({ id: 's1', name: 'Alpha', count: 5, createdAt: '2026-06-01T00:00:00Z' }),
++      sv({ id: 's2', name: 'Gamma', count: 1, createdAt: '' }),
++    ],
++  )
++
++  it('sorts by name across both kinds, not smart-first', () => {
++    // Titles are Alpha(s1)/Gamma(s2)/Beta(u1)/Delta(u2). Alphabetically that is
++    // Alpha, Beta, Delta, Gamma -- 'D' sorts before 'G', so u2 (Delta) outranks
++    // s2 (Gamma). (Corrected from the task brief, which had s2/u2 swapped.)
++    expect(ids(sortMixed(items, 'name'))).toEqual(['s1', 'u1', 'u2', 's2'])
++    expect(ids(sortMixed(items, 'name-r'))).toEqual(['s2', 'u2', 'u1', 's1'])
++  })
++
++  it('sorts by photo count descending across both kinds', () => {
++    expect(ids(sortMixed(items, 'count'))).toEqual(['u2', 's1', 'u1', 's2'])
++  })
++
++  // THE POINT OF THIS TASK. Vue2 939a7d3a:PhotosAlbumsView.vue:686-693 puts a missing
++  // timestamp FIRST, with its own comment explaining why: treating it as epoch 0 would
++  // bury it at the end instead. This is the opposite of what albumView.sortAlbums used
++  // to assert ("缺失记 0 排最后"), and reverting it is a regression, not a cleanup.
++  it('ranks a missing createdAt FIRST, not last', () => {
++    expect(ids(sortMixed(items, 'created'))).toEqual(['s2', 's1', 'u1', 'u2'])
++  })
++
++  it('ranks a missing date FIRST too, and reads dateStart for manual albums', () => {
++    // u2's dateStart (2026-01-01) beats u1's (2024-01-01) even though u1 was created
++    // later, which is what proves 'date' does not just fall through to createdAt for
++    // manual albums. Smart albums have no earliest-member aggregate, so they fall back
++    // to createdAt (Vue2 :684) -- a real degradation, not a defect. s1's createdAt
++    // (2026-06-01) is later than u2's dateStart (2026-01-01), so s1 still outranks u2.
++    // (Corrected from the task brief, which had s1/u2 swapped.)
++    expect(ids(sortMixed(items, 'date'))).toEqual(['s2', 's1', 'u2', 'u1'])
++  })
++
++  it('leaves the order untouched for an unknown sort id', () => {
++    expect(ids(sortMixed(items, 'zzz'))).toEqual(ids(items))
++  })
++
++  it('does not mutate its input', () => {
++    const before = ids(items)
++    sortMixed(items, 'name')
++    expect(ids(items)).toEqual(before)
++  })
++})
+diff --git a/src/photos/util/albumView.ts b/src/photos/util/albumView.ts
+index 18a9566..7f53bed 100644
+--- a/src/photos/util/albumView.ts
++++ b/src/photos/util/albumView.ts
+@@ -1,14 +1,19 @@
+ // Ported (logic verbatim except three noted deviations) from Vue2 NimoOS-UI
+ // src/views/Photos/PhotosAlbumsView.vue:216-224 (userAlbums), :282-301
+ // (parseYearMonth + formatAlbumSpan), :359-370 (applySort), and
+ // src/views/Photos/PhotosAlbumDetail.vue:224-242 (photos computed sort).
++//
++// SP15-P2b: sortAlbums was removed here -- the Albums page now renders a mixed
++// manual/smart list and sorts it through util/mixedAlbums.ts, which is the single
++// remaining comparator implementation. albumToView / formatAlbumSpan / sortAlbumPhotos
++// are unaffected and still have callers.
+ import type { Photo } from './assetToPhoto'
+ 
+ export interface AlbumView {
+   id: string | number
+   title: string
+   cover: string | number | null // = coverAssetId, an asset id, not a URL
+   count: number
+   dateRange: string
+   createdAt: string | null
+   dateEnd: string | null // P4 addition (not present on the Vue2 view object) for sortAlbums('date')
+@@ -57,45 +62,20 @@ export function albumToView(a: Record<string, unknown>, untitled: string): Album
+     cover: (a.coverAssetId as string | number | undefined) || null,
+     count: assetCount != null ? assetCount : ((assets && assets.length) || 0),
+     dateRange: formatAlbumSpan(a.dateStart, a.dateEnd),
+     createdAt: (a.createdAt as string | undefined) || null,
+     dateEnd: dateEnd || null,
+     videoCount: Number(a.videoCount ?? 0),
+     dateStart: (a.dateStart as string | undefined) || null,
+   }
+ }
+ 
+-// Verbatim port of PhotosAlbumsView.vue:359-370 (applySort), with three
+-// deliberate deviations from Vue2 (each noted below):
+-export function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
+-  const arr = [...list] // deviation: return a new array instead of Vue2's in-place arr.sort()
+-  // Verbatim port of Vue2's `ts` helper, parameterized by field (see the
+-  // 'date' deviation note below for why).
+-  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
+-    const raw = a[field]
+-    const t = raw ? Date.parse(raw) : NaN
+-    return isNaN(t) ? 0 : t
+-  }
+-  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
+-  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
+-  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
+-  // deviation: Vue2's sortOptions lists a 'created' entry but applySort never
+-  // handles it (falls through, unsorted) — bug not reproduced; implemented
+-  // here using the same ts() pattern as the other date-based branches.
+-  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
+-  // deviation: Vue2's 'date' branch also reads a.createdAt via ts() (the Vue2
+-  // view object has no separate taken-date field); here it reads dateEnd
+-  // instead, since that's the field 'date' is meant to represent.
+-  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
+-  return arr
+-}
+-
+ // Verbatim port of PhotosAlbumDetail.vue:224-242 (photos computed).
+ export function sortAlbumPhotos(photos: Photo[], sortBy: string): Photo[] {
+   if (sortBy === 'taken') {
+     return [...photos].sort((a, b) => {
+       const ta = a.takenAt ? Date.parse(a.takenAt as string) : 0
+       const tb = b.takenAt ? Date.parse(b.takenAt as string) : 0
+       return tb - ta
+     })
+   }
+   if (sortBy === 'added') {
+diff --git a/src/photos/util/mixedAlbums.ts b/src/photos/util/mixedAlbums.ts
+new file mode 100644
+index 0000000..a8f4c08
+--- /dev/null
++++ b/src/photos/util/mixedAlbums.ts
+@@ -0,0 +1,86 @@
++// SP15-P2b: the Albums page shows manual albums and smart albums in one grid, ranked
++// against each other by a single sort control. Ported from Vue2
++// 939a7d3a:PhotosAlbumsView.vue:381-393 (smartAlbums / mixedAlbums) and :670-700
++// (applySort).
++//
++// This lives in a pure module rather than in the view for one reason: the comparators
++// have to read a different field per kind and treat a missing timestamp specially, and
++// that is exactly the kind of branch where a component-level test passes for the wrong
++// reason (the same trap momentLayout.ts was pulled out for in P1).
++//
++// Deviation from Vue2, registered: its `applySort` sorts in place and returns the same
++// array. Here it returns a new one, matching the convention the rest of this directory
++// already follows.
++//
++// Supersedes albumView.sortAlbums, which was deleted in the same commit: once the page
++// renders a mixed list there is no caller left for an AlbumView-only comparator, and
++// keeping both would mean two copies of the same comparators drifting apart.
++import type { AlbumView } from './albumView'
++import type { SmartView } from '../stores/smartViews'
++
++export type MixedSortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
++
++export type MixedAlbumItem =
++  | { kind: 'user'; id: string | number; view: AlbumView }
++  | { kind: 'smart'; id: string; sv: SmartView }
++
++// Vue2 :392 concatenates smart then user and lets the sort decide the final order; the
++// same here. The pre-sort order is only observable through the 'unknown sort id' path.
++export function buildMixedAlbums(views: AlbumView[], svs: SmartView[]): MixedAlbumItem[] {
++  return [
++    ...svs.map((sv): MixedAlbumItem => ({ kind: 'smart', id: sv.id, sv })),
++    ...views.map((view): MixedAlbumItem => ({ kind: 'user', id: view.id, view })),
++  ]
++}
++
++function titleOf(item: MixedAlbumItem): string {
++  return item.kind === 'smart' ? item.sv.name : item.view.title
++}
++
++function countOf(item: MixedAlbumItem): number {
++  return item.kind === 'smart' ? item.sv.count : item.view.count
++}
++
++// null means "no usable timestamp". Kept distinct from 0 on purpose -- see byMsDesc.
++function msOf(raw: string | null | undefined): number | null {
++  if (!raw) return null
++  const t = Date.parse(raw)
++  return isNaN(t) ? null : t
++}
++
++function createdMs(item: MixedAlbumItem): number | null {
++  return msOf(item.kind === 'smart' ? item.sv.createdAt : item.view.createdAt)
++}
++
++// Vue2 :679-685. A manual album's 'date taken' is the taken_at of its earliest member;
++// a smart album has no equivalent aggregate on the wire, so it falls back to createdAt.
++// That fallback is a documented degradation, not a bug to fix here.
++function dateTakenMs(item: MixedAlbumItem): number | null {
++  if (item.kind === 'user') return msOf(item.view.dateStart)
++  return createdMs(item)
++}
++
++// Vue2 :686-693, including the reason its comment gives: a missing timestamp sorts
++// FIRST. Coercing it to 0 would send it to the very end instead, which is the opposite
++// of the intent -- an album whose creation time cannot be compared should not be
++// presented as the oldest thing in the library.
++function byMsDesc(get: (i: MixedAlbumItem) => number | null) {
++  return (a: MixedAlbumItem, b: MixedAlbumItem): number => {
++    const av = get(a)
++    const bv = get(b)
++    if (av === null && bv === null) return 0
++    if (av === null) return -1
++    if (bv === null) return 1
++    return bv - av
++  }
++}
++
++export function sortMixed(items: MixedAlbumItem[], sort: MixedSortId | string): MixedAlbumItem[] {
++  const arr = [...items]
++  if (sort === 'name') arr.sort((a, b) => titleOf(a).localeCompare(titleOf(b)))
++  else if (sort === 'name-r') arr.sort((a, b) => titleOf(b).localeCompare(titleOf(a)))
++  else if (sort === 'count') arr.sort((a, b) => countOf(b) - countOf(a))
++  else if (sort === 'date') arr.sort(byMsDesc(dateTakenMs))
++  else if (sort === 'created') arr.sort(byMsDesc(createdMs))
++  return arr
++}
+diff --git a/src/views/PhotosAlbums.vue b/src/views/PhotosAlbums.vue
+index 836ef21..cd6a621 100644
+--- a/src/views/PhotosAlbums.vue
++++ b/src/views/PhotosAlbums.vue
+@@ -16,49 +16,69 @@
+ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRouter } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+ import { usePhotosAlbums } from '../photos/stores/albums'
+ import { useTimelineStore } from '../photos/stores/timeline'
+ import { useToast } from '../stores/toast'
+-import { albumToView, sortAlbums, type AlbumView } from '../photos/util/albumView'
++import { albumToView, type AlbumView } from '../photos/util/albumView'
+ import { isConflict } from '../photos/util/httpErrors'
+ 
+-type SortId = 'updated' | 'created' | 'name' | 'name-r' | 'count' | 'date'
++type SortId = 'created' | 'name' | 'name-r' | 'count' | 'date'
++
++// SP15-P2b-T2 interim: albumView.sortAlbums was deleted (superseded by
++// util/mixedAlbums.ts's sortMixed, since the Albums page is about to render a mixed
++// manual/smart list ranked by one sort control). This view still renders manual
++// albums only until Task 3 rewires it onto buildMixedAlbums/sortMixed and deletes this
++// local copy -- keeping a temporary duplicate here (rather than wiring in
++// mixedAlbums.ts early) keeps this task's diff to the dead 'updated' option only.
++function sortAlbums(list: AlbumView[], sort: string): AlbumView[] {
++  const arr = [...list]
++  const ts = (a: AlbumView, field: 'createdAt' | 'dateEnd') => {
++    const raw = a[field]
++    const t = raw ? Date.parse(raw) : NaN
++    return isNaN(t) ? 0 : t
++  }
++  if (sort === 'name') arr.sort((a, b) => a.title.localeCompare(b.title))
++  else if (sort === 'name-r') arr.sort((a, b) => b.title.localeCompare(a.title))
++  else if (sort === 'count') arr.sort((a, b) => b.count - a.count)
++  else if (sort === 'created') arr.sort((a, b) => ts(b, 'createdAt') - ts(a, 'createdAt'))
++  else if (sort === 'date') arr.sort((a, b) => ts(b, 'dateEnd') - ts(a, 'dateEnd'))
++  return arr
++}
+ type SourceId = 'empty' | 'recent' | 'select'
+ 
+ const { t } = useI18n()
+ const router = useRouter()
+ const albums = usePhotosAlbums()
+ const timeline = useTimelineStore()
+ const toast = useToast()
+ 
+-const sort = ref<SortId>('updated')
++const sort = ref<SortId>('created')
+ const sortOpen = ref(false)
+ const sortMenuRef = ref<HTMLElement | null>(null)
+ 
+ const createOpen = ref(false)
+ const creating = ref(false)
+ const newAlbumTitle = ref('')
+ const newAlbumSource = ref<SourceId>('empty')
+ const newAlbumInputRef = ref<HTMLInputElement | null>(null)
+ 
+ const pickerOpen = ref(false)
+ const pickerAlbumId = ref<string | number>('')
+ const pickerAlbumName = ref('')
+ 
+ // 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
+ const sortOptions = computed(() => [
+-  { id: 'updated' as SortId, label: t('photosAlbumSortUpdated'), hint: t('photosAlbumSortUpdatedHint') },
+   { id: 'created' as SortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
+   { id: 'name' as SortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
+   { id: 'name-r' as SortId, label: t('photosAlbumSortNameR'), hint: t('photosAlbumSortNameRHint') },
+   { id: 'count' as SortId, label: t('photosAlbumSortCount'), hint: t('photosAlbumSortCountHint') },
+   { id: 'date' as SortId, label: t('photosAlbumSortDate'), hint: t('photosAlbumSortDateHint') },
+ ])
+ const sourceOptions = computed(() => [
+   { id: 'empty' as SourceId, label: t('photosAlbumFillEmpty'), hint: t('photosAlbumFillEmptyHint') },
+   { id: 'recent' as SourceId, label: t('photosAlbumFillRecent'), hint: t('photosAlbumFillRecentHint') },
+   { id: 'select' as SourceId, label: t('photosAlbumFillSelect'), hint: t('photosAlbumFillSelectHint') },
+diff --git a/src/views/__tests__/PhotosAlbums.test.ts b/src/views/__tests__/PhotosAlbums.test.ts
+index e6173a4..c35cf79 100644
+--- a/src/views/__tests__/PhotosAlbums.test.ts
++++ b/src/views/__tests__/PhotosAlbums.test.ts
+@@ -117,31 +117,32 @@ describe('PhotosAlbums.vue', () => {
+     svc.photos.listAlbums.mockResolvedValue([rawAlbum(42, { name: 'NumericId' })])
+     const { w, router } = await mountView()
+     const pushSpy = vi.spyOn(router, 'push')
+ 
+     await w.find('[data-test="album-card"]').trigger('click')
+     await flushPromises()
+ 
+     expect(pushSpy).toHaveBeenCalledWith('/photos/albums/42')
+   })
+ 
+-  it('切排序为 name → 卡片顺序变为字母序(证明接了 sortAlbums 而非死排)', async () => {
++  it('defaults to created (createdAt descending), then switching to name re-sorts alphabetically', async () => {
+     svc.photos.listAlbums.mockResolvedValue([
+-      rawAlbum(1, { name: 'Zebra' }),
+-      rawAlbum(2, { name: 'Apple' }),
+-      rawAlbum(3, { name: 'Mango' }),
++      rawAlbum(1, { name: 'Zebra', createdAt: '2026-05-03T00:00:00Z' }),
++      rawAlbum(2, { name: 'Apple', createdAt: '2026-05-01T00:00:00Z' }),
++      rawAlbum(3, { name: 'Mango', createdAt: '2026-05-02T00:00:00Z' }),
+     ])
+     const { w } = await mountView()
+ 
+-    // 默认 sort='updated' → 保持后端顺序(sortAlbums 对 'updated' 不重排)
++    // Default sort is 'created': newest createdAt first (Zebra 05-03 > Mango 05-02 >
++    // Apple 05-01) -- proves the default is no longer the dead 'updated' passthrough.
+     let titles = w.findAll('[data-test="album-card"] .album-title').map((n) => n.text())
+-    expect(titles).toEqual(['Zebra', 'Apple', 'Mango'])
++    expect(titles).toEqual(['Zebra', 'Mango', 'Apple'])
+ 
+     await w.find('[data-test="albums-sort-btn"]').trigger('click')
+     await w.vm.$nextTick()
+     const nameItem = w.findAll('[data-test="albums-sort-item"]').find((n) => n.attributes('data-sort-id') === 'name')!
+     await nameItem.trigger('click')
+     await w.vm.$nextTick()
+ 
+     titles = w.findAll('[data-test="album-card"] .album-title').map((n) => n.text())
+     expect(titles).toEqual(['Apple', 'Mango', 'Zebra'])
+   })

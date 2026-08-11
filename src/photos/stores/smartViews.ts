@@ -18,6 +18,11 @@ import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 // 守卫存在两处副本。既有跨区引用先例:PhotosSidebar.vue 引 files/util/format、
 // PhotoInfoPanel.vue 引 files/util/clipboard。
 import { safeRandomUUID } from '../../files/upload/uuid'
+// SP15-P2b final fix wave: mutual import with albums.ts -- the two conversion actions are
+// mirror images, and each has to evict the source object from the other store. See the twin
+// comment in albums.ts for why the cycle is safe (the call sits inside an async action body,
+// never at module-evaluation time).
+import { usePhotosAlbums } from './albums'
 
 export interface SmartView {
   id: string
@@ -34,6 +39,10 @@ export interface SmartView {
   storageBytes: number
   distribution: number[]
   evaluatedAt: string
+  // Present on the wire since the backend's first version (service/smartview.go:23).
+  // Carried here from SP15-P2b onward because the Albums page's global sort ranks
+  // manual albums and smart albums against each other by creation time.
+  createdAt: string
 }
 
 export interface SmartViewActivity {
@@ -100,6 +109,7 @@ function toSmartView(raw: unknown): SmartView {
     storageBytes: Number(r.storageBytes ?? 0),
     distribution: distribution.length === 10 ? distribution : new Array(10).fill(0),
     evaluatedAt: String(r.evaluatedAt ?? ''),
+    createdAt: String(r.createdAt ?? ''),
   }
 }
 
@@ -136,6 +146,21 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   // 把另一边的"过期"判断带偏。
   let previewTimer: ReturnType<typeof setTimeout> | null = null
   let previewSeq = 0
+
+  // SP15-P2a: the excluded list belongs here rather than in the view, alongside the
+  // three asset collections this page already reads from the store — splitting one
+  // page's data across two owners is what makes staleness bugs possible.
+  const excluded = ref<Photo[]>([])
+  const excludedLoading = ref(false)
+  // Staleness guard for loadExcluded, same shape as detailSeq: switching smart views
+  // can leave an older request in flight, and it must not overwrite the newer list.
+  let excludedSeq = 0
+  // Which view the list currently on screen belongs to. Only used to decide whether a load
+  // has to blank the band before awaiting — see loadExcluded.
+  let excludedFor = ''
+  // Mutual exclusion across the three manual write actions: they all mutate the same
+  // membership of the same view, so letting two run at once would race the refetch.
+  const assetBusy = ref(false)
 
   const createBusy = ref(false)
   const patchBusy = ref(false)
@@ -330,6 +355,46 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
+  // SP15-P2b: a manual album turns into a smart view in place. The backend pins every
+  // existing member, **deletes the source album**, and hands back the full new smart view,
+  // so both stores have to move: the new smart view goes to the head of this list, and the
+  // now-deleted album has to leave the albums store.
+  //
+  // Deviation from Vue2 (939a7d3a:PhotosAlbumsView.vue:728-743): its handler refetched both
+  // lists. Two local mutations are strictly cheaper and reach the same end state.
+  //
+  // The source album MUST be dropped (final fix wave -- the earlier version of this comment
+  // argued a remount covers it, which is only true of the *list*): albums.albumsLoaded stays
+  // true, and PhotosAlbumDetail.vue:442 skips its own fetch when it is, so one browser Back
+  // press after a successful conversion would otherwise land on a fully interactive detail
+  // page for an album the server has already deleted -- every action on it 404s.
+  //
+  // Rethrows on failure (this store's established contract, same as createSmartView):
+  // the dialog decides what to show and stays open so the user can retry.
+  async function convertFromAlbum(
+    albumId: string | number,
+    input: { description: string; threshold: number },
+  ): Promise<SmartView> {
+    const raw = await service.photos.convertAlbumToSmart(albumId, {
+      description: input.description,
+      threshold: input.threshold,
+    })
+    const created = toSmartView(raw)
+    smartViews.value.unshift(created)
+    usePhotosAlbums().dropAlbumLocal(albumId)
+    return created
+  }
+
+  // SP15-P2b final fix wave: drop a smart view the server no longer has, without a refetch.
+  // Exported because the *albums* store needs it -- convertFromSmartView deletes the source
+  // smart view server-side. Mutates in place, matching this file's convention throughout
+  // (:224/:288/:321/:344 all mutate `smartViews.value` rather than replacing the ref).
+  function dropSmartViewLocal(id: string | number): void {
+    const idx = smartViews.value.findIndex(s => String(s.id) === String(id))
+    if (idx < 0) return
+    smartViews.value.splice(idx, 1)
+  }
+
   // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
   // (偏离登记 9,§7e-7):三个请求 Promise.all 并行，成功路径与清空都要过 seq 门控。
   async function loadDetail(id: string): Promise<void> {
@@ -354,6 +419,133 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
       console.error('[photos-smartviews] loadDetail', e)
     } finally {
       if (mine === detailSeq) detailLoading.value = false
+    }
+  }
+
+  // Refetch one smart view and replace it in the list. Vue 2 needed an in-place
+  // field merge here to preserve the object identity its detail page held as a prop
+  // (#82's MERGE_SMART_VIEW_STATS). That problem does not exist here: the detail
+  // page reads `byId(id)` as a computed, so replacing the array item is enough and
+  // both the header and the list card follow automatically.
+  //
+  // Deliberately swallows its own failure: the caller's write already succeeded, and
+  // reporting a stats refresh error as a write error would be a lie.
+  async function refreshStats(id: string): Promise<void> {
+    try {
+      const raw = await service.photos.getSmartView(id)
+      if (!raw) return
+      const i = smartViews.value.findIndex((s) => String(s.id) === String(id))
+      if (i === -1) return
+      smartViews.value.splice(i, 1, toSmartView(raw))
+    } catch (e) {
+      console.error('[photos-smartviews] refreshStats', e)
+    }
+  }
+
+  // The stats refetch lives inside each of the three write actions rather than at
+  // the call sites. Vue 2 put it at the call sites and shipped #82 to fix the one it
+  // forgot; keeping it here means a caller cannot forget.
+  //
+  // The empty-list early return is not defensive padding — the backend rejects an
+  // empty assetIds with 400 ("assetIds is required").
+  //
+  // ★ Final-review finding 5: "nothing was asked for" and "this call was dropped" must not
+  // return the same value. All three actions used to answer 0 (or zeroes) for both, so a
+  // call swallowed by `assetBusy` still looked like a completed write to the view — it
+  // announced "pinned 0 photos to this view" and closed the picker, discarding a selection
+  // that had never been sent anywhere. `null` is the dropped-because-busy sentinel and is
+  // deliberately distinct from the zero an empty list still returns; every caller must treat
+  // it as "no result" rather than as a count. The busy check therefore comes *first* — with
+  // the two guards merged it is impossible to tell which one fired.
+  async function pinAssets(id: string, assetIds: string[]): Promise<number | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return 0
+    assetBusy.value = true
+    try {
+      const res = await service.photos.pinSmartViewAssets(id, assetIds)
+      const added = typeof res.added === 'number' ? res.added : 0
+      await refreshStats(id)
+      return added
+    } catch (e) {
+      console.error('[photos-smartviews] pinAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  // Removal is tiered on the backend — a pinned row is deleted, an automatically
+  // matched row is flagged excluded — so both counters come back and the caller
+  // needs both to phrase its confirmation.
+  // `null` when dropped because another write is in flight — see pinAssets above.
+  async function removeAssets(id: string, assetIds: string[]): Promise<{ unpinned: number; excluded: number } | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return { unpinned: 0, excluded: 0 }
+    assetBusy.value = true
+    try {
+      const res = await service.photos.removeSmartViewAssets(id, assetIds)
+      const out = {
+        unpinned: typeof res.unpinned === 'number' ? res.unpinned : 0,
+        excluded: typeof res.excluded === 'number' ? res.excluded : 0,
+      }
+      await refreshStats(id)
+      return out
+    } catch (e) {
+      console.error('[photos-smartviews] removeAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  // `null` when dropped because another write is in flight — see pinAssets above.
+  async function restoreAssets(id: string, assetIds: string[]): Promise<number | null> {
+    if (assetBusy.value) return null
+    if (!assetIds.length) return 0
+    assetBusy.value = true
+    try {
+      const res = await service.photos.restoreSmartViewAssets(id, assetIds)
+      const restored = typeof res.restored === 'number' ? res.restored : 0
+      await refreshStats(id)
+      return restored
+    } catch (e) {
+      console.error('[photos-smartviews] restoreAssets', e)
+      throw e
+    } finally {
+      assetBusy.value = false
+    }
+  }
+
+  // Failure is swallowed rather than rethrown: the excluded band is a secondary
+  // section, and an error there must not take down the matched grid above it.
+  //
+  // ★ Final-review finding 6: this used to blank the list unconditionally before awaiting,
+  // so a transient 500 made the whole "已排除(N)" band disappear — the user was told the
+  // exclusions were gone when they were still on the server, and nothing said otherwise.
+  // The blank is now conditional on the id actually changing, which is the only case it was
+  // ever needed for (showing view A's exclusions under view B's heading, the same rule
+  // loadDetail states above). Refetching the *same* view keeps the list on screen until the
+  // new one lands, so a failure leaves the band exactly as it was.
+  //
+  // This does not weaken the staleness guard: `excludedSeq` is what stops a late-landing
+  // older response from overwriting a newer one, and it is untouched — the two mechanisms
+  // answer different questions ("is this response still wanted" vs "may the previous view's
+  // data stay on screen") and do not conflict.
+  async function loadExcluded(id: string): Promise<void> {
+    const mine = ++excludedSeq
+    excludedLoading.value = true
+    if (excludedFor !== String(id)) {
+      excluded.value = []
+      excludedFor = String(id)
+    }
+    try {
+      const raw = await service.photos.getSmartViewExcluded(id)
+      if (mine !== excludedSeq) return
+      excluded.value = (raw ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
+    } catch (e) {
+      console.error('[photos-smartviews] loadExcluded', e)
+    } finally {
+      if (mine === excludedSeq) excludedLoading.value = false
     }
   }
 
@@ -425,6 +617,10 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     recentAssets.value = []
     activity.value = []
     detailLoading.value = false
+    excluded.value = []
+    excludedLoading.value = false
+    excludedFor = ''
+    assetBusy.value = false
     // 有意不重置 detailSeq/previewSeq:若此刻还有一个 __resetForTest 之前发出的
     // 请求仍在途，把 seq 拨回 0 会让重置后的下一次调用重新落在同一个 mine 值上，
     // 与那个本该作废的旧请求产生别名冲突(同 places.ts __resetForTest 的既有理由)。
@@ -443,11 +639,14 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   return {
     smartViews, listLoaded, listLoading,
     matchedAssets, recentAssets, activity, detailLoading,
+    excluded, excludedLoading, assetBusy,
     preview,
     createBusy, patchBusy, deleteBusy, duplicateBusy, exportBusy,
     byId,
     fetchSmartViews, createSmartView, updateSmartView, deleteSmartView, restoreSmartView,
-    duplicateSmartView, loadDetail, refreshPreview, cancelPreview, exportAlbum,
+    duplicateSmartView, convertFromAlbum, dropSmartViewLocal,
+    loadDetail, refreshPreview, cancelPreview, exportAlbum,
+    pinAssets, removeAssets, restoreAssets, loadExcluded,
     __resetForTest,
   }
 })

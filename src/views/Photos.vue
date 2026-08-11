@@ -69,13 +69,26 @@ const selected = ref<Array<string | number>>([])
 // 城市/spot 跳转走独立路由页(D6),那两个键在本仓无对应物。
 const exifFilter = ref<ExifFilterValue>({ years: [], places: [], cameras: [] })
 
-// 照 Vue2 gridMonths 的 library 分支(:170-172):逐月过滤后丢掉空月份。
-// 空月份必须在这里丢——PhotosGrid 的月份刻度尺读的是未按标签页过滤的 props.months
-// (PhotosGrid.vue:88),留着空月份会在刻度尺上留下点不到的死刻度。
+// SP15-P3-T8: is an EXIF filter actually narrowing anything right now? Only
+// then does "unknown membership" become a real problem for an unloaded month.
+const exifFilterActive = computed(() => {
+  const f = exifFilter.value
+  return f.years.length > 0 || f.places.length > 0 || f.cameras.length > 0
+})
+
+// Aligned with Vue2 gridMonths' library branch (:170-172): filter each month,
+// then drop the ones left empty — except for one case. In bucket mode an
+// unloaded month's `photos` is always an empty array, so that unconditional
+// filter would drop exactly the months the grid needs in order to paint
+// structure — they are also where the scroll length and the jump anchors come
+// from. Once an EXIF filter is active the drop is restored: an unloaded
+// month's membership under that filter is genuinely unknown to the frontend
+// (owner ruling 2026-08-10, spec §5.1 — a registered limitation, not an
+// oversight; the real fix is backend-side filtering).
 const gridMonths = computed(() =>
   store.months
     .map((m) => ({ ...m, photos: applyExifFilters(m.photos, exifFilter.value) }))
-    .filter((m) => m.photos.length > 0),
+    .filter((m) => m.photos.length > 0 || (m.loaded === false && !exifFilterActive.value)),
 )
 
 // Grid does tab-filtering internally; mirror the same predicate here (hoisted
@@ -235,9 +248,14 @@ onUnmounted(() => {
             @update:tab="tab = $event" @update:density="density = $event"
           >
             <template #after-tabs>
-              <!-- facet 源恒取全库 allPhotos,不用 gridMonths —— 否则筛掉某个年份后,
-                   该年份就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths
-                   而非 gridMonths)。 -->
+              <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
+                   就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
+                   gridMonths)。
+                   Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
+                   模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
+                   photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
+                   变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
+                   只是把注释改成实情。 -->
               <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
             </template>
           </PhotosToolbar>
@@ -246,6 +264,7 @@ onUnmounted(() => {
               :months="gridMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
               @toggle-select="toggleSelect"
+              @need-bucket="(k: string) => store.fetchBucket(k)"
             />
           </div>
         </template>

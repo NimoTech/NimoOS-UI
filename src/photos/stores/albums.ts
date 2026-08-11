@@ -6,6 +6,12 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
+// SP15-P2b final fix wave: the two conversion actions are mirror images living in the two
+// stores they create into, so each has to evict the source object from the other store. That
+// makes this import pair mutual (smartViews.ts imports this file for the same reason). Safe
+// because neither side touches the other's binding at module-evaluation time -- both calls sit
+// inside an async action body, by which point both modules are fully initialised.
+import { usePhotosSmartViews } from './smartViews'
 
 type RawAlbum = Record<string, unknown>
 
@@ -52,6 +58,15 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     const next = albums.value.slice()
     next[idx] = { ...next[idx], ...patch }
     albums.value = next
+  }
+  // SP15-P2b final fix wave: drop an album the server no longer has, without a refetch.
+  // Exported because the *smart views* store needs it -- convertFromAlbum deletes the source
+  // album server-side, and leaving it in this list keeps a detail route alive for an object
+  // that is gone (albumsLoaded stays true, so PhotosAlbumDetail.vue:442 never refetches).
+  // Replaces the ref immutably, matching this file's convention throughout.
+  function dropAlbumLocal(id: string | number): void {
+    albums.value = albums.value.filter((a) => key(a.id as string | number) !== key(id))
+    removeAlbumAssets(id)
   }
 
   // ── actions ──
@@ -194,20 +209,79 @@ export const usePhotosAlbums = defineStore('photosAlbums', () => {
     return created
   }
 
+  // SP15-P2c Task 2. Vue2 does this purely on the front end -- there is no duplicate endpoint.
+  // Read the target (33b05636 PhotosAlbumDetail.vue :708-730, `duplicateAlbum` method): it
+  // computes `${this.album.title} copy` and the source album's member ids, then just dispatches
+  // the existing `photos/saveAsAlbum` action -- it is a thin wrapper, not a fresh
+  // create+addAssets combination. Reuse decision (this task's brief left it open): reuse
+  // `saveAsAlbum` rather than `createAlbum` + `addAssetsToAlbum`, because that is exactly what
+  // Vue2 does and their sequencing matches (create -> batchAdd -> refetch -> return); the
+  // store's own `addAssetsToAlbum` action has different semantics (optimistic count patch +
+  // per-album asset refetch) that Vue2's duplicateAlbum never exercises. No cover copying is
+  // done -- the target has no such step either.
+  //
+  // `source.name` mirrors albumView.ts:61's `(a.name as string) || (a.title as string)`
+  // fallback -- this store keeps raw backend objects (field `name`), and the view layer is
+  // what maps that to the `.title` Vue2's `this.album.title` reads.
+  //
+  // The new album's position: saveAsAlbum's own fetchAlbums() already puts it first, because
+  // the backend orders ListAlbums by created_at DESC (NimoOS-Photos service/album.go:83) --
+  // verified before relying on it, no extra frontend unshift needed.
+  const duplicateBusy = ref(false)
+  async function duplicateAlbum(id: string | number): Promise<RawAlbum> {
+    // Re-entry guard, same shape as smartViews.ts:170's duplicateBusy. Without it a double
+    // click creates two albums, and P1's final review caught exactly this class of bug on the
+    // one write path that lacked a guard.
+    if (duplicateBusy.value) throw new Error('duplicate already in flight')
+    duplicateBusy.value = true
+    try {
+      const source = albumById(id)
+      if (!source) throw new Error('album not found')
+      const rawName = (source.name as string) || (source.title as string) || ''
+      const name = `${rawName} copy`
+      const assetIds = assetsOf(id).map((p) => p.id)
+      return await saveAsAlbum(name, assetIds)
+    } finally {
+      // Always clear, so a failed attempt does not wedge the button for the rest of the session.
+      duplicateBusy.value = false
+    }
+  }
+
+  // SP15-P2b: a smart view solidifies into a manual album in place. Mirror image of
+  // smartViews.convertFromAlbum — see its comment for why there is no refetch. The raw backend
+  // object is stored as-is, matching this store's convention of keeping albums unmapped (the
+  // views map them through albumToView).
+  //
+  // The source smart view MUST leave the other store (final fix wave): the backend deletes it,
+  // but smartViews.listLoaded stays true and PhotosSmartViewDetail.vue:96 skips its own fetch
+  // when it is, so one browser Back press after a successful conversion would otherwise land on
+  // a fully interactive detail page for a smart view the server has already deleted.
+  //
+  // Rethrows on failure. Note this store's fetchAlbums deliberately swallows errors;
+  // that is not the pattern to follow for a user-initiated write.
+  async function convertFromSmartView(smartViewId: string): Promise<RawAlbum> {
+    const raw = await service.photos.convertSmartToAlbum(smartViewId)
+    const album = (raw ?? {}) as RawAlbum
+    albums.value = [album, ...albums.value]
+    usePhotosSmartViews().dropSmartViewLocal(smartViewId)
+    return album
+  }
+
   function __resetForTest(): void {
     albums.value = []
     albumsLoaded.value = false
     loadError.value = false
     albumAssetsByID.value = {}
     albumAssetsLoading.value = {}
+    duplicateBusy.value = false
   }
 
   return {
-    albums, albumsLoaded, loadError, albumAssetsByID, albumAssetsLoading,
+    albums, albumsLoaded, loadError, albumAssetsByID, albumAssetsLoading, duplicateBusy,
     albumById, assetsOf, isLoadingAssets,
     fetchAlbums, createAlbum, deleteAlbum, fetchAlbumAssets,
-    renameAlbum, setAlbumCover, reorderAlbumAssets,
-    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum,
+    renameAlbum, setAlbumCover, reorderAlbumAssets, duplicateAlbum,
+    addAssetsToAlbum, removeAssetsFromAlbum, saveAsAlbum, convertFromSmartView, dropAlbumLocal,
     __resetForTest,
   }
 })

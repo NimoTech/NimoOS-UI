@@ -1,0 +1,565 @@
+# Review package: b2126ee..HEAD
+
+## Commits
+748d79e fix(photos): page the favorites list instead of asking for everything
+
+## Files changed
+ src/i18n/en_us.photos.ts                      |   5 ++
+ src/i18n/zh_cn.photos.ts                      |   5 ++
+ src/photos/stores/__tests__/favorites.test.ts | 101 ++++++++++++++++++++++++++
+ src/photos/stores/favorites.ts                |  72 +++++++++++++++++-
+ src/views/PhotosFavorites.vue                 |  25 ++++++-
+ src/views/__tests__/PhotosFavorites.test.ts   |  59 +++++++++++++++
+ 6 files changed, 263 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index 9abe417..0925877 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -963,20 +963,25 @@ export default {
+   photosSettingsFooterApp: 'Nimo Photos',
+   photosSettingsRunningOn: 'Running on',
+   photosSettingsLibrarySince: 'Library since',
+   photosDeepLinkPhotoNotFound: 'Photo not found',
+   // 自拟(New-UI 新增失败态，Vue2 无对应)
+   photosFavoritesLoadFailed: "Couldn't load favorites",
+   // 自拟(New-UI 新增失败态，Vue2 无对应)
+   photosAlbumLoadFailed: "Couldn't load this album",
+   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+   photosRetry: 'Retry',
++  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
++  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
++  // equivalent (Vue2 never paged this endpoint).
++  photosLoadedSubsetHint: 'Stats reflect the first {n} loaded items',
++  photosLoadMore: 'Load more',
+   // ── SP15-P1 Moments ──
+   photosMoBadge: 'Moment',
+   photosMoTypeTrip: 'Trip',
+   photosMoTypePets: 'Pets',
+   photosMoTypeFamily: 'Family',
+   photosMoTypeTheme: 'Theme',
+   photosMoAddedThisWeek: '+{n} this week',
+   photosMoHeroTitle: 'Moments · For You',
+   photosMoHeroDesc: 'Nimo automatically groups your best shots into moments — trips, people, and themes worth reliving.',
+   // SP15-P2b Task 5: the sidebar entry's new label (was "Smart Views"), and the slim
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index 72e836e..aa0fa55 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -997,20 +997,25 @@ export default {
+   photosSettingsFooterApp: 'Nimo 相册',
+   photosSettingsRunningOn: '运行于',
+   photosSettingsLibrarySince: '建库于',
+   photosDeepLinkPhotoNotFound: '未找到该图片',
+   // 自拟(New-UI 新增失败态，Vue2 无对应)
+   photosFavoritesLoadFailed: '收藏加载失败',
+   // 自拟(New-UI 新增失败态，Vue2 无对应)
+   photosAlbumLoadFailed: '相册加载失败',
+   // 自拟(New-UI 新增，两处失败态共用的重试按钮，Vue2 无对应)
+   photosRetry: '重试',
++  // SP15-P3 Task 11: NimoOS-Photos#54 turned an absent limit on GET /photos/favorites into
++  // 500 rather than "everything" — these two keys are new-UI-only pagination copy, no Vue2
++  // equivalent (Vue2 never paged this endpoint).
++  photosLoadedSubsetHint: '统计基于已加载的前 {n} 项',
++  photosLoadMore: '加载更多',
+   // ── SP15-P1 Moments ──
+   photosMoBadge: '时刻',
+   photosMoTypeTrip: '行程',
+   photosMoTypePets: '宠物',
+   photosMoTypeFamily: '家人',
+   photosMoTypeTheme: '主题',
+   // Same Chinese wording the now-deleted photosSvAddedThisWeek carried (see Minor 6 note in the
+   // Smart Views block above) — not a fresh translation.
+   photosMoAddedThisWeek: '本周 +{n}',
+   photosMoHeroTitle: '时刻 · 为你推荐',
+diff --git a/src/photos/stores/__tests__/favorites.test.ts b/src/photos/stores/__tests__/favorites.test.ts
+index 5cf3eff..4efac24 100644
+--- a/src/photos/stores/__tests__/favorites.test.ts
++++ b/src/photos/stores/__tests__/favorites.test.ts
+@@ -119,11 +119,112 @@ describe('photosFavorites store', () => {
+     await s.fetchFavorites() // 重试,仍失败
+     expect(s.loadError).toBe(true)
+     expect(s.favoritesList).toEqual([])
+     expect(s.favoritesLoaded).toBe(false)
+   })
+   it('exportZip 走 exportFavoritesUrl', () => {
+     const s = usePhotosFavorites()
+     s.exportZip()
+     expect(service.photos.exportFavoritesUrl).toHaveBeenCalled()
+   })
++
++  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into
++  // 500, so the favorites list has to be paged or it silently truncates.
++  describe('pagination (Task 11)', () => {
++    const A = (id: string) => ({ id, mimeType: 'image/jpeg' })
++    const page = (n: number, from = 0) => Array.from({ length: n }, (_, i) => A(`f${from + i}`))
++
++    it('fetchFavorites asks for one page and reports exhaustion on a short page', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
++      await s.fetchFavorites()
++      expect(service.photos.listFavorites).toHaveBeenCalledWith(500, 0)
++      expect(s.favoritesExhausted).toBe(true)
++    })
++
++    it('loadMoreFavorites appends the next page and advances the offset', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      expect(s.favoritesExhausted).toBe(false)
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(2, 500))
++      await s.loadMoreFavorites()
++      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
++      expect(s.favoritesList).toHaveLength(502)
++      expect(s.favoritesExhausted).toBe(true)
++    })
++
++    it('refuses to page past the end', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(3))
++      await s.fetchFavorites()
++      await s.loadMoreFavorites()
++      expect(service.photos.listFavorites).toHaveBeenCalledTimes(1)
++    })
++
++    it('does not run two loadMore requests at once', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValue(page(500, 500))
++      await Promise.all([s.loadMoreFavorites(), s.loadMoreFavorites()])
++      // first page (fetchFavorites) + exactly one loadMore — the second concurrent
++      // call must be a no-op, not a second in-flight request.
++      expect(service.photos.listFavorites).toHaveBeenCalledTimes(2)
++    })
++
++    it('discards a stale in-flight page after a refresh (interleaved)', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      let release: (v: unknown) => void = () => {}
++      ;(service.photos.listFavorites as any).mockImplementationOnce(
++        () => new Promise((r) => { release = r }),
++      )
++      const slow = s.loadMoreFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1))
++      await s.fetchFavorites() // generation bumps here
++      release(page(500, 500)) // the slow page comes back afterwards
++      await slow
++      expect(s.favoritesList).toHaveLength(1)
++      expect(s.loadingMore).toBe(false)
++    })
++
++    it('resets the cursor on a failed page so the next attempt does not skip rows', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      ;(service.photos.listFavorites as any).mockRejectedValueOnce(new Error('boom'))
++      await s.loadMoreFavorites()
++      expect(s.loadingMore).toBe(false)
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(1, 500))
++      await s.loadMoreFavorites()
++      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
++    })
++
++    it('reports the exact total from the id list, and the loaded length before ids land', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      expect(s.favoritesTotal).toBe(500) // favIds not loaded yet: no flash of 0
++      ;(service.photos.listFavoriteIds as any).mockResolvedValueOnce(
++        Array.from({ length: 1234 }, (_, i) => `f${i}`),
++      )
++      await s.reconcileFavIds()
++      expect(s.favoritesTotal).toBe(1234)
++    })
++
++    it('toggling a favorite resets the cursor so the next fetch starts from page one', async () => {
++      const s = usePhotosFavorites()
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      expect(s.favoritesExhausted).toBe(false)
++      await s.toggle('f0')
++      // fetchFavorites always asks offset 0 regardless, but exhaustion must be reset
++      // too so a stale "exhausted" flag doesn't hide the load-more button on next entry.
++      expect(s.favoritesExhausted).toBe(false)
++      ;(service.photos.listFavorites as any).mockResolvedValueOnce(page(500))
++      await s.fetchFavorites()
++      expect(service.photos.listFavorites).toHaveBeenLastCalledWith(500, 0)
++    })
++  })
+ })
+diff --git a/src/photos/stores/favorites.ts b/src/photos/stores/favorites.ts
+index a9e55e1..625696a 100644
+--- a/src/photos/stores/favorites.ts
++++ b/src/photos/stores/favorites.ts
+@@ -5,93 +5,153 @@
+ // Photos backend has NO standard {Success,Message,Data} envelope — listFavoriteIds
+ // / listFavorites resolve to bare arrays (or null) → always `?? []`.
+ import { ref, computed } from 'vue'
+ import { defineStore } from 'pinia'
+ import { service } from '@nimotech/nimoos-service'
+ import { assetToPhoto, type Photo, type Month } from '../util/assetToPhoto'
+ import { groupPhotosByMonth } from '../util/groupPhotosByMonth'
+ 
+ const VIEW_THROTTLE_MS = 60_000
+ 
++// Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit from "everything" into 500, so this
++// list has to be paged or it silently truncates. A generation counter guards the shared state: a
++// slow page that lands after a refresh must be dropped whole rather than appended to a list it no
++// longer belongs to.
++const FAVORITES_PAGE_SIZE = 500
++
+ export const usePhotosFavorites = defineStore('photosFavorites', () => {
+   const favIds = ref<Set<string>>(new Set())
+   const favIdsLoaded = ref(false)
+   const favoritesList = ref<Photo[] | null>(null)
+   const favoritesLoaded = ref(false)
++  const favoritesExhausted = ref(false)
++  const loadingMore = ref(false)
++  let _offset = 0
++  let _generation = 0
+   // Task 9 (P8a, P3 遗留收口): 独立失败标志——绝不与 favoritesLoaded 合并/复用。
+   // favoritesLoaded 仅成功路径置真是刻意的(见下方 fetchFavorites 注释);一次瞬时失败
+   // 必须能被视图区分出「加载失败」而不是「正在加载」或「确认为空」,这就是 loadError 存在
+   // 的唯一理由。
+   const loadError = ref(false)
+   // Non-reactive view-report throttle ledger — mirrors Vue2's non-reactive
+   // `state._viewReportTs`, avoiding a render trigger on every photo view.
+   const _viewTs = new Map<string, number>()
+ 
+   function isFav(id: string | number): boolean {
+     return favIds.value.has(String(id))
+   }
+   const favoritesMonths = computed<Month[]>(() => groupPhotosByMonth(favoritesList.value ?? []))
+ 
++  // Exact count from the server's full id list. favoritesList.length is only the pages
++  // fetched so far, and favIds lands independently — falling back to the loaded length
++  // keeps the header from flashing 0 while ids are in flight.
++  const favoritesTotal = computed(() =>
++    favIdsLoaded.value ? favIds.value.size : (favoritesList.value?.length ?? 0),
++  )
++
+   async function reconcileFavIds(): Promise<void> {
+     try {
+       const ids = await service.photos.listFavoriteIds()
+       favIds.value = new Set(((ids as unknown[]) ?? []).map((v) => String(v)))
+       favIdsLoaded.value = true
+     } catch (e) {
+       // leave favIds as-is on failure
+       console.error('[photos-favorites] reconcileFavIds', e)
+     }
+   }
+ 
++  // Task 11: fetchFavorites now always fetches page one and resets the cursor — call it
++  // for the initial load and for any refresh (toggle invalidation, delete refresh, retry).
+   async function fetchFavorites(): Promise<void> {
+     // Task 9 correction: `loadError` used to be reset to false at the top of
+     // this function (before the await), mirroring the "reset before attempt"
+     // instruction this task started with. That was wrong: it created a
+     // window, on every retry (success *or* failure), where loadError was
+     // false but favoritesLoaded was still false too — and the Favorites view
+     // has no dedicated "loading" branch, so during that window it fell
+     // through to the v-else branch and rendered an empty grid, transiently
+     // reproducing the exact P3 defect this task exists to fix. Clearing
+     // loadError only on confirmed success means the failure UI stays
+     // continuously visible from the first failure until a retry actually
+     // succeeds — no window where the view can fall through to the wrong
+     // branch.
++    const gen = ++_generation
++    loadingMore.value = false
+     try {
+-      const list = (await service.photos.listFavorites()) as unknown[]
+-      favoritesList.value = (list ?? []).map((a) => assetToPhoto(a as Record<string, unknown>))
++      const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, 0)) as unknown[]
++      if (gen !== _generation) return
++      const rows = list ?? []
++      favoritesList.value = rows.map((a) => assetToPhoto(a as Record<string, unknown>))
++      _offset = rows.length
++      favoritesExhausted.value = rows.length < FAVORITES_PAGE_SIZE
+       // Only mark loaded on success — a transient fetch failure must stay
+       // distinguishable from "confirmed zero favorites", otherwise consumers
+       // gating a refetch on `!favoritesLoaded` (e.g. the Favorites view) would
+       // permanently mask real favorites behind an empty state.
+       favoritesLoaded.value = true
+       loadError.value = false
+     } catch (e) {
++      if (gen !== _generation) return
+       favoritesList.value = []
++      _offset = 0
++      favoritesExhausted.value = false
+       loadError.value = true
+       console.error('[photos-favorites] fetchFavorites', e)
+     }
+   }
+ 
++  // Task 11: appends the next page behind the load-more button. A generation counter
++  // guards against a page landing after a refresh happened mid-flight — that page must
++  // be dropped whole, not appended to a list it no longer belongs to.
++  async function loadMoreFavorites(): Promise<void> {
++    if (favoritesExhausted.value || loadingMore.value) return
++    const gen = _generation
++    loadingMore.value = true
++    try {
++      const list = (await service.photos.listFavorites(FAVORITES_PAGE_SIZE, _offset)) as unknown[]
++      // A refresh happened while this page was in flight: drop it entirely.
++      if (gen !== _generation) return
++      const rows = list ?? []
++      favoritesList.value = [
++        ...(favoritesList.value ?? []),
++        ...rows.map((a) => assetToPhoto(a as Record<string, unknown>)),
++      ]
++      _offset += rows.length
++      if (rows.length < FAVORITES_PAGE_SIZE) favoritesExhausted.value = true
++    } catch (e) {
++      // Leave the cursor where it was so the retry asks for the same page again
++      // rather than skipping it.
++      console.error('[photos-favorites] loadMoreFavorites', e)
++    } finally {
++      if (gen === _generation) loadingMore.value = false
++    }
++  }
++
+   // Single-item optimistic flip + failure rollback (true to Vue2 toggleFav:
+   // flips again to roll back, not a snapshot restore).
+   async function toggle(id: string | number): Promise<void> {
+     const key = String(id)
+     const wasFav = favIds.value.has(key)
+     const flipped = new Set(favIds.value)
+     if (wasFav) flipped.delete(key)
+     else flipped.add(key)
+     favIds.value = flipped
+     try {
+       if (wasFav) await service.photos.unfavorite(id)
+       else await service.photos.favorite(id)
+       // Invalidate the cached favorites list — next view re-fetches.
+       favoritesLoaded.value = false
++      // Task 11: reset the pagination cursor too, so the next fetchFavorites() starts a
++      // fresh page one instead of leaving a stale "exhausted" flag that would hide the
++      // load-more button while the list is actually smaller than what was loaded before.
++      favoritesExhausted.value = false
++      _offset = 0
+     } catch (e) {
+       // Roll back + log only — do NOT rethrow. Every caller invokes this
+       // fire-and-forget (`void fav.toggle(id)`, mirroring P2's
+       // useLightbox.toggleFav precedent); rethrowing here would surface as an
+       // unhandled promise rejection instead of the UI-consistent rollback +
+       // diagnostic log this store already provides.
+       const rollback = new Set(favIds.value)
+       if (wasFav) rollback.add(key)
+       else rollback.delete(key)
+       favIds.value = rollback
+@@ -115,19 +175,25 @@ export const usePhotosFavorites = defineStore('photosFavorites', () => {
+     const url = service.photos.exportFavoritesUrl()
+     if (typeof window !== 'undefined') window.location.href = url
+   }
+ 
+   function __resetForTest(): void {
+     favIds.value = new Set()
+     favIdsLoaded.value = false
+     favoritesList.value = null
+     favoritesLoaded.value = false
+     loadError.value = false
++    favoritesExhausted.value = false
++    loadingMore.value = false
++    _offset = 0
++    _generation = 0
+     _viewTs.clear()
+   }
+ 
+   return {
+     favIds, favIdsLoaded, favoritesList, favoritesLoaded, loadError,
++    favoritesExhausted, loadingMore, favoritesTotal,
+     isFav, favoritesMonths,
+-    reconcileFavIds, fetchFavorites, toggle, recordView, exportZip, __resetForTest,
++    reconcileFavIds, fetchFavorites, loadMoreFavorites, toggle, recordView, exportZip,
++    __resetForTest,
+   }
+ })
+diff --git a/src/views/PhotosFavorites.vue b/src/views/PhotosFavorites.vue
+index e5549c0..3d45599 100644
+--- a/src/views/PhotosFavorites.vue
++++ b/src/views/PhotosFavorites.vue
+@@ -195,40 +195,46 @@ onMounted(() => {
+             :disabled="!(fav.favoritesList?.length)"
+             @click="onExport"
+           >{{ t('photosFavExport') }}</button>
+           <button
+             type="button"
+             class="fav-save-album"
+             data-test="fav-save-album-btn"
+             :disabled="!(fav.favoritesList?.length)"
+             @click="openSaveAlbum"
+           >{{ t('photosFavSaveAlbum') }}</button>
+-          <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesList?.length ?? 0 }) }}</span>
++          <span class="fav-count">{{ t('photosFavCount', { count: fav.favoritesTotal }) }}</span>
+         </div>
+ 
+         <!-- Task 9(P3 遗留收口):失败态优先级在空态之前——loadError 一旦为真,就不该
+              再落进(旧代码里恒假的)isEmpty 分支渲染一个没有任何提示的空网格。 -->
+         <div v-if="fav.loadError" class="empty-state" data-test="fav-load-error">
+           <div class="empty-state-title">{{ t('photosFavoritesLoadFailed') }}</div>
+           <button
+             type="button"
+             class="bar-btn"
+             data-test="fav-retry"
+             :disabled="retryingFavorites"
+             @click="retryFavorites"
+           >{{ t('photosRetry') }}</button>
+         </div>
+         <div v-else-if="isEmpty" class="empty-state" data-test="fav-empty">
+           <div class="empty-state-title">{{ t('photosFavEmptyTitle') }}</div>
+           <div class="empty-state-desc">{{ t('photosFavEmptyHint') }}</div>
+         </div>
+         <template v-else>
++          <!-- Task 11 (SP15-P3): the hero stats and facet dropdowns below are all derived from
++               fav.favoritesList, which is only the pages fetched so far while pagination is
++               still catching up — say so out loud instead of silently under-reporting. -->
++          <div v-if="!fav.favoritesExhausted" class="fav-loaded-hint" data-test="fav-loaded-hint">
++            {{ t('photosLoadedSubsetHint', { n: fav.favoritesList?.length ?? 0 }) }}
++          </div>
+           <!-- Task 15A: hero 统计三卡 —— 照 Vue2 PhotosFavoritesView.vue:56-84,只在非空分支渲染
+                (Vue2 :47-53/:54 的 v-if/v-else,空态整页走别的分支,三卡不渲染)。 -->
+           <div class="fav-stats">
+             <div class="fav-stat-card">
+               <div class="label">{{ t('photosFavStatTopPerson') }}</div>
+               <div class="value">{{ byPerson[0] ? byPerson[0][0] : '—' }}</div>
+               <div class="meta">{{ byPerson[0] ? t('photosPeoplePhotosCount', { n: byPerson[0][1] }) : t('photosFavNoFaces') }}</div>
+               <div class="fav-stat-bar">
+                 <span v-for="(p, i) in byPerson" :key="p[0]" :data-hi="i === 0 || undefined"></span>
+               </div>
+@@ -265,20 +271,31 @@ onMounted(() => {
+             :tab="tab" :density="density" :count="filteredCount"
+             @update:tab="tab = $event" @update:density="density = $event"
+           />
+           <div class="photos-grid-slot">
+             <PhotosGrid
+               :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
+               @open="onOpenTile"
+               @toggle-select="toggleSelect"
+             />
+           </div>
++          <!-- Task 11: the backend caps a single request at 500 rows now (NimoOS-Photos#54),
++               so anything past the first page only shows up once this is clicked. -->
++          <div v-if="!fav.favoritesExhausted" class="fav-load-more">
++            <button
++              type="button"
++              class="bar-btn"
++              data-test="fav-load-more"
++              :disabled="fav.loadingMore"
++              @click="fav.loadMoreFavorites()"
++            >{{ t('photosLoadMore') }}</button>
++          </div>
+         </template>
+       </main>
+     </div>
+   </AreaShell>
+   <PhotoLightbox
+     @delete="onLightboxDelete"
+     @toggle-fav="() => {}"
+     @add-to-album="(id) => openAlbumPicker([id])"
+   />
+   <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
+@@ -326,20 +343,26 @@ onMounted(() => {
+ 
+ <style scoped>
+ /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
+    出处见 src/views/Photos.vue 同一规则处的注释。 */
+ .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+ .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+ .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
+ 
+ .fav-header { display: flex; align-items: center; gap: 12px; padding: 4px 4px 8px; }
+ .fav-count { color: var(--fg-muted); font-size: 13px; }
++
++/* Task 11 (SP15-P3): same small-muted-text treatment as .fav-count above (--fg-muted, 13px) —
++   no new color, just a differently-positioned instance of the same token usage. */
++.fav-loaded-hint { color: var(--fg-muted); font-size: 13px; margin-bottom: 10px; }
++.fav-load-more { display: flex; justify-content: center; padding: 16px 0; }
++.fav-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+ .fav-export {
+   padding: 6px 14px; border-radius: var(--chip-radius); border: 1px solid var(--chip-border);
+   background: var(--chip-bg); color: var(--fg); font-size: 13px; cursor: pointer;
+ }
+ .fav-export:hover:not(:disabled) { background: var(--chip-bg-hi); }
+ .fav-export:disabled { color: var(--fg-muted); cursor: not-allowed; opacity: 0.6; }
+ 
+ .fav-save-album {
+   padding: 6px 14px; border-radius: var(--chip-radius); border: 1px solid var(--chip-border);
+   background: var(--chip-bg); color: var(--fg); font-size: 13px; cursor: pointer;
+diff --git a/src/views/__tests__/PhotosFavorites.test.ts b/src/views/__tests__/PhotosFavorites.test.ts
+index cda24da..d869446 100644
+--- a/src/views/__tests__/PhotosFavorites.test.ts
++++ b/src/views/__tests__/PhotosFavorites.test.ts
+@@ -594,11 +594,70 @@ describe('PhotosFavorites.vue', () => {
+       svc.photos.listFavorites.mockResolvedValue([
+         photo('a', { takenAt: '2020-01-01' }), photo('b', { takenAt: '2021-01-01' }),
+         photo('c', { takenAt: '2022-01-01' }), photo('d', { takenAt: '2023-01-01' }),
+         photo('e', { takenAt: '2024-01-01' }),
+       ])
+       const w = await mountView()
+       const cards = w.findAll('.fav-stat-card')
+       expect(cards[2].findAll('.fav-stat-bar span')).toHaveLength(5) // 5 个年份,不裁
+     })
+   })
++
++  // Task 11 (SP15-P3): NimoOS-Photos#54 turned an absent limit into 500, so this page has
++  // to page and say out loud that its derived stats only cover what's loaded so far.
++  describe('pagination (Task 11)', () => {
++    const page = (n: number, from = 0) =>
++      Array.from({ length: n }, (_, i) => photo(`f${from + i}`))
++
++    it('shows the load-more button only while pages remain', async () => {
++      // A short first page (< 500) means favoritesExhausted is true right away — no button.
++      svc.photos.listFavorites.mockResolvedValueOnce(page(3))
++      const wDone = await mountView()
++      expect(wDone.find('[data-test="fav-load-more"]').exists()).toBe(false)
++
++      // A full page (500) means more may remain — button shows.
++      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
++      const wMore = await mountView()
++      expect(wMore.find('[data-test="fav-load-more"]').exists()).toBe(true)
++
++      // Clicking it calls loadMoreFavorites, which asks for the next page.
++      svc.photos.listFavorites.mockResolvedValueOnce(page(2, 500))
++      await wMore.find('[data-test="fav-load-more"]').trigger('click')
++      await flushPromises()
++      await wMore.vm.$nextTick()
++      expect(svc.photos.listFavorites).toHaveBeenLastCalledWith(500, 500)
++      // The next page was short (2 < 500): now exhausted, button disappears.
++      expect(wMore.find('[data-test="fav-load-more"]').exists()).toBe(false)
++    })
++
++    it('shows the loaded-subset hint with the loaded count', async () => {
++      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
++      const w = await mountView()
++      const fav = usePhotosFavorites()
++      expect(fav.favoritesExhausted).toBe(false)
++
++      const hint = w.find('[data-test="fav-loaded-hint"]')
++      expect(hint.exists()).toBe(true)
++      expect(hint.text()).toContain('500')
++
++      // Once exhausted, the hint disappears — the loaded set is the whole set.
++      svc.photos.listFavorites.mockResolvedValueOnce(page(1, 500))
++      await w.find('[data-test="fav-load-more"]').trigger('click')
++      await flushPromises()
++      await w.vm.$nextTick()
++      expect(w.find('[data-test="fav-loaded-hint"]').exists()).toBe(false)
++    })
++
++    it('shows the exact total in the All chip, not the loaded length', async () => {
++      // First page is a full 500-row page — more remain, so favoritesList.length (500) would
++      // under-report against the real total once favIds lands.
++      svc.photos.listFavorites.mockResolvedValueOnce(page(500))
++      svc.photos.listFavoriteIds.mockResolvedValueOnce(
++        Array.from({ length: 1234 }, (_, i) => `f${i}`),
++      )
++      const w = await mountView()
++
++      expect(w.find('.fav-count').text()).toContain('1234')
++      expect(w.find('.fav-count').text()).not.toContain('500')
++    })
++  })
+ })

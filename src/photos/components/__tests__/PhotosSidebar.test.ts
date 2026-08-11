@@ -55,7 +55,7 @@ describe('PhotosSidebar', () => {
   // SP7-P7a-T4:NAV 新增 smart-views,插在 places 之后、favorites 之前——原本 6 项变 7 项,
   // favorites/trash 的下标各 +1(原 4/5 → 现 5/6)。顺序照 Vue2 PhotosSidebar.vue:114-118
   // (library / albums / people / places / smart)。
-  it('渲染七条导航项(照片库/相册/人物/地点/智能视图/收藏/最近删除),当前路由高亮', async () => {
+  it('渲染七条导航项(照片库/相册/人物/地点/为你推荐/收藏/最近删除),当前路由高亮', async () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     expect(items).toHaveLength(7)
@@ -63,7 +63,7 @@ describe('PhotosSidebar', () => {
     expect(items[1].text()).toContain('相册')
     expect(items[2].text()).toContain('人物')
     expect(items[3].text()).toContain('地点')
-    expect(items[4].text()).toContain('智能视图')
+    expect(items[4].text()).toContain('为你推荐')
     expect(items[5].text()).toContain('收藏')
     expect(items[6].text()).toContain('最近删除')
     // 当前在 /photos,仅照片库项 active
@@ -167,7 +167,7 @@ describe('PhotosSidebar', () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     expect(items).toHaveLength(7)
-    expect(items[4].text()).toContain('智能视图')
+    expect(items[4].text()).toContain('为你推荐')
     expect(items[0].classes()).not.toContain('active') // library 不 active
     expect(items[1].classes()).not.toContain('active') // albums 不 active
     expect(items[2].classes()).not.toContain('active') // people 不 active
@@ -279,7 +279,7 @@ describe('PhotosSidebar', () => {
       await nextTick()
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(6)
-      expect(items.some((i) => i.text().includes('智能视图'))).toBe(false)
+      expect(items.some((i) => i.text().includes('为你推荐'))).toBe(false)
       // 剩下 6 项仍是原顺序去掉 smart-views 这一条(favorites/trash 紧跟 places)。
       expect(items[3].text()).toContain('地点')
       expect(items[4].text()).toContain('收藏')
@@ -298,7 +298,7 @@ describe('PhotosSidebar', () => {
       await nextTick()
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(7)
-      expect(items.some((i) => i.text().includes('智能视图'))).toBe(true)
+      expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
     })
 
     // review fix(take-along):补上真正的"尚未取到数"分支——mount 之后不 flushPromises,
@@ -313,7 +313,7 @@ describe('PhotosSidebar', () => {
       const w = mountSidebar()
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(7)
-      expect(items.some((i) => i.text().includes('智能视图'))).toBe(true)
+      expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
       // 收尾:把挂起的 promise 结算掉,不让它泄漏到下一条用例。
       resolveFn?.({})
     })
@@ -325,5 +325,21 @@ describe('PhotosSidebar', () => {
       await flushPromises()
       expect(spy).toHaveBeenCalledTimes(1)
     })
+  })
+
+  // SP15-P2b Task 5: the smart-views entry's label changes to "For You" now that its page
+  // is Moments-only, but its id/route stay so the ?view=smart deep link and the
+  // aiFeatures.smartview hide-when-off filter above keep working unmodified.
+  //
+  // Deviation from the plan brief: the brief's snippet asserted
+  // `[data-nav-id="smart-views"]`, which does not exist anywhere in this component (grep
+  // confirmed) — nav items carry no per-item test marker, only `.side-item`/`.side-name`.
+  // This does not add one just for the test; it asserts on the collected `.side-name` text
+  // set instead, same technique the "hide when off" cases above already use.
+  it('labels the smart-views entry "For You" after the IA merge, and drops the old "Smart Views" label entirely', () => {
+    const w = mountSidebar()
+    const names = w.findAll('.side-name').map((n) => n.text())
+    expect(names).toContain('为你推荐')
+    expect(names).not.toContain('智能视图')
   })
 })

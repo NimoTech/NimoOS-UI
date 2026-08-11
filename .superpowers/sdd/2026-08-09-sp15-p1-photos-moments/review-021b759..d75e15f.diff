@@ -1,0 +1,2533 @@
+# Review package: 021b759..HEAD
+
+## Commits
+d75e15f docs(sp15): update the P1 ledger through task 9
+dec4d0b docs(sp15): record the task 9 report
+b384c00 feat(photos): add and remove photos from a moment
+143dc0f refactor(photos): make the library picker album-agnostic
+0b8ad82 docs(sp15): update the P1 ledger through task 8
+
+## Files changed
+ .../2026-08-09-sp15-p1-photos-moments/progress.md  |  43 ++++
+ .../task-8-brief.md                                | 139 ++++++++++++
+ .../task-8-report.md                               | 251 +++++++++++++++++++++
+ .../task-9-brief.md                                | 248 ++++++++++++++++++++
+ .../task-9-report.md                               | 244 ++++++++++++++++++++
+ src/i18n/en_us.photos.ts                           |  11 +
+ src/i18n/zh_cn.photos.ts                           |  17 ++
+ src/photos/components/AlbumLibraryPicker.vue       |  96 +++++---
+ .../__tests__/AlbumLibraryPicker.test.ts           | 147 +++++++++---
+ src/views/PhotosAlbumDetail.vue                    |  39 +++-
+ src/views/PhotosAlbums.vue                         |  41 +++-
+ src/views/PhotosMomentDetail.test.ts               | 186 +++++++++++++++
+ src/views/PhotosMomentDetail.vue                   | 109 ++++++++-
+ src/views/__tests__/PhotosAlbumDetail.test.ts      |  49 +++-
+ src/views/__tests__/PhotosAlbums.test.ts           |  61 +++++
+ 15 files changed, 1593 insertions(+), 88 deletions(-)
+
+## Diff
+diff --git a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/progress.md b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/progress.md
+index f2befc4..7bfec62 100644
+--- a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/progress.md
++++ b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/progress.md
+@@ -135,10 +135,53 @@ Task 7: review (opus) — spec ❌, quality Needs fixes. 4 Important + 3 Minor.
+   Controller resolved the ⚠️: src/router 25/25 green after the inserted comment.
+ Task 7: minor (deferred): AreaShell's title falls back to the back-link label, so the
+   skeleton and not-found states are titled "All Moments".
+ CONTROLLER ACTION: removed a stray .superpowers/sdd/.gitignore containing a single
+   `*` — recreated by the superpowers workspace script, and it is the exact file the
+   owner deleted in 0eec6ad ("stop the sdd directory from ignoring its own ledgers").
+   It was silencing all 16 of this stage's ledger/brief/report markdown files. Per the
+   parent .superpowers/.gitignore rule (markdown in, replayable machine output out),
+   these must be committed at the end — do NOT delete the workspace as the SDD skill
+   would otherwise have it.
++NOTE: the superpowers `review-package` script RECREATES .superpowers/sdd/.gitignore
++  (a single `*`) on every run. Delete it again immediately before the final ledger
++  commit, or the stage's markdown silently stops being trackable.
++Task 7: fix round 1/5 (7 addressed, 0 open; commits 7069012..b3d0ad9, 4 commits).
++  Re-review also upheld three beyond-scope changes the implementer made: a retry
++  button on the new failure state (verified it really refetches, not a no-op), a
++  self-initiated fix so switching :id clears the previous moment's assets (verified
++  safe against the staleness guard), and a rewritten finding-7 test after the first
++  version turned out to be a fake gate that only the mutation check caught.
++Task 7: complete (commits d9fe4c1..b3d0ad9, review clean; detail page 25, store 25,
++  router 25, parity 9, styles 1075, oss 448, full suite 10772/678 files)
++Task 7: minor (CARRIED INTO TASK 8, not deferred): the same-day time-window fixture
++  uses 01:00Z/09:00Z, which is not the same LOCAL day at UTC-2 or further west —
++  reviewer reproduced a failure under TZ=America/New_York — while a comment added
++  this round claims the expectations are "timezone-safe on any machine". One-token
++  fix (12:00Z/13:00Z). Task 8 edits this file anyway.
++Task 7: minor (deferred): listLoading is now exported but read by nobody.
++Task 7: minor (deferred): the failure screen gives no pending feedback during retry.
++Task 7: minor (deferred): listError is only cleared by a successful fetchMoments, so
++  after one failed list fetch a genuinely deleted moment shows "couldn't load"
++  instead of not-found for the rest of the session. Conservative, not wrong.
++
++Task 8: review — spec ✅, quality Approved, but one Important listed and therefore
++  entering the loop: the lightbox test asserts only that openAt was called once,
++  never its arguments, and never clicks a Featured tile — so tile-to-list scoping
++  (Featured tile pages the featured strip, not the whole library) is unguarded, and
++  Task 9 leans on it. Plan-mandated test design; fixing it fulfils the test's own
++  stated intent rather than contradicting the plan.
++  Reviewer upheld both implementer deviations: the useLightbox module mock is
++  necessary (useLightbox() returns a fresh object literal per call, so the brief's
++  vi.spyOn on the test's own copy could never intercept the component's), and the
++  strengthened clear-selection test is real. Carried-over TZ fixture fix verified
++  under TZ=America/New_York.
++Task 8: minor (deferred): PhotosMomentDetail.vue is now 638 lines and Tasks 9/10 add
++  three more feature areas to the same file; extracting a grid subcomponent will
++  likely be worth it after Task 10. Flag, do not act on it mid-plan.
++Task 8: fix round 1/5 (1 addressed, 0 open — lightbox entry-list scoping now
++  asserted with disjoint fixtures + specific mutation check; commits fbe99bc..021b759)
++Task 8: complete (commits b3d0ad9..021b759, review clean; detail page 32, styles 1075,
++  oss 448 on a clean tree, TZ=America/New_York re-verified)
++CONTROLLER NOTE: the OSS gate asserts a clean working tree, so an uncommitted ledger
++  makes it report 445/448. Commit the ledger before running that gate; do NOT stash
++  around it.
+diff --git a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-brief.md b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-brief.md
+new file mode 100644
+index 0000000..732fb53
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-brief.md
+@@ -0,0 +1,139 @@
++## Task 8: 详情页两段照片网格
++
++**Files:**
++- Modify: `src/views/PhotosMomentDetail.vue`
++- Modify: `src/views/PhotosMomentDetail.test.ts`
++- Modify: `src/i18n/zh_cn.photos.ts` · `src/i18n/en_us.photos.ts`
++
++**Interfaces:**
++- Consumes: `featuredAssets` / `allAssets` / `manualIds`（Task 7）· `useLightbox`（既有 `src/photos/lightbox/useLightbox.ts`）
++- Produces: `selecting` / `selectedIds` 两个 ref，供 Task 9 的批量移除消费
++
++**新增 i18n 键**：`photosMoAllPhotos` · `photosMoLoading` · `photosMoNoPhotosYet`
++
++- [ ] **Step 1: 写失败的测试**
++
++在 `src/views/PhotosMomentDetail.test.ts` 追加：
++
++```ts
++describe('两段照片网格', () => {
++  function mockAssets(featured: unknown[], all: unknown[], members: unknown[] = []) {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: featured, members, places: [] } : all)
++  }
++
++  it('Featured 有内容时渲染该分节,并在标题上显示张数', async () => {
++    mockAssets([{ id: 'f1' }, { id: 'f2' }], [{ id: 'f1' }, { id: 'f2' }, { id: 'a3' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-featured-head"]').text()).toContain('2')
++    expect(w.findAll('[data-test="mo-featured-tile"]')).toHaveLength(2)
++  })
++
++  it('Featured 为空时整个分节不渲染', async () => {
++    mockAssets([], [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-featured-head"]').exists()).toBe(false)
++  })
++
++  it('manual 成员在 Featured 里显示 pin 角标,非 manual 不显示', async () => {
++    mockAssets([{ id: 'f1' }, { id: 'f2' }], [], [
++      { asset_id: 'f1', manual: true, featured: true },
++      { asset_id: 'f2', manual: false, featured: true },
++    ])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.findAll('[data-test="mo-pin-tag"]')).toHaveLength(1)
++  })
++
++  it('All photos 为空且加载完毕时显示"还没有照片"', async () => {
++    mockAssets([], [])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    expect(w.find('[data-test="mo-all-empty"]').exists()).toBe(true)
++  })
++
++  it('非选择态点瓦片打开灯箱;选择态点瓦片只切选中,不开灯箱', async () => {
++    mockAssets([], [{ id: 'a1' }, { id: 'a2' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    // ⚠️ useLightbox().open 是 Ref<boolean>,不是函数;打开的方法叫 openAt。
++    const lb = useLightbox()
++    const openAt = vi.spyOn(lb, 'openAt')
++
++    await w.findAll('[data-test="mo-all-tile"]')[0].trigger('click')
++    expect(openAt).toHaveBeenCalledTimes(1)
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.findAll('[data-test="mo-all-tile"]')[1].trigger('click')
++    expect(openAt).toHaveBeenCalledTimes(1)                     // 没有再开
++    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
++  })
++
++  it('退出选择态会清空已选', async () => {
++    mockAssets([], [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++  })
++})
++```
++
++> 顶部需 `import { useLightbox } from '../photos/lightbox/useLightbox'`。
++> **⚠️ 该 composable 的 `open` 是 `Ref<boolean>`，不是函数** —— 打开灯箱的方法叫
++> `openAt(photo, entryList, startMs?, query?)`（`useLightbox.ts:144,155`）。上面用例里的
++> `vi.spyOn(lb, 'openAt')`，别写成 `open`（写成 `open` 会 spy 到一个 ref 上，报
++> `Cannot spy on a non-function value` 或静默失效）。
++
++- [ ] **Step 2: 跑测试确认它失败**
++
++Run: `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose`
++Expected: FAIL —— `[data-test="mo-featured-tile"]` 找不到
++
++- [ ] **Step 3: 实现**
++
++在 `PhotosMomentDetail.vue` 补：
++
++```ts
++const selecting = ref(false)
++const selectedIds = ref<string[]>([])
++
++function toggleSelecting(): void {
++  selecting.value = !selecting.value
++  if (!selecting.value) selectedIds.value = []
++}
++function toggleSelect(id: string): void {
++  selectedIds.value = selectedIds.value.includes(id)
++    ? selectedIds.value.filter((x) => x !== id)
++    : [...selectedIds.value, id]
++}
++function onTileClick(p: Photo, list: Photo[]): void {
++  if (selecting.value) toggleSelect(String(p.id))
++  else lightbox.openAt(p, list)   // openAt(photo, entryList) —— open 是 Ref,不是函数
++}
++```
++
++模板两段网格照 Vue2 `:52-79`，瓦片加 `data-test="mo-featured-tile"` / `mo-all-tile"`，pin 角标 `data-test="mo-pin-tag"`，选择栏 `data-test="mo-select-bar"`，Select 按钮 `data-test="mo-select-toggle"`。
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts src/i18n/parity.test.ts --reporter=verbose`
++Expected: PASS，累计 23 个详情页用例
++
++- [ ] **Step 5: 提交**
++
++```bash
++git add src/views/PhotosMomentDetail.vue src/views/PhotosMomentDetail.test.ts src/i18n/zh_cn.photos.ts src/i18n/en_us.photos.ts
++git commit -m "feat(photos): render the moment's featured and full photo grids
++
++Pin badges come from the with_members receipts and only overlay the featured
++strip, matching Vue 2. Selection mode suppresses the lightbox so a tap during
++selection cannot both select and open."
++```
++
++---
++
+diff --git a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-report.md b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-report.md
+new file mode 100644
+index 0000000..5b86e41
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-8-report.md
+@@ -0,0 +1,251 @@
++# Task 8 report: the two photo grids on the moment detail page
++
++Commit: `fbe99bc` — `feat(photos): render the moment's featured and full photo grids`
++(branch `sp15-photos-moments`, worktree `.claude/worktrees/sp15-photos-moments`, not pushed).
++
++## What was implemented
++
++`src/views/PhotosMomentDetail.vue` (built on Task 7's page):
++
++- **Featured grid** — rendered only via `<template v-if="featuredAssets.length">` (no empty
++  shell when there are none), heading `data-test="mo-featured-head"` with a count pill, tiles
++  `data-test="mo-featured-tile"`. Manual members (from `with_members` receipts, already loaded
++  by Task 7 into `manualIds`) get a pin badge (`data-test="mo-pin-tag"`), non-manual members
++  do not.
++- **All photos grid** — heading `data-test="mo-all-head"`, three mutually exclusive states:
++  loading (`data-test="mo-all-loading"`, shown only while `allLoading && !allAssets.length`),
++  populated (tiles `data-test="mo-all-tile"`), empty (`data-test="mo-all-empty"`, "no photos
++  yet").
++- **Selection state** (`selecting` / `selectedIds` refs, exactly as the brief specified, for
++  Task 9 to consume): a `Select`/`Cancel` toggle button (`data-test="mo-select-toggle"`) in a
++  new `.sv-actions` block next to the header; clicking a tile either opens the lightbox
++  (`lightbox.openAt(p, list)`, `list` being whichever grid — Featured or All — the tile came
++  from) or, in selection mode, only toggles that tile's selection and never opens the lightbox.
++  A selection bar (`data-test="mo-select-bar"`) shows the count once at least one tile is
++  selected; leaving selection mode clears `selectedIds`, not just hides the bar (see the
++  self-review test below).
++- CSS: `.sv-section-head`/`.sv-grid-photos`/`.tile`/`.sv-pin-tag`/`.sv-tile-check`/
++  `.sv-select-bar`/`.sv-actions`/`.sv-action-btn` restated (scoped styles don't cross component
++  boundaries in this repo) from `photos-smartview.scss`, using the exact same token
++  substitutions `PhotosSmartViewDetail.vue` already established for the same source rules.
++
++`src/i18n/zh_cn.photos.ts` / `en_us.photos.ts`: added `photosMoAllPhotos`, `photosMoLoading`,
++`photosMoNoPhotosYet`. The Select/Cancel button text and the selection-count text reuse
++existing keys verbatim (`photosPersonSelect`, `photosCancel`, `photosSelectedCount`) rather
++than adding fresh keys for identical wording — see deviations 7/9 in the file header.
++
++## TDD evidence
++
++**RED** — `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose`
++(after adding the test block, before touching the component):
++
++```
++ × the two photo grids > renders the Featured section with a photo count in its heading when it has assets
++   → Cannot call text on an empty DOMWrapper.
++ ✓ the two photo grids > renders no Featured section at all — not an empty shell — when Featured has no assets
++ × the two photo grids > shows a pin badge on manual Featured members and not on non-manual ones
++   → expected [] to have a length of 1 but got +0
++ × the two photo grids > shows "no photos yet" once All photos has finished loading and found none
++   → expected false to be true
++ × the two photo grids > opens the lightbox on a tile click outside selection mode; inside selection mode a click only toggles selection
++   → Cannot read properties of undefined (reading 'trigger')
++ × the two photo grids > leaving selection mode clears the selection, not just the bar's visibility
++   → Cannot call trigger on an empty DOMWrapper.
++
++ Test Files  1 failed (1)
++      Tests  5 failed | 26 passed (31)
++```
++
++Five of six new tests failed for the expected reason (missing markup/hooks); the "no Featured
++section" test passed trivially because nothing existed yet, which is correct — it stayed green
++through the whole implementation.
++
++**GREEN** — same command after implementing:
++
++```
++ Test Files  1 passed (1)
++      Tests  31 passed (31)
++```
++
++Combined with parity (brief step 4): `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts src/i18n/parity.test.ts --reporter=verbose` → **40 passed** (31 + 9). The brief predicted "23"; actual is 31 in this file alone — its predicted counts have been wrong in every task so far, this one included.
++
++No `[Vue warn]` or stray `console.error`/`console.warn` in the output (grepped explicitly).
++
++## The carried-over timezone fix
++
++Task 7's fixture for "same day" used `timeFrom: '2016-11-20T01:00:00Z'` /
++`timeTo: '2016-11-20T09:00:00Z'`. At UTC−2 or further west, `01:00Z` is still the previous
++local calendar day, so `fmt(from) !== fmt(to)` and the component renders a range instead of a
++single date — contradicting the nearby comment's claim of "timezone-safe on any machine".
++
++Fix: moved both timestamps to the middle of the UTC day (`12:00Z` / `13:00Z`), which stays on
++the same local calendar day for every real IANA zone (offsets in use run from UTC−12 to
++UTC+14, comfortably inside a one-hour window centred on noon UTC). Extended the comment to
++explain why the new fixture is genuinely timezone-safe rather than just re-asserting it.
++
++Verification:
++
++```
++$ TZ=America/New_York pnpm exec vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose
++ ✓ About sidebar > time window: shows exactly one date when the two ends fall on the same day
++ Tests  31 passed (31)   (full file, default TZ too — see GREEN above)
++```
++
++## Deviations from the Vue 2 original (recorded in the file header, deviations 6-9)
++
++1. **Test's `openAt` spy strategy** (not a Vue2 deviation, but a deviation from the brief's
++   literal test code): the brief's `vi.spyOn(lb, 'openAt')` does not work.
++   `useLightbox()` returns a fresh object literal every call, but `openAt` is a module-level
++   function referenced by identity — spying on one object's copy of the property never
++   intercepts the *component's own* separate `useLightbox()` call. This exact trap is already
++   documented and fixed in `PhotosSmartViewDetail.test.ts:33-39` (T6). I followed that
++   established fix: `vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () =>
++   lbMock }))` with a hoisted `{ openAt: vi.fn() }`. Confirmed necessary, not cosmetic: with
++   the brief's literal code the assertion `expect(openAt).toHaveBeenCalledTimes(1)` fails with
++   `0 !== 1` (the spy is simply never invoked), it does not silently pass.
++2. **Strengthened the "leaving selection mode clears selection" test.** The brief's version
++   only checked that the bar disappears immediately after leaving selection mode — but the
++   bar's own `v-if` is `selecting && selectedIds.length`, so it would disappear for that reason
++   alone even if `toggleSelecting` forgot to clear `selectedIds`. Added a second assertion:
++   re-enter selection mode without picking anything, and the bar must still not appear. This
++   is the case that actually distinguishes "selection was cleared" from "selection is merely
++   hidden while `selecting` is false" — self-review requirement in the task brief.
++3. Only the **Select** toggle joins the action bar in this task. Vue2's action bar has four
++   buttons (Add photos / Select / Save as Album / more menu); the other three need machinery
++   (library picker, export, delete confirmation) that belongs to Tasks 9/10.
++4. Select/Cancel button text reuses `photosPersonSelect`/`photosCancel` verbatim rather than
++   adding a fresh pair of keys for the same two English words.
++5. The pin badge's icon reuses the same outline pin path already used for the header's place
++   condition, rather than Vue2's separate filled-teardrop `pin` icon glyph — one pin shape per
++   file.
++6. The selection bar renders only the "{n} selected" count. The "Remove from this moment"
++   button is Task 9's bulk-removal wiring (the `excludeMomentAssets` call + toast), not added
++   here.
++
++## Verification results
++
++| Gate | Command | Result |
++|---|---|---|
++| Target file + parity | `vitest run src/views/PhotosMomentDetail.test.ts src/i18n/parity.test.ts --reporter=verbose` | **40 passed** (31 + 9) |
++| Type check | `vue-tsc --noEmit` | clean (0 errors) — one incidental fix needed: `mockAssets`'s helper signature had to accept optional params to match the mock's declared type |
++| i18n parity | `vitest run src/i18n/parity.test.ts` | 9/9 passed |
++| Styles/color-guard | `vitest run src/styles` | **1075/1075 passed** (matches stated baseline exactly). One real finding along the way: a first draft of the pin-badge comment wrote the literal `rgba(0,0,0,0.55)` *inside* a comment describing what token replaced it — the guard doesn't strip comments, so it flagged correctly. Reworded to describe the colour in words. |
++| OSS export | `vitest run oss` | **448/448 passed**, verified on a truly clean tree (see below) |
++| Full suite | `vitest run` (background, pre-commit) | 674/678 files, 10705 passed / 70 skipped / **3 failed** — all three failures are the same `oss/*` git-dirty-tree guard tripping on uncommitted files, not a real regression (see below) |
++
++**OSS gate and the dirty tree**: `oss/export.mjs`'s `--publish` integration tests refuse to run
++against an uncommitted tree (by design — it's the export script's own safety guard, not a
++vitest quirk). Before committing, 3 of 448 oss tests failed purely because the tree had
++uncommitted changes (all mine, plus one pre-existing modified file, `progress.md`, an SDD
++ledger file outside this task's scope — the project's own workflow notes in that file say it's
++deliberately left uncommitted until "the final ledger commit" at the end of the whole
++SP15-P1 effort, not per task). After committing this task's four files, I confirmed 448/448 by
++temporarily stashing just `progress.md` (the one remaining dirty file), running oss on a fully
++clean tree (**448/448 passed**), then restoring the stash — `progress.md` is back to its
++pre-existing state, unmodified by this task.
++
++## Files changed
++
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/PhotosMomentDetail.vue`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/PhotosMomentDetail.test.ts`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/i18n/zh_cn.photos.ts`
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/i18n/en_us.photos.ts`
++
++`src/files/**` untouched. No new files added under `src/`, so no `oss/manifest.mjs` changes
++were needed (confirmed by the 448/448 result).
++
++## Self-review
++
++- Every `data-test` hook from the brief is present with the exact spelling:
++  `mo-featured-head`, `mo-featured-tile`, `mo-pin-tag`, `mo-all-empty`, `mo-select-toggle`,
++  `mo-all-tile`, `mo-select-bar`.
++- Featured section genuinely disappears when empty — `<template v-if="featuredAssets.length">`
++  wraps both the heading and the grid, no wrapper element left behind.
++- Selection mode suppresses the lightbox (`onTileClick` branches on `selecting.value` before
++  ever calling `lightbox.openAt`) and leaving it clears `selectedIds` (`toggleSelecting`
++  explicitly empties the array, not just relying on the bar's own `v-if` to hide the leftover
++  state — verified by the strengthened re-entry test above).
++- Checked each new test against "would it still pass if the behavior were removed": the pin
++  badge test asserts an exact count of 1 (not `>0`), the empty-section test asserts absence via
++  `.exists()`, the openAt test uses the properly-mocked module so a missing call is a real
++  failure, and the selection-clearing test was rewritten specifically because the original
++  version could pass vacuously.
++- Test output is pristine — grepped for `Vue warn`/`console.error`/`console.warn` across the
++  full verbose run, no matches.
++
++## Concerns
++
++- None blocking. The one thing worth flagging for whoever picks up Task 9/10: the Select
++  toggle button and the selection bar's count-only content are deliberately minimal (see
++  deviations 3 and 6) — Task 9 will need to add the "Remove from this moment" button inside
++  the existing `.sv-select-bar` `<div>`, and Task 9/10 will add Add photos/Save as Album/more
++  menu as siblings of the Select button inside the existing `.sv-actions` `<div>`. Both mount
++  points already exist with the right surrounding markup, so no restructuring should be needed.
++
++---
++
++## Fix round 1
++
++Commit: `021b759` — `test(photos): assert lightbox entry-list scoping on the moment detail tiles`.
++
++### Finding addressed
++
++The reviewer's two prior findings (the `openAt` module-mock deviation, and the strengthened
++clear-selection test) were both reviewed and upheld — no changes needed there. One new
++finding, Important: the tile-click test asserted only `openAt` was called once. It never
++checked the arguments, and its fixture used an empty Featured set, so a regression that always
++passed `allAssets` — including for a Featured tile — would have kept every existing test green.
++The code comment on `onTileClick` itself calls out that the list-scoping matters for lightbox
++paging, and Task 9 leans on it further, so it needed a real test, not just an "it opened"
++smoke check.
++
++### Fix
++
++1. Extended the existing all-photos tile-click test with argument assertions: `openAt`'s first
++   argument is the clicked photo (`id: 'a1'`), its second argument's ids are `['a1', 'a2']`.
++2. Added a new case that clicks a Featured tile with a **disjoint** fixture
++   (`featured: [{id:'f1'}]`, `all: [{id:'a1'},{id:'a2'}]`) and asserts `openAt` receives that
++   photo with the *featured* list (`['f1']`) — not `['a1', 'a2']`. The disjoint ids make
++   "passed the wrong list" detectable by content; if both lists held the same objects the
++   assertion would prove nothing.
++3. Left the existing selection-mode suppression assertions in the first test untouched, as
++   instructed.
++
++### Mutation check
++
++Temporarily changed `onTileClick` in `PhotosMomentDetail.vue` to always call
++`lightbox.openAt(p, allAssets.value)` regardless of which grid the tile came from:
++
++```
++FAIL  the two photo grids > opens the lightbox with the Featured list as the entry list when a Featured tile is clicked, not the all-photos list
++AssertionError: expected [ 'a1', 'a2' ] to deeply equal [ 'f1' ]
++ Tests  1 failed | 31 passed (32)
++```
++
++Exactly the new Featured-scoping case went red; the other 31 tests in the file (including the
++now-augmented all-photos case, since `allAssets` is genuinely what that click should pass)
++stayed green. Reverted the mutation — `git diff src/views/PhotosMomentDetail.vue` came back
++empty, confirming the revert restored the exact committed content — and re-ran:
++
++```
++ Test Files  1 passed (1)
++      Tests  32 passed (32)
++```
++
++### Verification
++
++| Check | Command | Result |
++|---|---|---|
++| Target file | `vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose` | **32/32 passed** (31 → 32: one test split into two, one net test added) |
++| TZ re-check | `TZ=America/New_York vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose` | **32/32 passed** — the round-1 fixture fix did not regress |
++| Type check | `vue-tsc --noEmit` | clean (0 errors) |
++| Styles | `vitest run src/styles` | **1075/1075 passed** — unchanged from the original submission |
++| OSS export | `vitest run oss` | **445/448 passed** (3 failed) — same pre-existing cause as the original report: `.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/progress.md` is the sole modified file left in the tree (the SDD ledger, explicitly out of this task's scope and, per this round's instruction, not to be stashed even temporarily). All three failures are `export.mjs`'s own git-dirty-tree guard tripping on that one file — the same root cause already proven, in the original report, to resolve to 448/448 on a clean tree. This round changed only the test file (no files added/removed under `src/`), so it cannot have altered oss's manifest/strip-list behaviour; not re-verified with a stash this round per the explicit "never stash progress.md" instruction. |
++
++### Files changed this round
++
++- `/home/nimo/NimoTech/NimoOS-New-UI/.claude/worktrees/sp15-photos-moments/src/views/PhotosMomentDetail.test.ts` (only file touched; `PhotosMomentDetail.vue` was mutated for the check above and reverted to its exact committed state — no diff)
++
++### Concerns
++
++None. The `.vue` component itself needed no change — the gap was purely in test coverage.
+diff --git a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-brief.md b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-brief.md
+new file mode 100644
+index 0000000..1fd7671
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-brief.md
+@@ -0,0 +1,248 @@
++## Task 9: 加入照片 / 移出照片
++
++**Files:**
++- Modify: `src/photos/components/AlbumLibraryPicker.vue`（**泛化**，见 Step 0）
++- Modify: `src/photos/components/__tests__/AlbumLibraryPicker.test.ts`
++- Modify: `src/views/PhotosAlbums.vue` · `src/views/PhotosAlbumDetail.vue`（两个既有消费方适配新 props）
++- Modify: `src/views/PhotosMomentDetail.vue`
++- Modify: `src/views/PhotosMomentDetail.test.ts`
++- Modify: `src/i18n/zh_cn.photos.ts` · `src/i18n/en_us.photos.ts`
++
++**Interfaces:**
++- Consumes: `store.pin` / `store.exclude`（Task 3）· `useToast`
++- Produces: `AlbumLibraryPicker` 的新签名
++  - props: `{ open: boolean; title: string; existingIds: Set<string>; existingLabel: string; submitLabel: string }`
++  - emits: `{ 'update:open': (v: boolean) => void; confirm: (ids: string[]) => void }`
++
++> **⚠️ 这一步是计划写完后自审逮到的，原稿写的「复用 `AlbumLibraryPicker`」不成立。**
++> New-UI 的 `AlbumLibraryPicker.vue`（393 行）是**相册专用**的：props 是 `{ open, albumId, albumName }`，
++> `existingIds` 直接读 `albums.assetsOf(props.albumId)`（`:54`），提交时自己调
++> `albums.addAssetsToAlbum`（`:136`）。时刻不是相册，这三处都对不上。
++>
++> Vue2 早就解决过：`#79` 把 `PhotosAlbumLibraryPicker.vue` 泛化成通用的
++> `PhotosLibraryPicker.vue`（`R072` 重命名 + 43 行改动）—— 而 **`#79` 没有被 SP7 吸收**
++> （New-UI 的 `pinSmartViewAssets`/`removeSmartViewAssets`/`restoreSmartViewAssets`/
++> `getSmartViewExcluded` 四个方法全无），所以泛化这一步也没跟过来。
++>
++> **本期只做泛化，不做重命名。** 重命名是 `#79` 的一部分，跟 `#79` 的其余内容一起归 P2；
++> P1 只取它必需的那一半，把文件名与「其实已经不只服务相册」的落差登记在文件头。
++
++- [ ] **Step 0: 泛化 AlbumLibraryPicker（先跑既有测试确认基线绿）**
++
++Run 基线：`pnpm exec vitest run src/photos/components/__tests__/AlbumLibraryPicker.test.ts --reporter=verbose` → 记下用例数。
++
++改三处（其余 380 余行不动）：
++
++```ts
++// props:相册专用三件套 → 通用四件套
++const props = defineProps<{
++  open: boolean
++  title: string
++  existingIds: Set<string>
++  existingLabel: string
++  submitLabel: string
++}>()
++const emit = defineEmits<{
++  (e: 'update:open', value: boolean): void
++  (e: 'confirm', ids: string[]): void
++}>()
++
++// :54 原本自己从 albums store 取;改为直接用 prop(调用方负责算)
++const existingIds = computed(() => props.existingIds)
++
++// :136 原本自己写库;改为把 id 交出去,由调用方决定写到哪
++emit('confirm', ids)
++```
++
++同时删掉不再需要的 `usePhotosAlbums` import（若泛化后无其它用途）。
++
++两个既有消费方各自补上原本由组件内部承担的两件事：
++- `PhotosAlbums.vue:366` 与 `PhotosAlbumDetail.vue:597`：传
++  `:existing-ids="new Set(albums.assetsOf(id).map(p => String(p.id)))"`、`:title`、
++  `:existing-label`、`:submit-label`，并把 `@confirm` 接到 `albums.addAssetsToAlbum(...)` 上，
++  成功后仍 emit 原来的 `added` 语义（toast 与计数逻辑保持不变）。
++
++在 `AlbumLibraryPicker.test.ts` 里把 props 改成新签名，并新增一条用例：
++
++```ts
++it('SP15-P1-T9 泛化:提交时只 emit confirm,不自己写库', async () => {
++  const albums = usePhotosAlbums()
++  const spy = vi.spyOn(albums, 'addAssetsToAlbum')
++  const w = mountPicker({ open: true, existingIds: new Set<string>() })
++  // …选中一张…
++  await w.find('[data-test="alp-submit"]').trigger('click')
++  expect(spy).not.toHaveBeenCalled()
++  expect(w.emitted('confirm')?.[0]?.[0]).toEqual(['a1'])
++})
++```
++
++跑：`pnpm exec vitest run src/photos/components/__tests__/AlbumLibraryPicker.test.ts src/views/PhotosAlbums src/views/PhotosAlbumDetail --reporter=verbose`
++Expected: 既有用例数不减，全绿（证明相册两条路径行为未变）
++
++提交：
++
++```bash
++git add src/photos/components/AlbumLibraryPicker.vue src/photos/components/__tests__/AlbumLibraryPicker.test.ts src/views/PhotosAlbums.vue src/views/PhotosAlbumDetail.vue
++git commit -m "refactor(photos): make the library picker album-agnostic
++
++It hardcoded the album store for both halves of its job: reading which assets
++are already in, and writing the chosen ones back. Moments need the same picker
++against a different collection, so both halves move out to the caller and the
++component is left with the picking.
++
++Vue 2 made this exact change in #79, along with a rename. Only the
++generalisation is needed here; the rename travels with the rest of #79 in P2."
++```
++
++**新增 i18n 键**：`photosMoAddPhotos` · `photosMoAddPhotosTitle`（`加入「{name}」`）· `photosMoAlreadyIn` · `photosMoAddSelected` · `photosMoAddedN` · `photosMoAddFailed` · `photosMoRemoveFromMoment` · `photosMoRemovedN` · `photosMoRemoveFailed` · `photosMoSelectedN`
++
++- [ ] **Step 1: 写失败的测试**
++
++在 `src/views/PhotosMomentDetail.test.ts` 追加：
++
++```ts
++describe('加入 / 移出照片', () => {
++  it('加入成功:调 pin、刷新两段网格、张数跟着变、弹成功 toast', async () => {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: [], members: [], places: [] } : [])
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    const pin = vi.spyOn(s, 'pin').mockResolvedValue(44)
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail()
++
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x', 'y'])
++    await new Promise((r) => setTimeout(r, 0))
++
++    expect(pin).toHaveBeenCalledWith('m1', ['x', 'y'])
++    expect(s.byId('m1')?.assetCount).toBe(44)
++    expect(show).toHaveBeenCalled()
++  })
++
++  it('加入失败:弹失败 toast,张数不动', async () => {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: [], members: [], places: [] } : [])
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    vi.spyOn(s, 'pin').mockRejectedValue(new Error('nope'))
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x'])
++    await new Promise((r) => setTimeout(r, 0))
++    expect(s.byId('m1')?.assetCount).toBe(42)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
++  })
++
++  it('移出成功:调 exclude、退出选择态、清空已选、刷新网格', async () => {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: [], members: [], places: [] } : [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const exclude = vi.spyOn(s, 'exclude').mockResolvedValue(41)
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    await w.find('[data-test="mo-remove-selected"]').trigger('click')
++    await new Promise((r) => setTimeout(r, 0))
++    expect(exclude).toHaveBeenCalledWith('m1', ['a1'])
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++  })
++
++  it('移出失败:保持选择态与已选不变(用户可重试)', async () => {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: [], members: [], places: [] } : [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    vi.spyOn(s, 'exclude').mockRejectedValue(new Error('nope'))
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    await w.find('[data-test="mo-remove-selected"]').trigger('click')
++    await new Promise((r) => setTimeout(r, 0))
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(true)
++  })
++
++  it('已选为空时移出按钮不发请求', async () => {
++    svc.photos.getMomentAssets.mockImplementation(async (_id: string, f: boolean) =>
++      f ? { assets: [], members: [], places: [] } : [{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const exclude = vi.spyOn(s, 'exclude')
++    const { w } = await mountDetail()
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)  // 空选时整条不渲染
++    expect(exclude).not.toHaveBeenCalled()
++  })
++})
++```
++
++- [ ] **Step 2: 跑测试确认它失败**
++
++Run: `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose`
++Expected: FAIL —— `[data-test="mo-add-photos"]` 找不到
++
++- [ ] **Step 3: 实现**
++
++```ts
++const pickerOpen = ref(false)
++const memberIds = computed(() => new Set(allAssets.value.map((p) => String(p.id))))
++
++async function onPickPhotos(assetIds: string[]): Promise<void> {
++  try {
++    await store.pin(momentId.value, assetIds)
++    toast.show(t('photosMoAddedN', { n: assetIds.length }))
++    await load()
++  } catch (e) {
++    console.error('[photos-moments] pin', e)
++    toast.show(t('photosMoAddFailed'), 2500, 'danger')
++  }
++}
++
++async function removeSelected(): Promise<void> {
++  const ids = selectedIds.value.slice()
++  if (!ids.length) return
++  try {
++    await store.exclude(momentId.value, ids)
++    toast.show(t('photosMoRemovedN', { n: ids.length }))
++    // 成功才退出选择态;失败保持原状让用户重试(Vue2 :386-387 同样只在成功分支清空)
++    selecting.value = false
++    selectedIds.value = []
++    await load()
++  } catch (e) {
++    console.error('[photos-moments] exclude', e)
++    toast.show(t('photosMoRemoveFailed'), 2500, 'danger')
++  }
++}
++```
++
++模板：Add photos 按钮 `data-test="mo-add-photos"`；选择栏里的移出按钮 `data-test="mo-remove-selected"`；`<AlbumLibraryPicker>` 按 Step 0 泛化后的新签名挂载：
++
++```vue
++    <AlbumLibraryPicker
++      v-model:open="pickerOpen"
++      :title="t('photosMoAddPhotosTitle', { name: moment?.title ?? '' })"
++      :existing-ids="memberIds"
++      :existing-label="t('photosMoAlreadyIn')"
++      :submit-label="t('photosMoAddSelected')"
++      @confirm="onPickPhotos"
++    />
++```
++
++- [ ] **Step 4: 跑测试确认通过**
++
++Run: `pnpm exec vitest run src/views/PhotosMomentDetail.test.ts src/i18n/parity.test.ts --reporter=verbose`
++Expected: PASS，累计 28 个详情页用例
++
++- [ ] **Step 5: 提交**
++
++```bash
++git add src/views/PhotosMomentDetail.vue src/views/PhotosMomentDetail.test.ts src/i18n/zh_cn.photos.ts src/i18n/en_us.photos.ts
++git commit -m "feat(photos): add and remove photos from a moment
++
++The count no longer has to be mirrored back to the list by hand — both views
++read the same store entry — so Vue 2's asset-count-changed event has no
++equivalent here.
++
++Selection is cleared only on success. Vue 2 does the same, and it matters: on
++failure the user still has their selection and can retry."
++```
++
++---
++
+diff --git a/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-report.md b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-report.md
+new file mode 100644
+index 0000000..8d5a5b1
+--- /dev/null
++++ b/.superpowers/sdd/2026-08-09-sp15-p1-photos-moments/task-9-report.md
+@@ -0,0 +1,244 @@
++# Task 9 报告 · 加入照片 / 移出照片(SP15-P1)
++
++分支 `sp15-photos-moments`,两个提交:
++
++| SHA | 主题 |
++|---|---|
++| `143dc0f` | refactor(photos): make the library picker album-agnostic |
++| `b384c00` | feat(photos): add and remove photos from a moment |
++
++---
++
++## 1. 做了什么
++
++### Step 0 — 泛化 `AlbumLibraryPicker.vue`(单独提交)
++
++组件此前把「相册」硬编进了它工作的两半:读「哪些已经在里面」(`albums.assetsOf(props.albumId)`)
++和写「把选中的加进去」(`albums.addAssetsToAlbum` + 成功/失败 toast)。两半都搬到调用方,组件只剩
++「挑照片」。
++
++- props:`{open, albumId, albumName}` → `{open, title, existingIds, existingLabel, submitLabel, submitting?}`
++- emits:`{update:open, added}` → `{update:open, confirm}`
++- `confirmAdd()` 由 async 写库改为同步 `emit('confirm', Array.from(selected))`,既不清空
++  `selected` 也不关面板。
++- 删掉 `usePhotosAlbums` / `useToast` 两个 import 与本地 `adding` state。
++- **没有做重命名**(Vue2 #79 在同一个提交里把它改名成 `PhotosLibraryPicker.vue`)。文件头登记了
++  「名字已经名不副实、重命名随 #79 其余部分归 P2」。
++
++两个既有消费方(`PhotosAlbums.vue` / `PhotosAlbumDetail.vue`)各自补上原本由组件承担的四件事:
++`addAssetsToAlbum` → `photosAlbumAddedToast`(相册名+张数)→ 关面板 → 原 `@added` 接的那次刷新
++(列表页 `fetchAlbums`,详情页 `fetchAlbumAssets`);失败走 `photosAlbumAddFailed` 且**不关面板**。
++
++### 时刻侧(第二个提交)
++
++- `PhotosMomentDetail.vue`:`Add photos` 按钮(`data-test="mo-add-photos"`,`:disabled="allLoading"`,
++  照 Vue2 :26-28)、选择栏里的 `Remove from this moment`(`data-test="mo-remove-selected"`)、
++  `<AlbumLibraryPicker>` 挂载、`onPickPhotos` / `removeSelected` 两个处理函数、`memberIds` computed。
++- i18n:8 个新键写进 `zh_cn.photos.ts` + `en_us.photos.ts`(中文全部取自 Vue2 自己的
++  `899af59b:zh_CN.json`,未重译)。
++
++---
++
++## 2. TDD 证据
++
++### 基线(动手之前)
++
++```
++pnpm exec vitest run src/photos/components/__tests__/AlbumLibraryPicker.test.ts  → 12 passed
++pnpm exec vitest run src/views/__tests__/PhotosAlbums.test.ts                    → 17 passed
++pnpm exec vitest run src/views/__tests__/PhotosAlbumDetail.test.ts               → 31 passed
++pnpm exec vitest run src/views/PhotosMomentDetail.test.ts                        → 32 passed
++四文件合计 92 passed
++```
++
++### RED(时刻侧测试先行,实现前)
++
++```
++pnpm exec vitest run src/views/PhotosMomentDetail.test.ts --reporter=verbose
++ × the Add photos button opens the library picker with the moment's own photos marked as already in
++ × the Add photos button is disabled while the all-photos list is still loading
++ × adding: pins the picked ids, adopts the count from the response, reloads both grids, closes the picker and confirms with a toast
++ × adding: a failed pin leaves the count untouched, says so in the danger tier and keeps the picker open to retry
++ × removing: excludes the selection, adopts the count from the response, leaves selection mode and reloads the grids
++ × removing: a failed exclude keeps selection mode and the selection itself, so the user can retry
++ × renders Vue 2's own wording for the two new controls
++ Error: Cannot call props on an empty VueWrapper. / Cannot call trigger on an empty DOMWrapper.
++ Tests  7 failed | 33 passed (40)
++```
++(第 8 条「空选不能发请求」按其性质在 RED 阶段就是绿的——它断言的是「整条选择栏不渲染」。)
++
++### GREEN(实现后)
++
++```
++pnpm exec vitest run src/views/PhotosMomentDetail.test.ts                       → 40 passed
++pnpm exec vitest run <picker + 两个相册页 + 时刻页>                              → 106 passed
++pnpm exec vitest run(全量)  → Test Files 674 passed / 4 failed;Tests 10720 passed | 70 skipped | 3 failed
++```
++全量里那 4 文件 / 3 例失败**全部**是 `oss/` 导出门在**工作树不干净**时的拒绝执行——脏的只有控制器
++自己的 `.superpowers/sdd/.../progress.md`(按约定我不碰、不 stash)。为了真验这道门,我用
++`git worktree add --detach <scratchpad> HEAD` 开了一份 HEAD 的干净检出、软链 `node_modules` 后跑:
++
++```
++oss(干净树,HEAD=b384c00) → Test Files 19 passed (19) · Tests 448 passed (448)
++```
++跑完已 `git worktree remove --force` 撤掉。
++
++### 变异验证(新用例是否真的钉住行为)
++
++| 变异 | 结果 |
++|---|---|
++| 删掉 `onPickPhotos` 成功分支里的 `pickerOpen.value = false` | 「adding: … closes the picker」变红 ✔ |
++| 在 `removeSelected` 的 catch 里也清空 `selecting`/`selectedIds` | 「removing: a failed exclude keeps selection …」变红 ✔ |
++| 删掉 `PhotosAlbums.vue` catch 里的失败 toast | 「source==='select' 挑完照片写库失败 …」变红 ✔ |
++| 删掉 `PhotosAlbumDetail.vue` 成功分支的 `pickerOpen.value = false` | 「点「添加照片」→ … + 关面板 …」变红 ✔ |
++
++四次变异跑完全部还原,`git status` 已确认只剩 progress.md 一处(控制器的)。
++
++---
++
++## 3. picker 与两个相册页的用例数:Step 0 前 / 后
++
++| 文件 | 前 | 后 | 说明 |
++|---|---|---|---|
++| `photos/components/__tests__/AlbumLibraryPicker.test.ts` | **12** | **15** | 12 条全部保留(props 换成新签名),另加 3 条:brief 指定的「只 emit confirm 不写库」、`submitting` 飞行态、`submitLabel` 传定值字符串 |
++| `views/__tests__/PhotosAlbums.test.ts` | **17** | **19** | 既有 17 条一条未动,新增 2 条(@confirm 成功链路 / 失败链路)——接住从组件里搬出来的行为 |
++| `views/__tests__/PhotosAlbumDetail.test.ts` | **31** | **32** | 既有用例保留;原「@added → fetchAlbumAssets」那条改写成 @confirm 全链路(写库+toast+关面板+刷新),另新增失败链路 1 条 |
++| `views/PhotosMomentDetail.test.ts` | 32 | **40** | 本任务新增 8 条 |
++| 合计 | 92 | **106** | 无删除、无减弱 |
++
++**没有删掉任何用例**。两处改写都是「同一断言换到它现在真正的宿主」:
++
++- picker 那条「store 抛错 → 失败 toast」:组件已经不再写库、根本看不到失败,原地保留只能变成谎话。
++  它拆成两半——**组件侧**(「调用方写失败、面板保持 open ⇒ 已选内容保留、按钮可用、可以再次提交」)
++  留在 picker 测试里,**失败 toast** 那半在两个相册页测试里各补了一条(断言 `photosAlbumAddFailed`
++  且面板仍在)。
++- picker 那条「点击 → batchAddToAlbum + added + update:open + toast」同理:点击那半留下(现在断言
++  `confirm` 的 payload、按钮文案仍带张数),写库/toast/关面板三半搬到相册页。
++
++---
++
++## 4. 两个消费方各改了什么、为什么行为不变
++
++### `src/views/PhotosAlbums.vue`
++
++```
++新增 pickerExistingIds(computed)= new Set(albums.assetsOf(pickerAlbumId).map(p => String(p.id)))
++     pickerSubmitLabel(count)     = t('photosAlbumPickerAdd', { count })
++     pickerAdding(ref)            → 传给 :submitting
++     onPickerConfirm(ids)         → addAssetsToAlbum → 成功 toast → 关面板 → fetchAlbums
++                                    失败 → console.error + photosAlbumAddFailed(不关面板)
++删除 onPickerAdded()(它那句 fetchAlbums 挪进 onPickerConfirm 的成功分支)
++模板 :album-id/:album-name/@added → :title/:existing-ids/:existing-label/:submit-label/:submitting/@confirm
++```
++
++行为等价性逐条:
++
++- **existingIds**:组件里原来就是 `albums.assetsOf(props.albumId)` 同一个表达式,只是求值点从组件挪到
++  调用方,String 归一那一半仍在组件内(`isExisting`)。
++- **成功 toast**:同一个 `photosAlbumAddedToast`、同样的 `{count, name}`;`count` 原来是
++  `selected.size`,现在是 `ids.length`——同一批 id,恒等。
++- **关面板**:原来组件 `closeNow()`,现在调用方置 `pickerOpen=false`。**只在成功分支**,失败仍不关,
++  且面板不卸载 ⇒ 组件内 `selected` 原样保留,用户能直接重试(与泛化前一致)。
++- **刷新**:原来 `@added → fetchAlbums`,现在成功分支里同一句 `void albums.fetchAlbums()`。相对
++  `closeNow()` 的先后次序变了,但两者互不依赖,无可观察差异。
++- **「添加中…」**:原来组件本地 `adding`,现在调用方 `pickerAdding` 经 `:submitting` 传回去——按钮
++  依旧在请求飞行期变文案 + 禁用,连点仍只发一次(守卫同时在组件与调用方两侧)。
++- **按钮文案**:仍是 `photosAlbumPickerAdd`(带已选张数),靠函数式 `submitLabel`(见偏离 b)。
++
++### `src/views/PhotosAlbumDetail.vue`
++
++同样五处,唯二不同:`pickerExistingIds` 取 `albumId.value`,刷新那句是 `fetchAlbumAssets(albumId)`,
++toast 名字取 `album.value?.title ?? ''`(与组件此前拿的 `props.albumName` 同源)。
++
++---
++
++## 5. 与 Vue 2 的偏离(全部登记在代码里)
++
++**组件侧(`AlbumLibraryPicker.vue` 文件头)**
++
++| # | 偏离 | 理由 |
++|---|---|---|
++| a | `submitting` 是 **prop** 而不是组件本地 state | Vue2 能 `await this.$listeners.confirm(...)`(Vue2 的 listener 是普通函数、能拿到父组件的 promise);Vue3 的 `emit()` 丢弃返回值,组件无从得知写入何时结束 ⇒ 忙碌标志跟着写入一起搬到调用方。渲染结果一致:飞行期「添加中…」+ 禁用。 |
++| b | `submitLabel` 允许 `(count) => string` | Vue2 #79 把相册按钮从 `Add ({n})` 改成定值 `Add selected`,**悄悄丢掉了张数**。New-UI 相册两条路径不能因为一次重构变文案,所以相册传函数(张数照旧),时刻传定值(与 Vue2 时刻侧完全一致)。 |
++| c | 关面板的决定权交给调用方 | 同 a:组件分不出成功与失败。三个调用方一律「成功关、失败留」——这正是 Vue2 的可观察行为。 |
++| d | 不改名 | Vue2 #79 同commit改名 `PhotosLibraryPicker.vue`;本期只取泛化那一半,改名随 #79 其余部分归 P2。文件头已登记「名字名不副实」。 |
++
++**时刻页(`PhotosMomentDetail.vue` 文件头 13/14/15)**
++
++| # | 偏离 | 理由 |
++|---|---|---|
++| 13 | 不移植 `asset-count-changed` 事件 | Vue2 详情组件自己存一份 `momentAssetCount` 并向列表页 emit 同步;这里两个视图读同一个 store 条目,`store.pin/exclude` 把响应里的 `asset_count` 直接写进去(moments.ts:239-257),没有第二份可同步。 |
++| 14 | picker 的 `title` 复用 `photosAlbumPickerTitle`,不新建 `photosMoAddPhotosTitle` | Vue2 给两个 picker 喂的是**同一个** `'Add photos to {name}'` 字符串(:144),复用才是 1:1 复现;新建一个内容完全相同的键反而不是。**这是对 brief 的一处偏离**(brief 列了 `photosMoAddPhotosTitle` 且文案写作「加入「{name}」」,而 Vue2 自己的中文是「添加照片到 {name}」——按「中文以 Vue2 为准、不重译」的规则取 Vue2 的)。 |
++| 15 | 关面板由页面做(成功关、失败留) | 同组件偏离 c。 |
++
++**另外两处对 brief 的偏离(非 Vue2)**
++
++- brief 键表里的 `photosMoSelectedN` **没有新增**:选择栏计数在 T8 已经用了 `photosSelectedCount`
++  (与 Vue2 `'{n} selected'` 同义),再加一个同义键是死键。
++- `removeSelected` 加了重入守卫 `removing`(Vue2 :361 没有,连点会对同一批 id 发两轮并发 exclude)。
++  照本仓既有先例(`PhotosAlbumDetail.vue` 的 `removing`,评审 Minor 6)与「界面 1:1、逻辑照正确」的
++  纪律,不照抄这个竞态;已在代码里注明。失败重试路径有用例覆盖(连点两次确实发两次)。
++
++---
++
++## 6. 各道门
++
++| 门 | 结果 |
++|---|---|
++| `pnpm exec vue-tsc --noEmit` | 干净(无输出,exit 0) |
++| `pnpm exec vitest run src/i18n/parity.test.ts` | **9 passed** |
++| `pnpm exec vitest run src/styles` | **1075 passed**(与交接一致;本任务未新增任何 CSS) |
++| `pnpm exec vitest run oss` | **448 passed / 19 files**(在 HEAD 的干净检出里跑;主工作树因控制器的 progress.md 脏而 3 例拒跑 + 70 例 skip) |
++| 全量 `pnpm exec vitest run` | 10720 passed / 70 skipped / 3 failed(3 failed 全是上面那条脏树原因) |
++
++未新增文件 ⇒ `oss/manifest.mjs` 无需改动(导出树扫描 448 全绿已证)。
++
++---
++
++## 7. 改动的文件
++
++提交 `143dc0f`(Step 0):
++- `src/photos/components/AlbumLibraryPicker.vue`
++- `src/photos/components/__tests__/AlbumLibraryPicker.test.ts`
++- `src/views/PhotosAlbums.vue` · `src/views/__tests__/PhotosAlbums.test.ts`
++- `src/views/PhotosAlbumDetail.vue` · `src/views/__tests__/PhotosAlbumDetail.test.ts`
++
++提交 `b384c00`(时刻侧):
++- `src/views/PhotosMomentDetail.vue` · `src/views/PhotosMomentDetail.test.ts`
++- `src/i18n/zh_cn.photos.ts` · `src/i18n/en_us.photos.ts`
++
++---
++
++## 8. 自审发现与处置
++
++1. **「brief 的三处改动」不止三处** —— props 换签名必然带着模板里三处 `t(...)` 换成 prop,`confirm`
++   外移必然带着 toast/关面板/`added` 一起走。这些都在 brief 那三处的语义范围内,没有扩大重构面
++   (没动 380 行的其余部分、没改名、没碰 Esc/确认条/时间线那套逻辑),所以按继续执行处理而不是
++   NEEDS_CONTEXT。真正超出 brief 字面的只有 `submitting` prop 与函数式 `submitLabel` 两点,都是
++   **为了不让相册页发生任何可观察变化**才加的,已逐条登记。
++2. **相册页的失败 toast 差点被弄丢**:原来只有 picker 的测试覆盖它。已在两个相册页测试里各补一条
++   (并用变异验证确认它们会因为删掉 toast 而变红)。
++3. **`mo-remove-selected` 失败后能不能真重试**:补了断言——失败后再点一次,`excludeMomentAssets`
++   确实被调用两次(重入守卫不会把按钮永久卡死)。
++4. **测试输出干净**:`PhotosMomentDetail.test.ts` 全程无任何 `[Vue warn]` / stderr。picker 与两个相册页
++   测试文件里那批 `Component "i18n-t" has already been registered` 是它们各自 `createI18n` 带来的
++   **既有**噪声(T7 的报告里已记载过这一模式),本任务未新增,也未去动那三个文件的 i18n 装配方式。
++5. **data-test 钩子逐字核对**:`mo-add-photos` / `mo-remove-selected` / `mo-select-bar` /
++   `mo-select-toggle` / `mo-all-tile` / `lib-picker-*` 全部与 brief 一致。
++6. **颜色**:本任务一行 CSS 都没写(两个新按钮复用既有 `.sv-action-btn`),不存在裸色值/注释里写色值
++   /CSS 注释提前闭合的风险;`src/styles` 1075 全绿。
++
++---
++
++## 9. 关注点 / 交接
++
++1. **`AlbumLibraryPicker.vue` 现在名不副实**,P2 做 #79 其余部分时要连带改名(改名会牵动 3 个 import、
++   1 个测试路径、oss manifest,所以刻意留在一起做)。
++2. **`photosAlbumPickerTitle` / `photosAlbumPickerAlready` / `photosAlbumPickerAdd` / `photosAlbumPickerAdding`
++   这几个键的名字也带着 album 味**,但其中 `photosAlbumPickerTitle`(时刻页复用)与
++   `photosAlbumPickerAdding`(所有调用方共用的「添加中…」)已经是通用文案。若 P2 改名组件,建议把这两个
++   键一起改名,别只改文件名。
++3. **时刻页的 `Add photos` 按钮在 `allLoading` 期间禁用**(照 Vue2)。真机上如果一个时刻的全量资产很多,
++   这个按钮会有一段可见的禁用期——这是 Vue2 的既有行为,不是本任务引入的。
++4. 真机验收仍受「moments 表 0 行」限制(见记忆:验收第 0 步要先在控制台触发重算),本任务无法在设备上
++   自证。
+diff --git a/src/i18n/en_us.photos.ts b/src/i18n/en_us.photos.ts
+index fc569a1..e0b087a 100644
+--- a/src/i18n/en_us.photos.ts
++++ b/src/i18n/en_us.photos.ts
+@@ -933,11 +933,22 @@ export default {
+   photosMoFeatured: 'Featured',
+   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+   // Deliberately says nothing about whether the moment exists — we do not know.
+   photosMoLoadFailed: "Couldn't load moments",
+   // ── SP15-P1-T8: the two photo grids ──
+   photosMoAllPhotos: 'All photos',
+   // Same English wording as filesViewerLoading/appsSourcesLoading/etc. — not a fresh
+   // translation, this repo's existing generic "loading" ellipsis.
+   photosMoLoading: 'Loading…',
+   photosMoNoPhotosYet: "This moment doesn't have photos yet.",
++  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
++  // Vue 2's own en_US strings (899af59b:src/assets/lang/en_US.json). The picker's title
++  // deliberately gets no new key — see the note in zh_cn.photos.ts.
++  photosMoAddPhotos: 'Add photos',
++  photosMoAlreadyIn: 'Already in this moment',
++  photosMoAddSelected: 'Add selected',
++  photosMoAddedN: 'Added {n} to this moment',
++  photosMoAddFailed: 'Add failed',
++  photosMoRemoveFromMoment: 'Remove from this moment',
++  photosMoRemovedN: 'Removed {n} from this moment',
++  photosMoRemoveFailed: 'Remove failed',
+ }
+diff --git a/src/i18n/zh_cn.photos.ts b/src/i18n/zh_cn.photos.ts
+index d623621..843786b 100644
+--- a/src/i18n/zh_cn.photos.ts
++++ b/src/i18n/zh_cn.photos.ts
+@@ -940,11 +940,28 @@ export default {
+   photosMoFeatured: '精选',
+   // fix round 1 · finding 4: shown when the moment list itself could not be fetched.
+   // Deliberately says nothing about whether the moment exists — we do not know.
+   photosMoLoadFailed: '时刻加载失败',
+   // ── SP15-P1-T8: the two photo grids ──
+   photosMoAllPhotos: '全部照片',
+   // Same Chinese wording as filesViewerLoading/aiMentionLoading/etc. — not a fresh
+   // translation, this repo's existing generic "loading" ellipsis.
+   photosMoLoading: '加载中…',
+   photosMoNoPhotosYet: '这个时刻还没有照片。',
++  // ── SP15-P1-T9: adding photos to the moment / removing them from it ──
++  // Every string below is Vue 2's own zh_CN copy, taken verbatim from
++  // 899af59b:src/assets/lang/zh_CN.json (:2019/:2020/:2021/:2033/:2045/:2242/:2243 and
++  // "Add failed" at :1598) — not retranslated here.
++  // The picker's *title* deliberately gets no new key: Vue 2 feeds the very same
++  // 'Add photos to {name}' string to the album picker and to the moment picker
++  // (899af59b:PhotosMomentDetail.vue:144), and this repo already has it as
++  // photosAlbumPickerTitle. Reusing it is what reproduces Vue 2 exactly; a second key holding
++  // the identical sentence would not.
++  photosMoAddPhotos: '添加照片',
++  photosMoAlreadyIn: '已在此时刻中',
++  photosMoAddSelected: '添加所选',
++  photosMoAddedN: '已添加 {n} 张到此时刻',
++  photosMoAddFailed: '添加失败',
++  photosMoRemoveFromMoment: '从此时刻中移除',
++  photosMoRemovedN: '已从此时刻移除 {n} 张',
++  photosMoRemoveFailed: '移除失败',
+ }
+diff --git a/src/photos/components/AlbumLibraryPicker.vue b/src/photos/components/AlbumLibraryPicker.vue
+index 44e8482..67ac8a8 100644
+--- a/src/photos/components/AlbumLibraryPicker.vue
++++ b/src/photos/components/AlbumLibraryPicker.vue
+@@ -6,63 +6,104 @@
+ // 与 T5 AlbumPickerDialog.vue(选相册)的区别:T5 是把一批已知 assetIds 加入某个待选相册;
+ // 本组件是从整个图库(时间线展平)里挑照片加入一个已知相册——数据源、已选判定、UI 结构都不同。
+ //
+ // 铁律:「已在相册中」判定必须 String() 归一值比较——后端资产 id 可能是数字,时间线
+ // Photo.id 类型是 string | number,不归一就漏判(Vue2 :86-89 直接用 Set(id) 值比较,
+ // 未考虑跨类型,这里改用 String 归一,同 T2 store 的既有铁律)。
+ //
+ // 形态偏离登记(与 T5 同理由,记账):Vue2 用 window.confirm 做「放弃未保存选择」二次确认
+ // (:112);本仓无 window.confirm 惯例,改为面板内联确认条(discardConfirm 状态),行为语义
+ // 不变——有未保存选择时点取消先展示确认条,确认后才真正关闭。
++//
++// ★★★ SP15-P1-T9 · Step 0: generalised away from albums ★★★
++// It used to hardcode the album store for both halves of its job — reading which assets are
++// already in (`albums.assetsOf(props.albumId)`) and writing the chosen ones back
++// (`albums.addAssetsToAlbum`) — plus the success/failure toasts around that write. Moments need
++// the same picker against a different collection, so both halves moved out to the caller: the
++// caller passes `existingIds` and receives the picked ids on `confirm`. What is left here is the
++// picking itself. Vue 2 made this exact change in #79 (ccaccd36, PhotosAlbumLibraryPicker.vue →
++// PhotosLibraryPicker.vue).
++//
++// ⚠️ The file name now understates the component: it is no longer album-specific. Vue 2 renamed
++// it in the same commit that generalised it; here the rename is deliberately deferred — it
++// travels with the rest of #79 in P2, and doing it now would drag every import, test path and the
++// oss manifest through a churn that has nothing to do with moments. Read "Album" in the name as
++// history, not as scope.
++//
++// Two shape deviations from Vue 2's #79, both to keep the two album consumers pixel-identical to
++// what they render today (the whole point of a refactor step is that nothing visible moves):
++//  a) `submitting` is a prop, not local state. Vue 2 kept the busy flag inside the component
++//     because it could `await this.$listeners.confirm(...)` — a Vue 2 listener is a plain
++//     function and returns the parent's promise. Vue 3's `emit()` discards the handler's return
++//     value, so the component cannot know when the parent's write finished; the flag follows the
++//     write to the caller. Same rendered result: the button reads "Adding…" and is disabled for
++//     exactly as long as the request is in flight.
++//  b) `submitLabel` accepts a `(count) => string` as well as a plain string. Vue 2's #79 turned
++//     the album button from "Add ({n})" into a static "Add selected", silently dropping the count
++//     from a screen that had it. The album pages here keep their count by passing a function;
++//     moments pass a plain string, exactly Vue 2's "Add selected".
++// Closing on success also moves to the caller for the same reason as (a): the component can no
++// longer tell success from failure. Every caller closes on success and leaves the panel open on
++// failure — which is Vue 2's observable behaviour, kept intact.
+ import { computed, onUnmounted, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { service } from '@nimotech/nimoos-service'
+-import { usePhotosAlbums } from '../stores/albums'
+ import { useTimelineStore } from '../stores/timeline'
+-import { useToast } from '../../stores/toast'
+ import type { Photo } from '../util/assetToPhoto'
+ 
+-const props = defineProps<{ open: boolean; albumId: string | number; albumName: string }>()
++const props = defineProps<{
++  open: boolean
++  title: string
++  /** Ids already in the target collection, String()-normalised by the caller (see the iron rule
++   *  above — the caller owns the collection, so it owns the normalisation of its own ids). */
++  existingIds: Set<string>
++  existingLabel: string
++  submitLabel: string | ((count: number) => string)
++  submitting?: boolean
++}>()
+ const emit = defineEmits<{
+   (e: 'update:open', value: boolean): void
+-  (e: 'added', count: number): void
++  (e: 'confirm', ids: Array<string | number>): void
+ }>()
+ 
+ const { t } = useI18n()
+-const albums = usePhotosAlbums()
+ const timeline = useTimelineStore()
+-const toast = useToast()
+ 
+ // 选中集合直接存 flat 里给出的原始 id(与 flat 同源,类型天然一致,无需归一);
+-// 提交时原样传给 addAssetsToAlbum,不做类型转换。
++// 提交时原样交给调用方,不做类型转换(调用方要什么类型由它自己决定——相册两条路径至今
++// 原样传给 addAssetsToAlbum,请求体一个字节都没变)。
+ const selected = ref<Set<string | number>>(new Set())
+-const adding = ref(false)
+ const discardConfirm = ref(false)
+ 
+ // 照 Vue2 flat computed(:73-85):展平所有月份的照片,按 takenAt 降序。时间线本身已有
+ // allPhotos 展平 computed(timeline.ts:61),这里复用它再排序,不重写展平逻辑。
+ const flat = computed<Photo[]>(() => {
+   const out = timeline.allPhotos.slice()
+   out.sort((a, b) => {
+     const ta = a.takenAt ? Date.parse(String(a.takenAt)) : 0
+     const tb = b.takenAt ? Date.parse(String(b.takenAt)) : 0
+     return tb - ta
+   })
+   return out
+ })
+ 
+-// 铁律:String 归一的 Set 值比较——相册资产 id 与时间线照片 id 类型可能不一致。
+-const existingIds = computed(() => new Set(albums.assetsOf(props.albumId).map((p) => String(p.id))))
+-
++// 铁律:String 归一的 Set 值比较——目标集合的资产 id 与时间线照片 id 类型可能不一致。
++// 归一的 caller 侧那一半(建 Set 时 String())在调用方,这里是消费侧的另一半。
+ function isExisting(p: Photo): boolean {
+-  return existingIds.value.has(String(p.id))
++  return props.existingIds.has(String(p.id))
+ }
++
++// submitLabel 可以是「跟着已选张数变」的函数(相册两条路径:添加(2)),也可以是固定文案
++// (时刻:添加所选)——见文件头偏离登记 (b)。
++const submitText = computed(() =>
++  typeof props.submitLabel === 'function' ? props.submitLabel(selected.value.size) : props.submitLabel,
++)
+ function isSelected(p: Photo): boolean {
+   return selected.value.has(p.id)
+ }
+ function thumb(id: string | number): string {
+   return service.photos.thumbnailUrl(id, 'small')
+ }
+ 
+ function toggle(p: Photo): void {
+   if (isExisting(p)) return
+   const next = new Set(selected.value)
+@@ -109,62 +150,49 @@ function onDocumentKeydown(e: KeyboardEvent): void {
+   }
+   attemptClose()
+ }
+ 
+ watch(
+   () => props.open,
+   (isOpen) => {
+     if (isOpen) {
+       selected.value = new Set()
+       discardConfirm.value = false
+-      adding.value = false
+       if (timeline.months.length === 0) void timeline.fetchTimeline()
+       document.addEventListener('keydown', onDocumentKeydown)
+     } else {
+       document.removeEventListener('keydown', onDocumentKeydown)
+     }
+   },
+   { immediate: true },
+ )
+ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
+ 
+-async function confirmAdd(): Promise<void> {
+-  if (selected.value.size === 0 || adding.value) return
+-  adding.value = true
+-  const ids = Array.from(selected.value)
+-  const count = ids.length
+-  try {
+-    await albums.addAssetsToAlbum(props.albumId, ids)
+-    toast.show(t('photosAlbumAddedToast', { count, name: props.albumName }))
+-    emit('added', count)
+-    closeNow()
+-  } catch (e) {
+-    console.error('[album-library-picker] addAssetsToAlbum', e)
+-    toast.show(t('photosAlbumAddFailed'))
+-    // 失败不关闭面板;已选中项保留(selected 不清空);adding 复位由 finally 处理。
+-  } finally {
+-    adding.value = false
+-  }
++// 交出已选 id 就到此为止:写库、成功/失败 toast、关面板全在调用方(见文件头 Step 0 登记)。
++// 这里既不清空 selected 也不关闭面板——写失败时调用方让面板留着,用户的选择还在,可以直接重试。
++function confirmAdd(): void {
++  if (selected.value.size === 0 || props.submitting) return
++  emit('confirm', Array.from(selected.value))
+ }
+ </script>
+ 
+ <template>
+   <div
+     v-if="open"
+     class="lib-picker-overlay"
+     data-test="lib-picker-overlay"
+     @click.self="attemptClose"
+   >
+     <div class="lib-picker-panel">
+       <div class="lib-picker-head">
+         <div class="lib-picker-head-text">
+-          <div class="lib-picker-title">{{ t('photosAlbumPickerTitle', { name: albumName }) }}</div>
++          <div class="lib-picker-title">{{ title }}</div>
+           <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+         </div>
+         <button
+           type="button"
+           class="lib-picker-close"
+           data-test="lib-picker-close"
+           :aria-label="t('photosCancel')"
+           @click="attemptClose"
+         >&#215;</button>
+       </div>
+@@ -180,39 +208,39 @@ async function confirmAdd(): Promise<void> {
+             class="lib-picker-tile"
+             data-test="lib-picker-tile"
+             :data-asset-id="p.id"
+             :data-selected="isSelected(p)"
+             :data-disabled="isExisting(p)"
+             @click="toggle(p)"
+           >
+             <img :src="thumb(p.id)" alt="" class="lib-picker-tile-img" :class="{ 'is-dimmed': isExisting(p) }">
+             <div v-if="isExisting(p)" class="lib-picker-already" data-test="lib-picker-already">
+               <span class="lib-picker-already-icon">&#10003;</span>
+-              <span>{{ t('photosAlbumPickerAlready') }}</span>
++              <span>{{ existingLabel }}</span>
+             </div>
+             <div v-else-if="isSelected(p)" class="lib-picker-check" data-test="lib-picker-selected-check">&#10003;</div>
+           </div>
+         </div>
+       </div>
+ 
+       <div v-if="!discardConfirm" class="lib-picker-foot">
+         <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
+           {{ t('photosCancel') }}
+         </button>
+         <button
+           type="button"
+           class="lib-picker-btn-cta"
+           data-test="lib-picker-add"
+-          :disabled="selected.size === 0 || adding"
++          :disabled="selected.size === 0 || submitting"
+           @click="confirmAdd"
+         >
+-          {{ adding ? t('photosAlbumPickerAdding') : t('photosAlbumPickerAdd', { count: selected.size }) }}
++          {{ submitting ? t('photosAlbumPickerAdding') : submitText }}
+         </button>
+       </div>
+       <div v-else class="lib-picker-discard" data-test="lib-picker-discard-bar">
+         <div class="lib-picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
+         <div class="lib-picker-discard-actions">
+           <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
+             {{ t('photosCancel') }}
+           </button>
+           <button type="button" class="lib-picker-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
+             {{ t('photosAlbumPickerDiscardConfirm') }}
+diff --git a/src/photos/components/__tests__/AlbumLibraryPicker.test.ts b/src/photos/components/__tests__/AlbumLibraryPicker.test.ts
+index e157dee..e280c29 100644
+--- a/src/photos/components/__tests__/AlbumLibraryPicker.test.ts
++++ b/src/photos/components/__tests__/AlbumLibraryPicker.test.ts
+@@ -1,43 +1,75 @@
+ // Task 6 (SP7-P4 相册): AlbumLibraryPicker.vue —— 从图库挑照片加入本相册(T7「手动挑选」/
+ // T8「添加照片」按钮共用)。
+ // 挂 Pinia + i18n(真实 zh_cn 词条);mock 共享包 @nimotech/nimoos-service,经由真实
+-// useTimelineStore()/usePhotosAlbums()/useToast() 端到端验证——瓦片来源、已在相册判定、
+-// 添加动作都走真实 store,不是纯白盒断言。
++// useTimelineStore()/usePhotosAlbums() 端到端验证——瓦片来源、已在相册判定都走真实 store,
++// 不是纯白盒断言。(T9 起添加动作本身不再由本组件发起,见下方 Step 0 说明。)
+ //
+ // 铁律交叉验证:相册资产用数字 id(经 fetchAlbumAssets→assetToPhoto 真实转换管线得到
+ // Photo.id 为 number),时间线照片用字符串 id(同样走 assetToPhoto),existingIds 必须
+ // String() 归一才能命中——这是本任务的核心断言。
++//
++// SP15-P1-T9 · Step 0 (generalisation): the component's props moved from the album-specific
++// {open, albumId, albumName} to the generic {open, title, existingIds, existingLabel,
++// submitLabel, submitting}, and submitting no longer writes to the album store — it emits
++// `confirm` and the caller writes. Every case below therefore mounts with the props the album
++// pages now pass (albumProps(), which builds the exact same strings from the same zh keys, and
++// derives existingIds through the same real store pipeline), so what these cases assert is still
++// what the album pages render. The write / success toast / failure toast / post-add refresh that
++// left this component are asserted at their new home, in PhotosAlbums.test.ts and
++// PhotosAlbumDetail.test.ts.
+ import { describe, it, expect, vi, beforeEach } from 'vitest'
+ import { mount, flushPromises } from '@vue/test-utils'
+ import { setActivePinia, createPinia } from 'pinia'
+ import { createI18n } from 'vue-i18n'
+ import zh from '../../../i18n/zh_cn'
+ 
+ const svc = vi.hoisted(() => ({
+   photos: {
+     getTimeline: vi.fn(),
+     getAlbum: vi.fn(),
+     batchAddToAlbum: vi.fn(),
+     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ import AlbumLibraryPicker from '../AlbumLibraryPicker.vue'
+-import { useToast } from '../../../stores/toast'
+ import { usePhotosAlbums } from '../../stores/albums'
+ import { useTimelineStore } from '../../stores/timeline'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+-function mountPicker(props: { open: boolean; albumId: string | number; albumName: string }) {
++interface PickerProps {
++  open: boolean
++  title: string
++  existingIds: Set<string>
++  existingLabel: string
++  submitLabel: string | ((count: number) => string)
++  submitting?: boolean
++}
++
++/** The props both album pages pass — same i18n keys, same String()-normalised existingIds
++ *  expression — so these cases keep asserting what the album pages actually render. */
++function albumProps(over: Partial<PickerProps> = {}): PickerProps {
++  const albums = usePhotosAlbums()
++  return {
++    open: true,
++    title: zh.photosAlbumPickerTitle.replace('{name}', 'Trip'),
++    existingIds: new Set(albums.assetsOf('a1').map((p) => String(p.id))),
++    existingLabel: zh.photosAlbumPickerAlready,
++    submitLabel: (count: number) => zh.photosAlbumPickerAdd.replace('{count}', String(count)),
++    ...over,
++  }
++}
++
++function mountPicker(props: PickerProps) {
+   return mount(AlbumLibraryPicker, { props, global: { plugins: [i18n] } })
+ }
+ 
+ // 三张时间线照片,takenAt 乱序摆放,验证展平后按 takenAt 降序重排(不是原始顺序、不按月分组)。
+ function seedTimeline() {
+   const timeline = useTimelineStore()
+   timeline.timelineGroups = [
+     {
+       year: 2026, month: 7,
+       assets: [
+@@ -59,21 +91,21 @@ beforeEach(() => {
+   setActivePinia(createPinia())
+   svc.photos.getTimeline.mockReset()
+   svc.photos.getAlbum.mockReset().mockResolvedValue({ assets: [] })
+   svc.photos.batchAddToAlbum.mockReset().mockResolvedValue(undefined)
+   svc.photos.thumbnailUrl.mockClear()
+ })
+ 
+ describe('AlbumLibraryPicker.vue', () => {
+   it('展平时间线照片按 takenAt 降序渲染瓦片(首个为最新的 t-newest)', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+ 
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     expect(tiles).toHaveLength(3)
+     expect(tiles[0]!.attributes('data-asset-id')).toBe('t-newest')
+     expect(tiles[1]!.attributes('data-asset-id')).toBe('t-mid')
+     expect(tiles[2]!.attributes('data-asset-id')).toBe('t-oldest')
+     // 标题带相册名 + 初始已选计数 0
+     expect(w.text()).toContain('Trip')
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '0'))
+@@ -91,89 +123,134 @@ describe('AlbumLibraryPicker.vue', () => {
+         assets: [
+           { id: '5', takenAt: '2026-07-15T00:00:00Z', mimeType: 'image/jpeg' }, // 字符串 '5',命中数字 5
+           { id: 't-other', takenAt: '2026-07-01T00:00:00Z', mimeType: 'image/jpeg' },
+         ],
+       },
+     ]
+     const albums = usePhotosAlbums()
+     await albums.fetchAlbumAssets('a1')
+     expect(albums.assetsOf('a1').map((p) => p.id)).toEqual([5]) // 确认真实转换得到 number
+ 
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+ 
+     const tileFive = w.get('[data-asset-id="5"]')
+     expect(tileFive.attributes('data-disabled')).toBe('true')
+     expect(tileFive.text()).toContain(zh.photosAlbumPickerAlready)
+ 
+     const tileOther = w.get('[data-asset-id="t-other"]')
+     expect(tileOther.attributes('data-disabled')).toBe('false')
+ 
+     await tileFive.trigger('click')
+     // 点击已在相册中的瓦片不进 selected —— 主按钮计数应仍为 0(禁用)
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '0'))
+     const addBtn = w.get<HTMLButtonElement>('[data-test="lib-picker-add"]')
+     expect(addBtn.element.disabled).toBe(true)
+   })
+ 
+-  it('选中两张 → 主按钮文案含 2;点击 → addAssetsToAlbum(albumId,[id1,id2]) 被调 → emit added(2) + update:open(false) + toast', async () => {
++  // Step 0: the submit button's label still counts up with the selection (the album pages pass a
++  // (count) => string label for exactly that), and pressing it hands the raw ids to the caller.
++  it('选中两张 → 主按钮文案含 2;点击 → emit confirm([id1,id2]),原样交出未经类型转换的 id', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+-    const toast = useToast()
+ 
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     await tiles[0]!.trigger('click') // t-newest
+     await tiles[1]!.trigger('click') // t-mid
+     await flushPromises()
+ 
+     expect(w.text()).toContain(zh.photosAlbumPickerAdd.replace('{count}', '2'))
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '2'))
+ 
+     const addBtn = w.get<HTMLButtonElement>('[data-test="lib-picker-add"]')
+     expect(addBtn.element.disabled).toBe(false)
+     await addBtn.trigger('click')
+     await flushPromises()
+ 
+-    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('a1', ['t-newest', 't-mid'])
+-    expect(w.emitted('added')).toEqual([[2]])
+-    expect(w.emitted('update:open')).toEqual([[false]])
+-    expect(toast.toasts.length).toBe(1)
+-    expect(toast.toasts[0]!.text).toContain('Trip')
+-    expect(toast.toasts[0]!.text).toContain('2')
++    expect(w.emitted('confirm')).toEqual([[['t-newest', 't-mid']]])
+   })
+ 
+-  it('store 抛错(addAssetsToAlbum 失败)→ 面板仍 open,失败 toast,按钮恢复可用,已选中项保留', async () => {
+-    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
++  // Step 0 · the brief's new case: submitting must not reach the album store any more — the write
++  // belongs to the caller now. Spying on the real store instance (not the service mock) is what
++  // makes this fail if any half of the old album-specific behaviour is left behind.
++  it('SP15-P1-T9 泛化:提交时只 emit confirm,不自己写库、不自己关面板', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const albums = usePhotosAlbums()
++    const spy = vi.spyOn(albums, 'addAssetsToAlbum')
++    const w = mountPicker(albumProps())
+     await flushPromises()
+-    const toast = useToast()
+ 
+-    const tiles = w.findAll('[data-test="lib-picker-tile"]')
+-    await tiles[0]!.trigger('click')
+-    const addBtn = w.get<HTMLButtonElement>('[data-test="lib-picker-add"]')
+-    await addBtn.trigger('click')
++    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click') // t-newest
++    await w.get('[data-test="lib-picker-add"]').trigger('click')
+     await flushPromises()
+ 
++    expect(spy).not.toHaveBeenCalled()
++    expect(svc.photos.batchAddToAlbum).not.toHaveBeenCalled()
++    expect(w.emitted('confirm')?.[0]?.[0]).toEqual(['t-newest'])
++    // 关面板也归调用方(它才知道写成功没有)——组件自己一声不吭。
+     expect(w.emitted('update:open')).toBeUndefined()
+-    expect(w.emitted('added')).toBeUndefined()
+-    expect(toast.toasts[0]!.text).toBe(zh.photosAlbumAddFailed)
+-    // 按钮恢复可用(不是卡在 adding 态)
+-    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(false)
++  })
++
++  // Step 0 · the failure path, from the component's side. The write and its failure toast now
++  // live in the album pages (asserted there); what this component still owes the user is that a
++  // caller which leaves the panel open finds the selection exactly as it was, and can resubmit.
++  it('调用方写失败(面板保持 open)→ 已选中项保留,按钮可用,可以再次提交重试', async () => {
++    seedTimeline()
++    const w = mountPicker(albumProps())
++    await flushPromises()
++
++    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
++    await w.get('[data-test="lib-picker-add"]').trigger('click')
++    await flushPromises()
++
+     // 已选中的项保留(仍显示"已选择 1 项"文案,而不是被清空)
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
++    // 按钮可用,不是卡在提交态
++    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(false)
++
++    await w.get('[data-test="lib-picker-add"]').trigger('click')
++    expect(w.emitted('confirm')).toHaveLength(2)
++  })
++
++  // Step 0 · submitting 由调用方给(Vue3 的 emit 拿不到父组件那个 promise,见组件文件头
++  // 偏离登记 a):飞行期按钮禁用 + 文案变"添加中…",且再点也不会再发一次 confirm。
++  it('submitting=true(调用方写入飞行中)→ 按钮禁用、文案为添加中,重复点击不再 emit confirm', async () => {
++    seedTimeline()
++    const w = mountPicker(albumProps())
++    await flushPromises()
++    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
++
++    await w.setProps({ submitting: true })
++    expect(w.get<HTMLButtonElement>('[data-test="lib-picker-add"]').element.disabled).toBe(true)
++    expect(w.text()).toContain(zh.photosAlbumPickerAdding)
++
++    await w.get('[data-test="lib-picker-add"]').trigger('click')
++    expect(w.emitted('confirm')).toBeUndefined()
++  })
++
++  // Step 0 · 固定文案的调用方(时刻页传 photosMoAddSelected 这样的定值字符串)——按钮文案不
++  // 带张数,同一个组件两种用法都要成立。
++  it('submitLabel 传定值字符串时按钮就显示该文案(不追加已选张数)', async () => {
++    seedTimeline()
++    const w = mountPicker(albumProps({ submitLabel: '添加所选' }))
++    await flushPromises()
++    await w.findAll('[data-test="lib-picker-tile"]')[0]!.trigger('click')
++
++    const addBtn = w.get('[data-test="lib-picker-add"]')
++    expect(addBtn.text()).toBe('添加所选')
++    expect(addBtn.text()).not.toContain('1')
+   })
+ 
+   it('有选择时点取消 → 出确认条;再确认才关闭;无选择时点取消直接关闭', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+ 
+     // 无选择 → 直接关闭
+     await w.get('[data-test="lib-picker-cancel"]').trigger('click')
+     expect(w.emitted('update:open')).toEqual([[false]])
+ 
+     // 重新开启,选中一张后点取消 → 出确认条,不关闭
+     await w.setProps({ open: true })
+     await flushPromises()
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+@@ -184,39 +261,39 @@ describe('AlbumLibraryPicker.vue', () => {
+     // update:open 仍只有第一次那一条(false),没有新增
+     expect(w.emitted('update:open')).toEqual([[false]])
+ 
+     // 确认放弃 → 才真正关闭
+     await w.get('[data-test="lib-picker-discard-confirm"]').trigger('click')
+     expect(w.emitted('update:open')).toEqual([[false], [false]])
+   })
+ 
+   it('确认条里点"返回"(取消放弃)→ 确认条收起,面板仍 open,已选内容保留', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     await tiles[0]!.trigger('click')
+     await w.get('[data-test="lib-picker-cancel"]').trigger('click')
+     expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(true)
+ 
+     await w.get('[data-test="lib-picker-discard-cancel"]').trigger('click')
+     expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(false)
+     expect(w.emitted('update:open')).toBeUndefined()
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+   })
+ 
+   // 评审补漏:Vue2 源(PhotosAlbumLibraryPicker.vue:10-12)头部确有一个 X 关闭按钮
+   // (@click="onScrimClose"),行为与点遮罩/点取消同一套「有未保存选择先确认」的分层逻辑。
+   // brief 结构清单没列出它,但本期「界面严格 1:1 照 Vue2」的纪律要求补上。
+   it('头部 X 关闭按钮:有选中时点击 → 出确认条,update:open 未 emit;无选中时点击 → 直接关闭', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+ 
+     // 有选中 → 出确认条,不直接关
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     await tiles[0]!.trigger('click')
+     await w.get('[data-test="lib-picker-close"]').trigger('click')
+     expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(true)
+     expect(w.emitted('update:open')).toBeUndefined()
+ 
+     // 确认放弃后关闭(模拟宿主真实响应 update:open,把 prop 真的翻回 false 再重新打开——
+@@ -226,64 +303,64 @@ describe('AlbumLibraryPicker.vue', () => {
+ 
+     await w.setProps({ open: false })
+     await w.setProps({ open: true })
+     await flushPromises()
+     await w.get('[data-test="lib-picker-close"]').trigger('click')
+     expect(w.emitted('update:open')).toEqual([[false], [false]])
+   })
+ 
+   it('无可添加照片(时间线为空)→ 渲染 photosAlbumPickerEmpty', async () => {
+     svc.photos.getTimeline.mockResolvedValue([])
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+     expect(w.find('[data-test="lib-picker-empty"]').exists()).toBe(true)
+     expect(w.text()).toContain(zh.photosAlbumPickerEmpty)
+   })
+ 
+   it('open 由 false→true 时:months 为空则触发 fetchTimeline(从相册详情页直接进来图库未加载的情况)', async () => {
+     svc.photos.getTimeline.mockResolvedValueOnce([
+       { year: 2026, month: 7, assets: [{ id: 'x1', takenAt: '2026-07-01T00:00:00Z', mimeType: 'image/jpeg' }] },
+     ])
+-    const w = mountPicker({ open: false, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps({ open: false }))
+     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
+     await w.setProps({ open: true })
+     await flushPromises()
+     expect(svc.photos.getTimeline).toHaveBeenCalledTimes(1)
+     expect(w.findAll('[data-test="lib-picker-tile"]')).toHaveLength(1)
+   })
+ 
+   it('open 由 false→true 时清空本地 selected(上次未提交的选择不残留到下次打开)', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     await tiles[0]!.trigger('click')
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
+ 
+     await w.setProps({ open: false })
+     await w.setProps({ open: true })
+     await flushPromises()
+     expect(w.text()).toContain(zh.photosSelectedCount.replace('{count}', '0'))
+   })
+ 
+   it('瓦片缩略图用共享包 thumbnailUrl 生成(不手拼 /v1/photos/... URL)', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+     expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('t-newest', 'small')
+     const img = w.get('[data-asset-id="t-newest"] img')
+     expect(img.attributes('src')).toBe('mock://thumb/t-newest/small')
+   })
+ 
+   it('Esc 分层(document 级派发):确认条展开时先收起确认条(面板仍 open);无选择时 Esc 直接关闭', async () => {
+     seedTimeline()
+-    const w = mountPicker({ open: true, albumId: 'a1', albumName: 'Trip' })
++    const w = mountPicker(albumProps())
+     await flushPromises()
+     const tiles = w.findAll('[data-test="lib-picker-tile"]')
+     await tiles[0]!.trigger('click')
+     await w.get('[data-test="lib-picker-cancel"]').trigger('click')
+     expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(true)
+ 
+     // 第一次 Esc:只收起确认条,面板仍 open
+     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+     await flushPromises()
+     expect(w.find('[data-test="lib-picker-discard-bar"]').exists()).toBe(false)
+diff --git a/src/views/PhotosAlbumDetail.vue b/src/views/PhotosAlbumDetail.vue
+index 0e7dbb7..3f2b212 100644
+--- a/src/views/PhotosAlbumDetail.vue
++++ b/src/views/PhotosAlbumDetail.vue
+@@ -274,22 +274,48 @@ async function doDelete(): Promise<void> {
+   }
+ }
+ 
+ // ── 排序下拉 ──
+ function pickSort(s: SortBy): void {
+   sortBy.value = s
+   sortMenuOpen.value = false
+ }
+ 
+ // ── AlbumLibraryPicker(T6)接线 ──
+-function onPickerAdded(): void {
+-  void albums.fetchAlbumAssets(albumId.value)
++// SP15-P1-T9 · Step 0:组件泛化后,写库 / 成功失败 toast / 关面板由调用方承担(组件只挑照片)。
++// 行为逐条与泛化前一致:同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(相册名 + 张数)、
++// 同一条 photosAlbumAddFailed、成功才关面板(失败留着让用户重试),以及原 `@added` 接的那次
++// fetchAlbumAssets 刷新。
++const pickerExistingIds = computed(
++  () => new Set(albums.assetsOf(albumId.value).map((p) => String(p.id))),
++)
++// 按钮文案带已选张数——泛化后由调用方给,传函数张数才跟得上(见组件文件头偏离登记 b)。
++function pickerSubmitLabel(count: number): string {
++  return t('photosAlbumPickerAdd', { count })
++}
++const pickerAdding = ref(false)
++async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
++  if (pickerAdding.value) return
++  pickerAdding.value = true
++  const id = albumId.value
++  const name = album.value?.title ?? ''
++  try {
++    await albums.addAssetsToAlbum(id, ids)
++    toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
++    pickerOpen.value = false
++    void albums.fetchAlbumAssets(id)
++  } catch (e) {
++    console.error('[album-detail] addAssetsToAlbum', e)
++    toast.show(t('photosAlbumAddFailed'))
++  } finally {
++    pickerAdding.value = false
++  }
+ }
+ 
+ // ── PhotoLightbox(P2)接线——@delete + @add-to-album(T9:只接灯箱一处,edit 工具条
+ // 「添加照片」已有自己的语义,不重复放「加入相册」)──
+ // 照 P3 收藏视图 T8 的同款处理:灯箱已在真实资产层面删除,相册内的引用也要跟着消失,
+ // 靠重新拉取该相册的资产列表实现(而不是本地过滤,store 才是真源)。
+ async function onLightboxDelete(assetId: string | number): Promise<void> {
+   // Minor 修正:timeline.deleteAssets 逐项删除、吞掉单项失败,返回真实成功计数
+   // (src/photos/stores/timeline.ts:162-176)——原实现忽略返回值恒报 count:1,单项删除这里
+   // 恒真但仍是错的语义;照 PhotosFavorites.vue:52-57 的批量写法读返回值,并用同一个 4000ms
+@@ -589,24 +615,27 @@ watch(gridRef, () => {
+         <button type="button" class="album-confirm-cancel" @click="confirmDelete = false">{{ t('photosCancel') }}</button>
+         <button type="button" class="album-confirm-ok" data-test="album-delete-confirm-btn" @click="doDelete">
+           {{ t('photosAlbumDelete') }}
+         </button>
+       </div>
+     </div>
+   </div>
+ 
+   <AlbumLibraryPicker
+     :open="pickerOpen"
+-    :album-id="albumId"
+-    :album-name="album?.title ?? ''"
++    :title="t('photosAlbumPickerTitle', { name: album?.title ?? '' })"
++    :existing-ids="pickerExistingIds"
++    :existing-label="t('photosAlbumPickerAlready')"
++    :submit-label="pickerSubmitLabel"
++    :submitting="pickerAdding"
+     @update:open="pickerOpen = $event"
+-    @added="onPickerAdded"
++    @confirm="onPickerConfirm"
+   />
+ 
+   <PhotoLightbox
+     @delete="onLightboxDelete"
+     @toggle-fav="() => {}"
+     @add-to-album="(id) => openAlbumPicker([id])"
+   />
+   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+ </template>
+ 
+diff --git a/src/views/PhotosAlbums.vue b/src/views/PhotosAlbums.vue
+index 1ddb661..7955427 100644
+--- a/src/views/PhotosAlbums.vue
++++ b/src/views/PhotosAlbums.vue
+@@ -144,22 +144,50 @@ async function confirmCreate(): Promise<void> {
+     console.error('[albums] createAlbum', e)
+     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumCreateFailed'))
+   } finally {
+     // Vue2 :354-357 是 finally 关模态(不是只成功才关)——select 分支的模态关闭不影响
+     // 已经打开的 pickerOpen(两者是独立的 v-if 层)。
+     createOpen.value = false
+     creating.value = false
+   }
+ }
+ 
+-function onPickerAdded(): void {
+-  void albums.fetchAlbums()
++// SP15-P1-T9 · Step 0: AlbumLibraryPicker 泛化后,写库 / 成功失败 toast / 关面板这三件原本
++// 由组件内部承担的事回到调用方(组件只负责挑照片并把 id 交出来)。这里逐条复刻它此前的行为:
++// 同一个 addAssetsToAlbum、同一条 photosAlbumAddedToast(带相册名与张数)、同一条
++// photosAlbumAddFailed、成功才关面板(失败留着,已选内容还在,可以直接重试),以及原
++// `@added` 接的那次 fetchAlbums 刷新。
++const pickerExistingIds = computed(
++  () => new Set(albums.assetsOf(pickerAlbumId.value).map((p) => String(p.id))),
++)
++// 组件那边的按钮文案原本是 photosAlbumPickerAdd(带已选张数),泛化后由调用方给——传函数
++// 而不是定值,张数才跟得上(见组件文件头偏离登记 b)。
++function pickerSubmitLabel(count: number): string {
++  return t('photosAlbumPickerAdd', { count })
++}
++const pickerAdding = ref(false)
++async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
++  if (pickerAdding.value) return
++  pickerAdding.value = true
++  const albumId = pickerAlbumId.value
++  const name = pickerAlbumName.value
++  try {
++    await albums.addAssetsToAlbum(albumId, ids)
++    toast.show(t('photosAlbumAddedToast', { count: ids.length, name }))
++    pickerOpen.value = false
++    void albums.fetchAlbums()
++  } catch (e) {
++    console.error('[albums] addAssetsToAlbum', e)
++    toast.show(t('photosAlbumAddFailed'))
++  } finally {
++    pickerAdding.value = false
++  }
+ }
+ 
+ // 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
+ // 刻意不变),旧实现下 `isEmpty = albums.albumsLoaded && albums.albums.length === 0` 因此恒假
+ // → 落进网格分支,渲染"我的相册"分区头 + 光秃秃的新建卡片,没有任何失败提示/重试入口——与
+ // PhotosFavorites.vue/PhotosAlbumDetail.vue 已经收口过的同一缺陷(P8a Task 9)是同一个 store、
+ // 同一种符号(loadError),这里补第三处。写法照搬这两个姐妹页的既定形状:本地 retrying 守卫
+ // (不进 store)+ disabled 反馈 + 复用同一个 fetchAlbums。
+ const retryingAlbums = ref(false)
+ async function retryAlbums(): Promise<void> {
+@@ -358,24 +386,27 @@ onUnmounted(() => {
+           @click="confirmCreate"
+         >
+           {{ creating ? t('photosAlbumCreating') : t('photosAlbumCreate') }}
+         </button>
+       </div>
+     </div>
+   </div>
+ 
+   <AlbumLibraryPicker
+     :open="pickerOpen"
+-    :album-id="pickerAlbumId"
+-    :album-name="pickerAlbumName"
++    :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
++    :existing-ids="pickerExistingIds"
++    :existing-label="t('photosAlbumPickerAlready')"
++    :submit-label="pickerSubmitLabel"
++    :submitting="pickerAdding"
+     @update:open="pickerOpen = $event"
+-    @added="onPickerAdded"
++    @confirm="onPickerConfirm"
+   />
+ </template>
+ 
+ <style scoped>
+ /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
+    出处见 src/views/Photos.vue 同一规则处的注释。 */
+ .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+ .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
+ 
+ .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
+diff --git a/src/views/PhotosMomentDetail.test.ts b/src/views/PhotosMomentDetail.test.ts
+index 2c42f73..2dadba1 100644
+--- a/src/views/PhotosMomentDetail.test.ts
++++ b/src/views/PhotosMomentDetail.test.ts
+@@ -13,40 +13,50 @@ import { createRouter, createWebHashHistory } from 'vue-router'
+ // app and makes every mount print seven "Component i18n-t has already been registered"
+ // [Vue warn]s — 406 of them in PhotosSmartViewDetail.test.ts alone. Switching the singleton's
+ // locale gives the same control with none of the noise.
+ import { i18n } from '../i18n'
+ 
+ const svc = vi.hoisted(() => ({
+   photos: {
+     thumbnailUrl: vi.fn((id: string, size: string) => `mock://${id}/${size}`),
+     listMoments: vi.fn(async (): Promise<unknown> => []),
+     getMomentAssets: vi.fn(async (_id?: string, _featured?: boolean, _withMembers?: boolean): Promise<unknown> => []),
++    // SP15-P1-T9: the write endpoints behind store.pin / store.exclude, plus the timeline the
++    // library picker loads when it opens. Mocked at the service boundary rather than by
++    // replacing the store methods, so the count that comes back really does travel
++    // response → store → both views.
++    pinMomentAssets: vi.fn(async (): Promise<unknown> => ({})),
++    excludeMomentAssets: vi.fn(async (): Promise<unknown> => ({})),
++    getTimeline: vi.fn(async (): Promise<unknown> => []),
+     // PhotosSidebar is part of this page's shell and reads the photos config on mount. Without
+     // this stub the settings store's fetchAiFeatures catches a TypeError and console.errors on
+     // every single mount, which buries any real failure in the test output.
+     getConfig: vi.fn(async (): Promise<unknown> => ({})),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ // SP15-P1-T8: useLightbox is a module-level singleton — every call to useLightbox()
+ // returns a **fresh object literal**, but its `openAt` property points at the same
+ // module-top-level function either way. `vi.spyOn(freshObject, 'openAt')` only shadows
+ // that one object's own property; the component's separate `useLightbox()` call gets a
+ // different object whose `openAt` is still the unpatched original, so the spy is never
+ // invoked (established precedent: PhotosSmartViewDetail.test.ts:33-39 hit the exact same
+ // trap first and mocks the whole module instead — same fix here).
+ const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+ vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
+ 
+ import PhotosMomentDetail from './PhotosMomentDetail.vue'
++import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+ import { usePhotosMoments, type Moment } from '../photos/stores/moments'
++import { useToast } from '../stores/toast'
++import zh from '../i18n/zh_cn'
+ 
+ const RAW = {
+   id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
+   asset_count: 42, time_from: '2016-11-20T00:00:00Z', time_to: '2016-11-22T00:00:00Z',
+   place: 'Bozeman', recipe_key: 'trip:1', featured_asset_ids: ['f1'],
+   added_this_week: 3, cover_ratio: 1.5,
+ }
+ 
+ function makeMoment(over: Partial<Moment> = {}): Moment {
+   return {
+@@ -88,20 +98,23 @@ async function mountDetail(id = 'm1', locale: 'zh_cn' | 'en_us' = 'en_us') {
+ 
+ beforeEach(() => {
+   setActivePinia(createPinia())
+   vi.clearAllMocks() // also clears lbMock.openAt — it is a vi.fn(), tracked globally
+   // clearAllMocks() only wipes the call records — an implementation installed with
+   // mockResolvedValue/mockImplementation inside one test survives into the next. Reinstall the
+   // defaults here so the `places` and `By month` cases cannot leak into the cases after them.
+   svc.photos.listMoments.mockResolvedValue([])
+   svc.photos.getMomentAssets.mockResolvedValue([])
+   svc.photos.getConfig.mockResolvedValue({})
++  svc.photos.pinMomentAssets.mockResolvedValue({})
++  svc.photos.excludeMomentAssets.mockResolvedValue({})
++  svc.photos.getTimeline.mockResolvedValue([])
+ })
+ 
+ describe('cold deep link (a New-UI-only path — the backend has no GET /moments/:id)', () => {
+   it('fetches the whole list and looks the id up in it when the store is empty', async () => {
+     svc.photos.listMoments.mockResolvedValueOnce([RAW])
+     const { w } = await mountDetail('m1')
+     expect(svc.photos.listMoments).toHaveBeenCalledTimes(1)
+     expect(w.text()).toContain('Bozeman')
+   })
+ 
+@@ -492,10 +505,183 @@ describe('the two photo grids', () => {
+     const { w } = await mountDetail()
+     await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter
+     await w.find('[data-test="mo-all-tile"]').trigger('click')      // select a1
+     await w.find('[data-test="mo-select-toggle"]').trigger('click') // leave
+     expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+ 
+     await w.find('[data-test="mo-select-toggle"]').trigger('click') // enter again, nothing picked
+     expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
+   })
+ })
++
++// SP15-P1-T9: adding photos to the moment (pin) and removing them from it (exclude).
++// Ported from Vue2 899af59b:PhotosMomentDetail.vue :26-28 + :122-125 + :143-151 (template) and
++// :340-381 (onPickPhotos / removeSelected).
++//
++// The write endpoints are mocked at the service boundary rather than by replacing store.pin /
++// store.exclude, so the asset_count in the response really does travel response → store → the
++// page's header and Stats — with the store method stubbed out, "the count changed" would only be
++// re-stating the stub. store.pin/exclude are still spied on (call-through) for their arguments.
++describe('adding and removing photos', () => {
++  function mockAssets(all: unknown[], featured: unknown[] = []) {
++    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) =>
++      f ? { assets: featured, members: [], places: [] } : all)
++  }
++
++  it('the Add photos button opens the library picker with the moment\'s own photos marked as already in', async () => {
++    mockAssets([{ id: 'a1' }, { id: 'a2' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++
++    const picker = w.findComponent(AlbumLibraryPicker)
++    expect(picker.props('open')).toBe(false)
++
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    expect(picker.props('open')).toBe(true)
++    // Already-in comes from the full member list, String()-normalised (Vue2 :202 memberIds).
++    expect([...(picker.props('existingIds') as Set<string>)].sort()).toEqual(['a1', 'a2'])
++  })
++
++  it('the Add photos button is disabled while the all-photos list is still loading', async () => {
++    let release: () => void = () => {}
++    const gate = new Promise<void>((r) => { release = r })
++    svc.photos.getMomentAssets.mockImplementation(async (_id?: string, f?: boolean) => {
++      if (f) return { assets: [], members: [], places: [] }
++      await gate
++      return []
++    })
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++
++    expect(w.find<HTMLButtonElement>('[data-test="mo-add-photos"]').element.disabled).toBe(true)
++    release()
++    await flushPromises()
++    expect(w.find<HTMLButtonElement>('[data-test="mo-add-photos"]').element.disabled).toBe(false)
++  })
++
++  it('adding: pins the picked ids, adopts the count from the response, reloads both grids, closes the picker and confirms with a toast', async () => {
++    mockAssets([])
++    svc.photos.pinMomentAssets.mockResolvedValue({ asset_count: 44 })
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    const pin = vi.spyOn(s, 'pin')
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail('m1', 'zh_cn')
++
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    svc.photos.getMomentAssets.mockClear()
++    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x', 'y'])
++    await flushPromises()
++
++    expect(pin).toHaveBeenCalledWith('m1', ['x', 'y'])
++    expect(svc.photos.pinMomentAssets).toHaveBeenCalledWith('m1', ['x', 'y'])
++    // The list entry and the detail page are the same object — no hand-mirroring (store item 1).
++    expect(s.byId('m1')?.assetCount).toBe(44)
++    expect(w.find('[data-test="mo-stat-photos"]').text()).toBe('44')
++    // Both grids reload afterwards (featured + all = two requests).
++    expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('已添加'))
++    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(false)
++  })
++
++  it('adding: a failed pin leaves the count untouched, says so in the danger tier and keeps the picker open to retry', async () => {
++    const err = muteConsoleError()
++    mockAssets([])
++    svc.photos.pinMomentAssets.mockRejectedValue(new Error('nope'))
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail('m1', 'zh_cn')
++
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['x'])
++    await flushPromises()
++
++    expect(s.byId('m1')?.assetCount).toBe(42)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
++    // The panel stays up with the user's selection still in it (same contract as the album pages).
++    expect(w.findComponent(AlbumLibraryPicker).props('open')).toBe(true)
++    expect(err).toHaveBeenCalled()
++    err.mockRestore()
++  })
++
++  it('removing: excludes the selection, adopts the count from the response, leaves selection mode and reloads the grids', async () => {
++    mockAssets([{ id: 'a1' }])
++    svc.photos.excludeMomentAssets.mockResolvedValue({ asset_count: 41 })
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    const exclude = vi.spyOn(s, 'exclude')
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail('m1', 'zh_cn')
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    svc.photos.getMomentAssets.mockClear()
++    await w.find('[data-test="mo-remove-selected"]').trigger('click')
++    await flushPromises()
++
++    expect(exclude).toHaveBeenCalledWith('m1', ['a1'])
++    expect(s.byId('m1')?.assetCount).toBe(41)
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++    expect(svc.photos.getMomentAssets).toHaveBeenCalledTimes(2)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('已从此时刻移除'))
++
++    // Selection mode is really off, not merely hiding a bar that still holds a1: re-entering
++    // shows no bar (the same distinction the T8 case above had to make).
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++  })
++
++  it('removing: a failed exclude keeps selection mode and the selection itself, so the user can retry', async () => {
++    const err = muteConsoleError()
++    mockAssets([{ id: 'a1' }])
++    svc.photos.excludeMomentAssets.mockRejectedValue(new Error('nope'))
++    const s = usePhotosMoments(); s.moments = [makeMoment({ assetCount: 42 })]; s.listLoaded = true
++    const toast = useToast(); const show = vi.spyOn(toast, 'show')
++    const { w } = await mountDetail('m1', 'zh_cn')
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    await w.find('[data-test="mo-remove-selected"]').trigger('click')
++    await flushPromises()
++
++    expect(s.byId('m1')?.assetCount).toBe(42)
++    expect(show).toHaveBeenCalledWith(expect.stringContaining('失败'), expect.anything(), 'danger')
++    // Vue2 :386-387 clears the selection in the success branch only — deliberately, so a failed
++    // removal leaves the user the selection they were working with.
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(true)
++    expect(w.find('[data-test="mo-select-bar"]').text()).toContain('1')
++    // …and pressing it again really does resend, rather than being wedged in a busy state.
++    await w.find('[data-test="mo-remove-selected"]').trigger('click')
++    await flushPromises()
++    expect(svc.photos.excludeMomentAssets).toHaveBeenCalledTimes(2)
++    expect(err).toHaveBeenCalled()
++    err.mockRestore()
++  })
++
++  it('an empty selection cannot fire a removal — the whole bar is absent with nothing picked', async () => {
++    mockAssets([{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail()
++
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    expect(w.find('[data-test="mo-select-bar"]').exists()).toBe(false)
++    expect(w.find('[data-test="mo-remove-selected"]').exists()).toBe(false)
++    expect(svc.photos.excludeMomentAssets).not.toHaveBeenCalled()
++  })
++
++  // The removal button's own label and the picker's strings come from this task's new keys; a
++  // missing key would render the key name itself, which no other assertion here would catch.
++  it('renders Vue 2\'s own wording for the two new controls', async () => {
++    mockAssets([{ id: 'a1' }])
++    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
++    const { w } = await mountDetail('m1', 'zh_cn')
++
++    expect(w.find('[data-test="mo-add-photos"]').text()).toBe(zh.photosMoAddPhotos)
++    await w.find('[data-test="mo-select-toggle"]').trigger('click')
++    await w.find('[data-test="mo-all-tile"]').trigger('click')
++    expect(w.find('[data-test="mo-remove-selected"]').text()).toBe(zh.photosMoRemoveFromMoment)
++
++    await w.find('[data-test="mo-add-photos"]').trigger('click')
++    const picker = w.findComponent(AlbumLibraryPicker)
++    expect(picker.props('existingLabel')).toBe(zh.photosMoAlreadyIn)
++    expect(picker.props('submitLabel')).toBe(zh.photosMoAddSelected)
++    expect(picker.props('title')).toContain('Bozeman')
++  })
++})
+diff --git a/src/views/PhotosMomentDetail.vue b/src/views/PhotosMomentDetail.vue
+index a954b66..93eb289 100644
+--- a/src/views/PhotosMomentDetail.vue
++++ b/src/views/PhotosMomentDetail.vue
+@@ -67,35 +67,54 @@
+ //  7) The Select/Cancel button text reuses `photosPersonSelect`/`photosCancel` verbatim rather
+ //     than adding a fresh pair of keys for the same two words Vue 2 uses (`$t('Select')`/
+ //     `$t('Cancel')`) — same cross-file wording reuse as deviation 3's typeLabel ladder.
+ //  8) The pin badge's icon is the same outline pin path already used for the header's place
+ //     condition (`M12 21s7-6.3…`/`circle r=2.5`, scaled to r=2.2), not Vue 2's separate filled-
+ //     teardrop `<photos-icon name="pin">` glyph (PhotosIcon.vue:172-174) — one pin shape per
+ //     file rather than two, both render as the same recognisable map pin.
+ //  9) The selection bar (Vue 2 :127-130) renders only the "{n} selected" count here. The
+ //     "Remove from this moment" button beside it calls `excludeMomentAssets` — that request and
+ //     its toast are Task 9's bulk-removal wiring, not added yet.
++//     [T9 update: the removal button is now there, and so is Add photos + the library picker.
++//     Save as Album / the more menu / the delete confirmation are still Task 10, so the
++//     document.mousedown listener stays deferred.]
++//
++// Task 9 (add / remove photos) added three more:
++// 13) Vue 2 keeps its own `momentAssetCount` copy and emits `asset-count-changed` up to the list
++//     view after every write (:346-349,:370-372). Here both views read the same store entry and
++//     store.pin/exclude write the response's asset_count straight into it (moments.ts:239-257),
++//     so there is nothing to mirror and no event to port.
++// 14) The library picker's *title* reuses `photosAlbumPickerTitle` instead of getting a moment-
++//     specific key. Vue 2 feeds one and the same 'Add photos to {name}' string to both pickers
++//     (:144), so reuse is what reproduces it — the key's album-flavoured name is history from
++//     when this repo only had the album caller (the component itself carries the same note).
++// 15) Vue 2's picker closes itself by awaiting the parent's confirm handler; Vue 3's emit cannot
++//     return that promise, so this page closes the picker on success and leaves it open on
++//     failure — the same two outcomes the user saw before. See AlbumLibraryPicker.vue's header.
+ import { computed, onMounted, ref, watch } from 'vue'
+ import { useI18n } from 'vue-i18n'
+ import { useRoute, useRouter } from 'vue-router'
+ import { service } from '@nimotech/nimoos-service'
+ import AreaShell from '../components/shell/AreaShell.vue'
+ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
++import AlbumLibraryPicker from '../photos/components/AlbumLibraryPicker.vue'
+ import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
+ import { useLightbox } from '../photos/lightbox/useLightbox'
++import { useToast } from '../stores/toast'
+ import type { Photo } from '../photos/util/assetToPhoto'
+ 
+ const route = useRoute()
+ const router = useRouter()
+ const { t, locale } = useI18n()
+ const store = usePhotosMoments()
+ const lightbox = useLightbox()
++const toast = useToast()
+ 
+ /** The placeholder every empty key/value cell falls back to (Vue 2 used this same em dash
+  *  literal inline in five places). */
+ const DASH = '—'
+ 
+ const momentId = computed(() => String(route.params.id ?? ''))
+ const moment = computed(() => store.byId(momentId.value))
+ // The three no-content outcomes are mutually exclusive and all require `!moment`, so a moment
+ // we do hold is always rendered — even if a later list refresh failed underneath it.
+ const loadFailed = computed(() => store.listLoaded && !moment.value && store.listError)
+@@ -285,20 +304,76 @@ function toggleSelect(id: string): void {
+ }
+ // Vue2 :114-117: selection mode suppresses the lightbox — a tap either selects or opens,
+ // never both. `list` is whichever grid the tile came from (Featured or All), matching
+ // Vue2's own per-section list argument (:57/:71 pass `featuredAssets`/`allAssets`
+ // respectively) so paging through the lightbox from a Featured tile stays inside the
+ // Featured subset rather than jumping into the full list.
+ function onTileClick(p: Photo, list: Photo[]): void {
+   if (selecting.value) toggleSelect(String(p.id))
+   else lightbox.openAt(p, list)
+ }
++
++// ── SP15-P1-T9: add photos (pin) / remove photos (exclude) ────────────────────────────────
++// Ported from Vue2 :340-381. The two store calls throw where Vue 2's swallowed and toasted
++// internally (moments.ts file-header item 4), so the user-facing half lives here.
++const pickerOpen = ref(false)
++const pinning = ref(false)
++
++// Vue2 :202 memberIds — "already in" for the picker is the moment's full member list, which is
++// exactly what the All photos grid holds. String()-normalised because Photo.id is
++// `string | number` and the picker compares against String(timelinePhoto.id).
++const memberIds = computed(() => new Set(allAssets.value.map((p) => String(p.id))))
++
++async function onPickPhotos(ids: Array<string | number>): Promise<void> {
++  if (pinning.value) return
++  pinning.value = true
++  const assetIds = ids.map((id) => String(id))
++  try {
++    await store.pin(momentId.value, assetIds)
++    toast.show(t('photosMoAddedN', { n: assetIds.length }))
++    // Success closes the panel; a failure leaves it up with the selection intact so the same
++    // picked photos can be resubmitted (deviation 15).
++    pickerOpen.value = false
++    await load()
++  } catch (e) {
++    console.error('[photos-moments] pin', e)
++    toast.show(t('photosMoAddFailed'), 2500, 'danger')
++  } finally {
++    pinning.value = false
++  }
++}
++
++// Re-entrance guard: Vue 2 has none (:361), and double-clicking the button there fires two
++// concurrent excludes for the same ids. Not copied — this repo already made the same correction
++// on PhotosAlbumDetail.vue's `removing` flag (its review finding "Minor 6"), and the port
++// discipline is "the interface 1:1, the logic correct".
++const removing = ref(false)
++
++async function removeSelected(): Promise<void> {
++  const ids = selectedIds.value.slice()
++  if (!ids.length || removing.value) return
++  removing.value = true
++  try {
++    await store.exclude(momentId.value, ids)
++    toast.show(t('photosMoRemovedN', { n: ids.length }))
++    // Cleared on success only — Vue2 :386-387 does the same, and it matters: after a failure the
++    // user still has their selection and can press the button again.
++    selecting.value = false
++    selectedIds.value = []
++    await load()
++  } catch (e) {
++    console.error('[photos-moments] exclude', e)
++    toast.show(t('photosMoRemoveFailed'), 2500, 'danger')
++  } finally {
++    removing.value = false
++  }
++}
+ </script>
+ 
+ <template>
+   <AreaShell :title="moment ? moment.title : t('photosMoBackToAll')">
+     <div class="photos-layout">
+       <PhotosSidebar />
+       <main class="photos-main">
+         <!-- Gate 1: the list has not arrived yet (New-UI only — Vue 2 always had the object). -->
+         <div v-if="!store.listLoaded" class="mo-skeleton" data-test="mo-skeleton">
+           <div class="mo-skel-bar" />
+@@ -358,20 +433,31 @@ function onTileClick(p: Photo, list: Photo[]): void {
+                       {{ moment.place }}
+                     </span>
+                   </div>
+                   <div class="sv-header-stats">
+                     <span v-if="moment.subtitle">{{ moment.subtitle }}</span>
+                     <span><b>{{ fmtNum(momentAssetCount) }}</b> {{ t('photosSvPhotosCount') }}</span>
+                     <span v-if="moment.addedThisWeek > 0" class="mo-week-badge">{{ t('photosMoAddedThisWeek', { n: moment.addedThisWeek }) }}</span>
+                   </div>
+                 </div>
+                 <div class="sv-actions">
++                  <!-- Add photos (Vue 2 :26-28), disabled while the all-photos request is still
++                       in flight exactly as there — the picker's "already in" set is derived from
++                       that response, and opening early would offer photos the moment already
++                       has. -->
++                  <button
++                    type="button" class="sv-action-btn" data-test="mo-add-photos"
++                    :disabled="allLoading" @click="pickerOpen = true"
++                  >
++                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
++                    {{ t('photosMoAddPhotos') }}
++                  </button>
+                   <!-- Text reuses photosPersonSelect/photosCancel verbatim (same wording as
+                        Vue2's `selecting ? $t('Cancel') : $t('Select')`) rather than adding a
+                        fresh pair of keys for the same two words (deviation 7). -->
+                   <button
+                     type="button" class="sv-action-btn" data-test="mo-select-toggle"
+                     :data-open="selecting" @click="toggleSelecting"
+                   >
+                     <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l4 4L19 7" /></svg>
+                     {{ selecting ? t('photosCancel') : t('photosPersonSelect') }}
+                   </button>
+@@ -475,26 +561,43 @@ function onTileClick(p: Photo, list: Photo[]): void {
+                   />
+                 </div>
+                 <div class="sv-dist-x">
+                   <span>{{ monthBuckets[0].label }}</span>
+                   <span>{{ monthBuckets[monthBuckets.length - 1].label }}</span>
+                 </div>
+               </div>
+             </aside>
+           </div>
+ 
+-          <!-- Selection bar (Vue 2 :127-130). This task owns the visible count and the state
+-               it reads; the "Remove from this moment" button that sits beside it is Task 9's
+-               bulk-removal wiring, not added yet (deviation 9). -->
++          <!-- Selection bar (Vue 2 :122-125): the count plus the removal button. The bar as a
++               whole is absent with nothing selected, which is also why the button can never fire
++               an empty request. -->
+           <div v-if="selecting && selectedIds.length" class="sv-select-bar" data-test="mo-select-bar">
+             <span>{{ t('photosSelectedCount', { count: selectedIds.length }) }}</span>
++            <button
++              type="button" class="sv-action-btn" data-test="mo-remove-selected"
++              :disabled="removing" @click="removeSelected"
++            >{{ t('photosMoRemoveFromMoment') }}</button>
+           </div>
++
++          <!-- Library picker (Vue 2 :143-151). Title reuses photosAlbumPickerTitle — Vue 2 feeds
++               the same string to both pickers (deviation 14). The component is shared with the
++               album pages and was generalised for this in T9's Step 0. -->
++          <AlbumLibraryPicker
++            v-model:open="pickerOpen"
++            :title="t('photosAlbumPickerTitle', { name: moment.title })"
++            :existing-ids="memberIds"
++            :existing-label="t('photosMoAlreadyIn')"
++            :submit-label="t('photosMoAddSelected')"
++            :submitting="pinning"
++            @confirm="onPickPhotos"
++          />
+         </template>
+       </main>
+     </div>
+   </AreaShell>
+ </template>
+ 
+ <style scoped>
+ /* height (not min-height): this screen is capped and only the inner containers scroll — same
+    fix, and the same Vue 2 source, as the note at the matching rule in src/views/Photos.vue.
+    Registered in views/__tests__/photosLayoutHeightCap.test.ts under CAPPED. */
+diff --git a/src/views/__tests__/PhotosAlbumDetail.test.ts b/src/views/__tests__/PhotosAlbumDetail.test.ts
+index 9128044..fd1dae2 100644
+--- a/src/views/__tests__/PhotosAlbumDetail.test.ts
++++ b/src/views/__tests__/PhotosAlbumDetail.test.ts
+@@ -436,39 +436,73 @@ describe('PhotosAlbumDetail.vue', () => {
+     const { w } = await mountView('7')
+     const albums = usePhotosAlbums()
+     const coverSpy = vi.spyOn(albums, 'setAlbumCover')
+ 
+     await w.find('.tile').trigger('contextmenu')
+     await flushPromises()
+ 
+     expect(coverSpy).toHaveBeenCalledWith('7', 'a')
+   })
+ 
+-  it('点「添加照片」→ AlbumLibraryPicker open===true;其 @added → fetchAlbumAssets 被再调', async () => {
+-    const { w } = await mountView('7')
++  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album itself —
++  // it emits `confirm(ids)` and this page performs the write, the toast, the close and the
++  // refresh. Those four were previously asserted inside AlbumLibraryPicker.test.ts; they are
++  // asserted here now, at their new home, so nothing that moved lost its coverage.
++  it('点「添加照片」→ AlbumLibraryPicker open===true;其 @confirm → addAssetsToAlbum + 成功 toast + 关面板 + fetchAlbumAssets 再刷新', async () => {
++    const { w } = await mountView('7') // beforeEach 已把 7 号相册的名字设为 Trip
+     const albums = usePhotosAlbums()
+     const fetchSpy = vi.spyOn(albums, 'fetchAlbumAssets')
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
+ 
+     await w.find('[data-test="album-edit-toggle"]').trigger('click')
+     await w.vm.$nextTick()
+     await w.find('[data-test="album-add-photos"]').trigger('click')
+     await w.vm.$nextTick()
+ 
+     const picker = w.findComponent(AlbumLibraryPicker)
+     expect(picker.exists()).toBe(true)
+     expect(picker.props('open')).toBe(true)
+ 
+     fetchSpy.mockClear()
+-    picker.vm.$emit('added', 2)
+-    await w.vm.$nextTick()
++    picker.vm.$emit('confirm', ['x', 'y'])
++    await flushPromises()
+ 
++    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('7', ['x', 'y'])
+     expect(fetchSpy).toHaveBeenCalledWith('7')
++    // 成功 toast 带相册名与张数(与泛化前组件内部弹的是同一条 photosAlbumAddedToast)
++    const added = showSpy.mock.calls.map((c) => String(c[0]))
++    expect(added.some((m) => m.includes('Trip') && m.includes('2'))).toBe(true)
++    expect(picker.props('open')).toBe(false)
++  })
++
++  // 写失败:面板留着(用户的选择还在,可以直接重试)+ 失败 toast。同样是从组件里搬过来的行为。
++  it('@confirm 写库失败 → 失败 toast,面板保持 open', async () => {
++    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
++    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
++    const { w } = await mountView('7')
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    await w.find('[data-test="album-edit-toggle"]').trigger('click')
++    await w.vm.$nextTick()
++    await w.find('[data-test="album-add-photos"]').trigger('click')
++    await w.vm.$nextTick()
++
++    const picker = w.findComponent(AlbumLibraryPicker)
++    picker.vm.$emit('confirm', ['x'])
++    await flushPromises()
++
++    expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
++    expect(picker.props('open')).toBe(true)
++    expect(err).toHaveBeenCalled()
++    err.mockRestore()
+   })
+ 
+   it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
+     const { w } = await mountView('7')
+     expect(dragMock.refresh).toHaveBeenCalled()
+     const afterMount = dragMock.refresh.mock.calls.length
+ 
+     await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit: false->true
+     await w.vm.$nextTick()
+     expect(dragMock.refresh.mock.calls.length).toBeGreaterThan(afterMount)
+@@ -558,24 +592,27 @@ describe('PhotosAlbumDetail.vue', () => {
+     // 复现路径:空相册挂载(gridRef 只绑在 v-else 第三分支,骨架/空态两支都拿不到它)→ 进 edit
+     // (watch([edit,sortBy]) 触发过一次 refresh,但此刻 gridRef 仍是 null)→ 添加照片 →
+     // fetchAlbumAssets 回来资产非空 → 模板切到 v-else 分支、gridRef 才第一次有值 → 除非专门
+     // watch(gridRef),否则没有任何现有触发点会在这一刻再调 refresh(),Sortable 永远建不起来。
+     const { w } = await mountView('7')
+     expect(w.find('[data-test="album-empty"]').exists()).toBe(true)
+ 
+     await w.find('[data-test="album-edit-toggle"]').trigger('click')
+     await w.vm.$nextTick()
+ 
+-    svc.photos.getAlbum.mockResolvedValueOnce({ assets: [asset('a'), asset('b')] })
++    // T9 · Step 0: 走 @confirm 后这条路径会拉两次资产(store 的 addAssetsToAlbum 自己拉一次,
++    // 本页成功分支再拉一次刷新——泛化前也是这两次,只是第一次发生在组件内部),所以这里用
++    // mockResolvedValue 而不是 …Once,两次都得到同一批资产。
++    svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
+     dragMock.refresh.mockClear()
+     const picker = w.findComponent(AlbumLibraryPicker)
+-    picker.vm.$emit('added', 2)
++    picker.vm.$emit('confirm', ['a', 'b'])
+     await flushPromises()
+     await w.vm.$nextTick()
+ 
+     expect(w.findAll('.tile').filter((t) => !t.classes().includes('album-tile-skeleton'))).toHaveLength(2)
+     expect(dragMock.refresh).toHaveBeenCalled()
+   })
+ 
+   it('灯箱 delete → timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets 刷新', async () => {
+     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
+     const { w } = await mountView('7')
+diff --git a/src/views/__tests__/PhotosAlbums.test.ts b/src/views/__tests__/PhotosAlbums.test.ts
+index e014668..d331388 100644
+--- a/src/views/__tests__/PhotosAlbums.test.ts
++++ b/src/views/__tests__/PhotosAlbums.test.ts
+@@ -20,20 +20,21 @@ const svc = vi.hoisted(() => ({
+     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+     removeFromAlbum: vi.fn().mockResolvedValue(undefined),
+     reorderAlbumAssets: vi.fn().mockResolvedValue(undefined),
+     getTimeline: vi.fn().mockResolvedValue([]),
+     thumbnailUrl: vi.fn((id: string | number, size: string) => `mock://thumb/${id}/${size}`),
+   },
+ }))
+ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
+ 
+ import PhotosAlbums from '../PhotosAlbums.vue'
++import AlbumLibraryPicker from '../../photos/components/AlbumLibraryPicker.vue'
+ import { usePhotosAlbums } from '../../photos/stores/albums'
+ import { useTimelineStore } from '../../photos/stores/timeline'
+ import { useToast } from '../../stores/toast'
+ 
+ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+ 
+ function makeRouter() {
+   return createRouter({
+     history: createWebHashHistory('/app/'),
+     routes: [
+@@ -287,20 +288,80 @@ describe('PhotosAlbums.vue', () => {
+     await w.find('[data-test="source-select"]').trigger('click')
+     await w.vm.$nextTick()
+     await w.find('[data-test="albums-confirm-create"]').trigger('click')
+     await flushPromises()
+     await w.vm.$nextTick()
+ 
+     expect(svc.photos.getAlbum).toHaveBeenCalledWith('new1')
+     expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
+   })
+ 
++  // SP15-P1-T9 · Step 0: the picker was generalised and no longer writes to the album store
++  // itself — it emits `confirm(ids)` and this page performs the write, the success toast, the
++  // close and the fetchAlbums refresh that `@added` used to trigger. All four used to be
++  // asserted inside AlbumLibraryPicker.test.ts; they are asserted here now, at their new home.
++  it("source==='select' 挑完照片 → @confirm 触发 addAssetsToAlbum + 成功 toast + 关面板 + fetchAlbums 刷新", async () => {
++    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
++    const { w } = await mountView()
++    const albums = usePhotosAlbums()
++    const toast = useToast()
++    const showSpy = vi.spyOn(toast, 'show')
++
++    await w.find('[data-test="albums-new-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    await w.find('[data-test="albums-name-input"]').setValue('Picked')
++    await w.find('[data-test="source-select"]').trigger('click')
++    await w.vm.$nextTick()
++    await w.find('[data-test="albums-confirm-create"]').trigger('click')
++    await flushPromises()
++
++    const fetchAlbumsSpy = vi.spyOn(albums, 'fetchAlbums')
++    const picker = w.findComponent(AlbumLibraryPicker)
++    picker.vm.$emit('confirm', ['p1', 'p2'])
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith('new1', ['p1', 'p2'])
++    // 成功 toast 带相册名与张数(与泛化前组件内部弹的是同一条 photosAlbumAddedToast)
++    const shown = showSpy.mock.calls.map((c) => String(c[0]))
++    expect(shown.some((m) => m.includes('Picked') && m.includes('2'))).toBe(true)
++    expect(fetchAlbumsSpy).toHaveBeenCalled()
++    expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(false)
++  })
++
++  // 写失败:失败 toast + 面板留着(用户的选择还在,可以直接重试)。同样是从组件里搬过来的行为。
++  it("source==='select' 挑完照片写库失败 → 失败 toast,面板保持打开", async () => {
++    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
++    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
++    svc.photos.batchAddToAlbum.mockRejectedValueOnce(new Error('boom'))
++    const { w } = await mountView()
++    const toast = useToast()
++
++    await w.find('[data-test="albums-new-btn"]').trigger('click')
++    await w.vm.$nextTick()
++    await w.find('[data-test="albums-name-input"]').setValue('Picked')
++    await w.find('[data-test="source-select"]').trigger('click')
++    await w.vm.$nextTick()
++    await w.find('[data-test="albums-confirm-create"]').trigger('click')
++    await flushPromises()
++
++    const showSpy = vi.spyOn(toast, 'show')
++    w.findComponent(AlbumLibraryPicker).vm.$emit('confirm', ['p1'])
++    await flushPromises()
++    await w.vm.$nextTick()
++
++    expect(showSpy).toHaveBeenCalledWith(zh.photosAlbumAddFailed)
++    expect(w.find('[data-test="lib-picker-overlay"]').exists()).toBe(true)
++    expect(err).toHaveBeenCalled()
++    err.mockRestore()
++  })
++
+   it('createAlbum 抛 409 → 渲染重名 toast,模态关闭(照 Vue2 finally 语义)', async () => {
+     const err = Object.assign(new Error('conflict'), { response: { status: 409 } })
+     svc.photos.createAlbum.mockRejectedValue(err)
+     const { w } = await mountView()
+     const toast = useToast()
+     const showSpy = vi.spyOn(toast, 'show')
+ 
+     await w.find('[data-test="albums-new-btn"]').trigger('click')
+     await w.vm.$nextTick()
+     await w.find('[data-test="albums-name-input"]').setValue('Dup')

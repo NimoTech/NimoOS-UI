@@ -10,7 +10,7 @@
 //    and the selection action bar moved out of this component entirely — it
 //    now lives in the parent as PhotosSelectionToolbar.vue, so this component
 //    no longer emits batch-delete/cancel.
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
@@ -416,5 +416,414 @@ describe('PhotosGrid', () => {
       expect(stars[0].attributes('aria-label')).toBe('取消收藏')
       expect(stars[1].attributes('aria-label')).toBe('收藏')
     })
+  })
+})
+
+function bucketMonth(key: string, title: string, count: number, videoCount = 0): Month {
+  return { key, title, loc: '', photos: [], loaded: false, count, videoCount }
+}
+
+describe('PhotosGrid bucket-mode skeletons', () => {
+  it('renders a sized skeleton for an unloaded month instead of the empty state', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(false)
+    const sk = w.find('[data-test="month-skeleton"]')
+    expect(sk.exists()).toBe(true)
+    expect(Number.parseFloat(sk.attributes('style')?.match(/height:\s*([\d.]+)px/)?.[1] ?? '0')).toBeGreaterThan(0)
+  })
+
+  it('keeps the month head visible on a skeleton, with the estimated count', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('.month-title').text()).toBe('August 2026')
+    // photo tab estimate = count - videoCount = 9
+    expect(w.find('.month-count').text()).toContain('9')
+  })
+
+  it('renders the month container so jump anchors exist before anything loads', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('#m-2026-08').exists()).toBe(true)
+  })
+
+  it('keeps the scrubber visible while every month is still a skeleton', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [bucketMonth('2026-08', 'August 2026', 12), bucketMonth('2026-07', 'July 2026', 4)], tab: 'photo' },
+    })
+    await nextTick()
+    expect(w.find('.scrubber').exists()).toBe(true)
+    expect(w.findAll('.scrubber-tick').length).toBeGreaterThan(0)
+  })
+
+  // Whole-branch review, Important 6: this used to assert the opposite — no
+  // container and the "No photos" empty state — which is the defect, not a
+  // limitation: with no container there is nothing for the observer to watch, so
+  // `need-bucket` was never emitted and the tab claimed the library had no
+  // documents forever (reachable on first paint via ?tab=ocr). The directory
+  // still cannot count OCR items, so the head prints no count and the body is a
+  // one-row stand-in (spec §5.4, reworded to match).
+  it('keeps an unloaded month on the ocr tab loadable, with no invented count', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'ocr' } })
+    await nextTick()
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(false)
+    expect(w.find('#m-2026-08').exists()).toBe(true)
+    expect(w.find('.month-title').text()).toBe('August 2026')
+    // No OCR counter exists, so no count is printed at all — "0 items" would be a
+    // guess dressed up as a fact.
+    expect(w.find('.month-count').exists()).toBe(false)
+    const sk = w.find('[data-test="month-skeleton"]')
+    expect(sk.exists()).toBe(true)
+    expect(Number.parseFloat(sk.attributes('style')?.match(/height:\s*([\d.]+)px/)?.[1] ?? '0')).toBeGreaterThan(0)
+  })
+
+  it('drops the month again once it is loaded and really has nothing for the ocr tab', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12, 3)], tab: 'ocr' } })
+    await nextTick()
+    // The bucket arrives and holds no documents: the container was only ever a
+    // loading vehicle, so the tab is now honestly empty.
+    await w.setProps({
+      months: [{
+        key: '2026-08', title: 'August 2026', loc: '',
+        photos: [photo('a1')], loaded: true, count: 1, videoCount: 0,
+      }],
+    })
+    await nextTick()
+    expect(w.find('#m-2026-08').exists()).toBe(false)
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
+  })
+
+  it('still shows the empty state when there are no months at all', async () => {
+    const w = mount(PhotosGrid, { props: { months: [], tab: 'photo' } })
+    await nextTick()
+    expect(w.find('[data-test="empty-state"]').exists()).toBe(true)
+  })
+
+  it('renders real tiles once a month is loaded', async () => {
+    const m: Month = { key: '2026-08', title: 'August 2026', loc: '', photos: [photo('a1')], loaded: true, count: 1, videoCount: 0 }
+    const w = mount(PhotosGrid, { props: { months: [m], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+
+  it('leaves legacy month groups (no loaded field) rendering exactly as before', async () => {
+    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+
+  // SP15-P3-T8: the tick's disabled state must come from the SAME array the
+  // template renders month containers from (filteredMonths), not the raw
+  // props.months — otherwise a month hidden by the current tab still gets a
+  // clickable tick that jumps nowhere.
+  //
+  // Two months are needed: the hidden one contributes no container, so with only
+  // that one the scrubber's own v-if would remove the whole block and there would
+  // be no ticks to assert on. matchesTab requires `hasOcr: true` for the literal
+  // 'ocr' tab, so the "has content on this tab" month must carry it — a plain
+  // photo would NOT match under 'ocr', leaving both months contentless and the
+  // scrubber unmounted.
+  //
+  // The hidden month has to be a LOADED one whose assets simply do not match the
+  // tab. An *unloaded* month is no longer hidden on the ocr tab (whole-branch
+  // review, Important 6: its container is what drives the load), so it would no
+  // longer be a hidden month at all and this test would be asserting nothing.
+  it('disables the tick of a month the current tab hides', async () => {
+    const ocrMonth: Month = {
+      key: '2026-09', title: 'September 2026', loc: '',
+      photos: [photo('d1', { hasOcr: true })], loaded: true, count: 1, videoCount: 0,
+    }
+    const hiddenMonth: Month = {
+      key: '2026-08', title: 'August 2026', loc: '',
+      photos: [photo('a1')], loaded: true, count: 1, videoCount: 0,
+    }
+    const w = mount(PhotosGrid, {
+      props: { months: [ocrMonth, hiddenMonth], tab: 'ocr' },
+    })
+    await nextTick()
+    const tick = w.findAll('.scrubber-tick').find((t) => t.attributes('data-major') !== 'true' && t.text() === 'Aug')
+    expect(tick?.attributes('data-disabled')).toBe('true')
+  })
+})
+
+class FakeIO {
+  static instances: FakeIO[] = []
+  cb: IntersectionObserverCallback
+  targets: Element[] = []
+  constructor(cb: IntersectionObserverCallback) { this.cb = cb; FakeIO.instances.push(this) }
+  observe(el: Element) { this.targets.push(el) }
+  unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el) }
+  disconnect() { this.targets = [] }
+  takeRecords(): IntersectionObserverEntry[] { return [] }
+  fire(el: Element, isIntersecting: boolean) {
+    this.cb(
+      [{ target: el, isIntersecting } as unknown as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    )
+  }
+  // A browser only ever notifies about elements that are actually being observed.
+  // Tests about *registration* must go through this rather than fire(), or they
+  // would prove nothing: fire() delivers a notification for an element the real
+  // observer would never have reported on.
+  fireIfObserved(el: Element, isIntersecting: boolean) {
+    if (!this.targets.includes(el)) return
+    this.fire(el, isIntersecting)
+  }
+}
+
+describe('PhotosGrid windowing', () => {
+  beforeEach(() => {
+    FakeIO.instances = []
+    ;(globalThis as unknown as { IntersectionObserver: unknown }).IntersectionObserver = FakeIO
+  })
+  afterEach(() => {
+    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
+    vi.restoreAllMocks()
+  })
+
+  const loadedMonth = (key: string, ids: string[]): Month => ({
+    key, title: key, loc: '', photos: ids.map((id) => photo(id)), loaded: true, count: ids.length, videoCount: 0,
+  })
+
+  // jsdom has no layout engine — offsetHeight is 0 for every element. These tests
+  // are about WHICH element gets measured, so a constant stub would prove nothing
+  // (it answers the same for the group and for its body). This models the real box
+  // tree instead: a `.month-group` is its head plus whichever body is currently
+  // mounted, and that body is either the tiles or the placeholder that replaced
+  // them. It is the only way to see the double-count and the ratchet from jsdom.
+  const HEAD_H = 32
+  const GRID_H = 321
+  function installLayoutModel() {
+    return vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      if (this.classList.contains('grid')) return GRID_H
+      if (this.classList.contains('month-placeholder')) return Number.parseFloat(this.style.height) || 0
+      if (this.classList.contains('month-skeleton')) return Number.parseFloat(this.style.height) || 0
+      if (this.classList.contains('month-group')) {
+        const body = this.querySelector('.grid, .month-placeholder, .month-skeleton') as HTMLElement | null
+        return HEAD_H + (body ? body.offsetHeight : 0)
+      }
+      return 0
+    })
+  }
+  function placeholderPx(w: ReturnType<typeof mount>): number {
+    const ph = w.find('[data-test="month-placeholder"]')
+    expect(ph.exists()).toBe(true)
+    return Number.parseFloat(ph.attributes('style')?.match(/height:\s*([\d.]+)px/)?.[1] ?? '0')
+  }
+
+  it('observes every month container', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
+    await nextTick()
+    expect(FakeIO.instances[0].targets).toHaveLength(2)
+  })
+
+  it('asks for a bucket when an unloaded month enters the window', async () => {
+    const w = mount(PhotosGrid, { props: { months: [bucketMonth('2026-08', 'August 2026', 12)], tab: 'photo' } })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')?.[0]).toEqual(['2026-08'])
+  })
+
+  it('never asks for a bucket for a group that has no bucket at all', async () => {
+    // Favorites and place-assets feed synthetic groups: loaded is undefined.
+    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+    await nextTick()
+    FakeIO.instances[0].fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')).toBeUndefined()
+  })
+
+  // Whole-branch review, Important 3: the height must be the BODY's, not the
+  // `.month-group`'s. The group includes `.month-head`, while the height is
+  // applied to `.month-placeholder` — a sibling of the head — so measuring the
+  // group made every collapsed section a head taller than it was hydrated. This
+  // used to assert `toContain('321px')` against a stub that answered 321 for the
+  // group itself, which could not tell the two apart.
+  it('sizes the placeholder from the section body, not the group (the head is not part of it)', async () => {
+    installLayoutModel()
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' } })
+    await nextTick()
+    const el = w.find('#m-2026-08').element as HTMLElement
+    const io = FakeIO.instances[0]
+    io.fire(el, true)
+    await nextTick()
+    io.fire(el, false)
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(0)
+    // Exactly the body height. The group measures HEAD_H + GRID_H = 353, which is
+    // what the bug stored.
+    expect(placeholderPx(w)).toBe(GRID_H)
+  })
+
+  // Same finding, second half: the leave branch had no "was it hydrated?" guard,
+  // and syncObserver disconnect()s + re-observe()s, which makes the browser
+  // re-deliver `isIntersecting: false` for sections that are ALREADY collapsed.
+  // Each such notification re-measured the group — head + placeholder — and stored
+  // it, so every re-sync added another head. Fixing Critical 1 adds re-syncs, so
+  // without this the scrollbar would creep on every tab change.
+  it('does not grow the stored height when an already-collapsed section is notified again', async () => {
+    installLayoutModel()
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' } })
+    await nextTick()
+    const el = w.find('#m-2026-08').element as HTMLElement
+    const io = FakeIO.instances[0]
+    io.fire(el, true); await nextTick()
+    io.fire(el, false); await nextTick()
+    const first = placeholderPx(w)
+    expect(first).toBe(GRID_H)
+    // The section is already collapsed; a re-sync re-notifies it.
+    io.fire(el, false); await nextTick()
+    expect(placeholderPx(w)).toBe(first)
+    // And again — the bug grew by a head every single time (321 -> 353 -> 385).
+    io.fire(el, false); await nextTick()
+    expect(placeholderPx(w)).toBe(first)
+  })
+
+  it('renders tiles again when the month comes back into the window', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    const el = w.find('#m-2026-08').element as HTMLElement
+    const io = FakeIO.instances[0]
+    io.fire(el, true); await nextTick()
+    io.fire(el, false); await nextTick()
+    io.fire(el, true); await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(1)
+  })
+
+  it('renders everything when IntersectionObserver is missing', async () => {
+    delete (globalThis as unknown as { IntersectionObserver?: unknown }).IntersectionObserver
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1']), loadedMonth('2026-07', ['a2'])], tab: 'photo' } })
+    await nextTick()
+    expect(w.findAll('.tile')).toHaveLength(2)
+    expect(w.find('[data-test="month-placeholder"]').exists()).toBe(false)
+  })
+
+  it('disconnects the observer on unmount', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    w.unmount()
+    expect(io.targets).toHaveLength(0)
+  })
+
+  it('observes a month that appears after a directory refresh', async () => {
+    const w = mount(PhotosGrid, { props: { months: [loadedMonth('2026-08', ['a1'])], tab: 'photo' } })
+    await nextTick()
+    await w.setProps({ months: [loadedMonth('2026-08', ['a1']), bucketMonth('2026-07', 'July 2026', 4)] })
+    await nextTick()
+    expect(FakeIO.instances[0].targets).toHaveLength(2)
+  })
+
+  // Whole-branch review, minor 9: windowing must not be armed before the first
+  // notification. It used to be switched on in onMounted while activeKeys was
+  // still empty, so consumers that already hold every photo (favorites,
+  // place-assets) painted a grey shimmer over photos they could have shown
+  // immediately, until the observer's first callback landed a frame later.
+  it('paints the photos it already holds before the first notification arrives', async () => {
+    const w = mount(PhotosGrid, { props: { months: [month('2026-08', 'August 2026', [photo('a1')])], tab: 'photo' } })
+    await nextTick()
+    expect(FakeIO.instances[0].targets).toHaveLength(1) // the observer IS installed
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('[data-test="month-skeleton"]').exists()).toBe(false)
+  })
+
+  // Whole-branch review, Critical 1: which containers exist is tab-dependent
+  // (hasContent -> skeletonItemCount reads the tab), but the month list is not.
+  // The observer was re-synced from a watch over every month key, so a tab round
+  // trip — every videoCount:0 month unmounts on 'video', brand-new elements mount
+  // on the way back — left the new elements unobserved forever. `need-bucket` is
+  // only ever emitted for a month inside the window, so those months stayed
+  // skeletons until a page reload.
+  it('re-registers the containers a tab round trip recreated', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [bucketMonth('2026-08', 'August 2026', 12, 0)], tab: 'photo' },
+    })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fireIfObserved(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')).toHaveLength(1)
+
+    // videoCount is 0, so the 'video' tab hides the month entirely and unmounts
+    // its container.
+    await w.setProps({ tab: 'video' })
+    await nextTick(); await nextTick()
+    expect(w.find('#m-2026-08').exists()).toBe(false)
+
+    // Back to photos: Vue mounts a fresh element for it.
+    await w.setProps({ tab: 'photo' })
+    await nextTick(); await nextTick()
+    const back = w.find('#m-2026-08')
+    expect(back.exists()).toBe(true)
+    io.fireIfObserved(back.element, true)
+    await nextTick()
+    // Before the fix the fresh element was never observed, so no browser would
+    // ever have notified about it and this month could not load again.
+    expect(io.targets).toContain(back.element)
+    expect((w.emitted('need-bucket') ?? []).length).toBeGreaterThan(1)
+  })
+
+  // Whole-branch review, Important 2 / path A (the upload flow): a write patches
+  // the directory while the month is on screen, its cache is invalidated, and the
+  // tiles the user is looking at are replaced by a shimmer. No intersection
+  // boundary is crossed, so an enter-only emit never re-requested — the shimmer
+  // stayed until the user scrolled two viewports away and back.
+  it('re-requests a month whose cache was invalidated while it was on screen', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [loadedMonth('2026-08', ['a1', 'a2'])], tab: 'photo' },
+    })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect(w.emitted('need-bucket')).toBeUndefined() // it was loaded: nothing to ask for
+
+    // The 5s index poll saw `indexed` grow, refreshBuckets found August's count
+    // changed and dropped its cache: same month, same position, now unloaded.
+    await w.setProps({ months: [bucketMonth('2026-08', 'August 2026', 13, 0)] })
+    await nextTick()
+    expect(w.emitted('need-bucket')?.[0]).toEqual(['2026-08'])
+  })
+
+  // Same finding, path B: the fetch failed while the month was on screen, so
+  // there is no "scroll back to it" to retry on (the store's own comment claimed
+  // there was). Any later windowing notification — a neighbour entering, a
+  // re-sync, a repeated "still intersecting" — must re-evaluate the pending set.
+  it('re-requests a month whose fetch failed and never left the window', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [bucketMonth('2026-08', 'August 2026', 12, 0), bucketMonth('2026-07', 'July 2026', 4, 0)], tab: 'photo' },
+    })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fire(w.find('#m-2026-08').element, true)
+    await nextTick()
+    expect((w.emitted('need-bucket') ?? []).flat()).toEqual(['2026-08'])
+
+    // The request failed: the store holds nothing for August and the month is
+    // still exactly where it was. July then scrolls into the window.
+    io.fire(w.find('#m-2026-07').element, true)
+    await nextTick()
+    const asked = (w.emitted('need-bucket') ?? []).flat()
+    expect(asked.filter((k) => k === '2026-08').length).toBeGreaterThan(1)
+    expect(asked).toContain('2026-07')
+  })
+
+  it('never re-requests a month that is out of the window', async () => {
+    const w = mount(PhotosGrid, {
+      props: { months: [bucketMonth('2026-08', 'August 2026', 12, 0), bucketMonth('2026-07', 'July 2026', 4, 0)], tab: 'photo' },
+    })
+    await nextTick()
+    const io = FakeIO.instances[0]
+    io.fire(w.find('#m-2026-07').element, true)
+    await nextTick()
+    // A directory refresh must not turn into a request for every month in the
+    // library — only the ones actually near the viewport.
+    await w.setProps({ months: [bucketMonth('2026-08', 'August 2026', 13, 0), bucketMonth('2026-07', 'July 2026', 4, 0)] })
+    await nextTick()
+    expect((w.emitted('need-bucket') ?? []).flat()).not.toContain('2026-08')
   })
 })

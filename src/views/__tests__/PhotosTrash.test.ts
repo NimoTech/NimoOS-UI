@@ -233,4 +233,181 @@ describe('PhotosTrash.vue', () => {
     expect(w.find('.trash-bulk-bar').exists()).toBe(true)
     expect(w.find('.trash-tile').attributes('data-selected')).toBe('true')
   })
+
+  // Task 12 (SP15-P3): while pages remain, the freeable-size figure is only a sum over the
+  // loaded subset — the empty-trash confirmation must not present it as the whole truth.
+  const fullPage = () => Array.from({ length: 500 }, (_, i) => asset(`p${i}`, '2026-06-30T00:00:00Z'))
+
+  it('uses the size-less empty copy while pages remain', async () => {
+    // Task 12 fix round 2: emptyTrash() now pages in the rest before opening the confirm —
+    // this test's mock must let that attempt get stuck (not simply keep returning full pages
+    // forever, which would loop until trashExhausted flips true and never show the partial
+    // copy at all). See "empty-trash when a page gets stuck…" below for the fuller scenario.
+    svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch
+    svc.photos.listTrash.mockRejectedValueOnce(new Error('network')) // stuck load-more page
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const w = await mountView()
+    const trash = usePhotosTrash()
+    expect(trash.trashExhausted).toBe(false)
+
+    await w.find('[data-test="trash-empty-btn"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const body = w.find('.trash-modal-body').text()
+    expect(body).toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+    expect(body).not.toMatch(/MB/)
+    spy.mockRestore()
+  })
+
+  it('uses the exact copy with the freed size once everything is loaded', async () => {
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w = await mountView()
+    const trash = usePhotosTrash()
+    expect(trash.trashExhausted).toBe(true)
+
+    await w.find('[data-test="trash-empty-btn"]').trigger('click')
+    await w.vm.$nextTick()
+
+    const body = w.find('.trash-modal-body').text()
+    expect(body).toContain('MB')
+    expect(body).not.toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+  })
+
+  it('shows the load-more button only while pages remain', async () => {
+    svc.photos.listTrash.mockResolvedValue(fullPage())
+    const w = await mountView()
+    expect(w.find('[data-test="trash-load-more"]').exists()).toBe(true)
+    expect(w.find('[data-test="trash-loaded-hint"]').exists()).toBe(true)
+
+    svc.photos.listTrash.mockResolvedValue([asset('a', '2026-06-30T00:00:00Z')])
+    const w2 = await mountView()
+    expect(w2.find('[data-test="trash-load-more"]').exists()).toBe(false)
+    expect(w2.find('[data-test="trash-loaded-hint"]').exists()).toBe(false)
+  })
+
+  // Task 12 fix round 2 (Important 1 & 2, coordinator review): both bulk hero actions
+  // (restore all / empty trash) act on the ENTIRE trash server-side, not just the loaded
+  // page — the confirm dialogs and undo must page in the rest first rather than understate
+  // what will actually happen.
+  describe('bulk hero actions page in the rest before acting (Task 12 fix round 2)', () => {
+    it('empty-trash with pages remaining pages in the rest first and then quotes the full count and size', async () => {
+      const rest = [asset('extra1', '2026-06-30T00:00:00Z'), asset('extra2', '2026-06-30T00:00:00Z')]
+      svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch: page one, 500 rows
+      svc.photos.listTrash.mockResolvedValueOnce(rest) // load-more triggered by the click below
+      const w = await mountView()
+      const trash = usePhotosTrash()
+      expect(trash.trashExhausted).toBe(false)
+
+      await w.find('[data-test="trash-empty-btn"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(trash.trashExhausted).toBe(true)
+      expect(trash.items).toHaveLength(502)
+      expect(svc.photos.listTrash).toHaveBeenLastCalledWith(500, 500)
+
+      const title = w.find('.trash-modal-title').text()
+      expect(title).toContain('502')
+      const body = w.find('.trash-modal-body').text()
+      expect(body).toContain('MB')
+      expect(body).not.toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+    })
+
+    it('empty-trash when a page gets stuck shows the count-less/size-less copy and still lets the action proceed', async () => {
+      svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch
+      svc.photos.listTrash.mockRejectedValueOnce(new Error('network')) // stuck load-more page
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const w = await mountView()
+      const trash = usePhotosTrash()
+      expect(trash.trashExhausted).toBe(false)
+
+      await w.find('[data-test="trash-empty-btn"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      // Still stuck: the failed page must not have been silently treated as "done".
+      expect(trash.trashExhausted).toBe(false)
+      expect(w.find('.trash-modal-scrim').exists()).toBe(true) // action still proceeds
+
+      const title = w.find('.trash-modal-title').text()
+      expect(title).toBe('清空最近删除') // bare action-label title, no invented/stale count
+      const body = w.find('.trash-modal-body').text()
+      expect(body).toBe('这将释放 NAS 上的空间，原始文件将无法恢复。')
+
+      // Confirming still works even though the true count/size is unknown.
+      svc.photos.listTrash.mockResolvedValueOnce([]) // fetchTrash() re-fetch after empty()
+      await w.find('.trash-btn-cta').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(svc.photos.emptyTrash).toHaveBeenCalledTimes(1)
+      const toastEl = w.find('.toast')
+      expect(toastEl.exists()).toBe(true)
+      expect(toastEl.text()).toBe('最近删除已清空')
+      spy.mockRestore()
+    })
+
+    it('restore-all with pages remaining restores and offers an Undo whose id set covers everything that was restored', async () => {
+      const rest = [asset('extra1', '2026-06-30T00:00:00Z')]
+      svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch
+      svc.photos.listTrash.mockResolvedValueOnce(rest) // load-more triggered by the click below
+      const w = await mountView()
+      const trash = usePhotosTrash()
+      const restoreAllSpy = vi.spyOn(trash, 'restoreAll')
+      const undoSpy = vi.spyOn(trash, 'undoRestore')
+
+      await w.find('[data-test="trash-restore-all"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(trash.trashExhausted).toBe(true)
+      expect(trash.items).toHaveLength(501)
+      const title = w.find('.trash-modal-title').text()
+      expect(title).toContain('501')
+
+      svc.photos.listTrash.mockResolvedValueOnce([]) // fetchTrash() re-fetch after restoreAll()
+      await w.find('.trash-btn-cta').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(restoreAllSpy).toHaveBeenCalledTimes(1)
+      const undoBtn = w.get('.toast-action')
+      expect(undoBtn.text()).toBe('撤销')
+
+      await undoBtn.trigger('click')
+      await flushPromises()
+      expect(undoSpy).toHaveBeenCalledTimes(1)
+      // The id set handed to undo must cover every restored item, not just the first page.
+      expect(undoSpy.mock.calls[0][0]).toHaveLength(501)
+    })
+
+    it('restore-all when a page gets stuck offers no Undo action', async () => {
+      svc.photos.listTrash.mockResolvedValueOnce(fullPage()) // initial mount fetch
+      svc.photos.listTrash.mockRejectedValueOnce(new Error('network')) // stuck load-more page
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const w = await mountView()
+      const trash = usePhotosTrash()
+
+      await w.find('[data-test="trash-restore-all"]').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(trash.trashExhausted).toBe(false)
+      const title = w.find('.trash-modal-title').text()
+      expect(title).toBe('恢复全部') // bare action-label title, no invented/stale count
+
+      svc.photos.listTrash.mockResolvedValueOnce([]) // fetchTrash() re-fetch after restoreAll()
+      await w.find('.trash-btn-cta').trigger('click')
+      await flushPromises()
+      await w.vm.$nextTick()
+
+      expect(svc.photos.restoreAllTrash).toHaveBeenCalledTimes(1)
+      // No Undo action offered — the loaded id set here would only be a partial subset of
+      // what restoreAllTrash() actually restored server-side, so offering Undo would let the
+      // user silently revert part of it while the rest stays restored with no path back.
+      expect(w.find('.toast-action').exists()).toBe(false)
+      spy.mockRestore()
+    })
+  })
 })

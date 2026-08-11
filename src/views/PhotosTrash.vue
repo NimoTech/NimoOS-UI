@@ -105,6 +105,29 @@ async function onUndo() {
   await trash.undoRestore(ids)
 }
 
+// Task 12 fix round 2 (Important 1 & 2, coordinator review): service.photos.emptyTrash() and
+// restoreAllTrash() both act on the ENTIRE trash server-side regardless of what has loaded
+// client-side. With more than TRASH_PAGE_SIZE items — the exact case Task 12 exists for —
+// the confirm dialogs understated what would actually happen, and restore-all's Undo
+// silently reverted only the loaded subset while the rest stayed restored with no path back.
+// Page in everything before either bulk action decides what to say / which ids the (optional)
+// undo covers — same shape as loadRemainingFavoritesForSave in PhotosFavorites.vue: progress
+// is detected by list-length growth, so a stuck page (e.g. a network failure mid-page) is
+// caught without the store exposing its private offset.
+async function loadRemainingTrashForBulkAction(): Promise<void> {
+  while (!trash.trashExhausted) {
+    const before = trash.items.length
+    await trash.loadMoreTrash()
+    const after = trash.items.length
+    if (after === before) return // stuck: the page failed, stop spinning
+  }
+}
+
+// Guards both hero actions (not the store's own loadMoreTrash ownership) so the button isn't
+// a dead click during the paging-in-the-rest step above, and so the two bulk actions can't
+// race each other.
+const preparingBulkAction = ref(false)
+
 // 恢复选中:Vue2 无二次确认,直接执行(restoreSelected :190)——本视图同样跳过 confirm。
 async function restoreSelected() {
   const ids = [...selected.value]
@@ -150,49 +173,82 @@ function deleteSelected() {
   })
 }
 
-function restoreAll() {
-  if (!trash.items.length) return
-  const count = trash.items.length
-  askConfirm({
-    title: t('photosTrashRestoreAllTitle', { count }),
-    body: t('photosTrashRestoreAllBody'),
-    ctaLabel: t('photosTrashRestoreAll'),
-    danger: false,
-    onConfirm: async () => {
-      const ids = trash.items.map((p) => p.id)
-      try {
-        await trash.restoreAll()
-        undoIds = ids
-        toast.show(t('photosTrashRestoredToast', { count }), 4500, {
-          label: t('photosTrashUndo'),
-          onClick: onUndo,
-        })
-      } catch {
-        toast.show(t('photosTrashRestoreFailed'), 4500)
-      }
-    },
-  })
+async function restoreAll() {
+  if (!trash.items.length || preparingBulkAction.value) return
+  preparingBulkAction.value = true
+  try {
+    if (!trash.trashExhausted) await loadRemainingTrashForBulkAction()
+    // Captured AFTER the paging attempt (not before), so the confirm title, the ids handed to
+    // Undo, and the success toast all agree with what actually happened rather than with the
+    // state at click time.
+    const exact = trash.trashExhausted
+    const count = trash.items.length
+    askConfirm({
+      // Task 12 fix round 2: when paging got stuck we still do not know the true count, so
+      // the title must not quote one — reuse the bare action-label key already on the hero
+      // button (no fitting count-less title existed, so this avoids inventing new copy).
+      title: exact ? t('photosTrashRestoreAllTitle', { count }) : t('photosTrashRestoreAll'),
+      body: t('photosTrashRestoreAllBody'),
+      ctaLabel: t('photosTrashRestoreAll'),
+      danger: false,
+      onConfirm: async () => {
+        const ids = trash.items.map((p) => p.id)
+        try {
+          await trash.restoreAll()
+          if (exact) {
+            undoIds = ids
+            toast.show(t('photosTrashRestoredToast', { count }), 4500, {
+              label: t('photosTrashUndo'),
+              onClick: onUndo,
+            })
+          } else {
+            // Task 12 fix round 2 (Important 2): restoreAllTrash() restores EVERYTHING
+            // server-side regardless of what loaded client-side. If paging got stuck, `ids`
+            // here is only a subset — offering Undo would let the user silently revert part
+            // of what was restored while the rest stays restored with no path back. Omit the
+            // Undo action entirely rather than offer one known to be partial.
+            undoIds = null
+            toast.show(t('photosTrashRestoredToast', { count }), 4500)
+          }
+        } catch {
+          toast.show(t('photosTrashRestoreFailed'), 4500)
+        }
+      },
+    })
+  } finally {
+    preparingBulkAction.value = false
+  }
 }
 
-function emptyTrash() {
-  if (!trash.items.length) return
-  const count = trash.items.length
-  const size = totalSize.value
-  askConfirm({
-    title: t('photosTrashEmptyTitle2', { count }),
-    body: t('photosTrashEmptyBody', { size }),
-    ctaLabel: t('photosTrashEmpty'),
-    danger: true,
-    onConfirm: async () => {
-      undoIds = null
-      try {
-        await trash.empty()
-        toast.show(t('photosTrashEmptiedToast', { size }), 4500)
-      } catch {
-        toast.show(t('photosTrashEmptyFailed'), 4500)
-      }
-    },
-  })
+async function emptyTrash() {
+  if (!trash.items.length || preparingBulkAction.value) return
+  preparingBulkAction.value = true
+  try {
+    if (!trash.trashExhausted) await loadRemainingTrashForBulkAction()
+    // Captured AFTER the paging attempt (not before) — this is what keeps the confirm body
+    // and the toast in agreement with what actually happened.
+    const exact = trash.trashExhausted
+    const count = trash.items.length
+    const size = totalSize.value
+    askConfirm({
+      // Task 12 fix round 2: same reasoning as restoreAll's title above.
+      title: exact ? t('photosTrashEmptyTitle2', { count }) : t('photosTrashEmpty'),
+      body: exact ? t('photosTrashEmptyBody', { size }) : t('photosTrashEmptyBodyPartial'),
+      ctaLabel: t('photosTrashEmpty'),
+      danger: true,
+      onConfirm: async () => {
+        undoIds = null
+        try {
+          await trash.empty()
+          toast.show(exact ? t('photosTrashEmptiedToast', { size }) : t('photosTrashEmptiedToastPartial'), 4500)
+        } catch {
+          toast.show(t('photosTrashEmptyFailed'), 4500)
+        }
+      },
+    })
+  } finally {
+    preparingBulkAction.value = false
+  }
 }
 
 onMounted(() => {
@@ -215,16 +271,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               <b>{{ trash.items.length }}</b> {{ t('photosTrashItems') }} ·
               {{ t('photosCountSummary', { photos: photoCount, videos: videoCount }) }} ·
               <b>{{ totalSize }} MB</b> {{ t('photosTrashCanFree') }}
+              <!-- Task 12 (SP15-P3): totalSize sums sizeMb over trash.items, which is only the
+                   pages fetched so far while pagination is still catching up — say so out loud
+                   instead of silently under-reporting (same pattern as PhotosFavorites.vue). -->
+              <span v-if="!trash.trashExhausted" data-test="trash-loaded-hint">
+                · {{ t('photosLoadedSubsetHint', { n: trash.items.length }) }}
+              </span>
             </div>
           </div>
           <div class="trash-hero-actions">
             <button
               type="button" class="bar-btn" data-test="trash-restore-all"
-              :disabled="!trash.items.length" @click="restoreAll"
+              :disabled="!trash.items.length || preparingBulkAction" @click="restoreAll"
             >{{ t('photosTrashRestoreAll') }}</button>
             <button
               type="button" class="bar-btn trash-btn-danger" data-test="trash-empty-btn"
-              :disabled="!trash.items.length" @click="emptyTrash"
+              :disabled="!trash.items.length || preparingBulkAction" @click="emptyTrash"
             >{{ t('photosTrashEmpty') }}</button>
           </div>
         </div>
@@ -302,6 +364,18 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
               </div>
             </div>
           </div>
+
+          <!-- Task 12 (SP15-P3): the backend caps a single request at 500 rows now
+               (NimoOS-Photos#54), so anything past the first page only shows up once clicked. -->
+          <div v-if="!trash.trashExhausted" class="trash-load-more">
+            <button
+              type="button"
+              class="bar-btn"
+              data-test="trash-load-more"
+              :disabled="trash.loadingMore"
+              @click="trash.loadMoreTrash()"
+            >{{ t('photosLoadMore') }}</button>
+          </div>
         </template>
       </main>
     </div>
@@ -339,6 +413,9 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-hero-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 4px; color: var(--fg); }
 .trash-hero-sub { font-size: 12.5px; color: var(--fg-muted); }
 .trash-hero-sub b { color: var(--fg); font-weight: 600; }
+/* Task 12 (SP15-P3): reuses the same muted-text treatment already used throughout this line
+   (--fg-muted, inherited 12.5px) — no new token, just a conditional trailing span. */
+.trash-hero-sub [data-test="trash-loaded-hint"] { color: var(--fg-muted); }
 .trash-hero-actions { display: flex; gap: 8px; align-items: center; flex: 0 0 auto; }
 .trash-hero-actions .bar-btn:disabled { opacity: 0.45; cursor: not-allowed; pointer-events: none; }
 /* .trash-btn-danger 复用 .bar-btn 玻璃胶囊形态,仅改前景色为既有危险色 token(浅色主题=深红,
@@ -372,6 +449,11 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 .trash-sort { display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 999px; background: var(--chip-bg); }
 .trash-sort button { height: 22px; padding: 0 10px; border-radius: 999px; border: 0; background: transparent; color: var(--fg-muted); font: inherit; font-size: 11.5px; cursor: pointer; }
 .trash-sort button[data-active="true"] { background: var(--chip-bg-hi); color: var(--fg); }
+
+/* Task 12 (SP15-P3): same secondary-button treatment as .fav-load-more in
+   PhotosFavorites.vue — reuses .bar-btn, no new token. */
+.trash-load-more { display: flex; justify-content: center; padding: 16px 0; }
+.trash-load-more .bar-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* ── Bucketed grid ── */
 .trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
