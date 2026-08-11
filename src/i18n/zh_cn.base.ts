@@ -20,7 +20,7 @@ export default {
   filesNoFavorites: '暂无收藏',
   filesSelectedCount: '已选 {count} 项',
   filesSelectAll: '全选',
-  filesClearSel: '清空',
+  filesClearSel: '取消选择',
   filesOpFailed: '操作失败',
   filesProtectedDelete: '此项目受保护,无法删除',
   filesDeleteSkippedProtected: '已跳过 {count} 个受保护项',

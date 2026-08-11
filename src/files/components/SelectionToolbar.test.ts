@@ -5,7 +5,7 @@ import SelectionToolbar from './SelectionToolbar.vue'
 
 const i18n = createI18n({
   legacy: false, locale: 'zh_cn',
-  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '清空', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
+  messages: { zh_cn: { filesSelectedCount: '已选 {count} 项', filesSelectAll: '全选', filesClearSel: '取消选择', filesCtxCopy: '复制', filesCtxCut: '剪切', filesCtxDownload: '下载', filesCtxDelete: '删除' } },
 })
 
 describe('SelectionToolbar', () => {
