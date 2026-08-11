@@ -31,9 +31,12 @@ import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
 import { splitProtectedUploads, operableEntries } from '../files/util/protect'
+import { nameTooLong, pathTooLong } from '../files/util/pathLimits'
+import { joinPath } from '../files/util/pathOps'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { uploadPlaceholders, mergeUploadPlaceholders } from '../files/upload/uploadPlaceholders'
+import { createEmptyDirs } from '../files/upload/emptyDirs'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -245,16 +248,26 @@ defineExpose({ handleSelectedFiles, onRefill })
 const preparingCount = ref(0)
 const preparing = computed(() => preparingCount.value > 0 && !conflicts.dialog.open)
 
-async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+// 落地空目录:createEmptyDirs 建目录(容忍已存在),按结果 toast,只有目标目录就是
+// 当前所在目录时才刷新列表(在别处上传的批次不该打断用户正在看的页面)。
+async function commitEmptyDirs(dirs: { relativePath: string }[], targetPath: string) {
+  if (!dirs.length) return
+  const { created, failed } = await createEmptyDirs(dirs.map((d) => d.relativePath), targetPath)
+  if (created) toast.show(t('filesEmptyDirsCreated', { count: created }))
+  if (failed.length) toast.show(t('filesOpFailed'))
+  if (created && targetPath === files.currentPath) await files.load(files.currentPath)
+}
+
+async function commitSelectedFiles(entries: { file: File; relativePath: string }[], emptyDirs: string[] = []) {
   preparingCount.value++
   try {
-    await runCommitSelectedFiles(entries)
+    await runCommitSelectedFiles(entries, emptyDirs)
   } finally {
     preparingCount.value--
   }
 }
 
-async function runCommitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+async function runCommitSelectedFiles(entries: { file: File; relativePath: string }[], emptyDirs: string[] = []) {
   // Code review fix (ordering leak): consume any pending refill filter immediately,
   // before any guard below can return early. Reading it into a local and nulling the
   // ref in the same breath makes it strictly single-use no matter which branch exits
@@ -265,14 +278,18 @@ async function runCommitSelectedFiles(entries: { file: File; relativePath: strin
   refillPending.value = null
 
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
-  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
+  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。这道守卫对空目录同样
+  // 适用 —— 空目录批次也走 commitEmptyDirs 写盘,不能绕过只读视图的拦截。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
 
   // Refill branch: the target directory is the batch's own target_path (not the
   // current directory — the user may have navigated elsewhere before clicking),
-  // and only entries named in the missing list are let through.
+  // and only entries named in the missing list are let through. Refill never
+  // carries emptyDirs (only onDrop passes them, and onDrop always clears
+  // refillPending first), but guard it anyway so this early return can never
+  // silently swallow a future caller's empty-dir batch.
   const wanted = pending ? entries.filter((e) => pending.missing.has(e.relativePath)) : entries
-  if (pending && !wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+  if (pending && !wanted.length && !emptyDirs.length) { toast.show(t('filesBatchRefillNoMatch')); return }
 
   const targetPath = pending ? pending.targetPath : files.currentPath // REAL path — the protected-dir check expands against this.
 
@@ -287,6 +304,19 @@ async function runCommitSelectedFiles(entries: { file: File; relativePath: strin
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
+  // 超长路径前置过滤:后端 tus ingest 对 ENAMETOOLONG 是异步静默失败,前端会先报
+  // "上传成功"(bug.txt #2)。relativePath 逐段查 NAME_MAX,拼接目标全路径查 PATH_MAX。
+  // 空目录同样要过这道检查(评审发现:此前只过滤了文件,拖拽一个深路径的空文件夹
+  // 会绕过前置提示,直接撞上后端那句没有信息量的 "Fail")——relativePath 已由
+  // dropEntries 去掉了前导斜杠,与文件条目走的是同一套判定,故复用同一个 fitsLimits。
+  const fitsLimits = (rel: string) =>
+    !rel.split('/').some(nameTooLong) && !pathTooLong(joinPath(targetPath, rel))
+  const withinLimits = normalized.filter((e) => fitsLimits(e.relativePath))
+  const withinLimitsDirs = emptyDirs.filter(fitsLimits)
+  // 文件与空目录合并成一条 toast,而不是分别弹两条——用户看到的是同一批拖拽操作,
+  // 拆开报会显得像出了两个问题。
+  const tooLong = (normalized.length - withinLimits.length) + (emptyDirs.length - withinLimitsDirs.length)
+  if (tooLong > 0) toast.show(t('filesUploadPathTooLong', { count: tooLong }))
   // Refuse protected-directory entries BEFORE the conflict prompt, not after.
   // addFilesToQueue applies the same rule at the end of this function, so these
   // entries were never going to be uploaded either way — but reaching that point
@@ -294,30 +324,41 @@ async function runCommitSelectedFiles(entries: { file: File; relativePath: strin
   // that was already destined for the bin (SP12 Plan B outstanding item 7).
   // The store keeps its own copy of the rule as a last line of defence; the
   // second loop below still reports anything it catches.
-  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
+  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(withinLimits)
   for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
-  if (!allowed.length) return
-  // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
-  // the interrupted batch created it — so its collision is self-inflicted and
-  // merging back into it is the only correct answer. See ResolveOptions
-  // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
-  const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
-  const dropped = resolved.skippedCount + resolved.cancelledCount
 
-  if (!resolved.accepted.length) {
+  // Empty dirs go through the exact same protected-directory gate as files
+  // (bug.txt #4): a dropped folder named "AppData" must be refused the same way
+  // whether it carries files or is empty.
+  const { accepted: dirsAllowed, rejected: dirsProtected } =
+    splitProtectedUploads(withinLimitsDirs.map((p) => ({ relativePath: p })))
+  for (const name of dirsProtected) toast.show(t('filesUploadProtected', { name }))
+
+  // A batch made of ONLY empty dirs (no files survived the protected filter, or
+  // none were dropped in the first place) must still reach commitEmptyDirs below
+  // — it must NOT bail out here just because there is nothing left to upload.
+  if (allowed.length) {
+    // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
+    // the interrupted batch created it — so its collision is self-inflicted and
+    // merging back into it is the only correct answer. See ResolveOptions
+    // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
+    const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
+    const dropped = resolved.skippedCount + resolved.cancelledCount
+
+    if (resolved.accepted.length) {
+      const sel = resolved.accepted.map((a) => ({
+        file: a.file,
+        targetPath,
+        relativePath: a.relativePath,
+        conflictPolicy: a.conflictPolicy,
+      }))
+      const { rejected } = await uploads.addFilesToQueue(sel)
+      for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+    }
     if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
-    return
   }
 
-  const sel = resolved.accepted.map((a) => ({
-    file: a.file,
-    targetPath,
-    relativePath: a.relativePath,
-    conflictPolicy: a.conflictPolicy,
-  }))
-  const { rejected } = await uploads.addFilesToQueue(sel)
-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
-  if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
+  await commitEmptyDirs(dirsAllowed, targetPath)
 }
 
 async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
@@ -354,8 +395,11 @@ async function onDrop(e: DragEvent) {
   preparingCount.value++
   try {
     const dropped = await readDroppedEntries(e.dataTransfer)
-    if (!dropped.length) return
-    await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+    if (!dropped.files.length && !dropped.emptyDirs.length) return
+    await commitSelectedFiles(
+      dropped.files.map((d) => ({ file: d.file, relativePath: d.relativePath })),
+      dropped.emptyDirs,
+    )
   } finally {
     preparingCount.value--
   }

@@ -41,6 +41,41 @@ describe('useLayoutStore', () => {
     expect(s.items[0].key).toBe('files')
   })
 
+  it('loadInitial respects a saved empty layout (user cleared the desktop)', () => {
+    localStorage.setItem('nimoos-home-layout-v2', '[]')
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items).toHaveLength(0)
+  })
+
+  it('loadInitial still falls back to DEFAULT when a saved layout sanitizes to nothing', () => {
+    // 全部是已下线 widget:这不是用户主动清空,回落默认桌面
+    localStorage.setItem('nimoos-home-layout-v2', JSON.stringify([
+      { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 },
+    ]))
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items).toHaveLength(DEFAULT.length)
+  })
+
+  it('loadServer applies a server-side empty layout (cleared on another device)', async () => {
+    const s = useLayoutStore()
+    s.loadInitial()
+    expect(s.items.length).toBeGreaterThan(0)
+    getCustomStorage.mockResolvedValueOnce([])
+    await s.loadServer()
+    expect(s.items).toHaveLength(0)
+  })
+
+  it('loadServer keeps current items when the key was never saved (backend returns "")', async () => {
+    const s = useLayoutStore()
+    s.loadInitial()
+    const before = s.items.length
+    getCustomStorage.mockResolvedValueOnce('')
+    await s.loadServer()
+    expect(s.items).toHaveLength(before)
+  })
+
   it('serialize strips id', () => {
     const s = useLayoutStore(); s.loadInitial()
     expect(s.serialize()[0]).not.toHaveProperty('id')
@@ -270,6 +305,16 @@ describe('autoPin', () => {
     // evict 不应影响非 seen 的图标
     s.evict('files')
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
+  })
+
+  it('autoPin 不重复添加桌面上已有的同 key app 磁贴(手动 pin 后未进 seen 的场景)', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 }) // 手动上桌，不进 seen
+    s.autoPin([dl('jellyfin')], DIMS)
+    expect(s.items.filter((i) => i.kind === 'app' && i.key === 'jellyfin')).toHaveLength(1)
+    // seen 要补记，否则下一轮还会尝试
+    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('jellyfin')
   })
 })
 

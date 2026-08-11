@@ -65,6 +65,36 @@ describe('useFileOps', () => {
     expect(fileCreate).toHaveBeenCalledWith('/DATA/a.txt')
   })
 
+  it('createFolder:名字超 255 字节 → toast filesNameTooLong,不发请求', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('x'.repeat(256))
+    expect(folderCreate).not.toHaveBeenCalled()
+    expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
+  })
+
+  it('createFolder:后端 message 为字面 "Fail" → 显示本地 filesOpFailed 而非 "Fail"', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(new Error('Fail'))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith(zh.filesOpFailed)
+  })
+
+  it('createFolder:错误带 detail → 显示 detail 原文', async () => {
+    useFilesStore().currentPath = '/DATA'
+    folderCreate.mockRejectedValueOnce(Object.assign(new Error('Fail'), { detail: 'no space left on device' }))
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const ops = makeOps()
+    await ops.createFolder('ok')
+    expect(showSpy).toHaveBeenCalledWith('no space left on device')
+  })
+
   it('rename 同名直接返回不请求', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
