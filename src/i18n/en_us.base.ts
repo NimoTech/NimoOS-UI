@@ -20,7 +20,7 @@ export default {
   filesNoFavorites: 'No favorites yet',
   filesSelectedCount: '{count} selected',
   filesSelectAll: 'Select all',
-  filesClearSel: 'Clear',
+  filesClearSel: 'Deselect',
   filesOpFailed: 'Operation failed',
   filesProtectedDelete: 'This item is protected and cannot be deleted',
   filesDeleteSkippedProtected: 'Skipped {count} protected item(s)',
