@@ -67,6 +67,20 @@ describe('scanDist:内容白名单只挖空匹配到的子串,不放过同一行
     expect(findings.filter((f) => f.word !== '__skipped__')).toEqual([])
   })
 
+  it('legit wallpaper theme menu entry (themePhoto, SP11) passes, but a bare 照片 still trips', () => {
+    write('assets/index-abc.js', 'const o={themePhoto:"照片…"};')
+    expect(scanDist(tmp).filter((f) => f.word !== '__skipped__')).toEqual([])
+    // The allowlist entry is key-qualified: the same copy under another key must not pass.
+    write('assets/index-abc.js', 'const o={somethingElse:"照片…"};')
+    expect(scanDist(tmp).some((f) => f.word === '照片')).toBe(true)
+  })
+
+  it('legit Google Drive guide sentence ("搜索 <b>Google Drive API</b>") passes', () => {
+    write('guide/google-drive.html', '<p>左侧菜单 <span class="path">API 和服务 → 库</span>,搜索 <b>Google Drive API</b>,点进去 → <b>启用</b>。</p>')
+    const findings = scanDist(tmp)
+    expect(findings.filter((f) => f.word !== '__skipped__')).toEqual([])
+  })
+
   it('★ 关键用例:白名单文本与真实泄漏挤在同一压缩行时,真实泄漏仍必须被抓到', () => {
     // 模拟"整个模块挤成一行"的压缩产物:同一行里既有合法的照片库说明,又有一段
     // 真实的相册/转录相关泄漏文案。如果白名单是"整行豁免"而不是"挖空子串"，
