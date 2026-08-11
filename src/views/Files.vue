@@ -30,6 +30,8 @@ import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
 import { splitProtectedUploads, operableEntries } from '../files/util/protect'
+import { nameTooLong, pathTooLong } from '../files/util/pathLimits'
+import { joinPath } from '../files/util/pathOps'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
 import { createEmptyDirs } from '../files/upload/emptyDirs'
@@ -282,6 +284,13 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
+  // 超长路径前置过滤:后端 tus ingest 对 ENAMETOOLONG 是异步静默失败,前端会先报
+  // "上传成功"(bug.txt #2)。relativePath 逐段查 NAME_MAX,拼接目标全路径查 PATH_MAX。
+  const fitsLimits = (rel: string) =>
+    !rel.split('/').some(nameTooLong) && !pathTooLong(joinPath(targetPath, rel))
+  const withinLimits = normalized.filter((e) => fitsLimits(e.relativePath))
+  const tooLong = normalized.length - withinLimits.length
+  if (tooLong > 0) toast.show(t('filesUploadPathTooLong', { count: tooLong }))
   // Refuse protected-directory entries BEFORE the conflict prompt, not after.
   // addFilesToQueue applies the same rule at the end of this function, so these
   // entries were never going to be uploaded either way — but reaching that point
@@ -289,7 +298,7 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // that was already destined for the bin (SP12 Plan B outstanding item 7).
   // The store keeps its own copy of the rule as a last line of defence; the
   // second loop below still reports anything it catches.
-  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
+  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(withinLimits)
   for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
 
   // Empty dirs go through the exact same protected-directory gate as files
