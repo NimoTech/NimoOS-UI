@@ -694,6 +694,11 @@ body::after {
 /* 磁贴内部尺寸(间距/字号/占位圆角)一律按 --cell 等比,保证格子在任意缩放下形状不变;
    比例锚定 108px 舒适格:gap 5/108≈0.046,字号 16.7/108≈0.155,圆角 18/108≈0.167 */
 .kind-app, .kind-folder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--cell, 92px) * 0.046); }
+/* 磁贴根封顶格宽(bug.txt #6 第二形态):.grid-item 是 flex 容器,SFC 的磁贴根
+   (.app-tile/.folder-tile-wrap)作为 flex item 没有宽度上限——nowrap 长名会把它撑到
+   内容宽(min-width:auto 地板),.app-label 的 max-width:100% 解析这个被撑大的父级,
+   省略号永不触发、溢出盖住邻格。封顶 100% 后 label 才真正被格宽约束、长名收成 "…"。 */
+.kind-app .app-tile, .kind-folder .folder-tile-wrap { max-width: 100%; }
 /* 图标方格：圆角玻璃 + 白色前景 + icon-shadow */
 .app-ic { display: grid; place-items: center; width: 100%; height: 100%; border-radius: var(--icon-radius, 31%); color: #fff; box-shadow: var(--icon-shadow); }
 .app-ic .icon, .folder-ic .icon { width: 44%; height: 44%; }
