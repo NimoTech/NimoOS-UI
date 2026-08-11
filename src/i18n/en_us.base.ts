@@ -318,6 +318,8 @@ export default {
   addPanelReset: 'Reset to default layout',
   addPanelFull: 'This screen is full — remove something first',
   addPanelWidgetExists: 'This widget is already on the home screen',
+  addPanelAppExists: 'This app is already on the home screen',
+  addPanelFolderExists: 'This folder is already on the home screen',
   addPanelNoRoom: 'It won’t fit there',
   addPanelAddedToast: 'Added: {key}',
   addPanelRemovedToast: 'Removed',

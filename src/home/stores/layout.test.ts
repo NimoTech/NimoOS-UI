@@ -306,6 +306,16 @@ describe('autoPin', () => {
     s.evict('files')
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
   })
+
+  it('autoPin 不重复添加桌面上已有的同 key app 磁贴(手动 pin 后未进 seen 的场景)', () => {
+    const s = useLayoutStore()
+    s.replaceAll([])
+    s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 }) // 手动上桌，不进 seen
+    s.autoPin([dl('jellyfin')], DIMS)
+    expect(s.items.filter((i) => i.kind === 'app' && i.key === 'jellyfin')).toHaveLength(1)
+    // seen 要补记，否则下一轮还会尝试
+    expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('jellyfin')
+  })
 })
 
 describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前范围)', () => {

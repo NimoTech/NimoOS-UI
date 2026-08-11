@@ -39,4 +39,20 @@ describe('useAddPanel', () => {
     expect(ap.appWidgetUsed('my-dl')).toBe(true)
     expect(ap.pinToFree({ kind: 'appwidget', key: 'my-dl', w: 2, h: 2 })).toBe(false)
   })
+  it('同一 app 第二次 pinToFree 被拒并 toast', () => {
+    const layout = useLayoutStore(); layout.replaceAll([])
+    vi.spyOn(layout, 'save').mockImplementation(() => {})
+    const { pinToFree } = useAddPanel(DIMS)
+    expect(pinToFree({ kind: 'app', key: 'jellyfin', w: 1, h: 1 } as any)).toBe(true)
+    expect(pinToFree({ kind: 'app', key: 'jellyfin', w: 1, h: 1 } as any)).toBe(false)
+    expect(layout.items.filter((i) => i.kind === 'app' && i.key === 'jellyfin')).toHaveLength(1)
+  })
+  it('同一 folder(按 path 判等)第二次 spawnPlace 被拒', () => {
+    const layout = useLayoutStore(); layout.replaceAll([])
+    vi.spyOn(layout, 'save').mockImplementation(() => {})
+    const { spawnPlace } = useAddPanel(DIMS)
+    const desc = { kind: 'folder' as const, key: 'docs', path: '/DATA/docs', w: 1, h: 1 } as any
+    expect(spawnPlace(desc, 1, 1)).toBe(true)
+    expect(spawnPlace(desc, 2, 1)).toBe(false)
+  })
 })
