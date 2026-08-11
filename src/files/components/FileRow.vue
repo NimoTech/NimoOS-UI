@@ -26,13 +26,15 @@ function onClick(e: MouseEvent) {
 <template>
   <div
     class="file-row"
-    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path) }"
+    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path), uploading: props.entry.uploading }"
     :data-path="props.entry.path"
     @click="onClick"
     @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
   >
     <span class="file-check">
+      <span v-if="props.entry.uploading" class="row-spinner" :title="$t('filesUploadingLabel')" aria-hidden="true"></span>
       <input
+        v-else
         type="checkbox"
         class="row-check"
         :checked="props.selected"
@@ -51,8 +53,8 @@ function onClick(e: MouseEvent) {
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
-    <span class="file-size">{{ props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0) }}</span>
-    <span class="file-star"><FavoriteStar v-if="props.entry.is_dir" :path="props.entry.path" :name="props.entry.name" /></span>
+    <span class="file-size">{{ props.entry.uploading ? $t('filesUploadingLabel') : (props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0)) }}</span>
+    <span class="file-star"><FavoriteStar v-if="props.entry.is_dir && !props.entry.uploading" :path="props.entry.path" :name="props.entry.name" /></span>
   </div>
 </template>
 
@@ -72,6 +74,16 @@ function onClick(e: MouseEvent) {
 .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
 .file-row.cut { opacity: 0.45; }
+/* Optimistic upload placeholder: dimmed, non-interactive, spinner in the
+   checkbox slot. Mirrors FileTile.vue's .uploading. */
+.file-row.uploading { opacity: 0.6; cursor: default; }
+.row-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  border-top-color: var(--accent); border-radius: 999px;
+  animation: row-spin 0.7s linear infinite;
+}
+@keyframes row-spin { to { transform: rotate(360deg); } }
 /* See FileTile.vue's identical badge for why this pairs --drop-bad (fill) with
    --remove-fg (text/border) instead of --remove-bg — that combination reads
    as ~1.2:1 contrast in both themes (near-identical hues), same mistake
