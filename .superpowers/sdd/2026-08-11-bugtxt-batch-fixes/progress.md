@@ -28,3 +28,10 @@ Final fix wave: complete (commit b7406975, re-review clean — both findings ADD
 Final review: clean after fix wave. Branch ready: 39fe7a93..b7406975 (10 commits).
 Manual device items (挂账给机主): real empty-folder drag-drop (incl. deepest-path empty dir), RAID shared-folder delete, real deepest-path tus upload, native dropdown popup eyeball in dark theme.
 Follow-up (2026-08-11, owner clarified bug #6): the reported overlap was LONG FOLDER NAMES covering neighbours, not the icon. Root cause: tile roots (.app-tile/.folder-tile-wrap) are flex items with no width cap — nowrap labels inflate them to content width (min-width:auto floor), so .app-label's max-width:100% resolves against the inflated parent and never ellipsizes. Evidence: 262px label in a 63px cell, adjacent labels intersecting; single-variable injection of max-width:100% converged everything. Fix: theme.css caps .kind-app .app-tile / .kind-folder .folder-tile-wrap at max-width:100% + guard assertion in tileSizing.test.ts. Probe re-run: labels 63px, ellipsized, zero overlaps (screenshot acceptance/bug6b-longname-ellipsis.png). Full suite 11168 passed (3 oss dirty-tree environmental).
+
+## 追加修复(2026-08-11,机主验收期新报):添加面板泄露系统目录
+- 症状:Files 区看不到的系统条目(`.system_data` 等点开头目录、`lost+found`)在主页「添加→文件夹」里能看到、能拖上桌面。
+- 根因:`src/home/stores/folders.ts` 的 `loadFolder` 只过滤 `is_dir`,没有 Files 区(`files.ts`)那条隐藏规则。
+- 修复:抽出共用谓词 `src/util/hiddenEntries.ts`(点开头 + lost+found),files/home 两个 store 都改用它,两处逻辑从此不可能再漂移。TDD:folders.test.ts 先红后绿。
+- 验证:folders+files 定向 17/17;vue-tsc 干净;全量 11169 通过(4 个失败文件全是 bug.txt 未跟踪导致的 oss 脏树中止);stash 干净树后 oss 436/436 全绿(含产物树构建门)。
+- 提交:246f05b7。入口面单一:仅 AddPanel 消费 loadFolder,桌面磁贴不自拉子目录。
