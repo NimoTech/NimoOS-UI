@@ -32,4 +32,16 @@ describe('desktop tile sizing (bug.txt #6)', () => {
     expect(rule).toMatch(/aspect-ratio\s*:\s*1/)
     expect(rule).toMatch(/min-width\s*:\s*0/)
   })
+
+  // bug.txt #6 第二形态(2026-08-11 机主澄清):长文件夹名相互遮盖。根因:.grid-item 是
+  // flex 容器,FolderTile/AppTile 根元素作为 flex item 没有宽度上限——nowrap 长名把它
+  // 撑到内容宽(min-width:auto 地板),.app-label 的 max-width:100% 解析的是这个被撑大的
+  // 父级,省略号永不触发,溢出部分盖住邻格。真机取证:63px 格里 label 实测 262px,
+  // 相邻 label 两两相交;注入 max-width:100% 后 label=63px、ellipsized=true、零重叠。
+  it('theme.css must cap tile roots at the cell width so long names ellipsize', () => {
+    const rule = themeSrc.match(/\.kind-folder \.folder-tile-wrap[^{]*\{[^}]*\}|\.kind-app \.app-tile[^{]*\{[^}]*\}/)?.[0] ?? ''
+    expect(rule).toMatch(/max-width\s*:\s*100%/)
+    // 两类磁贴根都要被同一条规则覆盖,漏一个就只修一半
+    expect(themeSrc).toMatch(/\.kind-app \.app-tile[^{]*\.kind-folder \.folder-tile-wrap[^{]*\{[^}]*max-width\s*:\s*100%|\.kind-folder \.folder-tile-wrap[^{]*\.kind-app \.app-tile[^{]*\{[^}]*max-width\s*:\s*100%/)
+  })
 })
