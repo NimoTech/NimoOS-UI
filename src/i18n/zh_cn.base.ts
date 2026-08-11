@@ -318,6 +318,8 @@ export default {
   addPanelReset: '恢复默认布局',
   addPanelFull: '这一屏放满了,先移除点东西',
   addPanelWidgetExists: '该组件已在主页',
+  addPanelAppExists: '该应用已在主页',
+  addPanelFolderExists: '该文件夹已在主页',
   addPanelNoRoom: '那儿放不下',
   addPanelAddedToast: '已添加:{key}',
   addPanelRemovedToast: '已移除',

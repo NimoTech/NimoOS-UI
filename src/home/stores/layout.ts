@@ -190,9 +190,13 @@ export const useLayoutStore = defineStore('home-layout', () => {
         }
         continue
       }
-      const pos = firstFree(1, 1, items.value, dims)
-      if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
-      if (d.widget) {
+      // 未进 seen 不代表桌面上没有:用户可能手动 pin 过同 key 的磁贴，这里再查一次
+      // items，避免叠出重复图标/小组件（下面仍会补记 seen，下一轮不再重复判断）。
+      if (!items.value.some((it) => it.kind === 'app' && it.key === d.key)) {
+        const pos = firstFree(1, 1, items.value, dims)
+        if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
+      }
+      if (d.widget && !items.value.some((it) => it.kind === 'appwidget' && it.key === d.key)) {
         const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
         if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
       }
