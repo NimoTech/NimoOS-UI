@@ -428,9 +428,11 @@ export const useTimelineStore = defineStore('photos-timeline', () => {
         // Republishing bucketAssets under a new identity (same content) makes
         // `months` recompute, which re-runs the grid's level-triggered request; by
         // now this key is out of `_bucketInflight`, so the re-ask goes through and
-        // walks the pages again against the fresh directory. It is sent from
-        // `finally`, after deregistration, for exactly that reason — from the drop
-        // branch itself the dedupe would still be armed.
+        // walks the pages again against the fresh directory. Sitting in `finally`
+        // after the deregistration is for clarity, not necessity: the watcher that
+        // carries the re-ask flushes on a microtask, so it would observe the
+        // deregistration wherever in this synchronous block the republish were
+        // written.
         //
         // Bounded by construction rather than by a counter: only a directory
         // change can doom a walk, so each directory change costs at most one extra
