@@ -137,7 +137,9 @@ const selects: { file: string; classes: string[] }[] = []
 for (const [file, src] of Object.entries(vueFiles)) {
   const styleAt = src.indexOf('<style')
   const template = styleAt === -1 ? src : src.slice(0, styleAt)
-  for (const m of template.matchAll(/<select\b[^>]*>/g)) {
+  // 属性值内可能有 >（如 v-if="a.length > 1"），会截断 /<select\b[^>]*>/；
+  // 必须 quote-aware，跳过引号内的 >，才能正确提取标签（console-svc 元素因此漏扫了一个发布周期）。
+  for (const m of template.matchAll(/<select\b(?:"[^"]*"|'[^']*'|[^>])*>/g)) {
     const cls = m[0].match(/\sclass="([^"]*)"/)
     // 已知边界(不静默):只看**静态** class。`<select :class="…">` 且无静态类的元素会被算作
     // classes: [] 并跳过 —— 目前全仓没有这种写法,哪天有了,得在这里补动态类的处理。

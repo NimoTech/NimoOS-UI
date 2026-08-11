@@ -46,14 +46,19 @@ export const useLayoutStore = defineStore('home-layout', () => {
   function loadFromLocal(): Omit<LayoutItem, 'id'>[] | null {
     try {
       const a = JSON.parse(localStorage.getItem(KEY) || 'null')
-      if (Array.isArray(a) && a.length) return sanitize(a)
+      if (Array.isArray(a)) {
+        const s = sanitize(a)
+        // 空数组 = 用户主动清空桌面,必须尊重;非空数组被 sanitize 清成空
+        // (全是已下线 widget)才视为"无有效存档"回落默认。
+        if (a.length === 0 || s.length) return s
+      }
     } catch { /* ignore */ }
     return null
   }
 
   function loadInitial() {
     const stored = loadFromLocal()
-    items.value = (stored && stored.length ? stored : DEFAULT).map(tag)
+    items.value = (stored ?? DEFAULT).map(tag)
   }
 
   function serialize(): Omit<LayoutItem, 'id'>[] {
@@ -107,9 +112,13 @@ export const useLayoutStore = defineStore('home-layout', () => {
   async function loadServer() {
     try {
       let data: unknown = await service.users.getCustomStorage(SERVER_KEY)
+      // 后端对从未存过的 key 返回空串(读不到文件原样透传)→ parse 失败 → null → 保持现状;
+      // 真数组(哪怕 [] = 用户在别处清空过桌面)才应用。
       if (typeof data === 'string') { try { data = JSON.parse(data) } catch { data = null } }
-      const arr = sanitize(data)
-      if (arr.length) { replaceAll(arr) }
+      if (Array.isArray(data)) {
+        const arr = sanitize(data)
+        if (data.length === 0 || arr.length) replaceAll(arr)
+      }
     } catch (e) { console.warn('[home] server layout load failed', e) }
   }
 
@@ -181,9 +190,13 @@ export const useLayoutStore = defineStore('home-layout', () => {
         }
         continue
       }
-      const pos = firstFree(1, 1, items.value, dims)
-      if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
-      if (d.widget) {
+      // 未进 seen 不代表桌面上没有:用户可能手动 pin 过同 key 的磁贴，这里再查一次
+      // items，避免叠出重复图标/小组件（下面仍会补记 seen，下一轮不再重复判断）。
+      if (!items.value.some((it) => it.kind === 'app' && it.key === d.key)) {
+        const pos = firstFree(1, 1, items.value, dims)
+        if (pos) items.value = [...items.value, tag({ kind: 'app', key: d.key, c: pos.c, r: pos.r, w: 1, h: 1 })]
+      }
+      if (d.widget && !items.value.some((it) => it.kind === 'appwidget' && it.key === d.key)) {
         const wpos = firstFree(d.widget.w, d.widget.h, items.value, dims)
         if (wpos) items.value = [...items.value, tag({ kind: 'appwidget', key: d.key, c: wpos.c, r: wpos.r, w: d.widget.w, h: d.widget.h })]
       }
