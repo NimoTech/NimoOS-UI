@@ -32,6 +32,11 @@ const svc = vi.hoisted(() => ({
     // feature flags (for the smart-views-off banner) alongside albums.
     listSmartViews: vi.fn().mockResolvedValue([]),
     getConfig: vi.fn().mockResolvedValue({}),
+    // The embedded create form arms a 300ms preview debounce. Nothing here closes the
+    // panel or unmounts the wrapper, so that timer outlives the test and fires while a
+    // later one runs -- without this stub it threw an unhandled TypeError that turned the
+    // whole suite's exit code red even though every assertion passed.
+    previewSmartView: vi.fn().mockResolvedValue({ count: 0, seeds: [] }),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
