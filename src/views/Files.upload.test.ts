@@ -113,6 +113,58 @@ describe('Files.vue upload wiring', () => {
     expect(showSpy).toHaveBeenCalledWith('「AppData/x」位于受保护目录,已跳过。')
   })
 
+  // bug.txt #2: at maximum folder depth the backend's tus ingest fails silently on
+  // ENAMETOOLONG after the client already reported success. commitSelectedFiles now
+  // filters over-long entries out before they ever reach the upload queue.
+  it('drops an entry whose relativePath segment exceeds NAME_MAX and toasts filesUploadPathTooLong, but still enqueues the normal one', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const tooLong = { name: 'x'.repeat(256), webkitRelativePath: '' } as unknown as File
+    const ok = { name: 'ok.txt', webkitRelativePath: '' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([tooLong, ok])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy).toHaveBeenCalledWith([
+      { file: ok, targetPath: files.currentPath, relativePath: 'ok.txt', conflictPolicy: '' },
+    ])
+    expect(showSpy).toHaveBeenCalledWith(zh.filesUploadPathTooLong.replace('{count}', '1'))
+  })
+
+  it('does not toast filesUploadPathTooLong when every entry is within limits', async () => {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+
+    const uploads = useUploadsStore()
+    const spy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    const a = { name: 'a.txt', webkitRelativePath: '' } as unknown as File
+    const b = { name: 'b.txt', webkitRelativePath: '' } as unknown as File
+    await (w.vm as any).handleSelectedFiles([a, b])
+    await flushPromises()
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0][0]).toHaveLength(2)
+    expect(showSpy).not.toHaveBeenCalledWith(expect.stringContaining(zh.filesUploadPathTooLong.split('{count}')[1]))
+  })
+
   it('refill: only re-enqueues entries named in the missing list, against the batch target_path', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
