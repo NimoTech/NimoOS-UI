@@ -61,6 +61,11 @@ function onClick(e: MouseEvent) {
 .tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
 .tile-star { position: absolute; top: 6px; right: 6px; }
+/* The broken badge owns the top-right corner (it is the urgent, always-visible
+   signal); a favorited folder's star would otherwise sit on the exact same
+   6px/6px spot and the two stack unreadably. Shift the star left of the 20px
+   badge whenever one is present. */
+.file-tile:has(.upload-broken-badge) .tile-star { right: 30px; }
 .tile-check { position: absolute; top: 6px; left: 6px; }
 .tile-check-box { opacity: 0; cursor: pointer; }
 .file-tile:hover .tile-check-box, .file-tile.selected .tile-check-box { opacity: 1; }
