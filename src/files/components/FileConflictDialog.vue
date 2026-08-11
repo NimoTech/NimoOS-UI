@@ -97,14 +97,16 @@ defineExpose({ choose })
       <button class="fc-btn" :class="{ 'fc-primary': !(allowMerge && isDir) }" @click="choose('keep_both')">
         {{ t('filesConflictKeepBoth') }}
       </button>
-      <button
-        class="fc-btn fc-danger"
-        :disabled="isDir"
-        :title="isDir ? t('filesConflictOverwriteDisabled') : ''"
-        @click="choose('overwrite')"
-      >
-        {{ t('filesConflictOverwrite') }}
-      </button>
+      <!-- The why-disabled hint is a CSS tooltip on a wrapper span, not a
+           native title: title needs a ~1s motionless hover before it shows
+           (and never shows on touch), which read as "no tooltip at all"
+           during acceptance; the wrapper also keeps :hover alive while the
+           button inside is disabled. -->
+      <span class="fc-tip-wrap" :data-tip="isDir ? t('filesConflictOverwriteDisabled') : undefined">
+        <button class="fc-btn fc-danger" :disabled="isDir" @click="choose('overwrite')">
+          {{ t('filesConflictOverwrite') }}
+        </button>
+      </span>
     </template>
   </Dialog>
 </template>
@@ -150,4 +152,25 @@ defineExpose({ choose })
 
 .fc-danger { background: transparent; border-color: var(--danger-border); color: var(--danger-fg); }
 .fc-danger:hover:not(:disabled) { background: var(--danger-bg); border-color: var(--danger-fg); }
+
+/* Instant tooltip bubble (same surface recipe as DiskUsageTip.vue). Anchored
+   to the wrapper so it still appears while the button inside is disabled;
+   right-aligned because Overwrite is the last control in the footer row. */
+.fc-tip-wrap { position: relative; display: inline-flex; }
+.fc-tip-wrap[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  white-space: nowrap;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--popup-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow-hi);
+  color: var(--fg);
+  pointer-events: none;
+  z-index: 1;
+}
 </style>
