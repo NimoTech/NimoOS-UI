@@ -150,6 +150,8 @@ export default {
   filesUploadPaused: '已暂停',
   filesUploadClose: '关闭',
   filesUploadBrokenBadge: '上传中断 —— 点击查看详情',
+  filesUploadingLabel: '上传中',
+  filesUploadPreparing: '正在准备上传…',
   filesBatchTitle: '上传中断',
   filesBatchProgress: '已上传 {done} / {total} 个文件',
   filesBatchMissing: '缺失的文件',

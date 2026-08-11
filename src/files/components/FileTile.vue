@@ -25,12 +25,13 @@ function onClick(e: MouseEvent) {
 <template>
   <div
     class="file-tile"
-    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path) }"
+    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path), uploading: props.entry.uploading }"
     :data-path="props.entry.path"
     @click="onClick"
     @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
   >
-    <span class="tile-check">
+    <span v-if="props.entry.uploading" class="tile-spinner" :title="$t('filesUploadingLabel')" aria-hidden="true"></span>
+    <span v-if="!props.entry.uploading" class="tile-check">
       <input
         type="checkbox"
         class="tile-check-box"
@@ -46,10 +47,10 @@ function onClick(e: MouseEvent) {
       :title="$t('filesUploadBrokenBadge')"
       @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry))"
     >!</button>
-    <FavoriteStar v-if="props.entry.is_dir" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
+    <FavoriteStar v-if="props.entry.is_dir && !props.entry.uploading" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
     <FileThumb class="tile-icon" :entry="props.entry" />
     <span class="tile-name">{{ props.entry.name }}</span>
-    <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
+    <span class="tile-date">{{ props.entry.uploading ? $t('filesUploadingLabel') : dateFmt(props.entry.date || '') }}</span>
   </div>
 </template>
 
@@ -72,6 +73,16 @@ function onClick(e: MouseEvent) {
 .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
 .file-tile.cut { opacity: 0.45; }
+/* Optimistic upload placeholder: dimmed and non-interactive (it isn't on disk
+   yet), with a spinner where the checkbox would sit. */
+.file-tile.uploading { opacity: 0.6; cursor: default; }
+.tile-spinner {
+  position: absolute; top: 8px; left: 8px; width: 14px; height: 14px;
+  border: 2px solid color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  border-top-color: var(--accent); border-radius: 999px;
+  animation: tile-spin 0.7s linear infinite;
+}
+@keyframes tile-spin { to { transform: rotate(360deg); } }
 /* --remove-bg is a solid-fill token meant to pair with white text (see
    .grid-item .remove above); pairing it with --remove-fg as the glyph color
    gives ~1.2:1 contrast in both themes (near-identical hues) — invisible.

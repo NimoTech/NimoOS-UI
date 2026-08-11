@@ -150,6 +150,8 @@ export default {
   filesUploadPaused: 'Paused',
   filesUploadClose: 'Close',
   filesUploadBrokenBadge: 'Upload interrupted — click for details',
+  filesUploadingLabel: 'Uploading',
+  filesUploadPreparing: 'Preparing upload…',
   filesBatchTitle: 'Upload interrupted',
   filesBatchProgress: 'Uploaded {done} of {total} files',
   filesBatchMissing: 'Missing files',

@@ -13,6 +13,10 @@ export interface FileEntry {
   size?: number | string
   date?: string
   write?: boolean
+  /** Synthetic optimistic entry for an in-flight upload (see
+   *  upload/uploadPlaceholders.ts). Not a real on-disk entry — the tile renders
+   *  it as uploading and it can't be opened. */
+  uploading?: boolean
   extensions?: {
     share?: { shared?: string }
     // Upload batch status the backend attaches to listing entries (NimoOS

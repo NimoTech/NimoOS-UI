@@ -15,6 +15,7 @@ import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
+import UploadPreparingOverlay from '../files/components/UploadPreparingOverlay.vue'
 import { useFileOps } from '../files/composables/useFileOps'
 import { useFileConflictsStore } from '../files/stores/fileConflicts'
 import { useViewer } from '../files/viewers/useViewer'
@@ -32,6 +33,7 @@ import { shareableFolders } from '../files/util/shareGate'
 import { splitProtectedUploads, operableEntries } from '../files/util/protect'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
+import { uploadPlaceholders, mergeUploadPlaceholders } from '../files/upload/uploadPlaceholders'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -234,7 +236,25 @@ defineExpose({ handleSelectedFiles, onRefill })
 // Shared enqueue path for both the file/folder picker and drag-drop: resolve
 // same-name conflicts, enqueue what survives, and toast anything skipped,
 // cancelled, or rejected for being in a protected dir.
+//
+// "Preparing" spinner: a counter, not a boolean, because onDrop wraps the
+// folder-tree walk in its own begin/end and then calls this, which brackets
+// again — nested, so a plain flag would clear on the inner exit while the outer
+// walk is still notionally preparing. The overlay is hidden whenever the
+// conflict dialog is open (see `preparing` computed) so the two never stack.
+const preparingCount = ref(0)
+const preparing = computed(() => preparingCount.value > 0 && !conflicts.dialog.open)
+
 async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+  preparingCount.value++
+  try {
+    await runCommitSelectedFiles(entries)
+  } finally {
+    preparingCount.value--
+  }
+}
+
+async function runCommitSelectedFiles(entries: { file: File; relativePath: string }[]) {
   // Code review fix (ordering leak): consume any pending refill filter immediately,
   // before any guard below can return early. Reading it into a local and nulling the
   // ref in the same breath makes it strictly single-use no matter which branch exits
@@ -328,9 +348,17 @@ async function onDrop(e: DragEvent) {
   // (left behind by a cancelled "re-upload missing files" dialog) must not silently
   // filter it — see the note on triggerFileSelect/triggerFolderSelect above.
   refillPending.value = null
-  const dropped = await readDroppedEntries(e.dataTransfer)
-  if (!dropped.length) return
-  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+  // Bracket the folder-tree walk too: on a large folder, readDroppedEntries
+  // (recursive readEntries + file()) is itself the slow part the user perceives
+  // as "nothing happening". commitSelectedFiles brackets again (nested counter).
+  preparingCount.value++
+  try {
+    const dropped = await readDroppedEntries(e.dataTransfer)
+    if (!dropped.length) return
+    await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+  } finally {
+    preparingCount.value--
+  }
 }
 
 // ── Ctrl+V 粘贴上传:截图/复制的文件传到当前目录,复用 commitSelectedFiles ──
@@ -458,7 +486,20 @@ function applyHighlight() {
     setTimeout(() => el.classList.remove('file-flash'), 2500)
   })
 }
+// The listing the views render = real sorted entries + optimistic placeholders
+// for uploads still in flight into THIS directory. A folder upload's files only
+// hit disk once the first child finishes, so without this the folder is
+// invisible for a while and the user cannot tell the upload started. Real
+// entries take over by name on the next refresh (mergeUploadPlaceholders drops
+// the duplicate). sortedEntries stays the source of truth for open/marquee/
+// highlight — placeholders are display-only.
+const displayEntries = computed(() =>
+  mergeUploadPlaceholders(files.sortedEntries, uploadPlaceholders(uploads.queue, files.currentPath)),
+)
+
 function openEntry(entry: FileEntry) {
+  // A placeholder is not on disk yet — nothing to open or preview.
+  if (entry.uploading) return
   const r = resolveOpen(entry, files.sortedEntries)
   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
@@ -689,7 +730,7 @@ onMounted(() => { browse.ensureVolumes() })
             <FileGridView
               v-if="files.viewMode === 'grid'"
               ref="gridRef"
-              :entries="files.sortedEntries"
+              :entries="displayEntries"
               :selected-paths="files.selected"
               @open="openEntry"
               @select="onSelect"
@@ -698,7 +739,7 @@ onMounted(() => { browse.ensureVolumes() })
             />
             <FileListView
               v-else
-              :entries="files.sortedEntries"
+              :entries="displayEntries"
               :sort="files.sort"
               :order="files.order"
               :selected-paths="files.selected"
@@ -736,6 +777,7 @@ onMounted(() => { browse.ensureVolumes() })
       @confirm="confirmDownload"
     />
     <UploadPanel />
+    <UploadPreparingOverlay :open="preparing" />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
