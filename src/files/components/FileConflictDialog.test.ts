@@ -50,6 +50,23 @@ describe('FileConflictDialog', () => {
     expect(document.body.textContent).toContain('文件夹不支持覆盖')
   })
 
+  // The why-disabled hint must be a CSS tooltip that shows the instant the
+  // pointer arrives: the native title needs a ~1s motionless hover (and never
+  // shows on touch), which read as "no tooltip at all" during acceptance. The
+  // hint rides a wrapper span because a disabled button swallows its own
+  // pointer interactions.
+  it('carries the instant why-disabled tip for a directory conflict', async () => {
+    await open({ isDir: true, allowMerge: true })
+    const wrap = document.body.querySelector('.fc-tip-wrap')
+    expect(wrap?.getAttribute('data-tip')).toBe('文件夹不支持覆盖')
+    expect(btn('覆盖')!.getAttribute('title')).toBeNull()
+  })
+
+  it('carries no tip when Overwrite is enabled (plain file conflict)', async () => {
+    await open()
+    expect(document.body.querySelector('.fc-tip-wrap')?.getAttribute('data-tip') ?? null).toBeNull()
+  })
+
   it('a programmatic overwrite on a directory conflict emits nothing', async () => {
     const w = await open({ isDir: true })
     ;(w.vm as unknown as { choose: (a: string) => void }).choose('overwrite')
