@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   mapTask, resolveRaidState, raidSeverity, raidStateLabelKey,
-  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome,
+  countActiveDisks, memberSquare, memberRow, raidUsagePercent, mirrorPairs, isRebuildingList, replaceOutcome, reclaimOutcome,
   slotMembers, memberDiskCount, mergeVacatedSlot,
   levelInfo, asRaidArray,
 } from './raidView'
@@ -271,6 +271,50 @@ describe('replaceOutcome', () => {
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'faulty', number: 4 },
     ] }, true)).toBe('pending')
+  })
+})
+
+describe('reclaimOutcome(收回成员盘,多盘版 replaceOutcome)', () => {
+  const task = { arrayId: '1', arrayName: 'md0', paths: ['/dev/sdc', '/dev/sdd'] }
+
+  it('阵列已不在列表 → gone(不报完成)', () => {
+    expect(reclaimOutcome(task, { members: [] }, false)).toBe('gone')
+  })
+  it('status 拉不到 → pending', () => {
+    expect(reclaimOutcome(task, null, true)).toBe('pending')
+    expect(reclaimOutcome(task, undefined, true)).toBe('pending')
+  })
+  // --re-add 后头几秒的真实形状:盘已登记但还是 spare、不含 rebuilding ——
+  // 这就是"轮询不能只挂 isRebuilding"的那个过渡窗口,任务必须继续 pending 顶住。
+  it('收回的盘还是 spare(内核尚未开始 recovery)→ pending', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'spare', number: 4 },
+      { path: '/dev/sdd', state: 'spare', number: 5 },
+    ] }, true)).toBe('pending')
+  })
+  it('有盘还没出现在成员表 → pending', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+    ] }, true)).toBe('pending')
+  })
+  it('任一收回盘 spare rebuilding → rebuilding', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'spare rebuilding', number: 4 },
+      { path: '/dev/sdd', state: 'spare', number: 5 },
+    ] }, true)).toBe('rebuilding')
+  })
+  it('部分 active、部分未到位 → 不是 done', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+      { path: '/dev/sdd', state: 'spare rebuilding', number: 5 },
+    ] }, true)).toBe('rebuilding')
+  })
+  it('全部 active sync → done;另一块盘 faulty 不影响(盯收回盘自身,不盯阵列健康度)', () => {
+    expect(reclaimOutcome(task, { members: [
+      { path: '/dev/sdc', state: 'active sync', number: 4 },
+      { path: '/dev/sdd', state: 'active sync', number: 5 },
+      { path: '/dev/sdb', state: 'faulty', number: 1 },
+    ] }, true)).toBe('done')
   })
 })
 

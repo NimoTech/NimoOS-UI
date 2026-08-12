@@ -91,6 +91,16 @@ describe('RaidCard', () => {
     expect(w.find('.rc-badge.info').exists()).toBe(true)
     expect(w.text()).toContain('42.4') // rebuild_pct 保留 0.1
   })
+  // rebuild_eta_seconds(2026-08-12 契约):位图增量同步时内核 rebuild_finish 按已拷贝
+  // 字节算、会膨胀到几周 —— 卡片必须优先按位置推进速率的诚实估算。
+  it('重建态优先 rebuild_eta_seconds:显示「剩余约 …」,不显示内核膨胀串', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 1, state: 'rebuilding' },
+      { live_state: 'recovering', rebuild_pct: 42, rebuild_finish: '18926.6min', rebuild_eta_seconds: 35 * 60, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 },
+    )
+    expect(w.text()).toContain('剩余约 35 分钟')
+    expect(w.text()).not.toContain('18926')
+  })
   it('容量 used/total 用 fmtSize', () => {
     const w = mountCard({ id: 1, name: 'a', level: 1, state: 'active' }, { live_state: 'active', total_bytes: 2147483648, used_bytes: 1073741824, free_bytes: 1073741824, members: [], rebuild_pct: 0 })
     expect(w.text()).toMatch(/1(\.0)?\s?GB/i) // fmtSize(1073741824)
@@ -110,5 +120,27 @@ describe('RaidCard', () => {
     })
     expect(w.findAll('.rc-sq.ok').length).toBe(1)
     expect(w.findAll('.rc-sq.fail').length).toBe(1)
+  })
+  // reattachable_members(2026-08-12 契约):降级且本阵列成员盘已插回时,卡上给出
+  // 可收回提示(动作入口在详情页)。身份首选 serial,path 只是无 serial 时的兜底。
+  it('reattachable_members 非空:显示可收回提示,serial 优先', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 5, state: 'degraded' },
+      { live_state: 'degraded', state: 'degraded', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0,
+        reattachable_members: [
+          { path: '/dev/sdc', serial: 'WD-XYZ123', role: 'Active device 1', last_update: 'Wed Aug 12 03:43:02 2026' },
+          { path: '/dev/sdd', serial: '', role: 'Active device 2', last_update: 'Wed Aug 12 03:43:02 2026' },
+        ] },
+    )
+    const hint = w.find('.rc-reattach')
+    expect(hint.exists()).toBe(true)
+    expect(hint.text()).toContain('WD-XYZ123, /dev/sdd') // serial 优先,缺席退 path
+  })
+  it('无 reattachable_members(健康阵列/老后端)不渲染提示', () => {
+    const w = mountCard(
+      { id: 1, name: 'a', level: 5, state: 'degraded' },
+      { live_state: 'degraded', state: 'degraded', rebuild_pct: 0, members: [], total_bytes: 0, used_bytes: 0, free_bytes: 0 },
+    )
+    expect(w.find('.rc-reattach').exists()).toBe(false)
   })
 })

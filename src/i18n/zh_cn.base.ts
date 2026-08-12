@@ -654,6 +654,27 @@ export default {
   raidRecoverSuccess: '阵列已恢复',
   raidRecoverFailed: '识别失败,请检查磁盘连接',
   raidReplaceNoTarget: '无法识别需要更换的磁盘',
+  // 收回成员盘(2026-08-12,后端 reattachable_members / recover readded,LocalStorage PR #22)
+  raidReclaimHint: '检测到本阵列成员盘 {serials} 已插回——可一键收回并增量同步',
+  raidReclaimCardHint: '检测到成员盘 {serials} 已插回——进入详情可一键收回',
+  raidReclaimBtn: '收回成员盘',
+  raidReclaimLastSync: '最后同步',
+  raidReclaimStarted: '已收回：{paths}，增量同步已开始',
+  raidReclaimNothing: '未发现可收回的成员盘',
+  raidReclaimFailed: '收回失败，请检查磁盘连接',
+  raidReclaimDoneHealthy: '成员盘已收回，阵列已恢复健康',
+  raidReclaimDoneStillDegraded: '成员盘已收回，但阵列仍未恢复健康——可能还有别的盘有问题',
+  // 重建 ETA(2026-08-12,后端 rebuild_eta_seconds;文案 1:1 移植 Vue2 028837e8 的
+  // "eta */duration *" 键,键名按本仓 camelCase 约定)
+  raidEtaCalculating: '正在估算剩余时间…',
+  raidEtaRemaining: '剩余约 {duration}',
+  raidEtaDoneToday: '预计今天 {time} 完成',
+  raidEtaDoneTomorrow: '预计明天 {time} 完成',
+  raidEtaDoneDate: '预计 {m}月{d}日 {time} 完成',
+  raidEtaDurationDhm: '{d} 天 {h} 小时 {m} 分钟',
+  raidEtaDurationHm: '{h} 小时 {m} 分钟',
+  raidEtaDurationM: '{m} 分钟',
+  raidEtaUnderMinute: '不到 1 分钟',
   // RAID 残留(外来/废弃阵列遗留超块)与磁盘详情(2026-08-11,对齐 Vue2 b6cffd6c)
   raidResidue: 'RAID 残留',
   raidResidueExplain: '该磁盘带有阵列“{name}”的 RAID 残留元数据。它不属于本机阵列，清除残留后即可使用。',

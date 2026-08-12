@@ -492,13 +492,25 @@ describe('RAID 写 action', () => {
     warn.mockRestore()
   })
 
-  it('recoverRaid 返回后端 data.state', async () => {
+  it('recoverRaid 新契约(2026-08-12):Data={state,readded},原样返回;readded 非空建立 reclaimTask', async () => {
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 1, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue({ live_state: 'degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 0, used_bytes: 0, free_bytes: 0, members: [{ path: '/dev/sdc', state: 'spare', number: 4 }] })
+    const s = useStorageStore()
+    const r = await s.recoverRaid(9)
+    expect(raidRecoverMock).toHaveBeenCalledWith(9)
+    expect(r).toEqual({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    // spare 态 → reclaimOutcome=pending,任务留着顶住 spare→recovering 过渡窗口的轮询
+    expect(s.reclaimTask).toEqual({ arrayId: '9', arrayName: '', paths: ['/dev/sdc'] })
+  })
+
+  it('recoverRaid 兼容老后端嵌套形状 data.data.state;readded 缺席不建任务', async () => {
     raidRecoverMock.mockResolvedValue({ data: { data: { state: 'rebuilding' } } })
     raidList.mockResolvedValue([])
     const s = useStorageStore()
     const r = await s.recoverRaid(9)
-    expect(raidRecoverMock).toHaveBeenCalledWith(9)
-    expect(r).toEqual({ state: 'rebuilding' })
+    expect(r).toEqual({ state: 'rebuilding', readded: [] })
+    expect(s.reclaimTask).toBeNull()
   })
 
   it('recoverRaid 失败 → warn 只记 message(不含 config)、finally 仍刷新、busy 复位', async () => {
@@ -512,5 +524,115 @@ describe('RAID 写 action', () => {
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
     expect(s.raidRecovering).toBe(false) // finally 释放
     warn.mockRestore()
+  })
+})
+
+describe('收回成员盘(reclaimRaidMembers / reclaimTask)', () => {
+  beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
+
+  // --re-add 刚返回时成员还是 spare(不算重建态)—— 任务必须留着,它就是轮询开关
+  const spareStatus = { live_state: 'degraded', state: 'degraded', rebuild_pct: -1, total_bytes: 0, used_bytes: 0, free_bytes: 0, members: [{ path: '/dev/sdc', state: 'spare', number: 4 }] }
+
+  it('readded 非空:toast 已收回、建立 reclaimTask(在 loadRaid 前,名字取自已加载列表)', async () => {
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue(spareStatus)
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    const s = useStorageStore()
+    await s.loadRaid() // 先有列表,arrayName 才解析得出来
+    const ok = await s.reclaimRaidMembers(9)
+    expect(ok).toBe(true)
+    expect(raidRecoverMock).toHaveBeenCalledWith(9)
+    expect(toastShow).toHaveBeenCalledWith('raidReclaimStarted')
+    expect(s.reclaimTask).toEqual({ arrayId: '9', arrayName: 'md9', paths: ['/dev/sdc'] })
+    expect(s.raidRecovering).toBe(false) // finally 释放
+  })
+
+  it('readded 空:toast 未发现可收回、不建任务、仍返回 true', async () => {
+    raidList.mockResolvedValue([])
+    raidRecoverMock.mockResolvedValue({ state: 'degraded', readded: [] })
+    const s = useStorageStore()
+    const ok = await s.reclaimRaidMembers(9)
+    expect(ok).toBe(true)
+    expect(toastShow).toHaveBeenCalledWith('raidReclaimNothing')
+    expect(s.reclaimTask).toBeNull()
+  })
+
+  it('失败:toast 收回失败、返回 false、warn 只记 message、busy 复位', async () => {
+    raidRecoverMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
+    raidList.mockResolvedValue([])
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const s = useStorageStore()
+    const ok = await s.reclaimRaidMembers(9)
+    expect(ok).toBe(false)
+    expect(toastShow).toHaveBeenCalledWith('raidReclaimFailed')
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
+    expect(s.raidRecovering).toBe(false)
+    warn.mockRestore()
+  })
+
+  it('收回后全部 active sync → loadRaid 清任务并按阵列健康度 toast 完成', async () => {
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue(spareStatus)
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    const s = useStorageStore()
+    await s.reclaimRaidMembers(9)
+    expect(s.reclaimTask).not.toBeNull() // spare 态 pending,任务在场
+    // 下一拍:阵列恢复 active、收回的盘 active sync
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'active' }])
+    raidGetStatus.mockResolvedValue({ live_state: 'active', state: 'active', rebuild_pct: 0, total_bytes: 0, used_bytes: 0, free_bytes: 0, members: [{ path: '/dev/sdc', state: 'active sync', number: 4 }] })
+    await s.loadRaid()
+    expect(s.reclaimTask).toBeNull()
+    expect(toastShow).toHaveBeenCalledWith('raidReclaimDoneHealthy')
+  })
+
+  it('收回盘 active 但阵列仍 degraded → toast 完成但未恢复健康(不撒谎)', async () => {
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue(spareStatus)
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    const s = useStorageStore()
+    await s.reclaimRaidMembers(9)
+    raidGetStatus.mockResolvedValue({ live_state: 'degraded', state: 'degraded', rebuild_pct: 0, total_bytes: 0, used_bytes: 0, free_bytes: 0, members: [{ path: '/dev/sdc', state: 'active sync', number: 4 }, { path: '/dev/sdb', state: 'faulty', number: 1 }] })
+    await s.loadRaid()
+    expect(s.reclaimTask).toBeNull()
+    expect(toastShow).toHaveBeenCalledWith('raidReclaimDoneStillDegraded')
+  })
+
+  it('阵列从列表消失 → 任务撤掉且不报完成', async () => {
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue(spareStatus)
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    const s = useStorageStore()
+    await s.reclaimRaidMembers(9)
+    toastShow.mockClear()
+    raidList.mockResolvedValue([])
+    await s.loadRaid()
+    expect(s.reclaimTask).toBeNull()
+    expect(toastShow).not.toHaveBeenCalled()
+  })
+
+  it('dismissReclaimTask 手动清任务(逃生门)', async () => {
+    raidList.mockResolvedValue([{ id: 9, name: 'md9', level: 5, state: 'degraded' }])
+    raidGetStatus.mockResolvedValue(spareStatus)
+    raidRecoverMock.mockResolvedValue({ state: 'rebuilding', readded: ['/dev/sdc'] })
+    const s = useStorageStore()
+    await s.reclaimRaidMembers(9)
+    expect(s.reclaimTask).not.toBeNull()
+    s.dismissReclaimTask()
+    expect(s.reclaimTask).toBeNull()
+  })
+
+  it('在途守卫:与 recoverRaid 共用 raidRecovering,不会同时双发', async () => {
+    let resolve!: (v: unknown) => void
+    raidRecoverMock.mockReturnValue(new Promise((r) => (resolve = r)))
+    raidList.mockResolvedValue([])
+    const s = useStorageStore()
+    const p1 = s.reclaimRaidMembers(9)
+    const p2 = s.reclaimRaidMembers(9)
+    const p3 = s.recoverRaid(9)
+    await expect(p2).resolves.toBe(false)
+    await expect(p3).resolves.toBeNull()
+    expect(raidRecoverMock).toHaveBeenCalledTimes(1)
+    resolve({ state: 'rebuilding', readded: [] })
+    await p1
   })
 })
