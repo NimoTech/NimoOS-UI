@@ -15,6 +15,22 @@ import { usePhotosToast } from '../composables/usePhotosToast'
 
 const { toasts } = usePhotosToast()
 const { themeClass } = usePhotosTheme()
+
+// Icon glyphs, pixel reference: Vue2 photosToast.js:24-40 (svgIcon()) —
+// 24x24 viewBox, stroke-based, rendered at 14x14 tinted by the accent
+// color via `currentColor` (see .photos-toast-icon below). Only the icon
+// names actually consumed by a photos caller are ported here as they come
+// up (currently just the delete-toast's 'trash', PhotosTimeline.vue:704-718
+// in Vue2) — an unmapped `icon` renders nothing rather than falling back to
+// a generic glyph like Vue2 did, so a typo'd name is visibly silent instead
+// of silently substituting the wrong picture.
+const ICON_PATHS: Record<string, string> = {
+  trash: 'M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13',
+}
+
+function iconPath(icon?: string): string | undefined {
+  return icon ? ICON_PATHS[icon] : undefined
+}
 </script>
 
 <template>
@@ -22,6 +38,16 @@ const { themeClass } = usePhotosTheme()
     <div class="photos-toast-host photos-root" :class="themeClass">
       <TransitionGroup name="photos-toast" tag="div" class="photos-toast-stack">
         <div v-for="toast in toasts" :key="toast.id" class="photos-toast">
+          <svg
+            v-if="iconPath(toast.icon)"
+            class="photos-toast-icon"
+            data-role="photos-toast-icon"
+            :data-icon="toast.icon"
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            aria-hidden="true"
+          ><path :d="iconPath(toast.icon)" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
           <span class="photos-toast-text">{{ toast.text }}</span>
           <button
             v-if="toast.action"
@@ -78,19 +104,24 @@ const { themeClass } = usePhotosTheme()
   background: rgba(255, 255, 255, 0.94); /* theme-exception: Vue2 parity literal, photos toast surface (light) */
 }
 
+/* Icon glyph: 14x14, tinted by the accent color via currentColor (Vue2
+   photosToast.js:39's `color:${color}` on the <svg> style, ported as a CSS
+   `color` so the stroke inherits it). */
+.photos-toast-icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
 /* Undo/action button: 4px 11px padding, 99px pill, accent-at-20%-alpha
-   fill. No 20%-alpha accent token exists; --accent-soft (18% alpha) is the
-   nearest pre-blended token and is used per "express through a parity token
-   where one exists" rather than composing a fresh alpha-blend function call
-   from --accent-rgb — the guard flags any bare color-function call, whether
-   or not its arguments are var()-wrapped, so only whole pre-blended tokens
-   pass unexempted. */
+   fill — same channel values as --accent-rgb, but no 20%-alpha token
+   exists, so this is a literal exempted the same way as the pill-surface
+   backgrounds above (registered per color-guard.test.ts's convention). */
 .photos-toast-action {
   padding: 4px 11px;
   margin-left: 2px;
   border-radius: 99px;
   border: 1px solid var(--accent-glow);
-  background: var(--accent-soft);
+  background: rgba(110, 91, 255, 0.2); /* theme-exception: Vue2 parity literal, photos toast undo fill */
   color: var(--accent);
   font: inherit;
   font-size: 11.5px;

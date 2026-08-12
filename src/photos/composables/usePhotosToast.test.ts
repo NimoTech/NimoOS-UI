@@ -59,6 +59,17 @@ describe('usePhotosToast', () => {
     expect(toasts.value).toHaveLength(0)
   })
 
+  it('action.onClick 抛出异常时,该 toast 仍然被移除(Vue2 photosToast.js:123-124 的 try/catch 口径)', () => {
+    const onClick = vi.fn(() => {
+      throw new Error('boom')
+    })
+    const { show, toasts } = usePhotosToast()
+    show({ text: 'Moved to Trash', action: { label: 'Undo', onClick } })
+    expect(() => toasts.value[0].action?.onClick()).not.toThrow()
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(toasts.value).toHaveLength(0)
+  })
+
   it('__resetForTests 清空队列与计时器', () => {
     const { show, toasts, __resetForTests } = usePhotosToast()
     show({ text: 'A' })

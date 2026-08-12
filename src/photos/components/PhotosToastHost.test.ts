@@ -66,6 +66,29 @@ describe('PhotosToastHost', () => {
     expect(body().text()).not.toContain('Moved to Trash')
   })
 
+  it('icon:"trash" 在文案前渲染出 trash 图标', async () => {
+    await mountHost()
+    usePhotosToast().show({ text: 'Moved to Trash', icon: 'trash' })
+    await nextTick()
+    const icon = body().find('[data-role="photos-toast-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.attributes('data-icon')).toBe('trash')
+  })
+
+  it('未知 icon 名称不渲染任何图标节点', async () => {
+    await mountHost()
+    usePhotosToast().show({ text: 'Something', icon: 'not-a-real-icon' })
+    await nextTick()
+    expect(body().find('[data-role="photos-toast-icon"]').exists()).toBe(false)
+  })
+
+  it('不带 icon 时不渲染图标节点', async () => {
+    await mountHost()
+    usePhotosToast().show({ text: 'No icon here' })
+    await nextTick()
+    expect(body().find('[data-role="photos-toast-icon"]').exists()).toBe(false)
+  })
+
   it('多条 toast 按入队顺序渲染', async () => {
     await mountHost()
     usePhotosToast().show({ text: 'First' })

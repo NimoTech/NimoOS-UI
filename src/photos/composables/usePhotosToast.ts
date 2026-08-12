@@ -72,7 +72,15 @@ export function usePhotosToast(): {
           // exactly {show, toasts, __resetForTests} per the Task 2 contract
           // — the host only ever needs to call action.onClick().
           onClick: () => {
-            opts.action?.onClick()
+            // Vue2 parity (photosToast.js:123-124): the caller's handler
+            // runs inside a try/catch so a throwing onClick still lets the
+            // toast dismiss — the click is a "commit and get out of the
+            // way" gesture, not a place to surface caller bugs.
+            try {
+              opts.action?.onClick()
+            } catch {
+              // intentionally swallowed, see above
+            }
             dismiss(id)
           },
         }
