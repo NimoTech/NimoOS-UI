@@ -76,6 +76,31 @@ describe('mapDrives', () => {
     expect(mapDrives([{ health: true }])[0].healthy).toBe(true)
     expect(mapDrives([{}])[0].healthy).toBe(false)
   })
+  it('health 原文保留三态:字符串原样、缺失为空串(详情页 —)', () => {
+    expect(mapDrives([{ health: 'true' }])[0].health).toBe('true')
+    expect(mapDrives([{ health: 'false' }])[0].health).toBe('false')
+    expect(mapDrives([{}])[0].health).toBe('')
+  })
+  it('2026-08 新字段:serial/disk_by_id/power_on_time/children(mount_point+used_bytes)/raid', () => {
+    const raid = {
+      role: 'member' as const, array_name: 'raid10', array_uuid: 'u', level: 'raid10',
+      md_device: '/dev/md127', registered: true, active: true,
+    }
+    const d = mapDrives([{
+      name: 'sda', path: '/dev/sda', serial: 'WD-1', disk_by_id: 'ata-WDC_WD-1', power_on_time: 2494,
+      children: [{ name: 'md127', size: 2000138797056, format: 'btrfs', mount_point: '/media/RAID_raid10', used_bytes: 763134341120 }],
+      raid,
+    }])[0]
+    expect(d.serial).toBe('WD-1')
+    expect(d.diskById).toBe('ata-WDC_WD-1')
+    expect(d.powerOnHours).toBe(2494)
+    expect(d.children).toEqual([{ name: 'md127', size: 2000138797056, format: 'btrfs', usedBytes: 763134341120, mountPoint: '/media/RAID_raid10' }])
+    expect(d.raid).toEqual(raid)
+    // 未挂载分区:mount_point/used_bytes 缺席 → 空串/0;干净盘 raid → null
+    const clean = mapDrives([{ children: [{ name: 'sdb1', size: 1, format: 'ext4' }] }])[0]
+    expect(clean.children[0]).toEqual({ name: 'sdb1', size: 1, format: 'ext4', usedBytes: 0, mountPoint: '' })
+    expect(clean.raid).toBeNull()
+  })
   it('非数组输入返回空数组', () => {
     expect(mapDrives(undefined)).toEqual([])
   })
@@ -122,8 +147,19 @@ describe('mapAvailDisks', () => {
     ])
     expect(out).toEqual([
       { path: '/dev/sdb', name: 'sdb', model: 'WD Blue', size: 1000204886016, needFormat: true, serial: 'S1',
-        disk_type: '', health: '', temperature: 0, power_on_time: 0 },
+        disk_type: '', health: '', temperature: 0, power_on_time: 0, raid: null },
     ])
+  })
+  it('raid 残留信息原样透传(2026-08-11 真机:residue 盘出现在 avail 里)', () => {
+    const residue = {
+      role: 'residue' as const, array_name: 'zimaos:fc5616382c017331', array_uuid: 'u', level: 'raid5',
+      md_device: '/dev/md126', registered: false, active: false,
+      created_at: 'Thu Aug  6 21:54:49 2026', updated_at: 'Fri Aug  7 00:29:17 2026',
+    }
+    const out = mapAvailDisks([{ path: '/dev/sdb', name: 'sdb', size: 1, raid: residue }])
+    expect(out[0].raid).toEqual(residue)
+    // 干净盘 → null
+    expect(mapAvailDisks([{ path: '/dev/sda', size: 1 }])[0].raid).toBeNull()
   })
   it('带上健康展示要用的四个字段(真机 avail 里都有值,除 health)', () => {
     const out = mapAvailDisks(LIVE_AVAIL)

@@ -411,7 +411,7 @@ describe('RAID 写 action', () => {
   it('createRaid 发 POST body 逐字 {name,level,disk_paths,chunk_kb:512,filesystem,enable_snapshots};单飞守卫', async () => {
     raidCreateMock.mockResolvedValue({ data: { task_id: 't1' } })
     const s = useStorageStore()
-    const body = { name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb', '/dev/sdc'], chunk_kb: 512 as const, filesystem: 'btrfs' as const, enable_snapshots: true }
+    const body = { name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb', '/dev/sdc'], chunk_kb: 512 as const, filesystem: 'btrfs' as const, enable_snapshots: true, wipe_raid_residue: false }
     const p1 = s.createRaid(body)
     const p2 = s.createRaid(body) // 并发第二发被守卫吞掉
     const [r1, r2] = await Promise.all([p1, p2])
@@ -429,7 +429,7 @@ describe('RAID 写 action', () => {
   it('createRaid 对裸 {task_id,status}(无 .data)也能取到 taskId', async () => {
     raidCreateMock.mockResolvedValue({ task_id: 'abc', status: 'creating' })
     const s = useStorageStore()
-    const r = await s.createRaid({ name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: false })
+    const r = await s.createRaid({ name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: false, wipe_raid_residue: false })
     expect(r?.taskId).toBe('abc')
   })
 
@@ -437,7 +437,7 @@ describe('RAID 写 action', () => {
     raidCreateMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = useStorageStore()
-    const r = await s.createRaid({ name: 'a', level: 0, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'ext4', enable_snapshots: false })
+    const r = await s.createRaid({ name: 'a', level: 0, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'ext4', enable_snapshots: false, wipe_raid_residue: false })
     expect(r).toBeNull()
     expect(warn).toHaveBeenCalled()
     // 断言日志不带整个 error 对象(不含 config)
@@ -470,12 +470,12 @@ describe('RAID 写 action', () => {
     warn.mockRestore()
   })
 
-  it('replaceRaidDisk 发 POST(id, {old_disk_path,new_disk_path}) 逐字', async () => {
+  it('replaceRaidDisk 发 POST(id, {old_disk_path,old_disk_serial,new_disk_path,wipe_raid_residue}) 逐字', async () => {
     raidReplaceDiskMock.mockResolvedValue(undefined)
     raidList.mockResolvedValue([])
     const s = useStorageStore()
-    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
-    expect(raidReplaceDiskMock).toHaveBeenCalledWith(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
+    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', old_disk_serial: 'S-B', new_disk_path: '/dev/sdd', wipe_raid_residue: false })
+    expect(raidReplaceDiskMock).toHaveBeenCalledWith(3, { old_disk_path: '/dev/sdb', old_disk_serial: 'S-B', new_disk_path: '/dev/sdd', wipe_raid_residue: false })
     expect(ok).toBe(true)
   })
 
@@ -484,7 +484,7 @@ describe('RAID 写 action', () => {
     raidList.mockResolvedValue([])
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = useStorageStore()
-    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', new_disk_path: '/dev/sdd' })
+    const ok = await s.replaceRaidDisk(3, { old_disk_path: '/dev/sdb', old_disk_serial: 'S-B', new_disk_path: '/dev/sdd', wipe_raid_residue: false })
     expect(ok).toBe(false)
     expect(warn).toHaveBeenCalled()
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
-import type { RaidStatus } from '@nimotech/nimoos-service'
+import type { RaidStatus, RaidReplaceDiskBody } from '@nimotech/nimoos-service'
 import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
 import { mapVolumes, mapDrives, mapAvailDisks, type StorageVolume, type PhysicalDrive, type AvailDisk } from '../util/storageMap'
@@ -212,6 +212,9 @@ export const useStorageStore = defineStore('storage', () => {
   async function createRaid(body: {
     name: string; level: number; disk_paths: string[]
     chunk_kb: 512; filesystem: 'btrfs' | 'ext4'; enable_snapshots: boolean
+    // 所选盘带外来阵列残留超块(role:"residue")时必须 true(用户已在向导确认页看到
+    // "将清除哪些盘的残留"清单),否则后端 500 拒绝。
+    wipe_raid_residue: boolean
   }): Promise<RaidTask | null> {
     if (raidCreating.value) return null
     raidCreating.value = true
@@ -280,7 +283,9 @@ export const useStorageStore = defineStore('storage', () => {
     useToast().show(healthy ? t('raidReplaceDoneHealthy') : t('raidReplaceDoneStillDegraded'))
   }
 
-  async function replaceRaidDisk(id: number | string, body: { old_disk_path: string; new_disk_path: string }): Promise<boolean> {
+  // body 形状见 service 包 RaidReplaceDiskBody:拔掉的盘 old_disk_path 传 ''、靠
+  // old_disk_serial 识别;新盘带 RAID 残留时 wipe_raid_residue 须为 true(弹窗已二次确认)。
+  async function replaceRaidDisk(id: number | string, body: RaidReplaceDiskBody): Promise<boolean> {
     if (raidReplacing.value) return false
     raidReplacing.value = true
     const toast = useToast()
@@ -293,7 +298,8 @@ export const useStorageStore = defineStore('storage', () => {
       replaceTask.value = {
         arrayId: String(id),
         arrayName: raidArrays.value.find((a) => String(a.id) === String(id))?.name || '',
-        oldPath: body.old_disk_path,
+        // 拔掉的盘没有可信路径(old_disk_path=''),看板卡展示退回 serial
+        oldPath: body.old_disk_path || body.old_disk_serial,
         newPath: body.new_disk_path,
       }
       ok = true

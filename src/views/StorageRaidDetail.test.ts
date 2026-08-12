@@ -15,15 +15,16 @@ const getDiskList = vi.fn().mockResolvedValue({
   disks: [],
   avail: [{ path: '/dev/sdd', name: 'sdd', model: 'scsi_debug', size: 536870912 }],
 })
-// 降级 RAID5 的成员形状取自 2026-07-28 真机:空槽位 + 故障盘各一条
+// 降级 RAID5 的成员形状取自 2026-07-28 真机:空槽位 + 故障盘各一条。
+// serial 是 2026-08-11 后端新增(status 端点逐成员带),换盘请求体按它识别被换的盘。
 const degradedStatus = {
   live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1,
   total_bytes: 100, used_bytes: 40, free_bytes: 60,
   members: [
     { path: '', state: 'removed', number: 0, slot: 0 },
-    { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
-    { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2 },
-    { path: '/dev/sda', state: 'faulty', number: 0, slot: -1 },
+    { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1, serial: 'S-B' },
+    { path: '/dev/sdc', state: 'active sync', number: 3, slot: 2, serial: 'S-C' },
+    { path: '/dev/sda', state: 'faulty', number: 0, slot: -1, serial: 'S-A' },
   ],
 }
 const raidReplaceDisk = vi.fn().mockResolvedValue(undefined)
@@ -195,10 +196,75 @@ describe('StorageRaidDetail', () => {
     document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.click()
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
 
-    expect(raidReplaceDisk).toHaveBeenCalledWith('7', { old_disk_path: '/dev/sda', new_disk_path: '/dev/sdd' })
+    // 2026-08-11 serial 语义:请求体带 old_disk_serial(在位 faulty 盘取自 status 成员行),
+    // 非残留新盘 wipe_raid_residue=false
+    expect(raidReplaceDisk).toHaveBeenCalledWith('7', {
+      old_disk_path: '/dev/sda', old_disk_serial: 'S-A', new_disk_path: '/dev/sdd', wipe_raid_residue: false,
+    })
     const store = (await import('../storage/stores/storage')).useStorageStore()
     expect(store.replaceTask).toMatchObject({ arrayId: '7', oldPath: '/dev/sda', newPath: '/dev/sdd' })
     expect(router.currentRoute.value.path).toBe('/storage/raid')
+  })
+
+  // 拔盘场景(2026-08-11 事故形状):没有 faulty 行,只剩空槽位;被拔盘的设备字母
+  // 已被新盘复用。target 须按 serial 识别(label=serial),old_disk_path 传空、
+  // 候选盘列表不因路径撞车被清空。
+  it('拔掉的盘:按 serial 识别 target,弹窗展示 serial,请求 old_disk_path 为空', async () => {
+    document.body.innerHTML = ''
+    const pulledStatus = {
+      live_state: 'clean, degraded', state: 'degraded', rebuild_pct: -1,
+      total_bytes: 100, used_bytes: 40, free_bytes: 60,
+      members: [
+        { path: '/dev/sda', state: 'active sync', number: 0, slot: 0, serial: 'OLD-1' },
+        { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1, serial: 'OLD-2' },
+        { path: '/dev/sdc', state: 'active sync', number: 2, slot: 2, serial: 'OLD-3' },
+        { path: '', state: 'removed', number: 3, slot: 3 },
+      ],
+    }
+    const memberDisks = [
+      { disk_by_id: 'i1', disk_serial: 'OLD-1', device_path_cache: '/dev/sda' },
+      { disk_by_id: 'i2', disk_serial: 'OLD-2', device_path_cache: '/dev/sdb' },
+      { disk_by_id: 'i3', disk_serial: 'OLD-3', device_path_cache: '/dev/sdc' },
+      { disk_by_id: 'i4', disk_serial: 'OLD-4', device_path_cache: '/dev/sdd' }, // 已拔;路径被新盘复用
+    ]
+    // loadRaid 在本用例里跑两次(进页面 + 换盘后的 finally 刷新),两拍都要给带 member_disks 的阵列
+    raidList
+      .mockResolvedValueOnce([{ id: 7, name: 'md7', level: 5, state: 'degraded', mount_point: '/DATA', uuid: 'u-7', member_disks: memberDisks }])
+      .mockResolvedValueOnce([{ id: 7, name: 'md7', level: 5, state: 'degraded', mount_point: '/DATA', uuid: 'u-7', member_disks: memberDisks }])
+    raidGetStatus.mockResolvedValue(pulledStatus)
+    // 新盘坐在被拔盘的旧路径 /dev/sdd 上
+    getDiskList.mockResolvedValue({ disks: [], avail: [{ path: '/dev/sdd', name: 'sdd', model: 'x', size: 536870912, serial: 'NEW-1' }] })
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { attachTo: document.body, global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    // 空槽位行也有替换入口(拔掉的盘没有 faulty 行)
+    const replaceBtns = w.findAll('.rml-replace')
+    expect(replaceBtns.length).toBe(1)
+    await replaceBtns[0].trigger('click')
+    await w.vm.$nextTick(); await w.vm.$nextTick()
+
+    // 故障盘展示 serial(缓存路径可能已属于别的盘,不当身份展示)
+    expect(document.body.querySelector<HTMLInputElement>('.rrd-input')!.value).toBe('OLD-4')
+    // 候选盘没有因为路径撞车被清空
+    const select = document.body.querySelector<HTMLSelectElement>('.rrd-select')!
+    const values = Array.from(select.options).map((o) => o.value).filter(Boolean)
+    expect(values).toEqual(['/dev/sdd'])
+
+    select.value = '/dev/sdd'
+    select.dispatchEvent(new Event('change'))
+    await w.vm.$nextTick()
+    document.body.querySelector<HTMLButtonElement>('.rrd-ok')!.click()
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
+
+    expect(raidReplaceDisk).toHaveBeenCalledWith('7', {
+      old_disk_path: '', old_disk_serial: 'OLD-4', new_disk_path: '/dev/sdd', wipe_raid_residue: false,
+    })
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    // 看板卡展示退回 serial(old_disk_path 为空)
+    expect(store.replaceTask).toMatchObject({ arrayId: '7', oldPath: 'OLD-4', newPath: '/dev/sdd' })
+    // 恢复 getDiskList 的默认返回,避免泄漏进后续用例
+    getDiskList.mockResolvedValue({ disks: [], avail: [{ path: '/dev/sdd', name: 'sdd', model: 'scsi_debug', size: 536870912 }] })
   })
 
   it('换盘接口失败 → 不建看板任务、不跳页(留在详情页)', async () => {

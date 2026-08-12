@@ -21,8 +21,16 @@ const { t } = useI18n()
 const rows = computed<MemberRowView[]>(() => mergeVacatedSlot(props.members))
 
 const pairGroups = computed<MemberRowView[][]>(() =>
-  props.level === 10 ? (mirrorPairs(rows.value as never) as MemberRowView[][]) : [],
+  props.level === 10 ? mirrorPairs(rows.value) : [],
 )
+// 不占槽位、进不了任何镜像对的行(被弹出且未被合并的故障盘、闲置热备,或老后端
+// 根本不报 slot 时的全部行)—— 平铺在镜像对之后,而不是塞进错误的对里或凭空消失。
+// 老后端(无 slot)下 pairGroups 为空、leftover = 全部行,自然退回平铺渲染。
+const leftoverRows = computed<MemberRowView[]>(() => {
+  if (props.level !== 10) return []
+  const paired = new Set(pairGroups.value.flat())
+  return rows.value.filter((m) => !paired.has(m))
+})
 
 // 走 memberRow(详情行专用映射),不是 memberSquare(卡片方块专用):后者把
 // removed 与 faulty 同归红色 fail,详情行照抄会把空槽位标成「故障」。详见
@@ -48,10 +56,13 @@ function labelForRow(m: MemberRowView): string {
   if (m.vacatedSlot != null) return t('raidMemberFaultyEjected')
   return labelFor(m)
 }
-// 严格对齐 Vue2 RaidTab.vue:238-251 openReplaceDisk 的判定(m.state === "faulty"):
-// 'removed' 盘不提供替换入口(它没有设备路径可传给换盘接口),与 Vue2 行为一致。
+// faulty 在位盘照旧;空槽位(removed,path 为空)也给替换入口 —— 物理拔掉的盘
+// 没有 faulty 行,只剩这条占位行,不给入口用户就永远换不了盘(Vue2 的替换入口挂在
+// 阵列级,天然覆盖这种情况;New-UI 挂在成员行上,须补上)。emit 的 path 为空串,
+// 由父视图(StorageRaidDetail)用 findReplaceTarget 按 serial 识别被拔的盘。
 function showReplace(m: MemberRowView): boolean {
-  return !!props.isDegraded && m.state === 'faulty'
+  if (!props.isDegraded) return false
+  return m.state === 'faulty' || (m.state === 'removed' && !m.path)
 }
 </script>
 
@@ -68,6 +79,15 @@ function showReplace(m: MemberRowView): boolean {
             {{ t('raidReplace') }}
           </button>
         </div>
+      </div>
+      <div v-for="(m, i) in leftoverRows" :key="`loose-${i}`" class="rml-row">
+        <span class="rml-dot" :style="dotStyle(m.state)"></span>
+        <span class="rml-path">{{ pathFor(m) }}</span>
+        <span class="rml-label">{{ labelForRow(m) }}</span>
+        <span v-if="m.rebuild_pct != null" class="rml-pct">{{ Math.round(m.rebuild_pct) }}%</span>
+        <button v-if="showReplace(m)" class="rml-replace" type="button" @click="emit('replace-disk', m.path)">
+          {{ t('raidReplace') }}
+        </button>
       </div>
     </template>
     <template v-else>
