@@ -1,4 +1,16 @@
 /* === Nimo Photos · Apple Photos-inspired dark === */
+/* Fix round (2026-08-12): 6 bare top-level selectors that were confirmed to
+   collide with class names used in non-photos areas of this app (.scroll,
+   .skeleton, .lib-empty, .st-bar, .st-btn, .search-meta) have been prefixed
+   with `.photos-root ` below. In the Vue2 source these elements always
+   render inside `.photos-root` (including portaled ones, which re-apply the
+   `photos-root` class to their portal host — see PhotosPlacesView.vue's
+   cover-portal and NimoModelPicker.vue), so the prefix is behavior-preserving.
+   Left unprefixed, they would leak app-wide into non-photos areas the moment
+   the photos chunk loads (confirmed hit: bare `.search-meta` matched
+   src/ai/components/blocks/SearchResultsCard.vue, which has no <style> block
+   of its own to shadow it). All other unscoped selectors in this file are
+   photos-internal name collisions only and are intentionally left as-is. */
 .photos-root {
   --bg: #0A0A0C;
   --surface-1: #131318;
@@ -93,7 +105,7 @@
 .photos-root button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .photos-scroll { overflow-y: auto; }
-.scroll { overflow-y: auto; }
+.photos-root .scroll { overflow-y: auto; }
 
 /* Hidden scrollbars across the whole Photos app — content still scrolls, the bar
    is never shown. !important overrides every per-element scrollbar rule below. */
@@ -1632,7 +1644,7 @@
 }
 
 /* --- EMPTY STATES --- */
-.lib-empty {
+.photos-root .lib-empty {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1651,13 +1663,13 @@
   align-items: center;
   justify-content: center;
 }
-.lib-empty h2 {
+.photos-root .lib-empty h2 {
   font-size: 18px;
   font-weight: 600;
   color: var(--text-2);
   margin: 0;
 }
-.lib-empty p {
+.photos-root .lib-empty p {
   font-size: 13px;
   color: var(--text-3);
   text-align: center;
@@ -2581,7 +2593,7 @@
   letter-spacing: -0.02em;
 }
 .search-query .kw { color: var(--accent-hi); }
-.search-meta { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
+.photos-root .search-meta { color: var(--text-3); font-size: 13px; font-variant-numeric: tabular-nums; }
 
 .understood {
   display: inline-flex; align-items: center; gap: 6px;
@@ -2882,7 +2894,7 @@
 .st-storage-headline .big span { font-family: var(--font-sans); font-size: 11.5px; color: var(--text-3); font-weight: 400; margin-left: 4px; letter-spacing: 0; }
 .st-storage-headline .sub { font-size: 11px; color: var(--text-3); margin-top: 2px; font-variant-numeric: tabular-nums; }
 
-.st-bar { margin: 4px 22px 14px; height: 14px; background: rgba(var(--ink), 0.04); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; display: flex; }
+.photos-root .st-bar { margin: 4px 22px 14px; height: 14px; background: rgba(var(--ink), 0.04); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; display: flex; }
 .st-bar-seg { height: 100%; border-right: 1px solid rgba(0,0,0,0.25); transition: width 0.4s ease; }
 .st-bar-seg:last-of-type { border-right: 0; }
 .st-bar-free { flex: 1; }
@@ -2897,9 +2909,9 @@
 .st-segmented button:hover { color: var(--text-1); }
 .st-segmented button[data-active="true"] { background: var(--accent); color: white; box-shadow: 0 1px 4px rgba(110,91,255,0.35); }
 
-.st-btn { height: 32px; padding: 0 14px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; transition: background 0.12s, border-color 0.12s; }
-.st-btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-strong); }
-.st-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.photos-root .st-btn { height: 32px; padding: 0 14px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); border-radius: 8px; font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; flex-shrink: 0; transition: background 0.12s, border-color 0.12s; }
+.photos-root .st-btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--line-strong); }
+.photos-root .st-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 .st-spinner { width: 12px; height: 12px; border: 2px solid rgba(var(--ink), 0.12); border-top-color: var(--accent); border-radius: 50%; animation: st-spin 0.8s linear infinite; }
 @keyframes st-spin { to { transform: rotate(360deg); } }
 .st-progress { height: 4px; border-radius: 99px; background: var(--surface-3); margin-top: 8px; overflow: hidden; }
@@ -3059,7 +3071,7 @@
   0% { background-position: -400px 0; }
   100% { background-position: 400px 0; }
 }
-.skeleton {
+.photos-root .skeleton {
   background: linear-gradient(90deg, rgba(var(--ink), 0.04) 25%, rgba(var(--ink), 0.08) 50%, rgba(var(--ink), 0.04) 75%);
   background-size: 800px 100%;
   animation: shimmer 1.5s infinite linear;
