@@ -130,14 +130,21 @@ describe('搜索 submit', () => {
     expect(w.emitted('search-submit')).toEqual([['sunset']])
   })
 
-  // 与 PhotosSearchBar.vue 已拍板的"空串也 emit"先例一致(见该文件头注释)——Photos.vue
-  // 现有 onSearchSubmit 依赖这个语义区分"提交空串仍导航到预搜索态"与"完全没提交"两种情况
-  // (Photos.integration.test.ts 既有断言),本组件延续同一约定,不是照搬 Vue2 PhotosTopbar
-  // 自己 submitSearch 的空串 return 守卫(登记为刻意的一致性选择,不是漏改)。
-  it('空串也 emit search-submit(与 PhotosSearchBar 既有约定一致,保留 Photos.vue 既有路由语义)', async () => {
+  // fix round 1 · Important(owner 裁决 ledger-六-2,覆盖第一版"空串也 emit"的选择):
+  // 时间线顶栏空串 Enter = 无动作,照 Vue2 自己 submitSearch(:65-69)的空串 return 守卫。
+  // 只覆盖这个顶栏——PhotosSearchBar.vue 自己(PhotosSearch.vue 独立搜索页用的那个框)的
+  // "空串也 emit"约定不受影响,范围不同,不是同一件事改了两次。
+  it('空串 Enter → 不 emit search-submit(ledger-六-2,照 Vue2 submitSearch 空串守卫)', async () => {
     const w = mountTopbar()
     await w.get('.search input').trigger('keydown.enter')
-    expect(w.emitted('search-submit')).toEqual([['']])
+    expect(w.emitted('search-submit')).toBeUndefined()
+  })
+
+  it('全是空白 Enter → 同样不 emit(trim 后为空)', async () => {
+    const w = mountTopbar()
+    await w.get('.search input').setValue('   ')
+    await w.get('.search input').trigger('keydown.enter')
+    expect(w.emitted('search-submit')).toBeUndefined()
   })
 })
 

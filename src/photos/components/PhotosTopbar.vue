@@ -23,13 +23,12 @@
 // timeline.ts:131-145),不随 Photos.vue 自己的 tab/EXIF 筛选变化,toLocaleString 千分位
 // 格式化(brief 明示)。
 //
-// 搜索 submit 语义(登记一处刻意的一致性选择,不是照搬 Vue2):Vue2 自己的 submitSearch
-// (:65-69)在空串时 `return`,不 emit。但 Photos.vue 现有 onSearchSubmit
-// (`router.push({path:'/photos/search', query: q ? {q} : {}}))`)与已合并的 PhotosSearchBar.vue
-// 都遵循"空串也 emit"的约定(结构规格 3,PhotosSearchBar.vue 文件头注释),且
-// Photos.integration.test.ts 已有断言依赖这个语义("提交空串 → router.push 时 query 为空
-// 对象")。本组件延续这个既有约定而不是引入 Vue2 自己的空串守卫,避免在同一个页面里对
-// "提交空串"这一件事有两种不同行为。
+// 搜索 submit 语义(fix round 1 · Important,owner 裁决 ledger-六-2):空串 Enter = 无动作,
+// 照 Vue2 自己的 submitSearch(:65-69)语义——trim 后为空直接 return,不 emit。
+// 第一版曾照搬 PhotosSearchBar.vue"空串也 emit"的约定(结构规格 3),owner 裁决 ledger-六-2
+// 把"时间线顶栏空串 Enter 不动作"列为要清的债、覆盖那条约定——但只覆盖**这个顶栏**,
+// PhotosSearchBar.vue 自己（PhotosSearch.vue 独立搜索页用的那个框）的"空串也 emit"仍然
+// 有效、不受本次裁决影响,两者是不同范围、故意留出的不同行为,不是漏改。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
@@ -55,7 +54,9 @@ const sub = computed(() =>
 const searchText = ref('')
 
 function submitSearch(): void {
-  emit('search-submit', searchText.value.trim())
+  const q = searchText.value.trim()
+  if (!q) return
+  emit('search-submit', q)
 }
 
 function onKbd(e: KeyboardEvent): void {
@@ -71,6 +72,8 @@ function onKbd(e: KeyboardEvent): void {
 
 <template>
   <header class="topbar">
+    <!-- aria-expanded describes the sidebar's own collapsed/expanded state (what this
+         button controls), not this button's own expanded/collapsed state. -->
     <button class="icon-btn" :aria-expanded="!collapsed" :title="t('photosToggleSidebar')" @click="emit('toggle-collapse')">
       <PhotosIcon name="panelLeft" :size="17" />
     </button>

@@ -416,10 +416,12 @@ describe('Photos.vue integration', () => {
   })
 })
 
-// SP7-P7a-T16: 顶部搜索框恒显示,提交 → 跳转 /photos/search(结构规格 22)。
+// SP7-P7a-T16: 顶部搜索框恒显示,提交非空词 → 跳转 /photos/search(结构规格 22)。
 // Task 4(顶栏重刻):搜索框从独立的 `<PhotosSearchBar>` 挪进了 `<PhotosTopbar>` 内的
 // `.topbar .search`(Vue2 topbar 原生结构),选择器同步改为 `.topbar .search input`——
-// 提交/路由跳转的逻辑本身(onSearchSubmit)没有变,只是发出提交事件的组件变了。
+// 非空词提交/路由跳转的逻辑本身(onSearchSubmit)没有变,只是发出提交事件的组件变了。
+// fix round 1(owner 裁决 ledger-六-2):空串 Enter 的行为改了——PhotosTopbar 现在照 Vue2
+// submitSearch 的空串守卫,空串不 emit,onSearchSubmit 压根不会被调,见下方最后一例。
 describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)', () => {
   it('顶部渲染 PhotosTopbar 的搜索框(.topbar .search input)', async () => {
     const w = await mountPhotos()
@@ -435,12 +437,15 @@ describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
   })
 
-  it('提交空串 → router.push 时 query 为空对象', async () => {
+  // fix round 1 · Important(owner 裁决 ledger-六-2,覆盖第一版"提交空串仍导航"的选择):
+  // 时间线顶栏空串 Enter = 无动作,不再跳转——PhotosTopbar 组件层已经不 emit
+  // search-submit,onSearchSubmit 根本不会被调用,router.push 完全没被调过。
+  it('提交空串 → 不跳转(ledger-六-2,PhotosTopbar 空串不 emit)', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
     await w.get('.topbar .search input').trigger('keydown.enter')
-    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: {} })
+    expect(pushSpy).not.toHaveBeenCalled()
   })
 })
 
