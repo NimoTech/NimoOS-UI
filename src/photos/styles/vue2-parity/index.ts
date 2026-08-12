@@ -4,9 +4,9 @@
 // these is inert until a view root carries that class (Plans B-H).
 // photos-upload.scss is intentionally NOT here: upload is removed (spec §6-1).
 // photos-smartview.scss is NOT imported here either (fix round 2026-08-12):
-// photos.scss:4013 already has an internal `@import './photos-smartview.scss'`
-// (kept verbatim, unmodified), so importing it again here would duplicate its
-// entire compiled CSS output in the bundle.
+// photos.scss pulls in photos-smartview.scss via its own internal @import
+// near the end of the file (kept verbatim, unmodified), so importing it
+// again here would duplicate its entire compiled CSS output in the bundle.
 import './photos.scss'
 import './photos-people.scss'
 import './photos-places.scss'

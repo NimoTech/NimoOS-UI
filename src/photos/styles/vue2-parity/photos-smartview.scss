@@ -68,10 +68,13 @@
   width: 6px; height: 6px; border-radius: 50%;
   background: #34C759;
   box-shadow: 0 0 6px #34C759;
-  animation: pulse 1.6s infinite;
+  animation: photos-pulse 1.6s infinite;
 }
 .photos-root .sv-collage-status[data-paused="true"] .live-dot { background: #FF9F0A; box-shadow: 0 0 6px #FF9F0A; animation: none; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+/* Renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse` (keyframes ignore selector scoping); behavior-identical
+   self-consistent rename. */
+@keyframes photos-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
 .photos-root .sv-meta {
   padding: 14px 16px 16px;
@@ -378,7 +381,7 @@
 .photos-root .sv-header h1 .live-pill .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #34C759; box-shadow: 0 0 6px #34C759;
-  animation: pulse 1.6s infinite;
+  animation: photos-pulse 1.6s infinite;
 }
 .photos-root .sv-header h1 .live-pill { cursor: pointer; transition: filter 0.15s, transform 0.12s; }
 .photos-root .sv-header h1 .live-pill:hover { filter: brightness(1.15); }

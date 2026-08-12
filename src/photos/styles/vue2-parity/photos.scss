@@ -195,9 +195,12 @@
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent-glow);
-  animation: pulse 1.6s ease-in-out infinite;
+  animation: photos-pulse 1.6s ease-in-out infinite;
 }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+/* Renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse` (keyframes ignore selector scoping); behavior-identical
+   self-consistent rename. */
+@keyframes photos-pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
 .photos-root .storage-mini { font-size: 11px; color: var(--text-3); }
 .photos-root .storage-mini-bar {
   height: 4px; border-radius: 99px;
@@ -863,7 +866,7 @@
   background: url(../../assets/nimo-logo.png) center/cover no-repeat;
   flex-shrink: 0;
 }
-.photos-root .nimo-fab .running-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 8px var(--accent-glow); animation: pulse 1.2s ease-in-out infinite; }
+.photos-root .nimo-fab .running-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-hi); box-shadow: 0 0 8px var(--accent-glow); animation: photos-pulse 1.2s ease-in-out infinite; }
 .photos-root .nimo-pop {
   position: fixed; right: 24px; bottom: 78px; width: 360px;
   max-height: min(720px, 85vh);
@@ -3335,13 +3338,14 @@
    .live-dot rule — so a size/color/breathing-animation set must be
    explicitly added here for the .al-live-dot context (a hollow-dot bug found
    in review), with values kept consistent with .sv-collage-status .live-dot;
-   the pulse keyframes are defined in photos-smartview.scss (available since
-   it's globally imported). */
+   the photos-pulse keyframes are defined in photos-smartview.scss (available
+   since it's globally imported; renamed from Vue2's `pulse` to avoid
+   colliding with theme.css's global `pulse`). */
 .photos-root .al-live-dot .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #34C759;
   box-shadow: 0 0 6px #34C759;
-  animation: pulse 1.6s infinite;
+  animation: photos-pulse 1.6s infinite;
 }
 .photos-root .al-live-dot[data-paused="true"] .live-dot {
   background: #FF9F0A;
@@ -3451,7 +3455,7 @@
   border-radius: 50%;
   background: var(--accent-hi);
   box-shadow: 0 0 6px var(--accent-glow);
-  animation: pulse 1.4s ease-in-out infinite;
+  animation: photos-pulse 1.4s ease-in-out infinite;
 }
 .photos-root .shared-card .stack {
   display: inline-flex;
