@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../../components/shell/AreaShell.vue'
@@ -7,6 +7,7 @@ import FilesSidebar from '../components/FilesSidebar.vue'
 import ShareRow from './ShareRow.vue'
 import ShareLinkDialog from './ShareLinkDialog.vue'
 import AlertDialog from '../../components/ui/AlertDialog.vue'
+import SharesSelectionToolbar from './SharesSelectionToolbar.vue'
 import { useSharesStore, type ShareRow as ShareRowT } from '../stores/shares'
 import { useFilesStore } from '../stores/files'
 import { toVirtualPath, virtualPathToRouteParam } from '../util/pathUtils'
@@ -18,6 +19,40 @@ const files = useFilesStore()
 
 const linkDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 const delDlg = ref<{ open: boolean; row: ShareRowT | null }>({ open: false, row: null })
+
+const selected = ref<Set<number>>(new Set())
+const batchDlg = ref(false)
+const batchBusy = ref(false)
+
+// Prune stale ids whenever the list reloads (single unshare, batch unshare,
+// external changes) — a selection must never reference a row that is gone.
+watch(() => shares.items, (items) => {
+  const live = new Set(items.map((r) => r.id))
+  const next = new Set([...selected.value].filter((id) => live.has(id)))
+  if (next.size !== selected.value.size) selected.value = next
+})
+
+function toggleSelect(row: ShareRowT) {
+  const next = new Set(selected.value)
+  if (next.has(row.id)) next.delete(row.id)
+  else next.add(row.id)
+  selected.value = next
+}
+function selectAllRows() { selected.value = new Set(shares.items.map((r) => r.id)) }
+function clearSelection() { selected.value = new Set() }
+function onBatchUnshare() { if (selected.value.size && !batchBusy.value) batchDlg.value = true }
+async function confirmBatchUnshare() {
+  if (batchBusy.value) return
+  batchDlg.value = false
+  batchBusy.value = true
+  try {
+    const { failedIds } = await shares.removeMany([...selected.value])
+    // Keep failures selected so one more click retries exactly those.
+    selected.value = new Set(failedIds)
+  } finally {
+    batchBusy.value = false
+  }
+}
 
 onMounted(() => {
   shares.load()
@@ -45,9 +80,26 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
       <FilesSidebar @navigate="goVirtual" />
       <main class="shares-main">
         <h2 class="shares-title">{{ t('filesSharesTitle') }}</h2>
+        <SharesSelectionToolbar
+          v-if="selected.size"
+          :count="selected.size"
+          :busy="batchBusy"
+          @select-all="selectAllRows"
+          @clear="clearSelection"
+          @unshare="onBatchUnshare"
+        />
         <p v-if="!shares.loading && !shares.items.length" class="shares-empty">{{ t('filesSharesEmpty') }}</p>
         <ul class="shares-list">
-          <ShareRow v-for="row in shares.items" :key="row.id" :row="row" @get-link="onGetLink" @goto="onGoto" @unshare="onUnshare" />
+          <ShareRow
+            v-for="row in shares.items"
+            :key="row.id"
+            :row="row"
+            :selected="selected.has(row.id)"
+            @get-link="onGetLink"
+            @goto="onGoto"
+            @unshare="onUnshare"
+            @toggle-select="toggleSelect"
+          />
         </ul>
       </main>
     </div>
@@ -60,6 +112,15 @@ function confirmUnshare() { if (delDlg.value.row) shares.remove(delDlg.value.row
       :cancel-text="t('filesCancel')"
       destructive
       @confirm="confirmUnshare"
+    />
+    <AlertDialog
+      v-model:open="batchDlg"
+      :title="t('filesUnshareConfirmTitle')"
+      :message="t('filesUnshareBatchConfirmMsg', { count: selected.size })"
+      :confirm-text="t('filesUnshare')"
+      :cancel-text="t('filesCancel')"
+      destructive
+      @confirm="confirmBatchUnshare"
     />
   </AreaShell>
 </template>
