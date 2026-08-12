@@ -58,22 +58,36 @@ function stripBlockComments(text: string): string {
 // already makes those safe post-compile — see photos-people.scss /
 // photos-places.scss, which wrap their entire bodies in `.photos-root { }`).
 //
-// A selector only counts as a genuinely "bare" collision risk when ANY
-// element carrying just that one literal class, with no other context,
-// would match it. Two shapes are therefore excluded even though they are
-// technically at depth 0 and not `.photos-root`-scoped:
-//   - descendant/child/sibling chains (`.st-bar-legend .lbl`,
-//     `.places-cover-portal .cp-shell`) — the rightmost class only fires
-//     when nested under the specific ancestor class, which non-photos
-//     markup essentially never reproduces by accident;
-//   - multi-class AND-compounds (`.places-cover-portal.is-open`,
-//     `.cal-cell.end`) — both classes must land on the very same element,
-//     so neither one alone is "bare".
-// This matches the Plan A final-review compile audit's judgment call (its
-// zero-intersection finding was against exactly this narrower set); a
-// top-level selector consisting of a single class — optionally with
-// pseudo-classes/attribute selectors bolted on, e.g. `.fchip[data-on="true"]`
-// or `.fchip:hover` — is the only shape counted.
+// A selector counts as a collision risk in one of two shapes — together
+// these are the *complete* bleed surface, because CSS matching always
+// requires the leftmost compound of a selector to match some element (an
+// ancestor for descendant/child/sibling chains, or the target element
+// itself when there's no combinator at all):
+//   (a) single bare-class selectors (`.fchip`, `.fchip:hover`,
+//       `.fchip[data-on="true"]`) — any element carrying just that one
+//       literal class matches directly, no ancestor needed;
+//   (b) the LEFTMOST simple/compound selector's class token(s) of a
+//       descendant/child/sibling chain (`.st-bar-legend .lbl` → anchor is
+//       `st-bar-legend`; `.places-cover-portal .cp-shell` → anchor is
+//       `places-cover-portal`) — if that leftmost anchor class exists only
+//       in photos DOM, the whole chain can never latch onto anything
+//       outside photos, so the anchor is the only part worth flagging; the
+//       rightmost/inner classes in the chain (`lbl`, `cp-shell`) need that
+//       specific ancestor present to ever fire and are not flagged.
+// Two shapes are deliberately NOT flagged because neither can fire from a
+// single literal class in isolation:
+//   - the non-leftmost classes of a descendant/child/sibling chain (see
+//     (b) above);
+//   - multi-class AND-compounds where the class checked is not the whole
+//     compound (`.places-cover-portal.is-open`, `.cal-cell.end`) — both
+//     classes must land on the very same element, so neither alone is
+//     "bare"; only whole single-class compounds are covered by (a).
+// This union (single-bare-class ∪ leftmost-anchor-of-combinator-chains)
+// matches the Plan A final-review compile audit's judgment call (cited
+// count: 312 anchors) — its zero-intersection finding covers exactly this
+// surface. Independently recomputed against the current source: 310
+// distinct bare-class names ∪ 43 distinct leftmost-anchor classes, still
+// zero-intersecting the ~2920 non-photos template class names.
 function extractTopLevelClassHits(rawText: string, file: string): ClassHit[] {
   const text = stripBlockComments(rawText)
   const out: ClassHit[] = []
@@ -88,7 +102,20 @@ function extractTopLevelClassHits(rawText: string, file: string): ClassHit[] {
           for (const rawSel of header.split(',')) {
             const sel = rawSel.trim()
             if (!sel || sel.startsWith('.photos-root')) continue
-            if (/[\s>+~]/.test(sel)) continue // descendant/child/sibling chain — needs ancestor context
+            if (/[\s>+~]/.test(sel)) {
+              // (b) descendant/child/sibling chain — only the leftmost
+              // compound is a matching anchor; skip it too if IT is
+              // .photos-root-scoped (e.g. `.photos-root .a .b`).
+              const leftmost = sel.split(/[\s>+~]+/)[0]
+              if (leftmost.startsWith('.photos-root')) continue
+              const anchorTokens = leftmost.match(/\.[a-zA-Z_][\w-]*/g) ?? []
+              for (const token of anchorTokens) {
+                out.push({ cls: token.slice(1), selector: sel, file })
+              }
+              continue
+            }
+            // (a) no combinator — only a whole selector that IS a single
+            // bare class (optionally with pseudo-classes/attributes) counts.
             const classTokens = sel.match(/\.[a-zA-Z_][\w-]*/g) ?? []
             if (classTokens.length !== 1) continue // 0 (tag/attr only) or 2+ (AND-compound) — not bare
             out.push({ cls: classTokens[0].slice(1), selector: sel, file })
@@ -173,7 +200,10 @@ const nonPhotosHits: TemplateClassHit[] = nonPhotosVueFiles.flatMap(({ rel, text
 describe('跨区类名冲突守卫(photos vue2-parity 裸类名 vs 非 photos 模板零交集)', () => {
   it('至少扫描到了预期的几处来源(守卫不能悄悄扫空)', () => {
     expect(parityFiles.length).toBeGreaterThan(0)
-    expect(parityHits.length).toBeGreaterThan(0)
+    // 下限而非仅 >0:当前实测 505 条(387 条单类裸选择器 + 118 条组合符链的
+    // leftmost anchor),留出余量钉在 300 —— 防止提取逻辑将来被误改到"批量漏扫"
+    // 却仍能通过(比如正则改错导致只剩个别文件被扫到,>0 依然为真但已形同虚设)。
+    expect(parityHits.length).toBeGreaterThanOrEqual(300)
     expect(nonPhotosVueFiles.length).toBeGreaterThan(0)
   })
 
