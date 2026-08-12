@@ -481,33 +481,6 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/trash/empty', {})
       return body<unknown>(res.data)
     },
-    // ─── 上传(multipart;tus 断点续传在 New-UI upload/ 层,不进包)───
-    async uploadAsset(formData: FormData): Promise<unknown> {
-      const res = await http.post('/photos/assets/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-      return body<unknown>(res.data)
-    },
-    async uploadAssetWithProgress(formData: FormData, onProgress?: (pct: number) => void): Promise<unknown> {
-      const res = await http.post('/photos/assets/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress(e: { loaded: number; total?: number }) {
-          if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
-        },
-      })
-      return body<unknown>(res.data)
-    },
-    // 后端返回 {tasks:[...]} 对象包裹(对齐 Vue2 uploadsApi.js:res.data.tasks || []);包内抽取成裸数组。
-    async listUploads(status = 'active'): Promise<unknown[]> {
-      const res = await http.get('/photos/uploads', { params: { status } })
-      const b = body<{ tasks?: unknown[] } | undefined>(res.data)
-      return b?.tasks ?? []
-    },
-    // 后端返回 {canceled: bool}(对齐 Vue2 uploadsApi.js:!!res.data.canceled)。
-    async cancelUpload(id: string | number): Promise<boolean> {
-      const res = await http.post(`/photos/uploads/${id}/cancel`, {})
-      return !!(body<{ canceled?: boolean } | undefined>(res.data)?.canceled)
-    },
     // ─── 视频悬停 sprite(经共享 axios,401 走单飞——SP7 决策:全区唯一裸 fetch 并入共享通道)───
     // 请求 URL 必须与叠加层 <img src="spriteUrl(id)"> 完全一致(同带 tokenQ 片段),
     // 否则浏览器缓存按不同 URL 各存一份,sprite 被下载两次(修 SP7-P1 review 发现的
