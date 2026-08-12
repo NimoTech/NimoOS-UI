@@ -115,7 +115,7 @@ describe('facet 取值', () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
-    const items = w.findAll('.fpop .nav-item').map(n => n.text())
+    const items = w.findAll('.fpop .fpop-item').map(n => n.text())
     expect(items).toEqual(['2023', '2022'])
     expect(items).not.toContain('NaN')
   })
@@ -124,10 +124,10 @@ describe('facet 取值', () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-places"] .fchip').trigger('click')
-    expect(w.findAll('.fpop .nav-item').map(n => n.text())).toEqual(['Osaka', 'Tokyo'])
+    expect(w.findAll('.fpop .fpop-item').map(n => n.text())).toEqual(['Osaka', 'Tokyo'])
     await w.get('[data-test="exif-chip-places"] .fchip').trigger('click') // 关掉
     await w.get('[data-test="exif-chip-cameras"] .fchip').trigger('click')
-    expect(w.findAll('.fpop .nav-item').map(n => n.text())).toEqual(['Canon R6', 'Sony A7'])
+    expect(w.findAll('.fpop .fpop-item').map(n => n.text())).toEqual(['Canon R6', 'Sony A7'])
   })
 })
 
@@ -136,7 +136,7 @@ describe('草稿 / 提交 / 清除', () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
-    await w.findAll('.fpop .nav-item')[0].trigger('click')
+    await w.findAll('.fpop .fpop-item')[0].trigger('click')
     expect(w.emitted('update:filter')).toBeUndefined()
     await w.get('.fpop .btn-primary').trigger('click')
     expect(w.emitted('update:filter')![0][0]).toEqual({ years: ['2023'], places: [], cameras: [] })
@@ -147,7 +147,7 @@ describe('草稿 / 提交 / 清除', () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
-    await w.findAll('.fpop .nav-item')[0].trigger('click')
+    await w.findAll('.fpop .fpop-item')[0].trigger('click')
     await w.get('.fpop .fpop-quick').trigger('click')
     expect(w.emitted('update:filter')).toBeUndefined()
     expect(w.find('.fpop').exists()).toBe(false)
@@ -156,10 +156,10 @@ describe('草稿 / 提交 / 清除', () => {
   it('重开弹层时草稿从已提交值重新快照(上次取消的勾不残留)', async () => {
     const w = mountBar({ filter: { years: ['2022'], places: [], cameras: [] } })
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
-    await w.findAll('.fpop .nav-item')[0].trigger('click') // 勾上 2023
+    await w.findAll('.fpop .fpop-item')[0].trigger('click') // 勾上 2023
     await w.get('.fpop .fpop-quick').trigger('click') // 取消
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click') // 重开
-    const actives = w.findAll('.fpop .nav-item').filter(n => n.attributes('data-active') === 'true')
+    const actives = w.findAll('.fpop .fpop-item').filter(n => n.attributes('data-active') === 'true')
     expect(actives.map(n => n.text())).toEqual(['2022'])
   })
 

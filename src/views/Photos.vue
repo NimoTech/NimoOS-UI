@@ -19,11 +19,25 @@
 // FilterBar 挂进 PhotosToolbar 的 after-tabs 槽位(T3);exifFilter 态 + gridMonths
 // 派生 + filteredCount/onOpenTile 改用 gridMonths,三处同源(网格数据源、顶栏计数、
 // 灯箱翻页集)。
+//
+// Task 3(壳 + 侧栏重刻):根结构改为 Vue2 的 `.photos-root[themeClass] > .app[data-collapsed]
+// [data-selecting] > PhotosSidebar + main.main`(NimoOS-UI PhotosTimeline.vue:943-956),
+// 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(PhotosSearchBar 起到
+// PhotosGrid 止)原样保留在 `.photos-main` 里,只是外面多套了一层 `.app`/`main.main` 网格壳。
+//
+// AreaShell 去留判定(brief Step 4):读过 AreaShell.vue —— 桌面态(≥769px)`.area-bar`
+// 确实 `display:none`(D13 注释属实),但 `.area-body` 仍带 `padding:20px` 且
+// `overflow:auto`,`.area-shell` 还包一层 `height:100vh` 的 flex 列容器。这不是"零可见
+// chrome":Vue2 pixel baseline 里侧栏是贴边到视口左沿的(`.app` 网格本身就是 100vh 无内边距),
+// AreaShell 的 20px padding + 多一层 flex 包裹会把整个 `.app` 网格向内推、且与 `.app` 自带的
+// `height:100vh` 叠加造成双重滚动容器。故 Photos.vue 从本任务起脱离 AreaShell,直接以
+// `.photos-root` 为根——与 AI Agent 区(src/ai/views/AgentPage.vue)同款自定义整页壳的现有
+// 先例一致(AgentPage.vue 同样是从不借 AreaShell 的独立视口壳)。
 import '../photos/styles/vue2-parity'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
@@ -50,6 +64,20 @@ const store = useTimelineStore()
 const toast = useToast()
 const bus = useMessageBus()
 const lb = useLightbox()
+
+// Task 3: photos-private theme, applied to the `.photos-root` grid root (Task 1's shared
+// composable — see usePhotosTheme.ts).
+const { themeClass } = usePhotosTheme()
+
+// Task 3: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar toggle
+// button that flips it — the toggle button itself lands with the topbar in T4+; this task
+// only owns the persisted state and the `.app[data-collapsed]` wiring). Persisted here
+// (not in PhotosSidebar) per the brief's interface contract — the sidebar is a shared
+// component mounted by every photos-area page, this state is Photos.vue's own.
+const COLLAPSE_KEY = 'nimo_photos_sidebar_collapsed'
+const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
+watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
+
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
 // the port (SP7-P1 review finding), sanctioned fix.
@@ -227,51 +255,53 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout">
-      <PhotosSidebar />
-      <main class="photos-main">
-        <PhotosSearchBar @submit="onSearchSubmit" />
-        <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
-        <template v-else>
-          <div class="photos-summary">
-            {{ t('photosCountSummary', { photos: store.photoCount, videos: store.videoCount }) }}
-          </div>
-          <PhotosSelectionToolbar
-            v-if="selected.length"
-            :count="selected.length"
-            @clear="cancelSelection"
-            @delete="onBatchDelete([...selected])"
-            @add-to-album="openAlbumPicker([...selected])"
-          />
-          <PhotosToolbar
-            :tab="tab" :density="density" :count="filteredCount"
-            @update:tab="tab = $event" @update:density="density = $event"
-          >
-            <template #after-tabs>
-              <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
-                   就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
-                   gridMonths)。
-                   Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
-                   模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
-                   photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
-                   变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
-                   只是把注释改成实情。 -->
-              <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
-            </template>
-          </PhotosToolbar>
-          <div class="photos-grid-slot">
-            <PhotosGrid
-              :months="gridMonths" :tab="tab" :density="density" :selected="selected"
-              @open="onOpenTile"
-              @toggle-select="toggleSelect"
-              @need-bucket="(k: string) => store.fetchBucket(k)"
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <div class="photos-main">
+          <PhotosSearchBar @submit="onSearchSubmit" />
+          <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
+          <template v-else>
+            <div class="photos-summary">
+              {{ t('photosCountSummary', { photos: store.photoCount, videos: store.videoCount }) }}
+            </div>
+            <PhotosSelectionToolbar
+              v-if="selected.length"
+              :count="selected.length"
+              @clear="cancelSelection"
+              @delete="onBatchDelete([...selected])"
+              @add-to-album="openAlbumPicker([...selected])"
             />
-          </div>
-        </template>
+            <PhotosToolbar
+              :tab="tab" :density="density" :count="filteredCount"
+              @update:tab="tab = $event" @update:density="density = $event"
+            >
+              <template #after-tabs>
+                <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
+                     就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
+                     gridMonths)。
+                     Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
+                     模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
+                     photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
+                     变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
+                     只是把注释改成实情。 -->
+                <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
+              </template>
+            </PhotosToolbar>
+            <div class="photos-grid-slot">
+              <PhotosGrid
+                :months="gridMonths" :tab="tab" :density="density" :selected="selected"
+                @open="onOpenTile"
+                @toggle-select="toggleSelect"
+                @need-bucket="(k: string) => store.fetchBucket(k)"
+              />
+            </div>
+          </template>
+        </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
   <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
        此处空接即可,无需再往上冒泡处理。 -->
   <PhotoLightbox
@@ -283,22 +313,30 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* height(不是 min-height)—— 这一屏封顶,页面本身不滚,只有内层滚动容器滚。
-   照 Vue2 NimoOS-UI src/views/Photos/photos.scss:109 `.app { height: 100vh; overflow: hidden }`
-   + :295-300 `.content { flex:1; min-height:0; overflow:hidden }` / `.photos-wrap { overflow-y:auto }`。
-   移植期误写成 min-height:100%(至少一屏、可无限长高)→ 照片区把整页撑高,侧栏与右侧
-   月份刻度尺跟着照片一起滚走:实测 785 张时侧栏「设置」按钮落在距页顶 83580px 处、
-   刻度尺被拉成 83508px 高(刻度全挤在最顶端,滚下去就点不到)。P8a 验收轮 2 缺陷,
-   全相册区 11 页同源(同一行复制粘贴),逐页同改;反向回归闸见
-   src/views/__tests__/photosLayoutHeightCap.test.ts。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 3 起,外层高度封顶不再由这里的 `.photos-layout` 规则负责(该规则已删除,类名不再
+   出现在本文件源码里——photosLayoutHeightCap.test.ts 的 CAPPED 名单已同步移除 Photos.vue,
+   见该文件注释)。封顶现在由 Vue2 结构的 `.app` 网格自己扛(parity scss photos.scss:116-128
+   `height: 100vh; overflow: hidden`),`.photos-main`/`.photos-loading`/`.photos-summary`/
+   `.photos-grid-slot` 这几条内容槽位样式原样保留(内容结构本任务不动,见 brief Step 4
+   「内容区槽位保持」)。 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — PhotosSidebar.vue's own
+   file-header comment registers this deviation): once the sidebar switches into is-drawer
+   mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column
+   too, so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating sidebar
+   used to sit. Parity scss only defines the two-column desktop grid; this override is
+   New-UI-only and lives here rather than in the shared stylesheet. */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+}
+
+/* `.photos-main`/`.photos-loading`/`.photos-summary`/`.photos-grid-slot`: content-slot
+   styling, untouched by this task (brief Step 4 "内容区槽位保持") — now nested one level
+   deeper inside `main.main` (parity's flex-column grid cell) instead of being the direct
+   AreaShell slot child. `align-self: stretch` is a harmless leftover from the old flex-row
+   parent (`.photos-main`'s former sibling was `.photos-sidebar`); `main.main`'s default grid
+   `align-items: stretch` already does the same job. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-loading { color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 20px 0; }
 .photos-summary { color: var(--fg-muted); font-size: 13px; padding: 4px 4px 0; }
 .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
-
-/* ≤768px:侧栏已收抽屉(PhotosSidebar.is-drawer 脱离文档流),布局单列 */
-@media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-}
 </style>

@@ -49,7 +49,7 @@ describe('结构', () => {
     expect(w.find('.fpop').exists()).toBe(true)
     expect(w.get('.fpop-title').text()).toBe('File type')
     expect(w.find('.fpop-search').exists()).toBe(true)
-    expect(w.findAll('.nav-item').length).toBe(5)
+    expect(w.findAll('.fpop-item').length).toBe(5)
     expect(w.get('.fpop-foot').findAll('button').length).toBe(2)
   })
 
@@ -60,9 +60,9 @@ describe('结构', () => {
     expect(w240.get('.fpop').attributes('style')).toContain('width: 240px')
   })
 
-  it('items 5 条 → 5 个 .nav-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
+  it('items 5 条 → 5 个 .fpop-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
     const w = mountPop(baseProps({ selected: ['Video'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     expect(rows).toHaveLength(5)
     rows.forEach((row, i) => {
       const isVideo = baseProps().items[i] === 'Video'
@@ -80,27 +80,27 @@ describe('结构', () => {
   it('搜索过滤:输入过滤词 → 列表变短;大小写不敏感;过滤到 0 条 → 空态文案出现且列表 0 条', async () => {
     const w = mountPop(baseProps())
     await w.get('.fpop-search').setValue('vid')
-    expect(w.findAll('.nav-item')).toHaveLength(1)
-    expect(w.get('.nav-item').text()).toBe('Video')
+    expect(w.findAll('.fpop-item')).toHaveLength(1)
+    expect(w.get('.fpop-item').text()).toBe('Video')
 
     await w.get('.fpop-search').setValue('VID')
-    expect(w.findAll('.nav-item')).toHaveLength(1)
+    expect(w.findAll('.fpop-item')).toHaveLength(1)
 
     await w.get('.fpop-search').setValue('nonexistent-xyz')
-    expect(w.findAll('.nav-item')).toHaveLength(0)
+    expect(w.findAll('.fpop-item')).toHaveLength(0)
     expect(w.get('.fpop-empty').text()).toBe('Nothing here yet')
   })
 
   it('labelFor 生效:传 it => "X" + it → 渲染文本含 X', () => {
     const w = mountPop(baseProps({ labelFor: (it) => `X${it}` }))
-    expect(w.get('.nav-item').text()).toContain('XPhoto')
+    expect(w.get('.fpop-item').text()).toContain('XPhoto')
   })
 })
 
 describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
   it('点未选项 → update:selected 带 [...原, it]', async () => {
     const w = mountPop(baseProps({ selected: ['Photo'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[1]!.trigger('click') // Video
     expect(w.emitted('update:selected')).toEqual([[['Photo', 'Video']]])
   })
@@ -109,7 +109,7 @@ describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
     const original = ['Photo', 'Video']
     const originalSnapshot = [...original]
     const w = mountPop(baseProps({ selected: original }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[0]!.trigger('click') // Photo,已选 → 移除
     expect(w.emitted('update:selected')).toEqual([[['Video']]])
     expect(original).toEqual(originalSnapshot) // 没被就地 push/splice
@@ -119,14 +119,14 @@ describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
 describe('multiple: false —— 单选语义(照搬 Vue2 toggleDraftItem 的 v === it ? null : it)', () => {
   it('点未选项 → [it]', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: [] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[2]!.trigger('click') // RAW
     expect(w.emitted('update:selected')).toEqual([[['RAW']]])
   })
 
   it('点已选项 → []', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: ['RAW'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[2]!.trigger('click')
     expect(w.emitted('update:selected')).toEqual([[[]]])
   })
@@ -189,9 +189,9 @@ describe('样式', () => {
     expect(winner.selector).toContain('-primary')
   })
 
-  it('cssCascade(B4 补的第三处硬约束):.nav-item[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
+  it('cssCascade(B4 补的第三处硬约束):.fpop-item[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    const winner = winningHoverBackground(style, ['nav-item'])
+    const winner = winningHoverBackground(style, ['fpop-item'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('data-active')
   })
@@ -226,9 +226,9 @@ describe('样式', () => {
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  it('.nav-icon 规则含 width: 16px 与 justify-content: center', () => {
+  it('.fpop-item-icon 规则含 width: 16px 与 justify-content: center', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.nav-icon')
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-item-icon')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('width: 16px')
     expect(rule?.body).toContain('justify-content: center')

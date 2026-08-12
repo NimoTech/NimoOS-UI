@@ -1091,4 +1091,8 @@ export default {
   photosMoDeleteMoment: '删除时刻',
   photosMoDeleteBody: '该时刻会被删除。图库中的 {n} 张照片不受影响。',
   photosMoDeleted: '时刻「{name}」已删除',
+  // ── Task 3(壳 + 侧栏重刻):sidebar-head 主题切换按钮的 title,照 Vue2
+  // PhotosSidebar.vue:29 的 $t('Switch to dark theme')/$t('Switch to light theme')。
+  photosSwitchToDarkTheme: '切换到深色主题',
+  photosSwitchToLightTheme: '切换到浅色主题',
 }

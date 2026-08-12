@@ -86,11 +86,11 @@ function toggle(it: string): void {
       <input v-model="search" class="fpop-search" :placeholder="searchPlaceholder">
       <div class="fpop-list">
         <div
-          v-for="it in filtered" :key="it" class="nav-item"
+          v-for="it in filtered" :key="it" class="fpop-item"
           :data-active="isSel(it) ? 'true' : 'false'"
           @click="toggle(it)"
         >
-          <span class="nav-icon">
+          <span class="fpop-item-icon">
             <svg
               v-if="isSel(it)" width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="var(--accent-text)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
@@ -177,7 +177,7 @@ function toggle(it: string): void {
   overflow-y: auto;
 }
 
-.nav-item {
+.fpop-item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -189,27 +189,27 @@ function toggle(it: string): void {
   user-select: none;
   position: relative;
 }
-.nav-item:hover {
+.fpop-item:hover {
   background: var(--chip-bg-hi);
   color: var(--fg);
 }
-.nav-item[data-active='true'] {
+.fpop-item[data-active='true'] {
   background: var(--accent-soft);
   color: var(--fg);
 }
 /* hover 硬约束(B4 补的第三处,brief 原文只点名了 .fchip 与 .btn-primary,漏了这条):
-   .nav-item[data-active="true"] 未 hover 时与 .nav-item:hover 同为 (0,2,0),scoped SFC 里
+   .fpop-item[data-active="true"] 未 hover 时与 .fpop-item:hover 同为 (0,2,0),scoped SFC 里
    正是"优先级相等靠源码顺序苟活"的第二种危险形态。变体自带 :hover(值=未 hover 时的既有
    态,即选中态在 hover 下保持——这是显式化 Vue2 里"active 规则写在 hover 规则之后、
    tie 靠源码顺序赢"这条隐含语义,不再依赖顺序)。 */
-.nav-item[data-active='true']:hover {
+.fpop-item[data-active='true']:hover {
   background: var(--accent-soft);
   color: var(--fg);
 }
-.nav-item[data-active='true'] .nav-icon {
+.fpop-item[data-active='true'] .fpop-item-icon {
   color: var(--accent-text);
 }
-.nav-icon {
+.fpop-item-icon {
   color: var(--fg-faint);
   flex: none;
   display: flex;

@@ -1043,4 +1043,8 @@ export default {
   photosMoDeleteMoment: 'Delete moment',
   photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
   photosMoDeleted: 'Moment "{name}" deleted',
+  // ── Task 3 (shell + sidebar re-skin): sidebar-head theme toggle button title,
+  // Vue2 PhotosSidebar.vue:29's $t('Switch to dark theme')/$t('Switch to light theme').
+  photosSwitchToDarkTheme: 'Switch to dark theme',
+  photosSwitchToLightTheme: 'Switch to light theme',
 }
