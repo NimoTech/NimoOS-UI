@@ -54,5 +54,6 @@ const { t } = useI18n()
 .share-check { flex: 0 0 auto; display: flex; align-items: center; }
 .share-check-box { opacity: 0; cursor: pointer; }
 .share-row-main:hover .share-check-box, .share-row-main.selected .share-check-box { opacity: 1; }
+.share-check-box:focus-visible { opacity: 1; }
 .share-row-main.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
 </style>

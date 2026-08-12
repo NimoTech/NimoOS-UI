@@ -49,8 +49,11 @@ async function confirmBatchUnshare() {
     const { failedIds } = await shares.removeMany([...selected.value])
     // The prune watcher (fired during removeMany's reload) already dropped the
     // successfully deleted ids; merge instead of overwrite so selection changes
-    // made while the request was in flight are not clobbered.
-    selected.value = new Set([...selected.value, ...failedIds])
+    // made while the request was in flight are not clobbered. Still intersect with
+    // live rows: a failed id whose row is nonetheless gone (server-side success,
+    // client-side error reporting it) must not resurrect a phantom selection.
+    const live = new Set(shares.items.map((r) => r.id))
+    selected.value = new Set([...selected.value, ...failedIds].filter((id) => live.has(id)))
   } finally {
     batchBusy.value = false
   }

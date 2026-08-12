@@ -168,7 +168,11 @@ describe('SharesPage multi-select batch unshare', () => {
     // Deletes are still pending (batchBusy=true) but checkboxes stay interactive —
     // the user picks row 3 while waiting.
     await page.findAll('input.share-check-box')[2].setValue(true)
+    // Deletes run sequentially now (backend has no server-side locking on the samba
+    // config rewrite) — id 2's delete isn't even issued until id 1 settles, so resolve
+    // id 1 and let the loop advance before rejecting id 2.
     resolveId1()
+    await flushPromises()
     rejectId2(new Error('boom'))
     await flushPromises()
     await flushPromises()
@@ -179,5 +183,22 @@ describe('SharesPage multi-select batch unshare', () => {
     expect(checks).toHaveLength(2)
     expect((checks[0].element as HTMLInputElement).checked).toBe(true) // id 2 (failed)
     expect((checks[1].element as HTMLInputElement).checked).toBe(true) // id 3 (mid-flight pick)
+  })
+
+  it('a failed id whose row is gone after reload is not resurrected in the selection', async () => {
+    const page = await mountPage()
+    // Client sees an error for id 2, but the server actually deleted it — the reload
+    // no longer contains row 2 (server-side success, client-side error reporting it).
+    deleteShare.mockImplementation(async (id: number) => {
+      if (id === 2) throw new Error('boom')
+    })
+    listShares.mockResolvedValue([ROWS[0], ROWS[2]])
+    await page.findAll('input.share-check-box')[1].setValue(true) // select id 2
+    await page.find('.sel-unshare').trigger('click')
+    dialogConfirmButton().click()
+    await flushPromises()
+    // failedIds=[2], but id 2's row is gone — the union-with-failedIds fix must
+    // intersect with live rows instead of blindly resurrecting a dead id.
+    expect(page.find('.shares-sel-toolbar').exists()).toBe(false)
   })
 })

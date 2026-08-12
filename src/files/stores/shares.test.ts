@@ -87,5 +87,6 @@ describe('useSharesStore', () => {
     expect(failedIds).toEqual([])
     expect(deleteShare).not.toHaveBeenCalled()
     expect(listShares).not.toHaveBeenCalled()
+    expect(useToast().msg).toBe('')
   })
 })
