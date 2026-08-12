@@ -10,6 +10,7 @@
 // PhotosAlbums.vue(T7)新建相册模态的 --popup-bg/token 用法,精简掉本任务不需要的
 // source-picker 部分。Esc 关闭用 document 级监听 + watch(saveAlbumOpen) 增删(照
 // AlbumPickerDialog.vue:60-83 定型写法),不用模板 @keydown.esc。
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../components/shell/AreaShell.vue'

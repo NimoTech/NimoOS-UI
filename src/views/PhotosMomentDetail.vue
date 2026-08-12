@@ -158,6 +158,7 @@
 // 23) Save as Album carries Vue 2's `data-primary="true"` and an accent fill again (it had
 //     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
 //     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
+import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

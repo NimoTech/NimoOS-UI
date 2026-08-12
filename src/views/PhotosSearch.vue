@@ -13,6 +13,7 @@
 // `q` 才是唯一真相来源(浏览器前进/后退、直接改地址栏、刷新都要让结果对得上)——因此
 // 这里把"触发 smartSearch/clear"也并入同一个 `watch(query, ..., {immediate:true})`,
 // 这是相对 Vue2 的刻意架构调整,不是漏抄。
+import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

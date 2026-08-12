@@ -1,0 +1,1229 @@
+/* === Smart Views page styles === */
+
+/* List view */
+.photos-root .sv-page { padding: 32px 32px 60px; max-width: 1400px; margin: 0 auto; }
+
+.photos-root .sv-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+.photos-root .sv-card {
+  display: flex; flex-direction: column;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-1);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.photos-root .sv-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--line-strong);
+  box-shadow: 0 12px 28px -10px rgba(0,0,0,0.6);
+}
+.photos-root .sv-collage {
+  position: relative;
+  aspect-ratio: 16/9;
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 2px;
+  background: var(--bg);
+}
+.photos-root .sv-collage img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photos-root .sv-collage-main { grid-row: 1 / span 2; }
+.photos-root .sv-collage-overlay {
+  position: absolute; bottom: 0; left: 0; right: 0;
+  height: 70%;
+  background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+}
+.photos-root .sv-collage-badge {
+  position: absolute;
+  top: 10px; left: 10px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.85);
+  backdrop-filter: blur(8px);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.photos-root .sv-collage-status {
+  position: absolute;
+  top: 10px; right: 10px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(8px);
+  font-size: 10.5px;
+  color: white;
+  font-weight: 500;
+}
+.photos-root .sv-collage-status .live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34C759;
+  box-shadow: 0 0 6px #34C759;
+  animation: pulse 1.6s infinite;
+}
+.photos-root .sv-collage-status[data-paused="true"] .live-dot { background: #FF9F0A; box-shadow: 0 0 6px #FF9F0A; animation: none; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+.photos-root .sv-meta {
+  padding: 14px 16px 16px;
+}
+.photos-root .sv-name { font-size: 15px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.01em; }
+.photos-root .sv-conds { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 12px; }
+.photos-root .sv-cond {
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  font-size: 11px;
+}
+.photos-root .sv-stats {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11.5px; color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .sv-stats b { color: var(--text-1); font-weight: 600; }
+.photos-root .sv-thresh-mini {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent-hi);
+  font-weight: 600;
+}
+
+/* === Moments · For You section (the only section left on the Smart Views
+   page after the Task 4 slimdown; page-level hero) === */
+.photos-root .mo-section { margin-bottom: 36px; }
+/* Same flex structure as the original .sv-hero (no button on the right, just
+   leave it empty); starting Task 4 this is promoted to the page's sole hero,
+   the title's heading level went from h2 up to h1, font size stays 32px unchanged. */
+.photos-root .mo-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
+.photos-root .mo-hero h1 {
+  font-family: var(--font-display);
+  font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px;
+}
+.photos-root .mo-hero p { font-size: 13.5px; color: var(--text-3); margin: 0; max-width: 520px; line-height: 1.5; }
+
+/* mo-grid is a second class that coexists with sv-grid — the mosaic-only
+   rules only go here, sv-grid's core (display:grid/grid-template-columns/gap)
+   isn't touched. dense + a fixed row-height unit: card height = span × 132px
+   + (span-1) × 16px (gap); the three size tiers align to integer multiples of
+   the row height via the .mo-card span rules below, leaving no gaps or
+   whitespace between them. */
+.photos-root .mo-grid {
+  margin-bottom: 4px;
+  grid-auto-flow: row dense;
+  grid-auto-rows: 132px;
+}
+
+/* Three card-size spans (only apply in the .mo-grid context, don't touch
+   .sv-card/.sv-grid's core): standard card is 1 col × 3 rows (baseline,
+   attached to .mo-card); wide card takes an extra 2 columns; tall card
+   overrides to 5 rows — the .mo-card.mo-card-tall double-class selector
+   (4 classes) beats the baseline .mo-card single-class selector (3 classes),
+   without depending on source-order. */
+.photos-root .mo-grid .mo-card { grid-row: span 3; }
+.photos-root .mo-grid .mo-card-wide { grid-column: span 2; }
+.photos-root .mo-grid .mo-card.mo-card-tall { grid-row: span 5; }
+
+/* Narrow-container fallback: sv-grid's minmax(320px,1fr) auto-fill drops to
+   1-2 columns once the container width falls below the 3-column threshold
+   (3*320 + 2*16 (gap) = 992px content width; sv-page has 32px padding on each
+   side, so the viewport threshold is 992+64=1056px) — a wide card spanning
+   2 columns would then hit the remaining column-count ceiling; using a CSS
+   media query to just fall the grid-column back to 1 is the simplest and
+   most reliable approach (no JS measuring container width needed). Tall
+   cards' vertical span isn't affected by column count, so no fallback is
+   needed. */
+@media (max-width: 1055px) {
+  .photos-root .mo-grid .mo-card-wide { grid-column: span 1; }
+}
+
+/* Moment card collage: upgraded this round from the two-state "one large +
+   two small / single image" into T1~T4 + single-image five states, all
+   reusing .sv-collage's grid container, with the .mo-tpl-t2/t3/t4 rules
+   below overriding each one's cell ratios; when n==0 (featured field missing/
+   empty), .mo-collage-single is added to fall back to a single image filling
+   the whole collage area (block + absolute positioning stretched full). */
+.photos-root .mo-collage.mo-collage-single {
+  display: block;
+}
+.photos-root .mo-collage.mo-collage-single img {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+/* Collage whitespace fix (fix carried over from round 9; wording corrected in
+   round 10's final review): .sv-collage's grid-template-columns/rows tracks
+   are explicit 1fr (= minmax(auto,1fr)), whose auto minimum track gets blown
+   out by the img's intrinsic height — a portrait thumbnail makes the
+   collage's actual height exceed its container, and cards in the same row
+   get stretched to match the tallest one, leaving whitespace below shorter
+   cards. Only within the .mo-collage scope, pin the column/row tracks to
+   minmax(0,1fr) and zero out the img's min-width/min-height, forcing them
+   flush to the container box; .sv-collage's core isn't touched, zero change
+   for SV cards. mo-collage-single is absolutely positioned to fill, so it's
+   unaffected.
+   Added this round: aspect-ratio overridden to auto + flex:1/min-height:0 —
+   the mosaic card's collage height is no longer a fixed 16/9, but instead
+   determined jointly by .mo-card's flex column (meta's natural height +
+   collage filling the rest) and .mo-grid's fixed row-height unit;
+   object-fit:cover absorbs any ratio mismatch, zero whitespace. */
+.photos-root .mo-collage {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  aspect-ratio: auto;
+  flex: 1;
+  min-height: 0;
+}
+.photos-root .mo-collage img {
+  min-width: 0; min-height: 0;
+}
+
+/* T2 large-on-top, two-below (tall-card only, spec 2.2): the cover takes up
+   roughly the top 2/3 (2fr), and the two featured shots sit side by side
+   taking the bottom 1/3 (1fr) — a portrait cover no longer gets cropped into
+   a landscape strip. DOM order is main→featured0→featured1; once main
+   explicitly fills both columns of the first row, the following two flow
+   automatically into the second row's two cells per the grid default, no
+   extra selector needed. */
+.photos-root .mo-tpl-t2 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 2fr) minmax(0, 1fr);
+}
+.photos-root .mo-tpl-t2 .sv-collage-main {
+  grid-column: 1 / span 2;
+  grid-row: 1;
+}
+
+/* T3 left-right even split (n==1 fallback, any tier, spec 2.2): the cover and
+   the single featured shot each take half, replacing what would otherwise
+   fall back to a single image. Only 1 row, overriding .sv-collage-main's
+   default span-2-rows. */
+.photos-root .mo-tpl-t3 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.photos-root .mo-tpl-t3 .sv-collage-main {
+  grid-row: 1;
+}
+
+/* T4 three-up side by side (wide-card only, n>=2, spec 2.2): the large image
+   at roughly 55% + two featured shots stacked on the right — structure is the
+   same as T1 (main keeps the default span-2-rows), just narrowing the column
+   ratio from T1's 2fr/1fr (roughly 66/33) to 11fr/9fr (roughly 55/45),
+   visually distinguishing it from the standard card's T1. */
+.photos-root .mo-tpl-t4 {
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+}
+.photos-root .mo-badge {
+  background: linear-gradient(135deg, #FF9F0A, #FF6B5C);
+}
+/* Overlong title hardening (round 10 final-review minimal fix):
+   moment.title has no length cap, clip at two lines max, only applies in the
+   mo scope, doesn't touch SV cards' .sv-name. */
+.photos-root .mo-card .sv-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* Date-span pill on the right of the stats row (content = moment.subtitle),
+   orange to echo .mo-badge */
+.photos-root .mo-span-mini {
+  display: inline-flex; align-items: center;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(255, 159, 10, 0.15);
+  color: #FF9F0A;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Moment detail header's orange type pill: reuses .sv-cond's pill shape,
+   tint echoes .mo-badge. Four-class selector bumps specificity to (0,0,4),
+   reliably beating .sv-header-conds .sv-cond's (0,0,3), without !important
+   or depending on source order. */
+.photos-root .sv-header-conds .sv-cond.mo-type-pill {
+  background: rgba(255, 159, 10, 0.15);
+  color: #FF9F0A;
+  font-weight: 600;
+}
+
+/* 2026-07-30 second round of feedback: the Album detail chips row's "Album"
+   type tag was removed entirely (the About section's Type row already shows
+   the same info, so a bare tag in the chips row was redundant); .al-type-pill's
+   only usage was cleared out along with it (grepped — only referenced in
+   PhotosAlbumDetail.vue, and not a class used by the Albums list cards), so
+   this rule was cleaned up too, leaving no orphan. */
+
+/* Moment detail sidebar About section: three rows for type/time window/
+   location, key and value aligned to opposite ends */
+.photos-root .mo-about-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  gap: 12px;
+  font-size: 12.5px; color: var(--text-3);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .mo-about-row:last-child { border-bottom: 0; }
+.photos-root .mo-about-row b { color: var(--text-1); font-weight: 600; text-align: right; }
+
+/* Moments drag-to-reorder — same recipe as .tile-drag-ghost (album detail) */
+.photos-root .mo-drag-ghost {
+  opacity: 0.4;
+  background: rgba(137, 80, 242, 0.15);
+  outline: 2px dashed rgba(137, 80, 242, 0.6);
+}
+.photos-root .mo-drag-chosen {
+  cursor: grabbing;
+}
+
+/* Detail view */
+.photos-root .sv-detail-bar {
+  padding: 16px 32px;
+  display: flex; align-items: center; gap: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .sv-detail-bar .back {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 10px 6px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.photos-root .sv-detail-bar .back:hover { background: var(--surface-3); color: var(--text-1); }
+
+.photos-root .sv-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  height: 100%;
+  overflow: hidden;
+}
+.photos-root .sv-detail-main {
+  overflow-y: auto;
+  padding-bottom: 60px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-rgb), 0.55) transparent;
+}
+.photos-root .sv-detail-main::-webkit-scrollbar { width: 10px; }
+.photos-root .sv-detail-main::-webkit-scrollbar-track { background: rgba(var(--accent-rgb), 0.06); margin: 6px 0; border-radius: 99px; }
+.photos-root .sv-detail-main::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #9C8EFF, var(--accent));
+  border-radius: 99px;
+  border: 2px solid var(--bg);
+  background-clip: padding-box;
+  min-height: 36px;
+}
+.photos-root .sv-detail-main::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #B5AAFF, var(--accent-hi));
+  background-clip: padding-box;
+  border: 2px solid var(--bg);
+}
+.photos-root .sv-detail-side {
+  border-left: 1px solid var(--line);
+  background: var(--surface-1);
+  overflow-y: auto;
+  padding: 20px 18px 40px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--accent-rgb), 0.55) transparent;
+}
+.photos-root .sv-detail-side::-webkit-scrollbar { width: 10px; }
+.photos-root .sv-detail-side::-webkit-scrollbar-track { background: rgba(var(--accent-rgb), 0.06); margin: 6px 0; border-radius: 99px; }
+.photos-root .sv-detail-side::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #9C8EFF, var(--accent));
+  border-radius: 99px;
+  border: 2px solid var(--surface-1);
+  background-clip: padding-box;
+  min-height: 36px;
+}
+.photos-root .sv-detail-side::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #B5AAFF, var(--accent-hi));
+  background-clip: padding-box;
+  border: 2px solid var(--surface-1);
+}
+
+.photos-root .sv-header {
+  padding: 24px 32px 16px;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 24px;
+}
+.photos-root .sv-header h1 {
+  font-family: var(--font-display);
+  font-size: 28px; font-weight: 600; letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  display: flex; align-items: center; gap: 10px;
+}
+.photos-root .sv-header h1 .live-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 99px;
+  background: rgba(52,199,89,0.15);
+  border: 1px solid rgba(52,199,89,0.3);
+  color: #34C759;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--font-sans);
+  vertical-align: middle;
+}
+.photos-root .sv-header h1 .live-pill .live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #34C759; box-shadow: 0 0 6px #34C759;
+  animation: pulse 1.6s infinite;
+}
+.photos-root .sv-header h1 .live-pill { cursor: pointer; transition: filter 0.15s, transform 0.12s; }
+.photos-root .sv-header h1 .live-pill:hover { filter: brightness(1.15); }
+.photos-root .sv-header h1 .live-pill:active { transform: scale(0.96); }
+.photos-root .sv-header h1 .paused-pill {
+  background: rgba(255, 159, 10, 0.15);
+  border-color: rgba(255, 159, 10, 0.32);
+  color: #FF9F0A;
+}
+.photos-root .sv-header h1 .paused-pill .live-dot {
+  background: #FF9F0A;
+  box-shadow: 0 0 6px #FF9F0A;
+  animation: none;
+}
+/* 2026-07-30 second round of feedback: PhotosAlbumDetail's date-range pill
+   moved from .sv-header-conds below up into h1 (technique copied from
+   .live-pill above — h1 itself is a flex container, so the pill just becomes
+   a flex child directly); size/styling requirements are unchanged, this
+   picks up the original .sv-header-conds .sv-cond's font-size/padding
+   values, just under a different parent selector — otherwise it would fall
+   back to the base .sv-cond (11px/2px 8px, see the .sv-cond rule at the top
+   of the file) and shrink. */
+.photos-root .sv-header h1 .sv-cond { font-size: 11.5px; padding: 3px 10px; }
+.photos-root .sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; }
+.photos-root .sv-header-conds .sv-cond { font-size: 11.5px; padding: 3px 10px; }
+
+.photos-root .sv-cond-removable {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, padding 0.12s;
+  padding-right: 6px !important;
+}
+.photos-root .sv-cond-removable .sv-cond-x {
+  width: 14px; height: 14px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--ink), 0.06);
+  color: var(--text-3);
+  opacity: 0;
+  transform: scale(0.7);
+  transition: opacity 0.14s, transform 0.14s, background 0.12s;
+}
+.photos-root .sv-cond-removable:hover {
+  background: rgba(255, 99, 99, 0.14);
+  color: #FF8989;
+}
+.photos-root .sv-cond-removable:hover .sv-cond-x {
+  opacity: 1;
+  transform: scale(1);
+  background: rgba(255, 99, 99, 0.22);
+  color: #FF8989;
+}
+
+/* 2026-07-31 user-added requirement: the "Add condition" entry point (+
+   popover) was removed entirely; the .sv-cond-add / .sv-cond-pop* rules that
+   served only it were cleaned up accordingly (sv-cond-add itself never used
+   the .sv-cond-x/.sv-cond-removable hover-color-change rules, so those are
+   unaffected and kept above). */
+.photos-root .sv-header-stats {
+  display: flex; gap: 20px;
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .sv-header-stats b { color: var(--text-1); font-weight: 600; }
+.photos-root .sv-header-stats .delta { color: #34C759; }
+
+/* 2026-07-30 first round of feedback: the standalone .album-detail-toolbar
+   bar was dropped, the action row folded back into sv-header's .sv-actions.
+   2026-07-31 (Task 6): Pause/Resume (SV only) and Edit·Done moved back from
+   the sidebar actions section into the header, inserted between the Sort
+   pill and the density toggle — .album-detail-actions-sep is reused: one
+   separates Sort from the Pause/Edit group, another separates Edit from the
+   density group; in edit mode Sort/density are hidden along with their
+   respective separator (v-if="!edit", Pause/Edit render persistently and are
+   unaffected), see the header templates in
+   PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue. */
+.photos-root .album-detail-actions-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--line);
+  flex-shrink: 0;
+}
+
+.photos-root .sv-actions { display: flex; gap: 8px; align-items: center; }
+.photos-root .sv-action-btn {
+  height: 32px; padding: 0 12px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+  font-size: 12.5px;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.photos-root .sv-action-btn:hover { background: var(--surface-3); color: var(--text-1); }
+.photos-root .sv-action-btn[data-primary="true"] {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hi));
+  color: white;
+  border-color: transparent;
+}
+.photos-root .sv-action-btn[data-open="true"] {
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.4);
+}
+
+/* === Export menu === */
+.photos-root .sv-export-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  min-width: 280px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 6px;
+  box-shadow: 0 18px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(var(--accent-rgb), 0.08);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.photos-root .sv-export-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  color: var(--text-1);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.12s;
+}
+.photos-root .sv-export-item:hover { background: var(--surface-2); }
+.photos-root .sv-export-icon {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.photos-root .sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
+.photos-root .sv-export-desc { font-size: 11px; color: var(--text-3); margin-top: 3px; line-height: 1.35; }
+.photos-root .sv-export-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--line);
+}
+
+.photos-root .sv-menu-enter-active, .photos-root .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
+.photos-root .sv-menu-enter, .photos-root .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
+
+/* Export toast */
+.photos-root .sv-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(20, 18, 32, 0.92);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 99px;
+  color: rgba(255,255,255,0.95); /* dark-glass toast is theme-invariant, pin text white */
+  font-size: 12.5px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55), 0 0 0 1px rgba(var(--accent-rgb), 0.18);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 300;
+}
+.photos-root .sv-toast-enter-active, .photos-root .sv-toast-leave-active { transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.photos-root .sv-toast-enter, .photos-root .sv-toast-leave-to { opacity: 0; transform: translate(-50%, 8px); }
+
+.photos-root .sv-section-head {
+  padding: 18px 32px 8px;
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+.photos-root .sv-section-head .pill {
+  padding: 1px 8px;
+  border-radius: 99px;
+  background: var(--surface-3);
+  color: var(--text-2);
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 500;
+}
+
+.photos-root .sv-grid-photos {
+  padding: 0 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px;
+}
+/* Compact density (added 2026-07-30, PhotosSmartViewDetail only): more
+   columns/smaller thumbnails, technique copied from
+   .album-photo-grid.is-compact (see photos.scss) — just shrinks auto-fill's
+   minimum cell width from 180px to 120px, fitting more per row; this
+   .is-compact class name only takes effect on this page (where sv-grid-photos
+   + is-compact appear together) — PhotosMomentDetail.vue also uses the
+   .sv-grid-photos base class but doesn't add the is-compact modifier class,
+   so the selector requires both to coexist to match, and isn't affected by
+   this rule. */
+.photos-root .sv-grid-photos.is-compact {
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+}
+.photos-root .sv-grid-photos .tile { aspect-ratio: 1; }
+.photos-root .sv-grid-photos .tile.recent::after {
+  content: "";
+  position: absolute; inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,0.4);
+}
+.photos-root .sv-grid-photos .new-tag {
+  position: absolute;
+  top: 6px; left: 6px;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: var(--accent);
+  color: white;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Manual pin badge: placed top-right, avoiding the top-left new-tag /
+   selection-state check (convention per tile-checkbox) */
+.photos-root .sv-grid-photos .tile .sv-pin-tag {
+  position: absolute;
+  top: 6px; right: 6px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(6px);
+  display: inline-flex; align-items: center; justify-content: center;
+  z-index: 3;
+}
+.photos-root .sv-grid-photos .tile .sv-tile-check {
+  position: absolute;
+  top: 6px; left: 6px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-flex; align-items: center; justify-content: center;
+  z-index: 4;
+}
+
+/* Collapsible restore area: excluded photos get reduced opacity, hover
+   reveals the "Restore" hint */
+.photos-root .sv-excluded-head { cursor: pointer; user-select: none; }
+.photos-root .sv-excluded-head:hover { color: var(--text-2); }
+.photos-root .sv-excluded-grid .tile { opacity: 0.7; transition: opacity 0.15s ease; }
+.photos-root .sv-excluded-grid .tile:hover { opacity: 1; }
+.photos-root .sv-excluded-grid .tile .sv-restore-hint {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  padding: 4px 0;
+  text-align: center;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: white;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.photos-root .sv-excluded-grid .tile:hover .sv-restore-hint { opacity: 1; }
+
+/* Selection-mode floating action bar — fixed, bottom-centered, same
+   convention as PersonDetail's .selection-bar */
+.photos-root .sv-select-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--pop-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.5);
+  backdrop-filter: blur(12px) saturate(180%);
+}
+.photos-root .sv-select-bar span {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Side panel */
+/* 2026-07-30 second round of feedback: PhotosAlbumDetail's four header
+   action buttons (Slideshow/Edit·Done/Ask Nimo/more menu) moved into this
+   section at the top of the sidebar; the buttons themselves are still
+   .sv-action-btn (size/styling unchanged) — this just defines the container
+   itself: horizontal flex-wrap (more suited to the sidebar's narrow 320px
+   width than a single header row — with many buttons it wraps
+   automatically), margin-bottom keeps the same 24px spacing rhythm as
+   .sv-side-section below. */
+.photos-root .sv-side-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+.photos-root .sv-side-section { margin-bottom: 24px; }
+.photos-root .sv-side-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin: 0 0 10px;
+}
+.photos-root .sv-thresh-row {
+  margin-bottom: 8px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  font-size: 13px;
+}
+.photos-root .sv-thresh-row b { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+.photos-root .sv-slider {
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: linear-gradient(to right, rgba(var(--accent-rgb), 0.25), var(--accent));
+  border-radius: 99px;
+  outline: 0;
+}
+.photos-root .sv-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: white;
+  border: 2px solid var(--accent);
+  box-shadow: 0 2px 8px rgba(var(--accent-rgb), 0.4);
+  cursor: pointer;
+}
+.photos-root .sv-slider-marks {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--text-4);
+  margin-top: 4px;
+}
+.photos-root .sv-thresh-help {
+  font-size: 11.5px; color: var(--text-3);
+  line-height: 1.5;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border-radius: 8px;
+}
+
+.photos-root .sv-toggle-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.photos-root .sv-toggle-row:last-child { border-bottom: 0; }
+.photos-root .sv-toggle-row .label { flex: 1; color: var(--text-1); }
+.photos-root .sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.photos-root .sv-switch {
+  position: relative;
+  width: 32px; height: 18px;
+  background: var(--surface-3);
+  border-radius: 99px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.photos-root .sv-switch::after {
+  content: "";
+  position: absolute;
+  top: 2px; left: 2px;
+  width: 14px; height: 14px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.2s;
+}
+.photos-root .sv-switch[data-on="true"] {
+  background: var(--accent);
+}
+.photos-root .sv-switch[data-on="true"]::after { left: 16px; }
+
+.photos-root .sv-activity { display: flex; flex-direction: column; gap: 10px; }
+.photos-root .sv-activity-row {
+  display: flex; gap: 8px;
+  font-size: 11.5px;
+  align-items: flex-start;
+}
+.photos-root .sv-activity-thumbs {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.photos-root .sv-activity-thumbs img {
+  width: 26px; height: 26px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+.photos-root .sv-activity-text { flex: 1; color: var(--text-2); line-height: 1.4; }
+.photos-root .sv-activity-text b { color: var(--text-1); font-weight: 600; }
+.photos-root .sv-activity-time { color: var(--text-4); font-size: 10.5px; }
+
+.photos-root .sv-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.photos-root .sv-stat-cell {
+  background: var(--surface-2);
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+.photos-root .sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.photos-root .sv-stat-cell .l { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.photos-root .sv-stat-cell .delta { font-size: 11px; color: #34C759; margin-left: 4px; font-weight: 500; }
+
+.photos-root .sv-distribution {
+  height: 56px;
+  display: flex; align-items: flex-end;
+  gap: 2px;
+  margin-top: 8px;
+}
+.photos-root .sv-distribution > div {
+  flex: 1;
+  background: linear-gradient(to top, var(--accent), #B8AAFF);
+  border-radius: 2px 2px 0 0;
+  min-width: 4px;
+}
+.photos-root .sv-dist-x {
+  display: flex; justify-content: space-between;
+  font-size: 10px; color: var(--text-4);
+  margin-top: 4px;
+}
+
+/* === Create Smart View modal === */
+.photos-root .sv-modal-scrim {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+}
+.photos-root .sv-modal {
+  width: 820px;
+  max-width: 100%;
+  max-height: calc(100vh - 80px);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Fix round (P1): embedded mode's outer wrapper — only "disappears" in the
+   box model (display:contents), handing off the flex-child slot it would
+   otherwise occupy directly to the inner .sv-modal.sv-modal-embedded, so the
+   host .albums-modal-wide (display:flex;flex-direction:column) can actually
+   give its remaining height to the inner element, instead of this unstyled
+   div's content natural height blowing it out and getting clipped. */
+.photos-root .sv-modal-embed-host {
+  display: contents;
+}
+/* embedded modifier class: only strips off the visual shell needed for
+   standalone mode (fixed width/border radius/border/shadow/fixed max-height
+   relative to viewport — the host .albums-modal-wide already provides
+   equivalent width and outer frame), keeping .sv-modal's base rules' flex
+   column layout + overflow:hidden structure; max-height changes from a
+   "fixed calc(100vh-80px)" to flex:1;min-height:0, filling the remaining
+   height the host has already computed. This way .sv-modal-body's
+   flex:1;min-height:0;overflow:hidden and .sv-modal-form/.sv-modal-side's
+   existing overflow-y:auto actually take effect on short viewports — the
+   form can scroll internally, and .sv-modal-foot's submit button stays
+   reachable at all times. */
+.photos-root .sv-modal.sv-modal-embedded {
+  width: auto;
+  max-width: none;
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.photos-root .sv-modal-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 20px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.photos-root .sv-modal-icon {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hi));
+  box-shadow: 0 4px 14px -4px rgba(var(--accent-rgb), 0.55);
+}
+.photos-root .sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.photos-root .sv-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+
+.photos-root .sv-modal-body {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.photos-root .sv-modal-form {
+  overflow-y: auto;
+  padding: 18px 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.photos-root .sv-modal-side {
+  overflow-y: auto;
+  padding: 18px 18px 22px;
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.photos-root .sv-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.photos-root .sv-field-label {
+  display: flex; align-items: baseline;
+  gap: 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-2);
+}
+.photos-root .sv-field-hint {
+  font-size: 10.5px;
+  color: var(--text-4);
+  font-weight: 400;
+}
+.photos-root .sv-input {
+  width: 100%;
+  padding: 9px 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.photos-root .sv-input:focus {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+.photos-root .sv-textarea {
+  min-height: 60px;
+  resize: vertical;
+  line-height: 1.45;
+  font-size: 12.5px;
+}
+
+.photos-root .sv-suggest {
+  background: rgba(var(--accent-rgb), 0.08);
+  border: 1px solid rgba(var(--accent-rgb), 0.22);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.photos-root .sv-suggest-head {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-hi);
+  margin-bottom: 8px;
+}
+.photos-root .sv-suggest-row {
+  display: flex; flex-wrap: wrap; gap: 5px;
+}
+.photos-root .sv-suggest-chip {
+  padding: 4px 10px;
+  border-radius: 99px;
+  background: var(--surface-1);
+  border: 1px dashed rgba(var(--accent-rgb), 0.45);
+  color: var(--text-1);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.photos-root .sv-suggest-chip:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-hi);
+}
+
+.photos-root .sv-chip-bin {
+  display: flex; flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  min-height: 38px;
+  transition: border-color 0.15s;
+}
+.photos-root .sv-chip-bin:focus-within {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+.photos-root .sv-chip-bin[data-empty="true"] {
+  padding: 0;
+  background: transparent;
+  border: 0;
+}
+.photos-root .sv-chip-bin[data-empty="true"] .sv-chip-input {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 11px;
+}
+.photos-root .sv-chip-bin[data-empty="true"]:focus-within .sv-chip-input {
+  border-color: var(--accent);
+  background: var(--surface-1);
+}
+.photos-root .sv-chip-item {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 4px 3px 9px;
+  background: var(--accent-soft);
+  border: 1px solid rgba(var(--accent-rgb), 0.35);
+  border-radius: 99px;
+  color: var(--accent-hi);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.photos-root .sv-chip-x {
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.2);
+  color: var(--accent-hi);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.photos-root .sv-chip-x:hover { background: rgba(var(--accent-rgb), 0.4); }
+.photos-root .sv-chip-input {
+  flex: 1;
+  min-width: 140px;
+  background: transparent;
+  border: 0;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  outline: none;
+  padding: 4px 6px;
+}
+.photos-root .sv-field-hint kbd {
+  font: inherit;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--text-2);
+}
+
+.photos-root .sv-thresh-val {
+  margin-left: auto;
+  color: var(--accent-hi);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.photos-root .sv-toggles {
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 2px 12px;
+}
+.photos-root .sv-toggle-clickable { cursor: pointer; user-select: none; }
+
+/* Side preview */
+.photos-root .sv-preview-head {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-hi);
+  margin-bottom: 8px;
+}
+.photos-root .sv-preview-count {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-bottom: 12px;
+}
+.photos-root .sv-preview-count b {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.photos-root .sv-preview-count span {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.photos-root .sv-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  margin-bottom: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.photos-root .sv-preview-grid img {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  display: block;
+}
+.photos-root .sv-preview-help {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 8px 10px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.photos-root .sv-templates { margin-top: 18px; }
+.photos-root .sv-templates-head {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+  margin-bottom: 8px;
+}
+.photos-root .sv-template-row {
+  display: flex; align-items: flex-start; gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 4px;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.photos-root .sv-template-row:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.photos-root .sv-template-row > .photos-icon, .photos-root .sv-template-row > svg { margin-top: 2px; flex-shrink: 0; }
+.photos-root .sv-template-row .t-label { font-size: 12px; font-weight: 500; }
+.photos-root .sv-template-row .t-desc { font-size: 10.5px; color: var(--text-3); margin-top: 1px; line-height: 1.35; }
+
+/* Modal footer */
+.photos-root .sv-modal-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
+}
+.photos-root .sv-btn-ghost {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.photos-root .sv-btn-ghost:hover { background: var(--surface-3); }
+.photos-root .sv-btn-primary {
+  height: 36px;
+  padding: 0 18px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hi));
+  border: 0;
+  color: white;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 4px 14px -4px rgba(var(--accent-rgb), 0.55);
+  transition: transform 0.12s, box-shadow 0.15s, opacity 0.15s;
+}
+.photos-root .sv-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 22px -6px rgba(var(--accent-rgb), 0.6); }
+.photos-root .sv-btn-primary:disabled {
+  background: rgba(var(--accent-rgb), 0.35);
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Modal transition */
+.photos-root .sv-modal-enter-active, .photos-root .sv-modal-leave-active { transition: opacity 0.18s ease; }
+.photos-root .sv-modal-enter-active .sv-modal, .photos-root .sv-modal-leave-active .sv-modal {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.18s ease;
+}
+.photos-root .sv-modal-enter, .photos-root .sv-modal-leave-to { opacity: 0; }
+.photos-root .sv-modal-enter .sv-modal, .photos-root .sv-modal-leave-to .sv-modal {
+  transform: translateY(8px) scale(0.98);
+  opacity: 0;
+}
+
+/* Narrow screens: stack the preview */
+@media (max-width: 760px) {
+  .photos-root .sv-modal-body { grid-template-columns: 1fr; }
+  .photos-root .sv-modal-side { border-left: 0; border-top: 1px solid var(--line); }
+}

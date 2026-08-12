@@ -29,6 +29,7 @@
 // 城市的名字。姐妹页 PhotosPlaces.vue:99-100 的 `activeDetail` 对同一个 store 已有这个先例
 // (`store.detail && String(store.detail.id) === String(activeId.value)`),这里照抄同一手法,
 // 不是新发明的复杂度。
+import '../photos/styles/vue2-parity'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

@@ -10,6 +10,7 @@
 // 选择态 selected 用 Set<string|number>,按 id 值比较(不用对象引用)——Vue3 的 ref() 对
 // Set/Map 有专门的响应式劫持(collection handlers),直接 .add()/.delete() 即可触发视图更新,
 // 不需要 Vue2 "new Set() 整个替换" 的 workaround。
+import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'

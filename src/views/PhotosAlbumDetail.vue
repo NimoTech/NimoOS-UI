@@ -19,6 +19,7 @@
 //  2) 封面判定 isCover(p) = String(p.id) === String(album.cover)(album.cover 可能是数字)。
 //  3) selected 用 Set<string>(String 归一)。
 //  4) 全程无对象引用 ===。
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

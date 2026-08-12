@@ -45,6 +45,7 @@
 //     phase deleted that hero, which is exactly the state the acceptance device is in
 //     (moments table = 0 rows). Vue 2's target renders section + hero unconditionally and
 //     gates only the grid; the gate now sits where Vue 2 has it.
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

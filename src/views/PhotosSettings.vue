@@ -45,6 +45,7 @@
   一份白名单然后漂开。
 -->
 <script setup lang="ts">
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
