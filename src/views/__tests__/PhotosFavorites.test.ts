@@ -107,7 +107,7 @@ describe('PhotosFavorites.vue', () => {
     expect(fav.favoritesLoaded).toBe(true)
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(true)
     expect(w.text()).toContain('暂无收藏')
-    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('.content').exists()).toBe(false)
     expect(w.find('.fav-export').attributes('disabled')).toBeDefined()
   })
 
@@ -120,7 +120,7 @@ describe('PhotosFavorites.vue', () => {
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
     expect(w.text()).toContain('收藏加载失败')
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
-    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('.content').exists()).toBe(false)
   })
 
   it('失败态的重试按钮重新调 fetchFavorites,成功后失败态消失', async () => {
@@ -138,7 +138,7 @@ describe('PhotosFavorites.vue', () => {
     expect(fetchSpy).toHaveBeenCalled()
     expect(fav.loadError).toBe(false)
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(false)
-    expect(w.find('.photos-grid-root').exists()).toBe(true)
+    expect(w.find('.content').exists()).toBe(true)
   })
 
   // 评审 Important 1 补的挡门用例(这一条才是真正钉住不变量的那条,不是 store 那条):
@@ -164,7 +164,7 @@ describe('PhotosFavorites.vue', () => {
 
     // in-flight:重试还没落定,失败态必须继续可见,不能落到网格分支。
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
-    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('.content').exists()).toBe(false)
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
 
     rejectRetry(new Error('e2'))
@@ -173,7 +173,7 @@ describe('PhotosFavorites.vue', () => {
 
     // 落定后(仍失败):失败态持续可见。
     expect(w.find('[data-test="fav-load-error"]').exists()).toBe(true)
-    expect(w.find('.photos-grid-root').exists()).toBe(false)
+    expect(w.find('.content').exists()).toBe(false)
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
   })
 
@@ -192,7 +192,7 @@ describe('PhotosFavorites.vue', () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a'), photo('b')])
     const w = await mountView()
     expect(w.find('[data-test="fav-empty"]').exists()).toBe(false)
-    expect(w.find('.photos-grid-root').exists()).toBe(true)
+    expect(w.find('.content').exists()).toBe(true)
     expect(w.findAll('.tile')).toHaveLength(2)
     expect(w.find('.fav-export').attributes('disabled')).toBeUndefined()
   })
@@ -270,9 +270,9 @@ describe('PhotosFavorites.vue', () => {
 
     expect(w.find('.selection-toolbar').exists()).toBe(false)
 
-    const checkbox = w.find('.tile-check-box')
+    const checkbox = w.find('.tile-checkbox')
     expect(checkbox.exists()).toBe(true)
-    await checkbox.trigger('change')
+    await checkbox.trigger('click')
     await w.vm.$nextTick()
 
     const bar = w.find('.selection-toolbar')
@@ -296,9 +296,9 @@ describe('PhotosFavorites.vue', () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 5, name: 'Trip', assetCount: 0 }])
     const w = await mountView()
 
-    const checkboxes = w.findAll('.tile-check-box')
-    await checkboxes[0].trigger('change')
-    await checkboxes[1].trigger('change')
+    const checkboxes = w.findAll('.tile-checkbox')
+    await checkboxes[0].trigger('click')
+    await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
     const addBtn = w.find('.sel-add-album')
@@ -346,7 +346,7 @@ describe('PhotosFavorites.vue', () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
 
-    await w.find('.tile-check-box').trigger('change')
+    await w.find('.tile-checkbox').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.selection-toolbar').exists()).toBe(true)
 

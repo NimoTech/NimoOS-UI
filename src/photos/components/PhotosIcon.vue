@@ -56,6 +56,20 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'starOutline'">
       <path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z" />
     </template>
+    <!-- Task 6 (grid re-skin): 'star' is the SAME path as 'starOutline' — Vue2
+         PhotosIcon.vue's two branches are byte-identical, filled vs. outlined
+         entirely via fillOverride (name === 'star' ? color : 'none'), already
+         wired above. 'check' (tile-checkbox) and 'play' (tile-vid duration
+         badge) transcribed verbatim from Vue2 PhotosIcon.vue:54-56 / :75-77. -->
+    <template v-else-if="name === 'star'">
+      <path d="M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z" />
+    </template>
+    <template v-else-if="name === 'check'">
+      <path d="m5 12 5 5L20 7" />
+    </template>
+    <template v-else-if="name === 'play'">
+      <path d="M7 4v16l13-8z" />
+    </template>
     <template v-else-if="name === 'trash'">
       <path d="M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13" />
     </template>

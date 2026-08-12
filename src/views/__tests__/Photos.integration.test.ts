@@ -210,11 +210,11 @@ describe('Photos.vue integration', () => {
     // Selection toolbar absent until something is selected.
     expect(w.find('.selection-toolbar').exists()).toBe(false)
 
-    // Select both tiles via their native checkbox (Files-region pattern, P1 restyle).
-    const checkboxes = w.findAll('.tile-check-box')
+    // Select both tiles via Vue2's click-to-toggle checkbox div (Task 6 re-skin).
+    const checkboxes = w.findAll('.tile-checkbox')
     expect(checkboxes).toHaveLength(2)
-    await checkboxes[0].trigger('change')
-    await checkboxes[1].trigger('change')
+    await checkboxes[0].trigger('click')
+    await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
     // Bar now lives at the TOP of the content, styled like Files' SelectionToolbar.
@@ -239,7 +239,7 @@ describe('Photos.vue integration', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    await w.get('.tile-check-box').trigger('change')
+    await w.get('.tile-checkbox').trigger('click')
     await w.vm.$nextTick()
 
     const main = w.find('.photos-main')
@@ -270,9 +270,9 @@ describe('Photos.vue integration', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    const checkboxes = w.findAll('.tile-check-box')
-    await checkboxes[0].trigger('change')
-    await checkboxes[1].trigger('change')
+    const checkboxes = w.findAll('.tile-checkbox')
+    await checkboxes[0].trigger('click')
+    await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
     const addBtn = w.find('.sel-add-album')
