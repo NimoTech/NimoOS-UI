@@ -46,6 +46,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
@@ -63,6 +64,7 @@ type SortId = 'freq' | 'name' | 'recent' | 'oldest'
 type DialogMode = 'name' | 'merge' | 'delete'
 
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const router = useRouter()
 const people = usePhotosPeople()
 const timeline = useTimelineStore()
@@ -397,7 +399,7 @@ onUnmounted(() => {
 
 <template>
   <AreaShell :title="t('photosPeople')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <!-- ── 横幅(Vue2 :3-42)── -->
@@ -688,6 +690,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }

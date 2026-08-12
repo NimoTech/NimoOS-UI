@@ -25,6 +25,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
@@ -45,6 +46,7 @@ import type { Photo } from '../photos/util/assetToPhoto'
 type SortBy = 'manual' | 'taken' | 'added'
 
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const route = useRoute()
 const router = useRouter()
 const albums = usePhotosAlbums()
@@ -623,7 +625,7 @@ watch(gridRef, () => {
 
 <template>
   <AreaShell :title="album ? album.title : t('photosAlbumsTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <!-- Task 9(P4 遗留收口):失败态优先级在骨架分支之前——loadError 一旦为真,
@@ -1113,6 +1115,15 @@ watch(gridRef, () => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
