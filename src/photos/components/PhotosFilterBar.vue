@@ -25,6 +25,24 @@
 //
 // 不做 Esc 关弹层:Vue2 本组件没有 keydown 监听,1:1 不擅自加(搜索页那条 Esc 是它自己的
 // 结构规格 19,不外溢到这里)。
+//
+// Plan B Task 5(2026-08-12,"工具栏 + FilterBar 重刻"):
+// ① 弹层 max-height:Vue2 PhotosFilterBar.vue:29 内联 `max-height:260px`;共享基元
+//   PhotosFilterPopover 当年默认写死 280(照搜索侧),260 这条差异被登记"交给 P7b/T16"——
+//   本任务接通,新增 maxHeight prop 传 260(见 PhotosFilterPopover.vue 头部同一处登记)。
+// ② .exif-filter/.exif-funnel/.exif-badge/.exif-chiprow/.exif-clear 这五个类只服务本组件
+//   (已 grep 确认全仓零其它消费方),下方样式块的颜色 token 从当年 P7b 写的通用
+//   app token(--fg/--chip-bg/--accent-soft-bd 等,解析到的是站点玻璃拟态配色)改回 Vue2
+//   原文用的 --surface-2/--text-1/2/3/--line-strong/--accent-glow/--accent-hi 这组 token
+//   名——src/photos/styles/vue2-parity/photos.scss 的 `.photos-root` 块(T3/T4 为 Plan B
+//   建的、逐字对齐 Vue2 photos.scss 的本地深色变量表)重新定义了这组名字,而 P7b 写这段
+//   样式块时该文件还不存在(当时的组件注释也写"--line-strong 在本仓不存在,已 grep 确认
+//   零命中"——这句话在 parity scss 落地前是对的,现在不是了)。改回同名 token 后,数值随
+//   .photos-root 的本地定义走,与 Vue2 逐字一致,不是新造一套配色。
+//   .fchip/.fchip-wrap/.fchip-x(PhotosFilterChip.vue)与 .fpop*(PhotosFilterPopover.vue)
+//   不在本次改动范围——这两个基元同时被 PhotosSearch/SmartView/Settings/日期与人物弹层等
+//   六个消费方共享,统一改配色是一次跨面板的视觉决策,超出本任务"工具栏 + FilterBar 两颗
+//   胶囊"的范围,登记为后续任务(见 task-5-report.md 的 concerns)。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosFilterChip from './PhotosFilterChip.vue'
@@ -235,6 +253,7 @@ onBeforeUnmount(() => {
         <PhotosFilterPopover
           v-if="openPop === chip.key"
           :title="chip.label" :items="chip.items" :selected="draft[chip.key] || []" :width="240"
+          :max-height="260"
           :search-placeholder="t('photosSearchSearchLabel', { label: chip.label })"
           :empty-hint="emptyHint"
           @update:selected="(v) => (draft = { ...draft, [chip.key]: v })"
@@ -251,12 +270,14 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* token 映射(沿用 PhotosFilterChip.vue 顶部那张四档表,不重复展开):
-   Vue2 --surface-2 → --chip-bg · --text-1/2/3 → --fg/--fg-muted/--fg-faint ·
-   --accent-hi → --accent-text · 角标原为写死的纯白文字 → --on-accent。
-   Vue2 --line-strong 与 --accent-glow 在本仓都不存在(已 grep theme.css 确认零命中):
-   前者取 --chip-border(同 PhotosFilterPopover.vue:273-281 的既有判定),后者取
-   --accent-soft-bd(accent 家族里描边档,同 PhotosFilterChip.vue [data-on] 边框的映射)。 */
+/* Plan B Task 5 token 改法(见上方模块注释②):不再映射到通用 app token,直接用
+   Vue2 photos.scss 原文的 token 名——渲染时落在 .photos-root 之内,解析到的是
+   src/photos/styles/vue2-parity/photos.scss 里逐字对齐 Vue2 的本地深色变量表
+   (--surface-2/--text-1/2/3/--line-strong/--accent-soft/--accent-glow/--accent-hi),
+   数值因此与 Vue2 一致,不是新配一套色。角标 `color: white` 与 Vue2
+   PhotosFilterBar.vue:262 的写死值逐字一致(同 parity scss 自身 .btn-primary 的
+   `color: white` 先例——parity scss 是逐字转录 Vue2 CSS 的例外区,不走站内通用
+   "颜色一律 token 化"规则,这里跟随同一先例,不是本组件擅自开的口子)。 */
 .exif-filter {
   display: inline-flex;
   align-items: center;
@@ -271,9 +292,9 @@ onBeforeUnmount(() => {
   height: 32px;
   flex-shrink: 0;
   border-radius: 9999px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: var(--fg-muted);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--text-2);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -282,17 +303,17 @@ onBeforeUnmount(() => {
 }
 /* fix round 1(评审必修 1,人已裁定):Vue2 原文
    NimoOS-UI/src/views/Photos/PhotosFilterBar.vue:251 只改 color/border-color,
-   背景保持 --surface-2(→ --chip-bg)不动;此前这里多写了一行
-   `background: var(--chip-bg-hi)`,是简报文本本身的漂移,不是抄错——已按「界面严格 1:1」
-   铁律删掉,不补偏离登记(这不是有意偏离,是订正)。 */
+   背景保持 --surface-2 不动;此前这里多写了一行 `background: var(--chip-bg-hi)`,是简报
+   文本本身的漂移,不是抄错——已按「界面严格 1:1」铁律删掉,不补偏离登记(这不是有意偏离,
+   是订正)。 */
 .exif-funnel:hover {
-  color: var(--fg);
-  border-color: var(--accent-soft-bd);
+  color: var(--text-1);
+  border-color: var(--accent-glow);
 }
 .exif-funnel.on {
   background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--accent-text);
+  border-color: var(--accent-glow);
+  color: var(--accent-hi);
 }
 /* hover 硬约束:基类 .exif-funnel:hover 是 (0,2,0),变体 .exif-funnel.on 也是 (0,2,0)
    —— 平手,靠书写顺序苟活(本区已栽四次的形态)。变体自带 :hover,数值等于未 hover 的
@@ -300,8 +321,8 @@ onBeforeUnmount(() => {
    :hover 之后」隐含表达的语义,这里显式化。 */
 .exif-funnel.on:hover {
   background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--accent-text);
+  border-color: var(--accent-glow);
+  color: var(--accent-hi);
 }
 .exif-badge {
   position: absolute;
@@ -312,7 +333,9 @@ onBeforeUnmount(() => {
   padding: 0 3px;
   border-radius: 9999px;
   background: var(--accent);
-  color: var(--on-accent);
+  color: white; /* theme-exception: Vue2 PhotosFilterBar.vue:262 写死同值,parity scss 自身
+  .btn-primary(photos.scss:272)同一先例已被机主拍板豁免——角标叠在 .photos-root 本地紫色
+  accent 上,不参与站内通用主题切换 */
   font-size: 9px;
   font-weight: 700;
   display: flex;
@@ -356,12 +379,12 @@ onBeforeUnmount(() => {
   height: 30px;
   border: none;
   background: none;
-  color: var(--fg-faint);
+  color: var(--text-3);
   font-size: 12px;
   white-space: nowrap;
   cursor: pointer;
   border-radius: 9999px;
   transition: color 0.2s;
 }
-.exif-clear:hover { color: var(--fg); }
+.exif-clear:hover { color: var(--text-1); }
 </style>

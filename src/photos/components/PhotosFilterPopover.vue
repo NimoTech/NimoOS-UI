@@ -23,6 +23,12 @@
 // 宿主(T16)在容器 ref 层面统一处理;本组件只在根节点 @click.stop 防止弹层内部点击冒泡到
 // 宿主的"点外部判定"逻辑里(结构参照 Vue2 `<div v-if="..." @click.stop>` 外层 + `.fpop`
 // 内层两级)。
+//
+// Plan B Task 5(2026-08-12):当年这里的 max-height 差异(搜索侧 280 / FilterBar 侧 260,
+// 见上方模块注释①)被登记成"交给 P7b/T16 决定要不要开 prop"、一直没有接通,组件一直写死
+// 280。这里接通——新增 maxHeight prop(默认 280,不影响既有消费方的既有行为),照抄 width
+// prop 已有的"inline style 覆写"模式(:style 而不是写死的 CSS 声明),FilterBar 侧显式传
+// 260 命中 Vue2 数值。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -34,11 +40,13 @@ const props = withDefaults(
     searchPlaceholder: string
     emptyHint: string
     width?: number
+    maxHeight?: number
     multiple?: boolean
     labelFor?: (item: string) => string
   }>(),
   {
     width: 260,
+    maxHeight: 280,
     multiple: true,
   },
 )
@@ -84,7 +92,7 @@ function toggle(it: string): void {
     <div class="fpop" :style="{ width: `${width}px` }">
       <div class="fpop-title">{{ title }}</div>
       <input v-model="search" class="fpop-search" :placeholder="searchPlaceholder">
-      <div class="fpop-list">
+      <div class="fpop-list" :style="{ maxHeight: `${maxHeight}px` }">
         <div
           v-for="it in filtered" :key="it" class="fpop-item"
           :data-active="isSel(it) ? 'true' : 'false'"
@@ -167,13 +175,12 @@ function toggle(it: string): void {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* Vue2 两侧内联 style 里的 max-height 不一致(搜索侧 280px / FilterBar 侧 260px,见上方
-   模块注释的逐字比对结论)——以搜索侧为准,取 280。 */
+/* max-height 由 maxHeight prop 驱动的行内 style 给出(见上方模块注释,Plan B Task 5 接通
+   了当年 P7a 登记的 280/260 差异),这里只留结构性声明。 */
 .fpop-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 280px;
   overflow-y: auto;
 }
 

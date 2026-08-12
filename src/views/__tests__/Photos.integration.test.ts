@@ -245,7 +245,10 @@ describe('Photos.vue integration', () => {
     const main = w.find('.photos-main')
     const html = main.html()
     const barIdx = html.indexOf('selection-toolbar')
-    const toolbarIdx = html.indexOf('photos-toolbar')
+    // Plan B Task 5: PhotosToolbar's root class is now `.toolbar` (Vue2 parity, see
+    // PhotosToolbar.vue) — search for the quoted attribute so this doesn't accidentally
+    // re-match the "toolbar" substring inside "selection-toolbar" above.
+    const toolbarIdx = html.indexOf('class="toolbar"')
     expect(barIdx).toBeGreaterThan(-1)
     expect(toolbarIdx).toBeGreaterThan(-1)
     expect(barIdx).toBeLessThan(toolbarIdx)

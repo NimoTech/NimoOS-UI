@@ -1,11 +1,15 @@
 // SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元。
 // 弹层标记逐字比对结论(PhotosSearchView.vue:124-147 vs PhotosFilterBar.vue:25-63,任务
 // 报告里有完整版;fix round 1 · M9 已改正措辞,此前写"唯一实质差异"不准确):真实数值
-// 差异有两条——① 滚动容器 max-height 搜索侧 280px / FilterBar 侧 260px,以搜索侧为准取
-// 280(本测试断言 280),260 的差异登记交给 P7b/T16;② `.fpop` 内联宽度搜索侧 260 /
-// FilterBar 侧 240,已由 width prop 吸收(brief 接口段本就给了这两个数,不是本任务发现的
-// 新差异)。其余(empty 文案来源、label 转换来源、cancelPop 参数)New-UI 接口层面已经用
-// emptyHint/labelFor prop 统一抹平。
+// 差异有两条——① 滚动容器 max-height 搜索侧 280px / FilterBar 侧 260px;② `.fpop` 内联
+// 宽度搜索侧 260 / FilterBar 侧 240,已由 width prop 吸收(brief 接口段本就给了这两个数,
+// 不是本任务发现的新差异)。其余(empty 文案来源、label 转换来源、cancelPop 参数)New-UI
+// 接口层面已经用 emptyHint/labelFor prop 统一抹平。
+//
+// Plan B Task 5(2026-08-12):① 处的 260/260 差异当年登记"交给 P7b/T16 决定要不要开
+// prop"——本任务把它接通:max-height 从写死的 CSS 声明改成 maxHeight prop(默认 280,
+// 与既有 PhotosSearch 等消费方行为不变),照抄 width prop 已有的"inline style 覆写"写法
+// (:56-61 的 width 断言是这个模式的先例),FilterBar 侧显式传 260 命中 Vue2 数值。
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -24,6 +28,7 @@ type Props = {
   searchPlaceholder: string
   emptyHint: string
   width?: number
+  maxHeight?: number
   multiple?: boolean
   labelFor?: (item: string) => string
 }
@@ -58,6 +63,13 @@ describe('结构', () => {
     expect(wDefault.get('.fpop').attributes('style')).toContain('width: 260px')
     const w240 = mountPop(baseProps({ width: 240 }))
     expect(w240.get('.fpop').attributes('style')).toContain('width: 240px')
+  })
+
+  it('maxHeight 默认 280(搜索侧既有行为不变);传 260 → .fpop-list 行内 style 是 260px(FilterBar 侧,Plan B Task 5)', () => {
+    const wDefault = mountPop(baseProps())
+    expect(wDefault.get('.fpop-list').attributes('style')).toContain('max-height: 280px')
+    const w260 = mountPop(baseProps({ maxHeight: 260 }))
+    expect(w260.get('.fpop-list').attributes('style')).toContain('max-height: 260px')
   })
 
   it('items 5 条 → 5 个 .fpop-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
@@ -196,11 +208,11 @@ describe('样式', () => {
     expect(winner.selector).toContain('data-active')
   })
 
-  it('滚动容器(.fpop-list)有 max-height: 280px 与 overflow-y: auto(先锚定规则体,不做全文件级 toContain)', () => {
+  it('滚动容器(.fpop-list)的静态规则里有 overflow-y: auto(max-height 已改为 maxHeight prop 驱动的行内 style,见上方结构测试)', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-list')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('max-height: 280px')
+    expect(rule?.body).not.toContain('max-height')
     expect(rule?.body).toContain('overflow-y: auto')
   })
 

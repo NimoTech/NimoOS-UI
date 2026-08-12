@@ -110,6 +110,15 @@ describe('结构与展开', () => {
   })
 })
 
+describe('Plan B Task 5:弹层 max-height 260(D19 之外的另一处 Vue2 数值,登记见 PhotosFilterPopover.vue 头部注释)', () => {
+  it('打开任意胶囊的弹层 → .fpop-list 行内 style 是 260px,不是基元默认的 280px', async () => {
+    const w = mountBar()
+    await w.get('[data-test="exif-funnel"]').trigger('click')
+    await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
+    expect(w.get('.fpop-list').attributes('style')).toContain('max-height: 260px')
+  })
+})
+
 describe('facet 取值', () => {
   it('年份倒序去重;F1:不可解析日期不产生 NaN 选项', async () => {
     const w = mountBar()
