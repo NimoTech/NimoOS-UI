@@ -1095,4 +1095,9 @@ export default {
   // PhotosSidebar.vue:29 的 $t('Switch to dark theme')/$t('Switch to light theme')。
   photosSwitchToDarkTheme: '切换到深色主题',
   photosSwitchToLightTheme: '切换到浅色主题',
+  // ── Task 4(顶栏重刻):顶栏折叠按钮的 title,照 Vue2 PhotosTopbar.vue:3 的
+  // $t('Toggle sidebar')。KVM 区已有同文案键 kvmToggleSidebar,但该键按 kvm 前缀命名
+  // 约定专属 KVM 区,本区另起 photos 前缀键而非跨区复用,与本仓"键名按区前缀"的既有惯例
+  // 一致(不是漏查复用)。
+  photosToggleSidebar: '切换侧边栏',
 }

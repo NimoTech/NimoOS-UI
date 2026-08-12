@@ -417,18 +417,21 @@ describe('Photos.vue integration', () => {
 })
 
 // SP7-P7a-T16: 顶部搜索框恒显示,提交 → 跳转 /photos/search(结构规格 22)。
-describe('Photos.vue 搜索框接线(T16)', () => {
-  it('顶部渲染 PhotosSearchBar(搜索输入框)', async () => {
+// Task 4(顶栏重刻):搜索框从独立的 `<PhotosSearchBar>` 挪进了 `<PhotosTopbar>` 内的
+// `.topbar .search`(Vue2 topbar 原生结构),选择器同步改为 `.topbar .search input`——
+// 提交/路由跳转的逻辑本身(onSearchSubmit)没有变,只是发出提交事件的组件变了。
+describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)', () => {
+  it('顶部渲染 PhotosTopbar 的搜索框(.topbar .search input)', async () => {
     const w = await mountPhotos()
-    expect(w.find('.photos-search-bar input').exists()).toBe(true)
+    expect(w.find('.topbar .search input').exists()).toBe(true)
   })
 
   it('提交非空词 → router.push 到 /photos/search 带 q', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
-    await w.get('.photos-search-bar input').setValue('sunset')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('sunset')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
   })
 
@@ -436,8 +439,25 @@ describe('Photos.vue 搜索框接线(T16)', () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: {} })
+  })
+})
+
+// Task 4:折叠按钮从 T3 遗留的"无入口"状态(见 task-3-report.md Concerns#4)真正接上——
+// 点击顶栏的折叠 icon-btn → Photos.vue 的 `collapsed` ref 翻转 → `.app[data-collapsed]`
+// 跟着变(Vue2 PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`同款)。
+describe('Photos.vue 折叠按钮接线(Task 4)', () => {
+  it('点击顶栏折叠按钮 → .app[data-collapsed] 翻转', async () => {
+    // 初始值不锚定具体的 'true'/'false'(取决于 localStorage 持久化态,本文件其它用例
+    // 不清 localStorage,跨用例可能被前一个用例写脏)——只锚定"点一次必翻一次"。
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before === 'true' ? 'false' : 'true')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before)
   })
 })
 

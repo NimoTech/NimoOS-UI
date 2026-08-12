@@ -22,8 +22,19 @@
 //
 // Task 3(壳 + 侧栏重刻):根结构改为 Vue2 的 `.photos-root[themeClass] > .app[data-collapsed]
 // [data-selecting] > PhotosSidebar + main.main`(NimoOS-UI PhotosTimeline.vue:943-956),
-// 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(PhotosSearchBar 起到
+// 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(当时是 PhotosSearchBar 起到
 // PhotosGrid 止)原样保留在 `.photos-main` 里,只是外面多套了一层 `.app`/`main.main` 网格壳。
+//
+// Task 4(顶栏重刻,D13):`main.main` 下新增 `<PhotosTopbar>` 作为 `.photos-main` 的**同级
+// 前一个兄弟**(照 Vue2 PhotosTimeline.vue:956-971 的 `<main class="main"><PhotosTopbar/>
+// <PhotosSearchView v-if=.../>...</main>` 结构——topbar 是 main 的直接子节点,不嵌进内容槽位
+// 容器里)。原先内联在这里的 `<PhotosSearchBar>` 一行与紧随其后的 `.photos-summary` 计数行
+// 一并移入 PhotosTopbar.vue 内部(标题块 `.topbar-title`+`.topbar-sub`,副行=恒全库计数;
+// 搜索框=`.topbar` 内居中的 `.search`)。`collapsed` 的持久化 ref/toggle 语义不变,只是现在
+// 有了真正的点击入口(T3 报告"Concerns"第 4 条留的坑——Vue2 自己的折叠按钮就在顶栏,不在
+// AreaShell 的汉堡菜单里,补在这里正是 Vue2 的原始位置)。
+// PhotosSearchBar.vue 组件本身没删——grep 确认它仍被 `PhotosSearch.vue`(搜索结果页自己的
+// 顶部搜索框)复用,只是本文件不再引用它。
 //
 // AreaShell 去留判定(brief Step 4):读过 AreaShell.vue —— 桌面态(≥769px)`.area-bar`
 // 确实 `display:none`(D13 注释属实),但 `.area-body` 仍带 `padding:20px` 且
@@ -39,7 +50,7 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
@@ -77,6 +88,9 @@ const { themeClass } = usePhotosTheme()
 const COLLAPSE_KEY = 'nimo_photos_sidebar_collapsed'
 const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
 watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
+// Task 4: the topbar's collapse-toggle button (Vue2 PhotosTopbar's own `☰`, wired at
+// PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) — same flip, now reachable.
+function onToggleCollapse() { collapsed.value = !collapsed.value }
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
@@ -259,13 +273,10 @@ onUnmounted(() => {
     <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
+        <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
         <div class="photos-main">
-          <PhotosSearchBar @submit="onSearchSubmit" />
           <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
           <template v-else>
-            <div class="photos-summary">
-              {{ t('photosCountSummary', { photos: store.photoCount, videos: store.videoCount }) }}
-            </div>
             <PhotosSelectionToolbar
               v-if="selected.length"
               :count="selected.length"
@@ -316,9 +327,7 @@ onUnmounted(() => {
 /* Task 3 起,外层高度封顶不再由这里的 `.photos-layout` 规则负责(该规则已删除,类名不再
    出现在本文件源码里——photosLayoutHeightCap.test.ts 的 CAPPED 名单已同步移除 Photos.vue,
    见该文件注释)。封顶现在由 Vue2 结构的 `.app` 网格自己扛(parity scss photos.scss:116-128
-   `height: 100vh; overflow: hidden`),`.photos-main`/`.photos-loading`/`.photos-summary`/
-   `.photos-grid-slot` 这几条内容槽位样式原样保留(内容结构本任务不动,见 brief Step 4
-   「内容区槽位保持」)。 */
+   `height: 100vh; overflow: hidden`)。 */
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — PhotosSidebar.vue's own
    file-header comment registers this deviation): once the sidebar switches into is-drawer
    mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column
@@ -329,14 +338,16 @@ onUnmounted(() => {
   .app { grid-template-columns: 1fr; }
 }
 
-/* `.photos-main`/`.photos-loading`/`.photos-summary`/`.photos-grid-slot`: content-slot
-   styling, untouched by this task (brief Step 4 "内容区槽位保持") — now nested one level
-   deeper inside `main.main` (parity's flex-column grid cell) instead of being the direct
-   AreaShell slot child. `align-self: stretch` is a harmless leftover from the old flex-row
-   parent (`.photos-main`'s former sibling was `.photos-sidebar`); `main.main`'s default grid
-   `align-items: stretch` already does the same job. */
+/* `.photos-main`/`.photos-loading`/`.photos-grid-slot`: content-slot styling — now a sibling
+   of `<PhotosTopbar>` under `main.main` (Task 4 moved the topbar out to be `.photos-main`'s
+   preceding sibling, matching Vue2's `<main class="main"><PhotosTopbar/><content/></main>`
+   structure), instead of wrapping the search bar itself as it did through Task 3.
+   `align-self: stretch` is a harmless leftover from the old flex-row parent (`.photos-main`'s
+   former sibling was `.photos-sidebar`); `main.main`'s default grid `align-items: stretch`
+   already does the same job.
+   `.photos-summary` (Task 4): the standalone full-library count line moved into
+   `PhotosTopbar.vue`'s `.topbar-sub` — no longer rendered here, rule deleted with it. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-loading { color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 20px 0; }
-.photos-summary { color: var(--fg-muted); font-size: 13px; padding: 4px 4px 0; }
 .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
 </style>

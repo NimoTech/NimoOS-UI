@@ -1047,4 +1047,9 @@ export default {
   // Vue2 PhotosSidebar.vue:29's $t('Switch to dark theme')/$t('Switch to light theme').
   photosSwitchToDarkTheme: 'Switch to dark theme',
   photosSwitchToLightTheme: 'Switch to light theme',
+  // ── Task 4 (topbar re-skin): the topbar's collapse-toggle button title,
+  // Vue2 PhotosTopbar.vue:3's $t('Toggle sidebar'). KVM already has the same copy under
+  // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
+  // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
+  photosToggleSidebar: 'Toggle sidebar',
 }

@@ -5,10 +5,11 @@
   matching Vue2 <template> branch's <path>/<circle>/etc children.
 
   Scope: only the icon names PhotosSidebar.vue actually uses this task (clock/album/person/
-  map/sparkles/starOutline/trash/chevD/chevR/moon/sun/settings). Vue2's PhotosIcon.vue has ~50
-  branches total for the rest of the photos area (topbar/toolbar/lightbox/etc.) — T4-T8 add
-  branches here as they re-skin the components that need them, following this same
-  v-else-if pattern, rather than porting unused icons speculatively now.
+  map/sparkles/starOutline/trash/chevD/chevR/moon/sun/settings), plus (Task 4, topbar re-skin)
+  search/panelLeft for PhotosTopbar.vue. Vue2's PhotosIcon.vue has ~50 branches total for the
+  rest of the photos area (toolbar/lightbox/etc.) — later tasks add branches here as they
+  re-skin the components that need them, following this same v-else-if pattern, rather than
+  porting unused icons speculatively now.
 -->
 <script setup lang="ts">
 import { computed } from 'vue'
@@ -74,6 +75,14 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'settings'">
       <circle cx="12" cy="12" r="3" />
       <path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4.8a7 7 0 0 0-2-1.2L14 3h-4l-.5 2.5a7 7 0 0 0-2 1.2l-2.4-.8-2 3.4 2 1.6A7 7 0 0 0 5 12a7 7 0 0 0 .1 1.2l-2 1.6 2 3.4 2.4-.8c.6.5 1.3.9 2 1.2L10 21h4l.5-2.5c.7-.3 1.4-.7 2-1.2l2.4.8 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" />
+    </template>
+    <!-- Task 4 (topbar re-skin): transcribed verbatim from Vue2 PhotosIcon.vue's
+         'search'/'panelLeft' branches (:39-41, :45-47). -->
+    <template v-else-if="name === 'search'">
+      <circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" />
+    </template>
+    <template v-else-if="name === 'panelLeft'">
+      <rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" />
     </template>
     <template v-else>
       <g></g>
