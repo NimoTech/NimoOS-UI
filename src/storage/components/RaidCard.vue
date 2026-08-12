@@ -8,6 +8,7 @@ import {
   resolveRaidState, raidSeverity, raidStateLabelKey, countActiveDisks,
   memberSquare, slotMembers, raidUsagePercent, type RaidArray,
 } from '../util/raidView'
+import { useRaidEta } from '../composables/useRaidEta'
 
 const props = defineProps<{ array: RaidArray; status?: RaidStatus }>()
 defineEmits<{ (e: 'select'): void }>()
@@ -35,6 +36,15 @@ const rebuildPct = computed(() => Math.round((Number(props.status?.rebuild_pct) 
 // 一个方块 = 一个阵列盘位,所以按槽位过滤(见 raidView.ts slotMembers):降级时
 // mdadm 会多报一条"被踢出槽位的故障盘",不过滤就会出现 4 个方块却写 2/3。
 const squares = computed(() => slotMembers(members.value).map((m) => ({ ...memberSquare(m.state), path: m.path })))
+// 可收回的成员盘(degraded 且盘已插回时后端才下发)。列表卡只做提示 —— 一键收回的
+// 动作入口在详情页(RaidReclaimCard),与换盘入口摆在一起且视觉分级。展示身份首选
+// serial:拔插后设备字母可能被复用,path 不当身份(raidReplace.ts 同一事故教训)。
+const reattachSerials = computed(() =>
+  (props.status?.reattachable_members || []).map((m) => m.serial || m.path).join(', '),
+)
+// 重建剩余时间:优先 rebuild_eta_seconds(增量同步时内核的 rebuild_finish 会膨胀到
+// 几周),老后端回退原始串;每 5 秒在时长/完成时刻之间交替(useRaidEta)。
+const { etaText } = useRaidEta(() => props.status)
 </script>
 
 <template>
@@ -50,9 +60,10 @@ const squares = computed(() => slotMembers(members.value).map((m) => ({ ...membe
     <p class="rc-usage">{{ fmtSize(used) }} / {{ fmtSize(total) }}
       <span class="rc-online">· {{ t('raidDisksOnline', { n: activeDisks, total: totalDisks }) }}</span></p>
     <div class="rc-track" role="progressbar" :aria-valuenow="pct" aria-valuemin="0" aria-valuemax="100"><div class="rc-fill" :class="usageLevel(pct)" :style="{ width: Math.min(100, Math.max(0, pct)) + '%' }" /></div>
+    <p v-if="reattachSerials" class="rc-reattach">{{ t('raidReclaimCardHint', { serials: reattachSerials }) }}</p>
     <p v-if="flags.isRebuilding" class="rc-rebuild">
       {{ t('raidStateRebuilding') }} {{ rebuildPct }}%
-      <span v-if="status?.rebuild_finish"> · {{ t('raidRebuildFinish') }} {{ status.rebuild_finish }}</span>
+      <span v-if="etaText"> · {{ etaText }}</span>
       <span v-if="status?.rebuild_speed"> · {{ t('raidRebuildSpeed') }} {{ status.rebuild_speed }}</span>
     </p>
   </article>
@@ -80,4 +91,6 @@ const squares = computed(() => slotMembers(members.value).map((m) => ({ ...membe
 .rc-fill.warn { background: var(--dem-fg); }
 .rc-fill.danger { background: var(--remove-fg); }
 .rc-rebuild { margin: 8px 0 0; font-size: 12px; color: var(--accent); }
+/* 收回提示走主色(可修复的好消息),与降级徽章的警示红区分 */
+.rc-reattach { margin: 8px 0 0; font-size: 12px; color: var(--accent-text); }
 </style>

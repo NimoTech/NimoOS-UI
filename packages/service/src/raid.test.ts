@@ -19,6 +19,25 @@ describe('createRaid', () => {
     expect(res).toEqual(arr)
   })
 
+  // 2026-08-12 契约(NimoOS-LocalStorage PR #22):recover 的 Data 是 {state, readded};
+  // status 可带 reattachable_members(仅 degraded 且成员盘已插回时)—— 标准信封,照常 unwrap。
+  it('recover unwraps {state, readded}', async () => {
+    const log: Array<[string, string, unknown]> = []
+    const res = await createRaid(fakeHttp(log, { state: 'rebuilding', readded: ['/dev/sdc'] })).recover(3)
+    expect(log).toEqual([['post', '/v2/raid/3/recover', undefined]])
+    expect(res).toEqual({ state: 'rebuilding', readded: ['/dev/sdc'] })
+  })
+
+  it('getStatus passes reattachable_members through the envelope', async () => {
+    const log: Array<[string, string, unknown]> = []
+    const status = {
+      live_state: 'clean, degraded', rebuild_pct: -1, total_bytes: 1, used_bytes: 0, free_bytes: 1, members: [],
+      reattachable_members: [{ path: '/dev/sdc', serial: 'WD-1', role: 'Active device 1', last_update: 'Wed Aug 12 03:43:02 2026' }],
+    }
+    const res = await createRaid(fakeHttp(log, status)).getStatus(3)
+    expect(res.reattachable_members).toEqual(status.reattachable_members)
+  })
+
   it('urls and verbs match Vue2 raid.js exactly', async () => {
     const log: Array<[string, string, unknown]> = []
     const r = createRaid(fakeHttp(log))

@@ -97,7 +97,7 @@ describe('StorageRaidDetail', () => {
     raidGetStatus.mockResolvedValueOnce(failedStatus).mockResolvedValueOnce(failedStatus)
     await router.push('/storage/raid/7'); await router.isReady()
     const store = (await import('../storage/stores/storage')).useStorageStore()
-    const recoverSpy = vi.spyOn(store, 'recoverRaid').mockResolvedValue({ state: 'active' })
+    const recoverSpy = vi.spyOn(store, 'recoverRaid').mockResolvedValue({ state: 'active', readded: [] })
     const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
     await new Promise((r) => setTimeout(r)); await w.vm.$nextTick()
     const btn = w.find('.rd-recover')
@@ -109,6 +109,38 @@ describe('StorageRaidDetail', () => {
     store.raidRecovering = true
     await w.vm.$nextTick()
     expect(w.find('.rd-recover').attributes('disabled')).toBeDefined()
+  })
+  // 收回成员盘(2026-08-12 契约):status 带 reattachable_members 时,横幅摆在两栏
+  // (成员列表的换盘入口)之前 —— 收回本阵列自己的盘是便宜且正确的补救,先于换盘呈现。
+  it('reattachable_members 非空:渲染收回横幅(serial 展示),点击调 store.reclaimRaidMembers(id)', async () => {
+    const reattachStatus = {
+      ...degradedStatus,
+      reattachable_members: [
+        { path: '/dev/sdc', serial: 'WD-XYZ123', role: 'Active device 1', last_update: 'Wed Aug 12 03:43:02 2026' },
+      ],
+    }
+    raidGetStatus.mockResolvedValueOnce(reattachStatus).mockResolvedValueOnce(reattachStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const store = (await import('../storage/stores/storage')).useStorageStore()
+    const reclaimSpy = vi.spyOn(store, 'reclaimRaidMembers').mockResolvedValue(true)
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    const card = w.find('.rrc-card')
+    expect(card.exists()).toBe(true)
+    expect(card.text()).toContain('WD-XYZ123')
+    // 横幅在成员列表(换盘入口)之前
+    const html = w.html()
+    expect(html.indexOf('rrc-card')).toBeLessThan(html.indexOf('rml-row'))
+    await w.find('.rrc-btn').trigger('click')
+    expect(reclaimSpy).toHaveBeenCalledTimes(1)
+    expect(reclaimSpy).toHaveBeenCalledWith('7')
+  })
+  it('无 reattachable_members(纯 degraded)不渲染收回横幅', async () => {
+    raidGetStatus.mockResolvedValueOnce(degradedStatus).mockResolvedValueOnce(degradedStatus)
+    await router.push('/storage/raid/7'); await router.isReady()
+    const w = mount(StorageRaidDetail, { global: { plugins: [router, i18n] } })
+    await new Promise((r) => setTimeout(r)); await w.vm.$nextTick(); await w.vm.$nextTick()
+    expect(w.find('.rrc-card').exists()).toBe(false)
   })
   it('左栏挂载快照面板,并按本阵列 uuid 查卷', async () => {
     snapListVolumes.mockResolvedValue([{ volume_uuid: 'u-7', supported: true, enabled: true, count: 1, last_at: '2026-07-27T01:00:00Z' }])

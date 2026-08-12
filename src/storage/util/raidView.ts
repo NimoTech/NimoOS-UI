@@ -267,6 +267,40 @@ export function replaceOutcome(
   return 'pending'
 }
 
+// ── 收回成员盘看板任务(reattachable_members 一键收回) ─────────────────
+// 与 ReplaceTask 同一套机制:recover 接口同步返回 readded 路径,真正的增量同步在
+// 内核里跑,任务态由前端维护、完成判定靠核对 status.members。单独建一个任务类型
+// 而不复用 ReplaceTask:收回可能一次拉回多块盘(readded 是数组),完成要求**全部**
+// 到位;replaceOutcome 只盯一个 newPath,硬塞会丢盘。
+export interface ReclaimTask {
+  arrayId: string
+  arrayName: string
+  // recover 返回的 readded 设备路径。收回的盘刚插回、路径由本次探测得到,可信。
+  paths: string[]
+}
+
+// reclaimOutcome —— 收回任务此刻处于哪一步(语义同 replaceOutcome,判多块盘):
+//   gone       阵列已不在列表里,看板撤掉、不报完成
+//   pending    还看不出来:status 拉不到,或有盘尚未出现在成员表 —— --re-add 后头几秒
+//              内核把盘登记成 spare、还没进 recovering,这时**不是**重建态,轮询开关
+//              绝不能只挂 isRebuilding,必须由本任务顶着(spare→recovering 过渡窗口)
+//   rebuilding 收回的盘已就位、正在同步
+//   done       收回的**每一块**盘都 active sync
+export function reclaimOutcome(
+  task: ReclaimTask,
+  status: { members?: RaidMemberDisk[] } | null | undefined,
+  arrayExists: boolean,
+): ReplaceOutcome {
+  if (!arrayExists) return 'gone'
+  if (!status) return 'pending'
+  if (!task.paths.length) return 'done'
+  const members = status.members || []
+  const states = task.paths.map((p) => members.find((x) => x?.path === p)?.state || '')
+  if (states.every((s) => s.startsWith('active sync'))) return 'done'
+  if (states.some((s) => s.includes('rebuilding'))) return 'rebuilding'
+  return 'pending'
+}
+
 // slotMembers —— 只保留占阵列槽位的成员,按槽位升序。
 //
 // 降级时 mdadm 对一个 3 盘 RAID 5 报 4 行:腾空的槽位(removed)与被踢出槽位的
