@@ -8,7 +8,7 @@ import SharesPage from './SharesPage.vue'
 
 const { listShares, deleteShare } = vi.hoisted(() => ({
   listShares: vi.fn(),
-  deleteShare: vi.fn(async () => {}),
+  deleteShare: vi.fn(async (_id: number) => {}),
 }))
 
 vi.mock('@nimotech/nimoos-service', async () => {

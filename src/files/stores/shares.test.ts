@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 const { listShares, createShare, deleteShare } = vi.hoisted(() => ({
   listShares: vi.fn(),
   createShare: vi.fn(async () => {}),
-  deleteShare: vi.fn(async () => {}),
+  deleteShare: vi.fn(async (_id: number) => {}),
 }))
 vi.mock('@nimotech/nimoos-service', async () => {
   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
