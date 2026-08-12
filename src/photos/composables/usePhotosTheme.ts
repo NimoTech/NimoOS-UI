@@ -11,6 +11,7 @@ const NEW_KEY = 'nimo_photos_theme'
 const LEGACY_KEY = 'nimoos.photos.theme'
 
 let theme: Ref<PhotosTheme> | null = null
+let themeClassRef: ComputedRef<'' | 'is-light'> | null = null
 
 function isTheme(v: string | null): v is PhotosTheme {
   return v === 'dark' || v === 'light'
@@ -38,10 +39,11 @@ export function usePhotosTheme(): {
     t.value = next
     localStorage.setItem(NEW_KEY, next)
   }
-  const themeClass = computed<'' | 'is-light'>(() => (t.value === 'light' ? 'is-light' : ''))
-  return { theme: t, set, themeClass }
+  if (!themeClassRef) themeClassRef = computed<'' | 'is-light'>(() => (t.value === 'light' ? 'is-light' : ''))
+  return { theme: t, set, themeClass: themeClassRef }
 }
 
 export function __resetPhotosThemeForTests() {
   theme = null
+  themeClassRef = null
 }
