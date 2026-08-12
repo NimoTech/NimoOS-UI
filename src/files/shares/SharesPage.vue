@@ -47,8 +47,10 @@ async function confirmBatchUnshare() {
   batchBusy.value = true
   try {
     const { failedIds } = await shares.removeMany([...selected.value])
-    // Keep failures selected so one more click retries exactly those.
-    selected.value = new Set(failedIds)
+    // The prune watcher (fired during removeMany's reload) already dropped the
+    // successfully deleted ids; merge instead of overwrite so selection changes
+    // made while the request was in flight are not clobbered.
+    selected.value = new Set([...selected.value, ...failedIds])
   } finally {
     batchBusy.value = false
   }

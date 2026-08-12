@@ -147,4 +147,37 @@ describe('SharesPage multi-select batch unshare', () => {
     // id 1 vanished from the reload; the stale selection must not survive.
     expect(page.find('.shares-sel-toolbar').exists()).toBe(false)
   })
+
+  it('selection changed while the batch is in flight is preserved', async () => {
+    const page = await mountPage()
+    let resolveId1 = () => {}
+    let rejectId2 = (_e: Error) => {}
+    // Deferred deletes so we can toggle a checkbox mid-flight, before either settles.
+    deleteShare.mockImplementation((id: number) => {
+      if (id === 1) return new Promise<void>((resolve) => { resolveId1 = resolve })
+      if (id === 2) return new Promise<void>((_resolve, reject) => { rejectId2 = reject })
+      return Promise.resolve()
+    })
+    // id 1 deleted, id 2 fails and stays, id 3 was never touched — both remain post-reload.
+    listShares.mockResolvedValue([ROWS[1], ROWS[2]])
+    await page.findAll('input.share-check-box')[0].setValue(true) // select id 1
+    await page.findAll('input.share-check-box')[1].setValue(true) // select id 2
+    await page.find('.sel-unshare').trigger('click')
+    dialogConfirmButton().click()
+    await flushPromises()
+    // Deletes are still pending (batchBusy=true) but checkboxes stay interactive —
+    // the user picks row 3 while waiting.
+    await page.findAll('input.share-check-box')[2].setValue(true)
+    resolveId1()
+    rejectId2(new Error('boom'))
+    await flushPromises()
+    await flushPromises()
+    // id 2 (failed) plus id 3 (the user's mid-flight pick) are both selected;
+    // id 1 was pruned by the reload. The clobbering bug would have dropped id 3.
+    expect(page.find('.sel-count').text()).toBe('已选 2 项')
+    const checks = page.findAll('input.share-check-box')
+    expect(checks).toHaveLength(2)
+    expect((checks[0].element as HTMLInputElement).checked).toBe(true) // id 2 (failed)
+    expect((checks[1].element as HTMLInputElement).checked).toBe(true) // id 3 (mid-flight pick)
+  })
 })
