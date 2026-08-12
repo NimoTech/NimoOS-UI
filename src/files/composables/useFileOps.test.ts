@@ -6,6 +6,7 @@ import { createI18n } from 'vue-i18n'
 import zh from '../../i18n/zh_cn'
 import { useFileOps } from './useFileOps'
 import { useFilesStore } from '../stores/files'
+import { useFavoritesStore } from '../stores/favorites'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useToast } from '../../stores/toast'
 import { useFileConflictsStore } from '../stores/fileConflicts'
@@ -107,6 +108,25 @@ describe('useFileOps', () => {
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
     expect(fileRename).toHaveBeenCalledWith('/DATA/a.txt', '/DATA/b.txt')
+  })
+
+  it('rename syncs the favorite pointing at the renamed entry (sidebar stays in step)', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'b.txt', path: '/DATA/b.txt' }])
+  })
+
+  it('rename failure leaves favorites untouched', async () => {
+    useFilesStore().currentPath = '/DATA'
+    const favs = useFavoritesStore()
+    await favs.add({ name: 'a.txt', path: '/DATA/a.txt' })
+    fileRename.mockRejectedValueOnce(new Error('Fail'))
+    const ops = makeOps()
+    await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
+    expect(favs.list).toEqual([{ name: 'a.txt', path: '/DATA/a.txt' }])
   })
 
   it('remove 同步 DELETE /batch 传 JSON 字符串数组', async () => {
