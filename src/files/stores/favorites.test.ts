@@ -60,6 +60,30 @@ describe('favorites store', () => {
     expect(setCustomStorage).toHaveBeenLastCalledWith('favorites', [])
   })
 
+  it('renamePath: updates exact match (name+path) and descendant paths, persists once', async () => {
+    const s = useFavoritesStore()
+    await s.add({ name: 'Trip', path: '/DATA/Trip' })
+    await s.add({ name: 'Sub', path: '/DATA/Trip/Sub' })
+    await s.add({ name: 'Trip2', path: '/DATA/Trip2' }) // prefix lookalike, must not be touched
+    setCustomStorage.mockClear()
+    await s.renamePath('/DATA/Trip', '/DATA/Journey', 'Journey')
+    expect(s.list).toEqual([
+      { name: 'Journey', path: '/DATA/Journey' },
+      { name: 'Sub', path: '/DATA/Journey/Sub' },
+      { name: 'Trip2', path: '/DATA/Trip2' },
+    ])
+    expect(setCustomStorage).toHaveBeenCalledTimes(1)
+  })
+
+  it('renamePath: no matching favorite is a no-op and does not persist', async () => {
+    const s = useFavoritesStore()
+    await s.add({ name: 'Docs2', path: '/DATA/Docs2' })
+    setCustomStorage.mockClear()
+    await s.renamePath('/DATA/Trip', '/DATA/Journey', 'Journey')
+    expect(s.list).toEqual([{ name: 'Docs2', path: '/DATA/Docs2' }])
+    expect(setCustomStorage).not.toHaveBeenCalled()
+  })
+
   it('reorder moves items and persists', async () => {
     const s = useFavoritesStore()
     await s.add({ name: 'A', path: '/DATA/A' })

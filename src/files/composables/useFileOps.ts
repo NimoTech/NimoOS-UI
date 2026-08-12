@@ -63,7 +63,13 @@ export function useFileOps() {
     if (!newName || newName === entry.name) return
     if (blockedInSnapshot()) return
     if (!canOperate(entry)) { toast.show(t('filesProtectedRename')); return }
-    try { await service.file.rename(entry.path, renameTo(entry.path, newName)); await refresh() }
+    const newPath = renameTo(entry.path, newName)
+    try {
+      await service.file.rename(entry.path, newPath)
+      // Same consistency duty as remove() below: favorites snapshot {name, path}.
+      await favorites.renamePath(entry.path, newPath, newName)
+      await refresh()
+    }
     catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
 

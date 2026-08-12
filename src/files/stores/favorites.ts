@@ -52,10 +52,26 @@ export const useFavoritesStore = defineStore('favorites', () => {
     await persist()
   }
 
+  // Rename sync: favorites are {name, path} snapshots, so renaming a favorited
+  // folder (or an ancestor of one) would otherwise leave the sidebar showing the
+  // old name and pointing at a path that no longer exists.
+  async function renamePath(oldPath: string, newPath: string, newName: string) {
+    const prefix = oldPath + '/'
+    let changed = false
+    const next = list.value.map((f) => {
+      if (f.path === oldPath) { changed = true; return { name: newName, path: newPath } }
+      if (f.path.startsWith(prefix)) { changed = true; return { name: f.name, path: newPath + f.path.slice(oldPath.length) } }
+      return f
+    })
+    if (!changed) return
+    list.value = next
+    await persist()
+  }
+
   async function reorder(from: number, to: number) {
     list.value = moveItem(list.value, from, to)
     await persist()
   }
 
-  return { list, load, isFavorite, add, remove, reorder }
+  return { list, load, isFavorite, add, remove, renamePath, reorder }
 })
