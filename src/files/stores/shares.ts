@@ -56,20 +56,24 @@ export const useSharesStore = defineStore('shares', () => {
     }
   }
 
-  // Batch unshare. The backend only has a per-id DELETE endpoint, so fan out
-  // concurrently and settle all: one reload, one toast, failed ids returned so
-  // the page can keep them selected for retry.
+  // Batch unshare. The backend only has a per-id DELETE endpoint.
+  // Deletes run sequentially on purpose: each DELETE rewrites the samba config
+  // and restarts smbd on the backend with no server-side locking — concurrent
+  // requests can corrupt smb.conf or resurrect deleted shares.
+  // One reload, one toast, failed ids returned so the page can keep them selected for retry.
   async function removeMany(ids: number[]): Promise<{ failedIds: number[] }> {
     if (!ids.length) return { failedIds: [] }
-    const results = await Promise.allSettled(ids.map((id) => service.samba.deleteShare(id)))
-    const failedIds = ids.filter((_, i) => results[i].status === 'rejected')
+    let firstErr: unknown
+    const failedIds: number[] = []
+    for (const id of ids) {
+      try { await service.samba.deleteShare(id) } catch (e) { failedIds.push(id); firstErr ??= e }
+    }
     await load()
     const ok = ids.length - failedIds.length
     if (!failedIds.length) {
       toast.show(t('filesUnshareBatchDone', { count: ok }))
     } else if (!ok) {
-      const first = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')
-      toast.show(errMsg(first?.reason) || t('filesShareFailed'))
+      toast.show(errMsg(firstErr) || t('filesShareFailed'))
     } else {
       toast.show(t('filesUnshareBatchPartial', { ok, fail: failedIds.length }))
     }
