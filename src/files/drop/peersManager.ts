@@ -22,8 +22,20 @@ export class PeersManager {
   handleServerMessage(msg: ServerMessage): void {
     switch (msg.type) {
       case 'peers':
+        // 'peers' only ever arrives right after OUR ws (re)connected. A peer
+        // whose channel survived the signaling blip is kept as-is; anything
+        // else is stale -- a callee left over from a previous round would
+        // wait forever to be dialled (the other side dropped us on
+        // peer-left and peer-joined dials nobody), which is the #90
+        // phone<->desktop deadlock. Replace it with a fresh caller: only the
+        // reconnecting side receives 'peers', so only one side dials.
         for (const peer of msg.peers) {
-          if (this.peers[peer.id]) { this.peers[peer.id].refresh(); continue }
+          const existing = this.peers[peer.id]
+          if (existing) {
+            if (existing.hasOpenChannel()) { existing.refresh(); continue }
+            existing.close()
+            delete this.peers[peer.id]
+          }
           if (this.rtcSupported && peer.rtcSupported) {
             this.peers[peer.id] = this.makePeer(this.signal, peer.id, this.events)
           }
@@ -31,6 +43,19 @@ export class PeersManager {
         }
         break
       case 'signal': {
+        // A fresh offer aimed at a peer with no open channel means the other
+        // side re-dialled from scratch (it reconnected and rebuilt its peer);
+        // answering from our stale conn state would fail, so rebuild as a
+        // fresh callee. An offer on an OPEN channel is renegotiation and goes
+        // to the existing peer untouched. Known gap: if both sides re-dial in
+        // the same instant (e.g. server restart) the crossed offers still
+        // deadlock -- unresolved in Vue2/Snapdrop too; the next reconnect
+        // converges it.
+        const existing = this.peers[msg.sender]
+        if (existing && msg.sdp?.type === 'offer' && !existing.hasOpenChannel()) {
+          existing.close()
+          delete this.peers[msg.sender]
+        }
         if (!this.peers[msg.sender]) {
           this.peers[msg.sender] = this.makePeer(this.signal, null, this.events) // 被叫
         }
@@ -39,6 +64,13 @@ export class PeersManager {
       }
       case 'peer-left': {
         const peer = this.peers[msg.peerId]
+        // peer-left is a signaling-layer event; an open data channel is
+        // independent of the ws and may be mid-transfer (mobile browsers
+        // drop the ws on screen-lock/app-switch while RTC survives). Keep
+        // it -- a genuinely departed peer closes the channel by itself
+        // moments later and onChannelClosed reports/cleans up. Vue2 behaved
+        // this way by accident: its _onPeerLeft close was a dead branch.
+        if (peer?.hasOpenChannel()) break
         delete this.peers[msg.peerId]
         // The other device vanished while the user may still be watching an
         // in-flight transfer -- report it (and let the store clear the

@@ -195,6 +195,13 @@ export class Peer {
     return this.busy || this.digester !== null
   }
 
+  /** Whether this peer has a live data channel. The base class has none;
+   *  PeersManager uses this to tell a surviving connection from a stale one
+   *  when signaling reconnects (see the 'peers' / 'peer-left' branches). */
+  hasOpenChannel(): boolean {
+    return false
+  }
+
   /**
    * The single place a transfer dies. Resets the peer so the next send starts
    * clean, then tells the UI -- but only when something was actually in
@@ -400,6 +407,8 @@ export class RTCPeer extends Peer {
   private sendSignal(payload: { sdp?: RTCSessionDescriptionInit; ice?: RTCIceCandidateInit }): void {
     this.signal.send({ ...payload, type: 'signal', to: this._peerId })
   }
+
+  override hasOpenChannel(): boolean { return this.isChannelOpen() }
 
   private isChannelOpen(): boolean { return !!this.channel && this.channel.readyState === 'open' }
   private isChannelConnecting(): boolean { return !!this.channel && this.channel.readyState === 'connecting' }
