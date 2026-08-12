@@ -27,6 +27,7 @@
 //  10:悬停定位用显式 wrapEl ref,不靠 svg.parentElement(Vue2 :746-749 的读法)。
 //  11-⑤:wheel 用 addEventListener({ passive: false }) 显式注册在 svg 元素上,不用模板
 //     @wheel——模板绑定不保证 passive:false,Chrome 会警告并忽略 preventDefault。
+import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

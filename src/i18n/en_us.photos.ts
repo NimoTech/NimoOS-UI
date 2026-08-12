@@ -963,6 +963,9 @@ export default {
   photosSettingsRecluster: 'Re-cluster faces',
   photosSettingsReclusterStarted: 'Face re-clustering started in background',
   photosSettingsReclusterFailed: 'Failed to start re-clustering',
+  photosSettingsAppearance: 'Appearance',
+  photosSettingsThemeDark: 'Dark',
+  photosSettingsThemeLight: 'Light',
   // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
   photosSettingsFooterApp: 'Nimo Photos',
   photosSettingsRunningOn: 'Running on',

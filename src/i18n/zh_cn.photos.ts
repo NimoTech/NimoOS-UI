@@ -997,6 +997,9 @@ export default {
   photosSettingsRecluster: '重新聚类人脸',
   photosSettingsReclusterStarted: '人脸重新聚类已在后台开始',
   photosSettingsReclusterFailed: '启动重新聚类失败',
+  photosSettingsAppearance: '外观',
+  photosSettingsThemeDark: '深色',
+  photosSettingsThemeLight: '浅色',
   // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
   photosSettingsFooterApp: 'Nimo 相册',
   photosSettingsRunningOn: '运行于',

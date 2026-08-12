@@ -5,6 +5,11 @@
 // 允许:  color: var(--fg)          / background: var(--card-bg, #fff)  (token 驱动主题, fallback 可留)
 // 允许:  color: #fff /* theme-exception: 叠在缩略图上的图标, 皮肤无关 */  (注释在值行或其上一行)
 // 失败:  color: #fff               (裸字面量, 未走 token)
+//
+// 登记豁免(机主拍板 2026-08-11,见 docs/superpowers/specs/2026-08-11-photos-vue2-parity-reskin-design.md §4):
+// src/photos/styles/vue2-parity/*.scss 是 Vue2 老仓的像素真源,自带 .photos-root 作用域 token 体系,
+// 整目录豁免本守卫。当前扫描面(.vue 样式块 + .css)天然不含 .scss;若日后把 .scss 纳入扫描,
+// 必须保留对该目录的排除。
 /// <reference types="node" />
 // 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"。
 // 🔴 【SP8-P6 T10 订正】原注释末句「这里只作用于本文件」**是错的** —— `/// <reference types="…" />`

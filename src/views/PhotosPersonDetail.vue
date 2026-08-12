@@ -86,6 +86,7 @@
 //  --accent-text / --card,--panel-bg,--chip-bg / --fg,--fg-muted,--fg-subtle。
 //  不使用 --on-accent,除了「主按钮」这一处 —— 它的底色是 var(--accent) 饱和实底,
 //  正是 --on-accent 唯一合法的前提场景。
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

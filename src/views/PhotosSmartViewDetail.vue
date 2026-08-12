@@ -49,6 +49,7 @@
 //     which they are already out of — so they are neither selectable nor restorable while
 //     selecting: the click is a no-op. This is one of Vue 2's own defects being fixed and
 //     registered rather than copied, per this branch's porting rule.
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
