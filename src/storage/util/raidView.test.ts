@@ -150,18 +150,58 @@ describe('mapTask', () => {
   })
 })
 
+// 用例对齐 Vue2 tests/raidMirrorPairs.test.js(69ea4798):按槽位配对,不按 mdadm Number。
 describe('mirrorPairs (RAID10)', () => {
-  it('按 floor(number/2) 分对,set-A 在前', () => {
+  it('按 floor(slot/2) 分对,不按 mdadm 设备编号 number', () => {
+    // 换盘后新成员拿到 number=4 但占槽位 3:它与槽位 2 的盘互为镜像,不存在幽灵第三对。
     const members = [
-      { path: '/dev/sdb', state: 'active sync set-B', number: 1 },
-      { path: '/dev/sda', state: 'active sync set-A', number: 0 },
-      { path: '/dev/sdd', state: 'active sync set-B', number: 3 },
-      { path: '/dev/sdc', state: 'active sync set-A', number: 2 },
+      { path: '/dev/sdd', state: 'active sync set-A', number: 0, slot: 0 },
+      { path: '/dev/sdc', state: 'active sync set-B', number: 1, slot: 1 },
+      { path: '/dev/sda', state: 'active sync set-A', number: 2, slot: 2 },
+      { path: '/dev/sdb', state: 'spare rebuilding', number: 4, slot: 3 },
+    ]
+    const pairs = mirrorPairs(members)
+    expect(pairs.length).toBe(2)
+    expect(pairs[0].map((m) => m.path)).toEqual(['/dev/sdd', '/dev/sdc'])
+    expect(pairs[1].map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb'])
+  })
+  it('不占槽位的行(被弹出的故障盘/闲置热备/无 slot 行)不属于任何对', () => {
+    const members = [
+      { path: '/dev/sda', state: 'active sync', number: 0, slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },
+      { path: '/dev/sde', state: 'faulty', number: 4, slot: -1 },
+      { path: '', state: '', slot: -1 },
+    ]
+    const pairs = mirrorPairs(members)
+    expect(pairs.length).toBe(1)
+    expect(pairs[0].length).toBe(2)
+  })
+  it('降级的对保留成单成员对', () => {
+    const members = [
+      { path: '/dev/sda', state: 'active sync', slot: 0 },
+      { path: '/dev/sdb', state: 'active sync', slot: 1 },
+      { path: '/dev/sdc', state: 'active sync', slot: 2 },
+      // 槽位 3 被拔:mdadm 的 removed 占位行没 path,这里省略
+    ]
+    const pairs = mirrorPairs(members)
+    expect(pairs.length).toBe(2)
+    expect(pairs[1].map((m) => m.path)).toEqual(['/dev/sdc'])
+  })
+  it('mergeVacatedSlot 合并行按 vacatedSlot 归位,不从镜像对里消失', () => {
+    // 合并行自身 slot=-1(被弹出),但顶替了槽位 0 的空位 —— 应按 vacatedSlot=0 配对
+    const members = [
+      { path: '/dev/sda', state: 'faulty', slot: -1, vacatedSlot: 0 },
+      { path: '/dev/sdb', state: 'active sync', slot: 1 },
+      { path: '/dev/sdc', state: 'active sync', slot: 2 },
+      { path: '/dev/sdd', state: 'active sync', slot: 3 },
     ]
     const pairs = mirrorPairs(members)
     expect(pairs.length).toBe(2)
     expect(pairs[0].map((m) => m.path)).toEqual(['/dev/sda', '/dev/sdb'])
-    expect(pairs[1].map((m) => m.path)).toEqual(['/dev/sdc', '/dev/sdd'])
+  })
+  it('空输入 / 老后端全员无 slot → 无对(调用方退回平铺)', () => {
+    expect(mirrorPairs([])).toEqual([])
+    expect(mirrorPairs<{ path: string; slot?: number }>([{ path: '/dev/sda' }, { path: '/dev/sdb' }])).toEqual([])
   })
 })
 

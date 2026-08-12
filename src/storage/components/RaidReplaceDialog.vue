@@ -1,63 +1,115 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Dialog from '../../components/ui/Dialog.vue'
 import { fmtSize } from '../../home/util/format'
-import type { RaidDisk } from '../util/raidLevels'
+import { filterReplacementCandidates, type ReplaceTarget, type CandidateDiskLike } from '../util/raidReplace'
 
-// 迁移自 NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue(96 行)。
-// 逐字对齐:故障盘只读展示(:9-15)、新盘单选下拉排除故障盘(:18-28)、黄色警告(:31-33)、
-// footer danger 按钮直接执行——无二次确认弹层(:36-40)。
-// store 调用留给父视图(StorageRaidDetail.vue),本组件只 emit confirm(newDiskPath)。
+// 迁移自 NimoOS-UI/src/components/Storage/raid/RaidReplaceDisk.vue(2026-08-11 serial 语义版)。
+// 与首版(按 path 传盘)的差异:
+// - 故障盘展示 target.label(在位 faulty 盘是实时 path,拔掉的盘是 serial —— 它的
+//   缓存路径可能已属于另一块物理盘,绝不当身份展示);请求体由父视图从 target 取
+//   old_disk_path + old_disk_serial。
+// - 候选盘经 filterReplacementCandidates 过滤(按 serial 排除被换盘自身,路径撞车不清空列表)。
+// - 候选盘带 RAID 残留(role:"residue")时选项打警告标;确认时插入第二步确认,点名
+//   残留阵列与其创建/最后活动时间,确认后才 emit wipeResidue: true。
+//   ⚠️ array_name/created_at/updated_at 来自盘上 mdadm 超块,是不可信文本 ——
+//   只能经模板插值({{ }})渲染,绝不能拼 HTML。
+// store 调用留给父视图(StorageRaidDetail.vue),本组件只 emit confirm。
 const props = defineProps<{
   open: boolean
   raidId: number | string
-  faultyDiskPath: string
-  availableDisks: RaidDisk[]
+  target: ReplaceTarget | null
+  disks: CandidateDiskLike[]
   busy?: boolean
 }>()
-const emit = defineEmits<{ (e: 'update:open', v: boolean): void; (e: 'confirm', newDiskPath: string): void }>()
+const emit = defineEmits<{
+  (e: 'update:open', v: boolean): void
+  (e: 'confirm', payload: { newDiskPath: string; wipeResidue: boolean }): void
+}>()
 const { t } = useI18n()
 const newDiskPath = ref('')
+// 残留二次确认步:true 时整个弹窗内容切换成清除确认
+const residueConfirm = ref(false)
 
-// 开/关都清空选择:对齐 RaidDeleteDialog/FormatDialog 同款教训——不重新打开也须已清空,
-// 避免下一次打开残留上一块盘的选中。
+const candidates = computed(() => filterReplacementCandidates(props.disks, props.target))
+const selectedResidue = computed(() => {
+  const d = candidates.value.find((x) => x.path === newDiskPath.value)
+  return d?.raid?.role === 'residue' ? d.raid : null
+})
+
+// 开/关都清空选择与确认步:对齐 RaidDeleteDialog/FormatDialog 同款教训——不重新打开
+// 也须已清空,避免下一次打开残留上一块盘的选中/上一步的确认态。
 watch(
   () => props.open,
   () => {
     newDiskPath.value = ''
+    residueConfirm.value = false
   },
 )
+
+function onConfirm(): void {
+  if (!newDiskPath.value) return
+  if (selectedResidue.value) {
+    // 选中的盘带外来阵列残留超块 —— 先把是谁的、什么时候的说清楚,确认了才清
+    residueConfirm.value = true
+    return
+  }
+  emit('confirm', { newDiskPath: newDiskPath.value, wipeResidue: false })
+}
+function onWipeConfirm(): void {
+  emit('confirm', { newDiskPath: newDiskPath.value, wipeResidue: true })
+}
 </script>
 
 <template>
-  <Dialog :open="open" :title="t('raidReplaceTitle')" @update:open="emit('update:open', $event)">
-    <div class="rrd-field">
-      <label class="rrd-label">{{ t('raidReplaceFaulty') }}</label>
-      <input class="rrd-input" type="text" :value="faultyDiskPath" disabled />
-      <p class="rrd-hint">{{ t('raidReplaceRemoveHint') }}</p>
-    </div>
-    <div class="rrd-field">
-      <label class="rrd-label">{{ t('raidReplaceNew') }}</label>
-      <select v-model="newDiskPath" class="rrd-select">
-        <option value="" disabled>{{ t('raidReplaceSelect') }}</option>
-        <option
-          v-for="disk in availableDisks.filter((d) => d.path !== faultyDiskPath)"
-          :key="disk.path"
-          :value="disk.path"
-        >
-          {{ disk.path }} — {{ fmtSize(disk.size) }}
-        </option>
-      </select>
-    </div>
-    <p class="rrd-warning">⚠️ {{ t('raidReplaceWarning') }}</p>
+  <Dialog :open="open" :title="residueConfirm ? t('raidResidue') : t('raidReplaceTitle')" @update:open="emit('update:open', $event)">
+    <template v-if="!residueConfirm">
+      <div class="rrd-field">
+        <label class="rrd-label">{{ t('raidReplaceFaulty') }}</label>
+        <input class="rrd-input" type="text" :value="target?.label ?? ''" disabled />
+        <p class="rrd-hint">{{ t('raidReplaceRemoveHint') }}</p>
+      </div>
+      <div class="rrd-field">
+        <label class="rrd-label">{{ t('raidReplaceNew') }}</label>
+        <select v-model="newDiskPath" class="rrd-select">
+          <option value="" disabled>{{ t('raidReplaceSelect') }}</option>
+          <option v-for="disk in candidates" :key="disk.path" :value="disk.path">
+            {{ disk.path }} — {{ fmtSize(disk.size) }}{{ disk.raid?.role === 'residue' ? ` — ⚠ ${t('raidResidue')}` : '' }}
+          </option>
+        </select>
+        <p v-if="selectedResidue" class="rrd-residue-hint">
+          ⚠ {{ t('raidResidueExplain', { name: selectedResidue.array_name }) }}
+        </p>
+      </div>
+      <p class="rrd-warning">⚠️ {{ t('raidReplaceWarning') }}</p>
+    </template>
+    <template v-else>
+      <p class="rrd-wipe-msg">
+        {{ t('raidResidueWipeConfirm', {
+          array: selectedResidue?.array_name || '?',
+          created: selectedResidue?.created_at || '—',
+          updated: selectedResidue?.updated_at || '—',
+        }) }}
+      </p>
+    </template>
     <template #footer>
-      <button class="rrd-cancel" type="button" :disabled="busy" @click="emit('update:open', false)">
-        {{ t('storageCancel') }}
-      </button>
-      <button class="rrd-ok danger" type="button" :disabled="!newDiskPath || busy" @click="emit('confirm', newDiskPath)">
-        {{ t('raidReplace') }}
-      </button>
+      <template v-if="!residueConfirm">
+        <button class="rrd-cancel" type="button" :disabled="busy" @click="emit('update:open', false)">
+          {{ t('storageCancel') }}
+        </button>
+        <button class="rrd-ok danger" type="button" :disabled="!newDiskPath || busy" @click="onConfirm">
+          {{ t('raidReplace') }}
+        </button>
+      </template>
+      <template v-else>
+        <button class="rrd-cancel" type="button" :disabled="busy" @click="residueConfirm = false">
+          {{ t('storageCancel') }}
+        </button>
+        <button class="rrd-wipe danger" type="button" :disabled="busy" @click="onWipeConfirm">
+          {{ t('raidResidueWipeOk') }}
+        </button>
+      </template>
     </template>
   </Dialog>
 </template>
@@ -86,11 +138,13 @@ watch(
   color: var(--set-option-fg);
 }
 .rrd-hint { margin: 4px 0 0; font-size: 12px; color: var(--remove-fg); }
+.rrd-residue-hint { margin: 6px 0 0; font-size: 12px; color: var(--dem-fg); }
 .rrd-warning { margin: 0 0 12px; font-size: 12px; color: var(--dem-fg); }
-.rrd-cancel, .rrd-ok {
+.rrd-wipe-msg { margin: 0 0 12px; font-size: 13px; line-height: 1.6; color: var(--fg); max-width: 420px; }
+.rrd-cancel, .rrd-ok, .rrd-wipe {
   padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
   background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;
 }
-.rrd-cancel:disabled, .rrd-ok:disabled { opacity: 0.45; cursor: not-allowed; }
-.rrd-ok.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
+.rrd-cancel:disabled, .rrd-ok:disabled, .rrd-wipe:disabled { opacity: 0.45; cursor: not-allowed; }
+.rrd-ok.danger, .rrd-wipe.danger { color: var(--remove-fg); border-color: var(--remove-fg); }
 </style>

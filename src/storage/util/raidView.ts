@@ -175,20 +175,33 @@ export function raidUsagePercent(used: number, total: number): number {
   return Math.round(pct)
 }
 
-// RaidDetailPanel mirrorPairs L291-307:按 floor(number/2) 分组,set-A 在前。
-export function mirrorPairs(members: RaidMemberDisk[]): RaidMemberDisk[][] {
-  const groups = new Map<number, RaidMemberDisk[]>()
+// RAID10 镜像对按**阵列槽位**(mdadm 的 RaidDevice 列)分组:默认 near=2 布局下
+// 槽位 (0,1)、(2,3)…互为镜像。此前按 floor(number/2) 分组是照抄 Vue2 旧实现的 bug ——
+// mdadm 的 Number 是设备表索引、不是位置:换盘后新成员通常拿到 number=max+1,按 number
+// 分组会造出幽灵镜像对、把错的盘显示成彼此的镜像(用户照这个视图拔"镜像对的另一半"
+// 会把同一份数据的两份副本一起弄死)。逐字对齐 Vue2 raidUtils.js groupMirrorPairs
+//(2026-08-11 audit fix 69ea4798):floor(slot/2) 配对,不占槽位的行(slot<0:被弹出的
+// 故障盘、闲置热备、老后端无 slot 的行)不属于任何对 —— 由调用方(RaidMemberList)
+// 平铺在镜像对之后,而不是塞进错误的对里。
+//
+// New-UI 专属补充(Vue2 无此层):rows 先经 mergeVacatedSlot 合并 —— 合并行自身
+// slot=-1(被弹出),但它顶替的空槽位号在 vacatedSlot 里;按 vacatedSlot ?? slot 取
+// 有效槽位,合并行才不会从镜像对视图里消失。对未合并输入行为与 Vue2 完全一致。
+export function mirrorPairs<T extends { slot?: number; vacatedSlot?: number }>(members: T[]): T[][] {
+  const effSlot = (m: T): number => {
+    if (typeof m?.vacatedSlot === 'number') return m.vacatedSlot
+    return typeof m?.slot === 'number' ? m.slot : -1
+  }
+  const groups = new Map<number, T[]>()
   for (const m of members || []) {
-    const key = Math.floor((Number(m?.number) || 0) / 2)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(m)
+    const slot = effSlot(m)
+    if (slot < 0) continue
+    const pid = Math.floor(slot / 2)
+    if (!groups.has(pid)) groups.set(pid, [])
+    groups.get(pid)!.push(m)
   }
   return [...groups.keys()].sort((a, b) => a - b).map((k) =>
-    groups.get(k)!.slice().sort((a, b) => {
-      const aA = (a.state || '').includes('set-A') ? 0 : 1
-      const bA = (b.state || '').includes('set-A') ? 0 : 1
-      return aA - bA
-    }),
+    groups.get(k)!.slice().sort((a, b) => effSlot(a) - effSlot(b)),
   )
 }
 

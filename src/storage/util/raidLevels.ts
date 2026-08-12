@@ -5,6 +5,8 @@
 // groupColorKey:输出分组语义 key('group-a'..'group-e'),不输出字面色 —— 由组件层再映射到 --nrm-*/--accent 等 token。
 // 未迁移(有意推迟,故障模拟器):survival()、rebuildable()。
 
+import type { DiskRaidInfo } from '@nimotech/nimoos-service'
+
 // 本地最小磁盘视图类型,对齐 Vue2 disk.path/size/disk_type/health/temperature/power_on_time/model 读法
 //(raidView.ts 未导出等价类型)。字段名保持后端 /v1/disks 的原文命名,以便 AvailDisk 结构上直接可赋值。
 export interface RaidDisk {
@@ -15,6 +17,10 @@ export interface RaidDisk {
   temperature?: number
   power_on_time?: number
   model?: string
+  serial?: string
+  // 外来阵列残留超块(/v1/disks raid 字段,role:"residue" 才会出现在候选盘里)。
+  // 选盘卡片打警告标;创建/换盘请求据此带 wipe_raid_residue。
+  raid?: DiskRaidInfo | null
 }
 
 export type RaidRole = 'data' | 'mirror' | 'parity' | 'parity2'

@@ -132,9 +132,55 @@ describe('StorageRaidCreate', () => {
       chunk_kb: 512,
       filesystem: 'btrfs',
       enable_snapshots: true,
+      wipe_raid_residue: false, // 无 residue 盘时不带清除授权
     })
     expect(startCreateTaskSpy).toHaveBeenCalledWith(task)
     expect(pushSpy).toHaveBeenCalledWith('/storage/raid')
+  })
+
+  // ── RAID 残留(2026-08-11):residue 盘可选,但确认页点名清除 + 请求带 wipe_raid_residue ──
+  const RESIDUE = {
+    role: 'residue' as const, array_name: 'zimaos:fc5616382c017331', array_uuid: 'u', level: 'raid5',
+    registered: false, active: false,
+    created_at: 'Thu Aug  6 21:54:49 2026', updated_at: 'Fri Aug  7 00:29:17 2026',
+  }
+  const DISK_R = { path: '/dev/sdr', name: 'sdr', model: 'WD-Blue', size: 1000, needFormat: true, serial: 's-r', raid: RESIDUE }
+
+  it('选中 residue 盘 → 确认弹窗列出将被清除的残留(path + 阵列名),body 带 wipe_raid_residue:true', async () => {
+    document.body.innerHTML = ''
+    const { w } = await mountReady([DISK_A, DISK_B, DISK_R])
+    const store = useStorageStore()
+    const createRaidSpy = vi.spyOn(store, 'createRaid').mockResolvedValue(null)
+
+    await selectDisks(w, [DISK_A, DISK_B, DISK_R])
+    await selectLevel(w, 5)
+    await w.find('.rcv-next').trigger('click')
+    await setName(w, 'MyArray3')
+    await w.find('.rcv-confirm').trigger('click')
+    await w.vm.$nextTick()
+
+    // 确认弹窗经 reka-ui Portal Teleport 到 body(同目录 Dialog 测试同款教训)
+    const warn = document.body.querySelector('.rcv-residue-warn')
+    expect(warn, '残留清除警告未渲染').not.toBeNull()
+    expect(warn!.textContent).toContain('/dev/sdr')
+    expect(warn!.textContent).toContain('zimaos:fc5616382c017331')
+
+    document.body.querySelector<HTMLButtonElement>('.rcv-dialog-create')!.click()
+    await flushAll()
+    expect(createRaidSpy).toHaveBeenCalledWith(expect.objectContaining({ wipe_raid_residue: true }))
+  })
+
+  it('未选 residue 盘 → 确认弹窗不渲染残留警告', async () => {
+    document.body.innerHTML = ''
+    const { w } = await mountReady()
+    await selectDisks(w, [DISK_A, DISK_B, DISK_C])
+    await selectLevel(w, 5)
+    await w.find('.rcv-next').trigger('click')
+    await setName(w, 'MyArray4')
+    await w.find('.rcv-confirm').trigger('click')
+    await w.vm.$nextTick()
+    expect(document.body.querySelector('.rcv-dialog-create'), '确认弹窗未渲染').not.toBeNull()
+    expect(document.body.querySelector('.rcv-residue-warn')).toBeNull()
   })
 
   it('切 ext4 → 快照复选框隐藏,enable_snapshots 强制 false', async () => {

@@ -8,9 +8,12 @@ import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
 import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
 import SnapshotPanel from '../storage/components/SnapshotPanel.vue'
 import { useStorageStore } from '../storage/stores/storage'
+import { useToast } from '../stores/toast'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { fmtSize } from '../home/util/format'
+import { findReplaceTarget, type ReplaceTarget } from '../storage/util/raidReplace'
+import type { RaidMemberDiskRow } from '@nimotech/nimoos-service'
 import {
   resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo, memberDiskCount, mergeVacatedSlot,
   type RaidArray,
@@ -145,16 +148,38 @@ async function onDelete() {
   }
 }
 
-// 换盘(P4 T7):RaidMemberList 的 faulty 成员行 emit replace-disk(diskPath) → 开弹窗;
-// 弹窗 emit confirm(newDiskPath) 才真正调 store(store 调用留在视图,不在弹窗内)。
+// 换盘(P4 T7 + 2026-08-11 serial 语义):RaidMemberList 的 faulty/空槽位行 emit
+// replace-disk(diskPath) → 本视图用 findReplaceTarget 识别被换的盘(在位 faulty 盘按
+// 实时 path;拔掉的盘按 serial,陈旧缓存路径不当身份)→ 开弹窗;弹窗 emit
+// confirm({newDiskPath, wipeResidue}) 才真正调 store(store 调用留在视图,不在弹窗内)。
 const replaceOpen = ref(false)
-const replaceTarget = ref('')
+const replaceTarget = ref<ReplaceTarget | null>(null)
 function onReplaceRequested(diskPath: string) {
-  replaceTarget.value = diskPath
+  const live = members.value
+  const rows = (array.value.member_disks || []) as RaidMemberDiskRow[]
+  // 用户点的是某一行:该行是在位 faulty 盘时按它建 target(多盘同时故障时不至于
+  // 换错盘);空槽位行(diskPath 为空)或找不到时退回 findReplaceTarget 的通用识别。
+  const clicked = diskPath ? live.find((m) => m.path === diskPath && m.state === 'faulty') : undefined
+  const target = clicked
+    ? { path: clicked.path, serial: clicked.serial || '', label: clicked.path }
+    : findReplaceTarget(live, rows)
+  if (!target) {
+    // status 没拉到,或什么都不缺、不故障 —— 硬开弹窗只会让用户"替换"一个空白
+    useToast().show(t('raidReplaceNoTarget'))
+    return
+  }
+  replaceTarget.value = target
   replaceOpen.value = true
 }
-async function onReplace(newDiskPath: string) {
-  const ok = await store.replaceRaidDisk(idStr.value, { old_disk_path: replaceTarget.value, new_disk_path: newDiskPath })
+async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean }) {
+  const target = replaceTarget.value
+  if (!target) return
+  const ok = await store.replaceRaidDisk(idStr.value, {
+    old_disk_path: target.path,
+    old_disk_serial: target.serial,
+    new_disk_path: payload.newDiskPath,
+    wipe_raid_residue: payload.wipeResidue,
+  })
   if (!ok) return
   replaceOpen.value = false
   // 提交成功即退回列表页看进度(用户指定):重建是长活儿(真实硬盘可达数小时),
@@ -194,8 +219,8 @@ async function onReplace(newDiskPath: string) {
       <RaidReplaceDialog
         :open="replaceOpen"
         :raid-id="idStr"
-        :faulty-disk-path="replaceTarget"
-        :available-disks="store.availDisks"
+        :target="replaceTarget"
+        :disks="store.availDisks"
         :busy="store.raidReplacing"
         @update:open="replaceOpen = $event"
         @confirm="onReplace"

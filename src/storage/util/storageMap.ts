@@ -1,6 +1,8 @@
 // /v1/storage children 的 size/avail/used 是字符串(2026-07-23 真机核实),必须显式 Number()。
 // usePercent 公式与 Vue2 StorageManagerPanel 逐字一致,保证迁移前后读数不变。
 
+import type { DiskRaidInfo } from '@nimotech/nimoos-service'
+
 export interface StorageVolume {
   uuid: string
   name: string
@@ -16,6 +18,15 @@ export interface StorageVolume {
   disk: string
 }
 
+// 分区行(/v1/disks children[]):mount_point/used_bytes 是 2026-08 新增,仅挂载时才有。
+export interface DriveChild {
+  name: string
+  format: string
+  size: number
+  usedBytes: number
+  mountPoint: string
+}
+
 export interface PhysicalDrive {
   name: string
   model: string
@@ -23,6 +34,18 @@ export interface PhysicalDrive {
   diskType: string
   healthy: boolean
   temperature: number
+  // health 原文("true"/"false",都缺时 "")。详情页三态展示(正常/损坏/未知)
+  // 必须严格比较字符串,绝不能真值判断 —— "false" 是真值(Vue2 曾因此把坏盘显示成健康)。
+  health: string
+  serial: string
+  path: string
+  diskById: string
+  powerOnHours: number
+  children: DriveChild[]
+  // 后端 raid 对象原样透传(字段名保持 /v1/disks 原文;见 service 包 DiskRaidInfo)。
+  // ⚠️ array_name/created_at/updated_at 来自盘上 mdadm 超块,是不可信文本 ——
+  // 只能经模板插值渲染,不能拼 HTML。
+  raid: DiskRaidInfo | null
 }
 
 interface RawChild {
@@ -73,6 +96,14 @@ export function mapVolumes(groups: unknown, raidMountPoints: Set<string> = new S
   })
 }
 
+interface RawDiskChild {
+  name?: string
+  format?: string
+  size?: unknown
+  mount_point?: string
+  used_bytes?: unknown
+}
+
 interface RawDisk {
   name?: string
   model?: string
@@ -80,6 +111,12 @@ interface RawDisk {
   disk_type?: string
   health?: unknown
   temperature?: unknown
+  serial?: string
+  path?: string
+  disk_by_id?: string
+  power_on_time?: unknown
+  children?: RawDiskChild[]
+  raid?: DiskRaidInfo
 }
 
 export function mapDrives(disks: unknown): PhysicalDrive[] {
@@ -91,7 +128,20 @@ export function mapDrives(disks: unknown): PhysicalDrive[] {
     diskType: d.disk_type || '',
     // 后端 health 是字符串 "true"/"false";严格比较,避免 "false" 被当真值(Vue2 隐患)
     healthy: d.health === true || d.health === 'true',
+    health: typeof d.health === 'string' ? d.health : d.health === true ? 'true' : '',
     temperature: Number(d.temperature) || 0,
+    serial: d.serial || '',
+    path: d.path || '',
+    diskById: d.disk_by_id || '',
+    powerOnHours: Number(d.power_on_time) || 0,
+    children: (Array.isArray(d.children) ? d.children : []).map((c) => ({
+      name: c?.name || '',
+      format: c?.format || '',
+      size: Number(c?.size) || 0,
+      usedBytes: Number(c?.used_bytes) || 0,
+      mountPoint: c?.mount_point || '',
+    })),
+    raid: d.raid ?? null,
   }))
 }
 
@@ -120,6 +170,9 @@ export interface AvailDisk {
   health: string
   temperature: number
   power_on_time: number
+  // 外来阵列残留超块(role:"residue")原样透传:选盘 UI 打警告标、创建/换盘请求
+  // 据此决定 wipe_raid_residue。本机成员(role:"member")后端已从 avail 剔除。
+  raid?: DiskRaidInfo | null
 }
 
 interface RawAvail {
@@ -133,6 +186,7 @@ interface RawAvail {
   health?: unknown
   temperature?: unknown
   power_on_time?: unknown
+  raid?: DiskRaidInfo
 }
 
 // GET /v1/disks 响应的 avail 字段 → 创建存储候选盘 / RAID 选盘卡片。
@@ -167,6 +221,7 @@ export function mapAvailDisks(avail: unknown, disks?: unknown): AvailDisk[] {
       health,
       temperature: Number(d.temperature) || Number(full?.temperature) || 0,
       power_on_time: Number(d.power_on_time) || Number(full?.power_on_time) || 0,
+      raid: d.raid ?? full?.raid ?? null,
     }
   })
 }

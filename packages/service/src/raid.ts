@@ -15,7 +15,45 @@ export interface RaidMemberDisk {
   // 可选:2026-07-30 才加入后端(NimoOS-LocalStorage pkg/mdadm MemberDisk.Slot),
   // 老后端不带此字段。按槽位计数的代码必须能在 slot 缺失时退回旧行为。
   slot?: number
+  // 可选:2026-08-11 加入后端(status 端点逐成员带 serial)。无序列号的盘可能是 ""。
+  // 拔盘换新后设备字母会被复用,按 serial 识别成员才可靠,path 只对在位盘可信。
+  serial?: string
 }
+
+// GET /v2/raid 阵列行里的 member_disks[](DB 登记的成员身份,2026-08-11 真机 curl 核实)。
+// ⚠️ device_path_cache 是**陈旧缓存**:热插拔换盘后该路径可能已属于另一块物理盘,
+// 绝不能当盘的身份用;身份以 disk_serial / disk_by_id 为准。
+export interface RaidMemberDiskRow {
+  disk_by_id: string
+  disk_serial: string
+  device_path_cache: string
+  [k: string]: unknown
+}
+
+// POST /v2/raid/:id/disk 请求体(route/v2/raid.go ReplaceDisk,2026-08-11 契约)。
+// old_disk_path:在位故障盘的实时路径;拔掉的盘没有可信路径,传 ""、靠 old_disk_serial 识别。
+// wipe_raid_residue:新盘带外来阵列残留超块(role:"residue")时必须显式 true,
+// 否则后端拒绝(HTTP 500 "...requires explicit confirmation");本机阵列成员无论
+// 该标志如何后端都拒绝。
+export interface RaidReplaceDiskBody {
+  old_disk_path: string
+  old_disk_serial: string
+  new_disk_path: string
+  wipe_raid_residue: boolean
+}
+
+// POST /v2/raid 请求体(Vue2 RaidCreateForm 同形 + 2026-08-11 新增 wipe_raid_residue,
+// 规则同 RaidReplaceDiskBody:disk_paths 里任何一块 residue 盘都要求该标志为 true)。
+export interface RaidCreateBody {
+  name: string
+  level: number
+  disk_paths: string[]
+  chunk_kb: number
+  filesystem: string
+  enable_snapshots: boolean
+  wipe_raid_residue?: boolean
+}
+
 export interface RaidStatus {
   live_state: string
   rebuild_pct: number
@@ -43,7 +81,7 @@ export function createRaid(http: AxiosInstance) {
     // 兼容万一后端将来补上标准信封({success:200,data:{task_id,status}})。
     // 同域其余方法(list/remove/getStatus/getUsage/replaceDisk/recover)已用 curl 核实是标准
     // 信封,不要照这个模式放宽,放宽了会把真错误也吞掉。
-    async create(data: unknown): Promise<unknown> {
+    async create(data: RaidCreateBody): Promise<unknown> {
       const res = await http.post('/v2/raid', data)
       const raw = res.data as { success?: number; data?: unknown } | null
       if (raw && raw.success === 200 && raw.data !== undefined) return raw.data
@@ -62,8 +100,8 @@ export function createRaid(http: AxiosInstance) {
       const res = await http.get(`/v2/raid/${id}/usage`)
       return unwrap<unknown>(res.data)
     },
-    // POST /v2/raid/:id/disk — 换盘(破坏性)
-    async replaceDisk(id: number | string, data: unknown): Promise<unknown> {
+    // POST /v2/raid/:id/disk — 换盘(破坏性;body 形状见 RaidReplaceDiskBody)
+    async replaceDisk(id: number | string, data: RaidReplaceDiskBody): Promise<unknown> {
       const res = await http.post(`/v2/raid/${id}/disk`, data)
       return unwrap<unknown>(res.data)
     },
