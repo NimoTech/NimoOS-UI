@@ -11,9 +11,9 @@
 //
 // `showDirectoryPicker` hands back a real directory handle (name + walkable tree), so
 // both cases work — but it requires a **secure context**. The product's usual deployment
-// is HTTP on a LAN IP, where `window.showDirectoryPicker` is `undefined` (measured on
-// http://192.168.1.143: `isSecureContext: false`). Hence `supportsDirectoryPicker()`:
-// callers must keep the input path as the fallback.
+// is HTTP on a LAN IP, where `isSecureContext` is false and `window.showDirectoryPicker`
+// is therefore `undefined` (measured). Hence `supportsDirectoryPicker()`: callers must
+// keep the input path as the fallback.
 //
 // Output shape is deliberately identical to dropEntries.ts's DroppedTree so both entry
 // points feed the same commit pipeline.
