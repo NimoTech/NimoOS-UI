@@ -850,4 +850,8 @@ export default {
   wpChangeWallpaper: 'Change wallpaper',
   themePhoto: 'Photo…',
 
+  // Shown when the folder picker comes back with nothing. The browser cannot tell an
+  // empty-folder selection apart from a dismissed dialog, so the wording has to read
+  // correctly in both cases.
+  filesEmptyFolderPickHint: 'Nothing was selected. Empty folders cannot be added with the picker — drag the folder here instead.',
 }
