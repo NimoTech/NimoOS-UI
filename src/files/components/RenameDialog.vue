@@ -23,9 +23,11 @@ function onInput(e: Event) {
 
 // Mirrors NewItemDialog: same shared rule, same inline presentation. Renaming
 // needs it more than creating does — the user starts from an existing name and
-// appends to it — and useFileOps.rename() has no length guard at all, so
-// without this the request reaches the backend and comes back as the bare
-// literal "Fail", which errMsg() flattens into the generic "operation failed".
+// appends to it. useFileOps.rename() now guards the same two limits as a
+// backstop for callers that bypass this dialog; what it cannot do is tell the
+// user while they are still typing, which is the whole point of this copy.
+// Without either layer the request reaches the backend and comes back as the
+// bare literal "Fail", which errMsg() flattens into "operation failed".
 const trimmed = computed(() => value.value.trim())
 const tooLong = computed(() => nameTooLong(trimmed.value))
 const error = computed(() => (tooLong.value ? t('filesNameTooLong') : ''))
