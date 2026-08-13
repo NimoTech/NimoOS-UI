@@ -6,7 +6,7 @@ import { useToast } from '../../stores/toast'
 import { toVirtualPath } from '../util/pathUtils'
 import { joinPath, renameTo } from '../util/pathOps'
 import { canOperate, operableEntries } from '../util/protect'
-import { createBlocked } from '../util/pathLimits'
+import { createBlocked, nameTooLong, pathTooLong } from '../util/pathLimits'
 import { folderListErrorMsg } from '../util/folderListError'
 import { useClipboardStore, type OperateItem } from '../stores/clipboard'
 import { useFileConflictsStore } from '../stores/fileConflicts'
@@ -64,6 +64,16 @@ export function useFileOps() {
     if (blockedInSnapshot()) return
     if (!canOperate(entry)) { toast.show(t('filesProtectedRename')); return }
     const newPath = renameTo(entry.path, newName)
+    // Same two byte limits create already enforces, measured against a different
+    // base: rename's target is renameTo(entry.path, newName), so the parent is
+    // the ENTRY's own directory -- not files.currentPath, which differs whenever
+    // the rename is driven from a search result or the sidebar. Without this the
+    // request went to the wire and came back HTTP 500 with the bare literal
+    // "Fail", which errMsg() below collapses into the generic "operation failed"
+    // -- the user was never told the name was the problem (bug.txt #2).
+    // Name first, so the reported violation always names the tighter limit.
+    if (nameTooLong(newName)) { toast.show(t('filesNameTooLong')); return }
+    if (pathTooLong(newPath)) { toast.show(t('filesPathTooLong')); return }
     try {
       await service.file.rename(entry.path, newPath)
       // Same consistency duty as remove() below: favorites snapshot {name, path}.
@@ -184,6 +194,29 @@ export function useFileOps() {
     const results = [await submit(overwriteItems, 'overwrite'), await submit(renameItems, 'rename')]
     const failures = results.filter((r): r is { status: 'failed'; error: unknown } => r.status === 'failed')
     const succeeded = results.some((r) => r.status === 'ok')
+
+    // A move relocates the entry, so favourites pointing at it (or into it) have
+    // the same consistency duty rename() discharges above -- otherwise the
+    // sidebar keeps a row that navigates nowhere. Copy needs nothing: the
+    // original stays where it was.
+    //
+    // Per batch, not per paste: the two are submitted independently and either
+    // can fail on its own, so only the sources the backend actually accepted may
+    // be repointed. `dest` is the destination captured at the top, for the same
+    // reason the submission uses it -- the user may have navigated away during
+    // resolvePaste's await window.
+    //
+    // Known gap, deliberately not papered over here: an item the user resolved
+    // as "keep both" lands under a backend-chosen name we cannot predict, and
+    // renameItems mixes those with the conflict-free items that do land at
+    // dest/<name>. Such a favourite is repointed at dest/<name>, which is the
+    // pre-existing item it collided with rather than the moved one. Telling the
+    // two apart needs the conflict resolutions, which resolvePaste does not
+    // return -- fixing it properly means widening that contract.
+    if (o.type === 'move') {
+      const landed = results.flatMap((r, i) => (r.status === 'ok' ? (i === 0 ? overwriteItems : renameItems) : []))
+      if (landed.length) await favorites.movePaths(landed.map((i) => i.from), dest)
+    }
 
     if (!failures.length) {
       // Cancelling the conflict dialog (Esc) is "not now", not "throw away
