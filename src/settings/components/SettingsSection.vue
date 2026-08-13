@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 设置区每个 tab 的通用外框。三种头部形态严格对位 Vue2 SettingsPanel.vue L51-56:
-//   backTo 有值 → 返回按钮(developer);title 有值 → h1(多数 tab);都没有 → 无头部(terminal)。
+// Generic frame for each settings tab. Three header forms strictly match Vue2 SettingsPanel.vue L51-56:
+//   backTo set → back button (developer); title set → h1 (most tabs); neither → no header (terminal).
 import '../styles/settings.css'
 
 defineProps<{ title?: string; backTo?: string }>()

@@ -1,14 +1,18 @@
-// 设置 · 应用 —— 「App 数据存储位置」四行的派生。
-// Vue2 对位:SettingsPanel.vue:1910-1971 loadAppsData() 里的 enrichPathData / getPath。
+// Settings / Apps -- derivation of the four "App data storage location" rows.
+// Vue2 counterpart: enrichPathData / getPath inside SettingsPanel.vue:1910-1971 loadAppsData().
 //
-// 移植纪律(登记,Vue2 的东西不照抄):
-//  ① **不写 localStorage**。Vue2 的 getPath() 会把路径写进 app_data_path /
-//     app_images_path / user_database_path 三个键(注释说是"清理陈旧的 localStorage")。
-//     全仓 grep 过,除 SettingsPanel.vue 与 AppPathModal.vue 自己之外**没有任何读者**,
-//     New-UI 也不读 → 照抄等于新造死代码(判据同 D14/D15)。
-//  ② **不照抄 zimaHDD 兜底**。Vue2 找 mount_point.includes('ZimaOS-HD') 的分区当默认容量,
-//     失败写死 970GB。mount_point 是挂载点(本机 '/'),永远不含 'ZimaOS-HD'(那是
-//     CasaOS/ZimaOS 血统的卷 label),所以那段恒走 970GB 死值。这里改成回退到**系统卷**容量。
+// Porting discipline (on record; Vue2 behavior not copied verbatim):
+//  1. **No localStorage writes**. Vue2's getPath() writes the paths into three keys:
+//     app_data_path / app_images_path / user_database_path (its comment says "clean up
+//     stale localStorage"). Grepped the whole repo: **no reader exists** besides
+//     SettingsPanel.vue and AppPathModal.vue themselves, and New-UI doesn't read them
+//     either -> copying it would create new dead code (same criterion as D14/D15).
+//  2. **The zimaHDD fallback is not copied**. Vue2 looks for a partition whose
+//     mount_point.includes('ZimaOS-HD') as the default capacity, hardcoding 970GB on
+//     failure. mount_point is a mount point ('/' on this machine) and never contains
+//     'ZimaOS-HD' (that's a volume label from the CasaOS/ZimaOS lineage), so that branch
+//     always hits the 970GB dead value. Changed here to fall back to the **system
+//     volume** capacity.
 //
 // The backend returns four keys -- app_data / images / database / photos_data
 // (verified 2026-08-09). Vue 2 rendered only the first three until #103 added the
@@ -27,21 +31,23 @@ export interface AppPathRow {
 
 const ORDER: AppPathKey[] = ['app_data', 'images', 'database', 'photos_data']
 
-/** 最长前缀匹配:/media/Backup/AppData 要命中 /media/Backup 而不是 /。
+/** Longest-prefix match: /media/Backup/AppData must hit /media/Backup, not /.
  *
- * ⚠️ 不照抄 Vue2 的裸 `startsWith`:那样把 /media/BackupOld 判成属于 /media/Backup(纯字符串
- * 前缀,不是真祖先目录)。改用正确判据(同 snapshotPath.ts:87):
- *  - 路径与挂载点完全相等(`clean === mount`),或
- *  - 路径以 `${挂载点}/` 开头(`clean.startsWith(\`${mount}/\`)`)
+ * ⚠️ Do not copy Vue2's bare `startsWith`: that classifies /media/BackupOld as belonging
+ * to /media/Backup (pure string prefix, not a real ancestor directory). Use the correct
+ * criterion instead (same as snapshotPath.ts:87):
+ *  - the path equals the mount point exactly (`clean === mount`), or
+ *  - the path starts with `${mount}/` (`clean.startsWith(\`${mount}/\`)`)
  *
- * 根挂载点 `/` 特例:不能加 `/` 成 `//`,而应当匹配所有绝对路径(本机单分区就这样)。
+ * Root mount point `/` special case: don't append `/` to make `//`; it should match all
+ * absolute paths (a single-partition machine looks like this).
  */
 export function volumeForPath(path: string, volumes: StorageVolume[]): StorageVolume | null {
   const best = volumes
     .filter((v) => {
       const mount = v.mountPoint
       if (!mount) return false
-      // 完全相等,或以 `${mount}/` 开头;根挂载点 `/` 特例:匹配所有绝对路径
+      // Exact match, or starts with `${mount}/`; root mount `/` special case: match all absolute paths
       if (mount === '/') return path.startsWith('/')
       return path === mount || path.startsWith(`${mount}/`)
     })

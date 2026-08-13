@@ -18,11 +18,12 @@ export const useStorageStore = defineStore('storage', () => {
   const raidDetail = ref<{ array: RaidArray; status: RaidStatus | null; usage: RaidUsage | null } | null>(null)
   const raidDetailLoading = ref(false)
   const creatingTask = ref<RaidTask | null>(null)
-  // 换盘进行中的看板任务。后端 PUT /v2/raid/:id/replace-disk 是**同步**的
-  // (route/v2/raid.go:266 ReplaceDisk,mdadm --fail/--remove/--add 完成即返回),
-  // 没有创建流程那样的 task_id / 6 步进度 —— 真正的重建在内核里跑,进度只能从
-  // status 接口的 rebuild_pct 读。所以这份任务态由前端自己维护:提交成功时建立,
-  // 每次刷新阵列状态时核对"新盘是否已 active sync",是则算完成。
+  // Dashboard task for an in-progress disk replacement. Backend PUT /v2/raid/:id/replace-disk is **synchronous**
+  // (route/v2/raid.go:266 ReplaceDisk; it returns as soon as mdadm --fail/--remove/--add finishes),
+  // with no task_id / 6-step progress like the create flow —— the actual rebuild runs in the kernel, and progress
+  // can only be read from the status endpoint's rebuild_pct. So this task state is maintained by the frontend itself:
+  // created when the submit succeeds, and on every array-status refresh we check whether the new disk is
+  // "active sync"; if so, the replacement counts as done.
   const replaceTask = ref<ReplaceTask | null>(null)
   let clearTimer: number | undefined
   const loading = ref(false)
@@ -37,7 +38,7 @@ export const useStorageStore = defineStore('storage', () => {
 
   async function loadVolumes() {
     try {
-      // raid.list 兜底空数组:老后端无 /v2/raid 时卷列表照常工作
+      // raid.list falls back to an empty array: the volume list keeps working when the old backend lacks /v2/raid
       const [storageRes, raidRes] = await Promise.all([
         service.storage.list({ system: 'show' }),
         service.raid.list().catch(() => [] as unknown[]),
@@ -63,8 +64,8 @@ export const useStorageStore = defineStore('storage', () => {
     try {
       const res = (await service.disks.getDiskList()) as { disks?: unknown; avail?: unknown } | null
       drives.value = mapDrives(res?.disks)
-      // 传 res.disks 进去补 health:avail 里的 health 恒为空串(后端赋值顺序缺陷),
-      // 同一块盘在 disks 列表里才有真实的 "true"/"false"。详见 mapAvailDisks 注释。
+      // Pass res.disks in to backfill health: health in avail is always an empty string (backend assignment-order defect);
+      // the same disk only carries the real "true"/"false" in the disks list. See the mapAvailDisks comment.
       availDisks.value = mapAvailDisks(res?.avail, res?.disks)
     } catch (e) {
       console.warn('[storage] drives load failed', e)
@@ -87,13 +88,13 @@ export const useStorageStore = defineStore('storage', () => {
     unmounting.value = true
     const toast = useToast()
     try {
-      // 契约:DELETE /v1/disks {path: 父盘路径, password}(Vue2 StorageItem 同款)
+      // Contract: DELETE /v1/disks {path: parent disk path, password} (same as Vue2 StorageItem)
       await service.disks.umount({ path: diskPath, password })
       toast.show(t('storageUnmountSuccess'))
       await loadAll()
       return true
     } catch (e) {
-      // 只记 message:AxiosError 携带请求体(含明文密码),不可整个打日志
+      // Log only the message: AxiosError carries the request body (plaintext password), never log the whole object
       console.warn('[storage] unmount failed', (e as Error)?.message)
       toast.show(t('storageUnmountFailed'))
       return false
@@ -108,7 +109,7 @@ export const useStorageStore = defineStore('storage', () => {
     const toast = useToast()
     let ok = false
     try {
-      // 契约:POST /v1/storage {path, name, format} 仅三字段(Vue2 submitCreate 同款)
+      // Contract: POST /v1/storage {path, name, format}, exactly three fields (same as Vue2 submitCreate)
       await service.storage.create(payload)
       toast.show(t('storageCreateSuccess'))
       ok = true
@@ -116,7 +117,7 @@ export const useStorageStore = defineStore('storage', () => {
       console.warn('[storage] create failed', (e as Error)?.message)
       toast.show(t('storageCreateFailed'))
     } finally {
-      await loadAll() // 成败都刷新;置于 finally 内,守卫持有至刷新完成
+      await loadAll() // refresh on success and failure; kept in finally so the guard is held until the refresh completes
       creating.value = false
     }
     return ok
@@ -127,13 +128,13 @@ export const useStorageStore = defineStore('storage', () => {
     formatting.value = true
     const toast = useToast()
     try {
-      // 契约:PUT /v1/storage {path: 分区路径, volume: 挂载点, password}(Vue2 StorageItem formatStorage 同款)
+      // Contract: PUT /v1/storage {path: partition path, volume: mount point, password} (same as Vue2 StorageItem formatStorage)
       await service.storage.format(payload)
       toast.show(t('storageFormatSuccess'))
-      await loadAll() // Vue2 语义:格式化仅成功刷新
+      await loadAll() // Vue2 semantics: format refreshes only on success
       return true
     } catch (e) {
-      // 只记 message:请求体含明文密码
+      // Log only the message: the request body contains the plaintext password
       console.warn('[storage] format failed', (e as Error)?.message)
       toast.show(t('storageFormatFailed'))
       return false
@@ -143,13 +144,13 @@ export const useStorageStore = defineStore('storage', () => {
   }
 
   async function loadRaid() {
-    if (raidLoading.value) return // 在途守卫:防轮询/热插拔重叠拉取
+    if (raidLoading.value) return // in-flight guard: prevents overlapping fetches from polling/hotplug
     raidLoading.value = true
     try {
       const listRes = await service.raid.list()
       const arrays = (Array.isArray(listRes) ? listRes : []).map(asRaidArray)
       raidArrays.value = arrays
-      // 并发逐阵列拉 status;单个失败不拖垮整表(allSettled)
+      // Fetch status per array concurrently; a single failure does not sink the whole table (allSettled)
       const results = await Promise.allSettled(arrays.map((a) => service.raid.getStatus(a.id)))
       const map: Record<string, RaidStatus> = {}
       results.forEach((r, i) => { if (r.status === 'fulfilled') map[String(arrays[i].id)] = r.value })
@@ -183,11 +184,12 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  // clearRaidDetail —— 进详情页前先把上一次的快照清掉。
-  // 详情页渲染的是这份 store 状态,而进页面要跑两次串行请求(loadRaid → loadRaidDetail)
-  // 才会更新它;不清空的话这段窗口里页面会原样渲染**上一次**的数据 —— 换完盘再点进
-  // 详情页会看到换盘前那一帧(空槽位 + 故障盘,4 行成员),看起来像替换没生效
-  // (2026-07-28 实盘验收发现)。
+  // clearRaidDetail —— clear the previous snapshot before entering the detail page.
+  // The detail page renders this store state, and entering the page runs two serial requests
+  // (loadRaid → loadRaidDetail) before it updates; without clearing, the page renders **last time's**
+  // data verbatim in that window —— after replacing a disk, clicking into the detail page would show
+  // the pre-replacement frame (empty slot + faulty disk, 4 member rows), as if the replacement did nothing
+  // (found in on-device acceptance 2026-07-28).
   function clearRaidDetail() { raidDetail.value = null }
 
   async function detectCreatingTask() {
@@ -204,11 +206,11 @@ export const useStorageStore = defineStore('storage', () => {
     }
   }
 
-  function startCreateTask(task: RaidTask) { clearTimeout(clearTimer); creatingTask.value = task } // P4 向导用
+  function startCreateTask(task: RaidTask) { clearTimeout(clearTimer); creatingTask.value = task } // used by the P4 wizard
   function dismissCreateTask() { clearTimeout(clearTimer); creatingTask.value = null }
 
-  // 创建:成功后不在此刷新列表(阵列进"创建中"任务流,由 startCreateTask + 轮询接管),
-  // 从响应取 task 供向导调 startCreateTask。
+  // Create: no list refresh here on success (the array enters the "creating" task flow,
+  // taken over by startCreateTask + polling); the task is taken from the response for the wizard to call startCreateTask.
   async function createRaid(body: {
     name: string; level: number; disk_paths: string[]
     chunk_kb: 512; filesystem: 'btrfs' | 'ext4'; enable_snapshots: boolean
@@ -217,13 +219,13 @@ export const useStorageStore = defineStore('storage', () => {
     raidCreating.value = true
     const toast = useToast()
     try {
-      // 后端(NimoOS-LocalStorage route/v2/raid.go:187-190)返回裸 {task_id,status},
-      // 无 .data 信封;共享包 NimoOS-Service src/raid.ts create() 已同步改成不 unwrap()、
-      // 直接透传该裸体(万一后端将来补上标准信封,也兼容读 res?.data?.task_id)。
-      // 此前多读一层 .data 拿到的是 undefined,taskId 落空串,进度弹窗/轮询盯着空 id 卡死。
+      // The backend (NimoOS-LocalStorage route/v2/raid.go:187-190) returns bare {task_id,status},
+      // no .data envelope; the shared package NimoOS-Service src/raid.ts create() was changed in step to skip unwrap()
+      // and pass the bare body through (should the backend add the standard envelope later, res?.data?.task_id is still read as a fallback).
+      // Previously reading one extra .data layer yielded undefined, taskId became an empty string, and the progress modal/polling stalled on an empty id.
       const res = (await service.raid.create(body)) as { task_id?: string; data?: { task_id?: string } } | undefined
       const taskId = res?.task_id ?? res?.data?.task_id
-      // 用请求信息 + task_id 组装 creatingTask(step 未知先给初值,轮询会填)
+      // Assemble creatingTask from the request info + task_id (step unknown, seeded with initial values; polling fills them in)
       const task: RaidTask = {
         taskId: taskId ?? '', name: body.name, level: body.level,
         filesystem: body.filesystem, diskCount: body.disk_paths.length,
@@ -260,12 +262,14 @@ export const useStorageStore = defineStore('storage', () => {
 
   function dismissReplaceTask() { replaceTask.value = null }
 
-  // syncReplaceTask —— 每次刷新阵列状态后核对换盘看板任务。
-  // 完成/阵列消失时撤掉看板;完成额外弹一次 toast(内核重建结束没有任何回调,
-  // 只能靠轮询发现 —— 这也是「换完没有完成提示」那条缺陷的修法)。
+  // syncReplaceTask —— reconcile the disk-replacement dashboard task after every array-status refresh.
+  // Dismiss the dashboard when done or when the array disappears; on completion also show a toast once
+  // (the kernel rebuild finishing has no callback whatsoever, it can only be discovered by polling ——
+  // this is also the fix for the "no completion notice after replacing" defect).
   //
-  // toast 文案分两种,不是同一句:新盘 active sync 只说明**这一次替换**完成了,
-  // 阵列可能因为另一块盘也坏而仍未恢复健康。那种情况下报"阵列已恢复健康"是撒谎。
+  // There are two toast messages, not one: the new disk being active sync only means **this replacement**
+  // finished; the array may still be unhealthy because another disk is also bad. Reporting
+  // "array restored to healthy" in that case would be lying.
   function syncReplaceTask() {
     const task = replaceTask.value
     if (!task) return
@@ -288,8 +292,8 @@ export const useStorageStore = defineStore('storage', () => {
     try {
       await service.raid.replaceDisk(id, body)
       toast.show(t('raidReplaceSuccess'))
-      // 看板任务须在 loadRaid() **之前**建立:loadRaid 结束时会调 syncReplaceTask,
-      // 512MB 假盘上重建可能在这一拍就已完成,那一拍必须已经看得见任务。
+      // The dashboard task must be created **before** loadRaid(): loadRaid calls syncReplaceTask when it
+      // finishes, and on a 512MB fake disk the rebuild may already be done by that tick —— the task must be visible by then.
       replaceTask.value = {
         arrayId: String(id),
         arrayName: raidArrays.value.find((a) => String(a.id) === String(id))?.name || '',
@@ -302,10 +306,11 @@ export const useStorageStore = defineStore('storage', () => {
       toast.show(t('raidReplaceFailed'))
     } finally {
       await loadRaid()
-      // 详情页渲染的是 raidDetail,只有 loadRaidDetail 会更新它 —— 此前这里只刷了
-      // 列表数据,详情页的成员列表会一直停在替换前那一帧(还显示空槽位 + 故障盘),
-      // 而"重建中每 5 秒自动刷新"的开关又是从这份过期数据算的,于是轮询永不启动、
-      // 完成也永远观察不到(2026-07-28 实盘验收发现)。
+      // The detail page renders raidDetail, and only loadRaidDetail updates it —— previously only the
+      // list data was refreshed here, so the detail page's member list stayed frozen on the pre-replacement
+      // frame (still showing the empty slot + faulty disk), and the "auto-refresh every 5s while rebuilding"
+      // switch was computed from that stale data, so polling never started and completion was never
+      // observed (found in on-device acceptance 2026-07-28).
       if (raidDetail.value && String(raidDetail.value.array.id) === String(id)) {
         await loadRaidDetail(id)
       }
@@ -339,7 +344,7 @@ export const useStorageStore = defineStore('storage', () => {
     if (!cur) return
     try {
       const raw = (await service.raid.getTask(cur.taskId)) as Record<string, unknown>
-      // 保留身份字段(name/level/filesystem/diskCount);step/progress/error/elapsed 每拍以后端最新为准(总是回传)
+      // Preserve identity fields (name/level/filesystem/diskCount); step/progress/error/elapsed follow the latest backend values each tick (always returned)
       const merged = mapTask({ ...raw, task_id: cur.taskId, name: raw.name ?? cur.name, level: raw.level ?? cur.level, filesystem: raw.filesystem ?? cur.filesystem, disk_count: raw.disk_count ?? cur.diskCount })
       creatingTask.value = merged
       if (merged.status === 'done') {
@@ -350,11 +355,11 @@ export const useStorageStore = defineStore('storage', () => {
           if (creatingTask.value?.taskId === doneId) creatingTask.value = null
         }, 1000)
       }
-      // failed:卡保留(不清),交给用户 dismiss
+      // failed: card is kept (not cleared), left to the user to dismiss
     } catch (e) {
-      // 404 视为任务已消失:清卡 + 刷新。两种形状都要接住——
-      // axios 真 404 的 .code 是字符串('ERR_BAD_REQUEST'),数字状态码在 .response.status;
-      // service unwrap() 抛的 Error 则把后端 success 数字塞进 .code。真 OR,不能用 ??。
+      // 404 means the task is gone: clear the card + refresh. Both shapes must be caught ——
+      // a real axios 404 has a string .code ('ERR_BAD_REQUEST') with the numeric status at .response.status;
+      // the Error thrown by service unwrap() stuffs the backend success number into .code. Needs a real OR, not ??.
       const err = e as { code?: unknown; response?: { status?: number } }
       if (err.code === 404 || err.response?.status === 404) {
         creatingTask.value = null

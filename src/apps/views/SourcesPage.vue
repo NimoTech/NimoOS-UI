@@ -32,8 +32,8 @@ async function onAdd() {
   }
 }
 
-// reka 时序坑:AlertDialogAction 也是 DialogClose,update:open(false) 先于 confirm 触发——
-// open 与目标分开存,confirm 里读完目标再清,勿在 update:open 里清目标
+// reka timing trap: AlertDialogAction is also a DialogClose, so update:open(false) fires before confirm —
+// store open and the target separately; read the target in confirm before clearing it, never clear it in update:open
 const delOpen = ref(false)
 const delTarget = ref<AppStoreSource | null>(null)
 function askRemove(s: AppStoreSource) {
@@ -47,7 +47,7 @@ function confirmRemove() {
   if (s) void store.unregister(s.id)
 }
 
-// 社区维护的第三方商店大全(CasaOS 生态原版;Vue2 写的 awesome.nimoos.io 是品牌重命名死链,域名不存在)
+// Community-maintained list of third-party stores (original CasaOS-ecosystem page; the awesome.nimoos.io used in Vue2 is a dead rebranded link, the domain does not exist)
 const MORE_URL = 'https://awesome.casaos.io/content/3rd-party-app-stores/list.html'
 
 onMounted(() => {
@@ -67,8 +67,8 @@ onMounted(() => {
         </p>
 
         <form class="src-add" @submit.prevent="onAdd">
-          <!-- 注册中不锁输入(用户可先备好下一个地址),只锁提交(canSubmit)——
-               单飞约束在 store.register 前置守卫,完成事件不带 URL,并发注册无法归属 -->
+          <!-- While registering, don't lock the input (the user can prepare the next URL), only lock submit (canSubmit) —
+               the single-flight constraint lives in the store.register pre-guard; the completion event carries no URL, so concurrent registrations can't be attributed -->
           <input
             v-model="url"
             class="src-input"
@@ -131,7 +131,7 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* 与其它 apps 页共用的布局骨架(各页 scoped 重复,既有约定) */
+/* Layout skeleton shared with the other apps pages (duplicated per page in scoped styles, established convention) */
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; }
 .apps-empty { color: var(--fg-muted); font-size: 14px; padding: 24px 8px; display: flex; align-items: center; gap: 10px; }
@@ -148,7 +148,7 @@ onMounted(() => {
   border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13px;
 }
 .src-input:focus { outline: none; border-color: var(--accent); }
-/* 主行动:bar-btn 底座 + 商店「安装」同款 accent 药丸配色(StoreCard .store-install) */
+/* Primary action: bar-btn base + the same accent pill colors as the store "Install" button (StoreCard .store-install) */
 .src-add-btn {
   flex: 0 0 auto;
   color: var(--accent-text); background: var(--accent-soft); border-color: var(--accent-soft-bd);
@@ -186,6 +186,6 @@ onMounted(() => {
   font-family: var(--font-mono, monospace); font-size: 12px; color: var(--fg-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-/* 危险动作:bar-btn 底座 + 危险色字(卡片按钮同款 token 约定) */
+/* Destructive action: bar-btn base + danger-colored text (same token convention as the card buttons) */
 .src-remove { color: var(--remove-fg); flex: 0 0 auto; }
 </style>

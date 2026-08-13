@@ -5,7 +5,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
 
-// curl 实证 2026-07-31 GET /v1/gateway/ssl
+// Verified via curl 2026-07-31: GET /v1/gateway/ssl
 const SSL = {
   enabled: false, port: '443', domain: 'nimoos.local', cert_type: 'auto',
   effective_time: '0001-01-01T00:00:00Z', expiration_time: '0001-01-01T00:00:00Z',
@@ -26,10 +26,11 @@ import WebUiHttpsDialog from './WebUiHttpsDialog.vue'
 import { formatSslDate } from '../util/sslDate'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
-// 任务简报给的这份测试原文直接 mount() 后就地 find(...) —— 但 Dialog.vue(共享文件,
-// 本任务不可改)经由 reka-ui 的 DialogPortal 把内容 Teleport 到 <body>,不在 mount()
-// 返回的 wrapper 自己的 DOM 子树内(同 DeviceInfoDialog.test.ts / UpdateDialog.test.ts
-// 记录的既有坑)。这里补 attachTo: document.body + 对 document.body 取 DOMWrapper 查询。
+// The task brief's original test did mount() then find(...) in place — but Dialog.vue
+// (a shared file this task must not modify) teleports its content to <body> via reka-ui's
+// DialogPortal, outside the mount() wrapper's own DOM subtree (same known pitfall recorded
+// in DeviceInfoDialog.test.ts / UpdateDialog.test.ts). Here we add attachTo: document.body
+// + query via a DOMWrapper over document.body.
 let activeWrapper: ReturnType<typeof mount> | null = null
 const mountIt = (open = true) => {
   activeWrapper = mount(WebUiHttpsDialog, { props: { open }, global: { plugins: [i18n] }, attachTo: document.body })
@@ -37,8 +38,9 @@ const mountIt = (open = true) => {
 }
 const body = () => new DOMWrapper(document.body)
 
-// jsdom 里 <input type=file> 的 files 是只读的,用 defineProperty 塞进去再触发 change ——
-// 走的是组件真实的 @change 处理器,不必在生产组件上开测试后门。
+// In jsdom, <input type=file>.files is read-only; inject via defineProperty then trigger
+// change — this exercises the component's real @change handler, so no test backdoor is
+// needed in the production component.
 async function pickFiles(pem: File | null, crt: File | null) {
   const inputs = body().findAll('.wh-file')
   const set = async (i: number, f: File) => {
@@ -49,9 +51,10 @@ async function pickFiles(pem: File | null, crt: File | null) {
   if (crt) await set(1, crt)
 }
 
-// 对位 rows.test.ts 里 TimezoneRow/DiskStandbyRow 的交错路径写法:挂起一个可控 Promise,
-// 让服务端读取"卡住",在此期间做用户操作,最后用一份**提前拍好**的旧快照 resolve ——
-// 不能等 resolve 时刻再从共享 state 读,那时 state 早被别的东西改过,不算"迟到的旧值"。
+// Mirrors the interleaved-path pattern of TimezoneRow/DiskStandbyRow in rows.test.ts:
+// suspend a controllable Promise so the server read "hangs", perform user actions in the
+// meantime, and finally resolve with a snapshot taken IN ADVANCE — don't read shared state
+// at resolve time, since by then it has already been mutated and wouldn't be a truly "late stale value".
 function createDeferred<T>() {
   let resolve!: (v: T) => void
   const promise = new Promise<T>((r) => { resolve = r })
@@ -174,10 +177,11 @@ describe('WebUiHttpsDialog', () => {
     expect(state.setCalls).toHaveLength(1)
   })
 
-  // 交错路径守卫(newui-async-stale-guard):弹窗打开后 getSSLConfig 还没返回时,
-  // 用户已经手改了域名。迟到的加载结果不能把用户刚打的字覆盖掉。
-  // 快照必须在用户输入**之前**拍下,且用这份旧快照 resolve —— 不能等 resolve 时刻
-  // 再读 state.ssl(那时早被别的东西改过,不算真正的"迟到")。
+  // Interleaved-path guard (newui-async-stale-guard): the user has already hand-edited the
+  // domain while getSSLConfig is still pending after the dialog opened. The late load result
+  // must not overwrite what the user just typed.
+  // The snapshot must be taken BEFORE the user input, and resolve with that stale snapshot —
+  // don't read state.ssl at resolve time (it would already be mutated; not a true "late arrival").
   it('打开弹窗后加载还没返回,用户先改了域名,迟到的服务端值不能覆盖用户输入(交错路径守卫)', async () => {
     state.ssl = { ...SSL, domain: 'server-stale.local' }
     const staleSnapshot = { ...state.ssl }
@@ -187,10 +191,10 @@ describe('WebUiHttpsDialog', () => {
 
     mountIt()
     await flushPromises()
-    // 此时 watch(open, immediate) 里的 getSSLConfig() 还卡在 deferred,用户已经手改了域名:
+    // At this point getSSLConfig() inside watch(open, immediate) is still stuck on the deferred; the user has already edited the domain:
     await body().find('.wh-domain').setValue('user-typed.local')
     await flushPromises()
-    // 加载才姗姗来迟地返回(用提前拍好的旧快照,而不是当下的 state.ssl):
+    // Only now does the load belatedly return (with the pre-taken stale snapshot, not the current state.ssl):
     deferred.resolve(staleSnapshot)
     await flushPromises()
 

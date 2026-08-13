@@ -26,7 +26,7 @@ const manyGroups = () => [
   )) },
 ]
 
-// 造一个假 DOMRect,只填组件用到的 top/height 两个字段;其余字段用 0 占位满足类型。
+// Build a fake DOMRect filling only the top/height fields the component uses; the rest are 0 placeholders to satisfy the type.
 const fakeRect = (top: number, height = 10): DOMRect =>
   ({ top, height, bottom: top + height, left: 0, right: 0, width: 0, x: 0, y: top, toJSON: () => ({}) }) as DOMRect
 
@@ -79,9 +79,10 @@ describe('TimeMachineRail', () => {
   })
   it('鼠标移动时给刻度算出缩放(离光标越近越大)', async () => {
     const w = mountIt()
-    // jsdom 里 getBoundingClientRect 恒为 0,这里只断言 mousemove 后确实写了 transform,
-    // 曲线本身由 timeMachineMath.test.ts 覆盖(那里是真数值断言);更强的"越近越大"
-    // 断言见下面那条(通过手动 mock 各刻度的 getBoundingClientRect 制造真实距离差)。
+    // In jsdom getBoundingClientRect is always 0; this only asserts a transform was written
+    // after mousemove. The curve itself is covered by timeMachineMath.test.ts (real numeric
+    // assertions there); the stronger "closer means larger" assertion is the test below
+    // (which mocks each tick's getBoundingClientRect to create real distance differences).
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     expect(w.findAll('.tm-tick-main')[0].attributes('style')).toContain('scaleX')
   })
@@ -95,14 +96,17 @@ describe('TimeMachineRail', () => {
     expect(mountIt({ groups: [] }).findAll('.tm-tick-main')).toHaveLength(0)
   })
 
-  // ↓ 补充:brief 自带的"算出缩放"用例只断言 style 里含 scaleX 的字符串,把曲线永远返回
-  // scaleX(1) 这种空壳实现也能骗过去(scaleX(1) 本身就"含 scaleX")。这里手动 mock 每条
-  // 主刻度自己的 getBoundingClientRect,制造出真实的、不同的光标距离,断言离光标近的那条
-  // 缩放确实比远的那条大 —— 真正走一遍 computeFisheyeScales 的数值路径。
-  // 注:曾经因为主刻度和它的子刻度共用 data-flat-index,这里必须连子刻度的 rect 一起
-  // mock 才能通过(否则 map 会被子刻度的默认 rect 覆盖)——那个共用 key 本身是评审揪出来
-  // 的真实 bug,已在组件里改成子刻度换用 data-anchor-index(不再撞 key),这里直接
-  // mock 主刻度自己就够了,不用再迁就那个 bug。
+  // ↓ Addition: the brief's own "computes scale" case only asserts the style string contains
+  // scaleX, so a hollow implementation that always returns scaleX(1) would pass (scaleX(1)
+  // itself "contains scaleX"). Here we manually mock each main tick's own
+  // getBoundingClientRect to create real, differing cursor distances, and assert the tick
+  // closer to the cursor scales larger than the farther one — actually exercising the
+  // computeFisheyeScales numeric path.
+  // Note: back when main ticks and their sub-ticks shared data-flat-index, this test had to
+  // mock the sub-ticks' rects too to pass (otherwise the map got overwritten by the sub-ticks'
+  // default rect) — that shared key was itself the real bug review caught; the component now
+  // uses data-anchor-index for sub-ticks (no more key collision), so mocking the main ticks
+  // alone is enough, no need to accommodate that bug anymore.
   it('（非空壳强化)不同刻度到光标的真实距离不同时,缩放值也应不同且近的更大', async () => {
     const w = mountIt()
     const mains = w.findAll('.tm-tick-main')
@@ -120,17 +124,19 @@ describe('TimeMachineRail', () => {
     expect(nearScale).toBeGreaterThan(farScale)
   })
 
-  // ↓ 评审(T10 复核)钉住的回归用例:主刻度的缩放必须由主刻度自己的中心算出,不能被
-  // 挂在它后面、共享同一个逻辑 flatIndex 的子刻度覆盖掉。做法:让主刻度自己的 rect 落在
-  // 光标附近(该拿到接近 maxScale=2.2 的峰值),同时把它所有子刻度的 rect 支得远远的
-  // (远超 radius=70,该拿到 minScale=1)。如果 updateScales() 又按 DOM 顺序"后写覆盖
-  // 先写"把子刻度的值写进了同一个 map key,这里就会读到接近 1 而不是接近 2.2,断言失败。
+  // ↓ Regression case pinned by review (T10 re-check): a main tick's scale must be computed
+  // from its own center, and must not be overwritten by the sub-ticks that follow it sharing
+  // the same logical flatIndex. Approach: place the main tick's own rect near the cursor
+  // (should get close to the maxScale=2.2 peak) while pushing all its sub-ticks' rects far
+  // away (well beyond radius=70, should get minScale=1). If updateScales() again writes
+  // sub-tick values into the same map key in DOM order ("later overwrites earlier"), this
+  // reads close to 1 instead of close to 2.2 and the assertion fails.
   it('主刻度的缩放由主刻度自身中心算出,不会被同 anchor 的子刻度覆盖', async () => {
     const w = mountIt()
     const main0 = w.findAll('.tm-tick-main')[0].element as HTMLElement
-    main0.getBoundingClientRect = () => fakeRect(100) // 光标 105,距离 ~5px,该接近峰值
+    main0.getBoundingClientRect = () => fakeRect(100) // cursor at 105, distance ~5px, should be near peak
     for (const sub of w.findAll('.tm-tick-sub')) {
-      (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(2000) // 远超 radius
+      (sub.element as HTMLElement).getBoundingClientRect = () => fakeRect(2000) // far beyond radius
     }
 
     await w.find('.tm-rail').trigger('mousemove', { clientY: 105 })
@@ -138,12 +144,13 @@ describe('TimeMachineRail', () => {
     const style = w.findAll('.tm-tick-main')[0].attributes('style') ?? ''
     const m = style.match(/scaleX\(([\d.]+)\)/)
     const scale = m ? Number(m[1]) : 1
-    expect(scale).toBeGreaterThan(2) // 峰值 maxScale=2.2;若被子刻度覆盖会压到 minScale=1
+    expect(scale).toBeGreaterThan(2) // peak maxScale=2.2; if overwritten by a sub-tick it drops to minScale=1
   })
 
-  // ↓ 补充:brief 完全没测约束 #4(rAF 节流 + 卸载取消挂起帧)。默认 beforeEach 里的 rAF
-  // stub 会立即同步执行回调,测不出"一帧内多次 mousemove 只安排一次重算"——这里换成
-  // 手控 stub(不自动 invoke),才能观察到节流本身。
+  // ↓ Addition: the brief never tested constraint #4 (rAF throttling + canceling the pending
+  // frame on unmount). The default beforeEach rAF stub runs the callback synchronously, which
+  // cannot detect "multiple mousemoves within one frame schedule only one recompute" — swap in
+  // a manually-controlled stub (no auto invoke) so the throttling itself is observable.
   it('（补测约束#4)一帧内连续多次 mousemove 只请求一次 rAF', async () => {
     const raf = vi.fn(() => 1)
     vi.stubGlobal('requestAnimationFrame', raf)

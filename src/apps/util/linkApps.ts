@@ -1,8 +1,8 @@
 import { service } from '@nimotech/nimoos-service'
 
-// 外部链接 App:纯前端概念,存在 UserService custom storage(key='link')。旧 Vue2 UI
-// 读写同一个 key(见 NimoOS-UI/src/mixins/app/Business_LinkApp.js),字段名/形状必须兼容:
-// { name, hostname, icon, app_type: 'LinkApp', status: 'running' }。
+// External link App: pure frontend concept, stored in UserService custom storage (key='link'). The old Vue2 UI
+// reads/writes the same key (see NimoOS-UI/src/mixins/app/Business_LinkApp.js); field names/shape must stay compatible:
+// { name, hostname, icon, app_type: 'LinkApp', status: 'running' }.
 export interface LinkApp {
   name: string
   hostname: string
@@ -14,7 +14,7 @@ export interface LinkApp {
 interface RawLinkAppLike {
   name?: unknown
   hostname?: unknown
-  host?: unknown // 旧字段(Vue2 更早版本)
+  host?: unknown // legacy field (earlier Vue2 versions)
   icon?: unknown
 }
 
@@ -23,17 +23,17 @@ function normalizeOne(raw: unknown): LinkApp | null {
   const r = raw as RawLinkAppLike
   const name = typeof r.name === 'string' ? r.name : ''
   const hostname = typeof r.hostname === 'string' ? r.hostname
-    : typeof r.host === 'string' ? r.host // 旧字段迁移:host → hostname
+    : typeof r.host === 'string' ? r.host // legacy field migration: host → hostname
       : ''
   if (!name || !hostname) return null
   const icon = typeof r.icon === 'string' ? r.icon : ''
-  // app_type/status 旧字段(type/state)历史上恒等于 'LinkApp'/'running',直接落成字面量类型,
-  // 无需保留旧值——这就是 type→app_type、state→status 迁移的全部含义。
+  // The legacy app_type/status fields (type/state) were historically always 'LinkApp'/'running', so they collapse into literal types;
+  // no need to preserve old values — that is the entire meaning of the type→app_type, state→status migration.
   return { name, hostname, icon, app_type: 'LinkApp', status: 'running' }
 }
 
-/** 容忍 ""/null/数组/JSON 字符串(实证:空 key data="");逐项归一化旧字段,按 name 去重(先到先得),
- *  缺 name/hostname 的条目丢弃。 */
+/** Tolerates ""/null/array/JSON string (observed: an empty key has data=""); normalizes legacy fields per item, dedupes by name (first wins),
+ *  entries missing name/hostname are dropped. */
 export function parseLinkApps(raw: unknown): LinkApp[] {
   let data: unknown = raw
   if (typeof data === 'string') {
@@ -62,7 +62,7 @@ export async function listLinkApps(): Promise<LinkApp[]> {
   }
 }
 
-/** 拉现有列表 → 同名替换 hostname/icon,否则追加 → 落盘 → 返回新列表(与 Vue2 connect() 语义一致)。 */
+/** Fetch current list → replace hostname/icon on name match, otherwise append → persist → return the new list (same semantics as Vue2 connect()). */
 export async function saveLinkApp(item: { name: string; hostname: string; icon: string }): Promise<LinkApp[]> {
   const list = await listLinkApps()
   let found = false

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 对位 Vue2 DeviceInfoPanel.vue(191 行)。5 行:Platform / DC / CPU / RAM / GPU。
-// 容器从 Buefy 模态换成 New-UI 既有的 ui/Dialog.vue(reka),内容 1:1(授权偏离 #2 的同类容器替换)。
-// 只在 open 变 true 时拉数据 —— 设置页一进来就打硬件接口没有必要。
+// Counterpart of Vue2 DeviceInfoPanel.vue (191 lines). 5 rows: Platform / DC / CPU / RAM / GPU.
+// Container swapped from a Buefy modal to New-UI's existing ui/Dialog.vue (reka), content 1:1 (same-kind container replacement per authorized deviation #2).
+// Only fetch data when open turns true — no need to hit the hardware API just by entering the settings page.
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type HardwareInfo } from '@nimotech/nimoos-service'
@@ -19,7 +19,7 @@ const deviceId = ref<string | null>(null)
 const view = ref(toDeviceInfoView(null, null))
 
 async function load() {
-  // 两个接口各自成败:硬件挂了不该连 DC 一起不显示(Vue2 是两个来源,这里保持独立)
+  // The two APIs succeed/fail independently: hardware failing shouldn't hide DC too (two sources in Vue2; keep them independent here)
   await Promise.allSettled([
     service.sys.hardwareInfo().then((r) => { hw.value = r }),
     service.sys.getBaseInfo().then((r) => { deviceId.value = r.device_id }),

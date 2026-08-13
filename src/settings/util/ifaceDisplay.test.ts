@@ -75,14 +75,14 @@ describe('wirelessModeKey —— 对位 Vue2 wirelessModeLabel(:2190)', () => {
 
 describe('signalBar —— 对位 Vue2 signalIconHtml(WifiForm.vue:110-118)', () => {
   it('5 档阈值逐字照抄(用绝对值分档)', () => {
-    expect(signalBar(0)).toBe(SIGNAL_BARS[4])   // >=0 → 满格
-    expect(signalBar(-45)).toBe(SIGNAL_BARS[4]) // 实测 NIMO_Network
-    expect(signalBar(-50)).toBe(SIGNAL_BARS[4]) // 边界:<=50
-    expect(signalBar(-55)).toBe(SIGNAL_BARS[3]) // 实测 TP-LINK_12E0-5G
-    expect(signalBar(-60)).toBe(SIGNAL_BARS[3]) // 边界
-    expect(signalBar(-70)).toBe(SIGNAL_BARS[2]) // 边界 & 实测 ChinaNet-D2yt
+    expect(signalBar(0)).toBe(SIGNAL_BARS[4])   // >=0 -> full bars
+    expect(signalBar(-45)).toBe(SIGNAL_BARS[4]) // measured: NIMO_Network
+    expect(signalBar(-50)).toBe(SIGNAL_BARS[4]) // boundary: <=50
+    expect(signalBar(-55)).toBe(SIGNAL_BARS[3]) // measured: TP-LINK_12E0-5G
+    expect(signalBar(-60)).toBe(SIGNAL_BARS[3]) // boundary
+    expect(signalBar(-70)).toBe(SIGNAL_BARS[2]) // boundary & measured: ChinaNet-D2yt
     expect(signalBar(-75)).toBe(SIGNAL_BARS[1])
-    expect(signalBar(-80)).toBe(SIGNAL_BARS[1]) // 边界
+    expect(signalBar(-80)).toBe(SIGNAL_BARS[1]) // boundary
     expect(signalBar(-95)).toBe(SIGNAL_BARS[0])
   })
   it('五个字符就是 Vue2 的那五个(signalBars.js 逐字)', () => {

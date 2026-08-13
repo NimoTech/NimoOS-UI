@@ -4,7 +4,7 @@ import { useIsoBrowser } from './useIsoBrowser'
 const api = { getList: vi.fn() }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get folder() { return api } } }))
 
-// 真机 2026-08-03 `GET /v1/folder?path=/DATA` 的形状(逐字,含 size)。
+// Shape of real-device 2026-08-03 `GET /v1/folder?path=/DATA` (verbatim, including size).
 const LISTING = { content: [
   { name: '.system_data', path: '/DATA/.system_data', is_dir: true, is_symlink: false, size: 4096 },
   { name: 'Amalfi Coast', path: '/DATA/Amalfi Coast', is_dir: true, is_symlink: false, size: 4096 },

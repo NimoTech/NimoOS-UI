@@ -21,6 +21,7 @@ export const useDropStore = defineStore('drop', () => {
   const connected = ref(false)
   const transfers = ref<Record<string, TransferState>>({})
   const receiveQueue = ref<{ file: ReceivedFile; from: string }[]>([])
+  const unreachable = ref<Set<string>>(new Set())
 
   let server: ServerConnection | null = null
   let manager: PeersManager | null = null
@@ -100,6 +101,16 @@ export const useDropStore = defineStore('drop', () => {
       onFileReceived: (e) => { receiveQueue.value.push(e) },
       onTextReceived: (e) => { receivingCount[e.sender] = Number(e.text) || 1 },
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
+      onPeerConnected: (peerId) => { unreachable.value.delete(peerId) },
+      // Signaling worked but the two devices could not open a direct
+      // connection (blocked UDP between them, no TURN relay configured).
+      // Latched per peer so a device we cannot reach does not repeat itself
+      // on every reconnect.
+      onPeerUnreachable: (peerId) => {
+        if (unreachable.value.has(peerId)) return
+        unreachable.value.add(peerId)
+        useToast().show(t('filesDropUnreachable'), 4000)
+      },
       onTransferBroken: (e) => {
         delete transfers.value[e.peerId]
         // A transfer the user stopped themselves is not an interruption -- both
@@ -118,15 +129,17 @@ export const useDropStore = defineStore('drop', () => {
     window.removeEventListener('pagehide', onPageHide)
     manager?.destroy(); manager = null
     server?.destroy(); server = null
-    peers.value = []; transfers.value = {}; receiveQueue.value = []
+    peers.value = []; transfers.value = {}; receiveQueue.value = []; unreachable.value = new Set()
     receivingCount = {}; connected.value = false; selfId.value = ''; selfName.value = null
   }
 
   function sendFiles(peerId: string, files: File[]) {
     if (!files.length || !manager) return
-    if (!manager.sendFiles(peerId, files, selfId.value)) {
-      useToast().show(t('filesDropUnsupported'), 3000)
-    }
+    const result = manager.sendFiles(peerId, files, selfId.value)
+    if (result === 'ok') return
+    // 'not-ready' means a dial is now in flight -- tell the user to retry
+    // instead of leaving the press with no effect at all.
+    useToast().show(t(result === 'unsupported' ? 'filesDropUnsupported' : 'filesDropNotReady'), 3000)
   }
 
   function deviceName(peerId: string): string {

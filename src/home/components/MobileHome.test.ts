@@ -39,7 +39,7 @@ describe('MobileHome', () => {
     expect(tiles).toHaveLength(3)
     expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-photo' || c === 'kind-folder')))
       .toEqual([true, true, true])
-    // 顺序:files(r1) → photo(r2) → folder(r3)
+    // Order: files (r1) → photo (r2) → folder (r3)
     expect(tiles[0].classes()).toContain('kind-app')
     expect(tiles[1].classes()).toContain('kind-photo')
     expect(tiles[2].classes()).toContain('kind-folder')

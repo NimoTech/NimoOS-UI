@@ -15,9 +15,9 @@ const index = ref(imageIndex(items, props.item))
 const current = computed(() => items[index.value] ?? props.item)
 const src = computed(() => service.file.fileUrl(current.value.path))
 
-// —— 变换状态(自实现 缩放/旋转/平移,取代 viewerjs inline)——
-const scale = ref(1) // 交互增量倍数(落盘后归 1)
-const committedZoom = ref(1) // 已落盘总倍数;有效倍数 = committedZoom × scale
+// —— Transform state (self-implemented zoom/rotate/pan, replacing viewerjs inline) ——
+const scale = ref(1) // interactive incremental factor (returns to 1 after commit)
+const committedZoom = ref(1) // total committed factor; effective factor = committedZoom × scale
 const committedW = ref<number | null>(null)
 const committedH = ref<number | null>(null)
 const suppressTransition = ref(false)
@@ -34,9 +34,10 @@ const imgStyle = computed(() => ({
   ...(suppressTransition.value ? { transition: 'none' } : {}),
 }))
 
-// —— 停手落盘:缩放停止 150ms 后把倍数烙进布局尺寸,强制按最终倍数重画 ——
-// 合成器快路径拉伸缓存瓷砖会在砖缝处露 1px 细线(瓦线);重画路径逐砖从原图采样,
-// 无缝且比拉伸态更锐。交互中仍走 transform 快路径保流畅,缝只可能一闪而过。
+// —— Settle-on-idle: 150ms after zooming stops, bake the factor into layout size, forcing a repaint at the final factor ——
+// The compositor fast path stretches cached tiles and shows 1px hairlines at tile seams;
+// the repaint path resamples each tile from the original image — seamless and sharper than the
+// stretched state. During interaction we stay on the transform fast path for smoothness, so any seam can only flash by.
 const COMMIT_DELAY = 150
 let commitTimer: ReturnType<typeof setTimeout> | null = null
 let suppressTimer: ReturnType<typeof setTimeout> | null = null
@@ -50,12 +51,12 @@ function commitZoom() {
   if (!el || scale.value === 1) return
   const w = el.offsetWidth
   const h = el.offsetHeight
-  if (!w || !h) return // 图未加载完(布局尺寸为 0),跳过本次落盘
+  if (!w || !h) return // image not loaded yet (layout size 0), skip this commit
   committedW.value = Math.round(w * scale.value)
   committedH.value = Math.round(h * scale.value)
   committedZoom.value *= scale.value
   scale.value = 1
-  // 落盘帧 scale N→1 会被 transition 动画化而宽高瞬变 —— 暂禁过渡,过渡时长后恢复
+  // On the commit frame, scale N→1 would be animated by the transition while width/height change instantly — suppress the transition, restore after its duration
   suppressTransition.value = true
   if (suppressTimer) clearTimeout(suppressTimer)
   suppressTimer = setTimeout(() => { suppressTransition.value = false; suppressTimer = null }, 50)
@@ -77,18 +78,18 @@ function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
 
-// 换图(翻页)时复位变换
+// Reset the transform when switching images (paging)
 watch(index, resetTransform)
 
-// —— 拖拽平移 ——
+// —— Drag panning ——
 let dragging = false
 let startX = 0
 let startY = 0
 let baseX = 0
 let baseY = 0
 
-// 平移夹边界:图片任何时候至少留 PAN_KEEP px 在可视区内,拖不丢。
-// 无布局信息(图未加载/测试环境)时不夹。
+// Pan clamping: the image always keeps at least PAN_KEEP px inside the viewport, can't be dragged away.
+// No clamping without layout info (image not loaded / test environment).
 const PAN_KEEP = 48
 function clampPan() {
   const stage = stageEl.value
@@ -99,7 +100,7 @@ function clampPan() {
   let w = el.offsetWidth * scale.value
   let h = el.offsetHeight * scale.value
   if (!W || !H || !w || !h) return
-  if (rotation.value % 180 !== 0) [w, h] = [h, w] // 旋转 90/270°:可视宽高互换
+  if (rotation.value % 180 !== 0) [w, h] = [h, w] // rotated 90/270°: visual width/height swap
   const mx = (W + w) / 2 - Math.min(PAN_KEEP, w / 2)
   const my = (H + h) / 2 - Math.min(PAN_KEEP, h / 2)
   tx.value = Math.min(Math.max(tx.value, -mx), mx)
@@ -107,8 +108,8 @@ function clampPan() {
 }
 
 function onPointerDown(e: PointerEvent) {
-  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
-  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
+  // Toolbar-button pointerdowns bubble up to the stage; calling setPointerCapture here would let the stage
+  // capture the pointer, click would no longer be dispatched to buttons, and the whole toolbar row would go dead — let presses originating from the toolbar pass through.
   if ((e.target as HTMLElement).closest('.img-toolbar')) return
   dragging = true
   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
@@ -116,7 +117,7 @@ function onPointerDown(e: PointerEvent) {
 }
 function onPointerMove(e: PointerEvent) {
   if (!dragging) return
-  // 窗口外松手时 pointerup 可能丢失,dragging 卡 true,图片会"粘"在指针上 —— 按键已松即自愈
+  // pointerup can be lost when released outside the window, leaving dragging stuck true and the image "stuck" to the pointer — self-heal once the button is up
   if (e.pointerType === 'mouse' && e.buttons === 0) { dragging = false; return }
   tx.value = baseX + (e.clientX - startX)
   ty.value = baseY + (e.clientY - startY)
@@ -124,13 +125,13 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() { dragging = false }
 
-// —— 翻页 ——
+// —— Paging ——
 const disablePrev = computed(() => index.value === 0)
 const disableNext = computed(() => index.value === items.length - 1)
 function prev() { if (index.value > 0) index.value-- }
 function next() { if (index.value < items.length - 1) index.value++ }
 
-// —— 工具栏 5s 无操作自动隐藏(忠于 Vue2)——
+// —— Toolbar auto-hides after 5s of inactivity (faithful to Vue2) ——
 const isMoving = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 function onMouseMove() {
@@ -191,9 +192,9 @@ onBeforeUnmount(() => {
   justify-content: center;
   overflow: hidden;
   cursor: grab;
-  /* 舞台内禁止选区:选区可绕过 draggable=false 触发原生拖放(幽灵图+禁止光标) */
+  /* No text selection inside the stage: a selection can bypass draggable=false and trigger native drag (ghost image + no-drop cursor) */
   user-select: none;
-  /* 棋盘格透明底(忠于 Vue2) */
+  /* Checkerboard transparency background (faithful to Vue2) */
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 16 16'%3E%3Cpath fill='%23ccc' d='M8 6.5A1.5 1.5 0 1 0 8 9.5A1.5 1.5 0 1 0 8 6.5z' fill-opacity='0.1'/%3E%3C/svg%3E");
   background-repeat: repeat;
 }
@@ -205,8 +206,9 @@ onBeforeUnmount(() => {
   user-select: none;
   -webkit-user-drag: none;
   transition: transform 0.05s linear;
-  /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
-     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
+  /* Do NOT add will-change: transform — once a large image is pinned as a compositor layer, zooming only
+     stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo
+     (proven with on-device screenshots); without it, zooming triggers a repaint and is seamless. */
 }
 .img-toolbar {
   position: absolute;

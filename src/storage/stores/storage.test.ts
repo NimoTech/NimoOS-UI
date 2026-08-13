@@ -147,7 +147,7 @@ describe('createStorage', () => {
     const ok = await s.createStorage({ path: '/dev/sdb', name: 'a', format: false })
     expect(ok).toBe(false)
     expect(toastShow).toHaveBeenCalledWith('storageCreateFailed')
-    expect(storageList).toHaveBeenCalled() // loadAll 触达 storage.list
+    expect(storageList).toHaveBeenCalled() // loadAll reaches storage.list
   })
   it('在途守卫:创建进行中再调直接返回 false,不重复发请求', async () => {
     let resolve!: (v: unknown) => void
@@ -171,7 +171,7 @@ describe('createStorage', () => {
     storageList.mockReturnValue(new Promise((r) => (resolveList = r)))
     const s = useStorageStore()
     const p1 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
-    // 让 create() 的 reject 落定、进入 finally 的 loadAll 挂起窗口(storage.list 未 resolve)
+    // Let create()'s reject settle and enter the pending window of loadAll in finally (storage.list not yet resolved)
     await Promise.resolve()
     await Promise.resolve()
     const p2 = s.createStorage({ path: '/dev/sdb', name: 'a', format: true })
@@ -265,7 +265,7 @@ describe('loadRaid', () => {
     raidList.mockReturnValue(new Promise((r) => { resolve1 = r }))
     const store = useStorageStore()
     const p1 = store.loadRaid()
-    const p2 = store.loadRaid() // 应早退
+    const p2 = store.loadRaid() // should bail early
     resolve1([])
     await Promise.all([p1, p2])
     expect(raidList).toHaveBeenCalledTimes(1)
@@ -314,9 +314,9 @@ describe('创建任务检测/轮询', () => {
     await store.detectCreatingTask()
     await store.pollCreateTaskOnce()
     expect(store.creatingTask?.status).toBe('done')
-    expect(raidList).toHaveBeenCalled() // done 触发 loadRaid
+    expect(raidList).toHaveBeenCalled() // done triggers loadRaid
     await vi.advanceTimersByTimeAsync(1000)
-    expect(store.creatingTask).toBeNull() // 1000ms 后清
+    expect(store.creatingTask).toBeNull() // cleared after 1000ms
     vi.useRealTimers()
   })
 
@@ -332,7 +332,7 @@ describe('创建任务检测/轮询', () => {
 
   it('pollCreateTaskOnce: getTask 404(envelope 形状 {code:404}) → 清卡 + loadRaid', async () => {
     listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
-    const err = Object.assign(new Error('nf'), { code: 404 }) // service unwrap 把 success 写进 .code
+    const err = Object.assign(new Error('nf'), { code: 404 }) // service unwrap writes success into .code
     getTask.mockRejectedValue(err)
     raidList.mockResolvedValue([])
     const store = useStorageStore()
@@ -343,7 +343,7 @@ describe('创建任务检测/轮询', () => {
 
   it('pollCreateTaskOnce: getTask 404(真实 axios 形状 code=字符串+response.status) → 清卡 + loadRaid', async () => {
     listTasks.mockResolvedValue([{ task_id: 't2', status: 'creating', name: 'x', level: 1, disk_count: 2 }])
-    // 真实 AxiosError:.code 是非数字字符串('ERR_BAD_REQUEST'),数字状态码在 .response.status —— ?? 链会误判非 404
+    // Real AxiosError: .code is a non-numeric string ('ERR_BAD_REQUEST'); the numeric status code is at .response.status —— a ?? chain would misjudge it as non-404
     const err = Object.assign(new Error('nf'), { code: 'ERR_BAD_REQUEST', response: { status: 404 } })
     getTask.mockRejectedValue(err)
     raidList.mockResolvedValue([])
@@ -361,7 +361,7 @@ describe('创建任务检测/轮询', () => {
     const store = useStorageStore()
     await store.detectCreatingTask()
     await store.pollCreateTaskOnce()
-    expect(store.creatingTask?.status).toBe('done') // done 定时器(清 t2)已排队,尚未触发
+    expect(store.creatingTask?.status).toBe('done') // done timer (clears t2) is queued but has not fired yet
     store.startCreateTask({
       taskId: 't3',
       name: 'y',
@@ -376,7 +376,7 @@ describe('创建任务检测/轮询', () => {
       status: 'creating',
     })
     await vi.advanceTimersByTimeAsync(1000)
-    // 旧定时器只认 t2,不应清掉新挂上的 t3
+    // The old timer only recognizes t2; it must not clear the newly attached t3
     expect(store.creatingTask).not.toBeNull()
     expect(store.creatingTask?.taskId).toBe('t3')
     vi.useRealTimers()
@@ -384,7 +384,7 @@ describe('创建任务检测/轮询', () => {
 
   it('pollCreateTaskOnce: getTask 返回稀疏 payload 时保留当前 name/level/filesystem/diskCount(不被清空)', async () => {
     listTasks.mockResolvedValue([{ task_id: 't2', name: 'md-a', level: 5, filesystem: 'btrfs', disk_count: 4, status: 'creating', step: 1, progress: 10 }])
-    getTask.mockResolvedValue({ task_id: 't2', status: 'creating', step: 2, progress: 30 }) // 无 name/level/filesystem/disk_count
+    getTask.mockResolvedValue({ task_id: 't2', status: 'creating', step: 2, progress: 30 }) // no name/level/filesystem/disk_count
     const store = useStorageStore()
     await store.detectCreatingTask()
     expect(store.creatingTask?.name).toBe('md-a')
@@ -393,7 +393,7 @@ describe('创建任务检测/轮询', () => {
     expect(store.creatingTask?.level).toBe(5)
     expect(store.creatingTask?.filesystem).toBe('btrfs')
     expect(store.creatingTask?.diskCount).toBe(4)
-    expect(store.creatingTask?.progress).toBe(30) // 确认确实用了新 payload,不是压根没合并
+    expect(store.creatingTask?.progress).toBe(30) // confirms the new payload was actually used, not that merging never happened
   })
 
   it('dismissCreateTask 清卡', async () => {
@@ -413,19 +413,19 @@ describe('RAID 写 action', () => {
     const s = useStorageStore()
     const body = { name: 'vault', level: 5, disk_paths: ['/dev/sda', '/dev/sdb', '/dev/sdc'], chunk_kb: 512 as const, filesystem: 'btrfs' as const, enable_snapshots: true }
     const p1 = s.createRaid(body)
-    const p2 = s.createRaid(body) // 并发第二发被守卫吞掉
+    const p2 = s.createRaid(body) // second concurrent call swallowed by the guard
     const [r1, r2] = await Promise.all([p1, p2])
     expect(raidCreateMock).toHaveBeenCalledTimes(1)
     expect(raidCreateMock).toHaveBeenCalledWith(body)
-    expect(r2).toBeNull() // 单飞:第二发直接 null
+    expect(r2).toBeNull() // single-flight: second call returns null directly
     expect(r1).not.toBeNull()
-    expect(s.raidCreating).toBe(false) // finally 释放
+    expect(s.raidCreating).toBe(false) // released in finally
   })
 
-  // 真机验收 07-28 抓到:POST /v2/raid 后端返回裸 {task_id,status}(无 .data 信封,
-  // 见 NimoOS-Service src/raid.ts create() 注释 + route/v2/raid.go:187-190),
-  // 之前 store 多读一层 res?.data?.task_id 拿到 undefined → taskId 落空串,
-  // 进度弹窗/轮询盯着空 task id 永远不动。这里证明裸体也能正确取到 taskId。
+  // Caught during on-device acceptance 07-28: for POST /v2/raid the backend returns bare {task_id,status} (no .data envelope,
+  // see the NimoOS-Service src/raid.ts create() comment + route/v2/raid.go:187-190).
+  // Previously the store read one extra layer, res?.data?.task_id, got undefined → taskId became an empty string,
+  // and the progress modal/polling watched an empty task id forever. This proves the bare shape also yields taskId correctly.
   it('createRaid 对裸 {task_id,status}(无 .data)也能取到 taskId', async () => {
     raidCreateMock.mockResolvedValue({ task_id: 'abc', status: 'creating' })
     const s = useStorageStore()
@@ -440,7 +440,7 @@ describe('RAID 写 action', () => {
     const r = await s.createRaid({ name: 'a', level: 0, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'ext4', enable_snapshots: false })
     expect(r).toBeNull()
     expect(warn).toHaveBeenCalled()
-    // 断言日志不带整个 error 对象(不含 config)
+    // Assert the log does not carry the whole error object (no config)
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
     expect(s.raidCreating).toBe(false)
     warn.mockRestore()
@@ -448,25 +448,25 @@ describe('RAID 写 action', () => {
 
   it('removeRaid 发 DELETE {id} 无 body;成功 loadRaid 刷新、返回 true', async () => {
     raidRemoveMock.mockResolvedValue(undefined)
-    raidList.mockResolvedValue([]) // loadRaid 内部
+    raidList.mockResolvedValue([]) // inside loadRaid
     const s = useStorageStore()
     const ok = await s.removeRaid(7)
     expect(raidRemoveMock).toHaveBeenCalledWith(7)
     expect(raidRemoveMock).toHaveBeenCalledTimes(1)
-    expect(raidList).toHaveBeenCalled() // 刷新发生
+    expect(raidList).toHaveBeenCalled() // refresh happened
     expect(ok).toBe(true)
   })
 
   it('removeRaid 失败 → warn 只记 message(不含 config)、finally 仍刷新、busy 复位', async () => {
     raidRemoveMock.mockRejectedValue(Object.assign(new Error('boom'), { config: { data: 'x' } }))
-    raidList.mockResolvedValue([]) // loadRaid 内部
+    raidList.mockResolvedValue([]) // inside loadRaid
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const s = useStorageStore()
     const ok = await s.removeRaid(7)
     expect(ok).toBe(false)
     expect(warn).toHaveBeenCalled()
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
-    expect(s.raidRemoving).toBe(false) // finally 释放
+    expect(s.raidRemoving).toBe(false) // released in finally
     warn.mockRestore()
   })
 
@@ -488,7 +488,7 @@ describe('RAID 写 action', () => {
     expect(ok).toBe(false)
     expect(warn).toHaveBeenCalled()
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
-    expect(s.raidReplacing).toBe(false) // finally 释放
+    expect(s.raidReplacing).toBe(false) // released in finally
     warn.mockRestore()
   })
 
@@ -510,7 +510,7 @@ describe('RAID 写 action', () => {
     expect(r).toBeNull()
     expect(warn).toHaveBeenCalled()
     expect(JSON.stringify(warn.mock.calls)).not.toContain('config')
-    expect(s.raidRecovering).toBe(false) // finally 释放
+    expect(s.raidRecovering).toBe(false) // released in finally
     warn.mockRestore()
   })
 })

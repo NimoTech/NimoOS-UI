@@ -1,20 +1,23 @@
 /**
- * 换 WebUI 端口后的新端口探活。对位 Vue2 SettingsPanel.vue 的
- * validatePort(L1387) / savePort(L1396) / checkUpdate(L1424)。
+ * Liveness probe of the new port after changing the WebUI port. Maps to Vue2
+ * SettingsPanel.vue's validatePort (L1387) / savePort (L1396) / checkUpdate (L1424).
  *
- * spec §5.1 明确 checkUiPort 不进共享包 —— 它打的是**任意绝对 URL**
- * (跨端口、跨源),而共享包的 axios 实例带 baseURL、认证头与 401 刷新拦截器,
- * 拿它打别的源既没必要也会把拦截器逻辑牵进来。这里用裸 fetch。
- * 网关对所有响应都带 Access-Control-Allow-Origin: *(2026-07-31 curl 实证),
- * 所以跨源 fetch 可行。
+ * spec §5.1 states checkUiPort does not go into the shared package -- it hits
+ * **arbitrary absolute URLs** (cross-port, cross-origin), while the shared package's
+ * axios instance carries baseURL, auth headers, and the 401 refresh interceptor; using
+ * it against another origin is both unnecessary and drags the interceptor logic in.
+ * Bare fetch is used here.
+ * The gateway sends Access-Control-Allow-Origin: * on all responses (verified via curl
+ * 2026-07-31), so cross-origin fetch works.
  */
 export const PROBE_INTERVAL_MS = 1500
-/** 移植纪律 #4:Vue2 只在成功时 clearInterval,失败会一直探到组件销毁。这里给上限 40 次 ≈ 60s。 */
+/** Porting discipline #4: Vue2 only clearInterval's on success; on failure it probes until the component is destroyed. Here we cap at 40 tries, about 60s. */
 export const PROBE_MAX_TRIES = 40
 
 /**
- * Vue2 用 `parseInt(this.port)` 校验 —— `'80.5'` 会被吃成 80、`'8o80'` 会被吃成 8。
- * 这是它的 bug,不照抄:这里要求整个字符串就是十进制整数。
+ * Vue2 validates with `parseInt(this.port)` -- `'80.5'` gets swallowed as 80 and
+ * `'8o80'` as 8. That's its bug, not copied: here the whole string must be a decimal
+ * integer.
  */
 export function validatePort(raw: string): { ok: true; port: number } | { ok: false } {
   const s = raw.trim()
@@ -32,14 +35,15 @@ export function buildProbeUrl(port: string, loc: Loc = window.location): string 
 }
 
 /**
- * 移植纪律 #5:Vue2 跳 `${protocol}//${host}:${port}`(根路径 = 旧 Vue2 应用)。
- * New-UI 挂在 /app/ 下,照抄会把用户甩出新 UI,所以保留当前 pathname + hash。
+ * Porting discipline #5: Vue2 redirects to `${protocol}//${host}:${port}` (root path =
+ * the old Vue2 app). New-UI is mounted under /app/, so copying that would throw the
+ * user out of the new UI; keep the current pathname + hash instead.
  */
 export function buildRedirectUrl(port: string, loc: FullLoc = window.location): string {
   return `${loc.protocol}//${loc.hostname}:${port}${loc.pathname}${loc.hash}`
 }
 
-/** 单次探活。通了返回后端报的端口字符串,否则 null。**任何异常都吞掉** —— 切换期间连不上是常态。 */
+/** Single probe. Returns the port string reported by the backend when reachable, else null. **All exceptions are swallowed** -- being unreachable during the switchover is normal. */
 export async function probeUiPort(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, { cache: 'no-store' })

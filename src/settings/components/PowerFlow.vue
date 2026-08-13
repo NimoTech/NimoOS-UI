@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue 的侧栏电源块(L33-46)+ 两个确认弹窗(L711-712)
-// + 电源状态浮层(L714-790,6 个态)。相位机在 util/powerFlow.ts,这里只管界面。
+// Counterpart of Vue2 SettingsPanel.vue's sidebar power block (L33-46) + two confirm dialogs (L711-712)
+// + power status overlay (L714-790, 6 states). The phase machine lives in util/powerFlow.ts; this file only handles UI.
 import { onBeforeUnmount, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -25,15 +25,15 @@ onBeforeUnmount(() => flow.reset())
 async function doShutdown() {
   askShutdown.value = false
   flow.startShutdown()
-  // Vue2 是 .catch(()=>{}) —— 关机请求常常在响应回来之前连接就断了,
-  // 报错不代表没关成功,所以不因此中断相位机。
-  try { await service.sys.power('off') } catch { /* 见上 */ }
+  // Vue2 uses .catch(()=>{}) — the shutdown request's connection often drops before
+  // the response arrives, so an error doesn't mean shutdown failed; don't abort the phase machine.
+  try { await service.sys.power('off') } catch { /* see above */ }
 }
 
 async function doRestart() {
   askRestart.value = false
   flow.startRestart()
-  try { await service.sys.power('restart') } catch { /* 同上 */ }
+  try { await service.sys.power('restart') } catch { /* same as above */ }
 }
 
 function close() { flow.reset() }
@@ -93,6 +93,6 @@ function close() { flow.reset() }
   font-size: 16px; cursor: pointer; font-family: inherit;
 }
 .pf-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
-/* 关机是破坏性动作,hover 给危险色提示(Vue2 的 .power-item-btn.attention 同理) */
+/* Shutdown is destructive; hover shows the danger color (same as Vue2's .power-item-btn.attention) */
 .pf-shutdown:hover { color: var(--remove-fg); border-color: var(--remove-fg); }
 </style>

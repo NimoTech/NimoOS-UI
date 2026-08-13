@@ -11,13 +11,13 @@ export interface InstalledApp {
   id: string
   title: string
   icon: string
-  status: string          // docker 主容器 State;后端取不到时 "unknown"
+  status: string          // docker main container State; "unknown" when the backend cannot read it
   updateAvailable: boolean
   isUncontrolled: boolean
   webUrl: string | null
 }
 
-/** pending 兜底:MessageBus buffer=1 可能丢 end 事件,30s 无收敛就主动重拉(spec §5) */
+/** Pending fallback: MessageBus buffer=1 may drop the end event; refetch proactively after 30s without convergence (spec §5) */
 export const PENDING_TIMEOUT_MS = 30_000
 
 export function mapInstalled(id: string, raw: ComposeAppWithStoreInfo, currentHost: string): InstalledApp {
@@ -47,8 +47,8 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
       const map = await service.compose.list()
       const host = window.location.hostname
       apps.value = Object.entries(map)
-        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——
-        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。
+        // System background containers (nimoos.system=true, e.g. AI agent / Photos ML) are hidden from users —
+        // consistent with the desktop appgrid (same rule as backend isSystemComposeApp).
         .filter(([, raw]) => !isSystemComposeApp(raw))
         .map(([id, raw]) => mapInstalled(id, raw, host))
         .sort((a, b) => a.title.localeCompare(b.title) || a.id.localeCompare(b.id))
@@ -63,7 +63,7 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
     timers[id] = setTimeout(() => { resolve(id) }, PENDING_TIMEOUT_MS)
   }
 
-  /** 收敛:清 pending + 重拉列表(操作完成 / 事件到达 / 30s 兜底共用同一出口) */
+  /** Converge: clear pending + refetch the list (op completion / event arrival / 30s fallback all share this exit) */
   function resolve(id: string) {
     clearTimeout(timers[id]); delete timers[id]
     if (pending.value[id]) {
@@ -82,12 +82,12 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
   async function setStatus(id: string, action: 'start' | 'stop' | 'restart') {
     begin(id, action)
     try { await service.compose.setStatus(id, action) } catch (e) { clearPendingOnly(id); throw e }
-    // 后端受理即返(SetStatus 内 go func 异步执行),这里不收敛——否则「处理中」闪没、
-    // 且 begin 挂的 30s 兜底被取消,end 事件一丢(buffer=1)列表就永久陈旧。
-    // 收敛路径:app:*-end/-error 事件 → resolve;事件丢失 → 30s 兜底 resolve。
+    // Backend returns on acceptance (SetStatus runs async in a go func); do not converge here — otherwise
+    // the "processing" state flashes away, begin's 30s fallback is cancelled, and one dropped end event (buffer=1) leaves the list stale forever.
+    // Convergence paths: app:*-end/-error event → resolve; event lost → 30s fallback resolve.
   }
 
-  /** 检查并更新:返回后端 message(「已是最新」/「异步更新中」),真在更新时 app:update-* 事件接管 pending */
+  /** Check and update: returns backend message ("already up to date" / "updating asynchronously"); when an update really runs, app:update-* events take over pending */
   async function update(id: string): Promise<string> {
     begin(id, 'update')
     try {
@@ -100,17 +100,17 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
   async function uninstall(id: string, deleteConfigFolder: boolean) {
     begin(id, 'uninstall')
     try { await service.compose.uninstall(id, { deleteConfigFolder }) } catch (e) { clearPendingOnly(id); throw e }
-    // 同 setStatus:受理即返,不提前收敛;uninstall-end 事件走 evict(图标立即消失)+重拉,
-    // 事件丢失由 30s 兜底重拉收敛。
+    // Same as setStatus: returns on acceptance, no early convergence; the uninstall-end event goes through evict (icon disappears immediately) + refetch,
+    // and a lost event converges via the 30s fallback refetch.
   }
 
-  /** 立即移除(容器 destroy / uninstall-end),后续 refresh 再收敛一次 */
+  /** Remove immediately (container destroy / uninstall-end); a later refresh converges once more */
   function evict(id: string) {
     clearPendingOnly(id)
     apps.value = apps.value.filter((a) => a.id !== id)
   }
 
-  /** MessageBus app:* 生命周期事件 → pending 收敛(页面接线调用;props 已被 useMessageBus 解包) */
+  /** MessageBus app:* lifecycle events → pending convergence (called from page wiring; props already unwrapped by useMessageBus) */
   function onAppEvent(name: string, props: unknown) {
     const m = EVENT_RE.exec(name)
     if (!m) return
@@ -119,11 +119,11 @@ export const useInstalledAppsStore = defineStore('installed-apps', () => {
     if (!id) return
     const [, op, phase] = m
     if (phase === 'begin') begin(id, op as AppOp)
-    else if (op === 'uninstall' && phase === 'end') { evict(id); resolve(id) } // 图标立即消失,再重拉收敛
-    else resolve(id) // end 与 error 都收敛;error 的 toast 由页面层做
+    else if (op === 'uninstall' && phase === 'end') { evict(id); resolve(id) } // icon disappears immediately, then refetch to converge
+    else resolve(id) // both end and error converge; the error toast is handled at the page layer
   }
 
-  /** 设置保存受理后置 pending(PUT 受理即返,Apply 是 go func 异步;收敛靠 apply-changes 事件/30s 兜底) */
+  /** Mark pending once a settings save is accepted (PUT returns on acceptance, Apply runs async in a go func; convergence via apply-changes event / 30s fallback) */
   function markApplying(id: string) { begin(id, 'apply-changes') }
 
   return { apps, loading, pending, refresh, setStatus, update, uninstall, evict, onAppEvent, markApplying }

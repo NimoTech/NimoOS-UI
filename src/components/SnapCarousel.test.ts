@@ -17,9 +17,9 @@ describe('SnapCarousel', () => {
     const viewport = w.get('.snap-viewport').element as HTMLElement
     viewport.scrollBy = vi.fn()
     Object.defineProperty(viewport, 'clientWidth', { value: 1000, configurable: true })
-    // jsdom 里 scrollWidth=0 → 两端钮均 disabled,先撑出可滚动几何再点
+    // In jsdom scrollWidth=0 → both end buttons disabled; establish scrollable geometry before clicking
     Object.defineProperty(viewport, 'scrollWidth', { value: 3000, configurable: true })
-    await w.get('.snap-viewport').trigger('scroll') // 触发一次几何重算
+    await w.get('.snap-viewport').trigger('scroll') // trigger one geometry recalculation
     await w.get('.snap-next').trigger('click')
     expect(viewport.scrollBy).toHaveBeenCalledWith({ left: 900, behavior: 'smooth' })
     await w.get('.snap-prev').trigger('click')
@@ -34,12 +34,12 @@ describe('SnapCarousel', () => {
     const viewport = w.get('.snap-viewport').element as HTMLElement
     const img = w.get('.probe').element as HTMLElement
     Object.defineProperty(viewport, 'clientWidth', { value: 1000, configurable: true })
-    // 挂载时刻:图片还没解码,scrollWidth≈0 → atEnd=true → next 钮 disabled
+    // At mount time: the image is not decoded yet, scrollWidth≈0 → atEnd=true → next button disabled
     Object.defineProperty(viewport, 'scrollWidth', { value: 0, configurable: true })
     await nextTick()
     expect(w.get('.snap-next').attributes('disabled')).toBeDefined()
 
-    // 图片异步解码完成撑开内容;img 的 load 事件不冒泡,但捕获阶段应能被 viewport 上的监听捕获到并触发重算
+    // The image finishes decoding asynchronously and widens the content; img load events don't bubble, but the capture-phase listener on the viewport should catch it and trigger a recalculation
     Object.defineProperty(viewport, 'scrollWidth', { value: 3000, configurable: true })
     img.dispatchEvent(new Event('load'))
     await nextTick()
@@ -62,7 +62,7 @@ describe('SnapCarousel', () => {
     const extra = document.createElement('div')
     extra.className = 'probe'
     viewport.appendChild(extra)
-    // MutationObserver 回调是微任务,需多等一拍
+    // MutationObserver callbacks are microtasks; wait one extra beat
     await new Promise((r) => setTimeout(r, 0))
     await nextTick()
 

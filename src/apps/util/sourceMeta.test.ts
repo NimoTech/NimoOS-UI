@@ -23,7 +23,7 @@ describe('sourceMeta', () => {
 
   it('官方源:出厂默认主店(jsDelivr IceWhaleTech/CasaOS-AppStore)', () => {
     expect(isOfficialSource('https://cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@gh-pages/store/main.zip')).toBe(true)
-    // 同 org 其它仓 / 其它 org 的 jsDelivr 源不是官方
+    // jsDelivr sources for other repos in the same org / other orgs are not official
     expect(isOfficialSource('https://cdn.jsdelivr.net/gh/IceWhaleTech/OtherRepo@main/store.zip')).toBe(false)
     expect(isOfficialSource('https://cdn.jsdelivr.net/gh/bigbeartechworld/big-bear-casaos@master/store.zip')).toBe(false)
   })

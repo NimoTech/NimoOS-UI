@@ -9,7 +9,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { users: { saveAvatar: (...a: unknown[]) => saveAvatar(...a) } },
 }))
 
-// cropper 是 canvas 库,jsdom 里跑不动真实渲染 —— 只桩掉组件、保留它的 props 与 change 契约。
+// cropper is a canvas library; real rendering can't run in jsdom — stub the components only, keeping their props and change contract.
 vi.mock('vue-advanced-cropper', () => ({
   Cropper: {
     name: 'Cropper',
@@ -27,9 +27,10 @@ vi.mock('vue-advanced-cropper/dist/style.css', () => ({}))
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// ⚠️ 花括号、不要写成 `beforeEach(() => mock.mockReset().mockResolvedValue(x))` ——
-// 那种链式写法会把 mock 当 teardown 回调返回给 vitest,测试后被再调一次,
-// 抛错实现产生的 rejected promise 没人 await → 报成 Unknown Error(本期 ChangePasswordForm 栽过)。
+// ⚠️ Use braces; do not write `beforeEach(() => mock.mockReset().mockResolvedValue(x))` —
+// that chained form returns the mock to vitest as a teardown callback, which gets called
+// again after the test; the rejected promise from a throwing implementation is never
+// awaited → reported as Unknown Error (ChangePasswordForm hit this in this sprint).
 beforeEach(() => {
   saveAvatar.mockReset()
   saveAvatar.mockResolvedValue(undefined)
@@ -82,7 +83,7 @@ describe('AvatarCropper —— 对位 Vue2 state 4(:746-760)+ saveAvatar(:442-46
     const canvas = emitChange(w)
     await w.vm.$nextTick()
     expect(await submitOf(w)).toBe(true)
-    // 后端只 strip `data:image/png;base64,` —— toDataURL 必须无参(默认 PNG)
+    // The backend only strips `data:image/png;base64,` — toDataURL must take no args (defaults to PNG)
     expect(canvas.toDataURL).toHaveBeenCalledWith()
     expect(saveAvatar).toHaveBeenCalledWith('data:image/png;base64,PNGDATA')
   })

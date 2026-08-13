@@ -7,10 +7,11 @@ import type { InstalledApp } from '../stores/installedApps'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// AppActionsMenu 是 Portal 组件,stub 成直接渲染 menu slot。
-// 真实 DropdownMenuItem 在 setup() 里 inject MenuRootContext(由真实 DropdownMenuRoot 提供),
-// stub 掉 Root 后挂载会抛 "must be used within MenuRoot"(FileContextMenu.test 同款坑)——
-// 连 Item/Separator 一起 stub,只验证"渲染哪些项 + 点击 emit"这层纯条件逻辑,定位/键盘留真机验。
+// AppActionsMenu is a Portal component; stub it to render the menu slot directly.
+// The real DropdownMenuItem injects MenuRootContext in setup() (provided by the real DropdownMenuRoot),
+// so mounting with Root stubbed throws "must be used within MenuRoot" (same pitfall as FileContextMenu.test) —
+// stub Item/Separator too, and only verify the pure conditional logic of "which items render + click emits";
+// positioning/keyboard behavior is left to on-device verification.
 const MenuStub = { template: '<div class="menu"><slot name="menu" /></div>' }
 const ItemStub = { emits: ['select'], template: '<div @click="$emit(\'select\')"><slot /></div>' }
 

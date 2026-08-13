@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { mapStoreApp, filterStoreApps, type StoreApp } from './storeApp'
 
-// 真机形态(Jellyfin x-casaos 样本裁剪)
+// Real-device shape (trimmed from a Jellyfin x-casaos sample)
 const RAW = {
   title: { en_us: 'Jellyfin' },
   tagline: { en_us: 'The personal Media System', zh_cn: '个人媒体系统' },

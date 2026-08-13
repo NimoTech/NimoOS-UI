@@ -29,19 +29,19 @@ const minMB = ref<number | null>(null)
 
 onMounted(() => {
   store.loadDetail(id.value)
-  // 深链直达详情时目录未加载 → 补拉一次以判「已装」(全量目录本就无分页,代价可接受)
+  // Deep-linking straight to the detail page means the catalog isn't loaded → fetch it once to determine "installed" (the full catalog has no pagination anyway, acceptable cost)
   if (!store.catalogLoaded) store.loadCatalog().catch(() => {})
 })
 
 onMounted(() => {
   service.appstore.getAppCompose(id.value)
     .then((y) => { minMB.value = minMemoryMB(y, id.value) })
-    .catch(() => { minMB.value = null }) // 拿不到就不显示(失败静默,Featured 同款)
+    .catch(() => { minMB.value = null }) // if unavailable just don't show it (silent failure, same as Featured)
 })
 
 const title = computed(() => resolveAppText(store.detail?.title, locale.value, id.value))
 const tagline = computed(() => resolveAppText(store.detail?.tagline, locale.value, ''))
-/** renderMarkdown 是 html:false 的 markdown-it——原始 HTML 被转义,v-html 其输出安全(§3.8-2) */
+/** renderMarkdown is markdown-it with html:false — raw HTML is escaped, so v-html on its output is safe (§3.8-2) */
 const descHtml = computed(() => renderMarkdown(resolveAppText(store.detail?.description, locale.value, '')))
 const shots = computed(() => (Array.isArray(store.detail?.screenshot_link) ? store.detail.screenshot_link : []))
 const installed = computed(() => store.isInstalled(id.value))
@@ -63,7 +63,7 @@ function backToStore() {
   router.push({ name: 'apps-store' })
 }
 
-// 截图放大层(自绘 overlay:P4a viewers 同款内联全屏模式,不引 Dialog)
+// Screenshot zoom layer (hand-rolled overlay: same inline fullscreen mode as the P4a viewers, no Dialog import)
 const zoomSrc = ref<string | null>(null)
 function onZoomKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') zoomSrc.value = null
@@ -130,7 +130,7 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
             />
           </SnapCarousel>
 
-          <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false,输出已转义 -->
+          <!-- eslint-disable-next-line vue/no-v-html -- renderMarkdown html:false, output already escaped -->
           <div class="detail-desc" v-html="descHtml"></div>
         </template>
       </main>
@@ -190,7 +190,7 @@ onUnmounted(() => document.removeEventListener('keydown', onZoomKeydown))
 .detail-desc :deep(a) { color: var(--accent); }
 .detail-desc :deep(img) { max-width: 100%; }
 .detail-desc :deep(code) { background: var(--chip-bg); border-radius: 4px; padding: 1px 5px; word-break: break-all; }
-/* 同 PreInstallTips:围栏代码块折行,不横向撑破描述区 */
+/* Same as PreInstallTips: fenced code blocks wrap instead of stretching the description area horizontally */
 .detail-desc :deep(pre) {
   background: var(--chip-bg); border-radius: 8px; padding: 10px 12px; margin: 8px 0;
   white-space: pre-wrap; word-break: break-all; max-width: 100%;

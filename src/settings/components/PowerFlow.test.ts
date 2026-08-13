@@ -81,9 +81,10 @@ describe('PowerFlow 按钮与确认', () => {
     expect(w.text()).toContain('正在关机')
   })
 
-  // 评审 fix round 2 · Minor:浮层挡着的等待态下,两个电源按钮键盘上仍可达
-  // ("重启超时"阶段 Tab 过去按 Enter 能真的把机器关了)。不做焦点陷阱(独立工作量),
-  // 只禁用按钮本身 —— phase !== 'idle' 时两个按钮都要 disabled。
+  // Review fix round 2 · Minor: in the waiting state behind the overlay, both power
+  // buttons remain keyboard-reachable (during the "restart timeout" phase, tabbing over
+  // and pressing Enter could really shut the machine down). No focus trap (separate
+  // effort) — just disable the buttons: both must be disabled when phase !== 'idle'.
   it('非 idle 相位下电源按钮禁用,防止浮层下被键盘触发(评审 fix round 2)', async () => {
     const w = mountIt()
     await w.find('.pf-shutdown').trigger('click')
@@ -95,8 +96,9 @@ describe('PowerFlow 按钮与确认', () => {
   })
 })
 
-// 六个浮层态的断言在 PowerOverlay.test.ts(纯展示组件,只吃一个 phase prop) ——
-// 不需要在 PowerFlow 上开 __setPhase 这类只为测试存在的生产接口。
+// Assertions for the six overlay states live in PowerOverlay.test.ts (pure presentational
+// component that only takes a phase prop) — no need to add test-only production hooks
+// like __setPhase on PowerFlow.
 
 describe('PowerFlow 清理', () => {
   it('卸载时停掉相位机的定时器', async () => {

@@ -13,9 +13,9 @@ import TimeMachineRail from './TimeMachineRail.vue'
 const props = defineProps<{
   volumeUuid: string
   mountPoint: string
-  /** 当前目录相对卷根的路径,空串表示就在卷根 */
+  /** Current directory path relative to the volume root; empty string means at the volume root */
   relPath: string
-  /** 顶部那行给人看的路径(虚拟路径,带磁盘显示名) */
+  /** The human-readable path shown at the top (virtual path, with the disk display name) */
   folderLabel: string
 }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'select', path: string): void; (e: 'open-settings'): void }>()
@@ -24,11 +24,13 @@ const { t } = useI18n()
 const store = useSnapshotStore()
 const selectedIndex = ref(0)
 
-// 分组复用 SP6-P5 已验收的 groupSnapshotsByDay(不重写一套),再摊平成带 flatIndex 的列表:
-// 卡堆、键盘步进、刻度尺全都在这个跨天的扁平下标上工作。
-// label.i18nKey 本身就是本仓库的键名('snapToday' / 'snapYesterday',见 storage/util/snapshotView.ts
-// snapshotDayLabel),直接 t() 即可 —— 与 storage/components/SnapshotTimeline.vue 的写法一致,
-// 不要再搬一层 'Today'/'Yesterday' 映射(那是两套不同的取值,搬了反而恒判假、恒吞成"昨天")。
+// Grouping reuses the SP6-P5 accepted groupSnapshotsByDay (not rewritten), then flattens into
+// a list with flatIndex: the deck, keyboard stepping, and rail all work on this cross-day flat
+// index. label.i18nKey is already this repo's key name ('snapToday' / 'snapYesterday', see
+// snapshotDayLabel in storage/util/snapshotView.ts), so just t() it — same as
+// storage/components/SnapshotTimeline.vue. Do not add another 'Today'/'Yesterday' mapping
+// layer (those are two different value sets; mapping would always compare false and always
+// collapse to "yesterday").
 const groups = computed(() => {
   let i = 0
   return groupSnapshotsByDay(store.snapshots).map((g) => ({
@@ -41,9 +43,10 @@ const flatItems = computed(() => groups.value.flatMap((g) => g.items.map((it) =>
 const selectedItem = computed(() => flatItems.value[selectedIndex.value] ?? null)
 const momentText = computed(() => (selectedItem.value ? `${selectedItem.value.dayLabelText} ${selectedItem.value.time}` : ''))
 
-// 只给卡堆窗口里那几张拉预览(卡片显示"那一刻这个文件夹长什么样")—— 与 TimeMachineDeck
-// 内部渲染可见窗口用的是同一个 buildVisibleStack,窗口大小必须一致 —— 两处都从
-// timeMachineMath.ts 的 DECK_WINDOW 取值,不再各写各的字面量(评审修复 Important)。
+// Fetch previews only for the cards in the deck window (cards show "what this folder looked
+// like at that moment") — this uses the same buildVisibleStack as TimeMachineDeck's internal
+// visible-window rendering, and the window sizes must match — both read DECK_WINDOW from
+// timeMachineMath.ts instead of separate literals (review fix, Important).
 const visibleNames = computed(() =>
   buildVisibleStack(flatItems.value, selectedIndex.value, DECK_WINDOW.depth, DECK_WINDOW.past).map((e) => e.item.name))
 const { previews } = useDeckPreview({
@@ -55,7 +58,7 @@ const { previews } = useDeckPreview({
 async function load() {
   if (!props.volumeUuid) return
   await store.loadSnapshots(props.volumeUuid)
-  // 每次(重新)拉列表都回到最新一张 —— 旧的下标在新列表里未必还指同一个快照
+  // Every (re)load returns to the newest snapshot — the old index may not point to the same snapshot in the new list
   selectedIndex.value = 0
 }
 defineExpose({ reload: load })
@@ -63,49 +66,60 @@ defineExpose({ reload: load })
 function enterSnapshot() {
   if (!props.mountPoint || !selectedItem.value) return
   const root = snapshotBrowsePath(props.mountPoint, selectedItem.value.name)
-  // ⚠️ 对 Vue2 的有意改正(spec §4 第 1 条):Vue2 的 enterSnapshot 只跳快照根,用户在
-  // /Photos/2024 打开时间机器、进去后被扔回卷根还得一层层点回来。卡片展示的就是当前
-  // 文件夹在那一刻的样子,进入自然应落在同一个相对路径。
-  // 评审修复(Important,spec §2.3):那一刻这个快照里根本没有这个目录时(useDeckPreview
-  // 拉目录内容 404 → status:'missing',卡片已经在显示"此时还没有这个文件夹")仍然可以
-  // 进入,但落到快照根 —— 否则拼一个不存在的子路径,files.load 的 catch 把它悄悄降级成
-  // "空文件夹",用户会误以为这个快照什么都没备份。
+  // ⚠️ Deliberate correction over Vue2 (spec §4 item 1): Vue2's enterSnapshot only jumps to
+  // the snapshot root — a user opening Time Machine at /Photos/2024 got dumped back at the
+  // volume root and had to click back down level by level. The card shows the current folder
+  // at that moment, so entering should naturally land on the same relative path.
+  // Review fix (Important, spec §2.3): when the snapshot simply doesn't contain this directory
+  // (useDeckPreview's directory fetch 404s → status:'missing', and the card is already showing
+  // "this folder didn't exist yet"), entering is still allowed but lands at the snapshot
+  // root — otherwise we'd compose a nonexistent subpath, files.load's catch would silently
+  // degrade it to an "empty folder", and the user would wrongly conclude this snapshot backed
+  // up nothing.
   const missing = previews.value[selectedItem.value.name]?.status === 'missing'
   emit('select', !missing && props.relPath ? `${root}/${props.relPath}` : root)
 }
 
-// 评审修复(Critical,第一轮):这个 handler 挂在 document 上(需要不管焦点具体落在覆盖层内
-// 哪个子元素都能收到方向键/Esc/Enter),但这意味着叠在它之上的任何弹窗——典型如齿轮设置弹窗
-// (reka-ui DialogContent,Teleport 到 document.body,不是 .tm-overlay 的 DOM 后代)——按键
-// 都会一并冒泡到这里:Esc 关设置弹窗的同时把时间机器也关了、备注框里按 Enter 变成"进入
-// 快照"、方向键输入框调数值的同时拨走了背后选中的快照。两道防线一起上(单独一道都不够):
-// 1) 事件源(e.target)不在覆盖层根元素内 —— 覆盖住"叠着别的弹窗"这整类场景,因为
-//    reka-ui 的弹层内容一律 Teleport 出去,天然不是 rootEl 的后代;
-// 2) 事件源是原生输入控件(INPUT/TEXTAREA)—— 防御性兜底,哪怕将来覆盖层自己内部长出
-//    输入框也不会被这里的方向键/回车吞掉。
-// 只在 e.target 是真实 Element 时才做这两道判定:同目录测试沿用的
-// `document.dispatchEvent(...)` 写法里 target 就是 document 本身(不是 Element),这类
-// 合成事件本就没有"落在哪个元素上"这个信息,直接放行按原逻辑处理,与真实浏览器里
-// keydown 事件的 target 恒为某个具体元素(而不是 document)不矛盾。
+// Review fix (Critical, round 1): this handler is attached to document (arrow keys/Esc/Enter
+// must arrive no matter which child of the overlay holds focus), but that means any dialog
+// stacked above it — typically the gear settings dialog (reka-ui DialogContent, Teleported to
+// document.body, not a DOM descendant of .tm-overlay) — bubbles its keys here too: Esc closes
+// the settings dialog AND the time machine, Enter in the note field becomes "enter snapshot",
+// and arrow keys adjusting an input also step the selected snapshot behind it. Two guards
+// together (either alone is insufficient):
+// 1) event source (e.target) is not inside the overlay root — covers the whole "another
+//    dialog stacked on top" class, since reka-ui popup content is always Teleported out and
+//    is naturally not a descendant of rootEl;
+// 2) event source is a native input control (INPUT/TEXTAREA) — defensive fallback, so even if
+//    the overlay grows its own inputs later, arrows/Enter won't be swallowed here.
+// These two checks run only when e.target is a real Element: in the sibling tests'
+// `document.dispatchEvent(...)` style, target is document itself (not an Element); such
+// synthetic events carry no "which element it landed on" info, so they pass straight through
+// to the original logic — not in conflict with real browsers, where a keydown target is
+// always a concrete element (never document).
 //
-// 评审复核(Critical,第二轮):上面两道防线挂在 **keyup** 上时仍然漏防。真实 reka 弹窗
-// 探针实测的时序——
-//   keydown: reka 的 DismissableLayer(vueuse onKeyStroke 默认监听 keydown)在这一刻就把
-//            设置弹窗关掉,并把焦点还回 .tm-overlay(FocusScope 卸载时 restoreFocus)。
-//   keyup:   同一次物理按键的 keyup 到达时,e.target 已经变成 rootEl 自己(因为焦点已经
-//            被上一步归还进来)——防线①(rootEl.contains(target))和防线②(不是 INPUT)
-//            对这个新 target 都会放行,于是这里又把时间机器自己也关掉了。
-// 根治办法:把监听整个从 keyup 换成 keydown。keydown 那一刻,事件源还是设置弹窗自己的
-// DialogContent(Teleport 到 body,不是 rootEl 的后代),防线①能正确拦下;reka 自己的
-// keydown 监听器晚于我们(document 早于 window 收到冒泡)处理 Escape,只关它自己的弹窗,
-// 不会再有第二次"迟到的" keyup 把我们也带着关掉。
+// Review re-check (Critical, round 2): with the two guards attached to **keyup**, they still
+// leak. Timing measured with a real reka dialog probe —
+//   keydown: reka's DismissableLayer (vueuse onKeyStroke listens on keydown by default)
+//            closes the settings dialog right then and returns focus to .tm-overlay
+//            (FocusScope restoreFocus on unmount).
+//   keyup:   when the same physical keystroke's keyup arrives, e.target has already become
+//            rootEl itself (focus was returned in the previous step) — guard 1
+//            (rootEl.contains(target)) and guard 2 (not INPUT) both pass for this new target,
+//            so we closed the time machine too.
+// Root fix: move the listener entirely from keyup to keydown. At keydown time the event
+// source is still the settings dialog's own DialogContent (Teleported to body, not a rootEl
+// descendant), so guard 1 correctly blocks it; reka's own keydown listener handles Escape
+// after us (document receives the bubble before window), closing only its own dialog, and
+// there is no second "late" keyup to drag us closed as well.
 //
-// 顺带处理复核点名的既有隐患:焦点落在底栏按钮(取消/进入)上按 Enter 时,浏览器会把
-// Enter 键的默认动作(点击这个 button)当成 keydown 的一部分触发——如果这里的 Enter 分支
-// 还继续往下执行 enterSnapshot(),就会和按钮自己的 @click 处理器各发一次(例如聚焦在
-// "取消"按钮上按 Enter,会同时 emit close 又 emit select)。BUTTON 元素自己已经会响应
-// Enter,这里对 BUTTON 目标直接不处理 Enter,交给原生 click 做唯一那一件事;Escape/方向键
-// 不受影响(它们不会触发按钮的原生 click)。
+// Also handles a pre-existing hazard the re-check named: with focus on a bottom-bar button
+// (cancel/enter), pressing Enter makes the browser fire the key's default action (clicking
+// that button) as part of keydown — if the Enter branch here still ran enterSnapshot(), it
+// would fire once alongside the button's own @click handler (e.g. Enter while the "cancel"
+// button is focused would emit close AND select). BUTTON elements already respond to Enter
+// themselves, so for BUTTON targets we simply don't handle Enter and let the native click do
+// the one thing; Escape/arrows are unaffected (they don't trigger a button's native click).
 function onKeydown(e: KeyboardEvent) {
   const target = e.target
   if (target instanceof Element) {
@@ -114,11 +128,11 @@ function onKeydown(e: KeyboardEvent) {
   }
   const code = e.code || e.key
   if (code === 'Escape') { emit('close'); return }
-  // 与真 Time Machine 一致:↑ 往过去(下标更大,列表是 newest-first),↓ 回到现在
+  // Same as real Time Machine: ↑ goes toward the past (larger index, list is newest-first), ↓ back toward now
   if (code === 'ArrowUp') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, 1, flatItems.value.length); return }
   if (code === 'ArrowDown') { selectedIndex.value = stepSelectedIndex(selectedIndex.value, -1, flatItems.value.length); return }
   if (code === 'Enter') {
-    if (target instanceof Element && target.tagName === 'BUTTON') return // 按钮聚焦:原生 click 已经会做该做的事,这里不重复触发
+    if (target instanceof Element && target.tagName === 'BUTTON') return // focused button: native click already does the right thing; don't trigger twice
     enterSnapshot()
   }
 }
@@ -129,8 +143,9 @@ let previouslyFocused: HTMLElement | null = null
 onMounted(() => {
   load()
   document.addEventListener('keydown', onKeydown)
-  // 全屏覆盖层接管了整个视口,焦点必须跟着进来 —— 否则键盘用户按 Tab 会在下面那层
-  // 看不见的文件区里游走。卸载时归还,回到打开它的那颗按钮上。
+  // The full-screen overlay takes over the viewport, so focus must come along — otherwise a
+  // keyboard user's Tab would wander through the invisible files area underneath. Returned on
+  // unmount, back to the button that opened it.
   previouslyFocused = document.activeElement as HTMLElement | null
   rootEl.value?.focus()
 })
@@ -177,19 +192,23 @@ watch(() => props.volumeUuid, () => { load() })
 
 <style scoped>
 .tm-overlay {
-  /* z-index 900:高过文件区里的一切(全库文件区最高是 240),但**低于** Dialog.vue 的
-     1000/1001 —— 这样 T11 的齿轮设置弹窗天然叠在时间机器之上,不需要任何 z-index 覆写。
-     Vue2 那版把轮盘设到 4000、再想办法把弹窗抬到 4500,结果踩了 `::v-deep .modal` 编译成
-     后代选择器却匹配不到 teleport 出去的根节点这个坑(见 Vue2 SnapshotSettingsModal.vue
-     的 Fix Round 1 注释)。这里从一开始就不制造那个问题。 */
+  /* z-index 900: above everything in the files area (repo-wide files max is 240) but
+     **below** Dialog.vue's 1000/1001 — so the T11 gear settings dialog naturally stacks above
+     the time machine with no z-index override needed. The Vue2 version set the wheel to 4000
+     and then tried to lift the dialog to 4500, hitting the trap where `::v-deep .modal`
+     compiles to a descendant selector that can't match the teleported root node (see the
+     Fix Round 1 comment in Vue2 SnapshotSettingsModal.vue). Here we avoid creating that
+     problem in the first place. */
   position: fixed; inset: 0; z-index: 900; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
-  /* 卡堆放大到 3/4 屏后必须在"扣掉底栏和刻度尺之后"的那块地方居中,否则会被这两样
-     压住。两者都是绝对定位、不参与 flex 布局,所以在这里用等宽/等高的 padding 替它们
-     占位(右 96 = 刻度尺宽,下 76 = 底栏高)。顶上留 8px 给后排卡片往上退的余量。 */
+  /* With the deck grown to 3/4 screen it must center within the area left after subtracting
+     the bottom bar and the rail, or it gets covered by them. Both are absolutely positioned
+     and don't participate in flex layout, so padding of matching width/height stands in for
+     them here (right 96 = rail width, bottom 76 = bar height). 8px left at the top as
+     headroom for rear cards receding upward. */
   padding: 8px 96px 76px 0;
   background: var(--tm-bg); color: var(--tm-fg);
-  outline: none; /* 编程式聚焦(tabindex="-1"),不需要焦点环——覆盖层本身不是可点的控件 */
+  outline: none; /* programmatic focus (tabindex="-1"); no focus ring needed — the overlay itself is not a clickable control */
 }
 .tm-gear {
   position: absolute; top: 16px; right: 24px; z-index: 2;
@@ -197,13 +216,14 @@ watch(() => props.volumeUuid, () => { load() })
   font-size: 20px; line-height: 1; cursor: pointer;
   transition: color 0.2s var(--ease);
 }
-/* 悬停只提亮不旋转(用户反馈:齿轮转起来太跳)。 */
+/* Hover only brightens, no rotation (user feedback: a spinning gear is too jumpy). */
 .tm-gear:hover { color: var(--tm-fg); }
 .tm-empty { text-align: center; }
 .tm-empty-title { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
 .tm-empty-sub { font-size: 13px; color: var(--tm-fg-muted); margin: 0; }
-/* 骨架屏尺寸必须跟着 TimeMachineDeck 的 .tm-deck 走(同一组 min()):对不上的话,
-   列表加载完那一瞬间卡堆会从小方块"炸"成 3/4 屏,像闪了一下。 */
+/* The skeleton's size must track TimeMachineDeck's .tm-deck (same set of min() calls): if
+   they diverge, the moment the list finishes loading the deck "explodes" from a small square
+   to 3/4 screen, like a flash. */
 .tm-skeleton { position: relative; width: min(75vw, calc(100vw - 260px)); height: min(75vh, calc(100vh - 190px)); }
 .tm-skeleton-card {
   position: absolute; inset: 0; border-radius: 20px;

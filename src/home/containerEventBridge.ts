@@ -1,5 +1,5 @@
-/** docker daemon 容器事件 → 桌面即时同步的纯逻辑桥(便于单测,Home.vue 只做接线)。
- *  契约:spec 2026-07-16-container-event-push-design.md。 */
+/** Pure-logic bridge from docker daemon container events to instant desktop sync (unit-testable; Home.vue only does the wiring).
+ *  Contract: spec 2026-07-16-container-event-push-design.md. */
 export const CONTAINER_EVENT = 'docker:container:state-changed'
 
 export function createContainerEventHandler(opts: {
@@ -17,15 +17,15 @@ export function createContainerEventHandler(opts: {
     if (timer) clearTimeout(timer)
     timer = setTimeout(() => { timer = null; opts.refresh() }, ms)
   }
-  // 取消待触发的去抖定时器(如组件卸载时),幂等 —— 重复调用无害
+  // Cancel a pending debounce timer (e.g. on component unmount); idempotent — repeated calls are harmless
   function dispose() {
     if (timer) { clearTimeout(timer); timer = null }
   }
   return { handle, dispose }
 }
 
-/** 应用卸载完成事件。与容器 destroy 不同,它是明确的「应用已不存在」信号
- *  (更新/重建不发)——桌面可放心强制清位,手动固定的磁贴也一并移除。 */
+/** App-uninstall-complete event. Unlike container destroy, it is an explicit "app no longer exists" signal
+ *  (not fired on update/rebuild) — the desktop can safely force-clear its slot, removing manually pinned tiles too. */
 export const APP_UNINSTALL_END = 'app:uninstall-end'
 
 export function createUninstallEndHandler(opts: {

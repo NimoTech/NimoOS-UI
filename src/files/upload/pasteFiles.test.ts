@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { extractClipboardFiles } from './pasteFiles'
 
-// 构造最小 DataTransfer 桩:只需 files 属性(paste 事件里截图/复制文件都出现在
-// clipboardData.files);items 兜底路径用另一个桩覆盖。
+// Build a minimal DataTransfer stub: only the files property is needed (screenshots/copied files in a
+// paste event both show up in clipboardData.files); the items fallback path is covered by a separate stub.
 function dtWithFiles(files: File[]): DataTransfer {
   return { files, items: [] } as unknown as DataTransfer
 }
 
-const NOW = new Date(2026, 6, 21, 15, 30, 0) // 2026-07-21 15:30:00(月份从 0 起)
+const NOW = new Date(2026, 6, 21, 15, 30, 0) // 2026-07-21 15:30:00 (months are 0-based)
 
 describe('extractClipboardFiles', () => {
   it('null DataTransfer 返回空数组', () => {
@@ -51,7 +51,7 @@ describe('extractClipboardFiles', () => {
     const f = new File([new Uint8Array([1])], '报告.pdf', { type: 'application/pdf' })
     const out = extractClipboardFiles(dtWithFiles([f]), '粘贴图片', NOW)
     expect(out[0].relativePath).toBe('报告.pdf')
-    expect(out[0].file).toBe(f) // 有名文件不重建 File 对象
+    expect(out[0].file).toBe(f) // named files don't get a rebuilt File object
   })
 
   it('files 为空时兜底走 items(kind=file)', () => {

@@ -49,9 +49,10 @@ describe('PeersManager', () => {
     expect(made[0].close).toHaveBeenCalledOnce()
     expect(made[0].refresh).not.toHaveBeenCalled()
     expect(madeIds[1]).toBe('a') // 传了 peerId ⇒ 主叫(被叫是 null)
-    // 之后发文件走的是新 peer
+    // 之后发文件走的是新 peer(通道接通后)
+    made[1].hasOpenChannel = vi.fn(() => true)
     const files = [new File(['x'], 'x.txt')]
-    expect(pm.sendFiles('a', files, 'self1')).toBe(true)
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
     expect(made[1].sendFiles).toHaveBeenCalledWith(files, 'self1')
     expect(made[0].sendFiles).not.toHaveBeenCalled()
   })
@@ -114,7 +115,7 @@ describe('PeersManager', () => {
     pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
     expect(made[0].close).not.toHaveBeenCalled()
     expect(made[0].handleDisconnect).not.toHaveBeenCalled()
-    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe(true)
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('ok')
   })
   it('signal:无 peer 先按被叫建(peerId=null),再转 onServerMessage', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
@@ -124,15 +125,51 @@ describe('PeersManager', () => {
     expect(made.length).toBe(1)
     expect(made[0].onServerMessage).toHaveBeenCalledWith(sig)
   })
-  it('sendFiles:先发计数文本再发文件(Vue2 顺序);无 peer 返回 false', () => {
+  it('sendFiles:先发计数文本再发文件(Vue2 顺序);无 peer 则拨号并报 not-ready', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
-    const pm = new PeersManager({ send: vi.fn() }, events, { rtcSupported: true, makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never } })
+    const pm = new PeersManager({ send: vi.fn() }, events, { rtcSupported: true, makePeer: () => { const p = makeFakePeer({ hasOpenChannel: () => true }); made.push(p); return p as never } })
     pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
     const files = [new File(['x'], 'x.txt')]
-    expect(pm.sendFiles('a', files, 'self1')).toBe(true)
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
     expect(made[0].sendText).toHaveBeenCalledWith('1')
     expect(made[0].sendFiles).toHaveBeenCalledWith(files, 'self1')
-    expect(pm.sendFiles('nope', files, 'self1')).toBe(false)
+    expect(pm.sendFiles('nope', files, 'self1')).toBe('not-ready')
+  })
+
+  // 今天(08-13)验收的静默失败就走这条路:peer 在、channel 没开,旧代码照发不误,
+  // 数据倒进空通道、一句提示都没有。现在必须重新拨号并如实回报。
+  it('sendFiles:peer 在但 channel 未打开 → 重新拨号并报 not-ready,不往空通道倒数据', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('not-ready')
+    expect(made[0].refresh).toHaveBeenCalledOnce()
+    expect(made[0].sendFiles).not.toHaveBeenCalled()
+    expect(made[0].sendText).not.toHaveBeenCalled()
+  })
+
+  it('sendFiles:服务器报该 peer 不支持 RTC → unsupported(与 not-ready 区分开)', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => makeFakePeer() as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a', false)] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
+    // peer-joined 也要记下 rtcSupported(重连后先到的往往是它)
+    pm.handleServerMessage({ type: 'peer-joined', peer: peerInfo('c', false) })
+    expect(pm.sendFiles('c', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
+  })
+
+  it('sendFiles:本机不支持 RTC → unsupported', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: false,
+      makePeer: () => makeFakePeer() as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
   })
   it('peer-left 关连接删表;destroy 全关', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []

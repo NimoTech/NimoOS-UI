@@ -28,11 +28,11 @@ describe('installProgress 刷新恢复(localStorage 持久化)', () => {
     const s = useInstallProgressStore()
     s.track('jellyfin', 'Jellyfin', 'i.png')
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '42' })
-    // 模拟刷新:全新 pinia + 全新 store,只剩 localStorage
+    // simulate a refresh: brand-new pinia + brand-new store, only localStorage remains
     setActivePinia(createPinia())
     const s2 = useInstallProgressStore()
     expect(s2.tasks['jellyfin']).toMatchObject({ title: 'Jellyfin', icon: 'i.png', percent: 42, state: 'installing' })
-    // 恢复后是已跟踪任务:progress 事件不再被 D5 当陌生人丢弃
+    // after restore it is a tracked task: progress events are no longer dropped as strangers by D5
     s2.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '77' })
     expect(s2.tasks['jellyfin'].percent).toBe(77)
   })
@@ -84,7 +84,7 @@ describe('installProgress store', () => {
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '400' })
     expect(s.tasks['jellyfin'].percent).toBe(100)
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': 'garbage' })
-    expect(s.tasks['jellyfin'].percent).toBe(100) // 不可解析 → 保持原值
+    expect(s.tasks['jellyfin'].percent).toBe(100) // unparseable → keep previous value
   })
 
   it('D5:未跟踪的 progress 一律忽略(update 流复用同一事件)', () => {
@@ -98,7 +98,7 @@ describe('installProgress store', () => {
     s.onEvent('app:install-begin', { 'app:name': 'navidrome', 'app:title': '{"en_us":"Navidrome"}', 'app:icon': 'n.png' })
     expect(s.tasks['navidrome']).toMatchObject({ title: 'Navidrome', icon: 'n.png', state: 'installing' })
     s.onEvent('app:install-begin', { 'app:name': 'bad', 'app:title': '{oops' })
-    expect(s.tasks['bad'].title).toBe('bad') // 解析失败退化 name
+    expect(s.tasks['bad'].title).toBe('bad') // parse failure falls back to name
   })
 
   it('end:删任务 + 已装列表 refresh + 商店 installed 乐观 push', async () => {
@@ -156,10 +156,10 @@ describe('installProgress store', () => {
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
     s.onEvent('app:install-progress', { 'app:name': 'jellyfin', 'app:progress': '50' })
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
-    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 progress 重置,尚未到 5
+    expect(s.tasks['jellyfin'].state).toBe('installing') // counter was reset by progress, not yet at 5
   })
 
-  // --- Task 3 修复(评审 4 洞) ---
+  // --- Task 3 fixes (4 review findings) ---
 
   it('Fix1: begin 复活 error 态任务——回 installing、percent 0、message 清空', () => {
     const s = useInstallProgressStore()
@@ -187,7 +187,7 @@ describe('installProgress store', () => {
     expect(s.tasks['jellyfin'].state).toBe('installing')
     s.onEvent('app:install-begin', { 'app:name': 'jellyfin' })
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * (WATCHDOG_MAX_PROBES - 1))
-    expect(s.tasks['jellyfin'].state).toBe('installing') // 计数已被 begin 重置,尚未到 5
+    expect(s.tasks['jellyfin'].state).toBe('installing') // counter was reset by begin, not yet at 5
   })
 
   it('Fix2: dismiss 与飞行中 probe 竞态——resolve 落定后任务不复活、不触发 finish 副作用、不再排新探测', async () => {
@@ -199,20 +199,20 @@ describe('installProgress store', () => {
     const callsBefore = svc.compose.get.mock.calls.length
     svc.compose.get.mockImplementation(() => new Promise((resolve) => { resolveGet = resolve }))
     s.track('jellyfin')
-    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // 触发 probe,compose.get 挂起
+    await vi.advanceTimersByTimeAsync(WATCHDOG_MS) // trigger probe, compose.get stays pending
     expect(svc.compose.get.mock.calls.length - callsBefore).toBe(1)
     s.dismiss('jellyfin')
-    // 飞行中的 probe 落定时收到「已安装」的真值——若不重新读取 tasks.value,会误当仍在跟踪
-    // 而调用 finish() 产生 refresh()/installed 乐观 push 的副作用(任务明明已被用户 dismiss)
+    // the in-flight probe settles with a truthy "installed" value — without re-reading tasks.value it would
+    // mistakenly treat the task as still tracked and call finish(), causing refresh()/installed optimistic-push side effects (even though the user already dismissed it)
     resolveGet({ status: 'running' })
     await Promise.resolve(); await Promise.resolve(); await Promise.resolve()
     expect(s.tasks['jellyfin']).toBeUndefined()
     expect(refreshSpy).not.toHaveBeenCalled()
     expect(store.installed).not.toContain('jellyfin')
-    // 且不应遗留死 key 导致后续再探测(退化场景:falsy 落定也不得重新 arm)
+    // and no dead key should be left behind to trigger further probing (degenerate case: a falsy settlement must not re-arm either)
     const callsAfterDismiss = svc.compose.get.mock.calls.length
     await vi.advanceTimersByTimeAsync(WATCHDOG_MS * 2)
-    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // 没有被重新 arm
+    expect(svc.compose.get.mock.calls.length).toBe(callsAfterDismiss) // not re-armed
     expect(s.tasks['jellyfin']).toBeUndefined()
   })
 

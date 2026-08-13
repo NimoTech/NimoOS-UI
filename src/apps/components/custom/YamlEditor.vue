@@ -7,14 +7,14 @@ import { indentWithTab } from '@codemirror/commands'
 import { monokai } from '@uiw/codemirror-theme-monokai'
 import { yaml } from '@codemirror/lang-yaml'
 
-// 照 CodeViewer.vue(files/viewers/CodeViewer.vue:87-97)的 CM6 构建模式——不做通用抽取回填
-// CodeViewer(extract-not-predict,defer)。
+// Follows the CM6 construction pattern of CodeViewer.vue (files/viewers/CodeViewer.vue:87-97) — no generic extraction
+// backfilled into CodeViewer (extract-not-predict, defer).
 const props = defineProps<{ modelValue: string }>()
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
 
 const host = ref<HTMLElement | null>(null)
 let view: EditorView | null = null
-// 组件在异步场景下可能已被卸载(与 CodeViewer 同款防御,这里同步构造用不上但保持习惯一致)
+// The component may already be unmounted in async scenarios (same defense as CodeViewer; unused here with synchronous construction, but kept for consistency)
 let disposed = false
 
 onMounted(() => {
@@ -34,9 +34,9 @@ onMounted(() => {
   })
 })
 
-// 外部 modelValue 变化(如 tab2 转换写入)需要同步进编辑器——但只在真的不同于当前文档时才
-// dispatch,否则用户敲字触发的 emit 经父组件 v-model 回写会被这个 watch 反过来再 setState 一次,
-// 形成反馈环(且会打断光标位置/撤销栈)。
+// External modelValue changes (e.g. writes from the tab2 conversion) must be synced into the editor — but only
+// dispatch when it truly differs from the current document; otherwise an emit triggered by the user typing, written
+// back through the parent's v-model, would make this watch setState again, forming a feedback loop (and breaking cursor position/undo stack).
 watch(() => props.modelValue, (v) => {
   if (!view) return
   if (v === view.state.doc.toString()) return
@@ -55,25 +55,25 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* 12px 与终端/日志面板同档(2026-07-22 用户拍板:深底控制台类面板统一 12px,不用大卡片档 --radius) */
+/* 12px matches the terminal/log panel tier (2026-07-22 user decision: dark console-style panels use a uniform 12px, not the large-card --radius tier) */
 .yaml-editor { width: 100%; height: 100%; overflow: hidden; border-radius: 12px; border: 1px solid var(--card-border); }
-/* padding 上/右/下 10px 把 .cm-scroller 从圆角框内缩:滚动条贴死滚动容器边缘且不可调距,
-   缩容器是让它离开边框的唯一通用做法;padding 区域由 monokai 的 .cm-editor 底色填充,视觉连续
-   (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
-   因此禁用全部 ::-webkit-scrollbar 定制,此前的宽度/track margin 都是死代码) */
+/* 10px top/right/bottom padding insets .cm-scroller from the rounded frame: the scrollbar hugs the scroll
+   container's edge with no adjustable offset, so shrinking the container is the only universal way to move it off the border; the padding area is filled by monokai's .cm-editor background, visually continuous
+   (2026-07-22 real-device gotcha: theme.css sets standard scrollbar-width/color on *, so Chrome 121+
+   disables all ::-webkit-scrollbar customization — the previous width/track margin were dead code) */
 .yaml-editor :deep(.cm-editor) { height: 100%; box-sizing: border-box; padding: 10px; }
-/* CM6 固定高度的标准配方:滚动发生在内部 .cm-scroller(行号 gutter 保持粘住),
-   而不是外层盒子滚走整个编辑器——外层因此改 overflow:hidden。 */
+/* Standard CM6 fixed-height recipe: scrolling happens inside .cm-scroller (line-number gutter stays pinned),
+   rather than the outer box scrolling the whole editor away — hence the outer box uses overflow:hidden. */
 .yaml-editor :deep(.cm-scroller) {
   overflow: auto;
-  /* 编辑器永远是 monokai 深底:拇指用固定亮色 token,不随主题翻转(见 theme.css --console-scroll-thumb) */
+  /* The editor is always monokai dark: the thumb uses a fixed light token, not flipped by theme (see theme.css --console-scroll-thumb) */
   scrollbar-width: thin;
   scrollbar-color: var(--console-scroll-thumb) transparent;
 }
-/* 左侧呼吸距主要由 .cm-editor 的 10px 外圈 padding 提供(水平滚动条左端也因此离框),
-   gutter 自身只留小内边距避免叠加过宽 */
+/* Left breathing room comes mainly from .cm-editor's 10px outer padding (which also keeps the horizontal scrollbar's left end off the frame);
+   the gutter itself keeps only small padding to avoid stacking up too wide */
 .yaml-editor :deep(.cm-gutters) { padding-left: 4px; }
 .yaml-editor :deep(.cm-gutter.cm-lineNumbers .cm-gutterElement) { padding-right: 10px; }
-/* 上下呼吸距已由 .cm-editor 的 10px 外圈 padding 提供,这里只留左右 */
+/* Vertical breathing room is already provided by .cm-editor's 10px outer padding; only horizontal is kept here */
 .yaml-editor :deep(.cm-content) { padding: 2px 12px 2px 4px; }
 </style>

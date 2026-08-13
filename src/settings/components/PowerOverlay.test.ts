@@ -8,11 +8,11 @@ import type { PowerPhase } from '../util/powerFlow'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
 
-// 六个浮层态直接挂纯展示组件 PowerOverlay —— 它只吃一个 phase prop,
-// 不需要在 PowerFlow 上开 __setPhase 这类只为测试存在的生产接口。
+// Mount the six overlay states directly on the pure presentational PowerOverlay —
+// it only takes a phase prop, so no test-only production hooks like __setPhase on PowerFlow.
 describe('PowerOverlay 六个浮层态', () => {
-  // 任务简报原稿把这里标成 (phase: string),vue-tsc strict 下与 prop 的
-  // PowerPhase 类型不兼容(TS2322)——按 PowerPhase 收紧,行为不变。
+  // The task brief originally typed this as (phase: string), which is incompatible with
+  // the prop's PowerPhase type under vue-tsc strict (TS2322) — tightened to PowerPhase, same behavior.
   const mountOverlay = (phase: PowerPhase) =>
     mount(PowerOverlay, { props: { phase }, global: { plugins: [i18n] } })
 

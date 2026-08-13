@@ -57,7 +57,7 @@ describe('buildNasStorages —— 1:1 对位 Vue2 loadNasStorages(:273-319) 的�
   })
 
   it('非数组入参一律当空处理(后端 nil slice)', () => {
-    expect(buildNasStorages(null, null, {})).toHaveLength(1) // 只剩 /DATA
+    expect(buildNasStorages(null, null, {})).toHaveLength(1) // Only /DATA remains
     expect(buildNasStorages(undefined, undefined, {})).toHaveLength(1)
   })
 
@@ -100,17 +100,21 @@ describe('nasNavigateUpTarget —— 1:1 对位 Vue2 nasNavigateUp(:347-352)', (
   it('父目录正好等于根时停在根', () => {
     expect(nasNavigateUpTarget('/mnt/X/y', '/mnt/X')).toBe('/mnt/X')
   })
-  // ⚠️ 上面那条**走不到夹紧分支**(把 `parent.length >= root.length ? parent : root` 改成恒
-  // `parent` 也不翻红,B3 变异验证逮到的空转)——因为路径在根之下时父目录长度必然 >= 根。
-  // 真正能走到夹紧的是「当前路径不在根之下」这种不一致状态(Vue2 :350 的防御分支)。
+  // ⚠️ The case above **never reaches the clamp branch** (changing
+  // `parent.length >= root.length ? parent : root` to always `parent` doesn't go red --
+  // a no-op caught by B3 mutation testing): when the path is under the root, the parent's
+  // length is necessarily >= the root's. What actually reaches the clamp is the
+  // inconsistent state "current path not under the root" (Vue2 :350's defensive branch).
   it('当前路径不在根之下时夹回根,不会跑到根外面去', () => {
-    // parent = '/mnt'(4 字符)< root '/mnt/DeepRoot'(13 字符)→ 夹回根
+    // parent = '/mnt' (4 chars) < root '/mnt/DeepRoot' (13 chars) -> clamped back to root
     expect(nasNavigateUpTarget('/mnt/Other', '/mnt/DeepRoot')).toBe('/mnt/DeepRoot')
   })
-  // ⚠️ Vue2 :349 的 `|| nasRootPath` 兜底**无法被任何用例区分**:父目录算成空串时
-  // 夹紧那行(`''.length >= root.length` 恒 false)已经会回落到根,结果完全相同。
-  // 变异验证证实删掉它 22 例照样全绿 → 是 Vue2 继承来的冗余防御,照抄保留但
-  // **不为它留空转用例**(P3 教训:不确定就变异,不翻红就别留)。
+  // ⚠️ The `|| nasRootPath` fallback in Vue2 :349 is **indistinguishable by any test
+  // case**: when the parent computes to an empty string, the clamp line
+  // (`''.length >= root.length` always false) already falls back to root -- identical
+  // result. Mutation testing confirmed all 22 cases stay green with it removed -> it's
+  // redundant defense inherited from Vue2, kept as-is but **no no-op test case for it**
+  // (P3 lesson: when unsure, mutate; if nothing goes red, don't keep the case).
 })
 
 describe('isPickableImage / filterNasItems —— 1:1 对位 Vue2 loadNasFolder(:333-337)', () => {
@@ -122,7 +126,7 @@ describe('isPickableImage / filterNasItems —— 1:1 对位 Vue2 loadNasFolder(
   it('非图片不可选', () => {
     expect(isPickableImage('a.txt')).toBe(false)
     expect(isPickableImage('a.svg')).toBe(false)
-    expect(isPickableImage('jpg')).toBe(false) // 没有点
+    expect(isPickableImage('jpg')).toBe(false) // No dot
   })
   it('filterNasItems 留下所有目录 + 图片文件,滤掉隐藏项', () => {
     const content = [

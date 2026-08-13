@@ -33,8 +33,9 @@ describe('SettingsRow', () => {
     const w = mount(SettingsRow, { props: { label: 'a', clickable: true, disabled: true } })
     const btn = w.find('button.set-list-item')
     expect(btn.attributes('disabled')).toBeDefined()
-    // 只断言属性不够:@vue/test-utils 的 trigger 对 disabled 元素照样会派发,
-    // 所以要真点一次,验证组件内那道 disabled 守卫也在。
+    // Asserting the attribute alone is not enough: @vue/test-utils trigger still
+    // dispatches on disabled elements, so actually click once to verify the
+    // component's internal disabled guard is also in place.
     await btn.trigger('click')
     expect(w.emitted('click')).toBeUndefined()
   })

@@ -1,11 +1,11 @@
 <script setup lang="ts">
-// 头像裁剪 —— 对位 Vue2 AccountPanel state 4(:746-760)+ saveAvatar(:442-462)。
-// 左 220×220 裁剪框(1:1 方形 stencil,输出 160×160 canvas),右 80×80 圆形预览 + 「预览」字样。
+// Avatar cropper — counterpart of Vue2 AccountPanel state 4 (:746-760) + saveAvatar (:442-462).
+// Left: 220x220 crop box (1:1 square stencil, 160x160 canvas output); right: 80x80 round preview + "Preview" label.
 //
-// ⚠️ 后端 PUT /v1/users/avatar 只 strip `data:image/png;base64,` 这一种前缀,且解码失败会
-// log.Fatal 打死 UserService(全集群 JWT 失效、所有人重新登录;systemd 会 100ms 拉起)。
-// canvas.toDataURL() 无参默认就是 PNG —— **不要加 'image/jpeg' 之类参数**。
-// 本期这条写路径在开发机上一次都没真发过(plan D 表 / 债务 D27),覆盖靠单测。
+// ⚠️ The backend PUT /v1/users/avatar strips only the `data:image/png;base64,` prefix, and a
+// decode failure log.Fatal-kills UserService (cluster-wide JWT invalidation, everyone re-logs in; systemd restarts it in 100ms).
+// canvas.toDataURL() with no args defaults to PNG — **do not pass 'image/jpeg' or similar**.
+// This write path was never actually exercised on the dev machine this sprint (plan D table / debt D27); coverage relies on unit tests.
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Cropper, Preview } from 'vue-advanced-cropper'
@@ -28,7 +28,7 @@ function onChange(payload: { coordinates: unknown; image: unknown; canvas: HTMLC
   result.value = payload
 }
 
-// Vue2 defaultSize(:383-388):优先可见区域,其次整图尺寸。
+// Vue2 defaultSize (:383-388): prefer the visible area, fall back to full image size.
 function defaultSize({ imageSize, visibleArea }: {
   imageSize: { width: number; height: number }
   visibleArea?: { width: number; height: number }
@@ -40,8 +40,9 @@ function defaultSize({ imageSize, visibleArea }: {
 async function submit(): Promise<boolean> {
   if (busy.value) return false
   const canvas = result.value.canvas
-  // 🔧 Vue2 直接 `this.result.canvas.toDataURL()` —— 用户没动过裁剪框时 canvas 是 null,
-  // 会抛 TypeError 被 .catch 吞成笼统的「更新失败」。这里显式早退(plan C1「吞错不照抄」)。
+  // 🔧 Vue2 calls `this.result.canvas.toDataURL()` directly — canvas is null when the user
+  // never touched the crop box, throwing a TypeError swallowed by .catch into a generic
+  // "update failed". Explicit early return here (plan C1: don't copy error-swallowing).
   if (!canvas) return false
   busy.value = true
   error.value = ''
@@ -78,15 +79,15 @@ defineExpose({ submit })
 
 <style scoped>
 .set-acc-crop { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-/* Vue2 .cropper-wrapper 是 220×220、底色是一层两成不透明的黑 → 换成 token(C4)。
-   ⚠️ 注释里也不能写颜色字面量 —— color-guard.test.ts **不剥注释**,写了就翻红。 */
+/* Vue2 .cropper-wrapper is 220x220 with a 20%-opaque dark underlay → replaced with a token (C4).
+   ⚠️ No color literals even in comments — color-guard.test.ts does NOT strip comments; writing one turns it red. */
 .set-acc-crop-box {
   width: 220px; height: 220px; flex: 0 0 auto; overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   background: var(--overlay-bg);
 }
 .set-acc-crop-preview { text-align: center; }
-/* Vue2 .preview { border-radius: 50% } —— 库内部结构,用 :deep 穿透 */
+/* Vue2 .preview { border-radius: 50% } — library-internal structure, pierce with :deep */
 .set-acc-crop-preview :deep(.vue-preview) { border-radius: 50%; overflow: hidden; }
 .set-acc-crop-label { margin: 8px 0 0; font-size: 13px; color: var(--fg-muted); }
 </style>

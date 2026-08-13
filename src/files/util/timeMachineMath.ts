@@ -1,15 +1,16 @@
-// 时间机器的 DOM-free 数学。fisheyeScale / computeFisheyeScales / stepSelectedIndex 从
-// Vue2 components/filebrowser/components/snapshotStackMath.js 逐字移植(曲线参数一并保留);
-// buildVisibleStack 在 Vue2 版基础上**扩展**出 past 态(新视觉里比选中更新的卡片要朝观众
-// 飞出屏幕,Vue2 那版只有"往后退"一个方向);buildRailNodes 是新写的。
+// DOM-free math for the time machine. fisheyeScale / computeFisheyeScales / stepSelectedIndex are ported
+// verbatim from Vue2 components/filebrowser/components/snapshotStackMath.js (curve parameters kept as-is);
+// buildVisibleStack **extends** the Vue2 version with the past state (in the new visual design, cards newer
+// than the selection fly off-screen toward the viewer; the Vue2 version only had the "recede backward"
+// direction); buildRailNodes is newly written.
 //
-// Vue2 的 generateStarfieldShadow 有意不移植:新设计的星点由 CSS 承担,且浅色主题下没有星空。
+// Vue2's generateStarfieldShadow is deliberately not ported: in the new design the star dots are done in CSS, and the light theme has no starfield.
 
 export interface StackEntry<T> {
   item: T
-  /** 在扁平列表中的下标(newest-first),点卡片回填选中用 */
+  /** Index in the flat list (newest-first), used to write the selection back when a card is clicked */
   index: number
-  /** 距离选中项的层数:front 恒为 0;behind/past 都是 1、2、3… */
+  /** Layers away from the selected item: front is always 0; behind/past are 1, 2, 3... */
   depth: number
   state: 'front' | 'behind' | 'past'
 }
@@ -17,30 +18,32 @@ export interface StackEntry<T> {
 export interface RailNode {
   type: 'day' | 'main' | 'sub'
   key: string
-  /** type === 'day' 时的日期文案 */
+  /** Date label text when type === 'day' */
   label?: string
-  /** type === 'main' 时该快照的扁平下标 */
+  /** The snapshot's flat index when type === 'main' */
   flatIndex?: number
-  /** type === 'sub' 时吸附到的主刻度下标 */
+  /** Index of the main tick this snaps to when type === 'sub' */
   anchorIndex?: number
 }
 
 interface FisheyeOptions { radius?: number; maxScale?: number; minScale?: number }
 
-// 卡堆可见窗口大小:TimeMachineOverlay(决定给哪些快照拉预览)与 TimeMachineDeck(决定渲染
-// 哪些卡)必须用同一个窗口,否则最前的卡拿不到缩略图——之前两处各写一份 (5, 2) 字面量,
-// 改窗口大小时改一处忘另一处不会有任何报错或红测试。提成这一个常量,两处都从这里引用。
+// Visible window size of the card deck: TimeMachineOverlay (decides which snapshots to fetch previews for)
+// and TimeMachineDeck (decides which cards to render) must use the same window, or the frontmost card gets
+// no thumbnail — previously both spots had their own (5, 2) literal, and changing one while forgetting the
+// other raised no error and no red test. Hoisted into this one constant; both spots reference it.
 export const DECK_WINDOW = { depth: 5, past: 2 } as const
 
-// macOS Time Machine 的刻度带(以及它借鉴的 Dock)是随光标距离**连续**放大的,不是
-// hover/near/far 几档 —— 这只能靠读光标位置算一个真正的距离函数,任何纯 CSS :hover 规则
-// 都表达不了。这就是那个函数:距离 0 时 maxScale,到 radius 平滑降到 minScale,超出保持 minScale。
+// macOS Time Machine's tick strip (and the Dock it borrows from) scales **continuously** with cursor
+// distance, not in hover/near/far steps — that can only be done by reading the cursor position and computing
+// a real distance function; no pure CSS :hover rule can express it. This is that function: maxScale at
+// distance 0, smoothly dropping to minScale at radius, staying at minScale beyond.
 export function fisheyeScale(distance: number, options: FisheyeOptions = {}): number {
   const { radius = 70, maxScale = 2.2, minScale = 1 } = options
   const d = Math.abs(distance)
   if (!Number.isFinite(d) || d >= radius) return minScale
-  const t = 1 - d / radius // 半径边缘为 0,光标正下方为 1
-  // 升余弦缓动:两端斜率都是 0,所以相邻刻度是"融"进放大区再"融"出来的,不会出现折角。
+  const t = 1 - d / radius // 0 at the radius edge, 1 directly under the cursor
+  // Raised-cosine easing: slope is 0 at both ends, so adjacent ticks "melt" into and out of the magnified zone with no corner kinks.
   const eased = (1 - Math.cos(t * Math.PI)) / 2
   return minScale + (maxScale - minScale) * eased
 }
@@ -49,8 +52,9 @@ export function computeFisheyeScales(centers: number[], cursorY: number, options
   return (centers || []).map((c) => fisheyeScale(c - cursorY, options))
 }
 
-// items 是 newest-first。选中项在最前(front);更老的快照(下标更大)依次往后退(behind);
-// 比选中更新的快照(下标更小)已经"翻过去了",朝观众飞出屏幕(past)。
+// items is newest-first. The selected item is frontmost (front); older snapshots (larger index) recede
+// backward in order (behind); snapshots newer than the selection (smaller index) have already been
+// "flipped past" and fly off-screen toward the viewer (past).
 export function buildVisibleStack<T>(
   items: T[],
   selectedIndex: number,
@@ -64,9 +68,9 @@ export function buildVisibleStack<T>(
   for (let depth = 0; depth < maxDepth && start + depth < list.length; depth++) {
     out.push({ item: list[start + depth], index: start + depth, depth, state: depth === 0 ? 'front' : 'behind' })
   }
-  // 再放 past。⚠️ front-first 不变量:调用方(T2 边界用例)依赖 arr[0] 恒为 front 那张——
-  // 这正是当初修掉的 bug(曾经 past 插在前面导致 arr[0] 不是 front),front 必须先 push。
-  // z-index 由 CSS 决定层级,但数组顺序不是"无关紧要",不要再挪到 front 前面。
+  // Then place past. ⚠️ front-first invariant: callers (the T2 boundary cases) rely on arr[0] always being the front card —
+  // this is exactly the bug fixed before (past was once inserted first, making arr[0] not front); front must be pushed first.
+  // CSS decides stacking via z-index, but array order is not "irrelevant" — don't move this back in front of front.
   for (let depth = 1; depth <= pastDepth && start - depth >= 0; depth++) {
     out.push({ item: list[start - depth], index: start - depth, depth, state: 'past' })
   }
@@ -79,9 +83,10 @@ export function stepSelectedIndex(currentIndex: number, delta: number, length: n
   return Math.min(Math.max(next, 0), length - 1)
 }
 
-// 把按天分好的快照摊平成刻度尺要渲染的节点序列:每组前一个日期标题,每个快照一条主刻度,
-// 相邻主刻度之间插 subPerGap 条装饰性子刻度(参考稿的 sub tick)。子刻度不可独立选中,
-// 点它吸附到 anchorIndex 那条主刻度。
+// Flatten day-grouped snapshots into the node sequence the rail renders: one date heading before each
+// group, one main tick per snapshot, and subPerGap decorative sub-ticks between adjacent main ticks (the
+// reference design's sub tick). Sub-ticks are not independently selectable; clicking one snaps to the main
+// tick at anchorIndex.
 export function buildRailNodes(
   groups: { dayKey: string; labelText: string; items: { flatIndex: number }[] }[],
   subPerGap = 2,
@@ -96,7 +101,7 @@ export function buildRailNodes(
     }
   }
   if (subPerGap <= 0 || mains.length < 2) return nodes
-  // 从后往前插,避免边插边改动前面已记录的下标
+  // Insert back-to-front to avoid shifting the already-recorded indices while inserting
   const out = [...nodes]
   for (let i = mains.length - 2; i >= 0; i--) {
     const anchorNode = out[mains[i]]

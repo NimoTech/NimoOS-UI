@@ -26,16 +26,16 @@ describe('useAppsStore', () => {
     const s = useAppsStore()
     s.setApps([
       { name: 'jellyfin', title: { zh_cn: '影音', en_us: 'Jellyfin' }, icon: 'http://x/i.png', status: 'running', scheme: 'http', port: 8096, app_type: 'WebApp' },
-      { name: 'files' }, // 不能覆盖系统 files
+      { name: 'files' }, // must not overwrite the system 'files' app
     ] as any)
     expect(s.app('jellyfin')?.name).toBe('影音')
     expect(s.app('jellyfin')?.icon).toBe('http://x/i.png')
     expect(s.app('jellyfin')?.system).toBe(false)
-    expect(s.app('files')?.system).toBe(true) // 系统 files 未被覆盖
+    expect(s.app('files')?.system).toBe(true) // system 'files' was not overwritten
   })
   it('falls back to en_US (uppercase) title from store-installed apps', () => {
     const s = useAppsStore()
-    // 应用市场装的 v2 应用 title 键是大写 en_US(来自 store compose 文件),不能退化成裸 id
+    // v2 apps installed from the app store use uppercase en_US title keys (from store compose files); must not degrade to the bare id
     s.setApps([{ name: 'actualbudget', title: { en_US: 'Actual Budget' }, app_type: 'v2app' }] as any)
     expect(s.app('actualbudget')?.name).toBe('Actual Budget')
   })
@@ -102,7 +102,7 @@ describe('desktop 应用透传', () => {
       { name: 'down', status: 'exited', desktop: true },
       { name: 'dead1', status: 'dead', desktop: true },
       { name: 'mid', status: 'restarting', desktop: true },
-      { name: 'plain-down', status: 'exited' }, // 非 desktop 不算
+      { name: 'plain-down', status: 'exited' }, // non-desktop doesn't count
     ] as never)
     expect(store.stoppedDesktopKeys()).toEqual(['down', 'dead1'])
   })
@@ -135,8 +135,8 @@ describe('desktop 应用透传', () => {
       expect(s.isStopped('run')).toBe(false)
       expect(s.isStopped('nostatus')).toBe(false)
       expect(s.isStopped('link')).toBe(false)
-      expect(s.isStopped('files')).toBe(false) // 系统应用
-      expect(s.isStopped('ghost')).toBe(false) // 不存在
+      expect(s.isStopped('files')).toBe(false) // system app
+      expect(s.isStopped('ghost')).toBe(false) // nonexistent
     })
   })
 })

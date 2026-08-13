@@ -37,7 +37,7 @@ async function connect() {
     term = new Terminal({
       fontSize: 13, cursorBlink: true, cursorStyle: 'underline',
       fontFamily: 'Consolas, Monaco, monospace',
-      theme: { background: '#1e1e1e' }, // xterm JS 主题对象吃不到 CSS var,与 --console-bg 保持同值
+      theme: { background: '#1e1e1e' }, // xterm's JS theme object can't read CSS vars; keep in sync with --console-bg
     })
     fit = new FitAddon()
     term.loadAddon(fit)
@@ -69,17 +69,21 @@ onBeforeUnmount(() => { sock?.close(); attach?.dispose(); term?.dispose() })
 </template>
 
 <style scoped>
-/* flex 填满父容器剩余空间(AppConsolePage 定高布局给分母);min-height 兜底极矮视口 */
+/* flex fills the parent's remaining space (AppConsolePage's fixed-height layout provides the denominator); min-height guards very short viewports */
 .term-wrap { position: relative; flex: 1 1 auto; min-height: 320px; border-radius: 12px; overflow: hidden; background: var(--console-bg); }
 .term-wrap.fullscreen { position: fixed; inset: 0; z-index: 200; height: auto; border-radius: 0; }
-/* 四边各内缩 10px,滚动条随内容一起离开圆角框。原生/标准滚动条永远贴死滚动容器边缘,
-   没有属性能调"离边框的距离"——把滚动容器整体从外框内缩是唯一各浏览器通用的做法
-   (2026-07-22 真机踩坑:theme.css 对 * 设了标准 scrollbar-width/color,Chrome 121+
-   因此禁用全部 ::-webkit-scrollbar 定制,此前调的宽度/track margin 都是死代码) */
-/* xterm 高度只能取整数行,面板高度的余数(0~一行高)会堆在网格下方,使滚动条下端离框
-   明显比右侧远;列向 flex 垂直居中把余数对半分到上下,四边间距视觉对称 */
+/* Inset 10px on all four sides so the scrollbar moves away from the rounded frame along with
+   the content. Native/standard scrollbars always hug the scroll container's edge and there is
+   no property for "distance from the border" — insetting the whole scroll container is the only
+   cross-browser approach (2026-07-22 real-device lesson: theme.css sets standard
+   scrollbar-width/color on *, so Chrome 121+ disables all ::-webkit-scrollbar customization;
+   the width/track margins tuned before that were dead code) */
+/* xterm height snaps to whole rows; the panel height remainder (0 to one row) piles up below
+   the grid, pushing the scrollbar's bottom end visibly farther from the frame than the right
+   side; column flex with vertical centering splits the remainder evenly top/bottom so all four
+   margins look symmetric */
 .term-host { position: absolute; inset: 10px; display: flex; flex-direction: column; justify-content: center; }
-/* 深底面板拇指用固定亮色 token:全局滚动条色随主题翻转,浅色主题下深拇指落在深底上隐形 */
+/* Use a fixed light token for the thumb on this dark panel: the global scrollbar color flips with the theme, and in the light theme a dark thumb on a dark background is invisible */
 .term-host :deep(.xterm-viewport) { scrollbar-width: thin; scrollbar-color: var(--console-scroll-thumb) transparent; }
 .term-fs { position: absolute; top: 8px; right: 12px; z-index: 10; background: transparent; border: none; color: var(--console-fg); opacity: .5; cursor: pointer; }
 .term-fs:hover { opacity: 1; }

@@ -26,7 +26,7 @@ x-nimoos:
 `
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// useAppSettings 依赖 useI18n → 需在组件 setup 内调用(仓内 composable 测试惯例,同 useInstallFlow.test.ts)
+// useAppSettings depends on useI18n → must be called inside a component setup (repo convention for composable tests, same as useInstallFlow.test.ts)
 function mountSettings(id: Ref<string>) {
   let s!: ReturnType<typeof useAppSettings>
   mount(defineComponent({ setup() { s = useAppSettings(id); return () => null } }), {
@@ -73,9 +73,9 @@ describe('useAppSettings', () => {
     svc.applySettings.mockResolvedValue(undefined)
     const s = mountSettings(ref('demo'))
     await s.load()
-    expect(s.model.value?.tipsCustom).toBe('先看文档')      // 预填 UI 用途
+    expect(s.model.value?.tipsCustom).toBe('先看文档')      // prefilled for UI display
     expect(s.model.value?.tipsFromFallback).toBe(true)
-    // 用户只改了端口,从未碰 tips 字段
+    // the user only changed a port, never touched the tips field
     s.model.value!.services[0].ports[0].published = '8080'
     await s.save()
     const yamlSent = svc.applySettings.mock.calls[0][1] as string
@@ -120,7 +120,7 @@ describe('useAppSettings', () => {
     const ok = s.replaceFromYaml('services:\n  demo:\n  bad indent\n- broken: [')
     expect(ok).toBe(false)
     expect(s.parseError.value).toBeTruthy()
-    expect(s.model.value).toBe(before) // 同一引用,未被重建
+    expect(s.model.value).toBe(before) // same reference, not rebuilt
   })
 
   it('replaceFromYaml: good text rebuilds model and becomes the new base for save()', async () => {

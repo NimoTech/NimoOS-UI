@@ -1,10 +1,11 @@
-// token 过期预判:iframe 下载 / WS 握手这类 fire-and-forget 通道吃不到 axios 401 拦截器,
-// 只能连/发之前先判快过期就刷。P2c 下载首创,P7 Drop、P6 终端复用。
+// Token expiry pre-check: fire-and-forget channels like iframe downloads / WS handshakes
+// never hit the axios 401 interceptor, so the only option is to refresh before
+// connecting/sending when the token is about to expire. Introduced for P2c downloads, reused by P7 Drop and P6 terminal.
 
 const REFRESH_BUFFER_MS = 60_000
 
-// 下载(fire-and-forget iframe,无法反应式重试)前的条件式预刷新判定。
-// expiresAt 为后端下发的 unix 秒;缺失(null)保守刷新;已过期或 ≤60s 内过期则刷新。
+// Conditional pre-refresh check before a download (fire-and-forget iframe, no reactive retry possible).
+// expiresAt is unix seconds from the backend; if missing (null), refresh conservatively; refresh when expired or expiring within 60s.
 export function shouldRefreshToken(expiresAt: number | null, now: number): boolean {
   if (expiresAt == null || !Number.isFinite(expiresAt)) return true
   return now > expiresAt * 1000 - REFRESH_BUFFER_MS
