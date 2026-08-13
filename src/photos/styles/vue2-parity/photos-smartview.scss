@@ -76,8 +76,9 @@
    been deleted — dedupe; the canonical definition lives in photos.scss:203.
    `@keyframes` are global at the document/bundle level, not scoped by SCSS
    partials or which file an @import used to live in, so this file's
-   `animation: photos-pulse …` usages below (see :71 above and :384) still
-   resolve correctly against that single definition once both files land in
+   `animation: photos-pulse …` usages (the `.sv-collage-status .live-dot`
+   rule above and its detail-view equivalent further down) still resolve
+   correctly against that single definition once both files land in
    the same compiled bundle — no @use/@import wiring is needed between them.
    (Originally renamed from Vue2's `pulse` to avoid colliding with
    theme.css's global `pulse`; keyframes ignore selector scoping.) */
