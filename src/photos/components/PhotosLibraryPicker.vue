@@ -257,57 +257,57 @@ function confirmAdd(): void {
 <template>
   <div
     v-if="open"
-    class="lib-picker-overlay"
+    class="picker-scrim"
     data-test="lib-picker-overlay"
     @click.self="attemptClose"
   >
-    <div class="lib-picker-panel">
-      <div class="lib-picker-head">
-        <div class="lib-picker-head-text">
-          <div class="lib-picker-title">{{ title }}</div>
-          <div class="lib-picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
+    <div class="picker-modal">
+      <div class="picker-head">
+        <div class="picker-head-text">
+          <div class="picker-title">{{ title }}</div>
+          <div class="picker-sub">{{ t('photosSelectedCount', { count: selected.size }) }}</div>
         </div>
         <button
           type="button"
-          class="lib-picker-close"
+          class="picker-close"
           data-test="lib-picker-close"
           :aria-label="t('photosCancel')"
           @click="attemptClose"
         >&#215;</button>
       </div>
 
-      <div ref="bodyRef" class="lib-picker-body" @scroll="onListScroll">
-        <div v-if="flat.length === 0" class="lib-picker-empty" data-test="lib-picker-empty">
+      <div ref="bodyRef" class="picker-body" @scroll="onListScroll">
+        <div v-if="flat.length === 0" class="picker-empty" data-test="lib-picker-empty">
           {{ t('photosAlbumPickerEmpty') }}
         </div>
-        <div v-else class="lib-picker-grid">
+        <div v-else class="picker-grid">
           <div
             v-for="p in flat"
             :key="p.id"
-            class="lib-picker-tile"
+            class="picker-tile"
             data-test="lib-picker-tile"
             :data-asset-id="p.id"
             :data-selected="isSelected(p)"
             :data-disabled="isExisting(p)"
             @click="toggle(p)"
           >
-            <img :src="thumb(p.id)" alt="" class="lib-picker-tile-img" :class="{ 'is-dimmed': isExisting(p) }">
-            <div v-if="isExisting(p)" class="lib-picker-already" data-test="lib-picker-already">
-              <span class="lib-picker-already-icon">&#10003;</span>
+            <img :src="thumb(p.id)" alt="">
+            <div v-if="isExisting(p)" class="picker-already" data-test="lib-picker-already">
+              <span class="picker-already-icon">&#10003;</span>
               <span>{{ existingLabel }}</span>
             </div>
-            <div v-else-if="isSelected(p)" class="lib-picker-check" data-test="lib-picker-selected-check">&#10003;</div>
+            <div v-else-if="isSelected(p)" class="picker-tile-check" data-test="lib-picker-selected-check">&#10003;</div>
           </div>
         </div>
       </div>
 
-      <div v-if="!discardConfirm" class="lib-picker-foot">
-        <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
+      <div v-if="!discardConfirm" class="picker-foot">
+        <button type="button" class="albums-btn-ghost" data-test="lib-picker-cancel" @click="attemptClose">
           {{ t('photosCancel') }}
         </button>
         <button
           type="button"
-          class="lib-picker-btn-cta"
+          class="albums-btn-cta"
           data-test="lib-picker-add"
           :disabled="selected.size === 0 || submitting"
           @click="confirmAdd"
@@ -315,13 +315,13 @@ function confirmAdd(): void {
           {{ submitting ? t('photosAlbumPickerAdding') : submitText }}
         </button>
       </div>
-      <div v-else class="lib-picker-discard" data-test="lib-picker-discard-bar">
-        <div class="lib-picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
-        <div class="lib-picker-discard-actions">
-          <button type="button" class="lib-picker-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
+      <div v-else class="picker-discard" data-test="lib-picker-discard-bar">
+        <div class="picker-discard-text">{{ t('photosAlbumPickerDiscard') }}</div>
+        <div class="picker-discard-actions">
+          <button type="button" class="albums-btn-ghost" data-test="lib-picker-discard-cancel" @click="cancelDiscard">
             {{ t('photosCancel') }}
           </button>
-          <button type="button" class="lib-picker-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
+          <button type="button" class="albums-btn-cta" data-test="lib-picker-discard-confirm" @click="confirmDiscard">
             {{ t('photosAlbumPickerDiscardConfirm') }}
           </button>
         </div>
@@ -331,47 +331,24 @@ function confirmAdd(): void {
 </template>
 
 <style scoped>
-.lib-picker-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 230;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 32px 20px;
-}
+/* Task 7(两 picker 类名工程):scrim/modal/head/title/sub/body/empty/grid/tile(+[data-selected]/
+   [data-disabled]/嵌套 img)/tile-check/foot 与已导入的全局 parity 样式表
+   (src/photos/styles/vue2-parity/photos.scss:4277-4341 `.picker-*`,裸顶层选择器,不挂
+   `.photos-root` 前缀——这批是 Vue2 原生 class 名,已用 class-collision-guard.test.ts 钉死
+   零跨区冲突)逐字同名——全部删除本地重复声明,直接让 parity 接管。foot 的两个按钮同样直接
+   复用 parity 已有的 `.albums-btn-ghost`/`.albums-btn-cta`(Vue2 源 PhotosLibraryPicker.vue
+   :40/:42 就是这两个 class,PhotosAlbums.vue 的 New Album 弹层同一套复用先例),不再各自维护
+   一份等价的 ghost/cta 按钮样式。 */
 
-/* P2 血泪(同 T5 沿用):面板底色须用 --popup-bg,不用 --card-bg(深色主题下 --card-bg
-   近透明,叠在暗底上会看穿)。 */
-.lib-picker-panel {
-  width: min(760px, 100%);
-  max-height: 82vh;
-  display: flex;
-  flex-direction: column;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-}
+/* 头部文字容器——Vue2 是行内 style="flex:1;min-width:0" 的无 class div(:6),parity 自然
+   没有对应选择器,这里补一个类名只为可读性,规则原样保留。 */
+.picker-head-text { flex: 1 1 auto; min-width: 0; }
 
-.lib-picker-head {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
-.lib-picker-head-text { flex: 1 1 auto; min-width: 0; }
-.lib-picker-title { font-size: 14.5px; font-weight: 600; color: var(--fg); }
-.lib-picker-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-
-/* 头部 X 关闭按钮(评审补漏:Vue2 :10-12 确有,brief 结构清单漏列)—— 写法照
-   AlbumPickerDialog.vue 的 .alb-picker-close 既有范式,不引 Vue2 的 photos-icon 组件。 */
-.lib-picker-close {
+/* 头部 X 关闭按钮——Vue2 用全站通用 .icon-btn + photos-icon 组件(:10-12),本仓这批弹层
+   一贯改用更小的 24px 专属关闭按钮类而不复用 .icon-btn(同 AlbumPickerDialog.vue
+   `.album-picker-close`、MergeReviewDialog.vue `.mrd-close`、ClusterActionDialog.vue
+   `.cad-close` 的既有范式),parity 无对应选择器可比对。 */
+.picker-close {
   flex: 0 0 auto;
   width: 24px;
   height: 24px;
@@ -386,37 +363,21 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
 }
-.lib-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
-.lib-picker-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 14px 18px; }
-.lib-picker-empty { padding: 48px 8px; color: var(--fg-muted); font-size: 12.5px; text-align: center; }
+/* 瓦片内的 <img> 不再单独挂 class——parity 的 .picker-tile 内嵌 `img { … }`(SCSS 嵌套编译为
+   `.picker-tile img`)本就对任意 img 子元素生效,同 Vue2 原生 <img>(:28,同样无 class)。
+   「已在相册中」的变暗效果也交给 parity 的 .picker-tile[data-disabled="true"]{opacity:.4;
+   pointer-events:none}(作用于整个瓦片,含下面的徽标覆盖层),不再局部只暗淡 img 一处——这样
+   与 Vue2 实际渲染(整瓦片一起变暗)更贴合,也去掉了原来 img 专属的 is-dimmed 局部规则。 */
 
-.lib-picker-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 6px;
-}
-
-.lib-picker-tile {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--chip-bg);
-  outline: 2px solid transparent;
-  transition: outline-color 0.15s ease, transform 0.15s ease;
-}
-.lib-picker-tile[data-selected="true"] { outline-color: var(--accent); transform: scale(0.96); }
-.lib-picker-tile[data-disabled="true"] { cursor: default; }
-
-.lib-picker-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 0.4 与 Vue2 photos.scss :4402 的 [data-disabled="true"] { opacity: 0.4 } 保持像素级一致。 */
-.lib-picker-tile-img.is-dimmed { opacity: 0.4; }
-
-/* 覆盖标记:满铺半透明遮罩 + 文案。--overlay-bg/--fg 这一组合已在 PhotosGrid.vue 的
-   .tile-fav 上验证过(深浅主题都可读),这里沿用而非另造新 token。 */
-.lib-picker-already {
+/* 「已在相册中」提示——Vue2(:29-31)与 parity(.picker-tile-existing)都只是右上角一个
+   18px 圆形图标徽标,悬停靠原生 title 属性文字提示。本组件是有意的功能增补:existingLabel
+   文案常驻可见(而非仅悬停可见),覆盖整个瓦片——这是已有测试锁定的行为(
+   PhotosLibraryPicker.test.ts 断言 tile.text() 包含 existingLabel 原文),不能收敛成
+   parity 的纯图标徽标。因此不复用 parity 的 `.picker-tile-existing` 这个名字(语义/尺寸都
+   不同,同名会与 parity 规则打架),改用不冲突的 `.picker-already` 系列,保留原有视觉。 */
+.picker-already {
   position: absolute;
   inset: 0;
   display: flex;
@@ -431,8 +392,7 @@ function confirmAdd(): void {
   text-align: center;
   padding: 0 4px;
 }
-.lib-picker-already-icon,
-.lib-picker-check {
+.picker-already-icon {
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -440,28 +400,17 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  /* Vue2 勾选图标是 color="white"(:30/:33)—— 改用 --on-accent(atop 纯色 accent 填充
-     的可读前景色语义 token),而不是写死颜色字面量。 */
+  /* Vue2 勾选图标是 color="white"—— 改用 --on-accent(atop 纯色 accent 填充的可读前景色
+     语义 token),而不是写死颜色字面量。 */
   color: var(--on-accent);
   font-size: 11px;
   line-height: 1;
 }
-.lib-picker-check {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-}
 
-.lib-picker-foot {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-  padding: 12px 18px;
-  border-top: 1px solid var(--divider);
-  flex: 0 0 auto;
-}
+/* .picker-tile-check(选中态右上角勾选徽标)与 parity 的 .picker-tile-check 同名同义
+   (Vue2 :32-34 就是同一个 class)—— 本地覆盖已删除,位置/尺寸/背景色全交给 parity。 */
 
-.lib-picker-discard {
+.picker-discard {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -470,31 +419,6 @@ function confirmAdd(): void {
   border-top: 1px solid var(--divider);
   flex: 0 0 auto;
 }
-.lib-picker-discard-text { font-size: 12.5px; color: var(--fg); flex: 1 1 auto; min-width: 0; }
-.lib-picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
-
-.lib-picker-btn-ghost {
-  padding: 8px 14px;
-  border-radius: 10px;
-  border: 1px solid var(--chip-border);
-  background: var(--chip-bg);
-  color: var(--fg);
-  font: inherit;
-  font-size: 13px;
-  cursor: pointer;
-}
-.lib-picker-btn-ghost:hover { background: var(--chip-bg-hi); }
-
-.lib-picker-btn-cta {
-  padding: 8px 16px;
-  border-radius: 10px;
-  border: 0;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lib-picker-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.picker-discard-text { font-size: 12.5px; color: var(--fg); flex: 1 1 auto; min-width: 0; }
+.picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 </style>

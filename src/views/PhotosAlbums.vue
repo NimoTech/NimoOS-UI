@@ -820,8 +820,9 @@ onUnmounted(() => {
 /* No parity selector under this name -- Vue2's close button is the generic, app-wide `.icon-btn`
    (photos.scss:229-237, 32px). This repo's own dialogs consistently use a bespoke, smaller
    close-button class instead of `.icon-btn` for this exact spot (MergeReviewDialog.vue
-   `.mrd-close`, AlbumPickerDialog.vue `.alb-picker-close`, ClusterActionDialog.vue `.cad-close`
-   -- same 24px circle + "×" glyph shape as this one), so this survives unchanged as the
+   `.mrd-close`, AlbumPickerDialog.vue `.album-picker-close`, ClusterActionDialog.vue
+   `.cad-close`, PhotosLibraryPicker.vue `.picker-close` -- same 24px circle + "×" glyph shape
+   as this one), so this survives unchanged as the
    established local pattern rather than being swapped to `.icon-btn`. */
 .albums-modal-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
