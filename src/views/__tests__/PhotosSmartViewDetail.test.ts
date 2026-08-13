@@ -11,7 +11,6 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { readFileSync } from 'node:fs'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
 
@@ -51,6 +50,21 @@ import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartVi
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useToast } from '../../stores/toast'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
+// Task 8 cross-page sweep: the delete/convert confirmation dialogs' `.trash-btn-cta-primary`/
+// `.trash-btn-cta-danger`/`.lb-confirm-icon` rules now live solely in the globally-imported
+// parity stylesheet (photos.scss:620-692), not this component's own <style scoped> -- same
+// "read the shared stylesheet, not this file's own raw source" technique PhotosAlbums.test.ts
+// already uses for its own de-duplicated rules. Plain `fs.readFileSync` rather than a Vite
+// `?raw` import: Vite's SCSS handling intercepts `.scss` specifiers ahead of the raw-import
+// plugin and yields an empty string.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const photosParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh, en_us: en } })
 
@@ -942,8 +956,10 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
     const confirm = w.find('[data-test="sv-convert-confirm"]')
     expect(confirm.exists()).toBe(true)
     const ok = confirm.find('[data-test="sv-convert-ok"]')
-    expect(ok.classes()).toContain('primary')
-    expect(ok.classes()).not.toContain('danger')
+    // Task 8 cross-page sweep: `.primary`/`.danger` modifier classes renamed to Vue2's own
+    // `trash-btn-cta-primary`/`trash-btn-cta-danger` (see the template's own comment).
+    expect(ok.classes()).toContain('trash-btn-cta-primary')
+    expect(ok.classes()).not.toContain('trash-btn-cta-danger')
   })
 
   // Folded-in finding (b): a keyboard activation of Edit/Done (Space/Enter on a focused
@@ -1204,32 +1220,39 @@ describe('convert to regular album', () => {
     expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
   })
 
+  // Task 8 cross-page sweep: this used to assert a local `.sv-confirm-ok.primary` modifier
+  // class + this file's own raw CSS. The dialog was realigned to Vue2's actual `.lb-confirm-*`/
+  // `.trash-btn-*` idiom (see the template's own comment) -- the button now carries the base
+  // `trash-btn-cta` plus the `trash-btn-cta-primary` modifier (not `.danger`), and both rules
+  // live solely in the globally-imported parity stylesheet, not this component's own <style>.
   it('dresses the confirm button as the filled primary CTA, not a second Cancel', async () => {
-    // Vue2 uses trash-btn-cta here (939a7d3a:photos.scss:2203-2213) and reserves the danger
+    // Vue2 uses trash-btn-cta-primary here (photos.scss:681-685) and reserves the danger
     // variant for the delete dialog. Without the modifier this button rendered with the base
     // ghost rule -- pixel-identical to the Cancel beside it, and with no hover at all.
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
     const ok = w.find('[data-test="sv-convert-ok"]')
-    expect(ok.classes()).toContain('primary')
-    expect(ok.classes()).not.toContain('danger')
-    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
-    expect(css).toMatch(/\.sv-confirm-ok\.primary\s*\{[^}]*background:\s*var\(--accent\)/)
-    expect(css).toMatch(/\.sv-confirm-ok\.primary:hover:not\(:disabled\)\s*\{/)
+    expect(ok.classes()).toContain('trash-btn-cta-primary')
+    expect(ok.classes()).not.toContain('trash-btn-cta-danger')
+    expect(photosParityRaw).toMatch(/\.trash-btn-cta-primary\s*\{[^}]*background:\s*linear-gradient/)
+    expect(photosParityRaw).toMatch(/\.trash-btn-cta-primary:hover\s*\{/)
   })
 
+  // Task 8 cross-page sweep: this used to assert a local `.sv-confirm-icon.accent` colour-disc
+  // modifier class. Vue2 never had one either -- it just passes a different icon colour per
+  // dialog (delete red vs convert accent-hi) as a prop to its icon component; the template now
+  // does the Vue3 equivalent with an inline `style="color: ..."`, same technique
+  // PhotosAlbumDetail.vue's own delete dialog already uses.
   it('tints the convert dialog icon with the accent, not the delete red', async () => {
     // Vue2 :298 passes var(--accent-hi) for this album glyph; only :279's trash glyph is red.
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
-    expect(w.find('[data-test="sv-convert-confirm"] .sv-confirm-icon').classes()).toContain('accent')
-    // The delete dialog keeps the red disc (no .accent).
+    expect(w.find('[data-test="sv-convert-confirm"] .lb-confirm-icon').attributes('style')).toContain('--accent-hi')
+    // The delete dialog keeps the red disc (--remove-fg, not --accent-hi).
     await w.find('[data-test="sv-convert-cancel"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-delete"]').trigger('click')
-    expect(w.find('[data-test="sv-confirm-scrim"] .sv-confirm-icon').classes()).not.toContain('accent')
-    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
-    expect(css).toMatch(/\.sv-confirm-icon\.accent\s*\{[^}]*background:\s*var\(--accent-soft\)/)
+    expect(w.find('[data-test="sv-confirm-scrim"] .lb-confirm-icon').attributes('style')).toContain('--remove-fg')
   })
 
   it('does not dismiss the confirmation mid-flight', async () => {
@@ -1384,9 +1407,13 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('translateY(-4px) scale(0.97)')
   })
 
-  it('.sv-confirm-enter-from / .sv-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
+  // Task 8 cross-page sweep: renamed from `.sv-confirm-enter-from`/`.sv-confirm-leave-to` --
+  // the dialog's own scrim/panel/button classes were realigned to Vue2's actual `.lb-confirm-*`
+  // idiom (see the template's own comment), so the Vue3 `-enter-from` transition-name
+  // translation this rule provides now carries the matching `.lb-confirm-*` name too.
+  it('.lb-confirm-enter-from / .lb-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
-    const rule = rules.find((r) => r.selectors.includes('.sv-confirm-enter-from') && r.selectors.includes('.sv-confirm-leave-to'))
+    const rule = rules.find((r) => r.selectors.includes('.lb-confirm-enter-from') && r.selectors.includes('.lb-confirm-leave-to'))
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('opacity: 0')
     expect(rule?.body).toContain('scale(0.95)')
@@ -1414,8 +1441,14 @@ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是
     expect(menuBlocks[0][1]).toContain('data-test="sv-more-menu"')
   })
 
-  it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {
-    const m = /<Transition name="sv-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
+  // Task 8 cross-page sweep: `<Transition name="sv-confirm">` renamed to `name="lb-confirm"`
+  // (matching Vue2's own transition name, PhotosSmartViewDetail.vue:365/386) -- the `data-test`
+  // attribute itself is untouched, only the wrapping Transition's name and the scrim's class
+  // changed. The non-greedy regex still isolates the delete dialog specifically: this page now
+  // has two `<Transition name="lb-confirm">` blocks (delete + convert), and `.exec` without the
+  // global flag returns only the first, non-greedy match -- i.e. the delete dialog's own block.
+  it('删除确认弹窗的 lb-confirm-scrim 出现在 <Transition name="lb-confirm"> 内', () => {
+    const m = /<Transition name="lb-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
     expect(m).not.toBeNull()
     expect(m![1]).toContain('data-test="sv-confirm-scrim"')
   })

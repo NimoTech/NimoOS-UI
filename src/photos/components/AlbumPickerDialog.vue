@@ -247,7 +247,8 @@ async function submitCreate(): Promise<void> {
 }
 .album-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
-/* 标题文字:不再声明局部 font-size/font-weight/color——parity 的 .album-picker-head 本身
+/* 标题文字(模板处 `.album-picker-title-text` span,无独立规则,Task 8 静态自查记录):
+   不再声明局部 font-size/font-weight/color——parity 的 .album-picker-head 本身
    已是 font-size:13px;font-weight:600 的 flex 容器(space-between 天然把标题和关闭按钮分置
    两端),留出这层局部覆盖只会把 13px 悄悄改成 14.5px,构成像素漂移;删除后交给 parity 的
    头部字号与 Vue2 原生 <span>(同样无 class、继承环境色)行为一致。类名仍保留作结构标记。 */

@@ -1238,8 +1238,12 @@ watch(gridRef, () => {
 .sv-action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 /* Task 5: icon-only modifier for the sidebar's "..." toggle -- restated from
    PhotosSmartViewDetail.vue's own `.sv-action-btn-icon` (a Vue3-sibling-only class, not in
-   parity at all -- Vue2 sizes this button with an inline `style=`). */
-.sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
+   parity at all -- Vue2 sizes this button with an inline `style=`).
+   Task 8 cross-page sweep: `min-width` corrected from 32px to 36px -- verified against Vue2's
+   own real source (PhotosAlbumDetail.vue:256, `style="padding:0 10px;min-width:36px;
+   justify-content:center"`), the same 4px drift T5 already found and fixed on
+   PhotosSmartViewDetail.vue's own copy of this exact button. */
+.sv-action-btn-icon { padding: 0 10px; min-width: 36px; justify-content: center; }
 
 /* No parity selector for a hover state on the Sort pill (Vue2/parity :3514-3524 never defines
    one) -- kept as a New-UI-only affordance layered on top of parity's own `.order-pill` base

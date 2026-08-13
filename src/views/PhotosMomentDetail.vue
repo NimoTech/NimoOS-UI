@@ -830,24 +830,30 @@ async function doDelete(): Promise<void> {
             @confirm="onPickPhotos"
           />
 
-          <!-- Delete confirmation (Vue 2 :138-152). Structure and classes reused verbatim from
-               PhotosSmartViewDetail.vue's own sv-confirm-* dialog (task instruction: do not
-               build a second dialog idiom). The mo-delete-error paragraph is new — deviation 17
-               — Vue 2 has no inline equivalent, it closes the dialog and toasts instead. -->
-          <Transition name="sv-confirm">
+          <!-- Delete confirmation (Vue 2 :127-141, class names verified against its real
+               source). Task 8 cross-page sweep: this used to restate PhotosSmartViewDetail.vue's
+               own then-invented `.sv-confirm-*` dialog verbatim ("do not build a second dialog
+               idiom" -- true in spirit, but that page's own idiom was itself never what Vue2
+               actually uses). Renamed to Vue2's real `.lb-confirm-*`/`.trash-btn-*` classes, the
+               same already-parity-ized reference idiom T3/T4 established and T5 already applied
+               to PhotosSmartViewDetail.vue's sibling copy of this exact dialog -- all three pages
+               genuinely do share one idiom now, just the correct one. The mo-delete-error
+               paragraph is still New-UI-only (deviation 17) — Vue 2 has no inline equivalent, it
+               closes the dialog and toasts instead. -->
+          <Transition name="lb-confirm">
           <div
-            v-if="confirmDeleteOpen" class="sv-confirm-scrim" data-test="mo-delete-confirm"
+            v-if="confirmDeleteOpen" class="lb-confirm-scrim" data-test="mo-delete-confirm"
             @click.self="closeDeleteConfirm"
           >
-            <div class="sv-confirm-panel">
-              <div class="sv-confirm-icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+            <div class="lb-confirm">
+              <div class="lb-confirm-icon" style="color: var(--remove-fg)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
               <!-- Reused verbatim (photosSvDeleteName), not a fresh key — file-header deviation 19. -->
-              <div class="sv-confirm-title">{{ t('photosSvDeleteName', { name: moment.title }) }}</div>
-              <div class="sv-confirm-body">{{ t('photosMoDeleteBody', { n: fmtNum(momentAssetCount) }) }}</div>
+              <div class="lb-confirm-title">{{ t('photosSvDeleteName', { name: moment.title }) }}</div>
+              <div class="lb-confirm-body">{{ t('photosMoDeleteBody', { n: fmtNum(momentAssetCount) }) }}</div>
               <div v-if="deleteError" class="mo-delete-error" data-test="mo-delete-error">{{ deleteError }}</div>
-              <div class="sv-confirm-foot">
+              <div class="lb-confirm-foot">
                 <button
-                  type="button" class="sv-confirm-cancel" data-test="mo-delete-cancel"
+                  type="button" class="trash-btn-ghost" data-test="mo-delete-cancel"
                   @click="closeDeleteConfirm"
                 >{{ t('photosCancel') }}</button>
                 <!-- :disabled is the visible half of deviation 22's re-entrance guard — the
@@ -855,7 +861,7 @@ async function doDelete(): Promise<void> {
                      second press that would 404 and report "delete failed" for a delete
                      that in fact worked. -->
                 <button
-                  type="button" class="sv-confirm-ok danger" data-test="mo-delete-go"
+                  type="button" class="trash-btn-cta trash-btn-cta-danger" data-test="mo-delete-go"
                   :disabled="deleting" @click="doDelete"
                 >
                   <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
@@ -903,7 +909,11 @@ async function doDelete(): Promise<void> {
 .sv-last-updated { font-size: 12px; color: var(--fg-muted); }
 
 /* ── Two-column skeleton (scss:313-345) ── The scrollbar repaint at scss:346-365 is deliberately
-   not ported, for the reason already recorded at the same rules in PhotosSmartViewDetail.vue. */
+   not ported, for the reason already recorded at the same rules in PhotosSmartViewDetail.vue.
+   Task 8 static self-audit note: the template's `mo-detail-layout` companion class on this same
+   element (:619) carries no rule here, in parity, or anywhere else in `src/` -- a harmless,
+   vestigial page-identifier hook (predates this cleanup) with no visual effect; documented here
+   rather than removed since it's out of this task's assigned scope. */
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
 .sv-detail-side {
@@ -1000,55 +1010,37 @@ async function doDelete(): Promise<void> {
 .sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
 .sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
-/* ── Delete confirmation (scss has no independent block for it; PhotosSmartViewDetail.vue's own
-   sv-confirm-* rules, restated verbatim — task instruction: reuse the existing dialog idiom,
-   do not invent a second one).
-   Task 6 audit note (left untouched, out of scope): verified against NimoOS-UI's real source
-   that *this specific page's* Vue2 delete dialog actually spells its classes
-   `.lb-confirm-scrim`/`.lb-confirm`/`.lb-confirm-icon`/`.lb-confirm-title`/`.lb-confirm-body`/
-   `.lb-confirm-foot`/`.trash-btn-ghost`/`.trash-btn-cta`(+`.trash-btn-cta-danger`) --
-   PhotosMomentDetail.vue:128-140, not `.sv-confirm-*` at all. This is the exact same
-   cross-page dialog-idiom fork Task 3 flagged and T5 already deferred for the sibling
-   SmartViewDetail page's own copy of this same pattern: Task 8 ("四毛玻璃弹层类名激活确认")
-   is this plan's dedicated cross-page consistency pass for all four glass dialogs, and this
-   file's own `.sv-confirm-*` selectors are raw-source test-locked, so migrating the class
-   names here would be scope creep with avoidable test churn. Recorded so Task 8 has the
-   verified Vue2 mapping already in hand. ── */
-.sv-confirm-scrim {
-  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
-}
-.sv-confirm-panel {
-  width: 380px; max-width: 100%; padding: 22px; border-radius: 16px;
-  background: var(--popup-bg); border: 1px solid var(--card-border); box-shadow: var(--card-shadow-hi);
-  color: var(--fg);
-}
-.sv-confirm-icon {
-  width: 44px; height: 44px; border-radius: 50%; margin-bottom: 10px;
-  background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg);
-  display: flex; align-items: center; justify-content: center;
-}
-.sv-confirm-title { font-size: 16px; font-weight: 600; }
-.sv-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
+/* ── Task 8 cross-page sweep: delete confirmation ──
+   This used to restate PhotosSmartViewDetail.vue's own then-invented `.sv-confirm-*` rules
+   verbatim (task instruction at the time: reuse the existing dialog idiom, don't invent a
+   second one) -- but verified against NimoOS-UI's real source, *this specific page's* Vue2
+   delete dialog actually spells its classes `.lb-confirm-scrim`/`.lb-confirm`/`.lb-confirm-icon`/
+   `.lb-confirm-title`/`.lb-confirm-body`/`.lb-confirm-foot`/`.trash-btn-ghost`/`.trash-btn-cta`
+   (+`.trash-btn-cta-danger`) -- PhotosMomentDetail.vue:127-141, not `.sv-confirm-*` at all. Same
+   cross-page dialog-idiom fork Task 3 originally flagged; T5 already migrated the sibling
+   SmartViewDetail page's own copy of this pattern, and this task (the plan's dedicated
+   "四毛玻璃弹层类名激活确认" sweep) finishes the third and last page. Renamed the template's
+   classes to match (see its own comment); the entire local `.sv-confirm-*` cluster this replaces
+   (scrim/panel/icon/title/body/foot/cancel/ok, this repo's own --overlay-bg/--popup-bg/
+   --card-border/--fg tokens) is deleted outright -- parity's own self-contained rule
+   (photos.scss:620-692, imported globally) now governs every part of the dialog directly,
+   same as PhotosAlbumDetail.vue's and PhotosSmartViewDetail.vue's own copies of this idiom.
+   Two things do NOT come from parity and are kept below: `.mo-delete-error` (deviation 17, a
+   New-UI-only inline failure message -- Vue2 has no such box, it closes the dialog and toasts
+   instead) and the disabled-button opacity for deviation 22's re-entrance guard (the dialog
+   stays up across the request; Vue2's own trash-btn-cta/-ghost carry no :disabled styling at
+   all since its dialog doesn't need one) plus the Vue3 `-enter-from` transition-name translation
+   of parity's Vue2-spelled `.lb-confirm-enter`/`.lb-confirm-leave-to` rule (same fix already
+   applied to `.sv-menu-*` above and to the sibling pages' own copies of this exact dialog). ── */
 /* New-UI only (deviation 17): the inline failure message, in the same danger family as the
    confirm button below rather than the neutral --fg-muted body text above it. */
 .mo-delete-error { margin-top: 10px; font-size: 12.5px; color: var(--remove-fg); }
-.sv-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-.sv-confirm-cancel, .sv-confirm-ok {
-  padding: 8px 16px; border-radius: 8px; border: 1px solid var(--card-border); background: transparent;
-  color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
-}
-.sv-confirm-cancel:hover { background: var(--chip-bg-hi); }
 /* Deviation 22: the dialog stays up across the request, so the confirm button needs the same
-   in-flight treatment .sv-action-btn:disabled already gives the action bar. */
-.sv-confirm-ok:disabled { opacity: 0.5; cursor: not-allowed; }
-.sv-confirm-ok.danger {
-  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
-  color: var(--remove-fg); background: color-mix(in srgb, var(--remove-fg) 10%, transparent);
-}
-.sv-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg) 22%, transparent); }
-.sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
-.sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
+   in-flight treatment .sv-action-btn:disabled already gives the action bar -- parity's own
+   .trash-btn-cta carries no :disabled styling at all (Vue2's own dialog never disables it). */
+.trash-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
+.lb-confirm-enter-active, .lb-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
+.lb-confirm-enter-from, .lb-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
 /* ── Two photo grids (scss:572-596,609-650, globally imported).
    Task 6: `.sv-section-head`(+.pill) and the base `.sv-grid-photos` deleted -- each duplicated
