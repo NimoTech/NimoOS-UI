@@ -35,12 +35,16 @@ describe('FileRow', () => {
     expect(w.emitted('select')).toBeFalsy()
   })
 
-  it('directory loading: size cell shows computing label, no button', () => {
+  it('directory loading: size cell shows a disabled button with the computing label; clicking it does not compute', async () => {
     const sizes = useFolderSizesStore()
     sizes.states['/DATA/Docs'] = { status: 'loading' }
+    const spy = vi.spyOn(sizes, 'compute').mockResolvedValue()
     const w = mount(FileRow, { props: { entry: dirEntry }, ...mountOpts })
-    expect(w.get('.file-size').text()).toBe('计算中…')
-    expect(w.find('.file-size button').exists()).toBe(false)
+    const btn = w.get('.file-size button.size-compute')
+    expect(btn.text()).toBe('计算中…')
+    expect((btn.element as HTMLButtonElement).disabled).toBe(true)
+    await btn.trigger('click')
+    expect(spy).not.toHaveBeenCalled()
   })
 
   it('directory done: size cell shows the formatted byte count as plain text', () => {
