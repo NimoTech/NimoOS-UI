@@ -268,25 +268,25 @@ describe('PhotosFavorites.vue', () => {
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
 
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
 
     const checkbox = w.find('.tile-checkbox')
     expect(checkbox.exists()).toBe(true)
     await checkbox.trigger('click')
     await w.vm.$nextTick()
 
-    const bar = w.find('.selection-toolbar')
+    const bar = w.find('.selectbar')
     expect(bar.exists()).toBe(true)
     expect(bar.text()).toContain('1')
 
-    await bar.find('.sel-delete').trigger('click')
+    await bar.find('[data-test="selectbar-delete"]').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a'])
     expect(showSpy).toHaveBeenCalledWith(expect.any(String), 4000)
     expect(fetchFavSpy).toHaveBeenCalled()
-    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+    expect(w.find('.selectbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
   })
 
   // Task 9: 选择工具栏「加入相册」→ picker(assetIds=已选中)→ 选相册后清空 selection(收藏
@@ -301,7 +301,7 @@ describe('PhotosFavorites.vue', () => {
     await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
-    const addBtn = w.find('.sel-add-album')
+    const addBtn = w.find('[data-test="selectbar-add-album"]')
     expect(addBtn.exists()).toBe(true)
     await addBtn.trigger('click')
     await flushPromises()
@@ -314,7 +314,7 @@ describe('PhotosFavorites.vue', () => {
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(5, ['a', 'b'])
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
   })
 
   // Task 9: 灯箱「加入相册」→ picker(assetIds=[当前项 id])。
@@ -342,17 +342,17 @@ describe('PhotosFavorites.vue', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(6, ['a'])
   })
 
-  it('选择态下点 @clear(sel-clear)→ 清空选择,工具栏消失', async () => {
+  it('选择态下点关闭(x)→ 清空选择,工具栏消失', async () => {
     svc.photos.listFavorites.mockResolvedValue([photo('a')])
     const w = await mountView()
 
     await w.find('.tile-checkbox').trigger('click')
     await w.vm.$nextTick()
-    expect(w.find('.selection-toolbar').exists()).toBe(true)
+    expect(w.find('.selectbar').exists()).toBe(true)
 
-    await w.find('.sel-clear').trigger('click')
+    await w.find('[data-test="selectbar-close"]').trigger('click')
     await w.vm.$nextTick()
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
   })
 
   // 评审 Finding 2:PhotosToolbar 的 3 个密度按钮此前没绑 :density/@update:density,是

@@ -208,7 +208,7 @@ describe('Photos.vue integration', () => {
     await w.vm.$nextTick()
 
     // Selection toolbar absent until something is selected.
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
 
     // Select both tiles via Vue2's click-to-toggle checkbox div (Task 6 re-skin).
     const checkboxes = w.findAll('.tile-checkbox')
@@ -217,22 +217,27 @@ describe('Photos.vue integration', () => {
     await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
-    // Bar now lives at the TOP of the content, styled like Files' SelectionToolbar.
-    const bar = w.find('.selection-toolbar')
+    // Task 7 (D19): bar is now the Vue2 floating glass pill (`.selectbar`), anchored
+    // absolute over the grid slot instead of Files' rectangular top bar.
+    const bar = w.find('.selectbar')
     expect(bar.exists()).toBe(true)
-    const deleteBtn = bar.find('.sel-delete')
+    const deleteBtn = bar.find('[data-test="selectbar-delete"]')
     expect(deleteBtn.exists()).toBe(true)
-    expect(deleteBtn.classes()).toContain('danger')
+    expect(deleteBtn.attributes('data-danger')).toBe('true')
     await deleteBtn.trigger('click')
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a', 'b'])
     // 4000ms duration (Fix 7, aligned with Vue2's delete/task-done toast duration).
     expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'), 4000)
-    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected cleared -> bar gone
+    expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> bar gone
   })
 
-  it('顶部选择栏出现在 PhotosToolbar 之上(DOM 顺序)', async () => {
+  // Task 7 (D19): the selectbar's mount point moved from being PhotosToolbar's preceding
+  // sibling (P1 layout) to living INSIDE `.photos-grid-slot`, as a sibling of PhotosGrid's
+  // `.content` root — Vue2 pixel parity floats `.selectbar` (position:absolute, top:50px)
+  // over the grid/scrubber area it belongs to, not over the toolbar row above it.
+  it('选择栏挂载在 .photos-grid-slot 内(与 PhotosGrid 同级),不再是 PhotosToolbar 的上一个兄弟', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -242,21 +247,20 @@ describe('Photos.vue integration', () => {
     await w.get('.tile-checkbox').trigger('click')
     await w.vm.$nextTick()
 
-    const main = w.find('.photos-main')
-    const html = main.html()
-    const barIdx = html.indexOf('selection-toolbar')
-    // Plan B Task 5: PhotosToolbar's root class is now `.toolbar` (Vue2 parity, see
-    // PhotosToolbar.vue) — search for the quoted attribute so this doesn't accidentally
-    // re-match the "toolbar" substring inside "selection-toolbar" above.
-    const toolbarIdx = html.indexOf('class="toolbar"')
-    expect(barIdx).toBeGreaterThan(-1)
-    expect(toolbarIdx).toBeGreaterThan(-1)
-    expect(barIdx).toBeLessThan(toolbarIdx)
+    const slot = w.find('.photos-grid-slot')
+    expect(slot.exists()).toBe(true)
+    expect(slot.find('.selectbar').exists()).toBe(true)
+    expect(slot.find('.content').exists()).toBe(true) // PhotosGrid's root, still a sibling
 
-    // Clear button in the top bar cancels the selection.
-    await w.get('.sel-clear').trigger('click')
+    // Not a descendant of PhotosToolbar (`.toolbar`) — it lives in the grid slot instead.
+    const toolbar = w.find('.toolbar')
+    expect(toolbar.exists()).toBe(true)
+    expect(toolbar.find('.selectbar').exists()).toBe(false)
+
+    // Close (x) button in the pill cancels the selection.
+    await w.get('[data-test="selectbar-close"]').trigger('click')
     await w.vm.$nextTick()
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
   })
 
   // Task 9: 选择工具栏「加入相册」→ AlbumPickerDialog(open=true, assetIds=已选中)→
@@ -275,7 +279,7 @@ describe('Photos.vue integration', () => {
     await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
-    const addBtn = w.find('.sel-add-album')
+    const addBtn = w.find('[data-test="selectbar-add-album"]')
     expect(addBtn.exists()).toBe(true)
     await addBtn.trigger('click')
     await flushPromises()
@@ -289,7 +293,7 @@ describe('Photos.vue integration', () => {
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(1, ['a', 'b'])
-    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+    expect(w.find('.selectbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
   })
 
   it('socket connect → 重同步 fetchTasks/fetchIndexStatus/fetchTimeline', async () => {

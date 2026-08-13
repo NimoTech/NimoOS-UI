@@ -277,13 +277,6 @@ onUnmounted(() => {
         <div class="photos-main">
           <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
           <template v-else>
-            <PhotosSelectionToolbar
-              v-if="selected.length"
-              :count="selected.length"
-              @clear="cancelSelection"
-              @delete="onBatchDelete([...selected])"
-              @add-to-album="openAlbumPicker([...selected])"
-            />
             <PhotosToolbar
               :tab="tab" :density="density" :count="filteredCount"
               @update:tab="tab = $event" @update:density="density = $event"
@@ -300,7 +293,20 @@ onUnmounted(() => {
                 <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
               </template>
             </PhotosToolbar>
+            <!-- Task 7 (D19): the floating selectbar moves off being PhotosToolbar's
+                 preceding sibling (P1 layout) and mounts INSIDE the grid slot instead — Vue2
+                 pixel parity has `.selectbar` `position:absolute` anchored to the grid/scrubber
+                 area it floats over (NimoOS-UI PhotosGrid.vue:109), not the toolbar row above
+                 it. `.photos-grid-slot` is already `position: relative` (see this file's
+                 style block below), so no extra positioning container is needed. -->
             <div class="photos-grid-slot">
+              <PhotosSelectionToolbar
+                v-if="selected.length"
+                :count="selected.length"
+                @clear="cancelSelection"
+                @delete="onBatchDelete([...selected])"
+                @add-to-album="openAlbumPicker([...selected])"
+              />
               <PhotosGrid
                 :months="gridMonths" :tab="tab" :density="density" :selected="selected"
                 @open="onOpenTile"

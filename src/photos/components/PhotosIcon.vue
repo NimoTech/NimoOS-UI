@@ -67,6 +67,11 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <template v-else-if="name === 'check'">
       <path d="m5 12 5 5L20 7" />
     </template>
+    <!-- Task 7 (selection bar re-skin): transcribed verbatim from Vue2 PhotosIcon.vue's
+         'x' branch (:51-53) — the selectbar's trailing close button. -->
+    <template v-else-if="name === 'x'">
+      <path d="m6 6 12 12M18 6 6 18" />
+    </template>
     <template v-else-if="name === 'play'">
       <path d="M7 4v16l13-8z" />
     </template>

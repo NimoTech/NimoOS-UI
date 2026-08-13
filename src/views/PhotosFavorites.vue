@@ -291,18 +291,22 @@ onMounted(() => {
             </div>
           </div>
 
-          <PhotosSelectionToolbar
-            v-if="selected.length"
-            :count="selected.length"
-            @clear="cancelSelection"
-            @delete="onBatchDelete([...selected])"
-            @add-to-album="openAlbumPicker([...selected])"
-          />
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
             @update:tab="tab = $event" @update:density="density = $event"
           />
+          <!-- Task 7 (D19, ported alongside Photos.vue's same move): the floating
+               selectbar mounts INSIDE the grid slot (already `position: relative`, see this
+               file's style block below) so its absolute top:50px anchors to the grid area, same
+               as Vue2 and same as Photos.vue's timeline view. -->
           <div class="photos-grid-slot">
+            <PhotosSelectionToolbar
+              v-if="selected.length"
+              :count="selected.length"
+              @clear="cancelSelection"
+              @delete="onBatchDelete([...selected])"
+              @add-to-album="openAlbumPicker([...selected])"
+            />
             <PhotosGrid
               :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
