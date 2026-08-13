@@ -21,7 +21,12 @@ const VIEWS_DIR = 'src/views'
 // 已封顶:内层滚动链完整(`.photos-main` flex:1 + min-height:0 → 自带 overflow-y:auto 的
 // 滚动容器),封顶后由内层容器接管滚动。
 const CAPPED = [
-  'Photos.vue',                 // PhotosGrid 的 .photos-wrap
+  // Task 3(壳 + 侧栏重刻)起,Photos.vue 不再有 `.photos-layout` 规则字符串——外壳换成了
+  // Vue2 结构的 `.app` CSS Grid(`height: 100vh; overflow: hidden`,parity scss
+  // photos.scss:116-128),高度封顶职责由那条规则接管,与本文件锁的 `.photos-layout` 规则
+  // 字符串不再相关。反向检查(下面第二条 it)不会误报它:`allPhotosLayoutViews()` 只收录
+  // 源码里还含 `.photos-layout {` 字面量的页面,Photos.vue 已经不含,自动被排除,不需要挪进
+  // EXEMPT。
   'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
   'PhotosPlaceAssets.vue',      // PhotosGrid 的 .photos-wrap
   'PhotosTrash.vue',            // .trash-scroll

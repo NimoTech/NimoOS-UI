@@ -23,6 +23,29 @@
 // 宿主(T16)在容器 ref 层面统一处理;本组件只在根节点 @click.stop 防止弹层内部点击冒泡到
 // 宿主的"点外部判定"逻辑里(结构参照 Vue2 `<div v-if="..." @click.stop>` 外层 + `.fpop`
 // 内层两级)。
+//
+// Plan B Task 5(2026-08-12):当年这里的 max-height 差异(搜索侧 280 / FilterBar 侧 260,
+// 见上方模块注释①)被登记成"交给 P7b/T16 决定要不要开 prop"、一直没有接通,组件一直写死
+// 280。这里接通——新增 maxHeight prop(默认 280,不影响既有消费方的既有行为),照抄 width
+// prop 已有的"inline style 覆写"模式(:style 而不是写死的 CSS 声明),FilterBar 侧显式传
+// 260 命中 Vue2 数值。
+//
+// 机主验收回退(2026-08-13,推翻 Task 5 机主拍板的"第四处视觉例外"——EXIF 胶囊/弹层维持
+// New-UI 玻璃质感):玻璃在亮色主题下不可见,裁决是撤回玻璃、回退 Vue2 原始不透明面板样式
+// ——纯样式改动,组件保持 Vue3 代码不变。下方样式块因此拆成两半:
+// ①`.fpop`/`.fpop-title`/`.fpop-search`(+:focus)/`.fpop-quick`(+:hover)/`.btn`/
+// `.btn-primary`(+:hover)—— vue2-parity/photos.scss 对这些 class 名字段本就有逐字对应的
+// 裸选择器(:2662-2704,以及 `.btn`/`.btn-primary` 走全局 `.photos-root .btn` 家族
+// :262-273),这半批整段删除,交给 parity/全局规则接管。
+// ②`.fpop-list`/`.fpop-item`(+:hover/[data-active]/子级图标)/`.fpop-item-icon`/
+// `.fpop-empty`/`.fpop-foot`(+组合选择器)—— parity scss 里没有这几个 class(已 grep
+// 确认 `.fpop-item`/`.fpop-list`/`.fpop-empty`/`.fpop-foot` 全文件零命中):Vue2 原始列表
+// 弹层(PhotosSearchView.vue:129-140)这部分是行内 style + `.nav-item`/`.nav-icon`
+// 两个别处复用的类,并没有抽出 `.fpop-item` 这一级专属 class——是 New-UI 当年为复用而
+// 自建的抽象,parity 天然不覆盖,继续留在这里,只是把颜色 token 从本仓通用玻璃语义
+// (--fg-muted/--fg/--fg-faint/--chip-bg-hi/--accent-text)改回 Vue2 photos.scss 原文
+// 对应位置实际使用的 --text-2/--text-1/--text-3/--surface-3/--accent-hi(数值随
+// .photos-root 本地定义走,dark/is-light 两套都有)。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -34,11 +57,13 @@ const props = withDefaults(
     searchPlaceholder: string
     emptyHint: string
     width?: number
+    maxHeight?: number
     multiple?: boolean
     labelFor?: (item: string) => string
   }>(),
   {
     width: 260,
+    maxHeight: 280,
     multiple: true,
   },
 )
@@ -84,16 +109,16 @@ function toggle(it: string): void {
     <div class="fpop" :style="{ width: `${width}px` }">
       <div class="fpop-title">{{ title }}</div>
       <input v-model="search" class="fpop-search" :placeholder="searchPlaceholder">
-      <div class="fpop-list">
+      <div class="fpop-list" :style="{ maxHeight: `${maxHeight}px` }">
         <div
-          v-for="it in filtered" :key="it" class="nav-item"
+          v-for="it in filtered" :key="it" class="fpop-item"
           :data-active="isSel(it) ? 'true' : 'false'"
           @click="toggle(it)"
         >
-          <span class="nav-icon">
+          <span class="fpop-item-icon">
             <svg
               v-if="isSel(it)" width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="var(--accent-text)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              stroke="var(--accent-hi)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
             >
               <path d="m5 12 5 5L20 7" />
             </svg>
@@ -111,116 +136,81 @@ function toggle(it: string): void {
 </template>
 
 <style scoped>
-/* token 映射(同 PhotosFilterChip.vue 顶部注释的四档表 + chip-bg/chip-border 家族,不
-   重复展开)。弹层自身底色/边框/投影照本仓"触发按钮 + 绝对定位下拉面板"这一类组件的既定
-   惯例——--popup-bg(不透明底)+ --card-border + --card-shadow-hi,先例见
-   ClusterActionDialog.vue:272-280(.cad-panel)、AlbumPickerDialog.vue、
-   PlacesFilterMenu.vue(.map-filter-pop,该文件里有一段完整的偏离登记,结论与本处一致:
-   Vue2 用 --menu-bg + backdrop-filter 模糊 + 纯 box-shadow,本仓这类"锚定在页面内容之上的
-   不透明面板"统一走 --popup-bg/--card-shadow-hi 这一组,不复刻模糊——popup-bg 已经是
-   (近)不透明,不需要靠模糊保证可读性,backdrop-filter 因此省略,不是漏移植)。 */
-.fpop {
-  position: absolute;
-  top: 36px;
-  left: 0;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
-  padding: 14px;
-  z-index: 10;
-  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-  text-align: left;
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-}
+/* 2026-08-13 回退(见上方 script 模块注释):.fpop/.fpop-title/.fpop-search(+:focus)/
+   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover) 这一批 Vue2 原生 class 名字段,在
+   vue2-parity/photos.scss 里已有逐字对应的规则——.fpop 系列在 :2662-2704,.btn 系列走
+   全局 `.photos-root .btn`/`.photos-root .btn-primary`(+:hover)家族(:262-273,该家族
+   app-wide 生效,覆盖所有挂在 .photos-root 下的按钮,不需要本组件自带一份)。删除这半批
+   scoped 重复,交给 parity/全局规则接管,不再靠 scoped 编译出的 [data-v-xxxx] 属性抢
+   优先级。@keyframes pop-in 同理删除——parity scss 已有同名关键帧(:881),动画名是
+   全局命名空间,不受 scoped 影响。 */
 
-.fpop-title {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: var(--fg-faint);
-  letter-spacing: 0.06em;
-  margin-bottom: 10px;
-}
-
-.fpop-search {
-  width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font: inherit;
-  font-size: 12px;
-  margin-bottom: 10px;
-}
-.fpop-search:focus {
-  outline: 0;
-  border-color: var(--accent-soft);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
-
-/* Vue2 两侧内联 style 里的 max-height 不一致(搜索侧 280px / FilterBar 侧 260px,见上方
-   模块注释的逐字比对结论)——以搜索侧为准,取 280。 */
+/* max-height 由 maxHeight prop 驱动的行内 style 给出(见上方模块注释,Plan B Task 5 接通
+   了当年 P7a 登记的 280/260 差异),这里只留结构性声明。parity scss 没有 .fpop-list 这个
+   class(Vue2 原文这里是行内 style,没有抽类——见下方 .fpop-item 系列的同一登记),
+   New-UI 专属,继续留在这里。 */
 .fpop-list {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  max-height: 280px;
   overflow-y: auto;
 }
 
-.nav-item {
+/* .fpop-item(+:hover/[data-active]/子级图标)与 .fpop-item-icon:parity scss 全文件零
+   命中(已 grep 确认)——Vue2 原始列表弹层(PhotosSearchView.vue:129-137)这一级是
+   `.nav-item`/`.nav-icon`(别处复用的通用类)+ 行内 style,没有抽出 `.fpop-item` 这个
+   专属 class;是 New-UI 当年为可复用组件自建的抽象,parity 天然不覆盖。结构/尺寸原样
+   保留,只把颜色 token 从本仓通用玻璃语义改回 Vue2 photos.scss `.nav-item`/`.nav-icon`
+   对应位置(:171-172/1192 一带)实际使用的值:--fg-muted→--text-2、--fg→--text-1、
+   --fg-faint→--text-3、--chip-bg-hi→--surface-3、--accent-text→--accent-hi(--accent-soft
+   本就是 .photos-root 本地 token,数值已经是 Vue2 原文,不必改名)。 */
+.fpop-item {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
   border-radius: 6px;
-  color: var(--fg-muted);
+  color: var(--text-2);
   font-size: 13px;
   cursor: pointer;
   user-select: none;
   position: relative;
 }
-.nav-item:hover {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
+.fpop-item:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
 }
-.nav-item[data-active='true'] {
+.fpop-item[data-active='true'] {
   background: var(--accent-soft);
-  color: var(--fg);
+  color: var(--text-1);
 }
 /* hover 硬约束(B4 补的第三处,brief 原文只点名了 .fchip 与 .btn-primary,漏了这条):
-   .nav-item[data-active="true"] 未 hover 时与 .nav-item:hover 同为 (0,2,0),scoped SFC 里
+   .fpop-item[data-active="true"] 未 hover 时与 .fpop-item:hover 同为 (0,2,0),scoped SFC 里
    正是"优先级相等靠源码顺序苟活"的第二种危险形态。变体自带 :hover(值=未 hover 时的既有
    态,即选中态在 hover 下保持——这是显式化 Vue2 里"active 规则写在 hover 规则之后、
-   tie 靠源码顺序赢"这条隐含语义,不再依赖顺序)。 */
-.nav-item[data-active='true']:hover {
+   tie 靠源码顺序赢"这条隐含语义,不再依赖顺序)。这条 hover-lock 逻辑与颜色映射无关,
+   2026-08-13 回退未改动其结构,只跟随上面同一次 token 改名。 */
+.fpop-item[data-active='true']:hover {
   background: var(--accent-soft);
-  color: var(--fg);
+  color: var(--text-1);
 }
-.nav-item[data-active='true'] .nav-icon {
-  color: var(--accent-text);
+.fpop-item[data-active='true'] .fpop-item-icon {
+  color: var(--accent-hi);
 }
-.nav-icon {
-  color: var(--fg-faint);
+.fpop-item-icon {
+  color: var(--text-3);
   flex: none;
   display: flex;
   width: 16px;
   justify-content: center;
 }
 
+/* .fpop-empty/.fpop-foot(+组合选择器)同上一条登记——parity 里也没有这两个 class(Vue2
+   原文是行内 style,:138/:142),继续留在这里,只改 .fpop-empty 的文字色 token。 */
 .fpop-empty {
   padding: 18px 8px;
   text-align: center;
-  color: var(--fg-faint);
+  color: var(--text-3);
   font-size: 12px;
 }
 
@@ -233,68 +223,5 @@ function toggle(it: string): void {
 .fpop-foot .btn {
   flex: 1;
   justify-content: center;
-}
-
-.fpop-quick {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-/* 本组件的 Cancel 按钮不带 data-on(那是 T13 日期弹层的快捷区间按钮用的)——brief Step 3
-   明确划界:本任务只保证基类 hover 存在,[data-on] 变体的 hover 处理留给 T13。
-   交接(评审查实的 brief 错误 2,T13 要用):brief 把这里描述成"基类压变体"的危险形态,
-   回源 photos.scss:2674 不成立——Vue2 原文是 `.fpop-quick:hover, .fpop-quick[data-on="true"]
-   { … }` 单条规则、两个选择器共享完全相同的一组值,根本不存在两套值、也不存在谁压过谁。
-   T13 加 [data-on="true"] 变体时,数值应该照抄本条 :hover 的值,不是另设一套。 */
-.fpop-quick:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-
-.btn {
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-/* Vue2 .btn:hover 还带 border-color: var(--line-strong)——本仓没有这个更强调的线条
-   token(已 grep 确认 theme.css 无 --line-strong),现有 --chip-border 数值级也已很接近,
-   这两点是省略的次要理由。
-   更硬的理由(评审查实的 brief 错误 4,移植纪律"Vue2 的 bug 不照抄"适用的真实案例):
-   `.photos-root .btn:hover { border-color: var(--line-strong) }` 是 (0,3,0)(.photos-root
-   祖先类 + .btn + :hover),会压过 `.photos-root .btn-primary { border-color: var(--accent) }`
-   的 (0,2,0)——也就是说 Vue2 原版里,主按钮(.btn.btn-primary)一 hover,边框就从 accent
-   紫掉回中性线,这是 Vue2 自己的级联联动缺陷,不是设计意图。本组件不复刻这条边框声明,
-   不是"省略了本该照抄的东西",而是主动不照抄这个 bug。 */
-.btn:hover {
-  background: var(--chip-bg-hi);
-}
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-/* hover 硬约束(本任务受此约束的三处之一):.btn:hover 是 (0,2,0),会压过单类 .btn-primary
-   (0,1,0),hover 时把 accent 实底换成 --chip-bg-hi、文字仍是 --on-accent(白/深藏青)→
-   按钮和文字一起糊掉。变体自带 :hover 把 accent 实底盖回来,同 ClusterActionDialog.vue:
-   331-332(.cad-btn-primary:hover)/MergeReviewDialog.vue:269 的既有正确写法——
-   background 与 filter 分两条声明,避免被禁用态污染(本组件没有禁用态,但沿用同一写法
-   保持一致)。 */
-.btn.btn-primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
 }
 </style>

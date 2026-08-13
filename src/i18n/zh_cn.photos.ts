@@ -1091,4 +1091,13 @@ export default {
   photosMoDeleteMoment: '删除时刻',
   photosMoDeleteBody: '该时刻会被删除。图库中的 {n} 张照片不受影响。',
   photosMoDeleted: '时刻「{name}」已删除',
+  // ── Task 3(壳 + 侧栏重刻):sidebar-head 主题切换按钮的 title,照 Vue2
+  // PhotosSidebar.vue:29 的 $t('Switch to dark theme')/$t('Switch to light theme')。
+  photosSwitchToDarkTheme: '切换到深色主题',
+  photosSwitchToLightTheme: '切换到浅色主题',
+  // ── Task 4(顶栏重刻):顶栏折叠按钮的 title,照 Vue2 PhotosTopbar.vue:3 的
+  // $t('Toggle sidebar')。KVM 区已有同文案键 kvmToggleSidebar,但该键按 kvm 前缀命名
+  // 约定专属 KVM 区,本区另起 photos 前缀键而非跨区复用,与本仓"键名按区前缀"的既有惯例
+  // 一致(不是漏查复用)。
+  photosToggleSidebar: '切换侧边栏',
 }

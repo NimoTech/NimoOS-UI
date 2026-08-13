@@ -5,11 +5,16 @@
 //  - spriteMeta resolves { frames, durationMs, frameW, frameH } directly (no
 //    {ok,stale,url} envelope) — the component itself must guard staleness via
 //    hoverToken, matching Vue2's loadSpriteMeta semantics.
-//  - P1 restyle (SP7 acceptance feedback): per-tile checkbox is now the
-//    Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`),
-//    and the selection action bar moved out of this component entirely — it
-//    now lives in the parent as PhotosSelectionToolbar.vue, so this component
-//    no longer emits batch-delete/cancel.
+//  - the selection action bar lives out of this component entirely — it lives in
+//    the parent as PhotosSelectionToolbar.vue, so this component no longer emits
+//    batch-delete/cancel.
+//  - Task 6 (网格重刻): the per-tile checkbox was briefly (SP7 acceptance feedback)
+//    the Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`
+//    <input>) — Task 6 supersedes that with Vue2's own `.tile-checkbox` div
+//    (click-to-toggle, no native <input>). Likewise the favorite star splits
+//    into Vue2's two elements: a decorative `.tile-fav` (shown only when
+//    favorited AND not selecting) and the actual click target, `.tile-act`
+//    inside `.tile-actions`.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -108,38 +113,44 @@ describe('PhotosGrid', () => {
     expect(w.get('img').attributes('src')).toBe('mock://thumb/a/small')
   })
 
-  it('the tile checkbox is a native <input type="checkbox"> (Files-region pattern), not a custom check-mark', () => {
+  it('the tile checkbox is Vue2\'s clickable .tile-checkbox div, not a native <input>', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-    const box = w.get('.tile-check-box')
-    expect(box.element.tagName).toBe('INPUT')
-    expect(box.attributes('type')).toBe('checkbox')
-    expect(w.find('.check-mark').exists()).toBe(false)
-    expect(w.find('.tile-checkbox').exists()).toBe(false)
+    const box = w.get('.tile-checkbox')
+    expect(box.element.tagName).not.toBe('INPUT')
+    expect(w.find('input[type="checkbox"]').exists()).toBe(false)
+    expect(w.find('.tile-check').exists()).toBe(false)
+    expect(w.find('.tile-check-box').exists()).toBe(false)
   })
 
-  it('the checkbox reflects the selected prop via :checked', () => {
+  // Fix round 1 (review finding): the pre-rewrite file had a dedicated assertion that
+  // `.tile-check-box`'s `:checked` reflects WHICH tile is in `selected` (not just that a
+  // checkbox exists). Vue2's `.tile-checkbox` div carries no `:checked` state of its own —
+  // selection is expressed on `.tile` via `:data-selected`, which drives the parity CSS's
+  // `.tile[data-selected="true"]` outline AND `.tile[data-selected="true"] .tile-checkbox`
+  // visibility (photos.scss:342-346,400-402). This restores the dropped coverage on the new
+  // hook rather than leaving "which tile is selected" untested.
+  it('.tile carries data-selected for exactly the ids in the selected prop, not the others', () => {
     const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
-    const boxes = w.findAll('.tile-check-box')
-    expect((boxes[0].element as HTMLInputElement).checked).toBe(false)
-    expect((boxes[1].element as HTMLInputElement).checked).toBe(true)
+    const tiles = w.findAll('.tile')
+    expect(tiles[0].attributes('data-selected')).toBe('false')
+    expect(tiles[1].attributes('data-selected')).toBe('true')
   })
 
   // P6b-T9: `selectable` prop (偏离登记 14) —— 地点照片页(D10)不接多选,复用本组件时不该
   // 有复选框。默认值必须保持 true,否则 Photos.vue/PhotosFavorites.vue 这两个既有消费方
   // (都不传 selectable)会静默丢失复选框——这条是纯粹的默认值回归断言。
-  it('not passing `selectable` at all still renders .tile-check (default-value regression for existing consumers)', () => {
+  it('not passing `selectable` at all still renders .tile-checkbox (default-value regression for existing consumers)', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-    expect(w.find('.tile-check').exists()).toBe(true)
+    expect(w.find('.tile-checkbox').exists()).toBe(true)
   })
 
-  it('selectable=false hides .tile-check and leaves no way to fire toggle-select via it', async () => {
+  it('selectable=false hides .tile-checkbox and leaves no way to fire toggle-select via it', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [], selectable: false } })
-    expect(w.find('.tile-check').exists()).toBe(false)
-    expect(w.find('.tile-check-box').exists()).toBe(false)
+    expect(w.find('.tile-checkbox').exists()).toBe(false)
     // Clicking the bare tile still opens (selected is empty), confirming the checkbox's
     // absence doesn't leave the tile in some half-selecting state.
     await w.get('.tile').trigger('click')
@@ -147,10 +158,10 @@ describe('PhotosGrid', () => {
     expect(w.emitted('toggle-select')).toBeUndefined()
   })
 
-  it('changing the tile checkbox emits toggle-select with the photo id, not open, and does not bubble to the tile click handler', async () => {
+  it('clicking the tile checkbox emits toggle-select with the photo id, not open, and does not bubble to the tile click handler', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-    await w.get('.tile-check-box').trigger('change')
+    await w.get('.tile-checkbox').trigger('click')
     expect(w.emitted('toggle-select')?.[0]).toEqual(['a'])
     expect(w.emitted('open')).toBeUndefined()
   })
@@ -369,52 +380,86 @@ describe('PhotosGrid', () => {
     }
   })
 
-  describe('per-tile favorite star (SP7-P3 Task 5: consumes photosFavorites store)', () => {
-    it('a favorited photo renders .tile-fav with is-fav (value comparison via fav.isFav(id), not object identity)', async () => {
+  // Task 6 (网格重刻): Vue2 PhotosGrid.vue:65-76 splits favoriting into TWO elements —
+  // a decorative bottom-left `.tile-fav` (v-if="p.fav && !selecting", no click handler)
+  // and the actual click target, a top-right `.tile-act` button inside `.tile-actions`
+  // (always present, hover-visible via CSS, `data-on` reflects fav state). This
+  // supersedes the pre-Task-6 shape where `.tile-fav` itself was the single, always-
+  // rendered, clickable toggle.
+  describe('per-tile favorite star (SP7-P3 Task 5, re-skinned to Vue2\'s split shape in Task 6)', () => {
+    it('a favorited photo renders the decorative .tile-fav badge (value comparison via fav.isFav(id), not object identity)', async () => {
       svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
       const fav = usePhotosFavorites()
       await fav.reconcileFavIds()
       const months = [month('2026-07', 'July 2026', [photo('a')])]
       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-      expect(w.get('.tile-fav').classes()).toContain('is-fav')
+      expect(w.find('.tile-fav').exists()).toBe(true)
     })
 
-    it('an unfavorited photo renders .tile-fav without is-fav', () => {
+    it('an unfavorited photo renders no .tile-fav badge at all', () => {
       const months = [month('2026-07', 'July 2026', [photo('b')])]
       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-      expect(w.get('.tile-fav').classes()).not.toContain('is-fav')
+      expect(w.find('.tile-fav').exists()).toBe(false)
     })
 
-    it('clicking the star calls fav.toggle(id) and does not bubble to open/toggle-select (@click.stop)', async () => {
+    // Vue2 PhotosGrid.vue:65 `v-if="p.fav && !selecting"` — the decorative badge yields
+    // the corner to the checkbox once selection starts, even for an already-favorited photo.
+    it('hides the decorative .tile-fav badge while selecting, even for a favorited photo', async () => {
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
+      const fav = usePhotosFavorites()
+      await fav.reconcileFavIds()
+      const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
+      expect(w.find('.tile-fav').exists()).toBe(false)
+    })
+
+    it('the interactive .tile-act toggle is always present, favorited or not', () => {
+      const months = [month('2026-07', 'July 2026', [photo('a')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      expect(w.find('.tile-act').exists()).toBe(true)
+    })
+
+    it('.tile-act reflects fav state via data-on', async () => {
+      svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
+      const fav = usePhotosFavorites()
+      await fav.reconcileFavIds()
+      const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+      const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
+      const acts = w.findAll('.tile-act')
+      expect(acts[0].attributes('data-on')).toBe('true')
+      expect(acts[1].attributes('data-on')).toBe('false')
+    })
+
+    it('clicking .tile-act calls fav.toggle(id) and does not bubble to open/toggle-select (@click.stop)', async () => {
       const fav = usePhotosFavorites()
       const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
       const months = [month('2026-07', 'July 2026', [photo('a')])]
       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-      await w.get('.tile-fav').trigger('click')
+      await w.get('.tile-act').trigger('click')
       expect(spy).toHaveBeenCalledWith('a')
       expect(w.emitted('open')).toBeUndefined()
       expect(w.emitted('toggle-select')).toBeUndefined()
     })
 
-    it('clicking the star while selecting still toggles favorite, not selection', async () => {
+    it('clicking .tile-act while selecting still toggles favorite, not selection', async () => {
       const fav = usePhotosFavorites()
       const spy = vi.spyOn(fav, 'toggle').mockResolvedValue()
       const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
-      await w.findAll('.tile-fav')[0].trigger('click')
+      await w.findAll('.tile-act')[0].trigger('click')
       expect(spy).toHaveBeenCalledWith('a')
       expect(w.emitted('toggle-select')).toBeUndefined()
     })
 
-    it('aria-label switches between photosFavorite and photosUnfavorite based on fav state', async () => {
+    it('.tile-act aria-label switches between photosFavorite and photosUnfavorite based on fav state', async () => {
       svc.photos.listFavoriteIds.mockResolvedValueOnce(['a'])
       const fav = usePhotosFavorites()
       await fav.reconcileFavIds()
       const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
       const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
-      const stars = w.findAll('.tile-fav')
-      expect(stars[0].attributes('aria-label')).toBe('取消收藏')
-      expect(stars[1].attributes('aria-label')).toBe('收藏')
+      const acts = w.findAll('.tile-act')
+      expect(acts[0].attributes('aria-label')).toBe('取消收藏')
+      expect(acts[1].attributes('aria-label')).toBe('收藏')
     })
   })
 })

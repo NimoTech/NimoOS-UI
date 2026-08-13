@@ -1,5 +1,11 @@
 // Ported from Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue (49 lines).
 // P1 scope: no EXIF filter slot, no icon library (plain text tabs) — see task-7-brief.md.
+// Plan B Task 5 re-skin (2026-08-12): root class ".photos-toolbar" -> ".toolbar" so the
+// already-ported vue2-parity/photos.scss `.photos-root .toolbar/.tabs/.tab/.density/
+// .muted-text` rules (photos.scss:266-289) apply verbatim; the P1 icon-library cut is
+// lifted here — tab/density buttons now carry the same inline <svg> glyphs Vue2 uses
+// (PhotosIcon.vue name=album/ocr/video/compact/comfort/loose), fixing the English-locale
+// "Compact"/"Comfortable" first-letter collision the old text-slice() density buttons had.
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PhotosToolbar from '../PhotosToolbar.vue'
@@ -48,6 +54,27 @@ describe('PhotosToolbar', () => {
     const w = mount(PhotosToolbar, { props: { tab: 'all', density: 'comfortable', count: 1234 } })
     expect(w.text()).toContain('1234')
   })
+
+  it('root class is .toolbar (Vue2 parity — photos.scss:266-289 targets this class, not .photos-toolbar)', () => {
+    const w = mount(PhotosToolbar, { props: {} })
+    expect(w.find('.toolbar').exists()).toBe(true)
+    expect(w.find('.photos-toolbar').exists()).toBe(false)
+  })
+
+  it('Photos/OCR/Videos tabs carry an inline svg glyph; All does not (Vue2 PhotosToolbar.vue:4-13)', () => {
+    const w = mount(PhotosToolbar, { props: {} })
+    const tabs = w.findAll('.tab')
+    expect(tabs[0]!.find('svg').exists()).toBe(false) // All
+    expect(tabs[1]!.find('svg').exists()).toBe(true) // Photos (album glyph)
+    expect(tabs[2]!.find('svg').exists()).toBe(true) // OCR
+    expect(tabs[3]!.find('svg').exists()).toBe(true) // Videos
+  })
+
+  it('each density button carries an inline svg glyph (fixes the EN "C"/"C" compact/comfortable collision from text-slice)', () => {
+    const w = mount(PhotosToolbar, { props: {} })
+    const densityBtns = w.findAll('.density button')
+    densityBtns.forEach(btn => expect(btn.find('svg').exists()).toBe(true))
+  })
 })
 
 describe('P7b-T3: after-tabs 槽位', () => {
@@ -62,7 +89,7 @@ describe('P7b-T3: after-tabs 槽位', () => {
       slots: { 'after-tabs': '<i data-test="after-tabs-probe">x</i>' },
     })
     const probe = w.get('[data-test="after-tabs-probe"]')
-    const children = Array.from(w.get('.photos-toolbar').element.children)
+    const children = Array.from(w.get('.toolbar').element.children)
     const tabsIdx = children.findIndex(el => el.classList.contains('tabs'))
     const probeIdx = children.indexOf(probe.element)
     const densityIdx = children.findIndex(el => el.classList.contains('density'))

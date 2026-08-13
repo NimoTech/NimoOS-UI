@@ -8,8 +8,18 @@ import zh from '../../../i18n/zh_cn'
 import PhotosSidebar from '../PhotosSidebar.vue'
 import { useTimelineStore } from '../../stores/timeline'
 import { usePhotosSettingsStore } from '../../stores/settings'
+import { usePhotosFavorites } from '../../stores/favorites'
+import { useSessionStore } from '../../../stores/session'
+import { usePhotosTheme, __resetPhotosThemeForTests } from '../../composables/usePhotosTheme'
 import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../../composables/useSidebarDrawer'
 
+// Task 3(壳 + 侧栏重刻):re-skinned to the Vue2 pixel baseline — selectors below moved from
+// New-UI's old `.photos-sidebar`/`.side-item`/`.side-name`/`.storage-bar-fill` to Vue2's own
+// `.sidebar`/`.nav-item[data-active]`/`.storage-mini`/`.icon-btn` (PhotosSidebar.vue.vue2.
+// script-level behavior — NAV table, isActive-by-route, storage percent, router.push, the
+// aiFeatures smartview filter, the mobile drawer — is unchanged; only classes/DOM structure
+// and the two new things (theme toggle, collapsed prop) moved.
+//
 // P8a-T6(§7e-15):侧栏现在自己也读一次 aiFeatures 配置(见 PhotosSidebar.vue 头部注释)。
 // 默认解析成 `{}`(readAiFeatures 对缺字段一律按开启处理,smartview 仍是 true)——这个默认值
 // 让本文件其余既有测试(挂载后同步断言 7 项)保持不变:那些断言都发生在 fetchAiFeatures()
@@ -39,14 +49,16 @@ const testRouter = createRouter({
   ],
 })
 
-function mountSidebar() {
-  return mount(PhotosSidebar, { global: { plugins: [i18n, testRouter] } })
+function mountSidebar(props: Record<string, unknown> = {}) {
+  return mount(PhotosSidebar, { props, global: { plugins: [i18n, testRouter] } })
 }
 
 describe('PhotosSidebar', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     __resetSidebarDrawerForTest()
+    localStorage.clear()
+    __resetPhotosThemeForTests()
     vi.mocked(service.photos.getConfig).mockReset().mockResolvedValue({})
     testRouter.push('/photos')
     await testRouter.isReady()
@@ -57,7 +69,7 @@ describe('PhotosSidebar', () => {
   // (library / albums / people / places / smart)。
   it('渲染七条导航项(照片库/相册/人物/地点/为你推荐/收藏/最近删除),当前路由高亮', async () => {
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
+    const items = w.findAll('.nav-item')
     expect(items).toHaveLength(7)
     expect(items[0].text()).toContain('照片库')
     expect(items[1].text()).toContain('相册')
@@ -66,98 +78,98 @@ describe('PhotosSidebar', () => {
     expect(items[4].text()).toContain('为你推荐')
     expect(items[5].text()).toContain('收藏')
     expect(items[6].text()).toContain('最近删除')
-    // 当前在 /photos,仅照片库项 active
-    expect(items[0].classes()).toContain('active')
-    expect(items[1].classes()).not.toContain('active')
-    expect(items[2].classes()).not.toContain('active')
-    expect(items[3].classes()).not.toContain('active')
-    expect(items[4].classes()).not.toContain('active')
-    expect(items[5].classes()).not.toContain('active')
-    expect(items[6].classes()).not.toContain('active')
+    // 当前在 /photos,仅照片库项 active(Vue2 用 data-active 属性,不是 class)
+    expect(items[0].attributes('data-active')).toBe('true')
+    expect(items[1].attributes('data-active')).toBe('false')
+    expect(items[2].attributes('data-active')).toBe('false')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('/photos/favorites 时仅 favorites 项 active,library 不 active', async () => {
     await testRouter.push('/photos/favorites')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).toContain('active') // favorites active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false') // library 不 active
+    expect(items[1].attributes('data-active')).toBe('false') // albums 不 active
+    expect(items[2].attributes('data-active')).toBe('false') // people 不 active
+    expect(items[3].attributes('data-active')).toBe('false') // places 不 active
+    expect(items[4].attributes('data-active')).toBe('false') // smart-views 不 active
+    expect(items[5].attributes('data-active')).toBe('true') // favorites active
+    expect(items[6].attributes('data-active')).toBe('false') // trash 不 active
   })
 
   it('/photos/albums 时仅 albums 项 active', async () => {
     await testRouter.push('/photos/albums')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).toContain('active') // albums active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false')
+    expect(items[1].attributes('data-active')).toBe('true')
+    expect(items[2].attributes('data-active')).toBe('false')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('/photos/albums/7(三级路径,相册详情)时仍只有 albums 项 active,library 不误伤', async () => {
     await testRouter.push('/photos/albums/7')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active(回归点)
-    expect(items[1].classes()).toContain('active') // albums active
-    expect(items[2].classes()).not.toContain('active')
-    expect(items[3].classes()).not.toContain('active')
-    expect(items[4].classes()).not.toContain('active')
-    expect(items[5].classes()).not.toContain('active')
-    expect(items[6].classes()).not.toContain('active')
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false') // library 不 active(回归点)
+    expect(items[1].attributes('data-active')).toBe('true')
+    expect(items[2].attributes('data-active')).toBe('false')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('/photos/people 时仅 people 项 active', async () => {
     await testRouter.push('/photos/people')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).toContain('active') // people active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false')
+    expect(items[1].attributes('data-active')).toBe('false')
+    expect(items[2].attributes('data-active')).toBe('true')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('/photos/people/7(三级路径,人物详情)时仍只有 people 项 active,library 不误伤——核心回归点', async () => {
     await testRouter.push('/photos/people/7')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active(回归点:/photos 前缀不能双高亮)
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).toContain('active') // people active
-    expect(items[3].classes()).not.toContain('active')
-    expect(items[4].classes()).not.toContain('active')
-    expect(items[5].classes()).not.toContain('active')
-    expect(items[6].classes()).not.toContain('active')
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false') // library 不 active(回归点:/photos 前缀不能双高亮)
+    expect(items[1].attributes('data-active')).toBe('false')
+    expect(items[2].attributes('data-active')).toBe('true')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('/photos/places 时仅 places 项 active', async () => {
     await testRouter.push('/photos/places')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).toContain('active') // places active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    const items = w.findAll('.nav-item')
+    expect(items[0].attributes('data-active')).toBe('false')
+    expect(items[1].attributes('data-active')).toBe('false')
+    expect(items[2].attributes('data-active')).toBe('false')
+    expect(items[3].attributes('data-active')).toBe('true')
+    expect(items[4].attributes('data-active')).toBe('false')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   // SP7-P7a-T4:下标 4 是 smart-views(brief 硬要求同时断言"7 个条目"与"smart-views 在下标 4")。
@@ -165,22 +177,22 @@ describe('PhotosSidebar', () => {
     await testRouter.push('/photos/smart-views')
     await testRouter.isReady()
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
+    const items = w.findAll('.nav-item')
     expect(items).toHaveLength(7)
     expect(items[4].text()).toContain('为你推荐')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).toContain('active') // smart-views active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[0].attributes('data-active')).toBe('false')
+    expect(items[1].attributes('data-active')).toBe('false')
+    expect(items[2].attributes('data-active')).toBe('false')
+    expect(items[3].attributes('data-active')).toBe('false')
+    expect(items[4].attributes('data-active')).toBe('true')
+    expect(items[5].attributes('data-active')).toBe('false')
+    expect(items[6].attributes('data-active')).toBe('false')
   })
 
   it('点击 smart-views 项(下标 4)push 到 /photos/smart-views', async () => {
     // beforeEach 已把 testRouter 停在 /photos——从别的路由点进来才是有意义的导航断言。
     const w = mountSidebar()
-    const items = w.findAll('.side-item')
+    const items = w.findAll('.nav-item')
     await items[4].trigger('click')
     await flushPromises()
     expect(testRouter.currentRoute.value.path).toBe('/photos/smart-views')
@@ -192,25 +204,27 @@ describe('PhotosSidebar', () => {
     store.indexStatus.diskTotal = 100 * 1024 * 1024 * 1024
     store.indexStatus.diskAvail = 40 * 1024 * 1024 * 1024 // used 60%
     const w = mountSidebar()
-    expect(w.text()).toContain('GB')
-    const bar = w.get('.storage-bar-fill')
+    expect(w.get('.storage-mini-usage').text()).toContain('GB')
+    expect(w.get('.storage-mini-usage').text()).toContain('60%')
+    const bar = w.get('.storage-mini-bar > div')
     expect(bar.attributes('style')).toContain('60%')
   })
 
-  it('存储条:diskTotal 为 0 时不除零(百分比落 0%)', () => {
+  it('存储条:diskTotal 为 0 时不除零(百分比落 0%,不渲染用量文字)', () => {
     const store = useTimelineStore()
     store.indexStatus.totalBytes = 0
     store.indexStatus.diskTotal = 0
     store.indexStatus.diskAvail = 0
     const w = mountSidebar()
-    const bar = w.get('.storage-bar-fill')
+    expect(w.find('.storage-mini-usage').exists()).toBe(false)
+    const bar = w.get('.storage-mini-bar > div')
     expect(bar.attributes('style')).toContain('0%')
   })
 
   it('桌面态(isNarrow=false):无遮罩、无 is-drawer class', () => {
     const w = mountSidebar()
     expect(w.find('.side-scrim').exists()).toBe(false)
-    expect(w.find('aside.photos-sidebar').classes()).not.toContain('is-drawer')
+    expect(w.find('aside.sidebar').classes()).not.toContain('is-drawer')
   })
 
   it('窄屏 + 打开:出遮罩,aside 带 is-drawer/is-open;点遮罩关闭', async () => {
@@ -220,7 +234,7 @@ describe('PhotosSidebar', () => {
     const w = mountSidebar()
     await nextTick()
     expect(w.find('.side-scrim').exists()).toBe(true)
-    const aside = w.find('aside.photos-sidebar')
+    const aside = w.find('aside.sidebar')
     expect(aside.classes()).toContain('is-drawer')
     expect(aside.classes()).toContain('is-open')
     await w.find('.side-scrim').trigger('click')
@@ -250,15 +264,14 @@ describe('PhotosSidebar', () => {
     expect(d.open.value).toBe(false)
   })
 
-  // SP7-P8a-T5:侧栏底部设置入口,指向 /photos/settings。不用 .side-item 选择器
-  // (那是 NAV 数组渲染出的既有 7 项,本条目是独立的新元素,故意用不同 class,不与
-  // 上面"7 条导航项"的既有断言互相干扰)。
+  // SP7-P8a-T5:侧栏头部设置入口(Task 3 起从侧栏底部移到 sidebar-head,照 Vue2
+  // PhotosSidebar.vue:34-35),指向 /photos/settings。
   describe('设置入口', () => {
-    it('侧栏底部存在设置入口', () => {
+    it('侧栏头部存在设置入口', () => {
       const w = mountSidebar()
       expect(w.find('[data-test="sidebar-settings-link"]').exists()).toBe(true)
       // 既有 7 项导航不受影响(不是新插进 NAV 数组的第 8 项)。
-      expect(w.findAll('.side-item')).toHaveLength(7)
+      expect(w.findAll('.nav-item')).toHaveLength(7)
     })
 
     it('点击设置入口 push 到 /photos/settings', async () => {
@@ -266,6 +279,106 @@ describe('PhotosSidebar', () => {
       await w.get('[data-test="sidebar-settings-link"]').trigger('click')
       await flushPromises()
       expect(testRouter.currentRoute.value.path).toBe('/photos/settings')
+    })
+  })
+
+  // Task 3:sidebar-head 主题切换按钮 —— Vue2 PhotosSidebar.vue:27-33 的实际主题开关落点。
+  describe('主题切换按钮(Task 3)', () => {
+    it('默认(dark)显示"切换到浅色主题";点击调用 usePhotosTheme().set 切到 light,再点切回 dark', async () => {
+      const w = mountSidebar()
+      const themeBtn = w.get('.sidebar-head').findAll('.icon-btn')[0]
+      expect(themeBtn.attributes('title')).toBe('切换到浅色主题')
+
+      await themeBtn.trigger('click')
+      expect(usePhotosTheme().theme.value).toBe('light')
+      await nextTick()
+      const themeBtnAfter = w.get('.sidebar-head').findAll('.icon-btn')[0]
+      expect(themeBtnAfter.attributes('title')).toBe('切换到深色主题')
+
+      await themeBtnAfter.trigger('click')
+      expect(usePhotosTheme().theme.value).toBe('dark')
+    })
+
+    it('切到 light 后落盘到 localStorage(与 PhotosSettings 页的开关共享同一个单例)', async () => {
+      const w = mountSidebar()
+      await w.get('.sidebar-head').findAll('.icon-btn')[0].trigger('click')
+      expect(localStorage.getItem('nimo_photos_theme')).toBe('light')
+    })
+  })
+
+  // Task 3:collapsed prop —— 折叠态渲染居中 icon 列,不渲染展开态的 sidebar-head/nav-item。
+  describe('折叠态(collapsed prop,Task 3)', () => {
+    it('collapsed=true 时渲染 7 个 .icon-btn(nav1+nav2 合并),不渲染 .nav-item/.brand-name', () => {
+      const w = mountSidebar({ collapsed: true })
+      expect(w.find('.nav-item').exists()).toBe(false)
+      expect(w.find('.brand-name').exists()).toBe(false)
+      expect(w.find('.brand-icon').exists()).toBe(true)
+      expect(w.findAll('.icon-btn')).toHaveLength(7)
+    })
+
+    it('collapsed=true 时点击某个 icon-btn 仍按其 route 导航', async () => {
+      const w = mountSidebar({ collapsed: true })
+      await w.findAll('.icon-btn')[1].trigger('click') // albums
+      await flushPromises()
+      expect(testRouter.currentRoute.value.path).toBe('/photos/albums')
+    })
+
+    it('collapsed=false(默认)渲染展开态结构', () => {
+      const w = mountSidebar()
+      expect(w.find('.sidebar-head').exists()).toBe(true)
+      expect(w.find('.brand-name').text()).toBe('相册')
+    })
+  })
+
+  // Task 3:「Photo library」抽屉开合 —— Vue2 PhotosSidebar.vue:51-76 的 nav2(favorites/
+  // trash)collapsible section,默认展开(data() { libraryOpen: true })。
+  describe('「照片库」抽屉开合(Task 3)', () => {
+    it('默认展开:7 个 .nav-item 全部可见;点击 .nav-label 收起后只剩 5 个(favorites/trash 隐藏);再点恢复 7 个', async () => {
+      const w = mountSidebar()
+      expect(w.findAll('.nav-item')).toHaveLength(7)
+      await w.get('.nav-label').trigger('click')
+      expect(w.findAll('.nav-item')).toHaveLength(5)
+      expect(w.findAll('.nav-item').some((n) => n.text().includes('收藏'))).toBe(false)
+      await w.get('.nav-label').trigger('click')
+      expect(w.findAll('.nav-item')).toHaveLength(7)
+    })
+  })
+
+  // Task 3:brand-user —— Vue2 PhotosSidebar.vue:25 的 displayName,New-UI 用 session store。
+  describe('brand-user(Task 3)', () => {
+    it('已登录时 sidebar-head 显示用户名', () => {
+      useSessionStore().setUser({ username: 'yu' })
+      const w = mountSidebar()
+      expect(w.get('.brand-user').text()).toBe('yu')
+    })
+
+    it('无用户名时不渲染 .brand-user', () => {
+      const w = mountSidebar()
+      expect(w.find('.brand-user').exists()).toBe(false)
+    })
+  })
+
+  // Task 3:favorites 徽标 —— 源自 usePhotosFavorites(),仅在 favIdsLoaded 时显示。
+  describe('favorites 徽标(Task 3)', () => {
+    it('favIdsLoaded 时,收藏项显示 .nav-count 数字', () => {
+      const fav = usePhotosFavorites()
+      fav.favIds = new Set(['1', '2', '3'])
+      fav.favIdsLoaded = true
+      const w = mountSidebar()
+      const favItem = w.findAll('.nav-item').find((n) => n.text().includes('收藏'))
+      expect(favItem?.find('.nav-count').text()).toBe('3')
+    })
+
+    it('favIds 尚未取到(默认)时,收藏项不显示 .nav-count', () => {
+      const w = mountSidebar()
+      const favItem = w.findAll('.nav-item').find((n) => n.text().includes('收藏'))
+      expect(favItem?.find('.nav-count').exists()).toBe(false)
+    })
+
+    it('trash 项本任务不接徽标(已登记的范围外缺口,见组件头部注释)', () => {
+      const w = mountSidebar()
+      const trashItem = w.findAll('.nav-item').find((n) => n.text().includes('最近删除'))
+      expect(trashItem?.find('.nav-count').exists()).toBe(false)
     })
   })
 
@@ -277,7 +390,7 @@ describe('PhotosSidebar', () => {
       const w = mountSidebar()
       await flushPromises()
       await nextTick()
-      const items = w.findAll('.side-item')
+      const items = w.findAll('.nav-item')
       expect(items).toHaveLength(6)
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(false)
       // 剩下 6 项仍是原顺序去掉 smart-views 这一条(favorites/trash 紧跟 places)。
@@ -296,7 +409,7 @@ describe('PhotosSidebar', () => {
       const w = mountSidebar()
       await flushPromises()
       await nextTick()
-      const items = w.findAll('.side-item')
+      const items = w.findAll('.nav-item')
       expect(items).toHaveLength(7)
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
     })
@@ -311,7 +424,7 @@ describe('PhotosSidebar', () => {
         () => new Promise<Record<string, unknown>>((res) => { resolveFn = res }),
       )
       const w = mountSidebar()
-      const items = w.findAll('.side-item')
+      const items = w.findAll('.nav-item')
       expect(items).toHaveLength(7)
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
       // 收尾:把挂起的 promise 结算掉,不让它泄漏到下一条用例。
@@ -330,16 +443,10 @@ describe('PhotosSidebar', () => {
   // SP15-P2b Task 5: the smart-views entry's label changes to "For You" now that its page
   // is Moments-only, but its id/route stay so the ?view=smart deep link and the
   // aiFeatures.smartview hide-when-off filter above keep working unmodified.
-  //
-  // Deviation from the plan brief: the brief's snippet asserted
-  // `[data-nav-id="smart-views"]`, which does not exist anywhere in this component (grep
-  // confirmed) — nav items carry no per-item test marker, only `.side-item`/`.side-name`.
-  // This does not add one just for the test; it asserts on the collected `.side-name` text
-  // set instead, same technique the "hide when off" cases above already use.
   it('labels the smart-views entry "For You" after the IA merge, and drops the old "Smart Views" label entirely', () => {
     const w = mountSidebar()
-    const names = w.findAll('.side-name').map((n) => n.text())
-    expect(names).toContain('为你推荐')
-    expect(names).not.toContain('智能视图')
+    const texts = w.findAll('.nav-item').map((n) => n.text())
+    expect(texts.some((t) => t.includes('为你推荐'))).toBe(true)
+    expect(texts.some((t) => t.includes('智能视图'))).toBe(false)
   })
 })
