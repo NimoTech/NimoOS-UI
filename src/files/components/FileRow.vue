@@ -1,14 +1,18 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { FileEntry } from '../stores/files'
 import { renderSize, dateFmt } from '../util/format'
 import { fileExt } from '../util/ext'
 import FileThumb from './FileThumb.vue'
 import FavoriteStar from './FavoriteStar.vue'
 import { useClipboardStore } from '../stores/clipboard'
+import { useFolderSizesStore } from '../stores/folderSizes'
 import { isUploadBroken, uploadBatchIdOf } from '../util/uploadBadge'
 
 const props = defineProps<{ entry: FileEntry; selected?: boolean }>()
 const clipboard = useClipboardStore()
+const folderSizes = useFolderSizesStore()
+const sizeStatus = computed(() => folderSizes.statusOf(props.entry.path))
 const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
@@ -53,7 +57,18 @@ function onClick(e: MouseEvent) {
     <span class="file-name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
-    <span class="file-size">{{ props.entry.uploading ? $t('filesUploadingLabel') : (props.entry.is_dir ? '' : renderSize(props.entry.size ?? 0)) }}</span>
+    <span class="file-size">
+      <template v-if="props.entry.uploading">{{ $t('filesUploadingLabel') }}</template>
+      <template v-else-if="!props.entry.is_dir">{{ renderSize(props.entry.size ?? 0) }}</template>
+      <template v-else-if="sizeStatus === 'done'">{{ renderSize(folderSizes.bytesOf(props.entry.path) ?? 0) }}</template>
+      <template v-else-if="sizeStatus === 'loading'">{{ $t('filesFolderSizeComputing') }}</template>
+      <button
+        v-else
+        type="button"
+        class="size-compute"
+        @click.stop="folderSizes.compute(props.entry.path)"
+      >{{ sizeStatus === 'error' ? $t('filesFolderSizeRetry') : $t('filesFolderSizeCompute') }}</button>
+    </span>
     <span class="file-star"><FavoriteStar v-if="props.entry.is_dir && !props.entry.uploading" :path="props.entry.path" :name="props.entry.name" /></span>
   </div>
 </template>
@@ -70,6 +85,10 @@ function onClick(e: MouseEvent) {
 .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
 .file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
 .file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }
+/* On-demand folder size trigger. Rendered as text-like button: muted at rest,
+   accent on hover. font: inherit picks up the 12px cell size. */
+.size-compute { background: none; border: none; padding: 0; font: inherit; color: var(--fg-muted); cursor: pointer; }
+.size-compute:hover { color: var(--accent); }
 .file-star { flex: 0 0 32px; display: flex; justify-content: center; }
 .file-row :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-row:hover :deep(.favorite-star), .file-row :deep(.favorite-star.active) { opacity: 1; }
