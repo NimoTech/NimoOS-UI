@@ -8,7 +8,7 @@
 // a status:'done' transition observed at ingest time goes straight into the
 // coalescer.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
@@ -36,6 +36,12 @@ const svc = vi.hoisted(() => ({
     // usePhotosAlbums()(listAlbums/batchAddToAlbum),不是 stub。
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+    // Task 8: delete-toast Undo restores through the trash store's real
+    // restore() action (restoreTrashBatch + fetchTrash + refresh timeline) —
+    // not a spy-replaced no-op — so the wiring exercises the same path a
+    // browser would.
+    restoreTrashBatch: vi.fn().mockResolvedValue(undefined),
+    listTrash: vi.fn().mockResolvedValue([]),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -52,6 +58,7 @@ import PhotosGrid from '../../photos/components/PhotosGrid.vue'
 import PhotosToolbar from '../../photos/components/PhotosToolbar.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 
 const lb = useLightbox()
@@ -136,7 +143,10 @@ beforeEach(() => {
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+  svc.photos.restoreTrashBatch.mockClear().mockResolvedValue(undefined)
+  svc.photos.listTrash.mockClear().mockResolvedValue([])
   lb.__resetForTest()
+  usePhotosToast().__resetForTests()
 })
 
 afterEach(() => {
@@ -197,12 +207,11 @@ describe('Photos.vue integration', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
   })
 
-  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → notify photosDeletedToast → 清空 selected', async () => {
+  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → photosToast(trash+Undo) → 清空 selected', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
-    const toast = useToast()
+    const photosToast = usePhotosToast()
     const deleteSpy = vi.spyOn(store, 'deleteAssets').mockResolvedValue(2)
-    const showSpy = vi.spyOn(toast, 'show')
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a'), asset('b')] }]
     await flushPromises()
     await w.vm.$nextTick()
@@ -228,9 +237,33 @@ describe('Photos.vue integration', () => {
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a', 'b'])
-    // 4000ms duration (Fix 7, aligned with Vue2's delete/task-done toast duration).
-    expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'), 4000)
     expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> bar gone
+
+    // Task 8: delete toast is the Photos-private usePhotosToast (not the global
+    // app toast) — icon 'trash', Undo action present. Vue2 parity:
+    // PhotosTimeline.vue:704-718.
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.icon).toBe('trash')
+    expect(toastItem.text).toContain('2')
+    expect(toastItem.action?.label).toBeTruthy()
+
+    // Undo → clicking the toast's action button (PhotosToastHost Teleports to
+    // the real document.body regardless of this wrapper's own attachment)
+    // restores through the trash store's real restore() action, which
+    // refetches the timeline so the restored assets come back into view —
+    // and it does NOT show a second toast (Vue2 parity: Undo's onClick only
+    // dispatches photos/restoreTrash, no follow-up toast).
+    const fetchTimelineSpy = vi.spyOn(store, 'fetchTimeline')
+    const body = new DOMWrapper(document.body)
+    const undoBtn = body.find('[data-role="photos-toast-action"]')
+    expect(undoBtn.exists()).toBe(true)
+    await undoBtn.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.restoreTrashBatch).toHaveBeenCalledWith(['a', 'b'])
+    expect(fetchTimelineSpy).toHaveBeenCalled()
+    expect(photosToast.toasts.value).toHaveLength(0)
   })
 
   // Task 7 (D19): the selectbar's mount point moved from being PhotosToolbar's preceding

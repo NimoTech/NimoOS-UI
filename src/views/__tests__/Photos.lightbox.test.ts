@@ -3,7 +3,7 @@
 // service.photos.recordView/getAsset/getAssetOcr/listFavoriteIds(PhotoLightbox
 // 真实挂载后 openAt/hydrateDetail/reconcileFav 会真的调它们)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -31,6 +31,10 @@ const svc = vi.hoisted(() => ({
     // Task 9: 灯箱「加入相册」→ AlbumPickerDialog 真实挂载,走 usePhotosAlbums()。
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+    // Task 8: delete-toast Undo restores through the trash store's real
+    // restore() action (restoreTrashBatch + fetchTrash + refresh timeline).
+    restoreTrashBatch: vi.fn().mockResolvedValue(undefined),
+    listTrash: vi.fn().mockResolvedValue([]),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -44,7 +48,7 @@ vi.mock('../../composables/useMessageBus', () => ({ useMessageBus: () => ({ on: 
 
 import Photos from '../Photos.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
-import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -81,7 +85,10 @@ beforeEach(() => {
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+  svc.photos.restoreTrashBatch.mockClear().mockResolvedValue(undefined)
+  svc.photos.listTrash.mockClear().mockResolvedValue([])
   lb.__resetForTest()
+  usePhotosToast().__resetForTests()
 })
 
 afterEach(() => {
@@ -137,12 +144,11 @@ describe('Photos.vue 灯箱接线', () => {
     expect(lb.list.value.every((p) => p.isVideo)).toBe(true)
   })
 
-  it('灯箱 emit delete(id) → store.deleteAssets(["id"]) + toast.show', async () => {
+  it('灯箱 emit delete(id) → store.deleteAssets(["id"]) + photosToast(trash+Undo)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
-    const toast = useToast()
+    const photosToast = usePhotosToast()
     const deleteSpy = vi.spyOn(store, 'deleteAssets').mockResolvedValue(1)
-    const showSpy = vi.spyOn(toast, 'show')
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
     await flushPromises()
     await w.vm.$nextTick()
@@ -159,9 +165,29 @@ describe('Photos.vue 灯箱接线', () => {
     await w.vm.$nextTick()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a'])
-    expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('1'), 4000)
     // PhotoLightbox 自己在 doDelete 里已经 close 了,Photos.vue 不重复关。
     expect(lb.open.value).toBe(false)
+
+    // Task 8: same Photos-private toast + Undo as the batch-delete path
+    // (Vue2 lightbox delete reuses onBatchDelete([id]) — PhotosTimeline.vue:1138).
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.icon).toBe('trash')
+    expect(toastItem.text).toContain('1')
+    expect(toastItem.action?.label).toBeTruthy()
+
+    // Undo → trash store restores the single deleted id and the timeline
+    // refetches; no second toast (Vue2 parity).
+    const fetchTimelineSpy = vi.spyOn(store, 'fetchTimeline')
+    const body = new DOMWrapper(document.body)
+    const undoBtn = body.find('[data-role="photos-toast-action"]')
+    expect(undoBtn.exists()).toBe(true)
+    await undoBtn.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.restoreTrashBatch).toHaveBeenCalledWith(['a'])
+    expect(fetchTimelineSpy).toHaveBeenCalled()
+    expect(photosToast.toasts.value).toHaveLength(0)
   })
 
   // Task 9: 灯箱 emit add-to-album(id) → Photos.vue 打开 AlbumPickerDialog,assetIds=[id]。

@@ -61,6 +61,9 @@ import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
+import { usePhotosTrash } from '../photos/stores/trash'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
@@ -72,7 +75,15 @@ import type { Photo } from '../photos/util/assetToPhoto'
 const { t } = useI18n()
 const router = useRouter()
 const store = useTimelineStore()
+const trash = usePhotosTrash()
 const toast = useToast()
+// Task 8: delete-flow toasts (batch + lightbox) move off the global app toast
+// onto the Photos-private queue (Task 2's usePhotosToast) — icon/Undo affordance
+// parity with Vue2's window.PhotosToast (PhotosTimeline.vue:704-718). The
+// task-progress coalescer below stays on the global `toast` — it is
+// task-progress UX, not part of the delete flow this task owns (see the
+// doneCoalescer wiring further down).
+const photosToast = usePhotosToast()
 const bus = useMessageBus()
 const lb = useLightbox()
 
@@ -172,11 +183,24 @@ function onAlbumAdded() {
 }
 
 async function onBatchDelete(ids: Array<string | number>) {
-  const count = await store.deleteAssets(ids.map(String))
-  // 4000ms, aligned with Vue2's delete/task-done toasts (NimoOS-UI
-  // src/views/Photos/PhotosTimeline.vue:329, :574) — longer than the app
-  // default (1500ms) so the user has time to register what happened.
-  toast.show(t('photosDeletedToast', { count }), 4000)
+  // Snapshot the full requested id set (not just however many
+  // store.deleteAssets reports as actually deleted) — Undo has to hand back
+  // exactly what was asked to go, same as Vue2's onBatchDelete/restoreTrash
+  // pair (PhotosTimeline.vue:704-718), which never distinguishes a partial
+  // failure either.
+  const snapshot = ids.map(String)
+  const count = await store.deleteAssets(snapshot)
+  photosToast.show({
+    text: t('photosDeletedToast', { count }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      // Undo restores through the trash store (restoreTrashBatch + refetch
+      // trash + refresh timeline) and does NOT show a second toast — Vue2
+      // parity: the Undo click only dispatches photos/restoreTrash.
+      onClick: () => { void trash.restore(snapshot) },
+    },
+  })
   selected.value = []
 }
 
@@ -191,8 +215,19 @@ function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
 
 async function onLightboxDelete(id: string | number) {
   // 灯箱已在用户确认删除时自行 close(见 PhotoLightbox.vue doDelete),这里不再重复关闭。
-  await store.deleteAssets([String(id)])
-  toast.show(t('photosDeletedToast', { count: 1 }), 4000)
+  const snapshot = [String(id)]
+  await store.deleteAssets(snapshot)
+  // Same toast/Undo shape as onBatchDelete — Vue2's lightbox delete reuses
+  // onBatchDelete([id]) wholesale (PhotosTimeline.vue:1138), so a single
+  // delete gets the identical trash-icon + Undo toast, count 1.
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => { void trash.restore(snapshot) },
+    },
+  })
 }
 
 // ─── task-done toast coalescing ───────────────────────────────────────────
@@ -327,6 +362,9 @@ onUnmounted(() => {
     @add-to-album="(id) => openAlbumPicker([id])"
   />
   <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
+  <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
+       Teleports to <body> (see PhotosToastHost.vue). -->
+  <PhotosToastHost />
 </template>
 
 <style scoped>
