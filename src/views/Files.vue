@@ -90,8 +90,10 @@ const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
 const ctxEntry = ref<FileEntry | null>(null)
 function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
-  // 右键未选中的项 → 只针对它;右键已选中的项 → 保留整个选区(菜单按 selectedCount 判断单/多)
-  if (!files.isSelected(payload.entry.path)) files.selectOnly(payload.entry.path)
+  // 2026-08-13 契约变更(机主要求):右键**不碰选区**。此前这里会 selectOnly() 把被点项收进
+  // 选区,副作用是单纯右键就点亮行选中态、并把顶部 SelectionToolbar 拉出来。现在:
+  // 右键未选中的项 → 选区原样不动,菜单动作经 contextTargets 只作用于该项;
+  // 右键已选中的项(在多选选区内)→ 菜单作用于整个选区(行为不变)。
   ctxEntry.value = payload.entry
 }
 // 容器 contextmenu 会话 onItemContextmenu 冒泡触发(同一原生事件),但只有当右键落在
@@ -122,8 +124,9 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
 const snapshotSelection = computed(() => selectedEntries.value)
 
-// Share the effective target set (ctxTargets(entry) — the clicked entry is always part of
-// it by the time this runs, see contextTargets/onItemContextmenu). The link dialog pops
+// Share the effective target set (ctxTargets(entry) — for a right-clicked entry outside the
+// selection this is just [entry]; selection is only honored when the entry is part of a
+// multi-selection, see contextTargets). The link dialog pops
 // whenever exactly *one* folder ends up actually shared after filtering, not based on
 // whether the call came from a single right-click or a toolbar batch: a batch of 3 folders
 // where 2 are already shared leaves 1 real target, and showing that folder's link is the

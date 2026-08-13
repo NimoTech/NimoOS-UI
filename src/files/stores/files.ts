@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
+import { useFolderSizesStore } from './folderSizes'
 import type { DisplayNames } from '../util/pathUtils'
 import { fileExt } from '../util/ext'
 import { folderListErrorMsg } from '../util/folderListError'
@@ -65,6 +66,9 @@ export const useFilesStore = defineStore('files', () => {
 
   async function load(realPath: string) {
     clearSelection()
+    // New listing, new world: computed folder sizes from the previous view
+    // must not leak into this one (see folderSizes.ts for the epoch guard).
+    useFolderSizesStore().reset()
     loading.value = true
     error.value = ''
     try {
