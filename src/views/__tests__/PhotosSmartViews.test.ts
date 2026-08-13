@@ -14,7 +14,8 @@
 //
 // What survives here: the `aiSmartViewOff` → `settings.fetchAiFeatures()` dedup behaviour
 // (this page still consumes that store directly, unrelated to the smart-view list) and the
-// `.photos-layout` responsive CSS structural check. The Moments band itself — rendering,
+// `.app` grid responsive CSS structural check (Plan C Task 2 re-shell: was a `.photos-layout`
+// check before the page moved onto the Vue2 `.app` grid shell). The Moments band itself — rendering,
 // gating, drag-reorder, the new slim settings hint, and the h2→h1 promotion — is covered in
 // the sibling file `../PhotosSmartViews.moments.test.ts` (SP15-P1-T5's established home for
 // band behaviour; this branch's new cases were added there, not duplicated here).
@@ -103,9 +104,12 @@ describe('PhotosSmartViews.vue — aiFeatures 拉取去重(§7e-15,与智能视�
 
 // ── 样式块结构断言(?raw,照 color-guard / PersonAssetGrid.test.ts 的既有先例)──
 describe('PhotosSmartViews.vue — 样式块结构核对', () => {
-  it('.photos-layout 在 ≤768px 媒体查询里把 gap 收成 0(照本区既定形态)', () => {
+  // Plan C Task 2:换壳后侧栏宽度由 `.app` CSS Grid 列接管,≤768px 收窄改成折叠整条侧栏列
+  // (Photos.vue 同款 `.app { grid-template-columns: 1fr; }`),不再是 `.photos-layout` 的
+  // `gap: 0`。
+  it('.app 在 ≤768px 媒体查询里把侧栏列折叠成单列(照 Photos.vue 既定形态)', () => {
     const m = /@media \(max-width: 768px\)\s*\{([^}]*\{[^}]*\})*[^}]*\}/.exec(photosSmartViewsRaw)
     expect(m).not.toBeNull()
-    expect(photosSmartViewsRaw).toContain('.photos-layout { gap: 0; }')
+    expect(photosSmartViewsRaw).toContain('.app { grid-template-columns: 1fr; }')
   })
 })

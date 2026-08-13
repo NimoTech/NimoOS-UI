@@ -158,13 +158,21 @@
 // 23) Save as Album carries Vue 2's `data-primary="true"` and an accent fill again (it had
 //     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
 //     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
+//
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// ——`collapsed` 改用共享 composable useSidebarCollapse()。内层滚动链已经完整
+// (`.sv-detail-main`/`.sv-detail-side` 两个网格格子各自 overflow-y:auto,复用
+// PhotosSmartViewDetail.vue 的骨架,SP15-P1-T7),换壳不影响滚动行为。已知遗留(同
+// PhotosAlbums.vue 的换壳注释,不逐页重复):移动端窄屏下没有 AreaShell 的 hamburger
+// 入口去开侧栏抽屉,brief 明确本任务不越权补,详见 task-2-report.md。
 import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
@@ -176,6 +184,7 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+const { collapsed } = useSidebarCollapse()
 const store = usePhotosMoments()
 const lightbox = useLightbox()
 const toast = useToast()
@@ -559,10 +568,11 @@ async function doDelete(): Promise<void> {
 </script>
 
 <template>
-  <AreaShell :title="moment ? moment.title : t('photosMoBackToAll')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+       <div class="photos-main">
         <!-- Gate 1: the list has not arrived yet (New-UI only — Vue 2 always had the object). -->
         <div v-if="!store.listLoaded" class="mo-skeleton" data-test="mo-skeleton">
           <div class="mo-skel-bar" />
@@ -856,25 +866,18 @@ async function doDelete(): Promise<void> {
           </div>
           </Transition>
         </template>
+       </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height (not min-height): this screen is capped and only the inner containers scroll — same
-   fix, and the same Vue 2 source, as the note at the matching rule in src/views/Photos.vue.
-   Registered in views/__tests__/photosLayoutHeightCap.test.ts under CAPPED. */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan C Task 2: the flex-row shell + the transitional `.sidebar { flex... }` width pin are
+   gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the sidebar's
+   width and the height cap, same as Photos.vue since its own Task 3 re-skin. This file's
+   source no longer contains a `.photos-layout` rule — photosLayoutHeightCap.test.ts's
+   CAPPED list has been updated to drop this page accordingly. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* Loading gate (New-UI only, deviation 1) — same shape as PhotosSmartViewDetail's .sv-skeleton,
@@ -1099,10 +1102,12 @@ async function doDelete(): Promise<void> {
 }
 .sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
 
-/* ≤768px: the sidebar is already a drawer, so the two columns collapse and the right rail drops
-   below the content — same treatment as PhotosSmartViewDetail.vue. */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
+   ≤768px, collapse `.app`'s sidebar column too — same treatment as PhotosSmartViewDetail.vue.
+   The two columns (content/right rail) collapse and the right rail drops below the content. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
   .sv-detail-layout { grid-template-columns: 1fr; }
   .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
 }

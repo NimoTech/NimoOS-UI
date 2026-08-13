@@ -19,13 +19,20 @@
 //  2) 封面判定 isCover(p) = String(p.id) === String(album.cover)(album.cover 可能是数字)。
 //  3) selected 用 Set<string>(String 归一)。
 //  4) 全程无对象引用 ===。
+//
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// ——`collapsed` 改用共享 composable useSidebarCollapse(），随换壳一并补上折叠态持久化
+// （此前 PhotosSidebar 一直吃默认值 false，恒展开）。同 PhotosAlbums.vue 的换壳注释一致，
+// 已知遗留（移动端窄屏下没有 AreaShell 的 hamburger 入口去开侧栏抽屉，brief 明确本任务不
+// 越权补）不再逐页重复，详见 task-2-report.md。
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
@@ -47,6 +54,7 @@ type SortBy = 'manual' | 'taken' | 'added'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+const { collapsed } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const albums = usePhotosAlbums()
@@ -624,10 +632,11 @@ watch(gridRef, () => {
 </script>
 
 <template>
-  <AreaShell :title="album ? album.title : t('photosAlbumsTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+       <div class="photos-main">
         <!-- Task 9(P4 遗留收口):失败态优先级在骨架分支之前——loadError 一旦为真,
              albumsLoaded 仍是假(刻意,见 albums.ts 注释),不该再落进骨架分支永久显示
              "正在加载"。 -->
@@ -1012,16 +1021,19 @@ watch(gridRef, () => {
             </aside>
           </div>
         </template>
+       </div>
       </main>
     </div>
+  </div>
 
-    <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
+  <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
          buttons live now, plus the hint line the band also carried. Deviation from the plan's
          prose, registered: it renders on `edit` alone, not only once something is selected --
          the target says so explicitly at :326 and has to, because the hint copy only ever shows
          with an empty selection and Add photos would otherwise be unreachable in an empty album.
-         The bar is a sibling of .photos-layout, as on PhotosSmartViewDetail.vue (:871): it is
-         position:fixed, so nesting it inside the scrolling column would buy nothing.
+         Plan C Task 2: the bar is now a sibling of `.photos-root` itself (previously a sibling
+         of `.photos-layout` inside AreaShell's slot, before AreaShell was unwrapped) — it is
+         position:fixed, so nesting it inside the scrolling column would buy nothing either way.
 
          Task 4 fold-in fix: this container used to live inside the `v-else-if="album"` branch
          above (before the P2c skeleton rebuild pulled it out to be a fixed-position sibling), so
@@ -1064,7 +1076,6 @@ watch(gridRef, () => {
         {{ t('photosAlbumAddPhotos') }}
       </button>
     </div>
-  </AreaShell>
 
   <!-- 删除相册确认模态(唯一带二次确认的操作) -->
   <div
@@ -1115,18 +1126,11 @@ watch(gridRef, () => {
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+   pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
+   sidebar's width and the height cap, same as Photos.vue since its own Task 3 re-skin.
+   `.photos-layout` no longer appears anywhere in this file's source — photosLayoutHeightCap
+   .test.ts's CAPPED list has been updated to drop this page accordingly. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px; color: var(--fg-muted); text-align: center; }
@@ -1454,9 +1458,12 @@ watch(gridRef, () => {
 }
 .sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
+   ≤768px, collapse `.app`'s sidebar column too, so `.main` doesn't leave a dead
+   var(--sidebar-w) gutter where the now-floating sidebar used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
   .sv-header h1 { font-size: 24px; }
   .sv-detail-layout { grid-template-columns: 1fr; }
   .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }

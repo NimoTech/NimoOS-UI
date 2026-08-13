@@ -1,9 +1,23 @@
 <script setup lang="ts">
 // Task 7 (SP7-P4 相册): 相册列表视图——卡片网格 + 排序 + 新建三种填充方式(empty/recent/
-// select,Ask Nimo 分支照 brief 明确不建)+ 空态。壳照 Photos.vue:176-180/PhotosFavorites.vue/
-// PhotosTrash.vue 的 AreaShell/.photos-layout/.photos-main 复制(不抽公共,P3 T8 同样处理)。
-// 结构照 Vue2 NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:16-86(banner+网格)、:99-165
-// (新建模态)。路由注册留给 T11。
+// select,Ask Nimo 分支照 brief 明确不建)+ 空态。结构照 Vue2 NimoOS-UI
+// src/views/Photos/PhotosAlbumsView.vue:16-86(banner+网格)、:99-165(新建模态)。路由注册
+// 留给 T11。
+//
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// (NimoOS-UI PhotosTimeline.vue:943-956)——`collapsed` 改用 Task 2 新建的共享 composable
+// useSidebarCollapse(），不再是本页自己没有的状态(相册页此前从未持久化过折叠态,
+// PhotosSidebar 一直吃着 prop 默认值 false,即恒展开——这本身是个待补的缺口,这里随换壳
+// 一并补上)。Vue2 这五页没有 PhotosTopbar(时间线专属),banner 本身就是头部,不额外加顶栏。
+// AreaShell 去留判定:同 Photos.vue Task 3 的既定结论——桌面态(≥769px)`.area-bar` 确实
+// display:none,但 `.area-body` 仍带 20px padding + 一层 flex 包裹,与 `.app` 网格自带的
+// 100vh/无内边距冲突,故同样脱壳。已知遗留(未在本任务修,详见 task-2-report.md):AreaShell
+// 的 `.area-bar` 是本页在 ≤768px 窄屏下唯一能打开侧栏抽屉的入口(hamburger 按钮),脱壳后这个
+// 入口消失了——与 Photos.vue Task 3→4 之间的同款临时缺口同构(当时 Photos.vue 也曾短暂失去
+// 这个入口,直到 Task 4 把开关接到了 PhotosTopbar 上)。本页没有 topbar 可接,brief 明确本任务
+// 「除 :data-collapsed 外不需要额外接线」,故这里不越权补——移动端暂时打不开侧栏抽屉,留给
+// 后续任务处理。
 //
 // 点卡片跳真路由(Vue2 是页内 openAlbumId state)——router.push('/photos/albums/' + view.id),
 // 铁律:id 可能是数字,字符串拼接自动 toString(),不需要额外 String() 包一层。
@@ -19,8 +33,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
@@ -40,6 +54,7 @@ type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+const { collapsed } = useSidebarCollapse()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
@@ -318,10 +333,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosAlbumsTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+       <div class="photos-main">
         <div class="albums-banner">
           <div>
             <h1>{{ t('photosAlbumsTitle') }}</h1>
@@ -528,9 +544,10 @@ onUnmounted(() => {
             </div>
           </section>
         </div>
+       </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 
   <div
     v-if="createOpen"
@@ -617,18 +634,13 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+   pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
+   sidebar's width and the height cap (`height: 100vh; overflow: hidden`), same as
+   Photos.vue since its own Task 3 re-skin. `.photos-layout` no longer appears anywhere in
+   this file's source — photosLayoutHeightCap.test.ts's CAPPED list has been updated to drop
+   this page accordingly (its `allPhotosLayoutViews()` scan only collects pages that still
+   contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
@@ -850,8 +862,12 @@ onUnmounted(() => {
 .albums-btn-cta { padding: 8px 18px; border-radius: 9px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .albums-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode
+   (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column too,
+   so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating sidebar
+   used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

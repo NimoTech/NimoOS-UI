@@ -49,13 +49,20 @@
 //     which they are already out of — so they are neither selectable nor restorable while
 //     selecting: the click is a no-op. This is one of Vue 2's own defects being fixed and
 //     registered rather than copied, per this branch's porting rule.
+//
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// ——`collapsed` 改用共享 composable useSidebarCollapse()。内层滚动链已经完整
+// (`.sv-detail-main`/`.sv-detail-side` 两个网格格子各自 overflow-y:auto),换壳不影响滚动
+// 行为。已知遗留(同 PhotosAlbums.vue 的换壳注释,不逐页重复):移动端窄屏下没有 AreaShell
+// 的 hamburger 入口去开侧栏抽屉,brief 明确本任务不越权补,详见 task-2-report.md。
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
@@ -88,6 +95,7 @@ const toast = useToast()
 const lb = useLightbox()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+const { collapsed } = useSidebarCollapse()
 
 // 唯一的归一点(铁律:按 id 找对象一律 String() 比较)。
 const svId = computed(() => String(route.params.id))
@@ -693,10 +701,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
 </script>
 
 <template>
-  <AreaShell :title="sv ? sv.name : t('photosSvSmartViews')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+       <div class="photos-main">
         <!-- 门控①:列表还没加载完 → 骨架(New-UI 新增,Vue2 没有这层概念) -->
         <div v-if="!store.listLoaded" class="sv-skeleton" data-test="sv-skeleton">
           <div class="sv-skel-bar" />
@@ -1083,12 +1092,16 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </aside>
           </div>
         </template>
+       </div>
       </main>
     </div>
+  </div>
 
-    <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
-         useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。 -->
-    <transition name="sv-toast-fade">
+  <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
+       useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。
+       Plan C Task 2:现在是 `.photos-root` 的同级(此前是 AreaShell 插槽里
+       `.photos-layout` 的同级,脱壳后原样上移一层)。 -->
+  <transition name="sv-toast-fade">
       <div v-if="exportToast" class="sv-toast" data-test="sv-export-toast">
         <svg v-if="exportToast.icon === 'download'" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
         <svg v-else viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14" /></svg>
@@ -1104,8 +1117,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
          Remove request impossible is now the button's own `disabled` (plus removeSelected's own
          early return), which is where the album page puts it too.
          `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar is a sibling of
-         .photos-layout, outside the `v-else` that requires a smart view, so without it the bar
-         would float over the not-found state if the view vanished without the id changing. -->
+         `.photos-root` (Plan C Task 2: previously a sibling of `.photos-layout` inside
+         AreaShell's slot, before AreaShell was unwrapped), outside the `v-else` that requires
+         a smart view, so without it the bar would float over the not-found state if the view
+         vanished without the id changing. -->
     <div v-if="edit && sv" class="sv-select-bar" data-test="sv-select-bar">
       <span class="group">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
@@ -1190,22 +1205,14 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </div>
     </Transition>
-  </AreaShell>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan C Task 2: the flex-row shell + the transitional `.sidebar { flex... }` width pin are
+   gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the sidebar's
+   width and the height cap, same as Photos.vue since its own Task 3 re-skin. This file's
+   source no longer contains a `.photos-layout` rule — photosLayoutHeightCap.test.ts's
+   CAPPED list has been updated to drop this page accordingly. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* ── 骨架(New-UI 新增)── */
@@ -1598,10 +1605,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
-/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态);详情页自己的两列(内容/右栏)同样
-   塌成单列,右栏排到内容下方。 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
+   ≤768px, collapse `.app`'s sidebar column too, so `.main` doesn't leave a dead
+   var(--sidebar-w) gutter. 详情页自己的两列(内容/右栏)同样塌成单列,右栏排到内容下方。 */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
   .sv-detail-layout { grid-template-columns: 1fr; }
   .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
 }
