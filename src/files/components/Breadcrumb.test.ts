@@ -91,4 +91,30 @@ describe('Breadcrumb', () => {
     // Ancestor segments render as <button class="crumb">.
     expect(hasCursorPointerForElement(css, 'button', ['crumb'])).toBe(true)
   })
+
+  // ── Two-line cap ─────────────────────────────────────────────────────────
+  // Only the parts that survive without a layout engine are asserted here. jsdom
+  // reports every box as 0x0, so the measuring loop can never collapse anything
+  // and the geometry itself has to be verified in a real browser — see the
+  // screenshots in .superpowers/sdd/2026-08-13-files-bugfix-batch/.
+
+  it('hides nothing and caps nothing when the environment reports no layout', async () => {
+    const deep = '/NimoOS-HD/a/b/c/d/e/f/g/h'
+    const w = mount(Breadcrumb, { props: { virtualPath: deep, currentRealPath: '/DATA/a/b/c/d/e/f/g/h' }, ...opts })
+    await w.vm.$nextTick()
+    // An unmeasured breadcrumb must not clip: a max-height guessed from nothing
+    // would swallow levels the user still has room for.
+    expect(w.find('nav.breadcrumb').attributes('style')).toBeUndefined()
+    expect(w.find('.crumb-more').exists()).toBe(false)
+    expect(w.findAll('.crumb').map((c) => c.text())).toEqual(['NimoOS-HD', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'])
+  })
+
+  it('keeps the overflow backstop that stops an unsettled frame from showing a third row', () => {
+    const css = extractStyle(fs.readFileSync(SELF_PATH, 'utf8'))
+    const nav = parseCssRules(css).find((r) => r.selectors.includes('.breadcrumb'))
+    expect(nav).toBeTruthy()
+    expect(/overflow:\s*hidden/.test(nav!.body)).toBe(true)
+    // Wrapping stays: within two rows the crumbs are still meant to wrap normally.
+    expect(/flex-wrap:\s*wrap/.test(nav!.body)).toBe(true)
+  })
 })
