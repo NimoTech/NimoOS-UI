@@ -165,7 +165,7 @@ export default {
   photosAlbumNamePlaceholder: 'e.g. Tokyo · Spring',
   photosAlbumFillLabel: 'How to fill it',
   photosAlbumFillEmpty: 'Empty album',
-  photosAlbumFillEmptyHint: 'Add photos later',
+  photosAlbumFillEmptyHint: 'Add photos later by dragging',
   photosAlbumFillRecent: 'Photos from the last 30 days',
   photosAlbumFillRecentHint: 'Automatically fill with everything recent',
   photosAlbumFillSelect: 'Choose photos…',

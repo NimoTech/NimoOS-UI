@@ -46,6 +46,24 @@ import PhotosAlbums from '../PhotosAlbums.vue'
 // source text (jsdom does not cascade or paint). `?raw` on a .vue file is the established way
 // here -- see the same import in the SmartViewCard test this task replaced.
 import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
+// T3 (re-skin shadow cleanup): `.al-smart-badge`/`.al-live-dot .live-dot` used to be shadowed
+// locally in this component's own <style scoped> (that's what the two tests below originally
+// read); T3 deleted both local copies outright -- they were name-identical duplicates of the
+// already-imported parity rules, and the only real difference was a bug (`--blur`/`--on-accent`
+// reaching for the wrong tokens). The rules now live solely in the shared parity stylesheet, so
+// the regression guards below read that file instead of this component's own raw source.
+// Plain `fs.readFileSync` rather than a Vite `?raw` import: Vite's CSS/SCSS handling intercepts
+// `.scss` specifiers ahead of the raw-import plugin and yields an empty string (verified: `.vue?raw`
+// works, `.scss?raw` does not) -- the same `fs`-based technique keyframes-guard.test.ts already
+// uses to read this exact file.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const photosParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
@@ -974,15 +992,20 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // this is asserted on the style block's source text -- the same technique color-guard.test.ts
   // and photosGlassSurfaces.test.ts use for CSS that no unit test can observe.
   it('styles the breathing dot explicitly inside .al-live-dot (the #116 follow-up fix)', () => {
-    const style = styleBlock()
-    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
-    expect(rule, 'no explicit .al-live-dot .live-dot rule -- the dot renders as a hollow ring').not.toBeNull()
+    // T3: the local shadow copy of this rule is gone (it duplicated parity under the same
+    // selector, with a `--blur`/plain-`pulse` bug parity doesn't have) -- assert two things
+    // instead: parity itself still carries the real fix, and this component doesn't reintroduce
+    // a local override that could shadow it again.
+    expect(styleBlock()).not.toMatch(/\.al-live-dot\s+\.live-dot\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
+    expect(rule, 'no explicit .al-live-dot .live-dot rule in parity -- the dot renders as a hollow ring').not.toBeNull()
     expect(rule![1]).toMatch(/width\s*:/)
     expect(rule![1]).toMatch(/height\s*:/)
     expect(rule![1]).toMatch(/background\s*:/)
     expect(rule![1]).toMatch(/animation\s*:/)
     // The paused variant has to turn the animation off, or a paused view keeps breathing.
-    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
+    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
     expect(paused, 'no paused variant for the dot').not.toBeNull()
     expect(paused![1]).toMatch(/animation\s*:\s*none/)
   })
@@ -991,9 +1014,13 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // readable foreground *on an accent fill*, which in the dark theme is a deep navy -- wrong
   // for a badge that sits on top of a photograph.
   it('does not use --on-accent for the badge sitting on the cover photo', () => {
-    const style = styleBlock()
-    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(style)
-    expect(badge, 'no .al-smart-badge rule').not.toBeNull()
+    // T3: same move as the dot test above -- .al-smart-badge is no longer locally shadowed,
+    // so assert parity's own rule (the one now actually in effect) avoids --on-accent, and
+    // that this component doesn't carry a local copy that could reintroduce the bug.
+    expect(styleBlock()).not.toMatch(/\.al-smart-badge\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(parity)
+    expect(badge, 'no .al-smart-badge rule in parity').not.toBeNull()
     expect(badge![1]).not.toMatch(/--on-accent/)
   })
 })

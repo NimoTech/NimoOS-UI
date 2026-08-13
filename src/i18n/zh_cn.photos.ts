@@ -164,7 +164,7 @@ export default {
   photosAlbumNamePlaceholder: '例如 东京 · 春天',
   photosAlbumFillLabel: '如何填充',
   photosAlbumFillEmpty: '空相册',
-  photosAlbumFillEmptyHint: '之后再添加照片',
+  photosAlbumFillEmptyHint: '之后拖拽添加照片',
   photosAlbumFillRecent: '最近 30 天的照片',
   photosAlbumFillRecentHint: '自动填入所有近期照片',
   photosAlbumFillSelect: '手动挑选照片…',
