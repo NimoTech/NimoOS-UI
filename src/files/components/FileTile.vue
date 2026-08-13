@@ -49,7 +49,7 @@ function onClick(e: MouseEvent) {
     >!</button>
     <FavoriteStar v-if="props.entry.is_dir && !props.entry.uploading" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
     <FileThumb class="tile-icon" :entry="props.entry" />
-    <span class="tile-name">{{ props.entry.name }}</span>
+    <span class="tile-name" :title="props.entry.name">{{ props.entry.name }}</span>
     <span class="tile-date">{{ props.entry.uploading ? $t('filesUploadingLabel') : dateFmt(props.entry.date || '') }}</span>
   </div>
 </template>
@@ -59,7 +59,14 @@ function onClick(e: MouseEvent) {
 .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
 .file-tile.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 .tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
-.tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+/* Desktop icon-title rule (home/components/AppTile.vue:49, FolderTile.vue:26):
+   max-width 100% + overflow hidden + ellipsis + nowrap, single line.
+   `min-width: 0` is belt-and-braces for the same reason spelled out in
+   FileRow.vue — `overflow: hidden` already zeroes the flex automatic minimum
+   size, and `max-width: 100%` was already holding the tile inside its grid
+   track. Measured in headless chromium: clientWidth 117 vs scrollWidth 1575,
+   zero overflowing tiles. */
+.tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; min-width: 0; }
 .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
 .tile-star { position: absolute; top: 6px; right: 6px; }
 /* The broken badge owns the top-right corner (it is the urgent, always-visible

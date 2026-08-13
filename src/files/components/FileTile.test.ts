@@ -31,3 +31,22 @@ describe('FileTile', () => {
     expect(w.find('.file-tile').classes()).not.toContain('cut')
   })
 })
+
+// See FileRow.test.ts's matching block for why only the title attribute is
+// asserted here and the ellipsis itself is left to the real-browser evidence.
+describe('FileTile 长名称截断', () => {
+  const longName = 'a-very-long-file-name-'.repeat(12) + '.txt'
+
+  it('名称元素带 title,悬停可读到完整名字', () => {
+    const w = mount(FileTile, {
+      props: { entry: { ...fileEntry, name: longName, path: '/DATA/' + longName } },
+      ...mountOpts,
+    })
+    expect(w.get('.tile-name').attributes('title')).toBe(longName)
+  })
+
+  it('短名字也带 title', () => {
+    const w = mount(FileTile, { props: { entry: fileEntry }, ...mountOpts })
+    expect(w.get('.tile-name').attributes('title')).toBe('a.txt')
+  })
+})
