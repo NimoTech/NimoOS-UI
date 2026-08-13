@@ -23,10 +23,12 @@
 // opinion on it (it only defines the two-column desktop grid), so the
 // drawer's positioning rules stay in this component's own scoped style block.
 //
-// IMPORTANT (updated post-a822ef1d): all 13 photos-area pages are now rooted under
-// `.photos-root` (fix commit a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos
-// view under photos-root so the shared sidebar keeps its layout") — the parity scss above
-// reaches every one of them, not just this one. The 12 pages that haven't had their own
+// IMPORTANT (updated post-a822ef1d, comment count refreshed plan-C task 1 2026-08-13):
+// all 14 photos-area pages are now rooted under `.photos-root` (fix commit
+// a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos view under
+// photos-root so the shared sidebar keeps its layout"; Plan B has since
+// re-skinned the timeline view, `Photos.vue`) — the parity scss above
+// reaches every one of them, not just this one. The 13 pages that haven't had their own
 // `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
 // pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/
 // --success shadowed to Vue2's values) described in task-3-report.md's token-collision

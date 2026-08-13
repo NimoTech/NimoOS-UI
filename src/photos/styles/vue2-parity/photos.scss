@@ -3338,9 +3338,9 @@
    .live-dot rule — so a size/color/breathing-animation set must be
    explicitly added here for the .al-live-dot context (a hollow-dot bug found
    in review), with values kept consistent with .sv-collage-status .live-dot;
-   the photos-pulse keyframes are defined in photos-smartview.scss (available
-   since it's globally imported; renamed from Vue2's `pulse` to avoid
-   colliding with theme.css's global `pulse`). */
+   the photos-pulse keyframes are defined earlier in this file (:203;
+   renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse`). */
 .photos-root .al-live-dot .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #34C759;
@@ -4025,8 +4025,6 @@
 .albums-modal-leave-active { transition: opacity 0.15s ease; }
 .albums-modal-enter,
 .albums-modal-leave-to { opacity: 0; }
-
-@import './photos-smartview.scss';
 
 // === UploadFileCard visual sub-states ===
 .ufc .ufc-sub {
