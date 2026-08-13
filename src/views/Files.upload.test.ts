@@ -452,3 +452,127 @@ describe('Files.vue upload wiring', () => {
     expect(showSpy).not.toHaveBeenCalledWith(expect.stringContaining(zh.filesUploadPathTooLong.split('{count}')[1]))
   })
 })
+
+// ── Bug 3: picking an EMPTY folder with "upload folder" ──
+//
+// Platform facts this suite is built on (verified in real Chromium 1228, not assumed):
+//   * Picking an empty folder leaves `input.files.length === 0`, `input.value === ''`
+//     and `input.webkitEntries` empty — the folder NAME is nowhere to be found.
+//   * Because the selection did not change, the browser fires `cancel`, not `change`.
+//     An empty pick is therefore indistinguishable from dismissing the dialog.
+// So the input path can only give feedback, never create the folder; the File System
+// Access API (secure contexts only) is the sole path that can actually do it.
+describe('Files.vue folder picker: empty folders', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    ;(globalThis as any).IntersectionObserver = class {
+      cb: (e: { isIntersecting: boolean }[]) => void
+      constructor(cb: any) { this.cb = cb }
+      observe() { this.cb([{ isIntersecting: true }]) }
+      disconnect() {}
+    }
+  })
+  afterEach(() => {
+    document.body.innerHTML = ''
+    delete (globalThis as any).showDirectoryPicker
+  })
+
+  async function mountFiles() {
+    const folders = useFoldersStore()
+    folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
+    const router = makeRouter()
+    router.push('/files'); await router.isReady()
+    const w = mount(Files, { global: { plugins: [router, i18n] } })
+    await flushPromises()
+    return w
+  }
+
+  // Fake FileSystemDirectoryHandle — only the members the walk touches.
+  function dirHandle(name: string, children: any[] = []) {
+    return { kind: 'directory', name, async *values() { for (const c of children) yield c } }
+  }
+
+  it('no File System Access API: a cancelled/empty folder pick tells the user instead of doing nothing', async () => {
+    delete (globalThis as any).showDirectoryPicker
+    const w = await mountFiles()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    await w.find('.tb-upload-folder').trigger('click')
+    // The browser reports "nothing selected" (empty folder OR dismissed dialog) as `cancel`.
+    w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
+    await flushPromises()
+
+    expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
+  })
+
+  it('does not hijack the re-upload-missing-files picker with the empty-folder hint', async () => {
+    delete (globalThis as any).showDirectoryPicker
+    const w = await mountFiles()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+
+    ;(w.vm as any).onRefill({ targetPath: '/DATA/Documents', missing: ['a.txt'] })
+    w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
+    await flushPromises()
+
+    expect(showSpy).not.toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
+  })
+
+  it('with the File System Access API: picking an empty folder actually creates it', async () => {
+    const picker = vi.fn(async () => dirHandle('EmptyPick'))
+    ;(globalThis as any).showDirectoryPicker = picker
+    const w = await mountFiles()
+    const files = useFilesStore()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(picker).toHaveBeenCalledTimes(1)
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'EmptyPick'))
+    expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyDirsCreated.replace('{count}', '1'))
+    // The hint belongs to the degraded path only.
+    expect(showSpy).not.toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
+  })
+
+  it('with the File System Access API: a folder with files still uploads them, empty subdirs included', async () => {
+    const fileHandle = (name: string) => ({ kind: 'file', name, getFile: async () => new File(['x'], name) })
+    ;(globalThis as any).showDirectoryPicker = vi.fn(async () =>
+      dirHandle('Trip', [fileHandle('a.txt'), dirHandle('sub-empty')]))
+    const w = await mountFiles()
+    const files = useFilesStore()
+    const uploads = useUploadsStore()
+    const queueSpy = vi.spyOn(uploads, 'addFilesToQueue').mockResolvedValue({ rejected: [] })
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(queueSpy).toHaveBeenCalledWith([
+      { file: expect.any(File), targetPath: files.currentPath, relativePath: 'Trip/a.txt', conflictPolicy: '' },
+    ])
+    expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'Trip/sub-empty'))
+  })
+
+  it('dismissing the File System Access picker is silent — no toast, no folder created', async () => {
+    ;(globalThis as any).showDirectoryPicker = vi.fn(async () => {
+      throw Object.assign(new Error('The user aborted a request.'), { name: 'AbortError' })
+    })
+    const w = await mountFiles()
+    const toast = useToast()
+    const showSpy = vi.spyOn(toast, 'show')
+    const createSpy = vi.mocked(service.folder.create)
+    createSpy.mockClear()
+
+    await w.find('.tb-upload-folder').trigger('click')
+    await flushPromises()
+
+    expect(createSpy).not.toHaveBeenCalled()
+    expect(showSpy).not.toHaveBeenCalled()
+  })
+})
