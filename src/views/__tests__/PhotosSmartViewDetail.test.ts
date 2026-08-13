@@ -1344,12 +1344,15 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('min-width: 220px')
   })
 
-  it('.sv-action-btn-icon 保留 Vue2 :99 内联的 padding/min-width/justify-content 三件套', () => {
+  // Plan C Task 5 re-skin fix: Vue2's own inline style on this button (:180) is
+  // `min-width:36px`, not 32px -- a 4px drift this task's shadowing pass caught and corrected;
+  // this guard now locks the right value.
+  it('.sv-action-btn-icon 保留 Vue2 :180 内联的 padding/min-width/justify-content 三件套', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-action-btn-icon')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('padding: 0 10px')
-    expect(rule?.body).toContain('min-width: 32px')
+    expect(rule?.body).toContain('min-width: 36px')
     expect(rule?.body).toContain('justify-content: center')
   })
 
