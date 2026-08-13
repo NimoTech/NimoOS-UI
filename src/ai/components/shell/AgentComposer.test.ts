@@ -123,7 +123,7 @@ describe('AgentComposer skeleton', () => {
     const w = mountComposer()
     const browse = w.findAll('.composer-tool')[0]
     await browse.trigger('click')
-    // toast store 里应有一条
+    // One toast should be in the toast store
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
   })

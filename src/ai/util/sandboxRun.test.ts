@@ -52,12 +52,13 @@ describe('sandboxRun', () => {
     expect(s.failed).toBe(true)
   })
 
-  it('error event with no content writes empty string, not "null"/"undefined" — but still sets failed (P3b 终审 I2)', () => {
+  it('error event with no content writes empty string, not "null"/"undefined" — but still sets failed (P3b final review I2)', () => {
     let s = initSandboxState()
     s = reduceSandboxEvent(s, { type: 'error' }, 0)
     expect(s.error).toBe('')
-    // 这条是 I2 的核心钉子:content 为空不等于"没失败"。后端 agent.py:999 的
-    // str(e) 对某些异常就是空串,消费端必须仍能区分"失败但没有文本"与"成功"。
+    // This is the core pin for I2: an empty content does not equal "not failed". In the backend
+    // agent.py:999, str(e) for some exceptions is an empty string, so the consumer must still
+    // distinguish between "failed but no text" and "success".
     expect(s.failed).toBe(true)
   })
 

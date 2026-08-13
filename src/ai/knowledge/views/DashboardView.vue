@@ -1,57 +1,67 @@
 <!--
-  SP8-P5a Task 12 —— 知识库仪表盘，1:1 移植自 Vue2 蓝本
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/DashboardView.vue`(371 行，
-  `git show main:` 读取，治理文件 §1：工作树是旧分支不可信）。
+  SP8-P5a Task 12 — Knowledge dashboard, 1:1 port from Vue2 blueprint
+  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/DashboardView.vue` (371 lines,
+  read via `git show main:`, governance file §1: worktree is old branch, not
+  trustworthy).
 
-  结构对照（蓝本行号 → 本文件）：
-    :4-39    空库 onboarding（orb + 标题 + 文案 + CTA 两钮 + 三层 intro 卡 +
-             「深入」入口格 4 项）
-    :42-136  Surface A「What's inside」三层构成卡（wiki/vec/note）+ glue 行
-             （三个 id 说明条，各自 inline `--g` 传色）
-    :138-178 Surface B「How it's organized」知识根一览（启用根卡 + 添加根 +
-             停用根提示条）
-    :180-245 Surface C「What's happening now」解析进度 + 限速档位 + 队列健康
-             + 自动沉淀
-    :247-263 Surface D「Go deeper」快捷入口格（7 项，非空库）
-    :269-371 script：SAMPLE_QUERIES / LAYER_INTROS / CC_LEVELS 三常量 +
-             computed 取数 + created() 生命周期 + methods
+  Structure mapping (blueprint line → this file):
+    :4-39    Empty state onboarding (orb + title + copy + two CTA buttons + three
+             intro cards + "Go deeper" entry grid of 4 items)
+    :42-136  Surface A "What's inside" three-layer cards (wiki/vec/note) + glue
+             line (three id labels, each with inline `--g` color pass-down)
+    :138-178 Surface B "How it's organized" knowledge roots overview (enabled root
+             cards + add root + disabled roots notice)
+    :180-245 Surface C "What's happening now" parse progress + throttle level +
+             queue health + auto-distill
+    :247-263 Surface D "Go deeper" entry grid (7 items, non-empty state)
+    :269-371 script: SAMPLE_QUERIES / LAYER_INTROS / CC_LEVELS three constants +
+             computed getters + onMounted lifecycle + methods
 
-  i18n 键名适配（纯机械，非行为变化，同 T10 手法）：蓝本 `$t(literal)` 直接拿
-  字面英文短语当 key；本仓改成常量数组持有 `aiKb*` 键名，模板里 `t(key)`。
-  `*-en` 字面英文子标题（`k2-sec-en`/`k2-layer-name-en`/`k2-tag`/entry 的
-  `en` 字段）**不翻译**——与 T10 KnowledgeLayout.vue 的 `TITLES[...].en` 同一
-  条既有先例（蓝本本身就是「中文翻译 + 固定英文子标题」的双语设计，不是
-  遗漏）。
+  i18n key name adaptation (pure mechanical, no behavior change, same technique as
+  T10): blueprint uses `$t(literal)` taking English phrases literally as keys;
+  this repo changes to constant arrays holding `aiKb*` key names, with `t(key)` in
+  templates.
+  `*-en` literal English subtitles (`k2-sec-en` / `k2-layer-name-en` / `k2-tag` /
+  entry's `en` field) **are not translated** — same precedent as T10
+  KnowledgeLayout.vue's `TITLES[...].en` (the blueprint itself uses bilingual design
+  of "Chinese translation + fixed English subtitle", not an omission).
 
-  【交接项 1】`.k2-cc` 按下态选择器是 `[data-on="true"]`（字符串），套
-  `String(...)`，否则 Vue 对 `false` 会整个删掉属性。
-  【交接项 2】`.k2-glue-id i` 的圆点色靠模板 inline `style="--g: var(--ly-*)"`
-  传下来，三条各自颜色，逐字照抄。
-  【交接项 3】`k2-layer-num` 的 `second`/`suffix`、`k2-live-ico` 的 `spin`、
-  `k2-drafts` 都是子元素 class，不是父元素属性。
-  【N2，照抄不改】`stats.rate_per_min`/`done_last_10m`/`eta_s` 后端实测不下发
-  （knowledgeStore.ts `ParserStats` 类型故未声明这三个字段；`DashboardStats`
-  在本文件本地窄化只读类型，不回改 knowledgeStore.ts —— 那是 T6/T7 范围，
-  已提交）。`|| 0`/`fmtEta` 空判兜底后速率/ETA/10 分钟完成数恒为 0 与空串，
-  这是后端现状，不是前端 bug，验收清单里另有一条。
-  【N3，照抄不改，用户 2026-07-31 明示不修】`created()` 的
-  `Promise.all([...]).finally(ready=true)`：`Promise.all` 是 **fail-fast**——
-  任一输入 reject，组合 promise 立刻 reject（不等其余输入 settle），
-  `.finally` 因此立刻触发，`ready` 立刻置起；`Promise.allSettled` 则相反，
-  必须等全部输入 settle（无论成功失败）才会 resolve。代价是 Wiki 后端
-  （38GB SQLite）挂死时 `loadRoots()` 卡 axios 60s 超时——只要它最终 settle
-  （无论成功失败），`Promise.all` 就会跟着 settle，整页骨架卡到那一刻。
-  不改成 `allSettled`（那样某个 loader 一旦真悬挂，骨架反而永远出不来），
-  不给 `loadRoots` 单独超时。fail-fast 特性的可分辨钉子见
-  `DashboardView.test.ts`「N3 钉子」用例。
+  [Handoff item 1] `.k2-cc` down-state selector is `[data-on="true"]` (string), wrap
+  with `String(...)`, otherwise Vue will delete the attribute entirely for `false`.
+  [Handoff item 2] `.k2-glue-id i` dot color comes from template inline
+  `style="--g: var(--ly-*)"` pass-down, three lines each with their own color, copied
+  exactly.
+  [Handoff item 3] `k2-layer-num`'s `second`/`suffix`, `k2-live-ico`'s `spin`,
+  `k2-drafts` are all child-element classes, not parent attributes.
+  [N2, copied unchanged] `stats.rate_per_min` / `done_last_10m` / `eta_s` are not
+  actually returned by backend (knowledgeStore.ts `ParserStats` type does not declare
+  these three fields; `DashboardStats` locally narrows the type read-only here,
+  does not change knowledgeStore.ts back — that's T6/T7 scope, already submitted).
+  After `|| 0` / `fmtEta` null-guarding, rate / ETA / 10-minute-done count are always
+  0 and empty string — this is the current backend state, not a frontend bug;
+  acceptance has another line item for it.
+  [N3, copied unchanged, user explicitly stated 2026-07-31 not to modify]
+  `onMounted()` `Promise.all([...]).finally(ready=true)`: `Promise.all` is
+  **fail-fast** — any input rejection causes the combined promise to reject
+  immediately (does not wait for remaining inputs to settle), so `.finally` fires
+  immediately and `ready` is set right away; `Promise.allSettled` is the opposite,
+  must wait for all inputs to settle (success or failure) before resolving. The
+  cost: if Wiki backend (38GB SQLite) hangs, `loadRoots()` blocks on axios 60s
+  timeout — as long as it finally settles (success or failure), `Promise.all`
+  settles with it, and the page skeleton gets stuck at that moment. Do not change
+  to `allSettled` (then if a loader truly hangs, the skeleton never loads), do not
+  add separate timeout to `loadRoots`. The distinguishable nail for fail-fast
+  behavior is in `DashboardView.test.ts` "N3 nail" test case.
 
-  【发现，非缺陷】`dashboardHelpers.ts` 导出的 `updatePeak` 在 Vue2 蓝本里就是
-  死代码——`git grep updatePeak main -- src/views/AI/Knowledge` 显示它只被
-  自己的单测文件引用，`knowledgeStore.js:84`（loadOverview）与本文件
-  `percent` 计算都不调用它，`backlogPeak` 完全由 store 内联的
-  `Math.max(...)` 维护（T6 已 1:1 照抄这处内联，knowledgeStore.ts:317）。
-  本文件因此不直接调用 `updatePeak`，只读取 `store.backlogPeak` 喂给
-  `progressPercent`——这是蓝本行为，不是遗漏。
+  [Finding, not a defect] `updatePeak` exported from `dashboardHelpers.ts` is
+  dead code in the Vue2 blueprint already — `git grep updatePeak main --
+  src/views/AI/Knowledge` shows it is only referenced by its own test file,
+  neither `knowledgeStore.js:84` (loadOverview) nor this file's `percent`
+  calculation calls it, `backlogPeak` is entirely maintained by the store's inline
+  `Math.max(...)` (T6 already 1:1 copied this inline, knowledgeStore.ts:317).
+  This file therefore does not directly call `updatePeak`, only reads
+  `store.backlogPeak` and feeds it to `progressPercent` — this is blueprint
+  behavior, not an omission.
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
@@ -66,7 +76,8 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useKnowledgeStore()
 
-/** 蓝本 :274 SAMPLE_QUERIES —— 字面搜索词换成对应 aiKb 键（附录 A 逐字对照）。 */
+/** Blueprint :274 SAMPLE_QUERIES — literal search terms replaced with
+ * corresponding aiKb keys (appendix A for exact match). */
 const SAMPLE_QUERIES: string[] = [
   'aiKbSampleThyroid',
   'aiKbSamplePythonAsync',
@@ -75,9 +86,10 @@ const SAMPLE_QUERIES: string[] = [
   'aiKbSampleSkating',
 ]
 
-/** 蓝本 :278-285 LAYER_INTROS —— `name`/`desc` 换成对应 aiKb 键；`tag` 是
- * `k2-tag` 里的固定英文短标（TREE/SEMANTIC/BACKLINKS），蓝本本身不走 $t，
- * 照抄不译（与 `*-en` 同规律）。 */
+/** Blueprint :278-285 LAYER_INTROS — `name`/`desc` replaced with
+ * corresponding aiKb keys; `tag` is the fixed English short label in `k2-tag`
+ * (TREE/SEMANTIC/BACKLINKS), blueprint itself does not use $t, copied unchanged
+ * (same rule as `*-en`). */
 interface LayerIntro {
   id: 'wiki' | 'vec' | 'note'
   tag: string
@@ -90,7 +102,7 @@ const LAYER_INTROS: LayerIntro[] = [
   { id: 'note', tag: 'BACKLINKS', nameKey: 'aiKbDistilledNotes', descKey: 'aiKbLayerNoteDesc' },
 ]
 
-/** 蓝本 :287-291 CC_LEVELS —— `key` 换成对应 aiKb 键。 */
+/** Blueprint :287-291 CC_LEVELS — `key` replaced with corresponding aiKb keys. */
 interface CcLevel {
   n: number
   key: string
@@ -112,8 +124,9 @@ interface EntryItem {
   badgeTone?: string
 }
 
-/** N2 —— 见文件头注释：本地窄化类型，读三个后端实测不下发的可选字段，
- * 不回改 knowledgeStore.ts。 */
+/** N2 — see file header comment: local type narrowing, reads three optional
+ * fields that backend testing shows are not actually returned, does not change
+ * knowledgeStore.ts back. */
 interface DashboardStats extends ParserStats {
   rate_per_min?: number
   done_last_10m?: number
@@ -125,21 +138,23 @@ const ready = ref(false)
 const hero = ref<HTMLInputElement | null>(null)
 
 const stats = computed<DashboardStats>(() => store.stats)
-/** 【评审 Minor M-1,补申报】蓝本 :308 是 `this.stats.queue_depth || {}`——
- * 兜底成空对象,靠下游每个读取点自己 `.pending || 0` 防御。本仓 `QueueDepth`
- * 的 `pending`/`running`/`failed`/`done` 四个字段在 `knowledgeStore.ts` 里
- * 都是必填(非 optional),`|| {}` 在 strict 模式下类型不满足 `QueueDepth`,
- * 故改成兜底一个全零形状的对象。下游每个读取点仍然各自套了 `|| 0`
- * (与蓝本一致),两种写法在任何输入下行为等价,纯粹是 TS 类型约束下的机械
- * 改写,不改变任何可观察行为。 */
+/** [Review Minor M-1, additional disclosure] Blueprint :308 is
+ * `this.stats.queue_depth || {}` — fall back to empty object, relies on each
+ * downstream read point doing its own `.pending || 0` defense. This repo's
+ * `QueueDepth` has four fields `pending`/`running`/`failed`/`done` all required
+ * (non-optional) in `knowledgeStore.ts`, `|| {}` does not satisfy type `QueueDepth`
+ * under strict mode, so changed to fall back to an all-zero-shaped object. Each
+ * downstream read point still wraps itself with `|| 0` (matches blueprint), both
+ * code forms are behaviorally equivalent under any input, pure mechanical rewrite
+ * under TS type constraints, does not change any observable behavior. */
 const queueDepth = computed(() => stats.value.queue_depth || { pending: 0, running: 0, failed: 0, done: 0 })
 const failed = computed(() => queueDepth.value.failed || 0)
 const backlog = computed(() => (queueDepth.value.pending || 0) + (queueDepth.value.running || 0))
-/** N2 —— 后端不下发，恒 0。 */
+/** N2 — backend does not return, always 0. */
 const rate = computed(() => stats.value.rate_per_min || 0)
-/** N2 —— 后端不下发，恒 0。 */
+/** N2 — backend does not return, always 0. */
 const done10m = computed(() => stats.value.done_last_10m || 0)
-/** N2 —— 后端不下发，`fmtEta` 空判后恒空串。 */
+/** N2 — backend does not return, after `fmtEta` null-guard always empty string. */
 const etaText = computed(() => fmtEta(stats.value.eta_s))
 const percent = computed(() => progressPercent(backlog.value, store.backlogPeak))
 const vectorsText = computed(() => stats.value.total_vectors_text || 0)
@@ -158,7 +173,7 @@ const isEmpty = computed(
     (stats.value.indexed_files || 0) === 0,
 )
 
-/** 蓝本 :328-338 entries()。 */
+/** Blueprint :328-338 entries(). */
 const entries = computed<EntryItem[]>(() => [
   { id: 'search', en: 'Search', key: 'aiKbSearch', icon: 'search', tone: 'accent' },
   { id: 'wiki', en: 'Wiki', key: 'aiKbWikiMap', icon: 'layers', tone: 'wiki' },
@@ -177,7 +192,7 @@ const entries = computed<EntryItem[]>(() => [
   { id: 'settings', en: 'Settings', key: 'aiKbTitleAdvancedSettings', icon: 'settings' },
 ])
 
-/** 蓝本 :339-346 emptyEntries()。 */
+/** Blueprint :339-346 emptyEntries(). */
 const emptyEntries = computed<EntryItem[]>(() => [
   { id: 'search', en: 'Search', key: 'aiKbSearch', icon: 'search', tone: 'accent', disabled: true },
   { id: 'roots', en: 'Roots', key: 'aiKbNavRoots', icon: 'drive', tone: 'wiki' },
@@ -206,12 +221,15 @@ function go(id: string): void {
   router.push(id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`)
 }
 
-/** 蓝本 :348-352 created() —— N3，见文件头注释，照抄不改。
+/** Blueprint :348-352 created() — N3, see file header comment, copied
+ * unchanged.
  *
- * 【偏离,验收反馈修正，2026-08-01】唯一改动：`loadRoots` 传 `silent: true`。
- * 这是后台加载而非用户主动操作，Wiki 接口挂死时不该在 60 s 后弹「操作失败」
- * （多半已弹在别的页面上）——概览页用「0 个知识根」表达这个失败就够了。
- * 理由全文见 `knowledgeStore.ts` 的 `loadRoots` 注释。 */
+ * [Deviation, acceptance feedback fix, 2026-08-01] Only change: `loadRoots`
+ * receives `silent: true`. This is background loading not a user-initiated
+ * action, when Wiki API hangs should not pop "operation failed" after 60s
+ * (most likely already popped on another page) — dashboard page can express this
+ * failure with "0 knowledge roots". Full reasoning in `knowledgeStore.ts`
+ * `loadRoots` comment. */
 onMounted(() => {
   Promise.all([
     store.loadOverview(),
@@ -226,7 +244,7 @@ onMounted(() => {
 <template>
   <div class="k-scroll">
     <div class="k-scroll-inner">
-      <!-- ============ Empty state（新装：0 根、0 文档）============ -->
+      <!-- ============ Empty state (fresh install: 0 roots, 0 docs) ============ -->
       <template v-if="isEmpty">
         <div class="k2-onboard">
           <div class="k2-onboard-orb"><KIcon name="layers" :size="26" /></div>
@@ -271,7 +289,7 @@ onMounted(() => {
 
       <!-- ============ Normal / loading ============ -->
       <template v-else>
-        <!-- Search（surface D，前置）-->
+        <!-- Search (surface D, upfront) -->
         <div class="k2-search">
           <KIcon name="search" :size="17" color="var(--text-tertiary)" />
           <input
@@ -294,7 +312,7 @@ onMounted(() => {
           </button>
         </div>
 
-        <!-- Surface A — what's inside（三层）-->
+        <!-- Surface A — what's inside (three layers) -->
         <div class="k2-sec-head">
           <span class="k2-sec-title">{{ t('aiKbWhatsInside') }}</span>
           <span class="k2-sec-en">What's inside</span>
@@ -539,12 +557,14 @@ onMounted(() => {
                 ><br />
                 <span class="k2-entry-en">{{ e.en }}</span>
               </span>
-              <!-- 【终审 Minor-2,补申报】蓝本 :361 是 `v-if="e.badge > 0"`。
-                   本仓 `EntryItem.badge` 是 optional 字段,strict 模式下不能对
-                   `undefined` 直接 `> 0` 比较,故写成 `(e.badge || 0) > 0`——
-                   与 :128-134 已申报的 M-1(`queueDepth` 兜底)同一类:TS 类型
-                   约束逼出的机械改写,任何输入下行为等价(`undefined > 0` 与
-                   `(undefined || 0) > 0` 都是 false),不是未申报的行为改动。 -->
+              <!-- [Final review Minor-2, additional disclosure] Blueprint :361
+                   is `v-if="e.badge > 0"`. This repo's `EntryItem.badge` is an
+                   optional field, cannot directly compare `undefined > 0` under
+                   strict mode, so written as `(e.badge || 0) > 0` — same class as
+                   M-1 already disclosed at :128-134 (`queueDepth` fallback): TS type
+                   constraint forces mechanical rewrite, behaviorally equivalent under
+                   any input (`undefined > 0` and `(undefined || 0) > 0` both false),
+                   not an undisclosed behavior change. -->
               <span v-if="(e.badge || 0) > 0" class="k2-entry-badge" :data-tone="e.badgeTone">{{
                 e.badge
               }}</span>

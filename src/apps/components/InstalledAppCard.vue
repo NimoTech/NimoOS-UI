@@ -26,7 +26,7 @@ const statusKey = computed(() => {
     default: return 'appsStatusStopped' // exited/dead/created/removing
   }
 })
-// running → 打开(需 webUrl);非 running → 启动
+// running → open (requires webUrl); non-running → start
 const primaryDisabled = computed(() => busy.value || (running.value && !props.app.webUrl))
 function onPrimary() {
   if (running.value) emit('open')

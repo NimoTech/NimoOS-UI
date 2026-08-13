@@ -1,7 +1,7 @@
 import type { StoreAppInfo } from '@nimotech/nimoos-service'
 import { resolveAppText } from './appTitle'
 
-/** 商店列表/Featured 卡片用的归一化条目(详情页直接用原始 StoreAppInfo,不走此映射) */
+/** Normalized entry for store list/Featured cards (detail page uses raw StoreAppInfo directly, without this mapping) */
 export interface StoreApp {
   id: string
   title: string
@@ -26,7 +26,7 @@ export function mapStoreApp(id: string, raw: StoreAppInfo, lang: string): StoreA
   }
 }
 
-/** Vue2 filteredPageList 同款:空格分词,title+tagline OR 命中,大小写不敏感(AppPanel.vue:269-281) */
+/** Vue2 filteredPageList equivalent: space-delimited tokenization, matches in title+tagline OR mode, case-insensitive (AppPanel.vue:269-281) */
 export function filterStoreApps(items: StoreApp[], key: string): StoreApp[] {
   const tokens = key.trim().toLowerCase().split(/\s+/).filter(Boolean)
   if (!tokens.length) return items

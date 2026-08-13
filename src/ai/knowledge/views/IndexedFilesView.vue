@@ -492,14 +492,14 @@ onMounted(() => {
   refresh()
 })
 
-/** 蓝本 beforeDestroy() —— 见文件头注释,停轮询防止 store 模块级定时器句柄
- * 泄漏到下一个挂载实例。 */
+/** Reference beforeDestroy() — see file head comment; stop polling to prevent
+ * store's module-level timer handle leaking to next mount instance. */
 onUnmounted(() => {
   store.stopIndexedPolling()
 })
 
-// ── filter actions(全部落到 `_applyFilter`:offset 归零 + 清选择 + 清错误
-// 横幅 + 重载,一件都不能少)──
+// ── filter actions (all go through `_applyFilter`: zero offset + clear
+// selection + clear error banner + reload, all essential) ──
 
 function _applyFilter(): void {
   store.indexedFiles.filters.offset = 0
@@ -533,7 +533,8 @@ function setLegacyDoc(): void {
   _applyFilter()
 }
 
-/** N12(写方向)—— UI `active` 映射回 API 的 `alive`,其余两值原样透传。 */
+/** N12 (write direction) — UI `active` maps back to API's `alive`; other two
+ * values pass through as-is. */
 function onStatusViewChange(e: Event): void {
   const v = (e.target as HTMLSelectElement).value
   store.indexedFiles.filters.tombstoned = v === 'active' ? 'alive' : v
@@ -561,8 +562,9 @@ function toggleSortDir(): void {
   _applyFilter()
 }
 
-/** 蓝本 clearFilters —— 复位六个筛选字段,再走与 `_applyFilter` 完全相同的
- * 四件事(见文件头注释,机械去重,非行为改动)。 */
+/** Reference clearFilters — reset six filter fields, then perform same four
+ * things as `_applyFilter` (see file head comment; mechanical deduplication,
+ * not behavior change). */
 function clearFilters(): void {
   const f = store.indexedFiles.filters
   f.path_prefix = ''
@@ -574,14 +576,16 @@ function clearFilters(): void {
   _applyFilter()
 }
 
-/** 蓝本 dismissBanner —— 同时清本地 errorBanner 与 store 侧的加载错误。 */
+/** Reference dismissBanner — clear both local errorBanner and store-side load
+ * error. */
 function dismissBanner(): void {
   errorBanner.value = null
   store.indexedFiles.error = null
 }
 
-// ── T9:多选(蓝本 :730-748)—— 见文件头注释【多选复选框:read+write 都在
-// 本刀】,自包含纯 Set 操作,不依赖任何 T10 才有的东西。 ──
+// ── T9: Multi-select (reference :730-748) — see 【Select-all checkbox: both
+// read and write in this cut】 in file head comment; self-contained pure Set
+// operations, no dependency on T10-only things. ──
 
 function toggleRow(fileId: string): void {
   const s = new Set(selSet.value)
@@ -601,7 +605,8 @@ function toggleAll(): void {
   selSet.value = s
 }
 
-// ── T9:展开(蓝本 :751-757)—— K13:expSet 整体替换,不用 expTick。 ──
+// ── T9: Expand (reference :751-757) — K13: expSet replaces whole ref, don't
+// use expTick. ──
 
 function toggleExpand(fileId: string): void {
   const s = new Set(expSet.value)
@@ -610,24 +615,27 @@ function toggleExpand(fileId: string): void {
   expSet.value = s
 }
 
-// ── T10:重建三入口(蓝本 :760-809)+ 绿闪(:811-823)。T9 留的 `rebuildRow`
-// 空占位在此补全,按钮 DOM 与调用点一个字都没动。 ──
+// ── T10: Three rebuild entry points (reference :760-809) + green flash
+// (:811-823). T9's empty `rebuildRow` placeholder filled here; button DOM and
+// call sites unchanged. ──
 
-/** 后端 `POST /v1/parser/files/reindex` 的成功响应体形状(fixture
- * `p5b-fixtures/reindex-one.http` 实测:
- * `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`)。
- * store 的 `reindexIndexedByIds`/`reindexIndexedByFilter` 返回 `unknown`
- * (零改动文件),这里做一次收窄:蓝本三处只读 `res.queued`。 */
+/** Backend `POST /v1/parser/files/reindex` success response shape (fixture
+ * `p5b-fixtures/reindex-one.http` actual test:
+ * `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`).
+ * Store's `reindexIndexedByIds`/`reindexIndexedByFilter` return `unknown`
+ * (zero-change file); narrow here: reference only reads `res.queued` in three
+ * places. */
 type ReindexResult = { queued?: number }
 
 /**
- * 蓝本 rebuildRow(:760-770)—— 单行强制重建:
- *   ① `reindexIndexedByIds([fileId], 'rebuild row')`(store 内部会跟着重载列表)
- *   ② toast「已入队 {n} 个任务」,n 取响应体的 `queued`
- *   ③ `startIndexedPolling()` —— 刚入队的行会变 indexing,起 30 秒轮询盯着
- *   ④ `_flashDone([fileId])` —— 2200 ms 绿闪
- * catch 走 K5:固定 `aiKbRebuildFailed`,不回显 `e.message`(蓝本 :768 拼了
- * `': ' + e.message`,见文件头注释【K5】)。
+ * Reference rebuildRow (:760-770) — single-row force rebuild:
+ *   ① `reindexIndexedByIds([fileId], 'rebuild row')` (store internally reloads list)
+ *   ② toast "Queued {n} tasks", n from response `queued`
+ *   ③ `startIndexedPolling()` — enqueued row becomes indexing, 30s polling starts
+ *   ④ `_flashDone([fileId])` — 2200 ms green flash
+ * catch uses K5: fixed `aiKbRebuildFailed`, doesn't display `e.message`
+ * (reference :768 concatenates `': ' + e.message`, see 【K5】 in file head
+ * comment).
  */
 async function rebuildRow(fileId: string): Promise<void> {
   try {
@@ -642,11 +650,13 @@ async function rebuildRow(fileId: string): Promise<void> {
 }
 
 /**
- * 蓝本 rebuildSelected(:772-784)—— 批量重建当前选中行。
- * 🔴 首行的 `if (selectedCount === 0 || overExplicitCap) return` 是蓝本 :773
- * 原文,与按钮的 `:disabled` 条件重复但**不是冗余**:键盘/程序化调用绕过
- * disabled 时它是唯一的拦。照抄。
- * 成功后清空选择(蓝本 :778,不清会让动作条一直显示旧计数)。
+ * Reference rebuildSelected (:772-784) — batch rebuild selected rows.
+ * 🔴 First line `if (selectedCount === 0 || overExplicitCap) return` is
+ * reference :773 original; duplicates button `:disabled` condition but **not
+ * redundant**: keyboard/programmatic calls bypass disabled, it's the only guard.
+ * Copy as-is.
+ * Clear selection after success (reference :778; without it action bar shows
+ * stale count forever).
  */
 async function rebuildSelected(): Promise<void> {
   if (selectedCount.value === 0 || overExplicitCap.value) return
@@ -661,21 +671,24 @@ async function rebuildSelected(): Promise<void> {
   }
 }
 
-/** 蓝本 openRebuildAllConfirm(:786-789)—— `total === 0` 直接 return(按钮此时
- * 也是 disabled,同 rebuildSelected 那条双保险)。 */
+/** Reference openRebuildAllConfirm (:786-789) — return directly if
+ * `total === 0` (button also disabled at that time, same belt-and-suspenders as
+ * rebuildSelected). */
 function openRebuildAllConfirm(): void {
   if (total.value === 0) return
   showRebuildAllConfirm.value = true
 }
 
 /**
- * 蓝本 doRebuildAll(:791-809)—— 按当前筛选整批重建。
- * 🔴 `filterObj` 只带**真值/非默认**的字段,四条判据逐字照抄蓝本 :796-799:
- *   `path_prefix` / `mime_prefix` / `has_error` 各自 truthy 才带;
- *   `tombstoned` 要 **truthy 且 `!== 'all'`** 才带 —— `'all'` 意为「不限」,
- *   带上去反而会把「不限」编码成一个具体的筛选值。
- * catch:照蓝本 :805-807 取后端 detail 存进 `errorBanner`,渲染层按 K14 不回显
- * (见文件头注释【K14,真实入口到齐】)。
+ * Reference doRebuildAll (:791-809) — bulk rebuild matching current filters.
+ * 🔴 `filterObj` only includes **truthy/non-default** fields; four conditions
+ * copied exactly from reference :796-799:
+ *   `path_prefix` / `mime_prefix` / `has_error` each included only if truthy;
+ *   `tombstoned` included only if **truthy AND `!== 'all'`** — `'all'` means
+ *   "unlimited", including it would encode "unlimited" as specific filter value.
+ * catch: per reference :805-807 extract backend `detail` into `errorBanner`;
+ * render layer per K14 doesn't display it (see 【K14, real write entry point
+ * now complete】 in file head comment).
  */
 async function doRebuildAll(): Promise<void> {
   showRebuildAllConfirm.value = false
@@ -703,9 +716,11 @@ async function doRebuildAll(): Promise<void> {
 }
 
 /**
- * 蓝本 _flashDone(:811-823)—— 重建入队后给该行 2200 ms 的绿闪(`data-done`
- * 驱动 scss 的 `@keyframes row-done`)。K13:`doneSet` 整体替换,不用 doneTick。
- * 蓝本没有卸载清理,照抄(见文件头注释【_flashDone 的 setTimeout 不做卸载清理】)。
+ * Reference _flashDone (:811-823) — after rebuild enqueued, green flash for
+ * 2200 ms on that row (`data-done` drives scss `@keyframes row-done`).
+ * K13: `doneSet` replaces whole ref, don't use doneTick.
+ * Reference has no unmount cleanup, copy as-is (see
+ * 【_flashDone's setTimeout doesn't cleanup on unmount】 in file head comment).
  */
 function _flashDone(ids: string[]): void {
   const d = new Set(doneSet.value)
@@ -718,7 +733,7 @@ function _flashDone(ids: string[]): void {
   }, 2200)
 }
 
-// ── T9:分页(蓝本 :718-727,onPageSizeChange 见 :691-697)──
+// ── T9: Pagination (reference :718-727, onPageSizeChange see :691-697) ──
 
 function prevPage(): void {
   const f = store.indexedFiles.filters
@@ -732,10 +747,11 @@ function nextPage(): void {
   refresh()
 }
 
-/** 蓝本 onPageSizeChange(:691-697)—— 注意与 `_applyFilter` 不同:不清
- * `errorBanner`,只清选择 + 归零 offset + 重载,四件事里少一件。照抄不补
- * 齐(N9 同族的"照抄不许统一"判据:这不是要修的错误行为,是蓝本本来的
- * 写法)。 */
+/** Reference onPageSizeChange (:691-697) — note differs from `_applyFilter`:
+ * doesn't clear `errorBanner`, only clears selection + zeros offset + reloads,
+ * one of four things omitted. Copy as-is without padding (N9 family criterion:
+ * copy without unifying; this is not error behavior to fix, it's reference's
+ * original design). */
 function onPageSizeChange(e: Event): void {
   store.indexedFiles.filters.limit = Number((e.target as HTMLSelectElement).value)
   store.indexedFiles.filters.offset = 0
@@ -748,9 +764,9 @@ function onPageSizeChange(e: Event): void {
   <div class="k-view">
     <div class="k-scroll">
       <div class="k-scroll-inner">
-        <!-- ---- filter bar(蓝本 :6-57)---- -->
+        <!-- ---- filter bar (reference :6-57) ---- -->
         <div class="k-filter-bar">
-          <!-- Root convenience select(best-effort,derivedRoots 见上)-->
+          <!-- Root convenience select (best-effort, derivedRoots above) -->
           <div class="k-filt">
             <label class="k-filt-label">{{ t('aiKbRoot') }}</label>
             <select class="k-filt-select" :value="rootSelect" @change="onRootSelectChange">
@@ -758,7 +774,7 @@ function onPageSizeChange(e: Event): void {
               <option v-for="seg in derivedRoots" :key="seg" :value="seg">{{ seg }}</option>
             </select>
           </div>
-          <!-- Path prefix free-text(authoritative)-->
+          <!-- Path prefix free-text (authoritative) -->
           <div class="k-filt k-filt-grow">
             <label class="k-filt-label">{{ t('aiKbPathPrefix') }}</label>
             <div class="k-filt-input">
@@ -799,10 +815,11 @@ function onPageSizeChange(e: Event): void {
               </button>
             </div>
           </div>
-          <!-- Status tombstoned select(N12)-->
+          <!-- Status tombstoned select (N12) -->
           <div class="k-filt">
             <label class="k-filt-label">{{ t('aiKbStatus') }}</label>
-            <!-- N12: Prototype shows "active" but API expects "alive" for alive rows -->
+            <!-- N12: Prototype shows "active" but API expects "alive" for alive
+                 rows -->
             <select class="k-filt-select" :value="statusViewLocal" @change="onStatusViewChange">
               <option value="active">{{ t('aiKbStatusActive') }}</option>
               <option value="tombstoned">{{ t('aiKbStatusRemoved') }}</option>
@@ -825,7 +842,7 @@ function onPageSizeChange(e: Event): void {
           </button>
         </div>
 
-        <!-- ---- table head meta(蓝本 :60-90)---- -->
+        <!-- ---- table head meta (reference :60-90) ---- -->
         <div class="k-files-meta">
           <div class="k-files-count">
             <template v-if="pageState === 'ready' || pageState === 'empty'">
@@ -867,10 +884,11 @@ function onPageSizeChange(e: Event): void {
           </div>
         </div>
 
-        <!-- ---- error banner(蓝本 :93-103,K14/K19 见文件头注释)---- -->
+        <!-- ---- error banner (reference :93-103, K14/K19 see file head comment) ---- -->
         <div v-if="storeError || errorBanner" class="k-banner" data-tone="warn" style="margin: 0">
           <span class="k-banner-icon"><KIcon name="danger" :size="13" /></span>
-          <!-- K14: 不回显 errorBanner 里可能存的后端 detail,只留固定文案 -->
+          <!-- K14: Don't display backend detail possibly stored in errorBanner,
+               only fixed text -->
           <span v-if="errorBanner">
             <b>400 Bad Request</b>
             <br />
@@ -878,14 +896,15 @@ function onPageSizeChange(e: Event): void {
               {{ t('aiKbRebuildCapHint', { cap: FILTER_REBUILD_CAP.toLocaleString() }) }}
             </span>
           </span>
-          <!-- K19: 不回显 storeError(= e.message),改固定 aiKbLoadErrorBody -->
+          <!-- K19: Don't display storeError (= e.message), use fixed
+               aiKbLoadErrorBody -->
           <span v-else>
             <b>{{ t('aiKbLoadErrorLabel') }}</b> {{ t('aiKbLoadErrorBody') }}
           </span>
           <button class="k-banner-close" @click="dismissBanner">{{ t('aiKbClose') }}</button>
         </div>
 
-        <!-- ---- loading skeleton(蓝本 :106-132)---- -->
+        <!-- ---- loading skeleton (reference :106-132) ---- -->
         <template v-if="pageState === 'loading'">
           <div class="k-ftable">
             <!-- head disabled -->
@@ -914,7 +933,7 @@ function onPageSizeChange(e: Event): void {
           </div>
         </template>
 
-        <!-- ---- empty(蓝本 :135-142,N10 见文件头注释)---- -->
+        <!-- ---- empty (reference :135-142, N10 see file head comment) ---- -->
         <div v-else-if="pageState === 'empty'" class="k-empty">
           <div class="k-empty-illust"><KIcon name="layers" :size="34" /></div>
           <div class="k-empty-title">{{ t('aiKbNoMatchTitle') }}</div>
@@ -924,10 +943,10 @@ function onPageSizeChange(e: Event): void {
           </button>
         </div>
 
-        <!-- ---- ready: table + pager(蓝本 :146-317,T9)---- -->
+        <!-- ---- ready: table + pager (reference :146-317, T9) ---- -->
         <template v-else-if="pageState === 'ready'">
           <div class="k-ftable">
-            <!-- table header(蓝本 :148-165)-->
+            <!-- table header (reference :148-165) -->
             <div class="k-frow-f k-frow-fhead">
               <input
                 type="checkbox"
@@ -948,12 +967,13 @@ function onPageSizeChange(e: Event): void {
               <span />
             </div>
 
-            <!-- file rows(蓝本 :168-259)-->
+            <!-- file rows (reference :168-259) -->
             <template v-for="file in files" :key="file.file_id">
-              <!-- row(Vue3 编译器要求 v-for 的 key 放在 template 标签上,单个
-              key 覆盖这一组的 row + 可选 detail 两个兄弟节点,蓝本的
-              `:key="file.file_id + '-row'"`/`'-detail'` 两个独立 key 是 Vue2
-              写法,搬进 Vue3 会编译报错,故按 Vue3 语法调整,不是行为改动)-->
+              <!-- row: Vue3 compiler requires v-for key on template tag; single
+                   key covers both row + optional detail sibling nodes in this
+                   group. Reference's `:key="file.file_id + '-row'"`/`'-detail'`
+                   separate keys are Vue2 pattern; porting to Vue3 causes compile
+                   error, so adjusted per Vue3 syntax; not a behavior change. -->
               <div
                 class="k-frow-f"
                 :data-selected="selSet.has(file.file_id)"
@@ -968,7 +988,7 @@ function onPageSizeChange(e: Event): void {
                   @change="toggleRow(file.file_id)"
                   :title="file.status === 'tombstoned' ? t('aiKbTombstonedNoSelect') : ''"
                 />
-                <!-- status badge(N14:见文件头注释)-->
+                <!-- status badge (N14: see file head comment) -->
                 <span class="k-frow-status">
                   <span
                     class="k-status-badge"
@@ -1026,7 +1046,8 @@ function onPageSizeChange(e: Event): void {
                 <span class="k-frow-num k-frow-vec" :data-zero="file.vector_count === 0">
                   {{ (file.vector_count || 0).toLocaleString() }}
                 </span>
-                <!-- rebuild button(文档化占位,见文件头注释)-->
+                <!-- rebuild button (documentation placeholder, see file head
+                     comment) -->
                 <span class="k-frow-rebuild">
                   <button
                     class="k-btn outline k-rebuild-btn"
@@ -1058,7 +1079,7 @@ function onPageSizeChange(e: Event): void {
                   <KIcon name="chevDown" :size="13" />
                 </button>
               </div>
-              <!-- expanded detail panel(蓝本 :261-293)-->
+              <!-- expanded detail panel (reference :261-293) -->
               <div v-if="expSet.has(file.file_id)" class="k-file-detail">
                 <div class="k-fd-grid">
                   <div class="k-fd-item">
@@ -1101,7 +1122,7 @@ function onPageSizeChange(e: Event): void {
             </template>
           </div>
 
-          <!-- ---- pagination(蓝本 :298-317)---- -->
+          <!-- ---- pagination (reference :298-317) ---- -->
           <div class="k-pager">
             <div class="k-pager-info">
               {{ t('aiKbShowingRange', { from: pageFrom, to: pageTo, total: total.toLocaleString() }) }}
@@ -1134,10 +1155,12 @@ function onPageSizeChange(e: Event): void {
       </div>
     </div>
 
-    <!-- ---- sticky bottom action bar(蓝本 :322-353)---- -->
-    <!-- data-active 不套 String():蓝本 :323 原文没套,附录 D §D.3 标 ❌ 不套,
-    治理 §12 E-9 裁定「逐处照抄蓝本」(Vue 3 下 data-* 的 false 照样渲染成
-    "false",套不套渲染一致)。见文件头注释【属性态】。 -->
+    <!-- ---- sticky bottom action bar (reference :322-353) ---- -->
+    <!-- data-active doesn't wrap in String(): reference :323 doesn't wrap;
+         appendix D §D.3 marks ❌ no wrap; codebase review §12 E-9 rules "copy
+         reference exactly at each site" (under Vue 3, data-* false still renders
+         as "false"; wrapping or not produces identical output).
+         See 【Attribute binding】 in file head comment. -->
     <div class="k-files-actionbar" :data-active="selectedCount > 0">
       <div class="k-ab-inner">
         <div class="k-ab-info">
@@ -1151,7 +1174,8 @@ function onPageSizeChange(e: Event): void {
           <span v-else style="color: var(--text-tertiary)">{{ t('aiKbSelectFilesHint') }}</span>
         </div>
         <div class="k-ab-actions">
-          <!-- Rebuild matching: replaces prototype's "rebuild entire root", uses current filters -->
+          <!-- Rebuild matching: replaces prototype's "rebuild entire root",
+               uses current filters -->
           <button
             class="k-btn outline"
             :disabled="total === 0"
@@ -1175,10 +1199,11 @@ function onPageSizeChange(e: Event): void {
       </div>
     </div>
 
-    <!-- ---- rebuild-all-matching confirm modal(蓝本 :355-381)---- -->
-    <!-- K7:reka Dialog 原语,portal 到知识库容器;蓝本的「点遮罩关闭 /
-    点弹窗内不关闭」由 DialogContent 的 pointerDownOutside 等价提供。
-    结构逐字照 T5 的 QueueView.vue:559-583 样板。 -->
+    <!-- ---- rebuild-all-matching confirm modal (reference :355-381) ---- -->
+    <!-- K7: reka Dialog primitives, portal to knowledge-app container;
+         reference's "click backdrop to close / click inside modal to stay" is
+         equivalent to DialogContent's pointerDownOutside behavior.
+         Structure copies exactly from T5's QueueView.vue:559-583 template. -->
     <DialogRoot :open="showRebuildAllConfirm" @update:open="showRebuildAllConfirm = $event">
       <DialogPortal to=".knowledge-app" defer>
         <DialogOverlay class="k-modal-bg">
@@ -1197,7 +1222,8 @@ function onPageSizeChange(e: Event): void {
                 {{ t('aiKbRebuildAllBody1', { n: total.toLocaleString() }) }}<br />
                 {{ t('aiKbRebuildAllBody2') }}
               </div>
-              <!-- 内嵌超限横幅:FILTER_REBUILD_CAP 前端只警告不拦,判据严格大于 -->
+              <!-- Embedded over-limit banner: FILTER_REBUILD_CAP front-end warns
+                   only, doesn't block; condition strict greater-than -->
               <div
                 v-if="total > FILTER_REBUILD_CAP"
                 class="k-banner"

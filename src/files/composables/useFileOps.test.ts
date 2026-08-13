@@ -36,7 +36,7 @@ vi.mock('../util/iframeDownload', () => ({ triggerIframeDownload: (...a: unknown
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// 在组件 setup 内实例化 composable,拿到其 API
+// Instantiate composable in component setup to get its API
 function makeOps() {
   let api!: ReturnType<typeof useFileOps>
   const Host = defineComponent({ setup() { api = useFileOps(); return () => h('div') } })
@@ -51,22 +51,22 @@ describe('useFileOps', () => {
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
   })
 
-  it('createFolder 用当前真实路径拼子路径并 reload', async () => {
+  it('createFolder combines current real path with child path and reloads', async () => {
     const files = useFilesStore(); files.currentPath = '/DATA/Docs'
     const ops = makeOps()
     await ops.createFolder('New Folder')
     expect(folderCreate).toHaveBeenCalledWith('/DATA/Docs/New Folder')
-    expect(getList).toHaveBeenCalledWith('/DATA/Docs') // reload 当前目录
+    expect(getList).toHaveBeenCalledWith('/DATA/Docs') // reload current directory
   })
 
-  it('createFile 同理走 file.create', async () => {
+  it('createFile similarly uses file.create', async () => {
     const files = useFilesStore(); files.currentPath = '/DATA'
     const ops = makeOps()
     await ops.createFile('a.txt')
     expect(fileCreate).toHaveBeenCalledWith('/DATA/a.txt')
   })
 
-  it('createFolder:名字超 255 字节 → toast filesNameTooLong,不发请求', async () => {
+  it('createFolder: name exceeds 255 bytes → shows filesNameTooLong toast, does not send request', async () => {
     useFilesStore().currentPath = '/DATA'
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
@@ -76,7 +76,7 @@ describe('useFileOps', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesNameTooLong)
   })
 
-  it('createFolder:后端 message 为字面 "Fail" → 显示本地 filesOpFailed 而非 "Fail"', async () => {
+  it('createFolder: backend message is literal "Fail" → shows local filesOpFailed instead', async () => {
     useFilesStore().currentPath = '/DATA'
     folderCreate.mockRejectedValueOnce(new Error('Fail'))
     const toast = useToast()
@@ -86,7 +86,7 @@ describe('useFileOps', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesOpFailed)
   })
 
-  it('createFolder:错误带 detail → 显示 detail 原文', async () => {
+  it('createFolder: error includes detail → shows detail as-is', async () => {
     useFilesStore().currentPath = '/DATA'
     folderCreate.mockRejectedValueOnce(Object.assign(new Error('Fail'), { detail: 'no space left on device' }))
     const toast = useToast()
@@ -96,14 +96,14 @@ describe('useFileOps', () => {
     expect(showSpy).toHaveBeenCalledWith('no space left on device')
   })
 
-  it('rename 同名直接返回不请求', async () => {
+  it('rename: same name returns immediately without request', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'a.txt')
     expect(fileRename).not.toHaveBeenCalled()
   })
 
-  it('rename 用 file.rename(old,new)', async () => {
+  it('rename uses file.rename(old, new)', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }, 'b.txt')
@@ -129,14 +129,14 @@ describe('useFileOps', () => {
     expect(favs.list).toEqual([{ name: 'a.txt', path: '/DATA/a.txt' }])
   })
 
-  it('remove 同步 DELETE /batch 传 JSON 字符串数组', async () => {
+  it('remove submits DELETE /batch with JSON string array', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.remove([{ name: 'a', path: '/DATA/a', is_dir: false }])
     expect(batchDelete).toHaveBeenCalledWith(JSON.stringify(['/DATA/a']))
   })
 
-  it('remove 受保护项被前端挡下,不请求', async () => {
+  it('remove: protected items are blocked on frontend, no request sent', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.remove([{ name: 'Documents', path: '/DATA/Documents', is_dir: true }])
@@ -181,14 +181,14 @@ describe('useFileOps', () => {
     expect(showSpy).toHaveBeenCalledWith(zh.filesProtectedDelete)
   })
 
-  it('rename 受保护项被前端挡下,不请求', async () => {
+  it('rename: protected items are blocked on frontend, no request sent', async () => {
     useFilesStore().currentPath = '/DATA'
     const ops = makeOps()
     await ops.rename({ name: 'Documents', path: '/DATA/Documents', is_dir: true }, 'Docs')
     expect(fileRename).not.toHaveBeenCalled()
   })
 
-  it('copyPath 写虚拟路径(不含 /DATA)', async () => {
+  it('copyPath writes virtual path (does not contain /DATA)', async () => {
     const files = useFilesStore()
     files.displayNames = { '/DATA': 'NimoOS-HD' }
     const ops = makeOps()
@@ -198,7 +198,7 @@ describe('useFileOps', () => {
     expect(arg).not.toContain('/DATA')
   })
 
-  it('copy 把选中项真实路径写进剪贴板(type:copy)', async () => {
+  it('copy writes selected items\' real paths to clipboard (type:copy)', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     const ops = makeOps()
@@ -206,12 +206,12 @@ describe('useFileOps', () => {
     expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a', is_dir: false }] })
   })
 
-  it('cut 写 type:move;受保护项被挡(不写剪贴板)', async () => {
+  it('cut writes type:move; protected items are blocked (clipboard not written)', async () => {
     const { useClipboardStore } = await import('../stores/clipboard')
     const clip = useClipboardStore()
     const ops = makeOps()
     ops.cut([{ name: 'AppData', path: '/DATA/AppData', is_dir: true } as never])
-    expect(clip.operateObject).toBeNull() // 受保护 → 挡下
+    expect(clip.operateObject).toBeNull() // protected → blocked
     ops.cut([{ name: 'a', path: '/DATA/a', is_dir: false } as never])
     expect(clip.operateObject?.type).toBe('move')
   })
@@ -580,8 +580,8 @@ describe('useFileOps', () => {
     expect(batchTask).not.toHaveBeenCalled()
   })
 
-  it('download 单文件 → service.file.fileUrl(真实路径) 并触发 iframe', async () => {
-    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // 充裕,不刷新
+  it('download single file → calls service.file.fileUrl(real path) and triggers iframe', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600)) // ample time, no refresh needed
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(fileUrl).toHaveBeenCalledWith('/DATA/a.txt')
@@ -590,7 +590,7 @@ describe('useFileOps', () => {
     expect(refreshMock).not.toHaveBeenCalled()
   })
 
-  it('download 单目录/多选 → service.batch.batchUrl(逗号连接真实路径)', async () => {
+  it('download single directory/multiple selections → calls service.batch.batchUrl(comma-separated real paths)', async () => {
     localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 3600))
     const ops = makeOps()
     await ops.download([
@@ -602,30 +602,30 @@ describe('useFileOps', () => {
     expect(triggerMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download token 快过期 → 先 refreshAccessToken 再构 URL', async () => {
-    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // 10s 后过期,进缓冲
+  it('download token expiring soon → refreshes accessToken before building URL', async () => {
+    localStorage.setItem('expires_at', String(Math.floor(Date.now() / 1000) + 10)) // expires in 10s, within buffer
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(refreshMock).toHaveBeenCalledTimes(1)
     expect(triggerMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download expires_at 缺失 → 保守刷新', async () => {
+  it('download expires_at missing → conservatively refreshes', async () => {
     localStorage.removeItem('expires_at')
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(refreshMock).toHaveBeenCalledTimes(1)
   })
 
-  it('download 刷新失败 → 不触发下载', async () => {
-    localStorage.removeItem('expires_at') // 触发刷新
+  it('download refresh fails → does not trigger download', async () => {
+    localStorage.removeItem('expires_at') // trigger refresh
     refreshMock.mockRejectedValueOnce(new Error('auth fail'))
     const ops = makeOps()
     await ops.download([{ name: 'a.txt', path: '/DATA/a.txt', is_dir: false }])
     expect(triggerMock).not.toHaveBeenCalled()
   })
 
-  it('download 空选区 → 无操作', async () => {
+  it('download empty selection → no operation', async () => {
     const ops = makeOps()
     await ops.download([])
     expect(fileUrl).not.toHaveBeenCalled()
@@ -633,7 +633,7 @@ describe('useFileOps', () => {
     expect(triggerMock).not.toHaveBeenCalled()
   })
 
-  describe('快照只读态拦截写操作', () => {
+  describe('snapshot read-only mode blocks write operations', () => {
     const enterSnapshot = () => {
       const browse = useSnapshotBrowseStore()
       browse.status = 'ready'
@@ -642,32 +642,32 @@ describe('useFileOps', () => {
       return browse
     }
 
-    it('新建文件夹被拦,不发请求', async () => {
+    it('creating folder is blocked, no request sent', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.createFolder('新建文件夹')
       expect(folderCreate).not.toHaveBeenCalled()
       expect(useToast().msg).toContain('只读')
     })
-    it('新建文件被拦', async () => {
+    it('creating file is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.createFile('a.txt')
       expect(fileCreate).not.toHaveBeenCalled()
     })
-    it('重命名被拦', async () => {
+    it('renaming is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.rename({ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }, 'b')
       expect(fileRename).not.toHaveBeenCalled()
     })
-    it('删除被拦', async () => {
+    it('deleting is blocked', async () => {
       enterSnapshot()
       const ops = makeOps()
       await ops.remove([{ name: 'a', path: '/DATA/.snapshots/snap1/a', is_dir: false }])
       expect(batchDelete).not.toHaveBeenCalled()
     })
-    it('粘贴被拦', async () => {
+    it('pasting is blocked', async () => {
       enterSnapshot()
       const { useClipboardStore } = await import('../stores/clipboard')
       useClipboardStore().operate('copy', [{ path: '/DATA/a', is_dir: false }])
@@ -675,7 +675,7 @@ describe('useFileOps', () => {
       await ops.paste()
       expect(batchTask).not.toHaveBeenCalled()
     })
-    it('不在快照里时这些操作照常放行', async () => {
+    it('these operations are allowed when not in snapshot', async () => {
       useFilesStore().currentPath = '/DATA/Photos'
       const ops = makeOps()
       await ops.createFolder('新建文件夹')

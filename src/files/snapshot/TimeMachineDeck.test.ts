@@ -20,10 +20,10 @@ describe('TimeMachineDeck', () => {
   // TimeMachineOverlay (see the same-named case) and the render window here always compute the
   // same number; changing the window size updates both sides together, so "the front card
   // can't get thumbnails" cannot happen.
-  it('只渲染可见窗口的卡片(depth 张后退 + past 张飞走),不是全部 8 张', () => {
+  it('Only render cards in the visible window (depth cards back + past cards fly away), not all 8', () => {
     expect(mountIt().findAll('.tm-card')).toHaveLength(DECK_WINDOW.depth + DECK_WINDOW.past)
   })
-  it('飞走的卡数量精确等于 DECK_WINDOW.past(单独钉住 past 这一侧,防止 depth/past 被调换)', () => {
+  it('Number of flying-away cards exactly equals DECK_WINDOW.past (pin only the past side to prevent depth/past swap)', () => {
     const past = mountIt().findAll('.tm-card').filter((c) => c.classes().includes('is-past'))
     expect(past).toHaveLength(DECK_WINDOW.past)
   })
@@ -32,41 +32,41 @@ describe('TimeMachineDeck', () => {
   // switches to data long enough (15 items) with the selection in the middle (not touching
   // either boundary), so the front+behind count exactly equals DECK_WINDOW.depth and isn't
   // conflated with boundary coincidences like 8-3=5 (pinning the depth side on its own).
-  it('front+behind 卡片数量精确等于 DECK_WINDOW.depth(数据足够长,不贴数组边界)', () => {
+  it('front+behind card count exactly equals DECK_WINDOW.depth (data long enough, not touching array boundary)', () => {
     const longItems = Array.from({ length: 15 }, (_, i) => mkItem(i))
     const w = mount(TimeMachineDeck, { props: { items: longItems, selectedIndex: 7 }, global: { plugins: [i18n] } })
     const frontOrBehind = w.findAll('.tm-card').filter((c) => !c.classes().includes('is-past'))
     expect(frontOrBehind).toHaveLength(DECK_WINDOW.depth)
   })
-  it('选中那张是 is-front', () => {
+  it('Selected card is is-front', () => {
     const front = mountIt().findAll('.tm-card').filter((c) => c.classes().includes('is-front'))
     expect(front).toHaveLength(1)
     expect(front[0].text()).toContain('03:00')
   })
-  it('点后面的卡只换选中,不进入', async () => {
+  it('Click behind card only changes selection, does not enter', async () => {
     const w = mountIt()
     const behind = w.findAll('.tm-card').find((c) => c.classes().includes('depth-2'))!
     await behind.trigger('click')
     expect(w.emitted('select')?.[0]?.[0]).toBe(5)
     expect(w.emitted('enter')).toBeUndefined()
   })
-  it('点最前那张 = 进入(和真 Time Machine 一致)', async () => {
+  it('Click the front card = enter (consistent with real Time Machine)', async () => {
     const w = mountIt()
     await w.findAll('.tm-card').find((c) => c.classes().includes('is-front'))!.trigger('click')
     expect(w.emitted('enter')).toHaveLength(1)
     expect(w.emitted('select')).toBeUndefined()
   })
-  it('飞走的卡不吃点击(pointer-events:none 由 CSS 保证,这里断言不 emit)', async () => {
+  it('Flying-away cards do not consume clicks (pointer-events: none guaranteed by CSS, assertion no emit here)', async () => {
     const w = mountIt()
     const past = w.findAll('.tm-card').find((c) => c.classes().includes('is-past'))!
     await past.trigger('click')
     expect(w.emitted('enter')).toBeUndefined()
     expect(w.emitted('select')).toBeUndefined()
   })
-  it('空列表渲染 0 张卡且不报错', () => {
+  it('Empty list renders 0 cards and does not error', () => {
     expect(mountIt({ items: [] }).findAll('.tm-card')).toHaveLength(0)
   })
-  it('key 用快照 name(选中变化时复用同一批 DOM,才有平滑过渡)', async () => {
+  it('key uses snapshot name (reuse same DOM batch on selection change for smooth transition)', async () => {
     // Note: the original draft's assertion "array element 0 still exists after the update" was
     // hollow — position 0 is always the is-front card, so even if the key were wrongly bound to
     // depth/index instead of name, the depth-0 slot itself always exists and the assertion

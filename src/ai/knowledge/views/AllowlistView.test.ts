@@ -325,9 +325,9 @@ describe('AllowlistView — K55: GROUPS_TEMPLATE three bg contain only var(--…
   /** Extract `const GROUPS_TEMPLATE = [ … ]` whole block (up to `]` at column 0). */
   function groupsBlock(src: string): string {
     const start = src.indexOf('const GROUPS_TEMPLATE')
-    expect(start, 'AllowlistView.vue 里找不到 GROUPS_TEMPLATE 常量').toBeGreaterThan(-1)
+    expect(start, 'GROUPS_TEMPLATE constant not found in AllowlistView.vue').toBeGreaterThan(-1)
     const end = src.indexOf('\n]', start)
-    expect(end, 'GROUPS_TEMPLATE 的收尾 `]` 没找到 —— 抽取边界写错了').toBeGreaterThan(start)
+    expect(end, 'GROUPS_TEMPLATE closing `]` not found — extraction boundary wrong').toBeGreaterThan(start)
     return src.slice(start, end + 2)
   }
 
@@ -468,13 +468,13 @@ describe('AllowlistView — groups computed (blueprint :181-187): group / sort /
 
   it('🔴 ruling R6 — extensions not in three tables don\'t show: backend 45, page renders 44 chips, `.wps` absent', async () => {
     const { w, store } = await mountPage(EXT_REAL)
-    // 先坐实 store 侧真的有 45 条(否则「页面 44」可能是取数没取全,而不是过滤生效)
+    // First confirm store-side really has 45 (else "page 44" might be incomplete fetch, not filtering)
     expect(store.extensions).toHaveLength(45)
     expect(store.extensions.some((e) => e.ext === '.wps')).toBe(true)
     const chips = chipTexts(w)
     expect(chips).toHaveLength(44)
     expect(chips).not.toContain('.wps')
-    // 组内计数 11 / 12 / 21(裁定 R6 订正值)
+    // Within-group counts 11 / 12 / 21 (ruling R6 corrected value)
     expect(extGroups(w).map((g) => g.findAll('.k-ext-chip').length)).toEqual([11, 12, 21])
   })
 
@@ -500,7 +500,7 @@ describe('AllowlistView — groups computed (blueprint :181-187): group / sort /
 describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both sides', () => {
   it('🔴 integers 0/1 come in → chip flips correctly (use .REPLAYED sample: real machine all 1s, can\'t get 0)', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED)
-    // store 侧:`!!e.enabled` 归一化成 boolean(knowledgeStore.ts:395)
+    // Store-side: `!!e.enabled` normalized to boolean (knowledgeStore.ts:395)
     expect(store.extensions.map((e) => e.enabled)).toEqual([true, false, true, false, true, true])
     const chips = w.findAll('.k-ext-chip')
     const pairs = chips.map((c) => [norm(c.text()), c.attributes('data-on')])
@@ -521,7 +521,7 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
     expect(off.attributes('data-on')).toBe('false')
   })
 
-  it('onCountFor(g)(蓝本 :193)—— 每组 meta 是「开启数/总数 已启用」', async () => {
+  it('onCountFor(g) (blueprint :193) — each group meta is "enabled-count/total enabled"', async () => {
     const { w } = await mountPage(EXT_REPLAYED)
     expect(extGroups(w).map((g) => norm(g.find('.k-extgroup-meta').text()))).toEqual([
       '1/2 已启用',
@@ -530,7 +530,7 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
     ])
   })
 
-  it('点 chip → toggleExtension(ext, !enabled) + 成功 toast(两侧文案都比)', async () => {
+  it('click chip → toggleExtension(ext, !enabled) + success toast (compare both sides text)', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED)
     const toast = vi.spyOn(store, 'toast')
     const on = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.pdf')!
@@ -547,23 +547,26 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
   })
 
   // ═════════════════════════════════════════════════════════════════════════
-  // 🔴 T5 追加(裁定 **R24** 的 Important I-1)—— K58 的**第五个落点**:`toggle()` 的 catch。
-  // 【为什么补】T4 评审实证:K58 的五个落点里,`toggle()` 的 catch **完全没有守卫** ——
-  //   把 K5/K58 最核心的禁令(**回显后端 `e.message`**)直接写进那个 catch,
-  //   `AllowlistView.test.ts` **52/52 全绿、三门也一条都不响**。
-  //   这是「产品代码对、守卫为零」家族的又一次;缺口越早补越不会被遗忘(承 P5e 裁定 R16)。
-  // 🔴 判据 = 把 `e.message` 回显写进 `AllowlistView.vue` 的 `toggle()` catch → **必须报红**
-  //   (T5 报告 §7 贴完整输出 + md5sum 还原)。
-  // ⚠️ 探针文本 `PROBE-K58-8Q3Z-*` 与本文件其余四条 K58 用例同一族;它**故意不出现在
-  //   `AllowlistView.vue` 里**(治理 §9:否定式断言撞注释 = 假报红)。
-  // ⚠️ **本刀只新增用例,`AllowlistView.vue` 的产品码一行未动**(裁定 R24:评审已逐字核为正确)。
-  it('🔴 K58(T5 追加)—— toggle 失败:只弹固定键「保存失败」,不回显后端 body', async () => {
+  // 🔴 T5 addition (ruling **R24** Important I-1) — K58's **fifth touch point**: `toggle()`'s catch.
+  // 【Why add it】T4 review evidence: among K58's five touch points, `toggle()`'s catch
+  //   **has no guard at all** — put K5/K58's core prohibition (**echo backend `e.message`**)
+  //   directly in that catch, `AllowlistView.test.ts` **all 52/52 green, three gates silent**.
+  //   Another instance of "product code correct, zero guards" family; earlier we fill gaps,
+  //   sooner we avoid forgetting them (under P5e ruling R16).
+  // 🔴 Criterion = put `e.message` echo into `AllowlistView.vue`'s `toggle()` catch →
+  //   **must fail** (T5 report §7 shows complete output + md5sum restore).
+  // ⚠️ Probe text `PROBE-K58-8Q3Z-*` same family as other four K58 test cases here;
+  //   it **deliberately does not appear in `AllowlistView.vue`** (governance §9: negative
+  //   assertion hits comment = false fail).
+  // ⚠️ **this batch only adds test cases, `AllowlistView.vue` product code untouched**
+  //   (ruling R24: review confirmed verbatim correct).
+  it('🔴 K58 (T5 addition) — toggle fail: only show fixed message "Save failed", no backend body echo', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED)
     const toast = vi.spyOn(store, 'toast')
     ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-toggle'))
-    // §9.17:先确认这个 chip 在本条数据下真渲染成了可点元素
+    // §9.17: first confirm this chip under this data really renders as clickable element
     const chip = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.pdf')!
-    expect(chip.exists(), '.pdf chip 没渲染出来 —— 下面那一发 click 会点在空气上').toBe(true)
+    expect(chip.exists(), '.pdf chip not rendered — next click will hit nothing').toBe(true)
     await chip.trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenLastCalledWith('保存失败')
@@ -571,12 +574,12 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
     expect(w.html()).not.toContain('PROBE-K58-8Q3Z')
   })
 
-  it('🔴 K58(T5 追加)—— 关闭态 chip 的 toggle 失败走同一条 catch(另一侧,同样不回显)', async () => {
+  it('🔴 K58 (T5 addition) — off chip toggle fail takes same catch (other side, also no echo)', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED)
     const toast = vi.spyOn(store, 'toast')
     ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-toggleoff'))
     const chip = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.docx')!
-    expect(chip.attributes('data-on'), '这一侧必须是关闭态,否则两条用例走的是同一条数据').toBe(
+    expect(chip.attributes('data-on'), 'this side must be off, otherwise both tests use same data').toBe(
       'false',
     )
     await chip.trigger('click')
@@ -584,7 +587,7 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
     expect(toast).toHaveBeenLastCalledWith('保存失败')
     expect(toast.mock.calls.flat().join('|')).not.toContain('PROBE-K58-8Q3Z')
     expect(w.html()).not.toContain('PROBE-K58-8Q3Z')
-    // 失败后 store 侧不该把 chip 翻过去(store.toggleExtension 抛错 ⇒ 归一化列表没被换)
+    // After fail store shouldn't flip chip (store.toggleExtension threw → normalized list not swapped)
     expect(
       w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.docx')!.attributes('data-on'),
     ).toBe('false')
@@ -592,32 +595,32 @@ describe('AllowlistView — N47: data-on is "true"/"false" strings, assert both 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 附录 B §B.3-① —— 蓝本 :30 的 `color="white"` → `var(--text-on-accent)`。
-describe('AllowlistView —— 勾选标记的 KIcon 用 token 前景色,不是具名色', () => {
-  it('🔴 color 属性 = var(--text-on-accent),且不是任何具名色(禁 \\bwhite\\b,裁定 R11)', async () => {
+// 🔴 Appendix B §B.3-① — blueprint :30 `color="white"` → `var(--text-on-accent)`.
+describe('AllowlistView — check mark KIcon uses token foreground, not named color', () => {
+  it('🔴 color attribute = var(--text-on-accent), not any named color (forbid \\bwhite\\b, ruling R11)', async () => {
     const { w } = await mountPage(EXT_REPLAYED)
     const marks = w
       .findAllComponents(KIcon)
       .filter((i) => i.props('name') === 'check' && i.props('size') === 9)
-    // 开启态才渲染勾(蓝本 :30 的 v-if="e.enabled")—— .REPLAYED 里有 4 个开启
-    expect(marks.length, 'v-if="e.enabled" 下应有 4 个勾(.pdf/.md/.go/.py)').toBe(4)
+    // Render mark only when on (blueprint :30 v-if="e.enabled") — .REPLAYED has 4 on
+    expect(marks.length, 'under v-if="e.enabled" should have 4 checks (.pdf/.md/.go/.py)').toBe(4)
     const NAMED = ['white', 'black', 'red', 'green', 'blue', 'orange', 'gray', 'grey']
     for (const icon of marks) {
       const color = String(icon.props('color'))
       expect(color).toBe('var(--text-on-accent)')
-      expect(color, '🔴 --on-accent 暗档是深色,不能用在实底前景上(附录 B §B.3.1)').not.toBe(
+      expect(color, '🔴 --on-accent dark mode is dark color, cannot use on solid foreground (appendix B §B.3.1)').not.toBe(
         'var(--on-accent)',
       )
       const scrubbed = color.replace(/var\([^)]*\)/g, '')
       for (const c of NAMED) {
-        expect(scrubbed, `color 属性值位置出现具名色 ${c}`).not.toMatch(
+        expect(scrubbed, `named color ${c} appears in color attribute value position`).not.toMatch(
           new RegExp(`(?<![\\w-])${c}(?![\\w-])`, 'i'),
         )
       }
     }
   })
 
-  it('关闭态 chip 不渲染勾(蓝本 :30 的 v-if)', async () => {
+  it('off chip not render check (blueprint :30 v-if)', async () => {
     const { w } = await mountPage(EXT_REPLAYED)
     const off = w.findAll('.k-ext-chip').find((c) => norm(c.text()) === '.docx')!
     expect(off.find('.k-ext-chip-mark').exists()).toBe(true)
@@ -626,14 +629,14 @@ describe('AllowlistView —— 勾选标记的 KIcon 用 token 前景色,不是�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 N52 —— setAllInGroup 串行 + 跳过已是目标态。
-describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目标态', () => {
-  /** 拿到某一组的「全选 / 全不选」按钮。 */
+// 🔴 N52 — setAllInGroup serial + skip already-target-state.
+describe('AllowlistView — N52: setAllInGroup serial await + skip already-target-state', () => {
+  /** Get "select all / select none" buttons for a group. */
   const groupBtns = (w: ReturnType<typeof mount>, i: number) =>
     extGroups(w)[i]!.findAll('.k-extgroup-toggle button')
 
-  it('🔴 已是目标态的一个请求都不发(蓝本 :205 的 if (e.enabled !== on))', async () => {
-    // .REAL 里 docs 组 11 个全是 enabled=1 → 点「全选」应当零请求
+  it('🔴 already-target-state don\'t send any request (blueprint :205 if (e.enabled !== on))', async () => {
+    // .REAL has docs group 11 all enabled=1 → click "select all" should be zero requests
     const { w, store } = await mountPage(EXT_REAL)
     const toast = vi.spyOn(store, 'toast')
     await groupBtns(w, 0)[0]!.trigger('click')
@@ -642,7 +645,7 @@ describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目�
     expect(toast).toHaveBeenCalledWith('已全选 文档')
   })
 
-  it('全不选 → 11 个全发(每个 enabled:false),toast 文案是另一侧', async () => {
+  it('select none → 11 all sent (each enabled:false), toast text is other side', async () => {
     const { w, store } = await mountPage(EXT_REAL)
     const toast = vi.spyOn(store, 'toast')
     await groupBtns(w, 0)[1]!.trigger('click')
@@ -666,8 +669,8 @@ describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目�
     expect(toast).toHaveBeenCalledWith('已全不选 文档')
   })
 
-  it('🔴🔴 顺序是**串行**:第一发未落地前不许发第二发(判据:改成 Promise.all → 必须报红)', async () => {
-    // 只喂 docs 组的 3 个开启项 —— 请求数少,交错路径好读。
+  it('🔴🔴 order is **serial**: no second before first lands (criterion: change to Promise.all → must fail)', async () => {
+    // Only feed docs group 3 on items — fewer requests, interleave path easy to read.
     const { w } = await mountPage([
       { ext: '.pdf', enabled: 1, source: 'default' },
       { ext: '.doc', enabled: 1, source: 'default' },
@@ -683,14 +686,15 @@ describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目�
     await groupBtns(w, 0)[1]!.trigger('click')
     await nextTick()
     await flushPromises()
-    // 🔴 串行的判别点:此刻只该有 **1** 发在飞。`Promise.all` 会在这里已经是 3。
-    expect(issued, '一次发出多于一发 —— setAllInGroup 被改成并发了(N52 被破)').toBe(1)
+    // 🔴 Serial discrimination point: now only **1** should be in flight. `Promise.all` would
+    //   be 3 already.
+    expect(issued, 'sent more than one at once — setAllInGroup changed to parallel (N52 broken)').toBe(1)
     expect(ai.patchParserAllowlistExtensions).toHaveBeenCalledTimes(1)
     expect(ai.patchParserAllowlistExtensions.mock.calls[0]![0]).toEqual({ ext: '.doc', enabled: false })
 
     d1.resolve({})
     await flushPromises()
-    expect(issued, '第一发落地后才轮到第二发').toBe(2)
+    expect(issued, 'second sent only after first lands').toBe(2)
     expect(ai.patchParserAllowlistExtensions.mock.calls[1]![0]).toEqual({ ext: '.odt', enabled: false })
 
     d2.resolve({})
@@ -701,7 +705,7 @@ describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目�
     await flushPromises()
   })
 
-  it('K58 —— 中途失败:只弹固定键「保存失败」,不回显后端 body', async () => {
+  it('K58 — mid-way fail: only show fixed message "Save failed", no backend body echo', async () => {
     const { w, store } = await mountPage(EXT_REAL)
     const toast = vi.spyOn(store, 'toast')
     ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-setall'))
@@ -714,21 +718,22 @@ describe('AllowlistView —— N52:setAllInGroup 串行 await + 跳过已是目�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 N53 —— addCustom 的规范化。
-describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补前导点)', () => {
-  /** §9.17:输入框在 `v-if="customOpen"` 里 —— 必须先点开高级折叠区,它才是可点/可填元素。 */
+// 🔴 N53 — addCustom normalization.
+describe('AllowlistView — N53: addCustom normalization (trim + toLowerCase + prefix dot)', () => {
+  /** §9.17: input inside `v-if="customOpen"` — must click open advanced fold first for it to be
+   *  clickable/fillable. */
   async function openAdv(w: ReturnType<typeof mount>) {
-    expect(w.find('.k-custom-add').exists(), '折叠前输入区不该渲染').toBe(false)
+    expect(w.find('.k-custom-add').exists(), 'input area should not render when folded').toBe(false)
     const toggle = w.find('.k-adv-toggle')
     expect(toggle.attributes('data-open')).toBe('false')
     await toggle.trigger('click')
     expect(toggle.attributes('data-open')).toBe('true')
     const input = w.find('.k-custom-add input')
-    expect(input.exists(), '展开后输入框必须真的渲染出来').toBe(true)
+    expect(input.exists(), 'input must really render when expanded').toBe(true)
     return input
   }
 
-  it('`log` → `.log`(补前导点)', async () => {
+  it('`log` → `.log` (prefix dot)', async () => {
     const { w, store } = await mountPage(EXT_REAL)
     const toast = vi.spyOn(store, 'toast')
     const input = await openAdv(w)
@@ -739,7 +744,7 @@ describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补�
     expect(toast).toHaveBeenLastCalledWith('已添加 .log')
   })
 
-  it('`.LOG ` → `.log`(trim + toLowerCase,已有前导点不重复补)', async () => {
+  it('`.LOG ` → `.log` (trim + toLowerCase, already-has dot not repeated)', async () => {
     const { w } = await mountPage(EXT_REAL)
     const input = await openAdv(w)
     await input.setValue('  .LOG  ')
@@ -748,20 +753,20 @@ describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补�
     expect(ai.patchParserAllowlistExtensions).toHaveBeenCalledWith({ ext: '.log', enabled: true })
   })
 
-  it('🔴 空串 / 全空白 → 一个请求都不发(蓝本 :214 的 if (!ext) return)', async () => {
+  it('🔴 empty string / all-whitespace → no request sent (blueprint :214 if (!ext) return)', async () => {
     const { w } = await mountPage(EXT_REAL)
     const input = await openAdv(w)
     await input.setValue('   ')
-    // `disabled` 是真布尔属性 —— 两侧都比
+    // `disabled` is true boolean attribute — assert both sides
     const btn = w.find('.k-custom-add button.k-btn')
     expect((btn.element as HTMLButtonElement).disabled).toBe(true)
-    // 绕过按钮 disabled,直接走 enter 键路径,证明函数自己也守住了
+    // Bypass button disabled, directly take enter path, prove function guards itself too
     await input.trigger('keydown.enter')
     await flushPromises()
     expect(ai.patchParserAllowlistExtensions).not.toHaveBeenCalled()
   })
 
-  it('`:disabled="!customExt.trim()"` 两侧(蓝本 :48)', async () => {
+  it('`:disabled="!customExt.trim()"` both sides (blueprint :48)', async () => {
     const { w } = await mountPage(EXT_REAL)
     const input = await openAdv(w)
     const btn = () => w.find('.k-custom-add button.k-btn').element as HTMLButtonElement
@@ -770,7 +775,7 @@ describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补�
     expect(btn().disabled).toBe(false)
   })
 
-  it('成功后 customExt 清空(蓝本 :219)', async () => {
+  it('on success customExt cleared (blueprint :219)', async () => {
     const { w } = await mountPage(EXT_REAL)
     const input = await openAdv(w)
     await input.setValue('conf')
@@ -779,7 +784,7 @@ describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补�
     expect((input.element as HTMLInputElement).value).toBe('')
   })
 
-  it('K58 —— 失败时只弹「添加失败」,且 customExt **不**清空(蓝本 :219 在 await 之后)', async () => {
+  it('K58 — on fail only show "Add failed", and customExt **not** cleared (blueprint :219 after await)', async () => {
     const { w, store } = await mountPage(EXT_REAL)
     const toast = vi.spyOn(store, 'toast')
     ai.patchParserAllowlistExtensions.mockRejectedValue(new Error('PROBE-K58-8Q3Z-add'))
@@ -794,8 +799,8 @@ describe('AllowlistView —— N53:addCustom 规范化(trim + toLowerCase + 补�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('AllowlistView —— B 区空态 / 非空态两侧(蓝本 :65-91)', () => {
-  it('空态:folderRules 为空 → 提示文案,且不渲染表头与任何行', async () => {
+describe('AllowlistView — section B empty / non-empty both sides (blueprint :65-91)', () => {
+  it('empty state: folderRules empty → hint text, no header or rows rendered', async () => {
     const { w, store } = await mountPage(EXT_REAL, FOLDERS_REAL.rules)
     expect(store.folderRules).toEqual([])
     expect(w.find('.k-frow-head').exists()).toBe(false)
@@ -804,12 +809,12 @@ describe('AllowlistView —— B 区空态 / 非空态两侧(蓝本 :65-91)', ()
     expect(norm(body.text())).toContain('还没有规则。点右上角 [+ 添加规则] 开始。')
   })
 
-  it('非空态:表头 + 每条规则一行(蓝本 :69-90)', async () => {
+  it('non-empty state: header + one row per rule (blueprint :69-90)', async () => {
     const { w } = await mountPage(EXT_REAL, FOLDER_RULES_CONSTRUCTED)
     const head = w.find('.k-frow-head')
     expect(head.exists()).toBe(true)
     expect(head.findAll('span').map((s) => s.text())).toEqual(['存储库', '路径', '类型', ''])
-    // .k-frow 共 3 个:1 个表头 + 2 行
+    // .k-frow total 3: 1 header + 2 rows
     const rows = w.findAll('.k-frow').filter((r) => !r.classes('k-frow-head'))
     expect(rows).toHaveLength(2)
     expect(rows[0]!.find('.k-frow-root').text()).toContain('DATA')
@@ -817,29 +822,29 @@ describe('AllowlistView —— B 区空态 / 非空态两侧(蓝本 :65-91)', ()
     expect(rows[0]!.find('.k-frow-path').attributes('title')).toBe('/Downloads/*')
     expect(rows[0]!.find('.k-frow-action').attributes('data-act')).toBe('deny')
     expect(norm(rows[0]!.find('.k-frow-action').text())).toBe('拒绝')
-    // 🔴 N49 同族:root_id 是空串 → 走蓝本 :78 的 `|| 'any'` 兜底
+    // 🔴 N49 family: root_id is empty string → take blueprint :78 `|| 'any'` fallback
     expect(rows[1]!.find('.k-frow-root').text()).toContain('any')
     expect(rows[1]!.find('.k-frow-action').attributes('data-act')).toBe('allow')
     expect(norm(rows[1]!.find('.k-frow-action').text())).toBe('同意')
-    // 空态提示不再渲染
+    // Empty state hint not rendered
     expect(norm(w.findAll('.k-section-body')[1]!.text())).not.toContain('还没有规则')
   })
 
-  it('allow / deny 两侧的图标不同(蓝本 :82 的三元)', async () => {
+  it('allow / deny icons different (blueprint :82 ternary)', async () => {
     const { w } = await mountPage(EXT_REAL, FOLDER_RULES_CONSTRUCTED)
     const rows = w.findAll('.k-frow').filter((r) => !r.classes('k-frow-head'))
     expect(rows[0]!.find('.k-frow-action').findComponent(KIcon).props('name')).toBe('x')
     expect(rows[1]!.find('.k-frow-action').findComponent(KIcon).props('name')).toBe('check')
   })
 
-  it('优先级提示行恒在(蓝本 :92-95),两态都渲染', async () => {
+  it('priority hint row always present (blueprint :92-95), both states render', async () => {
     const { w } = await mountPage(EXT_REAL, [])
     expect(norm(w.find('.k-priority-hint').text())).toBe(
       '举例：禁止 /Downloads/* 后，该文件夹下所有文件停止索引',
     )
   })
 
-  it('removeRule 成功 → deleteFolderRule(id) + toast(蓝本 :239-246)', async () => {
+  it('removeRule success → deleteFolderRule(id) + toast (blueprint :239-246)', async () => {
     const { w, store } = await mountPage(EXT_REAL, FOLDER_RULES_CONSTRUCTED)
     const toast = vi.spyOn(store, 'toast')
     const rows = w.findAll('.k-frow').filter((r) => !r.classes('k-frow-head'))
@@ -852,7 +857,7 @@ describe('AllowlistView —— B 区空态 / 非空态两侧(蓝本 :65-91)', ()
     expect(toast).toHaveBeenLastCalledWith('已删除，正在清理受影响的文件…')
   })
 
-  it('K58 —— removeRule 失败只弹「删除失败」,不回显后端 body', async () => {
+  it('K58 — removeRule fail only show "Delete failed", no backend body echo', async () => {
     const { w, store } = await mountPage(EXT_REAL, FOLDER_RULES_CONSTRUCTED)
     const toast = vi.spyOn(store, 'toast')
     ai.deleteParserAllowlistFolder.mockRejectedValue(new Error('PROBE-K58-8Q3Z-del'))
@@ -866,32 +871,33 @@ describe('AllowlistView —— B 区空态 / 非空态两侧(蓝本 :65-91)', ()
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K57 —— 「添加文件夹规则」弹窗转 reka 原语(蓝本 :101-151 是裸 .k-modal-bg + @click)。
-// portal 目标 `.knowledge-app` 只认第一个同名宿主 → 每条用例先 `withHost()`。
-describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () => {
+// 🔴 K57 — "Add Folder Rule" modal to reka primitives (blueprint :101-151 is bare .k-modal-bg +
+// @click).
+// portal target `.knowledge-app` only recognizes first same-named host → each test `withHost()`.
+describe('AllowlistView — K57: reka "Add Folder Rule" modal', () => {
   async function openModal(rules: FolderRuleLike[] = []) {
-    // 宿主由 `mountPage` 在挂载**之前**建好并回传(见它的注释)。
+    // Host created by `mountPage` **before** mount and returned (see its comment).
     const m = await mountPage(EXT_REAL, rules)
-    expect(m.host.querySelector('.k-modal'), '默认不该渲染弹窗').toBeNull()
+    expect(m.host.querySelector('.k-modal'), 'should not render modal by default').toBeNull()
     await m.w.findAll('.k-section-head')[1]!.find('button.k-btn.primary').trigger('click')
     await nextTick()
     await flushPromises()
     return m
   }
 
-  it('点「+ 添加规则」→ portal 到 .knowledge-app;head / body / foot 内容逐字', async () => {
+  it('click "+ Add Rule" → portal to .knowledge-app; head / body / foot content verbatim', async () => {
     const { host } = await openModal()
     const modal = host.querySelector('.k-modal')
     expect(modal).not.toBeNull()
-    // 遮罩类名照抄蓝本 :102
+    // Overlay class name copied from blueprint :102
     expect(host.querySelector('.k-modal-bg')).not.toBeNull()
-    // head:DialogTitle 套在蓝本自己的 .k-modal-title 上(as-child)⇒ 不多一个隐藏节点
+    // head: DialogTitle wrapped on blueprint's own .k-modal-title (as-child) ⇒ no extra hidden node
     const titleEl = modal!.querySelector('.k-modal-title') as HTMLElement
     expect(titleEl.textContent).toBe('添加文件夹规则')
     expect(titleEl.id).toBe(modal!.getAttribute('aria-labelledby'))
     expect(modal!.querySelectorAll('[id]')).toHaveLength(1)
     expect(modal!.querySelector('.k-modal-head button.k-modal-x')).not.toBeNull()
-    // body:三个 .k-field(存储库 / 路径 / 类型),第二个带 .k-field-mono
+    // body: three .k-field (storage / path / type), second has .k-field-mono
     const fields = Array.from(modal!.querySelectorAll('.k-field'))
     expect(fields).toHaveLength(3)
     expect(fields.map((f) => f.querySelector('.k-field-label')!.textContent)).toEqual([
@@ -905,7 +911,12 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
       '支持 * 通配符，如 /Photos/**/*.raw',
       null,
     ])
-    // body:两张 radio 卡
+    expect(fields.map((f) => f.querySelector('.k-field-hint')?.textContent ?? null)).toEqual([
+      '填 "any" 表示所有存储库都生效',
+      '支持 * 通配符，如 /Photos/**/*.raw',
+      null,
+    ])
+    // body: two radio cards
     const cards = Array.from(modal!.querySelectorAll('.k-radio-2 .k-radio-card'))
     expect(cards).toHaveLength(2)
     expect(cards.map((c) => c.querySelector('.k-radio-card-text')!.textContent)).toEqual([
@@ -919,18 +930,18 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
     expect(
       cards.map((c) => c.querySelector('.k-radio-card-icon')!.getAttribute('data-tone')),
     ).toEqual(['allow', 'deny'])
-    // body:底部整段优先级说明
+    // body: bottom full priority explanation
     expect(norm(modal!.querySelector('.k-modal-body')!.textContent!)).toContain(
       '优先级：禁止 > 允许 > 默认允许。例：禁止 /Downloads/* 下所有文件不被索引。',
     )
-    // foot:取消 + 保存规则
+    // foot: cancel + save rule
     const footBtns = Array.from(modal!.querySelectorAll('.k-modal-foot button'))
     expect(footBtns.map((b) => norm(b.textContent!))).toEqual(['取消', '保存规则'])
     expect(footBtns[0]!.className).toBe('k-btn ghost')
     expect(footBtns[1]!.className).toBe('k-btn primary')
   })
 
-  it('表单初值 = 蓝本 :177(any / /Downloads/* / deny),radio 的 data-on 两侧都比', async () => {
+  it('form init value = blueprint :177 (any / /Downloads/* / deny), radio data-on both sides', async () => {
     const { host } = await openModal()
     const inputs = Array.from(host.querySelectorAll('.k-field input')) as HTMLInputElement[]
     expect(inputs[0]!.value).toBe('any')
@@ -939,7 +950,7 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
     expect(cards.map((c) => c.getAttribute('data-on'))).toEqual(['false', 'true'])
   })
 
-  it('点「同意」卡 → data-on 翻到另一侧(蓝本 :122/:129)', async () => {
+  it('click allow card → data-on flips to other side (blueprint :122/:129)', async () => {
     const { host } = await openModal()
     ;(host.querySelectorAll('.k-radio-card')[0] as HTMLElement).click()
     await nextTick()
@@ -948,7 +959,7 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
     ).toEqual(['true', 'false'])
   })
 
-  it('点 × 关闭,且不发请求', async () => {
+  it('click × close, no request sent', async () => {
     const { host } = await openModal()
     ;(host.querySelector('.k-modal-x') as HTMLElement).click()
     await nextTick()
@@ -957,7 +968,7 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
     expect(ai.addParserAllowlistFolder).not.toHaveBeenCalled()
   })
 
-  it('点「取消」关闭,且不发请求', async () => {
+  it('click "Cancel" close, no request sent', async () => {
     const { host } = await openModal()
     const cancel = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
       (b) => norm(b.textContent!) === '取消',
@@ -969,40 +980,41 @@ describe('AllowlistView —— K57:reka「添加文件夹规则」弹窗', () =>
     expect(ai.addParserAllowlistFolder).not.toHaveBeenCalled()
   })
 
-  it('🔴 点遮罩(弹窗外)关闭;点弹窗内不关闭(reka pointerDownOutside 等价蓝本 @click/@click.stop)', async () => {
+  it('🔴 click outside mask closes; click inside modal stays open (reka pointerDownOutside ≈ blueprint @click/@click.stop)', async () => {
     const { host } = await openModal()
-    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 监听 —— 补一次真宏任务 tick。
+    // reka's usePointerDownOutside uses setTimeout(0) to delay attaching document listener —
+    // add one real macrotask tick.
     await new Promise((r) => setTimeout(r, 0))
     ;(host.querySelector('.k-modal-title') as HTMLElement).dispatchEvent(
       new Event('pointerdown', { bubbles: true }),
     )
     await nextTick()
-    expect(host.querySelector('.k-modal'), '点弹窗内不该关闭').not.toBeNull()
+    expect(host.querySelector('.k-modal'), 'click inside modal should not close').not.toBeNull()
     ;(host.querySelector('.k-modal-bg') as HTMLElement).dispatchEvent(
       new Event('pointerdown', { bubbles: true }),
     )
     await nextTick()
     await flushPromises()
-    expect(host.querySelector('.k-modal'), '点遮罩必须关闭').toBeNull()
+    expect(host.querySelector('.k-modal'), 'click on mask must close').toBeNull()
   })
 
-  it('🔴 `:disabled="!form.path_glob.trim()"` 两侧(蓝本 :145)', async () => {
+  it('🔴 `:disabled="!form.path_glob.trim()"` both sides (blueprint :145)', async () => {
     const { host } = await openModal()
     const saveBtn = () =>
       Array.from(host.querySelectorAll('.k-modal-foot button')).find(
         (b) => norm(b.textContent!) === '保存规则',
       ) as HTMLButtonElement
-    expect(saveBtn().disabled, '初值 /Downloads/* 非空 → 可点').toBe(false)
+    expect(saveBtn().disabled, 'init /Downloads/* non-empty → clickable').toBe(false)
     const pathInput = (host.querySelectorAll('.k-field input')[1] as HTMLInputElement)
     pathInput.value = '   '
     pathInput.dispatchEvent(new Event('input'))
     await nextTick()
-    expect(saveBtn().disabled, '全空白路径 → 必须灰掉').toBe(true)
+    expect(saveBtn().disabled, 'all-whitespace path → must gray out').toBe(true)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
+describe('AllowlistView — saveRule (blueprint :224-238)', () => {
   async function openModal() {
     const m = await mountPage(EXT_REAL, [])
     await m.w.findAll('.k-section-head')[1]!.find('button.k-btn.primary').trigger('click')
@@ -1023,7 +1035,7 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     await nextTick()
   }
 
-  it('成功 → addFolderRule(snake_case body,path 去空格)+ 关弹窗 + toast', async () => {
+  it('success → addFolderRule(snake_case body, path strip spaces) + close modal + toast', async () => {
     const { host, store } = await openModal()
     const toast = vi.spyOn(store, 'toast')
     await setInput(host, 0, 'DATA')
@@ -1039,7 +1051,7 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     expect(toast).toHaveBeenLastCalledWith('已保存。正在后台清理不再符合规则的文件…')
   })
 
-  it('root_id 被清空 → 走蓝本 :227 的 `|| "any"` 兜底', async () => {
+  it('root_id cleared → take blueprint :227 `|| "any"` fallback', async () => {
     const { host } = await openModal()
     await setInput(host, 0, '')
     saveBtn(host).click()
@@ -1051,7 +1063,7 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     })
   })
 
-  it('🔴 成功后表单重置成 { any, /Downloads/*, deny }(蓝本 :234 逐字同值)—— 重开弹窗逐格验', async () => {
+  it('🔴 on success form reset to { any, /Downloads/*, deny } (blueprint :234 verbatim same value) — reopen modal check each cell', async () => {
     const { w, host } = await openModal()
     await setInput(host, 0, 'Backup')
     await setInput(host, 1, '/Media/**')
@@ -1060,7 +1072,7 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     saveBtn(host).click()
     await flushPromises()
     expect(host.querySelector('.k-modal')).toBeNull()
-    // 重开
+    // reopen
     await w.findAll('.k-section-head')[1]!.find('button.k-btn.primary').trigger('click')
     await nextTick()
     await flushPromises()
@@ -1072,7 +1084,7 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     ).toEqual(['false', 'true'])
   })
 
-  it('🔴 K58 —— 失败:只弹「保存失败」,弹窗**不关**、表单**不重置**,且不回显后端 body', async () => {
+  it('🔴 K58 — on fail only show "Save failed", modal **stays open**, form **not reset**, no backend body echo', async () => {
     const { host, store } = await openModal()
     const toast = vi.spyOn(store, 'toast')
     ai.addParserAllowlistFolder.mockRejectedValue(new Error('PROBE-K58-8Q3Z-save'))
@@ -1082,39 +1094,40 @@ describe('AllowlistView —— saveRule(蓝本 :224-238)', () => {
     expect(toast).toHaveBeenLastCalledWith('保存失败')
     expect(toast.mock.calls.flat().join('|')).not.toContain('PROBE-K58-8Q3Z')
     expect(host.innerHTML).not.toContain('PROBE-K58-8Q3Z')
-    // 蓝本 :231/:234 在 await 之后 ⇒ 失败路径两件事都不该发生
+    // blueprint :231/:234 after await ⇒ failure path neither thing should happen
     expect(host.querySelector('.k-modal')).not.toBeNull()
     expect((host.querySelectorAll('.k-field input')[1] as HTMLInputElement).value).toBe('/Media/**')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 裁定 R27 / 勘误 E-62 —— toast 一律走 `store.toast(...)`(内部 2400ms),
-// 直调 `useToast()` 会丢掉蓝本自己的 2400ms(全局 `show()` 默认只有 1500ms)。
-// 🔴 **T5 顺手订正(裁定 R24 的 Minor M-1)**:落点数原写 **9**,实为 **10**
-//   (5 个成功 + **5** 个 catch,不是 4 个 —— `toggle` 的 catch 被漏数了)。
-//   口径:`AllowlistView.vue` 里 `store.toast(` 共 12 处,其中 2 处在文件头的 `<!-- -->`
-//   注释里(那两行讲的正是这条约定本身)⇒ 真落点 **10**。
-//   ⚠️ **只改注释与用例名,一条断言都没动**(裁定 R24 明令)。
-//   ⚠️ 顺带一条给下一刀的教训:核这个数时用「裸 `/\*[\s\S]*?\*/` 剥块注释」会数成 **9** ——
-//     `saveRule` 里的路径字面量 `'/Downloads/*'` 会被当成块注释的起点,一路吃掉后面的真代码。
-//     剥注释器必须要求 `/*` 前面是空白或行首(E-25 / 裁定 R19 同族)。
-describe('AllowlistView —— R27:10 处 toast 全部经 store.toast(不是直调 useToast)', () => {
-  it('五个成功分支 + 五个失败分支的 toast 都被 store.toast 的 spy 捕获', async () => {
+// 🔴 Ruling R27 / corrigendum E-62 — toast always via `store.toast(...)` (internal 2400ms),
+// direct call to `useToast()` loses blueprint's own 2400ms (global `show()` default only 1500ms).
+// 🔴 **T5 quick correction (ruling R24 Minor M-1)**: touch point count originally **9**,
+//   actually **10** (5 success + **5** catch, not 4 — `toggle`'s catch was miscounted).
+//   Basis: `AllowlistView.vue` has `store.toast(` 12 times total, 2 in file header `<!-- -->`
+//   comments (those two lines explain this very rule) ⇒ real touch points **10**.
+//   ⚠️ **only change comments and test names, no assertion changed** (ruling R24 explicit).
+//   ⚠️ Teaching moment for next batch: counting this with bare `/\*[\s\S]*?\*/` strip block
+//   comment gives **9** — path literal `'/Downloads/*'` in `saveRule` treated as block
+//   comment start, eats all real code after. Strip-comment logic must require `/*` preceded
+//   by whitespace or line start (E-25 / ruling R19 family).
+describe('AllowlistView — R27: 10 toast all via store.toast (not direct useToast)', () => {
+  it('five success + five fail toast all captured by store.toast spy', async () => {
     const { w, store } = await mountPage(EXT_REPLAYED, FOLDER_RULES_CONSTRUCTED)
     const toast = vi.spyOn(store, 'toast')
-    // ① toggle 成功
+    // ① toggle success
     await w.findAll('.k-ext-chip')[0]!.trigger('click')
     await flushPromises()
-    // ② setAllInGroup 成功
+    // ② setAllInGroup success
     await extGroups(w)[0]!.findAll('.k-extgroup-toggle button')[0]!.trigger('click')
     await flushPromises()
-    // ③ removeRule 成功
+    // ③ removeRule success
     const rows = w.findAll('.k-frow').filter((r) => !r.classes('k-frow-head'))
     await rows[0]!.find('button.k-row-action').trigger('click')
     await flushPromises()
     expect(toast.mock.calls.length).toBeGreaterThanOrEqual(3)
-    // 判据:任何一处改成直调 useToast().show(...) → 该处的 spy 记录消失
+    // Criterion: change any place to direct useToast().show(...) → spy record disappears
     expect(toast.mock.calls.map((c: unknown[]) => c[0])).toEqual([
       '已收录 .docx',
       '已全选 文档',

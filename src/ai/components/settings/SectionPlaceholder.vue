@@ -1,15 +1,15 @@
 <!--
-  SP8-P2a Task 8 —— 新建组件,Vue2 无对应蓝本(SP2a 范围外的 9 个分区 +
-  skills/mcp 本期都没有真组件)。
+  SP8-P2a Task 8 — new component, Vue2 has no equivalent blueprint (9 sections outside SP2a scope +
+  skills/mcp have no real components this phase).
 
-  简单占位面板:`.set-inner` + `.sk-section` 包一层(与 Vue2 各 xxxSection.vue
-  的根结构一致,如 ThinkingDefaultsSection.vue:1-2 的 `.set-inner`),内容只有
-  一个标题 + 一段说明文字。用于:
-    - 本任务(T8)阶段暂占「模型」组 4 个分区(models/providers/privacy/thinking),
-      待 Task 9/10/11 各自把 SECTION_COMPONENTS 对应行换成真组件
+  Simple placeholder panel: `.set-inner` + `.sk-section` wrapper (consistent with Vue2 xxxSection.vue
+  root structure, e.g. ThinkingDefaultsSection.vue:1-2 `.set-inner`), content is just
+  a title + explanatory text. Used for:
+    - This task (T8) phase placeholder for "Models" group 4 sections (models/providers/privacy/thinking),
+      Tasks 9/10/11 will replace corresponding SECTION_COMPONENTS lines with real components
     - `blacklist`/`execution`/`search`/`memory`/`observability` → SP8-P2b
     - `mcptokens`/`channels` → SP8-P2b
-    - `skills` → SP8-P3,`mcp` → SP8-P4
+    - `skills` → SP8-P3, `mcp` → SP8-P4
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'

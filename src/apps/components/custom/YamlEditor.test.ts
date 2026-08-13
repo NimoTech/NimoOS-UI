@@ -16,7 +16,7 @@ function mountEditor(modelValue: string) {
 }
 
 describe('YamlEditor', () => {
-  it('挂载时用 modelValue 初始化 CM6 文档内容', () => {
+  it('initializes CM6 document content with modelValue on mount', () => {
     const w = mountEditor('services:\n  a:\n    image: foo\n')
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     const view = EditorView.findFromDOM(host)
@@ -25,7 +25,7 @@ describe('YamlEditor', () => {
     w.unmount()
   })
 
-  it('文档变化(view.dispatch 制造的真实事务)→ emit update:modelValue', async () => {
+  it('document changes (real transactions created by view.dispatch) → emit update:modelValue', async () => {
     const w = mountEditor('a: 1')
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     const view = EditorView.findFromDOM(host)!
@@ -37,7 +37,7 @@ describe('YamlEditor', () => {
     w.unmount()
   })
 
-  it('外部 modelValue 变化(如 tab2 转换写入)同步进编辑器', async () => {
+  it('external modelValue changes (e.g. tab2 conversion writes) sync into editor', async () => {
     const w = mountEditor('a: 1')
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     await w.setProps({ modelValue: 'name: converted\nservices: {}\n' })
@@ -47,7 +47,7 @@ describe('YamlEditor', () => {
     w.unmount()
   })
 
-  it('回填相同内容不触发反馈环(setProps 用当前文档同值不 dispatch,不产生多余 emit)', async () => {
+  it('refilling identical content does not trigger feedback loop (setProps with current doc value does not dispatch, no excess emit)', async () => {
     const w = mountEditor('a: 1')
     await w.setProps({ modelValue: 'a: 1' }) // Same as the current document
     await nextTick()
@@ -55,7 +55,7 @@ describe('YamlEditor', () => {
     w.unmount()
   })
 
-  it('销毁时清理 EditorView(卸载后 findFromDOM 拿不到实例)', () => {
+  it('cleans up EditorView on destruction (cannot get instance via findFromDOM after unmount)', () => {
     const w = mountEditor('a: 1')
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     w.unmount()

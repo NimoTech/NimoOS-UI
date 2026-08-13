@@ -482,7 +482,7 @@ describe('K33 stale guard ① —— guard logic (8 concurrent entry points: mou
     expect(s.stats).toEqual(STATS_NOW)
   })
 
-  it('🔴 过期那一发失败时,不许写 unreachable / error(否则页面会在数据正常时报「不可达」)', async () => {
+  it('🔴 Stale failure, must not write unreachable / error (else page reports "unreachable" with good data)', async () => {
     const d1 = deferred<ParserStatsBody>()
     const d2 = deferred<ParserStatsBody>()
     mockStatsDeferred(d1.promise, d2.promise)
@@ -490,11 +490,11 @@ describe('K33 stale guard ① —— guard logic (8 concurrent entry points: mou
     const p1 = s.loadAll()
     const p2 = s.loadAll()
 
-    d2.resolve(STATS_NOW) // 最新那一发成功落地
+    d2.resolve(STATS_NOW) // latest succeeds
     await flushPromises()
     expect(s.unreachable).toBe(false)
 
-    d1.reject(new Error('stale boom')) // 过期那一发随后失败
+    d1.reject(new Error('stale boom')) // stale then fails
     await Promise.all([p1, p2])
     expect(s.unreachable).toBe(false)
     expect(s.error).toBe(null)
@@ -503,13 +503,14 @@ describe('K33 stale guard ① —— guard logic (8 concurrent entry points: mou
   })
 })
 
-describe('K33 过期守卫 ② —— 守卫变量必须 store 实例局部,不是模块级', () => {
-  // 🔴 治理 §9.1(T3 评审 M-1 猎出的缺口):上一刀的产品代码是对的,但「守卫变量必须
-  // 实例本地」这条不变量**零用例守着** —— 把 `seq` 挪到真模块级后,三条单实例交错用例
-  // 照样全绿。模块级 epoch 的真实后果是:两个同时活着的 store 实例会互相把对方的请求
-  // 判成过期(数据永远写不进去、`loading` 永远转)。本用例专守这一条。
-  // 判据只有一个:把 `parserStore.ts` 里的 `let loadAllEpoch = 0` 挪到模块级 → 必须报红。
-  it('两个 pinia 实例各自 loadAll 交错在飞 → 各自拿到自己的结果、互不覆盖、两边 loading 都收敛', async () => {
+describe('K33 stale guard ② —— guard variable must be store instance local, not module-level', () => {
+  // 🔴 Governance §9.1 (T3 review M-1 found gap): previous production code correct, but "guard
+  // variable must be instance local" invariant **has zero tests** —— moving `seq` to true
+  // module-level, three single-instance interleaving tests still pass. Module-level epoch's real
+  // consequence: two simultaneously alive store instances judge each other's requests stale
+  // (data never writes, `loading` never resets). This test guards only that.
+  // Only one criterion: moving `let loadAllEpoch = 0` in `parserStore.ts` to module-level → must fail.
+  it('Two pinia instances each loadAll interleaved in flight → each gets own result, no overwrite, both loading converges', async () => {
     const dA = deferred<ParserStatsBody>()
     const dB = deferred<ParserStatsBody>()
     mockStatsDeferred(dA.promise, dB.promise)
@@ -522,22 +523,22 @@ describe('K33 过期守卫 ② —— 守卫变量必须 store 实例局部,不�
     const sB = useParserStore()
     expect(sA).not.toBe(sB)
 
-    const pA = sA.loadAll() // 实例 A 在飞
-    const pB = sB.loadAll() // 实例 B 在飞
+    const pA = sA.loadAll() // instance A in flight
+    const pB = sB.loadAll() // instance B in flight
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
 
-    // 交错:后发的 B 先回,再轮到 A —— 两个实例都不该被对方影响
+    // Interleave: B later but returns first, then A —— both instances must not affect each other
     dB.resolve(STATS_NOW)
     await flushPromises()
     dA.resolve(STATS_EARLIER)
     await Promise.all([pA, pB])
 
-    // ↓ 模块级 epoch 时,A 的 epoch(1) !== loadAllEpoch(2) → 整发被丢弃,stats 停在初值
+    // ↓ with module-level epoch, A's epoch(1) !== loadAllEpoch(2) → entire response discarded, stats stuck at initial
     expect(sA.stats).toEqual(STATS_EARLIER)
     expect(sA.stats.indexed_files).toBe(8)
     expect(sB.stats).toEqual(STATS_NOW)
     expect(sB.stats.indexed_files).toBe(7)
-    // ↓ 模块级 epoch 时,A 的 finally 正向判断不成立 → loading 永远转
+    // ↓ with module-level epoch, A's finally check fails → loading never resets
     expect(sA.loading).toBe(false)
     expect(sB.loading).toBe(false)
   })

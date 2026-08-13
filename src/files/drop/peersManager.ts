@@ -1,5 +1,6 @@
-// 设备连接管理:移植 Vue2 PeersManager。差异:WSPeer 兜底不移植(Vue2 即空壳)——
-// 不支持 RTC 的 peer 不建连接,sendFiles 返回 false 由 store 弹提示。
+// Device connection management: ported Vue2 PeersManager. Difference: WSPeer fallback not ported
+// (Vue2 is just a shell) — peers without RTC support do not establish connections; sendFiles
+// returns false and the store shows a toast.
 import { isRtcSupported, type ServerMessage, type TransferBrokenReason } from './protocol'
 import { RTCPeer, type PeerEvents, type SignalChannel } from './rtcPeer'
 
@@ -57,7 +58,8 @@ export class PeersManager {
             this.peers[peer.id] = this.makePeer(this.signal, peer.id, this.events)
             delete this.signalingRestarted[peer.id]
           }
-          // 不支持 RTC:不建连接(Vue2 WSPeer 兜底本就是不能传的空壳)
+          // No RTC support: do not establish connection (Vue2 WSPeer fallback was itself
+          // an inert shell incapable of transmitting)
         }
         break
       case 'signal': {
@@ -97,7 +99,7 @@ export class PeersManager {
           delete this.peers[msg.sender]
         }
         if (!this.peers[msg.sender]) {
-          this.peers[msg.sender] = this.makePeer(this.signal, null, this.events) // 被叫
+          this.peers[msg.sender] = this.makePeer(this.signal, null, this.events) // callee
           delete this.signalingRestarted[msg.sender]
         }
         this.peers[msg.sender].onServerMessage(msg)
@@ -141,7 +143,7 @@ export class PeersManager {
         // tab, whose offer must not land on the old connection.
         if (this.peers[msg.peer.id]) this.signalingRestarted[msg.peer.id] = true
         break
-      default: break // peers 列表/身份由 store 处理
+      default: break // peers list/identity handled by store
     }
   }
 
@@ -160,7 +162,7 @@ export class PeersManager {
       return 'not-ready'
     }
     if (!peer.hasOpenChannel()) { peer.refresh(); return 'not-ready' }
-    peer.sendText(String(files.length)) // Vue2 顺序:先计数文本,对端气泡显示「接收 N 个文件」
+    peer.sendText(String(files.length)) // Vue2 order: send count text first, receiver bubble shows "receiving N files"
     peer.sendFiles(files, from)
     return 'ok'
   }

@@ -10,7 +10,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 describe('UninstallConfirm', () => {
   beforeEach(() => { document.body.innerHTML = '' })
 
-  it('默认勾选删数据 → confirm(true);取消勾选后 → confirm(false)(2026-07-21 用户拍板改默认)', async () => {
+  it('delete data checkbox: default checked → confirm(true), unchecked → confirm(false) (2026-07-21 user decision)', async () => {
     const w = mount(UninstallConfirm, {
       props: { open: true, name: 'Jellyfin' },
       global: { plugins: [i18n] },

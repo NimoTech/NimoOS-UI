@@ -123,7 +123,7 @@ describe('McpServerDetail', () => {
   })
 
   // ===== Coverage point 5: Status cell two states + dot has no style =====
-  it('5a. When enabled=true: .val has no data-disabled=true, text is "启用", dot has no style attribute', () => {
+  it('5a. When enabled=true: .val has no data-disabled=true, correct text content, dot has no style attribute', () => {
     const w = mountDetail(makeServer({ enabled: true }))
     const statusVal = w.findAll('.sk-meta-cell')[0].find('.val')
     expect(statusVal.attributes('data-disabled')).toBe('false')
@@ -131,7 +131,7 @@ describe('McpServerDetail', () => {
     expect(statusVal.find('.dot').attributes('style')).toBeUndefined()
   })
 
-  it('5b. When enabled=false: .val[data-disabled=true], text is "未启用", dot has no style attribute', () => {
+  it('5b. When enabled=false: .val[data-disabled=true], correct text content, dot has no style attribute', () => {
     const w = mountDetail(makeServer({ enabled: false }))
     const statusVal = w.findAll('.sk-meta-cell')[0].find('.val')
     expect(statusVal.attributes('data-disabled')).toBe('true')
@@ -154,14 +154,14 @@ describe('McpServerDetail', () => {
     expect(rows[2].find('.val').text()).toBe('已配置(已隐藏)')
   })
 
-  it('6b. Stdio config section: when args is empty array, args cell displays "无"', () => {
+  it('6b. Stdio config section: when args is empty array, args cell displays empty status', () => {
     const w = mountDetail(makeServer({ transport: 'stdio', command: 'npx', args: [] }))
     const rows = w.findAll('.mcp-config-row')
     expect(rows[1].find('.mcp-code').text()).toBe('无')
   })
 
   // ===== Coverage point 7: Non-stdio config section =====
-  it('7a. Non-stdio config section: endpoint URL/headers/environment variables in three rows, has_headers=true displays "已配置(已隐藏)"', () => {
+  it('7a. Non-stdio config section: endpoint URL/headers/environment variables in three rows, has_headers=true shows configured status', () => {
     const w = mountDetail(makeServer({
       transport: 'http', url: 'https://x.example.com', has_headers: true, has_env: false,
     }))
@@ -174,7 +174,7 @@ describe('McpServerDetail', () => {
     expect(rows[2].find('.val').text()).toBe('无')
   })
 
-  it('7b. Non-stdio config section: when has_headers=false, headers cell displays "无"', () => {
+  it('7b. Non-stdio config section: when has_headers=false, headers cell displays empty status', () => {
     const w = mountDetail(makeServer({ transport: 'http', has_headers: false }))
     const rows = w.findAll('.mcp-config-row')
     expect(rows[1].find('.val').text()).toBe('无')
@@ -277,7 +277,7 @@ describe('McpServerDetail', () => {
 describe('Test Connection', () => {
   beforeEach(() => { h.testMCPServer.mockReset() })
 
-  it('Clicking button enters testing state: button disabled, text changes to "测试中…", spinner appears', async () => {
+  it('Clicking button enters testing state: button disabled, text changes to testing status, spinner appears', async () => {
     let resolve!: (v: unknown) => void
     h.testMCPServer.mockReturnValue(new Promise((r) => { resolve = r }))
     const w = mountDetail(srv({ id: 5 }))
@@ -396,7 +396,7 @@ describe('Test Connection', () => {
     await flushPromises()
     expect(w.find('.mcp-test-result').exists()).toBe(false)
     expect(w.text()).not.toContain('leaked')
-    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTest) // not stuck in "测试中…"
+    expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTest) // button text reset, not stuck in testing state
   })
 
   it('D11 comparison: results land normally without switch (guard does not block normal path)', async () => {
@@ -415,7 +415,7 @@ describe('Test Connection', () => {
   // Only the scenario "old request lands while new test round in progress" can distinguish "seq guard present" vs
   // "seq guard absent"—because only then would testing be wrongly reset to false by old request.
   // Timeline: server1 click test (pending) → switch to server2 → server2 click test (pending, testing=true)
-  // → then old request from server1 lands → assert UI still "测试中…", button still disabled,
+  // → then old request from server1 lands → assert UI still in testing state, button still disabled,
   // result panel still absent. If finally branch unconditionally `testing.value = false` (without
   // seq check), old request landing would reset testing to false, this would fail.
   it('finally guard: old request successful landing while new test round in progress does not reset testing to false', async () => {

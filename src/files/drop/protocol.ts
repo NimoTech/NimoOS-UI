@@ -1,9 +1,10 @@
-// Drop P2P 协议常量与消息形状:与 Vue2 Network.js 逐字对齐。
-// 硬约束:P8 翻 strangler 前新旧页面并存互传,任何形状/数值改动都会破坏兼容。
+// Drop P2P protocol constants and message shapes: word-for-word aligned with Vue2 Network.js.
+// Hard constraint: before P8 strangler flip, old and new pages coexist and interoperate;
+// any shape/value changes break compatibility.
 
 export const CHUNK_SIZE = 64000 // 64 KB(Vue2 _chunkSize)
 export const MAX_PARTITION_SIZE = 1e6 // 1 MB(Vue2 _maxPartitionSize)
-export const PROGRESS_NOTIFY_STEP = 0.01 // 进度变化 ≥1% 才通知对端
+export const PROGRESS_NOTIFY_STEP = 0.01 // only notify peer when progress changes by ≥1%
 
 // A sender that has shipped a partition waits for the peer's acknowledgement.
 // Without a bound, a peer that simply vanished leaves the queue wedged for the
@@ -17,7 +18,7 @@ export const ACK_TIMEOUT_MS = 30000
 export const HANDSHAKE_TIMEOUT_MS = 15000
 
 export interface PeerName {
-  model: string // 后端 UA 解析:desktop | mobile | tablet
+  model: string // backend UA parsing: desktop | mobile | tablet
   deviceName: string
   displayName: string
 }
@@ -28,7 +29,7 @@ export interface PeerInfo {
   offline?: boolean
 }
 
-// WS 信令(服务器 → 客户端)
+// WS signaling (server → client)
 export type ServerMessage =
   | { type: 'peers'; peers: PeerInfo[] }
   | { type: 'peer-joined'; peer: PeerInfo }
@@ -37,7 +38,7 @@ export type ServerMessage =
   | { type: 'ping' }
   | { type: 'display-name'; message: { id: string; deviceName: string; displayName: string } }
 
-// DataChannel 内 JSON 控制消息(文件字节是二进制帧,不在此列)
+// JSON control messages inside DataChannel (file bytes are binary frames, not listed here)
 export type ChannelMessage =
   | { type: 'header'; name: string; mime: string; size: number; from: string }
   | { type: 'partition'; offset: number }
@@ -51,7 +52,7 @@ export type TransferBrokenReason = 'disconnected' | 'timeout' | 'cancelled'
 
 export interface ReceivedFile { name: string; mime: string; size: number; blob: Blob }
 
-// 文本 base64(UTF-8):逐字对齐 Vue2(deprecated unescape/escape 是故意的,为 wire 兼容)
+// Text base64 (UTF-8): word-for-word aligned with Vue2 (deprecated unescape/escape intentional for wire compatibility)
 export function encodeText(text: string): string {
   return btoa(unescape(encodeURIComponent(text)))
 }

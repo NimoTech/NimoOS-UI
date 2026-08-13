@@ -1,32 +1,36 @@
 <script setup lang="ts">
-// SP8-P5e Task 6+7 —— `SearchView.vue`(1:1 移植自蓝本
-// `NimoOS-UI@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`,401 行)。
+// SP8-P5e Task 6+7 — `SearchView.vue` (1:1 port from blueprint
+// `NimoOS-UI@7a6ee6b7` `src/views/AI/Knowledge/SearchView.vue`, 401 lines).
 //
-// T6 范围(治理 `p5e-plan.md` §T6,`p5e-coordinator-rulings-T0.md` R25):
-//   模板 `:1-119`(sticky 搜索框 + 高级面板 + idle/loading/empty 三态)+
-//   `:158-162`(error 态)+ script 常量块(`SAMPLE_QUERIES`/`FILE_TYPES`/
-//   `MIME_PREFIXES`/`MTIMES`/`WEEK_MS`/`MONTH_MS`/`YEAR_MS`)+
+// T6 scope (governance `p5e-plan.md` §T6, `p5e-coordinator-rulings-T0.md` R25):
+//   Template `:1-119` (sticky search box + advanced panel + idle/loading/empty three states) +
+//   `:158-162` (error state) + script constant block (`SAMPLE_QUERIES`/`FILE_TYPES`/
+//   `MIME_PREFIXES`/`MTIMES`/`WEEK_MS`/`MONTH_MS`/`YEAR_MS`) +
 //   `advEnabled`/`totalChunks` + `clear`/`quickSearch`/`toggleSet`/
-//   `buildFilters`/`run` + `$route.query.q` 的 watch。
-// T7 范围(本次续写,`p5e-plan.md` §T7 · 裁定 R1「方案 A」):
-//   结果卡列表(`:121-156`)+ 两个子组件挂载 markup(`:164-172`)+
-//   `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast` + 两个 ext
-//   常量集(`:186-190`)。
+//   `buildFilters`/`run` + `$route.query.q` watch.
+// T7 scope (this phase continuation, `p5e-plan.md` §T7 · ruling R1 "Plan A"):
+//   Result card list (`:121-156`) + two child component mount markup (`:164-172`) +
+//   `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast` + two extension
+//   constant sets (`:186-190`).
 //
-// ═══ 🔴 K44 —— `.vue` 侧零 `<style>` 块(scss 全部由 T2 搬进 `src/ai/styles/knowledge.scss`) ═══
+// ═══ 🔴 K44 — `.vue` side has zero `<style>` block (all SCSS moved to `src/ai/styles/knowledge.scss` by T2) ═══
 //
-// ═══ 🔴 K52(裁定 R1,方案 A)—— 文件字节流走 `service.file.fileUrl()` + `getHttp()` ═══
-// 治理 K50 原文规定的落法(`getHttp().get('/v3/file', { params, responseType:'blob' })`)
-// 在真机上 100% 401 ——`/v3/file`(`NimoOS/route/v2.go:237-266` 的 `InitFile()`)是裸
-// `http.HandlerFunc`、零 JWT 中间件,只读 `?token=` query 参数,`getHttp()` 只设
-// `Authorization` 头、从不往 query 拼 token。用户 2026-08-05 拍板方案 A:改走
-// `service.file.fileUrl(path)`(唯一接受该端点认证形式的调用)拼出的 URL 去发那一次
-// XHR,仍用 `getHttp()`(Service 仓零改动),`inline` 时手工拼 `&inline=1`(后端真支持,
-// `route/v2.go:257-261`)。`window.open`/`<a href>` 消费的是 `URL.createObjectURL()`
-// 产出的 `blob:` 地址,不是 `fileUrl()` 本身 —— 地址栏/浏览历史/Referer 不含 token,
-// 代价是 token 进这一次后台 XHR 的 query(并入既有的「终端 WS token 进访问日志」后端票)。
-// `/v3/file` 不会被 `withVersion()` 改写成 `/v1/v3/file`
-// (`.sp8/NimoOS-Service/src/http.ts:6-10` 的 `/^\/v[1-9]/` 原样放行,`v3` 命中)。
+// ═══ 🔴 K52 (ruling R1, Plan A) — file byte stream goes through `service.file.fileUrl()` + `getHttp()` ═══
+// Governance K50: the implementation approach specified in the ruling
+// (`getHttp().get('/v3/file', { params, responseType:'blob' })`) returns 401 100% of the time
+// on real devices — `/v3/file` (`NimoOS/route/v2.go:237-266` `InitFile()`) is a bare
+// `http.HandlerFunc` with zero JWT middleware, only reads `?token=` query parameter.
+// `getHttp()` only sets the `Authorization` header and never appends token to query.
+// User approved Plan A on 2026-08-05: switch to using
+// `service.file.fileUrl(path)` (the only call that accepts this endpoint auth form) to construct
+// the URL for this single XHR, still using `getHttp()` (Service repo unchanged).
+// For `inline`, manually append `&inline=1` (backend truly supports it,
+// `route/v2.go:257-261`). `window.open`/`<a href>` consume `URL.createObjectURL()`-produced
+// `blob:` address, not `fileUrl()` itself — address bar/browser history/Referer contain no token.
+// Trade-off: token enters this single background XHR query (merged into existing backend ticket
+// "terminal WS token in access log"). `/v3/file` is not rewritten by `withVersion()` to
+// `/v1/v3/file` (`.sp8/NimoOS-Service/src/http.ts:6-10` the `/^\/v[1-9]/` pattern passes
+// through unchanged, `v3` matches).
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -42,18 +46,20 @@ const { t } = useI18n()
 const route = useRoute()
 const store = useKnowledgeStore()
 
-// ─── 蓝本 :186-219 script 常量 ───
+// ─── Blueprint :186-219 script constants ───
 
-// 蓝本 :188。浏览器不能原生预览这些 office 格式 —— 走 in-app 的 `@vue-office`
-// 预览器(`KFileViewer`),不新开标签页。
+// Blueprint :188. Browsers cannot natively preview these office formats —
+// use in-app `@vue-office` viewer (`KFileViewer`), do not open a new tab.
 const OFFICE_INAPP_EXTS = new Set(['docx', 'wps', 'xls', 'xlsx', 'csv'])
-// 蓝本 :190。既非浏览器也非 `@vue-office` 能处理的旧版二进制 office —— 只能提示下载。
+// Blueprint :190. Old binary office formats that neither browsers nor `@vue-office` can handle —
+// can only prompt download.
 const NO_PREVIEW_EXTS = new Set(['doc', 'ppt', 'pptx'])
 
-// 蓝本 :192。🔴 N33:五个示例查询照抄且过 i18n —— 本仓没有用蓝本那种「英文短语
-// 本身当 key」的写法,T1 已把它们落成 `aiKbSample*` 键(zh_cn.ts/en_us.ts),这里存
-// 键名,模板里 `t(s)` 解析出真正译文(与蓝本 `$t(s)` 的双重渲染语义等价:按钮文案
-// 与点击后填入搜索框的值都是译文)。
+// Blueprint :192. 🔴 N33: Five sample queries copy-as-is and pass through i18n —
+// this repo does not use the blueprint's convention of "English phrase itself as key".
+// T1 has materialized them as `aiKbSample*` keys (zh_cn.ts/en_us.ts); here we store key names.
+// Template `t(s)` resolves to the true translated text (equivalent to blueprint's `$t(s)`
+// dual-render semantics: button caption and search-box value on click are both translated text).
 const SAMPLE_QUERIES = [
   'aiKbSampleThyroid',
   'aiKbSamplePythonAsync',
@@ -62,8 +68,9 @@ const SAMPLE_QUERIES = [
   'aiKbSampleSkating',
 ]
 
-// 蓝本 :194-200。⚠️ 这五个 label 是裸字面量,模板 `{{ t.label }}` 没过 `$t()`
-// → 不进 i18n,照抄字面量(T1 i18n 头注释已明确这一条,别搞混 MTIMES/SAMPLE_QUERIES)。
+// Blueprint :194-200. ⚠️ These five labels are bare literals, template `{{ t.label }}`
+// does not go through `$t()` → not i18n'd, copy literals as-is (T1 i18n header comment already
+// clarifies this; don't confuse with MTIMES/SAMPLE_QUERIES).
 const FILE_TYPES = [
   { id: 'pdf', label: 'PDF', icon: '📕' },
   { id: 'md', label: 'Markdown', icon: '📝' },
@@ -72,9 +79,10 @@ const FILE_TYPES = [
   { id: 'code', label: 'Code', icon: '💻' },
 ]
 
-// 蓝本 :202-208。🔴 N35:逐字照抄,不许"补全"缺的 docling 变体 —— 那是后端 mime
-// 取值的既有事实,补了会静默改变筛选结果(本机 7 个已收录文件 mime 全是
-// text/plain,取消勾选 TXT 以外任何一类都不会改变结果集,见 fixtures README §2③)。
+// Blueprint :202-208. 🔴 N35: Copy verbatim, do not "complete" missing docling variants —
+// these are the existing facts of backend MIME values; completing them would silently change
+// filter results (on this machine, all 7 indexed files have MIME type text/plain;
+// unchecking any class except TXT does not change the result set, see fixtures README §2③).
 const MIME_PREFIXES: Record<string, string[]> = {
   pdf: ['text/markdown+docling/pdf', 'application/pdf'],
   md: ['text/markdown'],
@@ -83,7 +91,8 @@ const MIME_PREFIXES: Record<string, string[]> = {
   code: ['text/x-source'],
 }
 
-// 蓝本 :210-215。label 存键名(过 `t()`),不是字面量 —— 与 SAMPLE_QUERIES 同款处理。
+// Blueprint :210-215. Labels store key names (pass through `t()`), not literals —
+// same handling as SAMPLE_QUERIES.
 const MTIMES = [
   { id: 'any', label: 'aiKbSrMtimeAny' },
   { id: '1w', label: 'aiKbSrMtimeWeek' },
@@ -91,17 +100,19 @@ const MTIMES = [
   { id: '1y', label: 'aiKbSrMtimeYear' },
 ]
 
-// 蓝本 :217-219。🔴 N36:`1m` = 30 天、`1y` = 365 天(常量,不是日历月/年)。
+// Blueprint :217-219. 🔴 N36: `1m` = 30 days, `1y` = 365 days (constants, not calendar
+// months/years).
 const WEEK_MS = 7 * 24 * 3600 * 1000
 const MONTH_MS = 30 * 24 * 3600 * 1000
 const YEAR_MS = 365 * 24 * 3600 * 1000
 
-// ─── 蓝本 data()(:224-244)—— 页面级瞬态,一律组件本地 ref,不塞 store(治理 §5.1) ───
+// ─── Blueprint data() (:224-244) — page-level ephemeral state, all component-local refs,
+// none stored in store (governance §5.1) ───
 
 const q = ref('')
 const advOpen = ref(false)
-// 蓝本 :232 —— 初值是全 5 类(K51:`ref<Set<string>>` + 整体替换,不用
-// `reactive(new Set())` 就地 add/delete,见下方 `toggleSet`)。
+// Blueprint :232 — initial value is all 5 types (K51: `ref<Set<string>>` + reassign
+// wholesale, do not use `reactive(new Set())` to add/delete in place, see `toggleSet` below).
 const types = ref<Set<string>>(new Set(['pdf', 'md', 'doc', 'txt', 'code']))
 const mtime = ref('any')
 const quality = ref<'fast' | 'accurate'>('fast')
@@ -109,7 +120,8 @@ const topK = ref(10)
 type Phase = 'idle' | 'loading' | 'results' | 'empty' | 'error'
 const phase = ref<Phase>('idle')
 const results = ref<FileVM[]>([])
-// N39:`clear()` 一并清空这两个(蓝本 :264)。渲染归 T7,状态本刀声明。
+// N39: `clear()` also clears these two together (blueprint :264). Rendering belongs to T7,
+// state declared in this phase.
 const openFile = ref<FileVM | null>(null)
 const viewerFile = ref<FileVM | null>(null)
 const ms = ref(0)
@@ -117,11 +129,12 @@ const errorMsg = ref('')
 const showRerankWarn = ref(false)
 const lastQuery = ref('')
 
-// ─── 蓝本 computed(:246-251) ───
+// ─── Blueprint computed (:246-251) ───
 
 /**
- * 蓝本 :247-249。🔴 N34:判据是 `types.size < FILE_TYPES.length` —— **全选 = 未启用**
- * (反直觉,照抄不改)。四个 or 分支任一为真即 `true`。
+ * Blueprint :247-249. 🔴 N34: The criterion is `types.size < FILE_TYPES.length` —
+ * **all selected = not enabled** (counterintuitive, copy as-is without changes).
+ * Any one of the four OR branches being true returns `true`.
  */
 const advEnabled = computed(
   () =>
@@ -130,12 +143,12 @@ const advEnabled = computed(
     quality.value !== 'fast' ||
     topK.value !== 10,
 )
-/** 蓝本 :250。 */
+/** Blueprint :250. */
 const totalChunks = computed(() => chunkCount(results.value))
 
-// ─── 蓝本 methods ───
+// ─── Blueprint methods ───
 
-/** 蓝本 :264。N39:一并清 `openFile`/`viewerFile`。 */
+/** Blueprint :264. N39: Also clear `openFile`/`viewerFile` together. */
 function clear() {
   q.value = ''
   phase.value = 'idle'
@@ -144,19 +157,20 @@ function clear() {
   viewerFile.value = null
 }
 
-/** 蓝本 :265-268。 */
+/** Blueprint :265-268. */
 function quickSearch(s: string) {
   q.value = s
   run()
 }
 
 /**
- * 蓝本 :269-274(注释原文 "mutate set then reassign for reactivity")。K51:
- * 复制新 Set 再整体赋值 —— 🔴 不许改成 `reactive(new Set())` 就地 add/delete
- * (那会让 `advEnabled` 的 `types.size` 依赖追踪走另一条路径,与蓝本不同源)。
- * ⚠️ 蓝本这个方法虽然签名上接收 `set` 形参,但重新赋值的目标写死是 `this.types`
- * (唯一调用点 `toggleSet(types, t.id)` 也只传 `types` 本身)—— 逐字照抄这个写法,
- * 不"泛化"成按传入引用动态赋值。
+ * Blueprint :269-274 (original comment "mutate set then reassign for reactivity"). K51:
+ * Copy to a new Set then reassign wholesale — 🔴 do not change to `reactive(new Set())`
+ * adding/deleting in place (that would make `advEnabled`'s `types.size` dependency tracking
+ * follow a different path, diverging from blueprint). ⚠️ Although the blueprint's method
+ * signature accepts a `set` parameter, the reassignment target is hardcoded to `this.types`
+ * (the only call site `toggleSet(types, t.id)` also only passes `types` itself) —
+ * copy this pattern verbatim, do not "generalize" it to dynamic reassignment by passed reference.
  */
 function toggleSet(set: Set<string>, v: string) {
   const next = new Set(set)
@@ -166,9 +180,10 @@ function toggleSet(set: Set<string>, v: string) {
 }
 
 /**
- * 蓝本 :275-289。🔴 N35/N36 逐字:全选(`types.size === FILE_TYPES.length`)不发
- * `mime_prefix`;取消至少一类才发,且前缀按 `types` 迭代顺序(Set 插入序)拼接。
- * `mtime !== 'any'` 才发 `mtime_after_ms`,三档常量见上方 `WEEK_MS`/`MONTH_MS`/`YEAR_MS`。
+ * Blueprint :275-289. 🔴 N35/N36 verbatim: all selected (`types.size === FILE_TYPES.length`)
+ * does not send `mime_prefix`; only send when at least one type is unchecked, with prefixes
+ * concatenated in `types` iteration order (Set insertion order). Only send `mtime_after_ms`
+ * when `mtime !== 'any'`; the three tiers' constants see `WEEK_MS`/`MONTH_MS`/`YEAR_MS` above.
  */
 function buildFilters(): Record<string, unknown> {
   const f: Record<string, unknown> = {}
@@ -186,24 +201,29 @@ function buildFilters(): Record<string, unknown> {
   return f
 }
 
-// 🔴 治理 §5.2 —— 蓝本无此守卫,本期新增(K15 同族第 9 次)。并发入口 3 个:
-// `run()`(回车/按钮)· `quickSearch()` · 下方 `route.query.q` 的 watch —— 三者
-// 最终都调用这同一个 `run()`,守卫只需加在这一处。`runEpoch` 是 <script setup>
-// 顶层声明的变量:Vue SFC 的 `<script setup>` 编译成每个组件实例各自执行一次的
-// `setup()` 函数体,这里声明的 `let` 因此是**组件实例局部闭包变量**,不是模块级
-// 共享状态 ——「两实例交错」用例(见 `SearchView.test.ts`)钉住这一点,判据是
-// "把它挪到模块级共享 → 必须报红"(手工 RED 探针,见报告,不落进永久测试文件)。
+// 🔴 Governance §5.2 — blueprint has no such guard; newly added this phase
+// (K15 family, 9th instance). Three concurrent entry points: `run()` (enter/button) ·
+// `quickSearch()` · watch of `route.query.q` below — all three ultimately call this same
+// `run()`, guard only needs to be added in one place. `runEpoch` is a variable declared
+// at top level of `<script setup>`: Vue SFC's `<script setup>` compiles to a `setup()`
+// function body that runs once per component instance, so the `let` declared here is
+// **component-instance-local closure variable**, not module-level shared state — the "two
+// instances interleaved" test case (see `SearchView.test.ts`) locks in this point, with
+// the criterion "move it to module-level shared state → must fail red" (manual RED probe,
+// see report, does not become a permanent test file).
 let runEpoch = 0
 
 /**
- * 蓝本 :290-316。分支:空 query → `'idle'` 且不发请求;成功且有结果 → `'results'`;
- * 成功但零结果 → `'empty'`;抛错 → `'error'`。🔴 N37:catch 里不设 `ms`(上一次
- * 成功的耗时保留,但 `phase==='error'` 时那块不渲染)。
- * 🔴 过期守卫(治理 §5.2,蓝本没有):`myEpoch` 捕获当前发号,await 结束后与
- * `runEpoch` 比对 —— 不一致说明已经有更新的一发在途/落地,直接丢弃这发的更新,
- * 不覆盖 `results`/`ms`/`phase`/`errorMsg`。success 与 catch 两个分支都要挡
- * (蓝本没有这个守卫,是本刀出于"phase 直接驱动整屏渲染,用户可见"这条真实
- * bug 主动加的,不是蓝本行为的一部分)。
+ * Blueprint :290-316. Branches: empty query → `'idle'` and no request sent;
+ * success with results → `'results'`; success with zero results → `'empty'`;
+ * error thrown → `'error'`. 🔴 N37: do not set `ms` in catch block (elapsed time from
+ * previous success is retained, but that block does not render when `phase==='error'`).
+ * 🔴 Stale guard (governance §5.2, blueprint has none): `myEpoch` captures the current
+ * issue number; after await, compare with `runEpoch` — mismatch means a newer request
+ * is in flight/landed, discard this request's update directly without overwriting
+ * `results`/`ms`/`phase`/`errorMsg`. Both success and catch branches must be guarded
+ * (blueprint has no such guard; this was proactively added because "phase directly drives
+ * full-screen render, user-visible", a real bug, not part of blueprint behavior).
  */
 async function run() {
   const query = q.value.trim()
@@ -229,8 +249,9 @@ async function run() {
     ms.value = elapsed
     if (r.warnings && r.warnings.includes('rerank_unavailable')) {
       showRerankWarn.value = true
-      // N38:蓝本 `setTimeout` 无清理(:309),照抄 —— 组件卸载后回调仍会跑,但在
-      // Vue 3 里写一个已卸载组件的 ref 无副作用、无警告,不加 onBeforeUnmount。
+      // N38: Blueprint's `setTimeout` has no cleanup (:309), copy as-is — callback still
+      // runs after component unmount, but in Vue 3 writing a ref of an unmounted component
+      // has no side effect and no warning, so do not add onBeforeUnmount.
       setTimeout(() => {
         showRerankWarn.value = false
       }, 5000)
@@ -245,16 +266,18 @@ async function run() {
 }
 
 /**
- * 蓝本 :346-355 `fetchBlobUrl`。🔴 K52/裁定 R1(方案 A,见文件头说明):不走
- * `getHttp().get('/v3/file', {params, responseType:'blob'})`(那条落法在本后端上恒
- * 401)——改走 `service.file.fileUrl(fullPath)` 拼出的 URL 字符串(该端点唯一接受的
- * 认证形式)去发同一次 `getHttp()` XHR。`inline` 为真时手工拼 `&inline=1`
- * (后端真支持,`route/v2.go:257-261`),否则 URL 里不含 `inline`。
- * 🔴 **`responseType: 'blob'` 是硬断言**——`blob` 会从响应 `Content-Type` 带上真实类型,
- * `arraybuffer` 会丢它,新标签页会变成下载而不是预览(判据:改成 `'arraybuffer'` →
- * 用例必须报红)。返回值是 `URL.createObjectURL()` 产出的同源 `blob:` 地址——
- * `window.open`/`<a href>` 消费的必须是这个,不许是 `fileUrl()` 本身
- * (地址栏/浏览历史/Referer 不含 token,K52 的隐私收益落点)。
+ * Blueprint :346-355 `fetchBlobUrl`. 🔴 K52/ruling R1 (Plan A, see file header explanation):
+ * do not use `getHttp().get('/v3/file', {params, responseType:'blob'})` (that approach
+ * returns 401 100% of the time on this backend) — instead use the URL string from
+ * `service.file.fileUrl(fullPath)` (the only form of authentication this endpoint accepts)
+ * to make the same `getHttp()` XHR. When `inline` is true, manually append `&inline=1`
+ * (backend truly supports it, `route/v2.go:257-261`), otherwise `inline` is not in URL.
+ * 🔴 **`responseType: 'blob'` is a hard assertion** — `blob` brings the true MIME type from
+ * response `Content-Type`, `arraybuffer` drops it, and new tab becomes download instead of
+ * preview (criterion: change to `'arraybuffer'` → test must fail red). Return value is a
+ * same-origin `blob:` address produced by `URL.createObjectURL()` — `window.open`/`<a href>`
+ * must consume this, not `fileUrl()` itself (address bar/browser history/Referer contain no
+ * token, the privacy payoff of K52 lands here).
  */
 async function fetchBlobUrl(fullPath: string, opts: { inline?: boolean } = {}): Promise<string> {
   const url = service.file.fileUrl(fullPath) + (opts.inline ? '&inline=1' : '')
@@ -263,14 +286,15 @@ async function fetchBlobUrl(fullPath: string, opts: { inline?: boolean } = {}): 
 }
 
 /**
- * 蓝本 :357-380 `openOriginal`。按扩展名路由:office in-app 格式 → `viewerFile`
- * (不发请求);无预览器的旧版 office → toast 提示下载(不发请求);其余 → 新标签页
- * 打开 blob URL(浏览器原生预览快)。
- * 🔴 ext 提取是 `(file.name || '').split('.').pop().toLowerCase()`(`|| ''` 是
- * TS 层面对 `.pop()` 返回类型 `string | undefined` 的防御写法,与 `KFileViewer.vue`
- * 同款,运行时对非空数组永不触发——不是行为变化)——**无扩展名的文件名会把整个
- * 名字当 ext**(例如文件名恰好是 `docx`,零扩展名,会被误判成 in-app 可预览格式),
- * 照抄,不"修好"。
+ * Blueprint :357-380 `openOriginal`. Route by extension: office in-app format → `viewerFile`
+ * (no request sent); old office format without previewer → toast prompt to download
+ * (no request sent); everything else → open blob URL in new tab (browser native preview
+ * is fast). 🔴 Extension extraction is `(file.name || '').split('.').pop().toLowerCase()`
+ * (`|| ''` is TS-level defensive for `.pop()` return type `string | undefined`, same as
+ * `KFileViewer.vue`, at runtime never triggers on non-empty array — not a behavior change) —
+ * **a filename with no extension treats the entire name as ext** (e.g., a filename happens
+ * to be `docx` with zero extension would be misparsed as in-app-previewable), copy as-is,
+ * do not "fix".
  */
 async function openOriginal(payload: { file: FileVM }) {
   const file = payload.file
@@ -291,21 +315,22 @@ async function openOriginal(payload: { file: FileVM }) {
     const url = await fetchBlobUrl(file.fullPath, { inline: true })
     const w = window.open(url, '_blank', 'noopener,noreferrer')
     if (!w) store.toast(t('aiKbSrPopupBlocked'))
-    // N38 同族:蓝本自带的 60s 延迟回收,照抄。
+    // N38 family: blueprint's native 60s delayed cleanup, copy as-is.
     setTimeout(() => URL.revokeObjectURL(url), 60000)
   } catch (e) {
     const err = e as { message?: string } | undefined
-    // `String(...)` 只是让 TS(`e: unknown`)编译通过——JS 的 `+` 本来就会对非字符串
-    // 操作数做同样的隐式 ToString,运行时输出与蓝本 `... + e` 逐字相同,不是行为变化。
+    // `String(...)` only lets TS (`e: unknown`) compile — JS's `+` does the same implicit
+    // ToString on non-string operands anyway; runtime output is identical to blueprint's
+    // `... + e` verbatim, not a behavior change.
     store.toast(t('aiKbSrOpenFailed') + ': ' + String((err && err.message) || e))
   }
 }
 
 /**
- * 蓝本 :382-397 `downloadFile`。取字节 → 造 `<a download>` → 触发点击 → 清理。
- * 🔴 逐步都要断:`a.download` 的 `file.name || 'download'` 兜底 · `rel` ·
- * `document.body.removeChild(a)` 真的被调用(否则 DOM 泄漏)· 60s 延迟
- * `revokeObjectURL`。
+ * Blueprint :382-397 `downloadFile`. Fetch bytes → create `<a download>` → trigger click
+ * → cleanup. 🔴 All steps must be asserted: `a.download` has `file.name || 'download'`
+ * fallback · `rel` · `document.body.removeChild(a)` is truly called (otherwise DOM leak) ·
+ * 60s delayed `revokeObjectURL`.
  */
 async function downloadFile(file: FileVM) {
   if (!file || !file.fullPath) {
@@ -329,20 +354,21 @@ async function downloadFile(file: FileVM) {
 }
 
 /**
- * 蓝本 :398 `onDrawerToast`。`FileDetailDrawer` 的通知约定是 emit `toast`
- * (蓝本 `:186-190` 注释),由父组件转发到 store 的 toast action
- * (`store.toast` 内部调 `useToast().show(msg, 2400)`,治理 §5.1)。
- * 🔴 不许让子组件直接调 `useToast()` —— 那会改掉蓝本的组件契约。
+ * Blueprint :398 `onDrawerToast`. `FileDetailDrawer`'s notification contract is to emit `toast`
+ * (blueprint `:186-190` comment), forwarded by parent to the store's toast action
+ * (`store.toast` internally calls `useToast().show(msg, 2400)`, governance §5.1).
+ * 🔴 Do not let the child component directly call `useToast()` — that changes the blueprint's
+ * component contract.
  */
 function onDrawerToast(msg: string) {
   store.toast(msg)
 }
 
 /**
- * 蓝本 :252-261 watch('$route.query.q', {immediate:true})。🔴 N40:必须用响应式
- * `watch`,不许只在 `onMounted` 里读一次(记忆 `newui-router-query-only-no-remount`:
- * 用户改地址栏一行都不跑)。条件 `v && v !== q.value` —— query 与当前 `q` 相同时
- * 不重复搜。
+ * Blueprint :252-261 watch('$route.query.q', {immediate:true}). 🔴 N40: must use reactive
+ * `watch`, not just read once in `onMounted` (memory `newui-router-query-only-no-remount`:
+ * when user changes address bar, nothing runs if only in onMounted). Condition
+ * `v && v !== q.value` — do not re-search when query matches current `q`.
  */
 watch(
   () => route.query.q,
@@ -500,13 +526,14 @@ watch(
         </div>
       </div>
 
-      <!-- phase === 'results':蓝本 :121-156(T7)。 -->
+      <!-- phase === 'results': Blueprint :121-156 (T7). -->
       <div v-else-if="phase === 'results'" class="k-results">
         <div class="k-result-count">
           <b>{{ results.length }}</b> {{ t('aiKbSrCountFiles') }} ·
           <b>{{ totalChunks }}</b> {{ t('aiKbSrCountMatches') }} · for <b>"{{ lastQuery }}"</b>
           <span style="color: var(--text-quaternary); margin-left: 6px">
-            <!-- 蓝本 :125 `v-if="ms"`——🔴 ms === 0 时不渲染(falsy),不是空字符串占位。 -->
+            <!-- Blueprint :125 `v-if="ms"` — 🔴 when ms === 0 does not render (falsy),
+            not an empty string placeholder. -->
             <span v-if="ms"> · {{ ms }} ms</span>
           </span>
         </div>
@@ -517,7 +544,8 @@ watch(
           <div class="k-rcard-body">
             <div class="k-rcard-head">
               <div class="k-rcard-name">{{ r.name }}</div>
-              <!-- 🔴 :title 与可见文案是两个不同的 i18n 键(蓝本 :135-136),不许合并。 -->
+              <!-- 🔴 :title and visible text are two different i18n keys (blueprint :135-136),
+              do not merge. -->
               <span class="k-match-pill" :title="t('aiKbSrMatchTitle', { n: r.chunks.length })">
                 <KIcon name="search" :size="10" /> {{ t('aiKbSrMatchPill', { n: r.chunks.length }) }}
               </span>
@@ -525,11 +553,13 @@ watch(
                 <span class="k-rel-dot" /> {{ relLabel(r.score) }}
               </span>
             </div>
-            <!-- 蓝本 :142:`r.chunks[0] && r.chunks[0].snippet` —— 零 chunk 的文件不许抛。
-                 K49:v-html 消费 highlight() 的转义输出,XSS 面已在 util 层测过,这里补
-                 组件层渲染后的真实 DOM 断言(见测试文件)。 -->
+            <!-- Blueprint :142: `r.chunks[0] && r.chunks[0].snippet` — files with zero
+            chunks must not throw. K49: v-html consumes escaped output from highlight(),
+            XSS surface already tested at util layer, here we add real DOM assertion after
+            component-layer render (see test file). -->
             <div class="k-rcard-snippet" v-html="highlight(r.chunks[0] && r.chunks[0].snippet, lastQuery)" />
-            <!-- 蓝本 :143:v-if 用 chunks.length > 1,文案用 chunks.length - 1(两侧都要用例)。 -->
+            <!-- Blueprint :143: v-if uses chunks.length > 1, text uses chunks.length - 1
+            (both sides need test cases). -->
             <div v-if="r.chunks.length > 1" class="k-more-hint">
               <span class="chev"><KIcon name="chev" :size="11" /></span>
               {{ t('aiKbSrMoreHint', { n: r.chunks.length - 1 }) }}
@@ -551,8 +581,9 @@ watch(
         <div class="k-empty-sub">{{ errorMsg }}</div>
       </div>
 
-      <!-- 蓝本 :164-172(T7)。FileDetailDrawer 四个监听全接(T5 DoD-12 自动上膛守卫
-           在此刻满足);onDrawerToast 把子组件的 toast 约定转发到 store.toast。 -->
+      <!-- Blueprint :164-172 (T7). FileDetailDrawer receives all four listeners
+      (T5 DoD-12 auto-chambered guard satisfied at this point); onDrawerToast
+      forwards the child component's toast contract to store.toast. -->
       <FileDetailDrawer
         v-if="openFile"
         :file="openFile"

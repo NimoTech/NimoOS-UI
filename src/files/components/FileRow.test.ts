@@ -96,23 +96,23 @@ describe('FileRow', () => {
     expect((w.get('input.row-check').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('右键 emit contextmenu 带 entry,且不 preventDefault(否则 reka-ui trigger 会 bail、菜单不弹)', async () => {
+  it('Right-click emits contextmenu with entry, and does not preventDefault (otherwise reka-ui trigger will bail and menu won\'t pop)', async () => {
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     const ev = new MouseEvent('contextmenu', { bubbles: true, cancelable: true })
     w.element.dispatchEvent(ev)
     expect(w.emitted('contextmenu')?.[0]?.[0]).toMatchObject({ entry: fileEntry })
-    // reka-ui ContextMenuTrigger.handleContextMenu 里 `if (!event.defaultPrevented)` —
-    // 行/卡若吞掉默认,冒泡到 trigger 时会被判定为已处理而不弹菜单。
+    // reka-ui ContextMenuTrigger.handleContextMenu has `if (!event.defaultPrevented)` —
+    // if the row/card swallows the default, bubbling to trigger will be treated as handled and menu won't pop.
     expect(ev.defaultPrevented).toBe(false)
   })
 
-  it('剪切态给行加 cut class', () => {
+  it('Cut state adds cut class to the row', () => {
     useClipboardStore().operate('move', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-row').classes()).toContain('cut')
   })
 
-  it('复制态不加 cut class', () => {
+  it('Copy state does not add cut class', () => {
     useClipboardStore().operate('copy', [{ path: '/DATA/a.txt', is_dir: false }])
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.find('.file-row').classes()).not.toContain('cut')

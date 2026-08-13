@@ -1,12 +1,12 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/services/openInApp.js,按新仓库的两套并存应用
-// (Vue2 挂 `/`、New-UI 挂 `/app/`)调整落点:
-//   - 文件 → New-UI 自己的 Files 页(`/app/#/files?path=&highlight=`,SP4 已收官,
-//     真实存在且接受这组 query 参数,见 src/views/Files.vue)。
-//   - 照片 → 仍指向旧 Vue2 的 Photos 页(`/#/photos?...`,root-mounted,hash 路由)。
-//     New-UI 自己的相册区在另一个尚未合并的 worktree(SP7,见 memory
-//     sp7-photos-migration-progress)开发,本分支(sp8-ai)还没有 `/app/#/photos`
-//     路由,所以暂时借道旧应用这个真实可用的落点;SP7 合并后应把这两处换成
-//     New-UI 自己的 Photos 路由。
+// 1:1 port from Vue2 src/views/AI/Agent/services/openInApp.js, adjusted for two coexisting
+// apps in the new repository (Vue2 mounted at `/`, New-UI at `/app/`), landing points:
+//   - Files → New-UI's own Files page (`/app/#/files?path=&highlight=`, SP4 complete,
+//     exists and accepts these query parameters, see src/views/Files.vue).
+//   - Photos → still point to old Vue2 Photos page (`/#/photos?...`, root-mounted, hash router).
+//     New-UI's own photo gallery is being developed in another unmerged worktree (SP7, see
+//     memory sp7-photos-migration-progress); this branch (sp8-ai) doesn't have the
+//     `/app/#/photos` route yet, so we temporarily use the old app's working landing point;
+//     after SP7 merges, these two should be replaced with New-UI's own Photos route.
 //
 // Helpers to open a search-result item in its dedicated app page, in a new tab.
 // Each click opens a fresh tab ('_blank'): the target is a hash-mode SPA route,
@@ -54,8 +54,9 @@ export function openFileInNewTab(filePath: string | null | undefined): void {
 }
 
 // Open a directory itself (no file highlight) in the Files app.
-// 1:1 移植自 Vue2 openInApp.js:52-55 —— 与 openFileInNewTab 共用本仓既有的
-// filesPathUrl(New-UI /app/ 挂载点),不是蓝本自己的虚拟路径实现。
+// 1:1 port from Vue2 openInApp.js:52-55 — reuses the existing filesPathUrl from the
+// repository with openFileInNewTab (New-UI /app/ mount point), not the blueprint's own
+// virtual path implementation.
 export function openDirInNewTab(dirPath: string | null | undefined): void {
   if (!dirPath) return
   window.open(filesPathUrl(dirPath, ''), '_blank')
@@ -108,16 +109,18 @@ function pruneStalePhotoSets(): void {
   }
 }
 
-// 1:1 移植自 Vue2 openInApp.js:117-124(`agentSessionUrl` / `openAgentSessionInNewTab`)。
-// 🔴 与上面几个不同,这两个函数**逐字照抄蓝本的落点** —— 指向旧 Vue2 应用根挂载的
-// `/#/ai/agent?session=…`,**没有** `/app` 前缀。这是刻意的,不是漏加前缀:
-// New-UI 自己也有 `/ai/agent` 路由(`router/index.ts`),但 AgentPage.vue 与
-// agentStore 全仓零 `?session=` 读取,指到 `/app/#/ai/agent?session=X` 会打开
-// New-UI 的 Agent 页却不选中那条会话(静默失效);Vue2 的 Agent.vue:129/164/212
-// 真的读 `$route.query.session`。同款先例见上面 photosAssetUrl 的处理:
-// New-UI 还没有该能力时,暂时借道旧应用这个真实可用的落点;待 New-UI 的
-// `/ai/agent` 补上 `?session=` 深链支持后,应换成 `/app/#/ai/agent?session=…`。
-// 交接票:「New-UI Agent 页补 `?session=` 深链」(P5e/P5f,依据裁定 A-8)。
+// 1:1 port from Vue2 openInApp.js:117-124 (`agentSessionUrl` / `openAgentSessionInNewTab`).
+// 🔴 Unlike the above functions, these two **verbatim copy the blueprint's landing point** —
+// point to the root-mounted old Vue2 app `/#/ai/agent?session=…`, **no** `/app` prefix. This
+// is intentional, not a missing prefix: New-UI itself has the `/ai/agent` route
+// (`router/index.ts`), but AgentPage.vue and agentStore read zero `?session=` throughout the
+// repo; pointing to `/app/#/ai/agent?session=X` opens New-UI's Agent page but doesn't select
+// that session (silently fails); Vue2's Agent.vue:129/164/212 actually reads
+// `$route.query.session`. Same pattern as photosAssetUrl handling above: when New-UI doesn't
+// have this capability yet, temporarily use the old app's working landing point; after
+// New-UI's `/ai/agent` adds `?session=` deep link support, should be replaced with
+// `/app/#/ai/agent?session=…`. Handoff ticket: "New-UI Agent page adds `?session=` deep
+// link support" (P5e/P5f, based on decision A-8).
 export function agentSessionUrl(sessionId: string | number): string {
   return '/#/ai/agent?session=' + encodeURIComponent(String(sessionId))
 }

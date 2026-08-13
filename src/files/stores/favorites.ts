@@ -4,10 +4,10 @@ import { service } from '@nimotech/nimoos-service'
 
 export interface Favorite {
   name: string
-  path: string // 真实路径(与 Vue2 /users/current/custom/favorites blob 兼容)
+  path: string // Real path (compatible with Vue2 /users/current/custom/favorites blob)
 }
 
-// 纯函数:数组元素移动(便于单测,DnD 几何留真机验)
+// Pure function: array element reordering (for unit testing; DnD geometry is left to device verification)
 export function moveItem<T>(arr: T[], from: number, to: number): T[] {
   const out = [...arr]
   if (from < 0 || from >= out.length || to < 0 || to >= out.length) return out

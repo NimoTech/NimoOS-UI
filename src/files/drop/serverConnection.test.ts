@@ -22,7 +22,7 @@ function makeDeps(over: Partial<ServerConnectionDeps> = {}): ServerConnectionDep
   return {
     getToken: () => 'tok1',
     getPeerId: () => 'p1',
-    getExpiresAt: () => Math.floor(Date.now() / 1000) + 9999, // 未过期
+    getExpiresAt: () => Math.floor(Date.now() / 1000) + 9999, // not expired
     refresh: vi.fn(async () => {}),
     now: () => Date.now(),
     makeSocket: (u) => new FakeWS(u) as unknown as WebSocket,
@@ -38,17 +38,17 @@ beforeEach(() => { vi.useFakeTimers(); FakeWS.instances = [] })
 afterEach(() => vi.useRealTimers())
 
 describe('ServerConnection', () => {
-  it('URL 现构:含 token 与 peer,未过期不调 refresh', async () => {
+  it('URL constructed on the fly: contains token and peer, not expired does not call refresh', async () => {
     const deps = makeDeps()
     const c = new ServerConnection(deps)
     await c.connect()
     expect(deps.refresh).not.toHaveBeenCalled()
     expect(FakeWS.instances[0].url).toBe('ws://nas.local/v1/file/ws?token=tok1&peer=p1')
   })
-  it('过期先 await refresh 再用新 token 连(修 Vue2 token 焊死)', async () => {
+  it('if expired, await refresh first then connect with new token (fixes Vue2 hardcoded token)', async () => {
     let tok = 'old'
     const deps = makeDeps({
-      getExpiresAt: () => 0, // 已过期
+      getExpiresAt: () => 0, // already expired
       getToken: () => tok,
       refresh: vi.fn(async () => { tok = 'new' }),
     })
@@ -56,12 +56,12 @@ describe('ServerConnection', () => {
     expect(deps.refresh).toHaveBeenCalledOnce()
     expect(FakeWS.instances[0].url).toContain('token=new')
   })
-  it('refresh 失败不连(共享包 onAuthFail 已接管)', async () => {
+  it('if refresh fails, do not connect (shared package onAuthFail handles it)', async () => {
     const deps = makeDeps({ getExpiresAt: () => 0, refresh: vi.fn(async () => { throw new Error('x') }) })
     await new ServerConnection(deps).connect()
     expect(FakeWS.instances.length).toBe(0)
   })
-  it('close 后 5s 自动整条重连(修 Vue2 空参 no-op),destroy 后不再重连', async () => {
+  it('after close, reconnect after 5s (fixes Vue2 no-op with no args); after destroy, no reconnect', async () => {
     const deps = makeDeps()
     const c = new ServerConnection(deps)
     await c.connect()
@@ -70,13 +70,13 @@ describe('ServerConnection', () => {
     ws.onclose?.()
     expect(deps.onReconnectScheduled).toHaveBeenCalledOnce()
     await vi.advanceTimersByTimeAsync(5000)
-    expect(FakeWS.instances.length).toBe(2) // 新 socket
+    expect(FakeWS.instances.length).toBe(2) // new socket
     c.destroy()
     ;(FakeWS.instances[1] as FakeWS).onclose?.()
     await vi.advanceTimersByTimeAsync(10000)
-    expect(FakeWS.instances.length).toBe(2) // 不再增加
+    expect(FakeWS.instances.length).toBe(2) // no longer increases
   })
-  it('ping 自动回 pong;其余消息透传 onMessage', async () => {
+  it('ping auto-responds with pong; other messages pass through to onMessage', async () => {
     const deps = makeDeps()
     const c = new ServerConnection(deps)
     await c.connect()
@@ -87,7 +87,7 @@ describe('ServerConnection', () => {
     ws.onmessage?.({ data: JSON.stringify({ type: 'peer-left', peerId: 'x' }) })
     expect(deps.onMessage).toHaveBeenCalledWith({ type: 'peer-left', peerId: 'x' })
   })
-  it('destroy 发 disconnect 并关闭', async () => {
+  it('destroy sends disconnect and closes', async () => {
     const c = new ServerConnection(makeDeps())
     await c.connect()
     const ws = FakeWS.instances[0]
@@ -96,7 +96,7 @@ describe('ServerConnection', () => {
     expect(ws.sent).toContain(JSON.stringify({ type: 'disconnect' }))
     expect(ws.readyState).toBe(3)
   })
-  it('suspend() 发 disconnect 并关闭,但不设 destroyed:不排重连,之后手动 connect() 仍可用(spec §5)', async () => {
+  it('suspend() sends disconnect and closes, but does not set destroyed: does not prevent reconnect, manual connect() still works after (spec §5)', async () => {
     const deps = makeDeps()
     const c = new ServerConnection(deps)
     await c.connect()
@@ -105,30 +105,30 @@ describe('ServerConnection', () => {
     c.suspend()
     expect(ws.sent).toContain(JSON.stringify({ type: 'disconnect' }))
     expect(ws.readyState).toBe(3)
-    // 不像 handleDisconnect 那样自动重连:onclose 已被摘除,advance 计时器不产生新实例
+    // Unlike handleDisconnect, does not auto-reconnect: onclose removed, advancing timer does not create new instance
     await vi.advanceTimersByTimeAsync(10000)
     expect(FakeWS.instances.length).toBe(1)
-    // 之后手动 connect() 仍然可用(未被 destroyed 拦住)
+    // Manual connect() still works after (not blocked by destroyed)
     await c.connect()
     expect(FakeWS.instances.length).toBe(2)
   })
-  it('并发 connect() 调用被守卫堵住:第二个等待第一个完成', async () => {
+  it('concurrent connect() calls blocked by guard: second waits for first to complete', async () => {
     let resolve: ((value: void) => void) | null = null
     const deps = makeDeps({
-      getExpiresAt: () => 0, // 强制 refresh
-      refresh: vi.fn(() => new Promise<void>(r => { resolve = r })), // 手工延迟 resolve
+      getExpiresAt: () => 0, // force refresh
+      refresh: vi.fn(() => new Promise<void>(r => { resolve = r })), // manual delay resolve
     })
     const c = new ServerConnection(deps)
-    // 两次 connect() 不 await,第二次会被 connecting=true 的守卫拦截
-    c.connect() // 进入 await refresh(),此刻 connecting=true
-    c.connect() // 立即返回,无 socket 创建
-    await Promise.resolve() // flush 微任务
-    expect(FakeWS.instances.length).toBe(0) // 还没 resolve refresh,没创建 ws
-    // 手工 resolve refresh,继续执行第一个 connect()
+    // Two connect() calls without await; second blocked by connecting=true guard
+    c.connect() // enters await refresh(), connecting=true now
+    c.connect() // returns immediately, no socket created
+    await Promise.resolve() // flush microtasks
+    expect(FakeWS.instances.length).toBe(0) // refresh not yet resolved, ws not created
+    // Manually resolve refresh, continue first connect()
     resolve!()
     await Promise.resolve()
-    await Promise.resolve() // 确保 finally 块执行
-    expect(deps.refresh).toHaveBeenCalledOnce() // 仅第一次 connect() 的 refresh 被调用
-    expect(FakeWS.instances.length).toBe(1) // 仅一个 socket 被创建
+    await Promise.resolve() // ensure finally block executes
+    expect(deps.refresh).toHaveBeenCalledOnce() // only first connect()'s refresh called
+    expect(FakeWS.instances.length).toBe(1) // only one socket created
   })
 })

@@ -1,4 +1,4 @@
-// Thin SSE transport for the sandbox skill-test runner ("在对话中试用"以外的独立测试面板).
+// Thin SSE transport for the sandbox skill-test runner (independent test panel outside of "try in conversation").
 // Shape copied from ./agentTransport.ts:21-39 (SP8-P1b, reviewed) — sseRequest already owns
 // Authorization injection, 401→refresh→reconnect-once, [DONE], 204, and AbortError semantics
 // (@nimotech/nimoos-service, see .sp8/NimoOS-Service/src/sse.ts). This file re-implements

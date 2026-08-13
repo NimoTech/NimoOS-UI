@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue:
 //   TEXT_EXTS/DOCUMENT_EXTS/ACCEPT_TYPES        :160-171
 //   docErrorLabel/docErrorShort (extract_error → label maps) :460-486
 //   500 MB per-file limit                       :531

@@ -1,12 +1,12 @@
-/** 商店源 URL 的展示元信息(纯函数)。命名规则移植 Vue2
- *  AppStoreSourceManagement.vue getSourceList:http(s) 取第一段路径;
- *  其它取最后一段去扩展名;解析失败回退去扩展名规则。
- *  jsDelivr gh 镜像(/gh/<org>/<repo>@ref/…)取 org——第一段是固定的 'gh',无辨识度。 */
+/** Display metadata for app store source URLs (pure function). Naming rules ported from Vue2
+ *  AppStoreSourceManagement.vue getSourceList: for http(s) take the first path segment;
+ *  for others take the last segment minus extension; if parsing fails, fall back to removing extension.
+ *  jsDelivr gh mirror (/gh/<org>/<repo>@ref/…) takes org — first segment is fixed 'gh' with no distinction. */
 
-/** 官方源判定 = 不给删除按钮 + 「官方」徽章(计划 D1;Vue2 是整个藏出删除列表)。
- *  两类:① NimoTech 自有源(GitHub 首段路径 NimoTech);
- *  ② 出厂默认主店——设备 app-management.conf 预置的
- *    cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@…(CasaOS 血统,真机 id 0)。 */
+/** Official source determination = no delete button + "Official" badge (planned D1; Vue2 hides the entire delete list).
+ *  Two types: ① NimoTech's own sources (GitHub first path segment NimoTech);
+ *  ② Factory default main store — pre-configured in device app-management.conf
+ *    cdn.jsdelivr.net/gh/IceWhaleTech/CasaOS-AppStore@… (CasaOS heritage, real device id 0). */
 export function isOfficialSource(url: string): boolean {
   try {
     const u = new URL(url)
@@ -29,12 +29,12 @@ export function sourceDisplayName(url: string): string {
     const u = new URL(url)
     if (u.protocol === 'http:' || u.protocol === 'https:') {
       const segs = u.pathname.split('/')
-      // jsDelivr gh 镜像:org 才是有效名称('gh' 是路由固定段)
+      // jsDelivr gh mirror: org is the valid name ('gh' is a fixed route segment)
       if (u.hostname === 'cdn.jsdelivr.net' && segs[1] === 'gh' && segs[2]) return segs[2]
       if (segs[1]) return segs[1]
     }
   } catch {
-    /* 非标准 URL 落下方规则 */
+    /* Non-standard URL falls through to the rule below */
   }
   const last = url.split('/').filter(Boolean).pop() ?? ''
   const noExt = last.replace(/\.[^.]+$/, '')

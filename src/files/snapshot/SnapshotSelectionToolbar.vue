@@ -14,9 +14,10 @@ function onRestore() { if (!props.restoring) emit('restore') }
 </script>
 
 <template>
-  <!-- 快照里的动词集刻意收窄成 恢复 + 下载 两个(Vue2 M2-F2 的最终形态):
-       剪切/复制/删除/共享在只读快照上要么无意义要么会失败,留着只会诱导用户点。
-       视觉复用 SelectionToolbar 的类名尺度,保持像同一个系统。 -->
+  <!-- Verbs in snapshots are intentionally narrowed to restore + download (the final form of Vue2
+       M2-F2): cut/copy/delete/share on read-only snapshots are either meaningless or fail, leaving
+       them only misleads users to click. Visually reuse the class name scale of SelectionToolbar,
+       maintaining the appearance of one unified system. -->
   <div class="selection-toolbar snap-sel">
     <span class="sel-count">{{ t('filesSelectedCount', { count: props.count }) }}</span>
     <button class="sel-btn snap-sel-restore" :disabled="props.restoring" @click="onRestore">

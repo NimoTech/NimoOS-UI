@@ -1,15 +1,16 @@
-// 1:1 移植目标:Vue2 src/views/AI/Agent/services/openInApp.js 的
-// __tests__/openInApp.spec.js。断言逐条照搬,仅按 openInApp.ts 顶部注释调整两处
-// 落点差异(New-UI 相对 Vue2 的真实行为,不是本文件的改动):
-//   - 文件类:Vue2 落 `/#/files?...`(root-mounted),New-UI 落
-//     `/app/#/files?...`(New-UI 自己的 Files 页,SP4 已收官)。
-//   - 照片类:两边都落 `/#/photos?...` —— New-UI 暂借道旧 Vue2 Photos 页
-//     (SP7 相册区尚未合并到本分支),保持不变。
+// 1:1 port target: Vue2 src/views/AI/Agent/services/openInApp.js's
+// __tests__/openInApp.spec.js. Assertions copied verbatim, adjusted per openInApp.ts top
+// comments for two landing point differences (New-UI's actual behavior relative to Vue2,
+// not file changes):
+//   - Files: Vue2 lands at `/#/files?...` (root-mounted), New-UI lands at
+//     `/app/#/files?...` (New-UI's own Files page, SP4 complete).
+//   - Photos: both land at `/#/photos?...` — New-UI temporarily uses old Vue2 Photos page
+//     (SP7 photo gallery not yet merged to this branch), unchanged.
 //
-// SP8-P5d Task 5(治理 §16):补 openDirInNewTab / agentSessionUrl /
-// openAgentSessionInNewTab 三个新导出的用例。agentSessionUrl 那组**没有**落点
-// 差异 —— 裁定 A-8 要求逐字指向旧 Vue2 应用 `/#/ai/agent?session=…`
-// (无 `/app` 前缀),见 openInApp.ts 里对应的申报注释。
+// SP8-P5d Task 5 (governance §16): add openDirInNewTab / agentSessionUrl /
+// openAgentSessionInNewTab test cases for three new exports. agentSessionUrl group **has
+// no** landing point differences — decision A-8 requires pointing verbatim to old Vue2 app
+// `/#/ai/agent?session=…` (no `/app` prefix), see corresponding note in openInApp.ts.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   fileDirAndName,
@@ -101,8 +102,9 @@ describe('openPhotoInNewTab / openFileInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5:openDirInNewTab(治理 §16 条 1)—— 逐字照抄蓝本 openInApp.js:52-55,
-// 复用本仓既有的 filesPathUrl(/app/ 挂载点),highlight 段固定传空字符串。
+// SP8-P5d Task 5: openDirInNewTab (governance §16 item 1) — verbatim copy from blueprint
+// openInApp.js:52-55, reuses existing filesPathUrl from repo (/app/ mount point),
+// highlight segment always passes empty string.
 describe('openDirInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 
@@ -191,11 +193,14 @@ describe('openPhotoSetInNewTab', () => {
   })
 })
 
-// SP8-P5d Task 5:agentSessionUrl / openAgentSessionInNewTab(治理 §16 条 2,裁定 A-8)。
-// 🔴 正向断言 URL 逐字 + 反向断言「不等于带 /app 前缀的那个」—— 反向断言是判别力核心:
-// 若将来有人「顺手统一前缀」把这两个函数改成指向 New-UI 自己的 /app/#/ai/agent 路由,
-// 由于该路由至今零 ?session= 读取,这个功能会静默失效而正向断言仍可能因为字符串
-// 巧合被改对但反向断言一定报红(反之亦然,两条互为交叉验证)。
+// SP8-P5d Task 5: agentSessionUrl / openAgentSessionInNewTab (governance §16 item 2,
+// decision A-8).
+// 🔴 Forward assertion: URL verbatim + reverse assertion "does not equal the /app-prefixed
+// one" — reverse assertion is key for discriminating: if someone later "standardizes the
+// prefix" and changes these functions to point to New-UI's own /app/#/ai/agent route, since
+// that route still reads zero `?session=`, this feature would silently fail while forward
+// assertion might still pass by string coincidence but reverse assertion would definitely
+// fail (and vice versa, mutually cross-verifying).
 describe('agentSessionUrl / openAgentSessionInNewTab', () => {
   afterEach(() => { vi.restoreAllMocks() })
 

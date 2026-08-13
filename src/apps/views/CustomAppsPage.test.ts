@@ -52,29 +52,29 @@ beforeEach(() => {
   svc.users.setCustomStorage.mockReset().mockResolvedValue(undefined)
 })
 
-describe('CustomAppsPage — tab 路由 query', () => {
-  it('默认(无 ?tab)显示 tab1 YAML 安装面板', async () => {
+describe('CustomAppsPage — tab route query', () => {
+  it('Default (no ?tab) displays tab1 YAML install panel', async () => {
     const { w } = await mountPage('/apps/custom')
     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
   })
 
-  it('?tab=import → 显示 tab2 面板', async () => {
+  it('?tab=import → displays tab2 panel', async () => {
     const { w } = await mountPage('/apps/custom?tab=import')
     expect(w.find('[data-test="panel-import"]').exists()).toBe(true)
     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(false)
   })
 
-  it('?tab=link → 显示 tab3 面板(断言面板而非恒渲染的 tab 按钮)', async () => {
+  it('?tab=link → displays tab3 panel (assert panel, not constantly rendered tab button)', async () => {
     const { w } = await mountPage('/apps/custom?tab=link')
     expect(w.find('[data-test="tab-link-panel"]').exists()).toBe(true)
   })
 
-  it('?tab=garbage → 兜底回 tab1(非法值不识别)', async () => {
+  it('?tab=garbage → fallback to tab1 (illegal value not recognized)', async () => {
     const { w } = await mountPage('/apps/custom?tab=garbage')
     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
   })
 
-  it('点击 tab 按钮 → 路由 query 切换,面板跟着换(深链可逆向验证)', async () => {
+  it('Click tab button → route query changes, panel switches accordingly (deep link can be verified backwards)', async () => {
     const { w, router } = await mountPage('/apps/custom')
     await w.find('[data-test="tab-import"]').trigger('click')
     await flushPromises()
@@ -83,8 +83,8 @@ describe('CustomAppsPage — tab 路由 query', () => {
   })
 })
 
-describe('CustomAppsPage — tab2 docker run 转换', () => {
-  it('粘贴 docker run 命令点转换 → 编辑器内容含镜像名且自动切到 tab1', async () => {
+describe('CustomAppsPage — tab2 docker run conversion', () => {
+  it('Paste docker run command, click convert → editor content contains image name and automatically switches to tab1', async () => {
     const { w, router } = await mountPage('/apps/custom?tab=import')
     await w.find('[data-test="custom-import-textarea"]').setValue('docker run -p 8080:80 nginx')
     await w.find('[data-test="custom-convert"]').trigger('click')
@@ -96,7 +96,7 @@ describe('CustomAppsPage — tab2 docker run 转换', () => {
     expect(view!.state.doc.toString()).toContain('nginx')
   })
 
-  it('转换失败(垃圾输入)→ 就地报错,不切 tab', async () => {
+  it('Conversion fails (garbage input) → error shown in place, does not switch tab', async () => {
     const { w, router } = await mountPage('/apps/custom?tab=import')
     await w.find('[data-test="custom-import-textarea"]').setValue('this is not a docker command at all')
     await w.find('[data-test="custom-convert"]').trigger('click')
@@ -106,8 +106,8 @@ describe('CustomAppsPage — tab2 docker run 转换', () => {
   })
 })
 
-describe('CustomAppsPage — tab1 安装', () => {
-  it('安装成功 → 调用 useCustomInstall 真实链路(dry_run→install)并跳转 /apps', async () => {
+describe('CustomAppsPage — tab1 installation', () => {
+  it('Installation succeeds → calls useCustomInstall real path (dry_run→install) and navigates to /apps', async () => {
     const { w, router } = await mountPage('/apps/custom')
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     const view = EditorView.findFromDOM(host)!
@@ -122,7 +122,7 @@ describe('CustomAppsPage — tab1 安装', () => {
     expect(router.currentRoute.value.path).toBe('/apps')
   })
 
-  it('安装失败(dry_run 400 端口冲突)→ 就地红条含端口,不跳转', async () => {
+  it('Installation fails (dry_run 400 port conflict) → red bar with port shown in place, does not navigate', async () => {
     svc.compose.install.mockRejectedValueOnce({
       response: { data: { message: 'conflict', data: { ports_in_use: { tcp: [8080] } } } },
     })
@@ -140,7 +140,7 @@ describe('CustomAppsPage — tab1 安装', () => {
     expect(router.currentRoute.value.path).toBe('/apps/custom')
   })
 
-  it('校验成功 → toast appsCustomValidateOk,不发真装', async () => {
+  it('Validation succeeds → toast appsCustomValidateOk, does not send real install', async () => {
     const { w } = await mountPage('/apps/custom')
     await w.find('[data-test="custom-validate"]').trigger('click')
     await flushPromises()
@@ -149,8 +149,8 @@ describe('CustomAppsPage — tab1 安装', () => {
   })
 })
 
-describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
-  it('挂载即读 link 列表并展示 name/hostname', async () => {
+describe('CustomAppsPage — tab3 external links (LinkApp)', () => {
+  it('On mount, read link list and display name/hostname', async () => {
     svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
@@ -161,14 +161,14 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     expect(row.text()).toContain('http://nas.local')
   })
 
-  it('列表为空时显示空态提示', async () => {
+  it('When list is empty, display empty state hint', async () => {
     svc.users.getCustomStorage.mockResolvedValue([])
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
     expect(w.find('[data-test="link-empty"]').exists()).toBe(true)
   })
 
-  it('地址留空提交 → 就地报错,不调 saveLinkApp(setCustomStorage 不发)', async () => {
+  it('Address left blank on submit → error shown in place, does not call saveLinkApp (setCustomStorage not sent)', async () => {
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
     await w.find('[data-test="link-name"]').setValue('Router')
@@ -178,7 +178,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
   })
 
-  it('地址不以 http(s):// 开头 → 报 appsCustomLinkHostInvalid,不提交', async () => {
+  it('Address does not start with http(s):// → report appsCustomLinkHostInvalid, does not submit', async () => {
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
     await w.find('[data-test="link-name"]').setValue('Router')
@@ -189,7 +189,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
   })
 
-  it('新增:填名称+地址提交 → saveLinkApp 落盘,刷新列表并清空表单', async () => {
+  it('Add new: fill name + address, submit → saveLinkApp persists, refresh list and clear form', async () => {
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
     await w.find('[data-test="link-name"]').setValue('Router')
@@ -203,7 +203,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     expect(w.find('[data-test="link-row"]').text()).toContain('Router')
   })
 
-  it('编辑:点「编辑」回填表单且名称字段锁定(Vue2 disableEditName 同款),提交只改 hostname/icon', async () => {
+  it('Edit: click "Edit" to populate form and lock name field (same as Vue2 disableEditName), submit only changes hostname/icon', async () => {
     svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://old', icon: '' }])
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
@@ -221,7 +221,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     ])
   })
 
-  it('删除:AlertDialog 确认后调 deleteLinkApp,取消不删', async () => {
+  it('Delete: call deleteLinkApp after AlertDialog confirmation, cancel does not delete', async () => {
     svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()
@@ -245,7 +245,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     expect(svc.users.setCustomStorage).toHaveBeenCalledWith('link', [])
   })
 
-  it('删除失败(deleteLinkApp reject)→ linkError 就地提示,不静默丢失(回归测试:防未捕获 rejection)', async () => {
+  it('Delete fails (deleteLinkApp reject) → linkError shown in place, not silently lost (regression test: prevent uncaught rejection)', async () => {
     svc.users.getCustomStorage.mockResolvedValue([{ name: 'MyNAS', hostname: 'http://nas.local', icon: '' }])
     const { w } = await mountPage('/apps/custom?tab=link')
     await flushPromises()

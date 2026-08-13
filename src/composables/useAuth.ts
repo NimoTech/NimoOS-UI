@@ -19,7 +19,7 @@ export function useAuth() {
     session.setTokens(token.access_token, token.refresh_token, token.expires_at)
     session.setUser(user)
     let version = 'local'
-    try { version = (await service.sys.getVersion()).current_version } catch { /* 降级 local */ }
+    try { version = (await service.sys.getVersion()).current_version } catch { /* Fallback to local */ }
     session.setVersion(version)
     sessionStorage.setItem('fromWelcome', 'true')
     await service.users.setCustomStorage('app_order', { data: ['App Store', 'Files'] })

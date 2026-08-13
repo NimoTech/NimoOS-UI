@@ -1,7 +1,7 @@
 // SP8-P5a Task 12 — DashboardView test.
 // Step 2 The skeleton is taken verbatim from the task brief (`.superpowers/sdd/p5a-task-12-brief.md` lines
 // 20–205). This file then adds high-risk control-flow assertions required by the governance file §9
-// "Test Quality" (each reinforced assertion is marked with "补强" in comments), corresponding one-by-one
+// "Test Quality" (each reinforced assertion is marked with [Reinforcement N] in comments), corresponding one-by-one
 // to the 8 high-risk points named in the task:
 //   1) isEmpty's `&&` — brief provided only pure-empty / pure-full extremes; a mixed-state
 //      assertion is added ("wikiRoots empty but indexed_files > 0") to specifically nail the
@@ -209,7 +209,7 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     expect(obLayers.map((l) => l.attributes('data-layer'))).toEqual(['wiki', 'vec', 'note'])
   })
 
-  it('交接项 3:k2-layer-num 的 second/suffix、k2-live-ico 的 spin、k2-drafts 是子元素 class', async () => {
+  it('handoff item 3: k2-layer-num second/suffix, k2-live-ico spin, k2-drafts are child classes', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -218,40 +218,40 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     s.wikiRoots = ROOTS
     s.notesSummary = { total: 5, draft: 2, curated: 2, archived: 1 }
     await flushPromises()
-    // vec 层(第二张)带 .second 子元素
+    // vec layer (second card) has .second child element
     const vecLayer = w.findAll('.k2-layer')[1]
     expect(vecLayer.find('.k2-layer-num .second').exists()).toBe(true)
     expect(vecLayer.find('.k2-layer-num .suffix').exists()).toBe(true)
-    // notes 层(第三张)draft>0 出 .k2-drafts
+    // notes layer (third card) draft > 0 → .k2-drafts
     const noteLayer = w.findAll('.k2-layer')[2]
     expect(noteLayer.find('.k2-drafts').exists()).toBe(true)
-    // backlog>0 → spinner 帶 .spin
+    // backlog > 0 → spinner has .spin
     expect(w.find('.k2-live-ico .spin').exists()).toBe(true)
   })
 
-  // 【评审 Critical/Important 修复:开放发现 2,I-3】以下补齐此前零覆盖的
-  // [data-ok] 与三个 [data-tone] 宿主(.k2-chip / .k2-entry-ico /
-  // .k2-entry-badge,此前只测过 .k2-qchip 一个宿主)。评审探针实测:删掉
-  // `data-ok="true"`、把某个 tone 取值改错,原有用例集**全绿**——这正是
-  // C-1(onboarding 第 2 磁贴掉了 `tone: 'wiki'`)能溜进来的原因。
+  // [Review Critical/Important fix: open finding 2, I-3] Below adds zero-coverage [data-ok]
+  // and three [data-tone] hosts (.k2-chip / .k2-entry-ico / .k2-entry-badge,
+  // previously only .k2-qchip was tested). Review probe actual testing: deleting
+  // `data-ok="true"`, changing a tone value incorrectly, original test set **all green** —
+  // this is why C-1 (onboarding second tile missing `tone: 'wiki'`) was able to slip through.
 
-  it('[data-ok] 仅在 all-synced 分支静态渲染 "true",忙碌分支完全没有该属性', async () => {
+  it('[data-ok] only static render "true" in all-synced branch, completely absent in busy branch', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
     s.overviewLoaded = true
-    // 忙碌:backlog=3>0
+    // busy: backlog = 3 > 0
     s.stats = { ...STATS_FULL, queue_depth: { pending: 2, running: 1, failed: 1, done: 5 } }
     await flushPromises()
     expect(w.find('.k2-live-ico').attributes('data-ok')).toBeUndefined()
 
-    // all-synced:backlog=0
+    // all-synced: backlog = 0
     s.stats = { ...STATS_FULL, queue_depth: { pending: 0, running: 0, failed: 0, done: 5 } }
     await flushPromises()
     expect(w.find('.k2-live-ico').attributes('data-ok')).toBe('true')
   })
 
-  it('[data-tone] on .k2-chip:auto→"live"、scan_only 且无 reconcile→无该属性、needsReconcile→另一个 chip 是 "warn"', async () => {
+  it('[data-tone] on .k2-chip: auto → "live", scan_only without reconcile → no attribute, needsReconcile → other chip is "warn"', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -261,19 +261,19 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     await flushPromises()
     const roots = w.findAll('.k2-root')
     expect(roots).toHaveLength(2)
-    // r3(auto,不 reconcile):只有一个 chip,data-tone="live"
+    // r3 (auto, no reconcile): only one chip, data-tone="live"
     const r3Chips = roots[0].findAll('.k2-chip')
     expect(r3Chips).toHaveLength(1)
     expect(r3Chips[0].attributes('data-tone')).toBe('live')
-    // r4(scan_only,needsReconcile):两个 chip —— 第一个(定期扫描)没有
-    // data-tone 属性,第二个(同步中)data-tone="warn"
+    // r4 (scan_only, needsReconcile): two chips — first (periodic scan) has no
+    // data-tone attribute, second (sync in progress) data-tone="warn"
     const r4Chips = roots[1].findAll('.k2-chip')
     expect(r4Chips).toHaveLength(2)
     expect(r4Chips[0].attributes('data-tone')).toBeUndefined()
     expect(r4Chips[1].attributes('data-tone')).toBe('warn')
   })
 
-  it('[data-tone] on .k2-entry-ico:非空库 7 个入口逐一核对(含 C-1 的 wiki 修复点)', async () => {
+  it('[data-tone] on .k2-entry-ico: non-empty library 7 entry points checked one by one (including C-1 wiki fix)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -283,11 +283,11 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     s.notesSummary = { total: 5, draft: 2, curated: 2, archived: 1 }
     await flushPromises()
     const icoTones = w.findAll('.k2-entries .k2-entry-ico').map((el) => el.attributes('data-tone'))
-    // 顺序即 entries() 数组顺序:search/wiki/indexed-files/notes/roots/queue/settings
+    // Order matches entries() array: search/wiki/indexed-files/notes/roots/queue/settings
     expect(icoTones).toEqual(['accent', 'wiki', 'vec', 'note', 'wiki', undefined, undefined])
   })
 
-  it('[data-tone] on .k2-entry-ico:空库 onboarding 4 个入口(C-1 钉子 —— roots 磁贴必须是 "wiki",不是灰色兜底)', async () => {
+  it('[data-tone] on .k2-entry-ico: empty library onboarding 4 entry points (C-1 pin — roots tile must be "wiki", not gray fallback)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -296,33 +296,33 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     s.stats = { ...STATS_FULL, indexed_files: 0 }
     await flushPromises()
     const icoTones = w.findAll('.k2-entries .k2-entry-ico').map((el) => el.attributes('data-tone'))
-    // 顺序即 emptyEntries() 数组顺序:search/roots/allowlist/settings
-    // 【C-1 修复钉子】icoTones[1] 必须是 'wiki'——蓝本 :342 `tone: 'wiki'`
-    // 曾在移植时手滑漏掉,导致这个磁贴的图标命中 knowledge.scss:759 的灰色
-    // 兜底而不是 :761 的琥珀色(肉眼可见的配色回归)。
+    // Order matches emptyEntries() array: search/roots/allowlist/settings
+    // [C-1 fix pin] icoTones[1] must be 'wiki' — blueprint line 342 `tone: 'wiki'`
+    // was once slipped by accident during porting, causing this tile's icon to hit
+    // the gray fallback at knowledge.scss:759 instead of amber at :761 (visible color regression).
     expect(icoTones).toEqual(['accent', 'wiki', undefined, undefined])
   })
 
-  it('[data-tone] on .k2-entry-badge:notes 徽标是 "note",queue 徽标没有 data-tone(默认红底)', async () => {
+  it('[data-tone] on .k2-entry-badge: notes badge is "note", queue badge has no data-tone (default red background)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
     s.overviewLoaded = true
-    // failed>0 且 draft>0,让两个徽标都渲染出来
+    // failed > 0 and draft > 0, make both badges render
     s.stats = { ...STATS_FULL, queue_depth: { pending: 2, running: 1, failed: 1, done: 5 } }
     s.wikiRoots = ROOTS
     s.notesSummary = { total: 5, draft: 2, curated: 2, archived: 1 }
     await flushPromises()
     const entries = w.findAll('.k2-entries .k2-entry')
-    const notesEntry = entries[3] // entries() 数组第 4 项 = notes
-    const queueEntry = entries[5] // 第 6 项 = queue
+    const notesEntry = entries[3] // entries() array item 4 = notes
+    const queueEntry = entries[5] // item 6 = queue
     expect(notesEntry.find('.k2-entry-badge').attributes('data-tone')).toBe('note')
     expect(notesEntry.find('.k2-entry-badge').text()).toBe('2')
     expect(queueEntry.find('.k2-entry-badge').attributes('data-tone')).toBeUndefined()
     expect(queueEntry.find('.k2-entry-badge').text()).toBe('1')
   })
 
-  it('[data-disabled] 补 false 侧(M-2):emptyEntries 里没有 disabled 字段的项渲染 "false",不是只测过 true 那一侧', async () => {
+  it('[data-disabled] add false side (M-2): items in emptyEntries with no disabled field render "false", not only testing true side', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -332,67 +332,68 @@ describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
     await flushPromises()
     const entries = w.findAll('.k2-entries .k2-entry')
     expect(entries).toHaveLength(4)
-    expect(entries[0].attributes('data-disabled')).toBe('true') // search:disabled:true
-    expect(entries[1].attributes('data-disabled')).toBe('false') // roots:无 disabled 字段
+    expect(entries[0].attributes('data-disabled')).toBe('true') // search: disabled: true
+    expect(entries[1].attributes('data-disabled')).toBe('false') // roots: no disabled field
     expect(entries[2].attributes('data-disabled')).toBe('false') // allowlist
     expect(entries[3].attributes('data-disabled')).toBe('false') // settings
   })
 })
 
-describe('DashboardView — 图标名守卫(评审 Important I-2)', () => {
-  // 评审探针 B 实测:把 `sparkle` 改成 `sparkleXX`、把 entries 里的
-  // `file`→`fileXX` 后,原有用例集全绿——KIcon.vue:79 对未命中的 name 静默
-  // 返回空 svg(可见的空白图标),但没有任何断言查过 svg 内容。这里照 T10
-  // (KnowledgeLayout.test.ts)已确立的做法补上:遍历渲染出的所有 svg,
-  // 断言 innerHTML 非空。覆盖静态 11 个 + 动态 8 个(entries/emptyEntries 的
-  // icon 字段 + root 的 drive/folder 二选一)共 19 个 glyph 名。
-  it('遍历骨架态之外各状态渲染出的所有 svg 图标,innerHTML 均非空', async () => {
+describe('DashboardView — icon name guard (review Important I-2)', () => {
+  // Review probe B actual test: changing `sparkle` to `sparkleXX`, changing
+  // `file` → `fileXX` in entries, original test set all green — KIcon.vue:79
+  // silently returns empty svg for unmatched name (visible blank icon), but no
+  // assertion checks svg content. Here following the established pattern in T10
+  // (KnowledgeLayout.test.ts), add: iterate all rendered svgs, assert innerHTML
+  // non-empty. Covers static 11 + dynamic 8 (icon field of entries/emptyEntries +
+  // drive/folder choice of root) for 19 glyph names total.
+  it('iterate all svg icons rendered in states other than skeleton, all innerHTML non-empty', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
 
     function assertAllSvgsNonEmpty(label: string): void {
       const svgs = w.findAll('svg')
-      expect(svgs.length, `${label}: 应至少渲染一个 svg`).toBeGreaterThan(0)
+      expect(svgs.length, `${label}: should render at least one svg`).toBeGreaterThan(0)
       svgs.forEach((svg, idx) => {
         expect(
           svg.element.innerHTML,
-          `${label}: 第 ${idx} 个 svg 图标渲染为空(icon 名可能手滑成 KIcon.PATHS 里不存在的 glyph)`,
+          `${label}: svg #${idx} rendered empty (icon name may have been mistyped as glyph not in KIcon.PATHS)`,
         ).not.toBe('')
       })
     }
 
-    // 空库 onboarding:orb(layers)、CTA(plus)、emptyEntries 4 个(search/drive/folder/settings)
+    // empty library onboarding: orb (layers), CTA (plus), emptyEntries 4 (search/drive/folder/settings)
     s.overviewLoaded = true
     s.wikiRoots = []
     s.stats = { ...STATS_FULL, indexed_files: 0 }
     await flushPromises()
     assertAllSvgsNonEmpty('onboarding')
 
-    // 非空库、忙碌(backlog>0)、有停用根、草稿>0、未暂停:
+    // non-empty library, busy (backlog > 0), has disabled roots, draft > 0, not paused:
     // search/arrowRight/chev(×3)/clock/eye/plus(root-add)/spinner/sparkle +
-    // entries 7 个(search/layers/file/edit/drive/history/settings)+ root 图标(drive/folder)
+    // entries 7 (search/layers/file/edit/drive/history/settings) + root icons (drive/folder)
     s.wikiRoots = ROOTS
     s.stats = { ...STATS_FULL, queue_depth: { pending: 2, running: 1, failed: 1, done: 5 } }
     s.notesSummary = { total: 5, draft: 2, curated: 2, archived: 1 }
     s.controlState = { ...s.controlState, paused: false }
     await flushPromises()
-    assertAllSvgsNonEmpty('非空库-忙碌-未暂停')
+    assertAllSvgsNonEmpty('non-empty-library-busy-not-paused')
 
-    // 已全部同步(backlog=0):check
+    // all synced (backlog = 0): check
     s.stats = { ...STATS_FULL, queue_depth: { pending: 0, running: 0, failed: 0, done: 5 } }
     await flushPromises()
-    assertAllSvgsNonEmpty('已全部同步')
+    assertAllSvgsNonEmpty('all-synced')
 
-    // 暂停:pause
+    // paused: pause
     s.controlState = { ...s.controlState, paused: true }
     await flushPromises()
-    assertAllSvgsNonEmpty('已暂停')
+    assertAllSvgsNonEmpty('paused')
   })
 })
 
-describe('DashboardView — inline --g(交接项 2)', () => {
-  it('三个 id 说明条各自的 style 里带对应的 --g 值', async () => {
+describe('DashboardView — inline --g (handoff item 2)', () => {
+  it('three id explanation rows each have corresponding --g value in their style', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -402,17 +403,17 @@ describe('DashboardView — inline --g(交接项 2)', () => {
     await flushPromises()
     const glueIds = w.findAll('.k2-glue-id')
     expect(glueIds).toHaveLength(3)
-    // 【M-3 一并扫描时顺手强化】style 是静态单属性字符串,`.toContain` 在这里
-    // 恰好等价于精确匹配,但为了和其余数字/文案断言的严格度保持一致,统一
-    // 换成 `.toBe(...)` 精确匹配。
+    // [M-3 strengthened while scanning] style is a static single-property string; `.toContain`
+    // happens to equal exact match here, but for consistency with rigor of numeric/copy assertions,
+    // unified switch to `.toBe(...)` exact match.
     expect(glueIds[0].attributes('style')).toBe('--g: var(--ly-vec);')
     expect(glueIds[1].attributes('style')).toBe('--g: var(--ly-wiki);')
     expect(glueIds[2].attributes('style')).toBe('--g: var(--ly-note);')
   })
 })
 
-describe('DashboardView — 数值与文案', () => {
-  it('三层卡分别显示根数 / 文档数 / 笔记数,数字带千分位', async () => {
+describe('DashboardView — numeric and copy', () => {
+  it('three-layer cards display root count / document count / note count respectively, numbers with thousands separator', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -422,21 +423,22 @@ describe('DashboardView — 数值与文案', () => {
     s.notesSummary = { total: 5, draft: 2, curated: 2, archived: 1 }
     await flushPromises()
     const nums = w.findAll('.k2-layer-num').map((n) => n.text())
-    // 【评审 Minor M-3,已修正】原来这里是 `.toContain('1')`/`.toContain('5')`
-    // 这类子串弱断言——数字随便变成别的含"1"/"5"的值(比如 21、15)依然会
-    // 通过。改成对整块文本做精确 `.toBe(...)` 全文匹配(先用临时探针跑出真实
-    // 渲染文本,再钉成断言,而不是凭感觉猜)。
+    // [Review Minor M-3, fixed] Previously this was `.toContain('1')` / `.toContain('5')`
+    // substring weak assertions — numbers could change to any other value containing "1"/"5"
+    // (like 21, 15) and still pass. Changed to exact `.toBe(...)` full-text match of entire
+    // block (first run a temporary probe to get real rendered text, then nail it as assertion,
+    // not guessing by feel).
     expect(nums[0]).toBe('1个知识根') // enabledRoots.length + suffix
-    expect(nums[1]).toBe('1,234文档578 向量块') // indexed_files + suffix + second(vector chunks)
-    expect(nums[2]).toBe('5条笔记2 待确认') // notesSummary.total + suffix + k2-drafts(draft>0)
+    expect(nums[1]).toBe('1,234文档578 向量块') // indexed_files + suffix + second (vector chunks)
+    expect(nums[2]).toBe('5条笔记2 待确认') // notesSummary.total + suffix + k2-drafts (draft > 0)
   })
 
-  it('N2:后端不下发 rate/eta/done10m 时,速率行落到「等待解析器…」而不是 NaN', async () => {
+  it('N2: when backend does not send rate/eta/done10m, rate row falls back to "Waiting for parser…" not NaN', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
     s.overviewLoaded = true
-    s.stats = STATS_FULL // ← 实测形状:无 rate_per_min / eta_s / done_last_10m
+    s.stats = STATS_FULL // ← actual shape: no rate_per_min / eta_s / done_last_10m
     s.controlState = { ...s.controlState, paused: false }
     await flushPromises()
     const sub = w.find('.k2-live-sub').text()
@@ -444,11 +446,11 @@ describe('DashboardView — 数值与文案', () => {
     expect(sub).not.toContain('NaN')
   })
 
-  // 【补强 5,N2 钉子】显式断言「done_last_10m 缺失时渲染 0、eta 缺失时渲染
-  // 空串」——这是钉住「照抄不改」的那根钉子:防后续有人把 `|| 0` 兜底顺手
-  // 优化成「没有数据就隐藏这一块」。backlog=0 走 all-synced 分支才会渲染
-  // done10m 这个数字。
-  it('N2 钉子:done_last_10m 缺失时 all-synced 行渲染数字 0(不是隐藏这一块)', async () => {
+  // [Reinforcement 5, N2 pin] Explicitly assert "done_last_10m missing renders 0, eta missing renders
+  // empty string" — this is the pin for "copy as-is no change": prevent someone later from
+  // conveniently optimizing `|| 0` fallback into "hide this section if no data". backlog = 0
+  // goes through all-synced branch to render done10m number.
+  it('N2 pin: done_last_10m missing, all-synced row renders digit 0 (not hiding the section)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -456,17 +458,17 @@ describe('DashboardView — 数值与文案', () => {
     s.stats = { ...STATS_FULL, queue_depth: { pending: 0, running: 0, failed: 0, done: 5 } }
     await flushPromises()
     expect(w.find('.k2-live').exists()).toBe(true)
-    // 【弱断言教训】早期版本这里写的是 `.toContain('0')`——看似钉住了
-    // done10m 渲染 0,实际是假钉子:字面文案「近 10 分钟完成」本身就含一个
-    // "0"(来自「10」),就算 done10m 是 `undefined`(interpolation 空串,
-    // 双空格)这条 `.toContain('0')` 依然会通过。改成对整行做精确全文匹配,
-    // "完成 0 个"(单个空格)与 "完成  个"(空串占位、双空格)才是真正可
-    // 分辨的两种渲染结果。RED 探针见报告:把 `done10m` 的 `|| 0` 换成
-    // `as number` 直通(不兜底),本用例改用精确匹配后会报红。
+    // [Weak assertion lesson] Early version here was `.toContain('0')` — seemingly pinned
+    // done10m rendering 0, actually a false pin: the literal copy "completed in last 10 minutes"
+    // contains a "0" itself (from "10"), so even if done10m is `undefined` (interpolation empty string,
+    // double space) that `.toContain('0')` would still pass. Changed to exact full-text match across
+    // the row; "completed 0" (single space) vs "completed  " (empty string placeholder, double space)
+    // are truly distinguishable render results. RED probe in report: replace `done10m`'s `|| 0` with
+    // `as number` passthrough (no fallback), this test with exact match will turn red.
     expect(w.find('.k2-live-sub').text()).toBe('上次同步 — · 近 10 分钟完成 0 个')
   })
 
-  it('paused 时速率行显示「已暂停」', async () => {
+  it('when paused, rate row displays "Paused"', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -477,7 +479,7 @@ describe('DashboardView — 数值与文案', () => {
     expect(w.find('.k2-live-sub').text()).toBe('已暂停')
   })
 
-  it('backlog 为 0 时换成「已全部同步」分支', async () => {
+  it('when backlog is 0, switch to "All Synced" branch', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -488,7 +490,7 @@ describe('DashboardView — 数值与文案', () => {
     expect(w.find('.k2-prog').exists()).toBe(false)
   })
 
-  it('failed > 0 时队列健康里那个 chip 可点并跳带 filter 的队列页', async () => {
+  it('when failed > 0, the chip in queue health is clickable and jumps to queue page with filter', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -499,28 +501,28 @@ describe('DashboardView — 数值与文案', () => {
     expect(chip.attributes('data-tone')).toBe('danger')
   })
 
-  // 【补强 4】progressPercent 的接线:用一组「参数顺序颠倒会得到不同结果」的
-  // 具体数值钉住实参顺序 —— backlogPeak=10、backlog=3(pending2+running1)。
-  // 正序 progressPercent(3,10) = round((1-3/10)*100) = 70。
-  // 若被颠倒成 progressPercent(10,3),结果会被 Math.max(0,...) 夹到 0,与
-  // 70 判然不同,足以抓到调换。
-  it('补强:progressPercent 接线 —— backlogPeak 与 backlog 传参顺序不能颠倒', async () => {
+  // [Reinforcement 4] progressPercent wiring: use specific numeric values where parameter
+  // order swap produces different results, pinning actual arg order — backlogPeak = 10,
+  // backlog = 3 (pending 2 + running 1). Correct order progressPercent(3, 10) = round((1 - 3/10) * 100) = 70.
+  // If swapped to progressPercent(10, 3), result gets clamped by Math.max(0, ...) to 0, distinctly
+  // different from 70, sufficient to catch the swap.
+  it('Reinforcement: progressPercent wiring — backlogPeak and backlog parameter order cannot be swapped', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
     s.overviewLoaded = true
-    s.stats = { ...STATS_FULL, queue_depth: { pending: 2, running: 1, failed: 0, done: 5 } } // backlog=3
+    s.stats = { ...STATS_FULL, queue_depth: { pending: 2, running: 1, failed: 0, done: 5 } } // backlog = 3
     s.backlogPeak = 10
     await flushPromises()
     expect(w.find('.k2-prog-pct').text()).toBe('70%')
   })
 
-  // 【补强 4 续】fmtEta/rate 的接线:后端假设性地下发了 rate_per_min/eta_s
-  // (真机不会,见 N2,但组件必须在字段存在时正确渲染,否则就是死代码)——
-  // eta_s=90 → fmtEta 应输出 "1m"(90s = 1 分钟出头,floor 到 1m),
-  // rate_per_min=2.5 → toFixed(1) 应输出 "2.5"。两个数字都要出现在同一行,
-  // 且顺序不能错位(rate 在前、eta 在后)。
-  it('补强:rate_per_min/eta_s 字段存在时正确渲染(fmtEta 接线,假设性覆盖,非真机现状)', async () => {
+  // [Reinforcement 4 continued] fmtEta/rate wiring: backend hypothetically sends rate_per_min/eta_s
+  // (won't happen on real device, see N2, but component must render correctly when field exists,
+  // else dead code) — eta_s = 90 → fmtEta should output "1m" (90s = just over 1 minute, floor to 1m),
+  // rate_per_min = 2.5 → toFixed(1) should output "2.5". Both numbers must appear on same line,
+  // and order cannot be off (rate first, eta second).
+  it('Reinforcement: rate_per_min/eta_s fields present render correctly (fmtEta wiring, hypothetical coverage, not real-device state)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -532,8 +534,8 @@ describe('DashboardView — 数值与文案', () => {
   })
 })
 
-describe('DashboardView — 跳转', () => {
-  it('搜索提交带 q 参数跳搜索页;空查询不跳', async () => {
+describe('DashboardView — navigation', () => {
+  it('search submit carries q parameter to search page; empty query does not navigate', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -550,7 +552,7 @@ describe('DashboardView — 跳转', () => {
     expect(push).toHaveBeenCalledWith({ path: '/ai/knowledge/search', query: { q: '甲状腺' } })
   })
 
-  it('三层卡各自跳 wiki / indexed-files / notes', async () => {
+  it('three-layer cards navigate to wiki / indexed-files / notes respectively', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -569,33 +571,35 @@ describe('DashboardView — 跳转', () => {
   })
 })
 
-describe('DashboardView — 生命周期(N3)', () => {
-  it('挂载时三个来源并发拉取;任一失败也把 ready 置起(Promise.all + finally,照抄)', async () => {
-    // 【测试脚手架说明,非production行为改动】生产里 loadRoots/loadOverview/
-    // loadNotesSummary 各自内部 try/catch,真实场景里这三个 promise 永不
-    // reject(N3 描述的「Wiki 挂死」是「很慢才 resolve」,不是 reject)——这里
-    // 用 mockRejectedValue 强行模拟一次 reject,只是为了不用真等 60s 就能
-    // 断言 `Promise.all(...).finally(...)` 的「任一 settle 异常也放行」语义。
-    // 副作用:`onMounted` 里那条 `.finally()` 链没有 `.catch`(照抄蓝本,
-    // 不许加),派生出的最终 promise 无人消费,会被 Node 判定成 unhandled
-    // rejection——这条兜底监听器只是把这一次已知、预期内的 harness 噪声吞掉,
-    // 不影响本用例任何断言的判定结果。
+describe('DashboardView — lifecycle (N3)', () => {
+  it('on mount three sources concurrently fetch; if any fails, ready is set (Promise.all + finally, copy as-is)', async () => {
+    // [Test harness note, not production behavior change] In production loadRoots/loadOverview/
+    // loadNotesSummary each internally try/catch; in real scenarios these three promises never
+    // reject (N3's "Wiki hung" means "very slow to resolve", not reject) — here mockRejectedValue
+    // forcibly simulates one reject, just to avoid waiting actual 60s to assert the
+    // "any settle exception also proceed" semantics of `Promise.all(...).finally(...)`.
+    // Side effect: the `.finally()` chain in `onMounted` has no `.catch` (copy as-is from blueprint,
+    // no adding), the derived final promise has no consumer, Node will flag it as unhandled
+    // rejection — this fallback listener just swallows this one known, expected harness noise,
+    // does not affect any assertion results of this test.
     const swallowExpectedRejection = (reason: unknown): void => {
       if (reason instanceof Error && reason.message === 'wiki timeout') return
       throw reason
     }
-    // 【SP8-P6 T10 订正 —— 原注释「本仓没有 `@types/node`,故不能直接引用全局 `process`
-    // 的类型」已不成立】合流后 `@types/node` 已装,且全仓有 7 个文件写了
-    // `/// <reference types="node" />`(`color-guard.test.ts` 等),该指令是**程序级**的:
-    // 它把 `@types/node/globals.d.ts` 拉进整个编译程序,其中 `declare var process: NodeJS.Process`
-    // 于是对**所有**源文件可见。`tsconfig` 的 `types` 数组只挡「自动包含」,挡不住显式 reference。
-    // 实证(T10 双向探针):新建一个既不 import `node:` 也无 reference 的文件,只写
-    // `export const b = process.platform` → `vue-tsc --noEmit` **exit 0**;同一文件加一行
-    // `const wrong: number = 'string'` → **TS2322 exit 2** ⇒ 前一次的 exit 0 不是空过。
-    // ⇒ 下面这段 `globalThis` 窄化在类型上**已经不是必需的**,直接写 `process.on(...)` 也能编译。
-    // 本刀只订正注释、不改实现(T10 纪律:只动注释)。它仍有一点独立价值:显式列出用到的两个
-    // 方法,不依赖「某个别的文件恰好写了 reference 指令」这条隐式链路 —— 那 7 个 reference
-    // 一旦被删光,裸 `process` 会立刻编译不过,而这段窄化不会。
+    // [SP8-P6 T10 correction — original comment "this repo lacks `@types/node`, so cannot directly
+    // reference global `process` type" no longer holds] After merge `@types/node` is installed,
+    // and 7 files in the repo have `/// <reference types="node" />` (`color-guard.test.ts` etc),
+    // this directive is **program-level**: it pulls `@types/node/globals.d.ts` into the entire
+    // compilation program, where `declare var process: NodeJS.Process` becomes visible to **all**
+    // source files. `tsconfig`'s `types` array only blocks "auto-inclusion", not explicit reference.
+    // Evidence (T10 bidirectional probe): create a file with no `node:` import and no reference,
+    // just write `export const b = process.platform` → `vue-tsc --noEmit` **exit 0**; add one line
+    // to same file `const wrong: number = 'string'` → **TS2322 exit 2** ⇒ previous exit 0 was not a miss.
+    // ⇒ the `globalThis` narrowing below is **no longer necessary** on type level, direct `process.on(...)` compiles.
+    // This edit only corrects the comment, not implementation (T10 discipline: only touch comments).
+    // It still has independent value: explicitly list the two methods used, not depending on
+    // "some file happens to have reference directive" implicit linkage — if those 7 references
+    // are deleted, bare `process` immediately fails to compile, but this narrowing will not.
     const proc = (globalThis as unknown as {
       process: {
         on(event: 'unhandledRejection', listener: (reason: unknown) => void): void
@@ -613,38 +617,39 @@ describe('DashboardView — 生命周期(N3)', () => {
     s.stats = STATS_FULL
     s.wikiRoots = ROOTS
     await flushPromises()
-    expect(w.find('.k2-skel-card').exists()).toBe(false) // ready 已置起
-    // 【补强 6】三个 loader 都确实被调用过一次(不是只调了其中一部分就侥幸通过)。
+    expect(w.find('.k2-skel-card').exists()).toBe(false) // ready is set
+    // [Reinforcement 6] All three loaders are indeed called once each (not just lucky parts).
     expect(loadOverview).toHaveBeenCalledTimes(1)
     expect(loadRoots).toHaveBeenCalledTimes(1)
     expect(loadNotesSummary).toHaveBeenCalledTimes(1)
-    // 验收反馈修正(2026-08-01):概览页的 loadRoots 是**后台**加载,必须静默失败,
-    // 否则 Wiki 挂死时会在 60 s 后于任意页面弹出「操作失败」。
+    // Acceptance feedback correction (2026-08-01): overview page's loadRoots is **background**
+    // loading, must fail silently, else when Wiki hangs will show "operation failed" popup
+    // after 60s on any page.
     expect(loadRoots).toHaveBeenCalledWith({ silent: true })
     proc.off('unhandledRejection', swallowExpectedRejection)
   })
 
-  // 【评审 Important I-1,已修正】上一版这里写的注释断言「`Promise.all` 与
-  // `Promise.allSettled` 在『三个 loader 都调用一次 + ready 最终为真』这两件
-  // 事上完全等价,无法从组件外部区分」——**这个判断是错的**。`Promise.all`
-  // 是 **fail-fast**:任意一个输入 reject,`Promise.all(...)` 返回的组合
-  // promise立刻 reject(不等其余输入 settle),`.finally` 因此立刻触发,
-  // `ready` 立刻置真——哪怕还有输入(比如 `loadOverview`)永远不会 resolve。
-  // `Promise.allSettled` 则相反:它永不 reject,必须等**全部**输入 settle
-  // (无论 fulfilled 还是 rejected)才会 resolve,`.finally` 因此要等到那一刻
-  // 才触发——如果其中一个输入永远悬着,`allSettled` 版本的 `ready` 也永远
-  // 不会置真,骨架永远卡住。这正是 N3 那 60 秒骨架现象的部分成因:即使
-  // Wiki 挂死导致 `loadRoots` 很慢,只要它最终 settle(无论成功失败),
-  // `Promise.all` 就会跟着 settle——但如果没有这层 fail-fast 特性(比如误改成
-  // allSettled),某个 loader 一旦真的永久悬挂,骨架会比现在更糟、永远出不来。
-  // 下面这条钉子直接利用 fail-fast 这个可观察差异:`loadRoots` 立即 reject、
-  // `loadOverview` 永久悬挂(mock 一个永不 settle 的 promise)——
-  //   `Promise.all(...).finally(...)`(现状,照抄蓝本)→ 立刻因 reject 触发
-  //     `.finally`,`ready` 立刻置真,骨架立刻消失。
-  //   `Promise.allSettled(...).finally(...)`(误改版)→ 永远等不到
-  //     `loadOverview` settle,`ready` 永远不会置真,骨架永远卡住。
-  // 两者在这个场景下的外部可观察结果判然不同,可分辨。
-  it('N3 钉子:Promise.all 是 fail-fast —— loadRoots 立即 reject 时,即使 loadOverview 永久悬挂,骨架也会消失', async () => {
+  // [Review Important I-1, fixed] Previous version's comment assertion "`Promise.all` and
+  // `Promise.allSettled` are completely equivalent on "three loaders each called once + ready
+  // ultimately true" and cannot be distinguished from outside component" — **this judgment is wrong**.
+  // `Promise.all` is **fail-fast**: if any input rejects, `Promise.all(...)` returns combined
+  // promise that immediately rejects (without waiting other inputs settle), `.finally` thus
+  // triggers immediately, `ready` is immediately set — even if some input (e.g. `loadOverview`)
+  // never resolves. `Promise.allSettled` is opposite: it never rejects, must wait **all** inputs
+  // settle (fulfilled or rejected) before resolving, `.finally` thus waits until that moment —
+  // if one input hangs forever, `allSettled` version's `ready` never sets, skeleton forever stuck.
+  // This is partial cause of N3's 60-second skeleton phenomenon: even if Wiki hangs causing
+  // `loadRoots` very slow, as long as it eventually settles (success or fail), `Promise.all`
+  // settles along — but without this fail-fast property (e.g. mistakenly changed to allSettled),
+  // if a loader truly hangs forever, skeleton worse now, never escapes. Below pin directly uses
+  // fail-fast observable difference: `loadRoots` immediately reject, `loadOverview` permanently
+  // hangs (mock promise that never settles) —
+  //   `Promise.all(...).finally(...)`(current, copy as-is from blueprint) → immediately reject triggers
+  //     `.finally`, `ready` immediately set, skeleton immediately gone.
+  //   `Promise.allSettled(...).finally(...)`(mistaken version) → forever waits for
+  //     `loadOverview` settle, `ready` never set, skeleton forever stuck.
+  // Two versions' externally observable results in this scenario are distinctly different, distinguishable.
+  it('N3 pin: Promise.all is fail-fast — when loadRoots immediately rejects, even if loadOverview permanently hangs, skeleton will disappear', async () => {
     const swallowExpectedRejection = (reason: unknown): void => {
       if (reason instanceof Error && reason.message === 'wiki timeout') return
       throw reason
@@ -658,20 +663,20 @@ describe('DashboardView — 生命周期(N3)', () => {
     proc.on('unhandledRejection', swallowExpectedRejection)
 
     const s = useKnowledgeStore()
-    // loadOverview 永久悬挂:故意返回一个永不 settle 的 promise。
+    // loadOverview permanently hangs: intentionally return promise that never settles.
     vi.spyOn(s, 'loadOverview').mockReturnValue(new Promise<void>(() => {}))
     vi.spyOn(s, 'loadRoots').mockRejectedValue(new Error('wiki timeout'))
     vi.spyOn(s, 'loadNotesSummary').mockResolvedValue()
     const w = await mountDash()
     await flushPromises()
-    // fail-fast:哪怕 loadOverview 从未 resolve,骨架也已经消失。
-    // 若被误改成 Promise.allSettled,这条断言会报红(骨架永远卡在 true)。
+    // fail-fast: even if loadOverview never resolves, skeleton already gone.
+    // If mistakenly changed to Promise.allSettled, this assertion turns red (skeleton forever stuck at true).
     expect(w.find('.k2-skel-card').exists()).toBe(false)
 
     proc.off('unhandledRejection', swallowExpectedRejection)
   })
 
-  it('补强:三个来源里只要有一个还没 settle,骨架仍在(不是任一个 resolve 就提前放行)', async () => {
+  it('Reinforcement: if any of three sources has not settled, skeleton still present (not early exit if any resolves)', async () => {
     const s = useKnowledgeStore()
     vi.spyOn(s, 'loadOverview').mockResolvedValue()
     let resolveRoots!: () => void
@@ -683,7 +688,7 @@ describe('DashboardView — 生命周期(N3)', () => {
     vi.spyOn(s, 'loadNotesSummary').mockResolvedValue()
     const w = await mountDash()
     await flushPromises()
-    // loadOverview/loadNotesSummary 已 resolve,但 loadRoots 还悬着 → 骨架仍在
+    // loadOverview/loadNotesSummary resolved, but loadRoots still pending → skeleton still present
     expect(w.find('.k2-skel-card').exists()).toBe(true)
     resolveRoots()
     await flushPromises()

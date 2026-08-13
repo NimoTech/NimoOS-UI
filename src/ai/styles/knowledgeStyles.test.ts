@@ -1,13 +1,15 @@
 import { describe, it, expect } from 'vitest'
-// SP8-P5a Task 4 —— 复刻 settingsStyles.test.ts(SP8-P2a Task 2)头注释里记录的三处环境坑,
-// 逐字照抄同样的解法(不是重新踩坑,是同一份既有解法的复用):
-// ① 本仓 package.json 是 "type": "module" → __dirname 在 ESM 下不可用,改用
-//    import.meta.url + fileURLToPath 的等价写法。
-// ② node:fs / node:path / node:url 的类型声明由 `@types/node` 提供。本仓已装(SP8-P6 合流自
-//    master 时带进来的),`pnpm exec vue-tsc --noEmit`(任务门三条命令之一)直接通过,
-//    **不需要** @ts-expect-error 抑制 —— sp8-ai 分支上原有的那几行逐行抑制已在合流时删除。
-// ③ 不用 Vite 的 `?raw` 导入替代 node:fs —— vitest 自带 CSSEnablerPlugin 对 css/scss
-//    一律整体替换成空串(不看查询串),?raw 导入会让断言对空字符串"假通过"。退回 node:fs。
+// SP8-P5a Task 4 — Replicate three environment gotchas recorded in settingsStyles.test.ts (SP8-P2a Task 2) header,
+// copying the same solutions verbatim (not re-discovering them, just reusing the existing solution):
+// ① This repo package.json is "type": "module" → __dirname is unavailable under ESM, use
+//    import.meta.url + fileURLToPath equivalent instead.
+// ② Type declarations for node:fs / node:path / node:url are provided by `@types/node`. Already installed
+//    in this repo (brought in during SP8-P6 merge from master), `pnpm exec vue-tsc --noEmit` (one of the three task gate commands)
+//    passes directly, **no need for** @ts-expect-error suppression — the suppression lines from sp8-ai branch
+//    were already deleted during merge.
+// ③ Don't use Vite's `?raw` import as an alternative to node:fs — vitest includes CSSEnablerPlugin
+//    that uniformly replaces all css/scss to empty string (ignores query strings), ?raw import would cause assertions
+//    to "falsely pass" on empty strings. Fall back to node:fs.
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -15,9 +17,10 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8')
 
-// 同 settingsStyles.test.ts 的既定手法:只剥「整行以 // 开头」的行注释(本档没有这种
-// 注释,但保持与先例一致)+ 块注释,再做 toContain,防止断言被注释里提到的类名/字符串撞对
-// (P2b 二次评审曾用 RED 探针实证过这类假通过)。
+// Same approach as settingsStyles.test.ts: only strip line comments starting with //
+// (this file doesn't have that style, but keep consistency with precedent) + block comments,
+// then use toContain to prevent assertions being falsely matched by class names/strings mentioned in comments
+// (P2b second review proved this with RED probe).
 function stripComments(css: string): string {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, '')
@@ -27,10 +30,12 @@ function stripComments(css: string): string {
 const rawSource = read('./knowledge.scss')
 const css = stripComments(rawSource)
 
-// 【P5e-T2 新增】同 stripComments,但把注释内容换成**等量空格**、保留换行 → 行号与源文件
-// 逐行对齐。给「需要报真实行号 / 需要比较两段规则的相对行序」的断言用(stripComments 会
-// 吃掉多行注释里的换行,用它算出来的行号比源文件小一截,报出去会把评审引到错误的行)。
-// 手法逐字照 parserStyles.test.ts:43-48 的既定先例,不是新发明。
+// [P5e-T2 new] Same as stripComments, but replace comment content with **equal number of spaces**
+// and preserve line breaks → line numbers align exactly with source file. For assertions that
+// need to report true line numbers / need to compare relative line order of two rules
+// (stripComments eats line breaks in multi-line comments, making reported line numbers
+// shorter than in source file, which misleads reviewers to wrong lines).
+// Method exactly follows the precedent in parserStyles.test.ts:43-48, not a new invention.
 function blankComments(scss: string): string {
   return scss
     .replace(/\/\*[\s\S]*?\*\//g, (m: string) => m.replace(/[^\n]/g, ' '))
@@ -38,75 +43,83 @@ function blankComments(scss: string): string {
 }
 const cssKeepLines = blankComments(rawSource)
 
-// R1(协调者拍板)—— 附录 D.1 的 32 个 + 协调者追加的 6 个 k-empty* = 38 个,是 T4
-// (token 声明层 + 壳段 + keyframes)唯一该出现的类全集,一个不多一个不少。
+// R1 (coordinator decision) — Appendix D.1's 32 + coordinator-added 6 k-empty* = 38 classes,
+// are the complete set of classes that should appear in T4 (token declaration layer + shell segment + keyframes),
+// exactly that many, no more no less.
 //
-// 【T11 追加】附录 D.2 的仪表盘 k2-* 段,协调者 brief 原文写"64 个 k2-* + k-suggest-chip
-// = 65 个",实测是笔误:用 `sed -n '/### D.2/,/### D.3/p' brief.md | grep -oE
-// 'k2?-[a-z0-9-]+' | sort -u` 去重后是 64 个(63 个 k2-* + 1 个 k-suggest-chip),
-// 与蓝本 `git show main:…/knowledge.scss | sed -n '2282,2452p' | grep -oE
-// '\.k2?-[a-z0-9-]+' | sort -u` 独立核对也是精确 64 个、且两份集合逐一比对完全相同
-// (`diff` 零差异)。故白名单扩到 38 + 64 = **102** 个,不是 brief 里写的 103。
+// [T11 addition] Dashboard k2-* segment in Appendix D.2: coordinator's original brief says "64 k2-* + k-suggest-chip
+// = 65", but testing shows it's a typo: using `sed -n '/### D.2/,/### D.3/p' brief.md | grep -oE
+// 'k2?-[a-z0-9-]+'` | sort -u` after dedup gives 64 (63 k2-* + 1 k-suggest-chip),
+// independently verified against blueprint `git show main:…/knowledge.scss | sed -n '2282,2452p' | grep -oE
+// '\.k2?-[a-z0-9-]+' | sort -u` also exactly 64, and the two sets match item-by-item
+// (`diff` zero differences). So whitelist expanded to 38 + 64 = **102** classes, not 103 as written in brief.
 //
-// 【P5b-T2 追加】共享底座段(蓝本 :241-252 / :253-257 / :735-968 / :1296-1316 +
-// :1335-1341 / :1398-1428 / :1484-1499 / :2031-2039)新增附录 D.1 的 32 个类,
-// 102 → **134**(计划书写的 101 → 133 是错的,见附录 D §D.0:本常量名就叫
-// WHITELIST_102、数组实测 102 项)。独立复核:把上面七段用 sed 抽出来后
-// `grep -oE '\.k[a-z0-9-]*-[a-z0-9-]+|\.k-btn|\.k-row|\.k-view|…' | sort -u` 得 34 个,
-// 减去已在白名单里的 k-btn(P5a 搬的基类)与 k-scroll(只在蓝本 :250-252 注释里出现),
-// 恰好 32 个,与附录 D.1 逐一相同。
+// [P5b-T2 addition] Shared foundation segment (blueprint :241-252 / :253-257 / :735-968 / :1296-1316 +
+// :1335-1341 / :1398-1428 / :1484-1499 / :2031-2039) adds 32 classes from Appendix D.1,
+// 102 → **134** (plan's 101 → 133 was wrong, see Appendix D §D.0: the constant itself is named
+// WHITELIST_102, array testing shows 102 items). Independent verification: extract the seven segments above with sed
+// then `grep -oE '\.k[a-z0-9-]*-[a-z0-9-]+|\.k-btn|\.k-row|\.k-view|…' | sort -u` gives 34,
+// minus already-in-whitelist k-btn (base class moved in P5a) and k-scroll (only appears in blueprint comment :250-252),
+// exactly 32, matching Appendix D.1 one-to-one.
 //
-// 【P5b-T6 追加】"已收录文件"页专属段(蓝本 :1705-2022,S8)新增附录 D.2 的 53 个类,
-// 134 → **187**(计划书写的 186 是错的,同上,见附录 D §D.0)。独立复核:
+// [P5b-T6 addition] "Indexed Files" page exclusive segment (blueprint :1705-2022, S8) adds 53 classes from Appendix D.2,
+// 134 → **187** (plan's 186 was wrong, same as above, see Appendix D §D.0). Independent verification:
 // `git show main:…/knowledge.scss | sed -n '1705,2022p' | grep -oE '^\.k[a-z0-9-]+|
-// ^\.k[a-z0-9-]+(?=[[:.,{ ])' | sort -u` 得 54 个,减去已在白名单里的 k-btn
-// (`.k-filter-bar .k-btn` / `.k-pager .k-btn` 两处只是给既有基类调高度),恰好 53 个,
-// 与附录 D.2 逐一相同。
+// ^\.k[a-z0-9-]+(?=[[:.,{ ])' | sort -u` gives 54, minus already-in-whitelist k-btn
+// (`.k-filter-bar .k-btn` / `.k-pager .k-btn` two places just adjust height of existing base class),
+// exactly 53, matching Appendix D.2 one-to-one.
 //
-// 【P5c-T2a 追加】"知识库配置页 + 目录选择器"用到的 10 段(蓝本 knowledge.scss
-// :969-984 / :1141-1149 / :1159-1179 / :1181-1201 / :1203-1225 / :1227-1247 /
-// :1249-1265 / :1267-1293 / :1317-1334 / :2250-2263,外加蓝本
-// FolderBrowser.vue:82-143 的 <style scoped> 全段)新增 P5c 附录 D.1 的 39 个类,
-// 187 → **226**(治理 §6.4-3 写的 191 只是举例了 K17 那 4 个,准确增量以附录 D §D.0
-// 为准,本档实测也是 39)。独立复核:把这 10 段 + FolderBrowser 的 style 块抽出来
-// `grep -oE '\.(k|k2|kn|fb)[a-z0-9-]*' | sort -u` 得 47 个,减去已在白名单里的 8 个
+// [P5c-T2a addition] "Knowledge Base Config Page + Folder Chooser" using 10 segments
+// (blueprint knowledge.scss :969-984 / :1141-1149 / :1159-1179 / :1181-1201 / :1203-1225 / :1227-1247 /
+// :1249-1265 / :1267-1293 / :1317-1334 / :2250-2263, plus blueprint FolderBrowser.vue:82-143
+// <style scoped> entire segment) adds 39 classes from P5c Appendix D.1,
+// 187 → **226** (governance §6.4-3 wrote 191 as example of just K17's 4, accurate increment per Appendix D §D.0,
+// testing this file also shows 39). Independent verification: extract these 10 segments + FolderBrowser style block
+// `grep -oE '\.(k|k2|kn|fb)[a-z0-9-]*' | sort -u` gives 47, minus 8 already in whitelist
 // (k-btn / k-modal / k-modal-bg / k-modal-foot / k-scroll / k-scroll-inner / k-view /
-// kn-badge,都是 P5a/P5b 搬的),恰好 39 个,与附录 D.1 逐一相同。
-// 🔴 显式不在此列(见 knowledge.scss 头注释):k-section-body(蓝本 :985-991,Allowlist
-// 专用)与 k-progress-card/-row/-label/-nums/-bar/-fill(蓝本 :1152-1157,N15)——
-// 下面「没有搬多」那条断言负责守住这 7 个类一个都不出现。
+// kn-badge, all moved in P5a/P5b), exactly 39, matching Appendix D.1 one-to-one.
+// 🔴 Explicitly not in this list (see knowledge.scss header comment): k-section-body
+// (blueprint :985-991, Allowlist-exclusive) and k-progress-card/-row/-label/-nums/-bar/-fill
+// (blueprint :1152-1157, N15) — the "no over-moving" assertion below is responsible for ensuring
+// these 7 classes don't appear at all.
 //
-// 【P5d-T2 追加】"笔记区"专属段(蓝本 :2029/:2040-2045(A)· :2047-2056(B)·
-// :2057-2085(C)· :2086-2121(D)· :2122-2194(E,含 ProseMirror 段)· :2195-2241(F)·
-// :2242-2249(G)· :2265-2281(H)· :551-571(K43 .k-seg))新增附录 D §D.1 的 65 个
-// k 前缀新类,226 → **293**(常量名跟着数字改,本档既定习惯;226 + 65 + 2 = 293,
-// 后面 2 个是 R9 追加的非 k 前缀类 nme-content/ProseMirror,见下方独立小节)。
-// 🔴 治理/计划书写的「缺 66 类 / 已有 21」两种口径都不成立(E-39),协调者裁定 R9
-// 已订正终值为 293,独立复现命令见 `.superpowers/sdd/p5d-gen-r8r9-sim.mjs`(T2 报告
-// 已贴对拍到本档编辑**之前**的基线状态输出:old 225 / new 225,严格超集自证)。
-// K45(裁定 R1)搬入的 .k-btn.text 不进本白名单 —— 它是复合类 `.k-btn.text` 里的
-// `text`,「没有搬多」的正则(见下方)扫不到复合类里的 `text`,`text` 只归
-// NON_K_HELPER_CLASSES(见下方独立小节),不许同时进两侧(R8/R9 二选一,已实测坐实)。
+// [P5d-T2 addition] "Notes area" exclusive segment (blueprint :2029/:2040-2045(A)· :2047-2056(B)·
+// :2057-2085(C)· :2086-2121(D)· :2122-2194(E, includes ProseMirror segment)· :2195-2241(F)·
+// :2242-2249(G)· :2265-2281(H)· :551-571(K43 .k-seg)) adds 65 k-prefix new classes
+// from Appendix D §D.1, 226 → **293** (constant name changes with number, this file's convention;
+// 226 + 65 + 2 = 293, the 2 are non-k-prefix classes nme-content/ProseMirror added by R9, see section below).
+// 🔴 Both governance/plan versions of "missing 66 classes / have 21" are incorrect (E-39),
+// coordinator's decision R9 corrected final value to 293, independent reproduction command see
+// `.superpowers/sdd/p5d-gen-r8r9-sim.mjs` (T2 report pasted baseline state output
+// **before** editing this file: old 225 / new 225, strict superset self-proof).
+// K45 (decision R1) moved-in .k-btn.text doesn't go in this whitelist — it's `text` within
+// compound class `.k-btn.text`, the "no over-moving" regex below (see) can't scan `text` inside
+// compound classes, `text` only goes to NON_K_HELPER_CLASSES (see section below),
+// can't be in both (R8/R9 mutual exclusion, tested verified).
 //
-// 【P5e-T2 追加】「文件聚合搜索」两屏 + in-app 预览的 7 段(蓝本 knowledge.scss
-// :351-367(S1)· :457-549(S2)· :573-681(S3)· :726-732(S4)· :1548-1562(S5)·
-// :1572-1672(S6),外加 KFileViewer.vue:71-76 + :102-119(KF))新增 P5e 附录 D §D.7.1
-// 逐字列出的 **55** 个 k 前缀新类,293 → **348**(常量名跟着数字改,本档既定习惯)。
-// 🔴 终值以裁定 R8 为准(T0 评审用自己重写的模拟器独立复现过,不是 T0 自报);
-// T2 开工第一动作已独立重跑 `.superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs`
-// 与 `classes2.mjs`,复现 292→347 / 293→348 / 16→19 与 74=54/17/3,输出逐字贴在 T2 报告。
-// ⚠️ **「常量长度 ≠ NEW_RE 扫出数」那 1 差是现状就有的,不许去「修平」** ——
-// 那一项是 `knowledge-app`,真因是 NEW_RE 的 `k(?:2|n)?-` 分支要求 `k-`/`k2-`/`kn-`,
-// 而 `knowledge-app` 是 `kn` + `o`,**压根匹配不上**(裁定 R8 订正了附录 §D.7.1 给的
-// 「贪婪吃前缀」那个错理由 —— 照数字做,别照那个理由推演)。
-// 🔴 **P5f-T2 订正**:P5f 把该分支扩成 `k(?:2|n|r|w)?-`(裁定 R1),`knowledge-app`
-// **仍然匹配不上**(`k` + 可选组吃掉 `n` 后要 `-` 却遇到 `o`;空匹配后要 `-` 却遇到 `n`)
-// ⇒ **这 1 差在本期落地后依旧是 1**(常量 425 / 扫出 424),真因不变,同样不许修平。
-// ⚠️ `k-suggest-chip` **不在这 55 个里** —— 它早因 Dashboard v2 段那条后代覆盖被扫到、
-// 已在白名单里(E-52 的 HALF-MOVED);本刀补基类不会让白名单数字变。
-// ⚠️ `chev` / `path` / `h-md` **不在这 55 个里** —— 不是 k* 前缀,归 NON_K_HELPER_CLASSES。
-// 🔴 **白名单/登记表报红时,第一件事是回查附录 D §D.3 那 24 个蓝本死类清单
-// (下方有一条常驻断言钉住它们零出现),不许改白名单。**
+// [P5e-T2 addition] "File Aggregated Search" two screens + in-app preview 7 segments
+// (blueprint knowledge.scss :351-367(S1)· :457-549(S2)· :573-681(S3)· :726-732(S4)· :1548-1562(S5)·
+// :1572-1672(S6), plus KFileViewer.vue:71-76 + :102-119(KF)) adds **55** k-prefix new classes
+// listed verbatim in P5e Appendix D §D.7.1, 293 → **348** (constant name changes with number,
+// this file's convention).
+// 🔴 Final value per decision R8 (T0 review independently reproduced with own rewritten simulator,
+// not T0's self-report); T2 work first action already independently re-ran
+// `.superpowers/sdd/p5e-fixtures/scripts/sim-r8r9.mjs` and `classes2.mjs`,
+// reproduced 292→347 / 293→348 / 16→19 and 74=54/17/3, output pasted verbatim in T2 report.
+// ⚠️ **The 1 difference between "constant length ≠ NEW_RE count" is pre-existing, don't "fix" it** —
+// that one is `knowledge-app`, true cause is NEW_RE's `k(?:2|n)?-` branch requires `k-`/`k2-`/`kn-`,
+// but `knowledge-app` is `kn` + `o`, **doesn't match at all** (decision R8 corrected
+// the wrong reasoning in Appendix §D.7.1 about "greedy prefix eating" —
+// go by the numbers, don't infer from that reasoning).
+// 🔴 **P5f-T2 correction**: P5f expanded that branch to `k(?:2|n|r|w)?-` (decision R1),
+// `knowledge-app` **still doesn't match** (`k` + optional group consumes `n`, then expects `-`
+// but finds `o`; empty match then expects `-` but finds `n`) ⇒ **this 1 difference remains 1 after this phase**
+// (constant 425 / scanned 424), root cause unchanged, same don't fix it.
+// ⚠️ `k-suggest-chip` **not in these 55** — it was scanned early due to descendant override in Dashboard v2 segment,
+// already in whitelist (HALF-MOVED from E-52); this task's base class addition won't change whitelist number.
+// ⚠️ `chev` / `path` / `h-md` **not in these 55** — not k* prefix, belong to NON_K_HELPER_CLASSES.
+// 🔴 **When whitelist/registry turns red, first thing is check Appendix D §D.3's 24 blueprint dead classes
+// (one of the assertions below nails them to zero occurrences), don't modify whitelist.**
 const WHITELIST_425 = [
   'knowledge-app',
   'k-rail', 'k-rail-head', 'k-rail-title', 'k-rail-sub', 'k-rail-section', 'k-rail-nav',
@@ -121,7 +134,7 @@ const WHITELIST_425 = [
   'k-scroll', 'k-scroll-inner',
   'k-skel',
   'k-empty', 'k-empty-illust', 'k-empty-title', 'k-empty-sub', 'k-empty-tips', 'k-empty-tip',
-  // ---- T11:附录 D.2(64 个)----
+  // ---- T11: Appendix D.2 (64 classes)----
   'k-suggest-chip',
   'k2-search', 'k2-search-dots', 'k2-suggest', 'k2-suggest-label',
   'k2-sec-head', 'k2-sec-title', 'k2-sec-en', 'k2-sec-link',
@@ -139,7 +152,7 @@ const WHITELIST_425 = [
   'k2-distill', 'k2-distill-sub',
   'k2-entries', 'k2-entry', 'k2-entry-ico', 'k2-entry-cn', 'k2-entry-en', 'k2-entry-badge',
   'k2-skel-card',
-  // ---- P5b T2:附录 D.1(32 个)----
+  // ---- P5b T2: Appendix D.1 (32 classes)----
   'k-banner-close', 'k-confirm-body', 'k-confirm-icon', 'k-confirm-summary',
   'k-confirm-title', 'k-done-stat', 'k-done-stat-label', 'k-done-stat-num',
   'k-filter-pill', 'k-filter-pill-count', 'k-modal', 'k-modal-bg',
@@ -148,7 +161,7 @@ const WHITELIST_425 = [
   'k-row-head', 'k-row-name', 'k-row-path', 'k-row-retry',
   'k-row-status', 'k-row-time', 'k-table', 'k-table-foot',
   'k-toolbar', 'k-toolbar-label', 'k-view', 'kn-badge',
-  // ---- P5b T6:附录 D.2(53 个)----
+  // ---- P5b T6: Appendix D.2 (53 classes)----
   'k-ab-actions', 'k-ab-info', 'k-ab-inner', 'k-ab-warn',
   'k-fd-error', 'k-fd-grid', 'k-fd-item', 'k-fd-k',
   'k-fd-mod', 'k-fd-mods', 'k-fd-sha', 'k-fd-v',
@@ -163,7 +176,7 @@ const WHITELIST_425 = [
   'k-pager-page', 'k-pager-size', 'k-poll', 'k-rebuild-btn',
   'k-sort', 'k-sort-dir', 'k-status-badge', 'k-type-legacy',
   'k-type-tag',
-  // ---- P5c T2a:附录 D.1(39 个)----
+  // ---- P5c T2a: Appendix D.1 (39 classes)----
   'fb', 'fb-crumb', 'fb-crumbs', 'fb-err',
   'fb-list', 'fb-name', 'fb-row', 'fb-stub',
   'k-modal-body', 'k-modal-head', 'k-modal-title', 'k-modal-x',
@@ -174,7 +187,7 @@ const WHITELIST_425 = [
   'k-svc-cn', 'k-svc-light', 'k-svc-name', 'k-svc-state',
   'k-sw', 'kn-checkline', 'kn-mig-path', 'kn-mig-req',
   'kn-pick-actions', 'kn-pick-note', 'kn-picked',
-  // ---- P5d T2:附录 D.1(65 个)----
+  // ---- P5d T2: Appendix D.1 (65 classes)----
   'k-seg',
   'kn-act', 'kn-aside-card', 'kn-aside-select', 'kn-aside-title',
   'kn-desc-input', 'kn-diff', 'kn-diff-body', 'kn-diff-pane', 'kn-diff-pane-head',
@@ -190,9 +203,9 @@ const WHITELIST_425 = [
   'kn-note-row', 'kn-note-side', 'kn-note-time', 'kn-note-title', 'kn-notes-col',
   'kn-pathstrip', 'kn-refbtn', 'kn-savehint', 'kn-src', 'kn-tag',
   'kn-tagchip', 'kn-tagedit', 'kn-tb-btn', 'kn-tb-sep', 'kn-title-input', 'kn-toolbar', 'kn-type-ic',
-  // ---- P5d T2:R9 追加的非 k 前缀类(2 个,K44 顶层例外段引入)----
+  // ---- P5d T2: R9 added non-k-prefix classes (2, from K44 top-level exception segment)----
   'nme-content', 'ProseMirror',
-  // ---- P5e T2:附录 D §D.7.1 的 55 个(逐字照抄该节代码块)----
+  // ---- P5e T2: 55 classes from Appendix D §D.7.1 (copy verbatim from that code block)----
   'k-adv-chip', 'k-adv-chips', 'k-adv-field', 'k-adv-label', 'k-adv-panel', 'k-adv-toggle',
   'k-chunk-content', 'k-chunk-item', 'k-chunk-item-body', 'k-chunk-item-head', 'k-chunk-item-preview',
   'k-chunk-list', 'k-chunk-loc', 'k-chunk-nav', 'k-chunk-nav-count', 'k-chunk-rank',
@@ -205,12 +218,12 @@ const WHITELIST_425 = [
   'k-rcard-name', 'k-rcard-snippet', 'k-rcard-tag', 'k-rel', 'k-rel-dot', 'k-rerank-warn',
   'k-result-count', 'k-results', 'k-search-box', 'k-search-clear', 'k-search-sticky', 'k-search-sticky-inner',
   'k-skel-rcard',
-  // ---- P5f-T2:附录 D §D.7.1 的 27 个 k-*(蓝本 :985-1141 + :1342-1396 + :1500-1503)----
-  // 🔴 `k-section-body`(蓝本 :985)与 `k-frow`(:1077)是**前几期故意没搬、本期反转搬入**
-  // 的两个(勘误 E-67 记的 67→69 差 2 就是它们);`k-frow` 另有一条 :1500-1503 的窄屏
-  // @media 覆盖(偏差 K60 / 裁定 R2)。⚠️ 与 P5b-T6 搬的 `k-frow-f` / `k-frow-fhead` /
-  // `k-frow-pathcell` / `k-frow-pathtxt` / `k-frow-num` / `k-frow-status` **是不同 token**,
-  // 零碰撞 —— 但任何扫描一律用完整 token 精确匹配(`k-frow\b` 会被 `k-frow-path` 假命中 = E-25)。
+  // ---- P5f-T2: 27 k-* classes from Appendix D §D.7.1 (blueprint :985-1141 + :1342-1396 + :1500-1503)----
+  // 🔴 `k-section-body` (blueprint :985) and `k-frow` (:1077) are **intentionally not moved in earlier periods,
+  // reversed this period** two (errata E-67 records 67→69 difference of 2 is them); `k-frow` has another :1500-1503
+  // narrow-screen @media override (gap K60 / decision R2). ⚠️ Different from P5b-T6 moved `k-frow-f` / `k-frow-fhead` /
+  // `k-frow-pathcell` / `k-frow-pathtxt` / `k-frow-num` / `k-frow-status` **are different tokens**,
+  // zero collision — but any scan must use complete token exact match (`k-frow\b` would falsely match `k-frow-path` = E-25).
   'k-custom-add', 'k-ext-chip', 'k-ext-chip-mark', 'k-ext-chips',
   'k-extgroup', 'k-extgroup-head', 'k-extgroup-icon', 'k-extgroup-meta',
   'k-extgroup-title', 'k-extgroup-toggle',
@@ -219,11 +232,11 @@ const WHITELIST_425 = [
   'k-priority-hint',
   'k-radio-2', 'k-radio-card', 'k-radio-card-desc', 'k-radio-card-icon', 'k-radio-card-text',
   'k-section-body',
-  // ---- P5f-T2:附录 D §D.7.2 的 41 个 kw-*(蓝本 :2453-2561,Wiki 导航页)----
-  // 🔴 这一族与下面的 `kr-*` 一样,**旧 NEW_RE 的 `k(?:2|n)?-` 分支压根不认**
-  // (`w`/`r` 都不是 `2` 也不是 `n`)⇒ 不处理会一次性掉进 nonKClassNames 打红集合相等断言。
-  // 裁定 **R1** 采纳方案 B:扩 NEW_RE 分支 + 进本白名单 + nonKClassNames 加排除条件
-  // —— 与 P5c-T2a 处理 `fb-*` 的三件套**逐字同款先例**。
+  // ---- P5f-T2: 41 kw-* classes from Appendix D §D.7.2 (blueprint :2453-2561, Wiki nav page)----
+  // 🔴 This family like `kr-*` below, **old NEW_RE's `k(?:2|n)?-` branch doesn't recognize at all**
+  // (`w`/`r` neither `2` nor `n`) ⇒ not handling drops all into nonKClassNames turning red on set-equal assertion.
+  // Decision **R1** adopts option B: expand NEW_RE branch + add to whitelist + nonKClassNames add exclusion
+  // — exactly same three-piece as P5c-T2a handling `fb-*` precedent.
   'kw-actions', 'kw-article', 'kw-article-inner',
   'kw-change', 'kw-change-name', 'kw-change-time', 'kw-change-type', 'kw-changes',
   'kw-child', 'kw-child-body', 'kw-child-chev', 'kw-child-ico', 'kw-child-meta',
@@ -235,257 +248,265 @@ const WHITELIST_425 = [
   'kw-sec', 'kw-sec-count', 'kw-sec-en', 'kw-sec-head', 'kw-sec-title',
   'kw-split', 'kw-summary', 'kw-title',
   'kw-tree', 'kw-tree-note', 'kw-tree-scroll',
-  // ---- P5f-T2:附录 D §D.5 的 9 个 kr-*(偏差 K53,来源 RootsView.vue:223-289 的
-  // `<style lang="scss" scoped>`;勘误 E-63:差集法结构性地看不到 .vue 自带的 style 块)----
+  // ---- P5f-T2: 9 kr-* classes from Appendix D §D.5 (gap K53, source RootsView.vue:223-289
+  // `<style lang="scss" scoped>`; errata E-63: set difference method structurally can't see .vue built-in style blocks)----
   'kr-adv-row', 'kr-badge', 'kr-check', 'kr-empty', 'kr-error',
   'kr-hint', 'kr-input', 'kr-label', 'kr-path',
 ]
 
-describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2 + P5f-T2)', () => {
-  // 评审 2026-07-31 Important 订正 —— 原来用 `\b` 做类名右边界:`\b` 在 `-` 前也成立
-  // (从字母切到连字符同样算"单词边界"),于是 `/\.k-topbar\b/` 会被 `.k-topbar-title`
-  // 这样的**前缀**类满足,删掉唯一的 `.k-topbar { … }` 基类规则也测不出来 —— 评审用
-  // RED 探针实证过(删 .k-topbar 规则,8/8 全绿)。受影响的是白名单里本身就是其它
-  // 类前缀的 9 个:k-rail/k-rail-item/k-rail-svc/k-topbar/k-banner/k-badge/k-scroll/
-  // k-mobile-tab/k-empty。改用「右边不能紧跟单词字符或短横线」的负向前瞻,这样
-  // `.k-topbar` 不会被 `.k-topbar-title` 满足,只有真正独立的 `.k-topbar` 选择器
-  // (后面接空格/`{`/`,`/`[` 等)才算数。
-  it('425 个白名单类全部有对应规则(附录 D.4 自检命令①的常驻版)', () => {
+describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + T11 + P5b-T2 + P5b-T6 + P5c-T2a + P5d-T2 + P5e-T2 + P5f-T2)', () => {
+  // Review 2026-07-31 Important correction — used `\b` for class name right boundary: `\b` also applies before `-`
+  // (transition from letter to hyphen also counts as "word boundary"), so `/\.k-topbar\b/` would match
+  // **prefix** classes like `.k-topbar-title`, couldn't detect if `.k-topbar { … }` base class rule is deleted —
+  // review proved it with RED probe (delete .k-topbar rule, 8/8 all green). Affected are 9 classes in whitelist
+  // that are themselves prefixes of other classes: k-rail/k-rail-item/k-rail-svc/k-topbar/k-banner/k-badge/k-scroll/
+  // k-mobile-tab/k-empty. Changed to negative lookahead "right side can't be word character or hyphen", so
+  // `.k-topbar` won't match `.k-topbar-title`, only truly independent `.k-topbar` selector
+  // (followed by space/`{`/`,`/`[` etc) counts.
+  it('All 425 whitelist classes have corresponding rules (permanent version of Appendix D.4 check command①)', () => {
     const missing = WHITELIST_425.filter((c) => !new RegExp(`\\.${c}(?![\\w-])`).test(css))
-    expect(missing, `缺失的类:${missing.join(', ')}`).toEqual([])
+    expect(missing, `Missing classes: ${missing.join(', ')}`).toEqual([])
   })
 
-  // 防漂移:常量名里的数字与数组长度必须一致(本档既定习惯,名字本身就是断言的一部分)。
-  it('白名单恰好 425 项(附录 D §D.0:102 + T2 的 32 + T6 的 53 + P5c-T2a 的 39 + P5d-T2 的 65+2 + P5e-T2 的 55 + P5f-T2 的 27+41+9)', () => {
+  // Drift prevention: numbers in constant name must match array length (this file's convention, name itself is part of assertion).
+  it('Whitelist exactly 425 items (Appendix D §D.0: 102 + T2's 32 + T6's 53 + P5c-T2a's 39 + P5d-T2's 65+2 + P5e-T2's 55 + P5f-T2's 27+41+9)', () => {
     expect(WHITELIST_425).toHaveLength(425)
-    expect(new Set(WHITELIST_425).size, '白名单里有重复项').toBe(425)
+    expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(425)
   })
 
-  it('.k-toast / .k-toast-ico 不移植(偏离 K3,改走全局 useToast())', () => {
+  it('.k-toast / .k-toast-ico not ported (diverge from K3, use global useToast() instead)', () => {
     expect(css).not.toMatch(/\.k-toast\b/)
     expect(css).not.toMatch(/\.k-toast-ico\b/)
   })
 
-  // 【P5b-T2 · K10】蓝本有**两份** .k-confirm-icon/-title/-summary:嵌套版
-  // (:1398-1428,在 .knowledge-app 内)与顶层重复版(:1676-1702)。两份声明逐字等价,
-  // 级联上嵌套版 (0,2,0) 完胜顶层版 (0,1,0) → 顶层那份在 Vue2 里从未生效过,K10 判定
-  // 整段丢弃。这条钉住"只搬了一份":任何一个 confirm 类出现两次(= 有人把顶层那份也
-  // 搬了进来)就报红。上面「没有搬多」那条只查类名在不在白名单,查不出**重复定义**。
-  it('K10 —— .k-confirm-* 每个类只有一份规则(蓝本 :1676-1702 的顶层重复段已丢弃)', () => {
+  // [P5b-T2 · K10] Blueprint has **two** .k-confirm-icon/-title/-summary: nested version
+  // (:1398-1428, inside .knowledge-app) and top-level duplicate version (:1676-1702). Both declarations
+  // are identical, in cascade nested (0,2,0) beats top-level (0,1,0) → top-level never took effect in Vue2,
+  // K10 decides to discard entire segment. This nails "only moved one": any confirm class appearing twice
+  // (= someone also moved in the top-level one) reports red. Above "no over-moving" only checks if class name
+  // is in whitelist, can't detect **duplicate definitions**.
+  it('K10 — Each .k-confirm-* class has only one rule (blueprint :1676-1702 top-level duplicate already discarded)', () => {
     for (const c of ['k-confirm-body', 'k-confirm-icon', 'k-confirm-title', 'k-confirm-summary']) {
       const hits = css.match(new RegExp(`\\.${c}(?![\\w-])`, 'g')) || []
-      expect(hits.length, `${c} 出现 ${hits.length} 次(应为 1;>1 说明 K10 丢弃的顶层重复段被搬了进来)`).toBe(1)
+      expect(hits.length, `${c} appears ${hits.length} times (should be 1; >1 means K10-discarded top-level duplicate was moved in)`).toBe(1)
     }
   })
 
-  // 【P5b-T2 修:守卫缺口①(附录 B §B.5 / 治理文件 §9 登记在案)】原正则是
-  // `/\.k2?-[a-z0-9-]+/g` —— `k2?` 吃掉 `k` 之后**要求下一个字符是 `-`**,所以
-  // `.kn-badge` / `.kn-foo` 这类 `kn-` 前缀的类**一个都扫不到**。本任务 S7 段
-  // (蓝本 :2031-2039)搬的正是 `.kn-*`,而蓝本 :2040-2281 还有几十个 `.kn-*` 是
-  // P5d 的 —— 手滑多搬一条,旧正则一句话都不会说。RED 探针实证:往规则段落里塞
-  // 一条白名单外的 `.kn-foo { … }`,旧正则下 17/17 全绿放行;改成下面这个正则后
-  // 精确报「白名单外的类:kn-foo」。
-  // 🔴 这是**扩大扫描范围**,不是放宽断言:被扫到的类仍然必须全部落在白名单里。
+  // [P5b-T2 fix: guard gap① (Appendix B §B.5 / governance §9 logged)] Original regex was
+  // `/\.k2?-[a-z0-9-]+/g` — `k2?` after consuming `k` **requires next character to be `-`**,
+  // so classes like `.kn-badge` / `.kn-foo` with `kn-` prefix **won't be scanned at all**.
+  // Task S7 segment (blueprint :2031-2039) moves exactly `.kn-*`, and blueprint :2040-2281 has
+  // dozens more `.kn-*` from P5d — slip and move one extra, old regex says nothing. RED probe proves:
+  // stuff a `.kn-foo { … }` outside whitelist into rule section, old regex 17/17 all green pass;
+  // after switching to regex below exactly reports "class outside whitelist: kn-foo".
+  // 🔴 This **expands scan scope**, not loosens assertion: scanned classes must all land in whitelist.
   //
-  // 【P5c-T2a 再扩:守卫缺口①第二轮(治理 §6.4-4 / §9 登记在案)】上一版正则只认
-  // `k` / `k2` / `kn` 三种前缀 —— 本任务往本档搬进了 FolderBrowser 的 `.fb-*` 段
-  // (蓝本 FolderBrowser.vue:82-143),那 8 个类**一个都扫不到**。治理 §6.4-4 给的正则是
-  // `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g`;实测它仍漏**裸 `.fb`**(没有连字符后缀,
-  // `fb-[a-z0-9-]+` 要求至少一个 `-`),而 `fb` 恰好是附录 D.1 登记的 39 个类之一 ——
-  // 若照字面写,`.fb` 会既躲过本条扫描、又因为不匹配 `^k…-` 前缀而掉进下面
-  // `nonKClassNames` 报成"未登记的非 k* 类"。故把 `fb` 那一支的后缀写成**可选**,
-  // 使本条正则严格是治理给定正则的**超集**(只扫得更多,不放宽任何断言);
-  // 下面 nonKClassNames 的排除条件同步按 `fb` / `fb-*` 处理,两处口径一致。
-  // 🔴 这仍然是**扩大扫描范围**,不是放宽断言:蓝本 :2023-2281 还有几十个 `.kn-*` 是
-  // P5d 的、:985-991 的 .k-section-body 与 :1152-1157 的 .k-progress-*(N15)也不该出现
-  // —— 手滑多搬任意一条,这里就会精确指名。RED 探针见 P5c-T2a 报告。
+  // [P5c-T2a further expansion: guard gap① round two (governance §6.4-4 / §9 logged)]
+  // Previous regex only recognized three prefixes `k` / `k2` / `kn` — this task moved in FolderBrowser's `.fb-*` segment
+  // (blueprint FolderBrowser.vue:82-143), those 8 classes **won't be scanned at all**. Governance §6.4-4 regex is
+  // `/\.(?:k(?:2|n)?|fb)-[a-z0-9-]+/g`; testing shows it still misses **bare `.fb`** (no hyphen suffix,
+  // `fb-[a-z0-9-]+` requires at least one `-`), and `fb` happens to be one of the 39 classes in Appendix D.1 —
+  // if written literally, `.fb` would both escape this scan and fall into `nonKClassNames` below
+  // (not matching `^k…-` prefix) reporting "unregistered non-k* class". So make `fb` suffix **optional**,
+  // making this regex strictly **superset** of governance-given regex (scans more, loosens nothing);
+  // below nonKClassNames exclusion conditions sync with `fb` / `fb-*` handling, two sides consistent.
+  // 🔴 This still **expands scan scope**, not loosens assertion: blueprint :2023-2281 still has
+  // dozens of `.kn-*` from P5d, :985-991's .k-section-body and :1152-1157's .k-progress-* (N15) shouldn't appear either
+  // — slip and move any, this will pinpoint exactly. RED probe in P5c-T2a report.
   //
-  // 【P5d-T2 再扩:守卫缺口①第三轮(治理 §9.6 / 裁定书「四之二」/附录 D §D.2.1)】
-  // 本任务往本档搬入了 K44 的 `.nme-content .ProseMirror` 顶层段与 K43 的 `.k-seg`。
-  // 上一版正则 `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g` 扫不到两样东西:
-  // ① `nme-content` / `ProseMirror` —— 前缀不是 k/k2/kn/fb;
-  // ② `ProseMirror`**即使加了 nme 前缀支持也扫不到**——它带大写字母,而旧字符集只有
-  //    `[a-z0-9-]`(P5c §6.4.2 挂账的债票,协调者裁定 A-11:这次不再是理论问题,必须兑现)。
-  // 新正则:`/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g`
-  // —— ① 字符集加 `A-Z`(兑现 A-11);② 新增 `nme(?:-…)?` 与 `ProseMirror` 两个可选分支。
-  // 🔴 这是**扩大扫描范围**,不是放宽断言:程序化实测(见 `p5d-gen-r8r9-sim.mjs`,T2 报告
-  // 已贴对现状文件的严格超集自证输出:old 225 / new 225 完全相同,证明这条改动在改动前的
-  // 现状文件上**零可观测** —— RED 探针是唯一能证明它有判别力的证据,见下方独立 RED 探针
-  // 小节)。被扫到的 `nme-content`/`ProseMirror` 两个新类同样必须落在白名单里(R9:226→293)。
+  // [P5d-T2 further expansion: guard gap① round three (governance §9.6 / decision "four-two" / Appendix D §D.2.1)]
+  // This task moved in K44's `.nme-content .ProseMirror` top-level segment and K43's `.k-seg`.
+  // Previous regex `/\.(?:k(?:2|n)?-[a-z0-9-]+|fb(?:-[a-z0-9-]+)?)/g` couldn't scan two things:
+  // ① `nme-content` / `ProseMirror` — prefix is not k/k2/kn/fb;
+  // ② `ProseMirror` **even with nme prefix support can't be scanned** — it has uppercase,
+  //    old character set only had `[a-z0-9-]` (P5c §6.4.2 pending debt, coordinator decision A-11:
+  //    no longer just theory, must implement).
+  // New regex: `/\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g`
+  // — ① character set adds `A-Z` (implement A-11); ② new optional branches `nme(?:-…)?` and `ProseMirror`.
+  // 🔴 This **expands scan scope**, not loosens assertion: programmatic testing (see `p5d-gen-r8r9-sim.mjs`, T2 report
+  // pasted strict superset self-proof output on current file: old 225 / new 225 identical,
+  // proving this change **zero observable** on pre-change current file — RED probe is sole evidence it has discrimination,
+  // see separate RED probe section below). Scanned new classes `nme-content`/`ProseMirror` must also land in whitelist (R9: 226→293).
   //
-  // 【P5f-T2 再扩:守卫缺口①第四轮(裁定 **R1**,方案 B)】本任务往本档搬入了 41 个
-  // `kw-*`(Wiki 页)与 9 个 `kr-*`(K53,来自 RootsView.vue 的 `<style scoped>`)。
-  // 上一版正则的 `k(?:2|n)?-` 分支**只接受 `k-`/`k2-`/`kn-`** —— `kw-` 的 `w`、`kr-` 的 `r`
-  // 都不是 `2` 也不是 `n` ⇒ 这 50 个类**一个都扫不到**,会连同 `cur` 一次性掉进
-  // 下面的 `nonKClassNames`,打红那条集合相等断言。
-  // 新分支:`k(?:2|n|r|w)?-`。三件套(扩正则 + 进白名单 + nonKClassNames 加排除条件)
-  // 与 **P5c-T2a 处理 `fb-*` 的做法逐字同款**,是本仓既定流程,不是新发明。
-  // 🔴 这仍然是**扩大扫描范围 = 加固**,不是放宽:被扫到的类仍然必须全部落在白名单里
-  // (少写一个 → 本条精确指名报红,T2 报告贴了 RED 探针②的输出)。
-  // 严格超集自证见下一条(已同步换成「P5e 版 vs P5f 版」两个正则,否则那条会变空壳)。
-  // 🔴🔴 【P5f-T2b 必改(裁定 **R20 的 I-2**;R22:这属于「把内联字面量提到常量」,已申报)】
-  // 原文把扫描正则**内联**写在本条 it 里,而下面「严格超集自证」比的是它的一份**硬编码拷贝**
-  // —— 两者之间零绑定。评审实证:把**本条内联的现役正则**窄回 `k(?:2|n)?-`,
-  // 全档 **374/374 全绿**,50 个 `kw-*`/`kr-*` 一次性脱离「没有搬多」覆盖而无人报红
-  // ⇒ R1-③ 想消灭的「自证变空壳」只是被推迟到了下一期。
-  // 修法:提成模块内共享常量,**「没有搬多」与「严格超集自证」共用同一个源**
-  // ⇒ 窄回现役正则,超集自证的「净增量 = 50」立刻报红。
-  // ⚠️ 这是**纯重构 + 绑定**,不改任何匹配语义(正则源逐字不变);判据见 T2b 报告探针 P-3。
-  // ⚠️ `nonKClassNames()` 的排除前缀 `/^k(?:2|n|r|w)?-/` 是**另一份**独立正则,本刀不动
-  //    (窄回它只会让「未登记的非 k* 类」变多 = 报红,不是静默失守);两处口径一致性
-  //    登记为债务,不在本刀范围。
+  // [P5f-T2 further expansion: guard gap① round four (decision **R1**, option B)]
+  // This task moved in 41 `kw-*` (Wiki page) and 9 `kr-*` (K53, from RootsView.vue `<style scoped>`).
+  // Previous regex's `k(?:2|n)?-` branch **only accepts `k-`/`k2-`/`kn-`** — `w` in `kw-` and `r` in `kr-`
+  // are neither `2` nor `n` ⇒ these 50 classes **won't be scanned at all**, along with `cur` will fall into
+  // `nonKClassNames` below, turning red on set-equal assertion.
+  // New branch: `k(?:2|n|r|w)?-`. Three-piece (expand regex + add to whitelist + nonKClassNames add exclusion)
+  // **exactly same approach as P5c-T2a handling `fb-*`**, this repo's established process, not new invention.
+  // 🔴 Still **expand scan scope = strengthen**, not loosen: scanned classes must all land in whitelist
+  // (miss one → this exactly names it red, T2 report pasted RED probe② output).
+  // Strict superset self-proof next (already synced to "P5e version vs P5f version" two regexes,
+  // otherwise that would become hollow).
+  // 🔴🔴 [P5f-T2b must change (decision **R20's I-2**; R22: this is "extract inline literal to constant",
+  // already declared)] Original inlined scan regex in this it, while "strict superset self-proof" below
+  // compares with its **hardcoded copy** — zero binding between them. Review proved: narrow back
+  // **this inline current regex** to `k(?:2|n)?-`, entire file **374/374 all green**, 50 `kw-*`/`kr-*`
+  // once break free from "no over-moving" coverage and nobody reports red ⇒ R1-③'s intended "self-proof
+  // becomes hollow" only deferred to next period. Fix: promote to module-scoped shared constant,
+  // **"no over-moving" and "strict superset self-proof" share same source** ⇒ narrow current regex,
+  // superset self-proof's "net gain = 50" immediately reports red.
+  // ⚠️ This is **pure refactor + binding**, doesn't change any match semantics (regex source unchanged);
+  // see T2b report probe P-3 for verification.
+  // ⚠️ `nonKClassNames()`'s exclusion prefix `/^k(?:2|n|r|w)?-/` is **separate** independent regex,
+  //    this task doesn't touch (narrowing it only makes "unregistered non-k* classes" more = report red,
+  //    not silent failure); two-side consistency logged as debt, not in this task scope.
   const CLASS_SCAN_RE_SOURCE =
     '\\.(?:k(?:2|n|r|w)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)'
   const scanClassNames = (text: string): Set<string> =>
     new Set((text.match(new RegExp(CLASS_SCAN_RE_SOURCE, 'g')) || []).map((s: string) => s.slice(1)))
 
-  it('没有搬多 —— 全部 k-/k2-/kn-/kr-/kw-/fb/nme/ProseMirror 类都在白名单内(附录 D.4 自检命令②的常驻版,字符集含 A-Z)', () => {
+  it('No over-moving — all k-/k2-/kn-/kr-/kw-/fb/nme/ProseMirror classes in whitelist (permanent version of Appendix D.4 check command②, character set includes A-Z)', () => {
     const found = [...scanClassNames(css)]
     const extra = found.filter((c) => !WHITELIST_425.includes(c))
-    expect(extra, `白名单外的类:${extra.join(', ')}`).toEqual([])
+    expect(extra, `Classes outside whitelist: ${extra.join(', ')}`).toEqual([])
   })
 
-  // 【P5d-T2 · 严格超集自证(照 P5c §6.4.1 第 1 条的做法,防止「扩范围」变成「悄悄放宽」)】
-  // 对**改动前的现状文件**(git 历史版本,不是本次改动后的当前文件)分别跑旧正则与新正则,
-  // 断言旧正则扫到的每一个类,新正则都扫得到(old ⊆ new)——证明这次扩字符集/扩分支
-  // 纯粹是扩大覆盖,没有让任何原本会被扫到的类逃过去。
-  // 🔴 T2 报告已贴这条断言对 T1 收官版本(`56f8849`)跑出的真实输出(old 225 / new 225,
-  // 完全相同的集合)—— 这也是「本条改动在现状文件上零可观测」的证据来源,RED 探针
-  // (见下方独立小节)才是这条改动唯一有判别力的证明。
+  // [P5d-T2 · Strict superset self-proof (per P5c §6.4.1 item 1, prevent "expand scope" from becoming "quietly loosen")]
+  // Run both old and new regex on **pre-change current file** (git history version, not post-change current),
+  // assert that every class old regex scans, new regex also scans (old ⊆ new) — proving expanding character set/branches
+  // purely expands coverage, doesn't let any originally-scanned class escape.
+  // 🔴 T2 report pasted real output this assertion ran on T1 final version (`56f8849`) (old 225 / new 225,
+  // identical set) — this is also the evidence source for "this change zero observable on current file",
+  // RED probe (see separate section) is sole proof this change has discrimination.
   //
-  // 🔴🔴 【P5f-T2 必改(裁定 **R1**-③)】本条原先硬编码的是「P5d 版 vs P5e 版」两个正则,
-  // **与本刀真正落地的那条正则无关** —— 不同步换掉,这条自证就变成**空壳**:它会永远
-  // 比较两个与现役正则无关的旧常量,不管现役正则怎么改都恒绿。
-  // 现在 OLD_RE = **P5e 收官时的现役正则**(即上一条断言改动前的原文),
-  // NEW_RE = **本刀落地的现役正则**(加了 `r|w` 两个分支)。
-  // 判据(R1-③ 原文):把 `r|w` 从被测的 NEW_RE 里删掉 → 本条必须报红。
-  // T2 报告贴了这个偏态的实测输出(删 `r|w` 后精确列出 50 个「旧扫到、新漏掉」的类)。
-  // ⚠️ 同时补一条**严格**方向的断言(`new ⊋ old`):只证 `old ⊆ new` 允许两者相等,
-  // 那样「扩范围」有可能其实什么都没扩(P5d 当时在改动前的文件上就是 old 225 / new 225)。
-  // 本刀的文件里 `kr-*`/`kw-*` 已经真实存在 ⇒ 严格真包含**可以且必须**被程序化证明。
+  // 🔴🔴 [P5f-T2 must change (decision **R1**-③)] Originally this hardcoded "P5d version vs P5e version"
+  // two regexes, **unrelated to what this task actually deploys** — not sync-change, this self-proof becomes
+  // **hollow**: forever compares old constants unrelated to current regex, always green no matter how
+  // current regex changes. Now OLD_RE = **current regex when P5e closed** (original before previous assertion change),
+  // NEW_RE = **current regex this task deploys** (added `r|w` two branches).
+  // Verification (R1-③ original): remove `r|w` from tested NEW_RE → this must report red.
+  // T2 report pasted this skewed real output (after removing `r|w` exactly lists 50 classes
+  // "old scanned, new missed"). ⚠️ Also add assertion in **strict** direction (`new ⊋ old`):
+  // only proving `old ⊆ new` allows equal, so "expand scope" might actually expand nothing
+  // (P5d at that time on pre-change file was old 225 / new 225). This task's file has `kr-*`/`kw-*`
+  // truly present ⇒ strict proper superset **can and must** be programmatically proven.
   //
-  // 🔴🔴 【P5f-T2b 再修(裁定 **R20 的 I-2**)】上一版的 `NEW_RE` 是现役正则的一份**硬编码
-  // 拷贝** ⇒ 现役正则可以被静默窄回而本条恒绿(评审已实证 374/374 全绿)。
-  // 现在 `newHits` 直接走上面的 **`scanClassNames()` = 现役同一个源**,
-  // 只有 `OLD_RE`(P5e 收官时的历史原文)仍是硬编码 —— 它本来就该是历史快照。
-  // 🔴 判据(比 R1-③ 更强):把 `r|w` 从 **`CLASS_SCAN_RE_SOURCE`(现役)** 里删掉 →
-  //    本条必须报红,且「没有搬多」那条**仍然全绿**(那才是这个缺口的真实形态)。
-  it('严格超集自证 —— 现役正则(加 kr-/kw- 分支)是 P5e 现役正则的严格超集(old ⊊ new)', () => {
+  // 🔴🔴 [P5f-T2b further fix (decision **R20's I-2**)] Previous `NEW_RE` was **hardcoded copy** of current regex
+  // ⇒ current regex can be silently narrowed back and this stays green (review proved 374/374 all green).
+  // Now `newHits` directly uses above **`scanClassNames()` = current same source**,
+  // only `OLD_RE` (P5e closing historical original) remains hardcoded — it should be historical snapshot anyway.
+  // 🔴 Verification (stronger than R1-③): remove `r|w` from **`CLASS_SCAN_RE_SOURCE` (current)** →
+  //    this must report red, and "no over-moving" **still all green** (that's the real form of this gap).
+  it('Strict superset self-proof — current regex (adds kr-/kw- branches) is strict superset of P5e current regex (old ⊊ new)', () => {
     const OLD_RE = /\.(?:k(?:2|n)?-[a-zA-Z0-9-]+|fb(?:-[a-zA-Z0-9-]+)?|nme(?:-[a-zA-Z0-9-]+)?|ProseMirror)/g
     const oldHits = new Set((css.match(OLD_RE) || []).map((s) => s.slice(1)))
-    // 🔴 被测的「新」正则 = **现役**扫描源本身,不是它的拷贝(I-2 的整条要害)
+    // 🔴 Tested "new" regex = **current** scan source itself, not its copy (I-2 crux)
     const newHits = scanClassNames(css)
     const missing = [...oldHits].filter((c) => !newHits.has(c))
-    expect(missing, `旧正则扫到但新正则漏掉的类(说明扩范围其实是放宽):${missing.join(', ')}`).toEqual([])
-    // 覆盖度自检:两个正则都必须真的扫到东西(防「正则失效 → 两个空集 → 恒绿」)
-    expect(oldHits.size, '旧正则一个类都没扫到 —— 零判别力').toBeGreaterThan(300)
-    // 🔴 严格真包含:新正则必须**多**扫到 50 个(41 个 kw-* + 9 个 kr-*),一个不多一个不少
+    expect(missing, `Classes old regex scanned but new regex missed (shows expanding scope is actually loosening): ${missing.join(', ')}`).toEqual([])
+    // Coverage self-check: both regexes must actually scan something (prevent "regex broken → both empty sets → always green")
+    expect(oldHits.size, 'Old regex scanned zero classes — zero discrimination').toBeGreaterThan(300)
+    // 🔴 Strict proper superset: new regex must scan **50 more** (41 kw-* + 9 kr-*), exactly that many
     const gained = [...newHits].filter((c) => !oldHits.has(c)).sort()
     expect(
       gained.length,
-      `新正则相对旧正则的净增量应为 50(41 个 kw-* + 9 个 kr-*),实际 ${gained.length}:${gained.join(', ')}`,
+      `New regex net gain over old should be 50 (41 kw-* + 9 kr-*), actual ${gained.length}: ${gained.join(', ')}`,
     ).toBe(50)
-    expect(gained.every((c) => c.startsWith('kw-') || c.startsWith('kr-')), '净增量里混进了非 kw-/kr- 的类').toBe(true)
+    expect(gained.every((c) => c.startsWith('kw-') || c.startsWith('kr-')), 'Net gain mixed in non-kw-/kr- classes').toBe(true)
   })
 
-  // 【P5b-T6 修:守卫缺口④(T2 评审挂账,协调者交给 T6 处置)】上面「没有搬多」那条
-  // 与白名单本身都只收 `k*` 前缀 —— 蓝本在几个类里嵌了**非 k 前缀的辅助类**
-  // (`.k-modal-foot .right`、`.k-fd-v.mono`、`.k-btn.ghost/.outline/.primary/.danger`…),
-  // 它们既不在白名单、也不进扫描正则:将来本文件里冒出任意一条 `.right { … }` /
-  // `.mono { … }`,或者有人手滑把别处的辅助类搬了进来,**不会有任何断言说话**。
+  // [P5b-T6 fix: guard gap④ (T2 review deferred, coordinator gave to T6)] Above "no over-moving" and whitelist
+  // both only take `k*` prefix — blueprint embedded **non-k-prefix helper classes** in several
+  // (`.k-modal-foot .right`, `.k-fd-v.mono`, `.k-btn.ghost/.outline/.primary/.danger`…),
+  // they're neither in whitelist nor in scan regex: future if any `.right { … }` / `.mono { … }` pops up in this file,
+  // or someone slips moving in helper classes from elsewhere, **no assertion will say anything**.
   //
-  // 处置:选"补一条覆盖非 k* 类的登记表",而不是"写条注释登记缺口了事"。理由是
-  // 实测下来**零假阳性** —— 本档全文(剥注释后)用 `/\.([a-zA-Z][a-zA-Z0-9_-]*)/`
-  // 扫出来的非 `k*` 标识符恰好只有下面这 9 个,全都是真类名:CSS 里的小数(`0.5`)
-  // 与时长(`1.4s`)点号后面跟的是数字,被 `[a-zA-Z]` 挡掉;`min()`/`repeat()`/
-  // `cubic-bezier()` 这类函数参数里也没有"点+字母"的形式。既然噪音为 0,就没有
-  // "会引入更多假阳性"这个不做的理由。
+  // Resolution: choose "add a registry covering non-k* classes" instead of "write comment logging the gap".
+  // Reason: testing shows **zero false positives** — entire this file (stripped comments) scanned with
+  // `/\.([a-zA-Z][a-zA-Z0-9_-]*)/` yields only 9 non-`k*` identifiers, all true class names: decimals (`0.5`)
+  // and durations (`1.4s`) have digits after dot (blocked by `[a-zA-Z]`); function args like `min()`/`repeat()`/
+  // `cubic-bezier()` have no "dot+letter" form. Since noise is zero, no reason "will introduce more false positives"
+  // to skip this.
   //
-  // 🔴 这同样是**扩大扫描范围**,不是放宽断言:新扫到的类必须逐个在下面登记并写理由。
-  // 这份清单不许当垃圾桶塞 —— 下面第二条用集合相等把它钉死(多一个少一个都报红)。
+  // 🔴 This also **expands scan scope**, not loosens assertion: new-scanned classes must each register below with reason.
+  // This registry can't be used as trash bin — second assertion below pins it down with set equality (red if added/removed).
   const NON_K_HELPER_CLASSES = [
-    // .k-btn 的四个变体(蓝本 :822/:826/:836/:843),写作 `&.ghost` 等,与 .k-btn 连写
+    // .k-btn four variants (blueprint :822/:826/:836/:843), written as `&.ghost` etc, combined with .k-btn
     'ghost', 'outline', 'primary', 'danger',
-    // .k-modal-foot 内的右对齐动作组(蓝本 :1340),P5b-T2 搬入
+    // Right-aligned action group in .k-modal-foot (blueprint :1340), moved in P5b-T2
     'right',
-    // .k2-layer-num 内的单位后缀与第二数字(蓝本 :2320/:2321),P5a T11 搬入
+    // Unit suffix and second number in .k2-layer-num (blueprint :2320/:2321), moved in P5a T11
     'suffix', 'second',
-    // .k2-live-ico 内的旋转态(蓝本 :2364),P5a T11 搬入
+    // Spin state in .k2-live-ico (blueprint :2364), moved in P5a T11
     'spin',
-    // .k-fd-v 的等宽变体(蓝本 :1957),写作 `&.mono`,P5b-T6 搬入
+    // Monospace variant of .k-fd-v (blueprint :1957), written as `&.mono`, moved in P5b-T6
     'mono',
-    // .k-set-row-desc 内的警示行(蓝本 :1174),写作嵌套 `.warn { … }`,P5c-T2a 搬入
-    // (附录 D §D.1.1:9 → 10。⚠️ 不要顺手把 parser-app 也塞进来 —— 治理 §6.4-2 已裁定
-    //  它走 nonKClassNames 的**排除条件**,与既有的 knowledge-app 同款处理,登记表保持
-    //  "真·嵌套辅助类"的语义。)
+    // Alert row in .k-set-row-desc (blueprint :1174), written as nested `.warn { … }`, moved in P5c-T2a
+    // (Appendix D §D.1.1: 9 → 10. ⚠️ Don't slip parser-app in here — governance §6.4-2 decided
+    //  it uses nonKClassNames **exclusion condition**, same treatment as existing knowledge-app,
+    //  keep registry semantic of "true nested helper classes".)
     'warn',
-    // ---- P5d-T2 追加(裁定书 R8:10 → 16)----
-    // 🔴 治理 §9.6 / 裁定 A-10 写「NON_K_HELPER_CLASSES 保持 10 项不变」是错的 ——
-    // 那句只算了 `nme`/`nme-content`/`ProseMirror`(且 `nme` 蓝本零选择器、根本扫不到,
-    // `nme-content`/`ProseMirror` 走排除条件不进本表),漏算了下面这 6 个真·嵌套辅助类。
-    // 照 A-10 字面「保持 10 项」做,下面「登记表恰好等于文件里真实存在的非 k* 类」那条
-    // 集合相等断言会**一提交就红**(裁定书 R8 已订正为 16,以程序化实测为准 —— 复现命令
-    // 见 `p5d-gen-r8r9-sim.mjs`,输出逐字见 T2 报告)。
-    // .kn-savehint 内的保存状态小圆点(蓝本 :2127/:2128),P5d-T2 搬入
+    // ---- P5d-T2 addition (decision R8: 10 → 16)----
+    // 🔴 Governance §9.6 / decision A-10 said "NON_K_HELPER_CLASSES stays 10 unchanged" is wrong —
+    // that only counted `nme`/`nme-content`/`ProseMirror` (and `nme` blueprint zero selector, won't scan,
+    // `nme-content`/`ProseMirror` use exclusion condition, don't enter this table), missed these 6 true nested helpers.
+    // Following A-10 literally "keep 10", the "registry exactly equals true non-k* classes in file"
+    // set-equal assertion below would **turn red on commit** (decision R8 corrected to 16, per programmatic test —
+    // reproduction command see `p5d-gen-r8r9-sim.mjs`, output verbatim in T2 report).
+    // Save-state dot in .kn-savehint (blueprint :2127/:2128), moved in P5d-T2
     'dot',
-    // .kn-refbtn 内的引用按钮文字(蓝本 :2222),P5d-T2 搬入
+    // Reference button text in .kn-refbtn (blueprint :2222), moved in P5d-T2
     'lbl',
-    // .kn-note-meta 内的元信息分隔点(蓝本 :2104),P5d-T2 搬入
+    // Meta-info separator dot in .kn-note-meta (blueprint :2104), moved in P5d-T2
     'sep',
-    // .kn-edit-top / .kn-editor-status / .kn-aside-title 内的弹性占位(蓝本 :2125/:2193/:2203),
-    // P5d-T2 搬入
+    // Elastic spacer in .kn-edit-top / .kn-editor-status / .kn-aside-title (blueprint :2125/:2193/:2203),
+    // moved in P5d-T2
     'spacer',
-    // K45(裁定 R1)搬入的 .k-btn.text —— `&.text` 是复合类 `.k-btn.text` 里的 `text`,
-    // 与既有 ghost/outline/primary/danger 四个 `&.x` 变体完全同款(蓝本 :1569-1570)。
-    // 🔴 `text` 只归本表(R8),不进 WHITELIST_425(R9 的正则扫不到复合类里的 `text`,
-    // 见上方「没有搬多」小节注释),R8/R9 二选一,不许同时登记两侧。
+    // K45 (decision R1) moved-in .k-btn.text — `&.text` is `text` in compound class `.k-btn.text`,
+    // exactly same as existing ghost/outline/primary/danger four `&.x` variants (blueprint :1569-1570).
+    // 🔴 `text` only goes to this table (R8), not WHITELIST_425 (R9's regex can't scan `text` in compound,
+    // see comment in "no over-moving" above), R8/R9 mutual exclusion, can't register both sides.
     'text',
-    // .kn-tb-btn 内的 H2/H3 加宽变体(蓝本 :2167),写作 `&.wide`,P5d-T2 搬入,与既有
-    // mono/ghost 等「连写变体」同款
+    // H2/H3 width variant in .kn-tb-btn (blueprint :2167), written as `&.wide`, moved in P5d-T2,
+    // same as existing mono/ghost "combined variants"
     'wide',
-    // ---- P5e-T2 追加(裁定 R8 / 附录 D §D.7.2:16 → 19)----
-    // 🔴 这三个是「登记表变长 = 新扫到的类都必须写明出处」,是**加固**不是放宽:
-    // 下面那条「登记表恰好等于文件里真实存在的非 k* 类,不多不少」的**集合相等**断言
-    // 仍然生效,多写一个/少写一个都报红;本刀新增 3 条真实存在的嵌套辅助类,不写就报红。
-    // 加固前/加固后两次 nonKClassNames() 的逐字输出贴在 T2 报告(16 → 19)。
-    // 折叠箭头图标的旋转容器 —— .k-adv-toggle .chev(蓝本 :509)、
-    // .k-adv-toggle[data-open="true"] .chev(:510)、.k-more-hint .chev(:1561)
-    // 三条**不同的后代规则**,与既有 dot/sep/spacer 同款。P5e-T2 搬入
+    // ---- P5e-T2 addition (decision R8 / Appendix D §D.7.2: 16 → 19)----
+    // 🔴 These three mean "registry grows = new-scanned classes must have source cited", **strengthens** not loosens:
+    // below "registry exactly equals true non-k* classes in file, no more no less" **set-equal** assertion
+    // still applies, adds one/removes one both report red; this task adds 3 true existing nested helpers,
+    // not writing means red. Before/after strengthening nonKClassNames() output verbatim in T2 report (16 → 19).
+    // Collapse arrow icon rotation container — .k-adv-toggle .chev (blueprint :509),
+    // .k-adv-toggle[data-open="true"] .chev (:510), .k-more-hint .chev (:1561)
+    // three **different descendant rules**, same as existing dot/sep/spacer. Moved in P5e-T2
     'chev',
-    // 结果卡 meta 里的等宽路径片段 —— .k-rcard-meta-item .path(蓝本 :670)。
-    // ⚠️ p5-master-plan.md §2.4 的类清单漏列了它(勘误 E-55)。与既有 mono 同款。P5e-T2 搬入
+    // Monospace path segment in result card meta — .k-rcard-meta-item .path (blueprint :670).
+    // ⚠️ p5-master-plan.md §2.4 class list missed it (errata E-55). Same as existing mono. Moved in P5e-T2
     'path',
-    // 摘要里的「Markdown 标题行」高亮 —— .k-rcard-snippet .h-md(蓝本 :660)。
-    // 🔴 **蓝本 13 个 .vue 里零 class 引用**,但它嵌在 .k-rcard-snippet 内 → 随父块整体搬、
-    // 不单独摘除(附录 D §D.6,同 P5d「statusBadge 零消费者也照抄导出」的 K7 模具)。P5e-T2 搬入
+    // "Markdown header" highlight in snippet — .k-rcard-snippet .h-md (blueprint :660).
+    // 🔴 **Blueprint 13 .vue zero class references**, but it's nested in .k-rcard-snippet → move with parent
+    // block as whole, don't extract separately (Appendix D §D.6, same K7 mold as P5d "statusBadge zero consumers
+    // also copy export"). Moved in P5e-T2
     'h-md',
-    // ---- P5f-T2 追加(裁定 R1 / 附录 D §D.7.4:19 → 20)----
-    // 🔴 本刀只往本表加 **1 个**。裁定 R1 明确否决了方案 A(把 41 个 kw-* + 9 个 kr-*
-    // 全倒进本表)—— 那会把这份「真·嵌套辅助类逐个登记出处」的小表**亲手变成它要防的
-    // 垃圾桶**,而且那 50 个类从此不再受上面「没有搬多」白名单扫描的覆盖 = **净减少
-    // 守卫覆盖面**。方案 B 让它们走 WHITELIST_425 + nonKClassNames 排除条件(同 fb-*)。
-    // Wiki 面包屑里的「当前项」—— .kw-crumb .cur(蓝本 :2475),与既有 right/mono/dot/sep
-    // 同款的真·嵌套辅助类。P5f-T2 搬入
+    // ---- P5f-T2 addition (decision R1 / Appendix D §D.7.4: 19 → 20)----
+    // 🔴 This task adds only **1** to this table. Decision R1 explicitly rejected option A
+    // (dump all 41 kw-* + 9 kr-* into this table) — would **turn this "true nested helpers each logged with source"**
+    // **small table into the garbage bin it's supposed to prevent**, plus those 50 classes lose coverage from
+    // "no over-moving" whitelist scan above = **net reduction in guard coverage**.
+    // Option B lets them use WHITELIST_425 + nonKClassNames exclusion (same as fb-*).
+    // "Current item" in Wiki breadcrumb — .kw-crumb .cur (blueprint :2475), true nested helper
+    // like existing right/mono/dot/sep. Moved in P5f-T2
     'cur',
   ]
 
-  // 【P5c-T2a 修:守卫缺口④(治理 §6.4-2)】本任务给两个 token 声明块的选择器各扩了一项
-  // `.parser-app`(K21 —— Parser 两页复用本档 token,零复制),于是 `parser-app` 会被下面
-  // 这个 `/\.([a-zA-Z]…)/` 扫出来、掉进"未登记的非 k* 类";它是**作用域根**,不是嵌套
-  // 辅助类 → 与既有的 `knowledge-app` 同款,走排除条件而不是塞进登记表。
-  // 同理 `fb` / `fb-*`(P5c-T2a 从 FolderBrowser.vue:82-143 搬入的 8 个类)是本档正经
-  // 前缀类、已进 WHITELIST_425、且已被上面那条"没有搬多"扫描覆盖,这里一并排除,
-  // 避免同一批类被两条断言用两套互相矛盾的口径判定。
+  // [P5c-T2a fix: guard gap④ (governance §6.4-2)] This task expanded selectors of two token declaration blocks
+  // each by one item `.parser-app` (K21 — Parser two pages reuse this file's token, zero copy), so `parser-app`
+  // gets scanned by `/\.([a-zA-Z]…)/` below, falling into "unregistered non-k* classes"; it's a **scope root**,
+  // not nested helper → like existing `knowledge-app`, uses exclusion condition not registry entry.
+  // Similarly `fb` / `fb-*` (P5c-T2a moved in 8 classes from FolderBrowser.vue:82-143) are legit
+  // prefix classes in this file, already in WHITELIST_425, and already covered by above "no over-moving" scan,
+  // exclude them here together, avoiding same class batch judged by two assertions with contradictory criteria.
   //
-  // 【P5d-T2 追加】K44 引入的 `nme-content` / `ProseMirror` 同理是**正经前缀类/第三方
-  // 类**(前者是蓝本 wrapper 类,后者是第三方 ProseMirror 生成的类名,大小写混排,
-  // 本档 kebab 小写惯例之外的唯一一个),不是嵌套辅助类 —— 与 knowledge-app/parser-app/
-  // fb 同款,走排除条件,不进 NON_K_HELPER_CLASSES(治理 §9.6 明令)。
+  // [P5d-T2 addition] K44-introduced `nme-content` / `ProseMirror` similarly are **legit prefix/third-party
+  // classes** (former blueprint wrapper class, latter third-party ProseMirror-generated class name, mixed case,
+  // the only one outside this file's kebab lowercase convention), not nested helpers — like knowledge-app/parser-app/
+  // fb, use exclusion condition, don't enter NON_K_HELPER_CLASSES (governance §9.6 mandates).
   //
-  // 【P5f-T2 追加(裁定 R1,方案 B)】排除前缀同步扩成 `k(?:2|n|r|w)?-` —— 与上面
-  // 「没有搬多」那条正则**同一口径**(两处必须一致,否则同一批类会被两条断言用互相
-  // 矛盾的口径判定)。`kr-*` / `kw-*` 是本档正经前缀类、已进 WHITELIST_425、且已被
-  // 「没有搬多」扫描覆盖,与 fb-* / knowledge-app / parser-app / nme-content 同款排除。
+  // [P5f-T2 addition (decision R1, option B)] Exclusion prefix expanded to `k(?:2|n|r|w)?-` in sync
+  // **same criteria as "no over-moving" regex above** (two places must align, else same class batch judged
+  // by two assertions with contradictory criteria). `kr-*` / `kw-*` are legit prefix classes in this file,
+  // already in WHITELIST_425, and already covered by "no over-moving" scan, exclude like fb-* / knowledge-app / parser-app / nme-content.
   function nonKClassNames(text: string): string[] {
     const found = new Set([...text.matchAll(/\.([a-zA-Z][a-zA-Z0-9_-]*)/g)].map((m) => m[1]))
     return [...found]
@@ -501,28 +522,28 @@ describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-
       .sort()
   }
 
-  it('守卫缺口④ —— 非 k* 前缀的嵌套辅助类全部在登记表内(.right/.mono 这类)', () => {
+  it('Guard gap④ — All non-k*-prefix nested helpers in registry (.right/.mono etc)', () => {
     const extra = nonKClassNames(css).filter((c) => !NON_K_HELPER_CLASSES.includes(c))
-    expect(extra, `未登记的非 k* 类(每个都要在 NON_K_HELPER_CLASSES 里写明出处):${extra.join(', ')}`).toEqual([])
+    expect(extra, `Unregistered non-k* classes (each must have source cited in NON_K_HELPER_CLASSES): ${extra.join(', ')}`).toEqual([])
   })
 
-  it('守卫缺口④ —— 登记表恰好等于文件里真实存在的非 k* 类,不多不少(防清单变垃圾桶;P5f 终值 20)', () => {
+  it('Guard gap④ — Registry exactly equals true non-k* classes in file, no more no less (prevent list becoming trash; P5f final 20)', () => {
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 
-  it('R8/R1 —— NON_K_HELPER_CLASSES 常量恰好 20 项(P5d 的 16 + P5e-T2 的 3 + P5f-T2 的 1;不是治理 A-10 的 10 项)', () => {
+  it('R8/R1 — NON_K_HELPER_CLASSES constant exactly 20 items (P5d's 16 + P5e-T2's 3 + P5f-T2's 1; not governance A-10's 10)', () => {
     expect(NON_K_HELPER_CLASSES).toHaveLength(20)
-    expect(new Set(NON_K_HELPER_CLASSES).size, '登记表里有重复项').toBe(20)
+    expect(new Set(NON_K_HELPER_CLASSES).size, 'Registry has duplicate items').toBe(20)
   })
 
-  // 【P5d-T2 · K45 落地 DoD(裁定书 R1-②,附录 D §D.4.1)】「没有搬多」的白名单集合断言
-  // 天然守不住 `.k-btn.text` 被重复搬(`text` 不在它的正则里)—— 改用「.k-btn 作用域内
-  // &.text 恰好出现 2 次(规则 + hover)」的计数断言。🔴 brief §3-2 / T0 复审指出:必须
-  // 锚定在 `.k-btn { … }` 区间内,不能对全文裸计数(全文计数在别处合法出现 `&.text` 时
-  // 会误红,P5e 若在别处重复搬又会漏判)——手法照本档 K10 守 `.k-confirm-*` 的做法:
-  // 先用花括号配对定位 `.k-btn { … }` 声明块(比 declBlockRange 的"下一个 \n}"更严,
-  // 因为 .k-btn 块内有嵌套的 &.xxx { … } 规则,不能假设第一个 \n} 就是块尾),再只在
-  // 区间内计数。
+  // [P5d-T2 · K45 deployment DoD (decision R1-②, Appendix D §D.4.1)] "No over-moving" whitelist
+  // set assertion can't naturally catch `.k-btn.text` being moved twice (`text` not in its regex) —
+  // switch to count assertion "`.k-btn` scope &.text appears exactly 2 times (rule + hover)".
+  // 🔴 Brief §3-2 / T0 re-review noted: must anchor in `.k-btn { … }` range, can't bare-count entire file
+  // (entire-file count falsely reds when `&.text` legally appears elsewhere, P5e falsely misses if moved
+  // elsewhere again) — method per this file's K10 guarding `.k-confirm-*`: use brace pairing to locate
+  // `.k-btn { … }` block (stricter than declBlockRange's "next \n}", because .k-btn block has nested
+  // &.xxx { … } rules, can't assume first \n} is block end), count only in range.
   function findKBtnBlockRange(text: string): [number, number] {
     const lines = text.split('\n')
     let acc = 0
@@ -534,7 +555,7 @@ describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-
       }
       acc += lines[i].length + 1
     }
-    expect(startLine, '找不到 .k-btn 声明块(行首行尾锚定,trim 后须恰为 ".k-btn {")').toBeGreaterThanOrEqual(0)
+    expect(startLine, 'Can\'t find .k-btn block (line-start-end anchor, after trim must be exactly ".k-btn {")').toBeGreaterThanOrEqual(0)
     const braceAt = text.indexOf('{', acc)
     let depth = 0
     let i = braceAt
@@ -551,94 +572,98 @@ describe('knowledge.scss —— 附录 D 白名单落地(425 个,R1 + T11 + P5b-
     return [acc, i]
   }
 
-  // 【P5e-T2 · M-4 —— 只改用例名,不动断言(治理 §8.2 的 M-4 交接项)】原用例名写
-  // 「&.text **只在** .k-btn{…} 作用域内出现,恰好 2 次」,比断言实际做的事**宽**:
-  // 断言只在 `.k-btn { … }` 区间内计数,对区间**之外**是否还有 `&.text` 一无所知
-  // (真要守「只在」,得再加一条全文计数 - 区间内计数 === 0 的断言)。改成如实描述
-  // 「在 .k-btn{…} 区间内恰好 2 次」。🔴 断言体一行未动 —— 这是 §9.10 的口径:
-  // 不为了让用例名好看去改断言,也不留一个过度声明的名字骗评审。
-  it('K45 —— .k-btn{…} 区间内 &.text 恰好 2 次(规则+hover;重复搬即报红,brief §3-2 / R1-②)', () => {
+  // [P5e-T2 · M-4 — Only change test name, don't touch assertion (governance §8.2's M-4 handoff)]
+  // Original test name said "&.text **only in** .k-btn{…} scope appears, exactly 2 times",
+  // **broader** than what assertion actually does: assertion counts only in `.k-btn { … }` range,
+  // knows nothing about whether `&.text` exists **outside** (really guarding "only in" needs another
+  // assertion: entire-count - in-range-count === 0). Changed to faithfully describe "exactly 2 times
+  // in .k-btn{…} range". 🔴 Assertion body unchanged — this is §9.10 stance: don't change assertion
+  // to make test name look nice, don't leave overstated name to fool reviewers.
+  it('K45 — In .k-btn{…} range &.text exactly 2 times (rule+hover; move twice = red, brief §3-2 / R1-②)', () => {
     const [start, end] = findKBtnBlockRange(css)
     const body = css.slice(start, end)
     const hits = body.match(/&\.text\b/g) || []
-    expect(hits.length, `.k-btn 块内 &.text 出现 ${hits.length} 次(应为 2;≠2 说明 K45 重复搬或漏搬)`).toBe(2)
+    expect(hits.length, `.k-btn block &.text appears ${hits.length} times (should be 2; ≠2 means K45 moved twice or missed)`).toBe(2)
   })
 })
 
 // ============================================================================
-// P5e-T2 新增守卫(附录 D §D.3 / §D.4 / K46 / K47)
+// P5e-T2 new guards (Appendix D §D.3 / §D.4 / K46 / K47)
 // ============================================================================
 
-// 蓝本死代码类的完整清单(逐字抄自 p5-master-plan.md §2.2 / 附录 D §D.3)。
-// 这 24 个类在**蓝本自己**的 13 个 .vue 里零 class 引用,是 v1 仪表盘 / v1 进度卡被
-// k2-* Dashboard v2 取代后留下的遗迹。P5a 正确地没搬,P5e 也不许搬。
+// Complete list of blueprint dead-code classes (copied verbatim from p5-master-plan.md §2.2 / Appendix D §D.3).
+// These 24 classes have zero class references in blueprint's own 13 .vue files, remains after v1 dashboard / v1
+// progress card replaced by k2-* Dashboard v2. P5a correctly didn't move, P5e also must not move.
 const BLUEPRINT_DEAD_CLASSES = [
-  // 蓝本 :272-349(7)
+  // Blueprint :272-349(7)
   'k-hero', 'k-hero-orb', 'k-hero-title', 'k-hero-sub',
   'k-hero-search', 'k-hero-search-go', 'k-hero-search-kbd',
-  // 蓝本 :380-411(5)
+  // Blueprint :380-411(5)
   'k-stat', 'k-stat-label', 'k-stat-value', 'k-stat-suffix', 'k-stat-cn',
-  // 蓝本 :413-455(6)
+  // Blueprint :413-455(6)
   'k-quick-grid', 'k-quick-card', 'k-quick-icon',
   'k-quick-card-title', 'k-quick-card-en', 'k-quick-card-desc',
-  // 蓝本 :1152-1160(6)
+  // Blueprint :1152-1160(6)
   'k-progress-card', 'k-progress-row', 'k-progress-label',
   'k-progress-nums', 'k-progress-bar', 'k-progress-fill',
 ]
 
-describe('knowledge.scss —— 附录 D §D.3:24 个蓝本死代码类一个都没被搬进来(P5e-T2 新建)', () => {
-  // 🔴 为什么这条断言必须存在:P5e 要搬的 .k-hero-suggest(蓝本 :351)与 .k-suggest-chip
-  // (:357)**紧夹在 .k-hero-search-kbd(:343)与 .k-stat(:380)中间** ⇒ 「整段搬
-  // :272-455」会一次带进 **18** 个死类。上面「没有搬多」那条白名单断言会报红,而实现者
-  // 极可能误判成「白名单数字错了」去改白名单 —— 这条断言把话说清楚:报红先回查死类清单。
+describe('knowledge.scss — Appendix D §D.3: All 24 blueprint dead-code classes not moved in (P5e-T2 new)', () => {
+  // 🔴 Why this assertion must exist: P5e's .k-hero-suggest (blueprint :351) and .k-suggest-chip (:357)
+  // **sandwiched between .k-hero-search-kbd (:343) and .k-stat (:380)** ⇒ "move entire :272-455"
+  // would at once bring in **18** dead classes. Above "no over-moving" whitelist assertion would turn red,
+  // implementer very likely misdiagnose as "whitelist number wrong" and modify whitelist — this assertion
+  // makes it clear: turn red, first check dead class list.
   //
-  // 🔴 判据口径:`(?![\w-])` 负向前瞻,**不许用 `\b`** —— `\b` 在字母↔连字符的过渡处
-  // 同样成立,`/\.k-hero\b/` 会被完全合法的 `.k-hero-suggest`(本刀真要搬的类)**假命中**
-  // (E-25 的坑,协调者规划时栽过一次)。这也是本条与「白名单」那条共用同一手法的原因。
+  // 🔴 Verification criterion: `(?![\w-])` negative lookahead, **can't use `\b`** — `\b` also applies at
+  // letter↔hyphen transition, `/\.k-hero\b/` would falsely match perfectly legal `.k-hero-suggest`
+  // (true class this task needs to move) (E-25 pitfall, coordinator fell into once during planning).
+  // This is also why this and "whitelist" use the same technique.
   //
-  // 🔴 跑在**剥注释后**的 `css` 上:附录 D §D.3 给的复现命令是对**原始文本**裸 grep,
-  // 它在 T2 之前的基线上就已经有 2 处假阳性(k-quick-grid / k-progress-card,来自
-  // knowledge.scss :61 / :1318 / :1605 三条既有注释里带前导点的类名引用)——
-  // 那条命令**不是**权威判据,本断言是。详见 T2 报告的勘误一节。
-  it('24 个死类在 knowledge.scss(剥注释后)零出现', () => {
+  // 🔴 Runs on **comment-stripped** `css`: Appendix D §D.3's reproduction command is bare grep on
+  // **raw text**, it already had 2 false positives before T2 baseline (k-quick-grid / k-progress-card, from
+  // knowledge.scss :61 / :1318 / :1605 three existing comments with class-name references before dot) —
+  // that command **isn't** authoritative, this assertion is. See T2 report's errata section.
+  it('24 dead classes zero appearances in knowledge.scss (after stripping comments)', () => {
     const leaked = BLUEPRINT_DEAD_CLASSES.filter((c) => new RegExp(`\\.${c}(?![\\w-])`).test(css))
     expect(
       leaked,
-      `蓝本死代码类被搬进来了:${leaked.join(', ')} —— 🔴 先回查附录 D §D.3 的清单,` +
-        '**不许改白名单**(那 24 个类在蓝本自己的 13 个 .vue 里零引用,P5a 正确地没搬)',
+      `Blueprint dead-code classes moved in: ${leaked.join(', ')} — 🔴 First check Appendix D §D.3 list, ` +
+        '**don\'t modify whitelist** (those 24 classes have zero references in blueprint\'s own 13 .vue, P5a correctly didn\'t move)',
     ).toEqual([])
   })
 
-  // 清单不许当垃圾桶 / 不许被悄悄缩短(同本档其它「例外清单恰好 N 项」的口径)
-  it('死类清单恰好 24 项(7 + 5 + 6 + 6),无重复', () => {
+  // List can't be trash bin / can't be silently shrunk (same criterion as other "exception list exactly N items")
+  it('Dead class list exactly 24 items (7 + 5 + 6 + 6), no duplicates', () => {
     expect(BLUEPRINT_DEAD_CLASSES).toHaveLength(24)
-    expect(new Set(BLUEPRINT_DEAD_CLASSES).size, '死类清单里有重复项').toBe(24)
+    expect(new Set(BLUEPRINT_DEAD_CLASSES).size, 'Dead class list has duplicates').toBe(24)
   })
 
-  // 🔴 参数化守卫防空循环(治理 §9.14-4):24 条独立用例真在跑,不是「清单读失败 → 循环
-  // 体一次没执行 → 全绿」。用 --reporter=verbose 能数到 24 条。
+  // 🔴 Parameterized guard prevents empty loop (governance §9.14-4): 24 independent test cases really running,
+  // not "list read failed → loop body never executes → all green". --reporter=verbose can count 24.
   for (const cls of BLUEPRINT_DEAD_CLASSES) {
-    it(`死类 ${cls} 零出现`, () => {
-      expect(new RegExp(`\\.${cls}(?![\\w-])`).test(css), `${cls} 被搬进来了`).toBe(false)
+    it(`Dead class ${cls} zero appearances`, () => {
+      expect(new RegExp(`\\.${cls}(?![\\w-])`).test(css), `${cls} was moved in`).toBe(false)
     })
   }
 })
 
-// 在**保行版**文本里按「整行 trim 后恰等于给定串」定位行号。行首/整行锚定,天然排除
-// 注释里的同名引用(注释已被 blankComments 换成等量空格,连内容都不在了)。
-// 手法同本档 findKBtnBlockRange 的「trim 后精确匹配」口径,不是子串搜索(承本档四次
-// 「子串检查抓不住真实缺陷」的教训)。
+// In **line-preserving** text, locate line number by "entire line after trim exactly equals given string".
+// Line-start/entire-line anchor naturally excludes same-name references in comments
+// (comments already replaced with equal spaces by blankComments, content gone).
+// Method same as this file's findKBtnBlockRange "exact match after trim" criterion, not substring search
+// (bearing lessons from four "substring check can't catch real defects" here).
 function lineIndexOfExact(text: string, trimmedLine: string): number {
   const lines = text.split('\n')
   for (let i = 0; i < lines.length; i++) if (lines[i].trim() === trimmedLine) return i
   return -1
 }
 
-// 在保行版文本里定位「trim 后恰等于 selectorLine 的那一行」开始的嵌套规则块,用大括号
-// 配对找块尾(不能假设「下一个 \n}」—— 那只对零缩进的顶层块成立)。
+// In line-preserving text, locate nested rule block starting from "line after trim exactly equals selectorLine",
+// use brace pairing to find block end (can't assume "next \n}" — that only works for zero-indent top-level blocks).
 function nestedBlockBody(text: string, selectorLine: string): string {
   const at = lineIndexOfExact(text, selectorLine)
-  expect(at, `找不到规则块 ${selectorLine}(整行 trim 精确匹配,已排除注释里的同名引用)`).toBeGreaterThanOrEqual(0)
+  expect(at, `Can't find rule block ${selectorLine} (entire-line trim exact match, excluded same-name in comments)`).toBeGreaterThanOrEqual(0)
   const lines = text.split('\n')
   let offset = 0
   for (let i = 0; i < at; i++) offset += lines[i].length + 1
@@ -655,12 +680,12 @@ function nestedBlockBody(text: string, selectorLine: string): string {
   return text.slice(offset, i)
 }
 
-describe('knowledge.scss —— E-52:.k-suggest-chip 基类必须在 k2 后代覆盖之前(P5e-T2 新建)', () => {
-  // 【事实】P5a 只搬了蓝本 :2291 的后代覆盖(本档 Dashboard v2 段的
-  // `.k2-suggest .k-suggest-chip { white-space: nowrap; }`),**基类整条漏搬** = 勘误 E-52;
-  // 而蓝本 DashboardView.vue:292 与 SearchView 都在用它 ⇒ P5a 已交付的仪表盘建议 chip
-  // 一直跑在「只有一条 white-space、零基类样式」上(圆角/内距/边框/底色/hover 全缺)
-  // = **已交付产出里的真实视觉缺陷**,本刀补基类。
+describe('knowledge.scss — E-52: .k-suggest-chip base class must be before k2 descendant override (P5e-T2 new)', () => {
+  // [Fact] P5a only moved descendant override from blueprint :2291 (this file's Dashboard v2 segment
+  // `.k2-suggest .k-suggest-chip { white-space: nowrap; }`), **base class entirely missed** = errata E-52;
+  // and blueprint DashboardView.vue:292 and SearchView both use it ⇒ P5a-delivered dashboard suggestion chips
+  // always ran on "just one white-space, zero base class styles" (rounding/padding/borders/color/hover all missing)
+  // = **true visual defect in delivered product**, this task adds base class.
   //
   // 🔴🔴 **本断言钉的是「蓝本源序的移植忠实性」,不是「防级联反掉」**(裁定 R7 / 勘误 E-56):
   //   · 基类 `.knowledge-app .k-suggest-chip` 特异度 (0,2,0),声明 padding/background/

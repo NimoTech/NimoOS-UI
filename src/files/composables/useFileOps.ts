@@ -18,8 +18,9 @@ import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { blockedBySnapshotView } from '../util/snapshotRestore'
 
 function errMsg(e: unknown, fallback: string): string {
-  // detail → response.data.data → message 的取值顺序与目录列表报错一致;后端把
-  // 意外 errno(如 ENAMETOOLONG)映射成字面 "Fail",无信息量,落回本地文案。
+  // Priority order (detail → response.data.data → message) matches directory list error handling;
+  // backend maps unexpected errno (like ENAMETOOLONG) to literal "Fail" (uninformative),
+  // so fall back to local copy.
   const m = folderListErrorMsg(e)
   return !m || m === 'Fail' ? fallback : m
 }
@@ -32,9 +33,10 @@ export function useFileOps() {
   const clipboard = useClipboardStore()
   const browse = useSnapshotBrowseStore()
 
-  // 只读快照兜底拦截(第二道防线)。第一道是 Files.vue / FileContextMenu.vue 里把写入
-  // 入口整个移除;这里挡的是拖拽投放、快捷键等绕过 UI 的路径 —— 让请求打到只读 btrfs 上
-  // 只会换回一句原始文件系统报错,对用户毫无意义。
+  // Read-only snapshot fallback block (second line of defense). First line removes
+  // write entry points entirely in Files.vue / FileContextMenu.vue. This blocks
+  // paths that bypass the UI (drag-drop, keyboard shortcuts) — letting requests hit
+  // read-only btrfs would only return raw filesystem error, meaningless to the user.
   function blockedInSnapshot(): boolean {
     return blockedBySnapshotView(browse.isSnapshotView, (m) => toast.show(m), t('snapBrowseWriteBlocked'))
   }
@@ -218,12 +220,13 @@ export function useFileOps() {
   async function download(entries: FileEntry[]) {
     if (!entries.length) return
     toast.show(t('filesDownloadPreparing'))
-    // 过期预刷新:iframe 下载 fire-and-forget 无法反应式重试,过期须先刷 token(唯一修法)。
-    const raw = localStorage.getItem('expires_at') // 后端下发 unix 秒
+    // Preemptive refresh on expiry: iframe downloads are fire-and-forget and can't
+    // reactively retry. If token expires, must refresh first (only way to fix it).
+    const raw = localStorage.getItem('expires_at') // backend-issued unix seconds
     const expiresAt = raw != null && raw !== '' ? Number(raw) : null
     if (shouldRefreshBeforeDownload(expiresAt, Date.now())) {
       try { await refreshAccessToken() }
-      catch { return } // 刷新失败:共享包已 onAuthFail→/#/login,不发起下载
+      catch { return } // refresh failed: shared package already did onAuthFail → /#/login, don't start download
     }
     const plan = planDownload(entries)
     const url = plan.kind === 'file' ? service.file.fileUrl(plan.path) : service.batch.batchUrl(plan.files)

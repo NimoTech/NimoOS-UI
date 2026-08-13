@@ -5,10 +5,10 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 6 —— 承接 Vue2 sections/__tests__/MemorySection.spec.js(13 例,借
-// `MemorySection.methods.load.call(ctx)` 直调 methods)。`<script setup>` 没有
-// methods 对象可借,这里改成挂载组件 + spy service,断言内容逐条保留,只换驱动方式。
-// 对照表见 .superpowers/sdd/p2b-task-6-report.md。
+// SP8-P2b Task 6 — follows Vue2 sections/__tests__/MemorySection.spec.js (13 cases, using
+// `MemorySection.methods.load.call(ctx)` to directly call methods). `<script setup>` has no
+// methods object to borrow, so here we mount component + spy service, keep assertion content
+// as-is, just change the driving approach. Reference table in .superpowers/sdd/p2b-task-6-report.md.
 
 const h = vi.hoisted(() => ({
   getMemorySettings: vi.fn(),
@@ -45,7 +45,7 @@ describe('MemorySection', () => {
   })
 
   // 1. load() fills settings + memories
-  it('load() 用后端数据填充设置与记忆列表', async () => {
+  it('load() populates settings and memory list with backend data', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false })
     h.listUserMemory.mockResolvedValue([
       { id: 'a', kind: 'fact', text: 'x', source: 'auto', priority: 0, recall_count: 2, updated_at: 1 },
@@ -58,7 +58,7 @@ describe('MemorySection', () => {
   })
 
   // 2. load() fills compaction_enabled and context_window
-  it('load() 填充 compaction_enabled 与 context_window', async () => {
+  it('load() populates compaction_enabled and context_window', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: true, context_window: 8192 })
     h.listUserMemory.mockResolvedValue([])
     const w = mountSection()
@@ -70,7 +70,7 @@ describe('MemorySection', () => {
   })
 
   // 3. load() … false + empty when absent
-  it('load() 缺 compaction_enabled/context_window 时归一为关闭/空串', async () => {
+  it('load() missing compaction_enabled/context_window normalizes to off/empty string', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([])
     const w = mountSection()
@@ -82,7 +82,7 @@ describe('MemorySection', () => {
   })
 
   // 4. load() sets error on failure
-  it('load() 失败时显示「加载记忆失败。」且无 loading', async () => {
+  it('load() failure shows "load memory failed." with no loading', async () => {
     h.getMemorySettings.mockRejectedValue(new Error('boom'))
     const w = mountSection()
     await flush()
@@ -90,7 +90,7 @@ describe('MemorySection', () => {
   })
 
   // 5. remove() deletes and drops the item
-  it('remove() 调 deleteUserMemory 并从列表移除该行', async () => {
+  it('remove() calls deleteUserMemory and removes that row from list', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([
       { id: 'a', kind: 'fact', text: 'x', source: 'auto' },
@@ -107,7 +107,7 @@ describe('MemorySection', () => {
   })
 
   // 6. remove() keeps the item on failure
-  it('remove() 失败时保留该行', async () => {
+  it('remove() failure keeps that row', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
     h.deleteUserMemory.mockRejectedValue(new Error('boom'))
@@ -119,24 +119,24 @@ describe('MemorySection', () => {
   })
 
   // 19. remove failure also toasts danger (new behavior, Vue2 was silent)
-  it('remove() 失败弹 danger toast（逻辑修正,Vue2 注释里只保留条目不提示）', async () => {
+  it('remove() failure shows danger toast (logic fix, Vue2 comment only kept item without notification)', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
-    h.deleteUserMemory.mockRejectedValue({ response: { data: { message: '删不掉' } } })
+    h.deleteUserMemory.mockRejectedValue({ response: { data: { message: 'cannot delete' } } })
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
     const w = mountSection()
     await flush()
     await w.find('.mem-del').trigger('click')
     await flush()
-    expect(show).toHaveBeenCalledWith('删不掉', 3000, 'danger')
+    expect(show).toHaveBeenCalledWith('cannot delete', 3000, 'danger')
   })
 
   // final review Fix 2 — pin the no-message fallback so it can't silently drift back to
-  // t('aiCfgSaveFailed')「保存失败」(this is a delete path, not a save path): must be
-  // t('aiCfgDeleteFailed')「删除失败」, matching McpTokensSection.vue:146 /
+  // t('aiCfgSaveFailed') "save failed" (this is a delete path, not a save path): must be
+  // t('aiCfgDeleteFailed') "delete failed", matching McpTokensSection.vue:146 /
   // ChannelsSection.vue:223,276.
-  it('remove() 失败且后端无 message 时兜底「删除失败」（而非「保存失败」）', async () => {
+  it('remove() failure with no backend message uses fallback "delete failed" (not "save failed")', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([{ id: 'a', kind: 'fact', text: 'x', source: 'auto' }])
     h.deleteUserMemory.mockRejectedValue({})
@@ -150,7 +150,7 @@ describe('MemorySection', () => {
   })
 
   // 7. saveEnabled() reverts the toggle on failure
-  it('saveEnabled() 失败时把开关翻回去', async () => {
+  it('saveEnabled() failure reverts the toggle', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockRejectedValue(new Error('boom'))
@@ -163,21 +163,21 @@ describe('MemorySection', () => {
   })
 
   // 16. saveEnabled failure also toasts danger
-  it('saveEnabled() 失败弹 danger toast（逻辑修正,Vue2 静默回滚）', async () => {
+  it('saveEnabled() failure shows danger toast (logic fix, Vue2 silently reverted)', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false })
     h.listUserMemory.mockResolvedValue([])
-    h.putMemorySettings.mockRejectedValue({ response: { data: { message: '存不上' } } })
+    h.putMemorySettings.mockRejectedValue({ response: { data: { message: 'cannot save' } } })
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
     const w = mountSection()
     await flush()
     await w.find('.sw').trigger('click')
     await flush()
-    expect(show).toHaveBeenCalledWith('存不上', 3000, 'danger')
+    expect(show).toHaveBeenCalledWith('cannot save', 3000, 'danger')
   })
 
-  // 8. saveEnabled() calls put… with 三个字段
-  it('saveEnabled() 调 putMemorySettings 时三个字段齐全', async () => {
+  // 8. saveEnabled() calls put... with three fields
+  it('saveEnabled() calls putMemorySettings with all three fields complete', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false, compaction_enabled: true, context_window: 4096 })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -190,8 +190,8 @@ describe('MemorySection', () => {
     )
   })
 
-  // 9. saveCompaction() … compaction_enabled in payload
-  it('saveCompaction() 调 putMemorySettings 时 payload 含 compaction_enabled 与 context_window:null', async () => {
+  // 9. saveCompaction() ... compaction_enabled in payload
+  it('saveCompaction() calls putMemorySettings with payload containing compaction_enabled and context_window:null', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -206,7 +206,7 @@ describe('MemorySection', () => {
   })
 
   // 10. saveCompaction() reverts on failure
-  it('saveCompaction() 失败时把压缩开关翻回去', async () => {
+  it('saveCompaction() failure reverts the compaction toggle', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockRejectedValue(new Error('boom'))
@@ -219,7 +219,7 @@ describe('MemorySection', () => {
   })
 
   // 17. saveCompaction failure also toasts danger
-  it('saveCompaction() 失败弹 danger toast', async () => {
+  it('saveCompaction() failure shows danger toast', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, compaction_enabled: false })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockRejectedValue({})
@@ -233,8 +233,8 @@ describe('MemorySection', () => {
     expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
   })
 
-  // 11. saveContextWindow() … as number
-  it('saveContextWindow() 把输入值当数字发送', async () => {
+  // 11. saveContextWindow() ... as number
+  it('saveContextWindow() sends input value as number', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -248,7 +248,7 @@ describe('MemorySection', () => {
   })
 
   // 12. saveContextWindow() sends null when blank
-  it('saveContextWindow() 留空时发送 context_window:null', async () => {
+  it('saveContextWindow() sends context_window:null when left empty', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 8192 })
     h.listUserMemory.mockResolvedValue([])
     h.putMemorySettings.mockResolvedValue({})
@@ -262,7 +262,7 @@ describe('MemorySection', () => {
   })
 
   // 13. saveContextWindow() reverts to previous on failure (snapshot before await)
-  it('saveContextWindow() 失败时回到发请求前的快照值(而不是当前值)', async () => {
+  it('saveContextWindow() failure reverts to snapshot value before request (not current value)', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 4096 })
     h.listUserMemory.mockResolvedValue([])
     const w = mountSection()
@@ -287,21 +287,21 @@ describe('MemorySection', () => {
   })
 
   // 18. saveContextWindow failure also toasts danger
-  it('saveContextWindow() 失败弹 danger toast', async () => {
+  it('saveContextWindow() failure shows danger toast', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true, context_window: 4096 })
     h.listUserMemory.mockResolvedValue([])
-    h.putMemorySettings.mockRejectedValue({ response: { data: { message: '窗口非法' } } })
+    h.putMemorySettings.mockRejectedValue({ response: { data: { message: 'invalid window' } } })
     const toast = useToast()
     const show = vi.spyOn(toast, 'show')
     const w = mountSection()
     await flush()
     await w.find('.set-input.num').setValue('8192')
     await flush()
-    expect(show).toHaveBeenCalledWith('窗口非法', 3000, 'danger')
+    expect(show).toHaveBeenCalledWith('invalid window', 3000, 'danger')
   })
 
   // 15. off banner shown when disabled, hidden when enabled
-  it('记忆关闭时显示警告条,开启时不显示', async () => {
+  it('Memory disabled shows warning banner, enabled hides it', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: false })
     h.listUserMemory.mockResolvedValue([])
     const w = mountSection()
@@ -312,7 +312,7 @@ describe('MemorySection', () => {
     )
   })
 
-  it('记忆开启时不显示警告条（对照组）', async () => {
+  it('Memory enabled hides warning banner (control group)', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([])
     const w = mountSection()
@@ -321,7 +321,7 @@ describe('MemorySection', () => {
   })
 
   // 20. localized tags: kind, source, recall count (+ recall_count missing -> 0)
-  it('记忆条目的三个标签正确本地化,recall_count 缺失按 0 渲染', async () => {
+  it('Memory entry three tags correctly localized, recall_count missing renders as 0', async () => {
     h.getMemorySettings.mockResolvedValue({ enabled: true })
     h.listUserMemory.mockResolvedValue([
       { id: 'a', kind: 'preference', text: 'x', source: 'auto', recall_count: 3 },

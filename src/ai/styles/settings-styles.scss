@@ -1,18 +1,17 @@
-// ===== Nimo AI 设置区样式 =====
-// SP8-P2a Task 2 —— 1:1 整档移植自 Vue2
-// `src/views/AI/Settings/settings-styles.scss`(316 行)。
+// ===== Nimo AI Settings Section Styles =====
+// SP8-P2a Task 2 — 1:1 file-level port from Vue2
+// `src/views/AI/Settings/settings-styles.scss` (316 lines).
 //
-// 【token 基座】Vue2 在 `.set-app` 上挂 :data-theme 并由它自己那份 tokens.scss
-// 提供 token。本仓的 `src/ai/styles/tokens.scss` 只在 `.agent-app` 作用域定义
-// token,因此 SettingsPage.vue 的根元素同时带 `.agent-app` 与 `.set-app` 两个
-// class,token 由 `.agent-app` 提供、明暗由根元素的 data-theme 切换。本档不
-// 重复定义任何 token。
+// [Token base] Vue2 hangs :data-theme on `.set-app` and provides tokens via its own tokens.scss.
+// This repo's `src/ai/styles/tokens.scss` defines tokens only in `.agent-app` scope; thus
+// SettingsPage.vue root has both `.agent-app` and `.set-app` classes; tokens come from `.agent-app`,
+// light/dark switches via root's data-theme attribute. This file does not redefine any tokens.
 //
-// 【裸色例外登记】本档沿用 Vue2 原始色值(约 20 处半透明字面量,多为
-// --success / --danger / --accent / --warning / --purple 的透明变体),与
-// `agent-styles.scss` 同属「整档 1:1 移植件」这一类例外,理由见
-// tokens.scss 头部的例外清单。**不许再往本档塞新裸色**;新写的 .vue 组件
-// <style> 块仍受 color-guard 全额约束。
+// [Bare color exception registration] This file retains Vue2's original color values (~ 20
+// semi-transparent literals, mostly --success / --danger / --accent / --warning / --purple transparency
+// variants); same "1:1 file-level portage exception" category as `agent-styles.scss`; rationale in exception
+// list at head of tokens.scss. **No new bare colors may be added to this file**; new .vue component
+// <style> blocks remain under full color-guard constraint.
 
 .set-app {
   display: grid;
@@ -179,46 +178,44 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .px-status .k { color: var(--text-secondary); }
 .px-status .state { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; color: var(--text-primary); }
 .px-status .state .d { width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px rgba(52,199,89,0.18); }
-// 【申报级偏离 Vue2 视觉 1:1,用户 2026-07-30 拍板】Vue2 settings-styles.scss:168 是
-// `color: var(--accent)` + `background: var(--accent-softer)` 的极浅按钮,浅色主题下
-// 用户「看不出有按钮」。改为实底强调色 + 白字(--text-on-accent 只在 accent 实底上可用,
-// 这里正是实底)。hover 走既有的 --accent-hover,两套主题都有值。
-// 详见 ObservabilitySection.vue 该按钮处的注释与 settingsStyles.test.ts 的钉桩用例。
+// [Declared deviation from Vue2 visual 1:1; user decided 2026-07-30] Vue2 settings-styles.scss:168 is
+// ultra-light button with `color: var(--accent)` + `background: var(--accent-softer)`; in light theme users
+// "cannot see there is a button". Changed to solid accent bg + white text (--text-on-accent only works on solid
+// accent bg, which is this case). Hover uses existing --accent-hover, has values in both themes.
+// See comment at button in ObservabilitySection.vue and pinned test case in settingsStyles.test.ts.
 .px-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--text-on-accent); padding: 6px 12px; border-radius: var(--r-sm); background: var(--accent); cursor: pointer; border: 0; }
 .px-open:hover { background: var(--accent-hover); }
-// SP8-P2b Task 8 —— Task 2 整档移植时把 Vue2 ObservabilitySection.vue:208-211 的
-// scoped `<style>`(`.status` / `.status.err`,installing/error 行内提示)漏收
-// 了(同 SetSwitch.vue 头注释记的 sk-shared.scss 漏收是同一类疏漏)。这里补上,
-// 但改名为 `.px-msg`——Vue2 那条是 `scoped`,裸 `.status` 出不了组件;这里是全局
-// 共享档,裸 `.status` 太容易和别处撞名,加 `px-` 前缀避免污染,视觉与选择器结构
-// 不变(仅改名,非视觉改动)。Vue2 原值 `color: var(--danger, #d33)` 的裸色 fallback
-// 按本仓约定去掉,只留 token。
+// SP8-P2b Task 8 — during Task 2 file-level port, missed Vue2 ObservabilitySection.vue:208-211 scoped
+// `<style>` (`.status` / `.status.err`, installing/error inline hints) (same type of omission as
+// sk-shared.scss mentioned in SetSwitch.vue header comment). Adding here, but renamed to `.px-msg` —
+// Vue2's was `scoped`, bare `.status` wouldn't escape component; here is global shared file; bare `.status`
+// too easily collides elsewhere, added `px-` prefix to avoid pollution; visual and selector structure
+// unchanged (name-only change, not visual change). Vue2's original `color: var(--danger, #d33)` bare-color
+// fallback stripped per this repo convention; only token remains.
 .px-msg { font-size: 13px; color: var(--text-secondary); margin: 8px 18px; }
 .px-msg.err { color: var(--danger); }
 
-// SP8-P2b Task 10 review fix —— McpTokensSection.vue 组件走「零 <style> 块」惯例,
-// 但 Vue2 McpTokensSection.vue:245/246(scoped)确实给 `.mcp-label`/`.mcp-reveal-warn`
-// 定了样(`.mcp-x` 那条已被 SkModal 的 `.sk-x` 收编,不用再补)。漏收会让明文弹窗里的
-// 两处说明标签与警示文案渲染成无样式默认字体/黑色文字 —— 未申报的 1:1 视觉回归,
-// 评审发现后在这里补上,同 Task 8 `.px-msg` 的先例:放进全局设置样式档而不是给组件
-// 补 <style> 块(**范围扩张,已申报**:这是本文件第二次因为「组件零 <style> 惯例」把
-// Vue2 scoped 样式挪到这个全局档)。`mcp-` 前缀已避开撞名,类名原样保留、未改名
-// (与 `.px-msg` 那次不同,`.px-msg` 当时是因为 Vue2 裸 `.status` 太容易撞名才改名,
-// 这里 Vue2 本来就是 `mcp-` 前缀,不用再改)。值逐字保留,Vue2 两条都已经是纯 token
-// (`var(--text-secondary)`/`var(--danger)`),无需摘掉裸色 fallback。
+// SP8-P2b Task 10 review fix — McpTokensSection.vue component follows zero-<style> convention, but Vue2
+// McpTokensSection.vue:245/246 (scoped) does define `.mcp-label`/`.mcp-reveal-warn` styles (`.mcp-x` already
+// adopted by SkModal's `.sk-x`, no need to supplement). Missing these would render explanation labels and
+// warning text in plaintext modal as unstyled default font/black text — undeclared 1:1 visual regression;
+// added here after review discovered it; follows Task 8 `.px-msg` precedent: placed in global settings style
+// file rather than add <style> block to component (**scope expansion, declared**: this is second time this
+// file moves Vue2 scoped styles here due to component zero-<style> convention). `mcp-` prefix already avoids
+// collision; class names preserved as-is, not renamed (unlike `.px-msg` case where Vue2's bare `.status` was
+// too easy to collide so it was renamed; here Vue2 already had `mcp-` prefix, no rename needed). Values
+// preserved verbatim; Vue2 both lines already pure tokens (`var(--text-secondary)`/`var(--danger)`),
+// no bare-color fallback to strip.
 .mcp-label { display: block; margin: 0; color: var(--text-secondary); font-size: 13px; }
 .mcp-reveal-warn { color: var(--danger); font-size: 13px; line-height: 1.5; margin: 0; }
 
-// SP8-P2b Task 12 —— ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410,
-// scoped <style>). Brief Step 3 literally said to keep these rules in the
-// component's own <style scoped>, but the phase-wide convention (constraints §4,
-// already applied twice above for .px-msg / .mcp-label+.mcp-reveal-warn) is a
-// zero-<style> component; per constraints §0 the constraints doc overrides a
-// brief written before reconciliation. Deviation declared here + in the
-// component header. `.chan-x`/`.chan-x:hover` (close button) are intentionally
-// NOT ported — folded into SkModal's own `.sk-x` (same precedent as `.mcp-x`).
-// Values kept verbatim: Vue2's rules were already token-only (var(--...)),
-// nothing to strip.
+// SP8-P2b Task 12 — ChannelsSection.vue (Vue2 sections/ChannelsSection.vue:387-410, scoped <style>).
+// Brief Step 3 literally said keep these rules in component's own <style scoped>, but phase-wide convention
+// (constraints §4, already applied twice above for .px-msg / .mcp-label+.mcp-reveal-warn) is zero-<style>
+// component; per constraints §0 the constraints doc overrides a brief written before reconciliation.
+// Deviation declared here + in component header. `.chan-x`/`.chan-x:hover` (close button) intentionally
+// NOT ported — folded into SkModal's own `.sk-x` (same precedent as `.mcp-x`). Values kept verbatim:
+// Vue2's rules already token-only (var(...)); nothing to strip.
 .chan-bot { color: var(--text-tertiary); margin-left: 6px; }
 .chan-model-lbl { color: var(--text-secondary); }
 .chan-switch { display: inline-flex; align-items: center; gap: 6px; margin: 0 12px; font-size: 13px; color: var(--text-secondary); }
@@ -228,9 +225,9 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
 .chan-type-opt { padding: 7px 14px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--bg-canvas); color: var(--text-secondary); font-size: 13px; cursor: pointer; transition: all 120ms ease; }
 .chan-type-opt[data-active="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-softer); }
 .chan-field-hint { margin: 6px 0 0; font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
-// 【申报级偏离 Vue2 1:1,用户 2026-07-30 拍板】添加机器人失败的行内报错,取代 Vue2 的
-// danger toast。渲染在 token <input> 之前,故 margin 收在下方。字号/行高对齐同字段的
-// .chan-field-hint,只把颜色换成 --danger(两套主题都有值)。
+// [Declared deviation from Vue2 1:1; user decided 2026-07-30] Add-bot failure inline error, replacing
+// Vue2's danger toast. Rendered before token <input>, so margin on bottom. Font size/line height match
+// field's .chan-field-hint; only color changed to --danger (has values in both themes).
 .chan-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
 .chan-invite { margin-left: 10px; font-size: 12.5px; color: var(--accent); }
 
@@ -352,9 +349,9 @@ textarea.set-input.code { font-family: var(--font-mono); font-size: 12px; line-h
     &:hover { background: var(--bg-chip); color: var(--text-primary); }
   }
 
-  // Vue2 原注释说这是为了压制 Bulma 全局 `code` 样式(白底红字,暗色下露白框)。
-  // 本仓没有 Bulma,那个动机不存在;规则仍保留,因为它给 <code> 一个与设计
-  // 体系一致的外观,删掉会让将来任何 <code> 用浏览器默认样式裸奔。
+  // Vue2 original comment said this suppresses Bulma global `code` style (white bg red text; in dark mode
+  // shows white frame). This repo has no Bulma, that motivation gone; rule kept because it gives <code> a
+  // design-system-consistent look; deleting would let future <code> run in browser default styles bare.
   code { background: var(--bg-chip); color: var(--text-primary); font-family: var(--font-mono); border-radius: 5px; padding: 1px 6px; }
 
   // Raw inputs that don't carry a .set-* class still need theming, or the

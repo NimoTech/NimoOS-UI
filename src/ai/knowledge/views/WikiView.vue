@@ -343,7 +343,7 @@ const owningRoot = computed(() => rootForPath(store.wikiRoots, sel.value))
  */
 const html = computed<string>(() => renderWikiMarkdown(raw.value || ''))
 
-/** `changes` 的行形状(蓝本 `:201-207` 那个对象字面量,零 `any`)。 */
+/** `changes` row shape (blueprint `:201-207` that object literal, no `any`). */
 interface WikiChangeRow {
   path: string
   name: string
@@ -444,18 +444,22 @@ function toggle(path: string): void {
 }
 
 /**
- * 蓝本 `:245-248` —— 点整行:先选中,**再**把有子节点且当前折叠的展开(只展不收)。
+ * Blueprint `:245-248` — click whole row: first select, **then** expand any with children
+ * that are currently collapsed (expand only, not collapse).
  *
- * 🔴 **申报:第二行在蓝本里其实是不可达分支**(与 N58 的恒等表达式同族,**照抄不化简**)。
- *   推演:`select(n.path)` 里的 `trailFor(byPath, n.path)` 返回的祖先链**含 `n` 自己**
- *   (`util/wikiViewHelpers.ts` 的 `trailFor`:逐段拼 `cur` 并在命中 `byPath` 时 push,
- *   最后一段就是 `n.path` 本身)⇒ `select()` 的循环已经把 `n.path` 推进 `openPaths`;
- *   而 `n` 一定在 `byPath` 里(它是从 `visibleNodes` 里点出来的),`select()` 的
- *   `if (!byPath[path]) return` 早退也不会发生 ⇒ 回到这里时 `isOpen(n.path)` 恒为 `true`,
- *   `!isOpen(...)` 恒 `false`,这一行**永远不会执行**。
- *   ⇒ 「点整行会展开」这个**可观测行为**是真的(由 `select()` 提供),用例照常钉;
- *      但它的守卫落在 `select()` 的祖先循环上,不在这一行。**不删、不化简**:
- *      删了会让「将来有人改动 `select()` 的循环」时失去这处的意图痕迹(N58 同款理由)。
+ * 🔴 **Declaration: second line is actually unreachable in blueprint** (same family as N58's
+ * identity expression, **copy as-is without simplification**).
+ *   Proof: ancestor chain returned by `trailFor(byPath, n.path)` inside `select(n.path)`
+ *   **includes `n` itself** (`trailFor` in `util/wikiViewHelpers.ts` builds up `cur`
+ *   piece-by-piece and pushes when hitting `byPath`, last piece is `n.path` itself) ⇒
+ *   `select()`'s loop already pushed `n.path` into `openPaths`; and `n` must be in `byPath`
+ *   (came from clicking `visibleNodes`), `select()`'s early-exit `if (!byPath[path]) return`
+ *   never happens ⇒ back here, `isOpen(n.path)` is always `true`, `!isOpen(...)` always
+ *   `false`, this line **never executes**.
+ *   ⇒ "click row expands" **observable behavior** is real (provided by `select()`), test case
+ *      still pins it; but its guard lives in `select()`'s ancestor loop, not this line. **Don't
+ *      delete, don't simplify**: deletion obscures "author once considered that loop for
+ *      `select()`" intent trace (N58 same reasoning).
  */
 function nodeClick(n: WikiViewTreeNode): void {
   select(n.path)
@@ -463,19 +467,20 @@ function nodeClick(n: WikiViewTreeNode): void {
 }
 
 /**
- * 蓝本 `:249-260` —— **三件事**:
- *   ① 设 `sel`;
- *   ② **展开每一个祖先**(`trailFor` 循环)—— 少了它,深链到深层节点时那一行在树里看不见;
- *   ③ 把选中写进地址栏 `?path=`(`router.replace`,不进历史)。
- * 🔴 `fromRoute: true`(来自 watch / 初始 query 命中)时**跳过第 ③ 步**,防「watch → replace →
- *    watch」的回环。
- * 🔴 **N57**:`.catch(() => {})` 照抄 —— vue-router 对重复导航会 reject。
+ * Blueprint `:249-260` — **three things**:
+ *   ① set `sel`;
+ *   ② **expand every ancestor** (`trailFor` loop) — without it, deep-linking to deep node
+ *      row is not visible in tree;
+ *   ③ write selection to address bar `?path=` (`router.replace`, not in history).
+ * 🔴 When `fromRoute: true` (from watch / initial query hit) **skip step ③**, prevent
+ * "watch → replace → watch" loop.
+ * 🔴 **N57**: `.catch(() => {})` copy as-is — vue-router rejects repeated navigation.
  */
 function select(path: string, opts: { fromRoute?: boolean } = {}): void {
   const fromRoute = opts.fromRoute === true
   if (!byPath.value[path]) return
   sel.value = path
-  // expand every ancestor so the selection is visible in the tree(蓝本 `:252` 原注释)
+  // expand every ancestor so the selection is visible in the tree (blueprint `:252` original comment)
   for (const anc of trailFor(byPath.value, path)) {
     if (!isOpen(anc.path)) openPaths.value.push(anc.path)
   }
@@ -486,11 +491,14 @@ function select(path: string, opts: { fromRoute?: boolean } = {}): void {
 }
 
 /**
- * 蓝本 `:261-281`。
- * 🔴 **N55 —— 三处过期守卫逐字照抄**(理由逐处见文件头)。`p` 是**这一发**的路径快照。
- * 🔴 `Promise.all` 照抄 —— 两个请求并发,不串行。
- * 🔴 **N48**:404 已在 store 层转成 `null`(合法业务态,走 try);其余错误上抛 → 走 catch。
- * 🔴 **K58 形态 A**:catch 只弹固定键,不回显 `e.message`(蓝本 `:277` 回显,本仓不照抄)。
+ * Blueprint `:261-281`.
+ * 🔴 **N55 — three staleness guards word-for-word as-is** (reasoning per-site in file header).
+ * `p` is **this call**'s path snapshot.
+ * 🔴 `Promise.all` copy as-is — two requests concurrent, not serial.
+ * 🔴 **N48**: 404 converts to `null` at store layer (legitimate business state, takes try);
+ * other errors pass through → takes catch.
+ * 🔴 **K58 form A**: catch shows fixed key only, does not echo `e.message` (blueprint
+ * `:277` echoes, this repo doesn't copy).
  */
 async function fetchArticle(): Promise<void> {
   const p = sel.value
@@ -498,7 +506,7 @@ async function fetchArticle(): Promise<void> {
   showSource.value = false
   try {
     const [n, r] = await Promise.all([store.loadWikiNode(p), store.loadWikiRaw(p)])
-    if (sel.value !== p) return // stale response — a newer selection won(蓝本 `:270` 原注释)
+    if (sel.value !== p) return // stale response — a newer selection won (blueprint `:270` original comment)
     node.value = n
     raw.value = r
   } catch {
@@ -511,19 +519,22 @@ async function fetchArticle(): Promise<void> {
   }
 }
 
-/** 蓝本 `:282`(**T7**)—— 子项是不是目录 = 它的全路径在树里有没有节点。
- *  🔴 判据是 `byPath`,不是文件名有没有后缀 —— 「有 `.wiki.md` 的目录」才算目录,
- *  被折叠的目录(`is_opaque`)不在树里 ⇒ 这里判 `false`,点它走文件管理器(与蓝本同解)。 */
+/** Blueprint `:282` (**T7**) — is child item a directory? = does its full path have a node
+ *  in tree.
+ *  🔴 Criterion is `byPath`, not whether filename has extension — only directory "with
+ *  `.wiki.md`" counts as directory, collapsed directories (`is_opaque`) not in tree ⇒ here
+ *  returns `false`, clicking opens file manager (same as blueprint). */
 function childIsDir(c: WikiChildMapEntry): boolean {
   return !!byPath.value[childPath(c)]
 }
 
 /**
- * 蓝本 `:283-286`(**T7**)。
- * 🔴 **N58 —— `base === '' ? '' : base` 是恒等表达式,两支结果相同,照抄不化简。**
- *   触发它的唯一场景:`sel` 是 `'/'` ⇒ `replace(/\/+$/, '')` 把它剥成 `''`
- *   ⇒ 拼出 `'' + '/' + name` = `/name`(而不是 `//name`)。作者当年写下这个三元
- *   显然是在标注「这里 base 可能为空」,化简掉就把那处意图痕迹擦了。
+ * Blueprint `:283-286` (**T7**).
+ * 🔴 **N58 — `base === '' ? '' : base` is identity expression, both branches return same,
+ * copy as-is without simplification.**
+ *   Only scenario triggering it: `sel` is `'/'` ⇒ `replace(/\/+$/, '')` strips to `''`
+ *   ⇒ builds `'' + '/' + name` = `/name` (not `//name`). Author writing this ternary was
+ *   clearly marking "base might be empty here", simplification erases that intent trace.
  */
 function childPath(c: WikiChildMapEntry): string {
   const base = sel.value.replace(/\/+$/, '')
@@ -531,33 +542,37 @@ function childPath(c: WikiChildMapEntry): string {
 }
 
 /**
- * 蓝本 `:287-291`(**T7**)—— 两分支:
- *   · 树里有这个路径(= 有自己的 `.wiki.md` 的目录)→ 就地 `select()` 换文章;
- *   · 否则(普通文件,或被折叠的目录)→ 到「文件」应用里打开并高亮它。
+ * Blueprint `:287-291` (**T7**) — two branches:
+ *   · path in tree (= directory with its own `.wiki.md`) → select() in-place to switch article;
+ *   · else (plain file, or opaque directory) → open and highlight in "Files" app.
  */
 function childClick(c: WikiChildMapEntry): void {
   const full = childPath(c)
   if (byPath.value[full]) select(full)
-  else openFileInNewTab(full) // plain file (or opaque dir) → file manager, highlighted(蓝本 `:290` 原注释)
+  else openFileInNewTab(full) // plain file (or opaque dir) → file manager, highlighted (blueprint `:290` original comment)
 }
 
-/** 蓝本 `:292-294` —— 在「文件」应用里打开当前目录本身(不高亮任何文件)。 */
+/** Blueprint `:292-294` — open current directory itself in "Files" app (don't highlight any
+ *  file). */
 function openFolder(): void {
   openDirInNewTab(sel.value)
 }
 
 /**
- * 蓝本 `:295-307`(**T7**)—— 手动重扫当前选中所属的索引根。
- * 🔴 **函数门 `if (!root || rescanBusy) return`** 照抄(治理 §5.2 第 4 行):
- *   · `!root` —— 选中不属于任何索引根时不发请求(模板里那个按钮本来就 `v-if="owningRoot"`,
- *     但函数门是**第二道**,不许因为「按钮不渲染」就省掉);
- *   · `rescanBusy` —— 第一发在飞时不发第二发。
- * ⚠️ 模板上的 `:disabled="rescanBusy"` 与这道函数门是**两层**;jsdom 不向 `:disabled` 元素
- *   派发 click(裁定 R27 的常驻教训)⇒ 测试验函数门时**直接调 `vm.rescan()`**,
- *   不去点那个带 `:disabled` 的按钮(点它测到的是 `:disabled` 绑定,不是函数门)。
- * 🔴 **K58 形态 A**:catch 只弹固定键,不回显 `e.message`(蓝本 `:303` 回显,本仓不照抄)。
- * 🔴 `finally` 里无条件 `rescanBusy = false` 照抄(**不带过期守卫** —— 蓝本如此,且门本身
- *   保证同一时刻只有一发在飞)。
+ * Blueprint `:295-307` (**T7**) — manually rescan index root that selected path belongs to.
+ * 🔴 **Function gate `if (!root || rescanBusy) return`** copy as-is (governance §5.2 line 4):
+ *   · `!root` — don't send request when selection doesn't belong to any root (template button
+ *     already has `v-if="owningRoot"`, but function gate is **second layer**, cannot skip
+ *     because "button not rendered");
+ *   · `rescanBusy` — don't send second request while first in-flight.
+ * ⚠️ Template's `:disabled="rescanBusy"` and this function gate are **two layers**; jsdom
+ * doesn't dispatch click to `:disabled` elements (ruling R27 constant lesson) ⇒ when testing
+ * function gate **call `vm.rescan()` directly**, don't click button with `:disabled` (clicking
+ * tests `:disabled` binding, not function gate).
+ * 🔴 **K58 form A**: catch shows fixed key only, does not echo `e.message` (blueprint
+ * `:303` echoes, this repo doesn't copy).
+ * 🔴 Unconditional `rescanBusy = false` in `finally` copy as-is (**no staleness guard** —
+ * blueprint same, and gate itself ensures only one in-flight at a time).
  */
 async function rescan(): Promise<void> {
   const root = owningRoot.value
@@ -573,17 +588,18 @@ async function rescan(): Promise<void> {
   }
 }
 
-/** 蓝本 `:308-311`(**T7**)—— RFC3339 → 「x 分钟前」;后端 `formatTS` 的空串 / 非法值
- *  经 `parseTs` 得 0 ⇒ 返回空串(不显示 `1970`,承 P5d-T3 的单位教训)。 */
+/** Blueprint `:308-311` (**T7**) — RFC3339 → "x minutes ago"; backend `formatTS` empty
+ *  string / invalid value through `parseTs` becomes 0 ⇒ return empty string (don't show
+ *  `1970`, follows P5d-T3 unit lesson). */
 function fmtTs(rfc3339: string): string {
   const ms = parseTs(rfc3339)
   return ms ? fmtAgo(ms) : ''
 }
 
 /**
- * 蓝本 `:210-214` —— **N56 的第二半**:watch **无 `immediate`**。
- * 条件三件:有值 · 与当前选中不同 · 树里真有这个路径。
- * 🔴 `fromRoute: true` —— 值本来就来自地址栏,不再 replace 回去(防回环)。
+ * Blueprint `:210-214` — **N56 second half**: watch **no `immediate`**.
+ * Three conditions: has value · differs from current selection · path truly in tree.
+ * 🔴 `fromRoute: true` — value came from address bar already, don't replace back (prevent loop).
  */
 watch(
   () => route.query.path,
@@ -594,11 +610,13 @@ watch(
 )
 
 /**
- * 蓝本 `:215-218` 的 `created()`。
- * 🔴 `if (!wikiRoots.length)` 照抄 —— 从别的知识库页切过来时 store 里已有根列表,不重复拉。
- * ⚠️ 这一发**不 await**(蓝本也没有):`/v1/wiki/roots` 在本机会等满 60 s axios 超时(D1),
- *    await 它会把整页首屏也拖住。`loadRoots` 自己带 catch + toast(`knowledgeStore.ts:661-663`)。
- *    调用形态与同期 `RootsView.vue` 的 `onMounted` 逐字同款(不传 `silent`)。
+ * Blueprint `:215-218` `created()`.
+ * 🔴 `if (!wikiRoots.length)` copy as-is — when switching from another knowledge page, store
+ * already has roots list, don't fetch again.
+ * ⚠️ This call **no await** (blueprint same): `/v1/wiki/roots` waits full 60s axios timeout
+ * on this machine (D1), awaiting it blocks entire initial paint. `loadRoots` has its own
+ * catch + toast (`knowledgeStore.ts:661-663`). Call signature identical to `RootsView.vue`
+ * `onMounted` same-period (no `silent` param).
  */
 onMounted(() => {
   if (!store.wikiRoots.length) store.loadRoots()
@@ -608,7 +626,7 @@ onMounted(() => {
 
 <template>
   <div class="kw-split">
-    <!-- Left: directory tree (one node per folder = one .wiki.md)(蓝本 :3 原注释)-->
+    <!-- Left: directory tree (one node per folder = one .wiki.md) (blueprint :3 original comment) -->
     <aside class="kw-tree">
       <div class="kw-tree-scroll">
         <template v-if="treeLoading">
@@ -622,8 +640,9 @@ onMounted(() => {
         <template v-else-if="treeError">
           <div class="kw-tree-note">
             {{ t('aiKbWkTreeError') }}
-            <!-- 🔴 治理 §5.2:这个按钮**只在 treeError 分支里**渲染,而 treeLoading 为真时
-                 上面那个 v-if 分支胜出 ⇒ 请求在飞时它不存在 = loadTree 不需要过期守卫。 -->
+            <!-- 🔴 governance §5.2: this button **renders only in treeError branch**, when
+                 treeLoading is true the v-if branch above wins ⇒ while request in-flight it
+                 doesn't exist = loadTree does not need staleness guard. -->
             <button class="k-btn outline" style="margin-top: 8px" @click="loadTree">
               {{ t('aiKbRetry') }}
             </button>
@@ -641,7 +660,8 @@ onMounted(() => {
             :style="{ paddingLeft: 8 + item.depth * 14 + 'px' }"
             @click="nodeClick(item.n)"
           >
-            <!-- 🔴 @click.stop:点 chevron 只折叠/展开,**不**触发整行的选中(蓝本 :26)。 -->
+            <!-- 🔴 @click.stop: clicking chevron only toggles expanded/collapsed, **does not**
+                 trigger selecting whole row (blueprint :26). -->
             <span
               v-if="item.n.children.length"
               class="kw-node-chev"
@@ -658,11 +678,12 @@ onMounted(() => {
       </div>
     </aside>
 
-    <!-- Right: .wiki.md article(蓝本 :35 原注释)-->
+    <!-- Right: .wiki.md article (blueprint :35 original comment) -->
     <div class="kw-article">
       <div class="kw-article-inner">
-        <!-- Tree empty: onboarding pointer(蓝本 :38 原注释)
-             🔴 §9.17:本机 /v1/wiki/tree 是**超时**不是空 ⇒ 走的是 treeError,这一屏本机到不了。 -->
+        <!-- Tree empty: onboarding pointer (blueprint :38 original comment)
+             🔴 §9.17: this machine's /v1/wiki/tree is **timeout** not empty ⇒ takes treeError,
+             this screen unreachable on this machine. -->
         <div
           v-if="!treeLoading && !treeError && !treeRoots.length"
           class="kw-pending"
@@ -676,8 +697,9 @@ onMounted(() => {
         </div>
 
         <template v-else-if="sel">
-          <!-- K56 —— `:key` 必须在 `<template v-for>` 自身(Vue 3 编译器要求),
-               内部两个元素不再各带 key;渲染出的 DOM 序列与蓝本 :50-53 逐个一致。 -->
+          <!-- K56 — `:key` must be on `<template v-for>` itself (Vue 3 compiler requirement),
+               internal two elements no longer each have keys; DOM sequence rendered matches
+               blueprint :50-53 one-to-one. -->
           <div class="kw-crumb">
             <template v-for="c in crumbParents" :key="c.path">
               <button @click="select(c.path)">{{ c.name }}</button>
@@ -688,8 +710,9 @@ onMounted(() => {
 
           <div class="kw-head">
             <h1 class="kw-title">
-              <!-- 蓝本 :59 的两个 `--ly` 变量已核实两档都有值(knowledge.scss 的两个
-                   声明块),照抄不改(附录 B §B.5)。 -->
+              <!-- Blueprint :59's two `--ly` variables verified to have values in both themes
+                   (knowledge.scss two declaration blocks), copy as-is no changes
+                   (appendix B §B.5). -->
               <span
                 class="k2-tag"
                 style="--ly: var(--ly-wiki); --ly-soft: var(--ly-wiki-soft)"
@@ -702,7 +725,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- Article loading skeleton(蓝本 :68 原注释)-->
+          <!-- Article loading skeleton (blueprint :68 original comment) -->
           <div
             v-if="nodeLoading"
             style="margin-top: 18px; display: flex; flex-direction: column; gap: 10px"
@@ -720,8 +743,9 @@ onMounted(() => {
               <span>{{ t('aiKbWkMaintained') }}</span>
             </div>
 
-            <!-- Summary: sanitized .wiki.md markdown (or its raw source)(蓝本 :83 原注释)
-                 🔴 §9.15:`v-html` 的输入必须是 renderWikiMarkdown 的产物(DOMPurify 消毒过)。 -->
+            <!-- Summary: sanitized .wiki.md markdown (or its raw source) (blueprint :83
+                 original comment) 🔴 §9.15: `v-html` input must be renderWikiMarkdown output
+                 (sanitized by DOMPurify). -->
             <template v-if="raw !== null">
               <pre v-if="showSource" class="kw-rawsrc">{{ raw }}</pre>
               <div v-else class="kw-summary kw-md" v-html="html" />
@@ -730,19 +754,20 @@ onMounted(() => {
               <div class="kw-pending-orb"><KIcon name="layers" :size="20" /></div>
               <div class="kw-pending-title">{{ t('aiKbWkNoSummaryTitle') }}</div>
               <div class="kw-pending-sub">{{ t('aiKbWkNoSummarySub') }}</div>
-              <!-- 🔴 §9.17 可点性:`owningRoot` 为 null(选中不属于任何索引根)时**整个按钮不渲染**,
-                   点不到 —— 不是「渲染出来但 disabled」。`:disabled="rescanBusy"` 是另一层。 -->
+              <!-- 🔴 §9.17 clickability: when `owningRoot` is null (selection belongs to no
+                   root), **entire button does not render**, cannot click — not "renders but
+                   disabled". `:disabled="rescanBusy"` is another layer. -->
               <button v-if="owningRoot" class="k-btn primary" :disabled="rescanBusy" @click="rescan">
                 <KIcon name="refresh" :size="12" /> {{ t('aiKbWkRescanRoot') }}
               </button>
             </div>
 
-            <!-- Contents (child_map)(蓝本 :97 原注释)-->
+            <!-- Contents (child_map) (blueprint :97 original comment) -->
             <div v-if="node && node.childMap.length" class="kw-sec">
               <div class="kw-sec-head">
                 <span class="kw-sec-title">{{ t('aiKbWkContents') }}</span>
-                <!-- 🔴 附录 A §A.4:`kw-sec-en` 的英文是蓝本**未过 $t()** 的装饰文案,
-                     照抄字面量,不许顺手 i18n 化。 -->
+                <!-- 🔴 appendix A §A.4: `kw-sec-en` English is blueprint **not through $t()**
+                     decorative text, copy literal, must not i18n on the fly. -->
                 <span class="kw-sec-en">Contents</span>
                 <span class="kw-sec-count">{{ t('aiKbWkItemCount', { n: node.childMap.length }) }}</span>
               </div>
@@ -761,11 +786,12 @@ onMounted(() => {
               </div>
             </div>
 
-            <!-- Recent changes (root-wide timeline)(蓝本 :119 原注释)-->
+            <!-- Recent changes (root-wide timeline) (blueprint :119 original comment) -->
             <div v-if="changes.length" class="kw-sec">
               <div class="kw-sec-head">
                 <span class="kw-sec-title">{{ t('aiKbWkRecentChanges') }}</span>
-                <!-- 同上:蓝本未过 $t() 的装饰文案,照抄字面量(附录 A §A.4)。 -->
+                <!-- Same as above: blueprint not through $t() decorative text, copy literal
+                     (appendix A §A.4). -->
                 <span class="kw-sec-en">Recent changes</span>
               </div>
               <div class="kw-changes">

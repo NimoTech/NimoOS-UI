@@ -87,8 +87,9 @@ describe('createSkillErrorKey', () => {
 })
 
 describe('validateSkillForm', () => {
-  // 验收补丁 A1：名称的失败原因分开报。slugify 之后字符集问题在结构上已不可能存在，
-  // 所以「空 slug」与「过长」各有专用键，不再统一落回讲字符集的 aiSkErrBadId。
+  // Acceptance patch A1: report separate error reasons for name. After slugify, charset problems
+  // are structurally impossible, so "empty slug" and "too long" each have dedicated keys, no longer
+  // falling back to aiSkErrBadId which discusses charset.
   it('rejects an empty name (no alphanumeric survives slugify)', () => {
     expect(validateSkillForm('', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
@@ -101,12 +102,13 @@ describe('validateSkillForm', () => {
     expect(validateSkillForm('a', 'a valid description')).toBe(null)
   })
 
-  // P3b 终审 C1 —— 这四条此前把 'aiSkErrBadId' 钉成了断言，但后端先 slugify(name) 再
-  // 校验（skills_store.go:221），这四个原始名字全部会被 slugify 成合法 id
-  // （"Invoice-Tagger"/"invoice_tagger" -> "invoice-tagger"，前后导 '-' 被
-  // strings.Trim 去掉）——后端能建成功，Vue2（只查非空）也能建成功，本仓之前对着
-  // "同款校验"的名义把它们堵死了，是可复现的功能回退，不是合法的校验结果。
-  // 改前（错误，已删）：
+  // P3b final review C1 — these four previously pinned 'aiSkErrBadId' as assertions, but the
+  // backend slugifies(name) first then validates (skills_store.go:221); these four original names
+  // all slugify to valid ids ("Invoice-Tagger"/"invoice_tagger" -> "invoice-tagger", leading/trailing
+  // '-' removed by strings.Trim) — the backend can create successfully, Vue2 (only checking non-empty)
+  // can also create successfully, but we previously rejected them under the guise of "same validation",
+  // which is a reproducible feature regression, not a valid validation result.
+  // Before (incorrect, deleted):
   //   expect(validateSkillForm('Invoice-Tagger', ...)).toBe('aiSkErrBadId')
   //   expect(validateSkillForm('invoice_tagger', ...)).toBe('aiSkErrBadId')
   //   expect(validateSkillForm('-invoice-tagger', ...)).toBe('aiSkErrBadId')
@@ -131,7 +133,7 @@ describe('validateSkillForm', () => {
     expect(validateSkillForm('Invoice Tagger', 'a valid description')).toBe(null)
   })
 
-  // 真·非法输入：slug 之后仍然/依然不满足 skillIDRe。
+  // Truly invalid input: slug still does not satisfy skillIDRe.
   it('rejects a name made entirely of non-alphanumeric characters (slugifies to an empty string)', () => {
     expect(validateSkillForm('!!!___---', 'a valid description')).toBe('aiSkErrNameNoAlnum')
   })
@@ -153,23 +155,26 @@ describe('validateSkillForm', () => {
     expect(validateSkillForm(name, 'a valid description')).toBe('aiSkErrNameTooLong')
   })
 
-  // 验收补丁 A1 的回归钉子：用户实测就是这个场景——名字过长时，提示必须讲长度，
-  // 绝不能是讲字符集的那条（两者都非 null，弱断言 not.toBeNull() 抓不出这个 bug）。
+  // Acceptance patch A1 regression guard: real user test case — when a name is too long, the message
+  // must mention length, never the character-set message (both are non-null, weak assertion with
+  // not.toBeNull() cannot catch this bug).
   it('a too-long name reports length, never the character-set message', () => {
     const key = validateSkillForm('a-very-long-invoice-tagger-name-'.repeat(5), 'a valid description')
     expect(key).toBe('aiSkErrNameTooLong')
     expect(key).not.toBe('aiSkErrBadId')
   })
 
-  // 反过来钉一条：长到超标、但一个 [a-z0-9] 都没有的名字（纯中文长句），真实原因是
-  // 「slug 为空」而不是「太长」——两条专用键不能互相盖过。
+  // Reverse guard: a name that is too long but has no [a-z0-9] characters (pure Chinese sentence),
+  // the real reason is "slug is empty" not "too long" — the two dedicated keys must not override each
+  // other.
   it('a long name with no alphanumerics reports no-alnum, not too-long', () => {
     expect(validateSkillForm('这是一个非常长的技能名字'.repeat(10), 'a valid description'))
       .toBe('aiSkErrNameNoAlnum')
   })
 
-  // 长度判定跑在 slug 上，不是原始输入上：原始 70 字符里含空格与大写，
-  // slug 之后仍 > 64，故仍应判过长（而不是因为空格/大写被判字符集非法）。
+  // Length is measured on the slug, not the raw input: raw 70 characters with spaces and uppercase,
+  // still > 64 after slugify, so should still be judged as too long (not as charset-invalid due to
+  // spaces/uppercase).
   it('length is measured on the slug, not the raw input', () => {
     const raw = 'Invoice Tagger ' + 'x'.repeat(60)
     expect(validateSkillForm(raw, 'a valid description')).toBe('aiSkErrNameTooLong')
@@ -218,8 +223,8 @@ describe('validateSkillForm', () => {
   })
 })
 
-// P3b 终审 C1 —— slugify 逐行移植自 NimoOS-AI/service/skills_store.go:17-35，
-// 这里直接钉住移植结果，不只是通过 validateSkillForm 间接测。
+// P3b final review C1 — slugify line-by-line ported from NimoOS-AI/service/skills_store.go:17-35,
+// directly pinning the port result here, not just indirectly testing through validateSkillForm.
 describe('slugify', () => {
   it('lowercases and leaves an already-valid slug unchanged', () => {
     expect(slugify('invoice-tagger')).toBe('invoice-tagger')

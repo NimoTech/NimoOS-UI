@@ -17,7 +17,7 @@ watch(() => props.open, (o) => {
 }, { immediate: true })
 
 function onInput(e: Event) {
-  name.value = (e.target as HTMLInputElement).value.replace(/\//g, '') // 目录分隔符不允许出现在名字里
+  name.value = (e.target as HTMLInputElement).value.replace(/\//g, '') // Directory separators not allowed in names
 }
 function confirm() {
   const v = name.value.trim()

@@ -1,35 +1,39 @@
-// SP8-P3b Task 2 —— 技能新建/更新的错误归一 + 前端预校验。
+// SP8-P3b Task 2 — Unify error keys for skill create/update + frontend pre-validation.
 //
-// createSkillErrorKey 的形状照 src/ai/util/channelsFormat.ts:65-76 (addBotErrorKey)：
-// 取 e.response.data.message ?? .detail ?? data，String 化后 trim().toLowerCase()，
-// 按包含匹配判定，认不出的一律落通用兜底键，后端原文永不回显
-// （承 p3b-common-constraints.md §4 数据契约「HTTP 层失败不回显后端 body」）。
+// createSkillErrorKey's shape follows src/ai/util/channelsFormat.ts:65-76 (addBotErrorKey):
+// extract e.response.data.message ?? .detail ?? data, stringify then trim().toLowerCase(),
+// match by containment, unrecognized ones all fall back to generic catchall key, backend
+// original text never displayed (per p3b-common-constraints.md §4 data contract
+// "HTTP layer failures do not echo backend body").
 //
-// 后端 NimoOS-AI/service/skills_store.go 的 validateSkillDescription 用
-// `fmt.Errorf("%w: <reason>", ErrBadDescription)` 包装，所以串形如
-// "invalid skill description: description required" —— 带前缀。匹配顺序：
-// 先判更具体的 description 子类（"description required" / "longer than 256
-// characters" / "must be a single line" / "'<' and '>' are not allowed" 里的
-// "are not allowed" + 含 '<' / "control characters are not allowed"），
-// 再判 "invalid skill description" 本身，最后落 aiSkErrCreateFailed 兜底。
+// Backend NimoOS-AI/service/skills_store.go's validateSkillDescription uses
+// `fmt.Errorf("%w: <reason>", ErrBadDescription)` wrapping, so strings are like
+// "invalid skill description: description required" — with prefix. Matching order:
+// first check more specific description subtypes ("description required" / "longer than 256
+// characters" / "must be a single line" / "'<' and '>' are not allowed" containing
+// "are not allowed" + contains '<' / "control characters are not allowed"),
+// then check "invalid skill description" itself, finally fall back to aiSkErrCreateFailed.
 //
-// validateSkillForm 是【拍板偏离①，见 p3b-common-constraints.md §3.6】：Vue2
-// AddSkillModal.vue:137-139 提交前只查了 name/description 非空，填完一整屏才被后端一句
-// 英文顶回来。这里在前端做与后端同款的校验规则，规则逐条对
-// NimoOS-AI/service/skills_store.go:37-59 的 validateSkillDescription 与
-// skillIDRe（:86）——已回源核对，两处正则字面一致，见本任务报告。
+// validateSkillForm is design decision variant ① (see p3b-common-constraints.md §3.6):
+// Vue2's AddSkillModal.vue:137-139 only checked name/description non-empty before submit,
+// users got hit with one English line from the backend after filling a whole screen. Here
+// we do the same validation rules as the backend on the frontend, matching rule-by-rule
+// with NimoOS-AI/service/skills_store.go:37-59's validateSkillDescription and
+// skillIDRe (:86) — already cross-referenced, both regex literals match, see task report.
 //
-// 【P3b 终审 C1 修复】"与后端同款"指的是校验对象要一致，不只是正则字面一致——后端
-// skills_store.go:221 是 `id := slugify(r.Name)` **先转换、再拿转换结果去过
-// skillIDRe**（skills_store.go:82-85 的注释明写这是故意的："allows digit-leading
-// IDs so slugify of names like '123 skill' don't get rejected"）。本文件此前直接拿
-// **原始 name** 去测 skillIDRe，比后端更严：像 "Invoice Tagger" / "invoice_tagger"
-// 这类后端 slugify 后能建成功（Vue2 也能建，Vue2 只查非空）的名字，会被这里直接堵死、
-// 请求都发不出去——这是可复现的功能回退，不是"同款校验"该有的行为。
-// 修法：移植一份 `slugify`（逐行对齐 Go 版 skills_store.go:17-35），validateSkillForm
-// 改成校验 `slugify(name)` 而非原始 name。
+// P3b final review C1 fix: "same as backend" means validation objects must be consistent,
+// not just regex literal match — backend skills_store.go:221 is `id := slugify(r.Name)`
+// **transform first, then take the result and test it against skillIDRe** (skills_store.go
+// :82-85 comment explicitly says this is intentional: "allows digit-leading IDs so slugify
+// of names like '123 skill' don't get rejected"). This file previously tested the **raw
+// name** directly against skillIDRe, stricter than backend: names like "Invoice Tagger" /
+// "invoice_tagger" that the backend's slugify can successfully build (Vue2 can also, Vue2
+// only checks non-empty) would be blocked here, request wouldn't even send — reproducible
+// functionality regression, not what "same validation" should be. Fix: port a copy of
+// `slugify` (line-by-line matching Go version skills_store.go:17-35), change
+// validateSkillForm to validate `slugify(name)` instead of raw name.
 
-/** 对齐 channelsFormat.ts:66-70 的取错误串形状：response.data.message ?? .detail ?? data。 */
+/** Align with channelsFormat.ts:66-70 error string extraction: response.data.message ?? .detail ?? data. */
 function extractErrorString(e: unknown): string {
   const data = (e as { response?: { data?: unknown } } | null | undefined)?.response?.data
   const raw =
@@ -40,8 +44,8 @@ function extractErrorString(e: unknown): string {
 }
 
 /**
- * 后端错误 → i18n 键。对齐 p3b-task-2-brief.md §2.2 的表。
- * 已回源核对 NimoOS-AI/service/skills_store.go 的错误串字面量（见任务报告）。
+ * Backend error → i18n key. Aligns with p3b-task-2-brief.md §2.2 table.
+ * Already cross-referenced error string literals from NimoOS-AI/service/skills_store.go (see task report).
  */
 export function createSkillErrorKey(e: unknown): string {
   const s = extractErrorString(e)
@@ -59,23 +63,26 @@ export function createSkillErrorKey(e: unknown): string {
   return 'aiSkErrCreateFailed'
 }
 
-// 回源核对结论（NimoOS-AI/service/skills_store.go:86 与 agent/main.py:2489）：两处正则
-// 字面完全一致，均为 /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/ —— 首尾必须是小写字母或数字，
-// 中间可含短横线，总长 1–64。brief 表里给的这条是对的，不存在需要以 Go 为准改写的分歧。
+// Cross-reference conclusion (NimoOS-AI/service/skills_store.go:86 and agent/main.py:2489):
+// regex literals are identical, both /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/ — first and last
+// must be lowercase letter or digit, middle can contain hyphen, total length 1–64. The brief
+// table is correct, no discrepancies requiring rewrite based on Go version.
 const SKILL_ID_RE = /^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$/
 
 /**
- * 逐行移植自 NimoOS-AI/service/skills_store.go:17-35（`slugify`）。后端在校验前先跑
- * 这一步（skills_store.go:221 `id := slugify(r.Name)`），再拿 slug 去过 skillIDRe——
- * 本函数必须做完全一样的事，否则前端校验的对象就和后端实际校验的对象不是同一个值
- * （P3b 终审 C1）。逐条对齐 Go 版逻辑：
- *   1. 转小写 + 去首尾空白（Go: `strings.ToLower(strings.TrimSpace(s))`）。
- *   2. 逐个 code point 扫描：`[a-z0-9]` 原样保留；其余字符折叠成**单个**'-'
- *      （`dash` 标志防止连续分隔符产生多个 '-'；`out.length > 0` 这个条件让前导分隔符
- *      不产生 '-' —— 对应 Go 版 `b.Len() > 0`）。
- *   3. 最后去掉首尾的 '-'（Go: `strings.Trim(b.String(), "-")`）。
- * `for...of` 按 Unicode code point 迭代，与 Go 的 `for _, r := range s`（按 rune 迭代）
- * 语义一致，故对中日文等多字节字符的处理与后端等价（均判定为非 [a-z0-9]，折叠成 '-'）。
+ * Ported line-by-line from NimoOS-AI/service/skills_store.go:17-35 (`slugify`). Backend
+ * runs this step before validation (skills_store.go:221 `id := slugify(r.Name)`), then tests
+ * the slug against skillIDRe — this function must do exactly the same, otherwise what the
+ * frontend validates and what the backend actually validates are different values
+ * (P3b final review C1). Align with Go version logic step by step:
+ *   1. Lowercase + trim leading/trailing whitespace (Go: `strings.ToLower(strings.TrimSpace(s))`).
+ *   2. Scan each code point: keep `[a-z0-9]` as-is, collapse other chars into **single** '-'
+ *      (`dash` flag prevents consecutive separators creating multiple '-'; `out.length > 0`
+ *      condition prevents leading separators producing '-' — matches Go `b.Len() > 0`).
+ *   3. Finally strip leading/trailing '-' (Go: `strings.Trim(b.String(), "-")`).
+ * `for...of` iterates by Unicode code point, semantically identical to Go's `for _, r := range s`
+ * (iterates by rune), so multi-byte character handling (Chinese, Japanese, etc.) matches
+ * backend exactly (both classify as non-[a-z0-9] and collapse to '-').
  */
 export function slugify(s: string): string {
   let out = ''
@@ -93,29 +100,32 @@ export function slugify(s: string): string {
 }
 
 /**
- * 前端预校验，规则逐条对齐 skills_store.go 的 ValidateSkillID + validateSkillDescription。
- * 全过返回 null；否则返回对应的 i18n 错误键。
+ * Frontend pre-validation, rules align item-by-item with skills_store.go's ValidateSkillID
+ * + validateSkillDescription. Return null if all pass; otherwise return the corresponding
+ * i18n error key.
  *
- * 【P3b 终审 C1】校验对象是 `slugify(name)`，不是原始 name——见上方 `slugify` 注释与
- * NimoOS-AI/service/skills_store.go:221（`id := slugify(r.Name)`）+ :91-96
- * （`ValidateSkillID` 拿 slug 后的 id 去过 `skillIDRe`）。
+ * P3b final review C1: validation object is `slugify(name)`, not raw name — see `slugify`
+ * comment above and NimoOS-AI/service/skills_store.go:221 (`id := slugify(r.Name)`) + :91-96
+ * (`ValidateSkillID` tests slug-transformed id against `skillIDRe`).
  *
- * 【P3b 验收补丁 A1（用户 2026-07-31 报：输入超长名字时提示的是"只能用小写字母、数字和
- * 短横线"，答非所问）】名称的失败原因必须分开报。**过 slugify 之后，字符集问题在结构上
- * 已经不可能存在**——slugify 保证输出只含 `[a-z0-9-]`、无连续短横线、首尾无短横线，所以
- * 它的产物只可能因为两件事不满足 `SKILL_ID_RE`：
- *   ① 空串（名字里一个 `[a-z0-9]` 都没有，例如纯中文/纯符号）
- *   ② 长度 > 64
- * 也就是说，原先那条统一落回的 'aiSkErrBadId'（讲字符集）**永远不是真实原因**。
- * 这里按两种真实原因分派专用键；'aiSkErrBadId' 只保留给 `createSkillErrorKey` 映射
- * 后端返回的 `invalid skill id` 串（后端自己不区分原因，那条串照原样映射）。
+ * P3b acceptance patch A1 (user reported 2026-07-31: long name shows "only lowercase
+ * letters, digits, and hyphens", wrong answer): name failure reasons must be reported
+ * separately. **After slugify, character set issues are structurally impossible** — slugify
+ * guarantees output contains only `[a-z0-9-]`, no consecutive hyphens, no leading/trailing
+ * hyphens, so its output can fail `SKILL_ID_RE` for only two reasons:
+ *   ① Empty string (name has no `[a-z0-9]` at all, e.g. pure Chinese/pure symbols)
+ *   ② Length > 64
+ * In other words, the previous unified fallback 'aiSkErrBadId' (about character set) is
+ * **never the real reason**. Here we dispatch dedicated keys for the two real reasons;
+ * 'aiSkErrBadId' is reserved for `createSkillErrorKey` mapping the backend's `invalid skill id`
+ * string (backend doesn't distinguish reasons, that string is mapped as-is).
  */
 export function validateSkillForm(name: string, description: string): string | null {
   const id = slugify(name)
   if (id === '') return 'aiSkErrNameNoAlnum'
   if (id.length > 64) return 'aiSkErrNameTooLong'
-  // 兜底：slugify 的产物理论上不会走到这里（见上方注释），保留是为了万一将来 slugify
-  // 或后端正则改了、两者不再互相蕴含时不会静默放行。
+  // Catchall: slugify output theoretically never reaches here (see comment above), kept
+  // just in case slugify or backend regex changes in the future and the two no longer imply each other.
   if (!SKILL_ID_RE.test(id)) return 'aiSkErrBadId'
 
   const trimmedDescription = description.trim()

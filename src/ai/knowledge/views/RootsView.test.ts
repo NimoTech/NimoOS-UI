@@ -42,8 +42,8 @@ import { defineComponent, h, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createRootBody } from '@nimotech/nimoos-service'
 import type { WikiRoot } from '@nimotech/nimoos-service'
-// i18n 由 `vitest.setup.ts` 全局装好(见 `mountPage` 注释),本文件不再自己装 —— 也**不许**
-// 另建 `createI18n`(与 setup 的单例重复安装,记忆 `vitest-reporter-hides-warnings`)。
+// i18n configured globally by `vitest.setup.ts` (see `mountPage` comment), don't set up here — also **don't**
+// create a separate `createI18n` (would duplicate with setup's singleton, see memory `vitest-reporter-hides-warnings`).
 import { useKnowledgeStore } from '../stores/knowledgeStore'
 import KIcon from '../components/KIcon.vue'
 import FolderBrowser from '../components/FolderBrowser.vue'
@@ -814,9 +814,10 @@ describe('RootsView — FolderBrowser wiring: roots / @pick / openAdd reset()', 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴🔴 N46 的下划线陷阱 —— `createRootBody` 必须来自共享包,且三个入参真的传到位。
-//    传错了后端会**静默丢弃**(Go 解码器大小写不敏感但下划线不匹配)⇒ 真机无报错、三门全绿。
-describe('RootsView —— submit():createRootBody 的三个入参真的传到位(N46)', () => {
+// 🔴🔴 N46's underscore trap — `createRootBody` must come from shared package, all three params really passed.
+//    Wrong parameter passing causes backend to **silently drop** (Go decoder case-insensitive but underscore-sensitive)
+//    ⇒ no error on device, all tests pass falsely.
+describe('RootsView — submit(): createRootBody three params really passed (N46)', () => {
   async function openModal() {
     const m = await mountPage([])
     await m.w.find('.k-section-head button.k-btn.primary').trigger('click')
@@ -835,18 +836,18 @@ describe('RootsView —— submit():createRootBody 的三个入参真的传到�
     await nextTick()
   }
 
-  it('🔴 源码里 `createRootBody` 是从共享包 import 的,不是本仓重写的(D3 已进包)', () => {
+  it('🔴 Source imports `createRootBody` from shared package, not rewritten here (D3 in package)', () => {
     expect(SRC).toMatch(/import\s*\{[^}]*\bcreateRootBody\b[^}]*\}\s*from\s*'@nimotech\/nimoos-service'/)
-    // 反向:本文件里不许自己拼那套 Go 字段名
-    // 防空转同上:先证明剥注释后 `createRootBody` 的调用点还在,再做否定断言。
-    expect(SRC_CODE, '剥注释器把 createRootBody 的调用点吃掉了').toContain('createRootBody({')
-    expect(SRC_CODE, 'RootsView 自己拼 body 了 —— 必须用共享包的 createRootBody').not.toMatch(
+    // Negative: can't manually construct that Go field set
+    // Anti-false-negative: first prove `createRootBody` call site still here after stripping, then negate.
+    expect(SRC_CODE, 'stripper consumed createRootBody call site').toContain('createRootBody({')
+    expect(SRC_CODE, 'RootsView constructed body itself — must use shared package createRootBody').not.toMatch(
       /\bStorageMode\s*:/,
     )
     expect(SRC_CODE).not.toMatch(/\bScanIntervalS\s*:/)
   })
 
-  it('🔴 默认表单 → body 逐字段(Path/Level/WatchMode/StorageMode/ScanIntervalS)', async () => {
+  it('🔴 Default form → body fields exact (Path/Level/WatchMode/StorageMode/ScanIntervalS)', async () => {
     const { host } = await openModal()
     await setPath(host, '/DATA/Books')
     addBtn(host).click()
@@ -858,21 +859,21 @@ describe('RootsView —— submit():createRootBody 的三个入参真的传到�
       StorageMode: 'inline',
       ScanIntervalS: 21600,
     })
-    // 同时钉住「它就是共享包 createRootBody 的产物」
+    // Also pin "it's the product of shared package createRootBody"
     expect(wiki.createRoot.mock.calls[0]![0]).toEqual(
       createRootBody({ path: '/DATA/Books', watchMode: 'auto', scanIntervalH: 6, mirror: false }),
     )
   })
 
-  it('🔴🔴 watchMode / scanIntervalH 两个入参真的传到位(改高级选项 → body 跟着变)', async () => {
+  it('🔴🔴 watchMode / scanIntervalH two params really passed (change advanced → body changes)', async () => {
     const { host } = await openModal()
     await setPath(host, '/mnt/ro')
     ;(host.querySelector('.k-adv-toggle') as HTMLElement).click()
     await nextTick()
-    // 监视模式 → scan_only
+    // Watch mode → scan_only
     ;(host.querySelectorAll('.k-radio-group button')[1] as HTMLElement).click()
     await nextTick()
-    // 扫描间隔 → 2 小时
+    // Scan interval → 2 hours
     const hours = host.querySelectorAll('input.kr-input')[1] as HTMLInputElement
     hours.value = '2'
     hours.dispatchEvent(new Event('input'))
@@ -880,34 +881,34 @@ describe('RootsView —— submit():createRootBody 的三个入参真的传到�
     addBtn(host).click()
     await flushPromises()
     const body = wiki.createRoot.mock.calls[0]![0] as Record<string, unknown>
-    expect(body.WatchMode, 'watchMode 没传进 createRootBody —— 后端会静默用默认值').toBe('scan_only')
-    expect(body.ScanIntervalS, 'scanIntervalH 没传进 createRootBody').toBe(7200)
+    expect(body.WatchMode, 'watchMode not passed to createRootBody — backend silently uses default').toBe('scan_only')
+    expect(body.ScanIntervalS, 'scanIntervalH not passed to createRootBody').toBe(7200)
     expect(body).toEqual(
       createRootBody({ path: '/mnt/ro', watchMode: 'scan_only', scanIntervalH: 2, mirror: false }),
     )
   })
 
-  it('🔴🔴 mirror 入参真的传到位(镜像重试 → StorageMode: mirror)', async () => {
+  it('🔴🔴 mirror param really passed (mirror retry → StorageMode: mirror)', async () => {
     const { host } = await openModal()
     await setPath(host, '/mnt/ro')
     wiki.createRoot.mockRejectedValueOnce(httpError(409))
     addBtn(host).click()
     await flushPromises()
-    // 第一发 mirror=false
+    // First call mirror=false
     expect((wiki.createRoot.mock.calls[0]![0] as Record<string, unknown>).StorageMode).toBe('inline')
-    // 点「以镜像模式添加」→ 第二发 mirror=true
+    // Click "Add in mirror mode" → second call mirror=true
     const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLElement
-    expect(mirrorBtn, 'N50 的镜像按钮没渲染出来').not.toBeNull()
+    expect(mirrorBtn, 'N50 mirror button not rendered').not.toBeNull()
     mirrorBtn.click()
     await flushPromises()
     const body = wiki.createRoot.mock.calls[1]![0] as Record<string, unknown>
-    expect(body.StorageMode, 'mirror 没传进 createRootBody').toBe('mirror')
+    expect(body.StorageMode, 'mirror not passed to createRootBody').toBe('mirror')
     expect(body).toEqual(
       createRootBody({ path: '/mnt/ro', watchMode: 'auto', scanIntervalH: 6, mirror: true }),
     )
   })
 
-  it('成功 → 关弹窗 + toast「已添加索引目录」+ 重载列表', async () => {
+  it('Success → close dialog + toast "added index directory" + reload list', async () => {
     const { host, store } = await openModal()
     const toast = vi.spyOn(store, 'toast')
     await setPath(host, '/DATA/Books')
@@ -915,14 +916,14 @@ describe('RootsView —— submit():createRootBody 的三个入参真的传到�
     await flushPromises()
     expect(host.querySelector('.k-modal')).toBeNull()
     expect(toast).toHaveBeenLastCalledWith('已添加索引目录')
-    // createRoot 内部会再 loadRoots 一次(knowledgeStore.ts:682)
+    // createRoot internally calls loadRoots once (knowledgeStore.ts:682)
     expect(wiki.getRoots).toHaveBeenCalledTimes(2)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 canSubmit(蓝本 :144)+ submitting 门(治理 §5.2)。
-describe('RootsView —— canSubmit 两侧 + submitting 门', () => {
+// 🔴 canSubmit (blueprint :144) + submitting gate (governance §5.2).
+describe('RootsView — canSubmit both sides + submitting gate', () => {
   async function openModal() {
     const m = await mountPage([])
     await m.w.find('.k-section-head button.k-btn.primary').trigger('click')
@@ -941,27 +942,27 @@ describe('RootsView —— canSubmit 两侧 + submitting 门', () => {
     await nextTick()
   }
 
-  it('🔴 canSubmit = path.startsWith("/") 两侧(disabled 是真布尔属性)', async () => {
+  it('🔴 canSubmit = path.startsWith("/") both sides (disabled is true boolean attribute)', async () => {
     const { host } = await openModal()
-    expect(addBtn(host).disabled, '初值空串 → 灰掉').toBe(true)
+    expect(addBtn(host).disabled, 'initial empty string → grayed').toBe(true)
     await setPath(host, 'DATA/Books')
-    expect(addBtn(host).disabled, '相对路径 → 灰掉').toBe(true)
+    expect(addBtn(host).disabled, 'relative path → grayed').toBe(true)
     await setPath(host, '/DATA/Books')
-    expect(addBtn(host).disabled, '绝对路径 → 可点').toBe(false)
+    expect(addBtn(host).disabled, 'absolute path → clickable').toBe(false)
   })
 
-  it('🔴 函数自己也守 canSubmit(绕过按钮 disabled 直接调也不发请求)', async () => {
+  it('🔴 Function also guards canSubmit (call directly bypassing button disabled still doesn\'t send)', async () => {
     const { w, host } = await openModal()
     await setPath(host, 'relative/path')
-    // v-model.trim 已把值同步进 form;直接触发一次镜像按钮那条路径不可用,
-    // 这里走「按钮虽 disabled 但 DOM click 仍派发」的等价路径
+    // v-model.trim already syncs value to form; can't directly trigger mirror button path,
+    // so walk the "button disabled but DOM click still dispatches" equivalent path
     addBtn(host).click()
     await flushPromises()
     expect(wiki.createRoot).not.toHaveBeenCalled()
     expect(w.html()).toBeTruthy()
   })
 
-  it('🔴 submitting 门:第一发在飞时重复点不发第二发(蓝本 :184 自带)', async () => {
+  it('🔴 submitting gate: first request in-flight, repeat click doesn\'t send second (blueprint :184 built-in)', async () => {
     const { host } = await openModal()
     await setPath(host, '/DATA/Books')
     const d = makeDeferred<unknown>()
@@ -970,22 +971,22 @@ describe('RootsView —— canSubmit 两侧 + submitting 门', () => {
     await nextTick()
     await flushPromises()
     expect(wiki.createRoot).toHaveBeenCalledTimes(1)
-    // 按钮此刻应当是 disabled(`!canSubmit || submitting`)
-    expect(addBtn(host).disabled, 'submitting 期间按钮没灰').toBe(true)
+    // Button should be disabled now (`!canSubmit || submitting`)
+    expect(addBtn(host).disabled, 'button not grayed during submitting').toBe(true)
     addBtn(host).click()
     await nextTick()
     await flushPromises()
-    expect(wiki.createRoot, 'submitting 门没挡住第二发').toHaveBeenCalledTimes(1)
+    expect(wiki.createRoot, 'submitting gate didn\'t block second request').toHaveBeenCalledTimes(1)
     d.resolve({})
     await flushPromises()
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K59 —— addError 走**弹窗内联**(不是 toast)。
-//    记忆 `newui-dialog-error-not-toast`:toast 是 z-index 60、弹窗遮罩 1000 还带 blur
-//    ⇒ 弹窗里的错误写成 toast 会被压住 + 糊掉。
-describe('RootsView —— K59:addError 弹窗内联(409 出镜像按钮 / 非 409 只有文案)', () => {
+// 🔴 K59 — addError goes **inline in dialog** (not toast).
+//    Memory `newui-dialog-error-not-toast`: toast is z-index 60, dialog backdrop 1000 with blur
+//    ⇒ error in dialog rendered as toast gets hidden + blurred.
+describe('RootsView — K59: addError inline in dialog (409 shows mirror button / non-409 just text)', () => {
   async function openModal() {
     const m = await mountPage([])
     await m.w.find('.k-section-head button.k-btn.primary').trigger('click')
@@ -1006,27 +1007,27 @@ describe('RootsView —— K59:addError 弹窗内联(409 出镜像按钮 / 非 4
     await flushPromises()
   }
 
-  it('🔴 409 → 只读文案 + 「以镜像模式添加」按钮(N50 照抄,弹窗**不关**)', async () => {
+  it('🔴 409 → read-only message + "Add in mirror mode" button (N50 copy, dialog **doesn\'t close**)', async () => {
     const { host, store } = await openModal()
     const toast = vi.spyOn(store, 'toast')
     wiki.createRoot.mockRejectedValue(httpError(409, 'PROBE-K58-R5T9-409'))
     await clickAdd(host)
     const err = host.querySelector('.kr-error')
-    expect(err, 'K59:错误必须内联在弹窗里').not.toBeNull()
+    expect(err, 'K59: error must be inline in dialog').not.toBeNull()
     expect(norm(err!.textContent!)).toContain(
       '该目录只读——可改用镜像模式添加(wiki 数据存放在中央目录)。',
     )
     const mirrorBtn = err!.querySelector('button.k-btn.outline')
-    expect(mirrorBtn, 'N50 的镜像按钮必须在').not.toBeNull()
+    expect(mirrorBtn, 'N50 mirror button must be here').not.toBeNull()
     expect(norm(mirrorBtn!.textContent!)).toBe('以镜像模式添加')
-    expect(host.querySelector('.k-modal'), '失败不该关弹窗').not.toBeNull()
-    // 🔴 K59:走内联,**不**弹 toast
-    expect(toast, '错误弹成了 toast —— 会被遮罩压住(记忆 newui-dialog-error-not-toast)').not.toHaveBeenCalled()
-    // K58:不回显后端 body
+    expect(host.querySelector('.k-modal'), 'failure should not close dialog').not.toBeNull()
+    // 🔴 K59: inline, **not** toast
+    expect(toast, 'error showed as toast — would be hidden by backdrop (memory newui-dialog-error-not-toast)').not.toHaveBeenCalled()
+    // K58: don't echo backend body
     expect(host.innerHTML).not.toContain('PROBE-K58-R5T9')
   })
 
-  it('🔴 非 409(500)→ K58 映射文案「操作失败」,且**没有**镜像按钮', async () => {
+  it('🔴 Non-409 (500) → K58 mapped message "operation failed", **no** mirror button', async () => {
     const { host, store } = await openModal()
     const toast = vi.spyOn(store, 'toast')
     wiki.createRoot.mockRejectedValue(httpError(500, 'PROBE-K58-R5T9-500add'))
@@ -1034,12 +1035,12 @@ describe('RootsView —— K59:addError 弹窗内联(409 出镜像按钮 / 非 4
     const err = host.querySelector('.kr-error')
     expect(err).not.toBeNull()
     expect(norm(err!.textContent!)).toBe('操作失败')
-    expect(err!.querySelector('button'), '非 409 不该出镜像按钮').toBeNull()
+    expect(err!.querySelector('button'), 'non-409 should not show mirror button').toBeNull()
     expect(toast).not.toHaveBeenCalled()
     expect(host.innerHTML).not.toContain('PROBE-K58-R5T9')
   })
 
-  it('🔴 裸 Error(无 response)也走映射,不回显 e.message(蓝本 :202 的第三条兜底)', async () => {
+  it('🔴 Bare Error (no response) also maps, don\'t echo e.message (blueprint :202 third fallback)', async () => {
     const { host } = await openModal()
     wiki.createRoot.mockRejectedValue(new Error('PROBE-K58-R5T9-bareadd'))
     await clickAdd(host)
@@ -1047,7 +1048,7 @@ describe('RootsView —— K59:addError 弹窗内联(409 出镜像按钮 / 非 4
     expect(host.innerHTML).not.toContain('PROBE-K58-R5T9')
   })
 
-  it('409 之后再点镜像按钮:先清掉旧错误块(蓝本 :186-187 在 try 之前)', async () => {
+  it('After 409 click mirror button: first clear old error block (blueprint :186-187 before try)', async () => {
     const { host } = await openModal()
     wiki.createRoot.mockRejectedValueOnce(httpError(409))
     await clickAdd(host)
@@ -1055,16 +1056,16 @@ describe('RootsView —— K59:addError 弹窗内联(409 出镜像按钮 / 非 4
     wiki.createRoot.mockResolvedValue({})
     ;(host.querySelector('.kr-error button.k-btn.outline') as HTMLElement).click()
     await flushPromises()
-    expect(host.querySelector('.k-modal'), '成功应关弹窗').toBeNull()
+    expect(host.querySelector('.k-modal'), 'success should close dialog').toBeNull()
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K57 —— 删除确认弹窗(蓝本 :93-120)+ confirmDelete()(蓝本 :209-219)。
-describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confirmDelete()', () => {
+// 🔴 K57 — delete confirmation dialog (blueprint :93-120) + confirmDelete() (blueprint :209-219).
+describe('RootsView — K57: reka "Delete index directory?" confirmation dialog + confirmDelete()', () => {
   async function openDelete(i = 0) {
     const m = await mountPage()
-    expect(m.host.querySelector('.k-modal'), '默认不该渲染弹窗').toBeNull()
+    expect(m.host.querySelector('.k-modal'), 'should not render dialog by default').toBeNull()
     const btn = rows(m.w)[i]!.findAll('button.k-btn.ghost')[1]!
     expect(btn.attributes('title')).toBe('删除')
     await btn.trigger('click')
@@ -1073,7 +1074,7 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     return m
   }
 
-  it('点垃圾桶 → portal 到 .knowledge-app,标题 / 路径 / 勾选 / 提示 / 两个按钮逐字', async () => {
+  it('Click trash → portal to .knowledge-app, title / path / checkbox / hint / two buttons exact', async () => {
     const { host } = await openDelete(0)
     const modal = host.querySelector('.k-modal')
     expect(modal).not.toBeNull()
@@ -1096,7 +1097,7 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(footBtns[1]!.className).toBe('k-btn danger')
   })
 
-  it('点 × 关闭,且不发请求', async () => {
+  it('Click × closes, no request sent', async () => {
     const { host } = await openDelete()
     ;(host.querySelector('.k-modal-x') as HTMLElement).click()
     await nextTick()
@@ -1105,7 +1106,7 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(wiki.deleteRoot).not.toHaveBeenCalled()
   })
 
-  it('点「取消」关闭,且不发请求', async () => {
+  it('Click "Cancel" closes, no request sent', async () => {
     const { host } = await openDelete()
     ;(
       Array.from(host.querySelectorAll('.k-modal-foot button')).find(
@@ -1118,23 +1119,23 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(wiki.deleteRoot).not.toHaveBeenCalled()
   })
 
-  it('🔴 点遮罩关闭;点弹窗内不关闭(reka pointerDownOutside)', async () => {
+  it('🔴 Click backdrop closes; click inside dialog doesn\'t (reka pointerDownOutside)', async () => {
     const { host } = await openDelete()
     await new Promise((r) => setTimeout(r, 0))
     ;(host.querySelector('.k-modal-title') as HTMLElement).dispatchEvent(
       new Event('pointerdown', { bubbles: true }),
     )
     await nextTick()
-    expect(host.querySelector('.k-modal'), '点弹窗内不该关闭').not.toBeNull()
+    expect(host.querySelector('.k-modal'), 'click inside should not close').not.toBeNull()
     ;(host.querySelector('.k-modal-bg') as HTMLElement).dispatchEvent(
       new Event('pointerdown', { bubbles: true }),
     )
     await nextTick()
     await flushPromises()
-    expect(host.querySelector('.k-modal'), '点遮罩必须关闭').toBeNull()
+    expect(host.querySelector('.k-modal'), 'click on backdrop must close').toBeNull()
   })
 
-  it('🔴 purgeFiles 两侧:不勾 → deleteRoot(id, false)', async () => {
+  it('🔴 purgeFiles both sides: unchecked → deleteRoot(id, false)', async () => {
     const { host, store } = await openDelete(0)
     const toast = vi.spyOn(store, 'toast')
     ;(
@@ -1147,7 +1148,7 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(toast).toHaveBeenLastCalledWith('已删除')
   })
 
-  it('🔴 purgeFiles 两侧:勾上 → deleteRoot(id, true)', async () => {
+  it('🔴 purgeFiles both sides: checked → deleteRoot(id, true)', async () => {
     const { host } = await openDelete(1)
     const box = host.querySelector('.kr-check input') as HTMLInputElement
     box.checked = true
@@ -1162,7 +1163,7 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(wiki.deleteRoot).toHaveBeenCalledWith('9b1c77e0aa2f4d3e8c5106b4f7d2a318', true)
   })
 
-  it('🔴 删完 deleting=null 且 purgeFiles=false(蓝本 :217-218 在 try/catch **之外**)', async () => {
+  it('🔴 After delete deleting=null and purgeFiles=false (blueprint :217-218 **outside** try/catch)', async () => {
     const { w, host } = await openDelete(1)
     const box = host.querySelector('.kr-check input') as HTMLInputElement
     box.checked = true
@@ -1174,19 +1175,19 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
       ) as HTMLElement
     ).click()
     await flushPromises()
-    // deleting=null ⇒ 弹窗关掉
-    expect(host.querySelector('.k-modal'), 'deleting 没被置 null').toBeNull()
-    // purgeFiles=false ⇒ 重开一次,勾选框回到未勾
+    // deleting=null ⇒ close dialog
+    expect(host.querySelector('.k-modal'), 'deleting not set to null').toBeNull()
+    // purgeFiles=false ⇒ reopen, checkbox back to unchecked
     await rows(w)[1]!.findAll('button.k-btn.ghost')[1]!.trigger('click')
     await nextTick()
     await flushPromises()
     expect(
       (host.querySelector('.kr-check input') as HTMLInputElement).checked,
-      'purgeFiles 没被重置 —— 下次删除会意外连文件一起清掉',
+      'purgeFiles not reset — next delete would accidentally clear files',
     ).toBe(false)
   })
 
-  it('🔴 K58 —— 删除失败:只弹「操作失败」,弹窗仍关、purgeFiles 仍重置(蓝本那两行在 catch 之外)', async () => {
+  it('🔴 K58 — delete fails: only show "operation failed", dialog still closes, purgeFiles still resets (blueprint those two lines outside catch)', async () => {
     const { host, store } = await openDelete(0)
     const toast = vi.spyOn(store, 'toast')
     wiki.deleteRoot.mockRejectedValue(new Error('PROBE-K58-R5T9-del'))
@@ -1199,10 +1200,10 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     expect(toast).toHaveBeenLastCalledWith('操作失败')
     expect(toast.mock.calls.flat().join('|')).not.toContain('PROBE-K58-R5T9')
     expect(host.innerHTML).not.toContain('PROBE-K58-R5T9')
-    expect(host.querySelector('.k-modal'), '蓝本 :217 在 catch 之外 ⇒ 失败也关').toBeNull()
+    expect(host.querySelector('.k-modal'), 'blueprint :217 outside catch ⇒ failure also closes').toBeNull()
   })
 
-  it('🔴 关闭弹窗**不**重置 purgeFiles(蓝本三条关闭路径都只置 deleting=null,照抄)', async () => {
+  it('🔴 Close dialog does **not** reset purgeFiles (blueprint three close paths all set deleting=null only, copy as-is)', async () => {
     const { w, host } = await openDelete(0)
     const box = host.querySelector('.kr-check input') as HTMLInputElement
     box.checked = true
@@ -1216,32 +1217,32 @@ describe('RootsView —— K57:reka「删除索引目录?」确认弹窗 + confi
     await flushPromises()
     expect(
       (host.querySelector('.kr-check input') as HTMLInputElement).checked,
-      '蓝本关闭路径不碰 purgeFiles —— 这里被「顺手修正」了',
+      'blueprint close paths don\'t touch purgeFiles — this was "convenient fix"',
     ).toBe(true)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 裁定 R27 / 勘误 E-62 —— toast 一律走 `store.toast(...)`(内部 2400ms),
-// 直调 `useToast()` 会丢掉蓝本自己的 2400ms(全局 `show()` 默认只有 1500ms)。
-describe('RootsView —— R27:7 处 toast 全部经 store.toast(不是直调 useToast)', () => {
-  it('toggle / rescan / confirmDelete 三条成功分支都被 store.toast 的 spy 捕获', async () => {
+// 🔴 Decision R27 / Errata E-62 — toast always via `store.toast(...)` (internal 2400ms),
+// direct call to `useToast()` loses blueprint's own 2400ms (global `show()` defaults to 1500ms only).
+describe('RootsView — R27: 7 toasts all via store.toast (not direct useToast)', () => {
+  it('toggle / rescan / confirmDelete three success branches all caught by store.toast spy', async () => {
     const { w, host, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
-    // 🔴 §9.17:「点某个东西」之前先确认它在本条数据下真是可点元素 ——
-    //   重扫按钮带 `:disabled="!r.enabled"`,所以**必须先重扫再 toggle**;
-    //   反过来先把第 0 行关掉,重扫按钮就灰了,那一发 click 静默不发生(实测栽过一次)。
+    // 🔴 §9.17: before "click something" confirm it's truly clickable under this data state —
+    //   rescan button has `:disabled="!r.enabled"`, so **must rescan before toggle**;
+    //   opposite: disable row 0 first, rescan button grayed, that click silently doesn't happen (been caught once).
     expect(
       (rows(w)[0]!.findAll('button.k-btn.ghost')[0]!.element as HTMLButtonElement).disabled,
-      '第 0 行的重扫按钮此刻必须是可点的',
+      'row 0 rescan button must be clickable now',
     ).toBe(false)
-    // ① rescan 成功
+    // ① rescan success
     await rows(w)[0]!.findAll('button.k-btn.ghost')[0]!.trigger('click')
     await flushPromises()
-    // ② toggle 成功
+    // ② toggle success
     await rows(w)[0]!.find('button.k-sw').trigger('click')
     await flushPromises()
-    // ③ confirmDelete 成功
+    // ③ confirmDelete success
     await rows(w)[1]!.findAll('button.k-btn.ghost')[1]!.trigger('click')
     await nextTick()
     await flushPromises()
@@ -1251,7 +1252,7 @@ describe('RootsView —— R27:7 处 toast 全部经 store.toast(不是直调 us
       ) as HTMLElement
     ).click()
     await flushPromises()
-    // 判据:任何一处改成直调 useToast().show(...) → 该处的 spy 记录消失
+    // Criterion: change any to direct useToast().show(...) → spy record for that disappears
     expect(toast.mock.calls.map((c: unknown[]) => c[0])).toEqual([
       '已开始重新扫描',
       '已禁用',
@@ -1259,42 +1260,42 @@ describe('RootsView —— R27:7 处 toast 全部经 store.toast(不是直调 us
     ])
   })
 
-  it('🔴 源码里零 `useToast(` 直调(治理 §5.1 / 裁定 R27)', () => {
-    expect(SRC_CODE, '直调 useToast() 会丢掉蓝本的 2400ms(裁定 R27)').not.toMatch(/useToast\s*\(/)
-    // 🔴 防空转:确认真的有 store.toast 调用点(否则上面那条对着一个不发 toast 的页面也绿)。
-    //   7 = toggle 2(成功 + catch)+ rescan 2 + confirmDelete 2 + submit 成功 1;
-    //   submit 的失败路径按 K59 走弹窗内联,**不弹 toast**,故不计。
-    expect((SRC_CODE.match(/store\.toast\(/g) || []).length, 'store.toast 落点数').toBe(7)
+  it('🔴 Zero direct `useToast(` calls in source (governance §5.1 / decision R27)', () => {
+    expect(SRC_CODE, 'direct useToast() loses blueprint\'s 2400ms (decision R27)').not.toMatch(/useToast\s*\(/)
+    // 🔴 Anti-false-negative: confirm there really are store.toast call sites (else above also green on page that doesn't toast).
+    //   7 = toggle 2 (success + catch) + rescan 2 + confirmDelete 2 + submit success 1;
+    //   submit failure path goes inline per K59, **doesn't toast**, so not counted.
+    expect((SRC_CODE.match(/store\.toast\(/g) || []).length, 'store.toast call count').toBe(7)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴🔴 SP8-P5f **Task 6 追加**(裁定 **R27** —— T5 评审的 Important I-1 派给本刀)
+// 🔴🔴 SP8-P5f **Task 6 addition** (decision **R27** — Important I-1 from T5 review handed to this file)
 //
-// ⚠️ 本文件对 T6 是**极窄解禁:只许新增,既有每一行零改动**(裁定 R27)。
-//    🔴 **`RootsView.vue` 产品码一个字都没动** —— 评审已逐字核为**正确**,
-//    缺的从来是守卫(「产品代码对、守卫为零」家族第 N 次)。
+// ⚠️ For T6 this file has **extremely narrow exemption: new tests only, zero changes to existing lines** (decision R27).
+//    🔴 **`RootsView.vue` product code unchanged** — review verified it **character-by-character correct**,
+//    what was missing has always been guards ("product correct, guards zero" family, Nth time).
 //
-// 【上面那条 submitting 用例为什么是零判别力】
-//   `RootsView —— canSubmit 两侧 + submitting 门` 里的
-//   「🔴 submitting 门:第一发在飞时重复点不发第二发」点的是 `.k-modal-foot` 里的
-//   **「添加」按钮**,而那个按钮带 `:disabled="!canSubmit || submitting"`。
-//   🔴 **jsdom 不向 `:disabled` 元素派发 click 事件** ⇒ 第二次 `.click()` 根本没进入
-//   被测代码 ⇒ 那条用例实测的是 **`:disabled` 绑定**,不是 `submit()` 里的函数门。
-//   评审实证:把 `submit()` 的 `|| submitting.value` 整条门去掉,**60/60 全绿**。
-//   ⚠️ 这是治理 §9.17「点某个东西先确认它在给定数据下真渲染成**可点**元素」的变种:
-//     **元素渲染了,但它是 disabled ⇒ 点击事件根本没发生 ⇒ 用例从未到达被测代码。**
-//     **常驻教训:jsdom 下点 `:disabled` 元素 = 零判别力,验「函数门」必须走无 disabled 的入口。**
+// 【Why the submitting test above has zero discriminative power】
+//   In `RootsView — canSubmit both sides + submitting gate`,
+//   the "submitting gate: first request in-flight, repeat click doesn't send second" test clicks the **"Add" button**
+//   in `.k-modal-foot`, which has `:disabled="!canSubmit || submitting"`.
+//   🔴 **JSDOM doesn't dispatch click events to `:disabled` elements** ⇒ second `.click()` never enters
+//   tested code ⇒ that test actually measures **`:disabled` binding**, not the function gate in `submit()`.
+//   Review found: remove `|| submitting.value` gate from `submit()`, **all 60 tests still pass**.
+//   ⚠️ This is a variant of governance §9.17 "before clicking something confirm it renders **clickable** under given data":
+//     **Element renders but is disabled ⇒ click event never happens ⇒ test never reaches tested code.**
+//     **Standing lesson: clicking `:disabled` element under JSDOM = zero discriminative power; to test "function gate" use an unblocked entry.**
 //
-// 【本条走的真实绕过路径】**N50 的「以镜像模式添加」按钮**(`RootsView.vue` 的
-//   `.kr-error` 内联块里那个 `k-btn outline`)—— 它 `@click="submit(true)"` 且
-//   **没有任何 `:disabled` 绑定** ⇒ 双击真的会派发两次 click、真的会进两次 `submit()`。
-//   🔴 判据:去掉 `submit()` 的 `submitting.value` 门 → **本条必须报红**
-//   (带门 1 发 / 去门 2 发 `createRoot`)。RED 输出与 `md5sum` 还原确认贴在
-//   `p5f-task-6-report.md` §7。
+// 【The real bypass path this test walks】**N50's "Add in mirror mode" button** (the `k-btn outline` in
+//   `.kr-error` inline block of `RootsView.vue`) — it `@click="submit(true)"` and
+//   **has no `:disabled` binding** ⇒ double-click really dispatches two clicks, really enters `submit()` twice.
+//   🔴 Criterion: remove `submitting.value` gate from `submit()` → **this test must fail**
+//   (with gate 1 call / without gate 2 calls to `createRoot`). RED output and md5sum validation in
+//   `p5f-task-6-report.md` §7.
 // ═══════════════════════════════════════════════════════════════════════════
-describe('RootsView —— 🔴 submitting 是**函数门**,不只是 :disabled 绑定(裁定 R27)', () => {
-  /** 开弹窗 → 填一个合法路径 → 用 409 换出「以镜像模式添加」按钮(N50)。 */
+describe('RootsView — 🔴 submitting is **function gate**, not just :disabled binding (decision R27)', () => {
+  /** Open dialog → fill valid path → use 409 to get "Add in mirror mode" button (N50). */
   async function openWithMirrorOffer() {
     const m = await mountPage([])
     await m.w.find('.k-section-head button.k-btn.primary').trigger('click')
@@ -1314,43 +1315,43 @@ describe('RootsView —— 🔴 submitting 是**函数门**,不只是 :disabled 
     return m
   }
 
-  it('🔴 §9.17 前置:「以镜像模式添加」按钮真渲染成**可点**元素(无 disabled)', async () => {
+  it('🔴 §9.17 prerequisite: "Add in mirror mode" button really renders **clickable** (no disabled)', async () => {
     const { host } = await openWithMirrorOffer()
     const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
-    expect(mirrorBtn, 'N50 的镜像按钮没渲染出来 —— 本组会退化成零判别力').not.toBeNull()
+    expect(mirrorBtn, 'N50 mirror button not rendered — suite degrades to zero discriminative power').not.toBeNull()
     expect(norm(mirrorBtn.textContent!)).toBe('以镜像模式添加')
-    // 🔴 这才是本条能测到「函数门」的前提:它**不是** disabled 元素。
-    expect(mirrorBtn.hasAttribute('disabled'), '镜像按钮带了 disabled —— jsdom 不会派发 click').toBe(false)
+    // 🔴 This is the precondition to test the "function gate": it's **not** disabled.
+    expect(mirrorBtn.hasAttribute('disabled'), 'mirror button has disabled — JSDOM won\'t dispatch click').toBe(false)
     expect(mirrorBtn.disabled).toBe(false)
-    // 对照:同一时刻「添加」按钮是 disabled 的(它才是上面那条零判别力用例点的目标)。
+    // Contrast: "Add" button is disabled at the same time (it's what the test above with zero discriminative power clicks).
     const addBtn = Array.from(host.querySelectorAll('.k-modal-foot button')).find(
       (b) => norm(b.textContent!) === '添加',
     ) as HTMLButtonElement
-    expect(addBtn.disabled, '「添加」按钮此刻应当是 disabled(canSubmit 为真但 submitting 为假?)').toBe(false)
+    expect(addBtn.disabled, '"Add" button should be disabled now (canSubmit true but submitting false?)').toBe(false)
   })
 
-  it('🔴 双击镜像按钮:submitting 函数门挡住第二发(判据:去掉该门 → 本条必须报红)', async () => {
+  it('🔴 Double-click mirror button: submitting function gate blocks second (criterion: remove gate → must fail)', async () => {
     const { host } = await openWithMirrorOffer()
     const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
     expect(mirrorBtn).not.toBeNull()
-    wiki.createRoot.mockClear() // 409 那一发不算
+    wiki.createRoot.mockClear() // 409 call doesn't count
     const d = makeDeferred<unknown>()
     wiki.createRoot.mockReturnValue(d.promise)
-    // 🔴 **同步双击**:两次点击之间不 await —— Vue 还没重渲染,元素与监听器都还在,
-    //   两次 click **都真的派发到 `submit(true)`**。挡住第二发的只能是函数里的
-    //   `if (!canSubmit.value || submitting.value) return`。
+    // 🔴 **Synchronous double-click**: no await between clicks — Vue hasn't re-rendered, elements and listeners still there,
+    //   both clicks **really dispatch to `submit(true)`**. Only the function's
+    //   `if (!canSubmit.value || submitting.value) return` blocks the second.
     mirrorBtn.click()
     mirrorBtn.click()
     await flushPromises()
     expect(
       wiki.createRoot,
-      '🔴 第二发也发出去了 —— submit() 里的 submitting 门丢了(:disabled 挡不住这个入口)',
+      '🔴 Second call also went out — submitting gate in submit() lost (:disabled can\'t block this entry)',
     ).toHaveBeenCalledTimes(1)
     d.resolve({})
     await flushPromises()
   })
 
-  it('第一发落地之后镜像按钮才允许再发(finally 里 submitting 归位)', async () => {
+  it('After first call lands mirror button allowed again (submitting reset in finally)', async () => {
     const { host } = await openWithMirrorOffer()
     const mirrorBtn = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
     wiki.createRoot.mockClear()
@@ -1358,12 +1359,12 @@ describe('RootsView —— 🔴 submitting 是**函数门**,不只是 :disabled 
     mirrorBtn.click()
     await flushPromises()
     expect(wiki.createRoot).toHaveBeenCalledTimes(1)
-    // 409 再次给出镜像按钮;门已归位 ⇒ 这一发能出去。
+    // 409 shows mirror button again; gate reset ⇒ this call goes through.
     const again = host.querySelector('.kr-error button.k-btn.outline') as HTMLButtonElement
-    expect(again, '第二次 409 后镜像按钮没回来').not.toBeNull()
+    expect(again, 'second 409 mirror button didn\'t come back').not.toBeNull()
     wiki.createRoot.mockResolvedValueOnce({})
     again.click()
     await flushPromises()
-    expect(wiki.createRoot, 'submitting 没在 finally 里归位 —— 门变成了一次性').toHaveBeenCalledTimes(2)
+    expect(wiki.createRoot, 'submitting not reset in finally — gate became one-time').toHaveBeenCalledTimes(2)
   })
 })

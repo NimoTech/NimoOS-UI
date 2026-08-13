@@ -2,17 +2,17 @@ import { describe, it, expect } from 'vitest'
 import { planDownload, shouldRefreshBeforeDownload } from './download'
 
 describe('planDownload', () => {
-  it('单个文件(非目录)→ /v3/file 计划,带真实路径', () => {
+  it('Single file (non-directory) → /v3/file plan, with real path', () => {
     expect(planDownload([{ path: '/DATA/a.txt', is_dir: false }]))
       .toEqual({ kind: 'file', path: '/DATA/a.txt' })
   })
 
-  it('单个目录 → /v1/batch 计划,files=该目录真实路径', () => {
+  it('Single directory → /v1/batch plan, files=real path of that directory', () => {
     expect(planDownload([{ path: '/DATA/Docs', is_dir: true }]))
       .toEqual({ kind: 'batch', files: '/DATA/Docs' })
   })
 
-  it('多选 → /v1/batch 计划,files=逗号连接真实路径(保留原顺序)', () => {
+  it('Multiple selection → /v1/batch plan, files=comma-separated real paths (preserve original order)', () => {
     expect(planDownload([
       { path: '/DATA/a.txt', is_dir: false },
       { path: '/DATA/Docs', is_dir: true },
@@ -21,11 +21,11 @@ describe('planDownload', () => {
 })
 
 describe('shouldRefreshBeforeDownload', () => {
-  const now = 1_000_000_000_000 // 固定 now(ms)
-  it('expires_at 缺失(null)→ 保守刷新', () => {
+  const now = 1_000_000_000_000 // fixed now (ms)
+  it('expires_at missing (null) → conservative refresh', () => {
     expect(shouldRefreshBeforeDownload(null, now)).toBe(true)
   })
-  it('已过期 → 刷新', () => {
+  it('Already expired → refresh', () => {
     const expiredSec = Math.floor(now / 1000) - 10
     expect(shouldRefreshBeforeDownload(expiredSec, now)).toBe(true)
   })

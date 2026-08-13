@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/stream/groupBlocks.js
+// 1:1 ported from Vue2 src/views/AI/Agent/stream/groupBlocks.js
 // Group consecutive thinking/tool blocks into a single process strip item.
 // Other block types pass through untouched, preserving order.
 //

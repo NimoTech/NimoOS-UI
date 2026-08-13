@@ -24,7 +24,7 @@ describe('PortsEditor', () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].protocol).toBe('tcp')
   })
-  it('extras 只读展示,不产生输入框', () => {
+  it('extras are read-only display, no input fields generated', () => {
     const w = mount(PortsEditor, {
       props: { rows: [], extras: ['25500-25600:25500-25600', { target: 19132, published: '19132-19140', protocol: 'udp' }] },
       global: { plugins: [i18n] },

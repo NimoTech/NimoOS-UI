@@ -1,5 +1,6 @@
-// SP8-P3a Task 2 —— 覆盖 brief §2.4 列的用例:三种 trigger + 未知 trigger 回 null、
-// 'You' vs 任意人名、"(3 files)" / "(1 file)" / "12 B" / "1.0 KB" / 空串。
+// SP8-P3a Task 2 — covers the use cases listed in brief §2.4: three trigger types + unknown
+// trigger returns null, 'You' vs arbitrary author name, "(3 files)" / "(1 file)" / "12 B" /
+// "1.0 KB" / empty string.
 import { describe, it, expect } from 'vitest'
 import { triggerLabel, authorLabel, fileSizeLabel } from './skillsFormat'
 

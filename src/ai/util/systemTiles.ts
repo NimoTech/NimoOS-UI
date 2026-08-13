@@ -1,39 +1,39 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/SystemTab.vue:38-53(metrics computed)。
+// 1:1 ported from Vue2 src/views/AI/Agent/tabs/SystemTab.vue:38-53 (metrics computed).
 //
-// SystemTab.vue(组件)负责把 labelKey/subKey 通过 t() 渲染成文案 —— 这个纯函数
-// 只产出 i18n 键名 + 已格式化好的数值字符串,不依赖 vue-i18n 上下文(与
-// attachmentMeta.ts 的 docErrorKey()/stagedGroups.ts 的 relativeTime() 同款
-// "返回键名而非译文" 约定)。
+// SystemTab.vue (component) is responsible for rendering labelKey/subKey into copy via t() — this pure
+// function only produces i18n key names + pre-formatted value strings, does not depend on vue-i18n context
+// (same "return key names not translations" convention as docErrorKey() in attachmentMeta.ts / relativeTime()
+// in stagedGroups.ts).
 //
-// Vue2 缺陷修复(项目 2026-07-27 拍板"移植纪律·界面照 Vue2 逻辑照正确")——
-// SystemTab.vue:40-42 原文:
+// Vue2 bug fix (project decision 2026-07-27 "migration discipline: UI mirrors Vue2, logic fixed") —
+// SystemTab.vue:40-42 original:
 //   const cpuPct = sm.cpu && sm.cpu.percent != null
 //     ? sm.cpu.percent.length ? sm.cpu.percent[0].toFixed(0) + '%' : '—'
 //     : '—'
-// 这把 `cpu.percent` 当成数组用 `.length`/`[0]` 取值,但后端(NimoOS
-// route/v1/system.go:343-363 GetSystemUtilization、route/periodical.go:50-58
-// SendAllHardwareStatusBySocket)两条路径发的 `cpu.percent` 都是
-// `GetCpuPercent() float64` 的产物 —— 从来都是纯数字,不是数组。
-// `(number).length` 恒为 `undefined`,falsy,于是 Vue2 的 CPU 磁贴无论真实占用率
-// 是多少,永远显示 "—"。这是一个真实缺陷,不是设计意图,这里直接读数字修复。
+// This treats `cpu.percent` as an array using `.length` / `[0]` indexing, but the backend (NimoOS
+// route/v1/system.go:343-363 GetSystemUtilization and route/periodical.go:50-58
+// SendAllHardwareStatusBySocket) both paths send `cpu.percent` as the product of
+// `GetCpuPercent() float64` — always a pure number, never an array.
+// `(number).length` is always `undefined`, falsy, so Vue2's CPU tile always displays "—"
+// regardless of the actual CPU usage. This is a real bug, not design intent, fixed here by reading the number directly.
 //
-// F3 申报(终审 opus 复查,本文件头之前只申报了上面 cpu.percent 那一处缺陷
-// 修复)—— `mem.used`/`mem.total`/`cpu.temperature` 三处,Vue2 SystemTab.vue 用
-// `!= null` 判空(`sm.mem.used != null`),这里换成了 `typeof x === 'number'`。
-// 两者在当前后端契约下等价(三个字段声明类型就是 number,永远不会是字符串数字)；
-// 但若后端某天改发字符串数字,行为会分叉:Vue2 会把字符串当数字渲染出来,这里会
-// 落 `—`。类型收窄本身是对的(字段类型声明即 number),这里只是把这个偏离补进
-// 申报清单,不改代码行为。
+// F3 declaration (final review by Opus, this file previously declared only the above cpu.percent bug
+// fix) — three places: `mem.used`/`mem.total`/`cpu.temperature`. Vue2 SystemTab.vue uses `!= null` for
+// null check (`sm.mem.used != null`), here changed to `typeof x === 'number'`. Under the current backend
+// contract the two are equivalent (the three fields are declared type number, never string numbers); but
+// if the backend changes to send string numbers someday, behavior will diverge: Vue2 will render the
+// string as a number, here it will fall to `—`. Type narrowing itself is correct (field type declaration
+// is number), here we just add this deviation to the declaration list without changing code behavior.
 import type { Utilization } from '@nimotech/nimoos-service'
 
 export interface SystemTile {
   labelKey: string
   value: string
-  /** 静态可译文案的 i18n 键(如 aiSysLan、复用 aiSysCpu 给 Temp 磁贴的 "CPU" 字面量)。 */
+  /** i18n key for static translatable copy (e.g. aiSysLan, reusing aiSysCpu for Temp tile's "CPU" literal). */
   subKey?: string
-  /** subKey 需要的插值参数(目前只有 Memory 磁贴的 aiSysOf 用到 {n})。 */
+  /** Interpolation parameters needed by subKey (currently only Memory tile's aiSysOf uses {n}). */
   subParams?: Record<string, unknown>
-  /** 来自原始数据、不可译的动态文本(如 cpu.model),与 subKey 互斥。 */
+  /** Raw dynamic text from original data, not translatable (e.g. cpu.model), mutually exclusive with subKey. */
   subText?: string
 }
 

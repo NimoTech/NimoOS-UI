@@ -1,29 +1,30 @@
 <!--
-  SP8-P4 Task 5 —— 1:1 移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerGroup.vue`(47 行)。
-  结构上的孪生兄弟是 `../skills/SkillGroup.vue`(109 行,SP8-P3a Task 4,已评审通过)——
-  本文件的 `<script setup>` 写法、`.sk-group-*`/`.sk-item*` 外壳用法照它抄,不引入第三种模式。
+  SP8-P4 Task 5 — 1:1 ported from Vue2 `NimoOS-UI/src/views/AI/MCP/McpServerGroup.vue` (47 lines).
+  Structural twin is `../skills/SkillGroup.vue` (109 lines, SP8-P3a Task 4, already reviewed) —
+  this file's `<script setup>` syntax and `.sk-group-*`/`.sk-item*` wrapper usage copied from it, no third pattern introduced.
 
-  【偏离 D3(公共约束 §3 第 3 条)】Vue2 `:29`/`:4` 的 `SkillIcon` 不移植,统一用
-  `../../icons/AgentIcon.vue`(chevDown 图标 AgentIcon.vue:19 已有)——承 P3a 先例,
-  与 SkillGroup.vue 头部注释同一条偏离。
+  【Deviation from D3 (public constraint §3 #3)】Vue2 `:29`/`:4` `SkillIcon` not ported, unified to use
+  `../../icons/AgentIcon.vue` (chevDown icon exists in AgentIcon.vue:19) — following P3a precedent,
+  same deviation noted in SkillGroup.vue header comment.
 
-  【i18n 复用,非新增】Vue2 `:20` `$t('Off')` → 本仓 `aiSkOff`(值「已关闭」,
-  已在 T4 核实与 Vue2 zh 值逐字相同)。这是**跨域复用既有键**(该键定义在 skills 域),
-  不是本任务新增——分组标题 `label` 由父组件 T9 `McpSection.vue` 以 prop 传入
-  (对应 `aiMcpSrvGroupEnabled`/`aiMcpSrvGroupDisabled`),本组件不 `t()` 它。
+  【i18n reuse, not new】Vue2 `:20` `$t('Off')` → this repo `aiSkOff` (value "disabled",
+  verified in T4 to match Vue2 zh value exactly). This is **cross-domain reuse of existing key**
+  (that key defined in skills domain), not new this task — group title `label` passed by parent
+  component T9 `McpSection.vue` as prop (corresponds to `aiMcpSrvGroupEnabled`/`aiMcpSrvGroupDisabled`),
+  this component does not `t()` it.
 
-  【data-active / data-disabled】照 Vue2 :10-11 写成字符串 'true'/'false'(不用布尔)——
-  供 CSS 属性选择器命中(skills-styles.scss:95 起的 `.sk-item[data-active="true"]` 等)。
+  【data-active / data-disabled】following Vue2 :10-11 as string 'true'/'false' (not boolean) —
+  for CSS attribute selector matching (skills-styles.scss:95+ `.sk-item[data-active="true"]` etc).
 
-  【色板与字形】Vue2 `:43` `color(n)`/`label2(t)` 方法体分别转发给
-  `serverColor`/`transportLabel`(`../../../util/mcpServerVisual.ts`,T2);`glyph` 是
-  Vue2 `:41` `data(){ glyph: SERVER_GLYPH }` 的等价物——本仓用常量直接引用,不放进
-  `data()`(无响应式需求,`<script setup>` 里没有等价的 `data()` 概念)。
+  【Color palette and glyph】Vue2 `:43` `color(n)`/`label2(t)` method bodies forward to
+  `serverColor`/`transportLabel` (`../../../util/mcpServerVisual.ts`, T2) respectively; `glyph` is
+  equivalent to Vue2 `:41` `data(){ glyph: SERVER_GLYPH }` — this repo directly references the constant,
+  not in `data()` (no reactivity needed, `<script setup>` has no equivalent `data()` concept).
 
-  零 <style> 块:用到的类均已在既有 scss 里 ——
-  `.sk-group-label`/`-chev`/`-count`、`.sk-item`/`-body`/`-head`/`-name`/`-desc`/`-meta`/`-off`
-  在 skills-styles.scss(:61,70,77,95,112,127-170);`.mcp-transport`(含三个 data-t 变体)
-  在 mcp-styles.scss(T1,:23-30)。
+  Zero <style> block: all used classes already in existing scss —
+  `.sk-group-label`/`-chev`/`-count`, `.sk-item`/`-body`/`-head`/`-name`/`-desc`/`-meta`/`-off`
+  in skills-styles.scss (:61,70,77,95,112,127-170); `.mcp-transport` (including three data-t variants)
+  in mcp-styles.scss (T1, :23-30).
 -->
 <script setup lang="ts">
 import { ref } from 'vue'
@@ -43,11 +44,11 @@ const emit = defineEmits<{ pick: [id: number] }>()
 
 const { t } = useI18n()
 
-// 本地折叠状态,默认展开——对齐 Vue2 :41 `data() { return { collapsed: false, ... } }`。
+// Local collapse state, default expanded — aligned with Vue2 :41 `data() { return { collapsed: false, ... } }`.
 const collapsed = ref(false)
 
-// Vue2 :41 `glyph: SERVER_GLYPH`——后端没有图标字段,全部 MCP 服务统一用这个字形,
-// 无响应式需求,不放进 ref。
+// Vue2 :41 `glyph: SERVER_GLYPH` — backend has no icon field, all MCP services use this glyph uniformly,
+// no reactivity needed, not in ref.
 const glyph = SERVER_GLYPH
 </script>
 

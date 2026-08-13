@@ -326,7 +326,7 @@ describe('McpServerModal', () => {
     await flush()
 
     expect(h.parseMCPCommand).toHaveBeenCalledWith('npx -y @upstash/context7-mcp')
-    expect(trigOptions()[2].dataset.active).toBe('true') // stdio 选中
+    expect(trigOptions()[2].dataset.active).toBe('true') // stdio selected
     expect(commandInput().value).toBe('npx')
     const argsTextarea = document.querySelector('.sk-modal [data-f="args"]') as HTMLTextAreaElement
     expect(argsTextarea.value).toBe('-y\n@upstash/context7-mcp')
@@ -356,9 +356,9 @@ describe('McpServerModal', () => {
     await flush()
     await flush()
 
-    expect(trigOptions()[0].dataset.active).toBe('true') // http 选中
+    expect(trigOptions()[0].dataset.active).toBe('true') // http selected
     expect(urlInput().value).toBe('https://mcp.example.com')
-    // command/args 字段已随 transport 切回 http 而不再渲染;env 应为空
+    // command/args fields no longer render as transport switched back to http; env should be empty
     expect(document.querySelector('.sk-modal [data-f="command"]')).toBeNull()
     expect(document.querySelector('.sk-modal [data-kv="env"]')).toBeNull()
   })
@@ -411,8 +411,8 @@ describe('McpServerModal', () => {
     expect(document.querySelector('.sk-modal')!.textContent).not.toContain('empty command')
   })
 
-  // ===== 覆盖点 14:解析中态 + pasteCmd 空态 =====
-  it('14a. 解析中:按钮文案 aiMcpSrvParsing 且 disabled', async () => {
+  // ===== Coverage point 14: Parsing state + empty pasteCmd =====
+  it('14a. Parsing: button text aiMcpSrvParsing and disabled', async () => {
     let resolve!: (v: unknown) => void
     h.parseMCPCommand.mockReturnValue(new Promise((r) => { resolve = r }))
     mountModal({ server: null })
@@ -427,15 +427,15 @@ describe('McpServerModal', () => {
     await flush()
   })
 
-  it('14b. pasteCmd 为空时按钮 disabled', async () => {
+  it('14b. When pasteCmd empty, button disabled', async () => {
     mountModal({ server: null })
     await macroFlush()
     expect(pasteInput().value).toBe('')
     expect(fillBtn().disabled).toBe(true)
   })
 
-  // ===== 覆盖点 15:serverError 行内报错 =====
-  it('15. serverError 非空 → 渲染 .sk-field-err 行内错误(先例 AddSkillModal)', async () => {
+  // ===== Coverage point 15: serverError inline error =====
+  it('15. serverError non-empty → renders .sk-field-err inline error (precedent: AddSkillModal)', async () => {
     mountModal({ server: null, serverError: zh.aiMcpSrvErrUrlRequired })
     await macroFlush()
     const err = document.querySelector('.sk-modal .sk-field-err') as HTMLElement
@@ -444,8 +444,8 @@ describe('McpServerModal', () => {
     expect(err.textContent).toBe(zh.aiMcpSrvErrUrlRequired)
   })
 
-  // ===== 覆盖点 16:open 真→假→真,表单复位 =====
-  it('16. open 由真变假再变真 → 表单复位(组件常驻,不像 Vue2 每次都是新实例)', async () => {
+  // ===== Coverage point 16: open true→false→true, form resets =====
+  it('16. open changes true→false→true → form resets (component resident, unlike Vue2 new instance each time)', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     setValue(nameInput(), 'typed-name')
@@ -462,9 +462,9 @@ describe('McpServerModal', () => {
     expect(urlInput().value).toBe('')
   })
 
-  // 附加:取消按钮 emit update:open(false),不 emit save —— 与 15 条覆盖点互补,
-  // 验证「照 AddSkillModal 先例」的常驻外壳行为完整。
-  it('附加:取消按钮 emit update:open(false),不 emit save', async () => {
+  // Additional: Cancel button emits update:open(false), not save —— complements 15 coverage points,
+  // verifies complete resident shell behavior per "AddSkillModal precedent".
+  it('Additional: Cancel button emits update:open(false), not save', async () => {
     const w = mountModal({ server: null })
     await macroFlush()
     cancelBtn().click()
@@ -473,8 +473,8 @@ describe('McpServerModal', () => {
     expect(w.emitted('save')).toBeUndefined()
   })
 
-  // 附加:saving=true 时按钮文案变化且禁用(与 5c 的「enabled」态对照,确认 saving 优先)。
-  it('附加:saving=true 时提交按钮文案变 aiCfgSaving 且禁用', async () => {
+  // Additional: when saving=true, button text changes and disables (compare with 5c "enabled" state, confirm saving takes priority).
+  it('Additional: when saving=true, submit button text changes to aiCfgSaving and disabled', async () => {
     mountModal({ server: null, saving: true })
     await macroFlush()
     setValue(nameInput(), 'foo')

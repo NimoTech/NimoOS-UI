@@ -1,37 +1,46 @@
 <!--
-  SP8-P5a Task 10 —— 知识库区外壳,1:1 移植自 Vue2 蓝本
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/KnowledgeLayout.vue`(210 行,
-  `git show main:` 读取,治理文件 §1:工作树是旧分支不可信)。
+  SP8-P5a Task 10 — Knowledge base section shell, 1:1 port from Vue2 blueprint
+  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/KnowledgeLayout.vue` (210
+  lines, read via `git show main:`, governance file §1: worktree is old branch, not
+  trustworthy).
 
-  结构对照(蓝本行号 → 本文件;评审 2026-08-01 订正,原头注释行号系统性偏
-  5-6 行,以下已逐个回 `git show main:` 复核):
-    :2-47    .knowledge-app > aside.k-rail(head/section/nav 9 项/状态块/foot)
-    :50-72   .k-main(topbar/banner/router-view)
-    :74-90   .k-mobile-tabs(前 4 项 + More)
-    :92-96   .k-toast —— 不移植(K3),toast() 走全局 useToast().show()
-    :104-114 NAV / :116-126 TITLES —— 逐字照抄的两个常量
-    :140-151 currentTab 的 if/endsWith 不对称判据 —— 照抄(蓝本如此)
-    :176-181 userName —— 蓝本读 Vuex,本仓无 Vuex,改走 K8 既定写法
-             (照 src/ai/components/settings/SettingsRail.vue:75-86 逐字复用)
-    :183-190 created()/beforeDestroy() 的 10s 轮询 —— 迁到 onMounted/onUnmounted
-    :196-199 navigate() / :200-203 onRefresh() —— 原样
+  Structure mapping (blueprint line → this file; review corrected 2026-08-01,
+  original comment line numbers systematically off by 5-6 lines, below each
+  verified against `git show main:`):
+    :2-47    .knowledge-app > aside.k-rail (head/section/nav 9 items/status
+             block/foot)
+    :50-72   .k-main (topbar/banner/router-view)
+    :74-90   .k-mobile-tabs (first 4 items + More)
+    :92-96   .k-toast — not ported (K3), toast() uses global useToast().show()
+    :104-114 NAV / :116-126 TITLES — two constants copied exactly
+    :140-151 currentTab if/endsWith asymmetry — copied as-is (blueprint is
+             asymmetric)
+    :176-181 userName — blueprint reads Vuex, this repo has no Vuex, changed to
+             K8 established pattern (exactly reused from
+             src/ai/components/settings/SettingsRail.vue:75-86)
+    :183-190 created()/beforeDestroy() 10s polling — moved to onMounted/onUnmounted
+    :196-199 navigate() / :200-203 onRefresh() — unchanged
 
-  i18n 键名适配(纯机械,非行为变化):蓝本 `$t(n.en)`/`$t(titleKey)` 直接拿字面英文
-  短语当 key(Vue2 语言包以短语为 key)。本仓新键一律 `aiKb*` 前缀(附录 A),
-  所以每个 NAV 项与 TITLES 项都多带一个 `*Key` 字段指向对应的 aiKb 键，
-  翻译结果与蓝本逐一对应（见下方 NAV/TITLES 常量旁注）。
+  i18n key name adaptation (pure mechanical, no behavior change): blueprint
+  `$t(n.en)` / `$t(titleKey)` takes English phrases literally as keys (Vue2
+  language pack uses phrases as keys). This repo uses `aiKb*` prefix for all new
+  keys (appendix A), so each NAV item and TITLES item has an additional `*Key`
+  field pointing to the corresponding aiKb key, translation result matches blueprint
+  exactly (see annotations next to NAV/TITLES constants below).
 
-  【N8 照抄不改】rail 第 9 项标签用 aiKbNavSettings(“系统设置”)，topbar 标题
-  用 aiKbTitleAdvancedSettings(“高级设置”)——同一页面两处不同措辞，蓝本如此。
+  [N8 copied unchanged] rail item 9 label uses aiKbNavSettings (“System Settings”),
+  topbar title uses aiKbTitleAdvancedSettings (“Advanced Settings”) — same page two
+  different phrasings, blueprint is like this.
 
-  【K2】根节点 class 只有 knowledge-app，不带 data-theme —— .knowledge-app
-  跟随全局 <html> 的 data-theme（knowledge.scss 里已用
-  :root[data-theme="light"] .knowledge-app 选择器兜浅色档），不像 .agent-app
-  那样自己维护容器态。
+  [K2] Root node class only knowledge-app, no data-theme — .knowledge-app follows
+  global <html> data-theme (knowledge.scss already uses :root[data-theme=”light”]
+  .knowledge-app selector to handle light mode), unlike .agent-app which maintains
+  container state itself.
 
-  零 <style> 块：knowledge.scss 由本文件在 <script setup> 里 JS 侧 import
-  （照 src/ai/views/AgentPage.vue:71-72 的既有先例），这是全仓第一处 import
-  它的地方——KnowledgeDeferred.vue（T5）特意没 import，留给本任务。
+  No <style> block: knowledge.scss imported by this file on JS side in <script setup>
+  (following existing precedent in src/ai/views/AgentPage.vue:71-72), this is the
+  first place in the repo to import it — KnowledgeDeferred.vue (T5) intentionally
+  did not import it, left for this task.
 -->
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
@@ -46,11 +55,13 @@ interface NavItem {
   id: KnowledgeTabId
   en: string
   icon: string
-  /** aiKb* 键，翻译结果 = 蓝本 `$t(n.en)` 的结果（K1 同类机械改名，非行为变化）。 */
+  /** aiKb* key, translation result = blueprint `$t(n.en)` result (K1 same-class
+   * mechanical rename, not behavior change). */
   labelKey: string
 }
 
-/** 蓝本 :104-114，逐字照抄（顺序即 rail 顺序，也是移动端 tabs `slice(0, 4)` 的依据）。 */
+/** Blueprint :104-114, copied exactly (order is rail order, also basis for
+ * mobile tabs `slice(0, 4)`). */
 const NAV: NavItem[] = [
   { id: 'dashboard', en: 'Dashboard', icon: 'home', labelKey: 'aiKbNavDashboard' },
   { id: 'search', en: 'Search', icon: 'search', labelKey: 'aiKbNavSearch' },
@@ -64,17 +75,21 @@ const NAV: NavItem[] = [
 ]
 
 interface TitleEntry {
-  /** topbar 副标题的字面英文（不翻译，蓝本 `{{ titles[currentTab].en }}`）。 */
+  /** topbar subtitle literal English (not translated, blueprint
+   * `{{ titles[currentTab].en }}`). */
   en: string
-  /** topbar 标题的 aiKb 键。多数 tab 与该 tab 的 NAV labelKey 是同一个键
-   * （蓝本对同一英文短语调用同一次 $t，翻译结果自然相同）；wiki/queue/settings
-   * 三个 tab 蓝本用了不同的英文短语（'Wiki map'/'Job Queue'/'Advanced Settings'），
-   * 对应附录 A 专门给的 aiKbTitleWikiMap/aiKbTitleJobQueue/aiKbTitleAdvancedSettings
-   * 三个键——这正是 N8 的落点（settings 的 titleKey 与 labelKey 不同）。 */
+  /** topbar title's aiKb key. Most tabs have the same key as that tab's NAV
+   * labelKey (blueprint calls $t once on the same English phrase, translation
+   * results naturally identical); wiki/queue/settings three tabs use different
+   * English phrases in blueprint ('Wiki map'/'Job Queue'/'Advanced Settings'),
+   * corresponding to three keys in appendix A: aiKbTitleWikiMap/aiKbTitleJobQueue/
+   * aiKbTitleAdvancedSettings — this is where N8 lands (settings titleKey differs
+   * from labelKey). */
   titleKey: string
 }
 
-/** 蓝本 :116-126,逐字照抄(en 字段照抄字面英文,titleKey 按上面注释换算成 aiKb 键)。 */
+/** Blueprint :116-126, copied exactly (en field copies literal English, titleKey
+ * converts to aiKb key per comment above). */
 const TITLES: Record<KnowledgeTabId, TitleEntry> = {
   dashboard: { en: 'Dashboard', titleKey: 'aiKbNavDashboard' },
   search: { en: 'Search', titleKey: 'aiKbNavSearch' },
@@ -92,8 +107,9 @@ const router = useRouter()
 const { t } = useI18n()
 const store = useKnowledgeStore()
 
-/** 蓝本 :140-151 —— if/endsWith 不对称判据，照抄这个不对称（notes 用
- * `.includes`，其余用 `.endsWith`；蓝本如此，不做「统一成一种写法」的顺手重构）。 */
+/** Blueprint :140-151 — if/endsWith asymmetry, copy this asymmetry (notes uses
+ * `.includes`, rest use `.endsWith`; blueprint is like this, not doing
+ * "unify to one code style" opportunistic refactor). */
 const currentTab = computed<KnowledgeTabId>(() => {
   const p = route.path
   if (p.includes('/knowledge/notes')) return 'notes'
@@ -107,17 +123,17 @@ const currentTab = computed<KnowledgeTabId>(() => {
   return 'dashboard'
 })
 
-/** 蓝本 :152-154。 */
+/** Blueprint :152-154. */
 const currentNav = computed<NavItem>(() => NAV.find((n) => n.id === currentTab.value) || NAV[0])
 
-/** 蓝本 :155-159。 */
+/** Blueprint :155-159. */
 const svcState = computed<'error' | 'paused' | 'running'>(() => {
   if (store.unreachable) return 'error'
   if (store.controlState.paused) return 'paused'
   return 'running'
 })
 
-/** 蓝本 :160-165。 */
+/** Blueprint :160-165. */
 const svcMeta = computed<string>(() => {
   if (store.unreachable) return t('aiKbOffline')
   if (store.controlState.paused) return t('aiKbPaused')
@@ -130,9 +146,10 @@ interface Badge {
   tone?: string
 }
 
-/** 蓝本 :166-175 —— `allowlist`/`settings` 恒为 null（蓝本 :172 那行
- * `this.store.state.folderRules.length > 0 ? null : null` 两支结果相同，
- * 是蓝本的死代码而非可复现的错误行为，照抄不当「顺手清理」）。 */
+/** Blueprint :166-175 — `allowlist`/`settings` always null (blueprint line :172
+ * `this.store.state.folderRules.length > 0 ? null : null` both branches return
+ * same, is blueprint dead code not reproducible wrong behavior, copy as-is do not
+ * "incidentally clean up"). */
 const badges = computed<Partial<Record<KnowledgeTabId, Badge | null>>>(() => {
   const failed = store.stats.queue_depth.failed
   const drafts = store.notesDraftCount
@@ -150,10 +167,10 @@ interface StoredUser {
   role?: string
 }
 
-/** K8 —— 蓝本 :176-181 读 Vuex `$store.state.user.user_name`，本仓无 Vuex。
- * 逐字复用 SettingsRail.vue:75-86 的既定写法：localStorage 'user' 键 +
- * try/catch 兜 {} + nickname 优先于 username，最终回落 aiCfgYou（复用既有键，
- * 不新增）。 */
+/** K8 — blueprint :176-181 reads Vuex `$store.state.user.user_name`, this repo
+ * has no Vuex. Exactly reuse established pattern from SettingsRail.vue:75-86:
+ * localStorage 'user' key + try/catch guard to {} + nickname takes precedence over
+ * username, finally falls back to aiCfgYou (reuse existing key, no new key). */
 const storedUser = computed<StoredUser>(() => {
   try {
     const raw = localStorage.getItem('user')
@@ -166,20 +183,20 @@ const userLabel = computed<string>(
   () => storedUser.value.nickname || storedUser.value.username || t('aiCfgYou'),
 )
 
-/** 蓝本 :196-199。 */
+/** Blueprint :196-199. */
 function navigate(id: KnowledgeTabId): void {
   const path = id === 'dashboard' ? '/ai/knowledge' : `/ai/knowledge/${id}`
   if (route.path !== path) router.push(path)
 }
 
-/** 蓝本 :200-203。 */
+/** Blueprint :200-203. */
 async function onRefresh(): Promise<void> {
   await store.loadOverview()
   store.toast(t('aiKbRefreshed'))
 }
 
-/** 蓝本 :183-190 —— created()/pollTimer 迁到 onMounted，句柄用组件局部
- * 变量（不进 store，纯 UI 生命周期状态）。 */
+/** Blueprint :183-190 — created()/pollTimer moved to onMounted, handle uses
+ * component local variable (not stored in store, pure UI lifecycle state). */
 let pollTimer: ReturnType<typeof setInterval> | null = null
 
 onMounted(() => {
@@ -191,7 +208,7 @@ onMounted(() => {
   }, 10000)
 })
 
-/** 蓝本 :192-194 beforeDestroy()。 */
+/** Blueprint :192-194 beforeDestroy(). */
 onUnmounted(() => {
   if (pollTimer) {
     clearInterval(pollTimer)

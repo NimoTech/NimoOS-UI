@@ -15,22 +15,22 @@ const mountItem = (props = {}) =>
   })
 
 describe('DropItem', () => {
-  it('显示设备名与在线图标', () => {
+  it('displays device name and online icon', () => {
     const w = mountItem()
     expect(w.text()).toContain('MyPC')
     expect(w.find('img.drop-ic').attributes('src')).toContain('desktop_online')
   })
-  it('离线灰显且不可点', () => {
+  it('offline is grayed out and cannot be clicked', () => {
     const w = mountItem({ device: device({ offline: true }) })
     expect(w.find('.drop-bubble').classes()).toContain('offline')
     expect(w.find('input[type=file]').attributes('disabled')).toBeDefined()
   })
-  it('self 显示 self 图标且无 file input 交互', () => {
+  it('self displays self icon and has no file input interaction', () => {
     const w = mountItem({ isSelf: true })
     expect(w.find('img.drop-ic').attributes('src')).toContain('self')
     expect(w.find('input[type=file]').attributes('disabled')).toBeDefined()
   })
-  it('选文件 emit select-files', async () => {
+  it('selecting file emits select-files', async () => {
     const w = mountItem()
     const input = w.find('input[type=file]')
     const file = new File(['x'], 'x.txt')
@@ -38,12 +38,12 @@ describe('DropItem', () => {
     await input.trigger('change')
     expect(w.emitted('select-files')![0][0]).toEqual([file])
   })
-  it('suspended 时(重连窗口内)在线设备也禁互动(spec §7)', () => {
+  it('suspended (during reconnection window) online devices also disable interaction (spec §7)', () => {
     const w = mountItem({ suspended: true })
     expect(w.find('input[type=file]').attributes('disabled')).toBeDefined()
     expect(w.find('.drop-bubble').attributes('disabled')).toBeDefined()
   })
-  it('传输中显示进度环与计数文案', () => {
+  it('displays progress ring and count text while transferring', () => {
     const w = mountItem({ transfer: { progress: 40, raw: 0.4, sending: true, count: 2 } })
     expect(w.find('.drop-ring').exists()).toBe(true)
     expect(w.text()).toContain(i18n.global.t('filesDropSending', { num: 2 }))

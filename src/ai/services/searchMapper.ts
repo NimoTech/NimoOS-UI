@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/service/searchMapper.js
+// 1:1 ported from Vue2 src/service/searchMapper.js
 import type { AgentBlock } from '../types'
 
 // Maps a nimoos_search aggregate response ({groups:{semantic,filenames,images}, stats, warnings})

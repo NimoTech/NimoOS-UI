@@ -7,7 +7,7 @@ import { useFilesStore } from './files'
 export const useFileOpsStore = defineStore('files-ops', () => {
   const active = ref<FileTask[]>([])
 
-  // socket 原始 props → 活动任务;完成且落当前目录则 reload(移植 Vue2 两个 socket handler 合一)
+  // Raw socket props → active tasks; if completed and falls in current directory, reload (ported from Vue2, combines two socket handlers into one)
   function ingest(props: unknown) {
     const tasks = parseFileOperate(props)
     active.value = filterActive(tasks)
@@ -16,7 +16,7 @@ export const useFileOpsStore = defineStore('files-ops', () => {
   }
 
   async function cancelAll() {
-    await service.batch.deleteTask(0) // 0 = 全部
+    await service.batch.deleteTask(0) // 0 = all
   }
 
   return { active, ingest, cancelAll }

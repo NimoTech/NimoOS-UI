@@ -8,14 +8,14 @@ beforeEach(() => { vi.useFakeTimers(); logsMock.mockReset().mockResolvedValue('l
 afterEach(() => vi.useRealTimers())
 
 describe('useAppLogs', () => {
-  it('refresh 拉日志入 text', async () => {
+  it('refresh fetches logs into text', async () => {
     const l = useAppLogs(() => 'app1')
     await l.refresh()
     expect(logsMock).toHaveBeenCalledWith('app1', { lines: 1000 })
     expect(l.text.value).toBe('line1\nline2')
   })
 
-  it('start 后每 5s 再拉;stop 停止', async () => {
+  it('after start fetch again every 5s; stop stops', async () => {
     const l = useAppLogs(() => 'app1')
     l.start()
     await vi.advanceTimersByTimeAsync(5000)
@@ -25,7 +25,7 @@ describe('useAppLogs', () => {
     expect(logsMock).toHaveBeenCalledTimes(2)
   })
 
-  it('拉取失败进 error,已有 text 保留', async () => {
+  it('fetch failure goes to error, existing text preserved', async () => {
     const l = useAppLogs(() => 'app1')
     await l.refresh()
     logsMock.mockRejectedValueOnce(new Error('boom'))
@@ -34,7 +34,7 @@ describe('useAppLogs', () => {
     expect(l.text.value).toBe('line1\nline2')
   })
 
-  it('轮询 tick 撞上仍在途的慢请求会跳过,不二次发起;手动 refresh 不受此限制', async () => {
+  it('polling tick hitting in-flight slow request skips, doesn\'t issue second request; manual refresh is exempt', async () => {
     // Keep the request fired immediately by start() pending (never resolve), simulating a slow response spanning the next 5s tick window.
     let resolvePending!: (v: string) => void
     const pending = new Promise<string>((res) => { resolvePending = res })

@@ -1,5 +1,5 @@
-// 移植自 Vue2 src/views/AI/Agent/services/__tests__/agentStream.spec.js
-// 覆盖 mapper 家族(非 dispatchEvent/runAgentRun/SSE 传输部分,那些属于 Task 6)。
+// Ported from Vue2 src/views/AI/Agent/services/__tests__/agentStream.spec.js
+// Covers the mapper family (not dispatchEvent/runAgentRun/SSE transport parts, which belong to Task 6).
 import { describe, it, expect } from 'vitest'
 import {
   migrateLegacyMessages,

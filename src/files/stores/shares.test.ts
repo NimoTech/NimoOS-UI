@@ -20,14 +20,14 @@ describe('useSharesStore', () => {
     createShare.mockResolvedValue(undefined); deleteShare.mockResolvedValue(undefined)
   })
 
-  it('load 把 {id,path} 映射成含末段 name 的行', async () => {
+  it('load should map {id,path} to rows with name as the last segment', async () => {
     listShares.mockResolvedValue([{ id: 1, path: '/DATA/Documents' }])
     const s = useSharesStore()
     await s.load()
     expect(s.items).toEqual([{ id: 1, path: '/DATA/Documents', name: 'Documents' }])
   })
 
-  it('create 用原始 realPath 数组调 createShare 并回 true', async () => {
+  it('create should call createShare with raw realPath array and return true', async () => {
     listShares.mockResolvedValue([])
     const s = useSharesStore()
     const ok = await s.create(['/DATA/a', '/DATA/b'])
@@ -35,7 +35,7 @@ describe('useSharesStore', () => {
     expect(ok).toBe(true)
   })
 
-  it('create 空数组不打网络、回 false', async () => {
+  it('create with empty array should not make network call and return false', async () => {
     const s = useSharesStore()
     expect(await s.create([])).toBe(false)
     expect(createShare).not.toHaveBeenCalled()

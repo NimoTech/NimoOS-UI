@@ -56,11 +56,11 @@ const PATHS: Record<string, string> = {
   arrowBack: '<path d="M16 10H4"/><path d="m9 5-5 5 5 5"/>',
   wrench: '<path d="M14.5 5.5a3.2 3.2 0 0 0-4.3 3.9L4 15.6 6.4 18l6.2-6.2a3.2 3.2 0 0 0 3.9-4.3l-2.1 2.1-1.9-1.9 2.1-2.1z"/>',
   speaker: '<path d="M4 8h3l4-3v10l-4-3H4V8z"/><path d="M14 7a4 4 0 0 1 0 6"/>',
-  // SP8-P2a Task 1 —— 设置区导航/顶栏图标,对齐 Vue2
-  // src/views/AI/Skills/SkillIcon.vue:43-50。
-  // 那 8 个在 SkillIcon 里是「画在 20 单位盒子里 + <g transform="scale(1.2)"> 撑到
-  // 24 单位 viewBox」;本组件 viewBox 本就是 0 0 20 20,故去掉 scale 外壳直接用
-  // 内层原始路径,坐标天然对齐。
+  // SP8-P2a Task 1 — settings navigation/topbar icons, aligned with Vue2
+  // src/views/AI/Skills/SkillIcon.vue:43-50.
+  // Those 8 in SkillIcon are "drawn in 20-unit box + <g transform="scale(1.2)"> stretched to
+  // 24-unit viewBox"; this component's viewBox is already 0 0 20 20, so removing the scale wrapper and using
+  // the raw path directly, coordinates align naturally.
   cpu: '<rect x="5" y="5" width="10" height="10" rx="2"/><rect x="8" y="8" width="4" height="4" rx="0.6"/><path d="M8 2v3M12 2v3M8 15v3M12 15v3M2 8h3M2 12h3M15 8h3M15 12h3"/>',
   cloud: '<path d="M6 15a3.5 3.5 0 0 1-.3-6.98A5 5 0 0 1 15.5 8.5 3.25 3.25 0 0 1 15 15H6z"/>',
   key: '<circle cx="7" cy="7" r="3.2"/><path d="M9.3 9.3 16 16M13 13l2-2M15 15l1.5-1.5"/>',
@@ -69,8 +69,8 @@ const PATHS: Record<string, string> = {
   steps: '<path d="M4 15h4v-4h4V7h4"/>',
   waves: '<path d="M2 7c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2M2 12c2 0 2 2 4 2s2-2 4-2 2 2 4 2 2-2 4-2"/>',
   grid: '<rect x="3" y="3" width="6" height="6" rx="1.2"/><rect x="11" y="3" width="6" height="6" rx="1.2"/><rect x="3" y="11" width="6" height="6" rx="1.2"/><rect x="11" y="11" width="6" height="6" rx="1.2"/>',
-  // book 在 SkillIcon:22 是真按 24 单位坐标画的(无 scale 包裹),故这里反过来
-  // 缩到 20 单位,做法与本文件既有的 settings 图标一致。
+  // book in SkillIcon:22 is truly drawn at 24-unit coordinates (no scale wrapper), so here conversely
+  // scaled down to 20 units, following the same method as this file's existing settings icon.
   book: '<g transform="scale(0.8333)"><path d="M4 4h11a4 4 0 014 4v12H8a4 4 0 01-4-4V4z"/><path d="M4 16h15"/></g>',
 }
 

@@ -240,14 +240,14 @@ const mentionDismissedText = ref<string | null>(null)
 const blurTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 /**
- * gitignore 409 确认框的 pending 状态。**没有**按 brief 字面描述合并成单个
- * `ref<{path,kind}|null>` 并在 `update:open===false` 里清空——那样做会撞上
- * 本仓库已经踩过、并在 AgentSidebar.vue/SourcesPage.vue 里明确写了注释的 reka
- * 时序坑:`AlertDialogAction` 点击时,`update:open(false)` 先于我们自己的
- * `@confirm` 处理器派发,如果 pending 数据被 update:open 的回调清空,
- * onGitignoreConfirm 读到的就已经是 null。这里照搬那两处的既有写法——open 用
- * 独立的 bool,pending 数据只在 confirm 处理器里读完之后才清,cancel/Escape
- * 路径下 pending 短暂过期不刷新也无害(下次 pickItem 命中 409 会整体覆盖)。
+ * gitignore 409 confirmation pending state. **Not** per-brief description merged into
+ * single `ref<{path,kind}|null>` cleared in `update:open===false` — that hits reka
+ * timing trap we've hit before, noted explicitly in AgentSidebar.vue/SourcesPage.vue:
+ * `AlertDialogAction` click fires `update:open(false)` before our own `@confirm`
+ * handler, if pending data cleared by update:open callback, onGitignoreConfirm reads null.
+ * Here follow existing pattern from those two — open uses separate bool, pending data
+ * clears only after confirm handler reads it, cancel/Escape path pending briefly stale
+ * without refresh harmless (next pickItem hitting 409 overwrites entirely).
  */
 const gitignoreOpen = ref(false)
 const gitignoreTarget = ref<{ path: string; kind: string } | null>(null)
@@ -403,14 +403,14 @@ function deriveSlashState() {
   }
 
   if (slashStage.value === 'target') {
-    const prefix = '/init ' // 目前只有一个命令;多命令时这里要按当前命令名拼前缀。
+    const prefix = '/init ' // Currently only one command; multi-command needs to build prefix from current command name.
     if (v.startsWith(prefix)) {
       slashQuery.value = v.slice(prefix.length)
       openSlashIfNotDismissed(v)
       return
     }
-    // 文本不再以 "/init " 开头(用户删掉了空格或命令名)——退回 command 阶段,
-    // 落到下面重新按 command 规则推导。
+    // Text no longer starts with "/init " (user deleted space or command name) — revert to command stage,
+    // fall through to re-derive by command rules below.
     slashStage.value = 'command'
   }
 
@@ -877,7 +877,7 @@ function chipTitle(entry: PendingAttachment): string {
 async function onFilesPicked(e: Event) {
   const target = e.target as HTMLInputElement
   const files = Array.from(target.files || [])
-  target.value = '' // 允许之后重选同一文件
+  target.value = '' // Allow re-selecting same file afterward
   if (!files.length) return
 
   // Attach button no longer gated by sessionId — on page load no activeSession yet, lazy-create

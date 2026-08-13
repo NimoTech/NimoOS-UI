@@ -48,13 +48,14 @@ describe('agentStore (session slice)', () => {
     svc.cancelAgentRun.mockResolvedValue(undefined)
     svc.confirmAgentAction.mockResolvedValue(undefined)
     svc.regenerateAgentSessionTitle.mockResolvedValue({})
-    // 真实信封是裸数组(见下方「缺陷回归」两条用例的注释),不是 { data: [...] }
+    // Real response envelope is bare array (see comments on the two defect-regression test cases below),
+    // not { data: [...] }
     svc.listModels.mockResolvedValue([])
     svc.listProviders.mockResolvedValue([])
     localStorage.clear()
   })
 
-  it('工厂:按 agentType 生成独立 store 实例,同类型复用同一实例(Pinia 按 id 去重)', () => {
+  it('factory: generates independent store instances by agentType, reuses same instance for same type (Pinia deduplicates by id)', () => {
     const a1 = useAgentStore('photos')
     const a2 = useAgentStore('photos')
     const g = useAgentStore()
@@ -62,21 +63,21 @@ describe('agentStore (session slice)', () => {
     expect(a1).not.toBe(g)
   })
 
-  it('loadSessions:装载会话列表(body 即数组,无信封二次拆包)', async () => {
+  it('loadSessions: loads session list (body is array, no second-level envelope unpacking)', async () => {
     svc.listAgentSessions.mockResolvedValue([{ id: '1', title: 'hello' }])
     const s = useAgentStore()
     await s.loadSessions()
     expect(s.sessions).toEqual([{ id: '1', title: 'hello' }])
   })
 
-  it('loadSessions:body 非数组时退空数组', async () => {
+  it('loadSessions: when body is not array, return empty array', async () => {
     svc.listAgentSessions.mockResolvedValue(null)
     const s = useAgentStore()
     await s.loadSessions()
     expect(s.sessions).toEqual([])
   })
 
-  it('createSession:id 归一化——create 返回 session_id 时取 session_id', async () => {
+  it('createSession: id normalization — when create returns session_id, use session_id', async () => {
     svc.createAgentSession.mockResolvedValue({ session_id: 'sid-1', title: null })
     const s = useAgentStore()
     s.sessions.push({ id: 'old', title: 'old session' })
@@ -87,7 +88,7 @@ describe('agentStore (session slice)', () => {
     expect(s.messages).toEqual([])
   })
 
-  it('createSession:id 归一化——响应只带 id 时退回 id(列表接口形态)', async () => {
+  it('createSession: id normalization — when response has only id, fall back to id (list interface shape)', async () => {
     svc.createAgentSession.mockResolvedValue({ id: 'id-2', title: 'foo' })
     const s = useAgentStore()
     await s.createSession()
@@ -95,7 +96,7 @@ describe('agentStore (session slice)', () => {
     expect(s.activeSessionId).toBe('id-2')
   })
 
-  it('createSession:unshift 到列表头部并清空 messages', async () => {
+  it('createSession: unshift to list head and clear messages', async () => {
     svc.createAgentSession.mockResolvedValue({ session_id: 'sid-3' })
     const s = useAgentStore()
     s.messages.push({ role: 'user', content: 'leftover' })
@@ -105,7 +106,7 @@ describe('agentStore (session slice)', () => {
     expect(s.messages).toEqual([])
   })
 
-  it('deleteSession:删除非当前会话时不清 activeSessionId', async () => {
+  it('deleteSession: deleting non-current session does not clear activeSessionId', async () => {
     svc.deleteAgentSession.mockResolvedValue(undefined)
     const s = useAgentStore()
     s.sessions.push({ id: 'a' }, { id: 'b' })
@@ -115,7 +116,7 @@ describe('agentStore (session slice)', () => {
     expect(s.activeSessionId).toBe('a')
   })
 
-  it('deleteSession:删除当前会话时清 activeSessionId 与 messages', async () => {
+  it('deleteSession: deleting current session clears activeSessionId and messages', async () => {
     svc.deleteAgentSession.mockResolvedValue(undefined)
     const s = useAgentStore()
     s.sessions.push({ id: 'a' }, { id: 'b' })
@@ -127,7 +128,7 @@ describe('agentStore (session slice)', () => {
     expect(s.messages).toEqual([])
   })
 
-  it('setSessionTitle:乐观更新——先本地写,再等 API', async () => {
+  it('setSessionTitle: optimistic update — write local first, then wait for API', async () => {
     let resolveApi: () => void
     svc.updateAgentSessionTitle.mockReturnValue(new Promise<void>((r) => { resolveApi = r }))
     const s = useAgentStore()
@@ -140,7 +141,7 @@ describe('agentStore (session slice)', () => {
     expect(svc.updateAgentSessionTitle).toHaveBeenCalledWith('a', 'new title')
   })
 
-  it('setSessionTitle:API 失败时回滚到旧标题', async () => {
+  it('setSessionTitle: on API failure, rollback to old title', async () => {
     svc.updateAgentSessionTitle.mockRejectedValue(new Error('boom'))
     const s = useAgentStore()
     s.sessions.push({ id: 'a', title: 'old' })
@@ -148,7 +149,7 @@ describe('agentStore (session slice)', () => {
     expect(s.sessions[0].title).toBe('old')
   })
 
-  it('setSessionTitle:空白标题直接忽略,不调用 API', async () => {
+  it('setSessionTitle: blank title is ignored directly, no API call', async () => {
     const s = useAgentStore()
     s.sessions.push({ id: 'a', title: 'old' })
     await s.setSessionTitle('a', '   ')
@@ -156,7 +157,7 @@ describe('agentStore (session slice)', () => {
     expect(s.sessions[0].title).toBe('old')
   })
 
-  it('selectSession:装载消息,并在装载后 await attach(默认 mock 未命中→清 busy)', async () => {
+  it('selectSession: load messages and await attach after loading (default mock miss → clear busy)', async () => {
     svc.listAgentMessages.mockResolvedValue([{ role: 'user', content: 'hi' }])
     const s = useAgentStore()
     await s.selectSession('sess-1')
@@ -167,7 +168,7 @@ describe('agentStore (session slice)', () => {
     expect(s.busy).toBe(false)
   })
 
-  it('selectSession:attach 命中运行中的流(attached:true)时保持 busy(等 done 事件自己翻)', async () => {
+  it('selectSession: when attach hits running stream (attached:true), keep busy (wait for done event to self-flip)', async () => {
     svc.listAgentMessages.mockResolvedValue([])
     attachSpy.mockResolvedValueOnce({ attached: true })
     const s = useAgentStore('t-attach-true')
@@ -175,21 +176,21 @@ describe('agentStore (session slice)', () => {
     expect(s.busy).toBe(true)
   })
 
-  it('selectSession:body 非数组时退空数组', async () => {
+  it('selectSession: when body is not array, return empty array', async () => {
     svc.listAgentMessages.mockResolvedValue(null)
     const s = useAgentStore()
     await s.selectSession('sess-2')
     expect(s.messages).toEqual([])
   })
 
-  it('initTheme:localStorage 优先', () => {
+  it('initTheme: localStorage takes priority', () => {
     localStorage.setItem('nimoos.ai.agent.theme', 'dark')
     const s = useAgentStore()
     s.initTheme()
     expect(s.theme).toBe('dark')
   })
 
-  it('initTheme:无 localStorage 时看 matchMedia(prefers-color-scheme: dark)', () => {
+  it('initTheme: without localStorage, check matchMedia(prefers-color-scheme: dark)', () => {
     const matchMediaMock = vi.fn().mockReturnValue({ matches: true })
     vi.stubGlobal('matchMedia', matchMediaMock)
     const s = useAgentStore()
@@ -199,7 +200,7 @@ describe('agentStore (session slice)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('initTheme:两者都无时默认 light', () => {
+  it('initTheme: default to light when both lack', () => {
     const matchMediaMock = vi.fn().mockReturnValue({ matches: false })
     vi.stubGlobal('matchMedia', matchMediaMock)
     const s = useAgentStore()
@@ -208,16 +209,18 @@ describe('agentStore (session slice)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('toggleTheme:翻转并写回 localStorage 同一 key', () => {
+  it('toggleTheme: flip and write back to same localStorage key', () => {
     const s = useAgentStore()
-    // SP8-P2a Task 4:`s.theme = 'light'` 这行删除。原断言的起点保障其实是
-    // 冗余的——每条用例前 `beforeEach` 都 `setActivePinia(createPinia())`
-    // 重建全新 store,而 aiTheme 的初值本就是 'light'(见 aiTheme.ts),所以
-    // 这行从未真正改变断言的前提。Task 4 把 `theme` 委托成
-    // `computed(() => aiTheme.theme)` 后,它从可写 ref 变成只读 computed,
-    // 直接赋值会同时触发 TS2540(编译期只读校验)和运行时 Vue 警告
-    // (`Set operation on key "theme" failed: target is readonly`)。
-    // 断言本体(两次 toggleTheme 翻转 light⇄dark 且落盘)一字不改。
+    // SP8-P2a Task 4: deleted line `s.theme = 'light'`. The setup of the original
+    // assertion was actually redundant — each test before `beforeEach` does
+    // `setActivePinia(createPinia())` rebuilding a fresh store, and aiTheme's
+    // initial value is already 'light' (see aiTheme.ts), so this line never
+    // truly changed the assertion premise. After Task 4 delegated `theme` to
+    // `computed(() => aiTheme.theme)`, it changed from writable ref to read-only
+    // computed, and direct assignment triggers both TS2540 (compile-time read-only
+    // check) and Vue runtime warning (`Set operation on key "theme" failed: target
+    // is readonly`). The assertion body (two toggleTheme flips light⇄dark and
+    // persists) unchanged.
     s.toggleTheme()
     expect(s.theme).toBe('dark')
     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('dark')
@@ -226,19 +229,20 @@ describe('agentStore (session slice)', () => {
     expect(localStorage.getItem('nimoos.ai.agent.theme')).toBe('light')
   })
 
-  it('初始态(新鲜 store):busy===false、rightCollapsed 默认展开(false)', () => {
-    // 注:busy 从本任务(P1b)起可被 setBusy/setStreamingDone 翻转,这里只断言
-    // 一个全新 store 的初始值,不再假设 busy "永不写入"。
-    // pendingPrompt 已在 Task 11 移除(1b 起 send() 直接发送,不再需要暂存座)。
-    // rightCollapsed 断言在 SP8-P1c2 从 true 改为 false —— 1a 阶段右侧面板尚未
-    // 实现故写死收起(true),本期 store 状态 + 顶栏开关落地,改回 Vue2
-    // agentStore.js:37 的默认值(展开)。详见 agentStore.p1c2.test.ts。
+  it('initial state (fresh store): busy===false, rightCollapsed defaults to open (false)', () => {
+    // Note: busy can be flipped by setBusy/setStreamingDone starting this task (P1b);
+    // this only asserts a fresh store's initial value, no longer assumes busy "never
+    // written". pendingPrompt already removed in Task 11 (from 1b, send() sends
+    // directly, no longer needs staging). rightCollapsed assertion changed from true
+    // to false in SP8-P1c2 — in 1a phase right panel not yet implemented so hard-coded
+    // closed (true); this period store state + top-bar toggle landed, reverted to Vue2
+    // agentStore.js:37 default (open). See agentStore.p1c2.test.ts.
     const s = useAgentStore()
     expect(s.busy).toBe(false)
     expect(s.rightCollapsed).toBe(false)
   })
 
-  it('toggleLeft:翻转 leftCollapsed', () => {
+  it('toggleLeft: flip leftCollapsed', () => {
     const s = useAgentStore()
     const before = s.leftCollapsed
     s.toggleLeft()
@@ -274,7 +278,7 @@ describe('agentStore (session slice)', () => {
     expect(s.activitySteps[s.activitySteps.length - 1]).toMatchObject({ state: 'success' })
   })
 
-  it('pushUserMessage:压入 user 消息带 id/role/content/attachments', () => {
+  it('pushUserMessage: push user message with id/role/content/attachments', () => {
     const s = useAgentStore('t-user')
     s.pushUserMessage('hello', [{ id: 'f1' }])
     const last = s.messages[s.messages.length - 1] as any
@@ -284,7 +288,7 @@ describe('agentStore (session slice)', () => {
     expect(typeof last.id).toBe('string')
   })
 
-  it('selectSession:通过 migrateLegacyMessages 迁移历史消息(run_command → terminal)', async () => {
+  it('selectSession: migrate legacy messages via migrateLegacyMessages (run_command → terminal)', async () => {
     svc.listAgentMessages.mockResolvedValue([
       {
         id: 'm1',
@@ -317,13 +321,14 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     svc.cancelAgentRun.mockResolvedValue(undefined)
     svc.confirmAgentAction.mockResolvedValue(undefined)
     svc.regenerateAgentSessionTitle.mockResolvedValue({})
-    // 真实信封是裸数组(见下方「缺陷回归」两条用例的注释),不是 { data: [...] }
+    // Real response envelope is bare array (see comments on the two defect-regression test cases below),
+    // not { data: [...] }
     svc.listModels.mockResolvedValue([])
     svc.listProviders.mockResolvedValue([])
     localStorage.clear()
   })
 
-  it('buildCloudModelList:仅收录 enabled provider 下 favorite 的模型', () => {
+  it('buildCloudModelList: only include favorite models under enabled providers', () => {
     const list = buildCloudModelList([
       {
         id: 'p1',
@@ -348,16 +353,20 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     }])
   })
 
-  // ── 缺陷回归:loadAvailableModels 多剥一层 `.data`,致顶栏 ModelPicker 永远空态 ──
-  // 真实信封:`GET /v1/ai/models`(route/v2/models.go:30)与 `GET /v1/ai/providers`
-  // (route/v2/providers.go:95)后端都是 `c.JSON(200, <slice>)` 直出**裸数组**;
-  // 共享包 `service.ai.*` 内部已做 `return res.data` 剥掉 axios 那一层,吐给调用方的
-  // 就是 HTTP body 本身。故消费端只能做**单层**取数 —— 正是本文件头注释 :120-127
-  // 定死的口径「不再多一层 `.data`」,而 loadAvailableModels 曾是全文件唯一的违反处。
-  // 旧测试用 `{ data: [...] }` 这个不存在的形状 mock,把缺陷一起编码进了断言,
-  // 故 2296 例全绿也抓不到;同仓 settingsStore.test.ts:334 对同一个方法 mock 成裸数组
-  // (正确),两处自相矛盾即是线索。
-  it('loadAvailableModels:providers 为裸数组(真实信封)时云端模型必须进列表', async () => {
+  // ── Defect regression: loadAvailableModels unpacks extra `.data` layer, causing
+  // top-bar ModelPicker to always be empty ──
+  // Real envelope: `GET /v1/ai/models` (route/v2/models.go:30) and `GET /v1/ai/providers`
+  // (route/v2/providers.go:95) backend both `c.JSON(200, <slice>)` directly output
+  // **bare array**; shared package `service.ai.*` internally does `return res.data`
+  // to strip the axios layer, what it returns to caller is the HTTP body itself.
+  // So consuming end can only do **single-level** data extraction — exactly what the
+  // file header comment :120-127 locks down: "do not unpack extra `.data` layer",
+  // while loadAvailableModels was the only violating place in the whole file.
+  // Old test mocked with `{ data: [...] }` this non-existent shape, encoding the
+  // defect into the assertion; 2296 cases all pass but couldn't catch it; same repo
+  // settingsStore.test.ts:334 mocks same method as bare array (correct), contradiction
+  // between the two is the clue.
+  it('loadAvailableModels: when providers is bare array (real envelope), cloud models must enter list', async () => {
     svc.listModels.mockResolvedValue([])
     svc.listProviders.mockResolvedValue([
       {
@@ -374,7 +383,7 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(s.selectedModel).toBe('cloud:1:doubao-seed-2-1-pro-260628')
   })
 
-  it('loadAvailableModels:models 为裸数组(真实信封)时本地模型必须进列表', async () => {
+  it('loadAvailableModels: when models is bare array (real envelope), local models must enter list', async () => {
     svc.listModels.mockResolvedValue([{ name: 'llama', size_bytes: 123, supports_thinking: false }])
     svc.listProviders.mockResolvedValue([])
     const s = useAgentStore('t-bare-models')
@@ -382,14 +391,14 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(s.availableModels.map((m) => m.key)).toEqual(['local:llama'])
   })
 
-  it('loadAvailableModels:本地模型优先兜底默认选中', async () => {
+  it('loadAvailableModels: local model is fallback priority for default selection', async () => {
     svc.listModels.mockResolvedValue([{ name: 'llama', size_bytes: 123, supports_thinking: false }])
     const s = useAgentStore('t-models')
     await s.loadAvailableModels()
     expect(s.selectedModel).toMatch(/^local:/)
   })
 
-  it('loadAvailableModels:localStorage 里存的 key 若仍在新列表中就沿用', async () => {
+  it('loadAvailableModels: if stored key in localStorage still in new list, reuse it', async () => {
     localStorage.setItem('nimoos.ai.agent.selectedModel', 'local:mistral')
     svc.listModels.mockResolvedValue([{ name: 'llama' }, { name: 'mistral' }])
     const s = useAgentStore('t-models-stored')
@@ -397,7 +406,7 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(s.selectedModel).toBe('local:mistral')
   })
 
-  it('selectModel:忽略不在列表里的 key,合法 key 才持久化 + 刷新 thinking', () => {
+  it('selectModel: ignore keys not in list, only legal keys persist + refresh thinking', () => {
     const s = useAgentStore('t-select-model')
     s.availableModels = [{ ...LOCAL_MODEL, supports_thinking: true }]
     s.selectModel('local:not-exist')
@@ -447,7 +456,7 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(s.busy).toBe(false) // runAgentRun resolved (mock), finally clears busy
   })
 
-  it('send:onError(dual-shape {status,body})落一个 error tool block 并结束 streaming', async () => {
+  it('send: onError (dual-shape {status,body}) appends error tool block and ends streaming', async () => {
     runSpy.mockImplementation(async (_sid: unknown, _body: unknown, _pt: unknown, _sig: unknown, _actions: unknown, onError: (e: unknown) => void) => {
       onError({ status: 500, body: { message: 'boom' } })
     })
@@ -461,7 +470,7 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(s.busy).toBe(false)
   })
 
-  it('send:无 activeSessionId 时先 createSession', async () => {
+  it('send: when no activeSessionId, createSession first', async () => {
     svc.createAgentSession.mockResolvedValue({ session_id: 'new-sess' })
     const s = useAgentStore('t-autocreate')
     s.availableModels = [LOCAL_MODEL]
@@ -478,40 +487,41 @@ describe('agentStore (Task 7: send/stop/continueRun/confirm + model bootstrap)',
     expect(svc.confirmAgentAction).toHaveBeenCalledWith('x', 'c1', true, false)
   })
 
-  it('confirmAgentAction:无 activeSessionId 时直接返回,不调用 service', async () => {
+  it('confirmAgentAction: when no activeSessionId, return directly, no service call', async () => {
     const s = useAgentStore('t-confirm-noop')
     await s.confirmAgentAction('c1', true)
     expect(svc.confirmAgentAction).not.toHaveBeenCalled()
   })
 
-  it('stop:abort 当前流 + 调 cancelAgentRun + 结束 streaming', async () => {
+  it('stop: abort current stream + call cancelAgentRun + end streaming', async () => {
     const s = useAgentStore('t-stop')
     s.activeSessionId = 'sess1'
     s.availableModels = [LOCAL_MODEL]
     s.selectModel('local:llama')
-    // runSpy 永不 settle,模拟一次在途流 —— send() 本身也就永不 resolve,
-    // 所以这里刻意不 await/不接它的返回值,只关心 stop() 自身的效果。
+    // runSpy never settles, simulating an in-flight stream — send() itself never
+    // resolves either, so deliberately don't await/don't take its return, only care
+    // about stop()'s own effect.
     void s.send('hi')
-    await Promise.resolve() // 让 send() 跑到 await runAgentRun(...) 之前的同步前缀(busy=true 等)
+    await Promise.resolve() // let send() run to the sync prefix before await runAgentRun(...) (busy=true etc.)
     await s.stop()
     expect(s.busy).toBe(false)
     expect(svc.cancelAgentRun).toHaveBeenCalledWith('sess1')
   })
 
-  it('continueRun:busy 时不重复触发', async () => {
+  it('continueRun: when busy, do not trigger again', async () => {
     const s = useAgentStore('t-continue-busy')
     s.setBusy(true)
     await s.continueRun()
     expect(runSpy).not.toHaveBeenCalled()
   })
 
-  it('continueRun:无 activeSessionId/selectedModel 时直接返回', async () => {
+  it('continueRun: when no activeSessionId/selectedModel, return directly', async () => {
     const s = useAgentStore('t-continue-noop')
     await s.continueRun()
     expect(runSpy).not.toHaveBeenCalled()
   })
 
-  it('continueRun:happy path 调 runAgentRun(continue_run:true) 并标记最近的 max_turns 卡为 resumed', async () => {
+  it('continueRun: happy path calls runAgentRun(continue_run:true) and marks latest max_turns block as resumed', async () => {
     const s = useAgentStore('t-continue-happy')
     s.availableModels = [LOCAL_MODEL]
     s.selectModel('local:llama')

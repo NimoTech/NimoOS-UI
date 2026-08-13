@@ -17,8 +17,8 @@ defineProps<{ ariaLabel: string }>()
 </template>
 
 <style>
-/* 非 scoped:Content 经 Portal 渲染到 body,scoped 属性够不到(ContextMenu.vue 先例);
-   菜单项样式给消费方组装的 DropdownMenuItem 复用 */
+/* Non-scoped: Content is rendered to the body via Portal, so scoped attributes cannot reach it
+   (ContextMenu.vue precedent); menu item styles are reused by the consuming component's DropdownMenuItem */
 .ui-drop-trigger {
   width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer;
   background: transparent; color: var(--fg-muted); font-size: 16px; line-height: 1;
@@ -34,6 +34,6 @@ defineProps<{ ariaLabel: string }>()
   font-size: 13px; cursor: pointer; user-select: none; outline: none;
 }
 .ui-drop-item[data-highlighted] { background: var(--chip-bg-hi); }
-.ui-drop-item.danger { color: var(--remove-fg); } /* 危险色随主题切换(浅色主题=深红,深色=浅红) */
+.ui-drop-item.danger { color: var(--remove-fg); } /* Danger color switches with theme (light theme = dark red, dark = light red) */
 .ui-drop-sep { height: 1px; margin: 5px 4px; background: var(--card-border); }
 </style>

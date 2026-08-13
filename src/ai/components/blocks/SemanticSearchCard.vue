@@ -241,7 +241,7 @@ function onFullFileClick(f: SemFile | SemPassage) {
 
       <!-- ── Tab content ── -->
       <div class="semcard-body">
-        <!-- "全部" combined layout -->
+        <!-- "All" combined layout -->
         <div v-if="activeTab === 'all'" class="semcard-all-layout">
           <!-- Images strip -->
           <div v-if="images && images.length > 0" class="semcard-section">

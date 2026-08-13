@@ -27,14 +27,15 @@ const moreCount = computed(() => {
   const p = props.preview
   return p && p.status === 'ready' ? Math.max(0, p.total - p.entries.length) : 0
 })
-// Only the front card (and the one just flipped past, currently flying off screen) lays out
-// the file grid. The cards behind are hidden by the front one except a top strip, so rendering
-// a full screen of thumbnails is pure waste — the deck window holds 5 cards, and one card of
-// 36 cells means 180 <img> elements, each firing a real thumbnail request. 'past' is kept so
-// the flipped card flies out with its content, instead of the content vanishing first and an
-// empty shell flying away.
+// Only the front card (and the one just flipped past, currently flying off screen) lays out the
+// file grid. Cards behind are hidden by the front one except a top strip, so rendering a full
+// screen of thumbnails is pure waste — the deck window holds 5 cards, and one card of 36 cells
+// means 180 <img> elements, each firing a real thumbnail request. 'past' is kept so the flipped
+// card flies out with its content, instead of the content vanishing first and an empty shell
+// flying away.
 const showGrid = computed(() => props.state !== 'behind')
-// Subtitle: same fields as the files list view (uppercase extension + modified time); folders show no extension
+// Subtitle: same fields as the files list view (uppercase extension + modified time); folders show
+// no extension
 function subLine(entry: { is_dir?: boolean; name: string; date?: string }): string {
   const when = dateFmt(entry.date || '')
   if (entry.is_dir) return when
@@ -48,13 +49,13 @@ function subLine(entry: { is_dir?: boolean; name: string; date?: string }): stri
     class="tm-card"
     :class="[`is-${props.state}`, `depth-${props.depth}`, `type-${props.item.typeKind}`]"
   >
-    <!-- All transforms are decided by class-driven CSS (no inline transform): when the
-         selection changes the same DOM nodes only swap classes, so the browser transitions
-         smoothly along the declared transitions with no JS animation loop.
+    <!-- All transforms are decided by class-driven CSS (no inline transform): when selection
+         changes, the same DOM nodes only swap classes, so the browser transitions smoothly along
+         the declared transitions with no JS animation loop.
          Note: this comment must live inside the root element, not before it — outside, the
-         template becomes a multi-root fragment of "comment + div", the component's $el
-         resolves to the comment node, and VTU's wrapper.classes() reads an empty array
-         (hit in practice; fixed here). -->
+         template becomes a multi-root fragment of "comment + div", the component's $el resolves
+         to the comment node, and VTU's wrapper.classes() reads an empty array (hit in practice;
+         fixed here). -->
     <div class="tm-card-head">
       <div class="tm-card-when">
         <span class="tm-card-day">{{ props.item.dayLabelText }}</span>

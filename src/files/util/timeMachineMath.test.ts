@@ -2,31 +2,31 @@ import { describe, it, expect } from 'vitest'
 import { fisheyeScale, computeFisheyeScales, buildVisibleStack, stepSelectedIndex, buildRailNodes } from './timeMachineMath'
 
 describe('fisheyeScale', () => {
-  it('光标正中时到达最大缩放', () => {
+  it('cursor at center reaches max scale', () => {
     expect(fisheyeScale(0)).toBeCloseTo(2.2, 5)
   })
-  it('超出半径回到最小缩放', () => {
+  it('beyond radius falls back to min scale', () => {
     expect(fisheyeScale(70)).toBe(1)
     expect(fisheyeScale(999)).toBe(1)
   })
-  it('左右对称(只看距离绝对值)', () => {
+  it('left-right symmetric (absolute distance only)', () => {
     expect(fisheyeScale(-30)).toBeCloseTo(fisheyeScale(30), 10)
   })
-  it('半径内单调递减', () => {
+  it('monotonically decreasing within radius', () => {
     const xs = [0, 10, 20, 30, 40, 50, 60, 69]
     const ys = xs.map((x) => fisheyeScale(x))
     for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeLessThan(ys[i - 1])
   })
-  it('两端斜率为 0(升余弦缓动,不出现折角)', () => {
+  it('zero slope at ends (raised cosine easing, no corners)', () => {
     // The delta between two adjacent points right next to the cursor should be far smaller than the same-spacing delta midway out
     const nearCenter = fisheyeScale(0) - fisheyeScale(2)
     const midway = fisheyeScale(34) - fisheyeScale(36)
     expect(nearCenter).toBeLessThan(midway)
   })
-  it('非有限输入退回最小缩放', () => {
+  it('non-finite input falls back to min scale', () => {
     expect(fisheyeScale(NaN)).toBe(1)
   })
-  it('可覆盖参数', () => {
+  it('parameters can be overridden', () => {
     expect(fisheyeScale(0, { maxScale: 3, minScale: 1.5 })).toBeCloseTo(3, 5)
     expect(fisheyeScale(10, { radius: 10 })).toBe(1)
   })
