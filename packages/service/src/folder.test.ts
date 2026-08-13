@@ -49,6 +49,19 @@ describe('createFolder', () => {
     expect(bytes).toBe(123456789)
   })
 
+  it('getFolderSize forwards an AbortSignal to axios so the caller can cancel the walk', async () => {
+    let cfg: { signal?: AbortSignal } | undefined
+    const http = {
+      get: async (_u: string, c?: { signal?: AbortSignal }) => {
+        cfg = c
+        return { data: { success: 200, message: 'ok', data: 1 } }
+      },
+    } as unknown as import('axios').AxiosInstance
+    const controller = new AbortController()
+    await createFolder(http).getFolderSize('/DATA/x', { signal: controller.signal })
+    expect(cfg?.signal).toBe(controller.signal)
+  })
+
   it('getFolderCount hits /folder/count with path', async () => {
     let url = ''
     let params: unknown
