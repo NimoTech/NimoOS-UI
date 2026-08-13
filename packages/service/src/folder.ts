@@ -16,9 +16,13 @@ export function createFolder(http: AxiosInstance) {
       const res = await http.put('/folder/name', { old_path: oldPath, new_path: newPath })
       return unwrap<unknown>(res.data)
     },
-    async getFolderSize(path: string): Promise<unknown> {
-      const res = await http.get('/folder/size', { params: { path } })
-      return unwrap<unknown>(res.data)
+    async getFolderSize(path: string): Promise<number> {
+      // The backend walks the entire subtree on every call (no caching);
+      // large trees on spinning disks can take minutes. The axios default
+      // timeout (60s, http.ts) would cut that off, so this request gets
+      // its own 5-minute budget.
+      const res = await http.get('/folder/size', { params: { path }, timeout: 300000 })
+      return unwrap<number>(res.data)
     },
     async getFolderCount(path: string): Promise<unknown> {
       const res = await http.get('/folder/count', { params: { path } })
