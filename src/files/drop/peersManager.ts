@@ -5,8 +5,17 @@ import { RTCPeer, type PeerEvents, type SignalChannel } from './rtcPeer'
 
 type MakePeer = (signal: SignalChannel, peerId: string | null, events: PeerEvents) => RTCPeer
 
+/** Why a send could not go out. 'not-ready' is the recoverable one: the
+ *  connection is being (re)established, so the user retries in a moment. */
+export type SendResult = 'ok' | 'unsupported' | 'not-ready'
+
 export class PeersManager {
   private peers: Record<string, RTCPeer> = {}
+  // What the server said about each peer's RTC support, kept so a send to a
+  // peer we have no connection for can tell "genuinely cannot" from "not
+  // connected yet" -- reporting the wrong one of those sent this bug hunt
+  // down the wrong path once already.
+  private rtcSupportedById: Record<string, boolean> = {}
   private rtcSupported: boolean
   private makePeer: MakePeer
 
@@ -30,6 +39,7 @@ export class PeersManager {
         // phone<->desktop deadlock. Replace it with a fresh caller: only the
         // reconnecting side receives 'peers', so only one side dials.
         for (const peer of msg.peers) {
+          this.rtcSupportedById[peer.id] = peer.rtcSupported
           const existing = this.peers[peer.id]
           if (existing) {
             if (existing.hasOpenChannel()) { existing.refresh(); continue }
@@ -84,16 +94,30 @@ export class PeersManager {
         peer?.close()
         break
       }
+      case 'peer-joined':
+        this.rtcSupportedById[msg.peer.id] = msg.peer.rtcSupported
+        break
       default: break // peers 列表/身份由 store 处理
     }
   }
 
-  sendFiles(peerId: string, files: File[], from: string): boolean {
+  /** Send, or say precisely why not. Sending into a peer whose channel is not
+   *  open used to look like success and then do nothing at all -- the send
+   *  landed on a null channel and the failure was swallowed. Now an
+   *  unestablished connection re-dials and reports 'not-ready' so the user
+   *  knows to retry rather than pressing send into a void. */
+  sendFiles(peerId: string, files: File[], from: string): SendResult {
+    if (this.rtcSupportedById[peerId] === false || !this.rtcSupported) return 'unsupported'
     const peer = this.peers[peerId]
-    if (!peer) return false
+    if (!peer) {
+      // No connection at all: dial now so the retry a second later works.
+      this.peers[peerId] = this.makePeer(this.signal, peerId, this.events)
+      return 'not-ready'
+    }
+    if (!peer.hasOpenChannel()) { peer.refresh(); return 'not-ready' }
     peer.sendText(String(files.length)) // Vue2 顺序:先计数文本,对端气泡显示「接收 N 个文件」
     peer.sendFiles(files, from)
-    return true
+    return 'ok'
   }
 
   destroy(): void {

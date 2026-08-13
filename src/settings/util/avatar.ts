@@ -1,19 +1,20 @@
-/* 头像相关的纯 helper。 */
+/* Pure helpers for avatars. */
 
-/** 取 access_token。
- *  🔧 plan C13:Vue2 的 avatarUrl 写的是
- *  `this.$store.state.token || localStorage.getItem('access_token')`,而 Vuex 里存的键叫
- *  `access_token`(`state.token` 从来不存在)—— 第一段恒 undefined,一直是靠后面那个兜住的。
- *  这里直接读 localStorage,不复刻那段无效表达式。 */
+/** Read the access_token.
+ *  🔧 plan C13: Vue2's avatarUrl is written as
+ *  `this.$store.state.token || localStorage.getItem('access_token')`, but the key stored
+ *  in Vuex is `access_token` (`state.token` never existed) -- the first operand is always
+ *  undefined and the latter has been carrying it all along.
+ *  Here we read localStorage directly instead of replicating that dead expression. */
 export function readAccessToken(): string | null {
   return localStorage.getItem('access_token')
 }
 
-// Vue2 onFileSelected(:253-254) 的两份名单,逐字照抄(注意 svg 不在名单里)。
+// The two lists from Vue2 onFileSelected (:253-254), copied verbatim (note svg is not on the list).
 const ALLOWED_EXTS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']
 const ALLOWED_MIMES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp']
 
-/** 本地选文件时的类型闸门。1:1 对位 Vue2 :255(mime 命中 **或** 扩展名命中即通过)。 */
+/** Type gate when picking a local file. 1:1 with Vue2 :255 (passes on a mime hit **or** an extension hit). */
 export function isAllowedImageFile(name: string, mime: string): boolean {
   if (ALLOWED_MIMES.includes(mime)) return true
   const dot = name.lastIndexOf('.')

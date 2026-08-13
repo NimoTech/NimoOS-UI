@@ -1,12 +1,13 @@
-// 文件区快照浏览的路径纯函数。从 Vue2 NimoOS-UI/src/service/snapshot.js(6 个)与
-// components/filebrowser/snapshotBrowse.js(3 个)逐字移植 —— 判定逻辑、返回形状、
-// fail-safe 方向一律未改,只补了 TS 类型。这些函数完全不认识"卷"这个概念(除了两个
-// 显式接收 volumes 的查找函数),纯按路径段工作,因此对任意挂载点一视同仁。
+// Pure path functions for snapshot browsing in the Files area. Ported verbatim from Vue2
+// NimoOS-UI/src/service/snapshot.js (6 functions) and components/filebrowser/snapshotBrowse.js (3) —
+// decision logic, return shapes, and fail-safe direction all unchanged; only TS types added. These
+// functions know nothing about "volumes" (except the two lookup functions that explicitly take
+// volumes) and work purely on path segments, so every mount point is treated alike.
 
 export interface SnapshotBrowseInfo {
   mount: string
   snapshotName: string
-  /** 相对快照根的路径,浏览快照自身根目录时为空串 */
+  /** Path relative to the snapshot root; empty string when browsing the snapshot's own root */
   relPath: string
 }
 
@@ -22,8 +23,8 @@ export interface VolumesState {
   volumes: SnapshotVolumeLike[]
 }
 
-/** 每个支持快照的挂载点下那个只读子卷目录的名字 —— "进入快照"和"识别出正在快照里"
- *  两个方向共用同一个常量,不会漂移。 */
+/** Name of the read-only subvolume directory under every snapshot-capable mount point —
+ *  "enter a snapshot" and "detect we're inside a snapshot" share this one constant, so they can't drift. */
 export const SNAPSHOTS_DIR_NAME = '.snapshots'
 
 const stripTrailingSlash = (p: string | undefined | null): string => (p || '').replace(/\/+$/, '')
@@ -32,9 +33,9 @@ export function snapshotBrowsePath(mount: string, snapshotName: string): string 
   return `${mount}/${SNAPSHOTS_DIR_NAME}/${snapshotName}`
 }
 
-// 段匹配(不是 includes 子串匹配):一个名字里恰好含 ".snapshots" 文本的普通目录不会误判。
-// 有多个 ".snapshots" 段时取最左边那个 —— 外层那个才是挂载边界,内层是快照里真实存在的
-// 普通数据目录。
+// Segment matching (not includes substring matching): a regular directory whose name merely contains
+// ".snapshots" text is never misidentified. With multiple ".snapshots" segments, take the leftmost —
+// the outer one is the mount boundary; inner ones are real ordinary data directories inside the snapshot.
 export function parseSnapshotBrowsePath(absPath: string | null | undefined): SnapshotBrowseInfo | null {
   if (!absPath || typeof absPath !== 'string') return null
   const clean = stripTrailingSlash(absPath)
@@ -43,10 +44,10 @@ export function parseSnapshotBrowsePath(absPath: string | null | undefined): Sna
   const idx = segments.indexOf(SNAPSHOTS_DIR_NAME)
   if (idx === -1) return null
   const mount = segments.slice(0, idx).join('/')
-  // mount 为空说明路径直接以 "/.snapshots" 开头(或压根没有前导斜杠)—— 前面没有真实挂载点
+  // Empty mount means the path starts directly with "/.snapshots" (or has no leading slash at all) — no real mount point in front
   if (!mount) return null
   const snapshotName = segments[idx + 1]
-  if (!snapshotName) return null // ".../.snapshots" 自身:还没选中任何快照
+  if (!snapshotName) return null // ".../.snapshots" itself: no snapshot selected yet
   return { mount, snapshotName, relPath: segments.slice(idx + 2).join('/') }
 }
 
@@ -54,9 +55,10 @@ export function liveVolumePath(mount: string, relPath: string): string {
   return relPath ? `${mount}/${relPath}` : mount
 }
 
-// 对应后端 NimoOS-LocalStorage service/snapshot/naming.go 的 ParseName,但只取横幅需要的
-// "什么时候拍的";**故意不校验**类型段是否在已知类型表里 —— 浏览进一个未识别/被 reconcile 成
-// unknown 类型的快照目录时,仍应显示真实时间而不是一片空白。永不抛错。
+// Mirrors ParseName in the backend NimoOS-LocalStorage service/snapshot/naming.go, but only extracts the
+// "when was it taken" the banner needs; **deliberately does not validate** the type segment against the known-type
+// table — when browsing into a snapshot dir of an unrecognized type (or one reconciled to unknown), we should
+// still show the real time rather than a blank. Never throws.
 export function parseSnapshotName(name: string | null | undefined): { createdAt: Date } | null {
   if (!name || typeof name !== 'string') return null
   const tsPart = name.split('_')[0]
@@ -68,15 +70,15 @@ export function parseSnapshotName(name: string | null | undefined): { createdAt:
   return { createdAt }
 }
 
-/** 横幅上的人话时间。解析不出来就回退成原始名字(不抛错、不留空)。 */
+/** Human-readable time for the banner. Falls back to the raw name when unparseable (no throw, no blank). */
 export function formatSnapshotBannerTime(name: string): string {
   const parsed = parseSnapshotName(name)
   return parsed ? parsed.createdAt.toLocaleString() : name
 }
 
-// 入口按钮用:只有文件区那个任意的 currentPath(可能在挂载点下深处好几层),要找出它落在
-// 哪个卷里 —— 最长挂载前缀匹配。注意 clean !== mount 时必须要求 `${mount}/` 前缀,
-// 否则 "/DATAX" 会被判成属于 "/DATA"。
+// For the entry button: given only the Files area's arbitrary currentPath (possibly several levels deep
+// under a mount point), find which volume it belongs to — longest mount-prefix match. Note that when
+// clean !== mount, the `${mount}/` prefix is required, otherwise "/DATAX" would be judged as belonging to "/DATA".
 export function findVolumeForPath(volumes: SnapshotVolumeLike[], path: string): SnapshotVolumeLike | null {
   if (!path || typeof path !== 'string' || !Array.isArray(volumes)) return null
   const clean = stripTrailingSlash(path)
@@ -90,29 +92,32 @@ export function findVolumeForPath(volumes: SnapshotVolumeLike[], path: string): 
   return best
 }
 
-/** 恢复用:已经知道确切挂载点,精确匹配出 volume_uuid(容忍末尾斜杠)。 */
+/** For restore: the exact mount point is already known; exact-match the volume_uuid (tolerating trailing slashes). */
 export function findVolumeUuidForMount(volumes: SnapshotVolumeLike[], mount: string): string | null {
   const hit = (volumes || []).find((v) => stripTrailingSlash(v.mount) === stripTrailingSlash(mount))
   return hit && hit.volume_uuid ? hit.volume_uuid : null
 }
 
-// 评审修复(Critical 1,第二轮):`<挂载点>/.snapshots` 这个容器目录本身 —— parseSnapshotBrowsePath
-// 对它故意返回 null(".snapshots 自身:还没选中任何快照",语义不能改,恢复编排等处依赖它),
-// 但这意味着只靠 shouldGuardSnapshotView 时这一层完全不锁:没有 parsed 结果,直接判不是快照
-// 视图,写入工具条、右键菜单、时间机器入口 chip 全部一起冒出来。这个容器目录通常仍然可写,
-// 用户能在快照命名空间里建垃圾文件/对只读子卷操作拿到原始文件系统报错。
+// Review fix (Critical 1, round 2): the `<mount>/.snapshots` container directory itself — parseSnapshotBrowsePath
+// deliberately returns null for it (".snapshots itself: no snapshot selected yet"; that semantic must not change,
+// restore orchestration and others depend on it), but that means with shouldGuardSnapshotView alone this level is
+// not locked at all: with no parsed result it's judged "not a snapshot view", and the write toolbar, context menu,
+// and time-machine entry chip all pop up together. The container directory is usually still writable, so users
+// could create junk files inside the snapshot namespace or hit raw filesystem errors operating on read-only subvolumes.
 //
-// 第一轮的 isSnapshotsContainerPath(absPath, volumes) 自己攒了一套 `volumes.some(...)` 判定,
-// volumes 为空(idle/loading/error 三态)时恒为 false —— 复核用真实探针实测:这三态下
-// `.snapshots` 容器目录全部漏锁,而 error 是 ensureVolumes() 的本会话终态(这台设备
-// /v2/snapshot/* 全 404),漏锁会持续整个会话。且原函数完全不看 supported,会反过来误锁
-// supported:false 卷上恰好叫 .snapshots 的普通目录。
+// Round 1's isSnapshotsContainerPath(absPath, volumes) rolled its own `volumes.some(...)` check,
+// which is always false while volumes is empty (idle/loading/error) — a real probe on recheck confirmed the
+// `.snapshots` container directory leaks the lock in all three states, and error is ensureVolumes()'s terminal
+// state for the session (this device 404s on all of /v2/snapshot/*), so the leak persists for the whole session.
+// The original function also ignored supported entirely, so it conversely mis-locked ordinary directories that
+// happen to be named .snapshots on supported:false volumes.
 //
-// 这一轮不再写第二套三态判断:只做纯路径解析(不认识"卷"这个概念,与 parseSnapshotBrowsePath
-// 同一职责边界),合成一个 snapshotName:'' 的 SnapshotBrowseInfo,交给下面唯一的闸门函数
-// shouldGuardSnapshotView 复用同一套 idle/loading/error/ready+supported 判定 —— idle/loading/
-// error 自动保持锁定,supported:false 的确证豁免也自动继承,不会再出现两条路径(有快照名 vs
-// 容器本身)fail-safe 方向不一致的情况。
+// This round writes no second three-state check: do pure path parsing only (knows nothing about "volumes",
+// same responsibility boundary as parseSnapshotBrowsePath), synthesize a SnapshotBrowseInfo with snapshotName:'',
+// and hand it to the single gate function shouldGuardSnapshotView below, reusing the same idle/loading/error/
+// ready+supported logic — idle/loading/error stay locked automatically, the confirmed supported:false exemption is
+// inherited too, and the two paths (with a snapshot name vs the container itself) can no longer diverge in
+// fail-safe direction.
 export function parseSnapshotsContainerPath(absPath: string | null | undefined): SnapshotBrowseInfo | null {
   if (!absPath || typeof absPath !== 'string') return null
   const clean = stripTrailingSlash(absPath)
@@ -120,19 +125,19 @@ export function parseSnapshotsContainerPath(absPath: string | null | undefined):
   const segments = clean.split('/')
   if (segments.length < 2 || segments[segments.length - 1] !== SNAPSHOTS_DIR_NAME) return null
   const mount = segments.slice(0, -1).join('/')
-  // mount 为空说明路径直接是 "/.snapshots"(没有前导真实挂载点)—— 与
-  // parseSnapshotBrowsePath 的同一条规则保持一致,不命中。
+  // Empty mount means the path is literally "/.snapshots" (no real leading mount point) —
+  // stays consistent with the same rule in parseSnapshotBrowsePath: no match.
   if (!mount) return null
   return { mount, snapshotName: '', relPath: '' }
 }
 
-// 只读锁的最终闸门,坐在 parseSnapshotBrowsePath 前面。
+// Final gate for the read-only lock, sitting in front of parseSnapshotBrowsePath.
 //
-// fail-safe 方向是**有意的产品决定,不是疏漏**:除非从一次已经 resolved 的卷列表里
-// 肯定地知道"这个挂载点确认 supported: false",否则一律保持锁定。误锁只是让一个恰好叫
-// ".snapshots" 的普通目录短暂显示成只读(烦人);漏锁则让写请求打到真只读的 btrfs 快照上,
-// 用户拿到的是一句原始文件系统报错(更糟)。所以 idle / loading / error / 列表里没有这个
-// 挂载点 —— 四种都保持锁定。
+// The fail-safe direction is a **deliberate product decision, not an oversight**: unless a resolved volume
+// list positively says "this mount point is confirmed supported: false", stay locked. A false lock merely
+// makes an ordinary directory that happens to be named ".snapshots" briefly show as read-only (annoying);
+// a missed lock sends write requests at a genuinely read-only btrfs snapshot and the user gets a raw
+// filesystem error (worse). So idle / loading / error / mount point absent from the list — all four stay locked.
 export function shouldGuardSnapshotView(
   parsed: SnapshotBrowseInfo | null,
   state: VolumesState | null | undefined,
@@ -144,8 +149,9 @@ export function shouldGuardSnapshotView(
   return true
 }
 
-/** 当前路径相对卷根的部分 —— 时间机器用它决定卡片展示哪个目录、以及进入快照后落在哪里。
- *  路径不在该挂载点下时返回空串(退回卷根),不做任何猜测。 */
+/** The part of the current path relative to the volume root — the time machine uses it to decide which
+ *  directory the card shows and where to land after entering a snapshot.
+ *  Returns an empty string (falling back to the volume root) when the path isn't under that mount; no guessing. */
 export function relPathUnderMount(mount: string, absPath: string): string {
   const m = stripTrailingSlash(mount)
   const p = stripTrailingSlash(absPath)
@@ -155,7 +161,7 @@ export function relPathUnderMount(mount: string, absPath: string): string {
   return p.slice(m.length + 1)
 }
 
-/** 「退出快照」该落到哪:活卷上的同名目录;该目录在活卷上已不存在则回卷根。 */
+/** Where "exit snapshot" should land: the same-named directory on the live volume; back to the volume root if it no longer exists there. */
 export async function resolveExitTarget(
   info: SnapshotBrowseInfo | null,
   dirExists: (p: string) => Promise<boolean>,

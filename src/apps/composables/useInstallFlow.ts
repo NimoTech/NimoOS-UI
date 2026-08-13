@@ -9,10 +9,10 @@ export interface InstallCandidate {
   id: string
   title: string
   icon?: string
-  tips?: unknown // StoreAppInfo.tips 原样传入
+  tips?: unknown // StoreAppInfo.tips passed through as-is
 }
 
-/** tips.before_install 的本语言文案(无则 '') */
+/** Localized tips.before_install text ('' when absent) */
 export function beforeInstallText(tips: unknown, lang: string): string {
   const t = (tips && typeof tips === 'object' ? tips : {}) as Record<string, unknown>
   const bi = t.before_install
@@ -20,7 +20,7 @@ export function beforeInstallText(tips: unknown, lang: string): string {
   return resolveAppText(bi as Record<string, string>, lang, '')
 }
 
-/** 安装 400 归一化:{message, data:{ports_in_use}} 容忍解析(Vue2 兼容 tcp/TCP,AppPanel.vue:733-741) */
+/** Normalize install 400 errors: tolerant parsing of {message, data:{ports_in_use}} (Vue2 accepts tcp/TCP, AppPanel.vue:733-741) */
 export function parseInstallError(e: unknown): { message: string; ports: string[] } {
   const resp = (e as { response?: { data?: unknown } })?.response?.data
   const body = (resp && typeof resp === 'object' ? resp : {}) as Record<string, unknown>
@@ -52,7 +52,7 @@ export function useInstallFlow() {
     submitting.value = { ...submitting.value, [app.id]: true }
     try {
       const yaml = await service.appstore.getAppCompose(app.id)
-      // D2:dry_run 预检——校验错/端口冲突在真装前就地拦下(400 reject,响应仅 {message})
+      // D2: dry_run precheck — validation errors / port conflicts are caught before the real install (400 reject, response is only {message})
       await service.compose.install(yaml, { dryRun: true, checkPortConflict: true })
       await service.compose.install(yaml, { checkPortConflict: true })
       progress.track(app.id, app.title, app.icon)
@@ -70,14 +70,14 @@ export function useInstallFlow() {
     }
   }
 
-  /** 入口:有 before_install 提示先弹确认(D3),无则直装 */
+  /** Entry point: if a before_install tip exists, show a confirmation first (D3); otherwise install directly */
   function requestInstall(app: InstallCandidate) {
     const text = beforeInstallText(app.tips, locale.value)
     if (text) tipsDlg.value = { open: true, app, text }
     else void doInstall(app)
   }
 
-  /** 先读 app 再关弹窗(P1 reka AlertDialogAction 教训:update:open 先于 click) */
+  /** Read app before closing the dialog (P1 reka AlertDialogAction lesson: update:open fires before click) */
   function confirmTips() {
     const app = tipsDlg.value.app
     tipsDlg.value = { open: false, app: null, text: '' }

@@ -8,22 +8,24 @@ const base = {
   confirmText: '确定', cancelText: '取消',
 }
 
-// reka-ui 用 Teleport 把内容送到 body,测试里查 document 而不是 wrapper。
+// reka-ui teleports content to body; tests query document instead of the wrapper.
 const q = (sel: string) => document.querySelector(sel)
 
-// SP8-P2a Task 6 —— 申报偏离(brief Step 2 原文与此处不同,已在报告与台账登记):
-// reka-ui@2.10.1 的 Teleport 组件(node_modules/reka-ui/dist/Teleport/Teleport.js)
-// 用 `@vueuse/core` 的 `useMounted()` 做 SSR 安全闸:首次同步渲染必定是
-// `isMounted=false` → 只吐一个 `<!--v-if-->` 占位注释,`onMounted` 里把它翻
-// true 触发的重渲染要等 Vue 的下一个 microtask(`nextTick`)才真正把内容搬进
-// document.body。这不是本组件实现引入的问题——用同样手法复现
-// `src/components/ui/AlertDialog.vue`(已上线、已过评审)在 `mount(...,{open:
-// true})` 后不等 tick 直接断言,同样断言失败(AlertDialog.test.ts 自己也是
-// `await nextTick()` 之后才断言,见该文件)。故以下 4 处「mount 后立即同步查
-// DOM」的用例(brief 原文没有先等一拍)补一次 `await nextTick()` 才能让内容
-// 落地到 document.body,断言内容与顺序与 brief 原文完全一致,只多了等一拍。
-// 实现者:测试之间要清 document.body,否则 Teleport 残留会让后续查询取到
-// 上一个用例的节点。
+// SP8-P2a Task 6 — declared deviation (differs from the brief's Step 2 wording; logged in the
+// report and the ledger): reka-ui@2.10.1's Teleport component
+// (node_modules/reka-ui/dist/Teleport/Teleport.js) uses `@vueuse/core`'s `useMounted()` as an
+// SSR safety gate: the first synchronous render is always `isMounted=false` → it emits only a
+// `<!--v-if-->` placeholder comment, and the re-render triggered by flipping it true in
+// `onMounted` doesn't actually move content into document.body until Vue's next microtask
+// (`nextTick`). This is not introduced by this component's implementation — reproducing the same
+// way with `src/components/ui/AlertDialog.vue` (shipped, reviewed) and asserting right after
+// `mount(...,{open: true})` without waiting a tick fails the same way (AlertDialog.test.ts
+// itself also asserts only after `await nextTick()`, see that file). So the 4 cases below that
+// "query the DOM synchronously right after mount" (the brief's original text had no wait) add
+// one `await nextTick()` so the content lands in document.body; assertion content and order
+// match the brief exactly, just one extra tick.
+// For implementers: clear document.body between tests, otherwise Teleport leftovers make later
+// queries pick up nodes from the previous case.
 afterEach(() => {
   document.body.innerHTML = ''
 })
@@ -31,8 +33,8 @@ afterEach(() => {
 describe('PromptDialog', () => {
   it('打开时渲染标题、说明与输入框', async () => {
     mount(PromptDialog, { props: base, attachTo: document.body })
-    // 见文件头部申报:mount 时 open 已是 true,内容仍要等一个 tick 才会被
-    // reka-ui 的 Teleport 真正搬进 document.body。
+    // See the declaration at the top of this file: even with open already true at mount,
+    // the content still takes one tick before reka-ui's Teleport moves it into document.body.
     await nextTick()
     expect(document.body.textContent).toContain('添加模型')
     expect(document.body.textContent).toContain('输入模型名称')

@@ -25,7 +25,7 @@ describe('layout persistence', () => {
     expect(localStorage.getItem('nimoos-home-layout-v2')).toBeTruthy()
     expect(setCustomStorage).not.toHaveBeenCalled()
     vi.advanceTimersByTime(800)
-    expect(setCustomStorage).toHaveBeenCalledTimes(1) // 去抖合并
+    expect(setCustomStorage).toHaveBeenCalledTimes(1) // debounced into one call
     expect(setCustomStorage.mock.calls[0]?.[0]).toBe('home_layout')
   })
   it('loadServer replaces items when server has a layout', async () => {

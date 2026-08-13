@@ -1,9 +1,10 @@
 /**
- * 硬盘待机选项。取值对位 Vue2 SettingsPanel.vue L989-997(standbyOptions)。
- * Vue2 每项内联 `{zh, en}` 两栏、靠 getStandbyLabel() 按当前语言挑
- * (且它只认 zh_cn/zh_tw,其他语言一律走英文)。这里改走 i18n 分片,
- * 由 vue-i18n 统一管 —— 不是重构,是因为 New-UI 本来就有 i18n 体系,
- * 内联两栏在新仓库里是重复实现。
+ * Disk standby options. Values map to Vue2 SettingsPanel.vue L989-997 (standbyOptions).
+ * Vue2 inlines `{zh, en}` per item and picks via getStandbyLabel() based on the current
+ * language (and it only recognizes zh_cn/zh_tw; every other language falls to English).
+ * Here we switch to i18n keys managed uniformly by vue-i18n -- not a refactor: New-UI
+ * already has an i18n system, so the inline two-column approach would be a duplicate
+ * implementation in this repo.
  */
 export interface StandbyOption { value: string; labelKey: string }
 
@@ -20,10 +21,10 @@ export const STANDBY_OPTIONS: readonly StandbyOption[] = [
 ] as const
 
 /**
- * 对位 Vue2 SettingsPanel.vue L1886-1890(parseStandbyMinutes)。
- * 后端 PUT /v1/sys/disk/standby 要求 `minutes` 是整数,非整数(或缺字段)
- * 会被 400(NimoOS/route/v1/system.go:606-628,PutDiskStandby),
- * 所以无法识别一律给 0 而不是 NaN。
+ * Maps to Vue2 SettingsPanel.vue L1886-1890 (parseStandbyMinutes).
+ * The backend PUT /v1/sys/disk/standby requires `minutes` to be an integer; a
+ * non-integer (or missing field) gets a 400 (NimoOS/route/v1/system.go:606-628,
+ * PutDiskStandby), so anything unrecognized yields 0 instead of NaN.
  */
 export function parseStandbyMinutes(standby: string | undefined): number {
   if (!standby || standby === 'never') return 0

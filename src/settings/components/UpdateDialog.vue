@@ -1,8 +1,9 @@
 <script setup lang="ts">
-// 对位 Vue2 UpdateModal.vue(321 行)。三种态:changelog(默认)/ 下载中(进度条)/ 升级中(日志)。
-// spec §5.1 还点名了 UpdateCompleteModal(177 行)—— **不移植**:
-// 它只由 Home.vue 在 localStorage['is_update']==='true' 时弹,而全仓没有一处写过该键
-// (触发器从未实现)→ 从未弹过。用户 2026-07-31 拍板跳过,债务 D14。
+// Counterpart of Vue2 UpdateModal.vue (321 lines). Three states: changelog (default) / downloading (progress bar) / upgrading (logs).
+// spec §5.1 also names UpdateCompleteModal (177 lines) — **not ported**:
+// it is only shown by Home.vue when localStorage['is_update']==='true', and nowhere in the
+// repo ever writes that key (the trigger was never implemented) → it never appeared.
+// User decided 2026-07-31 to skip it; debt D14.
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service, type UpdateCheck } from '@nimotech/nimoos-service'
@@ -26,8 +27,8 @@ const { t } = useI18n()
 const toast = useToast()
 const bus = useMessageBus()
 
-// 事件名逐字取自 Vue2 sockets 块(SettingsPanel.vue L2201-2229 / UpdateModal.vue L203-241)。
-// 两套事件必须按 kind 分开订阅 —— 串台会把固件进度显示到系统更新上。
+// Event names taken verbatim from the Vue2 sockets blocks (SettingsPanel.vue L2201-2229 / UpdateModal.vue L203-241).
+// The two event sets must be subscribed separately by kind — crosstalk would show firmware progress on the system update.
 const EV = {
   os: { progress: 'nimoos:upgrade:progress', done: 'nimoos:upgrade:downloaded' },
   app: { progress: 'nimoos:app:download:progress', done: 'nimoos:app:downloaded' },
@@ -41,13 +42,14 @@ type Phase = 'idle' | 'downloading' | 'upgrading'
 const phase = ref<Phase>('idle')
 const progress = ref(0)
 const logs = ref('')
-// 评审 fix round 2 · Important:两个失败路径此前都只 toast.show(...) ——
-// 但 toast 容器 z-index:60,弹窗自己的遮罩 z-index:1000 还带 backdrop blur,
-// 两者都在根 stacking context,toast 被糊住的遮罩挡在后面,用户什么都看不见。
-// 跟 WebUiHttpsDialog.vue 的既有先例一样,改成弹窗体内联展示。
+// Review fix round 2 · Important: both failure paths previously only did toast.show(...) —
+// but the toast container is z-index:60 while the dialog's own overlay is z-index:1000 with
+// backdrop blur; both sit in the root stacking context, so the toast is hidden behind the
+// blurred overlay and the user sees nothing. Following the existing WebUiHttpsDialog.vue
+// precedent, show it inline in the dialog body instead.
 const error = ref('')
 
-/** 服务层抛出的 Error.message 就是后端信封的 message —— 优先展示它,为空才退回 i18n 文案。 */
+/** The Error.message thrown by the service layer is the backend envelope's message — prefer it; fall back to i18n copy only when empty. */
 function errMsg(e: unknown, fallbackKey: string): string {
   const backend = e instanceof Error ? e.message : ''
   return backend || t(fallbackKey)
@@ -70,7 +72,7 @@ onBeforeUnmount(() => { stopLogs(); unbind() })
 
 watch(() => props.open, (o) => {
   if (!o) { stopLogs(); unbind(); phase.value = 'idle'; return }
-  error.value = ''   // 打开(或重开)时清掉上一轮可能残留的失败提示
+  error.value = ''   // Clear any failure message left over from the previous round when opening (or reopening)
   phase.value = props.currentlyDownloading ? 'downloading' : 'idle'
   progress.value = props.info.download_progress ?? 0
   bind()
@@ -99,7 +101,7 @@ async function startDownload() {
   progress.value = 0
   error.value = ''
   try {
-    // 下载不是独立端点:靠 version 检查带 trigger_download=1 触发
+    // Download is not a standalone endpoint: triggered via the version check with trigger_download=1
     const res = props.kind === 'app'
       ? await service.sys.getAppVersion({ trigger_download: 1 })
       : await service.sys.getOsVersion({ trigger_download: 1 })
@@ -109,14 +111,16 @@ async function startDownload() {
       emit('changed')
       emit('update:open', false)
     }
-    // 否则等 MessageBus 的进度 / downloaded 事件。
-    // Vue2 这里还额外起了 3 秒轮询兜底(UpdateModal startProgressPolling);
-    // MessageBus 的 downloaded 事件已覆盖同一件事,再加一条轮询只是重复,故不照抄。
+    // Otherwise wait for MessageBus progress / downloaded events.
+    // Vue2 additionally ran a 3-second polling fallback here (UpdateModal startProgressPolling);
+    // the MessageBus downloaded event already covers the same thing, so the extra poll is
+    // pure duplication and is not copied.
   } catch (e) {
     phase.value = 'idle'
     console.warn('[settings] trigger download failed', e)
-    // 评审 fix round 2:「保存配置失败」是错的句子(这不是保存配置,是触发下载)——
-    // 复用 settingsUpgradeFailed 而不是造一个新 key(brief 明确不允许新增 i18n key)。
+    // Review fix round 2: "failed to save config" was the wrong sentence (this triggers a
+    // download, not a config save) — reuse settingsUpgradeFailed instead of minting a new
+    // key (the brief explicitly forbids new i18n keys).
     error.value = errMsg(e, 'settingsUpgradeFailed')
   }
 }
@@ -143,7 +147,7 @@ async function upgrade() {
     if (props.kind === 'app') await service.sys.updateApp()
     else await service.sys.updateOs()
   } catch (e) {
-    phase.value = 'idle'      // 让用户能再试一次,而不是卡在日志空屏
+    phase.value = 'idle'      // Let the user retry instead of being stuck on an empty log screen
     console.warn('[settings] upgrade failed', e)
     error.value = errMsg(e, 'settingsUpgradeFailed')
     return
@@ -156,10 +160,10 @@ function pollLogs() {
   const path = LOG_PATH[props.kind]
   logTimer = setInterval(async () => {
     try {
-      // FileContent 是具名类型({ content: string }),不需要 cast
+      // FileContent is a named type ({ content: string }); no cast needed
       const res = await service.file.getContent(path)
       logs.value = res.content ?? ''
-    } catch { /* 日志文件可能还没建出来,静默重试 */ }
+    } catch { /* The log file may not exist yet; retry silently */ }
   }, 2000)
 }
 </script>
@@ -187,7 +191,7 @@ function pollLogs() {
 
       <pre v-else-if="phase === 'upgrading'" class="upd-logs">{{ logs }}</pre>
 
-      <!-- renderMarkdown 是 html:false 的 markdown-it —— 原始 HTML 被转义,v-html 其输出安全 -->
+      <!-- renderMarkdown is markdown-it with html:false — raw HTML is escaped, so v-html on its output is safe -->
       <div v-else class="upd-log" v-html="changelogHtml"></div>
 
       <p v-if="error" class="set-danger">{{ error }}</p>

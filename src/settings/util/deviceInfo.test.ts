@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { HardwareInfo } from '@nimotech/nimoos-service'
 import { toDeviceInfoView, osVersionLabel } from './deviceInfo'
 
-// curl 实证 2026-07-31 GET /v1/sys/hardware(本机真实值,注意 hardware_name 与 drive_model 都是空串)
+// Verified via curl 2026-07-31 GET /v1/sys/hardware (real values from this machine; note hardware_name and drive_model are both empty strings)
 const HW: HardwareInfo = {
   arch: 'amd64',
   cpu_cores: 6,
@@ -52,8 +52,9 @@ describe('toDeviceInfoView(逐条对位 DeviceInfoPanel.vue 的 computed)', () =
     expect(toDeviceInfoView({ ...HW, cpu_cores: undefined }, 'd').cpuThreads).toBe(0)
   })
 
-  // 纯函数如实返回空串,「检测中」占位文案由模板用 i18n 补
-  // (占位渲染由 DeviceInfoDialog.test.ts 覆盖,不在这里断言)
+  // The pure function returns the empty string as-is; the "detecting" placeholder copy
+  // is filled in by the template via i18n (placeholder rendering is covered by
+  // DeviceInfoDialog.test.ts, not asserted here)
   it('cpuModel 缺失时如实返回空串,不自己塞占位文案', () => {
     expect(toDeviceInfoView({ ...HW, cpu_model: '' }, 'd').cpuModel).toBe('')
     expect(toDeviceInfoView({ ...HW, cpu_model: undefined }, 'd').cpuModel).toBe('')

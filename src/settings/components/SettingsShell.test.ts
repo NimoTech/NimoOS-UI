@@ -1,5 +1,5 @@
 /// <reference types="node" />
-// 显式引 node 类型而不是往 tsconfig 的 types 数组里加 "node"(同 color-guard.test.ts)。
+// Reference node types explicitly instead of adding "node" to tsconfig's types array (same as color-guard.test.ts).
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,8 +12,8 @@ import zh from '../../i18n/zh_cn'
 import zhSp9 from '../../i18n/zh_cn.sp9'
 import type { SettingsTab } from '../util/tabs'
 
-// PowerFlow(填入 .set-rail-foot,task 9)引入了 service.sys.power —— 最小 mock,
-// 这个测试文件不关心电源流本身(有 PowerFlow.test.ts 专门测),只关心它渲染出来了。
+// PowerFlow (filling .set-rail-foot, task 9) pulls in service.sys.power — minimal mock;
+// this test file doesn't care about the power flow itself (PowerFlow.test.ts covers that), only that it renders.
 vi.mock('@nimotech/nimoos-service', () => ({ service: { sys: { power: async () => {} } } }))
 
 import SettingsShell from './SettingsShell.vue'
@@ -135,10 +135,10 @@ describe('窄屏设置侧栏有可滚动提示', () => {
       path.resolve(path.dirname(fileURLToPath(import.meta.url)), './SettingsShell.vue'),
       'utf8',
     )
-    // 只看窄屏媒体查询那一段:宽屏是纵向排列,不需要提示。
+    // Only inspect the narrow-screen media-query section: wide screens stack vertically and need no affordance.
     const narrow = src.slice(src.indexOf('@media'))
     const rail = narrow.slice(narrow.indexOf('.set-rail-list'))
-    expect(rail).toContain('overflow-x: auto') // 防空转:布局改了就该红
+    expect(rail).toContain('overflow-x: auto') // Anti-no-op guard: should go red if the layout changes
     expect(rail).toMatch(/mask-image/)
   })
 })

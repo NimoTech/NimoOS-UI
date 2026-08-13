@@ -237,6 +237,8 @@ export default {
   filesDropMenuSend: '发送文件',
   filesDropMenuCancel: '取消发送',
   filesDropUnsupported: '对方设备不支持点对点传输',
+  filesDropNotReady: '与对方的连接尚未就绪,正在重连,请稍后重试',
+  filesDropUnreachable: '无法与对方建立直连,请确认两台设备在同一网络且未开启客户端隔离',
   filesDropLeaveTitle: '传输正在进行',
   filesDropLeaveMessage: '离开此页会中断正在进行的文件传输。确定要离开吗?',
   filesDropLeaveConfirm: '离开',

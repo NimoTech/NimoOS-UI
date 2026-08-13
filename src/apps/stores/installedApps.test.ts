@@ -11,7 +11,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { compose: svc } }))
 
 import { useInstalledAppsStore, mapInstalled, PENDING_TIMEOUT_MS } from './installedApps'
 
-// 真机实证形态(curl GET /v2/app_management/compose)
+// Shape verified on a real device (curl GET /v2/app_management/compose)
 const RAW = {
   store_info: {
     title: { en_US: 'Actual Budget' }, icon: 'https://cdn/icon.svg',
@@ -49,7 +49,7 @@ describe('installedApps store', () => {
   it('refresh 拉列表并按 title 排序', async () => {
     const s = useInstalledAppsStore()
     await s.refresh()
-    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // 同 title 时按 id 稳定
+    expect(s.apps.map((x) => x.id)).toEqual(['a', 'b']) // stable by id when titles are equal
     expect(s.loading).toBe(false)
   })
 
@@ -60,7 +60,7 @@ describe('installedApps store', () => {
     })
     const s = useInstalledAppsStore()
     await s.refresh()
-    expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // 系统容器被藏
+    expect(s.apps.map((x) => x.id)).toEqual(['jellyfin']) // system containers are hidden
   })
 
   it('setStatus:置 pending → 受理后仍 pending(后端 go func 异步),end 事件才收敛', async () => {
@@ -69,7 +69,7 @@ describe('installedApps store', () => {
     const p = s.setStatus('a', 'start')
     expect(s.pending['a']).toBe('start')
     await p
-    // POST 只是受理:不提前收敛,否则 end 事件丢失(buffer=1)时列表永久陈旧
+    // POST is acceptance only: do not converge early, or the list stays stale forever if the end event is lost (buffer=1)
     expect(s.pending['a']).toBe('start')
     expect(svc.setStatus).toHaveBeenCalledWith('a', 'start')
     expect(svc.list).toHaveBeenCalledTimes(1)
@@ -101,11 +101,11 @@ describe('installedApps store', () => {
     await s.refresh()
     await s.uninstall('a', false)
     expect(svc.uninstall).toHaveBeenCalledWith('a', { deleteConfigFolder: false })
-    // 受理即返:卸载还在后台跑,「处理中」保持
+    // Returns on acceptance: uninstall still runs in the background, "processing" state kept
     expect(s.pending['a']).toBe('uninstall')
     expect(s.apps.find((x) => x.id === 'a')).toBeDefined()
     s.onAppEvent('app:uninstall-end', { 'app:name': 'a' })
-    // end 事件:图标立刻消失(evict),不等重拉往返
+    // end event: icon disappears immediately (evict), no waiting for the refetch round-trip
     expect(s.apps.find((x) => x.id === 'a')).toBeUndefined()
     expect(s.pending['a']).toBeUndefined()
     await vi.waitFor(() => expect(svc.list).toHaveBeenCalledTimes(2))

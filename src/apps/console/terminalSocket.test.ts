@@ -11,9 +11,10 @@ class FakeWS {
 function makeDeps(over: Partial<TerminalSocketDeps> = {}) {
   const ws = new FakeWS()
   const deps: TerminalSocketDeps = {
-    // getExpiresAt 默认给远未来值(而非 null)—— null 是 shouldRefreshToken 的"保守刷新"哨兵,
-    // 会让 connect() 在建 socket 前多等一次 refresh() 微任务,与下面几个测试同步触发 ws.onopen 的写法冲突。
-    // 需要显式测试"快过期先 refresh"路径的用例会自行覆盖 getExpiresAt。
+    // getExpiresAt defaults to a far-future value (not null) -- null is shouldRefreshToken's
+    // "conservative refresh" sentinel, which makes connect() await an extra refresh() microtask
+    // before creating the socket, conflicting with the tests below that trigger ws.onopen synchronously.
+    // Tests that explicitly exercise the "refresh before near-expiry" path override getExpiresAt themselves.
     getToken: () => 'tok', getExpiresAt: () => 9_999_999_999, refresh: vi.fn().mockResolvedValue(undefined),
     now: () => 1000, wsBase: () => 'ws://host', makeSocket: vi.fn(() => ws as unknown as WebSocket),
     onStatus: vi.fn(), ...over,
@@ -51,7 +52,7 @@ it('open 前先 connecting,open 后 status=open;远端断开 → closed(不自�
   expect(deps.onStatus).toHaveBeenLastCalledWith('open')
   ws.onclose?.()
   expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
-  expect(deps.makeSocket).toHaveBeenCalledTimes(1) // 无自动重连
+  expect(deps.makeSocket).toHaveBeenCalledTimes(1) // No automatic reconnect
 })
 it('close() 幂等且置 closed', async () => {
   const { deps, ws } = makeDeps()
@@ -73,7 +74,7 @@ it('close() 打在 refresh() 挂起期间 → refresh 落定后不建 socket,res
   const s = new TerminalSocket(deps)
   const p = s.connect('c1', 80, 24)
   await vi.waitFor(() => expect(refresh).toHaveBeenCalled())
-  s.close() // 卸载场景:refresh 还没落定,调用方已经 close()
+  s.close() // Unmount scenario: refresh has not settled yet but the caller already called close()
   expect(deps.onStatus).toHaveBeenLastCalledWith('closed')
   resolveRefresh?.()
   await expect(p).resolves.toBeNull()

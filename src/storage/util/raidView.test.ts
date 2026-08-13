@@ -71,7 +71,7 @@ describe('countActiveDisks', () => {
     expect(countActiveDisks(members, 3)).toBe(2)
   })
   it('members 为空时回退 fallback 计数', () => {
-    expect(countActiveDisks([], 4)).toBe(4) // 空数组 → 回退 total(member_disks 计数)
+    expect(countActiveDisks([], 4)).toBe(4) // empty array → fall back to total (member_disks count)
   })
 })
 
@@ -100,9 +100,9 @@ describe('memberSquare', () => {
   it('其它 → unknown', () => { expect(memberSquare('spare').kind).toBe('unknown') })
 })
 
-// memberRow 与 memberSquare 的映射**有意不同**:卡片方块把 removed 归红色 fail
-// (Vue2 RaidCard L130),详情行只把 faulty 判红、removed 走灰色(Vue2
-// RaidDetailPanel memberColor L343-350 / memberStateLabel L351-357)。
+// The memberRow and memberSquare mappings are **deliberately different**: card squares put removed
+// into red fail (Vue2 RaidCard L130), while detail rows only mark faulty red and removed goes gray
+// (Vue2 RaidDetailPanel memberColor L343-350 / memberStateLabel L351-357).
 describe('memberRow', () => {
   it('active sync* → 绿 + 活动', () => {
     expect(memberRow('active sync set-A')).toEqual({ token: '--sem-fg', labelKey: 'raidMemberActive' })
@@ -220,8 +220,8 @@ describe('replaceOutcome', () => {
     ] }, true)).toBe('done')
   })
   it('盯的是新盘自身状态,不是阵列健康度:另一块盘 faulty 也算 done', () => {
-    // 换的这块盘已经同步好了 —— 阵列仍 degraded 是另一块盘的故障,
-    // 不该让这次替换的看板永远转下去。
+    // The replaced disk has finished syncing —— the array staying degraded is another disk's failure,
+    // which must not keep this replacement's dashboard spinning forever.
     expect(replaceOutcome(task, { members: [
       { path: '/dev/sdd', state: 'active sync', number: 4 },
       { path: '/dev/sdb', state: 'faulty', number: 1 },
@@ -234,8 +234,8 @@ describe('replaceOutcome', () => {
   })
 })
 
-// 降级 RAID5 的真实成员形状(2026-07-30 真机):4 行 —— 腾空的槽位 + 2 好盘 +
-// 被踢出槽位的故障盘(slot: -1)。
+// Real member shape of a degraded RAID5 (on-device 2026-07-30): 4 rows —— the vacated slot + 2 good
+// disks + the faulty disk kicked out of its slot (slot: -1).
 const degradedRows = [
   { path: '/dev/sdd', state: 'active sync', number: 4, slot: 0 },
   { path: '', state: 'removed', number: 1, slot: 1 },
@@ -248,7 +248,7 @@ describe('slotMembers', () => {
     const r = slotMembers(degradedRows)
     expect(r.map((m) => m.slot)).toEqual([0, 1, 2])
     expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '', '/dev/sdc'])
-    // 3 盘阵列 → 3 个盘位,不是 4
+    // 3-disk array → 3 slots, not 4
     expect(r.length).toBe(3)
   })
   it('闲置热备(slot -1)也不占盘位', () => {
@@ -282,7 +282,7 @@ describe('slotMembers', () => {
 describe('memberDiskCount', () => {
   it('只数有设备路径的行:空槽位占位行不是一块盘', () => {
     expect(memberDiskCount(degradedRows)).toBe(3)
-    expect(degradedRows.length).toBe(4) // 总行数确实是 4,所以不能用它当盘数
+    expect(degradedRows.length).toBe(4) // total row count really is 4, so it cannot be used as the disk count
   })
   it('健康阵列 = 成员数', () => {
     expect(memberDiskCount([
@@ -310,12 +310,12 @@ describe('mergeVacatedSlot', () => {
     expect(r.map((m) => m.path)).toEqual(['/dev/sdd', '/dev/sdb', '/dev/sdc'])
     const merged = r[1]
     expect(merged.state).toBe('faulty')
-    expect(merged.vacatedSlot).toBe(1)      // 坏盘腾出的槽位
-    expect(merged.slot).toBe(-1)            // 它自己已不占槽位
+    expect(merged.vacatedSlot).toBe(1)      // the slot the bad disk vacated
+    expect(merged.slot).toBe(-1)            // it no longer occupies a slot itself
   })
 
   it('合并行带的是**空槽位**的槽位号,不是坏盘的设备编号', () => {
-    // 实测形状:sdd 占 0 号槽位但设备编号是 4 —— 拿编号当槽位就会标错
+    // Measured shape: sdd occupies slot 0 but its device number is 4 —— using the number as the slot mislabels it
     const rows = [
       { path: '', state: 'removed', number: 0, slot: 0 },
       { path: '/dev/sdb', state: 'active sync', number: 1, slot: 1 },

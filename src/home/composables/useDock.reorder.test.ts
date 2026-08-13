@@ -8,7 +8,7 @@ describe('useDock.reorder', () => {
     useAppsStore()
     const d = useDock()
     d.setFav(['files', 'photos'])
-    d.reorder('settings', 'fav', 'photos') // settings(more) 插到 photos 前
+    d.reorder('settings', 'fav', 'photos') // settings (from more) inserted before photos
     expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
   })
   it('moves a fav-key out to more (drop at end of more)', () => {

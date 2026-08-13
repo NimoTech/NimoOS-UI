@@ -7,25 +7,25 @@ export interface ServiceModel {
   name: string; image: string
   environment: PairRow[]      // a=KEY b=VALUE
   ports: PortRow[]
-  portsExtra: unknown[]       // 表单认不出的 ports 原始条目,原样透传
+  portsExtra: unknown[]       // raw ports entries the form cannot recognize; passed through as-is
   volumes: PairRow[]          // a=host(source) b=container(target)
   devices: PairRow[]          // a=host b=container
   privileged: boolean; capAdd: string[]
   restart: string             // 'unless-stopped' | 'always' | 'on-failure'
   containerName: string
-  cpuShares: number           // 10 | 50 | 90(归一化)
-  memoryMB: number | null     // limits.memory;null=未设限
-  commandTokens: string[]     // command 逐 token 展示;数组→逐项,字符串→保守单 token
-  commandDirty: boolean       // 编辑任一 token/增删 才置 true;false 时 buildYaml 不动 command
-  commandWasString: boolean   // 原 YAML 里 command 是 string 写法;编辑后单 token 时保 string 写回(P6 保守修)
-  network: string             // network_mode 优先,否则 networks 首个 key/元素,缺省 ''
-  networkDirty: boolean       // 编辑网络下拉才置 true;false 时 buildYaml 不动 network_mode/networks
-  networksMultiple: boolean   // 服务挂了 >1 个网络;表单下拉禁用,buildYaml 双保险不写回(P6 防静默塌单网络)
+  cpuShares: number           // 10 | 50 | 90 (normalized)
+  memoryMB: number | null     // limits.memory; null = no limit set
+  commandTokens: string[]     // command shown token by token; array → one per item, string → conservative single token
+  commandDirty: boolean       // set true only when a token is edited/added/removed; when false buildYaml leaves command untouched
+  commandWasString: boolean   // command was string syntax in the original YAML; keep string form when a single token remains after editing (P6 conservative fix)
+  network: string             // network_mode takes priority, else first key/element of networks, defaults to ''
+  networkDirty: boolean       // set true only when the network dropdown is edited; when false buildYaml leaves network_mode/networks untouched
+  networksMultiple: boolean   // service has >1 networks attached; form dropdown disabled, buildYaml double-guards against writing back (P6: prevent silently collapsing to a single network)
 }
 export interface WebUiModel { titleCustom: string; icon: string; scheme: 'http' | 'https'; hostname: string; portMap: string; index: string }
 export interface SettingsModel {
   services: ServiceModel[]; webui: WebUiModel; tipsCustom: string; extKey: 'x-nimoos' | 'x-casaos'
-  /** true = tips.custom 缺省时借 before_install 回落文案预填 tipsCustom(仅用于预填 UI,不代表用户已确认此文案要落盘) */
+  /** true = tips.custom was absent and tipsCustom was prefilled from the before_install fallback text (UI prefill only; does not mean the user confirmed persisting this text) */
   tipsFromFallback: boolean
 }
 
@@ -72,7 +72,7 @@ export function parseMemoryToMB(v: unknown): number | null {
   if (!m) return null
   const n = parseFloat(m[1])
   const unit = (m[2] ?? '').toLowerCase()
-  if (!unit) return Math.round(n / 1024 / 1024) // 裸数字=字节(compose-go UnitBytes 序列化格式)
+  if (!unit) return Math.round(n / 1024 / 1024) // bare number = bytes (compose-go UnitBytes serialization format)
   const factor = { k: 1 / 1024, m: 1, g: 1024, t: 1024 * 1024 }[unit as 'k' | 'm' | 'g' | 't']
   return Math.round(n * factor)
 }
@@ -88,20 +88,20 @@ function classifyPortEntry(p: unknown): PortParse {
     const o = p as Dict
     const t = o.target != null ? String(o.target) : ''
     const pub = o.published != null ? String(o.published) : t
-    // `mode: ingress` 是 compose-go 归一化后 GET yaml 必带的默认值(商店应用每个端口都有),
-    // 语义等同缺省,视作已识别键(重建时省略=同义);`mode: host` 语义不同,保持进透传。
+    // `mode: ingress` is a default value always present in compose-go-normalized GET yaml (every port of store apps has it),
+    // semantically equal to omission, so treat it as a recognized key (omitting on rebuild = same meaning); `mode: host` differs semantically and stays in pass-through.
     const extras = Object.keys(o).filter((k) => !['target', 'published', 'protocol', 'host_ip'].includes(k) && !(k === 'mode' && o.mode === 'ingress'))
     const protoRaw = o.protocol != null ? String(o.protocol).toLowerCase() : ''
-    // protocol 显式给了非 tcp/udp 的值(如 sctp)→ 不可编辑,原样透传(与短语法正则只认 tcp|udp 保持一致)。
+    // protocol explicitly set to a non-tcp/udp value (e.g. sctp) → not editable, pass through as-is (consistent with the short-syntax regex only accepting tcp|udp).
     if (protoRaw && protoRaw !== 'tcp' && protoRaw !== 'udp') return { extra: p }
     if (SINGLE_PORT.test(t) && SINGLE_PORT.test(pub) && !extras.length) {
       const proto = protoRaw === 'udp' ? 'udp' : 'tcp'
       return { row: { published: pub, target: t, protocol: proto, ...(o.host_ip ? { hostIp: String(o.host_ip) } : {}) } }
     }
-    return { extra: p } // long-syntax range / mode:host 等异形 → 原样透传
+    return { extra: p } // long-syntax range / mode:host and other irregular forms → pass through as-is
   }
   const m = /^(?:(\d{1,3}(?:\.\d{1,3}){3}):)?(\d+):(\d+)(?:\/(tcp|udp))?$/i.exec(String(p).trim())
-  if (!m) return { extra: p } // 裸端口 "3000"、range "a-b:a-b"、其它异形 → 原样透传
+  if (!m) return { extra: p } // bare port "3000", range "a-b:a-b", other irregular forms → pass through as-is
   return { row: { published: m[2], target: m[3], protocol: (m[4]?.toLowerCase() as 'tcp' | 'udp') ?? 'tcp', ...(m[1] ? { hostIp: m[1] } : {}) } }
 }
 
@@ -118,7 +118,7 @@ function parseService(name: string, raw: Dict): ServiceModel {
   }
   const volumes: PairRow[] = (Array.isArray(raw.volumes) ? raw.volumes : []).map((v) => {
     if (v && typeof v === 'object') { const o = v as Dict; return { a: String(o.source ?? ''), b: String(o.target ?? '') } }
-    const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // :ro 等 flag 丢弃(Vue2 同行为)
+    const parts = String(v).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? '' } // flags like :ro are dropped (same behavior as Vue2)
   }).filter((r) => r.a || r.b)
   const devices: PairRow[] = (Array.isArray(raw.devices) ? raw.devices : []).map((d) => {
     const parts = String(d).split(':'); return { a: parts[0] ?? '', b: parts[1] ?? parts[0] ?? '' }
@@ -148,7 +148,7 @@ function parseService(name: string, raw: Dict): ServiceModel {
     capAdd: Array.isArray(raw.cap_add) ? raw.cap_add.map(String) : [],
     restart: !restartRaw || restartRaw === 'no' ? 'unless-stopped' : restartRaw,
     containerName: String(raw.container_name ?? ''),
-    cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 归一化(ComposeConfig.vue:550-559)
+    cpuShares: !cpuRaw || cpuRaw > 99 ? 90 : cpuRaw, // Vue2 normalization (ComposeConfig.vue:550-559)
     memoryMB: parseMemoryToMB(deploy.memory),
     commandTokens, commandDirty: false, commandWasString,
     network, networkDirty: false, networksMultiple,
@@ -157,7 +157,7 @@ function parseService(name: string, raw: Dict): ServiceModel {
 
 const NETWORK_MODE_VALUES = new Set(['host', 'bridge', 'none'])
 
-/** image 的 tag 段改写:最后一个冒号后若含 '/' 说明那是 registry:port,不是 tag,直接追加;否则替换该段(Vue2 patchNetworkValue 邻域,但这里是 tag 不是 network)。 */
+/** Rewrite the tag segment of image: if the part after the last colon contains '/', it is registry:port rather than a tag, so append; otherwise replace that segment (adjacent to Vue2 patchNetworkValue, but this is tag, not network). */
 export function rewriteImageTag(image: string, tag: string): string {
   const i = image.lastIndexOf(':')
   if (i < 0) return `${image}:${tag}`
@@ -196,14 +196,14 @@ export function buildYaml(originalYaml: string, model: SettingsModel): string {
   const services = asDict(doc.services)
   for (const sm of model.services) {
     const svc = asDict(services[sm.name])
-    if (!Object.keys(svc).length && !services[sm.name]) continue // 原 YAML 没有的服务不凭空造
+    if (!Object.keys(svc).length && !services[sm.name]) continue // never fabricate a service absent from the original YAML
     if (sm.image.trim()) svc.image = sm.image.trim()
     svc.environment = sm.environment.filter((r) => r.a.trim()).map((r) => `${r.a.trim()}=${r.b}`)
     svc.ports = [
       ...sm.ports
         .filter((r) => r.published.trim() && r.target.trim())
         .map((r) => ({ target: Number(r.target), published: String(r.published), protocol: r.protocol, ...(r.hostIp ? { host_ip: r.hostIp } : {}) })),
-      ...sm.portsExtra, // 表单认不出的条目原样写回
+      ...sm.portsExtra, // entries the form cannot recognize are written back as-is
     ]
     svc.volumes = sm.volumes.filter((r) => r.a.trim() && r.b.trim()).map((r) => ({ type: 'bind', source: r.a.trim(), target: r.b.trim() }))
     const devs = sm.devices.filter((r) => r.a.trim() && r.b.trim()).map((r) => `${r.a.trim()}:${r.b.trim()}`)

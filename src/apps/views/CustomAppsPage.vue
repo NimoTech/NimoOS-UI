@@ -22,7 +22,7 @@ const toast = useToast()
 const { validateYaml, installYaml } = useCustomInstall()
 const { required } = useValidation()
 
-// 单一事实源=路由 query,深链可达(?tab=yaml|import|link,默认 yaml)
+// Single source of truth = route query, deep-linkable (?tab=yaml|import|link, default yaml)
 const tab = computed<TabKey>(() => {
   const q = route.query.tab
   return typeof q === 'string' && (TABS as string[]).includes(q) ? (q as TabKey) : 'yaml'
@@ -31,7 +31,7 @@ function setTab(k: TabKey) {
   router.replace({ query: { ...route.query, tab: k === 'yaml' ? undefined : k } })
 }
 
-// ── tab1:YAML 编辑安装 ──
+// ── tab1: YAML edit & install ──
 const yamlText = ref('')
 const yamlBusy = ref(false)
 const yamlError = ref<{ message: string; ports?: string[] } | null>(null)
@@ -54,14 +54,14 @@ async function onInstall() {
   yamlBusy.value = true
   try {
     const res = await installYaml(yamlText.value)
-    if (res.ok) router.push('/apps') // 进 /apps 看安装进度卡
+    if (res.ok) router.push('/apps') // go to /apps to watch the install progress card
     else yamlError.value = { message: res.message, ports: res.ports }
   } finally {
     yamlBusy.value = false
   }
 }
 
-// ── tab2:docker run 命令导入 ──
+// ── tab2: docker run command import ──
 const dockerCmd = ref('')
 const convertError = ref('')
 
@@ -69,8 +69,8 @@ function onConvert() {
   convertError.value = ''
   try {
     const composeRaw = dockerRunToCompose(dockerCmd.value)
-    // 先取一次派生名(供 normalizeVolumes 的 appName 用);最终 meta(name/title/icon)注入
-    // 在 volumes 归一化之后再做一遍,确保注入落在最终产出的 YAML 上。
+    // Derive the name once first (for normalizeVolumes' appName); the final meta (name/title/icon) injection
+    // is done again after volume normalization, ensuring it lands on the final output YAML.
     const { name } = ensureComposeMeta(composeRaw)
     const normalized = normalizeVolumes(composeRaw, name)
     const { yaml } = ensureComposeMeta(normalized)
@@ -81,10 +81,10 @@ function onConvert() {
   }
 }
 
-// ── tab3:外部链接(LinkApp)管理 ──
+// ── tab3: external link (LinkApp) management ──
 const links = ref<LinkApp[]>([])
 const linksLoading = ref(false)
-const editingName = ref<string | null>(null) // 非空=编辑既有条目,名称字段锁定(Vue2 disableEditName 同款)
+const editingName = ref<string | null>(null) // non-null = editing an existing entry, name field locked (same as Vue2 disableEditName)
 const linkName = ref('')
 const linkHostname = ref('')
 const linkIcon = ref('')
@@ -145,9 +145,9 @@ async function onSubmitLink() {
   }
 }
 
-// 删除确认:open 标志与 target 用两个独立 ref 存(不是同一个对象的字段)——
-// reka AlertDialogAction 点击时会先 emit update:open(false) 再触发 @confirm,若两者共享
-// 同一处清空逻辑,target 可能在 confirm 处理器读到之前已被清掉。两个独立 ref 从根上避免这个时序坑。
+// Delete confirmation: the open flag and target are stored in two independent refs (not fields of one object) —
+// reka AlertDialogAction emits update:open(false) before firing @confirm on click; if both shared
+// the same clearing logic, target could be cleared before the confirm handler reads it. Two independent refs avoid this timing trap at the root.
 const linkDelOpen = ref(false)
 const linkDelTarget = ref<LinkApp | null>(null)
 function onDeleteLink(l: LinkApp) { linkDelTarget.value = l; linkDelOpen.value = true }
@@ -166,7 +166,7 @@ async function confirmDeleteLink() {
 
 <template>
   <AreaShell :title="t('appsTitle')">
-    <!-- yaml-mode:同 AppSettingsPage——YAML 标签下定高布局,编辑器内部滚而非整页滚 -->
+    <!-- yaml-mode: same as AppSettingsPage — fixed-height layout under the YAML tab, editor scrolls internally instead of the whole page -->
     <div class="apps-layout" :class="{ 'yaml-mode': tab === 'yaml' }">
       <AppsSidebar />
       <main class="apps-main">
@@ -280,7 +280,7 @@ async function confirmDeleteLink() {
 <style scoped>
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
-/* YAML 标签:定高布局,编辑器占满剩余空间在内部滚(其余标签保持文档式滚动) */
+/* YAML tab: fixed-height layout, the editor fills remaining space and scrolls internally (other tabs keep document-style scrolling) */
 .apps-layout.yaml-mode { height: 100%; }
 .apps-layout.yaml-mode .apps-main { min-height: 0; }
 
@@ -303,7 +303,7 @@ async function confirmDeleteLink() {
 .custom-textarea:focus { border-color: var(--accent-soft-bd); }
 
 .custom-error {
-  /* 同 AppSettingsPage .set-conflict:半透明 --drop-bad 底 + --remove-fg 字,统一「冲突/失败」视觉语言 */
+  /* Same as AppSettingsPage .set-conflict: translucent --drop-bad background + --remove-fg text, unified "conflict/failure" visual language */
   padding: 10px 14px; font-size: 13px; border-radius: var(--radius);
   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
 }
@@ -319,7 +319,7 @@ async function confirmDeleteLink() {
 .custom-install-btn:disabled { opacity: 0.55; cursor: default; filter: none; }
 @media (max-width: 768px) { .apps-layout { gap: 0; } }
 
-/* ── tab3:外部链接(LinkApp) ── */
+/* ── tab3: external links (LinkApp) ── */
 .link-form { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
 .link-field { display: flex; flex-direction: column; gap: 5px; }
 .link-field label { font-size: 12px; color: var(--fg-muted); }
@@ -341,7 +341,7 @@ async function confirmDeleteLink() {
 }
 .link-ic.has-img { background: var(--chip-bg-hi); }
 .link-ic.has-img img { width: 100%; height: 100%; object-fit: contain; }
-/* .ic-app 是 theme.css 里的品牌渐变(theme-exception:图标兜底渐变,皮肤无关,详见 theme.css 顶部注释) */
+/* .ic-app is the brand gradient from theme.css (theme-exception: icon fallback gradient, skin-independent, see the comment at the top of theme.css) */
 .link-name { flex: 0 1 auto; font-size: 13.5px; color: var(--fg); font-weight: 500; }
 .link-host { flex: 1 1 auto; min-width: 0; font-size: 12.5px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>

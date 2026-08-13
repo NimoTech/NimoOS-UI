@@ -4,7 +4,7 @@ import SnapshotsTab from './SnapshotsTab.vue'
 import { i18n } from '../../i18n'
 import type { KvmSnapshot } from '@nimotech/nimoos-service'
 
-// 造非空列表时字段照后端 NimoOS-KVM/model/snapshot.go(brief 指定,不手编)。
+// Fields for non-empty list fixtures follow backend NimoOS-KVM/model/snapshot.go (specified in the brief, not hand-authored).
 const SNAP = (over: Partial<KvmSnapshot> = {}): KvmSnapshot => ({
   id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '升级前备份',
   state: 'complete', createdAt: '2026-08-03T10:00:00Z', ...over,
@@ -32,7 +32,7 @@ const setVal = async (wr: VueWrapper, sel: string, v: string) => {
 }
 
 describe('SnapshotsTab', () => {
-  // 覆盖点 1:创建区两个输入 + 「创建」按钮;标题「创建快照」。
+  // Coverage point 1: create section has two inputs + a "Create" button; title "Create Snapshot".
   it('创建区:标题「创建快照」,名称/描述两个输入,「创建」按钮', () => {
     const wr = mk()
     expect(wr.text()).toContain('创建快照')
@@ -43,8 +43,8 @@ describe('SnapshotsTab', () => {
     expect(wr.find('.cv-primary-btn').text()).toBe('创建')
   })
 
-  // 覆盖点 2:名称空白点创建 → 内联 .cv-error 显示「请输入快照名称」,不 emit create
-  // (照 Vue2 :1238-1240,改内联不用 toast)。
+  // Coverage point 2: clicking Create with a blank name → inline .cv-error shows "please enter a snapshot name", no create emit
+  // (per Vue2 :1238-1240, changed to inline error instead of toast).
   it('名称空白时点创建 → .cv-error 显示「请输入快照名称」,不 emit create', async () => {
     const wr = mk()
     await wr.find('.cv-primary-btn').trigger('click')
@@ -60,7 +60,7 @@ describe('SnapshotsTab', () => {
     expect(wr.emitted('create')).toBeUndefined()
   })
 
-  // 覆盖点 3:名称合法 → emit create:{ name, description }。
+  // Coverage point 3: valid name → emit create: { name, description }.
   it('名称合法 → emit create: { name, description }', async () => {
     const wr = mk()
     await setVal(wr, 'input[name="snapshotName"]', 'before-upgrade')
@@ -70,11 +70,11 @@ describe('SnapshotsTab', () => {
     expect(wr.find('.cv-error').exists()).toBe(false)
   })
 
-  // 覆盖点 4:busy=true 时创建按钮 is-loading 且点不动。分段写法(同 Task 9
-  // VmSettingsDialog.test.ts「saving=true 时主按钮…」那条,避免「被混淆的断言」):
-  // 先用合法名称 + busy=false 证明真实点击能提交,排除“表单本身有问题”这个混淆因素;
-  // 再用 busy=true + dispatchEvent(绕开原生 disabled)证明 JS 层守卫 `if (props.busy)
-  // return` 本身真的挡住了(不是靠浏览器原生 disabled 侥幸挡住)。
+  // Coverage point 4: with busy=true the create button is is-loading and unclickable. Two-stage approach
+  // (same as the Task 9 VmSettingsDialog.test.ts "saving=true main button..." case, avoiding a confounded assertion):
+  // first prove with a valid name + busy=false that a real click does submit, ruling out "the form itself is broken";
+  // then with busy=true + dispatchEvent (bypassing native disabled) prove the JS-level guard `if (props.busy)
+  // return` itself really blocks (not blocked by luck via the browser's native disabled).
   it('busy=true 时创建按钮 is-loading 且点不动(防重复提交)', async () => {
     const ok = mk({ busy: false })
     await setVal(ok, 'input[name="snapshotName"]', 'x')
@@ -87,23 +87,23 @@ describe('SnapshotsTab', () => {
     const btn = busy.get('.cv-primary-btn').element as HTMLButtonElement
     expect(btn.classList.contains('is-loading')).toBe(true)
     expect(btn.disabled).toBe(true)
-    // 原生 disabled 本身会挡掉 `.trigger('click')`(实为合成的 MouseEvent,jsdom 对
-    // disabled 元素同样不派发)——用 dispatchEvent 绕开原生拦截,才能测到 onCreateClick()
-    // 内部 `if (props.busy) return` 这道 JS 层守卫本身。
+    // Native disabled itself blocks `.trigger('click')` (actually a synthetic MouseEvent; jsdom
+    // likewise doesn't dispatch to disabled elements) — use dispatchEvent to bypass the native block
+    // so we can test the JS-level guard `if (props.busy) return` inside onCreateClick() itself.
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await busy.vm.$nextTick()
     expect(busy.emitted('create')).toBeUndefined()
   })
 
-  // 覆盖点 5:空列表 → .cv-empty-state 显示「暂无快照」。
+  // Coverage point 5: empty list → .cv-empty-state shows "no snapshots".
   it('空列表 → .cv-empty-state 显示「暂无快照」', () => {
     const wr = mk({ snapshots: [] })
     expect(wr.find('.cv-empty-state').text()).toContain('暂无快照')
     expect(wr.find('.cv-snapshot-item').exists()).toBe(false)
   })
 
-  // 覆盖点 6:非空列表 → 每条显示名称/创建于,有描述才显示描述;formatDate 用
-  // new Date(s).toLocaleString()(照 Vue2 :1316-1320)。
+  // Coverage point 6: non-empty list → each item shows name/created-at, description only when present;
+  // formatDate uses new Date(s).toLocaleString() (per Vue2 :1316-1320).
   it('非空列表:显示名称/创建于,有描述才显示描述行', () => {
     const withDesc = mk({ snapshots: [SNAP({ name: 'before-upgrade', description: '升级前备份' })] })
     const item = withDesc.find('.cv-snapshot-item')
@@ -123,7 +123,7 @@ describe('SnapshotsTab', () => {
     expect(wr.find('.cv-snapshot-date').text()).toBe('创建于:')
   })
 
-  // 覆盖点 7:恢复按钮在 vmState !== 'stopped' 时 disabled(照 Vue2 :368)。
+  // Coverage point 7: restore button is disabled when vmState !== 'stopped' (per Vue2 :368).
   it('恢复按钮:vmState !== "stopped" 时 disabled,="stopped" 时可点', () => {
     const running = mk({ vmState: 'running', snapshots: [SNAP()] })
     expect((running.find('.cv-btn-restore').element as HTMLButtonElement).disabled).toBe(true)
@@ -134,7 +134,7 @@ describe('SnapshotsTab', () => {
   })
 
   describe('就地二次确认(硬约束 5,照 Vue2 单一 pendingConfirmAction/pendingConfirmId 语义)', () => {
-    // 覆盖点 8:删除——第一次点只变文字 + confirm-text-danger,不 emit;第二次点才 emit。
+    // Coverage point 8: delete — first click only changes text + confirm-text-danger, no emit; only the second click emits.
     it('删除第一次点:文字变「你确定吗?」+ confirm-text-danger,不 emit confirm-delete', async () => {
       const wr = mk({ snapshots: [SNAP()] })
       await wr.find('.cv-btn-delete').trigger('click')
@@ -150,7 +150,7 @@ describe('SnapshotsTab', () => {
       expect(wr.emitted('confirm-delete')![0]).toEqual([SNAP()])
     })
 
-    // 恢复同理(覆盖点 8 后半)。用 stopped 状态让恢复按钮可点。
+    // Same for restore (second half of coverage point 8). Use the stopped state so the restore button is clickable.
     it('恢复第一次点:文字变「你确定吗?」+ confirm-text-danger,不 emit;第二次点才 emit confirm-restore', async () => {
       const wr = mk({ vmState: 'stopped', snapshots: [SNAP()] })
       await wr.find('.cv-btn-restore').trigger('click')
@@ -162,7 +162,7 @@ describe('SnapshotsTab', () => {
       expect(wr.emitted('confirm-restore')![0]).toEqual([SNAP()])
     })
 
-    // 覆盖点 9:确认态互斥——对 A 点了删除待确认,再点 B 的删除 → A 复位、B 进入待确认。
+    // Coverage point 9: confirm state is mutually exclusive — with A's delete pending, clicking B's delete → A resets, B becomes pending.
     it('确认态互斥:A 删除待确认时点 B 的删除 → A 复位、B 进入待确认', async () => {
       const A = SNAP({ id: 'snap-a', name: 'A' })
       const B = SNAP({ id: 'snap-b', name: 'B' })

@@ -90,15 +90,16 @@ describe('DeviceInfoDialog', () => {
     expect(body().text()).toContain('---')
   })
 
-  // 两个接口必须各自成败:一个挂了不能把另一个已经拿到的值也抹掉。
-  // 这两条是 Promise.allSettled → Promise.all 的回归守卫 ——
-  // 换成 all 之后聚合 promise 会 reject,赋值那行被跳过,成功那个接口的数据就丢了。
+  // The two APIs must succeed/fail independently: one failing must not wipe out
+  // the value the other already fetched. These two cases are regression guards
+  // against Promise.allSettled → Promise.all — with all, the aggregate promise
+  // rejects, the assignment line is skipped, and the successful API's data is lost.
   it('hardwareInfo 失败但 getBaseInfo 成功时,DC 仍然显示出来', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'hardwareInfo').mockRejectedValueOnce(new Error('boom'))
     mountIt()
     await flushPromises()
-    // DC 来自 getBaseInfo,必须还在
+    // DC comes from getBaseInfo and must still be present
     expect(body().text()).toContain('2389ab5a67ce8f1d541d5c5048afd5cd')
   })
 

@@ -4,8 +4,8 @@ import en from './en_us'
 import zhSp9 from './zh_cn.sp9'
 import enSp9 from './en_us.sp9'
 
-// SP9 起文案走分片(spec §4.2):新 key 只落 *.sp9.ts,不再改 zh_cn.ts / en_us.ts,
-// 以免与 sp7/sp8/时间机器三条并行线在同一文件上相撞。
+// Since SP9, copy is sharded (spec §4.2): new keys go only into *.sp9.ts, never into
+// zh_cn.ts / en_us.ts, to avoid collisions with the sp7/sp8/time-machine parallel lines on the same file.
 const messages = { zh_cn: { ...zh, ...zhSp9 }, en_us: { ...en, ...enSp9 } }
 
 function initialLocale(): string {

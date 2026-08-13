@@ -10,7 +10,7 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// 捕获事件处理器,测试里手动触发
+// Capture event handlers so tests can trigger them manually
 const busHandlers = vi.hoisted(() => new Map<string, (props: unknown) => void>())
 const busOn = vi.hoisted(() =>
   vi.fn((ev: string, cb: (props: unknown) => void) => {
@@ -29,7 +29,7 @@ const THIRD = { id: 1, url: 'https://github.com/WisdomSky/CasaOS-Coolstore/archi
 
 describe('sources store', () => {
   beforeEach(() => {
-    localStorage.clear() // 注册中状态落盘,防跨用例污染(fresh pinia 会跑恢复逻辑)
+    localStorage.clear() // registering state is persisted; prevent cross-test pollution (fresh pinia runs the restore logic)
     setActivePinia(createPinia())
     busHandlers.clear()
     vi.clearAllMocks()
@@ -79,7 +79,7 @@ describe('sources store', () => {
     svc.appstore.listSources.mockResolvedValueOnce([SRC, THIRD])
 
     busHandlers.get('app-store:register-end')!({})
-    // 断言全部同步可验:convergeRegistered 同步清 pending/调 invalidate/toast,load() 同步发起 listSources
+    // All assertions verifiable synchronously: convergeRegistered synchronously clears pending / calls invalidate/toast, and load() synchronously initiates listSources
     expect(store.registeringUrl).toBeNull()
     expect(inv).toHaveBeenCalled()
     expect(show).toHaveBeenCalled()
@@ -117,18 +117,18 @@ describe('sources store', () => {
     svc.appstore.registerSource.mockResolvedValueOnce(undefined)
     await store.register('https://Example.com/Store.zip')
 
-    // 第一轮:还没出现 → 仍 pending
+    // First round: not appeared yet → still pending
     svc.appstore.listSources.mockResolvedValueOnce([SRC])
     await vi.advanceTimersByTimeAsync(15_000)
     expect(store.registeringUrl).not.toBeNull()
 
-    // 第二轮:出现(后端存的小写)→ 收敛
+    // Second round: appears (backend stores lowercase) → converge
     svc.appstore.listSources.mockResolvedValue([SRC, { id: 1, url: 'https://example.com/store.zip' }])
     await vi.advanceTimersByTimeAsync(15_000)
     expect(store.registeringUrl).toBeNull()
     expect(inv).toHaveBeenCalled()
 
-    // 收敛后轮询必须真的停了:再推 15s,listSources 调用数不应再增长
+    // Polling must have truly stopped after convergence: advance another 15s, listSources call count must not grow
     const callsAfterConverge = svc.appstore.listSources.mock.calls.length
     await vi.advanceTimersByTimeAsync(15_000)
     expect(svc.appstore.listSources.mock.calls.length).toBe(callsAfterConverge)
@@ -176,7 +176,7 @@ describe('sources store', () => {
     const store = useSourcesStore()
     expect(store.registeringUrl).toBe('https://Example.com/Store.zip')
 
-    // 轮询看到 URL(后端存小写)→ 收敛 + 清落盘
+    // Polling sees the URL (backend stores lowercase) → converge + clear persisted state
     svc.appstore.listSources.mockResolvedValue([SRC, { id: 1, url: 'https://example.com/store.zip' }])
     await vi.advanceTimersByTimeAsync(15_000)
     expect(store.registeringUrl).toBeNull()

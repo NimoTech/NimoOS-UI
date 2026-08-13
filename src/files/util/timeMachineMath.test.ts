@@ -18,7 +18,7 @@ describe('fisheyeScale', () => {
     for (let i = 1; i < ys.length; i++) expect(ys[i]).toBeLessThan(ys[i - 1])
   })
   it('两端斜率为 0(升余弦缓动,不出现折角)', () => {
-    // 紧挨光标处相邻两点的差,应远小于中段同样间距的差
+    // The delta between two adjacent points right next to the cursor should be far smaller than the same-spacing delta midway out
     const nearCenter = fisheyeScale(0) - fisheyeScale(2)
     const midway = fisheyeScale(34) - fisheyeScale(36)
     expect(nearCenter).toBeLessThan(midway)
@@ -107,7 +107,7 @@ describe('buildRailNodes', () => {
   it('相邻两个主刻度之间插 2 个装饰子刻度,吸附到上面那个主刻度', () => {
     const nodes = buildRailNodes(groups)
     const subs = nodes.filter((n) => n.type === 'sub')
-    expect(subs).toHaveLength(4) // 0-1 之间 2 个,1-2 之间 2 个
+    expect(subs).toHaveLength(4) // 2 between 0-1, 2 between 1-2
     expect(subs.slice(0, 2).every((n) => n.anchorIndex === 0)).toBe(true)
   })
   it('最后一个主刻度后面不再挂子刻度', () => {

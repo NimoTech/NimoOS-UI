@@ -10,6 +10,12 @@ export const PROGRESS_NOTIFY_STEP = 0.01 // 进度变化 ≥1% 才通知对端
 // lifetime of the tab.
 export const ACK_TIMEOUT_MS = 30000
 
+// A dial that never produces an open data channel. ICE on a LAN settles in
+// well under this; anything slower is a peer we cannot reach (blocked UDP
+// between the two devices, no TURN configured). Bounding it is what turns a
+// silent nothing-happens into a message the user can act on.
+export const HANDSHAKE_TIMEOUT_MS = 15000
+
 export interface PeerName {
   model: string // 后端 UA 解析:desktop | mobile | tablet
   deviceName: string

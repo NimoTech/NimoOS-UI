@@ -18,7 +18,7 @@ import { useToast } from '../../stores/toast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// useInstallFlow 依赖 useI18n → 需在组件 setup 内调用(仓内 composable 测试惯例)
+// useInstallFlow depends on useI18n → must be called inside a component setup (repo convention for composable tests)
 function mountFlow() {
   let flow!: ReturnType<typeof useInstallFlow>
   mount(defineComponent({ setup() { flow = useInstallFlow(); return () => null } }), {
@@ -29,7 +29,7 @@ function mountFlow() {
 
 beforeEach(() => {
   setActivePinia(createPinia())
-  localStorage.clear() // installProgress 任务表落盘,不清会跨用例恢复出上个用例的任务
+  localStorage.clear() // installProgress persists its task table; without clearing, tasks leak across test cases
   svc.appstore.getAppCompose.mockReset().mockResolvedValue('services: {}')
   svc.compose.install.mockReset().mockResolvedValue(undefined)
 })
@@ -108,7 +108,7 @@ describe('useInstallFlow', () => {
     await flushPromises()
     flow.requestInstall(app)
     await flushPromises()
-    expect(svc.compose.install).toHaveBeenCalledTimes(2) // 仍是第一轮的 2 次
+    expect(svc.compose.install).toHaveBeenCalledTimes(2) // Still the 2 calls from the first round
     progress.onEvent('app:install-error', { 'app:name': 'jellyfin', message: 'x' })
     flow.requestInstall(app)
     await flushPromises()

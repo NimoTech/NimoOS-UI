@@ -72,13 +72,13 @@ describe('appstore store', () => {
     const p1 = s.loadCatalog('Media', ALL)
     const p2 = s.loadCatalog('Cloud', ALL)
 
-    // 第二次发出的请求先回来
+    // The second request returns first
     resolve2({ installed: [], list: { nextcloud: { title: { en_us: 'Nextcloud' }, category: 'Cloud' } } })
     await p2
     expect(Object.keys(s.list)).toEqual(['nextcloud'])
     expect(s.loading).toBe(false)
 
-    // 第一次发出的请求(更旧)后回来,不应覆盖上面已经生效的更新结果
+    // The first (older) request returns later; it must not overwrite the newer result already applied above
     resolve1({ installed: [], list: { jellyfin: { title: { en_us: 'Jellyfin' }, category: 'Media' } } })
     await p1
     expect(Object.keys(s.list)).toEqual(['nextcloud'])
@@ -129,25 +129,25 @@ describe('appstore store', () => {
 
     await s.loadCatalog()
     await s.loadCatalog()
-    expect(svc.categories).toHaveBeenCalledTimes(1) // length 守卫命中
+    expect(svc.categories).toHaveBeenCalledTimes(1) // length guard hit
 
     s.invalidate()
     expect(s.catalogLoaded).toBe(false)
     await s.loadCatalog()
-    expect(svc.categories).toHaveBeenCalledTimes(2) // 缓存已失效,重拉
+    expect(svc.categories).toHaveBeenCalledTimes(2) // cache invalidated, refetched
   })
 
   it('invalidate 孤儿化在途 loadCatalog:陈旧响应落地不应复活 catalogLoaded/categories', async () => {
     const s = useAppstoreStore()
-    await s.loadCatalog() // 先跑一次,让 list/installed 落一个基线值
+    await s.loadCatalog() // run once first so list/installed get a baseline value
     const prevList = s.list
     const prevInstalled = s.installed
 
     let resolveInFlight: (v: unknown) => void = () => {}
     svc.listApps.mockImplementationOnce(() => new Promise((res) => { resolveInFlight = res }))
 
-    const p = s.loadCatalog('Media', ALL) // 在途请求
-    s.invalidate() // 商店源变了,孤儿化上面这次在途请求
+    const p = s.loadCatalog('Media', ALL) // in-flight request
+    s.invalidate() // store source changed; orphan the in-flight request above
 
     resolveInFlight({ installed: ['ghost'], list: { ghost: { title: { en_us: 'Ghost' }, category: 'Media' } } })
     await p
@@ -155,7 +155,7 @@ describe('appstore store', () => {
     expect(s.catalogLoaded).toBe(false)
     expect(s.categories).toEqual([])
     expect(s.loading).toBe(false)
-    expect(s.list).toBe(prevList) // invalidate 本身不碰 list/installed,陈旧响应也不应写入
+    expect(s.list).toBe(prevList) // invalidate itself never touches list/installed; the stale response must not write either
     expect(s.installed).toBe(prevInstalled)
   })
 })

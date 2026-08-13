@@ -237,6 +237,8 @@ export default {
   filesDropMenuSend: 'Send files',
   filesDropMenuCancel: 'Cancel sending',
   filesDropUnsupported: 'Peer does not support P2P transfer',
+  filesDropNotReady: 'Connection to the peer is not ready yet — reconnecting, try again shortly',
+  filesDropUnreachable: 'Could not establish a direct connection — check that both devices are on the same network without client isolation',
   filesDropLeaveTitle: 'Transfer in progress',
   filesDropLeaveMessage: 'Leaving this page will interrupt the transfer in progress. Leave anyway?',
   filesDropLeaveConfirm: 'Leave',

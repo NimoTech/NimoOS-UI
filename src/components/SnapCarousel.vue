@@ -9,7 +9,7 @@ const viewport = ref<HTMLElement | null>(null)
 const atStart = ref(true)
 const atEnd = ref(true)
 
-/** 端点检测:两端各留 1px 容差(smooth 滚动的亚像素余量) */
+/** Endpoint detection: 1px tolerance at each end (sub-pixel slack from smooth scrolling) */
 function recalc() {
   const el = viewport.value
   if (!el) return
@@ -20,16 +20,19 @@ function page(dir: 1 | -1) {
   const el = viewport.value
   if (!el) return
   el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.9), behavior: 'smooth' })
-  // 乐观更新:刚朝一个方向翻页,必然离开了对侧端点——不必等 smooth 滚动的 scroll 事件才解锁对侧按钮。
-  // 真实端点状态仍由 @scroll -> recalc() 持续校正(见下方监听),这里只处理"刚离开的那一侧"。
+  // Optimistic update: paging in one direction necessarily leaves the opposite endpoint — no need
+  // to wait for the smooth scroll's scroll event to unlock the opposite button.
+  // The real endpoint state keeps getting corrected by @scroll -> recalc() (see the listener below);
+  // here we only handle "the side we just left".
   if (dir > 0) atStart.value = false
   else atEnd.value = false
 }
 
 let ro: ResizeObserver | undefined
 let mo: MutationObserver | undefined
-// 捕获元素引用于挂载时刻,而非在 onUnmounted 里重读 viewport.value——
-// Vue 卸载流程中模板 ref 可能已先于 onUnmounted 回调被置空。
+// Capture the element reference at mount time rather than re-reading viewport.value in
+// onUnmounted — during Vue's unmount flow the template ref may already be nulled before the
+// onUnmounted callback runs.
 let viewportEl: HTMLElement | null = null
 onMounted(() => {
   recalc()
@@ -39,11 +42,13 @@ onMounted(() => {
     ro = new ResizeObserver(recalc)
     ro.observe(viewportEl)
   }
-  // ResizeObserver 只测视口自身盒子;详情页截图是 <img loading="lazy"> 只固定高度,
-  // 挂载时 scrollWidth≈0,解码完成后内容变宽但视口盒子不变,recalc 不会自动重触发。
-  // 用两条兜底路径捕捉"内容变化而非容器变化":
-  //  1) MutationObserver(childList+subtree):slot 内容动态增删时重算。
-  //  2) 捕获阶段 load 监听:img 的 load 事件不冒泡,但捕获阶段能从 viewport 往下传递到位。
+  // ResizeObserver only measures the viewport's own box; detail-page screenshots are
+  // <img loading="lazy"> with only a fixed height, so scrollWidth≈0 at mount, and after decoding
+  // the content widens while the viewport box stays the same — recalc never re-fires on its own.
+  // Two fallback paths catch "content changed, not container changed":
+  //  1) MutationObserver (childList+subtree): recalculate when slot content is added/removed.
+  //  2) Capture-phase load listener: img load events don't bubble, but the capture phase delivers
+  //     them from the viewport downward.
   if (typeof MutationObserver !== 'undefined') {
     mo = new MutationObserver(recalc)
     mo.observe(viewportEl, { childList: true, subtree: true })
@@ -76,12 +81,12 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* 翻页钮 = 旧版 swiper 风格:覆盖在轮播两侧、垂直居中的大圆钮,SVG 箭头矢量居中(不依赖字符字形基线) */
+/* Paging buttons = legacy swiper style: large round buttons overlaid on both sides of the carousel, vertically centered, with the SVG arrow centered as a vector (no reliance on glyph baselines) */
 .snap-carousel { position: relative; min-width: 0; }
 .snap-viewport {
   display: flex; gap: 14px; overflow-x: auto;
   scroll-snap-type: x mandatory;
-  scrollbar-width: none; /* 翻页钮承担滚动可供性,隐藏原生条 */
+  scrollbar-width: none; /* The paging buttons provide the scrolling affordance; hide the native bar */
 }
 .snap-viewport::-webkit-scrollbar { display: none; }
 .snap-viewport > :slotted(*) { scroll-snap-align: start; flex: 0 0 auto; }
@@ -97,7 +102,7 @@ onUnmounted(() => {
 .snap-prev { left: 6px; }
 .snap-next { right: 6px; }
 .snap-btn:hover:not(:disabled) { background: var(--chip-bg-hi); }
-/* 到端点即整颗隐去(swiper 同款),内容不足一屏时两侧都不出现 */
+/* At an endpoint the whole button disappears (same as swiper); with less than one screen of content neither side shows */
 .snap-btn:disabled { opacity: 0; pointer-events: none; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .snap-btn { transition: none; } }
 </style>

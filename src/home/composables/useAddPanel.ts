@@ -33,8 +33,8 @@ export function useAddPanel(dims: Dims) {
   const appWidgetUsed = (key: string) => layout.items.some((it) => it.kind === 'appwidget' && it.key === key)
   const appUsed = (key: string) => layout.items.some((it) => it.kind === 'app' && it.key === key)
   const folderUsed = (path: string) => layout.items.some((it) => it.kind === 'folder' && it.path === path)
-  // 查重覆盖 widget/appwidget/app/folder 四种 kind,其余 kind 允许重复添加。
-  // folder 按 path 判等:不同盘下允许同名文件夹并存。
+  // Duplicate check covers the four kinds widget/appwidget/app/folder; other kinds may be added repeatedly.
+  // Folders compare by path: same-named folders on different disks may coexist.
   const isDuplicate = (desc: Desc) =>
     (desc.kind === 'widget' && widgetUsed(desc.key)) ||
     (desc.kind === 'appwidget' && appWidgetUsed(desc.key)) ||

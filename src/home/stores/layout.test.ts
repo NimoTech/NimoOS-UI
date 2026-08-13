@@ -32,7 +32,7 @@ describe('useLayoutStore', () => {
 
   it('loadInitial sanitizes unknown widget keys from stored layout', () => {
     localStorage.setItem('nimoos-home-layout-v2', JSON.stringify([
-      { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 }, // 已下线
+      { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 }, // retired
       { kind: 'app', key: 'files', c: 3, r: 1, w: 1, h: 1 },
     ]))
     const s = useLayoutStore()
@@ -49,7 +49,7 @@ describe('useLayoutStore', () => {
   })
 
   it('loadInitial still falls back to DEFAULT when a saved layout sanitizes to nothing', () => {
-    // 全部是已下线 widget:这不是用户主动清空,回落默认桌面
+    // All retired widgets: this is not a deliberate user clear, fall back to the default desktop
     localStorage.setItem('nimoos-home-layout-v2', JSON.stringify([
       { kind: 'widget', key: 'health', c: 1, r: 1, w: 2, h: 2 },
     ]))
@@ -110,20 +110,20 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
   it('手动固定的磁贴:应用消失满宽限期后被清,宽限期内保留', () => {
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
-    s.sweepGone(['files']) // 第一次缺席:只起计时
+    s.sweepGone(['files']) // first absence: only starts the clock
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true)
     vi.advanceTimersByTime(46_000)
-    s.sweepGone(['files']) // 缺席满宽限期:清
+    s.sweepGone(['files']) // absent past the grace period: removed
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
   })
 
   it('仍在应用列表里的磁贴不清,且缺席计时被重置', () => {
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 })
-    s.sweepGone([]) // 抖动:一次全空,起计时
-    s.sweepGone(['jellyfin']) // 恢复:计时重置
+    s.sweepGone([]) // blip: one all-empty round, starts the clock
+    s.sweepGone(['jellyfin']) // recovered: clock resets
     vi.advanceTimersByTime(46_000)
-    s.sweepGone([]) // 再次缺席:重新只起计时,不清
+    s.sweepGone([]) // absent again: only restarts the clock, no removal
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'jellyfin')).toBe(true)
   })
 
@@ -131,7 +131,7 @@ describe('sweepGone / evict force(卸载后桌面与应用列表统一)', () => 
     const s = useLayoutStore(); s.loadInitial()
     s.pin({ kind: 'app', key: 'test-nginx', c: 1, r: 1, w: 1, h: 1 })
     s.evict('test-nginx')
-    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true) // seen 守卫豁免
+    expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(true) // exempted by the seen guard
     s.evict('test-nginx', { force: true })
     expect(s.items.some((i) => i.kind === 'app' && i.key === 'test-nginx')).toBe(false)
   })
@@ -198,7 +198,7 @@ describe('autoPin', () => {
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
     const id = s.items.find((it) => it.key === 'a')!.id
-    s.remove(id) // 用户手删
+    s.remove(id) // user deletes manually
     s.autoPin([dl('a')], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
   })
@@ -209,13 +209,13 @@ describe('autoPin', () => {
     s.autoPin([dl('a', { w: 2, h: 2 }), dl('b')], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
     expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
-    s.autoPin([dl('b')], DIMS) // a 停止/删除,第一次缺席只标记,不清
+    s.autoPin([dl('b')], DIMS) // a stopped/removed; first absence only marks, no removal
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
     vi.advanceTimersByTime(60_000)
-    s.autoPin([dl('b')], DIMS) // 缺席满宽限期,清理
+    s.autoPin([dl('b')], DIMS) // absent past the grace period, cleaned up
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
     expect(s.items.filter((it) => it.key === 'b')).toHaveLength(1)
-    s.autoPin([dl('a'), dl('b')], DIMS) // a 重新 run
+    s.autoPin([dl('a'), dl('b')], DIMS) // a runs again
     expect(s.items.filter((it) => it.kind === 'app' && it.key === 'a')).toHaveLength(1)
   })
 
@@ -223,11 +223,11 @@ describe('autoPin', () => {
     const s = useLayoutStore()
     s.replaceAll([])
     s.autoPin([dl('a')], DIMS)
-    s.autoPin([], DIMS) // 抖动:一次全空
+    s.autoPin([], DIMS) // blip: one all-empty round
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
-    s.autoPin([dl('a')], DIMS) // 恢复,缺席计时应重置
+    s.autoPin([dl('a')], DIMS) // recovered, absence clock should reset
     vi.advanceTimersByTime(60_000)
-    s.autoPin([dl('a')], DIMS) // 一直在场,不应被清
+    s.autoPin([dl('a')], DIMS) // present the whole time, must not be removed
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(1)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('a')
   })
@@ -237,10 +237,10 @@ describe('autoPin', () => {
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
-    s.autoPin([], DIMS) // 第一次全空:只标记
+    s.autoPin([], DIMS) // first all-empty round: only marks
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
     vi.advanceTimersByTime(60_000)
-    s.autoPin([], DIMS) // 持续缺席满宽限期:清理
+    s.autoPin([], DIMS) // continuously absent past the grace period: cleaned up
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
   })
@@ -250,7 +250,7 @@ describe('autoPin', () => {
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(2)
-    // 后端明确报告 a 已停止(exited):第一次轮询就清,无需缺席宽限
+    // Backend explicitly reports a as stopped (exited): cleared on the first poll, no absence grace needed
     s.autoPin([], DIMS, ['a'])
     expect(s.items.filter((it) => it.key === 'a')).toHaveLength(0)
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).not.toContain('a')
@@ -265,7 +265,7 @@ describe('autoPin', () => {
 
   it('桌面满:图标放不下也记 seen,不反复尝试', () => {
     const s = useLayoutStore()
-    // 12×8 全占满
+    // fill the entire 12×8 grid
     const full = [] as never[]
     for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push({ kind: 'app', key: `f${c}-${r}`, c, r, w: 1, h: 1 } as never)
     s.replaceAll(full)
@@ -283,7 +283,7 @@ describe('autoPin', () => {
     s.evict('tasklist')
     expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(0)
 
-    // seen 已清:同名容器再出现要能重新自动上桌
+    // seen is cleared: a container with the same name must auto-pin again when it reappears
     s.autoPin([dl('tasklist', { w: 2, h: 2 })], DIMS)
     expect(s.items.filter((i) => i.key === 'tasklist')).toHaveLength(2)
   })
@@ -299,10 +299,10 @@ describe('autoPin', () => {
   it('evict 不触碰非 seen 的手动/系统图标', () => {
     const s = useLayoutStore()
     s.replaceAll([])
-    // 手动放置一个系统图标，不经过 autoPin，因此不在 seen 中
+    // Manually place a system icon; it never goes through autoPin, so it is not in seen
     s.pin({ kind: 'app', key: 'files', c: 0, r: 0, w: 1, h: 1 })
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
-    // evict 不应影响非 seen 的图标
+    // evict must not affect non-seen icons
     s.evict('files')
     expect(s.items.filter((i) => i.key === 'files')).toHaveLength(1)
   })
@@ -310,10 +310,10 @@ describe('autoPin', () => {
   it('autoPin 不重复添加桌面上已有的同 key app 磁贴(手动 pin 后未进 seen 的场景)', () => {
     const s = useLayoutStore()
     s.replaceAll([])
-    s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 }) // 手动上桌，不进 seen
+    s.pin({ kind: 'app', key: 'jellyfin', c: 1, r: 1, w: 1, h: 1 }) // manually pinned, not in seen
     s.autoPin([dl('jellyfin')], DIMS)
     expect(s.items.filter((i) => i.kind === 'app' && i.key === 'jellyfin')).toHaveLength(1)
-    // seen 要补记，否则下一轮还会尝试
+    // seen must be backfilled, otherwise the next round would try again
     expect(JSON.parse(localStorage.getItem('nimoos-home-seen-apps-v1')!)).toContain('jellyfin')
   })
 })
@@ -340,8 +340,8 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 2 })], DIMS)
     const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
-    s.applyPlan([{ id: w0.id, c: w0.c, r: w0.r, w: 3, h: 3 }]) // 用户手动拖到 3×3(仍在 2..4 范围内)
-    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS) // 范围未变的再次轮询
+    s.applyPlan([{ id: w0.id, c: w0.c, r: w0.r, w: 3, h: 3 }]) // user manually resizes to 3×3 (still within the 2..4 range)
+    s.autoPin([dl('a', { w: 2, h: 2 })], DIMS) // another poll with the range unchanged
     const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w1).toMatchObject({ w: 3, h: 3, c: w0.c, r: w0.r })
   })
@@ -353,7 +353,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     s.autoPin([dl('a', { w: 4, h: 4 })], DIMS)
     const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w0).toMatchObject({ w: 4, h: 4 })
-    seedWidget('a', 4, 4, { maxw: 2, maxh: 2 }) // 容器收紧: max 4×4 → 2×2
+    seedWidget('a', 4, 4, { maxw: 2, maxh: 2 }) // container tightens: max 4×4 → 2×2
     s.autoPin([dl('a', { w: 4, h: 4 })], DIMS)
     const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w1).toMatchObject({ w: 2, h: 2, c: w0.c, r: w0.r })
@@ -366,7 +366,7 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
     const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w0).toMatchObject({ w: 2, h: 1 })
-    seedWidget('a', 2, 1, { minw: 3, minh: 2, maxw: 4, maxh: 4 }) // 容器锁死抬高最小值
+    seedWidget('a', 2, 1, { minw: 3, minh: 2, maxw: 4, maxh: 4 }) // container locks in a raised minimum
     s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
     const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w1).toMatchObject({ w: 3, h: 2, c: w0.c, r: w0.r })
@@ -378,14 +378,14 @@ describe('autoPin 收紧范围自愈(已上桌 appwidget 的尺寸夹回当前�
     s.replaceAll([])
     s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
     const w0 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
-    // 紧贴 widget 右侧放一个占位项,放大后原地必与其重叠
+    // Place a blocker right against the widget's right edge; growing in place must overlap it
     s.pin({ kind: 'app', key: 'blocker', c: w0.c + w0.w, r: w0.r, w: 1, h: 1 })
     seedWidget('a', 2, 1, { minw: 3, minh: 1, maxw: 4, maxh: 4 })
     s.autoPin([dl('a', { w: 2, h: 1 })], DIMS)
     const w1 = s.items.find((it) => it.kind === 'appwidget' && it.key === 'a')!
     expect(w1.w).toBe(3)
     expect(w1.h).toBe(1)
-    expect(w1.c !== w0.c || w1.r !== w0.r).toBe(true) // 搬走了,未与占位项重叠
+    expect(w1.c !== w0.c || w1.r !== w0.r).toBe(true) // relocated, no overlap with the blocker
     expect(s.items.filter((it) => it.key === 'blocker')).toHaveLength(1)
   })
 })

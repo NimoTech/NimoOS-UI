@@ -1,9 +1,10 @@
 <script setup lang="ts">
-// KVM 区主页(路由 /kvm)。视觉 1:1 对 Vue2 components/KVM/KVMFullPage.vue。
-// P5 = 列表 + 控制台 + 电源;P6 补创建向导 / VM 设置 / 快照 / 全局设置。
+// KVM area main page (route /kvm). Visual 1:1 with Vue2 components/KVM/KVMFullPage.vue.
+// P5 = list + console + power; P6 adds create wizard / VM settings / snapshots / global settings.
 //
-// ⚠️ 本区**固定深色,不跟随全局主题** —— Vue2 该页是写死的深色控制台配色,
-// --kvm-* token 在两个主题块里同值(见 styles/theme.sp9.css 注释)。
+// ⚠️ This area is **fixed dark and does not follow the global theme** — the Vue2 page uses a
+// hardcoded dark console palette; --kvm-* tokens have identical values in both theme blocks
+// (see the comment in styles/theme.sp9.css).
 import { ref, computed, watch, watchEffect, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import '../styles/kvm.css'
@@ -29,34 +30,39 @@ import type { KvmVM, KvmCreateVMRequest, KvmUpdateVMRequest, KvmSnapshot } from 
 import type { SelectedOs } from '../components/OsSelector.vue'
 
 const { t, te } = useI18n()
-// 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
-// handleInstallationFinished 成功时都会弹一条 buefy toast——这里是唯一的消费点
-// (useVmList.ts 的注释一直说"toast 是视图层的事",但视图层此前根本没接,是未申报的
-// 偏离,现在补上)。New-UI 的全局 toast 是 useToast()(src/stores/toast.ts),各处
-// 弹窗/内联报错都走它,这里同样复用,不新造机制。
+// Must-fix #1 (full-branch final review): in Vue2, the six power actions + toggleAutoStart +
+// deleteVM + handleInstallationFinished all show a buefy toast on success — this is the sole
+// consumption point (useVmList.ts comments always said "toasts are the view layer's job", but
+// the view layer never wired it up: an undeclared deviation, fixed now). New-UI's global toast
+// is useToast() (src/stores/toast.ts); dialogs/inline errors all use it, so it is reused here
+// too rather than inventing a new mechanism.
 const toast = useToast()
 
-// Vue2 isSidebarCollapsed = sidebarCollapsed && !sidebarHover ——
-// 折叠后鼠标移上去临时展开,移开又收回。照抄(KVMFullPage.vue:689-690)。
+// Vue2 isSidebarCollapsed = sidebarCollapsed && !sidebarHover —
+// when collapsed, hovering temporarily expands it and leaving collapses it again.
+// Copied verbatim (KVMFullPage.vue:689-690).
 const sidebarCollapsed = ref(false)
 const sidebarHover = ref(false)
 const collapsed = computed(() => sidebarCollapsed.value && !sidebarHover.value)
 
-// Task 2:左栏齿轮 → 全局设置弹窗。KvmGlobalSettingsDialog 挂载在模板底部,
-// 常驻(不是 v-if),用 v-model:open 控制显隐——组件内部的 watch(props.open) 靠这个
-// 开关驱动每次打开都重新 fetch(见该组件顶部注释)。
+// Task 2: sidebar gear → global settings dialog. KvmGlobalSettingsDialog is mounted at the
+// bottom of the template, always present (not v-if), toggled via v-model:open — the component's
+// internal watch(props.open) relies on this switch to re-fetch on every open (see the comment
+// at the top of that component).
 const globalSettingsOpen = ref(false)
 
 const s = useVmList()
 
-// ===================== 创建流程接线(P6 Task 8) =====================
-// isoList/hostInfo 必须由 KvmPage 创建、随页面生命周期存活(见 useIsoList.ts 顶部
-// 注释)——OsSelector/CreateVmDialog 都是纯展示层,自己不创建这两个 composable。
-// ⚠️ 跨任务依赖(Task 7 评审专门点出来要保证的一条):下面模板里 `<OsSelector>` 与
-// `<CreateVmDialog>` 的 `:isos` 必须传同一份 `isoList.isos.value`——CreateVmDialog
-// 内部 watch(form.osTemplate) 用 osTemplateDefaults(id, props.isos) 查模板,如果两边
-// 拿到的 isos 不是同一份,用户在 OsSelector 里选中的模板 id 在创建弹窗里查不到,参数
-// 联动(推荐 vcpu/memory/disk)会静默失效。
+// ===================== Create flow wiring (P6 Task 8) =====================
+// isoList/hostInfo must be created by KvmPage and live for the page's lifetime (see the
+// comment at the top of useIsoList.ts) — OsSelector/CreateVmDialog are pure presentation
+// layers and do not create these two composables themselves.
+// ⚠️ Cross-task dependency (a point the Task 7 review explicitly called out): in the template
+// below, `<OsSelector>` and `<CreateVmDialog>` must receive the same `isoList.isos.value` for
+// `:isos` — CreateVmDialog's internal watch(form.osTemplate) looks up the template via
+// osTemplateDefaults(id, props.isos); if the two sides hold different isos, the template id
+// the user picked in OsSelector cannot be found in the create dialog and the parameter linkage
+// (recommended vcpu/memory/disk) silently breaks.
 const isoList = useIsoList()
 const hostInfo = useKvmHostInfo()
 
@@ -65,24 +71,28 @@ const osSelectorOpen = ref(false)
 const selectedOs = ref<SelectedOs | null>(null)
 const creating = ref(false)
 const createError = ref('')
-// 全分支评审修复(A3,已申报):ISO 下载失败的内联报错——见下面 isoList.onDownloadFailed
-// 与 OsSelector 组件顶部注释里"为什么不走 toast"的完整推导。
+// Full-branch review fix (A3, declared): inline error for ISO download failure — see
+// isoList.onDownloadFailed below and the full "why not a toast" reasoning in the comment at
+// the top of the OsSelector component.
 const isoDownloadError = ref('')
 
-// ===================== VM 设置弹窗接线(P6 Task 9) =====================
+// ===================== VM settings dialog wiring (P6 Task 9) =====================
 const vmSettingsOpen = ref(false)
 const settingsSelectedOs = ref<SelectedOs | null>(null)
 const settingsSaving = ref(false)
 const settingsError = ref('')
 
-// 照 Vue2 handleOSSelect/onOSSelect 的下载三态提示(OSSelector.vue:165/:173/:1421)——
-// 下载进度订阅在 isoList 里(常驻,不随弹窗开合断续)。
+// Mirrors the three download-state notices of Vue2 handleOSSelect/onOSSelect
+// (OSSelector.vue:165/:173/:1421) — the download progress subscription lives in isoList
+// (persistent, not tied to dialog open/close).
 //
-// onDownloadDone:成功仍走全局 toast,**不改**——即便 OS 选择器还开着时这条 toast
-// 会被它的遮罩(z 920 > toast 的 z 60)挡住看不见,卡片本身也会同时翻成绿色
-// is-selected/「选择」态,信息没有真的丢失。评审订正(此前这里的注释暗示"toast 在
-// 这里可见"是不准确的——真实可见的是卡片状态变化,toast 本身在弹窗开着时同样会被
-// 挡住,只是不影响正确性,不需要跟着改成内联)。
+// onDownloadDone: success still uses the global toast, **unchanged** — even though this toast
+// is hidden by the OS selector's overlay (z 920 > toast's z 60) while it is still open, the
+// card simultaneously flips to the green is-selected/"select" state, so no information is
+// actually lost. Review correction (the earlier comment implying "the toast is visible here"
+// was inaccurate — what is actually visible is the card state change; the toast itself is
+// equally hidden while the dialog is open, but that doesn't affect correctness, so no need to
+// switch this one to inline).
 isoList.onDownloadDone((row) => toast.show(`${row.name} ${t('kvmToastDownloaded')}`))
 // onDownloadFailed(全分支评审修复 A3,已申报):**不再**走 toast。与上面 onDownloadDone
 // 的关键差异——下载失败没有"卡片翻绿"那张兜底视觉,卡片只是从百分比悄悄退回"下载",

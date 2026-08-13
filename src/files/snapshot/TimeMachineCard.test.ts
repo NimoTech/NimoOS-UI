@@ -48,7 +48,7 @@ describe('卡片里的文件区网格', () => {
   }
   it('每个条目一格,图片走缩略图、其它走类型图标(与文件区同一个 FileThumb)', async () => {
     const w = mountIt({ preview })
-    // FileThumb 的进入视口检测在 onMounted 里落 inView,要等一拍才换成缩略图 <img>
+    // FileThumb's in-viewport detection sets inView in onMounted; wait a tick before it swaps to the thumbnail <img>
     await nextTick()
     expect(w.findAll('.tm-file:not(.tm-file-more)')).toHaveLength(3)
     expect(w.get('.tm-file:nth-child(2) img').attributes('src')).toContain('/v1/image')
@@ -59,7 +59,7 @@ describe('卡片里的文件区网格', () => {
   })
   it('副标题:文件带大写扩展名,文件夹只有时间(与文件区列表视图同一套字段)', () => {
     const subs = mountIt({ preview }).findAll('.tm-file-sub').map((n) => n.text())
-    expect(subs[0]).not.toContain('·') // 文件夹不显示扩展名
+    expect(subs[0]).not.toContain('·') // folders show no extension
     expect(subs[1]).toContain('JPG ·')
     expect(subs[2]).toContain('TXT ·')
   })
@@ -86,8 +86,9 @@ describe('卡片里的文件区网格', () => {
   it('没有 preview(还没拉)→ 纯文字卡', () => {
     expect(mountIt().find('.tm-files').exists()).toBe(false)
   })
-  // 卡堆窗口有 5 张,一张 36 格 = 180 个 <img>,每个都会真发一次缩略图请求。
-  // 后排卡被前面那张挡得只剩顶上一条,渲染网格是纯浪费 —— 这条守住那个约束。
+  // The deck window holds 5 cards; one card of 36 cells = 180 <img>, each firing a real
+  // thumbnail request. Rear cards are hidden except a top strip, so rendering the grid is
+  // pure waste — this test guards that constraint.
   it('后排卡片不铺网格(只有最前那张和正在飞出去的那张铺)', () => {
     expect(mountIt({ preview, state: 'behind', depth: 1 }).find('.tm-files').exists()).toBe(false)
     expect(mountIt({ preview, state: 'past', depth: 0 }).find('.tm-files').exists()).toBe(true)

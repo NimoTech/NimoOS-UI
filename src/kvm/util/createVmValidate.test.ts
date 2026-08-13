@@ -24,8 +24,8 @@ describe('validateCreateVm', () => {
     expect(validateCreateVm(F(), null, HOST)?.key).toBe('kvmErrNoOs')
   })
 
-  // ⚠️ 这条是「改正确」:Vue2 只判 os.minDisk(:1458),alpine-319.minDisk=2 会放行
-  // disk=2,而后端 vm_service.go:286-310 硬要求 disk>=8,请求必被拒。取 max(8, minDisk)。
+  // ⚠️ This case is a deliberate fix (not a 1:1 port): Vue2 only checks os.minDisk (:1458), so alpine-319.minDisk=2
+  // would allow disk=2, but the backend vm_service.go:286-310 hard-requires disk>=8 and would always reject. Use max(8, minDisk).
   it('磁盘下限取 max(8, os.minDisk) —— minDisk=2 时仍要求 8', () => {
     const r = validateCreateVm(F({ disk: 4 }), OS({ minDisk: 2 }), HOST)
     expect(r).toEqual({ key: 'kvmErrDiskMin', arg: '8 GB' })
@@ -57,7 +57,7 @@ describe('validateCreateVm', () => {
     expect(validateCreateVm(F(), OS(), empty)).toBeNull()
   })
   it('校验顺序照 Vue2:名字 → OS → 磁盘下限 → 内存下限 → 三个上限', () => {
-    // 名字空 + 磁盘也不合法 → 先报名字
+    // Empty name + invalid disk → the name error is reported first
     expect(validateCreateVm(F({ name: '', disk: 1 }), OS(), HOST)?.key).toBe('kvmErrNoName')
   })
 })

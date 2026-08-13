@@ -134,7 +134,7 @@ describe('hydrateForm —— Wi-Fi 三种模式的 zone/IP 默认值(Vue2 :199-2
     const f = hydrateForm(iface({ name: 'enp2s0', wireless: { mode: 'ap', apSsid: 'X' } }))
     expect(f.wireless.mode).toBe('')
     expect(f.wireless.apSsid).toBe('')
-    // 但 zone 那段 Vue2 是**不看 isWifi** 的 —— ap 仍会把 zone 顶成 lan,照抄
+    // But the zone block in Vue2 **ignores isWifi** -- ap still forces zone to lan; copied as-is
     expect(f.zone).toBe('lan')
   })
 })
@@ -269,7 +269,7 @@ describe('buildUpdatePayload —— Wi-Fi 三种模式', () => {
 
   it('ap:ipv4 强制 static 并对空值兜底 192.168.22.1/24;wireless 带 apSsid/apPassword', () => {
     const f = hydrateForm(iface({ name: 'wlp1s0', type: 'wifi', wireless: { mode: 'ap' } }))
-    f.ipv4.address = '' // 用户把地址清空了
+    f.ipv4.address = '' // The user cleared the address
     f.ipv4.netmask = ''
     const r = buildUpdatePayload(f, wifi)
     if (!r.ok) throw new Error('should build')

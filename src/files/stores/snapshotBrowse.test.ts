@@ -67,20 +67,20 @@ describe('ensureVolumes', () => {
     listVolumesMock.mockImplementationOnce(() => new Promise((r) => { releaseStale = r }))
     const s = useSnapshotBrowseStore()
 
-    const stale = s.ensureVolumes() // P1 起飞,尚未落地
+    const stale = s.ensureVolumes() // P1 in flight, not yet resolved
     expect(s.status).toBe('loading')
 
-    s.reset() // 顶掉 P1 这一代
+    s.reset() // supersedes the P1 generation
     expect(s.status).toBe('idle')
 
     const FRESH = [{ volume_uuid: 'u-fresh', mount: '/DATA2', supported: true }]
     listVolumesMock.mockImplementationOnce(() => Promise.resolve(FRESH))
-    const fresh = s.ensureVolumes() // P2:reset 之后发起的新一代
+    const fresh = s.ensureVolumes() // P2: the new generation started after reset
     await fresh
     expect(s.status).toBe('ready')
     expect(s.volumes).toEqual(FRESH)
 
-    // 这时才放行 P1 的 resolve —— 陈旧响应必须被整段丢弃,不能盖掉 P2 已经落地的结果
+    // Only now release P1's resolve — the stale response must be discarded entirely, never clobbering P2's already-landed result
     releaseStale(VOLS)
     await stale
     expect(s.status).toBe('ready')
@@ -115,21 +115,21 @@ describe('浏览态派生', () => {
     await s.ensureVolumes()
     expect(s.isSnapshotView).toBe(false)
   })
-  // 评审修复(Critical 1):`.snapshots` 容器目录本身(没有具体快照名这一段)——
-  // parseSnapshotBrowsePath 对它返回 null,shouldGuardSnapshotView 单独判不出锁,必须靠
-  // isSnapshotsContainerPath 兜底。面包屑最自然的"点上一级"手势就会落在这条路径上。
+  // Review fix (Critical 1): the `.snapshots` container directory itself (path without a concrete snapshot name) —
+  // parseSnapshotBrowsePath returns null for it, shouldGuardSnapshotView alone can't decide to lock, so
+  // isSnapshotsContainerPath must catch it. The breadcrumb's most natural "go up one level" gesture lands exactly on this path.
   it('.snapshots 容器目录本身(未选中具体快照)也保持锁定', async () => {
     const s = useSnapshotBrowseStore(); const files = useFilesStore()
     files.currentPath = '/DATA/.snapshots'
     await s.ensureVolumes()
     expect(s.isSnapshotView).toBe(true)
-    expect(s.browseInfo).toBeNull() // 没有快照名就没有时间可显示,横幅现有形态依赖它
+    expect(s.browseInfo).toBeNull() // no snapshot name means no timestamp to show; the banner's current shape relies on this
   })
 
-  // 评审复核(Critical 1,第二轮):上一轮的实现靠 volumes.some(...) 自己判定容器路径,
-  // volumes 为空(idle/loading/error)时恒为 false —— 真实探针实测三态全部漏锁,而 error
-  // 是 ensureVolumes() 的本会话终态(这台设备 /v2/snapshot/* 全 404),漏锁会持续整个会话。
-  // 这三条各自独立触发一次真实探针能捕获到的三态,不再靠推断。
+  // Review recheck (Critical 1, round 2): the previous round's implementation decided the container path via volumes.some(...),
+  // which is always false while volumes is empty (idle/loading/error) — a real probe confirmed all three states leaked the lock, and error
+  // is ensureVolumes()'s terminal state for the session (this device 404s on all of /v2/snapshot/*), so the leak persists for the whole session.
+  // These three cases each independently trigger one of the three states a real probe can capture, no longer relying on inference.
   describe('.snapshots 容器目录三态复核(Critical 1 第二轮:上一轮在此漏锁)', () => {
     it('idle(volumes 还没拉)→ 保持锁定', () => {
       const s = useSnapshotBrowseStore(); const files = useFilesStore()
@@ -145,7 +145,7 @@ describe('浏览态派生', () => {
       s.ensureVolumes()
       expect(s.status).toBe('loading')
       expect(s.isSnapshotView).toBe(true)
-      release(VOLS) // 收尾,避免悬挂的 in-flight promise 溢出到下一条用例
+      release(VOLS) // cleanup: keep the dangling in-flight promise from leaking into the next case
     })
     it('error(拉取失败,本会话终态)→ 保持锁定', async () => {
       listVolumesMock.mockRejectedValue(new Error('404'))
@@ -243,9 +243,9 @@ describe('恢复', () => {
     const s = await inSnapshot()
     const p = s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
     expect(s.restoring).toBe(true)
-    // restore() 先 await listVolumes() 才会真正调用 restoreMock 并捕获它的 resolver —
-    // 这一步跨了微任务边界,不能在调用 s.restore() 之后原地同步 release(),否则捕获到的
-    // 还是初始的空 no-op,p 永远不会 settle(之前踩过一次,跑出 5s 超时)。
+    // restore() awaits listVolumes() before it actually calls restoreMock and captures its resolver —
+    // that step crosses a microtask boundary, so we can't release() synchronously right after calling s.restore(); otherwise
+    // we'd still hold the initial empty no-op and p would never settle (hit this once before, ran into the 5s timeout).
     await vi.waitFor(() => expect(restoreMock).toHaveBeenCalled())
     release({ restored_path: '/DATA/a.restored-1' })
     await p
@@ -267,9 +267,9 @@ describe('恢复', () => {
     await s.restore([{ path: '/DATA/.snapshots/snap1/a' }])
     expect(useToast().msg).toContain('找不到')
   })
-  // 评审发现:混合结果(部分成功部分失败)时,原实现的 `&& !failed` 判断让两条成功分支都
-  // 短路跳过,只剩失败文案——成功落盘的那几条被静默吞掉。人类拍板:合成一条新 toast
-  // (snapBrowseRestoredPartial)说清"成功几条、失败几条",不再叠加具体失败原因文案。
+  // Review finding: on mixed results (some succeed, some fail), the original `&& !failed` check short-circuited
+  // both success branches, leaving only the failure copy — the entries that actually restored were silently swallowed. Human decision: emit one new toast
+  // (snapBrowseRestoredPartial) stating "N succeeded, M failed", without stacking the specific failure-reason copy on top.
   it('混合结果(部分成功部分失败):toast 同时报出成功与失败条数,不吞成功也不叠加失败原因', async () => {
     restoreMock
       .mockResolvedValueOnce({ restored_path: '/DATA/a.restored-1' })
@@ -282,12 +282,12 @@ describe('恢复', () => {
       { path: '/DATA/.snapshots/snap1/c' },
     ])
     expect(restoreMock).toHaveBeenCalledTimes(3)
-    expect(useToast().msg).toContain('2') // 成功 2 条(a、c)
-    expect(useToast().msg).toContain('1') // 失败 1 条(b)
-    expect(useToast().msg).not.toContain('找不到') // 不再叠加具体失败原因文案
+    expect(useToast().msg).toContain('2') // 2 succeeded (a, c)
+    expect(useToast().msg).toContain('1') // 1 failed (b)
+    expect(useToast().msg).not.toContain('找不到') // no longer stacks the specific failure-reason copy
   })
-  // 防止为了接混合分支而把"全失败"路径改坏:多条且全部失败时,仍要落到具体原因文案,
-  // 不能误落进混合分支(混合分支的判定条件是 ok.length > 0)。
+  // Guard against wiring the mixed branch at the cost of the "all failed" path: when multiple entries all fail, it must still land on the specific-reason copy,
+  // not fall into the mixed branch by mistake (the mixed branch's condition is ok.length > 0).
   it('多条全部失败:仍走具体原因文案,不误判成混合结果', async () => {
     restoreMock
       .mockRejectedValueOnce(Object.assign(new Error('gone'), { code: 404 }))
@@ -302,13 +302,13 @@ describe('恢复', () => {
     await s.restore([])
     expect(restoreMock).not.toHaveBeenCalled()
   })
-  // 评审修复(Important):Vue2/T7 版每条选中项都单独打一次 GET /v2/snapshot/volumes——
-  // 30 项就是 31 次请求,且任意一次网络抖动都会把那一条误判成失败(其实根本没提交过)。
-  // volumes.value 就是同一份已 ready 的数据,批量恢复该直接复用它,不逐条重新拉。
+  // Review fix (Important): the Vue2/T7 version fired a separate GET /v2/snapshot/volumes per selected item —
+  // 30 items meant 31 requests, and any single network hiccup misreported that item as failed (it was never even submitted).
+  // volumes.value is the same already-ready data; batch restore should reuse it directly instead of refetching per item.
   it('批量恢复复用已缓存的 volumes,不为每一项重新请求', async () => {
     restoreMock.mockResolvedValue({ restored_path: '/DATA/x.restored-1' })
     const s = await inSnapshot()
-    listVolumesMock.mockClear() // inSnapshot() 里的 ensureVolumes() 已经拉过一次,只看 restore() 期间
+    listVolumesMock.mockClear() // ensureVolumes() inside inSnapshot() already fetched once; only count calls during restore()
     await s.restore([
       { path: '/DATA/.snapshots/snap1/a' },
       { path: '/DATA/.snapshots/snap1/b' },
@@ -320,7 +320,7 @@ describe('恢复', () => {
   it('volumes 尚未加载时兜底先拉一次,而不是把选中项都误判成失败(理论上不该发生的边界情况)', async () => {
     const s = useSnapshotBrowseStore()
     useFilesStore().currentPath = '/DATA/.snapshots/snap1/Photos'
-    // 故意不调用 s.ensureVolumes():模拟 volumes 还没加载就调用 restore() 的边界情况
+    // Deliberately skip s.ensureVolumes(): simulate the edge case of calling restore() before volumes have loaded
     restoreMock.mockResolvedValue({ restored_path: '/DATA/Photos/a.restored-1' })
     await s.restore([{ path: '/DATA/.snapshots/snap1/Photos/a.jpg' }])
     expect(listVolumesMock).toHaveBeenCalledTimes(1)

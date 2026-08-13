@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { isSystemComposeApp } from './systemApp'
 import type { ComposeAppWithStoreInfo } from '@nimotech/nimoos-service'
 
-// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
-// compose 任一 service 的 label `nimoos.system == "true"` 即系统幕后组件,
-// 应从面向用户的应用管理页隐藏(agent 运行时 / Photos ML 后端等)。
+// Frontend equivalent of the backend's isSystemComposeApp (route/v2/internal_web.go):
+// if any compose service has the label `nimoos.system == "true"` it is a behind-the-scenes system component
+// and should be hidden from the user-facing app management page (agent runtime / Photos ML backend, etc.).
 
 function withLabels(labels: Record<string, string>): ComposeAppWithStoreInfo {
   return { compose: { services: { main: { labels } } } } as never

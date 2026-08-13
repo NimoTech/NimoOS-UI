@@ -1,8 +1,8 @@
 <script setup lang="ts">
-// 设置区外壳:左 tab rail + 右内容。对位 Vue2 SettingsPanel.vue 的 .settings-sidebar / .settings-content,
-// 但容器形态由模态改为路由页(授权偏离 #2,spec §12)。
-// 侧栏底部的关机/重启按钮不在 P0 范围 —— 电源流(含 6 个状态浮层)整体归 P1(spec §5.1),
-// 此处只留 .set-rail-foot 容器占位,P1 往里填。
+// Settings area shell: left tab rail + right content. Counterpart of Vue2 SettingsPanel.vue's
+// .settings-sidebar / .settings-content, but the container changed from modal to routed page (authorized deviation #2, spec §12).
+// The shutdown/restart buttons at the rail bottom are out of P0 scope — the power flow (incl. 6 status overlays)
+// belongs to P1 as a whole (spec §5.1); only the .set-rail-foot placeholder container is left here, filled in P1.
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -16,15 +16,15 @@ const emit = defineEmits<{ select: [tab: SettingsTab] }>()
 const router = useRouter()
 const { t } = useI18n()
 
-// 用户信息由登录时写进 localStorage['user'](stores/session.ts setUser)。
-// P0 零后端调用,所以只读本地缓存,不发 /v1/users/current。
+// User info is written to localStorage['user'] at login (stores/session.ts setUser).
+// P0 makes zero backend calls, so only read the local cache; no /v1/users/current request.
 const user = computed<Record<string, unknown>>(() => {
   try {
     const raw = localStorage.getItem('user')
     const parsed = raw ? JSON.parse(raw) : null
     return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {}
   } catch {
-    return {} // 坏 JSON:按无用户处理,不炸整个设置区
+    return {} // Bad JSON: treat as no user, don't blow up the whole settings area
   }
 })
 
@@ -64,7 +64,7 @@ const railTabs = computed(() =>
         </button>
       </nav>
 
-      <!-- P1 填:关机 / 重启(spec §5.1) -->
+      <!-- Filled in P1: shutdown / restart (spec §5.1) -->
       <div class="set-rail-foot"><PowerFlow /></div>
     </aside>
 
@@ -82,11 +82,12 @@ const railTabs = computed(() =>
 
 <style scoped>
 /*
- * 布局约束(与 storage/components/StorageShell.vue 同源,SP6 实盘验收过):
- * body 全局 overflow:hidden(src/styles/theme.css,桌面端需要,不能改),
- * 所以滚动必须由「受视口约束」的 .set-body 自己承担 —— 外壳必须用 height 而非 min-height,
- * 否则它随内容一起长高、永远量不出溢出,滚动条永不出现。
- * 两行 height 是给不支持 dvh 的旧浏览器兜底,不要合并/删除其中一行。
+ * Layout constraint (same origin as storage/components/StorageShell.vue, verified on device in SP6):
+ * body has global overflow:hidden (src/styles/theme.css, needed for desktop, cannot change),
+ * so scrolling must be handled by the viewport-constrained .set-body itself — the shell must use
+ * height, not min-height, otherwise it grows with content, overflow is never measured, and the
+ * scrollbar never appears.
+ * The two height lines are a fallback for old browsers without dvh support; do not merge/delete either line.
  */
 .settings-shell {
   height: 100vh;
@@ -164,7 +165,7 @@ const railTabs = computed(() =>
   background: var(--hover);
   color: var(--fg);
 }
-/* Vue2 .sidebar-item.active:透明底 + 主色描边 + 主色字(SettingsPanel.vue L2418-2424) */
+/* Vue2 .sidebar-item.active: transparent background + accent border + accent text (SettingsPanel.vue L2418-2424) */
 .set-rail-item.active {
   background: transparent;
   border-color: var(--accent);
@@ -207,8 +208,8 @@ const railTabs = computed(() =>
   font-weight: 600;
   margin: 0;
 }
-/* min-height:0 必须写:flex 子项默认 min-height:auto,会阻止收缩到小于内容高度,
- * 导致 overflow-y:auto 失效。 */
+/* min-height:0 is required: flex children default to min-height:auto, which prevents
+ * shrinking below content height and breaks overflow-y:auto. */
 .set-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -219,9 +220,9 @@ const railTabs = computed(() =>
   max-width: 980px;
 }
 
-/* 窄屏:Vue2 是固定尺寸模态、整文件零 @media,没有可对齐的行为;
- * 按 StorageShell(SP6 已实盘验收)的思路自定 —— rail 收到顶部横向滚动条。
- * 覆盖在授权偏离 #2(模态→路由页)范围内。 */
+/* Narrow screens: Vue2 was a fixed-size modal with zero @media in the whole file — no behavior to align with;
+ * designed after StorageShell (device-verified in SP6) — the rail collapses into a top horizontal scroller.
+ * Covered by authorized deviation #2 (modal → routed page). */
 @media (max-width: 768px) {
   .settings-shell {
     flex-direction: column;
@@ -243,9 +244,9 @@ const railTabs = computed(() =>
        affordance it reads as broken rather than scrollable. A right-edge fade
        shows there is more; the opaque stop below is a mask channel value, not a
        visible colour, so it is skin-independent and needs no token. */
-    /* theme-exception: 遮罩通道值,与皮肤无关 */
+    /* theme-exception: mask channel value, skin-independent */
     mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
-    /* theme-exception: 遮罩通道值,与皮肤无关 */
+    /* theme-exception: mask channel value, skin-independent */
     -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent 100%);
   }
   .set-rail-item {

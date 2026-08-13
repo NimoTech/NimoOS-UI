@@ -1,18 +1,22 @@
-// 约定守卫:共享包 @nimotech/nimoos-service 必须留在 vite 的 optimizeDeps.exclude 里。
+// Convention guard: the shared package @nimotech/nimoos-service must stay in vite's optimizeDeps.exclude.
 //
-// SP13(2026-08-07)起该包已内联到本仓 `packages/service/`(`package.json` 里是
-// `file:packages/service`,不再是 `file:../NimoOS-Service`)——但这条守卫依旧必需,
-// 别因为"包已经在仓里了"就觉得它过期。原因:它依旧是 `file:` 依赖,依旧经
-// `node_modules` 解析(pnpm 把 `packages/service/` 硬链进 `.pnpm` 目录),Vite 眼里
-// 跟任何普通 node_modules 依赖没有区别,照样会被当依赖预打包进
-// `node_modules/.vite/deps/`;而预打包缓存的失效判据是 lockfile / config / 依赖版本号,
-// **不看依赖内容**——编辑 `packages/service/src/*.ts` 从不触发这条失效判据。
+// Since SP13 (2026-08-07) the package is inlined into this repo at `packages/service/`
+// (`package.json` says `file:packages/service`, no longer `file:../NimoOS-Service`) — but
+// this guard is still required; do not consider it obsolete just because "the package is
+// already in the repo". Reason: it is still a `file:` dependency, still resolved through
+// `node_modules` (pnpm hardlinks `packages/service/` into the `.pnpm` directory); to Vite
+// it looks like any ordinary node_modules dependency and still gets pre-bundled into
+// `node_modules/.vite/deps/`; and the pre-bundle cache invalidation criteria are
+// lockfile / config / dependency version numbers — **never dependency contents** — so
+// editing `packages/service/src/*.ts` never triggers invalidation.
 //
-// 为什么值得一条测试看着:这条配置一旦被"清理"掉,失败是**静默的、只在 dev 复现**的 ——
-// SP9-P1 验收就是这么丢了一轮(4 个写操作全报"保存配置失败"),SP13 内联时也曾误判
-// "入口指源码 ⇒ 不再需要 exclude"把它删过一次,实测证伪后又恢复。单测走源码、生产
-// build 走 node_modules,两边都是新的,所以这条坑只在 dev server 上暴露,测试测不出来
-// ——这条守卫存在的意义就是防"删掉配置但三道门全绿"这种事故。
+// Why this deserves a test watching it: once this config gets "cleaned up", the failure is
+// **silent and dev-only** — the SP9-P1 acceptance lost a whole round this way (all 4 write
+// operations reported "failed to save config"), and during the SP13 inlining it was deleted
+// once on the mistaken belief "entry points at source ⇒ exclude no longer needed", then
+// restored after being disproven in practice. Unit tests use the source, production builds
+// use node_modules — both are fresh — so this trap only surfaces on the dev server and no
+// test can catch it. This guard exists precisely to prevent "config deleted but all three gates green" accidents.
 /// <reference types="node" />
 import fs from 'node:fs'
 import path from 'node:path'

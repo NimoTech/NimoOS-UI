@@ -19,9 +19,10 @@ import CustomAppsPage from './CustomAppsPage.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 let pinia: Pinia
 
-// 真路由(memory history):tab 状态是路由 query 驱动的深链,需要真实响应式 route 才能观察到
-// "点击切 tab / 转换后自动切 tab" 这类导航后果——静态 mock route(StorePage.test.ts 那种)只能断言
-// replace() 的调用参数,验证不了"切换后确实渲染另一个面板",而这正是本页面 brief 明确要求的用例。
+// Real router (memory history): tab state is a route-query-driven deep link; navigation consequences
+// like "click switches tab / auto-switch after conversion" need a truly reactive route — a static mock
+// route (StorePage.test.ts style) can only assert replace() call arguments and cannot verify
+// "the other panel actually renders after switching", which this page's brief explicitly requires.
 async function mountPage(initial = '/apps/custom') {
   const router = createRouter({
     history: createMemoryHistory(),
@@ -88,7 +89,7 @@ describe('CustomAppsPage — tab2 docker run 转换', () => {
     await w.find('[data-test="custom-import-textarea"]').setValue('docker run -p 8080:80 nginx')
     await w.find('[data-test="custom-convert"]').trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.query.tab).toBeUndefined() // tab=yaml 时 query 里 tab 键被清空
+    expect(router.currentRoute.value.query.tab).toBeUndefined() // the tab key is cleared from the query when tab=yaml
     expect(w.find('[data-test="panel-yaml"]').exists()).toBe(true)
     const host = w.find('[data-test="yaml-editor"]').element as HTMLElement
     const view = EditorView.findFromDOM(host)
@@ -101,7 +102,7 @@ describe('CustomAppsPage — tab2 docker run 转换', () => {
     await w.find('[data-test="custom-convert"]').trigger('click')
     await flushPromises()
     expect(w.find('[data-test="convert-error"]').exists()).toBe(true)
-    expect(router.currentRoute.value.query.tab).toBe('import') // 未切走
+    expect(router.currentRoute.value.query.tab).toBe('import') // did not switch away
   })
 })
 
@@ -143,7 +144,7 @@ describe('CustomAppsPage — tab1 安装', () => {
     const { w } = await mountPage('/apps/custom')
     await w.find('[data-test="custom-validate"]').trigger('click')
     await flushPromises()
-    expect(svc.compose.install).toHaveBeenCalledTimes(1) // 只 dry_run
+    expect(svc.compose.install).toHaveBeenCalledTimes(1) // dry_run only
     expect(svc.compose.install).toHaveBeenCalledWith(expect.any(String), { dryRun: true, checkPortConflict: true })
   })
 })
@@ -229,13 +230,13 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     await nextTick()
     expect(document.body.textContent).toContain(zh.appsCustomLinkDeleteConfirm)
 
-    // 取消:不落盘
+    // cancel: nothing persisted
     const cancelBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCancel)!
     cancelBtn.click()
     await flushPromises()
     expect(svc.users.setCustomStorage).not.toHaveBeenCalled()
 
-    // 再次删除并确认
+    // delete again and confirm
     await w.find('[data-test="link-delete"]').trigger('click')
     await nextTick()
     const confirmBtn = [...document.querySelectorAll('button')].find((b) => b.textContent === zh.appsCustomLinkDelete)!
@@ -257,7 +258,7 @@ describe('CustomAppsPage — tab3 外部链接(LinkApp)', () => {
     await flushPromises()
 
     expect(w.find('[data-test="link-error"]').text()).toBe('boom')
-    // 删除失败时列表不应被清空(deleteLinkApp 抛出后 links 未被赋值)
+    // the list must not be cleared on delete failure (links is not reassigned after deleteLinkApp throws)
     expect(w.find('[data-test="link-row"]').exists()).toBe(true)
   })
 })

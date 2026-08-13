@@ -27,9 +27,9 @@ describe('AppIframeWidget', () => {
     seedRunning(s)
     const w = mount(AppIframeWidget, { props: { item: item() } })
     await vi.advanceTimersByTimeAsync(0)
-    expect(w.find('iframe').exists()).toBe(true) // running + inView(jsdom 降级立即 true) → iframe 已挂载,8s 计时器已 arm
+    expect(w.find('iframe').exists()).toBe(true) // running + inView (jsdom fallback is immediately true) → iframe mounted, 8s timer armed
 
-    // 应用停止:running 翻 false,遗留的 8s 计时器不应再触发 failed
+    // App stops: running flips false; the leftover 8s timer must no longer trigger failed
     s.setApps([
       { name: 'my-dl', title: { en_us: 'DL' }, status: 'exited', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
     ] as never)
@@ -39,7 +39,7 @@ describe('AppIframeWidget', () => {
 
     await vi.advanceTimersByTimeAsync(8000)
     await w.vm.$nextTick()
-    // 遗留计时器不应触发失败态覆盖掉"未运行"占位,也不应残留 retry 按钮
+    // The leftover timer must not trigger the failed state and overwrite the "not running" placeholder, nor leave a retry button behind
     expect(w.text()).toContain('应用未运行')
     expect(w.find('.aw-retry').exists()).toBe(false)
   })
@@ -50,8 +50,8 @@ describe('AppIframeWidget', () => {
     const w = mount(AppIframeWidget, { props: { item: item() } })
     await vi.advanceTimersByTimeAsync(0)
 
-    // 停止 → 停止期间推满 8s:修复前遗留计时器会在此触发把 failed 卡死 true,
-    // 恢复运行后 iframe 永不重挂;修复后计时器已清理,failed 保持 false
+    // Stop → advance a full 8s while stopped: before the fix the leftover timer fired here and locked failed=true,
+    // so the iframe never remounted after recovery; after the fix the timer is cleaned up and failed stays false
     s.setApps([
       { name: 'my-dl', title: { en_us: 'DL' }, status: 'exited', scheme: 'http', hostname: 'localhost', port: 8080, desktop: true, widget: { path: '/widget', w: 3, h: 2 } },
     ] as never)
@@ -59,9 +59,9 @@ describe('AppIframeWidget', () => {
 
     seedRunning(s)
     await vi.advanceTimersByTimeAsync(0)
-    expect(w.find('iframe').exists()).toBe(true) // 恢复运行后 iframe 重新挂载(旧代码此处永不重挂)
+    expect(w.find('iframe').exists()).toBe(true) // iframe remounts after recovery (old code never remounted here)
 
-    // 8s 内没有 load 事件(jsdom 不会真加载 iframe)→ 应该真正超时进入失败态
+    // No load event within 8s (jsdom never really loads iframes) → should genuinely time out into the failed state
     await vi.advanceTimersByTimeAsync(8000)
     await w.vm.$nextTick()
     expect(w.find('iframe').exists()).toBe(false)

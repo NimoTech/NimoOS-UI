@@ -48,12 +48,13 @@ const DETAIL = {
   developer: 'Jellyfin',
 }
 
-// 显式把 pinia 实例挂到 mount 的 global.plugins——T6 StorePage.test.ts 同款教训:仅靠
-// setActivePinia() 在连续 mount 同一带多个 composable(useInstallFlow/useDeviceArch/
-// useInstallProgressStore)的页面时,曾观测到组件绑定到早前某次 beforeEach 的 pinia 实例。
+// Explicitly attach the pinia instance to mount's global.plugins — same lesson as T6 StorePage.test.ts:
+// relying on setActivePinia() alone, when repeatedly mounting the same page with multiple composables
+// (useInstallFlow/useDeviceArch/useInstallProgressStore), the component was observed binding to a pinia
+// instance from an earlier beforeEach.
 let pinia: ReturnType<typeof createPinia>
 
-/** 沿本文件既有挂载写法:detailOverrides 合入 fixture detail(如 architectures) */
+/** Follows this file's existing mount pattern: detailOverrides is merged into the fixture detail (e.g. architectures) */
 function mountDetail(detailOverrides: Record<string, unknown> = {}) {
   svc.appstore.getApp.mockResolvedValue({ ...DETAIL, ...detailOverrides })
   return mount(StoreAppDetailPage, { global: { plugins: [i18n, pinia] } })
@@ -81,14 +82,14 @@ describe('StoreAppDetailPage', () => {
     const w = await mountDetail()
     await flushPromises()
     expect(svc.appstore.getApp).toHaveBeenCalledWith('jellyfin')
-    expect(svc.appstore.listApps).toHaveBeenCalledWith({}) // catalogLoaded=false 时补拉
+    expect(svc.appstore.listApps).toHaveBeenCalledWith({}) // refetches when catalogLoaded=false
     expect(w.text()).toContain('Jellyfin')
     expect(w.text()).toContain('个人媒体系统')
-    expect(w.text()).toContain('Media')      // meta:分类
-    expect(w.text()).toContain('Jellyfin')   // meta:开发者
-    expect(w.get('.detail-desc').html()).toContain('<strong>强大</strong>') // markdown 渲染
+    expect(w.text()).toContain('Media')      // meta: category
+    expect(w.text()).toContain('Jellyfin')   // meta: developer
+    expect(w.get('.detail-desc').html()).toContain('<strong>强大</strong>') // markdown rendering
     expect(w.findAll('.detail-shot')).toHaveLength(2)
-    expect(w.text()).toContain('已安装')     // installed 含 jellyfin
+    expect(w.text()).toContain('已安装')     // installed contains jellyfin
   })
 
   it('未安装 → 点击安装走真实链路:dry_run→install→出现安装中%', async () => {
@@ -101,7 +102,7 @@ describe('StoreAppDetailPage', () => {
     await flushPromises()
     expect(svc.compose.install).toHaveBeenNthCalledWith(1, 'services: {}', { dryRun: true, checkPortConflict: true })
     expect(svc.compose.install).toHaveBeenNthCalledWith(2, 'services: {}', { checkPortConflict: true })
-    expect(w.text()).toContain('0') // track 后 percent=0 → 安装中 0%
+    expect(w.text()).toContain('0') // percent=0 after track → installing 0%
   })
 
   it('详情加载失败 → 错误态 + 返回商店', async () => {
@@ -132,7 +133,7 @@ describe('StoreAppDetailPage', () => {
     await flushPromises()
     await w.find('.detail-install').trigger('click')
     await flushPromises()
-    // track 后 percent=0;推一个 progress 事件到 64
+    // percent=0 after track; push a progress event up to 64
     useInstallProgressStore().onEvent('app:install-progress', { 'app:name': ID, 'app:progress': '64' })
     await nextTick()
     expect(w.find('.op-progress-fill').attributes('style')).toContain('64%')
@@ -148,7 +149,7 @@ describe('StoreAppDetailPage', () => {
     useInstallProgressStore().onEvent('app:install-error', { 'app:name': ID, message: 'pull failed' })
     await nextTick()
     expect(w.text()).toContain('pull failed')
-    expect(w.find('.detail-install').exists()).toBe(true) // 重试按钮
+    expect(w.find('.detail-install').exists()).toBe(true) // retry button
   })
 
   it('架构不兼容:按钮禁用 + 提示文案', async () => {
