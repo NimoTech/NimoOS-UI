@@ -12,6 +12,7 @@ vi.mock('@nimotech/nimoos-service', () => ({
           { name: 'lost+found', path: path.replace(/\/$/, '') + '/lost+found', is_dir: true },
         ],
       })),
+      getFolderSize: vi.fn(async () => 4096),
     },
   },
   getHttp: () => ({ get: vi.fn(async () => ({ data: { data: [] } })) }),
@@ -153,5 +154,15 @@ describe('filesStore selection', () => {
     expect(files.error).toBe('boom')
     await files.load('/DATA')
     expect(files.error).toBe('')
+  })
+
+  it('load resets folderSizes so computed sizes never survive a listing reload', async () => {
+    const { useFolderSizesStore } = await import('./folderSizes')
+    const sizes = useFolderSizesStore()
+    await sizes.compute('/DATA/Documents')
+    expect(sizes.statusOf('/DATA/Documents')).toBe('done')
+    const files = useFilesStore()
+    await files.load('/DATA')
+    expect(sizes.statusOf('/DATA/Documents')).toBe('idle')
   })
 })
