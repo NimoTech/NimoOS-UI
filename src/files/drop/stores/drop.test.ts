@@ -163,6 +163,30 @@ describe('useDropStore', () => {
     ])
   })
 
+  // 2026-08-13 验收:手机刚进互传页,两台设备都弹「无法与对方建立连接」,可文件照传照收。
+  // 探针查明:服务端的设备列表里躺着一个幽灵会话(手机上一次被划掉、socket 没关,要等
+  // 90s 心跳才清),而页面一加载就会向列表里每台设备自动拨号 —— 拨幽灵必然失败,15s 后
+  // 两边各弹一次。用户从没点过那台设备,却被告知"连不上"。
+  // 判据:只有用户真的对这台设备发起过发送,拨号失败才值得打断他。
+  it('stays quiet when a device nobody tried to send to turns out unreachable', () => {
+    const s = useDropStore()
+    s.init()
+    const ev = h.capturedEvents!
+    const texts = () => useToast().toasts.map((x) => x.text)
+
+    ;(ev.onPeerUnreachable as (id: string) => void)('ghost')
+    expect(texts()).toEqual([])
+
+    // 用户点了这台设备发送(拨号中,报 not-ready),15s 后拨不通 —— 这一次必须说话
+    h.pmSendFiles.mockReturnValueOnce('not-ready' as never)
+    s.sendFiles('real', [new File(['x'], 'x')])
+    ;(ev.onPeerUnreachable as (id: string) => void)('real')
+    expect(texts()).toEqual([
+      i18n.global.t('filesDropNotReady'),
+      i18n.global.t('filesDropUnreachable'),
+    ])
+  })
+
   it('cancelTransfer forwards the peerId and the reason to the manager', () => {
     const s = useDropStore()
     s.init()
