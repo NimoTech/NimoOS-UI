@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import FavoriteStar from './FavoriteStar.vue'
 import { useFavoritesStore } from '../stores/favorites'
 
@@ -18,6 +18,10 @@ describe('FavoriteStar', () => {
     const w = mount(FavoriteStar, { props: { path: '/DATA/Docs', name: 'Docs' } })
     expect(w.text()).toBe('☆')
     await w.trigger('click')
+    // The store reads the stored list before its first write, so it never
+    // overwrites favourites it has not seen. That read is one round trip, and
+    // the click handler is fire-and-forget, so the flip lands a tick later.
+    await flushPromises()
     const fav = useFavoritesStore()
     expect(fav.isFavorite('/DATA/Docs')).toBe(true)
     expect(w.text()).toBe('★')

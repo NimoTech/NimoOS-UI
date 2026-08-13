@@ -20,13 +20,15 @@ const getList = vi.fn().mockResolvedValue({ content: [] })
 const fileUrl = vi.fn((p: string) => `/v3/file?token=TK&path=${encodeURIComponent(p)}`)
 const batchUrl = vi.fn((f: string) => `/v1/batch?token=TK&files=${encodeURIComponent(f)}`)
 const refreshMock = vi.fn().mockResolvedValue('new-token')
+const getCustomStorage = vi.fn().mockResolvedValue([])
+const setCustomStorage = vi.fn().mockResolvedValue(undefined)
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
     folder: { create: (...a: unknown[]) => folderCreate(...a), getList: (...a: unknown[]) => getList(...a) },
     file: { create: (...a: unknown[]) => fileCreate(...a), rename: (...a: unknown[]) => fileRename(...a), fileUrl: (...a: unknown[]) => fileUrl(...(a as [string])) },
     batch: { delete: (...a: unknown[]) => batchDelete(...a), task: (...a: unknown[]) => batchTask(...a), batchUrl: (...a: unknown[]) => batchUrl(...(a as [string])) },
-    users: { getCustomStorage: vi.fn().mockResolvedValue([]), setCustomStorage: vi.fn().mockResolvedValue(undefined) },
+    users: { getCustomStorage: (...a: unknown[]) => getCustomStorage(...a), setCustomStorage: (...a: unknown[]) => setCustomStorage(...a) },
   },
   refreshAccessToken: (...a: unknown[]) => refreshMock(...a),
 }))
@@ -179,6 +181,69 @@ describe('useFileOps', () => {
     ])
     expect(batchDelete).not.toHaveBeenCalled()
     expect(showSpy).toHaveBeenCalledWith(zh.filesProtectedDelete)
+  })
+
+  // Bug 5 (owner report): "create a folder, favourite it, delete it -- the
+  // favourite is still in the sidebar". The exact-path case below is what the
+  // owner described and it already worked; the descendant case is the real
+  // hole, because a favourite only ever records the folder it points at and
+  // nothing about its ancestors.
+  describe('delete keeps the favourites list consistent', () => {
+    it('drops the favourite that pointed at the deleted folder (the owner-reported scenario)', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'test_folder', path: '/DATA/Documents/test_folder' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([{ name: 'test_folder', path: '/DATA/Documents/test_folder', is_dir: true }])
+      expect(favs.list).toEqual([])
+      expect(setCustomStorage).toHaveBeenCalledWith('favorites', [])
+    })
+
+    it('drops favourites nested under a deleted ancestor', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'b', path: '/DATA/Documents/a/b' })
+      const ops = makeOps()
+      await ops.remove([{ name: 'a', path: '/DATA/Documents/a', is_dir: true }])
+      expect(favs.list).toEqual([])
+    })
+
+    it('keeps a sibling whose path merely starts with the deleted one', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'ab', path: '/DATA/Documents/ab' })
+      const ops = makeOps()
+      await ops.remove([{ name: 'a', path: '/DATA/Documents/a', is_dir: true }])
+      expect(favs.list).toEqual([{ name: 'ab', path: '/DATA/Documents/ab' }])
+    })
+
+    // Deleting N favourited folders used to fire N full-list POSTs in series.
+    it('persists the favourites list once for a whole batch delete', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'a', path: '/DATA/Documents/a' })
+      await favs.add({ name: 'b', path: '/DATA/Documents/b' })
+      await favs.add({ name: 'c', path: '/DATA/Documents/c' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([
+        { name: 'a', path: '/DATA/Documents/a', is_dir: true },
+        { name: 'b', path: '/DATA/Documents/b', is_dir: true },
+      ])
+      expect(favs.list).toEqual([{ name: 'c', path: '/DATA/Documents/c' }])
+      expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not persist when nothing deleted was favourited', async () => {
+      useFilesStore().currentPath = '/DATA/Documents'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'keep', path: '/DATA/Documents/keep' })
+      setCustomStorage.mockClear()
+      const ops = makeOps()
+      await ops.remove([{ name: 'other', path: '/DATA/Documents/other', is_dir: true }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
   })
 
   it('rename 受保护项被前端挡下,不请求', async () => {

@@ -85,7 +85,13 @@ export function useFileOps() {
     const paths = targets.map((e) => e.path)
     try {
       await service.batch.delete(JSON.stringify(paths))
-      for (const p of paths) if (favorites.isFavorite(p)) await favorites.remove(p)
+      // One write for the whole batch, and it also clears favourites that sat
+      // INSIDE a deleted folder: the per-path loop this replaces only matched
+      // the deleted path itself, so favouriting /DATA/a/b and then deleting
+      // /DATA/a left a sidebar row pointing at nothing (Bug 5). It also fired
+      // one full-list POST per favourite, which is the overlap that makes
+      // concurrent favourites writes lose each other.
+      await favorites.removeMany(paths)
       await refresh()
     } catch (e) { toast.show(errMsg(e, t('filesOpFailed'))) }
   }
