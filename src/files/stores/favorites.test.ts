@@ -134,6 +134,85 @@ describe('favorites store', () => {
     })
   })
 
+  // Move sync. Same duty as renamePath -- a favourite is a {name, path} snapshot,
+  // so moving a favourited entry (or an ancestor of one) leaves the sidebar row
+  // pointing at a path that no longer exists. The arithmetic differs: a move
+  // swaps the parent directory and keeps the last segment, where a rename keeps
+  // the parent and swaps the last segment.
+  describe('movePaths', () => {
+    it('repoints an exact match at the destination, keeping its name', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/Documents/Trip'], '/DATA/Media')
+      expect(s.list).toEqual([{ name: 'Trip', path: '/DATA/Media/Trip' }])
+      expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    })
+
+    it('repoints descendants of a moved folder in the same pass', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      await s.add({ name: 'Sub', path: '/DATA/Documents/Trip/Sub' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/Documents/Trip'], '/DATA/Media')
+      expect(s.list).toEqual([
+        { name: 'Trip', path: '/DATA/Media/Trip' },
+        { name: 'Sub', path: '/DATA/Media/Trip/Sub' },
+      ])
+      expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not touch a sibling that merely shares the prefix', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'ab', path: '/DATA/ab' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/a'], '/DATA/Media')
+      expect(s.list).toEqual([{ name: 'ab', path: '/DATA/ab' }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
+
+    it('persists once for a batch of several moved paths', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'a', path: '/DATA/a' })
+      await s.add({ name: 'b', path: '/DATA/b' })
+      await s.add({ name: 'c', path: '/DATA/c' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/a', '/DATA/b'], '/DATA/dst')
+      expect(s.list).toEqual([
+        { name: 'a', path: '/DATA/dst/a' },
+        { name: 'b', path: '/DATA/dst/b' },
+        { name: 'c', path: '/DATA/c' },
+      ])
+      expect(setCustomStorage).toHaveBeenCalledTimes(1)
+    })
+
+    it('is a no-op that writes nothing when nothing matched', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'a', path: '/DATA/a' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/zzz'], '/DATA/dst')
+      expect(s.list).toEqual([{ name: 'a', path: '/DATA/a' }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
+
+    it('writes nothing when the entry is moved back into the directory it already sits in', async () => {
+      const s = useFavoritesStore()
+      await s.add({ name: 'a', path: '/DATA/a' })
+      setCustomStorage.mockClear()
+      await s.movePaths(['/DATA/a'], '/DATA')
+      expect(s.list).toEqual([{ name: 'a', path: '/DATA/a' }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
+
+    it('never writes over a list it could not read', async () => {
+      const s = useFavoritesStore()
+      getCustomStorage.mockRejectedValue(new Error('network down'))
+      await s.load()
+      await s.movePaths(['/DATA/a'], '/DATA/dst')
+      expect(setCustomStorage).not.toHaveBeenCalled()
+    })
+  })
+
   // Bug 1. The whole list is one blob under one key, so every mutation rewrites
   // the entire file. Two overlapping writes interleave on the server (proved on
   // the device: 24 concurrent POSTs left the file as invalid JSON), and a

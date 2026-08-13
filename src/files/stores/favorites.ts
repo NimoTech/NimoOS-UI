@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
+import { joinPath } from '../util/pathOps'
 
 export interface Favorite {
   name: string
@@ -144,11 +145,45 @@ export const useFavoritesStore = defineStore('favorites', () => {
     await persist()
   }
 
+  // Move sync: the same consistency duty as renamePath, with the other half of
+  // the arithmetic. A rename keeps the parent directory and swaps the last
+  // segment; a move keeps the last segment and swaps the parent. Without this a
+  // cut+paste of a favourited folder leaves the sidebar row pointing at a path
+  // that no longer exists, and clicking it lands on "folder not found".
+  //
+  // `paths` are the sources the backend actually accepted, `destDir` the
+  // directory they landed in. Descendants ride along for the same reason they do
+  // in renamePath/removeMany: a favourite records one entry and nothing about
+  // its ancestors, so moving /DATA/a has to carry the favourite on /DATA/a/b.
+  //
+  // One write for the whole batch, and no write at all when nothing moved --
+  // every avoided full-list POST is one less chance for two writes to overlap.
+  async function movePaths(paths: string[], destDir: string) {
+    if (!paths.length) return
+    if (!(await ensureLoaded())) return
+    let changed = false
+    const next = list.value.map((f) => {
+      // First match wins. Two moved paths can only both cover one favourite if
+      // one is an ancestor of the other, which the backend itself resolves in an
+      // undefined order -- there is no better answer to pick here.
+      const moved = paths.find((p) => isAtOrUnder(f.path, p))
+      if (moved === undefined) return f
+      const lastSegment = moved.slice(moved.lastIndexOf('/') + 1)
+      const landed = joinPath(destDir, lastSegment) + f.path.slice(moved.length)
+      if (landed === f.path) return f
+      changed = true
+      return { name: f.name, path: landed }
+    })
+    if (!changed) return
+    list.value = next
+    await persist()
+  }
+
   async function reorder(from: number, to: number) {
     if (!(await ensureLoaded())) return
     list.value = moveItem(list.value, from, to)
     await persist()
   }
 
-  return { list, load, isFavorite, add, remove, removeMany, renamePath, reorder }
+  return { list, load, isFavorite, add, remove, removeMany, renamePath, movePaths, reorder }
 })
