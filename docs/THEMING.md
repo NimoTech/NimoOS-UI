@@ -187,7 +187,7 @@ setTheme(t):  documentElement.dataset.theme = (t === 'blue' ? '' : t)   // blue 
 | 项 | 蓝色（blue） | 白色（light） |
 |---|---|---|
 | `color-scheme`（`:root`） | `dark` | `light`（影响原生控件、默认滚动条外观） |
-| 滚动条滑块 `scrollbar-color` / `::-webkit-scrollbar-thumb` | `rgba(255,255,255,0.22)`（浅色滑块贴深底） | `rgba(28,27,25,0.22)` **†**（深色滑块贴浅底） |
+| 滚动条滑块 `--scrollbar-thumb` / `--scrollbar-thumb-hover`（token，供顶部 `*` 规则的 `scrollbar-color` 与 `::-webkit-scrollbar-thumb` 引用） | `rgba(255,255,255,0.28)` / `rgba(255,255,255,0.4)`（浅色滑块贴深底） | `rgba(28,27,25,0.22)` / `rgba(28,27,25,0.4)` **†**（深色滑块贴浅底） |
 | `body::before`（散景光斑层） | 多层 radial 光斑 + `blur(46px)` + 视差动画 | `background: none`（关闭光斑） |
 | `body::after`（顶部柔光 + 暗角） | `linear-gradient(...) , radial-gradient(...)` | `background: none`（关闭暗角） |
 
