@@ -45,7 +45,7 @@
 // `.photos-root` 为根——与 AI Agent 区(src/ai/views/AgentPage.vue)同款自定义整页壳的现有
 // 先例一致(AgentPage.vue 同样是从不借 AreaShell 的独立视口壳)。
 import '../photos/styles/vue2-parity'
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
@@ -59,7 +59,7 @@ import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/Phot
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
-import { useSidebarDrawer } from '../composables/useSidebarDrawer'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
@@ -92,30 +92,16 @@ const lb = useLightbox()
 // composable — see usePhotosTheme.ts).
 const { themeClass } = usePhotosTheme()
 
-// Task 3: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar toggle
-// button that flips it — the toggle button itself lands with the topbar in T4+; this task
-// only owns the persisted state and the `.app[data-collapsed]` wiring). Persisted here
-// (not in PhotosSidebar) per the brief's interface contract — the sidebar is a shared
-// component mounted by every photos-area page, this state is Photos.vue's own.
-const COLLAPSE_KEY = 'nimo_photos_sidebar_collapsed'
-const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
-watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
-// Task 4: the topbar's collapse-toggle button (Vue2 PhotosTopbar's own `☰`, wired at
-// PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) — same flip, now reachable.
-//
-// final-review fix (item 6): on a ≤768px viewport PhotosSidebar renders as its own fixed
-// drawer instead of the desktop two-column grid track (useSidebarDrawer — a module
-// singleton PhotosSidebar.vue already consumes for its is-narrow/is-drawer/is-open
-// classes). Flipping `collapsed` there is a no-op: that flag only ever drives the
-// `.app[data-collapsed]` desktop column-width rule, which the drawer isn't part of — so
-// the topbar's panelLeft button had no way to open the sidebar on mobile at all (Task 3's
-// shell rewrite dropped the old AreaShell hamburger that used to do that job). Route the
-// same click to the drawer's own toggle() when isNarrow is true instead.
-const { isNarrow: sidebarIsNarrow, toggle: toggleSidebarDrawer } = useSidebarDrawer()
-function onToggleCollapse() {
-  if (sidebarIsNarrow.value) { toggleSidebarDrawer(); return }
-  collapsed.value = !collapsed.value
-}
+// Task 3/4: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar
+// toggle button that flips it, PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) —
+// persisted state + the narrow-viewport drawer branch (final-review fix item 6: on a
+// ≤768px viewport PhotosSidebar renders as its own fixed drawer instead of the desktop
+// two-column grid track, so flipping `collapsed` there would be a no-op; the composable
+// routes the same toggle to the drawer's own toggle() when isNarrow is true) now live in
+// the shared useSidebarCollapse composable (Plan C Task 2 extraction, behavior-preserving —
+// see that file's header comment for the module-singleton rationale). Photos.vue is its
+// first consumer; the five re-shelled album/for-you views (Task 2) share the same instance.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
