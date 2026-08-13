@@ -1,22 +1,30 @@
 /* 全局滚动条：底板透明、滑块半透明白，贴合深色玻璃 UI（复用于搜索、文件预览、Welcome 等一切滚动区）。
    不再使用浏览器默认的黑底滚动条。仅 WebKit + Firefox(scrollbar-*) 两套即可覆盖目标浏览器。 */
+/* ⚠️ 滑块颜色必须写 var(--scrollbar-thumb) 而非字面量:这条 `*` 规则把值显式钉在每一个元素上,
+   元素自身声明压过从 :root 继承的翻转值 —— 写死字面量会让白色主题下所有内部滚动容器仍是
+   白滑块贴白底(不可见);且 Chrome 121+ 元素一旦设了 scrollbar-color 就整体忽略
+   ::-webkit-scrollbar-* 伪元素样式,webkit 那套主题覆盖也救不了。
+   守卫:src/styles/scrollbarTheme.test.ts。 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--scrollbar-thumb);
   border-radius: 8px;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
-*::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); background-clip: padding-box; }
 *::-webkit-scrollbar-corner { background: transparent; }
 
 :root {
   color-scheme: dark;
+  /* 全局滚动条滑块(顶部 `*` 规则引用;白色主题块必须同步给值,见 THEMING.md §2.11) */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.28);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.4);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --num-font: system-ui, -apple-system, "Segoe UI", sans-serif;
   --stroke: 1.9;
@@ -325,6 +333,9 @@
 /* ═══ 白色 / 米白纸感主题:覆盖全部颜色 token(结构 token 沿用 :root)。权威取值见 docs/THEMING.md §2 ═══ */
 :root[data-theme="light"] {
   color-scheme: light;
+  /* 滚动条滑块贴浅底改深色(见 THEMING.md §2.11) */
+  --scrollbar-thumb: rgba(28, 27, 25, 0.22);
+  --scrollbar-thumb-hover: rgba(28, 27, 25, 0.4);
 
   /* 2.1 基础色 */
   --bg: #f7f5ef;
@@ -556,12 +567,10 @@
   --tm-rail-sub: rgba(28, 27, 25, 0.16);
 }
 
-/* 白色主题:滚动条滑块贴浅底改深色;关闭散景光斑与暗角(纸感不要 bokeh)。见 THEMING.md §2.11 */
-:root[data-theme="light"] { scrollbar-color: rgba(28, 27, 25, 0.22) transparent; }
-:root[data-theme="light"] *::-webkit-scrollbar-thumb {
-  background: rgba(28, 27, 25, 0.22); border: 2px solid transparent; background-clip: padding-box;
-}
-:root[data-theme="light"] *::-webkit-scrollbar-thumb:hover { background: rgba(28, 27, 25, 0.4); background-clip: padding-box; }
+/* 白色主题:滚动条滑块颜色已由 --scrollbar-thumb token 在主题块内翻转(见文件顶部 `*` 规则
+   与 THEMING.md §2.11)。这里只需关闭散景光斑与暗角(纸感不要 bokeh)。
+   ⚠️ 别把 scrollbar-color 覆盖写回这里:只写在 :root 上压不过顶部 `*` 规则的逐元素显式声明,
+   内部滚动容器会回到"白滑块贴白底"(2026-08-13 修过的 bug)。 */
 :root[data-theme="light"] body::before,
 :root[data-theme="light"] body::after { background: none; }
 

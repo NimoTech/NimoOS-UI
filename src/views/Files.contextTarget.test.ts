@@ -6,6 +6,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../i18n/zh_cn'
 import Files from './Files.vue'
 import FileContextMenu from '../files/components/FileContextMenu.vue'
+import SelectionToolbar from '../files/components/SelectionToolbar.vue'
 import { useFilesStore } from '../files/stores/files'
 import { useFoldersStore } from '../home/stores/folders'
 import { useClipboardStore } from '../files/stores/clipboard'
@@ -124,16 +125,15 @@ describe('Files.vue context-menu target (F11)', () => {
     expect(w.findComponent(FileContextMenu).props('selectedCount')).toBe(1)
   })
 
-  // The tests above set `ctxEntry` directly, which constructs a state the UI can never
-  // reach on its own: `onItemContextmenu` (Files.vue) always narrows the selection to the
-  // clicked entry *before* it records it, so `ctxEntry` is never observed while the
-  // selection still holds other entries. This test goes through the real path instead —
-  // a native `contextmenu` DOM event on a rendered row — to document what a user actually
-  // gets: right-clicking an unselected entry collapses the selection to it first, so the
-  // old "batch acts on the previous selection" bug (pending-ledger F11) was never reachable
-  // through the UI. `contextTargets`/`ctxTargets` are still correct defence-in-depth (single
-  // source of truth, no duplicated `delete` logic), just not a fix for an observable defect.
-  it('Real contextmenu on an unselected row collapses selection to it, and a subsequent copy acts on it alone', async () => {
+  // 2026-08-13 contract change (owner request): right-click must NOT touch the selection.
+  // It used to collapse the selection to the clicked entry (files.selectOnly), which had
+  // two user-visible side effects: the row lit up as "selected" and, worse, the top
+  // SelectionToolbar popped in for a plain right-click. Now the context menu is driven
+  // entirely by ctxEntry + contextTargets: an unselected right-clicked entry is targeted
+  // alone WITHOUT entering the selection, and an existing selection elsewhere is left
+  // intact. contextTargets is therefore no longer defence-in-depth — it is the actual
+  // mechanism that keeps menu shape and action targets consistent.
+  it('Real contextmenu on an unselected row leaves selection untouched; copy still acts on it alone', async () => {
     const w = await mountFiles()
     const files = useFilesStore()
     files.setView('list') // deterministic DOM shape regardless of the localStorage-persisted default
@@ -145,9 +145,9 @@ describe('Files.vue context-menu target (F11)', () => {
     rowA.element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
     await w.vm.$nextTick()
 
-    // Selection contract: right-clicking unselected A drops B, C and selects only A.
-    expect(files.isSelected('/DATA/a.txt')).toBe(true)
-    expect(files.selected.size).toBe(1)
+    // Selection contract: right-clicking unselected A changes nothing — B, C stay selected, A stays out.
+    expect(files.isSelected('/DATA/a.txt')).toBe(false)
+    expect(files.selected.size).toBe(2)
 
     const ctxEntry = (w.vm as any).ctxEntry
     expect(ctxEntry?.path).toBe('/DATA/a.txt')
@@ -155,5 +155,21 @@ describe('Files.vue context-menu target (F11)', () => {
 
     const clip = useClipboardStore()
     expect(clip.operateObject).toEqual({ type: 'copy', item: [{ from: '/DATA/a.txt', is_dir: false }] })
+  })
+
+  it('Right-click with no prior selection does not summon the SelectionToolbar', async () => {
+    const w = await mountFiles()
+    const files = useFilesStore()
+    files.setView('list')
+    await w.vm.$nextTick()
+    expect(files.selected.size).toBe(0)
+
+    const rowA = w.find('[data-path="/DATA/a.txt"]')
+    expect(rowA.exists()).toBe(true)
+    rowA.element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+    await w.vm.$nextTick()
+
+    expect(files.selected.size).toBe(0)
+    expect(w.findComponent(SelectionToolbar).exists()).toBe(false)
   })
 })

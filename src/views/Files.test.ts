@@ -265,7 +265,10 @@ describe('Files.vue browse pipe', () => {
     expect(service.batch.task).toHaveBeenCalledWith(expect.objectContaining({ style: 'rename', to: '/DATA' }))
   })
 
-  it('右键未选中的行会选中它(为右键菜单定目标);冒泡到容器不应清空该选中', async () => {
+  // 2026-08-13 契约变更(机主要求):右键不再把行收进选区(旧行为 selectOnly 会点亮行
+  // 选中态并拉出顶部 SelectionToolbar)。菜单目标改由 ctxEntry + contextTargets 决定,
+  // 这里守的是:右键设好 ctxEntry 后,同一事件冒泡到容器的空白区 handler 不得把它清掉。
+  it('右键行只设 ctxEntry 不碰选区;冒泡到容器不应清掉 ctxEntry', async () => {
     const folders = useFoldersStore()
     folders.loadDisks = vi.fn(async () => { folders.disks = [{ name: 'NimoOS-HD', path: '/DATA', usb: false }] as any })
     const router = makeRouter()
@@ -276,9 +279,10 @@ describe('Files.vue browse pipe', () => {
     const files = useFilesStore()
     const row = w.findAll('.file-row')[0]
     // native contextmenu bubbles from the row (data-path target) up through files-listwrap;
-    // the container's blank-area handler must not clobber the row-set selection.
+    // the container's blank-area handler must not clobber the row-set ctxEntry.
     await row.trigger('contextmenu')
-    expect(files.selectedCount).toBe(1)
+    expect(files.selectedCount).toBe(0)
+    expect((w.vm as any).ctxEntry?.path).toBeTruthy()
   })
 })
 
