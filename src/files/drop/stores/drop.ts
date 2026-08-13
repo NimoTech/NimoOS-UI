@@ -26,6 +26,10 @@ export const useDropStore = defineStore('drop', () => {
   let server: ServerConnection | null = null
   let manager: PeersManager | null = null
   let receivingCount: Record<string, number> = {} // 对端 text 报的「将收 N 个」
+  // Devices the user aimed a send at. Gates the "cannot connect" message: a
+  // dial the page made on its own is not something to interrupt the user
+  // about (see onPeerUnreachable).
+  let attempted = new Set<string>()
   const t = (key: string, arg?: Record<string, unknown>) =>
     arg ? i18n.global.t(key, arg) : i18n.global.t(key)
 
@@ -101,13 +105,20 @@ export const useDropStore = defineStore('drop', () => {
       onFileReceived: (e) => { receiveQueue.value.push(e) },
       onTextReceived: (e) => { receivingCount[e.sender] = Number(e.text) || 1 },
       onTransferComplete: () => useToast().show(t('filesDropDone'), 3000),
-      onPeerConnected: (peerId) => { unreachable.value.delete(peerId) },
+      onPeerConnected: (peerId) => { unreachable.value.delete(peerId); attempted.delete(peerId) },
       // Signaling worked but the two devices could not open a direct
       // connection (blocked UDP between them, no TURN relay configured).
       // Latched per peer so a device we cannot reach does not repeat itself
       // on every reconnect.
+      //
+      // Only for a device the user actually aimed at. Opening the page dials
+      // EVERY device the server lists, and that list can hold a session whose
+      // page is long gone -- a phone swiped away without closing its socket
+      // stays listed until the server's 90s heartbeat sweep. Toasting those
+      // background failures told both devices "cannot connect" while files
+      // were transferring perfectly well between them (2026-08-13 acceptance).
       onPeerUnreachable: (peerId) => {
-        if (unreachable.value.has(peerId)) return
+        if (!attempted.has(peerId) || unreachable.value.has(peerId)) return
         unreachable.value.add(peerId)
         useToast().show(t('filesDropUnreachable'), 4000)
       },
@@ -130,11 +141,12 @@ export const useDropStore = defineStore('drop', () => {
     manager?.destroy(); manager = null
     server?.destroy(); server = null
     peers.value = []; transfers.value = {}; receiveQueue.value = []; unreachable.value = new Set()
-    receivingCount = {}; connected.value = false; selfId.value = ''; selfName.value = null
+    receivingCount = {}; attempted = new Set(); connected.value = false; selfId.value = ''; selfName.value = null
   }
 
   function sendFiles(peerId: string, files: File[]) {
     if (!files.length || !manager) return
+    attempted.add(peerId)
     const result = manager.sendFiles(peerId, files, selfId.value)
     if (result === 'ok') return
     // 'not-ready' means a dial is now in flight -- tell the user to retry
