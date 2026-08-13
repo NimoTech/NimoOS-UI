@@ -60,6 +60,7 @@ import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
+import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
 
 const lb = useLightbox()
 
@@ -503,6 +504,41 @@ describe('Photos.vue 折叠按钮接线(Task 4)', () => {
     expect(app.attributes('data-collapsed')).toBe(before === 'true' ? 'false' : 'true')
     await w.get('.topbar .icon-btn').trigger('click')
     expect(app.attributes('data-collapsed')).toBe(before)
+  })
+})
+
+// final-review fix (item 6): on a ≤768px narrow viewport, PhotosSidebar switches into its
+// fixed 'is-drawer' mode (position:fixed, out of the `.app` grid flow) via the module-
+// singleton useSidebarDrawer() it shares with this file. Task 3's shell rewrite dropped
+// the old AreaShell hamburger that used to open/close that drawer and left the topbar's
+// panelLeft button wired only to `collapsed` (Task 4) — a flag the drawer's own isNarrow/
+// open state never reads, so on mobile there was no way to open the sidebar at all. Fix:
+// route the same button to the drawer's toggle() when isNarrow is true.
+describe('Photos.vue 折叠按钮接线 —— 窄屏走抽屉(final-review 修复项 6)', () => {
+  afterEach(() => { __resetSidebarDrawerForTest() })
+
+  it('窄屏(isNarrow=true):点击顶栏按钮打开抽屉,不动 .app[data-collapsed]', async () => {
+    const drawer = useSidebarDrawer()
+    drawer.isNarrow.value = true
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    expect(drawer.open.value).toBe(false)
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(drawer.open.value).toBe(true)
+    expect(w.get('aside.sidebar').classes()).toContain('is-open')
+    expect(app.attributes('data-collapsed')).toBe(before)
+  })
+
+  it('桌面态(isNarrow=false):点击顶栏按钮仍走 collapsed 翻转,不碰抽屉', async () => {
+    const drawer = useSidebarDrawer()
+    drawer.isNarrow.value = false
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before === 'true' ? 'false' : 'true')
+    expect(drawer.open.value).toBe(false)
   })
 })
 

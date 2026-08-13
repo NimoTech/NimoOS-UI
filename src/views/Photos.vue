@@ -59,6 +59,7 @@ import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/Phot
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
+import { useSidebarDrawer } from '../composables/useSidebarDrawer'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
@@ -101,7 +102,20 @@ const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
 watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
 // Task 4: the topbar's collapse-toggle button (Vue2 PhotosTopbar's own `☰`, wired at
 // PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) — same flip, now reachable.
-function onToggleCollapse() { collapsed.value = !collapsed.value }
+//
+// final-review fix (item 6): on a ≤768px viewport PhotosSidebar renders as its own fixed
+// drawer instead of the desktop two-column grid track (useSidebarDrawer — a module
+// singleton PhotosSidebar.vue already consumes for its is-narrow/is-drawer/is-open
+// classes). Flipping `collapsed` there is a no-op: that flag only ever drives the
+// `.app[data-collapsed]` desktop column-width rule, which the drawer isn't part of — so
+// the topbar's panelLeft button had no way to open the sidebar on mobile at all (Task 3's
+// shell rewrite dropped the old AreaShell hamburger that used to do that job). Route the
+// same click to the drawer's own toggle() when isNarrow is true instead.
+const { isNarrow: sidebarIsNarrow, toggle: toggleSidebarDrawer } = useSidebarDrawer()
+function onToggleCollapse() {
+  if (sidebarIsNarrow.value) { toggleSidebarDrawer(); return }
+  collapsed.value = !collapsed.value
+}
 
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
@@ -157,7 +171,10 @@ const filteredCount = computed(() =>
 
 // T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,
 // New-UI 没有"库视图/其余视图"这个多态壳,时间线页本身就只有这一种形态,故无 v-if
-// 条件)。提交→跳转 /photos/search,空串→仍然跳转但不带 q(落到搜索页的预搜索态)。
+// 条件)。提交→跳转 /photos/search。空串早已在 PhotosTopbar.submitSearch 里被挡下
+// （trim 后为空直接 return,不 emit search-submit——ledger 六-2,owner 裁决),这个
+// handler 根本收不到空串;下面的 `q ? { q } : {}` 只是防御性写法(万一将来有别的调用
+// 方式传空串进来也不会拼出 `?q=` 这个空查询参数),不代表"空提交仍会跳转"。
 function onSearchSubmit(q: string) {
   router.push({ path: '/photos/search', query: q ? { q } : {} })
 }

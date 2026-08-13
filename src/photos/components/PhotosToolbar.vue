@@ -13,9 +13,11 @@
 //    完全不带 <style> 块,样式全部交给 parity scss(前提:宿主渲染在 .photos-root 之下,
 //    时间线页 Photos.vue:272 与跳库页 PhotosPlaceAssets.vue:173 都满足)。
 // 2) P1 当年因为"没有共享图标库"砍掉了 tab/density 的 icon(见上面那条旧注释),这次连带
-//    补上——本仓 Photos 区的既定做法是每个组件按需内联 <svg>(先例:PhotosFilterChip.vue/
-//    PhotosFilterBar.vue 的漏斗与胶囊图标),故不新建共享 PhotosIcon.vue,glyph 逐字符抄自
-//    Vue2 NimoOS-UI src/views/Photos/PhotosIcon.vue 对应 name 分支(album/ocr/video 用于
+//    补上——本组件按 PhotosFilterChip.vue/PhotosFilterBar.vue 的先例内联 <svg>,不经由
+//    共享的 PhotosIcon.vue 组件(注:T3 已经建了 PhotosIcon.vue,T4/T6/T7 都在消费它——
+//    "本仓不存在共享图标库"这个前提到写这段时已经不成立了;这里是本组件自己按已有先例
+//    选择继续内联,不是因为没有共享组件可用),glyph 逐字符抄自 Vue2 NimoOS-UI
+//    src/views/Photos/PhotosIcon.vue 对应 name 分支(album/ocr/video 用于
 //    tab,compact/comfort/loose 用于密度三档),尺寸/描边照 Vue2 <photos-icon> 调用点
 //    (tab 12px、density 14px,stroke-width 默认 1.6,fill none,颜色随 currentColor 走
 //    .tab/.density button 各自的文字色,与 Vue2 `color` prop 默认值 'currentColor' 一致)。

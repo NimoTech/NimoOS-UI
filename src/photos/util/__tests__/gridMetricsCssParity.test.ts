@@ -9,7 +9,7 @@
 // (the rule agrees).
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { GRID_COLUMNS, GRID_GAP } from '../gridMetrics'
+import { GRID_COLUMNS, GRID_GAP, CONTENT_INSET } from '../gridMetrics'
 
 const SRC = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
 
@@ -47,5 +47,20 @@ describe('gridMetrics matches the Vue2-parity stylesheet', () => {
   it('tileEdge doubling as a row height requires .tile to stay square', () => {
     expect(ruleLine('.photos-root .tile {')).toBeTruthy()
     expect(SRC).toMatch(/\.photos-root \.tile \{[^}]*aspect-ratio:\s*1\s*\/\s*1/)
+  })
+
+  // final-review fix (item 5): this test used to anchor CONTENT_INSET to nothing — the
+  // comment at gridMetrics.ts:19-27 explains that the 40 comes from `.grid`'s own
+  // left+right padding (20px each side), but no assertion here actually checked the CSS
+  // still agrees. Without this, someone could edit the parity scss's `.grid` padding (or
+  // CONTENT_INSET) alone and every unloaded-month placeholder height (tileEdge/
+  // estimateSectionBodyHeight) would silently drift from the real rendered layout — no
+  // test would fail to say so.
+  it('CONTENT_INSET matches 2x the horizontal padding of .photos-root .grid', () => {
+    const line = ruleLine('.photos-root .grid {')
+    const m = /padding:\s*(\d+)(?:px)?\s+(\d+)px\s+(\d+)px/.exec(line)
+    expect(m, `padding shorthand (top right/left bottom) not found in: ${line}`).toBeTruthy()
+    const horizontalPadding = Number((m as RegExpExecArray)[2])
+    expect(horizontalPadding * 2).toBe(CONTENT_INSET)
   })
 })

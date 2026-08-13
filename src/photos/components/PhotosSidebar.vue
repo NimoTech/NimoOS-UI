@@ -23,15 +23,14 @@
 // opinion on it (it only defines the two-column desktop grid), so the
 // drawer's positioning rules stay in this component's own scoped style block.
 //
-// IMPORTANT: this component is still mounted by ~12 other not-yet-reskinned
-// photos-area pages (PhotosAlbums/People/Places/Favorites/Trash/Settings/...,
-// Plan H's job). None of those pages wrap themselves in `.photos-root` yet,
-// so the parity scss above does not reach them there — until each of those
-// pages adds that wrapper in its own re-skin task, their sidebar renders
-// without the parity styling (this component's own scoped style used to
-// carry a self-contained look; that has been removed per this task's "shrink
-// drastically" mandate). This is a known, temporary, task-sequenced
-// side effect, not an oversight — see task-3-report.md "concerns".
+// IMPORTANT (updated post-a822ef1d): all 13 photos-area pages are now rooted under
+// `.photos-root` (fix commit a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos
+// view under photos-root so the shared sidebar keeps its layout") — the parity scss above
+// reaches every one of them, not just this one. The 12 pages that haven't had their own
+// `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
+// pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/
+// --success shadowed to Vue2's values) described in task-3-report.md's token-collision
+// table — a known, registered hybrid transitional look, not a missing-styling gap anymore.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
