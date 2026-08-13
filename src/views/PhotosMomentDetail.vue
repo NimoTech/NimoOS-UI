@@ -608,7 +608,7 @@ async function doDelete(): Promise<void> {
         <template v-else-if="moment">
           <!-- Vue 2 :3-9, commented there as "same as sv-detail-bar". -->
           <div class="sv-detail-bar">
-            <button type="button" class="sv-back-btn" data-test="mo-back" @click="backToAll">
+            <button type="button" class="back" data-test="mo-back" @click="backToAll">
               <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7" /></svg>
               {{ t('photosMoBackToAll') }}
             </button>
@@ -892,10 +892,14 @@ async function doDelete(): Promise<void> {
 .mo-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
 .mo-not-found-back:hover { background: var(--chip-bg-hi); }
 
-/* ── Top bar (scss:298-311) ── */
-.sv-detail-bar { padding: 16px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--divider); }
-.sv-back-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px 6px 8px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted); font: inherit; font-size: 12px; cursor: pointer; }
-.sv-back-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+/* ── Top bar (scss:298-313, globally imported) ──
+   Task 6: `.sv-detail-bar` deleted -- parity's own `.photos-root .sv-detail-bar` already
+   matches (token names differ only). The back button's class is renamed from the invented
+   `.sv-back-btn` to Vue2's actual `.back` (verified against NimoOS-UI's real source,
+   PhotosMomentDetail.vue:4 `<button class="back" ...>`) -- same naming-drift correction
+   T5 already made for the sibling SmartViewDetail page's own back button: the old name never
+   matched parity's nested `.sv-detail-bar .back`(+:hover) selector at all, so this is the
+   first time that rule actually reaches this button. Local rule deleted accordingly. */
 .sv-last-updated { font-size: 12px; color: var(--fg-muted); }
 
 /* ── Two-column skeleton (scss:313-345) ── The scrollbar repaint at scss:346-365 is deliberately
@@ -907,34 +911,51 @@ async function doDelete(): Promise<void> {
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
-/* ── Header (scss:210-253 via PhotosSmartViewDetail) ── */
-.sv-header { padding: 24px 32px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
-.sv-header h1 { font-family: var(--font-display, var(--font)); font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; color: var(--fg); }
-.sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
+/* ── Header (scss:260-267,364-372,414-416,452-459, globally imported) ──
+   Task 6: `.sv-header` deleted outright -- identical to parity's own `.photos-root .sv-header`.
+   `.sv-header h1` trimmed to just `color: var(--fg)` -- parity's own rule already sets
+   font-family/font-size/font-weight/letter-spacing/margin (and, unlike the previous comment
+   here claimed, `--font-display` genuinely resolves: it's defined on photos.scss's own
+   `.photos-root` token block, just not in this app's theme.css, which is as far as the old
+   comment checked); parity sets no colour at all, so the explicit `--fg` survives as a
+   defensive addition, same call as PhotosSmartViews.vue's `.mo-hero h1`. */
+.sv-header h1 { color: var(--fg); }
+/* `.sv-header-conds` trimmed to just `min-height: 4px` -- the rest duplicated parity's own
+   rule exactly; the min-height is a New-UI addition with no parity equivalent, preventing the
+   row from collapsing when there are no condition pills to show (same fix T5 already made on
+   the sibling SmartViewDetail page's identical copy of this rule). */
+.sv-header-conds { min-height: 4px; }
+/* `.sv-cond` kept unchanged (not deleted): it consolidates parity's own base `.sv-cond` rule
+   plus its `.sv-header-conds .sv-cond` contextual size-bump override into one rule -- same
+   "consolidation, not a raw duplicate" precedent T4/T5 already established for this exact
+   selector on the sibling pages. */
 .sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); font-size: 11.5px; }
-/* Amber type pill (scss:271-278). Vue 2 wrote an amber literal for both the tint and the text;
+/* Amber type pill (scss:264-268). Vue 2 wrote an amber literal for both the tint and the text;
    this repo forbids bare colour literals, so it reuses the existing --warn-bg / --warn-fg pair
    (theme.css has values for both in both themes) — same substitution MomentCard.vue made in T4.
    The compound selector keeps it ahead of the plain .sv-cond above without !important. */
 .sv-cond.mo-type-pill { background: var(--warn-bg); color: var(--warn-fg); font-weight: 600; }
-.sv-header-stats { display: flex; gap: 20px; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-.sv-header-stats b { color: var(--fg); font-weight: 600; }
-/* Vue 2 :24 wrote an inline green literal here; --success is this repo's token for it, same
-   substitution as MomentCard.vue:209. */
+/* `.sv-header-stats`(+b) deleted -- both duplicated parity's own rule bodies exactly (token
+   names differ only). */
+/* Vue 2 :22 wrote an inline green literal here; --success is this repo's token for it, same
+   substitution as MomentCard.vue:209. No parity CSS class exists for this element at all
+   (Vue2 styles it via the same inline style), so this survives unchanged. */
 .mo-week-badge { color: var(--success); }
 
-/* ── Action bar (scss:386-404 via PhotosSmartViewDetail.vue's own restatement, same
-   token substitutions it already made). Task 8 added the Select toggle; Task 10 adds
-   Save as Album, the more-menu icon button and its dropdown — see the deviation notes
-   at the template. ── */
-.sv-actions { display: flex; gap: 8px; align-items: center; }
-.sv-action-btn {
-  height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg-muted); font: inherit; font-size: 12.5px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
-}
-.sv-action-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
+/* ── Action bar (scss:478-496, globally imported). Task 8 added the Select toggle; Task 10
+   added Save as Album, the more-menu icon button and its dropdown — see the deviation notes
+   at the template.
+   Task 6: `.sv-actions` and `.sv-action-btn`(base+:hover+[data-open]) deleted -- all duplicated
+   parity's own rule bodies exactly (token names differ only; parity's global button reset,
+   `.photos-root button { ...font: inherit; cursor: pointer; }` in photos.scss, already covers
+   the two properties the local base rule was restating on top of that). `:disabled` survives
+   unchanged (New-UI addition, no parity equivalent). ── */
 .sv-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.sv-action-btn[data-open="true"] { box-shadow: 0 0 0 2px var(--accent-soft); }
+/* `.sv-action-btn-icon`'s 32px verified against NimoOS-UI's real source for *this* page
+   (PhotosMomentDetail.vue:36, inline `min-width:32px`) -- unlike the sibling SmartViewDetail
+   page, whose own real Vue2 inline value is 36px (T5's fix), this page's own value really is
+   32px, so no correction is needed here. No parity CSS class exists for it either way (Vue2
+   styles this button via inline style, not a class) -- kept, survivor. */
 .sv-action-btn-icon { padding: 0 10px; min-width: 32px; justify-content: center; }
 /* Save as Album is Vue 2's one primary action in this bar (:20 `data-primary="true"`,
    scss:553-557 `linear-gradient(135deg, var(--accent), var(--accent-hi))` + on-accent text).
@@ -944,31 +965,33 @@ async function doDelete(): Promise<void> {
    The hover rule is written as a compound selector on purpose: `.sv-action-btn-primary:hover`
    alone scores (0,2,0), a tie with the base `.sv-action-btn:hover`, and would then survive
    only by source order — the accent fill would be replaced by the neutral hover background
-   while the text stayed --on-accent. The compound form scores (0,3,0) and wins structurally. */
+   while the text stayed --on-accent. The compound form scores (0,3,0) and wins structurally.
+   Task 6 audit note: parity itself now also reaches this button directly, via the plain
+   attribute selector `.photos-root .sv-action-btn[data-primary="true"]`
+   (photos-smartview.scss:489-493, a gradient fill) -- but this companion class is test-locked
+   (PhotosMomentDetail.test.ts:861-877 asserts both the class's presence and this exact rule's
+   raw source text), and deleting it in favour of the bare attribute selector would be exactly
+   the kind of scope creep T5 already declined for the sibling page's own dialog classes.
+   Left unchanged. */
 .sv-action-btn-primary { background: var(--accent); color: var(--on-accent); border-color: transparent; }
 .sv-action-btn.sv-action-btn-primary:hover { background: var(--accent); filter: brightness(1.08); color: var(--on-accent); }
 
-/* ── More menu (scss:407-452 via PhotosSmartViewDetail.vue's own restatement — identical rule
-   bodies, same class names, same reason as the two photo grids below: scoped styles do not
-   cross component boundaries in this repo). ── */
-.sv-export-menu {
-  position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
-  box-shadow: var(--card-shadow-hi); z-index: 50; display: flex; flex-direction: column; gap: 1px;
-}
-.sv-more-menu { min-width: 220px; }
-.sv-export-item {
-  display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px; background: transparent; border: 0;
-  border-radius: 8px; color: var(--fg); text-align: left; cursor: pointer; font: inherit; width: 100%;
-}
-.sv-export-item:hover { background: var(--chip-bg-hi); }
-.sv-export-icon {
-  width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); color: var(--accent-text);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
-}
-.sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
-.sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
-/* Vue 2 :34/:35 wrote a coral literal for the delete item's icon/title/description — this repo
+/* ── More menu (scss:499-547, globally imported).
+   Task 6: `.sv-export-menu`, `.sv-export-item`(+:hover), `.sv-export-icon`, `.sv-export-title`,
+   `.sv-export-desc` all deleted -- each duplicated parity's own rule body exactly (token names
+   differ only; `.sv-export-item`'s local `width: 100%` was also redundant, same finding T5
+   already made for the sibling page's identical copy: `.sv-export-menu`'s flex-column parent
+   stretches its children by default, so the explicit width did nothing). ──
+   `.sv-more-menu`'s min-width corrected from 220px to **210px**: verified against NimoOS-UI's
+   real source for *this specific page* (PhotosMomentDetail.vue:40, inline
+   `style="min-width:210px"`) -- 220px was this page's own value for the sibling
+   SmartViewDetail page's dropdown, copied here by mistake (the two pages restate the same
+   menu markup/class names but each carries its own distinct Vue2 inline-style value; T5's
+   report already flagged the sibling page's `.sv-action-btn-icon` 32-vs-36 drift as the same
+   category of copy-paste mismatch between these restated pages). No parity CSS class exists
+   for this size either way (Vue2 sets it via inline style) -- kept as a survivor, value fixed. */
+.sv-more-menu { min-width: 210px; }
+/* Vue 2 :41/:42 wrote a coral literal for the delete item's icon/title/description — this repo
    forbids bare colour literals, so it reuses --remove-fg, same substitution
    PhotosSmartViewDetail.vue already made for its own delete item. */
 .sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
@@ -979,7 +1002,18 @@ async function doDelete(): Promise<void> {
 
 /* ── Delete confirmation (scss has no independent block for it; PhotosSmartViewDetail.vue's own
    sv-confirm-* rules, restated verbatim — task instruction: reuse the existing dialog idiom,
-   do not invent a second one). ── */
+   do not invent a second one).
+   Task 6 audit note (left untouched, out of scope): verified against NimoOS-UI's real source
+   that *this specific page's* Vue2 delete dialog actually spells its classes
+   `.lb-confirm-scrim`/`.lb-confirm`/`.lb-confirm-icon`/`.lb-confirm-title`/`.lb-confirm-body`/
+   `.lb-confirm-foot`/`.trash-btn-ghost`/`.trash-btn-cta`(+`.trash-btn-cta-danger`) --
+   PhotosMomentDetail.vue:128-140, not `.sv-confirm-*` at all. This is the exact same
+   cross-page dialog-idiom fork Task 3 flagged and T5 already deferred for the sibling
+   SmartViewDetail page's own copy of this same pattern: Task 8 ("四毛玻璃弹层类名激活确认")
+   is this plan's dedicated cross-page consistency pass for all four glass dialogs, and this
+   file's own `.sv-confirm-*` selectors are raw-source test-locked, so migrating the class
+   names here would be scope creep with avoidable test churn. Recorded so Task 8 has the
+   verified Vue2 mapping already in hand. ── */
 .sv-confirm-scrim {
   position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
   display: flex; align-items: center; justify-content: center; padding: 40px 20px;
@@ -1016,91 +1050,97 @@ async function doDelete(): Promise<void> {
 .sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
-/* ── Two photo grids (scss:480-513 via PhotosSmartViewDetail.vue's own restatement of the
-   same source — identical rule bodies, same class names, same reason: scoped styles do
-   not cross component boundaries in this repo). ── */
-.sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
-.sv-section-head .pill { padding: 1px 8px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
-.sv-grid-photos { padding: 0 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
-/* Vue2 :52 inline `style="padding-bottom:18px"` — only on the Featured grid, giving it
-   breathing room above the "All photos" heading below it. */
+/* ── Two photo grids (scss:572-596,609-650, globally imported).
+   Task 6: `.sv-section-head`(+.pill) and the base `.sv-grid-photos` deleted -- each duplicated
+   parity's own rule body exactly. `.mo-grid-featured` survives unchanged (Vue2 :56 inline
+   `style="padding-bottom:18px"` on the Featured grid only, no parity class). ── */
 .mo-grid-featured { padding-bottom: 18px; }
-.sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
-.sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* `.sv-grid-photos .tile`(+img) deleted -- two real bugs, same category T4/T5 already found on
+   the sibling pages' identical copies: (1) this local `border-radius: 4px` silently overrode
+   the global base `.tile` rule's real `border-radius: 3px` (photos.scss:334-337; parity's own
+   narrow `.sv-grid-photos .tile` override is just `aspect-ratio: 1`, smartview.scss:609) --
+   these tiles have been 1px off. (2) this local `.tile img` was a more-specific duplicate of
+   the global `.tile img`/`.tile:hover img` (photos.scss:340-341, `scale(1.04)` on hover) that
+   always won regardless of source order, so these tiles have never zoomed on hover, unlike
+   every other tile grid in the app. Deleting both restores the correct radius and the
+   hover-zoom for the first time. */
 
-/* SP15-P2a task 4: carried-in defect fix. The template already sets `:data-selected` on both
-   grids' tiles, but scoped styles do not cross component boundaries in this repo (see the block
-   comment above) — every existing `[data-selected]` rule lived in a different component's own
-   scoped style, so this page's selection mode drew the check badge with no highlight around it.
-   Same restatement PhotosSmartViewDetail.vue's own grids just received (Vue2 photos.scss:329-333,
-   the global `.photos-root .tile[data-selected]` rule this page can only reach via a local copy):
-   the wash is a mix of the accent token at 20 percent, standing in for Vue2's flat literal. */
+/* SP15-P2a task 4: carried-in defect fix, and still genuinely needed -- unlike the sibling
+   SmartViewDetail page's identical-looking copy of this rule (which T5 found the global
+   `.photos-root .tile[data-selected]` rule already reaches and deleted), *this* file's own
+   selection-highlight regression test
+   (`PhotosMomentDetail.selectionHighlight.test.ts`'s "carries its own [data-selected] rule
+   reachable..." case) reads this file's own compiled `<style>` block with `fs.readFileSync`
+   and requires a matching selector to exist **here** -- so this rule is kept unchanged
+   (test-locked survivor), even though the same specificity argument would otherwise apply.
+   The template already sets `:data-selected` on both grids' tiles; the wash is a mix of the
+   accent token at 20 percent, standing in for Vue2's flat literal. */
 .sv-grid-photos .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
 .sv-grid-photos .tile[data-selected="true"]::before {
   content: ""; position: absolute; inset: 0; z-index: 2;
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-/* Pin badge (scss:682-692): manual members, Featured only. Background is --overlay-bg —
-   the same constant-dark-badge token PhotosTrash.vue's .trash-tile-countdown/
-   .trash-tile-select already use for "fixed dark badge over an unpredictable photo" —
-   instead of Vue2's literal half-opaque black. */
+/* Pin badge (scss:632-641): manual members, Featured only.
+   Task 6: trimmed to just the badge glyph's text colour below -- parity's own nested selector,
+   `.photos-root .sv-grid-photos .tile .sv-pin-tag` (4 classes), already out-specifies this
+   file's 1-class `.sv-pin-tag` regardless of source order, so the rest of the shape (position/
+   size/background/backdrop-filter/z-index) was pure dead-weight duplication; parity's own
+   half-opaque-black literal background now governs directly (same "parity's nested selector
+   already wins, duplicate deleted" verdict T5 already reached for this exact selector on the
+   sibling page). Text colour survives as the one property parity's rule doesn't set. */
 .sv-pin-tag {
-  position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--overlay-bg); backdrop-filter: blur(6px);
-  display: inline-flex; align-items: center; justify-content: center; z-index: 3;
   color: #fff; /* theme-exception: badge glyph sits on unpredictable photo content inside a
     fixed dark badge — same reasoning as PhotosTrash.vue's .trash-tile-countdown/.trash-tile-select. */
 }
-/* Selection check (scss:693-701): left side, so it never collides with the pin badge above
-   on the right — Vue2's own placement rule (see the code comment above the template). */
+/* Selection check (scss:642-650): same "parity's nested selector already wins" story as the
+   pin badge above -- trimmed to just the text colour. */
 .sv-tile-check {
-  position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; border-radius: 50%;
-  background: var(--accent); display: inline-flex; align-items: center; justify-content: center; z-index: 4;
   color: var(--on-accent); /* --on-accent's one legal use: icon sits on a solid --accent fill. */
 }
 .mo-all-loading, .mo-all-empty { padding: 8px 32px; color: var(--fg-muted); font-size: 12.5px; }
 
-/* ── Selection bar (scss:723-745): fixed pill, same idiom as PhotosSmartViewDetail.vue's
-   own .sv-toast (--popup-bg/--card-border/--card-shadow-hi/--blur). ── */
-.sv-select-bar {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
-  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 14px;
-  box-shadow: var(--card-shadow-hi); backdrop-filter: var(--blur);
-}
-.sv-select-bar span { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+/* ── Selection bar (scss:675-696, globally imported).
+   Task 6: deleted -- real bug, same category T4/T5 already found and fixed on the sibling
+   pages' identical copies of this exact bar: this local rule used `var(--blur)`, this repo's
+   oversized big-panel glass token (`blur(44px) saturate(1.7) brightness(1.08)`), where
+   parity's own `.photos-root .sv-select-bar` wants a much lighter `blur(12px) saturate(180%)`
+   (plus its own `--pop-bg`/`--line-strong` tokens, both defined in photos.scss's own
+   `.photos-root`/`.photos-root.is-light` blocks for both themes). Deleted; parity now governs
+   the bar directly. `.sv-select-bar span` deleted too -- duplicated parity's own rule body
+   exactly (token names differ only). ── */
 
-/* ── Sidebar sections (scss:748-756, :846-877) — rule bodies identical to
-   SmartViewSidePanel.vue's, which ported the same source. ── */
-.sv-side-section { margin-bottom: 24px; }
-.sv-side-section h3 {
-  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-faint); margin: 0 0 10px;
-}
+/* ── Sidebar sections (scss:713-720, globally imported) — rule bodies used to be identical to
+   SmartViewSidePanel.vue's own restatement of the same source.
+   Task 6: `.sv-side-section`(+h3) deleted -- both duplicated parity's own rule bodies exactly
+   (token names differ only). ── */
 
-/* About key/value rows (scss:281-289). The hairline is --divider. */
-.mo-about-row {
-  display: flex; justify-content: space-between; align-items: baseline; gap: 12px;
-  font-size: 12.5px; color: var(--fg-muted); padding: 7px 0;
-  border-bottom: 1px solid var(--divider);
-}
-.mo-about-row:last-child { border-bottom: 0; }
-.mo-about-row b { color: var(--fg); font-weight: 600; text-align: right; }
+/* About key/value rows (scss:279-287, globally imported).
+   Task 6: `.mo-about-row`(+:last-child+b) deleted -- all three duplicated parity's own rule
+   bodies exactly (token names differ only: `--divider`/`--fg-muted`/`--fg` here vs parity's
+   own `--line`/`--text-3`/`--text-1`). */
 
-.sv-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sv-stat-cell { background: var(--chip-bg); padding: 10px 12px; border-radius: 8px; }
-.sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--fg); }
-.sv-stat-cell .l { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+/* Task 6: `.sv-stat-grid`, `.sv-stat-cell` and `.sv-stat-cell .l` deleted -- all three
+   duplicated parity's own rule bodies exactly (token names differ only). `.sv-stat-cell .v`
+   trimmed to just its explicit `color: var(--fg)` -- parity's own rule sets no colour at all
+   here either (font-size/weight/tabular-nums duplicated and deleted), so the same "explicit
+   colour survives, don't gamble on inheritance" call as `.sv-header h1`/`.mo-hero h1` applies;
+   this also resolves the "is this survivor even necessary" question T4 flagged as an open
+   concern for its own file's identical copy of this exact selector. */
+.sv-stat-cell .v { color: var(--fg); }
 
-.sv-distribution { height: 56px; display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; }
+/* Task 6: `.sv-distribution`/`.sv-dist-x` deleted -- both duplicated parity's own rule bodies
+   exactly (token names differ only). `.sv-dist-bar` kept unchanged: Vue2's own gradient ends
+   on a hard-coded pale-violet literal (scss:833), so two steps of the accent family
+   stand in for it here, same substitution SmartViewSidePanel.vue:274 already made -- a genuine
+   token substitution, not a raw duplicate (also: Vue2 puts no class on this bar at all, it's a
+   bare `<div>` child of `.sv-distribution`; parity's own `.sv-distribution > div` selector
+   still reaches this element regardless of the extra `.sv-dist-bar` class New-UI adds as a
+   styling hook). */
 .sv-dist-bar {
   flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
-  /* Vue 2 scss:866-871 gradients from accent to a hard-coded pale violet; two steps of the
-     accent family stand in for it, as SmartViewSidePanel.vue:274 already does. */
   background: linear-gradient(to top, var(--accent), var(--accent-text));
 }
-.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
 
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
    as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
