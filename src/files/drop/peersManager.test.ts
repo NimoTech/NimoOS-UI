@@ -117,6 +117,59 @@ describe('PeersManager', () => {
     expect(made[0].handleDisconnect).not.toHaveBeenCalled()
     expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('ok')
   })
+  // #90 验收第 7/8 步的真根因(2026-08-13 双浏览器探针实测):对端关标签页后,本机的
+  // data channel 会在 Chrome 里继续报 'open' 几十秒甚至不再关闭 —— hasOpenChannel()
+  // 根本不是「对端还活着」的证据。对端用同一个 peerId 重开页面来拨号时,旧逻辑把这一发
+  // offer 当成重协商喂给那个僵尸 peer:僵尸的 busy/filesQueue 原样留着,此后每一次发送
+  // 都排在一个永远不会结束的传输后面,对端一个字节都收不到,而且不报错。
+  // 判据:信令层出现过「对端会话变更」(peer-left 或 peer-joined)之后再来的 offer,
+  // 一律当新页面处理 —— 关掉旧 peer(先如实报中断)、以被叫身份重建。
+  it('signal 收到 offer:对端信令会话重来过 → 即使 channel 还报 open 也重建,并报中断', () => {
+    const order: string[] = []
+    const ev: PeerEvents = {
+      onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+      onTransferComplete: vi.fn(), onTransferBroken: vi.fn(() => order.push('onTransferBroken')),
+    }
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const madeIds: (string | null)[] = []
+    const pm = new PeersManager({ send: vi.fn() }, ev, {
+      rtcSupported: true,
+      makePeer: (_s, id) => {
+        const p = makeFakePeer({ hasOpenChannel: () => made.length === 1 })
+        p.close = vi.fn(() => order.push('close'))
+        p.handleDisconnect = vi.fn((reason: TransferBrokenReason) => {
+          order.push('handleDisconnect')
+          ev.onTransferBroken({ peerId: 'a', reason })
+        })
+        made.push(p)
+        madeIds.push(id)
+        return p as never
+      },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    // 对端关掉标签页:信令层立刻知道,数据通道却还开着(所以不杀,手机锁屏要靠这条)
+    pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
+    expect(made[0].close).not.toHaveBeenCalled()
+    // 对端用同一个 peerId 重开页面,重新拨号
+    pm.handleServerMessage({ type: 'peer-joined', peer: peerInfo('a') })
+    const offer = { type: 'signal' as const, sender: 'a', sdp: { type: 'offer' as const, sdp: '' } }
+    pm.handleServerMessage(offer)
+
+    expect(made.length).toBe(2)
+    expect(madeIds[1]).toBe(null) // 被叫
+    expect(made[1].onServerMessage).toHaveBeenCalledWith(offer)
+    expect(made[0].onServerMessage).not.toHaveBeenCalled()
+    // 死掉的那笔传输要如实报中断,而且必须在 close() 之前报(close 会把状态清成 idle)
+    expect(order).toEqual(['handleDisconnect', 'onTransferBroken', 'close'])
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'a', reason: 'disconnected' })
+    // 解锁判据:重建之后再发文件走的是新 peer,不再排进僵尸的队列
+    made[1].hasOpenChannel = vi.fn(() => true)
+    const files = [new File(['x'], 'x.txt')]
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
+    expect(made[1].sendFiles).toHaveBeenCalledWith(files, 'self1')
+    expect(made[0].sendFiles).not.toHaveBeenCalled()
+  })
+
   it('signal:无 peer 先按被叫建(peerId=null),再转 onServerMessage', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
     const pm = new PeersManager({ send: vi.fn() }, events, { makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never } })
