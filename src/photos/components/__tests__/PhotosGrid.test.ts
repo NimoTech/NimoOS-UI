@@ -123,6 +123,21 @@ describe('PhotosGrid', () => {
     expect(w.find('.tile-check-box').exists()).toBe(false)
   })
 
+  // Fix round 1 (review finding): the pre-rewrite file had a dedicated assertion that
+  // `.tile-check-box`'s `:checked` reflects WHICH tile is in `selected` (not just that a
+  // checkbox exists). Vue2's `.tile-checkbox` div carries no `:checked` state of its own —
+  // selection is expressed on `.tile` via `:data-selected`, which drives the parity CSS's
+  // `.tile[data-selected="true"]` outline AND `.tile[data-selected="true"] .tile-checkbox`
+  // visibility (photos.scss:342-346,400-402). This restores the dropped coverage on the new
+  // hook rather than leaving "which tile is selected" untested.
+  it('.tile carries data-selected for exactly the ids in the selected prop, not the others', () => {
+    const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
+    const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: ['b'] } })
+    const tiles = w.findAll('.tile')
+    expect(tiles[0].attributes('data-selected')).toBe('false')
+    expect(tiles[1].attributes('data-selected')).toBe('true')
+  })
+
   // P6b-T9: `selectable` prop (偏离登记 14) —— 地点照片页(D10)不接多选,复用本组件时不该
   // 有复选框。默认值必须保持 true,否则 Photos.vue/PhotosFavorites.vue 这两个既有消费方
   // (都不传 selectable)会静默丢失复选框——这条是纯粹的默认值回归断言。
