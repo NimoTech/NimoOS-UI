@@ -1,19 +1,55 @@
 import { joinPath } from './pathOps'
 
-// Linux 限制:单个路径段 NAME_MAX = 255 字节;全路径 PATH_MAX = 4096 字节(含结尾 NUL,
-// 可用 4095)。按 UTF-8 字节数算(中文 3 字节/字)。后端对 ENAMETOOLONG 一路丢 error、
-// 只回字面 "Fail"(route/v1/file.go MkdirAll / service/system.go),tus 上传更是在异步
-// ingest 里静默失败 —— 前端前置校验是唯一能给出明确文案的地方(bug.txt #2)。
-const NAME_MAX = 255
-const PATH_MAX = 4095
-const bytes = (s: string) => new TextEncoder().encode(s).length
+// Backend-measured limits, not guessed from Linux headers. Probed on the real
+// device on 2026-08-13 against `POST /v1/folder` and the tus upload landing
+// path (`/v2/nimoos/file/upload-tus/`); pathLimits.test.ts pins the numbers so
+// "match the backend" stays a checkable claim:
+//   - one path segment: 255 bytes accepted, 256 rejected  (Linux NAME_MAX)
+//   - whole path:      4095 bytes accepted, 4096 rejected (PATH_MAX, incl. NUL)
+// Both boundaries are byte-counted, never character-counted: 85 CJK characters
+// are 255 bytes and pass, 86 are 258 bytes and fail.
+//
+// The frontend has to own this check because the two backend entry points
+// disagree about how they *report* the failure, and neither report is usable:
+//   - POST /v1/folder answers HTTP 500 with the bare literal "Fail" — no errno,
+//     no hint which of the two limits was hit (NimoOS route/v1/file.go MkdirAll).
+//   - the tus path answers 201 Created, then 204 No Content — both read as
+//     success — and drops the file during async ingest, so nothing lands on
+//     disk while the UI happily reports "upload complete".
+// That asymmetry is what makes create and upload *feel* like they enforce
+// different limits even though the byte boundary is identical (bug.txt #2).
+export const NAME_MAX_BYTES = 255
+export const PATH_MAX_BYTES = 4095
 
-export function nameTooLong(name: string): boolean { return bytes(name) > NAME_MAX }
-export function pathTooLong(path: string): boolean { return bytes(path) > PATH_MAX }
+export function byteLength(s: string): number {
+  return new TextEncoder().encode(s).length
+}
 
-/** 在 dir 下以 name 新建是否会超限。'name' = 名字本身超长;'path' = 拼接后全路径超长。 */
-export function createBlocked(dir: string, name: string): 'name' | 'path' | null {
-  if (nameTooLong(name)) return 'name'
-  if (pathTooLong(joinPath(dir, name))) return 'path'
+export function nameTooLong(name: string): boolean { return byteLength(name) > NAME_MAX_BYTES }
+export function pathTooLong(path: string): boolean { return byteLength(path) > PATH_MAX_BYTES }
+
+export type LimitViolation = 'name' | 'path'
+
+/**
+ * The single rule every write entry point shares — create, rename, upload.
+ *
+ * `rel` may be a bare name or a multi-segment relative path. Each segment is
+ * measured against NAME_MAX first, then the joined absolute path against
+ * PATH_MAX, so the reported violation always names the tighter limit. Measuring
+ * per segment rather than over the whole string matters: the backend's MkdirAll
+ * builds the chain link by link, and each link only has to fit NAME_MAX on its
+ * own — a two-segment 401-byte relative path is perfectly creatable.
+ *
+ * 'name' | 'path' map 1:1 onto the `filesNameTooLong` / `filesPathTooLong`
+ * copy keys, which is how create and upload end up saying the same thing.
+ */
+export function relBlocked(dir: string, rel: string): LimitViolation | null {
+  if (rel.split('/').some(nameTooLong)) return 'name'
+  if (pathTooLong(joinPath(dir, rel))) return 'path'
   return null
+}
+
+/** Creating `name` under `dir`. A named alias so the create call site reads plainly. */
+export function createBlocked(dir: string, name: string): LimitViolation | null {
+  return relBlocked(dir, name)
 }
