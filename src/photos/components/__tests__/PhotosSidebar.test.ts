@@ -440,6 +440,54 @@ describe('PhotosSidebar', () => {
     })
   })
 
+  // Plan C Task 2, review fix round 1 (Important 1): AreaShell's ☰ was the ONLY way to open
+  // the sidebar drawer on a ≤768px viewport for every photos-area page except Photos.vue
+  // (which gets its own toggle from PhotosTopbar). Once the five re-shelled album/for-you
+  // views drop AreaShell, that entry point vanishes with nothing to replace it — a confirmed
+  // live regression, not a hypothetical one. Fix: PhotosSidebar owns a small floating trigger
+  // of its own, rendered only when there is a real gap to fill (narrow + drawer closed), so
+  // every current and future sister page gets it for free without a topbar of its own.
+  // `hideDrawerTrigger` lets Photos.vue opt out — its own PhotosTopbar button already does
+  // this job, and rendering both would be a redundant double affordance.
+  describe('移动端抽屉浮动触发按钮(review fix round 1)', () => {
+    it('窄屏 + 抽屉关闭:渲染触发按钮;点击调用 drawer.toggle() 打开抽屉', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = false
+      const w = mountSidebar()
+      await nextTick()
+      const btn = w.find('[data-test="sidebar-drawer-trigger"]')
+      expect(btn.exists()).toBe(true)
+      await btn.trigger('click')
+      expect(d.open.value).toBe(true)
+    })
+
+    it('窄屏 + 抽屉已打开:不渲染触发按钮(抽屉本身已经盖满,不需要重复入口)', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = true
+      const w = mountSidebar()
+      await nextTick()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+
+    it('桌面态(isNarrow=false):不渲染触发按钮', () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = false
+      const w = mountSidebar()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+
+    it('hideDrawerTrigger=true(Photos.vue 用它避免和 PhotosTopbar 自己的折叠钮双入口):即使窄屏+抽屉关闭也不渲染', async () => {
+      const d = useSidebarDrawer()
+      d.isNarrow.value = true
+      d.open.value = false
+      const w = mountSidebar({ hideDrawerTrigger: true })
+      await nextTick()
+      expect(w.find('[data-test="sidebar-drawer-trigger"]').exists()).toBe(false)
+    })
+  })
+
   // SP15-P2b Task 5: the smart-views entry's label changes to "For You" now that its page
   // is Moments-only, but its id/route stay so the ?view=smart deep link and the
   // aiFeatures.smartview hide-when-off filter above keep working unmodified.

@@ -309,7 +309,12 @@ onUnmounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- review fix round 1 (Plan C Task 2): PhotosSidebar's own floating drawer-trigger
+           button is suppressed here — PhotosTopbar's collapse-toggle button already delegates
+           to the same drawer on a narrow viewport (see onToggleCollapse above), so rendering
+           both would be a redundant double affordance on this one page. Every other
+           photos-area page has no topbar and needs the sidebar's own trigger. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
         <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
         <div class="photos-main">
