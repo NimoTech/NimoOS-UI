@@ -1,45 +1,48 @@
-// SP8-P5e Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/searchAggregate.js`(79 行,逐字节相同,
-// 已由 P5c §4.4 的比对流程复核过 —— 仅注释中→英,无功能差异)。
+// SP8-P5e Task 3 — 1:1 port from Vue2
+// `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/searchAggregate.js`(79 lines,
+// byte-identical, verified by P5c §4.4 comparison process — comment Chinese→English only,
+// zero functional change).
 //
-// 落点 = `util/` 而不是 `services/`:蓝本文件头注释原文
+// Location = `util/` not `services/`: blueprint file header comment original text
 // "Kept framework-free so it is unit-testable without mounting a component."
-// 与 `notesViewHelpers.ts` / `indexedFilesView.ts` 同族(纯函数,`services/` 放
-// `openInApp.ts` 那种副作用函数)。
+// Same family as `notesViewHelpers.ts` / `indexedFilesView.ts` (pure functions;
+// `services/` holds side-effect functions like `openInApp.ts`).
 //
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K48 —— highlight / fmtMtime / relLevel / relLabel 从两份复制粘贴的蓝本拷贝
-// (`SearchView.vue:317-345` 与 `FileDetailDrawer.vue:199-217`)去重抽进本文件,
-// 两个组件(T5/T6-T7)都从这里 import,不在各自文件里各写一份。
-// 等价性已由 T0 程序化证明(`p5e-fixtures/scripts/k48-equiv.mjs`,`p5e-task-0-report.md`
-// §9 DoD-9):534 次比对(highlight 16×29=464 组 + relLevel/relLabel 27 输入×2 +
-// fmtMtime 16 输入),**0 处不等价**。A 侧用 `if` 链、B 侧用三元,数值同一
-// (A 用 `0.50`、B 用 `0.5`)——纯写法差异,已去重零行为变化。
-// `relLabel` 不在组件 setup 上下文里 → 用 `i18n.global.t(...)`,不许 `useI18n()`
-// (会抛)。先例 `notesViewHelpers.ts` 的 `relativeTime`。
+// 🔴 K48 — highlight / fmtMtime / relLevel / relLabel deduplicated from two
+// copy-pasted blueprint copies (`SearchView.vue:317-345` and `FileDetailDrawer.vue:199-217`)
+// into this file, imported by both components (T5/T6-T7), not written separately in each.
+// Equivalence programmatically proven by T0 (`p5e-fixtures/scripts/k48-equiv.mjs`,
+// `p5e-task-0-report.md` §9 DoD-9): 534 comparisons (highlight 16×29=464 + relLevel/relLabel
+// 27 inputs×2 + fmtMtime 16 inputs), **0 non-equivalent**. Side A uses `if` chain, B uses
+// ternary, numeric values identical (A uses `0.50`, B uses `0.5`) — pure syntax difference,
+// deduplicated zero behavior change. `relLabel` not in component setup context → use
+// `i18n.global.t(...)`, not `useI18n()` (throws). Precedent: `notesViewHelpers.ts`
+// `relativeTime`.
 // ═══════════════════════════════════════════════════════════════════════════
 //
-// 🔴 K49 —— 本期唯一的 XSS 面:`highlight()` 供三处 `v-html`
-// (`SearchView.vue` 的 `.k-rcard-snippet` / `.k-chunk-item-preview`,
-// `FileDetailDrawer.vue` 的 `.k-chunk-content`)消费。它必须先转义
-// `& < > "` 再插入 `<mark>`——本文件的实现严格保留这个顺序,删掉 `esc` 那一步
-// 会让 `<script>`/`onerror=` 之类的原文直接进 DOM。见本文件 K49 相关测试组的
-// RED 探针(报告里贴两段输出 + `md5sum` 还原确认)。
+// 🔴 K49 — only XSS surface this period: `highlight()` consumed by three `v-html`
+// sites (`SearchView.vue` `.k-rcard-snippet` / `.k-chunk-item-preview`,
+// `FileDetailDrawer.vue` `.k-chunk-content`). Must escape `& < > "` first,
+// then insert `<mark>` — this file's implementation strictly preserves order;
+// removing `esc` step lets `<script>`/`onerror=` etc go straight to DOM.
+// See K49-related test group RED probes in this file (report shows both outputs +
+// `md5sum` restore confirmation).
 //
-// 🔴 K41(零 any)—— 共享包 `service.ai.searchText` / `searchChunk`
-// (`@nimotech/nimoos-service` `src/ai.ts:579,584`)都返回 `Promise<unknown>`。
-// 本文件不改包,而是在这里声明后端原始 snake_case 的窄类型
+// 🔴 K41 (zero any) — shared package `service.ai.searchText` / `searchChunk`
+// (`@nimotech/nimoos-service` `src/ai.ts:579,584`) both return `Promise<unknown>`.
+// This file doesn't modify package, instead declares backend raw snake_case narrow types
 // (`SearchTextResponseRaw` / `FileGroupRaw` / `ChunkHitRaw` / `CiteRaw` /
-// `PreviewRaw` / `PathRaw`),字段依据逐个引 `NimoOS-Search/service/search.go`:
-//   - `Cite`(`:46-53`):`chunk_no` 是 `int`(恒存在,`0` 合法)、`page` 是
-//     `*int` 且无 `omitempty`(恒存在,空值是 `null`)。
-//   - `SearchResponse`(`:68-73`)与分组组装(`:263-290`):`files` 带
-//     `omitempty`(可能整键缺失),`hits` 恒存在。
-//   - `preview.text`(`:55-58`,`:339-347`):`*string` 且无 `omitempty`
-//     (恒存在,空串会被 `stringOrNilFromAny` 变成 `null`)。
-// 消费侧(T6/T7 的 `SearchView.vue`)在拿到 `store.runSearch(...)` 的
-// `unknown` 结果后,一次性 `as SearchTextResponseRaw` 收窄再传进
-// `toFileResults`——这是类型层动作,零运行时行为,与 K41 在 P5d 的落法同源。
+// `PreviewRaw` / `PathRaw`), field basis from `NimoOS-Search/service/search.go`:
+//   - `Cite` (`:46-53`): `chunk_no` is `int` (always exists, `0` valid), `page` is
+//     `*int` no `omitempty` (always exists, null value is `null`).
+//   - `SearchResponse` (`:68-73`) and group assembly (`:263-290`): `files` has
+//     `omitempty` (entire key may missing), `hits` always exists.
+//   - `preview.text` (`:55-58`, `:339-347`): `*string` no `omitempty`
+//     (always exists, empty string becomes `null` via `stringOrNilFromAny`).
+// Consumer side (T6/T7 `SearchView.vue`) after getting `store.runSearch(...)` `unknown`
+// result, one-time `as SearchTextResponseRaw` narrow then pass to `toFileResults` —
+// type-layer action, zero runtime behavior, same approach as K41 in P5d.
 import { i18n } from '../../../i18n'
 
 // ─── K41:后端原始响应体的窄类型(snake_case,字段依据见上方文件头注释) ───

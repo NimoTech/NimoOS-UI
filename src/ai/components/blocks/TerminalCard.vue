@@ -1,12 +1,13 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/blocks/TerminalCard.vue —— Vue2 源文件本身
-  没有 <style> 块:`.term*` 全部样式活在全局 agent-styles.scss 里(该文件已在
-  Task 1a 整体移植进 src/ai/styles/agent-styles.scss,并由 AgentPage.vue 全局
-  引入,文件顶部注释已注明"1:1 移植自 Vue2 Agent;字面色值为作用域内既有体系,
-  豁免全局 token 规则"——.term-* 规则含义与该豁免同源,这里不再重复定义/加
-  scoped 样式,以保持与 Vue2 verbatim 一致。唯二例外:两处 meta 行图标 Vue2 直接写
-  `color="rgba(255,255,255,0.5)"`(未走 CSS 类),这两处改用新增的 `--term-icon-dim`
-  token(见 tokens.scss),不再是裸字面量。
+  1:1 ported from Vue2 src/views/AI/Agent/blocks/TerminalCard.vue — the Vue2 source file itself
+  has no <style> block: all `.term*` styles live in the global agent-styles.scss (that file was
+  ported wholesale in Task 1a into src/ai/styles/agent-styles.scss and is globally imported by
+  AgentPage.vue; the file header comment notes "1:1 ported from Vue2 Agent; literal color values
+  are part of the existing system in this scope, exempt from global token rules" — `.term-*` rule
+  meaning derives from this same exemption, not redefined/scoped here to maintain Vue2 verbatim
+  equivalence. Two exceptions: two meta-line icons where Vue2 directly wrote `color="rgba(255,255,255,0.5)"`
+  (not through CSS classes); those two use the new `--term-icon-dim` token (see tokens.scss), no longer
+  bare literals.
 -->
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'

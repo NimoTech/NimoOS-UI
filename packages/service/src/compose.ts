@@ -12,15 +12,15 @@ export function createCompose(http: AxiosInstance) {
   return {
     async list(): Promise<Record<string, ComposeAppWithStoreInfo>> {
       const res = await http.get(BASE)
-      // 判原始信封而非解包后对象的键名——store app 若恰好叫 "message" 不该被误判成错误信封。
+      // Check the raw envelope, not the unwrapped object's keys — a store app that happens to be named "message" must not be mistaken for an error envelope.
       const body = res.data as { data?: unknown } | null
       const d = body && typeof body === 'object' && 'data' in body ? body.data : undefined
       return d && typeof d === 'object' && !Array.isArray(d) ? (d as Record<string, ComposeAppWithStoreInfo>) : {}
     },
 
     async get(id: string): Promise<ComposeAppWithStoreInfo | undefined> {
-      // 404(应用不存在)按契约返回 undefined,不抛——调用方(如 installProgress 看门狗)
-      // 要能区分「确定不存在」与「网络错」;抛 404 会被当网络抖动无限重试(幽灵进度卡)。
+      // 404 (app not found) returns undefined by contract instead of throwing — callers (e.g. the installProgress watchdog)
+      // must distinguish "definitely absent" from "network error"; throwing on 404 gets retried forever as network jitter (ghost progress card).
       try {
         const res = await http.get(idPath(id))
         return v2Data<ComposeAppWithStoreInfo>(res.data)
@@ -30,11 +30,11 @@ export function createCompose(http: AxiosInstance) {
       }
     },
 
-    /** 已装应用 compose 的 YAML 原文(Accept: application/yaml,裸文本非信封)。
-     *  YAML 是 PUT 的原生往返格式,且对无扩展块的应用也稳定返回(JSON GET 对无 x-nimoos 的应用会 500);
-     *  YAML 还完整保留 service 级嵌套扩展(JSON 只留顶层 x-nimoos/x-casaos,丢 service 内嵌 envs/ports/volumes 描述)——
-     *  设置面板编辑必须走这条。
-     *  transformResponse 置空:axios 默认会把疑似 JSON 的文本 parse 掉(getAppCompose 同款)。 */
+    /** Raw compose YAML of an installed app (Accept: application/yaml, bare text, no envelope).
+     *  YAML is the native round-trip format for PUT, and it returns reliably even for apps with no extension block (a JSON GET 500s on apps without x-nimoos);
+     *  YAML also fully preserves service-level nested extensions (JSON keeps only top-level x-nimoos/x-casaos, dropping in-service envs/ports/volumes descriptions) —
+     *  the settings panel editor must use this path.
+     *  transformResponse is cleared: axios by default parses text that looks like JSON (same as getAppCompose). */
     async getYaml(id: string): Promise<string> {
       const res = await http.get(idPath(id), {
         headers: { Accept: 'application/yaml' },
@@ -44,8 +44,8 @@ export function createCompose(http: AxiosInstance) {
       return typeof res.data === 'string' ? res.data : ''
     },
 
-    /** 安装。yaml = compose 原文;dryRun=true 只校验不执行(安装前校验用)。
-     *  安装是异步任务:2xx 只代表受理,进度/完成走 MessageBus app:install-*(P3 消费)。 */
+    /** Install. yaml = raw compose text; dryRun=true validates without executing (pre-install validation).
+     *  Install is an async task: 2xx only means accepted; progress/completion arrive via MessageBus app:install-* (consumed by P3). */
     async install(yaml: string, opts?: { dryRun?: boolean; checkPortConflict?: boolean }): Promise<void> {
       await http.post(BASE, yaml, {
         headers: { 'Content-Type': 'application/yaml' },
@@ -53,7 +53,7 @@ export function createCompose(http: AxiosInstance) {
       })
     },
 
-    /** 修改已装应用设置(PUT 整份 compose YAML,支持 dryRun 预校验)。 */
+    /** Update an installed app's settings (PUT the whole compose YAML, supports dryRun pre-validation). */
     async applySettings(id: string, yaml: string, opts?: { dryRun?: boolean; checkPortConflict?: boolean }): Promise<void> {
       await http.put(idPath(id), yaml, {
         headers: { 'Content-Type': 'application/yaml' },
@@ -61,36 +61,36 @@ export function createCompose(http: AxiosInstance) {
       })
     },
 
-    /** 更新到商店版本。200 的 message 是人话结果(「已是最新」/「异步更新中」),
-     *  Vue2 直接 toast 它,故透传;真在更新时后续走 app:update-begin/-end/-error 事件。 */
+    /** Update to the store version. The 200 message is a human-readable result ("already latest" / "updating asynchronously");
+     *  Vue2 toasts it directly, so it is passed through; when an update is actually running, app:update-begin/-end/-error events follow. */
     async update(id: string, opts?: { force?: boolean }): Promise<string> {
       const res = await http.patch(idPath(id), undefined, { params: { force: opts?.force } })
       const body = res.data as { message?: unknown } | null
       return body && typeof body === 'object' && typeof body.message === 'string' ? body.message : ''
     },
 
-    /** 卸载。deleteConfigFolder 后端默认 true(连数据目录一起删),
-     *  UI 的「保留数据」选项传 false。异步,完成走 app:uninstall-end/-error。 */
+    /** Uninstall. deleteConfigFolder defaults to true on the backend (deletes the data directory too);
+     *  the UI's "keep data" option passes false. Async; completion arrives via app:uninstall-end/-error. */
     async uninstall(id: string, opts?: { deleteConfigFolder?: boolean }): Promise<void> {
       await http.delete(idPath(id), { params: { delete_config_folder: opts?.deleteConfigFolder } })
     },
 
-    /** 启停重启。body 是裸 JSON 字符串("start"),直接传字面量会被 axios
-     *  当 text/plain 发出、echo Bind 解析失败——apps.start 同款坑。 */
+    /** Start/stop/restart. The body is a bare JSON string ("start"); passing the literal directly makes axios
+     *  send it as text/plain and echo's Bind fails to parse — same pitfall as apps.start. */
     async setStatus(id: string, action: 'start' | 'stop' | 'restart'): Promise<void> {
       await http.put(`${idPath(id)}/status`, JSON.stringify(action), {
         headers: { 'Content-Type': 'application/json' },
       })
     },
 
-    /** 日志(data 是整段字符串)。lines=-1 取全部,默认后端 1000。 */
+    /** Logs (data is one whole string). lines=-1 fetches all; backend default is 1000. */
     async logs(id: string, opts?: { lines?: number }): Promise<string> {
       const res = await http.get(`${idPath(id)}/logs`, { params: { lines: opts?.lines } })
       return v2Data<string>(res.data) ?? ''
     },
 
-    /** 每个 compose service 的运行容器(后端 workaround:每服务只回第一个容器)。
-     *  404(应用不存在)返回 undefined 不抛——与 get() 同契约(见其注释)。 */
+    /** Running container per compose service (backend workaround: only the first container per service is returned).
+     *  404 (app not found) returns undefined instead of throwing — same contract as get() (see its comment). */
     async containers(id: string): Promise<ComposeContainersInfo | undefined> {
       try {
         const res = await http.get(`${idPath(id)}/containers`)
@@ -103,7 +103,7 @@ export function createCompose(http: AxiosInstance) {
       }
     },
 
-    /** 健康检查:2xx→true,任何失败→false(AppLauncherCheck 语义)。 */
+    /** Health check: 2xx→true, any failure→false (AppLauncherCheck semantics). */
     async healthcheck(id: string): Promise<boolean> {
       try {
         await http.get(`${idPath(id)}/healthcheck`)

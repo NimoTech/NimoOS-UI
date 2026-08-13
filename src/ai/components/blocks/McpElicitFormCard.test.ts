@@ -10,7 +10,7 @@ vi.mock('../../composables/useProvidedAgentStore', () => ({
 
 function field(over: Partial<ElicitField> = {}): ElicitField {
   return {
-    key: 'name', type: 'string', title: '名字', description: '',
+    key: 'name', type: 'string', title: 'Name', description: '',
     required: true, default: null, format: null,
     min_length: null, max_length: null, minimum: null, maximum: null,
     options: null, min_items: null, max_items: null,
@@ -20,7 +20,7 @@ function field(over: Partial<ElicitField> = {}): ElicitField {
 
 function mountCard(props: Record<string, unknown> = {}) {
   return mount(McpElicitFormCard, {
-    props: { confirmId: 'c1', server: 'brave', message: '请填写', fields: [field()], error: '', ...props },
+    props: { confirmId: 'c1', server: 'brave', message: 'Please fill in', fields: [field()], error: '', ...props },
     attachTo: document.body,
   })
 }
@@ -32,16 +32,16 @@ function httpError(status: number) {
 describe('McpElicitFormCard', () => {
   beforeEach(() => { resolveElicitation.mockClear(); resolveElicitation.mockResolvedValue(undefined) })
 
-  it('填好后点「发送回答」:accept + 已填字段', async () => {
+  it('after filling in and clicking "send answer": accept + filled fields', async () => {
     const w = mountCard()
     await w.find('input.mcc-input').setValue('Ada')
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
     expect(resolveElicitation).toHaveBeenCalledWith('c1', 'accept', { name: 'Ada' })
-    expect(w.text()).toContain('已把回答发给 brave')
+    expect(w.text()).toContain('answer sent to brave')
   })
 
-  it('浏览器校验门:reportValidity 为假时根本不发请求', async () => {
+  it('browser validation gate: when reportValidity is false, no request is sent at all', async () => {
     const w = mountCard()
     const form = w.find('form').element as HTMLFormElement
     form.reportValidity = () => false
@@ -50,9 +50,9 @@ describe('McpElicitFormCard', () => {
     expect(resolveElicitation).not.toHaveBeenCalled()
   })
 
-  it('数组规则:min_items 不满足时写 submitError,不发请求', async () => {
+  it('array rules: when min_items is not met, write submitError and don\'t send request', async () => {
     const w = mountCard({
-      fields: [field({ key: 'tags', type: 'multi_enum', title: '标签', required: false, min_items: 1,
+      fields: [field({ key: 'tags', type: 'multi_enum', title: 'Tags', required: false, min_items: 1,
         options: [{ value: 'a', title: 'A' }] })],
     })
     const form = w.find('form').element as HTMLFormElement
@@ -60,10 +60,10 @@ describe('McpElicitFormCard', () => {
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
     expect(resolveElicitation).not.toHaveBeenCalled()
-    expect(w.find('.mcc-err').text()).toContain('至少选 1 项')
+    expect(w.find('.mcc-err').text()).toContain('select at least 1 item')
   })
 
-  it('空的可选字段整个不发送', async () => {
+  it('empty optional field is not sent at all', async () => {
     const w = mountCard({ fields: [field({ required: false })] })
     const form = w.find('form').element as HTMLFormElement
     form.reportValidity = () => true
@@ -72,8 +72,8 @@ describe('McpElicitFormCard', () => {
     expect(resolveElicitation).toHaveBeenCalledWith('c1', 'accept', {})
   })
 
-  it('数字字段送出去的是 number 不是字符串', async () => {
-    const w = mountCard({ fields: [field({ key: 'age', type: 'integer', title: '年龄', required: false })] })
+  it('number field is sent as number not string', async () => {
+    const w = mountCard({ fields: [field({ key: 'age', type: 'integer', title: 'Age', required: false })] })
     const form = w.find('form').element as HTMLFormElement
     form.reportValidity = () => true
     await w.find('input.mcc-input').setValue('42')
@@ -82,27 +82,27 @@ describe('McpElicitFormCard', () => {
     expect(resolveElicitation).toHaveBeenCalledWith('c1', 'accept', { age: 42 })
   })
 
-  it('「拒绝回答」发 decline 且 content 为 null', async () => {
+  it('clicking "refuse to answer" sends decline and content is null', async () => {
     const w = mountCard()
     await w.findAll('button.mcc-btn')[1].trigger('click')
     await flushPromises()
     expect(resolveElicitation).toHaveBeenCalledWith('c1', 'decline', null)
-    expect(w.text()).toContain('已拒绝回答 brave')
+    expect(w.text()).toContain('refused to answer brave')
   })
 
-  it('409 之后整卡折叠:不留任何按钮与表单', async () => {
+  it('after 409, entire card collapses: no buttons or form left', async () => {
     resolveElicitation.mockRejectedValueOnce(httpError(409))
     const w = mountCard()
     const form = w.find('form').element as HTMLFormElement
     form.reportValidity = () => true
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('确认已过期')
+    expect(w.text()).toContain('confirmation expired')
     expect(w.findAll('button')).toHaveLength(0)
     expect(w.find('form').exists()).toBe(false)
   })
 
-  it('500 之后卡片仍可用,填的内容还在', async () => {
+  it('after 500, card is still usable and filled content remains', async () => {
     resolveElicitation.mockRejectedValueOnce(httpError(500))
     const w = mountCard()
     const form = w.find('form').element as HTMLFormElement
@@ -114,14 +114,14 @@ describe('McpElicitFormCard', () => {
     expect((w.find('input.mcc-input').element as HTMLInputElement).value).toBe('Ada')
   })
 
-  it('后端退回原因显示在卡上', () => {
+  it('backend rejection reason is shown on card', () => {
     const w = mountCard({ error: 'name: must be at least 3 characters' })
     expect(w.find('.mcc-bounced').text()).toContain('must be at least 3 characters')
   })
 
-  it('multi_enum 的数字 default 能对上字符串化的 options 并预勾选(后端把 options 转成字符串但 default 保持原样)', () => {
+  it('multi_enum numeric default matches stringified options and is pre-checked (backend converts options to string but keeps default as-is)', () => {
     const w = mountCard({
-      fields: [field({ key: 'tags', type: 'multi_enum', title: '标签', required: false,
+      fields: [field({ key: 'tags', type: 'multi_enum', title: 'Tags', required: false,
         default: [1], options: [{ value: '1', title: 'One' }, { value: '2', title: 'Two' } ] })],
     })
     const boxes = w.findAll('.mcc-multi input[type="checkbox"]')
@@ -129,48 +129,48 @@ describe('McpElicitFormCard', () => {
     expect((boxes[1].element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('缺 confirmId 时点发送不发请求,只报无效', async () => {
+  it('when confirmId is missing, clicking send doesn\'t make a request, only reports invalid', async () => {
     const w = mountCard({ confirmId: '' })
     const form = w.find('form').element as HTMLFormElement
     form.reportValidity = () => true
     await w.find('button.mcc-btn.primary').trigger('click')
     await flushPromises()
     expect(resolveElicitation).not.toHaveBeenCalled()
-    expect(w.find('.mcc-err').text()).toContain('确认请求无效')
+    expect(w.find('.mcc-err').text()).toContain('confirmation request invalid')
   })
 
-  it('enum 渲染成 select,可选时首项是「（未作答）」', () => {
+  it('enum renders as select, when optional first item is "(unanswered)"', () => {
     const w = mountCard({
-      fields: [field({ key: 'plan', type: 'enum', title: '套餐', required: false,
+      fields: [field({ key: 'plan', type: 'enum', title: 'Plan', required: false,
         options: [{ value: 'pro', title: 'Pro' }] })],
     })
     const opts = w.findAll('select.mcc-input option')
-    expect(opts[0].text()).toBe('（未作答）')
+    expect(opts[0].text()).toBe('(unanswered)')
     expect(opts[1].text()).toBe('Pro')
   })
 
-  it('format:uri 不渲染 type="url"(比后端规则严,会拒掉 mailto: 等后端接受的值)', () => {
+  it('format:uri does not render type="url" (stricter than backend rules, would reject mailto: etc. that backend accepts)', () => {
     const w = mountCard({
-      fields: [field({ key: 'contact', title: '联系方式', required: false, format: 'uri' })],
+      fields: [field({ key: 'contact', title: 'Contact', required: false, format: 'uri' })],
     })
     const input = w.find('input.mcc-input').element as HTMLInputElement
     expect(input.type).not.toBe('url')
     expect(input.type).toBe('text')
   })
 
-  it('format:email/date/date-time 各自映射到对应的原生 input type', () => {
+  it('format:email/date/date-time each map to corresponding native input type', () => {
     const email = mountCard({
-      fields: [field({ key: 'contact', title: '邮箱', required: false, format: 'email' })],
+      fields: [field({ key: 'contact', title: 'Email', required: false, format: 'email' })],
     })
     expect((email.find('input.mcc-input').element as HTMLInputElement).type).toBe('email')
 
     const date = mountCard({
-      fields: [field({ key: 'day', title: '日期', required: false, format: 'date' })],
+      fields: [field({ key: 'day', title: 'Date', required: false, format: 'date' })],
     })
     expect((date.find('input.mcc-input').element as HTMLInputElement).type).toBe('date')
 
     const dateTime = mountCard({
-      fields: [field({ key: 'when', title: '时间', required: false, format: 'date-time' })],
+      fields: [field({ key: 'when', title: 'Time', required: false, format: 'date-time' })],
     })
     expect((dateTime.find('input.mcc-input').element as HTMLInputElement).type).toBe('datetime-local')
   })

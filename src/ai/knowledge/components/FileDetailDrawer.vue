@@ -1,40 +1,48 @@
-<script setup lang="ts">
-// SP8-P5e Task 5 —— 1:1 移植自蓝本 `FileDetailDrawer.vue`
-// (`NimoOS-UI@7a6ee6b7`,`src/views/AI/Knowledge/components/FileDetailDrawer.vue`,220 行,
-// 模板+脚本 `:1-220` 全部本刀移植)。
+<script setup lang=”ts”>
+// SP8-P5e Task 5 — 1:1 ported from blueprint `FileDetailDrawer.vue`
+// (`NimoOS-UI@7a6ee6b7`, `src/views/AI/Knowledge/components/FileDetailDrawer.vue`, 220 lines,
+// template+script :1-220 all ported this round).
 //
-// 🔴 K44(治理 §3):`.vue` 侧零 `<style>` 块 —— scss 已由 T2 搬进 `src/ai/styles/knowledge.scss`。
+// 🔴 K44 (governance §3): `.vue` side zero `<style>` block — scss already moved to
+// `src/ai/styles/knowledge.scss` by T2.
 //
-// 🔴 emit 契约照抄(蓝本 `:186-190` 注释明写):`close` / `open({file})` / `download(file)` /
-// `toast(message)`。**本组件不许直接调 `useToast()`** —— 由父组件(`SearchView.vue`,T6/T7)的
-// `onDrawerToast` 接住后转发到全局 toast(K3 同族)。改了就是改组件契约,按 Critical。
+// 🔴 emit contract copied as-is (blueprint :186-190 comments spell it out): `close` /
+// `open({file})` / `download(file)` / `toast(message)`. **This component must not call
+// `useToast()` directly** — parent component (`SearchView.vue`, T6/T7) `onDrawerToast`
+// catches then forwards to global toast (same family as K3). Changing this is changing
+// component contract, mark as Critical.
 //
-// 🔴 N42(蓝本自带 `reqId` 过期守卫,`:148`/`:155`/`:159`/`:162`)—— 照抄,见 `fetchFull()`。
-// `activeId` 是组件本地(`ref`,`<script setup>` 顶层,每个组件实例各有一份)——
-// 「两实例交错」用例见 `FileDetailDrawer.test.ts`(判据:把它挪到模块级 → 必须报红)。
+// 🔴 N42 (blueprint comes with `reqId` stale guard, :148/:155/:159/:162) — copy as-is,
+// see `fetchFull()`. `activeId` is component-local (`ref`, top of `<script setup>`,
+// each instance has its own) — “two instances interleaved” test in `FileDetailDrawer.test.ts`
+// (criterion: move it to module-level → must fail).
 //
-// 🔴 N43(蓝本 `:182-190` 的方法约定)—— 蓝本把 `submitDistill`/`notify` 写成独立方法是为了
-// 让 Options API 的 method-style 测试(`fileDetailDrawerDistill.spec.js`)能整体 stub;
-// `<script setup>` 没有 `methods` 对象,那份测法不可移植。行为承接:真挂载 + mock
-// `service.notes.distillFile`,断言传的是 `file.fullPath`(不是 `file.path`,那是 dirname)。
+// 🔴 N43 (blueprint :182-190 method convention) — blueprint wrote `submitDistill`/`notify`
+// as standalone methods so Options API method-style test (`fileDetailDrawerDistill.spec.js`)
+// could stub wholesale; `<script setup>` has no `methods` object, that test approach
+// not portable. Behavior transfer: real mount + mock `service.notes.distillFile`, assert
+// passes `file.fullPath` (not `file.path`, that's dirname).
 //
-// 🔴 N44 —— `canDistill` 用包内 `isDistillableName`(`@nimotech/nimoos-service`),
-// 不在本仓重定义扩展名表(唯一定义处 = `NimoOS-Service/src/notes.ts` 的 `DISTILL_EXTS`)。
+// 🔴 N44 — `canDistill` uses in-package `isDistillableName` (`@nimotech/nimoos-service`),
+// don't redefine extension table here (sole definition = `NimoOS-Service/src/notes.ts` `DISTILL_EXTS`).
 //
-// 🔴 N41 —— `created`/`beforeDestroy` → `onMounted`/`onBeforeUnmount`(生命周期改写,不算
-// 偏离)。与 `KFileViewer.vue` 各自独立注册/注销 `keydown` Esc —— 两者同时挂载时按 Esc 会
-// 一起关掉,这是蓝本既有行为,不加 `stopPropagation`/层级管理去"修好"它。
-// ⚠️ `fetchFull()` 的首次调用照蓝本放在“创建时”(对应 Vue2 `created()`,在此即 `<script
-// setup>` 顶层、组件实例创建时同步执行),不挪进 `onMounted`——两者时机不同(created 早于
-// mount),挪进 onMounted 会让首次数据请求延后到 DOM 挂载之后才发出,是可观察的时序偏移。
-// Esc 监听的注册/注销按 N41 指示放在 onMounted/onBeforeUnmount。
+// 🔴 N41 — `created`/`beforeDestroy` → `onMounted`/`onBeforeUnmount` (lifecycle rewrite,
+// not divergence). With `KFileViewer.vue` each independently registers/unregisters `keydown`
+// Esc — both when mounted simultaneously press Esc closes both, that's blueprint's existing
+// behavior, don't add `stopPropagation`/hierarchy management to “fix” it.
+// ⚠️ `fetchFull()` first call placed “at creation time” per blueprint (corresponds Vue2
+// `created()`, here = `<script setup>` top level, runs sync at component instance creation),
+// don't move into `onMounted` — their timing differs (created before mount), moving into
+// onMounted delays first data request until after DOM mounts, observable timing divergence.
+// Esc listener registration/unregistration per N41 in onMounted/onBeforeUnmount.
 //
-// 🔴 K48 —— `highlight`/`fmtMtime`/`relLevel`/`relLabel` 从 `util/searchAggregate` import,
-// 不在本文件重复定义(自证:`grep -c 'function highlight' FileDetailDrawer.vue` = 0)。
+// 🔴 K48 — `highlight`/`fmtMtime`/`relLevel`/`relLabel` imported from `util/searchAggregate`,
+// not redefined in this file (self-proof: `grep -c 'function highlight' FileDetailDrawer.vue` = 0).
 //
-// 🔴 K49 —— 本组件三处 `v-html`(`.k-chunk-item-preview` / `.k-chunk-content` 各一处,
-// 后者的内容来自 `viewerHtml`,同样经 `highlight()` 转义)消费 `highlight()` 的输出,
-// 该函数已在 `util/searchAggregate.ts` 里先 escape 再插 `<mark>`,XSS 面已在那边测过。
+// 🔴 K49 — this component three `v-html` places (`.k-chunk-item-preview` / `.k-chunk-content`
+// one each, latter content from `viewerHtml`, also escaped by `highlight()`) consume
+// `highlight()` output, function already escapes then inserts `<mark>` in
+// `util/searchAggregate.ts`, XSS surface already tested there.
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { isDistillableName, service } from '@nimotech/nimoos-service'
@@ -43,12 +51,12 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
 import { fmtMtime, highlight, relLabel, relLevel } from '../util/searchAggregate'
 import type { ChunkVM, FileVM } from '../util/searchAggregate'
 
-// ─── K41(零 any)—— `loadChunkContext` 的后端原始响应体窄类型 ───
-// 字段依据:`NimoOS-Search/service/authz.go` 的 `ChunkContextResponse`(`:96-101`)与
-// `GetChunkWindow`(`:103-149`)。`anchor_chunk_no` 恒存在(请求里的 `chunk_no` 原样回显,
-// `:146-148`);`chunks[]` 只保留窗口内命中的点,`page`/`offset_start`/`offset_end` 都带
-// `omitempty`(空则整键消失,`chunk.go`/`authz.go` 的 struct tag),消费侧只用得到
-// `chunk_no`/`text`,其余字段不读,故不声明。
+// ─── K41 (zero any) — `loadChunkContext` backend raw response body narrow type ───
+// Field basis: `NimoOS-Search/service/authz.go` `ChunkContextResponse` (:96-101) and
+// `GetChunkWindow` (:103-149). `anchor_chunk_no` always present (request `chunk_no` echoed
+// as-is, :146-148); `chunks[]` keeps only window's hits, `page`/`offset_start`/`offset_end`
+// all have `omitempty` (absent if empty, struct tag in `chunk.go`/`authz.go`), consumer only
+// needs `chunk_no`/`text`, other fields unread, so not declared.
 interface ChunkContextChunkRaw {
   chunk_no: number
   text: string
@@ -62,7 +70,8 @@ const { t } = useI18n()
 const store = useKnowledgeStore()
 
 const props = withDefaults(defineProps<{ file: FileVM; query?: string }>(), { query: '' })
-// 蓝本 `:186-190`:本组件的通知约定是 emit `toast`,不直接调用 toast 服务。
+// Blueprint :186-190: this component's notification convention is emit `toast`, not direct
+// toast service call.
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'open', payload: { file: FileVM }): void
@@ -70,28 +79,28 @@ const emit = defineEmits<{
   (e: 'toast', message: string): void
 }>()
 
-// 蓝本 `data()`(`:98-102`)—— activeId 初值 = 首个 chunk 的 id 或 null。
+// Blueprint `data()` (:98-102) — activeId initial = first chunk's id or null.
 const activeId = ref<string | null>(props.file.chunks.length ? props.file.chunks[0].id : null)
 const fullText = ref('')
 const loading = ref(false)
 
-// 蓝本 `:104-107` computed `cur` —— `find` 落空退首个,再落空退 `{}`
-// (只在 `file.chunks` 为空数组时触发,`as ChunkVM` 是蓝本这个动态兜底在类型层的等价表达,
-// 不是 `any`)。
+// Blueprint :104-107 computed `cur` — `find` fails, fall back to first, then fall back
+// to `{}` (only triggers when `file.chunks` is empty array, `as ChunkVM` is blueprint's
+// dynamic fallback at type level, not `any`).
 const cur = computed<ChunkVM>(
   () => props.file.chunks.find((c) => c.id === activeId.value) || props.file.chunks[0] || ({} as ChunkVM),
 )
-// 蓝本 `:108-111`。
+// Blueprint :108-111.
 const curIndex = computed(() => {
   const i = props.file.chunks.findIndex((c) => c.id === activeId.value)
   return i < 0 ? 0 : i
 })
-// 蓝本 `:112-115`。
+// Blueprint :112-115.
 const viewerHtml = computed(() => highlight(fullText.value || cur.value.snippet || '', props.query))
-// 蓝本 `:119-125`(canDistill)—— N44。
+// Blueprint :119-125 (canDistill) — N44.
 const canDistill = computed(() => isDistillableName(props.file.name))
 
-// 蓝本 `:143-144` methods.select/step。
+// Blueprint :143-144 methods.select/step.
 function select(c: ChunkVM) {
   activeId.value = c.id
 }
@@ -100,9 +109,10 @@ function step(delta: number) {
   if (i >= 0 && i < props.file.chunks.length) activeId.value = props.file.chunks[i].id
 }
 
-// 蓝本 `:145-163` fetchFull() —— N42:reqId 过期守卫是蓝本自带的,四处判断逐字照抄:
-// ① `chunkNo == null` 早退(`:147`);② 成功分支的 `reqId` 判断(`:155`);
-// ③ catch 分支的 `reqId` 判断(`:159`);④ finally 里 `loading` 也带判断(`:162`)。
+// Blueprint :145-163 fetchFull() — N42: reqId stale guard is blueprint's built-in, four
+// checks copied verbatim: ① `chunkNo == null` early exit (:147); ② success branch
+// `reqId` check (:155); ③ catch branch `reqId` check (:159); ④ finally `loading`
+// also has check (:162).
 async function fetchFull() {
   const c = cur.value
   if (!c || c.chunkNo == null) {
@@ -130,12 +140,14 @@ async function fetchFull() {
   }
 }
 
-// 蓝本 `:141-142` watch —— 非 immediate(与 created() 里的显式首次调用配套,不重复触发)。
+// Blueprint :141-142 watch — non-immediate (pairs with explicit first call in created(),
+// no duplicate trigger).
 watch(activeId, () => fetchFull())
 
-// 蓝本 `:164-181` copy() —— 两条路径:navigator.clipboard 成功优先;不存在/失败时走
-// execCommand 兜底(HTTP-IP 非安全上下文下 `navigator.clipboard` 不存在)。
-// 🔴 这个兜底是蓝本自带的、与笔记区(P5d 无兜底)不同源 —— 照抄,不许按 N 系列拒绝。
+// Blueprint :164-181 copy() — two paths: navigator.clipboard succeeds first; when missing/
+// fails falls back to execCommand (HTTP-IP non-secure context `navigator.clipboard` absent).
+// 🔴 This fallback is blueprint's built-in, different origin from notes area (P5d has no
+// fallback) — copy as-is, don't reject per N series.
 async function copy() {
   const plain = (fullText.value || cur.value.snippet || '').replace(/<[^>]+>/g, '')
   let ok = false
@@ -164,15 +176,16 @@ async function copy() {
   emit('toast', ok ? t('aiKbFdCopied') : t('aiKbFdCopyFailed'))
 }
 
-// 蓝本 `:182-197` —— submitDistill(方法引用)/notify(独立方法)的约定见文件头 N43 说明。
-// 本仓 `<script setup>` 无 methods 对象,该约定的"可整体 stub"目的靠 mock
-// `service.notes.distillFile` 达成,不保留方法引用的形式本身。
+// Blueprint :182-197 — submitDistill (method reference)/notify (standalone method)
+// convention explained in file header N43. This repo's `<script setup>` has no `methods`
+// object, convention's "can stub wholesale" goal achieved by mocking `service.notes.distillFile`,
+// don't preserve method reference form itself.
 function notify(message: string) {
   emit('toast', message)
 }
 async function distillToNote() {
   try {
-    // 🔴 N43 判据:传的是 `file.fullPath`(完整路径),不是 `file.path`(dirname)。
+    // 🔴 N43 criterion: passes `file.fullPath` (full path), not `file.path` (dirname).
     await service.notes.distillFile(props.file.fullPath)
     notify(t('aiKbFdDistillQueued'))
   } catch {
@@ -180,22 +193,24 @@ async function distillToNote() {
   }
 }
 
-// 蓝本 `created()`/`beforeDestroy()` 的 Esc 监听部分 —— N41:注册挪到 onMounted,
-// 注销挪到 onBeforeUnmount(生命周期改写)。
+// Blueprint `created()`/`beforeDestroy()` Esc listener part — N41: registration moved to
+// onMounted, unregistration moved to onBeforeUnmount (lifecycle rewrite).
 function onKey(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
 }
 onMounted(() => window.addEventListener('keydown', onKey))
 onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
 
-// 蓝本 `created()` 的另一半 —— 首次数据请求,时机对应 Vue2 的 created()(组件实例创建时
-// 同步触发,早于挂载),故不挪进 onMounted,见文件头说明。
+// Blueprint `created()` other half — first data request, timing corresponds Vue2 `created()`
+// (triggers sync at component instance creation, before mount), so don't move into onMounted,
+// see file header explanation.
 fetchFull()
 
-// ── T5 DoD-12:自动上膛守卫 ──
-// 父组件 `views/SearchView.vue` 由 T6 建,现在还不存在。见同目录
-// `FileDetailDrawer.test.ts` 底部的文件系统条件断言:「若 SearchView.vue 存在,则它必须
-// import 本组件」——现在惰性通过,T6 一创建文件立刻上膛强制接线。
+// ── T5 DoD-12: auto-load guard ──
+// Parent component `views/SearchView.vue` created by T6, doesn't exist yet. See bottom of
+// `FileDetailDrawer.test.ts` same directory filesystem conditional assertion: "if
+// SearchView.vue exists, it must import this component" — lazily passes now, T6 instantly
+// loads file and enforces wiring."
 </script>
 
 <template>

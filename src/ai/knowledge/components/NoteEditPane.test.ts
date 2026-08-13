@@ -1,32 +1,32 @@
-// SP8-P5d Task 7 —— `NoteEditPane.vue` **上半**(顶栏 + 草稿横幅 + 主列编辑器)单测。
-// 蓝本 `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/NoteEditPane.vue`(338 行)。
-// 本文件只测 T7 的范围(顶栏/草稿横幅/主列编辑器 + props/data/isNew/status/
-// wordCount/created()等效/onEditorReady/tbActive/cmd/save/curateInPlace)。
-// 侧栏 5 卡/标签编辑/冲突弹窗的渲染归 T8,不在本文件断言范围内 —— 但 save()
-// 的 catch 分岔里"conflict state 被设上"这条本刀行为仍然要测(用
-// `wrapper.vm` 技术读内部 ref,不新增 UI,理由见下方对应 describe 块)。
+// SP8-P5d Task 7 — `NoteEditPane.vue` **top half**(top bar + draft banner + main column editor) unit tests.
+// Blueprint `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/NoteEditPane.vue`(338 lines).
+// This file only tests T7 scope(top bar/draft banner/main column editor + props/data/isNew/status/
+// wordCount/created() equivalent/onEditorReady/tbActive/cmd/save/curateInPlace).
+// 5 aside cards/tag editing/conflict modal rendering belong to T8, not in this file assertion scope —
+// but `save()` catch branch "conflict state being set" behavior this pass must test(use
+// `wrapper.vm` technique to read internal ref, no new UI, reason see corresponding describe block below).
 //
-// ═══ mock 策略(治理 §4.1 / p5d-fixtures/README.md §2) ═══
-// `service.notes.get/create/update/curate` 返回**单个已归一化 Note**(camelCase)。
-// `service.notes.backlinks` 返回**数组**,空时 `[]`(不是 `{backlinks:[]}` 信封)。
-// `NOTE_FIXTURE` 逐字段取自 `.superpowers/sdd/p5d-fixtures/notes-get-one.json`
-// 的真实回包(camelCase 化;`source_refs`→`sourceRefs`,`created_by`→`createdBy`,
-// `updated_at`→`updatedAt`;`user_id` 被包丢弃,`created_at` 未进 `Note` 类型)。
-// 409 冲突体取自 `.superpowers/sdd/p5d-fixtures/notes-update-409-conflict.http`
-// (`{"detail":"revision conflict","current_revision":1}`),axios 错误对象整形成
-// `{response:{status:409,data:{current_revision:...}}}`。
+// ═══ mock strategy(governance §4.1 / p5d-fixtures/README.md §2) ═══
+// `service.notes.get/create/update/curate` return **single normalized Note**(camelCase).
+// `service.notes.backlinks` return **array**, empty is `[]`(not `{backlinks:[]}` envelope).
+// `NOTE_FIXTURE` each field from real response in `.superpowers/sdd/p5d-fixtures/notes-get-one.json`
+// (camelCased; `source_refs`→`sourceRefs`, `created_by`→`createdBy`,
+// `updated_at`→`updatedAt`; `user_id` discarded by package, `created_at` not in `Note` type).
+// 409 conflict body from `.superpowers/sdd/p5d-fixtures/notes-update-409-conflict.http`
+// (`{"detail":"revision conflict","current_revision":1}`), axios error object reshaped to
+// `{response:{status:409,data:{current_revision:...}}}`.
 //
-// ═══ 属性态断言口径(治理 §9 / 附录 D §D.3) ═══
-// `data-on`/`data-dirty` 一律 `toBe('true')`/`toBe('false')`,两侧都比,禁
-// `toBeUndefined()`。
+// ═══ Attribute state assertion caliber(governance §9 / appendix D §D.3) ═══
+// `data-on`/`data-dirty` all use `toBe('true')`/`toBe('false')`, compare both sides, forbid
+// `toBeUndefined()`.
 //
-// ═══ `wrapper.vm` 直读 <script setup> 顶层 ref 的技术先例 ═══
-// `IndexedFilesView.test.ts:618-621` 已确立:`<script setup>` 顶层 ref 即便未
-// `defineExpose`,`@vue/test-utils` 的 `wrapper.vm` 在测试环境下仍可读写
-// (instance.proxy 走 setupState 双向读写)——不是新增功能、也不是绕过组件公开
-// 行为,只是本刀没有可点击的 UI 入口能到达"冲突态已设上"这类内部状态(侧栏/
-// 弹窗归 T8)。本文件对 `conflict`/`dirty`/`tagInput` 三个 ref 的直读写沿用同一
-// 手法,标注在各自用例里。
+// ═══ `wrapper.vm` technique for directly reading <script setup> top-level ref ═══
+// `IndexedFilesView.test.ts:618-621` established: <script setup> top-level ref even without
+// `defineExpose`, `@vue/test-utils` `wrapper.vm` still readable/writable in test environment
+// (instance.proxy accesses setupState bidirectionally)—not new feature, not bypassing component public
+// behavior, just this pass has no clickable UI entry reaching "conflict state set"  internal states(aside/
+// modal belong to T8). This file's direct read/write of three `conflict`/`dirty`/`tagInput` refs
+// uses same technique, annotated in respective test cases.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -48,21 +48,21 @@ const notes = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { notes } }))
 
-// T8 —— openInApp 是 T5 的既有产出(全期零改动清单),这里只 spy `openFileInNewTab`/
-// `openAgentSessionInNewTab` 是否被正确的参数调用,不重新实现它们的逻辑(那是 T5
-// 的职责与既有测试范围,见 `openInApp.test.ts`)。手法与 `NotesView.test.ts` 对
-// `openDirInNewTab` 的 spy 同一模具。
+// T8 — openInApp is T5's existing output(zero-change list for full period),
+// here only spy whether `openFileInNewTab`/`openAgentSessionInNewTab` called with correct params,
+// don't re-implement their logic(that's T5's responsibility and existing test scope, see `openInApp.test.ts`).
+// Technique matches `NotesView.test.ts`'s spy on `openDirInNewTab`.
 const openInAppMock = vi.hoisted(() => ({
   openFileInNewTab: vi.fn(),
   openAgentSessionInNewTab: vi.fn(),
 }))
 vi.mock('../../services/openInApp', () => openInAppMock)
 
-// FIXTURE-COPY-BEGIN  p5d-fixtures/notes-get-one.json(camelCase 化,K1 归一)
-// 逐字段取自该文件的真实回包(2026-08-04 抓取):id/title/description/type/
+// FIXTURE-COPY-BEGIN  p5d-fixtures/notes-get-one.json(camelCased, K1 normalized)
+// Each field from real response in that file(captured 2026-08-04): id/title/description/type/
 // status/createdBy(← created_by)/revision/updatedAt(← updated_at)/path/tags/
-// sourceRefs(← source_refs)/body 全部原值,`user_id`/`created_at` 被
-// `normalizeNote` 丢弃(不进 `Note` 类型)。
+// sourceRefs(← source_refs)/body all original values, `user_id`/`created_at` discarded by
+// `normalizeNote`(not in `Note` type).
 const NOTE_FIXTURE: Note = {
   id: 'ba20c0ec-0275-497b-9124-58042e1b7336',
   title: '4×4 fixed size NimoOS todo list widget',
@@ -125,8 +125,8 @@ const flush = async () => {
   await nextTick()
 }
 
-/** T8:按 `.kn-aside-title` 的文案精确定位某张侧栏卡(来源卡与被引用卡都用
- * `.kn-refbtn`,单靠类名区分不了两者,必须靠各自卡片的标题文案区分)。 */
+/** T8: precisely locate aside card by `.kn-aside-title` text(sources and backlinks cards both use
+ * `.kn-refbtn`, can't distinguish by class name alone, must use each card's title text). */
 function findAsideCardByTitle(w: { findAll: (s: string) => Array<{ find: (s: string) => { text: () => string } }> }, title: string) {
   return w.findAll('.kn-aside-card').find((c) => c.find('.kn-aside-title').text() === title)
 }
@@ -155,25 +155,25 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', () => {
-  it('isNew=false:发 get()+backlinks() 两发,表单被真实数据填充(K41:tags/body 收窄)', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+describe('NoteEditPane — created() equivalent (isNew both sides, K1/K41 data contract)', () => {
+  it('isNew=false: send get()+backlinks() twice, form filled with real data(K41: tags/body narrowing)', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id)
     expect(notes.get).toHaveBeenCalledWith(NOTE_FIXTURE.id)
     expect(notes.backlinks).toHaveBeenCalledWith(NOTE_FIXTURE.id)
     expect((w.find('.kn-title-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.title)
     expect((w.find('.kn-desc-input').element as HTMLInputElement).value).toBe(NOTE_FIXTURE.description)
-    // status==='draft' → 顶栏徽标 + 草稿横幅都渲染
-    // 🔴 T8 加固(brief §3 / DoD-11,被迫改动,「加固而非改弱」对照见任务报告):
-    // T8 在侧栏插入了结构/文案都相同的第二个 `.kn-badge[data-s="draft"]`(状态卡,
-    // 蓝本 :82)。裸 `.kn-badge[data-s="draft"]` 会从「唯一命中」退化成「命中两个,
-    // .find() 巧合仍取到文档序第一个即顶栏那个」——测试仍绿但判别力已经退化。
-    // 钉 `.kn-edit-top` 祖先,恢复「断言到确定元素」而不是「断言到文档序第一个」。
+    // status==='draft' → top bar badge + draft banner both render
+    // RED T8 reinforcement(brief §3 / DoD-11, forced change, "reinforce not weaken" evidence in task report):
+    // T8 inserts second `.kn-badge[data-s="draft"]` with same structure/text in aside(status card,
+    // blueprint :82). Bare `.kn-badge[data-s="draft"]` degrades from "unique match" to "match two,
+    // .find() happens to get doc order first i.e. top bar" — test still passes but discrimination power degrades.
+    // Pin `.kn-edit-top` ancestor, restore "assert to specific element" not "assert to doc order first".
     expect(w.find('.kn-edit-top .kn-badge[data-s="draft"]').exists()).toBe(true)
     expect(w.find('.kn-draftbar').exists()).toBe(true)
   })
 
-  it('isNew=true:不发 get()/backlinks(),status 为 null(无徽标、无草稿横幅)', async () => {
+  it('isNew=true: don\'t send get()/backlinks(), status is null (no badge, no draft banner)', async () => {
     const { w } = await mountPane('new')
     expect(notes.get).not.toHaveBeenCalled()
     expect(notes.backlinks).not.toHaveBeenCalled()
@@ -182,7 +182,7 @@ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', 
     expect((w.find('.kn-title-input').element as HTMLInputElement).value).toBe('')
   })
 
-  it('status==="archived" 时顶栏只出「已归档」徽标,不出草稿横幅', async () => {
+  it('when status==="archived" top bar shows only "archived" badge, no draft banner', async () => {
     notes.get.mockResolvedValue({ ...NOTE_FIXTURE, status: 'archived' })
     const { w } = await mountPane(NOTE_FIXTURE.id)
     // 🔴 T8 加固,同上一条理由:钉 `.kn-edit-top` 祖先,不再依赖文档序。
@@ -190,7 +190,7 @@ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', 
     expect(w.find('.kn-draftbar').exists()).toBe(false)
   })
 
-  it('get() 失败:K5 固定文案 toast,不回显后端 message', async () => {
+  it('get() fails: K5 fixed text toast, don\'t echo back end message', async () => {
     notes.get.mockRejectedValue(new Error('agent offline: super-secret-stack-trace'))
     await mountPane(NOTE_FIXTURE.id)
     const texts = useToast().toasts.map((x) => x.text)
@@ -199,12 +199,12 @@ describe('NoteEditPane — created() 等效(isNew 两侧,K1/K41 数据契约)', 
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🔴 §5.2 过期守卫(K15 同族第 9 次)—— 两实例交错。
-// RED 探针见任务报告(把 `let loadEpoch` 挪进独立 `<script lang="ts">` 块、
-// 去 setup 化、跨实例共享 —— 本用例必须报红)。
-describe('NoteEditPane — 过期守卫(§5.2):两实例交错', () => {
-  it('🔴 两个实例各自的 loadEpoch 互不干扰(守卫变量必须是组件本地,不是模块级)', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+// RED §5.2 stale guard(K15 family 9th) — two instance interleaving.
+// RED probe in task report(move `let loadEpoch` into separate `<script lang="ts">` block,
+// remove setup, share across instances — this case must fail red).
+describe('NoteEditPane — stale guard (§5.2): two instance interleaving', () => {
+  it('RED two instances\' loadEpoch don\'t interfere(guard variable must be component-local, not module-level)', async () => {
     const d1 = makeDeferred<Note>()
     const d2 = makeDeferred<Note>()
     notes.get.mockReturnValueOnce(d1.promise) // instance 1 的首发(也是唯一一发)
@@ -212,10 +212,10 @@ describe('NoteEditPane — 过期守卫(§5.2):两实例交错', () => {
     notes.get.mockReturnValueOnce(d2.promise) // instance 2 的首发(也是唯一一发)
     const { w: w2 } = await mountPane('note-b')
 
-    // instance 1 的响应最后才到:若守卫变量是模块级,instance2 挂载时的
-    // `++loadEpoch` 已经把共享计数器往前推,instance1 检查
-    // `epoch !== loadEpoch` 会误判自己"过期"而丢弃这个本该属于它的、
-    // 唯一一次响应。
+    // instance 1's response arrives last: if guard variable is module-level,
+    // instance2 mount time `++loadEpoch` already advanced shared counter,
+    // instance1 check `epoch !== loadEpoch` wrongly judges itself "stale" and discards
+    // its only response that belongs to it.
     d1.resolve({ ...NOTE_FIXTURE, id: 'note-a', title: 'Title A', revision: 1 })
     await flush()
     d2.resolve({ ...NOTE_FIXTURE, id: 'note-b', title: 'Title B', revision: 2 })
@@ -226,21 +226,21 @@ describe('NoteEditPane — 过期守卫(§5.2):两实例交错', () => {
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-// 🔴 N29:`tbActive()` 里 `tbTick.value >= 0 &&` 是故意的假依赖,不许删。
-// 判据:直接对**真实 Editor 实例**触发 transaction(绕开 `cmd()`,因此不改
-// `dirty`——若走 `cmd()`,`dirty` 的变化本身也会强制整个组件重渲染,测不出
-// tbTick 这一项假依赖单独的判别力,见文件头 R5 说明)。
-// 🔴 裁定 R5:附录 D §D.6.1 的探针没挂父组件,这条链路 T0 没实证过,本刀必须
-// 自己附变异证据(报告 §变异证据:删掉 `tbTick.value >= 0 &&` 后本用例报红)。
-describe('NoteEditPane — N29(tbActive 假依赖,工具栏 data-on 跟着 transaction 刷新)', () => {
-  it('绕开 cmd() 直接对真实 Editor 触发 transaction 后,.kn-tb-btn[data-on] 才刷新;dirty 全程未变', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+// RED N29: `tbTick.value >= 0 &&` in `tbActive()` is intentional fake dependency, must not delete.
+// Criterion: trigger transaction directly on **real Editor instance**(bypass `cmd()`, so don't change
+// `dirty`—if use `cmd()`, `dirty` change itself forces whole component re-render, can't show
+// tbTick this fake dependency single discrimination power, see file header R5 explanation).
+// RED ruling R5: appendix D §D.6.1 probe not mounted on parent component, this chain path T0 not empirically proven,
+// this pass must provide mutation evidence itself(report §mutation evidence: deleting `tbTick.value >= 0 &&` makes this case fail red).
+describe('NoteEditPane — N29(tbActive fake dependency, toolbar data-on refreshes with transaction)', () => {
+  it('after triggering transaction directly on real Editor bypassing cmd(), .kn-tb-btn[data-on] refreshes; dirty unchanged throughout', async () => {
     const { w } = await mountPane('new')
     const boldBtn = w.find('.kn-editor-toolbar .kn-tb-btn[title="加粗"]')
     expect(boldBtn.attributes('data-on')).toBe('false')
 
-    // 🔴 wrapper.vm 直读 <script setup> 顶层 ref(见文件头说明)——绕开
-    // cmd(),不改 dirty,只让真实 Editor 产生一次 transaction。
+    // RED wrapper.vm directly read <script setup> top-level ref(see file header explanation)—bypass
+    // cmd(), don't change dirty, only let real Editor generate one transaction.
     const ed = (w.vm as unknown as { editor?: Editor }).editor
     expect(ed).toBeTruthy()
     ed!.chain().focus().toggleBold().run()
@@ -252,33 +252,33 @@ describe('NoteEditPane — N29(tbActive 假依赖,工具栏 data-on 跟着 trans
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-// N27:四档三元嵌套照抄(蓝本 `:17`),四档都要用例。
-describe('NoteEditPane — N27(保存提示四档三元嵌套照抄)', () => {
-  it('saving=true → "保存中…"(优先级最高,不看 dirty/isNew)', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+// N27: four-level nested ternary copy as-is(blueprint `:17`), all four levels need test cases.
+describe('NoteEditPane — N27(save hint four-level nested ternary copy as-is)', () => {
+  it('saving=true → "Saving…"(highest priority, ignore dirty/isNew)', async () => {
     const d = makeDeferred<Note>()
     notes.create.mockReturnValue(d.promise)
     const { w } = await mountPane('new')
     await w.find('.kn-title-input').setValue('draft title')
     await w.find('.kn-edit-top .k-btn.primary').trigger('click')
-    await nextTick() // 不 flushPromises:抓住 saving=true 但请求尚未回来的中间态
-    expect(w.find('.kn-savehint').text()).toContain('保存中…')
+    await nextTick() // no flushPromises: catch intermediate state where saving=true but request not yet back
+    expect(w.find('.kn-savehint').text()).toContain('Saving…')
     d.resolve({ ...NOTE_FIXTURE, id: 'x' })
     await flush()
   })
 
-  it('saving=false, dirty=true → "有未保存更改"', async () => {
+  it('saving=false, dirty=true → "Unsaved changes"', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id)
     await w.find('.kn-title-input').setValue(NOTE_FIXTURE.title + ' edited')
     expect(w.find('.kn-savehint').text()).toContain('有未保存更改')
   })
 
-  it('saving=false, dirty=false, isNew=true → "尚未保存"', async () => {
+  it('saving=false, dirty=false, isNew=true → "Not saved yet"', async () => {
     const { w } = await mountPane('new')
     expect(w.find('.kn-savehint').text()).toContain('尚未保存')
   })
 
-  it('saving=false, dirty=false, isNew=false → "已保存 · rev {n}"', async () => {
+  it('saving=false, dirty=false, isNew=false → "Saved · rev {n}"', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id)
     await flush()
     expect(w.find('.kn-savehint').text()).toContain(`已保存 · rev ${NOTE_FIXTURE.revision}`)
@@ -287,8 +287,8 @@ describe('NoteEditPane — N27(保存提示四档三元嵌套照抄)', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // N26:三段式拼接照抄(中间加粗),不合成带 HTML 的键。
-describe('NoteEditPane — N26(草稿横幅三段式拼接)', () => {
-  it('三段各自独立渲染,中间段是 <b> 加粗', async () => {
+describe('NoteEditPane — N26(draft banner three-segment splice)', () => {
+  it('three segments render independently, middle segment is <b> bold', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id) // NOTE_FIXTURE.status === 'draft'
     const txt = w.find('.kn-draftbar-txt')
     const b = txt.find('b')
@@ -394,15 +394,15 @@ describe('NoteEditPane — 保存按钮 disabled(saving || (isNew && !title.trim
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-// save() 两条路 + addTag() 在开头被调用(输入框未提交的标签会被带上)。
-describe('NoteEditPane — save():isNew 两条路 + addTag() 前置调用', () => {
-  it('isNew=true → create() + router 带 ?id=,addTag() 把未提交的标签一并带上', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+// save() two paths + addTag() called at start(unprompted tags in input also saved).
+describe('NoteEditPane — save(): isNew two paths + addTag() pre-call', () => {
+  it('isNew=true → create() + router with ?id=, addTag() brings unprompted tags along', async () => {
     const { w, router } = await mountPane('new')
     await w.find('.kn-title-input').setValue('brand new note')
-    // 🔴 wrapper.vm 直读 tagInput(文件头技术先例说明)——标签输入框的 UI
-    // 归 T8,本刀只需证明 save() 开头调用的 addTag() 真的把"输入框里还没提交
-    // 的文本"解析进 form.tags 并带进 create() 的 payload。
+    // RED wrapper.vm directly read tagInput(file header technique explanation)—tag input UI
+    // belongs to T8, this pass only needs to prove save() start call to addTag() truly
+    // parses "unprompted text in input" into form.tags and brings it to create() payload.
     ;(w.vm as unknown as { tagInput: string }).tagInput = 'foo, bar'
     await w.find('.kn-edit-top .k-btn.primary').trigger('click')
     await flush()
@@ -412,7 +412,7 @@ describe('NoteEditPane — save():isNew 两条路 + addTag() 前置调用', () =
     expect(router.currentRoute.value.fullPath).toContain('?id=new-note-id')
   })
 
-  it('isNew=false → update({expectedRevision, ...}),保存成功后 toast「已保存」', async () => {
+  it('isNew=false → update({expectedRevision, ...}), toast "Saved" after success', async () => {
     const { w } = await mountPane(NOTE_FIXTURE.id)
     await flush()
     await w.find('.kn-title-input').setValue(NOTE_FIXTURE.title + ' v2')
@@ -426,12 +426,12 @@ describe('NoteEditPane — save():isNew 两条路 + addTag() 前置调用', () =
   })
 })
 
-// ═══════════════════════════════════════════════════════════════════════════
-// save() 的 catch 分岔:409+!isNew → openConflict()(本刀只到 conflict state
-// 被设上,弹窗渲染归 T8);否则(含 409+isNew)→ K5 固定文案,排除式断言不含
-// 后端文本。
-describe('NoteEditPane — save() catch 分岔(K5 + conflict state)', () => {
-  it('🔴 409 + !isNew → conflictMessage 判真,conflict state 被设上(latest/baseRevision),不弹「操作失败」', async () => {
+// ═════════════════════════════════════════════════════════════════════════════
+// save() catch branch: 409+!isNew → openConflict()(this pass only to conflict state
+// being set, modal render goes to T8); otherwise(including 409+isNew) → K5 fixed text,
+// exclusion assertion no back end text.
+describe('NoteEditPane — save() catch branch(K5 + conflict state)', () => {
+  it('RED 409 + !isNew → conflictMessage true, conflict state set(latest/baseRevision), don\'t show "operation failed"', async () => {
     notes.update.mockRejectedValue({ response: { status: 409, data: { current_revision: 999 } } })
     notes.get.mockImplementation((id: string) => Promise.resolve({ ...NOTE_FIXTURE, id, revision: 999 }))
     const { w } = await mountPane(NOTE_FIXTURE.id)
@@ -441,15 +441,15 @@ describe('NoteEditPane — save() catch 分岔(K5 + conflict state)', () => {
     await w.find('.kn-edit-top .k-btn.primary').trigger('click')
     await flush()
 
-    // openConflict() 内部会再发一次 get() 拿最新版本。
+    // openConflict() internally sends another get() to fetch latest version.
     expect(notes.get).toHaveBeenCalledWith(NOTE_FIXTURE.id)
-    // 🔴 wrapper.vm 直读 conflict ref(文件头技术先例)——冲突弹窗渲染归 T8,
-    // 本刀只验证"状态被设上"这个可观察结果。
+    // RED wrapper.vm directly read conflict ref(file header technique)—conflict modal render goes to T8,
+    // this pass only verifies "state being set" observable result.
     const conflict = (w.vm as unknown as { conflict: { latest: Note; baseRevision: number } | null }).conflict
     expect(conflict).not.toBeNull()
     expect(conflict!.latest.revision).toBe(999)
-    // baseRevision = note.value.revision(本刀 mock 里 get() 对任何 id 都回 revision:999,
-    // 即挂载时首发 get() 已经把 note.value.revision 设成 999 了,不是 NOTE_FIXTURE 原值)
+    // baseRevision = note.value.revision(in this pass mock get() returns revision:999 for any id,
+    // i.e. mount time first get() already set note.value.revision to 999, not NOTE_FIXTURE original value)
     expect(conflict!.baseRevision).toBe(999)
     expect(useToast().toasts.map((x) => x.text)).not.toContain('操作失败')
   })

@@ -1,54 +1,61 @@
-// SP8-P5a Task 6 —— 1:1 移植自 Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/store/knowledgeStore.js`(363 行)。
-// 本文件只搬 **Parser 组**(Dashboard/topbar、Jobs 队列、Allowlist、Control、
-// Indexed Files 五块 state + 对应 action + `toast`/`fmtAgo`)。notes/wiki/distill
-// 三组(state: distillJobs/wikiRoots/wikiCandidates/wikiRootsLoading/
-// notesDraftCount/notesSummary + 对应 action)留给 T7 在本文件里续写 ——
-// 见任务 brief:「本任务只做: state 里 Dashboard/topbar/Allowlist/Queue(parser
-// 半)/indexedFiles 五块 + toast + loadOverview + Jobs 五个 action + Allowlist
-// 四个 + setControl + IndexedFiles 五个。notes/wiki/distill 留给 T7」。
-// 【评审 R1 修正,2026-08-01】`export const DISTILL_JOBS_LIMIT = 500` 曾被误判为
-// 「本任务代码零处引用,归 T7」而漏掉。这个判断错了 —— 判据是任务 brief 的
-// **Interfaces 契约**(brief 第 11 行明文把它列进 T6 的 Produces)与**下游消费者**
-// (T7 brief `import { useKnowledgeStore, DISTILL_JOBS_LIMIT } from './knowledgeStore'`
-// 且断言里直接用到这个值),不是「这个任务自己的代码里有没有用到」。跨任务契约里
-// 点名要产出的东西缺了,下一个任务会直接编译不过。现补上,定义处见下方(紧邻
-// `fmtAgo` 之前,对应蓝本 :11 的位置)。
+// SP8-P5a Task 6 —— 1:1 port from Vue2
+// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/store/knowledgeStore.js` (363 lines).
+// This file carries only the **Parser group** (Dashboard/topbar, Jobs queue, Allowlist,
+// Control, Indexed Files five state blocks + corresponding actions + `toast`/`fmtAgo`).
+// The three groups notes/wiki/distill (state: distillJobs/wikiRoots/wikiCandidates/
+// wikiRootsLoading/notesDraftCount/notesSummary + corresponding actions) are left for T7
+// to continue in this file ——
+// see task brief: "This task only does: state Dashboard/topbar/Allowlist/Queue(parser
+// half)/indexedFiles five blocks + toast + loadOverview + Jobs five actions + Allowlist
+// four + setControl + IndexedFiles five. notes/wiki/distill left for T7".
+// 【Review R1 correction, 2026-08-01】`export const DISTILL_JOBS_LIMIT = 500` was
+// mistakenly omitted on grounds of "no usage in this task's code, belongs to T7".
+// That assessment was wrong —— the criterion is task brief's **Interface contract** (brief
+// line 11 explicitly lists it as T6's output) and **downstream consumers** (T7 brief
+// `import { useKnowledgeStore, DISTILL_JOBS_LIMIT } from './knowledgeStore'` and direct
+// use in assertions), not "whether this task's own code uses it". Missing a cross-task
+// interface deliverable means the next task fails to compile. Adding it now; definition
+// below (before `fmtAgo`, corresponding to blueprint :11).
 //
-// 【取数口径】(K1,承 P2a/P3a/P3b/P4 第五次同一模具)—— Vue2 里 `api.xxx()` 返回
-// axios 原始响应,处处写 `resp.data`(如蓝本 :84 `stats.data`)。共享包
-// `service.ai.*` 已在包内解过那一层,直接吐 body。故本文件把蓝本的
+// 【Data extraction mode】(K1, following P2a/P3a/P3b/P4 fifth iteration of same pattern)
+// —— In Vue2 `api.xxx()` returns raw axios response, everywhere written `resp.data`
+// (e.g. blueprint :84 `stats.data`). Shared package `service.ai.*` already unwraps that
+// layer, returns body directly. Thus this file rewrites blueprint's
 // `stats.data`/`control.data`/`r.data.jobs`/`r.data.files`/`r.data.total`/
-// `exts.data.extensions`/`folders.data.rules` 全部改写成单层的
-// `stats`/`control`/`body.jobs`/`body.files`/`body.total`/`body.extensions`/
-// `body.rules`,不再多剥一层 `.data`。与 agentStore.ts:110-130、
-// settingsStore.ts:6-9 确立的口径一致。
+// `exts.data.extensions`/`folders.data.rules` to single-layer
+// `stats`/`control`/`body.jobs`/`body.files`/`body.total`/`body.extensions`/`body.rules`,
+// no extra `.data` unwrap. Consistent with agentStore.ts:110-130,
+// settingsStore.ts:6-9.
 //
-// 【Vue2 响应式 API 的机械替换】(等价物,非行为改动;承 P1)
-//   Vue.observable({ state: {...} }) → 一组 ref
+// 【Mechanical replacement of Vue2 reactivity API】(equivalent, not behavior change;
+// following P1)
+//   Vue.observable({ state: {...} }) → set of ref
 //   state.x                          → x.value
-//   Vue.set(o, k, v)                 → o[k] = v(本组无命中)
-//   actions.foo() 内部互调(如 loadAllJobs 调 this.loadJobs)→ 直接调本地函数
+//   Vue.set(o, k, v)                 → o[k] = v (no hits in this group)
+//   actions.foo() internal calls (e.g. loadAllJobs calls this.loadJobs) → direct local call
 //
-// 【偏离 P2:定时器句柄移出 state】—— 蓝本把 `indexedFiles.pollTimer` 放在响应式
-// state 里(:53)。本文件改成模块级 `let indexedPollTimer`(与 agentStore.ts 的
-// `_toastTimer` 同款):Pinia state 会被 devtools 序列化,定时器句柄不是数据。
-// 行为等价 ——`startIndexedPolling` 里「已在轮询就不重复起」的守卫
-// (蓝本 :346 `if (s.pollTimer) return`)原样保留,只是判据换成了模块级变量。
+// 【Divergence P2: timer handle moved out of state】—— Blueprint puts
+// `indexedFiles.pollTimer` in reactive state (:53). This file changes to module-level
+// `let indexedPollTimer` (same style as agentStore.ts `_toastTimer`): Pinia state is
+// serialized by devtools, timer handle is not data.
+// Behavior equivalent —— the "already polling, don't start again" guard in
+// `startIndexedPolling` (blueprint :346 `if (s.pollTimer) return`) preserved unchanged,
+// only the check variable changed to module-level.
 //
-// 【偏离 P4:`.k-toast` 退役后 toast 的去处】—— 蓝本 `toast(msg)`(:72-76)直接写
-// `knowledgeStore.state.toast` 并用模块级 `_toastTimer` 做 2400ms 自动清空,配
-// 组件里的 `.k-toast` 渲染。本仓 `.k-toast` 不移植(K3),`toast()` 保留为 store
-// action(蓝本多处调用点依赖它这个名字),内部改调全局 `useToast().show(msg,
-// 2400)`——2400ms 是蓝本自己的超时,必须显式传参(`useToast().show` 默认值是
-// 1500,见 `src/stores/toast.ts:21`)。`state.toast` 字段整个删除,不再需要。
+// 【Divergence P4: where toast lives after `.k-toast` retires】—— Blueprint `toast(msg)`
+// (:72-76) directly writes `knowledgeStore.state.toast` and uses module-level `_toastTimer`
+// for 2400ms auto-clear, paired with `.k-toast` render in component. This repo doesn't port
+// `.k-toast` (K3), `toast()` stays as store action (blueprint has many callers depending on
+// that name), internally calls global `useToast().show(msg, 2400)` —— 2400ms is blueprint's
+// own timeout, must be passed explicitly (`useToast().show` default is 1500, see
+// `src/stores/toast.ts:21`). The `state.toast` field is entirely deleted, no longer needed.
 //
-// 【i18n】`fmtAgo`(蓝本 :60-69)用 `i18n.t(...)`。本仓 vue-i18n 9 走 composition
-// 模式,Pinia setup store 不在组件 setup 上下文里、`useI18n()` 用不了,照
-// agentStore.ts:6,899 的既有先例改用全局实例 `i18n.global.t(...)`。四个键
-// (`aiKbJustNow`/`aiKbMinAgo`/`aiKbHrAgo`/`aiKbDaysAgo`)由 T8 落地,已在
-// `src/i18n/{zh_cn,en_us}.ts` 核实存在,插值占位符名 `m`/`h`/`d` 与蓝本
-// `{m}`/`{h}`/`{d}` 逐字一致。
+// 【i18n】`fmtAgo` (blueprint :60-69) uses `i18n.t(...)`. This repo's vue-i18n 9 uses
+// composition mode, Pinia setup store is not in component setup context, `useI18n()` is
+// unavailable, following precedent from agentStore.ts:6,899 uses global instance
+// `i18n.global.t(...)`. Four keys (`aiKbJustNow`/`aiKbMinAgo`/`aiKbHrAgo`/`aiKbDaysAgo`)
+// by T8, verified to exist in `src/i18n/{zh_cn,en_us}.ts`, interpolation placeholders
+// `m`/`h`/`d` match blueprint `{m}`/`{h}`/`{d}` exactly.
 
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
@@ -59,8 +66,9 @@ import { useToast } from '../../../stores/toast'
 import { buildListParams, anyIndexing } from '../util/indexedFiles'
 import { summarizeNotes } from '../util/dashboardHelpers'
 
-// ── 类型:服务端返回体在共享包里都是 `unknown`,这里按蓝本的实际用法窄化 ──
-// (字段形状见设计 §6.1 / p5a-common-constraints.md §4 的后端实测契约)
+// ── Types: service responses are all `unknown` in shared package, narrowed here by
+// blueprint's actual usage ——
+// (field shape per design §6.1 / p5a-common-constraints.md §4 backend contract)
 
 export interface QueueDepth {
   pending: number
@@ -77,7 +85,7 @@ export interface ParserModel {
   [k: string]: unknown
 }
 
-/** parserStats() 回包 —— 实测无 rate_per_min/done_last_10m/eta_s(N2,照抄不补)。 */
+/** parserStats() response —— live testing shows no rate_per_min/done_last_10m/eta_s (N2, copy only). */
 export interface ParserStats {
   queue_depth: QueueDepth
   indexed_files: number
@@ -87,7 +95,7 @@ export interface ParserStats {
   models?: ParserModel[]
 }
 
-/** parserState() 回包 —— 实测只有这 5 个字段。 */
+/** parserState() response —— live testing shows exactly these 5 fields. */
 export interface ParserControlState {
   paused: boolean
   concurrency: number
@@ -118,14 +126,14 @@ export interface JobsBuckets {
   failed: ParserJob[]
 }
 
-/** parserAllowlistExtensions() 单条 —— 后端 `enabled` 是 SQLite 整数 0/1(N1)。 */
+/** parserAllowlistExtensions() single item —— backend `enabled` is SQLite integer 0/1 (N1). */
 export interface RawAllowlistExtension {
   ext: string
   enabled: number | boolean
   source: string
 }
 
-/** 归一化后(N1:`enabled` 转布尔)。 */
+/** After normalization (N1: `enabled` to boolean). */
 export interface AllowlistExtension {
   ext: string
   enabled: boolean
@@ -156,7 +164,7 @@ export interface IndexedFile {
   [k: string]: unknown
 }
 
-/** 蓝本 :48-52 —— Indexed Files tab 的筛选器初值。 */
+/** Blueprint :48-52 —— Initial filter values for Indexed Files tab. */
 export interface IndexedFileFilters {
   root_id: string | null
   path_prefix: string
@@ -169,7 +177,7 @@ export interface IndexedFileFilters {
   offset: number
 }
 
-/** 蓝本 :46-54 —— **不含** `pollTimer`(P2 偏离,句柄挪到模块级 `indexedPollTimer`)。 */
+/** Blueprint :46-54 —— **excludes** `pollTimer` (P2 divergence, handle moved to module-level `indexedPollTimer`). */
 export interface IndexedFilesState {
   files: IndexedFile[]
   total: number
@@ -179,14 +187,15 @@ export interface IndexedFilesState {
 }
 
 /**
- * 蓝本 :9-11 —— 一次沉淀任务队列拉取的服务端上限,与视图共用同一个数字,让
- * 「列表被截断」的判据(已加载行数 >= 这个上限)两边算的是同一件事。本批
- * (T6)不消费它——沉淀队列(distillJobs)整组归 T7;T7 起 `import { ...,
- * DISTILL_JOBS_LIMIT } from './knowledgeStore'` 使用。值与蓝本逐字一致(500)。
+ * Blueprint :9-11 —— per-call limit for distill job queue fetch from server, shared number
+ * with view so "list is truncated" criterion (rows loaded >= this limit) computes the same
+ * on both sides. This batch (T6) doesn't consume it —— distill queue (distillJobs) whole
+ * group belongs to T7; T7 onwards `import { ..., DISTILL_JOBS_LIMIT } from './knowledgeStore'`
+ * to use. Value matches blueprint exactly (500).
  */
 export const DISTILL_JOBS_LIMIT = 500
 
-/** 蓝本 :60-69 —— 相对时间格式化,四档(0 值/分钟/小时/天)。 */
+/** Blueprint :60-69 —— relative time formatting, four tiers (zero / minutes / hours / days). */
 export function fmtAgo(ms: number): string {
   if (!ms) return '—'
   const diff = Math.max(0, Date.now() - ms)
@@ -198,20 +207,20 @@ export function fmtAgo(ms: number): string {
   return i18n.global.t('aiKbDaysAgo', { d: Math.floor(h / 24) })
 }
 
-/** P2 —— 定时器句柄移出 state,理由见文件头注释。 */
+/** P2 —— timer handle moved out of state, rationale in file header. */
 let indexedPollTimer: ReturnType<typeof setInterval> | null = null
 
 // ══════════════════════════════════════════════════════════════════════
-// SP8-P5a Task 7 —— notes + wiki + distill 组(蓝本 :99-309,同一份
-// knowledgeStore.js;T6 已落 Parser 组,本节续写)。承接 T6 的口径:
-// K1(单层取数)/P1(Vue.observable→setup store)/K5(HTTP 失败不回显后端
-// body,改 i18n 键)/K6(不照抄 console.error)。N4/N5/N6/N7 四条「照抄不改」
-// 在对应函数处逐一注明。
+// SP8-P5a Task 7 —— notes + wiki + distill group (blueprint :99-309, same
+// knowledgeStore.js; T6 done Parser group, this section continues).
+// Following T6 conventions: K1 (single-layer extraction) / P1 (Vue.observable→setup store) /
+// K5 (HTTP failure doesn't echo backend body, use i18n key) / K6 (don't copy console.error).
+// N4/N5/N6/N7 four "copy exactly" rules noted individually in corresponding functions.
 // ══════════════════════════════════════════════════════════════════════
 
-/** 蓝本 :35(distillJobs 初值形状)—— pending/running/failed 与 Parser 组
- * `jobs` 同型,额外带 counts(全量 tally)/done(累计沉淀数)/total(本次
- * 拉取行数,N5 的截断判据)。 */
+/** Blueprint :35 (distillJobs initial shape) —— pending/running/failed same type as Parser
+ * group `jobs`, plus counts (full tally) / done (cumulative distilled count) / total
+ * (rows fetched this call, truncation criterion per N5). */
 export interface DistillJobsState {
   pending: DistillJob[]
   running: DistillJob[]
@@ -221,8 +230,8 @@ export interface DistillJobsState {
   total: number
 }
 
-/** 蓝本 :43(notesSummary 初值形状)—— 喂给 dashboardHelpers.summarizeNotes 的
- * 输出,仪表盘构成卡三层分布用。 */
+/** Blueprint :43 (notesSummary initial shape) —— output fed to dashboardHelpers.summarizeNotes,
+ * used for dashboard composition card three-tier distribution. */
 export interface NotesSummary {
   total: number
   draft: number
@@ -231,7 +240,7 @@ export interface NotesSummary {
 }
 
 export const useKnowledgeStore = defineStore('ai-knowledge', () => {
-  // ── Dashboard / topbar(蓝本 :18-23)──
+  // ── Dashboard / topbar (blueprint :18-23) ──
   const stats = ref<ParserStats>({
     queue_depth: { pending: 0, running: 0, failed: 0, done: 0 },
     indexed_files: 0,
@@ -250,20 +259,20 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
   const overviewLoaded = ref(false)
   const lastSyncFmt = ref('—')
 
-  // ── Allowlist(蓝本 :24-26)──
+  // ── Allowlist (blueprint :24-26) ──
   const extensions = ref<AllowlistExtension[]>([])
   const folderRules = ref<FolderRule[]>([])
 
-  // ── Queue(蓝本 :27-28,parser 半)──
+  // ── Queue (blueprint :27-28, parser half) ──
   const jobs = ref<JobsBuckets>({ pending: [], running: [], failed: [] })
-  /** `loadAllJobs` 的过期守卫计数器(K15),写法承 `rootsEpoch`(`3d8c9bc`)。
-   * store 实例局部,不是模块级单例。 */
+  /** Stale-guard counter for `loadAllJobs` (K15), pattern from `rootsEpoch` (`3d8c9bc`).
+   * Per store instance, not module-level singleton. */
   let allJobsEpoch = 0
 
-  // ── Parsing progress(蓝本 :41-42)──
+  // ── Parsing progress (blueprint :41-42) ──
   const backlogPeak = ref(0)
 
-  // ── Indexed Files tab(蓝本 :45-54,P2 去掉 pollTimer)──
+  // ── Indexed Files tab (blueprint :45-54, P2 removed pollTimer) ──
   const indexedFiles = ref<IndexedFilesState>({
     files: [],
     total: 0,
@@ -281,11 +290,12 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
       offset: 0,
     },
   })
-  /** `loadIndexedFiles` 的过期守卫计数器(K15)。见该函数注释:`finally` 里的
-   * `loading` 归位也受它约束,否则先发后至的一发会在骨架消失后又把它撤掉。 */
+  /** Stale-guard counter for `loadIndexedFiles` (K15). See function comment: `loading`
+   * reset in `finally` is also guarded, else a stale arrival will reset it after skeleton
+   * vanishes. */
   let indexedFilesEpoch = 0
 
-  // ── T7:notes / distill / wiki(蓝本 :29-43)──
+  // ── T7: notes / distill / wiki (blueprint :29-43) ──
   const distillJobs = ref<DistillJobsState>({
     pending: [],
     running: [],
@@ -294,26 +304,27 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     done: 0,
     total: 0,
   })
-  /** `loadDistillJobs` 的过期守卫计数器(K15)。四路并存(10s 轮询 +
-   * `setFilter` + `setScope('distill')` + `retryDistill`/`cancelDistill` 内部
-   * 重载),按 filter 只刷对应桶,串号会让 pending 的结果落进 failed 桶。 */
+  /** Stale-guard counter for `loadDistillJobs` (K15). Four concurrent sources (10s polling +
+   * `setFilter` + `setScope('distill')` + internal reload in `retryDistill`/`cancelDistill`),
+   * per filter only refreshes corresponding bucket, stale responses can put pending results
+   * in failed bucket. */
   let distillJobsEpoch = 0
   const wikiRoots = ref<WikiRoot[]>([])
   const wikiCandidates = ref<WikiCandidate[]>([])
   const wikiRootsLoading = ref(false)
-  /** `loadRoots` 的过期守卫计数器,见该函数注释。不是数据,故不进 state
-   * (与 `indexedPollTimer` 同款处理),但按 store 实例而非模块作用域,
-   * 这样每次 `createPinia()` 都从 0 起。 */
+  /** Stale-guard counter for `loadRoots`, see function comment. Not data, so not in state
+   * (same treatment as `indexedPollTimer`), but per store instance not module scope,
+   * so each `createPinia()` starts from 0. */
   let rootsEpoch = 0
   const notesDraftCount = ref(0)
   const notesSummary = ref<NotesSummary>({ total: 0, draft: 0, curated: 0, archived: 0 })
 
-  /** P4 —— `.k-toast` 退役,转调全局 toast,2400ms 与蓝本一致(须显式传参)。 */
+  /** P4 —— `.k-toast` retired, delegates to global toast, 2400ms matches blueprint (explicit param). */
   function toast(msg: string): void {
     useToast().show(msg, 2400)
   }
 
-  /** 蓝本 :78-96 —— 并行拉 stats + control state;失败置 unreachable,不动既有值。 */
+  /** Blueprint :78-96 —— parallel fetch stats + control state; on failure set unreachable, leave existing values. */
   async function loadOverview(): Promise<void> {
     try {
       const [statsBody, controlBody] = await Promise.all([
@@ -334,21 +345,22 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  // ── Jobs(蓝本 :141-166)──
+  // ── Jobs (blueprint :141-166) ──
 
-  /** 蓝本 :142-145 —— 单桶拉取,N7:缺 `jobs` 键兜底空数组。 */
+  /** Blueprint :142-145 —— single bucket fetch, N7: missing `jobs` key defaults to empty array. */
   async function loadJobs(status: string, limit = 200): Promise<ParserJob[]> {
     const body = (await service.ai.parserJobs({ status, limit })) as { jobs?: ParserJob[] }
     return body.jobs || []
   }
 
-  /** 蓝本 :146-153 —— 三桶并行拉取并归位。
+  /** Blueprint :146-153 —— parallel three-bucket fetch and reset.
    *
-   * 【偏离,K15,过期守卫】QueueView 10 秒轮询与 `setScope('index')` 手动触发
-   * 两路并存 —— 手动切换 scope 立刻再发一次时,若轮询那一发更晚落地(网络抖动/
-   * 后端瞬时变慢都会发生),先发后至会用旧数据覆盖新数据,页面短暂"往回跳"。
-   * 用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃,不写
-   * `jobs.value`。写法承 `loadRoots`(`3d8c9bc`)。 */
+   * 【Divergence, K15, stale guard】QueueView 10-second polling and `setScope('index')`
+   * manual trigger coexist —— when manually switching scope and immediately fetching again,
+   * if polling's request arrives late (network jitter / backend slowdown), earlier request
+   * arriving later overwrites new data, page briefly "jumps back".
+   * Use local epoch to check "am I still the latest call", discard entire response if not,
+   * don't write `jobs.value`. Pattern from `loadRoots` (`3d8c9bc`). */
   async function loadAllJobs(): Promise<void> {
     const epoch = ++allJobsEpoch
     const [p, r, f] = await Promise.all([
@@ -360,28 +372,28 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     jobs.value = { pending: p, running: r, failed: f }
   }
 
-  /** 蓝本 :154-157 —— 默认 `null`(全部重试)。 */
+  /** Blueprint :154-157 —— defaults to `null` (retry all). */
   async function retryFailed(fileIds: string[] | null = null): Promise<void> {
     await service.ai.parserRetryJobs({ file_ids: fileIds })
     await loadAllJobs()
   }
 
-  /** 蓝本 :158-161。 */
+  /** Blueprint :158-161. */
   async function cancelJob(id: string | number): Promise<void> {
     await service.ai.parserDeleteJob(id)
     await loadAllJobs()
   }
 
-  /** 蓝本 :162-166。 */
+  /** Blueprint :162-166. */
   async function clearFailed(): Promise<unknown> {
     const body = await service.ai.parserClearFailedJobs()
     await loadAllJobs()
     return body
   }
 
-  // ── Allowlist(蓝本 :217-241)──
+  // ── Allowlist (blueprint :217-241) ──
 
-  /** 蓝本 :217-228 —— N1:`enabled` 的 0/1 归一化成布尔,连注释一起照抄。 */
+  /** Blueprint :217-228 —— N1: `enabled` 0/1 normalized to boolean, copy comment verbatim. */
   async function loadAllowlist(): Promise<void> {
     const [extsBody, foldersBody] = await Promise.all([
       service.ai.parserAllowlistExtensions(),
@@ -389,20 +401,20 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     ])
     const exts = extsBody as { extensions?: RawAllowlistExtension[] }
     const folders = foldersBody as { rules?: FolderRule[] }
-    // Parser 把 `enabled` 报成 SQLite INTEGER(0/1)。chip 模板靠布尔值驱动视觉
-    // 翻转状态 —— 不做这层归一化,chip 永远不会随后端值切换高亮(蓝本 :222-225
-    // 原注释逐字对齐)。
+    // Parser reports `enabled` as SQLite INTEGER(0/1). Chip template is driven by boolean
+    // to flip visual state —— without this normalization, chip never highlights per backend
+    // value (original blueprint :222-225 comment aligned exactly).
     extensions.value = (exts.extensions || []).map((e) => ({ ...e, enabled: !!e.enabled }))
     folderRules.value = folders.rules || []
   }
 
-  /** 蓝本 :229-232。 */
+  /** Blueprint :229-232. */
   async function toggleExtension(ext: string, enabled: boolean): Promise<void> {
     await service.ai.patchParserAllowlistExtensions({ ext, enabled })
     await loadAllowlist()
   }
 
-  /** 蓝本 :233-237。 */
+  /** Blueprint :233-237. */
   async function addFolderRule(payload: {
     root_id: string
     path_glob: string
@@ -413,34 +425,35 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     return body
   }
 
-  /** 蓝本 :238-241。 */
+  /** Blueprint :238-241. */
   async function deleteFolderRule(id: string | number): Promise<void> {
     await service.ai.deleteParserAllowlistFolder(id)
     await loadAllowlist()
   }
 
-  // ── Control(蓝本 :310-314,设置页用)──
+  // ── Control (blueprint :310-314, settings page) ──
 
-  /** 蓝本 :311-314 —— action + 附加字段合并进 body,成功后重载 overview。 */
+  /** Blueprint :311-314 —— action + extra fields merged into body, reload overview on success. */
   async function setControl(action: string, extra: Record<string, unknown> = {}): Promise<void> {
     await service.ai.parserControl({ action, ...extra })
     await loadOverview()
   }
 
-  // ── Indexed Files tab(蓝本 :316-362)──
+  // ── Indexed Files tab (blueprint :316-362) ──
 
-  /** 蓝本 :317-330。
+  /** Blueprint :317-330.
    *
-   * 【偏离,K15,过期守卫】`onPathPrefixInput`(蓝本 `IndexedFilesView.vue:633-636`)/
-   * `onMimePrefixInput`(`:643-646`)每敲一键就整发重载,蓝本无 debounce(N9,
-   * 触发频率照抄不改)。打 `abc` 三发并存时,若 `a`→`ab`→`abc` 不按输入顺序落地
-   * (先发后至),`ab` 那一发会把 `abc` 的结果盖上去,而过滤条上显示的分明是
-   * `abc`。用局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃 ——
-   * **`finally` 里的 `s.loading = false` 也受它约束**,否则过期的一发会在最新
-   * 一发已经把骨架撤掉之后又把它撤一遍(此时新数据已经渲染,不该再显示骨架/
-   * 再次归位是良性 no-op 也就罢了,但反过来:若最新一发还没落地、过期一发先
-   * 落地,不受守卫的 `finally` 会把 loading 提前撤掉,新数据到来前出现一帧
-   * "假完成"的空表格)。写法承 `loadRoots`(`3d8c9bc`)。 */
+   * 【Divergence, K15, stale guard】`onPathPrefixInput` (blueprint `IndexedFilesView.vue:633-636`) /
+   * `onMimePrefixInput` (`:643-646`) reloads on every keystroke, blueprint has no debounce (N9,
+   * trigger frequency copied unchanged). Typing `abc` with three concurrent requests, if
+   * `a`→`ab`→`abc` doesn't arrive in input order (earlier request later), the `ab` request
+   * overwrites `abc`'s result while filter shows `abc`. Use local epoch to check "am I still
+   * the latest call", discard entire response if not ——
+   * **`s.loading = false` in `finally` also guarded**, else stale arrival resets after latest
+   * already removed skeleton (new data rendered, no skeleton shown / resetting is benign no-op).
+   * But inverse: if latest hasn't arrived yet and stale arrives first, unguarded `finally`
+   * removes loading early, shows "fake done" empty table before new data. Pattern from
+   * `loadRoots` (`3d8c9bc`). */
   async function loadIndexedFiles(): Promise<void> {
     const epoch = ++indexedFilesEpoch
     const s = indexedFiles.value
@@ -462,14 +475,14 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :332-336。 */
+  /** Blueprint :332-336. */
   async function reindexIndexedByIds(fileIds: string[], reason?: string): Promise<unknown> {
     const body = await service.ai.parserReindexFiles({ file_ids: fileIds, reason })
     await loadIndexedFiles()
     return body
   }
 
-  /** 蓝本 :338-342。 */
+  /** Blueprint :338-342. */
   async function reindexIndexedByFilter(
     filter: Record<string, unknown>,
     reason?: string,
@@ -480,9 +493,9 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
   }
 
   /**
-   * 蓝本 :344-353 —— 已在轮询就不重复起(P2:守卫判据从 `state.indexedFiles.pollTimer`
-   * 换成模块级 `indexedPollTimer`,语义原样保留);无 indexing 行也不起;每 30s
-   * 重载一次,完工(不再有 indexing 行)后自停。
+   * Blueprint :344-353 —— if already polling don't start again (P2: guard check changed from
+   * `state.indexedFiles.pollTimer` to module-level `indexedPollTimer`, semantics unchanged);
+   * don't start if no indexing rows; reload every 30s, auto-stop when done (no more indexing rows).
    */
   function startIndexedPolling(): void {
     if (indexedPollTimer) return
@@ -495,7 +508,7 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }, 30000)
   }
 
-  /** 蓝本 :356-362。 */
+  /** Blueprint :356-362. */
   function stopIndexedPolling(): void {
     if (indexedPollTimer) {
       clearInterval(indexedPollTimer)
@@ -503,18 +516,18 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  // ── Knowledge notes(蓝本 :98-117)──
+  // ── Knowledge notes (blueprint :98-117) ──
 
-  /** 蓝本 :99-101。 */
+  /** Blueprint :99-101. */
   function setNotesDraftCount(n: number): void {
     notesDraftCount.value = n
   }
 
-  /** 蓝本 :102-107 —— agent 离线时静默保留旧值,不 toast(K6:不照抄
-   * console.error,连日志都不打)。K1:`service.notes.list` 已归一化返回
-   * `Note[]`,不再剥 `r.data.notes`。【偏离 P3】蓝本此处是 `api.get('/ai/agent/notes',
-   * {status:'draft',limit:200})` 直调 axios,本仓改走 `service.notes.list(...)`
-   * (P0 既定「REST 一律走包」)。 */
+  /** Blueprint :102-107 —— silently keep last value when agent is offline, don't toast
+   * (K6: don't copy console.error, no logging either). K1: `service.notes.list` already
+   * normalized returns `Note[]`, no more unwrapping `r.data.notes`. 【Divergence P3】
+   * Blueprint is direct axios `api.get('/ai/agent/notes', {status:'draft',limit:200})`,
+   * this repo uses `service.notes.list(...)` (P0 mandate: all REST through package). */
   async function refreshNotesDraftCount(): Promise<void> {
     try {
       const list = await service.notes.list({ status: 'draft', limit: 200 })
@@ -524,7 +537,7 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :108-117 —— 仪表盘构成卡的状态汇总;失败静默保留旧值。 */
+  /** Blueprint :108-117 —— dashboard composition card state summary; on failure silently keep last values. */
   async function loadNotesSummary(): Promise<void> {
     try {
       const list: { status?: string }[] = await service.notes.list({ limit: 500 })
@@ -536,7 +549,7 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  // ── Search(蓝本 :119-138)──
+  // ── Search (blueprint :119-138) ──
 
   interface RunSearchParams {
     query: string
@@ -545,8 +558,8 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     rerank?: boolean
   }
 
-  /** 蓝本 :120-131 —— 固定字段组装;`service.ai.searchText` 已单层取数
-   * (K1),直接返回。 */
+  /** Blueprint :120-131 —— fixed fields assembly; `service.ai.searchText` already
+   * single-layer extracted (K1), return directly. */
   async function runSearch(params: RunSearchParams): Promise<unknown> {
     const { query, filters, topK, rerank } = params
     const body = {
@@ -567,35 +580,37 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     window?: number
   }
 
-  /** 蓝本 :134-138 —— `window` 默认 2、`kind` 默认 `'body'`。 */
+  /** Blueprint :134-138 —— `window` defaults to 2, `kind` defaults to `'body'`. */
   async function loadChunkContext(params: LoadChunkContextParams): Promise<unknown> {
     const { fileId, kind, chunkNo, window = 2 } = params
     return service.ai.searchChunk({ file_id: fileId, kind: kind || 'body', chunk_no: chunkNo, window })
   }
 
-  // ── Distillation queue(蓝本 :168-214)──
+  // ── Distillation queue (blueprint :168-214) ──
 
   /**
-   * 蓝本 :168-197 —— 每次轮询按当前激活的过滤 pill 只发一条请求。
-   * **N4(照抄不改)**:无过滤(`filter===''`)时把单次组合列表拆回三桶全部刷新;
-   * 有过滤(服务端 `status=`,已把 `skipped` 折进 `failed`)时**只刷该桶**,另两桶
-   * 保留上次结果 —— 这是防止繁忙队列里较早的 failed/skipped 行被单一无过滤窗口
-   * 挤出去的有意设计,不是 bug。
-   * `counts` 不论 `filter` 为何都是全量 tally,每次调用都整体覆盖。
-   * **N5(照抄不改)**:`done` 取自 `getDistillStatus()` 的累计沉淀数,刻意不从
-   * parser 的 `queue_depth` 派生;`total = 本次实际拉取行数`(封顶
-   * `DISTILL_JOBS_LIMIT`)作为「列表被截断」的判据,比对着同一张持续变动表的
-   * 另一次独立 SELECT(`counts`)更简单、更免竞态。
+   * Blueprint :168-197 —— per polling, single request per currently active filter pill.
+   * **N4 (copy exactly)**: no filter (`filter===''`) unpacks combined list back to all three
+   * buckets refresh; with filter (backend `status=`, already folded `skipped` into `failed`)
+   * **only refresh that bucket**, keep other two from last result —— intentional design to
+   * prevent earlier failed/skipped rows in busy queue from being squeezed out by single
+   * unfiltered window, not a bug.
+   * `counts` is always full tally regardless of `filter`, entirely overwritten each call.
+   * **N5 (copy exactly)**: `done` from `getDistillStatus()` cumulative distilled count,
+   * intentionally not derived from parser's `queue_depth`; `total = actual rows fetched this
+   * call` (capped at `DISTILL_JOBS_LIMIT`) as "list is truncated" criterion, simpler and
+   * race-free vs another independent SELECT (`counts`) on same changing table.
    *
-   * 【偏离,K15,过期守卫】本 action 有**四路**并存触发源:10 秒轮询 +
-   * `setFilter(f)` + `setScope('distill')` + `retryDistill`/`cancelDistill`
-   * 内部的重载。且它按 `filter` 只刷对应桶(N4)—— 串号不只是「盖成旧数据」这
-   * 么简单:若用户手切 pill 到 `pending` 又立刻切回 `failed`,而前一发
-   * `filter==='pending'` 的响应晚于后一发 `filter==='failed'` 落地,前一发会
-   * 把 `d.pending` 覆盖成陈旧数据,且它的 `d.counts`/`d.done`/`d.total` 同样
-   * 是陈旧的全量快照,会把 `failed` 桶当前显示的计数一并冲掉。用局部 epoch
-   * 判断「我还是最新那一发吗」,不是最新就整发丢弃(四个字段一个都不写)。
-   * 写法承 `loadRoots`(`3d8c9bc`)。
+   * 【Divergence, K15, stale guard】This action has **four concurrent** trigger sources:
+   * 10-second polling + `setFilter(f)` + `setScope('distill')` + reload in
+   * `retryDistill`/`cancelDistill`. And it only refreshes per `filter` the corresponding
+   * bucket (N4) —— stale responses aren't just "overwrite with old data": if user manually
+   * switches pill to `pending` then immediately back to `failed`, and earlier
+   * `filter==='pending'` response arrives after later `filter==='failed'`, earlier overwrites
+   * `d.pending` with stale data, and its `d.counts`/`d.done`/`d.total` stale full snapshots
+   * wipe out `failed` bucket's displayed count too. Use local epoch to check "am I still the
+   * latest call", discard entire response if not (write none of four fields). Pattern from
+   * `loadRoots` (`3d8c9bc`).
    */
   async function loadDistillJobs(filter = ''): Promise<void> {
     const epoch = ++distillJobsEpoch
@@ -616,41 +631,43 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     d.total = rows.length
   }
 
-  /** 蓝本 :198-205 —— 手动重发是 failed 与 skipped(已回收)两种行共用的重试
-   * 路径,没有单独的「取消跳过」接口;`filter` 是调用方当前激活的 pill,重载
-   * 后停留在同一视图范围。 */
+  /** Blueprint :198-205 —— manual resend is shared retry path for both failed and skipped
+   * (already recovered) rows, no separate "unskip" API; `filter` is caller's currently active
+   * pill, reload stays in same view range. */
   async function retryDistill(row: { filePath: string }, filter = ''): Promise<void> {
     await service.notes.distillFile(row.filePath)
     await loadDistillJobs(filter)
   }
 
-  /** 蓝本 :206-214 —— retryDistill 的镜像;后端把行标记 skipped(原因「用户
-   * 取消」),之后会出现在 failed/skipped 桶里,retryDistill 就是它的撤销。
-   * 409(已不可取消)原样上抛,交给视图层显示友好提示。 */
+  /** Blueprint :206-214 —— mirror of retryDistill; backend marks row skipped (reason
+   * "user cancelled"), later appears in failed/skipped bucket, retryDistill is its undo.
+   * 409 (already not cancellable) is re-thrown as-is for view layer to show friendly message. */
   async function cancelDistill(row: { filePath: string }, filter = ''): Promise<void> {
     await service.notes.cancelDistillJob(row.filePath)
     await loadDistillJobs(filter)
   }
 
-  // ── Wiki index roots(蓝本 :243-273)──
+  // ── Wiki index roots (blueprint :243-273) ──
 
-  /** 蓝本 :244-253 —— K5:失败不回显后端原文,改走 i18n 键
-   * `aiKbOpFailed`(蓝本原文是 `i18n.t('Operation failed') + ': ' + e.message`,
-   * 会把后端错误串拼进 toast)。
+  /** Blueprint :244-253 —— K5: on failure don't echo backend verbatim, use i18n key
+   * `aiKbOpFailed` (blueprint original was `i18n.t('Operation failed') + ': ' + e.message`,
+   * concatenates backend error string into toast).
    *
-   * 【偏离 P5,验收反馈修正,2026-08-01】新增 `silent` 与过期守卫。蓝本无条件
-   * 弹 toast,而 `loadRoots` 同时服务两类调用方:**用户主动操作**(RootsView 的
-   * 增/删/改后重载,失败必须告知)与**后台加载**(Dashboard 挂载时的三合一
-   * `Promise.all`,用户没点任何东西)。设备上 `/v1/wiki/roots` 永不回包
-   * (38 GB SQLite + `SetMaxOpenConns(1)`),后台那条要等满 60 s axios 超时才
-   * 落地 —— 此时用户多半已经离开概览页,toast 会在毫不相干的页面上冒出
-   * 「操作失败」,且每进一次概览就多排一发。这是蓝本的吞错/噪音缺陷,按
-   * 「界面 1:1、逻辑照正确」不照抄:后台调用方传 `silent: true` 静默失败
-   * (概览页本就用「0 个知识根」表达这个失败),用户主动路径不变。
+   * 【Divergence P5, acceptance feedback fix, 2026-08-01】Added `silent` and stale guard.
+   * Blueprint always toasts unconditionally, but `loadRoots` serves two caller types:
+   * **user-initiated** (RootsView add/delete/edit then reload, failure must notify) and
+   * **background load** (Dashboard mount three-way `Promise.all`, user clicked nothing).
+   * Device's `/v1/wiki/roots` never responds (38 GB SQLite + `SetMaxOpenConns(1)`), background
+   * waits for full 60s axios timeout to land —— by then user likely left overview page, toast
+   * appears on unrelated page saying "operation failed", and every overview visit queues
+   * another. That's blueprint's error-swallowing/noise bug, per "1:1 visuals, fix logic"
+   * principle don't copy: background callers pass `silent: true` to suppress (overview shows
+   * "0 knowledge roots" expressing the failure anyway), user-initiated path unchanged.
    *
-   * 过期守卫(承 New-UI 既定纪律):来回切页会让多发 `loadRoots` 并存,先发
-   * 后至的响应会覆盖后发先至的结果、并提前把 `wikiRootsLoading` 归位。用
-   * 局部 epoch 判断「我还是最新那一发吗」,不是最新就整发丢弃。 */
+   * Stale guard (following New-UI discipline): page-hopping triggers multiple `loadRoots`,
+   * earlier request arriving later overwrites later request's result, prematurely resets
+   * `wikiRootsLoading`. Use local epoch to check "am I still the latest call", discard
+   * entire response if not. */
   async function loadRoots(opts?: { silent?: boolean }): Promise<void> {
     const epoch = ++rootsEpoch
     wikiRootsLoading.value = true
@@ -666,7 +683,7 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :254-260 —— 失败静默清空(候选列表本就是尽力而为的提示)。 */
+  /** Blueprint :254-260 —— silently clear on failure (candidate list is best-effort hint anyway). */
   async function loadCandidates(): Promise<void> {
     try {
       wikiCandidates.value = await service.wiki.getCandidates()
@@ -675,28 +692,28 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :261-266 —— 错误原样上抛,RootsView 自己接 409→mirror 重试流程。
-   * K1:`service.wiki.createRoot` 包内已剥壳,直接返回,不再剥 `r.data`。 */
+  /** Blueprint :261-266 —— errors re-thrown as-is, RootsView handles 409→mirror retry.
+   * K1: `service.wiki.createRoot` already unwrapped in package, returns directly, no more `r.data` unwrap. */
   async function createRoot(body: Record<string, unknown>): Promise<unknown> {
     const result = await service.wiki.createRoot(body)
     await loadRoots()
     return result
   }
 
-  /** 蓝本 :267-270。 */
+  /** Blueprint :267-270. */
   async function deleteRoot(id: string, purge?: boolean): Promise<void> {
     await service.wiki.deleteRoot(id, purge)
     await loadRoots()
   }
 
-  /** 蓝本 :271-273 —— 刻意不重载列表(与 deleteRoot 不同)。 */
+  /** Blueprint :271-273 —— intentionally does not reload list (unlike deleteRoot). */
   async function rescanRoot(id: string): Promise<void> {
     await service.wiki.rescanRoot(id)
   }
 
-  // ── Wiki navigation(蓝本 :276-309)──
+  // ── Wiki navigation (blueprint :276-309) ──
 
-  /** 蓝本 :276-278。 */
+  /** Blueprint :276-278. */
   async function loadWikiTree(rootId?: string): Promise<WikiTreeNode[]> {
     return service.wiki.getTree(rootId)
   }
@@ -710,8 +727,8 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     )
   }
 
-  /** 蓝本 :279-287 —— **N6(照抄不改)**:404(节点尚未入索引)转 `null`,
-   * 其余错误原样上抛,不许把所有错误都吞成 null。 */
+  /** Blueprint :279-287 —— **N6 (copy exactly)**: 404 (node not yet indexed) becomes `null`,
+   * all other errors re-thrown as-is, don't swallow everything to null. */
   async function loadWikiNode(path: string): Promise<WikiNode | null> {
     try {
       return await service.wiki.getNode(path)
@@ -721,7 +738,7 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :288-296 —— 同 loadWikiNode 的 N6 分层(`.wiki.md` 尚未生成 → null)。 */
+  /** Blueprint :288-296 —— same N6 stratification as loadWikiNode (`.wiki.md` not yet generated → null). */
   async function loadWikiRaw(path: string): Promise<string | null> {
     try {
       return await service.wiki.getRaw(path)
@@ -731,8 +748,8 @@ export const useKnowledgeStore = defineStore('ai-knowledge', () => {
     }
   }
 
-  /** 蓝本 :297-309 —— 乐观更新:先翻本地状态,失败回滚并上抛;未知 id 直接
-   * 返回、不发请求。 */
+  /** Blueprint :297-309 —— optimistic update: flip local state first, rollback and re-throw on
+   * failure; unknown id returns immediately, no request. */
   async function setRootEnabled(id: string, enabled: boolean): Promise<void> {
     const root = wikiRoots.value.find((r) => r.id === id)
     if (!root) return

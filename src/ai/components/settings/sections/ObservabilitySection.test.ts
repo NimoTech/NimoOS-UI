@@ -1,25 +1,26 @@
-// SP8-P2b Task 8 —— 承接 Vue2 sections/__tests__/ObservabilitySection.spec.js(5 例,
-// 原测试用 `w.vm.turnOn()` / `w.vm.onToggle(...)` 直调实例方法、mock `$buefy.dialog.confirm`。
-// `<script setup>` 不对外暴露内部方法,这里全部改成 DOM 驱动(拨开关 `.sw`、点
-// AlertDialog 里的确认/取消按钮),断言换成对 service mock 的调用断言,行为不变。
-// 逐条对照(Vue2 spec 用例 → 本档用例):
-//   1. loads current state (enabled + running)                     → 用例 1
-//   2. turning on when installed+running just persists enabled     → 用例 2
-//   3. turning on when not installed installs via embedded compose → 用例 3
-//   4. turning off disables and stops the container                → 用例 4
-//   5. onToggle with absent phoenix calls $buefy.dialog.confirm     → 用例 5
-//      (改断言「AlertDialog 渲染出来了」,等价于「confirm 被调一次」)
+// SP8-P2b Task 8 — ported from Vue2 sections/__tests__/ObservabilitySection.spec.js (5 cases),
+// original test used `w.vm.turnOn()` / `w.vm.onToggle(...)` direct instance method calls,
+// mocked `$buefy.dialog.confirm`. `<script setup>` doesn't expose internal methods externally,
+// here changed to DOM-driven (toggle switch `.sw`, click confirm/cancel in AlertDialog),
+// assertions changed to call assertions on service mock, behavior unchanged.
+// Line-by-line correspondence (Vue2 spec case → this file case):
+//   1. loads current state (enabled + running)                     → case 1
+//   2. turning on when installed+running just persists enabled     → case 2
+//   3. turning on when not installed installs via embedded compose → case 3
+//   4. turning off disables and stops the container                → case 4
+//   5. onToggle with absent phoenix calls $buefy.dialog.confirm     → case 5
+//      (changed assertion "AlertDialog rendered", equivalent to "confirm called once")
 //
 // Vue2 spec 里 container.getMyAppListV2() 返回 { data: { data: {...} } } 三层信封;
 // New-UI 的 service.compose.list() 已经剥好,直接返回 Record<string, ComposeAppWithStoreInfo>
 // ——composeList mock 直接 resolve 平铸对象,不再套两层 data(见 p2b-common-constraints §5)。
 //
-// 轮询在测试里保持可控:composeList mock 统一直接返回「目标状态」,让 pollStatus 的
-// pred 在第一轮 refreshStatus() 后就命中,永远不会真的走到 `setTimeout(intervalMs)`
-// 那一支——因此不需要 vi.useFakeTimers()(brief 建议的写法);纯 Promise 链用一次
-// `flushPromises()`(排在 setImmediate 宏任务,Node 会先把整条微任务链耗尽)足够稳定
-// 地把 await 链冲完。用到真实定时器的场景只有卸载守卫用例(19),那里刻意让内部
-// promise 挂起、手动 resolve,不依赖时间流逝。
+// Polling in tests stays controllable: composeList mock directly returns "target state" universally,
+// letting pollStatus's pred hit after first refreshStatus() round, never actually goes to
+// `setTimeout(intervalMs)` branch — thus no need vi.useFakeTimers() (brief recommended way);
+// pure Promise chain uses once `flushPromises()` (queued as setImmediate macro task, Node exhausts
+// entire micro task chain first) stabilizing to flush await chain. Only unmount guard case (19)
+// uses real timer, intentionally suspends internal promise there, manually resolve, not relying on time passing.
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
@@ -52,9 +53,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
-// 手写的最小 MessageBus mock:记录每个事件当前挂着的 handler 集合,`fire()` 模拟
-// socket 推事件,退订(useMessageBus().on 返回的闭包)从 Set 里删自己。用例 17
-// 就是靠检查退订后 Set 变空来证明 onUnmounted 真的调用了退订闭包。
+// Hand-written minimal MessageBus mock: records each event's current handler set, `fire()` simulates
+// socket event push, unsubscribe (closure returned by useMessageBus().on) deletes itself from Set.
+// Case 17 proves onUnmounted truly calls unsubscribe closure by checking Set becomes empty after unsubscribe.
 const busState = vi.hoisted(() => ({
   handlers: {} as Record<string, Set<(p: unknown) => void>>,
 }))
@@ -92,9 +93,9 @@ describe('ObservabilitySection', () => {
     vi.restoreAllMocks()
   })
 
-  // ── Vue2 5 例承接 ──
+  // ── Vue2 5 cases ported ──
 
-  it('1. 挂载后回填 enabled 开、状态文案「运行中」', async () => {
+  it('1. after mount fills enabled on, state text "running"', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()
@@ -104,7 +105,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('2. 已安装且运行中时拨开关到开 → 只调 putTracingSetting,不调 compose.install', async () => {
+  it('2. when installed and running, toggle switch on → only calls putTracingSetting, not compose.install', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue(entry('running'))
     h.putTracingSetting.mockResolvedValue({ enabled: true })
@@ -117,7 +118,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('3. 未安装时拨开关到开 → 点「下载并安装」后乐观置 enabled、拉 compose、装容器', async () => {
+  it('3. when not installed, toggle switch on → after clicking "download and install" optimistically set enabled, fetch compose, install container', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValueOnce({}) // load() 时看到 absent
     h.getObservabilityCompose.mockResolvedValue('name: arize-phoenix')
@@ -142,10 +143,10 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('4. 运行中拨开关到关 → 点「继续」后 putTracingSetting(false) 且停止容器', async () => {
+  it('4. when running, toggle switch off → after clicking "continue" putTracingSetting(false) and stop container', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
-    h.composeList.mockResolvedValueOnce(entry('running')) // load() 时看到运行中,触发停止确认框
-    h.composeList.mockResolvedValue(entry('exited')) // turnOff 的 pollStatus 首轮即命中 !==running
+    h.composeList.mockResolvedValueOnce(entry('running')) // see running at load(), trigger stop confirm dialog
+    h.composeList.mockResolvedValue(entry('exited')) // turnOff's pollStatus hits !==running on first round
     h.putTracingSetting.mockResolvedValue({ enabled: false })
     h.composeSetStatus.mockResolvedValue(undefined)
     const w = mountSection()
@@ -161,7 +162,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('5. absent 时拨开关到开 → 弹出安装确认框(等价于 Vue2 confirm 被调一次)', async () => {
+  it('5. when absent, toggle switch on → show install confirm dialog (equivalent to Vue2 confirm called once)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValueOnce({})
     const w = mountSection()
@@ -172,9 +173,9 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  // ── 新增用例 ──
+  // ── new cases ──
 
-  it('6a. exited → 状态文案「已停止」', async () => {
+  it('6a. exited → state text "stopped"', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue(entry('exited'))
     const w = mountSection()
@@ -183,7 +184,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('6b. 其它非 running 状态(如 created)→ 状态文案同样是「已停止」', async () => {
+  it('6b. other non-running states (like created) → state text also "stopped"', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue(entry('created'))
     const w = mountSection()
@@ -192,7 +193,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('7. compose.list() 无 arize-phoenix 键 → absent(未安装)', async () => {
+  it('7. compose.list() no arize-phoenix key → absent (not installed)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue({})
     const w = mountSection()
@@ -201,7 +202,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('8. 有该键但 status 缺失 → exited(已停止)', async () => {
+  it('8. has key but status missing → exited (stopped)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue({ 'arize-phoenix': {} })
     const w = mountSection()
@@ -210,7 +211,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('9. compose.list() reject → 保持当前状态(absent 初值)、不抛出', async () => {
+  it('9. compose.list() reject → keep current state (absent initial), don\'t throw', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
     h.composeList.mockRejectedValue(new Error('boom'))
     const w = mountSection()
@@ -220,18 +221,18 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('10. getTracingSetting() reject → 不抛,仍继续去拉容器状态', async () => {
+  it('10. getTracingSetting() reject → don\'t throw, still continue to fetch container state', async () => {
     h.getTracingSetting.mockRejectedValue(new Error('boom'))
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()
     await flush()
     expect(h.composeList).toHaveBeenCalled()
     expect(w.find('.px-status .state').text()).toContain('运行中')
-    expect(w.find('.sw').attributes('data-on')).toBe('false') // 默认值,没被异常改成别的东西
+    expect(w.find('.sw').attributes('data-on')).toBe('false') // default, not changed to something else by exception
     w.unmount()
   })
 
-  it('11a. running 且 enabled=false → 渲染警告条', async () => {
+  it('11a. running and enabled=false → render warning banner', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()
@@ -241,7 +242,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('11b. running 且 enabled=true → 不渲染警告条(对照组)', async () => {
+  it('11b. running and enabled=true → not render warning banner (control group)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()
@@ -250,15 +251,16 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('12. 安装确认框点取消 → 开关全程留在关、不发任何请求（final review Fix 4:确认框开着期间不乐观写 enabled，与 Vue2 :124-131 一致）', async () => {
+  it('12. install confirm dialog click cancel → switch stays off throughout, don\'t send any requests (final review Fix 4: don\'t optimistically write enabled while confirm open, align with Vue2 :124-131)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: false })
     h.composeList.mockResolvedValue({})
     const w = mountSection()
     await flush()
     await w.find('.sw').trigger('click')
     await nextTick()
-    // Vue2 :124-131 弹确认框前不碰 this.enabled，SetSwitch 是受控组件，确认框开着期间
-    // 开关应保持原值(关)，不应先跳到「开」再跳回来(final review Fix 4 撤销的乐观写)。
+    // Vue2 :124-131 don't touch this.enabled before popping confirm dialog, SetSwitch is controlled component,
+    // switch should keep original value (off) while confirm open, shouldn't jump to "on" first then back
+    // (optimistic write Vue2 :124-131 reverted by final review Fix 4).
     expect(w.find('.sw').attributes('data-on')).toBe('false')
     const cancelBtn = findButtonByText('取消')
     expect(cancelBtn).toBeTruthy()
@@ -270,7 +272,7 @@ describe('ObservabilitySection', () => {
     w.unmount()
   })
 
-  it('13. 停止确认框点取消 → 开关全程留在开、不发请求（final review Fix 4:确认框开着期间不乐观写 enabled，与 Vue2 :135-142 一致）', async () => {
+  it('13. stop confirm dialog click cancel → switch stays on throughout, don\'t send requests (final review Fix 4: don\'t optimistically write enabled while confirm open, align with Vue2 :135-142)', async () => {
     h.getTracingSetting.mockResolvedValue({ enabled: true })
     h.composeList.mockResolvedValue(entry('running'))
     const w = mountSection()

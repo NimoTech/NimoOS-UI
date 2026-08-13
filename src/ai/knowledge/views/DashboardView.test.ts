@@ -1,18 +1,21 @@
-// SP8-P5a Task 12 —— DashboardView 测试。
-// Step 2 骨架逐字取自任务 brief（`.superpowers/sdd/p5a-task-12-brief.md` 第
-// 20-205 行），本文件在其后补了治理文件 §9「测试质量」要求的高危点判别力
-// 断言（每处注释标「补强」），逐条对应任务里点名的 8 条高危点：
-//   1) isEmpty 的 `&&` —— brief 只给了纯空/纯满两侧，补一条「wikiRoots 空但
-//      indexed_files>0」的混合侧，专门钉住 `&&` 误改成 `||` 的回归。
-//   2) [data-on] 渲染值必须是字符串 "true"/"false"（不是布尔）。
-//   3) [data-layer] 三色（wiki/vec/note）各自出现，onboarding 侧同理。
-//   4) progressPercent/fmtEta 的接线：用会让「参数顺序颠倒」产生不同结果的
-//      具体数值钉住实参顺序。
-//   5) N2 三个字段缺失时渲染 0/空串（钉子，防「顺手优化成隐藏」）。
-//   6) N3 Promise.all+finally 语义（brief 已给,原样保留)。
-//   7) inline --g 三处。
-//   8) 零硬编码文案 —— 用 grep 在报告里核实，不放在本文件（vitest 断言只能
-//      查渲染结果，查不了源码字面量）。
+// SP8-P5a Task 12 — DashboardView test.
+// Step 2 The skeleton is taken verbatim from the task brief (`.superpowers/sdd/p5a-task-12-brief.md` lines
+// 20–205). This file then adds high-risk control-flow assertions required by the governance file §9
+// "Test Quality" (each reinforced assertion is marked with "补强" in comments), corresponding one-by-one
+// to the 8 high-risk points named in the task:
+//   1) isEmpty's `&&` — brief provided only pure-empty / pure-full extremes; a mixed-state
+//      assertion is added ("wikiRoots empty but indexed_files > 0") to specifically nail the
+//      regression where `&&` is mistakenly changed to `||`.
+//   2) [data-on] render value must be string "true"/"false" (not boolean).
+//   3) [data-layer] three colors (wiki/vec/note) each appear; onboarding side likewise.
+//   4) progressPercent/fmtEta wiring: use specific numeric values that produce different
+//      results if parameter order is swapped, pinning the actual arg order.
+//   5) N2 three fields missing render 0 / empty string (pin, prevent "convenient optimization
+//      into hidden").
+//   6) N3 Promise.all + finally semantics (brief provided, kept as-is).
+//   7) inline --g three locations.
+//   8) Zero hardcoded copy — verified via grep in report, not in this file (vitest assertions
+//      can only query render output, not source code literals).
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -40,9 +43,9 @@ const ROOTS = [
     needsReconcile: true,
   },
 ] as never
-// 【I-3 补强用】两个都启用的根:r3 是 auto(→ .k2-chip data-tone="live"),
-// r4 是 scan_only + needsReconcile(→ .k2-chip 无 data-tone 的普通条 + 另一个
-// .k2-chip data-tone="warn" 的同步中提示),覆盖 .k2-chip 的三种渲染态。
+// [I-3 reinforcement] Both roots enabled: r3 is auto (→ .k2-chip data-tone="live"),
+// r4 is scan_only + needsReconcile (→ ordinary .k2-chip without data-tone + another
+// .k2-chip data-tone="warn" for sync-in-progress indicator), covering three render states of .k2-chip.
 const ROOTS_MIXED = [
   { id: 'r3', path: '/DATA', level: 'space', watchMode: 'auto', enabled: true, lastScanAt: 1, needsReconcile: false },
   {
@@ -81,8 +84,8 @@ function stubLoads() {
   return s
 }
 
-describe('DashboardView — 三态', () => {
-  it('骨架态:搜索框在,三层卡不在', async () => {
+describe('DashboardView — three states', () => {
+  it('skeleton state: search box present, three-layer cards absent', async () => {
     stubLoads()
     const w = await mountDash()
     expect(w.find('.k2-search').exists()).toBe(true)
@@ -90,7 +93,7 @@ describe('DashboardView — 三态', () => {
     expect(w.find('.k2-layer').exists()).toBe(false)
   })
 
-  it('有数据:四个 surface 全在(3 层卡 / glue / 根卡 / 停用条 / live / 7 个入口)', async () => {
+  it('with data: all four surfaces present (3-layer cards / glue / root card / disabled row / live / 7 entry points)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -101,14 +104,14 @@ describe('DashboardView — 三态', () => {
     await flushPromises()
     expect(w.findAll('.k2-layer')).toHaveLength(3)
     expect(w.find('.k2-glue').exists()).toBe(true)
-    expect(w.findAll('.k2-root')).toHaveLength(1) // 只渲染启用的根
-    expect(w.find('.k2-roots-off').exists()).toBe(true) // 停用条
+    expect(w.findAll('.k2-root')).toHaveLength(1) // render only enabled roots
+    expect(w.find('.k2-roots-off').exists()).toBe(true) // disabled row
     expect(w.find('.k2-live').exists()).toBe(true)
-    expect(w.find('.k2-prog').exists()).toBe(true) // backlog = 3 → 忙
+    expect(w.find('.k2-prog').exists()).toBe(true) // backlog = 3 → busy
     expect(w.findAll('.k2-entry')).toHaveLength(7)
   })
 
-  it('空库:出 onboarding,不出零值卡', async () => {
+  it('empty library: show onboarding, no zero-value cards', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -119,17 +122,18 @@ describe('DashboardView — 三态', () => {
     expect(w.find('.k2-onboard').exists()).toBe(true)
     expect(w.find('.k2-layer').exists()).toBe(false)
     expect(w.findAll('.k2-entry')).toHaveLength(4) // emptyEntries
-    expect(w.findAll('.k2-entry')[0].attributes('data-disabled')).toBe('true') // Search 禁用
+    expect(w.findAll('.k2-entry')[0].attributes('data-disabled')).toBe('true') // Search disabled
   })
 
-  // 【补强 1】isEmpty 判据是 `wikiRoots.length === 0 && indexed_files === 0`
-  // 的 `&&`——上面两条只测了「两侧都空」与「两侧都满」，抓不到 `&&` 被误改
-  // 成 `||` 的回归（那样只要有一侧为空就会误判 isEmpty）。这里用「wikiRoots
-  // 空但 indexed_files=57(非零)」的混合态，正确行为应仍是非空库、渲染正常
-  // 仪表盘（Wiki 后端 404/超时是设备常见现状——见附录 C 第 3 条「Wiki 导航卡
-  // 显示 0 个知识根」，不能因为 Wiki 侧空就整页误判成新装 onboarding）。
-  // RED 探针见文件末尾说明。
-  it('补强:wikiRoots 空但 indexed_files>0(Wiki 侧无数据,Parser 侧有数据)—— 不是 onboarding', async () => {
+  // [Reinforcement 1] isEmpty criterion is the `&&` in `wikiRoots.length === 0 && indexed_files === 0`
+  // — the two tests above only cover "both sides empty" and "both sides full", missing the
+  // regression where `&&` is mistakenly changed to `||` (which would misclassify isEmpty whenever
+  // one side is empty). This mixed-state test uses "wikiRoots empty but indexed_files=57 (non-zero)";
+  // the correct behavior should still be a non-empty library, rendering normal dashboard (Wiki
+  // backend 404/timeout is common on-device — see Appendix C item 3 "Wiki navigation card shows
+  // 0 knowledge roots"; the entire page should not be misclassified as fresh onboarding just because
+  // Wiki side is empty). RED probe description at end of file.
+  it('Reinforcement: wikiRoots empty but indexed_files > 0 (Wiki side has no data, Parser side has data) — not onboarding', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -141,8 +145,8 @@ describe('DashboardView — 三态', () => {
     expect(w.findAll('.k2-layer')).toHaveLength(3)
   })
 
-  // 【补强 1 续】反过来:wikiRoots 非空但 indexed_files=0,同样不该是 onboarding。
-  it('补强:wikiRoots 非空但 indexed_files=0 —— 同样不是 onboarding', async () => {
+  // [Reinforcement 1 continued] The converse: wikiRoots non-empty but indexed_files=0, should also not be onboarding.
+  it('Reinforcement: wikiRoots non-empty but indexed_files = 0 — also not onboarding', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -155,8 +159,8 @@ describe('DashboardView — 三态', () => {
   })
 })
 
-describe('DashboardView — 属性态(交接项 1/2/3)', () => {
-  it('[data-on] 渲染值是字符串 "true"/"false"(交接项 1,选择器比的是字符串)', async () => {
+describe('DashboardView — attribute states (handoff items 1/2/3)', () => {
+  it('[data-on] render value is string "true"/"false" (handoff item 1, selector compares string)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -166,22 +170,22 @@ describe('DashboardView — 属性态(交接项 1/2/3)', () => {
     await flushPromises()
     const ccButtons = w.findAll('.k2-cc button')
     expect(ccButtons).toHaveLength(3)
-    // CC_LEVELS = [1, 2, 4] — concurrency=2 命中第二档
+    // CC_LEVELS = [1, 2, 4] — concurrency=2 hits the second tier
     expect(ccButtons[0].attributes('data-on')).toBe('false')
     expect(ccButtons[1].attributes('data-on')).toBe('true')
     expect(ccButtons[2].attributes('data-on')).toBe('false')
-    // 【RED 探针记录,报告里详述】去掉模板里的 `String(...)` 重跑本用例 ——
-    // 结果仍然全绿:Vue 3 的 `patchAttr` 对不在 `isSpecialBooleanAttr` 名单里
-    // 的自定义 `data-*` 属性,`el.setAttribute(key, value)` 会把布尔值隐式转
-    // 成字符串 "true"/"false"(与 Vue2「布尔值会整卸载属性」的行为不同,那条
-    // 规则只对 Vue 内置的真布尔属性名单生效,`data-on` 不在名单里)。也就是说
-    // 本仓这个 Vue3 版本下 `String()` 对 `data-on` 的渲染结果是幂等的 ——
-    // 但依然跟随 T10/`k-rail-item[data-active]` 与治理文件交接项 1 的既定写
-    // 法保留 `String()`(防将来 Vue 版本升级或换成真布尔属性名单成员时的行为
-    // 漂移,属于防御性一致性而非本用例可钉住的差异)。
+    // [RED probe note, detailed in report] Removing `String(...)` from template and re-running this test —
+    // result is still all green: Vue 3's `patchAttr` for custom `data-*` attributes not in the
+    // `isSpecialBooleanAttr` whitelist calls `el.setAttribute(key, value)`, which implicitly converts
+    // boolean values to string "true"/"false" (unlike Vue 2's behavior of entirely removing boolean-valued
+    // attributes; that rule only applies to Vue's built-in true boolean attributes, and `data-on` is not
+    // on that list). That is, in this repo's Vue 3 version, `String()` on `data-on` renders idempotently —
+    // but it is still kept following the established pattern in T10/`k-rail-item[data-active]` and
+    // governance file handoff item 1 (defensive consistency against future Vue version upgrades or
+    // reclassification of attributes into the boolean list; it is not a difference pinnable by this test).
   })
 
-  it('[data-layer] 三色各自出现在对应的层卡上(补强:三个值都要对照,不能只测一个)', async () => {
+  it('[data-layer] three colors each appear on their respective layer cards (reinforcement: all three values must be checked, cannot test only one)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()
@@ -193,7 +197,7 @@ describe('DashboardView — 属性态(交接项 1/2/3)', () => {
     expect(layers.map((l) => l.attributes('data-layer'))).toEqual(['wiki', 'vec', 'note'])
   })
 
-  it('onboarding 侧 [data-layer] 三色同样各自出现(k2-ob-layer)', async () => {
+  it('onboarding side [data-layer] three colors likewise each appear (k2-ob-layer)', async () => {
     const s = stubLoads()
     const w = await mountDash()
     await flushPromises()

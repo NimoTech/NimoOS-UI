@@ -1,54 +1,54 @@
 <!--
-  SP8-P3b Task 4 —— 1:1 移植 Vue2 src/views/AI/Skills/TestPanel.vue(182 行)。
-  由 SkillDetail.vue(T7)插在「描述」与「SKILL.md」两个 `.sk-section` 之间
-  (Vue2 :108-112 的位置,SkillDetail.vue:166-167 已留占位注释)。
+  SP8-P3b Task 4 — 1:1 port from Vue2 src/views/AI/Skills/TestPanel.vue (182 lines).
+  Inserted by SkillDetail.vue (T7) between "description" and "SKILL.md"
+  `.sk-section` blocks (Vue2 :108-112 position, SkillDetail.vue:166-167 already left placeholder comment).
 
-  【偏离 D2(公共约束 §3.1,承 T2 sandboxRun.ts 头注)】Vue2 :159-163 每收到一片
-  message/message_delta/text 就 `push` 一个新字符串到 output.steps —— 后端
-  message_delta 是逐词发的(NimoOS-AI/agent/agent.py:1266,1284),照抄会在结果里炸出
-  一大堆单字/单词的独立行。本仓改为消费 T2 `reduceSandboxEvent` 的归约结果:连续文本片
-  会被合并成同一个 `{kind:'text'}` 步骤,工具调用仍单独一行(`{kind:'tool'}`)。
-  本文件不重新实现归约逻辑,只是渲染 T2 已归约好的 `sandbox.steps`。
+  [Deviation D2 (shared constraint §3.1, continuing T2 sandboxRun.ts header comment)]  Vue2 :159-163 upon receiving each piece
+  message/message_delta/text `push` a new string to output.steps — backend
+  message_delta sends word-by-word (NimoOS-AI/agent/agent.py:1266,1284), copying would explode result into
+  lots of single characters/words independent lines. This repo changed to consume T2 `reduceSandboxEvent` reduced result: continuous text pieces
+  merged into single `{kind:'text'}` step, tool calls still one line each (`{kind:'tool'}`).
+  This file does not re-implement reduction logic, just renders T2's already-reduced `sandbox.steps`.
 
-  【偏离 D5(公共约束 §3.4)】Vue2 一点运行就 `$emit('...')` 让上层 SkillsSection
-  计数 +1(SkillsSection.vue:204-214),而后端 `service/skills.go:352 RecordRun`
-  全仓零调用点、沙箱 SSE 又必 422(见 skillTestTransport.ts 头注「已知后端票」)——
-  两者叠加等于每次「测试」都双重谎报一次成功调用。本仓改为只有
-  `state === 'done' && !sandbox.error`(即真正跑完且没有失败)才 `emit('test')`。
+  [Deviation D5 (shared constraint §3.4)] Vue2 upon click run `$emit('...')` to let parent SkillsSection
+  increment count (SkillsSection.vue:204-214), but backend `service/skills.go:352 RecordRun`
+  zero call sites in whole repo, sandbox SSE must 422 (see skillTestTransport.ts header "known backend ticket") —
+  combined equals each "test" falsely reports success twice. This repo changed to only
+  `state === 'done' && !sandbox.error` (i.e., truly completed and no failure) `emit('test')`.
 
-  【HTTP 层失败不回显后端 body】承 P2b「错误不再回显后端 JSON」——onError 拿到
-  `{status}`(非 HTTP 形状则没有 status)时,只用本地化串 `aiSkTestHttpFailed`/
-  `aiSkTestFailed` 兜底,绝不把 `body` 塞进界面。SSE `error` **事件**走的是
-  reduceSandboxEvent 已经写好的 `sandbox.error`(后端人类可读文本,如
-  "sandbox timed out"),原样显示,不算回显后端 JSON,不冲突。
+  [HTTP layer failure no show backend body] Continuing P2b "errors no longer show backend JSON" — when onError gets
+  `{status}` (non-HTTP shape has no status), only use localized string `aiSkTestHttpFailed`/
+  `aiSkTestFailed` fallback, never put `body` into UI. SSE `error` **event** goes through
+  reduceSandboxEvent already-written `sandbox.error` (backend human-readable text, like
+  "sandbox timed out"), shown as-is, not showing backend JSON, no conflict.
 
-  【失败态样式偏离(协调者预先解歧义,见 p3b-task-4-brief.md 正文)】Vue2 :92-98
-  的失败态靠模板内联样式:`.label` 上内联 `color: var(--danger)`,`.bullet` 上内联
-  背景色 + 一圈约 18% 不透明度的 iOS 红发光圈(字面量写死的 rgba,颜色即 --danger
-  token 现在的色值)——后者违反本仓配色硬约束(禁字面量 rgba),内联颜色本身也违规
-  (公共约束 §6)。
-  改为:`.label` 加 `data-state="failed"`,颜色规则搬进
-  skills-styles.scss `.sk-test-result .label` 的 `&[data-state="failed"]` 分支
-  (与既有 running 分支同级,发光圈用 color-mix 派生,手法同该文件 :506-509 的
-  success 态),模板里零内联颜色。
+  [Failure state style deviation (coordinator pre-disambiguated, see p3b-task-4-brief.md main text)] Vue2 :92-98's
+  failure state relies on template inline styles: `.label` inline `color: var(--danger)`, `.bullet` inline
+  background + about 18% opacity iOS red glow circle (hardcoded rgba literal, color is current --danger
+  token color value) — latter violates this repo's color hard constraint (forbid rgba literal), inline color itself also violates
+  (shared constraint §6).
+  Changed to: `.label` add `data-state="failed"`, color rules moved into
+  skills-styles.scss `.sk-test-result .label` `&[data-state="failed"]` branch
+  (same level as existing running branch, glow derived with color-mix, technique same as that file :506-509's
+  success state), template has zero inline colors.
 
-  【机械改动,非逻辑偏离】Vue2 :34 Run 按钮图标 `color="white"` 是具名色字面量,
-  硬约束禁止(即便 color-guard 只扫 `<style>` 块抓不到 prop 里的字面量,规则本身
-  覆盖"一切可见颜色")。按钮容器已在 skills-styles.scss:478 用
-  `color: var(--text-on-accent)` 承载这个前景色(disabled 态另有 :482 的
-  --text-quaternary),这里改成 `color="currentColor"` 继承,视觉结果与 Vue2
-  完全一致(实底 accent 按钮上的浅色字),手法同 SkillTile.vue:57 的既有先例。
+  [Mechanical change, not logic deviation] Vue2 :34 Run button icon `color="white"` is named color literal,
+  hard constraint forbids (even if color-guard only scans `<style>` blocks can't catch prop literals, rule itself
+  covers "all visible colors"). Button container already carries this foreground color in skills-styles.scss:478 with
+  `color: var(--text-on-accent)` (disabled state has :482's --text-quaternary), changed here to
+  `color="currentColor"` inherit, visual result identical to Vue2 (light text on solid accent button),
+  technique same as existing SkillTile.vue:57 precedent.
 
-  【不移植】`SkillIcon.vue`(公共约束 §3.9,统一用 `../../icons/AgentIcon.vue`)·
-  `runFn` prop 与 Vue2 `{ close }` 返回值协议(改用 T3 `runSkillTest` 的
-  `(id, prompt, signal, onEvent, onError) => Promise<void>` 形状,由本组件自己
-  持有 AbortController,不再需要上层传入可关闭的 stream 对象)· `output.tokens`
-  死分支(Vue2 :70-73,`output.tokens` 全组件从未被赋值,T2 sandboxRun.ts 头注已
-  说明,SandboxState 类型上也没有该字段)。
+  [Not ported] `SkillIcon.vue` (shared constraint §3.9, uniformly use `../../icons/AgentIcon.vue`) ·
+  `runFn` prop and Vue2's `{ close }` return value protocol (changed to T3 `runSkillTest`'s
+  `(id, prompt, signal, onEvent, onError) => Promise<void>` shape, this component itself
+  holds AbortController, no longer need parent-passed closeable stream object) · `output.tokens`
+  dead branch (Vue2 :70-73, `output.tokens` never assigned in whole component, T2 sandboxRun.ts header explains,
+  SandboxState type also lacks this field).
 
-  零 <style> 块:用到的每个 class(sk-section*、sk-test*、sk-item-off、
-  sk-test-result 及其嵌套 label/bullet/step-row/ex/footer-note/code)均已存在于
-  sk-shared.scss 或 skills-styles.scss(Task 1),已逐个 grep 确认。
+  No <style> block: all used classes (sk-section*, sk-test*, sk-item-off,
+  sk-test-result and its nested label/bullet/step-row/ex/footer-note/code) already exist in
+  sk-shared.scss or skills-styles.scss (Task 1), grep-confirmed each one.
 -->
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
@@ -58,28 +58,28 @@ import { initSandboxState, reduceSandboxEvent } from '../../../util/sandboxRun'
 import { runSkillTest } from '../../../services/skillTestTransport'
 import AgentIcon from '../../icons/AgentIcon.vue'
 
-// Vue2 TestPanel.vue:110-113 `skill: { type: Object, required: true }`。
-// `runFn`(:113)不移植,见文件头注释——本组件自己调用 T3 的 runSkillTest。
+// Vue2 TestPanel.vue:110-113 `skill: { type: Object, required: true }`.
+// `runFn` (:113) not ported, see file header comment — this component itself calls T3's runSkillTest.
 const props = defineProps<{ skill: Skill }>()
 
-// 对齐 Vue2 SkillsSection.vue:204-214 消费方的期望事件名,但触发条件按偏离 D5
-// 收紧为「只在成功完成时」,见文件头注释。
+// Align with Vue2 SkillsSection.vue:204-214 consumer's expected event name, but trigger condition per deviation D5
+// tightened to "only on successful completion", see file header comment.
 //
-// 【P3b 终审 M3,显式申报】设计文档 §6 与 Vue2 `SkillsSection.vue:204`
-// (`onTest({id})`)的事件都带 `id` payload,本文件落成裸 `emit('test')`——这是一处
-// 未申报的偏离,终审已指出。补交申报而不是改回带 id:探针实测过当前无害——
-// `SkillDetail.vue` 用 `:key="skill.id"` 挂载本组件,永远只为 `activeSkill` 渲染
-// 一个实例,父组件 `SkillsSection.onTest()` 读的 `activeId` 因此恒等于本组件当前
-// `skill.id`;而且 Vue 3 的 `emit` 对已卸载实例是 no-op,切换技能时中断的沙箱不会
-// 把迟到的 `test` 记到新技能头上(`watch(skill.id)`/`onBeforeUnmount` 已经 abort 掉
-// 请求)。若未来 `SkillDetail`/`SkillsSection` 的挂载方式变化(不再靠 `:key` 强制
-// 单实例),这个假设会失效,应改回 `emit('test', { id: skill.id })` 并让父组件用
-// payload 定位,而不是继续依赖 `activeId` 隐式相等。
+// [P3b final review M3, explicit notice] Design doc §6 and Vue2 `SkillsSection.vue:204`
+// (`onTest({id})`) events all carry `id` payload, this file ends up bare `emit('test')` — this is unreported
+// deviation, final review pointed out. Supplement notice instead of changing back to carry id: probe testing shows current harmless —
+// `SkillDetail.vue` mounts this component with `:key="skill.id"`, always renders only one instance for `activeSkill`,
+// parent `SkillsSection.onTest()` reads `activeId` therefore always equals this component's current
+// `skill.id`; plus Vue 3's `emit` is no-op for unmounted instances, sandbox interruption when switching skills won't
+// put late `test` on new skill (`watch(skill.id)`/`onBeforeUnmount` already aborted
+// request). If future `SkillDetail`/`SkillsSection` mount method changes (no longer force single instance via `:key`),
+// assumption becomes invalid, should change to `emit('test', { id: skill.id })` and let parent use
+// payload for location, instead of continuing to rely on `activeId` implicit equality.
 const emit = defineEmits<{ test: [] }>()
 
 const { t } = useI18n()
 
-// 对齐 Vue2 data() :115-121。output.tokens 死分支不移植(SandboxState 无该字段)。
+// Align with Vue2 data() :115-121. output.tokens dead branch not ported (SandboxState lacks this field).
 const prompt = ref('')
 const state = ref<'idle' | 'running' | 'done'>('idle')
 const sandbox = ref(initSandboxState())

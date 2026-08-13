@@ -20,15 +20,15 @@ const poster = ref('')
 const audioTitle = ref(props.item.name)
 const audioArtist = ref('...')
 
-// Artplayer 是第三方互操作边界，无需超出 destroy 的共享类型，any 是有意为之。
+// Artplayer is a third-party interop boundary; beyond destroy we need no shared types, any is intentional.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let artInst: any = null
-// 组件在异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——卸载后放弃构造。
+// Component may be unmounted during async onMounted await (user closes overlay quickly) — abandon construction on unmount.
 let disposed = false
 
-// ── 音频：自定义极简播放器（原生 <audio> + 自绘进度条，仿参考图）─────────────
-//   布局：播放/暂停圆钮在「进度条上方」居中；进度条=透明轨道 + 蓝紫已播条 + 圆形拉链，
-//   两端各一个时间标签。已删除原 APlayer 皮肤与波纹动画。配色沿用主页蓝紫。
+// ── Audio: custom minimal player (native <audio> + hand-drawn progress bar, per reference design) ─────────────
+//   Layout: play/pause circle button centered above progress bar; progress bar = transparent track + blue-purple played bar + circular handle,
+//   time labels at both ends. Removed original APlayer skin and ripple animation. Color scheme reuses homepage blue-purple.
 const audioMedia = ref<HTMLAudioElement | null>(null)
 const track = ref<HTMLElement | null>(null)
 const playing = ref(false)
@@ -40,10 +40,10 @@ const progressPct = computed(() =>
   durTime.value ? Math.min(100, Math.max(0, (curTime.value / durTime.value) * 100)) : 0,
 )
 
-// ── 声波进度条（仿录音 app）──────────────────────────────────────────
-//   进度条画成语音波形：居中的圆角竖条 + 静音处的虚线基线。已播部分染强调色。
-//   数据源两级：先按文件名合成占位(0 延迟)，后台解码真实音频后无缝替换；
-//   超 50MB / 解码失败 / 命中不了都静默停留在合成，详见 ./waveform 与设计 spec。
+// ── Waveform progress bar (like recording apps) ──────────────────────────────────────────
+//   Progress bar rendered as audio waveform: centered rounded vertical bars + dashed baseline at silence. Played portion tinted accent color.
+//   Two-level data source: first synthesize placeholder by filename (0 delay), then seamlessly replace with decoded real audio;
+//   over 50MB / decode failure / cache miss all silently stay with synthesis, see ./waveform and design spec.
 const MAX_DECODE_BYTES = 50 * 1024 * 1024
 const waveBars = ref<number[]>(synthWaveform(props.item.name || 'audio', WAVE_N))
 let waveAbort: AbortController | null = null
@@ -57,13 +57,13 @@ function startWaveDecode(): void {
   }
   waveAbort = new AbortController()
   void decodeWaveform(url, WAVE_N, { maxBytes: MAX_DECODE_BYTES, signal: waveAbort.signal }).then((bars) => {
-    // 在途结果到达时组件可能已卸载(disposed)——丢弃，不写缓存也不触发渲染。
+    // In-flight result may arrive after component unmount (disposed) — discard, no cache write, no render trigger.
     if (!bars || disposed) return
     setCachedWave(key, bars)
     waveBars.value = bars
   })
 }
-// 已播竖条数量 = 进度占比 × 总条数（决定每条染色/留白）。
+// Played bar count = progress % × total bars (determines which bars are colored vs. blank).
 const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
 
 function fmtTime(sec: number): string {
@@ -79,7 +79,7 @@ function togglePlay(): void {
   else a.pause()
 }
 
-// 快进/快退：±5s / ±30s，钳制在 [0, 时长]。
+// Skip forward/backward: ±5s / ±30s, clamped to [0, duration].
 function skip(delta: number): void {
   const a = audioMedia.value
   if (!a) return
@@ -89,7 +89,7 @@ function skip(delta: number): void {
   curTime.value = next
 }
 
-// 倍速：单钮循环（仿播客 app 的倍速药丸），含 1×/1.25×/1.5×/1.75×/2×/3×。
+// Playback speed: single-button cycle (like podcast app speed pill), includes 1×/1.25×/1.5×/1.75×/2×/3×.
 const RATES = [1, 1.25, 1.5, 1.75, 2, 3]
 const rate = ref(1)
 function applyRate(): void {
@@ -101,12 +101,12 @@ function cycleRate(): void {
   rate.value = RATES[(i + 1) % RATES.length]
   applyRate()
 }
-// 倍速显示：去掉整数的小数尾（1 → "1"，1.25 → "1.25"）。
+// Speed display: strip decimal tail on integers (1 → "1", 1.25 → "1.25").
 const rateLabel = computed(() => `${rate.value}×`)
 
 function onLoaded(): void {
   durTime.value = audioMedia.value?.duration || 0
-  applyRate() // 换源后重新套用当前倍速
+  applyRate() // Reapply current playback speed after source change
 }
 function onTime(): void {
   if (!dragging) curTime.value = audioMedia.value?.currentTime || 0
@@ -155,16 +155,16 @@ onMounted(async () => {
       screenshot: true,
       airplay: true,
       playsInline: true,
-      // theme-exception:artplayer 控件条主题色是该库自己的内部渲染参数,不接受
-      // CSS 变量,无法 token 化 —— 属于主题约定允许的第三方库例外。
+      // theme-exception: artplayer control bar theme color is the library's internal rendering parameter, does not accept
+      // CSS variables, cannot be tokenized — falls under third-party library exception allowed by theme convention.
       theme: '#007AE5',
       lang: locale.value.replace('_', '-'),
     })
   } else if (kind === 'audio') {
     startWaveDecode()
-    // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
+    // Try autoplay (blocked by browser policy will wait for user to click play button).
     void audioMedia.value?.play?.().catch(() => {})
-    // 封面 + 标题/艺术家(mm.fetchFromUrl)——元数据失败不阻断播放。
+    // Cover + title/artist (mm.fetchFromUrl) — metadata failure does not block playback.
     try {
       const mm = await import('music-metadata-browser')
       if (disposed) return
@@ -183,7 +183,7 @@ onMounted(async () => {
       if (metadata.common.title) audioTitle.value = metadata.common.title
       if (metadata.common.artist) audioArtist.value = metadata.common.artist
     } catch {
-      /* 元数据失败不阻断播放 */
+      /* Metadata failure does not block playback */
     }
   }
 })
@@ -204,7 +204,7 @@ onBeforeUnmount(() => {
         <div class="audio-player">
           <div class="np">
             <div v-if="audioTitle" class="np-title">{{ audioTitle }}</div>
-            <!-- 传输控件：[-30][-5] 播放/暂停 [+5][+30]，倍速药丸靠右（三列网格保证播放钮恒居中） -->
+            <!-- Transport controls: [-30][-5] play/pause [+5][+30], speed pill on right (three-column grid keeps play button centered) -->
             <div class="np-controls">
               <div class="np-side"></div>
               <div class="np-center">
@@ -216,7 +216,7 @@ onBeforeUnmount(() => {
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /></svg>
                   <span class="np-skip-n">5</span>
                 </button>
-                <!-- 播放/暂停圆钮：蓝紫渐变（沿用主题色） -->
+                <!-- Play/pause circle button: blue-purple gradient (reuses theme color) -->
                 <button type="button" class="np-play" :aria-label="playing ? 'Pause' : 'Play'" @click="togglePlay">
                   <svg v-if="!playing" class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
                   <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.3" /><rect x="14" y="5" width="4" height="14" rx="1.3" /></svg>
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
                 <button type="button" class="np-speed" :aria-label="t('audioSpeed')" @click="cycleRate">{{ rateLabel }}</button>
               </div>
             </div>
-            <!-- 声波进度条：居中圆角竖条(仿录音 app) + 静音虚线基线；已播染强调色；两端时间标签 -->
+            <!-- Waveform progress bar: centered rounded vertical bars (like recording app) + dashed baseline at silence; played portion tinted accent color; time labels at both ends -->
             <div class="np-bar-row">
               <span class="np-time">{{ fmtTime(curTime) }}</span>
               <div
@@ -276,18 +276,18 @@ onBeforeUnmount(() => {
 <style scoped>
 .media-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .media-video { width: 100%; height: 100%; }
-/* theme-exception: 叠在任意音频封面图之上的暗化/模糊层（非页面背景），需固定中性暗色保证控件在任意封面上都可读，与页面主题无关 */
+/* theme-exception: Darkening/blur layer stacked on any audio cover image (not page background), needs fixed neutral dark to ensure controls readable on any cover, theme-independent */
 .audio-blur {
   position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: center;
-  background-color: rgba(53, 54, 58, 0.4); /* theme-exception: 叠在封面图上的玻璃底, 与主题无关 */ backdrop-filter: blur(10px) saturate(180%);
+  background-color: rgba(53, 54, 58, 0.4); /* theme-exception: Glass layer stacked on cover image, theme-independent */ backdrop-filter: blur(10px) saturate(180%);
 }
 
-/* 音频布局：播放器居中限宽显示。 */
+/* Audio layout: player centered with width limit. */
 .audio-layout { position: relative; z-index: 1; width: 100%; height: 100%; max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; justify-content: center; gap: 20px; padding: 24px; box-sizing: border-box; }
 .audio-player { flex: 0 0 auto; min-width: 0; display: flex; align-items: center; justify-content: center; }
 
-/* ── 自定义极简播放器（仿参考图）──────────────────────────────
-   播放钮居中在进度条上方；进度条透明轨道 + 蓝紫已播 + 圆形拉链；配色沿用主页蓝紫。 */
+/* ── Custom minimal player (per reference design) ──────────────────────────────
+   Play button centered above progress bar; progress bar = transparent track + blue-purple played bar + circular handle; color scheme reuses homepage blue-purple. */
 .np { width: 100%; max-width: 40rem; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .np-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--fg); }
 
@@ -300,16 +300,16 @@ onBeforeUnmount(() => {
 }
 .np-play:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 10px 26px -6px var(--accent-soft-bd); }
 .np-play:active { transform: scale(0.97); }
-.np-play svg { width: 26px; height: 26px; fill: #fff; } /* theme-exception: 播放钮图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
-.np-play svg.tri { margin-left: 3px; } /* 三角形光学居中 */
+.np-play svg { width: 26px; height: 26px; fill: #fff; } /* theme-exception: Play button icon always stacked on color gradient button, white contrast stable across both themes */
+.np-play svg.tri { margin-left: 3px; } /* Triangle optical centering */
 
-/* 传输控件：三列网格(1fr / auto / 1fr)——中列的播放簇恒居中，倍速药丸落在右列。 */
+/* Transport controls: three-column grid (1fr / auto / 1fr) — play button cluster always centered in middle column, speed pill in right column. */
 .np-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 40rem; }
 .np-center { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .np-side { display: flex; align-items: center; min-width: 0; }
 .np-side-right { justify-content: flex-end; }
 
-/* 快进/快退圆钮：镂空圆形回环箭头 + 中央秒数标签。前进钮水平镜像箭头。 */
+/* Skip forward/backward circle button: hollow circular looping arrow + seconds label in center. Forward button horizontally mirrors the arrow. */
 .np-skip {
   position: relative; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -325,7 +325,7 @@ onBeforeUnmount(() => {
   font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; pointer-events: none;
 }
 
-/* 倍速药丸：单钮循环切换（1× → 1.25× → … → 3× → 1×）。 */
+/* Speed pill: single-button cycle toggle (1× → 1.25× → … → 3× → 1×). */
 .np-speed {
   flex: 0 0 auto; min-width: 46px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
   font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -339,22 +339,22 @@ onBeforeUnmount(() => {
 .np-time { flex: 0 0 auto; min-width: 46px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
 .np-time-end { text-align: right; }
 
-/* 声波进度条：竖条围绕中线两侧对称(靠 align-items:center 实现)；静音处虚线基线透出。
-   竖条以 flex-basis 固定宽 + space-between 均布，窄屏自动收窄；点击热区靠 ::before 上下各撑 6px。 */
+/* Waveform progress bar: vertical bars symmetrically surround centerline on both sides (achieved via align-items:center); dashed baseline shows through at silence.
+   Vertical bars use flex-basis for fixed width + space-between for even distribution, narrow screens auto-shrink; click hotspot expands 6px up and down via ::before. */
 .np-wave {
   position: relative; flex: 1 1 auto; height: 46px; min-width: 0;
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; touch-action: none;
 }
 .np-wave::before { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
-/* 静音虚线基线（贯穿整条，静音间隙处只剩它） */
+/* Dashed baseline at silence (runs across entire bar, only visible at silent gaps) */
 .np-wave-base { position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 1px dashed var(--fg-faint); transform: translateY(-50%); pointer-events: none; }
-/* 单根竖条：固定 3px 宽、圆头；未播=静场淡色 token，已播=强调色。height 由振幅内联控制。 */
+/* Single vertical bar: fixed 3px wide, rounded cap; unplayed = silence muted color token, played = accent color. Height controlled inline by amplitude. */
 .np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--wave-none); transition: background 0.12s, height 0.3s var(--ease); }
 .np-wave-bar.played { background: var(--accent); }
 .np-wave:hover .np-wave-bar.played { background: var(--accent2); }
 
-/* 窄屏：收紧内边距 */
+/* Narrow screen: tighten padding */
 @media (max-width: 860px) {
   .audio-layout { gap: 16px; padding: 16px; }
 }

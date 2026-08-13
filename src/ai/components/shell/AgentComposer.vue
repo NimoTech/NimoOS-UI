@@ -1,130 +1,132 @@
 <!--
-  SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue(830 行)。本任务只做
-  骨架:可见资源 chips(Vue2 5-17)、自增高 textarea(45-54)、工具栏行(56-113)、
-  caption(127-129)。**不做**(留给 Task 10/11,接线处见下方注释):
-    - 附件 chips(Vue2 18-42)、上传/删除管线(onFilesPicked/removeAttachment,
-      Vue2 506-611)——`attachments` 数组在本任务里恒为空数组。
-    - @mention 面板(MentionPopover)与 `/init` 斜杠面板(P1c1 补丁 Task 3 起为
-      SlashPopover;初版移植的 SlashMenu 已被用户否掉并退役)——onInput 的
-      mention 扫描(Vue2 306-334)、drillIn/pickItem/popSegment、onInit 均未接入。
-    - Vue2 的 BrowserModal(浏览 NAS 弹窗)——本期用户决定延后,Browse 按钮改为
-      toast 占位提示。
-    - `activeSessionId` watcher(Vue2 275-281)——Vue2 里这个 watcher 同时做两件事
-      (关闭 mention 面板 + 清空待附件列表),两者都属于下一任务范围,若本任务加上
-      一个空 watcher 体只会是死代码,故整体挪到 Task 10。
+  SP8-P1c1 Task 9 — AgentComposer skeleton: chips + textarea + toolbar + send/stop.
+  1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue (830 lines). This task
+  only implements the skeleton: visible resource chips (Vue2 5-17), auto-height textarea
+  (45-54), toolbar row (56-113), caption (127-129). **Not implemented** (left for Task 10/11,
+  wiring points noted below):
+    - Attachment chips (Vue2 18-42), upload/delete pipeline (onFilesPicked/removeAttachment,
+      Vue2 506-611) — the `attachments` array is always empty in this task.
+    - @mention panel (MentionPopover) and `/init` slash panel (SlashPopover since P1c1 patch
+      Task 3; the initial SlashMenu was rejected by the user and retired) — mention scanning
+      in onInput (Vue2 306-334), drillIn/pickItem/popSegment, onInit not yet wired.
+    - Vue2's BrowserModal (NAS browser dialog) — user deferred this phase, Browse button
+      becomes a placeholder toast.
+    - `activeSessionId` watcher (Vue2 275-281) — in Vue2 this watcher does two things
+      (close mention panel + clear pending attachments), both belong to the next task scope.
+      Adding an empty watcher body here would be dead code, so defer entirely to Task 10.
 
-  SP8-P1c1 Task 10 —— 附件管线(选择/上传/进度/文档错误/删除/清空)。
-  1:1 移植自 Vue2 同文件:附件 chips 模板(18-42)、`attachments` data 形状
-  (220-225)、`onFilesPicked`(506-602)、`removeAttachment`(604-611)、
-  `chipTitle`/`docOkLabel`(488-504)、`attachmentHint`(234-244)、`submit()` 的
-  附件半段(438-452)、`activeSessionId` watcher(275-281,本任务只清附件,
-  `closeMention()` 调用点留给 Task 11 —— 见下方 watch 内注释)。
+  SP8-P1c1 Task 10 — attachment pipeline (select/upload/progress/doc errors/delete/clear).
+  1:1 ported from Vue2: attachment chips template (18-42), `attachments` data shape
+  (220-225), `onFilesPicked` (506-602), `removeAttachment` (604-611),
+  `chipTitle`/`docOkLabel` (488-504), `attachmentHint` (234-244), `submit()` attachment
+  portion (438-452), `activeSessionId` watcher (275-281, this task only clears attachments;
+  `closeMention()` call site left for Task 11 — see note in watch block below).
 
-  SP8-P1c1 Task 11 —— @提及 + 斜杠命令接线 + gitignore 409 确认。
-  1:1 移植自 Vue2 同文件:`onInput` 的斜杠/@ 扫描(300-335,纯文本数学已在
-  Task 5 的 `composerText.ts` 里备好:`scanMention`/`buildDrillText`/
-  `buildPopText`/`stripMentionToken`)、`onBlur`(343-346)、`closeMention`
-  (347-352)、`drillIn`/`pickItem`/`popSegment`(355-428)、`onInit`
-  (613-617)、`activeSessionId` watcher 的 `closeMention()` 调用点(275-281,
-  Task 10 留的座)。MentionPopover 挂载(115-124)、SlashMenu 挂载(131-136)。
-  **不移植** BrowserModal 挂载(138-142)——本期延后,Browse 按钮仍是占位 toast。
+  SP8-P1c1 Task 11 — @mention + slash command wiring + gitignore 409 confirmation.
+  1:1 ported from Vue2: slash/@ scanning in `onInput` (300-335, pure text math already
+  prepared in Task 5's `composerText.ts`: `scanMention`/`buildDrillText`/`buildPopText`/
+  `stripMentionToken`), `onBlur` (343-346), `closeMention` (347-352),
+  drillIn/pickItem/popSegment (355-428), `onInit` (613-617), `activeSessionId` watcher's
+  `closeMention()` call site (275-281, seat left in Task 10). MentionPopover mount (115-124),
+  SlashMenu mount (131-136). **Don't port** BrowserModal mount (138-142) — deferred this
+  phase, Browse button still placeholder toast.
 
-  SP8-P1c1 验收补丁 Task 3(2026-07-27,用户验收第 1 轮否掉全屏 SlashMenu)——
-  退役上面 Task 11 挂的 `SlashMenu`(全屏遮罩+居中卡片+单选列表),换成
-  `SlashPopover.vue`(与 MentionPopover 同款外壳,内联/锚定/↑↓/Enter/Tab/Esc/
-  Backspace,两阶段 command→target)。这不是缺陷修复,是用户重新拍板的交互
-  设计,故本期直接删除上一期自己写的组件(不受"删除一律推迟到 SP10"约束——那条
-  铁律只管 Vue2 老仓,不管本期自己刚写、又被否掉的返工)。
-  状态机(取代 Task 11 里 onInput 307-310 那条"整串只有一个 `/`"规则):
-  `slashOpen`/`slashStage`/`slashQuery` 三个 ref 逐次 onInput(以及 Task 1 的
-  focus/click 同步路径)重新推导——见 `deriveSlashState()`。新增
-  `slashDismissedText`:记住上一次 Esc 关闭时的文本,避免 focus/click 把用户刚
-  用 Esc 关掉的面板重新弹出来(只有文本变成不同的值才重开,见
-  `onSlashPopClose()`)。`@`/`/` 两个面板互斥,由 `syncPanelsFromText()` 统一
-  收口——斜杠推导赢的时候强制关掉提及面板,反之才走原有的 `syncMentionFromCaret()`。
-  `onKeydown` 补一行 `if (slashOpen.value) return`(紧跟既有的
-  `if (mentionOpen.value) return`,两者互斥所以顺序其实不敏感,但都必须在 Enter
-  发送逻辑之前)。三个 emit(`pick-command`/`pick-target`/`back`,以及原生的
-  `close`)分别对应 `onSlashPickCommand`/`onSlashPickTarget`/`onSlashBack`/
-  `onSlashPopClose`,逐条对齐 brief「状态机」一节;`activeSessionId` watcher
-  里追加清斜杠面板(回 command 阶段 + 清 dismiss 记忆),与已有的 `closeMention()`
-  并列。
+  SP8-P1c1 acceptance patch Task 3 (2026-07-27, user acceptance round 1 rejected fullscreen
+  SlashMenu) — retire the `SlashMenu` mounted in Task 11 above (fullscreen overlay +
+  centered card + single-select list), replace with `SlashPopover.vue` (same shell as
+  MentionPopover, inline/anchored/↑↓/Enter/Tab/Esc/Backspace, two-stage command→target).
+  This is not a defect fix but user-reshaped interaction design, so directly delete the
+  component written in the previous cycle (not subject to "defer all deletes to SP10" — that
+  rule governs the old Vue2 repo, not our own work from this cycle that got rejected).
+  State machine (replaces Task 11's "entire string is exactly `/`" rule in onInput 307-310):
+  three refs `slashOpen`/`slashStage`/`slashQuery` re-derived on each onInput (and focus/click
+  sync paths from Task 1) — see `deriveSlashState()`. Add `slashDismissedText`: remember
+  the text at last Esc close, prevent focus/click from reopening the panel the user just
+  closed with Esc (only reopen if text changes, see `onSlashPopClose()`). @ and / panels
+  mutually exclusive, unified collection point `syncPanelsFromText()` — when slash derivation
+  wins, force close mention panel; otherwise run existing `syncMentionFromCaret()`. Add
+  `if (slashOpen.value) return` to `onKeydown` (right after existing
+  `if (mentionOpen.value) return`; mutually exclusive so order not sensitive, but both must
+  precede Enter send logic). Three emits (`pick-command`/`pick-target`/`back`, plus native
+  `close`) correspond to `onSlashPickCommand`/`onSlashPickTarget`/`onSlashBack`/
+  `onSlashPopClose`, align line-by-line with brief "state machine" section; add slash panel
+  close in `activeSessionId` watcher (back to command stage + clear dismiss memory), parallel
+  to existing `closeMention()`.
 
-  Vue2 缺陷修复(项目 2026-07-27 移植纪律:逻辑跟正确性,不跟字面 1:1):
-  (a) Vue2 onBlur 的 setTimeout 句柄从未存储/清理,组件卸载后仍可能触发—— 这里
-      存进 `blurTimer` 并在 onBeforeUnmount 里 clearTimeout。
-  (b) 见下方 pickItem 内注释——gitignore 409 确认框的 pending 状态用独立的
-      open/target 两个 ref,而不是字面按 brief 描述"合并成一个 ref、在
-      update:open 里清空"——原因见 pickItem 旁注释。
-  (c) P1c1 验收补丁 Task 1(2026-07-27,用户验收反馈):Vue2 同文件 45-53 的
-      textarea 没有 `@focus` 处理器——onBlur(343-346)180ms 后关闭面板,但没有
-      任何路径在重新聚焦时重开它,于是切标签页/点别处再切回来,面板永久消失。
-      这里新增 onFocus(先清挂起的 blurTimer 再按光标重开)+ onClick(点击移动
-      光标进出 @ 词也要跟着开/关),两者共用新抽出的 syncMentionFromCaret()
-      (原 onInput 里的扫描逻辑,一字未改,只是抽出复用)。见各自声明处注释。
-  (d) P1c1 验收补丁 task 4(2026-07-27,用户复验第 2 轮,@ 仍未修好):Vue2
-      shell/AgentComposer.vue:331(以及上面 (c) 抽出的 syncMentionFromCaret)
-      靠 `scanMention` 从光标往前扫文字反推提及词,一遇空白就 `break` 判定
-      `{open:false}`。NimoOS 挂载点显示名 `System (/DATA)` 既含空格又含斜杠,
-      钻进去之后文本变成 `@System (/DATA)/.system_data/`——只要再触发一次这个
-      扫描(下一次按键、blur→focus,甚至 drillIn 自己 nextTick 里 el.focus()
-      顺带触发的 onFocus),往前扫到空格就直接放弃,面板从此再也开不回来。
-      改法:`composerText.ts` 新增 `mentionPrefix`/`parseActiveMention` 两个纯
-      函数(纯切片比较,不逐字符扫描);`syncMentionFromCaret` 改两级判定——已
-      钻取过至少一层(`mentionSegs.length>0`)时优先信任记录的 segments/start,
-      只有还没钻取时才继续用 `scanMention` 发现新词。同时把原来的
-      `closeMention()` 拆成 `hideMentionPanel()`(只隐藏,onBlur 用)与
-      `resetMention()`(全量重置,Esc/选中/发送/切会话/清空文本各处用)——失焦
-      不再销毁已钻取的层级,真正结束时才重置。逐条改动理由见
-      `syncMentionFromCaret`/`hideMentionPanel`/`resetMention` 声明处注释,以及
-      `.superpowers/sdd/p1c1-patch-task-4-brief.md`。
+  Vue2 defect fixes (project 2026-07-27 port discipline: logic follows correctness, not 1:1):
+  (a) Vue2 onBlur's setTimeout handle never stored/cleared, can fire after component unmount.
+      Store it in `blurTimer`, clearTimeout in onBeforeUnmount.
+  (b) See note in pickItem below — gitignore 409 confirmation pending state uses separate
+      open/target refs, not per-brief description "merge into one ref, clear in update:open"
+      — reason in pickItem annotation.
+  (c) P1c1 acceptance patch Task 1 (2026-07-27, user acceptance feedback): Vue2 textarea
+      (45-53) lacks `@focus` handler — onBlur (343-346) closes panel after 180ms, but no
+      path reopens it on refocus, so switching tabs or clicking elsewhere and back, panel
+      stays closed. Add onFocus here (clear pending blurTimer then reopen by caret position)
+      + onClick (moving caret into/out of @ word should toggle open/close), both use new
+      extracted `syncMentionFromCaret()` (scan logic from onInput, unchanged, just extracted
+      for reuse). See notes at their declarations.
+  (d) P1c1 acceptance patch task 4 (2026-07-27, user re-acceptance round 2, @ still broken):
+      Vue2 shell/AgentComposer.vue:331 (and `syncMentionFromCaret` extracted above) scans
+      from caret backward via `scanMention`, closing (`{open:false}`) on any whitespace.
+      NimoOS mount point display name `System (/DATA)` has both spaces and slashes — after
+      drilling text becomes `@System (/DATA)/.system_data/` — triggering this scan again
+      (next keystroke, blur→focus, even drillIn's own el.focus() in nextTick's onFocus),
+      scanning backward hits space and bails, panel never reopens.
+      Fix: add `mentionPrefix`/`parseActiveMention` pure functions to composerText.ts (pure
+      slice comparison, no character-by-character scan); change `syncMentionFromCaret` to
+      two-level logic — if drilled at least once (`mentionSegs.length>0`), prioritize recorded
+      segments/start, only use `scanMention` to discover new words if not yet drilled. Split
+      old `closeMention()` into `hideMentionPanel()` (hide only, used in onBlur) and
+      `resetMention()` (full reset, used in Esc/select/send/session-switch/clear-text) —
+      blur no longer destroys drilled levels, reset only on true end. See notes at
+      `syncMentionFromCaret`/`hideMentionPanel`/`resetMention` declarations and
+      `.superpowers/sdd/p1c1-patch-task-4-brief.md`.
 
-  gitignore 409 确认(本期唯一有意的交互偏离):Vue2 用阻塞的 `window.confirm`
-  (Vue2 398、630),这里改用仓库的 reka-ui `AlertDialog`。注意 AlertDialog 走
-  `DialogPortal`,渲染在 `.agent-app` 子树之外,`.agent-app` 的 token 不对它生效
-  ——这是既有约定(AgentSidebar 的删除确认已是同样处境),不是本任务引入的新问题。
+  gitignore 409 confirmation (only intentional interaction deviation this cycle): Vue2 uses
+  blocking `window.confirm` (Vue2 398, 630), here use repo's reka-ui `AlertDialog`. Note
+  AlertDialog renders via `DialogPortal` outside `.agent-app` tree, so `.agent-app` tokens
+  don't apply to it — this is existing convention (AgentSidebar's delete confirmation same
+  situation), not a new problem introduced here.
 
-  P1c1 补丁验收第 2 轮 Task 5(2026-07-27,评审第 2 轮 Item A + Item B)——
+  P1c1 acceptance patch round 2 Task 5 (2026-07-27, review round 2 Item A + Item B) —
 
-  Item A:@ 面板缺一层 Esc 关闭记忆,与斜杠面板的 `slashDismissedText`/
-  `openSlashIfNotDismissed` 不对称。缺陷复现:type '@doc' → MentionPopover 的
-  Esc(`close`)关闭面板 → 点回 textarea → onFocus → syncMentionFromCaret →
-  scanMention 重新发现同一个 `@doc` token → 面板不请自开。之前看起来"已经修好"
-  只是因为已有测试恰好用了含空格的挂载点名(`scanMention` 遇空格必然发现失败,
-  与这层记忆无关,纯属巧合掩盖)。修法:新增 `mentionDismissedText` ref + 新增
-  `openMentionIfNotDismissed()` 助手,逐字镜像斜杠那一套的形状/命名。写入点是
-  `onMentionPopClose()`(替换原来直接绑 `resetMention` 的 `@close`);读取点是
-  `syncMentionFromCaret()` 的两个分支(状态优先的 parseActiveMention、发现式的
-  scanMention)都要过这一关;清空点收口在 `resetMention()` 里(select/submit/
-  session-switch/清空文本各处全量重置路径统一清掉,保证这层记忆绝不会永久卡死
-  面板)。**Vue2 同文件没有这层机制**——Vue2 从来没有过这个"Esc 后 focus 不复活"
-  的行为,这是本仓库自己发现并修的缺陷,不是移植缺项。项目 2026-07-27 移植纪律:
-  UI 与 Vue2 1:1,但逻辑跟正确性,不跟字面一致。逐条改动理由见
-  `mentionDismissedText`/`openMentionIfNotDismissed`/`onMentionPopClose` 声明处
-  注释。
+  Item A: @ panel lacks Esc close memory, asymmetric with slash panel's `slashDismissedText`/
+  `openSlashIfNotDismissed`. Defect repro: type '@doc' → MentionPopover Esc (`close`) closes
+  panel → click back to textarea → onFocus → syncMentionFromCaret → scanMention rediscovers
+  same `@doc` token → panel reopens uninvited. Looked "fixed" before only because existing
+  test happened to use mount point name with spaces (`scanMention` fails on space, unrelated
+  to this memory, pure coincidence). Fix: add `mentionDismissedText` ref + `openMentionIfNotDismissed()`
+  helper, mirror slash side's shape/naming exactly. Write point: `onMentionPopClose()`
+  (replace direct `resetMention` binding on `@close`); read points: both branches of
+  `syncMentionFromCaret()` (state-priority parseActiveMention, discovery-style scanMention)
+  must check here; clear point in `resetMention()` (select/submit/session-switch/clear-text
+  all full-reset paths clear together, ensure this memory never deadlocks panel). **Vue2 has
+  no such mechanism** — never had "Esc then focus doesn't reopen" behavior; this is a defect
+  we discovered and fixed. Port discipline 2026-07-27: UI 1:1 Vue2, but logic follows
+  correctness. See notes at `mentionDismissedText`/`openMentionIfNotDismissed`/`onMentionPopClose`
+  declarations.
 
-  Item B(评审提出的疑点,已用组件测试验证并钉住,非臆测):`drillIn()` 的
-  `nextTick(() => { el.focus(); el.setSelectionRange(caretPos, caretPos); grow() })`
-  原来的顺序在 token 后面还跟着别的文字时(例如 `@Dr tail` 钻成
-  `@Drive1/ tail`)是不安全的——`el.focus()` 会同步再入 `onFocus` →
-  `syncMentionFromCaret`,而此时 `setSelectionRange` 还没执行,读到的
-  `el.selectionStart` 是 textarea `.value` 刚被整体替换后浏览器原生落在的
-  字符串末尾,于是把尾部文字当成了 mentionQuery。改法:调换成先
-  `setSelectionRange` 再 `focus()`——前者不要求元素已经 focus,后者也不会重置
-  已经存在的 selection,顺序调换即可修好,见 `drillIn` 声明处注释。
+  Item B (review question, verified with component test, not speculation): `drillIn()`'s
+  `nextTick(() => { el.focus(); el.setSelectionRange(caretPos, caretPos); grow() })` order
+  is unsafe when token is followed by other text (e.g. `@Dr tail` drills to `@Drive1/ tail`) —
+  `el.focus()` synchronously re-enters `onFocus` → `syncMentionFromCaret`, but `setSelectionRange`
+  hasn't run yet, so `el.selectionStart` reads browser's native position after `.value`
+  wholesale replacement (string end), treating tail text as mentionQuery. Fix: swap to
+  `setSelectionRange` then `focus()` — first doesn't require focus, second won't reset
+  existing selection, swap order fixes it. See note at `drillIn` declaration.
 
-  SP8-P3a 验收后追加(2026-07-30)—— 「已挂载技能」提示条,**用户当面指令新增的
-  UI,Vue2 同文件没有这个元素**。背景:「在对话中试用」把 skill id 存进
-  `agentStore.pendingSkillId`(挂号,仅暂存),真正生效要等**下一次** `send()`
-  才把它塞进 `X-Skill-Id` 请求头并消费清空(agentStore.ts:925-927,Vue2
-  agentStore.js:357-359 同款,P1 期就有,本组件的贡献只是显性化)——但界面全程
-  没有任何提示,用户验收时问「URL 变了但真的会用这个 skill 吗」,证明这是可复现
-  的体验缺口。本条不改 URL(方案②未选)、不加技能停用提示(方案③未选),纯只读
-  `store.pendingSkillId` 渲染一条可关闭提示,关闭只置 null,不做别的。放在
-  chips 行之前是因为语义一致:两者都是「会跟着下一条消息一起发出去的东西」,且
-  天然继承 `.composer` 的 `pointer-events: auto`。见
-  .superpowers/sdd/p3a-post-skillbanner-brief.md。
+  SP8-P3a post-acceptance addition (2026-07-30) — "mounted skill" banner, **user-directed
+  new UI not in Vue2**. Context: "try in conversation" stores skill id in
+  `agentStore.pendingSkillId` (placeholder, temporary only), truly takes effect **next time**
+  `send()` puts it in `X-Skill-Id` header and clears it (agentStore.ts:925-927, same as Vue2
+  agentStore.js:357-359, existed in P1, we just visualize it here) — but UI shows nothing,
+  user asked "URL changed but will this skill actually be used?", proves this UX gap is real.
+  This doesn't change URL (plan ② not chosen), doesn't add skill-disabled hint (plan ③ not
+  chosen), just reads `store.pendingSkillId` and renders a dismissible banner, dismissal only
+  nulls it. Place before chips row because semantically same: both are "attached to next message",
+  both inherit `.composer`'s `pointer-events: auto`. See
+  .superpowers/sdd/p3a-post-skillbanner-brief.md.
 -->
 <script setup lang="ts">
 import { ref, reactive, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
@@ -149,7 +151,7 @@ const props = withDefaults(
   { busy: false, ctxUsage: null },
 )
 
-/** Task 10 Interfaces 段:submit() 的 attachmentRefs 单项形状(逐字取自 brief)。 */
+/** Task 10 Interfaces section: shape of single attachmentRefs item in submit() (verbatim from brief). */
 interface AttachmentRef {
   id: string
   filename: string
@@ -158,9 +160,9 @@ interface AttachmentRef {
   url: string
 }
 
-// 三个 emit 名与 payload 形状是 Task 12 接线契约,不可改
-// (p1c1-task-9-brief.md Interfaces 段)。`send-init` 本任务无调用方
-// (SlashMenu/onInit 是 Task 11 的事),这里先声明接口占位。
+// Three emit names and payload shapes are Task 12 wiring contract, don't change
+// (p1c1-task-9-brief.md Interfaces section). `send-init` has no caller in this task
+// (SlashMenu/onInit are Task 11's concern), declared here as interface placeholder.
 const emit = defineEmits<{
   send: [payload: { text: string; attachmentIds: string[]; attachmentRefs: AttachmentRef[] }]
   stop: []
@@ -172,10 +174,10 @@ const store = useProvidedAgentStore()
 const toast = useToast()
 
 /**
- * Task 10 Interfaces 段:本地 pending 附件列表项形状(仅组件内部,不外泄)。
- * Vue2 220-225 `attachments` data 的逐字对齐:
- *   docError: kind=document 时 backend 的 extract_error 码;成功时 undefined。
- *   docMeta:  document 成功抽取时的 { extractor, pages, truncated }。
+ * Task 10 Interfaces section: shape of local pending attachment list item (internal only,
+ * never exported). Line-by-line alignment with Vue2 220-225 `attachments` data:
+ *   docError: backend extract_error code when kind=document; undefined on success.
+ *   docMeta:  { extractor, pages, truncated } when document extraction succeeds.
  */
 interface PendingAttachment {
   tmpId: string
@@ -194,45 +196,47 @@ const text = ref('')
 const composerEl = ref<HTMLElement | null>(null)
 const ta = ref<HTMLTextAreaElement | null>(null)
 const attachFileInput = ref<HTMLInputElement | null>(null)
-// Vue2 295-299 anchorRect: 供 MentionPopover 定位,面板本身留 Task 11,这里先把
-// 计算+resize 联动的骨架搭好,不留半截状态。
+// Vue2 295-299 anchorRect: for MentionPopover positioning; panel itself left for Task 11,
+// here just scaffold the calculation + resize binding, no half-state.
 const anchorRect = ref<DOMRect | null>(null)
-// Vue2 219-225 attachments data —— 本地 pending 附件列表(浏览器已选、正在/已
-// 上传的文件),与 store.attachments(右侧面板的服务端列表)是两回事,互不干扰。
+// Vue2 219-225 attachments data — local pending attachment list (browser-selected,
+// uploading/uploaded files), distinct from store.attachments (server list in right panel),
+// no interference.
 const attachments = ref<PendingAttachment[]>([])
 
-// Vue2 210-216 mention picker / slash menu data。
+// Vue2 210-216 mention picker / slash menu data.
 const mentionOpen = ref(false)
 const mentionStart = ref(-1)
 const mentionSegs = ref<string[]>([])
 const mentionQuery = ref('')
-// P1c1 补丁 Task 3 —— SlashPopover 驱动状态(取代 Task 11 那个只会整串一个 '/'
-// 就弹、敲第二个字就失效的 slashOpen 单变量)。见文件头「SP8-P1c1 验收补丁
-// Task 3」一节的状态机总述,以及 deriveSlashState() 声明处的逐条注释。
+// P1c1 patch Task 3 — SlashPopover driver state (replaces Task 11's single-shot `slashOpen`
+// that only fires when entire string is exactly '/', fails on second keystroke). See file
+// header "SP8-P1c1 acceptance patch Task 3" state machine overview, and line-by-line notes
+// in deriveSlashState() declaration.
 const slashOpen = ref(false)
 const slashStage = ref<'command' | 'target'>('command')
 const slashQuery = ref('')
-// Esc(command 阶段的 close 事件)关闭时记下当时的文本;只要文本没变,
-// focus/click 的重新同步都不应把面板复活——见 deriveSlashState() 里
-// openSlashIfNotDismissed() 的用法。文本被清空或首字符不再是 '/' 时清掉。
+// On Esc (command stage close event), save the text at that moment; as long as text hasn't
+// changed, focus/click resync should not resurrect the panel — see usage in deriveSlashState()'s
+// openSlashIfNotDismissed(). Clear when text empties or first char is no longer '/'.
 const slashDismissedText = ref<string | null>(null)
-// P1c1 补丁验收第 2 轮 Task 5 Item A(2026-07-27)—— @ 面板的对称记忆,镜像上面
-// `slashDismissedText`/`openSlashIfNotDismissed` 的写法。缺陷复现:type '@doc' →
-// MentionPopover 的 Esc(`close`)关闭面板 → 点回 textarea → onFocus →
-// syncMentionFromCaret → scanMention 重新发现同一个 `@doc` token → 面板不请自开。
-// 斜杠面板早有这层记忆,@ 面板一直没有——本来就该对称,属于遗漏而非有意不做。
-// 写入点:`onMentionPopClose()`(MentionPopover `@close`,即 Esc)。
-// 读取点:`openMentionIfNotDismissed()`,`syncMentionFromCaret()` 的两个分支
-// (状态优先的 parseActiveMention 分支、以及发现式的 scanMention 分支)都要过这一关
-// ——见 `openMentionIfNotDismissed` 声明处注释,为什么两个分支都要挡。
-// 清空点:`resetMention()`(select/submit/session-switch/清空文本各处收口的地方)
-// 统一清掉,保证这层记忆绝不会永久卡死面板;`onMentionPopClose()`自己也调用
-// `resetMention()`,所以要在调用之后再写入记忆(否则前脚清、后脚被自己清空)。
-// Vue2 同文件没有这层记忆(Vue2 从来没修过这个 bug,这是本仓库自己发现的缺陷)——
-// 项目 2026-07-27 移植纪律:UI 与 Vue2 1:1,但逻辑跟正确性,不跟字面一致。
+// P1c1 acceptance patch round 2 Task 5 Item A (2026-07-27) — symmetrical memory for @ panel,
+// mirrors `slashDismissedText`/`openSlashIfNotDismissed` above. Defect repro: type '@doc' →
+// MentionPopover Esc (`close`) closes panel → click back to textarea → onFocus →
+// syncMentionFromCaret → scanMention rediscovers same `@doc` token → panel reopens unsummoned.
+// Slash panel had this memory long ago, @ panel never did — should be symmetric, this is
+// omission not design choice. Write point: `onMentionPopClose()` (MentionPopover `@close`,
+// i.e., Esc). Read points: both branches of `syncMentionFromCaret()` (state-priority
+// parseActiveMention branch and discovery-style scanMention branch) must check here — see
+// `openMentionIfNotDismissed` declaration notes for why both branches need gating.
+// Clear point: `resetMention()` (select/submit/session-switch/clear-text unified collection
+// point) clears together, ensure this memory never deadlocks panel; `onMentionPopClose()`
+// itself calls `resetMention()`, so write memory after calling (else clear first, clear again).
+// Vue2 has no such memory (never fixed this bug, we discovered the defect) — port discipline
+// 2026-07-27: UI 1:1 Vue2, but logic follows correctness.
 const mentionDismissedText = ref<string | null>(null)
-// Vue2 缺陷修复 (a)(见文件头注释):onBlur 的 setTimeout 句柄要能在
-// onBeforeUnmount 里清掉,Vue2 从未存储这个句柄。
+// Vue2 defect fix (a) (see file header): onBlur's setTimeout handle must be clearable in
+// onBeforeUnmount; Vue2 never stored this handle.
 const blurTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 
 /**
@@ -252,9 +256,9 @@ const placeholder = computed(() => t('aiComposerPlaceholder'))
 const acceptTypes = ACCEPT_TYPES
 
 /**
- * Vue2 234-244 attachmentHint()。**有意偏离**:Vue2 用 Buefy `<b-tooltip
- * multilined>` 展示这 7 行提示;本仓库无 Buefy,改用原生 `title` 属性 + `\n`
- * 拼接七行(见模板里 attach 按钮的 title 绑定)。
+ * Vue2 234-244 attachmentHint(). **Intentional deviation**: Vue2 uses Buefy `<b-tooltip
+ * multilined>` to display these 7 lines; this repo has no Buefy, use native `title`
+ * attribute + `\n` to join seven lines (see title binding on attach button in template).
  */
 const attachmentHint = computed(() =>
   [
@@ -268,7 +272,7 @@ const attachmentHint = computed(() =>
   ].join('\n'),
 )
 
-/** Vue2 289-294 grow() —— 逐字对齐(min(scrollHeight, 220))。 */
+/** Vue2 289-294 grow() — verbatim alignment (min(scrollHeight, 220)). */
 function grow() {
   const el = ta.value
   if (!el) return
@@ -276,48 +280,50 @@ function grow() {
   el.style.height = Math.min(el.scrollHeight, 220) + 'px'
 }
 
-/** Vue2 295-299 updateAnchor()。 */
+/** Vue2 295-299 updateAnchor(). */
 function updateAnchor() {
   if (composerEl.value) anchorRect.value = composerEl.value.getBoundingClientRect()
 }
 
 /**
- * P1c1 验收补丁 task 4(2026-07-27,用户复验第 2 轮):把 @ 提及词从"每次都从
- * 文字反推"改成"状态优先,文字只用来发现新词/取筛选词"。
+ * P1c1 acceptance patch task 4 (2026-07-27, user re-acceptance round 2): change @ mention
+ * word from "re-derive from text every time" to "state priority, text only discovers new
+ * words / extracts filter words".
  *
- * 根因(见 p1c1-patch-task-4-brief.md「根因」一节,读代码定死非猜测):
- * `scanMention`(composerText.ts:48-67,对应 Vue2 shell/AgentComposer.vue:331 的
- * 同款注释"mention 路径不含空格")是从光标往前扫的发现式算法,一遇空白就
- * `break` 判定 `{open:false}`。NimoOS 的挂载点显示名 `System (/DATA)` 既含空格
- * 又含斜杠——钻进去之后文本变成 `@System (/DATA)/.system_data/`,只要再触发一次
- * 这个函数(下一次按键、blur→focus,甚至 drillIn 自己 nextTick 里 `el.focus()`
- * 顺带触发的 onFocus——用真实交互写组件测试时意外证实了这一点),往前扫到空格
- * 就直接放弃,面板从此再也开不回来。
+ * Root cause (see p1c1-patch-task-4-brief.md "root cause" section, code-verified not
+ * guessed): `scanMention` (composerText.ts:48-67, same as Vue2 shell/AgentComposer.vue:331
+ * note "mention path contains no spaces") is backward-scan discovery algorithm, breaks on
+ * whitespace to set `{open:false}`. NimoOS mount point display name `System (/DATA)` has
+ * both spaces and slashes — after drilling text becomes `@System (/DATA)/.system_data/`,
+ * triggering this function again (next keystroke, blur→focus, even drillIn's own `el.focus()`
+ * in nextTick's onFocus — incidentally proven with component test on real interaction),
+ * backward scan hits space and bails, panel never reopens.
  *
- * 修法:`mentionSegs`(层级)由 `drillIn`/`popSegment` 写入,是权威值,永不从文字
- * 反推。只要已经钻过至少一层(`mentionSegs.value.length > 0`),就用
- * `parseActiveMention` 按"记录的前缀是否仍是当前文本这一段"做一次纯切片比较
- * (不逐字符扫描,天然不受嵌入的空格/斜杠影响),命中就直接复用/更新
- * `mentionQuery`,**不再跑 `scanMention`**。
+ * Fix: `mentionSegs` (level) written by `drillIn`/`popSegment` is authoritative, never
+ * re-derived from text. Once drilled at least once (`mentionSegs.value.length > 0`), use
+ * `parseActiveMention` doing pure slice comparison "does recorded prefix still match this
+ * text segment" (no character scanning, naturally immune to embedded spaces/slashes), on
+ * match directly reuse/update `mentionQuery`, **don't run `scanMention` again**.
  *
- * 没有 gate 在 `mentionSegs.value.length > 0` 上不行:`mentionPrefix([])` 只是
- * 裸的 `'@'`,如果对"尚未钻取过、只是刚敲了 `@xxx` 还没选任何层级"的状态也无条件
- * 信任 `parseActiveMention`,那么这个前缀会对任何后续文本都判定"仍然成立"
- * (只要 caret 在 `@` 之后),包括用户敲空格结束这次提及的场景——这会让
- * `AgentComposer @提及 / 斜杠`(Task 11)"输入空格后关闭"那条既有用例失败。
- * 尚未钻取时"逐字符发现"本来就是安全的(还没有可能包含空格的挂载点名混进
- * 状态),所以这条路径继续交给 `scanMention` 重新发现——两段判定合起来才是
- * brief「组件改造」步骤 2 说的"两级判定"。
+ * Can't gate on `mentionSegs.value.length > 0` alone: `mentionPrefix([])` is just bare `'@'`,
+ * if we unconditionally trust `parseActiveMention` for "not yet drilled, just typed `@xxx`
+ * without selecting any level" state, that prefix will judge "still holds" for any following
+ * text (as long as caret is after `@`), including user typing space to end the mention —
+ * breaks existing test case "`AgentComposer @mention / slash` closes after typing space"
+ * (Task 11). Not-yet-drilled "character discovery" is inherently safe (no space-containing
+ * mount point name mixed into state yet), so keep that path to `scanMention` rediscovery —
+ * two-level logic together is what brief "component refactor" step 2 calls "two-tier logic".
  */
 /**
- * P1c1 补丁验收第 2 轮 Task 5 Item A —— 镜像 `openSlashIfNotDismissed()`:只有
- * 当前文本与 `mentionDismissedText`(上一次 Esc 关闭时的文本)不同,才真的打开;
- * 否则保持关闭。`syncMentionFromCaret()` 的两个分支(状态优先的
- * parseActiveMention、发现式的 scanMention)都经过这里,不会各写一份判断而漂移
- * ——两个分支都要挡是因为：即使 `resetMention()`(Esc 关闭路径的一部分)已经把
- * `mentionSegs` 清空、下一次几乎总是落进 scanMention 分支重新发现同一个 token,
- * 但这条记忆检查本身不依赖"哪个分支发现的",两个分支都可能在文本不变时重新算出
- * 同一个 start/segments/query,必须在两处都拦，不能只信任其中一条调用路径。
+ * P1c1 acceptance patch round 2 Task 5 Item A — mirrors `openSlashIfNotDismissed()`: only
+ * open if current text differs from `mentionDismissedText` (text at last Esc close); else
+ * stay closed. Both branches of `syncMentionFromCaret()` (state-priority parseActiveMention,
+ * discovery-style scanMention) pass through here, no separate logic to drift — both need
+ * gating because: even if `resetMention()` (part of Esc close path) clears `mentionSegs`,
+ * next time almost always falls into scanMention branch rediscovering same token, but this
+ * memory check itself doesn't depend on "which branch discovered", both branches can
+ * recalculate same start/segments/query when text unchanged, must gate both, can't trust
+ * just one call path.
  */
 function openMentionIfNotDismissed(v: string, start: number, segs: string[], query: string) {
   if (mentionDismissedText.value !== null && mentionDismissedText.value === v) {
@@ -353,10 +359,11 @@ function syncMentionFromCaret() {
 }
 
 /**
- * P1c1 补丁 Task 3 —— SlashPopover 的开合助手:只有当当前文本与
- * `slashDismissedText`(上一次 Esc 关闭时的文本)不同,才真的打开;否则保持
- * 关闭。这是"关掉后不自动重开、文本变了才重开"规则的唯一落地点——`onInput`/
- * `onFocus`/`onClick` 三条路径都经过这里,不会各写一份判断而漂移。
+ * P1c1 patch Task 3 — SlashPopover open/close helper: only truly open if current text
+ * differs from `slashDismissedText` (text at last Esc close); else stay closed. This is the
+ * only landing point for "don't auto-reopen after close, only reopen if text changes" rule —
+ * all three paths (`onInput`/`onFocus`/`onClick`) pass through here, prevents separate
+ * logic from drifting.
  */
 function openSlashIfNotDismissed(v: string) {
   if (slashDismissedText.value !== null && slashDismissedText.value === v) {
@@ -368,22 +375,22 @@ function openSlashIfNotDismissed(v: string) {
 }
 
 /**
- * P1c1 补丁 Task 3 —— 取代 Task 11 里 onInput 307-310 那条"整串正好是 '/'
- * 才弹、敲第二个字就失效"的规则。每次调用都是从当前 `text.value` 和当前
- * `slashStage` 纯推导(不依赖上一次调用的历史),所以 onInput/onFocus/onClick
- * 共用同一份逻辑不会漂移。见文件头「SP8-P1c1 验收补丁 Task 3」一节。
+ * P1c1 patch Task 3 — replaces Task 11's "entire string is exactly '/', fails on second
+ * keystroke" rule in onInput 307-310. Every call re-derives purely from current `text.value`
+ * and current `slashStage` (no history dependency), so `onInput`/`onFocus`/`onClick` sharing
+ * same logic doesn't drift. See file header "SP8-P1c1 acceptance patch Task 3" section.
  *
- * - 首字符不是 `/`(或文本已清空):强制关闭、退回 command 阶段、清空
- *   query,并清掉 `slashDismissedText`(brief:"文本被清空或首字符不再是 `/`
- *   时清掉这个记忆值")。
- * - target 阶段:文本仍以 `/init `(命令名+一个空格)开头才继续停留在 target,
- *   query = 该前缀之后的剩余文本(用来按目录 path 筛选);否则退回 command
- *   阶段,落到下面的 command 分支重新推导(例如用户把 "/init " 删成
- *   "/in",应该回到 command 阶段列表并筛到 "in")。
- * - command 阶段:`/` 之后不含任何空白字符才打开,query = `/` 之后的剩余
- *   文本;一旦出现空白(用户敲了空格)就关闭(仍停留在 command 阶段——这与
- *   Vue2 的两阶段编排一致:进入 target 阶段是 `pick-command` 事件驱动的,
- *   不是靠打空格)。
+ * - First char not '/' (or text empty): force close, revert to command stage, clear query,
+ *   clear `slashDismissedText` (brief: "clear this memory when text empties or first char
+ *   no longer '/'").
+ * - target stage: text must still start with `/init ` (command name + one space) to stay in
+ *   target, query = remaining text after that prefix (filters by dir path); else revert to
+ *   command stage, falls to command branch below to re-derive (e.g. user deletes "/init "
+ *   to "/in", should go back to command stage list filtered to "in").
+ * - command stage: open only if no whitespace after `/`, query = remaining text after `/`;
+ *   close immediately on any whitespace (user typed space), stay in command stage — aligns
+ *   with Vue2's two-stage layout: entering target stage is `pick-command` event-driven, not
+ *   space-triggered.
  */
 function deriveSlashState() {
   const v = text.value
@@ -418,16 +425,17 @@ function deriveSlashState() {
 }
 
 /**
- * P1c1 补丁 Task 3 —— `@` 与 `/` 互斥的唯一收口点:先推导斜杠状态,斜杠赢了
- * (`slashOpen` 为真)就强制关掉提及面板、不再推导提及;否则走原有的
- * `syncMentionFromCaret()`。两个面板永不同时 open——无论从哪个方向切换
- * (斜杠→提及,或反过来),都在这一个函数里判定,不会漂移成两份逻辑。
+ * P1c1 patch Task 3 — unique collection point for @ / mutual exclusion: first derive slash
+ * state; if slash wins (`slashOpen` true), force close mention panel, don't re-derive
+ * mention; else run existing `syncMentionFromCaret()`. Two panels never open together —
+ * regardless of direction (slash→mention or reverse), logic unified here, never drifts to
+ * two separate branches.
  *
- * P1c1 补丁 task 4:这里必须是 `resetMention()`(全量重置),不能只
- * `hideMentionPanel()`——斜杠面板赢了之后,提及的 `mentionSegs`/`mentionStart`
- * 若还留着,下一次斜杠面板关闭、文本又变回一个"仍然匹配已记录前缀"的样子时,
- * `syncMentionFromCaret` 会把提及面板诈尸重开(见 brief「组件改造」步骤 3 最后
- * 一条)。
+ * P1c1 patch task 4: must use `resetMention()` (full reset), can't just `hideMentionPanel()`
+ * — after slash panel wins, if mention's `mentionSegs`/`mentionStart` still there, next time
+ * slash panel closes and text becomes something "still matching recorded prefix",
+ * `syncMentionFromCaret` resurrects mention panel (see brief "component refactor" step 3 last
+ * point).
  */
 function syncPanelsFromText() {
   deriveSlashState()
@@ -439,9 +447,9 @@ function syncPanelsFromText() {
 }
 
 /**
- * Vue2 300-335 onInput()。顺序不可打乱:先 grow(),再 `syncPanelsFromText()`
- * ——取代 Task 11 里"斜杠触发 + syncMentionFromCaret()"的手写分支(见上面两个
- * 函数的注释)。
+ * Vue2 300-335 onInput(). Order matters: grow() first, then `syncPanelsFromText()` —
+ * replaces Task 11's hand-written "slash trigger + syncMentionFromCaret()" branches (see
+ * notes above two functions).
  */
 function onInput() {
   grow()
@@ -449,21 +457,21 @@ function onInput() {
 }
 
 /**
- * P1c1 验收补丁 Task 1 —— 修 Vue2 缺陷 (c):Vue2 `shell/AgentComposer.vue`
- * 的 textarea(45-53)只绑了 `@input`/`@keydown`/`@blur`,没有 `@focus`。
- * `onBlur`(343-346)会在 180ms 后调 `closeMention()`,而唯一能重开面板的路径
- * 是 `onInput` 里的扫描——于是切标签页/点页面别处再切回来,面板永久消失,直到
- * 用户再敲一个字符。这不是 UI 差异,是逻辑缺陷;按项目 2026-07-27 移植纪律
- * (界面照 Vue2、逻辑按正确的来)在此修:重新聚焦时,
- *   1) 先清掉挂起的 blur 关闭定时器——否则"点面板条目→输入框重获焦点"这个
- *      既有交互会被自己刚排的 180ms 定时器紧接着关掉;
- *   2) 再用 syncMentionFromCaret() 按光标位置决定面板开/关——层级/查询词由
- *      scanMention 从文本本身还原,天然保持已钻入的层级,不需要额外状态。
- * P1c1 补丁 Task 3 更新:原来这里只调 `syncMentionFromCaret()`;现在改调
- * `syncPanelsFromText()`,同时按当前文本重新推导斜杠面板——brief 明确要求
- * "每次 onInput 里(以及 Task 1 新增的 focus/click 同步路径中)重新推导"斜杠
- * 状态。`slashDismissedText` 机制保证这条路径不会把用户刚用 Esc 关掉、且文本
- * 没变化的面板复活。
+ * P1c1 acceptance patch Task 1 — fix Vue2 defect (c): Vue2 `shell/AgentComposer.vue`
+ * textarea (45-53) binds only `@input`/`@keydown`/`@blur`, no `@focus`. `onBlur` (343-346)
+ * calls `closeMention()` after 180ms, but only path reopening panel is `onInput`'s scan —
+ * so switching tabs or clicking elsewhere and back, panel stays closed until user types
+ * something. Not UI difference, logic defect; per port discipline 2026-07-27 (UI mirrors
+ * Vue2, logic follows correctness), fix here: on refocus,
+ *   1) clear pending blur-close timer first — else "click panel item → input refocus" existing
+ *      interaction gets immediately cancelled by our 180ms timer;
+ *   2) use syncMentionFromCaret() to decide open/close by caret — level/query words
+ *      restored by scanMention from text, naturally preserves drilled levels, no extra state.
+ * P1c1 patch Task 3 update: originally just called `syncMentionFromCaret()` here; now call
+ * `syncPanelsFromText()`, simultaneously re-derive slash panel by current text — brief
+ * explicitly requires "re-derive slash state in every onInput (and new focus/click sync
+ * paths from Task 1)". `slashDismissedText` mechanism ensures this path doesn't resurrect
+ * panels the user just closed with Esc and text unchanged.
  */
 function onFocus() {
   if (blurTimer.value !== null) {
@@ -474,27 +482,28 @@ function onFocus() {
 }
 
 /**
- * P1c1 验收补丁 Task 1 续,同一缺陷 (c) 的另一半:用户可能在已有文本里点一下,
- * 把光标移进/移出一个 `@` 词,面板要跟着开/关(而不是只在打字时响应)。与
- * onFocus 调用同一个幂等函数——P1c1 补丁 Task 3 起改为 `syncPanelsFromText()`
- * (同时覆盖斜杠状态推导,理由同 onFocus 处注释)。
+ * P1c1 acceptance patch Task 1 continued, second half of defect (c): user may click in
+ * existing text, moving caret into/out of @ word, panel should toggle open/close (not just
+ * respond to typing). Calls same idempotent function as onFocus — P1c1 patch Task 3 changed
+ * to `syncPanelsFromText()` (simultaneously covers slash state derivation, reason same as
+ * onFocus note).
  */
 function onClick() {
   syncPanelsFromText()
 }
 
 /**
- * Vue2 336-342 onKeydown()。**补回** Task 9 去掉的 `if (this.mentionOpen)
- * return` 守卫(336 行)——那时 mention 面板还没接入,守卫是死代码;本任务把
- * MentionPopover 接上之后,守卫恢复效力:面板打开时键盘交给面板处理(方向键/
- * Tab/Enter/Esc/Backspace,见 MentionPopover.vue 的 onKey),composer 自己不再
- * 抢 Enter 发送。IME 双重守卫逐字保留(`e.isComposing || keyCode === 229`,
- * 后者是历史上部分浏览器/输入法不设置 isComposing 时的兜底,两个都要留)。
+ * Vue2 336-342 onKeydown(). **Restore** the `if (this.mentionOpen) return` guard (line 336)
+ * removed in Task 9 — mention panel wasn't wired then, guard was dead code; wiring
+ * MentionPopover here, guard regains function: when panel open, keyboard goes to panel
+ * (arrows/Tab/Enter/Esc/Backspace, see MentionPopover.vue onKey), composer no longer
+ * intercepts Enter to send. IME double-guard kept verbatim (`e.isComposing || keyCode === 229`,
+ * latter is historical fallback for browsers/IME that don't set isComposing, keep both).
  *
- * P1c1 补丁 Task 3:补上 `if (slashOpen.value) return`,让 SlashPopover 的
- * capture 阶段 window keydown 监听独占 ↑↓/Enter/Tab/Esc/Backspace(见
- * SlashPopover.vue 的 onKey)。两个面板互斥(syncPanelsFromText() 保证),所以
- * 这两行 return 谁先谁后不影响行为,但都必须在 Enter 发送逻辑之前。
+ * P1c1 patch Task 3: add `if (slashOpen.value) return`, let SlashPopover's window keydown
+ * capture-phase listener monopolize arrows/Enter/Tab/Esc/Backspace (see SlashPopover.vue onKey).
+ * Two panels mutually exclusive (syncPanelsFromText() ensures), so order of two returns
+ * doesn't matter, but both must precede Enter send logic.
  */
 function onKeydown(e: KeyboardEvent) {
   if (mentionOpen.value) return // popover handles keys
@@ -506,8 +515,9 @@ function onKeydown(e: KeyboardEvent) {
 }
 
 /**
- * Vue2 245-250 canSend()。三段式:无就绪附件也无文本→不可发;否则只要没有
- * 正在上传中的附件就可发(已就绪的附件允许纯附件、空文本发送)。
+ * Vue2 245-250 canSend(). Three-part logic: no ready attachments and no text → can't send;
+ * else can send if no uploading attachments (ready attachments allow attachment-only or
+ * empty-text send).
  */
 const canSend = computed(() => {
   const hasReady = attachments.value.some((a) => a.status === 'uploaded' && a.aid)
@@ -516,7 +526,7 @@ const canSend = computed(() => {
   return !attachments.value.some((a) => a.status === 'uploading')
 })
 
-/** Vue2 260-272 chips()——用 Task 5 composerText.ts 的 basename/dirname/getExt。 */
+/** Vue2 260-272 chips() — use basename/dirname/getExt from Task 5 composerText.ts. */
 const chips = computed(() =>
   store.visibleResources.map((r) => {
     const isFile = r.kind === 'file'
@@ -531,11 +541,11 @@ const chips = computed(() =>
   }),
 )
 
-/** Vue2 654-657 toastError()——removeChip/pickItem/onBrowserPick 三处共用的通用
- *  错误提示,对应 Vue2 的 `$t('Authorization failed: {msg}')`,本任务用
- *  `aiAuthFailed` 键接住;removeChip 是本任务唯一接入的调用点,否则移除资源失败
- *  会被静默吞掉。SP8-P1c2 Task 6:授权失败 → danger 档(p1c2-task-6-brief.md
- *  「AgentComposer 的 7 处」)。 */
+/** Vue2 654-657 toastError() — shared generic error hint for removeChip/pickItem/onBrowserPick,
+ *  corresponds to Vue2's `$t('Authorization failed: {msg}')`, catch with `aiAuthFailed` key here;
+ *  removeChip is the only call site wired in this task, else resource removal failure silently
+ *  swallowed. SP8-P1c2 Task 6: auth failure → danger tier (p1c2-task-6-brief.md
+ *  "AgentComposer 7 places"). */
 function toastError(e: unknown) {
   const err = e as { response?: { data?: { detail?: string } }; message?: string } | null
   const msg = err?.response?.data?.detail || err?.message || 'unknown'
@@ -576,21 +586,21 @@ async function removeChip(c: { id?: string | number; path: string }) {
   }
 }
 
-/** Vue2 257-259 visibleFolders() —— SlashPopover 的 `folders` prop 喂料(P1c1
- *  补丁 Task 3 起;此前是已退役的 SlashMenu)。 */
+/** Vue2 257-259 visibleFolders() — feed `folders` prop to SlashPopover (P1c1 patch Task 3
+ *  onward; previously retired SlashMenu). */
 const visibleFolders = computed(() => store.visibleResources.filter((r) => r.kind === 'folder'))
 
 /**
- * P1c1 补丁 task 4 —— 拆分"隐藏"与"重置"(brief「组件改造」步骤 1):
+ * P1c1 patch task 4 — split "hide" and "reset" (brief "component refactor" step 1):
  *
- * - `hideMentionPanel()`:只把面板收起来(`mentionOpen=false`),**保留**
- *   `mentionStart`/`mentionSegs`/`mentionQuery`——用在 `onBlur` 的延迟关闭上,
- *   这样重新聚焦时 `syncMentionFromCaret` 还能用 `parseActiveMention` 认出
- *   "这仍是刚才那个提及词"并把面板复原到原来的层级(不受挂载点名里的空格/斜杠
- *   影响,这正是本补丁要修的缺陷)。
- * - `resetMention()`:全量清空,即原来 `closeMention()` 的语义——用在"提及真正
- *   结束"的各个终点:Esc 关闭面板、选中条目、发送、切会话、斜杠面板互斥抢占、
- *   清空输入框的路径。逐个调用点见各自声明处的注释。
+ * - `hideMentionPanel()`: only close panel (`mentionOpen=false`), **keep**
+ *   `mentionStart`/`mentionSegs`/`mentionQuery` — used in `onBlur`'s delayed close so
+ *   on refocus `syncMentionFromCaret` can use `parseActiveMention` recognize "still the
+ *   same mention word" and restore panel to original level (immune to spaces/slashes in
+ *   mount point name, exactly what this patch fixes).
+ * - `resetMention()`: full clear, semantics of old `closeMention()` — used at all endpoints
+ *   where mention truly ends: Esc close panel, select item, send, switch session, slash
+ *   panel mutex takeover, clear input. Each call site annotated at declaration.
  */
 function hideMentionPanel() {
   mentionOpen.value = false
@@ -601,19 +611,19 @@ function resetMention() {
   mentionStart.value = -1
   mentionSegs.value = []
   mentionQuery.value = ''
-  // P1c1 补丁验收第 2 轮 Task 5 Item A —— 每一条全量重置路径都顺带清掉 Esc 记忆,
-  // 这样它绝不会永久卡死面板(brief 要求"select/submit/session-switch/文本清空
-  // 各处清掉")。`onMentionPopClose()`(Esc 本身)必须在调用这个函数*之后*再写入
-  // `mentionDismissedText`,否则前脚记、后脚被这里清空。
+  // P1c1 acceptance patch round 2 Task 5 Item A — every full-reset path also clears Esc
+  // memory, so it never deadlocks panel (brief requires "clear everywhere in select/submit/
+  // session-switch/clear-text"). `onMentionPopClose()` (Esc itself) must write
+  // `mentionDismissedText` *after* calling this function, else write then immediately clear.
   mentionDismissedText.value = null
 }
 
 /**
- * P1c1 补丁验收第 2 轮 Task 5 Item A —— MentionPopover `@close`(Esc)的处理器。
- * 取代原来直接绑的 `resetMention`:先整体重置(语义不变——提及真正结束),再把
- * "关闭时的文本"记进 `mentionDismissedText`,供 `openMentionIfNotDismissed()`
- * 在文本不变期间拒绝重开。**不清空文本**——用户可能想继续编辑，这与
- * `onSlashPopClose()` 的语义一致。
+ * P1c1 acceptance patch round 2 Task 5 Item A — handler for MentionPopover `@close` (Esc).
+ * Replaces direct `resetMention` binding: fully reset first (semantics unchanged — mention
+ * truly ends), then record "text at close" in `mentionDismissedText`, let
+ * `openMentionIfNotDismissed()` refuse reopen while text unchanged. **Don't clear text** —
+ * user may want to keep editing, semantically aligned with `onSlashPopClose()`.
  */
 function onMentionPopClose() {
   resetMention()
@@ -621,24 +631,22 @@ function onMentionPopClose() {
 }
 
 /**
- * Vue2 343-346 onBlur()。180ms 延迟关闭,好让点击面板内条目的 click 先于
- * blur 关闭生效。**修 Vue2 缺陷 (a)**(见文件头注释):把 timer 句柄存进
- * `blurTimer`,onBeforeUnmount 里 clearTimeout——Vue2 从未存这个句柄,组件卸载
- * 后这个 setTimeout 仍可能触发(此时 this 已经是死组件实例)。
+ * Vue2 343-346 onBlur(). 180ms delayed close, lets click on panel item happen before
+ * blur closes. **Fix Vue2 defect (a)** (see file header): store timer handle in `blurTimer`,
+ * clearTimeout in onBeforeUnmount — Vue2 never stored it, setTimeout can fire after
+ * component unmount (this becomes dead instance).
  *
- * Final-review fix (2026-07-27): storing only the *latest* handle was still
- * incomplete — a blur→focus→blur sequence overwrote `blurTimer` with the
- * second timer's handle without ever clearing the first one, so the first
- * timer kept running and could fire `closeMention()` after the user had
- * already refocused and reopened the popover. Clear any pending handle
- * before scheduling a new one so at most one blur-close timer is ever live.
+ * Final-review fix (2026-07-27): storing only the *latest* handle was still incomplete —
+ * blur→focus→blur sequence overwrote `blurTimer` with second timer's handle without
+ * clearing the first, so first timer kept running and could fire `closeMention()` after
+ * user refocused and reopened popover. Clear any pending handle before scheduling new one
+ * so at most one blur-close timer is ever live.
  *
- * P1c1 补丁 task 4(关键修复):延迟回调改调 `hideMentionPanel()`,不再调
- * `resetMention()`。原来的 `closeMention()` 是全量重置——一旦失焦关闭,
- * `mentionSegs`/`mentionStart` 就被清空,重新聚焦时只能靠 `scanMention` 从文字
- * 重新反推,而挂载点名里的空格会让这次反推必然失败(brief「根因」)。改成只隐藏
- * 之后,状态原样保留,重新聚焦时 `syncMentionFromCaret` 才有东西可以拿去跟
- * `parseActiveMention` 核对。
+ * P1c1 patch task 4 (key fix): delayed callback now calls `hideMentionPanel()`, not
+ * `resetMention()`. Old `closeMention()` was full reset — blur-close clears `mentionSegs`/
+ * `mentionStart`, refocus can only re-derive from text via `scanMention`, but spaces in
+ * mount point name make that derivation fail (brief "root cause"). Now just hide, keep state,
+ * on refocus `syncMentionFromCaret` has something to compare with `parseActiveMention`.
  */
 function onBlur() {
   if (blurTimer.value !== null) clearTimeout(blurTimer.value)
@@ -649,21 +657,20 @@ function onBlur() {
 }
 
 /**
- * Vue2 355-371 drillIn() —— 钻进一层文件夹/挂载点,把 "<name>/" 写回 @token
- * 末尾。用 Task 5 composerText.ts 的 buildDrillText 做文本+光标数学。
+ * Vue2 355-371 drillIn() — drill into one folder/mount level, write "<name>/" back to @token
+ * end. Use buildDrillText from Task 5 composerText.ts for text+caret math.
  *
- * P1c1 补丁验收第 2 轮 Task 5 Item B(2026-07-27,评审提出的时序问题,已用组件
- * 测试钉住)—— `el.setSelectionRange` **必须排在 `el.focus()` 之前**:
- * `el.focus()` 会同步再入 `onFocus()`(见其声明处注释——这不是猜测,已有先例证实),
- * 而 `onFocus` 转手就调 `syncMentionFromCaret()`,后者读的是"当前"
- * `el.selectionStart`。textarea 的 `.value` 刚被这次钻取整体替换过(Vue 的
- * v-model patch 在这个 nextTick 回调运行前已经落地),原生行为是把光标重置到新
- * 字符串末尾——如果 token 后面还跟着别的文字(例如 `@Dr tail` 钻成
- * `@Drive1/ tail`),focus 触发的这次重新同步会在 `setSelectionRange` 还没来得及
- * 把光标挪回 token 末尾之前,把光标读成整串末尾,导致 `mentionQuery` 被尾部文字
- * (` tail`)污染。先设光标位置、再 focus,能避免这次重入用错误的位置读值——
- * 设置 selectionRange 不要求元素已经 focus,而 focus() 本身不会重置已经存在的
- * selection,所以调换顺序是安全的。
+ * P1c1 acceptance patch round 2 Task 5 Item B (2026-07-27, review timing issue, verified
+ * with component test) — `el.setSelectionRange` **must come before `el.focus()`**:
+ * `el.focus()` synchronously re-enters `onFocus()` (see its declaration note — not guessed,
+ * proved), and `onFocus` immediately calls `syncMentionFromCaret()`, which reads "current"
+ * `el.selectionStart`. textarea's `.value` just wholesale-replaced by this drill (Vue v-model
+ * patch landed before nextTick callback runs), native behavior resets caret to new string end
+ * — if token followed by other text (e.g. `@Dr tail` drills to `@Drive1/ tail`), this
+ * resync triggered by focus reads caret as string end before `setSelectionRange` moved it
+ * back to token end, polluting `mentionQuery` with tail text (` tail`). Setting caret first
+ * then focusing avoids re-entry reading wrong position — setSelectionRange doesn't require
+ * focus, focus() doesn't reset existing selection, so swapping order is safe.
  */
 function drillIn(item: { name: string }) {
   const el = ta.value
@@ -679,9 +686,8 @@ function drillIn(item: { name: string }) {
   })
 }
 
-/** Vue2 374-410 pickItem() —— 拾取叶子节点(文件,或回车选中的文件夹):删掉
- *  @token、创建可见资源。用 Task 5 composerText.ts 的 stripMentionToken 做
- *  文本+光标数学。 */
+/** Vue2 374-410 pickItem() — pick leaf node (file or Enter-selected folder): delete @token,
+ *  create visible resource. Use stripMentionToken from Task 5 composerText.ts for text+caret math. */
 async function pickItem(item: { kind: string; resolvedPath: string }) {
   const el = ta.value
   const caret = el ? (el.selectionStart ?? text.value.length) : text.value.length
@@ -690,8 +696,8 @@ async function pickItem(item: { kind: string; resolvedPath: string }) {
 
   const kind = item.kind === 'file' ? 'file' : 'folder'
   const path = item.resolvedPath
-  // P1c1 补丁 task 4:选中之后提及真正结束,须 resetMention()(而非只 hide)——
-  // 见 brief「组件改造」步骤 3「pickItem 选中后」。
+  // P1c1 patch task 4: after selection mention truly ends, must resetMention() (not just hide)
+  // — see brief "component refactor" step 3 "after pickItem select".
   resetMention()
   nextTick(() => {
     el?.focus()
@@ -718,9 +724,9 @@ async function pickItem(item: { kind: string; resolvedPath: string }) {
   }
 }
 
-/** Vue2 412-428 popSegment() —— 弹掉最后一段。**Vue2 特意不 focus()**(与
- *  drillIn/pickItem 不同),这里逐字保留这个不对称。用 Task 5 composerText.ts
- *  的 buildPopText 做文本+光标数学。 */
+/** Vue2 412-428 popSegment() — pop last segment. **Vue2 intentionally doesn't focus()**
+ *  (unlike drillIn/pickItem), keep this asymmetry verbatim here. Use buildPopText from Task 5
+ *  composerText.ts for text+caret math. */
 function popSegment() {
   if (mentionSegs.value.length === 0) return
   const el = ta.value
@@ -736,10 +742,11 @@ function popSegment() {
 }
 
 /**
- * P1c1 补丁 Task 3 —— SlashPopover `pick-command(name)`。目前只有 'init' 一个
- * 命令。规范化文本为 `` `/${name} ` ``(命令名 + 一个空格)、切到 target 阶段、
- * 清空 query(target 阶段的候选是全部已授权目录,不需要预筛)。**不**在这一步
- * 发任何请求——请求要等用户在 target 阶段选完目录(见 onSlashPickTarget)。
+ * P1c1 patch Task 3 — SlashPopover `pick-command(name)`. Currently only 'init' command.
+ * Normalize text to `/${name} ` (command name + one space), switch to target stage, clear
+ * query (target stage candidates are all authorized dirs, no pre-filter needed). **Don't**
+ * send any request here — wait for user to finish selecting dir in target stage (see
+ * onSlashPickTarget).
  */
 function onSlashPickCommand(name: string) {
   text.value = `/${name} `
@@ -754,14 +761,14 @@ function onSlashPickCommand(name: string) {
 }
 
 /**
- * P1c1 补丁 Task 3 —— SlashPopover `pick-target(path)`。等价于 Vue2 `onInit`
- * (613-617)"关菜单 + 清输入 + 发 send-init":清空输入、关闭面板并回到 command
- * 阶段、`nextTick(grow)`,再把目标目录上抛给 AgentPage(`store.sendInit` 接线
- * 在那一侧,这里不改)。
+ * P1c1 patch Task 3 — SlashPopover `pick-target(path)`. Equivalent to Vue2 `onInit`
+ * (613-617) "close menu + clear input + send send-init": clear input, close panel back to
+ * command stage, `nextTick(grow)`, then pass target dir to AgentPage (`store.sendInit` wiring
+ * on that side, not changed here).
  *
- * P1c1 补丁 task 4:补上 `resetMention()`——这里把输入框整个清空,提及词(若有)
- * 也该跟着结束,不能让 mentionStart/mentionSegs 悬空指向一段已经不存在的文本。
- * 见 brief「组件改造」步骤 3「onSlashPickTarget 等清空文本的路径」。
+ * P1c1 patch task 4: add `resetMention()` — here we clear entire input, mention word (if any)
+ * must end too, can't leave mentionStart/mentionSegs dangling to non-existent text. See
+ * brief "component refactor" step 3 "onSlashPickTarget and other clear-text paths".
  */
 function onSlashPickTarget(path: string) {
   text.value = ''
@@ -775,11 +782,11 @@ function onSlashPickTarget(path: string) {
 }
 
 /**
- * P1c1 补丁 Task 3 —— SlashPopover `back()`(target 阶段按 Esc/Backspace 触发)。
- * 退回 command 阶段,把文本从 `` `/${cmd} <query>` `` 收回成 `` `/${cmd}` ``
- * (去掉命令名之后的一切,包括那个空格),再用 `deriveSlashState()` 按新文本
- * 重新推导 —— 这样 command 阶段的列表会自然高亮/筛到刚才那个命令(brief 的
- * "据此重新推导 slashQuery"要求),不需要单独再写一遍筛选逻辑。
+ * P1c1 patch Task 3 — SlashPopover `back()` (target stage Esc/Backspace trigger). Revert to
+ * command stage, shrink text from `/${cmd} <query>` back to `/${cmd}` (drop everything after
+ * command name, including space), then re-derive with `deriveSlashState()` by new text — so
+ * command stage list naturally highlights/filters to that command (brief requirement "re-derive
+ * slashQuery accordingly"), no separate filter logic needed.
  */
 function onSlashBack() {
   const v = text.value
@@ -791,17 +798,18 @@ function onSlashBack() {
   nextTick(() => {
     const el = ta.value
     el?.setSelectionRange(text.value.length, text.value.length)
-    // 退层会缩短文本(去掉 target 阶段敲的筛选词),不重算高度的话 textarea
-    // 会僵在之前撑开的高度上,直到下一次按键才回缩。
+    // Backing up shortens text (drops query typed in target stage), without height
+    // recalc textarea freezes at previously stretched height until next keystroke.
     grow()
   })
 }
 
 /**
- * P1c1 补丁 Task 3 —— SlashPopover `close()`(command 阶段按 Esc 触发)。关闭
- * 面板、回 command 阶段,并记下当时的文本到 `slashDismissedText`——这是
- * "Esc 关闭后不要立刻自动重开"规则的写入点(读取点在 `openSlashIfNotDismissed`)。
- * **不清空文本**:用户可能想继续编辑,这与 `closeMention()` 的语义一致。
+ * P1c1 patch Task 3 — SlashPopover `close()` (command stage Esc trigger). Close panel, back
+ * to command stage, record text at that moment to `slashDismissedText` — this is write point
+ * for "don't auto-reopen after Esc" rule (read point in `openSlashIfNotDismissed`).
+ * **Don't clear text**: user may want to keep editing, semantically aligned with
+ * `closeMention()`.
  */
 function onSlashPopClose() {
   slashDismissedText.value = text.value
@@ -809,9 +817,9 @@ function onSlashPopClose() {
   slashStage.value = 'command'
 }
 
-/** gitignore 409 确认框的 `@confirm` 处理器 —— 读完 pending 之后才清空(见
- *  gitignoreOpen/gitignoreTarget 声明处注释),force=true 重试
- *  addVisibleResource;失败走通用 toastError(Vue2 401-403 同款兜底)。 */
+/** gitignore 409 confirmation dialog `@confirm` handler — clear after reading pending (see
+ *  gitignoreOpen/gitignoreTarget declaration notes), retry addVisibleResource with force=true;
+ *  failure goes through generic toastError (Vue2 401-403 fallback). */
 function onGitignoreConfirm() {
   const pending = gitignoreTarget.value
   gitignoreOpen.value = false
@@ -821,21 +829,21 @@ function onGitignoreConfirm() {
 }
 
 /**
- * Vue2 460-472 docErrorLabel()。Codes 来自 attachmentMeta.ts 的 docErrorKey
- * (与 backend agent/attachments/extract.py 的 extract_error 码对齐);未知码走
- * 'aiDocErrGeneric' 通用兜底,携带 code 参数(与 Vue2 `{code}` 插值对齐)。
+ * Vue2 460-472 docErrorLabel(). Codes from attachmentMeta.ts docErrorKey (aligned with
+ * backend agent/attachments/extract.py extract_error codes); unknown codes use
+ * 'aiDocErrGeneric' fallback with code param (aligned with Vue2 `{code}` interpolation).
  */
 function docErrorLabel(code: string): string {
   const { key, params } = docErrorKey(code)
   return t(key, params ?? {})
 }
 
-/** Vue2 474-486 docErrorShort()。 */
+/** Vue2 474-486 docErrorShort(). */
 function docErrorShort(code: string): string {
   return t(docErrorShortKey(code))
 }
 
-/** Vue2 488-494 docOkLabel()。 */
+/** Vue2 488-494 docOkLabel(). */
 function docOkLabel(entry: PendingAttachment): string {
   if (!entry.docMeta) return t('aiDocOkExtracted')
   const parts = [t('aiDocOkExtracted')]
@@ -844,7 +852,7 @@ function docOkLabel(entry: PendingAttachment): string {
   return parts.join(' · ')
 }
 
-/** Vue2 496-504 chipTitle()。 */
+/** Vue2 496-504 chipTitle(). */
 function chipTitle(entry: PendingAttachment): string {
   if (entry.docError) {
     return `${entry.file.name} — ${docErrorLabel(entry.docError)}`
@@ -856,15 +864,15 @@ function chipTitle(entry: PendingAttachment): string {
 }
 
 /**
- * Vue2 506-602 onFilesPicked() —— 逐字移植的上传管线,顺序不可打乱:
- * 1) 复位 input.value(允许重选同一文件)、空选择直接 return。
- * 2) 无会话时懒建会话(517-527)——失败给 danger toast 并 return。
- * 3) 逐文件**串行** for-of(不是 Promise.all):500MB 门 → 生成 tmpId → 用
- *    `reactive()` 建 entry(见下方 entry 声明处注释,这是 Vue3 端口特有的
- *    坑,不是 Vue2 没有的东西)→ **先 push entry 再 await 上传**(545,让 chip
- *    立刻可见)→ onProgress 直接改 entry → 成功写 aid/kind/mime/status →
- *    document 抽取失败给 7000ms 警告 toast、binary+not_installed+文档扩展名
- *    同款 toast → 失败写 status/error 并给 danger toast。
+ * Vue2 506-602 onFilesPicked() — verbatim-ported upload pipeline, order critical:
+ * 1) Reset input.value (allow re-selecting same file), empty selection return directly.
+ * 2) If no session, lazy-create (517-527) — fail gives danger toast and return.
+ * 3) Per-file **serial** for-of (not Promise.all): 500MB gate → generate tmpId → build entry
+ *    with `reactive()` (see entry declaration note, Vue3 port-specific trap, not Vue2 missing)
+ *    → **push entry before await upload** (545, make chip visible immediately) → onProgress
+ *    directly mutates entry → success writes aid/kind/mime/status → document extraction fail
+ *    gives 7000ms warning toast, binary+not_installed+doc extension same toast → fail writes
+ *    status/error and danger toast.
  */
 async function onFilesPicked(e: Event) {
   const target = e.target as HTMLInputElement
@@ -872,9 +880,9 @@ async function onFilesPicked(e: Event) {
   target.value = '' // 允许之后重选同一文件
   if (!files.length) return
 
-  // 附件按钮不再受 sessionId 门控——刚打开页面还没有 activeSession,这里懒建
-  // 一个,好让"发消息之前先附件"这个操作能用。必须在 OS 文件选择器返回之后
-  // 才建(不能在 .click() 之前),否则用户手势上下文会丢失。
+  // Attach button no longer gated by sessionId — on page load no activeSession yet, lazy-create
+  // one here so "attach before send" operation works. Must create after OS file picker returns
+  // (not before .click()), else user gesture context lost.
   if (!store.activeSessionId) {
     try {
       await store.createSession()
@@ -905,17 +913,15 @@ async function onFilesPicked(e: Event) {
     attachments.value.push(entry)
     // Fix (review, 2026-07-27): Vue2 (AgentComposer.vue:547) reads `this.sessionId`
     // — a *computed* — fresh on every loop iteration, so a session switch mid-batch
-    // just silently redirects the remaining uploads into whatever session happens
-    // to be active now. That is wrong, not merely different: the `activeSessionId`
-    // watcher above has already cleared every local chip for this batch (including
-    // the one just pushed above, on the very next reactive flush), so the user has
-    // no way to see or manage an attachment that lands in the new session — it's
-    // an orphaned server-side draft. Per project rule (logic follows correctness,
-    // not 1:1 UI parity), we re-read the session id here and stop the whole batch
-    // the moment it no longer matches the id the batch started with, instead of
-    // continuing to upload into it. Drop the entry we just pushed for this file
-    // (it was never uploaded) before breaking, so no stale "uploading" chip can
-    // flash before the watcher's clear takes effect.
+    // just silently redirects remaining uploads into whatever session happens to be
+    // active. That is wrong, not merely different: the `activeSessionId` watcher above
+    // has already cleared every local chip for this batch (including the one just pushed
+    // above, on very next reactive flush), so user has no way to see or manage an
+    // attachment landing in the new session — orphaned server-side draft. Per project
+    // rule (logic follows correctness, not 1:1 UI parity), re-read session id here and
+    // stop entire batch moment it no longer matches batch start id, instead of continuing
+    // to upload. Drop entry we just pushed for this file (never uploaded) before breaking,
+    // so no stale "uploading" chip can flash before watcher's clear takes effect.
     if (store.activeSessionId !== sid) {
       attachments.value = attachments.value.filter((a) => a.tmpId !== tmpId)
       break
@@ -928,8 +934,8 @@ async function onFilesPicked(e: Event) {
       entry.kind = body.kind
       entry.mime = body.mime
       entry.status = 'uploaded'
-      // kind=document:extraction 可能在上传时(200)就已失败——上传本身仍然
-      // 成功(模型仍能看到文件名+mime),但用户应该知道模型读不到内容。
+      // kind=document: extraction may fail at upload time (200 OK) — upload itself still
+      // succeeds (model still sees filename+mime), but user should know model can't read content.
       if (body.kind === 'document' && body.meta) {
         if (body.meta.extract_error) {
           entry.docError = body.meta.extract_error as string
@@ -942,8 +948,9 @@ async function onFilesPicked(e: Event) {
           }
         }
       }
-      // kind=binary 且 extract_error=not_installed 是基础设施问题(服务端缺
-      // 抽取库);文档扩展名匹配时仍要告知用户这份上传无法用于内容问答。
+      // kind=binary and extract_error=not_installed is infrastructure issue (server missing
+      // extraction lib); when doc extension matches still notify user this upload can't be used
+      // for content Q&A.
       if (
         body.kind === 'binary'
         && body.meta && body.meta.extract_error === 'not_installed'
@@ -960,8 +967,8 @@ async function onFilesPicked(e: Event) {
   }
 }
 
-/** Vue2 604-611 removeAttachment()。已上传的先 best-effort 删服务端(失败也
- *  照样本地移除,不阻塞用户),再从本地列表过滤掉。 */
+/** Vue2 604-611 removeAttachment(). For uploaded ones, best-effort delete server (fail still
+ *  locally removes, doesn't block user), then filter from local list. */
 async function removeAttachment(entry: PendingAttachment) {
   const sid = store.activeSessionId
   if (entry.status === 'uploaded' && entry.aid && sid) {
@@ -975,20 +982,21 @@ async function removeAttachment(entry: PendingAttachment) {
 }
 
 /**
- * Vue2 436-454 submit()。附件半段:只把已上传且带 aid 的项算作就绪
- * (readyAttachments),据此派生 attachmentIds/attachmentRefs;仍在上传中的
- * 附件存在时二次拦截(与 canSend 的守卫重复,但 submit 也可能被 Enter 键直接
- * 调用,不经过 disabled 按钮态,所以这层守卫不可省)。
+ * Vue2 436-454 submit(). Attachment portion: only count uploaded items with aid as ready
+ * (readyAttachments), derive attachmentIds/attachmentRefs from these; second gate when
+ * uploading attachments exist (duplicates canSend guard, but submit can be called directly
+ * by Enter key, bypassing disabled button state, so this guard can't be omitted).
  *
- * Vue2 缺陷修复(final review, 2026-07-27,项目移植纪律:逻辑跟正确性):Vue2
- * AgentComposer.vue:436-454 的 submit() 无 busy 守卫,无条件清空 this.text/
- * this.attachments;但对应 store 的 send() 一开头就 `if (busy.value) return`
- * ——于是流式回复期间按 Enter,文本和已上传附件 chip 被原地清空,消息却根本没发
- * 出去,静默吞掉用户输入。这里在做任何清空/emit 之前先挡一道 busy。
+ * Vue2 defect fix (final review, 2026-07-27, port discipline: logic follows correctness):
+ * Vue2 AgentComposer.vue:436-454 submit() lacks busy guard, unconditionally clears
+ * this.text/this.attachments; but corresponding store send() starts with `if (busy.value) return`
+ * — so pressing Enter during streaming reply clears text and uploaded chips in place, but
+ * message never actually sends, silently swallowing user input. Gate with busy before any
+ * clear/emit here.
  *
- * P1c1 补丁 task 4:清空 `text`/`attachments` 的同时补上 `resetMention()`——
- * 发送之后输入框是全新的一段文本,任何还挂着的提及层级/查询词都该跟着结束。
- * 见 brief「组件改造」步骤 3「submit() 发送后」。
+ * P1c1 patch task 4: when clearing `text`/`attachments` also add `resetMention()` — after
+ * send input box is fresh text, any lingering mention levels/query words must also end.
+ * See brief "component refactor" step 3 "after submit() send".
  */
 function submit() {
   if (props.busy) return
@@ -1012,49 +1020,50 @@ function submit() {
 }
 
 /**
- * Vue2 643-650 openFilePicker()。**必须**挂在 `@mousedown.prevent`(模板里),
- * 不是 `@click`:mousedown 比 click 提前触发(用户还没松开按钮,OS 对话框已经
- * 开始打开),`preventDefault` 让 textarea 保持 focus,省掉一趟
- * blur→mention-面板关闭的往返(Vue2 644-647 注释逐字对齐)。
+ * Vue2 643-650 openFilePicker(). **Must** be attached to `@mousedown.prevent` (in template),
+ * not `@click`: mousedown fires before click (user hasn't released button, OS dialog starts
+ * opening), `preventDefault` keeps textarea focused, saves round-trip blur→mention-panel-close
+ * (Vue2 644-647 comment line-by-line).
  */
 function openFilePicker() {
   attachFileInput.value?.click()
 }
 
-/** Vue2 651-653 notSupported()(语音键)。Vue2 用 'is-warning' 类型,不是错误,
- *  用默认 toast 时长。SP8-P1c2 Task 6:brief 把"该功能暂未支持"归为 info 档
- *  (p1c2-task-6-brief.md「AgentComposer 的 7 处」)——即不传 tier 参数,吃
- *  show() 的默认值,故本调用点无需改动。 */
+/** Vue2 651-653 notSupported() (voice key). Vue2 uses 'is-warning' type, not error, default
+ *  toast duration. SP8-P1c2 Task 6: brief categorizes "feature not yet supported" as info tier
+ *  (p1c2-task-6-brief.md "AgentComposer 7 places") — don't pass tier param, use show()'s default,
+ *  so this call site needs no change. */
 function notSupported() {
   toast.show(t('aiNotSupportedYet'))
 }
 
 /**
- * **本期有意偏离 Vue2**:Vue2 点击 Browse 直接打开 `<BrowserModal>`
- * (浏览 NAS 弹窗)。该弹窗本阶段不做(用户决定,见 Task 9 brief「Browse 按钮」
- * 一节),这里改为 toast 占位提示,不设 browserOpen 状态、不渲染
- * `data-active`(Vue2 59 行的 `:data-active="browserOpen"` 因此一并去掉)。
- * SP8-P1c2 Task 6:同上,Browse 占位 → info 档,即不传 tier,本调用点无需改动。
+ * **Intentional deviation this cycle**: Vue2 Browse click opens `<BrowserModal>` (NAS
+ * browser dialog). Dialog not implemented this phase (user decision, see Task 9 brief
+ * "Browse button" section), changed to toast placeholder here, no browserOpen state,
+ * don't render `data-active` (Vue2 line 59 `:data-active="browserOpen"` also dropped).
+ * SP8-P1c2 Task 6: same, Browse placeholder → info tier, don't pass tier, call site no change.
  */
 function onBrowseClick() {
   toast.show(t('aiBrowseComingSoon'))
 }
 
 /**
- * Vue2 275-281 `activeSessionId` watcher。关闭 mention 面板(`resetMention()`)
- * + 清空待发附件列表。服务端附件仍归属旧会话,这里只是丢弃本地 chip 引用,
- * 不发任何请求。
+ * Vue2 275-281 `activeSessionId` watcher. Close mention panel (`resetMention()`)
+ * + clear pending attachments. Server attachments still belong to old session, here just
+ * discard local chip references, don't send requests.
  *
- * P1c1 补丁 task 4:原来这里调的是 `closeMention()`,现按 brief「组件改造」
- * 步骤 3「activeSessionId watcher」改名调 `resetMention()`——语义不变(这本来
- * 就是全量重置:切会话是全新上下文,不应该继承上一个会话的提及层级/查询词),
- * 只是与新拆出的 `hideMentionPanel()` 区分开,避免以后有人在这里误用只隐藏的
- * 那个函数。
+ * P1c1 patch task 4: originally called `closeMention()` here, now per brief "component refactor"
+ * step 3 "activeSessionId watcher" call `resetMention()` — semantics unchanged (always full
+ * reset: session switch is fresh context, shouldn't inherit previous session's mention
+ * levels/query words), just distinguishes from newly-split `hideMentionPanel()`, avoids future
+ * accidental misuse of hide-only function.
  *
- * P1c1 补丁 Task 3:并列补上关闭斜杠面板——回 command 阶段并清掉
- * `slashDismissedText`(不是记一次 dismiss,是整体重置:新会话是全新上下文,
- * 不应该继承上一个会话里"这段文本刚被 Esc 关过"的记忆)。避免切会话后残留
- * 半截状态(例如卡在 target 阶段但目录列表已经是新会话的)。
+ * P1c1 patch Task 3: also add close slash panel — back to command stage and clear
+ * `slashDismissedText` (not record one dismiss, full reset: new session is fresh context,
+ * shouldn't inherit "text just closed with Esc" memory from previous session). Prevent
+ * half-state lingering after session switch (e.g. stuck in target stage but dir list already
+ * new session).
  */
 watch(
   () => store.activeSessionId,
@@ -1070,7 +1079,7 @@ watch(
 onMounted(() => window.addEventListener('resize', updateAnchor))
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateAnchor)
-  // Vue2 缺陷修复 (a) — 见文件头注释:Vue2 从不清理 onBlur 的 setTimeout 句柄。
+  // Vue2 defect fix (a) — see file header: Vue2 never clears onBlur's setTimeout handle.
   if (blurTimer.value !== null) clearTimeout(blurTimer.value)
 })
 </script>
@@ -1078,8 +1087,8 @@ onBeforeUnmount(() => {
 <template>
   <div class="composer-wrap">
     <div class="composer" ref="composerEl">
-      <!-- SP8-P3a 验收后追加 —— 见文件头注释:store.pendingSkillId 挂号提示,
-           Vue2 无对应元素,用户 2026-07-30 当面要求。 -->
+      <!-- SP8-P3a post-acceptance addition — see file header: store.pendingSkillId placeholder
+           hint, no Vue2 equivalent, user requested in-person 2026-07-30. -->
       <div v-if="store.pendingSkillId" class="pending-skill">
         <AgentIcon name="sparkle" :size="12" color="var(--accent)" />
         <i18n-t keypath="aiSkPendingBanner" tag="span" class="pending-skill-text">
@@ -1154,9 +1163,8 @@ onBeforeUnmount(() => {
         >
           <AgentIcon name="folder" :size="14" /> {{ t('aiComposerBrowse') }}
         </button>
-        <!-- Vue2 663-673: a display:none input does not fire a synthetic
-             .click() in some browsers, hence position+opacity instead of
-             hidden/display:none (kept in .attach-file-input below). -->
+        <!-- Vue2 663-673: display:none input doesn't fire synthetic .click() in some browsers,
+             so use position+opacity instead of hidden/display:none (kept in .attach-file-input below). -->
         <input
           type="file"
           ref="attachFileInput"
@@ -1165,10 +1173,9 @@ onBeforeUnmount(() => {
           class="attach-file-input"
           @change="onFilesPicked"
         />
-        <!-- Vue2 73-86 wraps this button in a Buefy <b-tooltip multilined> to
-             show attachmentHint; this repo has no Buefy equivalent, so the
-             same 7-line hint is joined with \n into the native `title`
-             attribute instead (approved deviation, see Task 10 brief). -->
+        <!-- Vue2 73-86 wraps this button in Buefy <b-tooltip multilined> to show
+             attachmentHint; this repo has no Buefy equivalent, so same 7-line hint joined
+             with \n into native `title` attribute (approved deviation, see Task 10 brief). -->
         <button
           class="composer-tool"
           :title="attachmentHint"
@@ -1204,15 +1211,15 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <!-- P1c1 补丁 task 4: `@close`(Esc)必须整体重置(不能只 hide)——否则用户
-           按 Esc 关掉面板后,下一次 focus 会被 syncMentionFromCaret 的
-           parseActiveMention 分支认成"提及词仍然有效"而立刻重开,Esc 就白按了。
-           见 brief「组件改造」步骤 3「面板 close(Esc)」。
-           P1c1 补丁验收第 2 轮 Task 5 Item A:光整体重置还不够——重置之后
-           `mentionSegs` 清空,下一次 focus 会落进 scanMention 分支,从文本本身
-           重新"发现"同一个 token 并弹回来(斜杠面板早年也踩过这个坑,这里补的是
-           @ 面板的对称记忆)。改绑 `onMentionPopClose`:整体重置 + 记下关闭时的
-           文本,交给 `openMentionIfNotDismissed()` 在文本不变期间拒绝重开。 -->
+      <!-- P1c1 patch task 4: `@close` (Esc) must fully reset (can't just hide) — else user
+           presses Esc to close, next focus gets parseActiveMention branch of syncMentionFromCaret
+           recognizing "mention word still valid" and immediately reopens, Esc wasted. See brief
+           "component refactor" step 3 "panel close(Esc)". P1c1 patch acceptance round 2 Task 5
+           Item A: full reset alone isn't enough — after reset `mentionSegs` cleared, next focus
+           falls into scanMention branch, "re-discovers" same token from text and bounces back
+           (slash panel had this pit years ago, here adding symmetric memory for @ panel). Bind
+           `onMentionPopClose`: full reset + record close-time text, let `openMentionIfNotDismissed()`
+           refuse reopen while text unchanged. -->
       <MentionPopover
         :open="mentionOpen"
         :query="mentionQuery"
@@ -1224,10 +1231,10 @@ onBeforeUnmount(() => {
         @close="onMentionPopClose"
       />
 
-      <!-- P1c1 补丁 Task 3 —— 退役全屏 SlashMenu,换成与 MentionPopover 同款的
-           内联/锚定 SlashPopover(两阶段 command → target)。always-mounted
-           (不用 v-if 包组件本身,只是它内部模板自己 v-if="open"),与
-           MentionPopover 的挂载方式对齐——组件实例始终存在,:open 控制显隐。 -->
+      <!-- P1c1 patch Task 3 — retire fullscreen SlashMenu, replace with same-style inline/
+           anchored SlashPopover (two-stage command → target). always-mounted (don't v-if
+           component itself, its template v-if="open" alone), aligns with MentionPopover mount
+           style — component instance always exists, :open controls visibility. -->
       <SlashPopover
         :open="slashOpen"
         :stage="slashStage"
@@ -1257,16 +1264,15 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* agent-styles.scss:353-406 已经全局定了 .composer-wrap/.composer/
-   .composer-textarea/.composer-row/.composer-tool/.send-btn 的布局(sticky 定位、
-   pointer-events 开关、圆角/边框/阴影、focus-within 高亮、悬停态等)——这里只
-   补它没有的部分,不重复布局规则。 */
+/* agent-styles.scss:353-406 already globally defines .composer-wrap/.composer/
+   .composer-textarea/.composer-row/.composer-tool/.send-btn layout (sticky positioning,
+   pointer-events toggle, border-radius/border/shadow, focus-within highlight, hover states,
+   etc.) — here only add missing parts, don't duplicate layout rules. */
 
 .attach-file-input {
-  /* Keep the input in the render tree so $refs.attachFileInput.click()
-     always lands on a live element. `hidden` attribute also works but some
-     browsers won't dispatch synthetic click events on display:none inputs.
-     (Vue2 663-673, verbatim.) */
+  /* Keep input in render tree so $refs.attachFileInput.click() always lands on live element.
+     `hidden` attribute works but some browsers won't dispatch synthetic click on display:none
+     inputs. (Vue2 663-673, verbatim.) */
   position: absolute;
   width: 1px;
   height: 1px;
@@ -1275,9 +1281,9 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
-/* SP8-P3a 验收后追加 —— 「已挂载技能」提示条(见文件头注释)。视觉语言参照
-   下方 .ctx-chip(圆角/字号/间距一致),底色用 --accent-softer 以示区别
-   (同 .composer:focus-within 用的那个 token,见 agent-styles.scss:369)。 */
+/* SP8-P3a post-acceptance addition — "mounted skill" banner (see file header). Visual
+   language mirrors .ctx-chip below (border-radius/font/spacing aligned), bg uses --accent-softer
+   to differentiate (same token as .composer:focus-within, see agent-styles.scss:369). */
 .pending-skill {
   display: flex; align-items: center; gap: 6px;
   padding: 5px 8px;
@@ -1337,8 +1343,8 @@ onBeforeUnmount(() => {
 
 /* Vue2 722-747 attachment chip states — colors ported to theme tokens
    (--danger/--warning/--warning-soft, defined in src/ai/styles/tokens.scss).
-   Vue2's raw hex/rgba literal fallbacks on these declarations are dropped;
-   the tokens above always have a value in both theme blocks. */
+   Vue2's raw hex/rgba literal fallbacks dropped; tokens above always have values
+   in both theme blocks. */
 .ctx-chip-att.is-uploading {
   opacity: 0.7;
 }

@@ -1,9 +1,10 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/blocks/ProcessStrip.vue.
-  props.steps 类型用 groupBlocks 的 AgentBlockLike(`{type:string,[k:string]:unknown}`)
-  而非专属 interface —— 这样 AssistantMessage 里 `groupBlocks()` 分组出的 step 数组能
-  直接传入,不需要在调用点做类型断言;具体字段(text/sections/argsPreview/name/icon/time)
-  在本文件内部按需转型读取(Vue2 原版无这层——TS strict 下的必要转换,行为 1:1)。
+  1:1 ported from Vue2 src/views/AI/Agent/blocks/ProcessStrip.vue.
+  props.steps type uses AgentBlockLike from groupBlocks (`{type:string,[k:string]:unknown}`)
+  rather than a dedicated interface — this way the step array from `groupBlocks()` grouping in
+  AssistantMessage can be passed directly without type assertions at the call site; specific
+  fields (text/sections/argsPreview/name/icon/time) are read with type casting as needed
+  within this file (Vue2 original lacks this layer — necessary conversion under TS strict, behavior 1:1).
 -->
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue'

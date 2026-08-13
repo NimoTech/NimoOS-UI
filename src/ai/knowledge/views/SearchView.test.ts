@@ -1,57 +1,59 @@
-// SP8-P5e Task 6+7 —— `SearchView.vue` 单测(T6:搜索框 + 高级面板 + `run()` + 四态;
-// T7 续写:结果卡列表 + 两个子组件接线 + `fetchBlobUrl`/`openOriginal`/
-// `downloadFile`/`onDrawerToast`)。蓝本 `NimoOS-UI@7a6ee6b7`
-// `src/views/AI/Knowledge/SearchView.vue`(401 行)。
+// SP8-P5e Task 6+7 — `SearchView.vue` unit tests (T6: search box + advanced panel + `run()` +
+// four states; T7 continuation: result card list + two subcomponents wiring + `fetchBlobUrl`/
+// `openOriginal`/`downloadFile`/`onDrawerToast`). Blueprint `NimoOS-UI@7a6ee6b7`
+// `src/views/AI/Knowledge/SearchView.vue` (401 lines).
 //
-// ═══ T7 范围(本次续写)═══
-// 结果卡列表(`:121-156`)· `k-result-count` 的 `ms` v-if · 两个子组件的挂载
-// markup(`FileDetailDrawer`/`KFileViewer` 的 `<template>` 接线)·
-// `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast` 的全部行为
-// (K50/裁定 R1「方案 A」)。
+// === T7 scope (this continuation) ===
+// Result card list (`:121-156`) · `k-result-count`'s `ms` v-if · mounting of two subcomponents
+// markup (`FileDetailDrawer`/`KFileViewer`'s `<template>` wiring) ·
+// complete behavior of `fetchBlobUrl`/`openOriginal`/`downloadFile`/`onDrawerToast`
+// (K50/decision R1 "Option A").
 //
-// ═══ mock 边界(治理 §4.1)═══
-// `store.runSearch`/`store.loadChunkContext` 用真 Pinia + `vi.spyOn` 逐条 mock,
-// 返回值 = 后端原始 snake_case(`knowledgeStore.ts:550-561`/`:571-574` 零归一化),
-// 不是 camelCase——`toFileResults` 才是归一化的地方,搞反了按 Critical。
-// 🔴 T7 新增:`@nimotech/nimoos-service` 走 `importOriginal` 部分 mock——
-// `service.file.fileUrl` 与 `getHttp().get` 是 `fetchBlobUrl` 唯一消费的两个
-// 外部符号,mock 形态照既定先例 `src/files/stores/files.test.ts:17`
-// / `FileDetailDrawer.test.ts` 的 `vi.hoisted` 写法。
+// === mock boundaries (governance §4.1) ===
+// `store.runSearch`/`store.loadChunkContext` use real Pinia + `vi.spyOn` per-condition mocks,
+// return values = backend-original snake_case (`knowledgeStore.ts:550-561`/`:571-574` zero
+// normalization), not camelCase — `toFileResults` is where normalization happens; reversing
+// this would be Critical.
+// 🔴 T7 addition: `@nimotech/nimoos-service` uses `importOriginal` for partial mocking —
+// `service.file.fileUrl` and `getHttp().get` are the only two external symbols consumed by
+// `fetchBlobUrl`, mock shape follows existing precedent `src/files/stores/files.test.ts:17`
+// / `FileDetailDrawer.test.ts`'s `vi.hoisted` pattern.
 //
-// ═══ fixture 出处(三级标签逐个标注,裁定 R3 约束 1 / R9)═══
-//   F1  —— REAL,`.superpowers/sdd/p5e-fixtures/F1-search-text.empty.REAL.json`,
-//          原样(该文件本来就零 `_` 前缀键,见 README §3.3 的 PURE_REAL 例外)。
-//   F4  —— REAL,`F4-search-text.no_accessible_roots.REAL.json`,原样。用于 N38
-//          反向断言(非空 `warnings` 但非 rerank_unavailable → 不应置真)。
-//   F11 —— CONSTRUCTED(D-6 模具,裁定 R2:rerank 真机不可达,这条 warning 本机
-//          无法端到端触达),`F11-rerank-warning.CONSTRUCTED.json`,已删
-//          `_provenance`/`_authoritative_string`/
-//          `_other_real_warning_strings_in_the_same_slice` 三个 `_` 前缀台账键。
-//   F5b —— REPLAYED,`F5b-search-text.multifile.REPLAYED.json`。4 文件 × 每文件
-//          2 chunk = 8 chunk。🔴 按 R9-3"测试里只许贴 1–2 条完整正文",本文件
-//          **零条**完整正文——8 条 `preview.text` 全部截到真实前 70 字符,每条
-//          都标了完整值的 `len`/`sha256`(完整正文的等价校验已在
-//          `FileDetailDrawer.test.ts` 里对同一份 `file_id`(`dce79e8ea5…`)的两个
-//          chunk 做过,本文件不重复贴全文)。已删 `_provenance` 台账键(§3.3)。
-//          T6 只用它验证 `results.length`/`totalChunks`/`phase` 这些状态层事实;
-//          T7 用它渲染结果卡的可见字段(`data-kind`/`k-match-pill`/`k-rel`/
-//          `k-more-hint`/`k-rcard-meta`)。`hits[]` 字段在这条代码路径不被消费
-//          (`toFileResults` 优先取非空 `files`),故省略为 `[]`——hits-回退分支
-//          已在 `searchAggregate.test.ts` 里覆盖过,不在本文件重复。
-//   T7 新增本地构造用例(`.CONSTRUCTED`,非 fixture 文件,已在各用例内联标注):
-//   K49 注入样本(含 `<script>` 的 `preview.text`)· 零 chunk 文件样本 ·
-//   单 chunk 文件样本(`k-more-hint` 反向)· `makeFileVM` 工厂产出的 wiring 样本
-//   (`chunks: []`,专为绕开 `FileDetailDrawer.fetchFull()` 的网络调用,见下方
-//   `makeFileVM` 注释)。
+// === fixture sources (three-level tags annotated per condition, decision R3 constraint 1 / R9) ===
+//   F1  — REAL, `.superpowers/sdd/p5e-fixtures/F1-search-text.empty.REAL.json`,
+//         as-is (file already has zero `_`-prefixed keys; see README §3.3 PURE_REAL exception).
+//   F4  — REAL, `F4-search-text.no_accessible_roots.REAL.json`, as-is. Used for N38
+//         reverse assertion (non-empty `warnings` but not rerank_unavailable → should not assert true).
+//   F11 — CONSTRUCTED (D-6 mold; decision R2: rerank unreachable on real device, this warning
+//         cannot be end-to-end reproduced locally), `F11-rerank-warning.CONSTRUCTED.json`, removed
+//         `_provenance`/`_authoritative_string`/
+//         `_other_real_warning_strings_in_the_same_slice` three `_`-prefixed ledger keys.
+//   F5b — REPLAYED, `F5b-search-text.multifile.REPLAYED.json`. 4 files × 2 chunks per file =
+//         8 chunks. 🔴 Per R9-3 "tests must only include 1–2 complete bodies", this file
+//         **zero complete bodies** — all 8 `preview.text` entries truncated to actual first
+//         70 characters, each annotated with `len`/`sha256` of complete value (full-text
+//         equivalence already verified in `FileDetailDrawer.test.ts` on the same `file_id`
+//         (`dce79e8ea5…`) for two chunks; not duplicated here). Removed `_provenance` ledger
+//         key (§3.3). T6 only uses it to verify `results.length`/`totalChunks`/`phase` state
+//         facts; T7 uses it to render visible fields of result cards (`data-kind`/
+//         `k-match-pill`/`k-rel`/`k-more-hint`/`k-rcard-meta`). `hits[]` field not consumed
+//         on this code path (`toFileResults` prefers non-empty `files`), omitted as `[]` —
+//         hits-fallback branch already covered in `searchAggregate.test.ts`, not duplicated here.
+//   T7 new local constructed cases (`.CONSTRUCTED`, not fixture files, annotated inline):
+//   K49 injection sample (containing `<script>` in `preview.text`) · zero-chunk file sample ·
+//   single-chunk file sample (`k-more-hint` reverse) · `makeFileVM` factory output wiring sample
+//   (`chunks: []`, specifically to bypass network call in `FileDetailDrawer.fetchFull()`,
+//   see `makeFileVM` comment below).
 //
-// ═══ K/N 命中(逐条见对应 describe 块内注释)═══
-// K44(零 <style>)· K49(v-html 组件层注入,T7 新增)· K51(toggleSet 响应性)·
-// K52/裁定 R1「方案 A」(fetchBlobUrl 四条自证,T7 新增)· N33(SAMPLE_QUERIES)·
-// N34(advEnabled 反直觉判据)· N35(MIME_PREFIXES 逐字)· N36(buildFilters 三档
-// 假时钟)· N37(catch 不清 ms)· N38(showRerankWarn 假时钟)· N39(clear 清
-// openFile/viewerFile)· N40(?q= 深链 watch,immediate + 三条件)·
-// N41(两个 Esc 监听同时关闭,T7 新增接线验证)· 治理 §5.2 run() 过期守卫(蓝本无,
-// 本期新增)· 裁定 R25(自动上膛守卫,T6 建、T7 满足)。
+// === K/N hits (see comment in corresponding describe block) ===
+// K44 (zero `<style>`) · K49 (v-html component-level injection, T7 addition) · K51 (toggleSet
+// reactivity) · K52/decision R1 "Option A" (fetchBlobUrl four self-proofs, T7 addition) ·
+// N33 (SAMPLE_QUERIES) · N34 (advEnabled counterintuitive criterion) · N35 (MIME_PREFIXES
+// verbatim) · N36 (buildFilters three tiers, fake clock) · N37 (catch does not clear ms) ·
+// N38 (showRerankWarn fake clock) · N39 (clear openFile/viewerFile) · N40 (?q= deep link watch,
+// immediate + three conditions) · N41 (two Esc listeners close both, T7 addition wiring
+// verification) · governance §5.2 run() stale guard (blueprint none, T7 addition) · decision
+// R25 (auto-load guard, T6 created, T7 satisfied).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -66,12 +68,13 @@ import { readFileSync } from 'node:fs'
 import { resolve, dirname as pathDirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// ─── T7 —— mock `@nimotech/nimoos-service`(K50/裁定 R1「方案 A」)───
-// `service.file.fileUrl` 与 `getHttp().get` 是 `fetchBlobUrl` 唯一消费的两个外部
-// 符号。mock 值故意在返回的 URL 里嵌入 `token=TEST_TOKEN_ABC` 字样——这样才能
-// 断言「window.open/<a href> 打开的不含 token=」(K50 判据②的反向断言需要一个
-// 会暴露 token 的 fileUrl() 输出作对照组)。`isDistillableName`(`FileDetailDrawer`
-// 消费,N44)走 `importOriginal` 保留真实实现,不受影响——本文件不测 distill。
+// ─── T7 — mock `@nimotech/nimoos-service` (K50/decision R1 "Option A") ───
+// `service.file.fileUrl` and `getHttp().get` are the only two external symbols consumed by
+// `fetchBlobUrl`. Mock values intentionally embed `token=TEST_TOKEN_ABC` in the returned URL —
+// this allows asserting "window.open/<a href> does not expose token=" (K50 criterion ②'s
+// reverse assertion needs a fileUrl() output that exposes the token as control group).
+// `isDistillableName` (consumed by `FileDetailDrawer`, N44) uses `importOriginal` to preserve
+// real implementation, unaffected — this file does not test distill.
 const fileUrl = vi.hoisted(() => vi.fn((p: string) => `/v3/file?token=TEST_TOKEN_ABC&path=${encodeURIComponent(p)}`))
 const httpGet = vi.hoisted(() => vi.fn())
 vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
@@ -81,10 +84,12 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
 
 const __dirname = pathDirname(fileURLToPath(import.meta.url))
 const read = (rel: string) => readFileSync(resolve(__dirname, rel), 'utf8') as string
-// 🔴 E-60/E-25 家族:类名/调用形状的否定式断言要先剥注释(`SearchView.vue` 头部
-// `//` 注释与模板尾部 `<!-- -->` 注释本身都大量引用 `<style`/`FileDetailDrawer`/
-// `@close` 等字样做申报说明,是假阳性来源——首次实测就在这里栽了一次,见报告)。
-// `.vue` 文件混排 `<script>` 的 `//` 行注释与 `<template>` 的 HTML 注释,两种都要剥。
+// 🔴 E-60/E-25 family: negation-form assertions on class names/call shapes must first strip
+// comments (`SearchView.vue` head `//` comments and template tail `<!-- -->` comments themselves
+// heavily reference `<style`/`FileDetailDrawer`/`@close` etc. for declaration documentation,
+// source of false positives — first real test failed here once, see report).
+// `.vue` files interleave `//` line comments from `<script>` and HTML comments from `<template>`,
+// both types must be stripped.
 const stripLineComments = (src: string) =>
   src
     .replace(/<!--[\s\S]*?-->/g, '')
@@ -92,7 +97,7 @@ const stripLineComments = (src: string) =>
     .filter((line) => !line.trim().startsWith('//'))
     .join('\n')
 
-// ─── fixture 数据(出处见文件头)───
+// ─── fixture data (sources documented in file head) ───
 
 const F1_EMPTY = {
   hits: [],
@@ -113,10 +118,10 @@ const F11_RERANK_WARN = {
   warnings: ['rerank_unavailable'],
 }
 
-// F5b —— 4 文件 × 2 chunk。每条 preview.text 截到真实前 70 字符,完整值的
-// len/sha256 逐条标注(取自 F5b-search-text.multifile.REPLAYED.json)。
+// F5b — 4 files × 2 chunks. Each preview.text truncated to actual first 70 characters,
+// len/sha256 of complete value annotated per entry (from F5b-search-text.multifile.REPLAYED.json).
 const F5B_RESPONSE = {
-  hits: [], // 本代码路径不消费(files 非空时优先),见文件头说明
+  hits: [], // not consumed on this code path (files prioritized when non-empty), see file head documentation
   files: [
     {
       file_id: 'dce79e8ea5d48719cd4ad16fe48da843',
@@ -247,7 +252,7 @@ const F5B_RESPONSE = {
   warnings: [],
 }
 
-// ─── 脚手架(照 QueueView.test.ts / FileDetailDrawer.test.ts 的既定写法)───
+// ─── scaffolding (following established patterns from QueueView.test.ts / FileDetailDrawer.test.ts) ───
 
 function withPinia() {
   setActivePinia(createPinia())
@@ -286,15 +291,16 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-// ─── T7 —— URL.createObjectURL/revokeObjectURL(jsdom 未实现,`typeof` 恒
-// `undefined`,直接赋值而非 `vi.spyOn`——spyOn 要求属性已存在,见 T5 report 对
-// `document.execCommand` 同款问题的处理)───
+// ─── T7 — URL.createObjectURL/revokeObjectURL (jsdom unimplemented, `typeof` always
+// `undefined`, direct assignment rather than `vi.spyOn` — spyOn requires property to exist,
+// see T5 report for same issue with `document.execCommand`) ───
 let createObjectURLMock: ReturnType<typeof vi.fn>
 let revokeObjectURLMock: ReturnType<typeof vi.fn>
 let blobUrlSeq = 0
-// 🔴 jsdom 真的会对 <a href="blob:...">.click() 尝试导航(内部用 setTimeout 调度,
-// 见 `HTMLHyperlinkElementUtils-impl.js`),不 mock 会在测试完成后异步打印
-// "Not implemented: navigation" 噪声(不影响断言结果,但污染输出)——全局 stub 掉。
+// 🔴 jsdom actually attempts navigation on <a href="blob:...">.click() (internally scheduled via
+// setTimeout, see `HTMLHyperlinkElementUtils-impl.js`), without mocking will asynchronously print
+// "Not implemented: navigation" noise after test completes (does not affect assertion results,
+// but pollutes output) — globally stub it out.
 let anchorClickMock: ReturnType<typeof vi.fn>
 beforeEach(() => {
   blobUrlSeq = 0

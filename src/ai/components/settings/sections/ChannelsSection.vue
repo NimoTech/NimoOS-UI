@@ -1,40 +1,43 @@
 <!--
-  SP8-P2b Task 12 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/ChannelsSection.vue(410 行)。
-  纯函数(bindingLabel / pairInstructions 的 split-join / channelsBotTokenTail 的
-  split-join)已由 Task 11 抽到 ../../../util/channelsFormat.ts,这里只保留组件专属状态
-  与 i18n 拼接。
+  SP8-P2b Task 12 — 1:1 ported from Vue2 src/views/AI/Settings/sections/ChannelsSection.vue (410 lines).
+  Pure functions (bindingLabel / pairInstructions split-join / channelsBotTokenTail
+  split-join) extracted to ../../../util/channelsFormat.ts in Task 11;
+  this component retains only component-scoped state and i18n concatenation.
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致(Vue2 data()
-  是组件本地状态),不做 store 集中。用户 2026-07-28 拍板(见 BlacklistSection.vue 头
-  注释)。
+  [D2 declaration] State lives in component local scope (ref), calling service.ai directly —
+  consistent with Vue2 pattern (Vue2 data() is component local state), not centralizing
+  in store. User approved on 2026-07-28 (see BlacklistSection.vue header).
 
-  【D1 申报】Vue2 :46-80(加机器人)与 :140-160(配对码明文)两处手写 `.sk-modal-bg`
-  裸 div + `@click.self` 关闭,换成 Task 3 的 SkModal(reka Dialog 外壳,视觉规则不变,
-  详见 SkModal.vue 头注释的 D1)。Vue2 `$buefy.dialog.confirm`(:287-293 删机器人、
-  :341-347 解绑)→ 共享 AlertDialog。两处都是「纯确认后动作,取消无需复原状态」
-  (与 Task 8 开关那种「取消要复原」场景不同,这里不引入 watch(open)+confirmed 标志),
-  同 McpTokensSection.vue 的 confirmDeleteOpen/pendingDeleteId 手法。
-  Vue2 里 `.chan-x` 关闭按钮 scoped 样式已被 SkModal 内置的 `.sk-x` 收编,这里不再重复
-  定义。
+  [D1 declaration] Vue2 :46-80 (add bot) and :140-160 (pairing code plaintext) had two
+  places with hand-written `.sk-modal-bg` bare divs + `@click.self` to close, replaced
+  with Task 3's SkModal (reka Dialog shell, visual rules unchanged, see SkModal.vue header D1).
+  Vue2 `$buefy.dialog.confirm` (:287-293 delete bot, :341-347 unbind) → shared AlertDialog.
+  Both are "pure action after confirmation, cancel needs no state restoration"
+  (unlike Task 8's switch pattern "cancel must restore", no watch(open)+confirmed flag here),
+  same technique as McpTokensSection.vue's confirmDeleteOpen/pendingDeleteId.
+  The `.chan-x` close button scoped styles in Vue2 are now handled by SkModal's built-in `.sk-x`,
+  not duplicated here.
 
-  【范围扩张,已申报:样式落点偏离 brief】brief Step 3 原话是把 Vue2 :387-410 那 9 条
-  `.chan-*` 规则「一并搬进本组件的 <style scoped>」——但那是 brief 对账前写的,phase-wide
-  的既定范式(constraints §4,已被 BlacklistSection/.px-msg 与 McpTokensSection/
-  .mcp-label 两次验证)是分区组件零 <style> 块。这里遵从后者、不遵从 brief:9 条规则
-  (`.chan-x`/`.chan-x:hover` 已被 SkModal 收编,不搬)移到
-  `src/ai/styles/settings-styles.scss`(McpTokensSection 那次的同一落点),回归测试见
-  `src/ai/styles/settingsStyles.test.ts` 新增的 ChannelsSection 描述块。值逐字保留,
-  Vue2 原 9 条本来就全是 `var(--…)`,无需摘裸色。
+  [Scope expansion, declared: style location diverges from brief] Brief Step 3 originally said
+  to move Vue2's :387-410 nine `.chan-*` rules "into this component's <style scoped>" —
+  but that was before brief reconciliation; the phase-wide standard pattern
+  (constraints §4, verified twice by BlacklistSection/.px-msg and McpTokensSection/.mcp-label)
+  is zero <style> blocks in section components. Following the latter, not the brief:
+  the nine rules (`.chan-x`/`.chan-x:hover` now handled by SkModal, not moved) go to
+  `src/ai/styles/settings-styles.scss` (same location as McpTokensSection),
+  regression test in `src/ai/styles/settingsStyles.test.ts` added ChannelsSection block.
+  Values preserved verbatim; Vue2's original nine are all `var(--…)` anyway, no bare colors to extract.
 
-  【未移植项,已申报】Vue2 :192-195 有 `watch: { isAdmin(v) { if (v && !this.instances.length)
-  this.loadInstances() } } }`,用于「登录后角色从 user 变成 admin」这种运行时切换场景
-  补拉一次管理员数据。本仓 isAdmin 是 computed 读 localStorage(见 useSessionStore 头
-  注释),同一实例生命周期内不会变(角色切换走整页重载,不存在"同一组件实例内角色跳变"
-  的中间态)——这个 watch 在本仓不可能被触发,故不移植,未写对应测试。
+  [Non-ported item, declared] Vue2 :192-195 has `watch: { isAdmin(v) { if (v && !this.instances.length)
+  this.loadInstances() } } }`, for runtime role switch scenarios (login, role changes from user
+  to admin) to re-fetch admin data. In this repo isAdmin is computed reading localStorage
+  (see useSessionStore header), unchanged within one component instance lifecycle (role changes
+  go through full page reload, no "role flip mid-instance" intermediate state exists) —
+  this watch can never fire here, so not ported, no corresponding test written.
 
-  ⚠️ 机器人启用开关是原生 `<input type="checkbox">` 包在 `<label class="chan-switch">`
-  里,不是 SetSwitch —— Vue2 就是这么写的(:34-37),照搬,不"顺手统一"成 SetSwitch(界面
-  改动,超出移植范围)。
+  ⚠️ Bot enable toggle is native `<input type="checkbox">` wrapped in `<label class="chan-switch">`,
+  not SetSwitch — Vue2 is the same (:34-37), carried over as-is, not "tidied up" to SetSwitch
+  (UI change, out of porting scope).
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
@@ -85,10 +88,12 @@ const newName = ref('')
 const newToken = ref('')
 const newType = ref<'telegram' | 'discord'>('telegram')
 const adding = ref(false)
-// 【申报级偏离 Vue2 1:1,用户 2026-07-30 验收时拍板】Vue2 :270-272 添加机器人失败时弹
-// danger toast;用户要求改成「错误提示在 token 输入栏上面」的行内报错,并明确「不要用以前
-// vue2 的模式了」。故本 ref 承载该错误、模板渲染在 token 字段的 <input> 之前,addBot() 的
-// catch 不再调 toast.show。清除时机见下方三个 watch(改 token / 切平台 / 开关弹窗)。
+// [Declaration-level divergence from Vue2 1:1, user approved at 2026-07-30 acceptance]
+// Vue2 :270-272 showed danger toast on add bot failure; user requested changing to
+// "error message inline above token input field" and explicitly said "don't use the old
+// Vue2 pattern anymore". So this ref carries the error, template renders it before the token
+// field's <input>, addBot()'s catch no longer calls toast.show.
+// Clear timing in the three watches below (change token / switch platform / toggle modal).
 const addError = ref('')
 const confirmDeleteBotOpen = ref(false)
 const confirmUnbindOpen = ref(false)
@@ -99,8 +104,9 @@ const pairInstructions = computed(() =>
   fillPairInstructions(t('aiCfgChannelsPairInstructions'), codeInstance.value?.bot_username || '', revealedCode.value),
 )
 
-// Vue2 是 created() 里同步触发四个加载,本仓用 onMounted —— 两者对本组件等价(无 SSR、
-// 不依赖挂载前时序),与其余分区写法统一。见文件头「未移植项」关于 isAdmin watch 的申报。
+// Vue2 triggered four loads synchronously in created(), this repo uses onMounted —
+// equivalent for this component (no SSR, no pre-mount timing dependency), consistent with
+// other section patterns. See file header "Non-ported items" for isAdmin watch declaration.
 onMounted(() => {
   void loadPairable()
   void loadBindings()
@@ -112,7 +118,7 @@ async function loadPairable() {
   pairLoading.value = true
   try {
     const res = (await service.ai.listPairableChannelInstances()) as { instances?: ChannelInstance[] } | null | undefined
-    pairable.value = (res && res.instances) || [] // Vue2 :207-208,已剥掉 axios .data 那层(见公共约束 §5)
+    pairable.value = (res && res.instances) || [] // Vue2 :207-208, already stripped the axios .data layer (see common constraints §5)
   } catch {
     pairable.value = []
   } finally {
@@ -133,7 +139,7 @@ async function loadBindings() {
   }
 }
 
-// Vue2 :227-243:两个独立 try/catch,任一失败不影响另一个。
+// Vue2 :227-243: two independent try/catch blocks, failure of either doesn't affect the other.
 async function loadModels() {
   const models: AgentModel[] = []
   try {
@@ -171,8 +177,9 @@ async function loadInstances() {
   }
 }
 
-// 行内报错的清除时机:用户一动 token 或平台就撤掉旧错误(否则改完还挂着上一次的红字,
-// 看起来像新错误);弹窗开/关也清,避免重开时残留。三条都有用例 19b 钉住。
+// Clear timing for inline errors: whenever user touches token or platform, remove old error
+// (otherwise user still sees old red text after fix, looks like a new error); clear on modal
+// open/close too, avoid remnants when reopening. All three cases have use case 19b pinned.
 watch([newToken, newType], () => { addError.value = '' })
 watch(showAdd, () => { addError.value = '' })
 
@@ -194,19 +201,21 @@ async function addBot() {
     await loadInstances()
     await loadPairable()
   } catch (e) {
-    // Vue2 :270-272 失败时 showAdd 保持 true,不关弹窗 —— 这一点保留。
-    // 但错误不再走 toast(见 addError 声明处的偏离说明),改为 token 字段上方的行内提示。
-    // 不用 apiErrorMessage —— 它可能返回后端英文原文(FastAPI 的 detail)。这里走
-    // 「后端串 → i18n 键」映射,保证行内报错**永远是当前语言的人话、永不回显 JSON**
-    // (用户 2026-07-30 报的正是界面上出现 `{"detail":"bot token rejected"}`)。
+    // Vue2 :270-272 keeps showAdd true on failure, doesn't close modal — kept as-is.
+    // But error no longer goes through toast (see divergence note at addError declaration),
+    // changed to inline message above token field.
+    // Don't use apiErrorMessage — it might return raw backend English (FastAPI's detail).
+    // Here we use "backend string → i18n key" mapping, ensuring inline error is
+    // **always current language human-readable text, never returns JSON**
+    // (user reported on 2026-07-30 seeing `{"detail":"bot token rejected"}` in UI).
     addError.value = t(addBotErrorKey(e))
   } finally {
     adding.value = false
   }
 }
 
-// 遮罩点击 / Esc / 右上 × 与「取消」按钮都只是关闭,不做任何复位(与 Vue2 :46/75 一致:
-// 取消不清空表单字段,只有 addBot() 成功时才清空)。
+// Mask click / Esc / top-right × and "Cancel" button all just close, no state reset
+// (consistent with Vue2 :46/75: cancel doesn't clear form, only addBot() success clears).
 function onAddOpenChange(v: boolean) {
   showAdd.value = v
 }
@@ -214,7 +223,7 @@ function onAddOpenChange(v: boolean) {
 async function toggle(inst: ChannelInstance, enabled: boolean) {
   try {
     await service.ai.setChannelInstanceEnabled(inst.id, enabled)
-    inst.enabled = enabled // Vue2 :280 写在 await 之后,失败时不改,开关自然回到原值
+    inst.enabled = enabled // Vue2 :280 written after await, on failure doesn't change, toggle naturally reverts to original
     await loadPairable()
   } catch (e) {
     toast.show(apiErrorMessage(e, t('aiCfgSaveFailed')), 3000, 'danger')
@@ -295,10 +304,10 @@ async function doUnbind(id: string | number) {
   }
 }
 
-// 三条关闭路径(遮罩/Esc/× 经 update:open,「完成」按钮直调)统一走这里 —— 同
-// McpTokensSection.vue 的 onRevealClose/handleRevealOpenChange 先例。清空明文码在
-// await 之前(Vue2 :357-364 同序:先 showCode=false,再清 revealedCode/codeInstance,
-// 再重拉 bindings)。
+// Three close paths (mask/Esc/× via update:open, "Done" button direct call) all go here —
+// same pattern as McpTokensSection.vue's onRevealClose/handleRevealOpenChange.
+// Clear plaintext code before await (Vue2 :357-364 same order: first showCode=false,
+// then clear revealedCode/codeInstance, then re-fetch bindings).
 async function onCodeClosed() {
   showCode.value = false
   revealedCode.value = ''
@@ -307,11 +316,11 @@ async function onCodeClosed() {
 }
 
 function handleCodeOpenChange(open: boolean) {
-  // 撤掉打勾态,免得下次打开配对码弹窗还挂着上一次的绿勾。
+  // Remove checkmark state, avoid last time's green checkmark lingering when reopening pairing code modal.
   if (!open) { resetCopied(); void onCodeClosed() }
 }
 
-// SP8-P2b 验收第 5 轮:复制反馈(toast + 「已复制」打勾态)统一走 useCopyFeedback。
+// SP8-P2b acceptance round 5: copy feedback (toast + "copied" checkmark state) unified via useCopyFeedback.
 </script>
 
 <template>
@@ -444,8 +453,8 @@ function handleCodeOpenChange(open: boolean) {
       </div>
       <div class="sk-field">
         <label class="sk-field-label">{{ t('aiCfgChannelsBotToken') }}</label>
-        <!-- 添加失败的行内报错(用户拍板取代 Vue2 的 danger toast):必须渲染在 <input>
-             之前,视觉上落在输入框上方。role="alert" 让读屏软件即时播报。 -->
+        <!-- Add failure inline error (user approved replacing Vue2's danger toast): must render
+             before <input>, visually above input box. role="alert" lets screen readers announce immediately. -->
         <p v-if="addError" class="chan-field-err" role="alert">{{ addError }}</p>
         <input type="text" v-model="newToken">
         <p class="chan-field-hint">

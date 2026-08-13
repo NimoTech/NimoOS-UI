@@ -19,10 +19,10 @@ afterAll(() => fs.rmSync(tree, { recursive: true, force: true }))
 const read = (rel) => fs.readFileSync(path.join(tree, rel), 'utf8')
 const exists = (rel) => fs.existsSync(path.join(tree, rel))
 
-describe('类 1 · 整体删除', () => {
-  it('oss/ 自己不在产物里', () => expect(exists('oss')).toBe(false))
+describe('Class 1 · Wholesale removal', () => {
+  it('oss/ itself not in artifacts', () => expect(exists('oss')).toBe(false))
 
-  it('AI/相册/搜索的组件与 store 全没了', () => {
+  it('AI/photo/search components and stores all gone', () => {
     for (const rel of [
       'src/home/components/SearchDialog.vue',
       'src/home/components/PhotoTile.vue',
@@ -37,11 +37,11 @@ describe('类 1 · 整体删除', () => {
       'src/settings/util/folderPermissions.ts',
       'src/settings/util/folderPermissionsSnapshot.ts',
       'src/settings/util/folderPermissionsView.ts',
-      'src/settings/util/folderBrowser.ts',        // E3:零消费方,改为整体删除
+      'src/settings/util/folderBrowser.ts',        // E3: zero consumers, changed to wholesale removal
       'src/settings/util/folderBrowser.test.ts',
-      'src/home/util/isAssetId.ts',                // T7 尾巴4:bindPhotos/PhotoTile 都没了之后的孤儿
-      // SP9-P7:搜索视图层整目录。前 5 个是词表命中的,后 4 个词表一个都不命中 ——
-      // 但 useSearchQuery.ts import 了 buildSearchView,漏删就是产物构建断裂(见文件末尾的构建门)。
+      'src/home/util/isAssetId.ts',                // T7 tail-4: orphan after bindPhotos/PhotoTile removed
+      // SP9-P7: search view entire directory. First 5 hit word list, last 4 don't hit at all ——
+      // but useSearchQuery.ts imported buildSearchView, missing this is build artifact breakage (see build gate at file end).
       'src/home/search',
       'src/home/search/types.ts',
       'src/home/search/reasons.ts',
@@ -52,18 +52,19 @@ describe('类 1 · 整体删除', () => {
       'src/home/search/degrade.test.ts',
       'src/home/search/useSearchQuery.ts',
       'src/home/search/useSearchQuery.test.ts',
-      // 内嵌共享包的 search 域(SERVICE_DELETE)
+      // search domain in embedded shared package (SERVICE_DELETE)
       'packages/service/src/search.ts',
       'packages/service/src/search.test.ts',
     ]) expect(exists(rel), rel).toBe(false)
-    // fish_video_poster.jpg 不在上面这张表里:它已于终审 cleanup 批从私有仓直接删除
-    // (私有版也是零引用孤儿),不再由本清单剥离,断言它"不在产物里"已经恒真、没有判别力。
+    // fish_video_poster.jpg not in above list: already deleted directly from private repo in final review cleanup batch
+    // (private version also zero-reference orphan), no longer removed by this list, assertion "not in artifacts" already
+    // eternally true, has no discriminative power.
   })
 
-  it('保留面还在', () => {
+  it('reserved surfaces still there', () => {
     for (const rel of [
-      'src/files/viewers/waveform.ts',                        // 真实波形,解码 PCM,不涉 AI
-      'src/settings/panels/account/MemberFoldersView.vue',    // 成员文件夹授权
+      'src/files/viewers/waveform.ts',                        // real waveform, decode PCM, unrelated to AI
+      'src/settings/panels/account/MemberFoldersView.vue',    // member folder permissions
       'src/files/util/protect.ts',
       'src/apps/views/StorePage.vue',
       'scripts/deploy.sh',
@@ -71,64 +72,64 @@ describe('类 1 · 整体删除', () => {
     ]) expect(exists(rel), rel).toBe(true)
   })
 
-  it('文档与 AI 辅助开发痕迹整体不导出(E7/E8)', () => {
+  it('documentation and AI dev-assist traces not exported wholesale (E7/E8)', () => {
     expect(exists('docs')).toBe(false)
     expect(exists('CLAUDE.md')).toBe(false)
     expect(exists('design-export')).toBe(false)
   })
 
-  // ─── SP8-P6-T8 复审 Important 2:台账目录的**存在性**断言 ────────────────────
-  // 为什么单列一条、而不是并进上面那条:
-  //   · 上面第 243 行附近那条 E9 用例查的是产物树**根 .gitignore 的文本内容**里不含
-  //     '.superpowers/' —— 那和「这个目录在不在产物树里」是两码事,此前全部 oss/*.mjs
-  //     里**没有任何一条目录存在性断言**。
-  //   · T8 实测:Service 仓的 32 份台账此前一直随 `git archive HEAD` 进产物树,能被发现
-  //     纯属侥幸 —— 靠的是那 437 处**词表命中**。台账里恰好一个禁词都不含的那天(比如
-  //     一份只写 "fix typo" 的报告),词表守卫会全绿,东西照样上公网。
-  //   · 所以判据必须是「目录在不在」,不能是「里面有没有敏感词」。两个仓**各要一条**:
-  //     两处台账由两条不同的清单条目(DELETE / SERVICE_DELETE)负责,漏哪条都可能。
-  // 变异验证见 p6-task-8-report.md §11:手工造一个**不含任何禁词**的
-  // packages/service/.superpowers/x.md,本条断言报红而泄漏守卫照样绿 —— 后者绿正是
-  // 本条断言存在的全部理由。
-  it('台账目录两个仓都不能进产物树(存在性判据,不依赖词表)', () => {
-    expect(exists('.superpowers'), 'New-UI 侧台账进了产物树 —— DELETE 表的 .superpowers 条目没生效').toBe(false)
+  // ─── SP8-P6-T8 Review Important 2: ledger directory **existence** assertion ────────────────────
+  // Why separate line, not combined with above:
+  //   · Above line ~243 E9 case checks artifact tree **root .gitignore text content** doesn't contain
+  //     '.superpowers/' — different from "is this directory in artifact tree", previously all oss/*.mjs
+  //     **had no directory-existence assertions**.
+  //   · T8 real test: Service repo's 32 ledgers always went into artifact tree via `git archive HEAD`,
+  //     being caught purely luck — relied on 437 **word-list hits**. Day when ledger perfectly has no forbidden word
+  //     (e.g. report just says "fix typo"), word-list guard turns green, stuff still goes public.
+  //   · So criterion must be "directory exists or not", not "does it have sensitive words". **Each repo one case**:
+  //     both ledgers responsible by different list entries (DELETE / SERVICE_DELETE), missing either is possible.
+  // Mutation verification in p6-task-8-report.md §11: hand-create **forbidden-word-free**
+  // packages/service/.superpowers/x.md, this assertion turns red while leak guard stays green — latter green is exactly
+  // entire reason this assertion exists.
+  it('ledger directories both repos can\'t enter artifact tree (existence criterion, independent of word-list)', () => {
+    expect(exists('.superpowers'), 'New-UI side ledger entered artifact tree — DELETE list .superpowers entry ineffective').toBe(false)
     expect(exists('packages/service/.superpowers'),
-      'Service 侧台账进了产物树 —— SERVICE_DELETE 表的 .superpowers 条目没生效').toBe(false)
+      'Service side ledger entered artifact tree — SERVICE_DELETE list .superpowers entry ineffective').toBe(false)
   })
 })
 
-describe('内嵌共享包', () => {
-  it('Service 落到 packages/service/,package.json 的 file: 指过去', () => {
+describe('Embedded shared package', () => {
+  it('Service lands in packages/service/, package.json file: points there', () => {
     expect(exists('packages/service/src/index.ts')).toBe(true)
     expect(exists('packages/service/src/photos.ts')).toBe(false)
     const pkg = JSON.parse(read('package.json'))
     expect(pkg.dependencies['@nimotech/nimoos-service']).toBe('file:packages/service')
   })
 
-  // SP13 之后私有仓本身就写 file:packages/service,「不含 NimoOS-Service」变成没有任何
-  // 路径能违反的恒真断言(守卫价值归零)。改成正向断言:锁文件必须真的指到内嵌包。
-  it('lockfile 指向内嵌的 packages/service', () => {
+  // After SP13 private repo itself writes file:packages/service, "doesn't contain NimoOS-Service" becomes eternally-true
+  // assertion no path can violate (guard value zero). Changed to positive assertion: lockfile must really point to embedded package.
+  it('lockfile points to embedded packages/service', () => {
     expect(read('pnpm-lock.yaml')).toContain('packages/service')
     expect(read('pnpm-lock.yaml')).not.toContain('NimoOS-Service')
   })
 })
 
-describe('类 3 · 桌面侧补丁', () => {
-  it('系统应用清单只剩 6 个(含 terminal),photos/ai 的 import 与 glyph 都没了', () => {
+describe('Class 3 · Desktop-side patches', () => {
+  it('system app list down to 6 (including terminal), photos/ai import and glyph all gone', () => {
     const s = read('src/home/apps/systemApps.ts')
     expect(s).not.toMatch(/photos|iconAi|G\.ai/)
     expect(s.match(/\{ key: '/g)).toHaveLength(6)
     for (const k of ['files', 'storage', 'vm', 'settings', 'appstore', 'terminal']) expect(s).toContain(`key: '${k}'`)
   })
 
-  it('Dock 默认收藏 = files/storage/vm/appstore', () => {
+  it('Dock default favorites = files/storage/vm/appstore', () => {
     expect(read('src/home/composables/useDock.ts'))
       .toContain("const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']")
   })
 
-  // I4(final-review 发布前必修 ③):cutoverDisabled 是死代码(开源版没有旧入口可回退),
-  // 整个函数连同调用点的恒 false 守卫一并删掉,不再保留"函数形状"。
-  it('SYS_ROUTE 指内部路由,cutoverDisabled 死代码整块删除,sendToAI 整个没了', () => {
+  // I4(final-review pre-release required ③): cutoverDisabled is dead code (OSS has no old entry to fallback),
+  // entire function along with call-site's always-false guard deleted, don't preserve "function shape".
+  it('SYS_ROUTE points internal routes, cutoverDisabled dead code wholesale deleted, sendToAI completely gone', () => {
     const s = read('src/home/composables/useOpenAction.ts')
     expect(s).toContain("vm: '/kvm', settings: '/settings'")
     expect(s).not.toMatch(/sendToAI|'#\/photos'|ai\/agent|strangler:disabled|cutoverDisabled/)
@@ -136,23 +137,23 @@ describe('类 3 · 桌面侧补丁', () => {
     expect(s).toContain("if (key === 'storage') { router.push('/storage'); return }")
   })
 
-  // SP9-P8:私有版的 settings / vm 两个磁贴各带一条 cutoverDisabled 判定。开源版没有 flag,
-  // 而 SYS_ROUTE 已经把这两个 key 指向应用内路由 —— 所以产物里既不该有那两个 if,
-  // 也必须仍然能把它们 push 出去(靠末尾那句兜底)。这两件事要一起断言:
-  // 只断言"没有 cutoverDisabled"的话,补丁把整段 if 连兜底一起删掉也照样绿。
-  it('SP9-P8:开源版 vm/settings 磁贴靠 SYS_ROUTE 兜底 push,且产物里不留任何回退 flag 痕迹', () => {
+  // SP9-P8: private version's settings / vm two tiles each carry one cutoverDisabled check. OSS has no flag,
+  // and SYS_ROUTE already points these two keys to in-app routes — so artifacts shouldn't have those two ifs,
+  // but must still be able to push them (via fallback at end). These two things assert together:
+  // if only assert "no cutoverDisabled", patch could delete entire if-block with fallback also green.
+  it('SP9-P8: OSS vm/settings tiles rely on SYS_ROUTE fallback push, artifacts have no fallback flag traces', () => {
     const s = read('src/home/composables/useOpenAction.ts')
     expect(s).toContain("router.push(SYS_ROUTE[key] || '/')")
     expect(s).not.toContain("key === 'settings'")
     expect(s).not.toContain("key === 'vm'")
     expect(s).not.toContain("key === 'photos'")
-    // 私有版注释里那段"回退目标 / 老桌面 / resolveEntryTarget"的来龙去脉也不该外泄
+    // private version's comments about "fallback target / old desktop / resolveEntryTarget" backstory shouldn't leak
     expect(s).not.toMatch(/回退|legacy|resolveEntryTarget/)
   })
 
-  // 测试文件侧:两条正向用例(settings→/settings、vm→/kvm)在开源版依然成立故保留;
-  // 四条与 flag / photos 相关的整块删除。dock 那条链路级用例同理只保留正向。
-  it('SP9-P8:useOpenAction.test.ts 与 HomeDock.test.ts 只留正向用例,flag 用例全删', () => {
+  // Test file side: two positive cases (settings→/settings、vm→/kvm) still apply in OSS so keep;
+  // four cases related to flag / photos wholesale deleted. Dock's route-level case similarly keeps only positive.
+  it('SP9-P8: useOpenAction.test.ts and HomeDock.test.ts keep only positive cases, flag cases all deleted', () => {
     const t = read('src/home/composables/useOpenAction.test.ts')
     expect(t).toContain("router.push /settings")
     expect(t).toContain("router.push /kvm")
@@ -162,74 +163,74 @@ describe('类 3 · 桌面侧补丁', () => {
     expect(d).not.toMatch(/strangler:disabled|回退|legacy|SP9-P8/)
   })
 
-  it("Kind 联合类型去掉 'photo'", () => {
+  it("Kind union type removes 'photo'", () => {
     expect(read('src/home/grid/types.ts'))
       .toContain("export type Kind = 'widget' | 'app' | 'folder' | 'appwidget'")
   })
 
-  it('小组件注册表与 WidgetCard 不再有 ai', () => {
+  it('widget registry and WidgetCard no longer have ai', () => {
     expect(read('src/home/widgets/registry.ts')).not.toMatch(/\bai:/)
     expect(read('src/home/components/widgets/WidgetCard.vue')).not.toMatch(/AiWidget/)
   })
 
-  it('GridItem / MobileHome 不再引用 PhotoTile', () => {
+  it('GridItem / MobileHome no longer reference PhotoTile', () => {
     for (const rel of ['src/home/components/GridItem.vue', 'src/home/components/MobileHome.vue']) {
       expect(read(rel), rel).not.toMatch(/PhotoTile|'photo'|m-photo/)
     }
   })
 
-  it('layout store 去掉 bindPhotos,homeUi 去掉 search 四项', () => {
+  it('layout store removes bindPhotos, homeUi removes search four items', () => {
     expect(read('src/home/stores/layout.ts')).not.toMatch(/bindPhotos/)
     const h = read('src/home/stores/homeUi.ts')
     expect(h).not.toMatch(/searchOpen|setSearch|openSearch|closeSearch/)
   })
 
-  it('顶栏没有搜索胶囊与 ⌘K 监听,Home.vue 不挂 SearchDialog', () => {
+  it('topbar has no search capsule or ⌘K listener, Home.vue doesn\'t mount SearchDialog', () => {
     const t = read('src/home/components/HomeTopbar.vue')
     expect(t).not.toMatch(/search-btn|topbarSearch|metaKey/)
     const h = read('src/views/Home.vue')
     expect(h).not.toMatch(/SearchDialog|usePhotosStore|loadAssets|bindPhotos/)
   })
 
-  it('AddPanel 的 tab 联合类型与尺寸表去掉 photo', () => {
+  it('AddPanel tab union type and size table remove photo', () => {
     const a = read('src/home/composables/useAddPanel.ts')
     expect(a).toContain("const curTab = ref<'widget' | 'app' | 'folder'>('widget')")
     expect(a).not.toMatch(/'photo'/)
   })
 
-  it('复审修复:顶栏 ≤720px 注释不再提"搜索",且没有死 import', () => {
+  it('review fix: topbar ≤720px comment no longer mentions "search", no dead imports', () => {
     const t = read('src/home/components/HomeTopbar.vue')
     expect(t).not.toMatch(/搜索/)
     expect(t).toContain('保留主题切换')
     expect(t).not.toMatch(/onMounted|onUnmounted/)
   })
 
-  it('复审修复:layout.ts 不再 import isAssetId', () => {
+  it('review fix: layout.ts no longer imports isAssetId', () => {
     expect(read('src/home/stores/layout.ts')).not.toMatch(/isAssetId/)
   })
 
-  it('T7 尾巴1:HomeTopbar 不再引用 homeUi(搜索按钮与 ⌘K 监听已被上面的补丁删完)', () => {
+  it('T7 tail-1: HomeTopbar no longer references homeUi (search button and ⌘K listener deleted by above patches)', () => {
     expect(read('src/home/components/HomeTopbar.vue')).not.toMatch(/homeUi/)
   })
 })
 
-describe('类 3 · 设置与 Service 侧补丁', () => {
+describe('Class 3 · Settings and Service-side patches', () => {
   // SP17 起私有侧多了 lan-devices(第 10 个 tab,rail 里的第 8 项),这条断言的两个数字
   // 跟着往上挪一位;去掉的仍然只有 folder-permissions,数字本身不是要守的东西。
-  it('设置 tab 从 10 降到 9,rail 从 8 降到 7,folder-permissions 全无', () => {
+  it('settings tab down from 10 to 9, rail from 8 to 7, folder-permissions completely gone', () => {
     const s = read('src/settings/util/tabs.ts')
     expect(s).not.toMatch(/folder-permissions|FolderPermissions/)
     expect(s).toContain('SETTINGS_TABS.slice(0, 7)')
     expect(read('src/settings/panels/index.ts')).not.toMatch(/FolderPermissions/)
   })
 
-  it('railTabsFor 退化为恒等(不再按 admin 过滤)', () => {
+  it('railTabsFor degenerates to identity (no longer filters by admin)', () => {
     const s = read('src/settings/util/tabs.ts')
     expect(s).toContain('export function railTabsFor(): readonly SettingsTab[] {')
     expect(s).not.toMatch(/role === 'admin'/)
   })
 
-  it('SettingsShell.vue 的唯一调用处跟着改签名,不再传 role 实参', () => {
+  it('SettingsShell.vue\'s sole call site signature changed, no longer passes role argument', () => {
     expect(read('src/settings/components/SettingsShell.vue'))
       .toContain('const railTabs = computed(() => railTabsFor())')
   })
@@ -273,7 +274,7 @@ describe('类 3 · 设置与 Service 侧补丁', () => {
   })
 })
 
-describe('类 3 · i18n 与主题 token', () => {
+describe('Class 3 · i18n and theme tokens', () => {
   // 2026-08-05(SP7-P8b):主文件改名 *.base.ts —— 原 zh_cn.ts/en_us.ts 现在是 3 行合并出口
   // (import base + import photos + 一行展开),相册那 702 键整块进了 *.photos.ts、由 DELETE 表
   // 删掉。故"键在不在"这类断言一律取 *.base.ts;出口本身没有键定义,另有专项断言(见下)。
@@ -412,7 +413,7 @@ describe('类 3 · i18n 与主题 token', () => {
   })
 })
 
-describe('类 2 · 桌面默认布局', () => {
+describe('Class 2 · Desktop default layout', () => {
   it('不再导出 PHOTO_PLACEHOLDERS,没有 photo 磁贴与 ai 组件', () => {
     const s = read('src/home/grid/defaultLayout.ts')
     expect(s).not.toMatch(/PHOTO_PLACEHOLDERS|kind: 'photo'|key: 'ai'/)
@@ -461,7 +462,7 @@ describe('类 2 · 桌面默认布局', () => {
   })
 })
 
-describe('类 2 · AddPanel 去照片 tab', () => {
+describe('Class 2 · AddPanel remove photo tab', () => {
   it('照片 tab 与 photos store 全无', () => {
     const s = read('src/home/components/AddPanel.vue')
     for (const bad of ['usePhotosStore', 'photosStore', "curTab.value === 'photo'",
@@ -486,7 +487,7 @@ describe('类 2 · AddPanel 去照片 tab', () => {
   })
 })
 
-describe('类 2 · MediaViewer 拆转录', () => {
+describe('Class 2 · MediaViewer remove transcripts', () => {
   it('转录/说话人/Ask 的符号全无(speaker 是哨兵词)', () => {
     const s = read('src/files/viewers/MediaViewer.vue')
     for (const bad of ['audioTranscripts', 'speakerWave', 'lookupTranscript', 'TranscriptSegment',
@@ -514,7 +515,7 @@ describe('类 2 · MediaViewer 拆转录', () => {
   })
 })
 
-describe('类 2 · README', () => {
+describe('Class 2 · README', () => {
   it('不提 Vue2 / strangler / 同级克隆 Service', () => {
     const s = read('README.md')
     for (const bad of ['Vue 2', 'Vue2', 'strangler', 'Strangler', 'NimoOS-New-UI',
@@ -531,7 +532,7 @@ describe('类 2 · README', () => {
   })
 })
 
-describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
+describe('Class 2 · Frozen copy comments don\'t leak internal dev state', () => {
   // 固定清单(每次新增 REPLACE 条目都要过一遍,别为单个文件重开断言):
   // 内部任务追踪编号 / 期号 / 分支代号 / spec 章节号 / 分期开发措辞 / 旧版本代号 / 私有仓名。
   // T14(B4):/SP\d/i 原来没有 \b 词边界,会误伤 "wasp7"/"grasp789" 这类纯属巧合含有
@@ -577,7 +578,7 @@ describe('类 2 · 冻结分身注释不泄露内部开发状态', () => {
   })
 })
 
-describe('类 4 · 测试同步', () => {
+describe('Class 4 · Test synchronization', () => {
   it('被删功能的测试文件整体不在', () => {
     for (const rel of [
       'src/home/components/PhotoTile.test.ts',

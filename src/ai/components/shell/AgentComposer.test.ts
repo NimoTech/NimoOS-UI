@@ -1,10 +1,11 @@
-// SP8-P1c1 Task 9 —— AgentComposer 骨架:chips + textarea + 工具栏 + 发送/停止。
-// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentComposer.vue 的对应片段(见组件顶部注释)。
-// 附件上传管线(Task 10)与 @mention/slash 接线(Task 11)不在本任务范围,测试用例
-// 逐字取自 .superpowers/sdd/p1c1-task-9-brief.md Step 1。
+// SP8-P1c1 Task 9 — AgentComposer skeleton: chips + textarea + toolbar + send/stop.
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentComposer.vue segment (see component
+// top comment). Attachment upload pipeline (Task 10) and @mention/slash wiring (Task 11)
+// not in this task scope, test cases verbatim from
+// .superpowers/sdd/p1c1-task-9-brief.md Step 1.
 //
-// SP8-P1c1 Task 10 —— 附件管线 describe 块追加自 p1c1-task-10-brief.md Step 1
-// (逐字取自 brief,未改动断言)。
+// SP8-P1c1 Task 10 — attachment pipeline describe block added from p1c1-task-10-brief.md Step 1
+// (verbatim from brief, assertions unchanged).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -26,17 +27,17 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh 
 const mountComposer = (props = {}) =>
   mount(AgentComposer, { props, global: { plugins: [i18n] }, attachTo: document.body })
 
-describe('AgentComposer 骨架', () => {
+describe('AgentComposer skeleton', () => {
   beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
 
-  it('空输入时发送键禁用;有文本后启用', async () => {
+  it('send button disabled on empty input; enabled after text added', async () => {
     const w = mountComposer()
     expect(w.find('.send-btn').attributes('disabled')).toBeDefined()
     await w.find('textarea').setValue('hello')
     expect(w.find('.send-btn').attributes('disabled')).toBeUndefined()
   })
 
-  it('Enter 发送并清空;Shift+Enter 不发送', async () => {
+  it('Enter sends and clears; Shift+Enter does not send', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('hi there')
@@ -47,7 +48,7 @@ describe('AgentComposer 骨架', () => {
     expect((ta.element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('final-review fix: busy 时按 Enter 既不 emit send 也不清空文本(AgentComposer.vue submit() 的 busy 守卫)', async () => {
+  it('final-review fix: Enter while busy neither emits send nor clears text (AgentComposer.vue submit() busy guard)', async () => {
     const w = mountComposer({ busy: true })
     const ta = w.find('textarea')
     await ta.setValue('hi there')
@@ -56,21 +57,21 @@ describe('AgentComposer 骨架', () => {
     expect((ta.element as HTMLTextAreaElement).value).toBe('hi there')
   })
 
-  it('IME 组合中的 Enter 不发送', async () => {
+  it('Enter during IME composition does not send', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('中')
     await w.find('textarea').trigger('keydown', { key: 'Enter', isComposing: true })
     expect(w.emitted('send')).toBeFalsy()
   })
 
-  it('busy 时显示停止键并 emit stop', async () => {
+  it('when busy, show stop button and emit stop', async () => {
     const w = mountComposer({ busy: true })
     expect(w.find('.send-btn.busy').exists()).toBe(true)
     await w.find('.send-btn.busy').trigger('click')
     expect(w.emitted('stop')).toBeTruthy()
   })
 
-  it('visibleResources 渲染成 chip,× 调 store.removeVisibleResource', async () => {
+  it('visibleResources render as chips, × calls store.removeVisibleResource', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     store.visibleResources.push({ id: 5, path: '/DATA/docs', kind: 'folder' })
@@ -82,11 +83,11 @@ describe('AgentComposer 骨架', () => {
     expect(spy).toHaveBeenCalledWith(5)
   })
 
-  // P1c2 debt 1 —— agent 在 run 中自己授权访问、由 dispatchEvent.ts 的
-  // 'visible_resource_added' 分支塞进来的 chip 没有 id({path,kind} only,见
-  // dispatchEvent.ts:311 与 agentStore.ts removeVisibleResourceByPath 声明处
-  // 注释)。点 × 应该走 store.removeVisibleResourceByPath(path),不是静默 no-op。
-  it('无 id 的 chip 点 × 调 store.removeVisibleResourceByPath(而非静默无反应)', async () => {
+  // P1c2 debt 1 — chips added via dispatchEvent.ts 'visible_resource_added' branch from
+  // agent self-authorizing access in run have no id ({path,kind} only, see
+  // dispatchEvent.ts:311 and agentStore.ts removeVisibleResourceByPath declaration notes).
+  // Clicking × should call store.removeVisibleResourceByPath(path), not silently no-op.
+  it('chip without id clicking × calls store.removeVisibleResourceByPath (not silent no-op)', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     store.visibleResources.push({ path: '/DATA/agent-added', kind: 'folder' })
@@ -98,7 +99,7 @@ describe('AgentComposer 骨架', () => {
     expect(spy).toHaveBeenCalledWith('/DATA/agent-added')
   })
 
-  it('无 id 的 chip 删除失败时走 toastError(与有 id 分支一致)', async () => {
+  it('chip without id deletion failure goes through toastError (same as with-id branch)', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     store.visibleResources.push({ path: '/DATA/agent-added', kind: 'folder' })
@@ -109,16 +110,16 @@ describe('AgentComposer 骨架', () => {
     await flushPromises()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
-    // SP8-P1c2 Task 6: 授权失败(toastError)→ danger 档。
+    // SP8-P1c2 Task 6: auth failure (toastError) → danger tier.
     expect(useToast().toasts[0].tier).toBe('danger')
   })
 
-  it('ctxUsage 存在时渲染占用环', () => {
+  it('render context usage circle when ctxUsage exists', () => {
     const w = mountComposer({ ctxUsage: { tokens: 100, window: 1000, pct: 10 } })
     expect(w.find('.ctx-usage').exists()).toBe(true)
   })
 
-  it('Browse 按钮弹 toast 占位(BrowserModal 本期不做)', async () => {
+  it('Browse button shows toast placeholder (BrowserModal not implemented this phase)', async () => {
     const w = mountComposer()
     const browse = w.findAll('.composer-tool')[0]
     await browse.trigger('click')
@@ -128,7 +129,7 @@ describe('AgentComposer 骨架', () => {
   })
 })
 
-describe('AgentComposer 附件管线', () => {
+describe('AgentComposer attachment pipeline', () => {
   beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
 
   const pickFiles = async (w: any, files: File[]) => {
@@ -137,7 +138,7 @@ describe('AgentComposer 附件管线', () => {
     await input.trigger('change')
   }
 
-  it('无会话时先建会话再上传,成功后 chip 显示已上传', async () => {
+  it('no session: create session first, then upload; chip shows uploaded after success', async () => {
     const store = useAgentStore()
     vi.spyOn(store, 'createSession').mockImplementation(async () => { store.activeSessionId = 'sess-new' })
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
@@ -149,9 +150,10 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att').text()).toContain('p.png')
   })
 
-  // SP8-P1c2 Task 6: 建会话失败 → danger 档(p1c2-task-6-brief.md「AgentComposer
-  // 的 7 处」)。onFilesPicked() 507-514 的懒建会话分支,失败即 return,不发上传。
-  it('无会话时懒建会话失败:给 danger toast,不发上传', async () => {
+  // SP8-P1c2 Task 6: create session failure → danger tier (p1c2-task-6-brief.md
+  // "AgentComposer 7 places"). onFilesPicked() 507-514 lazy-create branch, fail returns,
+  // no upload sent.
+  it('no session: lazy create fails: danger toast, no upload sent', async () => {
     const store = useAgentStore()
     vi.spyOn(store, 'createSession').mockRejectedValue(new Error('network down'))
     const w = mountComposer()
@@ -164,7 +166,7 @@ describe('AgentComposer 附件管线', () => {
     expect(toasts[0].tier).toBe('danger')
   })
 
-  it('超过 500MB 直接拒绝、不发请求、给 toast', async () => {
+  it('over 500MB: directly reject, no request, show toast', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     const big = new File(['x'], 'big.bin')
     Object.defineProperty(big, 'size', { value: 500 * 1024 * 1024 + 1 })
@@ -174,11 +176,11 @@ describe('AgentComposer 附件管线', () => {
     expect(svc.uploadAttachment).not.toHaveBeenCalled()
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts.length).toBe(1)
-    // SP8-P1c2 Task 6: 超限 → danger 档。
+    // SP8-P1c2 Task 6: over limit → danger tier.
     expect(useToast().toasts[0].tier).toBe('danger')
   })
 
-  it('上传中 chip 显示百分比,且 canSend 为假', async () => {
+  it('uploading: chip shows percentage, canSend false', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     let emit!: (p: number) => void
     svc.uploadAttachment.mockImplementation((_s: any, _f: any, o: any) => new Promise((res) => { emit = o.onProgress; setTimeout(() => res({ id: 'a1', kind: 'text' }), 0) }))
@@ -187,22 +189,22 @@ describe('AgentComposer 附件管线', () => {
     emit(42); await w.vm.$nextTick()
     expect(w.find('.ctx-chip-prog').text()).toContain('42')
     await w.find('textarea').setValue('hi')
-    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()   // 上传中禁发
+    expect(w.find('.send-btn').attributes('disabled')).toBeDefined()   // uploading blocks send
   })
 
-  it('上传失败 chip 标失败态', async () => {
+  it('upload failure: chip marked failed', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockRejectedValue({ response: { data: { detail: 'nope' } } })
     const w = mountComposer()
     await pickFiles(w, [new File(['x'], 'a.txt')])
     await flushPromises()
     expect(w.find('.ctx-chip-att.is-failed').exists()).toBe(true)
-    // SP8-P1c2 Task 6: 上传失败 → danger 档。
+    // SP8-P1c2 Task 6: upload failure → danger tier.
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts[0].tier).toBe('danger')
   })
 
-  it('文档抽取报错时 chip 出警告角标(且角标文案对应 docErrorShortKey 的 zh_cn 译文)', async () => {
+  it('document extraction error: chip shows warning badge (text matches docErrorShortKey zh_cn translation)', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'document', meta: { extract_error: 'timeout' } })
     const w = mountComposer()
@@ -214,12 +216,12 @@ describe('AgentComposer 附件管线', () => {
     // must be able to fail if docErrorShortKey('timeout') → 'aiDocErrShortTimedOut'
     // regresses (e.g. mapped to the wrong key or the zh_cn string changes).
     expect(chip.find('.ctx-chip-doc-warn').text()).toContain(zh.aiDocErrShortTimedOut)
-    // SP8-P1c2 Task 6: 文档抽取警告(7000ms)→ warning 档,非 danger。
+    // SP8-P1c2 Task 6: document extraction warning (7000ms) → warning tier, not danger.
     const { useToast } = await import('../../../stores/toast')
     expect(useToast().toasts[0].tier).toBe('warning')
   })
 
-  it('kind=binary 且 extract_error=not_installed、文档扩展名:给 7000ms 警告 toast', async () => {
+  it('kind=binary and extract_error=not_installed, doc extension: show 7000ms warning toast', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
     const w = mountComposer()
@@ -229,11 +231,11 @@ describe('AgentComposer 附件管线', () => {
     const toasts = useToast().toasts
     expect(toasts.length).toBe(1)
     expect(toasts[0].text).toContain(zh.aiDocErrNotInstalled)
-    // SP8-P1c2 Task 6: 同上,not_installed 警告也是 warning 档。
+    // SP8-P1c2 Task 6: same, not_installed warning also warning tier.
     expect(toasts[0].tier).toBe('warning')
   })
 
-  it('kind=binary 且 extract_error=not_installed、非文档扩展名:不弹该 toast', async () => {
+  it('kind=binary and extract_error=not_installed, non-doc extension: no such toast', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'binary', meta: { extract_error: 'not_installed' } })
     const w = mountComposer()
@@ -243,12 +245,12 @@ describe('AgentComposer 附件管线', () => {
     expect(useToast().toasts.length).toBe(0)
   })
 
-  it('批次中途切换会话:后续文件停止上传,不产生跨会话孤儿附件', async () => {
+  it('mid-batch session switch: stop remaining uploads, no orphan attachments across sessions', async () => {
     // Fix 1 (review): Vue2 (AgentComposer.vue:547) re-reads a *computed*
-    // `this.sessionId` every loop iteration, so a mid-batch session switch just
-    // redirects the remaining uploads into whatever session is now active. This
-    // port instead stops the batch — see the comment at the break site in
-    // AgentComposer.vue for why continuing would only create invisible orphans.
+    // `this.sessionId` every loop iteration, so mid-batch session switch just
+    // redirects remaining uploads to whatever session is now active. This port
+    // instead stops batch — see comment at break site in AgentComposer.vue for
+    // why continuing only creates invisible orphans.
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     let resolveFirst!: (v: unknown) => void
     svc.uploadAttachment.mockImplementationOnce(
@@ -259,15 +261,15 @@ describe('AgentComposer 附件管线', () => {
       new File(['x'], 'a.txt'),
       new File(['x'], 'b.txt'),
     ])
-    // First upload (a.txt) is in flight — the loop is suspended on its await,
-    // so it has not started processing b.txt yet. Switch sessions now.
+    // First upload (a.txt) in flight — loop suspended on await, not started b.txt yet.
+    // Switch sessions now.
     store.activeSessionId = 'sess-2'
     resolveFirst({ id: 'a1', kind: 'text' })
     await flushPromises()
     expect(svc.uploadAttachment).toHaveBeenCalledTimes(1)
   })
 
-  it('删除已上传附件:调 deleteAttachment 并移除 chip', async () => {
+  it('delete uploaded attachment: call deleteAttachment and remove chip', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
     svc.deleteAttachment.mockResolvedValue({})
@@ -280,7 +282,7 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att').exists()).toBe(false)
   })
 
-  it('submit 带上 attachmentIds/attachmentRefs 并清空本地列表', async () => {
+  it('submit includes attachmentIds/attachmentRefs and clears local list', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'image', mime: 'image/png' })
     const w = mountComposer()
@@ -294,7 +296,7 @@ describe('AgentComposer 附件管线', () => {
     expect(w.find('.ctx-chip-att').exists()).toBe(false)
   })
 
-  it('切会话清空本地待发附件', async () => {
+  it('session switch clears local pending attachments', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     svc.uploadAttachment.mockResolvedValue({ id: 'a1', kind: 'text' })
     const w = mountComposer()
@@ -306,12 +308,12 @@ describe('AgentComposer 附件管线', () => {
   })
 })
 
-// SP8-P1c1 Task 11 — @提及/斜杠接线 + gitignore 409 确认框 describe 块,
-// 逐字取自 p1c1-task-11-brief.md Step 1(未改断言)。
-describe('AgentComposer @提及 / 斜杠', () => {
+// SP8-P1c1 Task 11 — @mention/slash wiring + gitignore 409 confirmation describe block,
+// verbatim from p1c1-task-11-brief.md Step 1 (assertions unchanged).
+describe('AgentComposer @mention / slash', () => {
   beforeEach(() => { setActivePinia(createPinia()); Object.values(svc).forEach((f: any) => f.mockClear?.()) })
 
-  it('输入 @ 触发提及面板;输入空格后关闭', async () => {
+  it('@ opens mention panel; space closes it', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -320,7 +322,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
   })
 
-  it('drill-in 把 "<name>/" 写回输入框并更新 segments', async () => {
+  it('drill-in writes "<name>/" back to input and updates segments', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('@Dr')
     await w.findComponent({ name: 'MentionPopover' }).vm.$emit('drill-in', { name: 'Drive1', kind: 'drive', resolvedPath: '/DATA' })
@@ -329,7 +331,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(w.findComponent({ name: 'MentionPopover' }).props('segments')).toEqual(['Drive1'])
   })
 
-  it('pick 文件:删掉 @token、调 addVisibleResource', async () => {
+  it('pick file: delete @token, call addVisibleResource', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     const spy = vi.spyOn(store, 'addVisibleResource').mockResolvedValue(undefined)
     const w = mountComposer()
@@ -340,7 +342,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(spy).toHaveBeenCalledWith('/DATA/a.txt', 'file', false)
   })
 
-  it('pick 命中 409 gitignore:弹确认框,确认后 force 重试', async () => {
+  it('pick hits 409 gitignore: show confirmation dialog, force retry after confirming', async () => {
     const store = useAgentStore(); store.activeSessionId = 'sess-1'
     const err = Object.assign(new Error('x'), { response: { status: 409, data: { detail: 'path blocked by .gitignore' } } })
     const spy = vi.spyOn(store, 'addVisibleResource').mockRejectedValueOnce(err).mockResolvedValueOnce(undefined)
@@ -355,7 +357,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(spy).toHaveBeenNthCalledWith(2, '/DATA/x', 'folder', true)
   })
 
-  it('pop-segment 弹掉最后一段', async () => {
+  it('pop-segment pops last segment', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('@Drive1/docs/')
     await w.findComponent({ name: 'MentionPopover' }).vm.$emit('pop-segment')
@@ -363,15 +365,15 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@Drive1/')
   })
 
-  // P1c2 debt 3 —— popSegment() 逐字对齐 Vue2 shell/AgentComposer.vue:412-428:
-  // 它*不*重新聚焦 textarea,而 drillIn(355-371)/pickItem(374-410)都会。这个
-  // 不对称此前没有任何断言钉住,一次"顺手补上 focus 调用"的编辑不会被任何测试
-  // 拦下。三条一起写,互为对照组:pop-segment 之后 activeElement 保持不是
-  // textarea,drill-in/pick 之后 activeElement 变回 textarea。用真实的
-  // `element.focus()`/`.blur()`(而非 `.trigger('focus')`,后者只派发合成事件、
-  // 不改变 `document.activeElement`)才能观测到这一点,需要
-  // `attachTo: document.body`(已是本文件 `mountComposer` 的默认挂载方式)。
-  it('pop-segment 之后不重新聚焦 textarea(与 drill-in/pick 的不对称,Vue2 412-428 特意如此)', async () => {
+  // P1c2 debt 3 — popSegment() verbatim alignment with Vue2 shell/AgentComposer.vue:412-428:
+  // it *doesn't* refocus textarea, but drillIn(355-371)/pickItem(374-410) do. This
+  // asymmetry had no assertion before, a "while I'm here" focus() addition wouldn't be
+  // caught. Write all three together as contrast groups: after pop-segment activeElement
+  // stays non-textarea, after drill-in/pick activeElement returns to textarea. Real
+  // `element.focus()`/`.blur()` (not `.trigger('focus')` which only dispatches synthetic
+  // event without changing `document.activeElement`) needed to observe, needs
+  // `attachTo: document.body` (already default mount in `mountComposer`).
+  it('pop-segment does not refocus textarea (asymmetry vs drill-in/pick, Vue2 412-428 by design)', async () => {
     const w = mountComposer()
     const taEl = w.find('textarea').element as HTMLTextAreaElement
     await w.find('textarea').setValue('@Drive1/docs/')
@@ -384,7 +386,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(document.activeElement).not.toBe(taEl)
   })
 
-  it('对照组:drill-in 之后重新聚焦 textarea', async () => {
+  it('contrast: drill-in refocuses textarea', async () => {
     const w = mountComposer()
     const taEl = w.find('textarea').element as HTMLTextAreaElement
     await w.find('textarea').setValue('@Dr')
@@ -395,7 +397,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(document.activeElement).toBe(taEl)
   })
 
-  it('对照组:pick 之后重新聚焦 textarea', async () => {
+  it('contrast: pick refocuses textarea', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     vi.spyOn(store, 'addVisibleResource').mockResolvedValue(undefined)
@@ -410,7 +412,7 @@ describe('AgentComposer @提及 / 斜杠', () => {
     expect(document.activeElement).toBe(taEl)
   })
 
-  it('提及面板打开时 Enter 不发送(交给面板处理)', async () => {
+  it('mention panel open: Enter does not send (handled by panel)', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -419,10 +421,11 @@ describe('AgentComposer @提及 / 斜杠', () => {
   })
 })
 
-// P1c-1 验收补丁 Task 1 —— 失焦关闭后重新聚焦/点击要能重开面板(Vue2 同样缺
-// @focus 处理器,按项目"逻辑跟正确性"规则修的缺陷,见 p1c1-patch-task-1-brief.md)。
-// 用例逐字取自 brief「测试要求」1-4,fake timers 用法对齐 AgentTopbar.test.ts。
-describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', () => {
+// P1c1 acceptance patch Task 1 — blur-close then refocus/click should reopen panel (Vue2
+// also lacks @focus handler, defect fixed per project "logic follows correctness" rule,
+// see p1c1-patch-task-1-brief.md). Cases verbatim from brief "test requirements" 1-4,
+// fake timers usage aligns with AgentTopbar.test.ts.
+describe('AgentComposer @mention panel focus/click resync (P1c1 patch)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
@@ -432,7 +435,7 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
     vi.useRealTimers()
   })
 
-  it('失焦→重新聚焦会重开面板', async () => {
+  it('blur → refocus reopens panel', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -448,7 +451,7 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
     expect(w.findComponent({ name: 'MentionPopover' }).props('query')).toBe('doc')
   })
 
-  it('重新聚焦时不重开无关面板', async () => {
+  it('refocus does not open unrelated panel', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('hello')
@@ -461,24 +464,24 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
   })
 
-  it('点击把光标移出 @ 词会关闭面板', async () => {
+  it('click moving caret out of @ word closes panel', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     const el = ta.element as HTMLTextAreaElement
     await ta.setValue('@Drive1/docs/ tail')
 
-    // Caret inside the @ segment, click there first — panel opens.
+    // Caret inside @ segment, click there first — panel opens.
     el.setSelectionRange(5, 5)
     await ta.trigger('click')
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
 
-    // Move the caret into ' tail' (outside the mention) and click again.
+    // Move caret to ' tail' (outside mention) and click again.
     el.setSelectionRange(el.value.length, el.value.length)
     await ta.trigger('click')
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
   })
 
-  it('聚焦会取消挂起的 blur 关闭', async () => {
+  it('focus cancels pending blur close', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -487,18 +490,18 @@ describe('AgentComposer @提及面板 focus/click 重新同步(P1c1 补丁)', ()
     await ta.trigger('focus')
     vi.advanceTimersByTime(200)
     await flushPromises()
-    // The pending blur timer must have been cancelled by focus — the panel
-    // stays open, it does not get closed a moment later by the stale timer.
+    // Pending blur timer must be cancelled by focus — panel stays open, doesn't
+    // close later by stale timer.
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
   })
 })
 
-// P1c-1 验收补丁 task 4 —— @ 提及词改为「状态跟踪」,而不是每次都从文字反推
-// (scanMention 一遇空白就 break)。NimoOS 的挂载点显示名 `System (/DATA)` 既含
-// 空格又含斜杠,钻进去之后原实现会在下一次 blur/focus 或任何一次按键时把面板判丢
-// ——用例逐字取自 .superpowers/sdd/p1c1-patch-task-4-brief.md「组件测试」1-6,
-// fake timers 用法对齐上面「focus/click 重新同步」describe 块。
-describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名含空格/斜杠)', () => {
+// P1c1 acceptance patch task 4 — @ mention word changed to "state tracking" instead of
+// re-deriving from text every time (scanMention breaks on whitespace). NimoOS mount point
+// name `System (/DATA)` has spaces and slashes; after drilling old impl loses panel on next
+// blur/focus or keystroke — cases verbatim from .superpowers/sdd/p1c1-patch-task-4-brief.md
+// "component tests" 1-6, fake timers usage aligns with focus/click resync describe above.
+describe('AgentComposer @mention word state tracking (P1c1 patch task 4, mount point with spaces/slashes)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
@@ -508,9 +511,9 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     vi.useRealTimers()
   })
 
-  /** 钻两层,复现用户报告的路径前缀:`@System (/DATA)/.system_data/`。
-   *  drillIn 是纯状态写入(buildDrillText 用 mentionStart/mentionSegs,不扫描
-   *  文本),所以这一步本身不受本补丁修的 bug 影响,可以直接当夹具用。 */
+  /** Drill two levels, repro user-reported path prefix: `@System (/DATA)/.system_data/`.
+   *  drillIn is pure state write (buildDrillText uses mentionStart/mentionSegs, no text
+   *  scan), so this step not affected by bug being fixed, can use directly as fixture. */
   async function drillIntoSpacedMount(w: ReturnType<typeof mountComposer>) {
     await w.find('textarea').setValue('@Sys')
     const pop = w.findComponent({ name: 'MentionPopover' })
@@ -520,7 +523,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     await w.vm.$nextTick()
   }
 
-  it('1. 用户原始复现:失焦隐藏、重新聚焦按记录的 segments/query 复原(不因空格丢面板)', async () => {
+  it('1. user original repro: blur hides, refocus restores by recorded segments/query (space doesn\'t lose panel)', async () => {
     const w = mountComposer()
     await drillIntoSpacedMount(w)
     expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('@System (/DATA)/.system_data/')
@@ -537,7 +540,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     expect(pop.props('query')).toBe('')
   })
 
-  it('2. 钻完再敲字符面板不掉(旧实现会因为 scanMention 遇空格 break 而关闭 —— 修复前此例必须失败)', async () => {
+  it('2. drill then type: panel doesn\'t drop (old impl breaks on space — must fail before fix)', async () => {
     const w = mountComposer()
     await drillIntoSpacedMount(w)
     const ta = w.find('textarea')
@@ -547,7 +550,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     expect(pop.props('query')).toBe('re')
   })
 
-  it('3. Esc 之后 focus 不复活', async () => {
+  it('3. after Esc, focus doesn\'t resurrect', async () => {
     const w = mountComposer()
     await drillIntoSpacedMount(w)
     const pop = w.findComponent({ name: 'MentionPopover' })
@@ -561,7 +564,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     expect(pop.props('open')).toBe(false)
   })
 
-  it('4. 发现规则不放宽:邮箱和句中孤立的 "@" 不触发', async () => {
+  it('4. discovery rule not widened: email and isolated @ don\'t trigger', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('me@host')
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
@@ -569,7 +572,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
   })
 
-  it('5. 切会话重置(而非只隐藏):面板关闭,且随后 focus 不会重开', async () => {
+  it('5. session switch resets (not just hides): panel closes, subsequent focus doesn\'t reopen', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     const w = mountComposer()
@@ -584,7 +587,7 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(false)
   })
 
-  it('6. 发送后重置:文本清空且随后 focus 不重开面板', async () => {
+  it('6. after send resets: text clears, subsequent focus doesn\'t reopen panel', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     const w = mountComposer()
@@ -600,20 +603,18 @@ describe('AgentComposer @提及词状态跟踪(P1c1 补丁 task 4,挂载点名�
   })
 })
 
-// SP8-P1c1 patch task 3 — retire the rejected full-screen SlashMenu, wire up
-// SlashPopover instead. Ten cases verbatim from
-// .superpowers/sdd/p1c1-patch-task-3-brief.md「测试要求」1-10. The old single
-// test above exercising SlashMenu + the "whole string is exactly '/'" trigger
-// rule was deleted (not just superseded) because that rule and that component
-// are exactly what this patch replaces — keeping it would either duplicate
-// coverage or force it to assert retired behavior.
-describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
+// SP8-P1c1 patch task 3 — retire rejected fullscreen SlashMenu, wire up SlashPopover
+// instead. Ten cases verbatim from .superpowers/sdd/p1c1-patch-task-3-brief.md
+// "test requirements" 1-10. Old single test exercising SlashMenu + "whole string is
+// exactly '/'" trigger rule deleted (not superseded) because rule and component are
+// exactly what patch replaces — keeping it would duplicate coverage or assert retired.
+describe('AgentComposer slash command panel (P1c1 patch task 3)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
   })
 
-  it('1. 开头的 "/" 才弹;句中的 "/" 不弹', async () => {
+  it('1. "/" at start opens; "/" in sentence doesn\'t', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('/')
@@ -626,7 +627,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(pop.props('open')).toBe(false)
   })
 
-  it('2. 边敲边筛:query 跟随输入更新', async () => {
+  it('2. type-as-filter: query updates with input', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('/in')
     const pop = w.findComponent({ name: 'SlashPopover' })
@@ -634,13 +635,13 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(pop.props('query')).toBe('in')
   })
 
-  it('3. command 阶段敲空格关闭', async () => {
+  it('3. command stage space closes', async () => {
     const w = mountComposer()
     await w.find('textarea').setValue('/init ')
     expect(w.findComponent({ name: 'SlashPopover' }).props('open')).toBe(false)
   })
 
-  it('4. 两阶段流程:pick-command 后文本变 "/init "、进入 target 阶段、folders 收到已授权目录', async () => {
+  it('4. two-stage flow: pick-command changes text to "/init ", enters target, folders gets authorized dirs', async () => {
     const store = useAgentStore()
     store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
     store.visibleResources.push({ id: 2, path: '/DATA/notes.txt', kind: 'file' })
@@ -654,7 +655,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(pop.props('folders').map((f: any) => f.path)).toEqual(['/DATA/docs'])
   })
 
-  it('5. 选目录即发送:pick-target 后 emit send-init 且输入框清空', async () => {
+  it('5. choose dir and send: pick-target emits send-init and clears input', async () => {
     const store = useAgentStore()
     store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
     const w = mountComposer()
@@ -667,7 +668,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect((w.find('textarea').element as HTMLTextAreaElement).value).toBe('')
   })
 
-  it('6. Esc 退层再退出:back() 回 command 阶段(文本 "/init"),再 close() 关闭面板', async () => {
+  it('6. Esc back then exit: back() to command stage (text "/init"), then close() closes panel', async () => {
     const store = useAgentStore()
     store.visibleResources.push({ id: 1, path: '/DATA/docs', kind: 'folder' })
     const w = mountComposer()
@@ -684,7 +685,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(pop.props('open')).toBe(false)
   })
 
-  it('7. 关掉后不自动重开;文本变了才重开', async () => {
+  it('7. closed doesn\'t auto-reopen; only reopens if text changes', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('/')
@@ -695,7 +696,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     await w.vm.$nextTick()
     expect(pop.props('open')).toBe(false)
 
-    // Re-sync without changing the text (e.g. a refocus) — must stay closed.
+    // Resync without changing text (e.g. refocus) — must stay closed.
     await ta.trigger('focus')
     expect(pop.props('open')).toBe(false)
 
@@ -703,7 +704,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(pop.props('open')).toBe(true)
   })
 
-  it('8. 面板打开时 Enter 不发送', async () => {
+  it('8. panel open: Enter doesn\'t send', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('/')
@@ -711,7 +712,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(w.emitted('send')).toBeFalsy()
   })
 
-  it('9. "@" 与 "/" 不同时打开', async () => {
+  it('9. @ and / don\'t open together', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('/')
@@ -721,7 +722,7 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
     expect(w.findComponent({ name: 'MentionPopover' }).props('open')).toBe(true)
   })
 
-  it('10. 切会话关闭斜杠面板', async () => {
+  it('10. session switch closes slash panel', async () => {
     const store = useAgentStore()
     const w = mountComposer()
     await w.find('textarea').setValue('/')
@@ -732,17 +733,17 @@ describe('AgentComposer 斜杠命令面板(P1c1 补丁 task 3)', () => {
   })
 })
 
-// P1c1 验收补丁 Task 5(2026-07-27,验收第 2 轮 Item A)—— Esc 关闭 @ 面板缺少
-// slashDismissedText 那样的"关闭后不自动重开"记忆:type '@doc' → Esc → 点回输入
-// 框 → onFocus → syncMentionFromCaret → scanMention 重新发现同一个 @doc token,
-// 面板不请自开。用例逐字对应 brief Item A 1-4。
-describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 轮 Item A)', () => {
+// P1c1 acceptance patch Task 5 (2026-07-27, round 2 Item A) — @ panel Esc close lacks
+// "closed doesn't auto-reopen" memory like slashDismissedText: type '@doc' → Esc → click
+// input → onFocus → syncMentionFromCaret → scanMention rediscovers same @doc token,
+// panel reopens uninvited. Cases match brief Item A 1-4 verbatim.
+describe('AgentComposer @mention panel Esc close memory (P1c1 acceptance patch round 2 Item A)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
   })
 
-  it('1. Esc 关闭后重新聚焦不复活', async () => {
+  it('1. after Esc close, refocus doesn\'t resurrect', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -757,7 +758,7 @@ describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 �
     expect(pop.props('open')).toBe(false)
   })
 
-  it('2. 关闭后文本变了才重开', async () => {
+  it('2. after close, reopens only if text changes', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -770,7 +771,7 @@ describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 �
     expect(pop.props('open')).toBe(true)
   })
 
-  it('3. 清空文本后重新打出全新 @ 词不会被旧记忆卡住', async () => {
+  it('3. clear text then retype new @ word, old memory doesn\'t block', async () => {
     const w = mountComposer()
     const ta = w.find('textarea')
     await ta.setValue('@doc')
@@ -784,7 +785,7 @@ describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 �
     expect(pop.props('open')).toBe(true)
   })
 
-  it('4. 钻取过的词被 Esc 关闭后同样不复活;切会话重置记忆后新词仍可打开', async () => {
+  it('4. drilled word after Esc doesn\'t resurrect; session switch resets, new word opens', async () => {
     const store = useAgentStore()
     store.activeSessionId = 'sess-1'
     const w = mountComposer()
@@ -809,31 +810,28 @@ describe('AgentComposer @提及面板 Esc 关闭记忆(P1c1 补丁验收第 2 �
   })
 })
 
-// P1c1 验收补丁 Task 5(2026-07-27,验收第 2 轮 Item B)—— drillIn 的 nextTick 里
-// `el.focus()` 会同步再入 onFocus → syncMentionFromCaret(见文件头注释已有先例),
-// 若这次再入发生在 `el.setSelectionRange(caretPos, caretPos)` 之前,读到的 caret
-// 会是 DOM 赋值 `.value` 后浏览器默认落到的字符串末尾,而不是钻取应该落回的位置
-// ——token 后面还有文字时,这会把尾部文字错误地当成 mentionQuery。用例逐字对应
-// brief Item B。
-describe('AgentComposer drillIn 光标数学(P1c1 补丁验收第 2 轮 Item B)', () => {
+// P1c1 acceptance patch Task 5 (2026-07-27, round 2 Item B) — drillIn's nextTick
+// `el.focus()` sync re-enters onFocus → syncMentionFromCaret (see header note, precedent),
+// if re-entry happens before `el.setSelectionRange(caretPos, caretPos)`, caret read is
+// browser default string end after DOM .value assignment, not where drill should land — when
+// text follows token, tail text wrongly becomes mentionQuery. Cases match brief Item B verbatim.
+describe('AgentComposer drillIn caret math (P1c1 acceptance patch round 2 Item B)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
   })
 
-  it('钻取时 token 后面还有文字:query 不能被尾部文字污染', async () => {
-    // Regression note: an earlier draft of this test checked props right after
-    // a single `await w.vm.$nextTick()` and passed *even against the buggy
-    // implementation* — that single tick observes a stale (pre-focus-handler)
-    // prop snapshot, before Vue's scheduler has flushed the render caused by
-    // the focus-triggered re-entrant sync. `flushPromises()` drains enough
-    // microtask rounds to observe the true converged state; without it this
-    // test is a false negative that can't catch the bug it's named for.
+  it('drill when token has text after: query not polluted by tail text', async () => {
+    // Regression note: earlier draft checked props after single `await w.vm.$nextTick()`
+    // and passed *even against buggy impl* — single tick sees stale (pre-focus-handler) prop
+    // snapshot, before Vue scheduler flushes render from focus-triggered re-entrant sync.
+    // `flushPromises()` drains microtask rounds to observe true converged state; without it
+    // test is false negative that can't catch the bug it's named for.
     const w = mountComposer()
     const ta = w.find('textarea')
     const el = ta.element as HTMLTextAreaElement
     await ta.setValue('@Dr tail')
-    el.setSelectionRange(3, 3) // caret 紧跟在 "@Dr" 之后,落在 " tail" 之前
+    el.setSelectionRange(3, 3) // caret right after "@Dr", before " tail"
     await ta.trigger('click')
     const pop = w.findComponent({ name: 'MentionPopover' })
     expect(pop.props('open')).toBe(true)
@@ -847,16 +845,16 @@ describe('AgentComposer drillIn 光标数学(P1c1 补丁验收第 2 轮 Item B)'
   })
 })
 
-// SP8-P3a 验收后追加 —— 「已挂载技能」提示条。逐字取自
-// .superpowers/sdd/p3a-post-skillbanner-brief.md §3。用真实 Pinia store(与本文件
-// 其余 describe 一致,未 mock agentStore),直接读写 store.pendingSkillId。
-describe('AgentComposer 已挂载技能提示条(SP8-P3a 验收后追加)', () => {
+// SP8-P3a post-acceptance addition — "mounted skill" banner. Verbatim from
+// .superpowers/sdd/p3a-post-skillbanner-brief.md §3. Uses real Pinia store (consistent
+// with rest of file, no agentStore mock), directly reads/writes store.pendingSkillId.
+describe('AgentComposer mounted skill banner (SP8-P3a post-acceptance)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((f: any) => f.mockClear?.())
   })
 
-  it('pendingSkillId 有值时渲染提示条,文案里含该 slug(在 <code> 里)', () => {
+  it('pendingSkillId has value: render banner, copy includes slug (in <code>)', () => {
     const store = useAgentStore()
     store.pendingSkillId = 'duplicate-sweeper'
     const w = mountComposer()
@@ -865,14 +863,14 @@ describe('AgentComposer 已挂载技能提示条(SP8-P3a 验收后追加)', () =
     expect(banner.find('code').text()).toBe('duplicate-sweeper')
   })
 
-  it('pendingSkillId 为 null 时整条不渲染', () => {
+  it('pendingSkillId null: banner not rendered', () => {
     const store = useAgentStore()
     store.pendingSkillId = null
     const w = mountComposer()
     expect(w.find('.pending-skill').exists()).toBe(false)
   })
 
-  it('点关闭按钮把 store.pendingSkillId 置 null,提示条消失', async () => {
+  it('click close button nulls store.pendingSkillId, banner disappears', async () => {
     const store = useAgentStore()
     store.pendingSkillId = 'duplicate-sweeper'
     const w = mountComposer()
@@ -882,20 +880,19 @@ describe('AgentComposer 已挂载技能提示条(SP8-P3a 验收后追加)', () =
     expect(w.find('.pending-skill').exists()).toBe(false)
   })
 
-  // 发送后自动消失:agentStore.ts:925-927 的 send() 才是真正消费/清空
-  // pendingSkillId 的地方(X-Skill-Id 头),而 AgentComposer 的 submit() 只
-  // emit('send') 交给父组件(AgentPage.vue)去调 store.send() —— 本文件按 brief
-  // 禁令不碰 AgentPage.vue/agentStore.ts 内部实现,也不适合在这里重新拼一套
-  // runAgentRun/SSE 的 mock 去驱动真实 send()。故只钉住 brief §3.4 允许的那一半:
-  // pendingSkillId 被清空后(不论谁清的),提示条靠 v-if 纯反应式消失,组件侧
-  // 不需要任何额外清理代码。
-  it('pendingSkillId 被清空后(模拟 send() 消费一次的效果),提示条自然消失', async () => {
+  // Auto-disappears after send: agentStore.ts:925-927 send() is what truly consumes/clears
+  // pendingSkillId (X-Skill-Id header), AgentComposer submit() only emits('send') to parent
+  // (AgentPage.vue) to call store.send() — per brief ban this file doesn't touch
+  // AgentPage.vue/agentStore.ts internals, impractical to re-mock runAgentRun/SSE to drive
+  // real send() here. So pin only half allowed by brief §3.4: after pendingSkillId cleared
+  // (by anyone), banner v-if purely reactively vanishes, component needs no cleanup code.
+  it('after pendingSkillId cleared (simulating send() consuming once), banner naturally disappears', async () => {
     const store = useAgentStore()
     store.pendingSkillId = 'duplicate-sweeper'
     const w = mountComposer()
     expect(w.find('.pending-skill').exists()).toBe(true)
 
-    // 模拟 agentStore.ts:927 `pendingSkillId.value = null // 消费一次`。
+    // Simulate agentStore.ts:927 `pendingSkillId.value = null // consume once`.
     store.pendingSkillId = null
     await flushPromises()
     expect(w.find('.pending-skill').exists()).toBe(false)

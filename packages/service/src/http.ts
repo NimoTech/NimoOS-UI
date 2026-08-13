@@ -2,7 +2,7 @@ import axios, { type AxiosInstance, type AxiosAdapter, type AxiosError, AxiosErr
 import type { ServiceConfig } from './config.js'
 import { setConfig, getConfig } from './config.js'
 
-// 默认 /v1;已带版本(/v1../v9..)或 http(s) 开头原样(对齐 api.js normalize)
+// Default to /v1; URLs already versioned (/v1../v9..) or starting with http(s) pass through as-is (aligned with api.js normalize)
 function withVersion(url: string): string {
   if (/^https?:\/\//.test(url)) return url
   if (/^\/v[1-9]/.test(url)) return url
@@ -23,7 +23,7 @@ function makeRefresher(instance: AxiosInstance, config: ServiceConfig): () => Pr
         return body.data.access_token
       }
     } catch {
-      // 刷新请求自身失败 → 落到下方 onAuthFail
+      // The refresh request itself failed → fall through to onAuthFail below
     }
     config.onAuthFail()
     throw new Error('token refresh failed')

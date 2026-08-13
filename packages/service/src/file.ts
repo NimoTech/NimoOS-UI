@@ -50,15 +50,15 @@ export function createFile(http: AxiosInstance, getToken: () => string | null) {
       return res.data
     },
     async getBytes(path: string): Promise<ArrayBuffer> {
-      // 走共享 axios(Authorization header + 401 单飞刷新)→ /v1/file(GetDownloadSingleFile,
-      // http.ServeContent 出原始字节 + checkPathAccess 权限校验)。ServeContent 非标准信封,
-      // 不能 unwrap;直接返回 res.data(ArrayBuffer)。真实路径进 param(下载/内容 API 铁律)。
+      // Goes through the shared axios (Authorization header + single-flight 401 refresh) → /v1/file (GetDownloadSingleFile,
+      // http.ServeContent emits raw bytes + checkPathAccess permission check). ServeContent is not the standard envelope,
+      // so no unwrap; return res.data (ArrayBuffer) directly. Real path goes in the param (iron rule for download/content APIs).
       const res = await http.get('/file', { params: { path }, responseType: 'arraybuffer' })
       return res.data as ArrayBuffer
     },
     async getPreviewBytes(path: string): Promise<ArrayBuffer> {
-      // 旧版 Office → 后端 LibreOffice 转 PDF(/v1/file/preview)。转换慢(~3s+),
-      // 覆盖 axios 默认 60s 超时为 150s(后端 120s 超时 + 余量)。走拦截器 401 自愈。
+      // Legacy Office → backend LibreOffice converts to PDF (/v1/file/preview). Conversion is slow (~3s+),
+      // so the axios default 60s timeout is raised to 150s (backend 120s timeout + margin). Uses the interceptor's 401 self-heal.
       const res = await http.get('/file/preview', { params: { path }, responseType: 'arraybuffer', timeout: 150000 })
       return res.data as ArrayBuffer
     },

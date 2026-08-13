@@ -1,54 +1,60 @@
 import os from 'node:os'
 import path from 'node:path'
 
-// ⚠️ 关于范围(E10):用户 2026-08-04 拍板 —— sp7-photos / sp8-ai 两支在快照发布后
-// 仍要合进 master。本清单目前只覆盖 master 上的 AI/相册残留面;两支合流后必须为
-// src/photos/** 与 src/ai/** 两个完整功能区扩张(路由、i18n 分片、数十个测试文件)。
-// 单源 + 导出脚本这套架构正是为此选的,不要退回一次性快照。
+// ⚠️ About scope (E10): user decision 2026-08-04 — sp7-photos / sp8-ai branches must be
+// merged into master after snapshot release. This manifest currently covers only the
+// AI/photos leftovers on master; after both branches merge, it must be expanded for the
+// complete src/photos/** and src/ai/** feature areas (routing, i18n shards, dozens of tests).
+// This single-source + export-script architecture was chosen for this reason — do not
+// revert to a one-time snapshot.
 
 const HERE = path.dirname(new URL(import.meta.url).pathname)
 export const OSS_DIR = HERE
 export const NEW_UI = path.resolve(HERE, '..')
-// 产出目录有两个,对应两种意图,**默认必须是安全的那个**:
-//   · PREVIEW_OUT —— 不带 --publish 时用。落在系统临时目录下,被 rsync --delete 清空
-//     也没有任何损失,想跑几遍跑几遍。
-//   · PUBLISH_OUT —— 只有显式 --publish 才用。这是**真实公开仓**,写进去意味着
-//     rsync --delete 覆盖它 + git commit --amend 改掉它的 HEAD。
+// There are two output directories corresponding to two intents; **the default must be safe**:
+//   · PREVIEW_OUT — used when --publish is not passed. Lands in the system temp directory,
+//     harmlessly cleared by rsync --delete, run it as many times as you want.
+//   · PUBLISH_OUT — only used with explicit --publish. This is the **real public repo**;
+//     writing to it means rsync --delete will overwrite it + git commit --amend will
+//     rewrite its HEAD.
 //
-// 🔴 这两个常量以前是**一个**(DEFAULT_OUT,直接指向公开仓)。2026-08-08 出过事故:
-// `node oss/export.mjs --help` —— 脚本既不认识 --help 又不校验未知参数,当成"没传参"
-// 处理,于是按默认值真的覆盖并提交了公开仓(4957653 → 548e53c,靠 reset --hard 还原,
-// GitHub 上的 origin/main 未受影响)。拆成两个常量 + 参数白名单是那次事故的修复:
-// **危险动作必须是显式的,安全动作才是默认的**。改动前先读 oss/cli-args.test.mjs。
+// 🔴 These two constants used to be **one** (DEFAULT_OUT, pointing directly to the public
+// repo). An accident occurred on 2026-08-08: `node oss/export.mjs --help` — the script
+// neither recognized --help nor validated unknown parameters, treating it as "no args",
+// so it actually overwrote and committed the public repo with default values
+// (4957653 → 548e53c, recovered via reset --hard; GitHub's origin/main was unaffected).
+// Splitting into two constants + a parameter whitelist was the fix for that accident:
+// **dangerous actions must be explicit, safe actions must be the default**. Read
+// oss/cli-args.test.mjs before making changes.
 export const PREVIEW_OUT = path.join(os.tmpdir(), 'nimoos-web-preview')
 export const PUBLISH_OUT = path.resolve(HERE, '../../NimoOS-Web')
 
-// 主工作树 index 里长期躺着 3 个 design-export/* 的删除态,不属任何一方(spec §10.3)
+// The main worktree index has long had 3 design-export/* in deleted state, belonging to neither side (spec §10.3)
 export const DIRTY_ALLOW = [/design-export\//]
 
-/** 类 1 · 整体删除。路径不存在即 exit 1(清单过期了要知道)。 */
+/** Category 1 · Full deletion. Path doesn't exist → exit 1 (we need to know if the manifest is stale). */
 export const DELETE = [
-  'oss',                                  // 第一条:机制自己不进产物
+  'oss',                                  // First item: the mechanism itself doesn't go into the output
 
-  // 主页:搜索面板 / 照片磁贴 / AI 组件
+  // Home: search panel / photo tile / AI component
   'src/home/components/SearchDialog.vue',
   'src/home/components/PhotoTile.vue',
   'src/home/components/widgets/AiWidget.vue',
   'src/home/stores/photos.ts',
   'src/home/apps/icons/photos.svg',
   'src/home/apps/icons/ai.svg',
-  // SP14 T9(d4d3771):knowledge 桌面磁贴用的图标,同属 AI 区,同一批删除。
+  // SP14 T9(d4d3771): knowledge desktop tile icon, also part of the AI area, same deletion batch.
   'src/home/apps/icons/knowledge.svg',
-  // 零消费方孤儿工具(T6 删完 bindPhotos、PhotoTile.vue 已在本表):
-  // src/home/stores/photos.test.ts 仍直接 import 它,但那份测试本身是
-  // "测试同步:整体删除的 9 个"之一(T13 填齐),不在本任务改动范围。
+  // Orphan utility with zero consumers (T6 deletes bindPhotos, PhotoTile.vue already in this table):
+  // src/home/stores/photos.test.ts still directly imports it, but that test file itself is
+  // one of the "test sync: 9 wholly deleted" (T13 completes this), not in this task's scope.
   'src/home/util/isAssetId.ts',
 
-  // 音频转录(waveform.ts 保留 —— 它解码 PCM 画真实波形,不涉 AI)
+  // Audio transcription (waveform.ts is kept — it decodes PCM to draw real waveforms, not AI-related)
   'src/files/viewers/audioTranscripts.ts',
   'src/files/viewers/speakerWave.ts',
 
-  // 设置「文件夹权限」整个 tab。folderBrowser 删完后零消费方(E3),一并删
+  // Settings "Folder Permissions" entire tab. After deleting folderBrowser, it has zero consumers (E3), delete together
   'src/settings/panels/FolderPermissionsPanel.vue',
   'src/settings/panels/folderPerm',
   'src/settings/util/folderPermissions.ts',
@@ -57,44 +63,48 @@ export const DELETE = [
   'src/settings/util/folderBrowser.ts',
   'src/settings/util/folderBrowser.test.ts',
 
-  // 文档 / AI 辅助开发痕迹 / 设计稿(E7/E8:用户拍板一份文档都不带)
+  // Documentation / AI dev tools traces / designs (E7/E8: user decided — no docs at all)
   'docs',
   'CLAUDE.md',
   'design-export',
 
-  // 各期台账(2026-08-05 起入库,见 .superpowers/.gitignore)。282 份报告里写满了
-  // 内部决策、后端接口实测、AI/相册/搜索的设计过程 —— 属于 E7「一份文档都不带」的范围,
-  // 只是它在 08-05 之前是 gitignore 的、git archive 拿不到,所以从前不用列。
+  // Ledgers across periods (checked in starting 2026-08-05, see .superpowers/.gitignore).
+  // 282 reports full of internal decisions, live-tested backend API endpoints, and design
+  // process for AI/photos/search — fall under E7 "not a single document included" scope.
+  // They were just gitignore'd before 08-05 so git archive couldn't fetch them; didn't need listing before.
   '.superpowers',
 
-  // SP9-P7:搜索面板的视图层纯函数模块 + composable。唯一消费方 SearchDialog.vue /
-  // SearchDialog.test.ts 都在本表里,整目录零消费方。
-  // ⚠️ 必须整目录删,不能只删词表命中的那几个:词表(forbidden.mjs 的 search 条目)只
-  //    命中 types.ts / reasons.ts / reasons.test.ts / buildSearchView.ts /
-  //    buildSearchView.test.ts,而 degrade.ts / degrade.test.ts / useSearchQuery.ts /
-  //    useSearchQuery.test.ts 一个词都不命中 —— 偏偏 useSearchQuery.ts 第 3 行
-  //    `import { buildSearchView } from './buildSearchView'`。只删命中的那批,产出树
-  //    的类型检查与测试必红,而泄漏守卫和 tree 测试全绿(它们只扫词、不构建产物)。
-  //    这正是 tree.test.mjs 末尾那道"产物树能构建"门存在的理由。
+  // SP9-P7: search panel's pure-function view layer modules + composable. Only consumer
+  // SearchDialog.vue / SearchDialog.test.ts already in this table, entire directory has zero consumers.
+  // ⚠️ Must delete the entire directory, not just words from the wordlist: the wordlist
+  //    (search entry in forbidden.mjs) only hits types.ts / reasons.ts / reasons.test.ts /
+  //    buildSearchView.ts / buildSearchView.test.ts, while degrade.ts / degrade.test.ts /
+  //    useSearchQuery.ts / useSearchQuery.test.ts don't hit any words — except useSearchQuery.ts
+  //    line 3 has `import { buildSearchView } from './buildSearchView'}`. Deleting only the
+  //    wordlist hits leaves the output tree's type-check and tests red, while the leak guard
+  //    and tree test stay green (they only scan words, don't build artifacts). That's why the
+  //    "output tree can build" gate at the end of tree.test.mjs exists.
   'src/home/search',
 
-  // ═══ SP7-P8b 合流(2026-08-05):相册区整块不进开源版 ═══════════════════════
-  // 本表开篇那条"两支合流后必须为 src/photos/** 扩张"的备注,兑现的就是这一段。
-  // 相册面 = 一个域目录 + 14 个视图 + 19 个视图测试 + 2 个 i18n 分片 + 1 道分片守卫。
-  // ⚠️ 逐条列、不用通配:DELETE 路径不存在即 exit 1,清单过期时要能立刻知道
-  //    (2026-08-05 清点结果:`ls src/views | grep -i photo` = 13、
-  //     `ls src/views/__tests__ | grep -i photo` = 16)。
+  // ═══ SP7-P8b merge (2026-08-05): entire photos area not in open-source version ═══════
+  // The note at the start of this table about "expanding src/photos/** after both branches merge"
+  // is fulfilled by this section. Photos area = one domain directory + 14 views + 19 view tests
+  // + 2 i18n shards + 1 shard guard. ⚠️ List each item, no wildcards: DELETE path doesn't exist
+  // → exit 1, we need to know immediately if the manifest is stale
+  //    (2026-08-05 count: `ls src/views | grep -i photo` = 13,
+  //     `ls src/views/__tests__ | grep -i photo` = 16).
   //    Recounted 2026-08-09 (SP15-P1): 14 views, and 19 view tests — 17 in views/__tests__/
   //    plus the 2 that SP15 put next to their views. The route/import counts below were
   //    recounted from src/router/index.ts at the same time.
-  'src/photos',                                   // 组件/store/composable/灯箱/util 全区
-  // i18n 分片:702 个 photos* 键。它们当初就是为了能在这里一行删掉才从主文件拆出来的
-  // (拆之前散在 90 多个区段,剥它们要约 90 条锚点补丁 × 2 语言,改一条文案就打红导出)。
+  'src/photos',                                   // components / store / composable / lightbox / util entire area
+  // i18n shard: 702 photos* keys. They were originally split out of the main file precisely
+  // so they could be deleted in one line here (before splitting, scattered across 90+ sections,
+  // removing them would require ~90 anchor patches × 2 languages, changing one line breaks the export).
   'src/i18n/zh_cn.photos.ts',
   'src/i18n/en_us.photos.ts',
-  'src/i18n/__tests__/photosSlice.test.ts',       // 守的是分片本身,分片没了它就无意义
-  // 这两份是**纯相册键**的 i18n 守卫(P8a 的 71 键清单 / P5 人物键抽样),分片删掉之后
-  // 它们断言的键一个都不存在,留着必红。
+  'src/i18n/__tests__/photosSlice.test.ts',       // guards the shard itself, meaningless without the shard
+  // These two are i18n guards for **pure photos keys** (P8a's 71-key inventory / P5's people-key sample),
+  // after the shard is deleted, none of the keys they assert on exist, leaving them will fail tests.
   'src/i18n/__tests__/p8aKeys.test.ts',
   'src/i18n/__tests__/people.i18n.test.ts',
   // 14 views (SP15-P1-T7 added PhotosMomentDetail.vue)
@@ -144,64 +154,72 @@ export const DELETE = [
   'src/views/__tests__/PhotosSmartViews.test.ts',
   'src/views/__tests__/PhotosTrash.test.ts',
 
-  // (搜索 demo 的鱼 public/demo/fish_video_poster.jpg 已于终审 cleanup 批从私有仓
-  //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
-  //  不存在会 exit 1,所以这条必须一并撤掉。)
+  // (Search demo's fish public/demo/fish_video_poster.jpg was directly deleted from the
+  //  private repo during final review cleanup — it's an orphan with zero references even in the
+  //  private version, no need for this manifest to strip it. DELETE entries that don't exist
+  //  will exit 1, so this item must be removed as well.)
 
-  // ═══ SP8-P6 合流(2026-08-06):AI 区整块不进开源版 ═══════════════════════════
-  // 本表开篇那条"两支合流后必须为 src/photos/** 与 src/ai/** 两个完整功能区扩张"的
-  // 备注,上一节兑现了相册那一半,这一节兑现 AI 那一半。开源版没有 AI 助手 / 知识库 /
-  // Parser / 技能 / MCP。
-  // 实测(2026-08-06):`find src/ai -type f | wc -l` = 276 —— 组件 / store / composable /
-  // 知识库 / parser / 技能 / MCP / 样式 / util / 类型 / 测试全部收在这一个域目录里
-  // (含 src/ai/styles/tokens.scss 那组 AI 专用 token),一条目录规则即整块剥除,
-  // 与相册的 'src/photos' 同一形状。
+  // ═══ SP8-P6 merge (2026-08-06): entire AI area not in open-source version ════════════
+  // The note at the start of this table about "expanding src/photos/** and src/ai/** after both
+  // branches merge" — the previous section fulfilled the photos half, this section fulfills the AI
+  // half. Open-source version has no AI assistant / knowledge base / Parser / skills / MCP.
+  // Live test (2026-08-06): `find src/ai -type f | wc -l` = 276 — components / store / composable /
+  // knowledge base / parser / skills / MCP / styles / util / types / tests all contained in one
+  // domain directory (including the AI-specific tokens in src/ai/styles/tokens.scss), one directory
+  // rule strips it all, same shape as photos' 'src/photos'.
   'src/ai',
-  // i18n 分片:AI 区那 1207 个 ai* 键。与相册分片同理 —— 当初从主文件拆出去,就是为了
-  // 这里能一行删掉,不必打上百条锚点补丁 × 2 语言(改一条 AI 文案就打红导出)。
+  // i18n shard: AI area's 1207 ai* keys. Same reasoning as the photos shard — originally split out
+  // of the main file precisely so they could be deleted in one line here, without needing ~100
+  // anchor patches × 2 languages (changing one AI string breaks the export).
   'src/i18n/zh_cn.ai.ts',
   'src/i18n/en_us.ai.ts',
-  // (shardDisjoint.test.ts **不在这里** —— 修复轮 1 撤回了原先的整体删除,改成
-  //  PATCH 成两片版保留,理由见下方 PATCH 段 SP8-P6-T7 那节的「两片版守卫」小节。)
-  // 整份文件是 **AI 文案**的 vue-i18n 语法守卫:13 个 describe 里 12 个直接点名
-  // aiComposer* / aiSlash* / aiSk* / aiKb*,这些键全在已删的 ai 分片里。
-  // 唯一看起来通用的末条「bare @ guard」(遍历全部键找未转义的 @)同样只服务 AI ——
-  // 实测 `grep -c "@"`:zh_cn.ai.ts 13 处、en_us.ai.ts 12 处,而 base / photos / sp9
-  // 这 6 个分片文件全是 0。产出树里它会遍历一组永远不含 @ 的键,是零判别力的空壳。
+  // (shardDisjoint.test.ts **is not here** — fix round 1 reverted the original wholesale deletion,
+  //  changed to PATCH-ed two-shard version, reason in the PATCH section below SP8-P6-T7 subsection
+  //  "two-shard guard". ) The entire file is a vue-i18n syntax guard for **AI copy**: 12 out of
+  //  13 describes directly mention aiComposer* / aiSlash* / aiSk* / aiKb*, all these keys are in
+  //  the deleted ai shard. The only one that looks generic, the final "bare @ guard"
+  //  (traverse all keys looking for unescaped @), also only serves AI — live test `grep -c "@"`:
+  //  zh_cn.ai.ts 13 occurrences, en_us.ai.ts 12 occurrences, while base / photos / sp9 these
+  //  6 shard files are all 0. In the output tree it will iterate over a set of keys that never
+  //  contains @, a zero-discriminant shell.
   'src/i18n/messageSyntax.test.ts',
 
-  // 测试同步:整体删除的 9 个孤儿测试(T13;每个都已核实其唯一/主要消费的模块已在
-  // 上面 DELETE 掉,不是"混合型",不能靠 PATCH 抠用例保留部分覆盖率——见 task-13-report.md)
-  'src/home/stores/photos.test.ts',                       // import photos.ts(已删)+ isAssetId.ts(已删)
-  'src/home/components/PhotoTile.test.ts',                // import PhotoTile.vue(已删)
-  'src/home/components/SearchDialog.test.ts',             // import SearchDialog.vue(已删)
-  'src/home/components/widgets/AiWidget.test.ts',         // import AiWidget.vue(已删)
-  'src/files/viewers/speakerWave.test.ts',                // import speakerWave.ts(已删)
-  'src/settings/panels/FolderPermissionsPanel.test.ts',   // import FolderPermissionsPanel.vue(已删)
-  'src/settings/util/folderPermissions.test.ts',          // import folderPermissions.ts(已删)
-  'src/settings/util/folderPermissionsSnapshot.test.ts',  // import folderPermissionsSnapshot.ts(已删)
-  'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(已删)
-  // FolderPickerDialog.test.ts 不用单列:它在 'src/settings/panels/folderPerm'(上面已整目录删除)里面。
+  // Test sync: 9 wholly deleted orphan tests (T13; each has been verified that its unique/primary
+  // consumer module has been DELETE'd above, not "mixed-type", cannot use PATCH to extract
+  // test cases to keep partial coverage — see task-13-report.md)
+  'src/home/stores/photos.test.ts',                       // import photos.ts(deleted) + isAssetId.ts(deleted)
+  'src/home/components/PhotoTile.test.ts',                // import PhotoTile.vue(deleted)
+  'src/home/components/SearchDialog.test.ts',             // import SearchDialog.vue(deleted)
+  'src/home/components/widgets/AiWidget.test.ts',         // import AiWidget.vue(deleted)
+  'src/files/viewers/speakerWave.test.ts',                // import speakerWave.ts(deleted)
+  'src/settings/panels/FolderPermissionsPanel.test.ts',   // import FolderPermissionsPanel.vue(deleted)
+  'src/settings/util/folderPermissions.test.ts',          // import folderPermissions.ts(deleted)
+  'src/settings/util/folderPermissionsSnapshot.test.ts',  // import folderPermissionsSnapshot.ts(deleted)
+  'src/settings/util/folderPermissionsView.test.ts',      // import folderPermissionsView.ts(deleted)
+  // FolderPickerDialog.test.ts doesn't need to be listed separately: it's inside
+  // 'src/settings/panels/folderPerm' (already directory-deleted above).
 
-  // src/home/apps/systemApps.test.ts 不再整体删除 —— 见下面 PATCH 段。任务复审
-  // Important:这份 DELETE 的旧理由("只有两条 knowledge 用例")已经过期,SP18 给
-  // 这份文件加了 kvm+terminal 的服务门控 describe(公开面功能,terminal 磁贴与
-  // kvm 磁贴都原样保留在开源版里)。整体删除会让开源版把 terminal 磁贴的门控行为
-  // 发布出去却零测试覆盖,连带静默丢掉本来就该保留的 kvm 门控用例——改成 PATCH,
-  // 只摘掉 knowledge 专属的 describe 块,kvm/terminal 那个 describe 原样保留。
+  // src/home/apps/systemApps.test.ts is no longer wholly deleted — see PATCH section below. Task review
+  // Important: this DELETE's old reason ("only two knowledge test cases") is now stale. SP18 added
+  // service gating describes for kvm+terminal (public-facing features; terminal and kvm tiles both
+  // stay in the open-source version as-is). Wholesale deletion would publish the open-source version
+  // with terminal tile gating behavior but zero test coverage, while silently discarding the kvm
+  // gating tests that should be kept. Changed to PATCH: only remove the knowledge-specific
+  // describe block, keep the kvm/terminal describe block as-is.
 ]
 
-/** Service 侧的整体删除(相对 packages/service/)。 */
+/** Service side wholesale deletion (relative to packages/service/). */
 export const SERVICE_DELETE = [
   'src/photos.ts',
   'src/photos.test.ts',
-  // SP7-P8b 合流(2026-08-05):P0 把 photos 域从 4 个方法扩到 60+,测试也跟着按子域拆成
-  // 6 个文件。旧清单只列了 photos.test.ts,这 6 个是新增的 —— 漏了它们,内嵌共享包里会
-  // 留下整套相册接口测试(泄漏守卫实测命中 303 处,过半出自这里)。
+  // SP7-P8b merge (2026-08-05): P0 expanded the photos domain from 4 methods to 60+, tests also
+  // split into 6 files by subdomain. Old manifest listed only photos.test.ts, these 6 are new —
+  // missing them leaves the entire photos interface test suite in the inlined shared package
+  // (leak guard found 303 hits, over half from here).
   'src/photos.albums.test.ts',
   'src/photos.favorites.test.ts',
   // SP15-P1-T1/T2 added a seventh sibling and did not list it here, so the leak guard has been
-  // red since (`oss/tree.test.mjs > 泄漏守卫 > 不带 --skip-guard 也能跑通`, 5 hits in this one
+  // red since (`oss/tree.test.mjs > leak guard > can pass even without --skip-guard`, 5 hits in this one
   // file). Same omission the comment above describes, same remedy.
   'src/photos.moments.test.ts',
   'src/photos.persons.test.ts',
@@ -215,31 +233,34 @@ export const SERVICE_DELETE = [
   'src/photos.convert.test.ts',
   'src/photos.uploads.test.ts',
   'src/photos.views.test.ts',
-  // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
-  // 唯一消费方是已删的 SearchDialog.vue / src/home/search/**。
-  // 光删这两个文件不够 —— index.ts 里还有三处接线(见下方 SERVICE_PATCH),
-  // 不打那三个补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试全绿。
+  // SP9-P7: search domain (agentTool four-source aggregation + normalization). Open-source version
+  // has no Search/AI service, only consumer is deleted SearchDialog.vue / src/home/search/**.
+  // Just deleting these two files isn't enough — index.ts still has three connection points
+  // (see SERVICE_PATCH below), without those three patches the inlined shared package fails to build,
+  // while the wordlist guard and tree test stay green.
   'src/search.ts',
   'src/search.test.ts',
 
-  // SP8-P6-T8(2026-08-06):Service 仓自己的台账目录。
-  // 私有侧 2026-08-05 起把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
-  // New-UI 那份当时就进了上面的 DELETE 表(第 54 行),**Service 这份一直漏着** ——
-  // `git archive HEAD` 会把 32 份 SP7 期台账原样带进 packages/service/。
-  // 实测:产物树泄漏命中 977 处里有 437 处出自这一个目录。既有问题、不是本刀造成的,
-  // 但它就在 SERVICE_DELETE 的地盘上,一并补。
+  // SP8-P6-T8 (2026-08-06): Service repo's own ledger directory. Starting 2026-08-05 the
+  // private side moved .superpowers/ out of gitignore into the repo (ledgers were lost once),
+  // the New-UI version went into the DELETE table above at line 54, **Service version has been
+  // missing this** — `git archive HEAD` will bring 32 SP7-period ledgers as-is into packages/service/.
+  // Live test: 437 out of 977 leak guard hits come from this one directory. Pre-existing problem,
+  // not caused by this knife, but it's on SERVICE_DELETE's territory, fixing it here too.
   '.superpowers',
 
-  // SP8-P6-T8(2026-08-06):AI 域四个模块 + 各自的测试。
-  // 开源版没有 AI 助手 / 知识库 / 笔记 / Wiki 导航。取证(见 p6-task-8-report.md):
-  //   · service.ai / service.notes / service.wiki 的调用点**全部**落在已删的 src/ai/**;
-  //   · 具名导出 isDistillableName / DISTILL_EXTS / createRootBody 同上;
-  //   · sse.ts 是通用 SSE 助手,但 Service 仓内除 index.ts 的再导出外无人 import 它,
-  //     消费端 sseRequest 的两个调用点(src/ai/services/agentTransport.ts、
-  //     skillTestTransport.ts)也都在 src/ai/** 里 —— 删掉 AI 域后 sse.ts 即成孤儿。
-  // 🔴 只删这八个文件不够:index.ts 里还有 13 处接线(4 import + 1 具名导出项 +
-  // 3 条 export…from + 2 条 export type + 3 个 getter),见下方 SERVICE_PATCH。
-  // 不打那些补丁的话内嵌共享包直接构建失败,而词表守卫与 tree 测试可能全绿。
+  // SP8-P6-T8 (2026-08-06): AI domain's four modules + their tests. Open-source version has no
+  // AI assistant / knowledge base / notes / Wiki navigation. Evidence (see p6-task-8-report.md):
+  //   · service.ai / service.notes / service.wiki call points **all** land in deleted src/ai/**;
+  //   · Named exports isDistillableName / DISTILL_EXTS / createRootBody same as above;
+  //   · sse.ts is a general SSE helper, but in the Service repo only index.ts re-exports it,
+  //     nobody else imports it; the two call points of sseRequest consumer
+  //     (src/ai/services/agentTransport.ts, skillTestTransport.ts) are both in src/ai/** —
+  //     after deleting the AI domain, sse.ts becomes an orphan.
+  // 🔴 Just deleting these eight files isn't enough: index.ts still has 13 connection points
+  // (4 imports + 1 named export item + 3 export…from + 2 export type + 3 getters),
+  // see SERVICE_PATCH below. Without those patches the inlined shared package fails to build,
+  // while the wordlist guard and tree test might stay green.
   'src/ai.ts',
   'src/ai.test.ts',
   'src/notes.ts',
@@ -250,39 +271,45 @@ export const SERVICE_DELETE = [
   'src/wiki.test.ts',
 ]
 
-/** 类 2 · 整文件替换,各带私有侧哈希钉。T10-T13 填。 */
+/** Category 2 · Whole-file replacement, each pinned with private-side hash. T10-T13 filled. */
 export const REPLACE = [
-  // T9:桌面默认布局重排(开源版无照片磁贴/AI 组件,坐标整体重排,PATCH 无可继承内容)
+  // T9: home default layout reorder (open-source has no photo tiles / AI components,
+  // coordinates fully reordered, PATCH has no inheritable content)
   //
-  // SP14 T9(commit d4d3771)复核:私有侧新增一条 `{ kind: 'app', key: 'knowledge', c: 10,
-  // r: 2, ... }`(见 task-9 报告)—— knowledge 是 AI 区磁贴,`oss/files/defaultLayout.ts`
-  // 本就不含任何 photos/ai 磁贴(整份布局早已重排,见上一行注释),所以这次漂移**不需要**
-  // 同步 OSS 侧,只需把下面的哈希钉更新为新值(已现场核过 `oss/files/defaultLayout.ts`
-  // 内容,不是删哈希钉绕过检查)。
+  // SP14 T9 (commit d4d3771) review: private side adds one `{ kind: 'app', key: 'knowledge', c: 10,
+  // r: 2, ... }` (see task-9 report) — knowledge is an AI-area tile, `oss/files/defaultLayout.ts`
+  // doesn't contain any photos/ai tiles to begin with (the entire layout was reordered long ago,
+  // see previous line comment), so this drift **doesn't need** to sync the OSS side, just update
+  // the hash pin below to the new value (verified on-site with `oss/files/defaultLayout.ts` content,
+  // not bypassing the check by deleting the pin).
   { path: 'src/home/grid/defaultLayout.ts', from: 'defaultLayout.ts',
     privateSha256: '952b6427d6e61832395b6133cb9e51e2c2747dcf98c7c6a2d4d7788b016cba34' },
 
-  // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
-  // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
+  // T10: MediaViewer splits transcript panel (summary / transcript / Ask three tabs, speaker
+  // color-coding, chapter filtering all deleted; keeps custom player + real waveform +
+  // video / image paths + cover metadata)
   { path: 'src/files/viewers/MediaViewer.vue', from: 'MediaViewer.vue',
     privateSha256: 'a82ed56d908a27a0a00f4fa325c3d2d300fb551c453202af18732a8e88944031' },
 
-  // T11:AddPanel 去照片 tab(模板块 + tab 定义 + usePhotosStore 声明/import +
-  // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
+  // T11: AddPanel remove photos tab (template block + tab definition + usePhotosStore
+  // declaration / import + .lib-photo-* styles all deleted together; around line 409
+  // ic-photos comment changed to generic wording)
   { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
     privateSha256: '948b9dcae47cef319b93342e551a4f1dd65e358c63174df525dd457f44d656fe' },
 
-  // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
-  // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
+  // T12: README rewrite (targeting external developers; private version talks about
+  // coexisting with Vue 2 / strangler migration / parallel Service cloning — different
+  // audience and the last two are both fake in the open-source package, no inheritable content,
+  // entire file replacement)
   { path: 'README.md', from: 'README.md',
     privateSha256: 'bc30420593910b48cc5750dc759d646bea8db62a24ff400d1763e106f243c155' },
 ]
 
-/** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
+/** Category 3 · Anchor patches. Match count must be exactly 1. T6-T9 filled. */
 export const PATCH = [
-  // ═══════════════════ T6:桌面(home)侧 ═══════════════════════════════════
+  // ═══════════════════ T6: home side ═══════════════════════════════════
 
-  // ── systemApps.ts:去 photos / ai 两条系统应用 + import + glyph ──────────
+  // ── systemApps.ts: remove photos / ai two system apps + import + glyph ──────────
   { path: 'src/home/apps/systemApps.ts',
     find: "import iconPhotos from './icons/photos.svg'\nimport iconAi from './icons/ai.svg'\n",
     replace: '' },
@@ -296,8 +323,8 @@ export const PATCH = [
     find: "  { key: 'photos', name: 'Photos', label: 'appPhotos', cls: 'ic-photos', glyph: G.photos, icon: iconPhotos },\n  { key: 'ai', name: 'AI', label: 'appAi', cls: 'ic-ai', glyph: G.ai, icon: iconAi },\n",
     replace: '' },
 
-  // ── systemApps.ts:去 knowledge 系统应用(SP14 T9,commit d4d3771)── 同上一段
-  //    photos/ai 的处理是同一批加进来的第三条系统应用,同样按 import/glyph/条目三处摘除。
+  // ── systemApps.ts: remove knowledge system app (SP14 T9, commit d4d3771) — same as previous section
+  //    photos/ai handling is the third system app in the same batch, also remove in three places: import/glyph/item.
   { path: 'src/home/apps/systemApps.ts',
     find: "import iconKnowledge from './icons/knowledge.svg'\n",
     replace: '' },
@@ -308,17 +335,18 @@ export const PATCH = [
     find: "  { key: 'knowledge', name: 'Knowledge', label: 'appKnowledge', cls: 'ic-knowledge', glyph: G.book, icon: iconKnowledge },\n",
     replace: '' },
 
-  // ── systemApps.test.ts:只摘 knowledge 专属 describe(任务复审 Important,见上面
-  //    DELETE 表的注释)—— 这份文件不再整体删除。knowledge 的两条用例都要去掉:
-  //    第一条直接断言 `a.key === 'knowledge'` / `'appKnowledge'`,第二条("keys are
-  //    unique")本身与 knowledge 无关,只是恰好挂在同一个 describe 下,把它提出来
-  //    保留(用的是 SYSTEM_APP_KEYS,不摘的话这个 import 会变成死代码)。摘完之后
-  //    紧接着的 kvm/terminal 门控 describe 原样不动 —— 它是公开面功能(kvm 磁贴与
-  //    SP18 新增的 terminal 磁贴都留在开源版里),不受这条 PATCH 影响,也不受下面
-  //    FORBIDDEN 词表守卫约束(那条守卫只查 REPLACE 与 PATCH.replace 的字面内容,
-  //    这段 describe 标题里的 "SP17"/"SP18" 是原文保留、不是本条 PATCH 写入的,
-  //    与 src/home/stores/apps.test.ts 那份原样导出的 "KVM tile gating (SP17 #125)"
-  //    describe 是同一情形)。
+  // ── systemApps.test.ts: only extract knowledge-specific describe (task review Important,
+  //    see comment in DELETE table above) — this file is no longer wholly deleted. Both knowledge
+  //    test cases must be removed: the first directly asserts `a.key === 'knowledge'` /
+  //    `'appKnowledge'`, the second ("keys are unique") itself doesn't relate to knowledge,
+  //    just happens to be in the same describe, extract it and keep it (uses SYSTEM_APP_KEYS;
+  //    without extracting it this import becomes dead code). After extraction, the following
+  //    kvm/terminal gating describe stays as-is — it's a public-facing feature (kvm tile and
+  //    SP18's new terminal tile stay in the open-source version), not affected by this PATCH
+  //    nor the FORBIDDEN wordlist guard below (that guard only checks literal content of REPLACE
+  //    and PATCH.replace; the "SP17"/"SP18" in this describe title is original text kept, not
+  //    written by this PATCH, same situation as the "KVM tile gating (SP17 #125)" describe
+  //    exported as-is from src/home/stores/apps.test.ts).
   { path: 'src/home/apps/systemApps.test.ts',
     find: `describe('SYSTEM_APPS -- knowledge (SP14 #98)', () => {
   it('knowledge is registered with an i18n label and an icon', () => {
@@ -336,18 +364,19 @@ export const PATCH = [
   expect(new Set(SYSTEM_APP_KEYS).size).toBe(SYSTEM_APP_KEYS.length)
 })` },
 
-  // ── useDock.ts:DEFAULT_FAV 换成开源版的 4 项(补上 storage —— 它在开源版
-  //    的默认桌面上没有磁贴,Dock 是唯一入口) ─────────────────────────────
+  // ── useDock.ts: swap DEFAULT_FAV to open-source's 4 items (add storage — it has no tile
+  //    on the open-source default desktop, Dock is the only entry point) ─────────────────────────────
   { path: 'src/home/composables/useDock.ts',
     find: "const DEFAULT_FAV = ['files', 'photos', 'ai', 'vm', 'appstore']",
     replace: "const DEFAULT_FAV = ['files', 'storage', 'vm', 'appstore']" },
 
-  // ── useOpenAction.ts:SYS_ROUTE 拍成内部路由(§8.2 的有意偏离)──────────
-  //    ⚠️ SP8-P6-T7 重抓锚点:T5(c547c9d)的 AI cutover 把本文件四处都改了 ——
-  //    注释多了 AI 区那一段、SYS_ROUTE 多了 ai 一条、cutoverDisabled 注释多了 /ai 一行、
-  //    openApp 多了 ai 分支、openItem 的 widget 分支与 sendToAI 整体重写。四条既有锚点
-  //    因此全部 hits=0。下面是 T5 之后现场 sed 抓到的逐字文本;replace 侧一律不变
-  //    (开源版的目标形态与 SP9-P8 那轮定下的一致:无 cutover flag、无 AI、无相册)。
+  // ── useOpenAction.ts: nail SYS_ROUTE to internal routes (intentional deviation at §8.2) ──────────
+  //    ⚠️ SP8-P6-T7 re-captures anchor: T5(c547c9d)' AI cutover changed four places here —
+  //    comment added AI section, SYS_ROUTE added ai, cutoverDisabled comment added /ai line,
+  //    openApp added ai branch, openItem's widget branch and sendToAI completely rewritten.
+  //    Four existing anchors thus all hit=0. Below is T5's post-sed on-site exact text;
+  //    replace side stays unchanged (open-source target state matches SP9-P8 round: no cutover flag,
+  //    no AI, no photos).
   { path: 'src/home/composables/useOpenAction.ts',
     find: `// 文件区(/files,SP4-P8)、应用区(/apps,SP5-P8)、存储区(/storage,SP6-P1)、相册区
 // (/photos,SP7-P8b)、系统设置(/settings)与 KVM(/kvm,两者 SP9-P8)、AI 区(/ai,SP8-P6)
@@ -380,18 +409,24 @@ function cutoverDisabled(from: string): boolean {
   try { return localStorage.getItem(\`strangler:disabled:\${from}\`) === '1' } catch { return false }
 }`,
     replace: '' },
-  // SP14 T9(commit d4d3771)重抓锚点,03e6ba1 又把 knowledge 分支上方的解释性注释从
-  // 3 行拉长到 7 行,同一个六行代码 + 注释 + knowledge 分支的大锚点两期内碎了两次——
-  // 碎因都不是代码变了,是注释被改写/加长。原来这是一条从 appstore 到 tail 的单一
-  // find/replace,注释文本被夹在中间,锚点体量因此跟着注释一起膨胀,每次改注释都要
-  // 重新过一遍整段 replace。拆成三条,把"会变"和"不会变"分开:
-  //   A —— appstore..ai 六行 if,纯代码,两次注释改写都没动过它,不会再因为改注释碎。
-  //   B1 —— knowledge 分支上方那段解释性注释,单独摘掉;它是唯一真正会变的部分,
-  //         下次被改写只碎这一条,四行触达,不牵连 A/B2。
-  //   B2 —— knowledge 分支 + 尾部兜底,纯代码,同样不含注释文本。
-  // 这是 apply.mjs 纯字面子串匹配(无正则)能做到的极限:删除注释这件事本身必须
-  // 逐字匹配到被删的注释,做不到"锚点完全免疫于注释重写";能做的只是不让它
-  // 拖着两侧的代码锚点一起碎。三条拼起来产出与拆分前逐字相同。
+  // SP14 T9 (commit d4d3771) re-captured anchor; 03e6ba1 stretched the explanatory comment
+  // above the knowledge branch from 3 lines to 7 lines. The same six-line code + comment +
+  // knowledge branch's big anchor broke twice within two releases — the breakage wasn't code
+  // changes, it was comment rewrites / lengthening. Originally this was a single find/replace
+  // from appstore to tail, comment text was sandwiched in the middle, so the anchor size
+  // ballooned with the comment, requiring a full re-paste of the replace every time the
+  // comment changed. Split into three: separate "what changes" from "what stays":
+  //   A — appstore..ai six-line if, pure code, two comment rewrites never touched it,
+  //       won't break again from comment changes.
+  //   B1 — the explanatory comment above the knowledge branch, extract separately; it's the
+  //        only part that actually changes; next rewrite only breaks this one, four lines,
+  //        doesn't drag A/B2 down.
+  //   B2 — knowledge branch + tail fallback, pure code, no comment text.
+  // This is the limit of apply.mjs's pure literal substring matching (no regex): deleting
+  // a comment requires character-exact matching to the deleted comment text, can't achieve
+  // "anchor completely immune to comment rewrites"; best we can do is not let it drag the
+  // code anchors on both sides into breaking. Three conditions spliced together output
+  // character-identical to before the split.
   { path: 'src/home/composables/useOpenAction.ts',
     find: `      if (key === 'appstore' && !cutoverDisabled('/apps')) { router.push('/apps/store'); return }
       if (key === 'storage' && !cutoverDisabled('/storage')) { router.push('/storage'); return }
@@ -399,10 +434,11 @@ function cutoverDisabled(from: string): boolean {
       if (key === 'settings' && !cutoverDisabled('/settings')) { router.push('/settings'); return }
       if (key === 'vm' && !cutoverDisabled('/kvm')) { router.push('/kvm'); return }
       if (key === 'ai' && !cutoverDisabled('/ai')) { router.push('/ai/agent'); return }`,
-    // 开源版没有任何 cutover flag(私有主干那几个分支全靠 cutoverDisabled 才存在),
-    // 而 settings / vm 在开源版的 SYS_ROUTE 里已经指向应用内路由(/settings、/kvm)——
-    // 所以这两个 key 由 B2 兜底的 router.push(SYS_ROUTE[key] || '/') 即可,不再重复
-    // 写成两个 if(那只是一层无谓的间接)。photos / ai 在开源版整个不存在。
+    // Open-source has no cutover flag at all (the private trunk branches rely entirely on
+    // cutoverDisabled), and settings / vm in open-source's SYS_ROUTE already point to
+    // in-app routes (/settings, /kvm) — so these two keys can rely on B2's router.push
+    // (SYS_ROUTE[key] || '/') to work, no need to duplicate them as two if statements
+    // (that's just a needless layer of indirection). photos / ai don't exist in open-source at all.
     replace: `      if (key === 'appstore') { router.push('/apps/store'); return }
       if (key === 'storage') { router.push('/storage'); return }` },
   { path: 'src/home/composables/useOpenAction.ts',
@@ -465,12 +501,12 @@ function cutoverDisabled(from: string): boolean {
 
   return { openApp, openItem }` },
 
-  // ── grid/types.ts:Kind 去 'photo' ────────────────────────────────────────
+  // ── grid/types.ts: Kind remove 'photo' ────────────────────────────────────────
   { path: 'src/home/grid/types.ts',
     find: "export type Kind = 'widget' | 'app' | 'folder' | 'photo' | 'appwidget'",
     replace: "export type Kind = 'widget' | 'app' | 'folder' | 'appwidget'" },
 
-  // ── registry.ts:WIDGETS.ai + ICON.ai ────────────────────────────────────
+  // ── registry.ts: WIDGETS.ai + ICON.ai ────────────────────────────────────
   { path: 'src/home/widgets/registry.ts',
     find: "  ai: '<path d=\"M12 3.5c.45 3.3 1.7 4.55 5 5-3.3.45-4.55 1.7-5 5-.45-3.3-1.7-4.55-5-5 3.3-.45 4.55-1.7 5-5Z\"/>',\n",
     replace: '' },
@@ -478,7 +514,7 @@ function cutoverDisabled(from: string): boolean {
     find: "  ai:      { title: 'widgetAiTitle', icon: ICON.ai, desc: 'widgetAiDesc', min: [2, 2], max: [4, 4], default: [4, 4] },\n",
     replace: '' },
 
-  // ── WidgetCard.vue:一行 + import(churn 高,绝不整文件替换)──────────────
+  // ── WidgetCard.vue: one line + import (high churn, never whole-file replace) ──────────────
   { path: 'src/home/components/widgets/WidgetCard.vue',
     find: "import AiWidget from './AiWidget.vue'\n", replace: '' },
   { path: 'src/home/components/widgets/WidgetCard.vue',
@@ -507,9 +543,10 @@ function cutoverDisabled(from: string): boolean {
   { path: 'src/home/components/MobileHome.vue',
     find: '.m-photo { grid-column: span 2; grid-row: span 2; }\n', replace: '' },
 
-  // ── layout.ts:bindPhotos 函数体 + return 导出 ──────────────────────────
-  // brief 原锚点只摘了 return{} 里的导出名,函数体本身(第 87-97 行,引用
-  // isAssetId 与 kind === 'photo')会留下来 —— 现场 sed 取出整段一并删除。
+  // ── layout.ts: bindPhotos function body + return export ──────────────────────────
+  // The original anchor in the brief only extracted the export name in return{}, the function
+  // body itself (lines 87-97, referencing isAssetId and kind === 'photo') will be left behind —
+  // on-site sed extracted the entire block and deleted it together.
   { path: 'src/home/stores/layout.ts',
     find: `  function bindPhotos(ids: (string | number)[]) {
     let i = 0
@@ -527,12 +564,13 @@ function cutoverDisabled(from: string): boolean {
     replace: '' },
   { path: 'src/home/stores/layout.ts',
     find: ', bindPhotos,', replace: ',' },
-  // 复审 Important③:bindPhotos 函数体没了之后,isAssetId 变成死 import(该文件
-  // 只有 bindPhotos 用它)。isAssetId.ts 这个文件本身归 DELETE 表处理,不在此改。
+  // Review Important③: after bindPhotos function body is gone, isAssetId becomes dead import
+  // (only bindPhotos in this file uses it). The isAssetId.ts file itself is handled by the
+  // DELETE table, not changed here.
   { path: 'src/home/stores/layout.ts',
     find: "import { isAssetId } from '../util/isAssetId'\n", replace: '' },
 
-  // ── homeUi.ts:search 四项 ───────────────────────────────────────────────
+  // ── homeUi.ts: search four items ───────────────────────────────────────────────
   { path: 'src/home/stores/homeUi.ts',
     find: "  // Global search palette (SearchDialog). Opened by the topbar search button and ⌘K/Ctrl+K.\n  const searchOpen = ref(false)\n",
     replace: '' },
@@ -543,8 +581,8 @@ function cutoverDisabled(from: string): boolean {
     find: '  return { editing, searchOpen, spawnGhost, toggleEdit, setSearch, openSearch, closeSearch, showToast }',
     replace: '  return { editing, spawnGhost, toggleEdit, showToast }' },
 
-  // ── HomeTopbar.vue:搜索胶囊按钮 + ⌘K 监听 + .search-btn 样式(brief 未给
-  //    逐字文本,现场 sed 取出) ─────────────────────────────────────────
+  // ── HomeTopbar.vue: search capsule button + ⌘K listener + .search-btn styles (brief didn't
+  //    give exact text, on-site sed extracted) ─────────────────────────────────────────
   { path: 'src/home/components/HomeTopbar.vue',
     find: `      <button class="bar-btn search-btn" :aria-label="t('topbarSearch')" :title="t('topbarSearchKbd')" @click="homeUi.openSearch()">
         <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.5" y2="16.5" /></svg>
@@ -569,19 +607,21 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 `,
     replace: '' },
-  // 复审 Important①:上面 3 条删掉了搜索胶囊与 ⌘K 监听,但这条中文注释原文
-  // "...保留搜索与主题切换" 完全没被摘到 —— 会作为静默泄漏(oss/forbidden.mjs
-  // 的中文词表目前没有"搜索")随包发布。词表本身的修补是另一个任务的活,这里
-  // 只改措辞,不提搜索。
+  // Review Important①: the above 3 patches removed the search capsule and ⌘K listener, but
+  // this Chinese comment's original text "...keep search and theme toggle" was completely
+  // not extracted — it will ship as a silent leak (the Chinese wordlist in oss/forbidden.mjs
+  // doesn't have "search" yet). Fixing the wordlist itself is another task's work; here we
+  // just change the wording, not mention search.
   { path: 'src/home/components/HomeTopbar.vue',
     find: '保留搜索与主题切换', replace: '保留主题切换' },
-  // 复审 Important②:上面删掉 onKey/onMounted/onUnmounted 三行后,这个 import
-  // 变成死代码(全文件再无第二处使用 onMounted/onUnmounted,已用 grep 核实)。
+  // Review Important②: after the above deletes onKey/onMounted/onUnmounted three lines,
+  // this import becomes dead code (no second use of onMounted/onUnmounted in the whole file,
+  // verified with grep).
   { path: 'src/home/components/HomeTopbar.vue',
     find: "import { onMounted, onUnmounted } from 'vue'\n", replace: '' },
 
-  // ── views/Home.vue:SearchDialog 挂载 + 两个 import + photos store 用量
-  //    (brief 未给逐字文本,现场 sed 取出四处) ─────────────────────────────
+  // ── views/Home.vue: SearchDialog mounting + two imports + photos store usage
+  //    (brief didn't give exact text, on-site sed extracted four places) ─────────────────────────────
   { path: 'src/views/Home.vue',
     find: '    <SearchDialog />\n', replace: '' },
   { path: 'src/views/Home.vue',
@@ -596,30 +636,32 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
 
-  // ── useAddPanel.ts:curTab 联合类型 + 尺寸表分支 ─────────────────────────
+  // ── useAddPanel.ts: curTab union type + size table branch ─────────────────────────
   { path: 'src/home/composables/useAddPanel.ts',
     find: "const curTab = ref<'widget' | 'app' | 'folder' | 'photo'>('widget')",
     replace: "const curTab = ref<'widget' | 'app' | 'folder'>('widget')" },
   { path: 'src/home/composables/useAddPanel.ts',
     find: "    if (kind === 'photo') return [2, 2]\n", replace: '' },
 
-  // ═══════════════════ T7:设置侧 + Service 侧 + 注释洗白 + .gitignore ══════
+  // ═══════════════════ T7: settings side + Service side + comment whitewash + .gitignore ══════
 
-  // ── HomeTopbar.vue:T6 删完搜索按钮与 ⌘K 监听后剩下的 2 行死代码 ─────────
+  // ── HomeTopbar.vue: T6 two dead code lines left after deleting search button and ⌘K listener ─────────
   { path: 'src/home/components/HomeTopbar.vue',
     find: "import { useHomeUiStore } from '../stores/homeUi'\n", replace: '' },
   { path: 'src/home/components/HomeTopbar.vue',
     find: 'const homeUi = useHomeUiStore()\n', replace: '' },
 
-  // ── tabs.ts:去 folder-permissions,rail 7→6,railTabsFor 退化为恒等 ──────
-  // 头部映射注释也点了名(现场 sed 取出,brief 未给):按角色裁剪的那一整项功能
-  // 已经不存在,继续保留具体名字和旧计数只是死文档,一并改写。
+  // ── tabs.ts: remove folder-permissions, rail 7→6, railTabsFor degenerates to identity ──────
+  // Header mapping comment also mentioned it (on-site sed extracted, brief didn't give):
+  // the entire role-gated feature no longer exists, keeping specific names and old counts is just
+  // dead documentation, rewrite together.
   { path: 'src/settings/util/tabs.ts',
     find: '//   - data().tabs (L855-863) —— 侧栏 rail 的 7 项\n//   - visibleTabs (L1034)    —— 非 admin 过滤掉 folder-permissions\n',
     replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) —— 侧栏 rail 项与按角色的可见性裁剪\n' },
-  // SP17:lan-devices(Vue2 #93)插进了 system-status 与 folder-permissions 之间,且是
-  // 公开面功能(局域网设备发现,不含任何管理员专属信息)——FIND 锚点跟着私有侧新增的这一行走,
-  // REPLACE 仍只摘掉 folder-permissions,lan-devices 保留在开源产物里。
+  // SP17: lan-devices (Vue2 #93) inserted between system-status and folder-permissions, and is
+  // a public-facing feature (LAN device discovery, no admin-exclusive info) — FIND anchor follows
+  // the private side's new line, REPLACE still only extracts folder-permissions,
+  // lan-devices kept in open-source artifact.
   { path: 'src/settings/util/tabs.ts',
     find: "  'system-status',\n  'lan-devices',\n  'folder-permissions',\n  'account',",
     replace: "  'system-status',\n  'lan-devices',\n  'account'," },
@@ -638,18 +680,18 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/settings/panels/index.ts',
     find: "  'folder-permissions': FolderPermissionsPanel,\n", replace: '' },
 
-  // ── SettingsShell.vue:railTabsFor 的唯一非测试调用处,少一个实参 ─────────
+  // ── SettingsShell.vue: only non-test call site of railTabsFor, one fewer argument ─────────
   { path: 'src/settings/components/SettingsShell.vue',
     find: "const railTabs = computed(() =>\n  railTabsFor(typeof user.value.role === 'string' ? user.value.role : undefined),\n)",
     replace: 'const railTabs = computed(() => railTabsFor())' },
 
-  // ── E2:systemConfig 的 search_switch(索引签名已保证读改写不丢未知字段)──
+  // ── E2: search_switch in systemConfig (index signature guarantees read/write doesn't lose unknown fields) ──
   { path: 'src/settings/util/systemConfig.ts',
     find: '  search_switch?: boolean\n', replace: '' },
   { path: 'src/settings/util/systemConfig.ts',
     find: '  search_switch: true,\n', replace: '' },
 
-  // ── 注释洗白(代码一个字节不动)────────────────────────────────────────
+  // ── Comment whitewash (code unchanged) ────────────────────────────────────────
   { path: 'src/apps/util/systemApp.ts',
     find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
     replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
@@ -715,9 +757,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "  settingsAppsDatabase: 'User Database',\n  settingsAppsPhotosData: 'Photos Cache',\n",
     replace: "  settingsAppsDatabase: 'User Database',\n" },
 
-  // ── .gitignore(E9:用户 2026-08-04 拍板)─────────────────────────────────
-  // 2026-08-05 私有侧把 .superpowers/ 从 gitignore 拿掉改成入库(台账丢过一次),
-  // 锚点跟着改。开源侧两行都不需要:.claude/ 本就不导出,.superpowers/ 已在 DELETE 表。
+  // ── .gitignore (E9: user decided 2026-08-04) ─────────────────────────────────
+  // 2026-08-05 private side removed .superpowers/ from gitignore and checked it in
+  // (ledgers were lost once), anchor changed accordingly. Open-source doesn't need both lines:
+  // .claude/ isn't exported anyway, .superpowers/ already in DELETE table.
   { path: '.gitignore',
     find: '\n# Claude Code 本地状态(隔离 worktree、会话配置),不入库\n.claude/\n# .superpowers/ **入库** —— 台账是各期唯一的决策记录。SP7 曾把整个目录弄丢且 git 救不回,\n# SP9-P7 又发现 P5/P6 的台账只活在 gitignore 里。规则见 .superpowers/.gitignore:\n# 台账(.md)与自查截图(.png)进库,评审 diff / 备份 / 快照环境这类机器产物不进。\n',
     replace: '' },
@@ -725,29 +768,30 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: '\n# 时间机器验收测试台(T12):假后端 + 专用 vite 配置,只在本机验收用,不进版本库\nscripts/tmlab/\nvite.config.tmlab.ts',
     replace: '\n# 导出报告(含上游 commit hash),仅供本地追溯\n.export-report.txt' },
 
-  // ═══════════════════ T8:i18n 四个 locale + theme.css ═══════════════════
+  // ═══════════════════ T8: i18n four locales + theme.css ═══════════════════
 
-  // ── src/i18n/zh_cn.base.ts(全区文案基座,8 处锚点,共 44 键)────────────────
-  //    2026-08-05(SP7-P8b):原 zh_cn.ts 已改名 base、并新增 3 行合并出口 zh_cn.ts,
-  //    锚点路径跟着改。相册那 702 键不在这里剥 —— 它们整块进了 zh_cn.photos.ts,
-  //    由 DELETE 表整体删掉(见类 1),这也是当初拆分片的目的。
-  // 11 个 audio 转录键(brief 漏登记的部分;audioSkipBack/Forward/Speed 播放器控件保留)
+  // ── src/i18n/zh_cn.base.ts (copy foundation for entire area, 8 anchors, 44 keys total) ────────────────
+  //    2026-08-05 (SP7-P8b): original zh_cn.ts renamed to base, 3 new merge-exit lines added to zh_cn.ts,
+  //    anchor path changes accordingly. The 702 photos keys not extracted here — they all went into
+  //    zh_cn.photos.ts, completely deleted by DELETE table (see category 1), that's why we split shards.
+  // 11 audio transcript keys (brief missed registering; audioSkipBack/Forward/Speed player controls kept)
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  audioSummary: '摘要',\n  audioTranscript: '转录文稿',\n  audioAsk: '问 Nimo',\n  audioAskPlaceholder: '关于这段音频，尽管问…',\n  audioAskEmpty: '这段音频的转录已向量化 — 关于内容尽管问 Nimo。',\n  audioAskDemo: '(demo 占位) 转录已向量化。接入 AI 后端后，这里会根据音频内容作答，并附上可跳转的时间戳。',\n  audioHighlightsOnly: '只看重点',\n  audioShowAll: '显示全部',\n  audioSpeakerAll: '全部',\n  audioChapters: '章节',\n  audioAllChapters: '全部章节',\n",
     replace: "" },
-  // appPhotos/appAi:systemApps.ts 对应条目已在 T6 删除;appKnowledge 是 SP14 T9 追加的
-  // 第三个同类孤儿键(knowledge 系统应用条目已在上面的 systemApps.ts PATCH 段摘掉)。
+  // appPhotos/appAi: corresponding items in systemApps.ts already deleted at T6;
+  // appKnowledge is the third similar orphan key added at SP14 T9 (knowledge system app item
+  // already extracted in systemApps.ts PATCH section above).
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  appPhotos: '照片',\n  appAi: 'Nimo AI',\n  appKnowledge: '知识库',\n",
     replace: "" },
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiTitle: 'AI 助手',\n  widgetAiDesc: '对话与智能建议',\n",
     replace: "" },
-  // widgetAi* 其余 7 键:AiWidget.vue 已整体删除(DELETE 表),全部孤儿
+  // widgetAi* remaining 7 keys: AiWidget.vue already wholly deleted (DELETE table), all orphans
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  widgetAiGreetShort: '晚上好',\n  widgetAiGreet: '晚上好，有什么可以帮你？',\n  widgetAiPlaceholder: '发消息给 AI 助手…',\n  widgetAiSend: '发送',\n  widgetAiPrompt1: '整理最近的照片',\n  widgetAiPrompt2: '查找 2024 旅行视频',\n  widgetAiPrompt3: '分析存储使用情况',\n",
     replace: "" },
-  // addPanelTabPhoto:T11 删 AddPanel 照片 tab 后的孤儿键,此处先清 i18n 侧
+  // addPanelTabPhoto: orphan key after T11 deletes AddPanel photos tab, clear i18n side first here
   { path: 'src/i18n/zh_cn.base.ts',
     find: "  addPanelTabPhoto: '照片',\n",
     replace: "" },

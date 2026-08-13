@@ -1,49 +1,49 @@
-// SP8-P5f Task 6 —— `WikiView.vue`(**上半**)的组件测试。
-// 蓝本 `NimoOS-UI` @ `7a6ee6b7` `src/views/AI/Knowledge/WikiView.vue`(314 行)。
-// 🔴 T7 会**续写本文件**(摘要 / 目录 / 最近变更 / 源码切换 / 重扫 / §9.15 的 XSS 用例)。
+// SP8-P5f Task 6 — Component test for `WikiView.vue` (top half).
+// Blueprint `NimoOS-UI` @ `7a6ee6b7` `src/views/AI/Knowledge/WikiView.vue` (314 lines).
+// 🔴 T7 will continue writing this file (summary / directory / recent changes / source view toggle / rescan / §9.15 XSS cases).
 //
-// ═══ mock 策略(治理 §4.1 要求显式说明) ═══
-// 🔴 **mock 共享包的 `service.wiki.*` 四个方法,走真 `knowledgeStore`**,不 mock store。
-//   理由同 `RootsView.test.ts` / `AllowlistView.test.ts`,而本页还多一条**决定性的**:
-//   🔴 **N48 的「404 → null、其余上抛」分层就在 store 里**(`knowledgeStore.ts:715` / `:725`)——
-//   mock 掉 store 的话,那一层分层等于被测试自己重写了一份影子实现,
-//   「404 走业务态、500 走 catch」这两条就退化成「我说它回 null 它就回 null」。
-// 🔴 形状(§4.1 的表 + `p5f-fixtures/README.md` §3):
-//   · `service.wiki.getRoots` → **共享包已归一化**(`NimoOS-Service/src/wiki.ts:85`
-//     `normalizeRoot`)⇒ 🔴 **camelCase**,**不是** HTTP 原文的 PascalCase(N46)。
-//   · `service.wiki.getTree`  → **扁平数组**,已归一化成 camelCase
-//     (`wiki.ts:102 normalizeTreeNode`:`aiLabel` / `lastModified` / `userNotesUpdatedAt`)。
-//     🔴 抄进来的 fixture 是 **snake_case 的 HTTP 原文**,本文件用 `toStoreShape()`
-//     显式过一遍归一化 —— 这一步是**刻意保留**的:直接抄 camelCase 会让「fixture 记录的
-//     是后端真形状」这件事丢失(同 `wikiViewHelpers.test.ts` 的既定做法)。
-//   · `service.wiki.getNode` → camelCase `WikiNode`(`wiki.ts:112 normalizeNode`)。
-//   · `service.wiki.getRaw`  → `string`。
-//   404 一律由 mock **reject 一个带 `response.status = 404` 的错误**,让 store 那层真的去转 `null`。
+// ═══ mock strategy (governance §4.1 requires explicit statement) ═══
+// 🔴 **mock the four `service.wiki.*` methods of the shared package, use real `knowledgeStore`**, do not mock store.
+//   Reason: same as `RootsView.test.ts` / `AllowlistView.test.ts`, plus one more **decisive** point for this page:
+//   🔴 **N48's "404 → null, others re-thrown" layering is in the store** (`knowledgeStore.ts:715` / `:725`) —
+//   if we mock out the store, that layer becomes equivalent to the test rewriting its own shadow implementation,
+//   "404 becomes business state, 500 becomes catch" degrades to "I say it returns null and it returns null".
+// 🔴 Shape (§4.1 table + `p5f-fixtures/README.md` §3):
+//   · `service.wiki.getRoots` → **already normalized by shared package** (`NimoOS-Service/src/wiki.ts:85`
+//     `normalizeRoot`) ⇒ 🔴 **camelCase**, **not** HTTP original PascalCase (N46).
+//   · `service.wiki.getTree`  → **flat array**, already normalized to camelCase
+//     (`wiki.ts:102 normalizeTreeNode`: `aiLabel` / `lastModified` / `userNotesUpdatedAt`).
+//     🔴 Fixture copied in is **snake_case HTTP original**, this file uses `toStoreShape()`
+//     to normalize explicitly — this step is **intentionally preserved**: copying camelCase directly
+//     would lose the fact that "fixture records the true backend shape" (same approach as `wikiViewHelpers.test.ts`).
+//   · `service.wiki.getNode` → camelCase `WikiNode` (`wiki.ts:112 normalizeNode`).
+//   · `service.wiki.getRaw`  → `string`.
+//   404 always has mock **reject an error with `response.status = 404`**, letting the store layer truly convert to `null`.
 //
-// ═══ fixture 是抄本,不是运行时读(治理 §4 / P5c §4.4) ═══
-// 数据逐字抄进下面 `FIXTURE-COPY-BEGIN/END` 块并注明**三级出处标签**(裁定 R3 约束 1),
-// **不用 `node:fs` 读 `.superpowers/`** —— 那个目录被 gitignore 盖着(SP7 整个丢过一次)。
-// 🔴 **只取数据字段,`__meta` 转成注释**(裁定 R14 / `p5f-fixtures/README.md` §0.2)。
-// 🔴 Wiki 侧样本**全部是 `.CONSTRUCTED`**,🔴 **不是真机数据**(D1:`/v1/wiki/{roots,tree,node}`
-//   本机 90 秒 0 字节超时)—— 也不许拿它去推翻 N46 的命名结论(治理 §9.18-2)。
-// 抄本等价性由**程序化逐字节校验**确认(见「fixture 抄本自检」一组),不是肉眼比。
-// 读 `.vue` 源文件一律 `node:fs`,**不许用 Vite 的 `?raw`**(vitest 下恒空 → 假通过)。
+// ═══ fixtures are copies, not read at runtime (governance §4 / P5c §4.4) ═══
+// Data copied verbatim into the `FIXTURE-COPY-BEGIN/END` blocks below with **three-level source tags** (ruling R3 constraint 1),
+// **do not use `node:fs` to read `.superpowers/`** — that directory is covered by gitignore (SP7 lost it once).
+// 🔴 **take only data fields, convert `__meta` to comments** (ruling R14 / `p5f-fixtures/README.md` §0.2).
+// 🔴 Wiki samples are **all `.CONSTRUCTED`**, 🔴 **not real device data** (D1: `/v1/wiki/{roots,tree,node}`
+//   device 90 second 0 byte timeout) — also cannot use it to overturn N46's naming conclusion (governance §9.18-2).
+// Fixture equivalence confirmed by **programmatic byte-by-byte verification** (see "fixture copy self-check" group), not visual comparison.
+// Read `.vue` source files always with `node:fs`, **never use Vite's `?raw`** (empty in vitest → false positive).
 //
-// ═══ 环境坑(逐字沿用 `wikiViewHelpers.test.ts` 的既定解法)═══
-// 本仓 `package.json` 是 `"type": "module"` ⇒ `__dirname` 不可用,改 `import.meta.url`;
-// 已装 `@types/node`(SP8-P6 合流自 master)⇒ `node:fs` / `node:path` / `node:url` 直接
-// 导入即可,**不需要** `@ts-expect-error`(sp8-ai 分支上原有的抑制行已在合流时删除)。
+// ═══ environment pitfalls (verbatim reuse of proven solutions from `wikiViewHelpers.test.ts`) ═══
+// This repo's `package.json` is `"type": "module"` ⇒ `__dirname` unavailable, use `import.meta.url`;
+// `@types/node` already installed (SP8-P6 merged from master) ⇒ `node:fs` / `node:path` / `node:url` can be
+// imported directly, **no need** for `@ts-expect-error` (existing suppress lines on sp8-ai branch were removed during merge).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { createPinia, setActivePinia } from 'pinia'
 import type { WikiNode, WikiRoot, WikiTreeNode } from '@nimotech/nimoos-service'
-// i18n 由 `vitest.setup.ts` 全局装好,本文件不再自己装 —— 也**不许**另建 `createI18n`
-// (与 setup 的单例重复安装,记忆 `vitest-reporter-hides-warnings`)。
+// i18n already set up globally by `vitest.setup.ts`, no need to set it up again — also **must not** create another `createI18n`
+// (duplicate installation with the setup singleton, see `vitest-reporter-hides-warnings`).
 import { useKnowledgeStore } from '../stores/knowledgeStore'
-// 🔴 T7 / §9.15:**真**的 markdown 渲染器(含 DOMPurify),导进来只为了程序化自证
-// 「它没有被 mock」——**不是**拿它替代组件层的 DOM 断言。
+// 🔴 T7 / §9.15: **real** markdown renderer (includes DOMPurify), imported only to programmatically prove
+// "it is not mocked" — **not** to replace DOM assertions at the component layer.
 import { renderMarkdown } from '../../markdown/renderMarkdown'
 import WikiView from './WikiView.vue'
 import { readFileSync } from 'node:fs'
@@ -53,7 +53,7 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC: string = readFileSync(resolve(__dirname, './WikiView.vue'), 'utf8')
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
+// — vi.hoisted mock skeleton (governance §9: avoid ESM hoisting TDZ) —
 const wiki = vi.hoisted(() => ({
   getRoots: vi.fn(),
   getTree: vi.fn(),
@@ -65,36 +65,36 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
   return { ...actual, service: { wiki } }
 })
 
-// `openDirInNewTab` 是 P5a-T5 的既有产出(全期零改动清单),这里只 spy「有没有以正确
-// 入参被调到」,不测它自己的行为(先例 `NotesView.test.ts:68`)。
+// `openDirInNewTab` is existing output from P5a-T5 (zero changes for this period), here only spy on
+// "whether it was called with correct arguments", don't test its own behavior (precedent: `NotesView.test.ts:68`).
 const openDirInNewTab = vi.hoisted(() => vi.fn())
-// T7:`childClick` 的「未命中 byPath」那一支打的是 `openFileInNewTab`(蓝本 `:290`)。
+// T7: the "byPath miss" branch of `childClick` calls `openFileInNewTab` (blueprint `:290`).
 const openFileInNewTab = vi.hoisted(() => vi.fn())
 vi.mock('../../services/openInApp', () => ({
   openDirInNewTab: (...args: unknown[]) => openDirInNewTab(...args),
   openFileInNewTab: (...args: unknown[]) => openFileInNewTab(...args),
 }))
 
-// 🔴 **`renderMarkdown` 一律不 mock**(治理 §9.15 明令:mock 掉再声称验过 XSS = 安慰剂测试)。
-// 本文件的「§9.15 XSS」一组走的是真 `src/ai/markdown/renderMarkdown.ts`(内含 DOMPurify),
-// 挂载真组件后查真实 DOM。那一组里第一条断言把「没被 mock」这件事**程序化钉死**
-// (`vi.isMockFunction(renderMarkdown) === false` + 真渲染产物自检)——
-// 判据:谁将来加一句 `vi.mock('../../markdown/renderMarkdown', …)`,那一条立刻报红。
+// 🔴 **never mock `renderMarkdown`** (governance §9.15 mandates: mock it out then claim XSS is verified = placebo test).
+// The "§9.15 XSS" group in this file uses real `src/ai/markdown/renderMarkdown.ts` (contains DOMPurify),
+// mounts real component and checks real DOM. The first assertion in that group **programmatically locks**
+// the fact "it is not mocked" (`vi.isMockFunction(renderMarkdown) === false` + real render output self-check) —
+// criterion: whoever adds `vi.mock('../../markdown/renderMarkdown', …)` in future, that assertion immediately fails.
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-tree.CONSTRUCTED.json  (只取 `normal` / `crossLevel` 两组)
-// 三级出处标签:**`.CONSTRUCTED`** —— 🔴 **不是真机数据**。`__meta` 转成本注释(裁定 R14),
-// 原文要点:
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-tree.CONSTRUCTED.json  (only `normal` / `crossLevel` groups)
+// Three-level source tag: **`.CONSTRUCTED`** — 🔴 **not real device data**. `__meta` converted to this comment (ruling R14),
+// key points from original:
 //   · label      : .CONSTRUCTED
-//   · why        : GET /v1/wiki/tree 本机实测 90 秒超时、0 字节(D1)⇒ 无真机样本。
-//   · built_from : NimoOS-Wiki/route/v1/wiki.go:126-132 的匿名 struct `sk`
-//                  (**snake_case json tag**):path / level / ai_label /
+//   · why        : GET /v1/wiki/tree device test 90 second timeout, 0 bytes (D1) ⇒ no real device sample.
+//   · built_from : NimoOS-Wiki/route/v1/wiki.go:126-132 anonymous struct `sk`
+//                  (**snake_case json tag**): path / level / ai_label /
 //                  user_notes_updated_at / last_modified
-//   · value_units: ai_label 空串合法;last_modified 是 RFC3339 本地时区字符串,
-//                  后端 formatTS(ms<=0) 返回**空串**(wiki.go:47-52)—— 不是 '1970'
-//   · normalized_shape: 经 NimoOS-Service/src/wiki.ts:102 normalizeTreeNode → camelCase
-// 🔴 本机 D1:`/v1/wiki/tree` 90 s 零字节超时 ⇒ §9.17 判定「整棵左树恒走 `treeError` 分支」,
-//   本机只能验「加载失败 + 重试」。**这不是缺陷,是 D1。**
+//   · value_units: empty string valid for ai_label; last_modified is RFC3339 local timezone string,
+//                  backend formatTS(ms<=0) returns **empty string** (wiki.go:47-52) — not '1970'
+//   · normalized_shape: via NimoOS-Service/src/wiki.ts:102 normalizeTreeNode → camelCase
+// 🔴 Device D1: `/v1/wiki/tree` 90 s zero bytes timeout ⇒ §9.17 determines "entire left tree always goes `treeError` branch",
+//   device can only verify "load failure + retry". **This is not a defect, it's D1.**
 const TREE_RAW_NORMAL = [
   { "path": "/DATA",           "level": "space",   "ai_label": "主数据盘",   "user_notes_updated_at": "", "last_modified": "2026-08-05T11:32:01+08:00" },
   { "path": "/DATA/Documents", "level": "project", "ai_label": "文档",       "user_notes_updated_at": "", "last_modified": "2026-08-05T10:12:00+08:00" },
@@ -102,14 +102,14 @@ const TREE_RAW_NORMAL = [
 ]
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-roots.normalized.CONSTRUCTED.json  (只取 `wikiRoots` 数组)
-// 三级出处标签:**`.CONSTRUCTED`**。`__meta` 转成本注释(裁定 R14):
-//   · why        : 同 wiki-roots.CONSTRUCTED.json —— /roots 本机超时,无真机样本。
-//   · built_from : 把 wiki-roots.CONSTRUCTED.json 的 raw_response 逐字段过
-//                  NimoOS-Service/src/wiki.ts:85 normalizeRoot。
-//   · shape      : 🔴 camelCase —— 这就是 store.state.wikiRoots 的出口形状(N46)。
-//   · note       : enabled 经 `!!r.Enabled` 归一成 boolean;
-//                  scanIntervalS/createdAt/lastScanAt 经 `|| 0` 兜底。
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-roots.normalized.CONSTRUCTED.json  (only `wikiRoots` array)
+// Three-level source tag: **`.CONSTRUCTED`**. `__meta` converted to this comment (ruling R14):
+//   · why        : same as wiki-roots.CONSTRUCTED.json — /roots device timeout, no real device sample.
+//   · built_from : pass wiki-roots.CONSTRUCTED.json raw_response field by field through
+//                  NimoOS-Service/src/wiki.ts:85 normalizeRoot.
+//   · shape      : 🔴 camelCase — this is the outlet shape of store.state.wikiRoots (N46).
+//   · note       : enabled normalized to boolean via `!!r.Enabled`;
+//                  scanIntervalS/createdAt/lastScanAt defaulted via `|| 0`.
 const ROOTS_NORMALIZED: WikiRoot[] = [
   {
     "id": "dfcd1840f5dab439cd9d7050aa5bafd0",
@@ -138,26 +138,26 @@ const ROOTS_NORMALIZED: WikiRoot[] = [
 ]
 // FIXTURE-COPY-END
 
-// ── T7 新增的两份抄本 ──────────────────────────────────────────────────────
-// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-node.CONSTRUCTED.json  (只取 `raw_response`)
-// 三级出处标签:**`.CONSTRUCTED`** —— 🔴 **不是真机数据**。`__meta` 转成本注释(裁定 R14),
-// 原文要点(逐条抄自 fixture 的 `__meta`):
+// — T7 added two fixture copies ———————————————————————————————————————————
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-node.CONSTRUCTED.json  (only `raw_response`)
+// Three-level source tag: **`.CONSTRUCTED`** — 🔴 **not real device data**. `__meta` converted to this comment (ruling R14),
+// key points from original (copied item by item from fixture's `__meta`):
 //   · label       : .CONSTRUCTED
-//   · why         : GET /v1/wiki/node 本机实测 90 秒超时、0 字节(D1)⇒ 无真机样本。
-//   · built_from  : NimoOS-Wiki/route/v1/wiki.go:16-42 的 nodeResponse / nodeChildEntry /
-//                   nodeRecentEntry(**snake_case json tag**)
-//   · omitempty_note: 🔴 nodeChildEntry 的 file_count / last_modified / is_opaque 都带
-//                   omitempty ⇒ 零值时**整个键缺失**,不是 0/''/false。样本里 'Archive'
-//                   一项刻意省掉这三个键来复现这个形态(N49 的 `|| []`、`|| 0`、`!!` 兜底就是为它)
-//   · summary_note: Summary 是 *string,后端当前恒送 null
-//   · op_values   : op 四个已知值 create/modify/delete/rename → opToType 映射成 add/mod/del/ren;
-//                   未知值兜底 'mod'。样本刻意含一个未知值 'chmod' 来钉兜底分支
-//   · recent_changes_count: 🔴 刻意给 12 条 —— changes 的 `.slice(0, 10)` 要 12 条才测得出上限
-//   · normalized_shape: 经 wiki.ts:112 normalizeNode → camelCase
+//   · why         : GET /v1/wiki/node device test 90 second timeout, 0 bytes (D1) ⇒ no real device sample.
+//   · built_from  : NimoOS-Wiki/route/v1/wiki.go:16-42 nodeResponse / nodeChildEntry /
+//                   nodeRecentEntry (**snake_case json tag**)
+//   · omitempty_note: 🔴 nodeChildEntry's file_count / last_modified / is_opaque all have
+//                   omitempty ⇒ when zero, **entire key missing**, not 0/''/false. Sample 'Archive'
+//                   item intentionally omits these three keys to reproduce this shape (N49's `|| []`, `|| 0`, `!!` defaults are for it)
+//   · summary_note: Summary is *string, backend currently always sends null
+//   · op_values   : four known values for op create/modify/delete/rename → opToType maps to add/mod/del/ren;
+//                   unknown values default to 'mod'. Sample intentionally contains unknown value 'chmod' to lock default branch
+//   · recent_changes_count: 🔴 intentionally 12 items — changes' `.slice(0, 10)` needs 12 items to test the limit
+//   · normalized_shape: via wiki.ts:112 normalizeNode → camelCase
 //                   { path, level, aiLabel, summary, childMap[{name,fileCount,lastModified,isOpaque}],
 //                     recentChanges[{path,op,at}], userNotes, parentWiki, subwikis, etag }
-// 🔴 `key_sources` / `pending_count` 是响应里真有、但 `normalizeNode` **不承接**的字段 ——
-//   抄本保留它们,`toNodeShape()` 照 `normalizeNode` 一样丢掉(页面永远读不到)。
+// 🔴 `key_sources` / `pending_count` are truly in the response, but **not accepted** by `normalizeNode` —
+//   fixture preserves them, `toNodeShape()` drops them like `normalizeNode` (page never reads them).
 interface RawChildEntry {
   name: string
   file_count?: number
@@ -210,13 +210,13 @@ const NODE_RAW_DATA: RawNodeResponse = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-raw-DATA.REAL.md  (**节选**:前 22 行,逐字照抄)
-// 三级出处标签:**`.REAL`** —— 这是**本机 `GET /v1/wiki/raw?path=/DATA` 的真响应正文**
-// (README §0 表:`wiki-raw-DATA.REAL.md` 是四份 `.REAL` 里唯一**逐字节未改**的一份,
-//  md5 `c0449363eb1069a36c9941a0fb842e18` / 3430 字节)。
-// 🔴 **节选**:整份 78 行里只抄前 22 行(front-matter + system 段头 + Summary + Child Map 开头)——
-//   足够覆盖 markdown 的 front-matter / HTML 注释 / 标题 / 斜体 / 无序列表 / 行内 code 六种结构,
-//   §9.15 的「正常路径仍渲染得出来」用它当输入。**值一字未改**,只是截断。
+// FIXTURE-COPY-BEGIN  p5f-fixtures/wiki-raw-DATA.REAL.md  (**excerpt**: first 22 lines, copied verbatim)
+// Three-level source tag: **`.REAL`** — this is **the true response body from device `GET /v1/wiki/raw?path=/DATA`**
+// (README §0 table: `wiki-raw-DATA.REAL.md` is the only one of four `.REAL` **unchanged byte-for-byte**,
+//  md5 `c0449363eb1069a36c9941a0fb842e18` / 3430 bytes).
+// 🔴 **excerpt**: only first 22 lines of 78 total (front-matter + system section header + Summary + Child Map start) —
+//   sufficient to cover six markdown structures: front-matter / HTML comment / heading / italics / unordered list / inline code,
+//   §9.15's "normal path still renders correctly" uses this as input. **values unchanged by one character**, only truncated.
 const WIKI_RAW_REAL_EXCERPT = [
   '---',
   'wiki_version: 1',
@@ -244,9 +244,9 @@ const WIKI_RAW_REAL_EXCERPT = [
 // FIXTURE-COPY-END
 
 /**
- * 共享包 `wiki.ts:112 normalizeNode` 的等价物(T7)—— 与 `toStoreShape` 同一个理由:
- * 抄本记录的是**后端真形状**(snake_case + omitempty 缺键),归一化这一步必须留在视线里。
- * 🔴 `|| 0` / `|| ''` / `!!` 三个兜底照抄 —— 'Archive' 那一项三个键全缺,靠它们兜住(N49 同族)。
+ * Equivalent of shared package `wiki.ts:112 normalizeNode` (T7) — same reason as `toStoreShape`:
+ * fixture records **true backend shape** (snake_case + omitempty missing keys), this normalization step must stay in view.
+ * 🔴 `|| 0` / `|| ''` / `!!` three defaults copied as-is — 'Archive' item all three keys missing, caught by them (N49 family).
  */
 function toNodeShape(n: RawNodeResponse): WikiNode {
   return {
@@ -270,9 +270,9 @@ function toNodeShape(n: RawNodeResponse): WikiNode {
 const NODE_DATA: WikiNode = toNodeShape(NODE_RAW_DATA)
 
 /**
- * 共享包 `wiki.ts:102 normalizeTreeNode` 的等价物 —— 把 HTTP 原文 snake_case 过成
- * store 出口的 camelCase。🔴 **本文件不许把 fixture 直接抄成 camelCase**:
- * fixture 记录的是**后端真形状**,归一化这一步必须留在视线里(N46 是本期最容易搞错的一点)。
+ * Equivalent of shared package `wiki.ts:102 normalizeTreeNode` — convert HTTP original snake_case to
+ * store outlet camelCase. 🔴 **this file must not copy fixture directly as camelCase**:
+ * fixture records **true backend shape**, this normalization step must stay in view (N46 is the easiest thing to get wrong this period).
  */
 function toStoreShape(n: Record<string, string>): WikiTreeNode {
   return {
@@ -286,12 +286,12 @@ function toStoreShape(n: Record<string, string>): WikiTreeNode {
 const TREE_NORMAL: WikiTreeNode[] = TREE_RAW_NORMAL.map(toStoreShape)
 
 /**
- * T7 —— 给 `node` 造一个**可观测**的差异面。
- * 🔴 T6 评审的「改黑盒」清单第 1/2 条要求把 `vm.node` 的断言换成 DOM 断言,而
- * `node.aiLabel` 在整页里**没有任何渲染落点**(`kw-meta` 里的 `<b>` 读的是**树节点**的
- * `selTreeNode.aiLabel`,不是文章节点)⇒ 唯一能观测到 `node` 的地方是 `childMap`
- * (目录区)与 `recentChanges`(最近变更)。本 helper 给 `childMap` 塞一个具名子项,
- * 断言就落在 `.kw-child-name` 上。
+ * T7 — create an **observable** difference surface for `node`.
+ * 🔴 T6 review "convert to black box" checklist items 1/2 require replacing `vm.node` assertions with DOM assertions, and
+ * `node.aiLabel` has **no render touchpoints anywhere on the page** (the `<b>` in `kw-meta` reads **tree node**'s
+ * `selTreeNode.aiLabel`, not the article node) ⇒ the only observable place for `node` is `childMap`
+ * (directory section) and `recentChanges` (recent changes). This helper stuffs a named child item into `childMap`,
+ * assertion lands on `.kw-child-name`.
  */
 function nodeWithChild(path: string, childName: string): WikiNode {
   return {
@@ -300,7 +300,7 @@ function nodeWithChild(path: string, childName: string): WikiNode {
   }
 }
 
-/** `/wiki/node` 的最小归一化形状(只需要一个非 null 的合法值;**带数据的断言一律用 fixture 抄本**)。 */
+/** Minimal normalized shape for `/wiki/node` (only needs one valid non-null value; **assertions with data always use fixture copies**). */
 function nodeFor(path: string): WikiNode {
   return {
     path,
@@ -316,14 +316,14 @@ function nodeFor(path: string): WikiNode {
   }
 }
 
-/** 造一个带 HTTP 状态码的 axios 风格错误(store 的 `isNotFound` 读的就是 `e.response.status`)。 */
+/** Create an axios-style error with HTTP status code (store's `isNotFound` reads `e.response.status`). */
 function httpError(status: number, message = 'boom'): Error & { response: { status: number } } {
   const e = new Error(message) as Error & { response: { status: number } }
   e.response = { status }
   return e
 }
 
-/** 可控 promise —— 交错 / 门控判别用。 */
+/** Controllable promise — for interleaving / gating tests. */
 function makeDeferred<T>() {
   let resolve!: (v: T) => void
   let reject!: (e: unknown) => void
@@ -345,7 +345,7 @@ function makeRouter() {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/knowledge/wiki', name: 'KnowledgeWiki', component: WikiView },
-      // 「管理知识根」按钮 push 的目标 —— 不注册这条,vue-router 会打 "No match found" 告警。
+      // Target pushed by "Manage knowledge roots" button — if not registered, vue-router logs "No match found" warning.
       { path: '/ai/knowledge/roots', name: 'KnowledgeRoots', component: { template: '<div/>' } },
     ],
   })
@@ -353,30 +353,30 @@ function makeRouter() {
 
 interface MountOpts {
   query?: Record<string, string>
-  /** 预置进 store 的 `wikiRoots`(测 `created` 的 `if (!wikiRoots.length)` 那一侧)。 */
+  /** `wikiRoots` preset into store (test the `if (!wikiRoots.length)` side in `created`). */
   seedRoots?: WikiRoot[]
 }
 
-/** 挂载。组件 `onMounted` 自己发 `loadRoots()` + `loadTree()`(蓝本 `created()`),
- *  所以这里不预热 —— 让那两发真的跑,顺带守住「挂载即拉」。 */
+/** Mount. Component's `onMounted` itself calls `loadRoots()` + `loadTree()` (blueprint `created()`),
+ *  so don't pre-warm here — let those two calls truly run, maintaining "mount triggers fetch". */
 async function mountPage(opts: MountOpts = {}) {
   const router = makeRouter()
   await router.push({ path: '/ai/knowledge/wiki', query: opts.query ?? {} })
   await router.isReady()
-  // 🔴 spy 必须在 mount 之前装:`select()` 拿到的 `router` 就是这个实例,
-  //   spyOn 换掉的是实例上的方法 ⇒ 组件那一发也走 spy(默认 callThrough)。
+  // 🔴 spy must be installed before mount: the `router` that `select()` gets is this instance,
+  //   spyOn swaps out the method on the instance ⇒ component's call also goes through spy (default callThrough).
   const replaceSpy = vi.spyOn(router, 'replace')
   const store = useKnowledgeStore()
   if (opts.seedRoots) store.wikiRoots = opts.seedRoots
-  // 🔴 **不传 `plugins: [i18n]`** —— `vitest.setup.ts` 已把**同一个** i18n 单例装进
-  //   `config.global.plugins`,再传一次会打 `Plugin has already been applied` 告警。
+  // 🔴 **don't pass `plugins: [i18n]`** — `vitest.setup.ts` already installed **the same** i18n singleton into
+  //   `config.global.plugins`, passing it again logs `Plugin has already been applied` warning.
   const w = mount(WikiView, { global: { plugins: [router] } })
   mountedWrappers.push(w)
   await flush()
   return { w, router, store, replaceSpy }
 }
 
-/** VTU 的 `.text()` 只 trim 不折叠内部空白;跨行拼接的文案统一归一后再比。 */
+/** VTU's `.text()` only trims, doesn't collapse internal whitespace; normalize cross-line concatenated text before comparing. */
 const norm = (s: string): string => s.replace(/\s+/g, ' ').trim()
 
 const treeRows = (w: ReturnType<typeof mount>) => w.findAll('.kw-tree-scroll .kw-node')
@@ -399,18 +399,18 @@ afterEach(() => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 fixture 抄本等价性 —— 治理 §4「抄进测试 + 程序化逐字节校验」。
-// 比的是**形状与值**(不是把 JSON 再读一遍):三级标签、字段名风格、类型全部钉死。
-// 判据:任何一处字段名被写成 camelCase(树侧)/ PascalCase(根侧)→ 本组立刻报红。
-describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → store 出口 camelCase)', () => {
-  it('🔴 抄本里一个 __meta 都没有(裁定 R14:只取数据字段,出处转注释)', () => {
+// 🔴 fixture copy equivalence — governance §4 "copy into test + programmatic byte-by-byte verification".
+// Comparing **shape and values** (not reading JSON again): three-level tags, field name style, type all locked in.
+// Criterion: any field name written as camelCase (tree side) / PascalCase (root side) → this group immediately fails.
+describe('WikiView — fixture copy self-check (N46: HTTP original snake_case → store outlet camelCase)', () => {
+  it('🔴 no __meta in fixture copy at all (ruling R14: take only data fields, convert source to comment)', () => {
     for (const n of TREE_RAW_NORMAL) expect(Object.keys(n)).not.toContain('__meta')
     for (const r of ROOTS_NORMALIZED) expect(Object.keys(r)).not.toContain('__meta')
     expect(TREE_RAW_NORMAL.length, '抄本为空 —— 防空转').toBe(3)
     expect(ROOTS_NORMALIZED.length, '抄本为空 —— 防空转').toBe(2)
   })
 
-  it('🔴 树抄本是 HTTP 原文 snake_case(`ai_label` / `last_modified`),不是 camelCase', () => {
+  it('🔴 tree fixture copy is HTTP original snake_case (`ai_label` / `last_modified`), not camelCase', () => {
     for (const n of TREE_RAW_NORMAL) {
       expect(Object.keys(n).sort()).toEqual([
         'ai_label',
@@ -424,17 +424,17 @@ describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → st
     }
   })
 
-  it('🔴 根抄本是 store 出口 camelCase(不是 HTTP 原文的 PascalCase)', () => {
+  it('🔴 root fixture copy is store outlet camelCase (not HTTP original PascalCase)', () => {
     for (const r of ROOTS_NORMALIZED) {
       expect(Object.keys(r)).toContain('watchMode')
       expect(Object.keys(r)).toContain('scanIntervalS')
       expect(Object.keys(r)).not.toContain('WatchMode')
       expect(Object.keys(r)).not.toContain('ScanIntervalS')
-      expect(typeof r.enabled, 'enabled 必须已归一成 boolean').toBe('boolean')
+      expect(typeof r.enabled, 'enabled must be normalized to boolean').toBe('boolean')
     }
   })
 
-  it('toStoreShape 与共享包 normalizeTreeNode 同解(空值一律兜底成空串)', () => {
+  it('toStoreShape same as shared package normalizeTreeNode (empty values all default to empty string)', () => {
     expect(TREE_NORMAL[0]).toEqual({
       path: '/DATA',
       level: 'space',
@@ -442,13 +442,13 @@ describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → st
       userNotesUpdatedAt: '',
       lastModified: '2026-08-05T11:32:01+08:00',
     })
-    // 第三条 last_modified 是空串(后端 formatTS(ms<=0) 的真形态)—— updatedFmt 兜底用它。
+    // third item last_modified is empty string (true form of backend formatTS(ms<=0)) — updatedFmt defaults to it.
     expect(TREE_NORMAL[2].lastModified).toBe('')
     expect(TREE_NORMAL[2].aiLabel).toBe('')
   })
 
-  // ── T7 新增的两份抄本 ──────────────────────────────────────────────────
-  it('🔴 T7 —— node 抄本零 __meta,且是 HTTP 原文 snake_case(不是 camelCase)', () => {
+  // — T7 added two fixture copies ——————————————————————————————————————
+  it('🔴 T7 — node fixture copy has no __meta, and is HTTP original snake_case (not camelCase)', () => {
     expect(Object.keys(NODE_RAW_DATA)).not.toContain('__meta')
     expect(Object.keys(NODE_RAW_DATA).sort()).toEqual([
       'ai_label',
@@ -465,24 +465,24 @@ describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → st
     ])
     expect(Object.keys(NODE_RAW_DATA)).not.toContain('childMap')
     expect(Object.keys(NODE_RAW_DATA)).not.toContain('recentChanges')
-    // 防空转 + 上限判据的前提:必须**真的**有 12 条,少于 11 条就测不出 slice(0, 10)。
-    expect(NODE_RAW_DATA.recent_changes.length, '抄本不是 12 条 —— slice(0,10) 那条会退化').toBe(12)
+    // prevent empty loop + prerequisite of limit criterion: must **truly** have 12 items, fewer than 11 can't test slice(0, 10).
+    expect(NODE_RAW_DATA.recent_changes.length, 'fixture copy not 12 items — slice(0,10) line will degrade').toBe(12)
     expect(NODE_RAW_DATA.child_map.length).toBe(4)
   })
 
-  it('🔴 T7 —— node 抄本复现了后端 omitempty 的「整个键缺失」形态(不是 0 / "" / false)', () => {
+  it('🔴 T7 — node fixture copy reproduces backend omitempty "entire key missing" shape (not 0 / "" / false)', () => {
     const archive = NODE_RAW_DATA.child_map[3]!
     expect(archive.name).toBe('Archive')
-    expect(Object.keys(archive), 'Archive 项应当只有 name 一个键(omitempty)').toEqual(['name'])
+    expect(Object.keys(archive), 'Archive item should only have name key (omitempty)').toEqual(['name'])
     expect('file_count' in archive).toBe(false)
     expect('last_modified' in archive).toBe(false)
     expect('is_opaque' in archive).toBe(false)
-    // toNodeShape(= normalizeNode)把三个缺席键兜成 0 / '' / false。
+    // toNodeShape (= normalizeNode) defaults the three absent keys to 0 / '' / false.
     const norm3 = NODE_DATA.childMap[3]!
     expect(norm3).toEqual({ name: 'Archive', fileCount: 0, lastModified: '', isOpaque: false })
   })
 
-  it('🔴 T7 —— toNodeShape 与共享包 normalizeNode 同解;`key_sources`/`pending_count` 被丢掉', () => {
+  it('🔴 T7 — toNodeShape same as shared package normalizeNode; `key_sources`/`pending_count` dropped', () => {
     expect(NODE_DATA.path).toBe('/DATA')
     expect(NODE_DATA.aiLabel).toBe('主数据盘')
     expect(NODE_DATA.summary).toBeNull()
@@ -497,56 +497,56 @@ describe('WikiView —— fixture 抄本自检(N46:HTTP 原文 snake_case → st
     expect(Object.keys(NODE_DATA)).not.toContain('pending_count')
   })
 
-  it('🔴 T7 —— `.REAL` 的 .wiki.md 节选:22 行、逐字照抄、覆盖六种 markdown 结构', () => {
+  it('🔴 T7 — `.REAL` .wiki.md excerpt: 22 lines, copied verbatim, covers six markdown structures', () => {
     const lines = WIKI_RAW_REAL_EXCERPT.split('\n')
-    expect(lines.length, '节选行数变了 —— 抄本被动过').toBe(22)
+    expect(lines.length, 'excerpt line count changed — fixture copy was modified').toBe(22)
     expect(lines[0]).toBe('---')
     expect(lines[8]).toBe('---')
     expect(lines[3]).toBe('path: /DATA')
     expect(lines[10]).toBe('<!-- BEGIN: system -->')
     expect(lines[13]).toBe('## Summary')
     expect(lines[17]).toBe('- `.snapshots/` — 0 个文件 (已跳过)')
-    // 🔴 `.REAL` 的定语:它是真机响应正文,**不是** .CONSTRUCTED —— 别混用两个标签。
+    // 🔴 descriptor of `.REAL`: it's device response body, **not** .CONSTRUCTED — don't mix the two tags.
     expect(WIKI_RAW_REAL_EXCERPT).toContain('nimoos-wiki/1.9.0-alpha1')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 左树四态(计划书 T6-3)+ 治理 §5.2 的「loadTree 不加过期守卫」论证守卫。
-describe('WikiView —— 左树四态(蓝本 :6-31)', () => {
-  it('treeLoading → 6 个 k-skel(蓝本 :6-8,`v-for="i in 6"`)', async () => {
+// 🔴 left tree four states (plan T6-3) + governance §5.2 "loadTree without stale guard" proof guard.
+describe('WikiView — left tree four states (blueprint :6-31)', () => {
+  it('treeLoading → 6 k-skel (blueprint :6-8, `v-for="i in 6"`)', async () => {
     const d = makeDeferred<WikiTreeNode[]>()
     wiki.getTree.mockReturnValue(d.promise)
     const { w } = await mountPage()
     expect(w.findAll('.kw-tree-scroll .k-skel')).toHaveLength(6)
-    expect(w.find('.kw-tree-note').exists(), 'loading 期间不该出现任何 tree-note').toBe(false)
+    expect(w.find('.kw-tree-note').exists(), 'no tree-note should appear during loading').toBe(false)
     expect(treeRows(w)).toHaveLength(0)
     d.resolve([])
     await flush()
   })
 
-  it('treeError → kw-tree-note + 重试按钮,点它真的重发一次(蓝本 :9-14)', async () => {
+  it('treeError → kw-tree-note + retry button, clicking it truly re-sends once (blueprint :9-14)', async () => {
     wiki.getTree.mockRejectedValueOnce(new Error('boom'))
     const { w } = await mountPage()
     const note = w.find('.kw-tree-note')
     expect(note.exists()).toBe(true)
     expect(norm(note.text())).toContain('加载 Wiki 树失败')
     const retry = note.find('button.k-btn.outline')
-    expect(retry.exists(), '重试按钮没渲染').toBe(true)
+    expect(retry.exists(), 'retry button not rendered').toBe(true)
     expect(norm(retry.text())).toBe('重试')
     expect(wiki.getTree).toHaveBeenCalledTimes(1)
     await retry.trigger('click')
     await flush()
-    expect(wiki.getTree, '重试按钮没重发 loadTree').toHaveBeenCalledTimes(2)
-    // 第二发成功 ⇒ 回到有树态
+    expect(wiki.getTree, 'retry button did not re-send loadTree').toHaveBeenCalledTimes(2)
+    // second call succeeds ⇒ back to tree state
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents'])
   })
 
-  it('🔴 treeLoading 期间「重试」按钮整块不渲染(治理 §5.2:loadTree 不加过期守卫的依据)', async () => {
-    // 【为什么这条是「不加过期守卫」的守卫】重试按钮是 `loadTree` 除 onMounted 之外的
-    // 唯一触发点。第一发一开始就把 treeLoading 置 true,而按钮所在的 `v-else-if="treeError"`
-    // 分支排在 `v-if="treeLoading"` 之后 ⇒ 请求在飞时按钮**不存在** ⇒ 无法并发两发
-    // ⇒ 不存在「先发后至覆盖后发」的场景。谁把三态排布改成「重试按钮常驻」,本条先报红。
+  it('🔴 retry button entire block not rendered during treeLoading (governance §5.2: rationale for loadTree without stale guard)', async () => {
+    // [Why this is a "without stale guard" guard] Retry button is the only
+    // trigger point for `loadTree` other than onMounted. First call sets treeLoading to true immediately, and the button's
+    // `v-else-if="treeError"` branch is positioned after `v-if="treeLoading"` ⇒ while request in flight button **doesn't exist** ⇒ cannot send two concurrently
+    // ⇒ scenario of "first arrives after second" never happens. Whoever changes the three-state layout to "retry button always present", this test fails first.
     wiki.getTree.mockRejectedValueOnce(new Error('boom'))
     const { w } = await mountPage()
     const retry = w.find('.kw-tree-note button.k-btn.outline')
@@ -556,21 +556,21 @@ describe('WikiView —— 左树四态(蓝本 :6-31)', () => {
     await retry.trigger('click')
     await nextTick()
     expect(wiki.getTree).toHaveBeenCalledTimes(2)
-    expect(w.find('.kw-tree-note').exists(), '第二发在飞时 tree-note 仍在 —— 按钮可被点第二次').toBe(false)
+    expect(w.find('.kw-tree-note').exists(), 'second call in flight tree-note still there — button can be clicked again').toBe(false)
     expect(
       w.find('.kw-tree-note button').exists(),
-      '🔴 loading 期间重试按钮仍可点 ⇒ loadTree 必须补过期守卫',
+      '🔴 retry button still clickable during loading ⇒ loadTree must add stale guard',
     ).toBe(false)
     expect(w.findAll('.kw-tree-scroll .k-skel')).toHaveLength(6)
     d.resolve([])
     await flush()
   })
 
-  it('空树 → 左栏「尚未生成」提示 + 右栏 onboarding(蓝本 :15-17 / :39-46)', async () => {
+  it('empty tree → left "not yet generated" message + right onboarding (blueprint :15-17 / :39-46)', async () => {
     wiki.getTree.mockResolvedValue([])
     const { w } = await mountPage()
     expect(norm(w.find('.kw-tree-note').text())).toBe('还没有生成任何 wiki')
-    expect(w.find('.kw-tree-note button').exists(), '空树态不该有重试按钮').toBe(false)
+    expect(w.find('.kw-tree-note button').exists(), 'empty tree state should not have retry button').toBe(false)
     const pending = w.find('.kw-pending')
     expect(pending.exists()).toBe(true)
     expect(norm(pending.find('.kw-pending-title').text())).toBe('还没有生成任何 wiki')
@@ -580,7 +580,7 @@ describe('WikiView —— 左树四态(蓝本 :6-31)', () => {
     expect(norm(pending.find('button.k-btn.primary').text())).toBe('管理知识根')
   })
 
-  it('空树 onboarding 的「管理知识根」按钮 push 到 /ai/knowledge/roots(蓝本 :43)', async () => {
+  it('empty tree onboarding "Manage knowledge roots" button pushes to /ai/knowledge/roots (blueprint :43)', async () => {
     wiki.getTree.mockResolvedValue([])
     const { w, router } = await mountPage()
     await w.find('.kw-pending button.k-btn.primary').trigger('click')
@@ -588,36 +588,36 @@ describe('WikiView —— 左树四态(蓝本 :6-31)', () => {
     expect(router.currentRoute.value.path).toBe('/ai/knowledge/roots')
   })
 
-  it('有树 → kw-node 列表(蓝本 :18-31),且 onboarding 那屏不出现', async () => {
+  it('tree present → kw-node list (blueprint :18-31), onboarding screen does not appear', async () => {
     const { w } = await mountPage()
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents'])
-    expect(w.find('.kw-pending').exists(), '有树时不该出现 onboarding').toBe(false)
+    expect(w.find('.kw-pending').exists(), 'onboarding should not appear when tree present').toBe(false)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 visibleNodes / isOpen / toggle / nodeClick(计划书 T6-4)
-describe('WikiView —— 树的展开折叠与缩进(蓝本 :178-186 / :239-248)', () => {
-  it('顶层根挂载即展开,深层节点默认折叠(蓝本 :228 `openPaths = roots.map(...)`)', async () => {
+// 🔴 visibleNodes / isOpen / toggle / nodeClick (plan T6-4)
+describe('WikiView — tree expand/collapse and indentation (blueprint :178-186 / :239-248)', () => {
+  it('top-level roots expanded on mount, deep nodes collapsed by default (blueprint :228 `openPaths = roots.map(...)`)', async () => {
     const { w } = await mountPage()
-    // /DATA 展开 ⇒ 看得到 Documents;Documents 折叠 ⇒ 看不到 Specs。
+    // /DATA expanded ⇒ can see Documents; Documents collapsed ⇒ cannot see Specs.
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents'])
     expect(treeRows(w)[0].find('.kw-node-chev').attributes('data-open')).toBe('true')
     expect(treeRows(w)[1].find('.kw-node-chev').attributes('data-open')).toBe('false')
   })
 
-  it('🔴 缩进逐字照抄 `paddingLeft: (8 + depth * 14) + "px"`(蓝本 :22)', async () => {
+  it('🔴 indentation copies `paddingLeft: (8 + depth * 14) + "px"` verbatim (blueprint :22)', async () => {
     const { w } = await mountPage()
     expect(treeRows(w)[0].attributes('style')).toContain('padding-left: 8px')
     expect(treeRows(w)[1].attributes('style')).toContain('padding-left: 22px')
-    // 展开第二层后第三层是 8 + 2*14 = 36px。
+    // after expanding second level, third level is 8 + 2*14 = 36px.
     await treeRows(w)[1].find('.kw-node-chev').trigger('click')
     await flush()
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents', 'Specs'])
     expect(treeRows(w)[2].attributes('style')).toContain('padding-left: 36px')
   })
 
-  it('toggle 是纯翻转:再点一次收起(蓝本 :240-244)', async () => {
+  it('toggle is pure flip: click again to collapse (blueprint :240-244)', async () => {
     const { w } = await mountPage()
     const chev = () => treeRows(w)[1].find('.kw-node-chev')
     await chev().trigger('click')
@@ -628,44 +628,44 @@ describe('WikiView —— 树的展开折叠与缩进(蓝本 :178-186 / :239-248
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents'])
   })
 
-  it('🔴 chevron 的 @click.stop:点它只折叠/展开,**不**触发整行选中(蓝本 :26)', async () => {
+  it('🔴 chevron @click.stop: clicking it only collapses/expands, **does not** trigger whole-line selection (blueprint :26)', async () => {
     const { w } = await mountPage()
-    // 初始选中是 roots[0] = /DATA。
+    // initial selection is roots[0] = /DATA.
     expect(treeRows(w)[0].attributes('data-active')).toBe('true')
     expect(treeRows(w)[1].attributes('data-active')).toBe('false')
     const nodeCallsBefore = wiki.getNode.mock.calls.length
     await treeRows(w)[1].find('.kw-node-chev').trigger('click')
     await flush()
-    // 展开生效,但选中没变、也没有为 Documents 发新的取文章请求。
+    // expand takes effect, but selection didn't change, also no new article fetch request for Documents.
     expect(rowPaths(w)).toEqual(['/DATA', 'Documents', 'Specs'])
-    expect(treeRows(w)[0].attributes('data-active'), '点 chevron 把选中挪走了 —— @click.stop 丢了').toBe('true')
+    expect(treeRows(w)[0].attributes('data-active'), 'clicking chevron moved selection — @click.stop lost').toBe('true')
     expect(treeRows(w)[1].attributes('data-active')).toBe('false')
-    expect(wiki.getNode.mock.calls.length, '点 chevron 触发了 fetchArticle —— @click.stop 丢了').toBe(
+    expect(wiki.getNode.mock.calls.length, 'clicking chevron triggered fetchArticle — @click.stop lost').toBe(
       nodeCallsBefore,
     )
   })
 
-  it('无子节点的行渲染一个空 chevron 占位(蓝本 :27),有子节点的才带 data-open', async () => {
+  it('rows without children render empty chevron placeholder (blueprint :27), rows with children have data-open', async () => {
     const { w } = await mountPage()
     await treeRows(w)[1].find('.kw-node-chev').trigger('click')
     await flush()
     const specChev = treeRows(w)[2].find('.kw-node-chev')
     expect(specChev.exists()).toBe(true)
-    expect(specChev.attributes('data-open'), 'Specs 无子节点 ⇒ 不带 data-open').toBeUndefined()
-    expect(specChev.element.children.length, '空占位里不该有图标').toBe(0)
+    expect(specChev.attributes('data-open'), 'Specs has no children ⇒ no data-open').toBeUndefined()
+    expect(specChev.element.children.length, 'empty placeholder should have no icon').toBe(0)
   })
 
-  it('顶层根用 drive 图标、子节点用 folder 图标(蓝本 :28 的 `depth === 0 ? …`)', async () => {
+  it('top-level roots use drive icon, children use folder icon (blueprint :28 `depth === 0 ? …`)', async () => {
     const { w } = await mountPage()
     const icoTitles = treeRows(w).map((r) => r.find('.kw-node-ico svg').attributes('data-glyph'))
-    // KIcon 没有 data-glyph 时退化成 undefined —— 用 path 数据比更稳:只断两行的图标不同。
+    // KIcon without data-glyph degrades to undefined — comparing path data is more stable: only check two rows have different icons.
     const html0 = treeRows(w)[0].find('.kw-node-ico').html()
     const html1 = treeRows(w)[1].find('.kw-node-ico').html()
     expect(icoTitles.length).toBe(2)
-    expect(html0, '顶层根与子节点用了同一个图标 —— `depth === 0` 三元丢了').not.toBe(html1)
+    expect(html0, 'top-level root and children used same icon — `depth === 0` ternary lost').not.toBe(html1)
   })
 
-  it('🔴 nodeClick 点整行:选中 + 展开(蓝本 :245-248)', async () => {
+  it('🔴 nodeClick click whole row: select + expand (blueprint :245-248)', async () => {
     const { w } = await mountPage()
     await treeRows(w)[1].trigger('click')
     await flush()
@@ -678,18 +678,18 @@ describe('WikiView —— 树的展开折叠与缩进(蓝本 :178-186 / :239-248
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K56 —— 面包屑的 `:key` 挪到 `<template v-for>` 自身(Vue 3 编译器要求),
-//    渲染出的 DOM 序列必须与蓝本 :50-53 逐个一致。
-describe('WikiView —— K56 面包屑 DOM 序列(蓝本 :48-55)', () => {
-  it('🔴 button / span("/") 交替,末尾是 span.cur', async () => {
+// 🔴 K56 — move breadcrumb's `:key` to `<template v-for>` itself (Vue 3 compiler requirement),
+//    rendered DOM sequence must match blueprint :50-53 item by item.
+describe('WikiView — K56 breadcrumb DOM sequence (blueprint :48-55)', () => {
+  it('🔴 button / span("/") alternate, end with span.cur', async () => {
     const { w } = await mountPage({ query: { path: '/DATA/Documents/Specs' } })
     const crumb = w.find('.kw-crumb')
     expect(crumb.exists()).toBe(true)
     const kids = Array.from(crumb.element.children)
-    expect(kids.length, '面包屑子元素数不对 —— 防空转').toBe(5)
+    expect(kids.length, 'breadcrumb child count wrong — prevent empty').toBe(5)
     expect(kids.map((el) => el.tagName)).toEqual(['BUTTON', 'SPAN', 'BUTTON', 'SPAN', 'SPAN'])
     expect(kids.map((el) => norm(el.textContent || ''))).toEqual([
-      '/DATA', // 顶层根显示全路径(buildWikiTree 的 `t.name = n.path`)
+      '/DATA', // top-level root shows full path (buildWikiTree's `t.name = n.path`)
       '/',
       'Documents',
       '/',
@@ -697,16 +697,16 @@ describe('WikiView —— K56 面包屑 DOM 序列(蓝本 :48-55)', () => {
     ])
     expect(kids[1].className).toBe('')
     expect(kids[3].className).toBe('')
-    expect(kids[4].className, '末尾必须是 .cur').toBe('cur')
+    expect(kids[4].className, 'end must be .cur').toBe('cur')
   })
 
-  it('面包屑只列**祖先**,当前节点不出现在按钮里(蓝本 :188 的 `slice(0, -1)`)', async () => {
+  it('breadcrumb only lists **ancestors**, current node does not appear in buttons (blueprint :188 `slice(0, -1)`)', async () => {
     const { w } = await mountPage({ query: { path: '/DATA/Documents/Specs' } })
     const btns = w.findAll('.kw-crumb button')
     expect(btns.map((b) => norm(b.text()))).toEqual(['/DATA', 'Documents'])
   })
 
-  it('点面包屑按钮回跳到那一级(蓝本 :51)', async () => {
+  it('click breadcrumb button to jump back to that level (blueprint :51)', async () => {
     const { w, router } = await mountPage({ query: { path: '/DATA/Documents/Specs' } })
     await w.findAll('.kw-crumb button')[1].trigger('click')
     await flush()
@@ -714,7 +714,7 @@ describe('WikiView —— K56 面包屑 DOM 序列(蓝本 :48-55)', () => {
     expect(router.currentRoute.value.query.path).toBe('/DATA/Documents')
   })
 
-  it('选中顶层根时面包屑只有 .cur 一项(crumbParents 为空)', async () => {
+  it('when top-level root selected breadcrumb only has .cur item (crumbParents empty)', async () => {
     const { w } = await mountPage()
     const kids = Array.from(w.find('.kw-crumb').element.children)
     expect(kids.length).toBe(1)
@@ -724,13 +724,13 @@ describe('WikiView —— K56 面包屑 DOM 序列(蓝本 :48-55)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 select() 的三件事(计划书 T6-5)
-describe('WikiView —— select() 三件事(蓝本 :249-260)', () => {
-  it('🔴 ② 展开**每一个**祖先(判据:去掉 trailFor 循环 → 本条必须报红)', async () => {
-    // 深链直达三层节点:loadTree 只把顶层根放进 openPaths,中间那层
-    // `/DATA/Documents` 全靠 select() 的祖先循环展开。少了循环 ⇒ Specs 那行在树里看不见。
+// 🔴 select() three tasks (plan T6-5)
+describe('WikiView — select() three tasks (blueprint :249-260)', () => {
+  it('🔴 ② expand **every single** ancestor (criterion: remove trailFor loop → this test must fail)', async () => {
+    // deep link directly to three-level node: loadTree only puts top-level root in openPaths, middle layer
+    // `/DATA/Documents` entirely relies on select()'s ancestor loop to expand. without loop ⇒ Specs row invisible in tree.
     const { w } = await mountPage({ query: { path: '/DATA/Documents/Specs' } })
-    expect(rowPaths(w), '祖先没被展开 ⇒ 选中的节点在树里根本看不见').toEqual([
+    expect(rowPaths(w), 'ancestors not expanded ⇒ selected node invisible in tree').toEqual([
       '/DATA',
       'Documents',
       'Specs',

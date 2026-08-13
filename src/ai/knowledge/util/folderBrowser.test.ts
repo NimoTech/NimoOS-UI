@@ -1,15 +1,18 @@
-// SP8-P5c Task 3(半一)—— `util/folderBrowser.ts` 三个纯函数的单测。
-// 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`。
+// SP8-P5c Task 3 (part 1) — unit tests for `util/folderBrowser.ts` three pure functions.
+// Blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/folderBrowser.js:3-34`.
 //
-// 【端到端那条用例的数据来源】`folder-list-DATA.json` 的 `data.content` 那一层
-// (18 项)**逐字抄进本文件**(见下方 FIXTURE-COPY 块),不在运行时读那个目录 ——
-// 协调者裁定(见 T3 报告 §8):`.superpowers/` 被 gitignore 盖着、靠 `git add -f`
-// 才进版本库,SP7 曾整目录丢过一次;`src/` 下的测试跨界依赖它,一旦合并没带上或有人
-// 跑 `git clean -X`,就会以「找不到文件」的形式神秘挂掉。治理 §4「禁手编」的本意是
-// 「别凭想象编数据」(记忆 `newui-fixture-from-imagination-trap`),抄本 + 注明出处
-// 同样满足,且测试自包含。抄本与 fixture 原文的等价性由一次性脚本程序化校验(报告 §9)。
-// 期望值(12 个目录名与它们的 `localeCompare` 顺序)是**写死的字面量**,不是从
-// 抄本现算出来的 —— 否则断言会自我实现、失去判别力。
+// [Data source for end-to-end test case] `data.content` layer of `folder-list-DATA.json`
+// (18 items) **copied verbatim into this file** (see FIXTURE-COPY block below),
+// not reading that directory at runtime — coordinator ruling (see T3 report §8):
+// `.superpowers/` covered by gitignore, enters repo only via `git add -f`, SP7 lost
+// entire directory once; tests under `src/` cross-depend on it, once merged without it
+// or someone runs `git clean -X`, mysteriously dies with "file not found". Governance §4
+// "forbid hand-written" means "don't invent data by imagination" (memory
+// `newui-fixture-from-imagination-trap`), copy + cite source also satisfies + test
+// self-contained. Copy-blueprint original equivalence verified programmatically by
+// one-off script (report §9). Expected values (12 dir names and their `localeCompare`
+// order) are **hardcoded literals**, not computed from copy — else assertion
+// self-fulfills, losing discriminative power.
 import { describe, it, expect } from 'vitest'
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import { crumbsFor, dirEntries, pickerRoots } from './folderBrowser'

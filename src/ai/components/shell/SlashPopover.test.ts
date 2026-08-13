@@ -1,7 +1,7 @@
-// SP8-P1c1 patch task 2 — SlashPopover:与 @ 面板同款的斜杠命令面板。
-// 十个用例见 .superpowers/sdd/p1c1-patch-task-2-brief.md「测试要求」一节;
-// 挂载/键盘断言风格照抄 MentionPopover.test.ts(真实 i18n、attachTo document.body、
-// window.dispatchEvent 触发 capture 阶段 keydown)。
+// SP8-P1c1 patch task 2 — SlashPopover: slash command panel in the same style as the @ panel.
+// Ten test cases are specified in .superpowers/sdd/p1c1-patch-task-2-brief.md "Test Requirements" section;
+// mount/keyboard assertion style copied from MentionPopover.test.ts (real i18n, attachTo document.body,
+// window.dispatchEvent triggering capture-phase keydown).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -17,7 +17,7 @@ const folders = [
 ]
 
 describe('SlashPopover', () => {
-  it('1. command 阶段渲染 /init;query=in 仍匹配;query=zzz 显示无匹配空态', async () => {
+  it('1. command phase renders /init; query=in still matches; query=zzz shows no-match empty state', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'command', query: '', folders: [] }, global: g })
     expect(w.text()).toContain('/init')
 
@@ -30,7 +30,7 @@ describe('SlashPopover', () => {
     expect(w.text()).toContain(zh.aiSlashNoCommand)
   })
 
-  it('2. ArrowDown/Up 移动高亮(data-active),Enter 触发 pick-command', async () => {
+  it('2. ArrowDown/Up moves highlight (data-active), Enter triggers pick-command', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'command', query: '', folders: [] }, global: g, attachTo: document.body })
     expect(w.findAll('.slash-item')[0].attributes('data-active')).toBe('true')
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
@@ -42,14 +42,14 @@ describe('SlashPopover', () => {
     w.unmount()
   })
 
-  it('3. Tab 与 Enter 等效', async () => {
+  it('3. Tab is equivalent to Enter', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'command', query: '', folders: [] }, global: g, attachTo: document.body })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab' }))
     expect(w.emitted('pick-command')).toEqual([['init']])
     w.unmount()
   })
 
-  it('4. command 阶段 Escape -> close;target 阶段 Escape -> back(不是 close)', async () => {
+  it('4. command phase: Escape → close; target phase: Escape → back (not close)', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'command', query: '', folders: [] }, global: g, attachTo: document.body })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(w.emitted('close')).toBeTruthy()
@@ -63,7 +63,7 @@ describe('SlashPopover', () => {
     w2.unmount()
   })
 
-  it('5. target 阶段渲染 folders,Enter 触发 pick-target(选中的 path)', async () => {
+  it('5. target phase renders folders, Enter triggers pick-target (selected path)', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'target', query: '', folders }, global: g, attachTo: document.body })
     expect(w.findAll('.slash-item')).toHaveLength(2)
     expect(w.text()).toContain('/DATA/Documents')
@@ -75,12 +75,12 @@ describe('SlashPopover', () => {
     w.unmount()
   })
 
-  it('6. target 阶段 folders 为空 -> 显示 aiSlashNoFolders 空态', async () => {
+  it('6. target phase: empty folders → show aiSlashNoFolders empty state', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'target', query: '', folders: [] }, global: g })
     expect(w.text()).toContain(zh.aiSlashNoFolders.replace("{'@'}", '@'))
   })
 
-  it('7. target 阶段:query 为空时 Backspace -> back;query 非空时 Backspace 不触发 back', async () => {
+  it('7. target phase: Backspace → back when query is empty; Backspace does not trigger back when query is non-empty', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'target', query: '', folders }, global: g, attachTo: document.body })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace' }))
     expect(w.emitted('back')).toBeTruthy()
@@ -92,13 +92,13 @@ describe('SlashPopover', () => {
     w2.unmount()
   })
 
-  it('8. 行 click 等价于 Enter', async () => {
+  it('8. line click is equivalent to Enter', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'target', query: '', folders }, global: g })
     await w.findAll('.slash-item')[1].trigger('click')
     expect(w.emitted('pick-target')).toEqual([['/DATA/Projects']])
   })
 
-  it('9. stage 或 query 变化后高亮重置为第 0 项', async () => {
+  it('9. highlight resets to item 0 after stage or query changes', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'target', query: '', folders }, global: g, attachTo: document.body })
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
     await w.vm.$nextTick()
@@ -119,7 +119,7 @@ describe('SlashPopover', () => {
     w.unmount()
   })
 
-  it('10. 卸载后 window keydown 不再触发任何 emit', async () => {
+  it('10. after unmount, window keydown no longer triggers any emit', async () => {
     const w = mount(SlashPopover, { props: { open: true, stage: 'command', query: '', folders: [] }, global: g, attachTo: document.body })
     w.unmount()
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))

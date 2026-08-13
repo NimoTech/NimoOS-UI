@@ -5,9 +5,9 @@ import McpServerGroup from './McpServerGroup.vue'
 import zh from '../../../../i18n/zh_cn'
 import type { McpServer } from '../../../types/mcpServer'
 
-// SP8-P4 Task 5 —— 对齐 Vue2 src/views/AI/MCP/McpServerGroup.vue(47 行)。
-// brief Step 1 给的测试逐字照抄(公共约束 §2:brief 测试与 1:1 照 Vue2 冲突才是测试错,
-// 本任务书里的测试与蓝本行为核对无冲突,故不改)。
+// SP8-P4 Task 5 — align with Vue2 src/views/AI/MCP/McpServerGroup.vue (47 lines).
+// brief Step 1 test copied verbatim (public constraint §2: brief test conflicts with 1:1 copy of Vue2 only if test is wrong,
+// this task spec tests have no conflict with blueprint behavior, so no changes).
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -18,16 +18,16 @@ function srv(p: Partial<McpServer> = {}): McpServer {
   }
 }
 const mountG = (items: McpServer[], activeId: number | null = null) =>
-  mount(McpServerGroup, { props: { label: '已启用服务', items, activeId }, global: { plugins: [i18n] } })
+  mount(McpServerGroup, { props: { label: 'Enabled Services', items, activeId }, global: { plugins: [i18n] } })
 
 describe('McpServerGroup', () => {
-  it('渲染分组标题与计数', () => {
+  it('render group title and count', () => {
     const w = mountG([srv(), srv({ id: 2, name: 'notion' })])
-    expect(w.find('.sk-group-label').text()).toContain('已启用服务')
+    expect(w.find('.sk-group-label').text()).toContain('Enabled Services')
     expect(w.find('.sk-group-count').text()).toBe('2')
   })
 
-  it('每项渲染名称、transport 标签、url', () => {
+  it('each item renders name, transport label, url', () => {
     const w = mountG([srv({ name: 'brave', transport: 'sse', url: 'https://x/sse' })])
     expect(w.find('.sk-item-name').text()).toBe('brave')
     expect(w.find('.mcp-transport').text()).toBe('SSE')
@@ -35,22 +35,22 @@ describe('McpServerGroup', () => {
     expect(w.find('.sk-item-desc').text()).toBe('https://x/sse')
   })
 
-  it('点击条目 emit pick(id)', async () => {
+  it('clicking item emits pick(id)', async () => {
     const w = mountG([srv({ id: 7 })])
     await w.find('.sk-item').trigger('click')
     expect(w.emitted('pick')).toEqual([[7]])
   })
 
-  // 判别力:两项且只有第二项是 active —— 单元素数组测不出 activeId 是否真的比对了 id。
-  it('只有 id 命中 activeId 的那一项带 data-active=true', () => {
+  // discriminating power: two items with only second active — single-element array can't test if activeId actually matched id.
+  it('only item with id matching activeId has data-active=true', () => {
     const w = mountG([srv({ id: 1 }), srv({ id: 2, name: 'b' })], 2)
     const items = w.findAll('.sk-item')
     expect(items[0].attributes('data-active')).toBe('false')
     expect(items[1].attributes('data-active')).toBe('true')
   })
 
-  // 判别力:两项一开一关。
-  it('停用项带 data-disabled=true 并显示 Off 角标,启用项不显示', () => {
+  // discriminating power: two items, one enabled one disabled.
+  it('disabled item has data-disabled=true and shows Off badge, enabled item doesn\'t', () => {
     const w = mountG([srv({ id: 1, enabled: true }), srv({ id: 2, name: 'b', enabled: false })])
     const items = w.findAll('.sk-item')
     expect(items[0].attributes('data-disabled')).toBe('false')
@@ -59,7 +59,7 @@ describe('McpServerGroup', () => {
     expect(items[1].find('.sk-item-off').text()).toBe(zh.aiSkOff)
   })
 
-  it('点标题折叠/展开(Vue2 :3 的 collapsed 开关)', async () => {
+  it('clicking title collapses/expands (Vue2 :3 collapsed switch)', async () => {
     const w = mountG([srv(), srv({ id: 2, name: 'b' })])
     expect(w.findAll('.sk-item')).toHaveLength(2)
     await w.find('.sk-group-label').trigger('click')
@@ -69,7 +69,7 @@ describe('McpServerGroup', () => {
     expect(w.findAll('.sk-item')).toHaveLength(2)
   })
 
-  it('同名服务器拿到同一个色板 id(色块走 SkillTile)', () => {
+  it('same-named servers get same palette id (color block uses SkillTile)', () => {
     const w = mountG([srv({ id: 1, name: 'same' }), srv({ id: 2, name: 'same' })])
     const tiles = w.findAll('.sk-tile')
     expect(tiles[0].attributes('style')).toBe(tiles[1].attributes('style'))

@@ -1,15 +1,18 @@
 <!--
-  SP8-P2a Task 11 —— 1:1 移植自 Vue2
-  `src/views/AI/Settings/sections/PrivacySection.vue`(74 行)。三行配置:允许云端
-  请求(开关)· 默认后端(下拉:local/cloud)· 本地失败时确认(开关)。每次改动
-  调 `store.updatePolicyField(field, value)`;成功弹 toast(Vue2 :67 显式写了
-  `duration: 1500`,不是隐式吃默认值——这里同样显式传,好让「1500ms」这个产品
-  决定不随 toast store 未来改默认值而漂移),失败弹 danger 档。三态包裹:
-  `policyLoading` → 加载中;`!policy` → 「无法加载策略」;否则渲染卡片。
+  SP8-P2a Task 11 — 1:1 port from Vue2
+  `src/views/AI/Settings/sections/PrivacySection.vue` (74 lines). Three configurations:
+  allow cloud requests (toggle) · default backend (dropdown: local/cloud) · confirm on
+  local failure (toggle). Each change calls `store.updatePolicyField(field, value)`;
+  on success shows toast (Vue2 :67 explicitly wrote `duration: 1500`, not relying on
+  implicit defaults — doing the same here so the "1500ms" product decision doesn't drift
+  if toast store changes its default value in the future), on failure shows danger toast.
+  Three states wrapped: `policyLoading` → loading; `!policy` → "unable to load policy";
+  otherwise renders card.
 
-  【Vue2 :22/:43 的 `!!` 归一逐字保留】`policy.allow_remote`/`escalation_prompt`
-  在接口尚未返回该字段时可能是 `undefined`,`!!` 把它归一成布尔再交给 SetSwitch
-  的 `modelValue: boolean` prop——不加会把 undefined 传给声明为 boolean 的 prop。
+  【Vue2 :22/:43 `!!` operator retained exactly】 `policy.allow_remote`/`escalation_prompt`
+  may be `undefined` when the API hasn't returned that field yet. `!!` normalizes it to
+  a boolean before passing to SetSwitch's `modelValue: boolean` prop — without it, passing
+  undefined to a prop declared as boolean can cause issues.
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
@@ -22,7 +25,7 @@ const store = useSettingsStore()
 const toast = useToast()
 const { t } = useI18n()
 
-/** Vue2 :64-71 —— 三行共用同一条改动路径:调 action → 成功 toast(1500ms)→ 失败 danger toast。 */
+/** Vue2 :64-71 — three rows share one change path: call action → success toast (1500ms) → failure danger toast. */
 async function onChange<K extends keyof Policy>(field: K, value: Policy[K]) {
   try {
     await store.updatePolicyField(field, value)

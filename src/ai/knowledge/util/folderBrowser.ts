@@ -1,57 +1,57 @@
-// SP8-P5c Task 3(半一)—— 目录选择器的三个纯函数。
-// 1:1 移植自 Vue2 `NimoOS-UI` (main@7a6ee6b7)
-// `src/components/common/folderBrowser.js`(34 行,`git show main:` 读取 ——
-// 治理文件 §1:那个仓的工作树是旧分支不可信)。
+// SP8-P5c Task 3 (part 1) —— three pure functions for folder picker.
+// 1:1 ported from Vue2 `NimoOS-UI` (main@7a6ee6b7)
+// `src/components/common/folderBrowser.js` (34 lines, read via `git show main:` ——
+// governance §1: that repo's working tree is unreliable old branch).
 //
-// 逐处对照:
-//   蓝本 :3-8   dirEntries
-//   蓝本 :10-23 pickerRoots(含 :13 的兜底注释语义)
-//   蓝本 :25-34 crumbsFor
+// Point-by-point alignment:
+//   Original :3-8   dirEntries
+//   Original :10-23 pickerRoots (including :13 fallback comment semantics)
+//   Original :25-34 crumbsFor
 //
-// 【零改动移植的依据】蓝本读的是 `e.is_dir` / `e.name` / `e.path`,而共享包的
-// `FolderEntry = { name: string; path: string; is_dir: boolean }`
-// (`NimoOS-Service/src/types.ts:26-30`)与之逐字对上 → 字段名一个都不改,
-// **不许改成 camelCase `isDir`**(治理 §12.1 C-5 已实测 `GET /v1/folder` 的
-// 每项字段就是 snake_case 的 `is_dir`)。
+// 【Verbatim port rationale】Original reads `e.is_dir` / `e.name` / `e.path`, and shared
+// package `FolderEntry = { name: string; path: string; is_dir: boolean }`
+// (`NimoOS-Service/src/types.ts:26-30`) matches word-for-word → don't change any field
+// names, **never change to camelCase `isDir`** (governance §12.1 C-5 verified: `GET /v1/folder`
+// response field is snake_case `is_dir`).
 //
-// 【N7】`dirEntries` 的 `(content || [])` 与 `pickerRoots` 的 `(candidates || [])`
-// 是 Go nil slice 序列化成 `null` 的必要防御,**不许删**。
+// 【N7】 `dirEntries` `(content || [])` and `pickerRoots` `(candidates || [])` are
+// necessary guards for Go nil slice serializing to `null`, **don't delete**.
 //
-// 【为什么兜底三根不是死代码】治理 §4.3 实测:本机 `GET /v1/wiki/candidates`
-// 返回 `[]`(HTTP 200,秒回)→ `pickerRoots([])` 走的就是兜底那条,真机可验。
-// 那三个 label(`System (/DATA)` / `/media` / `/mnt`)是**硬编码英文、不进
-// i18n**(蓝本如此;它们是数据不是文案)。
+// 【Why fallback three roots aren't dead code】Governance §4.3 testing: local
+// `GET /v1/wiki/candidates` returns `[]` (HTTP 200, instant) → `pickerRoots([])` takes
+// fallback branch, verifiable on real device. Those three labels (`System (/DATA)` / `/media` /
+// `/mnt`) are **hardcoded English, not i18n** (original does so; they're data not copy).
 
 import type { FolderEntry } from '@nimotech/nimoos-service'
 
-/** 目录选择器的一行(蓝本 `:6` map 出来的形状)。 */
+/** One line of folder picker (original `:6` mapped shape). */
 export interface DirEntry {
   name: string
   path: string
 }
 
-/** `pickerRoots` 的入参形状 —— 结构上兼容共享包的 `WikiCandidate`
- *  (`{ path, type, size?, label? }`),`label` 可缺(走 `|| c.path`)。 */
+/** Input shape for `pickerRoots` —— structurally compatible with shared package `WikiCandidate`
+ *  (`{ path, type, size?, label? }`), `label` optional (uses `|| c.path`). */
 export interface PickerCandidate {
   path: string
   label?: string
 }
 
-/** 根层的一项(蓝本 `:16` / `:19-21` 两条返回路径的共同形状)。 */
+/** One root-level item (original `:16` / `:19-21` return paths' common shape). */
 export interface PickerRoot {
   path: string
   label: string
 }
 
-/** 面包屑的一项(蓝本 `:26` / `:31`)。 */
+/** One breadcrumb item (original `:26` / `:31`). */
 export interface Crumb {
   label: string
   path: string
 }
 
 /**
- * 蓝本 `:3-8` —— 只留目录、滤掉以 `.` 开头的隐藏项,按 name 的
- * `localeCompare` 升序排。
+ * Original `:3-8` —— keep only directories, filter out hidden items starting with `.`,
+ * sort by name `localeCompare` ascending.
  */
 export function dirEntries(content?: FolderEntry[] | null): DirEntry[] {
   return (content || [])
@@ -61,8 +61,9 @@ export function dirEntries(content?: FolderEntry[] | null): DirEntry[] {
 }
 
 /**
- * 蓝本 `:10-23` —— 根层候选来自 Wiki 服务(LocalStorage 支撑的卷列表);
- * 那个列表为空或拿不到时选择器仍必须可用,所以回落到 NimoOS 的既知布局。
+ * Original `:10-23` —— root-level candidates from Wiki service (LocalStorage-backed
+ * volume list); when empty or unreachable, picker must still work, so fallback to
+ * known NimoOS layout.
  */
 export function pickerRoots(candidates?: PickerCandidate[] | null): PickerRoot[] {
   const cands = candidates || []
@@ -77,8 +78,9 @@ export function pickerRoots(candidates?: PickerCandidate[] | null): PickerRoot[]
 }
 
 /**
- * 蓝本 `:25-34` —— 首项恒为根(`path: ''`),`path` 为空则只有根一项;
- * 否则按 `/` 切段(`filter(Boolean)` 吃掉前后多余与连续的斜杠)逐段累加。
+ * Original `:25-34` —— first item always root (`path: ''`), empty `path` yields root only;
+ * else split by `/` (`filter(Boolean)` removes leading/trailing/consecutive slashes),
+ * accumulate segment by segment.
  */
 export function crumbsFor(path: string, rootLabel: string): Crumb[] {
   const crumbs: Crumb[] = [{ label: rootLabel, path: '' }]

@@ -1,24 +1,29 @@
-// SP8-P5b Task 5 —— QueueView.vue「任务队列」页测试。
-// 测试脚手架照 KnowledgeLayout.test.ts 的既有写法(治理文件 §9 明令:P5a T10 自己造的
-// makeRouter 曾自递归致 DOM/生命周期翻倍,别自己造)——真 router(createWebHashHistory)
-// + 真 Pinia + 真 i18n(不手写子集)+ vi.hoisted 的 @nimotech/nimoos-service mock(否则
-// onMounted 会真发请求)。异步断言一律 flushPromises() + nextTick()。
+// SP8-P5b Task 5 — QueueView.vue "Task Queue" page tests.
+// Test scaffolding follows the existing pattern in KnowledgeLayout.test.ts (governance
+// document §9 explicitly requires: P5a T10 custom makeRouter once caused recursive DOM/
+// lifecycle doubling, don't create your own) — true router(createWebHashHistory)
+// + true Pinia + true i18n (not hardcoded subset) + vi.hoisted @nimotech/nimoos-service
+// mock (otherwise onMounted will actually make requests). All async assertions use
+// flushPromises() + nextTick().
 //
-// mock 形状来源(治理文件 §4,禁手编,逐个说明):
-//   ai.parserJobs({status,limit})       —— pending/running 两桶取自 p5b-fixtures/
-//     jobs-pending.json / jobs-running.json 原样(snake_case,service.ai.* 零转换,见 §4.1);
-//     failed 桶真机是空的(jobs-failed.json:{"jobs":[]}),FAILED_JOBS 是本文件按同一 schema
-//     (id/root_id/path/op/sub_modality/priority/attempts/last_error/locked_until/created_at/
-//     picked_at/done_at,与 pending/running 两个真 fixture 逐字同一套字段名)人工构造的非空
-//     场景,专门覆盖「{n}× retried」/last_error/重试按钮几条真机验不了的分支(治理 §4.5 已
-//     登记:failed 桶真机恒空,只能 mock)。
-//   ai.parserRetryJobs / parserDeleteJob / parserClearFailedJobs —— 分别照
-//     jobs-retry-empty.http({"retried":0})· §4.1 axios 204 空体推定(mockResolvedValue(''))·
-//     README「未实测 · 源码推定」段的 {"cleared": n} 形状(mockResolvedValue({cleared:0})）。
-//   notes.listDistillJobs / getDistillStatus —— camelCase(包内已归一化,§4.2),真机队列为空
-//     (distill-jobs.json/distill-status.json),DISTILL_PENDING/RUNNING/FAILED 三个非空数组按
-//     README「distill job 行的字段(队列非空时)」段给出的字段名(filePath/status/origin/
-//     attempts/lastError/enqueuedAt/updatedAt)人工构造,同样标注「源码推定,真机验不了」。
+// Mock shape sources (governance document §4, no hardcoding, each explained):
+//   ai.parserJobs({status,limit})       — pending/running buckets taken as-is from
+//     p5b-fixtures/jobs-pending.json / jobs-running.json (snake_case, no service.ai.*
+//     transform, see §4.1); failed bucket is empty on device (jobs-failed.json:{"jobs":[]}),
+//     FAILED_JOBS is this file's non-empty scenario manually constructed per the same
+//     schema (id/root_id/path/op/sub_modality/priority/attempts/last_error/locked_until/
+//     created_at/picked_at/done_at, identical field names to the two real fixtures), to
+//     cover "{n}× retried"/last_error/retry button branches that cannot be tested on device
+//     (governance §4.5 registered: failed bucket always empty on device, mock only).
+//   ai.parserRetryJobs / parserDeleteJob / parserClearFailedJobs — follow jobs-retry-empty.http
+//     ({"retried":0}) · §4.1 axios 204 empty-body assumption (mockResolvedValue('')) ·
+//     README "untested · inferred from source" section's {"cleared": n} shape
+//     (mockResolvedValue({cleared:0})).
+//   notes.listDistillJobs / getDistillStatus — camelCase (normalized in package, §4.2),
+//     device queue empty (distill-jobs.json/distill-status.json), DISTILL_PENDING/RUNNING/
+//     FAILED three non-empty arrays manually constructed per README "distill job row fields
+//     (when queue non-empty)" section's field names (filePath/status/origin/attempts/
+//     lastError/enqueuedAt/updatedAt), likewise marked "inferred from source, untested on device".
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -27,20 +32,22 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { i18n } from '../../../i18n'
 import QueueView from './QueueView.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
-// 守卫缺口③(附录 B §B.0.4)的定向断言要读 .vue 源文件本身 —— 一律 node:fs,不用
-// Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言会对空
-// 字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③)。本仓 package.json 是
-// "type": "module" → __dirname 在 ESM 下不可用,改用 fileURLToPath + node:path 的
-// 等价写法。node: 前缀模块的类型声明由 `@types/node` 提供,本仓已装(SP8-P6 合流自 master),
-// vue-tsc 直接通过,**不需要** @ts-expect-error 抑制(sp8-ai 分支上原有的抑制行已在合流时删除;
-// 参见 knowledgeStyles.test.ts 头注释①②)。
+// Guard gap ③ (appendix B §B.0.4) assertions must read .vue source files themselves — all
+// use node:fs, not Vite's ?raw (vitest's CSSEnablerPlugin replaces the style source with
+// an empty string entirely, assertions will "falsely pass" on empty string; example in
+// knowledgeStyles.test.ts top comment ③). This repo's package.json is "type": "module"
+// → __dirname unavailable under ESM, use fileURLToPath + node:path equivalent instead.
+// Type declarations for node: prefixed modules provided by `@types/node`, already installed
+// in this repo (SP8-P6 merged from master), vue-tsc passes directly, **does not need**
+// @ts-expect-error suppression (original suppression lines on sp8-ai branch deleted at merge;
+// see knowledgeStyles.test.ts top comments ①②).
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
+// ── vi.hoisted mock skeleton (governance §9: avoid ESM hoisting TDZ) ──
 const ai = vi.hoisted(() => ({
   parserJobs: vi.fn(),
   parserRetryJobs: vi.fn(),
@@ -55,7 +62,7 @@ const notes = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes } }))
 
-// ── fixture 数据(逐字取自 p5b-fixtures/jobs-pending.json / jobs-running.json)──
+// ── fixture data (taken verbatim from p5b-fixtures/jobs-pending.json / jobs-running.json) ──
 const PENDING_JOBS = [
   {
     id: 348, root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0',
@@ -84,7 +91,7 @@ const RUNNING_JOBS = [
     created_at: 1784424392938, picked_at: 1784438018718, done_at: null,
   },
 ]
-// 人工构造(README 登记:failed 桶真机恒空,只能 mock),同一套字段名。
+// Manually constructed (README registered: failed bucket always empty on device, mock only), same set of field names.
 const FAILED_JOBS = [
   {
     id: 500, root_id: 'root-a', path: '/DATA/Docs/broken-1.pdf', op: 'index', sub_modality: null,
@@ -98,7 +105,7 @@ const FAILED_JOBS = [
   },
 ]
 
-// 人工构造的沉淀队列非空场景(README「distill job 行的字段」段给的字段名,源码推定)。
+// Manually constructed distill queue non-empty scenario (README "distill job row fields" section's field names, inferred from source).
 const DISTILL_PENDING = [
   { filePath: '/DATA/Notes/todo.md', status: 'pending', origin: 'auto', attempts: 0, lastError: '', enqueuedAt: 1784770000000, updatedAt: 1784770000000 },
 ]

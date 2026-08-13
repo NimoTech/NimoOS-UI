@@ -1,190 +1,225 @@
 <!--
-  SP8-P5f Task 6(上半)+ **Task 7(下半,本刀)** —— 「Wiki 导航」页
-  (rail 第 3 项,路由 `/ai/knowledge/wiki`),
-  1:1 移植自 Vue2 蓝本 `NimoOS-UI` @ `7a6ee6b7`
-  `src/views/AI/Knowledge/WikiView.vue`(314 行,`git -C ../../NimoOS-UI show 7a6ee6b7:` 读取
-  —— 治理 §0.4:那个仓的工作树是别的分支,不可信)。
+  SP8-P5f Task 6 (first half) + **Task 7 (second half, this batch)** — "Wiki navigation" page
+  (rail item 3, route `/ai/knowledge/wiki`),
+  1:1 ported from Vue 2 reference `NimoOS-UI` @ `7a6ee6b7`
+  `src/views/AI/Knowledge/WikiView.vue` (314 lines, read via
+  `git -C ../../NimoOS-UI show 7a6ee6b7:` — governance §0.4: that repo's working tree is
+  on a different branch, not trustworthy).
 
-  ═══════════════════ 🔴 T6 / T7 的分刀边界(下一刀先读这段)═══════════════════
+  ═══════════════════ 🔴 T6 / T7 batch boundary (read this first before next batch) ═══════════════════
 
-  本刀(T6)搬的是:
-    · 模板 `:1-46`  —— 左树三态(skeleton / 加载失败+重试 / 「尚未生成」)+ 有树时的节点列表,
-                       以及右侧「空树 onboarding」那屏(`kw-pending` + 「管理知识根」按钮);
-    · 模板 `:48-75` —— 面包屑 / 标题 / 「打开文件夹」/ 文章骨架(`nodeLoading` 的四条 `k-skel`);
-    · 模板 `:76-81` —— `<template v-else>` 与它内部的 `kw-meta` 三行。
-      🔴 **边界申报**:T6 brief 的「范围」写「模板 `:48-75`」,而同一份 brief 的「不写」写
-      「`:76-141` 的 **`kw-meta` 之后**全部」—— 两句对 `:76-81` 给出相反归属。
-      本刀取**后者**(「kw-meta 之后」= `kw-meta` 本身归 T6),理由是 brief 的 DoD 第 8 条
-      要求「`updatedFmt` / `selAiLabel` 的兜底」用例,而这两个 computed **只有 `kw-meta`
-      一个渲染落点** —— 不搬 `kw-meta` 就没有任何可观测面,那条 DoD 无法落地
-      (治理 §10 申报纪律 2 的同族情形)。**已在 T6 报告里显式申报。**
-    · script:`visibleNodes` / `trail` / `crumbParents` / `selTreeNode` / `selName` /
+  This batch (T6) ports:
+    · Template `:1-46` — left tree three states (skeleton / load-failed+retry / "not yet generated")
+                         + node list when tree exists, plus empty-tree onboarding screen on right
+                         (`kw-pending` + "manage knowledge roots" button);
+    · Template `:48-75` — breadcrumb / title / "open folder" / article skeleton (four `k-skel`
+                          under `nodeLoading`);
+    · Template `:76-81` — `<template v-else>` and its internal `kw-meta` three lines.
+      🔴 **Boundary declaration**: T6 brief says "scope: template `:48-75`", while same brief says
+      "do not write: all of `:76-141` after **`kw-meta`**" — two statements assign `:76-81`
+      opposite ownerships. This batch takes **the latter** ("after `kw-meta`" = `kw-meta` itself
+      goes to T6), reasoning: T6's DoD #8 requires "fallback test cases for `updatedFmt` /
+      `selAiLabel`", and these two computed have **only `kw-meta` as a render outlet** — without
+      porting `kw-meta` there is no observable surface, DoD requirement fails (governance §10
+      declaration discipline #2 same case). **Explicitly declared in T6 report.**
+    · script: `visibleNodes` / `trail` / `crumbParents` / `selTreeNode` / `selName` /
       `selAiLabel` / `updatedFmt` / `owningRoot` · `loadTree` / `isOpen` / `toggle` /
-      `nodeClick` / `select` / `fetchArticle` / `openFolder` · `$route.query.path` 的 watch。
+      `nodeClick` / `select` / `fetchArticle` / `openFolder` · watch on `$route.query.path`.
 
-  🔴 **T6 不搬、留给 T7 的**(模板 `:83-141` + script):
-    摘要渲染(`kw-summary` / `kw-rawsrc` / `v-html`)· 「此目录还没有 wiki 摘要」那屏 + 重扫按钮 ·
-    目录区(`kw-sec` / `kw-children`)· 最近变更(`kw-changes`)· 页脚(`kw-foot`)与「查看原文」切换;
-    以及 `html` / `changes` / `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs` /
-    `OP_LABEL_KEYS` / `rescanBusy`。
-    ⚠️ **T6 刻意没有为了「能看见」提前写摘要区 markup**(brief 明令)。
-    ⚠️ `showSource` 在 T6 已声明 —— 它不是 T7 专属:蓝本 `fetchArticle`(`:264`)每次取文章
-      都把它重置为 `false`,那一行在**T6 的范围内**,ref 不声明就写不出来。
+  🔴 **T6 does NOT port, left for T7** (template `:83-141` + script):
+    Summary rendering (`kw-summary` / `kw-rawsrc` / `v-html`) · "this dir has no wiki summary"
+    screen + rescan button · contents section (`kw-sec` / `kw-children`) · recent changes
+    (`kw-changes`) · footer (`kw-foot`) and "view source" toggle;
+    plus `html` / `changes` / `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs` /
+    `OP_LABEL_KEYS` / `rescanBusy`.
+    ⚠️ **T6 deliberately does not pre-write summary section markup to make it visible** (brief
+    mandate).
+    ⚠️ `showSource` is already declared in T6 — it is not T7-exclusive: the blueprint
+    `fetchArticle` (`:264`) resets it to `false` every time it fetches an article, that line
+    falls **within T6's scope**, without declaring the ref you cannot write it out.
 
-  ═══════════════════════ 🔴 T7(本刀)搬入的 ═══════════════════════
+  ═══════════════════════ 🔴 T7 (this batch) ports in ═══════════════════════
 
-    · 模板 `:83-141` —— 摘要区(`class="kw-summary kw-md"` 的 `v-html` / `kw-rawsrc` 源码视图)·
-      「此目录还没有 wiki 摘要」那屏(`kw-pending` + `v-if="owningRoot"` 的重扫按钮)·
-      目录区(`kw-sec` / `kw-children` / `kw-child*`)· 最近变更(`kw-changes` / `kw-change*`)·
-      页脚 `kw-foot`(「查看原文 / 渲染视图」切换);
-    · script:`rescanBusy` · `OP_LABEL_KEYS` · `html` / `changes` 两个 computed ·
-      `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs`。
-    🔴 T6 布下的**自动上膛**守卫(`WikiView.test.ts`「自动上膛守卫」那一组)
-      ——「本文件模板一旦出现 `kw-summary`,就必须同时出现 `showSource` 切换按钮」——
-      **本刀写下 `class="kw-summary kw-md"` 的那一刻已上膛,并且已满足**:
-      页脚 `kw-foot` 里的 `@click="showSource = !showSource"` 就是那个切换入口。
-      ⚠️ 上面这句话本身含 `kw-summary` 字面串,而它在**文件头注释**里 ——
-      那条守卫的模板抽取器已按裁定 **R28** 改成**第 0 列锚定**,不会再被文件头注释骗到
-      (T6 的裸 `indexOf('<template>')` 会,评审实测报红过)。
+    · Template `:83-141` — summary section (`class="kw-summary kw-md"` `v-html` / `kw-rawsrc`
+      source view) · "this dir has no wiki summary" screen (`kw-pending` + rescan button with
+      `v-if="owningRoot"`) · contents section (`kw-sec` / `kw-children` / `kw-child*`) ·
+      recent changes (`kw-changes` / `kw-change*`) · footer `kw-foot` ("view source / rendered
+      view" toggle);
+    · script: `rescanBusy` · `OP_LABEL_KEYS` · `html` / `changes` two computed ·
+      `childIsDir` / `childPath` / `childClick` / `rescan` / `fmtTs`.
+    🔴 T6 set up **auto-cock guard** (`WikiView.test.ts` "auto-cock guard" group)
+      — "as soon as this file's template shows `kw-summary`, must simultaneously show
+      `showSource` toggle button" — **as of writing `class="kw-summary kw-md"` in this batch
+      it is cocked and satisfied**:
+      footer `kw-foot` has `@click="showSource = !showSource"` as the toggle entry.
+      ⚠️ The sentence above contains literal `kw-summary` string, and it is in **file header
+      comment** — that guard's template extractor has per ruling **R28** switched to **column-0
+      anchor**, will not be fooled by file header comment again (T6's bare `indexOf('<template>')`
+      would be; review tested and reported red).
 
-  【§9.15 —— `v-html` 是本期唯一 XSS 面(K49 同族第二次)】
-    `html` = `renderWikiMarkdown(raw || '')` = `util/wikiViewHelpers.ts` 转发本仓
-    `src/ai/markdown/renderMarkdown.ts`(**内含 DOMPurify**)。`.wiki.md` 的正文是
-    **后端从用户目录里的文件名/用户笔记拼出来的**,含攻击者可控串 ⇒ 必须走消毒后再 `v-html`。
-    🔴 守卫落在**本刀的代码**上:`WikiView.test.ts` 的「§9.15 XSS」一组**挂载真组件、查真实 DOM**,
-    且**全程不 mock `renderMarkdown`**(mock 掉再声称验过 XSS = 安慰剂测试,治理 §9.15 明令)。
+  【§9.15 — `v-html` is this cycle's only XSS surface (K49 same-family second time)】
+    `html` = `renderWikiMarkdown(raw || '')` = forwarded via `util/wikiViewHelpers.ts` to this
+    repo's `src/ai/markdown/renderMarkdown.ts` (**contains DOMPurify**). `.wiki.md` body is
+    **synthesized by backend from filenames/user notes in user's directory**, contains attacker-
+    controlled strings ⇒ must sanitize before `v-html`. 🔴 Guard falls **on this batch's code**:
+    `WikiView.test.ts` §9.15 XSS group **mounts real component, inspects real DOM**, and
+    **does not mock `renderMarkdown`** throughout (mocking then claiming XSS verified = placebo
+    test, governance §9.15 mandate).
 
-  【N58 —— `childPath` 的 `base === '' ? '' : base` 是恒等表达式,照抄不化简】
-    蓝本 `:283-286`。两支结果**完全相同**(都返回 `base`)⇒ 它是蓝本原文的意图痕迹,
-    化简掉之后再有人改这里就看不出「作者当年考虑过 `sel` 为根时 base 会被剥成空串」这件事。
-    **照抄、不化简、在报告里点明**(治理 §3.5 的 N58 原文要求)。
+  【N58 — `childPath`'s `base === '' ? '' : base` is identity expression, copy as-is without
+  simplification】
+    Blueprint `:283-286`. Both branches **return identical results** (both return `base`) ⇒
+    it is the original text's intent trace; simplifying it away obscures "author once
+    considered that `sel` being root would strip `base` to empty string". **Copy as-is, no
+    simplification, note it in report** (governance §3.5 N58 original mandate).
 
-  【N49 —— Go nil slice 的兜底】`node.childMap` / `node.recentChanges` 的 `|| []` 兜底
-    **在共享包的 `normalizeNode` 里**(`NimoOS-Service/src/wiki.ts:113-114`)⇒ 页面拿到的
-    永远是数组。本刀模板照抄蓝本的 `v-if="node && node.childMap.length"`
-    ——「`node` 为 null」这一半仍是页面必须自己挡的(N48 的 404→null 业务态)。
-    `changes` 里的 `(node ? node.recentChanges : [])` 同理,照抄。
+  【N49 — Go nil slice fallback】`node.childMap` / `node.recentChanges` `|| []` fallback
+    **lives in shared package's `normalizeNode`** (`NimoOS-Service/src/wiki.ts:113-114`) ⇒ page
+    always receives arrays. This batch copies blueprint's `v-if="node && node.childMap.length"`
+    — the "node is null" half still must be guarded by page itself (N48's 404→null business
+    state). `changes` with `(node ? node.recentChanges : [])` same logic, copy as-is.
 
-  结构对照(蓝本行区间 → 本文件):
-    :2      `.kw-split` 两栏壳
-    :4-33   左栏 `.kw-tree` → `.kw-tree-scroll` → 四态(loading / error / empty / 有树)
-    :36-46  右栏 `.kw-article` → `.kw-article-inner` → 空树 onboarding
-    :48-55  面包屑(**K56:`:key` 挪到 `<template v-for>` 自身**)
-    :57-66  标题行 + 「打开文件夹」
-    :69-74  文章骨架
+  Structure correspondence (blueprint line ranges → this file):
+    :2      `.kw-split` two-column shell
+    :4-33   left column `.kw-tree` → `.kw-tree-scroll` → four states (loading / error / empty / tree exists)
+    :36-46  right column `.kw-article` → `.kw-article-inner` → empty tree onboarding
+    :48-55  breadcrumb (**K56: `:key` moved to `<template v-for>` itself**)
+    :57-66  title row + "open folder"
+    :69-74  article skeleton
     :76-81  `<template v-else>` + `kw-meta`
-    :83-95  摘要区二选一(`kw-rawsrc` / `kw-summary`)+ 「还没有摘要」那屏(**T7**)
-    :97-117 目录区 `kw-sec` / `kw-children`(**T7**)
-    :119-132 最近变更 `kw-sec` / `kw-changes`(**T7**)
-    :134-140 页脚 `kw-foot` + 「查看原文 / 渲染视图」切换(**T7**)
-    :156    `OP_LABEL_KEYS`(**T7**)
-    :161-176 `data()` 的十一项页面级瞬态(**不含 `store` 那一项**;蓝本 `data()` 共 12 个键)
-             → 组件本地 `ref`(T6 落其中十项,第十一项 `rescanBusy` 由 **T7** 落)
+    :83-95  summary section two-choice (`kw-rawsrc` / `kw-summary`) + "no summary" screen (**T7**)
+    :97-117 contents section `kw-sec` / `kw-children` (**T7**)
+    :119-132 recent changes `kw-sec` / `kw-changes` (**T7**)
+    :134-140 footer `kw-foot` + "view source / rendered view" toggle (**T7**)
+    :156    `OP_LABEL_KEYS` (**T7**)
+    :161-176 `data()` eleven page-level volatile items (**excludes `store` item**; blueprint
+             `data()` has 12 keys total) → component-local `ref` (T6 covers ten of them, eleventh
+             `rescanBusy` by **T7**)
     :177-209 `computed` → `computed()`
     :210-214 `watch '$route.query.path'` → `watch(() => route.query.path, …)`
     :215-218 `created()` → `onMounted()`
-    :219-312 `methods` → 普通函数
+    :219-312 `methods` → plain functions
 
   ─────────────────────────────────────────────────────────────────────────────
-  【零 style 块 —— K44 / 治理 §3】蓝本本页**自带零 `<style>` 块**(它的 `kw-*` 类原本就在
-    蓝本 `knowledge.scss:2453-2561`),T2 已整段搬进 `src/ai/styles/knowledge.scss`
-    (嵌在 `.knowledge-app` 下,K9)⇒ **本文件一个 style 块都没有**。
-    `knowledge.scss` 由 `KnowledgeLayout.vue` 侧 import,本文件不再 import 样式
-    (先例:`QueueView.vue` / `SettingsView.vue` / `AllowlistView.vue` / `RootsView.vue`)。
-    守卫:`knowledgeStyles.test.ts` 的 K44 参数化断言(T2b 布,裁定 R20 C-1)——
-    它**先剥注释、再行首锚定**,所以上面这句话本身不会把它撞红(裁定 **R19** 的直接后果)。
-    另外本文件必须在 `knowledgeStyles.test.ts` 的 `KNOWLEDGE_VUE_FILES` 清单里登记
-    (集合相等防漂移;不登记 = 那条断言报红,**那是正确行为,不许去改断言**)。
+  【Zero style block — K44 / governance §3】Blueprint page **has zero `<style>` block**
+    (its `kw-*` classes originally live in blueprint `knowledge.scss:2453-2561`), T2 already
+    moved entire section to `src/ai/styles/knowledge.scss` (nested under `.knowledge-app`, K9)
+    ⇒ **this file has zero style blocks**. `knowledge.scss` imported by `KnowledgeLayout.vue`
+    side, this file does not import styles (precedent: `QueueView.vue` / `SettingsView.vue` /
+    `AllowlistView.vue` / `RootsView.vue`). Guard: `knowledgeStyles.test.ts` K44 parameterized
+    assertion (T2b placed, ruling R20 C-1) — it **strips comments first, then anchors at line
+    start**, so above sentence itself won't trigger it (ruling **R19** direct consequence). Also
+    this file must be registered in `knowledgeStyles.test.ts`'s `KNOWLEDGE_VUE_FILES` list (set
+    equality prevents drift; not registered = that assertion goes red, **that is correct behavior,
+    do not alter assertion**).
 
-  【K56 —— 面包屑的 `:key` 位置是 Vue 3 编译器的硬要求,不是选择】
-    蓝本 `:50-53` 是 Vue 2 写法:`<template v-for>` 内部的 `<button>` 与 `<span>` **各自**
-    带 key,后者还拼了 `+ '/sep'`。**Vue 3 编译器要求 `key` 放在 `<template v-for>` 上**
-    (放内部子元素上会编译告警/失效)⇒ 本文件 `:key="c.path"` 写在 `<template>` 自身,
-    内部两个元素**不再各带 key**。
-    🔴 渲染出的 DOM 序列与蓝本**逐个一致**(`button, span('/')` 交替 + 末尾 `span.cur`),
-    由 `WikiView.test.ts` 的「K56 面包屑 DOM 序列」一条断言钉死。
+  【K56 — breadcrumb `:key` position is Vue 3 compiler hard requirement, not choice】
+    Blueprint `:50-53` is Vue 2 style: `<template v-for>` internal `<button>` and `<span>`
+    **each** have keys, latter also concatenates `+ '/sep'`. **Vue 3 compiler requires `key` on
+    `<template v-for>` itself** (on internal children causes compile warning/fails) ⇒ this file
+    has `:key="c.path"` on `<template>` itself, internal two elements **no longer each have
+    keys**.
+    🔴 DOM sequence rendered matches blueprint **one-to-one** (`button, span('/')` alternating
+    + final `span.cur`), pinned by assertion in `WikiView.test.ts` "K56 breadcrumb DOM
+    sequence".
 
-  【K1 —— store 降层,逐处】蓝本 `this.store.state.wikiRoots`(`:196`)、
-    `this.store.actions.loadRoots/loadWikiTree/loadWikiNode/loadWikiRaw/toast`,
-    本仓 `knowledgeStore` 是 Pinia setup store,**`state` 与 `actions` 两层整个消失**
-    → `store.wikiRoots` / `store.loadRoots()` / `store.loadWikiTree()` / …。
+  【K1 — store layer reduction, per-site】Blueprint `this.store.state.wikiRoots` (`:196`),
+    `this.store.actions.loadRoots/loadWikiTree/loadWikiNode/loadWikiRaw/toast`, this repo's
+    `knowledgeStore` is Pinia setup store, **`state` and `actions` layers both disappear**
+    → `store.wikiRoots` / `store.loadRoots()` / `store.loadWikiTree()` / ….
 
-  【K58 形态 A —— `fetchArticle` 的 catch 不回显后端 body】
-    蓝本 `:277`:`toast($t('Operation failed') + ': ' + (e.message || e))`。
-    K5/K58 明令禁止把后端串回显进界面;`p5f-task-0-report.md` §12 认定的本仓既定做法
-    (先例 `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593` / `NoteEditPane.vue:461`,
-    同期 `RootsView.vue` 四处)是 —— **catch 里丢掉 `e.message`,只弹一个固定 i18n 键,
-    且「无第二句可拼故不留 `': '` 前缀」**。本文件唯一一处 catch-toast 落成 `aiKbOpFailed`。
-    **不自造第二套映射。**
-    落地判据是**排除式断言**(见测试文件 K58 那一组:让 store action reject 一个带可识别
-    文本的错误,断言 toast 文本与整页 DOM 都**不含**那段文本)。
-    ⚠️ 那个探针文本**故意不出现在本文件里**(治理 §9:否定式断言撞注释 = 假报红)。
+  【K58 form A — `fetchArticle`'s catch does not echo backend body】
+    Blueprint `:277`: `toast($t('Operation failed') + ': ' + (e.message || e))`.
+    K5/K58 mandate forbid echoing backend strings into UI; `p5f-task-0-report.md` §12 establishes
+    this repo's standard practice (precedent `QueueView.vue:212-217` / `IndexedFilesView.vue:592-593`
+    / `NoteEditPane.vue:461`, same-period `RootsView.vue` four places) — **catch discards
+    `e.message`, shows only fixed i18n key, and "no second clause to concatenate so no `': '`
+    prefix"**. This file's sole catch-toast becomes `aiKbOpFailed`. **No new mapping invented.**
+    Landing criterion is **negative assertion** (see K58 group in test file: have store action
+    reject error with identifiable text, assert toast text and entire page DOM both **do not
+    contain** that text).
+    ⚠️ That probe text **deliberately does not appear in this file** (governance §9: negative
+    assertion hits comment = false positive).
 
-  【K27 同族 —— toast 一律走 `store.toast(...)`】裁定 **R27**(P5e)/ 勘误 **E-62**:
-    `knowledgeStore.ts` 里 `toast()` 内部是 `useToast().show(msg, 2400)`,而**全局 `show()`
-    默认只有 1500ms** ⇒ 直调 `useToast()` 会丢掉蓝本自己的 2400ms。既有 8 页全走
-    `store.toast()`,本页照同一份 —— 本刀范围内**共 1 处**(`fetchArticle` 的 catch)。
+  【K27 same-family — toast always via `store.toast(...)`】Ruling **R27** (P5e) / errata **E-62**:
+    inside `knowledgeStore.ts` `toast()` is `useToast().show(msg, 2400)`, while **global `show()`
+    defaults to 1500ms only** ⇒ direct `useToast()` loses blueprint's own 2400ms. Eight existing
+    pages all use `store.toast()`, this page follows same — this batch's scope has **1 place**
+    (`fetchArticle`'s catch).
 
-  ═══════════════════ 照抄申报(§3.5 的 N 条目)═══════════════════
+  ═══════════════════ Copy-as-is declaration (§3.5 N items) ═══════════════════
 
-  【N46 —— 两种命名风格,本期最容易搞错的一点】Wiki 的 `WikiRoot` **无 json tag** ⇒ HTTP 响应
-    是 PascalCase;而 `/tree`、`/node`、`/raw` 是 snake_case。**双向归一化已在共享包里**
-    (`NimoOS-Service/src/wiki.ts:85 normalizeRoot` / `:102 normalizeTreeNode` /
-    `:112 normalizeNode`)⇒ **store 出口一律 camelCase**(T0 实测定案,
-    `p5f-task-0-report.md` §4.4)。本页只消费 camelCase 的 `aiLabel` / `lastModified` /
-    `r.path` / `r.id`,**不许在页面里再归一化一次**。
+  【N46 — two naming styles, easiest mistake this cycle】Wiki's `WikiRoot` **has no json tag**
+    ⇒ HTTP response is PascalCase; `/tree`, `/node`, `/raw` are snake_case. **Bidirectional
+    normalization already in shared package** (`NimoOS-Service/src/wiki.ts:85 normalizeRoot` /
+    `:102 normalizeTreeNode` / `:112 normalizeNode`) ⇒ **store exit is camelCase throughout**
+    (T0 determined by testing, `p5f-task-0-report.md` §4.4). This page only consumes camelCase
+    `aiLabel` / `lastModified` / `r.path` / `r.id`, **must not normalize again in page**.
 
-  【N48 —— `loadWikiNode` / `loadWikiRaw` 的 404→null 分层,照抄】
-    404(节点尚未入索引 / `.wiki.md` 尚未生成)在 **store 层**转 `null`,其余错误原样上抛
-    (`knowledgeStore.ts:715` / `:725`)⇒ 本页的 `try` 里拿到的 `null` 是**合法业务态**
-    (T7 的「此目录还没有 wiki 摘要」那屏),而 `catch` 只接真错误。**有意分层,不许拉平。**
+  【N48 — `loadWikiNode` / `loadWikiRaw` 404→null layer, copy as-is】
+    404 (node not yet indexed / `.wiki.md` not yet generated) converts to `null` **at store
+    layer**, other errors pass through (`knowledgeStore.ts:715` / `:725`) ⇒ `null` received in
+    this page's `try` is **legitimate business state** (T7's "this dir has no wiki summary"
+    screen), while `catch` only receives real errors. **Layering is intentional, do not flatten.**
 
-  【N55 —— `fetchArticle` 的过期守卫是蓝本自带的,照抄】蓝本 `:270` / `:274` / `:279`
-    三处 `if (this.sel !== p)`。三处**一处都不能少**,各自守不同的事:
-      · try 里那处   —— 迟到的成功响应不许覆盖新选中的文章;
-      · catch 里那处 —— 迟到的**失败**同样不许清空新选中的文章、也不许弹 toast;
-      · finally 那处 —— 迟到的响应不许把**新选中**的骨架 `nodeLoading` 提前关掉
-                        (否则新文章还没回来,界面就先闪成「已加载完」的空白)。
-    🔴 除「逻辑」外还要守**变量作用域**那一半(治理 §9.1 / K15 同族第 10 次):
-    `p` 与 `sel` 都必须是**组件实例级**的,不能是模块级 —— 两个 WikiView 实例并存时,
-    模块级变量会让 A 实例的响应去比 B 实例的选中。测试里配了「两实例交错」用例
-    (**判据:把 `sel` 挪到模块级 → 必须报红**)。
+  【N55 — `fetchArticle`'s staleness guard is blueprint's own, copy as-is】
+    Blueprint `:270` / `:274` / `:279` three instances of `if (this.sel !== p)`. All three
+    **cannot be dropped**, each guards different things:
+      · one in try — late success response must not overwrite newly selected article;
+      · one in catch — late **failure** must not clear newly selected article, must not toast;
+      · one in finally — late response must not prematurely close **newly selected** skeleton
+                        `nodeLoading` (else new article hasn't arrived yet, UI flashes "loaded"
+                        blank).
+    🔴 Beyond "logic", must also guard **variable scope** half (governance §9.1 / K15 same-family
+    10th time): both `p` and `sel` must be **component-instance-level**, not module-level —
+    when two WikiView instances coexist, module-level variable makes A's response compare against
+    B's selection. Test includes "two instances interleaved" case (**criterion: move `sel` to
+    module-level → must go red**).
 
-  【N56 —— 深链的两半是**两条不同路径**,不许「统一」成 `immediate: true`】
-    · 初始选中:在 `loadTree()` 里读**一次** `route.query.path`(蓝本 `:230-232`);
-    · 后续变化:`watch` **无 `immediate`**(蓝本 `:210-214`),条件 `v && v !== sel && byPath[v]`。
-    🔴 **为什么不能合并**:watch 的条件里有 `byPath[v]`,而 `byPath` 是 `loadTree()` **回包后**
-    才建起来的 —— `immediate: true` 在挂载那一刻跑,`byPath` 还是空对象,那一发会**静默什么
-    都不做**,深链就此失效(而且三门不会响)。蓝本的初始化走的是另一条路径,照抄。
-    🔴 「挂载后改地址栏 query → 真的切换」必须有用例(记忆 `newui-router-query-only-no-remount`:
-    只在 `onMounted` 里读一次 query 的写法,用户改地址栏一行都不跑)。
+  【N56 — deep-link two halves are **two different paths**, do not "unify" to
+  `immediate: true`】
+    · initial selection: read **once** `route.query.path` in `loadTree()` (blueprint `:230-232`);
+    · later changes: `watch` **no `immediate`** (blueprint `:210-214`), condition
+    `v && v !== sel && byPath[v]`.
+    🔴 **Why not merge**: watch condition includes `byPath[v]`, but `byPath` is built **after**
+    `loadTree()` returns — `immediate: true` runs at mount time, `byPath` is still empty object,
+    that call **silently does nothing**, deep-link breaks (none of the guards fire). Blueprint's
+    initialization takes different path, copy as-is.
+    🔴 "modify address bar query after mount → actually switch" must have test case (memory
+    `newui-router-query-only-no-remount`: pattern of reading query once in `onMounted`, user
+    changing address bar runs no code).
 
-  【N57 —— `select()` 的 `router.replace(...).catch(() => {})`,照抄】蓝本 `:256-258`。
-    vue-router 4 对**重复导航**会 reject 一个 `NavigationDuplicated` 风格的错误;蓝本这里
-    本来就没有 log,吞掉是既定做法 ⇒ **K6「`console.error` 不照抄」不适用于此**(无可不照抄的 log)。
+  【N57 — `select()`'s `router.replace(...).catch(() => {})`, copy as-is】
+    Blueprint `:256-258`. vue-router 4 **rejects repeated navigation** with
+    `NavigationDuplicated`-style error; blueprint here has no log from the start, swallowing is
+    standard practice ⇒ **K6 "do not copy `console.error`" does not apply** (nothing logged to
+    not copy).
 
-  【N49 —— Go nil slice 兜底】本刀范围内的命中点在 `buildWikiTree`(`util/wikiViewHelpers.ts`
-    的 `(list || [])`)与 store 侧,本文件不再重复兜底。
+  【N49 — Go nil slice fallback】 within this batch's scope hit-points are in
+    `buildWikiTree` (`util/wikiViewHelpers.ts` `(list || [])`) and store side, this file does
+    not repeat fallback.
 
-  ═══════════════════ Vue2 → Vue3 强制改写(治理 §2,不算偏离)═══════════════════
-    | 蓝本(Options API) | 本文件 | 依据 |
+  ═══════════════════ Vue2 → Vue3 mandatory rewrites (governance §2, not divergence) ═══════════════════
+    | Blueprint (Options API) | This file | Reasoning |
     |---|---|---|
-    | `data()` 对象 | `ref()` | `<script setup>` 无 `this` |
-    | `computed: { … }` | `computed()` | 同上 |
-    | `watch: { '$route.query.path'(v) {} }` | `watch(() => route.query.path, (v) => …)` | 字符串路径 watch 在 setup 里不可用 |
-    | `created()` | `onMounted()` | 蓝本那两发同样**不阻塞首屏**(没 await) |
-    | `methods: { … }` | 普通函数 | 同上 |
-    | `this.$route` / `this.$router` | `useRoute()` / `useRouter()` | 本仓既定 |
-    | `this.$t` | `useI18n().t` | 本仓既定 |
-    | `this.store.actions.x()` | `store.x()` | Pinia setup store 无 `actions` 那一层 |
-    | `$router.push(...)`(模板内) | `router.push(...)` | `<script setup>` 里模板拿不到 `$router` 之外的差别仅此 |
+    | `data()` object | `ref()` | `<script setup>` has no `this` |
+    | `computed: { … }` | `computed()` | same |
+    | `watch: { '$route.query.path'(v) {} }` | `watch(() => route.query.path, (v) => …)` | string path watch unavailable in setup |
+    | `created()` | `onMounted()` | blueprint's two calls **both do not block initial paint** (no await) |
+    | `methods: { … }` | plain functions | same |
+    | `this.$route` / `this.$router` | `useRoute()` / `useRouter()` | this repo standard |
+    | `this.$t` | `useI18n().t` | this repo standard |
+    | `this.store.actions.x()` | `store.x()` | Pinia setup store has no `actions` layer |
+    | `$router.push(...)`(in template) | `router.push(...)` | only difference with `<script setup>` is template doesn't access `$router` |
 
-  🔴 **零 `any`**(承 K41):树节点用 `util/wikiViewHelpers.ts` 导出的 `WikiViewTreeNode`,
-    文章节点用共享包的 `WikiNode`,root 用共享包的 `WikiRoot`。
-  🔴 `route.query.path` 的类型是 `LocationQueryValue | LocationQueryValue[] | undefined`
-    (可能是数组:`?path=a&path=b`)⇒ 本文件用 `queryPath()` 收窄成 `string`
-    (非字符串一律 `''`)。**语义与蓝本等价**:蓝本把数组直接喂给 `byPath[…]`,JS 会把它
-    toString 成一个绝不可能存在的 key ⇒ 同样落到「未命中」那一支。
+  🔴 **No `any`** (follows K41): tree nodes use `WikiViewTreeNode` exported by
+    `util/wikiViewHelpers.ts`, article nodes use shared package's `WikiNode`, roots use shared
+    package's `WikiRoot`.
+  🔴 `route.query.path` type is `LocationQueryValue | LocationQueryValue[] | undefined`
+    (may be array: `?path=a&path=b`) ⇒ this file uses `queryPath()` to narrow to `string`
+    (non-strings become `''`). **Semantics equivalent to blueprint**: blueprint feeds array
+    directly to `byPath[…]`, JS stringifies it to an impossible key ⇒ same falls to "no match"
+    branch.
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
@@ -205,11 +240,13 @@ import {
 import type { WikiViewTreeNode } from '../util/wikiViewHelpers'
 
 /**
- * 蓝本 `:156` —— 文件事件 `op` → 标签文案。**四个值过 `$t()`**(动态键,同 P5e 的 `MTIMES` 模具)
- * ⇒ 蓝本的 `'Added'/'Updated'/'Removed'/'Renamed'` 在本仓换成对应的 `aiKbWkOp*` 键
- * (i18n 由 T1 落,见 `zh_cn.ts` / `en_us.ts`;两档值逐字照蓝本 `zh_CN.json` / `en_US.json`)。
- * 🔴 **未知 op 兜底 `Updated`** 是蓝本 `:205` 的 `OP_LABEL_KEYS[c.op] || 'Updated'`,照抄
- * —— 与 `opToType` 的「modify + 任何未知值 → 'mod'」是**两条各自独立的兜底**,别合并。
+ * Blueprint `:156` — file event `op` → label text. **Four values through `$t()`** (dynamic
+ * key, same pattern as P5e's `MTIMES`) ⇒ blueprint's `'Added'/'Updated'/'Removed'/'Renamed'`
+ * become corresponding `aiKbWkOp*` keys in this repo (i18n placed by T1, see `zh_cn.ts` /
+ * `en_us.ts`; values word-for-word from blueprint `zh_CN.json` / `en_US.json`).
+ * 🔴 **Fallback for unknown op is `Updated`** from blueprint `:205` with
+ * `OP_LABEL_KEYS[c.op] || 'Updated'`, copy as-is — **two independent fallbacks** from `opToType`'s
+ * "modify + any unknown → 'mod'", do not merge.
  */
 const OP_LABEL_KEYS: Record<string, string> = {
   create: 'aiKbWkOpAdded',
@@ -223,36 +260,43 @@ const route = useRoute()
 const router = useRouter()
 const store = useKnowledgeStore()
 
-/* ── 蓝本 data()(`:161-176`)的页面级瞬态,一律组件本地 ref,不塞 store(治理 §5.1)。
-      🔴 组件本地 = 每个实例一份 —— N55 的「两实例交错」守卫钉的就是这件事。 ── */
+/* ── Blueprint data() (`:161-176`) page-level volatile state, all component-local refs,
+     not in store (governance §5.1).
+     🔴 Component-local = one per instance — N55's "two instances interleaved" guard pins
+     exactly this. ── */
 
-/** 蓝本 `:164` —— 初值 `true`(挂载即骨架,不闪空)。 */
+/** Blueprint `:164` — initial value `true` (skeleton on mount, no flash of empty). */
 const treeLoading = ref(true)
-/** 蓝本 `:165`。 */
+/** Blueprint `:165`. */
 const treeError = ref(false)
-/** 蓝本 `:166` —— `buildWikiTree` 的森林顶层。 */
+/** Blueprint `:166` — top-level forest from `buildWikiTree`. */
 const treeRoots = ref<WikiViewTreeNode[]>([])
-/** 蓝本 `:167` —— path → 树节点(`buildWikiTree` 的第二个出参)。 */
+/** Blueprint `:167` — path → tree node (second return value from `buildWikiTree`). */
 const byPath = ref<Record<string, WikiViewTreeNode>>({})
-/** 蓝本 `:168` —— 展开中的路径。蓝本用数组 + `indexOf`,照抄(不换 Set)。 */
+/** Blueprint `:168` — expanded paths. Blueprint uses array + `indexOf`, copy as-is (don't
+ *  switch to Set). */
 const openPaths = ref<string[]>([])
-/** 蓝本 `:169` —— 当前选中路径。**N55 的过期守卫比的就是它。** */
+/** Blueprint `:169` — currently selected path. **N55's staleness guard compares against it.** */
 const sel = ref('')
-/** 蓝本 `:170` —— `/wiki/node` 的响应(T7 渲染目录区与最近变更)。 */
+/** Blueprint `:170` — response from `/wiki/node` (T7 renders contents and recent changes). */
 const node = ref<WikiNode | null>(null)
-/** 蓝本 `:171` —— `.wiki.md` 原文;**`null` 是合法业务态**(N48:404 在 store 层转 null)。 */
+/** Blueprint `:171` — `.wiki.md` raw source; **`null` is legitimate business state**
+ *  (N48: 404 converts to null at store layer). */
 const raw = ref<string | null>(null)
-/** 蓝本 `:172`。 */
+/** Blueprint `:172`. */
 const nodeLoading = ref(false)
-/** 蓝本 `:173` —— 「查看原文 / 渲染视图」开关(页脚 `kw-foot` 的按钮翻它);**T6 已声明**,
- *  因为蓝本 `fetchArticle`(`:264`)每次取文章都把它重置为 false,那一行在 T6 范围内。 */
+/** Blueprint `:173` — "view source / rendered view" toggle (footer `kw-foot` button flips it);
+ *  **already declared in T6** because blueprint `fetchArticle` (`:264`) resets it to false
+ *  every time it fetches an article, that line falls within T6's scope. */
 const showSource = ref(false)
-/** 蓝本 `:174`(**T7**)—— 重扫在飞的门;`rescan()` 的函数门与按钮的 `:disabled` 都读它。 */
+/** Blueprint `:174` (**T7**) — rescan in-flight gate; both function gate in `rescan()` and
+ *  button's `:disabled` read it. */
 const rescanBusy = ref(false)
 
 /**
- * 蓝本 `:178-186` —— 把森林压平成「可见行」(带缩进深度),折叠的子树不出现在里面。
- * `isOpen` 决定要不要继续往下走 ⇒ `openPaths` 一变,本 computed 自动重算。
+ * Blueprint `:178-186` — flatten forest to "visible rows" (with indent depth), collapsed
+ * subtrees do not appear. `isOpen` decides whether to continue walking down ⇒ when `openPaths`
+ * changes, this computed auto-recalculates.
  */
 const visibleNodes = computed<Array<{ n: WikiViewTreeNode; depth: number }>>(() => {
   const out: Array<{ n: WikiViewTreeNode; depth: number }> = []
@@ -264,32 +308,38 @@ const visibleNodes = computed<Array<{ n: WikiViewTreeNode; depth: number }>>(() 
   return out
 })
 
-/** 蓝本 `:187` —— 祖先链(root-most first,含自身)。 */
+/** Blueprint `:187` — ancestor chain (root-most first, includes self). */
 const trail = computed<WikiViewTreeNode[]>(() => trailFor(byPath.value, sel.value))
-/** 蓝本 `:188` —— 面包屑只显示**祖先**,当前节点由末尾的 `.cur` 单独渲染。 */
+/** Blueprint `:188` — breadcrumb shows **ancestors only**, current node rendered separately
+ *  as final `.cur`. */
 const crumbParents = computed<WikiViewTreeNode[]>(() => trail.value.slice(0, -1))
-/** 蓝本 `:189`。 */
+/** Blueprint `:189`. */
 const selTreeNode = computed<WikiViewTreeNode | null>(() => byPath.value[sel.value] || null)
-/** 蓝本 `:190` —— 🔴 兜底:树里查不到时**退化成整条路径**(不是空白)。 */
+/** Blueprint `:190` — 🔴 fallback: when not found in tree, **degrade to full path** (not
+ *  blank). */
 const selName = computed<string>(() => (selTreeNode.value ? selTreeNode.value.name : sel.value))
-/** 蓝本 `:191` —— 兜底成空串(`kw-meta` 里 `v-if` 掉整个 `<span>`)。 */
+/** Blueprint `:191` — fallback to empty string (`v-if` out entire `<span>` in `kw-meta`). */
 const selAiLabel = computed<string>(() => (selTreeNode.value ? selTreeNode.value.aiLabel : ''))
 /**
- * 蓝本 `:192-195` —— `parseTs` 回**毫秒**(0 = 后端 formatTS 送的空串 / 非法值),
- * 0 时整块不渲染。🔴 `fmtAgo` 吃的也是毫秒(`knowledgeStore.ts:190`)。
+ * Blueprint `:192-195` — `parseTs` returns **milliseconds** (0 = empty string from backend
+ * formatTS / invalid value), entire block does not render when 0. 🔴 `fmtAgo` also takes
+ * milliseconds (`knowledgeStore.ts:190`).
  */
 const updatedFmt = computed<string>(() => {
   const ms = selTreeNode.value ? parseTs(selTreeNode.value.lastModified) : 0
   return ms ? fmtAgo(ms) : ''
 })
-/** 蓝本 `:196`(K1 降层)—— 当前选中路径归哪个索引根(最长前缀);重扫按钮要它的 `id`。 */
+/** Blueprint `:196` (K1 layer reduction) — which index root the selected path belongs to
+ *  (longest prefix match); rescan button needs its `id`. */
 const owningRoot = computed(() => rootForPath(store.wikiRoots, sel.value))
 
 /**
- * 蓝本 `:197`(**T7**)—— 🔴 **§9.15:本期唯一的 XSS 面**。
- * `renderWikiMarkdown` 只是转发本仓 `renderMarkdown`(含 DOMPurify),消毒发生在那里。
- * 🔴 `raw || ''` 照抄 —— `raw` 为 `null` 时模板走的是另一支(`kw-pending`),
- *    但 computed 本身会先求值一次,`null` 直接喂 markdown 渲染器会炸,兜底不许删。
+ * Blueprint `:197` (**T7**) — 🔴 **§9.15: this cycle's only XSS surface**.
+ * `renderWikiMarkdown` just forwards to this repo's `renderMarkdown` (contains DOMPurify),
+ * sanitization happens there.
+ * 🔴 `raw || ''` copy as-is — when `raw` is `null` template takes different branch (`kw-pending`),
+ *    but computed itself evaluates once, feeding `null` to markdown renderer would fail, fallback
+ *    cannot be removed.
  */
 const html = computed<string>(() => renderWikiMarkdown(raw.value || ''))
 
@@ -303,14 +353,18 @@ interface WikiChangeRow {
 }
 
 /**
- * 蓝本 `:198-208`(**T7**)—— 「最近变更」时间线的行数据。四件事,逐条照抄:
- *   ① **`.slice(0, 10)` 上限** —— 后端一次能送几十条,页面只列最近 10 条;
- *   ② **前缀剥离** —— 属于当前索引根的路径显示**相对路径**,不命中前缀的显示**全路径**
- *      (`/outside/...` 这类跨根条目会原样保留,蓝本 `:203` 的 `indexOf(prefix) === 0` 判据);
- *   ③ `opToType(c.op)` → `data-type`(CSS 的 `--tone` 靠它上色);
- *   ④ **`OP_LABEL_KEYS[c.op] || 'Updated'`** 的未知 op 兜底 + `c.at` 为空串时 `timeFmt` 为 `''`。
- * 🔴 `root.path.replace(/\/+$/, '') + '/'` 照抄(根是 `/` 时会拼成 `//`,与蓝本同解 —— 不「修」)。
- * 🔴 `(node ? node.recentChanges : [])` 照抄(N48 的 `null` 业务态由这里挡)。
+ * Blueprint `:198-208` (**T7**) — "recent changes" timeline row data. Four things, copy each
+ * as-is:
+ *   ① **`.slice(0, 10)` limit** — backend can send dozens, page shows only latest 10;
+ *   ② **prefix stripping** — paths under current index root show **relative path**, unmatched
+ *      prefixes show **full path** (cross-root entries like `/outside/...` pass through,
+ *      blueprint `:203` criterion `indexOf(prefix) === 0`);
+ *   ③ `opToType(c.op)` → `data-type` (CSS `--tone` uses it for color);
+ *   ④ **fallback for unknown op `OP_LABEL_KEYS[c.op] || 'Updated'`** + when `c.at` is empty
+ *      string, `timeFmt` is `''`.
+ * 🔴 `root.path.replace(/\/+$/, '') + '/'` copy as-is (when root is `/` produces `//`, same
+ * as blueprint — do not "fix").
+ * 🔴 `(node ? node.recentChanges : [])` copy as-is (N48's `null` business state guarded here).
  */
 const changes = computed<WikiChangeRow[]>(() => {
   const root = owningRoot.value
@@ -325,8 +379,9 @@ const changes = computed<WikiChangeRow[]>(() => {
 })
 
 /**
- * `route.query.path` 的类型收窄(见文件头「强制改写」表最后一条)。
- * 非字符串(缺席 / `?path=a&path=b` 的数组形态)一律 `''` —— 与蓝本落到「未命中」同解。
+ * Narrow `route.query.path` type (see "mandatory rewrites" table end in file header).
+ * Non-strings (absent / array form from `?path=a&path=b`) all become `''` — same as blueprint
+ * falling to "no match".
  */
 function queryPath(): string {
   const q = route.query.path
@@ -334,19 +389,24 @@ function queryPath(): string {
 }
 
 /**
- * 蓝本 `:220-238`。
- * 🔴 **刻意不加过期守卫**(治理 §5.2 第 2 行),四条理由:
- *   ① 触发点只有两个 —— `onMounted` 跑一次,和 `treeError` 分支里的「重试」按钮;
- *   ② 那个重试按钮**无法并发触发两发**:第一发一开始就把 `treeLoading` 置 true,
- *      而按钮所在的 `v-else-if="treeError"` 分支在 `treeLoading` 为真时**整块不渲染**
- *      (`v-if="treeLoading"` 排在它前面)⇒ 请求在飞时按钮**不存在**,点不到;
- *      🔴 这一条由 `WikiView.test.ts` 的「treeLoading 期间重试按钮不渲染」一条用例当守卫,
- *      **它就是这个「不加」决定的依据** —— 将来谁把三态的排布改成「重试按钮常驻」,
- *      那条用例会先报红,提醒他连带补上过期守卫;
- *   ③ 本页无「切换 root 重新拉树」之类的入参 —— `loadWikiTree()` 无参数,两发的结果必然同源;
- *   ④ 蓝本自己也没有(`fetchArticle` 那处**有**)⇒ 加了就是未申报的偏离。
- * 🔴 初始选中在这里读**一次** `route.query.path`(N56 的第一半):
- *    query 命中 → 选它;未命中 → `roots[0]`;都没有 → `''`(不选,右侧走 onboarding/空白)。
+ * Blueprint `:220-238`.
+ * 🔴 **Deliberately no staleness guard** (governance §5.2 line 2), four reasons:
+ *   ① Only two call sites — `onMounted` runs once, and "retry" button in `treeError` branch;
+ *   ② That retry button **cannot fire twice concurrently**: first call sets `treeLoading` true
+ *      immediately, and button's `v-else-if="treeError"` branch does not render when
+ *      `treeLoading` is true (`v-if="treeLoading"` comes first) ⇒ while request in-flight,
+ *      button **does not exist**, cannot click;
+ *      🔴 This is guarded by "retry button not rendered while treeLoading" test case in
+ *      `WikiView.test.ts`, **that is the basis for "no guard" decision** — if future code
+ *      changes layout to "retry button always shown", that test goes red first, reminds
+ *      developer to add staleness guard alongside;
+ *   ③ This page has no "switch root, reload tree" parameter — `loadWikiTree()` takes no args,
+ *      two calls must have same source;
+ *   ④ Blueprint itself has no guard (but `fetchArticle` **does have**) ⇒ adding one is
+ *      undeclared divergence.
+ * 🔴 Initial selection reads **once** `route.query.path` here (N56 first half):
+ *    query hit → select it; miss → `roots[0]`; neither → `''` (don't select, right side shows
+ *    onboarding/blank).
  */
 async function loadTree(): Promise<void> {
   treeLoading.value = true
@@ -356,11 +416,12 @@ async function loadTree(): Promise<void> {
     const built = buildWikiTree(flat)
     treeRoots.value = built.roots
     byPath.value = built.byPath
-    // top-level roots start expanded(蓝本 `:228` 的原注释)
+    // top-level roots start expanded (blueprint `:228` original comment)
     openPaths.value = built.roots.map((r) => r.path)
     const q = queryPath()
     const initial = q && built.byPath[q] ? q : built.roots[0] ? built.roots[0].path : ''
-    // 🔴 `fromRoute: q === initial` —— 地址栏本来就是这个值时不再 replace 一次(防回环)。
+    // 🔴 `fromRoute: q === initial` — when address bar already has this value, don't replace
+    // again (prevent loop).
     if (initial) select(initial, { fromRoute: q === initial })
   } catch {
     treeError.value = true
@@ -369,12 +430,13 @@ async function loadTree(): Promise<void> {
   }
 }
 
-/** 蓝本 `:239`。 */
+/** Blueprint `:239`. */
 function isOpen(path: string): boolean {
   return openPaths.value.indexOf(path) !== -1
 }
 
-/** 蓝本 `:240-244` —— 纯翻转;模板里挂在 chevron 上且 **`@click.stop`**(点它不触发选中)。 */
+/** Blueprint `:240-244` — pure toggle; mounted on chevron in template with **`@click.stop`**
+ *  (click it does not trigger selection). */
 function toggle(path: string): void {
   const i = openPaths.value.indexOf(path)
   if (i === -1) openPaths.value.push(path)

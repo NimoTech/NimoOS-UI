@@ -1,36 +1,36 @@
-// SP8-P5b Task 8 —— IndexedFilesView.vue「已收录文件」页,第 1 刀测试:骨架 +
-// 过滤条 7 件 + 表头 meta + 错误横幅(K14/K19)+ 骨架屏 + 空态(N10)。
+// SP8-P5b Task 8 — IndexedFilesView.vue "Indexed Files" page, first cut test: scaffold +
+// 7 filter items + table header meta + error banner (K14/K19) + skeleton screen + empty state (N10).
 //
-// 测试脚手架纪律同 T5 QueueView.test.ts(治理文件 §9):真 i18n(不手写子集)、
-// mock @nimotech/nimoos-service(否则 onMounted 会真发请求)、afterEach 统一
-// unmount 所有 wrapper(T5 的 M-4 教训 —— 本组件同样有一个 store **模块级**的
-// 30 秒轮询定时器 `knowledgeStore.ts` 里的 `indexedPollTimer`,不 unmount 会让
-// 残留定时器压住 `startIndexedPolling` 自己的守卫 `if (indexedPollTimer) return`,
-// 后续挂载的组件实例永远起不了自己的轮询,进而污染下一个用例的调用次数断言)。
+// Test scaffold discipline same as T5 QueueView.test.ts (governance §9): real i18n (no hand-written
+// subsets), mock @nimotech/nimoos-service (otherwise onMounted makes real requests), afterEach
+// unmounts all wrappers uniformly (T5 M-4 lesson — this component has a module-level
+// 30-second polling timer `knowledgeStore.ts` `indexedPollTimer`; if not unmounted, the stale timer
+// blocks `startIndexedPolling`'s own guard `if (indexedPollTimer) return`, so subsequent mounted
+// instances can never start their own polling, polluting the next test's call count assertions).
 //
-// 🔴 本刀不搭 vue-router 脚手架:`git grep '\$route\|\$router'` 对蓝本
-// `IndexedFilesView.vue`(main@7a6ee6b7)零命中(与 QueueView 不同,本组件不读
-// 路由 query),故只挂 pinia + i18n 两个 plugin。
+// 🔴 This cut does NOT set up vue-router: `git grep '\$route\|\$router'` returns zero hits on the
+// blueprint `IndexedFilesView.vue` (main@7a6ee6b7) (unlike QueueView, this component does not read
+// route query), so only pinia + i18n two plugins are mounted.
 //
-// mock 形状来源(治理文件 §4,禁手编,逐个说明):
-//   ai.parserFiles({...}) —— service.ai.* 对该端点零转换(§4.1),fixture 原样
-//     snake_case。
-//   FILES_ALL_8   —— 逐字取自 p5b-fixtures/files-all-8.json(8 个文件,
-//     5 indexing / 3 ok,真机 2026-08-01 实测分布,见治理文件 §4.5/§12 E-8)。
-//   ALL_OK_FILES  —— FILES_ALL_8 里 status==='ok' 的 3 行原样过滤,不是新造
-//     数据,只是同一份 fixture 的子集(真机没有「全部 ok、零 indexing」的整
-//     8 行场景,只能这样从已核实数据里挑出无 indexing 行的子集来覆盖
-//     isAnyIndexing=false 分支)。
-//   EMPTY_RESULT  —— 逐字取自 p5b-fixtures/files-has-error.json
-//     (`{"total":0,"limit":3,"offset":0,"files":[]}`,真机 has_error=true 时的
-//     真实空响应),借来当通用空态 fixture(形状不变,只是本文件不专门断言
-//     它是从 has_error 场景来的)。
-//   MULTI_ROOT_FILES —— 人工构造(README 明确登记:真机 8 个文件全部落在
-//     /DATA 下,只有一个可派生 root 段,测不出 derivedRoots 多值排序 / 反查
-//     不命中回落 'all' 这几条分支)。字段名与 fixture 的 file 行 schema
-//     (file_id/paths/status,其余可选字段省略,组件本刀不读)完全一致,只是
-//     把 paths[0].path 换成了 /DATA/…、/Wiki/…、以及一个没有第二个斜杠的
-//     /lonely(topSegment 对它返回 null,不应进入 derivedRoots)。
+// Mock shape sources (governance §4, no hand-editing; documented individually):
+//   ai.parserFiles({...}) — service.ai.* has zero transformation of this endpoint (§4.1), fixture
+//     as-is snake_case.
+//   FILES_ALL_8 — verbatim from p5b-fixtures/files-all-8.json (8 files, 5 indexing / 3 ok,
+//     device distribution measured 2026-08-01, see governance §4.5/§12 E-8).
+//   ALL_OK_FILES — 3 rows filtered as-is from FILES_ALL_8 where status==='ok', not synthesized
+//     data, just a subset of the same fixture (device has no "all ok, zero indexing" 8-row
+//     scenario, so we must pick the no-indexing-rows subset from verified data to cover the
+//     isAnyIndexing=false branch).
+//   EMPTY_RESULT — verbatim from p5b-fixtures/files-has-error.json
+//     (`{"total":0,"limit":3,"offset":0,"files":[]}`, the real empty response when has_error=true
+//     on device), borrowed as a generic empty-state fixture (shape unchanged, just this file doesn't
+//     specifically assert it came from the has_error scenario).
+//   MULTI_ROOT_FILES — synthesized (README explicitly registers: all 8 device files land under
+//     /DATA, only one derivable root segment; cannot test derivedRoots multi-value sort / miss
+//     fallback to 'all' branches). Field names match the fixture file row schema (file_id/paths/
+//     status, remaining optional fields omitted, component doesn't read them this cut), just
+//     swapping paths[0].path to /DATA/…, /Wiki/…, and one path with no second slash /lonely
+//     (topSegment returns null for it, should not enter derivedRoots).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -38,34 +38,35 @@ import { createPinia, setActivePinia } from 'pinia'
 import { i18n } from '../../../i18n'
 import IndexedFilesView from './IndexedFilesView.vue'
 import { useKnowledgeStore } from '../stores/knowledgeStore'
-// T9:KIcon 用于断言状态徽标的图标 name prop(RED 探针①的钉子);fmtBytes/
-// fmtAbs 别名导入,只用于「组件是否把正确字段接线给这些函数」的对照断言
-// (这两个函数自身的边界值已在 util/indexedFilesView.test.ts(T7)覆盖,这里不
-// 重复)。
+// T9: KIcon used to assert the status badge icon name prop (RED probe① anchor); fmtBytes/
+// fmtAbs imported as aliases, only for "does the component wire the correct fields to these
+// functions" reference assertions (these two functions' own boundary values are already covered
+// in util/indexedFilesView.test.ts (T7), no repeat here).
 import KIcon from '../components/KIcon.vue'
 import { fmtBytes as fmtBytesRef, fmtAbs as fmtAbsRef } from '../util/indexedFilesView'
-// 守卫缺口③(附录 B §B.0.4)的定向断言要读 .vue 源文件本身 —— 一律 node:fs,
-// 不用 Vite 的 ?raw(vitest 的 CSSEnablerPlugin 会把样式源整体替换成空串,断言
-// 会对空字符串"假通过";先例见 knowledgeStyles.test.ts 头注释③,QueueView.test.ts
-// 同款复用)。本仓 "type": "module" → __dirname 在 ESM 下不可用,改用
-// fileURLToPath + node:path 的等价写法。node: 前缀模块的类型声明由 `@types/node` 提供,本仓
-// 已装(SP8-P6 合流自 master),vue-tsc 直接通过,**不需要** @ts-expect-error 抑制(sp8-ai
-// 分支上原有的抑制行已在合流时删除;参见 knowledgeStyles.test.ts 头注释①②)。
+// Guard gap③ (Appendix B §B.0.4) directional assertions read the .vue source file itself — always
+// node:fs, not Vite's ?raw (vitest's CSSEnablerPlugin replaces the style source wholesale with
+// empty string, assertions "fake pass" against empty string; precedent in knowledgeStyles.test.ts
+// header comment③, QueueView.test.ts same reuse). This repo "type": "module" → __dirname
+// unavailable in ESM, switched to fileURLToPath + node:path equivalent. Type declarations for
+// node: prefix modules provided by `@types/node`, installed in this repo (SP8-P6 merged from
+// master), vue-tsc passes directly, **no need for** @ts-expect-error suppression (suppression
+// lines originally in sp8-ai branch removed on merge; see knowledgeStyles.test.ts header①②).
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
-// T10 追加 `parserReindexFiles` —— 重建三入口(rebuildRow / rebuildSelected /
-// doRebuildAll)在 store 里都落到这一个包方法上(`knowledgeStore.ts:467` 与
-// `:477`,只是 body 一个传 `file_ids` 一个传 `filter`)。形状取自
-// `p5b-fixtures/reindex-one.http` 实测原文(snake_case,§4.1 零转换)。
+// ── vi.hoisted mock scaffold (governance §9: avoid ESM hoisting TDZ) ──
+// T10 adds `parserReindexFiles` — three rebuild entry points (rebuildRow / rebuildSelected /
+// doRebuildAll) all fall through to one wrapper method in store (`knowledgeStore.ts:467` and
+// `:477`, just body: one passes `file_ids` one passes `filter`). Shape from `p5b-fixtures/
+// reindex-one.http` measured text (snake_case, §4.1 zero transformation).
 const ai = vi.hoisted(() => ({ parserFiles: vi.fn(), parserReindexFiles: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
-// ── fixture 数据(逐字取自 p5b-fixtures/files-all-8.json)──
+// ── Fixture data (verbatim from p5b-fixtures/files-all-8.json) ──
 const FILES_ALL_8 = [
   { file_id: '2685dfba774c87b77b9ca4af44e691f6', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/tmp/nimoos_panic.log', mtime_ms: 1785413747017 }], sha256_full: '2685dfba774c87b77b9ca4af44e691f63f21d35402307fe1686aa0b6333ffe9c', size: 627268604, mime: 'application/octet-stream', modalities_done: {}, parser_version: 'parser/0.2.0', indexed_at: 1785413748112, tombstoned_at: null, vector_count: 0, last_error: null, status: 'indexing' },
   { file_id: '05d732586959ea3f480b5feb4b0d17c8', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/log/nimoos/log.log', mtime_ms: 1784404128499 }], sha256_full: '05d732586959ea3f480b5feb4b0d17c833ea5df0bffb7cea68d53b29e05db7e3', size: 1670833, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784436202505, tombstoned_at: null, vector_count: 856, last_error: null, status: 'ok' },
@@ -76,24 +77,24 @@ const FILES_ALL_8 = [
   { file_id: 'ae3894193e56d181e90b23712f1e3081', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7/aade3000de2889facb1f7ba7789d6f2c2fe6acdaf1a9adc7433242648d5c47e7-json.log', mtime_ms: 1784357047056 }], sha256_full: 'ae3894193e56d181e90b23712f1e3081197dc3e3ddea1cc01b9aaa87c9fdea34', size: 13174, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784360624748, tombstoned_at: null, vector_count: 7, last_error: null, status: 'indexing' },
   { file_id: 'e531767d0b917dfb86ea6c8451c4bf65', paths: [{ root_id: 'dfcd1840f5dab439cd9d7050aa5bafd0', path: '/DATA/.system_data/.docker/containers/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0/9f4d9086c55a06321ece3e53ddd890df5127fd5deaf0d95bb94fa223f32ffef0-json.log', mtime_ms: 1784359333549 }], sha256_full: 'e531767d0b917dfb86ea6c8451c4bf651895cae04cdb0528e56d9e1d13496c11', size: 1121945, mime: 'text/plain', modalities_done: { text: 'bge-m3/v1' }, parser_version: 'parser/0.2.0', indexed_at: 1784359354310, tombstoned_at: null, vector_count: 554, last_error: null, status: 'ok' },
 ]
-// 子集(非新造):FILES_ALL_8 里 status==='ok' 的 3 行,专门覆盖 isAnyIndexing=false。
+// Subset (not synthesized): 3 rows from FILES_ALL_8 where status==='ok', specifically covers isAnyIndexing=false.
 const ALL_OK_FILES = FILES_ALL_8.filter((f) => f.status === 'ok')
 
-// 逐字取自 p5b-fixtures/files-has-error.json(真机 has_error=true 时的真实空响应)。
+// Verbatim from p5b-fixtures/files-has-error.json (real empty response when has_error=true on device).
 const EMPTY_RESULT = { total: 0, limit: 3, offset: 0, files: [] }
 
-// 人工构造(README 登记:真机全部文件在 /DATA 下,测不出多 root),同一套字段名。
+// Synthesized (README registers: all device files under /DATA, cannot test multiple roots), same field set.
 const MULTI_ROOT_FILES = [
   { file_id: 'm1', paths: [{ root_id: 'r', path: '/DATA/a.log', mtime_ms: 1 }], status: 'ok' },
   { file_id: 'm2', paths: [{ root_id: 'r', path: '/DATA/b.log', mtime_ms: 2 }], status: 'ok' },
   { file_id: 'm3', paths: [{ root_id: 'r', path: '/Wiki/x.md', mtime_ms: 3 }], status: 'ok' },
-  // 没有第二个斜杠——topSegment(蓝本 :439-444/T7 照抄)对它返回 null,不应进入
-  // derivedRoots(与 T7 util 单测的边界用例同一条规则,这里是组件集成层面的确认)。
+  // No second slash — topSegment (blueprint :439-444/T7 as-is) returns null for it, should not enter
+  // derivedRoots (same rule as T7 util unit test boundary case, here confirming at component integration level).
   { file_id: 'm4', paths: [{ root_id: 'r', path: '/lonely', mtime_ms: 4 }], status: 'ok' },
 ]
 
-// T10:`reindex-one.http` 实测响应体逐字(200 分支)——
-// `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`。蓝本三处只读 `queued`。
+// T10: `reindex-one.http` measured response body verbatim (200 branch) —
+// `{"queued":1,"tombstoned":1,"job_ids":[349],"skipped":[]}`. Blueprint reads only `queued` in three places.
 const REINDEX_OK = { queued: 1, tombstoned: 1, job_ids: [349], skipped: [] }
 
 function setupServiceMocks(): void {
@@ -121,35 +122,35 @@ beforeEach(() => {
   setupServiceMocks()
 })
 
-// T5 M-4 教训:必须 unmount 所有挂载过的 wrapper,否则本组件 onMounted 触发的
-// store.startIndexedPolling() 起的 30s setInterval(store 模块级句柄)会跨用例
-// 存活,压住下一次挂载自己的 `if (indexedPollTimer) return` 守卫。
+// T5 M-4 lesson: must unmount all mounted wrappers, otherwise this component's onMounted-triggered
+// store.startIndexedPolling() 30s setInterval (store module-level handle) survives across tests,
+// blocking the next mount's own `if (indexedPollTimer) return` guard.
 afterEach(() => {
   while (mountedWrappers.length) mountedWrappers.pop()!.unmount()
-  // T10:K7 弹窗 portal 宿主(withHost() 往 document.body 塞的 .knowledge-app)
-  // 必须清掉,否则下一个用例的 `host.querySelector('.k-modal')` 会命中上一个
-  // 用例遗留的宿主(先例 QueueView.test.ts 的 `document.body.innerHTML = ''`,
-  // 这里只精确移除自己造的宿主,不清整个 body)。
+  // T10: K7 modal portal host (withHost() puts .knowledge-app in document.body) must be cleared,
+  // or the next test's `host.querySelector('.k-modal')` will hit the previous test's leftover
+  // host (precedent in QueueView.test.ts `document.body.innerHTML = ''`, here only precisely
+  // removing our own host, not clearing the entire body).
   document.querySelectorAll('.knowledge-app').forEach((el) => el.remove())
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 骨架容器
+// Skeleton container
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 骨架容器(蓝本 :1-5)', () => {
-  it('.k-view > .k-scroll > .k-scroll-inner 三层嵌套存在', async () => {
+describe('IndexedFilesView — Skeleton container (blueprint :1-5)', () => {
+  it('Three-layer nesting .k-view > .k-scroll > .k-scroll-inner exists', async () => {
     const w = await mountFiles()
     expect(w.find('.k-view > .k-scroll > .k-scroll-inner').exists()).toBe(true)
   })
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 过滤条 7 件 —— 每件的「改动 → offset 归零 + 清选择 + 清错误横幅 + 重载」
+// Filter bar 7 items — each: "change → offset zero + clear selection + clear error banner + reload"
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/清选择/清错误横幅/重载)', () => {
-  // 每条用例先把三个「脏」状态都摆好(offset 非零、selSet 非空、errorBanner 非
-  // 空),再触发一次过滤器改动,断言四件事全部发生 —— 比只断言其中一件更严格
-  // (RED 探针②专门删 offset=0 这一行来验证这条判别力)。
+describe('IndexedFilesView — Filter bar: _applyFilter four things (offset zero / clear selection / clear error banner / reload)', () => {
+  // Each test first sets up three "dirty" states (offset non-zero, selSet non-empty, errorBanner non-
+  // empty), then triggers a filter change, asserts all four things happen — stricter than asserting
+  // just one (RED probe② specifically deletes the offset=0 line to verify this discrimination power).
   function dirtyState(store: ReturnType<typeof useKnowledgeStore>, w: Awaited<ReturnType<typeof mountFiles>>) {
     store.indexedFiles.filters.offset = 300
     ;(w.vm as unknown as { selSet: Set<string> }).selSet = new Set(['stale-id'])
@@ -161,7 +162,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect((w.vm as unknown as { errorBanner: string | null }).errorBanner).toBeNull()
   }
 
-  it('1) Root 下拉切到具体段:path_prefix 变为 /DATA/ + 四件事 + 重载', async () => {
+  it('1) Root dropdown switches to segment: path_prefix becomes /DATA/ + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -173,7 +174,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('1b) Root 下拉切回 "all":path_prefix 清空 + 重载', async () => {
+  it('1b) Root dropdown switches back to "all": path_prefix cleared + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     store.indexedFiles.filters.path_prefix = '/DATA/'
@@ -185,7 +186,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('2) 路径前缀输入:每敲一键整发重载(N9,无 debounce)+ 四件事', async () => {
+  it('2) Path prefix input: each keystroke fires full reload (N9, no debounce) + four things', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -198,18 +199,18 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('3) 路径前缀清除按钮:baseline 两个清除按钮都不渲染(两个前缀都空);path_prefix 非空后只出现 1 个(两侧对照)', async () => {
+  it('3) Path prefix clear button: baseline both clear buttons not rendered (both prefixes empty); only 1 appears after path_prefix non-empty (sides match)', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
-    expect(w.findAll('.k-filt-clear')).toHaveLength(0) // 两个前缀都空:path 的清除按钮不渲染,mime 那边走 chip 分支
+    expect(w.findAll('.k-filt-clear')).toHaveLength(0) // Both prefixes empty: path clear button not rendered, mime goes chip branch
     expect(w.find('.k-filt-chip').exists()).toBe(true)
     store.indexedFiles.filters.path_prefix = '/DATA/Wiki/'
     await flush()
-    expect(w.findAll('.k-filt-clear')).toHaveLength(1) // 只有 path 的清除按钮出现,mime 仍空、仍是 chip
+    expect(w.findAll('.k-filt-clear')).toHaveLength(1) // Only path clear button appears, mime still empty, still chip
     expect(w.find('.k-filt-chip').exists()).toBe(true)
   })
 
-  it('3b) 路径前缀清除按钮点击行为:清空 + 四件事 + 重载', async () => {
+  it('3b) Path prefix clear button click: clear + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     store.indexedFiles.filters.path_prefix = '/DATA/Wiki/'
@@ -223,7 +224,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('4) 类型前缀输入:整发重载 + 四件事', async () => {
+  it('4) Type prefix input: full reload + four things', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -236,7 +237,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('5) 类型前缀清除按钮:清空 + 四件事 + 重载', async () => {
+  it('5) Type prefix clear button: clear + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     store.indexedFiles.filters.mime_prefix = 'text/x-'
@@ -250,7 +251,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('6) 「旧 .doc」快捷 chip:仅在 mime_prefix 为空时渲染,点击写入固定前缀 + 四件事', async () => {
+  it('6) "Old .doc" shortcut chip: only rendered when mime_prefix empty, click writes fixed prefix + four things', async () => {
     const w = await mountFiles()
     expect(w.find('.k-filt-chip').exists()).toBe(true)
     const store = useKnowledgeStore()
@@ -261,11 +262,11 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(store.indexedFiles.filters.mime_prefix).toBe('application/legacy-office/')
     expectClean(store, w)
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
-    // mime_prefix 非空后,chip 应该消失,换成清除按钮(两侧对照)
+    // After mime_prefix non-empty, chip should disappear, switch to clear button (sides match)
     expect(w.find('.k-filt-chip').exists()).toBe(false)
   })
 
-  it('7) 状态下拉改动(N12 见专门 describe):同样触发四件事 + 重载', async () => {
+  it('7) Status dropdown change (N12 see dedicated describe): also triggers four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -276,7 +277,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('8) 「仅看失败」勾选:has_error 切换 + 四件事 + 重载', async () => {
+  it('8) "Only errors" checkbox: has_error toggle + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -288,7 +289,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('9) 排序下拉改动:sort 字段更新 + 四件事 + 重载', async () => {
+  it('9) Sort dropdown change: sort field update + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     dirtyState(store, w)
@@ -300,7 +301,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('10) 升降序按钮:order 在 desc/asc 间切换 + 四件事 + 重载', async () => {
+  it('10) Ascending/descending button: order toggles between desc/asc + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     expect(store.indexedFiles.filters.order).toBe('desc')
@@ -313,7 +314,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('11) 「清除」按钮:六个筛选字段复位到默认值 + 四件事 + 重载', async () => {
+  it('11) "Clear" button: six filter fields reset to defaults + four things + reload', async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     const f = store.indexedFiles.filters
@@ -338,7 +339,7 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('12) 空态里的「清空筛选」按钮(N10 的 .k-empty-btn)同样调用 clearFilters', async () => {
+  it('12) "Clear filters" button in empty state (N10 .k-empty-btn) also calls clearFilters', async () => {
     ai.parserFiles.mockResolvedValueOnce(EMPTY_RESULT)
     const w = await mountFiles()
     const store = useKnowledgeStore()
@@ -353,41 +354,41 @@ describe('IndexedFilesView — 过滤条:_applyFilter 四件事(offset 归零/�
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 过滤条文案(修复轮 1,M-3):集合式断言钉死四个 label + 状态下拉三个 option
-// 的确切文字(其中 aiKbStatusActive 是附录 A ⚠️N #85 的错译「已启用」,照抄不
-// 改)+ 「仅看失败」勾选文字 + 「清除」按钮文字 + 「旧 .doc」chip 文字/title +
-// 两个 placeholder。之前这些文案只在别的用例里顺带 toContain 过按钮整体文字,
-// 没有专门的定向断言 —— 将来有人把某个键的值"顺手改对"或把两个键的键名写串,
-// 三门不会报红。RED 探针:把 aiKbStatusActive 的值临时改成"有效"→ 这条用例
-// 精确报红(见任务报告)。
+// Filter text (fix round 1, M-3): collection assertion pins four labels + status dropdown three option
+// exact text (aiKbStatusActive is Appendix A ⚠️N #85 mistranslation "已启用", as-is no change)
+// + "Only errors" checkbox text + "Clear" button text + "Old .doc" chip text/title +
+// two placeholders. Previously these strings only appeared incidentally in other tests with toContain
+// on whole button text, no dedicated directional assertions — in future if someone "accidentally
+// fixes" a key's value or transposes two key names, three gates won't flag. RED probe: temporarily
+// change aiKbStatusActive value to "有效" → this test precisely flags (see task report).
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 过滤条文案(集合式断言,防止顺手改对/键名写串)', () => {
-  it('四个 .k-filt-label 的确切文字', async () => {
+describe('IndexedFilesView — Filter text (collection assertion, prevent accidental fix / name transposition)', () => {
+  it('Four .k-filt-label exact text', async () => {
     const w = await mountFiles()
     const labels = w.findAll('.k-filt-label').map((l) => l.text())
     expect(labels).toEqual(['存储根', '路径前缀', '类型前缀', '状态'])
   })
 
-  it('状态下拉三个 option 的确切文字(含 ⚠️N #85 错译「已启用」,照抄不改)', async () => {
+  it('Status dropdown three option exact text (includes ⚠️N #85 mistranslation "已启用", as-is)', async () => {
     const w = await mountFiles()
     const opts = w.findAll('.k-filt select')[1].findAll('option').map((o) => o.text())
     expect(opts).toEqual(['已启用', '已删除', '全部'])
   })
 
-  it('「仅看失败」勾选文字 / 「清除」按钮文字', async () => {
+  it('"Only errors" checkbox text / "Clear" button text', async () => {
     const w = await mountFiles()
     expect(w.find('.k-filt-check').text()).toBe('仅看失败')
     expect(w.find('.k-filter-bar .k-btn.ghost').text()).toBe('清除')
   })
 
-  it('「旧 .doc」快捷 chip 的文字与 title', async () => {
+  it('"Old .doc" shortcut chip text and title', async () => {
     const w = await mountFiles()
     const chip = w.find('.k-filt-chip')
     expect(chip.text()).toBe('旧 .doc')
     expect(chip.attributes('title')).toBe('一键圈出待修复的旧 .doc')
   })
 
-  it('两个前缀输入框的 placeholder', async () => {
+  it('Two prefix input placeholders', async () => {
     const w = await mountFiles()
     const inputs = w.findAll('.k-filt-grow input')
     expect(inputs[0].attributes('placeholder')).toBe('/DATA/Wiki/ …')
@@ -396,22 +397,22 @@ describe('IndexedFilesView — 过滤条文案(集合式断言,防止顺手改�
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// filtersDirty —— 六个条件各自独立 + 全默认 false
+// filtersDirty — six conditions independent + all default false
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — filtersDirty(六条件独立覆盖 + 全默认 false)', () => {
-  it('全默认(未改任何筛选字段)→ false,清除按钮禁用', async () => {
+describe('IndexedFilesView — filtersDirty (six conditions independent coverage + all default false)', () => {
+  it('All defaults (no filter fields changed) → false, clear button disabled', async () => {
     const w = await mountFiles()
     expect(w.find('.k-filter-bar .k-btn.ghost').attributes('disabled')).toBeDefined()
   })
 
-  it('path_prefix 非空 → true', async () => {
+  it('path_prefix non-empty → true', async () => {
     const w = await mountFiles()
     useKnowledgeStore().indexedFiles.filters.path_prefix = '/DATA/'
     await flush()
     expect(w.find('.k-filter-bar .k-btn.ghost').attributes('disabled')).toBeUndefined()
   })
 
-  it('mime_prefix 非空 → true', async () => {
+  it('mime_prefix non-empty → true', async () => {
     const w = await mountFiles()
     useKnowledgeStore().indexedFiles.filters.mime_prefix = 'text/x-'
     await flush()
@@ -448,16 +449,16 @@ describe('IndexedFilesView — filtersDirty(六条件独立覆盖 + 全默认 fa
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// N12 —— statusViewLocal ↔ API tombstoned 反向映射,两个方向 × 三个值全覆盖
+// N12 — statusViewLocal ↔ API tombstoned bidirectional mapping, both directions × three values full coverage
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLocal × statusSuffix 全覆盖)', () => {
-  it("读方向 1/3:tombstoned='alive' → 下拉选中 'active',statusSuffix 为空", async () => {
+describe('IndexedFilesView — N12: active ↔ alive bidirectional mapping (statusViewLocal × statusSuffix full coverage)', () => {
+  it("Read direction 1/3: tombstoned='alive' → dropdown selects 'active', statusSuffix empty", async () => {
     const w = await mountFiles() // 默认 tombstoned==='alive'
     expect((w.findAll('.k-filt select')[1].element as HTMLSelectElement).value).toBe('active')
     expect(w.find('.k-files-count').text()).toBe('共 8 个文件')
   })
 
-  it("读方向 2/3:tombstoned='tombstoned' → 下拉选中 'tombstoned',statusSuffix ' (已删除)'", async () => {
+  it("Read direction 2/3: tombstoned='tombstoned' → dropdown selects 'tombstoned', statusSuffix ' (已删除)'", async () => {
     const w = await mountFiles()
     useKnowledgeStore().indexedFiles.filters.tombstoned = 'tombstoned'
     await flush()
@@ -465,7 +466,7 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
     expect(w.find('.k-files-count').text()).toBe('共 8 个文件 (已删除)')
   })
 
-  it("读方向 3/3:tombstoned='all' → 下拉选中 'all',statusSuffix ' (全部)'", async () => {
+  it("Read direction 3/3: tombstoned='all' → dropdown selects 'all', statusSuffix ' (全部)'", async () => {
     const w = await mountFiles()
     useKnowledgeStore().indexedFiles.filters.tombstoned = 'all'
     await flush()
@@ -473,7 +474,7 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
     expect(w.find('.k-files-count').text()).toBe('共 8 个文件 (全部)')
   })
 
-  it("写方向 1/3:选「已启用」(option value='active')→ store 存的是 'alive',不是直传 'active'(RED 探针③的钉子)", async () => {
+  it("Write direction 1/3: select '已启用' (option value='active') → store stores 'alive', not direct 'active' (RED probe③ anchor)", async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     store.indexedFiles.filters.tombstoned = 'tombstoned' // 先偏离,确保下面真的是这次改动写回去的
@@ -484,7 +485,7 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
     expect(store.indexedFiles.filters.tombstoned).not.toBe('active')
   })
 
-  it("写方向 2/3:选 '已删除'(tombstoned)→ 原样直传 'tombstoned'", async () => {
+  it("Write direction 2/3: select '已删除' (tombstoned) → passes through as-is 'tombstoned'", async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     await w.findAll('.k-filt select')[1].setValue('tombstoned')
@@ -492,7 +493,7 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
     expect(store.indexedFiles.filters.tombstoned).toBe('tombstoned')
   })
 
-  it("写方向 3/3:选 '全部'(all)→ 原样直传 'all'", async () => {
+  it("Write direction 3/3: select '全部' (all) → passes through as-is 'all'", async () => {
     const w = await mountFiles()
     const store = useKnowledgeStore()
     await w.findAll('.k-filt select')[1].setValue('all')
@@ -504,17 +505,17 @@ describe('IndexedFilesView — N12: active ↔ alive 反向映射(statusViewLoca
 // ──────────────────────────────────────────────────────────────────────
 // derivedRoots / rootSelect
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — derivedRoots(best-effort)与 rootSelect 反查', () => {
-  it('多 root:排序后去重,没有第二个斜杠的路径不计入(RED 探针①的钉子)', async () => {
+describe('IndexedFilesView — derivedRoots (best-effort) and rootSelect lookup', () => {
+  it('Multiple roots: dedup after sort, paths without second slash excluded (RED probe① anchor)', async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: 4, files: MULTI_ROOT_FILES })
     const w = await mountFiles()
     const options = w.findAll('.k-filt select')[0].findAll('option')
-    // options[0] 固定是 "all",其余是 derivedRoots 排序后的结果
+    // options[0] always "all", rest is derivedRoots after sort
     const optionValues = options.slice(1).map((o) => o.attributes('value'))
-    expect(optionValues).toEqual(['DATA', 'Wiki']) // 去重(a.log/b.log 都是 DATA)+ 排序,/lonely 不计入
+    expect(optionValues).toEqual(['DATA', 'Wiki']) // Dedup (a.log/b.log both DATA) + sort, /lonely excluded
   })
 
-  it("rootSelect 反查:path_prefix='/DATA/' 命中 derivedRoots → 下拉回显 'DATA'", async () => {
+  it("rootSelect lookup: path_prefix='/DATA/' matches derivedRoots → dropdown shows 'DATA'", async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: 4, files: MULTI_ROOT_FILES })
     const w = await mountFiles()
     const store = useKnowledgeStore()
@@ -523,7 +524,7 @@ describe('IndexedFilesView — derivedRoots(best-effort)与 rootSelect 反查', 
     expect((w.findAll('.k-filt select')[0].element as HTMLSelectElement).value).toBe('DATA')
   })
 
-  it("rootSelect 反查:path_prefix 不匹配任何 derivedRoots → 回落 'all'", async () => {
+  it("rootSelect lookup: path_prefix matches no derivedRoots → falls back to 'all'", async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: 4, files: MULTI_ROOT_FILES })
     const w = await mountFiles()
     const store = useKnowledgeStore()
@@ -532,7 +533,7 @@ describe('IndexedFilesView — derivedRoots(best-effort)与 rootSelect 反查', 
     expect((w.findAll('.k-filt select')[0].element as HTMLSelectElement).value).toBe('all')
   })
 
-  it("rootSelect 反查:path_prefix 不是 '/seg/' 整体形状(有更多层级)→ 回落 'all'", async () => {
+  it("rootSelect lookup: path_prefix not '/seg/' shape (more levels) → falls back to 'all'", async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: 4, files: MULTI_ROOT_FILES })
     const w = await mountFiles()
     const store = useKnowledgeStore()
@@ -541,42 +542,42 @@ describe('IndexedFilesView — derivedRoots(best-effort)与 rootSelect 反查', 
     expect((w.findAll('.k-filt select')[0].element as HTMLSelectElement).value).toBe('all')
   })
 
-  it("rootSelect 反查:path_prefix 为空 → 'all'", async () => {
+  it("rootSelect lookup: path_prefix empty → 'all'", async () => {
     const w = await mountFiles()
     expect((w.findAll('.k-filt select')[0].element as HTMLSelectElement).value).toBe('all')
   })
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 表头 meta
+// Header meta
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 表头 meta(蓝本 :60-90)', () => {
-  it('ready 态文件计数文案:{n} indexed files(千分位)', async () => {
+describe('IndexedFilesView — Header meta (blueprint :60-90)', () => {
+  it('Ready state file count text: {n} indexed files (thousands separator)', async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: 12345, files: FILES_ALL_8 })
     const w = await mountFiles()
     expect(w.find('.k-files-count').text()).toBe('共 12,345 个文件')
   })
 
-  it('isAnyIndexing=true(FILES_ALL_8 含 5 行 indexing)时显示自动刷新提示', async () => {
+  it('isAnyIndexing=true (FILES_ALL_8 has 5 indexing rows) show auto-refresh hint', async () => {
     const w = await mountFiles()
     expect(w.find('.k-poll').exists()).toBe(true)
     expect(w.find('.k-poll').text()).toContain('自动刷新中 · 30s')
     expect(w.find('.k-poll').attributes('title')).toBe('只要还有索引中的行，每 30 秒自动刷新')
   })
 
-  it('isAnyIndexing=false(全部 ok)时不显示自动刷新提示(两侧对照)', async () => {
+  it('isAnyIndexing=false (all ok) do not show auto-refresh hint (sides match)', async () => {
     ai.parserFiles.mockResolvedValueOnce({ total: ALL_OK_FILES.length, files: ALL_OK_FILES })
     const w = await mountFiles()
     expect(w.find('.k-poll').exists()).toBe(false)
   })
 
-  it('排序下拉三个选项文案正确', async () => {
+  it('Sort dropdown three option text correct', async () => {
     const w = await mountFiles()
     const opts = w.find('.k-sort select').findAll('option')
     expect(opts.map((o) => o.text())).toEqual(['索引时间', '大小', '向量数'])
   })
 
-  it('升降序按钮:desc 时不旋转,asc 时旋转 180deg(内联样式,两侧对照)', async () => {
+  it('Ascending/descending button: no rotate when desc, rotate 180deg when asc (inline style, sides match)', async () => {
     const w = await mountFiles()
     const dirIcon = () => w.find('.k-sort-dir span')
     expect(dirIcon().attributes('style')).not.toContain('rotate(180deg)')
@@ -593,10 +594,10 @@ describe('IndexedFilesView — 表头 meta(蓝本 :60-90)', () => {
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 错误横幅 —— K14 / K19 + 反向断言
+// Error banner — K14 / K19 + inverse assertions
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 错误横幅(K14/K19,反向断言)', () => {
-  it('K19: load-error 分支不回显 e.message,改用固定 aiKbLoadErrorBody(反向断言,RED 探针④的钉子)', async () => {
+describe('IndexedFilesView — Error banner (K14/K19, inverse assertions)', () => {
+  it('K19: load-error branch does not show e.message, use fixed aiKbLoadErrorBody (inverse assertion, RED probe④ anchor)', async () => {
     ai.parserFiles.mockRejectedValueOnce(new Error('ECONNREFUSED super-secret-backend-stack-trace'))
     const w = await mountFiles()
     const banner = w.find('.k-banner')
@@ -604,19 +605,20 @@ describe('IndexedFilesView — 错误横幅(K14/K19,反向断言)', () => {
     expect(banner.attributes('data-tone')).toBe('warn')
     expect(banner.text()).toContain('加载失败：')
     expect(banner.text()).toContain('无法读取已收录文件列表，请稍后重试。')
-    // 反向断言:e.message 的原文一个字都不能出现
+    // Inverse assertion: e.message original text must not appear at all
     expect(banner.text()).not.toContain('ECONNREFUSED')
     expect(banner.text()).not.toContain('super-secret-backend-stack-trace')
   })
 
-  it('K14: rebuild-all 400 分支不回显后端 detail,只留固定 "400 Bad Request" + aiKbRebuildCapHint(反向断言)', async () => {
+  it('K14: rebuild-all 400 branch does not show backend detail, only fixed "400 Bad Request" + aiKbRebuildCapHint (inverse assertion)', async () => {
     const w = await mountFiles()
-    // errorBanner 的赋值函数 doRebuildAll()(蓝本 :791-809/确认弹窗 :356-381)是
-    // T9/T10 才落地的动作条功能,本刀先把「errorBanner 被填充后怎么渲染」这条
-    // 展示链路做对。技术手法:<script setup> 顶层 ref 即便未 defineExpose,
-    // @vue/test-utils 的 wrapper.vm 在测试环境下仍可读写(instance.proxy 走
-    // setupState 双向读写,已实测验证),用它直接驱动这个分支,不是新增功能、
-    // 也不是绕过组件公开行为——只是本刀没有可点击的 UI 入口能到达这个分支。
+    // errorBanner assignment function doRebuildAll() (blueprint :791-809/confirm dialog :356-381) is
+    // action bar functionality landed in T9/T10, this cut first gets the "how errorBanner renders after
+    // being populated" display path right. Technical approach: <script setup> top-level ref even without
+    // defineExpose, @vue/test-utils wrapper.vm still readable/writable in test environment (instance.proxy
+    // goes setupState bidirectional read/write, verified in testing), use it to directly drive this branch,
+    // not adding features or bypassing component public behavior — just this cut has no clickable UI entry
+    // to reach this branch.
     ;(w.vm as unknown as { errorBanner: string | null }).errorBanner =
       'too many file_ids (max 500)'
     await nextTick()

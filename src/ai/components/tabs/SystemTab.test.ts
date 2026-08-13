@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/tabs/SystemTab.vue(56 行)。SP8-P1c2 Task 11。
+// 1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines). SP8-P1c2 Task 11.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -11,8 +11,8 @@ vi.mock('@nimotech/nimoos-service', async () => {
   return { ...actual, service: { sys: { getUtilization } } }
 })
 
-// 与 apps/ 侧既有测试(installProgress.test.ts 等)同款约定:直接 mock
-// useMessageBus,避免真实 socket.io-client 连接。
+// Same convention as existing tests on apps/ side (installProgress.test.ts etc.): directly
+// mock useMessageBus to avoid real socket.io-client connection.
 vi.mock('../../../composables/useMessageBus', () => ({
   useMessageBus: () => ({ on: vi.fn(() => () => {}) }),
 }))
@@ -34,7 +34,7 @@ describe('SystemTab', () => {
     getUtilization.mockResolvedValue({ cpu: null, mem: null, disk: null, gpu: null, net: null, usb: null })
   })
 
-  it('有 storage → 渲染 StorageCard,breakdown[0].color 作为字符串 var(--accent) 写进 inline style', async () => {
+  it('with storage → renders StorageCard, breakdown[0].color as string var(--accent) written to inline style', async () => {
     const storage = {
       used: 5,
       total: 12,
@@ -48,26 +48,26 @@ describe('SystemTab', () => {
     expect(card.props('breakdown')).toEqual(storage.breakdown)
     const seg = w.find('.storage-seg')
     expect(seg.exists()).toBe(true)
-    // color 是字符串 token,不是被解析过的具体色值——原样出现在内联 style 里
+    // color is a string token, not a parsed concrete color value — appears as-is in inline style
     expect(seg.attributes('style')).toContain('var(--accent)')
-    // 代码评审 F2:原断言 `w.find('[data-testid], .empty-storage').exists()`
-    // 两个选择器在 SystemTab.vue/StorageCard.vue 里都不存在,恒为 false、永远
-    // 通过。改成真正能分辨 v-if/v-else 两支的断言——有 storage 时"存储信息
-    // 不可用"空态文案(下面 null 用例断言的同一句)不应出现。
+    // Code review F2: original assertion `w.find('[data-testid], .empty-storage').exists()`
+    // — both selectors don't exist in SystemTab.vue/StorageCard.vue, always false, always passes.
+    // Changed to assertion that actually distinguishes v-if/v-else branches — when storage present,
+    // "storage info unavailable" empty state text (same sentence asserted in null case below) should not appear.
     expect(w.text()).not.toContain('存储信息不可用')
   })
 
-  it('无 storage(null)→ 不渲染 StorageCard,渲染"存储信息不可用"空态', async () => {
+  it('without storage (null) → does not render StorageCard, renders "storage info unavailable" empty state', async () => {
     const w = mountTab({ storage: null })
     await flushPromises()
     expect(w.findComponent(StorageCard).exists()).toBe(false)
     expect(w.text()).toContain('存储信息不可用')
   })
 
-  it('磁贴随 useUtilizationStore 的数据变化而更新(实时通道,而非一次性拉取)', async () => {
+  it('tiles update as useUtilizationStore data changes (real-time channel, not one-time fetch)', async () => {
     const w = mountTab({ storage: null })
     await flushPromises()
-    // 初始(mock 的 getUtilization 返回全 null)→ CPU 磁贴应显示 '—'
+    // Initially (mocked getUtilization returns all null) → CPU tile should show '—'
     expect(w.text()).toContain('—')
 
     const store = useUtilizationStore()

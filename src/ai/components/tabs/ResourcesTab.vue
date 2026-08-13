@@ -1,33 +1,33 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue(279 行)。SP8-P1c2 Task 12。
+  1:1 port from Vue2 src/views/AI/Agent/tabs/ResourcesTab.vue (279 lines). SP8-P1c2 Task 12.
 
-  三段:授权资源(AUTHORIZED)/ 附件(ATTACHMENTS)/ 暂存区(PENDING CHANGES,仅
-  `stagedChanges.length > 0` 时渲染)。分组/格式化纯逻辑抽到 ../../util/stagedGroups.ts
-  (独立单测),本组件只做 props→emit 的哑组件接线,不直接调用 Pinia store —— 六个
-  store action(removeVisibleResource/removeAttachment/revertStagedRun/
-  revertStagedBatch/revertStagedItem/commitStagedAll)由父组件(AgentRightPanel,
-  后续任务接线)监听 emit 后调用。
+  Three sections: authorized resources (AUTHORIZED) / attachments (ATTACHMENTS) / staging area
+  (PENDING CHANGES, rendered only when `stagedChanges.length > 0`). Grouping/formatting pure logic
+  extracted to ../../util/stagedGroups.ts (with standalone unit tests); this component is just a dumb
+  props→emit relay, does not directly call Pinia store — six store actions (removeVisibleResource/
+  removeAttachment/revertStagedRun/revertStagedBatch/revertStagedItem/commitStagedAll) are called by
+  parent component (AgentRightPanel, wired in later task) after listening to emit.
 
-  `reverting` 三种键命名空间逐字照抄 Vue2:isReverting(runId) 裸键、
-  isRevertingBatch(batchId) 裸键、isRevertingItem(stagedId) 用 'item:'+id 前缀
-  (与 agentStore.ts 的 revertStagedRun/revertStagedBatch/revertStagedItem 写入
-  reverting 的键完全对应)。
+  Three key namespaces for `reverting` are verbatim from Vue2: isReverting(runId) bare key,
+  isRevertingBatch(batchId) bare key, isRevertingItem(stagedId) using 'item:'+id prefix
+  (exactly correspond to revertStagedRun/revertStagedBatch/revertStagedItem keys written to
+  reverting in agentStore.ts).
 
-  Vue2 从未 i18n 过的裸英文字面量(段标题/空态/徽标/按钮文案/相对时间)按本期拍板
-  (2026-07-27)补 zh_cn/en_us 键;aiResBatchSummary/aiResRevertBatch/aiResRevertItem
-  三个复用 Vue2 既有 zh_CN.json/en_US.json 现成译文(agent_batch_summary/
-  agent_batch_revert_all/agent_revert_item,970-972/878-880 行),逐字照抄。
+  Vue2 bare English literals never i18n'd (section titles/empty states/badges/button copy/relative time)
+  — added zh_cn/en_us keys per this phase's decision (2026-07-27); aiResBatchSummary/aiResRevertBatch/
+  aiResRevertItem three reuse existing translations from Vue2's zh_CN.json/en_US.json (agent_batch_summary/
+  agent_batch_revert_all/agent_revert_item, lines 970-972/878-880), verbatim copy.
 
-  授权段空态含 `<code>@</code>` 内联提示 —— 用 <i18n-t> 具名插槽(precedent:
-  aiMentionNoMatchTpl/MentionPopover.vue)填充,消息本身不含裸 '@',不需要
-  {'@'} 转义(与 aiComposerPlaceholder 那种"@ 就是消息内容一部分"的情形不同)。
+  Authorized section empty state contains inline hint `<code>@</code>` — filled using
+  <i18n-t> named slot (precedent: aiMentionNoMatchTpl/MentionPopover.vue); message itself does not
+  contain bare '@', no need for {'@'} escaping (different from aiComposerPlaceholder where
+  "@" is part of message content).
 
-  `.rt-*` 样式规则在 agent-styles.scss 里没有全局同名对应(已核实,专属本组件),
-  按 1:1 港带自己的 scoped 样式块;8 处裸色字面量(rt-tag-draft 背景+字色、
-  badge-NEW/DEL/REN/MKD 背景、rt-orphan-tag 背景、rt-commit 的 color:white)
-  全部换成 tokens.scss 里已存在的语义 token(--warning-soft/--warning、
-  --success-soft/--danger-soft/--teal-soft、--text-on-accent)—— 均为既有
-  token,本次未新增任何 token。
+  `.rt-*` style rules have no global counterparts in agent-styles.scss (verified, specific to this
+  component), ported 1:1 with own scoped style block; 8 bare color literals (rt-tag-draft background+
+  text color, badge-NEW/DEL/REN/MKD background, rt-orphan-tag background, rt-commit color:white) all
+  replaced with existing semantic tokens from tokens.scss (--warning-soft/--warning, --success-soft/
+  --danger-soft/--teal-soft, --text-on-accent) — all existing tokens, no new tokens added this time.
 -->
 <script setup lang="ts">
 import { ref, computed } from 'vue'
@@ -44,9 +44,9 @@ import {
   pluralWord,
 } from '../../util/stagedGroups'
 
-/** Vue2 里附件是裸对象字面量(无专用 TS 类型);这里按模板实际读取的字段补一个
- *  本地接口,不改动 agentStore.ts 里 `attachments: Record<string, unknown>[]`
- *  的宽松类型(父组件仍可原样传入)。 */
+/** In Vue2 attachments are bare object literals (no dedicated TS type); here we add a local
+ *  interface based on actual template field access, without changing the loose type in agentStore.ts
+ *  `attachments: Record<string, unknown>[]` (parent can still pass in as-is). */
 export interface ResourceAttachment {
   id: string | number
   filename: string
@@ -79,13 +79,13 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'remove-resource', id: string | number): void
-  // F1 修复(终审 opus 全支线复查)—— Vue2 tabs/ResourcesTab.vue:21 对授权段的 ×
-  // 无条件传 `r.id`,流式注入的资源(agentStore.ts:488 appendVisibleResource
-  // 只塞 {path, kind},见 dispatchEvent.ts:310-314 / Vue2 agentStream.js:539-542)
-  // 没有 id，会打 `/visible-resources/undefined` 坏请求。与
-  // AgentComposer.removeChip()(1c-1 挂账票 1 的还款,见该函数注释)同款处理：
-  // 按 `r.id !== undefined` 分流，无 id 的走这个新事件，由父组件接
-  // store.removeVisibleResourceByPath(path)。
+  // F1 fix (final review full branch check) — Vue2 tabs/ResourcesTab.vue:21 unconditionally
+  // passes `r.id` to × for authorized section; streamed resources (agentStore.ts:488
+  // appendVisibleResource only sets {path, kind}; see dispatchEvent.ts:310-314 / Vue2
+  // agentStream.js:539-542) lack id, causing bad request `/visible-resources/undefined`. Same
+  // handling as AgentComposer.removeChip() (debt① settlement for 1c-1 ticket 1; see that function
+  // comment): split by `r.id !== undefined`; resources without id go to this new event, handled by
+  // parent calling store.removeVisibleResourceByPath(path).
   (e: 'remove-resource-by-path', path: string): void
   (e: 'remove-attachment', id: string | number): void
   (e: 'revert-run', runId: string | number): void
@@ -96,27 +96,27 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-/** Vue2:157 `data() { return { expandedBatches: {} } }` + `$set` toggle —— Vue3
- *  没有 $set 的必要性(ref 的对象属性赋值天然是响应式的),直接赋值即可。 */
+/** Vue2:157 `data() { return { expandedBatches: {} } }` + `$set` toggle — Vue3 has no need for
+ *  $set (ref object property assignment is naturally reactive), direct assignment works. */
 const expandedBatches = ref<Record<string | number, boolean>>({})
 
 function toggleBatch(batchId: string | number) {
   expandedBatches.value[batchId] = !expandedBatches.value[batchId]
 }
 
-/** Vue2:161-163 totalChangedFiles。 */
+/** Vue2:161-163 totalChangedFiles. */
 const totalChangedFiles = computed(() =>
   props.stagedChanges.reduce((n, g) => n + g.items.length, 0),
 )
 
-/** Vue2:164-189 groupedStagedChanges —— 纯逻辑已抽到 stagedGroups.ts。 */
+/** Vue2:164-189 groupedStagedChanges — pure logic extracted to stagedGroups.ts. */
 const groupedStagedChanges = computed(() => groupStagedChanges(props.stagedChanges))
 
 function hasSnapshotMissing(g: StagedGroup): boolean {
   return g.items.some((it) => it.snapshot_missing)
 }
 
-/** relativeTime() 返回键名+参数,这里就地渲染成文本,避免在模板里重复调用。 */
+/** relativeTime() returns key name + params; rendered to text here to avoid repeated calls in template. */
 function relTimeText(unixSec: number): string {
   const r = relativeTime(unixSec)
   return t(r.key, r.params || {})
@@ -127,11 +127,12 @@ function rawUrl(aid: string | number): string {
   return service.ai.attachmentRawUrl(props.sessionId, aid)
 }
 
-/** Vue2:230-232 —— 三种键命名空间,逐字照抄:裸 runId / 裸 batchId / 'item:'+stagedId。
- *  F2 申报(终审 opus 复查)—— `isRevertingItem` 比 Vue2:232 多一个
- *  `stagedId !== undefined &&` 守卫;Vue2 没有这层，`stagedId` 为 undefined 时
- *  会去查 `reverting['item:undefined']`。运行时等价(那个键永不存在于
- *  `reverting` 表里，两种写法结果都是 false)，这里只是防御性显式化，**不改变行为**。 */
+/** Vue2:230-232 — three key namespaces, verbatim from Vue2: bare runId / bare batchId / 'item:'+stagedId.
+ *  F2 declaration (final review Opus check) — `isRevertingItem` has an extra
+ *  `stagedId !== undefined &&` guard compared to Vue2:232; Vue2 lacks this, when `stagedId` is
+ *  undefined it checks `reverting['item:undefined']`. Runtime equivalent (that key never exists in
+ *  `reverting` table, both forms result in false), this is just defensive explicitness, **does not
+ *  change behavior**. */
 function isReverting(runId: string | number): boolean { return !!props.reverting[runId] }
 function isRevertingBatch(batchId: string | number): boolean { return !!props.reverting[batchId] }
 function isRevertingItem(stagedId: string | number | undefined): boolean {
@@ -139,12 +140,13 @@ function isRevertingItem(stagedId: string | number | undefined): boolean {
 }
 
 /**
- * F1 修复 —— Vue2:21 无条件 `emit('remove-resource', r.id)`，对流式注入的无 id
- * 资源(见上方 `remove-resource-by-path` emit 声明处的注释)会打
- * `/visible-resources/undefined`。这里按 **`r.id !== undefined`**（不能用真值
- * 判断——`id === 0` 是合法 id）分流：有 id 走原事件；无 id 走
- * `remove-resource-by-path`，由父组件接 `store.removeVisibleResourceByPath`。
- * 分流之后各分支类型已经收窄，不再需要 `as string | number` 断言。
+ * F1 fix — Vue2:21 unconditionally `emit('remove-resource', r.id)`, which hits
+ * `/visible-resources/undefined` for streamed resources without id (see comment above at
+ * `remove-resource-by-path` emit declaration). Here split by **`r.id !== undefined`** (cannot use
+ * truthiness check — `id === 0` is a valid id): resources with id use original event;
+ * without id use `remove-resource-by-path`, handled by parent calling
+ * `store.removeVisibleResourceByPath`. After split, each branch type is narrowed,
+ * no longer needs `as string | number` assertion.
  */
 function onRemoveResource(r: VisibleResource) {
   if (r.id !== undefined) {

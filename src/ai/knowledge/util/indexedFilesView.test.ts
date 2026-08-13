@@ -1,10 +1,11 @@
-// SP8-P5b Task 7 —— 移植自 Vue2
-// `src/views/AI/Knowledge/IndexedFilesView.vue:396-444`(main@7a6ee6b7)。
-// 每处「照抄的怪行为」各有一条专门用例把返回值钉死,并标注蓝本行号。
+// SP8-P5b Task 7 — port from Vue2
+// `src/views/AI/Knowledge/IndexedFilesView.vue:396-444`(main@7a6ee6b7).
+// Each "copied weird behavior" has one dedicated case pinning return value with blueprint line number.
 //
-// 🔴 边界断言纪律(P5a T6 教训:`fmtAgo` 的 `h < 24` 改成 `h < 48`,
-// 16/16 用例仍全绿——因为原用例只在每档"中段"取样,阈值本身改错测不出来)。
-// 本文件对 `fmtBytes`/`fmtRel` 的**每个档位两侧**都各有一条断言,防止同款回归。
+// 🔴 Boundary assertion discipline (P5a T6 lesson: changing `fmtAgo` `h < 24` to `h < 48`,
+// 16/16 cases still green — because original cases sample only "mid-range" of each tier,
+// threshold itself changed error undetectable). This file has assertions on **both sides
+// of each tier** for `fmtBytes`/`fmtRel`, preventing same regression.
 import { describe, it, expect, vi } from 'vitest'
 import { fmtBytes, fmtRel, fmtAbs, simplifyMime, topSegment } from './indexedFilesView'
 

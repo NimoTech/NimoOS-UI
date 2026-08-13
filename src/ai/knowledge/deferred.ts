@@ -1,53 +1,57 @@
-// SP8-P5a 占位机制(偏离 K7)—— 承 P2a 的 DEFERRED_SECTIONS 先例:rail 保持
-// Vue2 的 9 项 1:1,未迁页面落占位页,分批替换。P5f 会把 DEFERRED_TABS 清空,
-// **但机制本身保留**(承 P4 I2 的教训:清空后要仍有用例证明它有能力,而不是
-// 只剩一段没人测的代码)。
+// SP8-P5a placeholder mechanism (divergence K7) — following P2a's DEFERRED_SECTIONS precedent: rail keeps
+// Vue2's 9 items 1:1; unmigrated pages fall to placeholder; replace in batches. P5f will empty DEFERRED_TABS,
+// **but mechanism itself preserved** (following P4 I2 lesson: after emptying, must still have test cases
+// proving it works, not just orphaned untested code).
 //
-// 【SP8-P5b Task 5,2026-08-01】'queue' 已迁(QueueView.vue + knowledgeRoutes.ts
-// 反转),从这里摘掉,机制本身不变。
-// 【SP8-P5b Task 10,2026-08-02】'indexed-files' 已迁(IndexedFilesView.vue 三刀
-// 收官 + knowledgeRoutes.ts 反转),从这里摘掉,机制本身不变。
-// 【SP8-P5c Task 10,2026-08-04】'settings' 已迁(SettingsView.vue,T8 上半 + T9
-// 下半 + knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 6 项变 5 项。
-// 🔴 'allowlist' **留着**:上级设计原把 AllowlistView 算在 P5c,用户 2026-08-03
-// 明示移出本期(治理 §2.2),本期不做,仍落占位页。
-// 🔴 同刀反转的 `/ai/parser` 与 `/ai/parser/test` 是**顶层路由、不是 rail tab**,
-// 从来不在 DEFERRED_TABS 里,故这里无对应项可摘(治理 §5.1 / T10 brief §2)。
-// 【SP8-P5d Task 10,2026-08-05】'notes' 已迁(NotesView.vue,T6-T9 四刀收官 +
-// knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 5 项变 4 项。
-// 🔴 兑现治理 §15.1「跨期占位烂尾」的通用教训 —— 本期票 1 的起因就是「前三期都
-// 漏了导航入口」,占位烂尾没人认领。逐项写明剩下 4 个占位项归哪一期反转:
+// [SP8-P5b Task 5, 2026-08-01] 'queue' migrated (QueueView.vue + knowledgeRoutes.ts reverse),
+// removed from here; mechanism itself unchanged.
+// [SP8-P5b Task 10, 2026-08-02] 'indexed-files' migrated (IndexedFilesView.vue three-move
+// completion + knowledgeRoutes.ts reverse), removed from here; mechanism unchanged.
+// [SP8-P5c Task 10, 2026-08-04] 'settings' migrated (SettingsView.vue, T8 first half + T9
+// second half + knowledgeRoutes.ts reverse), removed from here → DEFERRED_TABS shrinks 6→5.
+// 🔴 'allowlist' **kept**: upper design originally included AllowlistView in P5c, user explicitly
+// moved out this period 2026-08-03 (governance §2.2), not doing this period; still placeholder.
+// 🔴 `/ai/parser` and `/ai/parser/test` reversed together are **top-level routes, not rail tabs**,
+// never in DEFERRED_TABS, so no corresponding items to remove (governance §5.1 / T10 brief §2).
+// [SP8-P5d Task 10, 2026-08-05] 'notes' migrated (NotesView.vue, T6-T9 four-move completion +
+// knowledgeRoutes.ts reverse), removed from here → DEFERRED_TABS shrinks 5→4.
+// 🔴 Fulfills governance §15.1 "cross-period placeholder abandonment" general lesson — this
+// period's ticket 1 cause is "previous three periods all missed nav entry"; placeholder abandoned
+// with no owner. Specify which period each remaining 4 items revert to:
 //   · 'search'                       → **P5e**
 //   · 'wiki' / 'roots' / 'allowlist' → **P5f**
-// K7 占位机制本身不变(承 P4 I2 的教训,见下方 KnowledgeTabId 注释与 deferred.test.ts)。
+// K7 placeholder mechanism itself unchanged (following P4 I2 lesson; see KnowledgeTabId comment
+// below and deferred.test.ts).
 //
-// 【SP8-P5e Task 8,2026-08-05,第五次反转(不是删除)】'search' 已迁(SearchView.vue,
-// T4-T7 四刀收官 + knowledgeRoutes.ts 反转),从这里摘掉 → DEFERRED_TABS 由 4 项变
-// 3 项。承 T5(queue)/ P5b-T10(indexed-files)/ P5c-T10(settings)/ P5d-T10(notes)
-// 四次同款先例:反转 + 新增一条正向断言,不删任何既有断言(deferred.test.ts 同步)。
-// 🔴 逐项重申剩下 **3** 个占位项归哪一期反转:
-//   · 'wiki' / 'roots' / 'allowlist' → **P5f**(全部三个都归 P5f,没有再拆出别期)。
-// K7 占位机制本身仍不变(承 P4 I2 的教训 —— 清单摘空之前,每一步都要仍有用例证明
-// 机制本身有能力工作,而不是只剩一段没人测的代码,见下方 KnowledgeTabId 注释与
-// deferred.test.ts 的「机制钉子」用例)。
+// [SP8-P5e Task 8, 2026-08-05, fifth reverse (not delete)] 'search' migrated (SearchView.vue,
+// T4-T7 four-move completion + knowledgeRoutes.ts reverse), removed from here → DEFERRED_TABS
+// shrinks 4→3. Following T5 (queue) / P5b-T10 (indexed-files) / P5c-T10 (settings) / P5d-T10 (notes)
+// four precedents: reverse + add one forward assertion, delete no existing assertions (deferred.test.ts
+// synced). 🔴 Restate which period each remaining **3** items revert to:
+//   · 'wiki' / 'roots' / 'allowlist' → **P5f** (all three to P5f, no split to other periods).
+// K7 placeholder mechanism itself still unchanged (following P4 I2 lesson — before emptying list,
+// each step must still have test cases proving mechanism works, not just orphaned code; see
+// KnowledgeTabId comment below and deferred.test.ts "mechanism anchor" case).
 //
-// 【SP8-P5f Task 8,2026-08-06,第六次反转(不是删除)—— 收官刀】'wiki' / 'roots' /
-// 'allowlist' 三项已迁(P5f,T4-T7 四刀:T4 = AllowlistView.vue · T5 = RootsView.vue ·
-// T6 + T7 = WikiView.vue 上下半;knowledgeRoutes.ts 同刀同步反转三条子路由),
-// 从这里摘掉 → DEFERRED_TABS 由 3 项变 **0 项**。
-// 🔴 **SP8-P5 六批(P5a / P5b / P5c / P5d / P5e / P5f)全部完成,占位清单已空** ——
-// `/ai/knowledge` 左栏 rail 9 项(dashboard / search / wiki / notes / indexed-files /
-// queue / roots / allowlist / settings)**零占位页**,每一项都落到真页面。
-// 🔴 **机制本身按 K8 / 承 P4 I2 的教训保留** —— 清单空了不等于机制该删。P4 I2 的
-// 原教训是「留了代码没留能力」;反过来同样成立:**只断「数组是空的」是零判别力的**
-// (把下面 isDeferred 硬编码成 `return false`,只断空数组的用例照样全绿)。故
-// deferred.test.ts 保留三层守卫:
-//   ① 空清单下 isDeferred(9 个 tab 里的任意一个) 恒 false;
-//   ② 机制钉子 —— 判定来源必须是 DEFERRED_TABS 本身;
-//   ③ 🔴 **临时非空清单** —— 运行时往清单里塞一项(`as const` 只在编译期,数组对象
-//      本身运行时可变),isDeferred 必须立刻对它判真、对别的判假;用完清空并自证还原。
-//      这一条才是「机制仍有牙」的真判据,**不许退化成只断空数组**。
-// 🔴 将来若有新页面要挂占位:把 tab id 加回下面的 DEFERRED_TABS 即可,机制无需重建。
+// [SP8-P5f Task 8, 2026-08-06, sixth reverse (not delete) — final closing move] 'wiki' / 'roots' /
+// 'allowlist' three items migrated (P5f, four-move T4-T7: T4 = AllowlistView.vue · T5 = RootsView.vue ·
+// T6 + T7 = WikiView.vue first/second half; knowledgeRoutes.ts simultaneously reverses three child routes),
+// removed from here → DEFERRED_TABS shrinks 3→**0**.
+// 🔴 **SP8-P5 six batches (P5a / P5b / P5c / P5d / P5e / P5f) all completed; placeholder list empty** —
+// `/ai/knowledge` left rail 9 items (dashboard / search / wiki / notes / indexed-files / queue / roots /
+// allowlist / settings) **zero placeholder pages**; every item maps to real page.
+// 🔴 **Mechanism itself preserved per K8 / following P4 I2 lesson** — empty list doesn't mean delete
+// mechanism. P4 I2 original lesson: "kept code without capability"; same applies backwards: **only
+// asserting "array empty" is zero discriminative power** (hardcoding isDeferred below to `return false`,
+// only asserting empty array still passes all cases). So deferred.test.ts keeps three-layer guards:
+//   ① Under empty list, isDeferred(any of 9 tabs) always false;
+//   ② Mechanism anchor — judgment source must be DEFERRED_TABS itself;
+//   ③ 🔴 **Temporary non-empty list** — push one item at runtime (`as const` only at compile time;
+//      array object itself mutable at runtime); isDeferred must immediately judge true for it, false for
+//      others; clear and self-verify restoration after use. This is the real judge of "mechanism still
+//      works", **must not degrade to only asserting empty array**.
+// 🔴 If future page needs placeholder: just add tab id back to DEFERRED_TABS below; mechanism needs
+// no rebuild.
 export type KnowledgeTabId =
   | 'dashboard'
   | 'search'
@@ -59,7 +63,7 @@ export type KnowledgeTabId =
   | 'allowlist'
   | 'settings'
 
-// 改前(P5e T8 原文,反转前 —— 守「反转不删」,原文留档):
+// Before (P5e T8 original, before reverse — honoring "reverse not delete", keep original):
 //   export const DEFERRED_TABS = [
 //     'wiki',
 //     'roots',

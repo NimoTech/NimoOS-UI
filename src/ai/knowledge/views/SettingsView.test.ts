@@ -1,61 +1,76 @@
-// SP8-P5c Task 8 + Task 9 —— `SettingsView.vue` 的组件测试。
-// 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue`(322 行)。
-// **T8** 覆盖上半:服务卡 · 运行档三行(并发/设备/OCR)· 沙盒入口 · 危险区 + 对应 script
+// SP8-P5c Task 8 + Task 9 — component test for `SettingsView.vue`.
+// Blueprint: `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/SettingsView.vue` (322 lines).
+// **T8** covers upper half: service card · three config rows (concurrency/device/OCR) · sandbox
+//   entry · danger zone + corresponding script functions
 //   (`controlState` / `deviceLabel` / `togglePause` / `setConcurrency` / `setDevice` /
-//   `toggleOcr` / `goSandbox`)。
-// **T9** 覆盖下半:笔记区(目录行 + `openRootPicker` 折叠区 + `FolderBrowser` 接入 +
-//   `onPick`/`dirProbe` 四态 + 两个按钮的 disabled + 自动捕获开关)· K29 的 reka 迁移弹窗 ·
+//   `toggleOcr` / `goSandbox`).
+// **T9** covers lower half: notes section (directory row + `openRootPicker` collapsible area +
+//   `FolderBrowser` integration + `onPick`/`dirProbe` four states + two button disabled logic +
+//   auto-capture toggle) · K29 reka migration dialog ·
 //   `browserRoots` / `created` / `applyRoot` / `doMigrate` / `closeMigrate` /
-//   `toggleAutoExtract`。T9 的用例全部在文件末尾的 `═══ T9 ═══` 分隔线之后。
+//   `toggleAutoExtract`. All T9 test cases are after the `═══ T9 ═══` divider at the end.
 //
-// 🔴 **T9 对 T8 既有代码的改动仅 4 处,全部是「插入下半」被迫的机械后果**(逐处见 T9 报告 §3):
-//   ① `vi.hoisted` mock 骨架 +3 个域(`notes` / `wiki` / `folder`)—— 组件现在真的调它们;
-//   ② `mockAllOk()` **+5 行**默认值(纯新增,既有 3 行零改动)—— 否则 T8 既有用例挂载时
-//      `getSettings()` 返回 undefined,
-//      模板读 `notesSettings.notesRoot` 当场 TypeError;
-//   ③ 危险区那条断言的**定位器**(不是断言值):插入笔记区后 `.k-section` 有两个、
-//      `w.find('.k-section .k-section-head')` 会先命中笔记区(登记为 E-22);
-//   ④ 「四个 catch 都是无参 catch」那条的**计数** 4 → 8(下半新增 4 个 catch,登记为 E-23)。
-//   除此之外 T8 的每一条 `expect` 与每一个 DOM 断言**一字未动**。
+// 🔴 **T9 changes to T8 existing code in only 4 places, all mechanical byproducts of "inserting
+//   lower half"** (details in T9 report §3):
+//   ① `vi.hoisted` mock skeleton +3 fields (`notes` / `wiki` / `folder`) — component now truly
+//     calls them;
+//   ② `mockAllOk()` **+5 lines** defaults (pure addition, existing 3 lines unchanged) — otherwise
+//     T8 existing cases would fail to mount with `getSettings()` returning undefined,
+//     template reading `notesSettings.notesRoot` immediately throws TypeError;
+//   ③ danger zone assertion's **selector** (not the assertion value): after inserting notes
+//     section, `.k-section` has two, `w.find('.k-section .k-section-head')` hits notes section
+//     first (recorded as E-22);
+//   ④ "all four catches are parameterless catch" count **4 → 8** (lower half adds 4 catches,
+//     recorded as E-23).
+//   Apart from these, every T8 `expect` and DOM assertion is **verbatim unchanged**.
 //
-// ═══ mock 策略(治理 §4.1 要求显式说明) ═══
-// 🔴 **mock 共享包 `service.ai.parserStats/parserState/parserControl`,走真 `knowledgeStore`**,
-//   不 mock store。理由同 T6 `ParserStatus.test.ts`:本页每一格都要穿过 K1 降层
-//   (蓝本 `store.state.controlState` → 本仓 `store.controlState`),mock store 会把
-//   「降层与字段名到底对不对得上」这件最容易翻车的事整个绕开;走真 store 则每条渲染
-//   断言天然是集成断言 —— 少降一层或字段名错一个字母,对应那格立刻空/undefined。
-//   T9 的 `browserRoots`(K1 第二处降层,读 `store.wikiCandidates`)与 `store.loadCandidates()`
-//   同样走真 store + 真 `service.wiki.getCandidates` mock。
-// 🔴 形状:`service.ai.parserStats` / `parserState` 在包里都只 `return res.data`
-//   (`NimoOS-Service/src/ai.ts:591-596`,零转换)→ 一律 mock 成 **HTTP 原样 snake_case**,
-//   就是 fixture 原文。`parserControl` 的响应体本页不消费,mock 成 `{}`,与
-//   `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` / `ParserStatus.test.ts:182`
-//   逐字一致(治理 §4.1 的 red flag 自查:同一方法在两个测试文件里形状不同 = 定时炸弹)。
-// 🔴 **T9 的四个新 mock 层次,逐个与 §4.1 那张表对齐**:
-//   · `service.notes.getSettings` / `putSettings` → **camelCase 且只有
-//     `{ notesRoot, autoExtract }` 两个字段**(包内 `normalizeSettings`,
-//     `NimoOS-Service/src/notes.ts:131-137`)。**HTTP 层是 `notes_root` / `auto_extract`,
-//     而且还多带 `distill_roots` / `distill_daily_cap` / `background_model` 三个字段 ——
-//     那个归一函数把它们全丢掉了**。写 snake_case 或多带字段都是错的。
-//   · `service.notes.dirInfo` → `{ exists: boolean, empty: boolean }`(包内 `!!` 归一,`:264-267`)。
-//   · `service.wiki.getCandidates` → 已归一化数组(空时 `[]`,`wiki.ts:154-156`)。
-//   · `service.folder.getList`(经 `FolderBrowser`)→ 🔴 **`unwrap()` 后的单层
-//     `{ content: FolderEntry[] }`**(`folder.ts:7-10`),**不是** fixture 里那个三层信封。
-//     与 `FolderBrowser.test.ts:185` 的 `{ content: [] }` 逐字同形状(red flag 自查通过)。
+// ═══ mock strategy (governance §4.1 requires explicit documentation) ═══
+// 🔴 **mock shared package `service.ai.parserStats/parserState/parserControl`, use real
+//   `knowledgeStore`**, do not mock store. Same rationale as T6 `ParserStatus.test.ts`: every
+//   cell on this page must traverse K1 layer reduction
+//   (blueprint `store.state.controlState` → this repo `store.controlState`); mocking store
+//   would bypass the most error-prone thing: whether layer reduction and field names align;
+//   using real store makes every render assertion naturally an integration assertion — missing
+//   one layer or misspelling a field by one letter immediately shows empty/undefined in that cell.
+//   T9's `browserRoots` (K1's second layer reduction point, reads `store.wikiCandidates`) and
+//   `store.loadCandidates()` also use real store + real `service.wiki.getCandidates` mock.
+// 🔴 Shape: `service.ai.parserStats` / `parserState` both only `return res.data`
+//   (`NimoOS-Service/src/ai.ts:591-596`, no transformation) → mock as **raw HTTP snake_case**,
+//   the fixture verbatim. `parserControl` response body not consumed on this page, mock as `{}`,
+//   matching verbatim `parserStore.test.ts:207` / `knowledgeStore.parser.test.ts:136` /
+//   `ParserStatus.test.ts:182` (governance §4.1 red-flag self-check: same method different shapes
+//   in two test files = time bomb).
+// 🔴 **T9's four new mock layers, each aligned with §4.1 table**:
+//   · `service.notes.getSettings` / `putSettings` → **camelCase with exactly two fields
+//     `{ notesRoot, autoExtract }`** (package-internal `normalizeSettings`,
+//     `NimoOS-Service/src/notes.ts:131-137`). **HTTP layer is `notes_root` / `auto_extract`,
+//     plus three extra fields `distill_roots` / `distill_daily_cap` / `background_model` —
+//     that normalization function discards all three**. Writing snake_case or including extra
+//     fields is wrong.
+//   · `service.notes.dirInfo` → `{ exists: boolean, empty: boolean }` (package-internal `!!`
+//     normalization, `:264-267`).
+//   · `service.wiki.getCandidates` → normalized array (empty as `[]`, `wiki.ts:154-156`).
+//   · `service.folder.getList` (via `FolderBrowser`) → 🔴 **single-layer `{ content: FolderEntry[] }`
+//     after `unwrap()`** (`folder.ts:7-10`), **not** the three-layer envelope in fixture.
+//     Matches `FolderBrowser.test.ts:185` `{ content: [] }` verbatim (red-flag self-check passed).
 //
-// ═══ fixture 是抄本,不是运行时读(治理 §4.4) ═══
-// 数据逐字抄进下面 `FIXTURE-COPY-BEGIN/END` 块并注明出处,**不用 `node:fs` 读
-// `.superpowers/`** —— 那个目录被 gitignore 盖着(SP7 整个丢过一次),本分支将来要合
-// master,`src/` 下的测试跨界依赖它会以「找不到文件」的形式神秘挂掉。
-// 抄本等价性由**程序化逐字节校验**确认(输出贴在 T8 报告 §5),不是肉眼比。
-// 读 `.vue` 源文件(A-1 / 零裸色那几条)一律 `node:fs`,**不许用 Vite 的 `?raw`**
-//   (vitest 的 CSSEnablerPlugin 会把样式源换成空串 → 断言对空字符串「假通过」;
-//    先例 `knowledgeStyles.test.ts` 头注释③)。
+// ═══ fixtures are copies, not read at runtime (governance §4.4) ═══
+// Data copied verbatim into `FIXTURE-COPY-BEGIN/END` blocks below with attribution, **do not use
+// `node:fs` to read `.superpowers/`** — that directory is gitignored (entire loss in SP7 once),
+// this branch will merge to master, tests under `src/` crossing into it mysteriously fail as
+// "file not found".
+// Copy equivalence confirmed via **programmatic byte-for-byte verification** (output in T8 report
+// §5), not visual inspection.
+// Reading `.vue` source files (A-1 / no bare color rules) always use `node:fs`, **never Vite's
+// `?raw`**
+//   (vitest's CSSEnablerPlugin replaces stylesheet source with empty string → assertion against
+//    empty string "falsely passes"; precedent `knowledgeStyles.test.ts` header comment ③).
 //
-// ═══ 属性态断言口径(治理 §9 / 附录 D §D.3.1) ═══
-// `data-state` / `data-on` 都是普通 `data-*` 属性(不是布尔属性)→ 假侧渲染成字符串
-// `"false"` 而不是缺席,故一律 `toBe('true')` / `toBe('false')`,**两侧都比**,
-// 禁 `toBeUndefined()`。`disabled` 是真布尔属性,断言 DOM 属性 `el.disabled`。
+// ═══ attribute state assertion criteria (governance §9 / appendix D §D.3.1) ═══
+// `data-state` / `data-on` are normal `data-*` attributes (not boolean attributes) → SSR renders
+// as string `"false"` not missing, so always `toBe('true')` / `toBe('false')`, **both sides
+// checked**, forbid `toBeUndefined()`. `disabled` is a true boolean attribute, assert DOM property
+// `el.disabled`.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -77,14 +92,14 @@ import { fileURLToPath } from 'node:url'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const SRC_PATH = resolve(__dirname, './SettingsView.vue')
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
+// ── vi.hoisted mock skeleton (governance §9: avoid ESM hoisting TDZ) ──
 const ai = vi.hoisted(() => ({
   parserStats: vi.fn(),
   parserState: vi.fn(),
   parserControl: vi.fn(),
 }))
-// T9 新增三域:组件下半真的调 `service.notes.*`,`store.loadCandidates()` 真的调
-// `service.wiki.getCandidates`,`FolderBrowser` 真的调 `service.folder.getList`。
+// T9 adds three fields: lower component half truly calls `service.notes.*`, `store.loadCandidates()`
+// truly calls `service.wiki.getCandidates`, `FolderBrowser` truly calls `service.folder.getList`.
 const notes = vi.hoisted(() => ({
   getSettings: vi.fn(),
   putSettings: vi.fn(),
@@ -95,12 +110,13 @@ const folder = vi.hoisted(() => ({ getList: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai, notes, wiki, folder } }))
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (整份,GET /v1/parser/state)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-control-state.json`(2026-08-03 13:22 真机抓取)。
-// 🔴 本机当前是**暂停态**(治理 §4.3)→ 服务卡是橙灯 `[data-state="paused"]` + `⏸ 已暂停`
-// + `primary` 档的「恢复」按钮;`device:"auto"` + `resolved_device:"cpu"` → deviceLabel
-// 渲染「自动（当前 CPU）」;`ocr_enabled:false` → 开关灰档。「运行中 / 绿灯」那一档在本机
-// 看不到(点一次「恢复」会真的恢复索引),靠下面的 fixture 变体覆盖。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (entire, GET /v1/parser/state)
+// From `.superpowers/sdd/p5c-fixtures/parser-control-state.json` (2026-08-03 13:22 captured on device).
+// 🔴 current device is **paused state** (governance §4.3) → service card is orange light
+// `[data-state="paused"]` + `⏸ Paused` + "Resume" button in `primary` style; `device:"auto"` +
+// `resolved_device:"cpu"` → deviceLabel renders "Auto (currently CPU)"; `ocr_enabled:false` →
+// toggle in off state. "Running / green light" state not visible on this device (clicking "Resume"
+// once would really resume indexing), covered by fixture variant below.
 const STATE: ParserControlState = {
   "paused": true,
   "concurrency": 2,
@@ -110,16 +126,18 @@ const STATE: ParserControlState = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (整份,GET /v1/parser/stats)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-stats.json`(2026-08-03 13:22)。
-// 本页**不渲染 stats 里的任何字段**,但 `store.loadOverview()` 是 `Promise.all` 两发
-// (stats + state),缺一发就整体走 catch 置 `unreachable` → controlState 停在默认值。
-// 故这份 fixture 是「让 state 那一发能落地」的必需前提,不是装饰。
-// 🔴 `models[1].dim` 真机是 `null`,而 `ParserModel.dim` 是 `dim?: number`
-//   (`knowledgeStore.ts:76`;T5 的 `parserStore.ts:78` 放宽成 `number | null`,两个 store
-//   各自的类型,不在本刀范围)→ 直接标注 `: ParserStats` 会 TS 报错。**fixture 原文优先**
-//   (治理 §4.4「逐字抄」),故走 `as unknown as ParserStats` ——「后端真会回 null」正是
-//   mock 要模拟的 HTTP 原样,不许为了迁就类型而改数据。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (entire, GET /v1/parser/stats)
+// From `.superpowers/sdd/p5c-fixtures/parser-stats.json` (2026-08-03 13:22).
+// This page **does not render any field from stats**, but `store.loadOverview()` is a
+// `Promise.all` of two calls (stats + state); missing either causes whole flow to go to catch
+// branch setting `unreachable` → controlState stays at default. Thus this fixture is a prerequisite
+// for "letting the state call land", not decoration.
+// 🔴 `models[1].dim` on device is `null`, but `ParserModel.dim` is `dim?: number`
+//   (`knowledgeStore.ts:76`; T5's `parserStore.ts:78` relaxes to `number | null`, store-specific
+//   types outside this change scope) → direct type annotation `: ParserStats` would TS error.
+//   **fixture verbatim takes priority** (governance §4.4 "copy verbatim"), so use
+//   `as unknown as ParserStats` — "backend truly returns null" is exactly what the mock simulates
+//   in raw HTTP form; never alter data to appease types.
 const STATS = {
   "queue_depth": {
     "pending": 339,
@@ -149,49 +167,58 @@ const STATS = {
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/notes-settings.json  (GET /v1/notes/settings)
-// HTTP 原文(逐字节):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
-// 取自 `.superpowers/sdd/p5c-fixtures/notes-settings.json`(2026-08-03 13:22 真机抓取)。
-// 🔴 **降层动作(治理 §4.1 / §4.4:降层要在注释里留证)**:`service.notes.getSettings` 包内走
-//   `normalizeSettings`(`NimoOS-Service/src/notes.ts:131-137`):
+// HTTP raw (byte-for-byte):{"notes_root":"/DATA/Notes","auto_extract":true,"distill_roots":[],"distill_daily_cap":50,"background_model":""}
+// From `.superpowers/sdd/p5c-fixtures/notes-settings.json` (2026-08-03 13:22 captured on device).
+// 🔴 **layer reduction action (governance §4.1 / §4.4: document reduction in comments)**:
+//   `service.notes.getSettings` package-internal goes through `normalizeSettings`
+//   (`NimoOS-Service/src/notes.ts:131-137`):
 //       notesRoot   = (r.notes_root as string) || ''
-//       autoExtract = r.auto_extract !== false        ← undefined 也归一成 true
-//   → 组件拿到的是 **camelCase 且只有下面这两个字段**;上面那三个 `distill_*` /
-//   `background_model` 被归一函数**整个丢掉**,mock 里多带一个都是错的。
+//       autoExtract = r.auto_extract !== false        ← undefined also normalizes to true
+//   → component receives **camelCase with exactly these two fields**; the three `distill_*` /
+//   `background_model` above are **entirely discarded** by the normalization function, including
+//   any extra field in mock is wrong.
 const NOTES_SETTINGS: NotesSettings = { notesRoot: '/DATA/Notes', autoExtract: true }
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/notes-dir-info-notes.json  (GET /v1/notes/dir-info?path=/DATA/Notes)
-// HTTP 原文(逐字节):{"exists":true,"empty":false}
-// 🔴 本机 `/DATA/Notes` 实测**存在且非空** → `migratable = !exists || empty` = false
-//   → 选它时「搬文件到新目录…」按钮**是灰的**(治理 §4.3 / §13,是正确行为)。
-//   包内 `dirInfo`(`notes.ts:264-267`)只做 `!!` 归一,字段名与层次都不变。
+// HTTP raw (byte-for-byte):{"exists":true,"empty":false}
+// 🔴 on device `/DATA/Notes` is confirmed **exists and not empty** → `migratable = !exists || empty` = false
+//   → when selecting it "move files to new directory…" button **is grayed out** (governance §4.3 / §13,
+//   correct behavior).
+//   Package-internal `dirInfo` (`notes.ts:264-267`) only does `!!` normalization, field names and
+//   layer structure unchanged.
 const DIR_INFO_NOTES = { exists: true, empty: false }
 // FIXTURE-COPY-END
 
 // FIXTURE-COPY-BEGIN  p5c-fixtures/wiki-candidates.json  (GET /v1/wiki/candidates)
-// HTTP 原文(逐字节):[]
-// 🔴 本机实测空数组(HTTP 200,秒回)→ `pickerRoots([])` 走**兜底三根**
-//   (`System (/DATA)` / `/media` / `/mnt`),这是真机走到的路径,不是死代码。
-//   包内 `getCandidates`(`wiki.ts:154-156`)已 `|| []` 归一,层次不变。
+// HTTP raw (byte-for-byte):[]
+// 🔴 device test confirms empty array (HTTP 200, immediate response) → `pickerRoots([])` goes to
+//   **three fallback roots** (`System (/DATA)` / `/media` / `/mnt`), this is the path device
+//   actually takes, not dead code.
+//   Package-internal `getCandidates` (`wiki.ts:154-156`) already normalizes with `|| []`, layer
+//   structure unchanged.
 const WIKI_CANDIDATES: never[] = []
 // FIXTURE-COPY-END
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * `service.folder.getList` 的返回形状 —— 🔴 **单层** `{ content: FolderEntry[] }`
- * (`folder.ts:7-10` 已 `unwrap()`),与 `FolderBrowser.test.ts:185` 逐字同形状。
- * 🔴 **不抄 `folder-list-DATA.json` 那 18 项**:本文件没有一条断言依赖目录列表的内容
- * (列表渲染、排序、隐藏项过滤全部由 `FolderBrowser.test.ts` 用真 18 项 fixture 覆盖);
- * 这里只需要「点根目录那一行能走通」,喂空目录即可(治理 §4.4:用不到就不抄)。
+ * Return shape of `service.folder.getList` — 🔴 **single layer** `{ content: FolderEntry[] }`
+ * (already `unwrap()` in `folder.ts:7-10`), matches `FolderBrowser.test.ts:185` verbatim.
+ * 🔴 **do not copy the 18 items from `folder-list-DATA.json`**: this file has no assertions
+ * depending on directory list content (list rendering, sorting, hidden item filtering all covered
+ * by `FolderBrowser.test.ts` with real 18-item fixture); here we only need "clicking the root
+ * directory row can proceed", feeding empty directory suffices (governance §4.4: don't copy what
+ * you don't use).
  */
 const EMPTY_LISTING = { content: [] }
 
-/** 两发全成功,喂 fixture 原文;控制动作返回 `{}`。 */
+/** Both calls succeed, feed fixture verbatim; control action returns `{}`. */
 function mockAllOk(): void {
   ai.parserStats.mockResolvedValue(STATS)
   ai.parserState.mockResolvedValue(STATE)
   ai.parserControl.mockResolvedValue({})
-  // T9:下半的四个只读/写入口默认全成功,喂 fixture 抄本(层次见文件头 mock 策略)。
+  // T9: four lower read/write entry points default to all success, feed fixture copies (layer
+  // structure see mock strategy in file header).
   notes.getSettings.mockResolvedValue(NOTES_SETTINGS)
   notes.putSettings.mockResolvedValue(NOTES_SETTINGS)
   notes.dirInfo.mockResolvedValue(DIR_INFO_NOTES)
@@ -206,7 +233,10 @@ function makeRouter() {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/knowledge/settings', name: 'KnowledgeSettings', component: SettingsView },
-      // 【订正,SP8-P5d Task 9,治理 §15.2】蓝本 `:318` 的 `goSandbox()` 目标;生产里这条路由早已反转成真正的 ParserTest(P5c-T10 产出),本文件路由表的 stub 只管 href 能否解析,与生产是否占位无关。
+      // [Correction, SP8-P5d Task 9, governance §15.2] Blueprint `:318` target of `goSandbox()`;
+      // in production this route has long been flipped to the real ParserTest (P5c-T10 output),
+      // stub in this file's route table only manages href resolution, unrelated to production
+      // presence.
       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
     ],
   })
@@ -215,9 +245,10 @@ function makeRouter() {
 }
 
 /**
- * 挂载。`controlState` 在生产里由 `KnowledgeLayout.vue:186` 的 `loadOverview()` 填充
- * (本页自己不发只读请求),测试里显式先跑一次同一个 action —— 走真 store、真 service
- * mock,K1 降层与 snake_case 字段名都在这条路径上被验到。
+ * Mount. In production `controlState` is populated by `KnowledgeLayout.vue:186`'s `loadOverview()`
+ * (this page itself doesn't issue read-only requests); in test explicitly run the same action once
+ * first — use real store, real service mock, K1 layer reduction and snake_case field names are
+ * both verified on this path.
  */
 async function mountPage(state?: Partial<ParserControlState>) {
   if (state) ai.parserState.mockResolvedValue({ ...STATE, ...state })
@@ -231,21 +262,25 @@ async function mountPage(state?: Partial<ParserControlState>) {
   return { w, store, router }
 }
 
-/** VTU 的 `.text()` 只 trim 不折叠内部空白;跨行拼接的文案统一归一后再比。 */
+/** VTU's `.text()` only trims, doesn't collapse internal whitespace; normalize multi-line copy
+ * before comparing. */
 const norm = (s: string): string => s.replace(/\s+/g, ' ').trim()
 
-// ── 定位小工具 ──
-// 🔴 不用 `:nth-of-type()`:危险区那张卡里的 `.k-set-row` 也是它父元素的第 1 个 div,
-//   选择器会同时命中(现在恰好因为它没有 `.k-radio-group` 而不出错,那是运气不是设计)。
-//   改成「先取运行档那张卡,再在卡内取行」。T9 往「运行档卡」与「沙盒入口」之间插入笔记区
-//   之后,`.k-set-card` 的下标 1 仍是运行档卡(笔记那张卡在它之后),本组定位不受影响。
+// ── locator utilities ──
+// 🔴 don't use `:nth-of-type()`: the `.k-set-row` in the danger zone card is also the first div
+// of its parent element, selector would match both (currently happens not to error because it has
+// no `.k-radio-group`, that's luck not design).
+//   Switch to "first get the config card, then get the row within the card". After T9 inserts
+//   the notes section between "config card" and "sandbox entry", `.k-set-card` index 1 is still
+//   the config card (notes card comes after it), this locator group not affected.
 const knobCard = (w: ReturnType<typeof mount>) => w.findAll('.k-set-card')[1]!
 const knobRows = (w: ReturnType<typeof mount>) => knobCard(w).findAll('.k-set-row')
 const concBtns = (w: ReturnType<typeof mount>) => knobRows(w)[0]!.findAll('.k-radio-group button')
 const devBtns = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.findAll('.k-radio-group button')
 const devLabelB = (w: ReturnType<typeof mount>) => knobRows(w)[1]!.find('.k-set-row-desc b')
-/** 危险区那个 `.k-section` —— 按语义(卡上有 `.k-set-danger`)定位,不用下标。
- *  T9 插入笔记区后 `.k-section` 有两个,`find('.k-section …')` 会先命中笔记区(E-22)。 */
+/** danger zone's `.k-section` — locate by semantics (card has `.k-set-danger`), not by index.
+ *  After T9 inserts notes section `.k-section` has two, `find('.k-section …')` hits notes section
+ *  first (E-22). */
 const dangerSection = (w: ReturnType<typeof mount>) =>
   w.findAll('.k-section').find((s) => s.find('.k-set-card.k-set-danger').exists())!
 
@@ -261,21 +296,22 @@ afterEach(() => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 三层壳(蓝本 :2-4,逐层照抄)', () => {
-  it('根 .k-view > .k-scroll > .k-scroll-inner,四块内容都在最内层', async () => {
+describe('SettingsView — three wrapper layers (blueprint :2-4, copy each layer)', () => {
+  it('root .k-view > .k-scroll > .k-scroll-inner, four content blocks all in innermost', async () => {
     const { w } = await mountPage()
     const root = w.element as HTMLElement
     expect(root.tagName).toBe('DIV')
     expect(root.className).toBe('k-view')
     expect(w.find('.k-view > .k-scroll > .k-scroll-inner').exists()).toBe(true)
-    // 本刀四块:服务卡 / 运行档卡 / 沙盒入口 / 危险区(两张 .k-set-card 在最内层直挂)
-    // (子选择器写全路径 —— jsdom 的 querySelectorAll 不接受以 `>` 开头的相对选择器)
+    // this cycle four blocks: service card / config card / sandbox entry / danger zone
+    // (write full path in child selector — jsdom querySelectorAll doesn't accept relative
+    // selectors starting with `>`)
     expect(w.findAll('.k-scroll-inner > .k-set-card')).toHaveLength(2)
     expect(w.find('.k-scroll-inner > .k-sandbox-link').exists()).toBe(true)
     expect(w.find('.k-scroll-inner > .k-section').exists()).toBe(true)
   })
 
-  it('不挂 .parser-app(治理 §6.1 落地约束 4:本页在 KnowledgeLayout 下,不自建滚动容器)', async () => {
+  it('no .parser-app class (governance §6.1 landing constraint 4: this page is under KnowledgeLayout, does not build its own scroll container)', async () => {
     const { w } = await mountPage()
     expect(w.find('.parser-app').exists()).toBe(false)
     expect((w.element as HTMLElement).classList.contains('parser-app')).toBe(false)
@@ -283,41 +319,41 @@ describe('SettingsView —— 三层壳(蓝本 :2-4,逐层照抄)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
-  it('本机实测 paused:true —— 灯 data-state="paused"、文案「⏸ 已暂停」+ 副行、按钮 primary + play + 「恢复」', async () => {
+describe('SettingsView — service card two states (blueprint :7-19)', () => {
+  it('device test paused:true — light data-state="paused", text "⏸ Paused" + secondary line, button primary + play + "Resume"', async () => {
     const { w } = await mountPage()
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.exists()).toBe(true)
     expect(card.find('.k-svc-light').attributes('data-state')).toBe('paused')
-    expect(card.find('.k-svc-name').text()).toBe('⏸ 已暂停')
-    expect(card.find('.k-svc-cn').text()).toBe('新文件不会被自动收录')
+    expect(card.find('.k-svc-name').text()).toBe('⏸ Paused')
+    expect(card.find('.k-svc-cn').text()).toBe('New files will not be auto-indexed')
     const btn = card.find('.k-svc-state button')
     expect(btn.classes()).toEqual(['k-btn', 'primary'])
     expect(btn.findComponent(KIcon).props('name')).toBe('play')
     expect(btn.findComponent(KIcon).props('size')).toBe(12)
-    expect(btn.text()).toBe('恢复')
+    expect(btn.text()).toBe('Resume')
   })
 
-  it('fixture 变体 paused:false —— 灯 data-state="running"、文案「✅ 运行中」+ 副行、按钮 outline + pause + 「暂停」', async () => {
+  it('fixture variant paused:false — light data-state="running", text "✅ Running" + secondary line, button outline + pause + "Pause"', async () => {
     const { w } = await mountPage({ paused: false })
     const card = w.find('.k-set-card.k-set-svc')
     expect(card.find('.k-svc-light').attributes('data-state')).toBe('running')
-    expect(card.find('.k-svc-name').text()).toBe('✅ 运行中')
-    expect(card.find('.k-svc-cn').text()).toBe('正在持续监控并索引新文件')
+    expect(card.find('.k-svc-name').text()).toBe('✅ Running')
+    expect(card.find('.k-svc-cn').text()).toBe('Continuously monitoring and indexing new files')
     const btn = card.find('.k-svc-state button')
     expect(btn.classes()).toEqual(['k-btn', 'outline'])
     expect(btn.findComponent(KIcon).props('name')).toBe('pause')
-    expect(btn.text()).toBe('暂停')
+    expect(btn.text()).toBe('Pause')
   })
 
-  it('N16:`⏸` / `✅` 在 t() **里面** —— 键值自带 emoji(不是模板拼的)', () => {
+  it('N16: `⏸` / `✅` **inside** t() — key value includes emoji (not template-composed)', () => {
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
     expect(zh.aiKbSetSvcPausedLine).toBe('⏸ 已暂停')
     expect(zh.aiKbSetSvcRunningLine).toBe('✅ 运行中')
     expect(en.aiKbSetSvcPausedLine).toBe('⏸ Paused')
     expect(en.aiKbSetSvcRunningLine).toBe('✅ Running')
-    // 反过来:按钮那两个键**不含**任何 emoji(符号一个都没往里挪)
+    // conversely: button's two keys **do not include** any emoji (no symbols moved into them)
     expect(zh.aiKbResume).toBe('恢复')
     expect(zh.aiKbPause).toBe('暂停')
     expect(zh.aiKbResume).not.toMatch(/[⏸✅▶🧪⚠]/u)
@@ -326,34 +362,34 @@ describe('SettingsView —— 服务卡两态(蓝本 :7-19)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · 并发行(蓝本 :22-34)', () => {
-  it('三行标题 / 中文行 / 描述逐字', async () => {
+describe('SettingsView — config card · concurrency row (blueprint :22-34)', () => {
+  it('three lines: title / Chinese / description verbatim', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[0]!
-    expect(row.find('.k-set-row-title').text()).toBe('同时处理几个文件')
-    expect(row.find('.k-set-row-cn').text()).toBe('并发档位')
-    expect(row.find('.k-set-row-desc').text()).toBe('数值越大越快、越占资源。NAS 空闲时建议 4。')
+    expect(row.find('.k-set-row-title').text()).toBe('Concurrent files')
+    expect(row.find('.k-set-row-cn').text()).toBe('Concurrency level')
+    expect(row.find('.k-set-row-desc').text()).toBe('Higher value faster, more resource use. Recommend 4 when NAS idle.')
   })
 
-  it('🔴 按钮文字**就是数字** —— 没有档位名称(`Power-saving`/`Balanced`/`Full power` 是 ParserStatus 的)', async () => {
+  it('🔴 button text **is just the number** — no level names (`Power-saving`/`Balanced`/`Full power` belong to ParserStatus)', async () => {
     const { w } = await mountPage()
     const btns = concBtns(w)
     expect(btns).toHaveLength(3)
     expect(btns.map((b) => b.text())).toEqual(['1', '2', '4'])
-    // 判据:若有人把 ParserStatus 那套 N17 数组下标写法搬过来,这四条会同时报红
+    // test criterion: if someone copies ParserStatus's N17 array-index notation, these four would all fail
     const page = w.text()
     for (const s of ['省电', '平衡', '全力', 'Power-saving', 'Balanced', 'Full power']) {
       expect(page).not.toContain(s)
     }
   })
 
-  it('🔴 data-on 两侧 —— 本机 concurrency:2 时只有第二档是 "true"', async () => {
+  it('🔴 data-on both sides — on device with concurrency:2 only second level is "true"', async () => {
     const { w } = await mountPage()
     const btns = concBtns(w)
     expect(btns.map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 data-on 两侧 —— fixture 变体 concurrency:1 / concurrency:4', async () => {
+  it('🔴 data-on both sides — fixture variants concurrency:1 / concurrency:4', async () => {
     const { w } = await mountPage({ concurrency: 1 })
     expect(
       concBtns(w).map((b) => b.attributes('data-on')),
@@ -368,127 +404,129 @@ describe('SettingsView —— 运行档 · 并发行(蓝本 :22-34)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · 设备行(蓝本 :36-49)', () => {
-  it('三行标题 / 中文行 + 三档文案(「自动」走 i18n,裸 GPU / CPU 是硬编码技术标识符)', async () => {
+describe('SettingsView — config card · device row (blueprint :36-49)', () => {
+  it('three lines: title / Chinese + three level text ("Auto" via i18n, bare GPU / CPU are hardcoded tech identifiers)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[1]!
-    expect(row.find('.k-set-row-title').text()).toBe('推理设备')
-    expect(row.find('.k-set-row-cn').text()).toBe('推理设备 · 仅维护者关心')
-    expect(devBtns(w).map((b) => b.text())).toEqual(['自动', 'GPU', 'CPU'])
-    // 蓝本 `:46-47` 那两串刻意不进 i18n(N22 同族)→ 源码里是**裸字面量**,不经 t()
+    expect(row.find('.k-set-row-title').text()).toBe('Inference device')
+    expect(row.find('.k-set-row-cn').text()).toBe('Inference device · maintainers only')
+    expect(devBtns(w).map((b) => b.text())).toEqual(['Auto', 'GPU', 'CPU'])
+    // blueprint `:46-47` those two deliberately skip i18n (N22 same family) → in source **bare literals**,
+    // not via t()
     const src: string = readFileSync(SRC_PATH, 'utf8')
     expect(src).toContain('@click="setDevice(\'cuda\')">GPU<')
     expect(src).toContain('@click="setDevice(\'cpu\')">CPU<')
   })
 
-  it('🔴 data-on 两侧 —— 本机 device:"auto" 时只有第一档 "true"', async () => {
+  it('🔴 data-on both sides — on device with device:"auto" only first level is "true"', async () => {
     const { w } = await mountPage()
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['true', 'false', 'false'])
   })
 
-  it('🔴 第二档吃 `cuda` **和** `gpu` 两个值(蓝本 :46)—— cuda 命中', async () => {
+  it('🔴 second level accepts **both** `cuda` **and** `gpu` values (blueprint :46) — cuda matches', async () => {
     const { w } = await mountPage({ device: 'cuda' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 第二档吃 `cuda` **和** `gpu` 两个值(蓝本 :46)—— gpu 也命中(漏掉后半会渲染成全 false)', async () => {
+  it('🔴 second level accepts **both** `cuda` **and** `gpu` values (blueprint :46) — gpu also matches (missing second half renders all false)', async () => {
     const { w } = await mountPage({ device: 'gpu' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'true', 'false'])
   })
 
-  it('🔴 data-on 两侧 —— device:"cpu" 时只有第三档 "true"', async () => {
+  it('🔴 data-on both sides — when device:"cpu" only third level is "true"', async () => {
     const { w } = await mountPage({ device: 'cpu' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'false', 'true'])
   })
 
-  it('未知档位(后端将来加新值)—— 三档全 "false",不误亮', async () => {
+  it('unknown level (backend may add new values later) — all three "false", no false positives', async () => {
     const { w } = await mountPage({ device: 'mps' })
     expect(devBtns(w).map((b) => b.attributes('data-on'))).toEqual(['false', 'false', 'false'])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— deviceLabel 四分支 + 空值兜底(蓝本 :216-223)', () => {
+describe('SettingsView — deviceLabel four branches + null fallback (blueprint :216-223)', () => {
   const label = (w: ReturnType<typeof mount>) =>
     norm(knobRows(w)[1]!.find('.k-set-row-desc').text())
 
-  it('分支①`auto` —— 本机 resolved_device:"cpu" → 「当前用: 自动（当前 CPU）」(toUpperCase)', async () => {
+  it('branch ① `auto` — on device resolved_device:"cpu" → "Currently using: Auto (currently CPU)"(toUpperCase)', async () => {
     const { w } = await mountPage()
-    expect(label(w)).toBe('当前用： 自动（当前 CPU）')
-    expect(devLabelB(w).text()).toBe('自动（当前 CPU）')
+    expect(label(w)).toBe('Currently using:  Auto (currently CPU)')
+    expect(devLabelB(w).text()).toBe('Auto (currently CPU)')
   })
 
-  it('分支①边界 —— resolved_device 为空串 → 渲染「自动（当前 ）」不炸', async () => {
+  it('branch ① edge case — resolved_device is empty string → renders "Auto (currently )" without error', async () => {
     const { w } = await mountPage({ resolved_device: '' })
-    expect(devLabelB(w).text()).toBe('自动（当前 ）')
+    expect(devLabelB(w).text()).toBe('Auto (currently )')
   })
 
-  it('🔴 分支①边界 —— 后端漏 `resolved_device` 字段时,蓝本的 `(r || "")` 兜底才真正起作用', async () => {
-    // 判据:去掉 `(r || '')` → `undefined.toUpperCase()` 抛 TypeError → 本条报红。
-    // (空串那条**验不到**这个兜底:`''.toUpperCase()` 本来就合法 —— 第一版就是只有空串那条,
-    //  探针当场发现它对「删掉兜底」零判别力。)
+  it('🔴 branch ① edge case — when backend omits `resolved_device` field, blueprint's `(r || "")` fallback truly activates', async () => {
+    // test criterion: remove `(r || '')` → `undefined.toUpperCase()` throws TypeError → test fails.
+    // (empty string case **cannot verify** this fallback: `''.toUpperCase()` is legal anyway —
+    //  first version only had empty string case, probe immediately saw zero discrimination against
+    //  "remove fallback".)
     const { w } = await mountPage({ resolved_device: undefined as unknown as string })
-    expect(devLabelB(w).text()).toBe('自动（当前 ）')
+    expect(devLabelB(w).text()).toBe('Auto (currently )')
   })
 
-  it('分支②`cuda` → 裸 `GPU (CUDA)`(注意与 setDevice toast 里那个裸 `GPU` 不同,蓝本两处不同)', async () => {
+  it('branch ② `cuda` → bare `GPU (CUDA)` (note differs from bare `GPU` in setDevice toast, blueprint different in two places)', async () => {
     const { w } = await mountPage({ device: 'cuda' })
     expect(devLabelB(w).text()).toBe('GPU (CUDA)')
   })
 
-  it('分支②`gpu` 也走 `GPU (CUDA)`(蓝本 :220 的 `d === "cuda" || d === "gpu"`)', async () => {
+  it('branch ② `gpu` also goes to `GPU (CUDA)` (blueprint :220 `d === "cuda" || d === "gpu"`)', async () => {
     const { w } = await mountPage({ device: 'gpu' })
     expect(devLabelB(w).text()).toBe('GPU (CUDA)')
   })
 
-  it('分支③`cpu` → 裸 `CPU`', async () => {
+  it('branch ③ `cpu` → bare `CPU`', async () => {
     const { w } = await mountPage({ device: 'cpu' })
     expect(devLabelB(w).text()).toBe('CPU')
   })
 
-  it('分支④兜底 → 原样返回 `d`(不是空、不是 undefined)', async () => {
+  it('branch ④ fallback → return `d` as-is (not empty, not undefined)', async () => {
     const { w } = await mountPage({ device: 'mps' })
     expect(devLabelB(w).text()).toBe('mps')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 运行档 · OCR 行(蓝本 :51-60)', () => {
-  it('标题 / 中文行 + `.warn` 警示行:句号与后半句的位置逐字照抄(蓝本 :56)', async () => {
+describe('SettingsView — config card · OCR row (blueprint :51-60)', () => {
+  it('title / Chinese line + `.warn` warning line: period and second half position copy verbatim (blueprint :56)', async () => {
     const { w } = await mountPage()
     const row = knobRows(w)[2]!
-    expect(row.find('.k-set-row-title').text()).toBe('扫描件文字识别 (OCR)')
-    expect(row.find('.k-set-row-cn').text()).toBe('扫描 PDF 文字识别 (OCR)')
+    expect(row.find('.k-set-row-title').text()).toBe('Scanned text recognition (OCR)')
+    expect(row.find('.k-set-row-cn').text()).toBe('Scan PDF text recognition (OCR)')
     const warn = row.find('.k-set-row-desc .warn')
     expect(warn.exists()).toBe(true)
     expect(warn.findComponent(KIcon).props('name')).toBe('danger')
     expect(warn.findComponent(KIcon).props('size')).toBe(11)
-    expect(norm(warn.text())).toBe('开启后速度慢 5-10×')
-    // 句号在 `</span>` **外面**,后半句紧跟其后 —— 位置错了这条就红
-    expect(norm(row.find('.k-set-row-desc').text())).toBe('开启后速度慢 5-10×. 只对扫描 PDF 有用。')
+    expect(norm(warn.text())).toBe('5-10× slower when enabled')
+    // period **outside** `</span>`, second half immediately follows — wrong position fails test
+    expect(norm(row.find('.k-set-row-desc').text())).toBe('5-10× slower when enabled. Only useful for scanned PDFs.')
   })
 
-  it('🔴 data-on 两侧 —— 本机 ocr_enabled:false → "false"', async () => {
+  it('🔴 data-on both sides — on device ocr_enabled:false → "false"', async () => {
     const { w } = await mountPage()
     expect(w.find('.k-sw').attributes('data-on')).toBe('false')
   })
 
-  it('🔴 data-on 两侧 —— fixture 变体 ocr_enabled:true → "true"', async () => {
+  it('🔴 data-on both sides — fixture variant ocr_enabled:true → "true"', async () => {
     const { w } = await mountPage({ ocr_enabled: true })
     expect(w.find('.k-sw').attributes('data-on')).toBe('true')
   })
 
-  it('🔴 `!!` 双取反照抄(蓝本 :59)—— 后端漏 `ocr_enabled` 字段时仍是 "false",不是 "undefined"', async () => {
-    // 判据:去掉 `!!` → `String(undefined)` === "undefined" → 本条报红
-    // (`.k-sw[data-on="true"]` 是 CSS 选择器,`"undefined"` 会让开关卡在灰档且语义不明)
+  it('🔴 `!!` double negation copy verbatim (blueprint :59) — when backend omits `ocr_enabled` field still is "false", not "undefined"', async () => {
+    // test criterion: remove `!!` → `String(undefined)` === "undefined" → test fails
+    // (`.k-sw[data-on="true"]` is CSS selector, `"undefined"` would get toggle stuck on gray with unclear semantics)
     const { w } = await mountPage({ ocr_enabled: undefined as unknown as boolean })
     expect(w.find('.k-sw').attributes('data-on')).toBe('false')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :282-315)', () => {
-  it('paused:true 点按钮 → setControl("resume")', async () => {
+describe('SettingsView — four action setControl payloads each (blueprint :282-315)', () => {
+  it('paused:true click button → setControl("resume")', async () => {
     const { w } = await mountPage()
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
@@ -496,21 +534,21 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'resume' })
   })
 
-  it('paused:false 点按钮 → setControl("pause")', async () => {
+  it('paused:false click button → setControl("pause")', async () => {
     const { w } = await mountPage({ paused: false })
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'pause' })
   })
 
-  it('🔴 并发 → setControl("set_concurrency", { n })—— 键名是 `n`,不是 `concurrency`', async () => {
+  it('🔴 concurrency → setControl("set_concurrency", { n }) — key is `n`, not `concurrency`', async () => {
     const { w } = await mountPage()
     await concBtns(w)[2]!.trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'set_concurrency', n: 4 })
   })
 
-  it('设备三档 → setControl("set_device", { device })', async () => {
+  it('device three levels → setControl("set_device", { device })', async () => {
     const { w } = await mountPage()
     const btns = devBtns(w)
     await btns[0]!.trigger('click')
@@ -518,14 +556,14 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'auto' })
     await btns[1]!.trigger('click')
     await flushPromises()
-    // 第二个按钮点下去发的是 `cuda`(不是 `gpu`)—— 蓝本 :46 的 @click 是 setDevice('cuda')
+    // second button sends `cuda` (not `gpu`) — blueprint :46 @click is setDevice('cuda')
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'cuda' })
     await btns[2]!.trigger('click')
     await flushPromises()
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'set_device', device: 'cpu' })
   })
 
-  it('OCR 开关 → setControl("set_ocr", { enabled: !当前值 })两侧', async () => {
+  it('OCR toggle → setControl("set_ocr", { enabled: !current_value }) both sides', async () => {
     const { w } = await mountPage()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
@@ -540,24 +578,25 @@ describe('SettingsView —— 四个动作各自的 setControl 载荷(蓝本 :28
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:311)', () => {
-  it('🔴 恢复 → 「已继续」(不是「已暂停」)—— 见文件头「偏离,§2」:蓝本这里两档全反', async () => {
-    // 关键前提:`setControl` 内部 `await loadOverview()` 会把 controlState 换成**新值**。
-    // 这里让第二次 `parserState` 返回 `paused:false`(后端真的恢复了)—— 蓝本的写法此时
-    // 读到的是新值 false → 会弹「已暂停」;本仓用 `await` 之前存下的 `wasPaused` → 「已继续」。
-    // 判据:把 `wasPaused` 换回蓝本的「await 之后再读 controlState.paused」→ 本条报红。
+describe('SettingsView — success toast keys each (blueprint :285/:293/:302/:311)', () => {
+  it('🔴 resume → "Resumed" (not "Paused") — see file header "divergence, §2": blueprint both levels inverted here', async () => {
+    // key prerequisite: inside `setControl` `await loadOverview()` swaps controlState to **new value**.
+    // here make second `parserState` return `paused:false` (backend truly resumed) — blueprint code at this
+    // point reads new value false → would toast "Paused"; this repo saves `wasPaused` before await
+    // → "Resumed".
+    // test criterion: swap `wasPaused` back to blueprint's "read controlState.paused after await" → test fails.
     ai.parserState.mockResolvedValueOnce(STATE).mockResolvedValue({ ...STATE, paused: false })
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
-    expect(store.controlState.paused).toBe(false) // 后端已刷新(前提成立)
-    expect(toast).toHaveBeenCalledWith('已继续')
+    expect(store.controlState.paused).toBe(false) // backend refreshed (prerequisite met)
+    expect(toast).toHaveBeenCalledWith('Resumed')
   })
 
-  it('🔴 暂停 → 「已暂停」(同上,反向)', async () => {
-    // 🔴 不能走 `mountPage({ paused: false })`:那个参数内部会再调一次
-    // `mockResolvedValue`,把这里排好的「第二发返回 paused:true」冲掉。
+  it('🔴 pause → "Paused" (same as above, reversed)', async () => {
+    // 🔴 cannot use `mountPage({ paused: false })`: that parameter internally calls
+    // `mockResolvedValue` again, clobbering "second call returns paused:true" that we set here.
     ai.parserState
       .mockResolvedValueOnce({ ...STATE, paused: false })
       .mockResolvedValue({ ...STATE, paused: true })
@@ -566,63 +605,64 @@ describe('SettingsView —— 成功 toast 各自的键(蓝本 :285/:293/:302/:3
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(store.controlState.paused).toBe(true)
-    expect(toast).toHaveBeenCalledWith('已暂停')
+    expect(toast).toHaveBeenCalledWith('Paused')
   })
 
-  it('并发 → 「并发改为 4」(`aiKbSetConcurrencySet` 带 {n})', async () => {
+  it('concurrency → "Concurrency changed to 4" (`aiKbSetConcurrencySet` with {n})', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await concBtns(w)[2]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenCalledWith('并发改为 4')
+    expect(toast).toHaveBeenCalledWith('Concurrency changed to 4')
   })
 
-  it('设备 → 「推理设备：自动 / CPU / GPU」(label 三元照抄:auto 走 i18n,另两个裸串)', async () => {
+  it('device → "Inference device: Auto / CPU / GPU" (label ternary copy verbatim: auto via i18n, other two bare strings)', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     const btns = devBtns(w)
     await btns[0]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('推理设备：自动')
+    expect(toast).toHaveBeenLastCalledWith('Inference device: Auto')
     await btns[2]!.trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('推理设备：CPU')
+    expect(toast).toHaveBeenLastCalledWith('Inference device: CPU')
     await btns[1]!.trigger('click')
     await flushPromises()
-    // 🔴 裸 `GPU`,**不是** deviceLabel 里的 `GPU (CUDA)` —— 蓝本 :301 与 :220 刻意不同
-    expect(toast).toHaveBeenLastCalledWith('推理设备：GPU')
+    // 🔴 bare `GPU`, **not** `GPU (CUDA)` in deviceLabel — blueprint :301 vs :220 intentionally different
+    expect(toast).toHaveBeenLastCalledWith('Inference device: GPU')
   })
 
-  it('OCR → 「OCR 已开启」/「OCR 已关闭」两侧', async () => {
+  it('OCR → "OCR enabled" / "OCR disabled" both sides', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(toast).toHaveBeenLastCalledWith('OCR 已开启')
+    expect(toast).toHaveBeenLastCalledWith('OCR enabled')
 
     setActivePinia(createPinia())
     const { w: w2, store: s2 } = await mountPage({ ocr_enabled: true })
     const toast2 = vi.spyOn(s2, 'toast')
     await w2.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(toast2).toHaveBeenLastCalledWith('OCR 已关闭')
+    expect(toast2).toHaveBeenLastCalledWith('OCR disabled')
   })
 
-  it('toast 走 store.toast(K27)→ 真的落进全局 toast 栈(2400ms 档,knowledgeStore.ts:311-313)', async () => {
+  it('toast goes through store.toast(K27) → truly lands in global toast stack (2400ms level, knowledgeStore.ts:311-313)', async () => {
     const { w } = await mountPage()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
-    expect(useToast().toasts.map((x) => x.text)).toEqual(['OCR 已开启'])
+    expect(useToast().toasts.map((x) => x.text)).toEqual(['OCR enabled'])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K30(K5 同族)—— 四个 catch **不回显后端文本**。落地判据是**排除式断言**:
-// 让 `parserControl` reject 一个带可识别文本的错误,断言 toast 文本、全局 toast 栈、
-// 整页 DOM 三处都**不含**那段文本,且 toast **逐字**等于固定键的值。
-// ⚠️ 探针文本只出现在本文件里,**故意不出现在 `SettingsView.vue` 的注释里**
-// (治理 §9 第九条:否定式断言撞注释 = 假报红,T6 栽过一次)。
-describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:295/:304/:313 拼 e.message)', () => {
+// 🔴 K30 (K5 same family) — four catches **do not expose backend text**. Landing criterion is
+// **exclusion assertion**: have `parserControl` reject an error with identifiable text, assert
+// toast text, global toast stack, whole page DOM three places **do not contain** that text,
+// and toast **exactly equals** fixed-key value.
+// ⚠️ probe text only appears in this file, **intentionally omitted from `SettingsView.vue` comments**
+// (governance §9 clause 9: negation assertion hits comment = false positive, T6 fell for this once).
+describe('SettingsView — K30: four catches exclusion assertions (blueprint :287/:295/:304/:313 + e.message)', () => {
   const PROBE = 'PROBE-BACKEND-DETAIL-7c41f9'
 
   async function failing(state?: Partial<ParserControlState>) {
@@ -640,60 +680,60 @@ describe('SettingsView —— K30:四个 catch 的排除式断言(蓝本 :287/:2
     expect(w.html()).not.toContain(PROBE)
   }
 
-  it('catch① togglePause → 只弹「操作失败」,零后端文本', async () => {
+  it('catch① togglePause → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await w.find('.k-svc-state button').trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('操作失败')
+    expect(toast).toHaveBeenCalledWith('Operation failed')
     assertNoLeak(w, toast)
   })
 
-  it('catch② setConcurrency → 只弹「操作失败」,零后端文本', async () => {
+  it('catch② setConcurrency → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await concBtns(w)[0]!.trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('操作失败')
+    expect(toast).toHaveBeenCalledWith('Operation failed')
     assertNoLeak(w, toast)
   })
 
-  it('catch③ setDevice → 只弹「切换失败」(专属键,不是「操作失败」),零后端文本', async () => {
+  it('catch③ setDevice → only toast "Switch failed" (dedicated key, not "Operation failed"), zero backend text', async () => {
     const { w, toast } = await failing()
     await devBtns(w)[2]!.trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('切换失败')
-    expect(toast).not.toHaveBeenCalledWith('操作失败')
+    expect(toast).toHaveBeenCalledWith('Switch failed')
+    expect(toast).not.toHaveBeenCalledWith('Operation failed')
     assertNoLeak(w, toast)
   })
 
-  it('catch④ toggleOcr → 只弹「操作失败」,零后端文本', async () => {
+  it('catch④ toggleOcr → only toast "Operation failed", zero backend text', async () => {
     const { w, toast } = await failing()
     await w.find('.k-sw').trigger('click')
     await flushPromises()
     expect(toast).toHaveBeenCalledTimes(1)
-    expect(toast).toHaveBeenCalledWith('操作失败')
+    expect(toast).toHaveBeenCalledWith('Operation failed')
     assertNoLeak(w, toast)
   })
 
-  it('源码侧:每个 catch 都不读 `e`(零 `e.message` / 零 `e.response` / 零 `e.detail`)', () => {
+  it('source side: each catch does not read `e` (zero `e.message` / zero `e.response` / zero `e.detail`)', () => {
     const src: string = readFileSync(SRC_PATH, 'utf8')
     const code = blankComments(src)
     expect(code).not.toMatch(/\.message\b/)
     expect(code).not.toMatch(/\.response\b/)
     expect(code).not.toMatch(/\.detail\b/)
-    // 全部 catch 都是无参 `catch {`(连错误对象都不接)。
-    // 🔴 E-23(T9 被迫改的**计数**,断言语义未变):T8 时 4 个(togglePause /
-    // setConcurrency / setDevice / toggleOcr),T9 下半再加 4 个(created 的 getSettings
-    // 吞错保默认 / onPick / toggleAutoExtract / applyRoot)→ 共 8 个。
+    // all catches are parameterless `catch {` (don't even accept the error object).
+    // 🔴 E-23 (T9 forced **count** change, assertion semantics unchanged): T8 had 4 (togglePause /
+    // setConcurrency / setDevice / toggleOcr), T9 lower half adds 4 more (created getSettings
+    // error-swallow-default / onPick / toggleAutoExtract / applyRoot) → total 8.
     expect((code.match(/\}\s*catch\s*\{/g) || []).length).toBe(8)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
-  it('图标 / 文案 / 副行 / 末尾 chev 逐字(N16:🧪 在 t() 外面)', async () => {
+describe('SettingsView — sandbox entry (blueprint :158-166)', () => {
+  it('icon / text / secondary line / trailing chev verbatim (N16: 🧪 outside t())', async () => {
     const { w } = await mountPage()
     const link = w.find('a.k-sandbox-link')
     expect(link.exists()).toBe(true)
@@ -702,14 +742,14 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
     expect(icons[0]!.props('name')).toBe('test')
     expect(icons[0]!.props('size')).toBe(20)
     expect(link.find('.k-sandbox-icon').exists()).toBe(true)
-    // ⚠️ `.text()` 取的是 textContent —— 相邻 <div> 之间**没有**空格,别自己补
-    expect(norm(link.text())).toBe('🧪 测试沙盒单文件试解析，不写入索引')
+    // ⚠️ `.text()` gets textContent — **no** space between adjacent `<div>`s, don't add one
+    expect(norm(link.text())).toBe('🧪 Test sandbox - parse single file, no index write')
     expect(icons[1]!.props('name')).toBe('chev')
     expect(icons[1]!.props('size')).toBe(14)
     expect(icons[1]!.props('color')).toBe('var(--text-tertiary)')
   })
 
-  it('点一下 → router.push("/ai/parser/test")(蓝本 :316-319)', async () => {
+  it('click once → router.push("/ai/parser/test") (blueprint :316-319)', async () => {
     const { w, router } = await mountPage()
     const push = vi.spyOn(router, 'push')
     await w.find('a.k-sandbox-link').trigger('click')
@@ -718,7 +758,7 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
     expect(router.currentRoute.value.path).toBe('/ai/parser/test')
   })
 
-  it('`@click.prevent` —— 是裸 `<a>`(无 href),不会触发浏览器导航', async () => {
+  it('`@click.prevent` — bare `<a>` (no href), won't trigger browser navigation', async () => {
     const { w } = await mountPage()
     const a = w.find('a.k-sandbox-link')
     expect((a.element as HTMLElement).hasAttribute('href')).toBe(false)
@@ -729,35 +769,37 @@ describe('SettingsView —— 沙盒入口(蓝本 :158-166)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
-  it('区头:⚠️ 标题(内联 var(--danger))+ 「即将上线」提示', async () => {
+describe('SettingsView — danger zone (blueprint :168-186)', () => {
+  it('zone header: ⚠️ title (inline var(--danger)) + "Coming soon" notice', async () => {
     const { w } = await mountPage()
-    // 🔴 E-22(T9 插入笔记区后被迫改的**定位器**,断言值一字未动):`.k-section` 现在有
-    // **两个**(笔记区在前、危险区在后),原来的 `w.find('.k-section .k-section-head')`
-    // 会先命中笔记区。改成按语义定位(带 `.k-set-danger` 卡的那个 section),不用下标。
+    // 🔴 E-22 (T9 forced **selector** change after inserting notes section, assertion value untouched):
+    // `.k-section` now has **two** (notes section first, danger zone second), old
+    // `w.find('.k-section .k-section-head')` would hit notes section first. Switch to semantic
+    // locator (section with `.k-set-danger` card), no index needed.
     const head = dangerSection(w).find('.k-section-head')
     const title = head.find('.k-section-title')
-    expect(title.text()).toBe('⚠️ 危险区')
-    // Vue 会把静态 style 属性重新序列化,故用 toContain 钉 token(内联值本来就已是 var(),零字面量)
+    expect(title.text()).toBe('⚠️ Danger zone')
+    // Vue re-serializes static style attribute, so use toContain to pin token (inline value already
+    // var(), no literals)
     expect(title.attributes('style')).toContain('var(--danger)')
-    expect(head.find('.k-section-hint').text()).toBe('即将上线')
+    expect(head.find('.k-section-hint').text()).toBe('Coming soon')
   })
 
-  it('🔴 重建按钮硬编码 disabled(蓝本 :181,永远不可点)+ 旁边有「即将上线」徽标', async () => {
+  it('🔴 rebuild button hardcoded disabled (blueprint :181, never clickable) + "Coming soon" badge beside it', async () => {
     const { w } = await mountPage()
     const card = w.find('.k-set-card.k-set-danger')
     expect(card.exists()).toBe(true)
-    expect(card.find('.k-set-row-title').text()).toBe('重建全部索引 即将上线')
-    expect(card.find('.k-set-soon').text()).toBe('即将上线')
-    expect(card.find('.k-set-row-cn').text()).toBe('重建全部索引')
-    expect(card.find('.k-set-row-desc').text()).toBe('会丢弃现有索引重新扫描所有文件')
+    expect(card.find('.k-set-row-title').text()).toBe('Rebuild all indexes Coming soon')
+    expect(card.find('.k-set-soon').text()).toBe('Coming soon')
+    expect(card.find('.k-set-row-cn').text()).toBe('Rebuild all indexes')
+    expect(card.find('.k-set-row-desc').text()).toBe('Discards current index, rescans all files')
     const btn = card.find('button.k-btn.danger')
     expect((btn.element as HTMLButtonElement).disabled).toBe(true)
     expect(btn.findComponent(KIcon).props('name')).toBe('danger')
-    expect(btn.text()).toBe('重建…')
+    expect(btn.text()).toBe('Rebuild…')
   })
 
-  it('点它什么都不发生(治理 §13:清单只能验「是灰的 + 有徽标」)', async () => {
+  it('clicking it does nothing (governance §13: spec only verifies "is gray + has badge")', async () => {
     const { w, store } = await mountPage()
     const toast = vi.spyOn(store, 'toast')
     await w.find('button.k-btn.danger').trigger('click')
@@ -768,18 +810,20 @@ describe('SettingsView —— 危险区(蓝本 :168-186)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 治理 §9.2 —— 「必须用键 A、不许用键 B,理由是 en 不同」这类纪律,**只比 zh 的断言
-// 零判别力**(T6 评审 I-1 实证:换成被禁键 47/47 全绿)。本页命中 **4 对**同族:
-//   ① N21 #1  aiKbResume           en `Resume`        zh 恢复      ← 本页必须用
-//              aiKbRebuild          en `Rebuild`       zh 恢复      ← 被禁(Vue2 错译)
-//   ② N21 #2  aiKbSetSandboxTitle  en `Test Sandbox`  zh 测试沙盒  ← 本页必须用
-//              aiKbPrTestLink       en `Test sandbox`  zh 测试沙盒  ← ParserStatus 的
-//   ③ 🔴 T8 全表重扫新发现:aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto`(小写)
-//   ④ 🔴 T8 全表重扫新发现:aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
-// 重扫方法与完整结论见 T8 报告 §6(本页 33 个键 × 全表 1499 键,zh 撞车 15 对,
-// 其中 en 不同的 4 对全部落在本组断言里,余零)。
-// 🔴 locale 是全局单例 → 必须 try/finally 还原,否则污染同文件后续用例。
-describe('SettingsView —— 🔴 §9.2:en 档强断言(zh 撞车、只有 en 能判别)', () => {
+// 🔴 governance §9.2 — rules like "must use key A, forbidden key B, reason: en differs" **show
+// zero discrimination in zh-only assertions** (T6 review I-1 proof: swap to forbidden key,
+// 47/47 pass). This page hits **4 pairs** of same family:
+//   ① N21 #1  aiKbResume           en `Resume`        zh 恢复      ← this page must use
+//              aiKbRebuild          en `Rebuild`       zh 恢复      ← forbidden (Vue2 mistranslation)
+//   ② N21 #2  aiKbSetSandboxTitle  en `Test Sandbox`  zh 测试沙盒  ← this page must use
+//              aiKbPrTestLink       en `Test sandbox`  zh 测试沙盒  ← ParserStatus's
+//   ③ 🔴 T8 full table rescan discovery: aiKbDeviceAuto en `Auto` / aiCfgAutoPlaceholder en `auto` (lowercase)
+//   ④ 🔴 T8 full table rescan discovery: aiKbSwitchFailed en `Switch failed` / aiCfgToggleFailed en `Toggle failed`
+// Rescan method and complete conclusions in T8 report §6 (this page 33 keys × full table 1499 keys,
+// zh collisions 15 pairs, of which en-different 4 pairs all land in this assertion group, remainder zero).
+// 🔴 locale is global singleton → must restore with try/finally, else pollutes following test cases
+// in file.
+describe('SettingsView — 🔴 §9.2: en-only strong assertions (zh collisions, only en can discriminate)', () => {
   const localeRef = i18n.global.locale as unknown as { value: string }
 
   async function mountInEn(state?: Partial<ParserControlState>) {

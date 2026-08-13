@@ -1,24 +1,26 @@
-// SP8-P5c Task 3(半二)—— `FolderBrowser.vue` 组件测试。
-// 蓝本 `NimoOS-UI` (main@7a6ee6b7) `src/components/common/FolderBrowser.vue`(143 行)。
+// SP8-P5c Task 3(half two) — `FolderBrowser.vue` component test.
+// Blueprint `NimoOS-UI` (main@7a6ee6b7) `src/components/common/FolderBrowser.vue` (143 lines).
 //
-// 🔴【mock 的层次 —— 治理 §4.1 五行表,本刀最容易翻车的一处】
-//   `service.folder.getList` 在共享包里是 `unwrap<FolderListing>(res.data)`
-//   (`NimoOS-Service/src/folder.ts:7-10`)→ 它 resolve 出来的是 **单层**
-//   `{ content: FolderEntry[] }`。
-//   fixture `folder-list-DATA.json` 是 **HTTP 原文的三层信封**
-//   `{success,message,data:{content:[…18 项…],total,index,size}}`。
-//   → 本文件抄的是它 **`data.content` 那一层**,再包成 `{ content: <那 18 项> }`
-//   当 mock 的返回值。**绝不把三层信封整个塞进 mock**(那样 `listing.content` 会是
-//   undefined,K28 就白做了)。这个降层动作就是 K28 的落地证据,下方那条
-//   「把三层信封整个塞进 mock → 列表必须为空」的反向用例把它钉死。
-// 🔴 抄本(不是运行时读 `.superpowers/`)—— 协调者裁定,理由见本文件 FIXTURE-COPY
-//   块的注释与 T3 报告 §8;等价性由一次性脚本程序化校验(报告 §9)。
-// 读 `.vue` 源文件(守卫缺口③ 那两条)仍一律 `node:fs`,不用 Vite 的 `?raw`
-//   (vitest 的 CSSEnablerPlugin 会把样式源换成空串 → 断言对空字符串「假通过」;
-//   先例 `knowledgeStyles.test.ts` 头注释③)。
-// 测试脚手架照 `QueueView.test.ts` / `IndexedFilesView.test.ts`(P5b 收官产物):
-//   真 i18n(不手写子集)+ `vi.hoisted()` 的 service mock + `flushPromises()`。
-//   本组件不用 router / 不用 store,故不装那两个插件。
+// 🔴 【mock layering — governance §4.1 five-row table, easiest place to crash in this task】
+//   `service.folder.getList` in shared package is `unwrap<FolderListing>(res.data)`
+//   (`NimoOS-Service/src/folder.ts:7-10`) → it resolves to **single layer**
+//   `{ content: FolderEntry[] }`.
+//   fixture `folder-list-DATA.json` is **three-layer HTTP envelope**
+//   `{success,message,data:{content:[…18 items…],total,index,size}}`.
+//   → this file copies its **`data.content` layer**, wrapped as `{ content: <those 18 items> }`
+//   as the mock return value. **never stuff the three-layer envelope into mock** (that way
+//   `listing.content` would be undefined, K28 would be wasted). This unwrapping action is
+//   the proof of K28, the reverse test case below nails it ("stuff three-layer envelope into
+//   mock → list must be empty").
+// 🔴 Fixture copy (not runtime read from `.superpowers/`) — coordinator's ruling, rationale
+//   in this file's FIXTURE-COPY block comment and T3 report §8; equivalence validated by
+//   one-shot script (report §9).
+// Read `.vue` source files (guard gaps ③ those two) still exclusively via `node:fs`, not
+//   Vite's `?raw` (vitest's CSSEnablerPlugin turns style source into empty string → assertion
+//   against empty string "false passes"; precedent in `knowledgeStyles.test.ts` head comment ③).
+// Test scaffold follows `QueueView.test.ts` / `IndexedFilesView.test.ts` (P5b shipping products):
+//   real i18n (not hand-written subset) + `vi.hoisted()` service mock + `flushPromises()`.
+//   This component uses no router / no store, so those two plugins are not installed.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -30,15 +32,15 @@ import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// ── vi.hoisted mock 骨架(治理 §9:避免 ESM 提升 TDZ)──
+// ── vi.hoisted mock skeleton (governance §9: avoid ESM hoisting TDZ) ──
 const folder = vi.hoisted(() => ({ getList: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { folder } }))
 
 interface RawEntry { name: string; path: string; is_dir: boolean }
 
 /**
- * `GET /v1/folder?path=/DATA` 每一项的原文形状(11 个字段,顺序与后端一致)。
- * 逐字取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取)。
+ * Raw shape of each item from `GET /v1/folder?path=/DATA` (11 fields, order matches backend).
+ * Copied verbatim from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (captured on device 2026-08-03).
  */
 interface RawFolderItem {
   name: string
@@ -55,11 +57,12 @@ interface RawFolderItem {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FIXTURE-COPY-BEGIN  ——  folder-list-DATA.json 的 data.content(18 项)
-// 取自 `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json`(2026-08-03 真机抓取),
-// 逐字抄入以免测试跨界依赖 gitignore 目录 —— 协调者裁定,见 T3 报告 §8。
-// 🔴 抄的是三层信封里的 **`data.content` 那一层**(= K28 的降层动作)。
-// 🔴 字段一个没精简、顺序一个没改;等价性由一次性脚本程序化校验(报告 §9)。
+// FIXTURE-COPY-BEGIN — folder-list-DATA.json's data.content (18 items)
+// Taken from `.superpowers/sdd/p5c-fixtures/folder-list-DATA.json` (captured on device 2026-08-03),
+// copied verbatim to avoid test cross-boundary dependency on gitignore directory —
+// coordinator's ruling, see T3 report §8.
+// 🔴 Copying the **`data.content` layer** from the three-layer envelope (= K28's unwrapping action).
+// 🔴 No fields trimmed, no order changed; equivalence validated by one-shot script (report §9).
 // ─────────────────────────────────────────────────────────────────────────────
 const DATA_CONTENT: RawFolderItem[] = [
   {"name": ".snapshots", "size": 4096, "is_dir": true, "is_symlink": false, "modified": "2026-07-30T22:08:06.07507098+08:00", "sign": "", "thumb": "", "type": 0, "path": "/DATA/.snapshots", "date": "2026-07-30T22:08:06.07507098+08:00", "extensions": null},
@@ -83,11 +86,11 @@ const DATA_CONTENT: RawFolderItem[] = [
 ]
 // FIXTURE-COPY-END
 
-/** 🔴 单层形状(= 包方法 `service.folder.getList()` 的返回值),不是那个三层信封。 */
+/** 🔴 Single-layer shape (= return value of wrapper method `service.folder.getList()`), not the three-layer envelope. */
 const DATA_LISTING = { content: DATA_CONTENT }
 
-/** 蓝本父组件传的是 `pickerRoots()` 的输出;本机 wiki/candidates 实测 `[]` →
- *  真机跑的就是兜底三根(治理 §4.3),这里逐字用那三根。 */
+/** Blueprint parent passes output of `pickerRoots()`; local wiki/candidates tested to return `[]` →
+ *  on-device runs with fallback three roots (governance §4.3), use those three verbatim here. */
 const FALLBACK_ROOTS = [
   { path: '/DATA', label: 'System (/DATA)' },
   { path: '/media', label: '/media' },
@@ -112,31 +115,31 @@ beforeEach(() => {
   folder.getList.mockReset()
 })
 
-describe('FolderBrowser —— 根层(current === "")', () => {
-  it('渲染 roots 的每一项:drive 图标 + label + chev,并且不发任何请求', () => {
+describe('FolderBrowser — root level (current === "")', () => {
+  it('renders each roots item: drive icon + label + chev, makes no requests', () => {
     const w = mountFb()
     const rows = w.findAll('.fb-row')
     expect(rows).toHaveLength(3)
     expect(rows.map((r) => r.find('.fb-name').text())).toEqual([
       'System (/DATA)', '/media', '/mnt',
     ])
-    // 每行两个 KIcon:drive + chev(蓝本 :13 / :15)
+    // Each row has two KIcons: drive + chev (blueprint :13 / :15)
     expect(rows[0]!.findAll('svg')).toHaveLength(2)
     expect(folder.getList).not.toHaveBeenCalled()
   })
 
-  it('候选缺 label 时行文案回落成 path(模板 `r.label || r.path`)', () => {
+  it('when candidate lacks label, text falls back to path (template `r.label || r.path`)', () => {
     const w = mountFb([{ path: '/media/usb9' }])
     expect(w.find('.fb-name').text()).toBe('/media/usb9')
   })
 
-  it('roots 为空时显示「未检测到磁盘卷」空态,且没有任何 .fb-row', () => {
+  it('when roots is empty, shows "no disks detected" empty state with no .fb-row elements', () => {
     const w = mountFb([])
     expect(w.findAll('.fb-row')).toHaveLength(0)
     expect(w.find('.fb-stub').text()).toBe('未检测到磁盘卷——请在上方手输路径')
   })
 
-  it('面包屑初始只有根一项,label 取 aiKbFbVolumes,data-last 是字符串 "true"', () => {
+  it('breadcrumbs initially have only root item, label from aiKbFbVolumes, data-last is string "true"', () => {
     const w = mountFb()
     const crumbs = w.findAll('.fb-crumb')
     expect(crumbs).toHaveLength(1)
@@ -145,8 +148,8 @@ describe('FolderBrowser —— 根层(current === "")', () => {
   })
 })
 
-describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
-  it('点根层某项:调 getList(path)、emit pick、按 dirEntries 渲染 12 个可见目录', async () => {
+describe('FolderBrowser — entering subdirectory (K28 single-layer fetch)', () => {
+  it('clicking root item: calls getList(path), emits pick, renders 12 visible dirs by dirEntries', async () => {
     folder.getList.mockResolvedValue(DATA_LISTING)
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
@@ -162,14 +165,14 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
       'Amalfi Coast', 'AppData', 'Documents', 'Downloads', 'Gallery', 'Image',
       'KVM', 'lost+found', 'Media', 'NIMO', 'Notes', 'todo-widget',
     ])
-    // 隐藏项与文件都不在列表里(fixture 18 项 → 12 项)
+    // Hidden items and files not in list (fixture 18 items → 12 items)
     expect(names).not.toContain('.system_data')
     expect(names).not.toContain('nimo.tar.gz')
     expect(w.find('.fb-stub').exists()).toBe(false)
   })
 
-  it('🔴 mock 是单层 {content}:若把三层信封整个塞进来则列表为空 —— 证明取的是 .content 而非 .data.data.content', async () => {
-    // 判别力用例:三层信封没有顶层 content → `listing.content || []`(N7 兜底)得空数组
+  it('🔴 mock is single-layer {content}: if three-layer envelope is stuffed in, list is empty — proves we take .content not .data.data.content', async () => {
+    // Discriminating test: three-layer envelope has no top-level content → `listing.content || []` (N7 fallback) yields empty array
     folder.getList.mockResolvedValue({ success: 200, message: 'ok', data: { content: DATA_CONTENT } })
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
@@ -178,7 +181,7 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(w.find('.fb-stub').text()).toBe('(空)')
   })
 
-  it('目录为空(content: [])时显示「(空)」空态', async () => {
+  it('when directory is empty (content: []), shows "(empty)" empty state', async () => {
     folder.getList.mockResolvedValue({ content: [] })
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
@@ -187,7 +190,7 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(w.find('.fb-stub').text()).toBe('(空)')
   })
 
-  it('【N7】content 为 null(Go nil slice)时也走「(空)」而不是抛错', async () => {
+  it('【N7】when content is null (Go nil slice), also shows "(empty)" not error', async () => {
     folder.getList.mockResolvedValue({ content: null })
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
@@ -196,12 +199,12 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(w.find('.fb-err').exists()).toBe(false)
   })
 
-  it('面包屑随层级增长,data-last 只在最后一项是 "true"、其余是 "false"', async () => {
+  it('breadcrumbs grow with depth, data-last is "true" only on last item, "false" on others', async () => {
     folder.getList.mockResolvedValue(DATA_LISTING)
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
     await flushPromises()
-    // 再点一层子目录(fixture 里第一项 Amalfi Coast)
+    // Click down another level (first item in fixture: Amalfi Coast)
     await w.findAll('.fb-row')[0]!.trigger('click')
     await flushPromises()
 
@@ -213,7 +216,7 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(folder.getList).toHaveBeenLastCalledWith('/DATA/Amalfi Coast')
   })
 
-  it('加载中显示「加载中…」;请求 resolve 后消失', async () => {
+  it('while loading shows "loading…"; disappears after request resolves', async () => {
     const d = makeDeferred<{ content: RawEntry[] }>()
     folder.getList.mockReturnValue(d.promise)
     const w = mountFb()
@@ -227,7 +230,7 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(w.find('.fb-stub').text()).toBe('(空)')
   })
 
-  it('请求失败:显示 .fb-stub.fb-err「目录列表加载失败」、清空 entries、收敛 loading', async () => {
+  it('request fails: shows .fb-stub.fb-err "directory list failed to load", clears entries, closes loading', async () => {
     folder.getList.mockRejectedValue(new Error('boom'))
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
@@ -237,42 +240,43 @@ describe('FolderBrowser —— 进入子目录(K28 单层取数)', () => {
     expect(err.classes()).toContain('fb-stub')
     expect(err.text()).toBe('目录列表加载失败')
     expect(w.findAll('.fb-row')).toHaveLength(0)
-    // loading 已收敛(否则渲染的会是「加载中…」)
-    expect(w.text()).not.toContain('加载中…')
+    // loading is closed (otherwise would render "loading…")
+    expect(w.text()).not.toContain('loading…')
   })
 
-  it('点根层面包屑(path === "")回到根层:不 emit pick、不发请求、清空 entries', async () => {
+  it('clicking root breadcrumb (path === "") returns to root: no emit pick, no request, clears entries', async () => {
     folder.getList.mockResolvedValue(DATA_LISTING)
     const w = mountFb()
     await w.findAll('.fb-row')[0]!.trigger('click')
     await flushPromises()
     expect(w.findAll('.fb-row')).toHaveLength(12)
 
-    await w.findAll('.fb-crumb')[0]!.trigger('click') // 根面包屑,path === ''
+    await w.findAll('.fb-crumb')[0]!.trigger('click') // root breadcrumb, path === ''
     await flushPromises()
 
-    expect(folder.getList).toHaveBeenCalledTimes(1) // 没有第二次请求
-    expect(w.emitted('pick')).toEqual([['/DATA']]) // 仍只有那一次(蓝本 :59 在 :60 之前 return)
+    expect(folder.getList).toHaveBeenCalledTimes(1) // no second request
+    expect(w.emitted('pick')).toEqual([['/DATA']]) // still only that one (blueprint :59 returns before :60)
     const names = w.findAll('.fb-row').map((r) => r.find('.fb-name').text())
-    expect(names).toEqual(['System (/DATA)', '/media', '/mnt']) // 回到 roots 层
+    expect(names).toEqual(['System (/DATA)', '/media', '/mnt']) // back to roots level
     expect(w.findAll('.fb-crumb')).toHaveLength(1)
   })
 })
 
-describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
-  // 🔴 记忆 `newui-async-stale-guard`:异步写共享 state 必带过期守卫,回归测试
-  // 必须真走交错路径(先发后至),不能只测顺序路径。以下三条分别钉死蓝本
-  // :65(成功分支)/ :68(catch)/ :72(finally 正向判断)三处守卫。
+describe('FolderBrowser — §5.2 `_seq` race guard (interleaved paths)', () => {
+  // 🔴 Memory `newui-async-stale-guard`: async writes to shared state must have stale guard,
+  // regression tests must actually take interleaved path (send then arrive late), not just
+  // test sequential path. These three cases below nail blueprint :65(success branch) /
+  // :68(catch) / :72(finally positive check) three guard sites.
   type Listing = { content: RawEntry[] }
   const A_LISTING: Listing = { content: [{ name: 'AAA', path: '/DATA/AppData/AAA', is_dir: true }] }
   const B_LISTING: Listing = { content: [{ name: 'BBB', path: '/DATA/BBB', is_dir: true }] }
 
   /**
-   * 真交错场景(用户「等不及」的真实路径):
-   *   ① 进 /DATA(立即 resolve,拿到 12 行)
-   *   ② 点子目录 AppData → `go('/DATA/AppData')` 在飞(seq=2),记为 **A**
-   *   ③ 不等它回来就点面包屑「DATA」→ `go('/DATA')` 在飞(seq=3),记为 **B**
-   * 于是 A 是过期的那次、B 是最新的那次,两次的 path 与返回值都不同。
+   * Real interleaving scenario (user "can't wait" real path):
+   *   ① Enter /DATA (resolves immediately, gets 12 rows)
+   *   ② Click subdir AppData → `go('/DATA/AppData')` in flight (seq=2), call it **A**
+   *   ③ Before it returns, click breadcrumb "DATA" → `go('/DATA')` in flight (seq=3), call it **B**
+   * So A is stale, B is latest; their paths and return values are different.
    */
   async function raceSetup() {
     folder.getList.mockResolvedValueOnce(DATA_LISTING)
@@ -284,47 +288,47 @@ describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
     const dA = makeDeferred<Listing>()
     const dB = makeDeferred<Listing>()
     folder.getList.mockReturnValueOnce(dA.promise).mockReturnValueOnce(dB.promise)
-    await w.findAll('.fb-row')[1]!.trigger('click') // ② AppData(第 2 行)
-    await w.findAll('.fb-crumb')[1]!.trigger('click') // ③ 面包屑「DATA」
+    await w.findAll('.fb-row')[1]!.trigger('click') // ② AppData (row 2)
+    await w.findAll('.fb-crumb')[1]!.trigger('click') // ③ breadcrumb "DATA"
     expect(folder.getList.mock.calls.map((c: unknown[]) => c[0])).toEqual([
       '/DATA', '/DATA/AppData', '/DATA',
     ])
     return { w, dA, dB }
   }
 
-  it('两次 go() 交错(第二次先返回、第一次后返回)→ entries 是第二次的结果,loading 收敛 false', async () => {
+  it('two go() calls interleaved (second returns first, first returns late) → entries are second result, loading closes to false', async () => {
     const { w, dA, dB } = await raceSetup()
 
-    // 交错:最新的 B 先返回
+    // Interleaving: latest B returns first
     dB.resolve(B_LISTING)
     await flushPromises()
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['BBB'])
 
-    // 过期的 A 后返回 —— 必须被守卫吃掉,不许覆盖 B 的结果(蓝本 :65)
+    // Stale A returns late — must be dropped by guard, not allowed to overwrite B's result (blueprint :65)
     dA.resolve(A_LISTING)
     await flushPromises()
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['BBB'])
     expect(w.text()).not.toContain('AAA')
-    expect(w.text()).not.toContain('加载中…') // loading 收敛
+    expect(w.text()).not.toContain('loading…') // loading closes
   })
 
-  it('过期的那次先返回时,不许写 entries、也不许把 loading 关掉(蓝本 :72 的正向 `if (seq === _seq)`)', async () => {
+  it('when stale call returns first, must not write entries or close loading (blueprint :72 positive `if (seq === _seq)`)', async () => {
     const { w, dA, dB } = await raceSetup()
 
-    // 过期的 A 先落地 → 它的 finally 不许清 loading(B 还在飞)
+    // Stale A lands first → its finally must not close loading (B still in flight)
     dA.resolve(A_LISTING)
     await flushPromises()
     expect(w.find('.fb-stub').text()).toBe('加载中…')
     expect(w.text()).not.toContain('AAA')
 
-    // 最新的 B 落地才收敛
+    // Latest B lands to close it
     dB.resolve(B_LISTING)
     await flushPromises()
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['BBB'])
-    expect(w.text()).not.toContain('加载中…')
+    expect(w.text()).not.toContain('loading…')
   })
 
-  it('过期的那次失败时,不许把错误态写进来(蓝本 :68 的 catch 守卫)', async () => {
+  it('when stale call fails, must not write error state (blueprint :68 catch guard)', async () => {
     const { w, dA, dB } = await raceSetup()
 
     dB.resolve(B_LISTING)
@@ -337,16 +341,18 @@ describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['BBB'])
   })
 
-  // 🔴 M-1(评审探针 7 猎出的守卫缺口,2026-08-03):`seq` 必须是**组件本地**的
-  // (`<script setup>` 体内的 `let`),不许挪到模块级。评审实测:把它挪成真模块级
-  // (跨实例共享)后,上面那三条**单实例**交错用例照样 19 passed 零报红 —— 也就是
-  // 「组件本地」这件事当时没有任何用例守着。而模块级 `seq` 的真实后果是:两个同时
-  // 在用的选择器会互相把对方的请求判成过期(entries 永远空、loading 永远转)。
-  // 本用例专守这一条,判据只有一个:把 `seq` 挪到模块级 → 本用例必须报红。
-  // ⚠️ 仍**不抽公共 guard**(过早抽象),也**不改产品代码** —— 它已经是对的。
-  // 这是本仓「异步写共享 state 必带过期守卫」纪律(记忆 `newui-async-stale-guard`,
-  // 已被评审逮到四次)的守卫侧补课。
-  it('两个实例各自在飞时互不干扰 —— seq 是组件本地,不是模块级(跨实例共享)', async () => {
+  // 🔴 M-1 (review probe 7 found guard gap, 2026-08-03): `seq` must be **component-local**
+  // (`let` inside `<script setup>`), not module-level. Review testing: moving it to true
+  // module-level (shared across instances) results in above three **single-instance** interleave
+  // tests still passing 19/0 — i.e., "component-local" had no test guarding it then. Real
+  // consequence of module-level `seq`: two selector instances used simultaneously will each
+  // judge other's requests as stale (entries forever empty, loading forever spinning).
+  // This test case exclusively guards this: move `seq` to module-level → this test must fail.
+  // ⚠️ Still **don't extract common guard** (premature abstraction), and **don't change
+  // production code** — it's already correct. This is guard-side supplement to this repo's
+  // discipline "async writes to shared state must have stale guard" (memory `newui-async-stale-guard`,
+  // caught by review four times).
+  it('two instances in flight don\'t interfere — seq is component-local, not module-level (cross-instance sharing)', async () => {
     const A_CHILD: Listing = { content: [{ name: 'A-CHILD', path: '/A/A-CHILD', is_dir: true }] }
     const B_CHILD: Listing = { content: [{ name: 'B-CHILD', path: '/B/B-CHILD', is_dir: true }] }
     const dA = makeDeferred<Listing>()
@@ -359,23 +365,23 @@ describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
     await wB.find('.fb-row').trigger('click') // 实例 B:go('/B') 在飞
     expect(folder.getList.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/A', '/B'])
 
-    // 交错:后发的 B 先回,再轮到 A —— 两个实例都不该被对方影响
+    // Interleaving: later-sent B returns first, then A — neither instance should be affected by the other
     dB.resolve(B_CHILD)
     await flushPromises()
     dA.resolve(A_CHILD)
     await flushPromises()
 
     expect(wB.findAll('.fb-name').map((n) => n.text())).toEqual(['B-CHILD'])
-    // ↓ 模块级 seq 时 A 的 mySeq(1) !== seq(2) → 被判过期,这里会是 []
+    // ↓ At module-level seq, A's mySeq(1) !== seq(2) → judged stale, would be []
     expect(wA.findAll('.fb-name').map((n) => n.text())).toEqual(['A-CHILD'])
     expect(wA.text()).not.toContain('B-CHILD')
     expect(wB.text()).not.toContain('A-CHILD')
-    // ↓ 模块级 seq 时 A 的 finally 正向判断不成立 → loading 永远转
+    // ↓ At module-level seq, A's finally positive check would fail → loading spins forever
     expect(wA.text()).not.toContain('加载中…')
     expect(wB.text()).not.toContain('加载中…')
   })
 
-  it('reset() 先递增 seq 再清状态 → 在飞的请求落地后不写任何状态', async () => {
+  it('reset() increments seq first then clears state → in-flight request landing writes no state', async () => {
     const dA = makeDeferred<typeof A_LISTING>()
     folder.getList.mockReturnValue(dA.promise)
     const w = mountFb()
@@ -383,43 +389,46 @@ describe('FolderBrowser —— §5.2 `_seq` 竞态守卫(交错路径)', () => {
     await nextTick()
     expect(w.find('.fb-stub').text()).toBe('加载中…')
 
-    // 蓝本父组件靠 $refs.fb.reset();Vue3 走 defineExpose
+    // Blueprint parent uses $refs.fb.reset(); Vue3 uses defineExpose
     ;(w.vm as unknown as { reset: () => void }).reset()
     await nextTick()
-    // 回到根层(current === ''),loading 已清
+    // Back to root level (current === ''), loading cleared
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['System (/DATA)', '/media', '/mnt'])
     expect(w.findAll('.fb-crumb')).toHaveLength(1)
 
-    dA.resolve(A_LISTING) // 过期请求落地
+    dA.resolve(A_LISTING) // stale request lands
     await flushPromises()
     expect(w.text()).not.toContain('AAA')
     expect(w.findAll('.fb-name').map((n) => n.text())).toEqual(['System (/DATA)', '/media', '/mnt'])
   })
 
-  it('defineExpose 暴露了 reset(蓝本靠 $refs.fb.reset() 调用)', () => {
+  it('defineExpose exposes reset (blueprint uses $refs.fb.reset() to call)', () => {
     const w = mountFb()
     expect(typeof (w.vm as unknown as { reset?: unknown }).reset).toBe('function')
   })
 })
 
-describe('FolderBrowser —— 守卫缺口③:<template> 块零裸色字面量', () => {
-  // 治理 §9 缺口③:color-guard.test.ts:44-56 的 styleLines() 对 .vue 只取 <style>
-  // 块 → 模板 style="…" 属性零扫描;本文件补一条定向断言堵这个盲区。
-  // ⚠️ 本文件沿用 QueueView.test.ts / IndexedFilesView.test.ts 的现状写法
-  // (非贪婪 + 隐式靠「</template> 在第 0 列」锚定);治理 §9 缺口③′ 的「统一改成
-  // 贪婪匹配 + 覆盖度自检」归 T8,本刀不动它。
-  it('<template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量', () => {
+describe('FolderBrowser — guard gap ③: <template> block has no bare color literals', () => {
+  // Governance §9 gap ③: color-guard.test.ts:44-56 styleLines() only takes <style> block
+  // from .vue → zero scan of template style="…" attributes; this file adds targeted assertion
+  // to plug this blind spot.
+  // ⚠️ This file follows current style of QueueView.test.ts / IndexedFilesView.test.ts
+  // (non-greedy + implicitly anchored on "</template> at column 0"); governance §9 gap ③′
+  // "unify to greedy matching + coverage self-check" goes to T8, not touched this round.
+  it('<template> block (stripped of var()/color-mix()) contains no bare hex / rgb / hsl literals', () => {
     const src: string = readFileSync(resolve(__dirname, './FolderBrowser.vue'), 'utf8')
     const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)
     expect(m).not.toBeNull()
     const tmpl = m![1]
-    // 覆盖度自检:抽出的片段必须含模板最后一行的特征串(本组件的嵌套
-    // <template v-else> 都是缩进的,不会把第 0 列的 </template> 提前截断)
-    expect(tmpl).toContain('fb-crumbs') // 模板首部
-    expect(tmpl).toContain('aiKbFbEmpty') // 模板尾部(倒数第 5 行)
+    // Coverage self-check: extracted segment must contain template's last line signature
+    // (nested <template v-else> in this component are indented, won't prematurely cut
+    // </template> at column 0)
+    expect(tmpl).toContain('fb-crumbs') // template start
+    expect(tmpl).toContain('aiKbFbEmpty') // template end (5 lines from end)
 
-    // 剥掉 var(...) 与 color-mix(...) 的内部(照 color-guard.test.ts 的 stripVar
-    // 同款手法:逐字符扫描配对括号深度,支持嵌套 fallback)
+    // Strip insides of var(...) and color-mix(...) (same technique as color-guard.test.ts
+    // stripVar: scan character-by-character tracking paired bracket depth, support nested
+    // fallback)
     function stripCalls(s: string, prefixes: string[]): string {
       let out = ''
       let i = 0
@@ -451,7 +460,7 @@ describe('FolderBrowser —— 守卫缺口③:<template> 块零裸色字面量'
     expect(scrubbed).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  it('本文件零 <style> 块(.fb* 样式在 knowledge.scss,T2a 已搬)', () => {
+  it('this file has no <style> block (.fb* styles in knowledge.scss, moved by T2a)', () => {
     const src: string = readFileSync(resolve(__dirname, './FolderBrowser.vue'), 'utf8')
     expect(src).not.toMatch(/^<style/m)
   })

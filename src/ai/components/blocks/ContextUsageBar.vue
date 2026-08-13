@@ -1,5 +1,5 @@
-<!-- 1:1 移植自 Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue -->
-<!-- 模板: 33-61, 样式: 63-107. 几何/阈值/格式化全部改调 Task 5 的 contextUsage.ts,不在本地重算。 -->
+<!-- 1:1 ported from Vue2 src/views/AI/Agent/blocks/ContextUsageBar.vue -->
+<!-- Template: 33-61, styles: 63-107. All geometry/thresholds/formatting delegated to Task 5's contextUsage.ts, not recalculated locally. -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { formatTokens, levelFor, dashArrayFor } from '../../util/contextUsage'

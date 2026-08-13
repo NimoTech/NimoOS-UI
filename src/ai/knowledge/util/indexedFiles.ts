@@ -1,13 +1,13 @@
-// SP8-P5a Task 6 —— 1:1 移植自 Vue2
-// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/indexedFiles.js`。
+// SP8-P5a Task 6 —— 1:1 ported from Vue2
+// `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/indexedFiles.js`.
 //
-// 蓝本该文件共 5 个纯函数(`buildListParams`/`rowStatusLabel`/`formatSize`/
-// `anyIndexing`/`rootsFromFolderRules`),T6 brief 只点名搬 `buildListParams`
-// 与 `anyIndexing`(`indexedFiles` 数据流与轮询守卫要用到);其余三个是
-// IndexedFilesView 的展示层帮助函数,留给消费该视图的任务(P5b)落地时一并
-// 搬进本文件——本文件路径按设计 §5.1 是共享的 `util/indexedFiles.ts`。
+// Original file has 5 pure functions (`buildListParams`/`rowStatusLabel`/`formatSize`/
+// `anyIndexing`/`rootsFromFolderRules`); T6 brief only names `buildListParams` and
+// `anyIndexing` to port (needed by `indexedFiles` data flow and poll guard); others are
+// IndexedFilesView display-layer helpers, left for consumer task (P5b) to bring together
+// into this file —— this file path per design §5.1 is shared `util/indexedFiles.ts`.
 
-/** indexedFiles.js:5-14 —— 拷贝 filters,丢弃值为 ''/null/undefined 的键。 */
+/** Original :5-14 —— copy filters, discard keys with '' / null / undefined values. */
 export function buildListParams(
   filters: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
@@ -20,7 +20,7 @@ export function buildListParams(
   return out
 }
 
-/** indexedFiles.js:32-34 —— 是否存在处于 indexing 态的行(轮询是否该继续的判据)。 */
+/** Original :32-34 —— whether any row in indexing state (criterion for poll continuation). */
 export function anyIndexing(
   files: Array<{ status?: string } | null | undefined> | null | undefined,
 ): boolean {

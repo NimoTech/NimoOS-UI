@@ -1,34 +1,33 @@
 <!--
-  SP8-P3a Task 6 —— 1:1 移植自 Vue2 src/views/AI/Skills/SkillsSection.vue(226 行,
-  只读半)。左列(头部只有刷新按钮 + 搜索框 + 分组列表)+ 右侧 SkillDetail。
+  SP8-P3a Task 6 — 1:1 ported from Vue2 src/views/AI/Skills/SkillsSection.vue (226 lines,
+  read-only half). Left column (header only refresh button + search box + grouped list) + right SkillDetail.
 
-  【偏离清单(均按公共约束 §2 三件套申报)】
+  【Divergence list (all reported per public constraint §2 three-item kit)】
 
-  1(公共约束 §3 偏离 1 / brief §6.2)—— `reload()` 不再多剥一层 `.data`。
-  Vue2 :133-134 写的是 `const resp = await ai.listSkills(); this.skills = resp.data
-  || []`,那是把 axios 响应层的 `.data` 当成后端 payload 剥。共享包
-  `service.ai.listSkills()`(NimoOS-Service/dist/ai.d.ts:75)已经在内部 `return
-  res.data` 剥过一次 axios 层,而后端 `NimoOS-AI/route/v2/skills.go:37` 是
-  `c.JSON(200, out)` 裸数组——再取一次 `.data` 在裸数组上恒为 `undefined`,
-  `this.skills` 就恒为 `[]`(空数组兜底掩盖了真正取到 undefined 这件事),列表
-  永远空。这与 SP8-P2a 验收时修的 `loadAvailableModels`(提交 a942196)是同一个
-  缺陷模具:核心字段名≠核心信封层数。此处直接 `await service.ai.listSkills()`
-  当数组用,不再有第二层 `.data`。
+  1 (public constraint §3 divergence 1 / brief §6.2) — `reload()` no longer peels off `.data` again.
+  Vue2 :133-134 wrote `const resp = await ai.listSkills(); this.skills = resp.data || []`,
+  that's peeling off axios response layer's `.data` as backend payload. Shared package
+  `service.ai.listSkills()` (NimoOS-Service/dist/ai.d.ts:75) already internally `return res.data`
+  peeled axios layer once, while backend `NimoOS-AI/route/v2/skills.go:37` is `c.JSON(200, out)`
+  bare array — peeling off `.data` again on bare array is always `undefined`, `this.skills` always
+  `[]` (bare array fallback masks actually getting undefined), list forever empty. Same defect mold
+  as SP8-P2a acceptance fixed `loadAvailableModels` (commit a942196): core field name ≠ core envelope
+  layers. Here directly `await service.ai.listSkills()` use as array, no second `.data` layer anymore.
 
-  2(公共约束 §3 偏离 3)—— `.sk-toast`(Vue2 :72-77,`showToast()`)不移植,改用
-  全局 `useToast().show()`。Vue2 加载失败时(`:139-140`)走 `console.error` +
-  `showToast('Could not load skills')`,且它的 `.sk-toast` 模板(:73-74)**无条件**
-  渲染绿色 check 图标,连失败提示也顶着一个"成功"勾——这是 Vue2 自己的缺陷,不照抄
-  (brief §6.2 明确点名)。本仓失败改走 `toast.show(t('aiSkLoadFailed'), 3000,
-  'danger')`,`danger` tier 天然不会带勾。`Vue2 :139` 的 `console.error` 同样不照抄
-  ——本仓三个兄弟分区(BlacklistSection/ExecutionSection/MemorySection)都没有这个
-  惯例,静默吞错 + toast 提示已经足够。
+  2 (public constraint §3 divergence 3) — `.sk-toast` (Vue2 :72-77, `showToast()`) not ported,
+  changed to global `useToast().show()`. Vue2 on load fail (:139-140) goes `console.error` +
+  `showToast('Could not load skills')`, and its `.sk-toast` template (:73-74) **unconditionally**
+  renders green check icon, even error message wears success check — this is Vue2's own defect,
+  not copying (brief §6.2 explicitly names). This repo changed fail to `toast.show(t('aiSkLoadFailed'),
+  3000, 'danger')`, `danger` tier naturally won't wear check. Vue2 :139's `console.error` also not copied
+  — this repo's three sibling sections (BlacklistSection/ExecutionSection/MemorySection) have no
+  this convention, silently swallowing error + toast shown already enough.
 
-  3(公共约束 §3 偏离 2)—— `SkillIcon.vue` 不移植,统一用 `../../icons/AgentIcon.vue`
-  (Task 4/5 已同款处理)。
+  3 (public constraint §3 divergence 2) — `SkillIcon.vue` not ported, unified to use
+  `../../icons/AgentIcon.vue` (Task 4/5 already same treatment).
 
-  4(brief §6.1)—— 左列头部只有刷新按钮。Vue2 :9-11 的 `+` 添加按钮(`adding = true`
-  打开 `AddSkillModal`)属于 P3b(写操作半),Task 8 已接线,见下方新注释段。
+  4 (brief §6.1) — left column header only refresh button. Vue2 :9-11's `+` add button (`adding = true`
+  opens `AddSkillModal`) belongs to P3b (write operations half), Task 8 wired, see new comment section below.
 
   【颜色】Vue2 :15 `SkillIcon name="search" ... color="var(--text-tertiary)"` 显式传色
   (`.sk-col-search` 容器本身没有给图标定 color 的 CSS 规则,不显式传就会退回

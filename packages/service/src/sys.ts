@@ -7,7 +7,7 @@ import { parseUtil } from './parseUtil.js'
 import { unwrap } from './unwrap.js'
 
 export function createSys(http: AxiosInstance) {
-  // trigger_download 只在显式传参时下发,避免给所有 GET 都挂上空 params
+  // trigger_download is sent only when explicitly passed, to avoid attaching empty params to every GET
   const q = (params?: { trigger_download?: 1 }) => (params ? { params } : undefined)
 
   return {
@@ -20,8 +20,8 @@ export function createSys(http: AxiosInstance) {
       return unwrap<HardwareInfo>(res.data)
     },
 
-    // ⚠️ 命名陷阱:Vue2 的 getVersion() 打的是 os_version、getAppVersion() 才是 version。
-    // 包里一律用语义名。os = 固件/系统镜像版本;app = NimoOS 应用自身版本。
+    // ⚠️ Naming trap: Vue2's getVersion() hits os_version, and getAppVersion() is the one hitting version.
+    // This package uses semantic names throughout. os = firmware/system image version; app = the NimoOS application's own version.
     async getOsVersion(params?: { trigger_download?: 1 }): Promise<UpdateCheck> {
       const res = await http.get('/sys/os_version', q(params))
       return unwrap<UpdateCheck>(res.data)
@@ -30,7 +30,7 @@ export function createSys(http: AxiosInstance) {
       const res = await http.get('/sys/version', q(params))
       return unwrap<UpdateCheck>(res.data)
     },
-    /** @deprecated 用 getAppVersion()。SP1 起已有调用方,不能删。 */
+    /** @deprecated Use getAppVersion(). Has callers since SP1, cannot be removed. */
     async getVersion(): Promise<{ current_version: string }> {
       const res = await http.get('/sys/version')
       return unwrap<{ current_version: string }>(res.data)
@@ -49,9 +49,9 @@ export function createSys(http: AxiosInstance) {
       return unwrap<SystemPaths>(res.data)
     },
 
-    // ⚠️ migrate 两个方法本期只进包,消费在 P3。类型依据是 Go struct
-    // (NimoOS/service/migrate.go:46-57),**没有 curl 实证**(开发机上不能真跑迁移)。
-    // P3 消费前必须抓一次真实响应复核字段。
+    // ⚠️ The two migrate methods only land in the package this sprint; consumption is in P3. Types are based on the Go struct
+    // (NimoOS/service/migrate.go:46-57), **not verified via curl** (a real migration can't run on the dev machine).
+    // Before P3 consumes them, a real response must be captured to re-verify the fields.
     async migrateAppPath(type: string, targetMount: string): Promise<{ job_id: string }> {
       const res = await http.post('/sys/migrate', { type, target_mount: targetMount })
       return unwrap<{ job_id: string }>(res.data)
@@ -61,22 +61,22 @@ export function createSys(http: AxiosInstance) {
       return unwrap<MigrateStatus>(res.data)
     },
 
-    // 后端对未知 state 也返 200 但什么都不做(NimoOS/route/v1/system.go:552-560),
-    // 所以这里把类型收窄,让打错字在编译期就炸。
+    // The backend also returns 200 for an unknown state but does nothing (NimoOS/route/v1/system.go:552-560),
+    // so the type is narrowed here to make typos blow up at compile time.
     async power(action: 'off' | 'restart'): Promise<void> {
       await http.put(`/sys/state/${action}`)
     },
     async setDiskStandby(input: { minutes: number }): Promise<void> {
       await http.put('/sys/disk/standby', input)
     },
-    // ⚠️ 这两个端点**失败时也返回 HTTP 200**,错误只写在信封里
-    // (NimoOS/route/v1/system.go:93-102 FirmwareUpdate 与 :149-158 SystemUpdate
-    //  的错误分支都是 ctx.JSON(common_err.SUCCESS, Result{Success: SERVICE_ERROR, ...}))。
-    // axios 不会 reject,所以必须自己查信封 —— 否则升级失败会被当成成功。
-    // Vue2 的 UpdateModal.updateSystem() 也是查 res.data.success !== 200 的,
-    // 不查等于比 Vue2 更糟(移植纪律:吞错不照抄)。
-    // 对比:/gateway/port 与 /gateway/ssl 的写操作返回真实 4xx/5xx,axios 自己会 reject;
-    //      /sys/download/cancel 无失败分支(system.go:167-171 恒 SUCCESS)。
+    // ⚠️ These two endpoints **return HTTP 200 even on failure**; the error lives only in the envelope
+    // (the error branches of NimoOS/route/v1/system.go:93-102 FirmwareUpdate and :149-158 SystemUpdate
+    //  are both ctx.JSON(common_err.SUCCESS, Result{Success: SERVICE_ERROR, ...})).
+    // axios will not reject, so the envelope must be checked here — otherwise a failed upgrade is treated as success.
+    // Vue2's UpdateModal.updateSystem() also checks res.data.success !== 200;
+    // not checking would be worse than Vue2 (porting discipline: don't copy error-swallowing).
+    // Contrast: the /gateway/port and /gateway/ssl writes return real 4xx/5xx and axios rejects on its own;
+    //      /sys/download/cancel has no failure branch (system.go:167-171 always SUCCESS).
     async updateApp(): Promise<void> {
       const res = await http.post('/sys/update')
       unwrap<unknown>(res.data)
@@ -107,8 +107,8 @@ export function createSys(http: AxiosInstance) {
       await http.post('/gateway/ssl/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } })
     },
 
-    // ⚠️ 这两个是**裸 JSON,没有 success/message/data 信封**(curl 实证 2026-07-31)。
-    // 同前缀下 /gateway/port 与 /gateway/ssl 却有信封 —— 信封层数按端点不同,别统一套 unwrap。
+    // ⚠️ These two are **bare JSON, no success/message/data envelope** (verified via curl 2026-07-31).
+    // Under the same prefix, /gateway/port and /gateway/ssl DO have envelopes — envelope depth varies per endpoint, don't blanket-apply unwrap.
     async getGatewayComponents(): Promise<GatewayComponent[]> {
       const res = await http.get('/gateway/components')
       const body = res.data as { components?: GatewayComponent[] } | null
@@ -127,8 +127,8 @@ export function createSys(http: AxiosInstance) {
       return { devices: body?.devices ?? [], truncated: body?.truncated ?? false }
     },
 
-    // 后端存的是字符串 "True"/"False"(NimoOS-LocalStorage/route/v1/usb.go:37/40),
-    // 在包里归一成布尔,别让每个消费方各自记这个坑。
+    // The backend stores the strings "True"/"False" (NimoOS-LocalStorage/route/v1/usb.go:37/40);
+    // normalize to a boolean in the package so each consumer doesn't have to remember this pitfall.
     async getUsbStatus(): Promise<boolean> {
       const res = await http.get('/usb/usb-auto-mount')
       return unwrap<string>(res.data) === 'True'

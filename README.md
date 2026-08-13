@@ -1,104 +1,104 @@
 # NimoOS-New-UI
 
-NimoOS Web UI 的 **Vue 3 + TypeScript + Vite** 重写。
+NimoOS Web UI rewritten in **Vue 3 + TypeScript + Vite**.
 
-采用**并行新应用 + 路由绞杀(Strangler)策略**:与旧的 Vue 2 主应用(挂在 `/`)同源并存,本应用挂在 `/app/`,使用 hash 路由(`/app/#/`),因此新增/迁移页面无需改动 Gateway 路由。功能逐屏从 Vue 2 迁移到这里,迁完一屏切一屏。
+Uses **parallel new application + routing strangler (Strangler) strategy**: coexists with the old Vue 2 main application (mounted at `/`) on the same origin, this application is mounted at `/app/`, using hash routing (`/app/#/`), so new/migrated pages do not require changes to Gateway routing. Features are migrated from Vue 2 to here screen by screen, and once a screen is migrated, it is switched to the new application.
 
-已迁移的主要区域:**登录 / 初始化引导(Welcome)**、**桌面主页**(应用网格、Dock、小组件、Docker 应用识别)、**文件区**(文件管理、上传、分享、内置预览器:图片/视频/音频/PDF/Office/代码/Markdown)。
+Migrated main areas: **Login / Initialization Guide (Welcome)**, **Desktop Home** (app grid, Dock, widgets, Docker app recognition), **Files** (file management, upload, sharing, built-in viewers: images/videos/audio/PDF/Office/code/Markdown).
 
-## 技术栈
+## Tech Stack
 
-- **Vue 3**(`<script setup>`)· Vite 7 · TypeScript(`strict`)· Pinia · vue-router 4 · vue-i18n 9
-- **reka-ui**(headless 组件原语)—— **无 Tailwind、无任何 UI/CSS 框架**,样式全部手写
-- 预览器:artplayer / aplayer(音视频)· pdfjs-dist · @vue-office(docx/xlsx)· CodeMirror 6(代码)· markdown-it
-- socket.io-client(MessageBus 事件)· tus-js-client(断点续传上传)
-- 测试:Vitest + @vue/test-utils,测试文件与实现同目录(`*.test.ts`)
+- **Vue 3** (`<script setup>`) · Vite 7 · TypeScript (`strict`) · Pinia · vue-router 4 · vue-i18n 9
+- **reka-ui** (headless component primitives) — **no Tailwind, no UI/CSS framework**, all styles hand-written
+- Viewers: artplayer / aplayer (audio/video) · pdfjs-dist · @vue-office (docx/xlsx) · CodeMirror 6 (code) · markdown-it
+- socket.io-client (MessageBus events) · tus-js-client (resumable upload)
+- Testing: Vitest + @vue/test-utils, test files colocated with implementation (`*.test.ts`)
 
-## 环境要求
+## Environment Requirements
 
-- Node.js ≥ 20,**pnpm**(勿用 yarn / npm)
-- 共享的 HTTP/认证内核包 `@nimotech/nimoos-service` 已内联在本仓 `packages/service/`
-  (`package.json` 里写的是 `file:packages/service`)——**单独克隆本仓即可安装依赖**,
-  不需要额外克隆或构建任何同级仓库。
+- Node.js ≥ 20, **pnpm** (do not use yarn / npm)
+- Shared HTTP/authentication core package `@nimotech/nimoos-service` is inlined in this repo under `packages/service/`
+  (specified in `package.json` as `file:packages/service`) — **clone only this repo to install dependencies**,
+  no need to separately clone or build any sibling repositories.
 
-## 快速开始
+## Quick Start
 
 ```bash
 git clone git@github.com:NimoTech/NimoOS-New-UI.git
 cd NimoOS-New-UI
 pnpm install
-pnpm dev        # 开发服务器 http://localhost:5273/app/
+pnpm dev        # dev server http://localhost:5273/app/
 ```
 
-开发服务器需要一台可访问的 NimoOS 后端(Gateway)提供 API。
+The dev server requires an accessible NimoOS backend (Gateway) to provide APIs.
 
-### 常用命令
+### Common Commands
 
 ```bash
-pnpm dev                    # 开发服务器(端口 5273,base /app/)
-pnpm test                   # vitest 全量测试
-pnpm test:watch             # vitest 监听模式
-pnpm build                  # vue-tsc --noEmit 类型检查 + vite build → dist/
-pnpm exec vue-tsc --noEmit  # 只做类型检查
+pnpm dev                    # dev server (port 5273, base /app/)
+pnpm test                   # vitest full test suite
+pnpm test:watch             # vitest watch mode
+pnpm build                  # vue-tsc --noEmit type check + vite build → dist/
+pnpm exec vue-tsc --noEmit  # type check only
 ```
 
-### 部署到设备
+### Deploy to Device
 
-首次准备目录(只需一次,`deploy.sh` 的 rsync 目标必须存在且当前用户可写):
+Initial directory setup (one-time only, the rsync target of `deploy.sh` must exist and be writable by the current user):
 
 ```bash
 sudo mkdir -p /var/lib/nimoos/www/app
 sudo chown "$USER:$USER" /var/lib/nimoos/www/app
 ```
 
-之后每次部署:
+After that, every deployment:
 
 ```bash
 ./scripts/deploy.sh   # pnpm build + rsync --delete dist/ → /var/lib/nimoos/www/app/
 ```
 
-部署到设备**一律走该脚本**,不要手写 rsync/cp 到 `/var/lib`。部署后在浏览器访问 `http://<设备IP>/app/` 验证。
+Deployment to devices **must always go through this script**, do not manually write rsync/cp to `/var/lib`. After deployment, verify by accessing `http://<device-IP>/app/` in the browser.
 
-## 目录结构
+## Directory Structure
 
 ```
 src/
-├── main.ts            # 装配:pinia → initService → i18n → router → mount
-├── router/            # hash 路由 + 守卫(未初始化→/welcome,无 token→/login)
-├── stores/            # Pinia:session / locale / toast / utilization
+├── main.ts            # assembly: pinia → initService → i18n → router → mount
+├── router/            # hash routing + guards (uninitialized → /welcome, no token → /login)
+├── stores/            # Pinia: session / locale / toast / utilization
 ├── composables/       # useAuth / useMessageBus / useUtilization / useValidation
-├── home/              # 桌面主页:应用网格、Dock、小组件、容器事件桥
-├── files/             # 文件区:列表、上传、分享、viewers/ 预览器
-├── views/             # 页面级组件:Home / Files / Login / Welcome
-├── i18n/              # zh_cn.ts(默认)+ en_us.ts,键必须两边同步
-└── styles/theme.css   # 全局主题 token(见下)
+├── home/              # desktop home: app grid, Dock, widgets, container event bridge
+├── files/             # files area: list, upload, sharing, viewers/ preview components
+├── views/             # page-level components: Home / Files / Login / Welcome
+├── i18n/              # zh_cn.ts (default) + en_us.ts, keys must be kept in sync
+└── styles/theme.css   # global theme tokens (see below)
 docs/
-├── THEMING.md         # 主题系统权威文档
+├── THEMING.md         # theme system authority document
 └── nimoos-app-label-spec.md
 ```
 
-## 开发约定
+## Development Conventions
 
-### 主题/配色(硬约束)
+### Theme/Colors (Hard Requirement)
 
-**一切可见颜色必须来自 `src/styles/theme.css` 定义的 token(`var(--…)`),禁止在任何组件或 CSS 中写死颜色字面量**(`#fff`、`rgba(...)`、具名色)。主题通过根节点 `data-theme` 属性整体切换:默认为蓝色/深色玻璃主题,`data-theme="light"` 为米白纸感主题。新增颜色语义时在 `theme.css` 新增 token 并在**每套主题块**中赋值。完整规则与例外清单见 [`docs/THEMING.md`](docs/THEMING.md)。
+**All visible colors must come from tokens defined in `src/styles/theme.css` (`var(--…)`), hardcoded color literals are forbidden** (`#fff`, `rgba(...)`, named colors). Themes are switched globally via the root node's `data-theme` attribute: default is blue/dark glass theme, `data-theme="light"` is beige/paper theme. When adding new color semantics, add a token in `theme.css` and assign values in **every theme block**. See [`docs/THEMING.md`](docs/THEMING.md) for complete rules and exceptions.
 
 ### i18n
 
-新增文案键必须**同时**加入 `src/i18n/zh_cn.ts` 和 `en_us.ts` —— `parity.test.ts` 会断言两个文件键完全一致,漏一个测试即红。
+When adding new copy keys, they must be added to **both** `src/i18n/zh_cn.ts` and `en_us.ts` — `parity.test.ts` asserts that both files have identical keys, test fails if one is missing.
 
-### 认证
+### Authentication
 
-- JWT(access/refresh)存 localStorage,401 时由共享包单飞刷新兜底。
-- 认证失败处理顺序不可颠倒:**先清废 token,再跳 `/app/#/login`**(否则路由守卫会造成无限重定向环)。
+- JWT (access/refresh) stored in localStorage, failed auth is handled by shared package which attempts refresh on 401.
+- Auth failure handling order must not be reversed: **clear invalid tokens first, then redirect to `/app/#/login`** (otherwise route guards cause infinite redirect loops).
 
-### 共享包(`@nimotech/nimoos-service`)
+### Shared Package (`@nimotech/nimoos-service`)
 
-源码内联在本仓 `packages/service/`,无需单独构建。改动它之后:**重启 dev server**
-(`Ctrl-C` 再 `pnpm dev`)才会生效——Vite 的文件 watcher 默认忽略 `node_modules/**`,
-而这个包正是经这条路径服出去的,存盘不会自动触发热更新。重启之后浏览器仍可能命中
-磁盘缓存(该模块的 URL 带 `immutable` 缓存头),需要**硬刷新**(`Ctrl-Shift-R`)才能
-看到新代码。都不需要 `pnpm build`、清 `.vite` 缓存或 `pnpm install`——除非
-`packages/service/src/*.ts` 与其在 `node_modules/.pnpm/` 下的硬链接镜像断开(重启 +
-硬刷新后仍是旧代码时,跑一次 `pnpm install` 重新链上即可)。完整说明见 `CLAUDE.md`
-「共享 service 包」一节。
+Source code is inlined in this repo under `packages/service/`, no separate build needed. After making changes: **restart the dev server**
+(`Ctrl-C` then `pnpm dev`) for changes to take effect — Vite's file watcher ignores `node_modules/**` by default,
+and this package is served from that path, so file saves do not automatically trigger hot updates. After restart, the browser may still hit
+disk cache (the module URL has `immutable` cache header), requiring **hard refresh** (`Ctrl-Shift-R`) to
+see new code. No need for `pnpm build`, clearing `.vite` cache, or `pnpm install` — unless
+`packages/service/src/*.ts` hardlinks in `node_modules/.pnpm/` get broken (after restart +
+hard refresh if still seeing old code, run `pnpm install` once to relink). Full explanation in `CLAUDE.md`
+section "Shared service package".
