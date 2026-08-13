@@ -87,4 +87,79 @@ describe('folderSizesStore', () => {
     expect(s.statusOf('/DATA/A')).toBe('idle')
     expect(s.statusOf('/DATA/B')).toBe('idle')
   })
+
+  it('reset() aborts the in-flight request', async () => {
+    let capturedSignal: AbortSignal | undefined
+    const d = deferred<number>()
+    vi.mocked(service.folder.getFolderSize).mockImplementation((_path, opts) => {
+      capturedSignal = opts?.signal
+      return d.promise
+    })
+    const s = useFolderSizesStore()
+    const inflight = s.compute('/DATA/Docs')
+    expect(capturedSignal?.aborted).toBe(false)
+    s.reset()
+    expect(capturedSignal?.aborted).toBe(true)
+    // Simulate axios rejecting the in-flight call once the signal fires.
+    // The epoch guard must drop this rejection: no error state resurrected
+    // for a path the current view (post-reset) no longer cares about.
+    d.reject(new DOMException('aborted', 'AbortError'))
+    await inflight
+    expect(s.statusOf('/DATA/Docs')).toBe('idle')
+  })
+
+  it('caps concurrency at 3 in-flight requests: a 4th compute() is queued and issued once one settles', async () => {
+    const deferreds = [deferred<number>(), deferred<number>(), deferred<number>(), deferred<number>()]
+    let callIndex = 0
+    vi.mocked(service.folder.getFolderSize).mockImplementation(() => deferreds[callIndex++].promise)
+    const s = useFolderSizesStore()
+
+    const p1 = s.compute('/DATA/A')
+    const p2 = s.compute('/DATA/B')
+    const p3 = s.compute('/DATA/C')
+    const p4 = s.compute('/DATA/D') // over the cap: must queue, not call the service
+
+    expect(service.folder.getFolderSize).toHaveBeenCalledTimes(3)
+    // Queued paths show 'loading' immediately, same as in-flight ones — the
+    // UI does not distinguish "queued" from "running".
+    expect(s.statusOf('/DATA/D')).toBe('loading')
+
+    deferreds[0].resolve(10)
+    await p1
+    await Promise.resolve() // let the queue drain pick up the 4th
+
+    expect(service.folder.getFolderSize).toHaveBeenCalledTimes(4)
+    expect(s.statusOf('/DATA/D')).toBe('loading')
+
+    deferreds[1].resolve(20)
+    deferreds[2].resolve(30)
+    deferreds[3].resolve(40)
+    await Promise.all([p2, p3, p4])
+    expect(s.statusOf('/DATA/D')).toBe('done')
+    expect(s.bytesOf('/DATA/D')).toBe(40)
+  })
+
+  it('reset() clears the queue: a queued compute() never issues its request', async () => {
+    const active = [deferred<number>(), deferred<number>(), deferred<number>()]
+    let callIndex = 0
+    vi.mocked(service.folder.getFolderSize).mockImplementation(() => active[callIndex++].promise)
+    const s = useFolderSizesStore()
+
+    const p1 = s.compute('/DATA/A')
+    const p2 = s.compute('/DATA/B')
+    const p3 = s.compute('/DATA/C')
+    void s.compute('/DATA/D') // queued behind the cap; deliberately never awaited — reset() strands it
+
+    expect(service.folder.getFolderSize).toHaveBeenCalledTimes(3)
+    s.reset()
+    active[0].resolve(1)
+    active[1].resolve(2)
+    active[2].resolve(3)
+    await Promise.all([p1, p2, p3])
+
+    // The queue was emptied by reset(), so draining a settled slot never
+    // reaches the queued path's thunk.
+    expect(service.folder.getFolderSize).toHaveBeenCalledTimes(3)
+    expect(s.statusOf('/DATA/D')).toBe('idle')
+  })
 })
