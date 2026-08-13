@@ -37,11 +37,12 @@
 // a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos view under
 // photos-root so the shared sidebar keeps its layout"; Plan B has since
 // re-skinned the timeline view, `Photos.vue`) — the parity scss above
-// reaches every one of them, not just this one. The 13 pages that haven't had their own
-// `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
-// pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/
-// --success shadowed to Vue2's values) described in task-3-report.md's token-collision
-// table — a known, registered hybrid transitional look, not a missing-styling gap anymore.
+// reaches every one of them, not just this one. The 8 pages (after Plan C Task 2) that
+// haven't had their own `.app`-grid re-skin yet still carry a transitional
+// `.sidebar { flex: 0 0 var(--sidebar-w) }` pin plus the accepted parity-token/theme.css
+// collision (--bg/--accent/--accent-soft/--success shadowed to Vue2's values) described in
+// task-3-report.md's token-collision table — a known, registered hybrid transitional look,
+// not a missing-styling gap anymore.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
