@@ -165,7 +165,10 @@ function hiddenLabel(hidden: CrumbSeg[]): string {
 .breadcrumb { display: flex; align-items: center; gap: 4px; flex: 1 1 auto; flex-wrap: wrap; min-width: 0; overflow: hidden; }
 /* A single label wider than the whole breadcrumb would wrap by word into a row the
    two-line cap then clips. Truncate it instead — one shortened crumb beats a
-   missing one. min-width:0 is required for text-overflow to take effect on a flex item. */
+   missing one. min-width:0 is defence only, not the thing that makes the ellipsis
+   work: a flex item's automatic minimum size applies only while its overflow is
+   visible (CSS Flexbox L1 §4.5), and overflow:hidden below already opts out. Keep
+   it so the truncation survives someone later relaxing that overflow. */
 .crumb { background: none; border: none; color: var(--fg-muted); font-size: 14px; padding: 2px 4px; border-radius: 6px; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 button.crumb { cursor: pointer; }
 button.crumb:hover { background: var(--chip-bg); color: var(--fg); }
