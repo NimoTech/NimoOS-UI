@@ -1,13 +1,13 @@
 <script setup lang="ts">
-// P2 灯箱壳 —— 结构照 Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue 移植,
-// 状态全读 useLightbox() 单例(T2/T3),静图舞台委托 PhotoImageViewer(T5,自带底部缩放条)。
-// delta(见 task-6-brief.md):1) 加入相册已于 P4(Task 9)加回,Ask Nimo 仍归 SP8;2) 详情栏改可 toggle(占位到 T7);
-// 3) 顶栏不放缩放钮(PhotoImageViewer 自持底部缩放条,减少跨组件 ref);4) 当前项一律按 id 比较。
-// Task 9 收尾:挂载 T7 的 PhotoInfoPanel(读 lb.detail,水合后的明细,而非 list-item 占位的
-// current)与 T8 的 PhotoFilmstrip(绝对下标 select → lb.goTo)。PhotoInfoPanel 自身样式假设
-// "并排 flex row" 布局(它内部就带 flex:0 0 auto),故把舞台从 lb-stage 单飞的 flex:1 列项
-// 改包一层 .lb-body(行 flex),让详情栏与舞台并排,而不是硬套 T6 之前留的绝对定位 .lb-info 占位
-// (已删除,详情栏定位改由 PhotoInfoPanel 自己的样式承担)。
+// P2 Lightbox shell — structure ported from Vue2 NimoOS-UI src/views/Photos/PhotosLightbox.vue,
+// state entirely from useLightbox() singleton (T2/T3), static stage delegated to PhotoImageViewer (T5, with built-in bottom zoom bar).
+// Delta (see task-6-brief.md): 1) Add to album added back at P4 (Task 9), Ask Nimo still in SP8; 2) Info panel togglable (layout placeholder to T7);
+// 3) No zoom button in top bar (PhotoImageViewer owns bottom zoom bar, reduces cross-component ref); 4) Current item always compared by id.
+// Task 9 finalization: mount PhotoInfoPanel at T7 (reads lb.detail, hydrated metadata rather than list-item placeholder
+// current) and PhotoFilmstrip at T8 (absolute index select → lb.goTo). PhotoInfoPanel's own styles assume
+// "side-by-side flex row" layout (it carries flex:0 0 auto internally), so wrapping stage from standalone lb-stage flex:1 column item
+// with one .lb-body layer (row flex), letting info panel and stage sit side-by-side instead of forcing old T6's absolute positioning .lb-info placeholder
+// (already deleted; info panel positioning now owned by PhotoInfoPanel's own styles).
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -25,10 +25,10 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const lb = useLightbox()
 
-const showInfo = ref(false) // 详情面板(T7 填充);默认关,可 toggle
+const showInfo = ref(false) // Info panel (T7 fill); default closed, togglable
 const confirmDelete = ref(false)
 
-// URL 生成器(bare、带 token)——薄封装供模板调用
+// URL generator (bare, with token) — thin wrapper for template calls
 const originalUrl = (id: string | number) => service.photos.originalUrl(id)
 const thumbnailUrl = (id: string | number, size = 'large') => service.photos.thumbnailUrl(id, size)
 const liveUrl = (id: string | number) => service.photos.liveUrl(id)
@@ -40,23 +40,23 @@ const downloadName = (): string => {
   return title != null && title !== '' ? String(title) : `photo-${cur?.id ?? ''}`
 }
 
-// —— 收藏 ——(toggleFav 已在 useLightbox 乐观落库;emit 仅为 P3 广播)
+// —— Favorite —— (toggleFav already optimistically persisted in useLightbox; emit is only for P3 broadcast)
 function onToggleFav(): void {
   const cur = lb.current.value
   if (!cur) return
-  void lb.toggleFav() // 同步乐观翻转 favIds → isFav 立即反映新态
+  void lb.toggleFav() // Sync optimistic flip favIds → isFav immediately reflects new state
   emit('toggle-fav', cur.id, lb.isFav.value)
 }
 
-// —— 加入相册 ——(照 Vue2 PhotosLightbox.vue:13-14:仅 emit,不含逻辑;宿主接 T5
-// AlbumPickerDialog 打开面板,灯箱本身不关闭)。
+// —— Add to album —— (per Vue2 PhotosLightbox.vue:13-14: emit only, no logic; host handles T5
+// AlbumPickerDialog opening panel, lightbox itself does not close).
 function onAddToAlbum(): void {
   const cur = lb.current.value
   if (!cur) return
   emit('add-to-album', cur.id)
 }
 
-// —— 删除确认 ——(照 Vue2 :151-165)
+// —— Delete confirmation —— (per Vue2 :151-165)
 function doDelete(): void {
   const cur = lb.current.value
   if (!cur) return
@@ -65,8 +65,8 @@ function doDelete(): void {
   lb.close()
 }
 
-// —— chrome 5s 无操作自隐 ——(复用 T5 同款 isMoving + 计时;提到视频锚点 watch 之前声明,
-// 避免下方 open-watch 的 immediate:true 分支在边缘情况下引用到尚未初始化的 hideTimer)
+// —— Chrome auto-hide after 5s idle —— (reuse same isMoving + timer as T5; declare before video seek watch
+// to avoid open-watch's immediate:true branch referencing uninitialized hideTimer in edge cases)
 const isMoving = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 function onMouseMove(): void {
@@ -75,17 +75,17 @@ function onMouseMove(): void {
   hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
 }
 
-// —— 视频起播位续播 ——(照 Vue2 applyStartTime :335-344:仅本次打开首张匹配视频 seek 一次)
-// 本组件被父级持久挂载(内部靠 v-if="lb.open.value" 自门控),onMounted 时灯箱通常还没开,
-// 那一刻 lb.current 为空,锚点只能在 open 由假变真的瞬间捕获(见 watch),否则 startPhotoId 恒为 null、
-// applyStartTime 永远 early-return,悬停位续播失效。
-// 同一持久挂载坑还连累另外两处状态,故这个 open-watch 一并兜底:
-// 1) chrome 自隐(isMoving)只在 onMounted 里 arm 一次 5s 计时 —— 组件常年挂着、灯箱关着,
-//    计时早就过期,真正 openAt 打开时 isMoving 已是 false,翻页箭头全隐,看着像没渲染。
-//    (2026-07-31 起顶栏不再受 isMoving 管辖 —— 它是不透明流内 chrome,恒显,见模板注释。)
-//    每次 open 都重新 onMouseMove() 一次,保证"刚打开"必是 chrome 可见 + 计时器重新起跑。
-// 2) showInfo 是组件级 ref,open→close→reopen 会带着上一次的开合状态过来,不符合"详情栏默认收起"
-//    的设计;每次 open 显式重置为 false。
+// —— Video resume from playback position —— (per Vue2 applyStartTime :335-344: seek only the first matching video on this open)
+// This component is persistently mounted by its parent (self-gated internally via v-if="lb.open.value"), and at onMounted the lightbox is usually not yet open,
+// at which point lb.current is null; the anchor can only be captured at the moment open goes true (see watch), otherwise startPhotoId remains null forever,
+// applyStartTime early-returns forever, and resume fails.
+// This same persistent-mount pitfall entangles two other pieces of state, so this one open-watch handles both:
+// 1) Chrome auto-hide (isMoving) only arms a 5s timer once in onMounted — the component hangs around permanently, lightbox stays closed,
+//    the timer expires long ago, when truly opening at openAt isMoving is already false, nav arrows all hidden, looks like they didn't render.
+//    (Since 2026-07-31 top bar is no longer governed by isMoving — it is opaque in-flow chrome, always visible, see template comment.)
+//    Each open re-runs onMouseMove() once, guaranteeing "just opened" means chrome visible + timer restarted.
+// 2) showInfo is a component-level ref; open→close→reopen carries the previous toggle state, violating "info panel default closed"
+//    design; explicitly reset to false each open.
 const videoEl = ref<HTMLVideoElement | null>(null)
 let startApplied = false
 let startPhotoId: string | number | null = null
@@ -99,7 +99,7 @@ watch(
       showInfo.value = false
     }
   },
-  { immediate: true }, // 兼容组件在灯箱已开时才挂载的边缘情况
+  { immediate: true }, // Handle edge case where component mounts after lightbox already open
 )
 function applyStartTime(): void {
   const cur = lb.current.value
@@ -113,7 +113,7 @@ function applyStartTime(): void {
   void v.play().catch(() => {})
 }
 
-// —— 实况照片按住播放 ——(net-new:Vue2 灯箱未实现;按住徽标出覆盖视频,松开停并隐藏)
+// —— Live photo press-to-play —— (net-new: Vue2 lightbox didn't implement; hold badge to play overlay video, release to stop and hide)
 const liveActive = ref(false)
 const liveVideoEl = ref<HTMLVideoElement | null>(null)
 function liveStart(): void {
@@ -122,11 +122,11 @@ function liveStart(): void {
 }
 function liveStop(): void {
   const v = liveVideoEl.value
-  try { v?.pause?.() } catch { /* jsdom / 未就绪 */ }
+  try { v?.pause?.() } catch { /* jsdom / not ready */ }
   liveActive.value = false
 }
 
-// —— 键盘 ——(照 Vue2 :360-370;confirmDelete 开时 Escape 只关模态)
+// —— Keyboard —— (per Vue2 :360-370; Escape only closes modal when confirmDelete is open)
 function onKey(e: KeyboardEvent): void {
   if (!lb.open.value) return
   if (confirmDelete.value) {
@@ -152,10 +152,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div v-if="lb.open.value" class="lightbox" :data-info="showInfo" @mousemove="onMouseMove">
-    <!-- 顶部工具栏。用户 2026-07-31 验收要求:顶栏不做透明、图片显示在上下两栏之间 ——
-         故它是 flex 流内项(不再 position:absolute 盖在舞台上)且**不参与 5s 自隐**
-         (不透明的 chrome 一旦收起,舞台会随之变高、图片跳一下;翻页箭头仍随 isMoving 自隐,
-         它们是叠在照片上的浮层)。 -->
+    <!-- Top toolbar. User 2026-07-31 acceptance requirement: opaque top bar, image shows between top and bottom bars —
+         so it is an in-flow flex item (not position:absolute covering stage) and **does not participate in 5s auto-hide**
+         (once opaque chrome hides, stage grows and image jumps; nav arrows still auto-hide with isMoving,
+         they are overlays stacked on the photo). -->
     <div class="lb-top">
       <button class="lb-icon-btn lb-close" type="button" :title="t('photosClose')" @click="lb.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -209,11 +209,11 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 舞台 + 详情栏:并排 flex row(详情栏样式假设自己是 row 内 flex 项,见头部注释) -->
+    <!-- Stage + info panel: side-by-side flex row (info panel styles assume it is a flex item in row, see top comment) -->
     <div class="lb-body">
     <div class="lb-stage">
       <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
-        <!-- (a) 视频 -->
+        <!-- (a) Video -->
         <video
           v-if="lb.current.value?.isVideo"
           ref="videoEl"
@@ -226,7 +226,7 @@ onBeforeUnmount(() => {
           @loadedmetadata="applyStartTime"
         ></video>
 
-        <!-- (b) 实况照片(非视频):静图 + 徽标 + 按住播 -->
+        <!-- (b) Live photo (non-video): static image + badge + press-to-play -->
         <template v-else-if="lb.current.value?.isLivePhoto">
           <PhotoImageViewer
             :asset-id="lb.current.value.id"
@@ -254,7 +254,7 @@ onBeforeUnmount(() => {
           </button>
         </template>
 
-        <!-- (c) 静图 -->
+        <!-- (c) Static image -->
         <PhotoImageViewer
           v-else-if="lb.current.value"
           :asset-id="lb.current.value.id"
@@ -263,7 +263,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <!-- 翻页箭头 -->
+      <!-- Nav arrows -->
       <button
         v-if="isMoving"
         class="lb-nav lb-nav-prev"
@@ -286,14 +286,14 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 详情栏(T7):读水合后的 lb.detail,而非 list-item 占位的 lb.current -->
+    <!-- Info panel (T7): reads hydrated lb.detail, not list-item placeholder lb.current -->
     <PhotoInfoPanel :photo="lb.detail.value" :visible="showInfo" />
     </div>
 
-    <!-- 缩略图条(T8):绝对下标 select → lb.goTo -->
+    <!-- Filmstrip (T8): absolute index select → lb.goTo -->
     <PhotoFilmstrip :list="lb.list.value" :index="lb.index.value" @select="lb.goTo" />
 
-    <!-- 删除确认模态 -->
+    <!-- Delete confirmation modal -->
     <div v-if="confirmDelete" class="lb-confirm-scrim" @click.self="confirmDelete = false">
       <div class="lb-confirm">
         <div class="lb-confirm-title">{{ t('photosDeleteConfirmTitle') }}</div>
@@ -316,10 +316,10 @@ onBeforeUnmount(() => {
   flex-direction: column;
   background: var(--app-bg);
 }
-/* 用户 2026-07-31 验收要求:顶栏改成不透明的流内 chrome(原先是 position:absolute + 从黑到
-   透明的渐变,盖在舞台上,图片会钻到它底下)。改成流内项后 .lb-body(flex:1)自然只占
-   顶栏与底部胶片条之间的那一段,图片就夹在两栏中间;底色用实底 --popup-bg 后,栏内文字/
-   图标压的是主题面而不是照片,原先那条「固定暗化保对比度」的 theme-exception 一并作废。 */
+/* User 2026-07-31 acceptance: top bar now opaque in-flow chrome (previously position:absolute + black-to-transparent
+   gradient covering stage, image would peek under it). As in-flow item .lb-body (flex:1) now naturally fills
+   only between top bar and bottom filmstrip, image is sandwiched between both; with solid --popup-bg background,
+   text/icons in the bar press against theme surface not photo; the old "fixed darkening for contrast" theme-exception no longer applies. */
 .lb-top {
   flex: 0 0 auto;
   z-index: 3;
@@ -348,7 +348,7 @@ onBeforeUnmount(() => {
 }
 .lb-icon-btn:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); }
 .lb-fav.is-fav { color: var(--star-fg, #ffd60a); }
-/* theme-exception: 收藏星实心金色为跨皮肤固定语义色 */
+/* theme-exception: favorite star solid gold is cross-theme fixed semantic color */
 .lb-info-toggle.active { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); color: var(--accent); }
 .lb-icon-btn.danger:hover { color: var(--remove-fg, #ff5d5d); }
 
@@ -430,9 +430,9 @@ onBeforeUnmount(() => {
 .lb-nav-prev { left: 16px; }
 .lb-nav-next { right: 16px; }
 
-/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(.info-panel),这里只管它在灯箱内的外边距,
-   不重复定义外观。上边距原为 64px —— 那是给绝对定位的顶栏让位;顶栏 2026-07-31 改成流内
-   chrome 后不再需要让位,四边统一 16px,否则详情栏会比同排的舞台整体下沉一截。*/
+/* PhotoInfoPanel (T7) carries its own positioning/size/color styles (.info-panel), here we only manage its margins in the lightbox,
+   not redefine appearance. Top margin was originally 64px — to make room for absolutely-positioned top bar; since 2026-07-31
+   top bar is now in-flow chrome it no longer needs that offset, uniform 16px on all sides; otherwise info panel sinks below stage in the same row. */
 :deep(.info-panel) { margin: 16px 16px 16px 0; }
 
 .lb-confirm-scrim {
@@ -443,16 +443,16 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
   background: var(--scrim, rgba(0, 0, 0, 0.55));
-  /* theme-exception: 模态遮罩暗化层,皮肤无关 */
+  /* theme-exception: modal overlay darkening layer, theme-independent */
 }
 .lb-confirm {
   width: 340px;
   max-width: 90vw;
   padding: 22px;
   border-radius: 16px;
-  /* 用 --popup-bg(不透明弹层色:深色主题深蓝玻璃 0.9/0.95、浅色主题实心白),
-     不用 --card-bg —— 后者深色下是近透明白玻璃(alpha 0.085~0.26),叠在灯箱暗底上
-     会看穿(真机验收反馈:删除弹窗"透明")。两套主题各自不同的实底色。 */
+  /* Use --popup-bg (opaque popup color: dark theme deep blue glass 0.9/0.95, light theme solid white),
+     not --card-bg — the latter in dark theme is nearly-transparent white glass (alpha 0.085~0.26), layered on lightbox's dark background
+     it shows through (real device acceptance feedback: delete modal is "transparent"). Two themes each have their own distinct solid background. */
   background: var(--popup-bg);
   border: 1px solid var(--border);
   color: var(--fg);

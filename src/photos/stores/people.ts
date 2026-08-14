@@ -3,7 +3,7 @@
 //   mutations  :350-361, :503-529
 //   actions    :1079-1099 (fetch/filter), :1100-1120 (rename/relation/fav),
 //              :1121-1132 (cover), :1143-1153 (merge), :1171-1211 (purge+undo), :1224-1248 (suggestions)
-// Photos v1 后端无信封:listPersons 是 { persons, facesIndexedUpTo } 对象包裹体,包内不解包,这里自己解。
+// Photos v1 backend has no envelope: listPersons is a { persons, facesIndexedUpTo } object wrapper; not unwrapped inside, self-unwrapped here.
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
@@ -17,28 +17,28 @@ const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
 const CONFIDENCE_ALLOWED = [50, 60, 70, 80, 90, 95]
 const PURGE_DELAY_MS = 5000
 
-// 撤销清除的挂起项。定时器与快照不可序列化,照 Vue2 放模块作用域(photos.js:230-231),不进 state。
-// key 一律 String(id)(铁律:后端 id 可能是数字、路由参数恒是字符串)。
+// Purge cancellation pending items. Timer and snapshot are not serializable, follow Vue2 to place at module scope (photos.js:230-231), not in state.
+// key always String(id) (iron rule: backend id may be numeric, route params are always strings).
 interface PurgeEntry { timer: ReturnType<typeof setTimeout>; snapshot: Person | null; idx: number; committed: boolean }
 const _purgeTimers = new Map<string, PurgeEntry>()
 
 function readFilter(): PeopleFilter {
-  // 照 Vue2 photos.js:283-291 的 IIFE:白名单校验 + 严格 '1' 比较 + 整体 try 兜底(隐私模式/SSR)。
+  // Follow Vue2 photos.js:283-291 IIFE: whitelist validation + strict '1' comparison + overall try fallback (private mode/SSR).
   const def: PeopleFilter = { confidence: 80, showSingletons: false }
   try {
     const c = parseInt(localStorage.getItem(LS_CONFIDENCE) ?? '', 10)
     if (CONFIDENCE_ALLOWED.includes(c)) def.confidence = c
     def.showSingletons = localStorage.getItem(LS_SHOW_SINGLETONS) === '1'
   } catch {
-    /* localStorage 不可用时保持默认值 */
+    /* Keep default value when localStorage is unavailable */
   }
   return def
 }
 
 export const usePhotosPeople = defineStore('photosPeople', () => {
   const people = ref<Person[]>([])
-  // New-UI 增:空态门控。只在 fetchPeople 成功路径置 true,失败留 false 可重试
-  // (P3 血泪:无条件置位会让瞬时失败与「确认零人物」不可区分)。Vue2 的 peopleLoaded 是只写不读的死字段。
+  // New-UI addition: empty state gate control. Only set to true on fetchPeople success path, leave false on failure for retry
+  // (P3 hard lesson: unconditional setting makes transient failure indistinguishable from "confirmed zero people"). Vue2's peopleLoaded is a write-only dead field.
   const peopleLoaded = ref(false)
   const facesIndexedUpTo = ref<string | null>(null)
   const filter = ref<PeopleFilter>(readFilter())
@@ -48,7 +48,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const unnamed = computed(() => unnamedOf(people.value))
   const visibleUnnamed = computed(() => visibleUnnamedOf(unnamed.value, filter.value))
   const namedCount = computed(() => named.value.length)
-  // 侧栏/顶栏计数与网格必须同一口径:未命名计数用「可见的」而不是全部(Vue2 photos.js:344 注释强调)。
+  // Sidebar/topbar count and grid must use the same calibration: unnamed count uses "visible" not all (Vue2 photos.js:344 comment emphasizes).
   const unnamedCount = computed(() => visibleUnnamed.value.length)
   const hiddenSingletonCount = computed(() => hiddenSingletonCountOf(unnamed.value, filter.value))
 
@@ -57,46 +57,46 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     return people.value.find((p) => key(p.id) === key(id)) ?? null
   }
 
-  // ── 本地写入(对应 Vue2 的四个 mutation)──
+  // ── Local writes (corresponding to four mutations in Vue2) ──
   function patchPerson(id: string | number, patch: Partial<Person>): void {
     const i = people.value.findIndex((p) => key(p.id) === key(id))
-    if (i >= 0) people.value.splice(i, 1, { ...people.value[i], ...patch })  // 找不到静默无操作,照 Vue2 :514-517
+    if (i >= 0) people.value.splice(i, 1, { ...people.value[i], ...patch })  // Not found, silent no-op, follow Vue2 :514-517
   }
   function removePerson(id: string | number): void {
     people.value = people.value.filter((p) => key(p.id) !== key(id))
   }
   function insertPersonAt(person: Person, idx: number): void {
     const arr = [...people.value]
-    const clamped = idx >= 0 && idx <= arr.length ? idx : arr.length   // 越界/负数回落末尾追加,照 Vue2 :521-526
+    const clamped = idx >= 0 && idx <= arr.length ? idx : arr.length   // Out of bounds/negative falls back to end append, follow Vue2 :521-526
     arr.splice(clamped, 0, person)
     people.value = arr
   }
 
-  // ── 读取 ──
+  // ── Read ──
   async function fetchPeople(): Promise<void> {
     try {
       const raw = (await service.photos.listPersons()) as
         { persons?: unknown; facesIndexedUpTo?: unknown } | undefined
       const list = Array.isArray(raw?.persons) ? (raw?.persons as Record<string, unknown>[]) : []
       const mapped = list.map(toPerson)
-      // 撤销窗口期内的人物要从重拉结果里滤掉,否则「删了又冒出来」(Vue2 mutation SET_PEOPLE :507)。
+      // People within purge cancellation window must be filtered out from refetch result, else "deleted but resurfaces" (Vue2 mutation SET_PEOPLE :507).
       people.value = _purgeTimers.size ? mapped.filter((p) => !_purgeTimers.has(key(p.id))) : mapped
-      // 未登记偏离(评审必修 3,补登记):这里的 `!== undefined` 照的是 Vue2 **mutation**
-      // 层(:509)的判定,但 Vue2 **action** 层(fetchPeople :1085)总是把
-      // `data.facesIndexedUpTo || null` 传给 mutation——成功路径永远是"有值或 null",
-      // 从不是 undefined,所以 Vue2 的真实行为其实是「响应缺这个字段就把本地值重置成
-      // null」,只有失败分支(commit 时压根不带这个键)才会落到"不覆盖"这条路径。
-      // 这里没有 action/mutation 两层包装,直接照 mutation 的语义实现:字段缺席就保留旧值,
-      // 不reset 成 null——判定这样更好(响应体正常但漏字段时不该丢用户已看到的旧值),
-      // 保留,不改回 Vue2。顺带 `||` → `??`:Vue2 会把空字符串 `''` 当 falsy 归一成 null,
-      // 这里 `?? null` 只处理 null/undefined,空字符串会原样保留。
+      // Unregistered divergence (review required, add record): `!== undefined` here aligns with Vue2 **mutation**
+      // layer (:509) check, but Vue2 **action** layer (fetchPeople :1085) always passes
+      // `data.facesIndexedUpTo || null` to mutation—success path is always "has value or null",
+      // never undefined, so Vue2's actual behavior is "response missing this field resets local value to
+      // null", only failure branch (commit doesn't include this key at all) falls into "no override" path.
+      // No action/mutation two-layer wrapper here, directly implement by mutation semantics: field absent keeps old value,
+      // not reset to null—this is better (when response body is normal but missing field, shouldn't lose old value user already saw),
+      // keep as is, don't revert to Vue2. Relatedly `||` → `??`: Vue2 treats empty string `''` as falsy and coerces to null,
+      // here `?? null` only handles null/undefined, empty string stays as is.
       if (raw?.facesIndexedUpTo !== undefined) {
         facesIndexedUpTo.value = (raw.facesIndexedUpTo as string | null) ?? null
       }
       peopleLoaded.value = true
     } catch (e) {
-      // 偏离登记:Vue2(photos.js:1086-1089)在这里把列表清空成 [],一次网络抖动就抹掉已加载数据。
-      // 这里只记日志、保留上一次数据;peopleLoaded 不置位(首次失败留 false 可重试)。
+      // Divergence record: Vue2 (photos.js:1086-1089) clears list to [] here, a single network blip erases loaded data.
+      // Here only log, keep previous data; peopleLoaded not set (first failure leaves false for retry).
       console.error('[photos-people] fetchPeople', e)
     }
   }
@@ -106,25 +106,25 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
       const list = (await service.photos.mergeSuggestions()) as Array<Record<string, unknown>> | undefined
       mergeSuggestions.value = Array.isArray(list) ? list : []
     } catch (e) {
-      // 同上:Vue2 :1095-1098 失败清空,这里保留上一次数据。
+      // Same as above: Vue2 :1095-1098 clears on failure, here keep previous data.
       console.error('[photos-people] fetchMergeSuggestions', e)
     }
   }
 
-  // ── 过滤条件(写 localStorage,照 Vue2 mutation :350-361)──
+  // ── Filter preferences (write to localStorage, follow Vue2 mutation :350-361) ──
   function setConfidence(v: number): void {
     filter.value = { ...filter.value, confidence: v }
-    try { localStorage.setItem(LS_CONFIDENCE, String(v)) } catch { /* 忽略写入失败 */ }
+    try { localStorage.setItem(LS_CONFIDENCE, String(v)) } catch { /* Ignore write failure */ }
   }
   function setShowSingletons(v: boolean): void {
     filter.value = { ...filter.value, showSingletons: !!v }
-    try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* 忽略写入失败 */ }
+    try { localStorage.setItem(LS_SHOW_SINGLETONS, v ? '1' : '0') } catch { /* Ignore write failure */ }
   }
 
-  // ── 写入(乐观策略逐个保真,注意每个都不一样)──
+  // ── Write operations (optimistic strategy, verify each case separately, note each differs) ──
 
-  // 乐观 patch;失败不精确回滚,而是 fetchPeople 用服务端真值纠正(照 Vue2 renameCluster :1100-1103)。
-  // 抛出:视图层要弹失败 toast 并还原输入框(Vue2 吞错=用户看不到失败,属偏离登记 1 的同类)。
+  // Optimistic patch; failure doesn't precisely rollback, instead fetchPeople corrects with server truth (follow Vue2 renameCluster :1100-1103).
+  // Throws: view layer must show failure toast and restore input (Vue2 swallows error = user sees no failure, similar divergence record type 1).
   async function renamePerson(id: string | number, name: string): Promise<void> {
     patchPerson(id, { name })
     try {
@@ -136,8 +136,8 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 偏离登记 4:Vue2(PhotosPersonDetail.vue:951-955)fire-and-forget 且不回滚详情页本地值。
-  // 这里乐观 patch + 失败精确回滚 + rethrow,视图层 catch → toast。
+  // Divergence record 4: Vue2 (PhotosPersonDetail.vue:951-955) fire-and-forget and doesn't rollback detail page local value.
+  // Here optimistic patch + precise failure rollback + rethrow, view layer catch → toast.
   async function setPersonRelation(id: string | number, relation: string): Promise<void> {
     const prev = personById(id)?.relation ?? ''
     patchPerson(id, { relation })
@@ -150,9 +150,9 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 偏离登记 3:Vue2(photos.js:1113-1120)本地列表找不到该 person 就 return,一个请求都不发
-  // (深链直接进详情页时 people 是空的),而详情页无条件翻转本地 favorite —— UI 说已收藏、后端毫不知情。
-  // 这里不依赖本地命中:总是打后端;命中才顺带 patch;失败回滚 + rethrow。
+  // Divergence record 3: Vue2 (photos.js:1113-1120) returns if local list doesn't find the person, doesn't send any request
+  // (deep link directly to detail page leaves people empty), while detail page unconditionally flips local favorite—UI says favorited, backend knows nothing.
+  // Here not reliant on local hit: always call backend; only patch if hit; failure rollback + rethrow.
   async function setPersonFavorite(id: string | number, next: boolean): Promise<void> {
     const hit = personById(id)
     if (hit) patchPerson(id, { favorite: next })
@@ -165,19 +165,19 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 非乐观:等后端回来才写本地(照 Vue2 :1121-1132)。返回新的 coverFaceId 供视图刷新头像。
-  // 逐行核对 Vue2 :1123-1125 发现出入:Vue2 用 `!== undefined` 判定是否写入 —— 哪怕后端显式
-  // 返回 coverFaceId: null 也会 patch 成 null(清空本地封面);brief 快照用 `res?.coverFaceId ?? null`
-  // 把"显式 null"和"字段缺席"归一成了同一个值,会让显式清空的响应被误判成"没带字段"从而
-  // 不写,留着陈旧封面。以 Vue2 源为准,改成对原始字段做 `!== undefined` 判定。
+  // Non-optimistic: write to local only after backend responds (follow Vue2 :1121-1132). Return new coverFaceId for view to refresh avatar.
+  // Line-by-line cross-check against Vue2 :1123-1125 found discrepancy: Vue2 uses `!== undefined` to decide whether to write—even when backend explicitly
+  // returns coverFaceId: null, it will patch to null (clear local cover); brief snapshot uses `res?.coverFaceId ?? null`
+  // which coerces "explicit null" and "field absent" to the same value, letting explicit-clear responses be misread as "field not included" thus
+  // not write, leaving stale cover. By Vue2 source as authority, change to check original field with `!== undefined`.
   //
-  // T14 评审必修 1(纯加性修正,不改任何既有行为):返回类型补上 `| undefined`,**不再**用
-  // `?? null` 把"字段缺席"压成 null。原来那个 `?? null` 把上面这行小心区分出来的两种情况
-  // 又在返回值上合并了 —— 调用方(详情页容器)拿到 null 无法分辨「后端说要清空封面」与
-  // 「后端根本没提封面」,无条件 patch 就会在后端返回 `200 {}` 时把本地 coverFaceId 抹成
-  // null,详情页 hero 当场退化成渐变兜底(PersonHero.vue:76 的 isFallback 立刻为真)。
-  // 现在语义在整条边界上一致:undefined = 字段缺席(调用方应保持原值),null = 显式清空。
-  // 既有三条 store 测试不受影响(「字段缺席」那条不断言返回值,「显式 null」那条仍得 null)。
+  // T14 review required 1 (pure additive fix, changes no existing behavior): add `| undefined` to return type, **no longer** use
+  // `?? null` to coerce "field absent" to null. That original `?? null` merged the two carefully-distinguished cases
+  // again at the return value—call site (detail page container) getting null can't distinguish "backend says clear cover" from
+  // "backend didn't mention cover at all", unconditional patch will have backend returning `200 {}` clear local coverFaceId to
+  // null, detail page hero instantly degrades to gradient fallback (PersonHero.vue:76 isFallback becomes true immediately).
+  // Now semantics are consistent across the boundary: undefined = field absent (call site should keep original value), null = explicit clear.
+  // Existing three store tests unaffected (field absent case doesn't assert return value, explicit null case still gets null).
   async function setPersonCover(
     id: string | number, assetId: string | number,
   ): Promise<string | number | null | undefined> {
@@ -193,13 +193,13 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 非乐观(照 Vue2 :1133-1142)。assetId 传 null = 回退到人脸缩略图,后端字段传空串。
-  // 未登记偏离(评审必修 3,补登记):Vue2 :1136-1137 用的是 `assetId || ''`(发后端)和
-  // `assetId || null`(写本地)——falsy 判定,若 assetId 恰好是数字 `0` 或空串 `''` 这类
-  // "合法但 falsy" 的值,会被误判成"清空"。这里改用 `?? ''` 只处理 null/undefined,并把
-  // 本地 patch 直接写原始 assetId(不做 `|| null` 归一)——在 assetId 为 `0`/`''` 时与
-  // Vue2 行为分叉:Vue2 会清空,这里会保留原值。判定这里更好(id 语义上 falsy 值可能是
-  // 合法 id,不该被静默清空),保留,不改回 Vue2。
+  // Non-optimistic (follow Vue2 :1133-1142). Passing null for assetId = fallback to face thumbnail, send empty string to backend field.
+  // Unregistered divergence (review required, add record): Vue2 :1136-1137 uses `assetId || ''` (send to backend) and
+  // `assetId || null` (write locally)—falsy check, if assetId is exactly number `0` or empty string `''`, these kinds of
+  // "legitimate but falsy" values get misidentified as "clear". Here change to `?? ''` only handle null/undefined, and
+  // write local patch directly as original assetId (no `|| null` coercion)—behavior forks from Vue2 when assetId is `0`/`''`:
+  // Vue2 clears, here preserves original. This is better (semantically falsy id values may be legitimate ids,
+  // shouldn't be silently cleared), keep as is, don't revert to Vue2.
   async function setPersonHero(id: string | number, assetId: string | number | null): Promise<void> {
     try {
       await service.photos.updatePerson(id, { heroAssetId: assetId ?? '' })
@@ -210,7 +210,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 照 Vue2 mergeClusterInto :1143-1153:抛出给调用方,且 finally 无条件重拉两份数据(成功失败都要)。
+  // Follow Vue2 mergeClusterInto :1143-1153: throw to call site, and finally unconditionally refetch both data (both success and failure).
   async function mergePersonInto(fromId: string | number, intoId: string | number): Promise<void> {
     try {
       await service.photos.mergePersons(fromId, intoId)
@@ -223,25 +223,25 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 5 秒可撤销的彻底清除。返回 undo 闭包(照 Vue2 purgeClusterWithUndo :1171-1211),两处时序修正见注释。
+  // 5-second reversible purge. Return undo closure (follow Vue2 purgeClusterWithUndo :1171-1211), two timing fixes noted in comments.
   function purgePersonWithUndo(id: string | number): () => void {
     const k = key(id)
     const existing = _purgeTimers.get(k)
-    // 修正 2(Vue2 :1178-1180):同一 id 在窗口内被再次触发时,Vue2 会用「已经移除过一次的列表」重算 idx,
-    // 撤销后插回的位置就不是原位了。这里复用首次的 snapshot 与 idx。
+    // Fix 2 (Vue2 :1178-1180): when same id triggered again within window, Vue2 recalculates idx using "list already removed once",
+    // position when undo inserts back is no longer original position. Here reuse first snapshot and idx.
     const idx = existing ? existing.idx : people.value.findIndex((p) => key(p.id) === k)
     const snapshot = existing ? existing.snapshot : (idx >= 0 ? { ...people.value[idx] } : null)
     if (existing) { clearTimeout(existing.timer); _purgeTimers.delete(k) }
 
     removePerson(id)
 
-    // 评审修正(必修 2):entry 是本次 purge 的身份令牌。同一 id 在 committed(已发出
-    // DELETE、请求仍在途)期间被再次触发是合法场景(上面 existing 分支处理),会换成一条
-    // 新 entry;此时旧 entry 对应的 timer 回调与 undo 闭包必须能分辨"我已经被换下了",
-    // 不能凭 key 还在 map 里就误删/误插新 entry 的状态——一律用 `_purgeTimers.get(k) === entry`
-    // 的引用相等判断"当前 map 里这一条还是不是我自己",而不是只判断 key 是否存在。
-    // 这也让原来单独维护的 `cancelled` 标志变得多余:第一次 undo() 会把 entry 从 map 里
-    // delete,同一个 undo 被连点第二次时 `_purgeTimers.get(k)` 已经不是它自己,天然 no-op。
+    // Review fix (required): entry is identity token for this purge. When same id triggered again during committed
+    // (DELETE sent, request in flight) is a legal scenario (existing branch above handles), swaps in new
+    // entry; old entry's timer callback and undo closure must be able to detect "I've been replaced",
+    // can't just check key still in map and wrongly delete/insert new entry state—always use `_purgeTimers.get(k) === entry`
+    // reference equality to judge "is the one in map right now still me", not just check key exists.
+    // This also makes the previously separate `cancelled` flag redundant: first undo() removes entry from map,
+    // same undo clicked second time `_purgeTimers.get(k)` is no longer itself, naturally no-op.
     const entry: PurgeEntry = {
       timer: undefined as unknown as ReturnType<typeof setTimeout>,
       snapshot,
@@ -250,34 +250,34 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
 
     const undo = (): void => {
-      if (_purgeTimers.get(k) !== entry) return   // 不是当前这一条(已被连点吞掉,或被新一轮 purge 换下)
-      if (entry.committed) return                  // 窗口已过(定时器已触发)→ no-op,照 Vue2
+      if (_purgeTimers.get(k) !== entry) return   // Not this one (already spammed-cancelled, or replaced by new purge)
+      if (entry.committed) return                  // Window passed (timer fired) → no-op, follow Vue2
       _purgeTimers.delete(k)
       clearTimeout(entry.timer)
       if (entry.snapshot) insertPersonAt(entry.snapshot, entry.idx)
     }
 
     entry.timer = setTimeout(() => {
-      if (_purgeTimers.get(k) !== entry) return    // 已被连点撤销,或已被新一轮 purge 换下
-      // 修正 1(Vue2 :1198 早于 :1201):Vue2 在发请求**之前**就把 entry 摘掉,网络在途这段窗口里
-      // 若有一次 fetchPeople,被删的人物会「诈尸」重现。这里改成:先标记 committed(让 undo 失效,
-      // 保住「过期不可撤销」语义),entry 留到请求 settle 后才在 finally 里摘除,过滤窗口因此不留缝。
-      // 回归测试见 people.test.ts「committed 但 purgePerson 仍在途」两条(评审必修 1)。
+      if (_purgeTimers.get(k) !== entry) return    // Already spammed-undone, or replaced by new purge
+      // Fix 1 (Vue2 :1198 before :1201): Vue2 removes entry **before** sending request, during network flight window
+      // if one fetchPeople occurs, deleted person will "zombie" resurface. Here change to: mark committed first (make undo ineffective,
+      // preserve "expired not reversible" semantics), keep entry until request settles then remove in finally, filter window thus has no gap.
+      // Regression test see people.test.ts "committed but purgePerson still in flight" two cases (review required).
       entry.committed = true
       void service.photos
         .purgePerson(id)
         .catch((e: unknown) => {
           console.error('[photos-people] purgePersonWithUndo', e)
-          // 失败即把快照插回原位;不 fetchPeople —— 此刻服务端可能仍返回旧视图,会把刚插回的又冲掉
-          // (照 Vue2 :1204-1205 的注释与做法)。
+          // Failure, insert snapshot back at original position; don't fetchPeople—server may still return old view, will blow away just-inserted item
+          // (follow Vue2 :1204-1205 comment and approach).
           if (entry.snapshot) insertPersonAt(entry.snapshot, entry.idx)
         })
         .finally(() => {
-          // 评审修正(必修 2):删之前先确认 map 里还是自己这条,不能无脑 delete(k)。
-          // 场景:committed 后(DELETE 请求在途)同一 id 被再次触发,旧 entry 已被换成新
-          // entry2;若这里无条件 delete(k),请求 1 settle 时会把 entry2 一起删掉——entry2
-          // 的 timer2 到点发现 `get(k) === undefined` 直接 return,第二轮清除永远发不出去,
-          // 它的 undo 也失效(死引用)。
+          // Review fix (required): confirm map still has this one before deleting, can't just delete(k) blindly.
+          // Scenario: after committed (DELETE request in flight) same id triggered again, old entry swapped for new
+          // entry2; if unconditional delete(k) here, request 1 settle will delete entry2 too—entry2's
+          // timer2 fires sees `get(k) === undefined` returns directly, second purge never sends,
+          // its undo also ineffective (dead reference).
           if (_purgeTimers.get(k) === entry) _purgeTimers.delete(k)
         })
     }, PURGE_DELAY_MS)
@@ -286,15 +286,15 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     return undo
   }
 
-  // 合并建议:先乐观移除建议,失败重拉建议列表纠正(照 Vue2 :1224-1246)。
-  // accept 的 finally 无条件 fetchPeople(合并会改变人物列表);reject 不动人物列表。
+  // Merge suggestion: optimistically remove suggestion first, on failure refetch suggestion list to correct (follow Vue2 :1224-1246).
+  // accept's finally unconditionally fetchPeople (merge changes person list); reject doesn't touch person list.
   async function acceptMergeSuggestion(suggestionId: string | number): Promise<void> {
     const s = mergeSuggestions.value.find((m) => key(m.id as string | number) === key(suggestionId))
     mergeSuggestions.value = mergeSuggestions.value.filter((m) => key(m.id as string | number) !== key(suggestionId))
-    // 修正(评审必修 3):brief 快照把 `finally { fetchPeople() }` 放在 `if (s)` 外面,
-    // suggestionId 在本地找不到(已被别处消费/过期)时也会白打一次 listPersons——Vue2
-    // :1227-1234 的 try/catch/finally 整段都在 `if (s)` 里面,找不到就什么都不做。这里
-    // 收进 if(s) 对齐 Vue2:没有真正发生合并就没有理由重拉人物列表,减少一次无意义请求。
+    // Fix (review required): brief snapshot puts `finally { fetchPeople() }` outside `if (s)`,
+    // when suggestionId not found locally (already consumed elsewhere/expired) will also waste one listPersons call—Vue2
+    // :1227-1234 try/catch/finally entire block is inside `if (s)`, not found does nothing. Here
+    // move inside if(s) to align with Vue2: if merge didn't actually happen, no reason to refetch person list, reduce one pointless request.
     if (s) {
       try {
         await service.photos.mergePersons(s.fromId as string | number, s.intoId as string | number)
@@ -320,7 +320,7 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
     }
   }
 
-  // 纯本地清空:后端没有「全部忽略」端点,下次 fetchMergeSuggestions 建议会重新出现(照 Vue2 :1248 的注释)。
+  // Purely local clear: backend has no "dismiss all" endpoint, next fetchMergeSuggestions suggestions will reappear (follow Vue2 :1248 comment).
   function dismissAllMerges(): void { mergeSuggestions.value = [] }
 
   function __resetForTest(): void {

@@ -99,12 +99,12 @@ describe('PersonHero.vue — Statistics', () => {
     expect(w.get('[data-test="hero-stat-appears"] .v').text()).toBe('7')
   })
 
-  it('count=0 时显示 0(不是空字符串)', () => {
+  it('When count=0, display 0 (not empty string)', () => {
     const w = mountHero({ person: person({ count: 0 }), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-stat-photos"] .v').text()).toBe('0')
   })
 
-  it('firstSeen 为 null → 年份与月份都是空,不是 NaN/Invalid Date', () => {
+  it('When firstSeen is null → year and month are both empty, not NaN/Invalid Date', () => {
     const w = mountHero({ person: person({ firstSeen: null }), relationCount: 0, placesCount: 0 })
     const text = w.get('[data-test="hero-stat-first-seen"] .v').text()
     expect(text).toBe('')
@@ -112,14 +112,14 @@ describe('PersonHero.vue — Statistics', () => {
     expect(text).not.toContain('Invalid')
   })
 
-  it('firstSeen 为无法解析的字符串 → 同样是空,不是 Invalid Date', () => {
+  it('When firstSeen is unparseable string → also empty, not Invalid Date', () => {
     const w = mountHero({ person: person({ firstSeen: 'not-a-date' }), relationCount: 0, placesCount: 0 })
     const text = w.get('[data-test="hero-stat-first-seen"] .v').text()
     expect(text).not.toContain('Invalid')
     expect(text).not.toContain('NaN')
   })
 
-  it('firstSeen 有效 → 年份 + 本地化短月份(zh_cn locale 下不强行拼接英文句点)', () => {
+  it('When firstSeen is valid → year + localized short month (under zh_cn locale, do not force-append English period)', () => {
     const w = mountHero({ person: person({ firstSeen: '2020-03-15T00:00:00Z' }), relationCount: 0, placesCount: 0 })
     const text = w.get('[data-test="hero-stat-first-seen"] .v').text()
     expect(text).toContain('2020')
@@ -127,7 +127,7 @@ describe('PersonHero.vue — Statistics', () => {
     expect(text).not.toContain('.')
   })
 
-  it('偏离登记 9:locale=en_us 时月份走英文短名(不再写死 Vue2 的字面 \'en\')', () => {
+  it('Deviation note 9: when locale=en_us, month uses English short name (no longer hardcode Vue2\'s literal \'en\')', () => {
     const w = mountHero(
       { person: person({ firstSeen: '2020-03-15T00:00:00Z' }), relationCount: 0, placesCount: 0 },
       makeI18n('en_us'),
@@ -138,60 +138,60 @@ describe('PersonHero.vue — Statistics', () => {
   })
 })
 
-describe('PersonHero.vue — 简单点击 emit', () => {
-  it('点返回 → emit back', async () => {
+describe('PersonHero.vue — Simple click emit', () => {
+  it('Click back → emit back', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-back"]').trigger('click')
     expect(w.emitted('back')).toHaveLength(1)
   })
 
-  it('点收藏星标 → emit toggle-fav', async () => {
+  it('Click favorite star → emit toggle-fav', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-fav"]').trigger('click')
     expect(w.emitted('toggle-fav')).toHaveLength(1)
   })
 
-  it('点制作相册 → emit make-album', async () => {
+  it('Click create album → emit make-album', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-make-album"]').trigger('click')
     expect(w.emitted('make-album')).toHaveLength(1)
   })
 
-  it('点背景 → emit open-hero-picker', async () => {
+  it('Click background → emit open-hero-picker', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-background"]').trigger('click')
     expect(w.emitted('open-hero-picker')).toHaveLength(1)
   })
 
-  // 终审 Minor 7:hero 的返回钮文案是 t('photosPeople')(「人物」),照 Vue2 :6 的 $t('People');
-  // photosPersonBack(「返回人物」)是**人物不存在**空态那个返回按钮的文案,两处不是同一句。
-  it("返回按钮文案/aria 都是 t('photosPeople')(不是 photosPersonBack)", () => {
+  // Final review Minor 7: hero back button copy is t('photosPeople') ("People"), per Vue2 :6 $t('People');
+  // photosPersonBack ("Back to People") is the copy for the back button in the **person not found** empty state, two different strings.
+  it("Back button text/aria both use t('photosPeople') (not photosPersonBack)", () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     const back = w.get('[data-test="hero-back"]')
     expect(back.attributes('aria-label')).toBe(zh.photosPeople)
     expect(back.text()).toBe(zh.photosPeople)
   })
 
-  // 终审 Minor 6 / 7:hero 上不得再出现"弹窗标题"那三条长文案。
-  it("Edit 菜单两项用短动词键,收藏 title 用 'Mark as favorite'", async () => {
+  // Final review Minor 6/7: hero must not show the three long copy strings from "dialog title".
+  it("Edit menu two items use short verb keys, favorite title uses 'Mark as favorite'", async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-fav"]').attributes('title')).toBe(zh.photosPersonMarkFavorite)
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     expect(w.get('[data-test="hero-edit-rename"]').text()).toBe(zh.photosPersonMenuRename)
     expect(w.get('[data-test="hero-edit-merge"]').text()).toBe(zh.photosPersonMenuMergeInto)
-    // 反向:弹窗标题那两句不该出现在菜单里
+    // Negative: those two dialog title strings should not appear in the menu
     expect(w.get('[data-test="hero-edit-menu"]').text()).not.toContain(zh.photosPersonRename)
     expect(w.get('[data-test="hero-edit-menu"]').text()).not.toContain(zh.photosPersonMergeInto)
   })
 
-  it("已收藏态 title 切到 photosUnfavorite", () => {
+  it("When favorited, title switches to photosUnfavorite", () => {
     const w = mountHero({ person: person({ favorite: true }), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-fav"]').attributes('title')).toBe(zh.photosUnfavorite)
   })
 })
 
-describe('PersonHero.vue — Edit 菜单', () => {
-  it('点触发按钮打开菜单,三项分别点击各 emit 对应事件并收起菜单', async () => {
+describe('PersonHero.vue — Edit menu', () => {
+  it('Click trigger button opens menu, click each of three items emits corresponding event and closes menu', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     expect(w.find('[data-test="hero-edit-menu"]').exists()).toBe(true)
@@ -201,14 +201,14 @@ describe('PersonHero.vue — Edit 菜单', () => {
     expect(w.find('[data-test="hero-edit-menu"]').exists()).toBe(false)
   })
 
-  it('合并到另一个人物 → emit merge', async () => {
+  it('Merge into another person → emit merge', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     await w.get('[data-test="hero-edit-merge"]').trigger('click')
     expect(w.emitted('merge')).toHaveLength(1)
   })
 
-  it('删除人物 → emit delete', async () => {
+  it('Delete person → emit delete', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     await w.get('[data-test="hero-edit-delete"]').trigger('click')
@@ -216,8 +216,8 @@ describe('PersonHero.vue — Edit 菜单', () => {
   })
 })
 
-describe('PersonHero.vue — 关系分组下拉', () => {
-  it('四项渲染,当前项打勾', async () => {
+describe('PersonHero.vue — Relation group dropdown', () => {
+  it('Four items render, current item has checkmark', async () => {
     const w = mountHero({ person: person({ relation: 'friend' }), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
     const options = w.findAll('[data-test="hero-relation-option"]')
@@ -231,7 +231,7 @@ describe('PersonHero.vue — 关系分组下拉', () => {
     expect(inactive?.find('[data-test="hero-relation-check"]').exists()).toBe(false)
   })
 
-  it('relation 为空串 → None 项打勾', async () => {
+  it('When relation is empty string → None item has checkmark', async () => {
     const w = mountHero({ person: person({ relation: '' }), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
     const options = w.findAll('[data-test="hero-relation-option"]')
@@ -239,7 +239,7 @@ describe('PersonHero.vue — 关系分组下拉', () => {
     expect(noneOpt?.attributes('data-active')).toBe('true')
   })
 
-  it('点某一项 → emit pick-relation 带正确值并收起菜单', async () => {
+  it('Click an item → emit pick-relation with correct value and close menu', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
     const options = w.findAll('[data-test="hero-relation-option"]')
@@ -249,7 +249,7 @@ describe('PersonHero.vue — 关系分组下拉', () => {
     expect(w.find('[data-test="hero-relation-menu"]').exists()).toBe(false)
   })
 
-  it('点 None 项 → emit pick-relation 带空串', async () => {
+  it('Click None item → emit pick-relation with empty string', async () => {
     const w = mountHero({ person: person({ relation: 'family' }), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
     const options = w.findAll('[data-test="hero-relation-option"]')
@@ -259,8 +259,8 @@ describe('PersonHero.vue — 关系分组下拉', () => {
   })
 })
 
-describe('PersonHero.vue — 两个菜单的关闭交互', () => {
-  it('点 document 别处 → 两个菜单都关闭', async () => {
+describe('PersonHero.vue — Close interaction for both menus', () => {
+  it('Click elsewhere on document → both menus close', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
@@ -273,7 +273,7 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
     expect(w.find('[data-test="hero-relation-menu"]').exists()).toBe(false)
   })
 
-  it('按 Esc(document 级派发,bubbles:true)→ 两个菜单都关闭', async () => {
+  it('Press Esc (dispatched at document level, bubbles:true) → both menus close', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     await w.get('[data-test="hero-relation-trigger"]').trigger('click')
@@ -284,7 +284,7 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
     expect(w.find('[data-test="hero-relation-menu"]').exists()).toBe(false)
   })
 
-  it('点菜单内部不关闭(mousedown 在 wrap 内部)', async () => {
+  it('Click inside menu does not close (mousedown inside wrap)', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     await w.get('[data-test="hero-edit-menu"]').trigger('mousedown')
@@ -292,7 +292,7 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
     expect(w.find('[data-test="hero-edit-menu"]').exists()).toBe(true)
   })
 
-  it('卸载后 document 上不再有本组件的 mousedown/keydown 监听(比对函数引用,成对摘除)', async () => {
+  it('After unmount, document no longer has mousedown/keydown listeners from this component (compare function refs, remove in pairs)', async () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     const addedMousedown = addSpy.mock.calls.find((c) => c[0] === 'mousedown') as [string, EventListener] | undefined
@@ -302,7 +302,7 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
 
     const removeSpy = vi.spyOn(document, 'removeEventListener')
     w.unmount()
-    // 从 mounted 数组里摘掉,避免 afterEach 重复 unmount
+    // Remove from mounted array to avoid duplicate unmount in afterEach
     const idx = mounted.indexOf(w)
     if (idx >= 0) mounted.splice(idx, 1)
 
@@ -313,32 +313,32 @@ describe('PersonHero.vue — 两个菜单的关闭交互', () => {
   })
 })
 
-// ── 终审 Important 5:两个下拉菜单不得被祖先 overflow 裁掉 ──────────────────────
-describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
-  // 先剥掉 CSS 注释:这几条规则的注释里恰好写着 `overflow: hidden` 的来龙去脉,
-  // 不剥会把注释文本当成声明匹配上。
+// — Final review Important 5: two dropdowns must not be clipped by ancestor overflow —
+describe('PersonHero.vue — Dropdown clipping boundary', () => {
+  // First strip CSS comments: the comments in these rules happen to explain the reasoning behind `overflow: hidden`,
+  // and without stripping we'd match comment text as declarations.
   const style = (/<style[^>]*>([\s\S]*?)<\/style>/i.exec(personHeroRaw)?.[1] ?? '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
 
   function rule(selector: string): string {
     const m = new RegExp(`\\${selector}\\s*\\{([^}]*)\\}`).exec(style)
-    expect(m, `找不到 ${selector} 规则块`).toBeTruthy()
+    expect(m, `Cannot find rule block ${selector}`).toBeTruthy()
     return (m as RegExpExecArray)[1]
   }
 
-  it('.person-hero **不得**有 overflow(否则 absolute 锚定的菜单会被整块切掉,z-index 无用)', () => {
+  it('.person-hero **must not** have overflow (else menus anchored to absolute will be completely clipped, z-index is useless)', () => {
     expect(style).not.toBe('')
     expect(rule('.person-hero')).not.toMatch(/overflow\s*:/)
   })
 
-  it('裁剪职责在 .hero-clip 上:它 overflow:hidden 且铺满 hero', () => {
+  it('Clipping responsibility is on .hero-clip: it has overflow:hidden and fills hero', () => {
     const clip = rule('.hero-clip')
     expect(clip).toMatch(/overflow\s*:\s*hidden/)
     expect(clip).toMatch(/position\s*:\s*absolute/)
     expect(clip).toMatch(/inset\s*:\s*0/)
   })
 
-  it('模糊背景与暗化遮罩都在 .hero-clip 内(不然 blur(40px)+scale(1.2) 会溢到下方网格)', () => {
+  it('Blurred background and darkening overlay both inside .hero-clip (else blur(40px)+scale(1.2) overflows to grid below)', () => {
     const w = mountHero({
       person: person({ coverFaceId: 'f1' }),
       relationCount: 1,
@@ -347,11 +347,11 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     const clip = w.get('[data-test="hero-clip"]')
     expect(clip.find('[data-test="hero-bg"]').exists()).toBe(true)
     expect(clip.find('[data-test="hero-scrim"]').exists()).toBe(true)
-    // 菜单不在裁剪层里 —— 它是 .person-hero 的后代,但不是 .hero-clip 的后代。
+    // Menu is not inside clipping layer — it is a descendant of .person-hero but not of .hero-clip.
     expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
   })
 
-  it('菜单挂在裁剪层之外(hero 根下),打开后确实渲染出全部三项', async () => {
+  it('Menu is hung outside clipping layer (under hero root), after opening all three items render', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     const menu = w.get('[data-test="hero-edit-menu"]')
@@ -360,21 +360,21 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
   })
 })
 
-// 用户验收新增:未命名人物现在能从列表页菜单「查看这些照片」进到详情页(Vue2 没有这条路,
-// 所以 Vue2 :22 直接渲染 person.name、空名就是一片空白,谁都没管过)。有了入口就必须有兜底
-// 标题,否则 hero 顶着一个空标题 + 一个改名按钮,看不出这是谁。
-describe('PersonHero.vue — 无名字人物的兜底标题', () => {
-  it('name 为空串 → hero 标题显示 photosPersonUnnamedTitle', () => {
+// User acceptance addition: unnamed people can now navigate from list page menu "View these photos" to detail page (Vue2 had no such path,
+// so Vue2 :22 directly renders person.name, empty name was just blank, nobody managed it). Now that there's an entry, there must be a fallback
+// title, else hero shows an empty title + rename button, user cannot tell who this is.
+describe('PersonHero.vue — Fallback title for unnamed person', () => {
+  it('When name is empty string → hero title shows photosPersonUnnamedTitle', () => {
     const w = mountHero({ person: person({ name: '' }), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-name"]').text()).toBe('未命名人物')
   })
 
-  it('name 只有空白字符 → 同样走兜底(不是渲染出几个空格)', () => {
+  it('When name is only whitespace → also use fallback (not render spaces)', () => {
     const w = mountHero({ person: person({ name: '   ' }), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-name"]').text()).toBe('未命名人物')
   })
 
-  it('有名字时原样显示,不受兜底影响', () => {
+  it('When name exists, display as-is, fallback does not apply', () => {
     const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
     expect(w.get('[data-test="hero-name"]').text()).toBe('Sara')
   })

@@ -281,21 +281,21 @@ describe('emit: click / hover / leave', () => {
   })
 })
 
-describe('expose: svgEl 交给 T7/T11 做坐标换算与 pointer capture', () => {
-  it('defineExpose 出的 svgEl 就是渲染出的 <svg> 元素', () => {
+describe('expose: svgEl handed to T7/T11 for coordinate conversion and pointer capture', () => {
+  it('defineExpose svgEl is the rendered <svg> element', () => {
     const w = mountMap()
     expect((w.vm as unknown as { svgEl: SVGSVGElement }).svgEl).toBe(w.find('svg').element)
   })
 })
 
-describe('样式块零颜色 attribute(防日后有人图省事写回 attribute)', () => {
-  it('组件源文本不出现任何颜色 attribute 写法(评审 Minor 2:原列表偏窄,补齐 stroke="#/fill="rgb/绑定字符串 var(', () => {
+describe('Style block zero-color attribute (prevent future shortcutting with attributes)', () => {
+  it('component source never has color attribute syntax (review Minor 2: original list too narrow; expanded to cover stroke="#/fill="rgb/bound string var()', () => {
     expect(placesMapRaw).not.toContain('fill="#')
     expect(placesMapRaw).not.toContain('fill="var(')
     expect(placesMapRaw).not.toContain('stroke="var(')
-    // 补的四种:原列表只挡了裸 attribute 的 hex/var 两种写法,漏了 stroke 的 hex、rgb() 函数、
-    // 以及 :fill="'var(--x)'" 这种把 var() 包成字符串再绑定的写法(同样绕开 CSS 规则,不受
-    // color-guard 的样式块扫描)。
+    // Added four: original list only caught bare attribute hex/var patterns,
+    // missed stroke hex, rgb() function, and :fill="'var(--x)'" wrapping var()
+    // as string then binding (also bypasses CSS rules, not scanned by color-guard).
     expect(placesMapRaw).not.toContain('stroke="#')
     expect(placesMapRaw).not.toContain('fill="rgb')
     expect(placesMapRaw).not.toContain('stroke="rgb')
@@ -304,8 +304,8 @@ describe('样式块零颜色 attribute(防日后有人图省事写回 attribute)
   })
 })
 
-describe('theme-exception 注释合规(照 color-guard 的豁免窗口规则)', () => {
-  it('.geo-pin-label 规则内的裸颜色字面量都被紧邻的 theme-exception 注释豁免窗口覆盖', () => {
+describe('theme-exception comment compliance (following color-guard exemption-window rules)', () => {
+  it('bare color literals in .geo-pin-label rule all covered by adjacent theme-exception comment exemption window', () => {
     const styleText = rawStyleBlock(placesMapRaw)
     const start = styleText.indexOf('.geo-pin-label {')
     expect(start).toBeGreaterThan(-1)
@@ -313,11 +313,12 @@ describe('theme-exception 注释合规(照 color-guard 的豁免窗口规则)', 
     const bodyEnd = styleText.indexOf('}', bodyStart)
     const ruleLines = styleText.slice(start, bodyEnd + 1).split('\n')
 
-    // 逐字复刻 src/styles/color-guard.test.ts 的豁免窗口状态机(该文件:exempt 在遇到
-    // theme-exception 注释后打开,遇到下一个 ; 或 } 就关闭)。踩过的坑:把注释整块挂在
-    // 规则最前面、选择器上方——规则体第一行(font-family)就带 `;` 提前关窗,后面
-    // fill/stroke 的裸 rgba() 其实裸奔,color-guard 会真的红。这里不只断言"有注释",
-    // 而是真的按该状态机跑一遍,确认每处裸色都真被盖住。
+    // Exact replica of src/styles/color-guard.test.ts exemption-window state machine
+    // (file: exempt opens on theme-exception comment, closes on next ; or }).
+    // Pitfall: putting comment above rule/selector — first line of body (font-family) has ;
+    // prematurely closes window; following bare rgba() in fill/stroke truly exposed;
+    // color-guard would really turn red. Here we don't just assert "comment exists",
+    // but actually run through state machine to confirm every bare color is truly covered.
     const HEX = /#[0-9a-fA-F]{3,8}\b/
     const FUNC = /\b(rgba?|hsla?)\s*\(/
     let exempt = false
@@ -333,8 +334,9 @@ describe('theme-exception 注释合规(照 color-guard 的豁免窗口规则)', 
       if (line.includes(';') || line.includes('}'))
         exempt = false
     })
-    expect(offenders, `裸颜色未被豁免窗口覆盖:\n${offenders.join('\n')}`).toEqual([])
-    // 必须真的用上了豁免机制(不是规则里干脆没有裸色,那样上面的空数组毫无意义)。
+    expect(offenders, `bare colors not covered by exemption window:\n${offenders.join('\n')}`).toEqual([])
+    // Must truly use exemption mechanism (not that rule simply has no bare colors;
+    // that would make empty array above meaningless).
     expect(comments.length).toBeGreaterThan(0)
     for (const c of comments) {
       expect(c).not.toContain(';')

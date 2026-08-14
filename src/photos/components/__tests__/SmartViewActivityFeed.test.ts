@@ -1,5 +1,5 @@
-// SP7-P7a-T8: SmartViewActivityFeed.vue —— 智能视图详情页右栏第 4 段:活动流。
-// 覆盖 task-8-brief.md「Step 1: 写失败测试」里 SmartViewActivityFeed 必含用例清单。
+// SP7-P7a-T8: SmartViewActivityFeed.vue — activity feed, right panel segment 4 of smart view details page.
+// Covers test suite checklist for SmartViewActivityFeed in task-8-brief.md "Step 1: Write failing tests".
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -37,7 +37,7 @@ beforeEach(() => {
   svc.photos.thumbnailUrl.mockClear()
 })
 
-describe('6 种 eventType 各一条', () => {
+describe('One case each for 6 eventTypes', () => {
   it('created → photosSvSmartViewCreated', () => {
     const w = mountFeed([act({ eventType: 'created' })])
     expect(w.text()).toContain(zh.photosSvSmartViewCreated)
@@ -48,22 +48,22 @@ describe('6 种 eventType 各一条', () => {
     expect(w.text()).toContain(zh.photosSvConditionsSettingsUpdated)
   })
 
-  it('matched(1 张)→ 主句 + 加粗词键 photosSvActOneMatchedBold', () => {
+  it('matched (1 photo) → main sentence + bold text key photosSvActOneMatchedBold', () => {
     const w = mountFeed([act({ eventType: 'matched', assetIds: ['p1'] })])
     expect(w.text()).toContain(zh.photosSvActOneMatchedBold)
     expect(w.find('.sv-activity-text b').exists()).toBe(true)
   })
 
-  // fix round 1 · I3(Important,控制器回源核实 zh_CN.json 后纠正):<b> 包的是整个短语
-  // "3 张新照片",不是只有数字——与单张行(<b>1 张新照片</b>)形态对称,否则相邻两行一行
-  // 整短语粗一行只有数字粗,自相矛盾。
-  it('matched(3 张)→ <b> 里是整个短语「3 张新照片」(与单张形态对称,I3 回归)', () => {
+  // fix round 1 · I3(Important, controller verified zh_CN.json and corrected): <b> wraps the entire phrase
+  // "3 new photos", not just the number — symmetric with single-photo line (<b>1 new photo</b>), otherwise
+  // adjacent lines would have one with entire phrase bold and one with only number bold, self-contradictory.
+  it('matched (3 photos) → entire phrase "3 new photos" is inside <b> (symmetric with single-photo form, I3 regression)', () => {
     const w = mountFeed([act({ eventType: 'matched', assetIds: ['p1', 'p2', 'p3'] })])
     expect(w.find('.sv-activity-text b').text()).toBe(zh.photosSvActNMatchedBold.replace('{n}', '3'))
     expect(w.find('.sv-activity-text b').text()).toBe('3 张新照片')
   })
 
-  it('单张与多张两行相邻渲染 ⇒ 两个 <b> 都是整短语,形态一致(I3 主守卫)', () => {
+  it('Single-photo and multi-photo lines rendered adjacently ⇒ both <b> wrap entire phrase, forms consistent (I3 main guard)', () => {
     const w = mountFeed([
       act({ id: 'a1', eventType: 'matched', assetIds: ['p1'] }),
       act({ id: 'a2', eventType: 'matched', assetIds: ['p1', 'p2', 'p3', 'p4', 'p5'] }),
@@ -74,12 +74,12 @@ describe('6 种 eventType 各一条', () => {
     expect(bolds[1]!.text()).toBe('5 张新照片')
   })
 
-  it('exported 有 detail', () => {
+  it('exported with detail', () => {
     const w = mountFeed([act({ eventType: 'exported', detail: 'ZIP' })])
     expect(w.text()).toContain(zh.photosSvExportedDetail.replace('{detail}', 'ZIP'))
   })
 
-  it('exported 无 detail → 用 photosSvExportFile 兜底(照搬 Vue2 :276)', () => {
+  it('exported without detail → use photosSvExportFile as fallback (copied from Vue2 :276)', () => {
     const w = mountFeed([act({ eventType: 'exported', detail: '' })])
     expect(w.text()).toContain(zh.photosSvExportedDetail.replace('{detail}', zh.photosSvExportFile))
   })
@@ -115,8 +115,8 @@ describe('converted_from_album', () => {
   })
 })
 
-describe('未知 eventType(偏离登记:Vue2 :278 把内部枚举值吐给用户,这里改跳过 + warn)', () => {
-  it('单独出现 → 该行不渲染,console.warn 恰好一次(按前缀过滤)', () => {
+describe('Unknown eventType (deviation: Vue2 :278 exposes internal enum values to user, here changed to skip + warn)', () => {
+  it('Appears alone → that line does not render, console.warn exactly once (filtered by prefix)', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const w = mountFeed([act({ eventType: 'bogus' })])
     expect(w.findAll('[data-test="sv-activity-row"]')).toHaveLength(0)
@@ -124,7 +124,7 @@ describe('未知 eventType(偏离登记:Vue2 :278 把内部枚举值吐给用户
     warnSpy.mockRestore()
   })
 
-  it('未知混在已知里 → 已知的仍渲染,warn 恰好一次', () => {
+  it('Unknown mixed with known → known ones still render, warn exactly once', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const w = mountFeed([act({ id: 'a1', eventType: 'created' }), act({ id: 'a2', eventType: 'zzz' })])
     expect(w.findAll('[data-test="sv-activity-row"]')).toHaveLength(1)
@@ -133,16 +133,16 @@ describe('未知 eventType(偏离登记:Vue2 :278 把内部枚举值吐给用户
   })
 })
 
-describe('零 v-html(matched 两条走 <i18n-t> 具名插槽)', () => {
-  it('<template> 块不含 v-html 指令用法', () => {
+describe('No v-html directives (matched two cases use <i18n-t> named slots)', () => {
+  it('<template> block contains no v-html directive usage', () => {
     const m = /<template>([\s\S]*?)<\/template>/.exec(smartViewActivityFeedRaw)
-    expect(m, '未找到 <template> 块').not.toBeNull()
+    expect(m, 'No <template> block found').not.toBeNull()
     expect(m![1]).not.toMatch(/v-html\s*=/)
   })
 })
 
-describe('缩略图', () => {
-  it('assetIds 5 条 → 只渲染 3 张 img,thumbnailUrl 参数是 (id, "large")', () => {
+describe('Thumbnails', () => {
+  it('assetIds with 5 items → renders only 3 img, thumbnailUrl parameters are (id, "large")', () => {
     const w = mountFeed([act({ eventType: 'matched', assetIds: ['p1', 'p2', 'p3', 'p4', 'p5'] })])
     const imgs = w.findAll('.sv-activity-thumbs img')
     expect(imgs).toHaveLength(3)
@@ -152,23 +152,23 @@ describe('缩略图', () => {
     expect(svc.photos.thumbnailUrl).not.toHaveBeenCalledWith('p5', 'large')
   })
 
-  it('assetIds 为空 → 0 张 img + 1 个占位块', () => {
+  it('assetIds is empty → 0 img + 1 placeholder block', () => {
     const w = mountFeed([act({ eventType: 'created', assetIds: [] })])
     expect(w.findAll('.sv-activity-thumbs img')).toHaveLength(0)
     expect(w.find('[data-test="sv-activity-placeholder"]').exists()).toBe(true)
   })
 })
 
-describe('空态(Vue2 无空态,照搬)', () => {
-  it('activity 为空数组 → .sv-activity 渲染但内部 0 行', () => {
+describe('Empty state (Vue2 has no empty state, copied as-is)', () => {
+  it('activity is empty array → .sv-activity renders but 0 rows inside', () => {
     const w = mountFeed([])
     expect(w.find('[data-test="sv-activity-feed"]').exists()).toBe(true)
     expect(w.findAll('[data-test="sv-activity-row"]')).toHaveLength(0)
   })
 })
 
-describe('时间:now prop 可覆写', () => {
-  it('30 秒前的项 → 显示 photosSvRelMinutes 的值', () => {
+describe('Time: now prop can be overridden', () => {
+  it('Item from 30 seconds ago → displays photosSvRelMinutes value', () => {
     const now = new Date('2026-07-31T00:05:00Z').getTime()
     const occurredAt = new Date(now - 30_000).toISOString()
     const w = mountFeed([act({ eventType: 'created', occurredAt })], now)

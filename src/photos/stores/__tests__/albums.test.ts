@@ -35,20 +35,20 @@ describe('photosAlbums store', () => {
   })
 
   describe('fetchAlbums', () => {
-    it('成功 → albums 填充 + albumsLoaded===true', async () => {
+    it('success → albums populated + albumsLoaded===true', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 7, name: 'A' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       expect(s.albums).toEqual([{ id: 7, name: 'A' }])
       expect(s.albumsLoaded).toBe(true)
     })
-    it('返回 null → albums===[] (?? [])', async () => {
+    it('returns null → albums===[] (?? [])', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce(null)
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       expect(s.albums).toEqual([])
     })
-    it('reject → albumsLoaded 仍为 false + console.error 被调', async () => {
+    it('reject → albumsLoaded still false + console.error called', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('net'))
       const s = usePhotosAlbums()
@@ -57,9 +57,10 @@ describe('photosAlbums store', () => {
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
     })
-    // Task 9(P4 遗留收口):新增 loadError,语义与 albumsLoaded 完全独立——失败时
-    // loadError=true 但 albumsLoaded 仍保持 false(不可合并/不可互相替代)。
-    it('fetchAlbums 失败:loadError 置真,albumsLoaded 保持假', async () => {
+    // Task 9(P4 legacy closeout): new loadError, semantics completely independent from
+    // albumsLoaded — on failure loadError=true but albumsLoaded remains false
+    // (cannot merge/cannot substitute for each other).
+    it('fetchAlbums fails: loadError set true, albumsLoaded remains false', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('net'))
       const s = usePhotosAlbums()
@@ -68,7 +69,7 @@ describe('photosAlbums store', () => {
       expect(s.albumsLoaded).toBe(false)
       errSpy.mockRestore()
     })
-    it('重试成功后 loadError 归假', async () => {
+    it('after retry succeeds, loadError set false', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('net'))
       const s = usePhotosAlbums()
@@ -80,14 +81,15 @@ describe('photosAlbums store', () => {
       expect(s.albumsLoaded).toBe(true)
       errSpy.mockRestore()
     })
-    it('成功路径 loadError 保持假', async () => {
+    it('success path: loadError remains false', async () => {
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       expect(s.loadError).toBe(false)
     })
-    // 评审 Important 1 补的挡门用例:重试本身也失败——loadError 必须仍然是真(不能被
-    // "进入重试"这件事本身清空),albums/albumsLoaded 的状态也要与"一次都没成功过"一致。
-    it('reject → retry → reject:结束后 loadError 仍为真,albums/albumsLoaded 与未成功过一致', async () => {
+    // Review Important 1 gating test: retry itself also fails — loadError must still be
+    // true (cannot be cleared by "entering retry" itself), albums/albumsLoaded state must
+    // also be consistent with "never succeeded once".
+    it('reject → retry → reject: after completion loadError still true, albums/albumsLoaded consistent with never-succeeded', async () => {
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('e1'))
       const s = usePhotosAlbums()
@@ -95,7 +97,7 @@ describe('photosAlbums store', () => {
       expect(s.loadError).toBe(true)
 
       ;(service.photos.listAlbums as any).mockRejectedValueOnce(new Error('e2'))
-      await s.fetchAlbums() // 重试,仍失败
+      await s.fetchAlbums() // retry, still fails
       expect(s.loadError).toBe(true)
       expect(s.albums).toEqual([])
       expect(s.albumsLoaded).toBe(false)
@@ -103,21 +105,21 @@ describe('photosAlbums store', () => {
     })
   })
 
-  describe('跨类型 String 归一(铁律)', () => {
-    it("albumById('7') 命中后端返回的数字 id 7", async () => {
+  describe('cross-type String normalization (iron law)', () => {
+    it("albumById('7') hits backend-returned numeric id 7", async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 7, name: 'A' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       expect(s.albumById('7')).toEqual({ id: 7, name: 'A' })
       expect(s.albumById(7)).toEqual({ id: 7, name: 'A' })
     })
-    it('assetsOf 按 key 归一(数字 id 存,字符串查命中)', async () => {
+    it('assetsOf normalizes by key (numeric id stored, string query hits)', async () => {
       const s = usePhotosAlbums()
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({ assets: [{ id: 'p1', takenAt: '2026-01-01T00:00:00Z' }] })
       await s.fetchAlbumAssets(7)
       expect(s.assetsOf('7').length).toBe(1)
     })
-    it('isLoadingAssets 按 key 归一——in-flight 时数字存/字符串查也命中 true(非零区分力的"早已结束"断言)', async () => {
+    it('isLoadingAssets normalizes by key — in-flight numeric/string query both hit true (non-zero discriminative power "already ended" assertion)', async () => {
       let resolveFn: (v: unknown) => void
       ;(service.photos.getAlbum as any).mockImplementationOnce(
         () => new Promise((resolve) => { resolveFn = resolve }),
@@ -129,21 +131,23 @@ describe('photosAlbums store', () => {
       await p
       expect(s.isLoadingAssets('7')).toBe(false)
     })
-    // 写路径归一(updateAlbumLocal,经 renameAlbum 驱动):后端相册 id 是数字 7,
-    // 调用方传字符串 '7'(模拟路由 params.id 恒为字符串)必须命中同一条并原地改写。
-    it('updateAlbumLocal(经 renameAlbum)按 key 归一:数字 id 存,字符串 id 改', async () => {
+    // Write path normalization (updateAlbumLocal, driven by renameAlbum): backend album
+    // id is numeric 7, caller passes string '7' (simulating route params.id always string)
+    // must hit the same record and mutate in place.
+    it('updateAlbumLocal (via renameAlbum) normalizes by key: numeric id stored, string id mutated', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 7, name: 'Old' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       ;(service.photos.updateAlbum as any).mockResolvedValueOnce({ name: '新名' })
-      await s.renameAlbum('7', '新名') // 字符串 id,后端存的是数字 7
+      await s.renameAlbum('7', '新名') // string id, backend stores numeric 7
       expect(service.photos.updateAlbum).toHaveBeenCalledWith('7', { name: '新名' })
       expect(s.albumById(7)?.name).toBe('新名')
-      expect(s.albums).toHaveLength(1) // 确认是原地改写而非误插一条新记录
+      expect(s.albums).toHaveLength(1) // confirm mutation in place, not accidental insert
     })
-    // 写路径归一(removeAssetsFromAlbum 的 remove Set):Photo.id 类型是 string | number,
-    // 后端资产 id 可能是数字,调用方传字符串 assetIds(真实可能发生的组合)。
-    it('removeAssetsFromAlbum 的 remove Set 按 key 归一:资产数字 id,传入字符串 id 仍能移除', async () => {
+    // Write path normalization (removeAssetsFromAlbum's remove Set): Photo.id type is
+    // string | number, backend asset ids may be numeric, caller passes string assetIds
+    // (combination that can actually occur).
+    it('removeAssetsFromAlbum remove Set normalizes by key: numeric asset ids, string ids passed still remove', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 2 }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -151,21 +155,21 @@ describe('photosAlbums store', () => {
         assets: [{ id: 101, takenAt: null }, { id: 102, takenAt: null }],
       })
       await s.fetchAlbumAssets('a1')
-      await s.removeAssetsFromAlbum('a1', ['101']) // 字符串,资产实际 id 是数字 101
+      await s.removeAssetsFromAlbum('a1', ['101']) // string, asset actual id is numeric 101
       expect(s.assetsOf('a1').map((x) => x.id)).toEqual([102])
       expect(service.photos.removeFromAlbum).toHaveBeenCalledWith('a1', '101')
     })
   })
 
   describe('createAlbum', () => {
-    it('返回新相册且 listAlbums 被再次调用', async () => {
+    it('returns new album and listAlbums called again', async () => {
       const s = usePhotosAlbums()
       const created = await s.createAlbum('Trip')
       expect(created).toEqual({ id: 'new1', name: 'New' })
       expect(service.photos.createAlbum).toHaveBeenCalledWith('Trip')
       expect(service.photos.listAlbums).toHaveBeenCalledTimes(1)
     })
-    it('reject → 抛出', async () => {
+    it('reject → throws', async () => {
       ;(service.photos.createAlbum as any).mockRejectedValueOnce(new Error('dup'))
       const s = usePhotosAlbums()
       await expect(s.createAlbum('Trip')).rejects.toThrow('dup')

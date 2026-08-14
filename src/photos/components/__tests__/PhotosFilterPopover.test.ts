@@ -1,11 +1,13 @@
-// SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元。
-// 弹层标记逐字比对结论(PhotosSearchView.vue:124-147 vs PhotosFilterBar.vue:25-63,任务
-// 报告里有完整版;fix round 1 · M9 已改正措辞,此前写"唯一实质差异"不准确):真实数值
-// 差异有两条——① 滚动容器 max-height 搜索侧 280px / FilterBar 侧 260px,以搜索侧为准取
-// 280(本测试断言 280),260 的差异登记交给 P7b/T16;② `.fpop` 内联宽度搜索侧 260 /
-// FilterBar 侧 240,已由 width prop 吸收(brief 接口段本就给了这两个数,不是本任务发现的
-// 新差异)。其余(empty 文案来源、label 转换来源、cancelPop 参数)New-UI 接口层面已经用
-// emptyHint/labelFor prop 统一抹平。
+// SP7-P7a-T12: PhotosFilterPopover.vue — list-type filter popover primitive.
+// Popover markup byte-by-byte comparison (PhotosSearchView.vue:124-147 vs
+// PhotosFilterBar.vue:25-63, full details in task report; fix round 1 · M9
+// corrected wording, prior "sole material difference" was inaccurate): two real
+// differences — (1) scroll container max-height search-side 280px / FilterBar-side
+// 260px, use search-side 280 as ref (this test asserts 280); 260 diff registered to
+// P7b/T16; (2) `.fpop` inline width search-side 260 / FilterBar-side 240, absorbed
+// by width prop (brief interface already provided these two, not new diff found by
+// task). Remaining (empty text source, label transform source, cancelPop param)
+// — New-UI interface unified via emptyHint/labelFor prop.
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -43,8 +45,8 @@ function baseProps(overrides: Partial<Props> = {}): Props {
   }
 }
 
-describe('结构', () => {
-  it('渲染 .fpop / .fpop-title / .fpop-search / 列表 / 两个脚按钮', () => {
+describe('structure', () => {
+  it('renders .fpop / .fpop-title / .fpop-search / list / two footer buttons', () => {
     const w = mountPop(baseProps())
     expect(w.find('.fpop').exists()).toBe(true)
     expect(w.get('.fpop-title').text()).toBe('File type')
@@ -53,14 +55,14 @@ describe('结构', () => {
     expect(w.get('.fpop-foot').findAll('button').length).toBe(2)
   })
 
-  it('width 默认 260;传 240 → 行内 style 是 240px', () => {
+  it('width defaults to 260; pass 240 → inline style is 240px', () => {
     const wDefault = mountPop(baseProps())
     expect(wDefault.get('.fpop').attributes('style')).toContain('width: 260px')
     const w240 = mountPop(baseProps({ width: 240 }))
     expect(w240.get('.fpop').attributes('style')).toContain('width: 240px')
   })
 
-  it('items 5 条 → 5 个 .nav-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
+  it('items 5 → 5 .nav-item; selected contains 2nd → it has data-active=true and check icon, others false and no check', () => {
     const w = mountPop(baseProps({ selected: ['Video'] }))
     const rows = w.findAll('.nav-item')
     expect(rows).toHaveLength(5)
@@ -69,15 +71,16 @@ describe('结构', () => {
       expect(row.attributes('data-active')).toBe(isVideo ? 'true' : 'false')
       expect(row.find('svg').exists()).toBe(isVideo)
     })
-    // fix round 1 · I1(评审 Important,变异实证:把 check 的 d 从 "...L20 7" 改成
-    // "...L20 9" 后此前 15 例仍全绿——之前只断言了 svg 是否存在,没钉住 d/stroke-width)。
-    // 逐字符抄自 Vue2 PhotosIcon.vue 的 check 分支,同 chip 侧 x/chevD 的钉法一致。
+    // fix round 1 · I1 (review Important, mutation evidence: changing check's d from
+    // "...L20 7" to "...L20 9" still passes all 15 prior cases — only asserted svg
+    // existence, didn't pin d/stroke-width). Copied verbatim from Vue2 PhotosIcon.vue
+    // check branch, same pinning method as chip side x/chevD.
     const checkRow = rows[1]!
     expect(checkRow.get('path').attributes('d')).toBe('m5 12 5 5L20 7')
     expect(checkRow.get('svg').attributes('stroke-width')).toBe('2.5')
   })
 
-  it('搜索过滤:输入过滤词 → 列表变短;大小写不敏感;过滤到 0 条 → 空态文案出现且列表 0 条', async () => {
+  it('search filter: input filter term → list shrinks; case insensitive; filter to 0 → empty text appears and list is 0', async () => {
     const w = mountPop(baseProps())
     await w.get('.fpop-search').setValue('vid')
     expect(w.findAll('.nav-item')).toHaveLength(1)
@@ -91,40 +94,40 @@ describe('结构', () => {
     expect(w.get('.fpop-empty').text()).toBe('Nothing here yet')
   })
 
-  it('labelFor 生效:传 it => "X" + it → 渲染文本含 X', () => {
+  it('labelFor works: pass it => "X" + it → rendered text contains X', () => {
     const w = mountPop(baseProps({ labelFor: (it) => `X${it}` }))
     expect(w.get('.nav-item').text()).toContain('XPhoto')
   })
 })
 
-describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
-  it('点未选项 → update:selected 带 [...原, it]', async () => {
+describe('multiple: true (default) — array add/remove, do not mutate prop in-place', () => {
+  it('click unselected item → update:selected with [...original, it]', async () => {
     const w = mountPop(baseProps({ selected: ['Photo'] }))
     const rows = w.findAll('.nav-item')
     await rows[1]!.trigger('click') // Video
     expect(w.emitted('update:selected')).toEqual([[['Photo', 'Video']]])
   })
 
-  it('点已选项 → update:selected 带移除后的数组;原 prop 数组内容未被原地改', async () => {
+  it('click selected item → update:selected with array after removal; original prop array not mutated in-place', async () => {
     const original = ['Photo', 'Video']
     const originalSnapshot = [...original]
     const w = mountPop(baseProps({ selected: original }))
     const rows = w.findAll('.nav-item')
-    await rows[0]!.trigger('click') // Photo,已选 → 移除
+    await rows[0]!.trigger('click') // Photo, already selected → remove
     expect(w.emitted('update:selected')).toEqual([[['Video']]])
-    expect(original).toEqual(originalSnapshot) // 没被就地 push/splice
+    expect(original).toEqual(originalSnapshot) // not mutated via push/splice
   })
 })
 
-describe('multiple: false —— 单选语义(照搬 Vue2 toggleDraftItem 的 v === it ? null : it)', () => {
-  it('点未选项 → [it]', async () => {
+describe('multiple: false — single-select semantics (copy Vue2 toggleDraftItem v === it ? null : it)', () => {
+  it('click unselected item → [it]', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: [] }))
     const rows = w.findAll('.nav-item')
     await rows[2]!.trigger('click') // RAW
     expect(w.emitted('update:selected')).toEqual([[['RAW']]])
   })
 
-  it('点已选项 → []', async () => {
+  it('click selected item → []', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: ['RAW'] }))
     const rows = w.findAll('.nav-item')
     await rows[2]!.trigger('click')
@@ -132,8 +135,8 @@ describe('multiple: false —— 单选语义(照搬 Vue2 toggleDraftItem 的 v 
   })
 })
 
-describe('脚部按钮 + 冒泡', () => {
-  it('点 Cancel → emit cancel;点 Apply → emit apply', async () => {
+describe('footer buttons + bubbling', () => {
+  it('click Cancel → emit cancel; click Apply → emit apply', async () => {
     const w = mountPop(baseProps())
     const buttons = w.get('.fpop-foot').findAll('button')
     await buttons[0]!.trigger('click')
@@ -142,17 +145,18 @@ describe('脚部按钮 + 冒泡', () => {
     expect(w.emitted('apply')).toHaveLength(1)
   })
 
-  it('取消/应用按钮文案来自通用键 photosCancel / photosSearchApply(非写死"应用"二字,B3 裁定)', () => {
+  it('cancel/apply button text from common keys photosCancel / photosSearchApply (not hardcoded, B3 ruling)', () => {
     const w = mountPop(baseProps())
     const buttons = w.get('.fpop-foot').findAll('button')
     expect(buttons[0]!.text()).toBe(zh.photosCancel)
     expect(buttons[1]!.text()).toBe(zh.photosSearchApply)
   })
 
-  // fix round 1 · M6(评审并入):上一条断言如果实现改成模板里写死中文"提交"/"取消",
-  // 两边恰好都等于 zh 的键值,仍然全绿——区分力不够。切到 en_us locale 断言 'Apply'/
-  // 'Cancel',才能真的抓住"走 t() 键"与"写死中文"两种实现的差异。
-  it('切到 en_us locale → 按钮文案随 t() 变成 Cancel / Apply(证明确实走键,不是写死中文)', () => {
+  // fix round 1 · M6 (review merged): if prior assertion's implementation changed to
+  // hardcode Chinese text in template, both sides happen to equal zh key value,
+  // still all green — no discrimination. Switch to en_us locale and assert 'Apply'/
+  // 'Cancel' to really catch difference between "use t() key" vs "hardcoded text".
+  it('switch to en_us locale → button text via t() becomes Cancel / Apply (proves really uses key, not hardcoded)', () => {
     const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { zh_cn: zh, en_us: en } })
     const w = mount(PhotosFilterPopover, { props: baseProps(), global: { plugins: [i18nEn] } })
     const buttons = w.get('.fpop-foot').findAll('button')
@@ -162,7 +166,7 @@ describe('脚部按钮 + 冒泡', () => {
     expect(buttons[1]!.text()).toBe('Apply')
   })
 
-  it('点弹层内部空白不冒泡到宿主(根 @click.stop;派发 bubbles:true 的 click 到 .fpop)', async () => {
+  it('clicking empty space inside popover does not bubble to host (root @click.stop; dispatch bubbles:true click to .fpop)', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     let hostClicked = false
@@ -180,8 +184,8 @@ describe('脚部按钮 + 冒泡', () => {
   })
 })
 
-describe('样式', () => {
-  it('cssCascade:.btn.btn-primary 的 hover 胜出规则含 :hover 且含 -primary', () => {
+describe('styles', () => {
+  it('cssCascade: .btn.btn-primary winning hover rule contains :hover and -primary', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     expect(style.length).toBeGreaterThan(0)
     const winner = winningHoverBackground(style, ['btn', 'btn-primary'])
@@ -189,14 +193,14 @@ describe('样式', () => {
     expect(winner.selector).toContain('-primary')
   })
 
-  it('cssCascade(B4 补的第三处硬约束):.nav-item[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
+  it('cssCascade (third hard constraint added by B4): .nav-item[data-active="true"] winning hover rule contains :hover and data-active', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const winner = winningHoverBackground(style, ['nav-item'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('data-active')
   })
 
-  it('滚动容器(.fpop-list)有 max-height: 280px 与 overflow-y: auto(先锚定规则体,不做全文件级 toContain)', () => {
+  it('scroll container (.fpop-list) has max-height: 280px and overflow-y: auto (anchor rule body first, no file-level toContain)', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-list')
     expect(rule).toBeDefined()
@@ -204,19 +208,21 @@ describe('样式', () => {
     expect(rule?.body).toContain('overflow-y: auto')
   })
 
-  // fix round 1 · M2(评审并入):brief 结构规格 3 明确要求过 .fpop-quick 基类 hover 的
-  // 断言,当前无 [data-on] 变体所以无风险,但 T13 加变体时这条基线断言就是防线——先钉住
-  // "现在唯一存在的 hover 规则就是基类自己"。
-  it('cssCascade:.fpop-quick 基类的 hover 胜出规则就是它自己(当前无变体,T13 加 [data-on] 时的防线)', () => {
+  // fix round 1 · M2 (review merged): brief structure spec 3 explicitly required
+  // assertion for .fpop-quick base class hover, currently no [data-on] variant so
+  // no risk, but this baseline assertion is the guard when T13 adds variant — first
+  // pin "only hover rule that currently exists is the base class itself".
+  it('cssCascade: .fpop-quick base class winning hover rule is itself (no variant now, guard when T13 adds [data-on])', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const winner = winningHoverBackground(style, ['fpop-quick'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('fpop-quick')
   })
 
-  // fix round 1 · M7(评审并入):非颜色视觉属性补程序化断言,先锚定规则体再断言属性。
-  // flex:1 最值得补——丢了两个脚部按钮会塌成内容宽,不再各占一半。
-  it('.fpop-foot .fpop-quick, .fpop-foot .btn 规则含 flex: 1 与 justify-content: center', () => {
+  // fix round 1 · M7 (review merged): add programmatic assertions for non-color
+  // visual properties, anchor rule body first then assert. flex:1 most worth adding
+  // — dropping it makes footer buttons collapse to content width, no longer half each.
+  it('.fpop-foot .fpop-quick, .fpop-foot .btn rule contains flex: 1 and justify-content: center', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find(
       (r) => r.selectors.includes('.fpop-foot .fpop-quick') && r.selectors.includes('.fpop-foot .btn'),
@@ -226,7 +232,7 @@ describe('样式', () => {
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  it('.nav-icon 规则含 width: 16px 与 justify-content: center', () => {
+  it('.nav-icon rule contains width: 16px and justify-content: center', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.nav-icon')
     expect(rule).toBeDefined()
@@ -234,7 +240,7 @@ describe('样式', () => {
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  it('.fpop-empty 规则含 padding: 18px 8px', () => {
+  it('.fpop-empty rule contains padding: 18px 8px', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-empty')
     expect(rule).toBeDefined()

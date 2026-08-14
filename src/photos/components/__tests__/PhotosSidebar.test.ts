@@ -10,10 +10,10 @@ import { useTimelineStore } from '../../stores/timeline'
 import { usePhotosSettingsStore } from '../../stores/settings'
 import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../../composables/useSidebarDrawer'
 
-// P8a-T6(§7e-15):侧栏现在自己也读一次 aiFeatures 配置(见 PhotosSidebar.vue 头部注释)。
-// 默认解析成 `{}`(readAiFeatures 对缺字段一律按开启处理,smartview 仍是 true)——这个默认值
-// 让本文件其余既有测试(挂载后同步断言 7 项)保持不变:那些断言都发生在 fetchAiFeatures()
-// 的 promise resolve 之前,读到的是 store 的初始值(全 true),不受这个 mock 影响。
+// P8a-T6(§7e-15): sidebar now reads aiFeatures config once itself (see PhotosSidebar.vue header comment).
+// Default parses to `{}` (readAiFeatures treats missing fields as enabled, smartview is still true) — this default value
+// keeps the rest of the existing tests in this file unchanged (assertions after mount are synchronous for 7 items): those assertions
+// happen before fetchAiFeatures() promise resolves, reading the store's initial value (all true), unaffected by this mock.
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { photos: { getConfig: vi.fn() } },
 }))
@@ -34,7 +34,7 @@ const testRouter = createRouter({
     { path: '/photos/people/:id', name: 'photos-person-detail', component: { template: '<div/>' } },
     { path: '/photos/places', name: 'photos-places', component: { template: '<div/>' } },
     { path: '/photos/smart-views', name: 'photos-smart-views', component: { template: '<div/>' } },
-    // SP7-P8a-T5:设置入口的落点(见下方"设置入口"describe)。
+    // SP7-P8a-T5: settings entry landing point (see "Settings Entry" describe below).
     { path: '/photos/settings', name: 'photos-settings', component: { template: '<div/>' } },
   ],
 })
@@ -52,10 +52,10 @@ describe('PhotosSidebar', () => {
     await testRouter.isReady()
   })
 
-  // SP7-P7a-T4:NAV 新增 smart-views,插在 places 之后、favorites 之前——原本 6 项变 7 项,
-  // favorites/trash 的下标各 +1(原 4/5 → 现 5/6)。顺序照 Vue2 PhotosSidebar.vue:114-118
-  // (library / albums / people / places / smart)。
-  it('渲染七条导航项(照片库/相册/人物/地点/为你推荐/收藏/最近删除),当前路由高亮', async () => {
+  // SP7-P7a-T4: NAV adds smart-views, inserted after places and before favorites — originally 6 items now 7 items,
+  // favorites/trash indices each +1 (originally 4/5 → now 5/6). Order follows Vue2 PhotosSidebar.vue:114-118
+  // (library / albums / people / places / smart).
+  it('renders seven navigation items (photo library/albums/people/places/for you/favorites/recently deleted), current route highlighted', async () => {
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     expect(items).toHaveLength(7)
@@ -66,7 +66,7 @@ describe('PhotosSidebar', () => {
     expect(items[4].text()).toContain('为你推荐')
     expect(items[5].text()).toContain('收藏')
     expect(items[6].text()).toContain('最近删除')
-    // 当前在 /photos,仅照片库项 active
+    // currently at /photos, only photo library item active
     expect(items[0].classes()).toContain('active')
     expect(items[1].classes()).not.toContain('active')
     expect(items[2].classes()).not.toContain('active')
@@ -76,40 +76,40 @@ describe('PhotosSidebar', () => {
     expect(items[6].classes()).not.toContain('active')
   })
 
-  it('/photos/favorites 时仅 favorites 项 active,library 不 active', async () => {
+  it('at /photos/favorites only favorites item active, library not active', async () => {
     await testRouter.push('/photos/favorites')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active
+    expect(items[1].classes()).not.toContain('active') // albums not active
+    expect(items[2].classes()).not.toContain('active') // people not active
+    expect(items[3].classes()).not.toContain('active') // places not active
+    expect(items[4].classes()).not.toContain('active') // smart-views not active
     expect(items[5].classes()).toContain('active') // favorites active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[6].classes()).not.toContain('active') // trash not active
   })
 
-  it('/photos/albums 时仅 albums 项 active', async () => {
+  it('at /photos/albums only albums item active', async () => {
     await testRouter.push('/photos/albums')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active
     expect(items[1].classes()).toContain('active') // albums active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[2].classes()).not.toContain('active') // people not active
+    expect(items[3].classes()).not.toContain('active') // places not active
+    expect(items[4].classes()).not.toContain('active') // smart-views not active
+    expect(items[5].classes()).not.toContain('active') // favorites not active
+    expect(items[6].classes()).not.toContain('active') // trash not active
   })
 
-  it('/photos/albums/7(三级路径,相册详情)时仍只有 albums 项 active,library 不误伤', async () => {
+  it('at /photos/albums/7 (three-level path, album detail) only albums item still active, library not affected', async () => {
     await testRouter.push('/photos/albums/7')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active(回归点)
+    expect(items[0].classes()).not.toContain('active') // library not active (regression check)
     expect(items[1].classes()).toContain('active') // albums active
     expect(items[2].classes()).not.toContain('active')
     expect(items[3].classes()).not.toContain('active')
@@ -118,27 +118,27 @@ describe('PhotosSidebar', () => {
     expect(items[6].classes()).not.toContain('active')
   })
 
-  it('/photos/people 时仅 people 项 active', async () => {
+  it('at /photos/people only people item active', async () => {
     await testRouter.push('/photos/people')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active
+    expect(items[1].classes()).not.toContain('active') // albums not active
     expect(items[2].classes()).toContain('active') // people active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[3].classes()).not.toContain('active') // places not active
+    expect(items[4].classes()).not.toContain('active') // smart-views not active
+    expect(items[5].classes()).not.toContain('active') // favorites not active
+    expect(items[6].classes()).not.toContain('active') // trash not active
   })
 
-  it('/photos/people/7(三级路径,人物详情)时仍只有 people 项 active,library 不误伤——核心回归点', async () => {
+  it('at /photos/people/7 (three-level path, person detail) only people item still active, library not affected — core regression check', async () => {
     await testRouter.push('/photos/people/7')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active(回归点:/photos 前缀不能双高亮)
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active (regression check: /photos prefix cannot have double highlight)
+    expect(items[1].classes()).not.toContain('active') // albums not active
     expect(items[2].classes()).toContain('active') // people active
     expect(items[3].classes()).not.toContain('active')
     expect(items[4].classes()).not.toContain('active')
@@ -146,39 +146,39 @@ describe('PhotosSidebar', () => {
     expect(items[6].classes()).not.toContain('active')
   })
 
-  it('/photos/places 时仅 places 项 active', async () => {
+  it('at /photos/places only places item active', async () => {
     await testRouter.push('/photos/places')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active
+    expect(items[1].classes()).not.toContain('active') // albums not active
+    expect(items[2].classes()).not.toContain('active') // people not active
     expect(items[3].classes()).toContain('active') // places active
-    expect(items[4].classes()).not.toContain('active') // smart-views 不 active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[4].classes()).not.toContain('active') // smart-views not active
+    expect(items[5].classes()).not.toContain('active') // favorites not active
+    expect(items[6].classes()).not.toContain('active') // trash not active
   })
 
-  // SP7-P7a-T4:下标 4 是 smart-views(brief 硬要求同时断言"7 个条目"与"smart-views 在下标 4")。
-  it('smart-views 在下标 4,且 /photos/smart-views 时仅该项 active', async () => {
+  // SP7-P7a-T4: index 4 is smart-views (brief requires both asserting "7 items" and "smart-views at index 4").
+  it('smart-views at index 4, and at /photos/smart-views only that item active', async () => {
     await testRouter.push('/photos/smart-views')
     await testRouter.isReady()
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     expect(items).toHaveLength(7)
     expect(items[4].text()).toContain('为你推荐')
-    expect(items[0].classes()).not.toContain('active') // library 不 active
-    expect(items[1].classes()).not.toContain('active') // albums 不 active
-    expect(items[2].classes()).not.toContain('active') // people 不 active
-    expect(items[3].classes()).not.toContain('active') // places 不 active
+    expect(items[0].classes()).not.toContain('active') // library not active
+    expect(items[1].classes()).not.toContain('active') // albums not active
+    expect(items[2].classes()).not.toContain('active') // people not active
+    expect(items[3].classes()).not.toContain('active') // places not active
     expect(items[4].classes()).toContain('active') // smart-views active
-    expect(items[5].classes()).not.toContain('active') // favorites 不 active
-    expect(items[6].classes()).not.toContain('active') // trash 不 active
+    expect(items[5].classes()).not.toContain('active') // favorites not active
+    expect(items[6].classes()).not.toContain('active') // trash not active
   })
 
-  it('点击 smart-views 项(下标 4)push 到 /photos/smart-views', async () => {
-    // beforeEach 已把 testRouter 停在 /photos——从别的路由点进来才是有意义的导航断言。
+  it('click smart-views item (index 4) push to /photos/smart-views', async () => {
+    // beforeEach has already put testRouter at /photos — navigation assertion is meaningful only when coming from another route.
     const w = mountSidebar()
     const items = w.findAll('.side-item')
     await items[4].trigger('click')
@@ -186,7 +186,7 @@ describe('PhotosSidebar', () => {
     expect(testRouter.currentRoute.value.path).toBe('/photos/smart-views')
   })
 
-  it('存储条:按 indexStatus 渲染人类可读用量与百分比', () => {
+  it('storage bar: render human-readable usage and percentage based on indexStatus', () => {
     const store = useTimelineStore()
     store.indexStatus.totalBytes = 5 * 1024 * 1024 * 1024 // 5GB
     store.indexStatus.diskTotal = 100 * 1024 * 1024 * 1024
@@ -197,7 +197,7 @@ describe('PhotosSidebar', () => {
     expect(bar.attributes('style')).toContain('60%')
   })
 
-  it('存储条:diskTotal 为 0 时不除零(百分比落 0%)', () => {
+  it('storage bar: no division by zero when diskTotal is 0 (percentage falls to 0%)', () => {
     const store = useTimelineStore()
     store.indexStatus.totalBytes = 0
     store.indexStatus.diskTotal = 0
@@ -207,13 +207,13 @@ describe('PhotosSidebar', () => {
     expect(bar.attributes('style')).toContain('0%')
   })
 
-  it('桌面态(isNarrow=false):无遮罩、无 is-drawer class', () => {
+  it('desktop state (isNarrow=false): no overlay, no is-drawer class', () => {
     const w = mountSidebar()
     expect(w.find('.side-scrim').exists()).toBe(false)
     expect(w.find('aside.photos-sidebar').classes()).not.toContain('is-drawer')
   })
 
-  it('窄屏 + 打开:出遮罩,aside 带 is-drawer/is-open;点遮罩关闭', async () => {
+  it('narrow screen + open: overlay appears, aside has is-drawer/is-open; click overlay closes', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
@@ -228,7 +228,7 @@ describe('PhotosSidebar', () => {
     expect(w.find('.side-scrim').exists()).toBe(false)
   })
 
-  it('ESC 关闭抽屉', async () => {
+  it('ESC closes drawer', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
@@ -238,7 +238,7 @@ describe('PhotosSidebar', () => {
     expect(d.open.value).toBe(false)
   })
 
-  it('路由变化后抽屉自动收起', async () => {
+  it('drawer auto-collapses after route change', async () => {
     const d = useSidebarDrawer()
     d.isNarrow.value = true
     d.open.value = true
@@ -250,18 +250,18 @@ describe('PhotosSidebar', () => {
     expect(d.open.value).toBe(false)
   })
 
-  // SP7-P8a-T5:侧栏底部设置入口,指向 /photos/settings。不用 .side-item 选择器
-  // (那是 NAV 数组渲染出的既有 7 项,本条目是独立的新元素,故意用不同 class,不与
-  // 上面"7 条导航项"的既有断言互相干扰)。
-  describe('设置入口', () => {
-    it('侧栏底部存在设置入口', () => {
+  // SP7-P8a-T5: sidebar settings entry at the bottom, pointing to /photos/settings. Does not use .side-item selector
+  // (that renders the 7 existing nav array items, this entry is an independent new element, deliberately using a different class,
+  // not interfering with the existing assertions of "7 nav items" above).
+  describe('Settings Entry', () => {
+    it('settings entry exists at sidebar bottom', () => {
       const w = mountSidebar()
       expect(w.find('[data-test="sidebar-settings-link"]').exists()).toBe(true)
-      // 既有 7 项导航不受影响(不是新插进 NAV 数组的第 8 项)。
+      // existing 7 nav items unaffected (not the 8th new item inserted into NAV array).
       expect(w.findAll('.side-item')).toHaveLength(7)
     })
 
-    it('点击设置入口 push 到 /photos/settings', async () => {
+    it('click settings entry push to /photos/settings', async () => {
       const w = mountSidebar()
       await w.get('[data-test="sidebar-settings-link"]').trigger('click')
       await flushPromises()
@@ -269,10 +269,10 @@ describe('PhotosSidebar', () => {
     })
   })
 
-  // P8a-T6(§7e-15):smartview 配置感知——Vue2 PhotosSidebar.vue:120-122 的
-  // `ai.smartview === false` 时 `items.filter(i => i.id !== 'smart')`。
-  describe('smartview 配置感知(§7e-15)', () => {
-    it('aiFeatures.smartview 为 false 时整条隐藏智能视图入口', async () => {
+  // P8a-T6(§7e-15): smartview config awareness — when Vue2 PhotosSidebar.vue:120-122
+  // `ai.smartview === false` then `items.filter(i => i.id !== 'smart')`.
+  describe('smartview config awareness (§7e-15)', () => {
+    it('when aiFeatures.smartview is false hide smart view entry completely', async () => {
       vi.mocked(service.photos.getConfig).mockResolvedValue({ aiFeatures: { smartview: false } })
       const w = mountSidebar()
       await flushPromises()
@@ -280,18 +280,18 @@ describe('PhotosSidebar', () => {
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(6)
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(false)
-      // 剩下 6 项仍是原顺序去掉 smart-views 这一条(favorites/trash 紧跟 places)。
+      // remaining 6 items still in original order minus smart-views (favorites/trash follow places).
       expect(items[3].text()).toContain('地点')
       expect(items[4].text()).toContain('收藏')
       expect(items[5].text()).toContain('最近删除')
     })
 
-    // review fix(take-along):原标题「未确定(取数失败)」的外层「未确定」措辞会让人以为
-    // 这条测的是"尚未取到数"(fetch 还在途、还没 resolve)的那个分支——但下面 await
-    // flushPromises() 会先把 reject 结算掉,这里实际只走到了"取数失败"这个 catch 分支
-    // (恰好与初始值同为全 true,视觉上分不出来,但走的是不同代码路径)。标题去掉「未确定」,
-    // 明确写成"失败"。真正的"尚未取到数"分支由下面新增的同步用例补上。
-    it('smartview 请求失败(store 落入 catch 分支)时按开启显示,不吓用户', async () => {
+    // review fix(take-along): original title "undetermined (fetch failure)" used "undetermined" in the outer phrasing,
+    // making people think this test was for the "not yet fetched" branch (fetch still in progress, not resolved) — but
+    // the following await flushPromises() first settles the reject, this actually only reaches the "fetch failure" catch branch
+    // (happens to be the same as initial value all true, visually indistinguishable, but follows different code path).
+    // Title removes "undetermined", explicitly stating "failure". Real "not yet fetched" branch is covered by new sync test below.
+    it('when smartview request fails (store enters catch branch) show enabled to not scare users', async () => {
       vi.mocked(service.photos.getConfig).mockRejectedValue(new Error('boom'))
       const w = mountSidebar()
       await flushPromises()
@@ -301,11 +301,11 @@ describe('PhotosSidebar', () => {
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
     })
 
-    // review fix(take-along):补上真正的"尚未取到数"分支——mount 之后不 flushPromises,
-    // fetchAiFeatures() 的 promise 还在途,store 的 aiFeatures 停在初始值(全 true)。
-    // 与上一条(失败分支落回全 true)在数值上恰好相同,但走的是不同代码路径(这里从没进过
-    // catch,是初始 ref 值),补这条才是名副其实的"加载中按开启显示"证明。
-    it('smartview 请求仍在途(尚未 resolve)时按开启显示,同步渲染 7 项', () => {
+    // review fix(take-along): cover the real "not yet fetched" branch — after mount without flushPromises,
+    // fetchAiFeatures() promise is still in progress, store's aiFeatures stays at initial value (all true).
+    // Numerically identical to previous case (failure branch falls back to all true), but follows different code path
+    // (never entered catch here, initial ref value), adding this test is the true proof of "show enabled while loading".
+    it('when smartview request still in progress (not yet resolved) show enabled, synchronously render 7 items', () => {
       let resolveFn: ((v: Record<string, unknown>) => void) | undefined
       vi.mocked(service.photos.getConfig).mockImplementation(
         () => new Promise<Record<string, unknown>>((res) => { resolveFn = res }),
@@ -314,11 +314,11 @@ describe('PhotosSidebar', () => {
       const items = w.findAll('.side-item')
       expect(items).toHaveLength(7)
       expect(items.some((i) => i.text().includes('为你推荐'))).toBe(true)
-      // 收尾:把挂起的 promise 结算掉,不让它泄漏到下一条用例。
+      // clean up: settle the pending promise, prevent it from leaking to next test case.
       resolveFn?.({})
     })
 
-    it('挂载即调用一次 fetchAiFeatures(经 store 读配置,不直读 getConfig)', async () => {
+    it('call fetchAiFeatures once on mount (read config via store, not directly read getConfig)', async () => {
       const settings = usePhotosSettingsStore()
       const spy = vi.spyOn(settings, 'fetchAiFeatures')
       mountSidebar()
@@ -336,7 +336,7 @@ describe('PhotosSidebar', () => {
   // confirmed) — nav items carry no per-item test marker, only `.side-item`/`.side-name`.
   // This does not add one just for the test; it asserts on the collected `.side-name` text
   // set instead, same technique the "hide when off" cases above already use.
-  it('labels the smart-views entry "For You" after the IA merge, and drops the old "Smart Views" label entirely', () => {
+  it('label the smart-views entry "For You" after the IA merge, drop the old "Smart Views" label entirely', () => {
     const w = mountSidebar()
     const names = w.findAll('.side-name').map((n) => n.text())
     expect(names).toContain('为你推荐')

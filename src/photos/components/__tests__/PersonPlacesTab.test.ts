@@ -34,7 +34,7 @@ function sixPlaces(): PersonPlace[] {
 }
 
 describe('PersonPlacesTab.vue', () => {
-  it('渲染段落标题(照 Vue2 :160 插值 person.name)+ 副标题(:161)', () => {
+  it('renders section title (per Vue2 :160 interpolation of person.name) + subtitle (:161)', () => {
     const w = mountTab({ places: [], personName: 'Sara' })
     const title = w.get('.detail-section-title')
     expect(title.text()).toContain('Sara')
@@ -42,18 +42,19 @@ describe('PersonPlacesTab.vue', () => {
     expect(w.get('.detail-section-title .sub').text()).toBe('你在此人所有照片中拍摄过的地点')
   })
 
-  it('personName 为空时标题回落到 photosPersonThisPerson,不出现空名占位', () => {
+  it('when personName is empty, title falls back to photosPersonThisPerson, no empty-name placeholder appears', () => {
     const w = mountTab({ places: [], personName: '' })
     const title = w.get('.detail-section-title')
-    // 中文译文原样是 "{name} 去过的地方"(name 与后文之间本就有一个空格,
-    // 照旧 zh_CN.json 原译文,不是 bug)。空名兜底后应读作"这个人 去过的地方",
-    // 关键是不出现"双空格"或"开头就是空白"这类兜底没生效的痕迹。
+    // Chinese translation is "{name} 去过的地方" as-is (there is already one space between
+    // name and the following text, per zh_CN.json original translation, not a bug). With empty
+    // name fallback it should read as "这个人 去过的地方"; the key is no "double space" or
+    // "leading whitespace" artifacts indicating fallback failed.
     expect(title.text()).toContain('这个人 去过的地方')
     expect(title.text()).not.toMatch(/\s{2,}/)
     expect(title.text()).not.toMatch(/^\s/)
   })
 
-  it('图例只渲染 Top5(第 6 个地点不出现在图例里)', () => {
+  it('legend only renders Top5 (6th place does not appear in legend)', () => {
     const w = mountTab({ places: sixPlaces(), personName: 'Sara' })
     const legendRows = w.get('.legend').findAll('.row')
     expect(legendRows).toHaveLength(5)
@@ -61,20 +62,20 @@ describe('PersonPlacesTab.vue', () => {
     for (let i = 0; i < 5; i++) expect(w.get('.legend').text()).toContain(`Place${i}`)
   })
 
-  it('卡片条渲染全部地点(含第 6 个)', () => {
+  it('chip strip renders all places (including 6th)', () => {
     const w = mountTab({ places: sixPlaces(), personName: 'Sara' })
     const chips = w.get('.place-strip').findAll('.place-chip')
     expect(chips).toHaveLength(6)
     expect(w.get('.place-strip').text()).toContain('Place5')
   })
 
-  it('卡片条每张用 photosPeoplePhotosCount 短语显示计数,不是裸数字', () => {
+  it('each chip in strip uses photosPeoplePhotosCount phrase to show count, not bare number', () => {
     const w = mountTab({ places: sixPlaces(), personName: 'Sara' })
     const first = w.get('.place-strip').findAll('.place-chip')[0]
     expect(first.text()).toContain('1 张照片')
   })
 
-  it('地图收到的 points 长度 = 有效坐标数(过滤掉无坐标的地点)', () => {
+  it('map receives points length = valid coordinates count (places without coordinates filtered out)', () => {
     const places: PersonPlace[] = [
       { placeName: 'A', latitude: 1, longitude: 2 },
       { placeName: 'B', latitude: null, longitude: null },
@@ -85,7 +86,7 @@ describe('PersonPlacesTab.vue', () => {
     expect(map.props('points')).toHaveLength(1)
   })
 
-  it('places 为空 → PhotosMiniMap 收到非空 emptyText,且不渲染图例', () => {
+  it('when places is empty → PhotosMiniMap receives non-empty emptyText, and legend is not rendered', () => {
     const w = mountTab({ places: [], personName: 'Sara' })
     const map = w.getComponent(PhotosMiniMap)
     expect(map.props('emptyText')).toBeTruthy()
@@ -93,13 +94,13 @@ describe('PersonPlacesTab.vue', () => {
     expect(w.find('.legend').exists()).toBe(false)
   })
 
-  it('personName 为空时空态文案回落到"这个人"(照 Vue2 person.name || $t("this person"))', () => {
+  it('when personName is empty, empty state copy falls back to "这个人" (per Vue2 person.name || $t("this person"))', () => {
     const w = mountTab({ places: [], personName: '' })
     const map = w.getComponent(PhotosMiniMap)
     expect(map.props('emptyText')).toContain('这个人')
   })
 
-  it('地图点颜色沿用分组颜色,7 色循环边界在整条链路上也保持一致', () => {
+  it('map point colors follow group colors, 7-color cycle boundary is consistent across the entire chain', () => {
     const places = Array.from({ length: 8 }, (_, i) => ({
       placeName: `P${i}`, latitude: i, longitude: i,
     }))
@@ -107,6 +108,6 @@ describe('PersonPlacesTab.vue', () => {
     const map = w.getComponent(PhotosMiniMap)
     const pts = map.props('points') as Array<{ color: string }>
     expect(pts).toHaveLength(8)
-    expect(pts[0].color).toBe(pts[7].color) // 索引 0 与 7 都落在 PALETTE[0]
+    expect(pts[0].color).toBe(pts[7].color) // indices 0 and 7 both fall into PALETTE[0]
   })
 })

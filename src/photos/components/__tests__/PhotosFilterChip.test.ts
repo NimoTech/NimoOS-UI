@@ -40,15 +40,15 @@ describe('Structure', () => {
     expect(wOn.get('.fchip').attributes('data-on')).toBe('true')
   })
 
-  it('label 渲染', () => {
+  it('label rendering', () => {
     const w = mountChip({ label: 'People · 3', active: false })
     expect(w.text()).toContain('People · 3')
   })
 
-  // fix round 1 · M4(评审并入):Vue2 的 .fchip 上根本没有 data-open 这个属性,默认态
-  // DOM 必须与 Vue2 逐字一致——data-open 只应在 open === true 时出现,不能恒渲染
-  // data-open="false"。
-  it('open 未传/false 时 .fchip 上不出现 data-open 属性;open=true 时透传成 "true"', () => {
+  // fix round 1 · M4(merged in review): Vue2's .fchip has no data-open attribute at all; default
+  // DOM must match Vue2 exactly — data-open should only appear when open === true, must not
+  // always render data-open="false".
+  it('When open is not provided/false, data-open attribute does not appear on .fchip; when open=true, it is passed through as "true"', () => {
     const wUnset = mountChip({ label: 'Date', active: false })
     expect(wUnset.get('.fchip').attributes('data-open')).toBeUndefined()
     const wFalse = mountChip({ label: 'Date', active: false, open: false })
@@ -57,12 +57,12 @@ describe('Structure', () => {
     expect(wOpen.get('.fchip').attributes('data-open')).toBe('true')
   })
 
-  it('#icon 具名插槽内容渲染在 .fchip-icon 内(B7 裁定:icon 从 glyph 名字符串改成插槽)', () => {
+  it('#icon named slot content renders inside .fchip-icon (B7 decision: icon changed from glyph name string to slot)', () => {
     const w = mountChip({ label: 'Date', active: false }, { icon: '<svg data-test="host-icon"></svg>' })
     expect(w.find('.fchip-icon [data-test="host-icon"]').exists()).toBe(true)
   })
 
-  it('默认插槽内容渲染在 .fchip-wrap 内(弹层挂点)', () => {
+  it('Default slot content renders inside .fchip-wrap (popover attachment point)', () => {
     const w = mountChip({ label: 'Date', active: false }, { default: '<div data-test="popover-slot">pop</div>' })
     const wrap = w.get('.fchip-wrap')
     expect(wrap.find('[data-test="popover-slot"]').exists()).toBe(true)
@@ -70,13 +70,13 @@ describe('Structure', () => {
 })
 
 describe('emit', () => {
-  it('点 .fchip → emit toggle', async () => {
+  it('Clicking .fchip → emit toggle', async () => {
     const w = mountChip({ label: 'Date', active: false })
     await w.get('.fchip').trigger('click')
     expect(w.emitted('toggle')).toHaveLength(1)
   })
 
-  it('点 .fchip-x → emit clear,且 toggle 未被触发(@click.stop 守卫,事件 bubbles:true)', async () => {
+  it('Clicking .fchip-x → emit clear, and toggle is not triggered (@click.stop guard, event bubbles:true)', async () => {
     const w = mountChip({ label: 'Date', active: true })
     const x = w.get('.fchip-x')
     x.element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -86,16 +86,16 @@ describe('emit', () => {
   })
 })
 
-describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue,防止漏抄/错抄——P6b 终审抓过 4 处)', () => {
-  // fix round 1 · M8(评审并入):此前用 paths[0](按下标取)钉住 chevD,靠位置不稳——
-  // 改用 .fchip-chevd(组件自带的稳定 class 钩子)直接取,不依赖 DOM 里 svg 的先后顺序。
-  it('chevD 的 path d 与 Vue2 PhotosIcon.vue chevD 分支逐字符一致', () => {
+describe('glyph exact replication (copied character-by-character from Vue2 PhotosIcon.vue, prevent omission/miscopying — P6b final review caught 4 instances)', () => {
+  // fix round 1 · M8(merged in review): previously pinned chevD by paths[0] (index access), position unreliable —
+  // switched to .fchip-chevd (stable class hook provided by component) to fetch directly, no longer depends on svg order in DOM.
+  it("chevD's path d is character-by-character identical to Vue2 PhotosIcon.vue chevD branch", () => {
     const w = mountChip({ label: 'Date', active: false })
     const path = w.get('.fchip-chevd').get('path')
     expect(path.attributes('d')).toBe('m6 9 6 6 6-6')
   })
 
-  it('x 图标的 path d 与 Vue2 PhotosIcon.vue x 分支逐字符一致,stroke-width 是 2.4', () => {
+  it("x icon's path d is character-by-character identical to Vue2 PhotosIcon.vue x branch, stroke-width is 2.4", () => {
     const w = mountChip({ label: 'Date', active: true })
     const xIcon = w.get('.fchip-x')
     const path = xIcon.get('path')
@@ -104,8 +104,8 @@ describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue,防止漏抄/�
   })
 })
 
-describe('样式:hover 硬约束(基类 .fchip:hover 与变体 .fchip[data-on="true"] 优先级相等,变体必须自带 :hover)', () => {
-  it('cssCascade:.fchip[data-on="true"] 的 hover 胜出规则含 :hover 且含 data-on', () => {
+describe('Style: hover hard constraint (base class .fchip:hover and variant .fchip[data-on="true"] have equal specificity, variant must include its own :hover)', () => {
+  it('cssCascade: .fchip[data-on="true"]\'s winning hover rule contains :hover and contains data-on', () => {
     const style = extractStyleBlock(photosFilterChipRaw)
     expect(style.length).toBeGreaterThan(0)
     const winner = winningHoverBackground(style, ['fchip'])
@@ -114,11 +114,11 @@ describe('样式:hover 硬约束(基类 .fchip:hover 与变体 .fchip[data-on="t
   })
 })
 
-// fix round 1 · M3(评审并入,牵动 T13/T14/T16/P7b):#icon 插槽把 glyph 换成宿主自己内联
-// 的 svg 后,Vue2 的 13px 尺寸契约(PhotosSearchView.vue:53 的 :size="13")必须用 CSS
-// 焊死,不能只写在报告里——先锚定 .fchip-icon :deep(svg) 这条规则体,再断言宽高。
-describe('样式:#icon 插槽尺寸契约(13px,Vue2 :size="13" 的等价复刻)', () => {
-  it('.fchip-icon :deep(svg) 规则把宽高焊死在 13px', () => {
+// fix round 1 · M3(merged in review, affects T13/T14/T16/P7b): after #icon slot replaced glyph with
+// host's own inlined svg, Vue2's 13px size contract (PhotosSearchView.vue:53 :size="13") must be
+// locked in CSS, cannot only be documented in the report — first anchor .fchip-icon :deep(svg) rule body, then assert dimensions.
+describe('Style: #icon slot size contract (13px, exact replica of Vue2 :size="13")', () => {
+  it('.fchip-icon :deep(svg) rule locks width and height at 13px', () => {
     const style = extractStyleBlock(photosFilterChipRaw)
     const rule = parseCssRules(style).find(
       (r) => r.selectors.length === 1 && r.selectors[0] === '.fchip-icon :deep(svg)',
@@ -129,10 +129,10 @@ describe('样式:#icon 插槽尺寸契约(13px,Vue2 :size="13" 的等价复刻)'
   })
 })
 
-// fix round 1 · M7(评审并入):非颜色视觉属性也要程序化断言,不能只靠回源核对——先锚定
-// 规则体再断言属性,不做全文件级 toContain。
-describe('样式:.fchip-x 的负外边距(Vue2 原值,让叉号往胶囊右边缘贴一点,不是随手写的数字)', () => {
-  it('.fchip-x 规则含 margin-left: 2px 与 margin-right: -4px', () => {
+// fix round 1 · M7(merged in review): non-color visual properties also need programmatic assertion, cannot rely solely on source verification —
+// first anchor rule body, then assert property, do not use full-file-level toContain.
+describe('Style: .fchip-x negative margin (Vue2 original value, moves X icon closer to chip\'s right edge, not a casual number)', () => {
+  it('.fchip-x rule contains margin-left: 2px and margin-right: -4px', () => {
     const style = extractStyleBlock(photosFilterChipRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fchip-x')
     expect(rule).toBeDefined()

@@ -16,7 +16,7 @@
 // wraps the digit'. Round 1 simplified the N photos version to only bold `{n}` itself, causing adjacent rows in the activity feed to have one line with the whole phrase bold,
 // and one with only the digit bold — not 'slightly different from Vue2', but self-contradictory. Solution: split both into 'main sentence key + bold
 // phrase key' symmetrically — `photosSvActOneMatchedBold` (already exists) and newly added
-// `photosSvActNMatchedBold` (value `'{n} new photos'`/`'{n} 张新照片'`, self-contained interpolation, rendered via
+// `photosSvActNMatchedBold` (value `'{n} new photos'`, self-contained interpolation; Chinese equivalent in zh_CN.json, rendered via
 // `t('photosSvActNMatchedBold', { n })` then wrapped in `<b>`), both keys have identical form, zero v-html.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'

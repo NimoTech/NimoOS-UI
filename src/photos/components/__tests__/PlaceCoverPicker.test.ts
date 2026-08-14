@@ -243,42 +243,43 @@ describe('empty state', () => {
   })
 })
 
-// ── 分页 ─────────────────────────────────────────────────────────────────
-describe('分页', () => {
-  it('page=0 → 上一页 disabled', () => {
+// ── Pagination ────────────────────────────────────────────────────────────
+describe('pagination', () => {
+  it('page=0 → previous page disabled', () => {
     const w = mountPicker({ page: 0, candidates: candidates({ totalPages: 5 }) })
     expect((w.find('[data-test="cp-page-prev"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('page = totalPages - 1 → 下一页 disabled', () => {
+  it('page = totalPages - 1 → next page disabled', () => {
     const w = mountPicker({ page: 4, candidates: candidates({ totalPages: 5 }) })
     expect((w.find('[data-test="cp-page-next"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('点下一页 → emit update:page 带 page+1', async () => {
+  it('click next page → emit update:page with page+1', async () => {
     const w = mountPicker({ page: 2, candidates: candidates({ totalPages: 5 }) })
     await w.find('[data-test="cp-page-next"]').trigger('click')
     expect(w.emitted('update:page')).toEqual([[3]])
   })
 
-  it('点上一页 → emit update:page 带 page-1', async () => {
+  it('click previous page → emit update:page with page-1', async () => {
     const w = mountPicker({ page: 2, candidates: candidates({ totalPages: 5 }) })
     await w.find('[data-test="cp-page-prev"]').trigger('click')
     expect(w.emitted('update:page')).toEqual([[1]])
   })
 
-  it('totalPages=1 时两个 pager 都 disabled', () => {
+  it('when totalPages=1, both pagers are disabled', () => {
     const w = mountPicker({ page: 0, candidates: candidates({ totalPages: 1 }) })
     expect((w.find('[data-test="cp-page-prev"]').element as HTMLButtonElement).disabled).toBe(true)
     expect((w.find('[data-test="cp-page-next"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  // 删码清单 ④:钳制 Math.max(0, page - 1) 的专项断言。原生 disabled 按钮在真实浏览器里
-  // 挡得住点击,但组件处理函数本身也必须夹紧——这里绕开 vue-test-utils 的 trigger()(它对
-  // disabled 元素不派发),改用原生 dispatchEvent 直接触发 click 监听器,与"是否 disabled"
-  // 这件事解耦,专门验证钳制逻辑本身(brief 删码清单 ④ 的兜底方案:disabled 属性 + emit
-  // 参数一起钉)。
-  it('page=0 时强制派发 click(绕过 disabled)→ emit 的 page 不为负(Math.max 钳制)', () => {
+  // Deletion checklist ④: dedicated assertion for Math.max(0, page - 1) clamping. Native
+  // disabled buttons block clicks in real browsers, but the component handler must also
+  // clamp — here we bypass vue-test-utils' trigger() (which doesn't dispatch on disabled
+  // elements) and use raw dispatchEvent to directly fire the click listener, decoupled from
+  // "is disabled", to verify the clamping logic itself (brief deletion checklist ④ fallback:
+  // disabled attribute + emit parameter both enforced).
+  it('when page=0, force dispatch click (bypass disabled) → emitted page is not negative (Math.max clamp)', () => {
     const w = mountPicker({ page: 0, candidates: candidates({ totalPages: 5 }) })
     w.find('[data-test="cp-page-prev"]').element.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     const emitted = w.emitted('update:page')
@@ -286,9 +287,9 @@ describe('分页', () => {
   })
 })
 
-// ── 页码信息 ─────────────────────────────────────────────────────────────
-describe('页码信息', () => {
-  it('total=88, page=0, totalPages=5 → 文本含 88、1、5(page 显示 +1)', () => {
+// ── Page information ────────────────────────────────────────────────────────
+describe('page information', () => {
+  it('total=88, page=0, totalPages=5 → text contains 88, 1, 5 (page displayed as +1)', () => {
     const w = mountPicker({ page: 0, candidates: candidates({ total: 88, totalPages: 5 }) })
     const text = w.find('.cp-foot-info').text()
     expect(text).toContain('88')
@@ -297,15 +298,15 @@ describe('页码信息', () => {
   })
 })
 
-// ── 搜索 / 标签点击 ───────────────────────────────────────────────────────
-describe('搜索与标签', () => {
-  it('输入西湖 → emit update:search 带西湖', async () => {
+// ── Search / tab click ────────────────────────────────────────────────────
+describe('search and tabs', () => {
+  it('enter 西湖 → emit update:search with 西湖', async () => {
     const w = mountPicker()
     await w.find('.cp-search input').setValue('西湖')
     expect(w.emitted('update:search')).toEqual([['西湖']])
   })
 
-  it('点标签 → emit update:tab 带 t.id', async () => {
+  it('click tab → emit update:tab with t.id', async () => {
     const w = mountPicker()
     const tabs = w.findAll('[data-test="cp-tab"]')
     await tabs[2].trigger('click')
@@ -313,34 +314,34 @@ describe('搜索与标签', () => {
   })
 })
 
-// ── 关闭三路 ─────────────────────────────────────────────────────────────
-describe('关闭三路', () => {
-  it('点 .cp-close-btn → emit close', async () => {
+// ── Close three paths ────────────────────────────────────────────────────
+describe('close three paths', () => {
+  it('click .cp-close-btn → emit close', async () => {
     const w = mountPicker()
     await w.find('.cp-close-btn').trigger('click')
     expect(w.emitted('close')).toHaveLength(1)
   })
 
-  it('点 scrim 空白处(click.self)→ emit close', async () => {
+  it('click scrim blank area (click.self) → emit close', async () => {
     const w = mountPicker()
     await w.find('.cp-scrim').trigger('click')
     expect(w.emitted('close')).toHaveLength(1)
   })
 
-  it('点 .cp-shell 内部 → 不 emit close', async () => {
+  it('click inside .cp-shell → do not emit close', async () => {
     const w = mountPicker()
     await w.find('.cp-shell').trigger('click')
     expect(w.emitted('close')).toBeUndefined()
   })
 
-  it('Esc(document 派发,bubbles:true)→ emit close', async () => {
+  it('Esc (dispatch on document, bubbles:true) → emit close', async () => {
     const w = mountPicker()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
     expect(w.emitted('close')).toHaveLength(1)
   })
 
-  it('非 Escape 键不触发关闭', async () => {
+  it('non-Escape key does not trigger close', async () => {
     const w = mountPicker()
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     await w.vm.$nextTick()
@@ -348,9 +349,9 @@ describe('关闭三路', () => {
   })
 })
 
-// ── Esc 监听生命周期 ─────────────────────────────────────────────────────
-describe('Esc 监听生命周期', () => {
-  it('open 由 true→false 后再派发 Esc 不再 emit', async () => {
+// ── Esc listener lifecycle ────────────────────────────────────────────────
+describe('Esc listener lifecycle', () => {
+  it('after open changes from true to false, dispatching Esc no longer emits', async () => {
     const w = mountPicker({ open: true })
     await w.setProps({ open: false })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -358,7 +359,7 @@ describe('Esc 监听生命周期', () => {
     expect(w.emitted('close')).toBeUndefined()
   })
 
-  it('unmount() 后同样不 emit(断言 removeEventListener 被调)', () => {
+  it('after unmount(), also does not emit (assert removeEventListener is called)', () => {
     const addSpy = vi.spyOn(document, 'addEventListener')
     const w = mountPicker({ open: true })
     const added = addSpy.mock.calls.find(c => c[0] === 'keydown') as [string, EventListener] | undefined
@@ -371,16 +372,16 @@ describe('Esc 监听生命周期', () => {
   })
 })
 
-// ── cssCascade:hover 态背景不被基类规则夺走 ────────────────────────────────
-describe('hover 态背景不被基类规则夺走(删码 ⑦)', () => {
-  it('.cp-tab.is-active 的 hover 背景归属含 :hover 的变体规则', () => {
+// ── cssCascade: hover state background not stolen by base class rule ──────
+describe('hover state background not stolen by base class rule (deletion ⑦)', () => {
+  it('.cp-tab.is-active hover background belongs to variant rule containing :hover', () => {
     const styleText = extractStyleBlock(placeCoverPickerRaw)
     const win = winningHoverBackground(styleText, ['cp-tab', 'is-active'])
     expect(win.selector).toContain('is-active')
     expect(win.selector).toContain(':hover')
   })
 
-  it('.cp-tab.is-active 有一条专属 :hover 规则,优先级严格高于基类 .cp-tab:hover', () => {
+  it('.cp-tab.is-active has dedicated :hover rule with specificity strictly higher than base .cp-tab:hover', () => {
     const styleText = extractStyleBlock(placeCoverPickerRaw)
     const rules = hoverBackgroundRules(styleText, ['cp-tab', 'is-active'])
     const baseHover = rules.find(r => r.selector === '.cp-tab:hover')
@@ -390,14 +391,14 @@ describe('hover 态背景不被基类规则夺走(删码 ⑦)', () => {
     expect(activeHover!.specificity).toBeGreaterThan(baseHover!.specificity)
   })
 
-  it('.cp-cell.is-active 的 hover 背景归属含 :hover 的变体规则', () => {
+  it('.cp-cell.is-active hover background belongs to variant rule containing :hover', () => {
     const styleText = extractStyleBlock(placeCoverPickerRaw)
     const win = winningHoverBackground(styleText, ['cp-cell', 'is-active'])
     expect(win.selector).toContain('is-active')
     expect(win.selector).toContain(':hover')
   })
 
-  it('.cp-cell.is-active 有一条专属 :hover 规则,优先级严格高于基类 .cp-cell:hover', () => {
+  it('.cp-cell.is-active has dedicated :hover rule with specificity strictly higher than base .cp-cell:hover', () => {
     const styleText = extractStyleBlock(placeCoverPickerRaw)
     const rules = hoverBackgroundRules(styleText, ['cp-cell', 'is-active'])
     const baseHover = rules.find(r => r.selector === '.cp-cell:hover')
@@ -408,16 +409,16 @@ describe('hover 态背景不被基类规则夺走(删码 ⑦)', () => {
   })
 })
 
-// ── 颜色合规 ─────────────────────────────────────────────────────────────
-describe('颜色合规', () => {
-  it('.cp-cell-check 规则含 --on-accent(背景为 accent 实底,允许用法)', () => {
+// ── Color compliance ────────────────────────────────────────────────────────
+describe('color compliance', () => {
+  it('.cp-cell-check rule contains --on-accent (background is accent solid, allowed usage)', () => {
     const style = extractStyleBlock(placeCoverPickerRaw)
     const m = /\.cp-cell-check\s*\{([^}]*)\}/.exec(style)
-    expect(m, '未找到 .cp-cell-check 规则').not.toBeNull()
+    expect(m, '.cp-cell-check rule not found').not.toBeNull()
     expect(m![1]).toContain('--on-accent')
   })
 
-  it('全样式块无字面 #/rgba(/rgb( 字面量(除带 theme-exception 的行——本组件预期不需要任何豁免)', () => {
+  it('full style block has no literal #/rgba(/rgb( literals (except lines with theme-exception — this component is expected to need no exemptions)', () => {
     const styleMatch = /<style[^>]*>([\s\S]*?)<\/style>/.exec(placeCoverPickerRaw)
     expect(styleMatch).not.toBeNull()
     const lines = styleMatch![1].split('\n')
@@ -442,40 +443,42 @@ describe('颜色合规', () => {
       if (line.includes('theme-exception')) exempt = true
       const bare = stripVar(line)
       if (HEX.test(bare) || FUNC.test(bare))
-        expect(exempt, `L${idx + 1} 裸颜色字面量缺 theme-exception 豁免: ${line.trim()}`).toBe(true)
+        expect(exempt, `L${idx + 1} bare color literal missing theme-exception exemption: ${line.trim()}`).toBe(true)
       if (line.includes(';') || line.includes('}')) exempt = false
     })
   })
 })
 
-// ── 程序化样式断言(评审 I1 补充:高危非颜色视觉属性不能只靠人工核对)──────────
-// 三条锚定到具体选择器的规则体内(不是全文件关键字搜索,避免恒真)——照
-// PlaceVisitHistory.test.ts:188-217 / PlaceDetailPanel.test.ts:333-339 的既有体例。
-describe('高危非颜色视觉属性(评审 I1)', () => {
+// ── Programmatic style assertion (review I1 supplementary: high-risk non-color visual
+// properties cannot rely on manual verification alone) ──────────────────────────
+// Three rules anchored inside specific selector bodies (not keyword search over whole file,
+// avoids false positives) — following the existing pattern in PlaceVisitHistory.test.ts:188-217
+// / PlaceDetailPanel.test.ts:333-339.
+describe('high-risk non-color visual properties (review I1)', () => {
   const style = extractStyleBlock(placeCoverPickerRaw)
 
-  it('.cp-scrim 规则含 backdrop-filter(重演 T3 事故的确切属性——曾在内联 style 改写成 class 时丢失)', () => {
+  it('.cp-scrim rule contains backdrop-filter (exact property from T3 incident — was lost when converting inline style to class)', () => {
     const m = /\.cp-scrim\s*\{([^}]*)\}/.exec(style)
-    expect(m, '未找到 .cp-scrim 规则').not.toBeNull()
+    expect(m, '.cp-scrim rule not found').not.toBeNull()
     expect(m![1]).toMatch(/backdrop-filter\s*:/)
   })
 
-  it('.cp-cell 规则含 aspect-ratio: 1(8 列缩略图网格必须是正方形单元格)', () => {
+  it('.cp-cell rule contains aspect-ratio: 1 (8-column thumbnail grid must be square cells)', () => {
     const m = /\.cp-cell\s*\{([^}]*)\}/.exec(style)
-    expect(m, '未找到 .cp-cell 规则').not.toBeNull()
+    expect(m, '.cp-cell rule not found').not.toBeNull()
     expect(m![1]).toMatch(/aspect-ratio\s*:\s*1\b/)
   })
 
-  it('.cp-grid 规则含 grid-template-columns: repeat(8, 1fr)(照搬 Vue2 :1129 的 8 列)', () => {
+  it('.cp-grid rule contains grid-template-columns: repeat(8, 1fr) (carried over 8 columns from Vue2 :1129)', () => {
     const m = /\.cp-grid\s*\{([^}]*)\}/.exec(style)
-    expect(m, '未找到 .cp-grid 规则').not.toBeNull()
+    expect(m, '.cp-grid rule not found').not.toBeNull()
     expect(m![1]).toMatch(/grid-template-columns\s*:\s*repeat\(\s*8\s*,\s*1fr\s*\)/)
   })
 })
 
-// ── 英文 locale sanity ───────────────────────────────────────────────────
-describe('英文 locale sanity', () => {
-  it('en_us 下标题/副标题/占位符切到英文', () => {
+// ── English locale sanity ───────────────────────────────────────────────────
+describe('English locale sanity', () => {
+  it('under en_us, title/subtitle/placeholder switch to English', () => {
     const w = mountPicker({ city: 'Hangzhou', totalCount: 100 }, makeI18n('en_us'))
     expect(w.find('.cp-head-title').text()).toContain('Hangzhou')
     expect(w.find('.cp-search input').attributes('placeholder')).toBeTruthy()

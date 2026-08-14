@@ -23,10 +23,10 @@ import { MAP_H, MAP_W } from '../util/worldMap'
 import { buildPins, visitedDots, type Pin, type Place } from '../util/placesMap'
 
 const props = defineProps<{
-  places: Place[] // 已过滤的地点(不吃 rail 的搜索词,同 Vue2 :229/:237)
+  places: Place[] // already-filtered places (doesn't consume rail's search term, same as Vue2 :229/:237)
   activeId: string | null
-  view: { tx: number, ty: number, scale: number } // T7 的变换态
-  themeVars: Record<string, string> // T10 resolveMapTheme() 的产物,直接摊到 <svg> 的 :style
+  view: { tx: number, ty: number, scale: number } // T7's transform state
+  themeVars: Record<string, string> // T10's resolveMapTheme() output, spread directly onto <svg> :style
 }>()
 
 const emit = defineEmits<{

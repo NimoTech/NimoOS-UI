@@ -50,10 +50,10 @@ const NAV_ALL = [
   { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
 ]
 
-// P8a-T6(§7e-15):Vue2 PhotosSidebar.vue:120-122 —— `ai.smartview === false` 时
-// `items.filter(i => i.id !== 'smart')`。判据必须是 `=== false`,不是 `!x`:aiFeatures.
-// smartview 的默认值与"取数失败/字段缺失"的兜底值都是 `true`,只有后端明确说关了才隐藏这一
-// 条——配置读取抖动/请求失败不该让导航条目消失,吓用户以为功能不见了。
+// P8a-T6 (§7e-15): Vue2 PhotosSidebar.vue:120-122 — when `ai.smartview === false`
+// `items.filter(i => i.id !== 'smart')`. Criterion must be `=== false`, not `!x`: aiFeatures.
+// smartview default and fallback for 'fetch failure/field missing' are both `true`; only hide this entry when backend explicitly turns it off —
+// config jitter/request failure shouldn't make navigation entries disappear, scaring users into thinking features vanished.
 const NAV = computed(() =>
   settings.aiFeatures.smartview === false
     ? NAV_ALL.filter((n) => n.id !== 'smart-views')
@@ -64,7 +64,7 @@ function isActive(n: { id: string }): boolean {
   return activeNavId(route.path, NAV.value) === n.id
 }
 
-// 存储条:usedText = totalBytes 人类可读;percent = (diskTotal-diskAvail)/diskTotal,除零守卫。
+// Storage bar: usedText = totalBytes human-readable; percent = (diskTotal-diskAvail)/diskTotal, division-by-zero guard.
 const usedText = computed(() => renderSize(timeline.indexStatus.totalBytes))
 const usedPercent = computed(() => {
   const total = timeline.indexStatus.diskTotal
@@ -77,7 +77,7 @@ const usedPercent = computed(() => {
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="photos-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
+    <!-- Desktop: back home + title merged into sidebar glass panel (AreaShell top bar hides at the same span); narrow screen uses top bar, drawer doesn't repeat -->
     <div v-if="!isNarrow" class="side-top">
       <h1 class="side-app-title">{{ t('photosTitle') }}</h1>
       <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
@@ -101,10 +101,10 @@ const usedPercent = computed(() => {
       <p class="storage-bar-text">{{ usedText }}</p>
     </section>
 
-    <!-- SP7-P8a-T5:侧栏底部设置入口,照 Vue2 PhotosSidebar.vue:34-35 的齿轮按钮(那边
-         @open-settings 是 emit 给挂着 open prop 的全屏 overlay;本仓是真路由,直接
-         router.push)。不改 NAV 数组/既有导航项顺序——T6 要接的"smart-views 条件隐藏"
-         同样改 NAV,两者互不打扰。 -->
+    <!-- SP7-P8a-T5: settings entry at bottom of sidebar, based on gear button in Vue2 PhotosSidebar.vue:34-35 (over there
+         @open-settings emits to a fullscreen overlay with open prop; this repo is real routing, directly
+         router.push). Don't change NAV array/existing navigation order — T6 needs the 'smart-views conditional hide'
+         to also change NAV, the two don't interfere with each other. -->
     <section class="side-section side-settings">
       <button type="button" class="side-settings-btn" data-test="sidebar-settings-link" @click="router.push('/photos/settings')">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
@@ -115,7 +115,7 @@ const usedPercent = computed(() => {
 </template>
 
 <style scoped>
-/* 与 FilesSidebar/AppsSidebar 同一壳形态(玻璃面板 + 窄屏抽屉)。token 五件套照抄。 */
+/* Same shell form as FilesSidebar/AppsSidebar (glass panel + narrow screen drawer). Five-token set copied verbatim. */
 .photos-sidebar {
   flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
   display: flex; flex-direction: column; gap: 18px;
@@ -135,12 +135,12 @@ const usedPercent = computed(() => {
 .side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.storage-bar { margin-top: auto; } /* 存储条压到侧栏底部 */
+.storage-bar { margin-top: auto; } /* Storage bar pushed to bottom of sidebar */
 .storage-bar-track { height: 6px; border-radius: 999px; background: var(--chip-bg-hi); overflow: hidden; }
 .storage-bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
 .storage-bar-text { margin: 6px 0 0; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
 
-/* 设置入口:紧跟存储条之后,视觉上处于侧栏最底部。 */
+/* Settings entry: directly after storage bar, visually at the very bottom of sidebar. */
 .side-settings-btn {
   display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px;
   padding: 6px 8px; border: none; border-radius: 10px; background: transparent;

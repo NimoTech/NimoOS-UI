@@ -4,21 +4,21 @@ import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../i18n/zh_cn'
 import PhotoInfoPanel from '../PhotoInfoPanel.vue'
-// 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到)——同 P6b-T7 的
-// 「先锚定规则体、再断言属性」体例。
+// Style assertions read component source (scoped <style> declarations unavailable in jsdom) —
+// same pattern as P6b-T7: anchor rule body first, then assert properties.
 import PANEL_SRC from '../PhotoInfoPanel.vue?raw'
 import { osmEmbedSrc } from '../util/osmMap'
 import { usePhotosPeople } from '../../stores/people'
 import type { Photo } from '../../util/assetToPhoto'
 
-// 复用既有剪贴板 util(src/files/util/clipboard.ts 的 HTTP 非安全上下文兜底写法)——打桩验证调用,
-// 不重复测 copyText 内部降级逻辑(那部分已有 src/files/util/clipboard.test.ts 覆盖)。
+// Reuse existing clipboard util (src/files/util/clipboard.ts HTTP insecure-context fallback) —
+// stub and verify calls, do not re-test copyText internal degradation (covered in src/files/util/clipboard.test.ts).
 const copyText = vi.fn((_text: string) => Promise.resolve())
 vi.mock('../../../files/util/clipboard', () => ({ copyText: (t: string) => copyText(t) }))
 
-// Task 15B(SP7-P5 两笔记账收口):灯箱人脸 chip 引入 usePhotosPeople() 后,本组件依赖
-// Pinia——三处宿主(时间线/收藏/相册详情)已各自 setActivePinia,这里补上组件自身单测的
-// 同款前置(P3 T4 的同类教训:忘挂 Pinia 会红,不是本组件逻辑错)。
+// Task 15B (SP7-P5 two ledger entries close-out): after lightbox face chip introduces usePhotosPeople(),
+// this component depends on Pinia — three host locations (timeline/favorites/album details) each setActivePinia,
+// adding the same prerequisite for component unit test (P3 T4 lesson: forgetting Pinia causes red, not component logic error).
 const svc = vi.hoisted(() => ({
   photos: {
     listPersons: vi.fn(
@@ -103,24 +103,24 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('.map-pin').exists()).toBe(true)
   })
 
-  // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
-  // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
-  // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。
-  describe('OSM 页脚裁切(用户 2026-07-31 验收要求)', () => {
+  // User acceptance requirement 2026-07-31: remove footer text from OSM embed (Report a problem /
+  // Make a Donation / Website and API terms). iframe cross-origin, internal elements cannot hide via CSS,
+  // only external clipping possible; clipping must be vertically symmetric, else OSM marker drops below .map-pin.
+  describe('OSM footer clipping (user acceptance requirement 2026-07-31)', () => {
     const rule = (sel: string): string => {
       const m = new RegExp(`${sel}\\s*\\{([^}]*)\\}`).exec(PANEL_SRC)
       expect(m).not.toBeNull()
       return m![1]
     }
 
-    it('iframe 上下对称加高并上移(裁掉页脚 + 地图中心仍对齐盒子中心)', () => {
+    it('iframe symmetrically enlarged and shifted up (clip footer + map center still aligns with box center)', () => {
       const body = rule('\\.map-mini iframe')
       expect(body).toMatch(/top:\s*-48px/)
-      expect(body).toMatch(/height:\s*calc\(100% \+ 96px\)/) // 2 × 48,对称
+      expect(body).toMatch(/height:\s*calc\(100% \+ 96px\)/) // 2 × 48, symmetric
       expect(body).toMatch(/position:\s*absolute/)
     })
 
-    it('补了自绘归属声明(ODbL 要求署名,不能连 credit 一起裁掉)', () => {
+    it('custom attribution added (ODbL requires attribution, cannot clip credit along with footer)', () => {
       const photo = makePhoto({ latitude: 31.23, longitude: 121.47, place: 'Shanghai' })
       const w = mountPanel(photo)
       const credit = w.find('.map-credit')
@@ -128,9 +128,9 @@ describe('PhotoInfoPanel', () => {
       expect(credit.text()).toContain('OpenStreetMap')
     })
 
-    it('归属声明的固定浅色带 theme-exception(压在任意瓦片上,颜色不可预测)', () => {
+    it('attribution fixed light band with theme-exception (overlays any tile, color unpredictable)', () => {
       const body = rule('\\.map-credit')
-      // color-guard 的豁免窗口是逐行状态机 —— 注释必须紧贴被豁免的那一条声明
+      // color-guard exemption window is line-by-line state machine — comment must tightly precede the exempt statement
       expect(PANEL_SRC).toMatch(/theme-exception[^\n]*\n\s*color:\s*rgba\(255, 255, 255, 0\.72\)/)
       expect(body).toMatch(/pointer-events:\s*none/)
     })
@@ -160,18 +160,18 @@ describe('PhotoInfoPanel', () => {
     expect(w.findAll('.tag-chip')).toHaveLength(2)
   })
 
-  // Task 15B(SP7-P5 两笔记账收口):人脸 chip 真头像。前置事实纠正(见 task-15-brief.md):
-  // 后端没有 asset-scoped face-thumbnail 端点,Photo.faces 只是人名字符串数组——这里做的是
-  // 「用人名反查人物列表拿 personId,唯一命中才显示真头像」的增强,超出 Vue2 原有的首字母占位。
-  describe('人脸 chip 真头像(增强,超出 Vue2 1:1,登记为偏离)', () => {
-    it('faces 非空且人物列表里有唯一同名 → 渲染 <img>,src 走 personFaceThumbnailUrl 且带 ver', async () => {
+  // Task 15B (SP7-P5 two ledger entries close-out): face chip real avatar. Prerequisite fact correction (see task-15-brief.md):
+  // backend has no asset-scoped face-thumbnail endpoint, Photo.faces is just array of name strings — this is an enhancement
+  // "reverse lookup person name in people list for personId, show real avatar only on unique match", beyond Vue2's initials placeholder.
+  describe('face chip real avatar (enhancement, beyond Vue2 1:1, registered as deviation)', () => {
+    it('faces non-empty with unique same-name in people list → render <img>, src via personFaceThumbnailUrl with ver', async () => {
       svc.photos.listPersons.mockResolvedValue({
         persons: [{ id: 'pid-1', name: 'Alice', coverFaceId: 'face-9' }],
         facesIndexedUpTo: null,
       })
       const photo = makePhoto({ faces: ['Alice'] })
       const w = mountPanel(photo)
-      await Promise.resolve() // fetchPeople 的 await
+      await Promise.resolve() // fetchPeople await
       await Promise.resolve()
       await w.vm.$nextTick()
 
@@ -181,7 +181,7 @@ describe('PhotoInfoPanel', () => {
       expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('pid-1', 'face-9')
     })
 
-    it('重名(两个人同名)→ 仍是首字母占位,且首字母大写(personInitial,顺带修正 f[0] 未大写的坏点)', async () => {
+    it('duplicate names (two people with same name) → still initials placeholder, initials uppercase (personInitial, incidentally fixes f[0] not uppercase bug)', async () => {
       svc.photos.listPersons.mockResolvedValue({
         persons: [
           { id: 'pid-1', name: 'alice', coverFaceId: 'face-1' },
@@ -196,10 +196,10 @@ describe('PhotoInfoPanel', () => {
       await w.vm.$nextTick()
 
       expect(w.find('.face-chip img').exists()).toBe(false)
-      expect(w.find('.face-avatar').text()).toBe('A') // personInitial('alice') = 'A',不是未大写的 'a'
+      expect(w.find('.face-avatar').text()).toBe('A') // personInitial('alice') = 'A', not lowercase 'a'
     })
 
-    it('faces 为空 → 不触发 fetchPeople(负向断言,避免每次开图白拉一次)', async () => {
+    it('faces empty → does not trigger fetchPeople (negative assertion, avoid fetching idle on every photo open)', async () => {
       const photo = makePhoto({ faces: [] })
       mountPanel(photo)
       await Promise.resolve()
@@ -208,9 +208,9 @@ describe('PhotoInfoPanel', () => {
       expect(svc.photos.listPersons).not.toHaveBeenCalled()
     })
 
-    it('faces 非空且 people.peopleLoaded 已是 true(上游已加载过)→ 不重复 fetchPeople', async () => {
+    it('faces non-empty and people.peopleLoaded already true (upstream already fetched) → does not re-fetch fetchPeople', async () => {
       const people = usePhotosPeople()
-      await people.fetchPeople() // 预置成已加载
+      await people.fetchPeople() // preset as already loaded
       svc.photos.listPersons.mockClear()
 
       const photo = makePhoto({ faces: ['Alice'] })

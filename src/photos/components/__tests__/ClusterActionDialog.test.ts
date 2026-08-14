@@ -53,7 +53,7 @@ function mountDialog(props: { open: boolean; mode: 'name' | 'merge' | 'delete'; 
   const w = mount(ClusterActionDialog, {
     props,
     global: { plugins: [i18n] },
-    attachTo: document.body, // 焦点断言需要真实挂进 document
+    attachTo: document.body, // focus assertions need real mount into document
   })
   mounted.push(w)
   return w

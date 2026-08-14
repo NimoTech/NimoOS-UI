@@ -6,17 +6,20 @@
 //   PhotosSmartViewsView.vue:366-382 (refreshPreview)
 //   PhotosSmartViewDetail.vue:409-423 (loadDetail)
 // Backend contract (NimoOS-Photos/service/smartview.go:21-34 SmartView,
-// :727-734 SmartViewActivity) — 已回源核对,json tag 与本文件归一函数逐字段一致。
-// Photos v1 无标准信封,列表一律 `?? []` 兜底(Go nil slice → null)。
+// :727-734 SmartViewActivity) — verified against source; json tag matches this file's
+// normalization functions field-by-field. Photos v1 lacks a standard response envelope;
+// lists always fall back to `?? []` (Go nil slice → null).
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
-// 跨区 import,刻意不搬文件/不抄这 6 行(控制器决策,fix round 1 · C1):它带一条实打实
-// 的守卫——本设备典型是 HTTP LAN 地址,非安全上下文下 `crypto.randomUUID` 是 undefined,
-// SP4-P3a 曾因丢这个守卫让上传整功能挂掉。搬文件会动 SP4 文件区的消费方,抄一份会让这条
-// 守卫存在两处副本。既有跨区引用先例:PhotosSidebar.vue 引 files/util/format、
-// PhotoInfoPanel.vue 引 files/util/clipboard。
+// Cross-area import; deliberately not moving the file or duplicating these 6 lines
+// (controller decision, fix round 1 · C1): they contain a real guard — on typical
+// devices with HTTP LAN addresses, `crypto.randomUUID` is undefined in non-secure
+// contexts. SP4-P3a broke the entire upload feature by dropping this guard. Moving the
+// file would affect file-area consumers (SP4), copying would duplicate the guard
+// unnecessarily. Precedent for cross-area refs: PhotosSidebar.vue imports
+// files/util/format; PhotoInfoPanel.vue imports files/util/clipboard.
 import { safeRandomUUID } from '../../files/upload/uuid'
 // SP15-P2b final fix wave: mutual import with albums.ts -- the two conversion actions are
 // mirror images, and each has to evict the source object from the other store. See the twin
@@ -61,9 +64,10 @@ export interface SmartViewPreview {
 
 export interface CreateSmartViewInput {
   name: string
-  // T5(创建弹窗)决定:可选,不是 string——照搬 Vue2 confirmCreate :431 的
-  // `description: this.draft.desc.trim() || undefined`(后端 omitempty 语义,空描述不
-  // 传字段而不是传空串)。调用方必须能传 undefined,故此处收紧为可选。
+  // T5 (create dialog) decision: optional, not string — following Vue2 confirmCreate :431
+  // `description: this.draft.desc.trim() || undefined` (backend omitempty semantics:
+  // omit the field for empty descriptions rather than send empty string). Callers must
+  // be able to pass undefined, so this is tightened to optional here.
   description?: string
   conds: string[]
   threshold: number
@@ -77,20 +81,22 @@ export interface DeletedSmartView {
 }
 
 const EMPTY_PREVIEW: SmartViewPreview = { count: 0, seeds: [], thresholdActive: true }
-// 照搬 Vue2 PhotosSmartViewDetail.vue:413-415 的三个数字 —— 不要改。
+// Copied as-is from Vue2 PhotosSmartViewDetail.vue:413-415; do not change these three numbers.
 const MATCHED_LIMIT = 60
 const RECENT_LIMIT = 12
 const ACTIVITY_LIMIT = 10
-// refreshPreview 的 debounce 节奏,照搬 Vue2 PhotosSmartViewsView.vue:368。
+// Debounce rhythm for refreshPreview, copied as-is from Vue2 PhotosSmartViewsView.vue:368.
 const PREVIEW_DEBOUNCE_MS = 300
 
-// 照 places.ts 的 toPlaceDetail 体例:逐字段归一 + 兜底。distribution 的判据是**刻意
-// 收紧**,不是照搬 Vue2:真源 PhotosSmartViewDetail.vue:316(不是 PhotosSmartViewsView.vue)
-// 是 `distribution && distribution.length ? … : new Array(10).fill(0)`——只要非空就原样
-// 保留,`[1,2]` 这种长度不足 10 的数组会被直接透传给图表。这里改成 `=== 10` 的严格校验:
-// 本仓的分布图是固定 10 根柱子的图表,长度不对的数组会让柱子与桶位错位(第 3 根柱子
-// 实际画的是"桶 1"的数据),刻意比 Vue2 更严格地整体回落成全 0,而不是继续照抄 Vue2
-// 那个会喂错位数据给图表的兜底口径。
+// Following the pattern in places.ts toPlaceDetail: normalize field-by-field + fallback.
+// The distribution validation is **intentionally stricter**, not a copy of Vue2: the true
+// source (PhotosSmartViewDetail.vue:316, not PhotosSmartViewsView.vue) is
+// `distribution && distribution.length ? … : new Array(10).fill(0)` — keeping any
+// non-empty array as-is. Arrays shorter than 10 like `[1,2]` pass straight to the chart.
+// Here we change to strict `=== 10` validation: this repo's distribution chart has 10
+// fixed bars; wrong-length arrays misalign bars and buckets (bar 3 actually renders
+// "bucket 1" data). Intentionally stricter than Vue2 — fall back to all zeroes rather
+// than keep copying Vue2's approach of feeding the chart misaligned data.
 function toSmartView(raw: unknown): SmartView {
   const r = (raw ?? {}) as Record<string, unknown>
   const distribution = Array.isArray(r.distribution) ? (r.distribution as number[]) : []
@@ -126,7 +132,8 @@ function toActivity(raw: unknown): SmartViewActivity {
 
 export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   const smartViews = ref<SmartView[]>([])
-  // 空态门控,照 places.ts 的 placesLoaded 手法:只在成功路径置 true,失败留 false 可重试。
+  // Empty-state gate, following the pattern in places.ts with placesLoaded: set to true
+  // only on success path, leave false on failure so it can be retried.
   const listLoaded = ref(false)
   const listLoading = ref(false)
 
@@ -134,16 +141,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   const recentAssets = ref<Photo[]>([])
   const activity = ref<SmartViewActivity[]>([])
   const detailLoading = ref(false)
-  // loadDetail 的 seq 竞态守卫,手法照 places.ts loadDetail。三个并行请求
-  // (matchedAssets/recentAssets/activity)共用同一把锁——它们是同一次"打开详情"
-  // 触发的一组请求,理应作为一个整体被下一次打开作废,拆成三把锁没有意义。
+  // Sequence race guard for loadDetail, pattern copied from places.ts loadDetail. Three
+  // concurrent requests (matchedAssets/recentAssets/activity) share one lock — they are
+  // a group of requests triggered by a single "open detail" and should be invalidated as
+  // a unit by the next open. Splitting into three locks would be pointless.
   let detailSeq = 0
 
   const preview = ref<SmartViewPreview>({ ...EMPTY_PREVIEW })
-  // refreshPreview 的 debounce 计时器 + 独立 seq 守卫,均为模块级、不进 state
-  // (纯内部机制,视图不需要读它们)。与 detailSeq 是两把互不相关的锁:创建/编辑弹窗的
-  // 实时预览与详情页的三请求是完全独立的两条数据流,共用一把计数器会让一边的请求
-  // 把另一边的"过期"判断带偏。
+  // Debounce timer and independent seq guard for refreshPreview, both module-level and
+  // not in state (pure internal mechanism; views don't need to read them). Independent
+  // from detailSeq: real-time preview in create/edit dialogs and three requests on
+  // detail page are two completely separate data flows. Sharing one counter would let
+  // one side's staleness check bias the other's judgment.
   let previewTimer: ReturnType<typeof setTimeout> | null = null
   let previewSeq = 0
 
@@ -164,28 +173,33 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
 
   const createBusy = ref(false)
   const patchBusy = ref(false)
-  // deleteSmartView / restoreSmartView 共用一把锁——同一份资源(该智能视图在列表中
-  // 的存在与否)上的互斥写操作,撤销删除时不该允许并发的真删除把状态搅乱。
+  // deleteSmartView and restoreSmartView share one lock — mutually exclusive write
+  // operations on the same resource (the smart view's existence in the list). We must
+  // not allow a concurrent real delete to scramble state while undoing a delete.
   const deleteBusy = ref(false)
   const duplicateBusy = ref(false)
   const exportBusy = ref(false)
 
-  // byId 是本期的核心修复(§7e-2 / 偏离登记 4):Vue2 详情页把整个 sv 对象作为 prop
-  // 持有,列表侧 UPDATE_SMART_VIEW/DELETE_SMART_VIEW 之类的 mutation 只改 state 里的
-  // 数组项,不会去同步详情页手里那份已经拿到的对象引用——编辑/删除后详情页仍展示
-  // 陈旧数据,直到用户重新导航。这里改成"详情页只存 id,每次渲染都从 byId(id) 现取",
-  // 数据来源只有一份(smartViews 数组本身),结构性地消灭了引用陈旧的可能性。
-  // 删码验证登记:`String(s.id)` 这层是防御性的——store 内每一处写入 smartViews.value
-  // 的路径(fetch/create/update/duplicate)都经过 toSmartView 归一,id 落地前恒为
-  // string,因此单测删掉这层 String() 不会变红(不构成可证伪的删码用例)。保留是为了
-  // 防止未来某个写入路径(如误绕过 toSmartView 直接 push)悄悄破坏这个不变量。
+  // byId is this period's core fix (§7e-2 / deviation log 4): Vue2's detail page holds
+  // the entire sv object as a prop. Mutations on the list side (UPDATE_SMART_VIEW,
+  // DELETE_SMART_VIEW, etc.) only change the array item in state — they don't sync the
+  // object reference already held by detail page. After edit/delete, detail page still
+  // shows stale data until user navigates. Change: "detail page only stores id, fetches
+  // from byId(id) on each render". Single source of data (smartViews array itself)
+  // structurally eliminates staleness. Deletion-verification note: the `String(s.id)`
+  // layer is defensive — every write path to smartViews.value in the store
+  // (fetch/create/update/duplicate) normalizes through toSmartView; id is always a
+  // string before landing, so tests dropping this String() won't fail (not a
+  // falsifiable deletion test case). Kept to prevent a future write path (e.g. bypassing
+  // toSmartView and pushing directly) from silently violating the invariant.
   function byId(id: string): SmartView | null {
     return smartViews.value.find(s => String(s.id) === String(id)) ?? null
   }
 
-  // 照 Vue2 fetchSmartViews :998-1005。成功才置 listLoaded = true(照 places.ts 的
-  // placesLoaded 手法,失败留 false 可重试);偏离登记:Vue2 没有 finally 复位
-  // loading(Vue2 store 压根没有 loading 字段),这里补上。
+  // Following Vue2 fetchSmartViews :998-1005. Set listLoaded = true only on success
+  // (using places.ts placesLoaded pattern; leave false on failure for retry).
+  // Deviation note: Vue2 has no finally reset of loading (Vue2 store has no loading
+  // field at all); we add it here.
   async function fetchSmartViews(): Promise<void> {
     listLoading.value = true
     try {
@@ -199,19 +213,23 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 createSmartView :1013-1025,但**不**照抄一处偏离(登记 4):Vue2 :1018-1021
-  // 的 catch 里仍 commit('ADD_SMART_VIEW', sv)——把一个后端上根本不存在的本地对象塞进
-  // 列表("乐观撒谎"),刷新页面就会消失,用户会以为自己丢了一个智能视图。这里改成
-  // rethrow,交给视图层 catch → toast。
+  // Following Vue2 createSmartView :1013-1025, but **not** copying one deviation
+  // (deviation log 4): Vue2 :1018-1021 still `commit('ADD_SMART_VIEW', sv)` in catch —
+  // inserting a local object that doesn't exist on the backend (optimistic lie). Page
+  // refresh makes it disappear; user thinks they lost a smart view. Change: rethrow
+  // and let the view layer catch → toast.
   //
-  // fix round 1 · C1(Critical,真 bug,已回源实证):id **必须由前端生成并传给后端**——
-  // 与本文件最初实现「id 由后端生成,不传」相反。后端 `Create`
-  // (NimoOS-Photos/service/smartview.go:65-68)对空 id 直接 `return nil, ErrInvalidInput`
-  // → route handler 转成 400;handler(route/v1/smartviews.go Create)只 bind + 校验
-  // Name,从不生成 id;全仓唯一生成 id 的 `newSVID` 只被 `Duplicate` 内部调用。不传 id
-  // 在真机上点"创建智能视图"会 100% 返 400。改用 `safeRandomUUID()` 生成
-  // `sv-<uuid>`(不用 `Date.now().toString(36)`——那是 Vue2 的写法,毫秒精度,两个
-  // 客户端同毫秒建视图会撞 id;uuid 实际上不会撞)。
+  // fix round 1 · C1 (Critical, real bug, verified against source): id **must be
+  // generated by frontend and sent to backend** — contrary to this file's initial
+  // implementation ("backend generates id, we don't send it"). Backend `Create`
+  // (NimoOS-Photos/service/smartview.go:65-68) on empty id returns nil, ErrInvalidInput
+  // → route handler turns into 400. Handler (route/v1/smartviews.go Create) only
+  // bind + validates Name, never generates id. Only `newSVID` in the entire repo
+  // generates id, called only inside `Duplicate`. Not sending id: on device, clicking
+  // "create smart view" returns 400 100% of the time. Change to generate
+  // `sv-<uuid>` via `safeRandomUUID()`. (Not `Date.now().toString(36)` — that's
+  // Vue2's approach with millisecond precision; two clients creating views in the same
+  // millisecond get collisions. UUID actually won't collide.)
   async function createSmartView(input: CreateSmartViewInput): Promise<SmartView | null> {
     if (createBusy.value) return null
     createBusy.value = true
@@ -236,12 +254,13 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 updateSmartView :1026-1035。请求体字段改名 conds → condsRaw(Vue2
-  // :1027-1028)。响应有 body 用 toSmartView 整体替换(splice 保持顺序),无 body
-  // 就地合并 patch——patch 本身用的是 CreateSmartViewInput 的字段名(conds,不是
-  // condsRaw),与 SmartView 的字段名一致,合并不需要再转一次名。
-  // 偏离登记(同 createSmartView):Vue2 :1032-1033 的 catch 里仍 commit 本地 patch
-  // (乐观撒谎),这里 rethrow,不照抄。
+  // Following Vue2 updateSmartView :1026-1035. Request body field renamed
+  // conds → condsRaw (Vue2 :1027-1028). If response has body, replace entirely with
+  // toSmartView (splice preserves order). If no body, merge patch in place — patch uses
+  // CreateSmartViewInput field names (conds, not condsRaw), matching SmartView field
+  // names, so merge needs no name conversion. Deviation note (same as createSmartView):
+  // Vue2 :1032-1033 still `commit` local patch in catch (optimistic lie). We rethrow
+  // instead.
   async function updateSmartView(id: string, patch: Partial<CreateSmartViewInput>): Promise<void> {
     if (patchBusy.value) return
     patchBusy.value = true
@@ -267,27 +286,34 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 deleteSmartView :1036-1046,但**不**照抄 Vue2 :1042-1043 的 catch 后
-  // `return null`——那会把失败(网络错误/后端拒绝)伪装成"本来就没找到这一项"，
-  // 视图层无从分辨该不该弹 toast。这里 rethrow。
+  // Following Vue2 deleteSmartView :1036-1046, but **not** copying Vue2 :1042-1043's
+  // `return null` after catch — that masks failure (network error / backend reject)
+  // as "item was not found in the first place", so view layer can't tell whether to
+  // toast. We rethrow instead.
   //
-  // fix round 1 · I1(Important,真 bug,评审用交错场景实测复现):下标**必须在
-  // await 之后重算**,不能用 await 之前算好的下标直接 splice——`deleteBusy` 只互斥
-  // 删除↔删除/撤销,不挡 `fetchSmartViews`;删除在途时若 fetchSmartViews 把列表整体
-  // 重排/插入(如另一个客户端建了新视图排到前面),await 之前的下标就指向了别的项,
-  // 会删错、返回的撤销 payload 也会指向错误的项。Vue2 `photos.js:493-495` 的
-  // DELETE_SMART_VIEW 是按 id filter,天然免疫这个坑——plan 原定的"await 前算好下标"
-  // 顺序把 id 语义降级成了下标语义,是 plan 的错,不是刻意实现。
+  // fix round 1 · I1 (Important, real bug, reproduced with interleaved test scenario):
+  // index **must be recalculated after await**, cannot splice using the index
+  // calculated before await. `deleteBusy` only mutexes delete ↔ delete/undo, doesn't
+  // block `fetchSmartViews`. If fetchSmartViews reorders/inserts the list while delete
+  // is in flight (e.g. another client created a new view that sorts to the front), the
+  // pre-await index now points to a different item. We'd delete the wrong one, and the
+  // undo payload would point to the wrong item too. Vue2 `photos.js:493-495`
+  // DELETE_SMART_VIEW filters by id, naturally immune — the plan's original
+  // "calculate index before await" order downgraded id semantics to index semantics.
+  // Plan error, not intentional implementation.
   async function deleteSmartView(id: string): Promise<DeletedSmartView | null> {
     if (deleteBusy.value) return null
-    // 早退检查:本地列表里根本没有这一项,不发请求(承担"避免打无意义的请求"这一半)。
-    // 注意这个下标只用于早退判断,**不能**带进下面的 splice——真正删除时必须重算。
+    // Early exit check: if the item doesn't exist in the local list, don't send a
+    // request (handles the "avoid pointless requests" part). Note this index is for
+    // early exit only, **cannot** pass it to the splice below — when actually deleting,
+    // must recalculate.
     if (smartViews.value.findIndex(s => String(s.id) === String(id)) < 0) return null
     deleteBusy.value = true
     try {
       await service.photos.deleteSmartView(id)
-      // 必须在 await 之后重算:in-flight 期间 fetchSmartViews 可能已重排/插入,用
-      // await 之前的下标 splice 会删掉别人(Vue2 :493 是按 id filter,不吃这个坑)。
+      // Must recalculate after await: fetchSmartViews might have reordered/inserted
+      // during in-flight. Splicing with pre-await index would delete someone else.
+      // (Vue2 :493 filters by id, doesn't have this trap.)
       const idx = smartViews.value.findIndex(s => String(s.id) === String(id))
       if (idx < 0) return null
       const [sv] = smartViews.value.splice(idx, 1)
@@ -300,15 +326,18 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 restoreSmartView :1047-1058 + RESTORE_SMART_VIEW mutation(:497-498)
-  // 的钳制写法。**这里要带原 id、且不能走 createSmartView() 包装**——这是与
-  // createSmartView 刻意不同的语义:两者现在都会给后端传非空 id(后端 Create 硬性要求,
-  // 见 createSmartView 上方注释的 C1 回源记录),但**id 的来源不同**——createSmartView
-  // 是"新建"，每次都要生成一个全新的随机 id；restoreSmartView 是"撤销刚才的删除"，
-  // 语义是恢复同一个智能视图，必须让后端沿用**原 id**，否则撤销出来的是一个 id 不同的
-  // 新智能视图(旧的匹配统计/活动流历史全部对不上,即便界面上名字/条件看着一样)。
-  // 因此这里不走 createSmartView() 包装(它每次都会生成新 id,拿不到"沿用原 id"的效果),
-  // 而是直接调用底层 service.photos.createSmartView,显式传 payload.sv.id。
+  // Following Vue2 restoreSmartView :1047-1058 + RESTORE_SMART_VIEW mutation (:497-498)
+  // pattern. **Must pass the original id and cannot wrap with createSmartView()** —
+  // intentionally different semantics from createSmartView: both now send non-empty id
+  // to backend (backend Create requirement; see C1 note above createSmartView), but
+  // **id source differs**. createSmartView is "create new" — generate a fresh random
+  // id each time. restoreSmartView is "undo the delete I just did" — semantically
+  // restore the same smart view, so backend must keep the **original id**. Otherwise
+  // undo produces a new smart view with different id (old stats/activity history all
+  // mismatch, even though name/conditions look the same in the UI). So don't wrap with
+  // createSmartView() (generates new id each time, can't preserve original id effect);
+  // instead call the underlying service.photos.createSmartView directly, explicitly
+  // passing payload.sv.id.
   async function restoreSmartView(payload: DeletedSmartView): Promise<void> {
     if (deleteBusy.value) return
     deleteBusy.value = true
@@ -332,13 +361,15 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 duplicateSmartView :1059-1069。**偏离登记**:brief 原文写"unshift 进
-  // 列表"，但回源核对 Vue2 :1064-1066 实际是 `commit('RESTORE_SMART_VIEW', { sv:
-  // copy, index: i + 1 })`——插在原件紧后面，不是插到最前。这不是"重新 fetch 或
-  // unshift"二选一，是第三种写法(brief 记录有误，以真源为准，此处登记)。插在原件
-  // 后面是有意义的 UX(复制品出现在原件旁边，而不是跳到列表最前打断视觉连续性)，
-  // 因此按真实源码实现：`findIndex` 未命中时为 -1，+1 = 0，等价于 unshift，
-  // 天然覆盖"本地列表还没这一项"的边界情况，不需要额外分支。
+  // Following Vue2 duplicateSmartView :1059-1069. **Deviation note**: brief original
+  // said "unshift into list", but verified against Vue2 :1064-1066 actually does
+  // `commit('RESTORE_SMART_VIEW', { sv: copy, index: i + 1 })` — insert right after
+  // original, not at front. Not "refetch or unshift" choice, third pattern (brief
+  // record incorrect; true source authoritative here). Inserting after original is
+  // meaningful UX (copy appears next to original, doesn't jump to front breaking visual
+  // continuity). Implement per true source: `findIndex` misses → -1, +1 = 0 → equals
+  // unshift, naturally covers "local list doesn't have this item yet" edge case, no
+  // extra branch needed.
   async function duplicateSmartView(id: string): Promise<void> {
     if (duplicateBusy.value) return
     duplicateBusy.value = true
@@ -395,13 +426,16 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     smartViews.value.splice(idx, 1)
   }
 
-  // 照 Vue2 PhotosSmartViewDetail.vue loadDetail :409-423,补 seq 竞态守卫
-  // (偏离登记 9,§7e-7):三个请求 Promise.all 并行，成功路径与清空都要过 seq 门控。
+  // Following Vue2 PhotosSmartViewDetail.vue loadDetail :409-423, adding seq race guard
+  // (deviation log 9, §7e-7): three Promise.all concurrent requests, both success path
+  // and clearing must pass seq gate.
   async function loadDetail(id: string): Promise<void> {
     const mine = ++detailSeq
     detailLoading.value = true
-    // 成功路径也要先清旧数据 —— 否则第二次加载时骨架门控已过，会继续渲染上一个
-    // 智能视图的照片与活动流(P6b 终审 I2 的同型缺陷，清空必须在 await 之前)。
+    // Success path also needs to clear old data first — otherwise on second load, the
+    // skeleton gate already passed, continues rendering the previous smart view's
+    // photos and activity (same defect type as P6b final-review I2; clearing must come
+    // before await).
     matchedAssets.value = []
     recentAssets.value = []
     activity.value = []
@@ -520,17 +554,17 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
   // section, and an error there must not take down the matched grid above it.
   //
   // ★ Final-review finding 6: this used to blank the list unconditionally before awaiting,
-  // so a transient 500 made the whole "已排除(N)" band disappear — the user was told the
-  // exclusions were gone when they were still on the server, and nothing said otherwise.
-  // The blank is now conditional on the id actually changing, which is the only case it was
-  // ever needed for (showing view A's exclusions under view B's heading, the same rule
-  // loadDetail states above). Refetching the *same* view keeps the list on screen until the
-  // new one lands, so a failure leaves the band exactly as it was.
+  // so a transient 500 made the whole "excluded (N)" band disappear — the user was told
+  // the exclusions were gone when they were still on the server, and nothing said
+  // otherwise. The blank is now conditional on the id actually changing, which is the
+  // only case it was ever needed for (showing view A's exclusions under view B's heading,
+  // the same rule loadDetail states above). Refetching the *same* view keeps the list on
+  // screen until the new one lands, so a failure leaves the band exactly as it was.
   //
   // This does not weaken the staleness guard: `excludedSeq` is what stops a late-landing
   // older response from overwriting a newer one, and it is untouched — the two mechanisms
-  // answer different questions ("is this response still wanted" vs "may the previous view's
-  // data stay on screen") and do not conflict.
+  // answer different questions ("is this response still wanted" vs "may the previous
+  // view's data stay on screen") and do not conflict.
   async function loadExcluded(id: string): Promise<void> {
     const mine = ++excludedSeq
     excludedLoading.value = true
@@ -549,10 +583,11 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }
   }
 
-  // 照 Vue2 refreshPreview :366-382,节奏(300ms debounce)照搬，seq 守卫是新增
-  // (偏离登记 9)。thresholdActive 的判据照搬 Vue2 :378:`!res || res.thresholdActive
-  // !== false`(即缺字段视为生效)。失败只 console.error，不清空 preview——照搬
-  // Vue2 的 catch 行为，预览失败时保留上一次的计数比闪成 0 好。
+  // Following Vue2 refreshPreview :366-382, rhythm (300ms debounce) copied as-is; seq
+  // guard is new (deviation log 9). thresholdActive validation copied from Vue2 :378:
+  // `!res || res.thresholdActive !== false` (missing field treated as active). Failure
+  // only console.error, doesn't clear preview — copying Vue2's catch behavior; keeping
+  // the previous count on failure is better than flashing to zero.
   function refreshPreview(input: Omit<CreateSmartViewInput, 'name' | 'live'>): void {
     if (previewTimer) clearTimeout(previewTimer)
     previewTimer = setTimeout(() => {
@@ -577,14 +612,17 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     }, PREVIEW_DEBOUNCE_MS)
   }
 
-  // T5(创建弹窗)新增,控制器授权(brief §「前序任务带下来的硬事实」2):Vue2 从无对应
-  // 方法(它靠整页 beforeDestroy 里的 clearTimeout,弹窗只是页面内一块 v-if,组件不会真的
-  // 卸载/重建)。New-UI 的创建弹窗是常驻挂载 + prop 控制显隐,关闭弹窗时若已排好的 300ms
-  // debounce 定时器还没触发、或请求已在途,不清掉的话:①还没触发的定时器会在弹窗关闭后
-  // 悄悄发出一个不再需要的请求;②已在途的请求回来后会用「已关闭的这次编辑」的结果覆盖
-  // preview,污染下一次打开(可能是另一个草稿)时的展示。做法照 places.ts clearDetail 的
-  // 思路:递增 previewSeq 使任何已在途的响应在回调时 `mine !== previewSeq` 而被丢弃
-  // (不需要单独维护"已取消"标志),同时清掉尚未触发的定时器。
+  // T5 (create dialog) new addition, controller authorized (brief § "hard facts brought
+  // by preceding task" 2): Vue2 has no equivalent (relies on page beforeDestroy
+  // clearTimeout; dialog is just v-if in page, component doesn't truly unmount).
+  // New-UI's create dialog is permanently mounted + prop-controlled visibility. On
+  // close, if the 300ms debounce timer hasn't fired or request is in flight, not
+  // cleaning up causes: ① unfired timer silently sends an unneeded request after dialog
+  // closes; ② in-flight request returns and overwrites preview with "this closed edit's"
+  // result, polluting next open's display (may be different draft). Pattern copied from
+  // places.ts clearDetail: increment previewSeq so any in-flight response fails the
+  // `mine !== previewSeq` check in callback and is discarded (no separate "cancelled"
+  // flag needed), also clear the unfired timer.
   function cancelPreview(): void {
     if (previewTimer) {
       clearTimeout(previewTimer)
@@ -593,9 +631,10 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     previewSeq += 1
   }
 
-  // 导出 ZIP 不进 store(它是纯浏览器下载行为：带 Authorization 头 fetch + blob +
-  // <a download>，由视图层 T8 实现，见 plan Global Constraints §7e-1)。这里只负责
-  // 触发后端生成导出相册并 rethrow 失败，让视图层分流 toast 文案。
+  // ZIP export doesn't live in store (it's pure browser download: fetch with
+  // Authorization header + blob + <a download>, implemented by view layer T8; see
+  // plan Global Constraints §7e-1). Here we only trigger backend export generation
+  // and rethrow on failure, letting view layer split toast messaging.
   async function exportAlbum(id: string): Promise<void> {
     if (exportBusy.value) return
     exportBusy.value = true
@@ -621,9 +660,11 @@ export const usePhotosSmartViews = defineStore('photosSmartViews', () => {
     excludedLoading.value = false
     excludedFor = ''
     assetBusy.value = false
-    // 有意不重置 detailSeq/previewSeq:若此刻还有一个 __resetForTest 之前发出的
-    // 请求仍在途，把 seq 拨回 0 会让重置后的下一次调用重新落在同一个 mine 值上，
-    // 与那个本该作废的旧请求产生别名冲突(同 places.ts __resetForTest 的既有理由)。
+    // Intentionally not resetting detailSeq/previewSeq: if an older request sent
+    // before __resetForTest is still in flight, resetting seq back to 0 would make
+    // the next call after reset land on the same mine value, creating an alias
+    // collision with the old request that should be discarded (same reason as
+    // places.ts __resetForTest).
     if (previewTimer) {
       clearTimeout(previewTimer)
       previewTimer = null

@@ -1,7 +1,7 @@
-// P6b-T2: 地点详情面板「照片」标签页的一次性资产加载。
-// 照 Vue2 PhotosTimeline.vue:819-841 (_loadPlaceAssets):limit 恒 500、失败清空
-// (与 store 主数据的"失败保留"口径刻意不同——这里是一次性查询结果,留着上一次的
-// 会误导用户,详见 usePlaceAssets.ts 里的注释)。
+// P6b-T2: one-time asset load for place detail panel "photos" tab.
+// Following Vue2 PhotosTimeline.vue:819-841 (_loadPlaceAssets): limit always 500, clear on failure
+// (intentionally different from store main data "keep on failure" policy — this is one-time query result,
+// keeping previous would mislead user, see comment in usePlaceAssets.ts).
 import { describe, expect, it, vi } from 'vitest'
 import { usePlaceAssets } from '../usePlaceAssets'
 
@@ -20,7 +20,7 @@ function asset(over: Record<string, unknown> = {}): Record<string, unknown> {
 }
 
 describe('usePlaceAssets', () => {
-  it('{assets:[...]} 与裸数组两种响应形状都能吃出同样的 photos.length', async () => {
+  it('Both {assets:[...]} and bare array response shapes yield same photos.length', async () => {
     listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'a1' }), asset({ id: 'a2' })] })
     const s1 = usePlaceAssets()
     await s1.load('7', '', null, null)
@@ -32,7 +32,7 @@ describe('usePlaceAssets', () => {
     expect(s2.photos.value).toHaveLength(2)
   })
 
-  it('null / {} 响应 → photos 为空数组、不抛', async () => {
+  it('null / {} response → photos is empty array, no throw', async () => {
     listAssetsByPlace.mockResolvedValueOnce(null)
     const s1 = usePlaceAssets()
     await expect(s1.load('7', '', null, null)).resolves.toBeUndefined()
@@ -44,7 +44,7 @@ describe('usePlaceAssets', () => {
     expect(s2.photos.value).toEqual([])
   })
 
-  it('photos 是 assetToPhoto 的产物:isVideo 由 mimeType 推出、takenAt 被保留', async () => {
+  it('photos is product of assetToPhoto: isVideo derived from mimeType, takenAt preserved', async () => {
     listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'v1', mimeType: 'video/mp4', takenAt: '2026-01-05T00:00:00Z' })] })
     const s = usePlaceAssets()
     await s.load('7', '', null, null)
@@ -52,7 +52,7 @@ describe('usePlaceAssets', () => {
     expect(s.photos.value[0].takenAt).toBe('2026-01-05T00:00:00Z')
   })
 
-  it('months 按月倒序分组', async () => {
+  it('months grouped by month in descending order', async () => {
     listAssetsByPlace.mockResolvedValueOnce({
       assets: [
         asset({ id: 'a1', takenAt: '2026-01-05T00:00:00Z' }),
@@ -67,7 +67,7 @@ describe('usePlaceAssets', () => {
     expect(s.months.value[1].photos).toHaveLength(1)
   })
 
-  it('spotKey 为空串时原样透传(不是 undefined);spotKey 非空且 lat/lon 非 null 时四参数都透传', async () => {
+  it('spotKey empty string passes through as-is (not undefined); when spotKey non-empty and lat/lon not null, all four params pass through', async () => {
     listAssetsByPlace.mockResolvedValueOnce({ assets: [] })
     const s1 = usePlaceAssets()
     await s1.load('7', '', null, null)
@@ -79,14 +79,14 @@ describe('usePlaceAssets', () => {
     expect(listAssetsByPlace).toHaveBeenCalledWith('7', 'spot-1', 500, 30.1, 120.2)
   })
 
-  it('limit 恒 500', async () => {
+  it('limit always 500', async () => {
     listAssetsByPlace.mockResolvedValueOnce({ assets: [] })
     const s = usePlaceAssets()
     await s.load('9', 'sx', 1, 2)
     expect(listAssetsByPlace).toHaveBeenCalledWith('9', 'sx', 500, 1, 2)
   })
 
-  it('竞态:先发 A(慢)后发 B(快),B 先 resolve → 最终 photos 是 B 的;A 后 resolve 不覆盖;loading 最终为 false', async () => {
+  it('Race: send A (slow) then B (fast), B resolves first → final photos is B; A later resolve does not overwrite; loading finally false', async () => {
     let resolveA: (v: unknown) => void = () => {}
     let resolveB: (v: unknown) => void = () => {}
     listAssetsByPlace
@@ -105,21 +105,21 @@ describe('usePlaceAssets', () => {
     expect(s.loading.value).toBe(false)
   })
 
-  it('finally 的 seq 守卫:旧请求(mine=1)先 resolve 时,不得在新请求(mine=2)仍在途时把 loading 拨回 false', async () => {
+  it('finally seq guard: when old request (mine=1) resolves first, must not set loading back to false while new request (mine=2) still in flight', async () => {
     let resolveA: (v: unknown) => void = () => {}
     listAssetsByPlace
       .mockReturnValueOnce(new Promise((r) => { resolveA = r }))
-      .mockReturnValueOnce(new Promise(() => {})) // B 永不 resolve,模拟"仍在途"
+      .mockReturnValueOnce(new Promise(() => {})) // B never resolves, simulate "still in flight"
     const s = usePlaceAssets()
     const pA = s.load('7', 'a', null, null)
-    void s.load('7', 'b', null, null) // B 在途,不 await
+    void s.load('7', 'b', null, null) // B in flight, do not await
     resolveA({ assets: [] })
     await pA
-    // B 仍在途——loading 必须仍是 true,不能被 A 这个过期请求的 finally 提前拨回 false
+    // B still in flight — loading must still be true, cannot be set back to false early by A's finally (stale request)
     expect(s.loading.value).toBe(true)
   })
 
-  it('失败:photos 清空、failed 为 true、console.error 被调', async () => {
+  it('Failure: photos cleared, failed is true, console.error called', async () => {
     listAssetsByPlace.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePlaceAssets()
@@ -131,7 +131,7 @@ describe('usePlaceAssets', () => {
     spy.mockRestore()
   })
 
-  it('loading/loaded 生命周期:请求期间 loading 为 true,成功后 loaded 为 true、failed 为 false', async () => {
+  it('loading/loaded lifecycle: loading true during request, after success loaded is true, failed is false', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     listAssetsByPlace.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePlaceAssets()
@@ -145,9 +145,9 @@ describe('usePlaceAssets', () => {
     expect(s.failed.value).toBe(false)
   })
 
-  // ── 评审 I2:成功路径此前不清旧数据,第二次 load() 期间旧 spot/城市的照片仍可见 ──
-  describe('第二次 load() 不残留旧数据(评审 I2)', () => {
-    it('第二次 load() 发出后、响应到达前:photos 立即清空、loaded 立即回到 false(骨架门控 loading&&!loaded 重新命中)', async () => {
+  // ── Review I2: success path previously did not clear old data, photos from old spot/city still visible during second load() ──
+  describe('Second load() does not leave old data (review I2)', () => {
+    it('After second load() sent, before response arrives: photos cleared immediately, loaded immediately back to false (skeleton gate loading&&!loaded re-hits)', async () => {
       listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'a1' }), asset({ id: 'a2' })] })
       const s = usePlaceAssets()
       await s.load('7', 'spot-a', null, null)
@@ -156,8 +156,8 @@ describe('usePlaceAssets', () => {
 
       let resolveSecond: (v: unknown) => void = () => {}
       listAssetsByPlace.mockReturnValueOnce(new Promise((r) => { resolveSecond = r }))
-      const p2 = s.load('7', '', null, null) // showWholeCity:清 spot,回整城
-      // 响应还没到达——此刻不该再看到上一个 spot(a1/a2)的照片。
+      const p2 = s.load('7', '', null, null) // showWholeCity: clear spot, back to whole city
+      // Response not yet arrived — should not still see photos from previous spot (a1/a2).
       expect(s.photos.value).toEqual([])
       expect(s.loaded.value).toBe(false)
       expect(s.loading.value).toBe(true)
@@ -168,7 +168,7 @@ describe('usePlaceAssets', () => {
       expect(s.loaded.value).toBe(true)
     })
 
-    it('第二次 load() 失败时同样不残留第一次的照片(failed 分支既有清空,行为一致)', async () => {
+    it('Second load() failure also does not leave first load photos (failed branch already has clear, behavior consistent)', async () => {
       listAssetsByPlace.mockResolvedValueOnce({ assets: [asset({ id: 'a1' })] })
       const s = usePlaceAssets()
       await s.load('7', 'spot-a', null, null)
@@ -182,7 +182,7 @@ describe('usePlaceAssets', () => {
       spy.mockRestore()
     })
 
-    it('过期响应仍不回填:seq 守卫在清空之上继续生效(A 慢/B 快,A 事后到达不覆盖 B 的结果)', async () => {
+    it('Stale response still not filled back: seq guard continues to work over clear (A slow/B fast, A arrives later does not overwrite B result)', async () => {
       let resolveA: (v: unknown) => void = () => {}
       let resolveB: (v: unknown) => void = () => {}
       listAssetsByPlace
@@ -196,7 +196,7 @@ describe('usePlaceAssets', () => {
       expect(s.photos.value.map(p => p.id)).toEqual(['b1'])
       resolveA({ assets: [asset({ id: 'a1' })] })
       await pA
-      // A 是过期响应,即使它在 B 之后才 resolve,也不能把 B 的结果覆盖/清空。
+      // A is stale response, even if it resolves after B, it cannot overwrite/clear B's result.
       expect(s.photos.value.map(p => p.id)).toEqual(['b1'])
       expect(s.loaded.value).toBe(true)
     })

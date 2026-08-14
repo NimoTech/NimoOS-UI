@@ -31,7 +31,7 @@ import { MAX_SCALE } from '../util/placesMap'
 
 defineProps<{
   zoomFrac: number
-  /** T10 地图主题的强调色,喂给 --accent 局部覆盖——D5 地图主题的一部分,不算违反 token 铁律。 */
+  /** T10 map theme's accent color, fed to --accent local override — part of D5 map theme, doesn't violate token iron rule. */
   dotColor: string
 }>()
 
@@ -43,19 +43,20 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// Vue2 :674-679/:684-691 的 _zoomDrag。
+// Vue2 :674-679/:684-691's _zoomDrag.
 let dragging = false
 
 // Vue2 :666-673. t = clamp((clientY - rect.top) / rect.height, 0, 1);
-// scale = MAX_SCALE - t * (MAX_SCALE - 1) —— 顶(t=0)= MAX_SCALE,底(t=1)= 1。
+// scale = MAX_SCALE - t * (MAX_SCALE - 1) — top (t=0) = MAX_SCALE, bottom (t=1) = 1.
 function setFromEvent(e: PointerEvent): void {
   const track = e.currentTarget as HTMLElement
   const rect = track.getBoundingClientRect()
-  // 评审 M4:Vue2 没有这条守卫,但 rect.height === 0(轨道尚未布局/被隐藏)会让下面的除法
-  // 产出 NaN,一路传导到 usePlacesView 的 view.scale/tx/ty 三个字段,而 applyZoom 里
-  // `clamped === old` 因 NaN !== NaN 恒不短路,写入即成事实;reset() 走 animateView 做插值,
-  // 从 NaN 起点算出的每一步都还是 NaN——连复位键也救不回来,只能重挂组件。这里提前 return
-  // 拦住这个不可恢复态,不让 NaN 有机会写进 view。
+  // Review M4: Vue2 lacks this guard, but rect.height === 0 (track not laid out/hidden) makes
+  // the division below produce NaN, which propagates to usePlacesView's view.scale/tx/ty fields;
+  // in applyZoom `clamped === old` never short-circuits because NaN !== NaN, so writing proceeds;
+  // reset() goes through animateView interpolation, every step from NaN start is still NaN — even
+  // reset button can't recover, only remounting helps. Early return here intercepts this
+  // unrecoverable state, prevents NaN from ever reaching view.
   if (!rect.height) return
   const tFrac = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height))
   emit('set-scale', MAX_SCALE - tFrac * (MAX_SCALE - 1))
@@ -74,7 +75,7 @@ function onMove(e: PointerEvent): void {
     setFromEvent(e)
 }
 
-// Vue2 :684-691. releasePointerCapture 包 try/catch——丢失的 pointerup 会让 capture 泄漏。
+// Vue2 :684-691. releasePointerCapture wrapped in try/catch — lost pointerup leaks capture.
 function onUp(e: PointerEvent): void {
   dragging = false
   const track = e.currentTarget as HTMLElement & { releasePointerCapture?: (id: number) => void }
@@ -182,7 +183,8 @@ function resetView(): void {
   margin-left: -7px;
   margin-bottom: -7px;
   border-radius: 50%;
-  /* theme-exception: 把手固定白色不随主题走,Vue2 两套主题下从未改过这个值,是常见 slider handle 惯例 */
+  /* theme-exception: handle fixed white, theme-independent; Vue2's light/dark never changed this,
+     common slider handle convention. */
   background: #fff;
   box-shadow: 0 0 0 3px var(--accent, #8950F2), 0 1px 4px var(--zb-thumb-shadow);
   pointer-events: none;

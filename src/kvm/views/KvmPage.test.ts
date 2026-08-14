@@ -42,9 +42,9 @@ const api = {
   // undefined methods in the vi.mock factory will throw when opening the dialog.
   getSettings: vi.fn(), updateSettings: vi.fn(),
   createVM: vi.fn(), getISOList: vi.fn(), downloadISO: vi.fn(),
-  // P6 Task 9:VM 设置弹窗接线需要的 updateVM。
+  // P6 Task 9: VM settings dialog wiring needs updateVM.
   updateVM: vi.fn(),
-  // P6 Task 10:快照 tab 接线需要的四个。
+  // P6 Task 10: snapshots tab wiring needs four methods.
   getSnapshots: vi.fn(), createSnapshot: vi.fn(), deleteSnapshot: vi.fn(), restoreSnapshot: vi.fn(),
 }
 // IsoBrowser (OsSelector's custom section subcomponent, truly rendered, not mocked) calls
@@ -236,8 +236,8 @@ describe('KvmPage power action wiring (Task 5)', () => {
 
     await w.findAll('.action-btn')[1].trigger('click')
     const stopBtn = w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!
-    await stopBtn.trigger('click') // 第一次:只变确认文字
-    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click') // 第二次:真正触发
+    await stopBtn.trigger('click') // first click: only change confirmation text
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click') // second click: actually trigger
 
     // At this moment stopVM promise hasn't resolved yet, overlay should already be mounted
     // (Teleport to body, can only query from document, wrapper.find can't find teleported content
@@ -371,8 +371,8 @@ describe('KvmPage VNC console wiring (Task 6)', () => {
       data: [VM({ id: 'vm-1', state: 'stopped' }), VM({ id: 'vm-2', name: 'vm-two', state: 'running' })],
       total: 2,
     })
-    api.startVM.mockRejectedValue(new Error('domain busy')) // 制造一个残留的 lastError
-    api.getVNC.mockRejectedValue(new Error('irrelevant')) // 任何 connect() 都会失败
+    api.startVM.mockRejectedValue(new Error('domain busy')) // create residual lastError
+    api.getVNC.mockRejectedValue(new Error('irrelevant')) // any connect() will fail
     const w = mountPage()
     await flush()
 
@@ -1153,13 +1153,13 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
       os: 'Alpine',
       osType: 'linux',
     }))
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 关弹窗
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // close dialog
     expect(useToast().toasts.map((x) => x.text)).toContain('虚拟机创建成功')
-    expect(api.getVMList).toHaveBeenCalledTimes(2) // mounted 一次 + create 成功后刷新一次
+    expect(api.getVMList).toHaveBeenCalledTimes(2) // mounted once + refresh once after create success
     w.unmount()
   })
 
-  it('提交失败 → 弹窗不关,内联显示后端 message', async () => {
+  it('submit fails → dialog stays open, show backend message inline', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1184,12 +1184,12 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     w.unmount()
   })
 
-  // 评审补测(报告里主动申报的缺口):create() 的 errText fallback 分支(rejection 不是
-  // Error 实例、拿不到 message 时落回 i18n 键名 'kvmFailedToCreate')此前只在
-  // useVmList.test.ts 里验证过"返回的字符串是键名",没有一条用例走到 KvmPage 这一层——
-  // onCreateSubmit 里 `err && te(err) ? t(err) : err` 那道判定专门是为了不把键名裸传进
-  // .cv-error,这里补上覆盖,避免这道判定成为"写了但没人验证过"的代码。
-  it('提交失败且后端 rejection 非 Error 值(拿不到 message)→ 内联显示翻译后的中文,不是键名', async () => {
+  // Review additional test (gap reported in findings): create()'s errText fallback branch (rejection not
+  // Error instance, can't get message falls back to i18n key 'kvmFailedToCreate') previously only
+  // verified in useVmList.test.ts "returned string is key", no test reached KvmPage layer —
+  // `err && te(err) ? t(err) : err` decision in onCreateSubmit specifically to not pass bare key to
+  // .cv-error, add coverage here, avoid this decision becoming "written but never verified" code.
+  it('submit fails with backend rejection non-Error value (can\'t get message) → show translated Chinese inline, not key name', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1203,31 +1203,30 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     fillName('p6-throwaway')
     await w.vm.$nextTick()
 
-    api.createVM.mockRejectedValue('boom') // 非 Error 值 reject → useVmList.errText() 走 fallback 键名
+    api.createVM.mockRejectedValue('boom') // non-Error value reject → useVmList.errText() takes fallback key
     ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
     const err = document.body.querySelector('.cv-error')?.textContent
-    expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate 翻译后的中文,不是键名本身
+    expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate translated Chinese, not key name itself
     expect(err).not.toContain('kvmFailedToCreate')
     w.unmount()
   })
 
-  // 评审 Important #1:`onCreateSubmit` 里 `creating.value = true/false` 此前零判别力覆盖——
-  // 整行删掉现有测试套件一条不会翻红。这里补上:让 `api.createVM` 返回一个手动控制的
-  // pending Promise,验证提交进行中按钮 disabled/is-loading、二次点击不会让 `createVM`
-  // 被调第二次、落定后按钮恢复可用。用**拒绝**而不是成功来落定——成功会让
-  // `onCreateSubmit` 顺带把 `createOpen` 也置为 false、弹窗关闭卸载,DOM 节点被摘掉后
-  // "按钮恢复可用"这条断言就没有意义了;失败分支弹窗留着,能在弹窗仍存在时验证按钮
-  // 状态真的复位。
+  // Review Important #1: `creating.value = true/false` in `onCreateSubmit` previously had zero discriminative power —
+  // deleting the whole line current test suite still all green. Add here: let `api.createVM` return manually
+  // controlled pending Promise, verify mid-submit button disabled/is-loading, second click won't call `createVM`
+  // twice, after resolution button resumes enabled. Use **rejection** not success to resolve — success would make
+  // `onCreateSubmit` also set `createOpen` to false, close/unmount dialog, after DOM nodes removed "button resumes"
+  // assertion has no meaning; failure branch leaves dialog, can verify button state truly resets while dialog exists.
   //
-  // ⚠️ Global Constraint #15「被混淆的断言」自查(评审点名的坑,Task 7 已经栽过一次):
-  // 表单必须是**合法的**(已 `openCreateAndPickIso` + `clickSelectAlpine` + `fillName` 填好
-  // name/iso/os),否则 `validateCreateVm` 会独立挡住第二次点击、emit 不出 submit,分不清
-  // 挡住第二次调用的到底是 `creating` 守卫还是校验——用合法表单排除这个混淆因素,第二次
-  // 点击如果真的没有让 `api.createVM` 被调用,只能归因于 `creating` 守卫。
-  it('提交进行中按钮 disabled/is-loading,二次点击不会重复调用 createVM,落定后恢复可用', async () => {
+  // ⚠️ Global Constraint #15 "confused assertion" self-check (review-named pit, Task 7 already hit once):
+  // form must be **valid** (already `openCreateAndPickIso` + `clickSelectAlpine` + `fillName` filled
+  // name/iso/os), otherwise `validateCreateVm` independently blocks second click, doesn't emit submit,
+  // can't tell if second call was blocked by `creating` guard or validation — use valid form exclude this confusion,
+  // if second click doesn't actually call `api.createVM`, can only attribute to `creating` guard.
+  it('mid-submit button disabled/is-loading, second click won\'t repeat call createVM, after resolution resumes enabled', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1237,14 +1236,14 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     clickSelectAlpine()
     await flush()
     await w.vm.$nextTick()
-    fillName('p6-throwaway') // 合法表单——上面注释解释了为什么这一步不能省
+    fillName('p6-throwaway') // valid form — comment above explains why can't skip
     await w.vm.$nextTick()
 
     let rejectCreate: (e: unknown) => void = () => {}
     api.createVM.mockReturnValue(new Promise((_resolve, reject) => { rejectCreate = reject }))
 
     const btn = document.body.querySelector('.cv-primary-btn') as HTMLButtonElement
-    btn.click() // 第一次点击,createVM 挂起未落定
+    btn.click() // first click, createVM suspended not resolved
     await flush()
     await w.vm.$nextTick()
 
@@ -1252,54 +1251,53 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     expect(btn.disabled).toBe(true)
     expect(btn.classList.contains('is-loading')).toBe(true)
 
-    // 第二次点击:原生 `disabled` 属性本身会挡掉 `.click()`(jsdom 与真实浏览器一致,
-    // CreateVmDialog.test.ts 已用最小复现脚本验证过),必须用 `dispatchEvent` 绕开平台级
-    // 拦截,才能真的测到 `onSubmit()` 内部 `if (props.creating) return` 这道 JS 守卫,
-    // 而不是被浏览器的 disabled 语义顺手挡住(那样测的就不是这道守卫了)。
+    // second click: native `disabled` attribute itself blocks `.click()` (jsdom same as real browser,
+    // CreateVmDialog.test.ts verified with minimal repro script), must use `dispatchEvent` bypass platform-level
+    // interception, to really test `if (props.creating) return` JS guard inside `onSubmit()`,
+    // not blocked by browser's disabled semantics (that wouldn't test this guard).
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flush()
     await w.vm.$nextTick()
-    expect(api.createVM).toHaveBeenCalledTimes(1) // 仍然只有第一次那一次
+    expect(api.createVM).toHaveBeenCalledTimes(1) // still only first time
 
-    rejectCreate(new Error('boom')) // 用失败落定,弹窗留着,才能在按钮还存在时断言它复位
+    rejectCreate(new Error('boom')) // use failure to resolve, dialog stays, can assert button resets while it exists
     await flush()
     await w.vm.$nextTick()
 
-    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗还开着
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // dialog still open
     expect(btn.disabled).toBe(false)
     expect(btn.classList.contains('is-loading')).toBe(false)
     w.unmount()
   })
 
-  // 评审修复的真缺陷回归测试:KvmGlobalSettingsDialog 与 KvmPage 各自持有一份独立的
-  // useKvmHostInfo() 实例(Task 2 的隔离设计,见 KvmGlobalSettingsDialog.vue 顶部与
-  // KvmPage.vue `@saved` 处的注释)。保存全局设置成功后,如果 KvmPage 那份 hostInfo
-  // 不重新 fetch,创建弹窗的默认值会停在保存前的旧值——这里走完整的真实路径验证修复。
+  // Review regression test for real bug fixed: KvmGlobalSettingsDialog and KvmPage each hold independent
+  // useKvmHostInfo() instances (Task 2 isolation design, see KvmGlobalSettingsDialog.vue top and
+  // KvmPage.vue `@saved` comment). After save global settings succeeds, if KvmPage's hostInfo
+  // doesn't refetch, create dialog defaults stay at pre-save old values — here walk complete real path to verify fix.
   //
-  // ⚠️ Global Constraint #15「被混淆的断言」自查:断言的是"点保存前 vs 点保存后"
-  // `api.getSettings` 调用次数的变化(2 → 3),而不是笼统地"调用过 getSettings"——
-  // 调用 #1 来自 mounted 时 KvmPage 自己那份 hostInfo.fetch(),调用 #2 来自打开全局设置
-  // 弹窗时它自己那份 host.fetch()(这两次都发生在"点保存"**之前**,先用中间断言把它们
-  // 显式记下来、排除掉,不让它们混进"点保存导致的那一次"里)。这条测试期间没有触发任何
-  // MessageBus 事件、没有切换选中 VM——没有别的已知机制会在这个窗口里调用 getSettings,
-  // 唯一能让计数从 2 变成 3 的就是 `@saved` 触发的那次 fetch。
-  it('评审修复:保存全局设置后,创建弹窗的默认值跟着刷新(不再停在旧值)', async () => {
+  // ⚠️ Global Constraint #15 "confused assertion" self-check: asserts "before vs after click save"
+  // `api.getSettings` call count change (2 → 3), not just "called getSettings" —
+  // call #1 from KvmPage's own hostInfo.fetch() at mount, call #2 from its own host.fetch() when opening global
+  // settings dialog (both happen **before** "click save", use mid assertion explicitly note them, exclude them,
+  // don't let them mix into "save-caused call"). This test period no MessageBus events, no VM selection switch —
+  // no other known mechanism calls getSettings in this window, only thing lets count go 2→3 is `@saved`-triggered fetch.
+  it('review fix: after save global settings, create dialog defaults refresh (no longer stuck at old)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
-    expect(api.getSettings).toHaveBeenCalledTimes(1) // mounted:KvmPage 自己那份 hostInfo
+    expect(api.getSettings).toHaveBeenCalledTimes(1) // mount: KvmPage's own hostInfo
 
-    await w.get('.kvm-settings-btn').trigger('click') // 打开全局设置弹窗
+    await w.get('.kvm-settings-btn').trigger('click') // open global settings dialog
     await flush()
     await w.vm.$nextTick()
-    expect(api.getSettings).toHaveBeenCalledTimes(2) // 弹窗自己那份 useKvmHostInfo() 又 fetch 一次
+    expect(api.getSettings).toHaveBeenCalledTimes(2) // dialog's own useKvmHostInfo() fetches again
 
     const vcpuInput = document.body.querySelector('input[name="defaultVcpu"]') as HTMLInputElement
     vcpuInput.value = '4'
     vcpuInput.dispatchEvent(new Event('input'))
     await w.vm.$nextTick()
 
-    // 模拟后端保存后已经落盘:此后的 getSettings 调用返回新值。
+    // simulate backend save already persisted: subsequent getSettings calls return new value.
     api.getSettings.mockResolvedValue({
       autostart: false, availableDiskGB: 263, availableMemoryMB: 9234, cpuCores: 6,
       defaultDiskSize: 20, defaultMemory: 2048, defaultVcpu: 4,
@@ -1307,15 +1305,15 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     })
     api.updateSettings.mockResolvedValue({})
 
-    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click() // 全局设置弹窗自己的保存按钮
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click() // global settings dialog's own save button
     await flush()
     await w.vm.$nextTick()
 
-    // 基础断言:又被调了一次,且只能由 @saved 触发的 hostInfo.fetch() 解释(见上面注释)。
+    // basic assertion: called one more time, can only be explained by @saved-triggered hostInfo.fetch() (see comment above).
     expect(api.getSettings).toHaveBeenCalledTimes(3)
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 保存成功自动关闭全局设置弹窗
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // save success auto-closes global settings dialog
 
-    // 更强的断言:打开创建弹窗,CPU 预填反映的是刚保存的新值 4,不是保存前的旧值 2。
+    // stronger assertion: open create dialog, CPU prefill reflects just-saved new value 4, not old 2 before save.
     await openCreateDialog(w)
 
     const activeCpuBtns = [...document.body.querySelectorAll('.cv-cpu-btn')]

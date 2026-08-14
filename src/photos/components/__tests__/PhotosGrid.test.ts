@@ -126,9 +126,9 @@ describe('PhotosGrid', () => {
     expect((boxes[1].element as HTMLInputElement).checked).toBe(true)
   })
 
-  // P6b-T9: `selectable` prop (偏离登记 14) —— 地点照片页(D10)不接多选,复用本组件时不该
-  // 有复选框。默认值必须保持 true,否则 Photos.vue/PhotosFavorites.vue 这两个既有消费方
-  // (都不传 selectable)会静默丢失复选框——这条是纯粹的默认值回归断言。
+  // P6b-T9: `selectable` prop (deviation register 14) — places photo page (D10) doesn't allow multi-select,
+  // reusing this component should not have checkboxes. Default value must stay true, otherwise the two existing
+  // consumers Photos.vue/PhotosFavorites.vue (neither passes selectable) silently lose checkboxes——this is purely a default-value regression assertion.
   it('not passing `selectable` at all still renders .tile-check (default-value regression for existing consumers)', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })

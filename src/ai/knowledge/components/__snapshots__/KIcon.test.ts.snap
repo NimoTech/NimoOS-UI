@@ -1,52 +1,5 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`KIcon > 42 条 glyph 全量快照(防未来误改漂移) 1`] = `
-{
-  "arrowDown": "<path d="M10 4v12M5 11l5 5 5-5"></path>",
-  "arrowRight": "<path d="M4 10h12M11 5l5 5-5 5"></path>",
-  "bot": "<g><rect x="4" y="6" width="12" height="10" rx="2"></rect><circle cx="8" cy="11" r="0.8" fill="currentColor" stroke="none"></circle><circle cx="12" cy="11" r="0.8" fill="currentColor" stroke="none"></circle><path d="M10 3v3M7 16v2M13 16v2"></path></g>",
-  "check": "<path d="M4 10l4 4 8-8"></path>",
-  "chev": "<path d="M7 5l5 5-5 5"></path>",
-  "chevDown": "<path d="M5 7l5 5 5-5"></path>",
-  "chevLeft": "<path d="M13 5l-5 5 5 5"></path>",
-  "clock": "<g><circle cx="10" cy="10" r="7"></circle><path d="M10 6v4l3 2"></path></g>",
-  "code": "<g><path d="M7 6l-4 4 4 4M13 6l4 4-4 4"></path></g>",
-  "copy": "<g><rect x="6" y="6" width="11" height="11" rx="1.5"></rect><path d="M3 13V4a1 1 0 0 1 1-1h9"></path></g>",
-  "danger": "<g><path d="M10 2l8 14H2L10 2z"></path><path d="M10 8v4M10 14v0.5"></path></g>",
-  "download": "<g><path d="M10 3v9M6 9l4 4 4-4"></path><path d="M4 16h12"></path></g>",
-  "drive": "<g><rect x="2" y="11" width="16" height="6" rx="1.5"></rect><path d="M4 11l1.5-6h9L16 11"></path><circle cx="6" cy="14" r="0.8" fill="currentColor" stroke="none"></circle></g>",
-  "edit": "<path d="M3 17l4-1 9-9-3-3-9 9-1 4zM12 6l3 3"></path>",
-  "eye": "<g><path d="M2 10s3-6 8-6 8 6 8 6-3 6-8 6-8-6-8-6z"></path><circle cx="10" cy="10" r="2.5"></circle></g>",
-  "file": "<g><path d="M5 3h7l4 4v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"></path><path d="M12 3v4h4"></path></g>",
-  "folder": "<path d="M3 6a1 1 0 0 1 1-1h3l2 2h7a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z"></path>",
-  "funnel": "<path d="M3 4h14l-5.5 7v5l-3 1.5v-6.5L3 4z"></path>",
-  "grid": "<g><rect x="3" y="3" width="6" height="6" rx="1"></rect><rect x="11" y="3" width="6" height="6" rx="1"></rect><rect x="3" y="11" width="6" height="6" rx="1"></rect><rect x="11" y="11" width="6" height="6" rx="1"></rect></g>",
-  "history": "<g><circle cx="10" cy="10" r="7"></circle><path d="M10 6v4l3 2"></path></g>",
-  "home": "<g><path d="M3 10l7-6 7 6v7a1 1 0 0 1-1 1h-3v-5h-6v5H4a1 1 0 0 1-1-1v-7z"></path></g>",
-  "hourglass": "<g><path d="M5 3h10M5 17h10M6 3v3a4 4 0 0 0 8 0V3M6 17v-3a4 4 0 0 1 8 0v3"></path></g>",
-  "info": "<g><circle cx="10" cy="10" r="7"></circle><path d="M10 9v5M10 6v.5"></path></g>",
-  "layers": "<g><path d="M10 3l7 4-7 4-7-4 7-4z"></path><path d="M3 11l7 4 7-4M3 15l7 4 7-4"></path></g>",
-  "paperclip": "<path d="M14.5 7.5l-6 6a2.5 2.5 0 1 1-3.5-3.5l7-7a4 4 0 0 1 5.5 5.5l-7 7a5.5 5.5 0 0 1-7.5-7.5"></path>",
-  "pause": "<g><rect x="5" y="4" width="3" height="12" fill="currentColor" stroke="none"></rect><rect x="12" y="4" width="3" height="12" fill="currentColor" stroke="none"></rect></g>",
-  "play": "<path d="M6 4l10 6-10 6V4z" fill="currentColor" stroke="none"></path>",
-  "plus": "<path d="M10 4v12M4 10h12"></path>",
-  "refresh": "<g><path d="M16 4v4h-4"></path><path d="M16 8a6 6 0 1 0-1 6"></path></g>",
-  "rocket": "<g><path d="M10 2c4 2 6 6 6 10l-3 1-3-3-3 3-3-1c0-4 2-8 6-10z"></path><circle cx="10" cy="8" r="1.5"></circle></g>",
-  "search": "<g><circle cx="9" cy="9" r="5"></circle><path d="M13 13l4 4"></path></g>",
-  "settings": "<g><circle cx="10" cy="10" r="2.5"></circle><path d="M10 1.5v2.5M10 16v2.5M3.5 10H1M19 10h-2.5M5 5L3.3 3.3M16.7 16.7L15 15M5 15l-1.7 1.7M16.7 3.3L15 5"></path></g>",
-  "sort": "<g><path d="M6 8l3-3 3 3"></path><path d="M6 12l3 3 3-3"></path></g>",
-  "sparkle": "<path d="M10 3l1.5 4.5L16 9l-4.5 1.5L10 15l-1.5-4.5L4 9l4.5-1.5L10 3zM16 13l.7 1.8L18.5 15l-1.8.7L16 17.5l-.7-1.8L13.5 15l1.8-.7L16 13z" fill="currentColor" stroke="none"></path>",
-  "spinner": "<g><path d="M10 3a7 7 0 1 1-7 7"></path></g>",
-  "target": "<g><circle cx="10" cy="10" r="7"></circle><circle cx="10" cy="10" r="4"></circle><circle cx="10" cy="10" r="1" fill="currentColor"></circle></g>",
-  "test": "<g><path d="M7 3v6l-3 6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l-3-6V3"></path><path d="M6 3h8"></path><path d="M6 11h8"></path></g>",
-  "tomb": "<g><path d="M5 17V9.5a5 5 0 0 1 10 0V17z"></path><path d="M3 17.5h14"></path><path d="M10 8.5v3M8.5 10h3"></path></g>",
-  "trash": "<g><path d="M3 5h14M8 5V3h4v2M5 5l1 12h8l1-12"></path></g>",
-  "upload": "<g><path d="M10 17V7M5 11l5-5 5 5"></path><path d="M3 3h14"></path></g>",
-  "user": "<g><circle cx="10" cy="7" r="3"></circle><path d="M3 17a7 7 0 0 1 14 0"></path></g>",
-  "x": "<path d="M5 5l10 10M15 5L5 15"></path>",
-}
-`;
-
 exports[`KIcon > full 42 glyph snapshot (guard future accidental drift) 1`] = `
 {
   "arrowDown": "<path d="M10 4v12M5 11l5 5 5-5"></path>",

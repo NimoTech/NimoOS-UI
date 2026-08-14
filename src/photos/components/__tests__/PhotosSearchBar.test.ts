@@ -1,4 +1,4 @@
-// SP7-P7a-T16: PhotosSearchBar.vue —— 搜索框(D13)。
+// SP7-P7a-T16: PhotosSearchBar.vue — search bar (D13).
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -17,39 +17,39 @@ function mountBar(props: { value?: string; autofocus?: boolean } = {}, attachTo?
   })
 }
 
-describe('结构', () => {
-  it('渲染 search 图标 + input', () => {
+describe('Structure', () => {
+  it('Renders search icon + input', () => {
     const w = mountBar()
     expect(w.find('.search svg').exists()).toBe(true)
     expect(w.find('.search input').exists()).toBe(true)
   })
 
-  // fix round 1 · I4(评审并入):内联 svg 的 glyph path 必须逐字符对 Vue2
-  // PhotosIcon.vue 断言,防止漏抄/错抄(本期已因此返工 6 次)。
-  it('search 图标的 path d 与 Vue2 PhotosIcon.vue search 分支逐字符一致', () => {
+  // fix round 1 · I4 (merged in review): inline svg glyph path must be asserted character-by-character against Vue2
+  // PhotosIcon.vue to prevent omission/miscopying (this period required 6 reworks due to this).
+  it('Search icon path d is character-by-character identical to Vue2 PhotosIcon.vue search branch', () => {
     const w = mountBar()
     expect(w.get('.search svg path').attributes('d')).toBe('m20 20-3.5-3.5')
   })
 
-  it('value 渲染进 input', () => {
+  it('value renders into input', () => {
     const w = mountBar({ value: 'sunset' })
     expect((w.get('input').element as HTMLInputElement).value).toBe('sunset')
   })
 
-  // fix round 1 · I3(评审查实的真缺陷):第一版误用了 `photosSearchSearchLibrary`
-  // (="搜索你的资料库"——那句其实是 Vue2 预搜索态的 <h2>,不是输入框占位符),导致搜索页
-  // 上占位符与它正下方的 h2 撞词。改用新增键 `photosSearchSearchBarPlaceholder`(回源
-  // Vue2 `PhotosTopbar.vue:19` 真实占位符文案)。
-  it('placeholder 是 photosSearchSearchBarPlaceholder 的本地化值(不是预搜索态 h2 那句)', () => {
+  // fix round 1 · I3 (review-verified true defect): first version mistakenly used `photosSearchSearchLibrary`
+  // (="search your library" — that sentence is actually Vue2's pre-search state <h2>, not input placeholder),
+  // causing placeholder on search page to collide with the <h2> directly below it. Changed to newly added key
+  // `photosSearchSearchBarPlaceholder` (sourced from Vue2 `PhotosTopbar.vue:19` real placeholder copy).
+  it('placeholder is the localized value of photosSearchSearchBarPlaceholder (not the pre-search state <h2> sentence)', () => {
     const w = mountBar()
     expect(w.get('input').attributes('placeholder')).toBe(zh.photosSearchSearchBarPlaceholder)
     expect(w.get('input').attributes('placeholder')).not.toBe(zh.photosSearchSearchLibrary)
   })
 })
 
-// fix round 1 · I5(plan 硬约束,评审并入):非颜色视觉属性(搜索框高度)锚定断言。
-describe('样式:非颜色视觉属性锚定', () => {
-  it('.search 高度是 34px(先锚定规则体再断言属性)', () => {
+// fix round 1 · I5 (plan hard constraint, merged in review): anchor non-color visual property (search bar height) assertions.
+describe('Style: anchor non-color visual properties', () => {
+  it('.search height is 34px (anchor rule body first, then assert property)', () => {
     const style = extractStyleBlock(photosSearchBarRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.search')
     expect(rule).toBeDefined()
@@ -58,43 +58,43 @@ describe('样式:非颜色视觉属性锚定', () => {
 })
 
 describe('submit', () => {
-  it('Enter → emit submit 带 trim 后的值', async () => {
+  it('Enter → emit submit with trimmed value', async () => {
     const w = mountBar({ value: '  sunset  ' })
     await w.get('input').trigger('keydown.enter')
     expect(w.emitted('submit')).toEqual([['sunset']])
   })
 
-  it('空串也 emit(结构规格 3,照搬语义)', async () => {
+  it('Empty string also emits (spec item 3, semantics preserved)', async () => {
     const w = mountBar({ value: '' })
     await w.get('input').trigger('keydown.enter')
     expect(w.emitted('submit')).toEqual([['']])
   })
 
-  it('全是空白也当空串处理(trim 后为空)', async () => {
+  it('All whitespace is also treated as empty string (empty after trim)', async () => {
     const w = mountBar({ value: '   ' })
     await w.get('input').trigger('keydown.enter')
     expect(w.emitted('submit')).toEqual([['']])
   })
 })
 
-describe('value prop 回流(watch 的 !== 守卫)', () => {
-  it('value prop 变化 → input 跟着变', async () => {
+describe('value prop flowback (watch !== guard)', () => {
+  it('value prop changes → input follows', async () => {
     const w = mountBar({ value: 'a' })
     await w.setProps({ value: 'b' })
     expect((w.get('input').element as HTMLInputElement).value).toBe('b')
   })
 
-  it('input 里已有用户输入且与 value 不同时,value 未变则不覆盖(不打断用户打字)', async () => {
+  it('When input has user input differing from value, unchanged value prop does not overwrite (do not interrupt user typing)', async () => {
     const w = mountBar({ value: 'a' })
     await w.get('input').setValue('user is typing')
-    // value prop 本身没变(还是 'a'),组件不应该把用户输入的内容覆盖回去。
+    // value prop hasn't changed (still 'a'), component should not overwrite user's input back.
     await w.setProps({ value: 'a' })
     expect((w.get('input').element as HTMLInputElement).value).toBe('user is typing')
   })
 })
 
 describe('autofocus', () => {
-  it('autofocus=true → mounted 后 document.activeElement 是 input', () => {
+  it('autofocus=true → after mount, document.activeElement is input', () => {
     const el = document.createElement('div')
     document.body.appendChild(el)
     const w = mountBar({ autofocus: true }, el)
@@ -103,7 +103,7 @@ describe('autofocus', () => {
     el.remove()
   })
 
-  it('autofocus 未传 → 不自动聚焦', () => {
+  it('autofocus not passed → no auto-focus', () => {
     const el = document.createElement('div')
     document.body.appendChild(el)
     const w = mountBar({}, el)

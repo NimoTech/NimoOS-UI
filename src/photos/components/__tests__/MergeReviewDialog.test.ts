@@ -151,10 +151,11 @@ different values prove they take different code paths', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('Esc(document 级,bubbles:true)→ emit update:open(false),且 stopPropagation 挡住继续向上冒泡到 window', () => {
-    // document 冒泡的下一站是 window(同 AlbumPickerDialog.vue:70-100 先例里灯箱在 window
-    // 上挂监听的场景)——把 spy 放在 document 上不能验证 stopPropagation,因为同一 target
-    // 上的其它监听器不受 stopPropagation 影响,只有「继续向上冒泡到父级」才会被挡。
+  it('Esc (document level, bubbles:true) → emits update:open(false) and stopPropagation prevents further bubbling to window', () => {
+    // Document-level bubble's next stop is window (as in AlbumPickerDialog.vue:70-100
+    // lightbox example with listener on window) — placing spy on document cannot
+    // verify stopPropagation, since other listeners on the same target are unaffected;
+    // only "further bubbling to parent" gets blocked.
     const w = mountDialog({ open: true, suggestions, index: 0, people })
     const windowSpy = vi.fn()
     window.addEventListener('keydown', windowSpy)
@@ -164,7 +165,7 @@ different values prove they take different code paths', () => {
     window.removeEventListener('keydown', windowSpy)
   })
 
-  it('open=false 时不渲染;index 越界(suggestions 已空)时也不渲染,不崩', () => {
+  it('does not render when open=false; also does not render when index is out of bounds (suggestions empty), no crash', () => {
     const w = mountDialog({ open: false, suggestions, index: 0, people })
     expect(w.find('[data-test="mrd-overlay"]').exists()).toBe(false)
 
@@ -172,7 +173,7 @@ different values prove they take different code paths', () => {
     expect(w2.find('[data-test="mrd-overlay"]').exists()).toBe(false)
   })
 
-  it('关闭后(open=false→拆掉监听)Esc 不再触发 emit(回归:监听没摘干净会重复触发)', async () => {
+  it('after close (open=false → listener removed) Esc no longer triggers emit (regression: uncleaned listeners would fire repeatedly)', async () => {
     const w = mountDialog({ open: true, suggestions, index: 0, people })
     await w.setProps({ open: false })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
@@ -180,20 +181,21 @@ different values prove they take different code paths', () => {
   })
 })
 
-// 与 ClusterActionDialog 同款的优先级坑(全仓扫描只余这一处):基类 `.mrd-btn:hover`
-// 带伪类 (0,2,0),压过只有一个类的 `.mrd-btn-primary` (0,1,0),hover 时把 accent 实底
-// 换成近白的 --chip-bg-hi,文字仍是 --on-accent → 「合并」键整颗看不见。原来的
-// `.mrd-btn-primary:hover` 里只有 filter、没有 background,所以拦不住。
-describe('MergeReviewDialog.vue — hover 态下主行动键的背景不被 .mrd-btn:hover 夺走', () => {
+// Same CSS precedence trap as ClusterActionDialog (only remaining instance in codebase):
+// base class `.mrd-btn:hover` has specificity (0,2,0), overriding single-class
+// `.mrd-btn-primary` (0,1,0); on hover it swaps accent background to near-white
+// --chip-bg-hi while text stays --on-accent → "Merge" button becomes invisible.
+// Original `.mrd-btn-primary:hover` only had filter, no background to block it.
+describe('MergeReviewDialog.vue — primary action button background not stolen by .mrd-btn:hover on hover', () => {
   const styleText = extractStyleBlock(mergeReviewDialogRaw)
 
-  it('合并键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
+  it('merge button background on hover is still --accent, not --chip-bg-hi', () => {
     const win = winningHoverBackground(styleText, ['mrd-btn', 'mrd-btn-primary'])
     expect(win.value).toContain('--accent')
     expect(win.value).not.toContain('--chip-bg-hi')
   })
 
-  it('「不是同一个人」键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
+  it('"Not a match" button (base class only) should get --chip-bg-hi on hover', () => {
     const win = winningHoverBackground(styleText, ['mrd-btn'])
     expect(win.value).toContain('--chip-bg-hi')
   })

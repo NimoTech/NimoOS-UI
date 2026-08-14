@@ -31,10 +31,10 @@ vi.mock('@nimotech/nimoos-service', () => ({
   },
 }))
 
-/* 回源核对(NimoOS-Photos/service/smartview.go:21-34 SmartView 结构体):
+/* Source verification (NimoOS-Photos/service/smartview.go:21-34 SmartView struct):
    id/name/description/conds/threshold/live/includeVideos/count/addedThisWeek/seeds
-   恒在(count/addedThisWeek/conds/seeds 无 omitempty),median/storageBytes/distribution/
-   evaluatedAt 带 omitempty 可缺。 */
+   always present (count/addedThisWeek/conds/seeds have no omitempty), median/storageBytes/distribution/
+   evaluatedAt has omitempty and may be omitted. */
 const FULL_SV = {
   id: 'sv-1', name: 'Foo', description: 'Bar',
   conds: ['a', 'b'], threshold: 80, live: true, includeVideos: false,
@@ -53,7 +53,7 @@ beforeEach(() => {
 })
 
 describe('fetchSmartViews', () => {
-  it('后端返 null → [] 且 listLoaded 为 true', async () => {
+  it('backend returns null → [] and listLoaded is true', async () => {
     listSmartViews.mockResolvedValue(null)
     const s = usePhotosSmartViews()
     expect(s.listLoaded).toBe(false)
@@ -62,7 +62,7 @@ describe('fetchSmartViews', () => {
     expect(s.listLoaded).toBe(true)
   })
 
-  it('返两条 → 长度 2、id 已 String() 化', async () => {
+  it('returns two items → length 2, id converted via String()', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, MINIMAL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -70,7 +70,7 @@ describe('fetchSmartViews', () => {
     expect(s.smartViews.map(v => v.id)).toEqual(['sv-1', '7'])
   })
 
-  it('抛错 → smartViews 保持原值(不清空)、listLoaded 仍 false、console.error 被调', async () => {
+  it('throws error → smartViews keeps original value (not cleared), listLoaded still false, console.error called', async () => {
     listSmartViews.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -81,7 +81,7 @@ describe('fetchSmartViews', () => {
     spy.mockRestore()
   })
 
-  it('抛错时保留上一次已加载的数据', async () => {
+  it('on error, retains previously loaded data', async () => {
     listSmartViews.mockResolvedValueOnce([FULL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -94,8 +94,8 @@ describe('fetchSmartViews', () => {
   })
 })
 
-describe('toSmartView 兜底', () => {
-  it('省略 median/storageBytes/distribution/evaluatedAt → 0/0/长度10全0数组/""', async () => {
+describe('toSmartView fallback', () => {
+  it('omitting median/storageBytes/distribution/evaluatedAt → 0/0/length-10 all-zeros array/""', async () => {
     listSmartViews.mockResolvedValue([MINIMAL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -113,21 +113,21 @@ describe('toSmartView 兜底', () => {
     expect(s.smartViews[0].conds).toEqual([])
   })
 
-  it('seeds 缺 → []', async () => {
+  it('seeds missing → []', async () => {
     listSmartViews.mockResolvedValue([MINIMAL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
     expect(s.smartViews[0].seeds).toEqual([])
   })
 
-  it('distribution 长度不足 10 时也整体回落成全 0(刻意收紧,不是照搬 Vue2 PhotosSmartViewDetail.vue:316 —— 那里 [1,2] 会原样保留)', async () => {
+  it('distribution length < 10 also falls back entirely to all 0s (intentionally stricter, not copying Vue2 PhotosSmartViewDetail.vue:316 — where [1,2] would remain unchanged)', async () => {
     listSmartViews.mockResolvedValue([{ ...MINIMAL_SV, distribution: [1, 2] }])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
     expect(s.smartViews[0].distribution).toEqual(new Array(10).fill(0))
   })
 
-  it('完整字段原样归一(数字→字符串 id,数值/布尔透传)', async () => {
+  it('complete fields normalized as-is (number → string id, numbers/booleans passed through)', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -154,15 +154,15 @@ describe('toSmartView 兜底', () => {
   })
 })
 
-describe('byId(§7e-2 结构性修复)', () => {
-  it('后端 id 是数字 7 时 byId(\'7\') 命中(String 归一主守卫)', async () => {
+describe('byId (structural fix)', () => {
+  it('when backend id is number 7, byId(\'7\') hits (String normalization main guard)', async () => {
     listSmartViews.mockResolvedValue([MINIMAL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
     expect(s.byId('7')?.name).toBe('X')
   })
 
-  it('不存在 → null', async () => {
+  it('does not exist → null', async () => {
     listSmartViews.mockResolvedValue([MINIMAL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -176,10 +176,11 @@ describe('createSmartView', () => {
     threshold: 70, live: true, includeVideos: false,
   }
 
-  // fix round 1 · C1(Critical,回源实证):后端 Create(smartview.go:65-68)对空 id
-  // 直接 400,route handler 从不生成 id——原先「不含 id」的断言把一个 100% 会在真机
-  // 上失败的错契约焊死了。改成断言请求体**必须**带一个 `sv-` 前缀的 id。
-  it('请求体含 condsRaw 且不含 conds、且带 sv- 前缀的 id(C1 回源修复)', async () => {
+  // fix round 1 · C1(Critical, source-verified): backend Create(smartview.go:65-68) returns 400
+  // for empty id, route handler never generates one — the original assertion "no id" locked in
+  // a wrong contract that would fail 100% on real hardware. Changed to assert request body **must**
+  // have an id with `sv-` prefix.
+  it('request body contains condsRaw and not conds, id has sv- prefix (C1 source fix)', async () => {
     createSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-new' })
     const s = usePhotosSmartViews()
     await s.createSmartView(input)
@@ -190,7 +191,7 @@ describe('createSmartView', () => {
     expect(String(arg.id)).toMatch(/^sv-/)
   })
 
-  it('连续两次 create 生成的 id 不相同(C1:不用 Date.now(),用 uuid,避免同毫秒撞 id)', async () => {
+  it('two consecutive create calls generate different ids (C1: use uuid not Date.now(), avoid same-millisecond collision)', async () => {
     createSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-new' })
     const s = usePhotosSmartViews()
     await s.createSmartView(input)
@@ -200,7 +201,7 @@ describe('createSmartView', () => {
     expect(id1).not.toBe(id2)
   })
 
-  it('成功 → 新项在数组首位', async () => {
+  it('success → new item at array start', async () => {
     createSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-new', name: 'New' })
     const s = usePhotosSmartViews()
     listSmartViews.mockResolvedValue([FULL_SV])
@@ -210,8 +211,8 @@ describe('createSmartView', () => {
     expect(s.smartViews).toHaveLength(2)
   })
 
-  it('createBusy 期间二次调用直接返回 null 且底层只被调一次', async () => {
-    createSmartViewApi.mockReturnValue(new Promise(() => {})) // 永不 settle
+  it('second call during createBusy returns null directly, backend called only once', async () => {
+    createSmartViewApi.mockReturnValue(new Promise(() => {})) // never settles
     const s = usePhotosSmartViews()
     void s.createSmartView(input)
     const second = await s.createSmartView(input)
@@ -219,7 +220,7 @@ describe('createSmartView', () => {
     expect(createSmartViewApi).toHaveBeenCalledTimes(1)
   })
 
-  it('失败 → rethrow 且数组长度不变(反向断言 Vue2 的乐观撒谎没被照抄)', async () => {
+  it('failure → rethrow and array length unchanged (reverse assertion Vue2\'s optimistic lie was not copied)', async () => {
     createSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -228,7 +229,7 @@ describe('createSmartView', () => {
     spy.mockRestore()
   })
 
-  it('createBusy 失败后复位,紧接着的调用能正常发起', async () => {
+  it('createBusy resets after failure, next call proceeds normally', async () => {
     createSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -241,7 +242,7 @@ describe('createSmartView', () => {
 })
 
 describe('updateSmartView', () => {
-  it('patch.conds 被改名成 condsRaw 发出', async () => {
+  it('patch.conds renamed to condsRaw when sent', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     updateSmartViewApi.mockResolvedValue(undefined)
     const s = usePhotosSmartViews()
@@ -254,7 +255,7 @@ describe('updateSmartView', () => {
     expect(body).not.toHaveProperty('conds')
   })
 
-  it('响应带 body → 列表项被整体替换且位置不变(原位在 index 1 的项改完仍在 index 1)', async () => {
+  it('response with body → list item replaced entirely and position unchanged (item originally at index 1 stays at index 1 after change)', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, { ...MINIMAL_SV, id: 'sv-2' }])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -266,7 +267,7 @@ describe('updateSmartView', () => {
     expect(s.smartViews).toHaveLength(2)
   })
 
-  it('响应无 body → 就地合并 patch', async () => {
+  it('response without body → merge patch in place', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     updateSmartViewApi.mockResolvedValue(undefined)
     const s = usePhotosSmartViews()
@@ -274,10 +275,10 @@ describe('updateSmartView', () => {
     await s.updateSmartView('sv-1', { name: 'Merged Name' })
     expect(s.smartViews[0].name).toBe('Merged Name')
     expect(s.smartViews[0].id).toBe('sv-1')
-    expect(s.smartViews[0].conds).toEqual(['a', 'b']) // 未被 patch 的字段不受影响
+    expect(s.smartViews[0].conds).toEqual(['a', 'b']) // fields not in patch are unaffected
   })
 
-  it('失败 → rethrow 且列表项未被本地改动', async () => {
+  it('failure → rethrow and list item not modified locally', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     updateSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -288,7 +289,7 @@ describe('updateSmartView', () => {
     spy.mockRestore()
   })
 
-  it('patchBusy 期间二次调用短路,底层只被调一次', async () => {
+  it('second call during patchBusy short-circuits, backend called only once', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     updateSmartViewApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosSmartViews()
@@ -298,7 +299,7 @@ describe('updateSmartView', () => {
     expect(updateSmartViewApi).toHaveBeenCalledTimes(1)
   })
 
-  it('patchBusy 失败后复位为 false', async () => {
+  it('patchBusy resets to false after failure', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     updateSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -313,7 +314,7 @@ describe('updateSmartView', () => {
 })
 
 describe('deleteSmartView / restoreSmartView', () => {
-  it('删不存在的 id → null 且底层未被调', async () => {
+  it('delete non-existent id → null and backend not called', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
@@ -322,7 +323,7 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(deleteSmartViewApi).not.toHaveBeenCalled()
   })
 
-  it('删成功 → 返回 { sv, index } 且数组移除', async () => {
+  it('delete success → return { sv, index } and remove from array', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, { ...MINIMAL_SV, id: 'sv-2' }])
     deleteSmartViewApi.mockResolvedValue(undefined)
     const s = usePhotosSmartViews()
@@ -333,13 +334,15 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(s.smartViews[0].id).toBe('sv-2')
   })
 
-  // fix round 1 · I1(Important,评审用交错场景实测复现):deleteBusy 不挡
-  // fetchSmartViews,删除在途时列表若被整体重排/插入,await 之前算好的下标会指向
-  // 别的项。必须按 id 重算下标,交错路径:发 delete(sv-2)→ 在其 await 未 resolve
-  // 前先让 fetchSmartViews 把列表重排(别的客户端建了新视图插到最前)→ delete 的
-  // 网络调用才 resolve。断言消失的必须是 sv-2(用户点的那一项),不是重排后错位到
-  // 原下标 1 的 sv-1;返回的 { sv, index } 也必须对应 sv-2 在重排后列表里的真实位置。
-  it('并发交错:delete 在途时 fetchSmartViews 重排列表,删除的必须仍是按 id 命中的那一项', async () => {
+  // fix round 1 · I1 (Important, interleaving scenario reproduced for review): deleteBusy does not
+  // block fetchSmartViews; when a delete is in-flight and the list is re-sorted/inserted, the
+  // pre-calculated index points to a different item. Must recalculate index by id. Interleaving
+  // path: send delete(sv-2) → before its await resolves, let fetchSmartViews re-sort the list
+  // (another client created a new view inserted at front) → then delete's network call resolves.
+  // Assert that the deleted item is sv-2 (the one the user clicked), not sv-1 (now at misaligned
+  // original index 1 after re-sort); the returned { sv, index } must also correspond to sv-2's
+  // real position in the re-sorted list.
+  it('concurrent interleaving: delete in-flight when fetchSmartViews re-sorts list, deleted item must still match by id', async () => {
     listSmartViews.mockResolvedValueOnce([
       { ...FULL_SV, id: 'sv-1' }, { ...FULL_SV, id: 'sv-2' }, { ...FULL_SV, id: 'sv-3' },
     ])
@@ -349,10 +352,10 @@ describe('deleteSmartView / restoreSmartView', () => {
     await s.fetchSmartViews()
     expect(s.smartViews.map(v => v.id)).toEqual(['sv-1', 'sv-2', 'sv-3'])
 
-    const pDelete = s.deleteSmartView('sv-2') // 用户点的是 sv-2(当前下标 1)
+    const pDelete = s.deleteSmartView('sv-2') // user clicked sv-2 (currently at index 1)
 
-    // delete 的网络请求还没 resolve 时,另一个客户端建了新视图、fetchSmartViews 把
-    // sv-2 重排到下标 2(不再是下标 1)。
+    // while the delete network request has not resolved, another client created a new
+    // view, fetchSmartViews re-sorted sv-2 to index 2 (no longer at index 1).
     listSmartViews.mockResolvedValueOnce([
       { ...FULL_SV, id: 'sv-0' }, { ...FULL_SV, id: 'sv-1' },
       { ...FULL_SV, id: 'sv-2' }, { ...FULL_SV, id: 'sv-3' },
@@ -363,13 +366,13 @@ describe('deleteSmartView / restoreSmartView', () => {
     resolveDelete()
     const result = await pDelete
 
-    // 必须删掉 sv-2(用户点的那一项),不是重排后落在旧下标 1 上的 sv-1。
+    // must delete sv-2 (the item the user clicked), not sv-1 (now at old index 1 after re-sort)
     expect(s.smartViews.map(v => v.id)).toEqual(['sv-0', 'sv-1', 'sv-3'])
     expect(result?.sv.id).toBe('sv-2')
-    expect(result?.index).toBe(2) // sv-2 在重排后列表里的真实下标,不是最初的 1
+    expect(result?.index).toBe(2) // sv-2's true index in the re-sorted list, not the original 1
   })
 
-  it('restore 把它插回原 index,请求体带 id', async () => {
+  it('restore inserts it back at original index, request body includes id', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, { ...MINIMAL_SV, id: 'sv-2' }])
     deleteSmartViewApi.mockResolvedValue(undefined)
     createSmartViewApi.mockResolvedValue(undefined)
@@ -383,7 +386,7 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(arg.id).toBe('sv-1')
   })
 
-  it('index 超界(如 99)→ 插到末尾(钳制)', async () => {
+  it('index out of bounds (e.g. 99) → inserted at end (clamped)', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     createSmartViewApi.mockResolvedValue(undefined)
     const s = usePhotosSmartViews()
@@ -392,13 +395,14 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(s.smartViews.map(v => v.id)).toEqual(['sv-1', 'sv-late'])
   })
 
-  // 删码验证登记(§⑥):`Math.min(index, length)` 本身对"超界(如 99)"这条用例不是
-  // 可证伪的——JS 原生 `Array.prototype.splice` 对 start 参数本就有"大于数组长度时
-  // 钳到数组长度"的内建语义(`[1].splice(99,0,'x')` 等价于 `splice(1,0,'x')`),删掉
-  // Math.min 这条用例仍然绿。真正有必要的是 `Math.max(0, …)`——splice 对**负数**
-  // start 的语义是"从末尾倒数"而不是钳到 0(`[1,2,3].splice(-1,0,'y')` 会插在倒数
-  // 第二个位置,不是插在最前面),这条诚实的替代用例钉住 Math.max。
-  it('index 为负数 → 钳到 0(插到最前),而非按 splice 原生的"从末尾倒数"语义', async () => {
+  // Test registration note: `Math.min(index, length)` itself is not falsifiable for the
+  // "out-of-bounds" case — JS native `Array.prototype.splice` already has built-in semantics
+  // that clamp to array length when start > length (`[1].splice(99,0,'x')` is equivalent to
+  // `splice(1,0,'x')`), so removing Math.min doesn't break this test. The real necessity is
+  // `Math.max(0, …)` — splice's semantics for **negative** start is "count from end", not
+  // clamp to 0 (`[1,2,3].splice(-1,0,'y')` inserts at second-to-last position, not at front),
+  // so this honest substitute test locks down Math.max.
+  it('index is negative → clamped to 0 (inserted at front), not splice\'s native "count from end" semantics', async () => {
     listSmartViews.mockResolvedValue([FULL_SV, { ...MINIMAL_SV, id: 'sv-2' }])
     createSmartViewApi.mockResolvedValue(undefined)
     const s = usePhotosSmartViews()
@@ -407,7 +411,7 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(s.smartViews.map(v => v.id)).toEqual(['sv-early', 'sv-1', 'sv-2'])
   })
 
-  it('deleteBusy 期间二次 delete 调用直接返回 null,底层只被调一次(共用锁)', async () => {
+  it('during deleteBusy, second delete call returns null immediately, backend called only once (shared lock)', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     deleteSmartViewApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosSmartViews()
@@ -418,18 +422,18 @@ describe('deleteSmartView / restoreSmartView', () => {
     expect(deleteSmartViewApi).toHaveBeenCalledTimes(1)
   })
 
-  it('deleteSmartView 失败 → rethrow(不吞错)', async () => {
+  it('deleteSmartView failure → rethrow (error not swallowed)', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     deleteSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
     await s.fetchSmartViews()
     await expect(s.deleteSmartView('sv-1')).rejects.toThrow('boom')
-    expect(s.smartViews).toHaveLength(1) // 未被移除
+    expect(s.smartViews).toHaveLength(1) // not removed
     spy.mockRestore()
   })
 
-  it('deleteBusy 失败后复位为 false', async () => {
+  it('deleteBusy resets to false after failure', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     deleteSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -445,7 +449,7 @@ describe('deleteSmartView / restoreSmartView', () => {
 })
 
 describe('duplicateSmartView', () => {
-  it('duplicateBusy 期间二次调用短路,底层只被调一次', async () => {
+  it('during duplicateBusy, second call short-circuits, backend called only once', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     duplicateSmartViewApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosSmartViews()
@@ -455,7 +459,7 @@ describe('duplicateSmartView', () => {
     expect(duplicateSmartViewApi).toHaveBeenCalledTimes(1)
   })
 
-  it('成功后把返回对象插入列表', async () => {
+  it('on success, returned object inserted into list', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     duplicateSmartViewApi.mockResolvedValue({ ...FULL_SV, id: 'sv-1-copy', name: 'Foo (copy)' })
     const s = usePhotosSmartViews()
@@ -465,7 +469,7 @@ describe('duplicateSmartView', () => {
     expect(s.smartViews).toHaveLength(2)
   })
 
-  it('失败 → rethrow,duplicateBusy 复位', async () => {
+  it('failure → rethrow, duplicateBusy resets', async () => {
     duplicateSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -517,8 +521,8 @@ describe('convertFromAlbum', () => {
   })
 })
 
-describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
-  it('三个请求的参数逐字断言', async () => {
+describe('loadDetail: three requests in parallel + seq race guard', () => {
+  it('three requests\' parameters asserted verbatim', async () => {
     getSmartViewAssets.mockResolvedValue([])
     getSmartViewActivity.mockResolvedValue([])
     const s = usePhotosSmartViews()
@@ -528,11 +532,12 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     expect(getSmartViewActivity).toHaveBeenCalledWith('sv-1', 10)
   })
 
-  // fix round 1 · I2(Important,评审变异实验实测:把 assetIds 兜底删掉 +
-  // occurredAt 写死 'MUTATED' 后 46 例全绿,说明 toActivity 此前零区分力)。后端
-  // SmartViewActivity.AssetIDs(smartview.go:731)带 omitempty,Go nil slice ⇒ 整个
-  // 字段在响应体里缺失;T8 的活动流会 v-for 这个数组,undefined 直接崩组件。
-  it('toActivity 归一:字段全缺 + id 是数字 → 逐字段兜底(钉住 detail/assetIds/occurredAt 的兜底,防止被悄悄削弱)', async () => {
+  // fix round 1 · I2 (Important, reviewed with mutation test: deleting assetIds fallback +
+  // hardcoding occurredAt to 'MUTATED' — all 46 cases still pass, indicating toActivity had
+  // zero discriminatory power before). Backend SmartViewActivity.AssetIDs(smartview.go:731)
+  // has omitempty, Go nil slice ⇒ entire field omitted from response; T8 activity feed
+  // v-for's this array, undefined crashes the component.
+  it('toActivity normalization: all fields missing + id is number → fallback each field (lock down detail/assetIds/occurredAt fallback, prevent silent weakening)', async () => {
     getSmartViewAssets.mockResolvedValue([])
     getSmartViewActivity.mockResolvedValue([{ id: 9, eventType: 'matched' }])
     const s = usePhotosSmartViews()
@@ -542,7 +547,7 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     ])
   })
 
-  it('后发先回:A(id=1)慢、B(id=2)快 → 最终是 B 的数据', async () => {
+  it('late-arriving response resolves first: A(id=1) slow, B(id=2) fast → final data is B\'s', async () => {
     let resolveAllA: (v: unknown) => void = () => {}
     let resolveAllB: (v: unknown) => void = () => {}
     getSmartViewAssets
@@ -555,34 +560,34 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
 
     const pA = s.loadDetail('1')
     const pB = s.loadDetail('2')
-    // B(后发)先回
+    // B (later-arriving) resolves first
     resolveAllB([{ id: 'b1' }])
     await pB
     expect(s.matchedAssets.map(p => p.id)).toEqual(['b1'])
-    // A(先发)后回 —— 必须被丢弃
+    // A (earlier-arriving) resolves later — must be discarded
     resolveAllA([{ id: 'a1' }])
     await pA
     expect(s.matchedAssets.map(p => p.id)).toEqual(['b1'])
   })
 
-  it('先发先回:A 先发且快、B 后发且慢 → A 的 finally 不得把仍在途的 detailLoading 提前拨回 false,最终结果是 B 的数据且 detailLoading 最终为 false(钉住 finally 里的 mine === seq 门控)', async () => {
+  it('first-arriving response resolves first: A sent early and fast, B sent late and slow → A\'s finally must not reset still-in-flight detailLoading to false, final result is B\'s data and detailLoading ends false (lock down mine === seq guard in finally)', async () => {
     let resolveAllB: (v: unknown) => void = () => {}
     getSmartViewAssets
-      .mockResolvedValueOnce([{ id: 'a1' }]) // A all(立即 resolve)
+      .mockResolvedValueOnce([{ id: 'a1' }]) // A all (resolves immediately)
       .mockResolvedValueOnce([]) // A recent
-      .mockReturnValueOnce(new Promise((r) => { resolveAllB = r })) // B all(挂起)
+      .mockReturnValueOnce(new Promise((r) => { resolveAllB = r })) // B all (pending)
       .mockResolvedValueOnce([]) // B recent
     getSmartViewActivity.mockResolvedValue([])
     const s = usePhotosSmartViews()
 
-    // A、B 背靠背发出(B 在 A 的 Promise.all 落定前就已发出,detailSeq 已推进到 B)。
+    // A and B sent back-to-back (B sent before A's Promise.all resolves, detailSeq advanced to B)
     const pA = s.loadDetail('1')
     const pB = s.loadDetail('2')
-    // A 先落定,但此刻 mine(A) !== detailSeq(已被 B 推进)—— A 的 finally 必须
-    // 放弃复位,detailLoading 应仍为 true(B 仍在途),不能被 A 提前拨回 false。
+    // A resolves first, but now mine(A) !== detailSeq (already advanced to B) — A's finally
+    // must abandon reset, detailLoading should still be true (B in flight), not reset by A
     await pA
     expect(s.detailLoading).toBe(true)
-    expect(s.matchedAssets).toEqual([]) // A 的数据也不得被写入(mine !== detailSeq)
+    expect(s.matchedAssets).toEqual([]) // A's data must also not be written (mine !== detailSeq)
 
     resolveAllB([{ id: 'b1' }])
     await pB
@@ -590,7 +595,7 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     expect(s.detailLoading).toBe(false)
   })
 
-  it('清旧数据:发第二次 loadDetail 时,在其 await 未 resolve 前 matchedAssets 已是 []', async () => {
+  it('clear old data: on second loadDetail, matchedAssets is already [] before its await resolves', async () => {
     getSmartViewAssets
       .mockResolvedValueOnce([{ id: 'a1' }, { id: 'a2' }, { id: 'a3' }])
       .mockResolvedValueOnce([])
@@ -602,7 +607,7 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     let resolveAllSecond: (v: unknown) => void = () => {}
     getSmartViewAssets.mockReturnValueOnce(new Promise((r) => { resolveAllSecond = r }))
     const p2 = s.loadDetail('2')
-    // 尚未 await —— 清空必须已经发生
+    // not yet awaited — clearing must have already happened
     expect(s.matchedAssets).toEqual([])
     expect(s.recentAssets).toEqual([])
     expect(s.activity).toEqual([])
@@ -610,7 +615,7 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
     await p2
   })
 
-  it('失败时 console.error 被调、detailLoading 复位', async () => {
+  it('on failure, console.error called and detailLoading resets', async () => {
     getSmartViewAssets.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -621,12 +626,12 @@ describe('loadDetail 三请求并行 + seq 竞态守卫', () => {
   })
 })
 
-describe('refreshPreview 300ms debounce + seq 守卫', () => {
+describe('refreshPreview: 300ms debounce + seq guard', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
 
-  it('连续调 3 次只发 1 个请求(debounce)', async () => {
+  it('calling 3 times in a row sends only 1 request (debounce)', async () => {
     previewSmartViewApi.mockResolvedValue({ count: 1, seeds: [], thresholdActive: true })
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
@@ -637,7 +642,7 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     vi.useRealTimers()
   })
 
-  it('两次相隔超过 300ms 且前一次响应更慢时,旧响应不覆盖新结果(seq 守卫)', async () => {
+  it('two calls over 300ms apart, first response slower — old response must not overwrite new result (seq guard)', async () => {
     let resolveA: (v: unknown) => void = () => {}
     let resolveB: (v: unknown) => void = () => {}
     previewSmartViewApi
@@ -648,12 +653,12 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     await vi.advanceTimersByTimeAsync(300)
     s.refreshPreview({ description: '', conds: ['b'], threshold: 50, includeVideos: false })
     await vi.advanceTimersByTimeAsync(300)
-    // B(后发)先回
+    // B (later-arriving) resolves first
     resolveB({ count: 2, seeds: ['s2'], thresholdActive: true })
     await Promise.resolve()
     await Promise.resolve()
     expect(s.preview.count).toBe(2)
-    // A(先发)后回 —— 必须被丢弃
+    // A (earlier-arriving) resolves later — must be discarded
     resolveA({ count: 999, seeds: ['s1'], thresholdActive: false })
     await Promise.resolve()
     await Promise.resolve()
@@ -661,7 +666,7 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     vi.useRealTimers()
   })
 
-  it('响应缺 thresholdActive → thresholdActive === true', async () => {
+  it('response missing thresholdActive → thresholdActive === true', async () => {
     previewSmartViewApi.mockResolvedValue({ count: 1, seeds: [] })
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
@@ -670,7 +675,7 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     vi.useRealTimers()
   })
 
-  it('显式 false → false', async () => {
+  it('explicit false → false', async () => {
     previewSmartViewApi.mockResolvedValue({ count: 1, seeds: [], thresholdActive: false })
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
@@ -679,7 +684,7 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     vi.useRealTimers()
   })
 
-  it('失败时 preview 保留上一次的值', async () => {
+  it('on failure, preview retains previous value', async () => {
     previewSmartViewApi.mockResolvedValueOnce({ count: 5, seeds: ['x'], thresholdActive: true })
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -690,21 +695,21 @@ describe('refreshPreview 300ms debounce + seq 守卫', () => {
     previewSmartViewApi.mockRejectedValueOnce(new Error('boom'))
     s.refreshPreview({ description: '', conds: ['b'], threshold: 50, includeVideos: false })
     await vi.advanceTimersByTimeAsync(300)
-    expect(s.preview.count).toBe(5) // 没被清空
+    expect(s.preview.count).toBe(5) // not cleared
     expect(spy).toHaveBeenCalled()
     spy.mockRestore()
     vi.useRealTimers()
   })
 })
 
-// T5(创建弹窗)新增,控制器授权:关闭弹窗时清掉未触发的定时器 + 让已在途的响应作废,
-// 详见 smartViews.ts cancelPreview 上方的注释。
+// New in T5 (create dialog), controller authorization: when closing dialog, clear triggered
+// timers + invalidate in-flight responses. See comments above cancelPreview in smartViews.ts.
 describe('cancelPreview', () => {
   beforeEach(() => {
     vi.useFakeTimers()
   })
 
-  it('定时器尚未触发时调用 → 定时器被清,底层请求根本不发', async () => {
+  it('called when timer not yet fired → timer cleared, backend request not sent at all', async () => {
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
     s.cancelPreview()
@@ -713,14 +718,14 @@ describe('cancelPreview', () => {
     vi.useRealTimers()
   })
 
-  it('请求已在途时调用 → 响应回来后不回填 preview(关闭后在途响应不覆盖)', async () => {
+  it('called while request in flight → on response, preview not updated (closed, in-flight response must not overwrite)', async () => {
     let resolveFn: (v: unknown) => void = () => {}
     previewSmartViewApi.mockReturnValueOnce(new Promise((r) => { resolveFn = r }))
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
     await vi.advanceTimersByTimeAsync(300)
     expect(previewSmartViewApi).toHaveBeenCalledTimes(1)
-    // 请求已发出、仍在途——此时关闭弹窗。
+    // request already sent, still in flight — at this point close the dialog
     s.cancelPreview()
     resolveFn({ count: 999, seeds: ['stale'], thresholdActive: false })
     await Promise.resolve()
@@ -729,7 +734,7 @@ describe('cancelPreview', () => {
     vi.useRealTimers()
   })
 
-  it('之后再调 refreshPreview 仍能正常工作(seq 计数器没被破坏)', async () => {
+  it('calling refreshPreview again afterwards works normally (seq counter not destroyed)', async () => {
     const s = usePhotosSmartViews()
     s.refreshPreview({ description: '', conds: ['a'], threshold: 50, includeVideos: false })
     s.cancelPreview()
@@ -744,7 +749,7 @@ describe('cancelPreview', () => {
 })
 
 describe('exportAlbum', () => {
-  it('exportBusy 期间二次调用短路,底层只被调一次', async () => {
+  it('during exportBusy, second call short-circuits, backend called only once', async () => {
     exportSmartViewAlbumApi.mockReturnValue(new Promise(() => {}))
     const s = usePhotosSmartViews()
     void s.exportAlbum('sv-1')
@@ -752,7 +757,7 @@ describe('exportAlbum', () => {
     expect(exportSmartViewAlbumApi).toHaveBeenCalledTimes(1)
   })
 
-  it('失败 → rethrow(视图层分流 toast 文案),exportBusy 复位', async () => {
+  it('failure → rethrow (view layer handles toast text), exportBusy resets', async () => {
     exportSmartViewAlbumApi.mockRejectedValueOnce(new Error('boom'))
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const s = usePhotosSmartViews()
@@ -765,7 +770,7 @@ describe('exportAlbum', () => {
 })
 
 describe('__resetForTest', () => {
-  it('复位所有 ref', async () => {
+  it('resets all refs', async () => {
     listSmartViews.mockResolvedValue([FULL_SV])
     getSmartViewAssets.mockResolvedValue([{ id: 'a1' }])
     getSmartViewActivity.mockResolvedValue([{ id: 'act1', eventType: 'created', occurredAt: '2026-01-01' }])

@@ -53,15 +53,15 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('结构与展开', () => {
-  it('默认收起:.exif-filter 无 expanded 类,漏斗无 .on,无角标', () => {
+describe('structure and expand', () => {
+  it('default collapsed: .exif-filter has no expanded class, funnel has no .on, no badge', () => {
     const w = mountBar()
     expect(w.get('.exif-filter').classes()).not.toContain('expanded')
     expect(w.get('.exif-funnel').classes()).not.toContain('on')
     expect(w.find('[data-test="exif-badge"]').exists()).toBe(false)
   })
 
-  it('点漏斗展开:加 expanded 类,450ms 后才加 ov 类(溢出放开)', async () => {
+  it('click funnel to expand: add expanded class, add ov class (overflow release) after 450ms', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     expect(w.get('.exif-filter').classes()).toContain('expanded')
@@ -71,7 +71,7 @@ describe('结构与展开', () => {
     expect(w.get('.exif-filter').classes()).toContain('ov')
   })
 
-  it('再点漏斗收起:expanded/ov 同时撤掉,已开的弹层关闭', async () => {
+  it('click funnel again to collapse: remove expanded/ov simultaneously, close any open popover', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     vi.advanceTimersByTime(450)
@@ -84,29 +84,32 @@ describe('结构与展开', () => {
     expect(w.find('.fpop').exists()).toBe(false)
   })
 
-  it('挂载时已有筛选值 → 自动展开,漏斗带 .on,角标显示总数', async () => {
-    // 整期终审 M6(仅注释,不改逻辑):这条用例名里的"自动展开"实际是两条路径叠加——
-    // `expanded` 的初始值本身就同步取自 `anyActive.value`(挂载那一刻 props 已就位,
-    // 组件顶部注释「偏离登记 5」已记录这个设计),所以 mount 完成时 `.expanded` 类早已
-    // 存在,不是 onMounted 里 `if (anyActive.value) expand()` 这条分支触发的——props
-    // 在 ref 初始化和 onMounted 之间不可能改变 anyActive 的值,那条分支在"挂载时已带
-    // 筛选值"这个场景下永远走的是"再赋一次已经是 true 的值",不可达出新状态。onMounted
-    // 那次调用真正有意义的是它的副作用(重排 450ms 溢出定时器),下面的
-    // `vi.advanceTimersByTime(450)` 断言验的正是这个副作用,不是"展开"这个状态本身。
+  it('if filter value present at mount → auto-expand, funnel gets .on, badge shows total', async () => {
+    // Final review M6 (comment only, no logic change): the "auto-expand" in the test name is
+    // actually two paths combined — the initial value of `expanded` is already synced from
+    // `anyActive.value` (props already in place at mount moment, component header comment
+    // "deviation record 5" already documents this design), so the `.expanded` class exists by
+    // mount completion, not triggered by the `if (anyActive.value) expand()` branch in
+    // onMounted — props cannot change anyActive between ref init and onMounted, that branch
+    // in "mounted with filter" scenario always takes the path "assign the already-true value
+    // again", never reaches a new state. The real meaning of that onMounted call is its
+    // side effect (reschedule the 450ms overflow timer), and the `vi.advanceTimersByTime(450)`
+    // assertion below verifies exactly that side effect, not the "expand" state itself.
     const w = mountBar({ filter: { years: ['2023'], places: ['Tokyo'], cameras: [] } })
     expect(w.get('.exif-filter').classes()).toContain('expanded')
     expect(w.get('.exif-funnel').classes()).toContain('on')
     expect(w.get('[data-test="exif-badge"]').text()).toBe('2')
-    // fix round 1(评审必修 2):挂载即展开这条路径最容易漏掉的回归是——「同步初始化
-    // expanded 却忘了在 onMounted 里补排 450ms 溢出定时器」,那样弹层会被
-    // .exif-chiprow 的 overflow:hidden 永久裁掉一角(.ov 类永远不出现)。这里补断言
-    // 450ms 后 .ov 类确实出现,钉住这条定时器副作用。
+    // Fix round 1 (review required 2): the easiest regression to miss on this mount-and-expand
+    // path is "sync-init expanded but forget to reschedule 450ms overflow timer in onMounted",
+    // then popover gets permanently clipped by .exif-chiprow's overflow:hidden (.ov class
+    // never appears). Add assertion here: .ov class really appears after 450ms, pin down this
+    // timer side effect.
     vi.advanceTimersByTime(450)
     await w.vm.$nextTick()
     expect(w.get('.exif-filter').classes()).toContain('ov')
   })
 
-  it('筛选值从无到有(外部写入)→ 自动展开', async () => {
+  it('filter value changes from none to some (external prop write) → auto-expand', async () => {
     const w = mountBar()
     expect(w.get('.exif-filter').classes()).not.toContain('expanded')
     await w.setProps({ filter: { years: ['2023'], places: [], cameras: [] } })
@@ -114,8 +117,8 @@ describe('结构与展开', () => {
   })
 })
 
-describe('facet 取值', () => {
-  it('年份倒序去重;F1:不可解析日期不产生 NaN 选项', async () => {
+describe('facet extraction', () => {
+  it('years descending deduped; F1: unparseable dates do not produce NaN option', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
@@ -124,19 +127,19 @@ describe('facet 取值', () => {
     expect(items).not.toContain('NaN')
   })
 
-  it('位置取逗号前一段、相机取「·」前一段,各自去重并按 localeCompare 升序', async () => {
+  it('place: take before comma; camera: take before "·"; each dedupe and sort by localeCompare ascending', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-places"] .fchip').trigger('click')
     expect(w.findAll('.fpop .nav-item').map(n => n.text())).toEqual(['Osaka', 'Tokyo'])
-    await w.get('[data-test="exif-chip-places"] .fchip').trigger('click') // 关掉
+    await w.get('[data-test="exif-chip-places"] .fchip').trigger('click') // close
     await w.get('[data-test="exif-chip-cameras"] .fchip').trigger('click')
     expect(w.findAll('.fpop .nav-item').map(n => n.text())).toEqual(['Canon R6', 'Sony A7'])
   })
 })
 
-describe('草稿 / 提交 / 清除', () => {
-  it('弹层里勾选不立刻生效,点「提交」才 emit update:filter', async () => {
+describe('draft / submit / clear', () => {
+  it('checking in popover doesn\'t take effect immediately, only emit update:filter on submit button click', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
@@ -147,7 +150,7 @@ describe('草稿 / 提交 / 清除', () => {
     expect(w.find('.fpop').exists()).toBe(false)
   })
 
-  it('点「取消」丢弃草稿、关弹层、不 emit', async () => {
+  it('click cancel: discard draft, close popover, don\'t emit', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
@@ -157,17 +160,17 @@ describe('草稿 / 提交 / 清除', () => {
     expect(w.find('.fpop').exists()).toBe(false)
   })
 
-  it('重开弹层时草稿从已提交值重新快照(上次取消的勾不残留)', async () => {
+  it('reopening popover: draft re-snapshots from last submitted value (cancelled checks don\'t persist)', async () => {
     const w = mountBar({ filter: { years: ['2022'], places: [], cameras: [] } })
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
-    await w.findAll('.fpop .nav-item')[0].trigger('click') // 勾上 2023
-    await w.get('.fpop .fpop-quick').trigger('click') // 取消
-    await w.get('[data-test="exif-chip-years"] .fchip').trigger('click') // 重开
+    await w.findAll('.fpop .nav-item')[0].trigger('click') // check 2023
+    await w.get('.fpop .fpop-quick').trigger('click') // cancel
+    await w.get('[data-test="exif-chip-years"] .fchip').trigger('click') // reopen
     const actives = w.findAll('.fpop .nav-item').filter(n => n.attributes('data-active') === 'true')
     expect(actives.map(n => n.text())).toEqual(['2022'])
   })
 
-  it('胶囊上的 × 清掉该维度;「清除全部」清三个维度并关弹层', async () => {
+  it('× on capsule clears that dimension; "clear all" clears all three dimensions and closes popover', async () => {
     const w = mountBar({ filter: { years: ['2023'], places: ['Tokyo'], cameras: [] } })
     await w.get('[data-test="exif-chip-years"] .fchip-x').trigger('click')
     expect(w.emitted('update:filter')![0][0]).toEqual({ years: [], places: ['Tokyo'], cameras: [] })
@@ -175,13 +178,13 @@ describe('草稿 / 提交 / 清除', () => {
     expect(w.emitted('update:filter')![1][0]).toEqual({ years: [], places: [], cameras: [] })
   })
 
-  it('胶囊标签:无值显示维度名,有值显示逗号拼接的取值', () => {
+  it('capsule label: no value shows dimension name, has value shows comma-joined values', () => {
     const w = mountBar({ filter: { years: ['2023', '2022'], places: [], cameras: [] } })
     expect(w.get('[data-test="exif-chip-years"] .fchip').text()).toContain('2023, 2022')
     expect(w.get('[data-test="exif-chip-places"] .fchip').text()).toContain('位置')
   })
 
-  it('「清除全部」只在有筛选时出现', async () => {
+  it('"clear all" only appears when there are filters', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     expect(w.find('[data-test="exif-clear-all"]').exists()).toBe(false)
@@ -190,8 +193,8 @@ describe('草稿 / 提交 / 清除', () => {
   })
 })
 
-describe('弹层关闭与 chipKeys', () => {
-  it('点组件外部 mousedown 关弹层;点组件内部不关', async () => {
+describe('popover close and chipKeys', () => {
+  it('mousedown outside component closes popover; inside component does not', async () => {
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-years"] .fchip').trigger('click')
@@ -201,7 +204,7 @@ describe('弹层关闭与 chipKeys', () => {
     expect(w.find('.fpop').exists()).toBe(false)
   })
 
-  it('卸载后不再残留 document 监听(不抛错)', async () => {
+  it('after unmount, no lingering document listener (no error)', async () => {
     const spy = vi.spyOn(document, 'removeEventListener')
     const w = mountBar()
     await w.get('[data-test="exif-funnel"]').trigger('click')
@@ -210,7 +213,7 @@ describe('弹层关闭与 chipKeys', () => {
     expect(spy).toHaveBeenCalledWith('mousedown', expect.any(Function))
   })
 
-  it('D19:chipKeys 只给年份+相机时,不渲染位置胶囊,角标只数可见维度', () => {
+  it('D19: when chipKeys has only years+cameras, don\'t render place capsule, badge counts only visible dimensions', () => {
     const w = mountBar({
       chipKeys: ['years', 'cameras'],
       filter: { years: ['2023'], places: ['Tokyo'], cameras: [] },
@@ -221,7 +224,7 @@ describe('弹层关闭与 chipKeys', () => {
     expect(w.get('[data-test="exif-badge"]').text()).toBe('1')
   })
 
-  it('位置弹层空态用「暂无位置数据」,其余用「暂无内容」', async () => {
+  it('place popover empty state says "no location data", others say "no content"', async () => {
     const w = mountBar({ photos: [] })
     await w.get('[data-test="exif-funnel"]').trigger('click')
     await w.get('[data-test="exif-chip-places"] .fchip').trigger('click')
@@ -232,25 +235,27 @@ describe('弹层关闭与 chipKeys', () => {
   })
 })
 
-describe('hover 特异性硬约束', () => {
-  // 偏离登记(处置顺序第 1 步的结论):brief 原文写的是
-  // `winningHoverBackground(rules, ['exif-funnel', 'on'])`,其中 `rules` 来自
-  // `parseCssRules(...)`。但 cssCascade.ts 的真实签名是
-  // `winningHoverBackground(styleText: string, classes: string[]): HoverBgRule`——
-  // 第一参是原始样式文本,不是已解析的规则数组;返回值是 { selector, specificity,
-  // value, order } 对象,不能直接 toBe 一个字符串。照 PhotosFilterChip.test.ts:108-114
-  // 的真实用法改正:传 extractStyleBlock 的结果,断言 winner.value。
-  // classes 传 ['exif-funnel', 'on'] 而非只传 ['exif-funnel']:变体选择器
-  // `.exif-funnel.on:hover` 里的 `.on` 类也必须在白名单内,否则 hoverBackgroundRules
-  // 会把这条变体规则judge为"命中了白名单之外的类"而排除掉,只剩基类 :hover 规则可见,
-  // 测试就测不出"基类是否顶掉变体"这件事。
-  it('.exif-funnel.on 的 hover 背景不被基类 .exif-funnel:hover 顶掉', () => {
-    // 整期终审 M3(仅注释,不改逻辑):这条断言比标题读起来弱——它只验证"赢家规则的
-    // selector 里带 :hover 和 on、value 是期望的 token",没有直接对照基类
-    // `.exif-funnel:hover` 规则算一遍 specificity 再断言"变体赢在书写顺序"这个更精确
-    // 的因果链(组件 CSS 注释里"平手,靠书写顺序苟活"那段话)。当前这条断言足以在基类
-    // 顶掉变体时转红(那样 winner 就会变成基类规则,value 不再是 --accent-soft),
-    // 只是没有把"为什么赢"这个机制显式钉出来。
+describe('hover specificity hard constraint', () => {
+  // Deviation record (disposition step 1 conclusion): brief original text says
+  // `winningHoverBackground(rules, ['exif-funnel', 'on'])` where `rules` comes from
+  // `parseCssRules(...)`. But cssCascade.ts's real signature is
+  // `winningHoverBackground(styleText: string, classes: string[]): HoverBgRule` —
+  // first param is raw style text, not parsed rule array; return is { selector, specificity,
+  // value, order } object, can't directly toBe a string. Follow actual usage in
+  // PhotosFilterChip.test.ts:108-114: pass extractStyleBlock result, assert winner.value.
+  // Pass classes as ['exif-funnel', 'on'] not just ['exif-funnel']: the `.on` class in the
+  // variant selector `.exif-funnel.on:hover` must also be in the whitelist, else
+  // hoverBackgroundRules judges the variant rule as "hits a class outside whitelist" and
+  // excludes it, leaving only base :hover rule visible, then test can't prove "whether base
+  // overrides variant".
+  it('.exif-funnel.on hover background not overridden by base class .exif-funnel:hover', () => {
+    // Final review M3 (comment only, no logic change): this assertion is weaker than the title
+    // sounds — it only verifies "winner rule's selector contains :hover and on, value is the
+    // expected token", doesn't directly compare base `.exif-funnel:hover` rule's specificity
+    // and assert the precise causality "variant wins because of source order" (the "tied,
+    // surviving on source order" line in component CSS comment). Current assertion is enough
+    // to turn red if base overrides variant (then winner becomes base rule, value no longer
+    // --accent-soft), just doesn't explicitly pin down the "why wins" mechanism.
     const style = extractStyleBlock(barRaw)
     const winner = winningHoverBackground(style, ['exif-funnel', 'on'])
     expect(winner.selector).toContain(':hover')

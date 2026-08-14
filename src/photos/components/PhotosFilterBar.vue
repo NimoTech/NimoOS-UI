@@ -63,7 +63,7 @@ const openPop = ref<ChipKey | null>(null)
 const draft = ref<Partial<Record<ChipKey, string[]>>>({})
 let ovT: ReturnType<typeof setTimeout> | null = null
 
-// ── facet:整个数据源里真实存在的取值 ────────────────────────────────────────
+// ── facet: true values existing in entire data source ────────────────────────────────────────
 const availYears = computed(() => {
   const set = new Set<string>()
   props.photos.forEach((p) => {

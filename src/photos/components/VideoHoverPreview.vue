@@ -212,10 +212,10 @@ defineExpose({ currentPreviewTimeMs })
   overflow: hidden;
   z-index: 1;
   pointer-events: none;
-  background-color: #000; /* theme-exception: 视频letterbox黑底，模拟播放器暗场，与站点主题无关(同 ViewerShell/MediaViewer 惯例) */
+  background-color: #000; /* theme-exception: video letterbox black background, simulates player dark scene, independent of site theme (same as ViewerShell/MediaViewer convention) */
   display: flex;
   align-items: center;
-  justify-content: center; /* 居中那一帧 */
+  justify-content: center; /* center this frame */
 }
 .sprite-window {
   /* Width/height injected by computeWindowStyle in %: narrow to “exactly one frame” (contain),

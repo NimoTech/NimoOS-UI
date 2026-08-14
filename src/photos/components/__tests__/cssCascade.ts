@@ -1,15 +1,16 @@
-// 测试辅助(非测试文件,vitest 只收 *.test.ts):解析 SFC 的 <style> 原文并按 CSS
-// 优先级判定"某个元素在 :hover 态下真正生效的 background 是哪一条声明"。
+// Test helper (not a test file, vitest only collects *.test.ts): parses SFC's <style> source and
+// uses CSS specificity to determine which background declaration actually takes effect when an element is in :hover state.
 //
-// 为什么需要:jsdom 既不做级联样式计算,也无法进入真实 hover 态,mount 后
-// getComputedStyle 读不出 hover 结果。而本区反复踩到同一个坑——基类的 `.x:hover`
-// 带伪类,优先级 (0,2,0);变体 `.x-primary` / `.x-danger` 只有一个类,(0,1,0)。
-// CSS 优先级高者胜、与书写顺序无关,于是指针一进按钮,变体的实底/渐变背景就被基类的
-// hover 背景整块替换,而文字色仍由变体提供 → 白底白字,按钮和文案一起消失。
-// 已发现两处:ClusterActionDialog(删除键+主行动键)、MergeReviewDialog(合并键)。
+// Why needed: jsdom neither performs cascade style computation nor can enter real hover state; after
+// mount, getComputedStyle cannot read hover results. This section repeatedly hit the same pitfall —
+// base class `.x:hover` has pseudo-class, specificity (0,2,0); variants `.x-primary` / `.x-danger`
+// have only one class, (0,1,0). Higher CSS specificity wins regardless of source order, so when the
+// pointer enters the button, the variant's solid background/gradient is replaced by the base class's
+// hover background entirely, while text color is still provided by the variant → white on white, button and text both disappear.
+// Found in two places: ClusterActionDialog (delete button + primary action button), MergeReviewDialog (merge button).
 //
-// parseCssRules / extractStyleBlock 与 PersonAssetGrid.test.ts:210-231 同源;那份先例
-// 保持原样不动(项目「禁无关重构」约定),新增的两处消费方一律用本模块。
+// parseCssRules / extractStyleBlock and PersonAssetGrid.test.ts:210-231 share origins; that earlier
+// version stays unchanged (project "no unrelated refactoring" convention), new consumers all use this module.
 
 export interface CssRule { selectors: string[]; body: string }
 
@@ -25,37 +26,37 @@ export function parseCssRules(styleText: string): CssRule[] {
 
 export function extractStyleBlock(src: string): string {
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('未找到样式块')
-  // 先剥 CSS 注释:否则规则上方的注释会被并进 selectors,选择器匹配全部失效。
+  if (!m) throw new Error('No style block found')
+  // Strip CSS comments first: otherwise comments above the rule will be merged into selectors, selector matching will fail entirely.
   return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
 const BG_DECL = /(?:^|;)\s*background(?:-color|-image)?\s*:\s*([^;]+)/
 
-/** 某个选择器列表里"恰好等于该单个选择器"的规则自身声明的 background。 */
+/** Background declared by the rule whose selector list contains exactly this single selector. */
 export function ownBackground(styleText: string, selector: string): string {
   const hit = parseCssRules(styleText).find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
-  if (!hit) throw new Error(`未找到独立规则:${selector}`)
+  if (!hit) throw new Error(`Standalone rule not found: ${selector}`)
   const m = BG_DECL.exec(hit.body)
-  if (!m) throw new Error(`规则 ${selector} 没有 background 声明`)
+  if (!m) throw new Error(`Rule ${selector} has no background declaration`)
   return m[1].trim()
 }
 
 export interface HoverBgRule { selector: string; specificity: number; value: string; order: number }
 
-// 数类、伪类与属性选择器:本区这几条规则里没有 id、也没有元素标签参与,足以在
-// `.x:hover` (2) 与 `.x-danger` (1) / `.x-danger:hover` (2) 之间判胜负。
-// fix round 1 · I1:补上属性选择器计数(`[data-open="true"]` 之类)——真实 CSS
-// 优先级里属性选择器与类选择器同权重,此前漏计会让属性选择器变体系统性算低分。
+// Classes, pseudo-classes and attribute selectors: no id or element tags are involved in the rules here,
+// sufficient to decide between `.x:hover` (2) and `.x-danger` (1) / `.x-danger:hover` (2).
+// fix round 1 · I1: add attribute selector counting (`[data-open="true"]` etc.) — in real CSS
+// specificity, attribute selectors have the same weight as class selectors; previous omission would cause attribute selector variants to systematically score lower.
 function classSpecificity(selector: string): number {
   return (selector.match(/\.[\w-]+|:[\w-]+(?:\([^)]*\))?|\[[^\]]*\]/g) ?? []).length
 }
 
 /**
- * 收集所有"作用于 class=classes 这颗元素、且处于 :hover 态"并声明了 background 的规则。
- * 按本区实际选择器形态(单个复合选择器,无后代/组合子)做保守匹配:选择器里出现的每一个
- * .class 都必须在 classes 内,伪类只允许 :hover 或 :not(...)(:not 里的类必须不在 classes 内,
- * 否则该规则不命中这颗元素)。
+ * Collects all rules that apply to element with class=classes and are in :hover state and declare background.
+ * Uses conservative matching based on actual selector form here (single compound selector, no descendant/combinator):
+ * every .class appearing in the selector must be in classes, pseudo-classes only allow :hover or :not(...) (classes
+ * inside :not must not be in classes, otherwise the rule doesn't match this element).
  */
 export function hoverBackgroundRules(styleText: string, classes: string[]): HoverBgRule[] {
   const out: HoverBgRule[] = []
@@ -69,14 +70,15 @@ export function hoverBackgroundRules(styleText: string, classes: string[]): Hove
       const pseudoHits = bare.match(/:[\w-]+(?:\([^)]*\))?/g) ?? []
       if (classHits.length === 0) continue
       if (!classHits.every((c) => classes.includes(c.slice(1)))) continue
-      // fix round 1 · I1(vacuous-truth 漏洞):`pseudoHits.every(...)` 在 pseudoHits 为
-      // 空数组时恒真——纯属性/纯类选择器(没有任何 `:` 伪类)会被这条空数组恒真判定
-      // 误收进"hover 候选"里。这个 helper 名字叫 hoverBackgroundRules,必须先确认选择器
-      // 里确实出现了 `:hover` 才继续,不能靠"没有出现不允许的伪类"这种反向判定。
+      // fix round 1 · I1(vacuous-truth gap): `pseudoHits.every(...)` is always true when pseudoHits is
+      // an empty array — pure attribute/pure class selectors (no `:` pseudo-class) are incorrectly collected into
+      // "hover candidates" by this always-true empty array check. This helper is named hoverBackgroundRules, must
+      // first confirm `:hover` actually appears in the selector before proceeding, cannot rely on reverse logic of
+      // "no disallowed pseudo-class appears".
       if (!bare.includes(':hover')) continue
       if (!pseudoHits.every((p) => p === ':hover')) continue
-      // :not(.x) 里点到本元素带的类 → 这条规则被排除;:not(:disabled) 等状态伪类按
-      // "非禁用"这一主路径当作命中。
+      // :not(.x) matches a class this element has → this rule is excluded; :not(:disabled) and other
+      // state pseudo-classes are treated as matching along the "not disabled" main path.
       if (nots.some((n) => n.startsWith('.') && classes.includes(n.slice(1)))) continue
       const m = BG_DECL.exec(rule.body)
       if (!m) continue
@@ -86,10 +88,10 @@ export function hoverBackgroundRules(styleText: string, classes: string[]): Hove
   return out
 }
 
-/** 优先级最高者胜;同级取后写的那条(CSS 级联规则)。 */
+/** Higher priority wins; at same level, the one written later takes precedence (CSS cascade rule). */
 export function winningHoverBackground(styleText: string, classes: string[]): HoverBgRule {
   const rules = hoverBackgroundRules(styleText, classes)
-  if (rules.length === 0) throw new Error(`没有任何 background 规则命中 .${classes.join('.')}`)
+  if (rules.length === 0) throw new Error(`No background rule matches .${classes.join('.')}`)
   return rules.reduce((best, r) =>
     r.specificity > best.specificity || (r.specificity === best.specificity && r.order > best.order) ? r : best,
   )

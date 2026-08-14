@@ -4,7 +4,7 @@ import { photoIndexById } from './util/photoNav'
 import { assetToPhoto, type Photo } from '../util/assetToPhoto'
 import { usePhotosFavorites } from '../stores/favorites'
 
-// 模块级单例状态
+// Module-level singleton state
 const open = ref(false)
 const list = ref<Photo[]>([])
 const index = ref(0)
@@ -17,16 +17,16 @@ let _hydrateSeq = 0
 const current = computed<Photo | null>(() => list.value[index.value] ?? null)
 const hasPrev = computed(() => index.value > 0)
 const hasNext = computed(() => index.value < list.value.length - 1)
-// 收藏态委托 photosFavorites store(P3 三处同源之一;usePhotosFavorites() 惰性调用——
-// 求值时 pinia 已激活,不能在模块顶层调用)。
+// Favorite state delegated to photosFavorites store (one of P3's three co-sources; usePhotosFavorites() lazy call —
+// by evaluation time Pinia is active, cannot call at module top level).
 const isFav = computed<boolean>(() => {
   const fav = usePhotosFavorites()
   return !!(current.value && fav.isFav(current.value.id))
 })
 
-// ── 历史集成:灯箱开着时按"返回"应只关灯箱,而不是让路由退到上级页面还盖着灯箱层。
-// 打开时 pushState 压一条同 URL 的记录(hash 路由不变,vue-router 视为无导航);
-// 返回键 pop 掉它 → onPop 只关灯箱;X/ESC 关闭 → history.back() 吃掉这条记录。
+// ── History integration: back button while lightbox open should only close lightbox, not navigate router to parent still under lightbox.
+// On open pushState one same-URL record (hash route unchanged, vue-router sees no navigation);
+// back button pops it → onPop only closes lightbox; X/ESC close → history.back() consumes that record.
 let pushedHistory = false
 
 function onPop(): void {
@@ -45,7 +45,7 @@ function resetState(): void {
   ocrLines.value = []
 }
 
-// 当前项变化后:立即用列表项本身占位 detail(避免闪空),bump seq,异步补水合明细。
+// After current item changes: immediately use list item itself as detail placeholder (avoid flashing empty), bump seq, async hydrate details.
 function onCurrentChanged(): void {
   detail.value = current.value
   _hydrateSeq += 1
@@ -73,7 +73,7 @@ function close(): void {
   if (pushedHistory && typeof window !== 'undefined') {
     pushedHistory = false
     window.removeEventListener('popstate', onPop)
-    window.history.back() // 消耗 openAt 压入的记录,历史栈保持干净
+    window.history.back() // Consume record pushed by openAt, keep history stack clean
   }
 }
 
@@ -108,7 +108,7 @@ async function hydrateDetail(): Promise<void> {
     if (seq !== _hydrateSeq || current.value?.id !== id) return
     detail.value = assetToPhoto(asset as unknown as Record<string, unknown>)
   } catch {
-    // keep the list-item placeholder already set on `detail`
+    // Keep the list-item placeholder already set on `detail`
   }
   if (!wantOcr) {
     if (seq === _hydrateSeq && current.value?.id === id) ocrLines.value = []
