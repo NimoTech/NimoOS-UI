@@ -756,27 +756,33 @@ onUnmounted(() => {
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }
 
-/* 悬停时头像轻微推近(scss:129-131 的意图,但 Vue2 该规则的选择器是 `.ring img` —— 这个组件
-   用 PersonAvatar,DOM 里根本没有 `.ring`,parity 那条规则永远打不到这里,必须留一份本地的、
-   打在 PersonAvatar 内部真实 img 类名上的等价规则)。 */
+/* Hover nudges the avatar in slightly (scss:129-131's intent), but Vue2's own rule selects
+   `.ring img` — this component uses PersonAvatar, whose DOM has no `.ring` at all, so parity's
+   rule can never reach it here; a local equivalent targeting PersonAvatar's own real image
+   class name has to stay. */
 .face-card :deep(.person-avatar-img) { transition: transform 0.4s ease; }
 .face-card:hover :deep(.person-avatar-img) { transform: scale(1.05); }
-/* Vue2 scss:132-136 给收藏头像加一圈 accent 内环(data-fav)。同上一条规则一样,parity 的
-   `.ring[data-fav]::after` 打的是 Vue2 的 DOM 形状,这里必须挂在 PersonAvatar 组件自己的类名
-   上,是结构性的、非重复。
-   评审 Important 2(两处一起改):
-   ① **必须是 ::after 覆盖层,不能是 .person-avatar-ring 自己的 box-shadow**。
-      inset 阴影按 CSS 规范画在「内容与后代之前」,而圆环内部的 .person-avatar-img /
-      .person-avatar-fallback 铺满整个 padding box —— 那圈 2px accent 100% 被人脸照片盖死,
-      Pinned 分区因此完全看不出「置顶收藏」这个视觉记号。Vue2 用的正是 ::after
-      (scss:132-136),伪元素叠在 img 之上才可见。
-   ② 选择器补上 data-fav 条件(PersonAvatar 根元素新增该属性,同 Vue2 `.ring[data-fav]`)。
-      原来无条件命中 .face-grid-lg 下所有头像,当前语义等价(Pinned 只渲染收藏项)但复用即串。
-   挂在 .person-avatar(组件根,position:relative 且与圆环同一个盒)而不是 .person-avatar-ring
-   上:圆环自己 overflow:hidden,伪元素若以它为定位父级会被它裁掉。
-   **只画内环、不画外发光**:Vue2 那条规则里的第二段外发光(0 0 0 3px,accent 20% 透明度)同样被
-   `.ring { overflow: hidden }`(scss:120)裁掉,在 Vue2 里从未渲染过 —— 不照抄这段死代码
-   (照抄反而会渲染出 Vue2 没有的一圈光晕,是新增视觉而非 1:1)。 */
+/* Vue2 scss:132-136 adds an accent inner ring around favorited avatars (data-fav). Same
+   situation as the rule above: parity's `.ring[data-fav]::after` targets Vue2's DOM shape, so
+   this has to hang off PersonAvatar's own class name here — structural, not a duplicate.
+   Review Important 2 (both points fixed together):
+   ① **Must be an ::after overlay, not a box-shadow on .person-avatar-ring itself.** Per the CSS
+      spec, an inset shadow paints "before the content and descendants," and the ring's inner
+      .person-avatar-img / .person-avatar-fallback fill the entire padding box — that 2px accent
+      would be 100% covered by the face photo, so the Pinned section would show no visible sign
+      of "pinned/favorited" at all. Vue2 itself uses ::after here (scss:132-136) — the
+      pseudo-element sits on top of the img, which is the only way it's visible.
+   ② Selector gained the data-fav condition (PersonAvatar's root element now carries this
+      attribute, matching Vue2's own `.ring[data-fav]`). It used to match every avatar under
+      .face-grid-lg unconditionally — currently equivalent in practice (only favorited people
+      render in Pinned) but relying on that coincidence is fragile.
+   Hung off .person-avatar (the component root, position:relative and the same box as the ring)
+   rather than .person-avatar-ring itself: the ring has its own overflow:hidden, and a
+   pseudo-element positioned against it would get clipped away.
+   **Inner ring only, no outer glow**: Vue2's own rule has a second outer-glow layer
+   (0 0 0 3px, accent at 20% opacity) that is likewise clipped by `.ring { overflow: hidden }`
+   (scss:120) and has never actually rendered in Vue2 — not copying that dead code here (copying
+   it would render a glow Vue2 never shows, which is new visual behavior, not 1:1 parity). */
 .face-grid-lg .face-card :deep(.person-avatar[data-fav="true"])::after {
   content: "";
   position: absolute;
@@ -786,8 +792,9 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-/* 未命名人脸略压一档不透明度,与已命名分区拉开层次(scss:215 的意图,同上两条,parity
-   的 `.ring img { opacity }` 选择器打不到这个组件的 DOM,留本地等价规则)。 */
+/* Unnamed faces are dialed down one notch in opacity to separate them visually from the named
+   sections (scss:215's intent) — same situation as the two rules above: parity's `.ring img
+   { opacity }` selector can't reach this component's DOM, so a local equivalent stays. */
 .cluster-card :deep(.person-avatar-img) { opacity: 0.92; }
 
 /* New-UI addition: the settings-link emphasis span inside the faces-off warning banner's
