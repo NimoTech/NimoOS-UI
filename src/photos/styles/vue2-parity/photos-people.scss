@@ -1574,6 +1574,12 @@
 .people-sub { color: var(--text-3); font-size: 12.5px; margin-top: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .people-sub .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--text-4); flex: none; }
 
+/* Plan D Task 2: same situation as `.people-sub` above — New-UI's actual markup wraps the
+   banner's action row in a single `.people-banner-actions` class (Vue2 nests an unclassed
+   `.actions` div instead, matched by `.people-banner .actions` above), so that descendant
+   selector never matches it either. Same values, standalone selector. */
+.people-banner-actions { margin-left: auto; display: inline-flex; gap: 8px; }
+
 /* New-UI addition: loading skeleton, no Vue2 source */
 .person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
 .person-skeleton-hero { height: 280px; border-radius: 20px; background: var(--surface-2); }

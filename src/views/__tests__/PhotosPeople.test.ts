@@ -185,6 +185,28 @@ describe('PhotosPeople.vue — 生命周期与分区', () => {
   })
 })
 
+// Task 2 (Plan D 人物换壳): brief's Step 1 RED test, adapted to this file's own mountView()
+// helper and to its zh_cn-only i18n fixture (every other assertion in this file checks
+// Chinese literal output, e.g. line 166-167 above — the brief's illustrative `'People'` /
+// `/named/i` text assumed an English fixture that doesn't exist here).
+describe('PhotosPeople.vue — 换壳(Plan D Task 2)', () => {
+  it('mounts the .app shell with PhotosTopbar (People title + counts sub)', async () => {
+    const { w } = await mountView()
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('title')).toBe(zh.photosPeople)
+    // sub 含已命名/未命名计数(照 Vue2 PhotosPeopleTopbar 的口径)
+    expect(String(topbar.props('sub'))).toMatch(/已命名/)
+  })
+
+  it('renders cluster menu and dialogs inside .photos-root', async () => {
+    const { w } = await mountView()
+    await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
+    expect(w.find('.photos-root [data-test="cluster-menu"]').exists()).toBe(true)
+  })
+})
+
 describe('PhotosPeople.vue — 置信度', () => {
   it('未命名卡片渲染置信度角标(0.87→87%),且角标不是头像圆环的子节点', async () => {
     const { w } = await mountView()

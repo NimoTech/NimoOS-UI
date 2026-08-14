@@ -268,6 +268,12 @@ export default {
   // ── Photos: People (SP7-P5, task-3). en values are verbatim Vue2 $t() literal
   // arguments (Vue2 uses the English string itself as the i18n key).
   photosPeople: 'People',
+  // Plan D Task 2 (re-shell): the PhotosTopbar `sub` line for this page's index route. Vue2's
+  // own PhotosPeopleTopbar.vue:37 index-mode subtitle is `Face clusters · {named} named ·
+  // {unnamed} unnamed` — the task brief that specified this key gave the counts half verbatim
+  // but deliberately dropped the "Face clusters ·" lead-in (brief's exact wording), so this key
+  // carries only the counts clause; not a transcription oversight.
+  photosPeopleTopbarSub: '{named} named · {unnamed} unnamed',
   photosPeopleNamed: '{n} named',
   photosPeopleUnnamedClusters: '{n} unnamed clusters',
   photosPeopleIndexedUpTo: 'Faces indexed up to {date}',

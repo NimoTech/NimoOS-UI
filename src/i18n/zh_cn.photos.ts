@@ -281,6 +281,11 @@ export default {
   // 用同句英文原文当 key 查出。术语统一:Unnamed clusters→"未命名人物",不用"簇/聚类"
   // (下方标注 [聚类→人物] 的几条为按此规则改写,原查得译文含"聚类" 二字)。
   photosPeople: '人物',
+  // Plan D Task 2(换壳):PhotosTopbar 的 `sub` 副行,给这一页的 index 路由用。Vue2
+  // PhotosPeopleTopbar.vue:37 的 index 态副标题是 "Face clusters · {named} named ·
+  // {unnamed} unnamed";出这条键的 task brief 把计数部分逐字给了,但刻意不要 "Face
+  // clusters ·" 这个前缀(brief 原文如此),所以这里只保留计数分句,不是漏抄。
+  photosPeopleTopbarSub: '{named} 个已命名 · {unnamed} 个未命名',
   photosPeopleNamed: '{n} 个已命名',
   photosPeopleUnnamedClusters: '{n} 个未命名人物', // [聚类→人物],原文 "{n} 个未命名聚类"
   photosPeopleIndexedUpTo: '人脸索引更新至 {date}',

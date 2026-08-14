@@ -3,8 +3,14 @@
 // 合并建议横幅 + Pinned/Named/Unnamed 三分区网格 + 浮动操作菜单 + 空态。
 // 逐段对照 Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:2-235 与
 // src/views/Photos/photos-people.scss:1-275 移植;Ask Nimo 分支照 brief 不建。
-// 壳照 PhotosAlbums.vue:185-188 的 AreaShell/.photos-layout/PhotosSidebar/.photos-main 复制
+// 壳最初照 PhotosAlbums.vue:185-188 的 AreaShell/.photos-layout/PhotosSidebar/.photos-main 复制
 // (不抽公共,P3/P4 既定)。document 级监听照 PhotosAlbums.vue:159-181。
+//
+// Plan D Task 2(换壳):AreaShell/.photos-layout 过渡态壳已换成 PhotosAlbums.vue 自己 Plan C
+// Task 2 的 `.photos-root > .app[data-collapsed] > PhotosSidebar + main.main > PhotosTopbar +
+// .photos-main` 结构(useSidebarCollapse 共享单例)。三个浮层(cluster-menu/
+// ClusterActionDialog/MergeReviewDialog)随之从模板根兄弟节点搬回 `.photos-root` 内部
+// (`.app` 的兄弟位),理由见它们自己上方的注释。详见 task-2-report.md。
 //
 // T7(本次追加):接入 ClusterActionDialog(命名/合并/删除三态弹窗),`dialog` 状态从
 // T6 的隐藏占位节点换成真实弹窗;三条提交路径(renamePerson/mergePersonInto/
@@ -45,9 +51,10 @@ import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
@@ -65,6 +72,9 @@ type DialogMode = 'name' | 'merge' | 'delete'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Task 2 (Plan D re-shell): same collapse composable as PhotosAlbums.vue's own re-skin
+// (Plan C Task 2) — shared module singleton, `toggle` wired straight to the topbar button.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const people = usePhotosPeople()
 const timeline = useTimelineStore()
@@ -137,6 +147,15 @@ const filteredUnnamed = computed(() => people.visibleUnnamed)
 const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.value) ?? sortOptions.value[0])
 // New-UI 补齐的空态(Vue2 没有):只在确认拉取成功且真的零人物时出现,失败态不冒充空。
 const isEmpty = computed(() => people.peopleLoaded && people.people.length === 0)
+
+// Task 2 (Plan D re-shell): PhotosTopbar's `sub` line — same named/visible-unnamed counts the
+// in-body `.people-sub` banner already shows (photosPeopleTopbarSub, see i18n comment for why
+// the "Face clusters ·" lead-in is dropped). Reuses filteredUnnamed rather than recomputing a
+// second "visible unnamed" figure so the two counts on screen can never disagree.
+const topbarSub = computed(() => t('photosPeopleTopbarSub', {
+  named: people.named.length,
+  unnamed: filteredUnnamed.value.length,
+}))
 
 const firstSuggestion = computed(() => people.mergeSuggestions[0] ?? null)
 const mergeReasonText = computed(() => {
@@ -398,10 +417,18 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosPeople')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosPeople')"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+       <div class="photos-main">
         <!-- ── 横幅(Vue2 :3-42)── -->
         <div class="people-banner">
           <div class="people-banner-text">
@@ -421,7 +448,7 @@ onUnmounted(() => {
           </div>
           <div class="people-banner-actions">
             <div ref="confMenuRef" class="people-pop-wrap">
-              <button type="button" class="bar-btn" data-test="conf-btn" @click.stop="confidenceOpen = !confidenceOpen">
+              <button type="button" class="btn" data-test="conf-btn" @click.stop="confidenceOpen = !confidenceOpen">
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v6l-4 2v-8z"/></svg>
                 {{ t('photosPeopleConfidence', { n: people.filter.confidence }) }}
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
@@ -531,7 +558,7 @@ onUnmounted(() => {
               <div class="stack-dot"><PersonAvatar :person-id="suggestionId('fromId')" :ver="verOf(suggestionId('fromId'))" :size="24" /></div>
               <div class="stack-dot"><PersonAvatar :person-id="suggestionId('intoId')" :ver="verOf(suggestionId('intoId'))" :size="24" /></div>
             </div>
-            <button type="button" class="bar-btn people-btn-primary" data-test="merge-review" @click="openReview">
+            <button type="button" class="btn people-btn-primary" data-test="merge-review" @click="openReview">
               {{ t('photosPeopleMergeReview') }}
             </button>
             <button
@@ -628,186 +655,115 @@ onUnmounted(() => {
             </div>
           </template>
         </div>
+       </div>
       </main>
     </div>
-  </AreaShell>
 
-  <!-- 浮动操作菜单(Vue2 :208-234)。position:fixed,放在 AreaShell 之外(因而也在
-       `.photos-root` 之外,见 :401-402——`.photos-root` 是 AreaShell 插槽内的一层 div,不是
-       本文件的模板根)避免被祖先的 backdrop-filter 变成包含块。
-       Fix-4 item 3(owner acceptance,2026-08-13)订正一处过时引用:这里此前写"同
-       PhotosAlbums.vue 把模态放在壳外的先例"——那不是一个可以援引的先例,是一个已被 F1/F2/F4
-       三轮验收修复认定为 bug 并推翻的反面案例(acceptance-fix-report.md §F1/§F2/§F4):
-       `.photos-root .xxx` 系列 parity 选择器是**后代**选择器,模态若做成 `.photos-root` 的
-       模板根同级(哪怕视觉上看着"在壳外"没问题),就吃不到任何一条以 `.photos-root` 开头的
-       parity 规则——AlbumPickerDialog/PhotosLibraryPicker/编辑态选择条等一系列组件都因此
-       中过招(真实渲染成透明背景/无样式,不是"能正常显示只是位置不同")。铁律应该反过来读:
-       **模态/浮层必须是 `.photos-root` 的 DOM 后代**,不能是它的模板根兄弟。
-       本文件这颗浮动菜单眼下能正常显示,不是因为"壳外"这个位置本身没问题,而是因为本页
-       尚未经历 re-skin(仍是 `.photos-layout` 过渡态壳、`.cluster-menu` 系列规则清一色用
-       theme.css 的**全局**token——`--popup-bg`/`--card-border`/`--card-shadow-hi`/`--fg`/
-       `--fg-muted`/`--hover`/`--accent-text`/`--remove-fg`,没有一个依赖 `.photos-root` 本地
-       重定义的 parity token),侥幸不受影响——不是这个位置可以被放心复制的先例。本页将来
-       换壳/改用 parity token 时,这颗菜单需要一并挪回 `.photos-root` 内部。 -->
-  <div
-    v-if="clusterMenu"
-    ref="clusterMenuRef"
-    class="cluster-menu"
-    data-test="cluster-menu"
-    :style="{ left: clusterMenu.x + 'px', top: clusterMenu.y + 'px' }"
-  >
-    <!-- 用户验收新增(Vue2 菜单 :213-231 只有命名/合并/删除三项,整个 Vue2 列表页没有任何
-         通往未命名人物详情页的入口)。放在首位:它是"只看不改"的动作,三个会改数据的动作
-         排在后面。走与已命名卡片同一个 openPerson,共用 encodeURIComponent 守卫。 -->
-    <button type="button" class="cluster-menu-item" data-test="menu-view" @click="viewClusterPhotos">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
-      <span>{{ t('photosPersonViewPhotos') }}</span>
-    </button>
-    <button type="button" class="cluster-menu-item" data-test="menu-name" @click="openDialog('name')">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
-      <span>{{ t('photosPersonNameThis') }}</span>
-    </button>
-    <button type="button" class="cluster-menu-item" data-test="menu-merge" @click="openDialog('merge')">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
-      <span>{{ t('photosPersonMergeExisting') }}</span>
-    </button>
-    <button type="button" class="cluster-menu-item is-danger" data-test="menu-delete" @click="openDialog('delete')">
-      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
-      <span>{{ t('photosPersonDeleteCluster') }}</span>
-    </button>
+    <!-- Task 2 (Plan D re-shell): the cluster menu + both dialogs used to sit as template-root
+         siblings of `.photos-root` — outside its DOM subtree entirely. Every `.photos-root .xxx`
+         parity selector is a descendant selector and needs a real `.photos-root` ANCESTOR in the
+         DOM, which a sibling position does not provide (acceptance-fix-report.md §F1/§F2/§F4;
+         same rule PhotosAlbums.vue's own dialogs follow, its Fix-1 item 3). Moved back inside
+         `.photos-root` (sibling of `.app` is fine — `position: fixed` means nesting here does
+         not reintroduce `.app`'s `overflow: hidden` clipping). -->
+    <div
+      v-if="clusterMenu"
+      ref="clusterMenuRef"
+      class="cluster-menu"
+      data-test="cluster-menu"
+      :style="{ left: clusterMenu.x + 'px', top: clusterMenu.y + 'px' }"
+    >
+      <!-- 用户验收新增(Vue2 菜单 :213-231 只有命名/合并/删除三项,整个 Vue2 列表页没有任何
+           通往未命名人物详情页的入口)。放在首位:它是"只看不改"的动作,三个会改数据的动作
+           排在后面。走与已命名卡片同一个 openPerson,共用 encodeURIComponent 守卫。 -->
+      <button type="button" class="cluster-menu-item" data-test="menu-view" @click="viewClusterPhotos">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>
+        <span>{{ t('photosPersonViewPhotos') }}</span>
+      </button>
+      <button type="button" class="cluster-menu-item" data-test="menu-name" @click="openDialog('name')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+        <span>{{ t('photosPersonNameThis') }}</span>
+      </button>
+      <button type="button" class="cluster-menu-item" data-test="menu-merge" @click="openDialog('merge')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+        <span>{{ t('photosPersonMergeExisting') }}</span>
+      </button>
+      <button type="button" class="cluster-menu-item is-danger" data-test="menu-delete" @click="openDialog('delete')">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>
+        <span>{{ t('photosPersonDeleteCluster') }}</span>
+      </button>
+    </div>
+
+    <!-- T7:三态操作弹窗真正接上。候选传全量 named——排序/过滤/截断在弹窗内部(brief 定案)。 -->
+    <ClusterActionDialog
+      :open="dialog !== null"
+      :mode="dialog?.mode ?? 'name'"
+      :person="dialog?.person ?? null"
+      :candidates="people.named"
+      @update:open="(v) => { if (!v) closeDialog() }"
+      @submit-name="onSubmitName"
+      @submit-merge="onSubmitMerge"
+      @submit-delete="onSubmitDelete"
+    />
+
+    <!-- T8:合并建议审阅弹窗接上。update:index 声明了但从不会被 emit(见 MergeReviewDialog
+         头部注释——没有独立的"跳到第 N 条"导航控件),接线仍然完整覆盖以保持契约一致;宿主侧
+         目前唯一改变 reviewIdx 的路径是 accept/reject 之后的 clampReviewIndex。 -->
+    <MergeReviewDialog
+      :open="reviewOpen"
+      :suggestions="reviewSuggestions"
+      :index="reviewIdx"
+      :people="people.people"
+      @update:open="(v) => { if (!v) reviewOpen = false }"
+      @update:index="(v) => { reviewIdx = v }"
+      @accept="onReviewAccept"
+      @reject="onReviewReject"
+    />
   </div>
-
-  <!-- T7:三态操作弹窗真正接上。候选传全量 named——排序/过滤/截断在弹窗内部(brief 定案)。 -->
-  <ClusterActionDialog
-    :open="dialog !== null"
-    :mode="dialog?.mode ?? 'name'"
-    :person="dialog?.person ?? null"
-    :candidates="people.named"
-    @update:open="(v) => { if (!v) closeDialog() }"
-    @submit-name="onSubmitName"
-    @submit-merge="onSubmitMerge"
-    @submit-delete="onSubmitDelete"
-  />
-
-  <!-- T8:合并建议审阅弹窗接上。update:index 声明了但从不会被 emit(见 MergeReviewDialog
-       头部注释——没有独立的"跳到第 N 条"导航控件),接线仍然完整覆盖以保持契约一致;宿主侧
-       目前唯一改变 reviewIdx 的路径是 accept/reject 之后的 clampReviewIndex。 -->
-  <MergeReviewDialog
-    :open="reviewOpen"
-    :suggestions="reviewSuggestions"
-    :index="reviewIdx"
-    :people="people.people"
-    @update:open="(v) => { if (!v) reviewOpen = false }"
-    @update:index="(v) => { reviewIdx = v }"
-    @accept="onReviewAccept"
-    @reject="onReviewReject"
-  />
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 2 (Plan D re-shell) shadowing cleanup: every rule that duplicated a parity rule under
+   the same selector/anchor with the same (or now-corrected) value has been deleted — parity's
+   `src/photos/styles/vue2-parity/photos-people.scss` governs directly. What's left below are
+   only the rules parity genuinely has no source for: layout scaffolding this page's own `.app`
+   grid re-skin still needs (`.photos-main`, no parity selector by that name — same as
+   PhotosAlbums.vue's own copy), two structural div wrappers Vue2 has no class for at all
+   (`.people-banner-text`, `.people-filters-spacer`), the `:deep(.person-avatar-*)` rules that
+   target this component's own avatar markup (parity's equivalents target Vue2's plain `.ring
+   img`, a DOM shape this page never has), a New-UI-only empty state, a New-UI-only "em"
+   emphasis span, the merge-banner's warning variant (no Vue2 counterpart, see below), and the
+   suggestion-stack avatar's border (its sizing model differs from parity's `.dot`, see below).
+   See task-2-report.md's deviations table for what changed value/token when a duplicate was
+   deleted (fonts, paddings, colors, radii, z-index, several dark-glass tokens that were
+   theme-variant here but must be theme-invariant per Vue2's own design). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── 横幅(scss:5-35)── */
-.people-banner {
-  display: flex; align-items: flex-end; gap: 18px;
-  padding: 4px 4px 14px;
-  border-bottom: 1px solid var(--divider);
-  /* Vue2 深色主题有一抹 5% 紫的顶部渐变、浅色主题整块去掉(scss:9,14)。
-     这里改成随 accent 的极淡渐变:两套主题各自的 accent 都足够淡,不需要按主题分叉。 */
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 80%);
-}
+/* Vue2 wraps the title+sub pair in an unclassed div (PhotosPeopleView.vue:3); New-UI's own
+   `.people-banner-text` class is a structural-only addition (flex-shrink guard for the h1/sub
+   pair), no Vue2 pixel value to transcribe. */
 .people-banner-text { min-width: 0; }
-.people-banner h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
-.people-sub { color: var(--fg-muted); font-size: 12.5px; margin-top: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-.people-sub .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--fg-faint); flex: 0 0 auto; }
-.people-banner-actions { margin-left: auto; display: inline-flex; gap: 8px; }
-.people-pop-wrap { position: relative; }
 
-/* ── 筛选行(scss:38-60)── */
-.people-filters { display: flex; align-items: center; gap: 10px; padding: 12px 4px; border-bottom: 1px solid var(--divider); flex-wrap: wrap; }
+/* Vue2's filter-row spacer is an unclassed `<div style="flex:1">` (PhotosPeopleView.vue:84);
+   same situation as `.people-banner-text` above — structural only. */
 .people-filters-spacer { flex: 1 1 auto; }
-.people-chip {
-  height: 28px; padding: 0 12px; border-radius: 999px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted);
-  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.people-chip:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.people-chip[data-active="true"] {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: var(--accent-text);
-}
-.people-chip .ct { font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 11px; }
 
-/* ── 下拉菜单(Vue2 内联样式 :20-39 / :66-82)── */
-.people-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; z-index: 20;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 10px;
-  box-shadow: var(--card-shadow-hi);
-}
-.people-menu-conf { min-width: 200px; padding: 8px; }
-/* 置信度下拉小标题(Vue2 :24-26 的内联样式) */
-.people-menu-head {
-  font-size: 10.5px; color: var(--fg-muted); text-transform: uppercase;
-  letter-spacing: 0.06em; padding: 4px 6px 8px;
-}
-.people-menu-sort { min-width: 220px; padding: 4px; }
-.people-menu-item {
-  display: flex; width: 100%; align-items: center; gap: 8px; padding: 6px 8px;
-  background: transparent; border: 0; border-radius: 6px; color: var(--fg);
-  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.people-menu-item.is-stacked { align-items: flex-start; padding: 8px 10px; }
-.people-menu-item:hover { background: var(--hover); }
-.people-menu-item[data-active="true"] { background: var(--accent-soft); }
-.people-menu-item .check { width: 12px; flex: 0 0 auto; color: var(--accent-text); }
-.people-menu-item .lbl { flex: 1 1 auto; }
-.people-menu-item .tail { color: var(--fg-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
-.people-menu-item .stack-text { flex: 1 1 auto; display: flex; flex-direction: column; }
-.people-menu-item .stack-text .lbl { font-weight: 500; }
-.people-menu-item .stack-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
-
-/* ── 正文滚动容器(scss:63-67)── */
-.people-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 24px 4px 80px; }
-
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+/* New-UI addition: this page's own empty-state naming (`.empty-state`/-title/-desc), distinct
+   from parity's `.people-empty` (which transcribes Vue2's own `.t`/`.d` nested-class shape —
+   New-UI doesn't use that markup here). No Vue2 pixel source either way; tokens aligned to
+   PhotosAlbums.vue's own identical local copy for cross-page consistency. */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }
 
-/* ── 分区头(scss:69-100)── */
-.section-head { display: flex; align-items: baseline; gap: 10px; padding: 22px 0 14px; flex-wrap: wrap; }
-.section-head h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
-.section-head .sub { color: var(--fg-muted); font-size: 12px; }
-.section-actions { margin-left: auto; display: inline-flex; align-items: baseline; gap: 14px; }
-.section-actions .more + .more { padding-left: 14px; border-left: 1px solid var(--divider); }
-.section-head .more { color: var(--fg-muted); font-size: 12px; background: transparent; border: 0; font-family: inherit; cursor: pointer; padding: 0; }
-.section-head .more:hover { color: var(--accent-text); }
-
-/* ── Pinned / Named 网格(scss:103-194)── */
-.face-grid-lg { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 18px 14px; }
-.face-grid-md { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 16px 10px; }
-.face-card {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  cursor: pointer; padding: 6px; border-radius: 14px; position: relative;
-}
-.face-card:hover { background: var(--hover); }
-/* 悬停时头像轻微推近(scss:129-131)。PersonAvatar 内部不带这个交互,父层 :deep 命中其 img。 */
+/* 悬停时头像轻微推近(scss:129-131 的意图,但 Vue2 该规则的选择器是 `.ring img` —— 这个组件
+   用 PersonAvatar,DOM 里根本没有 `.ring`,parity 那条规则永远打不到这里,必须留一份本地的、
+   打在 PersonAvatar 内部真实 img 类名上的等价规则)。 */
 .face-card :deep(.person-avatar-img) { transition: transform 0.4s ease; }
 .face-card:hover :deep(.person-avatar-img) { transform: scale(1.05); }
-/* Vue2 scss:132-136 给收藏头像加一圈 accent 内环(data-fav)。
+/* Vue2 scss:132-136 给收藏头像加一圈 accent 内环(data-fav)。同上一条规则一样,parity 的
+   `.ring[data-fav]::after` 打的是 Vue2 的 DOM 形状,这里必须挂在 PersonAvatar 组件自己的类名
+   上,是结构性的、非重复。
    评审 Important 2(两处一起改):
    ① **必须是 ::after 覆盖层,不能是 .person-avatar-ring 自己的 box-shadow**。
       inset 阴影按 CSS 规范画在「内容与后代之前」,而圆环内部的 .person-avatar-img /
@@ -829,89 +785,36 @@ onUnmounted(() => {
   box-shadow: inset 0 0 0 2px var(--accent);
   pointer-events: none;
 }
-.face-card .name {
-  font-size: 13px; font-weight: 500; color: var(--fg); text-align: center; max-width: 130px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.face-card .meta { font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-.face-grid-md .face-card .name-row { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
-.face-grid-md .face-card .name-row .name { font-size: 12.5px; max-width: 90px; }
-.face-grid-md .face-card .name-row .meta { font-size: 11px; }
 
-/* ── 未命名网格(scss:197-243)── */
-.cluster-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 14px 10px; position: relative; }
-.cluster-card { position: relative; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-/* 未命名人脸略压一档不透明度,与已命名分区拉开层次(scss:215) */
+/* 未命名人脸略压一档不透明度,与已命名分区拉开层次(scss:215 的意图,同上两条,parity
+   的 `.ring img { opacity }` 选择器打不到这个组件的 DOM,留本地等价规则)。 */
 .cluster-card :deep(.person-avatar-img) { opacity: 0.92; }
-.cluster-card .badge {
-  position: absolute;
-  /* 锚在头像中心右上:无论列宽多少都只擦过圆弧一点点(照 Vue2 scss:218-220) */
-  top: -6px; left: calc(50% + 20px);
-  white-space: nowrap; font-size: 10.5px; padding: 2px 6px; border-radius: 99px;
-  background: var(--overlay-bg); backdrop-filter: var(--blur);
-  font-variant-numeric: tabular-nums; font-weight: 500;
-}
-/* theme-exception: 角标压在不可控的人脸照片上,两套主题都需要恒定暗底浅字浅描边 */
-.cluster-card .badge { color: rgba(255, 255, 255, 0.78); }
-/* theme-exception: 同上,恒定浅色描边 */
-.cluster-card .badge { border: 1px solid rgba(255, 255, 255, 0.1); }
-.cluster-card .ct { font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-/* 悬停互换(scss:237-243):平时只显照片数,悬停换成「+ 命名 / 合并 / 删除」 */
-.cluster-card .name-action { font-size: 11.5px; color: var(--accent-text); display: none; }
-.cluster-card:hover .name-action { display: block; }
-.cluster-card:hover .ct { display: none; }
 
-/* ── 横幅条(scss:246-274)── */
-.merge-banner {
-  display: flex; align-items: center; gap: 14px; padding: 14px 16px;
-  background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 10%, transparent), color-mix(in srgb, var(--accent) 4%, transparent));
-  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
-  border-radius: 14px; margin-bottom: 18px; flex-wrap: wrap;
-}
-.merge-banner .icon-wrap {
-  width: 34px; height: 34px; border-radius: 50%; background: var(--accent-soft);
-  display: flex; align-items: center; justify-content: center; color: var(--accent-text); flex: none;
-}
-.merge-banner .body { flex: 1 1 auto; min-width: 0; }
-.merge-banner .title { font-size: 13px; font-weight: 600; color: var(--fg); }
-.merge-banner .desc { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
-.merge-banner .desc .em { color: var(--accent-text); font-weight: 500; }
-.merge-banner .stack { display: inline-flex; }
-.merge-banner .stack .stack-dot { border-radius: 50%; border: 2px solid var(--panel-bg); margin-left: -10px; line-height: 0; }
-.merge-banner .stack .stack-dot:first-child { margin-left: 0; }
-/* 警告变体(Vue2 :87-113 的内联橙色 → --warn-* 三个 token)*/
+/* New-UI addition: the settings-link emphasis span inside the faces-off warning banner's
+   description (Vue2 uses a real `<a href="#">` there instead — see the template's own
+   deviation-3/7 comments on why this page renders emphasis text instead of a dead link). No
+   Vue2 class to anchor to. */
+.merge-banner .desc .em { color: var(--accent-hi); font-weight: 500; }
+
+/* Vue2 :87-113's two warning-banner states (faces-off / ML-offline) have no CSS class at all in
+   Vue2 — they're plain inline orange styles with no reusable selector, and parity intentionally
+   does not transcribe them (this whole variant is a New-UI addition riding the shared global
+   `.merge-banner` shape). Kept local, using the shared app-wide `--warn-*` tokens (consistent
+   with every other warning banner in this app, not a parity/Vue2 value). */
 .merge-banner.is-warn { background: var(--warn-bg); border-color: var(--warn-border); }
 .merge-banner.is-warn .icon-wrap { background: color-mix(in srgb, var(--warn-fg) 18%, transparent); color: var(--warn-fg); }
 .merge-banner.is-warn .title { color: var(--warn-fg); }
 
-.people-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.people-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-.people-icon-btn {
-  width: 28px; height: 28px; flex: 0 0 auto; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 16px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.people-icon-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* ── 浮动操作菜单(Vue2 内联样式 :208-233)── */
-.cluster-menu {
-  position: fixed; transform: translateX(-50%); min-width: 200px; z-index: 50;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 10px;
-  padding: 4px; box-shadow: var(--card-shadow-hi);
-}
-.cluster-menu-item {
-  display: flex; width: 100%; align-items: center; gap: 8px; padding: 8px 10px;
-  background: transparent; border: 0; border-radius: 6px; color: var(--fg);
-  font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.cluster-menu-item:hover { background: var(--hover); }
-.cluster-menu-item svg { flex: 0 0 auto; color: var(--accent-text); }
-.cluster-menu-item span { flex: 1 1 auto; }
-.cluster-menu-item.is-danger { color: var(--remove-fg); }
-.cluster-menu-item.is-danger svg { color: var(--remove-fg); }
-
-/* ≤768px:侧栏已收抽屉,布局单列 */
-@media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-}
+/* The merge-suggestion banner's two-avatar stack. Selector name differs from parity's `.dot`
+   (this page's template uses `.stack-dot`) for a structural reason, not just naming: Vue2's own
+   `.dot` sizes itself explicitly (width/height, scss:267-268) because it wraps a plain `<img>`;
+   here PersonAvatar is handed `:size="24"` directly and sizes its own box, so `.stack-dot` only
+   needs to add the 2px border (making the true outer diameter 28px via border-box — see the
+   template's own comment by the `.stack` markup) — no separate width/height/overflow/background
+   declarations to duplicate. Border token corrected from a stray `--panel-bg` reference (a
+   translucent floating-glass token, wrong semantics for a cutout ring against this page's own
+   flat background) to parity's own `--surface-1` — the token that actually matches the
+   page background this ring needs to blend into. */
+.merge-banner .stack .stack-dot { border-radius: 50%; border: 2px solid var(--surface-1); margin-left: -10px; line-height: 0; }
+.merge-banner .stack .stack-dot:first-child { margin-left: 0; }
 </style>
