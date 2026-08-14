@@ -401,37 +401,58 @@ onUnmounted(() => {
    parity 的 `.detail-hero .name` 继承,这里只需要 color 这一条。 */
 .name-text { color: #fff; }
 
-/* `.fav-toggle` survives in full (not just its color): Vue2's own template puts an inline
-   `style="background:transparent;border:0;padding:4px;cursor:pointer;display:inline-flex;
-   align-items:center;color:[gold hex]"` directly on this button (PhotosPersonDetail.vue:24-28) —
-   inline style always wins over any external stylesheet rule for the properties it sets, so
-   parity's own `.fav-toggle` CSS rule (border/background/transition) never actually renders in
-   real Vue2 — a parity-transcription gap noted for whoever maintains that file next, not
-   something to "align" to here (that would regress this component to a rule Vue2 itself never
-   applies). This component's own values below already match what Vue2 really renders
-   (transparent-ish pill, 4px padding, inline-flex, centered), give or take the visible 1px
-   outline this component intentionally adds; icon color is CSS-driven (this app's SVG uses
-   `stroke="currentColor"`, not Vue2's inline `color` prop). */
-.fav-toggle {
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  background: var(--overlay-bg);
-  cursor: pointer;
+/* Fix round 1 (Important, coordinator review): the previous bare `.fav-toggle { … }` here
+   compiled to `.fav-toggle[data-v-hash]` — specificity (0,2,0). Parity's own
+   `.detail-hero .name .fav-toggle` (photos-people.scss:420-430) is (0,3,0) and — being an
+   unscoped global rule — wins regardless of stylesheet load order, the exact opposite of every
+   other survivor in this file (which all use the full compound-path technique explained at the
+   top of this block precisely to avoid this). The bare selector was dead code.
+
+   True cascade situation, verified against Vue2's real template (PhotosPersonDetail.vue:23-29):
+   this button carries an inline `style="background:transparent;border:0;padding:4px;
+   cursor:pointer;display:inline-flex;align-items:center;color:[gold hex]"` — inline style has
+   the highest priority for any property it sets, for every pseudo-class state (a `:hover` rule
+   cannot override a property the base element's inline style already claims), so parity's own
+   `.fav-toggle`/`.fav-toggle:hover` rule (border/background/transition) is fully unreachable in
+   real Vue2 rendering — dead in the *source of truth*, not just an artifact of this app's
+   token choices like this file's other survivors. That dead rule is left as-is in parity for
+   final-review triage, not touched here.
+
+   This app's plain `<svg>` has no equivalent to Vue2's inline-style mechanism, so the real
+   values have to be carried by an actual CSS rule here, written as the same full compound path
+   parity uses (plus the scoped-attribute bump) so it actually governs: background:transparent,
+   border:0, padding:4px, inline-flex, centered — Vue2's real look, not parity's dead-code pill.
+   Icon color stays a theme-exception pin (rgba/--star-fg), not Vue2's real per-state inline
+   `color` prop (`#FFD60A` favorited / `var(--text-3)` unfavorited): with the pill background
+   now gone, the icon sits directly over the photo, and `var(--text-3)` is exactly the kind of
+   themed-dark-in-light-theme value this whole component's "配色红线" section already exists to
+   keep out from here — not a fresh decision, the same established policy applied consistently. */
+.detail-hero .name .fav-toggle {
+  background: transparent;
+  border: 0;
   padding: 4px;
   display: inline-flex;
   align-items: center;
+  cursor: pointer;
   /* 未收藏态:半透明浅色描边星,同样钉死不随主题(见文件头"配色红线"说明)。
      收藏态见下方 .fav-toggle.is-fav 规则,复用本仓已确立的 --star-fg 兜底惯例。 */
   color: rgba(255, 255, 255, 0.72); /* theme-exception */
 }
-.fav-toggle.is-fav {
+.detail-hero .name .fav-toggle.is-fav {
   /* --star-fg 两套主题都不各自定义具体值,是本仓已确立的先例(PhotosGrid.vue/
      PersonAvatar.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,
      用 var(fallback) 形式表达,color-guard 按 token 用法放行,不算裸字面量。 */
   color: var(--star-fg, #ffd60a);
 }
-/* theme-exception: 固定掺白提亮量,与主题无关 */
-.fav-toggle:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
+/* New-UI addition, no Vue2 truth to align to: Vue2's real hover state is visually identical to
+   its base state (the inline style's background:transparent applies regardless of :hover, and
+   inline styles can't be scoped to a pseudo-class in the first place) — i.e. Vue2 genuinely has
+   no hover feedback here. A zero-feedback hover on an interactive toggle reads as broken rather
+   than intentional, so this keeps a small pre-existing affordance (a faint light tint) rather
+   than deleting it to chase 1:1 parity on a real Vue2 UX gap — same "don't copy a Vue2 bug"
+   posture already used elsewhere in this file (see 偏离登记 10). theme-exception: fixed
+   whitening amount, independent of theme. */
+.detail-hero .name .fav-toggle:hover { background: rgba(255, 255, 255, 0.08); }
 
 /* `.relation-picker`'s position/display/align-items duplicated parity's own rule exactly and
    has been deleted. */
