@@ -219,3 +219,45 @@ describe('Photos.vue 灯箱接线', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(9, ['a'])
   })
 })
+
+// Fix-4 item 1 (owner acceptance, 2026-08-13; same F1/F2 lesson class, found here on the
+// timeline page): AlbumPickerDialog and PhotoLightbox used to be template-root SIBLINGS of
+// `.photos-root` instead of its DOM descendant, so `.photos-root .album-picker-panel`'s
+// `background: var(--surface-2)` (a `.photos-root`-local custom property with no global
+// fallback, vue2-parity/photos.scss:1072-1102) resolved to nothing outside it — the picker
+// panel likely rendered with a transparent background. Same fix as Fix-1 item 3 / Fix-2 item 5:
+// nest both back inside `.photos-root`.
+describe('Fix-4 item 1: the lightbox and album picker are real descendants of .photos-root', () => {
+  it('the album picker overlay renders inside .photos-root (so parity .album-picker-panel can match)', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.find('.lb-add-album').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const overlay = w.get('[data-test="album-picker-overlay"]').element
+    expect(overlay.closest('.photos-root')).not.toBeNull()
+  })
+
+  it('the lightbox renders inside .photos-root', async () => {
+    const w = await mountPhotos()
+    const store = useTimelineStore()
+    store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    await w.find('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    const lightbox = w.get('.lightbox').element
+    expect(lightbox.closest('.photos-root')).not.toBeNull()
+  })
+})

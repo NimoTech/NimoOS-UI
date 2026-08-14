@@ -182,6 +182,54 @@ describe('title/sub/showSearch props(额外覆盖,Fix-1 item 1)', () => {
   })
 })
 
+// Fix-4 item 2 (owner acceptance, 2026-08-13): `back` prop had zero test coverage in Fix-3 —
+// every other prop added that wave (title/sub/showSearch, Fix-1 item 1) got one, this one didn't.
+// Mirrors Vue2 PhotosTopbar.vue:6-12's searchMode swap: `v-if="back"` renders a second icon-btn
+// (chevL) in place of the title/sub block (`v-if="!back"`), emits `back` on click.
+describe('back prop(额外覆盖,Fix-4 item 2)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('back 缺省(未传)→ 保持默认行为不变:标题/副行渲染,不出现返回键', () => {
+    const w = mountTopbar()
+    expect(w.find('.topbar-title').exists()).toBe(true)
+    expect(w.find('.topbar-sub').exists()).toBe(true)
+    // 折叠按钮之外只有一个 .icon-btn(没有第二个返回键)。
+    expect(w.findAll('.icon-btn')).toHaveLength(1)
+  })
+
+  it('back=true → 渲染 chevL 返回键(第二个 .icon-btn),标题/副行被抑制', () => {
+    const w = mountTopbar({ back: true })
+    expect(w.find('.topbar-title').exists()).toBe(false)
+    expect(w.find('.topbar-sub').exists()).toBe(false)
+    const icons = w.findAll('.icon-btn')
+    expect(icons).toHaveLength(2)
+    // 逐字符对 Vue2 PhotosIcon.vue chevL 分支(SearchDatePopover.vue 的 cal-nav "上个月" 按钮
+    // 已用过同一条 path,先例一致)。
+    expect(icons[1]!.get('path').attributes('d')).toBe('m15 6-6 6 6 6')
+  })
+
+  it('back=true 时点第二个 .icon-btn → emit back', async () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    await icons[1]!.trigger('click')
+    expect(w.emitted('back')).toHaveLength(1)
+  })
+
+  it('back=true 的返回键 title 是 photosSearchBackToLibrary 的本地化值', () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    expect(icons[1]!.attributes('title')).toBe(zh.photosSearchBackToLibrary)
+  })
+
+  it('back=true 时折叠按钮(第一个 .icon-btn)仍照常 emit toggle-collapse,不受 back 影响', async () => {
+    const w = mountTopbar({ back: true })
+    const icons = w.findAll('.icon-btn')
+    await icons[0]!.trigger('click')
+    expect(w.emitted('toggle-collapse')).toHaveLength(1)
+    expect(w.emitted('back')).toBeUndefined()
+  })
+})
+
 // 非颜色视觉属性锚定(与 PhotosSearchBar.test.ts 同一约定,I5):组件自身 scoped style 里
 // 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
 // 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。

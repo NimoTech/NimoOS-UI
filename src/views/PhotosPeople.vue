@@ -632,8 +632,23 @@ onUnmounted(() => {
     </div>
   </AreaShell>
 
-  <!-- 浮动操作菜单(Vue2 :208-234)。position:fixed,放在 AreaShell 之外避免被祖先的
-       backdrop-filter 变成包含块(同 PhotosAlbums.vue 把模态放在壳外的先例)。 -->
+  <!-- 浮动操作菜单(Vue2 :208-234)。position:fixed,放在 AreaShell 之外(因而也在
+       `.photos-root` 之外,见 :401-402——`.photos-root` 是 AreaShell 插槽内的一层 div,不是
+       本文件的模板根)避免被祖先的 backdrop-filter 变成包含块。
+       Fix-4 item 3(owner acceptance,2026-08-13)订正一处过时引用:这里此前写"同
+       PhotosAlbums.vue 把模态放在壳外的先例"——那不是一个可以援引的先例,是一个已被 F1/F2/F4
+       三轮验收修复认定为 bug 并推翻的反面案例(acceptance-fix-report.md §F1/§F2/§F4):
+       `.photos-root .xxx` 系列 parity 选择器是**后代**选择器,模态若做成 `.photos-root` 的
+       模板根同级(哪怕视觉上看着"在壳外"没问题),就吃不到任何一条以 `.photos-root` 开头的
+       parity 规则——AlbumPickerDialog/PhotosLibraryPicker/编辑态选择条等一系列组件都因此
+       中过招(真实渲染成透明背景/无样式,不是"能正常显示只是位置不同")。铁律应该反过来读:
+       **模态/浮层必须是 `.photos-root` 的 DOM 后代**,不能是它的模板根兄弟。
+       本文件这颗浮动菜单眼下能正常显示,不是因为"壳外"这个位置本身没问题,而是因为本页
+       尚未经历 re-skin(仍是 `.photos-layout` 过渡态壳、`.cluster-menu` 系列规则清一色用
+       theme.css 的**全局**token——`--popup-bg`/`--card-border`/`--card-shadow-hi`/`--fg`/
+       `--fg-muted`/`--hover`/`--accent-text`/`--remove-fg`,没有一个依赖 `.photos-root` 本地
+       重定义的 parity token),侥幸不受影响——不是这个位置可以被放心复制的先例。本页将来
+       换壳/改用 parity token 时,这颗菜单需要一并挪回 `.photos-root` 内部。 -->
   <div
     v-if="clusterMenu"
     ref="clusterMenuRef"

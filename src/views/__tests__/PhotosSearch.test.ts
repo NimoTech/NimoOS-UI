@@ -1121,6 +1121,22 @@ describe('路由', () => {
     const resolved = appRouter.resolve('/photos/search')
     expect(resolved.name).toBe('photos-search')
   })
+
+  // Fix-4 item 2 (owner acceptance, 2026-08-13): PhotosTopbar 的 back 按钮(Vue2 searchMode 的
+  // chevL,Fix-3 item 7 接线)点击后应导航回 /photos——不是 router.back()(深链/新开标签页
+  // 没有历史记录可退),onBack() 的既定实现是 router.push('/photos')。
+  it('点 PhotosTopbar 的返回键 → router.push("/photos")', async () => {
+    const { w, router } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const pushSpy = vi.spyOn(router, 'push')
+    // 限定在 .topbar 内查找——PhotosSidebar 自己也有 .icon-btn(折叠抽屉触发/主题切换),
+    // 裸 `.icon-btn` 会连带把它们一起选中。
+    const icons = w.findAll('.topbar .icon-btn')
+    // 第一个是折叠按钮,第二个是 back=true 时渲染的返回键(PhotosTopbar.vue 结构规格)。
+    expect(icons).toHaveLength(2)
+    await icons[1]!.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos')
+  })
 })
 
 // ── fix round 1 · I4:8 枚本文件新增内联 svg 的 glyph 精确复刻 ──────────────────
