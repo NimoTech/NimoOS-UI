@@ -850,4 +850,8 @@ export default {
   wpChangeWallpaper: 'Change wallpaper',
   themePhoto: 'Photo…',
 
+  // Hover hint on the "upload folder" button. The picker cannot carry an empty folder
+  // through (the browser reports no name for it), so point the user at drag-and-drop
+  // up front rather than reporting the failure after the fact.
+  filesUploadFolderEmptyHint: 'Drag empty folders here to upload them',
 }

@@ -118,3 +118,28 @@ describe('FileRow', () => {
     expect(w.find('.file-row').classes()).not.toContain('cut')
   })
 })
+
+// Bug 2 (second half): long names are truncated with the desktop area's
+// ellipsis rule (AppTile.vue:49 / FolderTile.vue:26). The CSS itself cannot be
+// asserted here — jsdom does no layout, so scrollWidth/clientWidth are both 0
+// and `text-overflow` never resolves; that half is verified by the real-browser
+// screenshots under .superpowers/sdd/2026-08-13-files-bugfix-batch/. What IS
+// testable is the escape hatch: once a name can be visually cut off, the full
+// name has to stay reachable, and in a file manager that is the only way to
+// tell two 200-character names apart.
+describe('FileRow long-name truncation', () => {
+  const longName = 'a-very-long-file-name-'.repeat(12) + '.txt'
+
+  it('gives the name element a title so hovering reveals the full name', () => {
+    const w = mount(FileRow, {
+      props: { entry: { ...fileEntry, name: longName, path: '/DATA/' + longName } },
+      ...mountOpts,
+    })
+    expect(w.get('.file-name').attributes('title')).toBe(longName)
+  })
+
+  it('sets a title on short names too, rather than branching on a width jsdom cannot measure', () => {
+    const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
+    expect(w.get('.file-name').attributes('title')).toBe('a.txt')
+  })
+})
