@@ -144,6 +144,15 @@ export const DELETE = [
   'src/views/__tests__/PhotosSmartViews.test.ts',
   'src/views/__tests__/PhotosTrash.test.ts',
 
+  // 2026-08-14(相册 vue2-parity 两批合流带进来的两个守卫):它们守的是
+  // src/photos/styles/vue2-parity/*.scss 与其它区之间的类名/keyframes 冲突,
+  // 而且各自钉了 `expect(parityFiles.length).toBeGreaterThan(0)` —— 相册整域删掉后
+  // 扫不到任何 parity 文件,留着必红(不是"变空转",是直接失败)。整体删除。
+  // 保留面的同类守卫(color-guard.test.ts / AppToast.zIndex.test.ts)不受影响:
+  // 它们扫的是全仓 .vue/.css,不依赖相册目录。
+  'src/styles/class-collision-guard.test.ts',
+  'src/styles/keyframes-guard.test.ts',
+
   // (搜索 demo 的鱼 public/demo/fish_video_poster.jpg 已于终审 cleanup 批从私有仓
   //  直接删除 —— 它在私有版也是零引用的孤儿,不必再由本清单剥离。DELETE 条目路径
   //  不存在会 exit 1,所以这条必须一并撤掉。)
@@ -654,6 +663,17 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: '  search_switch: true,\n', replace: '' },
 
   // ── 注释洗白(代码一个字节不动)────────────────────────────────────────
+  // 2026-08-14:color-guard 是保留面的全仓守卫,文件头那段"相册 parity 目录整目录豁免"
+  // 的登记在开源版没有对应物(相册整域已删),连同它引用的内部 spec 路径一并摘掉。
+  // 代码不动:当前扫描面本来就不含 .scss。
+  { path: 'src/styles/color-guard.test.ts',
+    find: `//
+// 登记豁免(机主拍板 2026-08-11,见 docs/superpowers/specs/2026-08-11-photos-vue2-parity-reskin-design.md §4):
+// src/photos/styles/vue2-parity/*.scss 是 Vue2 老仓的像素真源,自带 .photos-root 作用域 token 体系,
+// 整目录豁免本守卫。当前扫描面(.vue 样式块 + .css)天然不含 .scss;若日后把 .scss 纳入扫描,
+// 必须保留对该目录的排除。
+`,
+    replace: '' },
   { path: 'src/apps/util/systemApp.ts',
     find: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(AI agent 运行时 /\n *  Photos ML 后端等),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。",
     replace: " *  compose 任一 service 的 label `nimoos.system == \"true\"` 即幕后组件(供其他应用使用的\n *  内部服务容器),桌面 appgrid 已按此隐藏;应用管理页也须隐藏,不然会漏出用户没主动装的容器。" },
