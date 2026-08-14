@@ -4,7 +4,7 @@ import ConsoleHeader from './ConsoleHeader.vue'
 import { i18n } from '../../i18n'
 import type { KvmVM } from '@nimotech/nimoos-service'
 
-// kvmComingSoon 草稿"即将支持" → 实际"即将上线"(zh_cn.sp9.ts 已核对,见 task-5-report.md)。
+// kvmComingSoon draft copy "即将支持" → actual "即将上线" (verified against zh_cn.sp9.ts, see task-5-report.md).
 
 const VM = (state = 'running') => ({ id: 'vm-1', name: 'sp9-alpine-test', state, os: 'linux', autostart: false } as KvmVM)
 const mk = (vm = VM()) => mount(ConsoleHeader, { props: { vm, processing: false }, global: { plugins: [i18n] } })
@@ -17,7 +17,7 @@ describe('ConsoleHeader', () => {
   it('状态点带 state 类', () => {
     expect(mk().get('.console-status .status-dot').classes()).toContain('running')
   })
-  // P6 Task 9:齿轮解禁,照 Vue2 canEditSettings(:674-676)/tooltip(:91)。
+  // P6 Task 9: gear button un-gated, following Vue2 canEditSettings (:674-676) / tooltip (:91).
   it('running 时齿轮禁用,tooltip 是「停止虚拟机以修改设置」', () => {
     const b = mk(VM('running')).findAll('.action-btn')[0]
     expect(b.attributes('disabled')).toBeDefined()
@@ -67,8 +67,8 @@ describe('ConsoleHeader', () => {
     expect(w.find('.overflow-dropdown').exists()).toBe(false)
   })
   it('卸载时摘掉 document 监听(不泄漏)', () => {
-    // brief 原文这条是占位断言(比较改动前后的某个计数器,恒等于自身,测不出东西)。
-    // 改用 vi.spyOn 断言 unmount 时确实调用过一次 document.removeEventListener('click', ...)。
+    // The brief's original version was a placeholder assertion (comparing a counter against itself before/after — always equal, tests nothing).
+    // Changed to vi.spyOn to assert unmount actually calls document.removeEventListener('click', ...).
     const w = mount(ConsoleHeader, { props: { vm: VM(), processing: false },
       global: { plugins: [i18n] }, attachTo: document.body })
     const spy = vi.spyOn(document, 'removeEventListener')

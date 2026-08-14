@@ -3,11 +3,12 @@ import { PeersManager } from './peersManager'
 import type { PeerEvents } from './rtcPeer'
 import type { TransferBrokenReason } from './protocol'
 
-function makeFakePeer(opts: { hasActiveTransfer?: () => boolean } = {}) {
+function makeFakePeer(opts: { hasActiveTransfer?: () => boolean; hasOpenChannel?: () => boolean } = {}) {
   return {
     onServerMessage: vi.fn(), refresh: vi.fn(), close: vi.fn(),
     sendText: vi.fn(), sendFiles: vi.fn(), handleDisconnect: vi.fn(),
     hasActiveTransfer: opts.hasActiveTransfer ?? vi.fn(() => false),
+    hasOpenChannel: opts.hasOpenChannel ?? vi.fn(() => false),
     cancelTransfer: vi.fn(),
   }
 }
@@ -18,11 +19,11 @@ const events: PeerEvents = {
 const peerInfo = (id: string, rtc = true) => ({ id, name: { model: 'desktop', deviceName: 'd', displayName: 'D' }, rtcSupported: rtc })
 
 describe('PeersManager', () => {
-  it('peers 消息:RTC 双方支持才建 peer;已存在则 refresh;不支持 RTC 跳过', () => {
+  it('peers 消息:RTC 双方支持才建 peer;已存在且 channel 开着则只 refresh;不支持 RTC 跳过', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
     const pm = new PeersManager({ send: vi.fn() }, events, {
       rtcSupported: true,
-      makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never },
+      makePeer: () => { const p = makeFakePeer({ hasOpenChannel: () => true }); made.push(p); return p as never },
     })
     pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a'), peerInfo('b', false)] })
     expect(made.length).toBe(1) // 只有 a
@@ -30,6 +31,145 @@ describe('PeersManager', () => {
     expect(made.length).toBe(1)
     expect(made[0].refresh).toHaveBeenCalledOnce()
   })
+
+  // 验收 bug #90 的根因回归测试:手机端信令 ws 断线重连后拿到新 'peers',
+  // 手上却是上一轮当被叫留下的旧 peer(channel 已死)—— 旧逻辑 refresh() 只会
+  // 被动等对方拨号,而对方(电脑)在 peer-left 时已删掉 peer 且 peer-joined 不建连,
+  // 双方永远僵持。新逻辑:channel 没开的旧 peer 一律关掉,以主叫身份重建拨号。
+  it('peers 消息:已存在但 channel 未打开 → 关旧 peer,重建为主叫拨号', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const madeIds: (string | null)[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: (_s, id) => { const p = makeFakePeer(); made.push(p); madeIds.push(id); return p as never },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(made.length).toBe(2)
+    expect(made[0].close).toHaveBeenCalledOnce()
+    expect(made[0].refresh).not.toHaveBeenCalled()
+    expect(madeIds[1]).toBe('a') // 传了 peerId ⇒ 主叫(被叫是 null)
+    // 之后发文件走的是新 peer(通道接通后)
+    made[1].hasOpenChannel = vi.fn(() => true)
+    const files = [new File(['x'], 'x.txt')]
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
+    expect(made[1].sendFiles).toHaveBeenCalledWith(files, 'self1')
+    expect(made[0].sendFiles).not.toHaveBeenCalled()
+  })
+
+  it('signal 收到 offer:已有 peer 但 channel 未打开 → 换成全新被叫应答', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const madeIds: (string | null)[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: (_s, id) => { const p = makeFakePeer(); made.push(p); madeIds.push(id); return p as never },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] }) // 旧 peer,channel 未开
+    const offer = { type: 'signal' as const, sender: 'a', sdp: { type: 'offer' as const, sdp: '' } }
+    pm.handleServerMessage(offer)
+    expect(made[0].close).toHaveBeenCalledOnce()
+    expect(made.length).toBe(2)
+    expect(madeIds[1]).toBe(null) // 被叫
+    expect(made[1].onServerMessage).toHaveBeenCalledWith(offer)
+    expect(made[0].onServerMessage).not.toHaveBeenCalled()
+  })
+
+  it('signal 收到 offer:channel 开着(重协商)或非 offer(ice)→ 交给现有 peer,不重建', () => {
+    const open = makeFakePeer({ hasOpenChannel: () => true })
+    const dead = makeFakePeer()
+    const made = [open, dead]
+    let i = 0
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => made[i++] as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] }) // open channel peer
+    const offer = { type: 'signal' as const, sender: 'a', sdp: { type: 'offer' as const, sdp: '' } }
+    pm.handleServerMessage(offer)
+    expect(open.close).not.toHaveBeenCalled()
+    expect(open.onServerMessage).toHaveBeenCalledWith(offer)
+    // 换一个 channel 没开的 manager:ice(无 sdp)也不触发重建
+    i = 0
+    const pm2 = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => made[i++] as never,
+    })
+    i = 1
+    pm2.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] }) // dead channel peer
+    const ice = { type: 'signal' as const, sender: 'a', ice: { candidate: '' } }
+    pm2.handleServerMessage(ice)
+    expect(dead.close).not.toHaveBeenCalled()
+    expect(dead.onServerMessage).toHaveBeenCalledWith(ice)
+  })
+
+  // 信令层的 peer-left 不杀还开着的数据通道:手机锁屏/切后台时 ws 会断而 RTC 通道
+  // 活着(Vue2 时代靠 _onPeerLeft 的 close 恒不生效"歪打正着"保住了它)。真离开的
+  // 对端,通道自己会关,走 onChannelClosed 收尾。
+  it('peer-left:channel 还开着 → 不 close 不删表,传输继续、还能继续发', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => { const p = makeFakePeer({ hasOpenChannel: () => true }); made.push(p); return p as never },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
+    expect(made[0].close).not.toHaveBeenCalled()
+    expect(made[0].handleDisconnect).not.toHaveBeenCalled()
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('ok')
+  })
+  // #90 验收第 7/8 步的真根因(2026-08-13 双浏览器探针实测):对端关标签页后,本机的
+  // data channel 会在 Chrome 里继续报 'open' 几十秒甚至不再关闭 —— hasOpenChannel()
+  // 根本不是「对端还活着」的证据。对端用同一个 peerId 重开页面来拨号时,旧逻辑把这一发
+  // offer 当成重协商喂给那个僵尸 peer:僵尸的 busy/filesQueue 原样留着,此后每一次发送
+  // 都排在一个永远不会结束的传输后面,对端一个字节都收不到,而且不报错。
+  // 判据:信令层出现过「对端会话变更」(peer-left 或 peer-joined)之后再来的 offer,
+  // 一律当新页面处理 —— 关掉旧 peer(先如实报中断)、以被叫身份重建。
+  it('signal 收到 offer:对端信令会话重来过 → 即使 channel 还报 open 也重建,并报中断', () => {
+    const order: string[] = []
+    const ev: PeerEvents = {
+      onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
+      onTransferComplete: vi.fn(), onTransferBroken: vi.fn(() => order.push('onTransferBroken')),
+    }
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const madeIds: (string | null)[] = []
+    const pm = new PeersManager({ send: vi.fn() }, ev, {
+      rtcSupported: true,
+      makePeer: (_s, id) => {
+        const p = makeFakePeer({ hasOpenChannel: () => made.length === 1 })
+        p.close = vi.fn(() => order.push('close'))
+        p.handleDisconnect = vi.fn((reason: TransferBrokenReason) => {
+          order.push('handleDisconnect')
+          ev.onTransferBroken({ peerId: 'a', reason })
+        })
+        made.push(p)
+        madeIds.push(id)
+        return p as never
+      },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    // 对端关掉标签页:信令层立刻知道,数据通道却还开着(所以不杀,手机锁屏要靠这条)
+    pm.handleServerMessage({ type: 'peer-left', peerId: 'a' })
+    expect(made[0].close).not.toHaveBeenCalled()
+    // 对端用同一个 peerId 重开页面,重新拨号
+    pm.handleServerMessage({ type: 'peer-joined', peer: peerInfo('a') })
+    const offer = { type: 'signal' as const, sender: 'a', sdp: { type: 'offer' as const, sdp: '' } }
+    pm.handleServerMessage(offer)
+
+    expect(made.length).toBe(2)
+    expect(madeIds[1]).toBe(null) // 被叫
+    expect(made[1].onServerMessage).toHaveBeenCalledWith(offer)
+    expect(made[0].onServerMessage).not.toHaveBeenCalled()
+    // 死掉的那笔传输要如实报中断,而且必须在 close() 之前报(close 会把状态清成 idle)
+    expect(order).toEqual(['handleDisconnect', 'onTransferBroken', 'close'])
+    expect(ev.onTransferBroken).toHaveBeenCalledWith({ peerId: 'a', reason: 'disconnected' })
+    // 解锁判据:重建之后再发文件走的是新 peer,不再排进僵尸的队列
+    made[1].hasOpenChannel = vi.fn(() => true)
+    const files = [new File(['x'], 'x.txt')]
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
+    expect(made[1].sendFiles).toHaveBeenCalledWith(files, 'self1')
+    expect(made[0].sendFiles).not.toHaveBeenCalled()
+  })
+
   it('signal:无 peer 先按被叫建(peerId=null),再转 onServerMessage', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
     const pm = new PeersManager({ send: vi.fn() }, events, { makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never } })
@@ -38,15 +178,51 @@ describe('PeersManager', () => {
     expect(made.length).toBe(1)
     expect(made[0].onServerMessage).toHaveBeenCalledWith(sig)
   })
-  it('sendFiles:先发计数文本再发文件(Vue2 顺序);无 peer 返回 false', () => {
+  it('sendFiles:先发计数文本再发文件(Vue2 顺序);无 peer 则拨号并报 not-ready', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
-    const pm = new PeersManager({ send: vi.fn() }, events, { rtcSupported: true, makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never } })
+    const pm = new PeersManager({ send: vi.fn() }, events, { rtcSupported: true, makePeer: () => { const p = makeFakePeer({ hasOpenChannel: () => true }); made.push(p); return p as never } })
     pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
     const files = [new File(['x'], 'x.txt')]
-    expect(pm.sendFiles('a', files, 'self1')).toBe(true)
+    expect(pm.sendFiles('a', files, 'self1')).toBe('ok')
     expect(made[0].sendText).toHaveBeenCalledWith('1')
     expect(made[0].sendFiles).toHaveBeenCalledWith(files, 'self1')
-    expect(pm.sendFiles('nope', files, 'self1')).toBe(false)
+    expect(pm.sendFiles('nope', files, 'self1')).toBe('not-ready')
+  })
+
+  // 今天(08-13)验收的静默失败就走这条路:peer 在、channel 没开,旧代码照发不误,
+  // 数据倒进空通道、一句提示都没有。现在必须重新拨号并如实回报。
+  it('sendFiles:peer 在但 channel 未打开 → 重新拨号并报 not-ready,不往空通道倒数据', () => {
+    const made: ReturnType<typeof makeFakePeer>[] = []
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => { const p = makeFakePeer(); made.push(p); return p as never },
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('not-ready')
+    expect(made[0].refresh).toHaveBeenCalledOnce()
+    expect(made[0].sendFiles).not.toHaveBeenCalled()
+    expect(made[0].sendText).not.toHaveBeenCalled()
+  })
+
+  it('sendFiles:服务器报该 peer 不支持 RTC → unsupported(与 not-ready 区分开)', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: true,
+      makePeer: () => makeFakePeer() as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a', false)] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
+    // peer-joined 也要记下 rtcSupported(重连后先到的往往是它)
+    pm.handleServerMessage({ type: 'peer-joined', peer: peerInfo('c', false) })
+    expect(pm.sendFiles('c', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
+  })
+
+  it('sendFiles:本机不支持 RTC → unsupported', () => {
+    const pm = new PeersManager({ send: vi.fn() }, events, {
+      rtcSupported: false,
+      makePeer: () => makeFakePeer() as never,
+    })
+    pm.handleServerMessage({ type: 'peers', peers: [peerInfo('a')] })
+    expect(pm.sendFiles('a', [new File(['x'], 'x.txt')], 'self1')).toBe('unsupported')
   })
   it('peer-left 关连接删表;destroy 全关', () => {
     const made: ReturnType<typeof makeFakePeer>[] = []
@@ -70,6 +246,7 @@ describe('PeersManager', () => {
         onServerMessage: vi.fn(), refresh: vi.fn(),
         close: vi.fn(() => order.push('close')),
         sendText: vi.fn(), sendFiles: vi.fn(),
+        hasOpenChannel: vi.fn(() => false),
         // Mirrors the real Peer.handleDisconnect's wasActive guard: only
         // report when something was actually in flight. handleDisconnect
         // must run while transfer state is still live -- if PeersManager
@@ -100,6 +277,7 @@ describe('PeersManager', () => {
       makePeer: () => ({
         onServerMessage: vi.fn(), refresh: vi.fn(), close: vi.fn(),
         sendText: vi.fn(), sendFiles: vi.fn(),
+        hasOpenChannel: vi.fn(() => false),
         // Idle: the real Peer's wasActive guard would suppress the report,
         // so this fake's handleDisconnect (like the real one when idle)
         // never calls onTransferBroken.

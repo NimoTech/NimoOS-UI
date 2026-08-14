@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// 设置列表里一行的通用骨架。对位 Vue2 SettingsPanel.vue 的 .settings-list-item:
-// 左侧标签(可带副标题)撑开、右侧放控件、可点的整行右端带 ›。
-// Vue2 每行左侧还有一个 casa 图标字体的图标(b-icon pack="casa");
-// New-UI 没有引入那套图标字体(仍是 CasaOS 品牌资源,见顶层 CLAUDE.md 的 iconfonts-casaos 记债),
-// 故本期不渲染行内图标 —— 这是既有的图标体系差异,不是本期新增偏离。
+// Generic skeleton for one row in a settings list. Counterpart of Vue2 SettingsPanel.vue's .settings-list-item:
+// left label (optional subtitle) stretches, control on the right, clickable rows get › at the far right.
+// Vue2 also has a casa icon-font icon on the left of each row (b-icon pack="casa");
+// New-UI has not adopted that icon font (still CasaOS-branded assets, see iconfonts-casaos debt note in the top-level CLAUDE.md),
+// so no inline row icon in this sprint — a pre-existing icon-system difference, not a new deviation.
 import '../styles/settings.css'
 
 defineProps<{ label: string; sub?: string; clickable?: boolean; disabled?: boolean }>()

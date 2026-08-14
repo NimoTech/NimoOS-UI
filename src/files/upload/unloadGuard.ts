@@ -4,16 +4,21 @@ import type { UploadItem } from './types'
  * Checks if there are active uploads that would be lost on page reload.
  * Returns true for:
  * - Items with status 'uploading' (in flight)
- * - Items with status 'pending' that still have their File attached
+ * - Items with status 'pending' or 'paused' that still have their File
+ *   attached — a File lives only in this page's memory, so leaving loses it
+ *   forever. A paused batch that got no interrupt signal used to sit active
+ *   server-side until the sweeper badged it two minutes after the reload.
  *
- * Any other status (done, error, paused, conflict) has no in-flight bytes to
- * lose, so those items don't count.
+ * Any other status (done, error) has nothing left to lose, so those items
+ * don't count.
  */
 export function hasActiveUploads(queue: UploadItem[]): boolean {
   if (!Array.isArray(queue)) {
     return false
   }
-  return queue.some(item => item.status === 'uploading' || (item.status === 'pending' && item.file))
+  return queue.some(
+    item => item.status === 'uploading' || ((item.status === 'pending' || item.status === 'paused') && item.file),
+  )
 }
 
 /**
@@ -24,10 +29,14 @@ export function activeBatchIds(queue: UploadItem[]): string[] {
   const ids = new Set<string>()
   if (!Array.isArray(queue)) return []
   for (const it of queue) {
-    // Same shape as hasActiveUploads' pending check (a pending item only counts
-    // if its File is still attached) — kept in sync so the two guards over the
-    // same event flow don't quietly drift apart.
-    if ((it.status === 'uploading' || (it.status === 'pending' && it.file)) && it.batchId) ids.add(it.batchId)
+    // Same shape as hasActiveUploads (pending/paused only count while their
+    // File is still attached) — kept in sync so the two guards over the same
+    // event flow don't quietly drift apart.
+    if (
+      (it.status === 'uploading' || ((it.status === 'pending' || it.status === 'paused') && it.file)) &&
+      it.batchId
+    )
+      ids.add(it.batchId)
   }
   return [...ids]
 }

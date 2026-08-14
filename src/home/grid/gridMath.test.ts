@@ -26,8 +26,8 @@ describe('occupiedSet', () => {
 describe('fits', () => {
   const layout = [mk('a', 1, 1, 2, 2)]
   it('rejects out-of-bounds placements', () => {
-    expect(fits(12, 1, 2, 1, null, layout, DIMS)).toBe(false) // 越右边界
-    expect(fits(1, 8, 1, 2, null, layout, DIMS)).toBe(false)  // 越下边界
+    expect(fits(12, 1, 2, 1, null, layout, DIMS)).toBe(false) // past the right edge
+    expect(fits(1, 8, 1, 2, null, layout, DIMS)).toBe(false)  // past the bottom edge
     expect(fits(0, 1, 1, 1, null, layout, DIMS)).toBe(false)  // c<1
   })
   it('rejects overlap with existing item', () => {
@@ -47,7 +47,7 @@ describe('firstFree', () => {
     expect(firstFree(1, 1, layout, DIMS)).toEqual({ c: 2, r: 1 })
   })
   it('returns null when nothing fits', () => {
-    // 填满整张 12x8 网格
+    // fill the entire 12x8 grid
     const full: LayoutItem[] = []
     let id = 0
     for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
@@ -78,14 +78,14 @@ describe('planFootprint', () => {
     expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5 })
   })
   it('displaces an overlapped item to the first free slot', () => {
-    const layout = [mk('a', 1, 1, 1, 1)] // 占 1,1
-    const out = planFootprint(1, 1, 1, 1, null, layout, DIMS)! // 新项目要占 1,1 → a 让位
+    const layout = [mk('a', 1, 1, 1, 1)] // occupies 1,1
+    const out = planFootprint(1, 1, 1, 1, null, layout, DIMS)! // new item wants 1,1 → a gives way
     expect(out).toHaveLength(1)
     expect(out[0].id).toBe('a')
-    expect(out[0]).toMatchObject({ c: 2, r: 1 }) // 让到下一个行优先空位
+    expect(out[0]).toMatchObject({ c: 2, r: 1 }) // moved to the next row-major free slot
   })
   it('returns null when a displaced item cannot be re-placed', () => {
-    // 整张网格被占满 → 任意落子都无法让位
+    // the whole grid is full → no placement can displace anything
     const full: LayoutItem[] = []
     let id = 0
     for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
@@ -103,7 +103,7 @@ describe('planMove', () => {
     const full: LayoutItem[] = []
     let id = 0
     for (let r = 1; r <= 8; r++) for (let c = 1; c <= 12; c++) full.push(mk('f' + id++, c, r, 1, 1))
-    // 把 f0 移到越界处→null (Brief test appears to have incorrect expectations; using out-of-bounds validation instead)
+    // moving f0 out of bounds → null (Brief test appears to have incorrect expectations; using out-of-bounds validation instead)
     expect(planMove('f0', 13, 1, 1, 1, full, DIMS)).toBeNull()
   })
 })
@@ -113,7 +113,7 @@ describe('applyPlan', () => {
     const layout = [mk('a', 1, 1, 1, 1), mk('b', 2, 1, 2, 2)]
     const out = applyPlan([{ id: 'b', c: 5, r: 5, w: 3, h: 1 }], layout)
     expect(out).not.toBe(layout)
-    expect(layout[1]).toMatchObject({ c: 2, r: 1, w: 2, h: 2 }) // 原数组未变
+    expect(layout[1]).toMatchObject({ c: 2, r: 1, w: 2, h: 2 }) // original array unchanged
     expect(out.find((i) => i.id === 'b')).toMatchObject({ c: 5, r: 5, w: 3, h: 1 })
     expect(out.find((i) => i.id === 'a')).toMatchObject({ c: 1, r: 1 })
   })
@@ -131,7 +131,7 @@ describe('clampSize', () => {
     const a = { id: 'i', kind: 'app', key: 'files', c: 1, r: 1, w: 1, h: 1 } as LayoutItem
     expect(clampSize(a, 2, 2, sizeOf)).toEqual([2, 2])
     expect(clampSize(a, 1, 1, sizeOf)).toEqual([1, 1])
-    expect(clampSize(a, 2, 1, sizeOf)).toEqual([1, 1]) // 距 1×1 更近
+    expect(clampSize(a, 2, 1, sizeOf)).toEqual([1, 1]) // closer to 1×1
   })
 })
 
@@ -169,6 +169,6 @@ describe('clampToGrid', () => {
     expect(o.w).toBeLessThanOrEqual(12)
     expect(o.c + o.w - 1).toBeLessThanOrEqual(12)
     expect(o.r + o.h - 1).toBeLessThanOrEqual(8)
-    expect(layout[0].c).toBe(12) // 原数组未变(纯)
+    expect(layout[0].c).toBe(12) // original array unchanged (pure)
   })
 })

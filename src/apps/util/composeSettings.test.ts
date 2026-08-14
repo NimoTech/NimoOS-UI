@@ -50,12 +50,12 @@ describe('parseSettings', () => {
     ])
     expect(s.volumes).toEqual([{ a: '/DATA/AppData/syncthing', b: '/config' }])
     expect(s.restart).toBe('unless-stopped')
-    expect(s.memoryMB).toBe(512)              // 裸字节数 "536870912" → MB
+    expect(s.memoryMB).toBe(512)              // raw byte count "536870912" → MB
     expect(m.webui.portMap).toBe('8384')
     expect(m.webui.titleCustom).toBe('我的同步')
     expect(m.extKey).toBe('x-nimoos')
-    expect(m.tipsCustom).toBe('Initial admin setup required.')  // custom 缺省时回落 before_install
-    expect(m.tipsFromFallback).toBe(true)                       // 标记:该值是借回落预填,非用户已确认的 custom
+    expect(m.tipsCustom).toBe('Initial admin setup required.')  // falls back to before_install when custom is absent
+    expect(m.tipsFromFallback).toBe(true)                       // flag: value is prefilled from the fallback, not a user-confirmed custom
   })
   it('tipsFromFallback is false when tips.custom pre-exists', () => {
     const y = FIXTURE.replace('  tips:\n    before_install:\n      en_us: Initial admin setup required.\n', '  tips:\n    custom: 已有自定义提示\n')
@@ -183,12 +183,12 @@ describe('buildYaml', () => {
     m.webui.portMap = '9384'
     const out = YAML.parse(buildYaml(FIXTURE, m))
     const svc = out.services.syncthing
-    expect(svc.command).toEqual(['--verbose'])                    // 未暴露字段保留
+    expect(svc.command).toEqual(['--verbose'])                    // unexposed fields preserved
     expect(svc.ports[0]).toMatchObject({ published: '9384', target: 8384, protocol: 'tcp' })
     expect(svc.environment).toContain('NEW=1')
-    expect(svc.environment).toContain('TZ=$TZ')                   // 模板变量原样保留
-    expect(svc.deploy.resources.limits?.memory).toBeUndefined()   // 留空=删限制
-    expect(svc.deploy.resources.reservations.memory).toBe('256M') // reservations 不动
+    expect(svc.environment).toContain('TZ=$TZ')                   // template variables preserved as-is
+    expect(svc.deploy.resources.limits?.memory).toBeUndefined()   // empty = remove the limit
+    expect(svc.deploy.resources.reservations.memory).toBe('256M') // reservations untouched
     expect(out['x-nimoos'].port_map).toBe('9384')
     expect(out['x-nimoos'].icon).toBe('https://icon.nimoos.io/main/all/syncthing.png')
   })
@@ -252,7 +252,7 @@ services:
     expect(ports).toContainEqual('25500-25600:25500-25600')
     expect(ports).toContainEqual('3000')
     expect(ports).toContainEqual({ target: 19132, published: '19132-19140', protocol: 'udp' })
-    // 可编辑行仍正常序列化
+    // editable rows still serialize normally
     expect(ports).toContainEqual({ target: 8443, published: '8443', protocol: 'tcp' })
   })
   it('用户编辑可编辑行不影响透传条目', () => {

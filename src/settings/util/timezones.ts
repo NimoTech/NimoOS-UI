@@ -1,7 +1,9 @@
 /**
- * 时区表逐字照抄 Vue2 SettingsPanel.vue L871-933(同序、同 label 文案、同 value)。
- * label 是英文原文且**不进 i18n** —— Vue2 那边也没有 $t(),两套 UI 显示一致优先。
- * 顺序不要"优化"成按 GMT 排序:Vue2 就是这个顺序,界面 1:1。
+ * Timezone table copied verbatim from Vue2 SettingsPanel.vue L871-933 (same order,
+ * same label text, same values).
+ * Labels are English source text and **not put through i18n** -- Vue2 has no $t()
+ * there either; keeping both UIs visually identical takes priority.
+ * Do not "optimize" the order into GMT sorting: Vue2 uses exactly this order, 1:1 UI.
  */
 export interface TimezoneOption { label: string; value: string }
 export const TIMEZONES: readonly TimezoneOption[] = [

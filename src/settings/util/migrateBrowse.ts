@@ -1,12 +1,13 @@
-// 设置 · 应用 —— 迁移弹窗「浏览目标目录」步骤的纯逻辑。
-// Vue2 对位:AppPathModal.vue 的 browseRootPath(:398) / browseDestPaths(:419) /
-//   browseCrumbs(:404) / browseFolders(:435) / navigateUp(:503) / PROTECTED_FOLDER_NAMES(:336)。
-// 目标子目录名逐字对位后端 NimoOS/service/migrate.go:311-378 的 units 构造 —— 改这里必须同步看那段。
+// Settings / Apps -- pure logic for the migration dialog's "browse target directory" step.
+// Vue2 counterpart: AppPathModal.vue's browseRootPath (:398) / browseDestPaths (:419) /
+//   browseCrumbs (:404) / browseFolders (:435) / navigateUp (:503) / PROTECTED_FOLDER_NAMES (:336).
+// Target subdirectory names match the backend's units construction verbatim
+// (NimoOS/service/migrate.go:311-378) -- changing this requires reviewing that code too.
 import type { FolderEntry } from '@nimotech/nimoos-service'
 import { toVirtualPath, type DisplayNames } from '../../files/util/pathUtils'
 import type { AppPathKey } from './appPaths'
 
-/** 与后端 isProtectedName 名单一致(NimoOS/route/v1/file.go:1258)。 */
+/** Matches the backend's isProtectedName list (NimoOS/route/v1/file.go:1258). */
 export const PROTECTED_FOLDER_NAMES = [
   'AppData', 'Documents', 'Downloads', 'Gallery', 'Media', '.docker', '.containerd',
 ] as const
@@ -15,12 +16,12 @@ export function isProtectedFolder(name: string): boolean {
   return (PROTECTED_FOLDER_NAMES as readonly string[]).includes(name)
 }
 
-/** 系统盘限制在 /DATA:用户不该看到 / 下的兄弟目录。 */
+/** The system disk is restricted to /DATA: users should not see sibling directories under /. */
 export function browseRootPath(mountPoint: string): string {
   return mountPoint === '/' ? '/DATA' : mountPoint
 }
 
-/** 界面上要告诉用户"数据最终会落到哪几个目录" —— 与 migrate.go 追加的子目录一致。 */
+/** The UI must tell users "which directories the data will end up in" -- matches the subdirectories migrate.go appends. */
 export function browseDestPaths(type: AppPathKey, base: string): string[] {
   const b = base.replace(/\/$/, '')
   if (type === 'images') return [`${b}/.docker`, `${b}/.containerd`]
@@ -47,7 +48,7 @@ export function browseCrumbs(
   return crumbs
 }
 
-/** 只留可作为迁移目标的真目录。 */
+/** Keep only real directories usable as migration targets. */
 export function filterBrowseFolders(
   items: FolderEntry[], type: AppPathKey, currentPath: string,
 ): FolderEntry[] {

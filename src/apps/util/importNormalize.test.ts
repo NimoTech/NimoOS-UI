@@ -227,7 +227,7 @@ describe('docker run 导入命名(验收实锤:composerize 占位名 + --name �
   it('顶层 name 不合法时合法化写回,返回值与 YAML 严格一致(幽灵进度卡根因)', () => {
     const { yaml, name } = ensureComposeMeta('name: "My App"\nservices:\n  nginx:\n    image: nginx\n')
     expect(YAML.parse(yaml).name).toBe(name)
-    expect(name).toBe('my-app') // 不合法既有名 → slug 保留用户意图,而非丢弃
+    expect(name).toBe('my-app') // invalid existing name → slugify to preserve user intent instead of discarding it
   })
 
   it('合法但含下划线的既有 name 原样保留且返回一致', () => {

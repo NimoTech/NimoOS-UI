@@ -1,13 +1,13 @@
 import type { WidgetSize } from '../grid/types'
 
-// 第三方应用 iframe 小组件的全局硬边界(spec §3 夹紧规则)——从 registry.ts 移入
+// Global hard bounds for third-party app iframe widgets (spec §3 clamping rules) — moved in from registry.ts
 export const APP_WIDGET_SIZE: WidgetSize = { min: [2, 1], max: [4, 4] }
 
 export interface AppWidgetRangeDecl { minw?: number; minh?: number; maxw?: number; maxh?: number }
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v))
 
-/** label 声明的自定义可调整范围 → 有效范围:缺省轴补全局值,越界夹进全局,min>max 时 min 说了算。 */
+/** Custom resizable range declared via labels → effective range: missing axes fall back to global values, out-of-range values are clamped into the global bounds, and when min>max the min wins. */
 export function appWidgetRange(w?: AppWidgetRangeDecl): WidgetSize {
   if (!w || (!w.minw && !w.minh && !w.maxw && !w.maxh)) return APP_WIDGET_SIZE
   const g = APP_WIDGET_SIZE

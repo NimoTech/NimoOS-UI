@@ -25,10 +25,10 @@ import { useInstallProgressStore } from '../stores/installProgress'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// 显式把 pinia 实例挂到 mount 的 global.plugins——本页在 setup 里同时挂了
-// useInstalledAppsStore/useInstallProgressStore 两个 composable store,仅靠
-// setActivePinia() 在多用例连续 mount 时曾观测到组件绑定到早前某次 beforeEach
-// 创建的 pinia 实例(参照 StorePage.test.ts 的 T6 踩坑经验)。显式传入杜绝漂移。
+// Explicitly attach the pinia instance to mount's global.plugins — this page mounts both
+// useInstalledAppsStore/useInstallProgressStore composable stores in setup; with
+// setActivePinia() alone, components were observed binding to a pinia instance created by an
+// earlier beforeEach across consecutive mounts (see StorePage.test.ts T6 lesson). Passing it explicitly rules out the drift.
 let pinia: ReturnType<typeof createPinia>
 
 function mountPage() {
@@ -87,12 +87,12 @@ describe('InstalledAppsPage', () => {
     expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
   })
 
-  // 回归用例(SP5-P1 终审 CRITICAL):reka-ui 的 AlertDialogAction 本身是 DialogClose,
-  // 点击真实的红色确认按钮时先派发 update:open(false) 再派发 @click 里的 confirm —— 旧实现
-  // 用单个 uninstallTarget ref 同时装 open 状态与目标,update:open 处理器抢先把它置空,
-  // confirm 读到 null 直接短路,store.uninstall(=service.compose.uninstall) 永远不会被调用。
-  // 本用例挂载真实页面 + 真实 UninstallConfirm(不 mock reka),点击 Portal 到 document.body
-  // 的真实按钮,复现该事件顺序;仅 mock 最外层的 service.compose 网络层。
+  // Regression case (SP5-P1 final review CRITICAL): reka-ui's AlertDialogAction is itself a DialogClose,
+  // so clicking the real red confirm button dispatches update:open(false) before the confirm in @click — the old
+  // implementation used a single uninstallTarget ref for both the open state and the target; the update:open
+  // handler nulled it first, confirm read null and short-circuited, so store.uninstall (=service.compose.uninstall) was never called.
+  // This case mounts the real page + real UninstallConfirm (reka not mocked) and clicks the real button
+  // Portaled to document.body, reproducing that event order; only the outermost service.compose network layer is mocked.
   it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:true})(默认勾选删数据,2026-07-21 用户拍板)', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
@@ -100,18 +100,19 @@ describe('InstalledAppsPage', () => {
     const w = mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
     await flushPromises()
 
-    // 打开卸载确认弹窗:等价于用户点了卡片操作菜单里的「卸载」项(该项只是 emit('uninstall'),
-    // 菜单本身的展开/收起走的是另一套 reka DropdownMenu,与本次要验证的 AlertDialog 事件顺序无关)。
+    // Open the uninstall confirm dialog: equivalent to the user clicking the "Uninstall" item in the card's
+    // action menu (that item only does emit('uninstall'); the menu's own open/close goes through a separate
+    // reka DropdownMenu, unrelated to the AlertDialog event order under test here).
     const card = w.findComponent(InstalledAppCard)
     await card.vm.$emit('uninstall')
-    await nextTick() // reka 把 AlertDialogContent Portal 到 document.body 是异步的
+    await nextTick() // reka Portals AlertDialogContent to document.body asynchronously
 
     expect(document.body.textContent).toContain('确定要卸载 Jellyfin 吗')
     const confirmBtn = Array.from(document.body.querySelectorAll('button'))
       .find((b) => b.textContent?.trim() === '卸载')
     expect(confirmBtn).toBeTruthy()
 
-    confirmBtn!.click() // 真实 DOM click:触发 reka 内部 onOpenChange(false) 之后再触发外层 @click 的 confirm
+    confirmBtn!.click() // real DOM click: triggers reka's internal onOpenChange(false) before the outer @click confirm
     await flushPromises()
 
     expect(svc.uninstall).toHaveBeenCalledTimes(1)

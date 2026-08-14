@@ -2,9 +2,11 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { useFoldersStore } from '../../home/stores/folders'
+import { useFolderSizesStore } from './folderSizes'
 import type { DisplayNames } from '../util/pathUtils'
 import { fileExt } from '../util/ext'
 import { folderListErrorMsg } from '../util/folderListError'
+import { isHiddenEntry } from '../../util/hiddenEntries'
 
 export interface FileEntry {
   name: string
@@ -13,6 +15,10 @@ export interface FileEntry {
   size?: number | string
   date?: string
   write?: boolean
+  /** Synthetic optimistic entry for an in-flight upload (see
+   *  upload/uploadPlaceholders.ts). Not a real on-disk entry — the tile renders
+   *  it as uploading and it can't be opened. */
+  uploading?: boolean
   extensions?: {
     share?: { shared?: string }
     // Upload batch status the backend attaches to listing entries (NimoOS
@@ -21,8 +27,6 @@ export interface FileEntry {
     upload?: { broken?: boolean | string; batchId?: string }
   } | null
 }
-
-const HIDDEN = new Set(['lost+found'])
 
 export const useFilesStore = defineStore('files', () => {
   const displayNames = ref<DisplayNames>({})
@@ -62,12 +66,15 @@ export const useFilesStore = defineStore('files', () => {
 
   async function load(realPath: string) {
     clearSelection()
+    // New listing, new world: computed folder sizes from the previous view
+    // must not leak into this one (see folderSizes.ts for the epoch guard).
+    useFolderSizesStore().reset()
     loading.value = true
     error.value = ''
     try {
       const data = await service.folder.getList(realPath)
       const content: FileEntry[] = (data && (data as { content?: FileEntry[] }).content) || []
-      entries.value = content.filter((e) => !e.name.startsWith('.') && !HIDDEN.has(e.name))
+      entries.value = content.filter((e) => !isHiddenEntry(e.name))
       currentPath.value = realPath
     } catch (e) {
       // This used to be swallowed into an empty listing, which renders exactly

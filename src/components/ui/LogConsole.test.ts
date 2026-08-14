@@ -28,10 +28,10 @@ describe('LogConsole', () => {
     })
     const pre = w.find('pre')
     expect(pre.attributes('data-test')).toBe('logs-pre')
-    // class 应合并(调用方的类 + 组件自身的 log-console-pre),不是互相覆盖
+    // classes should merge (the caller's class + the component's own log-console-pre), not overwrite each other
     expect(pre.classes()).toContain('caller-class')
     expect(pre.classes()).toContain('log-console-pre')
-    // 而且不应该被透到根 div 上(inheritAttrs:false 生效的直接证据)
+    // and it must not fall through to the root div (direct evidence inheritAttrs:false is in effect)
     expect(w.find('.log-console').attributes('data-test')).toBeUndefined()
   })
 
@@ -40,7 +40,7 @@ describe('LogConsole', () => {
     const el = w.find('pre').element as HTMLElement
     Object.defineProperty(el, 'scrollHeight', { value: 1000, configurable: true })
     Object.defineProperty(el, 'clientHeight', { value: 200, configurable: true })
-    el.scrollTop = 805 // 1000 - 805 - 200 = -5 < 40 阈值 → 判定贴底
+    el.scrollTop = 805 // 1000 - 805 - 200 = -5 < 40 threshold → counts as at-bottom
 
     await w.setProps({ text: 'line1\nline2' })
     await flushPromises()
@@ -52,11 +52,11 @@ describe('LogConsole', () => {
     const el = w.find('pre').element as HTMLElement
     Object.defineProperty(el, 'scrollHeight', { value: 1000, configurable: true })
     Object.defineProperty(el, 'clientHeight', { value: 200, configurable: true })
-    el.scrollTop = 100 // 1000 - 100 - 200 = 700,远超 40 阈值 → 不贴底
+    el.scrollTop = 100 // 1000 - 100 - 200 = 700, far above the 40 threshold → not at bottom
 
     await w.setProps({ text: 'line1\nline2' })
     await flushPromises()
-    expect(el.scrollTop).toBe(100) // 未被脚本强制改动
+    expect(el.scrollTop).toBe(100) // not forcibly changed by script
   })
 
   it('默认插槽内容也会渲染(供调用方放置浮层内的额外元素,如错误提示)', () => {

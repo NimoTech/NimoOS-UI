@@ -6,17 +6,19 @@ declare module '@novnc/novnc' {
     constructor(
       target: HTMLElement,
       url: string,
-      /** ⚠️ 构造函数只读 credentials / shared / repeaterID / wsProtocols
-       *  (core/rfb.js:28-32),**其余选项一律静默忽略** —— 下面那三个开关写进这里
-       *  是无效的,必须构造后赋属性。我们只用得到默认值,所以这里不展开声明。 */
+      /** ⚠️ The constructor only reads credentials / shared / repeaterID / wsProtocols
+       *  (core/rfb.js:28-32); **all other options are silently ignored** — putting the
+       *  three switches below in here has no effect; they must be assigned as properties
+       *  after construction. We only need the defaults, so they are not declared here. */
       options?: { credentials?: Record<string, string>; shared?: boolean },
     )
-    /** 客户机不下发光标图案时补画一个小圆点(否则 noVNC 给画布写 `cursor: none`,
-     *  鼠标在控制台上隐形)。存取器属性,必须构造后赋值。见 useVncConsole.ts 的偏离登记。 */
+    /** Draw a small dot when the guest sends no cursor image (otherwise noVNC sets
+     *  `cursor: none` on the canvas and the mouse is invisible over the console).
+     *  Accessor property; must be assigned after construction. See the deviation log in useVncConsole.ts. */
     showDotCursor: boolean
-    /** 把客户机画面缩放到容器大小。存取器属性,必须构造后赋值。 */
+    /** Scale the guest display to the container size. Accessor property; must be assigned after construction. */
     scaleViewport: boolean
-    /** 是否要求客户机把分辨率改成容器大小。存取器属性,必须构造后赋值。 */
+    /** Whether to ask the guest to change its resolution to the container size. Accessor property; must be assigned after construction. */
     resizeSession: boolean
     addEventListener(event: 'connect' | 'disconnect', handler: () => void): void
     disconnect(): void

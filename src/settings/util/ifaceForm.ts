@@ -1,19 +1,23 @@
-// 接口配置弹窗的表单状态与 PUT payload 构造。
-// 逐条对位 Vue2 NetworkIfaceConfigModal.vue 的 watch.iface(:191-299)与 save()(:359-422)。
+// Form state and PUT payload construction for the interface config dialog.
+// Maps line-by-line to Vue2 NetworkIfaceConfigModal.vue's watch.iface (:191-299) and
+// save() (:359-422).
 //
-// 为什么全抽成纯函数:PUT /v2/nimoos/network/interfaces 在这台开发机上**一次都不能真发**
-// (NimoOS/route/v2/network.go:88 在末尾无条件 ApplyGatewayConfig() 重写 dnsmasq / nftables /
-//  ip_forward,而这台机器的 SSH 生命线 enp2s0 就是被配置的那张网卡)
-// → 写路径的正确性只能靠这里的单测(见台账 .superpowers/sdd/sp9/03-p2.md 债务 D18)。
+// Why everything is extracted into pure functions: PUT /v2/nimoos/network/interfaces
+// can **never actually be sent** on this dev machine (NimoOS/route/v2/network.go:88
+// unconditionally calls ApplyGatewayConfig() at the end, rewriting dnsmasq / nftables /
+// ip_forward, and this machine's SSH lifeline enp2s0 is exactly the NIC being configured)
+// -> the write path's correctness can only be covered by the unit tests here (see ledger
+// .superpowers/sdd/sp9/03-p2.md, debt D18).
 //
-// 移植纪律 #1(登记):Vue2 的 WifiForm / HotspotForm 各自持有一份 dnsString(子组件 data),
-// created() 从 formData.ipv4.dns 初始化,用户改了**从不回写父层**;而 save() 用的是父层那份
-// → **高级设置里填的 DNS 被静默丢弃**。这里 DNS 统一由 form.dnsText 持有,子表单直接绑它,
-// 不再有第二份。
+// Porting discipline #1 (on record): Vue2's WifiForm / HotspotForm each hold their own
+// dnsString (child component data), initialized from formData.ipv4.dns in created();
+// user edits are **never written back to the parent**, while save() uses the parent's
+// copy -> **DNS entered in advanced settings is silently dropped**. Here DNS is held
+// solely by form.dnsText, the child forms bind to it directly, and no second copy exists.
 import type { NetworkInterfaceUpdate } from '@nimotech/nimoos-service'
 import type { MergedIface } from './netMerge'
 
-/** Vue2 的热点默认值(NetworkIfaceConfigModal.vue:260 / 267-268 / 306 / 309-310)。 */
+/** Vue2's hotspot defaults (NetworkIfaceConfigModal.vue:260 / 267-268 / 306 / 309-310). */
 export const AP_DEFAULTS = {
   ssid: 'NimoOS-Hotspot',
   address: '192.168.22.1',
@@ -24,7 +28,7 @@ export interface IfaceFormState {
   name: string
   zone: string
   ipv4: { method: string; address: string; netmask: string; gateway: string }
-  /** DNS 在表单里是一行逗号分隔文本,只在下发时才 split(等同 Vue2 的 dnsString) */
+  /** DNS is a single comma-separated text line in the form, only split on submit (equivalent to Vue2's dnsString) */
   dnsText: string
   wireless: { mode: string; ssid: string; apSsid: string; password: string; apPassword: string; channel: number }
 }
@@ -35,7 +39,7 @@ export type BuildResult =
   | { ok: true; payload: NetworkInterfaceUpdate }
   | { ok: false; reason: 'nothing-to-save' }
 
-/** 照 Vue2 `/^wl|^wlan/i`(两个分支等价于 ^wl,原样保留语义)。 */
+/** Following Vue2's `/^wl|^wlan/i` (the two branches are equivalent to ^wl; semantics kept as-is). */
 export function isWifiName(name: string): boolean {
   return /^wl/i.test(name || '')
 }
@@ -69,8 +73,8 @@ export function hydrateForm(iface: MergedIface, opts: HydrateOpts = {}): IfaceFo
   f.name = iface.name
   f.zone = iface.zone || ''
 
-  // AP 强制 LAN;client / concurrent 在 zone 未设时默认 WAN。
-  // ⚠️ Vue2 这一段**不看 isWifi**(只看 config 里有没有 wireless)—— 照抄,别"修正"。
+  // AP forces LAN; client / concurrent default to WAN when zone is unset.
+  // ⚠️ This Vue2 block **ignores isWifi** (it only checks whether config has wireless) -- copied as-is, do not "fix".
   if (iface.wireless) {
     if (iface.wireless.mode === 'ap') {
       f.zone = 'lan'
@@ -96,7 +100,7 @@ export function hydrateForm(iface: MergedIface, opts: HydrateOpts = {}): IfaceFo
     f.wireless.channel = iface.wireless.channel || 0
   }
 
-  // 用户显式切模式(ap↔client):清掉上一个模式的字段
+  // User explicitly switches mode (ap<->client): clear the previous mode's fields
   if (opts.switchMode) {
     f.wireless.mode = opts.switchMode
     f.wireless.ssid = ''
@@ -115,13 +119,13 @@ export function hydrateForm(iface: MergedIface, opts: HydrateOpts = {}): IfaceFo
     else if (opts.switchMode === 'concurrent') f.zone = 'wan'
   }
 
-  // 混合模式:两边数据都保留(Vue2 注释 "Keep existing data on both sides")
+  // Hybrid mode: keep data on both sides (Vue2 comment "Keep existing data on both sides")
   if (opts.switchTab === 'hybrid') {
     f.wireless.mode = 'concurrent'
     f.zone = 'wan'
   }
 
-  // 按最终模式补默认值(顺序照 Vue2 :259-287)
+  // Fill defaults per the final mode (order follows Vue2 :259-287)
   if (f.wireless.mode === 'ap' && !f.wireless.apSsid) {
     f.wireless.apSsid = AP_DEFAULTS.ssid
     f.wireless.apPassword = ''
@@ -134,7 +138,7 @@ export function hydrateForm(iface: MergedIface, opts: HydrateOpts = {}): IfaceFo
       f.ipv4.netmask = AP_DEFAULTS.netmask
     }
   }
-  // client 恒 DHCP + WAN —— 清掉从 AP 模式残留的静态 IP / zone
+  // client is always DHCP + WAN -- clear static IP / zone left over from AP mode
   if (f.wireless.mode === 'client') {
     f.zone = 'wan'
     f.ipv4.method = 'dhcp'
@@ -177,7 +181,7 @@ export function buildUpdatePayload(form: IfaceFormState, iface: Pick<MergedIface
       dns,
     }
   } else {
-    // 以太网,或 wifi client 模式
+    // Ethernet, or wifi client mode
     payload.ipv4 = { method: form.ipv4.method }
     if (form.ipv4.method === 'static') {
       payload.ipv4.address = form.ipv4.address

@@ -1,8 +1,8 @@
-// 正常登录逻辑(无 /users/current 探针):
-// - 公开路由(/login /welcome)放行;/login 已登录则回首页。
-// - 受保护 + 有 token → 放行(纯存在性;失效由共享包 401 单飞刷新兜底)。
-// - 受保护 + 有 token 缺 version → 清 token → /login(防半初始化)。
-// - 受保护 + 无 token → 查一次 status:未初始化→/welcome(存 initKey),否则→/login;查询失败保守→/login。
+// Normal login logic (no /users/current probe):
+// - Public routes (/login /welcome) pass; /login while logged in redirects home.
+// - Protected + token → pass (pure existence check; expiry is handled by the shared package's single-flight refresh on 401).
+// - Protected + token but missing version → clear token → /login (guards against half-initialized state).
+// - Protected + no token → query status once: uninitialized → /welcome (store initKey), otherwise → /login; on query failure, conservatively → /login.
 export interface GuardRoute {
   path: string
   meta?: { public?: boolean }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { groupComponents, statusHint } from './components'
 import type { GatewayComponent } from '@nimotech/nimoos-service'
 
-// 真机 fixture(2026-08-01 curl GET /v1/gateway/components,节选逐字)
+// Real-device fixture (2026-08-01 curl GET /v1/gateway/components, excerpt verbatim)
 const REAL: GatewayComponent[] = [
   { name: 'Gateway', category: 'service', version: '1.9.3-alpha1+28.g0dc16d6', status: 'online', error: '', probed_at: '2026-08-01T02:15:55Z' },
   { name: 'User Service', category: 'service', version: '', status: 'offline', error: 'unexpected status Internal Server Error', probed_at: '2026-08-01T02:15:55Z' },

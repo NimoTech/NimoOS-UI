@@ -21,7 +21,7 @@ describe('SettingsSwitch', () => {
     const w = mount(SettingsSwitch, { props: { modelValue: false, label: 'x' } })
     await w.find('[role="switch"]').trigger('click')
     expect(w.emitted('update:modelValue')).toEqual([[true]])
-    // 受控组件:props 没变,class 也不该变
+    // Controlled component: props unchanged, so the class must not change either
     expect(w.find('.set-switch').classes()).not.toContain('on')
   })
 

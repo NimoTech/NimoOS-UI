@@ -5,7 +5,7 @@ import { useOpenAction } from './useOpenAction'
 import { useStartApp, __resetStartAppForTest } from './useStartApp'
 import type { LayoutItem } from '../grid/types'
 
-// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
+// P8 cutover: the files entry now uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 

@@ -26,8 +26,8 @@ const app = computed(() => installed.apps.find((a) => a.id === id.value))
 const networks = ref<DockerNetwork[]>([])
 const stableTags = ref<Record<string, string | null>>({})
 
-// 表单⇄YAML 逃生口(P6 验收补丁②):默认 form,yamlText 只在切到 yaml tab 时由 toYaml() 现取一次
-// (带过表单已做的修改);切回 form 走 replaceFromYaml,失败则不切换、留在 yaml tab 看红条。
+// Form⇄YAML escape hatch (P6 acceptance patch #2): defaults to form; yamlText is fetched once via toYaml() only when
+// switching to the yaml tab (carrying over form edits); switching back to form goes through replaceFromYaml — on failure stay on the yaml tab and show the red banner.
 const tab = ref<'form' | 'yaml'>('form')
 const yamlText = ref('')
 function selectTab(next: 'form' | 'yaml') {
@@ -40,17 +40,18 @@ onMounted(() => {
   void s.load().then(() => {
     const m = s.model.value
     if (!m) return
-    // 逐 service 查 stable tag;非商店应用(如手动导入)返回 null,tag 下拉自动隐藏
+    // Look up the stable tag per service; non-store apps (e.g. manual imports) return null and the tag dropdown auto-hides
     void Promise.all(m.services.map((svc) =>
       service.appstore.stableTag(id.value, svc.name).then((tag) => [svc.name, tag] as const).catch(() => [svc.name, null] as const),
     )).then((entries) => { stableTags.value = Object.fromEntries(entries) })
   })
-  if (!installed.apps.length) installed.refresh().catch(() => {})  // 深链直达补一次(标题/图标用)
+  if (!installed.apps.length) installed.refresh().catch(() => {})  // deep-link entry: fetch once (for title/icon)
   service.container.getNetworks().then((n) => { networks.value = n }).catch(() => { networks.value = [] })
 })
 
-// 端口冲突先弹窗:保存钮在长表单最底部,顶部红条在视野外,用户看不到(真机验收反馈)。
-// 确认后关弹窗,顶部红条 + 端口行标红保留,并滚回红条处。
+// Port conflicts show a dialog first: the save button sits at the bottom of a long form, so the top red banner
+// is out of view and users miss it (on-device acceptance feedback).
+// On confirm, close the dialog, keep the top banner + red port rows, and scroll back to the banner.
 const conflictDlg = ref(false)
 const bannerEl = ref<HTMLElement | null>(null)
 
@@ -67,12 +68,12 @@ async function onSave() {
 }
 function onConflictAck() {
   conflictDlg.value = false
-  // scrollIntoView 在 jsdom 未实现,可选链保护
+  // scrollIntoView is not implemented in jsdom; guard with optional chaining
   void nextTick(() => bannerEl.value?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }))
 }
 
-// YAML tab 内保存:直接以原文 dry_run→PUT,不经表单弹窗,冲突/其它错误都走 tab 内红条(brief 明确
-// 不做表单那套行级标红+弹窗,直接红条即可)。
+// Save inside the YAML tab: dry_run→PUT with the raw text, bypassing the form dialog; conflicts/other errors
+// all go to the in-tab red banner (the brief explicitly skips the form's per-row highlighting + dialog — a banner is enough).
 async function onSaveYaml() {
   const ok = await s.saveYaml(yamlText.value)
   if (ok) {
@@ -85,8 +86,9 @@ function back() { router.push({ name: 'apps' }) }
 
 <template>
   <AreaShell :title="t('appsTitle')">
-    <!-- yaml-mode:YAML 标签下布局切定高(min-height→height),否则编辑器 height:100% 的分母
-         是内容驱动的(编辑器随内容长高、永不内部溢出),滚动条只会出现在整页上 -->
+    <!-- yaml-mode: under the YAML tab the layout switches to fixed height (min-height→height); otherwise the
+         denominator of the editor's height:100% is content-driven (the editor grows with content and never overflows internally), leaving the scrollbar on the whole page -->
+
     <div class="apps-layout" :class="{ 'yaml-mode': tab === 'yaml' }">
       <AppsSidebar />
       <main class="apps-main">
@@ -169,7 +171,7 @@ function back() { router.push({ name: 'apps' }) }
 <style scoped>
 .apps-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .apps-main { flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; }
-/* YAML 标签:定高布局,编辑器占满剩余空间在内部滚(表单标签保持整页文档式滚动不受影响) */
+/* YAML tab: fixed-height layout, the editor fills remaining space and scrolls internally (the form tab keeps page-level document scrolling, unaffected) */
 .apps-layout.yaml-mode { height: 100%; }
 .apps-layout.yaml-mode .apps-main { min-height: 0; }
 .detail-back { font-size: 13px; margin-bottom: 14px; }
@@ -198,14 +200,14 @@ function back() { router.push({ name: 'apps' }) }
   color: var(--remove-fg); background: var(--drop-bad); border: 1px solid var(--remove-fg);
 }
 .set-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 18px; }
-/* YAML 标签:按钮栏与编辑器的间距只留面板 gap(12px),多出的 margin 让给编辑器高度 */
+/* YAML tab: keep only the panel gap (12px) between the button bar and the editor; the extra margin goes to editor height */
 .settings-yaml-panel .set-actions { margin-top: 0; }
 .set-save { font-size: 13.5px; padding: 8px 24px; cursor: pointer; color: var(--on-accent); background: var(--accent); border: none; border-radius: 10px; }
 .set-save:hover { filter: brightness(1.08); }
 .set-save:disabled { opacity: 0.55; cursor: default; filter: none; }
 @media (max-width: 768px) { .apps-layout { gap: 0; } }
 
-/* 端口冲突确认弹窗(PreInstallTips pit-* 同款;scoped 经 Portal 仍生效,data-v 随模板 vnode 走) */
+/* Port-conflict confirm dialog (same as PreInstallTips pit-*; scoped styles still apply through Portal — data-v follows the template vnodes) */
 .cfl-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
 .cfl-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;

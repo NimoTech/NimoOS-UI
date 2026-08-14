@@ -5,15 +5,24 @@ import ContextMenu from '../../components/ui/ContextMenu.vue'
 import { iconUrl } from '../util/icons'
 import type { ShareRow } from '../stores/shares'
 
-const props = defineProps<{ row: ShareRow }>()
-const emit = defineEmits<{ (e: 'get-link', row: ShareRow): void; (e: 'goto', row: ShareRow): void; (e: 'unshare', row: ShareRow): void }>()
+const props = defineProps<{ row: ShareRow; selected?: boolean }>()
+const emit = defineEmits<{ (e: 'get-link', row: ShareRow): void; (e: 'goto', row: ShareRow): void; (e: 'unshare', row: ShareRow): void; (e: 'toggle-select', row: ShareRow): void }>()
 const { t } = useI18n()
 </script>
 
 <template>
   <li class="share-row">
     <ContextMenu>
-      <div class="share-row-main">
+      <div class="share-row-main" :class="{ selected: props.selected }">
+        <span class="share-check" @click.stop>
+          <input
+            type="checkbox"
+            class="share-check-box"
+            :checked="props.selected"
+            :aria-label="props.row.name"
+            @change="emit('toggle-select', props.row)"
+          />
+        </span>
         <img class="share-icon" :src="iconUrl('folder-default')" alt="" />
         <span class="share-name">{{ props.row.name }}</span>
         <span class="share-actions">
@@ -42,4 +51,9 @@ const { t } = useI18n()
 .share-act { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--chip-border, rgba(255,255,255,0.12)); background: transparent; color: var(--fg); cursor: pointer; font-size: 12px; }
 .share-act:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
 .share-act.danger { color: var(--remove-bg); border-color: var(--remove-bg); opacity: 0.7; }
+.share-check { flex: 0 0 auto; display: flex; align-items: center; }
+.share-check-box { opacity: 0; cursor: pointer; }
+.share-row-main:hover .share-check-box, .share-row-main.selected .share-check-box { opacity: 1; }
+.share-check-box:focus-visible { opacity: 1; }
+.share-row-main.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
 </style>

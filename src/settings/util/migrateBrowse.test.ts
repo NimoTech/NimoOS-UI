@@ -99,8 +99,8 @@ describe('filterBrowseFolders', () => {
   })
   it('只排除源路径自身及其子树,不误伤名字相近的兄弟目录(/DATA/AppDataOld 不属于 /DATA/AppData)', () => {
     const names = filterBrowseFolders(items, 'app_data', '/DATA/AppData').map((f) => f.name)
-    expect(names).not.toContain('AppData')      // 源目录自身仍被排除
-    expect(names).toContain('AppDataOld')       // 兄弟目录不该被牵连
+    expect(names).not.toContain('AppData')      // The source directory itself is still excluded
+    expect(names).toContain('AppDataOld')       // Sibling directories must not be caught up in it
   })
   it('drops dot-prefixed folders before the blocked list is ever consulted (Vue2 #105)', () => {
     // #105 found the dot entries in the blocked list to be dead code: the dot filter

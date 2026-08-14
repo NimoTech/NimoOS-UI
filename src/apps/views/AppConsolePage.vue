@@ -150,6 +150,10 @@ function back() { router.push({ name: 'apps' }) }
   color: var(--fg); background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 9px; outline: none;
 }
 .console-svc:focus { border-color: var(--accent); }
+/* Chrome 会把作者背景带进原生弹出列表:半透明渐变叠在默认白底上 ⇒ 深色主题下白底白字。
+   与 .set-select 等 6 处同款修法:option 钉实心 token 底色。 */
+.console-svc option,
+.console-svc optgroup { background-color: var(--set-option-bg); color: var(--set-option-fg); }
 .console-tabs { display: flex; gap: 6px; margin-left: auto; }
 .console-tabs button {
   padding: 5px 16px; border-radius: 9px; border: 1px solid var(--card-border);

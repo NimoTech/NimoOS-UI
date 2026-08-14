@@ -19,8 +19,8 @@ type NormalizeResult = { ok: true; yaml: string; name: string } | { ok: false; m
 type Dict = Record<string, unknown>
 const asDict = (v: unknown): Dict => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Dict) : {})
 
-/** ensureComposeMeta 把 icon 注入 x-nimoos(或已存在 x-casaos 时的 x-casaos)扩展块里——
- *  取回真实值(可能是用户 YAML 里自带的,不一定是默认公式 URL),供 installProgress.track() 用。 */
+/** ensureComposeMeta injects the icon into the x-nimoos extension block (or x-casaos when one already exists) —
+ *  read back the actual value (it may come from the user's own YAML, not necessarily the default formula URL) for installProgress.track(). */
 function extractIcon(yamlText: string): string {
   const doc = asDict(YAML.parse(yamlText))
   const icon = asDict(doc['x-nimoos']).icon ?? asDict(doc['x-casaos']).icon
@@ -32,7 +32,7 @@ export function useCustomInstall() {
   const installedApps = useInstalledAppsStore()
   const progress = useInstallProgressStore()
 
-  /** ①规整:解析失败(坏 YAML)在这里就地拦下,后续步骤都不会跑。 */
+  /** Step 1, normalize: parse failures (bad YAML) are caught right here; no later step runs. */
   function normalize(rawYaml: string): NormalizeResult {
     try {
       const { yaml, name } = ensureComposeMeta(rawYaml)
@@ -42,7 +42,7 @@ export function useCustomInstall() {
     }
   }
 
-  /** 「校验」按钮:①规整 + ③dry_run 预检,不做 D4 同名硬挡、不真装。 */
+  /** "Validate" button: step 1 normalize + step 3 dry_run precheck; no D4 same-name hard block, no real install. */
   async function validateYaml(rawYaml: string): Promise<CustomValidateResult> {
     const meta = normalize(rawYaml)
     if (!meta.ok) return meta
@@ -55,15 +55,17 @@ export function useCustomInstall() {
     }
   }
 
-  /** 「安装」按钮:①规整 →②D4 同名硬挡 →③dry_run →④真装 →⑤track。 */
+  /** "Install" button: 1 normalize -> 2 D4 same-name hard block -> 3 dry_run -> 4 real install -> 5 track. */
   async function installYaml(rawYaml: string): Promise<CustomInstallResult> {
     const meta = normalize(rawYaml)
     if (!meta.ok) return meta
     const { yaml, name } = meta
 
-    // D4:后端对同名应用是静默覆盖已装应用的工作目录——宁可在前端硬挡,也不让用户无声丢数据。
-    // 无条件刷新已装列表(不只在 store 为空时才刷新)——否则 store 在填表期间变陈旧
-    // (旧版 UI/另一标签页装了同名应用后本 store 未感知),硬挡会静默失效,后端仍会覆盖对方工作目录。
+    // D4: on a name collision the backend silently overwrites the installed app's working directory —
+    // better to hard-block in the frontend than let users lose data silently.
+    // Refresh the installed list unconditionally (not only when the store is empty) — otherwise the store
+    // goes stale while the form is being filled (an app with the same name installed via the old UI /
+    // another tab goes unnoticed), the hard block silently fails, and the backend still overwrites the other app's working directory.
     await installedApps.refresh().catch(() => {})
     if (installedApps.apps.some((a) => a.id === name)) {
       return { ok: false, message: t('appsCustomNameConflict') }

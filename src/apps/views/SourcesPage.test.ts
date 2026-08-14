@@ -33,7 +33,7 @@ function mountPage() {
 
 describe('SourcesPage', () => {
   beforeEach(() => {
-    localStorage.clear() // 注册中状态落盘,防上一用例的 pending 被新 pinia 恢复
+    localStorage.clear() // Registering state is persisted; prevents the previous case's pending from being restored by the new pinia
     vi.clearAllMocks()
     svc.appstore.listSources.mockResolvedValue([OFFICIAL, THIRD])
   })
@@ -68,13 +68,13 @@ describe('SourcesPage', () => {
     await flushPromises()
     expect(svc.appstore.registerSource).toHaveBeenCalledWith('https://example.com/s.zip')
     expect((w.find('.src-input').element as HTMLInputElement).value).toBe('')
-    expect(w.find('.src-pending').exists()).toBe(true) // 注册中行可见
-    // 注册中输入框不锁(可先备好下一个地址),只锁提交
+    expect(w.find('.src-pending').exists()).toBe(true) // Registering row is visible
+    // While registering, the input stays unlocked (user can prepare the next URL); only submit is locked
     expect((w.find('.src-input').element as HTMLInputElement).disabled).toBe(false)
     expect((w.find('.src-add-btn').element as HTMLButtonElement).disabled).toBe(true)
 
-    // 同步 409 就地展示(新 mount,干净 store)
-    localStorage.clear() // 上面的注册已落盘,清掉防 w2 恢复 pending 撞 busy 守卫
+    // Synchronous 409 shown inline (fresh mount, clean store)
+    localStorage.clear() // The registration above was persisted; clear so w2 doesn't restore pending and hit the busy guard
     const w2 = mountPage()
     await flushPromises()
     svc.appstore.registerSource.mockRejectedValueOnce({ response: { data: { message: 'already exists' } } })
@@ -89,7 +89,7 @@ describe('SourcesPage', () => {
     await flushPromises()
     svc.appstore.unregisterSource.mockResolvedValueOnce(undefined)
     await w.find('.src-remove').trigger('click')
-    // reka AlertDialog 挂 portal,直接调组件暴露的 confirm 路径:
+    // reka AlertDialog mounts in a portal, so call the confirm path exposed by the component directly:
     const dialog = w.findComponent({ name: 'AlertDialog' })
     dialog.vm.$emit('confirm')
     await flushPromises()

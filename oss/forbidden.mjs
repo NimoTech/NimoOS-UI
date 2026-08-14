@@ -715,20 +715,33 @@ function isChineseWord(word) {
 }
 
 /**
- * dist 专用内容白名单:压缩产物里"文件+行号"定位失效,改成**内容子串精确匹配**——
- * 只认逐字摘自源码的字符串本身,不看文件/行号。这两条是 T15 实测到的、当前 dist
- * 构建里仅有的两处"我方合法内容撞上中文软禁词"(均已在源码树白名单里逐行豁免过,
- * 见 forbidden.mjs SOFT 表 照片/搜索 词条的注释):
- *   - raidLevel1Usecase 的 RAID 用途说明("照片库…"),与相册 app 无关。
- *   - appsStoreSearch 的应用商店筛选框占位符,与 NimoOS-Search 服务无关。
- * 与源码树 exactLine() 同一条纪律:任何增删都会让子串匹配失效、退回"未豁免",
- * 不会带着新泄漏一起被放行。命中后**只把这段子串本身替换成等长空白再继续扫描
- * 同一行的其余内容**——不是跳过整行,因为压缩产物里一行可能是几十 KB 的整个模块,
- * 跳过整行会连同一行里其余的真实泄漏一起放过。
+ * Dist-only content allowlist. "file + line" targeting breaks down in minified
+ * output, so this matches **exact content substrings** instead — only strings
+ * copied verbatim from the source, never file/line coordinates. Every entry
+ * corresponds to a line already exempted in the source-tree allowlist (see the
+ * SOFT-table notes on the 照片/搜索 entries in this file):
+ *   - raidLevel1Usecase's RAID usage blurb ("照片库…") — unrelated to the
+ *     photos app. (T15)
+ *   - appsStoreSearch, the app-store filter placeholder — unrelated to the
+ *     NimoOS-Search service. (T15)
+ *   - themePhoto, the top-bar theme menu entry (SP11 wallpaper: pick a photo
+ *     as wallpaper) — unrelated to the photos app. Key-qualified on purpose so
+ *     a bare "照片…" elsewhere is not blanket-exempted. (2026-08-11 snapshot)
+ *   - The google-drive.html guide sentence telling the user to search for the
+ *     Drive API in the Google console — unrelated to the NimoOS-Search
+ *     service. (2026-08-11 snapshot)
+ * Same discipline as the source tree's exactLine(): any edit breaks the
+ * substring match and the line falls back to "not exempted" — a new leak can
+ * never ride along. On a match, **only the matched substring is replaced with
+ * equal-length blanks and scanning continues on the rest of the line** — the
+ * line is never skipped wholesale, because one minified line can be an entire
+ * multi-KB module and skipping it would also skip any real leak sharing it.
  */
 const DIST_ALLOW = [
   '照片库、个人 NAS、启动卷',
   '搜索应用…',
+  'themePhoto:"照片…"',
+  '搜索 <b>Google Drive API</b>',
 ]
 
 /**

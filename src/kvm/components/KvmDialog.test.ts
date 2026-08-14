@@ -5,17 +5,21 @@ import KvmDialog from './KvmDialog.vue'
 import { i18n } from '../../i18n'
 
 let w: VueWrapper | null = null
-// 硬约束 8:reka-ui 走 teleport,必须 attachTo body 且显式清理。
+// Hard constraint 8: reka-ui uses teleport, so we must attachTo body and clean up explicitly.
 //
-// ⚠️ 与 brief 逐字稿的申报偏离:brief 给的 `mk` 是同步函数、调用后立即断言。实测
-// reka-ui 2.10(本仓库既有版本)的 DialogPortal/DialogContent 首次挂载时,teleport
-// 内容要等下一个 microtask(nextTick)才真正落地到 document.body —— 与本仓库
-// `src/components/ui/Dialog.test.ts`(全局 Dialog 组件,同样用 reka-ui 原语)已确立
-// 的写法完全一致,那个测试文件里凡是断言 teleport 后内容的用例,也都 `await nextTick()`
-// 之后再查 DOM。brief 的字面代码在这个真实前置条件下必然全红(不是我实现的组件有
-// bug,是 mk 助手缺了一次 tick),所以把 `mk` 改成 async 并在 mount 之后 `await
-// nextTick()`,每个用到 mk() 的用例相应改成 async/await——测试意图(6 条用例断言
-// 的行为)与 brief 逐字不变,只是让断言真正等到 DOM 落地后再跑。
+// ⚠️ Declared deviation from the brief's verbatim draft: the brief's `mk` is a sync
+// function that asserts immediately after the call. In practice, with reka-ui 2.10
+// (the version already in this repo), DialogPortal/DialogContent on first mount only
+// lands the teleported content in document.body on the next microtask (nextTick) —
+// exactly matching the established pattern in this repo's
+// `src/components/ui/Dialog.test.ts` (the global Dialog component, also built on
+// reka-ui primitives), where every test asserting post-teleport content also queries
+// the DOM only after `await nextTick()`. The brief's literal code is guaranteed all-red
+// under this real precondition (not a bug in my component implementation — the mk
+// helper is just missing one tick), so `mk` was made async with `await nextTick()`
+// after mount, and every test using mk() was made async/await accordingly — the test
+// intent (behavior asserted by the 6 cases) stays verbatim from the brief; the
+// assertions simply run after the DOM has actually landed.
 const mk = async (props: Record<string, unknown> = {}, slots: Record<string, string> = {}) => {
   w = mount(KvmDialog, {
     props: { open: true, title: '创建新虚拟机', ...props },

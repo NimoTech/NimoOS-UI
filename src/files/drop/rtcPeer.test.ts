@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { Peer, RTCPeer, type PeerEvents } from './rtcPeer'
-import { encodeText, ACK_TIMEOUT_MS, type TransferBrokenReason } from './protocol'
+import { encodeText, ACK_TIMEOUT_MS, HANDSHAKE_TIMEOUT_MS, type TransferBrokenReason } from './protocol'
 
 // 测试用子类:捕获 sendRaw,免 WebRTC
 class TestPeer extends Peer {
@@ -11,6 +11,7 @@ function makeEvents(): PeerEvents {
   return {
     onFileProgress: vi.fn(), onFileReceived: vi.fn(), onTextReceived: vi.fn(),
     onTransferComplete: vi.fn(), onTransferBroken: vi.fn(),
+    onPeerConnected: vi.fn(), onPeerUnreachable: vi.fn(),
   }
 }
 const jsonOut = (p: TestPeer) => p.out.filter((x): x is string => typeof x === 'string').map((s) => JSON.parse(s))
@@ -256,6 +257,71 @@ describe('RTCPeer disconnect branches', () => {
 
     expect(inner.conn).not.toBeNull()
     expect(inner.conn).not.toBe(original)
+  })
+
+  // 08-13 验收:信令握手完整走完(offer/answer/ICE 都在服务端日志里),数据通道却始终
+  // 没打开,而代码一声不吭 —— 用户看到的就是「按了发送,什么都没发生」。握手必须有时限,
+  // 到点还没通就得如实说「连不上」。
+  it('reports a peer as unreachable when a dial never opens a channel', () => {
+    vi.useFakeTimers()
+    try {
+      const ev = makeEvents()
+      new RTCPeer({ send: vi.fn() }, 'peer2', ev) // caller: dials on construction
+      expect(ev.onPeerUnreachable).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS + 1)
+      expect(ev.onPeerUnreachable).toHaveBeenCalledWith('peer2')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('stays quiet when the channel opens before the handshake bound', () => {
+    vi.useFakeTimers()
+    try {
+      const ev = makeEvents()
+      const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+      const channel = { binaryType: '', readyState: 'open', onmessage: null, onclose: null, onopen: null }
+      ;(p as unknown as { onChannelOpened: (c: unknown) => void }).onChannelOpened(channel)
+      expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
+      vi.advanceTimersByTime(HANDSHAKE_TIMEOUT_MS + 1)
+      expect(ev.onPeerUnreachable).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('waits for onopen when the channel arrives still connecting (callee path)', () => {
+    const ev = makeEvents()
+    const p = makeRtcPeer(ev)
+    const channel = { binaryType: '', readyState: 'connecting', onmessage: null, onclose: null, onopen: null as null | (() => void) }
+    ;(p as unknown as { onChannelOpened: (c: unknown) => void }).onChannelOpened(channel)
+    expect(ev.onPeerConnected).not.toHaveBeenCalled()
+    channel.onopen!()
+    expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
+  })
+
+  it('reports unreachable when the connection fails before any channel opened', () => {
+    const ev = makeEvents()
+    const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+    const inner = (p as unknown as { conn: FakeConn | null })
+    inner.conn!.connectionState = 'failed'
+
+    ;(p as unknown as { onConnectionStateChange: () => void }).onConnectionStateChange()
+
+    expect(ev.onPeerUnreachable).toHaveBeenCalledWith('peer2')
+  })
+
+  it('wires ondatachannel for the caller too, so a peer-opened channel is never dropped', () => {
+    // After a reconnect the two ends can briefly disagree about who dials; a
+    // caller without this handler silently discards the channel the other side
+    // opened -- indistinguishable from "nothing happens".
+    const ev = makeEvents()
+    const p = new RTCPeer({ send: vi.fn() }, 'peer2', ev)
+    const inner = (p as unknown as { conn: (FakeConn & { ondatachannel: ((e: unknown) => void) | null }) | null })
+    expect(inner.conn!.ondatachannel).toBeTypeOf('function')
+    const channel = { binaryType: '', readyState: 'open', onmessage: null, onclose: null, onopen: null }
+    inner.conn!.ondatachannel!({ channel })
+    expect(ev.onPeerConnected).toHaveBeenCalledWith('peer2')
   })
 
   it('reports the cancellation once even when the channel is already gone', () => {

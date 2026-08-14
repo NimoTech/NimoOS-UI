@@ -64,7 +64,7 @@ describe('installChunkReloadGuard', () => {
 
     const second = new Event('vite:preloadError', { cancelable: true })
     handler(second)
-    expect(reload).toHaveBeenCalledTimes(1) // 未再刷
-    expect(second.defaultPrevented).toBe(false) // 错误继续冒泡,控制台可见
+    expect(reload).toHaveBeenCalledTimes(1) // no second reload
+    expect(second.defaultPrevented).toBe(false) // error keeps bubbling, visible in the console
   })
 })

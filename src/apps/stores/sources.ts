@@ -6,12 +6,15 @@ import { useToast } from '../../stores/toast'
 import { i18n } from '../../i18n'
 import { useAppstoreStore } from './appstore'
 
-/** 注册期间的兜底轮询间隔:MessageBus 订阅通道 buffer=1 可能丢事件(系统已知),
- *  register-end 丢失时靠轮询 listSources 看到新 URL 收敛,不永久转圈(Vue2 只靠事件,是旧 bug)。 */
+/** Fallback polling interval during registration: the MessageBus subscriber channel buffer=1 can drop
+ *  events (known system issue); if register-end is lost, polling listSources until the new URL appears
+ *  converges instead of spinning forever (Vue2 relied on events only — an old bug). */
 const REGISTER_POLL_MS = 15_000
 
-/** 注册中状态落盘:刷新页面后恢复"添加中"行并继续收敛(用户验收反馈——刷新后 pending 行消失)。
- *  带时间戳,恢复时超过 TTL 视为陈旧丢弃(防注册早已失败、error 事件错过后 pending 永久复活)。 */
+/** Persist the registering state: restore the "adding" row after page refresh and keep converging
+ *  (user acceptance feedback — the pending row disappeared after refresh). Carries a timestamp;
+ *  on restore, entries older than the TTL are discarded as stale (prevents pending from being
+ *  revived forever when registration failed long ago and the error event was missed). */
 const REGISTER_PERSIST_KEY = 'nimoos:sources-registering'
 const REGISTER_PERSIST_TTL_MS = 10 * 60_000
 
@@ -43,7 +46,7 @@ export const useSourcesStore = defineStore('appSources', () => {
   const loading = ref(false)
   const error = ref(false)
   const loaded = ref(false)
-  /** 正在注册的源 URL;null=空闲。一次只允许一个注册在途(对齐后端异步任务语义)。 */
+  /** URL of the source being registered; null = idle. Only one registration in flight at a time (matches the backend async-task semantics). */
   const registeringUrl = ref<string | null>(null)
 
   let seq = 0
@@ -80,11 +83,11 @@ export const useSourcesStore = defineStore('appSources', () => {
     try {
       localStorage.removeItem(REGISTER_PERSIST_KEY)
     } catch {
-      /* 存储不可用时静默——落盘只是刷新恢复的增强 */
+      /* silent when storage is unavailable — persistence is only an enhancement for refresh recovery */
     }
   }
 
-  /** 兜底轮询:看到目标 URL 出现在源列表即收敛(needle 已小写,后端重复判定不区分大小写) */
+  /** Fallback polling: converge once the target URL appears in the source list (needle is already lowercased; the backend's duplicate check is case-insensitive) */
   function startPoll(needle: string) {
     stopPoll()
     pollTimer = setInterval(async () => {
@@ -95,12 +98,12 @@ export const useSourcesStore = defineStore('appSources', () => {
           convergeRegistered()
         }
       } catch {
-        /* 轮询失败静默,下个周期再试 */
+        /* polling failure is silent; retry next cycle */
       }
     }, REGISTER_POLL_MS)
   }
 
-  /** 注册成功收敛(事件或轮询,谁先到谁生效):清 pending + toast + 重拉列表 + 失效商店目录缓存 */
+  /** Successful registration convergence (event or polling, whichever arrives first wins): clear pending + toast + reload list + invalidate the store catalog cache */
   function convergeRegistered() {
     if (registeringUrl.value === null) return
     settleRegister()
@@ -109,12 +112,15 @@ export const useSourcesStore = defineStore('appSources', () => {
     appstore.invalidate()
   }
 
-  /** 注册第三方源。同步 HTTP 错误(409 重复/400 坏 URL)抛 Error(message) 给调用方就地展示;
-   *  受理(200)后是后端异步任务,由 app-store:register-end/-error 事件或轮询收敛。
-   *  一次只允许一个注册在途(店级约束):registeringUrl 是单一 ref,轮询的 needle 在
-   *  发起时闭包捕获——若并发第二个 register() 覆盖 registeringUrl,前一个的收敛会把
-   *  ref 置 null,导致后一个的轮询守卫(见下方 setInterval 里的 null 检查)和事件处理器
-   *  的 null 守卫都永久失效,后一个注册的结果被无声吞掉。因此在这里前置守卫拒绝。 */
+  /** Register a third-party source. Synchronous HTTP errors (409 duplicate / 400 bad URL) throw
+   *  Error(message) for the caller to display in place; after acceptance (200) it becomes a backend
+   *  async task, converged by app-store:register-end/-error events or polling.
+   *  Only one registration in flight at a time (store-level constraint): registeringUrl is a single
+   *  ref, and the polling needle is captured in a closure at initiation — if a concurrent second
+   *  register() overwrote registeringUrl, the first one's convergence would set the ref to null,
+   *  permanently disabling both the second one's polling guard (see the null check in setInterval
+   *  below) and the event handlers' null guards, silently swallowing the second registration's
+   *  result. Hence the up-front guard that rejects here. */
   async function register(url: string) {
     if (registeringUrl.value !== null) throw new Error(t('appsSourcesBusy'))
     const target = url.trim()
@@ -128,12 +134,12 @@ export const useSourcesStore = defineStore('appSources', () => {
     try {
       localStorage.setItem(REGISTER_PERSIST_KEY, JSON.stringify({ url: target, at: Date.now() }))
     } catch {
-      /* 存储不可用时静默 */
+      /* silent when storage is unavailable */
     }
     startPoll(target.toLowerCase())
   }
 
-  /** 注销:后端无事件,同步等待(Vue2 同款)。错误(如删最后一个源的 400)toast 透出,不抛。 */
+  /** Unregister: no backend event, wait synchronously (same as Vue2). Errors (e.g. 400 when deleting the last source) surface via toast, not thrown. */
   async function unregister(id: number) {
     try {
       await service.appstore.unregisterSource(id)
@@ -145,22 +151,24 @@ export const useSourcesStore = defineStore('appSources', () => {
     }
   }
 
-  // 刷新恢复:上个页面生命周期里发起的注册还在后端跑,恢复 pending 行并重新武装轮询;
-  // 完成收敛走轮询或下面的事件订阅(事件不带 URL,单飞语义保证归属无歧义)
+  // Refresh recovery: a registration started in the previous page lifecycle is still running on the
+  // backend; restore the pending row and re-arm polling. Completion converges via polling or the
+  // event subscription below (events carry no URL; single-flight semantics guarantee unambiguous ownership)
   const persisted = readPersistedRegistering()
   if (persisted !== null) {
     registeringUrl.value = persisted
     startPoll(persisted.toLowerCase())
   }
 
-  // 订阅挂 store 生命周期(应用级单例):注册是慢任务(下载 tarball),
-  // 用户切走页面也要能收敛 + toast(installProgress 同款模式)
+  // Subscription tied to store lifecycle (app-level singleton): registration is a slow task
+  // (downloads a tarball), and it must still converge + toast after the user navigates away
+  // (same pattern as installProgress)
   const bus = useMessageBus()
   bus.on('app-store:register-end', () => {
     if (registeringUrl.value !== null) {
       convergeRegistered()
     } else {
-      // 别的客户端注册的源:静默同步(不 toast,不是本页发起的)
+      // Source registered by another client: sync silently (no toast — not initiated by this page)
       if (loaded.value) void load()
       appstore.invalidate()
     }

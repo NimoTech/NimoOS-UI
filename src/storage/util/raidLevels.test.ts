@@ -5,19 +5,19 @@ import {
   type RaidDisk,
 } from './raidLevels'
 
-// ── 真机逐字取值 ────────────────────────────────────────────────────────────
-// 抓取命令(2026-07-30,设备本机;4 块 scsi_debug 假盘由 raidlab.sh up 造出 + 1 块系统 NVMe):
+// ── Verbatim on-device values ────────────────────────────────────────────────────────────
+// Capture command (2026-07-30, on the device itself; 4 scsi_debug fake disks created by raidlab.sh up + 1 system NVMe):
 //   curl -s http://127.0.0.1/v1/disks
-// data.avail[0](= 建 RAID 向导的候选盘,逐字):
+// data.avail[0] (= candidate disk for the RAID create wizard, verbatim):
 //   {"name":"sda","size":536870912,"model":"scsi_debug","health":"","temperature":38,
 //    "power_on_time":0,"disk_type":"SSD","need_format":true,"serial":"2000","path":"/dev/sda",
 //    "children_number":0,"children":[],"supported":false}
-// data.disks 里同一块 sda 则是 health:"true";系统盘 nvme0n1 = health:"true" temperature:35 power_on_time:1381
+// The same sda in data.disks is health:"true"; system disk nvme0n1 = health:"true" temperature:35 power_on_time:1381
 //
-// ⚠️ avail 的 health 恒为空串 "" —— 不是 'true'/'false' 也不是 undefined。后端
-// NimoOS-LocalStorage/route/v1/disk.go:152-157 把 disk **值拷贝** append 进 avail,
-// 而 disk.Health = strconv.FormatBool(...) 在那之后才执行 → avail 拿到的是零值。
-// 旧测试喂的是手编的 'false'/'true'/undefined,三个真实取值一个没覆盖(见记忆 newui-fixture-from-imagination-trap)。
+// ⚠️ health in avail is always the empty string "" —— neither 'true'/'false' nor undefined. The backend
+// NimoOS-LocalStorage/route/v1/disk.go:152-157 appends a **value copy** of disk into avail,
+// while disk.Health = strconv.FormatBool(...) runs after that → avail gets the zero value.
+// The old tests fed hand-written 'false'/'true'/undefined, covering none of the three real values (see memory newui-fixture-from-imagination-trap).
 const LIVE_AVAIL_SDA: RaidDisk = {
   path: '/dev/sda', size: 536870912, model: 'scsi_debug',
   health: '', temperature: 38, power_on_time: 0, disk_type: 'SSD',
@@ -141,8 +141,8 @@ describe('diskHealthScore / diskHealthTone(逐字对齐 Vue2 raidUtils.js:135-14
   })
 })
 
-// groupColorKey/diskSpecKey 未在 brief 给定的测试代码块中出现,但属于 Produces 接口的一部分——
-// 补测以确保分组语义 key 行为正确、且绝不泄露字面色。
+// groupColorKey/diskSpecKey did not appear in the test code block given by the brief, but they are part of the Produces interface ——
+// tests added to ensure the group semantic key behaves correctly and never leaks literal colors.
 describe('groupColorKey', () => {
   const diskA: RaidDisk = { path: '/dev/sda', size: 1000, disk_type: 'ssd' }
   const diskB: RaidDisk = { path: '/dev/sdb', size: 2000, disk_type: 'hdd' }

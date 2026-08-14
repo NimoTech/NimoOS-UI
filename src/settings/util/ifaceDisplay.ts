@@ -1,11 +1,12 @@
-// 接口行 / 弹窗标题的展示派生。全部返回 **i18n key**(不返回已翻译文本),
-// 让组件层去 t(),便于单测与语言切换。
-// 对位 Vue2 SettingsPanel.vue 的 getIfaceTypeName(:2178)/ wirelessModeLabel(:2190)/
-// formatSpeed(:2236)与 WifiForm.vue 的 signalIconHtml(:110)。
+// Display derivations for interface rows / dialog titles. Everything returns **i18n
+// keys** (not translated text) and lets the component layer call t(), which eases unit
+// testing and language switching.
+// Maps to Vue2 SettingsPanel.vue's getIfaceTypeName (:2178) / wirelessModeLabel (:2190) /
+// formatSpeed (:2236) and WifiForm.vue's signalIconHtml (:110).
 import type { NetworkWirelessConfig } from '@nimotech/nimoos-service'
 import type { MergedIface } from './netMerge'
 
-/** 逐字照 NimoOS-UI/src/components/settings/signalBars.js */
+/** Verbatim from NimoOS-UI/src/components/settings/signalBars.js */
 export const SIGNAL_BARS = ['▁', '▂', '▃', '▄', '▅'] as const
 
 type IfaceLike = Pick<MergedIface, 'name' | 'type' | 'isVirtual' | 'wireless'>
@@ -22,15 +23,16 @@ export function ifaceTypeKey(iface: IfaceLike): string {
   return 'settingsNetTypeEthernet'
 }
 
-/** Vue2 是 `${speedMbps / 1000} Gbps` 的裸除法 —— 2500 → "2.5 Gbps"、1000 → "1 Gbps"。
- *  照抄(不加 toFixed,否则 1000 会变成 "1.0 Gbps",与 Vue2 不一致)。 */
+/** Vue2 does the bare division `${speedMbps / 1000} Gbps` -- 2500 -> "2.5 Gbps",
+ *  1000 -> "1 Gbps". Copied as-is (no toFixed, otherwise 1000 would become "1.0 Gbps",
+ *  diverging from Vue2). */
 export function formatSpeed(mbps: number): string {
   if (!mbps || !Number.isFinite(mbps) || mbps <= 0) return ''
   if (mbps >= 1000) return `${mbps / 1000} Gbps`
   return `${mbps} Mbps`
 }
 
-/** 模板 L514-516:speed 为 0 时整个标签靠 v-if 消失;maxSpeed 更大时显示两段。 */
+/** Template L514-516: when speed is 0 the whole label disappears via v-if; when maxSpeed is larger, show both parts. */
 export function speedLabel(speed: number, maxSpeed: number): string {
   const cur = formatSpeed(speed)
   if (!cur) return ''

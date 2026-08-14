@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import { retryRequest } from '../../util/retryRequest'
+import { isHiddenEntry } from '../../util/hiddenEntries'
 
 export interface DiskRoot { name: string; path: string; usb: boolean }
 
@@ -15,7 +16,8 @@ export const useFoldersStore = defineStore('home-folders', () => {
     try {
       const data = await service.folder.getList(path)
       const content = (data && data.content) || []
-      cache.value[path] = content.filter((x) => x.is_dir).map((x) => ({ name: x.name, path: x.path }))
+      // 与 Files 区同一套隐藏规则:系统条目不进选择器,自然也拖不上桌面
+      cache.value[path] = content.filter((x) => x.is_dir && !isHiddenEntry(x.name)).map((x) => ({ name: x.name, path: x.path }))
     } catch (e) { console.warn('[home] folder load failed', path, e); cache.value[path] = [] }
   }
 

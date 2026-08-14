@@ -35,8 +35,9 @@ describe('AppToast', () => {
     expect(pills.map((p) => p.text())).toEqual(['first', 'second'])
   })
 
-  // Task 9 (SP7-P3 回收站视图): show() 的第三个可选参数 action 渲染成可点的行内按钮
-  // (如「撤销」),点击后立即触发回调并从堆栈里移除该 toast(不等自动消失计时器)。
+  // Task 9 (SP7-P3 recycle-bin view): show()'s optional third argument `action` renders as a
+  // clickable inline button (e.g. "Undo"); clicking fires the callback and removes that toast
+  // from the stack immediately (without waiting for the auto-dismiss timer).
   it('show 带 action 时渲染可点按钮,点击触发回调并立即移除该 toast', async () => {
     const t = useToast()
     const w = mount(AppToast)
@@ -89,10 +90,11 @@ describe('AppToast', () => {
   })
 })
 
-// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】AI 区在前台时,提示条要跟随 AI 的明暗主题
-// (否则白底白字看不见,详见 aiTheme.test.ts 的说明)。离开 AI 区必须完全恢复原样 ——
-// 用户明确要求「桌面零影响」,所以「不在 AI 区时不带任何额外 class / data-theme」这条
-// 同样要钉住。
+// [SP8-P2b acceptance round 3, user decision 2026-07-30] While the AI area is in the foreground,
+// the toast must follow the AI light/dark theme (otherwise white-on-white is invisible, see the
+// notes in aiTheme.test.ts). Leaving the AI area must restore everything exactly — the user
+// explicitly required "zero impact on the desktop", so "no extra class / data-theme outside the
+// AI area" must be pinned as well.
 describe('AppToast —— AI 区 toast 作用域', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -136,12 +138,14 @@ describe('AppToast —— AI 区 toast 作用域', () => {
   })
 })
 
-// 【SP8-P2b 验收第 4 轮,2026-07-30】用户实测:弹窗里点复制「toast 被挡住了」。
-// 取证:`.toast-stack` 原为 `z-index: 60`,而 `sk-shared.scss:102` 的 `.sk-modal-bg` 遮罩是
-// `1100`,AI 区的 SearchImageLightbox/SearchFileDrawer 是 `10000`、SearchFullResults 是 `9999`
-// (全仓 grep 实测的最高层)。提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时
-// 用户都收不到反馈 —— 这与配色无关,是纯层级问题,jsdom 量不出计算层级,故用源码守卫钉住。
-// 提示条 `pointer-events: none`,置顶不会挡住任何点击。
+// [SP8-P2b acceptance round 4, 2026-07-30] User observed on device: clicking copy inside a dialog,
+// "the toast is hidden". Evidence: `.toast-stack` was `z-index: 60`, while the `.sk-modal-bg`
+// scrim at `sk-shared.scss:102` is `1100`, and the AI area's SearchImageLightbox/SearchFileDrawer
+// are `10000`, SearchFullResults `9999` (the highest layers found by a repo-wide grep). The toast
+// is the **topmost feedback** and must cover all of these, otherwise the user gets no feedback
+// while any dialog is open — this is unrelated to colors, a pure stacking issue; jsdom cannot
+// measure computed stacking, so we pin it with a source-text guard.
+// The toast has `pointer-events: none`, so being on top never blocks clicks.
 describe('AppToast —— 层级必须高于全仓最高的浮层', () => {
   it('.toast-stack 的 z-index 高于 10000(弹窗遮罩 1100 / 灯箱 10000)', () => {
     const src = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), './AppToast.vue'), 'utf8')

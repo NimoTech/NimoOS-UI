@@ -1,12 +1,13 @@
 <!--
-  SP8-P2a Task 6 —— 新建原语,替代 Vue2 `$buefy.dialog.prompt`(New-UI 没有
-  带输入框的确认对话框)。结构照抄 `src/components/ui/AlertDialog.vue`,多一个
-  绑本地 ref 的 <input>。
+  SP8-P2a Task 6 — new primitive replacing Vue2 `$buefy.dialog.prompt` (New-UI has no
+  confirm dialog with an input field). Structure copied from `src/components/ui/AlertDialog.vue`,
+  plus one <input> bound to a local ref.
 
-  【D2 同类问题】reka-ui 的 AlertDialogRoot 本身不销毁重建(常驻),所以每次
-  `open` 由 false → true 都要把本地输入值重置为 initialValue —— 不重置的话,
-  上一次弹窗输入的内容会原样带进这一次(同 settingsStore 单例导致的瞬态状态
-  残留问题,见 store 侧的 resetTransientUi 处理)。
+  [Same class of issue as D2] reka-ui's AlertDialogRoot is never destroyed and recreated
+  (it stays mounted), so every `open` transition from false → true must reset the local input
+  value to initialValue — otherwise the previous dialog's input carries over verbatim into this
+  one (same transient-state leftover problem as the settingsStore singleton; see the store-side
+  resetTransientUi handling).
 -->
 <script setup lang="ts">
 import { ref, watch } from 'vue'
@@ -63,10 +64,10 @@ function onCancel() {
 </template>
 
 <style scoped>
-/* 复用 AlertDialog.vue 的 .ui-dialog-* 类(scoped 样式不能跨组件共享,故复制)。
-   AlertDialog.vue 里这些规则写的是「token + 裸色兜底」(如
-   var(--popup-bg, rgba(20,23,35,0.95))) —— 本文件是新写的 .vue,受 color-guard
-   全额约束,复制时去掉兜底、只留 token。 */
+/* Reuses AlertDialog.vue's .ui-dialog-* classes (scoped styles can't be shared across
+   components, hence the copy). In AlertDialog.vue these rules are written as "token + raw-color
+   fallback" (e.g. var(--popup-bg, rgba(20,23,35,0.95))) — this file is a newly written .vue,
+   fully covered by color-guard, so the copy drops the fallbacks and keeps only the tokens. */
 .ui-dialog-overlay { position: fixed; inset: 0; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur); z-index: 1000; }
 .ui-dialog-content {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1001;

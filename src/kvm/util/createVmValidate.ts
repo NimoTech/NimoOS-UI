@@ -14,15 +14,16 @@ export interface CreateVmForm {
   firmware: string
 }
 
-/** 创建 VM 表单校验。逐条对 Vue2 KVMFullPage.vue:createVM(:1451-1472),校验顺序
- * 照抄:名字 → OS → 磁盘下限 → 内存下限 → 磁盘上限 → 内存上限 → vCPU 上限。
- * 返回 ''=通过(实为 null)· 否则 { key, arg },key 是 i18n 键,arg 拼在文案后面
- * (照 Vue2 `${$t('Disk size must be at least')} ${os.minDisk} GB` 的拼法)。
+/** Create-VM form validation. Mirrors Vue2 KVMFullPage.vue:createVM (:1451-1472) rule by rule;
+ * validation order copied verbatim: name → OS → disk min → memory min → disk max → memory max → vCPU max.
+ * Returns null on pass; otherwise { key, arg }, where key is an i18n key and arg is appended
+ * after the message (matching Vue2's `${$t('Disk size must be at least')} ${os.minDisk} GB` concatenation).
  *
- * 偏离登记(改正确,非照抄 bug):磁盘下限 Vue2 只判 `os.minDisk`(:1458)。真机
- * alpine-319.minDisk=2,但后端 NimoOS-KVM/service/vm_service.go:286-310 硬性要求
- * disk>=8——Vue2 会放行一个后端必拒的值(用户点创建后端 400,体验是"过了前端校验
- * 还是失败")。这里改成 Math.max(8, os.minDisk),两者取较大值。 */
+ * Deviation record (deliberate fix, not a copied bug): for the disk minimum, Vue2 only checks
+ * `os.minDisk` (:1458). On a real device alpine-319.minDisk=2, but the backend
+ * NimoOS-KVM/service/vm_service.go:286-310 hard-requires disk>=8 — Vue2 would let through a value
+ * the backend is guaranteed to reject (user clicks Create, backend returns 400; the experience is
+ * "passed frontend validation but still failed"). Changed here to Math.max(8, os.minDisk). */
 export function validateCreateVm(
   form: CreateVmForm,
   os: KvmISO | null,
@@ -35,7 +36,7 @@ export function validateCreateVm(
     return { key: 'kvmErrNoOs', arg: '' }
   }
 
-  // 改正确:见函数顶部注释。Vue2 是 `if (os.minDisk && vm.disk < os.minDisk)`。
+  // Deliberate fix: see the comment at the top of this function. Vue2 was `if (os.minDisk && vm.disk < os.minDisk)`.
   const minDisk = Math.max(8, os.minDisk)
   if (form.disk < minDisk) {
     return { key: 'kvmErrDiskMin', arg: `${minDisk} GB` }
@@ -43,7 +44,7 @@ export function validateCreateVm(
   if (os.minMemory && form.memory < os.minMemory) {
     return { key: 'kvmErrMemoryMin', arg: `${os.minMemory} MB` }
   }
-  // host 值为 0 表示 GET /settings 还没回来(Task 2 初值 0/[])——真值判断,不拿 0 当上限拒人。
+  // A host value of 0 means GET /settings has not returned yet (Task 2 initial values 0/[]) — truthiness check; never treat 0 as an upper bound that rejects users.
   if (host.availableDiskGB && form.disk > host.availableDiskGB) {
     return { key: 'kvmErrDiskMax', arg: `${host.availableDiskGB} GB` }
   }

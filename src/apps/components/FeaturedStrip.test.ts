@@ -20,7 +20,7 @@ describe('FeaturedStrip', () => {
     const cards = w.findAll('.featured-card')
     expect(cards).toHaveLength(2)
     expect(cards[0].get('.featured-shot img').attributes('src')).toBe('https://cdn/t.png')
-    expect(cards[1].find('.featured-shot img').exists()).toBe(false) // 无缩略图落占位块
+    expect(cards[1].find('.featured-shot img').exists()).toBe(false) // no thumbnail falls back to the placeholder block
     expect(cards[1].find('.featured-shot-fallback').exists()).toBe(true)
     expect(cards[0].text()).toContain('已安装')
     await cards[1].trigger('click')
@@ -32,7 +32,7 @@ describe('FeaturedStrip', () => {
       global: { plugins: [i18n] },
     })
     const cards = w.findAll('.featured-card')
-    expect(cards[0].find('.featured-install').exists()).toBe(false) // 已装
+    expect(cards[0].find('.featured-install').exists()).toBe(false) // installed
     const btn = cards[1].get('.featured-install')
     await btn.trigger('click')
     expect(w.emitted('install')![0]).toEqual(['nextcloud'])

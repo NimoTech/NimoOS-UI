@@ -15,6 +15,7 @@ import RenameDialog from '../files/components/RenameDialog.vue'
 import ShareLinkDialog from '../files/shares/ShareLinkDialog.vue'
 import AlertDialog from '../components/ui/AlertDialog.vue'
 import UploadPanel from '../files/components/UploadPanel.vue'
+import UploadPreparingOverlay from '../files/components/UploadPreparingOverlay.vue'
 import { useFileOps } from '../files/composables/useFileOps'
 import { useFileConflictsStore } from '../files/stores/fileConflicts'
 import { useViewer } from '../files/viewers/useViewer'
@@ -30,8 +31,13 @@ import { useSharesStore } from '../files/stores/shares'
 import { shareName } from '../files/util/sambaPath'
 import { shareableFolders } from '../files/util/shareGate'
 import { splitProtectedUploads, operableEntries } from '../files/util/protect'
+import { nameTooLong, pathTooLong } from '../files/util/pathLimits'
+import { joinPath } from '../files/util/pathOps'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
+import { supportsDirectoryPicker, showDirectoryPicker, readPickedDirectory } from '../files/upload/dirPicker'
+import { uploadPlaceholders, mergeUploadPlaceholders } from '../files/upload/uploadPlaceholders'
+import { createEmptyDirs } from '../files/upload/emptyDirs'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
 import { toSelectedFiles } from '../files/upload/selectedFiles'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -77,13 +83,18 @@ const renameDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false,
 const deleteDlg = ref<{ open: boolean; entries: FileEntry[]; skipped: number }>({ open: false, entries: [], skipped: 0 })
 const downloadDlg = ref<{ open: boolean; entry: FileEntry | null }>({ open: false, entry: null })
 const batchModalId = ref('')
+// The badged entry's absolute path — abandon-under needs it to clear every
+// interrupted batch stacked on that entry, not just the id the badge carried.
+const batchModalPath = ref('')
 const shareDlg = ref<{ open: boolean; name: string }>({ open: false, name: '' })
 
 // 右键目标:行/卡 emit 时设置;空白区(容器上 target 非行/卡)重置为 null
 const ctxEntry = ref<FileEntry | null>(null)
 function onItemContextmenu(payload: { entry: FileEntry; event: MouseEvent }) {
-  // 右键未选中的项 → 只针对它;右键已选中的项 → 保留整个选区(菜单按 selectedCount 判断单/多)
-  if (!files.isSelected(payload.entry.path)) files.selectOnly(payload.entry.path)
+  // 2026-08-13 契约变更(机主要求):右键**不碰选区**。此前这里会 selectOnly() 把被点项收进
+  // 选区,副作用是单纯右键就点亮行选中态、并把顶部 SelectionToolbar 拉出来。现在:
+  // 右键未选中的项 → 选区原样不动,菜单动作经 contextTargets 只作用于该项;
+  // 右键已选中的项(在多选选区内)→ 菜单作用于整个选区(行为不变)。
   ctxEntry.value = payload.entry
 }
 // 容器 contextmenu 会话 onItemContextmenu 冒泡触发(同一原生事件),但只有当右键落在
@@ -114,8 +125,9 @@ const selectionHasFolder = computed(() => selectedEntries.value.some((e) => e.is
 // 当前选中项(快照态下三个恢复入口共用:横幅按钮、选中工具条、右键单条走各自入口)
 const snapshotSelection = computed(() => selectedEntries.value)
 
-// Share the effective target set (ctxTargets(entry) — the clicked entry is always part of
-// it by the time this runs, see contextTargets/onItemContextmenu). The link dialog pops
+// Share the effective target set (ctxTargets(entry) — for a right-clicked entry outside the
+// selection this is just [entry]; selection is only honored when the entry is part of a
+// multi-selection, see contextTargets). The link dialog pops
 // whenever exactly *one* folder ends up actually shared after filtering, not based on
 // whether the call came from a single right-click or a toolbar batch: a batch of 3 folders
 // where 2 are already shared leaves 1 real target, and showing that folder's link is the
@@ -211,7 +223,54 @@ const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(n
 // on folderInput (bypassing this wrapper) leaves it set, so it can only ever be consumed
 // by the very picker it opened.
 function triggerFileSelect() { refillPending.value = null; fileInput.value?.click() }
-function triggerFolderSelect() { refillPending.value = null; folderInput.value?.click() }
+
+// Folder upload has two possible entry points, and which one we get is decided by the
+// browser, not by us:
+//
+//  * `showDirectoryPicker()` (File System Access API) yields a real directory handle —
+//    name included — so an EMPTY folder, and empty subfolders of a non-empty pick, can
+//    be created. It only exists in a **secure context**; on this product's usual
+//    deployment (HTTP + LAN IP) `window.showDirectoryPicker` is `undefined`.
+//  * `<input webkitdirectory>` works everywhere but is blind to empty directories:
+//    measured in Chromium, picking an empty folder leaves `files.length === 0`,
+//    `value === ''` and `webkitEntries` empty — the folder's name is nowhere on the
+//    event, so there is nothing to create. See dirPicker.ts for the full measurement.
+//
+// The fallback stays silent on an empty pick, deliberately: an empty folder and a
+// dismissed dialog arrive as the very same `cancel` event with the same empty payload,
+// so any message here would also fire every time the user simply backs out. The button
+// carries a `title` hint instead (see the template) — do not re-add a `cancel` handler.
+//
+// Prefer the first, fall back to the second.
+async function triggerFolderSelect() {
+  refillPending.value = null
+  if (!supportsDirectoryPicker()) { folderInput.value?.click(); return }
+  let handle
+  try {
+    handle = await showDirectoryPicker()
+  } catch (e) {
+    // Dismissing the picker is not an error worth reporting.
+    if ((e as DOMException)?.name === 'AbortError') return
+    // Present but refused (e.g. blocked inside an iframe): fall back to the input.
+    // Nothing has been read yet at this point, so this cannot double-upload.
+    console.error('[files][upload] showDirectoryPicker unavailable, falling back to input', e)
+    folderInput.value?.click()
+    return
+  }
+  // Walking the tree is itself the slow part on a large folder — bracket it the way
+  // onDrop does, or the user sees nothing happen while it runs.
+  preparingCount.value++
+  try {
+    const picked = await readPickedDirectory(handle)
+    if (!picked.files.length && !picked.emptyDirs.length) return
+    await commitSelectedFiles(picked.files, picked.emptyDirs)
+  } catch (e) {
+    console.error('[files][upload] reading the picked directory failed', e)
+    toast.show(t('filesOpFailed'))
+  } finally {
+    preparingCount.value--
+  }
+}
 
 function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -234,7 +293,35 @@ defineExpose({ handleSelectedFiles, onRefill })
 // Shared enqueue path for both the file/folder picker and drag-drop: resolve
 // same-name conflicts, enqueue what survives, and toast anything skipped,
 // cancelled, or rejected for being in a protected dir.
-async function commitSelectedFiles(entries: { file: File; relativePath: string }[]) {
+//
+// "Preparing" spinner: a counter, not a boolean, because onDrop wraps the
+// folder-tree walk in its own begin/end and then calls this, which brackets
+// again — nested, so a plain flag would clear on the inner exit while the outer
+// walk is still notionally preparing. The overlay is hidden whenever the
+// conflict dialog is open (see `preparing` computed) so the two never stack.
+const preparingCount = ref(0)
+const preparing = computed(() => preparingCount.value > 0 && !conflicts.dialog.open)
+
+// 落地空目录:createEmptyDirs 建目录(容忍已存在),按结果 toast,只有目标目录就是
+// 当前所在目录时才刷新列表(在别处上传的批次不该打断用户正在看的页面)。
+async function commitEmptyDirs(dirs: { relativePath: string }[], targetPath: string) {
+  if (!dirs.length) return
+  const { created, failed } = await createEmptyDirs(dirs.map((d) => d.relativePath), targetPath)
+  if (created) toast.show(t('filesEmptyDirsCreated', { count: created }))
+  if (failed.length) toast.show(t('filesOpFailed'))
+  if (created && targetPath === files.currentPath) await files.load(files.currentPath)
+}
+
+async function commitSelectedFiles(entries: { file: File; relativePath: string }[], emptyDirs: string[] = []) {
+  preparingCount.value++
+  try {
+    await runCommitSelectedFiles(entries, emptyDirs)
+  } finally {
+    preparingCount.value--
+  }
+}
+
+async function runCommitSelectedFiles(entries: { file: File; relativePath: string }[], emptyDirs: string[] = []) {
   // Code review fix (ordering leak): consume any pending refill filter immediately,
   // before any guard below can return early. Reading it into a local and nulling the
   // ref in the same breath makes it strictly single-use no matter which branch exits
@@ -245,14 +332,18 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   refillPending.value = null
 
   // 只读快照兜底拦截(第二道防线):拖拽投放与文件选择器都汇到这里,UI 上虽已隐藏
-  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。
+  // 上传入口(第一道),但拖拽落区覆盖全屏、绕得过隐藏的 chip。这道守卫对空目录同样
+  // 适用 —— 空目录批次也走 commitEmptyDirs 写盘,不能绕过只读视图的拦截。
   if (browse.isSnapshotView) { toast.show(t('snapBrowseWriteBlocked')); return }
 
   // Refill branch: the target directory is the batch's own target_path (not the
   // current directory — the user may have navigated elsewhere before clicking),
-  // and only entries named in the missing list are let through.
+  // and only entries named in the missing list are let through. Refill never
+  // carries emptyDirs (only onDrop passes them, and onDrop always clears
+  // refillPending first), but guard it anyway so this early return can never
+  // silently swallow a future caller's empty-dir batch.
   const wanted = pending ? entries.filter((e) => pending.missing.has(e.relativePath)) : entries
-  if (pending && !wanted.length) { toast.show(t('filesBatchRefillNoMatch')); return }
+  if (pending && !wanted.length && !emptyDirs.length) { toast.show(t('filesBatchRefillNoMatch')); return }
 
   const targetPath = pending ? pending.targetPath : files.currentPath // REAL path — the protected-dir check expands against this.
 
@@ -267,6 +358,19 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // protected-dir check, which has the exact same split('/')[0] hazard); reuse
   // it here rather than duplicating the regex.
   const normalized = toSelectedFiles(wanted, targetPath)
+  // 超长路径前置过滤:后端 tus ingest 对 ENAMETOOLONG 是异步静默失败,前端会先报
+  // "上传成功"(bug.txt #2)。relativePath 逐段查 NAME_MAX,拼接目标全路径查 PATH_MAX。
+  // 空目录同样要过这道检查(评审发现:此前只过滤了文件,拖拽一个深路径的空文件夹
+  // 会绕过前置提示,直接撞上后端那句没有信息量的 "Fail")——relativePath 已由
+  // dropEntries 去掉了前导斜杠,与文件条目走的是同一套判定,故复用同一个 fitsLimits。
+  const fitsLimits = (rel: string) =>
+    !rel.split('/').some(nameTooLong) && !pathTooLong(joinPath(targetPath, rel))
+  const withinLimits = normalized.filter((e) => fitsLimits(e.relativePath))
+  const withinLimitsDirs = emptyDirs.filter(fitsLimits)
+  // 文件与空目录合并成一条 toast,而不是分别弹两条——用户看到的是同一批拖拽操作,
+  // 拆开报会显得像出了两个问题。
+  const tooLong = (normalized.length - withinLimits.length) + (emptyDirs.length - withinLimitsDirs.length)
+  if (tooLong > 0) toast.show(t('filesUploadPathTooLong', { count: tooLong }))
   // Refuse protected-directory entries BEFORE the conflict prompt, not after.
   // addFilesToQueue applies the same rule at the end of this function, so these
   // entries were never going to be uploaded either way — but reaching that point
@@ -274,30 +378,41 @@ async function commitSelectedFiles(entries: { file: File; relativePath: string }
   // that was already destined for the bin (SP12 Plan B outstanding item 7).
   // The store keeps its own copy of the rule as a last line of defence; the
   // second loop below still reports anything it catches.
-  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(normalized)
+  const { accepted: allowed, rejected: protectedPaths } = splitProtectedUploads(withinLimits)
   for (const name of protectedPaths) toast.show(t('filesUploadProtected', { name }))
-  if (!allowed.length) return
-  // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
-  // the interrupted batch created it — so its collision is self-inflicted and
-  // merging back into it is the only correct answer. See ResolveOptions
-  // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
-  const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
-  const dropped = resolved.skippedCount + resolved.cancelledCount
 
-  if (!resolved.accepted.length) {
+  // Empty dirs go through the exact same protected-directory gate as files
+  // (bug.txt #4): a dropped folder named "AppData" must be refused the same way
+  // whether it carries files or is empty.
+  const { accepted: dirsAllowed, rejected: dirsProtected } =
+    splitProtectedUploads(withinLimitsDirs.map((p) => ({ relativePath: p })))
+  for (const name of dirsProtected) toast.show(t('filesUploadProtected', { name }))
+
+  // A batch made of ONLY empty dirs (no files survived the protected filter, or
+  // none were dropped in the first place) must still reach commitEmptyDirs below
+  // — it must NOT bail out here just because there is nothing left to upload.
+  if (allowed.length) {
+    // On the refill branch the folder being refilled is on disk BY CONSTRUCTION —
+    // the interrupted batch created it — so its collision is self-inflicted and
+    // merging back into it is the only correct answer. See ResolveOptions
+    // .assumeMergeForFolders in useFileConflicts.ts for the full reasoning.
+    const resolved = await conflicts.resolveEntries(allowed, targetPath, { assumeMergeForFolders: !!pending })
+    const dropped = resolved.skippedCount + resolved.cancelledCount
+
+    if (resolved.accepted.length) {
+      const sel = resolved.accepted.map((a) => ({
+        file: a.file,
+        targetPath,
+        relativePath: a.relativePath,
+        conflictPolicy: a.conflictPolicy,
+      }))
+      const { rejected } = await uploads.addFilesToQueue(sel)
+      for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
+    }
     if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
-    return
   }
 
-  const sel = resolved.accepted.map((a) => ({
-    file: a.file,
-    targetPath,
-    relativePath: a.relativePath,
-    conflictPolicy: a.conflictPolicy,
-  }))
-  const { rejected } = await uploads.addFilesToQueue(sel)
-  for (const name of rejected) toast.show(t('filesUploadProtected', { name }))
-  if (dropped > 0) toast.show(t('filesUploadSkipped', { count: dropped }))
+  await commitEmptyDirs(dirsAllowed, targetPath)
 }
 
 async function handleSelectedFiles(list: FileList | ArrayLike<File>) {
@@ -328,9 +443,20 @@ async function onDrop(e: DragEvent) {
   // (left behind by a cancelled "re-upload missing files" dialog) must not silently
   // filter it — see the note on triggerFileSelect/triggerFolderSelect above.
   refillPending.value = null
-  const dropped = await readDroppedEntries(e.dataTransfer)
-  if (!dropped.length) return
-  await commitSelectedFiles(dropped.map((d) => ({ file: d.file, relativePath: d.relativePath })))
+  // Bracket the folder-tree walk too: on a large folder, readDroppedEntries
+  // (recursive readEntries + file()) is itself the slow part the user perceives
+  // as "nothing happening". commitSelectedFiles brackets again (nested counter).
+  preparingCount.value++
+  try {
+    const dropped = await readDroppedEntries(e.dataTransfer)
+    if (!dropped.files.length && !dropped.emptyDirs.length) return
+    await commitSelectedFiles(
+      dropped.files.map((d) => ({ file: d.file, relativePath: d.relativePath })),
+      dropped.emptyDirs,
+    )
+  } finally {
+    preparingCount.value--
+  }
 }
 
 // ── Ctrl+V 粘贴上传:截图/复制的文件传到当前目录,复用 commitSelectedFiles ──
@@ -458,7 +584,20 @@ function applyHighlight() {
     setTimeout(() => el.classList.remove('file-flash'), 2500)
   })
 }
+// The listing the views render = real sorted entries + optimistic placeholders
+// for uploads still in flight into THIS directory. A folder upload's files only
+// hit disk once the first child finishes, so without this the folder is
+// invisible for a while and the user cannot tell the upload started. Real
+// entries take over by name on the next refresh (mergeUploadPlaceholders drops
+// the duplicate). sortedEntries stays the source of truth for open/marquee/
+// highlight — placeholders are display-only.
+const displayEntries = computed(() =>
+  mergeUploadPlaceholders(files.sortedEntries, uploadPlaceholders(uploads.queue, files.currentPath)),
+)
+
 function openEntry(entry: FileEntry) {
+  // A placeholder is not on disk yet — nothing to open or preview.
+  if (entry.uploading) return
   const r = resolveOpen(entry, files.sortedEntries)
   if (r.kind === 'dir') { goVirtual(toVirtualPath(entry.path, files.displayNames)); return }
   if (r.kind === 'view') { viewer.openItem(entry, files.sortedEntries); return }
@@ -639,7 +778,10 @@ onMounted(() => { browse.ensureVolumes() })
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-              <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
+              <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
+                   silently drops empty folders and cannot report it (see triggerFolderSelect),
+                   so the button says up front where empty folders have to go. -->
+              <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
               <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
@@ -689,16 +831,16 @@ onMounted(() => { browse.ensureVolumes() })
             <FileGridView
               v-if="files.viewMode === 'grid'"
               ref="gridRef"
-              :entries="files.sortedEntries"
+              :entries="displayEntries"
               :selected-paths="files.selected"
               @open="openEntry"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
-              @open-batch="(id: string) => (batchModalId = id)"
+              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
             />
             <FileListView
               v-else
-              :entries="files.sortedEntries"
+              :entries="displayEntries"
               :sort="files.sort"
               :order="files.order"
               :selected-paths="files.selected"
@@ -706,7 +848,7 @@ onMounted(() => { browse.ensureVolumes() })
               @reorder="files.setSort"
               @select="onSelect"
               @contextmenu="onItemContextmenu"
-              @open-batch="(id: string) => (batchModalId = id)"
+              @open-batch="(id: string, p: string) => { batchModalId = id; batchModalPath = p }"
             />
             <div v-if="marquee" class="marquee-box" :style="marqueeStyle"></div>
           </div>
@@ -736,6 +878,7 @@ onMounted(() => { browse.ensureVolumes() })
       @confirm="confirmDownload"
     />
     <UploadPanel />
+    <UploadPreparingOverlay :open="preparing" />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
     <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
@@ -761,6 +904,7 @@ onMounted(() => { browse.ensureVolumes() })
     <UploadBatchModal
       v-if="batchModalId"
       :batch-id="batchModalId"
+      :entry-path="batchModalPath"
       @close="batchModalId = ''"
       @abandoned="files.load(files.currentPath)"
       @refill="onRefill"

@@ -15,9 +15,11 @@ const mountIt = (props = {}) =>
   mount(TimeMachineDeck, { props: { items: ITEMS, selectedIndex: 3, ...props }, global: { plugins: [i18n] } })
 
 describe('TimeMachineDeck', () => {
-  // 评审修复(Important):窗口大小从 DECK_WINDOW 常量取值(不再各写各的 5/2 字面量)——
-  // 断言也从常量算,这样 TimeMachineOverlay 拉预览的窗口(见同名用例)与这里渲染的窗口
-  // 永远算的是同一个数,窗口大小改了两边会一起变,不会出现"最前的卡拿不到缩略图"。
+  // Review fix (Important): window size comes from the DECK_WINDOW constant (no more separate
+  // 5/2 literals) — assertions compute from the constant too, so the preview-fetch window in
+  // TimeMachineOverlay (see the same-named case) and the render window here always compute the
+  // same number; changing the window size updates both sides together, so "the front card
+  // can't get thumbnails" cannot happen.
   it('只渲染可见窗口的卡片(depth 张后退 + past 张飞走),不是全部 8 张', () => {
     expect(mountIt().findAll('.tm-card')).toHaveLength(DECK_WINDOW.depth + DECK_WINDOW.past)
   })
@@ -25,10 +27,11 @@ describe('TimeMachineDeck', () => {
     const past = mountIt().findAll('.tm-card').filter((c) => c.classes().includes('is-past'))
     expect(past).toHaveLength(DECK_WINDOW.past)
   })
-  // 上面两条用共享的 8 项 ITEMS + selectedIndex:3,depth 侧会被数组边界(长度 8)顶住而不是
-  // 被 DECK_WINDOW.depth 本身顶住——这条换一批够长(15 项)、选中项在中间(不贴任何一侧
-  // 边界)的数据,front+behind 的张数才精确等于 DECK_WINDOW.depth,不会跟 8-3=5 这种
-  // 边界巧合混在一起(单独钉住 depth 这一侧)。
+  // The two cases above use the shared 8-item ITEMS + selectedIndex:3, where the depth side is
+  // capped by the array boundary (length 8) rather than by DECK_WINDOW.depth itself — this case
+  // switches to data long enough (15 items) with the selection in the middle (not touching
+  // either boundary), so the front+behind count exactly equals DECK_WINDOW.depth and isn't
+  // conflated with boundary coincidences like 8-3=5 (pinning the depth side on its own).
   it('front+behind 卡片数量精确等于 DECK_WINDOW.depth(数据足够长,不贴数组边界)', () => {
     const longItems = Array.from({ length: 15 }, (_, i) => mkItem(i))
     const w = mount(TimeMachineDeck, { props: { items: longItems, selectedIndex: 7 }, global: { plugins: [i18n] } })
@@ -64,12 +67,14 @@ describe('TimeMachineDeck', () => {
     expect(mountIt({ items: [] }).findAll('.tm-card')).toHaveLength(0)
   })
   it('key 用快照 name(选中变化时复用同一批 DOM,才有平滑过渡)', async () => {
-    // 注:原稿断言"数组第 0 个元素在更新后还在"是空壳 —— 数组第 0 个位置恒是 is-front
-    // 那张卡,即便 key 错误地绑到 depth/下标而非 name,depth-0 这个槽位本身也总存在,
-    // 断言会假通过。改成跟着具体某个快照(snap-4)走:它在 selectedIndex=3 时是 behind
-    // 卡,变成 selectedIndex=4 后应该晋升为 is-front —— 且必须是**同一个** DOM 节点,
-    // 而不是"恰好也在 depth-0 位置"的另一个节点。若 key 换成 depth,这条会真的失败
-    // (因为 depth-0 槽位会被复用给别的 item,而不是 snap-4 这个节点被搬到新位置)。
+    // Note: the original draft's assertion "array element 0 still exists after the update" was
+    // hollow — position 0 is always the is-front card, so even if the key were wrongly bound to
+    // depth/index instead of name, the depth-0 slot itself always exists and the assertion
+    // would pass falsely. Changed to follow a specific snapshot (snap-4): at selectedIndex=3 it
+    // is a behind card and after selectedIndex=4 it should be promoted to is-front — and it
+    // must be the **same** DOM node, not another node that "happens to be at depth-0". If the
+    // key were switched to depth, this would genuinely fail (the depth-0 slot would be reused
+    // for a different item instead of the snap-4 node being moved to its new position).
     const w = mountIt()
     const behindFour = w.findAll('.tm-card').find((c) => c.text().includes('04:00'))!
     const behindFourEl = behindFour.element

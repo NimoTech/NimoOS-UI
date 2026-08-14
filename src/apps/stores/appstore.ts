@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { service, type AppCategory, type StoreAppInfo } from '@nimotech/nimoos-service'
 
-/** 前端兜底的「全部」哨兵——不是后端分类;=ALL 时对应参数不发(Vue2 同语义) */
+/** Frontend fallback "All" sentinel -- not a backend category; when =ALL the parameter is omitted (same semantics as Vue2) */
 export const ALL = 'All'
 
 export const useAppstoreStore = defineStore('appstore', () => {
@@ -14,9 +14,10 @@ export const useAppstoreStore = defineStore('appstore', () => {
   const error = ref(false)
   const catalogLoaded = ref(false)
   let lastQuery: { category: string; authorType: string } = { category: ALL, authorType: ALL }
-  // 请求序号:多次 loadCatalog 并发(如快速切换分类/作者)时,只有"最新发出的那次"的响应
-  // 才允许写入 list/installed/catalogLoaded/error,以及在 finally 里翻转 loading——
-  // 否则一个更早发出但更晚返回的响应会用陈旧数据覆盖后一次已经生效的新状态。
+  // Request sequence number: when multiple loadCatalog calls run concurrently (e.g. rapidly
+  // switching category/author), only the most recently issued request may write
+  // list/installed/catalogLoaded/error and flip loading in its finally block --
+  // otherwise an earlier request that returns later would overwrite fresh state with stale data.
   let seq = 0
 
   const detail = ref<StoreAppInfo | null>(null)
@@ -32,9 +33,10 @@ export const useAppstoreStore = defineStore('appstore', () => {
     if (category !== ALL) params.category = category
     if (authorType !== ALL) params.authorType = authorType
 
-    // categories() 与 listApps() 解耦结算:分类拉取失败只应降级 chip 栏(留空/沿用缓存),
-    // 不该连累已经成功的 listApps 结果被打成全局错误态——因此把 categories() 的失败
-    // 在这里自行吞掉,不让它使下面的 Promise.all 整体 reject。
+    // categories() and listApps() settle independently: a failed category fetch should only
+    // degrade the chip bar (leave empty / keep cache), not mark an otherwise successful
+    // listApps result as a global error state -- so swallow categories() failures here
+    // instead of letting them reject the whole Promise.all below.
     const categoriesPromise = categories.value.length
       ? Promise.resolve(null)
       : service.appstore.categories().catch((e) => {
@@ -44,7 +46,7 @@ export const useAppstoreStore = defineStore('appstore', () => {
 
     try {
       const [cats, catalog] = await Promise.all([categoriesPromise, service.appstore.listApps(params)])
-      if (mySeq !== seq) return // 更新的请求已经在跑/已经写入,这次陈旧响应静默丢弃
+      if (mySeq !== seq) return // A newer request is running / has written; silently drop this stale response
       if (cats) categories.value = cats.filter((c) => (c.count ?? 0) > 0)
       list.value = catalog.list
       installed.value = catalog.installed
@@ -63,7 +65,7 @@ export const useAppstoreStore = defineStore('appstore', () => {
     return loadCatalog(lastQuery.category, lastQuery.authorType)
   }
 
-  /** Featured 失败静默置空:推荐带缺失不该挡住浏览主链路(spec §7.5 同容忍度) */
+  /** On featured failure, silently clear: a missing recommendation strip must not block the main browsing flow (same tolerance as spec §7.5) */
   async function loadFeatured() {
     try {
       const catalog = await service.appstore.listApps({ recommend: true })
@@ -90,10 +92,11 @@ export const useAppstoreStore = defineStore('appstore', () => {
     }
   }
 
-  /** 商店源增删后目录已变:seq++ 孤儿化在途 loadCatalog(防陈旧响应复活缓存),
-   *  清 categories 缓存(loadCatalog 有 length 守卫,不清不会重拉)并复位 catalogLoaded;
-   *  loading 一并复位——被孤儿化的请求的 finally 因 mySeq !== seq 不会再翻转它。
-   *  featured 每次 mounted 都重拉,无缓存守卫,不用清。 */
+  /** After a store source is added/removed the catalog has changed: seq++ orphans any in-flight
+   *  loadCatalog (prevents a stale response reviving the cache), clears the categories cache
+   *  (loadCatalog has a length guard, so without clearing it would never refetch) and resets catalogLoaded;
+   *  loading is reset too -- the orphaned request's finally won't flip it since mySeq !== seq.
+   *  featured is refetched on every mount with no cache guard, so no clearing needed. */
   function invalidate() {
     seq++
     loading.value = false

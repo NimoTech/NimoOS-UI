@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// 电源状态浮层,对位 Vue2 SettingsPanel.vue L714-790 的 6 个态。
-// 拆成纯展示组件的理由:相位由父组件的相位机驱动,这里只做「相位 → 文案 + 可否关闭」的映射,
-// 于是 6 个态能直接挂载断言,不必在 PowerFlow 上开只为测试存在的接口。
+// Power status overlay, counterpart of the 6 states in Vue2 SettingsPanel.vue L714-790.
+// Why a pure presentational component: the phase is driven by the parent's phase machine;
+// this only maps "phase → copy + closable", so all 6 states can be mounted and asserted
+// directly without adding test-only hooks to PowerFlow.
 //
-// 自绘而不用 ui/Dialog.vue:等待类相位不允许 Esc / 点外部关闭,
-// 而 reka 的 DialogRoot 默认允许两者,逐个关掉不如自绘清楚。
+// Hand-rolled instead of ui/Dialog.vue: waiting phases must not allow Esc / outside-click
+// close, and reka's DialogRoot allows both by default — disabling each is less clear than drawing it ourselves.
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PowerPhase } from '../util/powerFlow'
@@ -15,8 +16,8 @@ const emit = defineEmits<{ close: [] }>()
 
 const { t } = useI18n()
 
-// 含 idle 一起给键(值为空串)。模板里的 v-if="phase !== 'idle'" **不会**为
-// TITLE[phase] 这种索引访问收窄类型,写成 Exclude<PowerPhase,'idle'> 会让 vue-tsc 报错。
+// Include idle as a key (empty-string value). The template's v-if="phase !== 'idle'" does
+// NOT narrow the type for indexed access like TITLE[phase]; typing it as Exclude<PowerPhase,'idle'> makes vue-tsc error.
 const TITLE: Record<PowerPhase, string> = {
   idle: '',
   shutting: 'settingsPowerShutting', offline: 'settingsPowerOffline',
@@ -32,7 +33,7 @@ const MSG: Record<PowerPhase, string> = {
   fallback: 'settingsPowerFallbackMsg',
 }
 
-// 等待类相位不给关闭按钮(对位 Vue2 :can-cancel="false" —— 只有 offline / fallback 有 delete 按钮)
+// Waiting phases get no close button (counterpart of Vue2 :can-cancel="false" — only offline / fallback have a delete button)
 const CLOSABLE: readonly PowerPhase[] = ['offline', 'fallback']
 const closable = computed(() => CLOSABLE.includes(props.phase))
 

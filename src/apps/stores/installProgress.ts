@@ -15,14 +15,15 @@ export interface InstallTask {
   message: string
 }
 
-/** 事件静默 60s 后主动探测 compose.get(id) 收敛(spec §5:pending 不许永久卡死) */
+/** After 60s of event silence, actively probe compose.get(id) to converge (spec §5: pending must never hang forever) */
 export const WATCHDOG_MS = 60_000
-/** 连续 5 轮(约 5 分钟)探不到 → error 态交用户 dismiss */
+/** 5 consecutive rounds (~5 minutes) without a hit → error state, left to the user to dismiss */
 export const WATCHDOG_MAX_PROBES = 5
 
-/** 任务表落 localStorage:整页刷新后重建(spec §3.5「返回时重建」)。不落盘的话,
- *  刷新丢登记表 → 后续 progress 事件全被 D5 当陌生人丢弃 → 进度永久不可见,
- *  且再点安装只会得到后端「已在安装中」的 400(验收实测)。 */
+/** Task table persisted to localStorage: rebuilt after a full page refresh (spec §3.5 "rebuild on return").
+ *  Without persistence, refresh loses the registry → subsequent progress events are all dropped by D5
+ *  as strangers → progress permanently invisible, and clicking install again only gets the backend's
+ *  "already installing" 400 (observed during acceptance). */
 export const INSTALL_PROGRESS_STORAGE_KEY = 'nimoos:install-progress'
 
 function loadPersisted(): Record<string, InstallTask> {
@@ -43,14 +44,14 @@ function loadPersisted(): Record<string, InstallTask> {
     }
     return out
   } catch {
-    return {} // 坏 JSON/隐私模式:当作无任务
+    return {} // bad JSON/private mode: treat as no tasks
   }
 }
 
 function titleFromProps(p: Record<string, unknown>, fallback: string): string {
-  // app:title 是 JSON 字符串({"en_us":"…"},AppManagement common/message.go:24-28)
+  // app:title is a JSON string ({"en_us":"…"}, AppManagement common/message.go:24-28)
   if (typeof p['app:title'] === 'string') {
-    try { return resolveAppTitle(JSON.parse(p['app:title']), fallback) } catch { /* 容忍坏 JSON */ }
+    try { return resolveAppTitle(JSON.parse(p['app:title']), fallback) } catch { /* tolerate bad JSON */ }
   }
   return fallback
 }
@@ -60,10 +61,11 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
   const timers: Record<string, ReturnType<typeof setTimeout>> = {}
   const probes: Record<string, number> = {}
 
-  // 每次任务表变化同步落盘(tasks 的全部写入都是整对象替换,浅 watch 必触发;
-  // sync 刷新保证测试与真实卸载/刷新前都不丢写)
+  // Persist synchronously on every task-table change (all writes to tasks are whole-object
+  // replacements, so a shallow watch always fires; sync flush guarantees no write is lost in
+  // tests or before real unload/refresh)
   watch(tasks, (v) => {
-    try { localStorage.setItem(INSTALL_PROGRESS_STORAGE_KEY, JSON.stringify(v)) } catch { /* 配额/隐私模式忽略 */ }
+    try { localStorage.setItem(INSTALL_PROGRESS_STORAGE_KEY, JSON.stringify(v)) } catch { /* ignore quota/private mode */ }
   }, { flush: 'sync' })
 
   function arm(id: string) {
@@ -79,12 +81,13 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
     }
     try {
       const app = await service.compose.get(id)
-      // Fix2: await 落定后任务可能已被 dismiss/finish——重新读取,不存在就直接退出,
-      // 不再写 probes[id]/arm(id),也不要误触发 finish() 的 refresh/installed 副作用。
+      // Fix2: after the await settles, the task may already be dismissed/finished — re-read and bail
+      // if it's gone; do not write probes[id]/arm(id), and do not wrongly trigger finish()'s
+      // refresh/installed side effects.
       if (!tasks.value[id]) return
       if (app) { finish(id); return }
     } catch {
-      // Fix3: 网络错不计罚——不递增 probes,下一轮再探(装置仍是 installing)
+      // Fix3: network errors carry no penalty — don't increment probes, probe again next round (task stays installing)
       arm(id)
       return
     }
@@ -93,7 +96,7 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
     else arm(id)
   }
 
-  /** 发起端登记(POST /compose 受理后调;begin 事件到达前就有卡可看) */
+  /** Initiator-side registration (called after POST /compose is accepted; a card is visible before the begin event arrives) */
   function track(id: string, title?: string, icon?: string) {
     tasks.value = {
       ...tasks.value,
@@ -103,7 +106,7 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
     arm(id)
   }
 
-  /** 成功收敛:删任务 + 已装列表浮出 + 商店「已安装」徽章乐观更新 */
+  /** Successful convergence: remove the task + surface it in the installed list + optimistically update the store's "installed" badge */
   function finish(id: string) {
     clearTimeout(timers[id]); delete timers[id]; delete probes[id]
     const next = { ...tasks.value }; delete next[id]; tasks.value = next
@@ -133,17 +136,17 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
       if (!cur) {
         track(id, titleFromProps(p, id), typeof p['app:icon'] === 'string' ? p['app:icon'] : '')
       } else if (cur.state === 'error') {
-        // Fix1: begin 要能复活 error 态任务(比如用户 dismiss 前又重装/重试)
+        // Fix1: begin must be able to revive an error-state task (e.g. user reinstalls/retries before dismissing)
         tasks.value = { ...tasks.value, [id]: { ...cur, state: 'installing', percent: 0, message: '' } }
         probes[id] = 0
         arm(id)
       } else {
-        // Minor#2: installing 任务重复 begin 也要重置探测计数,不只是续期定时器
+        // Minor#2: a duplicate begin for an installing task must also reset the probe count, not just renew the timer
         probes[id] = 0
         arm(id)
       }
     } else if (name === 'app:install-progress') {
-      // D5:update 流复用本事件(image.go pullImageProgress),只更新已跟踪任务
+      // D5: the update flow reuses this event (image.go pullImageProgress); only update tracked tasks
       const cur = tasks.value[id]
       if (!cur || cur.state === 'error') return
       const n = Number(p['app:progress'])
@@ -153,19 +156,19 @@ export const useInstallProgressStore = defineStore('install-progress', () => {
       arm(id)
     } else if (name === 'app:install-end') {
       if (tasks.value[id]) finish(id)
-      else useInstalledAppsStore().refresh().catch(() => {}) // 错过 begin 也要浮出新应用(承 P1 行为)
+      else useInstalledAppsStore().refresh().catch(() => {}) // surface the new app even if begin was missed (inherits P1 behavior)
     } else if (name === 'app:install-error') {
       fail(id, typeof p['message'] === 'string' ? p['message'] : '')
     }
   }
 
-  // 刷新恢复的 installing 任务重新武装 watchdog:装完/装挂了(页面关着时收不到事件)
-  // 都由探测收敛,不会留幽灵卡
+  // Re-arm the watchdog for installing tasks restored after refresh: whether the install finished
+  // or died (no events received while the page was closed), probing converges either way — no ghost cards left
   for (const t of Object.values(tasks.value)) {
     if (t.state === 'installing') { probes[t.id] = 0; arm(t.id) }
   }
 
-  // 订阅挂 store 生命周期(应用级单例):页面切走安装继续推进 = spec「后台继续」
+  // Subscription tied to store lifecycle (app-level singleton): install keeps progressing after navigating away = spec "continues in background"
   const bus = useMessageBus()
   ;(['app:install-begin', 'app:install-progress', 'app:install-end', 'app:install-error'] as const)
     .forEach((ev) => bus.on(ev, (props) => onEvent(ev, props)))

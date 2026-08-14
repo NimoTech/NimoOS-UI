@@ -35,8 +35,8 @@ beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
   getPolicy.mockResolvedValue({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
-  // vi.clearAllMocks() 只清调用记录、不还原 mockImplementation:"切换在途"那条用例把
-  // togglePolicy 换成永不 resolve 的 promise,不在这里复位就会泄漏到后面的用例。
+  // vi.clearAllMocks() only clears call records and does not restore mockImplementation: the "toggle in flight"
+  // case swaps togglePolicy for a never-resolving promise; without resetting it here it leaks into later cases.
   togglePolicy.mockResolvedValue(undefined)
   patchPolicy.mockResolvedValue(null)
   createSnap.mockResolvedValue(undefined)
@@ -166,7 +166,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect(w.find('.sp-err-hourly').text()).toBe(zh.snapErrPositiveInt)
     expect(w.find('.sp-err-pct').text()).toBe(zh.snapErrPercent)
     expect(patchPolicy).not.toHaveBeenCalled()
-    expect(w.find('.sp-advanced').exists()).toBe(true)   // 表单不收起
+    expect(w.find('.sp-advanced').exists()).toBe(true)   // form stays open
   })
 
   it('合法输入 → patchPolicy 收到四字段数字(非字符串),成功后收起表单', async () => {
@@ -195,7 +195,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect(w.find('.sp-advanced').exists()).toBe(false)
     expect(patchPolicy).not.toHaveBeenCalled()
     await w.find('.sp-advanced-btn').trigger('click')
-    expect(w.find('.sp-err-hourly').exists()).toBe(false)   // 重开无残留错误
+    expect(w.find('.sp-err-hourly').exists()).toBe(false)   // no leftover error on reopen
   })
 })
 
@@ -236,9 +236,9 @@ describe('SnapshotPanel 手动创建快照', () => {
 })
 
 describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
-  // 复现路径:同一个 pinia 实例下先挂 A(有 count、enabled=true),再把 prop 切到 B
-  // (B 的卷数据不同:enabled=false/count=0)。没有 reset()+watch(volumeUuid) 的话,
-  // 单例 store 会让面板一直显示 A 的开关/数量,却对 B 发出保护开关与保留策略写入。
+  // Repro path: under the same pinia instance mount A first (has count, enabled=true), then switch the prop to B
+  // (B's volume data differs: enabled=false/count=0). Without reset()+watch(volumeUuid),
+  // the singleton store keeps the panel showing A's switch/count while sending protection-toggle and retention-policy writes for B.
   it('切到 B 后不再残留 A 的开关/数量,B 重新拉了卷', async () => {
     listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7, last_at: '2026-07-27T01:00:00Z' }])
     const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
@@ -253,7 +253,7 @@ describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
 
     expect(listVolumes).toHaveBeenCalledTimes(2)
     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
-    // disabled 态没有状态行 —— 如果还残留 A 的渲染,这里会仍然看到 "7"
+    // disabled state has no status row —— if A's render still lingered, "7" would still show here
     expect(w.find('.sp-status').exists()).toBe(false)
   })
 

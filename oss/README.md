@@ -85,10 +85,12 @@ git -C ../NimoOS-Web status --porcelain      # 应为空(幂等)
 git -C ../NimoOS-Web rev-list --count HEAD   # 仍是 1(--amend,不是新提交)
 ```
 
-> ⚠️ **已知待处理**:本地 `NimoOS-Web` 目前有 **2 个提交**(`748aa8f` + 手工写的 README
-> `4957653`),而上面那条断言要求恒为 1 ⇒ **现在跑 `--publish` 必定在最后一步报错,而且是
-> "先 amend 掉那条 README 提交、再报错"**。发布前要先把这 2 个提交理顺(挤回单提交,
-> 或者放弃零历史约束并改掉 `export.mjs` 里那条断言)。另:本地领先 `origin/main` 一个提交。
+> ✅ **2026-08-11 已理顺**:此前本地 `NimoOS-Web` 有 2 个提交(`748aa8f` + 手工 README
+> `4957653`)会让上面那条断言失败。当日发布前已确认手工 README 的部署章节**与
+> `oss/files/README.md` 模板逐字一致**(内容早已回填,squash 不丢东西),然后
+> `git reset --soft <root> && git commit --amend` 挤回单提交。此后若再出现"公开仓
+> 多于 1 个提交",照同样两步处理:先 diff 确认多出的内容已回填模板,再 squash。
+> 注意 squash 会改 HEAD 哈希 ⇒ 推 GitHub 需要 `--force-with-lease`。
 
 ## 2. 七个 flag
 

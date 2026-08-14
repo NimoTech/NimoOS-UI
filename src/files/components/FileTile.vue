@@ -12,7 +12,7 @@ const emit = defineEmits<{
   (e: 'open', entry: FileEntry): void
   (e: 'select', payload: { entry: FileEntry; mode: 'toggle' | 'range' }): void
   (e: 'contextmenu', payload: { entry: FileEntry; event: MouseEvent }): void
-  (e: 'open-batch', batchId: string): void
+  (e: 'open-batch', batchId: string, entryPath: string): void
 }>()
 
 function onClick(e: MouseEvent) {
@@ -25,12 +25,13 @@ function onClick(e: MouseEvent) {
 <template>
   <div
     class="file-tile"
-    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path) }"
+    :class="{ selected: props.selected, cut: clipboard.isCut(props.entry.path), uploading: props.entry.uploading }"
     :data-path="props.entry.path"
     @click="onClick"
     @contextmenu="emit('contextmenu', { entry: props.entry, event: $event })"
   >
-    <span class="tile-check">
+    <span v-if="props.entry.uploading" class="tile-spinner" :title="$t('filesUploadingLabel')" aria-hidden="true"></span>
+    <span v-if="!props.entry.uploading" class="tile-check">
       <input
         type="checkbox"
         class="tile-check-box"
@@ -44,12 +45,12 @@ function onClick(e: MouseEvent) {
       type="button"
       class="upload-broken-badge"
       :title="$t('filesUploadBrokenBadge')"
-      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry))"
+      @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry), props.entry.path)"
     >!</button>
-    <FavoriteStar v-if="props.entry.is_dir" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
+    <FavoriteStar v-if="props.entry.is_dir && !props.entry.uploading" class="tile-star" :path="props.entry.path" :name="props.entry.name" />
     <FileThumb class="tile-icon" :entry="props.entry" />
-    <span class="tile-name">{{ props.entry.name }}</span>
-    <span class="tile-date">{{ dateFmt(props.entry.date || '') }}</span>
+    <span class="tile-name" :title="props.entry.name">{{ props.entry.name }}</span>
+    <span class="tile-date">{{ props.entry.uploading ? $t('filesUploadingLabel') : dateFmt(props.entry.date || '') }}</span>
   </div>
 </template>
 
@@ -58,15 +59,37 @@ function onClick(e: MouseEvent) {
 .file-tile:hover { background: var(--chip-bg, rgba(255,255,255,0.08)); }
 .file-tile.selected { background: var(--chip-bg-hi, rgba(255,255,255,0.16)); }
 .tile-icon { width: var(--app-size, 64px); height: var(--app-size, 64px); }
-.tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+/* Desktop icon-title rule (home/components/AppTile.vue:49, FolderTile.vue:26):
+   max-width 100% + overflow hidden + ellipsis + nowrap, single line.
+   `min-width: 0` is belt-and-braces for the same reason spelled out in
+   FileRow.vue — `overflow: hidden` already zeroes the flex automatic minimum
+   size, and `max-width: 100%` was already holding the tile inside its grid
+   track. Measured in headless chromium: clientWidth 117 vs scrollWidth 1575,
+   zero overflowing tiles. */
+.tile-name { font-size: 13px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; min-width: 0; }
 .tile-date { font-size: 11px; color: var(--fg-muted, #9aa4bf); }
 .tile-star { position: absolute; top: 6px; right: 6px; }
+/* The broken badge owns the top-right corner (it is the urgent, always-visible
+   signal); a favorited folder's star would otherwise sit on the exact same
+   6px/6px spot and the two stack unreadably. Shift the star left of the 20px
+   badge whenever one is present. */
+.file-tile:has(.upload-broken-badge) .tile-star { right: 30px; }
 .tile-check { position: absolute; top: 6px; left: 6px; }
 .tile-check-box { opacity: 0; cursor: pointer; }
 .file-tile:hover .tile-check-box, .file-tile.selected .tile-check-box { opacity: 1; }
 .file-tile :deep(.favorite-star) { opacity: 0; transition: opacity .12s; }
 .file-tile:hover :deep(.favorite-star), .file-tile :deep(.favorite-star.active) { opacity: 1; }
 .file-tile.cut { opacity: 0.45; }
+/* Optimistic upload placeholder: dimmed and non-interactive (it isn't on disk
+   yet), with a spinner where the checkbox would sit. */
+.file-tile.uploading { opacity: 0.6; cursor: default; }
+.tile-spinner {
+  position: absolute; top: 8px; left: 8px; width: 14px; height: 14px;
+  border: 2px solid color-mix(in srgb, var(--fg-muted) 40%, transparent);
+  border-top-color: var(--accent); border-radius: 999px;
+  animation: tile-spin 0.7s linear infinite;
+}
+@keyframes tile-spin { to { transform: rotate(360deg); } }
 /* --remove-bg is a solid-fill token meant to pair with white text (see
    .grid-item .remove above); pairing it with --remove-fg as the glyph color
    gives ~1.2:1 contrast in both themes (near-identical hues) — invisible.

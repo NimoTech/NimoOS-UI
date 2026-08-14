@@ -4,8 +4,9 @@ import TimeMachineCard from './TimeMachineCard.vue'
 import { buildVisibleStack, DECK_WINDOW } from '../util/timeMachineMath'
 import type { DeckPreview } from '../composables/useDeckPreview'
 
-// 形状与 T7 覆盖层里的 FlatSnapshotItem 一致(TS 结构类型,不需要互相 import);
-// 这里独立声明是为了让卡堆不依赖覆盖层,单测可以直接造数据。
+// Shape matches FlatSnapshotItem in the T7 overlay (TS structural typing, no mutual import
+// needed); declared independently so the deck doesn't depend on the overlay and unit tests can
+// build data directly.
 export interface DeckItem {
   id?: number | string
   name: string
@@ -21,15 +22,17 @@ export interface DeckItem {
 const props = defineProps<{ items: DeckItem[]; selectedIndex: number; previews?: Record<string, DeckPreview> }>()
 const emit = defineEmits<{ (e: 'select', index: number): void; (e: 'enter'): void }>()
 
-// 只渲染可见窗口(选中 + 后 4 张 + 已翻过去的 2 张),而不是整个列表:一个卷可能保留
-// 上百个快照,全渲染成绝对定位卡片纯属浪费。窗口大小必须与 TimeMachineOverlay 拉预览用的
-// 窗口一致(否则最前的卡拿不到缩略图)—— 两处都从 DECK_WINDOW 取值,不再各写一份字面量
-// (评审修复 Important:改窗口大小时只改一处会无声地漏改另一处,没有任何报错或红测试)。
+// Render only the visible window (selected + 4 behind + 2 flipped past), not the whole list:
+// a volume can retain hundreds of snapshots, and rendering them all as absolutely positioned
+// cards is pure waste. The window size must match the one TimeMachineOverlay uses to fetch
+// previews (otherwise the front card gets no thumbnails) — both read DECK_WINDOW instead of
+// keeping separate literals (review fix, Important: changing the window size in one place
+// would silently miss the other, with no error and no red test).
 const visible = computed(() => buildVisibleStack(props.items, props.selectedIndex, DECK_WINDOW.depth, DECK_WINDOW.past))
 
 function onCardClick(entry: { index: number; state: string }) {
-  if (entry.state === 'past') return // 已经飞出屏幕的卡不接受点击(jsdom 不生效 pointer-events:none,靠这行早退拦住)
-  if (entry.state === 'front') emit('enter') // 点你正在看的那张 = 进去,和真 Time Machine 一致
+  if (entry.state === 'past') return // cards already flown off screen take no clicks (pointer-events:none has no effect in jsdom; this early return blocks it)
+  if (entry.state === 'front') emit('enter') // clicking the card you are looking at = enter, same as real Time Machine
   else emit('select', entry.index)
 }
 </script>
@@ -51,12 +54,15 @@ function onCardClick(entry: { index: number; state: string }) {
 </template>
 
 <style scoped>
-/* 卡片放大到 3/4 屏(用户指定)。两个 min() 是防撞下限,不是"缩水":
-   宽 —— 右边缘那条刻度尺占 96px 且是绝对定位(不参与 flex 让位),窄屏上 75vw 会顶到它;
-   高 —— 底栏固定 76px + 左上角那行路径,矮屏上 75vh 会压到底栏上。
-   常见屏幕(≥1280×800)两个 min() 都取 75vw/75vh 那一侧,即真的是 3/4 屏。
-   perspective 从 1400 加深到 2400:卡片变大后近大远小的畸变会跟着放大,原值下最后
-   一张会被透视拉得明显变形。 */
+/* Card enlarged to 3/4 of the screen (user-specified). The two min() calls are
+   collision-avoidance floors, not "shrinkage":
+   width — the rail on the right edge takes 96px and is absolutely positioned (doesn't yield
+   in flex); on narrow screens 75vw would run into it;
+   height — the bottom bar is a fixed 76px plus the path line at the top-left; on short
+   screens 75vh would press onto the bottom bar.
+   On common screens (≥1280×800) both min() calls pick the 75vw/75vh side, i.e. truly 3/4.
+   perspective deepened from 1400 to 2400: with bigger cards the near-large/far-small
+   distortion scales up too; at the old value the last card was visibly warped. */
 .tm-deck {
   position: relative;
   width: min(75vw, calc(100vw - 260px));
