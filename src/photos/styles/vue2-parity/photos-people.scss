@@ -1068,8 +1068,8 @@
    any class-based :hover rule in the cascade — so in real Vue2 hovering this button causes
    no visible background change. Re-assert the same values here so the base
    .person-dialog-btn:hover rule above (background var(--surface-3)) can't clobber the
-   danger look on hover (same tie-breaking issue already documented for
-   .cad-btn-danger:hover / .mrd-btn-primary:hover). */
+   danger look on hover (same tie-breaking issue already fixed for .cad-btn-primary:hover /
+   .mrd-btn-primary:hover below — and, per fix round 1, for .cad-btn-danger:hover too). */
 .person-dialog-btn-danger:hover {
   border-color: rgba(255, 56, 96, 0.35);
   background: rgba(255, 56, 96, 0.08);
@@ -1413,7 +1413,17 @@
   gap: 6px;
   box-shadow: 0 4px 14px rgba(255, 107, 92, 0.35);
 }
-.cad-btn-danger:hover { filter: brightness(1.08); }
+/* Fix round 1: this rule used to redeclare only `filter`, relying on the deleted local
+   scoped `<style>` block's own `.cad-btn-danger:hover` (data-v-boosted to (0,3,0)) to have
+   already re-asserted `background` and out-rank `.cad-btn:hover` (0,2,0). Now that the
+   scoped block is gone, both `.cad-btn:hover` and this rule sit at equal specificity
+   (0,2,0) — without redeclaring `background` here, `.cad-btn:hover`'s `var(--surface-3)`
+   wins on source order and the delete-confirm button (data-test="cad-confirm-delete")
+   shows a neutral gray hover instead of red. Redeclare the same value the base
+   `.cad-btn-danger` rule above already uses (#FF6B5C) — same pattern as
+   `.cad-btn-primary:hover` / `.mrd-btn-primary:hover` below, which already redeclare
+   background and were not affected. */
+.cad-btn-danger:hover { background: #FF6B5C; filter: brightness(1.08); }
 
 .cad-candidates {
   max-height: 260px;

@@ -4,6 +4,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import zh from '../../../i18n/zh_cn'
 
 // 本组件自己不调用 service,但渲染的 PersonAvatar 子组件会——照 PersonAvatar.test.ts 的既有 mock。
@@ -331,16 +334,70 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
 // 断言 hover 态下真正生效的 background 声明。该组件的整段 <style scoped> 已在本任务删除
 // (类名不变,但样式接管权已交给 src/photos/styles/vue2-parity/photos-people.scss 里的
 // .cad-* parity 规则,见组件头部脚本注释),`?raw` 读进来的源码里已经没有 <style> 区块可
-// 提取,那组测试的前提不复存在,一并删除。它防的那个 bug(scoped CSS 的 specificity 加成
-// 让基类 hover 压过变体)本就是"存在本地 scoped 规则"这个前提触发的——scoped 整体清零后
-// 不会复现(parity 是纯全局样式表,其内部声明顺序本就正确,见 photos-people.scss 该处
-// 注释)。真正的像素接管由 T1 guard(parity 自身的 scss/token 测试)+ 浏览器真机验收兜底,
-// 这里只钉住一件事:组件根类名不受影响。
+// 提取,那组测试的前提不复存在,一并删除。这里只钉住一件事:组件根类名不受影响。
+//
+// fix round 1(评审 Important):上面这段旧注释原来还写了一句"scoped 整体清零后不会复现,
+// parity 内部声明顺序本就正确"——**这句话错了,已删**。CSS 级联是按属性判胜负,不是按
+// 规则整体判胜负:`.cad-btn:hover { background: var(--surface-3); ... }` 与
+// `.cad-btn-danger:hover { filter: brightness(1.08); }`(改前)优先级相同(0,2,0),即便
+// parity 文件内 `.cad-btn-danger:hover` 写在 `.cad-btn:hover` 之后,只要它自己不重申
+// background,这条属性就完全没有来自变体规则的竞争声明,`.cad-btn:hover` 的 background
+// 依然生效——scoped 版本的 bug 换了个面孔在 parity 里原样复现了(删除确认按钮
+// data-test="cad-confirm-delete" hover 变成灰色而不是红色)。真正防复现的不是"删掉本地
+// scoped"这件事本身,而是"每个变体的 hover 规则必须自己重申 background"——下面这组测试
+// 直接读 parity 文件、按这条要求逐个断言,不再依赖组件本地 scoped 有没有被删。
 describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
   it('挂载后 [data-test="cad-overlay"] 仍然带着 cad-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="cad-overlay"]').classes()).toContain('cad-overlay')
     expect(w.find('[data-test="cad-panel"]').classes()).toContain('cad-panel')
+  })
+})
+
+// ── Plan D Task 4, fix round 1(评审 Important):删除确认按钮 hover 态回归防线 ──────────
+//
+// jsdom 既不做级联样式计算也进不了真实 hover 态,而现在样式的真源已经不在这个组件文件里
+// (整段 <style scoped> 已删,类名规则全部搬进了 photos-people.scss),所以这组测试直接用
+// node:fs 读 parity 文件原文本身按选择器抓规则体(同 AppToast.zIndex.test.ts 已确立的
+// 读盘方式),不再走 ./cssCascade 那套"从组件 ?raw 提取 <style> 再算优先级"的旧路子——
+// 这里选择器都是简单的顶层类/伪类组合、互不嵌套,直接用一次性正则按"选择器名 { 花括号内容 }"
+// 抓规则体已经足够精确,不需要再引入完整的 CSS 解析。
+const PARITY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../styles/vue2-parity/photos-people.scss',
+)
+const parityCss = readFileSync(PARITY_PATH, 'utf8')
+
+/** 精确按选择器名抓一条规则的花括号内容(不含嵌套花括号的简单按钮规则足够安全)。 */
+function parityRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
+  if (!m) throw new Error(`parity 文件里找不到规则:${selector}`)
+  return m[1]
+}
+
+function backgroundOf(body: string): string | null {
+  const m = /background\s*:\s*([^;]+)/.exec(body)
+  return m ? m[1].trim() : null
+}
+
+describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1:parity 里变体按钮 hover 背景不被 .cad-btn:hover 夺走', () => {
+  it('.cad-btn-danger:hover 必须自己重申 background(否则被基类 .cad-btn:hover 的 var(--surface-3) 顶掉,回归本轮修的那个 bug)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
+    const dangerHoverBg = backgroundOf(parityRuleBody('.cad-btn-danger:hover'))
+    const dangerBaseBg = backgroundOf(parityRuleBody('.cad-btn-danger'))
+    expect(baseBg).toBe('var(--surface-3)')
+    expect(dangerHoverBg, '.cad-btn-danger:hover 缺少 background 声明——按 CSS 级联规则,基类 .cad-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
+    // 值必须与自己的基础态一致(Vue2 是内联 style,hover 时背景本就不变,见组件里的 fix round 1 注释),不能只是"随便非空"。
+    expect(dangerHoverBg).toBe(dangerBaseBg)
+    expect(dangerHoverBg).not.toBe(baseBg)
+  })
+
+  it('.cad-btn-primary:hover 已经正确重申 background(回归防线——本轮顺带核实过,未受影响,别在后续改动里砍掉)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
+    const primaryHoverBg = backgroundOf(parityRuleBody('.cad-btn-primary:hover'))
+    expect(primaryHoverBg).not.toBeNull()
+    expect(primaryHoverBg).not.toBe(baseBg)
   })
 })

@@ -6,6 +6,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import zhCn from '../../../i18n/zh_cn'
 import enUs from '../../../i18n/en_us'
 import type { Person } from '../../util/peopleView'
@@ -176,14 +179,50 @@ describe('MergeReviewDialog', () => {
 // 全仓扫描当时只余这两处)。该组件的整段 <style scoped> 已在本任务删除(类名不变,但样式
 // 接管权已交给 src/photos/styles/vue2-parity/photos-people.scss 里的 .mrd-* parity 规则,
 // 见组件头部脚本注释),`?raw` 读进来的源码里已经没有 <style> 区块可提取,那组测试的前提
-// 不复存在,一并删除。它防的那个 bug(scoped CSS 的 specificity 加成让基类 hover 压过变体)
-// 本就是"存在本地 scoped 规则"这个前提触发的——scoped 整体清零后不会复现(parity 是纯
-// 全局样式表,其内部声明顺序本就正确,见 photos-people.scss 该处注释)。真正的像素接管由
-// T1 guard + 浏览器真机验收兜底,这里只钉住一件事:组件根类名不受影响。
+// 不复存在,一并删除。这里只钉住一件事:组件根类名不受影响。
+//
+// fix round 1(评审 Important,同 ClusterActionDialog.test.ts 那处一并改正):上面这段旧
+// 注释原来还写了一句"scoped 整体清零后不会复现,parity 内部声明顺序本就正确"——**这句话
+// 错了,已删**。CSS 级联按属性判胜负,不是按规则整体判胜负:即便 parity 文件内变体规则写
+// 在基类之后,只要变体的 :hover 自己不重申某个属性,这条属性上就完全没有来自变体的竞争
+// 声明,基类的值依然生效。ClusterActionDialog 那边的 `.cad-btn-danger:hover` 就是这样在
+// parity 里原样复现了 bug(详见该测试文件同一处注释);MRD 这边核实过 `.mrd-btn-primary:
+// hover` 一直都有自己的 background,没有中招,但仍然补一条回归断言防止以后被顺手砍掉。
 describe('MergeReviewDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
   it('挂载后 [data-test="mrd-overlay"] 仍然带着 mrd-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', () => {
     const w = mountDialog({ open: true, suggestions, index: 0, people })
     expect(w.find('[data-test="mrd-overlay"]').classes()).toContain('mrd-overlay')
     expect(w.find('[data-test="mrd-panel"]').classes()).toContain('mrd-panel')
+  })
+})
+
+// ── Plan D Task 4, fix round 1(评审 Important):合并键 hover 背景回归防线 ────────────
+// 同 ClusterActionDialog.test.ts 那组测试同款做法:直接用 node:fs 读 parity 文件原文,
+// 按选择器名抓规则体(同 AppToast.zIndex.test.ts 已确立的读盘方式)。
+const PARITY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../styles/vue2-parity/photos-people.scss',
+)
+const parityCss = readFileSync(PARITY_PATH, 'utf8')
+
+function parityRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
+  if (!m) throw new Error(`parity 文件里找不到规则:${selector}`)
+  return m[1]
+}
+
+function backgroundOf(body: string): string | null {
+  const m = /background\s*:\s*([^;]+)/.exec(body)
+  return m ? m[1].trim() : null
+}
+
+describe('MergeReviewDialog.vue — Plan D Task 4 fix round 1:parity 里合并键 hover 背景不被 .mrd-btn:hover 夺走', () => {
+  it('.mrd-btn-primary:hover 必须自己重申 background(否则被基类 .mrd-btn:hover 的 var(--surface-3) 顶掉——同 ClusterActionDialog 修的那类 bug,这里核实过未受影响)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.mrd-btn:hover'))
+    const primaryHoverBg = backgroundOf(parityRuleBody('.mrd-btn-primary:hover'))
+    expect(baseBg).toBe('var(--surface-3)')
+    expect(primaryHoverBg, '.mrd-btn-primary:hover 缺少 background 声明——按 CSS 级联规则,基类 .mrd-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
+    expect(primaryHoverBg).not.toBe(baseBg)
   })
 })
