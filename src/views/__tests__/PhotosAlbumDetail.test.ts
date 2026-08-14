@@ -1076,6 +1076,45 @@ describe('P2c detail skeleton', () => {
     expect(w.find('.sv-select-bar').text()).toContain(zh.photosSelectedCount.replace('{count}', '1'))
   })
 
+  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section used
+  // to be a template-root SIBLING of `.photos-root` rather than its DOM descendant, so none of
+  // parity's `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim` descendant
+  // selectors (photos-smartview.scss:675 / photos.scss:620) could match -- the exact same root
+  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1), now found in
+  // this page's own edit-mode bar, delete-confirm dialog, library picker, lightbox, album
+  // picker, and convert-to-smart dialog. Same fix: nest them back inside `.photos-root`.
+  describe('Fix-2 item 5: the edit-mode tail section is a real descendant of .photos-root', () => {
+    it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      const bar = w.get('.sv-select-bar').element
+      expect(bar.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the delete-confirm dialog renders inside .photos-root', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-more-btn"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="album-menu-delete"]').trigger('click')
+      await w.vm.$nextTick()
+      const scrim = w.get('[data-test="album-delete-confirm"]').element
+      expect(scrim.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the library picker renders inside .photos-root', async () => {
+      // PhotosLibraryPicker's own root is `v-if="open"` -- closed, `.element` is a comment
+      // placeholder with no `.closest`, so open it first via the select bar's Add photos button.
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('[data-test="album-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('.sv-select-bar [data-test="album-add-photos"]').trigger('click')
+      await w.vm.$nextTick()
+      const overlay = w.get('[data-test="lib-picker-overlay"]').element
+      expect(overlay.closest('.photos-root')).not.toBeNull()
+    })
+  })
+
   it('removes the selected photos and keeps the guard against a double click', async () => {
     let resolveRemove: (() => void) | undefined
     const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(

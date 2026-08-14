@@ -59,10 +59,24 @@ describe('相册区表面用玻璃 token,不刷应用底色', () => {
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
 
-  it('智能视图详情的右侧栏用玻璃底(与同区 PhotosSidebar / PlacesRail 一致)', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13) correction: this case's own premise -- "this
+  // page still lives inside AreaShell's glass shell, same as PhotosSidebar/PlacesRail" -- is no
+  // longer true. Plan C Task 2 (see PhotosSmartViewDetail.vue's own header comment) un-wrapped
+  // this exact page from AreaShell into Vue2's own single opaque `.photos-root > .app` shell
+  // (`--bg: #0A0A0C`, a solid near-black page, not a glass wallpaper backdrop) -- the same
+  // migration Photos.vue's own shell went through earlier. PhotosSidebar, cited here as the
+  // same-precedent glass surface, in fact no longer uses `--panel-bg` either: its real parity
+  // rule (`vue2-parity/photos.scss:134-139` `.sidebar { background: var(--surface-1); ... }`)
+  // is the same flat, opaque, `.photos-root`-scoped token this fix gives `.sv-detail-side`.
+  // `--surface-1` is also correctly shadowed under `.photos-root.is-light` (unlike the global
+  // `--panel-bg`, which was not, and stayed a barely-visible glass tint in photos light mode --
+  // the actual bug this correction fixes, on top of restoring the pre-Plan-C premise this test
+  // case itself no longer describes).
+  it('智能视图详情的右侧栏用 parity 自己的不透明面板底(Plan C 已脱离 AreaShell 玻璃壳,与 PhotosSidebar 现状一致)', () => {
     const body = ruleBody(read('views/PhotosSmartViewDetail.vue'), '.sv-detail-side {')
-    expect(body).toMatch(/background\s*:\s*var\(--panel-bg\)/)
-    expect(body, '右侧栏底下没有地图,用不着不透明实底').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body).toMatch(/background\s*:\s*var\(--surface-1\)/)
+    expect(body, '右侧栏底下没有地图,用不着不透明实底(且早已不是 --panel-bg-solid 消费方)').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body, '不应再回退到未随 photos-is-light 切换的全局玻璃 token').not.toMatch(/var\(--panel-bg\)/)
   })
 })
 
@@ -95,5 +109,30 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
       .filter((p) => fs.readFileSync(p, 'utf8').includes('var(--panel-bg-solid)'))
       .map((p) => path.relative(SRC, p).replace(/\\/g, '/'))
     expect(users.slice().sort(), `--panel-bg-solid 的消费方变了`).toEqual([...ALLOW].sort())
+  })
+})
+
+// Fix-2 item 6b (owner acceptance, 2026-08-13): global body::before/after (theme.css) paint a
+// fixed, viewport-covering "aurora" wash at z-index:0, meant to glow through AreaShell's own
+// glass shells. Photos opted out of that glass aesthetic entirely (`.photos-root .app` paints
+// its own fully opaque `--bg`, matching Vue2 1:1) -- but a plain, non-positioned block element
+// is painted *before* a `position: fixed; z-index: 0` sibling in the standard CSS paint order
+// regardless of how opaque its own background is, so the aurora painted on top of `.app` all
+// along. It read as a plausible ambient glow in Photos' own dark theme and was never reported;
+// `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through glaringly
+// visible (a colourful gradient wash over a light page), which is what the owner's screenshot
+// shows. Fix: `position: relative; z-index: 1` on `.app` promotes it into the positioned/
+// z-index layer above the aurora's `z-index: 0` -- theme-invariant (fixes both of
+// `.photos-root`'s own themes at once, not a per-theme override), same recipe already used by
+// ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer. jsdom does not compute
+// paint order/cascade, so (same as this file's other cases) this is a raw-source assertion, not
+// a rendered-DOM one; real-device verification is still the authority for the visual result.
+describe('Fix-2 item 6b: .app 建立自己的层叠上下文,压在全局 aurora(z-index:0)之上', () => {
+  it('.photos-root .app 有 position:relative + z-index:1(两套主题通用,不分深浅色)', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root .app {')
+    expect(body).toMatch(/position\s*:\s*relative/)
+    expect(body).toMatch(/z-index\s*:\s*1\b/)
+    // 不透明底色仍然保留,两件事互相独立、都要成立。
+    expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
   })
 })

@@ -451,11 +451,16 @@ describe('窄屏规则', () => {
 
 // ── I2:模板行 sparkles 图标色 ────────────────────────────────────────────────
 describe('模板行图标色(fix round 1 · I2)', () => {
-  it('.sv-template-row svg 用 --accent-text,不是继承容器前景色(容器自己是 --fg)', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13): the token family this file's whole style
+  // block uses switched from New-UI's global tokens (--accent-text/--fg/--chip-bg/etc, none
+  // shadowed on `.photos-root`, so none followed the private photos-is-light toggle) to
+  // parity's own (--accent-hi/--text-1/--surface-*/etc) -- see the acceptance-fix-report.md
+  // §F2 sweep table. This spot-check follows suit.
+  it('.sv-template-row svg 用 --accent-hi,不是继承容器前景色(容器自己是 --text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('color: var(--accent-text)')
+    expect(rule?.body).toContain('color: var(--accent-hi)')
   })
 })
 

@@ -1125,12 +1125,31 @@ async function onExcludedTileClick(id: string): Promise<void> {
        </div>
       </main>
     </div>
-  </div>
 
-  <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
+  <!-- Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section
+       (export toast / edit-mode select bar / library picker / delete-confirm dialog /
+       convert-to-album dialog) used to be a template-root SIBLING of `.photos-root` (a Vue 3
+       multi-root fragment) rather than its DOM descendant. Every one of these elements' actual
+       visual styling comes from parity selectors written as `.photos-root .sv-toast` /
+       `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim` (photos-smartview.scss:
+       550-567/675, photos.scss:620) -- a CSS descendant combinator only matches real DOM
+       descendants, and "declared after `.photos-root`'s closing tag in the same template" does
+       not qualify (identical root cause to Fix-1 item 3's "New album" modal bug,
+       acceptance-fix-report.md §F1, and the same bug PhotosAlbumDetail.vue's own copy of this
+       tail section had). Outside `.photos-root`, `position: fixed` / the scrim background /
+       centering / z-index / the toast's dark-glass fill never applied. Moved back inside
+       `.photos-root`, as a sibling of `.app` (matching Vue2's own single-shell nesting and F1
+       item 3's precedent) -- none of these are affected by `.app`'s own
+       `height:100vh;overflow:hidden`, since they are `position: fixed` or don't need
+       viewport-relative sizing, and `.photos-root` itself sets no
+       transform/filter/perspective/`contain` that would create a new containing block for
+       `position: fixed` (same reasoning F1 item 3 already verified).
+
+       导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
        useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。
-       Plan C Task 2:现在是 `.photos-root` 的同级(此前是 AreaShell 插槽里
-       `.photos-layout` 的同级,脱壳后原样上移一层)。 -->
+       Plan C Task 2 曾把它放到 `.photos-root` 的同级(此前是 AreaShell 插槽里
+       `.photos-layout` 的同级,脱壳后原样上移一层);Fix-2 item 5 现在移回 `.app` 的同级、
+       仍在 `.photos-root` 内部。 -->
   <transition name="sv-toast-fade">
       <div v-if="exportToast" class="sv-toast" data-test="sv-export-toast">
         <svg v-if="exportToast.icon === 'download'" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
@@ -1146,11 +1165,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
          unreachable in a smart view with nothing selected otherwise. What used to keep an empty
          Remove request impossible is now the button's own `disabled` (plus removeSelected's own
          early return), which is where the album page puts it too.
-         `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar is a sibling of
-         `.photos-root` (Plan C Task 2: previously a sibling of `.photos-layout` inside
-         AreaShell's slot, before AreaShell was unwrapped), outside the `v-else` that requires
-         a smart view, so without it the bar would float over the not-found state if the view
-         vanished without the id changing. -->
+         `&& sv` guards the same hole PhotosAlbumDetail.vue:1005 does: this bar sits outside the
+         `v-else` that requires a smart view (Plan C Task 2 had it as a sibling of `.photos-root`
+         itself; Fix-2 item 5, see the correction note above, moved it back to being a sibling of
+         `.app`, still inside `.photos-root`), so without the `&& sv` guard the bar would float
+         over the not-found state if the view vanished without the id changing. -->
     <div v-if="edit && sv" class="sv-select-bar" data-test="sv-select-bar">
       <span class="group">
         <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
@@ -1201,7 +1220,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
     <Transition name="lb-confirm">
     <div v-if="confirmDeleteOpen" class="lb-confirm-scrim" data-test="sv-confirm-scrim" @click.self="closeDeleteConfirm">
       <div class="lb-confirm">
-        <div class="lb-confirm-icon" style="color: var(--remove-fg)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+        <div class="lb-confirm-icon" style="color: var(--danger)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
         <div class="lb-confirm-title">{{ t('photosSvDeleteName', { name: sv?.name }) }}</div>
         <div class="lb-confirm-body">{{ t('photosSvSmartViewRemovedStops', { n: fmtNum(sv?.count ?? 0) }) }}</div>
         <div class="lb-confirm-foot">
@@ -1243,6 +1262,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </div>
     </Transition>
+  </div>
 </template>
 
 <style scoped>
@@ -1261,10 +1281,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-skel-tile { aspect-ratio: 1; border-radius: 6px; background: var(--skeleton-bg); }
 
 /* ── 找不到(偏离登记 1,New-UI 新增)── */
-.sv-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.sv-not-found-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.sv-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
-.sv-not-found-back:hover { background: var(--chip-bg-hi); }
+.sv-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--text-2); text-align: center; }
+.sv-not-found-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.sv-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); font: inherit; font-size: 13px; cursor: pointer; }
+.sv-not-found-back:hover { background: var(--surface-3); }
 
 /* Plan C Task 5 re-skin (shadowing pass, same doctrine as Task 3/4): the already-imported
    global parity stylesheet (`import '../photos/styles/vue2-parity'`, line 59) carries its own
@@ -1311,18 +1331,18 @@ async function onExcludedTileClick(id: string): Promise<void> {
    singular/plural sort-menu finding T4 made). Now that the class matches, parity's nested
    `.photos-root .sv-detail-bar .back`(+:hover) (smartview.scss:305-313) governs directly and
    this rule is deleted outright. */
-.sv-detail-bar { padding: 16px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--divider); }
-.sv-last-updated { font-size: 12px; color: var(--fg-muted); }
+.sv-detail-bar { padding: 16px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--line); }
+.sv-last-updated { font-size: 12px; color: var(--text-2); }
 
 /* .sv-header / .sv-header h1 deleted -- identical shape to parity (smartview.scss:364-372),
    parity wins. */
-.sv-title { cursor: text; color: var(--fg); }
+.sv-title { cursor: text; color: var(--text-1); }
 /* Vue2 :22 内联 style 逐属性对照:font-size:28px(已在 h1 上)/font-weight:600(同)/
    letter-spacing:-0.02em(同)/min-width:300px/background/border/border-radius/padding/
    color/font/outline。No parity class name (Vue2's input has no class at all), kept. */
 .sv-title-input {
-  background: var(--chip-bg); border: 1px solid var(--accent); border-radius: 8px;
-  padding: 2px 10px; color: var(--fg); font: inherit; font-size: 28px; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 2px 10px; color: var(--text-1); font: inherit; font-size: 28px; font-weight: 600;
   letter-spacing: -0.02em; font-family: var(--font-display, var(--font)); outline: none; min-width: 300px;
 }
 /* `.live-pill`/`.paused-pill`(+:hover/:active/.live-dot) and their local `@keyframes sv-pulse`
@@ -1354,8 +1374,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
   align-items: center;
   padding: 3px 10px;
   border-radius: 999px;
-  background: var(--chip-bg-hi);
-  color: var(--fg-muted);
+  background: var(--surface-3);
+  color: var(--text-2);
   font-size: 11.5px;
 }
 /* `.sv-cond-removable`(base)/`.sv-cond-x`(base)/`.sv-cond-removable:hover .sv-cond-x` are
@@ -1368,8 +1388,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
    not just change which one wins. Kept verbatim (same value parity already carries), no
    functional difference either way since it's the sole local hover candidate. */
 .sv-cond-removable:hover {
-  background: color-mix(in srgb, var(--remove-fg) 14%, transparent);
-  color: var(--remove-fg);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
 }
 .sv-cond-removable[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 
@@ -1400,7 +1420,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
    selectors (:471-476, :3514-3524, and photos.scss's own `.density` rule), already imported;
    T4 already reached the same conclusion and deleted PhotosAlbumDetail.vue's copies. Deleted
    here too; parity's own rules (shared by both detail pages) now govern directly. */
-.sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-actions .order-pill:hover { background: var(--surface-3); color: var(--text-1); }
 
 /* Sort popup. Renamed to `albums-sort-menu`/`albums-sort-item` in the template (was
    `sv-sort-menu`/`sv-sort-item`, names that never matched Vue2's own dropdown at all -- Vue2's
@@ -1431,10 +1451,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
    whether the base `:hover` rule was also present. */
 /* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。 No parity class name for the
    danger row (Vue2 expresses it with inline style literals), kept. */
-.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
-.sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
+.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--danger); }
+.sv-export-icon-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 /* fix round 1:复合选择器 (0,3,0) 稳赢基类 `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
-.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 
 /* fix round 1 · I2:Vue2 :79/:102 各包一层 `<transition name="sv-menu">`,规则在
    scss:546-547(opacity 0.14s + translateY(-4px) scale(0.97),140ms 缩放淡入)。 Kept as-is
@@ -1532,10 +1552,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
    **功能性**的:它压在 PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。
    本栏底下没有地图、只有区域壳,不透明实底就只剩"与自己所在的区域不一致"这一个效果:
    同区常驻侧栏 PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 / PersonPlacesTab:188
-   全是 `var(--panel-bg)`。改用玻璃底,与它们一致。
+   全是 `var(--surface-1)`。改用玻璃底,与它们一致。
    `--panel-bg-solid` 的消费方白名单见 views/__tests__/photosGlassSurfaces.test.ts。 */
 .sv-detail-side {
-  border-left: 1px solid var(--divider); background: var(--panel-bg);
+  border-left: 1px solid var(--line); background: var(--surface-1);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
@@ -1575,7 +1595,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
    has no such box at all) and the Vue3 `-enter-from` transition-name translation of parity's
    Vue2-spelled `.lb-confirm-enter`/`.lb-confirm-leave-to` rule (same fix already applied to
    `.sv-menu-*` above and to PhotosAlbumDetail.vue's own copy of this exact dialog). */
-.sv-convert-error { margin-top: 8px; font-size: 12px; color: var(--remove-fg); line-height: 1.4; }
+.sv-convert-error { margin-top: 8px; font-size: 12px; color: var(--danger); line-height: 1.4; }
 .lb-confirm-enter-active, .lb-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .lb-confirm-enter-from, .lb-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
@@ -1586,6 +1606,6 @@ async function onExcludedTileClick(id: string): Promise<void> {
 @media (max-width: 768px) {
   .app { grid-template-columns: 1fr; }
   .sv-detail-layout { grid-template-columns: 1fr; }
-  .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
+  .sv-detail-side { border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>

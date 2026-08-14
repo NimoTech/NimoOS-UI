@@ -1057,16 +1057,37 @@ watch(gridRef, () => {
        </div>
       </main>
     </div>
-  </div>
+
+  <!-- Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): this whole tail section
+       (select bar / delete-confirm / library picker / lightbox / album picker / convert dialog)
+       used to be a template-root SIBLING of `.photos-root` (a Vue 3 multi-root fragment) rather
+       than its DOM descendant. Every one of these elements' actual visual styling comes from
+       parity selectors written as `.photos-root .sv-select-bar` / `.photos-root .lb-confirm-scrim`
+       (photos-smartview.scss:675 / photos.scss:620) -- a CSS descendant combinator only matches
+       real DOM descendants, and "declared after `.photos-root`'s closing tag in the same
+       template" does not qualify (identical root cause to Fix-1 item 3's "New album" modal bug,
+       acceptance-fix-report.md §F1). Outside `.photos-root`, `position: fixed` / the scrim
+       background / centering / z-index never applied -- the edit-mode bar likely rendered
+       unstyled (or invisible under other page content) and the delete-confirm modal the same way
+       AlbumPickerDialog's own portal-less siblings already were flagged as a "latent instance"
+       in F1. Moved back inside `.photos-root`, as a sibling of `.app` (matching Vue2's own
+       single-shell nesting and F1 item 3's precedent) -- none of these are affected by `.app`'s
+       own `height:100vh;overflow:hidden`, since they are `position: fixed` (the bar/toast/modal
+       scrims) or don't need viewport-relative sizing (the pickers/lightbox/dialogs), and
+       `.photos-root` itself sets no transform/filter/perspective/`contain` that would create a
+       new containing block for `position: fixed` (same reasoning F1 item 3 already verified). -->
 
   <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
          buttons live now, plus the hint line the band also carried. Deviation from the plan's
          prose, registered: it renders on `edit` alone, not only once something is selected --
          the target says so explicitly at :326 and has to, because the hint copy only ever shows
          with an empty selection and Add photos would otherwise be unreachable in an empty album.
-         Plan C Task 2: the bar is now a sibling of `.photos-root` itself (previously a sibling
-         of `.photos-layout` inside AreaShell's slot, before AreaShell was unwrapped) — it is
-         position:fixed, so nesting it inside the scrolling column would buy nothing either way.
+         Plan C Task 2 had made the bar a sibling of `.photos-root` itself (previously a sibling
+         of `.photos-layout` inside AreaShell's slot, before AreaShell was unwrapped); Fix-2 item 5
+         (see the correction note just above) moves it back to being a sibling of `.app`, still
+         inside `.photos-root` -- it is position:fixed, so nesting it inside the scrolling column
+         buys nothing either way, but it does need to stay inside `.photos-root` for its own
+         parity CSS to match.
 
          Task 4 fold-in fix: this container used to live inside the `v-else-if="album"` branch
          above (before the P2c skeleton rebuild pulled it out to be a fixed-position sibling), so
@@ -1132,7 +1153,7 @@ watch(gridRef, () => {
       @click.self="confirmDelete = false"
     >
       <div class="lb-confirm">
-        <div class="lb-confirm-icon" style="color: var(--remove-fg)">
+        <div class="lb-confirm-icon" style="color: var(--danger)">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
         </div>
         <div class="lb-confirm-title">{{ t('photosAlbumDeleteTitle', { name: album?.title ?? '' }) }}</div>
@@ -1174,6 +1195,7 @@ watch(gridRef, () => {
     @update:open="convertOpen = $event"
     @converted="onConverted"
   />
+  </div>
 </template>
 
 <style scoped>
@@ -1234,30 +1256,41 @@ watch(gridRef, () => {
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
 
 .sv-header-text { flex: 1; min-width: 0; }
-.sv-title { cursor: text; color: var(--fg); }
+.sv-title { cursor: text; color: var(--text-1); }
 /* Vue2 writes this inline on the input (:56). Everything there is reproduced except the
    `font-family: var(--font-display)` (see above); the colours go through tokens instead of the
    inline literals. */
 .sv-title-input {
-  background: var(--chip-bg); border: 1px solid var(--accent); border-radius: 8px;
-  padding: 2px 10px; color: var(--fg); font: inherit; font-size: 28px; font-weight: 600;
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 2px 10px; color: var(--text-1); font: inherit; font-size: 28px; font-weight: 600;
   letter-spacing: -0.02em; outline: none; min-width: 300px;
 }
 /* Vue2 photos-smartview.scss:81-87 (base .sv-cond) with :372's h1-row size bump folded in --
    the pill only ever appears on the h1 row here, so the two layers collapse into one rule, the
-   same shape AlbumConvertToSmartDialog.vue:310 already uses for this chip. Vue2's --surface-3
-   maps to --chip-bg here to stay with the two .sv-cond restatements this repo already ships
-   (that one and MomentCard.vue:213). Weight and tracking are deliberately NOT reset: in Vue2 the
-   pill inherits the h1's 600 / -0.02em, and resetting them would be a visible deviation.
+   same shape AlbumConvertToSmartDialog.vue:310 already uses for this chip. Weight and tracking
+   are deliberately NOT reset: in Vue2 the pill inherits the h1's 600 / -0.02em, and resetting
+   them would be a visible deviation.
    Kept as-is: this is an intentional, already-reviewed *consolidation* of two parity rules
    (the base `.sv-cond` and the `.sv-header h1 .sv-cond` size-bump), not a raw duplicate -- parity
    itself expresses this as two layered rules relying on cascade, which a scoped block can't
    reproduce the same way (a local `.sv-header h1 .sv-cond` here would out-specificity parity's
    own base `.sv-cond` regardless, same shadow risk as everything else deleted above, so the
-   self-contained version is the only one that reliably renders right). */
+   self-contained version is the only one that reliably renders right).
+   Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
+   (a *global*, non-shadowed, glass-gradient token in dark mode, and one shade lighter than
+   intended in light mode) to parity's own `--surface-3` -- Vue2's actual base `.sv-cond`
+   background (photos-smartview.scss:91-97/:414). The old comment here even said so ("Vue2's
+   --surface-3 maps to --chip-bg here") but the token actually written was one rung off
+   (`--chip-bg`/--surface-2, not `--chip-bg-hi`/--surface-3) -- a real value drift independent
+   of the light-mode question, same class as this file's own already-registered min-width
+   drifts. `color` was already `--fg-muted`, now `--text-2`, matching parity's own value too.
+   The identical drift existed in MomentCard.vue's and AlbumConvertToSmartDialog.vue's own
+   copies of this same chip and is fixed there in the same commit; PhotosSmartViewDetail.vue's
+   own `.sv-cond` already had the right token (`--chip-bg-hi`, now `--surface-3`) and needed no
+   correction. */
 .sv-header h1 .sv-cond {
   display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px;
-  background: var(--chip-bg); color: var(--fg-muted); font-size: 11.5px;
+  background: var(--surface-3); color: var(--text-2); font-size: 11.5px;
 }
 
 /* No parity name for this state (Vue2's Edit/Done button is never disabled) -- kept, it's this
@@ -1275,7 +1308,7 @@ watch(gridRef, () => {
 /* No parity selector for a hover state on the Sort pill (Vue2/parity :3514-3524 never defines
    one) -- kept as a New-UI-only affordance layered on top of parity's own `.order-pill` base
    rule, harmless since it only ever *adds* a highlight parity doesn't have. */
-.sv-actions .order-pill:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.sv-actions .order-pill:hover { background: var(--surface-3); color: var(--text-1); }
 /* No parity class name (Vue2 :251/:98 wraps these two containers with a bare inline
    `style="position:relative"`) -- kept, needed as the containing block for the absolutely
    positioned menu/dropdown each wraps. */
@@ -1306,11 +1339,11 @@ watch(gridRef, () => {
    own --surface-2 (photos-smartview.scss:528) rather than this repo's --chip-bg-hi. */
 .sv-export-item:hover:not(:disabled) { background: var(--surface-2); }
 .sv-export-item:disabled { opacity: 0.45; cursor: not-allowed; }
-.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
-.sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
+.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--danger); }
+.sv-export-icon-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 /* Compound selector (0,3,0) beats the base .sv-export-item:hover's (0,2,0) structurally, not by
    source order -- same fix PhotosSmartViewDetail.vue applies at its own copy of this rule. */
-.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 
 /* ── Sort dropdown ──
    Task 4 re-skin: the template's dropdown classes were renamed from `.album-sort-menu`/
@@ -1394,16 +1427,16 @@ watch(gridRef, () => {
    `.sv-distribution > div` (Vue2 never puts a class on this div, plain `<div :style=...>`), which
    already matches this template's bar element regardless of the extra `sv-dist-bar` class it
    also carries for `data-test` purposes -- the local class-based rule only ever shadowed it.
-   One property survives: `.sv-stat-cell .v { color: var(--fg); }` -- parity's own version of this
+   One property survives: `.sv-stat-cell .v { color: var(--text-1); }` -- parity's own version of this
    selector (photos-smartview.scss:821) never sets an explicit colour, relying on inherited text
    colour from further up a page that (in Vue2) always establishes one; this component's own
    layout doesn't guarantee the same ambient colour, so the explicit value is kept as a safety
    net rather than risk the stat value inheriting something unreadable. */
 .sv-detail-side {
-  border-left: 1px solid var(--divider); background: var(--panel-bg);
+  border-left: 1px solid var(--line); background: var(--surface-1);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
-.sv-stat-cell .v { color: var(--fg); }
+.sv-stat-cell .v { color: var(--text-1); }
 
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
    as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
@@ -1413,6 +1446,6 @@ watch(gridRef, () => {
   .app { grid-template-columns: 1fr; }
   .sv-header h1 { font-size: 24px; }
   .sv-detail-layout { grid-template-columns: 1fr; }
-  .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
+  .sv-detail-side { border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>

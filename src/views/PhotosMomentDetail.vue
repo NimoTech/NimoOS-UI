@@ -860,7 +860,7 @@ async function doDelete(): Promise<void> {
             @click.self="closeDeleteConfirm"
           >
             <div class="lb-confirm">
-              <div class="lb-confirm-icon" style="color: var(--remove-fg)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
+              <div class="lb-confirm-icon" style="color: var(--danger)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
               <!-- Reused verbatim (photosSvDeleteName), not a fresh key — file-header deviation 19. -->
               <div class="lb-confirm-title">{{ t('photosSvDeleteName', { name: moment.title }) }}</div>
               <div class="lb-confirm-body">{{ t('photosMoDeleteBody', { n: fmtNum(momentAssetCount) }) }}</div>
@@ -907,10 +907,10 @@ async function doDelete(): Promise<void> {
 .mo-skel-header { height: 90px; border-radius: var(--radius-sm); background: var(--skeleton-bg); }
 
 /* Not-found gate (New-UI only, deviation 1) — mirrors .sv-not-found on the sibling page. */
-.mo-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.mo-not-found-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.mo-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
-.mo-not-found-back:hover { background: var(--chip-bg-hi); }
+.mo-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--text-2); text-align: center; }
+.mo-not-found-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.mo-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-1); font: inherit; font-size: 13px; cursor: pointer; }
+.mo-not-found-back:hover { background: var(--surface-3); }
 
 /* ── Top bar (scss:298-313, globally imported) ──
    Task 6: `.sv-detail-bar` deleted -- parity's own `.photos-root .sv-detail-bar` already
@@ -920,7 +920,7 @@ async function doDelete(): Promise<void> {
    T5 already made for the sibling SmartViewDetail page's own back button: the old name never
    matched parity's nested `.sv-detail-bar .back`(+:hover) selector at all, so this is the
    first time that rule actually reaches this button. Local rule deleted accordingly. */
-.sv-last-updated { font-size: 12px; color: var(--fg-muted); }
+.sv-last-updated { font-size: 12px; color: var(--text-2); }
 
 /* ── Two-column skeleton (scss:313-345) ── The scrollbar repaint at scss:346-365 is deliberately
    not ported, for the reason already recorded at the same rules in PhotosSmartViewDetail.vue.
@@ -931,19 +931,19 @@ async function doDelete(): Promise<void> {
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
 .sv-detail-side {
-  border-left: 1px solid var(--divider); background: var(--panel-bg);
+  border-left: 1px solid var(--line); background: var(--surface-1);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
 /* ── Header (scss:260-267,364-372,414-416,452-459, globally imported) ──
    Task 6: `.sv-header` deleted outright -- identical to parity's own `.photos-root .sv-header`.
-   `.sv-header h1` trimmed to just `color: var(--fg)` -- parity's own rule already sets
+   `.sv-header h1` trimmed to just `color: var(--text-1)` -- parity's own rule already sets
    font-family/font-size/font-weight/letter-spacing/margin (and, unlike the previous comment
    here claimed, `--font-display` genuinely resolves: it's defined on photos.scss's own
    `.photos-root` token block, just not in this app's theme.css, which is as far as the old
    comment checked); parity sets no colour at all, so the explicit `--fg` survives as a
    defensive addition, same call as PhotosSmartViews.vue's `.mo-hero h1`. */
-.sv-header h1 { color: var(--fg); }
+.sv-header h1 { color: var(--text-1); }
 /* `.sv-header-conds` trimmed to just `min-height: 4px` -- the rest duplicated parity's own
    rule exactly; the min-height is a New-UI addition with no parity equivalent, preventing the
    row from collapsing when there are no condition pills to show (same fix T5 already made on
@@ -952,13 +952,30 @@ async function doDelete(): Promise<void> {
 /* `.sv-cond` kept unchanged (not deleted): it consolidates parity's own base `.sv-cond` rule
    plus its `.sv-header-conds .sv-cond` contextual size-bump override into one rule -- same
    "consolidation, not a raw duplicate" precedent T4/T5 already established for this exact
-   selector on the sibling pages. */
-.sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); font-size: 11.5px; }
+   selector on the sibling pages.
+   Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg` (global,
+   non-shadowed, glass-gradient in dark mode) to parity's own `--surface-3` -- Vue2's real base
+   `.sv-cond` background (photos-smartview.scss:91-97), one rung lighter than what was here
+   (`--chip-bg`/--surface-2, not `--chip-bg-hi`/--surface-3). Same fix applied to this chip's
+   other restatements in PhotosAlbumDetail.vue/MomentCard.vue/AlbumConvertToSmartDialog.vue;
+   PhotosSmartViewDetail.vue's own copy already had the right token and needed no correction. */
+.sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); font-size: 11.5px; }
 /* Amber type pill (scss:264-268). Vue 2 wrote an amber literal for both the tint and the text;
-   this repo forbids bare colour literals, so it reuses the existing --warn-bg / --warn-fg pair
-   (theme.css has values for both in both themes) — same substitution MomentCard.vue made in T4.
-   The compound selector keeps it ahead of the plain .sv-cond above without !important. */
-.sv-cond.mo-type-pill { background: var(--warn-bg); color: var(--warn-fg); font-weight: 600; }
+   this repo forbids bare colour literals.
+   Fix-2 item 6 (owner acceptance, 2026-08-13): this used to reuse the global --warn-bg/--warn-fg
+   pair (T4's original substitution) -- neither is shadowed on `.photos-root`, so in photos light
+   mode (data-theme still dark) it stayed the dark pairing, a faint 8%-alpha wash under the same
+   bright orange text sitting directly on the parity light surface -- low-contrast
+   orange-on-near-white, the same root cause as the rest of this sweep. `--warning` is declared
+   directly on `.photos-root` itself at the exact same orange Vue2 itself uses literally,
+   deliberately left un-overridden by `.photos-root.is-light` (functional colours are invariant
+   by spec) -- already the correct, parity-scoped, theme-invariant token. `color-mix` reproduces
+   Vue2's own literal fill (a 15%-alpha version of that same orange, scss:264-268) precisely --
+   also fixes a real value drift (--warn-bg's 8% vs Vue2's 15%), not just a theming one. Same fix
+   applied to MomentCard.vue's sibling `.mo-span-mini` in the same commit. The compound selector
+   keeps it
+   ahead of the plain .sv-cond above without !important. */
+.sv-cond.mo-type-pill { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); font-weight: 600; }
 /* `.sv-header-stats`(+b) deleted -- both duplicated parity's own rule bodies exactly (token
    names differ only). */
 /* Vue 2 :22 wrote an inline green literal here; --success is this repo's token for it, same
@@ -1018,9 +1035,9 @@ async function doDelete(): Promise<void> {
 /* Vue 2 :41/:42 wrote a coral literal for the delete item's icon/title/description — this repo
    forbids bare colour literals, so it reuses --remove-fg, same substitution
    PhotosSmartViewDetail.vue already made for its own delete item. */
-.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
-.sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
-.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
+.sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--danger); }
+.sv-export-icon-danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--danger) 14%, transparent); }
 .sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
 .sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
@@ -1048,7 +1065,7 @@ async function doDelete(): Promise<void> {
    applied to `.sv-menu-*` above and to the sibling pages' own copies of this exact dialog). ── */
 /* New-UI only (deviation 17): the inline failure message, in the same danger family as the
    confirm button below rather than the neutral --fg-muted body text above it. */
-.mo-delete-error { margin-top: 10px; font-size: 12.5px; color: var(--remove-fg); }
+.mo-delete-error { margin-top: 10px; font-size: 12.5px; color: var(--danger); }
 /* Deviation 22: the dialog stays up across the request, so the confirm button needs the same
    in-flight treatment .sv-action-btn:disabled already gives the action bar -- parity's own
    .trash-btn-cta carries no :disabled styling at all (Vue2's own dialog never disables it). */
@@ -1104,7 +1121,7 @@ async function doDelete(): Promise<void> {
 .sv-tile-check {
   color: var(--on-accent); /* --on-accent's one legal use: icon sits on a solid --accent fill. */
 }
-.mo-all-loading, .mo-all-empty { padding: 8px 32px; color: var(--fg-muted); font-size: 12.5px; }
+.mo-all-loading, .mo-all-empty { padding: 8px 32px; color: var(--text-2); font-size: 12.5px; }
 
 /* ── Selection bar (scss:675-696, globally imported).
    Task 6: deleted -- real bug, same category T4/T5 already found and fixed on the sibling
@@ -1128,12 +1145,12 @@ async function doDelete(): Promise<void> {
 
 /* Task 6: `.sv-stat-grid`, `.sv-stat-cell` and `.sv-stat-cell .l` deleted -- all three
    duplicated parity's own rule bodies exactly (token names differ only). `.sv-stat-cell .v`
-   trimmed to just its explicit `color: var(--fg)` -- parity's own rule sets no colour at all
+   trimmed to just its explicit `color: var(--text-1)` -- parity's own rule sets no colour at all
    here either (font-size/weight/tabular-nums duplicated and deleted), so the same "explicit
    colour survives, don't gamble on inheritance" call as `.sv-header h1`/`.mo-hero h1` applies;
    this also resolves the "is this survivor even necessary" question T4 flagged as an open
    concern for its own file's identical copy of this exact selector. */
-.sv-stat-cell .v { color: var(--fg); }
+.sv-stat-cell .v { color: var(--text-1); }
 
 /* Task 6: `.sv-distribution`/`.sv-dist-x` deleted -- both duplicated parity's own rule bodies
    exactly (token names differ only). `.sv-dist-bar` kept unchanged: Vue2's own gradient ends
@@ -1145,7 +1162,7 @@ async function doDelete(): Promise<void> {
    styling hook). */
 .sv-dist-bar {
   flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
-  background: linear-gradient(to top, var(--accent), var(--accent-text));
+  background: linear-gradient(to top, var(--accent), var(--accent-hi));
 }
 
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
@@ -1155,6 +1172,6 @@ async function doDelete(): Promise<void> {
 @media (max-width: 768px) {
   .app { grid-template-columns: 1fr; }
   .sv-detail-layout { grid-template-columns: 1fr; }
-  .sv-detail-side { border-left: 0; border-top: 1px solid var(--divider); }
+  .sv-detail-side { border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>

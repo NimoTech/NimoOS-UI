@@ -242,10 +242,10 @@ async function submitCreate(): Promise<void> {
    专属关闭按钮类而不复用 .icon-btn——这是既有本地范式的延续,parity 无对应选择器可比对。 */
 .album-picker-close {
   width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.album-picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.album-picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
 /* 标题文字(模板处 `.album-picker-title-text` span,无独立规则,Task 8 静态自查记录):
    不再声明局部 font-size/font-weight/color——parity 的 .album-picker-head 本身
@@ -257,15 +257,15 @@ async function submitCreate(): Promise<void> {
    增补(brief 明确登记的形态偏离),parity 无对应选择器。 */
 .album-picker-cover {
   flex: 0 0 auto; width: 40px; height: 40px; border-radius: 8px; overflow: hidden;
-  border: 1px solid var(--card-border); background: var(--chip-bg);
+  border: 1px solid var(--line); background: var(--surface-2);
 }
 .album-picker-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .album-picker-cover-empty { background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); }
 
 /* 标题+计数两列信息区——同上,parity 的纯文本项没有这层子结构。 */
 .album-picker-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.album-picker-item-title { font-size: 13px; font-weight: 500; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.album-picker-item-count { font-size: 11px; color: var(--fg-muted); }
+.album-picker-item-title { font-size: 13px; font-weight: 500; color: var(--text-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.album-picker-item-count { font-size: 11px; color: var(--text-2); }
 
 /* .album-picker-new 的 color 已被 parity(`color: var(--accent-hi)`)接管,原有的
    font-size/font-weight 覆盖一并删除——Vue2 的「+ New Album」行本就和普通相册项同一字重,
@@ -276,7 +276,7 @@ async function submitCreate(): Promise<void> {
 .album-picker-new-row { padding: 8px; }
 .album-picker-new-input {
   width: 100%; height: 34px; padding: 0 10px; border-radius: 8px;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--text-1);
   font: inherit; font-size: 13px;
 }
 .album-picker-new-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }

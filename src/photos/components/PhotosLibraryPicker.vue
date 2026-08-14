@@ -355,7 +355,7 @@ function confirmAdd(): void {
   border-radius: 50%;
   border: 0;
   background: transparent;
-  color: var(--fg-muted);
+  color: var(--text-2);
   font-size: 15px;
   line-height: 1;
   cursor: pointer;
@@ -363,7 +363,7 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
 }
-.picker-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.picker-close:hover { background: var(--surface-3); color: var(--text-1); }
 
 /* 瓦片内的 <img> 不再单独挂 class——parity 的 .picker-tile 内嵌 `img { … }`(SCSS 嵌套编译为
    `.picker-tile img`)本就对任意 img 子元素生效,同 Vue2 原生 <img>(:28,同样无 class)。
@@ -377,6 +377,18 @@ function confirmAdd(): void {
    PhotosLibraryPicker.test.ts 断言 tile.text() 包含 existingLabel 原文),不能收敛成
    parity 的纯图标徽标。因此不复用 parity 的 `.picker-tile-existing` 这个名字(语义/尺寸都
    不同,同名会与 parity 规则打架),改用不冲突的 `.picker-already` 系列,保留原有视觉。 */
+/* Fix-2 item 6 (owner acceptance, 2026-08-13): `color` used to be `var(--text-1)` -- a
+   *parity*-scoped token that correctly flips dark under `.photos-root.is-light`, sitting on
+   `--overlay-bg`, a *global* token that stays a dark tint in both of New-UI's own themes
+   (theme.css:274/408, both a translucent dark navy/warm fill, deliberately invariant since a
+   tile-covering scrim needs to read against unpredictable photo pixels underneath, not the
+   app's own theme). In photos light mode the pairing was dark-on-dark: the background stayed
+   dark (correctly) but the text went dark too (incorrectly, chasing the private is-light flip
+   the background doesn't follow). Pinned to a literal white instead, matching this repo's own
+   established convention for exactly this shape (thumbnail-overlay text needs constant
+   contrast regardless of theme -- same call PhotosTrash.vue's `.tile-fav`/`.tile-vid` badges
+   and PhotosSmartViewDetail.vue's `.sv-toast` already make, each with their own
+   theme-exception comment). */
 .picker-already {
   position: absolute;
   inset: 0;
@@ -386,7 +398,7 @@ function confirmAdd(): void {
   justify-content: center;
   gap: 3px;
   background: var(--overlay-bg);
-  color: var(--fg);
+  color: #fff; /* theme-exception: overlays unpredictable photo pixels, same as --overlay-bg above */
   font-size: 10px;
   font-weight: 600;
   text-align: center;
@@ -416,9 +428,9 @@ function confirmAdd(): void {
   justify-content: space-between;
   gap: 12px;
   padding: 12px 18px;
-  border-top: 1px solid var(--divider);
+  border-top: 1px solid var(--line);
   flex: 0 0 auto;
 }
-.picker-discard-text { font-size: 12.5px; color: var(--fg); flex: 1 1 auto; min-width: 0; }
+.picker-discard-text { font-size: 12.5px; color: var(--text-1); flex: 1 1 auto; min-width: 0; }
 .picker-discard-actions { display: flex; gap: 8px; flex: 0 0 auto; }
 </style>

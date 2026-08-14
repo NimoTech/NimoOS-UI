@@ -514,8 +514,8 @@ function thumbUrl(seed: string): string {
   width: 820px;
   max-width: 100%;
   max-height: calc(100vh - 80px);
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--card-shadow-hi);
   display: flex;
@@ -552,7 +552,7 @@ function thumbUrl(seed: string): string {
   align-items: center;
   gap: 12px;
   padding: 18px 20px 16px;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
 }
 /* 偏离登记(文件头注释 1):Vue2 scss:690-691 是 32×32,不是 brief 写的 28×28——照真源。 */
 .sv-modal-icon {
@@ -568,8 +568,8 @@ function thumbUrl(seed: string): string {
   box-shadow: var(--card-shadow-hi);
 }
 .sv-modal-head-text { flex: 1; min-width: 0; }
-.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
-.sv-modal-sub { font-size: 11.5px; color: var(--fg-faint); margin-top: 2px; }
+.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-1); }
+.sv-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 /* Vue2 全局 .icon-btn(32×32,见 photos.scss)在本仓不存在(scoped 孤岛),照本弹窗其余
    26-28px 尺度的按钮定一份等价 scoped 版本(同 PlaceSpotDialog.vue:257 的既有先例)。 */
 .icon-btn {
@@ -582,11 +582,11 @@ function thumbUrl(seed: string): string {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-subtle);
+  color: var(--text-4);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.icon-btn:hover { background: var(--chip-bg); color: var(--fg); }
+.icon-btn:hover { background: var(--surface-2); color: var(--text-1); }
 
 .sv-modal-body {
   display: grid;
@@ -606,28 +606,28 @@ function thumbUrl(seed: string): string {
 .sv-modal-side {
   overflow-y: auto;
   padding: 18px 18px 22px;
-  border-left: 1px solid var(--card-border);
-  background: var(--chip-bg);
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
 .sv-field { display: flex; flex-direction: column; gap: 6px; }
-.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--fg-muted); }
-.sv-field-hint { font-size: 10.5px; color: var(--fg-subtle); font-weight: 400; }
+.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-2); }
+.sv-field-hint { font-size: 10.5px; color: var(--text-4); font-weight: 400; }
 /* Vue2 内联 style="margin-top:6px"(:103/:116)→ 具名类,逐属性对照,不是裸字面量丢弃。 */
 .sv-hint-spaced { margin-top: 6px; }
 .sv-input {
   width: 100%;
   padding: 9px 11px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
-.sv-input:focus { border-color: var(--accent); background: var(--popup-bg); }
+.sv-input:focus { border-color: var(--accent); background: var(--surface-1); }
 .sv-textarea { min-height: 60px; resize: vertical; line-height: 1.45; font-size: 12.5px; }
 
 .sv-suggest {
@@ -644,21 +644,21 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   margin-bottom: 8px;
 }
 .sv-suggest-row { display: flex; flex-wrap: wrap; gap: 5px; }
 .sv-suggest-chip {
   padding: 4px 10px;
   border-radius: 99px;
-  background: var(--popup-bg);
+  background: var(--surface-1);
   border: 1px dashed var(--accent-soft-bd);
-  color: var(--fg);
+  color: var(--text-1);
   font-size: 11.5px;
   cursor: pointer;
   transition: all 0.12s;
 }
-.sv-suggest-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-text); }
+.sv-suggest-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hi); }
 
 .sv-chip-bin {
   display: flex;
@@ -666,21 +666,21 @@ function thumbUrl(seed: string): string {
   align-items: center;
   gap: 5px;
   padding: 7px 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   min-height: 38px;
   transition: border-color 0.15s;
 }
-.sv-chip-bin:focus-within { border-color: var(--accent); background: var(--popup-bg); }
+.sv-chip-bin:focus-within { border-color: var(--accent); background: var(--surface-1); }
 .sv-chip-bin[data-empty="true"] { padding: 0; background: transparent; border: 0; }
 .sv-chip-bin[data-empty="true"] .sv-chip-input {
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   padding: 9px 11px;
 }
-.sv-chip-bin[data-empty="true"]:focus-within .sv-chip-input { border-color: var(--accent); background: var(--popup-bg); }
+.sv-chip-bin[data-empty="true"]:focus-within .sv-chip-input { border-color: var(--accent); background: var(--surface-1); }
 .sv-chip-item {
   display: inline-flex;
   align-items: center;
@@ -689,7 +689,7 @@ function thumbUrl(seed: string): string {
   background: var(--accent-soft);
   border: 1px solid var(--accent-soft-bd);
   border-radius: 99px;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   font-size: 11.5px;
   font-weight: 500;
 }
@@ -699,7 +699,7 @@ function thumbUrl(seed: string): string {
   border-radius: 50%;
   border: 0;
   background: var(--accent-soft-2);
-  color: var(--accent-text);
+  color: var(--accent-hi);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -712,30 +712,30 @@ function thumbUrl(seed: string): string {
   min-width: 140px;
   background: transparent;
   border: 0;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 12.5px;
   outline: none;
   padding: 4px 6px;
 }
 
-.sv-thresh-val { margin-left: auto; color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
+.sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
 /* fix round 1 · I1:.sv-slider/.sv-slider-marks 的真实样式已下沉到
    PhotosThreshSlider.vue(scoped 但作用于该组件自己渲染的元素,不需要在这里重复)。 */
 
-.sv-toggles { background: var(--chip-bg); border: 1px solid var(--card-border); border-radius: 10px; padding: 2px 12px; }
+.sv-toggles { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 2px 12px; }
 .sv-toggle-row {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
   font-size: 12.5px;
-  color: var(--fg-muted);
+  color: var(--text-2);
 }
 .sv-toggle-row:last-child { border-bottom: 0; }
-.sv-toggle-row .label { flex: 1; color: var(--fg); }
-.sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-toggle-row .label { flex: 1; color: var(--text-1); }
+.sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-toggle-clickable { cursor: pointer; user-select: none; }
 /* fix round 1 · M1(SmartViewSidePanel.vue task-8 评审同批发现,控制器授权连本文件
    一起补):Vue2 的 `.sv-switch` 有两份规则叠级联——本区 scss 读取区间没盖到
@@ -746,7 +746,7 @@ function thumbUrl(seed: string): string {
   position: relative;
   width: 32px;
   height: 18px;
-  background: var(--chip-bg-hi);
+  background: var(--surface-3);
   border-radius: 99px;
   cursor: pointer;
   flex-shrink: 0;
@@ -760,7 +760,7 @@ function thumbUrl(seed: string): string {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--fg);
+  background: var(--text-1);
   transition: all 0.2s;
   /* 投影是纯粗黑阴影,用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的投影),不写
      字面颜色函数,同 SmartViewSidePanel.vue 已立的先例。 */
@@ -780,12 +780,12 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   margin-bottom: 8px;
 }
 .sv-preview-count { display: flex; align-items: baseline; gap: 6px; margin-bottom: 12px; }
-.sv-preview-count b { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--fg); }
-.sv-preview-count span { font-size: 11.5px; color: var(--fg-faint); }
+.sv-preview-count b { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--text-1); }
+.sv-preview-count span { font-size: 11.5px; color: var(--text-3); }
 .sv-preview-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -797,11 +797,11 @@ function thumbUrl(seed: string): string {
 .sv-preview-grid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; }
 .sv-preview-help {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   line-height: 1.5;
   padding: 8px 10px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 8px;
 }
 
@@ -811,7 +811,7 @@ function thumbUrl(seed: string): string {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-bottom: 8px;
 }
 .sv-template-row {
@@ -821,10 +821,10 @@ function thumbUrl(seed: string): string {
   width: 100%;
   padding: 8px 10px;
   margin-bottom: 4px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   text-align: left;
   cursor: pointer;
@@ -833,38 +833,38 @@ function thumbUrl(seed: string): string {
 .sv-template-row:hover { border-color: var(--accent); background: var(--accent-soft); }
 /* fix round 1 · I2:Vue2 :164 给这 5 个模板行的 sparkles 图标显式传了
    color="var(--accent-hi)"(Vue2 PhotosIcon.vue 把 color prop 落到 :stroke)——是 accent
-   色,不是继承 .sv-template-row 自己的 color:var(--fg)(前景白/深)。之前误用
+   色,不是继承 .sv-template-row 自己的 color:var(--text-1)(前景白/深)。之前误用
    stroke="currentColor" 让图标继承了容器的前景色而不是 accent,同文件另两处 sparkles
    (.sv-suggest-head/.sv-preview-head)之所以碰巧对,是因为那两条规则自己的 color 就是
    --accent-text,唯独这里的容器 color 是 --fg,currentColor 刚好继承错。Vue2 hover 态
    (scss:955-958)只改 border-color/background,不改图标色,故 hover 态也应保持 accent——
    这里直接给 svg 定死 color,不随容器 hover 变化,天然覆盖两态。 */
-.sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-text); }
+.sv-template-row svg { margin-top: 2px; flex-shrink: 0; color: var(--accent-hi); }
 .sv-template-row .t-label { font-size: 12px; font-weight: 500; }
-.sv-template-row .t-desc { font-size: 10.5px; color: var(--fg-faint); margin-top: 1px; line-height: 1.35; }
+.sv-template-row .t-desc { font-size: 10.5px; color: var(--text-3); margin-top: 1px; line-height: 1.35; }
 
 .sv-modal-foot {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid var(--card-border);
-  background: var(--popup-bg);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
 }
 .sv-btn-ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
-.sv-btn-ghost:hover { background: var(--chip-bg-hi); }
+.sv-btn-ghost:hover { background: var(--surface-3); }
 /* --on-accent 合法用法之三(文件头注释 3b):同本仓既有 primary 按钮先例
    ClusterActionDialog.vue:320 / MergeReviewDialog.vue:262。 */
 .sv-btn-primary {
@@ -900,6 +900,6 @@ function thumbUrl(seed: string): string {
    数字对齐本仓同类文件 PhotosSmartViews.vue 已用的 768(与 Vue2 字面 760 的出入已登记)。 */
 @media (max-width: 768px) {
   .sv-modal-body { grid-template-columns: 1fr; }
-  .sv-modal-side { border-left: 0; border-top: 1px solid var(--card-border); }
+  .sv-modal-side { border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>

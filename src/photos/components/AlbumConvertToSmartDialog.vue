@@ -192,6 +192,14 @@ async function submit(): Promise<void> {
    .sv-modal / .sv-modal-head / .icon-btn / .sv-modal-body / .sv-modal-form / .sv-field* /
    .sv-input* / .sv-thresh-val / .sv-modal-foot / .sv-btn-ghost / .sv-btn-primary /
    .act-modal-enter-* (there named .sv-modal-enter-*). ── */
+/* Fix-2 item 6 sweep (owner acceptance, 2026-08-13), registered decision: `--overlay-bg` is a
+   *global*, non-`.photos-root`-shadowed token like the others this sweep replaced, but it is
+   kept here deliberately, not swapped -- verified safe. It is a modal *scrim* (darkens whatever
+   sits behind the dialog), not text: both of New-UI's own global values (theme.css:274/408) are
+   a dark, semi-opaque tint, by design, since a scrim's job is to dim the page regardless of
+   which theme (app-wide or photos-private) is active. There is no white-on-white/low-contrast
+   risk the way there is for a foreground colour, so this is the same category of exception the
+   task brief itself calls out for the approved glass search box (PhotosTopbar.vue's `.search`). */
 .sv-modal-scrim {
   position: fixed;
   inset: 0;
@@ -208,8 +216,8 @@ async function submit(): Promise<void> {
   width: 820px;
   max-width: 100%;
   max-height: calc(100vh - 80px);
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--card-shadow-hi);
   display: flex;
@@ -229,7 +237,7 @@ async function submit(): Promise<void> {
   align-items: center;
   gap: 12px;
   padding: 18px 20px 16px;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
 }
 .sv-modal-icon {
   width: 32px;
@@ -243,8 +251,8 @@ async function submit(): Promise<void> {
   box-shadow: var(--card-shadow-hi);
 }
 .sv-modal-head-text { flex: 1; min-width: 0; }
-.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--fg); }
-.sv-modal-sub { font-size: 11.5px; color: var(--fg-faint); margin-top: 2px; }
+.sv-modal-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-1); }
+.sv-modal-sub { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
 .icon-btn {
   flex: none;
   width: 28px;
@@ -255,11 +263,11 @@ async function submit(): Promise<void> {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-subtle);
+  color: var(--text-4);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
-.icon-btn:hover { background: var(--chip-bg); color: var(--fg); }
+.icon-btn:hover { background: var(--surface-2); color: var(--text-1); }
 
 .sv-modal-body {
   display: grid;
@@ -283,21 +291,21 @@ async function submit(): Promise<void> {
 }
 
 .sv-field { display: flex; flex-direction: column; gap: 6px; }
-.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--fg-muted); }
-.sv-field-hint { font-size: 10.5px; color: var(--fg-subtle); font-weight: 400; }
+.sv-field-label { display: flex; align-items: baseline; gap: 8px; font-size: 11.5px; font-weight: 500; color: var(--text-2); }
+.sv-field-hint { font-size: 10.5px; color: var(--text-4); font-weight: 400; }
 .sv-input {
   width: 100%;
   padding: 9px 11px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   outline: none;
   transition: border-color 0.15s, background 0.15s;
 }
-.sv-input:focus { border-color: var(--accent); background: var(--popup-bg); }
+.sv-input:focus { border-color: var(--accent); background: var(--surface-1); }
 .sv-textarea { min-height: 60px; resize: vertical; line-height: 1.45; font-size: 12.5px; }
 
 /* ── Restated from PhotosMomentDetail.vue's own .sv-header-conds/.sv-cond (that file's
@@ -307,9 +315,14 @@ async function submit(): Promise<void> {
    neither the removable (`x` button) nor mo-type-pill variants those other files also carry,
    so only the two base rules are restated here. ── */
 .sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
-.sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); font-size: 11.5px; }
+/* Fix-2 item 4/6 (owner acceptance, 2026-08-13): background corrected from `--chip-bg`
+   (global, non-shadowed, glass-gradient in dark mode) to parity's own `--surface-3` -- Vue2's
+   real base `.sv-cond` background (photos-smartview.scss:91-97), one rung lighter than what was
+   here (`--chip-bg`/--surface-2, not `--chip-bg-hi`/--surface-3). Same fix applied to this
+   chip's other restatements in PhotosAlbumDetail.vue and MomentCard.vue. */
+.sv-cond { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 99px; background: var(--surface-3); color: var(--text-2); font-size: 11.5px; }
 
-.sv-thresh-val { margin-left: auto; color: var(--accent-text); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
+.sv-thresh-val { margin-left: auto; color: var(--accent-hi); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 13px; }
 /* PhotosThreshSlider.vue owns the actual .sv-slider/.sv-slider-marks styles (T5 fix round 1 ·
    I1 extraction) -- nothing to restate here for the slider itself. */
 
@@ -320,30 +333,30 @@ async function submit(): Promise<void> {
 
 /* Inline failure message next to the submit button (not a toast: see submit()'s comment).
    --remove-fg per the dispatch's explicit color call. */
-.convert-error { font-size: 12px; color: var(--remove-fg); line-height: 1.4; }
+.convert-error { font-size: 12px; color: var(--danger); line-height: 1.4; }
 
 .sv-modal-foot {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   padding: 14px 20px;
-  border-top: 1px solid var(--card-border);
-  background: var(--popup-bg);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
 }
 .sv-btn-ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
-.sv-btn-ghost:hover { background: var(--chip-bg-hi); }
+.sv-btn-ghost:hover { background: var(--surface-3); }
 .sv-btn-primary {
   height: 36px;
   padding: 0 18px;

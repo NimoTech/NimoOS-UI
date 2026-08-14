@@ -794,6 +794,36 @@ describe('SP15-P2c Task 6: header action row', () => {
     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
   })
 
+  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): the export toast, edit-mode
+  // select bar, and library picker used to be template-root SIBLINGS of `.photos-root` rather
+  // than its DOM descendants, so none of parity's `.photos-root .sv-select-bar` / `.sv-toast`
+  // descendant selectors (photos-smartview.scss:550-567/675) could match -- the exact same root
+  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1). Same fix:
+  // nest them back inside `.photos-root`.
+  describe('Fix-2 item 5: the tail section is a real descendant of .photos-root', () => {
+    it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
+      svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+      const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+      await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      const bar = w.get('[data-test="sv-select-bar"]').element
+      expect(bar.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the library picker renders inside .photos-root', async () => {
+      // PhotosLibraryPicker's own root is `v-if="open"` -- closed, `.element` is a comment
+      // placeholder with no `.closest`, so open it first via the select bar's Add photos button.
+      svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+      const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+      await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="sv-add-photos"]').trigger('click')
+      await w.vm.$nextTick()
+      const overlay = w.get('[data-test="lib-picker-overlay"]').element
+      expect(overlay.closest('.photos-root')).not.toBeNull()
+    })
+  })
+
   it('disables Remove until something is selected', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => (opts?.recent ? [] : [asset('a1')]))
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
@@ -1254,11 +1284,16 @@ describe('convert to regular album', () => {
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
     expect(w.find('[data-test="sv-convert-confirm"] .lb-confirm-icon').attributes('style')).toContain('--accent-hi')
-    // The delete dialog keeps the red disc (--remove-fg, not --accent-hi).
+    // The delete dialog keeps the red disc (--danger, not --accent-hi). Fix-2 item 6 (owner
+    // acceptance, 2026-08-13): was --remove-fg, a global token not shadowed on `.photos-root`
+    // (so it did not follow the private photos-is-light toggle) -- switched to parity's own
+    // --danger, declared directly on `.photos-root` and deliberately invariant across both of
+    // its themes by spec, matching Vue2's own literal more closely too (see the report's sweep
+    // table for the full trace).
     await w.find('[data-test="sv-convert-cancel"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-delete"]').trigger('click')
-    expect(w.find('[data-test="sv-confirm-scrim"] .lb-confirm-icon').attributes('style')).toContain('--remove-fg')
+    expect(w.find('[data-test="sv-confirm-scrim"] .lb-confirm-icon').attributes('style')).toContain('--danger')
   })
 
   it('does not dismiss the confirmation mid-flight', async () => {
@@ -1497,9 +1532,14 @@ describe('样式:hover 级联归属变体', () => {
 
 // ── 红色不含字面色值 ────────────────────────────────────────────────────
 describe('红色走 token,不写死字面量', () => {
-  it('样式块含 --remove-fg 家族,不含字面 #FF6B5C', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13): --remove-fg switched to --danger throughout
+  // this file -- --remove-fg is a global token not shadowed on `.photos-root`, so it did not
+  // follow the private photos-is-light toggle; --danger is declared directly on `.photos-root`
+  // and deliberately invariant across both of its own themes by spec (see the report's sweep
+  // table).
+  it('样式块含 --danger 家族,不含字面 #FF6B5C', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
-    expect(style).toContain('--remove-fg')
+    expect(style).toContain('--danger')
     expect(style).not.toContain('#FF6B5C')
     expect(style.toUpperCase()).not.toContain('#FF6B5C')
   })

@@ -257,11 +257,11 @@ onMounted(() => {
    `font-family: var(--font-display)`; the previous "this repo's theme.css has no such
    token" comment here only checked theme.css -- photos.scss's own `.photos-root` block
    (Task 6 grep) *does* define `--font-display` for both light/dark, so that font-family
-   was never actually inert, it just wasn't documented correctly. Only `color: var(--fg)`
+   was never actually inert, it just wasn't documented correctly. Only `color: var(--text-1)`
    survives: parity sets no color on this selector at all, and this repo's own ambient
    default for a bare `h1` outside `.photos-root`'s own component rules isn't guaranteed,
    so the explicit colour is kept rather than gambled on inheritance. */
-.mo-hero h1 { color: var(--fg); }
+.mo-hero h1 { color: var(--text-1); }
 
 /* .mo-grid coexists with .sv-grid, only layering mosaic-specific rules on top — it never
    touches .sv-grid itself. Dense packing plus a fixed row height: a card's rendered height
@@ -311,7 +311,7 @@ onMounted(() => {
   color: var(--dem-fg); font-size: 12.5px; line-height: 1.4;
 }
 .mo-off-hint svg { flex-shrink: 0; }
-.mo-off-hint-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+.mo-off-hint-link { color: var(--accent-hi); text-decoration: underline; cursor: pointer; }
 
 /* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
    as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at

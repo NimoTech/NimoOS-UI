@@ -697,8 +697,8 @@ onUnmounted(() => {
    contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }
 /* 终审 Important 1:与 PhotosFavorites.vue/PhotosAlbumDetail.vue 的同款失败态间距对齐
    (两处已有此规则),否则三个失败屏视觉不一致。 */
@@ -753,8 +753,8 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
 }
 .albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
-.albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
-.albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+.albums-ai-banner-desc { font-size: 11.5px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+.albums-ai-banner-link { color: var(--accent-hi); text-decoration: underline; cursor: pointer; }
 
 /* ── 分区头 + Grid ──
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
@@ -775,7 +775,7 @@ onUnmounted(() => {
 /* `.albums-section-head`/`h2` deleted (T3 shadow cleanup): both class names already match
    parity's `.photos-root .albums-section-head`/`h2` (photos.scss:3213-3225) exactly, and the
    local copies disagreed on real values -- padding 4px 4px 14px vs parity's 12px 0 14px, h2
-   15px vs parity's 18px, plus an explicit `color: var(--fg)` (New-UI token, not redefined
+   15px vs parity's 18px, plus an explicit `color: var(--text-1)` (New-UI token, not redefined
    inside `.photos-root`) shadowing the `--text-1` the `.app` grid already sets as the ambient
    text color. `.albums-section-hint` keeps its own name (PhotosAlbums.test.ts asserts on it by
    class, e.g. `w.find('.albums-section-hint')`) -- parity's equivalent is the nameless
@@ -872,10 +872,10 @@ onUnmounted(() => {
 .albums-modal-head-text { flex: 1 1 auto; min-width: 0; }
 .albums-modal-close {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.albums-modal-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
+.albums-modal-close:hover { background: var(--surface-3); color: var(--text-1); }
 /* No parity selector under this name -- Vue2's close button is the generic, app-wide `.icon-btn`
    (photos.scss:229-237, 32px). This repo's own dialogs consistently use a bespoke, smaller
    close-button class instead of `.icon-btn` for this exact spot (MergeReviewDialog.vue
