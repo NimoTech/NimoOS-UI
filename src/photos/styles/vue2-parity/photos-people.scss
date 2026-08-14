@@ -343,21 +343,6 @@
   letter-spacing: -0.025em;
   display: flex; align-items: center; gap: 12px;
 }
-.detail-hero .name .edit-btn {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-3);
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--float-bg);
-  backdrop-filter: blur(12px);
-  display: inline-flex; align-items: center; gap: 4px;
-  line-height: 1;
-}
-.detail-hero .name .edit-btn:hover { color: var(--text-1); border-color: var(--line-strong); }
 .detail-hero .stats-row {
   display: flex; gap: 28px;
   margin-top: 14px;
@@ -784,6 +769,14 @@
 
 /* -- relation/edit menu trigger family (PhotosPersonDetail.vue:1169-1241) -- */
 .detail-hero .name .relation-picker { position: relative; display: inline-flex; align-items: center; }
+/* Fix round 1 (Important 1): Vue2 has two competing sources for .edit-btn —
+   a bare global rule (photos-people.scss:346-359: color var(--text-3), gap
+   4px) and a ::v-deep scoped rule in PhotosPersonDetail.vue:1170-1177 (color
+   var(--text-2), gap 6px, box-sizing/transition). In real Vue2 the scoped
+   attribute selector out-specifies the bare rule, so the scoped values below
+   are what actually renders — the stale bare-rule duplicate that used to
+   live near `.detail-hero .name` (photos-people.scss:346-360) has been
+   deleted so there is only ONE `.edit-btn` rule in this file. */
 .detail-hero .name .edit-btn {
   height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
   box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
@@ -1486,13 +1479,27 @@
 .mrd-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 .mrd-btn-primary:hover { background: var(--accent-hi); }
 
-/* ===== People index — furniture with no Vue2 pixel source. Ported from
-   New-UI's own src/views/PhotosPeople.vue scoped block (lines ~707-917)
-   as-is; only the global New-UI theme tokens are swapped for this file's
-   private tokens (--fg→--text-1, --fg-muted→--text-2/3, --divider→--line,
-   --hover→--surface-3, --fg-faint→--text-4, --accent-text→--accent-hi,
-   --on-accent→#fff — matching this file's own established use of literal
-   white text on solid accent fills). ===== */
+/* ===== People index — filter dropdowns + misc chrome. =====
+   Fix round 1 (Important 2): the `.people-menu*` / `.people-pop-wrap` family
+   below is NOT "furniture with no Vue2 pixel source" — Vue2
+   PhotosPeopleView.vue's confidence dropdown (~:15-39) and sort dropdown
+   (~:61-82) build this exact menu from `:style` bindings, the same situation
+   as the clusterMenu/clusterDialog/mrd family transcribed earlier in this
+   file (New-UI's own src/views/PhotosPeople.vue:755 comment already flags
+   this). No Vue2 class name exists to anchor to, so — same policy as that
+   earlier section — class names follow New-UI's already-established naming
+   (src/views/PhotosPeople.vue scoped block, ~707-917) while every value
+   below has been re-checked against those two Vue2 inline-style blocks
+   (see the per-selector notes; the `.check` width split below is the one
+   place a value actually diverged and was fixed).
+   `.people-icon-btn` / `.people-btn-primary` are a separate, third Vue2
+   source: the merge-suggestion banner's dismiss / "Review" buttons, which
+   reuse Vue2's own shared global `.icon-btn` / `.btn`+`.btn-primary` classes
+   (already transcribed as `.photos-root .icon-btn` / `.photos-root
+   .btn-primary` in photos.scss) rather than any `:style` binding of their
+   own — `.people-icon-btn`'s geometry has been corrected below to match
+   `.icon-btn` (32px/var(--r-sm), not New-UI's original 28px/50%);
+   `.people-btn-primary` already matched `.btn-primary`'s colors exactly. */
 .people-pop-wrap { position: relative; }
 .people-menu {
   position: absolute;
@@ -1532,6 +1539,13 @@
 .people-menu-item:hover { background: var(--surface-3); }
 .people-menu-item[data-active="true"] { background: var(--accent-soft); }
 .people-menu-item .check { width: 12px; flex: none; color: var(--accent-hi); }
+/* Fix round 1 (Important 2): Vue2's confMenu check icon/placeholder is
+   11px (PhotosPeopleView.vue:32-33: `:size="11"` / `width:11px`), sortMenu's
+   is 12px (:75-76: `:size="12"` / `width:12px`). New-UI shares one `.check`
+   span class across both dropdowns (base rule above matches sortMenu);
+   narrow it back to 11px inside the confidence dropdown so both stay
+   byte-correct to their own Vue2 source. */
+.people-menu-conf .people-menu-item .check { width: 11px; }
 .people-menu-item .lbl { flex: 1; }
 .people-menu-item .tail { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
 .people-menu-item .stack-text { flex: 1; display: flex; flex-direction: column; }
@@ -1539,8 +1553,8 @@
 .people-menu-item .stack-text .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 .people-icon-btn {
-  width: 28px; height: 28px; flex: none;
-  border-radius: 50%;
+  width: 32px; height: 32px; flex: none;
+  border-radius: var(--r-sm);
   border: 0;
   background: transparent;
   color: var(--text-2);
