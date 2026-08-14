@@ -17,7 +17,7 @@ async function copy(text: string) {
   try {
     await copyText(text)
     toast.show(t('filesShareCopied'))
-  } catch { /* 剪贴板不可用时静默 */ }
+  } catch { /* Silently fail when clipboard is unavailable */ }
 }
 </script>
 

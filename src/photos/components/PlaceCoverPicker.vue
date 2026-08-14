@@ -1,23 +1,28 @@
 <script setup lang="ts">
-// P6b-T7: PlaceCoverPicker.vue —— 地点详情面板的"设置封面"全屏弹层(标签页/搜索/
-// 8 列候选网格/分页/恢复默认)。逐段照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPlacesView.vue:1253-1335(模板)、:296-312(watch,activeId
-// 切换重置 coverTab/coverSearch/coverPage——该重置属于容器状态管理,归 T8)、
-// :374-377(coverTabLabel 回落链)、:517-560(loadCoverCandidates/setCover/resetCover,
-// 同样归 T8)移植;样式照 photos-places.scss:1026-1184。
+// P6b-T7: PlaceCoverPicker.vue — 'set cover' full-screen popover for the place detail panel
+// (tabs / search / 8-column candidate grid / pagination / restore default). Ported segment by
+// segment from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1253-1335 (template),
+// :296-312 (watch, activeId switch resets coverTab/coverSearch/coverPage — this reset is part of
+// container state management, handled by T8), :374-377 (coverTabLabel fallback chain),
+// :517-560 (loadCoverCandidates/setCover/resetCover, also in T8); styles from
+// photos-places.scss:1026-1184.
 //
-// 纯组件,不接线:状态与请求都在容器(T8),本组件只 emit。
+// Pure component, no wiring: state and requests are in the container (T8); this component only
+// emits.
 //
-// 浮层规范(本仓已确立先例 PlacesFilterMenu.vue/PlacesThemeMenu.vue):Esc 走
-// document 级 keydown,watch(open) 挂/摘,onUnmounted 兜底摘除;不调用
-// stopPropagation/stopImmediatePropagation——本页同时挂着 Filters、地图主题两个弹层,
-// 三者独立监听同一个 document keydown,一次 Esc 要让三个各自都收到、各自都关
-// (T8 集成断言)。onDocKeydown 内部除"非 Escape 直接 return"外没有第二条早退
-// (P5-T10 bug 形态:两个弹层共享一个判定函数、漏检第二个分支导致同开时 Esc 只关一个;
-// 本组件不共享判定函数,不会重现,但仍照铁律钉死写法)。
+// Float layer spec (established precedent in this repo: PlacesFilterMenu.vue/PlacesThemeMenu.vue):
+// Escape uses document-level keydown, watch(open) attaches/removes, onUnmounted has fallback
+// cleanup; does not call stopPropagation/stopImmediatePropagation — this page has Filters and
+// map theme popovers active simultaneously; all three listen independently to the same document
+// keydown, and one Esc should reach all three and close them separately (T8 integration assertion).
+// Inside onDocKeydown there is only one early return outside of 'non-Escape direct return'
+// (P5-T10 bug form: two popovers share a single predicate function, miss the second branch,
+// causing Esc to close only one when both are open; this component doesn't share the predicate
+// function so it won't recur, but we still nail down the rule in code).
 //
-// z-index 与本仓已有弹层先例 PhotosPersonDetail.vue:1092 的 `.pd-scrim` 同档 220,
-// 不用 Vue2 places-cover-portal 的 1200(那是 Vue2 自己的层级体系,与本仓无关)。
+// z-index is at the same level (220) as the existing popover precedent in this repo,
+// PhotosPersonDetail.vue:1092 `.pd-scrim`; not using Vue2's places-cover-portal value of 1200
+// (which is Vue2's own hierarchy, not relevant to this repo).
 import { onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -46,8 +51,9 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 标签文案回落链(照搬 Vue2 :374-377):先查 photosPlacesCoverTab{Recent|Top|Fav|All}
-// (按 t.id 映射),没有则回落 t.label,再没有回落 t.id。只此一处消费,不进 util。
+// Tab label fallback chain (copied from Vue2 :374-377): first check photosPlacesCoverTab{Recent|Top|Fav|All}
+// (mapped by t.id), if not found fall back to t.label, if still not found fall back to t.id. Only
+// consumed here, not extracted to util.
 const TAB_LABEL_KEYS: Record<string, string> = {
   recent: 'photosPlacesCoverTabRecent',
   top: 'photosPlacesCoverTabTop',
@@ -60,7 +66,7 @@ function coverTabLabel(tb: { id: string, label: string }): string {
   return tb.label || tb.id
 }
 
-// 照搬 Vue2 :1284。
+// Copied from Vue2 :1284.
 function tabCountText(count: number): string {
   return count > 999 ? `${Math.round(count / 100) / 10}k` : String(count)
 }
@@ -83,7 +89,7 @@ function onReset(): void {
   if (props.busy) return
   emit('reset')
 }
-// 钳制照搬 Vue2 :1322/:1328。
+// Clamping copied from Vue2 :1322/:1328.
 function onPrevPage(): void {
   emit('update:page', Math.max(0, props.page - 1))
 }
@@ -135,8 +141,8 @@ onUnmounted(() => {
             :class="['cp-tab', { 'is-active': tab === tb.id }]"
             @click="onTabClick(tb.id)"
           >
-            <!-- 图标按 t.icon 分支(后端契约 NimoOS-Photos service/places.go:756-759:
-                 clock/sparkles/star/grid 四值),未知值回落通用图标。 -->
+            <!-- Icon branches by t.icon (backend contract NimoOS-Photos service/places.go:756-759:
+                 four values clock/sparkles/star/grid); unknown values fall back to generic icon. -->
             <svg
               v-if="tb.icon === 'clock'" data-test="cp-tab-ico-clock"
               viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
@@ -187,9 +193,10 @@ onUnmounted(() => {
             @click="onCellClick(assetId)"
           >
             <img :src="service.photos.thumbnailUrl(assetId, 'small')" alt="">
-            <!-- .cp-cell-check 背景为 var(--accent) 饱和实底,白勾压在上面 ——
-                 这是 --on-accent 的正确用法(与 hero 前景色不同:那处压在照片+暗化
-                 渐变上,一律钉死浅色 + theme-exception;这里背景确为 accent 纯色)。 -->
+            <!-- .cp-cell-check background is var(--accent) solid saturated, white checkmark on top —
+                 this is correct use of --on-accent (different from hero foreground color: that sits on
+                 photo + darkening gradient, always pinned to light + theme-exception; here the
+                 background is indeed pure accent). -->
             <span v-if="isCurrentCover(assetId)" class="cp-cell-check">
               <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
             </span>
@@ -219,10 +226,11 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* token 映射(同 T3/T6 既定表):--surface-1 → --popup-bg;--line → --card-border;
-   --text-1/2/3 → --fg/--fg-muted/--fg-subtle;Vue2 原三档透明黑蒙层(浅/中/深三级
-   不透明度)→ --chip-bg(常态软底,浅一档)、--chip-bg-hi(hover / .is-active,中与深
-   两档合并成同一档——本仓只有两档 chip token,不新增第三档)。 */
+/* Token mapping (same as T3/T6 established table): --surface-1 → --popup-bg; --line → --card-border;
+   --text-1/2/3 → --fg/--fg-muted/--fg-subtle; Vue2's original three-tier transparent black
+   overlay (shallow/medium/deep opacity levels) → --chip-bg (normal soft bottom, shallow tier) and
+   --chip-bg-hi (hover / .is-active, medium and deep tiers merged into one — this repo only has two
+   chip tokens, no third tier added). */
 .cp-scrim {
   position: fixed;
   inset: 0;
@@ -234,7 +242,8 @@ onUnmounted(() => {
   justify-content: center;
   padding: 40px;
 }
-/* P2 血泪:面板底色须用 --popup-bg,不用 --card-bg(深色主题下近透明会看穿)。 */
+/* P2 hard lesson: panel background must use --popup-bg, not --card-bg (nearly transparent in dark
+   theme shows through). */
 .cp-shell {
   width: 900px;
   max-width: 95vw;
@@ -311,17 +320,19 @@ onUnmounted(() => {
   font-weight: 500;
   cursor: pointer;
 }
-/* New-UI 侧新增(Vue2 无对应):.cp-tab 基类补一条 hover 反馈,与 .is-active 组成
-   本仓已确立的"基类/变体"对——下面这条铁律注释同 PlacesRail.vue :299-308。 */
+/* New-UI addition (no Vue2 equivalent): .cp-tab base class adds a hover feedback, forming the
+   established 'base / variant' pair in this repo — the rule below is the same as
+   PlacesRail.vue :299-308. */
 .cp-tab:hover { background: var(--chip-bg-hi); }
 .cp-tab.is-active {
   background: var(--chip-bg-hi);
   color: var(--fg);
 }
-/* 基类 hover 铁律(同 PlacesRail.vue :299-308):.cp-tab:hover 与 .cp-tab.is-active
-   优先级相同((0,2,0) vs (0,2,0)),不补这条专属 hover 规则的话,书写顺序一旦颠倒
-   就会被基类 hover 背景整块夺走。这条选择器优先级 (0,3,0),严格高于基类 hover,
-   不依赖书写顺序永远赢。删码验证钉住这点(cssCascade.hoverBackgroundRules)。 */
+/* Base class hover rule (same as PlacesRail.vue :299-308): .cp-tab:hover and .cp-tab.is-active
+   have equal specificity ((0,2,0) vs (0,2,0)); without this dedicated hover rule, reversing the
+   source order would let base hover background take over the whole state. This selector's
+   specificity (0,3,0) is strictly higher than base hover, wins without depending on source order.
+   Test verification pins this (cssCascade.hoverBackgroundRules). */
 .cp-tab.is-active:hover { background: var(--chip-bg-hi); }
 .cp-tab .cp-tab-count { font-size: 10px; opacity: 0.55; font-variant-numeric: tabular-nums; }
 .cp-search {
@@ -365,10 +376,10 @@ onUnmounted(() => {
   grid-template-columns: repeat(8, 1fr);
   gap: 8px;
 }
-/* 评审同款(PlacesRail.vue D3 裁定):图片未加载完成前的占位底改用 --chip-bg
-   (随主题走),不是精确复刻 Vue2 那处 transparent——surface treatment 归 New-UI
-   重塑,与 .rail-place .thumb 已登记的手法一致。这一档同时给 .cp-cell 补上
-   hover/is-active 背景,满足下面的 hover 级联铁律。 */
+/* Review decision (PlacesRail.vue D3 ruling): placeholder background before image loads changed to
+   --chip-bg (follows theme), not exact copy of Vue2's transparent — surface treatment is New-UI's
+   reshaping, consistent with the established technique in .rail-place .thumb. This tier also adds
+   hover/is-active backgrounds to .cp-cell to satisfy the hover cascade rule below. */
 .cp-cell {
   aspect-ratio: 1;
   padding: 0;
@@ -382,9 +393,9 @@ onUnmounted(() => {
 }
 .cp-cell:hover { background: var(--chip-bg-hi); }
 .cp-cell.is-active { border-color: var(--accent); background: var(--chip-bg-hi); }
-/* 基类 hover 铁律(同上 .cp-tab.is-active:hover 与 PlacesRail.vue :299-308):
-   .cp-cell:hover 与 .cp-cell.is-active 优先级相同,这条专属 :hover 规则的优先级
-   严格更高,不依赖书写顺序。删码验证钉住这点。 */
+/* Base class hover rule (same as .cp-tab.is-active:hover above and PlacesRail.vue :299-308):
+   .cp-cell:hover and .cp-cell.is-active have equal specificity; this dedicated :hover rule has
+   strictly higher specificity, does not depend on source order. Test verification pins this. */
 .cp-cell.is-active:hover { background: var(--chip-bg-hi); }
 .cp-cell:disabled { opacity: 0.5; cursor: not-allowed; }
 .cp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }

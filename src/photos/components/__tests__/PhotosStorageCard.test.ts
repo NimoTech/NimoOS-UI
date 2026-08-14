@@ -1,43 +1,44 @@
-// SP7-P8a-T3: PhotosStorageCard.vue —— 设置页存储卡。
-// 回源坐标见 task-3-brief.md;Vue2 PhotosSettings.vue:39-126(模板)/:299-331(computed)/
-// :382(fmt)/:405-457(fmtBytes/五个动作方法)。
+// SP7-P8a-T3: PhotosStorageCard.vue — Storage card on the settings page.
+// Source coordinates in task-3-brief.md; Vue2 PhotosSettings.vue:39-126(template)/:299-331(computed)/
+// :382(fmt)/:405-457(fmtBytes/five action methods).
 //
-// 测试基建偏离登记(brief 与本仓实际不符,以本仓实测为准):
-// 1. brief 草稿用 `@pinia/testing` 的 `createTestingPinia({ stubActions: true })`,但本仓
-//    package.json 未装该包(`node_modules/.pnpm` 无 `@pinia/testing` 任何版本)。改用本仓
-//    settings.test.ts / AlbumPickerDialog.test.ts 的既定做法:`setActivePinia(createPinia())`
-//    起一个真实 store 实例,用 `vi.spyOn(store, 'action')` 单独按需 stub 需要控制返回值的
-//    action,其余走真实实现(mock 的是共享包 `@nimotech/nimoos-service`,不是 store 本身)。
-// 2. brief Step7 引用的 `winningDeclaration(css, [...], 'background', {hover, dataActive})`
-//    与 `readComponentStyle()` 在 `cssCascade.ts` 里都不存在——该文件实际只导出
-//    `extractStyleBlock`/`winningHoverBackground`/`parseCssRules`/`ownBackground`。改用
-//    `PhotosFilterChip.test.ts:107-114` 的既定写法:`?raw` 导入组件源码 → `extractStyleBlock`
-//    → `winningHoverBackground(style, ['seg-btn'])`,断言胜出选择器同时含 `:hover` 与
-//    `data-active`。
+// Test infrastructure deviation registry (brief vs. actual repo — follow actual test results):
+// 1. The brief draft uses `@pinia/testing`'s `createTestingPinia({ stubActions: true })`, but the repo's
+//    package.json does not have that package (`node_modules/.pnpm` has no @pinia/testing at any version).
+//    Use the established pattern from settings.test.ts / AlbumPickerDialog.test.ts instead:
+//    `setActivePinia(createPinia())` to create a real store instance, then use `vi.spyOn(store, 'action')`
+//    to selectively stub only the actions that need controlled return values, while the rest use the real
+//    implementation (we mock the shared package `@nimotech/nimoos-service`, not the store itself).
+// 2. The brief's Step7 references `winningDeclaration(css, [...], 'background', {hover, dataActive})`
+//    and `readComponentStyle()`, but neither exists in `cssCascade.ts` — that file actually only exports
+//    `extractStyleBlock`/`winningHoverBackground`/`parseCssRules`/`ownBackground`. Use the established
+//    pattern from `PhotosFilterChip.test.ts:107-114` instead: import component source with `?raw` →
+//    `extractStyleBlock` → `winningHoverBackground(style, ['seg-btn'])`, and assert that the winning
+//    selector contains both `:hover` and `data-active`.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { fmtGB, fmtBytes, buildBreakdown } from '../../util/storagePalette'
 
-describe('storage 卡纯函数', () => {
-  it('fmtGB:>=100 取整,否则一位小数(Vue2 :382)', () => {
+describe('storage card pure functions', () => {
+  it('fmtGB: round when >=100, else one decimal place (Vue2 :382)', () => {
     expect(fmtGB(100)).toBe('100')
     expect(fmtGB(99.94)).toBe('99.9')
     expect(fmtGB(0)).toBe('0.0')
   })
 
-  it('fmtBytes:逐级进位,>=100 取整(Vue2 :405-413)', () => {
+  it('fmtBytes: step-wise carry-over, round when >=100 (Vue2 :405-413)', () => {
     expect(fmtBytes(0)).toBe('0 B')
     expect(fmtBytes(-1)).toBe('0 B')
-    expect(fmtBytes(512)).toBe('512 B') // 512 >= 100 ⇒ 取整
+    expect(fmtBytes(512)).toBe('512 B') // 512 >= 100 → round
     expect(fmtBytes(1536)).toBe('1.5 KB')
     expect(fmtBytes(1024 ** 4 * 2)).toBe('2.0 TB')
-    // 单位表到 TB 为止,更大的值继续用 TB 表示(while 的 i < len-1 上界)
+    // Units go up to TB; larger values continue in TB (while loop i < len-1 boundary)
     expect(fmtBytes(1024 ** 5)).toBe('1024 TB')
   })
 
-  it('buildBreakdown:段序固定,other 仅在剩余 > 0.05 GB 时追加(Vue2 :327)', () => {
+  it('buildBreakdown: segment order fixed, other appended only when remainder > 0.05 GB (Vue2 :327)', () => {
     const GB = 1024 ** 3
     const segs = buildBreakdown(
       { photosBytes: 3 * GB, videosBytes: 2 * GB, rawBytes: GB, cacheBytes: 0, aiBytes: 0 },
@@ -47,14 +48,15 @@ describe('storage 卡纯函数', () => {
     expect(segs.find((s) => s.key === 'other')!.gb).toBeCloseTo(4, 5)
   })
 
-  it('buildBreakdown:剩余恰好 0.05 GB 不追加 other(边界是严格大于)', () => {
-    // 偏离登记(brief 自身的测试夹具数字有浮点误差,不是源码/brief 逻辑冲突):
-    // brief 草稿原用 `{photosBytes: 1GB}, usedGB=1.05` 意图让 other = 1.05-1 恰好命中 0.05,
-    // 但 `1.05 - 1` 在 IEEE-754 双精度下是 0.050000000000000044(> 0.05),不是精确的 0.05,
-    // 导致这条"边界不追加"的用例在原数字下必然误判为"追加"——这是计算机浮点减法的固有噪声,
-    // 与 buildBreakdown/Vue2 源的 `other > 0.05` 判据本身无关。改用 known=0(不含任何已知段)
-    // + usedGB=0.05,让 other = Math.max(0, 0.05 - 0) 与实现里的字面量 0.05 是同一个双精度
-    // 比特模式,真正落在边界上,不引入减法噪声。
+  it('buildBreakdown: remainder exactly 0.05 GB does not append other (boundary is strict greater-than)', () => {
+    // Deviation registry (brief's test fixture has floating-point error, not source/brief logic conflict):
+    // The brief draft originally used `{photosBytes: 1GB}, usedGB=1.05` intending other = 1.05-1 to hit 0.05 exactly,
+    // but `1.05 - 1` in IEEE-754 double precision is 0.050000000000000044 (> 0.05), not exactly 0.05,
+    // so the "no append at boundary" test case would necessarily misbehave with the original numbers — this is
+    // inherent noise in floating-point subtraction, unrelated to the buildBreakdown/Vue2 source's `other > 0.05`
+    // logic. Changed to: known=0 (no known segments) + usedGB=0.05, so other = Math.max(0, 0.05 - 0) has the exact
+    // same IEEE-754 bit pattern as the literal 0.05 in the implementation, truly landing at the boundary without
+    // introducing subtraction noise.
     const segs = buildBreakdown(
       { photosBytes: 0, videosBytes: 0, rawBytes: 0, cacheBytes: 0, aiBytes: 0 },
       0.05,
@@ -62,7 +64,7 @@ describe('storage 卡纯函数', () => {
     expect(segs.map((s) => s.key)).not.toContain('other')
   })
 
-  it('buildBreakdown:负数字节按 0 处理(Vue2 :317 的 Math.max(0, b))', () => {
+  it('buildBreakdown: negative bytes treated as 0 (Vue2 :317 Math.max(0, b))', () => {
     const segs = buildBreakdown(
       { photosBytes: -1, videosBytes: 0, rawBytes: 0, cacheBytes: 0, aiBytes: 0 },
       0,
@@ -72,7 +74,7 @@ describe('storage 卡纯函数', () => {
 })
 
 // ---------------------------------------------------------------------------
-// 组件测试:真实 Pinia store + mock 共享包(不是 mock store 本身)
+// Component tests: real Pinia store + mock shared package (not mocking the store itself)
 // ---------------------------------------------------------------------------
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -108,7 +110,7 @@ describe('PhotosStorageCard', () => {
     vi.clearAllMocks()
   })
 
-  it('storageError 时大数字位显示破折号 + 不可用副行', async () => {
+  it('when storageError, main numbers show em-dash + unavailable secondary line', async () => {
     const { wrapper, store } = mountCard()
     store.storage = null
     store.storageError = true
@@ -117,17 +119,17 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.text()).toContain('不可用')
   })
 
-  it('retention 5 档,当前档带 data-active', async () => {
+  it('retention: 5 tiers, current tier has data-active', async () => {
     const { wrapper, store } = mountCard()
     store.retentionDays = 30
     await nextTick()
     const btns = wrapper.findAll('[data-test="retention-seg"] button')
     expect(btns).toHaveLength(5)
     expect(btns.filter((b) => b.attributes('data-active') === 'true')).toHaveLength(1)
-    expect(btns[2]!.attributes('data-active')).toBe('true') // [7,15,30,60,90] 的第三档
+    expect(btns[2]!.attributes('data-active')).toBe('true') // third tier of [7,15,30,60,90]
   })
 
-  it('点 retention 档位调 setRetention;失败时 emit toast', async () => {
+  it('clicking retention tier calls setRetention; emits toast on failure', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'setRetention').mockResolvedValue(false)
     await wrapper.findAll('[data-test="retention-seg"] button')[4]!.trigger('click')
@@ -136,7 +138,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeTruthy()
   })
 
-  it('点 retention 档位成功不 emit toast', async () => {
+  it('clicking retention tier successfully does not emit toast', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'setRetention').mockResolvedValue(true)
     await wrapper.findAll('[data-test="retention-seg"] button')[0]!.trigger('click')
@@ -144,7 +146,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeFalsy()
   })
 
-  it('scanInterval 5 档,off 档的值走 i18n(其余四档是单位缩写字面量,不过 $t)', async () => {
+  it('scanInterval: 5 tiers, off tier value via i18n (other four are unit abbreviation literals, no $t)', async () => {
     const { wrapper } = mountCard()
     const btns = wrapper.findAll('[data-test="scan-seg"] button')
     expect(btns).toHaveLength(5)
@@ -153,7 +155,7 @@ describe('PhotosStorageCard', () => {
     ])
   })
 
-  it('点 scanInterval 档位调 setScanInterval;失败时 emit toast', async () => {
+  it('clicking scanInterval tier calls setScanInterval; emits toast on failure', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'setScanInterval').mockResolvedValue(false)
     await wrapper.findAll('[data-test="scan-seg"] button')[1]!.trigger('click')
@@ -162,7 +164,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeTruthy()
   })
 
-  it('缓存按钮:prunableBytes 为 0 时禁用', async () => {
+  it('cache button: disabled when prunableBytes is 0', async () => {
     const { wrapper, store } = mountCard()
     store.storage = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 0,
@@ -172,7 +174,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.get('[data-test="clear-cache"]').attributes('disabled')).toBeDefined()
   })
 
-  it('缓存按钮:prunableBytes > 0 时可点', async () => {
+  it('cache button: clickable when prunableBytes > 0', async () => {
     const { wrapper, store } = mountCard()
     store.storage = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 512 * 1024 * 1024,
@@ -182,7 +184,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.get('[data-test="clear-cache"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('清缓存成功后重拉 storage(Vue2 :423)且 emit 成功 toast', async () => {
+  it('after clearing cache successfully, refetch storage (Vue2 :423) and emit success toast', async () => {
     const { wrapper, store } = mountCard()
     store.storage = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 512 * 1024 * 1024,
@@ -197,7 +199,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeTruthy()
   })
 
-  it('清缓存失败:emit 失败 toast,不重拉 storage', async () => {
+  it('clear cache failure: emit failure toast, do not refetch storage', async () => {
     const { wrapper, store } = mountCard()
     store.storage = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 512 * 1024 * 1024,
@@ -212,7 +214,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.emitted('toast')).toBeTruthy()
   })
 
-  it('容量条段数 = breakdown 段数 + 1 个 free 段(评审 Important-take-along:精确断言,不是 >=5)', async () => {
+  it('capacity bar segment count = breakdown count + 1 free segment (review Important-take-along: exact assertion, not >=5)', async () => {
     const { wrapper, store } = mountCard()
     const fixture = {
       diskTotalBytes: 100 * GB, diskFreeBytes: 40 * GB, prunableBytes: 512 * 1024 * 1024,
@@ -220,9 +222,10 @@ describe('PhotosStorageCard', () => {
     }
     store.storage = fixture
     await nextTick()
-    // 期望段数从 buildBreakdown 本身派生(usedGB = capGB - freeGB = 60,已知段合计 58GB,
-    // other = 2GB > 0.05 会追加)——不写死数字,这样若换了 fixture 数值,期望值跟着走,
-    // 断言仍然是"组件真的把 buildBreakdown 的每一段都渲染出来了",而不是一个凑巧成立的下限。
+    // Expected segment count derived from buildBreakdown itself (usedGB = capGB - freeGB = 60, known segments total 58GB,
+    // other = 2GB > 0.05 will be appended) — don't hardcode the number, so if fixture values change,
+    // the expectation adjusts accordingly and the assertion still proves "the component actually renders every
+    // segment from buildBreakdown", not just a coincidentally passing lower bound.
     const usedGB = fixture.diskTotalBytes / 1024 ** 3 - fixture.diskFreeBytes / 1024 ** 3
     const expectedSegs = buildBreakdown(fixture, usedGB)
     expect(expectedSegs.map((s) => s.key)).toEqual(['photos', 'videos', 'raw', 'thumbs', 'ai', 'other'])
@@ -230,17 +233,17 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.findAll('[data-test="bar-free"]')).toHaveLength(1)
   })
 
-  it('mount 时自取一次 storage(fetchStorage 被调,矫正 T3 Consumes 接口列表里点名的动作)', () => {
+  it('on mount, fetch storage once (fetchStorage called, correcting action named in T3 Consumes interface list)', () => {
     const fetchSpy = vi.spyOn(usePhotosSettingsStore(), 'fetchStorage')
     mount(PhotosStorageCard)
     expect(fetchSpy).toHaveBeenCalled()
   })
 
-  // 评审 Important-1:Rescan Now(rescanNow/triggerScan/scanBusy 守卫/成功 check toast/
-  // 失败兜底 toast)此前零覆盖——task-3-report.md 曾误报"已纳入组件与测试",实际未写。
-  // 补三条:成功、失败、忙时守卫(第一版报告的完整性声明有误,已在报告里如实登记,不是
-  // 悄悄改成"现在测了"就完事)。
-  it('Rescan Now 成功:调 triggerScan,emit check toast,scanBusy 复位', async () => {
+  // Review Important-1: Rescan Now (rescanNow/triggerScan/scanBusy guard/success check toast/
+  // failure fallback toast) had zero coverage previously — task-3-report.md mistakenly claimed "included in component and tests",
+  // but it was never actually written. Added three conditions: success, failure, busy-time guard (first report's completeness claim was
+  // inaccurate; it's been properly documented in the report — not just quietly changed to "now tested").
+  it('Rescan Now success: call triggerScan, emit check toast, reset scanBusy', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'triggerScan').mockResolvedValue(true)
     const btn = wrapper.get('[data-test="rescan-now"]')
@@ -253,7 +256,7 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.get('[data-test="rescan-now"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('Rescan Now 失败:emit 兜底 toast(trash 图标,复用 photosSettingsRebuildStartFailed),scanBusy 复位', async () => {
+  it('Rescan Now failure: emit fallback toast (trash icon, reuse photosSettingsRebuildStartFailed), reset scanBusy', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'triggerScan').mockRejectedValue(new Error('boom'))
     const btn = wrapper.get('[data-test="rescan-now"]')
@@ -265,14 +268,14 @@ describe('PhotosStorageCard', () => {
     expect(wrapper.get('[data-test="rescan-now"]').attributes('disabled')).toBeUndefined()
   })
 
-  it('Rescan Now 忙时守卫:在途请求未完成前再点一次不会触发第二次 triggerScan', async () => {
+  it('Rescan Now busy guard: clicking again before in-flight request completes does not trigger second triggerScan', async () => {
     const { wrapper, store } = mountCard()
     let release: (() => void) | undefined
     vi.spyOn(store, 'triggerScan').mockImplementation(
       () => new Promise<boolean>((res) => { release = () => res(true) }),
     )
     const btn = wrapper.get('[data-test="rescan-now"]')
-    await btn.trigger('click') // 不 await 完成,趁在途再点一次
+    await btn.trigger('click') // don't await completion, click again while in flight
     expect(wrapper.get('[data-test="rescan-now"]').attributes('disabled')).toBeDefined()
     await wrapper.get('[data-test="rescan-now"]').trigger('click')
     expect(store.triggerScan).toHaveBeenCalledTimes(1)
@@ -281,8 +284,8 @@ describe('PhotosStorageCard', () => {
   })
 })
 
-describe('样式:分段器 [data-active] 变体自带 hover 背景(本区已栽四次)', () => {
-  it('seg-btn 的 hover 胜出规则同时含 :hover 与 data-active', () => {
+describe('Styles: segmented control [data-active] variant with built-in hover background (this area has fallen 4 times)', () => {
+  it('seg-btn hover winning rule contains both :hover and data-active', () => {
     const style = extractStyleBlock(photosStorageCardRaw)
     expect(style.length).toBeGreaterThan(0)
     const winner = winningHoverBackground(style, ['seg-btn'])

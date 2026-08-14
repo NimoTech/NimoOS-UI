@@ -1,38 +1,39 @@
 import { describe, it, expect } from 'vitest'
 import { DEFERRED_TABS, isDeferred, type KnowledgeTabId } from './deferred'
 
-describe('占位机制(K7)', () => {
-  // 【SP8-P5b Task 5,2026-08-01,反转(不是删除)】'queue' 已迁到真正的
-  // QueueView.vue(knowledgeRoutes.ts 同步反转),从占位列表摘掉;机制本身
-  // (isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
+describe('Placeholder mechanism (K7)', () => {
+  // [SP8-P5b Task 5, 2026-08-01, reverse (not delete)] 'queue' migrated to real QueueView.vue
+  // (knowledgeRoutes.ts synchronized reverse), removed from placeholder list; mechanism itself
+  // (isDeferred source still DEFERRED_TABS) unchanged.
   //
-  // 改前(P5a T3 原文):
+  // Before (P5a T3 original):
   //   it('P5a 只实现 dashboard,其余 8 个 tab 挂占位', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'indexed-files', 'notes', 'queue', 'roots', 'search', 'settings', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
   //   })
   //
-  // 【SP8-P5b Task 10,2026-08-02,再次反转(不是删除)】'indexed-files' 已迁到
-  // 真正的 IndexedFilesView.vue(T8/T9/T10 三刀收官,knowledgeRoutes.ts 同步
-  // 反转),从占位列表摘掉;机制本身(isDeferred 的判定来源仍是 DEFERRED_TABS)
-  // 不变。承 T5 的同一模式:反转 + 新增一条正向断言,不删任何既有断言。
+  // [SP8-P5b Task 10, 2026-08-02, second reverse (not delete)] 'indexed-files' migrated to
+  // real IndexedFilesView.vue (T8/T9/T10 three-move completion, knowledgeRoutes.ts synchronized
+  // reverse), removed from placeholder list; mechanism itself (isDeferred source still DEFERRED_TABS)
+  // unchanged. Following T5 same pattern: reverse + add one forward assertion, delete no existing.
   //
-  // 改前(P5b T5 原文,反转前):
+  // Before (P5b T5 original, before reverse):
   //   it('P5a 实现 dashboard,P5b-T5 实现 queue,其余 7 个 tab 挂占位', () => {
   //     expect([...DEFERRED_TABS].sort()).toEqual(
   //       ['allowlist', 'indexed-files', 'notes', 'roots', 'search', 'settings', 'wiki'])
   //     expect(isDeferred('dashboard')).toBe(false)
   //     expect(isDeferred('queue')).toBe(false)
   //   })
-  // 【SP8-P5c Task 10,2026-08-04,第三次反转(不是删除)】'settings' 已迁到真正的
-  // SettingsView.vue(T8 上半 + T9 下半,knowledgeRoutes.ts 同步反转),从占位列表
-  // 摘掉 → 6 项变 5 项;机制本身(isDeferred 的判定来源仍是 DEFERRED_TABS)不变。
-  // 承 T5 / P5b T10 的同一模式:反转 + 新增一条正向断言,不删任何既有断言。
-  // 🔴 'allowlist' **仍在列表里**:上级设计原把 AllowlistView 算在 P5c,用户
-  // 2026-08-03 明示移出本期(治理 §2.2)→ 它留在占位列表是**预期**,不是漏迁。
-  // 🔴 同刀反转的两条 parser 路由是**顶层路由、不是 rail tab**,从来不在
-  // DEFERRED_TABS 里,故本条断言与它们无关(治理 §5.1)。
+  // [SP8-P5c Task 10, 2026-08-04, third reverse (not delete)] 'settings' migrated to real
+  // SettingsView.vue (T8 first half + T9 second half, knowledgeRoutes.ts synchronized reverse),
+  // removed from placeholder list → 6 items become 5; mechanism itself (isDeferred source still
+  // DEFERRED_TABS) unchanged. Following T5 / P5b T10 same pattern: reverse + add forward assertion.
+  // 🔴 'allowlist' **still in list**: upper design originally included AllowlistView in P5c, user
+  // explicitly moved out this period 2026-08-03 (governance §2.2) → it stays in placeholder
+  // list **as expected**, not migration miss. 🔴 Two parser routes reversed together **are
+  // top-level routes, not rail tabs**, never in DEFERRED_TABS, so this assertion unrelated
+  // (governance §5.1).
   //
   // 改前(P5b T10 原文,反转前):
   //   it('P5a 实现 dashboard,P5b-T5 实现 queue,P5b-T10 实现 indexed-files,其余 6 个 tab 挂占位', () => {

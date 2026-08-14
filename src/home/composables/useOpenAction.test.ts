@@ -27,19 +27,19 @@ beforeEach(() => {
 })
 
 describe('useOpenAction.openApp', () => {
-  it('system app files 应用内 router.push,不整页跳', () => {
+  it('system app files should use in-app router.push, not full page navigation', () => {
     const { openApp } = useOpenAction()
     openApp('files')
     expect(router.push).toHaveBeenCalledWith('/files')
     expect(hrefs.length).toBe(0)
   })
-  it('settings 磁贴应用内 router.push /settings(SP9-P8 cutover)', () => {
+  it('settings tile should use in-app router.push /settings (SP9-P8 cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('settings')
     expect(router.push).toHaveBeenCalledWith('/settings')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/settings==1 时 settings 退回 /#/legacy 老桌面', () => {
+  it('when fallback flag strangler:disabled:/settings==1, settings should fall back to legacy desktop /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/settings', '1')
     const { openApp } = useOpenAction()
     openApp('settings')
@@ -47,13 +47,13 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/settings')
   })
-  it('vm 磁贴应用内 router.push /kvm(SP9-P8 cutover)', () => {
+  it('vm tile should use in-app router.push /kvm (SP9-P8 cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('vm')
     expect(router.push).toHaveBeenCalledWith('/kvm')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/kvm==1 时 vm 退回 Vue2 全页 /#/kvm(不是 /#/legacy)', () => {
+  it('when fallback flag strangler:disabled:/kvm==1, vm should fall back to Vue2 full page /#/kvm (not /#/legacy)', () => {
     localStorage.setItem('strangler:disabled:/kvm', '1')
     const { openApp } = useOpenAction()
     openApp('vm')
@@ -61,13 +61,13 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/kvm')
   })
-  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {
+  it('appstore tile should use in-app router.push /apps/store (SP5-P8 cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('appstore')
     expect(router.push).toHaveBeenCalledWith('/apps/store')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/apps==1 时 appstore 退回 /#/legacy', () => {
+  it('when fallback flag strangler:disabled:/apps==1, appstore should fall back to /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/apps', '1')
     const { openApp } = useOpenAction()
     openApp('appstore')
@@ -75,13 +75,13 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/apps')
   })
-  it('storage 磁贴应用内 router.push /storage(SP6-P6 cutover)', () => {
+  it('storage tile should use in-app router.push /storage (SP6-P6 cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('storage')
     expect(router.push).toHaveBeenCalledWith('/storage')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/storage==1 时 storage 退回 /#/legacy', () => {
+  it('when fallback flag strangler:disabled:/storage==1, storage should fall back to /#/legacy', () => {
     localStorage.setItem('strangler:disabled:/storage', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -89,13 +89,13 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/storage')
   })
-  it('photos 磁贴应用内 router.push /photos(SP7-P8b cutover)', () => {
+  it('photos tile should use in-app router.push /photos (SP7-P8b cutover)', () => {
     const { openApp } = useOpenAction()
     openApp('photos')
     expect(router.push).toHaveBeenCalledWith('/photos')
     expect(hrefs.length).toBe(0)
   })
-  it('回退 flag strangler:disabled:/photos==1 时 photos 退回 Vue2 /#/photos(不是 /#/legacy)', () => {
+  it('when fallback flag strangler:disabled:/photos==1, photos should fall back to Vue2 /#/photos (not /#/legacy)', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openApp } = useOpenAction()
     openApp('photos')
@@ -103,7 +103,7 @@ describe('useOpenAction.openApp', () => {
     expect(router.push).not.toHaveBeenCalled()
     localStorage.removeItem('strangler:disabled:/photos')
   })
-  it('photos 那把 flag 不影响 storage / appstore', () => {
+  it('the photos flag should not affect storage / appstore', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -113,7 +113,7 @@ describe('useOpenAction.openApp', () => {
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/photos')
   })
-  it('storage 与 apps 两把 flag 互不干扰', () => {
+  it('storage and apps flags should not interfere with each other', () => {
     localStorage.setItem('strangler:disabled:/apps', '1')
     const { openApp } = useOpenAction()
     openApp('storage')
@@ -121,7 +121,7 @@ describe('useOpenAction.openApp', () => {
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/apps')
   })
-  it('五把 flag 逐条独立:只关 /kvm,settings/storage/appstore/photos 都照走应用内路由', () => {
+  it('five flags are independent: only disabling /kvm, while settings/storage/appstore/photos still use in-app router', () => {
     localStorage.setItem('strangler:disabled:/kvm', '1')
     const { openApp } = useOpenAction()
     openApp('settings'); expect(router.push).toHaveBeenCalledWith('/settings')
@@ -131,7 +131,7 @@ describe('useOpenAction.openApp', () => {
     expect(hrefs.length).toBe(0)
     localStorage.removeItem('strangler:disabled:/kvm')
   })
-  it('只关 /settings 时 vm 仍走应用内 /kvm(反向隔离)', () => {
+  it('when only /settings is disabled, vm should still use in-app /kvm (reverse isolation)', () => {
     localStorage.setItem('strangler:disabled:/settings', '1')
     const { openApp } = useOpenAction()
     openApp('vm')
@@ -164,19 +164,19 @@ describe('useOpenAction.openApp', () => {
 })
 
 describe('useOpenAction.openItem', () => {
-  it('folder 应用内 push /files?path=(靠 Files.vue 深链归一化落目录)', () => {
+  it('folder should use in-app push /files?path= (relying on Files.vue deep link normalization)', () => {
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'folder', key: 'Gallery', path: '/DATA/Gallery', c: 1, r: 1, w: 1, h: 1 } as LayoutItem)
     expect(router.push).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/Gallery' } })
     expect(hrefs.length).toBe(0)
   })
-  it('photo 磁贴应用内 push /photos(SP7-P8b cutover)', () => {
+  it('photo tile should use in-app push /photos (SP7-P8b cutover)', () => {
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
     expect(router.push).toHaveBeenCalledWith('/photos')
     expect(hrefs.length).toBe(0)
   })
-  it('photo 磁贴:回退 flag 置 1 时退回 Vue2 /#/photos', () => {
+  it('photo tile: when fallback flag is set to 1, should fall back to Vue2 /#/photos', () => {
     localStorage.setItem('strangler:disabled:/photos', '1')
     const { openItem } = useOpenAction()
     openItem({ id: 'i', kind: 'photo', key: 'abc', c: 1, r: 1, w: 2, h: 2 } as LayoutItem)
@@ -186,15 +186,15 @@ describe('useOpenAction.openItem', () => {
   })
 })
 
-describe('AI 区 cutover(SP8-P6)', () => {
-  it('ai 磁贴应用内 router.push /ai/agent', () => {
+describe('AI section cutover (SP8-P6)', () => {
+  it('ai tile should use in-app router.push /ai/agent', () => {
     const { openApp } = useOpenAction()
     openApp('ai')
     expect(router.push).toHaveBeenCalledWith('/ai/agent')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 ai 磁贴退回 Vue2 /#/ai/agent', () => {
+  it('when flag is set to 1, ai tile should fall back to Vue2 /#/ai/agent', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { openApp } = useOpenAction()
     openApp('ai')
@@ -202,14 +202,14 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(hrefs).toEqual(['/#/ai/agent'])
   })
 
-  it('桌面 AI 小组件应用内 router.push /ai/agent', () => {
+  it('desktop AI widget should use in-app router.push /ai/agent', () => {
     const { openItem } = useOpenAction()
     openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
     expect(router.push).toHaveBeenCalledWith('/ai/agent')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 AI 小组件退回 Vue2', () => {
+  it('when flag is set to 1, AI widget should fall back to Vue2', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { openItem } = useOpenAction()
     openItem({ kind: 'widget', key: 'ai' } as LayoutItem)
@@ -217,27 +217,27 @@ describe('AI 区 cutover(SP8-P6)', () => {
     expect(hrefs).toEqual(['/#/ai/agent'])
   })
 
-  it('sendToAI 应用内带 message query(对象形式,不手工编码)', () => {
+  it('sendToAI should use in-app with message query (object form, not manually encoded)', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('帮我找 发票 & 收据')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent', query: { message: '帮我找 发票 & 收据' } })
     expect(hrefs.length).toBe(0)
   })
 
-  it('sendToAI 空文本不带 query', () => {
+  it('sendToAI with empty text should not include query', () => {
     const { sendToAI } = useOpenAction()
     sendToAI('   ')
     expect(router.push).toHaveBeenCalledWith({ path: '/ai/agent' })
   })
 
-  it('knowledge 磁贴走应用内路由 /ai/knowledge(SP14 #98,无回退目标)', () => {
+  it('knowledge tile should use in-app router /ai/knowledge (SP14 #98, no fallback target)', () => {
     const { openApp } = useOpenAction()
     openApp('knowledge')
     expect(router.push).toHaveBeenCalledWith('/ai/knowledge')
     expect(hrefs.length).toBe(0)
   })
 
-  it('flag 置 1 时 sendToAI 退回 Vue2 并保持 encodeURIComponent 拼串', () => {
+  it('when flag is set to 1, sendToAI should fall back to Vue2 and maintain encodeURIComponent string concatenation', () => {
     localStorage.setItem('strangler:disabled:/ai', '1')
     const { sendToAI } = useOpenAction()
     sendToAI('发票 & 收据')

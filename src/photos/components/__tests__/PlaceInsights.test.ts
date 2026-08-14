@@ -1,6 +1,7 @@
-// P6b-T5: PlaceInsights.vue —— "Nimo 发现" 洞察卡片段。
-// 覆盖 task-5-brief.md「Step 1: 写失败测试」清单:四个后端形状各一张卡片 + 零 v-html +
-// 具名插槽加粗验证 + 未知 key 跳过卡片(偏离登记 8)+ 图标三分支 + 空态不渲染。
+// P6b-T5: PlaceInsights.vue — "Nimo Discovery" insight card section.
+// Covers task-5-brief.md "Step 1: write failing tests" checklist: one card per backend shape x4 +
+// no v-html + named slot bold verification + unknown key skips card(deviation from registry 8) +
+// three icon branches + empty state doesn't render.
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -9,9 +10,9 @@ import en from '../../../i18n/en_us'
 import type { PlaceInsight } from '../../stores/places'
 
 import PlaceInsights from '../PlaceInsights.vue'
-// 原始源码文本(Vite `?raw`):零 v-html 断言只能读 <script>/<template> 原文判定
-// (jsdom mount 后拿不到"源码里是否写了 v-html 指令"这个信息),同
-// PersonRelationsTab 反例对照的既有先例。
+// Raw source code text(Vite `?raw`): zero v-html assertion can only read <script>/<template>
+// source text(after jsdom mount cannot get 'whether v-html directive is written in source' info),
+// same as PersonRelationsTab counterexample's existing precedent.
 import placeInsightsRaw from '../PlaceInsights.vue?raw'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
@@ -42,16 +43,16 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('空态', () => {
-  it('insights 为空数组 → 整段不渲染', () => {
+describe('Empty state', () => {
+  it('insights is empty array → entire section doesn\'t render', () => {
     const w = mountInsights([])
     expect(w.find('.detail-section').exists()).toBe(false)
     expect(w.find('.insights').exists()).toBe(false)
   })
 })
 
-describe('四个后端形状 —— 文案与插值替换', () => {
-  it('mostPhotographed:{count} 被替换,且卡片内无 <b>', () => {
+describe('Four backend shapes — copy and interpolation replacement', () => {
+  it('mostPhotographed: {count} is replaced, card contains no <b>', () => {
     const w = mountInsights([mostPhotographed])
     const card = w.find('.insight-card')
     expect(card.exists()).toBe(true)
@@ -60,7 +61,7 @@ describe('四个后端形状 —— 文案与插值替换', () => {
     expect(card.find('b').exists()).toBe(false)
   })
 
-  it('topSpot:文案含地点名与次数,{spot}/{count} 都被替换,<b> 文本恰为地点名(证明走插槽而非拼串)', () => {
+  it('topSpot: copy contains location name and count, {spot}/{count} both replaced, <b> text is exactly location name(proves slot is used not string concat)', () => {
     const w = mountInsights([topSpot])
     const card = w.find('.insight-card')
     expect(card.text()).toContain('西湖')
@@ -70,13 +71,13 @@ describe('四个后端形状 —— 文案与插值替换', () => {
     expect(card.find('b').text()).toBe('西湖')
   })
 
-  it('companions:<b> 文本为 joinCompanionNames 的拼接结果("小明 · 小红")', () => {
+  it('companions: <b> text is joinCompanionNames concatenation result("小明 · 小红")', () => {
     const w = mountInsights([companions])
     const card = w.find('.insight-card')
     expect(card.find('b').text()).toBe('小明 · 小红')
   })
 
-  it('home:<b> 文本为 photosPlacesInsightHomeBase 的值("大本营"),{trips}/{count} 都被替换', () => {
+  it('home: <b> text is photosPlacesInsightHomeBase value("大本营"), {trips}/{count} both replaced', () => {
     const w = mountInsights([home])
     const card = w.find('.insight-card')
     expect(card.find('b').text()).toBe('大本营')
@@ -87,36 +88,37 @@ describe('四个后端形状 —— 文案与插值替换', () => {
   })
 })
 
-describe('零 v-html(spec §7c-4 硬要求)', () => {
-  it('<template> 块里不含 v-html 指令用法(<script> 里的文档注释会字面提到这个词,只查模板块)', () => {
+describe('No v-html(spec §7c-4 hard requirement)', () => {
+  it('<template> block contains no v-html directive usage(<script> doc comments may literally mention the word, only check template block)', () => {
     const m = /<template>([\s\S]*?)<\/template>/.exec(placeInsightsRaw)
-    expect(m, '未找到 <template> 块').not.toBeNull()
+    expect(m, '<template> block not found').not.toBeNull()
     expect(m![1]).not.toMatch(/v-html\s*=/)
   })
 })
 
-// 注:warnSpy 拦截的是全局 console.warn——测试环境本身在每次 mount 时会在
-// vitest.setup.ts 的全局 i18n 插件之上再叠一份本文件 makeI18n() 的独立 i18n 实例,
-// vue-i18n 的 install() 对 i18n-t/i18n-n/i18n-d/`v-t` 的重复注册会各打一条
-// "[Vue warn]: ... has already been registered" 噪音(与本组件逻辑无关,任何在这仓库
-// 里首次实际渲染 <i18n-t> 的测试都会触发,回源核对过——不是本任务引入的缺陷)。
-// 断言只认本组件自己那条 `[photos-places] unknown insight key...` 前缀的调用次数,
-// 不对 console.warn 总调用次数做整体计数,避免被框架噪音带红。
+// Note: warnSpy intercepts global console.warn—test environment itself stacks a separate i18n instance
+// from makeI18n() in this file on top of the global i18n plugin in vitest.setup.ts at each mount,
+// vue-i18n's install() for i18n-t/i18n-n/i18n-d/`v-t` duplicate registration each prints a
+// "[Vue warn]: ... has already been registered" noise(unrelated to component logic, any test in this
+// repo that first actually renders <i18n-t> triggers this, verified by source inspection—not a defect
+// introduced by this task).
+// Assertion only counts calls with the component's own `[photos-places] unknown insight key...` prefix,
+// doesn't do global console.warn call count, avoids being flagged by framework noise.
 function ownWarnCalls(warnSpy: ReturnType<typeof vi.spyOn>): unknown[][] {
   return (warnSpy.mock.calls as unknown[][]).filter((c) => typeof c[0] === 'string' && c[0].startsWith('[photos-places]'))
 }
 
-describe('未知 key —— 偏离登记 8', () => {
-  it('未知 key 单独出现 → 该卡不渲染、console.warn 被调一次', () => {
+describe('Unknown key — deviation from registry 8', () => {
+  it('Unknown key appears alone → card doesn\'t render, console.warn called once', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const w = mountInsights([{ ico: 'sparkles', key: 'photos.places.insight.zzz', params: { count: 1 } }])
-    // 空段:唯一一条洞察是未知 key,过滤后整段应视为空。
+    // Empty section: the only insight is unknown key, after filtering the entire section should be empty.
     expect(w.find('.detail-section').exists()).toBe(false)
     expect(ownWarnCalls(warnSpy)).toHaveLength(1)
     warnSpy.mockRestore()
   })
 
-  it('未知 key 混在四条已知里 → 仍渲染 4 张卡片,warn 恰好一次', () => {
+  it('Unknown key mixed in four known ones → still renders 4 cards, warn exactly once', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const w = mountInsights([
       mostPhotographed, topSpot, companions, home,
@@ -128,7 +130,7 @@ describe('未知 key —— 偏离登记 8', () => {
   })
 })
 
-describe('图标三分支', () => {
+describe('Icon three branches', () => {
   it('ico=sparkles → data-test=insight-ico-sparkles', () => {
     const w = mountInsights([mostPhotographed])
     expect(w.find('[data-test="insight-ico-sparkles"]').exists()).toBe(true)
@@ -144,7 +146,7 @@ describe('图标三分支', () => {
     expect(w.find('[data-test="insight-ico-home"]').exists()).toBe(true)
   })
 
-  it('未知 ico → 回落 sparkles', () => {
+  it('Unknown ico → falls back to sparkles', () => {
     const w = mountInsights([{ ico: 'bogus', key: 'photos.places.insight.mostPhotographed', params: { count: 1 } }])
     expect(w.find('[data-test="insight-ico-sparkles"]').exists()).toBe(true)
     expect(w.find('[data-test="insight-ico-person"]').exists()).toBe(false)
@@ -152,8 +154,8 @@ describe('图标三分支', () => {
   })
 })
 
-describe('英文 locale 下同样成立(参数替换与 locale 无关)', () => {
-  it('topSpot 英文文案含地点名与次数', () => {
+describe('Also holds under English locale(parameter replacement is locale-agnostic)', () => {
+  it('topSpot English copy contains location name and count', () => {
     const w = mountInsights([topSpot], makeI18n('en_us'))
     const card = w.find('.insight-card')
     expect(card.text()).toContain('西湖')

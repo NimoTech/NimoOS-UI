@@ -6,8 +6,8 @@ import vue from '@vitejs/plugin-vue'
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url))
 
-// pdfjs 需要 cMap(CJK 等非拉丁编码)与 standard_fonts(未嵌入字体)资源目录才能正确渲染。
-// 构建后把这两个目录拷进产物根,经 base /app/ 由 PdfViewer 的 cMapUrl/standardFontDataUrl 引用。
+// pdfjs needs the cMap (CJK and other non-Latin encodings) and standard_fonts (non-embedded fonts) asset directories to render correctly.
+// After the build, copy both directories into the output root; referenced via base /app/ by PdfViewer's cMapUrl/standardFontDataUrl.
 function copyPdfjsAssets(): Plugin {
   let outDir = 'dist'
   return {
@@ -26,7 +26,7 @@ function copyPdfjsAssets(): Plugin {
   }
 }
 
-// `^/(?!app/)` = 除 /app/ 前端资源外的一切,原样转发给真机网关(含 WS 升级)。
+// `^/(?!app/)` = everything except /app/ frontend assets, forwarded verbatim to the on-device gateway (incl. WS upgrades).
 const DEV_PROXY = {
   '^/(?!app/)': { target: 'http://127.0.0.1:80', changeOrigin: true, ws: true },
 }
@@ -34,49 +34,61 @@ const DEV_PROXY = {
 export default defineConfig({
   base: '/app/',
   plugins: [vue(), copyPdfjsAssets()],
-  // ⚠️ 共享包 @nimotech/nimoos-service 必须排除出依赖预打包(SP9-P1 验收踩到,
-  // SP13 内联时误删过一次、实测证明坑还在,已恢复 —— 见下方"SP13 教训")。
-  // 它是 `file:` 依赖(SP1-SP12 指向外部同级仓库,SP13 起指向仓内
-  // `packages/service`),pnpm 都会把它的文件硬链进 `.pnpm` 目录 —— 在 Vite 眼里
-  // 始终是个普通的 node_modules 依赖(解析链路最终落在 node_modules 下),
-  // 于是会被预打包进 node_modules/.vite/deps/。而预打包缓存的失效判据是
-  // lockfile / config / 依赖版本号,**不看依赖内容**——SP13 之前那个包版本号恒为
-  // 0.0.1,手动对着外部仓单独重新构建一遍之后缓存也不失效,dev server 一直喂
-  // 浏览器旧包;新加的方法在浏览器里全是 undefined(表现为 `xxx is not a function`,
-  // 被调用处 catch 成"保存失败")。单测走源码、生产 build 走 node_modules,两边都是
-  // 新的,所以只在 dev 复现。exclude 后 dev 直接按需加载真实文件——**重启一次 dev
-  // server** 就能拿到最新代码(不用 --force、不用清 .vite 缓存、不用 pnpm install)。
-  // 注意这不等于"存盘即热更新":Vite 的 watcher 默认忽略 node_modules/**,这个包正是
-  // 经 node_modules/.pnpm/... 路径服出去的,进程存活期间不会自动感知源码变化,必须重启。
+  // ⚠️ The shared package @nimotech/nimoos-service must be excluded from dependency
+  // pre-bundling (hit during SP9-P1 acceptance; mistakenly deleted once during the SP13
+  // inlining, proven still broken in practice, and restored — see "SP13 lesson" below).
+  // It is a `file:` dependency (SP1-SP12 pointed at an external sibling repo; since SP13 it
+  // points at in-repo `packages/service`); either way pnpm hardlinks its files into the
+  // `.pnpm` directory — to Vite it is always an ordinary node_modules dependency (the
+  // resolution chain ends under node_modules), so it gets pre-bundled into
+  // node_modules/.vite/deps/. The pre-bundle cache invalidation criteria are
+  // lockfile / config / dependency version numbers — **never dependency contents**. Before
+  // SP13 the package version was pinned at 0.0.1, so even manually rebuilding the external
+  // repo never invalidated the cache and the dev server kept feeding the browser the old
+  // bundle; newly added methods were all undefined in the browser (surfacing as
+  // `xxx is not a function`, caught at call sites as "failed to save"). Unit tests use the
+  // source and production builds use node_modules — both fresh — so it only reproduced in
+  // dev. With exclude, dev loads the real files on demand — **restart the dev server once**
+  // to get the latest code (no --force, no clearing the .vite cache, no pnpm install).
+  // Note this is not "save-to-hot-update": Vite's watcher ignores node_modules/** by
+  // default, and this package is served exactly via the node_modules/.pnpm/... path, so a
+  // live process never notices source changes; a restart is required.
   //
-  // **SP13(2026-08-07)教训,别再删这段**:内联把包搬进本仓 `packages/service/`、
-  // 入口从 `dist/index.js` 改指 `src/index.ts`,当时误判"入口指源码 ⇒ Vite 按源码
-  // 解析、预打包缓存的坑自然消失",把这段 exclude 删了。**实测证伪**:该包依旧是
-  // `file:` 依赖、依旧经 `node_modules` 解析,Vite 照样把它当普通依赖预打包 ——
-  // 就地编辑 `packages/service/src/*.ts`(不重启、不 `pnpm install`)后,浏览器拿到的
-  // `.vite/deps/@nimotech_nimoos-service.js` 仍是编辑前的旧内容;连"重启 dev
-  // server"都救不了,因为 `pnpm-lock.yaml` 对 `file:` 目录依赖只记目录路径
-  // (`resolution: {directory: packages/service, type: directory}`),不记内容哈希,
-  // 编辑源码从不触发这条失效判据。**内联真正根治的只是"构建步骤"**(此前这个包曾是
-  // 外部依赖,改完要单独跑一次那个仓自己的构建才能生效),**没有根治预打包缓存喂旧包**
-  // ——两件事是分开的,这段 exclude 因此必须留着,不因为入口指向源码就可以删。
+  // **SP13 (2026-08-07) lesson — do not delete this block again**: the inlining moved the
+  // package into this repo's `packages/service/` and changed the entry from `dist/index.js`
+  // to `src/index.ts`; at the time we wrongly concluded "entry points at source ⇒ Vite
+  // resolves from source and the pre-bundle cache trap naturally disappears" and deleted
+  // this exclude. **Disproven in practice**: the package is still a `file:` dependency,
+  // still resolved via `node_modules`, and Vite still pre-bundles it like any dependency —
+  // after editing `packages/service/src/*.ts` in place (no restart, no `pnpm install`), the
+  // browser's `.vite/deps/@nimotech_nimoos-service.js` was still the pre-edit content; not
+  // even "restart the dev server" helps, because `pnpm-lock.yaml` records only the
+  // directory path for `file:` directory deps
+  // (`resolution: {directory: packages/service, type: directory}`), never a content hash,
+  // so editing the source never triggers that invalidation criterion. **What the inlining
+  // truly fixed is only the "build step"** (previously the package was an external
+  // dependency requiring a separate build in its own repo to take effect); **it did NOT fix
+  // the pre-bundle cache feeding stale code** — these are two separate things, so this
+  // exclude must stay, and "entry points at source" is no reason to delete it.
   optimizeDeps: {
     exclude: ['@nimotech/nimoos-service'],
-    include: ['axios'], // 上面 exclude 掉的包内部 import 它,显式登记以免触发"发现新依赖 → 整页重载"
+    include: ['axios'], // the excluded package above imports it internally; register explicitly to avoid "new dependency discovered → full page reload"
   },
-  // dev 与 preview 用同一条转发规则:/app/ 之外(API /v1|/v2|/v3、MessageBus WS、
-  // Vue2 登录页)全部转发真机网关 80。
-  // SP9-P0 补 dev 这一份 —— 此前只有 preview 有,dev server 上登录必 404(踩过)。
+  // dev and preview share the same proxy rule: everything outside /app/ (APIs /v1|/v2|/v3,
+  // MessageBus WS, the Vue2 login page) is forwarded to the on-device gateway on port 80.
+  // SP9-P0 added the dev copy — previously only preview had it, so login on the dev server always 404'd (been there).
   //
-  // SP8-P6-T3 合流:**端口统一回 5273**。5286/5287/5288 那套是「三条并行线各占一个端口、
-  // 互不覆盖真机 /app/ 部署」时期的产物;SP8 随本次合流并回主干后只剩一条线,
-  // CLAUDE.md 记的 `pnpm dev → http://localhost:5273/app/` 就是唯一约定。
-  // 转发规则取 master 的 DEV_PROXY —— 它的 `^/(?!app/)` 是 sp8 那四条(/v1、/v2、^/$、
-  // 静态目录)的**严格超集**,且带 ws:true,所以 sp8 「走 Vue2 登录拿 token 再进
-  // /app/#/ai/* 验收」的能力一条不少,还额外覆盖了 /v3 与 MessageBus WS。
-  // host: true 来自 sp8(局域网设备上验收要用),予以保留。
+  // SP8-P6-T3 merge: **port unified back to 5273**. The 5286/5287/5288 set was an artifact
+  // of the "three parallel lines each on its own port, none overwriting the on-device /app/
+  // deploy" era; after SP8 merged back to mainline there is only one line, and the
+  // `pnpm dev → http://localhost:5273/app/` recorded in CLAUDE.md is the sole convention.
+  // The proxy rule takes master's DEV_PROXY — its `^/(?!app/)` is a **strict superset** of
+  // sp8's four rules (/v1, /v2, ^/$, static dirs) and carries ws:true, so sp8's
+  // "log in via Vue2 to get a token, then enter /app/#/ai/* for acceptance" ability is
+  // fully preserved, plus /v3 and MessageBus WS coverage.
+  // host: true comes from sp8 (needed for acceptance on LAN devices), kept.
   server: { port: 5273, host: true, proxy: DEV_PROXY },
-  // SP6 并行验收(spec §5):只伺服 /app/ 构建产物。正式部署仍走 scripts/deploy.sh。
+  // SP6 parallel acceptance (spec §5): serves only the /app/ build output. Real deploys still go through scripts/deploy.sh.
   preview: {
     port: 5273,
     host: true,
@@ -86,11 +98,12 @@ export default defineConfig({
     environment: 'jsdom',
     env: { TZ: 'UTC' },
     globals: true,
-    // Claude Code 的隔离 worktree 会出现在 .claude/worktrees/ 下(含整个仓库副本),
-    // 不排除的话 vitest 会递归进去跑别的会话的测试并大片报错。
-    // (SP13 内联前这里还需要额外给 NimoOS-Service 一条软链才能装上依赖——内联后
-    // `file:packages/service` 是仓内相对路径,worktree 里天然可解析,不再需要软链
-    // 这个附带收益。)
+    // Claude Code's isolated worktrees appear under .claude/worktrees/ (each a full repo
+    // copy); without the exclusion, vitest recurses into them, runs other sessions' tests,
+    // and fails en masse.
+    // (Before the SP13 inlining, this also needed an extra symlink for NimoOS-Service to
+    // install dependencies — after inlining, `file:packages/service` is an in-repo relative
+    // path that resolves naturally inside worktrees, so the symlink is no longer needed; a side benefit.)
     exclude: ['**/node_modules/**', '**/dist/**', '.claude/**'],
     setupFiles: ['./vitest.setup.ts'],
   },

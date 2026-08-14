@@ -14,7 +14,7 @@ describe('TimelineMinimap', () => {
     { id: 'm4', role: 'assistant', blocks: [{ type: 'md', text: '第二个回答' }] },
   ]
 
-  it('每条消息渲染一个 tick,data-role 与消息角色对应', () => {
+  it('renders one tick per message, data-role corresponds to message role', () => {
     const w = mount(TimelineMinimap, {
       props: { messages, active: 0 },
       global: { plugins: [i18n] },
@@ -27,7 +27,7 @@ describe('TimelineMinimap', () => {
     expect(ticks[3].attributes('data-role')).toBe('ai')
   })
 
-  it('点击某个 tick 触发 jump 事件并带上对应下标', async () => {
+  it('clicking tick triggers jump event with corresponding index', async () => {
     const w = mount(TimelineMinimap, {
       props: { messages, active: 0 },
       global: { plugins: [i18n] },
@@ -38,7 +38,7 @@ describe('TimelineMinimap', () => {
     expect(w.emitted('jump')?.[0]).toEqual([2])
   })
 
-  it('active 下标对应的 tick 打上 data-active=true', () => {
+  it('tick at active index is tagged with data-active=true', () => {
     const w = mount(TimelineMinimap, {
       props: { messages, active: 1 },
       global: { plugins: [i18n] },

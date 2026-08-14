@@ -11,18 +11,18 @@ const svc = vi.hoisted(() => ({
   listAgentMessages: vi.fn(),
   updateAgentSessionTitle: vi.fn(),
   getContextUsage: vi.fn(),
-  // SP8-P1c2 Task 3 —— thinking 域(会话 watcher 触发 loadSessionThinking)。
+  // SP8-P1c2 Task 3 — thinking scope (session watcher triggers loadSessionThinking).
   getThinkingDefaults: vi.fn(),
   getSessionThinking: vi.fn(),
   patchSessionThinking: vi.fn(),
-  // SP8-P1c2 Task 13 —— 右栏挂载后 ResourcesTab 的附件下载链接会调它。
+  // SP8-P1c2 Task 13 — called by attachment download link in ResourcesTab after right panel mounts.
   attachmentRawUrl: vi.fn(() => '/raw/1'),
 }))
-// SP8-P1c2 Task 11 —— disks.list() 一次性拉存储容量(Agent.vue:159-162)。
+// SP8-P1c2 Task 11 — disks.list() one-shot fetches storage capacity (Agent.vue:159-162).
 const disksList = vi.hoisted(() => vi.fn())
-// SP8-P1c2 Task 13 —— 右栏 SystemTab 走 useUtilization()(Pinia utilization store
-// → service.sys.getUtilization + MessageBus 订阅)。utilization store 还从共享包
-// 具名导入 parseUtil,所以这里必须 importActual 铺底,不能只给一个裸 service 对象。
+// SP8-P1c2 Task 13 — right panel SystemTab uses useUtilization() (Pinia utilization store
+// → service.sys.getUtilization + MessageBus subscription). utilization store also named-imports
+// parseUtil from shared package, so must importActual as base here, cannot just bare service object.
 const getUtilization = vi.hoisted(() => vi.fn())
 vi.mock('@nimotech/nimoos-service', async () => {
   const actual = await vi.importActual<typeof import('@nimotech/nimoos-service')>('@nimotech/nimoos-service')
@@ -70,14 +70,14 @@ describe('AgentPage', () => {
     replace.mockClear()
   })
 
-  it('挂载后调用 loadSessions', async () => {
+  it('calls loadSessions after mount', async () => {
     const w = mountPage()
     await flushPromises()
     expect(svc.listAgentSessions).toHaveBeenCalledTimes(1)
     w.unmount()
   })
 
-  it('SP8-P1c2:挂载时先调 loadThinkingDefaults,早于 loadSessions/loadAvailableModels(Vue2 Agent.vue:151)', async () => {
+  it('SP8-P1c2: calls loadThinkingDefaults on mount first, before loadSessions/loadAvailableModels (Vue2 Agent.vue:151)', async () => {
     const store = useAgentStore()
     const defaultsSpy = vi.spyOn(store, 'loadThinkingDefaults')
     const sessionsSpy = vi.spyOn(store, 'loadSessions')
@@ -87,7 +87,7 @@ describe('AgentPage', () => {
     expect(defaultsSpy.mock.invocationCallOrder[0]).toBeLessThan(sessionsSpy.mock.invocationCallOrder[0])
   })
 
-  it('无消息时渲染 EmptyState,不渲染消息流', async () => {
+  it('renders EmptyState when no messages, does not render message stream', async () => {
     const w = mountPage()
     await flushPromises()
     expect(w.find('.empty-state').exists()).toBe(true)
@@ -95,7 +95,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('store.messages 非空时渲染消息流(MessageList),不渲染 EmptyState', async () => {
+  it('renders message stream (MessageList) when store.messages non-empty, does not render EmptyState', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -106,7 +106,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('?search=cats → 总是新建会话(createSession)再发送 locale 包装后的搜索文案,且 router.replace 一次性剥掉 search 参数', async () => {
+  it('?search=cats → always creates new session (createSession) then sends locale-wrapped search text, and router.replace strips search param in one go', async () => {
     routeQuery.search = 'cats'
     const store = useAgentStore()
     const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
@@ -117,11 +117,11 @@ describe('AgentPage', () => {
     expect(createSpy).toHaveBeenCalledTimes(1)
     expect(sendSpy).toHaveBeenCalledTimes(1)
     expect(sendSpy).toHaveBeenCalledWith('在我的 NAS 中搜索"cats"。')
-    // createSession 必须先于 send 完成(fresh session),顺序不可颠倒
+    // createSession must complete before send (fresh session), order cannot reverse
     expect(createSpy.mock.invocationCallOrder[0]).toBeLessThan(sendSpy.mock.invocationCallOrder[0])
   })
 
-  it('?search=cats 即便已有 activeSessionId 仍新建会话(search 恒 fresh,不复用)', async () => {
+  it('?search=cats still creates new session even with existing activeSessionId (search always fresh, no reuse)', async () => {
     routeQuery.search = 'cats'
     const store = useAgentStore()
     store.activeSessionId = 'sess-old'
@@ -133,7 +133,7 @@ describe('AgentPage', () => {
     expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('cats'))
   })
 
-  it('?message=hi(无 search)且无 activeSessionId → 先建会话再原文发送(不做 locale 包装)', async () => {
+  it('?message=hi (no search) and no activeSessionId → creates session first, then sends text as-is (no locale wrapping)', async () => {
     routeQuery.message = 'hi'
     const store = useAgentStore()
     const createSpy = vi.spyOn(store, 'createSession').mockResolvedValue(undefined)
@@ -145,7 +145,7 @@ describe('AgentPage', () => {
     expect(sendSpy).toHaveBeenCalledWith('hi')
   })
 
-  it('?message=hi 且已有 activeSessionId → 复用会话,不建新会话', async () => {
+  it('?message=hi and existing activeSessionId → reuses session, does not create new one', async () => {
     routeQuery.message = 'hi'
     const store = useAgentStore()
     store.activeSessionId = 'sess-existing'
@@ -157,7 +157,7 @@ describe('AgentPage', () => {
     expect(sendSpy).toHaveBeenCalledWith('hi')
   })
 
-  it('search 与 message 同时存在 → 只有 search 生效(message 被完全跳过,只发一次)', async () => {
+  it('search and message both present → only search takes effect (message skipped entirely, sends once only)', async () => {
     routeQuery.search = 'foo'
     routeQuery.message = 'bar'
     const store = useAgentStore()
@@ -172,7 +172,7 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
   })
 
-  it('one-shot:router.replace 剥离 search/message 但保留其它 query 参数不变', async () => {
+  it('one-shot: router.replace strips search/message but preserves other query params unchanged', async () => {
     routeQuery.search = 'cats'
     routeQuery.tab = 'x'
     const store = useAgentStore()
@@ -183,9 +183,10 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: { tab: 'x' } })
   })
 
-  // SP8-P3a 验收后追加②:?skill= 读完必须立刻从 URL 抹掉(Vue2 Agent.vue:145-148
-  // 同缺陷未抹,此处按"逻辑照正确"对齐紧邻的 ?search=/?message= 成例修正)。
-  it('?skill=abc → 暂存 store.pendingSkillId,且立刻从 URL 抹掉 skill(取消挂载/发消息后 F5 不会复活)', async () => {
+  // SP8-P3a added after acceptance②: ?skill= must be erased from URL immediately after reading
+  // (Vue2 Agent.vue:145-148 has same defect unfixed; here we correct per "logic matches right"
+  // aligning with precedent of adjacent ?search=/?message=).
+  it('?skill=abc → stashes store.pendingSkillId, and immediately erases skill from URL (F5 after unmount/send will not revive)', async () => {
     routeQuery.skill = 'abc'
     const store = useAgentStore()
     const sendSpy = vi.spyOn(store, 'send').mockResolvedValue(undefined)
@@ -197,7 +198,7 @@ describe('AgentPage', () => {
     expect(replace).toHaveBeenCalledWith({ path: '/ai/agent', query: {} })
   })
 
-  it('?skill=abc&search=cats → skill 挂号且从 URL 抹掉,search 的 seed 行为照旧发生,两次 router.replace 串起来最终态里 skill 与 search 都没了', async () => {
+  it('?skill=abc&search=cats → skill registers and is erased from URL, search seed behavior happens as usual, two router.replaces chain up so final state has neither skill nor search', async () => {
     routeQuery.skill = 'abc'
     routeQuery.search = 'cats'
     const store = useAgentStore()
@@ -210,12 +211,12 @@ describe('AgentPage', () => {
     expect(sendSpy).toHaveBeenCalledTimes(1)
     expect(sendSpy).toHaveBeenCalledWith(expect.stringContaining('cats'))
     expect(replace).toHaveBeenCalledTimes(2)
-    // 第一次只抹 skill,把 search 留给下面 seed 逻辑读;第二次抹 search/message。
+    // First erase only skill, leave search for seed logic below to read; second erase search/message.
     expect(replace).toHaveBeenNthCalledWith(1, { path: '/ai/agent', query: { search: 'cats' } })
     expect(replace).toHaveBeenNthCalledWith(2, { path: '/ai/agent', query: {} })
   })
 
-  it('无任何一次性 query 参数时,不调用 router.replace(不能无脑每次都 replace)', async () => {
+  it('does not call router.replace when no one-shot query params (cannot blindly replace every time)', async () => {
     mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -223,7 +224,7 @@ describe('AgentPage', () => {
     expect(store.pendingSkillId).toBeNull()
   })
 
-  it('SP8-P2a Task 12:侧栏 open-settings(设置齿轮)→ router.push 到 /ai/settings,不再弹占位 toast(Vue2 Agent.vue:209,路由已存在)', async () => {
+  it('SP8-P2a Task 12: sidebar open-settings (settings gear) → router.push to /ai/settings, no placeholder toast (Vue2 Agent.vue:209, route exists)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
@@ -234,7 +235,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('挂载 composer,并把 send/stop/send-init 接到 store', async () => {
+  it('mounts composer and wires send/stop/send-init to store', async () => {
     const w = mountPage()
     await flushPromises()
     const composer = w.findComponent({ name: 'AgentComposer' })
@@ -251,7 +252,7 @@ describe('AgentPage', () => {
     expect(initSpy).toHaveBeenCalledWith('/DATA/docs')
   })
 
-  it('ctxUsage:挂载后拉一次;切会话拉一次;busy 由 true→false 再拉一次', async () => {
+  it('ctxUsage: fetches once on mount; once on session switch; once more when busy goes true→false', async () => {
     svc.getContextUsage.mockResolvedValue({ tokens: 10, window: 100, pct: 10 })
     const w = mountPage()
     await flushPromises()
@@ -262,14 +263,14 @@ describe('AgentPage', () => {
     expect(svc.getContextUsage.mock.calls.length).toBe(base + 1)
     store.busy = true
     await flushPromises()
-    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1) // 上升沿不拉
+    expect(svc.getContextUsage.mock.calls.length).toBe(base + 1) // rising edge does not fetch
     store.busy = false
     await flushPromises()
-    expect(svc.getContextUsage.mock.calls.length).toBe(base + 2) // 下降沿拉
+    expect(svc.getContextUsage.mock.calls.length).toBe(base + 2) // falling edge fetches
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toEqual({ tokens: 10, window: 100, pct: 10 })
   })
 
-  it('ctxUsage:无会话不拉;请求失败置 null', async () => {
+  it('ctxUsage: does not fetch without session; request failure sets null', async () => {
     svc.getContextUsage.mockRejectedValue(new Error('x'))
     const w = mountPage()
     await flushPromises()
@@ -279,7 +280,7 @@ describe('AgentPage', () => {
     expect(w.findComponent({ name: 'AgentComposer' }).props('ctxUsage')).toBe(null)
   })
 
-  it('SP8-P1c2 Task 11:挂载后一次性调用 service.disks.list()(Agent.vue:159-162,存储容量不需要实时)', async () => {
+  it('SP8-P1c2 Task 11: calls service.disks.list() once-shot on mount (Agent.vue:159-162, storage capacity not real-time)', async () => {
     disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
     const w = mountPage()
     await flushPromises()
@@ -287,12 +288,12 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 11:disks.list() 失败 → 吞错,不抛未处理异常,storage 落 null(与 Vue2 Agent.vue try/catch 同)', async () => {
-    // 代码评审 F2:原断言 `expect(() => mountPage()).not.toThrow()` 恒为真——
-    // onMounted 内的 rejection 是异步的,不会同步冒出来给这个同步包装捕获。
-    // 改成断言真实落地的结果:reject 落定后页面内部的 storage 状态应为 null
-    // (与 Files.upload.test.ts / PhotoTile.test.ts 同款,用 `w.vm as any` 读
-    // script setup 未 defineExpose 的内部 ref——此仓库既有先例)。
+  it('SP8-P1c2 Task 11: disks.list() failure → swallows error, no unhandled exception, storage becomes null (same as Vue2 Agent.vue try/catch)', async () => {
+    // Code review F2: original assertion `expect(() => mountPage()).not.toThrow()` always true —
+    // rejection inside onMounted is async, will not sync throw out to sync wrapper catch.
+    // Changed to assert actual outcome: after reject settles, storage state inside page should be null
+    // (same as Files.upload.test.ts / PhotoTile.test.ts, read internal ref with `w.vm as any`
+    // on script setup that didn't defineExpose — existing precedent in this repo).
     disksList.mockRejectedValue(new Error('boom'))
     const w = mountPage()
     await flushPromises()
@@ -300,7 +301,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2:切会话 → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage 三者并列触发(Vue2 Agent.vue:120-123)', async () => {
+  it('SP8-P1c2: switch session → loadSessionThinking(newId) + updateThinkingForModel + refreshContextUsage fire in parallel (Vue2 Agent.vue:120-123)', async () => {
     svc.getContextUsage.mockResolvedValue({ tokens: 1, window: 10, pct: 10 })
     const w = mountPage()
     await flushPromises()
@@ -316,7 +317,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2:切回无会话(newId 为空)时不调 loadSessionThinking/updateThinkingForModel', async () => {
+  it('SP8-P1c2: switching back to no session (newId empty) does not call loadSessionThinking/updateThinkingForModel', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -331,7 +332,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 8:AgentTopbar 的 thinking-enabled/thinking-level 接到 store.setThinkingEnabled/setThinkingLevel', async () => {
+  it('SP8-P1c2 Task 8: AgentTopbar thinking-enabled/thinking-level wired to store.setThinkingEnabled/setThinkingLevel', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -345,7 +346,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 8:AgentTopbar 的 thinking prop 绑定到 store.thinking', async () => {
+  it('SP8-P1c2 Task 8: AgentTopbar thinking prop bound to store.thinking', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -357,14 +358,14 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2:根元素 data-rightcollapsed 默认为 false(展开,对齐 Vue2 agentStore.js:37)', async () => {
+  it('SP8-P1c2: root element data-rightcollapsed defaults to false (expanded, align Vue2 agentStore.js:37)', async () => {
     const w = mountPage()
     await flushPromises()
     expect(w.find('.agent-app').attributes('data-rightcollapsed')).toBe('false')
     w.unmount()
   })
 
-  it('SP8-P1c2:data-rightcollapsed 随 store.toggleRight 变化,顶栏按钮亦接线到同一 action', async () => {
+  it('SP8-P1c2: data-rightcollapsed changes with store.toggleRight, top bar button also wired to same action', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -377,7 +378,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:AgentTopbar 的 select-model 接到 store.selectModel,available-models/selected-model 直传', async () => {
+  it('SP8-P1c2 Task 9: AgentTopbar select-model wired to store.selectModel, available-models/selected-model passed through', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -393,7 +394,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P2a Task 12:AgentTopbar 的 open-settings 与侧栏共用同一真跳转(router.push 到 /ai/settings,不再弹占位 toast)', async () => {
+  it('SP8-P2a Task 12: AgentTopbar open-settings shares same real navigation with sidebar (router.push to /ai/settings, no placeholder toast)', async () => {
     const w = mountPage()
     await flushPromises()
     const toast = useToast()
@@ -405,7 +406,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:regenerate-title → store.regenerateTitle(activeSessionId);无活跃会话时不调用(Vue2 Agent.vue:216-220)', async () => {
+  it('SP8-P1c2 Task 9: regenerate-title → store.regenerateTitle(activeSessionId); does not call without active session (Vue2 Agent.vue:216-220)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -422,7 +423,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:regeneratingTitleFor 直传顶栏(禁用矩阵由 AgentTopbar 自己算,这里只验证透传)', async () => {
+  it('SP8-P1c2 Task 9: regeneratingTitleFor passed through to topbar (disable matrix calculated by AgentTopbar itself, only verify pass-through here)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -433,7 +434,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:lastFallbackNotice 变化 → 4000ms warning toast,随后被置回 null(Vue2 Agent.vue:133-142)', async () => {
+  it('SP8-P1c2 Task 9: lastFallbackNotice changes → 4000ms warning toast, then reset to null (Vue2 Agent.vue:133-142)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -454,7 +455,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('SP8-P1c2 Task 9:lastFallbackNotice.to 为空 → 用 aiNoModelAvailable 兜底文案', async () => {
+  it('SP8-P1c2 Task 9: lastFallbackNotice.to empty → uses aiNoModelAvailable fallback text', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -471,8 +472,8 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  // ── SP8-P1c2 Task 13:右栏接线(Vue2 Agent.vue:44-64)──
-  it('Task 13:AgentRightPanel 已挂载,11 个 prop 逐条来自 store / 页面 storage ref', async () => {
+  // ── SP8-P1c2 Task 13: right panel wiring (Vue2 Agent.vue:44-64) ──
+  it('Task 13: AgentRightPanel mounted, 11 props each from store / page storage ref', async () => {
     disksList.mockResolvedValue([{ size: 4e12, used: 2e12 }])
     const w = mountPage()
     await flushPromises()
@@ -493,21 +494,21 @@ describe('AgentPage', () => {
     expect(panel.props('collapsed')).toBe(false)
     expect(panel.props('tab')).toBe('resources')
     expect(panel.props('activitySteps')).toEqual(store.activitySteps)
-    expect(panel.props('storage')).not.toBe(null) // 由 onMounted 的 disks.list() 装载
+    expect(panel.props('storage')).not.toBe(null) // loaded by disks.list() in onMounted
     expect(panel.props('busy')).toBe(true)
-    // Vue2 Agent.vue:51 直传 activeSessionId(可能是 number/null);这里归一化成 string。
+    // Vue2 Agent.vue:51 passes activeSessionId directly (may be number/null); normalized to string here.
     expect(panel.props('sessionId')).toBe('sess-1')
     expect(panel.props('visibleResources')).toEqual(store.visibleResources)
     expect(panel.props('attachments')).toEqual(store.attachments)
     expect(panel.props('stagedChanges')).toEqual(store.stagedChanges)
     expect(panel.props('committing')).toBe(true)
     expect(panel.props('reverting')).toEqual({ run1: true })
-    // Vue2 Agent.vue:48 的 :system-metrics 有意不接(SystemTab 自取实时数据)。
+    // Vue2 Agent.vue:48's :system-metrics intentionally not wired (SystemTab fetches real-time itself).
     expect(Object.keys(panel.props())).not.toContain('systemMetrics')
     w.unmount()
   })
 
-  it('Task 13:切 4 个 tab 各渲染对应内容(Activity/Context/System/Resources)', async () => {
+  it('Task 13: switching 4 tabs each renders corresponding content (Activity/Context/System/Resources)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -532,7 +533,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('Task 13:右栏 tab 条点击 → set-tab 打到 store.setRightTab,渲染跟着换', async () => {
+  it('Task 13: clicking right panel tab bar → set-tab fires to store.setRightTab, render follows', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -547,7 +548,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('Task 13:右栏开关联动 —— data-rightcollapsed=true 时 <aside class="rightpanel"> 不渲染', async () => {
+  it('Task 13: right panel toggle linked — when data-rightcollapsed=true, <aside class="rightpanel"> not rendered', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -565,7 +566,7 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('Task 13:Resources 三级回滚 + 提交的真实点击各自打到 store 对应动作(带参数)', async () => {
+  it('Task 13: Resources three-level revert + commit real clicks each fire to store actions (with params)', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
@@ -593,7 +594,7 @@ describe('AgentPage', () => {
     await w.find('.rt-batch-revert').trigger('click')
     expect(batchSpy).toHaveBeenCalledWith('batch1')
 
-    // 单项按钮在 batch 折叠区里(v-show,DOM 常在),直接点即可。
+    // Single-item button is inside batch fold area (v-show, DOM always present), can click directly.
     await w.find('.rt-item-revert').trigger('click')
     expect(itemSpy).toHaveBeenCalledWith('st1')
 
@@ -602,14 +603,14 @@ describe('AgentPage', () => {
     w.unmount()
   })
 
-  it('Task 13:授权资源 × / 附件 × 分别打到 store.removeVisibleResource / removeAttachment', async () => {
+  it('Task 13: authorized resource × / attachment × each fire to store.removeVisibleResource / removeAttachment', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()
     store.rightTab = 'resources'
     store.activeSessionId = 'sess-1'
     store.visibleResources = [{ id: 'r1', path: '/DATA/a', kind: 'file' }]
-    store.attachments = [{ id: 'a1', filename: 'x.txt' }] // 无 message_id → 草稿,有 × 按钮
+    store.attachments = [{ id: 'a1', filename: 'x.txt' }] // no message_id → draft, has × button
     await flushPromises()
 
     const resSpy = vi.spyOn(store, 'removeVisibleResource').mockResolvedValue(undefined)
@@ -619,17 +620,17 @@ describe('AgentPage', () => {
     await sections[0].find('.rt-x').trigger('click')
     expect(resSpy).toHaveBeenCalledWith('r1')
 
-    // 附件段第一个 .rt-x 是下载 <a>(不 emit),× 按钮是 button。
+    // First .rt-x in attachment section is download <a> (no emit), × button is button element.
     await sections[1].find('button.rt-x').trigger('click')
     expect(attSpy).toHaveBeenCalledWith('a1')
     w.unmount()
   })
 
-  // F1(终审 opus 复查)—— 流式注入的授权资源没有 id(agentStore.ts:488
-  // appendVisibleResource({path, kind})),右栏 × 必须打到
-  // store.removeVisibleResourceByPath,而不是拿 undefined 打
-  // store.removeVisibleResource。
-  it('Task 13/F1:无 id 授权资源的 × 打到 store.removeVisibleResourceByPath(path),不打 removeVisibleResource', async () => {
+  // F1 (final review opus check) — streamed-injected authorized resources have no id (agentStore.ts:488
+  // appendVisibleResource({path, kind})), right panel × must fire to
+  // store.removeVisibleResourceByPath, not pass undefined to
+  // store.removeVisibleResource.
+  it('Task 13/F1: authorized resource with no id, × fires to store.removeVisibleResourceByPath(path), not removeVisibleResource', async () => {
     const w = mountPage()
     await flushPromises()
     const store = useAgentStore()

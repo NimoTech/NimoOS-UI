@@ -1,16 +1,19 @@
 <!--
-  SP8-P5a Task 5 —— 知识库占位页(偏离 K7)。
+  SP8-P5a Task 5 — Knowledge base placeholder page (deviation K7).
 
-  蓝本(Vue2)9 个子路由里,本批只落地 dashboard 一个,其余 8 个(search/wiki/
-  notes/indexed-files/queue/roots/allowlist/settings)与独立的 /ai/parser、
-  /ai/parser/test 两条路由暂时全部指向这个占位页,让 rail 保持蓝本的 9 项
-  1:1(不删条目、不改跳转目标),分批把 '' 之外的子路由和 parser 路由换成
-  真组件(见 deferred.ts 的 DEFERRED_TABS/isDeferred)。
+  Of the 9 child routes in the blueprint (Vue2), this batch lands only dashboard,
+  the other 8 (search/wiki/notes/indexed-files/queue/roots/allowlist/settings) and
+  two separate routes /ai/parser and /ai/parser/test all temporarily point to this
+  placeholder page, keeping the rail at blueprint's 9 items 1:1 (do not delete
+  items, do not change jump targets), phased replacement of child routes other than
+  dashboard and parser routes with real components (see deferred.ts DEFERRED_TABS/
+  isDeferred).
 
-  零 <style> 块:全部复用 knowledge.scss 已有的 .k-scroll/.k-empty* 类
-  (R1——该样式表尚未被任何文件 import,视觉在 T10 落地 KnowledgeLayout.vue 之前
-  不生效,这是预期的,不在本任务里补 import,避免和 T10 撞车)。
-  文案是 aiKbDeferredTitle/aiKbDeferredHint 两个新造键(Vue2 没有对应文案)。
+  No <style> block: entirely reuse .k-scroll/.k-empty* classes already in
+  knowledge.scss (R1 — this stylesheet is not yet imported by any file, visuals
+  do not take effect until T10 lands KnowledgeLayout.vue, this is expected, do not
+  add import in this task, avoid collision with T10). Copy text is two new keys
+  aiKbDeferredTitle/aiKbDeferredHint (Vue2 has no corresponding copy).
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'

@@ -1,116 +1,117 @@
 <!--
-  SP8-P3a Task 5 —— 只读半,摘自 Vue2 src/views/AI/Skills/SkillDetail.vue(271 行)。
-  本任务只取 brief §5.1 列的子集:空态 / 顶部条(去掉开关与更多菜单)/ 四格元信息 /
-  描述段 / SKILL.md 段 / 附带文件段。写操作(开关、更多菜单、复制/导出/删除、
-  TestPanel/runTest)全部留给 P3b(brief §5.2),本文件不出现任何相关状态或方法。
+  SP8-P3a Task 5 — read-only half, excerpt from Vue2 src/views/AI/Skills/SkillDetail.vue (271 lines).
+  This task only takes a subset from brief §5.1: empty state / top bar (no switch or more menu) / four info cells /
+  description section / SKILL.md section / bundled files section. Write operations (switch, more menu, copy/export/delete,
+  TestPanel/runTest) all left to P3b (brief §5.2); this file does not contain any related state or methods.
 
-  SP8-P3b Task 6 —— 顶部条写操作(开关 + 更多菜单 + 复制/导出)+ 删除/卸载确认弹窗。
-  对齐 Vue2 :21-56(顶部条控件)与 :155-184(确认弹窗),细节见下方就地注释。
+  SP8-P3b Task 6 — top bar write operations (switch + more menu + copy/export) + delete/uninstall confirmation dialog.
+  Align with Vue2 :21-56 (top bar controls) and :155-184 (confirmation dialog); details in inline comments below.
 
-  【偏离申报 1,公共约束 §3 偏离 12】复制走 `useCopyFeedback`(内部 `copyText` 兜底
-  + toast + 打勾态),不照抄 Vue2 :243-253 手写的 `navigator.clipboard` try/catch +
-  临时 textarea 那份兜底。
+  [Deviation notice 1, shared constraints §3 deviation 12] Copy uses `useCopyFeedback` (internal `copyText` fallback
+  + toast + checkmark state), not copying Vue2 :243-253 hand-written `navigator.clipboard` try/catch +
+  temporary textarea fallback.
 
-  【偏离申报 2,公共约束 §3 偏离 11 的延伸 / 任务书 6.1 协调者修订】删除确认弹窗不套
-  `SkModal`,直接用 reka Dialog 原语(`DialogRoot`/`DialogPortal`/`DialogOverlay`/
-  `DialogContent`)在本组件内拼出 Vue2 的确切 DOM——原因见任务书 6.1:`SkModal` 强制
-  渲染标题栏+关闭按钮(Vue2 的确认弹窗没有标题栏,标题是 `.sk-confirm-body` 里的
-  `<h3>`)、默认插槽套 `.sk-modal-body` 会与 `.sk-confirm-body` 自带 padding 叠加、
-  `.sk-modal` 类写死加不上 `.sk-confirm`。`DialogPortal to=".set-app"` 不可省——AI 区
-  token 定义在 `.agent-app` 作用域,portal 到 body 会让 `var(--bg-elevated)` 一类全部
-  解析失败(同 SkModal.vue 头注释 D1)。无障碍标题用
-  `<VisuallyHidden as-child><DialogTitle>`(reka 要求 DialogContent 内必须有
-  DialogTitle),先例 `src/home/components/SearchDialog.vue:317`。确认/取消按钮用普通
-  `<button>` 手写 `@click`(不用 `AlertDialogAction`/`DialogClose`)——那两个 reka 组件
-  模板里硬编码了 `@click="onOpenChange(false)"`,消费者的 `@click` 经 `$attrs` 合并后
-  `update:open` 必先于自定义 handler 触发(P1c1 Task 11 踩过的坑);本组件确认按钮的
-  handler 直接读 `props.skill.id`,不依赖 `open` 状态,天然不受此坑影响,但仍按
-  `SkModal.vue` 关闭按钮的既有写法(纯 `<button @click>`,非 DialogClose)保持一致,
-  不引入新模式。
+  [Deviation notice 2, shared constraints §3 deviation 11 extension / task 6.1 coordinator revision] Delete confirmation
+  dialog does not use `SkModal`, directly uses reka Dialog primitives (`DialogRoot`/`DialogPortal`/`DialogOverlay`/
+  `DialogContent`) to construct Vue2's exact DOM in this component — reason in task 6.1: `SkModal` forces
+  title bar + close button rendering (Vue2's confirmation dialog has no title bar, title is the
+  `<h3>` inside `.sk-confirm-body`), default slot with `.sk-modal-body` stacks with `.sk-confirm-body`'s built-in padding,
+  `.sk-modal` class hardcoded and cannot add `.sk-confirm`. `DialogPortal to=”.set-app”` cannot be omitted — AI zone
+  token defined in `.agent-app` scope, portaling to body would make `var(--bg-elevated)` and similar all
+  fail to parse (same as SkModal.vue header comment D1). Accessibility title uses
+  `<VisuallyHidden as-child><DialogTitle>` (reka requires DialogTitle inside DialogContent),
+  precedent `src/home/components/SearchDialog.vue:317`. Confirm/cancel buttons use plain
+  `<button>` hand-written `@click` (not `AlertDialogAction`/`DialogClose`) — those two reka components
+  hardcode `@click=”onOpenChange(false)”` in template, consumer's `@click` after `$attrs` merge
+  `update:open` fires before custom handler (P1c1 Task 11's pitfall); this component's confirm button
+  handler directly reads `props.skill.id`, does not depend on `open` state, naturally unaffected by this pitfall,
+  but still follows the existing pattern (plain `<button @click>`, not DialogClose) for consistency,
+  no new pattern introduced.
 
-  【实现选择,非行为偏离,类比 SetSwitch.vue 头注释里 v-model/update:modelValue 那条
-  "框架 API 差异,非行为改动"】外部点击关闭菜单,复用已有的 `useClickOutside`
-  composable(`../../../composables/useClickOutside.ts`,已有先例
-  `ModelPicker.vue:26,69`),而不是手写 Vue2 :214-225 那份 `watch(menuOpen)` 里
-  条件式 addEventListener/removeEventListener。两者对用户可见行为完全等价(外部
-  mousedown 关闭菜单、组件卸载后监听器必移除),`useClickOutside` 用 onMounted/
-  onUnmounted 无条件挂/摘,反而**没有** Vue2 那种"仅当 menuOpen 为真才挂监听"的条件
-  竞态面(P1c1 Task 7 的泄漏正是出在条件式挂载的时序上)。`skill.id` 变化时复位
-  `menuOpen`/`confirmOpen` 仍用独立 `watch`,对齐 Vue2 :226-229。
+  [Implementation choice, not behavior deviation, analogous to SetSwitch.vue header comment's v-model/update:modelValue line
+  “framework API difference, not behavior change”] External click closes menu, reuses existing `useClickOutside`
+  composable (`../../../composables/useClickOutside.ts`, existing precedent
+  `ModelPicker.vue:26,69`), not hand-written Vue2 :214-225's `watch(menuOpen)` with
+  conditional addEventListener/removeEventListener. Behavior to user is completely equivalent (external
+  mousedown closes menu, listeners must be removed after component unmount), `useClickOutside` uses onMounted/
+  onUnmounted unconditionally attach/detach, does not have Vue2's “only attach listener when menuOpen is true” conditional
+  race (P1c1 Task 7's leak came from conditional mount timing). `skill.id` change resets
+  `menuOpen`/`confirmOpen` still uses separate `watch`, aligns with Vue2 :226-229.
 
-  【偏离 2(公共约束 §3.2)】Vue2 :30 `SkillIcon` 不移植,统一用
-  `../../icons/AgentIcon.vue`(sparkle 图标已有,SkillTile.vue 同款用法）。
+  [Deviation 2 (shared constraints §3.2)] Vue2 :30 `SkillIcon` not ported, uniformly use
+  `../../icons/AgentIcon.vue` (sparkle icon already exists, same usage as SkillTile.vue).
 
-  【偏离 4(公共约束 §3.2 / 类型 skill.ts 头注 / util/skillsFormat.ts 头注)】
-  Vue2 :79 直接渲染 `skill.trigger_human || skill.trigger`。本仓弃用
-  `trigger_human`,改用 `triggerLabel(skill.trigger, skill.name)`:命中则
-  `t(key, params)`(slash 分支得到 `/{name}`),未命中（未知 trigger）原样显示
-  `skill.trigger`。**本文件不读 `skill.trigger_human` 字段。**
+  [Deviation 4 (shared constraints §3.2 / type skill.ts header comment / util/skillsFormat.ts header comment)]
+  Vue2 :79 directly renders `skill.trigger_human || skill.trigger`. This repo abandons
+  `trigger_human`, uses `triggerLabel(skill.trigger, skill.name)` instead: if hit
+  `t(key, params)` (slash branch gets `/{name}`), if not hit (unknown trigger) display
+  `skill.trigger` as-is. **This file does not read the `skill.trigger_human` field.**
 
-  【颜色改动,公共约束 §6】Vue2 :64-73 的状态圆点是内联 `:style` 现场拼 `rgba(...)`
-  (被 color-guard 明令禁止的写法，见约束 §6 第 5 条点名 `SkillDetail.vue:67-72`)。
-  这里改成:`.val` 上按 `!skill.enabled` 输出 `data-disabled="true"/"false"`,
-  颜色规则全部交给 Task 1 已在 skills-styles.scss:280-316 写好的
-  `.sk-meta-cell .val .dot` / `.val[data-disabled="true"] .dot` 静态 CSS —— 本组件的
-  `<span class="dot" />` 不再携带任何内联样式或颜色相关 data 属性。
+  [Color change, shared constraint §6] Vue2 :64-73's status dot is inline `:style` constructing `rgba(...)`
+  (explicitly forbidden by color-guard, see constraint §6 point 5 naming `SkillDetail.vue:67-72`).
+  Here changed to: output `data-disabled=”true”/”false”` on `.val` based on `!skill.enabled`,
+  color rules entirely delegated to Task 1's already-written
+  `.sk-meta-cell .val .dot` / `.val[data-disabled=”true”] .dot` static CSS in skills-styles.scss:280-316 — this component's
+  `<span class=”dot” />` no longer carries any inline styles or color-related data attributes.
 
-  【last_used 不做映射】照 Vue2 :88 原样 `skill.last_used || '—'`。若后端将来在
-  该字段写入英文相对时间串（如 "3 hours ago"），此处需要补一层本地化映射——目前
-  后端契约（NimoOS-AI/service/skills.go）该字段就是任意字符串或空串，无需处理。
+  [last_used no mapping] Per Vue2 :88 use `skill.last_used || '—'` as-is. If backend later
+  writes English relative time strings (like “3 hours ago”) to this field, need to add a localization layer here —
+  currently backend contract (NimoOS-AI/service/skills.go) this field is any string or empty, no handling needed.
 
-  【TestPanel 占位】Vue2 :108-112 里 `TestPanel` 夹在「描述」与「SKILL.md」两个
-  `.sk-section` 之间。P3a 不渲染它，两段直接相邻；下方模板里留了一行注释标出
-  P3b 要插回的确切位置，避免插错顺序。
+  [TestPanel placeholder] Vue2 :108-112's `TestPanel` sits between “description” and “SKILL.md”
+  `.sk-section` blocks. P3a does not render it, two sections directly adjacent; template below leaves one comment line marking
+  where P3b should reinsert it, avoid inserting in wrong order.
 
-  SP8-P3b Task 7 —— D4 弹窗(停用技能「在对话中试用」先提示) + 挂 TestPanel。
+  SP8-P3b Task 7 — D4 dialog (disabled skill “try in chat” prompts first) + mount TestPanel.
 
-  【偏离申报 3,公共约束 §3 偏离 3 / 任务书 D4】收 P3a 挂账③:后端
-  `NimoOS-AI/service/skills_runtime.go:57` 把 `disabled` 的技能排除出运行时视图,停用
-  技能点「在对话中试用」时 `X-Skill-Id` 照发但 agent 找不到 `SKILL.md`,界面零反馈。
-  Vue2 `SkillDetail.vue:240-242 tryInChat()` 完全不看 `skill.enabled`,永远直接跳转 ——
-  这是要修的可复现错误行为,不是要照抄的“视觉/交互”。改成:`skill.enabled === false`
-  时不跳转,改弹一个 D4 确认弹窗(「启用并试用」/取消);`enabled === true` 时行为不变
-  (P3a 已实现,直接跳转)。**这个弹窗 Vue2 里完全不存在**(用户 2026-07-30 拍板新增),
-  不是复刻目标,所以走标准壳 `SkModal`(见下方「两种弹窗外壳并存」注释),不是本文件里
-  删除确认弹窗那套 reka 原语手拼。
+  [Deviation notice 3, shared constraint §3 deviation 3 / task D4] Address P3a backlog ③: backend
+  `NimoOS-AI/service/skills_runtime.go:57` excludes `disabled` skills from runtime view, disabled
+  skill's “try in chat” sends `X-Skill-Id` but agent cannot find `SKILL.md`, UI gives zero feedback.
+  Vue2 `SkillDetail.vue:240-242 tryInChat()` completely ignores `skill.enabled`, always jumps directly —
+  this is a reproducible bug to fix, not a “visual/interaction” to copy. Changed to: when `skill.enabled === false`
+  do not jump, instead show a D4 confirmation dialog (“enable and try” / cancel); when `enabled === true` behavior unchanged
+  (P3a already implemented, jump directly). **This dialog does not exist in Vue2** (user decided to add 2026-07-30),
+  not a duplication target, so uses standard shell `SkModal` (see “two dialog shells coexist” comment below), not
+  this file's reka primitive hand-construction.
 
-  【两种弹窗外壳并存,不是不一致】本文件同时有两套弹窗写法:删除/卸载确认弹窗用裸 reka
-  Dialog 原语手拼(见上方「偏离申报 2」),因为它要逐像素复刻 Vue2 一个**没有标题栏**的
-  弹窗,`SkModal` 强制渲染标题栏+关闭按钮的形状套不上去;D4 这个弹窗是本期新增、
-  Vue2 没有对应物,没有“复刻目标”,所以直接用现成的标准壳 `SkModal`
-  (`:open`+`@update:open`+默认插槽+`#footer`,先例 `sections/ChannelsSection.vue:427`),
-  拿它自带的 Esc/焦点陷阱/`.set-app` 作用域处理免费。两者选型依据同一条规则:「有逐像素
-  复刻目标 → 手拼贴近 Vue2;无复刻目标(本期新增 UI)→ 用标准壳」,不是风格漂移。
+  [Two dialog shells coexist, not inconsistency] This file has two dialog patterns: delete/uninstall confirmation dialog uses bare reka
+  Dialog primitives (see above “Deviation notice 2”), because it must pixel-perfectly duplicate Vue2's **dialog without title bar**,
+  `SkModal`'s forced title bar + close button shape won't fit; D4 this dialog is new this period,
+  Vue2 has no corresponding object, no “duplication target”, so directly uses ready-made standard shell `SkModal`
+  (`:open`+`@update:open`+default slot+`#footer`, precedent `sections/ChannelsSection.vue:427`),
+  gets Esc/focus trap/`.set-app` scoping handling for free. Both selection rationale same rule: “have pixel-perfect
+  duplication target → hand-construct close to Vue2; no duplication target (new UI this period) → use standard shell”,
+  not style drift.
 
-  【`pendingTryId` 一次性语义】「启用并试用」发 `emit('toggle', id, true)` 后,必须等
-  **父组件真的把这个技能的 `enabled` 改成 true**(toggle 成功)才跳转;toggle 失败时父组件
-  不改 `enabled`,`watch` 不会看到值变化,自然不跳转,不需要额外的失败分支。用一个
-  `pendingTryId`(记录发起请求那一刻的技能 id,而不是布尔标志)而不是定时器/await emit
-  (emit 是同步的、没有返回值,等不到“父组件处理完”这个事实)。三条清除路径:
-  ① 跳转前(`watch` 命中 `enabled===true` 且 id 匹配时)立即置空,防止以后这个技能任何
-     一次“开关开→用户手动点开”都被误读成“待跳转”而把用户重新导航走;
-  ② 点「取消」立即置空;
-  ③ `skill.id` 变化时置空(与既有 `menuOpen`/`confirmOpen` 复位共用同一个 watch)—— 这样
-     切到另一个技能后,上一个技能的挂号不会残留、也不会在多个 watcher 之间靠触发顺序
-     猜测谁先跑:`watch(enabled)` 回调里额外核对 `skill.id === pendingTryId`,两层防御
-     叠加,不依赖 Vue 内部 watcher 调度顺序这个实现细节。
+  [`pendingTryId` one-time semantics] “Enable and try” emits `emit('toggle', id, true)`, must wait
+  **parent truly changes this skill's `enabled` to true** (toggle succeeds) before navigating; if toggle fails parent
+  doesn't change `enabled`, `watch` won't see value change, naturally won't navigate, no need for extra failure branch. Use
+  `pendingTryId` (records skill id at request moment, not a boolean flag) instead of timers/await emit
+  (emit is synchronous, no return value, cannot wait for “parent finished processing” event). Three clear paths:
+  ① Before navigate (`watch` hits `enabled===true` and id matches) immediately clear, prevent future “switch on→user manually opens”
+     being misread as “waiting to navigate” and redirecting user;
+  ② Click “cancel” immediately clear;
+  ③ `skill.id` change clear (shared same `watch` with existing `menuOpen`/`confirmOpen` reset) — this way
+     after switching to another skill, previous skill's registration won't linger, also won't rely on watcher firing order
+     between multiple watchers: `watch(enabled)` callback extra checks `skill.id === pendingTryId`, two-layer defense
+     stacked, not depending on Vue internal watcher scheduling order implementation detail.
 
-  【评审后修订(Important 1,任务书 D4 的简化 vs 设计文档 §9.4 原话)】任务书把
-  §9.4「先 `toggle(id, true)`,**成功才跳转**;失败则**留在弹窗** + danger toast,不
-  跳转」简化成了「发 toggle 后关弹窗」,只保留了半句(失败不跳转),漏了「成功前弹窗
-  必须留在原地」——这是任务书对设计文档的简化遗漏,以设计文档为准:`confirmEnableAndTry`
-  不再在发 toggle 那一刻就关 `tryModalOpen`,而是保持打开;`watch(enabled)` 命中
-  `id 匹配 && enabled===true` 时**同一步**关弹窗 + 跳转。toggle 失败时 `enabled`
-  不变,弹窗因此保持打开,用户可以再点一次「启用并试用」或点「取消」。danger toast
-  由父组件(T8 `SkillsSection.onToggle`)负责,本组件不重复发。
-  顺带(自主判断范围,非设计文档强制):`busy[skill.id]` 为真(toggle 请求飞行中)时
-  「启用并试用」按钮 `disabled`,防止用户在请求还没返回时重复点击、叠加发出多次
-  `toggle` 请求。
+  [Post-review revision (Important 1, task D4's simplification vs design doc §9.4 original)]  Task simplified
+  §9.4 “first `toggle(id, true)`, **navigate only on success**; on failure **stay in dialog** + danger toast, no
+  navigate” into “emit toggle then close dialog”, kept only half (no navigate on failure), missed “dialog must
+  stay before success” — this is task's simplification loss of design doc, per design doc: `confirmEnableAndTry`
+  no longer closes `tryModalOpen` at toggle moment, instead stays open; `watch(enabled)` hits
+  `id match && enabled===true` **same step** closes dialog + navigates. Toggle fails → `enabled`
+  unchanged, dialog stays open, user can retry “enable and try” or click “cancel”. Danger toast
+  by parent (T8 `SkillsSection.onToggle`), this component won't repeat.
+  Additionally (self-judgment scope, not design doc forced): `busy[skill.id]` is true (toggle request in flight)
+  “enable and try” button `disabled`, prevent user repeatedly clicking before request returns, avoid
+  multiple `toggle` requests.
 
-  零 <style> 块:用到的每个 class(sk-detail*、sk-name、sk-pill-try、sk-meta-grid、
-  sk-meta-cell、sk-section*、sk-description、sk-md、sk-file-row、sw、sk-pill-more、
-  sk-menu、sk-modal-bg、sk-modal、sk-confirm*、sk-modal-foot、sk-btn)均已存在于
-  skills-styles.scss(Task 1)或 sk-shared.scss(既有)。
+  No <style> block: all used classes (sk-detail*, sk-name, sk-pill-try, sk-meta-grid,
+  sk-meta-cell, sk-section*, sk-description, sk-md, sk-file-row, sw, sk-pill-more,
+  sk-menu, sk-modal-bg, sk-modal, sk-confirm*, sk-modal-foot, sk-btn) already exist in
+  skills-styles.scss (Task 1) or sk-shared.scss (existing).
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
@@ -132,16 +133,16 @@ import SkModal from '../SkModal.vue'
 import TestPanel from './TestPanel.vue'
 
 // Vue2 SkillDetail.vue:200-201 `skill: { type: Object, default: null }` +
-// `busy: { type: Object, default: () => ({}) }`(飞行中禁用的技能 id 集合,由父组件
-// SkillsSection 在 toggle/delete 请求进行中维护,驱动开关的 disabled 态)。
+// `busy: { type: Object, default: () => ({}) }` (collection of skill ids disabled during in-flight,
+// maintained by parent SkillsSection during toggle/delete requests, drives switch disabled state).
 const props = withDefaults(
   defineProps<{ skill: Skill | null; busy?: Record<string, boolean> }>(),
   { busy: () => ({}) },
 )
 
-// 对齐 Vue2 :27(`$emit('toggle', …)`)与 :238(`$emit('delete', …)`)。
-// `test` 是 T7 新增:把 TestPanel 的 `test`(只在沙箱真正成功完成时才发,见
-// TestPanel.vue 头注释偏离 D5)原样往上转发,不在本文件里加任何额外触发条件。
+// Align with Vue2 :27 (`$emit('toggle', …)`) and :238 (`$emit('delete', …)`).
+// `test` is new in T7: pass through TestPanel's `test` (emitted only when sandbox truly completes successfully, see
+// TestPanel.vue header comment deviation D5) as-is, no extra trigger conditions added in this file.
 const emit = defineEmits<{
   (e: 'toggle', id: string, enabled: boolean): void
   (e: 'delete', id: string): void
@@ -151,27 +152,27 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const router = useRouter()
 
-// 顶部条「更多」下拉菜单。对齐 Vue2 data() 里的 `menuOpen`(:205)。
+// Top bar "more" dropdown menu. Align with Vue2 data() `menuOpen` (:205).
 const menuOpen = ref(false)
-// 删除/卸载确认弹窗。对齐 Vue2 data() 里的 `confirm`(:206,本仓避开与 Vue `computed`
-// 内建 confirm 全局同名的歧义,改叫 confirmOpen)。
+// Delete/uninstall confirmation dialog. Align with Vue2 data() `confirm` (:206; this repo avoids
+// ambiguity with Vue's built-in `computed` global `confirm`, renamed to `confirmOpen`).
 const confirmOpen = ref(false)
-// `.sk-pill-more` 按钮 + `.sk-menu` 下拉的包裹元素,对齐 Vue2 `ref="menuWrap"`(:33)。
+// `.sk-pill-more` button + `.sk-menu` dropdown wrapper element, align with Vue2 `ref="menuWrap"` (:33).
 const menuWrap = ref<HTMLElement | null>(null)
-// D4:停用技能点「在对话中试用」的确认弹窗(Vue2 没有对应物,本期新增,见文件头注释
-// 「偏离申报 3」)。
+// D4: confirmation dialog when disabled skill's "try in chat" is clicked (Vue2 has no counterpart, new this period, see
+// file header comment "Deviation notice 3").
 const tryModalOpen = ref(false)
-// D4「启用并试用」的一次性挂号:记录发起 toggle 那一刻的技能 id(不是布尔标志),
-// 见文件头注释「pendingTryId 一次性语义」。
+// D4 "enable and try" one-time registration: record skill id at toggle request moment (not a boolean flag),
+// see file header comment "pendingTryId one-time semantics".
 const pendingTryId = ref<string | null>(null)
 
-// 外部点击关闭菜单。复用既有 `useClickOutside` composable(见文件头注释「实现选择」)
-// 而不是手写 Vue2 :214-225 那份 `watch(menuOpen)` 里条件式 add/removeEventListener。
+// External click closes menu. Reuse existing `useClickOutside` composable (see file header comment "Implementation choice")
+// instead of hand-written Vue2 :214-225's `watch(menuOpen)` with conditional add/removeEventListener.
 useClickOutside(menuWrap, () => { menuOpen.value = false })
 
-// `skill.id` 变化时复位菜单与确认弹窗,对齐 Vue2 `watch: { 'skill.id'() { … } }`(:226-229)。
-// D4:同一处一并复位 tryModalOpen/pendingTryId(清除路径③,见文件头注释)——切到另一个
-// 技能后,上一个技能的「启用并试用」挂号不能残留。
+// Reset menu and confirmation dialog when skill.id changes, align with Vue2 `watch: { 'skill.id'() { … } }` (:226-229).
+// D4: simultaneously reset tryModalOpen/pendingTryId at same location (clear path ③, see file header comment) —
+// after switching to another skill, previous skill's "enable and try" registration must not linger.
 watch(() => props.skill?.id, () => {
   menuOpen.value = false
   confirmOpen.value = false
@@ -179,35 +180,35 @@ watch(() => props.skill?.id, () => {
   pendingTryId.value = null
 })
 
-// 复制 SKILL.md 到剪贴板 + 打勾态(偏离申报 1,见文件头注释)。
+// Copy SKILL.md to clipboard + checkmark state (deviation notice 1, see file header comment).
 const { copiedKey, copy: copyToClipboard } = useCopyFeedback()
 
-// 对齐 Vue2 `closeAnd(fn)`(:235):先收起菜单,再执行传入的动作。
+// Align with Vue2 `closeAnd(fn)` (:235): close menu first, then execute passed action.
 function closeAnd(fn?: () => void) {
   menuOpen.value = false
   fn?.()
 }
 
-// 对齐 Vue2 菜单第一项 `$emit('toggle', skill.id, !skill.enabled)`(:38)。拆成具名函数
-// (而不是模板里内联 `() => emit('toggle', skill.id, !skill.enabled)`)是因为 vue-tsc
-// 对 `v-else` 分支里 `skill` 的非空窄化不会穿透进模板内联箭头函数体
-// (TS18047 `'skill' is possibly 'null'`),具名函数在 <script> 里用 `props.skill` 重新
-// 判空即可规避,行为与内联写法完全等价。
+// Align with Vue2 first menu item `$emit('toggle', skill.id, !skill.enabled)` (:38). Split into named function
+// (instead of inline template `() => emit('toggle', skill.id, !skill.enabled)`) because vue-tsc
+// does not pierce non-null narrowing of `skill` in `v-else` branch into template inline arrow function body
+// (TS18047 `'skill' is possibly 'null'`), named function in <script> can re-check with `props.skill` to avoid,
+// behavior completely equivalent to inline.
 function toggleFromMenu() {
   const s = props.skill
   if (!s) return
   emit('toggle', s.id, !s.enabled)
 }
 
-// 对齐 Vue2 `copyMarkdown()`(:243-253)——手写的 clipboard/execCommand 兜底已被
-// `useCopyFeedback` 内部的 `copyText` 取代(偏离申报 1)。
+// Align with Vue2 `copyMarkdown()` (:243-253) — hand-written clipboard/execCommand fallback replaced
+// by `copyText` internal to `useCopyFeedback` (deviation notice 1).
 function copyMarkdown() {
   copyToClipboard(props.skill?.md ?? '', 'skillmd')
 }
 
-// 对齐 Vue2 `exportSkill()`(:255-262):建一个隐藏 `<a>`,靠 `download` 属性触发浏览器
-// 下载,而不是导航当前页面。`service.ai.exportSkillURL` 是同步 URL builder(非 axios
-// 调用),token 走 `?token=` query 兜底。
+// Align with Vue2 `exportSkill()` (:255-262): create hidden `<a>`, trigger browser
+// download via `download` attribute, not navigate current page. `service.ai.exportSkillURL` is synchronous URL builder (not axios
+// call), token via `?token=` query fallback.
 function exportSkill() {
   const s = props.skill
   if (!s) return
@@ -219,7 +220,7 @@ function exportSkill() {
   a.remove()
 }
 
-// 对齐 Vue2 `doDelete()`(:236-239)。
+// Align with Vue2 `doDelete()` (:236-239).
 function doDelete() {
   const s = props.skill
   if (!s) return
@@ -227,7 +228,7 @@ function doDelete() {
   emit('delete', s.id)
 }
 
-// 对齐 Vue2 :79，但输入换成原始 trigger 枚举（偏离 4，见文件头注释）。
+// Align with Vue2 :79, but input changed to raw trigger enum (deviation 4, see file header comment).
 const triggerText = computed(() => {
   const s = props.skill
   if (!s) return ''
@@ -235,7 +236,7 @@ const triggerText = computed(() => {
   return ref ? t(ref.key, ref.params ?? {}) : s.trigger
 })
 
-// 对齐 Vue2 :83，`authorLabel` 只本地化后端硬编码的字面量 'You'，其余原样显示。
+// Align with Vue2 :83, `authorLabel` only localizes backend hardcoded literal 'You', rest shown as-is.
 const authorText = computed(() => {
   const s = props.skill
   if (!s) return ''
@@ -243,47 +244,47 @@ const authorText = computed(() => {
   return ref ? t(ref.key) : s.author
 })
 
-// 对齐 Vue2 :90 `Number(skill.calls || 0).toLocaleString()`。
+// Align with Vue2 :90 `Number(skill.calls || 0).toLocaleString()`.
 const totalCount = computed(() => Number(props.skill?.calls || 0).toLocaleString())
 
-// 顶部条「开关」的 title,对齐 Vue2 :24 `:title="skill.enabled ? $t('Disable') : $t('Enable')"`。
+// Top bar "switch" title, align with Vue2 :24 `:title="skill.enabled ? $t('Disable') : $t('Enable')"` .
 const switchTitle = computed(() => (props.skill?.enabled ? t('aiSkDisable') : t('aiSkEnable')))
 
-// 「更多」菜单第一项(暂停/启用)的文案,对齐 Vue2 :40。
+// "More" menu first item (pause/enable) text, align with Vue2 :40.
 const pauseLabel = computed(() => (props.skill?.enabled ? t('aiSkDisableTemporarily') : t('aiSkEnable')))
 
-// 「更多」菜单危险项 + 确认弹窗的文案:内置技能用「卸载」措辞,用户自建的用「删除」措辞。
-// 对齐 Vue2 :53(菜单项)与 :158-179(弹窗标题/正文/按钮),内置那条正文是 D3 改过的
-// 实话文案(公共约束 §3 偏离 2:后端只写 uninstalled=1 标记,全仓无恢复接口)。
+// "More" menu danger item + confirmation dialog text: built-in skills use "uninstall" wording, user-created use "delete".
+// Align with Vue2 :53 (menu item) and :158-179 (dialog title/body/button); built-in body text is D3-revised
+// truthful text (shared constraint §3 deviation 2: backend only writes uninstalled=1 flag, no recovery endpoint in whole repo).
 const dangerMenuLabel = computed(() => (props.skill?.system ? t('aiSkUninstall') : t('aiSkDeleteSkill')))
 const confirmTitle = computed(() => (props.skill?.system ? t('aiSkUninstallTitle') : t('aiSkDeleteTitle')))
 const confirmBody = computed(() => (props.skill?.system ? t('aiSkUninstallBody') : t('aiSkDeleteBody')))
 const confirmButtonLabel = computed(() => (props.skill?.system ? t('aiSkUninstall') : t('aiSkDelete')))
 
-// 对齐 Vue2 :169 `$t('{count} previous runs', { count: Number(skill.calls || 0).toLocaleString() })`。
-// 与 totalCount 是同一个格式化公式,分开建一个 computed 只是为了让确认弹窗与 :90 那处
-// 元信息格互不影响、各自独立演化(其实当前值恒等,若未来拆开格式化规则不必回头改这里)。
+// Align with Vue2 :169 `$t('{count} previous runs', { count: Number(skill.calls || 0).toLocaleString() })`.
+// Same formatting formula as totalCount, separate computed only to keep confirmation dialog and :90 info cells
+// independent, evolve separately (actually values currently equal, if future splits formatting rules no need to revisit).
 const confirmRunsText = computed(() => t('aiSkNPrevRuns', { count: totalCount.value }))
 
-// 对齐 Vue2 :130 `$t('{n} files', { n: (skill.files || []).length })`（段头 hint，
-// 复用 aiSkNFiles —— 与下方单个文件行的 size 本地化是同一个键的两种用法）。
+// Align with Vue2 :130 `$t('{n} files', { n: (skill.files || []).length })` (section header hint,
+// reuse aiSkNFiles — with single file line size localization below is two uses of same key).
 const filesHint = computed(() => t('aiSkNFiles', { n: (props.skill?.files || []).length }))
 
-// 对齐 Vue2 :211（this.skill && this.skill.md || ''）；`renderMarkdown` 内部已做
-// DOMPurify 消毒，可安全 v-html。
+// Align with Vue2 :211 (this.skill && this.skill.md || ''); `renderMarkdown` internal DOMPurify
+// sanitization, safe to v-html.
 const mdHTML = computed(() => renderMarkdown(props.skill?.md || ''))
 
-// 对齐 Vue2 :141 `f.size` 原样显示；本仓额外把文件夹的 "(N files)" 格式过一遍
-// fileSizeLabel() 做本地化，字节单位（"12 B"/"1.0 KB"）原样透传。
+// Align with Vue2 :141 `f.size` shown as-is; this repo additionally passes directory "(N files)"
+// through fileSizeLabel() for localization, byte units ("12 B"/"1.0 KB") passed through as-is.
 function fileSize(size: string): string {
   const ref = fileSizeLabel(size)
   return ref ? t(ref.key, ref.params ?? {}) : size
 }
 
-// 对齐 Vue2 :240-242 `tryInChat`,但收 P3a 挂账③改成正确逻辑(D4,见文件头注释
-// 「偏离申报 3」):Vue2 完全不看 `skill.enabled`,永远直接跳转;停用的技能在 agent
-// 运行时视图里根本不存在(`skills_runtime.go:57`),跳过去試也没有任何反馈。
-// `enabled === true` 时行为不变,直接跳转(P3a 既有实现)。
+// Align with Vue2 :240-242 `tryInChat`, but address P3a backlog ③ with correct logic (D4, see file header comment
+// "Deviation notice 3"): Vue2 completely ignores `skill.enabled`, always jumps directly; disabled skills don't exist
+// in agent runtime view (`skills_runtime.go:57`), jumping just gives no feedback.
+// When `enabled === true` behavior unchanged, jump directly (P3a existing implementation).
 function tryInChat() {
   const s = props.skill
   if (!s) return
@@ -294,11 +295,11 @@ function tryInChat() {
   router.push({ path: '/ai/agent', query: { skill: s.id } })
 }
 
-// D4「启用并试用」:记下当前技能 id 作为一次性挂号,把意图往上冒泡。**不在这里关
-// 弹窗**(评审后修订,见文件头注释「评审后修订」)——设计文档 §9.4 要求「成功才跳转」,
-// 弹窗必须保持打开直到父组件真的把 `enabled` 改成 true;失败时弹窗留在原地,用户能
-// 再点一次或点取消。是否真的启用成功由父组件(SkillsSection)决定——本组件不直接改
-// `skill.enabled`,只观察 props 上的值(下面的 watch)。
+// D4 "enable and try": record current skill id as one-time registration, bubble intent up. **Do not close
+// dialog here** (post-review revision, see file header comment "Post-review revision") — design doc §9.4 requires "navigate only on success",
+// dialog must stay open until parent truly changes `enabled` to true; on failure dialog stays, user can
+// retry or cancel. Parent (SkillsSection) decides whether enable truly succeeds — this component doesn't directly change
+// `skill.enabled`, only observes value on props (watch below).
 function confirmEnableAndTry() {
   const s = props.skill
   if (!s) return
@@ -306,32 +307,32 @@ function confirmEnableAndTry() {
   emit('toggle', s.id, true)
 }
 
-// 【P3b 终审 I1 修复】D4 弹窗的关闭方式不止「取消」按钮:`SkModal` 自带 `.sk-x` 关闭
-// 按钮 + reka Dialog 的 Esc / 点遮罩关闭,这三种都只走 `@update:open`,此前只有「取消」
-// 与「skill.id 变化」两处清了 `pendingTryId`,漏了这条——挂号悬着后,用户若之后自己在
-// 顶部条把这个技能的开关打开(与「启用并试用」完全无关的操作),下面的
-// `watch(enabled)` 仍会命中 `s.id === pendingTryId.value && enabled === true`,把
-// 用户莫名跳转到 `/ai/agent`。这正是清除路径①头注释要防的场景,只是漏了「关闭这个
-// 弹窗」这一条入口。统一走这一个 handler:任何把弹窗关闭的方式(取消按钮 / X / Esc /
-// 点遮罩)都经它清挂号,不再各自维护一份。
+// [P3b final review I1 fix] D4 dialog close methods not just "cancel" button: `SkModal` has built-in `.sk-x` close
+// button + reka Dialog's Esc / click overlay close, all three only go through `@update:open`, previously only "cancel"
+// and "skill.id change" cleared `pendingTryId`, this path missed — with registration hanging, if user later manually
+// enables switch for this skill (completely unrelated to "enable and try"), below
+// `watch(enabled)` still hits `s.id === pendingTryId.value && enabled === true`, mysteriously navigates
+// user to `/ai/agent`. This is exactly the scenario clear path ① header comment prevents, just missed "close this
+// dialog" entry. Unified handler: any dialog close method (cancel button / X / Esc /
+// click overlay) goes through it clearing registration, no separate maintenance.
 function onTryModalOpenChange(v: boolean) {
   tryModalOpen.value = v
   if (!v) pendingTryId.value = null
 }
 
-// D4「取消」:清除路径②(见文件头注释)。不 emit toggle,不跳转——复用上面的 handler,
-// 与 X/Esc/遮罩走同一条清理逻辑。
+// D4 "cancel": clear path ② (see file header comment). No emit toggle, no navigate — reuse handler above,
+// X/Esc/overlay all go through same cleanup logic.
 function cancelTryModal() {
   onTryModalOpenChange(false)
 }
 
-// D4 一次性跳转:只在「当前 props.skill 就是发起挂号的那个技能」且它的 `enabled`
-// 变成 true 时才**同一步**关弹窗 + 跳转,随即清空挂号(清除路径①)。toggle 失败时
-// 父组件不会把 `enabled` 改成 true,这里就永远不会看到 true,弹窗保持打开
-// (评审后修订,见文件头注释)——不需要额外的失败分支/定时器。显式核对
-// `s.id === pendingTryId.value` 而不是只信任「skill.id 变化时复位」那处 watch 已经
-// 清空了它:两个 watch 都挂在同一个 `props.skill` 上,不依赖 Vue 内部对同一 tick 里
-// 多个 watcher 的调度顺序这个实现细节。
+// D4 one-time navigate: only when "current props.skill is the skill that initiated registration" and its `enabled`
+// becomes true **same step** close dialog + navigate, then clear registration (clear path ①). Toggle fails →
+// parent won't change `enabled` to true, never see true here, dialog stays open
+// (post-review revision, see file header comment) — no extra failure branch/timers needed. Explicitly check
+// `s.id === pendingTryId.value` instead of just trusting "skill.id change reset" watch already
+// cleared it: both watches hang on same `props.skill`, not depending on Vue internal same-tick
+// multiple watcher scheduling order implementation detail.
 watch(() => props.skill?.enabled, (enabled) => {
   const s = props.skill
   if (!s || !pendingTryId.value) return
@@ -362,8 +363,8 @@ watch(() => props.skill?.enabled, (enabled) => {
           <span>{{ skill.title }}</span>
           <code>{{ skill.name }}</code>
         </div>
-        <!-- .sw 开关,对齐 Vue2 :21-28。只接 SetSwitch 的 @change,不接 v-model ——
-             状态的真源是父组件列表项里的 skill.enabled,本组件只把意图往上冒泡。 -->
+        <!-- .sw switch, align with Vue2 :21-28. Only accept SetSwitch's @change, not v-model —
+             true source of state is parent list item's skill.enabled, this component only bubbles intent up. -->
         <SetSwitch
           :model-value="skill.enabled"
           :disabled="!!busy[skill.id]"
@@ -374,9 +375,9 @@ watch(() => props.skill?.enabled, (enabled) => {
           <AgentIcon name="sparkle" :size="13" />
           {{ t('aiSkTryInChat') }}
         </button>
-        <!-- .sk-pill-more + .sk-menu 下拉,对齐 Vue2 :33-56。`menuWrap` 容器包按钮 +
-             `v-if="menuOpen"` 的菜单:暂停/启用 · 复制 SKILL.md · 导出技能 · <hr> ·
-             危险项(卸载/删除)。 -->
+        <!-- .sk-pill-more + .sk-menu dropdown, align with Vue2 :33-56. `menuWrap` container wraps button +
+             `v-if="menuOpen"` menu: pause/enable · copy SKILL.md · export skill · <hr> ·
+             danger item (uninstall/delete). -->
         <div ref="menuWrap" style="position: relative">
           <button class="sk-pill-more" @click="menuOpen = !menuOpen">
             <AgentIcon name="settings" :size="16" />
@@ -440,10 +441,10 @@ watch(() => props.skill?.enabled, (enabled) => {
             </div>
           </div>
 
-          <!-- Vue2 SkillDetail.vue:108-112:TestPanel 夹在「描述」与「SKILL.md」之间。
-               :key="skill.id" 对齐 Vue2 :109——切换技能时整个组件销毁重建(TestPanel.vue
-               头注释已说明:key 变化不会触发它内部的 skill.id watcher,真正兜底的清理
-               落在它自己的 onBeforeUnmount)。test 事件原样转发,见 emits 定义处注释。 -->
+          <!-- Vue2 SkillDetail.vue:108-112: TestPanel sits between "description" and "SKILL.md".
+               :key="skill.id" aligns with Vue2 :109 — whole component destroyed/rebuilt when switching skills (TestPanel.vue
+               header comment explains: key change won't trigger internal skill.id watcher, real cleanup
+               falls in its own onBeforeUnmount). test event passed through as-is, see comment at emits definition. -->
           <TestPanel :key="skill.id" :skill="skill" @test="emit('test')" />
 
           <div class="sk-section">
@@ -483,8 +484,8 @@ watch(() => props.skill?.enabled, (enabled) => {
         </div>
       </div>
 
-      <!-- 删除/卸载确认弹窗,对齐 Vue2 :155-184。不套 SkModal——reka Dialog 原语直接拼出
-           Vue2 的确切 DOM(理由见文件头注释「偏离申报 2」)。 -->
+      <!-- Delete/uninstall confirmation dialog, align with Vue2 :155-184. Not wrapped in SkModal — reka Dialog
+           primitives directly construct Vue2's exact DOM (reason in file header comment "Deviation notice 2"). -->
       <DialogRoot :open="confirmOpen" @update:open="confirmOpen = $event">
         <DialogPortal to=".set-app" defer>
           <DialogOverlay class="sk-modal-bg">
@@ -515,9 +516,9 @@ watch(() => props.skill?.enabled, (enabled) => {
         </DialogPortal>
       </DialogRoot>
 
-      <!-- D4:停用技能「在对话中试用」先提示(见文件头注释「偏离申报 3」)。这个弹窗
-           Vue2 里不存在,没有逐像素复刻目标,所以用标准壳 SkModal,不套上面那份 reka
-           原语手拼(两种外壳并存的理由见文件头注释「两种弹窗外壳并存,不是不一致」)。 -->
+      <!-- D4: disabled skill "try in chat" prompt first (see file header comment "Deviation notice 3"). This dialog
+           doesn't exist in Vue2, no pixel-perfect duplication target, so uses standard shell SkModal, not reka
+           primitives hand-constructed above (reason for two shells coexisting in file header comment "Two dialog shells coexist, not inconsistency"). -->
       <SkModal
         :open="tryModalOpen"
         :title="t('aiSkTryDisabledTitle')"
@@ -526,8 +527,8 @@ watch(() => props.skill?.enabled, (enabled) => {
         <p>{{ t('aiSkTryDisabledBody') }}</p>
         <template #footer>
           <button class="sk-btn ghost" @click="cancelTryModal">{{ t('aiCancel') }}</button>
-          <!-- busy[skill.id] 为真时禁用(toggle 请求飞行中),防止重复点击叠加发出多次
-               toggle 请求——自主判断范围,见文件头注释「评审后修订」末段。 -->
+          <!-- disabled when busy[skill.id] is true (toggle request in flight), prevent repeated clicks
+               stacking multiple toggle requests — self-judgment scope, see file header comment "Post-review revision" end. -->
           <button
             class="sk-btn primary"
             :disabled="!!busy[skill.id]"

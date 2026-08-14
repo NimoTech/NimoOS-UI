@@ -1,17 +1,21 @@
-// SP8-P5c Task 5 —— `parserStore.ts` 的单测。覆盖:初值(蓝本 :5-18)· `loadAll`
-// 四发并行 + K1 单层取数 + N7 兜底 · `unreachable` 两个方向 · 五个控制动作 ·
-// 🔴 K33 过期守卫的**两件事**(治理 §9.1):① 守卫逻辑(先发后至不覆盖)
-// ② 守卫变量的作用域(必须 store 实例局部,不能模块级)。
+// SP8-P5c Task 5 —— unit tests for `parserStore.ts`. Covers: initial values (blueprint :5-18) ·
+// `loadAll` four concurrent requests + K1 single-layer extraction + N7 fallback ·
+// `unreachable` both directions · five control actions ·
+// 🔴 K33 stale guard's **two things** (governance §9.1): ① guard logic (earlier arrival
+// doesn't overwrite later) ② guard variable scope (must be store instance local, not module-level).
 //
-// 🔴 **mock 层次**(治理 §4.1):`service.ai.parser*` 六个方法在共享包里都只
-// `return res.data`(`NimoOS-Service/src/ai.ts:591-620`,零转换)→ 这里一律 mock 成
-// **HTTP 原样 snake_case**,就是 fixture 原文,一字不改。
+// 🔴 **mock level** (governance §4.1): `service.ai.parser*` six methods in shared package
+// only `return res.data` (`NimoOS-Service/src/ai.ts:591-620`, zero transformation) → here
+// all mocked as **bare HTTP snake_case**, fixture verbatim, not a byte changed.
 //
-// 🔴 **fixture 是抄本,不是运行时读**(治理 §4.4;沿用 P5b/T3 的既定做法):
-// 数据逐字抄进本文件的 `FIXTURE-COPY-BEGIN/END` 块并注明出处,**不用 `node:fs` 读
-// `.superpowers/`** —— 那个目录被 gitignore 盖着(SP7 整个丢过一次),本分支将来要
-// 合 master,`src/` 下的测试跨界依赖它会以「找不到文件」的形式神秘挂掉。
-// 抄本与 fixture 的**逐字节等价性由一次性脚本程序化校验**(见 T5 报告 §5),不是肉眼比。
+// 🔴 **fixtures are copies, not runtime reads** (governance §4.4; following P5b/T3
+// established practice):
+// data copied verbatim into this file's `FIXTURE-COPY-BEGIN/END` blocks with sources, **don't
+// use `node:fs` to read `.superpowers/`** —— that directory is gitignored (lost once in SP7),
+// this branch will merge to master, tests in `src/` with cross-repo dependency would
+// mysteriously fail with "file not found".
+// Copy-to-fixture **byte-for-byte equivalence verified by one-shot script** (see T5 report §5),
+// not eyeballed.
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
@@ -29,9 +33,9 @@ import { useParserStore } from './parserStore'
 import type { ParserStatsBody, ParserControlStateBody, ParserFoldersBody, ParserFailedJob } from './parserStore'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (整份,GET /v1/parser/stats)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-stats.json`(2026-08-03 13:22 真机抓取)。
-// 抄本由脚本从 fixture 生成后插入,零人工转写;等价校验见报告 §5。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-stats.json  (complete, GET /v1/parser/stats)
+// from `.superpowers/sdd/p5c-fixtures/parser-stats.json` (2026-08-03 13:22 live capture).
+// Copy inserted by script from fixture, zero manual rewriting; equivalence check in report §5.
 const STATS_NOW: ParserStatsBody = {
   "queue_depth": {
     "pending": 339,
@@ -60,11 +64,12 @@ const STATS_NOW: ParserStatsBody = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5b-fixtures/stats.json  (整份,同一端点的**更早一次**真抓)
-// 取自 `.superpowers/sdd/p5b-fixtures/stats.json`(P5b 期真机抓取)。
-// 🔴 用途:交错用例需要两份**可区分**的真响应体。这两份是同一个 `GET /v1/parser/stats`
-// 在两个时刻的真实回包(`pending` 338→339 / `indexed_files` 8→7,治理 §12.1 已登记
-// 这个漂移),正好就是「轮询两发在飞、先发后至」的真实剧情 —— 不是手编数据。
+// FIXTURE-COPY-BEGIN  p5b-fixtures/stats.json  (complete, **earlier capture** of same endpoint)
+// from `.superpowers/sdd/p5b-fixtures/stats.json` (P5b era live capture).
+// 🔴 Purpose: interleaving tests need two **distinguishable** real response bodies. These are the
+// same `GET /v1/parser/stats` at two time points (`pending` 338→339 / `indexed_files` 8→7,
+// drift logged in governance §12.1), exactly the real scenario of "two polling requests in flight,
+// earlier arrives later" —— not hand-crafted data.
 const STATS_EARLIER: ParserStatsBody = {
   "queue_depth": {
     "pending": 338,
@@ -93,9 +98,9 @@ const STATS_EARLIER: ParserStatsBody = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (整份,GET /v1/parser/state)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-control-state.json`(2026-08-03 13:22)。
-// 🔴 实测只有这 5 个字段;本机当前是**暂停态**(治理 §4.3)。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-control-state.json  (complete, GET /v1/parser/state)
+// from `.superpowers/sdd/p5c-fixtures/parser-control-state.json` (2026-08-03 13:22).
+// 🔴 Live test shows exactly 5 fields; this machine is currently in **paused state** (governance §4.3).
 const STATE: ParserControlStateBody = {
   "paused": true,
   "concurrency": 2,
@@ -105,10 +110,10 @@ const STATE: ParserControlStateBody = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-folders-pending-20.json  (整份 20 项 + total_groups)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-folders-pending-20.json`(2026-08-03 13:22,
-// `GET /v1/parser/folders?limit=20`)。🔴 **20 项全抄**、字段(`root_id`/`folder`/`count`)
-// 一个没精简、顺序一个没改;`total_groups: 119` 与列表长度 20 的关系有专门用例守着。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-folders-pending-20.json  (complete 20 items + total_groups)
+// from `.superpowers/sdd/p5c-fixtures/parser-folders-pending-20.json` (2026-08-03 13:22,
+// `GET /v1/parser/folders?limit=20`). 🔴 **all 20 items copied**, fields (`root_id`/`folder`/`count`)
+// none simplified, order unchanged; relationship between `total_groups: 119` and list length 20 has dedicated test.
 const FOLDERS: ParserFoldersBody = {
   "folders": [
     { "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0", "folder": "/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows", "count": 18 },
@@ -136,21 +141,22 @@ const FOLDERS: ParserFoldersBody = {
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-jobs-failed-5.json  (整份,GET /v1/parser/jobs?status=failed&limit=5)
-// 取自 `.superpowers/sdd/p5c-fixtures/parser-jobs-failed-5.json`(2026-08-03 13:22)。
-// 🔴 本机失败桶**是空的** → 光靠它区分不出「真读了 `.jobs`」与「走了 `|| []` 兜底」,
-// 所以另借一行真行(见下一个块)做判别。
+// FIXTURE-COPY-BEGIN  p5c-fixtures/parser-jobs-failed-5.json  (complete, GET /v1/parser/jobs?status=failed&limit=5)
+// from `.superpowers/sdd/p5c-fixtures/parser-jobs-failed-5.json` (2026-08-03 13:22).
+// 🔴 This machine's failed bucket **is empty** → can't alone distinguish "actually read `.jobs`" from
+// "took `|| []` fallback", so borrow a real row from next block for confirmation.
 const FAILED_EMPTY: { jobs: ParserFailedJob[] } = {
   "jobs": []
 }
 // FIXTURE-COPY-END
 
-// FIXTURE-COPY-BEGIN  p5b-fixtures/jobs-pending.json  jobs[0]  (真行一行,整行照抄)
-// 取自 `.superpowers/sdd/p5b-fixtures/jobs-pending.json` 的 `jobs[0]`(id 348)。
-// 🔴 为什么借 pending 桶的行:本机 failed 桶实测为空(`parser-jobs-failed-5.json` 与
-// P5b 的 `jobs-failed.json` 都是 `{"jobs":[]}`),而 `/v1/parser/jobs` 是同一张表、同一个
-// 序列化器,行形状与 status 无关 → 借它当判别用真行。**先例:`knowledgeStore.staleGuard.test.ts`
-// 的 `POISON_FAILED_ROW` 同款做法**(T3 修复轮 1 M-2 已认可)。字段一个没改。
+// FIXTURE-COPY-BEGIN  p5b-fixtures/jobs-pending.json  jobs[0]  (one real row, copied verbatim)
+// from `.superpowers/sdd/p5b-fixtures/jobs-pending.json`'s `jobs[0]` (id 348).
+// 🔴 Why borrow a pending bucket row: this machine's failed bucket is live-test empty
+// (`parser-jobs-failed-5.json` and P5b's `jobs-failed.json` both `{"jobs":[]}`), but
+// `/v1/parser/jobs` is one table, one serializer, row shape independent of status → borrow as
+// distinguishing real row. **Precedent: `knowledgeStore.staleGuard.test.ts` `POISON_FAILED_ROW`
+// same technique** (T3 fix round 1 M-2 approved). No fields changed.
 const FAILED_ROW: ParserFailedJob = {
   "id": 348,
   "root_id": "dfcd1840f5dab439cd9d7050aa5bafd0",
@@ -168,8 +174,8 @@ const FAILED_ROW: ParserFailedJob = {
 // FIXTURE-COPY-END
 // ═══════════════════════════════════════════════════════════════════════════
 
-// 蓝本 `parserStore.js:6-11` / `:12` 的初值,逐字照抄(**这两个不是 fixture,是蓝本
-// 源码**)—— 初值改了这两条用例必须报红。
+// Blueprint `parserStore.js:6-11` / `:12` initial values, copied exactly (**these are not
+// fixtures, they are blueprint source code**) —— if initial values change, these two tests must fail.
 const INITIAL_STATS = {
   queue_depth: { pending: 0, running: 0, failed: 0, done: 0 },
   indexed_files: 0,
@@ -184,7 +190,7 @@ const INITIAL_CONTROL_STATE = {
   ocr_enabled: false,
 }
 
-/** 可控 deferred —— 交错路径测试的标准工具(先例 `knowledgeStore.staleGuard.test.ts:37`)。 */
+/** Controllable deferred —— standard tool for interleaving path testing (precedent `knowledgeStore.staleGuard.test.ts:37`). */
 function deferred<T>() {
   let resolve!: (v: T) => void
   let reject!: (e: unknown) => void
@@ -195,20 +201,21 @@ function deferred<T>() {
   return { promise, resolve, reject }
 }
 
-/** 四发全成功,全部喂 fixture 原文。 */
+/** All four requests succeed, all fed fixture verbatim. */
 function mockAllOk() {
   ai.parserStats.mockResolvedValue(STATS_NOW)
   ai.parserState.mockResolvedValue(STATE)
   ai.parserFolders.mockResolvedValue(FOLDERS)
   ai.parserJobs.mockResolvedValue(FAILED_EMPTY)
-  // `parserControl` 的返回体本 store 不消费(蓝本 :46 也只 `await`),本期 fixture 未抓
-  // `POST /v1/parser/control` 的响应体(治理 §8.2 第 8 条同款「不依赖」口径)——
-  // 形状与 `knowledgeStore.parser.test.ts:136` 保持一致(同一方法两文件两形状 = red flag)。
+  // `parserControl` response body not consumed by this store (blueprint :46 also just `await`),
+  // this batch didn't capture `POST /v1/parser/control` response (governance §8.2 clause 8 same
+  // "not dependent" convention) ——
+  // shape kept consistent with `knowledgeStore.parser.test.ts:136` (same method two files two shapes = red flag).
   ai.parserControl.mockResolvedValue({})
 }
 
-/** 三发(state/folders/jobs)固定成功,只让 `parserStats` 那一发受调用方控制 ——
- * `Promise.all` 会等最慢的一发,所以整发的落地顺序由 `parserStats` 决定。 */
+/** Three requests (state/folders/jobs) fixed success, only `parserStats` controlled by caller ——
+ * `Promise.all` waits for slowest, so overall arrival order determined by `parserStats`. */
 function mockStatsDeferred(...promises: Promise<unknown>[]) {
   ai.parserState.mockResolvedValue(STATE)
   ai.parserFolders.mockResolvedValue(FOLDERS)
@@ -221,8 +228,8 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 
-describe('初值(蓝本 parserStore.js:5-18,逐字照抄)', () => {
-  it('七个 state 字段的初值与蓝本一致(concurrency 默认 2 / device 默认 auto)', () => {
+describe('Initial values (blueprint parserStore.js:5-18, copied exactly)', () => {
+  it('Seven state fields match blueprint (concurrency defaults 2 / device defaults auto)', () => {
     const s = useParserStore()
     expect(s.stats).toEqual(INITIAL_STATS)
     expect(s.controlState).toEqual(INITIAL_CONTROL_STATE)
@@ -234,8 +241,8 @@ describe('初值(蓝本 parserStore.js:5-18,逐字照抄)', () => {
   })
 })
 
-describe('loadAll —— 四发并行 + K1 单层取数', () => {
-  it('四个包方法各发一次,参数逐字照蓝本(folders limit 20 / jobs status=failed limit 5)', async () => {
+describe('loadAll —— four concurrent + K1 single-layer extraction', () => {
+  it('Four package methods each called once, parameters match blueprint exactly (folders limit 20 / jobs status=failed limit 5)', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.loadAll()
@@ -247,11 +254,11 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
     expect(ai.parserJobs).toHaveBeenCalledWith({ status: 'failed', limit: 5 })
   })
 
-  it('🔴 K1:fixture 原样 snake_case 直接写进 state(没有 .data 那一层)', async () => {
+  it('🔴 K1: fixture snake_case as-is written to state (no .data layer)', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.loadAll()
-    // ← mock 是裸 body:实现若多剥一层 `.data`,这四条全红
+    // ← mock is bare body: if implementation unwraps extra `.data`, all four fail
     expect(s.stats).toEqual(STATS_NOW)
     expect(s.controlState).toEqual(STATE)
     expect(s.folders).toEqual(FOLDERS)
@@ -261,7 +268,7 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
     expect(s.error).toBe(null)
   })
 
-  it('🔴 K1 反向:mock 多包一层 { data } 时,写进 state 的就是那个外壳(证明实现零剥壳)', async () => {
+  it('🔴 K1 reverse: mock with extra { data } layer, what gets written is that wrapper (proves zero unwrap)', async () => {
     ai.parserStats.mockResolvedValue({ data: STATS_NOW })
     ai.parserState.mockResolvedValue({ data: STATE })
     ai.parserFolders.mockResolvedValue({ data: FOLDERS })
@@ -271,11 +278,11 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
     expect(s.stats).toEqual({ data: STATS_NOW })
     expect(s.stats.queue_depth).toBeUndefined()
     expect(s.folders).toEqual({ data: FOLDERS })
-    // 外壳里的 `jobs` 取不到 → 走 N7 兜底成空数组(不抛)
+    // `jobs` not found in wrapper → N7 fallback to empty array (no throw)
     expect(s.failedJobs).toEqual([])
   })
 
-  it('本机实测形状:20 项文件夹 + total_groups 119(列表长度 ≠ 总组数,标题两个数字各有来源)', async () => {
+  it('Live test shape: 20 folder items + total_groups 119 (list length ≠ total groups, title numbers from different sources)', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.loadAll()
@@ -287,23 +294,23 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
         '/DATA/.system_data/home/nimo/.claude/plugins/marketplaces/claude-plugins-official/.github/workflows',
       count: 18,
     })
-    // count 递减(蓝本 barWidth 拿首项当最大值的前提)
+    // count descending (blueprint barWidth assumes first item as max)
     expect(s.folders.folders.map((f) => f.count)[19]).toBe(4)
   })
 
-  it('failedJobs 真的读了 .jobs(非空桶,借 jobs-pending.json 的真行)', async () => {
+  it('failedJobs truly read .jobs (non-empty bucket, borrowed real row from jobs-pending.json)', async () => {
     mockAllOk()
     ai.parserJobs.mockResolvedValue({ jobs: [FAILED_ROW] })
     const s = useParserStore()
     await s.loadAll()
     expect(s.failedJobs).toEqual([FAILED_ROW])
-    // 蓝本 `ParserStatus.vue:97-99` 只读这三个字段
+    // Blueprint `ParserStatus.vue:97-99` only reads these three fields
     expect(s.failedJobs[0].id).toBe(348)
     expect(s.failedJobs[0].path).toBe('/DATA/.system_data/tmp/nimoos_panic.log')
     expect(s.failedJobs[0].last_error).toBe(null)
   })
 
-  it('【N7 兜底】failed 响应缺 jobs 键 → 空数组', async () => {
+  it('【N7 fallback】failed response missing jobs key → empty array', async () => {
     mockAllOk()
     ai.parserJobs.mockResolvedValue({})
     const s = useParserStore()
@@ -311,7 +318,7 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
     expect(s.failedJobs).toEqual([])
   })
 
-  it('【N7 兜底】failed 响应 jobs 为 null(Go nil slice 序列化结果)→ 空数组', async () => {
+  it('【N7 fallback】failed response jobs is null (Go nil slice serialized) → empty array', async () => {
     mockAllOk()
     ai.parserJobs.mockResolvedValue({ jobs: null })
     const s = useParserStore()
@@ -319,7 +326,7 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
     expect(s.failedJobs).toEqual([])
   })
 
-  it('【N7 兜底】failed 响应整体为 null → 空数组,不抛(蓝本 :34 的 `failed.data &&` 那一半)', async () => {
+  it('【N7 fallback】failed response entirely null → empty array, no throw (blueprint :34 `failed.data &&` half)', async () => {
     mockAllOk()
     ai.parserJobs.mockResolvedValue(null)
     const s = useParserStore()
@@ -329,8 +336,8 @@ describe('loadAll —— 四发并行 + K1 单层取数', () => {
   })
 })
 
-describe('unreachable 两个方向(蓝本 :37-42)', () => {
-  it('四发里任一 reject → unreachable=true + error=e.message,既有值不动,loading 归位', async () => {
+describe('unreachable both directions (blueprint :37-42)', () => {
+  it('Any of four reject → unreachable=true + error=e.message, existing values unchanged, loading resets', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.loadAll()
@@ -341,11 +348,11 @@ describe('unreachable 两个方向(蓝本 :37-42)', () => {
     expect(s.unreachable).toBe(true)
     expect(s.error).toBe('parser down')
     expect(s.loading).toBe(false)
-    expect(s.stats).toEqual(STATS_NOW) // catch 分支不动既有数据(蓝本也不动)
+    expect(s.stats).toEqual(STATS_NOW) // catch branch leaves existing data (blueprint also leaves it)
     expect(s.folders).toEqual(FOLDERS)
   })
 
-  it('恢复后 unreachable 回 false 且 error 清成 null(蓝本 :35-36)', async () => {
+  it('After recovery unreachable back false and error cleared null (blueprint :35-36)', async () => {
     ai.parserStats.mockRejectedValue(new Error('boom'))
     ai.parserState.mockResolvedValue(STATE)
     ai.parserFolders.mockResolvedValue(FOLDERS)
@@ -362,7 +369,7 @@ describe('unreachable 两个方向(蓝本 :37-42)', () => {
     expect(s.stats).toEqual(STATS_NOW)
   })
 
-  it('抛出的不是 Error 时走 String(e) 兜底(蓝本 :39 的 `|| String(e)`)', async () => {
+  it('Non-Error thrown takes String(e) fallback (blueprint :39 `|| String(e)`)', async () => {
     mockAllOk()
     ai.parserState.mockRejectedValue('net down')
     const s = useParserStore()
@@ -372,21 +379,21 @@ describe('unreachable 两个方向(蓝本 :37-42)', () => {
   })
 })
 
-describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await loadAll()', () => {
-  it('pause / resume 的 body 与重载次数', async () => {
+describe('Five control actions (blueprint :45-64) —— parserControl first, then await loadAll()', () => {
+  it('pause / resume body and reload count', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.pause()
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'pause' })
-    expect(ai.parserStats).toHaveBeenCalledTimes(1) // 动作后重载了一次
+    expect(ai.parserStats).toHaveBeenCalledTimes(1) // reloaded once after action
     await s.resume()
     expect(ai.parserControl).toHaveBeenLastCalledWith({ action: 'resume' })
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
   })
 
-  // 键名 `n` 与设置页那条路径**一致**(蓝本 `SettingsView.vue:292` 同样传 `{ n }`),
-  // 后端 `controlReq` 也是 `N *int json:"n"` —— 这里钉死它,不是登记「两处不一致」。
-  it('🔴 setConcurrency 的键是 `n`(与设置页调用点、后端 controlReq 一致),并重载', async () => {
+  // Key name `n` **consistent** with settings page path (blueprint `SettingsView.vue:292` also passes `{ n }`),
+  // backend `controlReq` is also `N *int json:"n"` —— pinning it here, not registering "two places inconsistent".
+  it('🔴 setConcurrency key is `n` (consistent with settings call site, backend controlReq), and reloads', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.setConcurrency(4)
@@ -394,7 +401,7 @@ describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await lo
     expect(ai.parserStats).toHaveBeenCalledTimes(1)
   })
 
-  it('setDevice / setOcr 的 body 逐字照抄,并各自重载', async () => {
+  it('setDevice / setOcr body copied exactly, each reloads', async () => {
     mockAllOk()
     const s = useParserStore()
     await s.setDevice('cuda')
@@ -407,8 +414,8 @@ describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await lo
     expect(ai.parserControl).toHaveBeenCalledTimes(3)
   })
 
-  it('控制动作里的重载也吃过期守卫:动作触发的那一发比轮询那一发晚发 → 它才是最新的', async () => {
-    // 轮询那一发(先发)在飞时用户点了「恢复」→ 动作内部的 loadAll 是后发。
+  it('Reload in control action also guarded: action-triggered arrives later than polling → it is latest', async () => {
+    // Polling request (earlier) in flight when user clicks "resume" → action internal loadAll is later.
     const dPoll = deferred<ParserStatsBody>()
     const dAction = deferred<ParserStatsBody>()
     mockStatsDeferred(dPoll.promise, dAction.promise)
@@ -417,9 +424,9 @@ describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await lo
     const pPoll = s.loadAll()
     const pAction = s.resume()
     await flushPromises()
-    dAction.resolve(STATS_NOW) // 后发(动作)先回
+    dAction.resolve(STATS_NOW) // later (action) returns first
     await flushPromises()
-    dPoll.resolve(STATS_EARLIER) // 先发(轮询)后回 → 必须被丢弃
+    dPoll.resolve(STATS_EARLIER) // earlier (polling) returns later → must be discarded
     await Promise.all([pPoll, pAction])
     expect(s.stats).toEqual(STATS_NOW)
     expect(s.loading).toBe(false)
@@ -427,35 +434,35 @@ describe('五个控制动作(蓝本 :45-64)—— 先 parserControl,再 await lo
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 K33 —— 过期守卫。治理 §9.1:**必须同时守两件事**。
-// ① 守卫逻辑(先发后至不覆盖 / 不提前清 loading / 不写错误态)
-// ② 守卫**变量的作用域**(必须 store 实例局部,不能模块级)
-// 判据:① 拿掉守卫必须报红;② 把 `loadAllEpoch` 挪到模块级必须报红。
-// ⚠️ 不抽公共 guard(过早抽象,承 K15 的既定口径)。
+// 🔴 K33 —— stale guard. Governance §9.1: **must guard both things**.
+// ① guard logic (earlier arrival doesn't overwrite / no premature loading reset / no error state write)
+// ② guard **variable scope** (must be store instance local, not module-level)
+// Criteria: ① removing guard must fail; ② moving `loadAllEpoch` to module-level must fail.
+// ⚠️ Don't extract common guard (premature abstraction, following K15 established).
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('K33 过期守卫 ① —— 守卫逻辑(8 个并发入口:mounted / 5s 轮询 / 刷新按钮 / 五个动作)', () => {
-  it('两次 loadAll 交错(后发先回、先发后回)→ state 是后发那次的,loading 收敛 false', async () => {
+describe('K33 stale guard ① —— guard logic (8 concurrent entry points: mounted / 5s poll / refresh button / five actions)', () => {
+  it('Two loadAll interleaved (later returns first, earlier returns later) → state from later call, loading converges false', async () => {
     const d1 = deferred<ParserStatsBody>()
     const d2 = deferred<ParserStatsBody>()
     mockStatsDeferred(d1.promise, d2.promise)
     const s = useParserStore()
-    const p1 = s.loadAll() // 先发
-    const p2 = s.loadAll() // 后发
+    const p1 = s.loadAll() // earlier
+    const p2 = s.loadAll() // later
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
 
-    d2.resolve(STATS_NOW) // 后发先回
+    d2.resolve(STATS_NOW) // later returns first
     await flushPromises()
     expect(s.stats).toEqual(STATS_NOW)
 
-    d1.resolve(STATS_EARLIER) // 先发后回 —— 无守卫时会把更旧的数据盖上去
+    d1.resolve(STATS_EARLIER) // earlier returns later —— without guard would overwrite with older data
     await Promise.all([p1, p2])
     expect(s.stats).toEqual(STATS_NOW)
-    expect(s.stats.indexed_files).toBe(7) // STATS_EARLIER 是 8,盖上去就红
+    expect(s.stats.indexed_files).toBe(7) // STATS_EARLIER is 8, overwrite would fail
     expect(s.loading).toBe(false)
   })
 
-  it('🔴 过期那一发先落地时,不许写 state、也不许把 loading 提前关掉(刷新按钮会提前解禁)', async () => {
+  it('🔴 Stale arrival first, must not write state or prematurely clear loading (refresh button would be enabled early)', async () => {
     const d1 = deferred<ParserStatsBody>()
     const d2 = deferred<ParserStatsBody>()
     mockStatsDeferred(d1.promise, d2.promise)
@@ -463,11 +470,11 @@ describe('K33 过期守卫 ① —— 守卫逻辑(8 个并发入口:mounted / 5
     const p1 = s.loadAll()
     const p2 = s.loadAll()
 
-    d1.resolve(STATS_EARLIER) // 过期的那一发先回
+    d1.resolve(STATS_EARLIER) // stale response first
     await flushPromises()
-    // ↓ 无 finally 守卫时这里会是 false → 按钮/单选框在最新一发还没落地时就解禁了
+    // ↓ without finally guard would be false → button/radio enabled before latest arrives
     expect(s.loading).toBe(true)
-    expect(s.stats).toEqual(INITIAL_STATS) // 也不许把它的数据写进来
+    expect(s.stats).toEqual(INITIAL_STATS) // also must not write its data
 
     d2.resolve(STATS_NOW)
     await Promise.all([p1, p2])
@@ -475,7 +482,7 @@ describe('K33 过期守卫 ① —— 守卫逻辑(8 个并发入口:mounted / 5
     expect(s.stats).toEqual(STATS_NOW)
   })
 
-  it('🔴 过期那一发失败时,不许写 unreachable / error(否则页面会在数据正常时报「不可达」)', async () => {
+  it('🔴 Stale failure, must not write unreachable / error (else page reports "unreachable" with good data)', async () => {
     const d1 = deferred<ParserStatsBody>()
     const d2 = deferred<ParserStatsBody>()
     mockStatsDeferred(d1.promise, d2.promise)
@@ -483,11 +490,11 @@ describe('K33 过期守卫 ① —— 守卫逻辑(8 个并发入口:mounted / 5
     const p1 = s.loadAll()
     const p2 = s.loadAll()
 
-    d2.resolve(STATS_NOW) // 最新那一发成功落地
+    d2.resolve(STATS_NOW) // latest succeeds
     await flushPromises()
     expect(s.unreachable).toBe(false)
 
-    d1.reject(new Error('stale boom')) // 过期那一发随后失败
+    d1.reject(new Error('stale boom')) // stale then fails
     await Promise.all([p1, p2])
     expect(s.unreachable).toBe(false)
     expect(s.error).toBe(null)
@@ -496,13 +503,14 @@ describe('K33 过期守卫 ① —— 守卫逻辑(8 个并发入口:mounted / 5
   })
 })
 
-describe('K33 过期守卫 ② —— 守卫变量必须 store 实例局部,不是模块级', () => {
-  // 🔴 治理 §9.1(T3 评审 M-1 猎出的缺口):上一刀的产品代码是对的,但「守卫变量必须
-  // 实例本地」这条不变量**零用例守着** —— 把 `seq` 挪到真模块级后,三条单实例交错用例
-  // 照样全绿。模块级 epoch 的真实后果是:两个同时活着的 store 实例会互相把对方的请求
-  // 判成过期(数据永远写不进去、`loading` 永远转)。本用例专守这一条。
-  // 判据只有一个:把 `parserStore.ts` 里的 `let loadAllEpoch = 0` 挪到模块级 → 必须报红。
-  it('两个 pinia 实例各自 loadAll 交错在飞 → 各自拿到自己的结果、互不覆盖、两边 loading 都收敛', async () => {
+describe('K33 stale guard ② —— guard variable must be store instance local, not module-level', () => {
+  // 🔴 Governance §9.1 (T3 review M-1 found gap): previous production code correct, but "guard
+  // variable must be instance local" invariant **has zero tests** —— moving `seq` to true
+  // module-level, three single-instance interleaving tests still pass. Module-level epoch's real
+  // consequence: two simultaneously alive store instances judge each other's requests stale
+  // (data never writes, `loading` never resets). This test guards only that.
+  // Only one criterion: moving `let loadAllEpoch = 0` in `parserStore.ts` to module-level → must fail.
+  it('Two pinia instances each loadAll interleaved in flight → each gets own result, no overwrite, both loading converges', async () => {
     const dA = deferred<ParserStatsBody>()
     const dB = deferred<ParserStatsBody>()
     mockStatsDeferred(dA.promise, dB.promise)
@@ -515,22 +523,22 @@ describe('K33 过期守卫 ② —— 守卫变量必须 store 实例局部,不�
     const sB = useParserStore()
     expect(sA).not.toBe(sB)
 
-    const pA = sA.loadAll() // 实例 A 在飞
-    const pB = sB.loadAll() // 实例 B 在飞
+    const pA = sA.loadAll() // instance A in flight
+    const pB = sB.loadAll() // instance B in flight
     expect(ai.parserStats).toHaveBeenCalledTimes(2)
 
-    // 交错:后发的 B 先回,再轮到 A —— 两个实例都不该被对方影响
+    // Interleave: B later but returns first, then A —— both instances must not affect each other
     dB.resolve(STATS_NOW)
     await flushPromises()
     dA.resolve(STATS_EARLIER)
     await Promise.all([pA, pB])
 
-    // ↓ 模块级 epoch 时,A 的 epoch(1) !== loadAllEpoch(2) → 整发被丢弃,stats 停在初值
+    // ↓ with module-level epoch, A's epoch(1) !== loadAllEpoch(2) → entire response discarded, stats stuck at initial
     expect(sA.stats).toEqual(STATS_EARLIER)
     expect(sA.stats.indexed_files).toBe(8)
     expect(sB.stats).toEqual(STATS_NOW)
     expect(sB.stats.indexed_files).toBe(7)
-    // ↓ 模块级 epoch 时,A 的 finally 正向判断不成立 → loading 永远转
+    // ↓ with module-level epoch, A's finally check fails → loading never resets
     expect(sA.loading).toBe(false)
     expect(sB.loading).toBe(false)
   })

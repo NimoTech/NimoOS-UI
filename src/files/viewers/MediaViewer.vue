@@ -20,7 +20,8 @@ const { t, locale } = useI18n()
 
 const kind = mediaKind(props.item.name)
 
-// 音频转录/摘要（写死 demo）：命中文件名才显示下方面板。默认展开「摘要」页。
+// Audio transcript/summary (hardcoded demo): panel appears only when the filename matches.
+// Default tab is "summary".
 const transcript = computed(() => (kind === 'audio' ? lookupTranscript(props.item.name) : null))
 const tab = ref<'summary' | 'transcript' | 'ask'>('summary')
 
@@ -31,15 +32,18 @@ const poster = ref('')
 const audioTitle = ref(props.item.name)
 const audioArtist = ref('...')
 
-// Artplayer 是第三方互操作边界，无需超出 destroy 的共享类型，any 是有意为之。
+// Artplayer is a third-party interop boundary; shared types beyond destroy() are not needed.
+// Using `any` is intentional.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let artInst: any = null
-// 组件在异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——卸载后放弃构造。
+// Component may be unmounted during await in async onMounted (user closes overlay quickly).
+// After unmount, abandon construction.
 let disposed = false
 
-// ── 音频：自定义极简播放器（原生 <audio> + 自绘进度条，仿参考图）─────────────
-//   布局：播放/暂停圆钮在「进度条上方」居中；进度条=透明轨道 + 蓝紫已播条 + 圆形拉链，
-//   两端各一个时间标签。已删除原 APlayer 皮肤与波纹动画。配色沿用主页蓝紫。
+// ── Audio: custom minimal player (native <audio> + custom-drawn progress bar, per reference)
+//   Layout: play/pause circle button centered above progress bar; progress bar = transparent
+//   track + blue-purple filled portion + circular thumb, time labels at both ends.
+//   Removed original APlayer skin and wave animation. Color scheme reused from homepage blue-purple.
 const audioMedia = ref<HTMLAudioElement | null>(null)
 const track = ref<HTMLElement | null>(null)
 const playing = ref(false)
@@ -51,10 +55,12 @@ const progressPct = computed(() =>
   durTime.value ? Math.min(100, Math.max(0, (curTime.value / durTime.value) * 100)) : 0,
 )
 
-// ── 声波进度条（仿录音 app）──────────────────────────────────────────
-//   进度条画成语音波形：居中的圆角竖条 + 静音处的虚线基线。已播部分染强调色。
-//   数据源两级：先按文件名合成占位(0 延迟)，后台解码真实音频后无缝替换；
-//   超 50MB / 解码失败 / 命中不了都静默停留在合成，详见 ./waveform 与设计 spec。
+// ── Waveform progress bar (mimics recording app) ──────────────────────────────────────
+//   Progress bar is drawn as voice waveform: centered rounded vertical bars + silent
+//   sections have dashed baseline. Played portion is colored with accent color.
+//   Two-level data source: first synthesize placeholder from filename (0 latency), then
+//   seamlessly replace with real decoded audio in background. Files > 50MB / decode failure /
+//   no match silently stay on synthesized version; see ./waveform and design spec.
 const MAX_DECODE_BYTES = 50 * 1024 * 1024
 const waveBars = ref<number[]>(synthWaveform(props.item.name || 'audio', WAVE_N))
 let waveAbort: AbortController | null = null
@@ -68,36 +74,42 @@ function startWaveDecode(): void {
   }
   waveAbort = new AbortController()
   void decodeWaveform(url, WAVE_N, { maxBytes: MAX_DECODE_BYTES, signal: waveAbort.signal }).then((bars) => {
-    // 在途结果到达时组件可能已卸载(disposed)——丢弃，不写缓存也不触发渲染。
+    // Component may be unmounted (disposed) by the time in-flight result arrives.
+    // Discard; don't write cache or trigger render.
     if (!bars || disposed) return
     setCachedWave(key, bars)
     waveBars.value = bars
   })
 }
-// 已播竖条数量 = 进度占比 × 总条数（决定每条染色/留白）。
+// Number of played bars = progress percentage × total bars (determines per-bar color/white).
 const playedBars = computed(() => Math.round((progressPct.value / 100) * WAVE_N))
 
-// 波形×说话人:仅当转录带说话人数据时启用(spec §3;无说话人音频保持旧渲染分支零变化)。
-// durTime 为 0(loadedmetadata 前)时 barSpeakers 返回全 null → 全部竖条先走 --wave-none,就绪后响应式重算。
+// Waveform × speakers: enabled only when transcript has speaker data (spec §3;
+// audio without speakers keeps old render branch zero-changed).
+// When durTime is 0 (before loadedmetadata), barSpeakers returns all nulls → all bars use
+// --wave-none, then reactively recalculate when ready.
 const barSpk = computed<(string | null)[]>(() => {
   const tr = transcript.value
   if (!tr?.speakers?.length) return []
   return barSpeakers(tr.segments, durTime.value, WAVE_N)
 })
 const waveSpeakerMode = computed(() => barSpk.value.length > 0)
-// 竖条→章节归属(仅说话人模式下波形参与压暗;spec §5 限制)
+// Bar → chapter assignment (waveform dimming only in speaker mode; spec §5 restriction)
 const barChap = computed<number[]>(() =>
   waveSpeakerMode.value ? barChapterIndex(chapters.value, durTime.value, WAVE_N) : [],
 )
-// 竖条内联色:dim 时直接给 var(--wave-dim)(内联样式优先级高于样式表,.dim 的 CSS 覆盖到不了内联值)。
+// Bar inline color: when dim, directly use var(--wave-dim) (inline style has higher
+// specificity than stylesheet; .dim CSS cannot override inline value).
 function barColor(i: number): string {
   if (barDim(i)) return 'var(--wave-dim)'
   const id = barSpk.value[i]
   return id ? speakerColor(id) : 'var(--wave-none)'
 }
-// 过滤压暗(说话人/章节任一维度命中即压暗,各维度全选=该维度不参与):
-// 说话人维度:非全选且该条说话人不在选中集(静场条同暗);
-// 章节维度:非全选且该条所在章节不在选中集。与转录列表口径一致。
+// Filter dimming: if either speaker or chapter dimension matches, dim the bar.
+// (All selected on a dimension = that dimension doesn't participate):
+// Speaker dimension: not all selected AND bar's speaker not in picked set (silent bars also dim);
+// Chapter dimension: not all selected AND bar's chapter not in picked set.
+// Consistent with transcript list logic.
 function barDim(i: number): boolean {
   if (!waveSpeakerMode.value) return false
   if (!allPicked.value) {
@@ -121,7 +133,7 @@ function togglePlay(): void {
   else a.pause()
 }
 
-// 快进/快退：±5s / ±30s，钳制在 [0, 时长]。
+// Skip forward/backward: ±5s / ±30s, clamped to [0, duration].
 function skip(delta: number): void {
   const a = audioMedia.value
   if (!a) return
@@ -131,7 +143,7 @@ function skip(delta: number): void {
   curTime.value = next
 }
 
-// 倍速：单钮循环（仿播客 app 的倍速药丸），含 1×/1.25×/1.5×/1.75×/2×/3×。
+// Playback speed: single-button cycle (like podcast app speed pill), includes 1×/1.25×/1.5×/1.75×/2×/3×.
 const RATES = [1, 1.25, 1.5, 1.75, 2, 3]
 const rate = ref(1)
 function applyRate(): void {
@@ -143,12 +155,12 @@ function cycleRate(): void {
   rate.value = RATES[(i + 1) % RATES.length]
   applyRate()
 }
-// 倍速显示：去掉整数的小数尾（1 → "1"，1.25 → "1.25"）。
+// Speed label: remove decimal places for integers (1 → "1", 1.25 → "1.25").
 const rateLabel = computed(() => `${rate.value}×`)
 
 function onLoaded(): void {
   durTime.value = audioMedia.value?.duration || 0
-  applyRate() // 换源后重新套用当前倍速
+  applyRate() // Reapply current speed after source change
 }
 function onTime(): void {
   if (!dragging) curTime.value = audioMedia.value?.currentTime || 0
@@ -178,7 +190,7 @@ function onBarUp(e: PointerEvent): void {
   if (a) a.currentTime = curTime.value
   ;(e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId)
 }
-// 点击转录分段 → 跳到对应时间并继续播放。
+// Click transcript segment → seek to corresponding time and resume playback.
 function seekTo(ts: string): void {
   const a = audioMedia.value
   if (!a) return
@@ -186,7 +198,8 @@ function seekTo(ts: string): void {
   void a.play().catch(() => {})
 }
 
-// 转录高亮：当前播放到的分段 = 起始时间 ≤ 播放位置的最后一段。随 curTime 实时变化。
+// Transcript highlight: active segment = last segment where start time ≤ current playback position.
+// Updates reactively with curTime.
 const transcriptEl = ref<HTMLElement | null>(null)
 const activeSeg = computed(() => {
   const segs = transcript.value?.segments
@@ -198,7 +211,8 @@ const activeSeg = computed(() => {
   }
   return idx
 })
-// 高亮段滚动到可视区（就近，平滑）。仅在转录 tab 打开时（按分段原始索引 data-seg 定位）。
+// Scroll active segment into view (nearest, smooth). Only when transcript tab is open
+// (locate by original segment index data-seg).
 function scrollActiveIntoView(): void {
   if (tab.value !== 'transcript' || activeSeg.value < 0) return
   const el = transcriptEl.value?.querySelector(`[data-seg="${activeSeg.value}"]`) as HTMLElement | null
@@ -207,20 +221,23 @@ function scrollActiveIntoView(): void {
 watch(activeSeg, () => scrollActiveIntoView())
 watch(tab, (v) => { if (v === 'transcript') void nextTick(scrollActiveIntoView) })
 
-// ── 转录面板（智能章节 / 说话人分离 / 重点高光 / Ask Nimo）─────────────────────
-//   章节 / 说话人 / 高光数据均由用户提供的真实字幕（audioTranscripts）解析而来；
-//   仅 Ask Nimo 的问答回复仍是占位（等向量问答后端接入后替换成流式请求）。
+// ── Transcript panel (smart chapters / speaker separation / highlight / Ask Nimo) ────────
+//   Chapter / speaker / highlight data all parsed from user-provided real subtitles
+//   (audioTranscripts); only Ask Nimo Q&A replies are still placeholder
+//   (to be replaced with streaming requests after vector QA backend integration).
 
-// 「只看重点」筛选（重点高光）。
+// "Highlights only" filter (key sentences highlight).
 const highlightsOnly = ref(false)
 
-// 说话人过滤(master-checkbox 语义):选中集=显示哪些人,初始全选;
-// 空集=全不选=全隐藏。「全部」不是独立状态,只是全选/全不选的主开关。
-// 整体替换 Set 实例保证 watch 可靠触发。
+// Speaker filter (master-checkbox semantics): picked set = which speakers to show,
+// initially all selected; empty set = all unselected = all hidden.
+// "All" is not an independent state, just a master switch for all-select/all-unselect.
+// Replace Set instance wholesale to ensure watch reliably triggers.
 const speakers = computed(() => transcript.value?.speakers ?? [])
 const hasSpeakers = computed(() => speakers.value.length > 0)
 const pickedSpeakers = ref<Set<string>>(new Set(speakers.value.map((s) => s.id)))
-// 全选时「全部」点亮;少选任何一个即灭。全选也意味着说话人过滤等效关闭。
+// When all selected, "All" lights up; deselecting any one turns it off. All selected also means
+// speaker filter is effectively off.
 const allPicked = computed(() => hasSpeakers.value && pickedSpeakers.value.size === speakers.value.length)
 function toggleSpeaker(id: string): void {
   const next = new Set(pickedSpeakers.value)
@@ -231,8 +248,9 @@ function toggleSpeaker(id: string): void {
 function toggleAll(): void {
   pickedSpeakers.value = allPicked.value ? new Set() : new Set(speakers.value.map((s) => s.id))
 }
-// 章节过滤(master-checkbox,与说话人同一套语义):选中集=显示哪些章节,初始全选;
-// 全选=等效不过滤;空集=全不选=全隐藏。整体替换 Set 保证 watch 可靠触发。
+// Chapter filter (master-checkbox, same semantics as speaker filter): picked set = which
+// chapters to show, initially all selected; all selected = effectively no filter;
+// empty set = all unselected = all hidden. Replace Set wholesale to ensure watch reliably triggers.
 const chapters = computed(() => transcript.value?.chapters ?? [])
 const hasChapters = computed(() => chapters.value.length > 0)
 const pickedChapters = ref<Set<number>>(new Set(chapters.value.map((_, k) => k)))
@@ -246,16 +264,18 @@ function toggleChapter(k: number): void {
 function toggleAllChapters(): void {
   pickedChapters.value = allChaptersPicked.value ? new Set() : new Set(chapters.value.map((_, k) => k))
 }
-// 段落原始索引 → 章节序号查表(过滤条件按索引 O(1) 查)
+// Segment original index → chapter index lookup table (filter condition O(1) lookup by index)
 const segChap = computed(() => segChapterIndex(transcript.value?.segments ?? [], chapters.value))
-// 过滤变化后若当前段仍在列表,平滑滚回可见（需求 5）。
+// After filter changes, if current segment is still in list, smooth-scroll it back into view (requirement 5).
 watch([pickedSpeakers, pickedChapters, highlightsOnly], () => void nextTick(scrollActiveIntoView))
 
-// 转录展示行：把「智能章节」标题穿插进分段流。row 携带分段原始索引 i（用于高亮/跳转/定位）。
+// Transcript display rows: intersperse "smart chapter" titles into segment stream.
+// Row carries original segment index i (for highlight/seek/locate).
 type TransRow =
   | { type: 'chapter'; title: string; t: string }
   | { type: 'seg'; seg: TranscriptSegment; i: number }
-// 各过滤维度"激活"= 非全选(全选等效于没过滤);无对应数据时恒不激活。
+// Each filter dimension "active" = not all selected (all selected = effectively no filter);
+// inactive when no corresponding data.
 const speakerFiltering = computed(() => hasSpeakers.value && !allPicked.value)
 const chapterFiltering = computed(() => hasChapters.value && !allChaptersPicked.value)
 const transcriptRows = computed<TransRow[]>(() => {
@@ -264,8 +284,10 @@ const transcriptRows = computed<TransRow[]>(() => {
   const chapterAt = new Map<string, string>()
   for (const c of tr.chapters ?? []) chapterAt.set(c.t, c.title)
   const rows: TransRow[] = []
-  // 章节头:只看重点/说话人过滤会造成"空章节",激活时全部隐藏(现状规则);
-  // 只按章节过滤时保留——被滤掉的章连段带头整体消失,可见章的头帮助识别段落归属。
+  // Chapter headers: "highlights only" / speaker filter can create "empty chapters",
+  // all hidden when activated (current rule); kept only when filtering by chapter alone—
+  // filtered chapters disappear with their segments, headers of visible chapters help identify
+  // segment assignment.
   const showHeads = !highlightsOnly.value && !speakerFiltering.value
   tr.segments.forEach((seg, i) => {
     if (chapterFiltering.value && !pickedChapters.value.has(segChap.value[i])) return
@@ -279,7 +301,7 @@ const transcriptRows = computed<TransRow[]>(() => {
 })
 const hasHighlights = computed(() => !!transcript.value?.segments.some((s) => s.highlight))
 
-// 说话人分离：id → 显示名 / 颜色 token(--spk-N,5 色循环;波形与转录共用同一映射)。
+// Speaker separation: id → display name / color token (--spk-N, 5-color cycle; waveform and transcript share same mapping).
 function speakerName(id?: string): string {
   if (!id) return ''
   const found = transcript.value?.speakers?.find((s) => s.id === id)
@@ -291,9 +313,10 @@ function speakerColor(id?: string): string {
   return speakerToken(idx)
 }
 
-// Ask Nimo AI：转录已向量化，可对本段音频提问。
-// demo 阶段答案是「针对本音频预置」的高质量回答（下方 PRESETS，引用真实章节/时间点）；
-// 命中预置问题→给对应答案，否则回落到占位文案。接后端时把 answerFor 换成流式请求 NimoOS-AI 即可。
+// Ask Nimo AI: transcript is vectorized, can ask questions about this audio segment.
+// Demo phase answers are high-quality pre-set responses (PRESETS below, referencing real
+// chapters/timestamps); match preset question → return answer, otherwise fall back to
+// placeholder text. When backend is ready, replace answerFor with streaming request to NimoOS-AI.
 interface AskMsg { role: 'user' | 'ai'; text: string }
 const askInput = ref('')
 const askMsgs = ref<AskMsg[]>([])
@@ -357,7 +380,7 @@ function sendAsk(): void {
   askInput.value = ''
   const full = answerFor(q)
   const idx = askMsgs.value.push({ role: 'ai', text: '' }) - 1
-  // 打字机流式效果（demo 用；接后端后换成真实 token 流）
+  // Typewriter streaming effect (demo only; replace with real token stream after backend integration)
   let n = 0
   askTimer = setInterval(() => {
     if (disposed) return stopStream()
@@ -396,9 +419,9 @@ onMounted(async () => {
     })
   } else if (kind === 'audio') {
     startWaveDecode()
-    // 尝试自动播放（被浏览器策略拦截则等用户点播放按钮）。
+    // Attempt autoplay (if blocked by browser policy, wait for user to click play button).
     void audioMedia.value?.play?.().catch(() => {})
-    // 封面 + 标题/艺术家(Vue2 mm.fetchFromUrl)——元数据失败不阻断播放。
+    // Cover + title/artist (Vue2 mm.fetchFromUrl) — metadata failure doesn't block playback.
     try {
       const mm = await import('music-metadata-browser')
       if (disposed) return
@@ -417,7 +440,7 @@ onMounted(async () => {
       if (metadata.common.title) audioTitle.value = metadata.common.title
       if (metadata.common.artist) audioArtist.value = metadata.common.artist
     } catch {
-      /* 元数据失败不阻断播放 */
+      /* Metadata failure doesn't block playback */
     }
   }
 })
@@ -439,7 +462,7 @@ onBeforeUnmount(() => {
         <div class="audio-player">
           <div class="np">
             <div v-if="audioTitle" class="np-title">{{ audioTitle }}</div>
-            <!-- 传输控件：[-30][-5] 播放/暂停 [+5][+30]，倍速药丸靠右（三列网格保证播放钮恒居中） -->
+            <!-- Transport controls: [-30][-5] play/pause [+5][+30], speed pill on right (three-column grid keeps play button centered) -->
             <div class="np-controls">
               <div class="np-side"></div>
               <div class="np-center">
@@ -451,7 +474,7 @@ onBeforeUnmount(() => {
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /></svg>
                   <span class="np-skip-n">5</span>
                 </button>
-                <!-- 播放/暂停圆钮：蓝紫渐变（沿用主题色） -->
+                <!-- Play/pause circle button: blue-purple gradient (reused from theme color) -->
                 <button type="button" class="np-play" :aria-label="playing ? 'Pause' : 'Play'" @click="togglePlay">
                   <svg v-if="!playing" class="tri" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" /></svg>
                   <svg v-else viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.3" /><rect x="14" y="5" width="4" height="14" rx="1.3" /></svg>
@@ -469,7 +492,7 @@ onBeforeUnmount(() => {
                 <button type="button" class="np-speed" :aria-label="t('audioSpeed')" @click="cycleRate">{{ rateLabel }}</button>
               </div>
             </div>
-            <!-- 声波进度条：居中圆角竖条(仿录音 app) + 静音虚线基线；已播染强调色；两端时间标签 -->
+            <!-- Waveform progress bar: centered rounded vertical bars (mimics recording app) + silent sections with dashed baseline; played portion colored with accent; time labels at both ends -->
             <div class="np-bar-row">
               <span class="np-time">{{ fmtTime(curTime) }}</span>
               <div
@@ -511,7 +534,7 @@ onBeforeUnmount(() => {
             <button type="button" class="ap-tab ap-tab-ask" :class="{ active: tab === 'ask' }" @click="tab = 'ask'">{{ t('audioAsk') }}</button>
           </div>
 
-          <!-- Summary -->
+          <!-- Summary section -->
           <div v-if="tab === 'summary'" class="ap-scroll">
             <div class="ap-summary">
               <p class="ap-summary-text">{{ transcript.summary }}</p>
@@ -521,21 +544,21 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <!-- Transcript：智能章节 + 说话人分离 + 重点高光（含「只看重点」筛选） -->
+          <!-- Transcript: smart chapters + speaker separation + highlights (with "highlights only" filter) -->
           <template v-else-if="tab === 'transcript'">
             <div v-if="hasHighlights || hasSpeakers || hasChapters" class="ap-tools">
               <button v-if="hasHighlights" type="button" class="ap-tool" :class="{ on: highlightsOnly }" @click="highlightsOnly = !highlightsOnly">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l2.6 5.7 6.2.6-4.7 4.1 1.4 6.1L12 16.9 6.5 20.1l1.4-6.1L3.2 9.8l6.2-.6z" /></svg>
                 {{ highlightsOnly ? t('audioShowAll') : t('audioHighlightsOnly') }}
               </button>
-              <!-- 章节过滤:下拉多选(master-checkbox,与说话人同语义);点选项不关菜单(@select.prevent) -->
+              <!-- Chapter filter: dropdown multi-select (master-checkbox, same semantics as speaker); clicking items doesn't close menu (@select.prevent) -->
               <DropdownMenuRoot v-if="hasChapters">
                 <DropdownMenuTrigger class="ap-tool ap-ch-trigger" :class="{ on: chapterFiltering }">
                   {{ t('audioChapters') }}<template v-if="chapterFiltering">&nbsp;{{ pickedChapters.size }}/{{ chapters.length }}</template>
                   <svg class="ap-ch-caret" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5z" /></svg>
                 </DropdownMenuTrigger>
                 <DropdownMenuPortal>
-                  <!-- Portal 到 body:scoped 样式够不到,ap-ch-* 全在非 scoped 块;z-index 须盖过预览浮层(200) -->
+                  <!-- Portal to body: scoped styles can't reach, ap-ch-* all in non-scoped block; z-index must cover preview overlay (200) -->
                   <DropdownMenuContent class="ui-ctx-content ap-ch-menu" :side-offset="4" align="start">
                     <DropdownMenuItem class="ui-ctx-item ap-ch-item" @select.prevent="toggleAllChapters">
                       <span class="ap-ch-check">{{ allChaptersPicked ? '✓' : '' }}</span>{{ t('audioAllChapters') }}
@@ -554,7 +577,7 @@ onBeforeUnmount(() => {
                   </DropdownMenuContent>
                 </DropdownMenuPortal>
               </DropdownMenuRoot>
-              <!-- 说话人过滤 chips:「全部」=全选/全不选主开关(全选时亮),每说话人一个多选;与只看重点 AND 叠加 -->
+              <!-- Speaker filter chips: "All" = master switch for select-all/unselect-all (lit when all selected), one multi-select per speaker; ANDed with "highlights only" -->
               <template v-if="hasSpeakers">
                 <button type="button" class="spk-chip spk-chip-all" :class="{ on: allPicked }" @click="toggleAll">
                   {{ t('audioSpeakerAll') }}
@@ -574,12 +597,12 @@ onBeforeUnmount(() => {
             </div>
             <ul ref="transcriptEl" class="ap-scroll ap-transcript">
               <template v-for="(row, ri) in transcriptRows" :key="ri">
-                <!-- 智能章节标题（点击跳转） -->
+                <!-- Smart chapter title (click to seek) -->
                 <li v-if="row.type === 'chapter'" class="ap-chapter" @click="seekTo(row.t)">
                   <span class="ap-chapter-t">{{ row.t }}</span>
                   <span class="ap-chapter-title">{{ row.title }}</span>
                 </li>
-                <!-- 分段：时间 + 说话人 + 文本（重点句高光） -->
+                <!-- Segment: time + speaker + text (key sentences highlighted) -->
                 <li v-else class="ap-seg" :class="{ active: row.i === activeSeg, hl: row.seg.highlight }" :data-seg="row.i" @click="seekTo(row.seg.t)">
                   <span class="ap-time">{{ row.seg.t }}</span>
                   <span class="ap-seg-body">
@@ -595,7 +618,7 @@ onBeforeUnmount(() => {
             </ul>
           </template>
 
-          <!-- Ask Nimo：转录已向量化，可对本段音频提问（架子占位，未接后端） -->
+          <!-- Ask Nimo: transcript is vectorized, can ask questions about this segment (framework placeholder, backend not integrated) -->
           <template v-else>
             <div ref="askScrollEl" class="ap-ask-scroll">
               <div v-if="!askMsgs.length" class="ap-ask-empty">
@@ -627,20 +650,23 @@ onBeforeUnmount(() => {
 <style scoped>
 .media-wrap { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; }
 .media-video { width: 100%; height: 100%; }
-/* theme-exception: 叠在任意音频封面图之上的暗化/模糊层（非页面背景），需固定中性暗色保证控件在任意封面上都可读，与页面主题无关 */
+/* theme-exception: darkening/blur overlay stacked on any audio cover (not page background),
+   needs fixed neutral dark color to ensure controls are readable on any cover, unrelated to page theme */
 .audio-blur {
   position: absolute; inset: 0; z-index: 0; background-size: cover; background-position: center;
-  background-color: rgba(53, 54, 58, 0.4); /* theme-exception: 叠在封面图上的玻璃底, 与主题无关 */ backdrop-filter: blur(10px) saturate(180%);
+  background-color: rgba(53, 54, 58, 0.4); /* theme-exception: glass base stacked on cover, unrelated to theme */ backdrop-filter: blur(10px) saturate(180%);
 }
 
-/* 音频布局：纵向——播放器在上、转录/摘要面板在下；居中限宽。
-   无转录时播放器垂直居中；有转录时播放器贴顶、面板占余下高度并可滚动。 */
+/* Audio layout: vertical — player on top, transcript/summary panel below; centered, width-limited.
+   Without transcript, player vertically centered; with transcript, player at top, panel takes
+   remaining height and scrolls. */
 .audio-layout { position: relative; z-index: 1; width: 100%; height: 100%; max-width: 60rem; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; padding: 24px; box-sizing: border-box; }
 .media-wrap:not(.has-panel) .audio-layout { justify-content: center; }
 .audio-player { flex: 0 0 auto; min-width: 0; display: flex; align-items: center; justify-content: center; }
 
-/* ── 自定义极简播放器（仿参考图）──────────────────────────────
-   播放钮居中在进度条上方；进度条透明轨道 + 蓝紫已播 + 圆形拉链；配色沿用主页蓝紫。 */
+/* ── Custom minimal player (per reference) ──────────────────────────────
+   Play button centered above progress bar; progress bar = transparent track + blue-purple
+   filled + circular thumb; color scheme reused from homepage blue-purple. */
 .np { width: 100%; max-width: 40rem; display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .np-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; font-weight: 600; color: var(--fg); }
 
@@ -653,16 +679,17 @@ onBeforeUnmount(() => {
 }
 .np-play:hover { transform: translateY(-1px) scale(1.03); box-shadow: 0 10px 26px -6px var(--accent-soft-bd); }
 .np-play:active { transform: scale(0.97); }
-.np-play svg { width: 26px; height: 26px; fill: #fff; } /* theme-exception: 播放钮图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
-.np-play svg.tri { margin-left: 3px; } /* 三角形光学居中 */
+.np-play svg { width: 26px; height: 26px; fill: #fff; } /* theme-exception: play button icon always stacked on colored gradient, white contrast stable across themes */
+.np-play svg.tri { margin-left: 3px; } /* Triangle optical centering */
 
-/* 传输控件：三列网格(1fr / auto / 1fr)——中列的播放簇恒居中，倍速药丸落在右列。 */
+/* Transport controls: three-column grid (1fr / auto / 1fr) — play cluster centered in middle column, speed pill on right. */
 .np-controls { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 40rem; }
 .np-center { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .np-side { display: flex; align-items: center; min-width: 0; }
 .np-side-right { justify-content: flex-end; }
 
-/* 快进/快退圆钮：镂空圆形回环箭头 + 中央秒数标签。前进钮水平镜像箭头。 */
+/* Skip buttons: hollow circle with loop arrow + center second label. Forward button has
+   horizontally mirrored arrow. */
 .np-skip {
   position: relative; flex: 0 0 auto; width: 44px; height: 44px; border-radius: 50%; cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -678,7 +705,7 @@ onBeforeUnmount(() => {
   font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; pointer-events: none;
 }
 
-/* 倍速药丸：单钮循环切换（1× → 1.25× → … → 3× → 1×）。 */
+/* Speed pill: single-button cycle (1× → 1.25× → … → 3× → 1×). */
 .np-speed {
   flex: 0 0 auto; min-width: 46px; padding: 6px 12px; border-radius: 999px; cursor: pointer;
   font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
@@ -692,36 +719,40 @@ onBeforeUnmount(() => {
 .np-time { flex: 0 0 auto; min-width: 46px; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
 .np-time-end { text-align: right; }
 
-/* 声波进度条：竖条围绕中线两侧对称(靠 align-items:center 实现)；静音处虚线基线透出。
-   竖条以 flex-basis 固定宽 + space-between 均布，窄屏自动收窄；点击热区靠 ::before 上下各撑 6px。 */
+/* Waveform progress bar: bars symmetric around centerline on both sides (via align-items:center);
+   dashed baseline shows through in silent sections. Bars fixed width via flex-basis + space-between
+   distribution; auto-narrows on narrow screens; click hotzone extended 6px above/below via ::before. */
 .np-wave {
   position: relative; flex: 1 1 auto; height: 46px; min-width: 0;
   display: flex; align-items: center; justify-content: space-between;
   cursor: pointer; touch-action: none;
 }
 .np-wave::before { content: ''; position: absolute; left: 0; right: 0; top: -6px; bottom: -6px; }
-/* 静音虚线基线（贯穿整条，静音间隙处只剩它） */
+/* Silent section dashed baseline (runs across entire bar, only this remains in silent gaps) */
 .np-wave-base { position: absolute; left: 0; right: 0; top: 50%; height: 0; border-top: 1px dashed var(--fg-faint); transform: translateY(-50%); pointer-events: none; }
-/* 单根竖条：固定 3px 宽、圆头；未播=中性淡色，已播=强调色。height 由振幅内联控制。 */
+/* Single bar: fixed 3px wide, rounded ends; unplayed = neutral faint color, played = accent color.
+   Height controlled via inline amplitude. */
 .np-wave-bar { position: relative; flex: 0 1 3px; max-width: 3px; border-radius: 999px; background: var(--fg-subtle); transition: background 0.12s, height 0.3s var(--ease); }
 .np-wave-bar.played { background: var(--accent); }
 .np-wave:hover .np-wave-bar.played { background: var(--accent2); }
 
-/* ── 说话人模式(.np-wave.spk,仅转录带说话人数据时):每根竖条按该时段说话人取色,
-   进度 = 不透明度(已播满色/未播同色淡出),说话人配色与播放进度同时可读。 ── */
+/* ── Speaker mode (.np-wave.spk, only when transcript has speaker data): each bar colored by
+   speaker for that segment, progress = opacity (played = full color / unplayed = same color faded),
+   speaker color and play progress both readable. ── */
 .np-wave.spk .np-wave-bar {
   background: var(--bar-c, var(--wave-none)); opacity: 0.30;
   transition: background 0.14s, opacity 0.14s, filter 0.14s, height 0.3s var(--ease);
 }
 .np-wave.spk .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); opacity: 1; }
 .np-wave.spk:hover .np-wave-bar.played { background: var(--bar-c, var(--wave-none)); }
-/* 过滤:未选中说话人的竖条去色转灰(转灰由内联 --bar-c 给 var(--wave-dim) 实现)并进一步压暗 */
+/* Filtering: bars with unselected speakers desaturate to gray (gray via inline --bar-c to
+   var(--wave-dim)) and dim further */
 .np-wave.spk .np-wave-bar.dim { opacity: 0.12; }
 .np-wave.spk .np-wave-bar.dim.played { opacity: 0.30; }
 .np-wave.spk:hover .np-wave-bar.played:not(.dim) { filter: brightness(1.12); }
 
-/* 转录/摘要面板 —— 消费全局 theme token（见 src/styles/theme.css）：
-   白色模式=米白底 + 白卡 + Azure 蓝强调；蓝色模式=深色玻璃。 */
+/* Transcript/summary panel — consumes global theme tokens (see src/styles/theme.css):
+   light mode = cream background + white card + Azure blue accent; blue mode = dark glass. */
 .audio-panel {
   flex: 1 1 auto; width: 100%; min-width: 0; min-height: 0;
   display: flex; flex-direction: column; overflow: hidden;
@@ -744,7 +775,7 @@ onBeforeUnmount(() => {
 .ap-kw { display: flex; flex-wrap: wrap; gap: 8px; }
 .ap-chip { padding: 5px 12px; border-radius: 999px; font-size: 15px; color: var(--accent-text); background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); }
 
-/* ── 转录：智能章节 + 说话人分离 + 重点高光 ─────────────────────────── */
+/* ── Transcript: smart chapters + speaker separation + highlights ─────────────────────────── */
 .ap-transcript { list-style: none; margin: 0; padding: 4px 14px 12px; display: flex; flex-direction: column; gap: 2px; }
 .ap-seg { display: flex; gap: 14px; padding: 10px 12px; border-radius: 12px; cursor: pointer; transition: background 0.16s, box-shadow 0.16s; }
 .ap-seg:hover { background: var(--hover); }
@@ -752,23 +783,23 @@ onBeforeUnmount(() => {
 .ap-seg:hover .ap-time { color: var(--accent); }
 .ap-seg-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ap-seg-text { font-size: 15px; line-height: 1.6; color: var(--fg); }
-/* 说话人分离：小圆点 + 名字（颜色由 --c 注入,值为 var(--spk-N) token） */
+/* Speaker separation: small dot + name (color injected via --c, value is var(--spk-N) token) */
 .ap-speaker { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; letter-spacing: 0.02em; color: var(--c); }
 .ap-speaker-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--c); }
-/* 正在播放的分段高亮（Azure 蓝，沿用搜索框强调色）——左侧强调条 + 加深文字 */
+/* Active segment highlight (Azure blue, reused from search accent) — left accent bar + darker text */
 .ap-seg.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
 .ap-seg.active .ap-time { color: var(--accent-text); }
 .ap-seg.active .ap-seg-text { color: var(--fg); font-weight: 500; }
 .ap-hl-star { width: 13px; height: 13px; fill: var(--hl-star); vertical-align: -2px; margin-right: 5px; }
 
-/* 智能章节标题（点击跳转） */
+/* Smart chapter title (click to seek) */
 .ap-chapter { display: flex; align-items: baseline; gap: 12px; padding: 14px 12px 6px; margin-top: 4px; cursor: pointer; }
 .ap-chapter:first-child { margin-top: 0; }
 .ap-chapter-t { flex: 0 0 auto; width: 48px; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--fg-subtle); }
 .ap-chapter-title { font-size: 15px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--accent-text); }
 .ap-chapter:hover .ap-chapter-title { color: var(--accent); }
 
-/* 转录工具条（「只看重点」筛选） */
+/* Transcript toolbar ("highlights only" filter) */
 .ap-tools { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 20px 6px; }
 .ap-tool {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; cursor: pointer;
@@ -780,7 +811,8 @@ onBeforeUnmount(() => {
 .ap-tool:hover { background: var(--hover); color: var(--fg); }
 .ap-tool.on { background: var(--accent-soft); border-color: var(--accent-soft-bd); color: var(--accent-text); }
 
-/* ── 说话人过滤 chip:说话人色圆点 + color-mix 光环;选中时边框/底色用该说话人色 ── */
+/* ── Speaker filter chip: colored dot + color-mix halo; when selected, border/background uses
+   that speaker's color ── */
 .spk-chip {
   display: inline-flex; align-items: center; gap: 8px; padding: 5px 14px; border-radius: 999px;
   font-size: 15px; font-weight: 600; cursor: pointer; border: 1px solid var(--border);
@@ -793,14 +825,14 @@ onBeforeUnmount(() => {
 .spk-chip:hover { border-color: var(--fg-faint); color: var(--fg); }
 .spk-chip.on { color: var(--fg); border-color: var(--c); background: color-mix(in oklab, var(--c) 15%, transparent); }
 .spk-chip.on .spk-dot { box-shadow: 0 0 0 3px color-mix(in oklab, var(--c) 38%, transparent); }
-/* 「全部」chip:无说话人色,选中用中性 accent */
+/* "All" chip: no speaker color, when selected uses neutral accent */
 .spk-chip-all.on { color: var(--accent-text); border-color: var(--accent-soft-bd); background: var(--accent-soft); }
 
-/* 章节下拉触发器:沿用 .ap-tool 形态,补齿轮箭头与计数间距 */
+/* Chapter dropdown trigger: reuses .ap-tool shape, adds spacing for chevron and count */
 .ap-ch-trigger { display: inline-flex; align-items: center; gap: 4px; }
 .ap-ch-caret { width: 14px; height: 14px; fill: currentColor; }
 
-/* ── Ask Nimo（架子占位）───────────────────────────────────────── */
+/* ── Ask Nimo (framework placeholder) ───────────────────────────────────────── */
 .ap-ask-scroll { flex: 1 1 auto; overflow-y: auto; min-height: 0; padding: 10px 20px; display: flex; flex-direction: column; }
 .ap-ask-empty { margin: auto 0; display: flex; flex-direction: column; align-items: center; gap: 16px; text-align: center; padding: 20px 0; }
 .ap-ask-hint { margin: 0; font-size: 15px; line-height: 1.6; color: var(--fg-muted); max-width: 30rem; }
@@ -810,7 +842,7 @@ onBeforeUnmount(() => {
 .ap-chip-btn:hover { background: var(--accent-soft-2); border-color: var(--accent-soft-bd); }
 .ap-ask-msgs { display: flex; flex-direction: column; gap: 10px; }
 .ap-msg { max-width: 80%; padding: 10px 14px; border-radius: 16px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
-.ap-msg.user { align-self: flex-end; color: #fff; /* theme-exception: 用户气泡恒为彩色渐变(--grad-a/--grad-b)，白字对比度两套主题都稳定 */ background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); border-bottom-right-radius: 5px; }
+.ap-msg.user { align-self: flex-end; color: #fff; /* theme-exception: user bubble always colored gradient (--grad-a/--grad-b), white text contrast stable across themes */ background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); border-bottom-right-radius: 5px; }
 .ap-msg.ai { align-self: flex-start; color: var(--fg); background: var(--card); border: 1px solid var(--border); border-bottom-left-radius: 5px; box-shadow: var(--card-shadow); }
 
 .ap-ask-bar { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; padding: 12px 16px 16px; }
@@ -827,23 +859,26 @@ onBeforeUnmount(() => {
   background: linear-gradient(135deg, var(--grad-a), var(--grad-b)); box-shadow: 0 6px 16px -6px var(--accent-soft-bd);
   transition: filter 0.16s, transform 0.16s, opacity 0.16s;
 }
-.ap-ask-send svg { width: 20px; height: 20px; fill: #fff; } /* theme-exception: 图标恒叠在彩色渐变按钮上，白色对比度两套主题都稳定 */
+.ap-ask-send svg { width: 20px; height: 20px; fill: #fff; } /* theme-exception: icon always stacked on colored gradient button, white contrast stable across themes */
 .ap-ask-send:hover { filter: brightness(1.06); transform: translateY(-1px); }
 .ap-ask-send:disabled { opacity: 0.45; cursor: default; transform: none; filter: none; }
 
-/* 窄屏：收紧内边距 */
+/* Narrow screen: tighten padding */
 @media (max-width: 860px) {
   .audio-layout { gap: 16px; padding: 16px; }
 }
 </style>
 
 <style>
-/* 章节下拉菜单:Portal 传送到 body,拿不到 scoped 属性,须非 scoped(先例 AddMountMenu.vue)。
-   z-index 240 盖过预览浮层(ViewerShell z-index:200;共享 ui-ctx-content 默认 120)。 */
-/* 复合选择器(0,2,0)确定性压过 .ui-ctx-content 的 z-index:120(0,1,0)——同特异性时打包顺序说了算,不可依赖 */
+/* Chapter dropdown menu: Portal transported to body, can't reach scoped styles, must be non-scoped
+   (precedent: AddMountMenu.vue). z-index 240 covers preview overlay (ViewerShell z-index:200;
+   shared ui-ctx-content default 120). */
+/* Compound selector (0,2,0) definitely overrides .ui-ctx-content's z-index:120 (0,1,0) — at
+   equal specificity, bundle order decides, unreliable */
 .ap-ch-menu.ui-ctx-content { z-index: 240; }
 .ap-ch-menu { max-height: 320px; overflow-y: auto; }
-/* gap 与 .ui-ctx-item(gap:10px)同特异性会撞——同上,复合选择器确定性取胜 */
+/* gap conflicts with .ui-ctx-item(gap:10px) at same specificity — same as above, compound
+   selector wins deterministically */
 .ap-ch-item.ui-ctx-item { gap: 8px; }
 .ap-ch-item { display: flex; align-items: center; max-width: 22rem; }
 .ap-ch-check { flex: 0 0 auto; width: 14px; font-size: 12px; font-weight: 700; color: var(--accent-text); }

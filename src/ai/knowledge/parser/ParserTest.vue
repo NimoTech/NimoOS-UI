@@ -1,44 +1,44 @@
 <!--
-  SP8-P5c Task 7 —— 「Parser 测试沙盒」页(路由 `/ai/parser/test`),1:1 移植自 Vue2 蓝本
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserTest.vue`(369 行,
-  `git show main:` 读取 —— 治理 §1:那个仓的工作树是旧分支,不可信)。
+  SP8-P5c Task 7 — "Parser test sandbox" page (route `/ai/parser/test`), 1:1 ported from Vue2 blueprint
+  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserTest.vue` (369 lines,
+  read via `git show main:` — governance §1: that repo's working tree is old branch, not trustworthy).
 
-  🔴 **本刀只做 template(蓝本 :1-152)+ script(蓝本 :154-243)= 242 行。**
-     蓝本 `<style lang="scss" scoped>`(:245-369,125 行)T2b 已搬进
-     `src/ai/styles/parser-styles.scss` 的 `.parser-app .parser-test-page` 段并过评审
-     → **本文件零 `<style>` 块**,样式走 K24 的 JS 侧 side-effect import。
+  🔴 **This cut covers template (blueprint :1-152) + script (blueprint :154-243) = 242 lines only.**
+     Blueprint `<style lang="scss" scoped>` (:245-369, 125 lines) task T2b already moved to
+     `.parser-app .parser-test-page` section in `src/ai/styles/parser-styles.scss` and reviewed
+     → **this file zero `<style>` blocks**, styles via K24 JS-side side-effect import.
 
-  结构对照(蓝本行区间 → 本文件模板):
-    :3-6     页头:标题 + `← 返回详情` router-link(`/ai/parser`)
-    :8-18    help 卡:两段说明(第二段带两个 `<code>` 扩展名清单)
-    :21-93   upload 卡:拖放区 · 三个参数输入 + 重置 · query + rerank + OCR · 提交 + ok-hint · error-box
-    :96-150  结果区(`<template v-if="result">`):docling 卡(折叠)· scored 卡 · chunks 卡
-    :159-176 data() 的 10 项瞬态(全部组件本地 ref,治理 §5.1:不塞 store)
+  Structure comparison (blueprint line ranges → this file template):
+    :3-6     page header: title + `← Back to details` router-link (`/ai/parser`)
+    :8-18    help card: two paragraphs (second has two `<code>` extension lists)
+    :21-93   upload card: drop zone · three parameter inputs + reset · query + rerank + OCR · submit + ok-hint · error-box
+    :96-150  result area (`<template v-if="result">`): docling card (collapsible) · scored card · chunks card
+    :159-176 data() 10 transient items (all component-local ref, governance §5.1: don't stuff store)
     :178-240 onDrop / onFile / clearFile / resetParams / submit / chunkText / truncate / fmtBytes
 
   ─────────────────────────────────────────────────────────────────────────────
-  【K31 —— 根元素必须两层】(协调者 2026-08-03 裁定,治理 §3 K31)
+  【K31 — root element must be two layers】 (coordinator ruled 2026-08-03, governance §3 K31)
     `<div class="parser-app"><div class="parser-test-page">…</div></div>`
-    ——**比蓝本多一层 DOM**。外层 `.parser-app` 只带 K22 那三行结构属性
-    (`height:100vh; height:100dvh; overflow-y:auto`,见 `parser-styles.scss:68-72`),
-    内层 `.parser-test-page` 是蓝本 :246-250 的 `padding:16px; max-width:900px; margin:0 auto`。
-    🔴 为什么不能压成同一个元素:`src/styles/theme.css:318` 是 `body{overflow:hidden}`,
-    `/ai/parser/test` 是**顶层路由**(不在 KnowledgeLayout 之下),不自建滚动容器内容
-    永远看不到(K22);而滚动容器若同时是那条 900px 居中列,`overflow-y:auto` 的滚动条
-    就落在**列的右缘(宽屏上约在屏幕中间)**,而 Vue2 是整页滚动、滚动条在**视口最右缘**
-    —— 那是**用户可见的界面不 1:1**。多一层 DOM 用户不可见,取后者。
-    ⚠️ 计划书 `p5c-plan.md` 的 T7 节仍写着 K31 之前的 `class="parser-app parser-test-page"`
-    (单元素,治理 §12.3 E-14 已就此订正 T6 那行),**已被 K31 覆盖**;
-    权威优先级:治理文件 + 附录 > brief > 计划书。先例:`ParserStatus.vue`(T6)同款两层。
+    —**extra DOM layer vs blueprint**. Outer `.parser-app` carries only K22's three structural attributes
+    (`height:100vh; height:100dvh; overflow-y:auto`, see `parser-styles.scss:68-72`),
+    inner `.parser-test-page` is blueprint :246-250's `padding:16px; max-width:900px; margin:0 auto`.
+    🔴 Why cannot squash to single element: `src/styles/theme.css:318` is `body{overflow:hidden}`,
+    `/ai/parser/test` is **top-level route** (not under KnowledgeLayout), content without self-made scroll container
+    never visible (K22); if scroll container also is that 900px centered column, `overflow-y:auto` scrollbar
+    lands at **column's right edge (roughly screen center on wide)**, whereas Vue2 scrolls whole page with scrollbar
+    at **viewport's right edge** — that is **user-visible interface not 1:1**. Extra DOM layer invisible to user, pick latter.
+    ⚠️ Plan `p5c-plan.md` §T7 still shows pre-K31 `class="parser-app parser-test-page"` (single element,
+    governance §12.3 E-14 already corrected that line in T6), **already superseded by K31**;
+    authority priority: governance + appendix > brief > plan. Precedent: `ParserStatus.vue` (T6) same two layers.
 
-  【K24 —— 样式走 JS 侧 import,零 `<style>` 块】`import '../../styles/parser-styles.scss'`
-    (T2b 建的独立文件)。蓝本的 scoped 隔离在 New-UI 换成 K9 的「规则全嵌在页面作用域下」。
-    先例:`KnowledgeLayout.vue:43` / `AgentPage.vue:72` / `SettingsPage.vue:70` / `ParserStatus.vue:108`。
-    ⏳ 治理 §12.3 **E-13** 的历史记录:**T7 落地时**本页**零生产 import**(`/ai/parser/test`
-    在 `knowledgeRoutes.ts` 仍指占位页)→ 模块不进 Vite 图 → 这条 side-effect import 从未求值
-    → **当时** `dist/assets/*.css` 里搜不到 `parser-test-page` 是预期,那条门因此挪到 T10。
-    ✅ **P5c T10(2026-08-04)已反转路由,该门已达标**:产物里 `.parser-app .parser-test-page`
-    实测 **53 处**命中(复合形式 0 处 = K31 生效)。**这条 import 现在真的在产 CSS,别删。**
+  【K24 — styles via JS-side import, zero `<style>` blocks】 `import '../../styles/parser-styles.scss'`
+    (independent file made by T2b). Blueprint's scoped isolation became K9's "rules scoped to page context" in New-UI.
+    Precedent: `KnowledgeLayout.vue:43` / `AgentPage.vue:72` / `SettingsPage.vue:70` / `ParserStatus.vue:108`.
+    ⏳ Governance §12.3 **E-13** history: **at T7 landing** this page **zero production imports** (`/ai/parser/test`
+    still pointed to placeholder in `knowledgeRoutes.ts`) → module never entered Vite graph → this side-effect import never evaluated
+    → **then** not finding `parser-test-page` in `dist/assets/*.css` was expected, that gate was moved to T10.
+    ✅ **P5c T10 (2026-08-04) reversed routes, gate now passing**: product `.parser-app .parser-test-page`
+    measured **53 hits** (composite forms 0 = K31 working). **This import now truly in production CSS, don't delete.**
 
   【K27 —— REST 走共享包,且**单参调用**】
     蓝本 :216-219 是

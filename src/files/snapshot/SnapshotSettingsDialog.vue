@@ -18,9 +18,10 @@ const form = ref<PolicyForm>({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, p
 const errors = ref<Partial<Record<keyof PolicyForm, string>>>({})
 const manualLabel = ref('')
 
-// 打开(或换卷)时拉数据;策略落地后把本地表单同步成后端当前值。Number() 包裹的理由同
-// SnapshotPanel.vue openAdvanced:后端可能把这些字段序列化成数字字符串,不归一的话
-// validatePolicyForm 里的 Number.isInteger 会把合法值误判为非法。
+// Fetch data when opening (or switching volumes); after policy is applied to backend, sync the
+// local form with its current values. The reason for Number() wrapping is the same as
+// SnapshotPanel.vue openAdvanced: the backend may serialize these fields as numeric strings; without
+// normalization, Number.isInteger in validatePolicyForm will mis-judge valid values as invalid.
 watch(
   () => [props.open, props.volumeUuid] as const,
   async ([open, uuid]) => {
@@ -64,18 +65,19 @@ async function onCreate() {
   <Dialog :open="props.open" :title="t('tmSettings')" @update:open="emit('update:open', $event)">
     <p class="ss-mount">{{ props.mountPoint }}</p>
 
-    <!-- 评审修复(Important):store.volume 换卷/首次打开时先是 null(或从存储区带过来的
-         别的卷的数据),resolveSnapshotState(null) === 'unsupported' —— 网络往返期间会先闪
-         一句"此卷不支持快照"再翻成表单。store.volumeLoading 初值即 true(照抄 SnapshotPanel.vue
-         的 v-if="!store.volumeLoading" 那道门),没落地前什么都不显示,不闪错误结论。 -->
+    <!-- Review fix (Important): store.volume is initially null when switching volumes or opening
+         for the first time (or carries data from another volume in storage), resolveSnapshotState(null) === 'unsupported' —
+         during network round-trip it will briefly flash 'this volume does not support snapshots' then switch to the form.
+         store.volumeLoading's initial is true (copied from SnapshotPanel.vue's v-if="!store.volumeLoading" guard), nothing
+         shows before it lands, preventing false error conclusion flash. -->
     <p v-if="!store.volumeLoading && state === 'unsupported'" class="ss-note">{{ t('snapUnsupported') }}</p>
 
     <template v-else-if="!store.volumeLoading">
       <div class="ss-row">
         <span class="ss-key">{{ t('snapTitle') }}</span>
-        <!-- 开关按钮不放文字:snapToggleOn/Off 是过去式的 toast 文案("已开启/已关闭快照
-             保护"),当按钮标签读着别扭;这里照 SnapshotPanel.vue 的 .sp-switch 写法做成
-             纯图形开关(role=switch + aria-checked + aria-label),不新增 i18n 键。 -->
+        <!-- No text on the toggle button: snapToggleOn/Off are past-tense toast messages ('snapshot protection
+             enabled/disabled'), which read awkwardly as button labels; here we follow SnapshotPanel.vue's .sp-switch
+             style to create a pure graphic toggle (role=switch + aria-checked + aria-label), without adding new i18n keys. -->
         <button
           type="button"
           class="snap-set-toggle ss-switch"
@@ -91,8 +93,8 @@ async function onCreate() {
       <p v-if="state === 'disabled'" class="ss-note">{{ t('snapDisabledHint') }}</p>
 
       <template v-if="state === 'enabled'">
-        <!-- 字段常驻不折叠:这个弹窗存在的理由就是让人改这些值(与存储区那个空间受限的
-             侧栏面板不同,SnapshotPanel.vue 才需要"高级设置"折叠)。 -->
+        <!-- Fields always visible, not collapsed: the whole point of this dialog is to let users change
+             these values (unlike the space-constrained side panel in storage, only SnapshotPanel.vue needs 'advanced settings' collapse). -->
         <div class="snap-set-fields ss-fields">
           <label class="ss-field">
             <span class="ss-field-label">{{ t('snapHourlyKeep') }}</span>

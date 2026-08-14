@@ -65,11 +65,11 @@ export interface PhotosAboutInfo {
 
 const ALL_ON: PhotosAiFeatures = { faces: true, scenes: true, ocr: true, smartview: true }
 
-// Vue2 store/modules/photos.js:1297-1302 的读法:**只有显式 false 才关**,缺字段/请求失败
-// 一律按开启处理(宁可多显示一个入口,也不要因为一次配置读取抖动就把功能藏起来吓用户)。
-// 真实后端是扁平字段(`facesEnabled`/`scenesEnabled`/`ocrEnabled`/`smartViewEnabled`,注意
-// smartViewEnabled 的驼峰与其它三个不同),直接挂在 getConfig() 的返回体上,没有 `aiFeatures`
-// 嵌套键 —— 这里同时兼容测试夹具使用的 `{ aiFeatures: {...} }` 嵌套形状与短字段名。
+// Vue2 store/modules/photos.js:1297-1302 reading strategy: **only explicit false turns it off**, missing field/request failure
+// all treated as enabled (rather display one extra entry than hide feature due to one config read jitter).
+// Real backend uses flat fields (`facesEnabled`/`scenesEnabled`/`ocrEnabled`/`smartViewEnabled`, note
+// smartViewEnabled's camelCase differs from the other three), directly on getConfig() response body, no `aiFeatures`
+// nested key—here we support both test fixture shape `{ aiFeatures: {...} }` nesting and short field names.
 function readAiFeatures(cfg: Record<string, unknown> | null | undefined): PhotosAiFeatures {
   const ai = (cfg?.aiFeatures ?? cfg ?? {}) as Record<string, unknown>
   const on = (v: unknown): boolean => v !== false
@@ -83,8 +83,8 @@ function readAiFeatures(cfg: Record<string, unknown> | null | undefined): Photos
 
 export const usePhotosSettingsStore = defineStore('photos-settings', () => {
   const aiFeatures = ref<PhotosAiFeatures>({ ...ALL_ON })
-  // 仅成功路径置真 —— 与 favorites.ts:44 同一口径:一次取数失败必须与「确认全关」可区分,
-  // 否则以 !loaded 为重取判据的消费方会把真实配置永久掩在默认值后面。
+  // Set to true only on success path—same calibration as favorites.ts:44: a single fetch failure must be distinguishable from "confirmed all off",
+  // else consumers using !loaded as re-fetch criterion will permanently mask real config behind defaults.
   const aiFeaturesLoaded = ref(false)
   const storage = ref<PhotosStorageInfo | null>(null)
   const storageError = ref(false)
@@ -92,15 +92,15 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
   const retentionDays = ref(30)
   const scanIntervalMinutes = ref(1440)
 
-  // P8a-T6:多个消费方(侧栏 + 各视图各自的 onMounted)现在都会挂载并各调一次
-  // fetchAiFeatures() —— 侧栏是相册区全局共用组件,与任意一个视图同帧挂载,朴素实现会在
-  // 一次页面加载里对 getConfig 发出两次并发请求。这里加一个「在途去重」:多个并发调用共享
-  // 同一个 in-flight promise。**刻意不做成永久缓存** —— promise 在 finally 里落回 null,
-  // 下一次(不在途时)调用会重新发请求,保持"设置页保存后再进列表页能看到最新值"这条既有
-  // 语义(没有人会指望这个 store 只在应用生命周期内取一次)。形状照 Vue2
-  // store/modules/photos.js:1307-1315 的 `_restoreUploadsPromise`(模块级变量持有的
-  // in-flight promise 让并发调用者复用同一次请求),但语义不同:那处是"全局只运行一次,永久
-  // 不重置"的迁移幂等;这里在 finally 清空,只做"同一帧内的并发去重",不是永久缓存。
+  // P8a-T6: multiple consumers (sidebar + each view's own onMounted) now all mount and each call
+  // fetchAiFeatures() once—sidebar is a globally shared photo section component, mounts same frame as any view,
+  // naive implementation would fire two concurrent getConfig requests in a single page load. Here we add "in-flight dedup":
+  // multiple concurrent calls share the same in-flight promise. **Intentionally not permanent cache**—promise resets to null in finally,
+  // next call (when not in-flight) re-fetches, preserving "save on settings page then enter list page sees latest value" existing
+  // semantics (no one expects this store to fetch only once per app lifetime). Shape follows Vue2
+  // store/modules/photos.js:1307-1315's `_restoreUploadsPromise` (module-level variable holds in-flight promise
+  // so concurrent callers share one request), but semantics differ: that one is "global run-once, permanent no-reset"
+  // migration idempotency; here we clear in finally, doing only "same-frame concurrent dedup", not permanent cache.
   let aiFeaturesInFlight: Promise<PhotosAiFeatures> | null = null
 
   async function fetchAiFeatures(): Promise<PhotosAiFeatures> {
@@ -123,14 +123,15 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     }
   }
 
-  // Vue2 :263-281 是一个 features 的 deep watcher,靠 _suppressFeaturesWatch + $nextTick
-  // 抑制「从后端同步初值」时的回写。New-UI 改成显式 action(点开关才调),**没有 watcher,
-  // 那套抑制标志整套不需要** —— 这不是重构掉功能,是同一意图在显式调用模型下的直接对应物。
-  // 乐观更新 + 失败回滚:与 Vue2 一致(:274-275 把 features 退回 _lastGoodFeatures)。
+  // Vue2 :263-281 is a deep watcher on features, using _suppressFeaturesWatch + $nextTick
+  // to suppress write-back when "syncing initial value from backend". New-UI switches to explicit action (call only on toggle click),
+  // **no watcher, entire suppression flag scheme unnecessary**—this is not removing functionality, it's the same intent
+  // under explicit-call model's direct correspondence.
+  // Optimistic update + failure rollback: consistent with Vue2 (:274-275 reverts features to _lastGoodFeatures).
   //
-  // 写回前重读一次 getConfig() 取当前 watchDirs/retentionDays 随同回传 —— 见文件头注释,
-  // 共享包 updateConfig 的 watchDirs 是必填位置参数,后端对空 watchDirs 有非空校验
-  // (同 Vue2 setAiFeatures :1281-1291)。
+  // Before write-back re-read getConfig() once to get current watchDirs/retentionDays to send along—see top-of-file comment,
+  // shared package updateConfig's watchDirs is required positional param, backend validates non-empty watchDirs
+  // (same as Vue2 setAiFeatures :1281-1291).
   async function setAiFeature(id: keyof PhotosAiFeatures, on: boolean): Promise<boolean> {
     const prev = { ...aiFeatures.value }
     aiFeatures.value = { ...prev, [id]: on }
@@ -156,7 +157,7 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     try {
       const res = (await service.photos.getStorage()) as unknown as PhotosStorageInfo | null
       storage.value = res ?? null
-      // Vue2 :391 —— 后端返空体也算失败态(裸 JSON 直出,Photos v1 无信封,204 空体是可能的)
+      // Vue2 :391—empty response body also counts as failure state (bare JSON output, Photos v1 has no envelope, 204 empty body is possible)
       storageError.value = !storage.value
     } catch (e) {
       storage.value = null
@@ -185,9 +186,9 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     }
   }
 
-  // Vue2 :254-262 的 retention watcher 保存失败**只弹 toast、不回滚** ⇒ UI 上停在用户选的档位
-  // 而后端还是旧值,下次打开设置又跳回去。按铁律「Vue2 的 bug 不照抄」补回滚,与同文件
-  // :447-457 的 setScanInterval(本就有 prev 回滚)口径对齐。
+  // Vue2 :254-262's retention watcher on save failure **only toasts, no rollback**⇒ UI stays on user's selected slot
+  // while backend still holds old value, next settings open jumps back. By iron rule "don't copy Vue2 bugs" add rollback,
+  // aligning with :447-457's setScanInterval (already has prev rollback).
   async function setRetention(days: number): Promise<boolean> {
     const prev = retentionDays.value
     retentionDays.value = days
@@ -203,8 +204,8 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     }
   }
 
-  // scanInterval 允许 0(= 关闭自动重扫,见 Vue2 :306 的 scan_interval_off 档),
-  // 所以判据用 Number.isFinite 而不是真值判断 —— `cfg.scanInterval || 1440` 会把 0 吃成 1440。
+  // scanInterval allows 0 (= disable auto re-scan, see Vue2 :306's scan_interval_off option),
+  // so check uses Number.isFinite not truthy test—`cfg.scanInterval || 1440` would swallow 0 as 1440.
   async function fetchScanInterval(): Promise<void> {
     try {
       const cfg = (await service.photos.getConfig()) as Record<string, unknown>
@@ -231,20 +232,20 @@ export const usePhotosSettingsStore = defineStore('photos-settings', () => {
     }
   }
 
-  // 取数失败保守默认(0),失败已 console.error 登记;动作类(pruneCache/triggerScan/
-  // reclusterFaces/rebuildIndex 非 409 分支)失败**向上抛**,视图层负责弹 toast,
-  // 与 Vue2 各动作方法里 showToast 的位置一致(store 只做数据/回滚,不做 UI 提示)。
+  // Fetch failure conservatively defaults to 0, failure already console.error-logged; action-type (pruneCache/triggerScan/
+  // reclusterFaces/rebuildIndex non-409 branch) failures **throw up**, view layer handles toast,
+  // consistent with Vue2 showToast placement in action methods (store does data/rollback only, not UI).
   async function pruneCache(): Promise<number> {
     const res = (await service.photos.pruneCache()) as { freedBytes?: number } | null
     return res?.freedBytes ?? 0
   }
 
-  // 409 = 后端已有一个重建在跑。Vue2 PhotosSettings.vue:458-473 此时 dispatch 一次
-  // 'photos/fetchTasks'(一次性刷新,不是新轮询)、再在本地任务列表里找
-  // type==='rebuild' 的那条绑定显示进度,**不报错**。这里同样调用 timeline store 现成的
-  // fetchTasks() 一次并读它的 tasks —— "不要另建一份任务轮询" 指的是不要在本 store 里再起
-  // 一个 setInterval/poller,消费 timeline 已有的刷新动作和状态不算违反。useTimelineStore()
-  // 必须在 action 内部调用(而非模块顶层),否则在 Pinia 激活前调用会报错。
+  // 409 = rebuild already running on backend. Vue2 PhotosSettings.vue:458-473 here dispatch once
+  // 'photos/fetchTasks' (one-time refresh, not new polling), then find
+  // type==='rebuild' entry in local task list and bind to show progress, **no error**.
+  // Here similarly call timeline store's ready fetchTasks() once and read its tasks—"don't start another task polling" means
+  // don't spin up new setInterval/poller in this store, consuming timeline's already-existing refresh action and state doesn't violate it.
+  // useTimelineStore() must be called inside action (not module level), else throws when called before Pinia activates.
   async function rebuildIndex(): Promise<string> {
     try {
       const res = (await service.photos.rebuildIndex()) as { taskId?: string } | null

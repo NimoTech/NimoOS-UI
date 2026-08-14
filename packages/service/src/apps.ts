@@ -7,10 +7,10 @@ export function createApps(http: AxiosInstance) {
     async getGrid(): Promise<AppGridItem[]> {
       const res = await http.get('/v2/app_management/web/appgrid')
       const raw = res.data
-      // 裸数组直接用
+      // Bare array: use as-is
       if (Array.isArray(raw)) return raw as AppGridItem[]
-      // appgrid 生产环境返回裸信封 {data:[...], message} 且无 success 字段,
-      // 不能先走 unwrap(会因 success!==200 抛错)——真机踩坑 2026-07-15
+      // In production, appgrid returns a bare envelope {data:[...], message} without a success field,
+      // so unwrap must not run first (it would throw on success!==200) — hit on a real device 2026-07-15
       const direct = (raw as { data?: unknown } | null)?.data
       if (Array.isArray(direct)) return direct as AppGridItem[]
       const data = unwrap<unknown>(raw)
@@ -19,12 +19,12 @@ export function createApps(http: AxiosInstance) {
       return Array.isArray(nested) ? (nested as AppGridItem[]) : []
     },
 
-    /** 启动一个已停止的应用。v2 compose 应用与 v1/裸容器走不同端点。
-     *  后端异步变更状态,调用方需自行轮询 getGrid 直到 status==='running'。 */
+    /** Start a stopped app. v2 compose apps and v1/bare containers use different endpoints.
+     *  The backend changes state asynchronously; callers must poll getGrid themselves until status==='running'. */
     async start(app: Pick<AppGridItem, 'name' | 'app_type'>): Promise<void> {
       if (app.app_type === 'v2app') {
-        // RequestComposeAppStatus 的 body 是裸 JSON 字符串("start"),
-        // 直接传 'start' 会被 axios 当 text/plain 发出,echo Bind 解析失败
+        // The RequestComposeAppStatus body is a bare JSON string ("start");
+        // passing 'start' directly makes axios send it as text/plain and echo's Bind fails to parse
         await http.put(`/v2/app_management/compose/${encodeURIComponent(app.name)}/status`, '"start"', {
           headers: { 'Content-Type': 'application/json' },
         })

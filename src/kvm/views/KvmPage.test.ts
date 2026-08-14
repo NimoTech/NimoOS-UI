@@ -6,12 +6,13 @@ import { i18n } from '../../i18n'
 import { useToast } from '../../stores/toast'
 import type { KvmVM, KvmISO } from '@nimotech/nimoos-service'
 
-// Task 6 起需要真的走一遍 useVncConsole 的 connect/disconnect 接线(不再只是 stub),
-// 所以补一个假 RFB 类挡住 @novnc/novnc——原因同 useVncConsole.test.ts 顶部注释:
-// 不挡住的话 connect() 成功路径会用真实 novnc 包去 `new WebSocket(...)`,jsdom 环境
-// 没有 WebSocket 全局,而且本来也不该在单测里真建连接(硬约束:不要真的建立 WebSocket)。
-// 用 vi.hoisted 是必须的——vi.mock 工厂会被提升到文件最顶部,直接引用后面才声明的
-// class 会撞 TDZ(同 useVncConsole.test.ts 已经踩过并修过的坑)。
+// Task 6: Must now actually wire the connect/disconnect flow of useVncConsole (no longer just stubs),
+// so we need to stub the @novnc/novnc with a fake RFB class — reason: same as the top comment in useVncConsole.test.ts:
+// without stubbing, the connect() success path would use the real novnc package to `new WebSocket(...)`,
+// but jsdom has no global WebSocket, and we shouldn't establish real connections in unit tests anyway
+// (hard constraint: do not actually establish WebSocket).
+// Using vi.hoisted is necessary — vi.mock factories are hoisted to the file top, and directly referencing
+// a class declared later causes TDZ (same pit already hit and fixed in useVncConsole.test.ts).
 const { instances: rfbInstances, FakeRFB } = vi.hoisted(() => {
   class FakeRFB {
     handlers: Record<string, (() => void)[]> = {}
@@ -28,35 +29,36 @@ const { instances: rfbInstances, FakeRFB } = vi.hoisted(() => {
 })
 vi.mock('@novnc/novnc', () => ({ default: FakeRFB }))
 
-// Task 5 起需要电源动作接线,mock 补全 service.kvm 的全部方法(仿 useVmList.test.ts
-// 的 getter 写法,好让 beforeEach 里 mockReset 生效)。Task 6 补 getVNC(控制台接线需要)。
-// P6 Task 8 补 createVM/getISOList/downloadISO(创建流程接线需要)。
+// Task 5: Power action wiring needs service.kvm methods mocked completely (following useVmList.test.ts
+// getter pattern so mockReset works in beforeEach). Task 6 adds getVNC (for console wiring).
+// P6 Task 8 adds createVM/getISOList/downloadISO (for create flow wiring).
 const api = {
   getVMList: vi.fn(), getVM: vi.fn(), startVM: vi.fn(), stopVM: vi.fn(),
   restartVM: vi.fn(), pauseVM: vi.fn(), resumeVM: vi.fn(), wakeupVM: vi.fn(),
   deleteVM: vi.fn(), setAutostart: vi.fn(), setBootFromDisk: vi.fn(), getVNC: vi.fn(),
-  // Task 2:KvmGlobalSettingsDialog 常驻挂载在 KvmPage 模板底部,即便不打开也会在
-  // beforeEach 之外没有实际调用——只在齿轮点开后才会走 getSettings。仍需补全 mock,
-  // 否则 vi.mock 工厂里访问不存在的方法会是 undefined,点开弹窗时报错。
+  // Task 2: KvmGlobalSettingsDialog is permanently mounted at the bottom of KvmPage template,
+  // and even without opening it won't actually call anything outside beforeEach — only getSettings
+  // is called when the gear icon is opened. Still need to mock it completely, otherwise accessing
+  // undefined methods in the vi.mock factory will throw when opening the dialog.
   getSettings: vi.fn(), updateSettings: vi.fn(),
   createVM: vi.fn(), getISOList: vi.fn(), downloadISO: vi.fn(),
-  // P6 Task 9:VM 设置弹窗接线需要的 updateVM。
+  // P6 Task 9: VM settings dialog wiring needs updateVM.
   updateVM: vi.fn(),
-  // P6 Task 10:快照 tab 接线需要的四个。
+  // P6 Task 10: snapshots tab wiring needs four methods.
   getSnapshots: vi.fn(), createSnapshot: vi.fn(), deleteSnapshot: vi.fn(), restoreSnapshot: vi.fn(),
 }
-// IsoBrowser(OsSelector 的自定义区子组件,真实渲染,未被 mock 掉)展开时会调
-// service.folder.getList——即便本文件大多数用例不点开它,补全这个 getter 避免访问
-// 未定义属性报错(仿同一份 getter 写法)。
+// IsoBrowser (OsSelector's custom section subcomponent, truly rendered, not mocked) calls
+// service.folder.getList when expanded — even though most test cases here don't open it,
+// we need to mock this getter to avoid errors accessing undefined properties (following same getter pattern).
 const folderApi = { getList: vi.fn() }
 vi.mock('@nimotech/nimoos-service', () => ({
   service: { get kvm() { return api }, get folder() { return folderApi } },
 }))
-// P6 Task 8 起需要真的能触发 ISO 下载三事件(kvm:iso_download_complete/_failed),
-// 之前的 `on: () => () => {}` 是纯占位、测试里无法手动 emit。改成同 useVmList.test.ts
-// 一样的可控桩:按事件名登记回调,提供 emitBus() 手动触发——事件名不冲突(useVmList
-// 订阅 kvm:vm_* 家族,useIsoList 订阅 kvm:iso_download_* 家族),共用同一份 handlers
-// 字典不会互相干扰。
+// P6 Task 8 onward: need to actually trigger ISO download three events (kvm:iso_download_complete/_failed),
+// the previous `on: () => () => {}` was just a placeholder and tests couldn't manually emit. Changed to
+// controlled stub like useVmList.test.ts: register callbacks by event name, provide emitBus() for manual
+// triggering — event names don't conflict (useVmList subscribes kvm:vm_* family, useIsoList subscribes
+// kvm:iso_download_* family), sharing same handlers dict won't interfere.
 const busHandlers: Record<string, ((p: unknown) => void)[]> = {}
 vi.mock('../../composables/useMessageBus', () => ({
   useMessageBus: () => ({
@@ -76,10 +78,10 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   createdAt: '', updatedAt: '', ...over,
 })
 
-// P6 Task 8:官方模板 ISO 两条——alpine-319 是真机(2026-08-03 curl)唯一
-// `status:"downloaded"` 的那条,字段逐字对齐 CreateVmDialog.test.ts 的 ISO_ALPINE;
-// Debian 用于"下载中/下载完成/下载失败"三条 toast 用例,不要求逐字对齐真机数据
-// (真机数据只给了 alpine-319 的完整字段,其余 7 条只知道"未下载"这一件事)。
+// P6 Task 8: Official template ISOs — two entries; alpine-319 is the only one with
+// `status:"downloaded"` on real device (2026-08-03 curl), fields match ISO_ALPINE in CreateVmDialog.test.ts exactly;
+// Debian is for "downloading/download complete/download failed" three toast test cases, doesn't require
+// exact match to real device data (real device data only gives alpine-319's complete fields, other 7 only known as "not downloaded").
 const ISO_ALPINE: KvmISO = {
   id: 'alpine-319', name: 'Alpine', version: '3.19', category: 'linux', size: '60 MB',
   status: 'downloaded', progress: 0, path: '/DATA/KVM/isos/alpine-319.iso',
@@ -92,11 +94,12 @@ const ISO_DEBIAN = (over: Partial<KvmISO> = {}): KvmISO => ({
 })
 
 beforeEach(() => {
-  // 必修①的 toast 走 useToast()(Pinia store)。这个文件此前一直没装 Pinia 插件——
-  // 之前也没有任何组件在这条路径上用到过 store,新增 toast 消费后必须先有一个激活的
-  // Pinia 实例,否则 useToast() 会抛 "getActivePinia() was called but there was no
-  // active Pinia"。照仓库既有先例(GoogleDriveAuthDialog.test.ts 等)在 beforeEach 里
-  // setActivePinia,不需要额外往 mount() 的 global.plugins 里塞 createPinia() 实例。
+  // Required ①: toast goes through useToast() (Pinia store). This file never had Pinia plugin
+  // installed before — no component ever used store on this path before, but now that toast consumption
+  // is added, we need an active Pinia instance first, otherwise useToast() throws
+  // "getActivePinia() was called but there was no active Pinia". Following repo precedent
+  // (GoogleDriveAuthDialog.test.ts etc.) we setActivePinia in beforeEach, no need to separately
+  // stuff createPinia() into mount()'s global.plugins.
   setActivePinia(createPinia())
   rfbInstances.length = 0
   Object.values(api).forEach((f) => f.mockReset())
@@ -125,30 +128,31 @@ beforeEach(() => {
 const mountPage = () => mount(KvmPage, { global: { plugins: [i18n] } })
 const flush = () => new Promise((r) => setTimeout(r, 0))
 
-// P6 Task 8:创建流程涉及三层 Teleport 弹窗(创建弹窗/OsSelector/全局设置弹窗全部
-// 是 reka-ui DialogPortal,一律挂到真实 document.body,不受 `attachTo` 影响——见本
-// 文件其它描述块的既有注释)。本任务新增的"空列表自动弹创建弹窗"意味着**任何**用默认
-// getVMList(空列表)挂载且没有手动关闭/unmount 的 KvmPage 实例,都会异步地把一个
-// `.create-vm-modal` 插进真实 document.body,并且不会自己清理——如果不在每个用例后
-// 清空 body,这份残留会污染后续用例里"document.body.querySelector('.create-vm-modal')
-// 应该是 null"这类断言(实测验证过:没有这条 afterEach 时,Task 2 的"点齿轮弹出全局
-// 设置弹窗"用例会因为读到本描述块前面用例遗留的创建弹窗而翻红)。清空 document.body
-// 不影响任何测试的断言本身——它们要检查的内容都在自己触发的动作之后、清空之前完成。
+// P6 Task 8: Create flow involves three layers of Teleport dialogs (create dialog/OsSelector/global settings dialog
+// are all reka-ui DialogPortal, uniformly mounted to real document.body, not affected by `attachTo` — see existing
+// comments in other describe blocks in this file). This task's new "auto-open create dialog on empty list" means
+// **any** KvmPage instance mounted with default getVMList(empty) and not manually closed/unmounted will
+// asynchronously insert a `.create-vm-modal` into real document.body and won't clean itself up — if we don't
+// clear body after each test, this residue will pollute subsequent tests' assertions like
+// "document.body.querySelector('.create-vm-modal') should be null" (verified: without this afterEach,
+// Task 2's "click gear to open global settings dialog" test would fail due to leftover create dialog from
+// earlier tests in this describe block). Clearing document.body doesn't affect any test's assertions themselves —
+// their checked content is completed after their own triggered action and before clearing.
 afterEach(() => {
   document.body.innerHTML = ''
 })
 
-describe('KvmPage 壳', () => {
-  it('渲染左栏标题与右侧空态', () => {
+describe('KvmPage shell', () => {
+  it('renders left sidebar title and right-side empty state', () => {
     const w = mountPage()
     expect(w.text()).toContain('NIMO 虚拟机')
-    // 注:brief 草稿此处断言"选择一台虚拟机",但核对 Vue2 zh_CN.json 后
-    // "Select a Virtual Machine" 的官方译文是"选择虚拟机"(无"一台"),
-    // 已按 i18n 核对结果改正断言,详见 task-2-report.md。
+    // Note: brief draft had "Select one virtual machine" here, but after checking Vue2 zh_CN.json,
+    // the official translation of "Select a Virtual Machine" is "选择虚拟机" (without "one"),
+    // so I corrected the assertion per i18n, see task-2-report.md for details.
     expect(w.text()).toContain('选择虚拟机')
   })
 
-  it('侧栏折叠按钮点一下加 collapsed 类,再点去掉', async () => {
+  it('sidebar collapse button adds collapsed class on click, removes it on second click', async () => {
     const w = mountPage()
     const btn = w.get('.kvm-sidebar-toggle')
     expect(w.get('.kvm-sidebar').classes()).not.toContain('collapsed')
@@ -158,7 +162,7 @@ describe('KvmPage 壳', () => {
     expect(w.get('.kvm-sidebar').classes()).not.toContain('collapsed')
   })
 
-  it('折叠态下鼠标移入侧栏会临时展开(Vue2 isSidebarCollapsed = collapsed && !hover)', async () => {
+  it('in collapsed state, mouse entering sidebar temporarily expands it (Vue2 isSidebarCollapsed = collapsed && !hover)', async () => {
     const w = mountPage()
     await w.get('.kvm-sidebar-toggle').trigger('click')
     await w.get('.kvm-sidebar').trigger('mouseenter')
@@ -167,18 +171,18 @@ describe('KvmPage 壳', () => {
     expect(w.get('.kvm-sidebar').classes()).toContain('collapsed')
   })
 
-  it('折叠按钮有 aria-label(图标按钮硬约束)', () => {
+  it('collapse button has aria-label (icon button hard constraint)', () => {
     expect(mountPage().get('.kvm-sidebar-toggle').attributes('aria-label')).toBeTruthy()
   })
 })
 
-// Task 2:第一个能在真机点的闭环——左栏齿轮 → 全局设置弹窗 → 改值 → 保存。
-describe('KvmPage 全局设置弹窗(Task 2)', () => {
-  it('点齿轮弹出全局设置弹窗,拉取到的设置回填进表单', async () => {
-    // P6 Task 8:空列表会自动弹创建弹窗(见下面新增描述块),与本用例要测的"点齿轮"
-    // 无关——喂一台 VM 避免触发那条无关的自动弹窗,不然下面"点齿轮前 create-vm-modal
-    // 应为 null"这条断言会被自动弹出的创建弹窗误伤(两者共用同一个 .create-vm-modal
-    // 类名,来自同一个 KvmDialog 外壳)。
+// Task 2: First end-to-end flow testable on real device — left gear icon → global settings dialog → change values → save.
+describe('KvmPage global settings dialog (Task 2)', () => {
+  it('click gear to open global settings dialog, settings fetched are pre-filled into form', async () => {
+    // P6 Task 8: Empty list auto-opens create dialog (see new describe block below), unrelated to testing
+    // "click gear" here — feed one VM to avoid that unrelated auto-popup, otherwise the "create-vm-modal
+    // should be null before clicking gear" assertion below gets falsely hit by the auto-opened create dialog
+    // (both share the same .create-vm-modal class name from the same KvmDialog wrapper).
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
@@ -188,13 +192,13 @@ describe('KvmPage 全局设置弹窗(Task 2)', () => {
     await flush()
     await w.vm.$nextTick()
 
-    // P6 Task 8 引入的已知重复请求(已申报,非本用例的缺陷):KvmPage 自己为创建
-    // 弹窗持有一份页面级 `useKvmHostInfo()`(mounted 时 fetch 一次),而
-    // KvmGlobalSettingsDialog 内部还有它自己独立的 `useKvmHostInfo()` 实例(Task 2
-    // 就这么写的,弹窗打开时再 fetch 一次)——两个实例互不知道对方存在,GET
-    // /kvm/settings 因此被打两次。重构 KvmGlobalSettingsDialog 改成接收页面级注入
-    // 超出本任务文件清单(只列了 KvmPage.vue/VmSidebar.vue/useVmList.ts 三个源文件),
-    // 留作后续清理债务,这里只把断言改成如实反映"两次"这一事实。
+    // P6 Task 8 introduced a known duplicate request (reported, not a bug in this test):
+    // KvmPage itself keeps a page-level `useKvmHostInfo()` for the create dialog (fetch once on mounted),
+    // while KvmGlobalSettingsDialog has its own independent `useKvmHostInfo()` instance (Task 2 wrote it this way,
+    // fetches again when dialog opens) — the two instances are unaware of each other, so GET /kvm/settings
+    // gets called twice. Refactoring KvmGlobalSettingsDialog to receive page-level injection is outside
+    // this task's file list (only KvmPage.vue/VmSidebar.vue/useVmList.ts listed), left for future debt cleanup,
+    // here we just update the assertion to accurately reflect this "twice" fact.
     expect(api.getSettings).toHaveBeenCalledTimes(2)
     const modal = document.body.querySelector('.create-vm-modal')
     expect(modal).not.toBeNull()
@@ -205,8 +209,8 @@ describe('KvmPage 全局设置弹窗(Task 2)', () => {
   })
 })
 
-describe('KvmPage 电源动作接线(Task 5)', () => {
-  it('自动选中的 VM 渲染出 ConsoleHeader,一次点击的动作(开机)直接调用、不经过进度遮罩', async () => {
+describe('KvmPage power action wiring (Task 5)', () => {
+  it('auto-selected VM renders ConsoleHeader, one-click action (power on) calls directly without progress overlay', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockResolvedValue(undefined)
     const w = mountPage()
@@ -223,7 +227,7 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     expect(w.get('.console-status .status-dot').classes()).toContain('running')
   })
 
-  it('stop 二次确认通过后显示进度遮罩,动作完成后遮罩消失(标题=kvmStopping,正文=vm 名)', async () => {
+  it('after stop double confirmation passed, show progress overlay, disappears after action completes (title=kvmStopping, body=vm name)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     let resolveStop: () => void = () => {}
     api.stopVM.mockImplementation(() => new Promise<void>((r) => { resolveStop = () => r(undefined) }))
@@ -232,14 +236,15 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
 
     await w.findAll('.action-btn')[1].trigger('click')
     const stopBtn = w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!
-    await stopBtn.trigger('click') // 第一次:只变确认文字
-    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click') // 第二次:真正触发
+    await stopBtn.trigger('click') // first click: only change confirmation text
+    await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click') // second click: actually trigger
 
-    // 此刻 stopVM 的 promise 还没 resolve,遮罩应该已经挂上了(Teleport 到 body,
-    // 只能从 document 查,wrapper.find 找不到 teleport 出去的内容——已用探针脚本验证过)。
-    // 评审 Important #2:正文不能只有 vm 名,必须是 Vue2 `${vm.name} ${$t('stopping')}...`
-    // 逐字对应的 "sp9-alpine-test 停止中...";用精确匹配而不是 toContain('sp9-alpine-test'),
-    // 否则漏掉 "停止中..." 这半截也测不出来(上一轮就是这么漏测的)。
+    // At this moment stopVM promise hasn't resolved yet, overlay should already be mounted
+    // (Teleport to body, can only query from document, wrapper.find can't find teleported content
+    // — already verified with probe scripts).
+    // Review Important #2: body text can't be just vm name, must be Vue2 `${vm.name} ${$t('stopping')}...`
+    // exact match "sp9-alpine-test 停止中..."; use exact match not toContain('sp9-alpine-test'),
+    // otherwise misses "停止中..." half and won't catch the bug (last round missed this).
     const overlay = document.body.querySelector('.kvm-progress-overlay')
     expect(overlay).not.toBeNull()
     expect(overlay!.querySelector('.kvm-progress-title')?.textContent).toContain('正在停止虚拟机')
@@ -251,7 +256,7 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     expect(api.stopVM).toHaveBeenCalledWith('vm-1')
   })
 
-  it('非确认动作(暂停)在途时不显示进度遮罩', async () => {
+  it('non-confirmation action (pause) in progress doesn\'t show progress overlay', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     let resolvePause: () => void = () => {}
     api.pauseVM.mockImplementation(() => new Promise<void>((r) => { resolvePause = () => r(undefined) }))
@@ -267,7 +272,7 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
   })
 
-  it('动作失败时 lastError 内联显示在控制台占位区(不弹 toast),有后端 message 就原样显示', async () => {
+  it('on action failure, lastError displays inline in console placeholder area (no toast), shows backend message as-is if present', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockRejectedValue(new Error('domain is not running'))
     const w = mountPage()
@@ -281,10 +286,10 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
     expect(hint.text()).toBe('domain is not running')
   })
 
-  it('评审 Important #1:rejection 没有 message 时,界面显示翻译后的中文,不是 kvmFailedToStart 这种键名', async () => {
+  it('review Important #1: when rejection has no message, show translated Chinese, not key name like kvmFailedToStart', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
-    // 非 Error 值(或空 message 的 Error)会让 useVmList 的 errText() 落到 fallback 键
-    // 字符串本身('kvmFailedToStart'),渲染层必须把它当 i18n key 过一遍 t()。
+    // Non-Error value (or Error with empty message) makes useVmList errText() fall to fallback key string
+    // itself ('kvmFailedToStart'), render layer must pass it through t() as i18n key.
     api.startVM.mockRejectedValue(new Error(''))
     const w = mountPage()
     await flush()
@@ -299,8 +304,8 @@ describe('KvmPage 电源动作接线(Task 5)', () => {
   })
 })
 
-describe('KvmPage VNC 控制台接线(Task 6)', () => {
-  it('开机成功后真的建立 VNC 连接(getVNC 被调用、RFB 被构造)', async () => {
+describe('KvmPage VNC console wiring (Task 6)', () => {
+  it('after power-on succeeds, actually establish VNC connection (getVNC called, RFB constructed)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockResolvedValue(undefined)
     const w = mountPage()
@@ -315,7 +320,7 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
     expect(rfbInstances[0].url).toBe(`ws://${window.location.hostname}:5700`)
   })
 
-  it('初始自动选中一台运行中的 VM 就直接建连(watch selectedVM 接线,不只是电源动作回调)', async () => {
+  it('initially auto-selecting a running VM connects directly (watch selectedVM wiring, not just power action callback)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     mountPage()
     await flush()
@@ -324,12 +329,12 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
     expect(rfbInstances).toHaveLength(1)
   })
 
-  it('强制关机确认通过后,已建立的 RFB 被断开', async () => {
+  it('after force shutdown confirmation passed, established RFB is disconnected', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     api.stopVM.mockResolvedValue(undefined)
     const w = mountPage()
     await flush()
-    expect(rfbInstances).toHaveLength(1) // 初始 running 自动连接
+    expect(rfbInstances).toHaveLength(1) // initially running auto-connects
 
     await w.findAll('.action-btn')[1].trigger('click')
     const stopBtn = w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!
@@ -340,7 +345,7 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
     expect(rfbInstances[0].disconnected).toBe(true)
   })
 
-  it('切换到另一台运行中的 VM 时对新 VM 建立连接(照 Vue2 watch selectedVM :747-758)', async () => {
+  it('when switching to another running VM, establish connection for new VM (per Vue2 watch selectedVM :747-758)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running' }), VM({ id: 'vm-2', name: 'vm-two', state: 'running' })],
       total: 2,
@@ -356,30 +361,30 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
     expect(api.getVNC).toHaveBeenCalledWith('vm-2')
   })
 
-  // 评审 Minor:consoleErrorKey 的优先级(`vnc.errorKey.value || s.lastError.value`,
-  // KvmPage.vue :81 附近)之前没有一条测试真的让两个来源**同时为真**再断言谁赢——
-  // 单是"lastError 非空时显示 lastError"这种用例即便把优先级颠倒过来也照样能过。
-  // 这里先制造一个残留的 lastError(开机失败),再切到另一台 VM 触发 connect() 失败
-  // 产生 vnc.errorKey,此时两者同时为真,断言显示的是 vnc 那一个。
-  it('VNC 连接错误优先于电源动作遗留的 lastError(consoleErrorKey 优先级)', async () => {
+  // Review Minor: consoleErrorKey priority (`vnc.errorKey.value || s.lastError.value`,
+  // near KvmPage.vue :81) didn't have a test making both sources **simultaneously true** to assert winner —
+  // just "show lastError when non-empty" tests would pass even if we flip priority.
+  // Here we first create a residual lastError (power-on failure), then switch to another VM triggering
+  // connect() failure producing vnc.errorKey, now both are true, assert showing vnc's one.
+  it('VNC connection error takes priority over leftover lastError from power action (consoleErrorKey priority)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'stopped' }), VM({ id: 'vm-2', name: 'vm-two', state: 'running' })],
       total: 2,
     })
-    api.startVM.mockRejectedValue(new Error('domain busy')) // 制造一个残留的 lastError
-    api.getVNC.mockRejectedValue(new Error('irrelevant')) // 任何 connect() 都会失败
+    api.startVM.mockRejectedValue(new Error('domain busy')) // create residual lastError
+    api.getVNC.mockRejectedValue(new Error('irrelevant')) // any connect() will fail
     const w = mountPage()
     await flush()
 
-    // 初始自动选中 vm-1(stopped),开机失败 → lastError = 'domain busy'
+    // Initially auto-select vm-1 (stopped), power-on fails → lastError = 'domain busy'
     await w.findAll('.action-btn')[1].trigger('click')
     await w.findAll('.dropdown-item').find((b) => b.text().includes('开机'))!.trigger('click')
     await flush()
     expect(w.get('.console-hint.is-error').text()).toBe('domain busy')
 
-    // 切到 vm-2(running)→ watch selectedVM 触发 connect(),getVNC 失败 →
-    // vnc.errorKey = 'kvmVncFetchFailed'。lastError 此时仍是 'domain busy'(没人清过),
-    // 两者同时为真,应该显示 vnc 那一个。
+    // Switch to vm-2 (running) → watch selectedVM triggers connect(), getVNC fails →
+    // vnc.errorKey = 'kvmVncFetchFailed'. lastError is still 'domain busy' at this point (no one cleared it),
+    // both true simultaneously, should show vnc's one.
     const items = w.findAll('.vm-list-item')
     await items[1].trigger('click')
     await flush()
@@ -388,18 +393,18 @@ describe('KvmPage VNC 控制台接线(Task 6)', () => {
   })
 })
 
-// Task 7:SendKey 悬浮工具条(照 Vue2 `.console-display` 上的 @mouseenter/@mouseleave/
-// @mousemove,:154、:1140-1153)+ 全屏(:1120-1133)。
-describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
-  // jsdom 的 getBoundingClientRect 恒为全零(left/width 都是 0),80px 边缘判定必须真实
-  // 桩出容器的宽度/左偏移才测得出来——只断言 onConsoleMove 被调用过是空测试(本期已栽过
-  // 好几次同类坑,见任务说明)。
+// Task 7: SendKey floating toolbar (per Vue2 `.console-display` @mouseenter/@mouseleave/@mousemove, :154, :1140-1153)
+// + fullscreen (:1120-1133).
+describe('KvmPage SendKey floating toolbar + fullscreen (Task 7)', () => {
+  // jsdom's getBoundingClientRect is always zero (left/width both 0), 80px edge detection
+  // needs real stub of container width/left offset to test — just asserting onConsoleMove was called
+  // is an empty test (this period has hit this kind of pit several times, see task notes).
   const stubRect = (el: HTMLElement, width = 400) => {
     el.getBoundingClientRect = () =>
       ({ left: 0, top: 0, width, height: 300, right: width, bottom: 300, x: 0, y: 0, toJSON() {} }) as DOMRect
   }
 
-  it('鼠标进入控制台区显示工具条,离开隐藏', async () => {
+  it('mouse entering console area shows toolbar, leaving hides it', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mountPage()
     await flush()
@@ -411,7 +416,7 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     expect(w.find('.sendkey-toolbar').exists()).toBe(false)
   })
 
-  it('鼠标停在工具条上时,离开控制台区不隐藏', async () => {
+  it('when mouse is on toolbar, leaving console area doesn\'t hide it', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mountPage()
     await flush()
@@ -419,16 +424,16 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     await w.get('.console-display').trigger('mouseenter')
     await w.get('.sendkey-toolbar').trigger('mouseenter') // sendKeyToolbarHover = true
     await w.get('.console-display').trigger('mouseleave')
-    expect(w.find('.sendkey-toolbar').exists()).toBe(true) // 没被隐藏
+    expect(w.find('.sendkey-toolbar').exists()).toBe(true) // not hidden
   })
 
-  it('mousemove 到右侧 80px 内显示,移回左侧隐藏', async () => {
+  it('mousemove within right 80px shows, move back to left hides', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mountPage()
     await flush()
 
     const display = w.get('.console-display')
-    stubRect(display.element as HTMLElement) // width=400 → 右侧 80px 阈值是 x>=320
+    stubRect(display.element as HTMLElement) // width=400 → right 80px threshold is x>=320
 
     await display.trigger('mousemove', { clientX: 350 })
     expect(w.find('.sendkey-toolbar').exists()).toBe(true)
@@ -437,7 +442,7 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     expect(w.find('.sendkey-toolbar').exists()).toBe(false)
   })
 
-  it('VM 不是 running 时,鼠标怎么动都不显示工具条', async () => {
+  it('when VM is not running, toolbar never shows no matter how mouse moves', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     const w = mountPage()
     await flush()
@@ -447,16 +452,16 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
 
     await display.trigger('mouseenter')
     expect(w.find('.sendkey-toolbar').exists()).toBe(false)
-    await display.trigger('mousemove', { clientX: 350 }) // 右侧 80px 内,但非 running
+    await display.trigger('mousemove', { clientX: 350 }) // within right 80px, but not running
     expect(w.find('.sendkey-toolbar').exists()).toBe(false)
     await display.trigger('mouseleave')
     expect(w.find('.sendkey-toolbar').exists()).toBe(false)
   })
 
-  // 硬约束(任务说明明确点名):onUnmounted 摘 fullscreenchange 监听必须用
-  // vi.spyOn(document, 'removeEventListener') 断言事件名,不能写成占位断言。
-  // 照抄 ConsoleHeader.test.ts「卸载时摘掉 document 监听」同款写法(:58-67)。
-  it('卸载时摘掉 document 的 fullscreenchange 监听(不泄漏)', async () => {
+  // Hard constraint (task notes explicitly named): onUnmounted removing fullscreenchange listener
+  // must use vi.spyOn(document, 'removeEventListener') to assert event name, can't be placeholder assertion.
+  // Copy ConsoleHeader.test.ts same style "remove document listener on unmount" (:58-67).
+  it('on unmount, remove document fullscreenchange listener (no leak)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
@@ -467,11 +472,11 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
     spy.mockRestore()
   })
 
-  // 评审 Important #2:jsdom 完全没有 Fullscreen API(已用探针脚本核实:
-  // `'requestFullscreen' in Element.prototype` 是 false,`document.exitFullscreen`
-  // 是 undefined,`'fullscreenElement' in document` 是 false)——不能用 vi.spyOn
-  // (它要求被替身的方法本来就存在),必须直接赋值/defineProperty 桩出整套 API。
-  describe('全屏(评审补测——此前 5 条用例没有一条碰过全屏按钮)', () => {
+  // Review Important #2: jsdom has no Fullscreen API at all (verified with probe scripts:
+  // `'requestFullscreen' in Element.prototype` is false, `document.exitFullscreen` is undefined,
+  // `'fullscreenElement' in document` is false) — can't use vi.spyOn (requires method to already exist),
+  // must directly assign/defineProperty to stub the whole API.
+  describe('fullscreen (review test addition — previous 5 tests never touched fullscreen button)', () => {
     const stubFullscreenAPI = () => {
       const requestFullscreen = vi.fn().mockResolvedValue(undefined)
       Element.prototype.requestFullscreen = requestFullscreen as unknown as () => Promise<void>
@@ -488,13 +493,13 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
       delete (document as { fullscreenElement?: unknown }).fullscreenElement
     })
 
-    it('(a) 未全屏时点击全屏按钮:调用 requestFullscreen;成功后 isFullscreen 为真且强制显示工具条', async () => {
+    it('(a) when not fullscreen, clicking fullscreen button: calls requestFullscreen; after success isFullscreen true and toolbar forcibly shown', async () => {
       const { requestFullscreen } = stubFullscreenAPI()
       setFullscreenElement(null)
-      // 用受控 Promise:验证"中途鼠标离开把工具条藏起来了,成功回调仍能把它强制翻回来"
-      // ——这正是 toggleFullscreen 成功回调里 `sendKeyVisible.value = true` 那一行存在
-      // 的理由,如果只在"点击后立刻检查"会测不出删掉这一行的区别(因为点击前工具条本来
-      // 就得是显示状态才点得到按钮)。
+      // Use controlled Promise: verify "mouse leaves mid-request hides toolbar, success callback still forces it back"
+      // — this is exactly why `sendKeyVisible.value = true` exists in toggleFullscreen success callback,
+      // if only checked "right after click" we'd miss the difference of deleting that line (because toolbar
+      // must be showing before click to be clickable).
       let resolveRequest: () => void = () => {}
       requestFullscreen.mockImplementation(() => new Promise<void>((r) => { resolveRequest = () => r(undefined) }))
 
@@ -506,16 +511,16 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
       await w.get('.sendkey-btn--fullscreen').trigger('click')
       expect(requestFullscreen).toHaveBeenCalledTimes(1)
 
-      await w.get('.console-display').trigger('mouseleave') // 请求还没 resolve,鼠标先离开
+      await w.get('.console-display').trigger('mouseleave') // request hasn't resolved yet, mouse leaves first
       expect(w.find('.sendkey-toolbar').exists()).toBe(false)
 
       resolveRequest()
       await flush()
-      expect(w.find('.sendkey-toolbar').exists()).toBe(true) // 成功回调强制显示,重新出现
+      expect(w.find('.sendkey-toolbar').exists()).toBe(true) // success callback forces display, reappears
       expect(w.get('.sendkey-btn--fullscreen').attributes('aria-label')).toBe('退出全屏')
     })
 
-    it('(b) 已全屏时点击全屏按钮:调用 exitFullscreen', async () => {
+    it('(b) when already fullscreen, clicking fullscreen button: calls exitFullscreen', async () => {
       const { exitFullscreen } = stubFullscreenAPI()
       setFullscreenElement(document.createElement('div'))
 
@@ -528,14 +533,14 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
       expect(exitFullscreen).toHaveBeenCalledTimes(1)
     })
 
-    it('fullscreenchange 事件(非按钮触发,如系统级 Esc/F11)驱动 isFullscreen 同步,VM running 时强制显示工具条', async () => {
+    it('fullscreenchange event (non-button triggered, like system-level Esc/F11) syncs isFullscreen, toolbar forcibly shown when VM running', async () => {
       stubFullscreenAPI()
       setFullscreenElement(null)
 
       api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
       const w = mountPage()
       await flush()
-      expect(w.find('.sendkey-toolbar').exists()).toBe(false) // 还没碰过鼠标,初始隐藏
+      expect(w.find('.sendkey-toolbar').exists()).toBe(false) // haven't touched mouse yet, initially hidden
 
       setFullscreenElement(document.createElement('div'))
       document.dispatchEvent(new Event('fullscreenchange'))
@@ -546,9 +551,9 @@ describe('KvmPage SendKey 悬浮工具条 + 全屏(Task 7)', () => {
   })
 })
 
-// Task 8:安装横幅(照 Vue2 :142)+ SPICE 提示条(照 Vue2 :157,180 秒自动收起 :748-752)。
-describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
-  it('running + 未从硬盘启动 + 有 iso → 显示安装横幅', async () => {
+// Task 8: Installation banner (per Vue2 :142) + SPICE info bar (per Vue2 :157, auto-hide after 180s :748-752).
+describe('KvmPage installation banner + SPICE info bar (Task 8)', () => {
+  it('running + not booting from disk + has iso → show installation banner', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
       total: 1,
@@ -558,7 +563,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.installation-banner').exists()).toBe(true)
   })
 
-  it('已从硬盘启动 → 不显示安装横幅', async () => {
+  it('booting from disk → don\'t show installation banner', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
       total: 1,
@@ -568,7 +573,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.installation-banner').exists()).toBe(false)
   })
 
-  it('没有 iso → 不显示安装横幅(即便未从硬盘启动)', async () => {
+  it('no iso → don\'t show installation banner (even if not booting from disk)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '' })],
       total: 1,
@@ -578,7 +583,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.installation-banner').exists()).toBe(false)
   })
 
-  it('点安装横幅按钮调 setBootFromDisk(id, true),成功后横幅消失(bootFromDisk 变 true)', async () => {
+  it('click installation banner button calls setBootFromDisk(id, true), after success banner disappears (bootFromDisk becomes true)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
       total: 1,
@@ -588,9 +593,9 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     await flush()
     expect(w.find('.installation-banner').exists()).toBe(true)
 
-    // ejectInstallMedia 成功后会调 fetchVMs() 整表刷新——第二次 getVMList 返回
-    // bootFromDisk:true,横幅的显示条件因此变假,这是"横幅消失即成功反馈"的机制
-    // (KvmPage.vue 里说明过:没有另外接 toast,横幅消失本身就是状态驱动的确认)。
+    // ejectInstallMedia after success calls fetchVMs() for full table refresh — second getVMList returns
+    // bootFromDisk:true, banner display condition becomes false, this is the "banner disappearing as success feedback" mechanism
+    // (explained in KvmPage.vue: no separate toast, banner disappearing itself is state-driven confirmation).
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
       total: 1,
@@ -602,12 +607,12 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.installation-banner').exists()).toBe(false)
   })
 
-  // 评审 Important #1:eject 失败之前完全静默——lastError 有写,但唯一的内联错误展示位
-  // (ConsoleStage 的 console-placeholder)只在 !connected 时渲染,而横幅的显示条件要求
-  // state==='running',此时 T6 已经自动连上 VNC,占位层压根不渲染,用户什么反馈都看
-  // 不到。补上安装横幅自己的内联错误展示后,这两条用例锁住"错误真的显示出来了"。
-  describe('评审 Important #1:eject 失败时横幅内联显示错误(此前完全静默)', () => {
-    it('后端返回 message → 原样显示在横幅上', async () => {
+  // Review Important #1: eject failure was completely silent before — lastError is written, but the only inline error display
+  // location (ConsoleStage's console-placeholder) only renders when !connected, while banner display condition requires
+  // state==='running', by then Task 6 already auto-connected VNC, placeholder layer doesn't render at all, user sees no feedback.
+  // After adding banner's own inline error display, these two tests lock down "error actually displays".
+  describe('Review Important #1: eject failure shows banner inline error (was completely silent before)', () => {
+    it('backend returns message → display as-is on banner', async () => {
       api.getVMList.mockResolvedValue({
         data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
         total: 1,
@@ -619,12 +624,12 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
       await w.get('.banner-btn').trigger('click')
       await flush()
 
-      // 横幅还在(setBootFromDisk 失败,bootFromDisk 没变,显示条件仍然成立)
+      // Banner still there (setBootFromDisk failed, bootFromDisk didn't change, display condition still true)
       expect(w.find('.installation-banner').exists()).toBe(true)
       expect(w.get('.banner-error').text()).toBe('disk is busy')
     })
 
-    it('后端 message 为空 → 显示翻译后的中文兜底(kvmEjectFailed),不是键名', async () => {
+    it('backend message empty → show translated Chinese fallback (kvmEjectFailed), not key name', async () => {
       api.getVMList.mockResolvedValue({
         data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
         total: 1,
@@ -641,7 +646,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
       expect(err.text()).not.toContain('kvmEjectFailed')
     })
 
-    it('再点一次按钮会先清掉上一次的报错(不会永久卡在错误态)', async () => {
+    it('click button again clears previous error first (won\'t stay stuck in error state)', async () => {
       api.getVMList.mockResolvedValue({
         data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
         total: 1,
@@ -654,8 +659,8 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
       await flush()
       expect(w.get('.banner-error').text()).toBe('first failure')
 
-      // 第二次点击成功:bootFromDisk 变 true,横幅整个消失,错误自然也跟着消失
-      // (不是靠"清空 errorKey 但横幅还在"这种中间态,而是显示条件本身变假)。
+      // Second click succeeds: bootFromDisk becomes true, banner disappears entirely, error disappears with it
+      // (not by "clear errorKey but banner still there" middle state, but display condition itself becomes false).
       api.setBootFromDisk.mockResolvedValueOnce(undefined)
       api.getVMList.mockResolvedValue({
         data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, iso: '/data/alpine.iso' })],
@@ -667,37 +672,36 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     })
   })
 
-  // 评审 Important #2(第二轮复审):lastError 是 runAction/toggleAutostart/remove/
-  // ejectInstallMedia 共用的单一 ref。旧写法(await eject 完之后再读 s.lastError.value)
-  // 有"串味"风险——eject 在途时,如果**同一台 VM**上的另一个电源动作(本例用暂停)
-  // 恰好在这段等待期间失败并写了 lastError,eject 明明自己成功了,却可能读到那条不
-  // 相干的错误。这里刻意**不切换 VM**(避免触发 ejectError 的"切换 VM 时复位"逻辑,
-  // 那样会掩盖掉真正要验证的东西——即使不复位,返回值本身也不该被污染),走真实的
-  // 交错路径:eject 发出请求但还没 resolve → 暂停在同一时刻失败 → eject 才 resolve。
-  describe('评审 Important #2:eject 与其它动作交错时不串味(真实交错路径,非顺序调用)', () => {
-    // ⚠️ 排查记录(第一版这条用例的教训):最初只把 setBootFromDisk 挂起、暂停失败发生在
-    // "eject 在途"期间就去 resolveEject,结果发现即使把 KvmPage.vue 改回读共享 lastError
-    // 的旧写法,这条用例依旧全绿——不是真的堵住了 bug。原因:`ejectInstallMedia` 自己在
-    // setBootFromDisk 成功后会立刻 `lastError.value = ''` 清一次,这一步发生在它调用
-    // `fetchVMs()` 整表刷新**之前**;如果交错的暂停失败发生在 eject 自己清空 lastError
-    // **之前**,那么 eject 后续的清空动作会把 lastError 盖回 ''，KvmPage 无论读共享 ref
-    // 还是读返回值,结果都一样是 ''——两种写法测不出区别。真正会读到"串味"的窗口,是
-    // **eject 自己清空 lastError 之后、eject 的 promise 真正 resolve 之前**这一段(也就是
-    // 它自己 `await fetchVMs()` 那段时间)——只有交错发生在这个窗口里,旧写法(eject 完
-    // 之后再读共享 ref)才会读到别的动作重新写脏的值。这里把第二次 getVMList(eject 成功
-    // 后触发的整表刷新)也挂起,精确把交错点卡在这个窗口里。
-    it('eject 内部清空 lastError 之后、自己整表刷新完成之前,另一个动作把 lastError 写脏 → eject 成功后横幅不应显示那条不相干的错误', async () => {
-      // bootFromDisk 全程保持 false——这样 eject "成功"之后横幅依旧满足显示条件,
-      // 才能在事后检查它有没有显示错误行(如果 bootFromDisk 变 true,横幅直接消失,
-      // 就无法断言"横幅没显示错误"这件事,详见上面"再点一次"用例的同款注释)。
+  // Review Important #2 (second review): lastError is a single ref shared by runAction/toggleAutostart/remove/
+  // ejectInstallMedia. Old pattern (await eject completes then read s.lastError.value) has "cross-talk" risk —
+  // while eject in progress, if **another power action on same VM** (here: pause) happens to fail in this window
+  // and write lastError, eject itself succeeded but might read that unrelated error. Here we deliberately
+  // **don't switch VM** (avoid triggering ejectError's "reset on VM switch" logic, which would mask the real issue —
+  // even without reset, return value shouldn't be polluted), follow real interleaved path: eject sends request but hasn't
+  // resolved → pause fails at same moment → eject finally resolves.
+  describe('Review Important #2: eject and other actions interleaved without cross-talk (real interleaved path, not sequential)', () => {
+    // ⚠️ Probe records (first version of this test lesson): initially just suspended setBootFromDisk, pause failure
+    // happened during "eject in progress" then resolveEject, found that even if we revert KvmPage.vue to old pattern
+    // of reading shared lastError, this test still all green — isn't actually catching the bug. Reason: `ejectInstallMedia`
+    // itself does `lastError.value = ''` clear right after setBootFromDisk succeeds, this happens **before** calling
+    // `fetchVMs()` full table refresh; if interleaved pause failure happens **before** eject's own clear, then eject's
+    // subsequent clear overwrites lastError back to '', KvmPage reading shared ref or return value both result in '' —
+    // two patterns can't distinguish. Real window to read "cross-talk" is **after eject clears lastError itself, before
+    // eject's promise actually resolves** (i.e., during its own `await fetchVMs()`) — only if interleaving happens in
+    // this window does old pattern (read shared ref after eject) read value polluted by other actions. Here we suspend
+    // second getVMList (full refresh triggered after eject succeeds) too, precisely locking interleave point in this window.
+    it('after eject internally clears lastError, before its own full refresh completes, another action pollutes lastError → after eject succeeds banner shouldn\'t show that unrelated error', async () => {
+      // bootFromDisk stays false throughout — this way eject "succeeds" but banner still meets display condition,
+      // so we can check afterward if it showed error line (if bootFromDisk became true, banner disappears directly,
+      // can't assert "banner showed no error", see same comment in "click again" test above).
       const fixture = {
         data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
         total: 1,
       }
-      api.getVMList.mockResolvedValueOnce(fixture) // 初始挂载那次 fetchVMs,正常返回
+      api.getVMList.mockResolvedValueOnce(fixture) // initial mount fetchVMs, normal return
       let resolveRefetch: () => void = () => {}
-      // 之后每一次 getVMList(即 eject 成功后自己触发的整表刷新)都挂起,交由本用例手动放行——
-      // 这就是"eject 自己清空 lastError 之后、真正 resolve 之前"那个窗口的具体实现。
+      // Each subsequent getVMList (eject's own full refresh after success) suspends, manual release by this test —
+      // this is concrete implementation of "after eject clears lastError itself, before it truly resolves" window.
       api.getVMList.mockImplementation(() => new Promise((r) => { resolveRefetch = () => r(fixture) }))
       let resolveEject: () => void = () => {}
       api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveEject = () => r(undefined) }))
@@ -706,42 +710,43 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
       await flush()
       expect(w.find('.installation-banner').exists()).toBe(true)
 
-      // 1) eject 发出请求(setBootFromDisk 挂起)。
+      // 1) eject sends request (setBootFromDisk suspended).
       await w.get('.banner-btn').trigger('click')
 
-      // 2) 放行 setBootFromDisk——eject 内部往下走:先把 lastError 清成 ''，然后调用
-      //    fetchVMs() 发起第二次 getVMList,但那次调用也被挂起了,eject 因此卡在自己的
-      //    fetchVMs() 里,还没有真正 resolve。
+      // 2) release setBootFromDisk — eject proceeds internally: first clear lastError to '', then call
+      //    fetchVMs() to send second getVMList, but that call is also suspended, so eject stalls in its own
+      //    fetchVMs(), hasn't truly resolved yet.
       resolveEject()
       await flush()
 
-      // 3) 正是这个窗口期——交错触发一个完全不相干的动作(暂停),让它失败并重新写脏
-      //    共享的 lastError。这一步完整跑完,发生在 eject 自己已清空但尚未 resolve
-      //    之间,是真正会暴露"串味"的交错点(不是顺序调用)。
-      await w.findAll('.action-btn')[1].trigger('click') // 打开溢出菜单
+      // 3) exactly this window — interleave trigger completely unrelated action (pause), fail it and repollute
+      //    shared lastError. This step completes fully, happens between eject's own clear and resolve,
+      //    is the real point exposing "cross-talk" (not sequential call).
+      await w.findAll('.action-btn')[1].trigger('click') // open overflow menu
       await w.findAll('.dropdown-item').find((b) => b.text().includes('暂停'))!.trigger('click')
       await flush()
-      expect(api.pauseVM).toHaveBeenCalledTimes(1) // 确认暂停确实跑完了(失败,写脏了 lastError)
+      expect(api.pauseVM).toHaveBeenCalledTimes(1) // confirm pause definitely completed (failed, polluted lastError)
 
-      // 4) 现在才放行 eject 自己的整表刷新请求,让它真正 resolve——eject 本身自始至终
-      //    都是成功的,不应该被步骤 3 的暂停失败影响。
+      // 4) now release eject's own full refresh request, let it truly resolve — eject itself throughout
+      //    is successful, shouldn't be affected by step 3's pause failure.
       resolveRefetch()
       await flush()
 
-      // 横幅还在(bootFromDisk 全程没变),但不应该显示"unrelated pause failure"这条
-      // 不相干的错误——旧写法(eject 完之后再读共享 lastError)会在这里翻红,因为此刻
-      // 共享 ref 里存的是步骤 3 写脏的值,而不是 eject 自己的结果。
+      // Banner still there (bootFromDisk unchanged throughout), but shouldn't show "unrelated pause failure" —
+      // old pattern (read shared lastError after eject) would fail here, because shared ref now holds
+      // step 3's polluted value, not eject's own result.
       expect(w.find('.installation-banner').exists()).toBe(true)
       expect(w.find('.banner-error').exists()).toBe(false)
     })
   })
 
-  // ⚠️ 这几条 SPICE 用例都要把 getVNC 的 mock 一并改掉:running 态的 VM 会自动走 VNC
-  // 连接(Task 6 接线),连接成功后 useVncConsole 的 onSpicePorts 回调会用 getVNC 返回的
-  // spicePort 覆盖 vm.spicePort(照 Vue2 connectVNC 的保活合并写法,spicePreserve.ts)。
-  // beforeEach 里 getVNC 默认 mock 返回 spicePort:0,不改的话这里传的 spicePort:5901
-  // 会被这次"保活合并"覆盖回 0,条件变假、条不出现——排查过程见 task-8-report.md。
-  it('spicePort>0 且 bootFromDisk → 显示 SPICE 条,拼出正确的连接串', async () => {
+  // ⚠️ These SPICE tests all need getVNC mock updated too: running VMs auto-connect VNC
+  // (Task 6 wiring), after successful connect useVncConsole's onSpicePorts callback overrides
+  // vm.spicePort with getVNC's return (per Vue2 connectVNC keepalive merge, spicePreserve.ts).
+  // beforeEach's default getVNC mock returns spicePort:0, if not changed here spicePort:5901
+  // gets overridden back to 0 by this "keepalive merge", condition becomes false, won't show —
+  // probe process see task-8-report.md.
+  it('spicePort>0 and bootFromDisk → show SPICE info bar, build correct connection string', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
       total: 1,
@@ -754,7 +759,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(bar.get('code').text()).toBe(`spice://${window.location.hostname}:5901`)
   })
 
-  it('spicePort<=0 → 不显示 SPICE 条(即便已从硬盘启动)', async () => {
+  it('spicePort<=0 → don\'t show SPICE info bar (even if already booting from disk)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 0 })],
       total: 1,
@@ -764,7 +769,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.spice-info-bar').exists()).toBe(false)
   })
 
-  it('点 SPICE 条的关闭按钮后隐藏', async () => {
+  it('click SPICE info bar close button hides it', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 })],
       total: 1,
@@ -777,11 +782,11 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     expect(w.find('.spice-info-bar').exists()).toBe(false)
   })
 
-  // vi.useFakeTimers() 必须在 mountPage() **之前**打开——组件 watch selectedVM.id 里
-  // setTimeout(...,180000) 是在 onMounted 触发的首次 fetchVMs 解析后才调用的,如果先用
-  // 真实时钟挂载再切假时钟,那个 setTimeout 已经用真实实现调度出去了,vi.advanceTimersByTime
-  // 动不了它(硬约束:不能真的等 180 秒,必须假时钟接管从一开始)。
-  it('180 秒后 SPICE 条自动消失(vi.useFakeTimers,不真的等待)', async () => {
+  // vi.useFakeTimers() must be opened **before** mountPage() — component's watch selectedVM.id
+  // setTimeout(...,180000) is called after initial fetchVMs from onMounted resolves, if we mount with real clock
+  // first then switch to fake, that setTimeout is already scheduled with real impl, vi.advanceTimersByTime can't
+  // move it (hard constraint: can't really wait 180s, must fake clock take over from start).
+  it('SPICE info bar auto-disappears after 180s (vi.useFakeTimers, not actually waiting)', async () => {
     vi.useFakeTimers()
     try {
       api.getVMList.mockResolvedValue({
@@ -790,7 +795,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
       })
       api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
       const w = mountPage()
-      await vi.advanceTimersByTimeAsync(0) // 让 fetchVMs 的 promise 链 + watch 首次触发跑完
+      await vi.advanceTimersByTimeAsync(0) // let fetchVMs promise chain + watch first trigger complete
       expect(w.find('.spice-info-bar').exists()).toBe(true)
 
       await vi.advanceTimersByTimeAsync(180_000)
@@ -800,7 +805,7 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     }
   })
 
-  it('切换 VM 时 SPICE 条重新出现并重新计时(旧计时器被清掉,不会提前隐藏新 VM 的条)', async () => {
+  it('when switching VM, SPICE info bar reappears and restarts timer (old timer cleared, won\'t prematurely hide new VM\'s bar)', async () => {
     vi.useFakeTimers()
     try {
       api.getVMList.mockResolvedValue({
@@ -810,27 +815,27 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
         ],
         total: 2,
       })
-      // 两台 VM connect() 时都会走同一个 getVNC mock,覆盖回来的 spicePort 是不是 5901
-      // 还是 5902 不重要——这条用例只断言"条子在不在",不断言连接串数值。
+      // Both VMs use same getVNC mock when connect(), whether overridden spicePort is 5901
+      // or 5902 doesn't matter — this test only asserts "bar there or not", not connection string value.
       api.getVNC.mockResolvedValue({ vncPort: 5900, vncWebsocketPort: 5700, spicePort: 5901, spiceTlsPort: 0 })
       const w = mountPage()
       await vi.advanceTimersByTimeAsync(0)
-      expect(w.find('.spice-info-bar').exists()).toBe(true) // vm-1 的条,180s 后(t=180)会隐藏
+      expect(w.find('.spice-info-bar').exists()).toBe(true) // vm-1's bar, will hide after 180s (t=180)
 
-      await vi.advanceTimersByTimeAsync(100_000) // t=100s,vm-1 的条还在(还没到 180s)
+      await vi.advanceTimersByTimeAsync(100_000) // t=100s, vm-1's bar still there (not to 180s yet)
       expect(w.find('.spice-info-bar').exists()).toBe(true)
 
       const items = w.findAll('.vm-list-item')
-      await items[1].trigger('click') // 切到 vm-2(t=100s),重置计时器 → 新的 180s 从此刻算
+      await items[1].trigger('click') // switch to vm-2 (t=100s), reset timer → new 180s from now
       await vi.advanceTimersByTimeAsync(0)
-      expect(w.find('.spice-info-bar').exists()).toBe(true) // 切换后条子跟着重新出现(vm-2 的)
+      expect(w.find('.spice-info-bar').exists()).toBe(true) // after switch bar reappears (vm-2's)
 
-      // 再等 90s(总计 t=190s)。如果 vm-1 那个旧计时器没被清掉,它会在 t=180s 触发,
-      // 190s 这个时间点条应该已经被(错误地)隐藏——断言它还在,证明旧计时器确实被清掉了。
+      // wait another 90s (total t=190s). If vm-1's old timer wasn't cleared, it fires at t=180s,
+      // at t=190s bar should (incorrectly) be hidden — asserting it's still there proves old timer was cleared.
       await vi.advanceTimersByTimeAsync(90_000)
       expect(w.find('.spice-info-bar').exists()).toBe(true)
 
-      // 再等 90s(总计 t=280s = 切换后 180s),这才是 vm-2 那个新计时器该触发的时间点。
+      // wait another 90s (total t=280s = 180s after switch), this is when vm-2's new timer should fire.
       await vi.advanceTimersByTimeAsync(90_000)
       expect(w.find('.spice-info-bar').exists()).toBe(false)
     } finally {
@@ -838,15 +843,15 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     }
   })
 
-  // 评审 Important #2 补测:上面那条"重新计时"用例全程没有把 spiceDismissed 置成
-  // true 过(只验证了计时器清理),brief Step 3 明确要求"切换 VM 时 dismissed 复位"
-  // 这半句完全没被测到——评审独立变异删掉 KvmPage.vue 里 `spiceDismissed.value = false`
-  // 那一行,`pnpm vitest run src/kvm/` 依旧全绿,证实这是个空档。这里补上:先在 vm-1
-  // 上点关闭把条子关掉(dismissed=true),再切到 vm-2,断言条子重新出现——这条路径
-  // 必须靠"复位 dismissed"才能通过,单靠"计时器被清理"救不了它(dismissed 不复位的话
-  // 即使计时器重新调度了 180s 后的隐藏,条子在这 180s 窗口期内依然会因为 dismissed
-  // 还是 true 而不显示)。
-  it('vm-1 关闭 SPICE 条后切到 vm-2,条子应重新出现(dismissed 标记被复位)', async () => {
+  // Review Important #2 additional test: the "restart timer" test above never set spiceDismissed
+  // to true (only verified timer clearing), brief Step 3 explicitly requires "reset dismissed on VM switch"
+  // — this half sentence completely uncovered — review independently mutated deleting `spiceDismissed.value = false`
+  // line in KvmPage.vue, `pnpm vitest run src/kvm/` still all green, confirms this is a gap. Add it here:
+  // first close bar on vm-1 (dismissed=true), then switch to vm-2, assert bar reappears — this path
+  // must rely on "reset dismissed" to pass, timer clearing alone can't save it (if dismissed not reset,
+  // even if timer reschedules hiding after 180s, bar still won't show during that 180s window because
+  // dismissed is still true).
+  it('after closing SPICE info bar on vm-1, switch to vm-2, bar should reappear (dismissed flag is reset)', async () => {
     api.getVMList.mockResolvedValue({
       data: [
         VM({ id: 'vm-1', state: 'running', bootFromDisk: true, spicePort: 5901 }),
@@ -859,23 +864,23 @@ describe('KvmPage 安装横幅 + SPICE 提示条(Task 8)', () => {
     await flush()
     expect(w.find('.spice-info-bar').exists()).toBe(true)
 
-    await w.get('.spice-info-close').trigger('click') // vm-1 上关掉
+    await w.get('.spice-info-close').trigger('click') // close on vm-1
     expect(w.find('.spice-info-bar').exists()).toBe(false)
 
     const items = w.findAll('.vm-list-item')
-    await items[1].trigger('click') // 切到 vm-2
+    await items[1].trigger('click') // switch to vm-2
     await flush()
-    expect(w.find('.spice-info-bar').exists()).toBe(true) // 应重新出现,不是继续沿用 vm-1 的关闭状态
+    expect(w.find('.spice-info-bar').exists()).toBe(true) // should reappear, not continue vm-1's closed state
   })
 })
 
-// 必修①(全分支终审):Vue2 六个电源动作 + toggleAutoStart + deleteVM +
-// handleInstallationFinished 成功时都会弹一条 buefy toast,New-UI 一条都没有——未申报
-// 的偏离。这里锁住"成功真的弹了 toast,文案逐字对 Vue2"。至少覆盖 start / autostart
-// 开关两态 / delete / eject 四类(任务派单点名的最小集合),失败路径不测(那是 lastError
-// 内联展示的既有约定,任务明确写了"别改成 toast")。
-describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
-  it('开机成功后弹 toast "sp9-alpine-test 已启动"', async () => {
+// Required ① (full branch final review): Vue2's six power actions + toggleAutoStart + deleteVM +
+// handleInstallationFinished all pop buefy toast on success, New-UI has none — unreported deviation.
+// Lock down "success really pops toast, exact text match Vue2". At least cover start / autostart
+// toggle both states / delete / eject four types (minimum set task dispatch specifies), don't test failure
+// path (that's existing convention of inline lastError display, task explicitly says "don't change to toast").
+describe('KvmPage Required ①: success toast (full branch final review)', () => {
+  it('after power-on success, pop toast "sp9-alpine-test 已启动"', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockResolvedValue(undefined)
     const w = mountPage()
@@ -888,7 +893,7 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     expect(useToast().toasts.map((x) => x.text)).toContain('sp9-alpine-test 已启动')
   })
 
-  it('暂停/恢复/强制重启/强制关机成功后也各自弹对应文案的 toast', async () => {
+  it('pause/resume/force restart/force shutdown on success also each pop corresponding text toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     api.pauseVM.mockResolvedValue(undefined)
     api.resumeVM.mockResolvedValue(undefined)
@@ -908,17 +913,17 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     await flush()
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已恢复')
 
-    // 重启需要两次点(就地二次确认)
+    // restart needs two clicks (in-place double confirmation)
     await w.findAll('.action-btn')[1].trigger('click')
     await w.findAll('.dropdown-item').find((b) => b.text().includes('强制重启'))!.trigger('click')
     await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
     await flush()
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已重启')
 
-    // SP16 Task 10:标题一直承诺了强制关机,用例体却从没点过它 —— api.stopVM 早就 mock
-    // 好了但从未触发,于是标题读起来像"有覆盖"而实际没有。补上。与重启同一套就地二次
-    // 确认(OverflowMenu.vue:91 的 isPending('stop') 分支)。文案取自 zh_cn.sp9.ts:437
-    // 的字面量 kvmToastStopped('已停止'),不是照标题猜的。
+    // SP16 Task 10: title always promised force shutdown, test body never clicked it — api.stopVM
+    // mocked long ago but never triggered, so title reads "covered" but actually not. Add it.
+    // Same in-place double confirmation as restart (OverflowMenu.vue:91 isPending('stop') branch).
+    // Text from zh_cn.sp9.ts:437 literal kvmToastStopped('已停止'), not guessed from title.
     await w.findAll('.action-btn')[1].trigger('click')
     await w.findAll('.dropdown-item').find((b) => b.text().includes('强制关机'))!.trigger('click')
     await w.findAll('.dropdown-item').find((b) => b.text().includes('你确定吗？'))!.trigger('click')
@@ -927,7 +932,7 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 已停止')
   })
 
-  it('自动启动开关两态:开→toast 含"开",再点关→toast 含"已关闭"', async () => {
+  it('autostart toggle two states: on → toast contains "开", click again off → toast contains "已关闭"', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running', autostart: false })], total: 1 })
     api.setAutostart.mockResolvedValue(undefined)
     const w = mountPage()
@@ -945,7 +950,7 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     expect(toast.toasts.map((x) => x.text)).toContain('sp9-alpine-test 自动启动 已关闭')
   })
 
-  it('删除(二次确认通过)成功后弹 toast "sp9-alpine-test 已删除"', async () => {
+  it('delete (double confirmation passed) on success pop toast "sp9-alpine-test 已删除"', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.deleteVM.mockResolvedValue(undefined)
     const w = mountPage()
@@ -959,7 +964,7 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     expect(useToast().toasts.map((x) => x.text)).toContain('sp9-alpine-test 已删除')
   })
 
-  it('弹出安装介质成功后弹 toast(Vue2 固定整句文案,不拼 vm 名)', async () => {
+  it('eject installation media on success pop toast (Vue2 fixed whole sentence, not spliced with vm name)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
       total: 1,
@@ -976,7 +981,7 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
     )
   })
 
-  it('失败时不弹 toast(继续走 lastError 内联展示的既有约定)', async () => {
+  it('on failure don\'t pop toast (continue following existing lastError inline display convention)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.startVM.mockRejectedValue(new Error('domain busy'))
     const w = mountPage()
@@ -991,13 +996,13 @@ describe('KvmPage 必修①:成功 toast(全分支终审)', () => {
   })
 })
 
-// P6 Task 8:创建流程接线——Add VM 解禁 / 空列表自弹 / OsSelector 联动 / createVM 提交 /
-// ISO 下载三事件的 toast。弹窗全部走 KvmDialog(reka-ui DialogPortal),一律 Teleport 到
-// 真实 document.body,只能用 document.body.querySelector 断言,且必须 attachTo:
-// document.body + await nextTick()(硬约束 8,前四个任务都踩过并修过的坑)。
-describe('KvmPage 创建流程接线(P6 Task 8)', () => {
-  // 点已下载的官方模板卡片(按钮文案="选择")。多个用例复用,写成小工具而不是每条
-  // 用例里重复同一段 querySelector 逻辑。
+// P6 Task 8: Create flow wiring — Add VM enabled / empty list auto-open / OsSelector linked / createVM submit /
+// ISO download three events toast. Dialogs all use KvmDialog (reka-ui DialogPortal), uniformly Teleport
+// to real document.body, can only assert with document.body.querySelector, must use attachTo:
+// document.body + await nextTick() (hard constraint 8, pitfalls hit and fixed by first four tasks).
+describe('KvmPage create flow wiring (P6 Task 8)', () => {
+  // Click downloaded official template card (button text="select"). Multiple tests reuse, write as small tool
+  // instead of repeating same querySelector logic in each test.
   const clickSelectAlpine = () => {
     const btn = [...document.body.querySelectorAll('.os-action-btn')]
       .find((b) => b.textContent?.trim() === '选择') as HTMLElement
@@ -1009,11 +1014,11 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     el.dispatchEvent(new Event('input'))
   }
 
-  // 评审 Important #2:点「添加虚拟机」→ 弹窗落地(reka-ui teleport 要等一个 nextTick,
-  // 硬约束 8)这段序列被逐字复制了六次。拆成两个 helper 而不是一个——「只开创建弹窗」
-  // 和「开创建弹窗再点 ISO 行打开 OsSelector」是两种不同的用例前提,不是所有用例都需要
-  // 点 ISO 行(比如「点「添加虚拟机」弹创建弹窗」这条),硬凑成一个只会让不需要的用例
-  // 也跑一遍不相关的步骤。
+  // Review Important #2: "Add VM" button → dialog lands (reka-ui teleport needs one nextTick,
+  // hard constraint 8) sequence was copied verbatim six times. Split into two helpers not one —
+  // "only open create dialog" and "open create dialog then click ISO row to open OsSelector" are
+  // two different test premises, not all tests need clicking ISO row (e.g. "click Add VM to pop create dialog"),
+  // forcing one helper would make unnecessary tests also run irrelevant steps.
   const openCreateDialog = async (w: VueWrapper): Promise<void> => {
     await w.get('.add-vm-btn').trigger('click')
     await flush()
@@ -1021,15 +1026,15 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
   }
   const openCreateAndPickIso = async (w: VueWrapper): Promise<void> => {
     await openCreateDialog(w)
-    // ⚠️ .cv-iso-btn 在 CreateVmDialog 的 Teleport 内容里,不在 KvmPage 自己的渲染树上——
-    // `w.get()`/`w.find()` 找不到 Teleport 出去的节点(硬约束 8 的坑,前四个任务都踩过),
-    // 必须走真实 document 查询再原生 `.click()`(同 CreateVmDialog.test.ts 的 `q(...).click()` 写法)。
+    // ⚠️ .cv-iso-btn is inside CreateVmDialog's Teleport content, not on KvmPage's own render tree —
+    // `w.get()`/`w.find()` can't find teleported nodes (hard constraint 8 pit, all first four tasks hit),
+    // must use real document query then native `.click()` (same as CreateVmDialog.test.ts `q(...).click()` style).
     ;(document.body.querySelector('.cv-iso-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
   }
 
-  it('VM 列表为空时自动弹创建弹窗(照 Vue2 :901,P5 走的是空态占位)', async () => {
+  it('when VM list is empty, auto-open create dialog (per Vue2 :901, P5 used empty placeholder)', async () => {
     api.getVMList.mockResolvedValue({ data: [], total: 0 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
@@ -1037,7 +1042,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('列表非空时不自动弹', async () => {
+  it('when list non-empty, don\'t auto-open', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
@@ -1045,14 +1050,14 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  // autoOpenedCreate 一次性标志的真实覆盖(硬约束 4/5):只测"首次拉到空会弹"/"首次
-  // 拉到非空不弹"这两条,删掉这个标志(变成每次 `!loading && vms.length===0` 都弹)
-  // 照样全绿——那两条用例都只挂载一次、只经历一次 fetchVMs()。这里补一条会让"删掉
-  // 一次性标志"这个变异真正翻红的用例:手动关掉弹窗后,再触发一次由 MessageBus 事件
-  // 引发的整表刷新(`kvm:vm_deleted` 不带 vm_id 时 useVmList 会走 `fetchVMs()` 全量
-  // 刷新分支),依旧拉到空列表——如果没有一次性标志,这次刷新会把弹窗重新弹出来,
-  // 用户刚关掉的弹窗"死灰复燃"。变异验证见任务报告。
-  it('手动关闭后,后续刷新即便再次拉到空列表也不会重新弹出(autoOpenedCreate 一次性标志)', async () => {
+  // autoOpenedCreate one-time flag's real coverage (hard constraint 4/5): only test "first pull empty opens" /
+  // "first pull non-empty doesn't open" these two, delete this flag (becomes "open every time if !loading && vms.length===0")
+  // still all green — both tests only mount once, only go through fetchVMs() once. Add one here that makes
+  // "delete one-time flag" mutation really fail: after manual close dialog, trigger one MessageBus-event-caused
+  // full refresh (`kvm:vm_deleted` without vm_id makes useVmList take full `fetchVMs()` refresh branch),
+  // still pulls empty list — without one-time flag, this refresh would re-pop the dialog, "resurrecting" user's
+  // just-closed dialog. Mutation verification see task report.
+  it('after manual close, subsequent refresh even pulling empty list again won\'t re-open (autoOpenedCreate one-time flag)', async () => {
     api.getVMList.mockResolvedValue({ data: [], total: 0 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
@@ -1063,7 +1068,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     await w.vm.$nextTick()
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
 
-    emitBus('kvm:vm_deleted', {}) // 无 vm_id → useVmList 走 fetchVMs() 全量刷新分支
+    emitBus('kvm:vm_deleted', {}) // no vm_id → useVmList takes full fetchVMs() refresh branch
     await flush()
     await w.vm.$nextTick()
 
@@ -1071,8 +1076,8 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('点「添加虚拟机」弹创建弹窗', async () => {
-    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 }) // 非空列表,排除自动弹这条无关分支
+  it('click "Add VM" to open create dialog', async () => {
+    api.getVMList.mockResolvedValue({ data: [VM()], total: 1 }) // non-empty list, exclude auto-open unrelated branch
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
@@ -1083,16 +1088,16 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('创建弹窗里点 ISO 行 → OsSelector 打开(z-index 920 叠在上面)', async () => {
+  it('click ISO row in create dialog → OsSelector opens (z-index 920 stacks on top)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
 
     await openCreateAndPickIso(w)
 
-    // KvmDialog 的外壳 class(.create-vm-modal/.create-vm-title)是所有弹窗共用的同一套
-    // (创建弹窗 + OsSelector 此刻同时挂着),不能只查第一个——按 z-index 精确定位
-    // OsSelector 那一个(920 叠在创建弹窗的 900 之上,照 Vue2 b-modal 的层级顺序)。
+    // KvmDialog's wrapper class (.create-vm-modal/.create-vm-title) is same set for all dialogs
+    // (create dialog + OsSelector both mounted now), can't just query first — use z-index to precisely
+    // locate OsSelector's one (920 stacked over create dialog's 900, per Vue2 b-modal stacking order).
     const modals = [...document.body.querySelectorAll('.create-vm-modal')] as HTMLElement[]
     expect(modals).toHaveLength(2)
     const osModal = modals.find((m) => m.style.zIndex === '921') // DialogContent = zBase+1
@@ -1101,7 +1106,7 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('OsSelector 选中 → 创建弹窗 ISO 行显示 path', async () => {
+  it('OsSelector select → create dialog ISO row shows path', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1115,13 +1120,13 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
 
     expect(document.body.querySelector('.cv-iso-btn')?.textContent)
       .toContain('/DATA/KVM/isos/alpine-319.iso')
-    // 选中即关(照 Vue2 selectOS → close):OsSelector 自己的标题不该还挂着。
+    // Select then close (per Vue2 selectOS → close): OsSelector's own title shouldn't still be there.
     const titles = [...document.body.querySelectorAll('.create-vm-title')].map((el) => el.textContent)
     expect(titles.some((t) => t?.includes('选择操作系统'))).toBe(false)
     w.unmount()
   })
 
-  it('提交成功 → 关弹窗 + toast「虚拟机创建成功」+ 列表刷新', async () => {
+  it('submit success → close dialog + toast "VM create success" + refresh list', async () => {
     api.getVMList.mockResolvedValueOnce({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1148,13 +1153,13 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
       os: 'Alpine',
       osType: 'linux',
     }))
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 关弹窗
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // close dialog
     expect(useToast().toasts.map((x) => x.text)).toContain('虚拟机创建成功')
-    expect(api.getVMList).toHaveBeenCalledTimes(2) // mounted 一次 + create 成功后刷新一次
+    expect(api.getVMList).toHaveBeenCalledTimes(2) // mounted once + refresh once after create success
     w.unmount()
   })
 
-  it('提交失败 → 弹窗不关,内联显示后端 message', async () => {
+  it('submit fails → dialog stays open, show backend message inline', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1179,12 +1184,12 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     w.unmount()
   })
 
-  // 评审补测(报告里主动申报的缺口):create() 的 errText fallback 分支(rejection 不是
-  // Error 实例、拿不到 message 时落回 i18n 键名 'kvmFailedToCreate')此前只在
-  // useVmList.test.ts 里验证过"返回的字符串是键名",没有一条用例走到 KvmPage 这一层——
-  // onCreateSubmit 里 `err && te(err) ? t(err) : err` 那道判定专门是为了不把键名裸传进
-  // .cv-error,这里补上覆盖,避免这道判定成为"写了但没人验证过"的代码。
-  it('提交失败且后端 rejection 非 Error 值(拿不到 message)→ 内联显示翻译后的中文,不是键名', async () => {
+  // Review additional test (gap reported in findings): create()'s errText fallback branch (rejection not
+  // Error instance, can't get message falls back to i18n key 'kvmFailedToCreate') previously only
+  // verified in useVmList.test.ts "returned string is key", no test reached KvmPage layer —
+  // `err && te(err) ? t(err) : err` decision in onCreateSubmit specifically to not pass bare key to
+  // .cv-error, add coverage here, avoid this decision becoming "written but never verified" code.
+  it('submit fails with backend rejection non-Error value (can\'t get message) → show translated Chinese inline, not key name', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1198,31 +1203,30 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     fillName('p6-throwaway')
     await w.vm.$nextTick()
 
-    api.createVM.mockRejectedValue('boom') // 非 Error 值 reject → useVmList.errText() 走 fallback 键名
+    api.createVM.mockRejectedValue('boom') // non-Error value reject → useVmList.errText() takes fallback key
     ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
     const err = document.body.querySelector('.cv-error')?.textContent
-    expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate 翻译后的中文,不是键名本身
+    expect(err).toBe('创建虚拟机失败') // kvmFailedToCreate translated Chinese, not key name itself
     expect(err).not.toContain('kvmFailedToCreate')
     w.unmount()
   })
 
-  // 评审 Important #1:`onCreateSubmit` 里 `creating.value = true/false` 此前零判别力覆盖——
-  // 整行删掉现有测试套件一条不会翻红。这里补上:让 `api.createVM` 返回一个手动控制的
-  // pending Promise,验证提交进行中按钮 disabled/is-loading、二次点击不会让 `createVM`
-  // 被调第二次、落定后按钮恢复可用。用**拒绝**而不是成功来落定——成功会让
-  // `onCreateSubmit` 顺带把 `createOpen` 也置为 false、弹窗关闭卸载,DOM 节点被摘掉后
-  // "按钮恢复可用"这条断言就没有意义了;失败分支弹窗留着,能在弹窗仍存在时验证按钮
-  // 状态真的复位。
+  // Review Important #1: `creating.value = true/false` in `onCreateSubmit` previously had zero discriminative power —
+  // deleting the whole line current test suite still all green. Add here: let `api.createVM` return manually
+  // controlled pending Promise, verify mid-submit button disabled/is-loading, second click won't call `createVM`
+  // twice, after resolution button resumes enabled. Use **rejection** not success to resolve — success would make
+  // `onCreateSubmit` also set `createOpen` to false, close/unmount dialog, after DOM nodes removed "button resumes"
+  // assertion has no meaning; failure branch leaves dialog, can verify button state truly resets while dialog exists.
   //
-  // ⚠️ Global Constraint #15「被混淆的断言」自查(评审点名的坑,Task 7 已经栽过一次):
-  // 表单必须是**合法的**(已 `openCreateAndPickIso` + `clickSelectAlpine` + `fillName` 填好
-  // name/iso/os),否则 `validateCreateVm` 会独立挡住第二次点击、emit 不出 submit,分不清
-  // 挡住第二次调用的到底是 `creating` 守卫还是校验——用合法表单排除这个混淆因素,第二次
-  // 点击如果真的没有让 `api.createVM` 被调用,只能归因于 `creating` 守卫。
-  it('提交进行中按钮 disabled/is-loading,二次点击不会重复调用 createVM,落定后恢复可用', async () => {
+  // ⚠️ Global Constraint #15 "confused assertion" self-check (review-named pit, Task 7 already hit once):
+  // form must be **valid** (already `openCreateAndPickIso` + `clickSelectAlpine` + `fillName` filled
+  // name/iso/os), otherwise `validateCreateVm` independently blocks second click, doesn't emit submit,
+  // can't tell if second call was blocked by `creating` guard or validation — use valid form exclude this confusion,
+  // if second click doesn't actually call `api.createVM`, can only attribute to `creating` guard.
+  it('mid-submit button disabled/is-loading, second click won\'t repeat call createVM, after resolution resumes enabled', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_ALPINE])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1232,14 +1236,14 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     clickSelectAlpine()
     await flush()
     await w.vm.$nextTick()
-    fillName('p6-throwaway') // 合法表单——上面注释解释了为什么这一步不能省
+    fillName('p6-throwaway') // valid form — comment above explains why can't skip
     await w.vm.$nextTick()
 
     let rejectCreate: (e: unknown) => void = () => {}
     api.createVM.mockReturnValue(new Promise((_resolve, reject) => { rejectCreate = reject }))
 
     const btn = document.body.querySelector('.cv-primary-btn') as HTMLButtonElement
-    btn.click() // 第一次点击,createVM 挂起未落定
+    btn.click() // first click, createVM suspended not resolved
     await flush()
     await w.vm.$nextTick()
 
@@ -1247,54 +1251,53 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     expect(btn.disabled).toBe(true)
     expect(btn.classList.contains('is-loading')).toBe(true)
 
-    // 第二次点击:原生 `disabled` 属性本身会挡掉 `.click()`(jsdom 与真实浏览器一致,
-    // CreateVmDialog.test.ts 已用最小复现脚本验证过),必须用 `dispatchEvent` 绕开平台级
-    // 拦截,才能真的测到 `onSubmit()` 内部 `if (props.creating) return` 这道 JS 守卫,
-    // 而不是被浏览器的 disabled 语义顺手挡住(那样测的就不是这道守卫了)。
+    // second click: native `disabled` attribute itself blocks `.click()` (jsdom same as real browser,
+    // CreateVmDialog.test.ts verified with minimal repro script), must use `dispatchEvent` bypass platform-level
+    // interception, to really test `if (props.creating) return` JS guard inside `onSubmit()`,
+    // not blocked by browser's disabled semantics (that wouldn't test this guard).
     btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await flush()
     await w.vm.$nextTick()
-    expect(api.createVM).toHaveBeenCalledTimes(1) // 仍然只有第一次那一次
+    expect(api.createVM).toHaveBeenCalledTimes(1) // still only first time
 
-    rejectCreate(new Error('boom')) // 用失败落定,弹窗留着,才能在按钮还存在时断言它复位
+    rejectCreate(new Error('boom')) // use failure to resolve, dialog stays, can assert button resets while it exists
     await flush()
     await w.vm.$nextTick()
 
-    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗还开着
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // dialog still open
     expect(btn.disabled).toBe(false)
     expect(btn.classList.contains('is-loading')).toBe(false)
     w.unmount()
   })
 
-  // 评审修复的真缺陷回归测试:KvmGlobalSettingsDialog 与 KvmPage 各自持有一份独立的
-  // useKvmHostInfo() 实例(Task 2 的隔离设计,见 KvmGlobalSettingsDialog.vue 顶部与
-  // KvmPage.vue `@saved` 处的注释)。保存全局设置成功后,如果 KvmPage 那份 hostInfo
-  // 不重新 fetch,创建弹窗的默认值会停在保存前的旧值——这里走完整的真实路径验证修复。
+  // Review regression test for real bug fixed: KvmGlobalSettingsDialog and KvmPage each hold independent
+  // useKvmHostInfo() instances (Task 2 isolation design, see KvmGlobalSettingsDialog.vue top and
+  // KvmPage.vue `@saved` comment). After save global settings succeeds, if KvmPage's hostInfo
+  // doesn't refetch, create dialog defaults stay at pre-save old values — here walk complete real path to verify fix.
   //
-  // ⚠️ Global Constraint #15「被混淆的断言」自查:断言的是"点保存前 vs 点保存后"
-  // `api.getSettings` 调用次数的变化(2 → 3),而不是笼统地"调用过 getSettings"——
-  // 调用 #1 来自 mounted 时 KvmPage 自己那份 hostInfo.fetch(),调用 #2 来自打开全局设置
-  // 弹窗时它自己那份 host.fetch()(这两次都发生在"点保存"**之前**,先用中间断言把它们
-  // 显式记下来、排除掉,不让它们混进"点保存导致的那一次"里)。这条测试期间没有触发任何
-  // MessageBus 事件、没有切换选中 VM——没有别的已知机制会在这个窗口里调用 getSettings,
-  // 唯一能让计数从 2 变成 3 的就是 `@saved` 触发的那次 fetch。
-  it('评审修复:保存全局设置后,创建弹窗的默认值跟着刷新(不再停在旧值)', async () => {
+  // ⚠️ Global Constraint #15 "confused assertion" self-check: asserts "before vs after click save"
+  // `api.getSettings` call count change (2 → 3), not just "called getSettings" —
+  // call #1 from KvmPage's own hostInfo.fetch() at mount, call #2 from its own host.fetch() when opening global
+  // settings dialog (both happen **before** "click save", use mid assertion explicitly note them, exclude them,
+  // don't let them mix into "save-caused call"). This test period no MessageBus events, no VM selection switch —
+  // no other known mechanism calls getSettings in this window, only thing lets count go 2→3 is `@saved`-triggered fetch.
+  it('review fix: after save global settings, create dialog defaults refresh (no longer stuck at old)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
-    expect(api.getSettings).toHaveBeenCalledTimes(1) // mounted:KvmPage 自己那份 hostInfo
+    expect(api.getSettings).toHaveBeenCalledTimes(1) // mount: KvmPage's own hostInfo
 
-    await w.get('.kvm-settings-btn').trigger('click') // 打开全局设置弹窗
+    await w.get('.kvm-settings-btn').trigger('click') // open global settings dialog
     await flush()
     await w.vm.$nextTick()
-    expect(api.getSettings).toHaveBeenCalledTimes(2) // 弹窗自己那份 useKvmHostInfo() 又 fetch 一次
+    expect(api.getSettings).toHaveBeenCalledTimes(2) // dialog's own useKvmHostInfo() fetches again
 
     const vcpuInput = document.body.querySelector('input[name="defaultVcpu"]') as HTMLInputElement
     vcpuInput.value = '4'
     vcpuInput.dispatchEvent(new Event('input'))
     await w.vm.$nextTick()
 
-    // 模拟后端保存后已经落盘:此后的 getSettings 调用返回新值。
+    // simulate backend save already persisted: subsequent getSettings calls return new value.
     api.getSettings.mockResolvedValue({
       autostart: false, availableDiskGB: 263, availableMemoryMB: 9234, cpuCores: 6,
       defaultDiskSize: 20, defaultMemory: 2048, defaultVcpu: 4,
@@ -1302,15 +1305,15 @@ describe('KvmPage 创建流程接线(P6 Task 8)', () => {
     })
     api.updateSettings.mockResolvedValue({})
 
-    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click() // 全局设置弹窗自己的保存按钮
+    ;(document.body.querySelector('.cv-primary-btn') as HTMLElement).click() // global settings dialog's own save button
     await flush()
     await w.vm.$nextTick()
 
-    // 基础断言:又被调了一次,且只能由 @saved 触发的 hostInfo.fetch() 解释(见上面注释)。
+    // basic assertion: called one more time, can only be explained by @saved-triggered hostInfo.fetch() (see comment above).
     expect(api.getSettings).toHaveBeenCalledTimes(3)
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 保存成功自动关闭全局设置弹窗
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // save success auto-closes global settings dialog
 
-    // 更强的断言:打开创建弹窗,CPU 预填反映的是刚保存的新值 4,不是保存前的旧值 2。
+    // stronger assertion: open create dialog, CPU prefill reflects just-saved new value 4, not old 2 before save.
     await openCreateDialog(w)
 
     const activeCpuBtns = [...document.body.querySelectorAll('.cv-cpu-btn')]

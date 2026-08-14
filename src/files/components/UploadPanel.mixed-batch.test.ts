@@ -18,7 +18,7 @@ function item(over: Partial<UploadItem>): UploadItem {
 describe('UploadPanel mixed problem-zone batch', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
-  it('shows 继续 for a paused + error batch', () => {
+  it('shows resume and retry buttons for a paused + error batch', () => {
     const s = useUploadsStore()
     s.queue.push(item({ id: 'a', status: 'error' }), item({ id: 'b', status: 'paused' }))
     const w = mount(UploadPanel, { global: { plugins: [i18n] } })

@@ -1,21 +1,22 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
-// SP8-P2a Task 4 —— AI 区(Agent 页 + 设置页)共享的明暗主题。
+// SP8-P2a Task 4 — AI area (Agent page + Settings page) shared light/dark theme.
 //
-// 【为什么要抽出来】Vue2 里 `Agent.vue` 与 `Settings.vue` 各持一份 theme,
-// 靠同一个 localStorage key 对齐;因为 Vue2 路由切换会销毁并重建组件,
-// data()/mounted 每次都重读 localStorage,用户感知是一致的。
+// [Why extract it] In Vue2, `Agent.vue` and `Settings.vue` each maintain a theme, aligned via
+// the same localStorage key; because Vue2 route switching destroys and recreates components,
+// data()/mounted re-reads localStorage each time, users perceive consistency.
 //
-// New-UI 的 Pinia store 是全局单例、切路由不销毁 —— 若两页各持一份 ref,
-// 在设置页切成暗色、返回 /ai/agent 就不会变。这不是 Vue2 的 bug,是组件级
-// store 换成单例 store 之后必然出现的行为差,必须在架构层解决。
+// New-UI's Pinia store is a global singleton, route switching doesn't destroy — if two pages
+// each maintain a ref, toggling to dark in settings page and returning to /ai/agent won't change
+// it. This is not a Vue2 bug, it's an inevitable behavior difference after replacing component-level
+// stores with singleton stores, must be solved at the architecture level.
 //
-// 做法与 SP8-P1c2 Task 7 的 `src/stores/userProfile.ts`(头像版本号上移)同款:
-// 把状态提到它真正该在的层级,消费方各自读同一份。
+// Approach is identical to SP8-P1c2 Task 7's `src/stores/userProfile.ts` (avatar version number
+// moved up): move state to the level where it truly should be, consumers each read the same one.
 //
-// localStorage key 与 Vue2 逐字一致(`Agent.vue:80`、`Settings.vue:73`),
-// 所以老应用与新应用的主题偏好互通。
+// localStorage key is verbatim consistent with Vue2 (`Agent.vue:80`, `Settings.vue:73`), so old
+// and new apps' theme preferences are mutually compatible.
 const THEME_KEY = 'nimoos.ai.agent.theme'
 
 export type AiTheme = 'light' | 'dark'
@@ -23,29 +24,33 @@ export type AiTheme = 'light' | 'dark'
 export const useAiTheme = defineStore('ai-theme', () => {
   const theme = ref<AiTheme>('light')
 
-  // 【SP8-P2b 验收第 3 轮,2026-07-30】「AI 区当前是否在前台」——给 `AppToast` 用。
+  // [SP8-P2b acceptance round 3, 2026-07-30] 'Is AI area currently in foreground' — for `AppToast`.
   //
-  // 为什么需要它:`AppToast` 挂在 `App.vue` 最外层,**不在 `.agent-app` 那层主题作用域内**,
-  // 所以它读的是全局蓝黑主题的 `--toast-bg`(半透明白)与 `--toast-fg`(未定义 → 退回
-  // `--fg` = #ffffff)。画在 AI 区的浅色页面上就是白底白字 = 全隐形,AI 区所有 toast
-  // (复制成功/保存失败/删除失败……)用户都看不到。这与「原生控件跟错 color-scheme」是
-  // 同一族问题:应用级外壳画在嵌套主题作用域之上。
+  // Why needed: `AppToast` is mounted at the outermost layer of `App.vue`, **not within the
+  // `.agent-app` theme scope**, so it reads the global blue-black theme's `--toast-bg` (semi-transparent
+  // white) and `--toast-fg` (undefined → falls back to `--fg` = #ffffff). Drawn on AI's light page
+  // it becomes white text on white background = completely invisible, all toasts in AI area (copy
+  // success / save failure / delete failure ...) users can't see. This is the same family of
+  // problems as 'native controls follow wrong color-scheme': app-level shell drawn above nested
+  // theme scopes.
   //
-  // 用户拍板的修法是「只改 AI 区、桌面零影响」,所以不能无条件给 toast 套 AI 配色 ——
-  // 必须知道现在是不是在 AI 页面。AI 页面挂载期间登记,离开即注销。
+  // User-decided fix is 'only change AI area, desktop unaffected', so can't unconditionally apply
+  // AI coloring to toasts — must know if we're currently on AI page. Register during AI page mount,
+  // deregister when leaving.
   //
-  // **引用计数而非布尔**:路由切换时新页面 onMounted 可能早于旧页面 onBeforeUnmount,
-  // 布尔会被离场页面的 false 覆盖成「不在 AI 区」;计数天然免疫顺序。夹在 0 以下不减,
-  // 否则多余的注销会把计数压成负数、让下一次登记失效。
+  // **Reference counting not boolean**: during route switching, new page's onMounted may come before
+  // old page's onBeforeUnmount, boolean would be overwritten to 'false' (not in AI area) by departing
+  // page; counting is naturally immune to ordering. Floor at 0 and don't decrement below, otherwise
+  // extra deregister will press count negative and make next register fail.
   const aiSurfaces = ref(0)
   const aiSurfaceActive = computed(() => aiSurfaces.value > 0)
   function enterAiSurface(): void { aiSurfaces.value += 1 }
   function leaveAiSurface(): void { if (aiSurfaces.value > 0) aiSurfaces.value -= 1 }
 
   /**
-   * 装载一次持久化偏好。优先级与 Vue2 `Settings.vue:102-107` /
-   * `Agent.vue:90-96` 一致:localStorage 合法值 → 系统 prefers-color-scheme →
-   * 'light' 兜底。可重复调用(幂等)。
+   * Load once persisted preference. Priority consistent with Vue2 `Settings.vue:102-107` /
+   * `Agent.vue:90-96`: valid localStorage value → system prefers-color-scheme → 'light'
+   * fallback. Repeatable call (idempotent).
    */
   function hydrateTheme(): void {
     const stored = localStorage.getItem(THEME_KEY)

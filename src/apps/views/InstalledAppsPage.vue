@@ -22,14 +22,16 @@ const progress = useInstallProgressStore()
 const installingTasks = computed(() => Object.values(progress.tasks))
 const bus = useMessageBus()
 const toast = useToast()
-// reka-ui 的 AlertDialogAction 本身是个 DialogClose:点击红色确认按钮时,
-// update:open(false) 先于 @click 派发的 confirm 事件触发。若 open 标志和 target
-// 共用一个 ref,update:open 处理器会先把 target 置空,confirm 读到的就是 null,
-// store.uninstall 永远不会被调用(SP5-P1 终审 CRITICAL)。参照 SharesPage.vue 的
-// delDlg 模式:open 与 app 打包在同一个 ref 里,只在 confirm 读取后才关闭 open,
-// update:open 处理器只改 open,不动 app。
+// reka-ui's AlertDialogAction is itself a DialogClose: when the red confirm button
+// is clicked, update:open(false) is triggered before the @click-emitted confirm event.
+// If the open flag and target share the same ref, the update:open handler will zero
+// out target first, so confirm reads null, and store.uninstall is never called
+// (SP5-P1 final review CRITICAL). Following SharesPage.vue's delDlg pattern: pack
+// open and app into the same ref, only close open after confirm reads it,
+// and have the update:open handler only modify open, not app.
 const uninstallDlg = ref<{ open: boolean; app: InstalledApp | null }>({ open: false, app: null })
-// 安装中卡片的「停止并删除」确认框(同 delDlg 模式:open 与 task 同包,update:open 不动 task)
+// Cancel/delete confirmation dialog for installing card (same delDlg pattern: open and
+// task in same ref, update:open does not touch task)
 const cancelDlg = ref<{ open: boolean; taskId: string; taskTitle: string }>({ open: false, taskId: '', taskTitle: '' })
 
 function onOpen(a: InstalledApp) {
@@ -53,8 +55,10 @@ async function onCancelInstallConfirm() {
   cancelDlg.value.open = false
   if (!id) return
   progress.dismiss(id)
-  // 尽力而为删除已落盘内容:应用可能已装成(幽灵卡)或半装;404/未装成时无事可删,静默。
-  // 后端无「中止安装」API——正在拉取的镜像层由 docker daemon 自行收尾,不影响删除结果。
+  // Best-effort deletion of disk content: the app may have completed installing (ghost
+  // card) or partially installed; silently ignore if 404/not installed.
+  // Backend has no "abort installation" API — image layers being fetched are wound
+  // down by docker daemon automatically, which doesn't affect the deletion result.
   try { await service.compose.uninstall(id, { deleteConfigFolder: true }) } catch { /* not installed */ }
   store.refresh().catch(() => {})
 }
@@ -72,7 +76,7 @@ async function onUninstallConfirm(deleteConfigFolder: boolean) {
   }
 }
 
-// app:* 生命周期(spec §2.3);install-* 由 installProgress store 全局订阅收敛(D6)
+// app:* lifecycle (spec §2.3); install-* aggregated globally via installProgress store subscription (D6)
 const APP_EVENTS = [
   'app:start-begin', 'app:start-end', 'app:start-error',
   'app:stop-begin', 'app:stop-end', 'app:stop-error',

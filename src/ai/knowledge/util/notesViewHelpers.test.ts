@@ -1,8 +1,9 @@
-// SP8-P5d Task 3 —— 1:1 移植自 Vue2
-// `NimoOS-UI`(main@7a6ee6b7)`src/views/AI/Knowledge/notesViewHelpers.js`。
-// 承接 Vue2 既有 `__tests__/notesView.spec.js`(3 条,治理 §4.3),且比蓝本 spec 更细
-// (逐分支 + 边界两侧,防止「只在档位中段取样、阈值本身改错测不出来」的回归——
-// P5a T6 教训:`fmtAgo` 的 `h < 24` 改成 `h < 48`,16/16 用例仍全绿)。
+// SP8-P5d Task 3 — 1:1 port from Vue2
+// `NimoOS-UI`(main@7a6ee6b7) `src/views/AI/Knowledge/notesViewHelpers.js`.
+// Inherit from Vue2 existing `__tests__/notesView.spec.js` (3 cases, governance §4.3),
+// with finer refinement than blueprint (each branch + both sides of boundaries,
+// preventing "sample only mid-range, threshold change undetectable" regression —
+// P5a T6 lesson: changing `fmtAgo` `h < 24` to `h < 48`, 16/16 cases still green).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   NOTE_TYPES,

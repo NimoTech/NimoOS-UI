@@ -31,9 +31,11 @@ export function useAppSettings(id: Ref<string>) {
   }
 
   /**
-   * save()/toYaml() 共享:把当前 model 序列化为 YAML。
-   * tipsCustom 若只是 parseSettings 借 before_install 回落预填、用户从未编辑过,不能当用户确认的自定义提示落盘
-   * (否则会把当前语言的回落文案冻结进 tips.custom,遮蔽未来的多语言回落解析)——此时清空后再喂给 buildYaml。
+   * Shared by save()/toYaml(): serialize current model to YAML.
+   * If tipsCustom is only a fallback pre-fill from parseSettings' before_install (user never edited),
+   * it cannot be persisted as user-confirmed custom tips (otherwise current language fallback text
+   * freezes into tips.custom, obscuring future multilingual fallback resolution)—in this case clear
+   * it before passing to buildYaml.
    */
   function serializeModel(m: SettingsModel): string {
     const untouchedFallback = m.tipsFromFallback && m.tipsCustom === initialTips
@@ -41,7 +43,7 @@ export function useAppSettings(id: Ref<string>) {
     return buildYaml(originalYaml, forBuild)
   }
 
-  /** dry_run 预检 → 真 PUT(受理即返)→ markApplying。端口冲突落 conflicts,其余错误落 saveError。 */
+  /** dry_run precheck → real PUT (returns once accepted) → markApplying. Port conflicts go to conflicts, other errors to saveError. */
   async function save(): Promise<boolean> {
     if (!model.value || saving.value) return false
     saving.value = true; saveError.value = ''; conflicts.value = []
@@ -60,16 +62,17 @@ export function useAppSettings(id: Ref<string>) {
     } finally { saving.value = false }
   }
 
-  /** 进 YAML tab 时取文本:当前 model 序列化(带过表单已做的修改),复用 save() 同款 tipsFromFallback 处理。 */
+  /** When entering YAML tab, get text: serialize current model (carries form edits), reuse save()'s same tipsFromFallback handling. */
   function toYaml(): string {
     return model.value ? serializeModel(model.value) : originalYaml
   }
 
   /**
-   * YAML tab 编辑完切回表单:重 parse 重建 model,originalYaml 换成这份新文本。
-   * 成功后所有 dirty 标记自然归零(model 是刚 parse 出来的新对象),originalYaml 也已替换——
-   * 后续 save() 会以这份新文本为 base 再 buildYaml,语义正确(YAML tab 的编辑不会被 form tab 覆盖回去)。
-   * 解析失败:不触碰现有 model/originalYaml,只落 parseError,返回 false。
+   * After editing YAML tab, switch back to form: re-parse and rebuild model, replace originalYaml with this new text.
+   * On success, all dirty flags naturally zero out (model is freshly parsed), originalYaml also replaced—
+   * subsequent save() uses this new text as base for buildYaml, semantics correct (YAML tab edits won't be
+   * overwritten by form tab).
+   * Parse fails: don't touch existing model/originalYaml, only set parseError, return false.
    */
   function replaceFromYaml(text: string): boolean {
     try {
@@ -85,7 +88,7 @@ export function useAppSettings(id: Ref<string>) {
     }
   }
 
-  /** YAML tab 内保存:不经表单 model,直接以原文走 dry_run→PUT(与 save() 同款错误/冲突处理)。成功 true。 */
+  /** Save within YAML tab: bypass form model, use raw text directly for dry_run→PUT (same error/conflict handling as save()). Returns true on success. */
   async function saveYaml(text: string): Promise<boolean> {
     if (saving.value) return false
     saving.value = true; saveError.value = ''; conflicts.value = []; parseError.value = ''

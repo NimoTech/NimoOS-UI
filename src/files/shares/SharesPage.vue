@@ -61,16 +61,18 @@ async function confirmBatchUnshare() {
 
 onMounted(() => {
   shares.load()
-  if (!files.disks.length) files.loadRoots() // 供「前往」做 real→virtual 封顶
+  if (!files.disks.length) files.loadRoots() // provide capacity for 'goto' to convert real→virtual paths
 })
 
 function goVirtual(virtualPath: string) {
   router.push('/files/' + virtualPathToRouteParam(virtualPath))
 }
 function onGetLink(row: ShareRowT) { linkDlg.value = { open: true, name: row.name } }
-// 深链直达 /files/shares 时 onMounted 的 loadRoots() 可能还没 resolve;disks 为空会让
-// toVirtualPath 原样透传 real path(泄漏 /DATA/mnt 到 URL)。这里补一道保险:disks 为空则先
-// await loadRoots() 拿到 displayNames 再映射,不依赖 onMounted 那次 fire-and-forget 调用的时序。
+// When deep-linking directly to /files/shares, loadRoots() in onMounted may not have
+// resolved yet; an empty disks will cause toVirtualPath to pass through the real path unchanged
+// (leaking /DATA/mnt to the URL). We add extra protection here: if disks is empty, first
+// await loadRoots() to get displayNames before mapping, rather than relying on the timing of
+// that fire-and-forget call in onMounted.
 async function onGoto(row: ShareRowT) {
   if (!files.disks.length) await files.loadRoots()
   goVirtual(toVirtualPath(row.path, files.displayNames))

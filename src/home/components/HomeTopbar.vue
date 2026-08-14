@@ -45,7 +45,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 .bar-btn:hover { background: var(--chip-bg-hi); }
 .bar-btn .icon { width: 16px; height: 16px; }
 
-/* search-btn: glass pill with magnifier icon — matches 搜索组件.dc.html topbar button */
+/* search-btn: glass pill with magnifier icon — matches search component.dc.html topbar button */
 .search-btn { padding-left: 13px; }
 .search-btn .ic { width: 17px; height: 17px; }
 

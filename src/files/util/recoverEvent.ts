@@ -1,4 +1,4 @@
-// 剥值两端引号(对齐 Vue2 /^["|'](.*)["|']$/g)。
+// Strip quotes from both ends (aligned with Vue2 /^["|'](.*)["|']$/g).
 function strip(v: unknown): string {
   const s = v == null ? '' : String(v)
   const m = /^["'](.*)["']$/.exec(s)
@@ -11,7 +11,7 @@ export interface RecoverInfo {
   message: string
 }
 
-// ⚠️ useMessageBus 已解包 Properties → 回调直接拿到 {status,driver,message}(非 props.Properties)。
+// ⚠️ useMessageBus has unpacked Properties → callback gets {status,driver,message} directly (not props.Properties).
 export function parseRecover(props: unknown): RecoverInfo | null {
   const p = props as Record<string, unknown> | null | undefined
   if (!p || (p.status == null && p.driver == null && p.message == null)) return null

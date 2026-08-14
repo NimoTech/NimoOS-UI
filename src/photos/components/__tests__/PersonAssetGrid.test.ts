@@ -1,8 +1,8 @@
-// Task 11 (SP7-P5 人物): PersonAssetGrid.vue —— 人物详情页按月资产网格
-// (多选 / 移出 / 每月展开全部)。纯展示 + emit,不碰 store,只 mock
-// @nimotech/nimoos-service 的 thumbnailUrl(同 PhotosGrid.test.ts / PersonHero.test.ts
-// 的既有 mock 方式)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:
-// 132-154(网格模板)、:760-763(assetThumb,size=large)、:868-883(选择逻辑)。
+// Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page asset grid by month
+// (multi-select / detach / expand all per month). Pure display + emit, no store access, only mock
+// @nimotech/nimoos-service thumbnailUrl (same mock approach as PhotosGrid.test.ts / PersonHero.test.ts).
+// Each section follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:
+// 132-154 (grid template), :760-763 (assetThumb, size=large), :868-883 (select logic).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -17,9 +17,9 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonAssetGrid from '../PersonAssetGrid.vue'
-// 原始源码文本(Vite `?raw`),仅用于下方"覆盖控件默认透明"一组测试——jsdom 不做级联
-// 样式计算,mount 后读不出真实 hover 态的 opacity,只能对 <style> 文本做结构断言
-// (同 color-guard.test.ts 读 <style> 原文的既有先例)。
+// Raw source text (Vite `?raw`), used only for the "override control default transparency" test group below —
+// jsdom does not perform cascade style calculation, cannot read real hover opacity after mount, can only
+// assert structure against <style> raw text (same precedent as color-guard.test.ts reading <style> raw).
 import personAssetGridRaw from '../PersonAssetGrid.vue?raw'
 import { assetToPhoto, type Month, type Photo } from '../../util/assetToPhoto'
 
@@ -57,8 +57,8 @@ afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
 })
 
-describe('PersonAssetGrid.vue — 月份头', () => {
-  it('渲染 m.title 与真实总数(photosPeoplePhotosCount);首张有 place 时附加显示', () => {
+describe('PersonAssetGrid.vue — month header', () => {
+  it('Render m.title and real count (photosPeoplePhotosCount); additionally display first photo\'s place', () => {
     const months = [month('2026-07', 'July 2026', [photo('a', { placeName: 'Paris' }), photo('b')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(w.get('.person-month-head .title').text()).toBe('July 2026')
@@ -66,15 +66,15 @@ describe('PersonAssetGrid.vue — 月份头', () => {
     expect(w.get('.person-month-head .sub').text()).toContain('Paris')
   })
 
-  it('该月首张照片没有 place → 不渲染 place 段', () => {
+  it('First photo of that month has no place → do not render place section', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(w.get('.person-month-head .sub').text()).not.toContain('·')
   })
 })
 
-describe('PersonAssetGrid.vue — 每月展开全部(计划登记第 8 条)', () => {
-  it('20 张 → 默认渲染 16 个瓦片 + 出现"查看全部 20 张";点击后渲染 20 个且文案变收起;再点回到 16', async () => {
+describe('PersonAssetGrid.vue — expand all per month (plan registration item 8)', () => {
+  it('20 photos → default render 16 tiles + "Show all 20" button; click shows 20 and changes to "Collapse"; click again back to 16', async () => {
     const photos = Array.from({ length: 20 }, (_, i) => photo(`p${i}`))
     const months = [month('2026-07', 'July 2026', photos)]
     const w = mountGrid({ months, selected: [], selectionMode: false })
@@ -90,7 +90,7 @@ describe('PersonAssetGrid.vue — 每月展开全部(计划登记第 8 条)', ()
     expect(w.findAll('.tile')).toHaveLength(16)
   })
 
-  it('恰好 16 张(边界)→ 不出现"查看全部"按钮,16 张全渲', () => {
+  it('Exactly 16 photos (boundary) → no "Show all" button, all 16 render', () => {
     const photos = Array.from({ length: 16 }, (_, i) => photo(`p${i}`))
     const months = [month('2026-07', 'July 2026', photos)]
     const w = mountGrid({ months, selected: [], selectionMode: false })
@@ -99,8 +99,8 @@ describe('PersonAssetGrid.vue — 每月展开全部(计划登记第 8 条)', ()
   })
 })
 
-describe('PersonAssetGrid.vue — 缩略图 URL', () => {
-  it('瓦片 img.src 用 thumbnailUrl(id, "large"),不是 small', () => {
+describe('PersonAssetGrid.vue — thumbnail URL', () => {
+  it('Tile img.src uses thumbnailUrl(id, "large"), not small', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('a', 'large')
@@ -108,8 +108,8 @@ describe('PersonAssetGrid.vue — 缩略图 URL', () => {
   })
 })
 
-describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
-  it('点瓦片 → emit open 带该 photo', async () => {
+describe('PersonAssetGrid.vue — click and .stop isolation', () => {
+  it('Click tile → emit open with that photo', async () => {
     const p = photo('a')
     const months = [month('2026-07', 'July 2026', [p])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
@@ -117,9 +117,10 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('open')?.[0]).toEqual([p])
   })
 
-  // 协调者裁定(Vue2 :874-880 onTileClick 单一入口内分支,不下推给容器):组件已收
-  // selectionMode prop,判断权留在组件内部——理由见 fix 报告 §「整格点击分支收回组件内部」。
-  it('selectionMode=true 时点整格 → emit toggle-select 带该 id,且不 emit open(负向断言)', async () => {
+  // Coordinator decision (Vue2 :874-880 onTileClick single entry branching, not pushed to container):
+  // component receives selectionMode prop, decision stays inside component — reason in fix report
+  // § "Whole-cell click branch returned to component".
+  it('selectionMode=true, click whole cell → emit toggle-select with that id, no emit open (negative assertion)', async () => {
     const p = photo('a')
     const months = [month('2026-07', 'July 2026', [p])]
     const w = mountGrid({ months, selected: [], selectionMode: true })
@@ -128,7 +129,7 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('open')).toBeUndefined()
   })
 
-  it('selectionMode=false 时点整格 → emit open 带该 photo,且不 emit toggle-select(负向断言)', async () => {
+  it('selectionMode=false, click whole cell → emit open with that photo, no emit toggle-select (negative assertion)', async () => {
     const p = photo('a')
     const months = [month('2026-07', 'July 2026', [p])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
@@ -137,7 +138,7 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('toggle-select')).toBeUndefined()
   })
 
-  it('点勾选圈 → emit toggle-select 且不 emit open(.stop 回归)', async () => {
+  it('Click checkbox → emit toggle-select and no emit open (.stop restoration)', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     await w.get('.tile-check').trigger('click')
@@ -145,7 +146,7 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('open')).toBeUndefined()
   })
 
-  it('点移出按钮 → emit detach([id]) 且不 emit open(.stop 回归)', async () => {
+  it('Click detach button → emit detach([id]) and no emit open (.stop restoration)', async () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     await w.get('.tile-detach').trigger('click')
@@ -153,7 +154,7 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
     expect(w.emitted('open')).toBeUndefined()
   })
 
-  it('勾选圈 title 随选中状态在"选择"/"取消选择"间切换', () => {
+  it('Checkbox title toggles between "Select"/"Deselect" based on selection state', () => {
     const months = [month('2026-07', 'July 2026', [photo('a'), photo('b')])]
     const w = mountGrid({ months, selected: ['a'], selectionMode: false })
     const boxes = w.findAll('.tile-check')
@@ -162,8 +163,8 @@ describe('PersonAssetGrid.vue — 点击与 .stop 隔离', () => {
   })
 })
 
-describe('PersonAssetGrid.vue — selectionMode 时移出按钮不渲染(负向断言)', () => {
-  it('selectionMode===true → 不渲染 .tile-detach;selectionMode===false → 渲染', () => {
+describe('PersonAssetGrid.vue — detach button not rendered in selectionMode (negative assertion)', () => {
+  it('selectionMode===true → do not render .tile-detach; selectionMode===false → render', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const wOn = mountGrid({ months, selected: [], selectionMode: true })
     expect(wOn.find('.tile-detach').exists()).toBe(false)
@@ -173,38 +174,39 @@ describe('PersonAssetGrid.vue — selectionMode 时移出按钮不渲染(负向�
   })
 })
 
-describe('PersonAssetGrid.vue — 铁律:selected 与 photo.id 类型交叉比较', () => {
-  it('selected 传数字、photo.id 是字符串 → 仍判定为选中', () => {
+describe('PersonAssetGrid.vue — law: cross-type comparison of selected and photo.id', () => {
+  it('selected passes number, photo.id is string → still determine as selected', () => {
     const months = [month('2026-07', 'July 2026', [photo('42')])]
     const w = mountGrid({ months, selected: [42], selectionMode: false })
     expect(w.get('.tile').attributes('data-selected')).toBe('true')
   })
 
-  it('selected 传字符串、photo.id 是数字 → 仍判定为选中(反向)', () => {
+  it('selected passes string, photo.id is number → still determine as selected (reverse)', () => {
     const months = [month('2026-07', 'July 2026', [photo(42)])]
     const w = mountGrid({ months, selected: ['42'], selectionMode: false })
     expect(w.get('.tile').attributes('data-selected')).toBe('true')
   })
 
-  it('selected 为空数组 → 不判定为选中', () => {
+  it('selected is empty array → do not determine as selected', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(w.get('.tile').attributes('data-selected')).toBe('false')
   })
 })
 
-describe('PersonAssetGrid.vue — 空态', () => {
-  it('months 为空 → 渲染 photosPersonNoPhotos 空态文案', () => {
+describe('PersonAssetGrid.vue — empty state', () => {
+  it('months is empty → render photosPersonNoPhotos empty state text', () => {
     const w = mountGrid({ months: [], selected: [], selectionMode: false })
     expect(w.text()).toContain('这个人还没有照片')
     expect(w.find('.tile').exists()).toBe(false)
   })
 })
 
-// 覆盖控件(.tile-check/.tile-detach)默认态透明,只在 hover/选择态可见——照 Vue2
-// PhotosPersonDetail.vue:1148-1216 逐条对照,同本仓已确立先例 PhotosGrid.vue:374-376
-// (.tile-check-box)。jsdom 不做级联样式计算(mount 后读不出真实 hover 结果),所以这组
-// 测试直接解析 <style> 原文里的 CSS 规则结构断言,而不是断言 getComputedStyle。
+// Override controls (.tile-check/.tile-detach) default transparent, only visible in hover/select state —
+// per Vue2 PhotosPersonDetail.vue:1148-1216 item-by-item, same precedent established in this repo
+// PhotosGrid.vue:374-376 (.tile-check-box). jsdom does not perform cascade style calculation
+// (cannot read real hover result after mount), so this test group directly parses <style> raw CSS rules
+// for structure assertion, rather than asserting getComputedStyle.
 interface CssRule { selectors: string[]; body: string }
 
 function parseCssRules(styleText: string): CssRule[] {
@@ -222,51 +224,53 @@ function parseCssRules(styleText: string): CssRule[] {
 
 function extractStyleBlock(src: string): string {
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('未找到样式块')
-  // 先剥 CSS 注释:parseCssRules 把 `{` 之前的一切当选择器列表,规则上方的注释会被并进
-  // selectors,使 ownRuleBody 的"选择器列表恰好等于某一个"判定失效(终审 Minor 3 加注释时踩到)。
+  if (!m) throw new Error('Style block not found')
+  // First strip CSS comments: parseCssRules treats everything before `{` as selector list,
+  // comments above rules get merged into selectors, breaks ownRuleBody's "selector list exactly equals one" check
+  // (hit during final review Minor 3 when adding comment).
   return m[1].replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
-// 找到"选择器列表恰好等于给定单个选择器"的那条规则的 body(用于找元素自身默认态样式,
-// 不是被其他组合选择器覆盖的可见态规则)。
+// Find rule body where "selector list exactly equals the given single selector"
+// (used for element's own default state style, not visible state rule overridden by other combos).
 function ownRuleBody(rules: CssRule[], selector: string): string {
   const hit = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
-  if (!hit) throw new Error(`未找到独立规则:${selector}`)
+  if (!hit) throw new Error(`Standalone rule not found: ${selector}`)
   return hit.body
 }
 
-// 找到"选择器列表包含所有给定选择器"的那条组合规则的 body(用于找 hover/选择态强制
-// 可见的那条组合规则,不要求选择器列表完全相等,允许额外选择器一起分组)。
+// Find rule body where "selector list contains all given selectors" (used for finding
+// combined rule that forces hover/select state visible, selector list need not be exactly equal,
+// allows extra selectors grouped together).
 function findRuleBodyContainingAll(rules: CssRule[], required: string[]): string | undefined {
   const hit = rules.find((r) => required.every((sel) => r.selectors.includes(sel)))
   return hit?.body
 }
 
-describe('PersonAssetGrid.vue — 覆盖控件默认态透明,仅 hover/选择态可见(照 Vue2 :1148-1216)', () => {
+describe('PersonAssetGrid.vue — override control default transparent, only visible in hover/select (per Vue2 :1148-1216)', () => {
   const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
 
-  it('.tile-check 默认 opacity:0(照 Vue2 :1199)', () => {
+  it('.tile-check default opacity:0 (per Vue2 :1199)', () => {
     expect(ownRuleBody(rules, '.tile-check')).toMatch(/opacity:\s*0\b/)
   })
 
-  it('.tile-detach 默认 opacity:0(照 Vue2 :1162)', () => {
+  it('.tile-detach default opacity:0 (per Vue2 :1162)', () => {
     expect(ownRuleBody(rules, '.tile-detach')).toMatch(/opacity:\s*0\b/)
   })
 
-  it('.tile:hover 时 .tile-check 强制可见(照 Vue2 :1203-1208)', () => {
+  it('.tile:hover forces .tile-check visible (per Vue2 :1203-1208)', () => {
     const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-check'])
     expect(body).toBeDefined()
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
-  it('.tile:hover 时 .tile-detach 强制可见(照 Vue2 :1168-1171)', () => {
+  it('.tile:hover forces .tile-detach visible (per Vue2 :1168-1171)', () => {
     const body = findRuleBodyContainingAll(rules, ['.tile:hover .tile-detach'])
     expect(body).toBeDefined()
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
-  it('selectionMode 或已选中时 .tile-check 也强制可见,不依赖 hover(照 Vue2 :1204-1205)', () => {
+  it('In selectionMode or when selected, .tile-check also forced visible, no hover needed (per Vue2 :1204-1205)', () => {
     const body = findRuleBodyContainingAll(rules, [
       '.tile:hover .tile-check',
       '.tile[data-selection-mode="true"] .tile-check',
@@ -276,41 +280,42 @@ describe('PersonAssetGrid.vue — 覆盖控件默认态透明,仅 hover/选择�
     expect(body).toMatch(/opacity:\s*1\b/)
   })
 
-  it('.tile-detach 没有 selectionMode/selected 强制可见规则(照 Vue2 原文只给 tile-check 加了那两条,tile-detach 没有——照搬,不是遗漏)', () => {
+  it('.tile-detach has no selectionMode/selected force-visible rule (Vue2 original only adds those two to tile-check, tile-detach doesn\'t — literal copy, not omission)', () => {
     expect(findRuleBodyContainingAll(rules, ['.tile[data-selection-mode="true"] .tile-detach'])).toBeUndefined()
     expect(findRuleBodyContainingAll(rules, ['.tile[data-selected="true"] .tile-detach'])).toBeUndefined()
   })
 })
 
-// ── 终审 Minor 3:两个覆盖控件的**自身** hover 反馈 + 选中压暗 + 几何回源对齐 ──────
-// 原实现只有"整格 hover → 按钮淡入",鼠标压在按钮本体上零反馈;叠上「移出」按钮又没有
-// Vue2 的危险色,终审原话:这几项叠加会让**破坏性**的移出「×」认不出是删除键。
-describe('PersonAssetGrid.vue — 控件自身 hover 与选中态(照 Vue2 :1148-1222)', () => {
+// ── Final review Minor 3: control's own **self** :hover feedback + select dimming + geometry trace alignment ────────
+// Original impl only has "whole cell hover → button fade in", zero feedback when mouse on button itself; add the
+// "detach" button lacks Vue2's danger color, final review quote: stacking these makes the **destructive** detach ×
+// unrecognizable as delete key.
+describe('PersonAssetGrid.vue — control self :hover and selected state (per Vue2 :1148-1222)', () => {
   const rules = parseCssRules(extractStyleBlock(personAssetGridRaw))
 
-  it('.tile-check:hover 自身变深(Vue2 :1209-1212 background + border-color)', () => {
+  it('.tile-check:hover self darkens (Vue2 :1209-1212 background + border-color)', () => {
     const body = ownRuleBody(rules, '.tile-check:hover')
     expect(body).toMatch(/background:/)
     expect(body).toMatch(/border-color:/)
   })
 
-  it('.tile-detach:hover 自身变危险色(Vue2 :1172-1177:实底危险红 + 白图标 + 描边透明)', () => {
+  it('.tile-detach:hover self turns danger color (Vue2 :1172-1177: solid danger red + white icon + transparent border)', () => {
     const body = ownRuleBody(rules, '.tile-detach:hover')
     expect(body).toMatch(/background:\s*var\(--remove-bg\)/)
     expect(body).toMatch(/border-color:\s*transparent/)
     expect(body).toMatch(/color:/)
   })
 
-  it('两个控件的 transition 覆盖 background(否则 hover 变色是硬切,Vue2 :1163,1202)', () => {
+  it('Both controls\' transition covers background (else hover color is hard cut, Vue2 :1163,1202)', () => {
     expect(ownRuleBody(rules, '.tile-check')).toMatch(/transition:[^;]*background/)
     expect(ownRuleBody(rules, '.tile-detach')).toMatch(/transition:[^;]*background/)
   })
 
-  it('选中的瓦片把图压暗 opacity .85(Vue2 :1222)', () => {
+  it('Selected tile dims image opacity .85 (Vue2 :1222)', () => {
     expect(ownRuleBody(rules, '.tile[data-selected="true"] img')).toMatch(/opacity:\s*0?\.85\b/)
   })
 
-  it('几何照 Vue2 生效值:check 20px/偏移 6px/2px 描边,detach 22px/偏移 6px + backdrop-filter', () => {
+  it('Geometry per Vue2 effective values: check 20px/offset 6px/2px border, detach 22px/offset 6px + backdrop-filter', () => {
     const check = ownRuleBody(rules, '.tile-check')
     expect(check).toMatch(/width:\s*20px/)
     expect(check).toMatch(/height:\s*20px/)
@@ -326,7 +331,7 @@ describe('PersonAssetGrid.vue — 控件自身 hover 与选中态(照 Vue2 :1148
     expect(detach).toMatch(/backdrop-filter:/)
   })
 
-  it('图标标称尺寸照 Vue2 生效值:勾 12px,x 15px', () => {
+  it('Icon nominal size per Vue2 effective values: check 12px, x 15px', () => {
     const w = mountGrid({ months: [month('2026-05', '2026 年 5 月', [photo('a1')])], selected: ['a1'], selectionMode: true })
     const check = w.get('.tile-check-icon')
     expect(check.attributes('width')).toBe('12')

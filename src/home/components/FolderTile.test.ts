@@ -21,10 +21,10 @@ describe('FolderTile', () => {
     expect(thumb.classes()).toContain('folder-ic')
   })
 
-  // FolderTile 的职责 = 把 grid 项转成一个「目录」FileEntry 交给 FileThumb。
-  // name=item.key + is_dir=true 保证 FileThumb→iconNameFor 走文件夹分支;
-  // 具体名字→图标(Media→folder-video、任意名→folder-default)已由
-  // src/files/util/icons.test.ts(第 19-24 行)端到端覆盖,这里不重复断言 URL。
+  // FolderTile's responsibility = convert a grid item into a "directory" FileEntry to pass to FileThumb.
+  // name=item.key + is_dir=true ensures FileThumb→iconNameFor takes the folder branch;
+  // specific name→icon mapping (Media→folder-video, any name→folder-default) is already covered
+  // end-to-end by src/files/util/icons.test.ts (lines 19-24), so we don't repeat the URL assertion here.
   it('hands FileThumb a directory FileEntry with name=item.key', () => {
     const w = mount(FolderTile, { props: mk('Media', '/DATA/Media') })
     expect(w.findComponent(FileThumb).props('entry')).toEqual({ name: 'Media', path: '/DATA/Media', is_dir: true })

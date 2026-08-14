@@ -1,11 +1,14 @@
 <script setup lang="ts">
-// SPICE 连接提示条:选中的 VM 已切回硬盘引导(bootFromDisk=true)且有 spicePort 时短暂
-// 显示,提示用 virt-viewer 之类的 SPICE 客户端连接体验更好。视觉 1:1 对 Vue2
-// components/KVM/KVMFullPage.vue 模板 :156-165 + 样式 :2795-2865(在**第一个、scoped**
-// 的 `<style>` 块里,与安装横幅那个在文件末尾的全局块不是同一处)。
+// SPICE connection notification bar: briefly displayed when the selected VM has
+// switched back to disk boot (bootFromDisk=true) and has a spicePort, prompting the
+// user to connect with a SPICE client like virt-viewer for better experience. Visual
+// 1:1 match of Vue2 components/KVM/KVMFullPage.vue template :156-165 + styles
+// :2795-2865 (in the **first, scoped** `<style>` block, not the same as the global
+// block at the end of the file with the installation banner).
 //
-// 显示条件(state==='running' 之类都不在这里判)、180 秒自动收起的定时器、切换 VM 时的
-// 复位,都由父组件(KvmPage)算好——本组件只管"给了就渲染,点了关闭就 emit"。
+// Display conditions (state==='running' etc. are not determined here), the 180-second
+// auto-close timer, and VM-switch resets are all pre-computed by the parent component
+// (KvmPage) — this component only handles "render when given, emit close on click".
 import { useI18n } from 'vue-i18n'
 
 defineProps<{ hostname: string; spicePort: number; isWindowsGuest: boolean }>()
@@ -28,7 +31,7 @@ const { t } = useI18n()
       :aria-label="t('kvmClose')"
       @click="emit('close')"
     >
-      <!-- × 是单色文字符号占位(禁 emoji),对位 Vue2 b-icon icon="close-outline"。 -->
+      <!-- × is a monochrome text symbol placeholder (emoji forbidden), matching Vue2 b-icon icon="close-outline". -->
       <span aria-hidden="true">×</span>
     </button>
   </div>

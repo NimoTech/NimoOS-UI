@@ -1,10 +1,12 @@
-// Task 5 (SP7-P5 人物): PersonAvatar.vue —— 通用人物头像,T6/T7/T8/T10/T13 共用。
-// 三级兜底:①personId 存在且未失败 → 真图;②否则 personInitial(name) 非空 → 首字母;
-// ③否则 → person 图标。三者都走 mock 的 service.photos.personFaceThumbnailUrl,不手拼 URL。
+// Task 5 (SP7-P5 people): PersonAvatar.vue — shared person avatar, used by T6/T7/T8/T10/T13.
+// Three-level fallback: ① personId exists and not failed → real image; ② otherwise personInitial(name)
+// non-empty → initial letter; ③ otherwise → person icon. All three use mocked
+// service.photos.personFaceThumbnailUrl, don't construct URL manually.
 //
-// 关键回归(brief 偏离登记):Vue2 把失败态记在父组件字典里且整会话不清除,换封面也不重试
-// (PhotosPeopleView.vue:474,566-571)。本组件把 failed 收进组件自身 ref,并 watch
-// [personId, ver] 变化时复位——「失败后改 ver 要能重试」是本测试文件的核心断言,不能漏。
+// Key regression (brief deviation logged): Vue2 stores failed state in parent dict and never clears for
+// the entire session, doesn't retry when changing avatar (PhotosPeopleView.vue:474,566-571). This
+// component stores failed state in its own ref, watches [personId, ver] to reset on change — "after
+// failure, changing ver must allow retry" is the core assertion of this test file and cannot be missed.
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
@@ -35,14 +37,14 @@ function mountAvatar(props: AvatarProps) {
 }
 
 describe('PersonAvatar', () => {
-  it('有 personId → 渲染 <img>,src 是 personFaceThumbnailUrl(id, ver) 的返回值(带 ver)', () => {
+  it('Has personId → render <img>, src is the return value of personFaceThumbnailUrl(id, ver) (with ver)', () => {
     const w = mountAvatar({ personId: 'p1', name: 'Alice', ver: 'face9' })
     const img = w.get('[data-test="avatar-img"]')
     expect(img.attributes('src')).toBe('mock://face/p1?v=face9')
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('p1', 'face9')
   })
 
-  it('img error → <img> 消失,渲染大写首字母', async () => {
+  it('img error → <img> disappears, render uppercase initial letter', async () => {
     const w = mountAvatar({ personId: 'p1', name: 'bob' })
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(true)
     await w.get('[data-test="avatar-img"]').trigger('error')
@@ -50,7 +52,7 @@ describe('PersonAvatar', () => {
     expect(w.get('[data-test="avatar-initial"]').text()).toBe('B')
   })
 
-  it('失败后改 ver prop → 重新渲染 <img>(失败态复位,不是 Vue2 的永久失败坑)', async () => {
+  it('After failure, change ver prop → re-render <img> (failure state resets, not Vue2\'s permanent failure pit)', async () => {
     const w = mountAvatar({ personId: 'p1', name: 'Bob', ver: 'v1' })
     await w.get('[data-test="avatar-img"]').trigger('error')
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(false)
@@ -61,7 +63,7 @@ describe('PersonAvatar', () => {
     expect(img.attributes('src')).toBe('mock://face/p1?v=v2')
   })
 
-  it('失败后改 personId prop(同 id 类型不变)→ 也重新渲染 <img>', async () => {
+  it('After failure, change personId prop (same id type) → also re-render <img>', async () => {
     const w = mountAvatar({ personId: 'p1', name: 'Bob' })
     await w.get('[data-test="avatar-img"]').trigger('error')
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(false)
@@ -70,32 +72,32 @@ describe('PersonAvatar', () => {
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(true)
   })
 
-  it('无 personId、有 name → 直接首字母,不渲染 <img>', () => {
+  it('No personId, has name → directly show initial letter, don\'t render <img>', () => {
     const w = mountAvatar({ personId: null, name: 'carol' })
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(false)
     expect(w.get('[data-test="avatar-initial"]').text()).toBe('C')
   })
 
-  it('personId 与 name 都无 → 渲染 person 图标,不渲染 <img> 也不渲染首字母', () => {
+  it('Both personId and name absent → render person icon, don\'t render <img> or initial letter', () => {
     const w = mountAvatar({ personId: null })
     expect(w.find('[data-test="avatar-img"]').exists()).toBe(false)
     expect(w.find('[data-test="avatar-initial"]').exists()).toBe(false)
     expect(w.find('[data-test="avatar-icon"]').exists()).toBe(true)
   })
 
-  it('name 为空字符串、personId 为 null → 同上落到图标(personInitial 空串兜底)', () => {
+  it('name is empty string, personId is null → same as above falls to icon (personInitial empty string fallback)', () => {
     const w = mountAvatar({ personId: null, name: '' })
     expect(w.find('[data-test="avatar-icon"]').exists()).toBe(true)
   })
 
-  it('数字 personId 也能正确生成 URL(铁律:id 可能是数字)', () => {
+  it('Numeric personId also generates URL correctly (iron rule: id may be numeric)', () => {
     const w = mountAvatar({ personId: 42, ver: 7 })
     const img = w.get('[data-test="avatar-img"]')
     expect(img.attributes('src')).toBe('mock://face/42?v=7')
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith(42, 7)
   })
 
-  it('size 影响根元素内联宽高;未传时默认 72', () => {
+  it('size affects root element inline width/height; defaults to 72 when not passed', () => {
     const w = mountAvatar({ personId: null, size: 48 })
     const style = w.element.getAttribute('style') || ''
     expect(style).toContain('width: 48px')
@@ -107,7 +109,7 @@ describe('PersonAvatar', () => {
     expect(style2).toContain('height: 72px')
   })
 
-  it('dashed 为 true 时加对应 class;默认 false 不加', () => {
+  it('When dashed is true, add corresponding class; default false don\'t add', () => {
     const w = mountAvatar({ personId: null, dashed: true })
     expect(w.classes()).toContain('is-dashed')
 
@@ -115,7 +117,7 @@ describe('PersonAvatar', () => {
     expect(w2.classes()).not.toContain('is-dashed')
   })
 
-  it('fav 为 true 时渲染收藏星标;默认 false 不渲染', () => {
+  it('When fav is true, render favorite star badge; default false don\'t render', () => {
     const w = mountAvatar({ personId: null, fav: true })
     expect(w.find('[data-test="avatar-fav"]').exists()).toBe(true)
 
@@ -123,45 +125,45 @@ describe('PersonAvatar', () => {
     expect(w2.find('[data-test="avatar-fav"]').exists()).toBe(false)
   })
 
-  // 收藏星标改成「圆环上方偏右」(照 Vue2 photos-people.scss:150-156)。唯一真锚点是
-  // size=124 那一档(scss:165 的 20px 在 Vue2 里是死代码,见组件内注释);尺寸与偏移都按
-  // 24/124、34/124 等比缩放。
+  // Favorite star badge changed to "offset right above the ring" (following Vue2 photos-people.scss:150-156).
+  // The only real anchor point is size=124 (the 20px in scss:165 is dead code in Vue2, see component
+  // comment); both dimensions and offset scale proportionally by 24/124, 34/124, etc.
   const favStyleOf = (size: number) =>
     mountAvatar({ personId: null, fav: true, size }).find('[data-test="avatar-fav"]').attributes('style') ?? ''
 
-  it('收藏星标在 Vue2 唯一真锚点 size=124 上精确复现 24px / 34px', () => {
+  it('Favorite star badge exactly reproduces 24px / 34px on Vue2\'s only real anchor point size=124', () => {
     const s = favStyleOf(124)
     expect(s).toContain('width: 24px')
     expect(s).toContain('height: 24px')
     expect(s).toContain('translateX(34px)')
   })
 
-  it('收藏星标的尺寸与偏移都随 size 等比缩放(不是钉死一档)', () => {
-    // 84 → round(84*24/124)=16、round(84*34/124)=23
+  it('Favorite star badge\'s dimensions and offset scale proportionally with size (not fixed to one size)', () => {
+    // 84 → round(84*24/124)=16, round(84*34/124)=23
     expect(favStyleOf(84)).toContain('width: 16px')
     expect(favStyleOf(84)).toContain('translateX(23px)')
-    // 偏移严格单调递增,证明是按 size 连续取值
+    // Offset strictly monotonically increases, proving continuous scaling by size
     const offsets = [32, 48, 84, 124].map((n) => Number(/translateX\((\d+)px\)/.exec(favStyleOf(n))![1]))
     expect(offsets).toEqual([...offsets].sort((a, b) => a - b))
     expect(new Set(offsets).size).toBe(offsets.length)
   })
 
-  it('小尺寸头像上星标不吞掉头像:宽度夹在 15px 起步,且始终不超过头像的 1/2', () => {
+  it('Star badge on small avatars doesn\'t consume the avatar: width starts at 15px and never exceeds 1/2 of avatar', () => {
     for (const size of [24, 32, 48, 72, 84, 124]) {
       const px = Number(/width: (\d+)px/.exec(favStyleOf(size))![1])
-      expect(px).toBeGreaterThanOrEqual(15)          // 下界:再小认不出星形
-      expect(px).toBeLessThanOrEqual(24)             // 上界:Vue2 原值
-      expect(px).toBeLessThan(size)                  // 绝不整体盖住头像
+      expect(px).toBeGreaterThanOrEqual(15)          // Lower bound: any smaller can't be recognized as star
+      expect(px).toBeLessThanOrEqual(24)             // Upper bound: Vue2 original value
+      expect(px).toBeLessThan(size)                  // Never completely cover the avatar
       if (size >= 48) expect(px / size).toBeLessThanOrEqual(0.5)
     }
-    // 回归钉子:修正前 48px 头像配的是钉死的 24px 星标(占半个头像宽、压在人脸正中)
+    // Regression nail: before fix, 48px avatar was paired with fixed 24px star badge (occupying half width, pressing on center)
     expect(favStyleOf(48)).toContain('width: 15px')
   })
 
-  // Task 8 加性扩展(MergeReviewDialog 专用):shape='square' 时圆环切成方形圆角
-  // (border-radius:12px),默认('circle' 或不传)必须完全不变——这是对 T5 契约的加性
-  // 扩展,不能改变既有默认行为。
-  it("shape='square' 时加 is-square class;默认('circle'/不传)不加", () => {
+  // Task 8 additive extension (MergeReviewDialog-only): when shape='square', the ring becomes square with
+  // rounded corners (border-radius:12px), default ('circle' or not passed) must remain completely unchanged
+  // — this is an additive extension of T5 contract, cannot change existing default behavior.
+  it("When shape='square', add is-square class; default ('circle'/not passed) don't add", () => {
     const w = mountAvatar({ personId: null, shape: 'square' })
     expect(w.classes()).toContain('is-square')
 
@@ -172,12 +174,13 @@ describe('PersonAvatar', () => {
     expect(w3.classes()).not.toContain('is-square')
   })
 
-  it('圆环无条件带一圈发丝描边(Vue2 scss:124),dashed 只改线型', () => {
-    // 非虚线态也必须有边 —— Named 分区 84px 头像原先少了这圈描边
+  it('Ring unconditionally has a hair-line border (Vue2 scss:124), dashed only changes line style', () => {
+    // Non-dashed state must also have border — Named section 84px avatar previously lacked this border
     expect(mountAvatar({ personId: null }).classes()).not.toContain('is-dashed')
     expect(mountAvatar({ personId: null, dashed: true }).classes()).toContain('is-dashed')
-    // 具体线型由 scoped CSS 给(jsdom 不解析 scoped 样式),这里锁住结构契约:
-    // 圆环节点恒存在且只有一个,虚线态不靠额外节点而是靠 class 覆盖 border-style。
+    // Specific line style is given by scoped CSS (jsdom doesn't parse scoped styles), here we lock the
+    // structural contract: ring node always exists and only one, dashed state doesn't rely on extra nodes
+    // but on class overriding border-style.
     expect(mountAvatar({ personId: null }).findAll('.person-avatar-ring')).toHaveLength(1)
   })
 })

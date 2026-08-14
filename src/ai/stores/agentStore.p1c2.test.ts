@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { flushPromises } from '@vue/test-utils'
 
-// SP8-P1c2 Task 2 —— 右栏折叠态 + 当前 tab 的最小状态/动作集。
-// vi.hoisted() 服务 mock + setActivePinia 模式抄自 agentStore.p1c.test.ts。
+// SP8-P1c2 Task 2 — right sidebar collapse state + current tab's minimal state/action set.
+// vi.hoisted() service mock + setActivePinia pattern copied from agentStore.p1c.test.ts.
 const svc = vi.hoisted(() => ({
   listAgentSessions: vi.fn(), createAgentSession: vi.fn(), deleteAgentSession: vi.fn(),
   listAgentMessages: vi.fn(), updateAgentSessionTitle: vi.fn(), regenerateAgentSessionTitle: vi.fn(),
@@ -12,13 +12,14 @@ const svc = vi.hoisted(() => ({
   listAttachments: vi.fn(), deleteAttachment: vi.fn(),
   listStagedChanges: vi.fn(), commitStagedChanges: vi.fn(),
   revertStagedRun: vi.fn(), revertStagedBatch: vi.fn(), revertStagedItems: vi.fn(),
-  // SP8-P1c2 Task 3 —— thinking 域(agentStore.js:656-687)。
+  // SP8-P1c2 Task 3 — thinking domain (agentStore.js:656-687).
   getThinkingDefaults: vi.fn(), getSessionThinking: vi.fn(), patchSessionThinking: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: svc } }))
-// SP8-P1c2 Task 4 —— autoTitleFirstTurn(送经 send())走同一条 regenerateTitle 路径
-// 的测试需要控制 runAgentRun,故此处改成命名 hoisted 引用(抄自 agentStore.test.ts
-// 的 runSpy/attachSpy 模式),Task2/Task3 既有用例不读取这两个引用,不受影响。
+// SP8-P1c2 Task 4 — autoTitleFirstTurn (via send()) takes the same regenerateTitle path,
+// the test needs to control runAgentRun, so we changed here to named hoisted references
+// (copied from agentStore.test.ts's runSpy/attachSpy pattern), Task2/Task3 existing test cases
+// don't read these two references, unaffected.
 const { runSpy, attachSpy } = vi.hoisted(() => ({
   runSpy: vi.fn(),
   attachSpy: vi.fn(),
@@ -30,20 +31,20 @@ vi.mock('../services/agentTransport', () => ({
 
 import { useAgentStore } from './agentStore'
 
-describe('agentStore P1c2 Task2:右栏折叠态 + tab', () => {
+describe('agentStore P1c2 Task2: right sidebar collapse state + tab', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
     localStorage.clear()
   })
 
-  it('默认值:rightCollapsed=false(展开)、rightTab="activity"(agentStore.js:37-38)', () => {
+  it('default values: rightCollapsed=false (open), rightTab="activity" (agentStore.js:37-38)', () => {
     const s = useAgentStore('p1c2-a')
     expect(s.rightCollapsed).toBe(false)
     expect(s.rightTab).toBe('activity')
   })
 
-  it('setRightTab:切换当前激活 tab(agentStore.js:158)', () => {
+  it('setRightTab: switch currently active tab (agentStore.js:158)', () => {
     const s = useAgentStore('p1c2-b')
     s.setRightTab('context')
     expect(s.rightTab).toBe('context')
@@ -53,7 +54,7 @@ describe('agentStore P1c2 Task2:右栏折叠态 + tab', () => {
     expect(s.rightTab).toBe('resources')
   })
 
-  it('toggleRight:翻转 rightCollapsed(agentStore.js:157)', () => {
+  it('toggleRight: toggle rightCollapsed (agentStore.js:157)', () => {
     const s = useAgentStore('p1c2-c')
     expect(s.rightCollapsed).toBe(false)
     s.toggleRight()
@@ -62,29 +63,29 @@ describe('agentStore P1c2 Task2:右栏折叠态 + tab', () => {
     expect(s.rightCollapsed).toBe(false)
   })
 
-  it('tab 选择不持久化:切 tab 后不写 localStorage(与 theme/selectedModel 不同)', () => {
+  it('tab selection does not persist: don\'t write to localStorage after switching tabs (different from theme/selectedModel)', () => {
     const s = useAgentStore('p1c2-d')
     s.setRightTab('system')
     expect(localStorage.length).toBe(0)
   })
 })
 
-// SP8-P1c2 Task 3 —— store thinking 域(agentStore.js:656-698)。
-describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
+// SP8-P1c2 Task 3 — store thinking domain (agentStore.js:656-698).
+describe('agentStore P1c2 Task3: thinking domain (loaders/setters)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
     localStorage.clear()
   })
 
-  it('loadThinkingDefaults:成功时写入 defaults(agentStore.js:656-660)', async () => {
+  it('loadThinkingDefaults: write to defaults on success (agentStore.js:656-660)', async () => {
     const s = useAgentStore('p1c2-e1')
     svc.getThinkingDefaults.mockResolvedValue({ enabled: false, level: 'high' })
     await s.loadThinkingDefaults()
     expect(s.thinking.defaults).toEqual({ enabled: false, level: 'high' })
   })
 
-  it('loadThinkingDefaults:吞错保留硬编码兜底(agentStore.js:656-660,**吞错**)', async () => {
+  it('loadThinkingDefaults: swallow error and keep hardcoded fallback (agentStore.js:656-660, **swallow error**)', async () => {
     const s = useAgentStore('p1c2-e2')
     const before = { ...s.thinking.defaults }
     svc.getThinkingDefaults.mockRejectedValue(new Error('boom'))
@@ -92,13 +93,13 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
     expect(s.thinking.defaults).toEqual(before)
   })
 
-  it('loadSessionThinking:无 id 直接返回,不发请求(agentStore.js:664)', async () => {
+  it('loadSessionThinking: return directly without id, don\'t send request (agentStore.js:664)', async () => {
     const s = useAgentStore('p1c2-e3')
     await s.loadSessionThinking(null as unknown as string)
     expect(svc.getSessionThinking).not.toHaveBeenCalled()
   })
 
-  it('loadSessionThinking:getSessionThinking 返回 null(无覆盖)时回落到 defaults(agentStore.js:666)', async () => {
+  it('loadSessionThinking: getSessionThinking returns null (no override), fall back to defaults (agentStore.js:666)', async () => {
     const s = useAgentStore('p1c2-e4')
     s.thinking.defaults = { enabled: false, level: 'low' }
     svc.getSessionThinking.mockResolvedValue(null)
@@ -107,7 +108,7 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
     expect(s.thinking.level).toBe('low')
   })
 
-  it('loadSessionThinking:getSessionThinking 有值时只写 enabled/level(agentStore.js:667-668)', async () => {
+  it('loadSessionThinking: getSessionThinking has value, only write enabled/level (agentStore.js:667-668)', async () => {
     const s = useAgentStore('p1c2-e5')
     svc.getSessionThinking.mockResolvedValue({ enabled: true, level: 'high' })
     await s.loadSessionThinking('sess-2')
@@ -116,32 +117,32 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
     expect(s.thinking.level).toBe('high')
   })
 
-  it('setThinkingEnabled:无会话只改本地,不发 patch 请求(agentStore.js:671-677)', async () => {
+  it('setThinkingEnabled: no session, only change local, don\'t send patch request (agentStore.js:671-677)', async () => {
     const s = useAgentStore('p1c2-e6')
     await s.setThinkingEnabled(false)
     expect(s.thinking.enabled).toBe(false)
     expect(svc.patchSessionThinking).not.toHaveBeenCalled()
   })
 
-  it('setThinkingEnabled:有会话先乐观改本地再 patch,失败**不回滚**(agentStore.js:671-677,故意保留)', async () => {
+  it('setThinkingEnabled: has session, optimistically change local first then patch, on failure **don\'t rollback** (agentStore.js:671-677, intentionally kept)', async () => {
     const s = useAgentStore('p1c2-e7')
     s.activeSessionId = 'sess-3'
     s.thinking.level = 'medium'
     svc.patchSessionThinking.mockRejectedValue(new Error('network'))
     await expect(s.setThinkingEnabled(false)).rejects.toThrow('network')
-    // 本地状态已经改了,且没有因为 patch 失败被回滚回去
+    // local state has been changed, and it wasn't rolled back due to patch failure
     expect(s.thinking.enabled).toBe(false)
     expect(svc.patchSessionThinking).toHaveBeenCalledWith('sess-3', { enabled: false, level: 'medium' })
   })
 
-  it('setThinkingLevel:无会话只改本地,不发 patch 请求(agentStore.js:680-686)', async () => {
+  it('setThinkingLevel: no session, only change local, don\'t send patch request (agentStore.js:680-686)', async () => {
     const s = useAgentStore('p1c2-e8')
     await s.setThinkingLevel('high')
     expect(s.thinking.level).toBe('high')
     expect(svc.patchSessionThinking).not.toHaveBeenCalled()
   })
 
-  it('setThinkingLevel:有会话先乐观改本地再 patch,失败**不回滚**(agentStore.js:680-686,故意保留)', async () => {
+  it('setThinkingLevel: has session, optimistically change local first then patch, on failure **don\'t rollback** (agentStore.js:680-686, intentionally kept)', async () => {
     const s = useAgentStore('p1c2-e9')
     s.activeSessionId = 'sess-4'
     s.thinking.enabled = true
@@ -151,7 +152,7 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
     expect(svc.patchSessionThinking).toHaveBeenCalledWith('sess-4', { enabled: true, level: 'low' })
   })
 
-  it('setThinkingLevel:有会话且 patch 成功时正常 resolve', async () => {
+  it('setThinkingLevel: has session and patch succeeds, resolve normally', async () => {
     const s = useAgentStore('p1c2-e10')
     s.activeSessionId = 'sess-5'
     svc.patchSessionThinking.mockResolvedValue(undefined)
@@ -161,9 +162,9 @@ describe('agentStore P1c2 Task3:thinking 域(loaders/setters)', () => {
   })
 })
 
-// SP8-P1c2 Task 4 —— store regenerateTitle(逐字港 agentStore.js:210-244)+
-// regeneratingTitleFor,以及 autoTitleFirstTurn 改走同一条路径。
-describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
+// SP8-P1c2 Task 4 — store regenerateTitle (ported from agentStore.js:210-244) +
+// regeneratingTitleFor, and autoTitleFirstTurn changed to take the same path.
+describe('agentStore P1c2 Task4: regenerateTitle + regeneratingTitleFor', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
@@ -172,7 +173,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     localStorage.clear()
   })
 
-  it('无 selectedModel 时直接返回,不发请求(agentStore.js:212-213)', async () => {
+  it('return directly when no selectedModel, don\'t send request (agentStore.js:212-213)', async () => {
     const s = useAgentStore('p1c2-title-a')
     s.selectedModel = null
     await s.regenerateTitle('sess-1')
@@ -180,14 +181,14 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(s.regeneratingTitleFor).toBeNull()
   })
 
-  it('selectedModel 完全无冒号(畸形 key)时直接返回——Vue2 独有 guard(agentStore.js:214-215),parseModelKey 本身对此不等价', async () => {
+  it('selectedModel has no colon at all (malformed key), return directly — Vue2-exclusive guard (agentStore.js:214-215), parseModelKey itself is not equivalent to this', async () => {
     const s = useAgentStore('p1c2-title-b')
     s.selectedModel = 'not-a-valid-key'
     await s.regenerateTitle('sess-1')
     expect(svc.regenerateAgentSessionTitle).not.toHaveBeenCalled()
   })
 
-  it('local key:解析出裸模型名,provider_type 无命中时回落 ollama(agentStore.js:216-220,228)', async () => {
+  it('local key: parse out bare model name, fall back to ollama when provider_type has no match (agentStore.js:216-220, 228)', async () => {
     const s = useAgentStore('p1c2-title-c')
     s.availableModels = []
     s.selectedModel = 'local:llama'
@@ -196,7 +197,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
   })
 
-  it('cloud key:解析出裸模型名,providerType 取命中 model 的 provider_type(agentStore.js:221-224,227-228)', async () => {
+  it('cloud key: parse out bare model name, providerType takes the provider_type of the matched model (agentStore.js:221-224, 227-228)', async () => {
     const s = useAgentStore('p1c2-title-d')
     s.availableModels = [
       { key: 'cloud:p1:chat', source: 'cloud', displayName: 'chat', provider_type: 'deepseek' },
@@ -207,7 +208,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'deepseek')
   })
 
-  it('cloud key 无命中 model 时 providerType 回落 other(agentStore.js:228)', async () => {
+  it('when cloud key has no matched model, providerType falls back to other (agentStore.js:228)', async () => {
     const s = useAgentStore('p1c2-title-e')
     s.availableModels = []
     s.selectedModel = 'cloud:p1:chat'
@@ -216,7 +217,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'chat', 'other')
   })
 
-  it('成功且 title 非空时写回 sessions[idx].title(agentStore.js:232-237)', async () => {
+  it('on success and non-empty title, write back to sessions[idx].title (agentStore.js:232-237)', async () => {
     const s = useAgentStore('p1c2-title-f')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
     s.selectedModel = 'local:llama'
@@ -226,7 +227,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(s.sessions[0].title).toBe('Generated Title')
   })
 
-  it('title 为空(falsy)时不写回(agentStore.js:234)', async () => {
+  it('when title is empty (falsy), don\'t write back (agentStore.js:234)', async () => {
     const s = useAgentStore('p1c2-title-g')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
     s.selectedModel = 'local:llama'
@@ -236,7 +237,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(s.sessions[0].title).toBe('keep-me')
   })
 
-  it('失败被吞(只 console.warn),promise 仍 resolve,regeneratingTitleFor 复位(agentStore.js:238-243,故意保留)', async () => {
+  it('failure is swallowed (only console.warn), promise still resolves, regeneratingTitleFor is reset (agentStore.js:238-243, intentionally kept)', async () => {
     const s = useAgentStore('p1c2-title-h')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
     s.selectedModel = 'local:llama'
@@ -245,21 +246,21 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     expect(s.regeneratingTitleFor).toBeNull()
   })
 
-  it('background 标记透传 + regeneratingTitleFor 是对象({id,background})而非布尔(agentStore.js:230,顶栏要靠它区分自动/手动)', async () => {
+  it('background flag is passed through + regeneratingTitleFor is an object ({id, background}) not a boolean (agentStore.js:230, top bar relies on it to distinguish auto/manual)', async () => {
     const s = useAgentStore('p1c2-title-i')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
     s.selectedModel = 'local:llama'
     let resolveFn: (v: unknown) => void = () => {}
     svc.regenerateAgentSessionTitle.mockReturnValue(new Promise((resolve) => { resolveFn = resolve }))
     const p = s.regenerateTitle('sess-1', { background: true })
-    // 尚未 resolve 时,regeneratingTitleFor 已同步落上 { id, background: true }。
+    // before resolve, regeneratingTitleFor has already synchronously landed on { id, background: true }.
     expect(s.regeneratingTitleFor).toEqual({ id: 'sess-1', background: true })
     resolveFn({ title: 'X' })
     await p
     expect(s.regeneratingTitleFor).toBeNull()
   })
 
-  it('background 默认 false(不传 opts 时,agentStore.js:210)', async () => {
+  it('background defaults to false (when opts not passed, agentStore.js:210)', async () => {
     const s = useAgentStore('p1c2-title-j')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama' }]
     s.selectedModel = 'local:llama'
@@ -271,7 +272,7 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     await p
   })
 
-  it('autoTitleFirstTurn(send() 首轮补标题)委托 regenerateTitle(id,{background:true})——两份实现不并存(agentStore.js:413-419)', async () => {
+  it('autoTitleFirstTurn (send() first-turn title supplement) delegates to regenerateTitle (id, {background: true}) — two implementations don\'t coexist (agentStore.js:413-419)', async () => {
     svc.regenerateAgentSessionTitle.mockResolvedValue({ title: 'Auto Generated' })
     const s = useAgentStore('p1c2-title-k')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
@@ -279,14 +280,14 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
     s.activeSessionId = 'sess-1'
     s.sessions = [{ id: 'sess-1', title: '' }]
     await s.send('hello')
-    // autoTitleFirstTurn 是 send() finally 里的 fire-and-forget 调用,让其内部
-    // 微任务(regenerateTitle 的 await + 写回 title)先跑完再断言。
+    // autoTitleFirstTurn is a fire-and-forget call in send()'s finally block, let its internal
+    // microtasks (regenerateTitle's await + writing back title) run first before asserting.
     await flushPromises()
     expect(svc.regenerateAgentSessionTitle).toHaveBeenCalledWith('sess-1', 'llama', 'ollama')
     expect(s.sessions[0].title).toBe('Auto Generated')
   })
 
-  it('autoTitleFirstTurn 失败时不影响 send() 本轮结果(fire-and-forget + 吞错,agentStore.js:416-417)', async () => {
+  it('when autoTitleFirstTurn fails, it doesn\'t affect send()\'s current result (fire-and-forget + swallow error, agentStore.js:416-417)', async () => {
     svc.regenerateAgentSessionTitle.mockRejectedValue(new Error('boom'))
     const s = useAgentStore('p1c2-title-l')
     s.availableModels = [{ key: 'local:llama', source: 'local', displayName: 'llama', provider_type: 'ollama' }]
@@ -298,11 +299,11 @@ describe('agentStore P1c2 Task4:regenerateTitle + regeneratingTitleFor', () => {
   })
 })
 
-// SP8-P1c2 Task 13 —— Vue2 遗留缺陷修复:activitySteps 从不清空。
-// Vue2 store/agentStore.js 里 activitySteps 声明于 :39、push 于 :128、patch 于
-// :137-140,全文件无任何清空点;切会话(:246-293)/新建(:166-183)/删除当前会话
-// (:185-192)都不重置 —— 上一个会话的运行步骤会残留在右栏 Activity tab。
-describe('agentStore P1c2 Task13:activitySteps 在会话边界清空(Vue2 缺陷修复)', () => {
+// SP8-P1c2 Task 13 — Vue2 legacy bug fix: activitySteps is never cleared.
+// In Vue2 store/agentStore.js, activitySteps is declared at :39, pushed at :128, patched at :137-140,
+// no clearing point in entire file; switching sessions (:246-293) / creating new (:166-183) / deleting
+// current session (:185-192) don't reset — previous session's running steps will remain in right sidebar.
+describe('agentStore P1c2 Task13: activitySteps cleared at session boundary (Vue2 bug fix)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
@@ -316,27 +317,27 @@ describe('agentStore P1c2 Task13:activitySteps 在会话边界清空(Vue2 缺陷
     attachSpy.mockResolvedValue({ attached: false, error: null })
   })
 
-  it('会话 A 跑出步骤 → 切到会话 B → activitySteps 为空', async () => {
+  it('session A runs out steps → switch to session B → activitySteps is empty', async () => {
     const s = useAgentStore('p1c2-act-a')
     s.activeSessionId = 'sess-A'
     s.pushActivityStep({ name: 'nimoos_search' })
     s.pushActivityStep({ name: 'read_file' })
     expect(s.activitySteps.map((x) => x.name)).toEqual(['nimoos_search', 'read_file'])
 
-    // 禁忌:不得 `await store.selectSession(...)`(它 await attach 流,活跃 run 时
-    // 不 resolve)。清空点在 selectSession 的第一个 await 之前(紧挨 activeSessionId
-    // 切换),所以发起调用后同步断言即可。
+    // Forbidden: must not `await store.selectSession(...)` (it awaits attach stream, doesn't
+    // resolve when run is active). Clearing point is before the first await in selectSession
+    // (right after activeSessionId switch), so you can assert synchronously right after calling.
     void s.selectSession('sess-B')
     expect(s.activitySteps).toEqual([])
 
-    // 让内部 await 链落定,确认没有任何后续步骤把旧数据再写回来
-    // (attach 未命中 → 无 replay 事件)。
+    // Let the internal await chain settle, confirm that no subsequent steps write the old data back
+    // (attach miss → no replay event).
     await flushPromises()
     expect(s.activeSessionId).toBe('sess-B')
     expect(s.activitySteps).toEqual([])
   })
 
-  it('新建会话 → activitySteps 为空(与 messages 同一处会话边界清理)', async () => {
+  it('create new session → activitySteps is empty (session boundary cleanup same as messages)', async () => {
     svc.createAgentSession.mockResolvedValue({ session_id: 'sess-new' })
     const s = useAgentStore('p1c2-act-b')
     s.activeSessionId = 'sess-A'
@@ -349,7 +350,7 @@ describe('agentStore P1c2 Task13:activitySteps 在会话边界清空(Vue2 缺陷
     expect(s.activitySteps).toEqual([])
   })
 
-  it('删除当前会话 → activitySteps 为空', async () => {
+  it('delete current session → activitySteps is empty', async () => {
     svc.deleteAgentSession.mockResolvedValue({})
     const s = useAgentStore('p1c2-act-c')
     s.activeSessionId = 'sess-A'
@@ -361,7 +362,7 @@ describe('agentStore P1c2 Task13:activitySteps 在会话边界清空(Vue2 缺陷
     expect(s.activitySteps).toEqual([])
   })
 
-  it('删除的不是当前会话 → activitySteps 保留(与 messages 的条件分支一致,agentStore.js:185-192)', async () => {
+  it('deleted session is not current → activitySteps preserved (condition branch matches messages, agentStore.js:185-192)', async () => {
     svc.deleteAgentSession.mockResolvedValue({})
     const s = useAgentStore('p1c2-act-d')
     s.activeSessionId = 'sess-A'

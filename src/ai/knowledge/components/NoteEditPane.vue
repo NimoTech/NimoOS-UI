@@ -279,25 +279,26 @@ const { t } = useI18n()
 const router = useRouter()
 const store = useKnowledgeStore()
 
-/** 蓝本 `methods: { sourceMeta: noteSourceMeta, timeAgo: relativeTime }`
- * (`:224-225`)——别名手法与 `NotesView.vue:108-109` 同一模具,模板里保持
- * 蓝本的调用名 `sourceMeta(...)`/`timeAgo(...)`。 */
+/** Blueprint `methods: { sourceMeta: noteSourceMeta, timeAgo: relativeTime }`
+ * (`:224-225`)—alias technique matches `NotesView.vue:108-109` template,
+ * keeps blueprint's call names `sourceMeta(...)`/`timeAgo(...)` in template. */
 const sourceMeta = noteSourceMeta
 const timeAgo = relativeTime
 
 const isNew = computed<boolean>(() => props.noteId === 'new')
 
 /**
- * 蓝本 `data() { note: {} }`(:198)—— 初始为空对象而不是 `null`,与 Vue2 属性
- * 访问在字段缺失时返回 `undefined`(不抛错)完全对齐;用 `null` 反而要求全文
- * 到处加可选链,是本刀不做的无关改写。`isNew` 时永远不读它,`!isNew` 分支
- * 在 `loadNote()` 里被真实数据覆盖前不会被展示层依赖。
+ * Blueprint `data() { note: {} }`(:198)—initial empty object not `null`,
+ * aligns with Vue2 property access returning `undefined`(not throwing) when field missing;
+ * using `null` would require optional chains throughout, unrelated rewrite this pass skips.
+ * Never read when `isNew`, `!isNew` branch before covered by real data in `loadNote()`
+ * won't trigger display layer dependency.
  */
 const note = ref<Note>({} as Note)
-/** K41 —— `service.notes.backlinks()` 返回 `unknown[]`(治理 §4.1)。T7 只在
- * `loadNote()` 里把它取回来存好,ref 声明本身**零改动**;T8 新增下方的
- * `backlinkList` computed 做 K41 另一半的类型收窄消费(卡片渲染),不改写
- * 这个 ref。 */
+/** K41 — `service.notes.backlinks()` returns `unknown[]`(governance §4.1). T7 only
+ * fetches and stores in `loadNote()`, ref declaration itself **unchanged**;
+ * T8 adds `backlinkList` computed below for K41 other half type narrowing consumption(card render),
+ * doesn't rewrite this ref. */
 const backlinks = ref<unknown[]>([])
 
 const saving = ref(false)
@@ -324,27 +325,28 @@ const form = reactive({
 
 const status = computed<string | null | undefined>(() => (isNew.value ? null : note.value.status))
 
-/** N28 —— 蓝本 `:207` 正则照抄,不"修正"成 markdown 感知的计数。 */
+/** N28 — blueprint `:207` regex copy as-is, doesn't "fix" to markdown-aware counting. */
 const wordCount = computed<number>(() => (form.body || '').replace(/[#|\-*`>\s]/g, '').length)
 
 /**
- * K41 另一半(文件头「═══ T8 ═══」大节有完整登记)。字段依据:蓝本 `:128`
- * 读 `r.path`、`:131` 读 `r.session_id`、`:132` 经 `refLabel(r)` 读 `r.label`。
+ * K41 other half (complete registration in file header「═══ T8 ═══」section).
+ * Field basis: blueprint `:128` reads `r.path`, `:131` reads `r.session_id`,
+ * `:132` via `refLabel(r)` reads `r.label`.
  */
 interface SourceRef {
   path?: string
   session_id?: string
   label?: string
 }
-/** 蓝本 `:206` `sourceRefs() { return this.note.sourceRefs || [] }` 逐字照抄
- * (含 `|| []` 防御,note 初始为 `{}` 时 `sourceRefs` 运行时确为 `undefined`,
- * 尽管 `Note.sourceRefs` 的包类型是必有的 `unknown[]`)。 */
+/** Blueprint `:206` `sourceRefs() { return this.note.sourceRefs || [] }` copied exactly
+ * (with `|| []` defensive guard; when note initially `{}`, runtime `sourceRefs` is truly `undefined`,
+ * even though package `Note.sourceRefs` type is required `unknown[]`). */
 const sourceRefs = computed<SourceRef[]>(() => (note.value.sourceRefs as SourceRef[] | undefined) || [])
 
 /**
- * K41 另一半。字段依据:蓝本 `:139` 读 `b.id`(`:key="b.id"`)、`:141` 读
- * `b.title`。`backlinks` ref 本身维持 T7 声明的 `unknown[]`,这里只做消费侧
- * 的一次性重断言,不改写 ref。
+ * K41 other half. Field basis: blueprint `:139` reads `b.id`(`:key="b.id"`),
+ * `:141` reads `b.title`. `backlinks` ref keeps T7's declared `unknown[]`,
+ * here only one-time consumer-side re-assertion, doesn't rewrite ref.
  */
 interface Backlink {
   id: string
@@ -357,23 +359,23 @@ function onEditorReady(ed: Editor): void {
 }
 
 /**
- * N29 —— `tbTick.value >= 0 &&` 是故意的假依赖,不许删(见文件头注释)。
- * `!!(...)` 只是把最终返回值收窄成严格 `boolean`(TS 的函数签名要求),不改变
- * 短路顺序,也不改变任何可观察行为(蓝本原式在 `editor` 为空时求值到 `null`,
- * 经 `String(null)` 会是 `"null"`;但这一状态只存在于 `onEditorReady` 触发前的
- * 那一次同步渲染里,在任何等待过 `nextTick`/`flushPromises` 的观察点都已被
- * 之后的响应式重渲染覆盖成真实布尔值,与 Vue2 的实际可观察行为等价)。
+ * N29 — `tbTick.value >= 0 &&` is intentional fake dependency, must not delete(see file header comment).
+ * `!!(...)` only narrows final return to strict `boolean`(TS function signature requires),
+ * doesn't change short-circuit order or observable behavior(blueprint raw form evaluates to `null`
+ * when `editor` empty, becomes `"null"` via `String(null)`; but this state only exists in
+ * that one sync render before `onEditorReady` fires, at any observation point after `nextTick`/`flushPromises`
+ * already covered by reactive re-render to real boolean, equals Vue2 actual observable behavior).
  */
 function tbActive(name: string, attrs?: Record<string, unknown>): boolean {
   return !!(tbTick.value >= 0 && editor.value && editor.value.isActive(name, attrs))
 }
 
 /**
- * 蓝本 `:231-236`:`chain[name](arg).run()` 按字符串动态派发到
- * `ChainedCommands` 的某个方法。`@tiptap/core` 的 `ChainedCommands` 接口没有
- * 索引签名,直接用字符串下标访问在 `strict` 模式下不成立 —— 用
- * `as unknown as Record<...>` 做一次结构性重断言(不是 `as any`),只影响这一次
- * 动态调用的类型可见性,不改变运行时行为。
+ * Blueprint `:231-236`: `chain[name](arg).run()` dispatches by string to
+ * some `ChainedCommands` method. `@tiptap/core`'s `ChainedCommands` interface lacks
+ * index signature, direct string subscript access not valid in `strict` mode —
+ * use `as unknown as Record<...>` for one structural re-assertion(not `as any`),
+ * only affects type visibility of this dynamic call, doesn't change runtime behavior.
  */
 function cmd(name: string, arg?: Record<string, unknown>): void {
   if (!editor.value) return
@@ -386,9 +388,9 @@ function cmd(name: string, arg?: Record<string, unknown>): void {
 }
 
 /**
- * 蓝本 `:238-243`。本刀实现本体(见文件头"任务切分判断"①)——`save()` 开头
- * 调用它(蓝本 `:273`),行为要成立:去重后追加到 `form.tags`,只有真的追加了
- * 才置 `dirty = true`。UI(标签输入框/删除按钮/键盘事件)归 T8。
+ * Blueprint `:238-243`. This pass implements body(see file header "task division decision" ①)—
+ * called at start of `save()`(blueprint `:273`), behavior must hold: append deduplicated
+ * to `form.tags`, set `dirty = true` only if actually appended. UI(tag input/delete button/keyboard event) goes to T8.
  */
 function addTag(): void {
   const parsed = parseTags(tagInput.value)
@@ -400,23 +402,23 @@ function addTag(): void {
   tagInput.value = ''
 }
 
-/** 蓝本 `:237`:`if (this.$refs.tagInput) this.$refs.tagInput.focus()`
- * ——Vue3 模板 ref 是 `HTMLInputElement | null`,可选链等价改写。 */
+/** Blueprint `:237`: `if (this.$refs.tagInput) this.$refs.tagInput.focus()`
+ * —Vue3 template ref is `HTMLInputElement | null`, optional chaining equivalent rewrite. */
 function focusTagInput(): void {
   tagInputEl.value?.focus()
 }
 
-/** 蓝本 `:244-247`。 */
+/** Blueprint `:244-247`. */
 function removeTag(tg: string): void {
   form.tags = form.tags.filter((x) => x !== tg)
   dirty.value = true
 }
 
 /**
- * 蓝本 `:248-254`(DoD-3,三条分支 + 一条反例):`Enter`/`,` → 阻止默认行为 +
- * `addTag()`;`Backspace` **且输入框为空且已有标签** → 弹掉最后一个 +
- * `dirty = true`。`Backspace` 但输入框非空 → 两条分支都不成立,什么都不做
- * (反例,不弹标签)。
+ * Blueprint `:248-254`(DoD-3, three branches + one counter-example): `Enter`/`,` → prevent default +
+ * `addTag()`; `Backspace` **and input empty and tags exist** → pop last one +
+ * `dirty = true`. `Backspace` but input non-empty → neither branch holds, do nothing
+ * (counter-example, don't pop tag).
  */
 function onTagKey(e: KeyboardEvent): void {
   if (e.key === 'Enter' || e.key === ',') {
@@ -429,29 +431,29 @@ function onTagKey(e: KeyboardEvent): void {
   }
 }
 
-/** 蓝本 `:255`(DoD-9,三种输入都要用例)。 */
+/** Blueprint `:255`(DoD-9, all three input types need test cases). */
 function refLabel(r: SourceRef): string {
   return r.label || String(r.session_id || '').slice(0, 8)
 }
 
-/** 蓝本 `:256`。 */
+/** Blueprint `:256`. */
 function openRef(s: SourceRef): void {
   if (s.path) openFileInNewTab(s.path)
 }
 
-/** 蓝本 `:257`。 */
+/** Blueprint `:257`. */
 function openSessionRef(r: SourceRef): void {
   openAgentSessionInNewTab(r.session_id)
 }
 
-/** 蓝本 `:258`。 */
+/** Blueprint `:258`. */
 function revealFile(): void {
   if (note.value.path) openFileInNewTab(note.value.path)
 }
 
 /**
- * 蓝本 `:259-264`。🔴 `navigator.clipboard` 在 HTTP-IP 下不存在(见文件头
- * 「═══ T8 ═══」大节的 clipboard 一条)——真机会走 catch,按 N 系列照抄。
+ * Blueprint `:259-264`. RED `navigator.clipboard` unavailable under HTTP-IP(see file header
+ * 「═══ T8 ═══」section clipboard clause)—real device goes to catch, N series copy as-is.
  */
 async function copyPath(): Promise<void> {
   try {
@@ -463,7 +465,7 @@ async function copyPath(): Promise<void> {
 }
 
 /**
- * 蓝本 `:265-271`。K5:不回显 `e.message`,统一 `aiKbOpFailed`。
+ * Blueprint `:265-271`. K5: don't echo `e.message`, unified `aiKbOpFailed`.
  */
 async function curateInPlace(): Promise<void> {
   try {
@@ -476,9 +478,9 @@ async function curateInPlace(): Promise<void> {
 }
 
 /**
- * 蓝本 `:302-309`。见文件头"任务切分判断"②:本刀实现本体,让 `save()` 的
- * catch 分岔能达成"conflict state 被设上"这个可观察结果。纯数据获取 +
- * 状态设置,零 UI 依赖。
+ * Blueprint `:302-309`. See file header "task division decision" ②:
+ * this pass implements body so `save()` catch branch achieves "conflict state being set"
+ * observable result. Pure data fetch + state setting, zero UI dependency.
  */
 async function openConflict(): Promise<void> {
   try {
@@ -490,8 +492,8 @@ async function openConflict(): Promise<void> {
 }
 
 /**
- * 蓝本 `:310-315`。🔴 clipboard 见文件头「═══ T8 ═══」大节,HTTP-IP 下真机
- * 会走 catch,按 N 系列照抄。
+ * Blueprint `:310-315`. RED clipboard see file header「═══ T8 ═══」section,
+ * real device under HTTP-IP goes to catch, N series copy as-is.
  */
 async function copyMine(): Promise<void> {
   try {
@@ -503,9 +505,9 @@ async function copyMine(): Promise<void> {
 }
 
 /**
- * 蓝本 `:316-323`。只在冲突弹窗渲染期间(`v-if="conflict"`)可被点击,
- * `conflict.value!` 非空断言与蓝本 `this.conflict.latest` 零防御逐字等价
- * (K34 同族)。`form.body` 的 `unknown → string` 收窄手法与 `loadNote()` 同。
+ * Blueprint `:316-323`. Only clickable during conflict modal render(`v-if="conflict"`),
+ * `conflict.value!` non-null assertion exactly matches blueprint `this.conflict.latest`
+ * zero defensive(K34 family). `form.body` `unknown → string` narrowing matches `loadNote()`.
  */
 function adoptDisk(): void {
   const latest = conflict.value!.latest
@@ -517,8 +519,8 @@ function adoptDisk(): void {
 }
 
 /**
- * 蓝本 `:324-331`,注释原文「Rebase onto the disk revision so the next save
- * overwrites it」——只 rebase revision,**body 不动**。
+ * Blueprint `:324-331`, comment original「Rebase onto the disk revision so the next save
+ * overwrites it」—only rebase revision, **body unchanged**.
  */
 function keepMine(): void {
   const rev = conflict.value!.latest.revision
@@ -528,18 +530,18 @@ function keepMine(): void {
   useToast().show(t('aiKbNeKeptMine', { n: rev }), 2400)
 }
 
-/** K29 同族(`NotesView.vue` 删除弹窗 / `SettingsView.vue:349-355` 既定手法)——
- * reka `DialogRoot` 的 `@update:open` 表达「弹窗被关掉了」,蓝本两条关闭路径
- * (点 × / 点遮罩,蓝本没有独立的「取消」按钮)都收敛成 `conflict = null`。 */
+/** K29 family(`NotesView.vue` delete modal / `SettingsView.vue:349-355` established approach)—
+ * reka `DialogRoot` `@update:open` expresses "modal closed", blueprint's two close paths
+ * (click × / click overlay, blueprint has no separate "cancel" button) both converge to `conflict = null`. */
 function onConflictOpenChange(v: boolean): void {
   if (!v) conflict.value = null
 }
 
 /**
- * 蓝本 `:272-301`。两条路:`isNew` → `create` + 路由带 `?id=`;否则 → `update`
- * (`expectedRevision` 用 K41 非空断言,见文件头)。catch 分岔:409 且非新建 →
- * `openConflict()`;否则 K5 固定文案。`addTag()` 在最开头被调用(蓝本 `:273`)——
- * 输入框里未提交的标签会被一并带上再保存。
+ * Blueprint `:272-301`. Two paths: `isNew` → `create` + route with `?id=`;
+ * otherwise → `update`(`expectedRevision` uses K41 non-null assertion, see file header).
+ * Catch branch: 409 and not new → `openConflict()`;  otherwise K5 fixed text.
+ * `addTag()` called at very start(blueprint `:273`)—unprompted tags in input also saved.
  */
 async function save(): Promise<void> {
   addTag()
@@ -578,12 +580,12 @@ async function save(): Promise<void> {
 }
 
 /**
- * 蓝本 `created()`(:209-222)的等效 —— §5.2 过期守卫(本刀第 9 次),
- * `loadEpoch` 声明在 `<script setup>` 函数体作用域内(组件实例级,非模块级),
- * 判据:挪到模块顶层后"两实例交错"用例必须报红(见 NoteEditPane.test.ts)。
- * 两发请求(`get` + `backlinks`)包在同一个 try 里,与蓝本一致 —— 若
- * `backlinks()` 失败,即使 `get()` 已成功也会落进同一个 catch(蓝本行为,不拆
- * 成两个独立 try)。
+ * Equivalent of blueprint `created()`(:209-222) — §5.2 stale guard(this pass 9th),
+ * `loadEpoch` declared in `<script setup>` function body scope(component instance, not module),
+ * criterion: move to module level "two instance interleaving" case must fail red(see NoteEditPane.test.ts).
+ * Two requests(`get` + `backlinks`) in same try, matches blueprint —
+ * if `backlinks()` fails, even successful `get()` goes to same catch(blueprint behavior, not split
+ * into two independent try).
  */
 let loadEpoch = 0
 
@@ -760,7 +762,7 @@ if (!isNew.value) loadNote()
       </div>
     </div>
 
-    <!-- 409 conflict: someone saved first (T8, reka Dialog 原语,见文件头「═══ T8 ═══」大节) -->
+    <!-- 409 conflict: someone saved first (T8, reka Dialog primitive, see file header「═══ T8 ═══」section) -->
     <DialogRoot :open="!!conflict" @update:open="onConflictOpenChange">
       <DialogPortal to=".knowledge-app" defer>
         <DialogOverlay class="k-modal-bg">

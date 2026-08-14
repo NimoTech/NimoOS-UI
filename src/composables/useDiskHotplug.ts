@@ -1,8 +1,8 @@
 import { onMounted, onUnmounted } from 'vue'
 import { useMessageBus } from './useMessageBus'
 
-// 从 StorageVolumes/StorageDrives 抽取的重复热插拔接线(P1 台账债)。
-// MessageBus handler 不可阻塞(buffer=1):防抖后刷新(Vue2 MountList 先例)。
+// Repeated hot-swap wiring extracted from StorageVolumes/StorageDrives (P1 tech debt).
+// MessageBus handler must not block (buffer=1): refresh after debouncing (Vue2 MountList precedent).
 export function useDiskHotplug(
   refresh: () => void,
   opts: { debounceMs?: number; loadOnMount?: boolean } = {},

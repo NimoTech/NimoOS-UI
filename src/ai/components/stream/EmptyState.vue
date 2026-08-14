@@ -1,8 +1,8 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/stream/EmptyState.vue。
-  SP8-P1b Task 11:@pick 直接 store.send(prompt) —— send() 存在后不再需要
-  暂存 pendingPrompt + "coming soon" toast 的占位行为。store 走
-  useProvidedAgentStore(),供 Photos 受限 profile 嵌入时解析到正确的祖先 store。
+  1:1 port from Vue2 src/views/AI/Agent/stream/EmptyState.vue.
+  SP8-P1b Task 11: @pick directly calls store.send(prompt) — after send() exists, no longer
+  needs placeholder behavior of stashing pendingPrompt + "coming soon" toast. store uses
+  useProvidedAgentStore(), allowing Photos restricted profile embed to resolve to correct ancestor store.
 -->
 <script setup lang="ts">
 import { computed } from 'vue'

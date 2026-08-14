@@ -1,37 +1,37 @@
-// SP8-P5e Task 5 —— `FileDetailDrawer.vue` 单测。蓝本 `NimoOS-UI@7a6ee6b7`
-// `src/views/AI/Knowledge/components/FileDetailDrawer.vue`(220 行,全部本刀移植)+
-// 承接的 Vue2 spec `src/views/AI/Knowledge/__tests__/fileDetailDrawerDistill.spec.js`(N43,
-// 测法必须改,见下方对应 describe 块)。
+// SP8-P5e Task 5 — `FileDetailDrawer.vue` unit tests. Blueprint `NimoOS-UI@7a6ee6b7`
+// `src/views/AI/Knowledge/components/FileDetailDrawer.vue`(220 lines, all ported this pass)+
+// following Vue2 spec `src/views/AI/Knowledge/__tests__/fileDetailDrawerDistill.spec.js`(N43,
+// test approach must change, see corresponding describe block below).
 //
-// ═══ mock 边界(治理 §4.1)═══
-// `service.notes.distillFile` 用 `vi.hoisted` mock;`isDistillableName` 走
-// `importOriginal` 保留真实实现(唯一定义处在 `NimoOS-Service/src/notes.ts` 的
-// `DISTILL_EXTS`,N44 要求本仓不重定义扩展名表 —— 若这里也 mock 掉,`canDistill` 的
-// `.pdf`/`.png` 两条用例就测不到真实扩展名表)。
-// `store.loadChunkContext` 用真 Pinia + `vi.spyOn(store, 'loadChunkContext')` 逐条
-// mock(`store.runSearch` 不涉及,那是 T6/T7 的活),返回值 = 后端原始 snake_case
-// (`{chunks:[{chunk_no,text}], anchor_chunk_no}`),照治理 §4.1 的层次表。
+// ═══ mock boundary(governance §4.1)═══
+// `service.notes.distillFile` uses `vi.hoisted` mock; `isDistillableName` uses
+// `importOriginal` keeping real implementation(sole definition in `NimoOS-Service/src/notes.ts`'s
+// `DISTILL_EXTS`, N44 requires this repo not re-define extension table — if mock here too,
+// `canDistill`'s `.pdf`/`.png` two cases can't test real extension table).
+// `store.loadChunkContext` uses real Pinia + `vi.spyOn(store, 'loadChunkContext')` per-case
+// mock(`store.runSearch` not involved, that's T6/T7's work), return value = back end original snake_case
+// (`{chunks:[{chunk_no,text}], anchor_chunk_no}`), follows governance §4.1 level table.
 //
-// ═══ fixture 出处(三级标签逐个标注,裁定 R3 约束 1 / R9)═══
-// `REAL_FILE_ID` / `CHUNK0_TEXT_PREFIX` / `CHUNK1_TEXT_PREFIX` 取自
+// ═══ fixture source(three-level labels per entry, ruling R3 constraint 1 / R9)═══
+// `REAL_FILE_ID` / `CHUNK0_TEXT_PREFIX` / `CHUNK1_TEXT_PREFIX` from
 // `.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json`
-// (`files[0]`,真实 file_id/mime/score/mtime_ms/path,REPLAYED)。
-// `F6_ANCHOR_TEXT_PREFIX`/`F6B_ANCHOR_TEXT_PREFIX` 取自
+// (`files[0]`, real file_id/mime/score/mtime_ms/path, REPLAYED).
+// `F6_ANCHOR_TEXT_PREFIX`/`F6B_ANCHOR_TEXT_PREFIX` from
 // `F6-search-chunk.window.REPLAYED.json` / `F6b-search-chunk.window-multi.REPLAYED.json`
-// 的 anchor 条目(REPLAYED)。🔴 按 R9-3「测试里只许贴 1–2 条完整正文」,本文件**零条**
-// 完整正文 —— 全部截到真实前 48–72 字符(仍是真实数据的真实前缀,不是手编内容),
-// 每条都标了完整值的 `len`/`sha256`,校验命令统一见下方注释(把 `<n>` 换成对应长度即可
-// 复核前缀确实是该 sha256 对应值的真前缀):
+// anchor entries(REPLAYED). RED per R9-3「test allows only 1-2 complete texts」, this file **zero**
+// complete texts — all truncated to real first 48–72 chars(still real prefix of real data, not hand-written),
+// each marked with complete value's `len`/`sha256`, verify command unified in comment below(swap `<n>`
+// for corresponding length to verify prefix truly is real prefix of that sha256 value):
 //   python3 -c "import json,hashlib; d=json.load(open('.superpowers/sdd/p5e-fixtures/<FILE>')); \
-//     t=<取值路径>; print(len(t), hashlib.sha256(t.encode()).hexdigest())"
-// `F12_CONSTRUCTED`(anchor 缺席兜底的唯一样本)取自
-// `F12-search-chunk.anchor-absent.CONSTRUCTED.json`(CONSTRUCTED,D-6 模具,本身已经很短,
-// 全文照抄)。
+//     t=<value path>; print(len(t), hashlib.sha256(t.encode()).hexdigest())"
+// `F12_CONSTRUCTED`(sole sample for anchor absent fallback) from
+// `F12-search-chunk.anchor-absent.CONSTRUCTED.json`(CONSTRUCTED, D-6 template, already very short,
+// copy entire text as-is).
 //
-// ═══ K/N 命中(逐条见对应 describe 块内注释)═══
-// K44 · emit 契约(不直调 useToast)· N42(fetchFull 四条 reqId 守卫)· N43(distill 测法改)·
-// N44(canDistill 用包内 isDistillableName)· K48(四函数零重复定义)· K49(v-html 注入)·
-// N41(Esc)· T5 DoD-12(自动上膛守卫)。
+// ═══ K/N hits (each see comment in corresponding describe block below)═══
+// K44 · emit contract(don't directly call useToast) · N42(fetchFull four reqId guards) · N43(distill test approach changed) ·
+// N44(canDistill use package isDistillableName) · K48(four functions zero re-definition) · K49(v-html injection) ·
+// N41(Esc) · T5 DoD-12(auto-load guard).
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -44,16 +44,17 @@ import FileDetailDrawer from './FileDetailDrawer.vue'
 
 const __dirname = pathDirname(fileURLToPath(import.meta.url))
 const read = (p: string) => readFileSync(resolve(__dirname, p), 'utf8') as string
-// 🔴 E-60/E-25 家族:类名/调用形状的否定式断言要先剥注释(注释里提到 `<style>`/`useToast()`/
-// `function highlight` 等字样是假阳性——本文件头部注释本身就大量引用这些字样来做申报说明)。
-// 只剥掉整行 `//` 注释(本文件不含需要保留判别力的色字面量注释,不适用相反方向的 E-60 色扫规则)。
+// RED E-60/E-25 family: negation assertions for class names/call shapes must strip comments first(mentioning
+// `<style>`/`useToast()`/`function highlight` etc. in comments is false positive—file header comment itself
+// heavily references these for explanation). Only strip full-line `//` comments(this file has no color literals
+// comments needing judgment preservation, doesn't apply reverse E-60 color scan rules).
 const stripLineComments = (src: string) =>
   src
     .split('\n')
     .filter((line) => !line.trim().startsWith('//'))
     .join('\n')
 
-// ─── mock service.notes.distillFile;isDistillableName 走 importOriginal 保真实实现 ───
+// ─── mock service.notes.distillFile; isDistillableName uses importOriginal for real implementation ───
 const notes = vi.hoisted(() => ({ distillFile: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>()
@@ -61,7 +62,7 @@ vi.mock('@nimotech/nimoos-service', async (importOriginal) => {
 })
 import { service } from '@nimotech/nimoos-service'
 
-// ─── fixture 数据(§0 出处说明,截到真实前缀)───
+// ─── fixture data(§0 source explanation, truncated to real prefix) ───
 const REAL_FILE_ID = 'dce79e8ea5d48719cd4ad16fe48da843' // 真实 file_id,F5b/F6/F6b/F12 共用同一份索引文档
 const REAL_PATH_DIR = '/DATA/.system_data/.docker/containers/26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1/'
 const REAL_NAME = '26be4bc607290dbbc955a0f5f1f1317d7a5b55df87ccdd86e9987ca8440c7ea1-json.log'
@@ -77,9 +78,9 @@ const F6_ANCHOR_TEXT_PREFIX = "-f4b8bca68b49: Client error '404 Not Found' for "
 // CHUNK1_TEXT_PREFIX 同一份真实文本 —— F6b 与 F5b 是同一份索引文档的不同视角,已交叉核对一致)
 const F6B_ANCHOR_TEXT_PREFIX = 'stAPI docs for Lifespan Events](https://fastapi.'
 
-/** REPLAYED —— F6:满窗口 5 条,anchor(2387)居中。非 anchor 条目的 text 只保留真实前 48
- * 字符(component 只用 `chunk_no` 做 `.find()` 匹配,非 anchor 条目的 text 从不被渲染,
- * 截断不影响任何断言的判别力,见文件头 R9-3 说明)。 */
+/** REPLAYED — F6: full window 5 items, anchor(2387) centered. Non-anchor items' text only keeps
+ * real first 48 chars(component only uses `chunk_no` for `.find()` match, non-anchor text never rendered,
+ * truncation doesn't affect any assertion discrimination, see file header R9-3 explanation). */
 const F6_WINDOW_RAW = {
   file_id: REAL_FILE_ID,
   kind: 'body',
@@ -93,8 +94,8 @@ const F6_WINDOW_RAW = {
   ],
 }
 
-/** REPLAYED —— F6b:anchor(1)贴着 chunk_no 下界 ⇒ 只取到 4 条(不足 2W+1=5),钉住
- * 「后端只按窗口过滤 + 升序,不保证条数」。 */
+/** REPLAYED — F6b: anchor(1) at chunk_no lower bound ⇒ only get 4 items(less than 2W+1=5), pin
+ * "back end only filters by window + ascending, doesn't guarantee count". */
 const F6B_WINDOW_RAW = {
   file_id: REAL_FILE_ID,
   kind: 'body',
@@ -107,11 +108,11 @@ const F6B_WINDOW_RAW = {
   ],
 }
 
-/** CONSTRUCTED(D-6 模具)—— anchor 不在 chunks 里的唯一样本,逐字照抄
- * `F12-search-chunk.anchor-absent.CONSTRUCTED.json`(已剥 `_provenance`)。权威源:
- * `NimoOS-Search/service/authz.go:96-149`(GetChunkWindow 把请求 chunk_no 原样回显成
- * anchor_chunk_no,但 chunks 只保留仍存在的邻居——若 anchor 那条被 re-chunk/tombstone
- * 掉,anchor 就不在 chunks 里)。 */
+/** CONSTRUCTED(D-6 template) — sole sample with anchor not in chunks, copy
+ * `F12-search-chunk.anchor-absent.CONSTRUCTED.json` exactly(stripped `_provenance`). Authoritative source:
+ * `NimoOS-Search/service/authz.go:96-149`(GetChunkWindow echoes request chunk_no as anchor_chunk_no as-is,
+ * but chunks only keeps still-existing neighbors—if anchor item re-chunked/tombstoned,
+ * anchor not in chunks). */
 const F12_ANCHOR_ABSENT_RAW = {
   file_id: REAL_FILE_ID,
   kind: 'body',
@@ -156,15 +157,15 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('FileDetailDrawer —— K44:.vue 侧零 <style> 块', () => {
+describe('FileDetailDrawer — K44: .vue side zero <style> block', () => {
   it('文件内确认无任何 <style> 块', () => {
     const src = stripLineComments(read('./FileDetailDrawer.vue'))
     expect(/<style/.test(src)).toBe(false)
   })
 })
 
-describe('FileDetailDrawer —— K48:四个函数零重复定义,一律从 util/searchAggregate import', () => {
-  it('grep 自证:highlight/fmtMtime/relLevel/relLabel 在本文件里都是「零函数声明」', () => {
+describe('FileDetailDrawer — K48: four functions zero re-definition, all imported from util/searchAggregate', () => {
+  it('grep self-proof: highlight/fmtMtime/relLevel/relLabel all "zero function declaration" in this file', () => {
     const rawSrc = read('./FileDetailDrawer.vue')
     const src = stripLineComments(rawSrc)
     for (const fn of ['highlight', 'fmtMtime', 'relLevel', 'relLabel']) {
@@ -174,8 +175,8 @@ describe('FileDetailDrawer —— K48:四个函数零重复定义,一律从 util
   })
 })
 
-describe('FileDetailDrawer —— 渲染:文件信息 / 匹配段计数 / 修改时间 / 摘要行', () => {
-  it('kind 标签大写 / 路径 / "{n} matching sections" / Modified 日期', () => {
+describe('FileDetailDrawer — render: file info / match section count / modified time / summary line', () => {
+  it('kind label uppercase / path / "{n} matching sections" / Modified date', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile(), query: 'agent' } })
@@ -192,7 +193,7 @@ describe('FileDetailDrawer —— 渲染:文件信息 / 匹配段计数 / 修改
     expect(modifiedItem).toContain('2026-') // mtimeMs=1784424392240 落在 2026 年(与 fixture README 记的换算一致)
   })
 
-  it('summary 行 = aiKbFdSummary(n=chunks.length, query),按真实 i18n 值拼接', () => {
+  it('summary line = aiKbFdSummary(n=chunks.length, query), spliced by real i18n value', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile(), query: 'skating' } })
@@ -207,8 +208,8 @@ describe('FileDetailDrawer —— 渲染:文件信息 / 匹配段计数 / 修改
   })
 })
 
-describe('FileDetailDrawer —— activeId 初值 / select / step 边界(DoD-3)', () => {
-  it('初值 = 首个 chunk 的 id(第一条 .k-chunk-item 的 data-active=true)', () => {
+describe('FileDetailDrawer — activeId initial value / select / step boundary(DoD-3)', () => {
+  it('initial value = first chunk id (first .k-chunk-item with data-active=true)', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -217,14 +218,14 @@ describe('FileDetailDrawer —— activeId 初值 / select / step 边界(DoD-3)'
     expect(items[1].attributes('data-active')).toBe('false')
   })
 
-  it('activeId 初值 = null(判据:chunks=[] 时无任何 .k-chunk-item 具备 data-active=true)', () => {
+  it('activeId initial = null(criterion: when chunks=[], no .k-chunk-item has data-active=true)', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile({ chunks: [] }) } })
     expect(w.findAll('.k-chunk-item')).toHaveLength(0)
   })
 
-  it('点击第二条 chunk(select)→ data-active 切换', async () => {
+  it('click second chunk(select) → data-active switches', async () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -235,7 +236,7 @@ describe('FileDetailDrawer —— activeId 初值 / select / step 边界(DoD-3)'
     expect(w.find('.k-chunk-nav-count').text()).toBe('2 / 2')
   })
 
-  it('step 边界:curIndex=0 时 step(-1) 不越界(判据:去掉边界检查 → 必须报红,见下方 RED 探针)', () => {
+  it('step boundary: when curIndex=0, step(-1) doesn\'t overflow(criterion: remove boundary check → must fail red, see RED probe below)', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -248,7 +249,7 @@ describe('FileDetailDrawer —— activeId 初值 / select / step 边界(DoD-3)'
     expect(w.findAll('.k-chunk-item')[0].attributes('data-active')).toBe('true')
   })
 
-  it('step 边界:curIndex=末尾 时 step(+1) 不越界', async () => {
+  it('step boundary: when curIndex=end, step(+1) doesn\'t overflow', async () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -260,8 +261,8 @@ describe('FileDetailDrawer —— activeId 初值 / select / step 边界(DoD-3)'
   })
 })
 
-describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝本自带,照抄)', () => {
-  it('① 逻辑交错:选A→选B→B先回→A后回,渲染内容是 B 的', async () => {
+describe('FileDetailDrawer — fetchFull() N42 four reqId stale guards(blueprint included, copy as-is)', () => {
+  it('① logic interleaving: select A → select B → B returns first → A returns late, render content is B\'s', async () => {
     const store = withPinia()
     let resolveA!: (v: unknown) => void
     let resolveB!: (v: unknown) => void
@@ -287,7 +288,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect(w.find('.k-chunk-content').html()).not.toContain('A-FULL-TEXT-LATE')
   })
 
-  it('② 🔴 两实例交错守作用域(判据:activeId 挪到模块级 → 必须报红,见 T5 报告 RED 探针)', async () => {
+  it('② RED two instance interleaving respects scope(criterion: move activeId to module level → must fail red, see T5 report RED probe)', async () => {
     const store = withPinia()
     let resolve1!: (v: unknown) => void
     const p1 = new Promise((res) => { resolve1 = res })
@@ -311,7 +312,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect(w1.find('.k-chunk-content').html()).toContain('INSTANCE-1-LATE-TEXT')
   })
 
-  it('③ catch 分支也有 reqId 判断:失败的旧请求不覆盖新内容', async () => {
+  it('③ catch branch also has reqId check: failed old request doesn\'t overwrite new content', async () => {
     const store = withPinia()
     let rejectA!: (e: unknown) => void
     const pA = new Promise((_res, rej) => { rejectA = rej })
@@ -332,7 +333,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect(w.find('.k-chunk-content').html()).not.toContain(CHUNK0_TEXT_PREFIX.slice(0, 20))
   })
 
-  it('④ finally 里的 loading 也带 reqId 判断:旧请求的 finally 不清空当前请求已经置起的 loading', async () => {
+  it('④ loading in finally also has reqId check: old request\'s finally doesn\'t clear loading already set by current request', async () => {
     const store = withPinia()
     let resolveA!: (v: unknown) => void
     const pA = new Promise((res) => { resolveA = res })
@@ -353,7 +354,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect((w.vm as unknown as { loading: boolean }).loading).toBe(true)
   })
 
-  it('⑤ 🔴 chunkNo == null 早退(蓝本 :147)—— file.chunks 为空时 fetchFull 不发起任何请求', async () => {
+  it('⑤ RED chunkNo == null early exit(blueprint :147)—fetchFull doesn\'t send request when file.chunks empty', async () => {
     const store = withPinia()
     const spy = vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     mount(FileDetailDrawer, { props: { file: makeFile({ chunks: [] }) } })
@@ -361,7 +362,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('mock 形状 = 后端原始 snake_case(F6:满窗口 5 条,anchor 居中)—— fetchFull 正确取到 anchor 的 text', async () => {
+  it('mock shape = back end original snake_case(F6: full window 5 items, anchor centered)—fetchFull correctly gets anchor text', async () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -369,7 +370,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
     expect(w.find('.k-chunk-content').html()).toContain(F6_ANCHOR_TEXT_PREFIX)
   })
 
-  it('mock 形状 = 后端原始 snake_case(F6b:anchor 贴下界,条数 4 < 2W+1=5)—— 仍正确取到 anchor', async () => {
+  it('mock shape = back end original snake_case(F6b: anchor at lower bound, count 4 < 2W+1=5)—still correctly get anchor', async () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6B_WINDOW_RAW)
     const w = mount(FileDetailDrawer, { props: { file: makeFile() } })
@@ -391,7 +392,7 @@ describe('FileDetailDrawer —— fetchFull() N42 四条 reqId 过期守卫(蓝�
   })
 })
 
-describe('FileDetailDrawer —— emit 契约照抄(close/open/download/toast,不直调 useToast)', () => {
+describe('FileDetailDrawer — emit contract copy as-is(close/open/download/toast, don\'t directly call useToast)', () => {
   it('🔴 本组件自身零处调用 useToast()(grep 自证,蓝本 :186-190 的约定)', () => {
     const src = stripLineComments(read('./FileDetailDrawer.vue'))
     expect(/useToast\s*\(/.test(src)).toBe(false)
@@ -446,7 +447,7 @@ describe('FileDetailDrawer —— emit 契约照抄(close/open/download/toast,�
   })
 })
 
-describe('FileDetailDrawer —— copy() 两条路径(蓝本 :164-181,评审第一必查项)', () => {
+describe('FileDetailDrawer — copy() two paths(blueprint :164-181, first review must-check item)', () => {
   // clipboard/execCommand mock 手法照本仓既定先例 src/files/util/clipboard.test.ts:
   // jsdom 原生零 `document.execCommand`(不是"存在但为 undefined"——属性根本不存在),
   // `vi.spyOn` 要求属性已存在,故直接赋值 `document.execCommand = vi.fn(...)`,
@@ -521,7 +522,7 @@ describe('FileDetailDrawer —— copy() 两条路径(蓝本 :164-181,评审第�
   })
 })
 
-describe('FileDetailDrawer —— N43:承接 fileDetailDrawerDistill.spec.js(测法必须改,见文件头说明)', () => {
+describe('FileDetailDrawer — N43: following fileDetailDrawerDistill.spec.js(test approach must change, see file header explanation)', () => {
   it('🔴 传的是 file.fullPath,不是 file.path(dirname)—— 判据:改成 file.path → 必须报红', async () => {
     notes.distillFile.mockResolvedValue({ queued: true })
     const store = withPinia()
@@ -557,7 +558,7 @@ describe('FileDetailDrawer —— N43:承接 fileDetailDrawerDistill.spec.js(测
   })
 })
 
-describe('FileDetailDrawer —— N44:canDistill 用包内 isDistillableName(真实实现,不重定义扩展名表)', () => {
+describe('FileDetailDrawer — N44: canDistill use package isDistillableName(real implementation, don\'t re-define extension table)', () => {
   it('.pdf → 沉淀按钮渲染', () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)
@@ -573,7 +574,7 @@ describe('FileDetailDrawer —— N44:canDistill 用包内 isDistillableName(真
   })
 })
 
-describe('FileDetailDrawer —— K49:v-html 注入(组件层渲染,util 层的 escape 已由 T3 测过)', () => {
+describe('FileDetailDrawer — K49: v-html injection(component layer render, util layer escape already tested by T3)', () => {
   it('喂含 <script> 的 snippet → 渲染 DOM 里 querySelector("script") 为 null、<mark> 在(chunk 列表)', async () => {
     const store = withPinia()
     vi.spyOn(store, 'loadChunkContext').mockResolvedValue(F6_WINDOW_RAW)

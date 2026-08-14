@@ -1,90 +1,97 @@
 <!--
-  SP8-P5d Task 6 —— 「笔记」页(rail 第 4 项),1:1 移植自 Vue2 蓝本
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/NotesView.vue`(271 行,
-  `git show 7a6ee6b7:` 读取,治理文件 §1:工作树是旧分支不可信)。
+  SP8-P5d Task 6 — "Notes" page (rail item 4), 1:1 port from Vue2 blueprint
+  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Knowledge/NotesView.vue` (271 lines,
+  read via `git show 7a6ee6b7:`, governance §1: working tree of old branch is not
+  trusted).
 
-  结构对照(蓝本行区间 → 本文件):
-    :8-16    pathstrip(每条笔记都是磁盘上的 .md 文件)
-    :19-28   骨架屏(loading && !notes.length)
-    :31-38   空态(!notes.length)
-    :42-76   草稿收件箱(drafts.length)
-    :79-99   工具栏(状态 pill + 类型下拉 + 新建)
-    :102-142 列表(filtered)+ 列表脚注
-    :147-175 删除确认弹窗(本刀转 reka,见下方【K7/K29/K36 同族】)
-    :180-266 全部 script
+  Structure cross-reference (blueprint line range → this file):
+    :8-16    pathstrip (each note is a .md file on disk)
+    :19-28   skeleton screen (loading && !notes.length)
+    :31-38   empty state (!notes.length)
+    :42-76   draft inbox (drafts.length)
+    :79-99   toolbar (status pill + type select + create)
+    :102-142 list (filtered) + list footer
+    :147-175 delete confirm dialog (this task converts to reka, see K7/K29/K36 family below)
+    :180-266 all script
 
-  【K1 —— 单层取数,治理 §4.1】`service.notes.list({limit:200})` 返回**已归一化的
-  `Note[]`**,不是 `{notes:[]}` 信封(`NimoOS-Service/src/notes.ts:211-215`);
-  `service.notes.getSettings()` 返回 camelCase 且只有 `{notesRoot, autoExtract}`
-  两个字段;`service.notes.remove(id)` 返回值本页不读(蓝本 `:261` 只 `await`)。
+  [K1 — single-level fetch, governance §4.1] `service.notes.list({limit:200})` returns
+  **normalized `Note[]`**, not a `{notes:[]}` envelope (`NimoOS-Service/src/notes.ts:211-215`);
+  `service.notes.getSettings()` returns camelCase with only `{notesRoot, autoExtract}`
+  two fields; `service.notes.remove(id)` return value not used on this page (blueprint `:261`
+  just `await`).
 
-  【§5.2 —— reload() 过期守卫,K15 同族第 8 次】`reload()` 有 3 个并发入口:
-  created 等效(见文件底部 setup 顶层直调)· `watch editingId` 变空 ·
-  5 个动作各自 `reload()`。`loading = false` 被先完成的那次提前清掉会让骨架
-  提前消失、用户可见 —— 用组件本地(不是模块级!)的 `let reloadEpoch` 判断
-  「我还是最新那一发吗」,不是最新就整发丢弃,inline 写,不抽公共 guard。
+  [§5.2 — reload() stale guard, K15 family 8th instance] `reload()` has 3 concurrent entry
+  points: created equivalent (see setup top-level call at file bottom) · `watch editingId`
+  becomes empty · 5 actions each call `reload()`. `loading = false` cleared early by
+  whichever finishes first makes skeleton disappear early, user-visible — use component-local
+  (not module-level!) `let reloadEpoch` to check "am I still the latest dispatch?", drop
+  entire request if not latest, inline write, don't extract shared guard.
 
-  【N30 —— watch editingId 只在变空时 reload,照抄】`:key="editingId"` 不许删,
-  切到另一条笔记时(id 非空→另一个非空)不触发 reload,靠 :key 变化重建子组件。
+  [N30 — watch editingId reloads only when becoming empty, copied] `:key="editingId"` cannot
+  be deleted. When switching to another note (id non-empty → another non-empty), no reload
+  triggered, use :key change to rebuild child component.
 
-  【N24 —— 骨架算术内联样式照抄】`(52 - i*8)%` / `(72 - i*6)%` 与 `cursor: default`
-  一字不改,不抽 class / computed。
+  [N24 — skeleton arithmetic inline styles copied verbatim] `(52 - i*8)%` / `(72 - i*6)%`
+  and `cursor: default` unchanged, don't extract to class / computed.
 
-  【N31 —— confirmAll 照抄】`Promise.all` 并发 + 无 `finally` + 失败也 `reload()`。
-  部分成功时:toast 报失败,但 `reload()` 仍把已成功的那些刷出来(这是 Vue2
-  现状,不是可复现错误行为,不修)。
+  [N31 — confirmAll copied] `Promise.all` concurrent + no `finally` + reload() even on fail.
+  On partial success (e.g. 1 of 3 rejected by backend): `Promise.all` rejects as whole, toast
+  one failure message, but subsequent `reload()` still refreshes the ones that succeeded on
+  backend — this is Vue2 current state, not reproducible buggy behavior, don't fix.
 
-  【N25 —— 列表脚注整句带 {n} 照抄】不许拆成三段拼接。
+  [N25 — list footer whole sentence with {n} copied] cannot split into three concat parts.
 
-  【K3】`store.actions.toast(...)` → 全局 `useToast().show(msg, 2400)`(承 P5a K3,
-  2400ms 与 `knowledgeStore.ts:312` 的既定 duration 一致)。
-  【K5(全部 catch)】不回显后端 `e.message`,统一弹固定文案 `aiKbOpFailed`
-  ——蓝本 5 处 catch 都是 `$t('Operation failed') + ': ' + (e.message || e)`,
-  本仓按既定模具(P2a/P2b/P5b K19/P5c K30)只弹固定键。
+  [K3] `store.actions.toast(...)` → global `useToast().show(msg, 2400)` (per P5a K3,
+  2400ms matches the fixed duration in `knowledgeStore.ts:312`).
+  [K5 (all catch blocks)] don't echo backend `e.message`, unified fixed message `aiKbOpFailed`
+  — blueprint has 5 catch blocks with `$t('Operation failed') + ': ' + (e.message || e)`,
+  this repo per established template (P2a/P2b/P5b K19/P5c K30) just toasts fixed key.
 
-  【`store.actions.setNotesDraftCount(n)` 照抄调用】`knowledgeStore.ts:509`,
-  该 store 全期零改动,本刀只调用。
+  [`store.actions.setNotesDraftCount(n)` call copied] `knowledgeStore.ts:509`,
+  this store unchanged throughout, this task just calls it.
 
-  【notesRoot 静默兜底,K6】蓝本 `:215` 是空 catch + 注释 `keep placeholder`,
-  照抄,连 `console.error` 都不加。
+  [notesRoot silent fallback, K6] blueprint `:215` is empty catch + comment `keep placeholder`,
+  copied verbatim, don't even add `console.error`.
 
-  【`editingId` 深链 watch 每个键各自的 getter】`editingId` 是读 `route.query.id`
-  的 computed(天然响应式,不是 onMounted 里一次性读值),避免记忆
-  `newui-router-query-only-no-remount` 那个坑——用户改地址栏一行也会生效。
+  [`editingId` deep link watch each key's own getter] `editingId` reads `route.query.id`
+  as computed (naturally reactive, not one-time read in onMounted), avoid the
+  `newui-router-query-only-no-remount` pitfall — user changing address bar also takes effect.
 
-  【缺口③ —— 模板内联色,附录 B §B.4 第 34 行是权威映射】蓝本 `:85` 的草稿
-  计数底色字面量藏在 `:style` 的 JS 对象字面量里,已换成 token 引用。守卫见
-  `../../styles/knowledgeStyles.test.ts` 的「守卫缺口③′」— 该断言贪婪抽取整个
-  `<template>` 块做文本级正则扫描,天然覆盖 `:style` 对象字面量里的字符串(不止
-  `style="…"` 属性),本刀把 `views/NotesView.vue` 加进 `KNOWLEDGE_VUE_FILES`
-  清单即可被其覆盖。
+  [Gap ③ — template inline color, Appendix B §B.4 line 34 is authoritative mapping] blueprint
+  `:85` has draft count bg color literal buried in `:style` JS object literal, swapped to
+  token reference. Guard in `../../styles/knowledgeStyles.test.ts` "guard gap ③′" — that
+  assertion greedily scans entire `<template>` block with text-level regex, naturally covers
+  color strings inside `:style` object literals (not just `style="…"` attribute), this task
+  adds `views/NotesView.vue` to `KNOWLEDGE_VUE_FILES` list to be covered.
 
-  【K41 同族 —— tags 类型收窄】包内 `Note.tags` 是 `unknown[]`
-  (`NimoOS-Service/src/notes.ts:25`),蓝本模板把它当字符串数组直接渲染
-  (`:124/:128`,`{{ t }}` / `:key="t"`),create/update 两端点的 tags 字段本就是
-  `string[]`,蓝本自己也从不做运行时校验。消费侧一次性断言式收窄(`tagsOf()`),
-  不改包、不用 `any`。K41 在治理文件里正式登记于 T7,本刀命中同一个字段、
-  用同一手法,行文里一并注明。
+  [K41 family — tags type narrowing] `Note.tags` inside package is `unknown[]`
+  (`NimoOS-Service/src/notes.ts:25`), blueprint template treats it as string array, renders
+  directly (`:124/:128`, `{{ t }}` / `:key="t"`), create/update both endpoints already have
+  tags field as `string[]`, blueprint itself never does runtime validation. Consumer-side
+  one-time assertion narrowing (`tagsOf()`), don't change package, don't use `any`. K41
+  formally registered in governance at T7, this task hits same field same technique, note
+  together in prose.
 
-  【K34 同族 —— Vue3+TS 机械改写】`confirmDelete()` 里 `deleting.value!.id`
-  ——蓝本 `notesApi.remove(this.deleting.id)` 没有任何空值防御,`deleting` 只在
-  删除弹窗打开时才非空(按钮只在弹窗内)。按 K34 第④条「能用保抛就用保抛」,
-  用非空断言 `!` 而不是 `?.`/提前 return(那会把蓝本的隐式抛错静默改成 no-op,
-  不是零行为变化)。
+  [K34 family — Vue3+TS mechanical translation] In `confirmDelete()`, `deleting.value!.id`
+  — blueprint `notesApi.remove(this.deleting.id)` has no null defense, `deleting` only
+  non-null when delete dialog opens (button only appears inside dialog). Per K34 item ④
+  "throw if we can", use non-null assertion `!` not `?.` / early return (that would silently
+  turn blueprint's implicit throw into no-op, not zero behavior change).
 
-  【NoteEditPane.vue 已在 T7 落地】T6 提交时该文件尚不存在,内联了一个零逻辑
-  占位组件顶替静态 import(见 p5d-task-6-report.md §7)。T7 创建了真实的
-  `../components/NoteEditPane.vue` 后,依计划书 §T7/brief §2 的「自动上膛」
-  守卫要求(见下方 `NotesView.test.ts` 对应 describe 块),已把下面这个 import
-  换回真组件,占位实现随之删除。
+  [NoteEditPane.vue landed in T7] At T6 submission this file didn't exist, inlined a
+  zero-logic placeholder component replacing static import (see p5d-task-6-report.md §7).
+  T7 created real `../components/NoteEditPane.vue`, per plan §T7 / brief §2
+  "auto-chamber" guard requirement (see NotesView.test.ts corresponding describe block),
+  already swapped this import back to real component, placeholder implementation deleted.
 
-  【删除确认弹窗转 reka,申报】计划书 §T8-7 已把冲突弹窗定为「转」,本刀判断
-  删除确认弹窗同族(K7 自 P5b 起对本期新增弹窗一律生效,QueueView/
-  IndexedFilesView/SettingsView 三个先例全部已转)。蓝本本身就有可见的
-  `.k-modal-title` 元素(`:150` 附近),按 K36 的既定选择用 `<DialogTitle as-child>`
-  直接套在那个 div 上(不额外插入 VisuallyHidden 隐藏节点),DOM 与蓝本逐字一致。
-  `DialogPortal to=".knowledge-app"`,结构照 `QueueView.vue:560-583` /
-  `SettingsView.vue:580-624` 抄,不自己发明。
+  [Delete confirm dialog converted to reka, declared] Plan §T8-7 already defined conflict
+  dialog as "convert", this task judges delete confirm as same family (K7 since P5b applies
+  to all new dialogs this period, QueueView/IndexedFilesView/SettingsView three precedents
+  all converted). Blueprint itself already has visible `.k-modal-title` element (near `:150`),
+  per K36 established choice use `<DialogTitle as-child>` directly wrapping that div
+  (no additional VisuallyHidden hidden node), DOM verbatim as blueprint. `DialogPortal
+  to=".knowledge-app"`, structure copied from `QueueView.vue:560-583` / `SettingsView.vue:580-624`,
+  don't invent new.
 -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
@@ -118,8 +125,9 @@ const deleting = ref<Note | null>(null)
 const bulkConfirming = ref(false)
 const notesRoot = ref('')
 
-/** K41 同族(见文件头注释)—— 包内 `Note.tags` 是 `unknown[]`,消费侧一次性
- * 断言式收窄成 `string[]`,蓝本模板直接把它当字符串数组渲染。 */
+/** K41 family (see file header comment) — `Note.tags` inside package is `unknown[]`,
+ * consumer-side one-time assertion narrowing to `string[]`, blueprint template treats it
+ * as string array directly. */
 function tagsOf(n: Note): string[] {
   return n.tags as string[]
 }
@@ -132,29 +140,31 @@ const counts = computed(() => ({
   archived: notes.value.filter((n) => n.status === 'archived').length,
 }))
 
-/** 深链:`editingId` 来自 `route.query.id`。用 computed 直接读 `route.query.id`
- * (而不是在 onMounted 里读一次存进本地变量)—— `route` 是响应式对象,这样
- * 用户直接改地址栏的 `?id=` 也会立刻反映到这里(记忆
- * `newui-router-query-only-no-remount`)。 */
+/** Deep link: `editingId` comes from `route.query.id`. Use computed to directly read
+ * `route.query.id` (not read once in onMounted and store in local var) — `route` is
+ * reactive, so user changing address bar `?id=` immediately reflects here (recall
+ * `newui-router-query-only-no-remount`). */
 const editingId = computed<string>(() => (route.query.id as string) || '')
 
 /**
- * 蓝本 `watch: { editingId(v) { if (!v) this.reload() } }`(:208-209,N30)——
- * 只在 `id` 变空时重载(从编辑页返回列表),变成另一个非空 id 时不重载,
- * 靠模板里的 `:key="editingId"` 重建 `NoteEditPane`。
+ * Blueprint `watch: { editingId(v) { if (!v) this.reload() } }`(:208-209, N30) —
+ * only reload when `id` becomes empty (return from edit page to list), no reload when
+ * switching to another non-empty id, use `:key="editingId"` in template to rebuild
+ * `NoteEditPane`.
  */
 watch(editingId, (v) => {
   if (!v) reload()
 })
 
 /**
- * 🔴 §5.2 过期守卫(K15 同族第 8 次)—— `reload()` 的 3 个并发入口:setup 顶层
- * 直调(蓝本 created)· 上面的 `watch editingId` · 下面 5 个动作各自的
- * `reload()`。`epoch` 声明在 `<script setup>` 函数体内 == 组件实例作用域
- * (每次挂载都是新的闭包),不是模块级 —— 两个组件实例各自独立计数,互不串号。
- * 判据:若把 `let reloadEpoch = 0` 挪到模块顶层(跨实例共享),两个实例交错时
- * 会互相把对方的响应当成「过期」丢弃,`NotesView.test.ts` 的「两实例交错」用例
- * 会报红(见该测试文件的 RED 探针记录)。
+ * 🔴 §5.2 stale guard (K15 family 8th instance) — `reload()` has 3 concurrent entry
+ * points: setup top-level call (blueprint created) · `watch editingId` above · 5 actions
+ * each call `reload()`. `epoch` declared inside `<script setup>` function body ==
+ * component instance scope (each mount is new closure), not module-level — two component
+ * instances each count independently, no cross-talk. Evidence: if we move `let reloadEpoch = 0`
+ * to module top-level (shared across instances), when two instances interleave they discard
+ * each other's responses as "stale", the "two instances interleave" test case in
+ * `NotesView.test.ts` fails (see that file's RED probe record).
  */
 let reloadEpoch = 0
 
@@ -163,8 +173,9 @@ async function reload(): Promise<void> {
   loading.value = true
   try {
     const list = await service.notes.list({ limit: 200 })
-    // 过期:更晚的一发已经把 reloadEpoch 往前推了,这一发是先发后至 —— 不许
-    // 覆盖新数据,也不许往下清 loading(那正是骨架提前消失的那个 bug)。
+    // Stale: a later dispatch already moved reloadEpoch forward, this one is first-sent
+    // but arrived-late — don't overwrite new data, also don't clear loading below (that's
+    // the skeleton disappearing early bug).
     if (epoch !== reloadEpoch) return
     notes.value = list
     store.setNotesDraftCount(drafts.value.length)
@@ -175,8 +186,8 @@ async function reload(): Promise<void> {
   if (epoch === reloadEpoch) loading.value = false
 }
 
-// 蓝本 created()(:212-216)的等效——setup 顶层直调,一次性发起首次加载 +
-// 笔记根目录探测。
+// Blueprint created() (:212-216) equivalent — setup top-level call, one-time initial load
+// + notes root directory probe.
 reload()
 service.notes
   .getSettings()
@@ -184,8 +195,8 @@ service.notes
     notesRoot.value = s.notesRoot
   })
   .catch(() => {
-    // 蓝本 :215 空 catch,注释原文 `keep placeholder`。K6:静默兜底,
-    // 连 console.error 都不加,照抄。
+    // Blueprint :215 empty catch, original comment `keep placeholder`. K6: silent fallback,
+    // don't even add `console.error`, copied verbatim.
   })
 
 function openNotesFolder(): void {
@@ -210,10 +221,9 @@ async function curate(n: Note): Promise<void> {
   }
 }
 
-/** N31 照抄 —— `Promise.all` 并发确认,没有 `finally`,失败也 `reload()`。
- * 部分成功时(比如 3 条里 1 条后端拒绝):`Promise.all` 整体 reject,只弹一条
- * 失败 toast,但随后的 `reload()` 仍会把已经在后端成功 curate 的那些刷出来
- * ——这是 Vue2 现状,不是可复现的错误行为,不修。 */
+/** N31 copied — `Promise.all` concurrent confirm, no `finally`, reload() even on fail.
+ * Partial success (e.g. 1 of 3 rejected by backend): `Promise.all` rejects as whole,
+ * toast one failure, but subsequent `reload()` still refreshes the ones already curatedon backend — this is Vue2 current state, not reproducible buggy behavior, don't fix. */
 async function confirmAll(): Promise<void> {
   const list = drafts.value
   bulkConfirming.value = true
@@ -245,9 +255,10 @@ function archiveInsteadOfDelete(): void {
 
 async function confirmDelete(): Promise<void> {
   try {
-    // K34 同族:蓝本 `notesApi.remove(this.deleting.id)` 没有空值防御,按
-    // 「能保抛就保抛」用非空断言(不是 `?.`/提前 return——那会把蓝本的隐式
-    // 抛错静默改成 no-op)。按钮只在删除弹窗内出现,`deleting` 此刻恒非空。
+    // K34 family: blueprint `notesApi.remove(this.deleting.id)` has no null defense, per
+    // "throw if we can" use non-null assertion (not `?.` / early return — that would
+    // silently turn blueprint's implicit throw into no-op). Button only appears inside
+    // delete dialog, `deleting` always non-null here.
     await service.notes.remove(deleting.value!.id)
     useToast().show(t('aiKbNtNoteDeleted'), 2400)
   } catch {
@@ -257,9 +268,9 @@ async function confirmDelete(): Promise<void> {
   reload()
 }
 
-/** K29 同族(SettingsView.vue:349-355 的既定手法)—— reka 的 `DialogRoot` 用
- * `@update:open` 表达「弹窗被关掉了」,蓝本三条关闭路径(× 按钮/取消/点遮罩)
- * 都收敛成 `deleting = null`。 */
+/** K29 family (SettingsView.vue:349-355 established pattern) — reka's `DialogRoot` uses
+ * `@update:open` to express "dialog was closed", blueprint's three close paths (× button
+ * / cancel / click overlay) all converge to `deleting = null`. */
 function onDeleteOpenChange(v: boolean): void {
   if (!v) deleting.value = null
 }
@@ -414,7 +425,7 @@ function onDeleteOpenChange(v: boolean): void {
         </div>
       </div>
 
-      <!-- Delete confirm —— reka Dialog 原语,portal 到知识库容器(见文件头注释) -->
+      <!-- Delete confirm — reka Dialog primitive, portal to knowledge app container (see file header comment) -->
       <DialogRoot :open="!!deleting" @update:open="onDeleteOpenChange">
         <DialogPortal to=".knowledge-app" defer>
           <DialogOverlay class="k-modal-bg">

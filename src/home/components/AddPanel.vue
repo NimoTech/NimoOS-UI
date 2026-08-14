@@ -384,7 +384,7 @@ function appGlyph(key: string): string {
 .lib-card-title { display: block; font-size: 14px; font-weight: 500; color: var(--fg, #fff); }
 .lib-card-desc { display: block; font-size: 14px; color: var(--fg-muted, rgba(255,255,255,.74)); margin-top: 2px; }
 
-/* ✓ 已添加 badge — accent text, top-right */
+/* ✓ Added badge — accent text, top-right */
 .lib-used-badge {
   position: absolute; top: 12px; right: 12px;
   font-size: 14px; font-weight: 600;
@@ -424,7 +424,7 @@ function appGlyph(key: string): string {
 }
 .lib-app-ic :deep(svg) { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 1.6; }
 .lib-app-ic img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; display: block; }
-/* 已停止的应用:整体灰显(与桌面 AppTile.stopped 同款) */
+/* Stopped apps: dim overall (same style as desktop AppTile.stopped) */
 .lib-icon.is-stopped { opacity: 0.45; filter: grayscale(0.6); }
 .lib-app-label {
   font-size: 14px;

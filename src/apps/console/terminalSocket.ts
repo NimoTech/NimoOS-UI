@@ -1,7 +1,7 @@
-// 终端 WS 连接管理(纯逻辑,无 xterm/DOM 依赖,Vue 层注入 deps)。
-// 协议事实:后端 resize 消息是死代码(NimoOS-Common ssh/helper.go:408 注释掉了),
-// PTY 尺寸只认连接时的 ?cols=&rows= —— 所以本模块不提供 resize,尺寸在 connect 时定死。
-// 断连不自动重连(spec §178:终端语义下自动重连丢会话上下文),由 UI 给手动重连按钮。
+// Terminal WS connection management (pure logic, no xterm/DOM dependencies, Vue layer injects deps).
+// Protocol fact: backend resize message is dead code (NimoOS-Common ssh/helper.go:408 commented out),
+// PTY size only recognizes ?cols=&rows= at connection time — so this module doesn't provide resize, size is fixed at connect.
+// Disconnect doesn't auto-reconnect (spec §178: under terminal semantics auto-reconnect loses session context), UI provides manual reconnect button.
 import { shouldRefreshToken } from '../../util/tokenExpiry'
 
 export type TerminalStatus = 'idle' | 'connecting' | 'open' | 'closed'
@@ -22,9 +22,10 @@ export function buildTerminalWsUrl(base: string, containerId: string, token: str
 
 export class TerminalSocket {
   private socket: WebSocket | null = null
-  // 代际计数器:close() 递增代际,connect() 在每个恢复点(await 之后)核对代际是否被换代,
-  // 换代即视为"已被取消"—— 不再建 socket、不再翻状态(close() 已经把状态钉在 closed 了),直接 resolve null。
-  // 目的是堵住"卸载期间 close() 打在 refresh() 挂起时,refresh 落定后仍复活连接"的竞态。
+  // Generation counter: close() increments generation, connect() checks at each resume point (after await)
+  // whether generation has been superseded. Superseded means "already cancelled" — no longer build socket,
+  // no longer flip state (close() has already pinned state to closed), just resolve null.
+  // Goal: prevent "close() during unmount lands on refresh() suspension, refresh resolves and resurrects connection" race.
   private generation = 0
 
   constructor(private deps: TerminalSocketDeps) {}
@@ -34,7 +35,7 @@ export class TerminalSocket {
     this.deps.onStatus('connecting')
     if (shouldRefreshToken(this.deps.getExpiresAt(), this.deps.now())) {
       try { await this.deps.refresh() } catch { this.deps.onStatus('closed'); return null }
-      if (myGeneration !== this.generation) return null // 等 refresh 的当口被 close() 取消,不再建连
+      if (myGeneration !== this.generation) return null // While waiting for refresh, close() cancelled, don't build connection
     }
     const token = this.deps.getToken()
     if (!token) { this.deps.onStatus('closed'); return null }
@@ -42,11 +43,11 @@ export class TerminalSocket {
     this.socket = ws
     return new Promise((resolve) => {
       ws.onopen = () => {
-        if (myGeneration !== this.generation) return // 已被 close() 取消,吞掉迟到的 onopen,不翻回 open
+        if (myGeneration !== this.generation) return // Already cancelled by close(), swallow late onopen, don't flip back to open
         this.deps.onStatus('open'); resolve(ws)
       }
       ws.onclose = () => { this.socket = null; this.deps.onStatus('closed'); resolve(null) }
-      ws.onerror = () => {} // close 随后触发
+      ws.onerror = () => {} // close fires shortly after
     })
   }
 

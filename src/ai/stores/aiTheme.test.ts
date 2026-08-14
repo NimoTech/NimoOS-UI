@@ -20,18 +20,18 @@ describe('useAiTheme', () => {
     vi.unstubAllGlobals()
   })
 
-  it('初值是 light', () => {
+  it('initial value is light', () => {
     expect(useAiTheme().theme).toBe('light')
   })
 
-  it('hydrateTheme 优先读 localStorage', () => {
+  it('hydrateTheme prioritizes reading from localStorage', () => {
     localStorage.setItem(KEY, 'dark')
     const s = useAiTheme()
     s.hydrateTheme()
     expect(s.theme).toBe('dark')
   })
 
-  it('hydrateTheme 忽略 localStorage 里的非法值,回落系统偏好', () => {
+  it('hydrateTheme ignores illegal values in localStorage, falls back to system preference', () => {
     localStorage.setItem(KEY, 'chartreuse')
     stubMatchMedia(true)
     const s = useAiTheme()
@@ -39,14 +39,14 @@ describe('useAiTheme', () => {
     expect(s.theme).toBe('dark')
   })
 
-  it('无 localStorage 且系统偏好浅色时是 light', () => {
+  it('when no localStorage and system prefers light, is light', () => {
     stubMatchMedia(false)
     const s = useAiTheme()
     s.hydrateTheme()
     expect(s.theme).toBe('light')
   })
 
-  it('toggleTheme 翻转并落盘', () => {
+  it('toggleTheme toggles and persists', () => {
     const s = useAiTheme()
     s.toggleTheme()
     expect(s.theme).toBe('dark')
@@ -57,21 +57,21 @@ describe('useAiTheme', () => {
   })
 })
 
-describe('agentStore 主题委托给 aiTheme(D1:跨页共享)', () => {
+describe('agentStore theme delegates to aiTheme (D1: cross-page sharing)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
     vi.unstubAllGlobals()
   })
 
-  it('agentStore.theme 读到的是 aiTheme 的值', () => {
+  it('agentStore.theme reads aiTheme\'s value', () => {
     const shared = useAiTheme()
     const agent = useAgentStore()
     shared.toggleTheme()
     expect(agent.theme).toBe('dark')
   })
 
-  it('agentStore.toggleTheme() 会翻动共享 store —— 设置页因此能同步看到', () => {
+  it('agentStore.toggleTheme() toggles the shared store — settings page can thus see it synchronously', () => {
     const agent = useAgentStore()
     const shared = useAiTheme()
     agent.toggleTheme()
@@ -79,11 +79,12 @@ describe('agentStore 主题委托给 aiTheme(D1:跨页共享)', () => {
     expect(agent.theme).toBe('dark')
   })
 
-  it('agentStore 的 initTheme 装载后,共享 store 也是同一个值', () => {
-    // 实现者注意(brief 裁定):brief 原文的占位名 `loadPersisted()` 经 grep
-    // agentStore.ts 确认真名是 `initTheme()`(store 返回表里对外导出的装载
-    // 函数,承载 brief 所指 `:307-316` 那段 localStorage/matchMedia 装载逻辑)。
-    // 未在 agentStore 上新增任何导出 —— 直接用既有的真实函数名。
+  it('after agentStore\'s initTheme loads, the shared store is also the same value', () => {
+    // Implementer note (brief ruling): brief's original placeholder name `loadPersisted()`
+    // was confirmed by grep of agentStore.ts to actually be `initTheme()` (the loading function
+    // exported from store's return table, carrying the localStorage/matchMedia loading logic
+    // indicated by brief's `:307-316`). No new exports added to agentStore — directly use the
+    // existing real function name.
     localStorage.setItem(KEY, 'dark')
     const agent = useAgentStore()
     agent.initTheme()
@@ -92,16 +93,19 @@ describe('agentStore 主题委托给 aiTheme(D1:跨页共享)', () => {
   })
 })
 
-// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板「只改 AI 区、桌面零影响」】
-// 缺陷:AI 区所有 toast 隐形。`AppToast` 挂在 `App.vue` 最外层,**不在 `.agent-app` 那层
-// 主题作用域里**,于是用全局蓝黑主题的 `--toast-bg`(半透明白)+ `--toast-fg`(未定义 →
-// 退回 `--fg` = #ffffff)画在 AI 的浅色页面上 = 白底白字,完全看不见。
-// 修法:AI 页面在挂载期间把「AI 区在前台」这个事实登记到本 store,`AppToast` 据此给自己
-// 贴上 AI 的 toast 作用域与明暗;离开 AI 路由则完全恢复原样(桌面零影响)。
-// **用引用计数而不是布尔**:路由切换时新页面的 onMounted 可能早于旧页面的 onBeforeUnmount,
-// 布尔会被离场页面的 false 覆盖成「不在 AI 区」——计数天然免疫这个顺序问题。
-describe('AI 区前台登记(toast 作用域用)', () => {
-  it('初始为 false;登记一次变 true,注销后回 false', () => {
+// [SP8-P2b acceptance round 3, user decided 2026-07-30 'only change AI area, desktop unaffected']
+// Bug: all toasts in AI area are invisible. `AppToast` is mounted at the outermost layer of
+// `App.vue`, **not within the `.agent-app` theme scope**, so it draws with the global blue-black
+// theme's `--toast-bg` (semi-transparent white) + `--toast-fg` (undefined → falls back to `--fg` =
+// #ffffff) on AI's light page = white text on white background, completely invisible.
+// Fix: AI page registers during mount the fact that 'AI area is in foreground' to this store,
+// `AppToast` accordingly applies AI's toast scope and appearance to itself; leaving AI route
+// completely restores to original (desktop unaffected).
+// **Use reference counting instead of boolean**: during route switching, new page's onMounted may
+// come before old page's onBeforeUnmount, boolean would be overwritten to 'false' (not in AI area)
+// by departing page — counting is naturally immune to this ordering issue.
+describe('AI area foreground registration (toast scope use)', () => {
+  it('initially false; register once becomes true, after deregister returns false', () => {
     const s = useAiTheme()
     expect(s.aiSurfaceActive).toBe(false)
     s.enterAiSurface()
@@ -110,17 +114,17 @@ describe('AI 区前台登记(toast 作用域用)', () => {
     expect(s.aiSurfaceActive).toBe(false)
   })
 
-  it('引用计数:新页面先挂载、旧页面后卸载,仍然保持 true', () => {
+  it('reference counting: new page mounts first, old page unmounts later, still remains true', () => {
     const s = useAiTheme()
-    s.enterAiSurface() // 设置页挂载
-    s.enterAiSurface() // Agent 页挂载(路由切换,新页先来)
-    s.leaveAiSurface() // 设置页卸载(旧页后走)
-    expect(s.aiSurfaceActive).toBe(true) // 仍在 AI 区
-    s.leaveAiSurface() // Agent 页也走了
+    s.enterAiSurface() // settings page mounts
+    s.enterAiSurface() // Agent page mounts (route switch, new page comes first)
+    s.leaveAiSurface() // settings page unmounts (old page leaves later)
+    expect(s.aiSurfaceActive).toBe(true) // still in AI area
+    s.leaveAiSurface() // Agent page also gone
     expect(s.aiSurfaceActive).toBe(false)
   })
 
-  it('计数不会被多余的注销压到负数(压到负数会让下一次登记失效)', () => {
+  it('count won\'t be pressed negative by extra deregister (negative would make next register fail)', () => {
     const s = useAiTheme()
     s.leaveAiSurface()
     s.leaveAiSurface()

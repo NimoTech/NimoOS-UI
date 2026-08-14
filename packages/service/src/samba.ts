@@ -25,8 +25,8 @@ export function createSamba(http: AxiosInstance) {
       const arr = Array.isArray(res.data) ? (res.data as RawShare[]) : unwrap<RawShare[]>(res.data)
       return (arr ?? []).map((s) => ({ id: s.id, path: s.path }))
     },
-    // create/delete 不 unwrap:core /v1/samba/shares 用真实 HTTP 状态报错(400/500,见 NimoOS/route/v1/samba.go),
-    // axios 直接 reject,故无需查 success 信封。
+    // create/delete are not unwrapped: core /v1/samba/shares reports errors via real HTTP status (400/500, see NimoOS/route/v1/samba.go),
+    // so axios rejects directly and there is no need to check the success envelope.
     async createShare(paths: string[]): Promise<void> {
       await http.post('/samba/shares', paths.map((p) => ({ path: p, anonymous: true })))
     },

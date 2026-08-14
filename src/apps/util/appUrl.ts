@@ -1,7 +1,7 @@
 export interface WebUrlSource { scheme?: string; hostname?: string | null; port_map?: string; index?: string }
 
-/** 已装应用 Web UI 地址(store_info 的 scheme/hostname/port_map/index);
- *  没有可打开页面时 null(镜像 home useStartApp.appUrl 的判定)。 */
+/** Compose the Web UI address of an installed app (scheme/hostname/port_map/index from store_info);
+ *  null when there is no page to open (mirrors the judgment in home useStartApp.appUrl). */
 export function composeWebUrl(s: WebUrlSource, currentHost: string): string | null {
   const port = (s.port_map || '').trim()
   if (!port && !s.index) return null

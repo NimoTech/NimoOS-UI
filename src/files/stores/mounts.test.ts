@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
-// service mock:必须在 import store 前(vi.mock 提升)
+// service mock: must come before import store (vi.mock hoisting)
 const listConnections = vi.fn()
 const deleteConnection = vi.fn()
 const umountUsb = vi.fn()
@@ -30,28 +30,28 @@ beforeEach(() => {
 })
 
 describe('mountsStore', () => {
-  it('loadMounts 把连接映射成 network 条目', async () => {
+  it('loadMounts should map connections to network entries', async () => {
     listConnections.mockResolvedValue([{ id: 1, host: 'h', mountPoint: '/mnt/h' }])
     const m = useMountsStore()
     await m.loadMounts()
     expect(m.network).toEqual([{ kind: 'network', id: 1, name: 'h', realPath: '/mnt/h' }])
   })
 
-  it('loadMounts 失败 → network 置空,不抛', async () => {
+  it('loadMounts failure → network should be empty, should not throw', async () => {
     listConnections.mockRejectedValue(new Error('net'))
     const m = useMountsStore()
     await m.loadMounts()
     expect(m.network).toEqual([])
   })
 
-  it('usb 从 filesStore.disks 的 usb===true 派生', () => {
+  it('usb should be derived from filesStore.disks where usb===true', () => {
     const files = useFilesStore()
     files.disks = [{ name: 'HD', path: '/DATA', usb: false }, { name: 'U盘', path: '/media/u', usb: true }] as never
     const m = useMountsStore()
     expect(m.usb).toEqual([{ kind: 'usb', name: 'U盘', realPath: '/media/u' }])
   })
 
-  it('ejectNetwork 成功 → 调 deleteConnection + reload + 返回 true', async () => {
+  it('ejectNetwork success → should call deleteConnection + reload + return true', async () => {
     listConnections.mockResolvedValue([])
     deleteConnection.mockResolvedValue(undefined)
     const m = useMountsStore()
@@ -60,20 +60,20 @@ describe('mountsStore', () => {
     expect(ok).toBe(true)
   })
 
-  it('ejectNetwork 失败 → 返回 false,不抛', async () => {
+  it('ejectNetwork failure → should return false, should not throw', async () => {
     deleteConnection.mockRejectedValue(new Error('x'))
     const m = useMountsStore()
     expect(await m.ejectNetwork(1)).toBe(false)
   })
 
-  it('ejectUsb 成功 → 调 umountUsb + 返回 true', async () => {
+  it('ejectUsb success → should call umountUsb + return true', async () => {
     umountUsb.mockResolvedValue(undefined)
     const m = useMountsStore()
     expect(await m.ejectUsb('/media/u')).toBe(true)
     expect(umountUsb).toHaveBeenCalledWith('/media/u')
   })
 
-  it('loadMounts 把网络挂载注册进 filesStore.displayNames(不泄漏 /mnt/* 到 UI)', async () => {
+  it('loadMounts should register network mounts in filesStore.displayNames (do not leak /mnt/* to UI)', async () => {
     listConnections.mockResolvedValue([{ id: 1, host: '192.168.1.10', mountPoint: '/mnt/192.168.1.10' }])
     const m = useMountsStore()
     await m.loadMounts()
@@ -82,7 +82,7 @@ describe('mountsStore', () => {
     expect(toVirtualPath('/mnt/192.168.1.10/share', files.displayNames)).toBe('/192.168.1.10/share')
   })
 
-  it('loadMounts 失败 → 清空 mountNames,不遗留旧的网络挂载映射', async () => {
+  it('loadMounts failure → should clear mountNames, not leave stale network mount mappings', async () => {
     listConnections.mockResolvedValueOnce([{ id: 1, host: '192.168.1.10', mountPoint: '/mnt/192.168.1.10' }])
     const m = useMountsStore()
     await m.loadMounts()
@@ -94,7 +94,7 @@ describe('mountsStore', () => {
     expect(files.displayNames['/mnt/192.168.1.10']).toBeUndefined()
   })
 
-  it('loadMounts 映射 cloud 条目(带 icon)', async () => {
+  it('loadMounts should map cloud entries (with icon)', async () => {
     listConnections.mockResolvedValue([])
     listClouds.mockResolvedValue([{ fs: 'gd:', name: 'MyDrive', icon: './img/driver/GoogleDrive.svg', mountPoint: '/mnt/gd' }])
     const m = useMountsStore()
@@ -104,7 +104,7 @@ describe('mountsStore', () => {
     expect(m.cloud[0].icon).toContain('/img/driver/GoogleDrive.svg')
   })
 
-  it('cloud 加载失败不影响 network', async () => {
+  it('cloud load failure should not affect network', async () => {
     listConnections.mockResolvedValue([{ id: 1, host: 'h', mountPoint: '/mnt/h' }])
     listClouds.mockRejectedValue(new Error('x'))
     const m = useMountsStore()
@@ -113,7 +113,7 @@ describe('mountsStore', () => {
     expect(m.cloud).toEqual([])
   })
 
-  it('ejectCloud 成功 → umount + 返回 true', async () => {
+  it('ejectCloud success → umount + return true', async () => {
     listConnections.mockResolvedValue([]); listClouds.mockResolvedValue([])
     umountCloud.mockResolvedValue(undefined)
     const m = useMountsStore()

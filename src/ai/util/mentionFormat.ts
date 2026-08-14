@@ -1,4 +1,4 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/shell/MentionPopover.vue:
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/MentionPopover.vue:
 //   DRIVE_PALETTE/driveColor/formatBytes/getExt   :87-107
 //   highlight/escapeHtml/formatTime                :273-299
 //

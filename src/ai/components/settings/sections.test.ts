@@ -1,29 +1,29 @@
 import { describe, it, expect } from 'vitest'
 import { GROUPS, ALL_ITEMS, VALID_SECTIONS, SPLIT_SECTIONS, DEFERRED_SECTIONS, groupOf } from './sections'
 
-// SP8-P2a Task 3 —— 移植自 Vue2 `src/views/AI/Settings/__tests__/SettingsRail.spec.js`
-// 里针对 GROUPS 的三条断言(该文件其余的 methods 断言归 Task 7 的 SettingsRail.test.ts)。
+// SP8-P2a Task 3 — ported from Vue2 `src/views/AI/Settings/__tests__/SettingsRail.spec.js`
+// three assertions on GROUPS (remaining methods assertions in this file go to Task 7's SettingsRail.test.ts).
 
-describe('sections 导航配置', () => {
-  it('四个分组,顺序照 Vue2 sections.js:13-55', () => {
+describe('sections navigation config', () => {
+  it('four groups, order matches Vue2 sections.js:13-55', () => {
     expect(GROUPS.map((g) => g.id)).toEqual(['model', 'agent', 'plugin', 'channel'])
   })
 
-  it('仍然覆盖全部 13 个分区', () => {
+  it('still covers all 13 sections', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
       'blacklist', 'channels', 'execution', 'mcp', 'mcptokens', 'memory',
       'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking',
     ])
   })
 
-  it('双栏满高分区所在的组是 swap 模式,竖排组是 stack 模式', () => {
+  it('groups with two-column full-height sections are swap mode, vertical groups are stack mode', () => {
     expect(GROUPS.find((g) => g.id === 'plugin')!.stack).toBe(false)
     expect(GROUPS.find((g) => g.id === 'channel')!.stack).toBe(false)
     expect(GROUPS.find((g) => g.id === 'model')!.stack).toBe(true)
     expect(GROUPS.find((g) => g.id === 'agent')!.stack).toBe(true)
   })
 
-  it('每个组的分区顺序逐字对齐 Vue2', () => {
+  it('each group\'s section order matches Vue2 exactly', () => {
     expect(GROUPS.find((g) => g.id === 'model')!.items.map((i) => i.id))
       .toEqual(['models', 'providers', 'privacy', 'thinking'])
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
@@ -34,40 +34,40 @@ describe('sections 导航配置', () => {
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS 是四个组的扁平拼接,长度 13', () => {
+  it('ALL_ITEMS is flat concatenation of four groups, length 13', () => {
     expect(ALL_ITEMS).toHaveLength(13)
     expect(ALL_ITEMS[0].id).toBe('models')
     expect(ALL_ITEMS[12].id).toBe('channels')
   })
 
-  it('groupOf 找到分区所属的组', () => {
+  it('groupOf finds the group a section belongs to', () => {
     expect(groupOf('search').id).toBe('agent')
     expect(groupOf('channels').id).toBe('channel')
     expect(groupOf('models').id).toBe('model')
   })
 
-  it('groupOf 对未知 id 回落到第一个组(Vue2 sections.js:62-64 同款兜底)', () => {
+  it('groupOf falls back to first group for unknown id (same fallback as Vue2 sections.js:62-64)', () => {
     expect(groupOf('nope').id).toBe('model')
   })
 
-  it('SPLIT_SECTIONS 恰为 skills / mcp', () => {
+  it('SPLIT_SECTIONS is exactly skills / mcp', () => {
     expect([...SPLIT_SECTIONS].sort()).toEqual(['mcp', 'skills'])
   })
 
-  // SP8-P4 —— mcp 已接入真组件 McpSection,DEFERRED_SECTIONS 就此清空。
-  // 契约机制本身保留(用户明示「反转不删」),这条钉住「没有任何分区还在占位」。
-  it('DEFERRED_SECTIONS 为空(SP8-P4 起 13 个分区全部接入真组件)', () => {
+  // SP8-P4 — mcp has been integrated into real McpSection component, DEFERRED_SECTIONS is now empty.
+  // Contract mechanism itself is preserved (user explicitly "keep don't delete"), this pins "no sections still in placeholder".
+  it('DEFERRED_SECTIONS is empty (from SP8-P4 all 13 sections integrated into real components)', () => {
     expect(DEFERRED_SECTIONS).toEqual([])
   })
 
-  // 机制没被删掉的钉子:常量仍然导出、仍是数组、且每个元素(若将来有)都必须是
-  // 合法 section id。
-  it('DEFERRED_SECTIONS 机制仍在(导出为数组,元素必须是合法 section id)', () => {
+  // Pin for mechanism not deleted: constant still exported, still an array, and each element (if any in future) must be
+  // valid section id.
+  it('DEFERRED_SECTIONS mechanism still in place (exported as array, elements must be valid section ids)', () => {
     expect(Array.isArray(DEFERRED_SECTIONS)).toBe(true)
     for (const id of DEFERRED_SECTIONS) expect(VALID_SECTIONS).toContain(id)
   })
 
-  it('每个分区都有图标名与 i18n 键,且 labelKey 走 aiCfg 前缀', () => {
+  it('each section has icon name and i18n key, labelKey uses aiCfg prefix', () => {
     for (const it of ALL_ITEMS) {
       expect(it.icon.length).toBeGreaterThan(0)
       expect(it.labelKey).toMatch(/^aiCfg/)

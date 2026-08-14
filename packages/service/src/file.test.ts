@@ -79,7 +79,7 @@ describe('createFile', () => {
     expect(cap.getUrl).toBe('/file')
     expect((cap.getParams as { path: string }).path).toBe('/DATA/report.pdf')
     expect(cap.responseType).toBe('arraybuffer')
-    expect(res).toBe(buf)            // 原样透传,不 unwrap
+    expect(res).toBe(buf)            // passed through as-is, no unwrap
   })
 
   it('getPreviewBytes fetches /file/preview as arraybuffer with long timeout, no unwrap', async () => {

@@ -2,16 +2,16 @@ import { describe, it, expect } from 'vitest'
 import { containContentRect, quadBounds, mapOcrBoxesToRects } from '../ocrHighlight'
 
 describe('containContentRect', () => {
-  it('宽图信箱:横向铺满、纵向居中留边', () => {
-    // 元素 200x200,自然 100x50(2:1)→ 缩放 min(200/100,200/50)=2,内容 200x100,居中 y=50
+  it('Wide image mailbox: fill horizontally, center vertically with margin', () => {
+    // Element 200x200, natural 100x50 (2:1) → scale min(200/100, 200/50)=2, content 200x100, center y=50
     expect(containContentRect(200, 200, 100, 50)).toEqual({ x: 0, y: 50, w: 200, h: 100 })
   })
-  it('退化尺寸返 null', () => {
+  it('Degenerate dimensions return null', () => {
     expect(containContentRect(0, 200, 100, 50)).toBeNull()
     expect(containContentRect(200, 200, 0, 50)).toBeNull()
   })
-  it('负尺寸返 null(Vue2 用 > 0 而非 falsy)', () => {
-    // 负数也该拒绝,-200 作为 elemW 不满足 !(elemW > 0),应返 null
+  it('Negative dimensions return null (Vue2 uses > 0, not falsy)', () => {
+    // Negative numbers should also be rejected; -200 as elemW does not satisfy !(elemW > 0), should return null
     expect(containContentRect(-200, 200, 100, 50)).toBeNull()
     expect(containContentRect(200, -200, 100, 50)).toBeNull()
     expect(containContentRect(200, 200, -100, 50)).toBeNull()
@@ -20,23 +20,23 @@ describe('containContentRect', () => {
 })
 
 describe('quadBounds', () => {
-  it('8 点归一四边形取轴对齐外接并钳到 [0,1]', () => {
+  it('8-point normalized quadrilateral to axis-aligned bounding box clamped to [0,1]', () => {
     expect(quadBounds([0.1, 0.2, 0.5, 0.2, 0.5, 0.6, 0.1, 0.6])).toEqual({ x0: 0.1, y0: 0.2, x1: 0.5, y1: 0.6 })
   })
-  it('畸形/零面积返 null', () => {
+  it('Degenerate/zero-area return null', () => {
     expect(quadBounds([0.1, 0.2])).toBeNull()
     expect(quadBounds([0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3, 0.3])).toBeNull()
   })
-  it('数组长度 !== 8 返 null(10 元素数组)', () => {
-    // Vue2 用 !== 而非 < ,所以超长数组也拒绝
+  it('Array length !== 8 returns null (10-element array)', () => {
+    // Vue2 uses !== rather than <, so oversized arrays are also rejected
     expect(quadBounds([0.1, 0.2, 0.5, 0.2, 0.5, 0.6, 0.1, 0.6, 0.8, 0.8])).toBeNull()
   })
 })
 
 describe('mapOcrBoxesToRects', () => {
-  it('把归一 box 映射到内容框像素矩形', () => {
+  it('Map normalized boxes to content-frame pixel rectangles', () => {
     const rects = mapOcrBoxesToRects([{ box: [0, 0, 1, 0, 1, 1, 0, 1] }], 200, 200, 100, 50)
-    // 内容框 x0,y0=0,50 w,h=200,100;整框 → left0 top50 width200 height100
+    // Content frame x0,y0=0,50 w,h=200,100; entire frame → left0 top50 width200 height100
     expect(rects).toEqual([{ left: 0, top: 50, width: 200, height: 100 }])
   })
 })

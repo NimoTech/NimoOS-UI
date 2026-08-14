@@ -32,7 +32,7 @@ function mountCard(app: Partial<InstalledApp> = {}, pendingOp?: 'start' | 'stop'
 }
 
 describe('InstalledAppCard', () => {
-  it('running:主按钮=打开(emit open),菜单含 停止/重启/检查并更新/卸载', async () => {
+  it('running: main button = open (emit open), menu contains stop/restart/check and update/uninstall', async () => {
     const w = mountCard()
     await w.get('.card-primary').trigger('click')
     expect(w.emitted('open')).toBeTruthy()
@@ -44,7 +44,7 @@ describe('InstalledAppCard', () => {
     expect(menu).not.toContain('启动')
   })
 
-  it('exited:主按钮=启动(emit action start),菜单无 停止/重启', async () => {
+  it('exited: main button = start (emit action start), menu does not contain stop/restart', async () => {
     const w = mountCard({ status: 'exited', webUrl: 'http://h:8096/' })
     await w.get('.card-primary').trigger('click')
     expect(w.emitted('action')![0]).toEqual(['start'])
@@ -53,12 +53,12 @@ describe('InstalledAppCard', () => {
     expect(menu).not.toContain('重启')
   })
 
-  it('running 但无 webUrl:主按钮禁用', () => {
+  it('running but no webUrl: main button disabled', () => {
     const w = mountCard({ webUrl: null })
     expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
   })
 
-  it('is_uncontrolled:菜单无 检查并更新;update_available 显示徽标', () => {
+  it('is_uncontrolled: menu does not contain check and update; update_available displays badge', () => {
     const w = mountCard({ isUncontrolled: true, updateAvailable: true })
     expect(w.get('.menu').text()).not.toContain('检查并更新')
     expect(w.text()).toContain('可更新')
@@ -73,7 +73,7 @@ describe('InstalledAppCard', () => {
     expect(w.emitted('settings')).toHaveLength(1)
   })
 
-  it('⋮ 菜单含「终端与日志」,点击 emit console', async () => {
+  it('⋮ menu contains "terminal and logs", click emits console', async () => {
     const w = mountCard()
     const items = w.get('.menu').findAll('div')
     const consoleItem = items.find((it) => it.text() === '终端与日志')
@@ -82,13 +82,13 @@ describe('InstalledAppCard', () => {
     expect(w.emitted('console')).toHaveLength(1)
   })
 
-  it('pending:卡片处理中态,主按钮禁用', () => {
+  it('pending: card in processing state, main button disabled', () => {
     const w = mountCard({}, 'restart')
     expect(w.text()).toContain('处理中')
     expect(w.get('.card-primary').attributes('disabled')).toBeDefined()
   })
 
-  it('状态标签映射:running=运行中,exited=已停止,unknown=未知', () => {
+  it('status label mapping: running=running, exited=stopped, unknown=unknown', () => {
     expect(mountCard().text()).toContain('运行中')
     expect(mountCard({ status: 'exited' }).text()).toContain('已停止')
     expect(mountCard({ status: 'unknown' }).text()).toContain('未知')

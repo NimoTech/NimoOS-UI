@@ -1,21 +1,21 @@
 import type { AxiosInstance } from 'axios'
 
-// kvm 域 = NimoOS-KVM(Gin/Echo 混用的独立服务,唯一不走全系统 Result 信封的 Go 服务)。
+// KVM domain = NimoOS-KVM (mixed Gin/Echo standalone service, only Go service that doesn't use the system-wide Result envelope).
 //
-// ⚠️ 信封:common/response.go = { success: boolean, data, message } ——
-//    success 是 **bool**,不是全系统 Result 的 HTTP 状态码 int。所以**不能过 unwrap()**。
+// ⚠️ Envelope: common/response.go = { success: boolean, data, message } ——
+//    success is **bool**, not HTTP status code int from the system-wide Result. So **cannot be unwrapped()**.
 //
-// ⚠️ 同一个服务里 `data` 的嵌套层数**不一致**(逐 handler 核过 route/v2/{vms,isos,snapshots,settings}.go):
-//    两层(data.data):GET/PUT/POST /vms · GET /vms/:id · 快照 list/create · GET /isos/:id · PUT /settings
-//    一层(data)    :GET /isos · GET /settings · GET /vms/:id/vnc · 全部控制动作 / DELETE / boot / autostart / progress
-//    → 层数由每个方法**显式传入** nested,**禁止**"有 data.data 就多剥一层"这种自动探测:
-//      核字段名 ≠ 核信封层数,自动探测在 data 恰好含 data 键时会静默剥错。
+// ⚠️ In the same service, the nesting depth of `data` is **inconsistent** (verified per handler in route/v2/{vms,isos,snapshots,settings}.go):
+//    Two layers (data.data): GET/PUT/POST /vms · GET /vms/:id · snapshot list/create · GET /isos/:id · PUT /settings
+//    One layer (data):       GET /isos · GET /settings · GET /vms/:id/vnc · all control actions / DELETE / boot / autostart / progress
+//    → Depth is **explicitly passed in** as nested per method, **forbid** auto-detection like "if data.data exists, unwrap one more layer":
+//      Checking field names ≠ checking envelope depth; auto-detection silently strips wrong when data happens to contain a data key.
 export interface KvmVM {
   id: string
   name: string
   uuid: string
-  /** libvirt 域状态。已知值:running / stopped / paused / suspended / crashed / missing。
-   *  ⚠️ crashed 与 missing 没有 i18n 映射(Vue2 也没有),界面按原样显示。 */
+  /** libvirt domain state. Known values: running / stopped / paused / suspended / crashed / missing.
+   *  ⚠️ crashed and missing have no i18n mappings (Vue2 doesn't either), display as-is on the UI. */
   state: string
   vcpu: number
   memory: number
@@ -23,7 +23,7 @@ export interface KvmVM {
   diskUsedPercent: number
   diskPath: string
   iso: string
-  /** 后端 json tag 是 `os`,Go 字段名却是 OSType(model/vm.go:26)。前端按 json 名取 os。 */
+  /** Backend json tag is `os`, but Go field name is OSType (model/vm.go:26). Frontend uses json name os. */
   os: string
   networkMode: string
   networkInterface: string
@@ -31,10 +31,10 @@ export interface KvmVM {
   bootFromDisk: boolean
   vncPort: number
   vncWebsocketPort: number
-  /** ⚠️ GET /vms 真机验证**确实带值**(2026-08-02 curl,非"不返回")。实情是 ListVMs
-   *  直接吐内存快照(service/vm_service.go:245-262 ListVMs),而 GetVMVNCInfo 会回写
-   *  同一个指针(:700-703)—— 所以列表里的值**可能陈旧 / 进程重启后为 0**,不是缺席。
-   *  消费方需做保活合并,见 SP9-P5 计划(具体落地文件待后续任务创建)。 */
+  /** ⚠️ GET /vms real device verification **does return values** (2026-08-02 curl, not "doesn't return"). The reality is ListVMs
+   *  directly outputs an in-memory snapshot (service/vm_service.go:245-262 ListVMs), while GetVMVNCInfo writes back
+   *  the same pointer (:700-703) — so values in the list **may be stale / become 0 after process restart**, not absent.
+   *  Consumers need to do heartbeat merging; see SP9-P5 plan (specific implementation file to be created in follow-up tasks). */
   spicePort: number
   spiceTlsPort: number
   autostart: boolean
@@ -54,9 +54,9 @@ export interface KvmVncInfo {
   spiceTlsPort: number
 }
 
-/** GET /settings 的响应比 model/settings.go 多 5 个字段 —— handler 手拼 map
- *  (route/v2/settings.go:26-38),cpuCores/availableMemoryMB/availableDiskGB/
- *  networkInterfaces/defaultDiskSize 都只读、不可写。 */
+/** GET /settings response has 5 more fields than model/settings.go — handler manually constructs map
+ *  (route/v2/settings.go:26-38), cpuCores/availableMemoryMB/availableDiskGB/
+ *  networkInterfaces/defaultDiskSize are all read-only, not writable. */
 export interface KvmSettings {
   storagePath: string
   defaultVcpu: number
@@ -69,7 +69,7 @@ export interface KvmSettings {
   defaultDiskSize: number
 }
 
-/** PUT /settings 只认这 4 个字段(model.SaveSettingsRequest)。 */
+/** PUT /settings only recognizes these 4 fields (model.SaveSettingsRequest). */
 export interface KvmSettingsUpdate {
   storagePath: string
   defaultVcpu: number
@@ -77,16 +77,16 @@ export interface KvmSettingsUpdate {
   autostart: boolean
 }
 
-/** 后端返回类型是 model.OSInfo(model/iso.go:40-53),GET /isos 与 GET /isos/:id 共用同一个形状。
- *  ⚠️ 2026-08-02 真机 curl 核实(8 条 /isos + alpine-319 by-id):
- *    - recommendedVcpu/recommendedMemory/minMemory/minDisk **恒返回**,与 status 无关
- *      (status:"downloaded" 的 alpine-319 也带全)——不是"只有可下载模板才有"。
- *    - path 才是真正条件性字段(json tag `omitempty`):只有 status==='downloaded' 才出现,
- *      其余 7 条 available 状态的 ISO 都没有这个键。
- *    - progress 恒返回(无 omitempty),下载中才非 0。
- *    - createdAt **不存在于该结构**——那是另一个不相关的 model.ISO 才有的字段,别混。
- *    - downloadURL 只存在于内部 model.OS(下载目录用),从未序列化进任何 HTTP 响应,恒缺席,
- *      故本接口不声明这个字段。 */
+/** Backend return type is model.OSInfo (model/iso.go:40-53), GET /isos and GET /isos/:id share the same shape.
+ *  ⚠️ 2026-08-02 real device curl verification (8 /isos + alpine-319 by-id):
+ *    - recommendedVcpu/recommendedMemory/minMemory/minDisk **always returned**, independent of status
+ *      (alpine-319 with status:"downloaded" also returns all)—— not "only available for downloadable templates".
+ *    - path is the truly conditional field (json tag `omitempty`): only appears when status==='downloaded',
+ *      the other 7 ISO entries with available status don't have this key.
+ *    - progress always returned (no omitempty), nonzero only when downloading.
+ *    - createdAt **does not exist in this struct**—— that's a field only in another unrelated model.ISO, don't confuse them.
+ *    - downloadURL exists only in internal model.OS (for download directory), never serialized into any HTTP response, always absent,
+ *      therefore this interface doesn't declare this field. */
 export interface KvmISO {
   id: string
   name: string
@@ -95,18 +95,18 @@ export interface KvmISO {
   size: string
   status: string
   progress: number
-  /** 只有 status==='downloaded' 才出现(json:"path,omitempty")。 */
+  /** Only appears when status==='downloaded' (json:"path,omitempty"). */
   path?: string
   recommendedVcpu: number
   recommendedMemory: number
   minMemory: number
-  /** ⚠️ 与后端硬下限矛盾:alpine-319.minDisk = 2,但 service/vm_service.go:286-310
-   *  要求 disk >= 8。前端校验取 max(8, minDisk)。P6 用。 */
+  /** ⚠️ Contradicts backend hard limit: alpine-319.minDisk = 2, but service/vm_service.go:286-310
+   *  requires disk >= 8. Frontend validation takes max(8, minDisk). Used in P6. */
   minDisk: number
 }
 
-/** GET /isos/:id/progress —— route/v2/isos.go:66-76,三分支(downloading/completed/available)
- *  都只返回 {status, progress},**没有 id** 键。调用方自己持有请求用的 id,别指望响应体回显。 */
+/** GET /isos/:id/progress — route/v2/isos.go:66-76, all three branches (downloading/completed/available)
+ *  only return {status, progress}, **no id** key. Caller holds the id from the request, don't expect it echoed in response body. */
 export interface KvmISODownloadProgress {
   status: string
   progress: number
@@ -126,8 +126,8 @@ export interface KvmCreateVMRequest {
   vcpu: number
   memory: number
   disk: number
-  /** ⚠️ 必须是宿主机上真实存在的**绝对路径**(如 /DATA/KVM/isos/alpine-319.iso),
-   *  不是 /isos 列表里的 id —— 后端 os.Stat 检查。 */
+  /** ⚠️ Must be a real **absolute path** that exists on the host machine (e.g. /DATA/KVM/isos/alpine-319.iso),
+   *  not the id from the /isos list — backend checks with os.Stat. */
   iso: string
   os: string
   osType: string
@@ -145,7 +145,7 @@ interface KvmEnvelope {
   data?: unknown
 }
 
-/** nested=true → 取 body.data.data;nested=false → 取 body.data。层数是契约,由调用处写死。 */
+/** nested=true → take body.data.data; nested=false → take body.data. Depth is the contract, hardcoded by the caller. */
 function kvmUnwrap<T>(body: unknown, nested: boolean): T {
   const env = (body ?? {}) as KvmEnvelope
   if (env.success !== true) {
@@ -158,8 +158,8 @@ function kvmUnwrap<T>(body: unknown, nested: boolean): T {
 
 export function createKvm(http: AxiosInstance) {
   return {
-    // ── VM 生命周期 ──
-    /** GET /v1/kvm/vms —— 两层。后端 nil slice 时 data.data 是 null,退化成 []。 */
+    // — VM lifecycle —
+    /** GET /v1/kvm/vms — two layers. When backend returns nil slice, data.data is null, degenerates to []. */
     async getVMList(): Promise<KvmVMList> {
       const raw = (await http.get('/kvm/vms')).data
       const env = (raw ?? {}) as KvmEnvelope
@@ -187,7 +187,7 @@ export function createKvm(http: AxiosInstance) {
       kvmUnwrap<null>((await http.delete(`/kvm/vms/${id}`)).data, false)
     },
 
-    // ── 电源动作:全部一层,返回 {status:"..."};这里只关心成败,不用返回值 ──
+    // — Power actions: all single layer, return {status:"..."}; only care about success/failure here, don't need return value —
     async startVM(id: string): Promise<void> {
       kvmUnwrap<unknown>((await http.post(`/kvm/vms/${id}/start`)).data, false)
     },
@@ -207,17 +207,17 @@ export function createKvm(http: AxiosInstance) {
       kvmUnwrap<unknown>((await http.post(`/kvm/vms/${id}/wakeup`)).data, false)
     },
 
-    /** GET /v1/kvm/vms/:id/vnc —— 一层。**浏览器直连宿主机 ws 端口,不走网关、无鉴权。** */
+    /** GET /v1/kvm/vms/:id/vnc — single layer. **Browser connects directly to host ws port, doesn't go through gateway, no auth.** */
     async getVNC(id: string): Promise<KvmVncInfo> {
       return kvmUnwrap<KvmVncInfo>((await http.get(`/kvm/vms/${id}/vnc`)).data, false)
     },
 
-    /** POST /v1/kvm/vms/:id/boot —— 一层,data 恒为 null。弹出安装介质就是它。 */
+    /** POST /v1/kvm/vms/:id/boot — single layer, data always null. This ejects installation media. */
     async setBootFromDisk(id: string, bootFromDisk: boolean): Promise<void> {
       kvmUnwrap<null>((await http.post(`/kvm/vms/${id}/boot`, { bootFromDisk })).data, false)
     },
 
-    /** POST /v1/kvm/vms/:id/autostart —— 一层,返回 {autostart:bool}(回显请求值)。 */
+    /** POST /v1/kvm/vms/:id/autostart — single layer, returns {autostart:bool} (echoes request value). */
     async setAutostart(id: string, autostart: boolean): Promise<boolean> {
       const d = kvmUnwrap<{ autostart?: boolean }>(
         (await http.post(`/kvm/vms/${id}/autostart`, { autostart })).data, false,
@@ -225,8 +225,8 @@ export function createKvm(http: AxiosInstance) {
       return d?.autostart ?? autostart
     },
 
-    // ── ISO(P6 用,本期只进包不消费) ──
-    /** GET /v1/kvm/isos —— **一层**,data 直接是数组(isos.go:21,与 /vms 不同)。 */
+    // — ISO (used in P6, only included this period, not consumed) —
+    /** GET /v1/kvm/isos — **single layer**, data is directly an array (isos.go:21, different from /vms). */
     async getISOList(): Promise<KvmISO[]> {
       const d = kvmUnwrap<unknown>((await http.get('/kvm/isos')).data, false)
       return Array.isArray(d) ? (d as KvmISO[]) : []
@@ -234,7 +234,7 @@ export function createKvm(http: AxiosInstance) {
     async getISO(id: string): Promise<KvmISO> {
       return kvmUnwrap<KvmISO>((await http.get(`/kvm/isos/${id}`)).data, true)
     },
-    /** POST /v1/kvm/isos/download —— body 是 {id},不是裸字符串(model.DownloadISORequest)。 */
+    /** POST /v1/kvm/isos/download — body is {id}, not a bare string (model.DownloadISORequest). */
     async downloadISO(id: string): Promise<void> {
       kvmUnwrap<unknown>((await http.post('/kvm/isos/download', { id })).data, false)
     },
@@ -245,7 +245,7 @@ export function createKvm(http: AxiosInstance) {
       return kvmUnwrap<KvmISODownloadProgress>((await http.get(`/kvm/isos/${id}/progress`)).data, false)
     },
 
-    // ── 快照(P6 用,本期只进包不消费) ──
+    // — Snapshots (used in P6, only included this period, not consumed) —
     async getSnapshots(vmId: string): Promise<KvmSnapshot[]> {
       const d = kvmUnwrap<unknown>((await http.get(`/kvm/vms/${vmId}/snapshots`)).data, true)
       return Array.isArray(d) ? (d as KvmSnapshot[]) : []
@@ -260,12 +260,12 @@ export function createKvm(http: AxiosInstance) {
       kvmUnwrap<unknown>((await http.post(`/kvm/vms/${vmId}/snapshots/${snapshotId}/restore`)).data, false)
     },
 
-    // ── 全局设置 ──
-    /** GET /v1/kvm/settings —— **一层**(settings.go:39)。 */
+    // — Global settings —
+    /** GET /v1/kvm/settings — **single layer** (settings.go:39). */
     async getSettings(): Promise<KvmSettings> {
       return kvmUnwrap<KvmSettings>((await http.get('/kvm/settings')).data, false)
     },
-    /** PUT /v1/kvm/settings —— **两层**(settings.go:51,回显请求体)。 */
+    /** PUT /v1/kvm/settings — **two layers** (settings.go:51, echoes request body). */
     async updateSettings(req: KvmSettingsUpdate): Promise<KvmSettingsUpdate> {
       return kvmUnwrap<KvmSettingsUpdate>((await http.put('/kvm/settings', req)).data, true)
     },

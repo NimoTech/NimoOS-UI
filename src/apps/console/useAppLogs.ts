@@ -1,8 +1,8 @@
 import { ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 
-const POLL_MS = 5000 // Vue2 AppTerminalPanel 同款节奏
-const LINES = 1000 // 后端默认;够看且不撑爆 DOM
+const POLL_MS = 5000 // Same rhythm as Vue2 AppTerminalPanel
+const LINES = 1000 // Backend default; enough to view and doesn't blow up DOM
 
 export function useAppLogs(appId: () => string) {
   const text = ref('')
@@ -16,7 +16,7 @@ export function useAppLogs(appId: () => string) {
       text.value = await service.compose.logs(appId(), { lines: LINES })
       error.value = ''
     } catch (e) {
-      error.value = e instanceof Error ? e.message : String(e) // 旧 text 保留,轮询下一轮自愈
+      error.value = e instanceof Error ? e.message : String(e) // Old text preserved, polling next round self-heals
     } finally {
       loading.value = false
     }

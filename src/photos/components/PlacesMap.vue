@@ -1,31 +1,32 @@
 <script setup lang="ts">
-// P6a-T6 (SP7-P6a 地点·地图主视图): PlacesMap.vue —— 地点页的 SVG 地图舞台。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:972-1011(模板)、
-// photos-places.scss:333-436(样式,跳过死码 :340-345 的 .world-graticule/
-// .world-equator——Vue2 模板从没画过经纬线;也跳过 :437+ 的 .map-tip,那属于容器
-// 层,不在这段结构规格里)。
+// P6a-T6 (SP7-P6a places/map main view): PlacesMap.vue — places page's SVG map stage.
+// Ported segment-by-segment from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:972-1011
+// (template) and photos-places.scss:333-436 (styling, skipping dead code :340-345
+// .world-graticule/.world-equator — Vue2 template never drew lat/lon lines; also skipping
+// :437+ .map-tip, which belongs to the container layer, not in this structure spec).
 //
-// 本组件是纯渲染 + 纯 emit:不含任何手势逻辑——wheel / pointerdown/move/up 一律由
-// T7 的 composable 出 handler,T11 容器接线到某个外层元素上;本组件只绑
-// @click / @mouseenter / @mouseleave 到 .geo-pin,并 defineExpose 出 svgEl 给
-// T7 做坐标换算与 pointer capture。
+// This component is pure render + pure emit: contains no gesture logic — wheel/pointerdown/move/up
+// all come from T7's composable handlers, wired by T11 container to some outer element; this
+// component only binds @click / @mouseenter / @mouseleave to .geo-pin and defineExpose's svgEl
+// to T7 for coordinate conversion and pointer capture.
 //
-// 偏离登记:
-//  1. font-family 用 var(--font)——Vue2 的 var(--font-display) 在本仓不存在,
-//     PlacesRail.vue/PersonHero.vue 等既有 Photos 组件已一律用 --font 代替
-//     (非颜色的结构 token 替换,不是颜色近似)。
-//  2. transition-group 的"隐藏态"类名:Vue2 是 .pin-merge-enter,Vue3 改名
-//     .pin-merge-enter-from(enter-active/enter-to、leave-active/leave-to 两版
-//     同名不变)。照抄 Vue2 类名会让入场缩放动画静默失效——见样式块内该规则上方注释。
+// Deviations logged:
+//  1. font-family uses var(--font) — Vue2's var(--font-display) doesn't exist here;
+//     existing Photos components like PlacesRail.vue/PersonHero.vue already use --font universally
+//     (structural token replacement, not color approximation).
+//  2. transition-group "hidden state" class name: Vue2 is .pin-merge-enter, Vue3 renamed
+//     .pin-merge-enter-from (enter-active/enter-to and leave-active/leave-to stay the same in both).
+//     Copying the Vue2 class name would leave the pop-in scale animation silently dead — see the
+//     comment above that rule in the styles block.
 import { computed, ref } from 'vue'
 import { MAP_H, MAP_W } from '../util/worldMap'
 import { buildPins, visitedDots, type Pin, type Place } from '../util/placesMap'
 
 const props = defineProps<{
-  places: Place[] // 已过滤的地点(不吃 rail 的搜索词,同 Vue2 :229/:237)
+  places: Place[] // already-filtered places (doesn't consume rail's search term, same as Vue2 :229/:237)
   activeId: string | null
-  view: { tx: number, ty: number, scale: number } // T7 的变换态
-  themeVars: Record<string, string> // T10 resolveMapTheme() 的产物,直接摊到 <svg> 的 :style
+  view: { tx: number, ty: number, scale: number } // T7's transform state
+  themeVars: Record<string, string> // T10's resolveMapTheme() output, spread directly onto <svg> :style
 }>()
 
 const emit = defineEmits<{
@@ -36,12 +37,12 @@ const emit = defineEmits<{
 
 const svgEl = ref<SVGSVGElement | null>(null)
 
-// PhotosPlacesView.vue:228-278 的等价物,直接消费 T2 已落地并过评审的纯函数。
+// Equivalent of PhotosPlacesView.vue:228-278, directly consuming the pure function T2 landed and reviewed.
 const dots = computed(() => visitedDots(props.places))
 const pins = computed(() => buildPins(props.places, props.view.scale, props.activeId))
 
-// PhotosPlacesView.vue 的 gridTransform 计算属性(命名沿用 Vue2,尽管它变换的是
-// 整块地图内容,不只是网格——历史命名,不重造)。
+// gridTransform computed property from PhotosPlacesView.vue (naming preserved from Vue2 even though it
+// transforms the entire map content, not just the grid — historical naming, not recreated).
 const gridTransform = computed(() => `translate(${props.view.tx} ${props.view.ty}) scale(${props.view.scale})`)
 
 function pickPin(p: Pin, ev: MouseEvent): void {
@@ -109,19 +110,19 @@ defineExpose({ svgEl })
 }
 .map-canvas:active { cursor: grabbing; }
 
-/* 陆地点阵:--map-dot-bg / --map-dot 这两个变量本身由 T10 注入到 <svg> 的 inline style 上,
-   不是本组件定义的 theme token——这里只给回落值,回落值也要 token 化。
-   评审 I1:--map-dot-bg 的回落**不能**用 --fg-faint(深色 0.52 会亮到盖过 is-visited 点,
-   浅色是不透明暖灰,铺在地图黑底画布上会变成一块不透明色块)——改用专门的
-   --map-dot-bg-fallback(theme-invariant,精确复刻 Vue2 scss:347 的字面量,见 theme.css
-   同名 token 注释)。 */
+/* Land dot grid: --map-dot-bg / --map-dot these two variables are injected by T10 into <svg>
+   inline style themselves, not theme tokens defined here — this gives fallback values; fallback
+   must also be tokenized. Review I1: --map-dot-bg fallback **cannot** use --fg-faint (dark 0.52
+   bright enough to eclipse is-visited dots, light is opaque warm gray, laid on map's black canvas
+   becomes opaque color block) — use dedicated --map-dot-bg-fallback instead (theme-invariant,
+   precisely reproduces Vue2 scss:347 literal, see theme.css same-name token comment). */
 .world-dot {
   fill: var(--map-dot-bg, var(--map-dot-bg-fallback));
   transition: fill 0.2s;
 }
-/* --map-dot 的回落 var(--accent) 实际不可达:Vue2 :974 无条件注入 --map-dot(不像
-   --map-dot-bg 那样看 dotBg 是否为真才注入),所以这条回落路径在 Vue2 里从未走过——
-   登记但不改值(评审判定低影响,只需登记)。 */
+/* --map-dot fallback var(--accent) is actually unreachable: Vue2 :974 injects --map-dot
+   unconditionally (unlike --map-dot-bg which only injects if dotBg is true), so this fallback path
+   never ran in Vue2 — logged but not changed (review judged low impact, registration only). */
 .world-dot.is-visited {
   fill: var(--map-dot, var(--accent));
   transition: fill 0.2s;
@@ -206,14 +207,15 @@ defineExpose({ svgEl })
      stays a constant on-screen size instead of ballooning at high zoom. */
   font-family: var(--font);
   font-weight: 600;
-  /* theme-exception: 固定白色填充——这段文字压在任意地图底色之上(4 套预设 + 自定义色,
-     深浅不定),不是压在 app 主题表面上,必须跨主题、跨地图配色都保持可读。先例:
-     PhotosMiniMap.vue 的 .dot-person 固定白描边。不用 --on-accent,它是深藏青,压在
-     深色地图上会隐形 */
+  /* theme-exception: fixed white fill — this text sits on any map background (4 presets +
+     custom colors, varying depth), not on app theme surface, must stay readable across themes
+     and map color schemes. Precedent: PhotosMiniMap.vue's .dot-person fixed white stroke.
+     Not using --on-accent, it's deep blue-green, invisible on dark map. */
   fill: rgba(255, 255, 255, 0.85);
   text-anchor: middle;
   paint-order: stroke;
-  /* theme-exception: 固定深色描边,同上一条理由——跟 fill 一起撑开对比度,不随主题走 */
+  /* theme-exception: fixed dark stroke, same reason as above — together with fill maintains
+     contrast, theme-independent. */
   stroke: rgba(10, 10, 12, 0.85);
   stroke-linejoin: round;
   pointer-events: none;

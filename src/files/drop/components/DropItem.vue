@@ -76,7 +76,7 @@ onBeforeUnmount(stopWatchdog)
 
 const inputEl = ref<HTMLInputElement | null>(null)
 const dragOver = ref(false)
-// suspended = 重连窗口(spec §7):store.connected 为假时禁互动,menu/picker/drop 一并失效
+// suspended = reconnection window (spec §7): when store.connected is false, disable interaction, menu/picker/drop all become invalid
 const disabled = computed(() => props.isSelf || !!props.device.offline || !!props.suspended)
 const icon = computed(() => dropIconUrl(props.device.name.model, !!props.device.offline, props.isSelf))
 const tip = computed(() => {
@@ -89,7 +89,7 @@ const tip = computed(() => {
   }
   return t('filesDropSendTip')
 })
-// SVG 进度环参数(r=38, 周长 2πr)
+// SVG progress ring parameters (r=38, circumference 2πr)
 const CIRC = 2 * Math.PI * 38
 const dash = computed(() => props.transfer ? (props.transfer.progress / 100) * CIRC : 0)
 
@@ -121,8 +121,8 @@ function pick() { if (!disabled.value) inputEl.value?.click() }
     @dragover="onDragOver"
     @dragleave="dragOver = false"
   >
-    <!-- ContextMenu 包装(components/ui/ContextMenu.vue,已核实 API):默认 slot=触发区、#menu=菜单项、无 disabled prop。
-         self/离线不包菜单(对齐 Vue2 showContextMenu 的 early-return),v-if 分流。 -->
+    <!-- ContextMenu wrapper (components/ui/ContextMenu.vue, API verified): default slot=trigger area, #menu=menu items, no disabled prop.
+         self/offline don't include menu (align with Vue2 showContextMenu's early-return), v-if routing. -->
     <ContextMenu v-if="!disabled">
       <button
         class="drop-bubble"

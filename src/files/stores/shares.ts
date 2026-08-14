@@ -7,7 +7,7 @@ import { shareName } from '../util/sambaPath'
 
 export interface ShareRow { id: number; path: string; name: string }
 
-// 透出后端错误消息(如「已共享」),取不到则回退通用文案。仿 NetworkStorageDialog。
+// Expose backend error message (e.g., "Already shared"), fall back to generic copy if not available. Similar to NetworkStorageDialog.
 function errMsg(e: unknown): string | undefined {
   return (e as { response?: { data?: { message?: string } } })?.response?.data?.message
 }

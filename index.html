@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>NimoOS</title>
     <script>
-      // 主题防闪:在 JS bundle 加载前就贴 data-theme(与 src/stores/theme.ts 逻辑一致)
+      // Anti-flash: apply data-theme before the JS bundle loads (matches src/stores/theme.ts logic)
       try {
         if (localStorage.getItem('theme') === 'light') {
           document.documentElement.dataset.theme = 'light'
         }
-      } catch (e) { /* localStorage 不可用时静默,回落默认蓝 */ }
+      } catch (e) { /* silently fall back to default blue when localStorage is unavailable */ }
     </script>
   </head>
   <body>

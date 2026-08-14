@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import KIcon from './KIcon.vue'
 
 describe('KIcon', () => {
-  it('渲染 svg 骨架并透传 size / color / strokeWidth', () => {
+  it('renders svg skeleton and passes through size / color / strokeWidth', () => {
     const w = mount(KIcon, { props: { name: 'home', size: 15, color: 'var(--accent)', strokeWidth: 2 } })
     const svg = w.get('svg')
     expect(svg.attributes('width')).toBe('15')
@@ -14,14 +14,15 @@ describe('KIcon', () => {
     expect(svg.attributes('fill')).toBe('none')
   })
 
-  it('name 命中时注入对应 path;未命中时渲染空内容(不抛)', () => {
+  it('when name matches injects corresponding path; unmatch renders empty content (no throw)', () => {
     expect(mount(KIcon, { props: { name: 'check' } }).html()).toContain('M4 10l4 4 8-8')
     const miss = mount(KIcon, { props: { name: 'no-such-icon' } })
     expect(miss.get('svg').element.innerHTML).toBe('')
   })
 
-  it('KnowledgeLayout 与 DashboardView 用到的 22 个 name 全部存在', () => {
-    // 协调者订正:brief 注释原写「18 个」,实际数组是 22 个,逐个核对蓝本后 22 个全部存在。
+  it('all 22 names used by KnowledgeLayout and DashboardView exist', () => {
+    // Coordinator correction: brief comment originally wrote "18", actual array is 22,
+    // after checking blueprint one by one all 22 exist.
     const used = ['home', 'search', 'layers', 'edit', 'file', 'history', 'drive', 'folder',
       'settings', 'clock', 'user', 'refresh', 'info', 'check', 'grid', 'plus',
       'arrowRight', 'chev', 'eye', 'spinner', 'pause', 'sparkle']
@@ -31,27 +32,30 @@ describe('KIcon', () => {
     }
   })
 
-  it('六个与 AgentIcon 同名异形的图标保持 KIcon 自己的形状(K4 防回归)', () => {
-    // 设计 §2.5:code/download/grid/pause/settings/user 在两套图标里形状不同,
-    // 复用 AgentIcon 会让知识库区图标肉眼可见地变样。这里钉住 KIcon 版本的特征片段。
+  it('six icons with AgentIcon same-name different-shape keep KIcon own shape (K4 regression guard)', () => {
+    // Design §2.5: code/download/grid/pause/settings/user have different shapes in two
+    // icon sets, reusing AgentIcon would visibly change knowledge area icons. Nail down KIcon
+    // version's characteristic segments here.
     const d = (n: string) => mount(KIcon, { props: { name: n } }).get('svg').element.innerHTML
-    expect(d('pause')).toContain('<rect')          // KIcon 是实心双矩形,AgentIcon 是两条线
-    expect(d('code')).toContain('M7 6l-4 4 4 4')   // 正向:钉住 KIcon 自己的 code path(补强,原负向断言判别力弱)
-    expect(d('code')).not.toContain('M11 4l-2 12') // AgentIcon 版多的那一笔斜线
-    expect(d('grid')).toContain('rx="1"')          // AgentIcon 是 rx="1.2"
-    expect(d('settings')).toContain('r="2.5"')     // AgentIcon 的齿轮是 lucide 版
-    expect(d('user')).toContain('cy="7"')          // AgentIcon 是 cy="8" + scale
-    expect(d('download')).toContain('M10 3v9')     // AgentIcon 是 M10 3v10
+    expect(d('pause')).toContain('<rect')          // KIcon is solid dual rectangles, AgentIcon is two lines
+    expect(d('code')).toContain('M7 6l-4 4 4 4')   // Positive: nail KIcon's own code path (strengthen, original negative assertion weak)
+    expect(d('code')).not.toContain('M11 4l-2 12') // AgentIcon version's extra slant line
+    expect(d('grid')).toContain('rx="1"')          // AgentIcon is rx="1.2"
+    expect(d('settings')).toContain('r="2.5"')     // AgentIcon's gear is lucide version
+    expect(d('user')).toContain('cy="7"')          // AgentIcon is cy="8" + scale
+    expect(d('download')).toContain('M10 3v9')     // AgentIcon is M10 3v10
   })
 
-  // 评审 Important 开放发现 1:上面几条只覆盖 8 个 glyph(check/code 正向 + 六条异形),
-  // 「22 个 name 全部存在」那条只查非空 —— 其余约 35 个 glyph 互相串位/坐标写错都测不出。
-  // 这条快照【不是】用来验证「移植对不对」——那件事已经由实现者与评审各自独立对蓝本做过
-  // 逐字节 diff(见 p5a-task-3-report.md,两侧 md5sum 一致,0 差异),移植正确性已经证明过了。
-  // 这条快照锁的是【那个已验证状态】,防的是【将来】有人改动 KIcon.vue 时无意中改错坐标、
-  // 或把两个 glyph 的 path 串了位——42 个键名全列(不是 T10/T12 用到的 22 个子集,
-  // 那 22 个恰好是已有保护的,漏掉的 20 个才是这条快照真正要保护的对象)。
-  it('42 条 glyph 全量快照(防未来误改漂移)', () => {
+  // Review Important open finding 1: above only covers 8 glyph (check/code positive +
+  // six different-shapes), "all 22 names exist" only checks non-empty — remaining ~35 glyph
+  // cross-position/coordinate write error untestable. This snapshot 【not】 to verify
+  // "is port correct" — already done independently by implementer and review each byte-diff
+  // against blueprint (see p5a-task-3-report.md, both sides md5sum match, 0 difference),
+  // port correctness already proved. This snapshot locks 【that verified state】, guards
+  // against 【future】 someone accidentally changing KIcon.vue coordinates or crossing glyph
+  // paths — all 42 key names listed (not 22 subset used by T10/T12, those 22 already have
+  // protection, missing 20 are what this snapshot truly guards).
+  it('full 42 glyph snapshot (guard future accidental drift)', () => {
     const names = [
       'plus', 'folder', 'search', 'chev', 'check', 'x', 'play', 'pause', 'trash', 'settings',
       'edit', 'file', 'drive', 'history', 'refresh', 'home', 'grid', 'user', 'arrowRight', 'download',

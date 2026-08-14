@@ -120,7 +120,7 @@ describe('restoreAssets', () => {
 // Final review, finding 5 + the coverage hole beside it. `assetBusy` guards the three write
 // actions against each other, and nothing tested it at all — removing the flag entirely left
 // the suite green. It also used to make a dropped call indistinguishable from a real zero:
-// the view then announced "已钉住 0 张到此视图" and closed the picker over a request that was
+// the view then announced "pinned 0 items to this view" and closed the picker over a request that was
 // never sent. `null` is now the dropped-because-busy answer; an empty list still answers 0.
 describe('assetBusy mutual exclusion', () => {
   // A write is parked in flight so the second call lands while the flag is up.
@@ -195,7 +195,7 @@ describe('loadExcluded', () => {
   })
 
   // Final review, finding 6: the list used to be blanked unconditionally before awaiting, so
-  // a transient 500 on a refetch made the whole "已排除(N)" band vanish — the user was shown
+  // a transient 500 on a refetch made the whole "Excluded (N)" band vanish — the user was shown
   // that the exclusions were gone while they were still on the server, with no error anywhere.
   // A refetch of the same view now keeps what is on screen until a newer list actually lands.
   it('keeps the loaded list when a refetch of the same view fails', async () => {

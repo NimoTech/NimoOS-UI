@@ -27,10 +27,10 @@ const { t } = useI18n()
   background-attachment: fixed;
   color: var(--fg, #fff);
 }
-/* 主页同款散景光斑，让预览背景与主页保持一致 */
+/* Main page matching bokeh light spots to keep preview background consistent */
 .overlay::before {
   content: ""; position: absolute; inset: -12%; z-index: 0; pointer-events: none;
-  background: /* theme-exception: 装饰性 accent bokeh, 与主页背景一致, 皮肤无关 */
+  background: /* theme-exception: decorative accent bokeh, consistent with main page background, theme-independent */
     radial-gradient(22vw 22vw at 22% 26%, rgba(150, 185, 255, 0.5), transparent 60%),
     radial-gradient(18vw 18vw at 78% 30%, rgba(183, 155, 255, 0.42), transparent 62%),
     radial-gradient(20vw 20vw at 60% 80%, rgba(95, 227, 176, 0.32), transparent 62%),

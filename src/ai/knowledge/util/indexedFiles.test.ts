@@ -1,6 +1,7 @@
-// SP8-P5a Task 6 —— 移植自 Vue2 `src/views/AI/Knowledge/__tests__/indexedFiles.spec.js`
-// (main@7a6ee6b7)。本任务只搬了 `buildListParams`/`anyIndexing` 两个函数,
-// 对应地只搬这两个函数的原用例(其余三个函数的用例留给搬它们本体的任务)。
+// SP8-P5a Task 6 —— Ported from Vue2 `src/views/AI/Knowledge/__tests__/indexedFiles.spec.js`
+// (main@7a6ee6b7). This task only ports `buildListParams`/`anyIndexing` functions,
+// correspondingly only their original test cases (other functions' tests left for tasks
+// porting their bodies).
 import { describe, it, expect } from 'vitest'
 import { buildListParams, anyIndexing } from './indexedFiles'
 

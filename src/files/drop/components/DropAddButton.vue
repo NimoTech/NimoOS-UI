@@ -6,7 +6,7 @@ import { dropAsset } from '../dropIcons'
 
 const { t } = useI18n()
 const open = ref(false)
-const address = `${window.location.origin}/app/#/files/drop` // spec §6:直达完整地址
+const address = `${window.location.origin}/app/#/files/drop` // spec §6: navigate to full address
 </script>
 
 <template>

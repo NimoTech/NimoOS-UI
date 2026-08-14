@@ -24,7 +24,7 @@ describe('ImageViewer', () => {
   // Historical bug: .img-stage's pointerdown also called setPointerCapture on events bubbling up
   // from toolbar buttons; once the stage captured the pointer, buttons never received click — the
   // entire bottom toolbar row went dead.
-  it('工具栏上按下指针不得进入舞台拖拽(pointer capture 不吞按钮)', async () => {
+  it('pressing pointer on toolbar should not enter stage dragging (pointer capture does not consume button)', async () => {
     const w = await mountViewer()
     const btn = w.findAll('.img-toolbar .tb-item')[1]! // the + zoom-in button
     await btn.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -32,7 +32,7 @@ describe('ImageViewer', () => {
     expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
   })
 
-  it('工具栏按钮 click 生效:放大改 scale、旋转改 rotate', async () => {
+  it('toolbar button click works: zoom in changes scale, rotate changes rotate', async () => {
     const w = await mountViewer()
     const items = w.findAll('.img-toolbar .tb-item')
     await items[1]!.trigger('click') // zoom in
@@ -41,7 +41,7 @@ describe('ImageViewer', () => {
     expect(w.get('img.img-el').attributes('style')).toContain('rotate(90deg)')
   })
 
-  it('在舞台空白处拖拽仍可平移图片', async () => {
+  it('dragging on empty stage still pans image', async () => {
     const w = await mountViewer()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -51,7 +51,7 @@ describe('ImageViewer', () => {
 })
 
 // —— Drag bounds: the image always keeps at least 48px inside the viewport, can't be dragged away ——
-describe('ImageViewer 拖拽边界', () => {
+describe('ImageViewer drag bounds', () => {
   const mountWithLayout = async () => {
     const w = await mountViewer()
     const img = w.get('img.img-el').element as HTMLImageElement
@@ -64,7 +64,7 @@ describe('ImageViewer 拖拽边界', () => {
     return w
   }
 
-  it('向右下暴力拖拽被夹在边界:图片不会完全离开可视区', async () => {
+  it('dragging violently to bottom-right is clamped at bounds: image never leaves viewport completely', async () => {
     const w = await mountWithLayout()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 100, clientY: 100 })
@@ -73,7 +73,7 @@ describe('ImageViewer 拖拽边界', () => {
     expect(w.get('img.img-el').attributes('style')).toContain('translate(852px, 602px)')
   })
 
-  it('向左上暴力拖拽同样被夹住(负方向)', async () => {
+  it('dragging violently to top-left is also clamped (negative direction)', async () => {
     const w = await mountWithLayout()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 5100, clientY: 5100 })
@@ -81,7 +81,7 @@ describe('ImageViewer 拖拽边界', () => {
     expect(w.get('img.img-el').attributes('style')).toContain('translate(-852px, -602px)')
   })
 
-  it('无布局信息(jsdom 默认 0 尺寸)时不夹,平移不受影响', async () => {
+  it('when no layout info (jsdom defaults to 0 size), clamping is skipped, panning is unaffected', async () => {
     const w = await mountViewer()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -92,7 +92,7 @@ describe('ImageViewer 拖拽边界', () => {
   // Once the browser's native image drag starts it suspends pointer events (ghost image + no-drop
   // cursor; our own panning all breaks); draggable=false has bypasses like selection dragging —
   // the stage layer must intercept dragstart as the backstop
-  it('舞台内任何元素的原生 dragstart 都被阻止(不出幽灵图)', async () => {
+  it('native dragstart of any element on stage is prevented (no ghost image)', async () => {
     const w = await mountViewer()
     const ev = new Event('dragstart', { bubbles: true, cancelable: true })
     w.get('img.img-el').element.dispatchEvent(ev)
@@ -100,7 +100,7 @@ describe('ImageViewer 拖拽边界', () => {
   })
 
   // On real devices a lost pointerup (released outside the window) leaves dragging stuck true, and the image "sticks" to the pointer and flies around
-  it('鼠标已无按键(buttons=0)的 pointermove 不再平移(pointerup 丢失自愈)', async () => {
+  it('pointermove with no mouse buttons (buttons=0) stops panning (lost pointerup self-heals)', async () => {
     const w = await mountWithLayout()
     const stage = w.get('.img-stage')
     await stage.trigger('pointerdown', { clientX: 10, clientY: 10 })
@@ -110,7 +110,7 @@ describe('ImageViewer 拖拽边界', () => {
 })
 
 // —— Settle-on-idle: 150ms after zooming stops, the factor is baked into layout size, forcing a repaint that removes compositor tile seams ——
-describe('ImageViewer 缩放落盘', () => {
+describe('ImageViewer zoom settle-on-idle', () => {
   const mountWithSize = async () => {
     vi.useFakeTimers()
     const w = await mountViewer()
@@ -123,7 +123,7 @@ describe('ImageViewer 缩放落盘', () => {
   const zoomInBtn = (w: Awaited<ReturnType<typeof mountViewer>>) => w.findAll('.img-toolbar .tb-item')[1]!
   const resetBtn = (w: Awaited<ReturnType<typeof mountViewer>>) => w.findAll('.img-toolbar .tb-item')[3]!
 
-  it('停手 150ms 后落盘:scale 归 1,倍数写进 width/height', async () => {
+  it('after 150ms idle: scale returns to 1, multiplier is written to width/height', async () => {
     const w = await mountWithSize()
     try {
       await zoomInBtn(w).trigger('click') // effective factor 1.1
@@ -137,7 +137,7 @@ describe('ImageViewer 缩放落盘', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('连续缩放期间不落盘(防抖),停手后才落', async () => {
+  it('no settling during continuous zoom (debounced), settles only after stop', async () => {
     const w = await mountWithSize()
     try {
       await zoomInBtn(w).trigger('click')
@@ -156,7 +156,7 @@ describe('ImageViewer 缩放落盘', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('复位清除落盘尺寸,回到 CSS 自适应', async () => {
+  it('reset clears settled size, returns to CSS auto-sizing', async () => {
     const w = await mountWithSize()
     try {
       await zoomInBtn(w).trigger('click')
@@ -171,7 +171,7 @@ describe('ImageViewer 缩放落盘', () => {
     } finally { vi.useRealTimers() }
   })
 
-  it('图未加载(布局尺寸为 0)时跳过落盘,不破坏显示', async () => {
+  it('when image not loaded (layout size 0), skip settling, do not break display', async () => {
     vi.useFakeTimers()
     const w = await mountViewer() // jsdom defaults to offsetWidth=0
     try {

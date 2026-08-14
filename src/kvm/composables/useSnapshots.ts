@@ -3,18 +3,21 @@ import type { Ref } from 'vue'
 import { service } from '@nimotech/nimoos-service'
 import type { KvmSnapshot } from '@nimotech/nimoos-service'
 
-// 快照数据层。视觉/交互无关,纯状态 + 数据获取。逐字对 NimoOS-UI/src/components/KVM/
-// KVMFullPage.vue 的 Snapshot Methods 段落(:1223-1320):fetchSnapshots/createSnapshot/
-// restoreSnapshot/deleteSnapshot/formatDate。二次确认(pendingConfirmAction/Id)与进度
-// 遮罩的拼接留给视图层(SnapshotsTab.vue / KvmPage.vue),这里只管"发请求→结果"。
+// Snapshot data layer. Visuals/interactions omitted; pure state + data fetching. Mirrors
+// NimoOS-UI/src/components/KVM/KVMFullPage.vue Snapshot Methods section (:1223-1320):
+// fetchSnapshots/createSnapshot/restoreSnapshot/deleteSnapshot/formatDate word-for-word.
+// Confirmation UI (pendingConfirmAction/Id) and progress overlay bridging belongs to the
+// view layer (SnapshotsTab.vue / KvmPage.vue); this composable handles only "send request
+// → result".
 //
-// 真机 fixture(2026-08-03 curl `GET /v1/kvm/vms/<id>/snapshots`)→
-// `{"success":true,"data":{"data":[]}}`——两层信封,共享包 getSnapshots 已经剥好,
-// 这里拿到的直接是 KvmSnapshot[]。
+// Live fixture (2026-08-03 curl `GET /v1/kvm/vms/<id>/snapshots`) →
+// `{"success":true,"data":{"data":[]}}` — two-layer envelope already unwrapped by the
+// shared package getSnapshots; we receive KvmSnapshot[] directly.
 
-/** 照抄 Vue2 getErrMsg(KVMFullPage.vue:841-844)剥掉开头的 `[xxx] ` 前缀这一步,
- * 与 useVmList.ts 的 errText 逐字同一实现——两处各自就地写一份,不抽公共 util
- * (本项目既有惯例,useKvmHostInfo.save() 也是就地写自己的错误取值逻辑)。 */
+/** Mirrors Vue2 getErrMsg (KVMFullPage.vue:841-844) stripping the leading `[xxx] ` prefix.
+ * Implemented identically to useVmList.ts errText — both written in-place, not extracted
+ * to a shared util (project convention: useKvmHostInfo.save() also implements its own
+ * error extraction logic in-place). */
 function errText(e: unknown, fallback: string): string {
   const raw = (e instanceof Error && e.message) || fallback
   return raw.replace(/^\[.*?\]\s*/, '')
@@ -23,29 +26,31 @@ function errText(e: unknown, fallback: string): string {
 export function useSnapshots() {
   const snapshots: Ref<KvmSnapshot[]> = ref([])
 
-  // 就地过期守卫(硬约束 8,同 useVmList/useKvmHostInfo 的既有写法,不抽公共 guard)。
+  // Local expiry guard (hard constraint 8, same pattern as useVmList/useKvmHostInfo,
+  // not extracted to a shared guard).
   let alive = true
 
   async function fetch(vmId: string): Promise<void> {
     try {
       const res = await service.kvm.getSnapshots(vmId)
-      if (!alive) return // 过期守卫:组件已卸载,这份迟到的响应不再写 state
+      if (!alive) return // Expiry guard: component unmounted; discard this late response
       snapshots.value = res
     } catch (e) {
-      // 有意照抄 Vue2(:1232-1234):失败只 console.warn,不清空列表、不写任何错误状态——
-      // 拉取失败时停在原地比清空列表更安全(用户还能看到上一次成功拉到的快照)。这不是
-      // 吞错遗漏,是显式保留的既有行为。
+      // Deliberately mirrors Vue2 (:1232-1234): on failure, only console.warn without
+      // clearing the list or writing error state — staying in place on fetch failure is
+      // safer than clearing (user can still see the last successful snapshot list). This
+      // is not error suppression; it is explicit preservation of existing behavior.
       console.warn('[KVM] Failed to fetch snapshots:', e)
     }
   }
 
-  // 返回值(''=成功,非空=这次调用失败的文案):契约同 useVmList.create/update。
-  // 成功后照 Vue2 createSnapshot(:1251)自己再 fetch 一遍拿最新列表(不是本地拼接一条,
-  // 后端可能会补全 state 等字段)。
+  // Return value ('' = success, non-empty = error message): contract mirrors useVmList.create/update.
+  // After success, fetch again per Vue2 createSnapshot (:1251) to get the latest list
+  // (not locally appending one, since backend may populate state and other fields).
   async function create(vmId: string, name: string, description: string): Promise<string> {
     try {
       await service.kvm.createSnapshot(vmId, { name, description })
-      if (!alive) return '' // dispose 之后到达的结果不再补一次 fetch(评审既有惯例)
+      if (!alive) return '' // Result arriving after dispose; skip the extra fetch (review convention)
       await fetch(vmId)
       return ''
     } catch (e) {
@@ -53,11 +58,12 @@ export function useSnapshots() {
     }
   }
 
-  // 返回值同上。成功后照 Vue2 deleteSnapshot(:1307)本地过滤掉那一条,不重新 fetch。
+  // Return value same as above. After success, locally filter out that entry per Vue2
+  // deleteSnapshot (:1307); do not re-fetch.
   async function remove(vmId: string, snapshotId: string): Promise<string> {
     try {
       await service.kvm.deleteSnapshot(vmId, snapshotId)
-      if (!alive) return '' // dispose 之后到达的结果不再写 state(评审既有惯例)
+      if (!alive) return '' // Result arriving after dispose; do not write state (review convention)
       snapshots.value = snapshots.value.filter((s) => s.id !== snapshotId)
       return ''
     } catch (e) {
@@ -65,11 +71,13 @@ export function useSnapshots() {
     }
   }
 
-  // 返回值同上。restore 成功不写本 composable 的任何 state(Vue2 restoreSnapshot
-  // :1278-1288 同样不改 this.snapshots——它只关设置弹窗,那是视图层的事,见
-  // SnapshotsTab.vue/KvmPage.vue)。因此**不需要** alive 守卫:这里没有状态可保护,
-  // 硬加一层 `if (!alive) return ''` 会把"请求真的失败了、只是恰好在 dispose 之后
-  // 落定"谎报成功(同 useKvmHostInfo.save() 顶部注释踩过的同一个教训,评审 Important #3)。
+  // Return value same as above. On restore success, do not write any state in this
+  // composable (Vue2 restoreSnapshot :1278-1288 does not modify this.snapshots either —
+  // it only handles the dialog UI, which belongs to the view layer in SnapshotsTab.vue /
+  // KvmPage.vue). Therefore **no alive guard needed here**: there is no state to protect.
+  // Adding `if (!alive) return ''` would lie about a real request failure that merely
+  // happens to arrive after dispose (same lesson as useKvmHostInfo.save() top comment;
+  // see review Important #3).
   async function restore(vmId: string, snapshotId: string): Promise<string> {
     try {
       await service.kvm.restoreSnapshot(vmId, snapshotId)

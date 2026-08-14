@@ -1,7 +1,7 @@
-// Task 13 (SP7-P5 人物): PersonRelationsTab.vue —— 人物详情页「关系」tab。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:187-227:
-// 关系图区(段落标题+图例+PersonRelGraph)/ 共现列表(按 count 降序 + 条形)/
-// Nimo's read 洞察卡(v-html 拼句,不渲染底部"深挖"按钮,归 SP8)。
+// Task 13 (SP7-P5 People): PersonRelationsTab.vue — People detail page "Relations" tab.
+// Follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:187–227 section by section:
+// relation graph section (section title + legend + PersonRelGraph) / co-occurrence list (sorted by count descending + bar chart) /
+// Nimo's insights card (v-html sentence assembly, no "Deep Dive" button at bottom, belongs to SP8).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -48,7 +48,7 @@ afterEach(() => {
 })
 
 describe('PersonRelationsTab.vue', () => {
-  it('渲染关系图区段落标题 + 副标题 + 图例(照 Vue2 :189-197)', () => {
+  it('Render relation graph section title + subtitle + legend (ref Vue2 :189–197)', () => {
     const w = mountTab({ relations: [], person: P(), places: [] })
     const titles = w.findAll('.detail-section-title')
     expect(titles[0].text()).toContain('关系图谱')
@@ -58,13 +58,13 @@ describe('PersonRelationsTab.vue', () => {
     expect(legend.text()).toContain('偶尔')
   })
 
-  it('渲染共同出现段落标题(照 Vue2 :202,无副标题)', () => {
+  it('Render co-occurrence section title (ref Vue2 :202, no subtitle)', () => {
     const w = mountTab({ relations: [], person: P(), places: [] })
     const titles = w.findAll('.detail-section-title')
     expect(titles[1].text()).toBe('共同出现')
   })
 
-  it('把 relations/person 透传给 PersonRelGraph,并把它的 open-person 转发出去', async () => {
+  it('Pass through relations/person to PersonRelGraph, and forward its open-person event outward', async () => {
     const relations: PersonRelation[] = [{ personId: 7, name: 'Z', count: 3 }]
     const w = mountTab({ relations, person: P(), places: [] })
     const graph = w.getComponent(PersonRelGraph)
@@ -74,7 +74,7 @@ describe('PersonRelationsTab.vue', () => {
     expect(w.emitted('open-person')).toEqual([[7]])
   })
 
-  it('共现列表按 count 降序排列(照 :530-532 sortedRelations)', () => {
+  it('Co-occurrence list sorted by count descending (ref :530–532 sortedRelations)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 5 },
       { personId: 2, name: 'B', count: 50 },
@@ -88,19 +88,19 @@ describe('PersonRelationsTab.vue', () => {
     expect(rows[2].text()).toContain('A')
   })
 
-  it('条形宽度比例正确(最大项 100%,照 :533-536 relMax)', () => {
+  it('Bar width ratio is correct (max item 100%, ref :533–536 relMax)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 25 },
       { personId: 2, name: 'B', count: 100 },
     ]
     const w = mountTab({ relations, person: P(), places: [] })
     const bars = w.findAll('.rel-row .bar > div')
-    // 排序后 B(100) 在前 → 100%,A(25) 在后 → 25%。
+    // After sorting, B(100) is first → 100%, A(25) is after → 25%.
     expect(bars[0].attributes('style')).toContain('width: 100%')
     expect(bars[1].attributes('style')).toContain('width: 25%')
   })
 
-  it('共现列表每行用 36px PersonAvatar(照 photos-people.scss:547-548 .rel-row .av,brief 原写 32px 是笔误,以 Vue2 源为准),不手拼头像 URL', () => {
+  it('Each co-occurrence row uses 36px PersonAvatar (ref photos-people.scss:547–548 .rel-row .av, brief originally said 32px is a typo, use Vue2 source as truth), do not manually construct avatar URL', () => {
     const relations: PersonRelation[] = [{ personId: 9, name: 'A', coverFaceId: 'f9', count: 1 }]
     const w = mountTab({ relations, person: P(), places: [] })
     const img = w.get('.rel-row [data-test="avatar-img"]')
@@ -108,20 +108,20 @@ describe('PersonRelationsTab.vue', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith(9, 'f9')
   })
 
-  it('共现计数短语用 photosPersonPhotosTogether({n}),不是裸数字拼接', () => {
+  it('Co-occurrence count phrase uses photosPersonPhotosTogether({n}), not bare number concatenation', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 7 }]
     const w = mountTab({ relations, person: P(), places: [] })
     expect(w.get('.rel-row .ct').text()).toBe('共同出现 7 张照片')
   })
 
-  it('点共现行 → emit open-person 带 personId(照 :208 $emit)', async () => {
+  it('Click co-occurrence row → emit open-person with personId (ref :208 $emit)', async () => {
     const relations: PersonRelation[] = [{ personId: 33, name: 'A', count: 1 }]
     const w = mountTab({ relations, person: P(), places: [] })
     await w.get('.rel-row').trigger('click')
     expect(w.emitted('open-person')).toEqual([[33]])
   })
 
-  it('洞察卡标题 = photosPersonNimoRead,正文渲染出 <b> 标签(v-html 生效)', () => {
+  it('Insights card title = photosPersonNimoRead, body renders <b> tag (v-html active)', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: '小红', count: 1 }]
     const w = mountTab({ relations, person: P({ name: '小明' }), places: [PG('北京'), PG('上海')] })
     expect(w.get('.rel-insight-card .hd').text()).toContain('Nimo 的解读')
@@ -132,20 +132,20 @@ describe('PersonRelationsTab.vue', () => {
     expect(p.text()).toContain('上海')
   })
 
-  it('两段拼句用空格连接(照 :584 parts.join(\' \'))', () => {
+  it('Two sentence parts joined by space (ref :584 parts.join(\' \'))', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: '小红', count: 1 }]
     const w = mountTab({ relations, person: P({ name: '小明' }), places: [PG('北京')] })
     const text = w.get('[data-test="insight-text"]').text()
     expect(text).toBe('小明 最常与 小红 一起出现。 他们的照片集中在 北京。')
   })
 
-  it('无关系无地点 → 洞察卡落到 InsightNone 单句', () => {
+  it('No relations and no places → insights card falls to InsightNone single sentence', () => {
     const w = mountTab({ relations: [], person: P({ name: '小明' }), places: [] })
     expect(w.get('[data-test="insight-text"]').text()).toBe('小明 的照片还不够多，暂无法生成洞察。')
   })
 
-  it('nimoReadParts 用 relations[0] 而非排序后第一个(照 :573,关键回归)', () => {
-    // count 更大的排在数组第二位,但 relations[0] 才是决定"最常出现"话术的那个人。
+  it('nimoReadParts uses relations[0] not the first after sorting (ref :573, key regression)', () => {
+    // The one with higher count is at array position 2, but relations[0] is what determines the "most frequently appears" phrasing.
     const relations: PersonRelation[] = [
       { personId: 1, name: '小红', count: 1 },
       { personId: 2, name: '小刚', count: 100 },
@@ -155,7 +155,7 @@ describe('PersonRelationsTab.vue', () => {
     expect(w.get('[data-test="insight-text"]').text()).not.toContain('小刚')
   })
 
-  it('人名中的 HTML 特殊字符在 v-html 输出中被转义(XSS 加固,好于 Vue2 的裸插值)', () => {
+  it('HTML special chars in person names are escaped in v-html output (XSS hardening, better than Vue2 bare interpolation)', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: '<img src=x onerror=alert(1)>', count: 1 }]
     const w = mountTab({ relations, person: P({ name: '小明' }), places: [] })
     const html = w.get('[data-test="insight-text"]').html()
@@ -163,13 +163,13 @@ describe('PersonRelationsTab.vue', () => {
     expect(html).toContain('&lt;img')
   })
 
-  it('不渲染洞察卡底部"深挖"按钮(归 SP8,照 brief)', () => {
+  it('Do not render "Deep Dive" button at bottom of insights card (belongs to SP8, ref brief)', () => {
     const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P(), places: [] })
     expect(w.find('.nimo-btn').exists()).toBe(false)
   })
 
-  it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言)', () => {
-    // 评审 Important 修正:同 PersonRelGraph.test.ts,原正则漏了函数式颜色。
+  it('No bare color literals in template (hex or rgba()/hsla() function form, fallback assertion)', () => {
+    // Review Important correction: like PersonRelGraph.test.ts, original regex missed function-form colors.
     const w = mountTab({
       relations: [{ personId: 1, name: 'A', count: 1 }],
       person: P(),
@@ -179,12 +179,12 @@ describe('PersonRelationsTab.vue', () => {
   })
 })
 
-// 用户验收新增(与 PersonHero 的兜底标题同一批):未命名人物现在能进详情页,洞察卡的
-// 句子模板全部带 {name} 槶位,裸 person.name 会渲染成「 的照片还不够多…」这种前置空格的
-// 残句。地点 tab(PersonPlacesTab.vue:51)早就用 `personName || photosPersonThisPerson`
-// 兜底了,关系 tab 漏了同款处理 —— 这里补齐,两个 tab 的兜底口径统一。
-describe('PersonRelationsTab.vue — 无名字人物的洞察卡兜底', () => {
-  it('name 为空 + 无关系无地点 → 洞察句用「这个人」而不是留空槶位', () => {
+// User acceptance addition (batch with PersonHero fallback title): unnamed people can now enter detail page, insights card
+// sentence templates all carry {name} placeholders; bare person.name renders as " photos not enough…" with leading space artifact.
+// Places tab (PersonPlacesTab.vue:51) long ago uses `personName || photosPersonThisPerson` fallback, but relations tab missed the same treatment —
+// filled here, two tabs have aligned fallback coverage.
+describe('PersonRelationsTab.vue — Insights card fallback for unnamed person', () => {
+  it('name is empty + no relations no places → insights sentence uses "this person" not empty placeholder', () => {
     const w = mountTab({
       relations: [],
       person: P({ name: '' }),
@@ -195,12 +195,12 @@ describe('PersonRelationsTab.vue — 无名字人物的洞察卡兜底', () => {
     expect(text).not.toMatch(/^\s/)
   })
 
-  it('name 只有空白字符 → 同样走兜底', () => {
+  it('When name is only whitespace → also use fallback', () => {
     const w = mountTab({ relations: [], person: P({ name: '  ' }), places: [] })
     expect(w.get('[data-test="insight-text"]').text()).toContain('这个人 的照片还不够多')
   })
 
-  it('有名字时原样代入,不受兜底影响', () => {
+  it('When name exists, substitute as-is, fallback does not apply', () => {
     const w = mountTab({ relations: [], person: P({ name: 'Sara' }), places: [] })
     expect(w.get('[data-test="insight-text"]').text()).toContain('Sara 的照片还不够多')
   })

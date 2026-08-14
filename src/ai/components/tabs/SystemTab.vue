@@ -1,27 +1,29 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/tabs/SystemTab.vue(56 行)。SP8-P1c2 Task 11。
+  1:1 port from Vue2 src/views/AI/Agent/tabs/SystemTab.vue (56 lines). SP8-P1c2 Task 11.
 
-  用户拍板的有意偏离(brief 明确指出):Vue2 `mounted` 一次性拉 `/sys/utilization`
-  且从不刷新;这里改用 New-UI 现成的实时通道 `useUtilization()`(首帧 HTTP +
-  MessageBus `nimoos:system:utilization` 持续推送)驱动 2x2 磁贴的 `systemTiles`
-  取值。存储条仍是一次性拉取(容量不需要实时,与 Vue2 同),数据源在
-  `AgentPage.vue` 的 `onMounted` 里用 `service.disks.list()` 拉好、经
-  `toStoragePayload` 转换后作为 `storage` prop 传入(Task 13 才会把这个 prop
-  真正接到渲染出的 `AgentRightPanel` 上——本任务只保证组件自身独立可测)。
+  User-approved intentional divergence (brief explicitly states): Vue2 `mounted` fetches
+  `/sys/utilization` once and never refreshes; here changed to use New-UI's ready-made real-time
+  channel `useUtilization()` (first frame HTTP + MessageBus `nimoos:system:utilization` continuous
+  push) to drive 2x2 tile `systemTiles` values. Storage bar still one-time fetch (capacity doesn't
+  need real-time, same as Vue2); data source fetched in `AgentPage.vue` `onMounted` via
+  `service.disks.list()`, transformed via `toStoragePayload` and passed as `storage` prop (Task 13
+  will actually connect this prop to rendered `AgentRightPanel` — this task only ensures component
+  itself is independently testable).
 
-  Vue2 缺陷修复(项目 2026-07-27 拍板"移植纪律·界面照 Vue2 逻辑照正确")——
-  CPU 磁贴的取值 bug 详见 `../../util/systemTiles.ts` 头部注释:Vue2 把标量
-  `cpu.percent` 当数组用 `.length` 判断,导致 CPU 磁贴永远显示 "—"。已在纯函数
-  里修复并在报告里登记。
+  Vue2 bug fix (project decision 2026-07-27 "porting discipline · UI matches Vue2, logic is correct") —
+  CPU tile value bug detailed in `../../util/systemTiles.ts` header comment: Vue2 treats scalar
+  `cpu.percent` as array using `.length` check, causing CPU tile to always show "—". Fixed in pure
+  function and recorded in report.
 
-  `useUtilization()` 挂载/卸载订阅由 composable 自己管(`onMounted`
-  fetchOnce+订阅、`onUnmounted` 退订)。本组件是 `AgentRightPanel` 的
-  `v-else-if="tab === 'system'"` 分支,切 tab 会卸载/重挂:每次重新挂载都会
-  再 fetchOnce 一次 + 重新订阅一次,卸载时对应退订一次——composable 内部用一个
-  局部闭包变量 `off` 持有当次订阅的取消函数,不会跨挂载期累积监听器,反复
-  挂卸不会泄漏(SystemTab.test.ts 的"磁贴随实时数据更新"用例间接验证了订阅确实
-  生效;Pinia store 本身是单例、跨挂载期保留最后一次数据,这也是刻意的——用户
-  切走 System tab 再切回来,磁贴应该还留着上一屏看到的值,不必是空白)。
+  `useUtilization()` mount/unmount subscriptions managed by composable itself (`onMounted`
+  fetchOnce+subscribe, `onUnmounted` unsubscribe). This component is `AgentRightPanel`
+  `v-else-if="tab === 'system'"` branch; switching tabs unmounts/remounts: each remount
+  does fetchOnce again + resubscribes, unmount unsubscribes — composable internally uses local
+  closure variable `off` to hold current subscription cancel function, doesn't accumulate listeners
+  across mount periods, repeated mount/unmount doesn't leak (SystemTab.test.ts "tiles update with
+  real-time data" case indirectly verifies subscription works; Pinia store itself is singleton,
+  retains last data across mount periods, intentional — when user switches away from System tab
+  and back, tiles should keep values from last screen, not be blank).
 -->
 <script setup lang="ts">
 import { computed } from 'vue'

@@ -1,22 +1,23 @@
-// SP8-P5e Task 3 —— `searchAggregate.ts` 的单测,承接 Vue2 既有
-// `__tests__/searchAggregate.spec.js`(46 行 / 2 例,治理 §4.3)并加细
-// (`kindFromMime` 六分支 / `basename`/`dirname` 边界 / `chunkVM` 边界 / N45 三件事
-// 各自独立用例),外加 K48(等价性已由 T0 程序化证明,`p5e-task-0-report.md` §9)
-// 与 K49(本期唯一 XSS 面)专项用例。
+// SP8-P5e Task 3 — unit tests for `searchAggregate.ts`, inherit from Vue2 existing
+// `__tests__/searchAggregate.spec.js`(46 lines / 2 cases, governance §4.3) and add refinement
+// (`kindFromMime` six branches / `basename`/`dirname` boundaries / `chunkVM` boundaries /
+// N45 three things each independent), plus K48 (equivalence programmatically proven by T0,
+// `p5e-task-0-report.md` §9) and K49 (only XSS surface this period) specialized cases.
 //
-// 🔴 fixture 纪律(裁定 R3.2/R9/R10,`p5e-fixtures/README.md`):
-// 本文件的多文件聚合用例取自 `.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json`
-// (三级出处标签 = **REPLAYED**:真 Qdrant payload 经 `NimoOS-Search/service/search.go` 的权威
-// 代码路径重放,含 2 处已在 README §3.1 申报的人工成分:8 个 score 取自本机实测区间的档位
-// 代表值、"4 文件×2 chunk" 的选点规则)。
-// 🔴 **R9-3**:正文是零截断真值(每条 preview.text 2156–2379 字)→ 本文件**只保留 1 条完整正文**
-// (下面 `FIRST_CHUNK_FULL_TEXT`,取自 F5b `files[0].chunks[0].preview.text`,
-// sha256 `fe4f68aa570a1ad127811d38a3d87f3845523f0ff0cb53c4f9baad6327bade1b`,长度 2342,
-// 可用 `python3 -c "import json,hashlib; d=json.load(open('.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json')); t=d['files'][0]['chunks'][0]['preview']['text']; print(len(t), hashlib.sha256(t.encode()).hexdigest())"`
-// 复核,应打印 `2342 fe4f68aa570a…`),**其余每条 preview.text 都截到前 50 字符**
-// (仍是取自同一份真数据的真实前缀,不是手编内容 —— 聚合/排序/取分逻辑不依赖正文长度或
-// 具体内容,只有一条独立用例校验「原样透传不截断」)。
-// 🔴 `_` 前缀的台账元数据键(`_provenance` 等)已按 README §3.3 的要求删除,不抄进本文件。
+// 🔴 Fixture discipline (ruling R3.2/R9/R10, `p5e-fixtures/README.md`):
+// This file's multi-file aggregate cases from `.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json`
+// (three-level source label = **REPLAYED**: true Qdrant payload replayed through authoritative code path
+// `NimoOS-Search/service/search.go`, with 2 human elements declared in README §3.1: 8 scores from local
+// test interval tier representative values, "4 files × 2 chunks" selection rule).
+// 🔴 **R9-3**: full text zero-truncated truth (each preview.text 2156–2379 chars) → this file **keeps 1 full text only**
+// (below `FIRST_CHUNK_FULL_TEXT`, from F5b `files[0].chunks[0].preview.text`,
+// sha256 `fe4f68aa570a1ad127811d38a3d87f3845523f0ff0cb53c4f9baad6327bade1b`, length 2342,
+// verifiable via `python3 -c "import json,hashlib; d=json.load(open('.superpowers/sdd/p5e-fixtures/F5b-search-text.multifile.REPLAYED.json')); t=d['files'][0]['chunks'][0]['preview']['text']; print(len(t), hashlib.sha256(t.encode()).hexdigest())"`
+// should print `2342 fe4f68aa570a…`), **other preview.text all truncated to first 50 chars**
+// (still true prefix from same real data, not hand-written — aggregate/sort/score logic
+// independent of text length or content, only one separate case validates "pass through untruncated").
+// 🔴 Ledger metadata keys with `_` prefix (`_provenance` etc) already deleted per README §3.3,
+// not copied to this file.
 import { describe, it, expect } from 'vitest'
 import {
   kindFromMime,
@@ -33,128 +34,131 @@ import {
 import { i18n } from '../../../i18n'
 
 // ═══════════════════════════════════════════════════════════════════════════
-// kindFromMime —— 蓝本 :5-12,六分支各一条 + 空值兜底 + 🔴 顺序敏感的一条
+// kindFromMime — blueprint :5-12, six branches each + empty value fallback +
+// 🔴 order-sensitive case
 // ═══════════════════════════════════════════════════════════════════════════
-describe('kindFromMime — 蓝本 :5-12', () => {
-  it('空值兜底:null → doc', () => {
+describe('kindFromMime — blueprint :5-12', () => {
+  it('Empty value fallback: null → doc', () => {
     expect(kindFromMime(null)).toBe('doc')
   })
 
-  it('空值兜底:undefined → doc', () => {
+  it('Empty value fallback: undefined → doc', () => {
     expect(kindFromMime(undefined)).toBe('doc')
   })
 
-  it('空值兜底:空字符串 → doc(falsy 分支)', () => {
+  it('Empty value fallback: empty string → doc (falsy branch)', () => {
     expect(kindFromMime('')).toBe('doc')
   })
 
-  it('分支 1 — 含 "pdf" → pdf', () => {
+  it('Branch 1 — contains "pdf" → pdf', () => {
     expect(kindFromMime('application/pdf')).toBe('pdf')
   })
 
-  it('分支 2 — 恰好等于 "text/markdown" → md', () => {
+  it('Branch 2 — exactly equals "text/markdown" → md', () => {
     expect(kindFromMime('text/markdown')).toBe('md')
   })
 
-  it('分支 3 — 恰好等于 "text/x-source" → code', () => {
+  it('Branch 3 — exactly equals "text/x-source" → code', () => {
     expect(kindFromMime('text/x-source')).toBe('code')
   })
 
-  it('分支 4 — 含 docx/pptx/xlsx → doc(三个各验一次)', () => {
+  it('Branch 4 — contains docx/pptx/xlsx → doc (verify each)', () => {
     expect(kindFromMime('application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe('doc')
     expect(kindFromMime('application/vnd.openxmlformats-officedocument.presentationml.presentation.pptx')).toBe('doc')
     expect(kindFromMime('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.xlsx')).toBe('doc')
   })
 
-  it('分支 5 — 含 "plain" → txt(真机 7 个已索引文件的实际 mime,见 F9)', () => {
+  it('Branch 5 — contains "plain" → txt (actual mime of 7 indexed files on real device, see F9)', () => {
     expect(kindFromMime('text/plain')).toBe('txt')
   })
 
-  it('分支 6 — 未知 mime 落到 fallback → doc', () => {
+  it('Branch 6 — unknown mime falls to fallback → doc', () => {
     expect(kindFromMime('image/png')).toBe('doc')
   })
 
-  it('includes("pdf") 的宽泛匹配网会兜住 docling 变体:"text/markdown+docling/pdf" → pdf,不是 md', () => {
-    // 🔴 独立复核记录(不采信 brief/T0 报告未经验证的字面表述,治理 §9/裁定 R8 同款纪律):
-    // brief 原文声称"把 `=== 'text/markdown'` 与 `includes('pdf')` 两支调换顺序 →
-    // 本条断言必须报红"。亲手做 RED 探针后发现**不成立**:`=== 'text/markdown'` 是精确相等,
-    // 'text/markdown+docling/pdf' 永远不可能精确等于 'text/markdown'(多了后缀),
-    // 所以这两支在结构上互斥、调换顺序对这个输入零影响(node 实测:调换后仍返回 'pdf')。
-    // 真正会因顺序改变结果的是**两个都用 `includes()` 的子串分支之间**(见下一条用例:
-    // `includes('pdf')` vs `includes('plain')`)。本条断言本身仍然有效且真实
-    // (它钉住的是"docling 变体不会被误判成 md"这个真实行为),只是不该被当作
-    // "顺序敏感"的证据 —— 这个措辞已在报告里登记为对 brief 的一处订正。
+  it('Broad match net of includes("pdf") catches docling variant: "text/markdown+docling/pdf" → pdf, not md', () => {
+    // 🔴 Independent verification (don't trust unverified brief/T0 report literals, governance §9/ruling R8 same discipline):
+    // Brief original claimed "swap `=== 'text/markdown'` and `includes('pdf')` branches →
+    // this assertion must red". After hand-testing RED probe **not true**: `=== 'text/markdown'` exact match,
+    // 'text/markdown+docling/pdf' can never exactly equal 'text/markdown' (extra suffix),
+    // so structurally exclusive, swap order zero effect on this input (node test: still returns 'pdf' after swap).
+    // What truly changes result by order is **between two `includes()` substring branches** (next case:
+    // `includes('pdf')` vs `includes('plain')`). This assertion itself still valid and real
+    // (pins "docling variant not misparsed as md"), just shouldn't be evidence of
+    // "order-sensitive" — this phrasing registered in report as brief correction.
     expect(kindFromMime('text/markdown+docling/pdf')).toBe('pdf')
     expect(kindFromMime('text/markdown+docling/pdf')).not.toBe('md')
   })
 
-  it('🔴 分支顺序真正有语义之处:两个 includes() 子串分支之间("pdf" 与 "plain" 同时出现时,先到先得)', () => {
-    // 判据(报告里贴 RED 探针):把 `includes('plain')` 挪到 `includes('pdf')` 之前 →
-    // 本条断言必须报红(会变成 'txt')。这条输入是纯粹为区分"顺序敏感 vs 不敏感"两个分支对
-    // 构造的边界样本(不代表任何真实后端 mime 取值,真机 mime 分布见 F9 §2③)。
+  it('🔴 True semantic order-sensitive place: between two `includes()` substring branches ("pdf" and "plain" present simultaneously, first-come-first-served)', () => {
+    // Criterion (RED probe in report): move `includes('plain')` before `includes('pdf')` →
+    // this assertion must red (becomes 'txt'). This input purely constructed to distinguish
+    // "order-sensitive vs insensitive" two branches (doesn't represent any real backend mime,
+    // real-device mime distribution see F9 §2③).
     expect(kindFromMime('text/plain;pdf-scan')).toBe('pdf')
     expect(kindFromMime('text/plain;pdf-scan')).not.toBe('txt')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// basename / dirname —— 蓝本 :14-23,边界:空串 / 无斜杠 / 尾斜杠 / 根路径 / 多重斜杠
+// basename / dirname — blueprint :14-23, boundaries: empty string / no slash /
+// trailing slash / root path / multiple slashes
 // ═══════════════════════════════════════════════════════════════════════════
-describe('basename — 蓝本 :14-17', () => {
-  it('空串 → ""', () => {
+describe('basename — blueprint :14-17', () => {
+  it('Empty string → ""', () => {
     expect(basename('')).toBe('')
   })
   it('null/undefined → ""', () => {
     expect(basename(null)).toBe('')
     expect(basename(undefined)).toBe('')
   })
-  it('无斜杠 → 原样返回', () => {
+  it('No slash → returned as-is', () => {
     expect(basename('a.md')).toBe('a.md')
   })
-  it('普通路径 → 取最后一段', () => {
+  it('Normal path → get last segment', () => {
     expect(basename('/DATA/Downloads/a.pdf')).toBe('a.pdf')
   })
-  it('尾斜杠 → 取最后一个非空段(尾部空段被 filter(Boolean) 丢弃)', () => {
+  it('Trailing slash → get last non-empty segment (trailing empty discarded by filter(Boolean))', () => {
     expect(basename('/a/b/')).toBe('b')
   })
-  it('根路径 "/" → pop() 落空,兜底返回原始入参 "/"', () => {
+  it('Root path "/" → pop() falls through, fallback returns original input "/"', () => {
     expect(basename('/')).toBe('/')
   })
-  it('多重斜杠 → filter(Boolean) 去掉空段后取最后一段', () => {
+  it('Multiple slashes → filter(Boolean) removes empty, get last segment', () => {
     expect(basename('a/b//c')).toBe('c')
   })
 })
 
-describe('dirname — 蓝本 :19-23', () => {
-  it('空串 → ""', () => {
+describe('dirname — blueprint :19-23', () => {
+  it('Empty string → ""', () => {
     expect(dirname('')).toBe('')
   })
   it('null/undefined → ""', () => {
     expect(dirname(null)).toBe('')
     expect(dirname(undefined)).toBe('')
   })
-  it('🔴 无斜杠 dirname("b.md") = "/"', () => {
+  it('🔴 No slash dirname("b.md") = "/"', () => {
     expect(dirname('b.md')).toBe('/')
   })
-  it('🔴 普通路径 dirname("/a/b.md") = "/a/"(带尾斜杠)', () => {
+  it('🔴 Normal path dirname("/a/b.md") = "/a/" (with trailing slash)', () => {
     expect(dirname('/a/b.md')).toBe('/a/')
   })
-  it('尾斜杠输入 dirname("/a/b/") = "/a/"', () => {
+  it('Trailing slash input dirname("/a/b/") = "/a/"', () => {
     expect(dirname('/a/b/')).toBe('/a/')
   })
-  it('根路径 dirname("/") = "/"', () => {
+  it('Root path dirname("/") = "/"', () => {
     expect(dirname('/')).toBe('/')
   })
-  it('多重斜杠 dirname("a/b//c") = "/a/b/"', () => {
+  it('Multiple slashes dirname("a/b//c") = "/a/b/"', () => {
     expect(dirname('a/b//c')).toBe('/a/b/')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 真实 F5b 数据(见文件头 fixture 纪律说明)
+// Real F5b data (see fixture discipline explanation in file header)
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 取自 F5b `files[0].chunks[0].preview.text`,零截断,sha256 见文件头。 */
+/** From F5b `files[0].chunks[0].preview.text`, zero-truncated, sha256 in file header. */
 const FIRST_CHUNK_FULL_TEXT =
   '{"log":"/usr/share/nimoos/agent/main.py:201: DeprecationWarning: \\n","stream":"stderr","time":"2026-07-18T07:59:48.738908774Z"}\n{"log":"        on_event is deprecated, use lifespan event handlers instead.\\n","stream":"stderr","time":"2026-07-18T07:59:48.738952219Z"}\n{"log":"\\n","stream":"stderr","time":"2026-07-18T07:59:48.738954927Z"}\n{"log":"        Read more about it in the\\n","stream":"stderr","time":"2026-07-18T07:59:48.738956078Z"}\n{"log":"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n","stream":"stderr","time":"2026-07-18T07:59:48.738957126Z"}\n{"log":"        \\n","stream":"stderr","time":"2026-07-18T07:59:48.738958158Z"}\n{"log":"  @app.on_event(\\"startup\\")\\n","stream":"stderr","time":"2026-07-18T07:59:48.738959023Z"}\n{"log":"/usr/share/nimoos/agent/main.py:206: DeprecationWarning: \\n","stream":"stderr","time":"2026-07-18T07:59:48.738960073Z"}\n{"log":"        on_event is deprecated, use lifespan event handlers instead.\\n","stream":"stderr","time":"2026-07-18T07:59:48.738961049Z"}\n{"log":"\\n","stream":"stderr","time":"2026-07-18T07:59:48.738961974Z"}\n{"log":"        Read more about it in the\\n","stream":"stderr","time":"2026-07-18T07:59:48.738962812Z"}\n{"log":"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n","stream":"stderr","time":"2026-07-18T07:59:48.73896371Z"}\n{"log":"        \\n","stream":"stderr","time":"2026-07-18T07:59:48.738964717Z"}\n{"log":"  @app.on_event(\\"shutdown\\")\\n","stream":"stderr","time":"2026-07-18T07:59:48.738965618Z"}\n{"log":"/usr/share/nimoos/agent/main.py:245: DeprecationWarning: \\n","stream":"stderr","time":"2026-07-18T07:59:48.749300591Z"}\n{"log":"        on_event is deprecated, use lifespan event handlers instead.\\n","stream":"stderr","time":"2026-07-18T07:59:48.749311192Z"}\n{"log":"\\n","stream":"stderr","time":"2026-07-18T07:59:48.749313156Z"}\n{"log":"        Read more about it in the\\n","stream":"stderr","time":"2026-07-18T07:59:48.749314262Z"}\n{"log":"        [FastAPI docs for Lifespan Events](https://fastapi.tiangolo.com/advanced/events/).\\n","stream":"stderr","time":"2026-07-18T07:59:48.749315267Z"}\n{"log":"        \\n","stream":"stderr","time":"2026-07-18T07:59:48.749316299Z"}\n{"log":"  @app.on_event(\\"startup\\")\\n","stream":"stderr","time":"2026-07-18T07:59:48.749317178Z"}'
 

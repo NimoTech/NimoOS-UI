@@ -12,16 +12,16 @@ const props = defineProps<{
 }>()
 const { t } = useI18n()
 
-// HEIC/TIFF/RAW 等浏览器无法原生解码的格式回退到已转码的大图缩略图(照 Vue2 PhotosLightbox imageSrc)
+// HEIC/TIFF/RAW and other formats browsers can't natively decode fall back to transcoded large thumbnail (per Vue2 PhotosLightbox imageSrc)
 const src = computed(() =>
   browserCanDisplayImage(props.mimeType)
     ? service.photos.originalUrl(props.assetId)
     : service.photos.thumbnailUrl(props.assetId, 'large'),
 )
 
-// —— 变换状态(照抄 files/viewers/ImageViewer.vue 的 缩放/旋转/平移骨架)——
-const scale = ref(1) // 交互增量倍数(落盘后归 1)
-const committedZoom = ref(1) // 已落盘总倍数;有效倍数 = committedZoom × scale
+// —— Transform state (exact skeleton from files/viewers/ImageViewer.vue zoom/rotate/pan) ——
+const scale = ref(1) // Interactive incremental multiplier (resets to 1 after commit)
+const committedZoom = ref(1) // Total committed multiplier; effective multiplier = committedZoom × scale
 const committedW = ref<number | null>(null)
 const committedH = ref<number | null>(null)
 const suppressTransition = ref(false)
@@ -38,9 +38,9 @@ const imgStyle = computed(() => ({
   ...(suppressTransition.value ? { transition: 'none' } : {}),
 }))
 
-// —— 停手落盘:缩放停止 150ms 后把倍数烙进布局尺寸,强制按最终倍数重画 ——
-// 合成器快路径拉伸缓存瓷砖会在砖缝处露 1px 细线(瓦线);重画路径逐砖从原图采样,
-// 无缝且比拉伸态更锐。交互中仍走 transform 快路径保流畅,缝只可能一闪而过。
+// —— Commit on release: 150ms after zoom stops, burn multiplier into layout size, force redraw at final multiplier ——
+// Compositor fast path stretches cached tiles, exposes 1px seams at tile edges (tile lines); redraw path samples each tile from source,
+// seamless and sharper than stretched. Interaction still uses transform fast path for smoothness, seam only flickers briefly.
 const COMMIT_DELAY = 150
 let commitTimer: ReturnType<typeof setTimeout> | null = null
 let suppressTimer: ReturnType<typeof setTimeout> | null = null
@@ -54,12 +54,12 @@ function commitZoom() {
   if (!el || scale.value === 1) return
   const w = el.offsetWidth
   const h = el.offsetHeight
-  if (!w || !h) return // 图未加载完(布局尺寸为 0),跳过本次落盘
+  if (!w || !h) return // Image not fully loaded (layout size is 0), skip this commit
   committedW.value = Math.round(w * scale.value)
   committedH.value = Math.round(h * scale.value)
   committedZoom.value *= scale.value
   scale.value = 1
-  // 落盘帧 scale N→1 会被 transition 动画化而宽高瞬变 —— 暂禁过渡,过渡时长后恢复
+  // Commit frame scale N→1 gets animated by transition causing width/height to snap — suppress transition, restore after duration
   suppressTransition.value = true
   if (suppressTimer) clearTimeout(suppressTimer)
   suppressTimer = setTimeout(() => { suppressTransition.value = false; suppressTimer = null }, 50)
@@ -81,18 +81,18 @@ function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
 
-// 换图时复位变换 + 重算 OCR 覆盖层(单图无内部 index,按 assetId 换图)
+// Reset transform on image change + recompute OCR overlay (single image has no internal index, keyed by assetId)
 watch(() => props.assetId, () => { resetTransform(); recomputeOcrRects() })
 
-// —— 拖拽平移 ——
+// —— Drag to pan ——
 let dragging = false
 let startX = 0
 let startY = 0
 let baseX = 0
 let baseY = 0
 
-// 平移夹边界:图片任何时候至少留 PAN_KEEP px 在可视区内,拖不丢。
-// 无布局信息(图未加载/测试环境)时不夹。
+// Pan clamping: image always keeps at least PAN_KEEP px visible in viewport, can't drag off completely.
+// No clamping when no layout info (image not loaded / test environment).
 const PAN_KEEP = 48
 function clampPan() {
   const stage = stageEl.value
@@ -103,7 +103,7 @@ function clampPan() {
   let w = el.offsetWidth * scale.value
   let h = el.offsetHeight * scale.value
   if (!W || !H || !w || !h) return
-  if (rotation.value % 180 !== 0) [w, h] = [h, w] // 旋转 90/270°:可视宽高互换
+  if (rotation.value % 180 !== 0) [w, h] = [h, w] // Rotated 90/270°: swap visible width and height
   const mx = (W + w) / 2 - Math.min(PAN_KEEP, w / 2)
   const my = (H + h) / 2 - Math.min(PAN_KEEP, h / 2)
   tx.value = Math.min(Math.max(tx.value, -mx), mx)
@@ -111,8 +111,8 @@ function clampPan() {
 }
 
 function onPointerDown(e: PointerEvent) {
-  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
-  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
+  // Toolbar button pointerdown bubbles to stage; if setPointerCapture here, after pointer captured by stage
+  // click no longer dispatches to button, whole toolbar becomes unclickable — release pointerdown from toolbar directly.
   if ((e.target as HTMLElement).closest('.img-toolbar')) return
   dragging = true
   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
@@ -120,7 +120,7 @@ function onPointerDown(e: PointerEvent) {
 }
 function onPointerMove(e: PointerEvent) {
   if (!dragging) return
-  // 窗口外松手时 pointerup 可能丢失,dragging 卡 true,图片会"粘"在指针上 —— 按键已松即自愈
+  // Release outside window, pointerup might be lost, dragging stuck true, image "sticks" to pointer — clears when buttons released
   if (e.pointerType === 'mouse' && e.buttons === 0) { dragging = false; return }
   tx.value = baseX + (e.clientX - startX)
   ty.value = baseY + (e.clientY - startY)
@@ -128,7 +128,7 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() { dragging = false }
 
-// —— 工具栏 5s 无操作自动隐藏(忠于 files ImageViewer)——
+// —— Toolbar auto-hide after 5s idle (faithful to files ImageViewer) ——
 const isMoving = ref(false)
 let hideTimer: ReturnType<typeof setTimeout> | null = null
 function onMouseMove() {
@@ -137,9 +137,9 @@ function onMouseMove() {
   hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
 }
 
-// —— OCR 覆盖层:rects 与 <img> 共享同一变换(见 .ocr-overlay 的 :style="imgStyle"),
-// 缩放/平移/旋转时随图片同步移动;.img-wrap 只是让 overlay 与 img 共享定位原点的
-// 壳(img 是其唯一内容,原点对齐),因此不必再叠加 offsetLeft/offsetTop。——
+// —— OCR overlay: rects share same transform as <img> (see .ocr-overlay :style="imgStyle"),
+// move in sync with image during zoom/pan/rotate; .img-wrap is just shell sharing positioning origin between overlay and img
+// (img is its only content, origins aligned), so no need to add offsetLeft/offsetTop. ——
 const ocrRects = ref<Array<{ left: number; top: number; width: number; height: number }>>([])
 function recomputeOcrRects() {
   const el = imgEl.value
@@ -220,16 +220,16 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   justify-content: center;
   overflow: hidden;
   cursor: grab;
-  /* 舞台内禁止选区:选区可绕过 draggable=false 触发原生拖放(幽灵图+禁止光标) */
+  /* No selection in stage: selection can bypass draggable=false triggering native drag (ghost image + forbidden cursor) */
   user-select: none;
-  /* 棋盘格透明底(忠于 files ImageViewer) */
+  /* Checkerboard transparent background (faithful to files ImageViewer) */
   background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='50' height='50' viewBox='0 0 16 16'%3E%3Cpath fill='%23ccc' d='M8 6.5A1.5 1.5 0 1 0 8 9.5A1.5 1.5 0 1 0 8 6.5z' fill-opacity='0.1'/%3E%3C/svg%3E");
   background-repeat: repeat;
 }
 .img-stage:active { cursor: grabbing; }
-/* .img-wrap 只按 img 的渲染尺寸收缩包裹(shrink-to-fit),使 .ocr-overlay(绝对定位、
-   inset:0)的原点与 img 完全重合 —— img 是其唯一参与布局的内容,故 OCR 矩形无需
-   再叠加 offsetLeft/offsetTop 换算。 */
+/* .img-wrap shrinks to fit img's rendered size, aligns .ocr-overlay (absolute, inset:0) origin
+   exactly with img — img is its only layout-participating content, so OCR rectangles don't need
+   additional offsetLeft/offsetTop conversion. */
 .img-wrap {
   position: relative;
   display: inline-flex;
@@ -243,11 +243,11 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   user-select: none;
   -webkit-user-drag: none;
   transition: transform 0.05s linear;
-  /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
-     瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
+  /* Do not add will-change: transform — once large image becomes composite layer, zoom only stretches old tiles without redraw,
+     tile seams show as white grid lines on photo (verified by real device screenshot); without it zoom triggers redraw, seamless. */
 }
-/* overlay 绑定与 img 完全相同的 imgStyle(transform 一致),二者共享同一未变换前的
-   包围盒(均为 .img-wrap 的 inset:0),因此缩放/平移/旋转时视觉上严丝合缝同步移动。 */
+/* Overlay binds exact same imgStyle as img (transform identical), both share same pre-transform bounding box
+   (both .img-wrap's inset:0), so during zoom/pan/rotate they move in perfect visual sync. */
 .ocr-overlay {
   position: absolute;
   inset: 0;

@@ -1,13 +1,13 @@
-// SP8-P2a Task 2 —— 从 Vue2 `src/views/AI/Skills/skills-styles.scss` 抽出的通用
-// 卡片/按钮类。设置区(P2a/P2b)与将来的 Skills 区(P3)共用同一套,故独立成档,
-// 不并进 settings-styles.scss。
+// SP8-P2a Task 2 — Common card/button classes extracted from Vue2 `src/views/AI/Skills/skills-styles.scss`.
+// Settings section (P2a/P2b) and future Skills section (P3) share the same set; therefore independent file,
+// not merged into settings-styles.scss.
 //
-// 来源逐行对照:
+// Source line-by-line mapping:
 //   .sk-section / -head / -title / -hint / -body → skills-styles.scss:338-353
 //   .sk-btn(+ ghost / primary / danger)          → skills-styles.scss:698-726
 //
-// 裸色例外:本档沿用 Vue2 原值(见 settings-styles.scss 头部的例外登记说明)。
-// 不许再往本档塞新裸色。
+// Bare color exception: this file retains Vue2 original values (see exception registration explanation in
+// settings-styles.scss header). No new bare colors may be added to this file.
 
 .sk-section { display: flex; flex-direction: column; gap: 10px; }
 .sk-section-head { display: flex; align-items: baseline; gap: 8px; }
@@ -54,15 +54,14 @@
   }
 }
 
-// SP8-P2a Task 6 —— iOS 风格开关(SetSwitch.vue 用)。
-// 来源:NimoOS-UI(Vue2)`src/views/AI/Skills/skills-styles.scss:235-249`。
-// Task 2 抽取本档时按行号范围 338-353,698-726 摘录,漏收了这一段(brief 明确
-// 记录的查证项);Task 6 grep 复核后在这里补上,追加、不重排既有内容。
-// 裸色处理:Vue2 原值 `background: white` 与
-// `box-shadow: 0 2px 4px rgba(0,0,0,0.18)` 是滑块本身的颜色,已改用
-// tokens.scss 新增的 --switch-thumb / --switch-thumb-shadow(两套主题同值,
-// 见该档注释);--line-strong / --success 两个 token Vue2 源里已经在用,直接
-// 沿用,无需改动。
+// SP8-P2a Task 6 — iOS-style switch (used by SetSwitch.vue).
+// Source: NimoOS-UI (Vue2) `src/views/AI/Skills/skills-styles.scss:235-249`.
+// Task 2 extracted this file using line ranges 338-353, 698-726; missed this section (explicit verification
+// item recorded in brief); Task 6 grep verification found it; adding here, appending without reordering
+// existing content. Bare color handling: Vue2 original `background: white` and `box-shadow: 0 2px 4px
+// rgba(0,0,0,0.18)` are slider color; replaced with newly-added tokens.scss --switch-thumb/--switch-thumb-shadow
+// (same value in both themes; see that file's comment); --line-strong / --success tokens already in use in
+// Vue2 source; reuse directly, no changes needed.
 .sw {
   position: relative;
   width: 42px; height: 25px;
@@ -87,12 +86,13 @@
   }
 }
 
-// ===== SP8-P2b Task 1 —— 弹窗外壳 =====
-// 1:1 移植自 Vue2 src/views/AI/Skills/skills-styles.scss:575-613。
-// Vue2 的三处弹窗(令牌明文 / 加机器人 / 配对码)是手写裸 div 吃这套类;本仓改用
-// reka Dialog(见 SkModal.vue),但视觉规则原样保留,故这些类照搬。
-// .sk-modal-bg 的遮罩底色是深蓝灰半透明字面量,属本档「整档移植件」豁免范围
-// (登记在 tokens.scss 头部例外清单),不接 token。
+// ===== SP8-P2b Task 1 — Dialog shell =====
+// 1:1 ported from Vue2 src/views/AI/Skills/skills-styles.scss:575-613.
+// Vue2's three dialogs (token plaintext / add bot / pairing code) were hand-written bare divs using
+// these classes; this repo uses reka Dialog instead (see SkModal.vue), but visual rules kept as-is,
+// so these classes ported as-is. .sk-modal-bg scrim color is dark-blue-gray semi-transparent literal;
+// part of "file-level portage exception" exemption (registered in tokens.scss header exception list);
+// not converted to token.
 .sk-modal-bg {
   position: fixed; inset: 0;
   background: rgba(15, 20, 30, 0.32);
@@ -135,7 +135,7 @@
   overflow-y: auto;
 }
 
-// 1:1 移植自 Vue2 skills-styles.scss:686-694。
+// 1:1 ported from Vue2 skills-styles.scss:686-694.
 .sk-modal-foot {
   padding: 12px 20px;
   display: flex; align-items: center; gap: 8px;
@@ -149,8 +149,8 @@
   .right { margin-left: auto; display: flex; gap: 8px; }
 }
 
-// ===== SP8-P2b Task 1 —— 弹窗内的表单字段 =====
-// 1:1 移植自 Vue2 skills-styles.scss:617-646。Task 12 的「添加机器人」表单用。
+// ===== SP8-P2b Task 1 — Form fields in dialogs =====
+// 1:1 ported from Vue2 skills-styles.scss:617-646. Used by Task 12 "add bot" form.
 .sk-field { display: flex; flex-direction: column; gap: 6px; }
 .sk-field-label {
   font-size: 12px; font-weight: 600;
@@ -162,10 +162,10 @@
   }
 }
 .sk-field-hint { font-size: 11px; color: var(--text-tertiary); }
-// SP8-P3b Task 5 —— 行内校验错误条(AddSkillModal 提交前本地校验命中时用,落在
-// .sk-modal-body 顶部)。先例是 ChannelsSection 添加机器人失败的 .chan-field-err
-// (settings-styles.scss:234),值逐字同款;这里新建同名同款的 .sk-field-err,不借用
-// 带 chan 前缀的那份(那是聊天渠道分区自己的类,借用属于跨分区复用)。
+// SP8-P3b Task 5 — Inline validation error bar (used when AddSkillModal pre-submit local validation hits;
+// sits atop .sk-modal-body). Precedent is ChannelsSection add-bot failure .chan-field-err (settings-styles.scss:234);
+// values match verbatim; new .sk-field-err created here with same values, not reusing the chan-prefixed one
+// (that is channels section's own class; reusing would be cross-section reuse).
 .sk-field-err { margin: 0 0 6px; font-size: 12px; color: var(--danger); line-height: 1.5; }
 .sk-field input[type="text"],
 .sk-field textarea {

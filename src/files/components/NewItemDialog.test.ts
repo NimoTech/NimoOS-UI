@@ -20,14 +20,14 @@ const body = () => new DOMWrapper(document.body)
 afterEach(() => { document.body.innerHTML = '' })
 
 describe('NewItemDialog', () => {
-  it('输入过滤斜杠', async () => {
+  it('filters forward slashes in input', async () => {
     mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     const input = body().find('input')
     await input.setValue('a/b/c')
     expect((input.element as HTMLInputElement).value).toBe('abc')
   })
-  it('确认发出 confirm(name) 并请求关闭', async () => {
+  it('emits confirm(name) on confirmation and requests close', async () => {
     const w = mount(NewItemDialog, { props: { open: true, mode: 'file' }, ...opts })
     await nextTick()
     await body().find('input').setValue('note.txt')
@@ -37,7 +37,7 @@ describe('NewItemDialog', () => {
     const openEvents = w.emitted('update:open')
     expect(openEvents?.[(openEvents?.length ?? 1) - 1]).toEqual([false])
   })
-  it('空名不发 confirm', async () => {
+  it('does not emit confirm for empty name', async () => {
     const w = mount(NewItemDialog, { props: { open: true, mode: 'file' }, ...opts })
     await nextTick()
     await body().find('input').setValue('')

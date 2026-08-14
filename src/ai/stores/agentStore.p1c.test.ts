@@ -19,14 +19,14 @@ vi.mock('../services/agentTransport', () => ({
 
 import { useAgentStore } from './agentStore'
 
-describe('agentStore P1c Task1:stream-fed 三动作', () => {
+describe('agentStore P1c Task1: stream-fed three actions', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
     localStorage.clear()
   })
 
-  it('appendStagedChange:同 run 归组、(seq,path) 去重就地替换', () => {
+  it('appendStagedChange: group by same run, dedup by (seq, path) with in-place replacement', () => {
     const s = useAgentStore('t1a')
     s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a' })
     s.appendStagedChange({ run_id: 'r1', seq: 2, op: 'write', path: '/b' })
@@ -37,25 +37,26 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
     expect(typeof s.stagedChanges[0].created_at).toBe('number')
   })
 
-  it('appendStagedChange:不同 run 追加到末尾(newest-run-last)', () => {
+  it('appendStagedChange: different run appended to end (newest-run-last)', () => {
     const s = useAgentStore('t1b')
     s.appendStagedChange({ run_id: 'r1', seq: 1, op: 'mkdir', path: '/a' })
     s.appendStagedChange({ run_id: 'r2', seq: 1, op: 'mkdir', path: '/c' })
     expect(s.stagedChanges.map((g) => g.run_id)).toEqual(['r1', 'r2'])
   })
 
-  // P1c2 debt 2 —— 1c-1 final review 遗留:appendStagedChange 新建组后继续在
-  // *raw* 的 `group` 局部引用上 mutate(`group.items.push(...)`),而不是重新从
-  // `stagedChanges.value` 里取代理元素。这段探针复现终审时用真 @vue/reactivity
-  // (这里借 Vue 自身的 `watch(..., {flush:'sync'})`,效果等价且不需要额外声明
-  // 依赖)验证过的现象:一个已经在追踪 `items.length` 的同步侦听器,在 bug 存在时
-  // 只会看到组创建那一刻的 0(push(group) 本身走了代理、触发了一次通知),永远
-  // 观测不到紧接着的首个 item 入列——因为 `group.items.push(item)` 操作的是
-  // 未被代理拦截的裸引用,不会触发 trigger()。这不是"读出来的最终数据错了"
-  // (裸引用和代理共享同一个底层数组,事后随便读一下 `.items.length` 都是对的),
-  // 而是"这次 mutation 从未通知任何响应式订阅者"——只有像这样提前订阅、
-  // flush:'sync' 的侦听器才能揭穿。
-  it('appendStagedChange:新组首个 item 的入列必须经过响应式代理通知(flush:sync 侦听器需同步看到 length=1,而非卡在 0)', () => {
+  // P1c2 debt 2 — leftover from 1c-1 final review: appendStagedChange continues to mutate on
+  // the *raw* local reference of `group` (`group.items.push(...)`) instead of fetching the
+  // proxied element anew from `stagedChanges.value`. This probe reproduces a phenomenon verified
+  // during final review using real @vue/reactivity (here borrowing Vue's own `watch(...,
+  // {flush:'sync'})`, equivalent effect with no extra dependency declaration): a sync listener
+  // already tracking `items.length`, when the bug exists, only sees 0 at group creation moment
+  // (push(group) itself went through the proxy, triggered one notification), never observes the
+  // first item enqueued right after — because `group.items.push(item)` operates on a raw
+  // reference not intercepted by the proxy, won't trigger trigger(). This is not "the final data
+  // read is wrong" (raw reference and proxy share the same underlying array, afterwards reading
+  // `.items.length` anytime is correct), but rather "this mutation never notified any reactive
+  // subscribers" — only listeners with flush:'sync' can expose it.
+  it('appendStagedChange: the enqueuing of the first item in a new group must go through reactive proxy notification (flush:sync listener needs to synchronously see length=1, not stuck at 0)', () => {
     const s = useAgentStore('t1f')
     const seen: number[] = []
     watch(
@@ -67,7 +68,7 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
     expect(seen).toContain(1)
   })
 
-  it('appendVisibleResource:按 path 去重、浅拷贝入列', () => {
+  it('appendVisibleResource: dedup by path, shallow copy enqueue', () => {
     const s = useAgentStore('t1c')
     s.appendVisibleResource({ path: '/DATA/x', kind: 'folder' })
     s.appendVisibleResource({ path: '/DATA/x', kind: 'folder' })
@@ -75,7 +76,7 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
     expect(s.visibleResources.map((r) => r.path)).toEqual(['/DATA/x', '/DATA/y'])
   })
 
-  it('removeVisibleResourceFromList:按 path 整表过滤', () => {
+  it('removeVisibleResourceFromList: filter entire table by path', () => {
     const s = useAgentStore('t1d')
     s.appendVisibleResource({ path: '/a', kind: 'folder' })
     s.appendVisibleResource({ path: '/b', kind: 'folder' })
@@ -83,7 +84,7 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
     expect(s.visibleResources.map((r) => r.path)).toEqual(['/b'])
   })
 
-  it('createStreamActions:暴露 1c 三动作(reducer 不再 no-op)', () => {
+  it('createStreamActions: expose 1c three actions (reducer no longer no-op)', () => {
     const s = useAgentStore('t1e')
     const a = s.createStreamActions()
     expect(typeof a.appendStagedChange).toBe('function')
@@ -94,7 +95,7 @@ describe('agentStore P1c Task1:stream-fed 三动作', () => {
   })
 })
 
-describe('agentStore P1c Task2:visible resources + attachments', () => {
+describe('agentStore P1c Task2: visible resources + attachments', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
@@ -103,7 +104,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     svc.listAgentSessions.mockResolvedValue([])
   })
 
-  it('loadVisibleResources:无会话时清空且不发请求', async () => {
+  it('loadVisibleResources: clear and don\'t send request when no session', async () => {
     const s = useAgentStore('t2a')
     s.visibleResources.push({ path: '/stale', kind: 'folder' })
     await s.loadVisibleResources()
@@ -111,7 +112,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(svc.listVisibleResources).not.toHaveBeenCalled()
   })
 
-  it('loadVisibleResources:有会话时用 body 覆盖(null → [])', async () => {
+  it('loadVisibleResources: use body to override when session exists (null → [])', async () => {
     const s = useAgentStore('t2b')
     s.activeSessionId = 'sess-1'
     svc.listVisibleResources.mockResolvedValue([{ id: 1, path: '/a', kind: 'folder' }])
@@ -123,7 +124,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([])
   })
 
-  it('addVisibleResource:无会话先建会话,服务端值优先、参数兜底', async () => {
+  it('addVisibleResource: create session first if no session, server value takes priority, parameter fallback', async () => {
     const s = useAgentStore('t2c')
     svc.addVisibleResource.mockResolvedValue({ id: 7, path: '/DATA/srv', kind: 'file' })
     await s.addVisibleResource('/DATA/arg', 'folder', false)
@@ -132,7 +133,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([{ id: 7, path: '/DATA/srv', kind: 'file' }])
   })
 
-  it('addVisibleResource:服务端空 body 时回落到参数值', async () => {
+  it('addVisibleResource: fall back to parameter value when server body is empty', async () => {
     const s = useAgentStore('t2d')
     s.activeSessionId = 'sess-1'
     svc.addVisibleResource.mockResolvedValue(undefined)
@@ -141,7 +142,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([{ id: undefined, path: '/DATA/p', kind: 'file' }])
   })
 
-  it('addVisibleResource:错误原样抛出(composer 需读 409 detail)', async () => {
+  it('addVisibleResource: throw error as-is (composer needs to read 409 detail)', async () => {
     const s = useAgentStore('t2e')
     s.activeSessionId = 'sess-1'
     const err = Object.assign(new Error('boom'), { response: { status: 409, data: { detail: 'blocked by .gitignore' } } })
@@ -150,7 +151,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([])
   })
 
-  it('removeVisibleResource:成功后按已知 path 本地移除', async () => {
+  it('removeVisibleResource: on success, remove locally by known path', async () => {
     const s = useAgentStore('t2f')
     s.activeSessionId = 'sess-1'
     s.visibleResources.push({ id: 3, path: '/a', kind: 'folder' })
@@ -160,11 +161,11 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([])
   })
 
-  // P1c2 debt 1 —— 无 id 的 chip(agent 在 run 中自己授权访问,dispatchEvent.ts:311
-  // 的 'visible_resource_added' 只带 {path,kind},没有 id,与 Vue2
-  // agentStream.js:539-542 逐字一致)也要能删掉。removeVisibleResourceByPath 先
-  // 刷新服务端列表(带 id)再按 path 找。
-  it('removeVisibleResourceByPath:先刷新拿到服务端 id,再按 id 删除', async () => {
+  // P1c2 debt 1 — chips without id (agent self-authorizes access during run,
+  // dispatchEvent.ts:311's 'visible_resource_added' only carries {path, kind}, no id,
+  // verbatim consistent with Vue2 agentStream.js:539-542) also need to be deletable.
+  // removeVisibleResourceByPath first refreshes server list (with id) then finds by path.
+  it('removeVisibleResourceByPath: first refresh to get server id, then delete by id', async () => {
     const s = useAgentStore('t2k')
     s.activeSessionId = 'sess-1'
     svc.listVisibleResources.mockResolvedValue([{ id: 42, path: '/DATA/x', kind: 'folder' }])
@@ -175,11 +176,12 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([])
   })
 
-  it('removeVisibleResourceByPath:刷新后服务端已无该项,只清本地(不调删除 API)', async () => {
+  it('removeVisibleResourceByPath: after refresh, server no longer has that item, only clear locally (don\'t call delete API)', async () => {
     const s = useAgentStore('t2l')
     s.activeSessionId = 'sess-1'
-    // 服务端刷新后的列表里没有 /DATA/stale(可能已被别的路径/别的客户端删过),
-    // 但保留一个不相关的项,证明本地清理是"按 path 过滤",不是整表清空。
+    // Server list after refresh doesn't have /DATA/stale (may have already been deleted by
+    // other path/other client), but keeps one unrelated item to prove local cleanup is 'filter
+    // by path', not entire table clear.
     svc.listVisibleResources.mockResolvedValue([{ id: 9, path: '/DATA/other', kind: 'folder' }])
     await s.removeVisibleResourceByPath('/DATA/stale')
     expect(svc.listVisibleResources).toHaveBeenCalledWith('sess-1')
@@ -187,7 +189,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.visibleResources).toEqual([{ id: 9, path: '/DATA/other', kind: 'folder' }])
   })
 
-  it('loadAttachments:无会话清空;失败也清空并吞错', async () => {
+  it('loadAttachments: clear when no session; on failure also clear and swallow error', async () => {
     const s = useAgentStore('t2g')
     await s.loadAttachments()
     expect(s.attachments).toEqual([])
@@ -200,7 +202,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.attachments).toEqual([{ id: 'a1' }])
   })
 
-  it('removeAttachment:调删除并按 id 过滤;无会话直接返回', async () => {
+  it('removeAttachment: call delete and filter by id; return directly if no session', async () => {
     const s = useAgentStore('t2h')
     await s.removeAttachment('a1')
     expect(svc.deleteAttachment).not.toHaveBeenCalled()
@@ -212,7 +214,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(s.attachments).toEqual([{ id: 'a2' }])
   })
 
-  it('selectSession:装载消息后并发跑三个 loader(顺序在 attach 之前)', async () => {
+  it('selectSession: after loading messages, concurrently run three loaders (order before attach)', async () => {
     const s = useAgentStore('t2i')
     svc.listAgentMessages.mockResolvedValue([])
     svc.listVisibleResources.mockResolvedValue([])
@@ -224,7 +226,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
     expect(svc.listStagedChanges).toHaveBeenCalledWith('sess-9')
   })
 
-  it('selectSession:单个 loader 失败不阻断(allSettled)', async () => {
+  it('selectSession: single loader failure doesn\'t block (allSettled)', async () => {
     const s = useAgentStore('t2j')
     svc.listAgentMessages.mockResolvedValue([])
     svc.listVisibleResources.mockRejectedValue(new Error('x'))
@@ -234,7 +236,7 @@ describe('agentStore P1c Task2:visible resources + attachments', () => {
   })
 })
 
-describe('agentStore P1c Task3:staged changes', () => {
+describe('agentStore P1c Task3: staged changes', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
@@ -252,7 +254,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     })
   }
 
-  it('loadStagedChanges:无会话清空;有会话整表覆盖', async () => {
+  it('loadStagedChanges: clear when no session; replace entire table when session exists', async () => {
     const s = useAgentStore('t3a')
     await s.loadStagedChanges()
     expect(s.stagedChanges).toEqual([])
@@ -263,7 +265,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.stagedChanges).toHaveLength(1)
   })
 
-  it('commitStagedAll:成功清空,committing 一定复位', async () => {
+  it('commitStagedAll: on success clear, committing must reset', async () => {
     const s = useAgentStore('t3b')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -274,7 +276,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.committing).toBe(false)
   })
 
-  it('commitStagedAll:失败时保留列表、committing 复位、错误冒泡', async () => {
+  it('commitStagedAll: on failure keep list, committing reset, error bubbles', async () => {
     const s = useAgentStore('t3c')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -284,7 +286,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.committing).toBe(false)
   })
 
-  it('revertStagedRun:成功后整组移除,reverting 键清掉', async () => {
+  it('revertStagedRun: after success remove entire group, reverting key cleared', async () => {
     const s = useAgentStore('t3d')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -295,7 +297,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.reverting).toEqual({})
   })
 
-  it('revertStagedBatch:ok 时按 batch_id 剪项并丢空组', async () => {
+  it('revertStagedBatch: on ok trim items by batch_id and drop empty groups', async () => {
     const s = useAgentStore('t3e')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -305,7 +307,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.stagedChanges[0].items.map((i: any) => i.seq)).toEqual([3])
   })
 
-  it('revertStagedBatch:非 ok/partial 状态改为整表重拉', async () => {
+  it('revertStagedBatch: non-ok/partial status changed to entire table refresh', async () => {
     const s = useAgentStore('t3f')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -316,7 +318,7 @@ describe('agentStore P1c Task3:staged changes', () => {
     expect(s.stagedChanges).toEqual([])
   })
 
-  it('revertStagedItem:走复数端点单元素数组,reverting 键带 item: 前缀', async () => {
+  it('revertStagedItem: take plural endpoint single-element array, reverting key carries item: prefix', async () => {
     const s = useAgentStore('t3g')
     s.activeSessionId = 'sess-1'
     seed(s)
@@ -333,7 +335,7 @@ describe('agentStore P1c Task3:staged changes', () => {
   })
 })
 
-describe('agentStore P1c Task4:sendInit', () => {
+describe('agentStore P1c Task4: sendInit', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     Object.values(svc).forEach((fn) => fn.mockReset())
@@ -342,7 +344,7 @@ describe('agentStore P1c Task4:sendInit', () => {
     svc.listAgentSessions.mockResolvedValue([])
   })
 
-  it('sendInit:先 push [/init] user + assistant 占位,再按 kind=init 发 run', async () => {
+  it('sendInit: first push [/init] user + assistant placeholder, then send run by kind=init', async () => {
     const { runAgentRun } = await import('../services/agentTransport')
     const s = useAgentStore('t4a')
     s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
@@ -359,7 +361,7 @@ describe('agentStore P1c Task4:sendInit', () => {
     expect(s.busy).toBe(false)
   })
 
-  it('sendInit:无选中模型时落一个 error tool block 并收尾', async () => {
+  it('sendInit: when no model selected, land one error tool block and finish', async () => {
     const s = useAgentStore('t4b')
     s.selectedModel = null
     await s.sendInit('/DATA/docs')
@@ -368,7 +370,7 @@ describe('agentStore P1c Task4:sendInit', () => {
     expect(s.busy).toBe(false)
   })
 
-  it('sendInit:云模型带 X-Agent-Provider-Id 头', async () => {
+  it('sendInit: cloud model carries X-Agent-Provider-Id header', async () => {
     const { runAgentRun } = await import('../services/agentTransport')
     const s = useAgentStore('t4c')
     s.activeSessionId = 'sess-1'
@@ -381,7 +383,7 @@ describe('agentStore P1c Task4:sendInit', () => {
     )
   })
 
-  it('sendInit:createSession 失败时补齐 assistant 占位(安全网)', async () => {
+  it('sendInit: when createSession fails, supplement assistant placeholder (safety net)', async () => {
     const s = useAgentStore('t4d')
     s.availableModels = [{ key: 'local:llama3', source: 'local', displayName: 'llama3', provider_type: 'ollama' } as any]
     s.selectedModel = 'local:llama3'

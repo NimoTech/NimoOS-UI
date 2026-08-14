@@ -1,8 +1,8 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/KindIcon.vue
-  (未在 Task 3 brief 文件清单中点名,但 UserMessage 蓝本的文件 chip 直接依赖它——
-  作为必要的叶子依赖一并逐字移植;放在 shell/ 与 Vue2 原路径对齐,Task 4 的
-  AgentSidebar/AgentTopbar 也会落在同一目录下。)
+  1:1 port from Vue2 src/views/AI/Agent/shell/KindIcon.vue
+  (not named in Task 3 brief file list, but the UserMessage blueprint's file chip directly depends on it —
+  as a necessary leaf dependency, ported character-for-character; placed in shell/ to align with Vue2's
+  original path; Task 4's AgentSidebar/AgentTopbar will also be in the same directory.)
 -->
 <script setup lang="ts">
 import { computed } from 'vue'

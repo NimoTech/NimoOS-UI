@@ -4,7 +4,7 @@ import { setActivePinia, createPinia } from 'pinia'
 import GridItem from './GridItem.vue'
 import type { LayoutItem } from '../grid/types'
 
-// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。
+// P8 cutover: folder tiles changed to in-app router.push, need to mock router singleton (vi.mock gets hoisted before import).
 vi.mock('../../router', () => ({ router: { push: vi.fn() } }))
 import { router } from '../../router'
 

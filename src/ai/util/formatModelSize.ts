@@ -1,11 +1,11 @@
-// SP8-P2a Task 9 —— 抽自 Vue2 src/views/AI/Settings/sections/ModelsSection.vue
-// 的两个组件 methods(结构调整,非行为改动 —— 抽出是为了能精确测边界,组件里
-// 原本混在 `methods` 对象上,单测不到)。
+// SP8-P2a Task 9 — Extracted from Vue2 src/views/AI/Settings/sections/ModelsSection.vue
+// component methods (structural adjustment, not behavioral change — extracted to enable
+// precise boundary testing; originally mixed into `methods` object, not unit-testable).
 
 /**
- * 逐字对齐 Vue2 ModelsSection.vue:170-175(`formatSize`)。
- * 注意:`!bytes` 是真值判断,`0` 也落这条分支返回破折号——Vue2 如此,照搬,
- * 不"改好"(brief 明确点名)。
+ * Exactly aligns with Vue2 ModelsSection.vue:170-175 (`formatSize`).
+ * Note: `!bytes` is a truthy check; `0` also falls into this branch returning an em dash—
+ * Vue2 does this, replicated verbatim, not "improved" (brief explicitly specifies).
  */
 export function formatModelSize(bytes: number | null | undefined): string {
   if (!bytes) return '—'
@@ -15,10 +15,11 @@ export function formatModelSize(bytes: number | null | undefined): string {
 }
 
 /**
- * 逐字对齐 Vue2 ModelsSection.vue:176-180(`etaLabel`)的分支/取整逻辑,但返回
- * 结构体而非已格式化的字符串——单位文案要在组件里过 `$t`(单位是 sec/min/hr
- * 三选一,复数形式因 locale 而异),纯函数不持本地化文本。与 P1c2 Task 10
- * `formatDuration` 的处理同款(见该文件头注释)。
+ * Exactly aligns with Vue2 ModelsSection.vue:176-180 (`etaLabel`)'s branching/rounding logic,
+ * but returns a struct instead of a formatted string — unit text passes through `$t` in the
+ * component (unit is one of sec/min/hr; plural forms vary by locale), pure function does not
+ * carry localized text. Same approach as P1c2 Task 10 `formatDuration` (see that file's
+ * header comment).
  */
 export function formatEtaSeconds(secs: number): { unit: 'sec' | 'min' | 'hr'; n: number } {
   if (secs < 60) return { unit: 'sec', n: Math.round(secs) }

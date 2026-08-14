@@ -1,12 +1,12 @@
-// 快照浏览态下的写拦截与恢复编排。保持无 Vue 依赖(toast / 网络调用都靠注入),
-// 这样两者都能不挂载任何组件直接单测 —— 与 Vue2 snapshotBrowse.js 同一边界。
+// Write-blocking and restoration orchestration in snapshot browsing mode. Maintains zero Vue dependency (toast / network calls injected),
+// so both can be unit-tested directly without mounting any components — same boundary as Vue2 snapshotBrowse.js.
 
 import { parseSnapshotBrowsePath, findVolumeUuidForMount, type SnapshotVolumeLike } from './snapshotPath'
 
 /**
- * 在只读快照里挡住一次写操作:命中就把友好文案吐成 toast 并返回 true(调用方必须 return)。
- * 这是第二道防线 —— 第一道是把写入入口本身移除(顶栏 chip / 右键菜单 / 选中工具条),
- * 但拖拽投放、快捷键粘贴这些路径绕得过 UI,所以每个写方法开头都要再拦一次。
+ * Block a write operation in a read-only snapshot: if hit, emit a friendly message as toast and return true (caller must return).
+ * This is the second line of defense — the first is removing the write entry itself (top bar chip / right-click menu / selected toolbar),
+ * but drag-and-drop, paste shortcut and similar paths can bypass the UI, so every write method must block again at the start.
  */
 export function blockedBySnapshotView(
   isSnapshotView: boolean,
@@ -22,23 +22,23 @@ export type RestoreResult =
   | { ok: true; restoredPath: string }
   | { ok: false; reason: 'invalid' | 'not-found' | 'error' }
 
-// 从抛出来的错误里取 HTTP 状态。共享包的 unwrap() 抛的是 Error & {code}(信封里的 success
-// 字段);网络层 4xx 由 axios 抛出时状态在 response.status 上 —— 两种都要认。
+// Extract HTTP status from thrown errors. The shared package's unwrap() throws Error & {code} (the success field in the envelope);
+// network-layer 4xx thrown by axios has status on response.status — both need to be recognized.
 function statusOf(e: unknown): number | undefined {
   const withCode = e as { code?: number; response?: { status?: number } } | undefined
   return withCode?.code ?? withCode?.response?.status
 }
 
-// 响应形状容错:共享包已解一层信封,但历史上后端也出现过再包一层 data 的写法,两种都取。
+// Response shape fallback: the shared package unwraps one envelope layer, but historically the backend has also double-wrapped with a data field, so both variants are extracted.
 function restoredPathOf(res: unknown): string | null {
   const r = res as { restored_path?: string; data?: { restored_path?: string } } | undefined
   return r?.restored_path || r?.data?.restored_path || null
 }
 
 /**
- * 「恢复到原位置」的完整编排:把条目的快照侧绝对路径解析回**相对卷根**的路径(后端契约,
- * 不是相对快照目录),用挂载点精确匹配出 volume_uuid,再提交恢复。
- * 后端永不覆盖 —— 目标名由它定为 `<原名>.restored-<时间戳>`,所以这里没有任何冲突处理。
+ * Complete orchestration for "restore to original location": parse the item's snapshot-side absolute path back to **path relative to volume root** (backend contract,
+ * not relative to snapshot directory), use mount point to precisely match out volume_uuid, then submit for restoration.
+ * Backend never overwrites — the target name is set by it as `<original-name>.restored-<timestamp>`, so there is no conflict handling here.
  */
 export async function performSnapshotRestore(deps: {
   item: { path: string }

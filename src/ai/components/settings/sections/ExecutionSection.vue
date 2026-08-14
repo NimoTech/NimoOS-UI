@@ -1,15 +1,16 @@
 <!--
-  SP8-P2b Task 5 —— 1:1 移植自 Vue2 src/views/AI/Settings/sections/ExecutionSection.vue(80 行)。
+  SP8-P2b Task 5 — 1:1 port from Vue2 src/views/AI/Settings/sections/ExecutionSection.vue (80 lines).
 
-  【D2 申报】状态留在组件本地(ref)、直调 service.ai —— 与 Vue2 归属一致,不做
-  store 集中。用户 2026-07-28 拍板。
+  【D2 Declaration】 State stays local to the component (ref), directly calls service.ai —
+  consistent with Vue2's approach, not centralizing to store. User decided 2026-07-28.
 
-  【逻辑修正 1】Vue2 `save()` 通篇没有 catch(ExecutionSection.vue:66-79):
-  putMaxTurns 失败时 finally 把 saving 复位,用户看到「保存中…」一闪而过就没了,
-  以为存上了,实际没存。这里补 catch + danger toast。
-  【逻辑修正 2】Vue2 `savedAt` 一旦置上永不清零,「已保存」字样永久挂在页面上
-  (即使之后又改了值没保存)。这里改成 2 秒后自动消失,并在卸载时清掉定时器
-  (Vue2 连定时器都没有,不存在这个问题;新引入的定时器必须自己收尾)。
+  【Logic Fix 1】 Vue2's `save()` has no catch block throughout (ExecutionSection.vue:66-79):
+  when putMaxTurns fails, finally resets saving, user sees "Saving..." flash and disappear,
+  thinks it was saved, but it wasn't. Adding catch + danger toast here.
+  【Logic Fix 2】 Vue2's `savedAt` once set never clears; "Saved" text stays on the page
+  permanently even if user changes value without saving afterward. Changed here to auto-clear
+  after 2 seconds, and clean up timer on unmount (Vue2 has no timer so this wasn't an issue;
+  any new timer introduced must clean up after itself).
 -->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
@@ -36,7 +37,7 @@ onMounted(async () => {
     if (v === 0) unlimited.value = true
     else steps.value = v || 10
   } catch {
-    /* Vue2 ExecutionSection.vue:57 同样静默;失败时留默认 10 */
+    /* Vue2 ExecutionSection.vue:57 is also silent; on failure leave default 10 */
   }
 })
 
@@ -51,7 +52,7 @@ function markSaved() {
 }
 
 async function save() {
-  // 无限 → 0;否则取正整数(<1 归一为 1)。与 Vue2 :68-72 逐字一致。
+  // Unlimited → 0; otherwise take positive integer (<1 normalized to 1). Identical to Vue2 :68-72.
   let value = 0
   if (!unlimited.value) {
     value = Math.max(1, Math.floor(Number(steps.value) || 10))

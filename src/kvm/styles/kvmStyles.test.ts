@@ -1,5 +1,6 @@
 /// <reference types="node" />
-// 必须用 node:fs 读 .css —— `?raw` 对 .css 在 vitest 下恒为空串(见 color-guard.test.ts)。
+// Must use node:fs to read .css — `?raw` on .css always returns an empty string in vitest
+// (see color-guard.test.ts).
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,7 +11,8 @@ const src = fs.readFileSync(
   'utf8',
 )
 
-// 本期(P5)允许出现的类名。P6 加新块时往这里补,别偷偷塞。
+// Class names allowed in this phase (P5). When P6 adds new blocks, add them here — do not sneak
+// them in.
 const ALLOWED = new Set([
   'kvm-page', 'kvm-content', 'kvm-sidebar-toggle', 'toggle-icon', 'collapsed',
   'kvm-sidebar', 'kvm-header', 'kvm-header-left', 'kvm-header-text', 'kvm-header-right',
@@ -27,12 +29,14 @@ const ALLOWED = new Set([
   'power-icon', 'power-svg',
   'sendkey-toolbar', 'sendkey-divider', 'sendkey-btn', 'sendkey-hint', 'sendkey-img',
   'fullscreen-svg',
-  // 清理项7(全分支终审核实):sendkey-btn--fullscreen 不在 kvm.css 里出现过——它是
-  // SendKeyToolbar.vue 上真实存在的一个 class(用来把全屏按钮和其它 .sendkey-btn 区分
-  // 开,供 KvmPage.test.ts 的 `w.get('.sendkey-btn--fullscreen')` 精确选中),样式完全
-  // 复用基类 .sendkey-btn,本身没有专属 CSS 规则,纯粹是测试/选择器钩子。留在这份白名单
-  // 里不会让上面"没有不在册的类名"那条用例翻红(那条只检查 kvm.css 里出现的类名是不是
-  // 都在这个 Set 里,不检查反过来),放着不删也不影响判别力,加注释免得再被当成死条目。
+  // Cleanup item 7 (cross-branch final review): sendkey-btn--fullscreen does not appear in
+  // kvm.css — it is an actual class on SendKeyToolbar.vue (used to distinguish the fullscreen
+  // button from other .sendkey-btn buttons for KvmPage.test.ts's `w.get('.sendkey-btn--fullscreen')`
+  // to select precisely). Styling is entirely reused from the base class .sendkey-btn; it has no
+  // dedicated CSS rules and is purely a test/selector hook. Keeping it in this allowlist does not
+  // cause the test above ("no unregistered class names") to fail (that test only checks whether
+  // class names appearing in kvm.css are in this Set, not the reverse). Leaving it does not affect
+  // discriminative power, and the comment prevents it from being mistaken for a dead line.
   'sendkey-btn--fullscreen',
   'sendkey-slide-enter-active', 'sendkey-slide-leave-active',
   'sendkey-slide-enter-from', 'sendkey-slide-leave-to',
@@ -43,8 +47,9 @@ const ALLOWED = new Set([
   'kvm-progress-overlay', 'kvm-progress-card', 'kvm-progress-title', 'kvm-progress-msg',
   'kvm-spinner',
 
-  // P6(创建弹窗 / ISO 选择器 / 快照 / VM 设置 / 全局设置)地基期(Task 0)先登记类名,
-  // 样式规则由后续任务(Task 1 起)陆续填进 kvm.css。名字定死,后续任务只许用这些。
+  // P6 (create dialog / ISO selector / snapshots / VM settings / global settings) foundation phase
+  // (Task 0) pre-registers class names. Style rules are filled into kvm.css gradually by subsequent
+  // tasks (Task 1 onwards). Names are fixed; subsequent tasks may only use these.
   'kvm-dialog-overlay', 'kvm-dialog-content', 'create-vm-modal', 'create-vm-head',
   'create-vm-title', 'create-vm-close', 'create-vm-body', 'create-vm-foot',
   'cv-field', 'cv-label', 'cv-hint', 'cv-input-row', 'cv-input', 'cv-input-unit', 'cv-unit',
@@ -64,40 +69,45 @@ const ALLOWED = new Set([
   'custom-file-arrow',
 ])
 
-describe('kvm.css 类名白名单', () => {
-  it('没有不在册的类名', () => {
+describe('kvm.css class name allowlist', () => {
+  it('no unregistered class names', () => {
     const used = new Set([...src.matchAll(/\.([a-zA-Z][\w-]*)/g)].map((m) => m[1]))
     expect([...used].filter((c) => !ALLOWED.has(c)).sort()).toEqual([])
   })
 })
 
-describe('kvm.css 不含裸颜色字面量(与全局 color-guard 双保险)', () => {
-  it('所有颜色走 var(--kvm-*)', () => {
-    // 去掉注释后再扫,避免注释里抄的 Vue2 色值被误判(color-guard 不剥注释,是已知坑,
-    // 所以本文件的注释里**不要写** #hex)。
+describe('kvm.css contains no bare color literals (double-checks global color-guard)', () => {
+  it('all colors use var(--kvm-*)', () => {
+    // Strip comments before scanning to avoid misdetecting Vue2 color values copied in comments
+    // (color-guard does not strip comments — this is a known gap; therefore, do not write #hex
+    // in this file's comments).
     const noComment = src.replace(/\/\*[\s\S]*?\*\//g, '')
     expect(noComment).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
     expect(noComment.replace(/var\([^)]*\)/g, '')).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 })
 
-// 评审 Minor 修复(task-4 追加):add-vm-btn / kvm-settings-btn 是 P6 前的 disabled
-// 占位按钮(Vue2 没有这个态,New-UI 新增),之前 hover 规则对 disabled 态照样生效——
-// 鼠标移上去变紫底紫字、光标还是小手,看起来像能点。jsdom 测计算样式对"谁压过谁"
-// 不可靠(本项目没有现成的 CSS 优先级自算工具,已 grep 确认),这里改成对源码文本的
-// 静态断言:直接读 CSS 规则文本,比拿 jsdom 猜级联更准。写法抄了 settings 区那个
-// hover-guard 加 disabled-cursor 的既有惯例(class 名不在本文件里字面写出,
-// 避免撞上面的类名白名单扫描器)。
-describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-btn)', () => {
-  it('hover 规则必须带 :not(:disabled),不能对 disabled 态生效', () => {
-    // 反例:裸 `.add-vm-btn:hover {` / `.kvm-settings-btn:hover {`(没有 :not(:disabled))不允许出现。
+// Review minor fix (appended to task-4): add-vm-btn / kvm-settings-btn are disabled placeholder
+// buttons before P6 (Vue2 does not have this state; New-UI adds it). Previously the hover rule
+// applied to the disabled state — the mouse would change the background to purple with purple
+// text, the cursor still appeared as a pointer, making it look clickable. jsdom's computed style
+// test is unreliable for "which rule wins" (this project has no ready-made CSS specificity
+// calculator; confirmed by grep), so here we switch to a static assertion on the source text:
+// reading the CSS rule text directly is more reliable than guessing cascade with jsdom. The
+// approach copies the existing hover-guard + disabled-cursor convention from the settings
+// section (class names are not written as literals in this file to avoid collision with the
+// class name allowlist scanner above).
+describe('disabled buttons do not mislead users with hover/cursor (add-vm-btn / kvm-settings-btn)', () => {
+  it('hover rules must include :not(:disabled) and must not apply to disabled state', () => {
+    // Counter-example: bare `.add-vm-btn:hover {` / `.kvm-settings-btn:hover {` (without
+    // :not(:disabled)) are not allowed.
     expect(src).not.toMatch(/\.add-vm-btn:hover\s*\{/)
     expect(src).not.toMatch(/\.kvm-settings-btn:hover\s*\{/)
     expect(src).toMatch(/\.add-vm-btn:hover:not\(:disabled\)/)
     expect(src).toMatch(/\.kvm-settings-btn:hover:not\(:disabled\)/)
   })
 
-  it('disabled 态必须显式 cursor: not-allowed(禁用按钮不能看起来像能点)', () => {
+  it('disabled state must explicitly have cursor: not-allowed (disabled buttons must not look clickable)', () => {
     const addDisabledBlock = src.match(/\.add-vm-btn:disabled\s*\{([^}]*)\}/)
     const settingsDisabledBlock = src.match(/\.kvm-settings-btn:disabled\s*\{([^}]*)\}/)
     expect(addDisabledBlock?.[1]).toMatch(/cursor:\s*not-allowed/)
@@ -105,12 +115,14 @@ describe('禁用按钮 hover/cursor 不误导用户(add-vm-btn / kvm-settings-bt
   })
 })
 
-// 全分支评审修复(C2):`.cv-snapshot-date` 漏了 Vue2 :3021-3022 的两条声明,鼠标移到
-// 「创建于: …」上会显示浏览器默认的 I 形文本光标(Vue2 是普通箭头)。jsdom 计算样式
-// 不可靠(kvmStyles.test.ts 顶部注释已经点过这一点),所以像上面 disabled cursor 那条
-// 一样,直接对 kvm.css 源文件文本做正则断言,不依赖 jsdom 渲染出来的 computed style。
-describe('kvm.css .cv-snapshot-date 补齐 cursor/text-decoration(C2)', () => {
-  it('cursor: default 且 text-decoration: none(照 Vue2 :3021-3022)', () => {
+// Cross-branch review fix (C2): `.cv-snapshot-date` is missing two declarations from Vue2 :3021-3022.
+// When the mouse hovers over "Created: …" it shows the browser's default I-beam text cursor
+// (Vue2 shows a normal arrow). jsdom's computed styles are unreliable (already noted in the
+// comment at the top of kvmStyles.test.ts), so like the disabled cursor check above, we do regex
+// assertions directly on the kvm.css source text rather than relying on jsdom's rendered computed
+// style.
+describe('kvm.css .cv-snapshot-date completes cursor/text-decoration (C2)', () => {
+  it('cursor: default and text-decoration: none (per Vue2 :3021-3022)', () => {
     const block = src.match(/\.snapshots-body \.cv-snapshot-date\s*\{([^}]*)\}/)
     expect(block?.[1]).toMatch(/cursor:\s*default/)
     expect(block?.[1]).toMatch(/text-decoration:\s*none/)
@@ -118,34 +130,43 @@ describe('kvm.css .cv-snapshot-date 补齐 cursor/text-decoration(C2)', () => {
 })
 
 // ════════════════════════════════════════════════════════════════════
-// Task 11 收尾固化:白名单的反向检查。
+// Task 11 final fix: reverse check on the allowlist.
 //
-// 上面「没有不在册的类名」那条用例是单向的——只查 kvm.css 里出现的类名是否都在 ALLOWED
-// 里登记过,不查反向(模板用了某个类,但 kvm.css 里压根没有任何规则给它)。Task 9 就因此
-// 把 `.settings-tabs`/`.settings-tab` 整块样式漏掉过:两个 tab 渲染成浏览器默认按钮,而
-// 三道门全绿——17 条单测断言的是 classList.contains('active') 而不是计算样式(jsdom 下
-// 计算样式本来就不可靠),白名单又不查反向,谁都没能拦住。
+// The “no unregistered class names” test above is one-directional — it only checks whether
+// class names appearing in kvm.css are registered in ALLOWED, but not the reverse (template
+// uses a class, but kvm.css has no rule for it). Task 9 missed `.settings-tabs`/`.settings-tab`
+// styling entirely because of this: the two tabs rendered as browser default buttons, and all
+// three gates were green — the 17 unit tests assert on classList.contains('active'), not on
+// computed styles (computed styles are unreliable under jsdom anyway), and the allowlist does
+// not check the reverse, so nobody caught it.
 //
-// 这里补一条自动化的反向核对,不再依赖人工记得跑 brief 里那条 comm 命令:
-// 1) 只取 .vue 模板里**静态** `class="..."` 属性(排除 `:class="..."`)——动态 `:class`
-//    绑定的对象/数组语法（如 `{ active: x, 'is-loading': busy }`）会把 JS 变量名/字符串
-//    字面量也匹配进去（`busy`/`form.firmware`/`'uefi'` 之类),不是类名，没法用简单正则
-//    可靠地把它们和真类名分开；而 Task 9 那次真实漏样式的两个类（settings-tabs/
-//    settings-tab）恰好都是静态 class 属性，只查静态就足够逮住这一类回归。先剥掉
-//    `<!-- -->` HTML 注释再扫，避免注释里示例代码（如 VmSettingsDialog.vue 里演示测试
-//    写法的注释文本）被误当成真实模板用法。
-// 2) 从 kvm.css 里剥注释后按“选择器 { ”切块，取每个非 @ 开头选择器里出现的所有
-//    `.class` token（不只是行首第一个——复合/后代选择器如
-//    `.snapshots-body .cv-snapshot-item:hover` 里，`cv-snapshot-item` 不是行首第一个
-//    token，但确实有规则在管它),这样才不会把“确实有样式、只是不在选择器最前面”的类
-//    误判成漏样式。
-// 3) 差集 = 静态用了但 kvm.css 任何选择器里都没出现过的类。当前唯一一项是
-//    `sendkey-btn--fullscreen`——纯测试/选择器钩子（SendKeyToolbar.vue 上追加的第二个
-//    class，只为让 KvmPage.test.ts 精确选中全屏按钮而非其它 .sendkey-btn，视觉完全复用
-//    基类 .sendkey-btn，从未有专属规则,详情见上面 ALLOWED 里紧邻它的注释)，登记为
-//    唯一例外。若以后差集里出现新名字，说明真的漏了样式,不能直接加进例外名单了事。
-describe('kvm.css 反向检查:模板静态 class 用了但 kvm.css 没有任何样式规则', () => {
-  // 纯测试/选择器钩子,理由见上方大注释。以后每新增一项例外都必须在这里写清原因。
+// Here we add an automated reverse check and no longer rely on humans remembering to run that
+// comm command from the brief:
+// 1) Only collect **static** `class=”...”` attributes in .vue templates (exclude `:class=”...”`)
+//    — dynamic `:class` bindings with object/array syntax (e.g., `{ active: x, 'is-loading': busy }`)
+//    would match JS variable names / string literals too (like `busy`/`form.firmware`/`'uefi'`),
+//    which are not class names, and simple regex cannot reliably separate them from real class
+//    names. The two classes that Task 9 actually missed (settings-tabs/settings-tab) both happen
+//    to be static class attributes, so checking static only is enough to catch this class of
+//    regression. Strip `<!-- -->` HTML comments before scanning to avoid sample code in comments
+//    (e.g., test-writing examples in VmSettingsDialog.vue's comments) being mistaken for actual
+//    template usage.
+// 2) After stripping comments from kvm.css, split by “selector {“, and from each non-@-prefixed
+//    selector collect all `.class` tokens (not just the first one at line start — compound/
+//    descendant selectors like `.snapshots-body .cv-snapshot-item:hover` have `cv-snapshot-item`
+//    not at line start but definitely has a rule managing it). This prevents misdetecting classes
+//    that truly have styles but are not at the front of the selector as missing styles.
+// 3) The difference = classes used statically but never appearing in any selector in kvm.css.
+//    Currently the only one is `sendkey-btn--fullscreen` — purely a test/selector hook
+//    (a second class appended on SendKeyToolbar.vue, added only so that KvmPage.test.ts's
+//    `w.get('.sendkey-btn--fullscreen')` can select the fullscreen button precisely instead of
+//    other .sendkey-btn, styling completely reused from base class .sendkey-btn, never had
+//    dedicated rules; details in the comment next to it in ALLOWED above). Registered as the
+//    sole exception. If new names appear in the difference in the future, it means styles truly
+//    are missing and you cannot simply add to the exception list.
+describe('kvm.css reverse check: template uses static class but kvm.css has no style rules for it', () => {
+  // Purely a test/selector hook; rationale in the large comment above. Each new exception added
+  // must have its reason clearly stated here.
   const NO_STYLE_EXPECTED = new Set([
     'sendkey-btn--fullscreen',
   ])
@@ -165,7 +186,7 @@ describe('kvm.css 反向检查:模板静态 class 用了但 kvm.css 没有任何
     const used = new Set<string>()
     for (const f of vueFiles) {
       const raw = fs.readFileSync(f, 'utf8').replace(/<!--[\s\S]*?-->/g, '')
-      // `(^|[^:])` 排除 `:class="..."`(动态绑定),只要静态 `class="..."`。
+      // `(^|[^:])` excludes `:class="..."` (dynamic binding), only matches static `class="..."`.
       for (const m of raw.matchAll(/(^|[^:])\bclass="([^"]*)"/g)) {
         for (const cls of m[2].split(/\s+/).filter(Boolean)) used.add(cls)
       }
@@ -178,114 +199,124 @@ describe('kvm.css 反向检查:模板静态 class 用了但 kvm.css 没有任何
     const styled = new Set<string>()
     for (const m of noComment.matchAll(/([^{}]+)\{/g)) {
       const selector = m[1].trim()
-      if (selector.startsWith('@')) continue // @media/@keyframes 的头部,不是选择器
+      if (selector.startsWith('@')) continue // @media/@keyframes head, not a selector
       for (const c of selector.match(/\.[a-zA-Z][\w-]*/g) ?? []) styled.add(c.slice(1))
     }
     return styled
   }
 
-  it('静态 class 属性里出现的类,kvm.css 里都至少有一条规则管(例外名单之外)', () => {
+  it('classes in static class attributes all have at least one rule in kvm.css (outside exceptions)', () => {
     const used = collectStaticUsedClasses()
     const styled = collectStyledClasses()
     const missing = [...used]
       .filter((c) => !styled.has(c) && !NO_STYLE_EXPECTED.has(c))
       .sort()
-    expect(missing, `以下静态 class 在 kvm.css 里没有任何规则(真漏样式,不在例外名单里):\n${missing.join(', ')}`).toEqual([])
+    expect(missing, `the following static classes have no rules in kvm.css (truly missing styles, not in exceptions):\n${missing.join(', ')}`).toEqual([])
   })
 
-  it('例外名单本身不该有多余项(如果某天补齐了样式,要把它从例外名单里摘掉)', () => {
+  it('the exceptions list itself should not have stale items (if styles are added later, remove from the list)', () => {
     const styled = collectStyledClasses()
     const staleExceptions = [...NO_STYLE_EXPECTED].filter((c) => styled.has(c))
-    expect(staleExceptions, `以下例外项其实已经有样式了,应从 NO_STYLE_EXPECTED 里删除:\n${staleExceptions.join(', ')}`).toEqual([])
+    expect(staleExceptions, `the following exceptions already have styles and should be removed from NO_STYLE_EXPECTED:\n${staleExceptions.join(', ')}`).toEqual([])
   })
 })
 
-// 2026-08-03 真机验收修复的守卫:画布几何必须由 noVNC 自己定,CSS 不许抢。
-// 抢了(Vue2 原样的 width/height:100% !important)会让 noVNC 的鼠标坐标换算失准——
-// 详细因果链与探针实测数据写在 kvm.css 对应规则的注释里。这条断言只盯"有没有把尺寸
-// 抢回来",不关心居中用的是 margin:auto 还是别的写法。
-describe('noVNC 画布几何归 noVNC 管(scaleViewport 生效的前提)', () => {
-  it('canvas 规则里不许出现 !important 的宽高', () => {
+// 2026-08-03 device acceptance fix guard: canvas geometry must be controlled by noVNC itself, CSS
+// must not take it. Taking it (Vue2's original width/height:100% !important) breaks noVNC's mouse
+// coordinate calculations — detailed causal chain and probe data in the comment for the
+// corresponding rule in kvm.css. This assertion only checks "are dimensions being taken back",
+// not whether centering uses margin:auto or another approach.
+describe('noVNC canvas geometry controlled by noVNC (prerequisite for scaleViewport to work)', () => {
+  it('canvas rule must not have !important on width or height', () => {
     const canvasBlock = src.match(/\.console-display canvas\s*\{([^}]*)\}/)
     expect(canvasBlock).not.toBeNull()
     expect(canvasBlock![1]).not.toMatch(/width:[^;]*!important/)
     expect(canvasBlock![1]).not.toMatch(/height:[^;]*!important/)
   })
 
-  it('canvas 仍然绝对定位、压在占位层之上(T6 的既有诉求不能被这次修复弄丢)', () => {
+  it('canvas is still absolutely positioned, stacked above the placeholder layer (T6\'s existing requirement must not be lost in this fix)', () => {
     const canvasBlock = src.match(/\.console-display canvas\s*\{([^}]*)\}/)![1]
     expect(canvasBlock).toMatch(/position:\s*absolute/)
     expect(canvasBlock).toMatch(/z-index:\s*2/)
   })
 })
 
-describe('KVM 全屏页的 toast 不占用控制台画面', () => {
+describe('KVM fullscreen page toast does not occupy console display', () => {
   const toast = fs.readFileSync(
     path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../components/AppToast.vue'),
     'utf8',
   )
 
-  it('AppToast 的 bottom 走可覆写变量,默认值不变', () => {
+  it('AppToast\'s bottom uses an overridable variable, default value unchanged', () => {
     expect(toast).toContain('bottom: var(--toast-bottom, 118px)')
-    expect(toast).toContain('z-index: 10100') // 别回退掉「弹窗压不住 toast」那次修复
+    expect(toast).toContain('z-index: 10100') // do not revert the "dialog cannot suppress toast" fix
   })
 
-  it('覆写落在根元素上,不是 .kvm-page 上', () => {
-    // 实测(真 chromium,不是 jsdom):`.toast-stack` 挂在 App.vue 层、是 `.kvm-page` 的
-    // **兄弟**而不是后代,所以把 --toast-bottom 写在 .kvm-page 上时变量根本继承不到 ——
-    // toast 停在默认的 118px。写成 :root:has(.kvm-page) 才生效。这条断言就是钉住这个
-    // 落点:哪天有人"顺手简化"成 .kvm-page,它会红,而不是静默失效。
+  it('override is on the root element, not on .kvm-page', () => {
+    // Device testing (real chromium, not jsdom): `.toast-stack` is at the App.vue layer, is a
+    // **sibling** of `.kvm-page` not a descendant, so putting --toast-bottom on .kvm-page
+    // does not let the variable inherit — toast stays at the default 118px. Only
+    // :root:has(.kvm-page) works. This assertion pins down this landing point: if someone
+    // "conveniently simplifies" it to .kvm-page one day, it will fail instead of silently not
+    // working.
     const override = src.match(/([^\n{}]*)\{[^}]*--toast-bottom:\s*\d+px/)
-    expect(override, '找不到 --toast-bottom 的覆写').not.toBeNull()
+    expect(override, 'could not find override for --toast-bottom').not.toBeNull()
     expect(override![1]).toContain(':root')
     expect(override![1]).toContain(':has(')
   })
 })
 
-// SP16 Task 9:变体自带的 hover 背景必须赢过它继承的基类 hover 背景,否则指针一进去
-// 背景被整块换掉、文字色还是变体的 → 白底白字。基类 `.x:hover` 是 (0,2,0)、单类变体
-// 只有 (0,1,0),而 CSS 优先级高者胜**与书写顺序无关**。jsdom 既不级联也进不了 hover,
-// 只能自己算优先级(复用 src/styles/__tests__ 下那份纯函数)。
+// SP16 Task 9: variant's own hover background must win over inherited base class hover background,
+// otherwise pointer entry would replace the entire background while keeping variant text color —
+// white background, white text. Base class `.x:hover` is specificity (0,2,0), single-class variant
+// is only (0,1,0), and CSS specificity is won by the higher one **regardless of write order**.
+// jsdom neither cascades nor enters hover state, so we must calculate specificity ourselves
+// (reuse the pure function from src/styles/__tests__/).
 //
-// `.cv-btn-create` 不在列:全仓只有 kvm.css 里一句注释提到它(:2078),既没有 CSS 规则
-// 也没有模板引用 ⇒ 死类名。台账那份 6 个的清单把它算进去了,实际是 5 个。
+// `.cv-btn-create` is not in the list: the whole repo only has one comment in kvm.css mentioning
+// it (:2078), no CSS rules and no template references ⇒ dead class name. The ledger's list of 6
+// included it, but actually it is 5.
 import { winningHoverBackground, hoverBackgroundRules } from '../../styles/__tests__/cssCascade'
 
-// ⚠️ 必须先剥注释:cssCascade 的 parseCssRules 把 `{` 之前的所有文本当选择器,而
-// kvm.css 里几乎每条规则上面都压着一大段中文注释 —— 不剥的话注释会被并进选择器、
-// 匹配全部落空,守卫会"因为找不到规则"而空转(它自己的 extractStyleBlock 在读 SFC 时
-// 也是先剥注释,这里读 .css 走的是 node:fs,得自己做同一步)。
+// ⚠️ Must strip comments first: cssCascade's parseCssRules treats all text before `{` as a selector,
+// and kvm.css has large blocks of Chinese comments above almost every rule — without stripping,
+// the comments get merged into the selector, all matches fail, and the guard "empty-returns for no
+// rules found" spins uselessly (its own extractStyleBlock also strips comments first when reading
+// SFC, but here we read .css via node:fs so we must do the same step ourselves).
 const cssNoComments = src.replace(/\/\*[\s\S]*?\*\//g, '')
 
 const BUTTONS: Array<{ classes: string[]; variant: string }> = [
   { classes: ['cv-btn', 'cv-btn-restore'], variant: 'cv-btn-restore' },
   { classes: ['cv-btn', 'cv-btn-delete'], variant: 'cv-btn-delete' },
   { classes: ['cv-primary-btn'], variant: 'cv-primary-btn' },
-  // os-action-btn 的 hover 全部写在 `.os-action-btn.is-xxx:hover` 上,所以要带上变体类
-  // 才命中(匹配器要求选择器里的每个类都在 classes 内)。
+  // os-action-btn's hover is all written on `.os-action-btn.is-xxx:hover`, so variants must be
+  // included to match (matcher requires each class in the selector to be in the classes array).
   { classes: ['os-action-btn', 'is-download'], variant: 'is-download' },
   { classes: ['os-action-btn', 'is-selected'], variant: 'is-selected' },
 ]
 
-describe('KVM 按钮的 hover 背景没有被基类压过', () => {
+describe('KVM button hover background is not overridden by base class', () => {
   for (const b of BUTTONS) {
-    it(`.${b.variant} 的 hover 背景来自最具体的那条规则`, () => {
-      // 一条 hover 背景规则都找不到时 winningHoverBackground 会抛 —— 那也该红,
-      // 不能是"没找到 = 通过"。
+    it(`.${b.variant} hover background comes from the most specific rule`, () => {
+      // When winningHoverBackground finds no hover background rule it throws — that should also
+      // fail, not "no rule found = pass".
       const win = winningHoverBackground(cssNoComments, b.classes)
-      // 赢家必须提到变体自己的类名 —— 基类赢 = 变体的底被整块替换掉了。
-      expect(win.selector, `赢家是 ${win.selector}(优先级 ${win.specificity})`).toContain(b.variant)
+      // Winner must mention the variant's own class name — base class wins = variant's background
+      // is completely replaced.
+      expect(win.selector, `winner is ${win.selector} (specificity ${win.specificity})`).toContain(b.variant)
     })
   }
 
-  // .category-btn 体检的结论是"不适用",单独记下来而不是塞进上面那张表:它的 hover
-  // (:1542 `.category-btn:hover:not(.active)`)**有意**只改 color 与 border-color,
-  // 一个 background 声明都没有 —— 没有背景被替换,就没有"白底白字"这个失效模式。
-  // 断言写成双向:hover 规则必须存在(否则是别的东西坏了,不能静默通过),而且**不能**
-  // 有任何命中它的 hover 背景规则。哪天有人给它(或它的基类)加了 hover 背景,这条会红,
-  // 逼着重新判断它是不是进了上面那张风险表。
-  it('.category-btn 不适用本检查:hover 有意只改文字与描边,没有背景可被替换', () => {
-    expect(src).toMatch(/\.category-btn:hover:not\(\.active\)\s*\{/) // 防空转
+  // .category-btn's assessment is "not applicable", noted separately instead of added to the
+  // table above: its hover rule (:1542 `.category-btn:hover:not(.active)`) **intentionally** only
+  // changes color and border-color, has no background declaration at all — no background gets
+  // replaced, so the "white background white text" failure mode does not occur. Assertion written
+  // bidirectionally: the hover rule must exist (otherwise something else is broken and cannot
+  // silently pass), and there must **not** be any hover background rule that matches it. If
+  // someone adds a hover background to it (or its base class) one day, this will fail and force
+  // re-evaluation whether it should be added to the risk table above.
+  it('.category-btn not applicable to this check: hover intentionally only changes text and border, no background to replace', () => {
+    expect(src).toMatch(/\.category-btn:hover:not\(\.active\)\s*\{/) // prevent empty match
     expect(hoverBackgroundRules(cssNoComments, ['category-btn'])).toEqual([])
   })
 })

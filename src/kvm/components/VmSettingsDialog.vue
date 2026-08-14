@@ -1,23 +1,24 @@
 <script setup lang="ts">
-// VM 设置弹窗:两个 tab(通用/快照),本组件实现「通用」半 + 两个 tab 的壳。视觉 1:1 对
-// Vue2 KVMFullPage.vue 模板 :230-393(head+tabs :231-252 / General section :255-325 /
-// foot :387-391),逻辑对 showSettings(:1202-1221)/saveSettings(:1494-1514)/
-// onOSSelect 的 settings 分支(:1378-1381)。
+// VM settings dialog: two tabs (general/snapshots). This component implements the "general" half + tab shell.
+// Visual 1:1 mapping to Vue2 KVMFullPage.vue template :230-393 (head+tabs :231-252 / General section :255-325 /
+// footer :387-391), logic maps to showSettings(:1202-1221)/saveSettings(:1494-1514)/onOSSelect settings branch(:1378-1381).
 //
-// Task 10:快照 tab 的真身是 `snapshots` 具名插槽的**默认内容**(SnapshotsTab 组件),
-// 不是父组件从外面塞进来的——本组件本来就不持有 useSnapshots 实例(那份数据层同
-// isoList/hostInfo 一样由 KvmPage 创建、随页面生命周期存活),所以直接把 SnapshotsTab
-// 的五个 props/三个 emit 原样转发穿透(snapshots/snapshotsBusy/snapshotSubmitError 三个
-// 新 prop + vmId/vmState 直接读 props.vm 派生,不需要单独再传)。留一个具名插槽而不是
-// 焊死,是为了不破坏 Task 9 已经定型的"插槽机制本身"这条测试覆盖(见下方模板注释)。
+// Task 10: the snapshots tab's real implementation is the **default content** of the `snapshots` named slot
+// (SnapshotsTab component), not injected from the parent — this component never holds a useSnapshots instance
+// (that data layer, like isoList/hostInfo, is created by KvmPage and lives with the page lifecycle), so we
+// directly relay SnapshotsTab's five props/three emits unchanged (snapshots/snapshotsBusy/snapshotSubmitError three
+// new props + vmId/vmState derived directly from props.vm, no need to pass separately). We leave a named slot
+// rather than hardcoding to avoid breaking the "slot mechanism itself" test coverage already established in Task 9
+// (see template comment below).
 //
-// 表单编辑用一份本地副本(form,reactive),不直接绑定 props.vm 的字段——理由同
-// CreateVmDialog / KvmGlobalSettingsDialog:Global Constraint #16 在本组件**确实适用**
-// (与 Task 7 的创建弹窗不同):表单从 props.vm 回填,而 useVmList.update 成功后会把
-// 结果写回**选中的 VM 对象**(照 Vue2 saveSettings :1503-1508)。如果表单直接双向绑定
-// props.vm 的字段,用户改了值又点 ✕ 取消,脏值会直接污染共享的 VM 对象(不像
-// KvmGlobalSettingsDialog 污染的是 composable 内部 ref,这里污染的是调用方持有的同一个
-// 对象引用,污染面更直接)。见底部测试文件里 Global Constraint #16 那条用例 + 变异验证。
+// Form editing uses a local copy (form, reactive), not direct binding to props.vm fields — same reasoning as
+// CreateVmDialog / KvmGlobalSettingsDialog: Global Constraint #16 **does apply** here (different from Task 7's
+// create dialog): the form is backfilled from props.vm, and after useVmList.update succeeds, the result is written
+// back to the **selected VM object** (mirrors Vue2 saveSettings :1503-1508). If the form directly two-way-binds
+// props.vm fields and the user changes a value then clicks ✕ cancel, the dirty value directly pollutes the shared
+// VM object (unlike KvmGlobalSettingsDialog which pollutes a composable-internal ref; here it pollutes the same
+// object reference held by the caller, more direct pollution). See Global Constraint #16 test case in the test file
+// at the bottom + mutation verification.
 import { reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { KvmVM, KvmUpdateVMRequest } from '@nimotech/nimoos-service'
@@ -35,8 +36,9 @@ const props = defineProps<{
   selectedOs: SelectedOs | null
   saving: boolean
   submitError: string
-  // P6 Task 10:快照 tab 需要的四样,原样转发给 SnapshotsTab——本组件不持有快照数据层
-  // (useSnapshots 由 KvmPage 创建、随页面生命周期存活,同 isoList/hostInfo 的既有惯例)。
+  // P6 Task 10: four snapshot-tab dependencies, relayed unchanged to SnapshotsTab — this component
+  // doesn't hold snapshot data layer (useSnapshots is created by KvmPage and lives with page lifecycle, same
+  // convention as isoList/hostInfo).
   snapshots: KvmSnapshot[]
   snapshotsBusy: boolean
   snapshotSubmitError: string
@@ -61,9 +63,9 @@ function selectTab(tab: 'general' | 'snapshots'): void {
   emit('tab-change', tab)
 }
 
-// 本地表单副本。字段集与 Vue2 settingsForm(:629-639)一致,但**不含** diskUsedPercent——
-// 那是纯展示值(disk 用量百分比),不是可编辑/可提交字段,直接读 props.vm.diskUsedPercent
-// 展示即可,不需要进本地副本(读不写,不存在 Global Constraint #16 的污染风险)。
+// Local form copy. Field set matches Vue2 settingsForm(:629-639), but **excludes** diskUsedPercent —
+// it's a display-only value (disk usage percentage), not an editable/submittable field. We read props.vm.diskUsedPercent
+// directly for display; no need to include it in the local copy (read-only, no Global Constraint #16 pollution risk).
 const form = reactive({
   name: '',
   vcpu: 0,
@@ -75,10 +77,9 @@ const form = reactive({
   networkMode: 'nat',
 })
 
-// 打开弹窗时从 props.vm 回填。照 Vue2 showSettings(:1208-1216):tab 复位到 general,
-// networkMode 映射照 :1215(`vm.networkMode === 'bridge' ? (vm.networkInterface ||
-// 'nat') : 'nat'`)。immediate:true 让"直接以 open=true 挂载"的场景(测试即如此)也走
-// 一遍回填。
+// Backfill form from props.vm when dialog opens. Mirrors Vue2 showSettings(:1208-1216): reset tab to general,
+// networkMode mapping per :1215 (`vm.networkMode === 'bridge' ? (vm.networkInterface || 'nat') : 'nat'`).
+// immediate:true ensures "mount with open=true already" scenarios (as in tests) also run backfill once.
 watch(() => props.open, (isOpen) => {
   if (!isOpen) return
   activeTab.value = 'general'
@@ -93,12 +94,12 @@ watch(() => props.open, (isOpen) => {
   form.networkMode = vm.networkMode === 'bridge' ? (vm.networkInterface || 'nat') : 'nat'
 }, { immediate: true })
 
-// 选中 OS 后的联动。照 Vue2 onOSSelect 的 settings 分支(:1378-1381 / :1424-1427,两处
-// isLocal/官方模板分支逻辑完全相同,合并成一条规则):`settingsOS = os; settingsForm.iso =
-// os.path; settingsForm.bootFromDisk = false`——本组件不需要单独持有 settingsOS(那只是
-// Vue2 用来在 saveSettings 之外的地方引用选中对象的字段,这里没有别的消费点)。
-// immediate:true 与 open-watch 声明顺序保证:同一次 tick 内若两者都需要生效,"选中了
-// 新 OS"这个更具体的意图赢(与 CreateVmDialog 的写法一致)。
+// Linked update after OS selection. Mirrors Vue2 onOSSelect settings branch (:1378-1381 / :1424-1427; both
+// isLocal/official-template branches have identical logic, merged into one rule): `settingsOS = os;
+// settingsForm.iso = os.path; settingsForm.bootFromDisk = false` — this component doesn't need to hold
+// settingsOS separately (Vue2 uses it only to reference the selected object outside saveSettings; here no
+// other consumers). immediate:true + declaration order with open-watch ensures: if both need to run in the
+// same tick, the more specific intent "selected new OS" wins (same pattern as CreateVmDialog).
 watch(() => props.selectedOs, (os) => {
   if (!os) return
   form.iso = os.path
@@ -106,16 +107,17 @@ watch(() => props.selectedOs, (os) => {
 }, { immediate: true })
 
 function onSubmit(): void {
-  // 防重复提交(同 CreateVmDialog onSubmit 的写法):原生 `disabled` 已经挡掉真实点击,
-  // 这里再补一道 JS 层防线。评审变异验证见任务报告(用 dispatchEvent 绕开原生 disabled)。
+  // Duplicate-submit prevention (same pattern as CreateVmDialog onSubmit): native `disabled` already blocks
+  // real clicks, this adds a JS-layer safeguard. Review mutation verification in task report (uses dispatchEvent
+  // to bypass native disabled).
   if (props.saving) return
 
-  // 照 Vue2 saveSettings(:1497-1508):networkMode 折算 + 8 个可写字段。**不**照抄
-  // `...this.settingsForm` 的展开写法——那样会把 diskUsedPercent 也塞进请求体,后端
-  // model.CreateVMRequest 没有这个字段,静默丢弃、无实际影响,但这里显式列举更清楚
-  // payload 契约是什么,不依赖"后端会不会丢弃"这种隐式保证。**不**包含 os/osType——
-  // 后端 UpdateVM(NimoOS-KVM/route/v2/vms.go:78-101)复用 CreateVMRequest 但不回填
-  // OSType,保存 VM 设置不改操作系统类型,Vue2 settingsForm 本来也没有这两个字段。
+  // Mirrors Vue2 saveSettings(:1497-1508): networkMode folding + 8 writable fields. **Does not** copy the
+  // `...this.settingsForm` spread syntax — that would smuggle diskUsedPercent into the request body, which the
+  // backend model.CreateVMRequest doesn't have. It silently drops it with no real impact, but explicit enumeration
+  // here clarifies the payload contract and doesn't rely on implicit "backend will discard" guarantees. **Excludes**
+  // os/osType — backend UpdateVM (NimoOS-KVM/route/v2/vms.go:78-101) reuses CreateVMRequest but doesn't backfill
+  // OSType; saving VM settings doesn't change OS type, and Vue2 settingsForm never had these two fields anyway.
   const isBridge = form.networkMode !== 'nat'
   const patch: KvmUpdateVMRequest = {
     name: form.name,
@@ -179,8 +181,8 @@ function onSubmit(): void {
             <span v-else class="cv-placeholder">{{ t('kvmNoIsoMounted') }}</span>
             <span aria-hidden="true">▾</span>
           </button>
-          <!-- 双态按钮(照 Vue2 :276-281):未装盘引导时显示"弹出"(点了就切到硬盘引导,
-               清空 iso);已经切到硬盘引导时显示"挂载"(点了重新打开 OS 选择器)。 -->
+          <!-- Dual-state button (mirrors Vue2 :276-281): when not booting from disk, show "eject" (click switches
+               to disk boot, clears iso); when already booted from disk, show "mount" (click reopens OS selector). -->
           <button
             v-if="!form.bootFromDisk"
             type="button"
@@ -258,11 +260,12 @@ function onSubmit(): void {
     </div>
 
     <div v-show="activeTab === 'snapshots'" class="snapshots-body">
-      <!-- Task 10:具名插槽的默认内容就是真正的 SnapshotsTab——生产环境(KvmPage.vue)
-           不覆盖这个插槽,走的正是这份默认内容;VmSettingsDialog.test.ts 覆盖点 2(2026-08-02
-           已有,Task 9 遗留)显式传了 `slots: { snapshots: '<div class="probe-snapshots">…' }`
-           覆盖掉默认内容,验证"插槽机制本身接得上",不依赖真实 SnapshotsTab——两条测试
-           互不冲突,分别验证"插槽管道通"与"默认内容对不对"。 -->
+      <!-- Task 10: the named slot's default content IS the real SnapshotsTab — production (KvmPage.vue)
+           doesn't override this slot, uses this default content directly. VmSettingsDialog.test.ts
+           override point 2 (pre-existing 2026-08-02, Task 9 residual) explicitly passes
+           `slots: { snapshots: '<div class="probe-snapshots">…' }` to override the default,
+           verifying "slot plumbing works", not depending on real SnapshotsTab — both tests don't conflict,
+           separately verify "slot conduit passes" vs "default content is correct". -->
       <slot name="snapshots">
         <SnapshotsTab
           :vm-id="props.vm.id"
@@ -277,9 +280,9 @@ function onSubmit(): void {
       </slot>
     </div>
 
-    <!-- foot 只在 general tab 显示(照 Vue2 :387)——用 v-if 挂在具名 <template> 上让
-         KvmDialog 里 `slots.footer` 判定为"未提供"时,整个 footer 容器(含 padding)
-         一起消失,不是只隐藏按钮本身(那样会在快照 tab 下留一条空白脚部)。 -->
+    <!-- Footer shows only in general tab (mirrors Vue2 :387) — uses v-if on the named <template> so
+         when `slots.footer` is not provided in KvmDialog, the entire footer container (including padding)
+         disappears, not just hiding the button (hiding only button would leave blank footer space under snapshots tab). -->
     <template v-if="activeTab === 'general'" #footer>
       <button
         type="button"

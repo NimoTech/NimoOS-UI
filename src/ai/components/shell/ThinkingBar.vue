@@ -1,14 +1,16 @@
 <!--
-  1:1 移植自 Vue2 src/views/AI/Agent/shell/ThinkingBar.vue(105 行)。SP8-P1c2 Task 8。
+  1:1 port from Vue2 src/views/AI/Agent/shell/ThinkingBar.vue (105 lines). SP8-P1c2 Task 8.
 
-  Vue2 是"哑"组件:state 全由父组件(AgentTopbar → AgentPage → store)持有，本组件
-  只接 props、往上 emit 显式事件——不用 defineModel、不读 store(brief 明确要求保持
-  这个形状，理由见 AgentTopbar 里 v-model 会把 update:enabled/level 直接双向绑定回
-  自己的 prop，而这里父组件需要在中间重映射成 thinking-enabled/thinking-level 再往
-  上抛给 AgentPage，defineModel 的隐式双向绑定会掩盖这层显式转发)。
+  Vue2 is a "dumb" component: state is entirely held by parent (AgentTopbar → AgentPage → store);
+  this component only accepts props and emits explicit events upward — no defineModel, no store reads
+  (brief explicitly requires keeping this shape; the reason is in AgentTopbar where v-model would
+  directly two-way bind update:enabled/level back to its own prop, but the parent here needs to
+  re-map in the middle to thinking-enabled/thinking-level before passing to AgentPage;
+  defineModel's implicit two-way binding would hide this explicit relay).
 
-  唯一裸色:Vue2 ThinkingBar.vue:90 的滑块 background 字面白色 → 已改 `var(--text-on-accent)`
-  (tokens.scss 两套主题都已有值，均为纯白，语义正是"叠在强调色轨道上的文字/前景色")。
+  Only bare color: Vue2 ThinkingBar.vue:90 slider background literal white → changed to
+  `var(--text-on-accent)` (tokens.scss has this value in both themes, both pure white, semantics is
+  exactly "text/foreground color on top of accent color track").
 -->
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
@@ -17,8 +19,9 @@ import type { ThinkingLevel } from '../../stores/agentStore'
 withDefaults(
   defineProps<{
     enabled?: boolean
-    // F2 修复(review)—— 四档强度是闭合枚举,原先只靠注释列举合法值,改用
-    // ThinkingLevel 联合类型(复用 agentStore.ts 的定义,理由见那里的注释)。
+    // F2 fix (review) — four intensity levels are a closed enum; originally only had comments
+    // listing valid values, now using ThinkingLevel union type (reusing definition from agentStore.ts,
+    // rationale in that file's comment).
     level?: ThinkingLevel
     supportsThinking?: boolean
     providerType?: string // for tooltip text

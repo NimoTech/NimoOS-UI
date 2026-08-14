@@ -42,12 +42,12 @@ export const useMountsStore = defineStore('mounts', () => {
       cloud.value = []
       console.warn('[mounts] cloud load failed', e)
     }
-    // 网络 + 云盘挂载点统一注册进 displayNames,避免真实挂载路径泄漏(P5a IMP1)。
+    // Network + cloud mount points are uniformly registered in displayNames to avoid leaking real mount paths (P5a IMP1).
     files.setMountNames(names)
     loading.value = false
   }
 
-  // USB 直接派生自 filesStore.disks(不重复请求);热插由 Files.vue 的 socket 触发 files.loadRoots() 更新。
+  // USB is directly derived from filesStore.disks (no duplicate requests); hot-insertion is triggered by Files.vue's socket to update files.loadRoots().
   const usb = computed<MountEntry[]>(() =>
     files.disks.filter((d) => d.usb).map((d) => ({ kind: 'usb' as const, name: d.name, realPath: d.path })),
   )

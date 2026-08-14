@@ -23,9 +23,9 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
-/* 桌面:横向滚动 chips;分类名照 Vue2 原样直出(第三方源分类不可枚举) */
+/* Desktop: chips scroll horizontally; category names output as-is from Vue2 (third-party source categories are not enumerable) */
 .cate-bar { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
-/* 窄屏:改多行换行(对齐 files 区工具栏做法)——横向溢出在手机上会把过滤项挡在屏外 */
+/* Mobile: switch to multi-line wrap (align with files area toolbar approach)—horizontal overflow on phone would hide filter items off-screen */
 @media (max-width: 768px) {
   .cate-bar { flex-wrap: wrap; overflow-x: visible; }
 }

@@ -1,105 +1,137 @@
 <!--
-  SP8-P5c Task 6 —— 「Parser 详情」页(路由 `/ai/parser`),1:1 移植自 Vue2 蓝本
-  `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserStatus.vue`(164 行,
-  `git show main:` 读取 —— 治理 §1:那个仓的工作树是旧分支,不可信)。
+  SP8-P5c Task 6 —— "Parser Details" page (route `/ai/parser`), 1:1 ported from Vue2
+  blueprint `NimoOS-UI` (main@7a6ee6b7) `src/views/AI/Parser/ParserStatus.vue` (164 lines,
+  read with `git show main:` —— governance §1: the working tree of that repo is stale,
+  cannot be trusted).
 
-  结构对照(蓝本行区间 → 本文件):
-    :3-9     页头:标题 + 🧪 测试沙盒链接 + 刷新按钮(`:disabled` 吃 store.loading)
-    :11-14   unreachable 警示卡(与下面整个 `<template v-else>` 二选一)
-    :18-66   控制卡:暂停灯/按钮 · 并发档三选一 · 推理设备三选一 + 解析提示 · OCR 开关
-    :69-76   队列卡:6 格 emoji + 数字
-    :79-89   文件夹卡:标题带 {top}/{total} · 空态 · 列表 + 进度条
-    :92-102  失败卡:折叠按钮(无条件渲染)+ 列表(N19:v-show + v-if 同挂)
+  Structure mapping (blueprint line range → this file):
+    :3-9     Page header: title + 🧪 test sandbox link + refresh button (`:disabled` watches
+             store.loading)
+    :11-14   Unreachable alert card (one of two, alternate with the whole `<template v-else>` below)
+    :18-66   Control card: pause indicator/button · concurrency level (three choices) ·
+             inference device (three choices) + parsing hint · OCR toggle
+    :69-76   Queue card: 6 emoji + numbers
+    :79-89   Folder card: title with {top}/{total} · empty state · list + progress bar
+    :92-102  Failure card: collapse button (rendered unconditionally) + list (N19: v-show + v-if
+             both applied)
     :119-125 deviceOptions computed
-    :127-135 mounted/beforeDestroy —— 5 秒轮询 + document.hidden 守卫(N20)
-    :136-157 五个转调 + 三个纯函数(formatCursor / barWidth / truncateErr)
+    :127-135 mounted/beforeDestroy —— 5-second polling + document.hidden guard (N20)
+    :136-157 Five pass-throughs + three pure functions (formatCursor / barWidth / truncateErr)
 
   ─────────────────────────────────────────────────────────────────────────────
-  【K31 —— 根元素必须两层】(协调者 2026-08-03 裁定,治理 §3 K31)
+  【K31 —— Root element must have two layers】(ruling by coordinator on 2026-08-03,
+    governance §3 K31)
     `<div class="parser-app"><div class="parser-status-page">…</div></div>`
-    ——**比蓝本多一层 DOM**。外层 `.parser-app` 只带 K22 那三行结构属性
-    (`height:100vh; height:100dvh; overflow-y:auto`,见 `parser-styles.scss:68-72`),
-    内层 `.parser-status-page` 是蓝本的 `padding:16px; max-width:900px; margin:0 auto`。
-    🔴 为什么不能压成同一个元素:`src/styles/theme.css:318` 是 `body{overflow:hidden}`,
-    `/ai/parser` 是**顶层路由**(不在 KnowledgeLayout 之下),不自建滚动容器内容永远看不到
-    (K22);而滚动容器若同时是那条 900px 居中列,`overflow-y:auto` 的滚动条就落在
-    **列的右缘(宽屏上约在屏幕中间)**,而 Vue2 是整页滚动、滚动条在**视口最右缘**
-    —— 那是**用户可见的界面不 1:1**。多一层 DOM 用户不可见,取后者。
-    先例本来就是两元素:`AreaShell.vue` 的 `.area-shell` + `.area-body`、
-    `knowledge.scss` 的 `.knowledge-app` 外壳 + `.k-scroll` 内滚动器。
-    ⚠️ 计划书 `p5c-plan.md:204` 仍写着 K31 之前的 `class="parser-app parser-status-page"`
-    (单元素),**已被 K31 覆盖**;治理文件 + 附录 > brief > 计划书,以 K31 为准。
+    ——**one extra layer of DOM compared to blueprint**. Outer `.parser-app` carries only
+    the three structural properties from K22 (`height:100vh; height:100dvh; overflow-y:auto`,
+    see `parser-styles.scss:68-72`), inner `.parser-status-page` is the blueprint's
+    `padding:16px; max-width:900px; margin:0 auto`.
+    🔴 Why cannot be flattened into one element: `src/styles/theme.css:318` has
+    `body{overflow:hidden}`, `/ai/parser` is **a top-level route** (not under KnowledgeLayout),
+    without its own scroll container content is never visible (K22); and if the scroll
+    container is also the 900px centered column, then `overflow-y:auto`'s scrollbar ends up
+    on **the column's right edge (roughly in the middle of the screen on wide displays)**,
+    whereas Vue2 scrolls the whole page with the scrollbar on **the viewport's far right** ——
+    that would be **visible interface not matching 1:1**. One extra invisible DOM layer is
+    preferable.
+    There are already two-element precedents: `AreaShell.vue` has `.area-shell` + `.area-body`,
+    `knowledge.scss` has `.knowledge-app` wrapper + `.k-scroll` inner scroller.
+    ⚠️ Plan doc `p5c-plan.md:204` still mentions the pre-K31 `class="parser-app parser-status-page"`
+    (single element), **now superseded by K31**; governance file + appendix > brief > plan,
+    follow K31.
 
-  【K24 —— 样式走 JS 侧 import,零 `<style>` 块】`import '../../styles/parser-styles.scss'`
-    (T2b 建的独立文件)。蓝本 `:162-164` 是 `<style lang="scss" scoped>@import './parser-styles.scss'`;
-    scoped 隔离在 New-UI 换成 K9 的「规则全嵌在页面作用域下」。先例:`KnowledgeLayout.vue:43`
-    / `AgentPage.vue:72` / `SettingsPage.vue:70`。
-    🔴 本文件是 `parser-styles.scss` 的**第一个也是唯一一个生产 import 方**(T7 之前),
-    所以「`dist/assets/*.css` 里能搜到 `parser-status-page`」这条额外门归本刀。
+  【K24 —— Styles imported from JS side, zero `<style>` block】
+    `import '../../styles/parser-styles.scss'` (standalone file created by T2b). Blueprint
+    `:162-164` was `<style lang="scss" scoped>@import './parser-styles.scss'`; scoped
+    isolation in New-UI becomes K9's "all rules nested under page scope". Precedents:
+    `KnowledgeLayout.vue:43` / `AgentPage.vue:72` / `SettingsPage.vue:70`.
+    🔴 This file is the **first and only production import site** for `parser-styles.scss`
+    (before T7), so the "can find `parser-status-page` in `dist/assets/*.css`" gate falls on
+    this file.
 
-  【K26 + K1 —— store 降层】蓝本是 `Vue.observable({state:{…}})`,`ParserStatus.vue` 里
-    处处写 `store.state.xxx`;T5 落地的 `parserStore.ts` 是 Pinia setup store,
-    **`state` 那一层整个消失** → 本文件一律 `store.xxx`。🔴 逐处降层,实测共
-    **31 处 state**(`controlState` 10 · `stats` 6 · `loading` 5 · `folders` 5 ·
-    `failedJobs` 3 · `unreachable` 1 · `error` 1)**+ 8 处 action**
-    (`loadAll` 3 · `pause`/`resume`/`setConcurrency`/`setDevice`/`setOcr` 各 1),
-    与蓝本逐字段等数(逐处清单见 T6 报告 §4);漏一处那一格就是 `undefined`。
-    同理 `store.actions.loadAll()` → `store.loadAll()`(五个动作同)。
+  【K26 + K1 —— Store layer flattening】Blueprint used `Vue.observable({state:{…}})`,
+    with `ParserStatus.vue` writing `store.state.xxx` everywhere; `parserStore.ts`
+    introduced in T5 is a Pinia setup store, with **the `state` layer entirely removed** →
+    this file uses `store.xxx` throughout. 🔴 Flatten every reference; actual count is
+    **31 state accesses**(`controlState` 10 · `stats` 6 · `loading` 5 · `folders` 5 ·
+    `failedJobs` 3 · `unreachable` 1 · `error` 1)**+ 8 action calls**
+    (`loadAll` 3 · `pause`/`resume`/`setConcurrency`/`setDevice`/`setOcr` each 1),
+    matching blueprint field-for-field (detailed list in T6 report §4); miss one and that
+    cell becomes `undefined`.
+    Similarly `store.actions.loadAll()` → `store.loadAll()` (same for five actions).
 
-  【K27】REST 全部在 store 里走共享包,本文件零直调。
+  【K27】All REST calls go through shared package inside store, this file makes zero
+    direct calls.
 
-  【零 KIcon】(治理 §1.2 / E-2 / N16)两个 Parser 页蓝本一个 KIcon 都不用 ——
-    用 emoji + 纯文字按钮。**不许"顺手换成 KIcon"**(界面不 1:1)。
+  【Zero KIcon】(governance §1.2 / E-2 / N16) Neither of the two Parser pages uses a single
+    KIcon in the blueprint —— they use emoji + plain text buttons. **Must not "while we're
+    here, switch to KIcon"** (would not be 1:1 visually).
 
-  【N16 —— emoji / 符号位置逐字照抄,一个都不许挪进/挪出 `t()`】
-    在 `t()` **外面**:`🧪`(:6)· `⏳`(:70)· `🔄`(:71)· `✅`(:72)· `❌`(:73)·
-                      `📦`(:74)· `📍`(:75)· `▼`/`▶` 折叠箭头(:94)
-    由 **script 拼接**:`'▶ ' + t('aiKbResume')` / `'⏸ ' + t('aiKbPause')`(:27)——
-      i18n 键值是纯 `Resume` / `Pause`,符号不进语言包。
-    在 `t()` **里面**:一个都没有(本页零此类)。
-    `→` 在 `aiKbPrResolvedHint` 的**键值里**(`→ actual {device}` / `→ 实际 {device}`,:53)。
-    `—` 是 `formatCursor` 的空值回退(:147,U+2014),`…` 是 `truncateErr` 的截断号(:156,U+2026)。
+  【N16 —— Emoji / symbol position copied exactly, not a single one moved in/out of `t()`】
+    **Outside** `t()`: `🧪`(:6)· `⏳`(:70)· `🔄`(:71)· `✅`(:72)· `❌`(:73)·
+                      `📦`(:74)· `📍`(:75)· `▼`/`▶` collapse arrow(:94)
+    **By script concatenation**: `'▶ ' + t('aiKbResume')` / `'⏸ ' + t('aiKbPause')`(:27)——
+      i18n key value is pure `Resume` / `Pause`, symbols stay outside language pack.
+    **Inside** `t()`: none (this page has zero such cases).
+    `→` is **inside the key value** of `aiKbPrResolvedHint` (`→ actual {device}` /
+    `→ 实际 {device}`, :53).
+    `—` is `formatCursor`'s null fallback (:147, U+2014), `…` is `truncateErr`'s truncation
+    marker (:156, U+2026).
 
-  【N17 —— 并发档用数组下标取 i18n,照抄这个写法】
+  【N17 —— Concurrency level uses array index to fetch i18n, copy this pattern】
     `[t('aiKbPrCcPowerSaving'), t('aiKbCcBalanced'), t('aiKbPrCcFullPower')][[1,2,4].indexOf(n)]`
-    (蓝本 :38)。🔴 **不许改成 computed 映射表**(与需求无关的顺手改动)。
-    ⚠️ 键的选法有讲究(N21 #3 / 附录 A):`Balanced` **复用** `aiKbCcBalanced`(en+zh 双双一致);
-    `Power-saving` / `Full power` **必须新建** `aiKbPrCcPowerSaving` / `aiKbPrCcFullPower`,
-    **不能**复用 `aiKbCcPowerSaver` / `aiKbCcFullSpeed` —— 后两者 zh 虽同(省电 / 全力),
-    en 是 `Power saver` / `Full speed`,复用会让英文档渲染得与 Vue2 不同。
+    (blueprint :38). 🔴 **Must not change to a computed mapping table** (unrelated housekeeping).
+    ⚠️ Key selection has nuance (N21 #3 / appendix A): `Balanced` **reuses**
+    `aiKbCcBalanced` (matching exactly in en + zh); `Power-saving` / `Full power` **must
+    create new keys** `aiKbPrCcPowerSaving` / `aiKbPrCcFullPower`, **cannot** reuse
+    `aiKbCcPowerSaver` / `aiKbCcFullSpeed` —— although those two have the same zh (省电 /
+    全力), their en is `Power saver` / `Full speed`, reusing would make English render
+    differently from Vue2.
 
-  【N19 —— 失败列表 `v-show` + `v-if` 同挂一个 `<ul>`,两个指令都照抄】(蓝本 :96)
-    Vue 里 `v-if` 优先级高于 `v-show` → `failedJobs` 为空时整个 `<ul>` **不渲染**、
-    `v-show` 是死的。🔴 合并成单一指令 = 改 DOM 结构 = 回归。
-    ⚠️ 本机 `jobs?status=failed&limit=5` 实测 `{"jobs":[]}`(治理 §4.3)→ 折叠按钮
-    **能点**(它无条件渲染,文案「最近失败(0)」),但点开后列表整个不渲染 ——
-    **这是正确行为**,不是缺陷(治理 §13 已点名)。
+  【N19 —— Failure list has both `v-show` and `v-if` on the same `<ul>`, copy both
+    directives】(blueprint :96)
+    Vue has `v-if` higher precedence than `v-show` → when `failedJobs` is empty the whole
+    `<ul>` **is not rendered**, `v-show` has no effect. 🔴 Merging to single directive =
+    changing DOM structure = regression.
+    ⚠️ Live test on this machine: `jobs?status=failed&limit=5` returns `{"jobs":[]}`
+    (governance §4.3) → collapse button **is clickable** (renders unconditionally, shows
+    "Recent failures (0)"), but opening it shows no list ——
+    **this is correct behavior**, not a bug (governance §13 has noted this).
 
-  【N20 —— 5 秒轮询 + `document.hidden` 守卫 + 卸载清理】(蓝本 :127-135)
-    频率 `5000`、守卫、清理时机全照抄;`beforeDestroy` → Vue3 的 `onBeforeUnmount`。
-    定时器句柄是**组件本地** `let`(蓝本是 `this._timer`)—— 🔴 **不进 store**:
-    `parserStore.ts` 里零定时器,那是对的(治理 §3.5 N20 / `parserStore.ts` 头注释)。
+  【N20 —— 5-second polling + `document.hidden` guard + cleanup on unmount】(blueprint
+    :127-135)
+    Frequency `5000`, guard, cleanup timing all copied verbatim; `beforeDestroy` → Vue3's
+    `onBeforeUnmount`.
+    Timer handle is **component-local** `let` (blueprint has `this._timer`) —— 🔴
+    **does not go in store**: `parserStore.ts` has zero timers, that is correct (governance
+    §3.5 N20 / `parserStore.ts` header comment).
 
-  【纯函数三条照抄】(蓝本 :146-157)
-    `formatCursor(ms)`:`if (!ms) return '—'`(0 / NaN / undefined 都走这条)
-    `barWidth(count)`:`reduce` 求 max + **`|| 1` 兜底**(max=0 时防除零 → 0/1*100 = 0)
-    `truncateErr(s)`:`> 120` 才截,`slice(0,120) + '…'`;`!s` → `''`
-    🔴 三条都不许"改进"(不加 `Intl` 格式化、不改截断长度、不删 `|| 1`)。
+  【Three pure functions copied exactly】(blueprint :146-157)
+    `formatCursor(ms)`: `if (!ms) return '—'` (covers 0 / NaN / undefined)
+    `barWidth(count)`: `reduce` finds max + **`|| 1` fallback** (when max=0, prevents
+    division by zero → 0/1*100 = 0)
+    `truncateErr(s)`: truncate only if `> 120`, then `slice(0,120) + '…'`; `!s` → `''`
+    🔴 All three must not be "improved" (no `Intl` formatting, no changed truncation length,
+    no removed `|| 1`).
 
-  【硬编码不进 i18n】`'GPU (CUDA)'` / `'CPU'`(蓝本 :123-124)—— 技术标识符,
-    蓝本刻意没进 i18n(N22 同族口径)。**不许顺手补键**(会多出 Vue2 没有的键,
-    且 en/zh 两档一填英文 = 纯噪音)。只有 `Auto` 进 i18n → `aiKbDeviceAuto`
-    (🔴 裁定 A-1:**新建**,**不复用** `aiKbOriginAuto` —— 后者语义是「沉淀任务来源」)。
+  【Hardcoded identifiers stay out of i18n】`'GPU (CUDA)'` / `'CPU'` (blueprint :123-124) ——
+    technical identifiers, blueprint deliberately left them out of i18n (same as N22 family).
+    **Must not "while we're here, add the key"** (would add keys Vue2 never had, and
+    filling en/zh with English = pure noise). Only `Auto` goes into i18n → `aiKbDeviceAuto`
+    (🔴 ruling A-1: **create new**, **do not reuse** `aiKbOriginAuto` —— that one's semantics
+    is "infer task source").
 
-  【K5/K30 不适用于此处】`:13` 的 `<small>{{ store.error }}</small>` 回显的是
-    `e.message || String(e)`(网络层错误信息,`parserStore.ts:184`),**蓝本行为,照抄**。
-    K5/K30 管的是「不把后端响应 body 的 `detail` 拼进 toast」,不是同一件事
-    (brief §3.6 已就此显式裁定)。
+  【K5/K30 do not apply here】`:13` has `<small>{{ store.error }}</small>` echoing
+    `e.message || String(e)` (network-layer error text, `parserStore.ts:184`), **blueprint
+    behavior, copy it**.
+    K5/K30 covers "do not concatenate backend response `detail` into toast", different case
+    (brief §3.6 has explicitly ruled on this).
 
-  【偏离,类型安全机械改写】`@change="setOcr($event.target.checked)"`(蓝本 :61)在 TS 下
-    需要 `($event.target as HTMLInputElement).checked` —— `EventTarget` 上没有 `checked`。
-    先例 `src/ai/components/settings/sections/ChannelsSection.vue:354` 同款写法。
-    渲染与行为零变化,只是类型标注。
+  【Divergence, type-safety mechanical rewrite】`@change="setOcr($event.target.checked)"`
+    (blueprint :61) in TS requires `($event.target as HTMLInputElement).checked` ——
+    `EventTarget` lacks `checked` property.
+    Precedent: `src/ai/components/settings/sections/ChannelsSection.vue:354` same pattern.
+    Rendering and behavior unchanged, only type annotation.
 -->
 <script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
@@ -110,23 +142,23 @@ import '../../styles/parser-styles.scss'
 const { t } = useI18n()
 const store = useParserStore()
 
-/** 蓝本 data() :112-117 —— `store` 那一项在 Vue3 里是上面的 `useParserStore()`,
- *  只剩 `failedOpen` 是页面级瞬态(治理 §5.1:不塞 store)。 */
+/** Blueprint data() :112-117 —— the `store` item in Vue3 is `useParserStore()` above,
+ *  leaving only `failedOpen` as page-level transient state (governance §5.1: not stored). */
 const failedOpen = ref(false)
 
-/** 蓝本 `this._timer`(:129)—— 组件本地句柄,不进 store(N20)。 */
+/** Blueprint `this._timer` (:129) —— component-local handle, not stored (N20). */
 let timer: ReturnType<typeof setInterval> | null = null
 
-/** 蓝本 computed deviceOptions(:119-125)—— 只有 `Auto` 走 i18n,
- *  `GPU (CUDA)` / `CPU` 是硬编码技术标识符。 */
+/** Blueprint computed deviceOptions (:119-125) —— only `Auto` goes through i18n,
+ *  `GPU (CUDA)` / `CPU` are hardcoded technical identifiers. */
 const deviceOptions = computed<{ value: string; label: string }[]>(() => [
   { value: 'auto', label: t('aiKbDeviceAuto') },
   { value: 'cuda', label: 'GPU (CUDA)' },
   { value: 'cpu', label: 'CPU' },
 ])
 
-/** 蓝本 mounted()(:127-132)—— 先立即拉一次,再起 5 秒轮询;
- *  `document.hidden` 时**跳过这一拍**(不是停表:定时器继续走,只是不发请求)。 */
+/** Blueprint mounted() (:127-132) —— fetch once immediately, then start 5-second polling;
+ *  skip this tick when `document.hidden` (timer keeps running, just no request sent). */
 onMounted(() => {
   store.loadAll()
   timer = setInterval(() => {
@@ -134,28 +166,29 @@ onMounted(() => {
   }, 5000)
 })
 
-/** 蓝本 beforeDestroy()(:133-135)—— Vue3 对应 `onBeforeUnmount`。 */
+/** Blueprint beforeDestroy() (:133-135) —— Vue3 equivalent is `onBeforeUnmount`. */
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
 
-/** 蓝本 reload()(:137)。 */
+/** Blueprint reload() (:137). */
 function reload(): void {
   store.loadAll()
 }
 
 /**
- * 蓝本 togglePause()(:138-142)—— **三元表达式语句**分派,逐字照抄
- * (不改写成 `if/else`:等价但不是蓝本写的形状,属无关重构)。
- * 两支都返回 Promise 且蓝本都不 await —— 照抄这一点:点完按钮立刻交给
- * `resume()`/`pause()` 内部的 `await loadAll()` 去刷新,期间 `loading` 已置真、
- * 按钮由 `:disabled` 挡住重复点击。
+ * Blueprint togglePause() (:138-142) —— **ternary expression statement** dispatch, copy
+ * exactly (do not rewrite to `if/else`: equivalent but not the blueprint's shape, would
+ * be unrelated refactoring).
+ * Both branches return Promise and the blueprint doesn't await either —— copy this too:
+ * after clicking the button, let `resume()`/`pause()`'s internal `await loadAll()`
+ * handle refresh; `loading` is already true and `:disabled` prevents double-click.
  */
 function togglePause(): void {
   store.controlState.paused ? store.resume() : store.pause()
 }
 
-/** 蓝本 :143-145 —— 三个纯转调。 */
+/** Blueprint :143-145 —— three pure pass-throughs. */
 function setConcurrency(n: number): void {
   store.setConcurrency(n)
 }
@@ -166,23 +199,23 @@ function setOcr(enabled: boolean): void {
   store.setOcr(enabled)
 }
 
-/** 蓝本 formatCursor(ms)(:146-149)—— `!ms` 覆盖 0 / NaN / undefined,回退 U+2014。 */
+/** Blueprint formatCursor(ms) (:146-149) —— `!ms` covers 0 / NaN / undefined, fallback to U+2014. */
 function formatCursor(ms: number): string {
   if (!ms) return '—'
   return new Date(ms).toLocaleString()
 }
 
 /**
- * 蓝本 barWidth(count)(:150-153)—— 拿当前列表里的最大 count 当 100%。
- * 🔴 `|| 1` 兜底不许删:列表为空或所有 count 都是 0 时 `reduce` 得 0,除零会得
- * `NaN`/`Infinity` 并写进 `style="width: NaN%"`。
+ * Blueprint barWidth(count) (:150-153) —— use the maximum count in the current list as 100%.
+ * 🔴 `|| 1` fallback must not be deleted: when list is empty or all counts are 0, `reduce`
+ * returns 0, division by zero would produce `NaN`/`Infinity` written into `style="width: NaN%"`.
  */
 function barWidth(count: number): number {
   const max = store.folders.folders.reduce((m, f) => Math.max(m, f.count), 0) || 1
   return Math.round((count / max) * 100)
 }
 
-/** 蓝本 truncateErr(s)(:154-157)—— 严格 `> 120` 才截(=120 原样返回),截断号 U+2026。 */
+/** Blueprint truncateErr(s) (:154-157) —— truncate only if strictly `> 120` (=120 returned unchanged), truncation marker U+2026. */
 function truncateErr(s?: string | null): string {
   if (!s) return ''
   return s.length > 120 ? s.slice(0, 120) + '…' : s
@@ -191,36 +224,38 @@ function truncateErr(s?: string | null): string {
 
 <template>
   <div class="parser-app">
-    <!-- K31:外层 `.parser-app` = K22 滚动容器(height:100dvh + overflow-y:auto),
-         内层 `.parser-status-page` = 蓝本的 900px 居中列。理由见文件头注释。
-         ⚠️ 这条注释必须写在外层 div **内部**:写在 `<template>` 的第一个位置会让组件
-         多一个注释根节点,VTU 的 `wrapper.element` 就不再是那个 div 了。 -->
+    <!-- K31: outer `.parser-app` = K22 scroll container (height:100dvh + overflow-y:auto),
+         inner `.parser-status-page` = blueprint's 900px centered column. Rationale in file
+         header comment.
+         ⚠️ This comment must be **inside** the outer div: placing it at the start of
+         `<template>` would add an extra comment root node, making VTU's `wrapper.element`
+         point elsewhere. -->
     <div class="parser-status-page">
-      <!-- 页头(蓝本 :3-9) -->
+      <!-- Page header (blueprint :3-9) -->
       <header class="page-header">
         <h2>{{ t('aiKbPrDetailsTitle') }}</h2>
         <div class="header-actions">
-          <!-- N16:🧪 在 t() 外面 -->
+          <!-- N16: 🧪 is outside t() -->
           <router-link to="/ai/parser/test" class="test-link">🧪 {{ t('aiKbPrTestLink') }}</router-link>
           <button class="refresh-btn" @click="reload" :disabled="store.loading">{{ t('aiKbRefresh') }}</button>
         </div>
       </header>
 
-      <!-- unreachable 警示卡(蓝本 :11-14)—— `<small>` 回显 store.error 是蓝本行为,见文件头 K5/K30 说明 -->
+      <!-- Unreachable alert card (blueprint :11-14) —— `<small>` echoing store.error is blueprint behavior, see K5/K30 explanation in file header -->
       <div v-if="store.unreachable" class="card unreachable">
         {{ t('aiKbPrUnreachable') }}<br />
         <small>{{ store.error }}</small>
       </div>
 
       <template v-else>
-        <!-- 控制卡(蓝本 :17-66) -->
+        <!-- Control card (blueprint :17-66) -->
         <div class="card control-card">
           <div class="row">
             <span class="status-text">
               <span class="dot" :class="{ paused: store.controlState.paused }" />
               {{ store.controlState.paused ? t('aiKbPaused') : t('aiKbRunning') }}
             </span>
-            <!-- N16:`▶ ` / `⏸ ` 由 script 侧字符串拼接产生,不进 i18n 键值(蓝本 :27) -->
+            <!-- N16: `▶ ` / `⏸ ` are produced by script-side string concatenation, not in i18n key (blueprint :27) -->
             <button class="pause-btn"
                     @click="togglePause"
                     :disabled="store.loading">
@@ -235,7 +270,7 @@ function truncateErr(s?: string | null): string {
                      :checked="store.controlState.concurrency === n"
                      :disabled="store.loading"
                      @change="setConcurrency(n)" />
-              <!-- N17:数组下标取 i18n,照抄蓝本 :38 这个写法,不许改成 computed 映射表 -->
+              <!-- N17: array index to fetch i18n, copy blueprint :38 pattern, no computed mapping table -->
               {{ [t('aiKbPrCcPowerSaving'), t('aiKbCcBalanced'), t('aiKbPrCcFullPower')][[1,2,4].indexOf(n)] }} ({{ n }})
             </label>
           </div>
@@ -266,7 +301,7 @@ function truncateErr(s?: string | null): string {
           </div>
         </div>
 
-        <!-- 队列卡(蓝本 :68-76)—— N16:六个 emoji 全在 t() 外面 -->
+        <!-- Queue card (blueprint :68-76) —— N16: all six emoji outside t() -->
         <div class="card queue-card">
           <div class="kv">⏳ {{ t('aiKbPending') }} <b>{{ store.stats.queue_depth.pending }}</b></div>
           <div class="kv">🔄 {{ t('aiKbPrQueueRunning') }} <b>{{ store.stats.queue_depth.running }}</b></div>
@@ -276,7 +311,7 @@ function truncateErr(s?: string | null): string {
           <div class="kv">📍 {{ t('aiKbLastSynced') }} <b>{{ formatCursor(store.stats.last_cursor_ms) }}</b></div>
         </div>
 
-        <!-- 文件夹卡(蓝本 :78-89)—— {top} 是本页列表长度、{total} 是后端总组数,两个数字各有来源 -->
+        <!-- Folder card (blueprint :78-89) —— {top} is this page's list length, {total} is backend group count, two numbers from different sources -->
         <div class="card folders-card">
           <h3>{{ t('aiKbPrFoldersTitle', { top: store.folders.folders.length, total: store.folders.total_groups }) }}</h3>
           <div v-if="!store.folders.folders.length" class="empty">{{ t('aiKbPrNoPending') }}</div>
@@ -289,12 +324,12 @@ function truncateErr(s?: string | null): string {
           </ul>
         </div>
 
-        <!-- 失败卡(蓝本 :91-102) -->
+        <!-- Failure card (blueprint :91-102) -->
         <div class="card failures-card">
           <button class="toggle" @click="failedOpen = !failedOpen">
             {{ failedOpen ? '▼' : '▶' }} {{ t('aiKbPrRecentFailures', { n: store.failedJobs.length }) }}
           </button>
-          <!-- 🔴 N19:两个指令都照抄。v-if 优先级更高 → failedJobs 为空时整个 <ul> 不渲染 -->
+          <!-- 🔴 N19: copy both directives. v-if has higher precedence → when failedJobs is empty the whole <ul> is not rendered -->
           <ul v-show="failedOpen" v-if="store.failedJobs.length" class="failure-list">
             <li v-for="j in store.failedJobs" :key="j.id">
               <div class="path">{{ j.path }}</div>

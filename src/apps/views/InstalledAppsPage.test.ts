@@ -45,7 +45,7 @@ describe('InstalledAppsPage', () => {
     busOn.mockClear()
   })
 
-  it('进区拉列表;空列表渲染空态;订阅容器事件与 app 生命周期事件', async () => {
+  it('Enter area, fetch list; render empty state when empty; subscribe to container events and app lifecycle events', async () => {
     const w = mountPage()
     await flushPromises()
     expect(svc.list).toHaveBeenCalledTimes(1)
@@ -56,7 +56,7 @@ describe('InstalledAppsPage', () => {
     expect(events).toContain('app:uninstall-end')
   })
 
-  it('有应用时渲染卡片网格', async () => {
+  it('Render card grid when there are apps', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
     })
@@ -66,7 +66,7 @@ describe('InstalledAppsPage', () => {
     expect(w.text()).toContain('Jellyfin')
   })
 
-  it('installProgress 有任务时页面顶部渲染安装中卡片;end 后消失', async () => {
+  it('When installProgress has tasks, render installing card at page top; disappears after end', async () => {
     const w = mountPage()
     await flushPromises()
     const progress = useInstallProgressStore()
@@ -79,7 +79,7 @@ describe('InstalledAppsPage', () => {
     expect(w.find('.op-progress').exists()).toBe(false)
   })
 
-  it('页面不再自订阅 app:install-end(D6:职责在 store)', async () => {
+  it('Page no longer self-subscribes to app:install-end (D6: responsibility in store)', async () => {
     const w = mountPage()
     await flushPromises()
     void w
@@ -87,22 +87,24 @@ describe('InstalledAppsPage', () => {
     expect(evs.filter((e) => e === 'app:install-end').length).toBeLessThanOrEqual(1)
   })
 
-  // Regression case (SP5-P1 final review CRITICAL): reka-ui's AlertDialogAction is itself a DialogClose,
-  // so clicking the real red confirm button dispatches update:open(false) before the confirm in @click — the old
-  // implementation used a single uninstallTarget ref for both the open state and the target; the update:open
-  // handler nulled it first, confirm read null and short-circuited, so store.uninstall (=service.compose.uninstall) was never called.
-  // This case mounts the real page + real UninstallConfirm (reka not mocked) and clicks the real button
-  // Portaled to document.body, reproducing that event order; only the outermost service.compose network layer is mocked.
-  it('点击真实卸载确认弹窗的确认按钮,真正调用 service.compose.uninstall(id, {deleteConfigFolder:true})(默认勾选删数据,2026-07-21 用户拍板)', async () => {
+  // Regression case (SP5-P1 final review CRITICAL): reka-ui's AlertDialogAction is itself a
+  // DialogClose, so clicking the real red confirm button dispatches update:open(false) before the
+  // confirm in @click — the old implementation used a single uninstallTarget ref for both the open
+  // state and the target; the update:open handler nulled it first, confirm read null and
+  // short-circuited, so store.uninstall (=service.compose.uninstall) was never called. This case
+  // mounts the real page + real UninstallConfirm (reka not mocked) and clicks the real button
+  // Portaled to document.body, reproducing that event order; only the outermost service.compose
+  // network layer is mocked.
+  it('Click real uninstall confirm dialog\'s confirm button, actually call service.compose.uninstall(id, {deleteConfigFolder:true}) (delete data checked by default, 2026-07-21 user decision)', async () => {
     svc.list.mockResolvedValue({
       jellyfin: { store_info: { title: { en_US: 'Jellyfin' }, icon: '', port_map: '8096', index: '/', scheme: 'http' }, status: 'running' },
     })
     const w = mount(InstalledAppsPage, { global: { plugins: [i18n, pinia] }, attachTo: document.body })
     await flushPromises()
 
-    // Open the uninstall confirm dialog: equivalent to the user clicking the "Uninstall" item in the card's
-    // action menu (that item only does emit('uninstall'); the menu's own open/close goes through a separate
-    // reka DropdownMenu, unrelated to the AlertDialog event order under test here).
+    // Open the uninstall confirm dialog: equivalent to the user clicking the "Uninstall" item in
+    // the card's action menu (that item only does emit('uninstall'); the menu's own open/close goes
+    // through a separate reka DropdownMenu, unrelated to the AlertDialog event order under test here).
     const card = w.findComponent(InstalledAppCard)
     await card.vm.$emit('uninstall')
     await nextTick() // reka Portals AlertDialogContent to document.body asynchronously
@@ -122,7 +124,7 @@ describe('InstalledAppsPage', () => {
   })
 })
 
-describe('安装中卡片「停止并删除」(用户验收诉求:幽灵卡可手动清除)', () => {
+describe('Installing card "Stop and delete" (user acceptance requirement: ghost cards can be manually removed)', () => {
   beforeEach(() => {
     pinia = createPinia()
     setActivePinia(pinia)
@@ -133,7 +135,7 @@ describe('安装中卡片「停止并删除」(用户验收诉求:幽灵卡可�
     busOn.mockClear()
   })
 
-  it('点 ✕ → 确认框 → 确认后任务被 dismiss 且尽力调 uninstall', async () => {
+  it('Click ✕ → confirmation dialog → after confirming, task is dismissed and attempt to call uninstall', async () => {
     const w = mountPage()
     const progress = useInstallProgressStore()
     progress.track('ghost-app', 'ghost-app')
@@ -148,7 +150,7 @@ describe('安装中卡片「停止并删除」(用户验收诉求:幽灵卡可�
     expect(svc.uninstall).toHaveBeenCalledWith('ghost-app', { deleteConfigFolder: true })
   })
 
-  it('uninstall 404 拒绝也不影响卡片移除(尽力而为语义)', async () => {
+  it('uninstall 404 rejection also doesn\'t affect card removal (best-effort semantics)', async () => {
     svc.uninstall.mockRejectedValue(Object.assign(new Error('404'), { response: { status: 404 } }))
     const w = mountPage()
     const progress = useInstallProgressStore()
