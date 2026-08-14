@@ -64,7 +64,7 @@ function onClick(e: MouseEvent) {
       :title="$t('filesUploadBrokenBadge')"
       @click.stop.prevent="emit('open-batch', uploadBatchIdOf(props.entry), props.entry.path)"
     >!</button>
-    <span class="file-name">{{ props.entry.name }}</span>
+    <span class="file-name" :title="props.entry.name">{{ props.entry.name }}</span>
     <span class="file-format">{{ props.entry.is_dir ? '' : fileExt(props.entry.name) }}</span>
     <span class="file-date">{{ dateFmt(props.entry.date || '') }}</span>
     <span class="file-size">
@@ -91,7 +91,20 @@ function onClick(e: MouseEvent) {
 .row-check { opacity: 0; cursor: pointer; }
 .file-row:hover .row-check, .file-row.selected .row-check { opacity: 1; }
 .file-icon { width: 28px; height: 28px; flex: 0 0 auto; }
-.file-name { flex: 1 1 auto; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Single-line ellipsis, the same rule the desktop uses for icon titles
+   (home/components/AppTile.vue:49, FolderTile.vue:26): overflow hidden +
+   text-overflow ellipsis + white-space nowrap, no word-break.
+   `min-width: 0` here is defence in depth, NOT the thing that makes truncation
+   work — measured, not assumed. The familiar flex trap (a flex item's
+   `min-width: auto` refusing to shrink below its content) does not apply while
+   `overflow` is anything other than `visible`, which zeroes the automatic
+   minimum size (CSS Flexbox §4.5). Deleting this declaration and re-measuring
+   in headless chromium at 1600px and at 760px gave identical numbers —
+   clientWidth 264 vs scrollWidth 1697, zero overflowing rows — so the ellipsis
+   was already correct before it was added. It stays so that a later change to
+   `overflow` cannot silently turn a clipped name back into a row that shoves
+   the date and size columns off screen. */
+.file-name { flex: 1 1 auto; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .file-format { flex: 0 0 48px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-transform: uppercase; }
 .file-date { flex: 0 0 160px; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
 .file-size { flex: 0 0 80px; font-size: 12px; color: var(--fg-muted, #9aa4bf); text-align: right; }

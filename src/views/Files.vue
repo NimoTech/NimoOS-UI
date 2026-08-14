@@ -35,6 +35,7 @@ import { nameTooLong, pathTooLong } from '../files/util/pathLimits'
 import { joinPath } from '../files/util/pathOps'
 import { useToast } from '../stores/toast'
 import { readDroppedEntries } from '../files/upload/dropEntries'
+import { supportsDirectoryPicker, showDirectoryPicker, readPickedDirectory } from '../files/upload/dirPicker'
 import { uploadPlaceholders, mergeUploadPlaceholders } from '../files/upload/uploadPlaceholders'
 import { createEmptyDirs } from '../files/upload/emptyDirs'
 import { extractClipboardFiles } from '../files/upload/pasteFiles'
@@ -222,7 +223,54 @@ const refillPending = ref<{ targetPath: string; missing: Set<string> } | null>(n
 // on folderInput (bypassing this wrapper) leaves it set, so it can only ever be consumed
 // by the very picker it opened.
 function triggerFileSelect() { refillPending.value = null; fileInput.value?.click() }
-function triggerFolderSelect() { refillPending.value = null; folderInput.value?.click() }
+
+// Folder upload has two possible entry points, and which one we get is decided by the
+// browser, not by us:
+//
+//  * `showDirectoryPicker()` (File System Access API) yields a real directory handle —
+//    name included — so an EMPTY folder, and empty subfolders of a non-empty pick, can
+//    be created. It only exists in a **secure context**; on this product's usual
+//    deployment (HTTP + LAN IP) `window.showDirectoryPicker` is `undefined`.
+//  * `<input webkitdirectory>` works everywhere but is blind to empty directories:
+//    measured in Chromium, picking an empty folder leaves `files.length === 0`,
+//    `value === ''` and `webkitEntries` empty — the folder's name is nowhere on the
+//    event, so there is nothing to create. See dirPicker.ts for the full measurement.
+//
+// The fallback stays silent on an empty pick, deliberately: an empty folder and a
+// dismissed dialog arrive as the very same `cancel` event with the same empty payload,
+// so any message here would also fire every time the user simply backs out. The button
+// carries a `title` hint instead (see the template) — do not re-add a `cancel` handler.
+//
+// Prefer the first, fall back to the second.
+async function triggerFolderSelect() {
+  refillPending.value = null
+  if (!supportsDirectoryPicker()) { folderInput.value?.click(); return }
+  let handle
+  try {
+    handle = await showDirectoryPicker()
+  } catch (e) {
+    // Dismissing the picker is not an error worth reporting.
+    if ((e as DOMException)?.name === 'AbortError') return
+    // Present but refused (e.g. blocked inside an iframe): fall back to the input.
+    // Nothing has been read yet at this point, so this cannot double-upload.
+    console.error('[files][upload] showDirectoryPicker unavailable, falling back to input', e)
+    folderInput.value?.click()
+    return
+  }
+  // Walking the tree is itself the slow part on a large folder — bracket it the way
+  // onDrop does, or the user sees nothing happen while it runs.
+  preparingCount.value++
+  try {
+    const picked = await readPickedDirectory(handle)
+    if (!picked.files.length && !picked.emptyDirs.length) return
+    await commitSelectedFiles(picked.files, picked.emptyDirs)
+  } catch (e) {
+    console.error('[files][upload] reading the picked directory failed', e)
+    toast.show(t('filesOpFailed'))
+  } finally {
+    preparingCount.value--
+  }
+}
 
 function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -730,7 +778,10 @@ onMounted(() => { browse.ensureVolumes() })
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-              <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
+              <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
+                   silently drops empty folders and cannot report it (see triggerFolderSelect),
+                   so the button says up front where empty folders have to go. -->
+              <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
               <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
