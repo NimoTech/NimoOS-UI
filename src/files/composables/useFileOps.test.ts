@@ -10,6 +10,7 @@ import { useFavoritesStore } from '../stores/favorites'
 import { useSnapshotBrowseStore } from '../stores/snapshotBrowse'
 import { useToast } from '../../stores/toast'
 import { useFileConflictsStore } from '../stores/fileConflicts'
+import { useFileOpsStore } from '../stores/fileOps'
 
 const folderCreate = vi.fn().mockResolvedValue(undefined)
 const fileCreate = vi.fn().mockResolvedValue(undefined)
@@ -46,10 +47,33 @@ function makeOps() {
   return api
 }
 
+// The MessageBus completion event for an async file task. Files.vue feeds these
+// to the fileOps store; here the submission mock stands in for that round trip.
+const finishedEvent = (to: string, status = 'FINISHED', id = 't1') => ({
+  file_operate: JSON.stringify({
+    data: [{ id, type: 'move', finished: true, status, processing_path: '', processed_size: 1, total_size: 1, to }],
+  }),
+})
+
+// POST /v1/batch/task only means "accepted"; the task itself reports back over
+// MessageBus afterwards. Make the accepted submission emit that completion.
+function completeOnSubmit(to: string, status = 'FINISHED') {
+  const store = useFileOpsStore()
+  batchTask.mockImplementation(async () => { store.ingest(finishedEvent(to, status)) })
+}
+
+// What the destination directory listing answers when the landing check reads it.
+const destHolds = (...names: string[]) =>
+  getList.mockResolvedValue({ content: names.map((name) => ({ name, path: '/x/' + name, is_dir: true })) })
+
 describe('useFileOps', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    // clearAllMocks keeps implementations, so a persistent mockImplementation
+    // set by one test would leak into the next -- restore both defaults.
+    batchTask.mockImplementation(async () => undefined)
+    getList.mockResolvedValue({ content: [] })
     Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
   })
 
@@ -404,8 +428,18 @@ describe('useFileOps', () => {
   // A cut+paste relocates the entry, so a favourite pointing at it has exactly
   // the same consistency duty rename() already discharges -- otherwise the
   // sidebar keeps a row that navigates nowhere.
+  //
+  // But the repoint may only happen once the move HAS ACTUALLY HAPPENED, which
+  // is two facts, not one. `POST /v1/batch/task` returning 200 is neither of
+  // them: it only means the request was accepted, and the move runs later as an
+  // async task. On the owner's device a task that was accepted and then never
+  // executed (the backend dequeued a folder holding only empty directories as
+  // "already done") repointed the favourites anyway; six retries nested the
+  // stored paths six levels deep and left all 16 favourites pointing at paths
+  // that never existed. So: wait for the completion event, AND confirm the entry
+  // is really visible at the destination.
   describe('paste favourite sync', () => {
-    it('repoints a favourite (and its descendants) at the destination after a move', async () => {
+    it('repoints a favourite (and its descendants) once the move reports completion and the entry is there', async () => {
       const { useClipboardStore } = await import('../stores/clipboard')
       const clip = useClipboardStore()
       clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
@@ -420,12 +454,141 @@ describe('useFileOps', () => {
         skippedCount: 0,
         cancelledCount: 0,
       })
+      completeOnSubmit('/DATA/Media')
+      destHolds('Trip')
       const ops = makeOps()
       await ops.paste()
       expect(favs.list).toEqual([
         { name: 'Trip', path: '/DATA/Media/Trip' },
         { name: 'Sub', path: '/DATA/Media/Trip/Sub' },
       ])
+    })
+
+    // The regression itself: accepted, never executed, nothing at the
+    // destination. Repointing here is what destroyed the owner's sidebar.
+    it('leaves favourites alone when the task claims completion but nothing landed', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      setCustomStorage.mockClear() // only the paste's own writes count below
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      destHolds() // the destination is empty: the move never ran
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      expect(setCustomStorage).not.toHaveBeenCalled()
+      expect(warn).toHaveBeenCalled()
+      warn.mockRestore()
+    })
+
+    // A cancel moved nothing -- the same repoint would be just as wrong.
+    it('leaves favourites alone when the task comes back CANCELLED', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media', 'CANCELLED')
+      destHolds('Trip') // even if something with that name is there
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      warn.mockRestore()
+    })
+
+    // MessageBus drops messages for slow consumers (subscriber buffer is 1), so
+    // a completion event can simply never arrive. Staying put leaves a stale
+    // favourite, which is recoverable; repointing on a guess is not.
+    it('leaves favourites alone when no completion event ever arrives', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      useFileOpsStore().settleTimeoutMs = 10
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      destHolds('Trip') // the entry IS there, but nothing said the task finished
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      expect(warn).toHaveBeenCalled()
+      warn.mockRestore()
+    })
+
+    it('leaves favourites alone when the landing check itself cannot be read', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      getList.mockRejectedValue(new Error('offline'))
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const ops = makeOps()
+      await ops.paste()
+      expect(favs.list).toEqual([{ name: 'Trip', path: '/DATA/Documents/Trip' }])
+      warn.mockRestore()
+    })
+
+    // One listing of the destination answers for the whole batch. Probing each
+    // favourite (descendants included) would fire a request per sidebar row.
+    it('reads the destination directory only, never one probe per favourite', async () => {
+      const { useClipboardStore } = await import('../stores/clipboard')
+      const clip = useClipboardStore()
+      clip.operate('move', [{ path: '/DATA/Documents/Trip', is_dir: true }])
+      const files = useFilesStore(); files.currentPath = '/DATA/Media'
+      const favs = useFavoritesStore()
+      await favs.add({ name: 'Trip', path: '/DATA/Documents/Trip' })
+      await favs.add({ name: 'Sub', path: '/DATA/Documents/Trip/Sub' })
+      await favs.add({ name: 'Deep', path: '/DATA/Documents/Trip/Sub/Deep' })
+      const conflicts = useFileConflictsStore()
+      vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
+        overwriteItems: [],
+        renameItems: [{ from: '/DATA/Documents/Trip', is_dir: true }],
+        skippedCount: 0,
+        cancelledCount: 0,
+      })
+      completeOnSubmit('/DATA/Media')
+      destHolds('Trip')
+      const ops = makeOps()
+      await ops.paste()
+      expect(getList.mock.calls.every((c) => c[0] === '/DATA/Media')).toBe(true)
     })
 
     it('leaves favourites alone for a copy: the original is still where it was', async () => {
@@ -479,7 +642,11 @@ describe('useFileOps', () => {
       await favs.add({ name: 'a', path: '/DATA/a' })
       await favs.add({ name: 'b', path: '/DATA/b' })
       // First call is the overwrite batch, second is the rename batch.
-      batchTask.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('Fail'))
+      const opsStore = useFileOpsStore()
+      batchTask
+        .mockImplementationOnce(async () => { opsStore.ingest(finishedEvent('/DATA/dst')) })
+        .mockRejectedValueOnce(new Error('Fail'))
+      destHolds('a')
       const conflicts = useFileConflictsStore()
       vi.spyOn(conflicts, 'resolvePaste').mockResolvedValue({
         overwriteItems: [{ from: '/DATA/a', is_dir: false }],
@@ -510,6 +677,8 @@ describe('useFileOps', () => {
         files.currentPath = '/DATA/dirB'
         return { overwriteItems: [], renameItems: [{ from: '/DATA/a', is_dir: false }], skippedCount: 0, cancelledCount: 0 }
       })
+      completeOnSubmit('/DATA/dirA')
+      destHolds('a')
       const ops = makeOps()
       await ops.paste()
       expect(favs.list).toEqual([{ name: 'a', path: '/DATA/dirA/a' }])
