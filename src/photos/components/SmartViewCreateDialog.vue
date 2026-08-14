@@ -752,6 +752,14 @@ function thumbUrl(seed: string): string {
   flex-shrink: 0;
   transition: background 0.15s;
 }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
+   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
+   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
+   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+   Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
+   background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
+   is a matched pair with this rule, not an independent choice -- see its own comment. */
 .sv-switch::after {
   content: '';
   position: absolute;
@@ -760,11 +768,21 @@ function thumbUrl(seed: string): string {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--text-1);
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
   /* 投影是纯粗黑阴影,用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的投影),不写
      字面颜色函数,同 SmartViewSidePanel.vue 已立的先例。 */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
+}
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
+   no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
+   a subtle parity-token border plus a lighter drop shadow (dark mode's 30%-black shadow reads as
+   depth on a dark track; at that strength on a light one it looks like a smudge, hence the lower
+   alpha) -- values chosen to read as a native light-theme toggle. Applies to both on/off states
+   (neither modifies border/box-shadow), matching the owner's state-invariant requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
 /* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
@@ -773,15 +791,11 @@ function thumbUrl(seed: string): string {
    same colour in both states. The `--on-accent` override this rule used to carry (the file
    header's own "legal use 3a", justified at the time as "legal atop a solid --accent fill", same
    reasoning as `.sv-btn-primary`) was wrong for this element specifically: it made the knob track
-   the on/off *state* (near-white knob off, `--on-accent`'s dark-navy value on, in this repo's
-   dark theme) instead of staying constant like Vue2's -- the owner's screenshot ("Keep it live"
-   toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses the
-   base rule's `background: var(--text-1)` above, in both states, matching Vue2's own
-   single-value knob exactly and already correctly legible in both of `.photos-root`'s own themes
-   (dark: near-white on both the dark `--surface-3` off-track and the purple `--accent` on-track,
-   same as Vue2; light: near-black on both the light `--surface-3` off-track and the same
-   invariant purple on-track). File header comment 3a above is superseded by this note; "legal use
-   b" (`.sv-btn-primary`) is unaffected and still correct. */
+   the on/off *state* instead of staying constant like Vue2's -- the owner's screenshot ("Keep it
+   live" toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses
+   the base rule's background above (Fix-6: literal white, see that rule's own comment), in both
+   states, matching Vue2's own single-value knob. File header comment 3a above is superseded by
+   this note; "legal use b" (`.sv-btn-primary`) is unaffected and still correct. */
 .sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-preview-head {

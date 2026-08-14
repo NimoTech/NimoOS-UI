@@ -256,13 +256,38 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
    `transition: background 0.15s` 与 `::after` 的投影,两者未被高优先级规则覆盖,照样
    合并生效。补齐这两条,轨道变色才是渐变过渡、拇指才有投影(不是瞬变 + 平的)。 */
 .sv-switch { position: relative; width: 32px; height: 18px; background: var(--surface-3); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH
+   on/off states -- overrides whatever Vue2's own (non-existent) light theme would have done,
+   explicit owner requirement, not a legibility inference. Fix-5's `var(--text-1)` got dark-mode
+   legibility right (≈white there) but was still a *theme-flipping* token, so it went near-black
+   under `.photos-root.is-light` -- correctly legible, but not white, which is what the owner
+   actually wants here. `--text-1` is deliberately no longer used for the knob. Literal white,
+   same theme-exception convention this repo already uses for other theme-invariant surfaces
+   (PhotosToastHost.vue's `.photos-toast` background, this file's own sibling
+   PhotosSmartViewDetail.vue's `.sv-toast`). The light-mode border + shadow immediately below
+   (also an owner decision, same date) is what keeps a flat white knob visible against a
+   light-mode white-ish track -- the two rules are a matched pair, not independent choices. */
 .sv-switch::after {
   content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--text-1); transition: all 0.2s;
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
+  transition: all 0.2s;
   /* 投影是纯粗黑阴影(不是语义色),用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的
      投影),不写字面颜色函数,同 PhotosSmartViewDetail.vue 里 `.tile.recent::after`
      已立的既有先例("black 关键字 + color-mix"表达半透明黑)。 */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
+}
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle
+   has no edge against photos light mode's own near-white `--surface-3` off-track (and reads
+   flat against the solid `--accent` on-track too), so light mode gets a subtle parity-token
+   border plus a lighter drop shadow (dark mode's 30%-black shadow reads as depth on a dark
+   track; carried at that same strength here it would look like a dirty smudge on a light one,
+   hence the lower alpha) -- values chosen to read as a native light-theme toggle, not a
+   dark-theme knob pasted onto a light page. Applies to both on/off states (neither modifies
+   border/box-shadow), which is what keeps the knob's presentation state-invariant per the
+   owner's requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
 /* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
@@ -270,14 +295,10 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
    moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
    same colour in both states. The `--on-accent` override this rule used to carry (justified at
    the time as "legal atop a solid --accent fill", same reasoning as `.sv-btn-primary`) was wrong
-   for this element specifically: it made the knob track the on/off *state* (near-white knob off,
-   `--on-accent`'s dark-navy value on, in this repo's dark theme) instead of staying constant like
-   Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob. Deleted; the knob
-   now always uses the base rule's `background: var(--text-1)` above, in both states, matching
-   Vue2's own single-value knob exactly and already correctly legible in both of `.photos-root`'s
-   own themes (dark: near-white on both the dark `--surface-3` off-track and the purple
-   `--accent` on-track, same as Vue2; light: near-black on both the light `--surface-3` off-track
-   and the same invariant purple on-track). */
+   for this element specifically: it made the knob track the on/off *state* instead of staying
+   constant like Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob.
+   Deleted; the knob now always uses the base rule's background above (Fix-6: literal white, see
+   that rule's own comment), in both states, matching Vue2's own single-value knob. */
 .sv-switch[data-on="true"]::after { left: 16px; }
 .sv-switch[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 

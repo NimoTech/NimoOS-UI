@@ -477,6 +477,14 @@ async function confirm(): Promise<void> {
   flex-shrink: 0;
   transition: background 0.15s;
 }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
+   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
+   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
+   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+   Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
+   background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
+   is a matched pair with this rule -- see its own comment. */
 .sv-switch::after {
   content: '';
   position: absolute;
@@ -485,9 +493,19 @@ async function confirm(): Promise<void> {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--text-1);
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
+}
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
+   no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
+   a subtle parity-token border plus a lighter drop shadow, same values as
+   SmartViewCreateDialog.vue/SmartViewSidePanel.vue's own copies of this rule. Applies to both
+   on/off states (neither modifies border/box-shadow), matching the owner's state-invariant
+   requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
 /* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
@@ -497,9 +515,8 @@ async function confirm(): Promise<void> {
    above pinned this file's `.sv-switch` to SmartViewCreateDialog.vue's values, which carried the
    same bug) was wrong: it made the knob track the on/off *state* instead of staying constant
    like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy in
-   the same commit -- the knob now always uses the base rule's `background: var(--text-1)`
-   above, in both states, matching Vue2's own single-value knob exactly and already correctly
-   legible in both of `.photos-root`'s own themes. */
+   the same commit -- the knob now always uses the base rule's background above (Fix-6: literal
+   white), in both states, matching Vue2's own single-value knob exactly. */
 .sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-btn-ghost {

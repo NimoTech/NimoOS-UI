@@ -327,11 +327,35 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 1 · M1)', () => {
 describe('Fix-5: 开关滑块两态同色(不随 data-on 变色)', () => {
   it('.sv-switch[data-on="true"]::after 不覆盖 background,knob 颜色恒由基类规则供给', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
-    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
-    expect(baseKnob?.body).toContain('background: var(--text-1)')
     const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
     expect(onKnob).toBeDefined()
     expect(onKnob?.body).toContain('left: 16px')
     expect(onKnob?.body).not.toMatch(/background\s*:/)
+  })
+})
+
+// Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just both
+// on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is itself
+// a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual requirement
+// ("white in both themes and both states") was still unmet. `--text-1` is no longer used for the
+// knob at all; light mode gets a paired border+shadow rule to keep a flat white knob visible
+// against its own near-white off-track.
+describe('Fix-6: 开关滑块跨主题恒为白色(不再用会变色的 --text-1)', () => {
+  it('.sv-switch::after 的 knob 背景是字面白,不是 var(--text-1)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob).toBeDefined()
+    expect(baseKnob?.body).toMatch(/background\s*:\s*#fff\b/)
+    expect(baseKnob?.body).not.toContain('var(--text-1)')
+  })
+
+  it('.photos-root.is-light .sv-switch::after 给白色 knob 配浅色主题的描边 + 投影,两态通用', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
+    const lightKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root.is-light .sv-switch::after')
+    expect(lightKnob, '浅色主题下 knob 专属的描边/投影覆盖规则不存在').toBeDefined()
+    expect(lightKnob?.body).toMatch(/border\s*:\s*1px solid var\(--line-strong\)/)
+    expect(lightKnob?.body).toMatch(/box-shadow\s*:/)
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob?.body).not.toMatch(/border\s*:|box-shadow\s*:/)
   })
 })
