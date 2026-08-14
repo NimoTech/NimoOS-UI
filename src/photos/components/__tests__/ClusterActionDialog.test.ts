@@ -15,11 +15,6 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import ClusterActionDialog from '../ClusterActionDialog.vue'
-// 原始源码文本(Vite `?raw`),仅用于文末「hover 态背景不被基类规则夺走」一组测试——
-// jsdom 既不做级联样式计算也无法进入真实 hover 态,只能解析 <style> 原文自行按
-// CSS 优先级判胜负(同 PersonAssetGrid.test.ts:210-243 的既有先例)。
-import clusterActionDialogRaw from '../ClusterActionDialog.vue?raw'
-import { extractStyleBlock, ownBackground, winningHoverBackground } from './cssCascade'
 import type { Person } from '../../util/peopleView'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -331,45 +326,21 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
   })
 })
 
-// ── hover 态背景不被基类规则夺走(真机验收发现:删除确认按钮 hover 后整颗变白)──
-//
-// 缺陷机理:两个变体键(`.cad-btn-danger` / `.cad-btn-primary`)与基类 `.cad-btn`
-// 同时挂在一个 <button> 上。基类的 `.cad-btn:hover` 带一个伪类,优先级 (0,2,0);
-// 变体规则只有一个类,优先级 (0,1,0)。CSS 优先级高者胜、与书写顺序无关,所以指针
-// 一进按钮,变体的实底/渐变背景就被基类的 `var(--chip-bg-hi)`(浅色主题 #f2efe7 米白、
-// 深色主题近白半透明渐变)整块替换,而文字色 `#fff` / `var(--on-accent)` 仍由变体规则
-// 提供 —— 白底白字,按钮和文案一起消失。
-//
-// 这组测试不断言"修复长什么样",而是按 CSS 优先级算出 hover 态下真正生效的那条
-// background 声明(辅助函数见 ./cssCascade.ts),再断言它属于变体规则 —— 任何把变体
-// 背景重新盖回去的写法都能通过,但把 hover 背景还给基类就会红。详情页
-// PhotosPersonDetail.vue:1142/1151 早已是正确写法(变体自带 :hover 背景)。
-
-describe('ClusterActionDialog.vue — hover 态下变体按钮的背景不被 .cad-btn:hover 夺走', () => {
-  const styleText = extractStyleBlock(clusterActionDialogRaw)
-
-  it('删除键 hover 时生效的 background 仍是危险红渐变,不是 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger'])
-    expect(win.value).toContain('--remove-')
-    expect(win.value).not.toContain('--chip-bg-hi')
-  })
-
-  it('主行动键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-primary'])
-    expect(win.value).toContain('--accent')
-    expect(win.value).not.toContain('--chip-bg-hi')
-  })
-
-  // 删除键的 hover 背景是把基础声明的渐变逐字重复了一遍(不引入本地别名变量,见组件里的
-  // 注释)。这条断言钉住两处不许漂移:改了基础渐变却忘了改 hover,会红。
-  it('删除键 hover 背景与其基础背景逐字相同(防两处漂移)', () => {
-    const base = ownBackground(styleText, '.cad-btn-danger')
-    const hover = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger']).value
-    expect(hover).toBe(base)
-  })
-
-  it('取消键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn'])
-    expect(win.value).toContain('--chip-bg-hi')
+// ── Plan D Task 4(scoped 清零):此文件曾有一组"hover 态背景不被基类规则夺走"的测试,
+// 靠 `?raw` 读入组件自身的 <style scoped> 原文、用 ./cssCascade 的小型 CSS 优先级演算器
+// 断言 hover 态下真正生效的 background 声明。该组件的整段 <style scoped> 已在本任务删除
+// (类名不变,但样式接管权已交给 src/photos/styles/vue2-parity/photos-people.scss 里的
+// .cad-* parity 规则,见组件头部脚本注释),`?raw` 读进来的源码里已经没有 <style> 区块可
+// 提取,那组测试的前提不复存在,一并删除。它防的那个 bug(scoped CSS 的 specificity 加成
+// 让基类 hover 压过变体)本就是"存在本地 scoped 规则"这个前提触发的——scoped 整体清零后
+// 不会复现(parity 是纯全局样式表,其内部声明顺序本就正确,见 photos-people.scss 该处
+// 注释)。真正的像素接管由 T1 guard(parity 自身的 scss/token 测试)+ 浏览器真机验收兜底,
+// 这里只钉住一件事:组件根类名不受影响。
+describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
+  it('挂载后 [data-test="cad-overlay"] 仍然带着 cad-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="cad-overlay"]').classes()).toContain('cad-overlay')
+    expect(w.find('[data-test="cad-panel"]').classes()).toContain('cad-panel')
   })
 })

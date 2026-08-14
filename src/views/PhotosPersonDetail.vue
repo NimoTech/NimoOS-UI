@@ -634,7 +634,7 @@ watch(() => route.params.id, (raw) => {
           <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
                !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
           <button
-            type="button" class="pd-btn" data-test="person-retry"
+            type="button" class="person-dialog-btn" data-test="person-retry"
             @click="retryLoad"
           >{{ t('photosPersonRetry') }}</button>
         </div>
@@ -642,7 +642,7 @@ watch(() => route.params.id, (raw) => {
         <!-- 门控 ③:加载完了确实没有这个人 -->
         <div v-else-if="!detail.person.value" class="empty-state" data-test="person-not-found">
           <div class="empty-state-title">{{ t('photosPersonNotFound') }}</div>
-          <button type="button" class="pd-btn" data-test="person-not-found-back" @click="goToPeopleList">
+          <button type="button" class="person-dialog-btn" data-test="person-not-found-back" @click="goToPeopleList">
             {{ t('photosPersonBack') }}
           </button>
         </div>
@@ -744,7 +744,7 @@ watch(() => route.params.id, (raw) => {
 
     <!-- Plan D Task 3(弹层归位):选择态浮动条(Vue2 :232-244)与下面的七个弹窗、
          AlbumPickerDialog 一并搬进 .photos-root 内(.app 的兄弟位)—— parity 的
-         `.photos-root .selection-bar` / `.photos-root .pd-scrim` 等选择器都是后代选择器,
+         `.photos-root .selection-bar` / `.photos-root .person-dialog-scrim` 等选择器都是后代选择器,
          挂在模板根的兄弟节点上够不到(同 PhotosPeople.vue Task 2 注释的同一条道理)。
          position:fixed 意味着挪进这里不会被 .app 的 overflow:hidden 裁剪。 -->
     <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
@@ -772,28 +772,28 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 1:改名(Vue2 :268-285 的 rename 模式)── -->
-  <div v-if="renameOpen" class="pd-scrim" data-test="person-rename-dialog" @click.self="closeRename">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="renameOpen" class="person-dialog-scrim" data-test="person-rename-dialog" @click.self="closeRename">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonRename') }}</div>
-          <div class="pd-sub">{{ t('photosPersonRenameHint') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonRename') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonRenameHint') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeRename">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeRename">×</button>
       </div>
-      <label class="pd-label">{{ t('photosPersonNameLabel') }}</label>
+      <label class="person-dialog-label">{{ t('photosPersonNameLabel') }}</label>
       <input
-        ref="renameInputRef" v-model="renameInput" class="pd-input" data-test="person-rename-input"
+        ref="renameInputRef" v-model="renameInput" class="person-dialog-input" data-test="person-rename-input"
         :placeholder="t('photosPersonNamePlaceholder')" @keydown.enter="confirmRename"
       >
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeRename">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeRename">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-rename-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-rename-confirm"
           :disabled="!renameInput.trim()" @click="confirmRename"
         >{{ t('photosPersonSaveName') }}</button>
       </div>
@@ -801,28 +801,28 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 2:建相册(Vue2 :268-285 的 album 模式)── -->
-  <div v-if="albumOpen" class="pd-scrim" data-test="person-album-dialog" @click.self="closeAlbum">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="albumOpen" class="person-dialog-scrim" data-test="person-album-dialog" @click.self="closeAlbum">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosAlbumCreateTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonAlbumHint', { n: albumIds.length }) }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosAlbumCreateTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonAlbumHint', { n: albumIds.length }) }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeAlbum">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeAlbum">×</button>
       </div>
-      <label class="pd-label">{{ t('photosAlbumNameLabel') }}</label>
+      <label class="person-dialog-label">{{ t('photosAlbumNameLabel') }}</label>
       <input
-        ref="albumInputRef" v-model="albumInput" class="pd-input" data-test="person-album-input"
+        ref="albumInputRef" v-model="albumInput" class="person-dialog-input" data-test="person-album-input"
         :placeholder="t('photosAlbumNamePlaceholder')" @keydown.enter="confirmCreateAlbum"
       >
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeAlbum">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeAlbum">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-album-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-album-confirm"
           :disabled="!albumInput.trim()" @click="confirmCreateAlbum"
         >{{ t('photosAlbumCreate') }}</button>
       </div>
@@ -830,51 +830,51 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 7(Vue2 promptDialog 的 info 模式 :845-851;brief 六个清单外的补齐)── -->
-  <div v-if="noPhotosOpen" class="pd-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="noPhotosOpen" class="person-dialog-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonNoPhotosTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonNoPhotosAlbumHint') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonNoPhotosTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonNoPhotosAlbumHint') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="noPhotosOpen = false">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="noPhotosOpen = false">×</button>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="noPhotosOpen = false">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="noPhotosOpen = false">{{ t('photosCancel') }}</button>
       </div>
     </div>
   </div>
 
   <!-- ── 弹窗 3:移出确认(Vue2 :268-285 的 detach 模式)── -->
-  <div v-if="detachOpen" class="pd-scrim" data-test="person-detach-dialog" @click.self="closeDetach">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="detachOpen" class="person-dialog-scrim" data-test="person-detach-dialog" @click.self="closeDetach">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">
             {{ detachIds.length === 1
               ? t('photosPersonDetachTitleOne', { name: displayName })
               : t('photosPersonDetachTitleMany', { name: displayName, n: detachIds.length }) }}
           </div>
-          <div class="pd-sub">
+          <div class="person-dialog-sub">
             {{ detachIds.length === 1
               ? t('photosPersonDetachHintOne', { name: displayName })
               : t('photosPersonDetachHintMany', { name: displayName, n: detachIds.length }) }}
           </div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeDetach">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDetach">×</button>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeDetach">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeDetach">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-danger" data-test="person-detach-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-danger" data-test="person-detach-confirm"
           @click="confirmDetach"
         >{{ t('photosPersonDetachConfirm') }}</button>
       </div>
@@ -882,31 +882,31 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 4:删除人物确认(Vue2 :290-323)── -->
-  <div v-if="deleteOpen" class="pd-scrim" data-test="person-delete-dialog" @click.self="closeDelete">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="deleteOpen" class="person-dialog-scrim" data-test="person-delete-dialog" @click.self="closeDelete">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
+        <div class="person-dialog-titles">
           <!-- 评审 Minor 4:原来错用了 photosPersonDeleteTitle(= "删除这个人物分组?",
                T7 警示条专用的另一句,ClusterActionDialog.vue:66 注释已声明不可共用)。
                Vue2 :304 是 "Delete person?",另开专属键。 -->
-          <div class="pd-title">{{ t('photosPersonDeletePersonTitle') }}</div>
+          <div class="person-dialog-title">{{ t('photosPersonDeletePersonTitle') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeDelete">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDelete">×</button>
       </div>
       <!-- 评审 Minor 6:Vue2 :310-312 是两档灰 —— 正文(--text-2)+ 更淡的
            "You can undo within 5 seconds."(--text-3)。原实现合成了单色一条。 -->
-      <div class="pd-body">
+      <div class="person-dialog-body">
         {{ t('photosPersonDeleteKeptBody') }}
-        <span class="pd-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
+        <span class="person-dialog-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeDelete">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeDelete">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-danger" data-test="person-delete-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-danger" data-test="person-delete-confirm"
           @click="confirmDeletePerson"
         >
           <!-- 评审必修 2:Vue2 :319 钮内有 trash 图标(size 11),原实现漏了 -->
@@ -918,18 +918,18 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 5:背景选择(宽弹窗,Vue2 :325-371)── -->
-  <div v-if="heroOpen" class="pd-scrim" data-test="person-hero-dialog" @click.self="closeHeroPicker">
-    <div class="pd-panel pd-panel-wide">
-      <div class="pd-head">
+  <div v-if="heroOpen" class="person-dialog-scrim" data-test="person-hero-dialog" @click.self="closeHeroPicker">
+    <div class="person-dialog person-dialog-wide">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonHeroTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonHeroSub') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonHeroTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonHeroSub') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeHeroPicker">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeHeroPicker">×</button>
       </div>
 
       <div class="hero-picker-grid">
@@ -942,7 +942,7 @@ watch(() => route.params.id, (raw) => {
           <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="">
           <!-- 评审必修 2:Vue2 :352 角标是 play 图标 + 时长;同期 T11
                PersonAssetGrid.vue:118 的同一视觉元素已经渲染了 ▶,这里按同一手法补齐。 -->
-          <span v-if="p.isVideo" class="hero-picker-vid">
+          <span v-if="p.isVideo" class="tile-vid">
             <span class="vid-play">▶</span> {{ p.duration }}
           </span>
           <span v-if="String(heroSelectedId) === String(p.id)" class="hero-picker-check">
@@ -952,13 +952,13 @@ watch(() => route.params.id, (raw) => {
         <div v-if="!allPhotos.length" class="hero-picker-empty">{{ t('photosPersonNoPhotos') }}</div>
       </div>
 
-      <div class="pd-actions">
-        <button type="button" class="pd-btn pd-btn-ghost" data-test="person-hero-use-key" @click="onUseKeyPhoto">
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn person-dialog-btn-ghost" data-test="person-hero-use-key" @click="onUseKeyPhoto">
           {{ t('photosPersonUseKeyPhoto') }}
         </button>
-        <button type="button" class="pd-btn" @click="closeHeroPicker">{{ t('photosCancel') }}</button>
+        <button type="button" class="person-dialog-btn" @click="closeHeroPicker">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-hero-save"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-hero-save"
           :disabled="heroSelectedId === null" @click="onSaveHero"
         >{{ t('photosPersonSaveHero') }}</button>
       </div>
@@ -966,51 +966,51 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 6:合并到他人(Vue2 :374-432)── -->
-  <div v-if="mergeOpen" class="pd-scrim" data-test="person-merge-dialog" @click.self="closeMerge">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="mergeOpen" class="person-dialog-scrim" data-test="person-merge-dialog" @click.self="closeMerge">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonMergeInto') }}</div>
-          <div class="pd-sub">{{ t('photosPersonMergeIntoSub') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonMergeInto') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonMergeIntoSub') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeMerge">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeMerge">×</button>
       </div>
 
       <input
-        v-model="mergeQuery" class="pd-input" data-test="person-merge-search"
+        v-model="mergeQuery" class="person-dialog-input" data-test="person-merge-search"
         :placeholder="t('photosPersonMergeSearch')"
       >
 
-      <div class="merge-list">
+      <div class="merge-candidates-list">
         <button
           v-for="p in mergeCandidates" :key="p.id"
-          type="button" class="merge-row" data-test="person-merge-candidate"
+          type="button" class="merge-candidate-row" data-test="person-merge-candidate"
           :data-person-id="String(p.id)"
           :data-selected="mergeTarget !== null && String(mergeTarget.id) === String(p.id)"
           @click="mergeTarget = p"
         >
           <PersonAvatar :person-id="p.id" :name="p.name" :ver="p.coverFaceId" :size="36" />
-          <span class="merge-info">
-            <span class="merge-name">{{ p.name }}</span>
-            <span class="merge-meta">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
+          <span class="merge-candidate-info">
+            <span class="merge-candidate-name">{{ p.name }}</span>
+            <span class="merge-candidate-meta">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
           </span>
           <svg
             v-if="mergeTarget !== null && String(mergeTarget.id) === String(p.id)"
-            class="merge-check" viewBox="0 0 24 24" width="13" height="13" fill="none"
+            class="merge-candidate-check" viewBox="0 0 24 24" width="13" height="13" fill="none"
             stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
           ><path d="M5 13l4 4L19 7" /></svg>
         </button>
-        <div v-if="!mergeCandidates.length" class="merge-empty">{{ t('photosPersonNoMatch') }}</div>
+        <div v-if="!mergeCandidates.length" class="merge-candidates-empty">{{ t('photosPersonNoMatch') }}</div>
       </div>
 
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeMerge">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeMerge">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-merge-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-merge-confirm"
           :disabled="mergeTarget === null" @click="confirmMerge"
         >
           <!-- 评审必修 2:Vue2 :427 选中目标后钮内有 sparkles 图标(size 13),未选中时不渲染
@@ -1139,128 +1139,27 @@ watch(() => route.params.id, (raw) => {
 }
 .selection-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 20%, transparent); }
 
-/* ── 弹窗外壳(照 Vue2 :1278-1395;七个弹窗共用这套 CSS 类,但各自自绘模板 ——
-      P4 已登记「模态外壳不抽公共组件」为既定惯例)── */
-.pd-scrim {
-  position: fixed; inset: 0; z-index: 220;
-  background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
-}
-/* P2 血泪:面板底色须用 --popup-bg,不用 --card-bg(深色主题下近透明会看穿)。 */
-.pd-panel {
-  width: 460px; max-width: 100%; max-height: 100%; overflow-y: auto;
-  background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 16px; padding: 22px; box-shadow: var(--card-shadow-hi);
-  display: flex; flex-direction: column; gap: 14px;
-}
-.pd-panel-wide { width: 560px; }
-.pd-head { display: flex; align-items: center; gap: 12px; }
-.pd-titles { flex: 1; min-width: 0; }
-.pd-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.pd-sub { font-size: 11.5px; color: var(--fg-subtle); margin-top: 2px; line-height: 1.5; }
-.pd-close {
-  width: 26px; height: 26px; flex: none; border: 0; border-radius: 50%;
-  background: transparent; color: var(--fg-muted); font-size: 16px; line-height: 1;
-  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-}
-.pd-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.pd-label { font-size: 11.5px; color: var(--fg-muted); margin-bottom: -6px; }
-.pd-body { font-size: 12.5px; color: var(--fg-muted); line-height: 1.6; }
-/* 评审 Minor 6:Vue2 :312 的第二档灰(--text-3)。本仓 --fg-subtle 两套主题都有定义
-   (已 grep theme.css 确认),与 .pd-sub 用的是同一档,语义一致:比正文更淡的补充说明。 */
-.pd-body-dim { color: var(--fg-subtle); }
-.pd-input {
-  width: 100%; height: 38px; padding: 0 12px; box-sizing: border-box;
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  border-radius: 10px; color: var(--fg); font: inherit; font-size: 13px; outline: none;
-}
-.pd-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.pd-actions {
-  display: flex; gap: 10px; padding-top: 12px; margin-top: 2px;
-  border-top: 1px solid var(--divider);
-}
-.pd-btn {
-  flex: 1; height: 38px; border-radius: 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+/* ── 弹窗外壳(Plan D Task 4:七个弹窗的 pd-* 类名工程 + scoped 清零)──────────────
+   模板类名已全部改锚到 Vue2 的 person-dialog-* / hero-picker-* / merge-candidate(s)-*
+   家族,parity(photos-people.scss)已经落位这整套规则(含本任务新补的
+   .person-dialog-body(-dim)/.person-dialog-btn-danger/.hero-picker-empty/
+   .merge-candidate-check/.merge-candidates-empty),下面这套 New-UI 本地 scoped
+   规则因此全部作废、删除。只留两条真正无法被 parity 覆盖的幸存者(见各自注释)。 */
+
+/* Survivor 1: parity 的 .person-dialog-btn 与 Vue2 自身逐字一致 —— Vue2 源
+   (NimoOS-UI/.../PhotosPersonDetail.vue:1476-1488)本就没有 flex 布局,因为 Vue2 的图标
+   走 <photos-icon> 组件、自带对齐。New-UI 的删除确认 / 合并确认按钮内嵌的是裸 <svg> +
+   文本,没有这层布局就会图标与文字错位对不齐(基线不一致)。这是 New-UI 自己的排版增强,
+   不是 parity 遗漏,所以留在本地、不塞进 parity(parity 必须逐字忠于 Vue2)。 */
+.person-dialog-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
-.pd-btn:hover { background: var(--chip-bg-hi); }
-.pd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.pd-btn-primary {
-  flex: 1.4; background: var(--accent); border-color: transparent;
-  /* --on-accent 的唯一合法场景:底色是 var(--accent) 饱和实底。 */
-  color: var(--on-accent); font-weight: 600;
-}
-.pd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-.pd-btn-primary:disabled { filter: none; }
-.pd-btn-ghost { background: transparent; color: var(--fg-muted); }
-.pd-btn-ghost:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.pd-btn-danger {
-  color: var(--remove-fg);
-  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
-  background: color-mix(in srgb, var(--remove-fg) 8%, transparent);
-}
-.pd-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 16%, transparent); }
 
-/* ── 背景选择网格(照 Vue2 :1453-1497)── */
-.hero-picker-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px;
-  max-height: 340px; overflow-y: auto; border-radius: 10px; padding: 2px;
-}
-.hero-picker-tile {
-  position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
-  cursor: pointer; padding: 0; background: var(--chip-bg);
-  border: 2px solid transparent;
-  /* 照 Vue2 :1474 —— 选中态切换有过渡,不是硬切(顺带覆盖下面新补的外发光) */
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.hero-picker-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 终审 Minor 4:补回 Vue2 :1482-1485 的外发光。本仓没有 --accent-glow 这个 token(已 grep
-   theme.css 两套主题块确认),Vue2 那边它的值是 accent 的 35% 透明版(photos.scss:18),
-   这里用 color-mix 由 --accent 现算,与 PhotosPeople.vue 处理同一 token 的既有做法一致。
-   少了这一圈,2px 描边在 100px 小瓦片密排里几乎看不出哪张被选中。 */
-.hero-picker-tile[data-selected="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-.hero-picker-vid {
-  position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: 999px;
-  font-size: 9px; background: var(--overlay-bg);
-  display: inline-flex; align-items: center; gap: 3px;
-  /* theme-exception: 叠在照片缩略图上的时长角标,需跨主题恒定浅色前景(同
-     PersonAssetGrid.vue .tile-vid 的既有先例,理由见 PersonHero.vue 文件头"配色红线")。 */
-  color: #fff;
-}
-/* 与 T11 PersonAssetGrid.vue 的 .vid-play 逐字同款(同一视觉元素,同一字号)。 */
+/* Survivor 2: 与 T11 PersonAssetGrid.vue 的 .vid-play 逐字同款(同一视觉元素,同一字号)——
+   Vue2 这里没有对应类(用 <photos-icon name="play"/>),.vid-play 是 New-UI 自己给 ▶
+   字符定字号的手段,PersonAssetGrid.vue 保留了它自己的一份本地 scoped 副本,这里同款
+   留一份,不挪进 parity(parity 只收跨组件共享的全局规则)。 */
 .vid-play { font-size: 7px; }
-.hero-picker-check {
-  position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: var(--on-accent);
-}
-.hero-picker-empty {
-  grid-column: 1 / -1; padding: 40px; text-align: center;
-  color: var(--fg-muted); font-size: 13px;
-}
-
-/* ── 合并候选列表(照 Vue2 :1511-1560)── */
-.merge-list {
-  max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
-}
-.merge-row {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.merge-row:hover { background: var(--chip-bg-hi); }
-.merge-row[data-selected="true"] { background: var(--accent-soft); border-color: var(--accent-soft); }
-.merge-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.merge-name { font-weight: 500; color: var(--fg); }
-.merge-meta { font-size: 11px; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
-/* Vue2 :414 把这个勾写死成旧主题的品牌紫字面量;这里跟随当前主题的强调色。 */
-.merge-check { flex: none; color: var(--accent-text); }
-.merge-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12.5px; }
 
 @media (max-width: 768px) {
   .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }

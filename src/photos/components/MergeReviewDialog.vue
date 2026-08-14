@@ -19,6 +19,17 @@
 // photosPersonMergeGroupA/B(两列固定标签,原 Vue2 $t('Cluster A'/'Cluster B'),旧仓
 // zh_CN.json:1993-1994 译"集群 A/B" 触犯本期术语红线,改"组 A/B")、
 // photosPersonMergeNimoLead(理由条品牌前缀 $t('Nimo:'))。
+//
+// Plan D Task 4(scoped 清零):本组件类名不改(Task 1 已按现名 .mrd-* 落 parity —— Vue2
+// 这整个弹窗同样靠 :style 绑定搭出来,没有类可以锚)。文件末尾原有的整段本地 scoped 样式
+// 块已删除:每条规则在 src/photos/styles/vue2-parity/photos-people.scss 里都能找到逐条比
+// 对过的对应规则(diff 过程中补的真缺口——原来的 `:deep(.person-avatar)` 头像方形约束,
+// 在 parity 里已改写成普通后代选择器 `.mrd-side .person-avatar`,因为 parity 不是 scoped
+// CSS,不需要 :deep;顺手修正的本地对 Vue2 的漂移——.mrd-overlay 内边距——也已经写进
+// parity 那条规则自己的注释里)。parity 是纯全局样式表,本组件不再带任何本地 scoped 规则
+// 之后,也就没有谁能在 specificity 上压过 parity 内部自身的声明顺序了——删掉的那条 hover
+// 修复注释(:hover 被基类 hover 抢背景)本就是"本地 scoped 规则自带 specificity 加成"导致
+// 的,scoped 整体清零之后这个前提不再成立,不会复现。
 import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -178,93 +189,3 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
     </div>
   </div>
 </template>
-
-<style scoped>
-.mrd-overlay {
-  position: fixed;
-  inset: 0;
-  /* 必须低于三态弹窗 ClusterActionDialog(220)——Vue2 源两者的比例是 100(本弹窗)
-     vs 200(三态弹窗),这里在本仓既有 z-index 序列里按"低于三态弹窗"这条硬约束取值,
-     不是照搬 Vue2 的绝对数字(本仓其它浮层已经占用了 50/150/220/230 这些值)。 */
-  z-index: 200;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
-}
-
-/* P2 血泪(同 ClusterActionDialog.vue:257-258 的先例):面板底色须用 --popup-bg,
-   不用 --card-bg(深色主题下 --card-bg 近透明,叠在暗底上会看穿)。 */
-.mrd-panel {
-  width: 560px;
-  max-width: 100%;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: var(--card-shadow-hi);
-}
-
-.mrd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
-.mrd-logo {
-  width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
-  object-fit: cover;
-  /* 图片加载前(或加载失败,<img> 没有兜底)的占位底色,不是给内容用的排版容器——
-     不需要 display:flex/align-items/justify-content/color(那套是给内部子节点排版的,
-     <img> 没有子节点)。 */
-  background: var(--accent-soft);
-}
-.mrd-head-text { flex: 1 1 auto; min-width: 0; }
-.mrd-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.mrd-confidence { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; }
-.mrd-close {
-  flex: 0 0 auto;
-  width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.mrd-close:hover { background: var(--hover); color: var(--fg); }
-
-.mrd-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-.mrd-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-/* PersonAvatar 的 size prop 只接受固定像素,不是百分比——Vue2 这里的头像是
-   width:100%/aspect-ratio:1 的真流式方块(:387,405)。用 !important 覆盖组件内联 style
-   把根节点收窄到"跟随列宽、保持 1:1"(CSS max-width/aspect-ratio 的计算优先级本就在
-   width 之后应用,这是标准行为,不是 hack),size=200 只留作 PersonAvatar 内部比例计算
-   的基准值(本处未展示收藏星标,不受影响)。窄屏兜底:没有这条,200px 方块在窄面板上
-   会溢出(560px 面板在手机宽度上会被 max-width:100% 压窄,方块却仍是钉死的 200px)。 */
-.mrd-side :deep(.person-avatar) {
-  max-width: 100%;
-  height: auto !important;
-  aspect-ratio: 1;
-}
-.mrd-side-label { font-size: 12px; color: var(--fg-muted); }
-
-.mrd-reason {
-  padding: 12px; background: var(--accent-soft); border-radius: 10px;
-  font-size: 12px; color: var(--fg); line-height: 1.5; margin-bottom: 16px;
-}
-/* Vue2 :423 用 var(--accent-hi)——本仓 theme.css 未定义这个 token(已 grep 确认两套主题块
-   均无),借用在两套主题都有真实定义的 --accent-text(同色调、已确立的"强调文字"角色,
-   同 PhotosPeople.vue .em / .check 的既有惯例),不新增/臆造 token。 */
-.mrd-reason-lead { color: var(--accent-text); }
-
-.mrd-actions { display: flex; gap: 8px; }
-.mrd-btn {
-  flex: 1; height: 38px; border-radius: 10px; background: var(--chip-bg);
-  border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px;
-  font-weight: 500; cursor: pointer;
-}
-.mrd-btn:hover { background: var(--chip-bg-hi); }
-.mrd-btn-primary {
-  background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-/* 与 ClusterActionDialog 同款修复:`.mrd-btn:hover`(:260,优先级 (0,2,0))压过只有一个类的
-   `.mrd-btn-primary`(0,1,0),hover 时 accent 实底被换成近白的 --chip-bg-hi、文字仍是
-   --on-accent → 「合并」键整颗看不见。这条 :hover 里原本只有 filter,必须把背景也盖回来
-   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。 */
-.mrd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-</style>

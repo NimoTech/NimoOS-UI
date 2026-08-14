@@ -262,6 +262,15 @@ describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', (
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
     expect(rootEl.contains(lbComp.element)).toBe(false)
   })
+
+  // Plan D Task 4(弹窗类名工程):七个弹窗的外层 scrim 类名已从 .pd-scrim 改锚到 Vue2 的
+  // .person-dialog-scrim,且仍挂在 .photos-root 内(Task 3 换壳/弹层归位的既定结构不变)。
+  it('弹窗打开后其 scrim 挂在 .photos-root 内,类名为 Vue2 锚点 person-dialog-scrim', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    expect(w.find('.photos-root .person-dialog-scrim').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').classes()).toContain('person-dialog-scrim')
+  })
 })
 
 describe('PhotosPersonDetail.vue —— 路由参数铁律', () => {
@@ -744,13 +753,15 @@ describe('PhotosPersonDetail.vue —— 删除人物', () => {
     expect(dlg.text()).not.toContain(zh.photosPersonDeleteTitle)
   })
 
-  // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)
+  // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)。
+  // Plan D Task 4:类名工程后选择器改为 person-dialog-body-dim(原 .pd-body-dim,类名
+  // 已锚到 Vue2 person-dialog-* 家族,.pd-body-dim 已不存在于模板/scoped 中)。
   it('删除弹窗正文分两档:正文句 + 更淡的「5 秒内可撤销」', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
     const dlg = w.find('[data-test="person-delete-dialog"]')
     expect(dlg.text()).toContain(zh.photosPersonDeleteKeptBody)
-    const dim = dlg.find('.pd-body-dim')
+    const dim = dlg.find('.person-dialog-body-dim')
     expect(dim.exists()).toBe(true)
     expect(dim.text()).toBe(zh.photosPersonDeleteUndoHint)
   })
@@ -1056,6 +1067,8 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
+  // Plan D Task 4:类名工程后视频角标选择器改为 .tile-vid(Vue2 anchor,同 PersonAssetGrid
+  // 复用的那个类;原 .hero-picker-vid 已不存在于模板/scoped 中)。
   it('背景网格视频角标有 ▶ + 时长(Vue2 :352;同 T11 PersonAssetGrid 的同一元素)', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([
       { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },
@@ -1063,7 +1076,7 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('open-hero-picker')
     await w.vm.$nextTick()
-    const badge = w.find('.hero-picker-vid')
+    const badge = w.find('.tile-vid')
     expect(badge.exists()).toBe(true)
     expect(badge.find('.vid-play').text()).toBe('▶')
     expect(badge.text()).toContain('0:05')

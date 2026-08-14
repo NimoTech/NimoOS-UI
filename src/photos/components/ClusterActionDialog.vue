@@ -30,6 +30,16 @@
 // photosPersonDeleteClusterTitle(en 逐字 'Delete face cluster';zh 不照抄 zh_CN.json
 // 的"删除面部集群"——"集群"触犯本期术语红线,改"删除这组人脸"),警示条恢复
 // "标题行 + <br/> + 灰色小字正文" 的两行结构,三句各自归位。
+//
+// Plan D Task 4(scoped 清零):本组件类名不改(Task 1 已按现名 .cad-* 落 parity —— Vue2
+// 这整个弹窗靠 :style 绑定搭出来,没有类可以锚)。文件末尾原有的整段本地 scoped 样式块
+// 已删除:每条规则在 src/photos/styles/vue2-parity/photos-people.scss 里都能找到逐条比对
+// 过的对应规则(diff 过程中补的两个真缺口——.cad-input:focus、.mrd-side 头像方形约束——
+// 与顺手修正的两处本地对 Vue2 的漂移——.cad-overlay 内边距、.cad-btn-primary:disabled 的
+// 视觉——都已经写进 parity 文件那几条规则自己的注释里)。parity 是纯全局样式表,本组件不
+// 再带任何本地 scoped 规则之后,也就没有谁能在 specificity 上压过 parity 内部自身的声明
+// 顺序了——删掉的那些 hover 修复注释(:hover 被基类 hover 抢背景)本就是"本地 scoped 规则
+// 自带 specificity 加成"导致的,scoped 整体清零之后这个前提不再成立,不会复现。
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -253,130 +263,3 @@ function submitDelete(): void {
     </div>
   </div>
 </template>
-
-<style scoped>
-.cad-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 220;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
-}
-
-/* P2 血泪(brief 明确点名):面板底色须用 --popup-bg,不用 --card-bg(深色主题下
-   --card-bg 近透明,叠在暗底上会看穿)。 */
-.cad-panel {
-  width: 440px;
-  max-width: 100%;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 22px;
-  box-shadow: var(--card-shadow-hi);
-}
-
-.cad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-/* Vue2 :246-247 的头像外圈装饰环:48px border-box 容器 + 2px 描边,内容区实际 44px——
-   PersonAvatar 按 size=44 传,这里只负责外圈几何,不改组件契约。 */
-.cad-avatar-ring {
-  width: 48px; height: 48px; box-sizing: border-box; flex: 0 0 auto;
-  border-radius: 50%; border: 2px solid var(--accent-soft); overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-}
-.cad-head-text { flex: 1 1 auto; min-width: 0; }
-.cad-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.cad-subtitle { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; }
-.cad-close {
-  flex: 0 0 auto;
-  width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.cad-close:hover { background: var(--hover); color: var(--fg); }
-
-.cad-input {
-  width: 100%; height: 36px; padding: 0 12px; margin-bottom: 12px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 13px; outline: none;
-}
-.cad-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-.cad-label { display: block; font-size: 11.5px; color: var(--fg-muted); margin-bottom: 6px; }
-
-.cad-hint { font-size: 11px; color: var(--fg-muted); line-height: 1.5; padding: 8px 0 16px; }
-
-.cad-actions { display: flex; gap: 10px; padding-top: 6px; border-top: 1px solid var(--divider); }
-.cad-btn {
-  flex: 1; height: 38px; border-radius: 10px; background: var(--chip-bg);
-  border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px;
-  font-weight: 500; cursor: pointer;
-}
-.cad-btn:hover { background: var(--chip-bg-hi); }
-.cad-btn-primary {
-  flex: 1.4; background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
-  /* 终审 Minor 1:补 check 图标后需要 Vue2 :291-292 的 inline-flex 居中 + 6px gap
-     (与同文件 .cad-btn-danger 同款几何)。 */
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-/* 真机验收修复:`.cad-btn:hover`(上一行,优先级 (0,2,0))会压过只有一个类的
-   `.cad-btn-primary`(0,1,0),hover 时把 accent 实底换成近白的 --chip-bg-hi,而文字
-   仍是 --on-accent → 白底白字整颗看不见。变体必须自带 :hover 背景把自己盖回来
-   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。
-   背景声明放在不带 :not(:disabled) 的规则里:disabled 态同样会被基类 hover 夺走背景,
-   两处都得护住;brightness 提亮仍只在可点时给(下一行保持原样)。 */
-.cad-btn-primary:hover { background: var(--accent); }
-.cad-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-.cad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 照 Vue2 :351-357 的实底红填充(不是描边)——渐变复用 PhotosTrash.vue:446
-   `.trash-btn-cta.danger` 的既有惯例(--remove-fg → --remove-bg),不是新配色。 */
-.cad-btn-danger {
-  flex: 1.4; border: 0; font-weight: 600;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
-  color: #fff; /* theme-exception: 危险渐变胶囊按钮文字,背景恒为危险红渐变
-    (--remove-fg/--remove-bg),两套主题下白字对比度都稳定——同 PhotosTrash.vue
-    .trash-btn-cta.danger 惯例,不用 --on-accent(它只在背景确为 var(--accent) 饱和
-    实底时才可读,这里背景不是 accent) */
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--remove-bg) 35%, transparent);
-}
-.cad-btn-danger svg { color: #fff; /* theme-exception: 同上,图标随按钮文字钉死白色 */ }
-/* 同上:hover 时必须把危险红渐变重新盖回来,否则被 `.cad-btn:hover` 的 --chip-bg-hi
-   顶掉、配上钉死的白字 → 按钮和文案一起消失(这就是真机验收报的那颗按钮)。
-   渐变与 .cad-btn-danger 的基础声明逐字相同,测试里有一条等值断言钉住两者不许漂移。 */
-.cad-btn-danger:hover {
-  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
-  filter: brightness(1.08);
-}
-
-.cad-candidates {
-  max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
-  margin-bottom: 14px;
-}
-.cad-candidate {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.cad-candidate:hover { background: var(--chip-bg-hi); }
-.cad-candidate-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.cad-candidate-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-candidate-count { font-size: 11px; color: var(--fg-muted); }
-/* 终审 Minor 2:行尾 chevR。Vue2 :322 给的是 --text-3,本仓该档对应 --fg-muted
-   (同上一行 .cad-candidate-count 的既有映射)。 */
-.cad-candidate-chev { flex: 0 0 auto; color: var(--fg-muted); }
-.cad-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12px; }
-
-/* 危险色调(Vue2 的删除警示条是半透明红,不是 --warn-* 那套琥珀色 —— 那套是"人脸识别
-   关闭"这类非破坏性提示用的语义,删除警示要用 --remove-fg 危险红族)。 */
-.cad-warning {
-  padding: 14px; background: color-mix(in srgb, var(--remove-fg) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--remove-fg) 25%, transparent); border-radius: 10px;
-  font-size: 12.5px; color: var(--fg); line-height: 1.55; margin-bottom: 16px;
-}
-/* Vue2 :342 的内层灰色小字正文(照 var(--text-3)/11.5px)。 */
-.cad-warning-body { color: var(--fg-muted); font-size: 11.5px; }
-</style>
