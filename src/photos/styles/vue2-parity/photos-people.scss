@@ -1535,6 +1535,56 @@
 }
 .cad-warning-body { color: var(--text-3); font-size: 11.5px; }
 
+/* Task 7 (Plan D, 重名 dupconfirm): PhotosPeopleView.vue:396-419 (mode='dupconfirm', a
+   sub-state of the shared cluster-action dialog) — transcribed from its raw inline :style
+   bindings (same situation as every .cad-* rule above: Vue2 builds this whole dialog from
+   :style, no Vue2 CSS class to anchor to). Column stack of three buttons, distinct from
+   cad-actions' horizontal two-button row (name/merge/delete modes each have exactly two) —
+   dupconfirm always has exactly these three, in this fixed order (merge / name-anyway /
+   cancel, matching Vue2's own literal order at that call site). */
+.cad-dupconfirm { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; outline: none; }
+.cad-dup-primary {
+  height: 38px;
+  border-radius: 10px;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.cad-dup-primary:hover { background: var(--accent-hi); }
+.cad-dup-secondary {
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cad-dup-secondary:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-dup-cancel {
+  height: 36px;
+  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.cad-dup-cancel:hover { color: var(--text-1); }
+
 .mrd-overlay {
   position: fixed;
   inset: 0;

@@ -91,6 +91,8 @@ const showUnnamed = ref(true)
 const confidenceOpen = ref(false)
 const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
+// T7(Plan D):「Hidden people」分区,默认折叠(照 Vue2 hiddenExpanded :559)。
+const hiddenExpanded = ref(false)
 // T7 三态弹窗状态(本次接了真实弹窗)/ T8 审阅弹窗状态(仍是占位节点)。
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
 const reviewOpen = ref(false)
@@ -225,6 +227,34 @@ function openDialog(mode: DialogMode): void {
   if (!p) return
   dialog.value = { mode, person: p }
 }
+
+// T7(Plan D):隐藏是即时执行,无确认弹窗——非破坏性、随时可从下面的「Hidden people」分区
+// unhide 撤销,一个确认步骤只会徒增摩擦(照 Vue2 hideClusterPerson :750-759 的注释)。
+// 菜单项本身已经用 v-if="people.hiddenPeopleSupported" 整体门控(见模板),这里不必重复判断。
+async function onHideCluster(): Promise<void> {
+  const p = clusterMenu.value?.person ?? null
+  clusterMenu.value = null
+  if (!p) return
+  const label = p.name && p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
+  const ok = await people.hidePerson(p.id)
+  if (ok) {
+    toast.show(t('photosPersonHiddenToast', { label }))
+    // New-UI 补齐:Vue2 hideClusterPerson 没有调用 fetchHiddenPeople(:750-759),隐藏后
+    // 「Hidden people」分区要等下次整页重挂载才会显示新隐藏的这一位,当次会话内是"隐了但
+    // 分区看不出来"的陈旧态。这里补一次刷新,让分区当场反映最新结果(纯加性改进,不影响
+    // 任何既有断言——Vue2 本就没有测试钉住"不刷新"这条行为)。
+    void people.fetchHiddenPeople()
+  }
+}
+// Vue2 unhideClusterPerson :770-772,直接转发给 store。
+function onUnhide(p: Person): void {
+  void people.unhidePerson(p.id)
+}
+// Vue2 toggleHiddenSection :765-767 —— 展开时不重新拉取(mounted 已经拉过一次,见下)。
+function toggleHidden(): void {
+  hiddenExpanded.value = !hiddenExpanded.value
+}
+
 function openReview(): void {
   reviewIdx.value = 0
   reviewOpen.value = true
@@ -404,6 +434,10 @@ onMounted(() => {
   // Vue2 :526-527 每次进页面都重拉,不做 loaded 去重,照搬。
   void people.fetchPeople()
   void people.fetchMergeSuggestions()
+  // T7:急切拉取(不是懒加载)——Vue2 mounted :622 的注释:这是一次很便宜的 GET,同时也
+  // 顺带完成 404 特性探测,老后端不会让分区闪一下又消失。分区本身仍默认折叠,只是计数
+  // 不再是懒加载的。
+  void people.fetchHiddenPeople()
   // P8a-T6:改读共享 photosSettings store(§7e-10)。侧栏(PhotosSidebar,本页也挂载它)
   // 同帧也会调用 fetchAiFeatures() —— 并发去重收在 settings.ts 里,这里不需要关心。
   void settings.fetchAiFeatures()
@@ -657,6 +691,46 @@ onUnmounted(() => {
               </div>
             </div>
           </template>
+
+          <!-- Hidden people(Vue2 :220-253):独立于上面 Pinned/Named/Unnamed 的空态门控 ——
+               只要有隐藏的人物就显示,不管 Named/Unnamed 此刻是否为空;特性探测:老后端没有
+               隐藏功能时 hiddenPeopleSupported 为 false,分区整体不出现,不对着确实有隐藏
+               人物的用户显示"(0)"或半成品的 loading 计数(照 Vue2 :220-223 的注释)。 -->
+          <template v-if="people.hiddenPeopleSupported && people.hiddenPeople.length > 0">
+            <div class="section-head" data-test="section-hidden" style="cursor:pointer" @click="toggleHidden">
+              <h2 style="display:flex;align-items:center;gap:8px">
+                <svg v-if="hiddenExpanded" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+                <svg v-else viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+                {{ t('photosPeopleHiddenSection') }}
+                <span style="color:var(--text-3);font-weight:400;font-size:13px">({{ people.hiddenPeople.length }})</span>
+              </h2>
+            </div>
+            <div v-if="hiddenExpanded" class="face-grid-md" data-test="hidden-grid">
+              <div
+                v-for="p in people.hiddenPeople" :key="p.id"
+                class="face-card"
+                data-test="hidden-card"
+                :data-id="p.id"
+                style="cursor:default"
+              >
+                <PersonAvatar :person-id="p.id" :name="p.name" :ver="p.coverFaceId" :size="84" />
+                <div class="name-row">
+                  <span class="name">{{ p.name || t('photosPersonUnnamedTitle') }}</span>
+                </div>
+                <!-- Vue2 quirk transcribed faithfully: this button's `class="more"` has no
+                     matching CSS rule in Vue2's own scss either (`.more` is only styled when
+                     scoped under `.section-head`, PhotosPeopleView.vue's `.section-head .more`
+                     — this button is a `.face-card` descendant, not a `.section-head`
+                     descendant, so it renders with plain browser-default button chrome in Vue2
+                     too). Not a bug introduced here; see photos-people.scss's own `.more`
+                     rules for the same scoping. -->
+                <button type="button" class="more" data-test="unhide-btn" style="margin-top:2px" @click="onUnhide(p)">
+                  <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
+                  {{ t('photosPeopleUnhide') }}
+                </button>
+              </div>
+            </div>
+          </template>
         </div>
        </div>
       </main>
@@ -690,6 +764,20 @@ onUnmounted(() => {
       <button type="button" class="cluster-menu-item" data-test="menu-merge" @click="openDialog('merge')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
         <span>{{ t('photosPersonMergeExisting') }}</span>
+      </button>
+      <!-- T7(Plan D):「Hide person」——Vue2 :274-280,只在 hiddenPeopleSupported 时出现,
+           带 title 说明文案;点击即时执行,不弹确认(见 onHideCluster 注释)。位置与 Vue2
+           字面顺序一致:命名/合并/隐藏/删除。 -->
+      <button
+        v-if="people.hiddenPeopleSupported"
+        type="button"
+        class="cluster-menu-item"
+        data-test="menu-hide"
+        :title="t('photosPersonHideGateTitle')"
+        @click="onHideCluster"
+      >
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1"/><path d="M4 9v10a1 1 0 001 1h14a1 1 0 001-1V9"/><path d="M10 13h4"/></svg>
+        <span>{{ t('photosPersonMenuHide') }}</span>
       </button>
       <button type="button" class="cluster-menu-item is-danger" data-test="menu-delete" @click="openDialog('delete')">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/></svg>

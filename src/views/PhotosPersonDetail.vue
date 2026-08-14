@@ -108,7 +108,7 @@ import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
-import { groupPlaces, type Person } from '../photos/util/peopleView'
+import { findNamedDuplicate, groupPlaces, type Person } from '../photos/util/peopleView'
 import { isConflict, isNotFound } from '../photos/util/httpErrors'
 import type { Photo } from '../photos/util/assetToPhoto'
 
@@ -141,6 +141,13 @@ const selectionMode = computed(() => selectedIds.value.length > 0)
 const renameOpen = ref(false)
 const renameInput = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
+// 弹窗 1b(Task 7,Plan D):重名 dupconfirm——Vue2 dupConfirmDialog(PhotosPersonDetail.vue
+// :293-314),改名撞到已存在人物名字时从弹窗 1 切过来(不是弹窗 1 的子状态,是独立弹窗——
+// Vue2 这里两者本就是两个不同的 data 字段 promptDialog/dupConfirmDialog,不像列表页
+// ClusterActionDialog 那样共用一个 mode 状态机)。
+const dupConfirmOpen = ref(false)
+const dupConfirmName = ref('')
+const dupConfirmExisting = ref<Person | null>(null)
 // 弹窗 2:建相册(+ 弹窗 7:没有照片可用的提示,照 Vue2 promptDialog 的 info 模式)
 const albumOpen = ref(false)
 const albumInput = ref('')
@@ -205,6 +212,9 @@ const mergeCandidates = computed(() => {
 // ── 弹窗开关 ────────────────────────────────────────────────────────────────
 function closeAllDialogs(): void {
   renameOpen.value = false
+  dupConfirmOpen.value = false
+  dupConfirmName.value = ''
+  dupConfirmExisting.value = null
   albumOpen.value = false
   noPhotosOpen.value = false
   detachOpen.value = false
@@ -337,9 +347,33 @@ async function onPickRelation(relation: string): Promise<void> {
   }
 }
 
-// 3) 改名(Vue2 :910-918 + 偏离登记 D)。
+// 3) 改名(Vue2 :910-918 + 偏离登记 D)。applyRename 是真正的提交(命名/dupNameAnyway
+// 两条路径共用,照 Vue2 confirmDialog rename 分支 :1031 与 nameAnywayDupConfirm :1009
+// 共用同一个 applyRename 帮助函数的手法)。
 // 守卫判断:失败路径**不关弹窗**(这是有意的),所以确认按钮在请求在途期间仍在 DOM 上且可点
 // —— 连点会发两次 PATCH,守卫有防护价值。
+async function applyRename(name: string): Promise<void> {
+  if (renaming.value) return
+  renaming.value = true
+  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
+  try {
+    await people.renamePerson(myId, name)
+    // 已经切到别人页了:名字属于上一位人物,不写、也不动弹窗(弹窗早被 closeAllDialogs 关了)。
+    if (!detail.patchPerson({ name }, myId)) return
+    closeRename()
+  } catch {
+    if (!detail.isCurrent(myId)) return
+    toast.show(t('photosPersonRenamedFailed'))    // 弹窗保持打开
+  } finally {
+    renaming.value = false
+  }
+}
+
+// Task 7(Plan D):重名检测接入(照 Vue2 confirmDialog rename 分支 :1022-1032 ——
+// findNamedDuplicate(allPeople, v, person.id) 命中就切到 dupConfirmDialog,不命中才真的
+// applyRename)。`people.people` 是 Vue2 `allPeople`(state.people)的对应量:全量人物
+// (含未命名),excludeId 传 personId.value 排除自身,允许把名字改成"自己原名的大小写/
+// 空白变体"而不被误判成重名。
 async function confirmRename(): Promise<void> {
   const p = detail.person.value
   const v = renameInput.value.trim()
@@ -349,19 +383,37 @@ async function confirmRename(): Promise<void> {
     closeRename()
     return
   }
-  renaming.value = true
-  const myId = personId.value                    // 身份守卫,见"身份守卫"小节
-  try {
-    await people.renamePerson(myId, v)
-    // 已经切到别人页了:名字属于上一位人物,不写、也不动弹窗(弹窗早被 closeAllDialogs 关了)。
-    if (!detail.patchPerson({ name: v }, myId)) return
+  const dup = findNamedDuplicate(people.people, v, personId.value)
+  if (dup) {
     closeRename()
-  } catch {
-    if (!detail.isCurrent(myId)) return
-    toast.show(t('photosPersonRenamedFailed'))    // 弹窗保持打开
-  } finally {
-    renaming.value = false
+    dupConfirmName.value = v
+    dupConfirmExisting.value = dup
+    dupConfirmOpen.value = true
+    return
   }
+  await applyRename(v)
+}
+
+function closeDupConfirm(): void {
+  dupConfirmOpen.value = false
+  dupConfirmName.value = ''
+  dupConfirmExisting.value = null
+}
+// "Name anyway"(Vue2 nameAnywayDupConfirm :1004-1010):照样用这个名字改名。
+async function dupNameAnyway(): Promise<void> {
+  const name = dupConfirmName.value
+  closeDupConfirm()
+  await applyRename(name)
+}
+// "Merge into existing"(Vue2 mergeDupConfirm :1011-1017,经共享的 mergeCurrentPersonInto):
+// 改道合并到已存在的那个人物——复用现成的 confirmMerge() 提交路径(同一套成功/失败 toast、
+// 导航、in-flight 守卫),不重复一份合并逻辑。
+async function dupMergeIntoExisting(): Promise<void> {
+  const target = dupConfirmExisting.value
+  closeDupConfirm()
+  if (!target) return
+  mergeTarget.value = target
+  await confirmMerge()
 }
 
 // 4) 设为关键照片(Vue2 onSetKeyPhoto :642-662)。
@@ -506,6 +558,22 @@ async function confirmCreateAlbum(): Promise<void> {
   }
 }
 
+// 10) 隐藏人物(Task 7,Plan D;Vue2 hideCurrentPerson :914-925)。即时执行,无确认弹窗——
+// 非破坏性、随时可从列表页「Hidden people」分区 unhide 撤销(同列表页 onHideCluster 的
+// 注释)。不需要独立 in-flight 守卫:成功后立刻导航离开这个详情页,失败时按钮仍在原处
+// 可以再点一次,连点两次的窗口极短且没有持久副作用上的坏处(照 T7/T8 的既定"装饰性守卫
+// 不加"纪律,这里是同一类判断)。
+async function onHidePerson(): Promise<void> {
+  const p = detail.person.value
+  if (!p) return
+  const label = p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
+  const ok = await people.hidePerson(personId.value)
+  if (ok) {
+    void router.push('/photos/people')
+    toast.show(t('photosPersonHiddenToast', { label }))
+  }
+}
+
 // ── 网格 / 灯箱 / 导航接线 ──────────────────────────────────────────────────
 // T11 已在组件内部做了 selectionMode 分支(选择态 → toggle-select,否则 → open),
 // 这里只接住两个 emit。
@@ -554,7 +622,7 @@ function goToPerson(id: string | number): void {
 
 // ── Esc(文件头"Esc 分层"说明)────────────────────────────────────────────────
 const anyDialogOpen = computed(() =>
-  renameOpen.value || albumOpen.value || noPhotosOpen.value || detachOpen.value
+  renameOpen.value || dupConfirmOpen.value || albumOpen.value || noPhotosOpen.value || detachOpen.value
   || deleteOpen.value || heroOpen.value || mergeOpen.value)
 
 function onDocumentKeydown(e: KeyboardEvent): void {
@@ -562,6 +630,7 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   // 必须挡住,否则同一次 Esc 冒泡到 window 会把灯箱一起关掉(P4 终审抓到过)。
   e.stopPropagation()
   if (renameOpen.value) { closeRename(); return }
+  if (dupConfirmOpen.value) { closeDupConfirm(); return }
   if (albumOpen.value) { closeAlbum(); return }
   if (noPhotosOpen.value) { noPhotosOpen.value = false; return }
   if (detachOpen.value) { closeDetach(); return }
@@ -581,6 +650,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
 void detail.load(personId.value)
 // 合并弹窗的候选列表需要人物全量列表;这里只在还没加载过时补一次。
 if (!people.peopleLoaded) void people.fetchPeople()
+// Task 7(Plan D):补上 Vue2 mounted() :650-657 的深链缺口注释里说的那个动作——
+// /photos?person=xyz 这类深链可以直接打开详情页而完全不经过 PhotosPeopleView,那个页面
+// 的 eager fetchHiddenPeople 永远不会跑,hiddenPeopleSupported 会停在陈旧的默认值,Edit
+// 菜单的「Hide person」项该不该出现就判断错了。同一个 store 标志,幂等,只在还没拉过时补一次
+// (照上一行 fetchPeople 的既有 guard 风格,不是 Vue2 那种无条件每次 mount 都重拉)。
+if (!people.hiddenPeopleLoaded) void people.fetchHiddenPeople()
 
 // 铁律 2:hash 路由同组件不重建。
 watch(() => route.params.id, (raw) => {
@@ -659,10 +734,12 @@ watch(() => route.params.id, (raw) => {
             :person="detail.person.value"
             :relation-count="detail.relations.value.length"
             :places-count="detail.person.value.placesCount"
+            :hidden-people-supported="people.hiddenPeopleSupported"
             @back="goToPeopleList"
             @toggle-fav="onToggleFav"
             @rename="openRename"
             @merge="openMerge"
+            @hide="onHidePerson"
             @delete="openDelete"
             @pick-relation="onPickRelation"
             @make-album="openMakeAlbum"
@@ -805,6 +882,33 @@ watch(() => route.params.id, (raw) => {
           type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-rename-confirm"
           :disabled="!renameInput.trim()" @click="confirmRename"
         >{{ t('photosPersonSaveName') }}</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 弹窗 1b(Task 7,Plan D):重名 dupconfirm(Vue2 dupConfirmDialog :293-314)——
+       字面按钮顺序 Name anyway(ghost)/ Cancel(plain)/ Merge into existing(primary),与
+       列表页 ClusterActionDialog 的顺序(merge/name-anyway/cancel)不同,两处各照各自的
+       Vue2 源,不强行统一。无头像(Vue2 这个弹窗本身就没有 PersonAvatar,只有标题+关闭钮)。 -->
+  <div v-if="dupConfirmOpen" class="person-dialog-scrim" data-test="person-rename-dupconfirm" @click.self="closeDupConfirm">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonDupExistsTitle', { name: dupConfirmName }) }}</div>
+        </div>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDupConfirm">×</button>
+      </div>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn person-dialog-btn-ghost" data-test="person-rename-dup-name-anyway" @click="dupNameAnyway">
+          {{ t('photosPersonDupNameAnyway') }}
+        </button>
+        <button type="button" class="person-dialog-btn" data-test="person-rename-dup-cancel" @click="closeDupConfirm">
+          {{ t('photosCancel') }}
+        </button>
+        <button type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-rename-dup-merge" @click="dupMergeIntoExisting">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+          {{ t('photosPersonDupMergeInto') }}
+        </button>
       </div>
     </div>
   </div>

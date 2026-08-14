@@ -165,6 +165,95 @@ describe('ClusterActionDialog.vue — 命名', () => {
   })
 })
 
+// Task 7 (Plan D): 命名一个已存在的名字 → 切到 dupconfirm 子状态,三个动作
+// (Merge into existing / Name anyway / Cancel),不直接 emit submit-name。
+describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
+  const ADA = person({ id: 42, name: 'Ada', count: 30 })
+
+  it('输入已存在姓名(大小写/空白不敏感)并保存 → 出现 dupconfirm,不 emit submit-name', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('  ada ')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+    expect(w.emitted('submit-name')).toBeUndefined()
+    // 常规输入框/操作栏被替换掉,不是叠加在一起。
+    expect(w.find('[data-test="cad-name-input"]').exists()).toBe(false)
+    expect(w.find('[data-test="cad-save-name"]').exists()).toBe(false)
+  })
+
+  it('回车提交重名同样切到 dupconfirm(不只是点按钮才生效)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    const input = w.get('[data-test="cad-name-input"]')
+    await input.setValue('Ada')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+  })
+
+  it('头部标题换成"已存在同名人物",头像/副标题不变', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person({ count: 9, confidence: 0.87 }), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-title"]').text()).toContain('Ada')
+    expect(w.find('[data-test="cad-subtitle"]').text()).toContain('9')
+    expect(w.find('[data-test="cad-subtitle"]').text()).toContain('87%')
+  })
+
+  it('不重名的名字 → 直接 emit submit-name,不出现 dupconfirm', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Nobody')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.emitted('submit-name')).toEqual([['Nobody']])
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Merge into existing" → emit submit-merge 带既有人物 id', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-merge"]').trigger('click')
+    expect(w.emitted('submit-merge')).toEqual([[42]])
+    expect(w.emitted('submit-name')).toBeUndefined()
+  })
+
+  it('"Name anyway" → emit submit-name 带原始输入的名字(trim 后)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('  ada ')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-name-anyway"]').trigger('click')
+    expect(w.emitted('submit-name')).toEqual([['ada']])
+    expect(w.emitted('submit-merge')).toBeUndefined()
+  })
+
+  it('"Cancel" → 整个弹窗关闭(emit update:open false),不是退回普通命名态', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-cancel"]').trigger('click')
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('重新打开弹窗时 dupconfirm 状态被清空(不会带着上一次的子状态重新出现)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+
+    await w.setProps({ open: false })
+    await w.setProps({ open: true })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(false)
+    expect(w.find('[data-test="cad-name-input"]').exists()).toBe(true)
+  })
+})
+
 describe('ClusterActionDialog.vue — 合并', () => {
   // 7 个非自身候选:用于验证「空查询取前 6,按 count 降序、同 count 按 name 升序」
   const SELF = person({ id: 'u1', name: '' })

@@ -43,9 +43,16 @@ function person(overrides: Partial<Person> = {}): Person {
 }
 
 const mounted: VueWrapper[] = []
-function mountHero(props: { person: Person; relationCount: number; placesCount: number }, i18n = makeI18n()) {
+// Task 7 (Plan D): hiddenPeopleSupported defaults to true here (matching the people store's
+// own default, see people.ts) so every pre-existing call site below — none of which cares
+// about the hide-menu gating — keeps compiling and passing unchanged; new gating-specific
+// tests override it explicitly.
+function mountHero(
+  props: { person: Person; relationCount: number; placesCount: number; hiddenPeopleSupported?: boolean },
+  i18n = makeI18n(),
+) {
   const w = mount(PersonHero, {
-    props,
+    props: { hiddenPeopleSupported: true, ...props },
     global: { plugins: [i18n] },
     attachTo: document.body,
   })
@@ -214,6 +221,25 @@ describe('PersonHero.vue — Edit 菜单', () => {
     await w.get('[data-test="hero-edit-delete"]').trigger('click')
     expect(w.emitted('delete')).toHaveLength(1)
   })
+
+  // Task 7 (Plan D): "Hide person" 菜单项——门控 + title + emit,照 Vue2
+  // PhotosPersonDetail.vue:43-46(v-if="hiddenPeopleSupported" + title 说明文案)。
+  it('hiddenPeopleSupported=true → 菜单里有「隐藏此人」项,带 title 说明文案,点击 emit hide 并收起菜单', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0, hiddenPeopleSupported: true })
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    const item = w.get('[data-test="hero-edit-hide"]')
+    expect(item.text()).toBe(zh.photosPersonMenuHide)
+    expect(item.attributes('title')).toBe(zh.photosPersonHideGateTitle)
+    await item.trigger('click')
+    expect(w.emitted('hide')).toHaveLength(1)
+    expect(w.find('[data-test="hero-edit-menu"]').exists()).toBe(false)
+  })
+
+  it('hiddenPeopleSupported=false → 菜单里没有「隐藏此人」项', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0, hiddenPeopleSupported: false })
+    await w.get('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(false)
+  })
 })
 
 describe('PersonHero.vue — 关系分组下拉', () => {
@@ -355,12 +381,14 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
   })
 
-  it('菜单挂在裁剪层之外(hero 根下),打开后确实渲染出全部三项', async () => {
+  // Task 7 (Plan D): 默认 hiddenPeopleSupported=true(见 mountHero 头部注释),菜单现在
+  // 是四项(rename/merge/hide/delete),不再是三项。
+  it('菜单挂在裁剪层之外(hero 根下),打开后确实渲染出全部四项', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
     const menu = w.get('[data-test="hero-edit-menu"]')
     expect(menu.element.closest('[data-test="hero-clip"]')).toBeNull()
-    expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(3)
+    expect(w.findAll('[data-test="hero-edit-menu"] button')).toHaveLength(4)
   })
 })
 

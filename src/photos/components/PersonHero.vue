@@ -69,6 +69,11 @@ const props = defineProps<{
   person: Person
   relationCount: number
   placesCount: number
+  // Task 7 (Plan D): gates the "Hide person" edit-menu item, mirroring Vue2's
+  // `v-if="hiddenPeopleSupported"` on the same menu item (PhotosPersonDetail.vue:43-46).
+  // Owned by the people store (usePhotosPeople().hiddenPeopleSupported) — this component
+  // stays a pure prop/emit consumer like every other piece of `person`-derived state here.
+  hiddenPeopleSupported: boolean
 }>()
 
 const emit = defineEmits<{
@@ -76,6 +81,7 @@ const emit = defineEmits<{
   (e: 'toggle-fav'): void
   (e: 'rename'): void
   (e: 'merge'): void
+  (e: 'hide'): void
   (e: 'delete'): void
   (e: 'pick-relation', relation: string): void
   (e: 'make-album'): void
@@ -134,10 +140,11 @@ const relationOpen = ref(false)
 const editWrapRef = ref<HTMLElement | null>(null)
 const relationWrapRef = ref<HTMLElement | null>(null)
 
-function pickEdit(action: 'rename' | 'merge' | 'delete'): void {
+function pickEdit(action: 'rename' | 'merge' | 'hide' | 'delete'): void {
   editOpen.value = false
   if (action === 'rename') emit('rename')
   else if (action === 'merge') emit('merge')
+  else if (action === 'hide') emit('hide')
   else emit('delete')
 }
 
@@ -236,6 +243,20 @@ onUnmounted(() => {
                 <!-- 终审 Minor 6:同上,照 Vue2 :41 `$t('Merge into…')`;photosPersonMergeInto
                      是合并弹窗的标题「合并到另一个人物」。 -->
                 {{ t('photosPersonMenuMergeInto') }}
+              </button>
+              <!-- Task 7 (Plan D): "Hide person"——照 Vue2 PhotosPersonDetail.vue:43-46,只在
+                   hiddenPeopleSupported 时出现,带 title 说明文案;点击即时执行,容器负责
+                   实际隐藏 + toast + 导航(本组件不碰 store,分工同文件头部注释)。 -->
+              <button
+                v-if="hiddenPeopleSupported"
+                type="button"
+                class="relation-option"
+                data-test="hero-edit-hide"
+                :title="t('photosPersonHideGateTitle')"
+                @click="pickEdit('hide')"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="5" rx="1" /><path d="M4 9v10a1 1 0 001 1h14a1 1 0 001-1V9" /><path d="M10 13h4" /></svg>
+                {{ t('photosPersonMenuHide') }}
               </button>
               <button type="button" class="relation-option edit-menu-danger" data-test="hero-edit-delete" @click="pickEdit('delete')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>

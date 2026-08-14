@@ -40,6 +40,16 @@ describe('photos 人物', () => {
     expect(calls[1]).toMatchObject({ method: 'delete', url: '/photos/persons/p1?purge=true' })
     expect(calls[2]).toMatchObject({ method: 'post', url: '/photos/persons/p1/restore' })
   })
+  // Task 7 (Plan D, SP7-P5 人物): hidePerson/listHiddenPersons —— 照 Vue2
+  // src/service/photos.js:78-79 的字面对应端点。
+  it('隐藏 / 拉隐藏人物列表', async () => {
+    const { http, calls } = capture()
+    const p = createPhotos(http, noToken)
+    await p.hidePerson('p1')
+    await p.listHiddenPersons()
+    expect(calls[0]).toMatchObject({ method: 'post', url: '/photos/persons/p1/hide', body: {} })
+    expect(calls[1]).toMatchObject({ method: 'get', url: '/photos/persons/hidden' })
+  })
   it('资产分页/关系/地点', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)

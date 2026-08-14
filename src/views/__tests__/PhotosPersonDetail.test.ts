@@ -32,6 +32,10 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn(),
     purgePerson: vi.fn(),
     detachAssetsFromPerson: vi.fn(),
+    // T7 (Plan D): Hidden people 分区 + hide/unhide 动作。
+    hidePerson: vi.fn(),
+    listHiddenPersons: vi.fn(),
+    restorePerson: vi.fn(),
     // albums store (saveAsAlbum = createAlbum + batchAddToAlbum + fetchAlbums)
     createAlbum: vi.fn(),
     batchAddToAlbum: vi.fn(),
@@ -111,7 +115,7 @@ async function mountView(id: string | number = '7') {
 }
 
 /** 打开 Edit 菜单并点其中一项(PersonHero 内部菜单,T10 的 data-test 命名)。 */
-async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'delete') {
+async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'hide' | 'delete') {
   await w.find('[data-test="hero-edit-trigger"]').trigger('click')
   await w.find(`[data-test="hero-edit-${which}"]`).trigger('click')
   await flushPromises()
@@ -138,6 +142,9 @@ beforeEach(() => {
   svc.photos.mergePersons.mockReset().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.detachAssetsFromPerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.hidePerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.listHiddenPersons.mockReset().mockResolvedValue([])
+  svc.photos.restorePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.createAlbum.mockReset().mockResolvedValue({ id: 'alb-1', name: 'x' })
   svc.photos.batchAddToAlbum.mockReset().mockResolvedValue(undefined)
   svc.photos.listAlbums.mockReset().mockResolvedValue([])
@@ -514,6 +521,159 @@ describe('PhotosPersonDetail.vue —— 改名弹窗', () => {
     expect(svc.photos.updatePerson).toHaveBeenCalledTimes(1)
     release!()
     await flushPromises()
+  })
+})
+
+// Task 7 (Plan D): 改名撞到已存在的名字 → 切到重名 dupconfirm 弹窗(Vue2 dupConfirmDialog
+// :293-314)。allPeople 等价物是 people.people(全量,含未命名)——这里让 listPersons 返回
+// 两个人:当前人物(id=7,名"妈妈")与另一个已命名的人物(id=9,名"Ada")。
+describe('PhotosPersonDetail.vue —— 改名弹窗:重名 dupconfirm', () => {
+  beforeEach(() => {
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson(), rawPerson({ id: 9, name: 'Ada', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+  })
+
+  it('输入已存在姓名(大小写/空白不敏感)→ 出现 dupconfirm,不发 updatePerson', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+  })
+
+  it('标题带上输入的名字', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').text()).toContain('Ada')
+  })
+
+  // 中文名字改 trim 空白后与原名完全相同(如 "  妈妈 " → "妈妈")在 confirmRename 里会命中
+  // 更早的"名字未变"短路(照 Vue2 :911),根本走不到 findNamedDuplicate,测不出 excludeId
+  // 是否生效——换成人物 7 自己就叫英文名"Ada"、输入大小写变体"ADA"(trim 后与原名 'Ada' 不
+  // 相等,能过第一道短路),真正走到 findNamedDuplicate(people.people, 'ADA', '7') 这一步,
+  // 断言它没有把"自己"当成重名匹配到(excludeId 生效)。
+  it('改成自己原名的大小写变体 → 不算重名(excludeId 生效),照常直接改名', async () => {
+    // 这条用例专属覆盖:people 列表里 id=7 自己也叫 "Ada"(与 detail 页看到的一致),
+    // id=9 换成不冲突的 "Bob"——否则"ADA"会先命中 id=9 的 "Ada" 判成真重名,测不出
+    // "排除的到底是不是自己"这件事。
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: 'Ada' }), relations: [] })
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson({ name: 'Ada' }), rawPerson({ id: 9, name: 'Bob', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('ADA')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ADA' })
+  })
+
+  it('"Name anyway" → 照样改名(带原始输入的名字),弹窗关闭', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-name-anyway"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ada' })
+    expect(w.find('[data-test="hero-name"]').text()).toBe('ada')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Merge into existing" → 合并到既有人物(id=9),导航回列表页', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-merge"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('7', 9)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Cancel" → 关闭 dupconfirm,不改名不合并', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-cancel"]').trigger('click')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+    expect(svc.photos.mergePersons).not.toHaveBeenCalled()
+  })
+
+  it('Esc 关闭 dupconfirm(同其余弹窗的 Esc 分层规范)', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    pressEscape()
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+})
+
+// Task 7 (Plan D): 隐藏人物(Vue2 hideCurrentPerson :914-925)。即时执行,无确认弹窗,
+// 只在 hiddenPeopleSupported 时出现在 Edit 菜单里(PersonHero 已单独测过门控本身,这里
+// 只测容器接线:调用 store、toast、导航)。
+describe('PhotosPersonDetail.vue —— 隐藏人物', () => {
+  it('Edit 菜单里有「隐藏此人」项(hiddenPeopleSupported 默认 true)', async () => {
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(true)
+  })
+
+  it('hiddenPeopleSupported=false(listHiddenPersons 404)→ 菜单里没有「隐藏此人」项', async () => {
+    svc.photos.listHiddenPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(false)
+  })
+
+  it('成功:调 hidePerson(id)、无确认弹窗、toast 带人物名、导航回列表页', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(svc.photos.hidePerson).toHaveBeenCalledWith('7')
+    // 无确认弹窗:改名/删除等弹窗都不应该出现。
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', '"妈妈"'))
+  })
+
+  it('未命名人物 → toast 用兜底标签(照 Vue2 :919 的 name.trim() 判断)', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', zh.photosPersonUnnamedLabel))
+  })
+
+  it('失败:不导航、不弹成功 toast', async () => {
+    svc.photos.hidePerson.mockRejectedValueOnce(new Error('boom'))
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(push).not.toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts).toHaveLength(0)
   })
 })
 

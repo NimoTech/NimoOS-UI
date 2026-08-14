@@ -1083,4 +1083,27 @@ export default {
   // owned by the unified overlay-dismiss handling), so the copy describes the real
   // destination instead of keeping the "(Esc)" wording.
   photosSearchBackToLibrary: 'Back to library',
+  // ── Task 7 (Plan D, SP7-P5 people): Hidden people section + hide action + duplicate-name
+  // confirm flow — all values below are Vue2's own literal English source strings.
+  // Vue2 PhotosPeopleView.vue:228 (section header $t('Hidden people')).
+  photosPeopleHiddenSection: 'Hidden people',
+  // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 — same literal string
+  // $t('Hide person') at both call sites, shared as one key.
+  photosPersonMenuHide: 'Hide person',
+  // Vue2's title attr on both of the above menu items, same literal string
+  // (PhotosPeopleView.vue:274 / PhotosPersonDetail.vue:44):
+  photosPersonHideGateTitle: 'Person leaves the People page. Photos and face recognition are kept — you can unhide anytime.',
+  // Vue2 PhotosPeopleView.vue:249 $t('Unhide').
+  photosPeopleUnhide: 'Unhide',
+  // Vue2 hideClusterPerson/hideCurrentPerson's success toast, same literal string at both
+  // call sites (PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923): $t('{label} hidden').
+  photosPersonHiddenToast: '{label} hidden',
+  // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 — same literal dupconfirm
+  // dialog title at both call sites: $t('A person named "{name}" already exists.').
+  photosPersonDupExistsTitle: 'A person named "{name}" already exists.',
+  // Vue2's dupconfirm "merge" button at both call sites, literal $t('Merge into existing')
+  // (no ellipsis — distinct from the menu item's 'Merge into existing…', photosPersonMergeExisting).
+  photosPersonDupMergeInto: 'Merge into existing',
+  // Vue2's dupconfirm "name anyway" button at both call sites: $t('Name anyway').
+  photosPersonDupNameAnyway: 'Name anyway',
 }

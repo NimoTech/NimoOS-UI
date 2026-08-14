@@ -26,6 +26,10 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn().mockResolvedValue(undefined),
     purgePerson: vi.fn().mockResolvedValue(undefined),
     rejectMergeSuggestion: vi.fn().mockResolvedValue(undefined),
+    // T7 (Plan D): Hidden people 分区 + hide/unhide 动作。
+    listHiddenPersons: vi.fn().mockResolvedValue([]),
+    hidePerson: vi.fn().mockResolvedValue(undefined),
+    restorePerson: vi.fn().mockResolvedValue(undefined),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -90,6 +94,9 @@ beforeEach(() => {
   svc.photos.mergePersons.mockClear().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.rejectMergeSuggestion.mockClear().mockResolvedValue(undefined)
+  svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
+  svc.photos.hidePerson.mockClear().mockResolvedValue(undefined)
+  svc.photos.restorePerson.mockClear().mockResolvedValue(undefined)
 })
 // 关键隔离(同 people.test.ts:46-54 的既有教训):_purgeTimers 是 people store 模块作用域
 // 单例,不随 setActivePinia(createPinia()) 重置。T7 的删除测试用同一个 id('u1')反复调
@@ -436,12 +443,15 @@ describe('PhotosPeople.vue — 跳转与浮动菜单', () => {
     expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
   })
 
-  it('「查看这些照片」是菜单里的第一项(命名/合并/删除依次在后)', async () => {
+  // T7:hiddenPeopleSupported 默认 true(listHiddenPersons mock 返回空数组,不是 404),
+  // 所以菜单里现在有五项——「查看这些照片」仍是第一项,命名/合并/隐藏/删除依次在后
+  // (照 Vue2 :260-287 字面顺序:命名/合并/隐藏/删除,New-UI 额外的「查看」放最前)。
+  it('「查看这些照片」是菜单里的第一项(命名/合并/隐藏/删除依次在后)', async () => {
     const { w } = await mountView()
     await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
     const items = w.find('[data-test="cluster-menu"]').findAll('button')
     expect(items.map((b) => b.attributes('data-test'))).toEqual([
-      'menu-view', 'menu-name', 'menu-merge', 'menu-delete',
+      'menu-view', 'menu-name', 'menu-merge', 'menu-hide', 'menu-delete',
     ])
   })
 
@@ -760,6 +770,118 @@ const S3 = { id: 'm3', fromId: 'b7', intoId: 3, intoName: 'Carol', confidence: 0
 async function openReview(w: Awaited<ReturnType<typeof mountView>>['w']) {
   await w.find('[data-test="merge-review"]').trigger('click')
 }
+
+// T7 (Plan D): Hidden people 分区 + 「Hide person」菜单项 + unhide 接线。
+// hiddenPeopleSupported 特性探测走 listHiddenPersons:404 → false,其它任何结果(含空数组)→ true。
+const HIDDEN1 = { id: 'h1', name: 'Zed', count: 4, confidence: 0.9, coverFaceId: 'f1' }
+const HIDDEN2 = { id: 'h2', name: '', count: 2, confidence: 0.8, coverFaceId: null }
+
+describe('PhotosPeople.vue — T7 Hidden people 分区', () => {
+  it('hiddenPeopleSupported 且有隐藏人物 → 「Hidden people」分区出现,默认折叠(无 hidden-grid)', async () => {
+    svc.photos.listHiddenPersons.mockResolvedValue([HIDDEN1])
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-hidden"]').exists()).toBe(true)
+    expect(w.find('[data-test="hidden-grid"]').exists()).toBe(false)
+  })
+
+  it('没有隐藏人物(空数组)→ 分区不出现,即便 hiddenPeopleSupported 为 true', async () => {
+    svc.photos.listHiddenPersons.mockResolvedValue([])
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-hidden"]').exists()).toBe(false)
+  })
+
+  it('后端 404(老后端没有隐藏功能)→ hiddenPeopleSupported 为 false,分区不出现', async () => {
+    svc.photos.listHiddenPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView()
+    expect(w.find('[data-test="section-hidden"]').exists()).toBe(false)
+  })
+
+  it('点分区标题 → 展开 hidden-grid,显示带 unhide 按钮的卡片;未命名的隐藏人物落到兜底文案', async () => {
+    svc.photos.listHiddenPersons.mockResolvedValue([HIDDEN1, HIDDEN2])
+    const { w } = await mountView()
+    await w.find('[data-test="section-hidden"]').trigger('click')
+    const cards = w.findAll('[data-test="hidden-card"]')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]!.text()).toContain('Zed')
+    expect(cards[1]!.text()).toContain(zh.photosPersonUnnamedTitle)
+    expect(w.findAll('[data-test="unhide-btn"]')).toHaveLength(2)
+
+    // 再点一次收起
+    await w.find('[data-test="section-hidden"]').trigger('click')
+    expect(w.find('[data-test="hidden-grid"]').exists()).toBe(false)
+  })
+
+  it('点 Unhide → 调 restorePerson(id),并重拉 people 与 hiddenPeople', async () => {
+    svc.photos.listHiddenPersons.mockResolvedValue([HIDDEN1])
+    const { w } = await mountView()
+    await w.find('[data-test="section-hidden"]').trigger('click')
+    svc.photos.listPersons.mockClear()
+    svc.photos.listHiddenPersons.mockClear().mockResolvedValue([])
+    await w.find('[data-test="unhide-btn"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.restorePerson).toHaveBeenCalledWith('h1')
+    expect(svc.photos.listPersons).toHaveBeenCalled()
+    expect(svc.photos.listHiddenPersons).toHaveBeenCalled()
+  })
+})
+
+describe('PhotosPeople.vue — T7「Hide person」菜单项:门控 + 即时隐藏', () => {
+  it('hiddenPeopleSupported=false(404)→ 菜单里没有「Hide person」项', async () => {
+    svc.photos.listHiddenPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView()
+    await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
+    expect(w.find('[data-test="menu-hide"]').exists()).toBe(false)
+  })
+
+  it('hiddenPeopleSupported=true → 菜单里有「Hide person」项,带 title 说明文案', async () => {
+    const { w } = await mountView()
+    await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
+    const item = w.find('[data-test="menu-hide"]')
+    expect(item.exists()).toBe(true)
+    expect(item.attributes('title')).toBe(zh.photosPersonHideGateTitle)
+  })
+
+  // 照 Vue2:hide 没有确认弹窗,点了就即时执行(非破坏性、随时可从 Hidden 分区撤销)。
+  // U1 是未命名人物(name === ''),label 兜底成 photosPersonUnnamedLabel(照 Vue2
+  // hideClusterPerson :757 的 `name && name.trim() ? ... : $t('Unnamed person')`)。
+  it('点「Hide person」→ 无确认弹窗,即时调 hidePerson(id),成功后 toast 带兜底标签且菜单关闭', async () => {
+    const { w } = await mountView()
+    const toast = useToast()
+    const card = w.findAll('[data-test="cluster-card"]').find((c) => c.attributes('data-id') === 'u1')!
+    await card.trigger('click')
+    await w.find('[data-test="menu-hide"]').trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.hidePerson).toHaveBeenCalledWith('u1')
+    // 无确认弹窗:三态弹窗(ClusterActionDialog)不应该出现。
+    expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
+    expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
+    expect(toast.toasts[0]!.text).toBe(
+      zh.photosPersonHiddenToast.replace('{label}', zh.photosPersonUnnamedLabel),
+    )
+  })
+
+  it('隐藏后从 Unnamed 分区消失(乐观移除)', async () => {
+    const { w } = await mountView()
+    const card = w.findAll('[data-test="cluster-card"]').find((c) => c.attributes('data-id') === 'u1')!
+    await card.trigger('click')
+    await w.find('[data-test="menu-hide"]').trigger('click')
+    await flushPromises()
+    expect(w.findAll('[data-test="cluster-card"]').some((c) => c.attributes('data-id') === 'u1')).toBe(false)
+  })
+
+  it('隐藏失败 → 从 Unnamed 分区回滚(仍然存在),不弹成功 toast', async () => {
+    svc.photos.hidePerson.mockRejectedValueOnce(new Error('boom'))
+    const { w } = await mountView()
+    const toast = useToast()
+    const card = w.findAll('[data-test="cluster-card"]').find((c) => c.attributes('data-id') === 'u1')!
+    await card.trigger('click')
+    await w.find('[data-test="menu-hide"]').trigger('click')
+    await flushPromises()
+    expect(w.findAll('[data-test="cluster-card"]').some((c) => c.attributes('data-id') === 'u1')).toBe(true)
+    expect(toast.toasts).toHaveLength(0)
+  })
+})
 
 describe('PhotosPeople.vue — T8 合并建议审阅弹窗接线:接受', () => {
   it('成功:调 mergePersons(fromId, intoId) → 成功 toast 带 intoName → 只剩这一条时弹窗关闭', async () => {

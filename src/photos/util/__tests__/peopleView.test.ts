@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   toPerson, personInitial, namedOf, unnamedOf, visibleUnnamedOf,
   hiddenSingletonCountOf, unnamedCountAt, sortNamed, monthKeyLabel, mergeConfidencePct,
-  mergeReasonKey, nimoReadParts,
+  mergeReasonKey, nimoReadParts, findNamedDuplicate,
   PLACE_PALETTE, groupPlaces, colorPoints,
   topPersons, topPlaces, byYear, resolvePersonByName,
   type Person, type PersonPlace, type PlaceGroup,
@@ -43,6 +43,35 @@ describe('namedOf / unnamedOf', () => {
   })
   it('不改变原顺序、不原地修改入参', () => {
     const src = [...list]; namedOf(src); expect(src.map((p) => p.id)).toEqual([1, 2, 3])
+  })
+})
+
+// Task 7 (Plan D, Vue2 peopleUtils.js:36-40): 重名检测纯函数,ClusterActionDialog.vue 的
+// 命名态与 PhotosPersonDetail.vue 的重命名态共用。
+describe('findNamedDuplicate', () => {
+  const list = [P({ id: 1, name: 'Ada' }), P({ id: 2, name: 'Bob' }), P({ id: 3, name: '' })]
+
+  it('trim + 大小写不敏感匹配到已命名人物', () => {
+    expect(findNamedDuplicate(list, '  ada  ')).toMatchObject({ id: 1, name: 'Ada' })
+    expect(findNamedDuplicate(list, 'ADA')).toMatchObject({ id: 1, name: 'Ada' })
+  })
+  it('无匹配 → null', () => {
+    expect(findNamedDuplicate(list, 'Carol')).toBeNull()
+  })
+  it('空名/纯空白 → null(不把"未命名"当重名)', () => {
+    expect(findNamedDuplicate(list, '')).toBeNull()
+    expect(findNamedDuplicate(list, '   ')).toBeNull()
+  })
+  it('excludeId 跳过自身(改名成自己原名的大小写/空白变体不算重名)', () => {
+    expect(findNamedDuplicate(list, 'Ada', 1)).toBeNull()
+    // 数字/字符串混用 id 仍要匹配(铁律:id 比较走 String())
+    expect(findNamedDuplicate(list, 'Ada', '1')).toBeNull()
+  })
+  it('excludeId 不影响匹配到别的重名人物', () => {
+    expect(findNamedDuplicate(list, 'Ada', 2)).toMatchObject({ id: 1 })
+  })
+  it('非数组 list → null,不炸', () => {
+    expect(findNamedDuplicate(null as unknown as Person[], 'Ada')).toBeNull()
   })
 })
 

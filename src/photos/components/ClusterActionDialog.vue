@@ -43,7 +43,7 @@
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
-import { mergeConfidencePct, type Person } from '../util/peopleView'
+import { findNamedDuplicate, mergeConfidencePct, type Person } from '../util/peopleView'
 
 type DialogMode = 'name' | 'merge' | 'delete'
 
@@ -66,6 +66,12 @@ const nameInput = ref('')
 const mergeQuery = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
 const mergeInputRef = ref<HTMLInputElement | null>(null)
+// Task 7(Plan D,重名 dupconfirm):非 null 时 mode='name' 的模板切到 dupconfirm 子状态
+// (照 Vue2 PhotosPeopleView.vue confirmName() :774-785 把整个 clusterDialog.mode 换成
+// 'dupconfirm'——这里只是子状态,不是新的顶层 mode,因为 open/mode props 由宿主拥有,
+// 本组件只在内部私有 ref 里切换视图)。
+const dupConfirm = ref<{ name: string; existing: Person } | null>(null)
+const dupConfirmRef = ref<HTMLElement | null>(null)
 
 // 铁律:按 id 比较一律 String() 归一。
 function sameId(a: string | number, b: string | number): boolean {
@@ -78,6 +84,17 @@ const titleKey = computed(() => {
   // 评审必修 1:delete 模式的头部标题槶位对应 Vue2 :262 $t('Delete face cluster'),
   // 与警示条内部自己的标题行(photosPersonDeleteTitle,:341)是两句不同文案,不能共用键。
   return 'photosPersonDeleteClusterTitle'
+})
+
+// Task 7(Plan D,重名 dupconfirm):dupConfirm 非空时(mode==='name' 子状态),头部标题槽位
+// 换成"已存在同名人物"的插值文案(照 Vue2 PhotosPeopleView.vue:317
+// `$t('A person named "{name}" already exists.', { name: clusterDialog.pendingName })`);
+// 头像/副标题(subtitleText)保持不变——它们描述的是这次命名的原始人物簇,不随子状态切换。
+const headTitle = computed(() => {
+  if (props.mode === 'name' && dupConfirm.value) {
+    return t('photosPersonDupExistsTitle', { name: dupConfirm.value.name })
+  }
+  return t(titleKey.value)
 })
 
 const subtitleText = computed(() => {
@@ -127,6 +144,7 @@ watch(
     if (isOpen) {
       nameInput.value = ''
       mergeQuery.value = ''
+      dupConfirm.value = null
       document.addEventListener('keydown', onDocumentKeydown)
       // 照 Vue2 openNameDialog/openMergeDialog :624-637 的 $nextTick + focus(+select,brief
       // 明确要求;输入框此刻为空,select() 是无操作但保留以照 brief 字面描述)。
@@ -146,10 +164,31 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
+// Task 7:重名检测接入(照 Vue2 confirmName :774-785 —— findNamedDuplicate(peopleNamed, name)
+// 命中就把 mode 换成 'dupconfirm' 并 focus 那个盒子,不命中才真的 applyName)。`candidates`
+// 已经是宿主传下来的 people.named 全量列表(合并模式复用的同一份),命名场景不需要 excludeId
+// ——这个 mode 只从未命名簇触发,簇本身不在 candidates(全量已命名列表)里,不会误判自身。
 function submitName(): void {
   const name = nameInput.value.trim()
   if (!name) return
+  const dup = findNamedDuplicate(props.candidates, name)
+  if (dup) {
+    dupConfirm.value = { name, existing: dup }
+    // 照 Vue2 focusDlg() 的"dupconfirm 子状态下 focus 盒子本身"语义(:740-743)。
+    void nextTick(() => dupConfirmRef.value?.focus())
+    return
+  }
   emit('submit-name', name)
+}
+// "Name anyway"(照 Vue2 dupNameAnyway :791-796):无视重名,照样提交这个名字。
+function dupNameAnyway(): void {
+  if (!dupConfirm.value) return
+  emit('submit-name', dupConfirm.value.name)
+}
+// "Merge into existing"(照 Vue2 dupMergeInto :797-802):改道合并到已存在的那个人物。
+function dupMergeInto(): void {
+  if (!dupConfirm.value) return
+  emit('submit-merge', dupConfirm.value.existing.id)
 }
 function pickCandidate(p: Person): void {
   emit('submit-merge', p.id)
@@ -167,42 +206,60 @@ function submitDelete(): void {
           <PersonAvatar :person-id="person?.id ?? null" :name="person?.name" :ver="person?.coverFaceId ?? null" :size="44" />
         </div>
         <div class="cad-head-text">
-          <div class="cad-title" data-test="cad-title">{{ t(titleKey) }}</div>
+          <div class="cad-title" data-test="cad-title">{{ headTitle }}</div>
           <div class="cad-subtitle" data-test="cad-subtitle">{{ subtitleText }}</div>
         </div>
         <button type="button" class="cad-close" data-test="cad-close" :aria-label="t('photosClose')" @click="close">×</button>
       </div>
 
       <template v-if="mode === 'name'">
-        <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
-        <input
-          ref="nameInputRef"
-          v-model="nameInput"
-          type="text"
-          class="cad-input"
-          data-test="cad-name-input"
-          :placeholder="t('photosPersonNamePlaceholder')"
-          @keydown.enter="submitName"
-        >
-        <div class="cad-hint" data-test="cad-name-hint">
-          {{ t('photosPersonNameHint', { n: person?.count ?? 0 }) }}
-        </div>
-        <div class="cad-actions">
-          <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
-          <button
-            type="button"
-            class="cad-btn cad-btn-primary"
-            data-test="cad-save-name"
-            :disabled="!canSaveName"
-            @click="submitName"
+        <!-- Task 7:重名 dupconfirm 子状态 —— 照 Vue2 PhotosPeopleView.vue:396-419,替换掉
+             输入框/提示/常规操作栏,换成三个动作。头部(头像/副标题)不变,只有这一块内容切换。 -->
+        <template v-if="!dupConfirm">
+          <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
+          <input
+            ref="nameInputRef"
+            v-model="nameInput"
+            type="text"
+            class="cad-input"
+            data-test="cad-name-input"
+            :placeholder="t('photosPersonNamePlaceholder')"
+            @keydown.enter="submitName"
           >
-            <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
-                 原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
-                 三兄弟只有它是纯文字 —— 内部不自洽。 -->
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            {{ t('photosPersonSaveName') }}
-          </button>
-        </div>
+          <div class="cad-hint" data-test="cad-name-hint">
+            {{ t('photosPersonNameHint', { n: person?.count ?? 0 }) }}
+          </div>
+          <div class="cad-actions">
+            <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
+            <button
+              type="button"
+              class="cad-btn cad-btn-primary"
+              data-test="cad-save-name"
+              :disabled="!canSaveName"
+              @click="submitName"
+            >
+              <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
+                   原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
+                   三兄弟只有它是纯文字 —— 内部不自洽。 -->
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              {{ t('photosPersonSaveName') }}
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <div ref="dupConfirmRef" class="cad-dupconfirm" data-test="cad-dupconfirm" tabindex="-1">
+            <button type="button" class="cad-dup-primary" data-test="cad-dup-merge" @click="dupMergeInto">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+              {{ t('photosPersonDupMergeInto') }}
+            </button>
+            <button type="button" class="cad-dup-secondary" data-test="cad-dup-name-anyway" @click="dupNameAnyway">
+              {{ t('photosPersonDupNameAnyway') }}
+            </button>
+            <button type="button" class="cad-dup-cancel" data-test="cad-dup-cancel" @click="close">
+              {{ t('photosCancel') }}
+            </button>
+          </div>
+        </template>
       </template>
 
       <template v-else-if="mode === 'merge'">

@@ -1123,4 +1123,27 @@ export default {
   // 没有 Esc 语义(搜索页是真路由,Esc 已被浮层统一治理占用),故文案改成描述真实去向
   // (返回照片库),不照抄带 "(Esc)" 字样的原文。
   photosSearchBackToLibrary: '返回照片库',
+  // ── Task 7(Plan D,SP7-P5 人物):Hidden people 分区 + hide 动作 + 重名 dupconfirm 流 ──
+  // Vue2 PhotosPeopleView.vue:228(分区标题 $t('Hidden people'))。
+  photosPeopleHiddenSection: '隐藏的人物',
+  // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 两处菜单项字面同一句
+  // $t('Hide person'),共用一个键。
+  photosPersonMenuHide: '隐藏此人',
+  // Vue2 两处菜单项的 title 说明文案,字面同一句(PhotosPeopleView.vue:274 /
+  // PhotosPersonDetail.vue:44):
+  // $t('Person leaves the People page. Photos and face recognition are kept — you can unhide anytime.')
+  photosPersonHideGateTitle: '此人物会从人物页移除。照片与人脸识别记录都会保留——你可以随时取消隐藏。',
+  // Vue2 PhotosPeopleView.vue:249 $t('Unhide')。
+  photosPeopleUnhide: '取消隐藏',
+  // Vue2 hideClusterPerson/hideCurrentPerson 两处的成功 toast 字面同一句
+  // $t('{label} hidden')(PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923)。
+  photosPersonHiddenToast: '{label} 已隐藏',
+  // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 两处 dupconfirm 弹窗标题
+  // 字面同一句 $t('A person named "{name}" already exists.')。
+  photosPersonDupExistsTitle: '已存在名为「{name}」的人物。',
+  // Vue2 两处 dupconfirm 的"合并"按钮字面同一句 $t('Merge into existing')(不带省略号,
+  // 与菜单项 photosPersonMergeExisting 的"…"版本是两句不同文案,不能共用)。
+  photosPersonDupMergeInto: '合并到已有人物',
+  // Vue2 两处 dupconfirm 的"照样命名"按钮 $t('Name anyway')。
+  photosPersonDupNameAnyway: '仍然使用这个名字',
 }

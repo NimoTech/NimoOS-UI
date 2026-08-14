@@ -234,6 +234,18 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/persons/${id}/restore`, {})
       return body<unknown>(res.data)
     },
+    // Task 7(SP7-P5 人物,Plan D):Vue2 src/service/photos.js:78-79 的字面对应端点 ——
+    // hidePerson 是即时隐藏(非破坏性,无 grace-period,restorePerson 随时可撤销);
+    // listHiddenPersons 拉隐藏人物列表,后端裸数组响应(无信封),同 mergeSuggestions()
+    // 的解包方式。
+    async hidePerson(id: string | number): Promise<unknown> {
+      const res = await http.post(`/photos/persons/${id}/hide`, {})
+      return body<unknown>(res.data)
+    },
+    async listHiddenPersons(): Promise<unknown[]> {
+      const res = await http.get('/photos/persons/hidden')
+      return body<unknown[]>(res.data)
+    },
     async getPersonAssets(id: string | number, limit = 100, offset = 0): Promise<unknown> {
       const res = await http.get(`/photos/persons/${id}/assets`, { params: { limit, offset } })
       return body<unknown>(res.data)

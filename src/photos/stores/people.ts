@@ -11,6 +11,7 @@ import {
   toPerson, namedOf, unnamedOf, visibleUnnamedOf, hiddenSingletonCountOf,
   type Person, type PeopleFilter,
 } from '../util/peopleView'
+import { isNotFound } from '../util/httpErrors'
 
 const LS_CONFIDENCE = 'nimo_people_confidence'
 const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
@@ -21,6 +22,13 @@ const PURGE_DELAY_MS = 5000
 // key 一律 String(id)(铁律:后端 id 可能是数字、路由参数恒是字符串)。
 interface PurgeEntry { timer: ReturnType<typeof setTimeout>; snapshot: Person | null; idx: number; committed: boolean }
 const _purgeTimers = new Map<string, PurgeEntry>()
+
+// Task 7 (Plan D, SP7-P5 人物): 隐藏请求在途期间的临时守卫 —— 防止一次竞态的 fetchPeople
+// 把刚乐观移除的人物又拉回来(照 Vue2 hidePersonAction 的 _pendingPersonRemovals 窗口:
+// 发请求前加入、finally 移除,photos.js:1592-1607)。不复用 _purgeTimers:那个 Map 存的是
+// 撤销闭包需要的 snapshot/idx/timer,语义上属于"5 秒可撤销清除";隐藏没有那个窗口,只需要
+// 覆盖这一次 HTTP 往返,用独立的小 Set 更清楚,也不会跟 purge 的"复用首次 idx"分支互相干扰。
+const _pendingHides = new Set<string>()
 
 function readFilter(): PeopleFilter {
   // 照 Vue2 photos.js:283-291 的 IIFE:白名单校验 + 严格 '1' 比较 + 整体 try 兜底(隐私模式/SSR)。
@@ -43,6 +51,13 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const facesIndexedUpTo = ref<string | null>(null)
   const filter = ref<PeopleFilter>(readFilter())
   const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
+
+  // Task 7 (Plan D): Hidden people 分区状态(照 Vue2 photos.js:392-399)。
+  const hiddenPeople = ref<Person[]>([])
+  const hiddenPeopleLoaded = ref(false)
+  // 假定 true 直到一次真实 404 证明后端还没有隐藏功能(S4 之前的旧后端)—— People 页用它
+  // 整体隐藏"Hidden people"分区与"Hide person"菜单项,不弹错误 toast(照 Vue2 :396-399)。
+  const hiddenPeopleSupported = ref(true)
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
@@ -79,8 +94,13 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
         { persons?: unknown; facesIndexedUpTo?: unknown } | undefined
       const list = Array.isArray(raw?.persons) ? (raw?.persons as Record<string, unknown>[]) : []
       const mapped = list.map(toPerson)
-      // 撤销窗口期内的人物要从重拉结果里滤掉,否则「删了又冒出来」(Vue2 mutation SET_PEOPLE :507)。
-      people.value = _purgeTimers.size ? mapped.filter((p) => !_purgeTimers.has(key(p.id))) : mapped
+      // 撤销窗口期内的人物、以及隐藏请求在途期间的人物都要从重拉结果里滤掉,否则「删了/
+      // 隐藏了又冒出来」(Vue2 mutation SET_PEOPLE :507,724-726 用的是同一个
+      // _pendingPersonRemovals 集合;这里 _purgeTimers 与 _pendingHides 分属两套独立机制,
+      // 见 _pendingHides 声明处的注释)。
+      people.value = (_purgeTimers.size || _pendingHides.size)
+        ? mapped.filter((p) => !_purgeTimers.has(key(p.id)) && !_pendingHides.has(key(p.id)))
+        : mapped
       // 未登记偏离(评审必修 3,补登记):这里的 `!== undefined` 照的是 Vue2 **mutation**
       // 层(:509)的判定,但 Vue2 **action** 层(fetchPeople :1085)总是把
       // `data.facesIndexedUpTo || null` 传给 mutation——成功路径永远是"有值或 null",
@@ -323,24 +343,87 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // 纯本地清空:后端没有「全部忽略」端点,下次 fetchMergeSuggestions 建议会重新出现(照 Vue2 :1248 的注释)。
   function dismissAllMerges(): void { mergeSuggestions.value = [] }
 
+  // ── 隐藏人物(Task 7,Plan D)。照 Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson
+  // (photos.js:1585-1633)——三条动作分工与 Vue2 一一对应,不合并。
+
+  // 即时隐藏,无确认弹窗:非破坏性、随时可从"Hidden people"分区里 unhidePerson 撤销
+  // (照 Vue2 :1585-1591 的注释)。乐观 REMOVE_PERSON + 失败快照回滚,手法同
+  // purgePersonWithUndo 的 snapshot/idx(去掉了那边独有的 5 秒 undo 定时器 —— 隐藏没有
+  // 那个撤销窗口,不需要)。返回成功与否,交给调用方(视图层)决定要不要 toast/导航。
+  async function hidePerson(id: string | number): Promise<boolean> {
+    const k = key(id)
+    const idx = people.value.findIndex((p) => key(p.id) === k)
+    const snapshot = idx >= 0 ? { ...people.value[idx] } : null
+    removePerson(id)
+    _pendingHides.add(k)
+    try {
+      await service.photos.hidePerson(id)
+    } catch (e) {
+      console.error('[photos-people] hidePerson', e)
+      if (snapshot) insertPersonAt(snapshot, idx)
+      return false
+    } finally {
+      _pendingHides.delete(k)
+    }
+    return true
+  }
+
+  // 拉隐藏人物列表。特性探测:老后端没有隐藏功能,GET /persons/hidden 会 404 —— 命中就把
+  // hiddenPeopleSupported 翻成 false,让视图整体隐藏"Hidden people"分区/菜单项,不弹错误
+  // toast(照 Vue2 :1608-1623)。
+  async function fetchHiddenPeople(): Promise<void> {
+    try {
+      const list = (await service.photos.listHiddenPersons()) as Record<string, unknown>[] | undefined
+      hiddenPeople.value = Array.isArray(list) ? list.map(toPerson) : []
+      hiddenPeopleLoaded.value = true
+      hiddenPeopleSupported.value = true
+    } catch (e) {
+      if (isNotFound(e)) {
+        hiddenPeopleSupported.value = false
+      } else {
+        console.error('[photos-people] fetchHiddenPeople', e)
+      }
+    }
+  }
+
+  // Unhide 复用 restorePerson(与撤销删除同一个端点)—— 隐藏和删除在服务端都只是把人物
+  // 移出可见列表(照 Vue2 :1624-1633)。无论成败都重拉两份列表对账(照 Vue2 unconditional
+  // finally dispatch,不像别的写入路径那样区分成功/失败分支)。
+  async function unhidePerson(id: string | number): Promise<void> {
+    try {
+      await service.photos.restorePerson(id)
+    } catch (e) {
+      console.error('[photos-people] unhidePerson', e)
+    } finally {
+      void fetchPeople()
+      void fetchHiddenPeople()
+    }
+  }
+
   function __resetForTest(): void {
     for (const entry of _purgeTimers.values()) clearTimeout(entry.timer)
     _purgeTimers.clear()
+    _pendingHides.clear()
     people.value = []
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
     mergeSuggestions.value = []
     filter.value = readFilter()
+    hiddenPeople.value = []
+    hiddenPeopleLoaded.value = false
+    hiddenPeopleSupported.value = true
   }
 
   return {
     people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions,
+    hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount,
     personById, patchPerson,
     fetchPeople, fetchMergeSuggestions, setConfidence, setShowSingletons,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,
+    fetchHiddenPeople, hidePerson, unhidePerson,
     __resetForTest,
   }
 })
