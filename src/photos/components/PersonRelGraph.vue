@@ -155,6 +155,21 @@ function thumbUrl(pos: NodePos): string {
 /* 颜色一律走 CSS class(SVG presentation attribute 不认 var(),见脚本区顶部
    注释)。几何量(stroke-width/stroke-opacity/r/坐标)不是颜色,留在模板的
    attribute 上,不搬进这里。 */
+/* Task 5 (Plan D) shadowing cleanup: `.rg-name`/`.rg-name-dim` duplicated parity's own
+   `.rel-graph-wrap svg .rg-name`/`.rg-name-dim` rules (this SVG only ever renders inside
+   `.rel-graph-wrap`, per PersonRelationsTab.vue's template) and have been deleted — parity
+   now governs directly with `fill: var(--text-1)`/`var(--text-2)`.
+
+   Everything else below (`.rg-glow-stop`/`.rg-edge`/`.rg-pill`/`.rg-pill-text`/
+   `.rg-center-ring`/`.rg-node-ring`/`.rg-node`) has no parity anchor at all — parity only
+   transcribed the two text-fill rules above. Vue2's own PhotosRelGraph.vue hardcodes these as
+   literal hex on SVG presentation attributes (fill set to Vue2's old purple, can't hold var() — see
+   script-block comment), and this app deliberately does not transcribe that literal purple:
+   same reasoning already established for `.rel-insight-card` (PersonRelationsTab.vue) — a
+   fixed accent-colored decoration should follow *this* app's live --accent rather than stay
+   frozen to Vue2's old theme's literal hex. These are this SVG's only consumer (no other
+   component draws it), so kept local rather than adding single-consumer rules to the shared
+   parity file. */
 .rg-glow-stop {
   stop-color: var(--accent);
 }
@@ -175,12 +190,6 @@ function thumbUrl(pos: NodePos): string {
 .rg-node-ring {
   fill: var(--panel-bg);
   stroke: var(--card-border);
-}
-.rg-name {
-  fill: var(--fg);
-}
-.rg-name-dim {
-  fill: var(--fg-muted);
 }
 .rg-node {
   cursor: pointer;

@@ -133,131 +133,22 @@ const nimoReadHtml = computed(() => {
 </template>
 
 <style scoped>
-/* 关系图区(照 photos-people.scss:502-535)。 */
-.rel-section {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 24px;
-  align-items: start;
-}
-/* Vue2 用 --font-display/--font-sans 两个字体 token 区分标题/副标题字重来源;
-   New-UI 只有一个统一的 --font token(已在 theme.css 核实),两处都用它,同
-   PersonPlacesTab.vue 的 .detail-section-title/.sub 既有先例(T12,同款
-   flex+baseline+gap 结构,同款 --fg/--fg-muted 配色)——两个 tab 各自渲染自己
-   的段落标题(协调者裁定),CSS 规则因此各写一份,不是漏共享。 */
-.detail-section-title {
-  font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  color: var(--fg);
-}
-.detail-section-title .sub {
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--fg-muted);
-  letter-spacing: 0;
-}
-/* Vue2 这张卡用 --surface-1(背景)/--line(边框)/--r-lg(圆角)三个 token,
-   本仓均不存在(已 grep 确认两套主题块都没有)——分别代以 --card(同 T12
-   .map-card 先例)/--card-border/--radius-sm。 */
-.rel-graph-wrap {
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-  position: relative;
-  min-height: 420px;
-  overflow: hidden;
-}
-/* Vue2 图例文字用 --text-3,本仓不存在,代以语义对应的 --fg-muted。 */
-.rel-graph-wrap .legend {
-  position: absolute;
-  top: 14px;
-  left: 16px;
-  font-size: 11px;
-  color: var(--fg-muted);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.rel-graph-wrap .legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.rel-graph-wrap .legend .l {
-  width: 18px;
-  height: 2px;
-  background: var(--accent);
-  opacity: 0.8;
-}
-.rel-graph-wrap .legend .l.thin {
-  opacity: 0.4;
-}
+/* Task 5 (Plan D) shadowing cleanup: `.rel-section`, `.detail-section-title`(+`.sub`),
+   `.rel-graph-wrap`(+`.legend` family), `.rel-list`/`.rel-row`(+`.body`/`.nm`/`.ct`/`.bar`/
+   `.bar > div`) all duplicated parity anchors under the exact same selector paths and have
+   been deleted — parity now governs directly, using its own token set (`--text-1`/`--surface-1`
+   /`--line`/`--r-lg` etc.) rather than this app's theme.css tokens the comments here used to
+   explain as substitutes. See task-5-report.md's deviations table for the resulting value
+   changes (mostly cosmetic: parity's tokens resolve to Vue2's own pixel values inside
+   `.photos-root`, this component's previous substitutions were reasoned approximations). */
 
-/* 共现列表(照 photos-people.scss:537-568)。 */
-.rel-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.rel-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-/* Vue2 用 --surface-2,本仓不存在,代以 --hover(同 PersonHero.vue
-   .hero-menu-item:hover 先例:透明背景上的行级 hover 淡叠层)。 */
-.rel-row:hover {
-  background: var(--hover);
-}
-.rel-row .body {
-  flex: 1;
-  min-width: 0;
-}
-.rel-row .nm {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fg);
-}
-.rel-row .ct {
-  font-size: 11.5px;
-  color: var(--fg-muted);
-}
-.rel-row .bar {
-  width: 60px;
-  height: 4px;
-  border-radius: 99px;
-  /* Vue2 这条轨道背景用的是 --ink 这个 token 混 6% 透明度,而 --ink 在本仓
-     不存在(已 grep 确认两套主题块均无该 token)——改用同语义的中性淡叠层
-     token --divider 代替(两套主题皆有定义)。 */
-  background: var(--divider);
-  overflow: hidden;
-  flex: none;
-}
-.rel-row .bar > div {
-  height: 100%;
-  /* Vue2 用 var(--accent-hi) —— 本仓不存在该 token,用 --accent-text 代替
-     (两套主题皆有定义,语义同为"强调色的高亮/文本变体")。 */
-  background: linear-gradient(90deg, var(--accent), var(--accent-text));
-}
-
-/* Nimo's read 洞察卡(照 photos-people.scss:647-673;不含 :674-682 的
-   "深挖"按钮样式 —— 该按钮本任务不渲染,归 SP8)。 */
+/* `.rel-insight-card` survives as a deliberate, already-reviewed deviation from both Vue2 and
+   parity: Vue2 hardcodes this card's background as a fixed purple RGB-triplet gradient
+   (its old theme's literal accent color) — parity transcribes that literal value too. This app
+   follows the *current* theme's --accent instead via color-mix, so the card doesn't look
+   frozen to Vue2's old purple in whichever theme has a different accent. Not a bug to fix;
+   kept exactly as previously reasoned. */
 .rel-insight-card {
-  /* Vue2 这张卡的底色是硬编码的固定紫色透明度渐变(色值 110,91,255)—— 那正是
-     Vue2 旧主题的强调色字面量,不是皮肤无关的数据可视化色。改用 color-mix
-     基于当前主题的 --accent 派生,跟随主题切换,而不是钉死一个紫色(两套
-     主题的 accent 并不相同)。 */
   background: linear-gradient(
     160deg,
     color-mix(in srgb, var(--accent) 10%, transparent),
@@ -267,27 +158,20 @@ const nimoReadHtml = computed(() => {
   border-radius: var(--radius-sm);
   padding: 16px;
 }
-.rel-insight-card .hd {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--accent-text);
-  font-weight: 600;
-  margin-bottom: 10px;
-}
+/* `.hd` itself duplicated parity's own rule (parity's `color: var(--accent-hi)` is already a
+   themed token, not one of Vue2's hardcoded literals, so there's no reason to keep a local
+   copy — deleted). `.hd .orb`'s background-image comes from an inline :style binding (imported
+   asset URL, see script block) rather than parity's `url(../../assets/nimo-logo.png)` —
+   parity's relative scss import path is not guaranteed to resolve the same way through this
+   app's own asset pipeline, so the image itself stays inline; only the box geometry survives
+   here (parity's shorthand still supplies matching background-size/position/repeat, since
+   inline style only overrides the single background-image longhand it sets). `.rel-insight-card
+   p` duplicated parity's own rule too and has been deleted (parity's `margin: 0 0 10px` vs.
+   this component's `margin: 0` — this component never renders the button that margin made room
+   for, so the extra 10px is just a touch of trailing padding, not a visible defect). */
 .rel-insight-card .hd .orb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background-size: cover;
-  background-repeat: no-repeat;
-  background-position: center;
-}
-.rel-insight-card p {
-  font-size: 12.5px;
-  color: var(--fg-muted);
-  line-height: 1.55;
-  margin: 0;
 }
 </style>

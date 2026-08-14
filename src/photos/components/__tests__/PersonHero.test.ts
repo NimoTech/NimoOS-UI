@@ -326,9 +326,13 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     return (m as RegExpExecArray)[1]
   }
 
-  it('.person-hero **不得**有 overflow(否则 absolute 锚定的菜单会被整块切掉,z-index 无用)', () => {
+  it('.detail-hero 的 overflow 不得是 hidden(否则 absolute 锚定的菜单会被整块切掉,z-index 无用)', () => {
+    // Task 5 (Plan D):根类名从 .person-hero 改成 .detail-hero 以对齐 parity 锚点后,parity 自己
+    // 的 `.detail-hero { overflow: hidden }` 会级联生效——本组件必须显式覆盖回
+    // overflow:visible(不再是"干脆不写这条声明"),所以断言从"不得出现 overflow:"
+    // 改成"出现的 overflow 值不得是 hidden"。
     expect(style).not.toBe('')
-    expect(rule('.person-hero')).not.toMatch(/overflow\s*:/)
+    expect(rule('.detail-hero')).not.toMatch(/overflow\s*:\s*hidden/)
   })
 
   it('裁剪职责在 .hero-clip 上:它 overflow:hidden 且铺满 hero', () => {
@@ -347,7 +351,7 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     const clip = w.get('[data-test="hero-clip"]')
     expect(clip.find('[data-test="hero-bg"]').exists()).toBe(true)
     expect(clip.find('[data-test="hero-scrim"]').exists()).toBe(true)
-    // 菜单不在裁剪层里 —— 它是 .person-hero 的后代,但不是 .hero-clip 的后代。
+    // 菜单不在裁剪层里 —— 它是 .detail-hero 的后代,但不是 .hero-clip 的后代。
     expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
   })
 

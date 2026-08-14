@@ -169,41 +169,45 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="person-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
+  <!-- Task 5 (Plan D): root class renamed `person-hero` → `detail-hero` and every descendant
+       class below renamed to its parity/Vue2 anchor (see task-5-report.md's rename table) so
+       `src/photos/styles/vue2-parity/photos-people.scss` governs directly. data-test attributes,
+       props/emits and all logic are unchanged. -->
+  <div class="detail-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
     <!-- 终审 Important 5:裁剪层。模糊背景与暗化遮罩关在这里,`overflow: hidden` 由它自己承担,
-         .person-hero 不再裁 —— 否则两个 hero 下拉菜单(absolute)会被祖先切掉。 -->
+         .detail-hero 不再裁 —— 否则两个 hero 下拉菜单(absolute)会被祖先切掉。 -->
     <div class="hero-clip" data-test="hero-clip">
       <div
-        class="hero-bg"
+        class="bg"
         data-test="hero-bg"
         :class="{ 'is-fallback': isFallback }"
         :style="isFallback ? {} : { backgroundImage: `url(${heroBg})` }"
       />
-      <div v-if="!isFallback" class="hero-scrim" data-test="hero-scrim" />
+      <div v-if="!isFallback" class="scrim" data-test="hero-scrim" />
     </div>
 
     <!-- 终审 Minor 7:文案是 t('photosPeople')(「人物」/ "People")—— 照 Vue2 :6 的 $t('People')。
          不用 photosPersonBack(「返回人物」/ "Back to people"):那句是**人物不存在**空态里那个
          返回按钮的文案(PhotosPersonDetail.vue 门控③),两处不是同一句。 -->
-    <button type="button" class="hero-back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
+    <button type="button" class="back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
       {{ t('photosPeople') }}
     </button>
 
-    <div class="hero-inner">
-      <div class="hero-avatar" data-test="hero-avatar">
+    <div class="inner">
+      <div class="avatar" data-test="hero-avatar">
         <PersonAvatar :person-id="person.id" :name="person.name" :ver="person.coverFaceId" :size="200" />
       </div>
 
-      <div class="hero-info">
-        <div class="hero-name-row">
-          <span class="hero-name" data-test="hero-name">{{ heroTitle }}</span>
+      <div class="info">
+        <div class="name">
+          <span class="name-text" data-test="hero-name">{{ heroTitle }}</span>
 
           <!-- 终审 Minor 7:未收藏态的 title/aria 照 Vue2 :26 的 `Mark as favorite`(不是通用的
                `Favorite`);已收藏态复用 photosUnfavorite,其中文与 Vue2 `Remove favorite` 的原译一致。 -->
           <button
             type="button"
-            class="hero-fav"
+            class="fav-toggle"
             data-test="hero-fav"
             :class="{ 'is-fav': person.favorite }"
             :aria-label="t(person.favorite ? 'photosUnfavorite' : 'photosPersonMarkFavorite')"
@@ -214,43 +218,43 @@ onUnmounted(() => {
             <svg v-else viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M12 3.5l2.6 5.3 5.9.86-4.25 4.14 1 5.86L12 17.9l-5.25 2.76 1-5.86L3.5 9.66l5.9-.86z" /></svg>
           </button>
 
-          <div ref="editWrapRef" class="hero-menu-wrap" data-test="hero-edit-wrap">
-            <button type="button" class="hero-trigger" data-test="hero-edit-trigger" @click.stop="editOpen = !editOpen">
+          <div ref="editWrapRef" class="relation-picker" data-test="hero-edit-wrap">
+            <button type="button" class="edit-btn" data-test="hero-edit-trigger" @click.stop="editOpen = !editOpen">
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
               {{ t('photosPersonEdit') }}
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
             </button>
-            <div v-if="editOpen" class="hero-menu" data-test="hero-edit-menu">
-              <button type="button" class="hero-menu-item" data-test="hero-edit-rename" @click="pickEdit('rename')">
+            <div v-if="editOpen" class="relation-menu edit-menu" data-test="hero-edit-menu">
+              <button type="button" class="relation-option" data-test="hero-edit-rename" @click="pickEdit('rename')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
                 <!-- 终审 Minor 6:短动词键(照 Vue2 :38 `$t('Rename')`);photosPersonRename
                      是改名弹窗的标题「重命名人物」,不能顶替菜单项。 -->
                 {{ t('photosPersonMenuRename') }}
               </button>
-              <button type="button" class="hero-menu-item" data-test="hero-edit-merge" @click="pickEdit('merge')">
+              <button type="button" class="relation-option" data-test="hero-edit-merge" @click="pickEdit('merge')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
                 <!-- 终审 Minor 6:同上,照 Vue2 :41 `$t('Merge into…')`;photosPersonMergeInto
                      是合并弹窗的标题「合并到另一个人物」。 -->
                 {{ t('photosPersonMenuMergeInto') }}
               </button>
-              <button type="button" class="hero-menu-item hero-menu-danger" data-test="hero-edit-delete" @click="pickEdit('delete')">
+              <button type="button" class="relation-option edit-menu-danger" data-test="hero-edit-delete" @click="pickEdit('delete')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg>
                 {{ t('photosPersonDelete') }}
               </button>
             </div>
           </div>
 
-          <div ref="relationWrapRef" class="hero-menu-wrap" data-test="hero-relation-wrap">
-            <button type="button" class="hero-trigger" data-test="hero-relation-trigger" @click.stop="relationOpen = !relationOpen">
+          <div ref="relationWrapRef" class="relation-picker" data-test="hero-relation-wrap">
+            <button type="button" class="relation-trigger" data-test="hero-relation-trigger" @click.stop="relationOpen = !relationOpen">
               {{ t(relationLabelKey) }}
               <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6" /></svg>
             </button>
-            <div v-if="relationOpen" class="hero-menu" data-test="hero-relation-menu">
+            <div v-if="relationOpen" class="relation-menu" data-test="hero-relation-menu">
               <button
                 v-for="opt in relationOptions"
                 :key="opt.value"
                 type="button"
-                class="hero-menu-item"
+                class="relation-option"
                 data-test="hero-relation-option"
                 :data-value="opt.value"
                 :data-active="(person.relation || '') === opt.value"
@@ -263,32 +267,32 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <div class="hero-stats" data-test="hero-stats">
-          <div class="hero-stat" data-test="hero-stat-photos">
+        <div class="stats-row" data-test="hero-stats">
+          <div class="stat" data-test="hero-stat-photos">
             <div class="v">{{ person.count ? person.count.toLocaleString() : 0 }}</div>
             <div class="k">{{ t('photosPersonStatPhotos') }}</div>
           </div>
-          <div class="hero-stat" data-test="hero-stat-places">
+          <div class="stat" data-test="hero-stat-places">
             <div class="v">{{ placesCount }}</div>
             <div class="k">{{ t('photosPersonStatPlaces') }}</div>
           </div>
-          <div class="hero-stat" data-test="hero-stat-appears">
+          <div class="stat" data-test="hero-stat-appears">
             <div class="v">{{ relationCount }}</div>
             <div class="k">{{ t('photosPersonStatAppearsWith') }}</div>
           </div>
-          <div class="hero-stat" data-test="hero-stat-first-seen">
-            <div class="v">{{ firstYear }}<span class="hero-stat-month">{{ firstMonthShort }}</span></div>
+          <div class="stat" data-test="hero-stat-first-seen">
+            <div class="v">{{ firstYear }}<span class="stat-month">{{ firstMonthShort }}</span></div>
             <div class="k">{{ t('photosPersonStatFirstSeen') }}</div>
           </div>
         </div>
       </div>
 
-      <div class="hero-actions">
-        <button type="button" class="hero-action-btn" data-test="hero-make-album" @click="emit('make-album')">
+      <div class="actions">
+        <button type="button" class="btn" data-test="hero-make-album" @click="emit('make-album')">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
           {{ t('photosPersonMakeAlbum') }}
         </button>
-        <button type="button" class="hero-action-btn" data-test="hero-background" @click="emit('open-hero-picker')">
+        <button type="button" class="btn" data-test="hero-background" @click="emit('open-hero-picker')">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
           {{ t('photosPersonBackground') }}
         </button>
@@ -298,18 +302,37 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.person-hero {
+/* Task 5 (Plan D) shadowing cleanup — see task-5-report.md for the full per-rule table. The
+   short version: every rule below that duplicated a parity anchor under the same selector
+   path has been deleted (parity — `src/photos/styles/vue2-parity/photos-people.scss` —
+   governs directly, using its own token set). What survives is exactly two kinds of rule:
+   (1) structural New-UI-only additions with no Vue2/parity counterpart at all (`.hero-clip`,
+   `.scrim`, the `.bg::after` neutralizer, `.stat-month`, the approved `overflow`/`flex-wrap`
+   deviations); (2) the hero's "pinned light foreground" theme-exception family — every
+   caption/label/icon that sits directly over the (possibly light-themed) blurred cover photo
+   keeps an explicit `color` override here, because parity itself uses *themed* tokens
+   (`--text-1`/`--text-2`) for these captions and relies on a light-theme text-shadow halo
+   instead of a fixed light color — a real design difference from this app's already-reviewed
+   "配色红线" decision (see file-header comment), not something this cleanup should undo.
+   These color survivors are written as full parity-matching selector paths (not bare class
+   names) specifically so the scoped-attribute specificity bump reliably beats parity's own
+   rules for the same element regardless of stylesheet load order — a bare `.back { color }`
+   would tie parity's `.detail-hero .back` in specificity, which is exactly the kind of
+   coin-flip this technique avoids. */
+.detail-hero {
   position: relative;
-  min-height: 280px;
-  /* 终审 Important 5:**这里刻意没有 overflow: hidden**(Vue2 .detail-hero 有,
-     photos-people.scss:277-281)。两个下拉菜单是 absolute 锚定的(见文件头的实现方式偏离
-     登记),祖先一裁就整块消失、z-index 无用、也没有滚动条可救 —— 长人名触发
-     .hero-name-row 换行后菜单最后一项会被切掉约一半。裁剪职责下移到 .hero-clip。
-     加新的绝对定位子元素时留意:它现在**不会**被 hero 边界裁住。 */
+  /* 终审 Important 5:**这里刻意没有 overflow: hidden**(parity 的 .detail-hero 有)。两个
+     下拉菜单是 absolute 锚定的(见文件头的实现方式偏离登记),祖先一裁就整块消失、z-index
+     无用、也没有滚动条可救 —— 长人名触发 .name 换行后菜单最后一项会被切掉约一半。裁剪
+     职责下移到 .hero-clip。加新的绝对定位子元素时留意:它现在**不会**被 hero 边界裁住。
+     min-height/border-bottom/background all now come from parity's own `.detail-hero` rule
+     (duplicates deleted); flex:none is Vue2's own component-scoped supplement
+     (PhotosPersonDetail.vue:1104), not transcribed into the shared parity file yet. */
+  overflow: visible;
   flex: none;
 }
 /* 只裁"该裁的东西":模糊封面图 + 暗化遮罩。
-   为什么必须是**独立的祖先容器**,而不是让 .hero-bg 自己 overflow:hidden(评审建议的字面
+   为什么必须是**独立的祖先容器**,而不是让 .bg 自己 overflow:hidden(评审建议的字面
    写法):`filter: blur(40px)` 的输出按规范画在元素盒子**之外**(此处最多外溢约 120px),
    `transform: scale(1.2)` 又把它整体放大 20% —— 元素自身的 overflow 管不了自己的滤镜输出,
    只有**祖先**的 overflow 才能裁。若不裁,模糊边缘会溢到下方 tabs/网格与页面两侧。
@@ -321,94 +344,75 @@ onUnmounted(() => {
   inset: 0;
   overflow: hidden;
 }
-.hero-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  filter: blur(40px) saturate(1.4);
-  transform: scale(1.2);
-  opacity: 0.45;
-}
-/* 无封面/无人脸缩略图时的纯渐变兜底——不叠 blur/scale/opacity(那三条是为"模糊照片"设计的,
-   套在纯色渐变上只会把它洗成一片 45% 透明度的浅雾,而不是 PersonAvatar 三级兜底同款的
-   饱和渐变色块;Vue2 :1420-1422 的 [data-fallback] 覆盖规则没有解除父规则的 filter/opacity,
-   这里判定为无意的视觉稀释,不照抄——按同一渐变 token 但用满血不透明色块渲染)。 */
-.hero-bg.is-fallback {
+/* `.bg`'s own base rule (position/inset/background-size/position/filter/transform/opacity)
+   duplicated parity's `.detail-hero .bg` byte-for-byte and has been deleted. Only the
+   fallback modifier survives: 无封面/无人脸缩略图时的纯渐变兜底——不叠 blur/scale/opacity
+   (那三条是为"模糊照片"设计的,套在纯色渐变上只会把它洗成一片 45% 透明度的浅雾,而不是
+   PersonAvatar 三级兜底同款的饱和渐变色块;parity 的 [data-fallback] 覆盖规则同样没有解除
+   父规则的 filter/opacity,这里判定为 Vue2 无意的视觉稀释,不照抄——按同一渐变 token 但用
+   满血不透明色块渲染)。 */
+.bg.is-fallback {
   filter: none;
   transform: none;
   opacity: 1;
   background: var(--avatar-fallback);
 }
-.hero-scrim {
+/* Parity paints its own scrim as `.bg::after` (mixed toward var(--bg), washes out in the light
+   theme exactly where the pinned light text sits — see file-header comment for the full
+   reasoning already reviewed twice). This component uses a separate `.scrim` sibling div with
+   a fixed black gradient instead (below) — neutralize parity's pseudo-element so the two don't
+   stack. Written as the full parity selector path for the specificity reasons noted above. */
+.detail-hero .bg::after { content: none; }
+.scrim {
   position: absolute;
   inset: 0;
   /* theme-exception: 叠在人物封面照片之上的固定暗化渐变,专为下方钉死的浅色前景文字/
-     图标提供跨主题恒定的可读对比度——理由与不采用 brief 建议的 var(--bg) 混合公式的
-     完整说明见本文件顶部注释,这里不重复。 */
+     图标提供跨主题恒定的可读对比度——理由见本文件顶部注释,这里不重复。 */
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.68) 100%);
 }
 
-.hero-back {
-  position: absolute;
-  top: 18px;
-  left: 18px;
-  z-index: 5;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12.5px;
-  padding: 6px 12px 6px 8px;
-  border-radius: 999px;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--card-border);
-  cursor: pointer;
-  color: #fff; /* theme-exception: hero 顶部 chrome 按钮,恒叠在暗化封面照片之上,需跨主题
-    恒定浅色前景(见文件头"配色红线"说明) */
-}
-/* theme-exception: hover 态往 --overlay-bg 里掺一点白提亮,掺入量是固定观感调校值,
-   与主题无关（同 .hero-back 本身钉死浅色前景的道理一致，见上方声明） */
-.hero-back:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
+/* theme-exception: hero chrome pinned to a light foreground, base + hover (parity's own
+   `.back`/`.back:hover` use var(--text-2)/var(--text-1) — themed, not pinned — everything else
+   about this button — position/padding/border-radius/background/backdrop-filter/border/hover
+   background — now comes straight from parity, duplicates deleted). */
+.detail-hero .back,
+.detail-hero .back:hover { color: #fff; }
 
-.hero-inner {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  padding: 24px 32px;
-  min-height: 280px;
-}
+/* `.inner`'s position/display/align-items/gap/padding duplicated parity's own `.detail-hero
+   .inner` rule and have been deleted. `z-index`/`min-height` survive: Vue2 itself has TWO
+   sources for `.inner` — the shared photos-people.scss rule parity already transcribes, and a
+   second, component-scoped supplement in PhotosPersonDetail.vue's own <style> block
+   (:1110-1118) that layers z-index:1 and min-height:280px on top — parity hasn't picked up
+   that second source yet, so it stays local here rather than going untranscribed silently. */
+.inner { z-index: 1; min-height: 280px; }
 
-.hero-avatar {
-  width: 200px;
-  height: 200px;
-  border-radius: 50%;
-  overflow: hidden;
-  flex: none;
-  border: 3px solid var(--panel-bg);
-  box-shadow: var(--icon-shadow), 0 0 0 1px var(--card-border);
-  position: relative;
-}
+/* `.avatar`'s sizing/border/shadow duplicated parity's own `.detail-hero .avatar` rule
+   (different token names, same concept — border/shadow tokens, not text/icon color, so there
+   is no theme-exception concern here) and has been deleted entirely. */
 
-.hero-info { flex: 1; min-width: 0; }
-.hero-name-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.name {
+  /* 偏离登记 10(已在文件头登记):flex-wrap:wrap 是本仓新增,parity/Vue2 的 `.name` 没有
+     这条,长人名会把 Edit/关系分组两个胶囊挤扁并溢出。display/align-items/gap/font/color
+     全部来自 parity 的 `.detail-hero .name`,只留这一条本地覆盖。 */
   flex-wrap: wrap;
 }
-.hero-name {
-  font-family: var(--font);
-  font-size: 38px;
-  font-weight: 600;
-  letter-spacing: -0.025em;
-  color: #fff; /* theme-exception: 姓名直接叠在暗化封面照片上,需跨主题恒定浅色(见文件头
-    "配色红线"说明,不用 --fg——浅色主题下 --fg 是近黑色,叠在暗照片上会深底深字) */
-}
+/* theme-exception: 姓名直接叠在暗化封面照片上,需跨主题恒定浅色(不用 --fg——浅色主题下
+   --fg 是近黑色,叠在暗照片上会深底深字)。font-family/size/weight/letter-spacing 都从
+   parity 的 `.detail-hero .name` 继承,这里只需要 color 这一条。 */
+.name-text { color: #fff; }
 
-.hero-fav {
+/* `.fav-toggle` survives in full (not just its color): Vue2's own template puts an inline
+   `style="background:transparent;border:0;padding:4px;cursor:pointer;display:inline-flex;
+   align-items:center;color:[gold hex]"` directly on this button (PhotosPersonDetail.vue:24-28) —
+   inline style always wins over any external stylesheet rule for the properties it sets, so
+   parity's own `.fav-toggle` CSS rule (border/background/transition) never actually renders in
+   real Vue2 — a parity-transcription gap noted for whoever maintains that file next, not
+   something to "align" to here (that would regress this component to a rule Vue2 itself never
+   applies). This component's own values below already match what Vue2 really renders
+   (transparent-ish pill, 4px padding, inline-flex, centered), give or take the visible 1px
+   outline this component intentionally adds; icon color is CSS-driven (this app's SVG uses
+   `stroke="currentColor"`, not Vue2's inline `color` prop). */
+.fav-toggle {
   border: 1px solid var(--card-border);
   border-radius: 999px;
   background: var(--overlay-bg);
@@ -417,129 +421,62 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   /* 未收藏态:半透明浅色描边星,同样钉死不随主题(见文件头"配色红线"说明)。
-     收藏态见下方 .hero-fav.is-fav 规则,复用本仓已确立的 --star-fg 兜底惯例。 */
+     收藏态见下方 .fav-toggle.is-fav 规则,复用本仓已确立的 --star-fg 兜底惯例。 */
   color: rgba(255, 255, 255, 0.72); /* theme-exception */
 }
-.hero-fav.is-fav {
+.fav-toggle.is-fav {
   /* --star-fg 两套主题都不各自定义具体值,是本仓已确立的先例(PhotosGrid.vue/
      PersonAvatar.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,
      用 var(fallback) 形式表达,color-guard 按 token 用法放行,不算裸字面量。 */
   color: var(--star-fg, #ffd60a);
 }
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
-.hero-fav:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
+/* theme-exception: 固定掺白提亮量,与主题无关 */
+.fav-toggle:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
 
-.hero-menu-wrap { position: relative; display: inline-flex; align-items: center; }
-.hero-trigger {
-  height: 28px;
-  padding: 0 12px;
-  font-size: 12px;
-  font-weight: 500;
-  line-height: 1;
-  box-sizing: border-box;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  border: 1px solid var(--card-border);
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  cursor: pointer;
-  font-family: var(--font);
-  color: #fff; /* theme-exception: 同 .hero-back——叠在暗化封面照片上的 chrome 按钮 */
-}
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
-.hero-trigger:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
+/* `.relation-picker`'s position/display/align-items duplicated parity's own rule exactly and
+   has been deleted. */
 
-/* 下拉菜单本体有自己的不透明底(--popup-bg),不再叠在照片上——菜单内文字/高亮走正常
-   随主题 token,不钉死(与上方 hero 直接前景的处理刻意不同,理由见文件头"配色红线"说明)。 */
-.hero-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 170px;
-  z-index: 20;
-  padding: 6px;
-  border-radius: 10px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow-hi);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.hero-menu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 7px 10px;
-  font-size: 12.5px;
-  color: var(--fg);
-  background: transparent;
-  border: 0;
-  border-radius: 8px;
-  cursor: pointer;
-  text-align: left;
-  font: inherit;
-}
-.hero-menu-item:hover { background: var(--hover); }
-.hero-menu-item[data-active="true"] {
-  /* Vue2 :60 用 var(--accent-hi)——本仓两套主题块均未定义这个 token(已 grep 确认,同
-     MergeReviewDialog.vue:249 的既有先例),借用同色调、两套主题都有定义的 --accent-text。 */
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-.hero-menu-danger { color: var(--remove-fg); }
-.hero-menu-danger:hover { background: color-mix(in srgb, var(--remove-fg) 12%, transparent); }
+/* theme-exception: hero trigger chrome pinned to a light foreground (parity's own rule uses
+   var(--text-2), themed) — base + hover written as parity's own compound selectors so the
+   scoped-attribute specificity bump reliably beats parity's `:hover` variant too (parity's
+   hover selector is itself a 4-class compound, `.detail-hero .name .edit-btn:hover`, so a bare
+   local `.edit-btn:hover` would lose outright, not just tie). Height/padding/border-radius/
+   border/background/backdrop-filter/font — all now come straight from parity. */
+.detail-hero .name .edit-btn,
+.detail-hero .name .relation-trigger,
+.detail-hero .name .edit-btn:hover,
+.detail-hero .name .relation-trigger:hover { color: #fff; }
 
-.hero-stats { display: flex; gap: 28px; margin-top: 14px; }
-.hero-stat .v {
-  font-family: var(--font);
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-  color: #fff; /* theme-exception: 统计数字叠在暗化封面照片上,见文件头"配色红线"说明 */
-}
-.hero-stat .k {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-top: 2px;
-  color: rgba(255, 255, 255, 0.72); /* theme-exception: 统计标签同上,钉死半透明浅色 */
-}
-.hero-stat-month {
+/* The popup bodies themselves (`.relation-menu`/`.relation-option`/`.edit-menu-danger`) are
+   NOT part of the "pinned light foreground" family — per the file-header "配色红线" note, once
+   open they sit on their own opaque `var(--surface-1)` popup background, not on the photo, so
+   they follow normal theme tokens same as any other popup. Every property parity supplies for
+   them (position/sizing/background/border/hover/active/danger colors) duplicated this
+   component's old local rules 1:1 in intent (just different token names) and has been deleted
+   entirely — no survivors needed here. */
+
+.stat-month {
+  /* New-UI addition: Vue2 renders this span with an inline style, not a class
+     (PhotosPersonDetail.vue:83), so there is no parity selector to align to or delete —
+     values transcribed from that inline style, color pinned per this hero's own convention. */
   font-size: 12px;
   margin-left: 4px;
   font-family: var(--font);
-  color: rgba(255, 255, 255, 0.72); /* theme-exception: 同 .hero-stat .k */
+  color: rgba(255, 255, 255, 0.72); /* theme-exception: 同 .stat .k */
 }
+/* theme-exception: 统计数字/标签叠在暗化封面照片上,需跨主题恒定浅色——parity 自己的
+   `.detail-hero .stat .v`/`.stat .k` 用的是随主题 token(.v 甚至没设 color,靠继承;.k 是
+   var(--text-3)),字体/字号/字重等结构属性均从 parity 继承/复用,这里只覆盖 color。 */
+.detail-hero .stat .v { color: #fff; } /* theme-exception */
+.detail-hero .stat .k { color: rgba(255, 255, 255, 0.72); } /* theme-exception */
 
-.hero-actions {
-  flex: none;
-  min-width: 200px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.hero-action-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--blur);
-  border: 1px solid var(--card-border);
-  padding: 9px 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  white-space: nowrap;
-  font-family: var(--font);
-  color: #fff; /* theme-exception: 操作钮叠在暗化封面照片上,见文件头"配色红线"说明 */
-}
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
-.hero-action-btn:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
+/* `.actions`'s layout duplicated parity's own `.detail-hero .actions` rule exactly (parity is
+   actually a superset — it also sets align-items:stretch, which this component's old local
+   rule was missing) and has been deleted. */
+
+/* theme-exception: action button text/icon pinned to a light foreground (parity's own rule
+   uses var(--text-1), themed, and doesn't change it on hover — so this single declaration
+   survives hover too without a separate hover rule). Everything else — padding/border-radius/
+   background/backdrop-filter/border/hover background — now comes straight from parity. */
+.detail-hero .actions .btn { color: #fff; }
 </style>
