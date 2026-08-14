@@ -29,11 +29,22 @@
 // busy 期间短路开关点击与阈值防抖到期后的最终 emit,避免并发 PATCH 竞态——按钮本身也用
 // data-busy 露出视觉态,不是静默吞掉点击。
 //
-// ── token 映射(沿用 SmartViewCreateDialog.vue:436-438 已立的规范表,同一批 Vue2 源
-//    文件、同一套映射,不再各写一份)──────────────────────────────────────────────
-// --surface-1→--popup-bg / --surface-2→--chip-bg / --surface-3→--chip-bg-hi;
-// --line→--card-border;--text-1→--fg / --text-2→--fg-muted / --text-3→--fg-faint /
-// --text-4→--fg-subtle;--accent-hi(文字/图标色)→--accent-text。
+// ── token 映射:改正记录(Fix-2 item 4, owner acceptance, 2026-08-13)────────────
+// 本节曾沿用 SmartViewCreateDialog.vue:436-438 立的规范表,把这里的开关/切换行样式改用
+// New-UI **全局** token(--surface-1→--popup-bg / --surface-2→--chip-bg /
+// --surface-3→--chip-bg-hi;--line→--card-border;--text-1→--fg / --text-2→--fg-muted /
+// --text-3→--fg-faint / --text-4→--fg-subtle;--accent-hi→--accent-text)——这份映射当时
+// "已声称与 parity 一致",但其实是错的:全局 token 不跟随 `.photos-root.is-light` 这个私有
+// 明暗开关(它们只跟随 App 顶层 `data-theme`),而 `--chip-bg`/`--chip-bg-hi` 在深色档还是
+// 玻璃渐变、不是 parity 要的纯色,`--card-border` 的深色不透明度(0.36)也远比 parity 的
+// `--line`(0.06/0.10)显眼——两条路都会造成本任务 owner 截图里"开关/操作 pill 长得不像
+// Vue2"的偏差,深色档就已经不对,浅色档更会退化成不可读的低对比度文字。已改正:下方
+// 样式块全部换回 parity 自己的 token(--surface-2/3、--text-1/2/3/4、--line、
+// --accent-hi),`--on-accent`(拇指投影落在纯色 accent 填充上)与 `--success`(本身在
+// `.photos-root` 上被同名重定义、天然遮蔽全局值)两处保留不动,已核实两者在两套主题下都
+// 安全。**登记纠正:此前"SmartViewSidePanel 已是 parity"的说法不成立**,偏差就出在这个
+// 组件自己的映射表选错了 token 家族,不是别处的问题;本次只改了这段注释与下方
+// 样式块的具体值,script 逻辑/props 零改动。
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosThreshSlider from './PhotosThreshSlider.vue'
@@ -219,59 +230,91 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
 .sv-side-section { margin-bottom: 24px; }
 .sv-side-section h3 {
   font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--fg-faint); margin: 0 0 10px;
+  color: var(--text-3); margin: 0 0 10px;
 }
 
 /* ── 阈值段(scss:537-542、565-573;滑块本体在 PhotosThreshSlider.vue)── */
 .sv-thresh-row { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; }
-.sv-thresh-row b { color: var(--accent-text); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
+.sv-thresh-row b { color: var(--accent-hi); font-variant-numeric: tabular-nums; font-size: 18px; font-weight: 600; }
 .sv-thresh-help {
-  font-size: 11.5px; color: var(--fg-faint); line-height: 1.5; margin-top: 10px;
-  padding: 8px 10px; background: var(--chip-bg); border-radius: 8px;
+  font-size: 11.5px; color: var(--text-3); line-height: 1.5; margin-top: 10px;
+  padding: 8px 10px; background: var(--surface-2); border-radius: 8px;
 }
 
 /* ── 设置段(scss:574-605,同 SmartViewCreateDialog.vue 里同一份 Vue2 源规则的既有
      移植,逐值保持一致)── */
 .sv-toggle-row {
   display: flex; align-items: center; gap: 10px; padding: 10px 0;
-  border-bottom: 1px solid var(--card-border); font-size: 12.5px; color: var(--fg-muted);
+  border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--text-2);
 }
 .sv-toggle-row:last-child { border-bottom: 0; }
-.sv-toggle-row .label { flex: 1; color: var(--fg); }
-.sv-toggle-row .desc { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-toggle-row .label { flex: 1; color: var(--text-1); }
+.sv-toggle-row .desc { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 /* fix round 1 · M1(brief 漏给 photos.scss 那半区间,与 T5 漏整套滑块样式同一失效模式):
    Vue2 的 `.sv-switch` 其实有两份规则叠级联——`photos-smartview.scss:584-600`(高优先级,
    赢了尺寸)之外还有 `photos.scss:2819-2820` 的低优先级裸 `.sv-switch`,声明了
    `transition: background 0.15s` 与 `::after` 的投影,两者未被高优先级规则覆盖,照样
    合并生效。补齐这两条,轨道变色才是渐变过渡、拇指才有投影(不是瞬变 + 平的)。 */
-.sv-switch { position: relative; width: 32px; height: 18px; background: var(--chip-bg-hi); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+.sv-switch { position: relative; width: 32px; height: 18px; background: var(--surface-3); border-radius: 99px; cursor: pointer; flex-shrink: 0; transition: background 0.15s; }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH
+   on/off states -- overrides whatever Vue2's own (non-existent) light theme would have done,
+   explicit owner requirement, not a legibility inference. Fix-5's `var(--text-1)` got dark-mode
+   legibility right (≈white there) but was still a *theme-flipping* token, so it went near-black
+   under `.photos-root.is-light` -- correctly legible, but not white, which is what the owner
+   actually wants here. `--text-1` is deliberately no longer used for the knob. Literal white,
+   same theme-exception convention this repo already uses for other theme-invariant surfaces
+   (PhotosToastHost.vue's `.photos-toast` background, this file's own sibling
+   PhotosSmartViewDetail.vue's `.sv-toast`). The light-mode border + shadow immediately below
+   (also an owner decision, same date) is what keeps a flat white knob visible against a
+   light-mode white-ish track -- the two rules are a matched pair, not independent choices. */
 .sv-switch::after {
   content: ''; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%;
-  background: var(--fg); transition: all 0.2s;
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
+  transition: all 0.2s;
   /* 投影是纯粗黑阴影(不是语义色),用 color-mix 复刻 Vue2 原值(纯黑、约 30% 不透明度的
      投影),不写字面颜色函数,同 PhotosSmartViewDetail.vue 里 `.tile.recent::after`
      已立的既有先例("black 关键字 + color-mix"表达半透明黑)。 */
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle
+   has no edge against photos light mode's own near-white `--surface-3` off-track (and reads
+   flat against the solid `--accent` on-track too), so light mode gets a subtle parity-token
+   border plus a lighter drop shadow (dark mode's 30%-black shadow reads as depth on a dark
+   track; carried at that same strength here it would look like a dirty smudge on a light one,
+   hence the lower alpha) -- values chosen to read as a native light-theme toggle, not a
+   dark-theme knob pasted onto a light page. Applies to both on/off states (neither modifies
+   border/box-shadow), which is what keeps the knob's presentation state-invariant per the
+   owner's requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* --on-accent 合法用法:滑块叠在紧邻这条 [data-on="true"] 实底(var(--accent),非渐变/
-   半透明)之上,合法性由这条背景声明自证(同 SmartViewCreateDialog.vue 已立的先例)。 */
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (justified at
+   the time as "legal atop a solid --accent fill", same reasoning as `.sv-btn-primary`) was wrong
+   for this element specifically: it made the knob track the on/off *state* instead of staying
+   constant like Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob.
+   Deleted; the knob now always uses the base rule's background above (Fix-6: literal white, see
+   that rule's own comment), in both states, matching Vue2's own single-value knob. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 .sv-switch[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 
 /* ── 统计段(scss:626-658)── */
 .sv-stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sv-stat-cell { background: var(--chip-bg); padding: 10px 12px; border-radius: 8px; }
+.sv-stat-cell { background: var(--surface-2); padding: 10px 12px; border-radius: 8px; }
 .sv-stat-cell .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.sv-stat-cell .l { font-size: 11px; color: var(--fg-faint); margin-top: 2px; }
+.sv-stat-cell .l { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 .sv-stat-cell .delta { font-size: 11px; color: var(--success); margin-left: 4px; font-weight: 500; }
-.sv-dist-head { font-size: 11.5px; color: var(--fg-faint); margin-bottom: 4px; }
+.sv-dist-head { font-size: 11.5px; color: var(--text-3); margin-bottom: 4px; }
 .sv-distribution { height: 56px; display: flex; align-items: flex-end; gap: 2px; margin-top: 8px; }
 .sv-dist-bar {
   flex: 1; min-width: 4px; border-radius: 2px 2px 0 0;
   /* Vue2 scss:648 写死渐变(accent → 字面浅紫)⇒ 改 accent 家族两档(同
      PersonRelationsTab.vue:251 的既有先例),不写字面颜色。 */
-  background: linear-gradient(to top, var(--accent), var(--accent-text));
+  background: linear-gradient(to top, var(--accent), var(--accent-hi));
 }
-.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
+.sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-4); margin-top: 4px; }
 </style>

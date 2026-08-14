@@ -8,6 +8,7 @@
 // 之后的本地化文案),改用 dateRange.ts 新增的 DateRange.key 字段比较。本文件"locale 切
 // 换后 data-on 仍为 true"那条用例就是这条回改的主守卫。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -15,7 +16,7 @@ import en from '../../../i18n/en_us'
 import { QUICK_KEYS, QUICK_LABEL_KEYS, type DateRange } from '../../util/dateRange'
 import SearchDatePopover from '../SearchDatePopover.vue'
 import searchDatePopoverRaw from '../SearchDatePopover.vue?raw'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -275,92 +276,111 @@ describe('脚部按钮', () => {
   })
 })
 
-// ── 死 CSS 不迁(A4)────────────────────────────────────────────────────
-describe('死 CSS 不迁', () => {
-  it('.cal-cell.muted 在模板里无消费方(grep 零命中),样式块里也不应出现', () => {
+// 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+// 回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+// .fpop/.fpop-title/.fpop-quick(+hover 硬约束)/.cal-head/.cal-nav/.cal/.cal-cell(+全部变体)/
+// .btn/.btn-primary 这一整套颜色 + 非颜色视觉规则已从本组件的 scoped style 里整体删除,交给
+// vue2-parity/photos.scss 的裸选择器接管(:2690-2726,.btn 系列走全局 `.photos-root .btn`/
+// `.photos-root .btn-primary` 家族 :290-301)。`.fpop-row` 只删掉了与 parity 重复的
+// display/gap/margin-bottom 三条,自己独有的 `flex-wrap: wrap`(New-UI 专属加性修复,
+// Vue2/parity 都没有这条属性)留在本组件里,不是"整体移交"。原地断言这套规则已经不在
+// 本组件里,hover 硬约束与非颜色视觉属性的保障统一改为核对共享 parity 文件本身
+// (与 PhotosFilterChip.test.ts/PhotosFilterPopover.test.ts 同日的回退落地同一套模式)。
+describe('样式:.fpop/.cal/.btn 系列现由共享 parity scss 承担(不再是本组件自己的 scoped style)', () => {
+  it('本组件 scoped style 只剩 .fpop-row(仅 flex-wrap 加性属性)/.fpop-foot(+子选择器)这几条 parity 没覆盖的规则', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    expect(style.length).toBeGreaterThan(0)
-    const rules = parseCssRules(style)
-    expect(rules.some((r) => r.selectors.includes('.cal-cell.muted'))).toBe(false)
-  })
-})
-
-// ── 样式:hover 硬约束 + --on-accent 正向断言 + 非颜色视觉属性 ──────────────
-describe('样式', () => {
-  it('cssCascade:.fpop-quick[data-on="true"] 的 hover 胜出规则含 :hover 且含 data-on', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['fpop-quick'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('data-on')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual(['.fpop-row', '.fpop-foot', '.fpop-foot .fpop-quick', '.fpop-foot .btn'])
   })
 
-  it('cssCascade:.cal-cell.in 的 hover 胜出规则含 :hover 且含 "in"', () => {
+  // `.fpop-row` 的 `flex-wrap: wrap` 是 New-UI 专属加性修复(Vue2/parity 都没有这条属性),
+  // 不能移交给 parity——保留在本组件里,断言仅剩这一条声明(display/gap/margin 已交给
+  // parity 的裸 `.fpop-row`)。
+  it('本组件 .fpop-row 只剩 flex-wrap: wrap 这一条加性声明', () => {
     const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'in'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('in')
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+    expect(rule).toBeDefined()
+    expect(rule!.body.replace(/\s/g, '')).toBe('flex-wrap:wrap;')
   })
 
-  it('cssCascade:.cal-cell.start 的 hover 胜出规则含 :hover 且含 start', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'start'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('start')
+  it('cssCascade:parity scss 的 .fpop-quick[data-on="true"] 与 .fpop-quick:hover 是单条规则、共享同一组值(不是两条互相压制的规则)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.includes('.fpop-quick:hover') && r.selectors.includes('.fpop-quick[data-on="true"]'),
+    )
+    expect(rule).toBeDefined()
   })
 
-  it('cssCascade:.cal-cell.end 的 hover 胜出规则含 :hover 且含 end', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const winner = winningHoverBackground(style, ['cal-cell', 'end'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('end')
+  // 修正(首版误写):Vue2/parity 里 .cal-cell.in/.start/.end 并不各自带独立的 :hover 变体——
+  // hover-lock 靠的是同优先级下的**源码顺序**(`.cal-cell:hover` 排在前面,三个变体排在
+  // 后面,平手时后写的赢,与 .fchip[data-on="true"] 排在 .fchip:hover 之后是同一种手法),
+  // 不是每个变体各自声明 :hover。parity scss 是逐字转录,原样保留了这个"靠顺序"的写法。
+  it('parity scss:.cal-cell:hover 排在 .cal-cell.in/.start/.end 之前(hover-lock 靠源码顺序,Vue2 原始写法)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const hoverIdx = parityScss.indexOf('.cal-cell:hover')
+    expect(hoverIdx).toBeGreaterThan(-1)
+    for (const variant of ['.cal-cell.in {', '.cal-cell.start {', '.cal-cell.end {']) {
+      const idx = parityScss.indexOf(variant)
+      expect(idx, `parity scss 应含 ${variant}`).toBeGreaterThan(-1)
+      expect(idx, `${variant} 应排在 .cal-cell:hover 之后`).toBeGreaterThan(hoverIdx)
+    }
   })
 
-  // --on-accent 正向断言(accent 实底 + 白字场景,合法用法)。
-  it('.cal-cell.start / .cal-cell.end 的规则里背景是 --accent、前景是 --on-accent', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rules = parseCssRules(style)
+  // --accent 实底 + 白字场景,合法用法——parity 用字面 `white`(Vue2 逐字转录),不是本仓
+  // 自建的 --on-accent(parity 文件本身没有引用这个 token,--on-accent 是 New-UI 专属)。
+  it('parity scss:.cal-cell.start / .cal-cell.end 的规则里背景是 --accent、前景是 white', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     const startRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.start')
     const endRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell.end')
     expect(startRule).toBeDefined()
     expect(endRule).toBeDefined()
     expect(startRule!.body).toContain('background: var(--accent)')
-    expect(startRule!.body).toContain('color: var(--on-accent)')
+    expect(startRule!.body).toContain('color: white')
     expect(endRule!.body).toContain('background: var(--accent)')
-    expect(endRule!.body).toContain('color: var(--on-accent)')
+    expect(endRule!.body).toContain('color: white')
   })
 
-  it('.fpop 规则含 width: 320px(不是默认宽 —— A1 跨任务修正)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
+  it('parity scss:.fpop 规则含 width: 320px(A1 跨任务修正的数值仍然成立)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('width: 320px')
   })
 
-  it('.cal-nav 规则含 transition: all 0.2s(非颜色视觉属性,先锚定规则体再断言)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
+  it('parity scss:.cal-nav 规则含 transition: all 0.2s(非颜色视觉属性,先锚定规则体再断言)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-nav')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('transition: all 0.2s')
   })
 
-  it('.cal-cell 规则含 font-variant-numeric: tabular-nums', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
+  it('parity scss:.cal-cell 规则含 font-variant-numeric: tabular-nums', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal-cell')
     expect(rule).toBeDefined()
     expect(rule!.body).toContain('font-variant-numeric: tabular-nums')
   })
 
-  it('.cal 规则含 grid-template-columns: repeat(7,1fr)', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
+  it('parity scss:.cal 规则含 grid-template-columns: repeat(7,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.cal')
     expect(rule).toBeDefined()
     expect(rule!.body.replace(/\s/g, '')).toContain('grid-template-columns:repeat(7,1fr)')
   })
 
-  it('.fpop-row 规则含 flex-wrap: wrap', () => {
-    const style = extractStyleBlock(searchDatePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
+  it('parity scss:.fpop-row 规则含 display: flex / gap: 6px(flex-wrap 不在 parity 里——见上方"本组件 .fpop-row 只剩 flex-wrap" 用例,那是 New-UI 专属加性声明)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-row')
     expect(rule).toBeDefined()
-    expect(rule!.body).toContain('flex-wrap: wrap')
+    expect(rule!.body).toContain('display: flex')
+    expect(rule!.body).not.toContain('flex-wrap')
+  })
+
+  // A4(死 CSS 不迁)结论未变,只是断言对象从本组件的 scoped style 换成了共享 parity 文件:
+  // .cal-cell.muted 在本组件模板里仍然零命中,parity 转录了这条 Vue2 死 CSS 但没有消费方。
+  it('parity scss 里含 .cal-cell.muted(Vue2 死 CSS 逐字转录),本组件模板里没有消费方(A4)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    expect(parityScss).toContain('.cal-cell.muted')
   })
 })

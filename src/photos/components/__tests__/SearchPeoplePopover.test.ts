@@ -2,6 +2,7 @@
 // 挂 i18n(真实 zh_cn/en_us 词条),不需要 Pinia(本组件不接触 store)。mock 共享包
 // @nimotech/nimoos-service(PersonAvatar 内部会调 personFaceThumbnailUrl)。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -17,7 +18,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 import SearchPeoplePopover from '../SearchPeoplePopover.vue'
 import searchPeoplePopoverRaw from '../SearchPeoplePopover.vue?raw'
 import type { PersonOption } from '../../util/searchUnderstood'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -182,29 +183,50 @@ describe('脚部按钮 + 冒泡', () => {
   })
 })
 
-describe('样式', () => {
-  it('cssCascade:.btn.btn-primary 的 hover 胜出规则含 :hover 且含 -primary', () => {
+// 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+// 回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+// .fpop/.fpop-search/.face-pop-grid/.face-cell-name/.face-cell-count/.fpop-quick(+:hover)/
+// .btn/.btn-primary(+:hover)这一整套颜色规则已从本组件的 scoped style 里整体删除,交给
+// vue2-parity/photos.scss 的裸选择器接管(:2690-2726,.btn 系列走全局 `.photos-root .btn`/
+// `.photos-root .btn-primary` 家族 :290-301)。hover 硬约束与非颜色视觉属性的保障改为核对
+// 共享 parity 文件本身;`.fpop` 的固定宽度不再是 CSS 规则(改用模板内联 `style="width:
+// 300px"` 覆盖 parity 的默认 320px,同 PhotosFilterPopover.vue 的 `:style` 覆盖既有先例),
+// 因此改成挂载后直接读渲染出的 DOM 内联样式,不再解析 <style> 块。
+describe('样式:.fpop/.face-pop-grid/.btn 系列现由共享 parity scss 承担(不再是本组件自己的 scoped style)', () => {
+  it('本组件 scoped style 只剩 .face-pop-empty/.face-cell 选中环/.fpop-foot(+子选择器)这几条 parity 没覆盖的规则', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const winner = winningHoverBackground(style, ['btn', 'btn-primary'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('-primary')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).toEqual([
+      '.face-pop-empty',
+      '.face-cell :deep(.person-avatar-ring)',
+      '.face-cell[data-on="true"] :deep(.person-avatar-ring)',
+      '.fpop-foot',
+      '.fpop-foot .fpop-quick',
+      '.fpop-foot .btn',
+    ])
   })
 
-  it('.face-pop-grid 规则含 grid-template-columns: repeat(4, 1fr)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
+  it('parity scss:.photos-root .btn-primary:hover 排在 .photos-root .btn:hover 之后(hover 时主按钮的 accent 底盖过基类 hover 底,Vue2 原始写法)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const baseHoverIdx = parityScss.indexOf('.photos-root .btn:hover')
+    const primaryHoverIdx = parityScss.indexOf('.photos-root .btn-primary:hover')
+    expect(baseHoverIdx).toBeGreaterThan(-1)
+    expect(primaryHoverIdx).toBeGreaterThan(baseHoverIdx)
+  })
+
+  it('parity scss:.face-pop-grid 规则含 grid-template-columns: repeat(4,1fr)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.face-pop-grid')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('repeat(4, 1fr)')
+    expect(rule?.body.replace(/\s/g, '')).toContain('repeat(4,1fr)')
   })
 
-  it('.fpop 规则宽度是 300px(不是 prop)', () => {
-    const style = extractStyleBlock(searchPeoplePopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop')
-    expect(rule).toBeDefined()
-    expect(rule?.body).toContain('width: 300px')
+  it('渲染出的 .fpop 元素内联宽度是 300px(不是 prop,覆盖 parity 默认的 320px)', () => {
+    const w = mountPop({ people: people(), selected: [] })
+    expect(w.get('.fpop').attributes('style')).toContain('width: 300px')
   })
 
-  it('.fpop-foot 规则 margin-top 是 14px(与 T12/T13 的 12px 不同,逐条声明真实差异)', () => {
+  it('.fpop-foot 规则 margin-top 是 14px(与 SearchDatePopover.vue/PhotosFilterPopover.vue 的 12px 不同,逐条声明真实差异)', () => {
     const style = extractStyleBlock(searchPeoplePopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-foot')
     expect(rule).toBeDefined()

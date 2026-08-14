@@ -129,6 +129,10 @@ export const DELETE = [
   'src/views/__tests__/PhotosFavorites.test.ts',
   'src/views/__tests__/photosGlassSurfaces.test.ts',
   'src/views/__tests__/photosLayoutHeightCap.test.ts',
+  // Fix-8 round 2 (owner acceptance, 2026-08-14): guard that every sibling-of-`.app` overlay
+  // (lightbox/scrims/select-bar/toast) keeps an explicit z-index above `.app`'s own — see that
+  // test's own header comment and acceptance-fix-report.md §F8-r2.
+  'src/views/__tests__/photosOverlayZIndex.test.ts',
   // SP15-P2a task 4: the carried-in [data-selected] defect fix's own test, added under
   // __tests__/ (unlike the three siblings named in the comment above) so a plain glob over
   // this directory does still find it — it is listed here anyway because this table is

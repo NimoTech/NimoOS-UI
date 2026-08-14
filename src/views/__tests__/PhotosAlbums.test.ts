@@ -46,8 +46,28 @@ import PhotosAlbums from '../PhotosAlbums.vue'
 // source text (jsdom does not cascade or paint). `?raw` on a .vue file is the established way
 // here -- see the same import in the SmartViewCard test this task replaced.
 import photosAlbumsRaw from '../PhotosAlbums.vue?raw'
+// T3 (re-skin shadow cleanup): `.al-smart-badge`/`.al-live-dot .live-dot` used to be shadowed
+// locally in this component's own <style scoped> (that's what the two tests below originally
+// read); T3 deleted both local copies outright -- they were name-identical duplicates of the
+// already-imported parity rules, and the only real difference was a bug (`--blur`/`--on-accent`
+// reaching for the wrong tokens). The rules now live solely in the shared parity stylesheet, so
+// the regression guards below read that file instead of this component's own raw source.
+// Plain `fs.readFileSync` rather than a Vite `?raw` import: Vite's CSS/SCSS handling intercepts
+// `.scss` specifiers ahead of the raw-import plugin and yields an empty string (verified: `.vue?raw`
+// works, `.scss?raw` does not) -- the same `fs`-based technique keyframes-guard.test.ts already
+// uses to read this exact file.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const photosParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -974,15 +994,20 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // this is asserted on the style block's source text -- the same technique color-guard.test.ts
   // and photosGlassSurfaces.test.ts use for CSS that no unit test can observe.
   it('styles the breathing dot explicitly inside .al-live-dot (the #116 follow-up fix)', () => {
-    const style = styleBlock()
-    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
-    expect(rule, 'no explicit .al-live-dot .live-dot rule -- the dot renders as a hollow ring').not.toBeNull()
+    // T3: the local shadow copy of this rule is gone (it duplicated parity under the same
+    // selector, with a `--blur`/plain-`pulse` bug parity doesn't have) -- assert two things
+    // instead: parity itself still carries the real fix, and this component doesn't reintroduce
+    // a local override that could shadow it again.
+    expect(styleBlock()).not.toMatch(/\.al-live-dot\s+\.live-dot\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const rule = /\.al-live-dot\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
+    expect(rule, 'no explicit .al-live-dot .live-dot rule in parity -- the dot renders as a hollow ring').not.toBeNull()
     expect(rule![1]).toMatch(/width\s*:/)
     expect(rule![1]).toMatch(/height\s*:/)
     expect(rule![1]).toMatch(/background\s*:/)
     expect(rule![1]).toMatch(/animation\s*:/)
     // The paused variant has to turn the animation off, or a paused view keeps breathing.
-    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(style)
+    const paused = /\.al-live-dot\[data-paused="true"\]\s+\.live-dot\s*\{([^}]*)\}/.exec(parity)
     expect(paused, 'no paused variant for the dot').not.toBeNull()
     expect(paused![1]).toMatch(/animation\s*:\s*none/)
   })
@@ -991,9 +1016,13 @@ describe('PhotosAlbums.vue — smart card shape (SP15-P2c Task 10)', () => {
   // readable foreground *on an accent fill*, which in the dark theme is a deep navy -- wrong
   // for a badge that sits on top of a photograph.
   it('does not use --on-accent for the badge sitting on the cover photo', () => {
-    const style = styleBlock()
-    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(style)
-    expect(badge, 'no .al-smart-badge rule').not.toBeNull()
+    // T3: same move as the dot test above -- .al-smart-badge is no longer locally shadowed,
+    // so assert parity's own rule (the one now actually in effect) avoids --on-accent, and
+    // that this component doesn't carry a local copy that could reintroduce the bug.
+    expect(styleBlock()).not.toMatch(/\.al-smart-badge\s*\{/)
+    const parity = photosParityRaw.replace(/\/\*[\s\S]*?\*\//g, '')
+    const badge = /\.al-smart-badge\s*\{([^}]*)\}/.exec(parity)
+    expect(badge, 'no .al-smart-badge rule in parity').not.toBeNull()
     expect(badge![1]).not.toMatch(/--on-accent/)
   })
 })
@@ -1069,5 +1098,169 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await w.find('[data-test="albums-name-input"]').setValue('Tokyo Trip')
     await w.find('[data-test="source-nimo"]').trigger('click')
     expect(w.findComponent(SmartViewCreateDialog).props('initialName')).toBe('Tokyo Trip')
+  })
+})
+
+// Fix-1 (owner acceptance, 2026-08-13) item 1: Plan C wrongly assumed Vue2's five re-shelled
+// pages had no topbar. Truth: Vue2 is a single-page shell — PhotosTimeline.vue mounts the same
+// <PhotosTopbar> above every nav (PhotosTimeline.vue:957-971), including 'albums'
+// (topbarTitle's 'albums' branch = 'Albums', PhotosTimeline.vue:187; topbarSubContext's
+// 'albums' branch = album-aggregate '{photos} photos · {videos} videos',
+// PhotosTimeline.vue:226-232). show-search is `isLibraryView || searchActive`
+// (PhotosTimeline.vue:961) -- always false on this page since activeNav is never 'library'
+// here and this page has no in-place search-overlay state.
+describe('Fix-1 item 1: PhotosTopbar restored', () => {
+  it('renders the topbar with title=Albums and sub=album-aggregate counts, no search box', async () => {
+    const w = await mountAlbums({
+      albums: [
+        rawAlbum(1, { photoCount: 100, videoCount: 4 }),
+        rawAlbum(2, { photoCount: 20, videoCount: 0 }),
+      ],
+    })
+    const topbar = w.findComponent(PhotosTopbar)
+    expect(topbar.exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '120').replace('{videos}', '4'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar (topbar button now owns narrow-mode toggle)', async () => {
+    const w = await mountAlbums({})
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
+  })
+
+  it('toggle-collapse from the topbar flips the shared collapsed state (same as Photos.vue)', async () => {
+    const w = await mountAlbums({})
+    const before = w.get('.app').attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(w.get('.app').attributes('data-collapsed')).not.toBe(before)
+  })
+})
+
+// Fix-1 item 2: owner screenshot shows "My Albums" + grid flush against the left edge. Vue2's
+// `.albums-body` (photos.scss:3206-3211, padding: 18px 24px 80px) is the scroll container that
+// carries the horizontal inset; T3's cleanup renamed this page's scroll container to
+// `.albums-scroll` (a name parity's stylesheet does not style), so parity's real padding rule
+// never matched and only a much smaller local `4px 4px 20px` scoped rule applied instead.
+describe('Fix-1 item 2: albums scroll container padding restored', () => {
+  it('the scroll container carries the parity class name .albums-body (not just .albums-scroll)', async () => {
+    const w = await mountAlbums({})
+    expect(w.find('.albums-body').exists()).toBe(true)
+  })
+})
+
+// Fix-7 (owner acceptance, 2026-08-14): owner screenshot shows the "Sort: Recently added ⌄"
+// pill rendering as bare text in photos light mode -- no border, no background (the "New
+// album" button next to it, and the same Sort pill on the album-detail/SV-detail pages, are
+// unaffected). Root cause: this button used `class="bar-btn"`, a *global* New-UI button class
+// (theme.css) whose chrome tokens (--chip-bg/--chip-border/--fg) are not shadowed on
+// `.photos-root`, so they don't follow the private photos-is-light toggle -- in photos light
+// mode `--chip-bg`'s dark-theme value (a translucent white glass gradient) sits on the parity
+// light page's own near-white background and disappears. Vue2's real class here
+// (NimoOS-UI PhotosAlbumsView.vue:60) is `.btn`, parity's own `.photos-root .btn`
+// (photos.scss:290-298, --surface-2/--line/--text-1, all correctly shadowed under
+// `.photos-root.is-light`) -- renamed to match.
+describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the global .bar-btn', () => {
+  it('the Sort trigger button carries class="btn" (not "bar-btn")', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    expect(btn.classes()).toContain('btn')
+    expect(btn.classes()).not.toContain('bar-btn')
+  })
+
+  it("parity's own .btn rule (not a local override) supplies the pill's border/background/text tokens", () => {
+    const m = /<style[^>]*>([\s\S]*)<\/style>/.exec(photosAlbumsRaw)
+    const style = m ? m[1] : ''
+    // This file must not restate `.btn`'s chrome locally -- if it did, the local copy would
+    // need its own is-light audit too, and parity's own (already-audited) rule should just
+    // govern directly, same doctrine as every other "let parity win" cleanup in this codebase.
+    expect(style).not.toMatch(/(^|[^-\w])\.btn\s*{/)
+  })
+})
+
+// Fix-11 (owner acceptance, 2026-08-14): three leading icons the owner reported missing.
+// Root cause per element:
+//  1) Sort pill: the button had no leading icon element at all (Vue2 PhotosAlbumsView.vue:60-61
+//     leads it with `<photos-icon name="filter" :size="13"/>`) -- 'filter' didn't exist in this
+//     repo's PhotosIcon.vue at all, so there was nothing to render even if a caller had asked
+//     for it; the trailing chevron-down SVG (unaffected, always present) is what the owner's
+//     screenshot described as "a degenerate hollow triangle" with nothing in front of it.
+//  2) New album button: also had no leading icon (Vue2 :83-84 uses
+//     `<photos-icon name="album" :size="13"/>`) -- 'album' already existed in PhotosIcon.vue
+//     (used by the sidebar's own Albums nav item), just never wired into this button.
+//  3) Create tile's "plus" circle: rendered a literal "+" text character, a substitute an
+//     earlier cleanup (T3) explicitly registered pending a real icon (Vue2 :118-120 renders
+//     the same 'album' glyph as the New album button, just at :size="20" inside the circle).
+describe('Fix-11: albums-page leading icons restored (Vue2 truth)', () => {
+  it('the Sort pill leads with the filter icon (not just the trailing chevron)', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    const icon = btn.find('[data-test="albums-sort-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the New album button leads with the album icon', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-new-btn"]')
+    const icon = btn.find('[data-test="albums-new-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the create tile\'s "plus" circle renders the album icon, not a literal "+" character', async () => {
+    const w = await mountAlbums({})
+    const tile = w.get('[data-test="album-create-tile"]')
+    const icon = tile.find('[data-test="album-create-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+    expect(tile.find('.plus').text()).not.toContain('+')
+  })
+
+  it("PhotosIcon.vue's 'filter' branch matches Vue2's own path data byte-for-byte", () => {
+    const raw = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/components/PhotosIcon.vue'),
+      'utf8',
+    )
+    const m = /name === 'filter'"[\s\S]*?<path d="([^"]+)"/.exec(raw)
+    expect(m?.[1]).toBe('M3 5h18l-7 9v6l-4-2v-4z')
+  })
+})
+
+// Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
+// (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
+// (outside its DOM subtree), but every one of its layout rules is written
+// `.photos-root .albums-modal-scrim { position: fixed; inset: 0; ... }` (photos.scss:3844) --
+// a descendant selector that only matches when the scrim is nested INSIDE an element carrying
+// class `photos-root`. Outside it, the click handler still fires and `createOpen` still flips
+// true (which is why the existing DOM-existence tests above never caught this — jsdom asserts
+// existence, not applied layout), but the modal renders with no position/background/z-index at
+// all: an owner clicking the button sees nothing happen. This file's header comment documents
+// the repo's own established fix for exactly this shape (portaled elements must re-carry
+// `photos-root`, see photos.scss:1-13 and PhotosToastHost.vue's Teleport target) -- the target
+// pattern used here is simpler: nest the modal back inside `.photos-root` instead of portaling.
+describe('Fix-1 item 3: New album modal is a real descendant of .photos-root', () => {
+  it('the create modal renders inside .photos-root once open (so photos-root .albums-modal-scrim can match)', async () => {
+    const w = await mountAlbums({})
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    const scrim = w.get('[data-test="albums-create-modal"]').element
+    expect(scrim.closest('.photos-root')).not.toBeNull()
+  })
+
+  it('the library picker (PhotosLibraryPicker) also renders inside .photos-root', async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    const { w } = await mountView()
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Picked')
+    await w.find('[data-test="source-select"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    const overlay = w.get('[data-test="lib-picker-overlay"]').element
+    expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 })

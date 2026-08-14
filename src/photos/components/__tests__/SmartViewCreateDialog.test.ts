@@ -451,32 +451,79 @@ describe('窄屏规则', () => {
 
 // ── I2:模板行 sparkles 图标色 ────────────────────────────────────────────────
 describe('模板行图标色(fix round 1 · I2)', () => {
-  it('.sv-template-row svg 用 --accent-text,不是继承容器前景色(容器自己是 --fg)', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13): the token family this file's whole style
+  // block uses switched from New-UI's global tokens (--accent-text/--fg/--chip-bg/etc, none
+  // shadowed on `.photos-root`, so none followed the private photos-is-light toggle) to
+  // parity's own (--accent-hi/--text-1/--surface-*/etc) -- see the acceptance-fix-report.md
+  // §F2 sweep table. This spot-check follows suit.
+  it('.sv-template-row svg 用 --accent-hi,不是继承容器前景色(容器自己是 --text-1)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('color: var(--accent-text)')
+    expect(rule?.body).toContain('color: var(--accent-hi)')
   })
 })
 
-// ── I3:另两处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
-describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向断言)', () => {
-  it('.sv-switch[data-on="true"] 用 --accent 实底,::after 滑块用 --on-accent 前景', () => {
-    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
-    const bgRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]')
-    expect(bgRule).toBeDefined()
-    expect(bgRule?.body).toContain('background: var(--accent)')
-    const knobRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
-    expect(knobRule).toBeDefined()
-    expect(knobRule?.body).toContain('background: var(--on-accent)')
-  })
-
+// ── I3:另一处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
+// Fix-5 (owner acceptance, 2026-08-14): the `.sv-switch[data-on="true"]::after` case below this
+// comment used to assert the knob turns `--on-accent` when on -- that was the bug itself
+// (dark-navy/purple knob on toggle-on in this repo's dark theme, contradicting Vue2's own
+// invariant-white knob and the owner's explicit "knob stays white in both states" requirement).
+// Replaced with the corrected assertion in the describe block further down
+// ("Fix-5: 开关滑块两态同色").
+describe('前景色合规补充(fix round 1 · I3:另一处 --on-accent 正向断言)', () => {
   it('.sv-btn-primary 用 --accent 实底 + --on-accent 前景', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('background: var(--accent)')
     expect(rule?.body).toContain('color: var(--on-accent)')
+  })
+})
+
+// ── Fix-5 (owner acceptance, 2026-08-14): 开关滑块两态同色,不随 on/off 变色 ──────────
+// Root cause: parity's own `.photos-root .sv-switch[data-on="true"]::after`
+// (photos-smartview.scss:786-789) only moves the knob (`left: 16px`) -- it never overrides
+// `background`, so Vue2's knob is the exact same colour whether the switch is on or off. This
+// file's own `[data-on="true"]::after` rule used to add `background: var(--on-accent)`, making
+// the knob track state (near-white off, `--on-accent`'s dark-navy value on, in this repo's dark
+// theme) -- a straight bug, not a deviation from Vue2, reproduced in the owner's own screenshot
+// (Keep it live toggled on).
+describe('Fix-5: 开关滑块两态同色(不随 data-on 变色)', () => {
+  it('.sv-switch[data-on="true"]::after 只挪位置,不覆盖 background(两态同一个 knob 颜色)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob).toBeDefined()
+    expect(onKnob?.body).toContain('left: 16px')
+    // 状态位置的规则体不再声明 background —— knob 颜色恒由基类规则供给,不随 data-on 变化。
+    expect(onKnob?.body).not.toMatch(/background\s*:/)
+  })
+})
+
+// ── Fix-6 (owner decision, 2026-08-14): knob is invariant white across EVERY theme, not just
+// both on/off states -- Fix-5's `var(--text-1)` correctly stayed constant across on/off but is
+// itself a theme-flipping token (dark under `.photos-root.is-light`), so the owner's actual
+// requirement ("white in both themes and both states") was still unmet. `--text-1` is no longer
+// used for the knob at all; light mode gets a paired border+shadow rule to keep a flat white
+// knob visible against its own near-white off-track. ──────────────────────────────────────
+describe('Fix-6: 开关滑块跨主题恒为白色(不再用会变色的 --text-1)', () => {
+  it('.sv-switch::after 的 knob 背景是字面白,不是 var(--text-1)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob).toBeDefined()
+    expect(baseKnob?.body).toMatch(/background\s*:\s*#fff\b/)
+    expect(baseKnob?.body).not.toContain('var(--text-1)')
+  })
+
+  it('.photos-root.is-light .sv-switch::after 给白色 knob 配浅色主题的描边 + 投影,两态通用', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const lightKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root.is-light .sv-switch::after')
+    expect(lightKnob, '浅色主题下 knob 专属的描边/投影覆盖规则不存在').toBeDefined()
+    expect(lightKnob?.body).toMatch(/border\s*:\s*1px solid var\(--line-strong\)/)
+    expect(lightKnob?.body).toMatch(/box-shadow\s*:/)
+    // 这条规则不分 on/off,两态通用(data-on 那条规则也没有覆盖 border/box-shadow)。
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob?.body).not.toMatch(/border\s*:|box-shadow\s*:/)
   })
 })
 

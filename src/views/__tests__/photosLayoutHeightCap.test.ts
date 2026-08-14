@@ -26,25 +26,30 @@ const CAPPED = [
   // photos.scss:116-128),高度封顶职责由那条规则接管,与本文件锁的 `.photos-layout` 规则
   // 字符串不再相关。反向检查(下面第二条 it)不会误报它:`allPhotosLayoutViews()` 只收录
   // 源码里还含 `.photos-layout {` 字面量的页面,Photos.vue 已经不含,自动被排除,不需要挪进
-  // EXEMPT。
+  // EXEMPT。Plan C Task 2(公共换壳)起,PhotosAlbums.vue / PhotosAlbumDetail.vue /
+  // PhotosSmartViews.vue(见下方 EXEMPT 移除) / PhotosSmartViewDetail.vue /
+  // PhotosMomentDetail.vue 五页同样换成 `.app` 网格壳,同样不再含 `.photos-layout {`
+  // 字面量,同一条自动排除规则覆盖——已从下面的 CAPPED 名单摘掉(高度封顶职责转移给
+  // `.app` 网格,不再是本文件锁的 `.photos-layout` 规则字符串)。
+  // Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward)起,PhotosSearch.vue 同样
+  // 换成 `.app` 网格壳,同理从下面摘掉——它已经不含 `.photos-layout {` 字面量,
+  // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
   'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
   'PhotosPlaceAssets.vue',      // PhotosGrid 的 .photos-wrap
   'PhotosTrash.vue',            // .trash-scroll
-  'PhotosSearch.vue',           // PhotosSearchGrid 组件根 .photos-wrap(flex:1 + overflow-y:auto)
-  'PhotosSmartViewDetail.vue',  // .sv-detail-main / .sv-detail-side 两个网格格子各自滚
-  'PhotosMomentDetail.vue',     // same as above — reuses that sv-detail-* two-column skeleton (SP15-P1-T7)
   'PhotosPersonDetail.vue',     // .detail-body
-  'PhotosAlbums.vue',           // .albums-scroll
   'PhotosPeople.vue',           // .people-body
-  'PhotosAlbumDetail.vue',      // SP15-P2c: .sv-detail-main / .sv-detail-side, same as above (was .album-photos-wrap)
   'PhotosSettings.vue',         // .ps-scroll
 ]
 
-// 豁免:这两页整页都没有内层滚动容器,封顶会把内容裁掉够不着 —— 必须先给它们建滚动容器
-// 才能封顶,已单独挂账。它们留着 min-height:100% 是当前行为(侧栏会跟着滚),不算退步,
+// 豁免:这一页整页都没有内层滚动容器,封顶会把内容裁掉够不着 —— 必须先给它建滚动容器
+// 才能封顶,已单独挂账。它留着 min-height:100% 是当前行为(侧栏会跟着滚),不算退步,
 // 但**是已知缺陷**,补完滚动容器后应从本名单移到 CAPPED。
+//
+// PhotosSmartViews.vue 已于 Plan C Task 2 补建滚动容器(`.mo-section` 升格为
+// flex:1+overflow-y:auto)并随换壳一起封顶,从本名单移除(它也不再含 `.photos-layout {`
+// 字面量,`allPhotosLayoutViews()` 已自动排除它)。
 const EXEMPT: Record<string, string> = {
-  'PhotosSmartViews.vue': '智能视图列表页无内层滚动容器,封顶会裁内容;待单独一票补建后封顶',
   'PhotosPlaces.vue': '地点地图页无内层滚动容器且掏着地图画布尺寸,封顶风险高;待单独一票处理',
 }
 

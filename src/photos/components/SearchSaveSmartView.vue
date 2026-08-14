@@ -281,8 +281,8 @@ async function confirm(): Promise<void> {
   right: 0;
   top: calc(100% + 8px);
   width: 360px;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
   border-radius: 14px;
   box-shadow: var(--card-shadow-hi);
   z-index: 50;
@@ -295,7 +295,7 @@ async function confirm(): Promise<void> {
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-bottom: 1px solid var(--card-border);
+  border-bottom: 1px solid var(--line);
 }
 /* C11:28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32——两处尺寸独立核实,
    不能互相套用)。Vue2 原背景是写死的紫色渐变,改成 --accent 实底后前景满足"背景确为
@@ -317,11 +317,11 @@ async function confirm(): Promise<void> {
 .save-pop-title {
   font-size: 13.5px;
   font-weight: 600;
-  color: var(--fg);
+  color: var(--text-1);
 }
 .save-pop-sub {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-top: 1px;
 }
 /* 偏离登记(fix round 1 · M1 已修正措辞,此前误写成"等价"):Vue2 全局 `.icon-btn`
@@ -342,13 +342,13 @@ async function confirm(): Promise<void> {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg-subtle);
+  color: var(--text-4);
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
 .icon-btn:hover {
-  background: var(--chip-bg);
-  color: var(--fg);
+  background: var(--surface-2);
+  color: var(--text-1);
 }
 
 .save-pop-body {
@@ -365,7 +365,7 @@ async function confirm(): Promise<void> {
 .save-pop-label {
   font-size: 11px;
   font-weight: 500;
-  color: var(--fg-muted);
+  color: var(--text-2);
 }
 .save-pop-thresh-label {
   display: flex;
@@ -373,17 +373,17 @@ async function confirm(): Promise<void> {
 }
 .save-pop-thresh-val {
   margin-left: auto;
-  color: var(--accent-text);
+  color: var(--accent-hi);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
 .save-pop-input {
   padding: 8px 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 7px;
-  color: var(--fg);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   outline: none;
@@ -391,15 +391,15 @@ async function confirm(): Promise<void> {
 }
 .save-pop-input:focus {
   border-color: var(--accent);
-  background: var(--popup-bg);
+  background: var(--surface-1);
 }
 .save-pop-conds {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
   padding: 6px 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 7px;
   max-height: 70px;
   overflow-y: auto;
@@ -409,21 +409,21 @@ async function confirm(): Promise<void> {
   border-radius: 99px;
   background: var(--accent-soft);
   border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-text);
+  color: var(--accent-hi);
   font-size: 11px;
   font-weight: 500;
 }
 .save-pop-conds-empty {
   font-size: 11px;
-  color: var(--fg-subtle);
+  color: var(--text-4);
 }
 .save-pop-toggle {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 9px 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -432,12 +432,12 @@ async function confirm(): Promise<void> {
 }
 .save-pop-toggle-label {
   font-size: 12.5px;
-  color: var(--fg);
+  color: var(--text-1);
   font-weight: 500;
 }
 .save-pop-toggle-desc {
   font-size: 11px;
-  color: var(--fg-faint);
+  color: var(--text-3);
   margin-top: 1px;
 }
 .save-pop-foot {
@@ -445,8 +445,8 @@ async function confirm(): Promise<void> {
   justify-content: flex-end;
   gap: 6px;
   padding: 10px 14px;
-  border-top: 1px solid var(--card-border);
-  background: var(--popup-bg);
+  border-top: 1px solid var(--line);
+  background: var(--surface-1);
 }
 
 /* C7:Vue2 的 <transition name="save-pop"> 规则,Vue3 类名是 -enter-from 不是 Vue2 的
@@ -471,12 +471,20 @@ async function confirm(): Promise<void> {
   position: relative;
   width: 32px;
   height: 18px;
-  background: var(--chip-bg-hi);
+  background: var(--surface-3);
   border-radius: 99px;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
 }
+/* Fix-6 (owner decision, 2026-08-14): the knob is literal white in EVERY theme and BOTH on/off
+   states -- overrides whatever Vue2's own (non-existent) light theme would have done, explicit
+   owner requirement. Fix-5's `var(--text-1)` got dark-mode legibility right but was still a
+   theme-flipping token, going near-black under `.photos-root.is-light` -- legible, but not
+   white, which is what the owner wants. `--text-1` is deliberately no longer used for the knob.
+   Literal white, same theme-exception convention as PhotosToastHost.vue's `.photos-toast`
+   background / this repo's other theme-invariant surfaces. The light-mode border + shadow below
+   is a matched pair with this rule -- see its own comment. */
 .sv-switch::after {
   content: '';
   position: absolute;
@@ -485,27 +493,46 @@ async function confirm(): Promise<void> {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: var(--fg);
+  background: #fff; /* theme-exception: owner 2026-08-14 decision -- knob is invariant white in every theme/state */
   transition: all 0.2s;
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
+/* Owner decision (2026-08-14), paired with the literal-white knob above: a flat white circle has
+   no edge against photos light mode's own near-white `--surface-3` off-track, so light mode gets
+   a subtle parity-token border plus a lighter drop shadow, same values as
+   SmartViewCreateDialog.vue/SmartViewSidePanel.vue's own copies of this rule. Applies to both
+   on/off states (neither modifies border/box-shadow), matching the owner's state-invariant
+   requirement. */
+.photos-root.is-light .sv-switch::after {
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 1px 2px color-mix(in srgb, black 12%, transparent);
+}
 .sv-switch[data-on="true"] { background: var(--accent); }
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (the C5 ruling
+   above pinned this file's `.sv-switch` to SmartViewCreateDialog.vue's values, which carried the
+   same bug) was wrong: it made the knob track the on/off *state* instead of staying constant
+   like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy in
+   the same commit -- the knob now always uses the base rule's background above (Fix-6: literal
+   white), in both states, matching Vue2's own single-value knob exactly. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-btn-ghost {
   height: 36px;
   padding: 0 16px;
   border-radius: 9px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
   font: inherit;
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s;
 }
-.sv-btn-ghost:hover { background: var(--chip-bg-hi); }
+.sv-btn-ghost:hover { background: var(--surface-3); }
 .sv-btn-primary {
   height: 36px;
   padding: 0 18px;

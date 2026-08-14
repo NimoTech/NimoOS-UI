@@ -11,7 +11,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { readFileSync } from 'node:fs'
+import { ref, computed } from 'vue'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
 
@@ -27,6 +27,13 @@ const svc = vi.hoisted(() => ({
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
+    // Fix-12: PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens).
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
+    // Fix-1 item 1: the topbar's title/sub here mirrors PhotosAlbums.vue's own (this page nests
+    // under Vue2's 'albums' nav, see the describe block below) -- the sub needs the full album
+    // list, which this page did not otherwise fetch before this fix.
+    listAlbums: vi.fn().mockResolvedValue([]),
     // Task 7, folded-in finding (d): the page's own onMounted/route watcher calls
     // store.loadExcluded, which hits this endpoint. `loadExcluded` catches and leaves
     // `excluded` empty (smartViews.ts:534-547) -- exactly the end state a `[]` mock produces --
@@ -41,16 +48,90 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // `openAt` 属性指向同一个模块顶层函数——在这个新字面量上 `vi.spyOn(obj, 'openAt')` 只会
 // 影子这一个对象自身的属性,不会影响组件内部另一次 `useLightbox()` 调用拿到的另一份对象
 // (它的 `openAt` 仍指向未被拦截的真实函数)。本组件只用到 `lb.openAt` 这一个方法,直接
-// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `lbMock.openAt`。
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
-vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
+// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `mockLb.openAt`。
+//
+// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
+// (it never did before). That component's own internals call `useLightbox()` too and read
+// `lb.open.value`/`lb.list.value`/etc directly in a `watch()` and its template's `v-if` --
+// the original `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after
+// this fix crashed every existing test in this file (`Cannot read properties of undefined
+// (reading 'value')`). `vi.hoisted()` runs before `vue` itself is initialised (Vitest hoists
+// `vi.mock`/`vi.hoisted` above regular imports), so real `ref()`s can't be constructed inside
+// it -- `mockLb` is created here as a plain object (identity fixed by `vi.hoisted`, satisfying
+// the "reference the same object `useLightbox()` returns" requirement below), then immediately
+// after normal imports settle (this file's own later top-level code, once `vue` is fully
+// loaded), its properties are replaced in place with real `ref()`s via `Object.assign` on the
+// SAME object reference the mock factory already closed over. `openAt` is made to actually
+// flip them (so the "lightbox DOM renders after a tile click" cases below have something to
+// assert), while every *other* existing test in this file only ever calls
+// `.mockClear()`/inspects call args on `openAt` exactly as before -- unaffected.
+const mockLb = vi.hoisted(() => ({ openAt: vi.fn<(...args: unknown[]) => void>() }))
+vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => mockLb }))
 
 import PhotosSmartViewDetail from '../PhotosSmartViewDetail.vue'
 import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
 import { usePhotosAlbums } from '../../photos/stores/albums'
+import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
+// Task 8 cross-page sweep: the delete/convert confirmation dialogs' `.trash-btn-cta-primary`/
+// `.trash-btn-cta-danger`/`.lb-confirm-icon` rules now live solely in the globally-imported
+// parity stylesheet (photos.scss:620-692), not this component's own <style scoped> -- same
+// "read the shared stylesheet, not this file's own raw source" technique PhotosAlbums.test.ts
+// already uses for its own de-duplicated rules. Plain `fs.readFileSync` rather than a Vite
+// `?raw` import: Vite's SCSS handling intercepts `.scss` specifiers ahead of the raw-import
+// plugin and yields an empty string.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Fix-12 (owner acceptance, 2026-08-14): fill in `mockLb` (declared above, before `vue` was
+// ready) with real `ref()`s now that normal imports have settled -- see that declaration's own
+// comment for why this two-step construction is necessary. Mutates the same object identity the
+// `vi.mock` factory above already closed over.
+const lbOpen = ref(false)
+const lbList = ref<Array<{ id: string | number }>>([])
+const lbIndex = ref(0)
+// `current`/`detail` mirror the real module's own `computed(() => list.value[index.value] ??
+// null)` (useLightbox.ts) -- `PhotoLightbox.vue`'s own `doDelete()`/`onAddToAlbum()` read
+// `lb.current.value` to know which asset id to emit, so this must actually track `openAt`'s
+// argument, not stay permanently null.
+const lbCurrent = computed(() => lbList.value[lbIndex.value] ?? null)
+Object.assign(mockLb, {
+  open: lbOpen,
+  list: lbList,
+  index: lbIndex,
+  current: lbCurrent,
+  detail: lbCurrent,
+  searchQuery: ref(''),
+  startMs: ref(0),
+  ocrLines: ref([]),
+  hasPrev: ref(false),
+  hasNext: ref(false),
+  isFav: ref(false),
+  openAt: vi.fn((photo: { id: string | number }, list: Array<{ id: string | number }>) => {
+    lbOpen.value = true
+    lbList.value = list
+    lbIndex.value = Math.max(0, list.findIndex((p) => String(p.id) === String(photo.id)))
+  }),
+  close: vi.fn(() => { lbOpen.value = false }),
+  prev: vi.fn(),
+  next: vi.fn(),
+  goTo: vi.fn(),
+  hydrateDetail: vi.fn(),
+  reconcileFav: vi.fn(),
+  toggleFav: vi.fn(),
+  __resetForTest: vi.fn(() => { lbOpen.value = false; lbList.value = [] }),
+})
+
+const photosParityRaw = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh, en_us: en } })
 
@@ -135,7 +216,15 @@ beforeEach(() => {
   svc.photos.exportSmartViewUrl.mockClear()
   svc.photos.thumbnailUrl.mockClear()
   svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
-  lbMock.openAt.mockClear()
+  mockLb.openAt.mockClear()
+  // Fix-12: the lightbox's own open/list refs are real, live state now (not just a call-history
+  // spy) -- reset them too, or a test that opened the lightbox would leak `open=true` into the
+  // next one.
+  lbOpen.value = false
+  lbList.value = []
+  lbIndex.value = 0
+  // Fix-10: usePhotosToast() is a module-level singleton (not Pinia), reset per test.
+  usePhotosToast().__resetForTests()
 })
 afterEach(() => {
   usePhotosSmartViews().__resetForTest()
@@ -666,8 +755,8 @@ describe('SP15-P2c Task 6: header action row', () => {
     // Sorted (taken desc): m2, m3, m1 -- the third tile is m1, not m3.
     await w.findAll('[data-test="sv-all-tile"]')[2].trigger('click')
 
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect((call[0] as { id: string }).id).toBe('m1')
     expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['m2', 'm3', 'm1'])
     // startMs, not an index -- untouched by this task (useLightbox.openAt computes the index
@@ -697,8 +786,8 @@ describe('SP15-P2c Task 6: header action row', () => {
     // Sorted (taken desc): r1, r2 -- the backend handed them back the other way round.
     await w.findAll('[data-test="sv-recent-tile"]')[0].trigger('click')
 
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect((call[0] as { id: string }).id).toBe('r1')
     expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['r1', 'r2'])
   })
@@ -772,6 +861,36 @@ describe('SP15-P2c Task 6: header action row', () => {
     await w.find('[data-test="sv-add-photos"]').trigger('click')
     await w.vm.$nextTick()
     expect(w.findComponent({ name: 'PhotosLibraryPicker' }).props('open')).toBe(true)
+  })
+
+  // Fix-2 item 5 (owner acceptance, 2026-08-13; F1 lesson class): the export toast, edit-mode
+  // select bar, and library picker used to be template-root SIBLINGS of `.photos-root` rather
+  // than its DOM descendants, so none of parity's `.photos-root .sv-select-bar` / `.sv-toast`
+  // descendant selectors (photos-smartview.scss:550-567/675) could match -- the exact same root
+  // cause as Fix-1 item 3's "New album" modal bug (acceptance-fix-report.md §F1). Same fix:
+  // nest them back inside `.photos-root`.
+  describe('Fix-2 item 5: the tail section is a real descendant of .photos-root', () => {
+    it('the select bar renders inside .photos-root (so parity .sv-select-bar can match)', async () => {
+      svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+      const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+      await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      const bar = w.get('[data-test="sv-select-bar"]').element
+      expect(bar.closest('.photos-root')).not.toBeNull()
+    })
+
+    it('the library picker renders inside .photos-root', async () => {
+      // PhotosLibraryPicker's own root is `v-if="open"` -- closed, `.element` is a comment
+      // placeholder with no `.closest`, so open it first via the select bar's Add photos button.
+      svc.photos.getSmartViewAssets.mockResolvedValue([asset('a1')])
+      const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+      await w.find('[data-test="sv-edit-toggle"]').trigger('click')
+      await w.vm.$nextTick()
+      await w.find('[data-test="sv-add-photos"]').trigger('click')
+      await w.vm.$nextTick()
+      const overlay = w.get('[data-test="lib-picker-overlay"]').element
+      expect(overlay.closest('.photos-root')).not.toBeNull()
+    })
   })
 
   it('disables Remove until something is selected', async () => {
@@ -942,8 +1061,10 @@ describe('SP15-P2c Task 7: sidebar action section + unified menu', () => {
     const confirm = w.find('[data-test="sv-convert-confirm"]')
     expect(confirm.exists()).toBe(true)
     const ok = confirm.find('[data-test="sv-convert-ok"]')
-    expect(ok.classes()).toContain('primary')
-    expect(ok.classes()).not.toContain('danger')
+    // Task 8 cross-page sweep: `.primary`/`.danger` modifier classes renamed to Vue2's own
+    // `trash-btn-cta-primary`/`trash-btn-cta-danger` (see the template's own comment).
+    expect(ok.classes()).toContain('trash-btn-cta-primary')
+    expect(ok.classes()).not.toContain('trash-btn-cta-danger')
   })
 
   // Folded-in finding (b): a keyboard activation of Edit/Done (Space/Enter on a focused
@@ -1108,24 +1229,31 @@ describe('删除智能视图', () => {
 })
 
 // ── 复制 ──────────────────────────────────────────────────────────────────
+// Fix-10 (owner acceptance, 2026-08-14): both cases below used to assert against the generic
+// `useToast()` -- Vue2's real duplicate confirmation is `window.PhotosToast.show(...)`, the
+// photos-private bottom-pill toast. Updated to assert against `usePhotosToast()`'s queue.
 describe('复制', () => {
-  it('duplicateSmartView 被调 + toast', async () => {
+  it('duplicateSmartView 被调 + photos-private toast(sparkles 图标)', async () => {
     svc.photos.duplicateSmartView.mockResolvedValue(makeSv({ id: 9, name: 'Sunsets copy' }))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-duplicate"]').trigger('click')
     await flushPromises()
     expect(svc.photos.duplicateSmartView).toHaveBeenCalledWith('7')
-    expect(useToast().msg).toContain('Sunsets')
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.some((t) => t.text.includes('Sunsets'))).toBe(true)
+    expect(toasts.find((t) => t.text.includes('Sunsets'))?.icon).toBe('sparkles')
   })
 
-  it('duplicateSmartView reject → toast 失败文案', async () => {
+  it('duplicateSmartView reject → photos-private toast 失败文案(trash 图标)', async () => {
     svc.photos.duplicateSmartView.mockRejectedValue(new Error('500'))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-duplicate"]').trigger('click')
     await flushPromises()
-    expect(useToast().msg).toBe(zh.photosSvDuplicateFailed)
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvDuplicateFailed)
+    expect(toasts.find((t) => t.text === zh.photosSvDuplicateFailed)?.icon).toBe('trash')
   })
 })
 
@@ -1171,6 +1299,22 @@ describe('convert to regular album', () => {
     expect(push).toHaveBeenCalledWith('/photos/albums/al-new')
   })
 
+  // Fix-10 (owner acceptance, 2026-08-14): Vue2's real convert-success confirmation is
+  // `window.PhotosToast.show({ icon: 'album', title: 'Converted to regular album' })` -- this
+  // page's own `doConvertToAlbum()` used to call the generic `useToast()` instead, so the
+  // owner never saw a bottom-pill confirmation for it. No prior test asserted this toast at
+  // all (net-new coverage, not a changed assertion).
+  it('shows the photos-private toast (album icon) on a successful convert', async () => {
+    convertFromSmartView.mockResolvedValue({ id: 'al-new' } as never)
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvConvertedToAlbum)
+    expect(toasts.find((t) => t.text === zh.photosSvConvertedToAlbum)?.icon).toBe('album')
+  })
+
   it('keeps the confirmation open with an inline message when it fails', async () => {
     convertFromSmartView.mockRejectedValue(new Error('boom'))
     const { w, router } = await mountView('7', [makeSv({ id: 7, count: 12 })])
@@ -1204,32 +1348,44 @@ describe('convert to regular album', () => {
     expect(w.find('[data-test="sv-convert-confirm"]').exists()).toBe(false)
   })
 
+  // Task 8 cross-page sweep: this used to assert a local `.sv-confirm-ok.primary` modifier
+  // class + this file's own raw CSS. The dialog was realigned to Vue2's actual `.lb-confirm-*`/
+  // `.trash-btn-*` idiom (see the template's own comment) -- the button now carries the base
+  // `trash-btn-cta` plus the `trash-btn-cta-primary` modifier (not `.danger`), and both rules
+  // live solely in the globally-imported parity stylesheet, not this component's own <style>.
   it('dresses the confirm button as the filled primary CTA, not a second Cancel', async () => {
-    // Vue2 uses trash-btn-cta here (939a7d3a:photos.scss:2203-2213) and reserves the danger
+    // Vue2 uses trash-btn-cta-primary here (photos.scss:681-685) and reserves the danger
     // variant for the delete dialog. Without the modifier this button rendered with the base
     // ghost rule -- pixel-identical to the Cancel beside it, and with no hover at all.
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
     const ok = w.find('[data-test="sv-convert-ok"]')
-    expect(ok.classes()).toContain('primary')
-    expect(ok.classes()).not.toContain('danger')
-    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
-    expect(css).toMatch(/\.sv-confirm-ok\.primary\s*\{[^}]*background:\s*var\(--accent\)/)
-    expect(css).toMatch(/\.sv-confirm-ok\.primary:hover:not\(:disabled\)\s*\{/)
+    expect(ok.classes()).toContain('trash-btn-cta-primary')
+    expect(ok.classes()).not.toContain('trash-btn-cta-danger')
+    expect(photosParityRaw).toMatch(/\.trash-btn-cta-primary\s*\{[^}]*background:\s*linear-gradient/)
+    expect(photosParityRaw).toMatch(/\.trash-btn-cta-primary:hover\s*\{/)
   })
 
+  // Task 8 cross-page sweep: this used to assert a local `.sv-confirm-icon.accent` colour-disc
+  // modifier class. Vue2 never had one either -- it just passes a different icon colour per
+  // dialog (delete red vs convert accent-hi) as a prop to its icon component; the template now
+  // does the Vue3 equivalent with an inline `style="color: ..."`, same technique
+  // PhotosAlbumDetail.vue's own delete dialog already uses.
   it('tints the convert dialog icon with the accent, not the delete red', async () => {
     // Vue2 :298 passes var(--accent-hi) for this album glyph; only :279's trash glyph is red.
     const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
     await openConvertConfirm(w)
-    expect(w.find('[data-test="sv-convert-confirm"] .sv-confirm-icon').classes()).toContain('accent')
-    // The delete dialog keeps the red disc (no .accent).
+    expect(w.find('[data-test="sv-convert-confirm"] .lb-confirm-icon').attributes('style')).toContain('--accent-hi')
+    // The delete dialog keeps the red disc (--danger, not --accent-hi). Fix-2 item 6 (owner
+    // acceptance, 2026-08-13): was --remove-fg, a global token not shadowed on `.photos-root`
+    // (so it did not follow the private photos-is-light toggle) -- switched to parity's own
+    // --danger, declared directly on `.photos-root` and deliberately invariant across both of
+    // its themes by spec, matching Vue2's own literal more closely too (see the report's sweep
+    // table for the full trace).
     await w.find('[data-test="sv-convert-cancel"]').trigger('click')
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-delete"]').trigger('click')
-    expect(w.find('[data-test="sv-confirm-scrim"] .sv-confirm-icon').classes()).not.toContain('accent')
-    const css = readFileSync('src/views/PhotosSmartViewDetail.vue', 'utf8')
-    expect(css).toMatch(/\.sv-confirm-icon\.accent\s*\{[^}]*background:\s*var\(--accent-soft\)/)
+    expect(w.find('[data-test="sv-confirm-scrim"] .lb-confirm-icon').attributes('style')).toContain('--danger')
   })
 
   it('does not dismiss the confirmation mid-flight', async () => {
@@ -1283,8 +1439,8 @@ describe('两段照片网格', () => {
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
     await w.find('[data-test="sv-all-tile"]').trigger('click')
     const store = usePhotosSmartViews()
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect(call[1]).toEqual(store.matchedAssets)
     expect(call[1]).not.toBe(store.matchedAssets)
     expect(call[2]).toBe(0)
@@ -1301,6 +1457,70 @@ describe('两段照片网格', () => {
     await tile.trigger('click')
     await w.vm.$nextTick()
     expect(tile.find('.new-tag').exists()).toBe(false)
+  })
+})
+
+// Fix-12 (owner acceptance, 2026-08-14): this page always called `lb.openAt` (state opened,
+// network fired) but never mounted a `<PhotoLightbox>` of its own -- nothing on this page's own
+// tree ever rendered the photo. Added the mount; these cases assert the DOM actually appears
+// (not just that `openAt` was called, which every case above already covered) and that the
+// wired events invoke the right underlying store actions.
+describe('Fix-12: the lightbox is mounted on this page and its events are wired', () => {
+  it('clicking a tile renders the lightbox DOM (not just calling openAt)', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    expect(w.find('.lightbox').exists()).toBe(false)
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.lightbox').exists()).toBe(true)
+  })
+
+  it('the lightbox renders OUTSIDE .photos-root (Fix-8 round 4 rule)', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    const lightbox = w.get('.lightbox').element
+    expect(lightbox.closest('.photos-root')).toBeNull()
+  })
+
+  it('@delete deletes the underlying asset via timeline.deleteAssets and refreshes this view', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    const timeline = useTimelineStore()
+    const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
+    svc.photos.getSmartViewAssets.mockClear()
+    svc.photos.getSmartViewExcluded.mockClear()
+
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-confirm-ok').trigger('click')
+    await flushPromises()
+
+    expect(deleteSpy).toHaveBeenCalledWith(['a1'])
+    // loadDetail/loadExcluded refresh this view's own data after the delete lands.
+    expect(svc.photos.getSmartViewAssets).toHaveBeenCalled()
+    expect(svc.photos.getSmartViewExcluded).toHaveBeenCalled()
+  })
+
+  it('@add-to-album opens AlbumPickerDialog for the current photo', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-add-album').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="album-picker-overlay"]').element).toBeTruthy()
   })
 })
 
@@ -1344,12 +1564,15 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('min-width: 220px')
   })
 
-  it('.sv-action-btn-icon 保留 Vue2 :99 内联的 padding/min-width/justify-content 三件套', () => {
+  // Plan C Task 5 re-skin fix: Vue2's own inline style on this button (:180) is
+  // `min-width:36px`, not 32px -- a 4px drift this task's shadowing pass caught and corrected;
+  // this guard now locks the right value.
+  it('.sv-action-btn-icon 保留 Vue2 :180 内联的 padding/min-width/justify-content 三件套', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-action-btn-icon')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('padding: 0 10px')
-    expect(rule?.body).toContain('min-width: 32px')
+    expect(rule?.body).toContain('min-width: 36px')
     expect(rule?.body).toContain('justify-content: center')
   })
 
@@ -1381,9 +1604,13 @@ describe('样式:非颜色视觉属性 1:1(Vue2 内联 style 逐属性对照)', 
     expect(rule?.body).toContain('translateY(-4px) scale(0.97)')
   })
 
-  it('.sv-confirm-enter-from / .sv-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
+  // Task 8 cross-page sweep: renamed from `.sv-confirm-enter-from`/`.sv-confirm-leave-to` --
+  // the dialog's own scrim/panel/button classes were realigned to Vue2's actual `.lb-confirm-*`
+  // idiom (see the template's own comment), so the Vue3 `-enter-from` transition-name
+  // translation this rule provides now carries the matching `.lb-confirm-*` name too.
+  it('.lb-confirm-enter-from / .lb-confirm-leave-to 保留 Vue2 photos.scss:705-707 的 opacity+scale', () => {
     const rules = parseCssRules(extractStyleBlock(photosSmartViewDetailRaw))
-    const rule = rules.find((r) => r.selectors.includes('.sv-confirm-enter-from') && r.selectors.includes('.sv-confirm-leave-to'))
+    const rule = rules.find((r) => r.selectors.includes('.lb-confirm-enter-from') && r.selectors.includes('.lb-confirm-leave-to'))
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('opacity: 0')
     expect(rule?.body).toContain('scale(0.95)')
@@ -1411,8 +1638,14 @@ describe('浮层的 <Transition> 包裹是真的接上了(源文本回源,不是
     expect(menuBlocks[0][1]).toContain('data-test="sv-more-menu"')
   })
 
-  it('删除确认弹窗的 sv-confirm-scrim 出现在 <Transition name="sv-confirm"> 内', () => {
-    const m = /<Transition name="sv-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
+  // Task 8 cross-page sweep: `<Transition name="sv-confirm">` renamed to `name="lb-confirm"`
+  // (matching Vue2's own transition name, PhotosSmartViewDetail.vue:365/386) -- the `data-test`
+  // attribute itself is untouched, only the wrapping Transition's name and the scrim's class
+  // changed. The non-greedy regex still isolates the delete dialog specifically: this page now
+  // has two `<Transition name="lb-confirm">` blocks (delete + convert), and `.exec` without the
+  // global flag returns only the first, non-greedy match -- i.e. the delete dialog's own block.
+  it('删除确认弹窗的 lb-confirm-scrim 出现在 <Transition name="lb-confirm"> 内', () => {
+    const m = /<Transition name="lb-confirm">([\s\S]*?)<\/Transition>/.exec(photosSmartViewDetailRaw)
     expect(m).not.toBeNull()
     expect(m![1]).toContain('data-test="sv-confirm-scrim"')
   })
@@ -1455,10 +1688,42 @@ describe('样式:hover 级联归属变体', () => {
 
 // ── 红色不含字面色值 ────────────────────────────────────────────────────
 describe('红色走 token,不写死字面量', () => {
-  it('样式块含 --remove-fg 家族,不含字面 #FF6B5C', () => {
+  // Fix-2 item 6 (owner acceptance, 2026-08-13): --remove-fg switched to --danger throughout
+  // this file -- --remove-fg is a global token not shadowed on `.photos-root`, so it did not
+  // follow the private photos-is-light toggle; --danger is declared directly on `.photos-root`
+  // and deliberately invariant across both of its own themes by spec (see the report's sweep
+  // table).
+  it('样式块含 --danger 家族,不含字面 #FF6B5C', () => {
     const style = extractStyleBlock(photosSmartViewDetailRaw)
-    expect(style).toContain('--remove-fg')
+    expect(style).toContain('--danger')
     expect(style).not.toContain('#FF6B5C')
     expect(style.toUpperCase()).not.toContain('#FF6B5C')
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): this page is the SMART ALBUM detail (saved
+// search / conds+threshold+live, makeSv's own shape above) -- Vue2 renders it as
+// <photos-smart-view-detail> INSIDE PhotosAlbumsView.vue (:23-45), i.e. nested under
+// activeNav==='albums', the exact same nesting as <photos-album-detail> a few lines above it
+// (:3-21). This is a different concept from the "Moments · For You" band (PhotosMomentDetail's
+// own Vue2 home, activeNav==='smart') -- despite the route name here being "smart-views", the
+// Vue2 nav it lives under is 'albums'. So the topbar here matches PhotosAlbums.vue/
+// PhotosAlbumDetail.vue exactly: title='Albums', sub=album-aggregate counts (not the
+// default full-library line).
+describe('Fix-1 item 1: PhotosTopbar restored (title=Albums, album-aggregate sub -- smart views nest under the Albums nav in Vue2)', () => {
+  it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'A', photoCount: 30, videoCount: 1 }])
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '30').replace('{videos}', '1'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

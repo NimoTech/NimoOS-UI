@@ -113,10 +113,38 @@
 .photos-root, .photos-root * { scrollbar-width: none; -ms-overflow-style: none; }
 
 /* === App grid === */
+/* Fix-2 item 6b (owner acceptance, 2026-08-13), New-UI-only structural addition, not a Vue2
+   pixel value -- `position: relative; z-index: 1` added below.
+   Root cause: New-UI's global `body::before`/`body::after` (theme.css:587-618) paint a
+   fixed, viewport-covering "aurora"/bokeh wash (blue/purple/teal radial gradients) at
+   `z-index: 0`, meant to glow through the app's *glass* shells (AreaShell-hosted pages --
+   photosGlassSurfaces.test.ts's own header comment documents this as the intended aesthetic
+   there). Photos opted OUT of that glass shell entirely (this very `.app` rule paints its own
+   fully opaque `var(--bg)`, matching Vue2 1:1, not a translucent panel) -- but a plain,
+   non-positioned block element (`.app`, unpositioned, no z-index) is painted *earlier* than a
+   `position: fixed; z-index: 0` sibling in the standard CSS stacking/paint order (CSS 2.1
+   Appendix E, step 3 vs step 6) regardless of how opaque its own background is -- paint order,
+   not opacity, decides this. So the aurora painted *on top* of `.app` all along; it simply
+   read as a plausible ambient dark-on-dark glow in Photos' own dark theme and was never
+   reported. `.photos-root.is-light`'s near-white `--bg` makes the exact same bleed-through
+   glaringly visible (a colourful gradient wash over a light page) -- that visibility gap, not
+   a difference in the underlying bug, is why this only surfaces as an owner-reported defect
+   now that photos-is-light exists. `position: relative; z-index: 1` promotes `.app` into the
+   positioned/z-index layer *above* the aurora's `z-index: 0` (same recipe already used by
+   ViewerShell.vue's own opaque shell over its own z-index:0 bokeh layer, `z-index: 1` on the
+   content layer there too) -- theme-invariant, fixes both of `.photos-root`'s own themes at
+   once, not a per-theme override. Harmless for descendants: it only changes the containing
+   block for `position: absolute` children (from the viewport to `.app`'s own box, which already
+   spans the full viewport 1:1 via `height: 100vh`+its own grid width, so no visible offset
+   changes), and does not affect `position: fixed` descendants at all (only
+   transform/filter/perspective/contain change the fixed containing block, not
+   position/z-index). */
 .photos-root .app {
   display: grid;
   grid-template-columns: var(--sidebar-w) 1fr;
   height: 100vh;
+  position: relative;
+  z-index: 1;
   background: var(--bg);
   color: var(--text-1);
   font-family: var(--font-sans);
@@ -3338,9 +3366,9 @@
    .live-dot rule — so a size/color/breathing-animation set must be
    explicitly added here for the .al-live-dot context (a hollow-dot bug found
    in review), with values kept consistent with .sv-collage-status .live-dot;
-   the photos-pulse keyframes are defined in photos-smartview.scss (available
-   since it's globally imported; renamed from Vue2's `pulse` to avoid
-   colliding with theme.css's global `pulse`). */
+   the photos-pulse keyframes are defined earlier in this file (:203;
+   renamed from Vue2's `pulse` to avoid colliding with theme.css's global
+   `pulse`). */
 .photos-root .al-live-dot .live-dot {
   width: 6px; height: 6px; border-radius: 50%;
   background: #34C759;
@@ -4025,8 +4053,6 @@
 .albums-modal-leave-active { transition: opacity 0.15s ease; }
 .albums-modal-enter,
 .albums-modal-leave-to { opacity: 0; }
-
-@import './photos-smartview.scss';
 
 // === UploadFileCard visual sub-states ===
 .ufc .ufc-sub {

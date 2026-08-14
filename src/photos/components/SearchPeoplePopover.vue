@@ -92,7 +92,12 @@ const applyLabel = computed(() => {
 
 <template>
   <div @click.stop>
-    <div class="fpop">
+    <!-- 2026-08-13 回退追记(Fix-3 item 7):`.fpop` 的形状/尺寸/位置/焦点环全部让 parity scss
+         (vue2-parity/photos.scss:2690-2726)的裸 `.fpop` 规则生效,不再本地重复声明——parity
+         的默认宽度是列表/日期两个弹层共用的 320px,本弹层唯一的偏离是 Vue2 `:94` 那处内联
+         `style="width:300px"`,同样用内联 style 覆盖(不新增一条只改一个属性的 scoped 规则,
+         照 PhotosFilterPopover.vue 的 width prop 已有先例——那里用 :style 覆盖,不是 CSS 类)。 -->
+    <div class="fpop" style="width: 300px">
       <input
         v-model="search" class="fpop-search" data-test="people-search"
         :placeholder="t('photosSearchSearchPeople')"
@@ -126,104 +131,47 @@ const applyLabel = computed(() => {
 </template>
 
 <style scoped>
-/* .fpop/.fpop-search/.fpop-foot/.btn 系列与 T12/T13 重复的外壳(见两文件头注释同类登记):
-   数值一律照抄 photos.scss,不是从姊妹任务文件抄。本弹层宽度固定 300(不是 prop——brief
-   接口段没给 width prop,Vue2 也只在这一处用 300,不像 T12 的列表弹层两侧数值不同需要
-   开 prop)。 */
-.fpop {
-  position: absolute;
-  top: 36px;
-  left: 0;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  box-shadow: var(--card-shadow-hi);
-  padding: 14px;
-  width: 300px;
-  z-index: 10;
-  animation: pop-in 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
-  cursor: default;
-  text-align: left;
-}
-@keyframes pop-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-}
-
-.fpop-search {
-  width: 100%;
-  height: 30px;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font: inherit;
+/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+   回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+   .fpop/.fpop-search(+:focus)/.face-pop-grid/.face-cell/.face-cell-name/.face-cell-count/
+   .fpop-quick(+:hover)/.btn/.btn-primary(+:hover)这一整套颜色规则已从本组件的 scoped style
+   里整体删除,交给 vue2-parity/photos.scss 的裸选择器接管(:2690-2726,.btn 系列走全局
+   `.photos-root .btn`/`.photos-root .btn-primary` 家族 :290-301)——本组件不再自带一份颜色
+   映射到本仓通用玻璃语义(--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/
+   --fg-subtle/--accent-text 等)的重复,那些 token 均未被 `.photos-root` 本地重定义,会落到
+   theme.css 的全局蓝紫玻璃值。`@keyframes pop-in` 同理删除——parity scss 已有同名关键帧。
+   留在这里的只剩 parity 没有覆盖的两处:`.face-pop-empty`(Vue2 :110-112 是内联 style,不是
+   class,parity 天然没有这个选择器)与 `.face-cell :deep(.person-avatar-ring)`(+[data-on] 变体
+   ,C10 裁定的 New-UI 专属选中环写法,PersonAvatar 组件内部结构,parity 无对应)、
+   `.fpop-foot`(+子选择器,Vue2 这里 margin-top 是 14px,与 List/Date 两个弹层的 12px 不同,
+   parity 本就没有 `.fpop-foot` 这个类,不存在"移交"的问题)。 */
+.face-pop-empty {
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--text-3);
   font-size: 12px;
-  margin-bottom: 10px;
-}
-.fpop-search:focus {
-  outline: 0;
-  border-color: var(--accent-soft);
-  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* 逐条照 photos.scss:2689-2694(6 条,已两条腿审计过)。 */
-.face-pop-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  max-height: 264px;
-  overflow-y: auto;
-}
-.face-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-/* photos.scss:2691 的 `.face-cell .face-avatar { width/height:48px; font-size:18px;
-   border:2px solid transparent }` 由 PersonAvatar(:size="48")+ 下面的选中环规则接管——
-   48×48 尺寸已通过 prop 传入,不需要在这里重复声明宽高。font-size:18px 是 Vue2 内联首字母
-   的字号，PersonAvatar 自己的首字母字号公式是 size*0.32=15.36px（组件既有先例，不是本任务
-   新定），与 Vue2 的 18px 有约 2.6px 出入——偏离登记：不改 PersonAvatar 的既有公式（那是
-   P5 时期跨多处消费方冻结的契约，改了会牵动其余用它的组件），本处沿用差值可接受。 */
-.face-cell-name {
-  font-size: 11.5px;
-  color: var(--fg-muted);
-}
-.face-cell-count {
-  font-size: 10px;
-  color: var(--fg-subtle);
-}
 /* photos.scss:2691-2692 的选中环:C10 裁定用 :deep 挂在 PersonAvatar 的圆环元素上，不
    自绘头像。基础态统一定 2px 宽(而非 PersonAvatar 默认的 1px card-border)以便选中态只切
-   颜色不跳变宽度；选中态换成 accent 描边 + 光晕(0.20 阿尔法就近取 --accent-soft-2，本仓
-   无逐分量 accent-rgb token，Global Constraints §33)。 */
+   颜色不跳变宽度；选中态换成 accent 描边 + 光晕(0.20 阿尔法)。
+   Fix-3 item 7 token 修正:此前这里的光晕走的是本仓 theme.css 里一个全局定义的蓝色调 token
+   (`.photos-root` 未本地重定义),与本页其余 accent 家族(parity 本地定义、紫色调)不是
+   同一色系,是与本任务其余处同类的"全局 token 漏进 parity 页面"问题——已改用下方
+   theme-exception 标记的字面量(Vue2 逐字数值),不新增 token。 */
 .face-cell :deep(.person-avatar-ring) {
   border-width: 2px;
 }
 .face-cell[data-on="true"] :deep(.person-avatar-ring) {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft-2);
+  /* theme-exception: Vue2 逐字光晕值(accent 紫色系、0.20 阿尔法),与 parity 转录里
+     .fchip[data-on] 边框那条同色系字面量同一处理方式,不新增 token。 */
+  box-shadow: 0 0 0 2px rgba(110,91,255,0.20);
 }
 
-/* Vue2 :110-112 的空态内联 style(padding:24px 8px,与 T12 的 .fpop-empty 18px 8px 不是
-   同一个类、数值也不同——不能复用那个类,这里另立一个)。 */
-.face-pop-empty {
-  padding: 24px 8px;
-  text-align: center;
-  color: var(--fg-faint);
-  font-size: 12px;
-}
-
-/* Vue2 :113 这里的脚部margin-top 是 14px,与 T13 `SearchDatePopover.vue`(Vue2 日期弹层
-   :84)/T12 `PhotosFilterPopover.vue`(Vue2 列表弹层 :142)的 12px 不同(fix round 2 · N3
-   修正配对:此前把 T12/T13 与 :84/:142 的对应关系写反了。逐条声明级两条腿审计查实的
-   真实差异,不是抄错)——两条脚部规则各自独立声明,不合并复用。 */
+/* Vue2 :113 这里的脚部 margin-top 是 14px,与 SearchDatePopover.vue(Vue2 日期弹层 :84)/
+   PhotosFilterPopover.vue(Vue2 列表弹层 :142)的 12px 不同——三条脚部规则各自独立声明,
+   parity 本身没有 `.fpop-foot` 这个类,不合并复用。 */
 .fpop-foot {
   display: flex;
   gap: 8px;
@@ -233,47 +181,5 @@ const applyLabel = computed(() => {
 .fpop-foot .btn {
   flex: 1;
   justify-content: center;
-}
-
-.fpop-quick {
-  font-size: 12px;
-  padding: 5px 10px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.fpop-quick:hover {
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-color: var(--accent-soft-bd);
-}
-
-.btn {
-  height: 32px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 999px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg);
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.btn:hover {
-  background: var(--chip-bg-hi);
-}
-.btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.btn.btn-primary:hover {
-  background: var(--accent);
-  filter: brightness(1.08);
 }
 </style>

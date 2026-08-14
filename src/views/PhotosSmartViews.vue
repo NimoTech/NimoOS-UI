@@ -3,8 +3,16 @@
 // 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosSmartViewsView.vue:14-38(列表部分,
 // 详情/弹窗部分归其余任务)、内联横幅 :15-19、hero :22-30、网格 :31-38 移植;
 // 样式照 photos-smartview.scss:4-25(hero/create-btn/grid)+ :118-145(create-card)。
-// 壳照 PhotosPeople.vue 头部注释的既定形态复制(AreaShell/.photos-layout/PhotosSidebar/
-// .photos-main,含 ≤768px 的 gap:0),不抽公共(P3/P4 既定)。
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// ——`collapsed` 改用共享 composable useSidebarCollapse(）。随手修复了
+// photosLayoutHeightCap.test.ts 里挂账的 EXEMPT 项:这页此前 `.photos-main` 没有任何内层
+// 滚动容器,靠 AreaShell 的 `.area-body { overflow: auto }` 兜底整页滚动——脱壳后 `.app` 网格
+// 强制 `height:100vh; overflow:hidden`(parity scss photos.scss:116-129,与视图无关的全局
+// 祖先选择器,本页无法单独豁免),不补内层滚动容器就会真裁内容(超一屏的 moment 卡片再也
+// 够不着)。这里把 `.mo-section`(本页唯一内容块)升格成 flex:1+overflow-y:auto 的滚动容器,
+// 与 PhotosAlbums.vue 的 `.albums-scroll` 同一形状——从 EXEMPT 移进等效于 CAPPED(源码里
+// 已不含 `.photos-layout` 规则字面量,自动退出该测试文件的扫描范围)。
 //
 // SP15-P2b Task 5 (Vue2 939a7d3a:src/views/Photos/PhotosSmartViewsView.vue, the whole
 // 317-line file): the smart-view grid, its hero, the create tile, and the create dialog all
@@ -49,9 +57,10 @@ import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
@@ -60,6 +69,12 @@ import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// (same as Photos.vue/PhotosAlbums.vue). title = topbarTitle's 'smart' branch ('For You',
+// PhotosTimeline.vue:190); sub is left to PhotosTopbar's own default (topbarSubContext's
+// navMap has no 'smart' entry, PhotosTimeline.vue:229-234, so it falls through to the same
+// full-library photoCount/videoCount line the topbar already computes on its own).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
@@ -146,10 +161,19 @@ onMounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue/PhotosAlbums.vue. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosMoForYou')"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+       <div class="photos-main">
         <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
              The section and the hero carry NO v-if, matching Vue2 :18-19: this page has no
              other heading since the smart-view hero moved to Albums, so gating them would
@@ -192,57 +216,73 @@ onMounted(() => {
             </span>
           </div>
         </div>
+       </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+   pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
+   sidebar's width and the height cap. `.photos-layout` no longer appears anywhere in this
+   file's source — photosLayoutHeightCap.test.ts's EXEMPT entry for this page has been
+   removed accordingly (see this file's header comment for why the height cap no longer
+   clips content: `.mo-section` below picked up the scroll container it never had). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── Moments · For You band (Vue2 photos-smartview.scss:144-186) ── */
-.mo-section { margin-bottom: 36px; }
-.mo-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 16px; }
-/* Deviation logged: Vue2 uses var(--font-display) — this repo's theme.css has no such token
-   (grep turns up zero hits); not adding one, inherits the page's font instead. */
-/* SP15-P2b Task 5 (Vue2 :19): promoted from h2 to h1 -- with the smart-view hero gone from
-   this page, this is now the page's only page-level heading. Font size unchanged (32px). */
-.mo-hero h1 { font-size: 32px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--fg); }
-.mo-hero p { font-size: 13.5px; color: var(--fg-muted); margin: 0; max-width: 520px; line-height: 1.5; }
+/* ── Moments · For You band (Vue2 photos-smartview.scss:144-186, all globally imported via
+   Plan C Task 1's `import '../photos/styles/vue2-parity'`) ──
+   Plan C Task 6 cleanup: went through every selector below against the now-globally-imported
+   `photos-smartview.scss` (same doctrine as Task 3/4/5's own passes on the sibling pages) --
+   any selector whose text and values already match a parity rule exactly is deleted outright,
+   parity now governs it directly; only genuine New-UI additions/overrides/token substitutions
+   survive, trimmed to just what parity doesn't already provide. See task-6-report.md for the
+   full deviation table.
+   Plan C Task 2: promoted to this page's scroll container (flex:1 1 auto + min-height:0 +
+   overflow-y:auto) — same shape as PhotosAlbums.vue's `.albums-scroll`. Previously this page
+   relied on AreaShell's `.area-body { overflow: auto }` for whole-page scroll; now that
+   `.app`/`.main` cap height at 100vh with overflow:hidden (see header comment), something
+   inside `.photos-main` has to own the scroll instead, and this is the only content block.
+   (`margin-bottom: 36px` used to be restated here too -- deleted, parity's own
+   `.photos-root .mo-section` rule already sets it identically.) */
+.mo-section { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+/* `.mo-hero`/`.mo-hero p` deleted outright (Task 6): parity's own `.photos-root .mo-hero`/
+   `.photos-root .mo-hero p` already match these shapes property-for-property (the only
+   difference is parity's own token names, `--text-3` etc., vs this repo's `--fg-muted` --
+   same "tokens vs literals/token-family, identical shape -> deleted, parity wins" verdict
+   T3/T4/T5 already applied dozens of times on the sibling pages). */
+/* `.mo-hero h1`'s font-size/weight/letter-spacing/margin duplicated parity's own
+   `.photos-root .mo-hero h1` (same values) -- deleted. Parity's rule also sets
+   `font-family: var(--font-display)`; the previous "this repo's theme.css has no such
+   token" comment here only checked theme.css -- photos.scss's own `.photos-root` block
+   (Task 6 grep) *does* define `--font-display` for both light/dark, so that font-family
+   was never actually inert, it just wasn't documented correctly. Only `color: var(--text-1)`
+   survives: parity sets no color on this selector at all, and this repo's own ambient
+   default for a bare `h1` outside `.photos-root`'s own component rules isn't guaranteed,
+   so the explicit colour is kept rather than gambled on inheritance. */
+.mo-hero h1 { color: var(--text-1); }
 
 /* .mo-grid coexists with .sv-grid, only layering mosaic-specific rules on top — it never
    touches .sv-grid itself. Dense packing plus a fixed row height: a card's rendered height
    works out to its row span multiplied by 132px, plus its span minus one multiplied by the
-   16px gap. */
-.mo-grid { margin-bottom: 4px; grid-auto-flow: row dense; grid-auto-rows: 132px; }
-/* Three span tiers. The tall card uses a two-class selector so it outranks the baseline
-   single-class selector regardless of source order. */
-.mo-grid :deep(.mo-card) { grid-row: span 3; }
-.mo-grid :deep(.mo-card-wide) { grid-column: span 2; }
-.mo-grid :deep(.mo-card.mo-card-tall) { grid-row: span 5; }
+   16px gap.
+   Task 6: `.mo-grid` itself and its three `.mo-card`/`.mo-card-wide`/`.mo-card-tall` span
+   rules (plus the narrow-container media query) are deleted entirely -- parity's own
+   `.photos-root .mo-grid .mo-card`/`-wide`/`.mo-card.mo-card-tall` rules (photos-smartview.scss
+   :132-158) already match these values exactly and, being plain unscoped selectors, already
+   reach MomentCard's root element regardless of Vue's scoped-CSS boundary -- the local
+   `:deep()` wrapping that used to be needed here was pure duplication, not a requirement for
+   reachability. */
 
-/* Narrow-container fallback: .sv-grid's auto-fill minmax(320px, 1fr) drops to one or two
-   columns below the three-column breakpoint, and a wide card spanning two columns would then
-   overrun the column count — the media query below drops it back to one column. The tall
-   card's vertical span is unaffected by column count. */
-@media (max-width: 1055px) {
-  .mo-grid :deep(.mo-card-wide) { grid-column: span 1; }
-}
-
-/* Drag states (Vue2 photos-smartview.scss:292-299). Vue2 uses an inline purple color
-   literal there; this repo forbids bare color literals, so these use the --accent
-   family via color-mix instead (same technique as SmartViewCard's .sv-collage-badge) —
-   token-based, not a literal, so no theme-exception comment is needed. */
+/* Drag states (Vue2 photos-smartview.scss:289-297: `.photos-root .mo-drag-ghost`/
+   `.mo-drag-chosen`). Vue2 uses an inline purple color literal there; this repo forbids bare
+   color literals in authored component code, so these use the --accent family via color-mix
+   instead (same technique as SmartViewCard's .sv-collage-badge) — token-based, not a literal,
+   so no theme-exception comment is needed. Kept (not deleted): unlike the shape-only
+   duplicates above, this is a genuine, still-needed value substitution over parity's own
+   literal, matching the same "kept, real token substitution" verdict as MomentCard.vue's
+   type-pill tokens. */
 .mo-grid :deep(.mo-drag-ghost) {
   opacity: 0.4;
   background: color-mix(in srgb, var(--accent) 15%, transparent);
@@ -250,10 +290,11 @@ onMounted(() => {
 }
 .mo-grid :deep(.mo-drag-chosen) { cursor: grabbing; }
 
-/* Base grid used by .mo-grid above -- kept here even though this page no longer has a
-   smart-view grid of its own (SP15-P2b Task 5): .mo-grid only layers mosaic-specific rules
-   on top of it (see comment above) and still needs this rule to exist. */
-.sv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; flex: 1 1 auto; }
+/* `.sv-grid`'s base shape (display/grid-template-columns/gap) duplicated parity's own
+   `.photos-root .sv-grid` (photos-smartview.scss:6-10) -- deleted. `flex: 1 1 auto` survives:
+   parity has no equivalent (this page's own flex-column scroll container needs the grid to
+   grow/shrink inside `.mo-section`, a New-UI structural addition unrelated to Vue2's layout). */
+.sv-grid { flex: 1 1 auto; }
 
 /* ── Slim settings hint (SP15-P2b Task 5, replaces the entire old .svs-banner) -- reuses
    the same --dem-fg family as the banner (precedent: PhotosTrash.vue .trash-bucket-dot
@@ -270,10 +311,13 @@ onMounted(() => {
   color: var(--dem-fg); font-size: 12.5px; line-height: 1.4;
 }
 .mo-off-hint svg { flex-shrink: 0; }
-.mo-off-hint-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+.mo-off-hint-link { color: var(--accent-hi); text-decoration: underline; cursor: pointer; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode at
+   ≤768px, collapse `.app`'s sidebar column too, so `.main` doesn't leave a dead
+   var(--sidebar-w) gutter where the now-floating sidebar used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

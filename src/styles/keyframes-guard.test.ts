@@ -25,13 +25,21 @@
 //   (d) <style> blocks WITHOUT `scoped` in src/**/*.vue — scoped blocks are
 //       exempt (SFC compiler hashes their keyframe names, see above)
 //
-// Duplicate names with byte-for-byte identical bodies are tolerated (they
-// are provably harmless — CSS just redefines the same rule twice) — this is
-// what already happens for `photos-pulse` itself: `photos.scss` internally
-// `@import`s `photos-smartview.scss` (see index.ts), so the merged output of
-// `photos.scss` alone already contains that keyframe twice, verbatim, by
-// design of the original Vue2 source. A duplicate name with a *different*
-// body — the actual hijack scenario — fails the test.
+// Tightened 2026-08-13 (plan-C task 1): this guard USED to tolerate
+// duplicate names as long as their bodies were byte-for-byte identical
+// (after whitespace normalization) — that carve-out existed solely because
+// `photos.scss` internally `@import`ed `photos-smartview.scss`, so the
+// merged output of `photos.scss` alone contained the `photos-pulse`
+// keyframes twice, verbatim, as a side effect of that internal @import.
+// That @import has now been deleted (see index.ts and the deletion-site
+// comment in photos-smartview.scss) — `photos-pulse` is physically defined
+// exactly once now, in photos.scss:203. With the only legitimate duplicate
+// gone, there is no longer any known-benign case for a repeated
+// `@keyframes` name, so this guard now treats ANY duplicate name as an
+// offender, same-body or not — a same-body duplicate is redundant CSS at
+// best and an early symptom of a copy-paste/re-import mistake at worst, and
+// a different-body duplicate is the actual hijack scenario this guard
+// exists to catch.
 /// <reference types="node" />
 import fs from 'node:fs'
 import path from 'node:path'
@@ -139,7 +147,7 @@ describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名
     expect(parityFiles.length).toBeGreaterThan(0)
   })
 
-  it('所有非 scoped 来源里的 @keyframes 名称不冲突(同名必须同体,否则判定为劫持风险)', () => {
+  it('所有非 scoped 来源里的 @keyframes 名称全局唯一(任何重名即判定为冲突/劫持风险)', () => {
     const byName = new Map<string, KeyframeHit[]>()
     for (const { rel, text } of allSources) {
       for (const hit of extractKeyframes(text, rel)) {
@@ -149,22 +157,16 @@ describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名
       }
     }
 
-    // Strip *all* whitespace rather than collapsing it — the known benign
-    // duplicate (`photos-pulse` in photos.scss vs photos-smartview.scss)
-    // differs only in a `0%,100%` vs `0%, 100%` comma-space, which is not a
-    // meaningful CSS difference and must not be treated as a name collision.
-    const normalize = (body: string) => body.replace(/\s+/g, '')
-
+    // Tightened 2026-08-13 (plan-C task 1): no more same-body tolerance —
+    // see header comment for why. Any name defined 2+ times across the
+    // non-scoped sources is now an offender outright, regardless of body.
     const offenders: string[] = []
     for (const [name, hits] of byName) {
       if (hits.length < 2) continue
-      const bodies = new Set(hits.map((h) => normalize(h.body)))
-      if (bodies.size > 1) {
-        offenders.push(
-          `  @keyframes ${name} 在以下文件中被定义为不同内容(名称冲突,后加载的会静默覆盖先加载的):\n` +
-            hits.map((h) => `    - ${h.file}`).join('\n'),
-        )
-      }
+      offenders.push(
+        `  @keyframes ${name} 在以下文件中被重复定义(同名必须全局唯一;若为不同内容,后加载的会静默覆盖先加载的):\n` +
+          hits.map((h) => `    - ${h.file}`).join('\n'),
+      )
     }
 
     expect(

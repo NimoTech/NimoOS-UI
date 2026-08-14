@@ -1,9 +1,23 @@
 <script setup lang="ts">
 // Task 7 (SP7-P4 相册): 相册列表视图——卡片网格 + 排序 + 新建三种填充方式(empty/recent/
-// select,Ask Nimo 分支照 brief 明确不建)+ 空态。壳照 Photos.vue:176-180/PhotosFavorites.vue/
-// PhotosTrash.vue 的 AreaShell/.photos-layout/.photos-main 复制(不抽公共,P3 T8 同样处理)。
-// 结构照 Vue2 NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:16-86(banner+网格)、:99-165
-// (新建模态)。路由注册留给 T11。
+// select,Ask Nimo 分支照 brief 明确不建)+ 空态。结构照 Vue2 NimoOS-UI
+// src/views/Photos/PhotosAlbumsView.vue:16-86(banner+网格)、:99-165(新建模态)。路由注册
+// 留给 T11。
+//
+// Plan C Task 2(公共换壳):壳从 AreaShell + `.photos-layout` flex-row 换成 Photos.vue 的
+// Vue2 结构 `.photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main`
+// (NimoOS-UI PhotosTimeline.vue:943-956)——`collapsed` 改用 Task 2 新建的共享 composable
+// useSidebarCollapse(），不再是本页自己没有的状态(相册页此前从未持久化过折叠态,
+// PhotosSidebar 一直吃着 prop 默认值 false,即恒展开——这本身是个待补的缺口,这里随换壳
+// 一并补上)。Vue2 这五页没有 PhotosTopbar(时间线专属),banner 本身就是头部,不额外加顶栏。
+// AreaShell 去留判定:同 Photos.vue Task 3 的既定结论——桌面态(≥769px)`.area-bar` 确实
+// display:none,但 `.area-body` 仍带 20px padding + 一层 flex 包裹,与 `.app` 网格自带的
+// 100vh/无内边距冲突,故同样脱壳。已知遗留(未在本任务修,详见 task-2-report.md):AreaShell
+// 的 `.area-bar` 是本页在 ≤768px 窄屏下唯一能打开侧栏抽屉的入口(hamburger 按钮),脱壳后这个
+// 入口消失了——与 Photos.vue Task 3→4 之间的同款临时缺口同构(当时 Photos.vue 也曾短暂失去
+// 这个入口,直到 Task 4 把开关接到了 PhotosTopbar 上)。本页没有 topbar 可接,brief 明确本任务
+// 「除 :data-collapsed 外不需要额外接线」,故这里不越权补——移动端暂时打不开侧栏抽屉,留给
+// 后续任务处理。
 //
 // 点卡片跳真路由(Vue2 是页内 openAlbumId state)——router.push('/photos/albums/' + view.id),
 // 铁律:id 可能是数字,字符串拼接自动 toString(),不需要额外 String() 包一层。
@@ -19,9 +33,11 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -40,6 +56,9 @@ type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button,
+// same as Photos.vue's own `onToggleCollapse` (Photos.vue:104).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
@@ -77,6 +96,19 @@ const sourceOptions = computed(() => [
   // embedded SmartViewCreateDialog instead of opening a second modal.
   { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): PhotosTopbar's title/sub for the 'albums' nav
+// -- Vue2 topbarTitle's 'albums' branch is literally `this.$t('Albums')`
+// (PhotosTimeline.vue:187, this repo's own photosAlbumsTitle key already carries that exact
+// string) and topbarSubContext's 'albums' branch sums photoCount/videoCount across every
+// album, list AND smart alike (PhotosTimeline.vue:226-232) -- NOT the album *count* the
+// banner's own .albums-sub already shows a few lines below in the template.
+const topbarTitle = computed(() => t('photosAlbumsTitle'))
+const topbarSub = computed(() => {
+  const totalPhotos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).photoCount) || 0), 0)
+  const totalVideos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).videoCount) || 0), 0)
+  return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
+})
 
 // SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
 // by the single Sort control -- smart albums are no longer pinned to the front.
@@ -318,10 +350,22 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosAlbumsTitle')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue (its own Task 2 review-fix comment) -- the topbar's own collapse button
+           now delegates to the sidebar drawer on narrow viewports, so the sidebar's floating
+           trigger would be a redundant second affordance here. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+       <div class="photos-main">
         <div class="albums-banner">
           <div>
             <h1>{{ t('photosAlbumsTitle') }}</h1>
@@ -329,7 +373,32 @@ onUnmounted(() => {
           </div>
           <div class="albums-actions">
             <div ref="sortMenuRef" class="albums-sort-wrap">
-              <button type="button" class="bar-btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
+              <!-- Fix-7 (owner acceptance, 2026-08-14): was `class="bar-btn"` -- a *global*
+                   New-UI button class (theme.css), not Vue2's real class for this button
+                   (NimoOS-UI PhotosAlbumsView.vue:60 uses `class="btn"`, parity's own
+                   `.photos-root .btn`, photos.scss:290-298). `.bar-btn`'s chrome
+                   (`--chip-bg`/`--chip-border`/`--fg`) is not shadowed on `.photos-root`, so it
+                   doesn't follow the private photos-is-light toggle -- in photos light mode
+                   `--chip-bg`'s dark-theme value (a translucent *white* glass gradient) sits on
+                   the parity light page's own near-white background and effectively
+                   disappears, same for the border. The result the owner saw: bare text, no
+                   border, no background. `.btn` is theme-correct throughout (--surface-2/--line/
+                   --text-1, all `.photos-root`-scoped and already correctly shadowed under
+                   `.photos-root.is-light`) and is the button Vue2 itself actually uses here.
+                   Renamed to match; no local override needed, parity's own rule governs
+                   directly. The "New album" button next to it (`bar-btn btn-primary`) is
+                   unaffected by this same underlying bug -- `.btn-primary`'s own solid
+                   `--accent` fill (also `.photos-root`-scoped) already wins over `.bar-btn`'s
+                   background regardless of theme, which is why the owner reported it as fine
+                   and it is left untouched. -->
+              <button type="button" class="btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
+                <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+                     (PhotosAlbumsView.vue:60-61) leads this button with
+                     `<photos-icon name="filter" :size="13"/>`. The owner's screenshot showed a
+                     lone chevron with nothing in front of it (described as "a degenerate hollow
+                     triangle"); root cause was a missing icon element, not a wrong/unmapped
+                     icon name -- this button never had a leading icon at all. -->
+                <PhotosIcon name="filter" :size="13" data-test="albums-sort-icon" />
                 {{ t('photosAlbumSort') }} {{ currentSort.label }}
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </button>
@@ -352,6 +421,10 @@ onUnmounted(() => {
               </div>
             </div>
             <button type="button" class="bar-btn btn-primary" data-test="albums-new-btn" @click="openCreate">
+              <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+                   (PhotosAlbumsView.vue:83-84) leads this button with
+                   `<photos-icon name="album" :size="13"/>`. -->
+              <PhotosIcon name="album" :size="13" data-test="albums-new-icon" />
               {{ t('photosAlbumNew') }}
             </button>
           </div>
@@ -383,11 +456,16 @@ onUnmounted(() => {
              (「我的相册 / 你创建的相册」)——New-UI 曾直接从 banner 落到网格,漏渲染整段,
              连带两个专为它准备的 i18n 键(photosAlbumsMine/photosAlbumsMineHint)成了死码。
              滚动容器安置:Vue2 的滚动容器是外层 .albums-body(photos.scss:3202-3206),分区头
-             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构,把
-             flex:1+overflow-y:auto 从 .album-grid 挪到新包一层的 .albums-scroll 上,
-             .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
-             .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
-        <div class="albums-scroll scroll">
+             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构。
+             Fix-1 item 2(owner acceptance, 2026-08-13):这层容器的类名曾经是本仓自造的
+             `.albums-scroll`(T3 清理时的手误)——parity 样式表只认 `.albums-body`
+             (photos.scss:3206-3211,padding: 18px 24px 80px,同时也含
+             flex:1+min-height:0+overflow-y:auto),`.albums-scroll` 不是它认识的名字,于是
+             真正生效的只有本文件下方一条本地 `.albums-scroll` 规则(内边距只有
+             `4px 4px 20px`)——网格因此贴着左边缘,就是机主截图看到的现象。改回 parity 的
+             真名字后本地规则整条删除(parity 现在直接接管,值也更大更对),`scroll` 类保留
+             (全局隐藏滚动条那条规则认的是这个类名,见 photos.scss:21)。 -->
+        <div class="albums-body scroll">
           <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
                939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
                Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
@@ -435,7 +513,17 @@ onUnmounted(() => {
                    height: it follows the theme's own font metrics. -->
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
                 <div class="album-create-cover">
-                  <div class="plus">+</div>
+                  <!-- Fix-11 (owner acceptance, 2026-08-14): was a literal "+" text glyph, a
+                       substitute an earlier cleanup (T3) explicitly registered as standing in
+                       for "Vue2's PhotosIcon SVG that parity has no property for"
+                       (PhotosAlbumsView.vue:118-120 uses
+                       `<photos-icon name="album" :size="20"/>` inside `.plus`, the same 'album'
+                       glyph the New-album button above uses at a larger size) -- now that the
+                       glyph exists in this repo's own PhotosIcon.vue, the substitute is no
+                       longer needed. `.plus`'s own local `font-size: 20px` (sized the text
+                       glyph) is removed below since the icon component sizes itself via its
+                       own `:size` prop, not font-size. -->
+                  <div class="plus"><PhotosIcon name="album" :size="20" data-test="album-create-icon" /></div>
                   <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
                   <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
                 </div>
@@ -528,16 +616,38 @@ onUnmounted(() => {
             </div>
           </section>
         </div>
+       </div>
       </main>
     </div>
-  </AreaShell>
 
-  <div
-    v-if="createOpen"
-    class="albums-modal-scrim"
-    data-test="albums-create-modal"
-    @click.self="closeCreate"
-  >
+    <!-- Fix-1 item 3 (owner acceptance, 2026-08-13): the create-modal and the library picker
+         below used to sit as template-root SIBLINGS of `.photos-root` (outside its DOM
+         subtree entirely, Vue 3's multi-root fragment). Every layout rule either one relies
+         on is written `.photos-root .albums-modal-scrim { position: fixed; ... }`
+         (photos.scss:3844) / `.picker-scrim` reads `var(--modal-bg)`, a custom property only
+         defined inside `.photos-root { ... }` (photos.scss:14-60) -- a descendant selector
+         and a CSS custom property both require an actual `.photos-root` ANCESTOR in the real
+         DOM, which "declared after `.photos-root`'s closing tag in the template" does not
+         provide. The click handler firing and `createOpen`/`pickerOpen` flipping true were
+         never in question (that is why the pre-existing DOM-existence tests never caught
+         this) -- what silently failed is every position/background/z-index rule the modal
+         needs to be visible at all, which is exactly the owner-visible symptom ("New album"
+         appears to do nothing). This file's own header comment (photos.scss:1-13) already
+         documents the repo's established fix for portaled elements escaping `.photos-root`
+         (re-carry the class onto the portal host, see PhotosToastHost.vue's Teleport target)
+         -- the simpler fix used here is to stop portaling at all: nest both dialogs back
+         inside `.photos-root`, matching how Vue2's own single-page shell always had them
+         (PhotosAlbumsView.vue's modal and picker are both descendants of PhotosTimeline's one
+         `.photos-root`, never siblings of it). `position: fixed` on both dialogs' root
+         elements means nesting them here does not reintroduce `.app`'s `overflow: hidden`
+         clipping (`.photos-root` itself sets no transform/filter/perspective/contain that
+         would create a containing block for `position: fixed`). -->
+    <div
+      v-if="createOpen"
+      class="albums-modal-scrim"
+      data-test="albums-create-modal"
+      @click.self="closeCreate"
+    >
     <div class="albums-modal" :class="{ 'albums-modal-wide': newAlbumSource === 'nimo' }">
       <div class="albums-modal-head">
         <div class="albums-modal-head-text">
@@ -602,65 +712,66 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
-  </div>
+    </div>
 
-  <PhotosLibraryPicker
-    :open="pickerOpen"
-    :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
-    :existing-ids="pickerExistingIds"
-    :existing-label="t('photosAlbumPickerAlready')"
-    :submit-label="pickerSubmitLabel"
-    :submitting="pickerAdding"
-    @update:open="pickerOpen = $event"
-    @confirm="onPickerConfirm"
-  />
+    <PhotosLibraryPicker
+      :open="pickerOpen"
+      :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
+      :existing-ids="pickerExistingIds"
+      :existing-label="t('photosAlbumPickerAlready')"
+      :submit-label="pickerSubmitLabel"
+      :submitting="pickerAdding"
+      @update:open="pickerOpen = $event"
+      @confirm="onPickerConfirm"
+    />
+  </div>
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan C Task 2: `.photos-layout` flex-row + the transitional `.sidebar { flex... }` width
+   pin are gone — the `.app` CSS Grid (parity scss photos.scss:116-129) now owns both the
+   sidebar's width and the height cap (`height: 100vh; overflow: hidden`), same as
+   Photos.vue since its own Task 3 re-skin. `.photos-layout` no longer appears anywhere in
+   this file's source — photosLayoutHeightCap.test.ts's CAPPED list has been updated to drop
+   this page accordingly (its `allPhotosLayoutViews()` scan only collects pages that still
+   contain the `.photos-layout` rule). */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
 .empty-state-desc { font-size: 13px; }
 /* 终审 Important 1:与 PhotosFavorites.vue/PhotosAlbumDetail.vue 的同款失败态间距对齐
    (两处已有此规则),否则三个失败屏视觉不一致。 */
 .empty-state .bar-btn { margin-top: 10px; }
 
-/* ── Banner ── */
-.albums-banner { display: flex; align-items: flex-end; gap: 18px; padding: 4px 4px 16px; flex-wrap: wrap; }
-.albums-banner h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
-.albums-sub { color: var(--fg-muted); font-size: 12.5px; margin-top: 4px; }
+/* ── Banner ──
+   T3 shadow cleanup: `.albums-banner`/`h1`, `.albums-sort-menu`/`.albums-sort-item`(+hover/
+   active) and `.sort-text .lbl` used to carry local scoped copies under the exact same class
+   names parity already styles (`.photos-root .albums-banner`, `.photos-root .albums-sort-menu`,
+   etc.) — the scoped copies won by data-v specificity and were built against New-UI's OWN
+   theme.css tokens (--popup-bg/--card-border/--card-shadow-hi/--chip-bg-hi/--fg), which
+   `.photos-root` does NOT redefine, so they rendered with the wrong (non-Vue2) numbers: 22px h1
+   instead of 28px, a translucent glass sort-menu instead of the opaque `--surface-2` panel the
+   brief calls for, wrong padding/radius throughout. Deleted outright — the parity rules (photos.
+   scss:3119-3195) now govern directly, no local shadow left to remove them again later. */
+.albums-sub { color: var(--text-3); font-size: 12.5px; margin-top: 4px; }
 .albums-actions { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
+/* Vue2 has no class here — the sort dropdown's positioned ancestor is an inline
+   `style="position:relative"` div (PhotosAlbumsView.vue:59); this is that div's New-UI class
+   equivalent. Parity has no matching selector, so this one survives. */
 .albums-sort-wrap { position: relative; }
 
-.albums-sort-menu {
-  position: absolute; top: calc(100% + 6px); right: 0; min-width: 230px; z-index: 20;
-  background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px;
-  padding: 4px; box-shadow: var(--card-shadow-hi);
-}
-.albums-sort-item {
-  display: flex; width: 100%; align-items: flex-start; gap: 8px; padding: 8px 10px;
-  background: transparent; border: 0; border-radius: 8px; color: var(--fg); font: inherit;
-  font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.albums-sort-item:hover { background: var(--chip-bg-hi); }
-.albums-sort-item[data-active="true"] { background: var(--accent-soft); }
-.sort-check { width: 14px; flex: 0 0 auto; color: var(--accent-text); }
+/* Survivors: `.sort-check`/`.sort-text`/`.sort-text .hint` wrap the check-mark and label/hint
+   pair in real elements+classes where Vue2 uses an icon-or-blank-span and an unclassed
+   `style="flex:1"` span (PhotosAlbumsView.vue:72-77) — parity has no selector for either
+   wrapper, and `.sort-text .hint` doesn't share a name with parity's `.desc` (this repo's own
+   i18n key suffix convention is "Hint", not "Desc"; see photosAlbumSortCreatedHint etc.). Colors
+   corrected to the parity tokens the wrapped content would carry if unwrapped:
+   `.albums-sort-item .lbl` itself is deleted below (name-identical to parity, no wrapper
+   needed there). */
+.sort-check { width: 14px; flex: 0 0 auto; color: var(--accent-hi); }
 .sort-text { flex: 1 1 auto; display: flex; flex-direction: column; }
-.sort-text .lbl { font-weight: 500; }
-.sort-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+.sort-text .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 /* ── SP15-P2b Task 3: AI-off banner ── token values and inner sizes copied from
    PhotosSmartViews.vue's old .svs-banner* (renamed .albums-ai-banner*); see that file's own
@@ -682,8 +793,8 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 1px;
 }
 .albums-ai-banner-title { font-size: 12.5px; font-weight: 600; color: var(--dem-fg); }
-.albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
-.albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
+.albums-ai-banner-desc { font-size: 11.5px; color: var(--text-2); margin-top: 3px; line-height: 1.5; }
+.albums-ai-banner-link { color: var(--accent-hi); text-decoration: underline; cursor: pointer; }
 
 /* ── 分区头 + Grid ──
    滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
@@ -694,11 +805,23 @@ onUnmounted(() => {
    used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
    apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
    minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
-   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width. */
-.albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
-.albums-section-head { display: flex; align-items: baseline; gap: 10px; padding: 4px 4px 14px; }
-.albums-section-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; margin: 0; color: var(--fg); }
-.albums-section-hint { font-size: 12px; color: var(--fg-muted); }
+   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width.
+   Fix-1 item 2 (owner acceptance, 2026-08-13): the local `.albums-scroll` rule that used to
+   sit here is deleted outright, not value-patched -- the template now carries parity's own
+   `.albums-body` class name (photos.scss:3206-3211), which already provides
+   flex/min-height/overflow-y AND the correct `padding: 18px 24px 80px` (this local copy's
+   `4px 4px 20px` was the actual bug: the grid rendered flush against the left edge because
+   parity's real padding rule never matched the old, unrecognised class name). */
+/* `.albums-section-head`/`h2` deleted (T3 shadow cleanup): both class names already match
+   parity's `.photos-root .albums-section-head`/`h2` (photos.scss:3213-3225) exactly, and the
+   local copies disagreed on real values -- padding 4px 4px 14px vs parity's 12px 0 14px, h2
+   15px vs parity's 18px, plus an explicit `color: var(--text-1)` (New-UI token, not redefined
+   inside `.photos-root`) shadowing the `--text-1` the `.app` grid already sets as the ambient
+   text color. `.albums-section-hint` keeps its own name (PhotosAlbums.test.ts asserts on it by
+   class, e.g. `w.find('.albums-section-hint')`) -- parity's equivalent is the nameless
+   `.albums-section-head .sub`, so only its color is corrected to the parity token (font-size
+   already agreed at 12px). */
+.albums-section-hint { font-size: 12px; color: var(--text-3); }
 .album-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px;
 }
@@ -706,25 +829,36 @@ onUnmounted(() => {
    now the same vertical flex column as .album-card, and the dashed frame moved inward to
    .album-create-cover so the two invisible text lines below it can pad the tile out to a
    card's total height. */
-.album-create { display: flex; flex-direction: column; gap: 8px; padding: 4px; cursor: pointer; }
-.album-create-cover {
-  aspect-ratio: 4 / 5; border-radius: 16px; border: 1.5px dashed var(--chip-border);
-  background: var(--chip-bg); display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 10px; color: var(--fg-muted);
-  transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
-}
-.album-create:hover .album-create-cover { border-color: var(--accent); color: var(--accent-text); background: var(--accent-soft); }
-.album-create .plus { width: 40px; height: 40px; border-radius: 50%; background: var(--chip-bg-hi); display: flex; align-items: center; justify-content: center; font-size: 20px; }
+/* T3 shadow cleanup: `.album-create`/`.album-create-cover`/its hover state deleted -- all three
+   share their name with parity's `.photos-root .album-create*` (photos.scss:3364-3388) and the
+   local copies disagreed on real values (16px radius vs parity's `--r-lg` =14px, a translucent
+   `--chip-bg` glass background vs parity's solid `--surface-1`, `--accent-text` [New-UI's own
+   blue] vs parity's `--accent-hi` [purple] on hover). `.album-create .plus`'s box is deleted the
+   same way (40px/`--chip-bg-hi` vs parity's 44px/`--surface-2`, and parity's own
+   `.album-create:hover .plus` hover rule now applies for free). `.album-create-label`/`-hint`
+   survive too -- Vue2 renders this pair via inline `style=` on unclassed divs
+   (PhotosAlbumsView.vue:121-122), so parity's extraction has no selector for them; hint's
+   opacity corrected from 0.75 to Vue2's actual 0.7.
+   Fix-11 (owner acceptance, 2026-08-14): `.album-create .plus { font-size: 20px }` is deleted
+   here -- it sized this repo's literal "+" text glyph, now replaced with the real
+   `<PhotosIcon name="album" :size="20">` Vue2 itself renders inside `.plus`
+   (PhotosAlbumsView.vue:120); the icon component sizes itself via its own `:size` prop, so the
+   font-size rule has nothing left to size and would be dead CSS if kept. */
 .album-create-label { font-size: 12.5px; font-weight: 500; }
-.album-create-hint { font-size: 11px; opacity: 0.75; }
+.album-create-hint { font-size: 11px; opacity: 0.7; }
 
-.album-card { cursor: pointer; display: flex; flex-direction: column; gap: 8px; border-radius: 16px; padding: 4px; transition: transform 0.18s ease; }
-.album-card:hover { transform: translateY(-2px); }
-.album-cover { position: relative; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; background: var(--chip-bg); box-shadow: var(--card-shadow-hi); }
-.album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
-.album-card:hover .album-cover img { transform: scale(1.04); }
+/* `.album-card`/`:hover`/`.album-cover`/`img`/`:hover img` deleted (T3 shadow cleanup): all
+   name-identical to parity (photos.scss:3237-3261) and all disagreed on values the same way as
+   `.album-create-cover` above (16px vs `--r-lg`=14px radius, `--chip-bg` vs `--surface-2`
+   background, and a `--card-shadow-hi` box-shadow standing in for parity's own two-layer
+   soft-drop-shadow-plus-hairline-border spec). Parity's `.album-cover::after` vignette gradient
+   was never locally shadowed and already rendered correctly throughout. */
 /* 终审 Minor 4:原来这里与 PhotosAlbumDetail.vue:104 各写一份逐字相同的渐变表达式,
-   提成 theme.css 的 --album-cover-fallback token,两处都改用它,不再重复。 */
+   提成 theme.css 的 --album-cover-fallback token,两处都改用它,不再重复。
+   T3 note: this one stays despite matching parity's selector name -- parity's own
+   `.album-cover-fallback` uses a literal dark-purple hex color (photos.scss:3272), which this
+   repo's hard "no hardcoded colors outside vue2-parity/" rule forbids reintroducing here; the
+   token already reproduces the same per-theme gradient without a literal. */
 .album-cover-fallback {
   position: absolute; inset: 0;
   background: var(--album-cover-fallback);
@@ -733,125 +867,94 @@ onUnmounted(() => {
 /* Vue2 图标色是写死的半透明白色字面量(叠在彩色渐变上的语义前景)——改用 --on-accent(atop
    accent 填充的可读前景色 token)+ opacity 弱化,而非写死颜色字面量。 */
 .album-cover-icon { color: var(--on-accent); opacity: 0.7; }
-.album-title { font-size: 14px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; padding: 0 4px; }
-.album-meta { font-size: 11.5px; color: var(--fg-muted); padding: 0 4px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
-.album-meta .sep { width: 3px; height: 3px; border-radius: 50%; background: var(--fg-muted); opacity: 0.6; }
+/* `.album-title`/`.album-meta`/`.album-meta .sep` deleted (T3 shadow cleanup): name-identical to
+   parity (photos.scss:3277-3298), local copies used `--fg`/`--fg-muted` (New-UI tokens, not
+   redefined inside `.photos-root`) in place of parity's `--text-1`/`--text-3`/`--text-4`, and
+   the padding didn't match (`0 4px` vs parity's `2px 6px` / `0 6px`). */
 
 /* ── SP15-P2c Task 10: Smart badge + Live/Paused dot overlaid on a smart album's cover
-   (Vue2 9f7e941f:photos.scss's .al-smart-badge / .al-live-dot). Both are new class names on
-   purpose: the old .sv-collage-badge / .sv-collage-status pair was sized for the 16:9 collage
-   and is still in use by MomentCard, so these are a size smaller to fit the 4:5 cover. */
-.al-smart-badge {
-  position: absolute; top: 8px; left: 8px; z-index: 1;
-  display: inline-flex; align-items: center; gap: 3px;
-  padding: 2px 7px 2px 5px; border-radius: var(--chip-radius, 999px);
-  /* accent family via color-mix -- this repo has no --accent-rgb, same technique as the
-     badge on MomentCard. Not a literal, so no exemption needed. */
-  background: color-mix(in srgb, var(--accent) 85%, transparent);
-  backdrop-filter: var(--blur);
-  font-size: 9.5px; font-weight: 600;
-  /* theme-exception: badge text and icon sit on top of the cover photograph and need a fixed
-     light foreground in both themes. --on-accent is wrong here (in the dark theme it is a deep
-     navy, meant for text on a solid accent fill). Same precedent as PhotosGrid.vue .tile-vid. */
-  color: #fff;
-  text-transform: uppercase; letter-spacing: 0.03em;
-}
-.al-live-dot {
-  position: absolute; top: 8px; right: 8px; z-index: 1;
-  width: 16px; height: 16px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 50%;
-  /* theme-exception: fixed dark bubble pinned over the cover photograph, constant across
-     themes so the dot inside it stays readable. Same precedent as PhotosGrid.vue .tile-vid. */
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: var(--blur);
-}
-/* The second sub-commit of Vue2 9f7e941f. Every pre-existing .live-dot rule was a descendant
-   selector bound to a different ancestor, so inside .al-live-dot the dot inherited nothing and
-   rendered as a hollow ring. Size, colour and the breathing animation are restated explicitly
-   here; the values match the ones the old collage status pill used. */
-.al-live-dot .live-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  /* theme-exception: live indicator fixed on the dark bubble above, constant across themes. */
-  background: #34C759; box-shadow: 0 0 6px #34C759;
-  animation: pulse 1.6s infinite;
-}
-.al-live-dot[data-paused="true"] .live-dot {
-  /* theme-exception: paused indicator, same fixed-bubble rationale as the live one above. */
-  background: #FF9F0A; box-shadow: 0 0 6px #FF9F0A;
-  animation: none;
-}
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
+   (Vue2 9f7e941f:photos.scss's .al-smart-badge / .al-live-dot).
+   T3 shadow cleanup: both rules, plus `.al-live-dot .live-dot`/`[data-paused] .live-dot`, are
+   deleted outright rather than value-patched -- they are name-identical to parity
+   (photos.scss:3306-3354) and every property already agreed *except* one real bug:
+   `backdrop-filter: var(--blur)` was reaching for this repo's own glass token (`blur(44px)
+   saturate(1.7) brightness(1.08)` in dark mode, `none` in light mode -- a heavy multi-effect
+   blur sized for large panels elsewhere in the app), not the small `blur(8px)` chip blur Vue2
+   actually uses. Deleting lets parity's literal `blur(8px)` govern -- correct in both themes,
+   and correctly sized for a small overlay chip. The animation-name collision below is the other
+   real bug this cleanup fixes. */
 
-/* ── New album modal ── */
-.albums-modal-scrim {
-  position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 32px 20px;
-}
-/* P2/P3 血泪(brief 明确点名):模态底色须用 --popup-bg,不用 --card-bg(深色主题下
-   --card-bg 近透明,叠在暗底上会看穿)。 */
-.albums-modal {
-  width: min(440px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 20px 22px 18px;
-}
-/* SP15-P2b Task 4 (Vue2 photos.scss's .albums-modal.albums-modal-wide): the embedded form
-   is a two-column layout (body + preview rail); 440px cannot hold it. Widen to the
-   standalone dialog's own width and become a flex column so the embedded .sv-modal's
-   flex:1 (SmartViewCreateDialog.vue's .sv-modal.sv-modal-embedded) has a fixed-height
-   column to fill instead of being sized by its own content and clipped. */
-.albums-modal.albums-modal-wide {
-  width: min(820px, 100%);
-  max-height: calc(100vh - 80px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.albums-modal-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+/* The local `@keyframes pulse` this file used to define (deleted along with the rules above)
+   collided by name with theme.css's own global `@keyframes pulse` (a box-shadow glow used
+   elsewhere in the app, `50% { box-shadow: 0 0 54px var(--orb-glow); } `) -- `<style scoped>`
+   does not namespace `@keyframes`, so which animation actually ran depended on stylesheet
+   load order, not on which rule "should" win. Parity already defines a collision-free
+   `@keyframes photos-pulse` (photos.scss:203) for exactly this reason and its own
+   `.al-live-dot .live-dot` rule already references it -- nothing left to declare locally. */
+
+/* ── New album modal ──
+   T3 shadow cleanup, whole family: `.albums-modal-scrim/-head/-head-text/-title/-sub/-label/
+   -input`, `.albums-source-list/-item`(+hover/active/disabled), `.radio`(+active/.dot),
+   `.src-text .lbl`, and `.albums-modal-foot/.albums-btn-ghost/.albums-btn-cta`(+disabled) are
+   all name-identical to parity (photos.scss:3844-4022) and are deleted outright rather than
+   value-patched. Two of these were real bugs, not just cosmetic drift:
+     - `.albums-btn-cta`'s `color: var(--on-accent)` is a deep navy hex in dark mode (see
+       theme.css), meant for text on a *light* accent fill, sitting on this button's actual
+       purple `--accent` background -- low-contrast text on the modal's own primary action
+       button. Parity's literal `color: white` (correct here: a fixed accent-filled button
+       reads light text in both themes) now applies.
+     - `.albums-modal-foot` had `justify-content: flex-end` sizing two auto-width buttons off the
+       right edge; Vue2's actual footer is a full-width bar (`flex: 1` / `flex: 1.4` on the two
+       buttons, photos.scss:3985-4022, no justify-content needed) with a divider line above it.
+   `.albums-modal-head-text` (a flex:1 wrapper) and `.albums-modal-input:focus` survive: Vue2
+   marks up the first as an unclassed `style="flex:1"` div (PhotosAlbumsView.vue:222, no parity
+   selector to inherit), and parity's own `.albums-modal-input` has no `:focus` rule at all
+   (outline: none) -- keeping a visible focus ring here is a deliberate a11y addition, not a
+   pixel-parity concern, so it's kept alongside (not instead of) letting parity's sizing/color
+   properties through. */
 .albums-modal-head-text { flex: 1 1 auto; min-width: 0; }
-.albums-modal-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.albums-modal-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
 .albums-modal-close {
   flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
+  color: var(--text-2); font-size: 15px; line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.albums-modal-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.albums-modal-label { display: block; font-size: 12px; font-weight: 500; color: var(--fg-muted); margin: 12px 0 6px; }
-.albums-modal-input {
-  width: 100%; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--chip-border);
-  background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13.5px;
-}
+.albums-modal-close:hover { background: var(--surface-3); color: var(--text-1); }
+/* No parity selector under this name -- Vue2's close button is the generic, app-wide `.icon-btn`
+   (photos.scss:229-237, 32px). This repo's own dialogs consistently use a bespoke, smaller
+   close-button class instead of `.icon-btn` for this exact spot (MergeReviewDialog.vue
+   `.mrd-close`, AlbumPickerDialog.vue `.album-picker-close`, ClusterActionDialog.vue
+   `.cad-close`, PhotosLibraryPicker.vue `.picker-close` -- same 24px circle + "×" glyph shape
+   as this one), so this survives unchanged as the
+   established local pattern rather than being swapped to `.icon-btn`. */
 .albums-modal-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 
-.albums-source-list { display: flex; flex-direction: column; gap: 6px; }
-.albums-source-item {
-  display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px;
-  border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit;
-  text-align: left; cursor: pointer;
-}
-.albums-source-item:hover { background: var(--chip-bg-hi); }
-.albums-source-item[data-active="true"] { border-color: var(--accent); background: var(--accent-soft); }
-/* SP15-P2b Task 4: the nimo option's disabled state when Smart Views are off (Vue2 :521-524's
-   own defensive guard, same as the old standalone New Smart Album button's disabled style). */
-.albums-source-item:disabled { opacity: 0.5; cursor: not-allowed; }
-.radio { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--chip-border); flex: 0 0 auto; margin-top: 2px; display: flex; align-items: center; justify-content: center; }
-.radio[data-active="true"] { border-color: var(--accent); }
-.radio .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+/* Vue2 has no class for this positioned width-cap either (PhotosAlbumsView.vue:220's
+   `:class="{ 'albums-modal-wide': ... }"` sets width via the class parity already covers) --
+   parity's own `.albums-modal-wide` is a flat `width: 820px` (photos.scss:3871-3877), which
+   would overflow below 820px viewports. This repo's sidebar already collapses into a drawer at
+   ≤768px (see the media query below), so the modal needs to survive that width too; the
+   `min(820px, 100%)` safety net is kept as a New-UI-only responsive addition layered on top of
+   parity's other `.albums-modal-wide` properties (max-height/display/flex-direction/overflow),
+   which are otherwise deleted as exact duplicates. */
+.albums-modal.albums-modal-wide { width: min(820px, 100%); }
+
+/* Parity defines no hover state for `.albums-source-item` (photos.scss:3918-3941 has only
+   `[data-active]`/`:disabled`) -- kept as a New-UI hover affordance using the matching parity
+   surface-increment token rather than reintroducing a New-UI-only one. */
+.albums-source-item:hover { background: var(--surface-3); }
 .src-text { flex: 1 1 auto; min-width: 0; }
-.src-text .lbl { font-size: 13px; font-weight: 500; }
-.src-text .hint { font-size: 11px; color: var(--fg-muted); margin-top: 2px; }
+/* `.src-text .lbl` is gone -- name-identical to parity's `.albums-source-item .lbl`
+   (font-weight: 500, photos.scss:3958), no wrapper-specific override needed. `.hint` keeps its
+   own name (this repo's i18n key suffix is "Hint", parity's is "Desc") but its color is
+   corrected to the parity token parity's `.desc` actually uses. */
+.src-text .hint { font-size: 11px; color: var(--text-3); margin-top: 1px; }
 
-.albums-modal-foot { display: flex; gap: 10px; justify-content: flex-end; margin-top: 16px; }
-.albums-btn-ghost { padding: 8px 16px; border-radius: 9px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
-.albums-btn-ghost:hover { background: var(--chip-bg-hi); }
-.albums-btn-cta { padding: 8px 18px; border-radius: 9px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
-.albums-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
-
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — same registered deviation
+   as Photos.vue's own copy of this rule): once the sidebar switches into is-drawer mode
+   (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column too,
+   so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating sidebar
+   used to sit. */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
+  .app { grid-template-columns: 1fr; }
 }
 </style>

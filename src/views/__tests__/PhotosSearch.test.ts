@@ -6,6 +6,7 @@
 // 的),只 mock 共享包 service。useLightbox 是模块级单例,同 PhotosSmartViewDetail.test.ts
 // 的既有手法直接 mock 整个模块。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
@@ -1120,6 +1121,22 @@ describe('路由', () => {
     const resolved = appRouter.resolve('/photos/search')
     expect(resolved.name).toBe('photos-search')
   })
+
+  // Fix-4 item 2 (owner acceptance, 2026-08-13): PhotosTopbar 的 back 按钮(Vue2 searchMode 的
+  // chevL,Fix-3 item 7 接线)点击后应导航回 /photos——不是 router.back()(深链/新开标签页
+  // 没有历史记录可退),onBack() 的既定实现是 router.push('/photos')。
+  it('点 PhotosTopbar 的返回键 → router.push("/photos")', async () => {
+    const { w, router } = await mountSearch('/photos/search?q=abc')
+    await flushPromises()
+    const pushSpy = vi.spyOn(router, 'push')
+    // 限定在 .topbar 内查找——PhotosSidebar 自己也有 .icon-btn(折叠抽屉触发/主题切换),
+    // 裸 `.icon-btn` 会连带把它们一起选中。
+    const icons = w.findAll('.topbar .icon-btn')
+    // 第一个是折叠按钮,第二个是 back=true 时渲染的返回键(PhotosTopbar.vue 结构规格)。
+    expect(icons).toHaveLength(2)
+    await icons[1]!.trigger('click')
+    expect(pushSpy).toHaveBeenCalledWith('/photos')
+  })
 })
 
 // ── fix round 1 · I4:8 枚本文件新增内联 svg 的 glyph 精确复刻 ──────────────────
@@ -1216,21 +1233,41 @@ describe('样式:hover 硬约束(cssCascade)', () => {
     expect(winner.selector).toContain('data-saved')
   })
 
-  it('.prestate-chip 存在 :hover 规则(cssCascade 视角的最小合规性检查)', () => {
+  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) — same rollback treatment
+  // as PhotosFilterChip.vue/PhotosFilterPopover.vue's own 2026-08-13 rollback: `.prestate-chip`
+  // is genuine Vue2-sourced CSS (Vue2 photos.scss:2781 has this exact hover rule too, not a
+  // New-UI additive enhancement like `.sort button`/`.save-smart` above), and
+  // vue2-parity/photos.scss already carries it verbatim — the local scoped duplicate (which used
+  // to reach for New-UI's global `--accent-text` instead of the correct local `--accent-hi`) is
+  // deleted, not re-pointed at the right token, since parity's own copy is already correct.
+  it('本组件 scoped style 不再含 .prestate-chip 颜色规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    // .prestate-chip 是 `.search-prestate .prestate-chip` 后代选择器,两个类都要喂给
-    // 匹配器(cssCascade.ts 的匹配是"选择器里出现的每个 class 都必须在允许集合内",不是
-    // 结构化的后代关系判定)。
-    const winner = winningHoverBackground(style, ['prestate-chip', 'search-prestate'])
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('prestate-chip'))).toBe(false)
+  })
+
+  it('parity scss:.search-prestate .prestate-chip:hover 规则含 :hover', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const winner = winningHoverBackground(parityScss, ['prestate-chip', 'search-prestate'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('prestate-chip')
   })
 })
 
 describe('样式:非颜色视觉属性锚定(先锚定规则体再断言属性)', () => {
-  it('.search-prestate .nimo-orb / .empty-search .nimo-orb 都是 68×68', () => {
+  // Fix-3 item 7: `.nimo-orb`(含 `.search-prestate .nimo-orb`/`.empty-search .nimo-orb` 两个
+  // 尺寸变体)与 `.empty-search .conditions .fchip` 已随 2026-08-13 回退整体移交
+  // vue2-parity/photos.scss——本组件不再自带这几条规则,断言对象改成共享 parity 文件。
+  it('本组件 scoped style 不再含 .nimo-orb/.empty-search .conditions .fchip 规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosSearchRaw)
-    const rules = parseCssRules(style)
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.includes('nimo-orb'))).toBe(false)
+    expect(selectors.some((s) => s === '.empty-search .conditions .fchip')).toBe(false)
+  })
+
+  it('parity scss:.search-prestate .nimo-orb / .empty-search .nimo-orb 都是 68×68', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rules = parseCssRules(parityScss)
     for (const sel of ['.search-prestate .nimo-orb', '.empty-search .nimo-orb']) {
       const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === sel)
       expect(rule, `未找到规则:${sel}`).toBeDefined()
@@ -1239,9 +1276,9 @@ describe('样式:非颜色视觉属性锚定(先锚定规则体再断言属性)'
     }
   })
 
-  it('.empty-search .conditions .fchip 紧凑高度是 26px', () => {
-    const style = extractStyleBlock(photosSearchRaw)
-    const rule = parseCssRules(style).find(
+  it('parity scss:.empty-search .conditions .fchip 紧凑高度是 26px', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
       (r) => r.selectors.length === 1 && r.selectors[0] === '.empty-search .conditions .fchip',
     )
     expect(rule).toBeDefined()

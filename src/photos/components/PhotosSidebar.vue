@@ -23,14 +23,27 @@
 // opinion on it (it only defines the two-column desktop grid), so the
 // drawer's positioning rules stay in this component's own scoped style block.
 //
-// IMPORTANT (updated post-a822ef1d): all 13 photos-area pages are now rooted under
-// `.photos-root` (fix commit a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos
-// view under photos-root so the shared sidebar keeps its layout") — the parity scss above
-// reaches every one of them, not just this one. The 12 pages that haven't had their own
+// Plan C Task 2 review fix round 1 (Important 1): the floating `.sidebar-drawer-trigger`
+// button below is the same kind of New-UI-only addition — Vue2 never needed one since it has
+// no drawer to open. It exists because unwrapping AreaShell from the five re-shelled
+// album/for-you views removed their only ≤768px entry point to this drawer (AreaShell's own
+// `.area-bar` hamburger). Putting the fix here, on the shared component every photos-area page
+// mounts, covers all of them (and any future sister page) in one place instead of wiring a
+// topbar-less button onto each view individually. `hideDrawerTrigger` lets Photos.vue opt out
+// since its own PhotosTopbar already exposes an equivalent toggle.
+//
+// IMPORTANT (updated post-a822ef1d, comment count refreshed plan-C task 1 2026-08-13):
+// all 14 photos-area pages are now rooted under `.photos-root` (fix commit
+// a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos view under
+// photos-root so the shared sidebar keeps its layout"; Plan B has since
+// re-skinned the timeline view, `Photos.vue`) — the parity scss above
+// reaches every one of them, not just this one. The 7 pages (after acceptance Fix-3 —
+// PhotosSearch.vue's own `.app`-grid re-skin landed as part of that owner-acceptance item,
+// pulled forward from Plan F, dropping the count from 8) that haven't had their own
 // `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
-// pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/
-// --success shadowed to Vue2's values) described in task-3-report.md's token-collision
-// table — a known, registered hybrid transitional look, not a missing-styling gap anymore.
+// pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/--success
+// shadowed to Vue2's values) described in task-3-report.md's token-collision table — a known,
+// registered hybrid transitional look, not a missing-styling gap anymore.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -44,7 +57,16 @@ import { renderSize } from '../../files/util/format'
 import { activeNavId } from '../util/activeNavId'
 import PhotosIcon from './PhotosIcon.vue'
 
-withDefaults(defineProps<{ collapsed?: boolean }>(), { collapsed: false })
+// `hideDrawerTrigger`: review fix round 1 (Plan C Task 2). Photos.vue's own PhotosTopbar
+// already exposes a collapse-toggle button that on a narrow viewport delegates to this same
+// drawer (see Photos.vue's onToggleCollapse) — rendering the floating trigger below there too
+// would be a redundant second affordance doing the identical thing. Every other photos-area
+// page has no topbar of its own, so the floating trigger is their only entry point and must
+// render; Photos.vue is the one page that opts out.
+withDefaults(defineProps<{ collapsed?: boolean; hideDrawerTrigger?: boolean }>(), {
+  collapsed: false,
+  hideDrawerTrigger: false,
+})
 
 const router = useRouter()
 const route = useRoute()
@@ -77,7 +99,7 @@ onMounted(() => { void settings.fetchAiFeatures() })
 // of Vue2's one-time cost. Existing behavior, unchanged by this task.
 
 // 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)——照 FilesSidebar。
-const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
+const { isNarrow, open: drawerOpen, close: closeDrawer, toggle: toggleDrawer } = useSidebarDrawer()
 
 // 任何路由变化后抽屉自动收起;桌面态 close 是 no-op。
 watch(() => route.fullPath, () => closeDrawer())
@@ -165,6 +187,16 @@ function go(routePath: string) {
 </script>
 
 <template>
+  <button
+    v-if="isNarrow && !drawerOpen && !hideDrawerTrigger"
+    type="button"
+    class="sidebar-drawer-trigger"
+    data-test="sidebar-drawer-trigger"
+    :aria-label="t('photosToggleSidebar')"
+    @click="toggleDrawer"
+  >
+    <PhotosIcon name="panelLeft" :size="17" />
+  </button>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
   <aside class="sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
     <template v-if="collapsed">
@@ -268,6 +300,20 @@ function go(routePath: string) {
    is a New-UI-only responsive enhancement. Everything else (background, width via the .app
    grid column, nav item look, storage bar, ...) comes from the shared parity stylesheet
    (photos/styles/vue2-parity/photos.scss:104-260), scoped under `.photos-root`. */
+/* New-UI-only mobile enhancement (see file-header review-fix comment): floating drawer
+   trigger, styled like the other floating affordances in this area (PlacesZoomBar.vue's
+   `.map-zoombar` is the closest precedent — same `var(--float-bg)` + blur + `--card-border`
+   token combo, token-only per repo convention, no bare color literals). z-index sits below
+   the drawer/scrim (151/150): the two conditions are mutually exclusive in the template
+   (`!drawerOpen` vs `drawerOpen`), so they never actually overlap, but keeping this one lower
+   registers it belongs to "closed" state that content the drawer would otherwise cover. */
+.sidebar-drawer-trigger {
+  position: fixed; top: 12px; left: 12px; z-index: 149;
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--card-border); background: var(--float-bg);
+  backdrop-filter: var(--blur); color: var(--fg); cursor: pointer;
+}
 .side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
 .sidebar.is-drawer {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
