@@ -64,6 +64,7 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
@@ -95,10 +96,26 @@ const toast = useToast()
 const lb = useLightbox()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-const { collapsed } = useSidebarCollapse()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// (same as Photos.vue/PhotosAlbums.vue).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 
 // 唯一的归一点(铁律:按 id 找对象一律 String() 比较)。
 const svId = computed(() => String(route.params.id))
+
+// Fix-1 item 1: PhotosTopbar's title/sub. This is the SMART ALBUM detail (saved search /
+// conds+threshold+live) -- Vue2 nests it inside PhotosAlbumsView, under activeNav==='albums',
+// the exact same nesting as the manual-album detail a few lines above it in that file
+// (NimoOS-UI PhotosAlbumsView.vue:3-45). So the topbar here is identical to
+// PhotosAlbums.vue/PhotosAlbumDetail.vue's own: title='Albums', sub=the aggregate across
+// every album (manual AND smart alike are irrelevant to which nav is active; the aggregate
+// itself only sums manual albums, matching Vue2's topbarSubContext exactly).
+const topbarTitle = computed(() => t('photosAlbumsTitle'))
+const topbarSub = computed(() => {
+  const totalPhotos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).photoCount) || 0), 0)
+  const totalVideos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).videoCount) || 0), 0)
+  return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
+})
 // ★ §7e-2 核心修复:每次渲染都从 store 数组现取,不持有对象引用。
 const sv = computed(() => store.byId(svId.value))
 
@@ -117,6 +134,10 @@ onMounted(async () => {
   if (!store.listLoaded) await store.fetchSmartViews()
   await store.loadDetail(svId.value)
   void store.loadExcluded(svId.value)
+  // Fix-1 item 1: the topbar's album-aggregate sub needs the full album list, which this page
+  // otherwise never fetches (unlike PhotosAlbumDetail.vue, which already does for its own
+  // reasons) -- same guarded fetch-once shape as that sibling page.
+  if (!albums.albumsLoaded) void albums.fetchAlbums()
 })
 watch(() => route.params.id, (raw) => {
   if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
@@ -703,8 +724,17 @@ async function onExcludedTileClick(id: string): Promise<void> {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue/PhotosAlbums.vue. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
        <div class="photos-main">
         <!-- 门控①:列表还没加载完 → 骨架(New-UI 新增,Vue2 没有这层概念) -->
         <div v-if="!store.listLoaded" class="sv-skeleton" data-test="sv-skeleton">

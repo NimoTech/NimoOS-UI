@@ -26,6 +26,10 @@ const svc = vi.hoisted(() => ({
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
+    // Fix-1 item 1: the topbar's title/sub here mirrors PhotosAlbums.vue's own (this page nests
+    // under Vue2's 'albums' nav, see the describe block below) -- the sub needs the full album
+    // list, which this page did not otherwise fetch before this fix.
+    listAlbums: vi.fn().mockResolvedValue([]),
     // Task 7, folded-in finding (d): the page's own onMounted/route watcher calls
     // store.loadExcluded, which hits this endpoint. `loadExcluded` catches and leaves
     // `excluded` empty (smartViews.ts:534-547) -- exactly the end state a `[]` mock produces --
@@ -49,6 +53,8 @@ import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useToast } from '../../stores/toast'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
 // Task 8 cross-page sweep: the delete/convert confirmation dialogs' `.trash-btn-cta-primary`/
 // `.trash-btn-cta-danger`/`.lb-confirm-icon` rules now live solely in the globally-imported
@@ -1496,5 +1502,32 @@ describe('红色走 token,不写死字面量', () => {
     expect(style).toContain('--remove-fg')
     expect(style).not.toContain('#FF6B5C')
     expect(style.toUpperCase()).not.toContain('#FF6B5C')
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): this page is the SMART ALBUM detail (saved
+// search / conds+threshold+live, makeSv's own shape above) -- Vue2 renders it as
+// <photos-smart-view-detail> INSIDE PhotosAlbumsView.vue (:23-45), i.e. nested under
+// activeNav==='albums', the exact same nesting as <photos-album-detail> a few lines above it
+// (:3-21). This is a different concept from the "Moments · For You" band (PhotosMomentDetail's
+// own Vue2 home, activeNav==='smart') -- despite the route name here being "smart-views", the
+// Vue2 nav it lives under is 'albums'. So the topbar here matches PhotosAlbums.vue/
+// PhotosAlbumDetail.vue exactly: title='Albums', sub=album-aggregate counts (not the
+// default full-library line).
+describe('Fix-1 item 1: PhotosTopbar restored (title=Albums, album-aggregate sub -- smart views nest under the Albums nav in Vue2)', () => {
+  it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
+    svc.photos.listAlbums.mockResolvedValue([{ id: 1, name: 'A', photoCount: 30, videoCount: 1 }])
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '30').replace('{videos}', '1'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

@@ -55,6 +55,8 @@ import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type Moment } from '../photos/stores/moments'
 import { useToast } from '../stores/toast'
 import zh from '../i18n/zh_cn'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 
 const RAW = {
   id: 'm1', title: 'Bozeman', subtitle: 'Nov 2016', cover_asset_id: 'c1',
@@ -1045,5 +1047,26 @@ describe('delete moment', () => {
     await w.find('[data-test="mo-more"]').trigger('click')
     expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosMoDeleteMoment)
     expect(w.find('[data-test="mo-delete"]').text()).toContain(zh.photosSvPhotosStayLibrary)
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): moment detail is nested inside
+// PhotosSmartViewsView in Vue2 (activeNav==='smart', "Moments dedicated page" comment,
+// NimoOS-UI PhotosTimeline.vue:1024-1033) -- same nav as the Moments · For You list page, so
+// title='For You' and sub=the topbar's own default full-library computation (no 'smart' entry
+// in topbarSubContext's navMap, PhotosTimeline.vue:229-234).
+describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+  it('renders the topbar with title=For You, no search box', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosMoForYou)
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const s = usePhotosMoments(); s.moments = [makeMoment()]; s.listLoaded = true
+    const { w } = await mountDetail('m1', 'zh_cn')
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

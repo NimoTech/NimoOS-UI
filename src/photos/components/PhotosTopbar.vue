@@ -34,7 +34,23 @@ import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
 import { useTimelineStore } from '../stores/timeline'
 
-defineProps<{ collapsed?: boolean }>()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): the four re-shelled album/for-you pages need
+// this same topbar but with a different title/sub and (per Vue2) no search box — Vue2's own
+// PhotosTopbar.vue (NimoOS-UI src/views/Photos/PhotosTopbar.vue:42-51) takes title/sub/
+// showSearch as props with defaults, and PhotosTimeline.vue:957-971 feeds it per-nav strings
+// computed from topbarTitle/topbarSubContext. This component originally hard-coded the
+// library-only values (see the header comment above, still accurate for the no-prop case);
+// these three props are additive overrides so Photos.vue's own existing usage (no props
+// passed) is byte-for-byte unchanged — see PhotosTopbar.test.ts's pre-existing default-mount
+// assertions, none of which pass title/sub/showSearch.
+const props = withDefaults(defineProps<{
+  collapsed?: boolean
+  title?: string
+  sub?: string
+  showSearch?: boolean
+}>(), {
+  showSearch: true,
+})
 
 const emit = defineEmits<{
   (e: 'toggle-collapse'): void
@@ -44,12 +60,18 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const store = useTimelineStore()
 
-const sub = computed(() =>
-  t('photosCountSummary', {
-    photos: store.photoCount.toLocaleString(),
-    videos: store.videoCount.toLocaleString(),
-  }),
-)
+// Default title: Vue2's own library-nav value (topbarTitle's default branch,
+// PhotosTimeline.vue:194). A caller passing `title` (albums/for-you) overrides it.
+const title = computed(() => props.title ?? t('photosLibrary'))
+
+// Default sub: Vue2's own default branch (topbarSubContext, PhotosTimeline.vue:234) — full
+// -library photo/video counts. A caller passing `sub` (albums' own album-aggregate line)
+// overrides it; the for-you pages reuse this default as-is (Vue2's navMap has no 'smart'
+// entry either, PhotosTimeline.vue:229-233).
+const sub = computed(() => props.sub ?? t('photosCountSummary', {
+  photos: store.photoCount.toLocaleString(),
+  videos: store.videoCount.toLocaleString(),
+}))
 
 const searchText = ref('')
 
@@ -78,11 +100,13 @@ function onKbd(e: KeyboardEvent): void {
       <PhotosIcon name="panelLeft" :size="17" />
     </button>
     <div style="display:flex;flex-direction:column">
-      <div class="topbar-title">{{ t('photosLibrary') }}</div>
+      <div class="topbar-title">{{ title }}</div>
       <div class="topbar-sub">{{ sub }}</div>
     </div>
     <div style="flex:1;display:flex;justify-content:center">
-      <div class="search">
+      <!-- Vue2 keeps this outer centering wrapper unconditional and only gates the inner
+           `.search` div itself (NimoOS-UI PhotosTopbar.vue:13-14) — same shape here. -->
+      <div v-if="showSearch" class="search">
         <PhotosIcon name="search" :size="14" />
         <input
           v-model="searchText"

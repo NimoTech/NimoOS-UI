@@ -174,6 +174,7 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -184,7 +185,12 @@ const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-const { collapsed } = useSidebarCollapse()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// (same as Photos.vue/PhotosAlbums.vue). Vue2 nests moment detail inside PhotosSmartViewsView
+// under activeNav==='smart' ("Moments dedicated page", PhotosTimeline.vue:1024-1033) -- same
+// nav as the Moments · For You list page, so title='For You' and sub is left to PhotosTopbar's
+// own default (topbarSubContext's navMap has no 'smart' entry, PhotosTimeline.vue:229-234).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const store = usePhotosMoments()
 const lightbox = useLightbox()
 const toast = useToast()
@@ -570,8 +576,16 @@ async function doDelete(): Promise<void> {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue/PhotosAlbums.vue. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosMoForYou')"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
        <div class="photos-main">
         <!-- Gate 1: the list has not arrived yet (New-UI only — Vue 2 always had the object). -->
         <div v-if="!store.listLoaded" class="mo-skeleton" data-test="mo-skeleton">

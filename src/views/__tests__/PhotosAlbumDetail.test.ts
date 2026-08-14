@@ -71,6 +71,8 @@ import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import AlbumConvertToSmartDialog from '../../photos/components/AlbumConvertToSmartDialog.vue'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 
 const lb = useLightbox()
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -1457,5 +1459,32 @@ describe('P2c whole-branch review fixes', () => {
       expect(hasGlyph).toBe(item.attributes('data-active') === 'true')
     }
     expect(items.filter((n) => n.attributes('data-active') === 'true')).toHaveLength(1)
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): plan-premise correction — Vue2 nests the album
+// detail state inside PhotosAlbumsView while activeNav stays 'albums'
+// (NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:1016-1022 `v-else-if="activeNav==='albums'"`
+// wraps both the list AND the detail-layer <photos-album-detail>, PhotosAlbumsView.vue:12-21).
+// PhotosTimeline's topbar therefore never changes while a detail is open under this nav: same
+// title ('Albums') and same album-aggregate sub as the list page.
+describe('Fix-1 item 1: PhotosTopbar restored (same title/sub as the Albums list, Vue2 truth)', () => {
+  it('renders the topbar with title=Albums and the album-aggregate sub, no search box', async () => {
+    svc.photos.listAlbums.mockClear().mockResolvedValue([
+      rawAlbum(7, { name: 'Trip', photoCount: 40, videoCount: 2 }),
+      rawAlbum(8, { name: 'Other', photoCount: 10, videoCount: 0 }),
+    ])
+    const { w } = await mountView(7)
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '50').replace('{videos}', '2'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView(7)
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

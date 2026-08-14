@@ -40,6 +40,8 @@ import PhotosSmartViews from '../PhotosSmartViews.vue'
 // 行为断言。
 import photosSmartViewsRaw from '../PhotosSmartViews.vue?raw'
 import { usePhotosSettingsStore } from '../../photos/stores/settings'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -111,5 +113,24 @@ describe('PhotosSmartViews.vue — 样式块结构核对', () => {
     const m = /@media \(max-width: 768px\)\s*\{([^}]*\{[^}]*\})*[^}]*\}/.exec(photosSmartViewsRaw)
     expect(m).not.toBeNull()
     expect(photosSmartViewsRaw).toContain('.app { grid-template-columns: 1fr; }')
+  })
+})
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): Vue2 mounts the same <PhotosTopbar> for
+// activeNav === 'smart' (PhotosTimeline.vue:957-971) with title = topbarTitle's 'smart' branch
+// ('For You', PhotosTimeline.vue:190) and sub = topbarSubContext's DEFAULT branch (navMap has
+// no 'smart' entry, PhotosTimeline.vue:229-234) -- the same full-library count line the topbar
+// already computes on its own by default, so no `sub` override is needed from this page.
+describe('Fix-1 item 1: PhotosTopbar restored (title=For You, default full-library sub)', () => {
+  it('renders the topbar with title=For You, no search box', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosTopbar).exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosMoForYou)
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar', async () => {
+    const { w } = await mountView()
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
   })
 })

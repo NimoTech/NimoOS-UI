@@ -60,6 +60,7 @@ import { useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
@@ -68,7 +69,12 @@ import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-const { collapsed } = useSidebarCollapse()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// (same as Photos.vue/PhotosAlbums.vue). title = topbarTitle's 'smart' branch ('For You',
+// PhotosTimeline.vue:190); sub is left to PhotosTopbar's own default (topbarSubContext's
+// navMap has no 'smart' entry, PhotosTimeline.vue:229-234, so it falls through to the same
+// full-library photoCount/videoCount line the topbar already computes on its own).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
@@ -157,8 +163,16 @@ onMounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue/PhotosAlbums.vue. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosMoForYou')"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
        <div class="photos-main">
         <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
              The section and the hero carry NO v-if, matching Vue2 :18-19: this page has no

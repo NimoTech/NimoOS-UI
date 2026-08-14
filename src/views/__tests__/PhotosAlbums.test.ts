@@ -66,6 +66,8 @@ const photosParityRaw = fs.readFileSync(
 )
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../../photos/components/SmartViewCreateDialog.vue'
+import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
+import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore, __resetBucketProbeForTest } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
@@ -1096,5 +1098,91 @@ describe('PhotosAlbums.vue — embedded smart-album creation (SP15-P2b Task 4)',
     await w.find('[data-test="albums-name-input"]').setValue('Tokyo Trip')
     await w.find('[data-test="source-nimo"]').trigger('click')
     expect(w.findComponent(SmartViewCreateDialog).props('initialName')).toBe('Tokyo Trip')
+  })
+})
+
+// Fix-1 (owner acceptance, 2026-08-13) item 1: Plan C wrongly assumed Vue2's five re-shelled
+// pages had no topbar. Truth: Vue2 is a single-page shell — PhotosTimeline.vue mounts the same
+// <PhotosTopbar> above every nav (PhotosTimeline.vue:957-971), including 'albums'
+// (topbarTitle's 'albums' branch = 'Albums', PhotosTimeline.vue:187; topbarSubContext's
+// 'albums' branch = album-aggregate '{photos} photos · {videos} videos',
+// PhotosTimeline.vue:226-232). show-search is `isLibraryView || searchActive`
+// (PhotosTimeline.vue:961) -- always false on this page since activeNav is never 'library'
+// here and this page has no in-place search-overlay state.
+describe('Fix-1 item 1: PhotosTopbar restored', () => {
+  it('renders the topbar with title=Albums and sub=album-aggregate counts, no search box', async () => {
+    const w = await mountAlbums({
+      albums: [
+        rawAlbum(1, { photoCount: 100, videoCount: 4 }),
+        rawAlbum(2, { photoCount: 20, videoCount: 0 }),
+      ],
+    })
+    const topbar = w.findComponent(PhotosTopbar)
+    expect(topbar.exists()).toBe(true)
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+    expect(w.get('.topbar-sub').text()).toBe(
+      zh.photosCountSummary.replace('{photos}', '120').replace('{videos}', '4'),
+    )
+    expect(w.find('.topbar .search').exists()).toBe(false)
+  })
+
+  it('passes hide-drawer-trigger to PhotosSidebar (topbar button now owns narrow-mode toggle)', async () => {
+    const w = await mountAlbums({})
+    expect(w.findComponent(PhotosSidebar).props('hideDrawerTrigger')).toBe(true)
+  })
+
+  it('toggle-collapse from the topbar flips the shared collapsed state (same as Photos.vue)', async () => {
+    const w = await mountAlbums({})
+    const before = w.get('.app').attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(w.get('.app').attributes('data-collapsed')).not.toBe(before)
+  })
+})
+
+// Fix-1 item 2: owner screenshot shows "My Albums" + grid flush against the left edge. Vue2's
+// `.albums-body` (photos.scss:3206-3211, padding: 18px 24px 80px) is the scroll container that
+// carries the horizontal inset; T3's cleanup renamed this page's scroll container to
+// `.albums-scroll` (a name parity's stylesheet does not style), so parity's real padding rule
+// never matched and only a much smaller local `4px 4px 20px` scoped rule applied instead.
+describe('Fix-1 item 2: albums scroll container padding restored', () => {
+  it('the scroll container carries the parity class name .albums-body (not just .albums-scroll)', async () => {
+    const w = await mountAlbums({})
+    expect(w.find('.albums-body').exists()).toBe(true)
+  })
+})
+
+// Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
+// (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
+// (outside its DOM subtree), but every one of its layout rules is written
+// `.photos-root .albums-modal-scrim { position: fixed; inset: 0; ... }` (photos.scss:3844) --
+// a descendant selector that only matches when the scrim is nested INSIDE an element carrying
+// class `photos-root`. Outside it, the click handler still fires and `createOpen` still flips
+// true (which is why the existing DOM-existence tests above never caught this — jsdom asserts
+// existence, not applied layout), but the modal renders with no position/background/z-index at
+// all: an owner clicking the button sees nothing happen. This file's header comment documents
+// the repo's own established fix for exactly this shape (portaled elements must re-carry
+// `photos-root`, see photos.scss:1-13 and PhotosToastHost.vue's Teleport target) -- the target
+// pattern used here is simpler: nest the modal back inside `.photos-root` instead of portaling.
+describe('Fix-1 item 3: New album modal is a real descendant of .photos-root', () => {
+  it('the create modal renders inside .photos-root once open (so photos-root .albums-modal-scrim can match)', async () => {
+    const w = await mountAlbums({})
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    const scrim = w.get('[data-test="albums-create-modal"]').element
+    expect(scrim.closest('.photos-root')).not.toBeNull()
+  })
+
+  it('the library picker (PhotosLibraryPicker) also renders inside .photos-root', async () => {
+    svc.photos.createAlbum.mockResolvedValue({ id: 'new1', name: 'Picked' })
+    const { w } = await mountView()
+    await w.find('[data-test="albums-new-btn"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-name-input"]').setValue('Picked')
+    await w.find('[data-test="source-select"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('[data-test="albums-confirm-create"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    const overlay = w.get('[data-test="lib-picker-overlay"]').element
+    expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 })

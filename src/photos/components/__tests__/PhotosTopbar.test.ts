@@ -148,6 +148,40 @@ describe('搜索 submit', () => {
   })
 })
 
+// Fix-1 item 1 (owner acceptance, 2026-08-13): additive title/sub/showSearch prop overrides,
+// used by the five re-shelled album/for-you pages (Vue2 truth: PhotosTimeline.vue mounts the
+// SAME <PhotosTopbar> for every non-people/places/upload nav, PhotosTimeline.vue:957-971, just
+// feeding it per-nav title/sub and show-search — it is not a library-exclusive component).
+describe('title/sub/showSearch props(额外覆盖,Fix-1 item 1)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('不传 title/sub → 保持默认行为不变(向后兼容,Photos.vue 的既有用法)', () => {
+    const w = mountTopbar()
+    expect(w.get('.topbar-title').text()).toBe(zh.photosLibrary)
+  })
+
+  it('传 title → 覆盖默认 photosLibrary 文案', () => {
+    const w = mountTopbar({ title: zh.photosAlbumsTitle })
+    expect(w.get('.topbar-title').text()).toBe(zh.photosAlbumsTitle)
+  })
+
+  it('传 sub → 覆盖默认的全库计数副行', () => {
+    const w = mountTopbar({ sub: '9 个相册' })
+    expect(w.get('.topbar-sub').text()).toBe('9 个相册')
+  })
+
+  it('showSearch 默认 true → 渲染搜索框(向后兼容)', () => {
+    const w = mountTopbar()
+    expect(w.find('.search').exists()).toBe(true)
+  })
+
+  it('showSearch=false → 不渲染搜索框,但居中包裹层仍在', () => {
+    const w = mountTopbar({ showSearch: false })
+    expect(w.find('.search').exists()).toBe(false)
+    expect(w.find('.topbar-title').exists()).toBe(true)
+  })
+})
+
 // 非颜色视觉属性锚定(与 PhotosSearchBar.test.ts 同一约定,I5):组件自身 scoped style 里
 // 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
 // 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。

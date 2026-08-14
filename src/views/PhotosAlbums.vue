@@ -36,6 +36,7 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -54,7 +55,9 @@ type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-const { collapsed } = useSidebarCollapse()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button,
+// same as Photos.vue's own `onToggleCollapse` (Photos.vue:104).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
@@ -92,6 +95,19 @@ const sourceOptions = computed(() => [
   // embedded SmartViewCreateDialog instead of opening a second modal.
   { id: 'nimo' as SourceId, label: t('photosSvLetNimoDraft'), hint: t('photosSvLetNimoDraftHint') },
 ])
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): PhotosTopbar's title/sub for the 'albums' nav
+// -- Vue2 topbarTitle's 'albums' branch is literally `this.$t('Albums')`
+// (PhotosTimeline.vue:187, this repo's own photosAlbumsTitle key already carries that exact
+// string) and topbarSubContext's 'albums' branch sums photoCount/videoCount across every
+// album, list AND smart alike (PhotosTimeline.vue:226-232) -- NOT the album *count* the
+// banner's own .albums-sub already shows a few lines below in the template.
+const topbarTitle = computed(() => t('photosAlbumsTitle'))
+const topbarSub = computed(() => {
+  const totalPhotos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).photoCount) || 0), 0)
+  const totalVideos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).videoCount) || 0), 0)
+  return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
+})
 
 // SP15-P2b (Vue2 939a7d3a:PhotosAlbumsView.vue:391-393): one grid for both kinds, ranked
 // by the single Sort control -- smart albums are no longer pinned to the front.
@@ -335,8 +351,19 @@ onUnmounted(() => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue (its own Task 2 review-fix comment) -- the topbar's own collapse button
+           now delegates to the sidebar drawer on narrow viewports, so the sidebar's floating
+           trigger would be a redundant second affordance here. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
        <div class="photos-main">
         <div class="albums-banner">
           <div>
@@ -399,11 +426,16 @@ onUnmounted(() => {
              (「我的相册 / 你创建的相册」)——New-UI 曾直接从 banner 落到网格,漏渲染整段,
              连带两个专为它准备的 i18n 键(photosAlbumsMine/photosAlbumsMineHint)成了死码。
              滚动容器安置:Vue2 的滚动容器是外层 .albums-body(photos.scss:3202-3206),分区头
-             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构,把
-             flex:1+overflow-y:auto 从 .album-grid 挪到新包一层的 .albums-scroll 上,
-             .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
-             .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
-        <div class="albums-scroll scroll">
+             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构。
+             Fix-1 item 2(owner acceptance, 2026-08-13):这层容器的类名曾经是本仓自造的
+             `.albums-scroll`(T3 清理时的手误)——parity 样式表只认 `.albums-body`
+             (photos.scss:3206-3211,padding: 18px 24px 80px,同时也含
+             flex:1+min-height:0+overflow-y:auto),`.albums-scroll` 不是它认识的名字,于是
+             真正生效的只有本文件下方一条本地 `.albums-scroll` 规则(内边距只有
+             `4px 4px 20px`)——网格因此贴着左边缘,就是机主截图看到的现象。改回 parity 的
+             真名字后本地规则整条删除(parity 现在直接接管,值也更大更对),`scroll` 类保留
+             (全局隐藏滚动条那条规则认的是这个类名,见 photos.scss:21)。 -->
+        <div class="albums-body scroll">
           <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
                939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
                Markup/classes copied verbatim from PhotosSmartViews.vue's .svs-banner* (renamed
@@ -547,14 +579,35 @@ onUnmounted(() => {
        </div>
       </main>
     </div>
-  </div>
 
-  <div
-    v-if="createOpen"
-    class="albums-modal-scrim"
-    data-test="albums-create-modal"
-    @click.self="closeCreate"
-  >
+    <!-- Fix-1 item 3 (owner acceptance, 2026-08-13): the create-modal and the library picker
+         below used to sit as template-root SIBLINGS of `.photos-root` (outside its DOM
+         subtree entirely, Vue 3's multi-root fragment). Every layout rule either one relies
+         on is written `.photos-root .albums-modal-scrim { position: fixed; ... }`
+         (photos.scss:3844) / `.picker-scrim` reads `var(--modal-bg)`, a custom property only
+         defined inside `.photos-root { ... }` (photos.scss:14-60) -- a descendant selector
+         and a CSS custom property both require an actual `.photos-root` ANCESTOR in the real
+         DOM, which "declared after `.photos-root`'s closing tag in the template" does not
+         provide. The click handler firing and `createOpen`/`pickerOpen` flipping true were
+         never in question (that is why the pre-existing DOM-existence tests never caught
+         this) -- what silently failed is every position/background/z-index rule the modal
+         needs to be visible at all, which is exactly the owner-visible symptom ("New album"
+         appears to do nothing). This file's own header comment (photos.scss:1-13) already
+         documents the repo's established fix for portaled elements escaping `.photos-root`
+         (re-carry the class onto the portal host, see PhotosToastHost.vue's Teleport target)
+         -- the simpler fix used here is to stop portaling at all: nest both dialogs back
+         inside `.photos-root`, matching how Vue2's own single-page shell always had them
+         (PhotosAlbumsView.vue's modal and picker are both descendants of PhotosTimeline's one
+         `.photos-root`, never siblings of it). `position: fixed` on both dialogs' root
+         elements means nesting them here does not reintroduce `.app`'s `overflow: hidden`
+         clipping (`.photos-root` itself sets no transform/filter/perspective/contain that
+         would create a containing block for `position: fixed`). -->
+    <div
+      v-if="createOpen"
+      class="albums-modal-scrim"
+      data-test="albums-create-modal"
+      @click.self="closeCreate"
+    >
     <div class="albums-modal" :class="{ 'albums-modal-wide': newAlbumSource === 'nimo' }">
       <div class="albums-modal-head">
         <div class="albums-modal-head-text">
@@ -619,18 +672,19 @@ onUnmounted(() => {
         </button>
       </div>
     </div>
-  </div>
+    </div>
 
-  <PhotosLibraryPicker
-    :open="pickerOpen"
-    :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
-    :existing-ids="pickerExistingIds"
-    :existing-label="t('photosAlbumPickerAlready')"
-    :submit-label="pickerSubmitLabel"
-    :submitting="pickerAdding"
-    @update:open="pickerOpen = $event"
-    @confirm="onPickerConfirm"
-  />
+    <PhotosLibraryPicker
+      :open="pickerOpen"
+      :title="t('photosAlbumPickerTitle', { name: pickerAlbumName })"
+      :existing-ids="pickerExistingIds"
+      :existing-label="t('photosAlbumPickerAlready')"
+      :submit-label="pickerSubmitLabel"
+      :submitting="pickerAdding"
+      @update:open="pickerOpen = $event"
+      @confirm="onPickerConfirm"
+    />
+  </div>
 </template>
 
 <style scoped>
@@ -711,8 +765,13 @@ onUnmounted(() => {
    used to be on its own page. Final fix wave: this matches Vue 2 exactly and is not a cost to
    apologise for. Vue2 939a7d3a unified both kinds into a single `.album-grid-user` at
    minmax(220px, 1fr) (photos.scss:3190-3193) and renders smart-view-card inside it
-   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width. */
-.albums-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 4px 4px 20px; }
+   (:PhotosAlbumsView.vue:99-105) -- 220px IS the target's mixed-grid column width.
+   Fix-1 item 2 (owner acceptance, 2026-08-13): the local `.albums-scroll` rule that used to
+   sit here is deleted outright, not value-patched -- the template now carries parity's own
+   `.albums-body` class name (photos.scss:3206-3211), which already provides
+   flex/min-height/overflow-y AND the correct `padding: 18px 24px 80px` (this local copy's
+   `4px 4px 20px` was the actual bug: the grid rendered flush against the left edge because
+   parity's real padding rule never matched the old, unrecognised class name). */
 /* `.albums-section-head`/`h2` deleted (T3 shadow cleanup): both class names already match
    parity's `.photos-root .albums-section-head`/`h2` (photos.scss:3213-3225) exactly, and the
    local copies disagreed on real values -- padding 4px 4px 14px vs parity's 12px 0 14px, h2

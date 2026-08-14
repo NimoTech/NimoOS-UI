@@ -34,6 +34,7 @@ import { service } from '@nimotech/nimoos-service'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import AlbumConvertToSmartDialog from '../photos/components/AlbumConvertToSmartDialog.vue'
@@ -54,7 +55,9 @@ type SortBy = 'manual' | 'taken' | 'added'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
-const { collapsed } = useSidebarCollapse()
+// Fix-1 item 1 (owner acceptance, 2026-08-13): `toggle` wires the topbar's collapse button
+// (same as Photos.vue/PhotosAlbums.vue).
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const albums = usePhotosAlbums()
@@ -121,6 +124,20 @@ const album = computed(() => {
   return raw ? albumToView(raw, t('photosAlbumUntitled')) : null
 })
 const notFound = computed(() => albums.albumsLoaded && album.value === null)
+
+// Fix-1 item 1 (owner acceptance, 2026-08-13): PhotosTopbar's title/sub. Vue2 nests the album
+// detail layer inside PhotosAlbumsView while activeNav stays 'albums'
+// (NimoOS-UI PhotosAlbumsView.vue:12-21's <photos-album-detail>) -- topbarTitle/
+// topbarSubContext are keyed purely by activeNav, unaffected by which album is open
+// (PhotosTimeline.vue:184-234), so the topbar here is byte-for-byte the same as the Albums
+// list page's own (see PhotosAlbums.vue's identical `topbarTitle`/`topbarSub` computeds):
+// title='Albums', sub=the aggregate across every album -- not this one album's own count.
+const topbarTitle = computed(() => t('photosAlbumsTitle'))
+const topbarSub = computed(() => {
+  const totalPhotos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).photoCount) || 0), 0)
+  const totalVideos = albums.albums.reduce((sum, a) => sum + (Number((a as Record<string, unknown>).videoCount) || 0), 0)
+  return t('photosCountSummary', { photos: totalPhotos.toLocaleString(), videos: totalVideos.toLocaleString() })
+})
 
 // Vue2 :224-242(photos computed)—— 由 T1 sortAlbumPhotos 提供排序,这里只接线数据源。
 const photos = computed<Photo[]>(() => sortAlbumPhotos(albums.assetsOf(albumId.value), sortBy.value))
@@ -634,8 +651,18 @@ watch(gridRef, () => {
 <template>
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
-      <PhotosSidebar :collapsed="collapsed" />
+      <!-- Fix-1 item 1 (owner acceptance, 2026-08-13): same narrow-mode coordination as
+           Photos.vue/PhotosAlbums.vue -- the topbar's own collapse button now delegates to
+           the sidebar drawer on narrow viewports. -->
+      <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
        <div class="photos-main">
         <!-- Task 9(P4 遗留收口):失败态优先级在骨架分支之前——loadError 一旦为真,
              albumsLoaded 仍是假(刻意,见 albums.ts 注释),不该再落进骨架分支永久显示
