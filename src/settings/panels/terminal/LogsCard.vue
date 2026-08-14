@@ -35,5 +35,9 @@ const fsLabel = computed(() =>
         </button>
       </template>
     </LogConsole>
+    <!-- The footer sits inside .set-logs-wrap on purpose: the fullscreen state is
+         `position: fixed; inset: 16px` on the wrap, so anything placed outside it
+         would be covered up and the pager would be unreachable while fullscreen. -->
+    <slot name="footer" />
   </div>
 </template>

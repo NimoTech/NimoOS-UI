@@ -238,6 +238,12 @@ export default {
   settingsTermUnavailableHint: 'The system terminal backend (/v1/sys/wsssh) has been disabled; the terminal and its security policy are unavailable.',
   settingsTermFullscreen: 'Fullscreen',
   settingsTermExitFullscreen: 'Exit fullscreen',
+  // Log paging (no Vue2 counterpart: it rendered the whole file in one go)
+  settingsTermLogsOlder: '‹ Older',
+  settingsTermLogsNewer: 'Newer ›',
+  settingsTermLogsPage: 'Page {page} of {total}',
+  settingsTermLogsLive: 'Live',
+  settingsTermLogsPaused: 'Live refresh paused — go back to page 1 to resume',
   settingsStoreEntryTitle: 'Open Storage',
   settingsStoreEntrySub: 'Disks, storage volumes, RAID and snapshots are managed in the Storage section.',
   settingsStoreTotal: 'Total Storage',

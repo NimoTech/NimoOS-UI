@@ -122,4 +122,126 @@ describe('TerminalPanel', () => {
     expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER') // 仍是新结果
     expect(w.find('[data-test="logs-pre"]').text()).not.toContain('STALE') // 旧结果没有覆盖它
   })
+
+  // ── Paging (fixes the "page unresponsive" freeze) ────────────────────────
+  // GET /v1/sys/logs returns the whole log file (5 MB / 19943 lines on a real device,
+  // rotation caps it at 10 MB) and the old implementation put all of it into one <pre>,
+  // re-laid out every 5 seconds. Measured in headless Chrome against the real payload:
+  // 682-1180 ms of blocked main thread per refresh and +1162 MB of renderer memory.
+  // Machines with less headroom cross Chrome's "input event unanswered for 5 s"
+  // threshold, so the next click pops the "page unresponsive" dialog.
+  // The fix keeps exactly 1000 lines in the DOM: page 1 is the newest one and stays
+  // live, page 2 and beyond freeze a snapshot and pause polling -- the log grows at the
+  // tail, so unfrozen page boundaries would drift and show duplicated or skipped lines.
+  const bigLog = (n: number, tag = 'line') =>
+    Array.from({ length: n }, (_, i) => `2026-04-13T15:38:19.417-0400\tinfo\t${tag} ${i}`).join('\n') + '\n'
+  const shownLines = (w: ReturnType<typeof mountPanel>) =>
+    w.find('[data-test="logs-pre"]').text().split('\n')
+
+  it('with more than one page of log, only the newest 1000 lines reach the DOM', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    const lines = shownLines(w)
+    expect(lines.length).toBe(1000)
+    expect(lines[0]).toContain('\tline 1500')
+    expect(lines[999]).toContain('\tline 2499')
+    expect(w.find('[data-test="logs-pre"]').text()).not.toContain('\tline 1499')
+  })
+
+  it('no pager for a single-page log (a small log looks exactly as it did before)', async () => {
+    const w = mountPanel() // the default fixture is a single line
+    await flushPromises()
+    expect(w.find('[data-test="logs-pager"]').exists()).toBe(false)
+  })
+
+  it('the pager reads page 1 of 3 and is marked live', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.find('[data-test="logs-pager"]').exists()).toBe(true)
+    expect(w.find('[data-test="logs-page"]').text()).toBe('第 1 / 3 页')
+    expect(w.find('[data-test="logs-live"]').exists()).toBe(true)
+    expect(w.find('[data-test="logs-paused"]').exists()).toBe(false)
+  })
+
+  it('Newer is disabled on page 1 and Older is disabled on the last page', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    expect(w.find('[data-test="logs-newer"]').attributes('disabled')).toBeDefined()
+    expect(w.find('[data-test="logs-older"]').attributes('disabled')).toBeUndefined()
+    await w.find('[data-test="logs-older"]').trigger('click')
+    await w.find('[data-test="logs-older"]').trigger('click') // now on page 3, the last one
+    expect(w.find('[data-test="logs-page"]').text()).toBe('第 3 / 3 页')
+    expect(w.find('[data-test="logs-older"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('page 2 shows the slice straight before page 1, with no overlap and no gap', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    await w.find('[data-test="logs-older"]').trigger('click')
+    const lines = shownLines(w)
+    expect(lines.length).toBe(1000)
+    expect(lines[0]).toContain('\tline 500')
+    expect(lines[999]).toContain('\tline 1499')
+  })
+
+  it('leaving page 1 pauses the 5-second polling and says so', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    expect(getLogs).toHaveBeenCalledTimes(1)
+    await w.find('[data-test="logs-older"]').trigger('click')
+    expect(w.find('[data-test="logs-paused"]').exists()).toBe(true)
+    expect(w.find('[data-test="logs-live"]').exists()).toBe(false)
+    vi.advanceTimersByTime(30000)
+    await flushPromises()
+    expect(getLogs).toHaveBeenCalledTimes(1) // not one further fetch
+  })
+
+  it('content is frozen while paging: new lines on the backend change neither page number nor content', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    await w.find('[data-test="logs-older"]').trigger('click')
+    // The backend grew by 2000 lines (4500 total): unfrozen, the count would become 5
+    // pages and every boundary would shift.
+    getLogs.mockResolvedValue(bigLog(4500))
+    vi.advanceTimersByTime(30000)
+    await flushPromises()
+    expect(w.find('[data-test="logs-page"]').text()).toBe('第 2 / 3 页')
+    expect(shownLines(w)[0]).toContain('\tline 500')
+  })
+
+  it('returning to page 1 resumes live mode: refetches at once and restarts the timer', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    await w.find('[data-test="logs-older"]').trigger('click')
+    getLogs.mockResolvedValue(bigLog(2500, 'fresh'))
+    await w.find('[data-test="logs-newer"]').trigger('click')
+    await flushPromises()
+    expect(getLogs).toHaveBeenCalledTimes(2) // back on page 1, fetch immediately
+    expect(w.find('[data-test="logs-live"]').exists()).toBe(true)
+    expect(shownLines(w)[999]).toContain('\tfresh 2499')
+    vi.advanceTimersByTime(5000) // and the timer really is running again
+    await flushPromises()
+    expect(getLogs).toHaveBeenCalledTimes(3)
+  })
+
+  it('the unmount-stops-the-timer guarantee still holds after paging', async () => {
+    getLogs.mockResolvedValue(bigLog(2500))
+    const w = mountPanel()
+    await flushPromises()
+    await w.find('[data-test="logs-older"]').trigger('click')
+    await w.find('[data-test="logs-newer"]').trigger('click')
+    await flushPromises()
+    const calls = getLogs.mock.calls.length
+    w.unmount()
+    vi.advanceTimersByTime(30000)
+    await flushPromises()
+    expect(getLogs).toHaveBeenCalledTimes(calls)
+  })
 })

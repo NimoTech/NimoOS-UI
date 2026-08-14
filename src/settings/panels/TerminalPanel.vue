@@ -16,7 +16,7 @@ import { service } from '@nimotech/nimoos-service'
 import SettingsSection from '../components/SettingsSection.vue'
 import LogsCard from './terminal/LogsCard.vue'
 import TerminalSecuritySection from './terminal/TerminalSecuritySection.vue'
-import { formatSysLog, downloadLogsUrl } from '../util/sysLog'
+import { formatSysLog, downloadLogsUrl, logPage, logPageCount } from '../util/sysLog'
 import { useSessionStore } from '../../stores/session'
 import '../styles/settings.css'
 
@@ -25,6 +25,28 @@ const session = useSessionStore()
 const logText = ref('')
 const downloadUrl = computed(() => downloadLogsUrl(localStorage.getItem('access_token')))
 let timer: ReturnType<typeof setInterval> | undefined
+
+// Paging (fixes the "page unresponsive" freeze). The endpoint returns the whole log
+// file -- 5 MB / 19943 lines on a 4-month-old device -- and rendering all of it into
+// one <pre> cost 682-1180 ms of blocked main thread per 5-second refresh and +1162 MB
+// of renderer memory (measured in headless Chrome against the real payload). Machines
+// with less headroom cross Chrome's 5-second unresponsive-input threshold, so the next
+// click pops the "page unresponsive" dialog. Only LOG_PAGE_SIZE lines ever reach the
+// DOM now; see util/sysLog.ts for the numbers.
+//
+// `page` is 1-based and counts from the tail: page 1 is the newest lines and stays
+// live, higher pages walk backwards through history.
+const page = ref(1)
+// Snapshot captured when leaving page 1. Paging has to run against frozen text: the
+// log keeps growing at the tail, and tail-anchored page boundaries computed from a
+// moving total would shift under the reader -- the classic offset-pagination-over-a-
+// live-list bug, showing duplicated or skipped lines. `null` means "live".
+const frozen = ref<string | null>(null)
+
+const pagedSource = computed(() => frozen.value ?? logText.value)
+const shownText = computed(() => logPage(pagedSource.value, page.value))
+const pageCount = computed(() => logPageCount(pagedSource.value))
+const isLive = computed(() => page.value === 1)
 
 // 异步过期守卫(全局约束 #2,就地实现,不抽公共 helper):
 // 挂载取数与 5 秒轮询是同一个 loadLogs,理论上一次请求慢于下一轮定时器触发时,
@@ -44,11 +66,37 @@ async function loadLogs() {
   }
 }
 
+function startPolling() {
+  if (timer) return
+  timer = setInterval(() => void loadLogs(), 5000)
+}
+function stopPolling() {
+  if (timer) { clearInterval(timer); timer = undefined }
+}
+
+function goOlder() {
+  if (page.value >= pageCount.value) return
+  // Freeze on the way out of page 1, not on every step, so the snapshot is the text
+  // the reader was actually looking at when they started paging back.
+  if (page.value === 1) { frozen.value = logText.value; stopPolling() }
+  page.value += 1
+}
+
+function goNewer() {
+  if (page.value <= 1) return
+  page.value -= 1
+  if (page.value === 1) {
+    frozen.value = null
+    startPolling()
+    void loadLogs() // don't make the reader wait up to 5 s for the tail to catch up
+  }
+}
+
 onMounted(() => {
   void loadLogs()
-  timer = setInterval(() => void loadLogs(), 5000)
+  startPolling()
 })
-onUnmounted(() => { if (timer) clearInterval(timer) })
+onUnmounted(() => stopPolling())
 </script>
 
 <template>
@@ -60,11 +108,40 @@ onUnmounted(() => { if (timer) clearInterval(timer) })
     <TerminalSecuritySection v-if="session.isAdmin" />
 
     <p class="set-comp-group-title">{{ t('settingsTermLogs') }}</p>
-    <LogsCard :text="logText">
+    <LogsCard :text="shownText">
       <template #tools>
         <a class="set-btn set-logs-download" :href="downloadUrl" :title="t('settingsTermDownloadLogs')">
           {{ t('settingsTermDownloadLogs') }}
         </a>
+      </template>
+      <!-- Only shown once there is more than one page, so a small log keeps the
+           card exactly as it looked before. Download still hands out the full file. -->
+      <template #footer>
+        <div v-if="pageCount > 1" class="set-logs-pager" data-test="logs-pager">
+          <button
+            type="button"
+            class="set-btn"
+            data-test="logs-older"
+            :disabled="page >= pageCount"
+            @click="goOlder"
+          >{{ t('settingsTermLogsOlder') }}</button>
+          <span class="set-logs-pager-page" data-test="logs-page">
+            {{ t('settingsTermLogsPage', { page, total: pageCount }) }}
+          </span>
+          <button
+            type="button"
+            class="set-btn"
+            data-test="logs-newer"
+            :disabled="page <= 1"
+            @click="goNewer"
+          >{{ t('settingsTermLogsNewer') }}</button>
+          <span v-if="isLive" class="set-logs-pager-state" data-test="logs-live">
+            {{ t('settingsTermLogsLive') }}
+          </span>
+          <span v-else class="set-logs-pager-state is-paused" data-test="logs-paused">
+            {{ t('settingsTermLogsPaused') }}
+          </span>
+        </div>
       </template>
     </LogsCard>
   </SettingsSection>
