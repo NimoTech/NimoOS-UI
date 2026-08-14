@@ -582,6 +582,22 @@
 .rel-graph-wrap svg .rg-name { fill: var(--text-1); }
 .rel-graph-wrap svg .rg-name-dim { fill: var(--text-2); }
 
+/* Task 6 (Plan D, PR#137 gap-close): relation-graph empty state (no co-appearances at all).
+   Transcribed verbatim from Vue2 NimoOS-UI commit 03245590's PhotosRelGraph.vue own scoped
+   <style> block — that commit is what introduced this rule, so it lands here with this task
+   rather than Task 1 (controller preflight ruling). */
+.rg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: 6px;
+  text-align: center;
+}
+.rg-empty .t { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.rg-empty .d { font-size: 12px; color: var(--text-3); max-width: 320px; line-height: 1.5; }
+
 .rel-list {
   display: flex; flex-direction: column; gap: 4px;
 }

@@ -631,6 +631,9 @@ watch(() => route.params.id, (raw) => {
              两者在界面上完全一样。 -->
         <div v-else-if="!detail.person.value && detail.failed.value" class="empty-state" data-test="person-load-failed">
           <div class="empty-state-title">{{ t('photosPersonLoadFailed') }}</div>
+          <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+               patch added it alongside this title. -->
+          <div class="empty-state-desc">{{ t('photosPersonLoadFailedHint') }}</div>
           <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
                !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
           <button
@@ -642,6 +645,9 @@ watch(() => route.params.id, (raw) => {
         <!-- 门控 ③:加载完了确实没有这个人 -->
         <div v-else-if="!detail.person.value" class="empty-state" data-test="person-not-found">
           <div class="empty-state-title">{{ t('photosPersonNotFound') }}</div>
+          <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+               patch added it alongside this title. -->
+          <div class="empty-state-desc">{{ t('photosPersonNotFoundHint') }}</div>
           <button type="button" class="person-dialog-btn" data-test="person-not-found-back" @click="goToPeopleList">
             {{ t('photosPersonBack') }}
           </button>
@@ -706,7 +712,10 @@ watch(() => route.params.id, (raw) => {
                     <!-- 尺寸 72px:回 Vue2 photos-people.scss:701-703 核对得(偏离登记 L)-->
                     <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="72" />
                     <div class="name-row">
-                      <span class="nm">{{ r.name }}</span>
+                      <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
+                           info-tab co-appear card) added `r.name || $t('Unnamed person')` — this
+                           card was missing that fallback. -->
+                      <span class="nm">{{ r.name || t('photosPersonUnnamedTitle') }}</span>
                       <span class="ct">{{ r.count.toLocaleString() }}</span>
                     </div>
                   </div>

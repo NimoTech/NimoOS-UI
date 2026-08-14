@@ -19,8 +19,36 @@
 // 补齐 affordance(brief 明确要求,非 Vue2 行为):Vue2 关系图节点不可点,跳转
 // 入口只在共现列表/横条。这里给卫星节点(不含中心)加 click → emit
 // open-person,登记为主动补齐而非移植缺陷。
+//
+// Task 6 (Plan D, PR 137 gap-close): three behaviors ported from Vue2 NimoOS-UI commit
+// 03245590 (PhotosRelGraph.vue) that were missing here —
+//  1) MAX_GRAPH_NODES = 12 cap on positions (Vue2 :64/:73 `.slice(0, MAX_GRAPH_NODES)`);
+//     the empty-state gate also switched from `relations.length > 0` to `positions.length > 0`
+//     to match (Vue2 diff: same rename).
+//  2) Avatar-fallback: a gradient-filled disc + initial-letter <text> painted UNDER each
+//     avatar <image> (center + every satellite) — if the image 404s it simply never covers
+//     them, no onerror handler needed (Vue2's own comment, ported verbatim). Colors go through
+//     CSS classes, not literal hex on the SVG presentation attributes (see the color-rework
+//     note above) — `.rg-avatar-fallback-stop`'s two stops share one accent-derived color at
+//     different opacities (matching this component's own `.rg-glow-stop` technique) rather
+//     than Vue2's two literal hex tones, since this app's color rule forbids fixed literals.
+//  3) Empty state `.rg-empty` (title + hint) when there are no co-appearances at all — ported
+//     from Vue2's own scoped style block (photos-people.scss doesn't have this rule; the
+//     brief's controller ruling puts it there directly with this task, not Task 1).
+//
+// Unnamed-person fallback (one of the 5 "Unnamed person 兜底" spots the brief calls out):
+// centerName and the satellite name label both fall back to photosPersonUnnamedTitle — same
+// key PersonHero.vue/topbar already use. Ported verbatim from Vue2's own asymmetry: the
+// *displayed* satellite name falls back (`pos.name || $t('Unnamed person')`), but the *initial*
+// glyph under a satellite is computed from the RAW name (`initial(pos.name)`, not the
+// fallback-substituted text) — an unnamed satellite therefore shows a bare fallback disc with
+// no letter. The center avatar's initial, by contrast, IS computed from the already-substituted
+// `centerName` (Vue2 :92 `initial(centerName)`), so an unnamed center shows "U". Both read
+// exactly as Vue2's real diff, not independently re-derived.
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
+import { personInitial } from '../util/peopleView'
 import type { PersonRelation } from '../composables/usePersonDetail'
 import type { Person } from '../util/peopleView'
 
@@ -31,14 +59,22 @@ const props = defineProps<{
 
 const emit = defineEmits<{ (e: 'open-person', id: string | number): void }>()
 
+const { t } = useI18n()
+
+const MAX_GRAPH_NODES = 12
+
 // 常量,不必是 computed —— Vue2 :65 也是纯字面量 computed,这里保留同名局部量
 // 方便下面的公式照抄参照 Vue2 变量名。
 const center = { x: 380, y: 200 }
 
-const centerName = computed(() => props.person?.name ?? '')
+const centerName = computed(() => props.person?.name || t('photosPersonUnnamedTitle'))
 const centerHref = computed(() =>
   props.person ? service.photos.personFaceThumbnailUrl(props.person.id, props.person.coverFaceId) : '',
 )
+
+function initial(name: string | null | undefined): string {
+  return personInitial(name)
+}
 
 interface NodePos {
   id: string | number
@@ -51,9 +87,11 @@ interface NodePos {
 }
 
 // Vue2 :68-85 positions computed —— 按 count 降序排列后按角度/距离公式摆放。
+// Task 6:排序后截断到 MAX_GRAPH_NODES(Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`)——防止
+// 关系很多的人物把图挤成一团不可读的线球。
 const positions = computed<NodePos[]>(() => {
   if (props.relations.length === 0) return []
-  const sorted = [...props.relations].sort((a, b) => b.count - a.count)
+  const sorted = [...props.relations].sort((a, b) => b.count - a.count).slice(0, MAX_GRAPH_NODES)
   const maxCount = Math.max(...sorted.map((r) => r.count), 1) // 防除零(brief 硬约束)
   return sorted.map((rel, i) => {
     const angle = (i / sorted.length) * Math.PI * 2 - Math.PI / 2
@@ -85,12 +123,23 @@ function thumbUrl(pos: NodePos): string {
 </script>
 
 <template>
-  <svg v-if="relations.length > 0" viewBox="0 0 760 400" width="100%" height="400">
+  <!-- Task 6: gate switched from `relations.length > 0` to `positions.length > 0` (Vue2's own
+       diff makes the same rename) so the MAX_GRAPH_NODES cap can't accidentally desync from
+       what actually renders — positions is already the capped, empty-when-no-relations list. -->
+  <svg v-if="positions.length > 0" viewBox="0 0 760 400" width="100%" height="400">
     <defs>
       <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
         <stop offset="0%" class="rg-glow-stop" stop-opacity="0.35" />
         <stop offset="100%" class="rg-glow-stop" stop-opacity="0" />
       </radialGradient>
+      <!-- Task 6: avatar-fallback gradient (Vue2 :10-13 `#rgAvatarFallback`) — ported as a
+           single accent-derived color at two opacities (`.rg-avatar-fallback-stop`), not
+           Vue2's two literal hex tones, per this component's own established color-rework
+           technique (see script-block comment). -->
+      <linearGradient id="rgAvatarFallback" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" class="rg-avatar-fallback-stop" />
+        <stop offset="100%" class="rg-avatar-fallback-stop" stop-opacity="0.75" />
+      </linearGradient>
     </defs>
     <circle class="rg-glow" :cx="center.x" :cy="center.y" r="90" fill="url(#centerGlow)" />
 
@@ -114,6 +163,15 @@ function thumbUrl(pos: NodePos): string {
 
     <g>
       <circle class="rg-center-ring" :cx="center.x" :cy="center.y" r="34" stroke-width="2" />
+      <!-- Task 6: fallback disc + initial painted UNDER the avatar (Vue2 :34-39 comment,
+           ported verbatim) — if the <image> below fails to load it simply never covers this,
+           no onerror handler needed. initial() reads the already-fallback-substituted
+           centerName (Vue2 :92 `initial(centerName)`), so an unnamed center shows "U". -->
+      <circle :cx="center.x" :cy="center.y" r="31" fill="url(#rgAvatarFallback)" />
+      <text
+        v-if="initial(centerName)" :x="center.x" :y="center.y + 6" text-anchor="middle"
+        font-size="18" font-weight="600" class="rg-avatar-initial"
+      >{{ initial(centerName) }}</text>
       <clipPath id="centerClip">
         <circle :cx="center.x" :cy="center.y" r="31" />
       </clipPath>
@@ -133,6 +191,15 @@ function thumbUrl(pos: NodePos): string {
       @click="emit('open-person', pos.id)"
     >
       <circle class="rg-node-ring" :cx="pos.x" :cy="pos.y" :r="nodeRadius(pos) + 2" stroke-width="1" />
+      <!-- Task 6: same fallback disc + initial as the center avatar above. initial() here
+           reads the RAW pos.name (Vue2 :48 `initial(pos.name)`, NOT the fallback-substituted
+           display name below) — an unnamed satellite therefore shows a bare fallback disc
+           with no letter, matching Vue2's own asymmetry exactly (see script-block comment). -->
+      <circle :cx="pos.x" :cy="pos.y" :r="nodeRadius(pos)" fill="url(#rgAvatarFallback)" />
+      <text
+        v-if="initial(pos.name)" :x="pos.x" :y="pos.y + 4" text-anchor="middle"
+        font-size="12" font-weight="600" class="rg-avatar-initial"
+      >{{ initial(pos.name) }}</text>
       <clipPath :id="'clip_' + pos.id">
         <circle :cx="pos.x" :cy="pos.y" :r="nodeRadius(pos)" />
       </clipPath>
@@ -146,9 +213,17 @@ function thumbUrl(pos: NodePos): string {
       <text
         :x="pos.x" :y="pos.y + nodeRadius(pos) + 14" text-anchor="middle"
         font-size="11" font-weight="500" class="rg-name rg-name-dim"
-      >{{ pos.name }}</text>
+      >{{ pos.name || t('photosPersonUnnamedTitle') }}</text>
     </g>
   </svg>
+  <!-- Task 6 (Plan D, PR 137 gap-close): empty state when this person has no co-appearances
+       at all — ported from Vue2 :55-58, styles transcribed into
+       src/photos/styles/vue2-parity/photos-people.scss (`.rg-empty`, controller ruling: this
+       rule lands with this task, not Task 1). -->
+  <div v-else class="rg-empty" data-test="rel-graph-empty">
+    <div class="t">{{ t('photosPersonRelGraphEmptyTitle') }}</div>
+    <div class="d">{{ t('photosPersonRelGraphEmptySub') }}</div>
+  </div>
 </template>
 
 <style scoped>
@@ -193,5 +268,18 @@ function thumbUrl(pos: NodePos): string {
 }
 .rg-node {
   cursor: pointer;
+}
+/* Task 6 (Plan D, PR 137 gap-close): avatar-fallback disc + initial-letter text (Vue2 :10-13
+   `#rgAvatarFallback` gradient + :35-39/:97-99 initial <text>s). `.rg-avatar-fallback-stop` is
+   reused for both <stop>s (same technique as `.rg-glow-stop` above) — a single accent-derived
+   color at two opacities, not Vue2's two literal hex tones (see script-block comment).
+   `.rg-avatar-initial`'s fill is `--on-accent`: this text sits directly on the accent-derived
+   fallback disc, which is exactly the saturated-accent-solid precondition `--on-accent` is
+   for (same rule already established in PersonHero.vue's "配色红线" section). */
+.rg-avatar-fallback-stop {
+  stop-color: var(--accent);
+}
+.rg-avatar-initial {
+  fill: var(--on-accent);
 }
 </style>

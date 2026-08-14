@@ -116,7 +116,10 @@ const nimoReadHtml = computed(() => {
         >
           <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="36" />
           <div class="body">
-            <div class="nm">{{ r.name }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
+                 graph-tab rel-row) added `r.name || $t('Unnamed person')` here — this list row
+                 was missing that fallback. -->
+            <div class="nm">{{ r.name || t('photosPersonUnnamedTitle') }}</div>
             <div class="ct">{{ t('photosPersonPhotosTogether', { n: r.count }) }}</div>
           </div>
           <div class="bar"><div :style="{ width: (r.count / relMax * 100) + '%' }" /></div>

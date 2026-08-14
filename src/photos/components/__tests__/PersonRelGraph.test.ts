@@ -90,9 +90,13 @@ describe('PersonRelGraph.vue', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('me', 'cover1')
   })
 
-  it('中心名字取自 person.name,person 为 null 时为空串(不崩)', () => {
+  // Task 6 (Plan D, PR#137 gap-close) fix: this test previously asserted `''` for a null
+  // person, which was the pre-fix (wrong) behavior — Vue2's own centerName computed
+  // (`(this.person && this.person.name) || this.$t('Unnamed person')`) has ALWAYS fallen back
+  // to the Unnamed-person copy here, never an empty string. Updated to match Vue2 truth.
+  it('中心名字取自 person.name,person 为 null 时兜底为 Unnamed person(照 Vue2 centerName,不崩)', () => {
     const w = mountGraph({ relations: [{ personId: 1, name: 'A', count: 5 }], person: null })
-    expect(w.get('.rg-name.rg-center-name').text()).toBe('')
+    expect(w.get('.rg-name.rg-center-name').text()).toBe('未命名人物')
     expect(w.get('.rg-center-img').attributes('href')).toBe('')
   })
 
@@ -174,5 +178,38 @@ describe('PersonRelGraph.vue', () => {
     const relations: PersonRelation[] = [{ personId: 1, name: 'A', count: 10 }]
     const w = mountGraph({ relations, person: P() })
     expect(w.html()).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(rgba?|hsla?)\s*\(/)
+  })
+})
+
+// Task 6 (Plan D, PR#137 gap-close): three cases ported from Vue2 NimoOS-UI
+// tests/photosRelGraph.test.js (commit 03245590) — MAX_GRAPH_NODES cap, avatar-fallback
+// initial letter under every avatar, and the co-appearances empty state. All three behaviors
+// were entirely missing from this component before this task (verified RED before
+// implementation: cap test found 3 <image>s not 13, initial test found no `.rg-avatar-initial`
+// text at all, empty-state test found no `.rg-empty` element — see task-6-report.md for the
+// captured RED output).
+describe('PersonRelGraph.vue — PR#137 移植:节点上限 / 头像首字母兜底 / 空态', () => {
+  it('relations 超过 12 个时只渲染 12 个卫星节点 + 1 个中心(共 13 个 <image>,照 Vue2 tests/photosRelGraph.test.js "caps rendered nodes at 12")', () => {
+    const relations: PersonRelation[] = Array.from({ length: 20 }, (_, i) => ({
+      personId: `p${i}`, name: `P${i}`, count: 20 - i,
+    }))
+    const w = mountGraph({ relations, person: P() })
+    expect(w.findAll('image')).toHaveLength(13)
+  })
+
+  it('每个头像下方(中心 + 卫星)都渲染首字母兜底 <text>(照 Vue2 tests/photosRelGraph.test.js "draws an initial-letter fallback under every avatar")', () => {
+    const relations: PersonRelation[] = [{ personId: 1, name: 'Zoe', count: 3 }]
+    const w = mountGraph({ relations, person: P({ name: 'Amy' }) })
+    const initials = w.findAll('.rg-avatar-initial').map((x) => x.text())
+    expect(initials).toContain('Z') // 卫星节点首字母
+    expect(initials).toContain('A') // 中心首字母
+  })
+
+  it('relations 为空时渲染 .rg-empty 空态,文案为 photosPersonRelGraphEmptyTitle/Sub(照 Vue2 tests/photosRelGraph.test.js "renders empty state when no co-appearances")', () => {
+    const w = mountGraph({ relations: [], person: P() })
+    expect(w.find('svg').exists()).toBe(false)
+    const empty = w.get('.rg-empty')
+    expect(empty.get('.t').text()).toBe('暂无同框记录')
+    expect(empty.get('.d').text()).toBe('当这个人与其他人同框出现在照片里时，关系图会显示在这里。')
   })
 })

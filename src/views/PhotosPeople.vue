@@ -570,9 +570,12 @@ onUnmounted(() => {
             >&#215;</button>
           </div>
 
+          <!-- Task 6 (Plan D, PR 137 gap-close): the hint branches on whether face recognition
+               is on (Vue2 PR 137 patch, PhotosPeopleView.vue — verbatim copy in both branches). -->
           <div v-if="isEmpty" class="empty-state" data-test="people-empty">
             <div class="empty-state-title">{{ t('photosPeopleEmptyTitle') }}</div>
-            <div class="empty-state-desc">{{ t('photosPeopleEmptyHint') }}</div>
+            <div v-if="facesEnabled" class="empty-state-desc">{{ t('photosPeopleEmptyHintFaces') }}</div>
+            <div v-else class="empty-state-desc">{{ t('photosPeopleEmptyHintNoFaces') }}</div>
           </div>
 
           <template v-else>

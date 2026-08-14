@@ -442,7 +442,10 @@ export default {
   photosPersonNotFound: '找不到这个人物', // ★
   photosPersonBack: '返回人物', // ★
   photosPeopleEmptyTitle: '还没有识别出人物', // ★
-  photosPeopleEmptyHint: 'Nimo 会在照片库建立索引时自动归类人脸。', // ★
+  // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
+  // Vue2 #137 分两支文案(人脸识别开/关),译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  photosPeopleEmptyHintFaces: '照片索引过程中会自动识别人脸，人物很快会出现在这里。',
+  photosPeopleEmptyHintNoFaces: '开启人脸识别后，即可在照片中发现人物。',
   photosPersonShowAll: '查看全部 {n} 张', // ★
   photosPersonShowLess: '收起', // ★
   photosPersonPlacesLegend: '常去地点',
@@ -484,6 +487,9 @@ export default {
   photosPersonGraphLegendOccasional: '偶尔',
   photosPersonCoappearTitle: '共同出现',
   photosPersonPhotosTogether: '共同出现 {n} 张照片',
+  // Task 6 (Plan D, PR#137 gap-close): 关系图空态,译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  photosPersonRelGraphEmptyTitle: '暂无同框记录',
+  photosPersonRelGraphEmptySub: '当这个人与其他人同框出现在照片里时，关系图会显示在这里。',
   // Task 14 补(容器 + 六个弹窗;brief 的键清单里没有,逐段核对 Vue2
   // PhotosPersonDetail.vue 后确认本仓确实缺失才补的,行号见各条注释)。
   // 译文一律从旧仓 zh_CN.json 查同句英文原文;查不到的按已确立的术语惯例直给。
@@ -515,6 +521,10 @@ export default {
   // 正是为此而加;Vue2 只 console.error,视图分不清)。同时补重试入口 —— P4 遗留过一条
   // 同类账(详情页加载失败 → 永久骨架、无错误态无重试),本期不再留。
   photosPersonLoadFailed: '无法加载这个人物',
+  // Task 6 (Plan D, PR#137 gap-close):加载失败/找不到人物两个兜底态缺一条说明文案 ——
+  // 译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  photosPersonLoadFailedHint: '请检查网络连接后重试。',
+  photosPersonNotFoundHint: '该人物可能已被删除或合并。',
   photosPersonRetry: '重试',
   // T14 评审 Minor 4:详情页删除确认弹窗的头部标题。Vue2 :304 是 `Delete person?`,
   // 与 T7 警示条内部那句 photosPersonDeleteTitle(`Delete this person group?` /

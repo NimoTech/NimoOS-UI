@@ -426,9 +426,16 @@ export default {
   photosPersonFavFailed: 'Could not update favorite', // ★
   photosPersonNoPhotos: 'No photos for this person yet', // ★
   photosPersonNotFound: 'Person not found', // ★
-  photosPersonBack: 'Back to people', // ★
+  // Task 6 (Plan D, PR#137 gap-close): source-of-truth casing check against the Vue2 patch
+  // that introduced this string (`"Back to People": "Back to People"`) turned up a casing
+  // mismatch here — fixed to match Vue2 verbatim (was 'Back to people').
+  photosPersonBack: 'Back to People', // ★
   photosPeopleEmptyTitle: 'No people yet', // ★
-  photosPeopleEmptyHint: 'Nimo groups faces as your library is indexed.', // ★
+  // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
+  // Vue2's #137 patch (NimoOS-UI commit 03245590, PhotosPeopleView.vue) branches this hint on
+  // whether face recognition is on, quoted verbatim from that commit's en_US.json.
+  photosPeopleEmptyHintFaces: 'Faces are detected automatically while your photos are indexed. People will appear here soon.',
+  photosPeopleEmptyHintNoFaces: 'Turn on face recognition to start finding people in your photos.',
   photosPersonShowAll: 'Show all {n}', // ★
   photosPersonShowLess: 'Show less', // ★
   photosPersonPlacesLegend: 'Top places',
@@ -476,6 +483,10 @@ export default {
   photosPersonGraphLegendOccasional: 'Occasional',
   photosPersonCoappearTitle: 'Co-appearance',
   photosPersonPhotosTogether: '{n} photos together',
+  // Task 6 (Plan D, PR#137 gap-close): relation-graph empty state, quoted verbatim from
+  // Vue2's #137 patch (NimoOS-UI commit 03245590's en_US.json).
+  photosPersonRelGraphEmptyTitle: 'No co-appearances yet',
+  photosPersonRelGraphEmptySub: 'When this person shows up in photos with others, the graph appears here.',
   // Task 14 (container + six dialogs): copy that the brief's key list did not
   // cover and that a line-by-line pass over Vue2 PhotosPersonDetail.vue showed
   // was genuinely missing here. English strings are verbatim from the Vue2
@@ -505,6 +516,11 @@ export default {
   // P4 left a same-shaped debt (detail page load failure → permanent skeleton, no
   // error state, no retry) that we are not repeating here.
   photosPersonLoadFailed: 'Could not load this person',
+  // Task 6 (Plan D, PR#137 gap-close): the load-failed / not-found fallback states were
+  // missing their description line — Vue2's #137 patch added both (quoted verbatim from
+  // NimoOS-UI commit 03245590's en_US.json).
+  photosPersonLoadFailedHint: 'Please check your connection and try again.',
+  photosPersonNotFoundHint: 'This person may have been deleted or merged.',
   photosPersonRetry: 'Retry',
   // T14 review Minor 4: the detail page's delete-confirm dialog heading. Vue2 :304 is
   // `Delete person?` — a different sentence from T7's in-warning-box
