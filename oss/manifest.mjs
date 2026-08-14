@@ -573,12 +573,12 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 
 `,
     replace: '' },
-  // 复审 Important①:上面 3 条删掉了搜索胶囊与 ⌘K 监听,但这条中文注释原文
-  // "...保留搜索与主题切换" 完全没被摘到 —— 会作为静默泄漏(oss/forbidden.mjs
-  // 的中文词表目前没有"搜索")随包发布。词表本身的修补是另一个任务的活,这里
-  // 只改措辞,不提搜索。
+  // Review Important①: the three entries above drop the search pill and the ⌘K listener, but this
+  // comment still advertises the search entry — it would ship as a silent leak (forbidden.mjs does
+  // not list this wording). Fixing the word list is a separate task; here we only reword, without
+  // mentioning search. (Anchor re-pointed 2026-08-14: the comment was translated to English upstream.)
   { path: 'src/home/components/HomeTopbar.vue',
-    find: '保留搜索与主题切换', replace: '保留主题切换' },
+    find: 'keep search and theme toggle', replace: 'keep the theme toggle' },
   // 复审 Important②:上面删掉 onKey/onMounted/onUnmounted 三行后,这个 import
   // 变成死代码(全文件再无第二处使用 onMounted/onUnmounted,已用 grep 核实)。
   { path: 'src/home/components/HomeTopbar.vue',
@@ -619,8 +619,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   // 头部映射注释也点了名(现场 sed 取出,brief 未给):按角色裁剪的那一整项功能
   // 已经不存在,继续保留具体名字和旧计数只是死文档,一并改写。
   { path: 'src/settings/util/tabs.ts',
-    find: '//   - data().tabs (L855-863) —— 侧栏 rail 的 7 项\n//   - visibleTabs (L1034)    —— 非 admin 过滤掉 folder-permissions\n',
-    replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) —— 侧栏 rail 项与按角色的可见性裁剪\n' },
+    find: '//   - data().tabs (L855-863) -- the 7 sidebar rail items\n//   - visibleTabs (L1034)    -- non-admin filters out folder-permissions\n',
+    replace: '//   - data().tabs (L855-863) / visibleTabs (L1034) -- sidebar rail items and role-based visibility\n' },
   // SP17:lan-devices(Vue2 #93)插进了 system-status 与 folder-permissions 之间,且是
   // 公开面功能(局域网设备发现,不含任何管理员专属信息)——FIND 锚点跟着私有侧新增的这一行走,
   // REPLACE 仍只摘掉 folder-permissions,lan-devices 保留在开源产物里。
@@ -633,8 +633,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   { path: 'src/settings/util/tabs.ts',
     find: "  'folder-permissions': 'settingsTabFolderPermissions',\n", replace: '' },
   { path: 'src/settings/util/tabs.ts',
-    find: "/** Vue2 visibleTabs:只有 admin 能看到 folder-permissions。role 缺失按非 admin 处理。 */\nexport function railTabsFor(role: string | undefined): readonly SettingsTab[] {\n  if (role === 'admin') return RAIL_TABS\n  return RAIL_TABS.filter((t) => t !== 'folder-permissions')\n}",
-    replace: "/** rail 上没有按角色隐藏的项,直接返回全集(保留函数形状以免调用处发散)。 */\nexport function railTabsFor(): readonly SettingsTab[] {\n  return RAIL_TABS\n}" },
+    find: "/** Vue2 visibleTabs: only admin sees folder-permissions. Missing role is treated as non-admin. */\nexport function railTabsFor(role: string | undefined): readonly SettingsTab[] {\n  if (role === 'admin') return RAIL_TABS\n  return RAIL_TABS.filter((t) => t !== 'folder-permissions')\n}",
+    replace: "/** No rail item is hidden by role here; return the whole set (the signature is kept so callers stay uniform). */\nexport function railTabsFor(): readonly SettingsTab[] {\n  return RAIL_TABS\n}" },
 
   // ── panels/index.ts ─────────────────────────────────────────────────────
   { path: 'src/settings/panels/index.ts',
@@ -664,8 +664,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   //    (Task 3's real behavior) -- the open-source side reverts to three rows below,
   //    so this description must match what the reverted code actually derives.
   { path: 'src/settings/util/appPaths.ts',
-    find: '// 设置 · 应用 —— 「App 数据存储位置」四行的派生。',
-    replace: '// 设置 · 应用 —— 「App 数据存储位置」三行的派生。' },
+    find: '// Settings / Apps -- derivation of the four "App data storage location" rows.',
+    replace: '// Settings / Apps -- derivation of the three "App data storage location" rows.' },
   // -- photos_data is a HARD-banned word (forbidden.mjs): Task 3 (private-side) gives
   //    the App data location panel a fourth "photos cache" row, backed by the
   //    /v1/sys/paths photos_data key -- this is exactly the landing path for the
@@ -688,8 +688,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
     find: "consulted, so such entries would be dead code (Vue 2 #105 reached the same result).",
     replace: 'consulted, so such entries would be dead code here.' },
   { path: 'src/apps/stores/installedApps.ts',
-    find: '        // 系统幕后容器(nimoos.system=true,如 AI agent / Photos ML)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。',
-    replace: '        // 系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)不给用户看——\n        // 与桌面 appgrid 一致(后端 isSystemComposeApp 同款规则)。' },
+    find: '        // System background containers (nimoos.system=true, e.g. AI agent / Photos ML) are hidden from users —\n        // consistent with the desktop appgrid (same rule as backend isSystemComposeApp).',
+    replace: '        // System background containers (nimoos.system=true, internal service containers used by other apps) are hidden from users —\n        // consistent with the desktop appgrid (same rule as backend isSystemComposeApp).' },
   { path: 'src/settings/panels/AppsPanel.vue',
     find: '// 「清理本地待上传缓存」= 政策三「做样子」:界面 1:1、按钮禁用、标注待相册区迁移完成后启用。\n//    数据源是**相册**的 IndexedDB 上传队列(Vue2 @/views/Photos/upload/idb.js),SP7 尚未迁。',
     // I5-guard(⑤b)复核:原 replace 仍带 "政策三「做样子」"(内部分级术语,FORBIDDEN 清单
@@ -1126,8 +1126,8 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   // SP15-P1-T7: append only, never reorder — router/index.test.ts asserts the source line order.
   { path: '/photos/moments/:id', name: 'photos-moment-detail', component: PhotosMomentDetail },
   { path: '/photos/search', name: 'photos-search', component: PhotosSearch },
-  // SP7-P8a-T5:只追加,不重排——须排在最后一条既有 /photos/* 之后(router/index.test.ts
-  // 用 node:fs 读源文本行序断言,而非 router.getRoutes(),见该测试文件注释)。
+  // SP7-P8a-T5: append only, never reorder — must come after the last existing /photos/*
+  // (router/index.test.ts asserts source-text line order via node:fs, not router.getRoutes(); see that test file's comments).
   { path: '/photos/settings', name: 'photos-settings', component: PhotosSettings },
 `,
     replace: '' },
@@ -1138,16 +1138,17 @@ import PhotosSettings from '../views/PhotosSettings.vue'
   //    相册失败路径与 .pd-scrim/.cad-overlay ②末尾单独钉那两个相册遮罩的 it.each 块
   //    (整块删:它只有相册两条,前面那条 glob 全量断言仍在)。
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
-// **完全读不到**。本期评审抓到的真实后果 —— 三条「失败了但刻意保留弹窗让用户重试」的路径
-// (人物改名失败 / 建相册失败 / 命名未命名人物失败)全部把失败原因藏在 z-index 220 的
-// .pd-scrim / .cad-overlay 底下,用户只看到按钮"没反应",反复重试。
+    find: `// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
+// "a bit gray" but **completely unreadable**. Real consequence caught in this sprint's review —
+// three "failed but the dialog is deliberately kept open for retry" paths (rename person failed /
+// create album failed / name unnamed person failed) all hid the failure reason under the
+// z-index 220 .pd-scrim / .cad-overlay; users only saw a button that "did nothing" and kept retrying.
 `,
-    replace: `// 为什么需要一条测试:遮罩都带 backdrop-filter,压在遮罩下方的 toast 不是"偏灰"而是
-// **完全读不到**——用户只看到按钮"没反应",反复重试。
+    replace: `// Why this needs a test: the scrims all carry backdrop-filter, so a toast buried under one is not
+// "a bit gray" but **completely unreadable** — users only see a button that "did nothing" and keep retrying.
 ` },
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `  // 本期评审命中的三条路径的两个具体遮罩,单独钉一遍(上一条即使被人放宽也还有这道)。
+    find: `  // Pin the two concrete scrims from the three review-hit paths individually (even if someone relaxes the previous test, this one remains).
   it.each([
     ['src/views/PhotosPersonDetail.vue', '.pd-scrim'],
     ['src/photos/components/ClusterActionDialog.vue', '.cad-overlay'],
@@ -1155,7 +1156,7 @@ import PhotosSettings from '../views/PhotosSettings.vue'
     const src = Object.entries(files).find(([p]) => relOf(p) === rel)?.[1]
     expect(src, \`\${rel} 未被 glob 收到\`).toBeTruthy()
     const css = styleText(rel, src as string)
-    // 取该选择器所在规则块里的 z-index。
+    // Take the z-index from the rule block containing this selector.
     const block = new RegExp(\`\\\\\${selector}\\\\s*\\\\{([^}]*)\\\\}\`).exec(css)
     expect(block, \`\${rel} 里找不到 \${selector} 规则块\`).toBeTruthy()
     const z = zIndexes((block as RegExpExecArray)[1])
@@ -1319,30 +1320,33 @@ describe('photosPlaces 键(SP7-P6a)', () => {
   //    末尾那段"sp9 走第二条装配路径"的提醒与相册/AI 无关、在产出树里依然成立(sp9 分片
   //    是保留面),故不整段丢掉,改写成只提 base 的版本一并留下。
   { path: 'src/i18n/zh_cn.ts',
-    find: `// SP7-P8b:本文件从"一整份文案表"改成几行的**合并出口**,真正的内容拆成几块:
-//   zh_cn.base.ts   —— 全区共用 + 各区自己的文案
-//   zh_cn.photos.ts —— 相册区那 702 个 photos* 键
-//   zh_cn.ai.ts     —— AI 区那 1207 个 ai* 键(SP8-P6 合流时加入)
+    find: `// SP7-P8b: this file changed from "one whole copy table" into a few-line **merge outlet**; the real content is split into pieces:
+//   zh_cn.base.ts   — copy shared across areas + each area's own copy
+//   zh_cn.photos.ts — the 702 photos* keys of the Photos area
+//   zh_cn.ai.ts     — the 1207 ai* keys of the AI area (added during the SP8-P6 merge)
 //
-// 为什么拆:开源版没有相册区、也没有 AI 区,\`oss/manifest.mjs\` 要把这两块文案剥掉。
-// 原先那些键散在主文件 90 多个区段里,剥它们意味着上百条锚点补丁 × 2 语言 —— 而 PATCH
-// 要求锚点命中恰好 1 次,以后**改任何一条相册/AI 文案都会把开源导出打红**。拆开之后
-// 开源侧只需:删掉 zh_cn.photos.ts / zh_cn.ai.ts 两个文件 + 把下面那两行展开补丁掉。
+// Why split: the OSS edition has no Photos area and no AI area; \`oss/manifest.mjs\` must
+// strip those two blocks of copy. Those keys used to be scattered across 90+ sections of
+// the main file; stripping them meant hundreds of anchor patches × 2 languages — and PATCH
+// requires each anchor to match exactly once, so **any future edit to a photos/AI string
+// would break the OSS export**. After the split, the OSS side only needs to delete
+// zh_cn.photos.ts / zh_cn.ai.ts and patch away the two spread lines below.
 //
-// 为什么保留本文件作为出口(而不是让消费方各自 import 几块):全仓有 40+ 个测试
-// \`import zh from '…/i18n/zh_cn'\` 自建 createI18n,把它们逐个改成"再多 import 一块"既吵
-// 又会在下次分片时重演。出口不动,消费方就一行都不用改。
+// Why keep this file as the outlet (instead of having consumers import the pieces
+// themselves): 40+ tests across the repo do \`import zh from '…/i18n/zh_cn'\` and build their
+// own createI18n; changing each to "import one more piece" is noisy and would repeat at the
+// next sharding. With the outlet unchanged, consumers change zero lines.
 //
-// 注意:SP9 那一片(zh_cn.sp9.ts)**不在本出口里** —— 它在 i18n/index.ts 与
-// parity.test.ts 里各自单独并进来,与这里的 base/photos/ai 是两套装配路径。
+// Note: the SP9 shard (zh_cn.sp9.ts) is **not part of this outlet** — it is merged in
+// separately in i18n/index.ts and parity.test.ts; that is a second assembly path distinct from base/photos/ai here.
 `,
     //    ⚠️ 措辞受 tree.test.mjs「PATCH 的 replace 内容也不含固定清单里的词」那道守卫约束:
     //    期号只允许以**文件名**形式出现(正则 /\bSP\d(?!\.ts)/i 的 (?!\.ts) 豁免),所以
     //    下面写 "zh_cn.sp9.ts 那一片" 而不是 "sp9 那一片"。第一版写成后者被守卫逮到。
-    replace: `// 中文文案(默认 / fallback locale)。
+    replace: `// Chinese copy (default / fallback locale).
 //
-// 注意:zh_cn.sp9.ts 那一片**不在本出口里** —— 它在 i18n/index.ts 与
-// parity.test.ts 里各自单独并进来,与这里的 base 是两套装配路径。
+// Note: the zh_cn.sp9.ts shard is **not part of this outlet** — it is merged in separately
+// in i18n/index.ts and parity.test.ts; that is a second assembly path distinct from base here.
 ` },
   { path: 'src/i18n/en_us.ts',
     find: `// SP7-P8b:合并出口 —— 拆分理由与结构说明见 zh_cn.ts 的文件头注释(两语言逐条成对)。
@@ -1687,7 +1691,7 @@ function mountHome() {
     expect(tiles).toHaveLength(3)
     expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-photo' || c === 'kind-folder')))
       .toEqual([true, true, true])
-    // 顺序:files(r1) → photo(r2) → folder(r3)
+    // Order: files (r1) → photo (r2) → folder (r3)
     expect(tiles[0].classes()).toContain('kind-app')
     expect(tiles[1].classes()).toContain('kind-photo')
     expect(tiles[2].classes()).toContain('kind-folder')
@@ -1701,7 +1705,7 @@ function mountHome() {
     expect(tiles).toHaveLength(2)
     expect(tiles.map((t) => t.classes().some((c) => c === 'kind-app' || c === 'kind-folder')))
       .toEqual([true, true])
-    // 顺序:files(r1) → folder(r3)
+    // Order: files (r1) → folder (r3)
     expect(tiles[0].classes()).toContain('kind-app')
     expect(tiles[1].classes()).toContain('kind-folder')
   })
@@ -2023,13 +2027,13 @@ function mountHome() {
   //    与 systemApp.ts 源文件那处 T7 洗白对齐(该文件本身不在 REPLACE/PATCH 表里
   //    改过,是测试文件自己写的第二份类似文案)─────────────────────────────────
   { path: 'src/apps/util/systemApp.test.ts',
-    find: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
-// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
-// 应从面向用户的应用管理页隐藏(agent 运行时 / Photos ML 后端等)。
+    find: `// Frontend equivalent of the backend's isSystemComposeApp (route/v2/internal_web.go):
+// if any compose service has the label \`nimoos.system == "true"\` it is a behind-the-scenes system component
+// and should be hidden from the user-facing app management page (agent runtime / Photos ML backend, etc.).
 `,
-    replace: `// 后端 isSystemComposeApp(route/v2/internal_web.go)的前端等价物:
-// compose 任一 service 的 label \`nimoos.system == "true"\` 即系统幕后组件,
-// 应从面向用户的应用管理页隐藏(供其他应用使用的内部服务容器等)。
+    replace: `// Frontend equivalent of the backend's isSystemComposeApp (route/v2/internal_web.go):
+// if any compose service has the label \`nimoos.system == "true"\` it is a behind-the-scenes system component
+// and should be hidden from the user-facing app management page (internal service containers used by other apps, etc.).
 ` },
 
   // ── locale.test.ts:mock blob 里的 search_switch(E2 已从 systemConfig 类型删除
@@ -2064,10 +2068,10 @@ function mountHome() {
   //    setFav 会把它们过滤掉,断言必须换成 oss 版仍然存在的 key ──────────────
   { path: 'src/home/composables/useDock.test.ts',
     find: `  it('defaults favKeys to the 5 dock keys and computes moreKeys as the rest', () => {
-    useAppsStore() // 系统 6 应用就位
+    useAppsStore() // the 6 system apps are in place
     const d = useDock()
     expect(d.favKeys.value).toEqual(['files', 'photos', 'ai', 'vm', 'appstore'])
-    expect(d.moreKeys.value).toContain('settings') // 第 6 个系统应用进 more
+    expect(d.moreKeys.value).toContain('settings') // the 6th system app goes into more
     expect(d.moreKeys.value).not.toContain('files')
   })
   it('setFav persists to localStorage', () => {
@@ -2078,10 +2082,10 @@ function mountHome() {
     expect(d.moreKeys.value).toContain('ai')
   })`,
     replace: `  it('defaults favKeys to the 4 dock keys and computes moreKeys as the rest', () => {
-    useAppsStore() // 系统 5 应用就位
+    useAppsStore() // the 5 system apps are in place
     const d = useDock()
     expect(d.favKeys.value).toEqual(['files', 'storage', 'vm', 'appstore'])
-    expect(d.moreKeys.value).toContain('settings') // 第 5 个系统应用进 more
+    expect(d.moreKeys.value).toContain('settings') // the 5th system app goes into more
     expect(d.moreKeys.value).not.toContain('files')
   })
   it('setFav persists to localStorage', () => {
@@ -2096,14 +2100,14 @@ function mountHome() {
     useAppsStore()
     const d = useDock()
     d.setFav(['files', 'photos'])
-    d.reorder('settings', 'fav', 'photos') // settings(more) 插到 photos 前
+    d.reorder('settings', 'fav', 'photos') // settings (from more) inserted before photos
     expect(d.favKeys.value).toEqual(['files', 'settings', 'photos'])
   })`,
     replace: `  it('moves a more-key into favorites before a given key', () => {
     useAppsStore()
     const d = useDock()
     d.setFav(['files', 'vm'])
-    d.reorder('settings', 'fav', 'vm') // settings(more) 插到 vm 前
+    d.reorder('settings', 'fav', 'vm') // settings (from more) inserted before vm
     expect(d.favKeys.value).toEqual(['files', 'settings', 'vm'])
   })` },
   { path: 'src/home/composables/useDock.reorder.test.ts',
@@ -2340,8 +2344,8 @@ function mountHome() {
     find: '// P8 cutover:文件夹瓦片改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
     replace: '// 文件夹瓦片走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
   { path: 'src/home/composables/useOpenAction.test.ts',
-    find: '// P8 cutover:文件入口改应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。',
-    replace: '// 文件入口走应用内 router.push,需 mock 路由单例(vi.mock 会被提升到 import 前)。' },
+    find: '// P8 cutover: the files entry now uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).',
+    replace: '// The files entry uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).' },
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  it('appstore 磁贴应用内 router.push /apps/store(SP5-P8 cutover)', () => {",
     replace: "  it('appstore 磁贴应用内 router.push /apps/store', () => {" },
@@ -2360,8 +2364,10 @@ function mountHome() {
 
   // ── I7a:注释里泄露内部 SDD 台账路径(.superpowers/sdd/sp9/...)与债务编号。──
   { path: 'src/settings/util/ifaceForm.ts',
-    find: '// → 写路径的正确性只能靠这里的单测(见台账 .superpowers/sdd/sp9/03-p2.md 债务 D18)。',
-    replace: '// → 写路径的正确性只能靠这里的单测(该接口没有安全的真机验证途径)。' },
+    find: `// -> the write path's correctness can only be covered by the unit tests here (see ledger
+// .superpowers/sdd/sp9/03-p2.md, debt D18).`,
+    replace: `// -> the write path's correctness can only be covered by the unit tests here (there is no
+// safe way to verify this endpoint on a real machine).` },
 
   // ── M1:package.json 的 name 是私有仓名(new-ui 暗示存在一个 old UI)。────────
   { path: 'package.json',
@@ -2418,11 +2424,13 @@ function mountHome() {
   //    src/ai/styles/tokens.scss 的 AI 侧覆写,后者随 src/ai 一起没了),不是 AI 专用。
   //    spec D8 原写"AI 专用 theme token 整组删"是笔误,已按实测收窄为"theme.css 不动"。
   { path: 'src/components/AppToast.vue',
-    find: `  <!-- SP8-P2b 验收第 3 轮(2026-07-30):AI 区在前台时,给自己套上 AI 的 toast 作用域与
-       明暗。不这么做的话本组件读的是全局蓝黑主题的半透明白底 + 白字,画在 AI 浅色页面上
-       完全看不见(AI 区所有 toast 都收不到反馈)。根因与 token 取值见
-       src/ai/stores/aiTheme.ts 的 aiSurfaces 注释、样式在 tokens.scss 的 .ai-toast-scope。
-       不在 AI 区时两个绑定都不生效 —— 桌面/文件/应用区观感零变化(用户明确要求)。 -->
+    find: `  <!-- SP8-P2b acceptance round 3 (2026-07-30): while the AI area is in the foreground, wrap
+       ourselves in the AI toast scope and its light/dark theme. Without this, the component reads
+       the global blue-black theme's translucent white background + white text, which is completely
+       invisible on the AI light pages (no AI-area toast feedback ever reaches the user). Root cause
+       and token values: aiSurfaces comment in src/ai/stores/aiTheme.ts; styles in tokens.scss
+       .ai-toast-scope. Outside the AI area both bindings are inert — desktop/files/apps areas look
+       exactly the same (explicit user requirement). -->
   <transition-group
     name="toast" tag="div" class="toast-stack"
     :class="{ 'ai-toast-scope': aiTheme.aiSurfaceActive }"
@@ -2437,14 +2445,17 @@ function mountHome() {
   //    (它仍高于产出树里最高的 .sk-modal-bg = 1100,改小反而要重新论证,且下方
   //    AppToast.test.ts 末条守卫断言 > 10000);只把理由改写成不点名 AI 的版本。
   { path: 'src/components/AppToast.vue',
-    find: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
-   【SP8-P6-T3 合流】取 sp8 的 10100 而非 master 的 1100:AI 区随本次合流进入主干,
-   它的 SearchImageLightbox / SearchFileDrawer 坐在 10000、SearchFullResults 9999,
-   1100 会被它们压住。10100 是"高于全仓最高的 10000、且留出余量"的最小安全值。
-   本元素 pointer-events: none,置顶不会拦截任何点击。守卫见 AppToast.test.ts 末条。 */`,
-    replace: `   —— 用户以为按钮没响应,反复重试(2026-07-30 用户在「创建令牌」弹窗里点复制复现)。
-   取值 10100:留足余量,高于全仓任何浮层。本元素 pointer-events: none,置顶不会拦截
-   任何点击。守卫见 AppToast.test.ts 末条。 */`,
+    find: `   (reproduced 2026-07-30: user clicked copy in the "create token" dialog).
+   [SP8-P6-T3 merge] take sp8's 10100 rather than master's 1100: the AI area lands on trunk with
+   this merge, and its SearchImageLightbox / SearchFileDrawer sit at 10000, SearchFullResults 9999,
+   so 1100 would be buried under them. 10100 is the smallest safe value that is "above the repo's
+   highest 10000, with headroom".
+   This element has pointer-events: none, so being on top never intercepts clicks. Guard: last
+   test in AppToast.test.ts. */`,
+    replace: `   (reproduced 2026-07-30: user clicked copy in the "create token" dialog).
+   The value 10100 keeps plenty of headroom above every overlay in the repo.
+   This element has pointer-events: none, so being on top never intercepts clicks. Guard: last
+   test in AppToast.test.ts. */`,
   },
 
   // ── src/components/AppToast.test.ts:AI 作用域那 4 条用例 + import ──────────
@@ -2456,10 +2467,11 @@ function mountHome() {
     find: "import { useAiTheme } from '../ai/stores/aiTheme'\n", replace: '' },
   { path: 'src/components/AppToast.test.ts',
     find: `
-// 【SP8-P2b 验收第 3 轮,用户 2026-07-30 拍板】AI 区在前台时,提示条要跟随 AI 的明暗主题
-// (否则白底白字看不见,详见 aiTheme.test.ts 的说明)。离开 AI 区必须完全恢复原样 ——
-// 用户明确要求「桌面零影响」,所以「不在 AI 区时不带任何额外 class / data-theme」这条
-// 同样要钉住。
+// [SP8-P2b acceptance round 3, user decision 2026-07-30] While the AI area is in the foreground,
+// the toast must follow the AI light/dark theme (otherwise white-on-white is invisible, see the
+// notes in aiTheme.test.ts). Leaving the AI area must restore everything exactly — the user
+// explicitly required "zero impact on the desktop", so "no extra class / data-theme outside the
+// AI area" must be pinned as well.
 describe('AppToast —— AI 区 toast 作用域', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
@@ -2505,10 +2517,12 @@ describe('AppToast —— AI 区 toast 作用域', () => {
 `,
     replace: '' },
   { path: 'src/components/AppToast.test.ts',
-    find: `// \`1100\`,AI 区的 SearchImageLightbox/SearchFileDrawer 是 \`10000\`、SearchFullResults 是 \`9999\`
-// (全仓 grep 实测的最高层)。提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时`,
-    replace: `// \`1100\`,而全仓 grep 实测的最高浮层坐在 \`10000\`。
-// 提示条是**最顶层反馈**,必须盖在这些之上,否则任何弹窗打开时` },
+    find: `// scrim at \`sk-shared.scss:102\` is \`1100\`, and the AI area's SearchImageLightbox/SearchFileDrawer
+// are \`10000\`, SearchFullResults \`9999\` (the highest layers found by a repo-wide grep). The toast
+// is the **topmost feedback** and must cover all of these, otherwise the user gets no feedback`,
+    replace: `// scrim at \`sk-shared.scss:102\` is \`1100\`, while the highest overlay found by a repo-wide grep
+// sits at \`10000\`. The toast is the **topmost feedback** and must cover all of these,
+// otherwise the user gets no feedback` },
 
   // ── src/home/composables/useOpenAction.test.ts:T5 新加的 AI cutover 整块 ──
   //    上面 T13 / 修复波两节已有 11 条锚点打在本文件上(实测均未受本次合流影响,
@@ -2849,10 +2863,12 @@ describe('ai 分片前缀守卫', () => {
 
   //    ① AppToast.zIndex.test.ts:引用了两个已删测试文件当"先例"。守卫本身保留。
   { path: 'src/components/AppToast.zIndex.test.ts',
-    find: `// 空壳 —— 守卫会"绿"得毫无判别力。这正是 photosSlice.test.ts / knowledgeStyles.test.ts
-// 文件头记的同一个坑(「读盘一律 node:fs,\`?raw\` 恒空」),这里沿用它们的既定手法。`,
-    replace: `// 空壳 —— 守卫会"绿"得毫无判别力。本仓另有几处样式守卫踩过同一个坑,
-// 既定手法是「读盘一律 node:fs,\`?raw\` 恒空」,这里沿用。` },
+    find: `// with zero discriminating power. This is the same pit recorded at the top of photosSlice.test.ts /
+// knowledgeStyles.test.ts ("always read from disk via node:fs; \`?raw\` is always empty"), and we
+// follow their established approach here.`,
+    replace: `// with zero discriminating power. A few other style guards in this repo hit the same pit; the
+// established approach is "always read from disk via node:fs; \`?raw\` is always empty", and we
+// follow it here.` },
 
   //    ②③ clipboard.ts / clipboard.test.ts:reka 焦点陷阱那段根因说明里点名了
   //       复现路径所在的页面。根因与修法与那个页面无关(是 reka DialogContent 的

@@ -199,8 +199,10 @@ describe('类 3 · 桌面侧补丁', () => {
 
   it('复审修复:顶栏 ≤720px 注释不再提"搜索",且没有死 import', () => {
     const t = read('src/home/components/HomeTopbar.vue')
-    expect(t).not.toMatch(/搜索/)
-    expect(t).toContain('保留主题切换')
+    // 2026-08-14:私有侧这条注释已译成英文,断言跟着换成英文措辞(语义不变:
+    // 不能提搜索,只提主题切换)。
+    expect(t).not.toMatch(/搜索|search/i)
+    expect(t).toContain('keep the theme toggle')
     expect(t).not.toMatch(/onMounted|onUnmounted/)
   })
 

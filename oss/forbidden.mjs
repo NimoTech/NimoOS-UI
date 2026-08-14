@@ -100,7 +100,10 @@ export const SOFT = [
     allow: [
       { file: /src\/files\/util\/fileCategories\.ts$/, re: /APPLICATION_PHOTOSHOP/ },
       { file: /src\/files\/util\/icons\.ts$/, re: /folder-pictures|APPLICATION_PHOTOSHOP/ },
-      { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'|除 config\/download\/pictures\/photo\/media 外/ },
+      { file: /src\/apps\/util\/importNormalize\.ts$/, re: /'pictures',\s*'photo'/ },
+      // 2026-08-14:该文件头注释已在私有侧译成英文,原来那条中文备选不再命中。
+      // 整行精确匹配,不给整个文件开洞。
+      { file: /src\/apps\/util\/importNormalize\.ts$/, re: exactLine('* **Verbatim** includes casing: apart from config/download/pictures/photo/media, the original only') },
       // T14:importNormalize.test.ts —— 同一份 Vue2 逐字移植的关键字表(volumeAutoCheck)
       // 的测试用例,'photo'/'pictures' 是 Docker 容器路径关键字,不是相册 app。整行精确
       // 匹配(exactLine),不是给整个文件的 'photo' 开洞。
@@ -126,7 +129,12 @@ export const SOFT = [
       // 同一行文本重复出现 5 次(148/160/172/192/203),exactLine 天然覆盖每一处重复。
       { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine("props: { volumeUuid: 'u-data', mountPoint: '/DATA', relPath: 'Photos', folderLabel: '/磁盘/Photos' },") },
       { file: /src\/files\/snapshot\/TimeMachineOverlay\.test\.ts$/, re: exactLine('volume-uuid="u-data" mount-point="/DATA" rel-path="Photos" folder-label="/磁盘/Photos"') },
-      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// /Photos/2024 打开时间机器、进去后被扔回卷根还得一层层点回来。卡片展示的就是当前') },
+      // 2026-08-14:私有侧把这条注释译成了英文,原中文整行不再命中。同样是"举例用的
+      // 普通文件夹名 /Photos/2024",不是相册 app。
+      { file: /src\/files\/snapshot\/TimeMachineOverlay\.vue$/, re: exactLine('// the snapshot root — a user opening Time Machine at /Photos/2024 got dumped back at the') },
+      // ImageViewer.vue:平铺缩放时的白色接缝说明,"the photo"是被查看的图片本身
+      // (图片预览器是保留面),与相册 app 无关。
+      { file: /src\/files\/viewers\/ImageViewer\.vue$/, re: exactLine('stretches stale tiles without repainting, and tile seams show as white hairline grids over the photo') },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/Photos'") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("files.currentPath = '/DATA/.snapshots/snap1/Photos'") },
       { file: /src\/files\/stores\/snapshotBrowse\.test\.ts$/, re: exactLine("expect(s.browseInfo).toEqual({ mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos' })") },
@@ -305,7 +313,12 @@ export const SOFT = [
       // 问题)。收紧为整行精确匹配:StorePage.vue 是应用商店的分类/作者/关键字过滤器
       // (spec §3.1 三个深链参数之一),与被删除的 NimoOS-Search 服务/SearchDialog.vue
       // 无关,9 处全部逐字摘自源码。
-      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 深链三参(spec §3.1):?category= / ?author= / ?search=,单一事实源=路由 query') },
+      // 2026-08-14:StorePage.vue 的四条中文注释已在私有侧译成英文,原中文整行不再命中。
+      // 说明的仍是应用商店自己的关键字过滤器(保留面),与被剥离的 NimoOS-Search 无关。
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Three deep-link params (spec §3.1): ?category= / ?author= / ?search=; single source of truth = route query') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Search input: write query after 250ms debounce (same as Vue2); external query changes (back navigation) flow back into the input') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// Category/author are backend parameters: refetch on query change; search is frontend-only, no refetch') },
+      { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// The featured strip only shows in the unfiltered, unsearched first-screen context -- when filtering/searching, the list is the answer the user wants and the strip is noise') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine("const search = computed(() => (typeof route.query.search === 'string' && route.query.search) || '')") },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('const searchInput = ref(search.value)') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('watch(searchInput, (v) => {') },
@@ -347,6 +360,10 @@ export const SOFT = [
       // 既有写法参考),不依赖被剥离的 NimoOS-Search 服务或 SearchDialog.vue 本身的
       // 任何功能。已用 oss/export.mjs 实测确认这条命中,逐行精确匹配登记。
       { file: /src\/components\/WallpaperDialog\.vue$/, re: exactLine('// wallpaper this dialog previews. Following SearchDialog.vue instead --') },
+      // 2026-08-14(bug.txt #2 改名长度校验):注释里的 "search result" 指文件区列表里
+      // 由搜索结果驱动的重命名(文件区自身的结果列表,保留面),与 NimoOS-Search 服务无关。
+      { file: /src\/files\/composables\/useFileOps\.ts$/, re: exactLine('// the rename is driven from a search result or the sidebar. Without this the') },
+      { file: /src\/files\/composables\/useFileOps\.test\.ts$/, re: exactLine('// two differ whenever the rename is driven from a search result or the') },
     ],
   },
   { word: 'speaker', re: /speaker/i, allow: [] },   // 拆完应零命中,留着当哨兵
