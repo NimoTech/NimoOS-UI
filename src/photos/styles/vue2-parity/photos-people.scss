@@ -772,8 +772,808 @@
 .merge-banner .title { font-size: 13px; }
 .person-month-head .title { font-size: 16px; }
 .map-card .legend .title { font-size: 12.5px; }
+
+/* ===== Person Detail — dialogs, selection bar, avatar fallback =====
+   Transcribed from Vue2 PhotosPersonDetail.vue's own <style lang="scss" scoped>
+   block (::v-deep stripped) — NimoOS-UI/src/views/Photos/PhotosPersonDetail.vue
+   ~1092-1692. Vue2's own var(--surface-1/2, --line, --text-1/2/3, --accent*,
+   --danger, --pop-bg, --ink, --r-md/--r-sm, --font-sans/--font-display) already
+   match this parity file's private token names 1:1 — no swaps needed. No
+   `.is-light` branch exists inside this scoped block (checked; nothing to
+   transcribe for that). */
+
+/* -- relation/edit menu trigger family (PhotosPersonDetail.vue:1169-1241) -- */
+.detail-hero .name .relation-picker { position: relative; display: inline-flex; align-items: center; }
+.detail-hero .name .edit-btn {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .relation-trigger {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .detail-select-btn {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .edit-btn:hover,
+.detail-hero .name .relation-trigger:hover,
+.detail-hero .name .detail-select-btn:hover {
+  color: var(--text-1);
+  border-color: var(--line-strong);
+  background: var(--float-bg-hover);
+}
+.detail-hero .name .relation-menu {
+  position: fixed;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-hero .name .relation-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.detail-hero .name .relation-option:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+.detail-hero .name .relation-option[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+.detail-hero .name .edit-menu .relation-option { width: 100%; }
+.detail-hero .name .edit-menu-label {
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.detail-hero .name .edit-menu-danger { color: var(--danger, #FF3860); }
+.detail-hero .name .edit-menu-danger:hover {
+  background: rgba(255, 56, 96, 0.1);
+  color: var(--danger, #FF3860);
 }
 
+/* -- selection bar (PhotosPersonDetail.vue:1339-1391, 1550-1559) -- */
+.selection-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--pop-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px) saturate(180%);
+  min-width: 360px;
+}
+.selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.selection-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-1);
+  background: rgba(var(--ink), 0.06);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, filter 0.15s;
+}
+.selection-btn:hover {
+  background: rgba(var(--ink), 0.12);
+  border-color: var(--line-strong);
+}
+.selection-btn-danger {
+  background: var(--danger, #FF3860);
+  border-color: transparent;
+  color: white;
+  font-weight: 600;
+}
+.selection-btn-danger:hover {
+  filter: brightness(1.08);
+  background: var(--danger, #FF3860);
+  border-color: transparent;
+}
+.selection-btn-star {
+  background: rgba(255, 214, 10, 0.12);
+  border-color: rgba(255, 214, 10, 0.3);
+  color: #FFD60A;
+  font-weight: 600;
+}
+.selection-btn-star:hover {
+  background: rgba(255, 214, 10, 0.2);
+  border-color: rgba(255, 214, 10, 0.5);
+}
+
+/* -- person dialog: name / merge / delete / hero-picker (PhotosPersonDetail.vue:1393-1511, 1561-1620) -- */
+.person-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.person-dialog {
+  width: 460px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.person-dialog-wide { width: 560px; }
+.person-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.person-dialog-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--accent-soft);
+  background: var(--surface-2);
+}
+.person-dialog-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.person-dialog-titles { flex: 1; min-width: 0; }
+.person-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.person-dialog-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+.person-dialog-label {
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-bottom: -6px;
+}
+.person-dialog-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.person-dialog-input:focus {
+  border-color: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.person-dialog-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+.person-dialog-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.person-dialog-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.person-dialog-btn-primary {
+  flex: 1.4;
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.person-dialog-btn-primary:hover {
+  background: var(--accent-hi);
+  border-color: transparent;
+}
+.person-dialog-btn-primary:disabled {
+  background: var(--accent-glow);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.person-dialog-btn-ghost {
+  color: var(--text-2);
+  background: transparent;
+  border-color: var(--line);
+}
+.person-dialog-btn-ghost:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+
+.hero-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  border-radius: 10px;
+  padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.hero-picker-grid::-webkit-scrollbar { width: 6px; }
+.hero-picker-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 6px; }
+.hero-picker-grid::-webkit-scrollbar-track { background: transparent; }
+.hero-picker-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+.hero-picker-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-picker-tile[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.hero-picker-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* -- merge candidates list, PersonDetail's own "merge into" flow (PhotosPersonDetail.vue:1625-1675) -- */
+.merge-candidates-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.merge-candidates-list::-webkit-scrollbar { width: 6px; }
+.merge-candidates-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 6px; }
+.merge-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.merge-candidate-row:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.merge-candidate-row[data-selected="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+}
+.merge-candidate-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6E5BFF, #4A3BD1);
+}
+.merge-candidate-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.merge-candidate-info { flex: 1; min-width: 0; }
+.merge-candidate-name { font-weight: 500; color: var(--text-1); }
+.merge-candidate-meta { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* -- avatar fallback + hero fallback mode (PhotosPersonDetail.vue:1512-1548) -- */
+.avatar-fallback-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #6E5BFF, #4A3BD1);
+  border-radius: inherit;
+}
+.avatar-initial {
+  color: #fff;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1;
+  font-family: var(--font-display);
+  user-select: none;
+}
+.detail-hero .avatar .avatar-fallback-wrap {
+  border-radius: 50%;
+}
+.detail-hero[data-fallback="true"] .bg {
+  background: linear-gradient(135deg, #6E5BFF 0%, #4A3BD1 100%);
+}
+.detail-hero[data-fallback="true"] .bg::after {
+  display: none;
+}
+.detail-hero[data-fallback="true"] .name,
+.detail-hero[data-fallback="true"] .stat .v,
+.detail-hero[data-fallback="true"] .stat .k {
+  color: #fff;
+  text-shadow: none;
+}
+
+/* -- loading / not-found / error fallback (PhotosPersonDetail.vue:1678-1691) -- */
+.person-detail-fallback {
+  padding: 24px;
+  .fallback-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    .t { font-size: 15px; font-weight: 600; }
+    .d { font-size: 12.5px; color: var(--text-3); }
+    .btn { margin-top: 8px; }
+  }
+}
+
+/* ===== People index — cluster action menu / three-state dialog / merge
+   review overlay. Vue2 PhotosPeopleView.vue has no classed CSS for these —
+   they are built from `:style` bindings (clusterMenu ~:255-288, clusterDialog
+   ~:291-445, merge review overlay ~:447-518). Values below are transcribed
+   from those inline bindings; class names follow New-UI's already-
+   established naming (src/views/PhotosPeople.vue,
+   src/photos/components/ClusterActionDialog.vue,
+   src/photos/components/MergeReviewDialog.vue) since Vue2 has none to anchor
+   to. z-index is normalized to this file's own stacking map rather than
+   Vue2's local per-component numbers: scrims/overlays = 200, fixed menus =
+   260 (this file already uses 150/200/300 elsewhere for the same roles). -- */
+.cluster-menu {
+  position: fixed;
+  transform: translateX(-50%);
+  min-width: 200px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  z-index: 260;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+.cluster-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+/* Vue2's inline-styled menu buttons carry no :hover of their own; borrow the
+   hover convention already established above for .relation-option. */
+.cluster-menu-item:hover { background: var(--surface-3); }
+.cluster-menu-item svg { flex: none; color: var(--accent-hi); }
+.cluster-menu-item span { flex: 1; }
+.cluster-menu-item.is-danger { color: #FF6B5C; }
+.cluster-menu-item.is-danger svg { color: #FF6B5C; }
+
+.cad-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.cad-panel {
+  width: 440px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+.cad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.cad-avatar-ring {
+  width: 48px; height: 48px; box-sizing: border-box; flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft);
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.cad-head-text { flex: 1; min-width: 0; }
+.cad-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.cad-subtitle { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.cad-close, .mrd-close {
+  flex: none;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.cad-close:hover, .mrd-close:hover { background: var(--surface-3); color: var(--text-1); }
+
+.cad-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  margin-bottom: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+.cad-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.cad-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 8px 0 16px;
+}
+.cad-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.cad-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cad-btn:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-btn-primary {
+  flex: 1.4;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.cad-btn-primary:hover { background: var(--accent-hi); }
+.cad-btn-primary:disabled {
+  background: var(--accent-glow);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.cad-btn-danger {
+  flex: 1.4;
+  background: #FF6B5C;
+  border: 0;
+  color: white;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(255, 107, 92, 0.35);
+}
+.cad-btn-danger:hover { filter: brightness(1.08); }
+
+.cad-candidates {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.cad-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.cad-candidate:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-candidate-info { flex: 1; min-width: 0; }
+.cad-candidate-name { font-weight: 500; }
+.cad-candidate-count { font-size: 11px; color: var(--text-3); }
+.cad-candidate-chev { color: var(--text-3); }
+.cad-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.cad-warning {
+  padding: 14px;
+  background: rgba(255, 107, 92, 0.08);
+  border: 1px solid rgba(255, 107, 92, 0.25);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+.cad-warning-body { color: var(--text-3); font-size: 11.5px; }
+
+.mrd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.mrd-panel {
+  width: 560px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.mrd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+/* Vue2 fakes the logo as a background-image span; New-UI renders a real
+   <img>, so this is only its pre-load placeholder fill, not a value with a
+   literal Vue2 counterpart. */
+.mrd-logo {
+  width: 40px; height: 40px; flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--accent-soft);
+}
+.mrd-head-text { flex: 1; min-width: 0; }
+.mrd-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.mrd-confidence { font-size: 11.5px; color: var(--text-3); }
+.mrd-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.mrd-side { text-align: center; }
+.mrd-side-label { margin-top: 8px; font-size: 12px; color: var(--text-2); }
+.mrd-reason {
+  padding: 12px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-1);
+  margin-bottom: 16px;
+}
+.mrd-reason-lead { color: var(--accent-hi); }
+.mrd-actions { display: flex; gap: 8px; }
+/* .mrd-btn / .mrd-btn-primary reuse Vue2's own shared .btn / .btn-primary
+   values (see .photos-root .btn in photos.scss) — Vue2's accept/reject
+   buttons are literally class="btn" / class="btn btn-primary" plus an
+   inline flex:1. */
+.mrd-btn {
+  flex: 1;
+  height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mrd-btn:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.mrd-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mrd-btn-primary:hover { background: var(--accent-hi); }
+
+/* ===== People index — furniture with no Vue2 pixel source. Ported from
+   New-UI's own src/views/PhotosPeople.vue scoped block (lines ~707-917)
+   as-is; only the global New-UI theme tokens are swapped for this file's
+   private tokens (--fg→--text-1, --fg-muted→--text-2/3, --divider→--line,
+   --hover→--surface-3, --fg-faint→--text-4, --accent-text→--accent-hi,
+   --on-accent→#fff — matching this file's own established use of literal
+   white text on solid accent fills). ===== */
+.people-pop-wrap { position: relative; }
+.people-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.people-menu-conf { min-width: 200px; padding: 8px; }
+.people-menu-head {
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 6px 8px;
+}
+.people-menu-sort { min-width: 220px; padding: 4px; }
+.people-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.people-menu-item.is-stacked { align-items: flex-start; padding: 8px 10px; }
+.people-menu-item:hover { background: var(--surface-3); }
+.people-menu-item[data-active="true"] { background: var(--accent-soft); }
+.people-menu-item .check { width: 12px; flex: none; color: var(--accent-hi); }
+.people-menu-item .lbl { flex: 1; }
+.people-menu-item .tail { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.people-menu-item .stack-text { flex: 1; display: flex; flex-direction: column; }
+.people-menu-item .stack-text .lbl { font-weight: 500; }
+.people-menu-item .stack-text .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+.people-icon-btn {
+  width: 28px; height: 28px; flex: none;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.people-icon-btn:hover { background: var(--surface-3); color: var(--text-1); }
+
+.people-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.people-btn-primary:hover { background: var(--accent-hi); }
+
+/* New-UI's actual markup uses a flat `.people-sub` (not nested under
+   `.people-banner` like the already-transcribed rule above), so that rule
+   never matches it — same values, standalone selector. */
+.people-sub { color: var(--text-3); font-size: 12.5px; margin-top: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.people-sub .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--text-4); flex: none; }
+
+/* New-UI addition: loading skeleton, no Vue2 source */
+.person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
+.person-skeleton-hero { height: 280px; border-radius: 20px; background: var(--surface-2); }
+.person-skeleton-tabs { height: 42px; border-radius: 10px; background: var(--surface-2); }
+.person-skeleton-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.person-skeleton-tile { aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); }
+@media (max-width: 768px) {
+  .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Vue2 photos-people.scss:777-786 defines this OUTSIDE its own
+   `.photos-root{}` wrapper — a bare top-level selector. Per the Plan A
+   precedent, parity must never reproduce a root-external bare selector, so
+   it is folded in here instead (values unchanged from Vue2). */
 .relation-select {
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -783,4 +1583,5 @@
   font-size: 12px;
   padding: 4px 8px;
   cursor: pointer;
+}
 }
