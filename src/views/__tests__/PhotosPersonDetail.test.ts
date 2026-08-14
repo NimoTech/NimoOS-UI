@@ -231,6 +231,33 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
   })
 })
 
+// Plan D Task 3(换壳 + 弹层归位):壳换成 PhotosPeople.vue/PhotosAlbums.vue 同款
+// `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main`;所有弹层
+// (选择态浮动条 / 七个 .pd-scrim 弹窗 / AlbumPickerDialog)搬进 .photos-root 内,唯独
+// PhotoLightbox 仍是 .photos-root 的兄弟(Plan F 前铁律,见文件模板处的注释)。
+describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', () => {
+  it('mounts .app shell; topbar shows person name with Unnamed fallback and back', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('title')).toBe(zh.photosPersonUnnamedTitle)
+    expect(topbar.props('sub')).toBe(zh.photosPersonSubtitle)
+    expect(topbar.props('back')).toBe(true)
+    expect(w.find('.photos-root > .app').exists()).toBe(true)
+  })
+
+  it('renders selection bar and person dialogs inside .photos-root, lightbox outside', async () => {
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
+    // PhotoLightbox 仍是 .photos-root 的兄弟(Plan F 前铁律)
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(false)
+  })
+})
+
 describe('PhotosPersonDetail.vue —— 路由参数铁律', () => {
   it('personId 走 String(route.params.id):数字后端 id / 字符串路由参数交叉一致', async () => {
     await mountView(7)

@@ -371,11 +371,14 @@ export default {
   // 两句在 Vue2 里字面不同,但语义都是"已合并到 X",同 mergeReason/PersonAvatar 的既有
   // 统一惯例(把 Vue2 里重复的同义文案收成一份),已在任务报告里登记这条不是疏漏。
   photosPersonMergeDismissedToast: '已忽略该合并建议',
-  // 终审 Minor 8:此处原有 photosPersonSubtitle(「人物详情 · 面孔与关系」)已删 —— 全仓零引用。
-  // 它对应 Vue2 PhotosPeopleTopbar.vue:36 在 detail 态的顶栏副标题,而本仓**整条顶栏都没有移植**
-  // (AreaShell 只有 title,桌面态还整条隐藏);同一顶栏 index 态的副标题(`Face clusters · …`)
-  // 在本仓同样没有键。注意别把它和 photosPeopleNamed / photosPeopleUnnamedClusters 弄混 —— 那两条
-  // 来自 Vue2 的**横幅**(PhotosPeopleView.vue:7-9),已落地在 .people-sub。要恢复请先补顶栏。
+  // Plan D Task 3:photosPersonSubtitle(「人物详情 · 面孔与关系」)复活。终审 Minor 8(更早的
+  // P5 期)删过它,理由是当时详情页顶栏还是 AreaShell(只有 title,桌面态整条隐藏),
+  // Vue2 PhotosPeopleTopbar.vue:36 的 detail 态副标题没有容身之处。Task 3 把
+  // PhotosPersonDetail.vue 换壳到 PhotosTopbar(title/sub/back props),正是那个 detail 态
+  // 槽位,这个键现在真的用得上了。别跟 photosPeopleNamed / photosPeopleUnnamedClusters 弄混 ——
+  // 那两条来自 Vue2 的**横幅**(PhotosPeopleView.vue:7-9),落地在 People 列表页的 .people-sub,
+  // 与这里的顶栏副标题无关。
+  photosPersonSubtitle: '人物详情 · 面孔与关系',
   photosPersonTabTimeline: '时间线',
   photosPersonTabPlaces: '地点',
   photosPersonTabRelations: '关系',

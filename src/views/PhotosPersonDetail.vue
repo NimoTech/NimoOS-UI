@@ -91,9 +91,10 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import PersonHero from '../photos/components/PersonHero.vue'
 import PersonAssetGrid from '../photos/components/PersonAssetGrid.vue'
@@ -115,6 +116,9 @@ type Tab = 'timeline' | 'places' | 'relations'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Plan D Task 3(换壳):同 T2(PhotosPeople.vue)/Plan C Task 2(PhotosAlbums.vue)的共享
+// composable —— 折叠态是跨 Photos 区所有页面的单例,不在这里另起一份。
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const people = usePhotosPeople()
@@ -180,6 +184,13 @@ const placeGroups = computed(() => groupPlaces(detail.places.value, t('photosPer
 const allPhotos = computed<Photo[]>(() => detail.flatPhotos())
 // Vue2 :165-166,:241,:887 共用的兜底:名字为空时用"这个人"。
 const displayName = computed(() => detail.person.value?.name || t('photosPersonThisPerson'))
+
+// Plan D Task 3(换壳):PhotosTopbar 的 detail 态口径,逐字对照 Vue2
+// PhotosPeopleTopbar.vue:7-8/36(`view === 'detail'` 分支)—— 标题=人物名,空名兜底
+// $t('Unnamed person')(与 PersonHero.vue:90 的 heroTitle 同一兜底键,不另开一个);
+// 副行=固定文案「人物详情 · 面孔与关系」,不随 named/unnamed 计数变化(那是 index 态的口径,
+// 归 T2/PhotosPeople.vue 的 topbarSub)。
+const topbarTitle = computed(() => detail.person.value?.name || t('photosPersonUnnamedTitle'))
 
 // 合并候选(偏离登记 J):named 排除自身 → count 降序、同 count 按 name 升序(排序同 T7
 // ClusterActionDialog.vue:85-92)→ 搜索过滤 → **不截断**(照 Vue2 详情页 :515-520;
@@ -582,12 +593,24 @@ watch(() => route.params.id, (raw) => {
 </script>
 
 <template>
-  <!-- 未命名人物的 name 是空串 —— 用 `||` 而不是三元,否则顶栏标题会是空白(照 T12 的
-       displayName 同款兜底思路,但这里的兜底是区名而不是"这个人")。 -->
-  <AreaShell :title="detail.person.value?.name || t('photosPeople')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <!-- Plan D Task 3(换壳):同 T2(PhotosPeople.vue)/PhotosAlbums.vue:353-367 的既定结构 ——
+       .photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main >
+       PhotosTopbar + .photos-main。四态门控整体挪进 .photos-main,吃 parity 的
+       .person-detail-fallback / .person-skeleton* 规则(挂在 .photos-main 的锚点上)。 -->
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="t('photosPersonSubtitle')"
+          :show-search="false"
+          back
+          @toggle-collapse="onToggleCollapse"
+          @back="goToPeopleList"
+        />
+       <div class="photos-main">
         <!-- 门控 ①:还在加载且还没有数据 → 骨架 -->
         <div v-if="detail.loading.value && !detail.person.value" class="person-skeleton" data-test="person-skeleton">
           <div class="person-skeleton-hero" />
@@ -709,13 +732,16 @@ watch(() => route.params.id, (raw) => {
             />
           </div>
         </template>
+       </div>
       </main>
     </div>
-  </AreaShell>
 
-  <!-- 选择态浮动条(Vue2 :232-244)。放在 AreaShell 之外:position:fixed,避免被祖先的
-       transform/overflow 裁剪(同 PhotosPeople.vue:624 的既有先例)。 -->
-  <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
+    <!-- Plan D Task 3(弹层归位):选择态浮动条(Vue2 :232-244)与下面的七个弹窗、
+         AlbumPickerDialog 一并搬进 .photos-root 内(.app 的兄弟位)—— parity 的
+         `.photos-root .selection-bar` / `.photos-root .pd-scrim` 等选择器都是后代选择器,
+         挂在模板根的兄弟节点上够不到(同 PhotosPeople.vue Task 2 注释的同一条道理)。
+         position:fixed 意味着挪进这里不会被 .app 的 overflow:hidden 裁剪。 -->
+    <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
     <div class="selection-count">{{ t('photosSelectedCount', { count: selectedIds.length }) }}</div>
     <div class="selection-spacer" />
     <button
@@ -992,27 +1018,29 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
+  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
+  </div>
+
+  <!-- Plan D Task 3(标准做法沿用):PhotoLightbox 依旧是 .photos-root 的**兄弟**,不挪进去
+       —— 这是 Plan F 落地前的既定铁律(同 PhotosAlbumDetail.vue / PhotosPeople.vue 的
+       PhotoLightbox 接线先例)。灯箱自身是 fixed 全屏遮罩,挪进 .photos-root 会被
+       `.app` 的 overflow:hidden 裁剪;等 Plan F 统一处理灯箱定位时再一并搬,不在本任务
+       越权处理。 -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
-  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan D Task 3(换壳)shadowing cleanup: the transitional `.sidebar` width pin and the
+   flex-row `.photos-layout` rule (Fix round 1's stopgap, back when this page's root only wore
+   `.photos-root` without its own `.app` grid) are both dead now — the real `.app` CSS Grid
+   this task gave the page supplies the sidebar's column width directly, same as
+   PhotosPeople.vue/PhotosAlbums.vue's own re-skin. `.photos-main` stays: no parity selector
+   exists by that name (it's this page's own scroll-region scaffolding), same as those two
+   pages' own local copy. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 .empty-state {
@@ -1229,7 +1257,6 @@ watch(() => route.params.id, (raw) => {
 .merge-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12.5px; }
 
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
   .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
 }
 </style>

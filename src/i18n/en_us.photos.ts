@@ -359,12 +359,15 @@ export default {
   // (Vue2 has two literally-different but semantically-identical toasts here); flagged in the
   // task report as an intentional consolidation, not an oversight.
   photosPersonMergeDismissedToast: 'Suggestion dismissed',
-  // Final-review Minor 8: photosPersonSubtitle ('Person details · faces & relationships') was
-  // removed — zero references repo-wide. It belongs to Vue2 PhotosPeopleTopbar.vue:36 (detail
-  // state), and that whole topbar is not ported here (AreaShell has only a title, hidden on
-  // desktop); the index-state subtitle of the same topbar has no key here either. Do not confuse
-  // it with photosPeopleNamed / photosPeopleUnnamedClusters — those come from Vue2's *banner*
-  // (PhotosPeopleView.vue:7-9) and are rendered in .people-sub.
+  // Plan D Task 3: photosPersonSubtitle ('Person details · faces & relationships') is back.
+  // Final-review Minor 8 (earlier P5) deleted this because the detail page's topbar was still
+  // AreaShell (title-only, hidden on desktop) — Vue2 PhotosPeopleTopbar.vue:36's detail-state
+  // subtitle had nowhere to render. Task 3 re-shells PhotosPersonDetail.vue onto PhotosTopbar
+  // (title/sub/back props), which is exactly that detail-state slot, so the key is genuinely
+  // needed again now. Do not confuse it with photosPeopleNamed / photosPeopleUnnamedClusters —
+  // those come from Vue2's *banner* (PhotosPeopleView.vue:7-9) and are rendered in .people-sub
+  // on the People index page, unrelated to this topbar subtitle.
+  photosPersonSubtitle: 'Person details · faces & relationships',
   photosPersonTabTimeline: 'Timeline',
   photosPersonTabPlaces: 'Places',
   photosPersonTabRelations: 'Relationships',
