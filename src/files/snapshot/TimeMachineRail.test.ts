@@ -36,48 +36,48 @@ beforeEach(() => {
 })
 
 describe('TimeMachineRail', () => {
-  it('每个快照一条主刻度,带可读的 aria-label', () => {
+  it('one major tick per snapshot, with readable aria-label', () => {
     const mains = mountIt().findAll('.tm-tick-main')
     expect(mains).toHaveLength(3)
     expect(mains[0].attributes('aria-label')).toContain('14:30')
   })
-  it('主刻度之间插装饰子刻度,子刻度不是按钮', () => {
+  it('insert decorative minor ticks between major ticks, minor ticks are not buttons', () => {
     const w = mountIt()
     expect(w.findAll('.tm-tick-sub').length).toBeGreaterThan(0)
     expect(w.find('.tm-tick-sub').element.tagName).not.toBe('BUTTON')
   })
-  it('每天一个日期标题', () => {
+  it('one date header per day', () => {
     expect(mountIt().findAll('.tm-rail-day').map((d) => d.text())).toEqual(['今天', '昨天'])
   })
-  it('选中那条带 is-selected', () => {
+  it('selected tick has is-selected class', () => {
     const w = mountIt({ selectedIndex: 1 })
     const sel = w.findAll('.tm-tick-main').filter((t) => t.classes().includes('is-selected'))
     expect(sel).toHaveLength(1)
     expect(sel[0].attributes('aria-label')).toContain('09:00')
   })
-  it('类型着色 class', () => {
+  it('type coloring class', () => {
     const mains = mountIt().findAll('.tm-tick-main')
     expect(mains[0].classes()).toContain('type-manual')
     expect(mains[2].classes()).toContain('type-preop')
   })
-  it('点主刻度 emit select(只换选中,不进入)', async () => {
+  it('clicking major tick emits select (only changes selection, does not enter)', async () => {
     const w = mountIt()
     await w.findAll('.tm-tick-main')[2].trigger('click')
     expect(w.emitted('select')?.[0]?.[0]).toBe(2)
   })
-  it('点子刻度吸附到它所属的主刻度', async () => {
+  it('clicking minor tick snaps to its parent major tick', async () => {
     const w = mountIt()
     await w.find('.tm-tick-sub').trigger('click')
     expect(w.emitted('select')?.[0]?.[0]).toBe(0)
   })
-  it('悬停主刻度时浮出时间标签,移开消失', async () => {
+  it('hovering major tick shows time label, moving away hides it', async () => {
     const w = mountIt()
     await w.findAll('.tm-tick-main')[1].trigger('mouseenter')
     expect(w.find('.tm-tick-label').text()).toBe('09:00')
     await w.find('.tm-rail').trigger('mouseleave')
     expect(w.find('.tm-tick-label').exists()).toBe(false)
   })
-  it('鼠标移动时给刻度算出缩放(离光标越近越大)', async () => {
+  it('on mouse move, compute scale for ticks (closer to cursor, larger)', async () => {
     const w = mountIt()
     // In jsdom getBoundingClientRect is always 0; this only asserts a transform was written
     // after mousemove. The curve itself is covered by timeMachineMath.test.ts (real numeric
@@ -86,13 +86,13 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     expect(w.findAll('.tm-tick-main')[0].attributes('style')).toContain('scaleX')
   })
-  it('移开后缩放复位', async () => {
+  it('scale resets after mouse leaves', async () => {
     const w = mountIt()
     await w.find('.tm-rail').trigger('mousemove', { clientY: 120 })
     await w.find('.tm-rail').trigger('mouseleave')
     expect(w.findAll('.tm-tick-main')[0].attributes('style') ?? '').not.toContain('scaleX(2')
   })
-  it('空分组渲染空刻度尺,不报错', () => {
+  it('empty groups render empty ruler, no error', () => {
     expect(mountIt({ groups: [] }).findAll('.tm-tick-main')).toHaveLength(0)
   })
 
@@ -107,7 +107,7 @@ describe('TimeMachineRail', () => {
   // default rect) — that shared key was itself the real bug review caught; the component now
   // uses data-anchor-index for sub-ticks (no more key collision), so mocking the main ticks
   // alone is enough, no need to accommodate that bug anymore.
-  it('（非空壳强化)不同刻度到光标的真实距离不同时,缩放值也应不同且近的更大', async () => {
+  it('(non-hollow strengthening) when real distances from ticks to cursor differ, scales should differ and closer should be larger', async () => {
     const w = mountIt()
     const mains = w.findAll('.tm-tick-main')
     ;(mains[0].element as HTMLElement).getBoundingClientRect = () => fakeRect(100)
@@ -131,7 +131,7 @@ describe('TimeMachineRail', () => {
   // away (well beyond radius=70, should get minScale=1). If updateScales() again writes
   // sub-tick values into the same map key in DOM order ("later overwrites earlier"), this
   // reads close to 1 instead of close to 2.2 and the assertion fails.
-  it('主刻度的缩放由主刻度自身中心算出,不会被同 anchor 的子刻度覆盖', async () => {
+  it('major tick scale is computed from major tick center, not overwritten by sub-ticks at same anchor', async () => {
     const w = mountIt()
     const main0 = w.findAll('.tm-tick-main')[0].element as HTMLElement
     main0.getBoundingClientRect = () => fakeRect(100) // cursor at 105, distance ~5px, should be near peak
@@ -151,7 +151,7 @@ describe('TimeMachineRail', () => {
   // frame on unmount). The default beforeEach rAF stub runs the callback synchronously, which
   // cannot detect "multiple mousemoves within one frame schedule only one recompute" — swap in
   // a manually-controlled stub (no auto invoke) so the throttling itself is observable.
-  it('（补测约束#4)一帧内连续多次 mousemove 只请求一次 rAF', async () => {
+  it('(added coverage for constraint #4) multiple mousemoves in one frame request rAF only once', async () => {
     const raf = vi.fn(() => 1)
     vi.stubGlobal('requestAnimationFrame', raf)
     vi.stubGlobal('cancelAnimationFrame', vi.fn())
@@ -161,7 +161,7 @@ describe('TimeMachineRail', () => {
     await w.find('.tm-rail').trigger('mousemove', { clientY: 30 })
     expect(raf).toHaveBeenCalledTimes(1)
   })
-  it('（补测约束#4)组件卸载时取消挂起的 rAF', async () => {
+  it('(added coverage for constraint #4) cancel pending rAF on component unmount', async () => {
     const caf = vi.fn()
     vi.stubGlobal('requestAnimationFrame', vi.fn(() => 77))
     vi.stubGlobal('cancelAnimationFrame', caf)

@@ -29,7 +29,7 @@ const glyphSvg = computed(() => meta.value?.glyph ? `<svg class="icon" viewBox="
 function onClick() {
   if (dock.justDragged.value) return // suppress post-drag click
   openApp(props.appKey)
-  if (dock.expanded.value) dock.toggleExpanded() // 展开态点开应用后自动收起
+  if (dock.expanded.value) dock.toggleExpanded() // Auto-collapse dock after clicking an app while expanded
 }
 </script>
 <!-- .dock-app / .dock-ic / .dock-label styles live in global theme.css so the

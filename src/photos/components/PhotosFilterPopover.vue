@@ -1,28 +1,33 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元(D14 两个基元之一)。
-// 结构对应 Vue2 PhotosSearchView.vue:124-147 的 list popover。与 PhotosFilterBar.vue:25-63
-// 逐字比对(完整结论详见 task-12-report.md,fix round 1 · M9 已改正措辞——此前写"唯一
-// 实质差异",不准确):真实数值差异有两处——① 滚动容器 max-height:搜索侧 280px、
-// FilterBar 侧 260px,以搜索侧为准,本组件写死 280(260 的差异登记交给 P7b/T16 决定要不
-// 要开 prop);② `.fpop` 内联宽度:搜索侧 260、FilterBar 侧 240——这一处已经由本组件的
-// `width` prop 吸收(brief 接口段本就给了这两个数),不构成功能差异,只是不该被"唯一"
-// 这个词盖过去。其余表面不同(空态文案来源两条硬编码 vs 单一来源、type 专属的 $t(it)
-// 转换 vs 直传、cancelPop 参数)在 New-UI 接口层已经用 emptyHint / labelFor 两个 prop
-// 统一抹平,不属于结构差异。
+// SP7-P7a-T12: PhotosFilterPopover.vue — list-type filter popover primitive (one of two primitives
+// in D14). Structure corresponds to Vue2 PhotosSearchView.vue:124-147 list popover. Character-by-
+// character comparison with PhotosFilterBar.vue:25-63 (full conclusion in task-12-report.md,
+// fix round 1 · M9 corrected wording — previously said "only structural difference", inaccurate):
+// actual numeric differences in two places — ① scroll container max-height: search side 280px,
+// FilterBar side 260px; using search side as reference, this component hard-codes 280 (260
+// difference delegated to P7b/T16 to decide whether to open prop); ② `.fpop` inline width:
+// search side 260, FilterBar side 240 — already absorbed by this component's `width` prop
+// (brief interface section already provided both numbers), does not constitute functional
+// difference, just should not be covered by the word "only". Remaining surface differences (empty
+// state message source two hardcodes vs single source, type-specific $t(it) transform vs direct
+// pass, cancelPop parameter) already unified at New-UI interface layer with emptyHint / labelFor
+// two props, not structural differences.
 //
-// props.selected 不许就地改——toggle() 一律 emit 新数组(照搬 Vue2 toggleDraftItem
-// :741-747 的不可变写法,immer 式 `{ ...draft, [key]: ... }`,这里数组版是
-// filter/展开字面量),测试钉住"传入数组的引用内容不被 push/splice"。
+// props.selected must not be modified in-place — toggle() always emits a new array (copy Vue2's
+// toggleDraftItem :741-747 immutable pattern, immer-style `{ ...draft, [key]: ... }`; array
+// version here is filter/spread literal), test pins down "incoming array reference content not
+// mutated by push/splice".
 //
-// search 每次弹层打开清空的等价性登记:Vue2 togglePop()(:783-793)里显式
-// `this.popSearch = ''`;本组件的 search 是内部 ref,不接受 host 传入。host 通过 v-if
-// 每次重新挂载本组件,组件内部 ref 天然回到初始值 ''——与 Vue2 显式清空语义等价,host 不
-// 需要、也不应该自己维护 search 状态(否则会有两份 truth)。
+// Search clear-on-popover-open equivalence registration: Vue2 togglePop()(:783-793) explicitly
+// `this.popSearch = ''`; this component's search is an internal ref, not accepted from host. Host
+// remounts this component via v-if each time; internal ref naturally resets to initial value ''
+// — equivalent semantics to Vue2's explicit clear, host does not need to and should not maintain
+// search state itself (else two sources of truth).
 //
-// 不做 portal/Teleport、不做点外部关闭/Esc(P6a 明确裁定 + brief Step 4)——这两件事由
-// 宿主(T16)在容器 ref 层面统一处理;本组件只在根节点 @click.stop 防止弹层内部点击冒泡到
-// 宿主的"点外部判定"逻辑里(结构参照 Vue2 `<div v-if="..." @click.stop>` 外层 + `.fpop`
-// 内层两级)。
+// No portal/Teleport, no outside-click/Esc close (explicit P6a decision + brief Step 4) — both
+// handled uniformly by the host (T16) at the container ref level; this component only uses
+// @click.stop at root to prevent internal clicks from bubbling to host's "outside click" logic
+// (structure parallels Vue2 `<div v-if="..." @click.stop>` outer layer + `.fpop` inner layer).
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 
@@ -53,8 +58,9 @@ const { t } = useI18n()
 
 const search = ref('')
 
-// 照搬 Vue2 filteredPopItems(:778-782):search 为空 → 原样返回 items;否则大小写不敏感
-// 的包含匹配。不 trim——Vue2 原样没有 trim,不擅自加(那是行为变更,不是移植)。
+// Copy Vue2 filteredPopItems(:778-782): if search empty → return items as-is; else case-insensitive
+// contains match. No trim — Vue2 doesn't trim either, don't add it unilaterally (that's behavior
+// change, not porting).
 const filtered = computed(() => {
   if (!search.value) return props.items
   const q = search.value.toLowerCase()
@@ -65,10 +71,11 @@ function isSel(it: string): boolean {
   return props.selected.includes(it)
 }
 
-// 照搬 Vue2 toggleDraftItem(:741-747)的语义,用统一的 selected: string[] 表达单选/多选:
-// multiple → 数组增删,返回新数组(不原地改 props.selected);!multiple → 已选置空数组、
-// 未选置单元素数组(对应 Vue2 单值分支 `v === it ? null : it` 的 null/it 二态,这里用
-// []/[it] 表达同一语义,以便宿主统一按数组消费)。
+// Copy Vue2 toggleDraftItem(:741-747) semantics; use unified selected: string[] to express both
+// single/multiple: multiple → add/remove from array, return new array (don't mutate props.selected
+// in-place); !multiple → selected becomes empty array, unselected becomes single-element array
+// (corresponds to Vue2's single-value branch `v === it ? null : it` null/it two-state; here []/
+// [it] express the same semantics so host can uniformly consume as array).
 function toggle(it: string): void {
   if (props.multiple) {
     const next = isSel(it) ? props.selected.filter((x) => x !== it) : [...props.selected, it]
@@ -111,14 +118,16 @@ function toggle(it: string): void {
 </template>
 
 <style scoped>
-/* token 映射(同 PhotosFilterChip.vue 顶部注释的四档表 + chip-bg/chip-border 家族,不
-   重复展开)。弹层自身底色/边框/投影照本仓"触发按钮 + 绝对定位下拉面板"这一类组件的既定
-   惯例——--popup-bg(不透明底)+ --card-border + --card-shadow-hi,先例见
-   ClusterActionDialog.vue:272-280(.cad-panel)、AlbumPickerDialog.vue、
-   PlacesFilterMenu.vue(.map-filter-pop,该文件里有一段完整的偏离登记,结论与本处一致:
-   Vue2 用 --menu-bg + backdrop-filter 模糊 + 纯 box-shadow,本仓这类"锚定在页面内容之上的
-   不透明面板"统一走 --popup-bg/--card-shadow-hi 这一组,不复刻模糊——popup-bg 已经是
-   (近)不透明,不需要靠模糊保证可读性,backdrop-filter 因此省略,不是漏移植)。 */
+/* Token mapping (same as four-tier table in PhotosFilterChip.vue comment + chip-bg/chip-border
+   family; not expanding again). Popover's own background/border/shadow follows established
+   convention for this repo's "trigger button + absolutely-positioned dropdown panel" component
+   class — --popup-bg (opaque base) + --card-border + --card-shadow-hi; precedents: CloudActionDialog
+   .vue:272-280(.cad-panel), AlbumPickerDialog.vue, PlacesFilterMenu.vue(.map-filter-pop; that
+   file contains complete deviation log; conclusion matches here: Vue2 uses --menu-bg + backdrop-
+   filter blur + pure box-shadow; this repo's "opaque panel anchored atop page content" class
+   uniformly uses --popup-bg/--card-shadow-hi group, does not replicate blur — popup-bg is
+   already (nearly) opaque, no blur needed for readability; backdrop-filter therefore omitted,
+   not missed in porting). */
 .fpop {
   position: absolute;
   top: 36px;
@@ -167,8 +176,9 @@ function toggle(it: string): void {
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
-/* Vue2 两侧内联 style 里的 max-height 不一致(搜索侧 280px / FilterBar 侧 260px,见上方
-   模块注释的逐字比对结论)——以搜索侧为准,取 280。 */
+/* Vue2's inline style max-height inconsistent between sides (search side 280px / FilterBar side
+   260px; see character-by-character comparison conclusion in module comment above) — using search
+   side as reference, set to 280. */
 .fpop-list {
   display: flex;
   flex-direction: column;
@@ -197,11 +207,12 @@ function toggle(it: string): void {
   background: var(--accent-soft);
   color: var(--fg);
 }
-/* hover 硬约束(B4 补的第三处,brief 原文只点名了 .fchip 与 .btn-primary,漏了这条):
-   .nav-item[data-active="true"] 未 hover 时与 .nav-item:hover 同为 (0,2,0),scoped SFC 里
-   正是"优先级相等靠源码顺序苟活"的第二种危险形态。变体自带 :hover(值=未 hover 时的既有
-   态,即选中态在 hover 下保持——这是显式化 Vue2 里"active 规则写在 hover 规则之后、
-   tie 靠源码顺序赢"这条隐含语义,不再依赖顺序)。 */
+/* Hover hard constraint (B4's third fix; brief text only named .fchip and .btn-primary, missed
+   this): .nav-item[data-active="true"] unhovered and .nav-item:hover both (0,2,0), scoped SFC
+   exactly the second dangerous form of "equal specificity rely on source order for survival".
+   Variant includes self :hover (value = existing state when not hovered, i.e., selected state
+   persists on hover — this makes explicit Vue2's implicit "active rule after hover rule, tie won
+   by source order" semantic; no longer source-order dependent). */
 .nav-item[data-active='true']:hover {
   background: var(--accent-soft);
   color: var(--fg);
@@ -244,12 +255,14 @@ function toggle(it: string): void {
   color: var(--fg-muted);
   cursor: pointer;
 }
-/* 本组件的 Cancel 按钮不带 data-on(那是 T13 日期弹层的快捷区间按钮用的)——brief Step 3
-   明确划界:本任务只保证基类 hover 存在,[data-on] 变体的 hover 处理留给 T13。
-   交接(评审查实的 brief 错误 2,T13 要用):brief 把这里描述成"基类压变体"的危险形态,
-   回源 photos.scss:2674 不成立——Vue2 原文是 `.fpop-quick:hover, .fpop-quick[data-on="true"]
-   { … }` 单条规则、两个选择器共享完全相同的一组值,根本不存在两套值、也不存在谁压过谁。
-   T13 加 [data-on="true"] 变体时,数值应该照抄本条 :hover 的值,不是另设一套。 */
+/* This component's Cancel button does not carry data-on (that's for T13 date popover shortcut-
+   range button) — brief Step 3 clearly demarks: this task only ensures base-class hover exists;
+   [data-on] variant hover handling deferred to T13. Handoff (brief error 2 found by review; T13
+   needs this): brief describes here as "base-class overrides variant" danger form, but source
+   photos.scss:2674 doesn't support it — Vue2 original is `.fpop-quick:hover, .fpop-quick[data-
+   on="true"] { … }` single rule, two selectors share exactly same value set; no two different
+   sets exist, no "override" at all. When T13 adds [data-on="true"] variant, values should copy
+   this :hover rule, not define separate set. */
 .fpop-quick:hover {
   background: var(--accent-soft);
   color: var(--accent-text);
@@ -270,15 +283,16 @@ function toggle(it: string): void {
   font-weight: 500;
   cursor: pointer;
 }
-/* Vue2 .btn:hover 还带 border-color: var(--line-strong)——本仓没有这个更强调的线条
-   token(已 grep 确认 theme.css 无 --line-strong),现有 --chip-border 数值级也已很接近,
-   这两点是省略的次要理由。
-   更硬的理由(评审查实的 brief 错误 4,移植纪律"Vue2 的 bug 不照抄"适用的真实案例):
-   `.photos-root .btn:hover { border-color: var(--line-strong) }` 是 (0,3,0)(.photos-root
-   祖先类 + .btn + :hover),会压过 `.photos-root .btn-primary { border-color: var(--accent) }`
-   的 (0,2,0)——也就是说 Vue2 原版里,主按钮(.btn.btn-primary)一 hover,边框就从 accent
-   紫掉回中性线,这是 Vue2 自己的级联联动缺陷,不是设计意图。本组件不复刻这条边框声明,
-   不是"省略了本该照抄的东西",而是主动不照抄这个 bug。 */
+/* Vue2 .btn:hover also carries border-color: var(--line-strong) — this repo lacks this stronger-
+   emphasis line token (grep confirmed theme.css has no --line-strong); existing --chip-border
+   value level already quite close; these two are secondary reasons for omission. Stronger reason
+   (brief error 4 found by review; real case where "don't copy Vue2 bugs" porting discipline
+   applies): `.photos-root .btn:hover { border-color: var(--line-strong) }` is (0,3,0) (.photos-
+   root ancestor class + .btn + :hover), overrides `.photos-root .btn-primary { border-color:
+   var(--accent) }` (0,2,0) — meaning in Vue2 original, primary button (.btn.btn-primary) on
+   hover, border shifts from accent purple back to neutral line; this is Vue2's own cascade-
+   coupling defect, not design intent. This component does not replicate this border declaration;
+   that's not "omitted something that should copy", but deliberately not copying this bug. */
 .btn:hover {
   background: var(--chip-bg-hi);
 }
@@ -287,12 +301,13 @@ function toggle(it: string): void {
   border-color: var(--accent);
   color: var(--on-accent);
 }
-/* hover 硬约束(本任务受此约束的三处之一):.btn:hover 是 (0,2,0),会压过单类 .btn-primary
-   (0,1,0),hover 时把 accent 实底换成 --chip-bg-hi、文字仍是 --on-accent(白/深藏青)→
-   按钮和文字一起糊掉。变体自带 :hover 把 accent 实底盖回来,同 ClusterActionDialog.vue:
-   331-332(.cad-btn-primary:hover)/MergeReviewDialog.vue:269 的既有正确写法——
-   background 与 filter 分两条声明,避免被禁用态污染(本组件没有禁用态,但沿用同一写法
-   保持一致)。 */
+/* Hover hard constraint (one of three this task subject to): .btn:hover (0,2,0) overrides
+   single-class .btn-primary (0,1,0); on hover, accent solid background swapped for --chip-bg-hi
+   while text stays --on-accent (white/dark teal) → button and text both disappear. Variant
+   includes :hover to restore accent solid, same as existing correct pattern in ClusterActionDialog
+   .vue:331-332(.cad-btn-primary:hover)/MergeReviewDialog.vue:269 — background and filter in two
+   separate declarations, avoid tainting by disabled state (this component has no disabled state,
+   but reuse same pattern for consistency). */
 .btn.btn-primary:hover {
   background: var(--accent);
   filter: brightness(1.08);

@@ -12,20 +12,20 @@ const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const timeline = useTimelineStore()
-// P8a-T6 (§7e-15):侧栏是相册区全部页面共用组件,自己拉一次 aiFeatures 配置来决定是否
-// 隐藏 smart-views 条目。store 是单例,与任意视图各自的 onMounted 同帧挂载会并发调用
-// fetchAiFeatures() —— 并发去重收在 settings.ts 里(见该文件 fetchAiFeatures 头部注释),
-// 这里只管调用,不用关心去重细节。
+// P8a-T6 (§7e-15): sidebar is a shared component for all pages in the photos area, pulls aiFeatures config once to decide whether to
+// hide smart-views entry. store is a singleton; mounting in the same frame as any view's onMounted concurrently calls
+// fetchAiFeatures() — concurrent deduplication is handled in settings.ts (see that file's fetchAiFeatures header comment),
+// we just call it here, don't need to worry about dedup details.
 const settings = usePhotosSettingsStore()
 onMounted(() => { void settings.fetchAiFeatures() })
 
-// 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)——照 FilesSidebar。
+// Drawer state: must destructure (nested ref in templates won't auto-unwrap; drawer.isNarrow as always-true value is a trap) — same as FilesSidebar.
 const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
 
-// 任何路由变化后抽屉自动收起;桌面态 close 是 no-op。
+// Drawer auto-closes after any route change; on desktop close is no-op.
 watch(() => route.fullPath, () => closeDrawer())
 
-// ESC 关抽屉,仅在窄屏打开时监听。
+// ESC closes drawer, only listen when open on narrow screen.
 function onDrawerKeydown(e: KeyboardEvent) { if (e.key === 'Escape') closeDrawer() }
 watch(drawerOpen, (o) => {
   if (o) document.addEventListener('keydown', onDrawerKeydown)
@@ -33,15 +33,15 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// 导航条目注册表。
+// Navigation entry registry.
 const NAV_ALL = [
   { id: 'library', route: '/photos', labelKey: 'photosLibrary' },
   { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums' },
   { id: 'people', route: '/photos/people', labelKey: 'photosPeople' },
   { id: 'places', route: '/photos/places', labelKey: 'photosPlaces' },
-  // SP7-P7a-T4:插在 places 之后、favorites 之前,照 Vue2 PhotosSidebar.vue:114-118 的顺序
-  // (library / albums / people / places / smart)。7 项(原 6 项),favorites/trash 下标各 +1。
-  // SP15-P2b (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
+  // SP7-P7a-T4: inserted after places, before favorites, following Vue2 PhotosSidebar.vue:114-118 order
+  // (library / albums / people / places / smart). 7 items (was 6), favorites/trash indices each +1.
+  // SP15-P2b (Vue2 939a7d3a: PhotosSidebar.vue:118): the page behind this entry is now a
   // Moments-only "For You" page -- the smart albums moved into Albums. Only the label
   // changes; id and route stay so the ?view=smart deep link and the hide-when-off filter
   // keep working.

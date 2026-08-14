@@ -1,5 +1,5 @@
-// SP7-P7b-T2: PhotosFilterBar.vue —— 漏斗 + 三胶囊 EXIF 筛选条。
-// 对照源:Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue(312 行)。
+// SP7-P7b-T2: PhotosFilterBar.vue — funnel + three-capsule EXIF filter bar.
+// Reference source: Vue2 NimoOS-UI src/views/Photos/PhotosFilterBar.vue (312 lines).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PhotosFilterBar from '../PhotosFilterBar.vue'
@@ -15,19 +15,22 @@ const PHOTOS = [
 
 const empty = () => ({ years: [] as string[], places: [] as string[], cameras: [] as string[] })
 
-// fix round 1(评审必修 1):不在这里另建 createI18n(...) 实例——理由与
-// PhotosToolbar.test.ts 顶部同款注释一致:vitest.setup.ts 已把 src/i18n 单例装进
-// config.global.plugins 对每次 mount 生效,再显式传另一个实例会被拼接进同一个 app,
-// 触发 vue-i18n install() 的重复组件/指令注册告警(默认 reporter 隐藏了通过用例的
-// stderr,--reporter=verbose 才可见)。直接吃全局装好的那份,locale 默认就是 zh_cn。
-// fix round(整期终审建议带上 M4):`attachTo: document.body` 之前只靠 afterEach 里的
-// `document.body.innerHTML = ''` 清场——但组件的点外部关弹层监听是挂在 `document` 上
-// (PhotosFilterBar.vue watch(openPop) 里的 addEventListener('mousedown', ...)),清空
-// body 摘不掉挂在 document 上的监听器。于是前一条用例遗留的 mousedown 监听在同文件后续
-// 用例里仍然存活——今天无害(遗留实例的 rootRef 已被清空的 body 移除,el.contains() 恒
-// false),但"点组件外部关弹层"这条用例的 document.dispatchEvent 实际上是同时打在了一串
-// 僵尸监听上。这里收集每次 mountBar() 产出的 wrapper,afterEach 统一 unmount——真正调用
-// 组件的 onBeforeUnmount 把 document 监听摘掉,而不是只清 DOM。
+// Fix round 1 (review required): don't create a separate createI18n(...) instance here —
+// reason same as comment at top of PhotosToolbar.test.ts: vitest.setup.ts already injects
+// src/i18n singleton into config.global.plugins; passing another instance explicitly gets
+// concatenated into the same app, triggering vue-i18n install() duplicate component/directive
+// registration warning (default reporter hides stderr of passing tests, only visible with
+// --reporter=verbose). Use the globally-set instance directly; locale defaults to zh_cn.
+// Fix round (final review suggestion with M4): before, `attachTo: document.body` relied only on
+// `document.body.innerHTML = ''` in afterEach to clean up — but component's "click outside to
+// close popover" listener is attached to `document` (addEventListener('mousedown', ...) in
+// PhotosFilterBar.vue watch(openPop)), clearing body doesn't detach listeners on document.
+// So a mousedown listener from a previous test persists through later tests in this file —
+// harmless today (the stale instance's rootRef is gone after body cleared, el.contains() always
+// false), but the "click outside to close" test's document.dispatchEvent actually hits a series
+// of zombie listeners. Collect wrappers from each mountBar() call and unmount them all in
+// afterEach — properly invoke component's onBeforeUnmount to detach document listeners, not
+// just clear the DOM.
 const wrappers: ReturnType<typeof mount>[] = []
 function mountBar(props: Record<string, unknown> = {}) {
   const w = mount(PhotosFilterBar, {
@@ -41,9 +44,10 @@ function mountBar(props: Record<string, unknown> = {}) {
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => {
   vi.useRealTimers()
-  // 有条用例(见「点组件外部 mousedown 关弹层」describe 里的「卸载后不再残留 document
-  // 监听」)会自己提前 unmount 来断言 removeEventListener 被调用——这里再 unmount 一次是
-  // 安全的空操作(Vue 3 的 app.unmount() 对已卸载实例直接早退,不抛错、不重复触发副作用)。
+  // One test (see "after unmount, no lingering document listener" in "click outside to close"
+  // describe) unmounts early itself to assert removeEventListener was called — unmounting again
+  // here is safe (Vue 3's app.unmount() early-exits on already-unmounted instance, no error,
+  // no repeated side effects).
   for (const w of wrappers) w.unmount()
   wrappers.length = 0
   document.body.innerHTML = ''

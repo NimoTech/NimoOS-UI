@@ -1,5 +1,5 @@
-// Task 10 (SP7-P5 人物): PersonHero.vue —— 人物详情页 hero 区。纯展示 + emit,不碰 store,
-// 只 mock @nimotech/nimoos-service 的两个 URL builder(照 PersonAvatar.test.ts 的既有 mock)。
+// Task 10 (SP7-P5 People): PersonHero.vue — People detail page hero section. Pure display + emit, does not touch store,
+// only mocks two URL builders from @nimotech/nimoos-service (following the existing mock in PersonAvatar.test.ts).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -16,8 +16,8 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonHero from '../PersonHero.vue'
-// 终审 Important 5 的样式断言用:jsdom 不做级联样式计算,读不出 overflow 的真实裁剪行为,
-// 只能对 <style> 原文做结构断言(同 color-guard.test.ts / PersonAssetGrid.test.ts 的先例)。
+// Final review Important 5 style assertion: jsdom does not compute cascading styles and cannot read the actual clipping behavior of overflow,
+// so we can only do structural assertions on the raw <style> text (following precedent from color-guard.test.ts / PersonAssetGrid.test.ts).
 import personHeroRaw from '../PersonHero.vue?raw'
 import type { Person } from '../../util/peopleView'
 
@@ -62,8 +62,8 @@ afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
 })
 
-describe('PersonHero.vue — 背景层三态', () => {
-  it('有 heroAssetId → 背景走 thumbnailUrl(heroAssetId, "large")', () => {
+describe('PersonHero.vue — Background layer three-way', () => {
+  it('Has heroAssetId → background uses thumbnailUrl(heroAssetId, "large")', () => {
     const w = mountHero({ person: person({ heroAssetId: 'asset9', coverFaceId: 'face1' }), relationCount: 0, placesCount: 0 })
     expect(svc.photos.thumbnailUrl).toHaveBeenCalledWith('asset9', 'large')
     const bg = w.get('[data-test="hero-bg"]')
@@ -71,7 +71,7 @@ describe('PersonHero.vue — 背景层三态', () => {
     expect(w.find('[data-test="hero-root"]').attributes('data-fallback')).toBe('false')
   })
 
-  it('无 heroAssetId 有 coverFaceId → 背景走 personFaceThumbnailUrl', () => {
+  it('No heroAssetId but has coverFaceId → background uses personFaceThumbnailUrl', () => {
     const w = mountHero({ person: person({ coverFaceId: 'face1' }), relationCount: 0, placesCount: 0 })
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith('p1', 'face1')
     const bg = w.get('[data-test="hero-bg"]')
@@ -79,20 +79,20 @@ describe('PersonHero.vue — 背景层三态', () => {
     expect(w.find('[data-test="hero-root"]').attributes('data-fallback')).toBe('false')
   })
 
-  it('两者都无 → data-fallback=true,渐变兜底类而非背景图', () => {
+  it('Neither exists → data-fallback=true, use gradient fallback class instead of background image', () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     expect(w.find('[data-test="hero-root"]').attributes('data-fallback')).toBe('true')
     const bg = w.get('[data-test="hero-bg"]')
     expect(bg.classes()).toContain('is-fallback')
-    // 没有背景图 url——style 属性里不应出现 background-image
+    // No background image URL — style attribute should not contain background-image
     expect(bg.attributes('style') || '').not.toContain('background-image')
-    // 兜底模式不渲染暗化遮罩(照 Vue2 :1424-1426)
+    // Fallback mode does not render darkening overlay (ref Vue2 :1424–1426)
     expect(w.find('[data-test="hero-scrim"]').exists()).toBe(false)
   })
 })
 
-describe('PersonHero.vue — 统计', () => {
-  it('四项统计数字正确', () => {
+describe('PersonHero.vue — Statistics', () => {
+  it('All four stat numbers are correct', () => {
     const w = mountHero({ person: person({ count: 1234 }), relationCount: 7, placesCount: 3 })
     expect(w.get('[data-test="hero-stat-photos"] .v').text()).toBe('1,234')
     expect(w.get('[data-test="hero-stat-places"] .v').text()).toBe('3')

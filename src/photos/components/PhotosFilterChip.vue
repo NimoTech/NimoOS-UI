@@ -1,39 +1,39 @@
 <script setup lang="ts">
-// SP7-P7a-T12: PhotosFilterChip.vue —— 筛选胶囊基元(D14 两个基元之一,T13/T14/T16/P7b 消费)。
-// 逐字对应 Vue2 PhotosSearchView.vue:51-59(与 PhotosFilterBar.vue:16-24 逐字比对确认相同,
-// 唯二差别①处理器名 clearFilter/clearChip ②组件标签大小写 photos-icon/PhotosIcon,均不
-// 影响本仓落地;完整比对结论见 task-12-report.md)。结构:.fchip-wrap(position:relative,
-// 弹层定位上下文,与默认插槽挂的弹层是兄弟节点、不是父子——弹层的点击不会经过 .fchip 的
-// click 处理器)→ .fchip(:data-on,@click → toggle)内含图标插槽 + label + chevD 图标 +
-// (active 时)清除叉 → 之后默认插槽挂弹层。
+// SP7-P7a-T12: PhotosFilterChip.vue — filter chip primitive (one of two primitives in D14, consumed by T13/T14/T16/P7b).
+// Char-for-char correspondence to Vue2 PhotosSearchView.vue:51-59 (confirmed identical by char-by-char comparison
+// with PhotosFilterBar.vue:16-24, only two differences: ① handler names clearFilter/clearChip ② component tag casing
+// photos-icon/PhotosIcon, neither affects this repo's landing; full comparison conclusion in task-12-report.md).
+// Structure: .fchip-wrap (position:relative, popup positioning context, default slot's popup is sibling not child —
+// popup clicks don't pass through .fchip's click handler) → .fchip (:data-on, @click → toggle) contains icon slot +
+// label + chevD icon + (when active) clear x → then default slot hosts popup.
 //
-// 偏离登记 1(B7 裁定,接口相对 brief 的偏离):brief 原接口是 `{ icon: string }`,喂给
-// 共享 PhotosIcon 组件的 glyph name。本仓没有 PhotosIcon.vue(已 grep 确认
-// `find src -name "PhotosIcon.vue"` 零命中,本相册区既定做法是每个组件内联 <svg>,先例
-// SmartViewCard.vue:76-88),字符串 name 在本仓无处消费——若在本基元里写死 name→svg 映射表,
-// 等于重建一份迷你 PhotosIcon,且 T13/T14/T16/P7b 会不断加新 glyph。裁定:把 icon 从
-// prop 改成具名插槽 #icon,由宿主自己内联对应的 <svg>。chevD 与 x 这两个"chip 固定结构"
-// 的 glyph(不随宿主变化)仍由本组件自己内联,不进插槽。
+// Deviation logging 1 (B7 decision, interface deviation from brief): brief's original interface is `{ icon: string }`,
+// fed to shared PhotosIcon component's glyph name. This repo has no PhotosIcon.vue (confirmed by grep
+// `find src -name "PhotosIcon.vue"` zero hits, this photos zone's established practice is each component inlines <svg>,
+// precedent SmartViewCard.vue:76-88), string name consumed nowhere in this repo — if hardcoding name→svg map in this
+// primitive, equals rebuilding a mini PhotosIcon, and T13/T14/T16/P7b will keep adding new glyphs. Decision: change icon
+// from prop to named slot #icon, host inlines corresponding <svg> itself. chevD and x these two "chip fixed structure"
+// glyphs (not varying with host) still self-inlined by this component, not in slot.
 //
-// 偏离登记 2(glyph 数值 1:1 复刻):下方 chevD `d="m6 9 6 6 6-6"`、x
-// `d="m6 6 12 12M18 6 6 18"` 逐字符抄自 Vue2 NimoOS-UI
-// src/views/Photos/PhotosIcon.vue 对应 name 分支(P6b 终审抓过 4 处 glyph 漏抄/错抄,三道
-// 门全测不出),测试对渲染出的 <path d> 做精确断言钉住。
+// Deviation logging 2 (glyph values 1:1 replica): below chevD `d="m6 9 6 6 6-6"`, x
+// `d="m6 6 12 12M18 6 6 18"` copied char-by-char from Vue2 NimoOS-UI
+// src/views/Photos/PhotosIcon.vue corresponding name branch (P6b final review caught 4 glyph omissions/miscopies,
+// three-gate testing caught none), tests assert rendered <path d> precisely pinned.
 //
-// 偏离登记 3(token 映射,控制器裁定 B2):chevD 颜色 Vue2 原值是 var(--text-3)
-// (PhotosSearchView.vue:55),不是 brief 写的 --fg-subtle(那是 text-4)。本期已确立的
-// 四档映射(SmartViewCreateDialog.vue:43-45)text-1→--fg / text-2→--fg-muted /
-// text-3→--fg-faint / text-4→--fg-subtle,这里用 --fg-faint。
-// (ClusterActionDialog.vue:368 把 text-3 映射成 --fg-muted 是 P6b 既有代码,与本期表不
-// 一致,但那是既有代码不许动,也不作为本任务依据——本任务以 T5 的表为准。)
+// Deviation logging 3 (token mapping, controller decision B2): chevD color Vue2 original is var(--text-3)
+// (PhotosSearchView.vue:55), not brief's --fg-subtle (that is text-4). This cycle's established
+// four-tier mapping (SmartViewCreateDialog.vue:43-45) text-1→--fg / text-2→--fg-muted /
+// text-3→--fg-faint / text-4→--fg-subtle, use --fg-faint here.
+// (ClusterActionDialog.vue:368 maps text-3 to --fg-muted is P6b existing code, inconsistent with this cycle's table,
+// but that is existing code not to be touched, also not basis for this task — this task follows T5's table.)
 //
-// open prop:Vue2 没有对应概念(chip 的视觉态只有 data-on,没有"弹层是否展开"这个独立
-// 维度)。brief 冻结的接口里带了这个可选 prop,这里原样接住;具体消费(要不要挂 CSS 钩子)
-// 留给 T13/T14/T16,避免臆造 Vue2 不存在的视觉效果。
-// fix round 1 · M4(评审 Important 同批发现):data-open 只在 open === true 时渲染到
-// DOM(:data-open="open ? 'true' : undefined"),不恒渲染——Vue2 的 .fchip 上根本没有
-// 这个属性,默认态(open 未传或为 false)时 DOM 应与 Vue2 逐字一致,不能凭空多一个
-// data-open="false"。语义(要不要在其上挂样式)由 T13 定,当前无 CSS 消费。
+// open prop: Vue2 has no corresponding concept (chip's visual state only has data-on, no separate dimension of
+// "is popup expanded"). brief's frozen interface carries this optional prop, passed through as-is here; specific
+// consumption (whether to attach CSS hook) left to T13/T14/T16, avoiding inventing visual effects Vue2 doesn't have.
+// fix round 1 · M4 (review Important batch finding): data-open only renders to DOM when open === true
+// (:data-open="open ? 'true' : undefined"), not always — Vue2's .fchip has no such attribute at all, default state
+// (open not passed or false) DOM should match Vue2 char-for-char, cannot randomly add data-open="false".
+// Semantics (whether to attach styles) defined by T13, currently no CSS consumption.
 defineProps<{
   label: string
   active: boolean
@@ -71,13 +71,13 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* token 映射:Vue2 --surface-2/--surface-3(实底胶囊底色/hover 底色)→ 本仓既有
-   --chip-bg/--chip-bg-hi(同 ClusterActionDialog.vue/PhotosToolbar.vue/AlbumPickerDialog.vue
-   等既有先例的通用映射);--line → --chip-border;--text-1/2/3 → --fg/--fg-muted/--fg-faint
-   (上方偏离登记 3 的四档表);--accent-hi(不存在,已 grep 确认)→ --accent-text(同
-   MergeReviewDialog.vue:249-252/PersonHero.vue:488-491 等既有先例);Vue2 的边框是一个
-   写死的 accent 紫色、透明度三成(不是 var(--accent-rgb) 写法,但同一色调同一透明度量级)
-   → 既有三档 accent 家族里最接近三成透明度的 --accent-soft-bd(dark 3.6 成 / light 3 成)。 */
+/* token mapping: Vue2 --surface-2/--surface-3 (solid chip bg/hover bg) → this repo's existing
+   --chip-bg/--chip-bg-hi (same generic mapping precedent as ClusterActionDialog.vue/PhotosToolbar.vue/AlbumPickerDialog.vue);
+   --line → --chip-border; --text-1/2/3 → --fg/--fg-muted/--fg-faint
+   (four-tier table from deviation logging 3 above); --accent-hi (nonexistent, confirmed by grep) → --accent-text
+   (same precedent as MergeReviewDialog.vue:249-252/PersonHero.vue:488-491); Vue2's border is a
+   hardcoded accent purple, 30% opacity (not var(--accent-rgb) style, but same hue same opacity magnitude)
+   → the existing three-tier accent family's closest to 30% opacity --accent-soft-bd (dark 3.6% / light 3%). */
 .fchip-wrap {
   position: relative;
   display: inline-flex;
@@ -105,11 +105,11 @@ const emit = defineEmits<{
   border-color: var(--accent-soft-bd);
   color: var(--fg);
 }
-/* hover 硬约束(本任务受此约束的三处之一):基类 .fchip:hover 是 (0,2,0),变体
-   .fchip[data-on="true"] 未 hover 时只有 (0,2,0)(class + 属性选择器),二者相等 ⇒ 会靠
-   书写顺序苟活(P6a 四次事故的第二种形态)。T7 已修好 cssCascade.ts 的 classSpecificity——
-   属性选择器现在计入优先级,所以给变体自带 :hover 后是 (0,3,0),稳赢基类,不必再改成伴生
-   类。数值原样复刻未 hover 时的 [data-on] 态,即"选中态在鼠标悬停时保持不变"。 */
+/* hover hard constraint (one of three places this task is constrained by this): base class .fchip:hover is (0,2,0),
+   variant .fchip[data-on="true"] unhovered only (0,2,0) (class + attribute selector), equal ⇒ surviving by write order
+   (P6a's second form of four incidents). T7 already fixed cssCascade.ts's classSpecificity —
+   attribute selector now counts toward specificity, so variant with its own :hover is (0,3,0), solidly beats base,
+   no need to change to companion class. Values replica unhovered [data-on] state, i.e. "selected state unchanged on hover". */
 .fchip[data-on='true']:hover {
   background: var(--accent-soft);
   border-color: var(--accent-soft-bd);
@@ -122,12 +122,12 @@ const emit = defineEmits<{
   color: var(--fg-faint);
   display: flex;
 }
-/* fix round 1 · M3(评审并入,牵动 T13/T14/T16/P7b 四个下游):Vue2
-   PhotosSearchView.vue:53 用 <photos-icon :name="chip.icon" :size="13"/>,即 svg
-   width/height 各 13px。本组件把 icon 从字符串 prop 换成 #icon 具名插槽后,这条尺寸
-   契约不能只靠报告里一句话交代——用 :deep(svg) 把宿主传入的 svg 焊死在 13×13,不管
-   宿主内联的 svg 自己写了多大尺寸,渲染出来都会被这条规则收敛,不依赖下游任务自觉记住
-   13 这个数字。 */
+/* fix round 1 · M3 (merged in review, affects four downstream T13/T14/T16/P7b): Vue2
+   PhotosSearchView.vue:53 uses <photos-icon :name="chip.icon" :size="13"/>, i.e. svg
+   width/height each 13px. After this component changes icon from string prop to #icon named slot, this size
+   contract cannot be explained away in report text alone — use :deep(svg) to weld host-provided svg
+   fixed at 13×13, regardless of svg size the host writes inline, rendering will be converged by this rule,
+   not relying on downstream task to remember number 13. */
 .fchip-icon :deep(svg) {
   width: 13px;
   height: 13px;
@@ -147,10 +147,10 @@ const emit = defineEmits<{
   padding: 0;
   cursor: pointer;
 }
-/* Vue2 用一个跟随文字色、透明度一成的淡叠层做透明背景上的 hover 底(基于 Vue2 自己的
-   --ink 文字色 token 取一成透明度)——本仓没有 --ink 这个 RGB 三元组 token,代以语义
-   等价、两套主题都有定义的 --hover(同 PersonRelationsTab.vue:218 .rel-row:hover 的
-   既有先例)。 */
+/* Vue2 uses a faint overlay following text color, 10% opacity for hover bg on transparent background
+   (based on Vue2's own --ink text-color token at 10% opacity) — this repo has no --ink RGB triplet token,
+   substitute semantically equivalent --hover defined in both themes (same precedent as PersonRelationsTab.vue:218
+   .rel-row:hover). */
 .fchip-x:hover {
   background: var(--hover);
   color: var(--fg);

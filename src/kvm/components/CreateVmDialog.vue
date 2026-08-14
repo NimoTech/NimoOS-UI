@@ -1,22 +1,23 @@
 <script setup lang="ts">
-// 创建虚拟机弹窗。视觉 1:1 对 Vue2 KVMFullPage.vue 模板 :396-494,逻辑对
-// showCreateVM(:1155-1190)/onOSSelect 赋值部分(:1376-1447)/osTemplate watch
-// (:720-746)/createVM(:1450-1492)。
+// Create VM dialog. Visual 1:1 map to Vue2 KVMFullPage.vue template :396-494, logic maps to
+// showCreateVM(:1155-1190)/onOSSelect assignment section(:1376-1447)/osTemplate watch
+// (:720-746)/createVM(:1450-1492).
 //
-// 表单状态(8 字段 + 内部专用的 osTemplate)整个在组件内部,不接收/回写任何共享对象——
-// `host`/`defaults`/`isos`/`selectedOs` 全部只读消费(数字/字符串按值复制进 form,
-// selectedOs 只读它的字段,从不写 `props.selectedOs.xxx = ...`)。Global Constraint #16
-// 在本组件**不适用**:没有可被污染的共享对象,见组件底部「Constraint #16 自查」注释。
+// Form state (8 fields + internal osTemplate) entirely within this component, does not receive/write back
+// any shared objects — `host`/`defaults`/`isos`/`selectedOs` all read-only consumed (numbers/strings
+// copied by value into form, selectedOs only read its fields, never write `props.selectedOs.xxx = ...`).
+// Global Constraint #16 does NOT apply to this component: no shared objects to pollute, see "Constraint #16
+// self-check" comment at component bottom.
 //
-// 三条已申报的「改正确」偏离(硬约束 2,任务 brief 逐条要求):
-// 1) submit 的 payload 不带 `osTemplate`(纯前端联动概念)与 `autostart`——后端
-//    model.CreateVMRequest(NimoOS-KVM/model/vm.go:39-51)只认 11 个字段没这两个,
-//    Vue2 用 `{...vm}` 把它们一起发出去被后端静默丢弃,「继承全局自动启动」从来没生效过。
-// 2) 默认值直接读 props.host/props.defaults,不在本组件里再拉一次 getSettings——
-//    页面级 useKvmHostInfo() 已经有一份(Task 2),重复请求是浪费。
-// 3) `host.cpuCores === 0`(GET /settings 还没回来)时不渲染任何 CPU 格子——这是
-//    `v-for="n in props.host.cpuCores"` 在 n=0 时的自然结果,不需要额外分支;前提是
-//    Task 2 已把 host 的初值改成全 0(不是 Vue2 那个硬编码 16 的假值),spec §12 #6。
+// Three declared "correct deviation" deviations (hard constraint 2, task brief requires itemization):
+// 1) submit payload does not carry `osTemplate` (pure frontend linkage concept) or `autostart` — backend
+//    model.CreateVMRequest (NimoOS-KVM/model/vm.go:39-51) only recognizes 11 fields, lacks these two;
+//    Vue2 uses `{...vm}` to send both, backend silently discards them; "inherit global autostart" never worked.
+// 2) Default values read directly from props.host/props.defaults, no additional getSettings call in this
+//    component — page-level useKvmHostInfo() already has one (Task 2), duplicate request is waste.
+// 3) When `host.cpuCores === 0` (GET /settings not back yet), no CPU grids rendered — this is the natural
+//    result of `v-for="n in props.host.cpuCores"` with n=0, no extra branch needed; prerequisite: Task 2
+//    changed host initial values to all 0 (not Vue2's hardcoded 16 dummy), spec §12 #6.
 import { reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { KvmISO, KvmCreateVMRequest } from '@nimotech/nimoos-service'
@@ -46,7 +47,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// `osTemplate` 是本组件内部专用的联动驱动值(照 Vue2 newVM.osTemplate),不进 payload。
+// `osTemplate` is this component's internal linkage driver value (per Vue2 newVM.osTemplate), not in payload.
 const form = reactive<CreateVmForm & { osTemplate: string }>({
   name: '',
   vcpu: props.defaults.defaultVcpu || 2,
@@ -60,12 +61,12 @@ const form = reactive<CreateVmForm & { osTemplate: string }>({
   osTemplate: 'generic-linux',
 })
 
-// ''=无内联错误;非空=校验失败文案或后端 submitError 的兜底(硬约束 7,弹窗内联不用 toast)。
+// ''=no inline error; non-empty=validation failure message or fallback from backend submitError (hard constraint 7, no toast inside dialog).
 const localError = ref('')
 
-// 打开弹窗时复位表单。照 Vue2 showCreateVM(:1155-1169),但默认值直接读 props(改正确
-// 偏离 #2,已在组件头部申报),不在这里再拉一次 getSettings。immediate:true 让「直接以
-// open=true 挂载」的场景(测试即如此)也走一遍复位。
+// Reset form when dialog opens. Per Vue2 showCreateVM(:1155-1169), but default values read directly from
+// props (correct deviation #2, declared at component head), not pulling getSettings again here. immediate:true
+// lets "mount directly with open=true" scenario (test case) also go through reset.
 watch(() => props.open, (isOpen) => {
   if (!isOpen) return
   form.name = ''
@@ -81,27 +82,27 @@ watch(() => props.open, (isOpen) => {
   localError.value = ''
 }, { immediate: true })
 
-// 选中 OS 后的联动。照 Vue2 onOSSelect 赋值部分(:1376-1447),两个分支(isLocal / 官方
-// 模板)在 brief 里合并成一条统一规则——**不设 autostart**(改正确偏离 #1,已申报)。
+// Linkage after OS selection. Per Vue2 onOSSelect assignment section(:1376-1447), two branches (isLocal /
+// official template) merged in brief into one unified rule — **do not set autostart** (correct deviation #1, declared).
 watch(() => props.selectedOs, (os) => {
   if (!os) return
   form.iso = os.path
   form.os = os.isLocal ? os.name.replace(/\.iso$/i, '') : os.name
 
-  // 决定 osTemplate:id 直接命中(非 'local')就用它;否则按文件名反查模板;再不行按
-  // 文件名含 'win' 兜底成两个固定占位模板之一。osType/firmware/os 的最终值交给下面
-  // watch(osTemplate) 用 Task 3 的 osTemplateDefaults 统一推导,这里只负责定 osTemplate。
+  // Determine osTemplate: if id matches (not 'local') use it; otherwise match template by filename; if still
+  // no match, fall back to one of two generic templates based on 'win' in filename. Final values for osType/
+  // firmware/os passed to watch(osTemplate) below, using Task 3's osTemplateDefaults for unified derivation;
+  // this only determines osTemplate.
   //
-  // 全分支评审修复(B1,已申报):这里原来调的是 `matchTemplateByFilename`(严格版,
-  // IsoBrowser 第一遍已经用过的同一个纯函数)——但走到这个 else 分支时 `os.id` 必然是
-  // `'local'`(IsoBrowser.vue onItemClick 的契约:命中就给真实模板 id,不命中才落
-  // 'local'),对同一个文件名再跑同一个确定性函数必然还是返回 null,是可证明的死代码。
-  // Vue2 KVMFullPage.vue:1392-1403 在这个位置跑的其实是另一个更宽松的"家族前缀"匹配器
-  // (`t.id.split('-')[0]`,如 'ubuntu'/'debian'/'alpine',对 win* 额外核对版本号)——
-  // 之前只搬了严格版,这个宽松兜底整层丢了,是未申报的能力丢失(详见 isoMatch.ts 里
-  // matchTemplateByFamily 的完整对照注释)。现在换成它,恢复 Vue2 对
-  // "文件名含家族前缀但不含完整 id" 这类真实命名(如 alpine-standard-3.19.1-x86_64.iso)
-  // 的识别能力。
+  // Full-branch review fix (B1, declared): originally called `matchTemplateByFilename` (strict version, same
+  // pure function IsoBrowser already used once) — but reaching this else branch means `os.id` is necessarily
+  // `'local'` (IsoBrowser.vue onItemClick contract: match gives real template id, mismatch falls to 'local');
+  // running the same deterministic function on the same filename necessarily returns null again, provably dead code.
+  // Vue2 KVMFullPage.vue:1392-1403 at this position actually runs a looser "family prefix" matcher
+  // (`t.id.split('-')[0]`, like 'ubuntu'/'debian'/'alpine', extra version check for win*) — previously only
+  // ported strict version, this loose fallback layer was dropped entirely, undeclared capability loss (see full
+  // comparison comment in matchTemplateByFamily in isoMatch.ts). Now swap to it, restore Vue2's recognition of
+  // real filenames like "filename with family prefix but no complete id" (e.g. alpine-standard-3.19.1-x86_64.iso).
   if (os.id && os.id !== 'local') {
     form.osTemplate = os.id
   } else {
@@ -109,31 +110,31 @@ watch(() => props.selectedOs, (os) => {
     form.osTemplate = match ? match.id : (os.name.toLowerCase().includes('win') ? 'generic-windows' : 'generic-linux')
   }
 
-  // 有推荐值就覆盖 vcpu/memory(照 Vue2 :1440-1441,直接读 os 本身的推荐值,不等
-  // osTemplate 联动去查——万一 os.id 在当前 isos 列表里查不到模板,这里仍是安全网)。
+  // Override vcpu/memory if recommended values exist (per Vue2 :1440-1441, read recommended values directly
+  // from os itself, don't wait for osTemplate linkage — safety net if os.id can't be found in current isos list).
   if (os.recommendedVcpu) form.vcpu = os.recommendedVcpu
   if (os.recommendedMemory) form.memory = os.recommendedMemory
-  // 全分支评审订正(B2,已申报,原注释「照 Vue2 :1442」不准确):Vue2 :1436-1443 是
-  // `if (os.id) { this.newVM.osTemplate = os.id } else { ...这条磁盘公式... }`——磁盘公式
-  // 那句话在 Vue2 里挂在 `else`(即 `!os.id`)分支下。真机 `GET /v1/kvm/isos` 返回的每一
-  // 行都带 `id`(已用 2026-08-03 curl 核实),所以这个 else 分支在可达路径上**从未执行
-  // 过**,Vue2 选中任何 OS 后都不会改 `disk`,磁盘输入框停在打开弹窗时的默认值
-  // (`host.defaultDiskSize`,20 或 32)。New-UI 这里没有复刻 `if (os.id) {...} else {...}`
-  // 这层分支——上面已经用 osTemplate 分支处理了 osTemplate 本身,这条磁盘公式对**每一次**
-  // 选中都会跑(官方模板 `os.minDisk` 恒有定义,这个条件恒真)。**这不是照抄失败,是有意
-  // 保留新行为,不是缺陷**:新行为更准确——例如选中 `alpine-319`(minDisk=2)时预填
-  // 20GB(`Math.max(2*3,20)`),而 Vue2 对 minDisk=40 的 Windows 模板会预填出 32GB
-  // (defaultDiskSize),随即违反表单自己的 `:min="minDisk"` 校验(32 < 40)。保留现状,
-  // 只把这条注释从"误标为照抄"改成正式的偏离申报。
+  // Full-branch review correction (B2, declared, original comment "per Vue2 :1442" inaccurate): Vue2 :1436-1443 is
+  // `if (os.id) { this.newVM.osTemplate = os.id } else { ...this disk formula... }` — disk formula sentence
+  // hangs in `else` (i.e. `!os.id`) branch in Vue2. Real device `GET /v1/kvm/isos` returns every row with `id`
+  // (verified 2026-08-03 curl), so this else branch **never executes** in reachable paths; selecting any OS in
+  // Vue2 never changes `disk`, input stays at dialog-open default (`host.defaultDiskSize`, 20 or 32). New-UI
+  // here does not replicate the `if (os.id) {...} else {...}` branching — above already handles osTemplate
+  // with osTemplate branch; this disk formula runs on **every selection** (official templates always have
+  // `os.minDisk` defined, condition always true). **Not a copy failure, intentional new behavior, not a bug**:
+  // new behavior more accurate — e.g. selecting `alpine-319` (minDisk=2) prefills 20GB (`Math.max(2*3,20)`),
+  // while Vue2 on Windows template with minDisk=40 prefills 32GB (defaultDiskSize), then violates form's own
+  // `:min="minDisk"` validation (32 < 40). Keep status quo, only relabel this comment from "mismarked as copy"
+  // to formal deviation declaration.
   if (os.minDisk !== undefined) form.disk = Math.max((os.minDisk || 8) * 3, 20)
 }, { immediate: true })
 
-// osTemplate 联动。逐字对 Vue2 watch('newVM.osTemplate')(:720-746),用 Task 3 的
-// osTemplateDefaults 计算——**改正确**:Vue2 原文「找不到模板」时整段 watch 是空
-// no-op(:731 `if (tmpl) {...}` 没有 else 分支),但 osTemplateDefaults 作为纯函数必须
-// 有确定返回值,不能真的什么都不做,只能在调用方补回这层「找不到就跳过」的判断——否则
-// 会把上面 watch(selectedOs) 刚设好的 os/firmware 覆盖成兜底的 'Linux'/'bios',丢失
-// 已经更精确的信息。这层判断就是把 Vue2 那个隐藏在 if 里的 no-op 显式搬回来。
+// osTemplate linkage. Verbatim from Vue2 watch('newVM.osTemplate')(:720-746), computed using Task 3's
+// osTemplateDefaults — **correct fix**: Vue2 original "template not found" case watch is empty no-op (:731
+// `if (tmpl) {...}` no else branch), but osTemplateDefaults as pure function must have definite return value,
+// cannot really do nothing; can only add back at call site this layer "not found, skip" check — otherwise overwrites
+// os/firmware just set by watch(selectedOs) above with fallback 'Linux'/'bios', losing already more precise
+// information. This check makes explicit the no-op hidden in Vue2's if.
 watch(() => form.osTemplate, (val) => {
   if (!val) return
   const isGeneric = val === 'generic-linux' || val === 'generic-windows'
@@ -145,15 +146,15 @@ watch(() => form.osTemplate, (val) => {
   form.os = d.os
   if (d.vcpu) form.vcpu = d.vcpu
   if (d.memory) form.memory = d.memory
-  // 照 Vue2 :741-743,`!this.newVM.disk` 这个条件在复位后基本恒为 false(disk 总有值)——
-  // 保留是为了逐字对齐,不是死代码硬留:disk===0 的边界值理论上仍会命中。
+  // Per Vue2 :741-743, `!this.newVM.disk` condition basically always false after reset (disk always has value) —
+  // kept for verbatim alignment, not dead code hardcoded: disk===0 edge case theoretically still reaches here.
   if (d.minDisk && !form.disk) form.disk = Math.max(form.disk || 0, d.minDisk)
 }, { immediate: true })
 
-// validateCreateVm(Task 3)要的是 KvmISO 形状,而这里只有 SelectedOs(字段子集,部分
-// 可选)。只读它实际用到的两个字段(minDisk/minMemory)加一层判空,其余字段(version/
-// category/size/status/progress)填空占位——validateCreateVm 内部不读它们,纯粹是
-// 为了满足参数类型,不是伪造数据发给后端(payload 是另外单独构造的,见 buildPayload)。
+// validateCreateVm (Task 3) wants KvmISO shape, but here only SelectedOs (field subset, some optional).
+// Read only two actually-used fields (minDisk/minMemory) plus one null-check layer; other fields (version/
+// category/size/status/progress) filled as placeholders — validateCreateVm does not read them internally,
+// purely to satisfy parameter type, not fake data sent to backend (payload constructed separately, see buildPayload).
 function toValidateOs(os: SelectedOs | null): KvmISO | null {
   if (!os) return null
   return {
@@ -173,11 +174,11 @@ function toValidateOs(os: SelectedOs | null): KvmISO | null {
 }
 
 function onSubmit(): void {
-  // 防重复提交:创建请求在途时点了也不生效(硬约束,测试用例 12)。原生 `disabled`
-  // 属性(见 template)已经挡掉了浏览器里的真实鼠标点击,这里再补一道 JS 层的防线——
-  // 万一将来某次改动漏挂 `:disabled` 或从别的路径调用 onSubmit,这里仍能兜底。
-  // 评审做过变异验证:删掉这一行,用例(用 dispatchEvent 绕开原生 disabled 拦截)
-  // 精确翻红,证明这行不是死代码,详见任务报告。
+  // Prevent duplicate submit: clicking while create request in flight has no effect (hard constraint, test case 12).
+  // Native `disabled` attribute (see template) already blocks real mouse clicks in browser; add JS-level guard here —
+  // if future changes miss `:disabled` or call onSubmit from elsewhere, this still catches it.
+  // Review mutation-tested: deleting this line, test case (using dispatchEvent to bypass native disabled) fails exactly,
+  // proves this line is not dead code, see task report.
   if (props.creating) return
 
   const formForValidate: CreateVmForm = {
@@ -187,14 +188,14 @@ function onSubmit(): void {
   }
   const err = validateCreateVm(formForValidate, toValidateOs(props.selectedOs), props.host)
   if (err) {
-    // 弹窗内联报错,不用 toast(硬约束 7:toast z-index 60 会被弹窗遮罩 900+blur 压住糊掉)。
+    // Dialog inline error, no toast (hard constraint 7: toast z-index 60 blocked by dialog mask 900+blur).
     localError.value = t(err.key) + (err.arg ? ` ${err.arg}` : '')
     return
   }
   localError.value = ''
 
-  // 照 Vue2 createVM(:1475-1480):networkMode 只有 'nat' 是 nat,其余(网卡名字符串)
-  // 一律算 bridge,网卡名本身回填进 networkInterface。
+  // Per Vue2 createVM(:1475-1480): networkMode 'nat' is nat, all others (NIC name strings)
+  // count as bridge, NIC name itself fills into networkInterface.
   const isBridge = form.networkMode !== 'nat'
   const payload: KvmCreateVMRequest = {
     name: form.name,
@@ -207,8 +208,8 @@ function onSubmit(): void {
     networkMode: isBridge ? 'bridge' : 'nat',
     networkInterface: isBridge ? form.networkMode : '',
     firmware: form.firmware,
-    // 有意不传 osTemplate / autostart / bootFromDisk——见组件头部偏离登记 #1
-    // (bootFromDisk 是可选字段,后端默认 false,不传等价于传 false)。
+    // Intentionally not sending osTemplate / autostart / bootFromDisk — see component head deviation log #1
+    // (bootFromDisk is optional, backend defaults to false, not sending equals sending false).
   }
   emit('submit', payload)
 }
@@ -224,8 +225,8 @@ function onSubmit(): void {
     <div class="cv-field">
       <label class="cv-label">{{ t('kvmIsoImage') }}</label>
       <div class="cv-input-row">
-        <!-- name 属性不是 Vue2 有的东西(它靠 b-input 组件,没有裸 name)——纯测试钩子,
-             与其它 input 一样,方便 vue-test-utils 精确选中。 -->
+        <!-- name attribute is not from Vue2 (it uses b-input component with no bare name) — pure test hook,
+             same as other inputs, convenient for vue-test-utils precise selection. -->
         <button type="button" class="cv-iso-btn" @click="emit('open-os-selector')">
           <span v-if="props.selectedOs">{{ props.selectedOs.path }}</span>
           <span v-else class="cv-placeholder">{{ t('kvmSelectIsoPlaceholder') }}</span>

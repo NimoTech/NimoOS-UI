@@ -1,29 +1,32 @@
 <script setup lang="ts">
-// Task 10(SP7-P6a 地点·地图主视图):PlacesThemeMenu.vue —— 地图工具栏「地图主题」胶囊
-// 按钮 + 下拉弹层(4 预设 + 自定义两取色器)。逐段照 Vue2 NimoOS-UI src/views/Photos/
-// PhotosPlacesView.vue:907-947(模板)移植;色值/resolveMapTheme 语义已在同任务落到
-// src/photos/util/placesMapThemes.ts,本组件只消费 MAP_THEME_PRESETS + swatchColors,
-// 不重复定义色值、也不需要 resolveMapTheme/mapThemeStyleVars(那两个是 PlacesMap.vue 用
-// 来渲染地图本体的,本组件只画预览色块)。样式段照 photos-places.scss:964-1025。
+// Task 10 (SP7-P6a places/map main view): PlacesThemeMenu.vue — map toolbar "map theme" button +
+// dropdown (4 presets + custom color pickers). Ported segment-by-segment from Vue2 NimoOS-UI
+// src/views/Photos/PhotosPlacesView.vue:907-947 (template); color values/resolveMapTheme semantics
+// already landed in that task to src/photos/util/placesMapThemes.ts, this component only consumes
+// MAP_THEME_PRESETS + swatchColors, does not redefine colors or need resolveMapTheme/mapThemeStyleVars
+// (those are PlacesMap.vue's for the map itself; this only draws preview swatches). Styling per photos-places.scss:964-1025.
 //
-// 写口径(同 T9/T5/T8 既定):props.selection 不许就地改——一律 emit update:selection
-// 传整体替换后的新对象。选预设:emit 新 selection(仅 mapTheme 变)+ emit update:open(false)
-// 关闭弹层。取色器 @input:emit 新 selection(mapTheme 强制置 'custom' + 对应颜色字段更新,
-// 另一个颜色字段原样保留),不关闭弹层——照 Vue2 :940/:944 的 `@input="mapTheme = 'custom'"`,
-// 取色器本身没有伴随关闭动作。是否真的调用 store.setMapTheme/setCustomColors 落盘,
-// 由 T11 容器接住这两个 emit 后决定(brief 消歧义 1:读可直连 store、写走 emit)。
+// Write protocol (same as T9/T5/T8): props.selection must never mutate in place — always emit
+// update:selection with the entire replaced new object. Pick preset: emit new selection (mapTheme
+// only) + emit update:open(false) to close the layer. Color picker @input: emit new selection
+// (mapTheme forced to 'custom' + corresponding color field updated, other unchanged), don't close
+// the layer — per Vue2 :940/:944 `@input="mapTheme = 'custom'"`, the picker has no close action.
+// Whether to actually call store.setMapTheme/setCustomColors to persist is T11 container's decision
+// after catching these emits (brief rule 1: read can hit store, write goes via emit).
 //
-// isLight 的来源(D5 相对 Vue2 的信号替换):不读相册私有 store,改由调用方(T11 容器)
-// 从全局 src/stores/theme.ts 的响应式 theme ref 算出 `theme === 'light'` 传进来
-// (该 store 已是响应式,不必新造 MutationObserver——本组件不直接依赖任何 store,
-// 保持纯 props/emit 的展示组件)。
+// isLight source (D5 signal replacement relative to Vue2): do not read the photos-private store,
+// instead the caller (T11 container) passes it in by computing `theme === 'light'` from the
+// reactive theme ref in global src/stores/theme.ts (that store is already reactive, no need for
+// new MutationObserver — this component does not directly depend on any store, staying a pure
+// props/emit presentational component).
 //
-// 浮层规范(同 T9 PlacesFilterMenu.vue 的既定模式):open 为 prop,document 级
-// mousedown(容器外点击关闭)+ keydown(Esc 关闭),watch(open) 挂/摘监听,不用
-// stopImmediatePropagation。onDocKeydown 内唯一的早退是「非 Escape 键跳过」——本组件
-// 自己只管一个 open 状态,没有第二个分支可早退,不是 P5-T10 那种两弹层共享判定函数漏检
-// 第二个分支的早退 bug;那个场景要等 T11 把本组件与 PlacesFilterMenu 一起装进容器才会
-// 出现,集成断言归 T11。
+// Floating layer spec (same pattern as T9 PlacesFilterMenu.vue): open is a prop, document-level
+// mousedown (close on click outside) + keydown (close on Esc), watch(open) to attach/detach
+// listeners, no stopImmediatePropagation. The only early exit in onDocKeydown is "skip non-Escape
+// keys" — this component only manages one open state with no second branch to exit from, unlike
+// the P5-T10 bug where two floating layers share a judgment function that missed the second
+// branch's early exit; that scenario only emerges when T11 puts this component and PlacesFilterMenu
+// into a container together; integration assertions belong to T11.
 import { onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MAP_THEME_PRESETS, swatchColors } from '../util/placesMapThemes'
@@ -52,25 +55,25 @@ function toggleOpen(): void {
   emit('update:open', !props.open)
 }
 
-// Vue2 :919 `@click="mapTheme = t.id; themeOpen = false"`。
+// Vue2 :919 `@click="mapTheme = t.id; themeOpen = false"`.
 function pickPreset(id: string): void {
   emit('update:selection', { ...props.selection, mapTheme: id })
   emit('update:open', false)
 }
 
-// Vue2 :940 `@input="mapTheme = 'custom'"`(v-model 已负责把 customDotColor 写成新值,
-// 这里两件事一起 emit 成一个整体替换对象)。
+// Vue2 :940 `@input="mapTheme = 'custom'"` (v-model already handles writing the new
+// customDotColor value, here two things emit together as one integral replacement object).
 function onDotInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customDotColor: value })
 }
-// Vue2 :944,同上,换成 customGridColor。
+// Vue2 :944, same as above but with customGridColor.
 function onGridInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customGridColor: value })
 }
 
-// ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────
+// ── Floating layer spec: when open, attach document-level mousedown/keydown; watch(open) attaches/detaches ──────
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   if (rootRef.value && !rootRef.value.contains(target)) emit('update:open', false)
@@ -162,12 +165,12 @@ onUnmounted(() => {
 .map-chip:hover { color: var(--fg); }
 .mtm-chip-icon { vertical-align: -1px; }
 
-/* 弹层 chrome(底色/投影):同 T9 PlacesFilterMenu.vue 的 .map-filter-pop 既定裁定——用
-   本仓「不透明浮动菜单/面板」的既定组合 token(--popup-bg + --card-shadow-hi),不精确
-   复刻 Vue2 photos-places.scss:969/974 那个纯灰实底(--surface-2)+ 单层黑色投影。依据
-   同一条区级 spec D3 与同一批既有先例(ContextMenu.vue/Dialog.vue/AlertDialog.vue/
-   ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 两个下拉菜单),详细论证
-   见 PlacesFilterMenu.vue 里那段裁定注释,这里不重复展开,只重申结论并保持两处一致。 */
+/* Pop-up chrome (background/shadow): same decision as T9 PlacesFilterMenu.vue's .map-filter-pop —
+   using this repo's standard "opaque floating menu/panel" tokens (--popup-bg + --card-shadow-hi),
+   not precisely copying Vue2 photos-places.scss:969/974's gray background (--surface-2) + black
+   shadow. Based on spec D3 and precedents (ContextMenu.vue/Dialog.vue/AlertDialog.vue/
+   ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue dropdowns), detailed reasoning in
+   PlacesFilterMenu.vue's decision comment; here reaffirming conclusion and maintaining consistency. */
 .map-theme-pop {
   position: absolute;
   top: calc(100% + 6px);
@@ -203,15 +206,15 @@ onUnmounted(() => {
   cursor: pointer;
   text-align: left;
 }
-/* Vue2 没有给 .mtp-item 单独的 :hover(scss :986-996 只给 .is-active 特殊底色)——本仓
-   桌面交互惯例新增(同 PlacesFilterMenu.vue :330 的既有先例)。 */
+/* Vue2 doesn't give .mtp-item its own :hover (scss :986-996 only gives .is-active special
+   background) — new per this repo's desktop convention (same as PlacesFilterMenu.vue :330). */
 .map-theme-pop .mtp-item:hover { background: var(--chip-bg); }
 .map-theme-pop .mtp-item.is-active {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
-/* 变体自带 :hover(优先级 (0,3,1),高于基类 hover 的 (0,2,1)):指针进入已选中项时不会被
-   基类 hover 背景整块夺走——同 PlacesFilterMenu.vue 的 hover 级联铁律处理手法。 */
+/* Variant has its own :hover (specificity (0,3,1) > base (0,2,1)): pointer on selected item
+   won't lose base hover background — same cascade handling as PlacesFilterMenu.vue. */
 .map-theme-pop .mtp-item.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);

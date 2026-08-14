@@ -1,38 +1,38 @@
 <!--
-  SP7-P8a-T4: 设置页 AI 卡。
-  回源坐标:Vue2 PhotosSettings.vue:129-192(模板)、:283-291(rebuildTask watcher)、
-  :332-370(rebuildTask/indexing/indexedPct/coverageCount/lastBuiltText/featureRows)、
-  :458-486(rebuildIndex/doRecluster)。
+  SP7-P8a-T4: Settings page AI card.
+  Source coordinates: Vue2 PhotosSettings.vue:129-192 (template), :283-291 (rebuildTask watcher),
+  :332-370 (rebuildTask/indexing/indexedPct/coverageCount/lastBuiltText/featureRows),
+  :458-486 (rebuildIndex/doRecluster).
 
-  卡片自己不弹 toast —— @toast 统一由 T5 容器承接,同 PhotosStorageCard.vue(T3)的既定分工。
+  Card does not emit toast itself — @toast unified by T5 container, same division of labor as PhotosStorageCard.vue (T3).
 
-  接口边界记录(给 T5 实现者看):
-  - `about` 不在本卡调用 fetchAbout() —— 沿用 T3 的既定分工,by T5 容器统一取一次。
-    取数完成前 lastBuiltText 显示 'never'、coverageCount 显示 0(见下方 computed)。
-  - `rebuildTask` 从 timeline store 的 `tasks` 读,不在本卡另起一份任务轮询
-    (与 settings.ts 头部注释 "useTimelineStore() 必须在 setup 内部调用" 一致)。
+  Interface boundary notes (for T5 implementer):
+  - `about` not fetched in this card by fetchAbout() — reuse T3's division of labor, T5 container fetches once unified.
+    Before fetch completes, lastBuiltText shows 'never', coverageCount shows 0 (see computed below).
+  - `rebuildTask` read from timeline store's `tasks`, card does not start separate task polling
+    (consistent with settings.ts header comment "useTimelineStore() must be called inside setup").
 
-  偏离登记(按项目铁律"Vue2 的 bug 不照抄,改正确逻辑并注释登记"):
-  1. lastBuiltText 的 locale 缺陷 —— Vue2 :346 `new Date(iso).toLocaleString()` 不传
-     locale 参数,结果跟随浏览器/系统语言而非应用内选择的语言,中文界面下会出英文月份缩写
-     (与 spec §7c-2/§7e-4 同类缺陷)。改为显式跟随 i18n locale(套用
-     src/photos/util/relTime.ts:18-22、PlacesRail.vue:84、PlaceDetailPanel.vue:120、
-     PersonHero.vue:113 的既有写法:locale.replace('_','-') 转 BCP-47 标签,喂给
-     Intl.DateTimeFormat)。保留 toLocaleString() 的"日期+时间"语义(不是
-     toLocaleDateString() 的纯日期),故 Intl 选项里含 hour/minute。
-  2. rebuildTask 的"跳变"判据(:283-284)—— 必须是 old.status==='running' &&
-     new.status==='done' 才弹"已重建"toast,不是"当前状态是 done 就弹"。照搬这个跳变
-     判据,否则每次任务列表刷新(轮询/深链打开)都会重复弹同一条 toast。
+  Deviation logging (per project rule "Vue2's bugs not copied, correct logic and comment logging"):
+  1. lastBuiltText locale defect — Vue2 :346 `new Date(iso).toLocaleString()` does not pass
+     locale parameter, result follows browser/system language not app's chosen language, Chinese UI shows English month abbreviations
+     (same defect type as spec §7c-2/§7e-4). Changed to explicitly follow i18n locale (adopting
+     src/photos/util/relTime.ts:18-22, PlacesRail.vue:84, PlaceDetailPanel.vue:120,
+     PersonHero.vue:113 existing pattern: locale.replace('_','-') convert to BCP-47 tag, pass to
+     Intl.DateTimeFormat). Retained toLocaleString()'s "date+time" semantics (not
+     toLocaleDateString()'s date-only), so Intl options include hour/minute.
+  2. rebuildTask's "state change" criteria (:283-284) — only when old.status==='running' &&
+     new.status==='done' emit "rebuilt" toast, not "current state is done emit". Copy this state change
+     criteria, else each task list refresh (polling/deep link open) repeats same toast.
 
-  颜色 token:本卡零新增 token —— 全部复用既有语义 token(--accent/--accent2/
+  Color tokens: card adds zero new tokens — all reuse existing semantic tokens (--accent/--accent2/
   --accent-soft/--sem-bg/--sem-fg/--sem-bd/--chip-bg/--chip-bg-hi/--border/--fg/
-  --on-accent/--divider/--fg-muted)。私隐横幅原色 Vue2 是精确的 iOS 绿
-  rgba(52,199,89,α)/#34C759,但本仓已有通用"成功/正向"语义 token --sem-*
-  (成功徽标、RAID 健康态等多处复用,色相是青绿而非苹方绿)——比照 T3 对
-  Vue2 字面量 #6E5BFF 就近映射到既有 --accent-soft/--accent 而不新增 token 的先例,
-  这里同样映射到既有 --sem-* 三件套,不为同一"成功/安全"语义再造一份几乎重复的
-  token。进度条渐变原色 Vue2 是 linear-gradient(#6E5BFF,#B8AAFF),这里用
-  linear-gradient(var(--accent), var(--accent2)) 复刻"强调色渐变"的观感,同样不新增。
+  --on-accent/--divider/--fg-muted). Privacy banner original color Vue2 is exact iOS green
+  rgba(52,199,89,α)/#34C759, but this repo has generic "success/positive" semantic token --sem-*
+  (success badges, RAID health state used multiple places, hue is teal-green not Apple green) — following T3's precedent
+  of mapping Vue2 literal #6E5BFF closest to existing --accent-soft/--accent without adding token,
+  here similarly map to existing --sem-* triplet, not reinventing nearly-duplicate token for same "success/safety" semantic.
+  Progress bar gradient original Vue2 is linear-gradient(#6E5BFF,#B8AAFF), here use
+  linear-gradient(var(--accent), var(--accent2)) replicate "accent gradient" appearance, similarly no new tokens.
 -->
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
@@ -46,7 +46,7 @@ const { t, locale } = useI18n()
 const store = usePhotosSettingsStore()
 const timeline = useTimelineStore()
 
-// Vue2 PhotosSettings.vue:363-369 —— 顺序固定 faces → scenes → ocr → smartview。
+// Vue2 PhotosSettings.vue:363-369 — order fixed: faces → scenes → ocr → smartview.
 const featureRows = computed(() => [
   { id: 'faces' as const, label: t('photosSettingsFeatFaces'), desc: t('photosSettingsFeatFacesDesc') },
   { id: 'scenes' as const, label: t('photosSettingsFeatScenes'), desc: t('photosSettingsFeatScenesDesc') },
@@ -62,9 +62,9 @@ async function toggleFeature(id: keyof PhotosAiFeatures): Promise<void> {
   }
 }
 
-// Vue2 :332-337 —— rebuildTaskId 本地记住的那条优先,找不到再找任意 type==='rebuild' 的
-// 任务,再没有就 null。id 铁律:后端 id 可能是 string|number,统一转 String 比较
-// (同 PlacesRail.vue "id 铁律" 既有先例)。
+// Vue2 :332-337 — rebuildTaskId locally remembered task takes priority, if not found then find any task with type==='rebuild',
+// if not found then null. id iron law: backend id may be string|number, uniformly convert to String for comparison
+// (same precedent as PlacesRail.vue "id iron law").
 const rebuildTaskId = ref('')
 const rebuildTask = computed(() => {
   const tasks = timeline.tasks
@@ -74,14 +74,14 @@ const rebuildTask = computed(() => {
   return byId ?? tasks.find(x => x.type === 'rebuild') ?? null
 })
 
-// Vue2 :338 —— indexing = 有 rebuildTask 且状态为 running。
+// Vue2 :338 — indexing = has rebuildTask and status is running.
 const indexing = computed(() => rebuildTask.value?.status === 'running')
-// Vue2 :339 —— 后端 progress 是 0-1 的小数,不是百分数,故 *100 再取整。
+// Vue2 :339 — backend progress is 0-1 decimal, not percentage, so *100 then round.
 const indexedPct = computed(() => Math.round(((rebuildTask.value?.progress) || 0) * 100))
-// Vue2 :340 —— coverageCount 取 about.indexCoverage,about 取数前(null)兜底 0。
+// Vue2 :340 — coverageCount from about.indexCoverage, before fetch (null) fallback to 0.
 const coverageCount = computed(() => store.about?.indexCoverage ?? 0)
 
-// Vue2 :341-351,偏离登记见文件头注释 1。
+// Vue2 :341-351, deviation logging see file header comment 1.
 const lastBuiltText = computed(() => {
   const iso = store.about?.indexLastBuilt
   if (!iso) return t('photosSettingsIndexNever')
@@ -91,13 +91,13 @@ const lastBuiltText = computed(() => {
       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     }).format(new Date(iso))
   } catch {
-    // Vue2 :348-350 的 catch 分支同样回落到原始 iso 字符串。
+    // Vue2 :348-350 catch branch similarly falls back to raw iso string.
     return iso
   }
 })
 
-// Vue2 :283-291 —— 只在 running→done 的跳变上弹"已重建"toast + 重拉 about;
-// error 状态弹失败 toast(不要求跳变,与源一致)。偏离登记见文件头注释 2。
+// Vue2 :283-291 — only emit "rebuilt" toast + refetch about on running→done state change;
+// error state emits failure toast (state change not required, consistent with source). Deviation logging see file header comment 2.
 watch(rebuildTask, (task, old) => {
   if (old && old.status === 'running' && task && task.status === 'done') {
     const base = t('photosSettingsRebuiltToast')
@@ -110,8 +110,8 @@ watch(rebuildTask, (task, old) => {
   }
 })
 
-// Vue2 :458-473 —— settings.ts 的 rebuildIndex() 已经吞掉 409(自己刷一次任务列表并
-// 返回运行中任务的 id),这里只需要处理"非 409 失败"分支。
+// Vue2 :458-473 — settings.ts's rebuildIndex() already handles 409 (refresh task list once and
+// return running task's id), here only handle "non-409 failure" branch.
 async function doRebuild(): Promise<void> {
   if (indexing.value) return
   try {
@@ -121,7 +121,7 @@ async function doRebuild(): Promise<void> {
   }
 }
 
-// Vue2 :474-486 —— 成功/失败都在 finally 里 3 秒后解禁,防连点。
+// Vue2 :474-486 — success/failure both re-enable in finally after 3s, prevent rapid clicks.
 const reclustering = ref(false)
 async function doRecluster(): Promise<void> {
   if (reclustering.value) return
@@ -169,11 +169,12 @@ async function doRecluster(): Promise<void> {
           <div class="lbl">{{ f.label }}</div>
           <div class="desc">{{ f.desc }}</div>
         </div>
-        <!-- 终审 Minor 6:a11y 债务登记——这颗开关只吃鼠标 click,没有 tabindex/keydown,
-             键盘/AT 用户够不到。Vue2 PhotosSettings.vue:163 是裸 div,没有 role;之前这里加了
-             role="switch" 却没配套键盘可达性,等于向 AT 宣称"这是可操作控件"但操作不了,比
-             什么都不说更糟。按裁决去掉 role、不补键盘处理,先照 Vue2 1:1 恢复裸 div——把整个
-             设置页做成可键盘导航是本期范围之外的独立工作。 -->
+        <!-- final review Minor 6: a11y debt logging — this switch only handles mouse click, no tabindex/keydown,
+             keyboard/AT users cannot reach it. Vue2 PhotosSettings.vue:163 is bare div, no role; previously added
+             role="switch" here but no keyboard accessibility support, equals telling AT "this is an operable control"
+             but cannot operate, worse than saying nothing. Per decision remove role, no keyboard handling added,
+             first restore bare div 1:1 from Vue2 — making entire settings page keyboard-navigable is independent
+             work outside this cycle scope. -->
         <div
           class="st-switch" :data-on="store.aiFeatures[f.id]" :data-test="`ai-switch-${f.id}`"
           :aria-checked="store.aiFeatures[f.id]" :aria-label="f.label"
@@ -273,9 +274,9 @@ async function doRecluster(): Promise<void> {
 .aic-feature-text .lbl { font-size: 13px; color: var(--fg); font-weight: 500; }
 .aic-feature-text .desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; line-height: 1.4; }
 
-/* 开关:照本仓既有惯例(settings/styles/settings.css .set-switch、
-   SnapshotSettingsDialog.vue .ss-switch)——关态描边+chip 底,开态实底 accent,
-   把手关态 --fg、开态 --on-accent("只在叠在 accent 实底上才可用",这里正是那种情形)。 */
+/* switch: follow this repo's existing conventions (settings/styles/settings.css .set-switch,
+   SnapshotSettingsDialog.vue .ss-switch) — off state outline+chip bg, on state solid accent,
+   thumb off state --fg, on state --on-accent ("only usable over solid accent", this is that case). */
 .st-switch {
   position: relative;
   width: 36px;
@@ -301,11 +302,11 @@ async function doRecluster(): Promise<void> {
 .st-switch[data-on="true"] { background: var(--accent); border-color: var(--accent); }
 .st-switch[data-on="true"]::after { left: 18px; background: var(--on-accent); }
 .st-switch:hover { background: var(--chip-bg-hi); }
-/* 本区已栽四次的坑:基类 `.st-switch:hover`(优先级 2)与变体
-   `.st-switch[data-on="true"]`(优先级 2)同权重——鼠标一进开关,若没有专门的
-   `[data-on]:hover` 规则,两条同优先级规则谁赢会退化成"谁在源码里写在后面",
-   而不是"变体理应保持自己的实底"。用第三个选择器把优先级明确抬高到 3,
-   开态开关 hover 时保持 accent 实底,不被基类的 hover 底色顶掉。 */
+/* This area's four-times trap: base class `.st-switch:hover` (specificity 2) and variant
+   `.st-switch[data-on="true"]` (specificity 2) equal weight — mouse enters switch, without dedicated
+   `[data-on]:hover` rule, which of two equal-specificity rules wins degrades to "whoever's written later in source",
+   not "variant should maintain its own solid bg". Use third selector explicitly raise specificity to 3,
+   on-state switch on hover maintains accent solid bg, not overridden by base class's hover bg. */
 .st-switch[data-on="true"]:hover { background: var(--accent); border-color: var(--accent); }
 
 .aic-row { display: flex; align-items: center; gap: 16px; }

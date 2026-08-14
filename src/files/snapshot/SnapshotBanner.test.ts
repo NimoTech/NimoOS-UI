@@ -13,38 +13,38 @@ const mountIt = (props: Record<string, unknown> = {}) =>
   })
 
 describe('SnapshotBanner', () => {
-  it('info 为 null 时整条不渲染', () => {
+  it('do not render banner when info is null', () => {
     expect(mountIt({ info: null }).find('.snap-banner').exists()).toBe(false)
   })
-  it('显示解析出的人话时间,而不是原始快照名', () => {
+  it('show human-readable parsed time, not raw snapshot name', () => {
     const text = mountIt().text()
     expect(text).not.toContain('20260713T061900Z')
     expect(text).toContain('只读')
   })
-  it('快照名解析不出来时回退显示原始名字(不留空)', () => {
+  it('when snapshot name cannot be parsed, fall back to raw name (do not leave empty)', () => {
     const w = mountIt({ info: { ...INFO, snapshotName: 'weird' } })
     expect(w.text()).toContain('weird')
   })
-  it('常驻提示行一直在(不是一次性 toast)', () => {
+  it('hint row always visible (not one-time toast)', () => {
     expect(mountIt().find('.snap-banner-hint').text()).toContain('恢复')
   })
-  it('点退出 emit exit', async () => {
+  it('clicking exit emits exit', async () => {
     const w = mountIt()
     await w.find('.snap-banner-exit').trigger('click')
     expect(w.emitted('exit')).toHaveLength(1)
   })
-  it('点恢复 emit restore', async () => {
+  it('clicking restore emits restore', async () => {
     const w = mountIt()
     await w.find('.snap-banner-restore').trigger('click')
     expect(w.emitted('restore')).toHaveLength(1)
   })
-  it('没有可恢复的选中项时恢复按钮禁用且不 emit', async () => {
+  it('when no restorable items are selected, restore button is disabled and does not emit', async () => {
     const w = mountIt({ canRestore: false })
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeDefined()
     await w.find('.snap-banner-restore').trigger('click')
     expect(w.emitted('restore')).toBeUndefined()
   })
-  it('恢复在途时按钮禁用并显示忙态', async () => {
+  it('while restore is in progress, button is disabled and shows busy state', async () => {
     const w = mountIt({ restoring: true })
     expect(w.find('.snap-banner-restore').attributes('disabled')).toBeDefined()
     expect(w.find('.snap-banner-restore').classes()).toContain('is-busy')
@@ -62,17 +62,19 @@ describe('SnapshotBanner', () => {
     expect(text).toContain('40')
   })
 
-  // 评审修复(Critical 1 加分项):`.snapshots` 容器目录本身没有具体快照名,info 恒为
-  // null,原实现下横幅整条不渲染——只读锁生效却没有任何提示,像是"锁了但没人告诉你"。
-  describe('.snapshots 容器目录(info 为 null,isContainer 为 true)', () => {
-    it('显示无时间的引导文案,没有恢复/退出按钮', () => {
+  // Review fix (Critical 1 bonus): the `.snapshots` container directory itself has no specific
+  // snapshot name; info is always null; in the original implementation, the banner would not
+  // render at all — the read-only lock is in effect yet shows no hint, like "locked but nobody
+  // told you".
+  describe('.snapshots container directory (info is null, isContainer is true)', () => {
+    it('show guidance text without time, no restore/exit buttons', () => {
       const w = mountIt({ info: null, isContainer: true })
       expect(w.find('.snap-banner').exists()).toBe(true)
       expect(w.text()).toContain('请选择一个快照')
       expect(w.find('.snap-banner-restore').exists()).toBe(false)
       expect(w.find('.snap-banner-exit').exists()).toBe(false)
     })
-    it('isContainer 为 false 且 info 为 null 时整条仍不渲染(不是每次 info 为 null 都露出容器提示)', () => {
+    it('when isContainer is false and info is null, banner still does not render (container hint does not show every time info is null)', () => {
       expect(mountIt({ info: null, isContainer: false }).find('.snap-banner').exists()).toBe(false)
     })
   })

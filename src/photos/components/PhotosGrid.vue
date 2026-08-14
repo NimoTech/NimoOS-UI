@@ -32,10 +32,12 @@ import {
 import { usePhotosFavorites } from '../stores/favorites'
 import VideoHoverPreview from './VideoHoverPreview.vue'
 
-// P6b-T9(偏离登记 14):地点照片页(D10 跳库最小面,只浏览不接多选/批操作)是第 3 个
-// 消费方,但它不需要复选框——之前两个消费方(Photos.vue/PhotosFavorites.vue)都要选择态,
-// 硬编码渲染 `.tile-check` 从未有过"不要它"的场景。加 `selectable`(默认 true)门控,
-// 默认值保证既有两个消费方零行为变化,不必逐一改它们的调用点。
+// P6b-T9 (deviation registry 14): Place photo page (D10 minimum library surface, browse-only
+// no multi-select/batch operations) is the 3rd consumer, but it doesn't need checkboxes —
+// the prior two consumers (Photos.vue/PhotosFavorites.vue) both require selection mode,
+// and `.tile-check` was hardcoded to render and never had a "don't render it" case. Added
+// `selectable` (default true) gating so existing consumers have zero behavior change and
+// don't need their callsites changed one by one.
 const props = withDefaults(defineProps<{
   months: Month[]
   tab?: string
@@ -60,9 +62,10 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 收藏是全局横切态(与 open/toggle-select 的视图级 emit 分工不同)——grid 直接消费
-// store,不新增 emit。星标显隐/is-fav 判定一律走 fav.isFav(id) 值比较,不用对象引用
-// (P1 铁律:时间线静默刷新在同一 keyed 节点上重建 Photo 对象,引用比较会误判)。
+// Favorites is global cross-cutting state (unlike the view-level emit division of open/toggle-select) —
+// grid consumes the store directly, no new emit. Star visibility / is-fav check always uses
+// fav.isFav(id) value comparison, never object reference (P1 law: silent timeline refresh rebuilds
+// Photo objects on the same keyed node, reference comparison misses that).
 const fav = usePhotosFavorites()
 
 // ─── DOM refs ────────────────────────────────────────────────────────────
@@ -335,9 +338,10 @@ function toggleSelect(id: string | number) { emit('toggle-select', id) }
 function onTileClick(p: Photo) {
   if (selecting.value) { toggleSelect(p.id); return }
   let startMs = 0
-  // 按稳定 id 比较,不用对象引用(P1 铁律):时间线 5s 静默刷新会在同一 keyed 节点上
-  // 重建 Photo 对象(不触发 mouseleave),hoveredVideo 仍指向旧对象而 p 已是新对象,
-  // `=== p` 会误判为未悬停 → startMs 归 0 → 灯箱视频从头播(而非悬停位续播)。
+  // Compare by stable id, not object reference (P1 law): timeline's 5s silent refresh rebuilds
+  // Photo objects on the same keyed node (no mouseleave fire), hoveredVideo still points to
+  // the old object while p is the new object. `=== p` misses that and treats it as unhovered
+  // → startMs goes to 0 → video starts from beginning instead of resuming from hover position.
   if (p.isVideo && hoveredVideo.value?.id === p.id && previewVisible.value) {
     // ref_for -> array at runtime; normalize like Vue2's
     // `[].concat(this.$refs.hoverPreview || [])[0]`.
@@ -583,12 +587,14 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .photos-grid-root { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; }
-/* scrollbar-width:none —— 补 Vue2 契约:photos.scss:103 `.photos-root, .photos-root *
+/* scrollbar-width: none — fills Vue2 contract: photos.scss:103 `.photos-root, .photos-root *
    { scrollbar-width: none; -ms-overflow-style: none; }` + :301 `.photos-wrap::-webkit-scrollbar
-   { width: 0 }`,Vue2 里照片区滚动条一律不可见,滚动的操作感由右侧月份刻度尺承担。
-   本仓 theme.css:4-16 有全局 10px 半透明滚动条,而 `.scrubber` 是 right:0 的 56px 浮层、
-   刻度文字贴在 right:6px —— 不隐藏就会让滚动条正好压在刻度文字上。
-   (PhotosSearchGrid.vue:126-127 的 `.photos-wrap` 早已这么写,两个网格组件从此一致。) */
+   { width: 0 }`. In Vue2, photos area scrollbar is always hidden, scrolling affordance comes
+   from the month scrubber on the right. This repo has a global 10px semi-transparent scrollbar
+   in theme.css:4-16, and `.scrubber` is a 56px floating layer at right:0 with tick text at
+   right:6px — hiding the scrollbar prevents it from overlapping the tick text exactly.
+   (PhotosSearchGrid.vue:126-127's `.photos-wrap` already does this, so both grid components
+   stay consistent.) */
 .photos-wrap { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 68px; scrollbar-width: none; }
 .photos-wrap::-webkit-scrollbar { display: none; }
 
@@ -658,10 +664,10 @@ onBeforeUnmount(() => {
    same precedent as PhotoLightbox.vue's .lb-fav.is-fav) — the var() fallback
    always applies, so this stays token-driven per color-guard §0. */
 .tile-fav.is-fav { color: var(--star-fg, #ffd60a); }
-/* 浅色主题真机反馈:收藏态改为"金色实心底 + 白色挖空星"(金底上反差更清晰)。
-   深色主题维持现状不变,故用 :global() 只覆盖 light 皮肤。白色复用本文件已用过
-   的 var(--on-accent)("饱和填充色之上的可读前景色"语义 token,见下方 .density
-   按钮用法),不新增 token 也不写裸色字面量。 */
+/* Light theme device feedback: favorite state changed to "gold solid background + white outline star"
+   (higher contrast on gold background). Dark theme stays unchanged, so :global() targets only
+   light skin. White reuses var(--on-accent) already used in this file ("readable foreground color
+   over saturated fill" semantic token, see usage below), no new token or bare color literals. */
 :global(:root[data-theme="light"]) .tile-fav.is-fav {
   background: var(--star-fg, #ffd60a);
   color: var(--on-accent, #fff);

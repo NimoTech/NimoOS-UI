@@ -1,5 +1,5 @@
-// Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏 Filters 弹层。
-// 逐条对应 task-9-brief.md 的「必含测试清单」+ 六处删码验证。
+// Task 9(SP7-P6a Places - map main view): PlacesFilterMenu.vue — Map toolbar Filters popup.
+// Each item corresponds to the required test checklist in task-9-brief.md + six delete-code verification checks.
 import { describe, it, expect, afterEach, vi } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -55,50 +55,50 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-// ── chip 徽标 / .is-active ──────────────────────────────────────────────────
-describe('chip 徽标计数', () => {
-  it('minCount+region+recentOnly+timeFilter=year 四项全中 → 徽标显示 4', () => {
+// ── chip badge / .is-active ──────────────────────────────────────────────────
+describe('chip badge count', () => {
+  it('minCount+region+recentOnly+timeFilter=year all four matched → badge shows 4', () => {
     const w = mountMenu({ filter: defaultFilter({ minCount: 10, regionFilter: 'asia', recentOnly: true, timeFilter: 'year' }) })
     expect(w.get('[data-test="pfm-badge"]').text()).toBe('· 4')
   })
 
-  it('全默认 → 徽标节点不存在', () => {
+  it('all default → badge node does not exist', () => {
     const w = mountMenu({ filter: defaultFilter() })
     expect(w.find('[data-test="pfm-badge"]').exists()).toBe(false)
   })
 
-  it('只 timeFilter=year 单独 → 徽标显示 1', () => {
+  it('only timeFilter=year alone → badge shows 1', () => {
     const w = mountMenu({ filter: defaultFilter({ timeFilter: 'year' }) })
     expect(w.get('[data-test="pfm-badge"]').text()).toBe('· 1')
   })
 })
 
 describe('chip .is-active', () => {
-  it('任一额外过滤(minCount>0)时 chip 有 .is-active', () => {
+  it('when any extra filter (minCount>0) chip has .is-active', () => {
     const w = mountMenu({ filter: defaultFilter({ minCount: 50 }) })
     expect(w.get('[data-test="pfm-chip"]').classes()).toContain('is-active')
   })
 
-  it('timeFilter !== all 时 chip 有 .is-active', () => {
+  it('when timeFilter !== all chip has .is-active', () => {
     const w = mountMenu({ filter: defaultFilter({ timeFilter: 'trip' }) })
     expect(w.get('[data-test="pfm-chip"]').classes()).toContain('is-active')
   })
 
-  it('全默认时 chip 无 .is-active', () => {
+  it('when all default chip has no .is-active', () => {
     const w = mountMenu({ filter: defaultFilter() })
     expect(w.get('[data-test="pfm-chip"]').classes()).not.toContain('is-active')
   })
 
-  it('点 chip → emit update:open 取反', async () => {
+  it('click chip → emit update:open inverted', async () => {
     const w = mountMenu({ open: false })
     await w.get('[data-test="pfm-chip"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[true]])
   })
 })
 
-// ── 最少照片数 ────────────────────────────────────────────────────────────
-describe('最少照片数五档', () => {
-  it('五个按钮渲染,0 显示"不限"', () => {
+// ── minimum photo count ────────────────────────────────────────────────────────────
+describe('minimum photo count five levels', () => {
+  it('five buttons rendered, 0 shows "No limit"', () => {
     const w = mountMenu({ open: true })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
     expect(btns).toHaveLength(5)
@@ -107,14 +107,14 @@ describe('最少照片数五档', () => {
     expect(btns[4].text()).toBe('≥ 200')
   })
 
-  it('当前值的按钮带 .is-active', () => {
+  it('current value button has .is-active', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ minCount: 50 }) })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
     expect(btns[2].classes()).toContain('is-active')
     expect(btns[0].classes()).not.toContain('is-active')
   })
 
-  it('点 50 → emit update:filter,minCount===50,其余字段与传入一致(整体替换非丢字段)', async () => {
+  it('click 50 → emit update:filter, minCount===50, other fields match input (full replacement not field loss)', async () => {
     const original = defaultFilter({ regionFilter: 'asia', recentOnly: true, timeFilter: 'trip' })
     const w = mountMenu({ open: true, filter: original })
     const btns = w.findAll('[data-test="pfm-mincount-btn"]')
@@ -126,35 +126,35 @@ describe('最少照片数五档', () => {
   })
 })
 
-// ── 区域 ─────────────────────────────────────────────────────────────────
-describe('区域按钮', () => {
-  it('已知 id 走译文,未知 id 回落后端 label', () => {
+// ── region ─────────────────────────────────────────────────────────────────
+describe('region buttons', () => {
+  it('known id uses translation, unknown id falls back to backend label', () => {
     const w = mountMenu({ open: true })
     const btns = w.findAll('[data-test="pfm-region-btn"]')
     expect(btns[0].text()).toBe('亚洲') // regionLabelKey('asia') → photosPlacesRegionAsia
-    expect(btns[1].text()).toBe('Backend Label') // 未知 id → 回落 r.label
+    expect(btns[1].text()).toBe('Backend Label') // unknown id → fall back to r.label
   })
 
-  it('"全部"按钮:!regionFilter 时 .is-active', () => {
+  it('"All" button: when !regionFilter has .is-active', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: null }) })
     expect(w.get('[data-test="pfm-region-all"]').classes()).toContain('is-active')
   })
 
-  it('点未选中的 region → regionFilter 变该 id', async () => {
+  it('click unselected region → regionFilter becomes that id', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: null }) })
     await w.get('[data-region-id="asia"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.regionFilter).toBe('asia')
   })
 
-  it('切换语义:点已选中的 region 再点一次 → regionFilter 变 null', async () => {
+  it('toggle semantic: click selected region again → regionFilter becomes null', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: 'asia' }) })
     await w.get('[data-region-id="asia"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.regionFilter).toBeNull()
   })
 
-  it('点"全部" → regionFilter 变 null(直接赋值,非切换)', async () => {
+  it('click "All" → regionFilter becomes null (direct assignment, not toggle)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ regionFilter: 'asia' }) })
     await w.get('[data-test="pfm-region-all"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
@@ -162,9 +162,9 @@ describe('区域按钮', () => {
   })
 })
 
-// ── 日期 / 时间范围 ──────────────────────────────────────────────────────
-describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)', () => {
-  it('只填 start → emit 的 timeFilter 为 "all"', async () => {
+// ── date / time range ──────────────────────────────────────────────────────
+describe('date input — filling only one end falls back to all time (Vue2 :849 semantic)', () => {
+  it('fill only start → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter() })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = '2026-01-01'
@@ -174,7 +174,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('all')
   })
 
-  it('只填 end → emit 的 timeFilter 为 "all"', async () => {
+  it('fill only end → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter() })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -184,7 +184,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('all')
   })
 
-  it('两头都填 → timeFilter 变 "custom"', async () => {
+  it('fill both ends → timeFilter becomes "custom"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -193,7 +193,7 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
     expect(next.timeFilter).toBe('custom')
   })
 
-  it('两头都填后清空 start → timeFilter 退回 "all"', async () => {
+  it('after filling both ends, clear start → timeFilter falls back to "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01', customEnd: '2026-01-31', timeFilter: 'custom' }) })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = ''
@@ -203,29 +203,29 @@ describe('日期输入 —— 只填一头退回全部时间(Vue2 :849 语义)',
   })
 })
 
-// 真机验收反馈 1:「time range 中右面时间应该大于左面时间」——Vue2 两个日期输入互不约束,
-// 可以选出"结束早于起始"的倒置区间(见 setStart/setEnd 上方登记)。本仓一是给原生 input
-// 加 max/min 相互约束,二是把 timeFilter 判据收紧为"两头都填且 customEnd >= customStart"。
-describe('日期原生 min/max 相互约束(真机验收反馈 1)', () => {
-  it('起始输入的 max 等于 filter.customEnd', () => {
+// Device feedback 1: "The right time in the time range should be greater than the left time" — Vue2's two date inputs have no mutual constraints,
+// allowing selection of a "reversed" interval where end is earlier than start (see notes above setStart/setEnd). This repo does two things: first, add mutual max/min constraints to native input,
+// second, tighten the timeFilter criterion to "both ends filled AND customEnd >= customStart".
+describe('date native min/max mutual constraints (device feedback 1)', () => {
+  it('start input max equals filter.customEnd', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-02-15' }) })
     expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBe('2026-02-15')
   })
 
-  it('结束输入的 min 等于 filter.customStart', () => {
+  it('end input min equals filter.customStart', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-02-01' }) })
     expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBe('2026-02-01')
   })
 
-  it('两者为空串时,对应的 max/min 属性不出现(不是 min="" / max="")', () => {
+  it('when both are empty strings, corresponding max/min attributes do not appear (not min="" / max="")', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '', customEnd: '' }) })
     expect(w.get('[data-test="pfm-date-start"]').attributes('max')).toBeUndefined()
     expect(w.get('[data-test="pfm-date-end"]').attributes('min')).toBeUndefined()
   })
 })
 
-describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () => {
-  it('先填 end,再填一个更晚的 start(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+describe('reversed interval treated as unfilled (device feedback 1, logic catch-all)', () => {
+  it('fill end first, then fill a later start (reversed) → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customEnd: '2026-01-10' }) })
     const startInput = w.get<HTMLInputElement>('[data-test="pfm-date-start"]')
     startInput.element.value = '2026-01-20'
@@ -235,7 +235,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('all')
   })
 
-  it('先填 start,再填一个更早的 end(倒置)→ emit 的 timeFilter 为 "all"', async () => {
+  it('fill start first, then fill an earlier end (reversed) → emitted timeFilter is "all"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-20' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-10'
@@ -245,7 +245,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('all')
   })
 
-  it('合法区间(end > start)→ timeFilter 为 "custom"', async () => {
+  it('valid interval (end > start) → timeFilter is "custom"', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-01' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-31'
@@ -254,7 +254,7 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
     expect(next.timeFilter).toBe('custom')
   })
 
-  it('两端同一天(相等)→ 也应是 "custom"(「>=」不是「>」,单日区间合法)', async () => {
+  it('both ends same day (equal) → should also be "custom" ("≥" not ">", single-day interval is valid)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ customStart: '2026-01-15' }) })
     const endInput = w.get<HTMLInputElement>('[data-test="pfm-date-end"]')
     endInput.element.value = '2026-01-15'
@@ -264,30 +264,30 @@ describe('倒置区间视为未填好(真机验收反馈 1,逻辑兜底)', () =>
   })
 })
 
-// ── 勾选框:只看当前行程 ────────────────────────────────────────────────────
-describe('只看当前行程勾选框', () => {
-  it('点击 emit recentOnly 取反(false → true)', async () => {
+// ── checkbox: view current trip only ────────────────────────────────────────────────────
+describe('view current trip only checkbox', () => {
+  it('click emit recentOnly inverted (false → true)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: false }) })
     await w.get('[data-test="pfm-recent-checkbox"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.recentOnly).toBe(true)
   })
 
-  it('点击 emit recentOnly 取反(true → false)', async () => {
+  it('click emit recentOnly inverted (true → false)', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: true }) })
     await w.get('[data-test="pfm-recent-checkbox"]').trigger('click')
     const next = w.emitted('update:filter')![0][0] as PlacesFilter
     expect(next.recentOnly).toBe(false)
   })
 
-  it('recentOnly 为真时 .mfp-checkbox 有 .is-on 且内有 check 图标', () => {
+  it('when recentOnly is true .mfp-checkbox has .is-on and contains check icon', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: true }) })
     const box = w.get('[data-test="pfm-recent-checkbox"]')
     expect(box.classes()).toContain('is-on')
     expect(w.get('[data-test="pfm-tick"]').find('svg').exists()).toBe(true)
   })
 
-  it('recentOnly 为假时 .mfp-checkbox 无 .is-on 且 tick 内无图标', () => {
+  it('when recentOnly is false .mfp-checkbox has no .is-on and tick contains no icon', () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ recentOnly: false }) })
     const box = w.get('[data-test="pfm-recent-checkbox"]')
     expect(box.classes()).not.toContain('is-on')
@@ -295,9 +295,9 @@ describe('只看当前行程勾选框', () => {
   })
 })
 
-// ── 重置 / 完成 ─────────────────────────────────────────────────────────────
-describe('重置与完成', () => {
-  it('重置:emit 的 filter 六个字段全回默认', async () => {
+// ── reset / done ─────────────────────────────────────────────────────────────
+describe('reset and done', () => {
+  it('reset: emitted filter all six fields back to default', async () => {
     const w = mountMenu({
       open: true,
       filter: { timeFilter: 'custom', customStart: '2026-01-01', customEnd: '2026-01-31', minCount: 100, regionFilter: 'asia', recentOnly: true },
@@ -307,7 +307,7 @@ describe('重置与完成', () => {
     expect(next).toEqual(defaultFilter())
   })
 
-  it('完成:只 emit update:open(false),不 emit filter', async () => {
+  it('done: only emit update:open(false), do not emit filter', async () => {
     const w = mountMenu({ open: true, filter: defaultFilter({ minCount: 50 }) })
     await w.get('[data-test="pfm-done"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])

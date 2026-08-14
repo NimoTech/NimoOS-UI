@@ -1,18 +1,22 @@
 <script setup lang="ts">
-// Task 6 (SP7-P4 相册): 「从图库挑照片加入本相册」选择器 —— 被 T7(相册列表页新建相册的
-// 「手动挑选照片」)与 T8(相册详情页 Edit 态「添加照片」按钮)共用。结构照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosAlbumLibraryPicker.vue(142 行)。
+// Task 6 (SP7-P4 albums): "pick photos from library to add to this album" picker — shared by
+// T7 (create album on album list page's "pick photos manually") and T8 (add photos button in album
+// detail Edit state). Structure per Vue2 NimoOS-UI src/views/Photos/PhotosAlbumLibraryPicker.vue
+// (142 lines).
 //
-// 与 T5 AlbumPickerDialog.vue(选相册)的区别:T5 是把一批已知 assetIds 加入某个待选相册;
-// 本组件是从整个图库(时间线展平)里挑照片加入一个已知相册——数据源、已选判定、UI 结构都不同。
+// Difference from T5 AlbumPickerDialog.vue (pick albums): T5 adds a known set of assetIds to some
+// target album; this component picks photos from the entire library (flattened timeline) to add to a
+// known album — data source, existence check, UI structure all differ.
 //
-// 铁律:「已在相册中」判定必须 String() 归一值比较——后端资产 id 可能是数字,时间线
-// Photo.id 类型是 string | number,不归一就漏判(Vue2 :86-89 直接用 Set(id) 值比较,
-// 未考虑跨类型,这里改用 String 归一,同 T2 store 的既有铁律)。
+// Iron rule: "already in album" checks must String()-normalize before comparing — backend asset ids
+// may be numbers, timeline Photo.id is string | number, unnormalized comparison misses matches (Vue2
+// :86-89 compares Set(id) values directly, unconcerned with cross-type mismatches; here changed to
+// String normalization, matching T2 store's existing iron rule).
 //
-// 形态偏离登记(与 T5 同理由,记账):Vue2 用 window.confirm 做「放弃未保存选择」二次确认
-// (:112);本仓无 window.confirm 惯例,改为面板内联确认条(discardConfirm 状态),行为语义
-// 不变——有未保存选择时点取消先展示确认条,确认后才真正关闭。
+// Shape deviation logged (same reason as T5, accounting): Vue2 uses window.confirm for "discard
+// unsaved picks" second confirmation (:112); this repo has no window.confirm convention, changed to
+// inline confirmation bar in panel (discardConfirm state), behavior semantics unchanged — with
+// unsaved picks, clicking cancel shows confirmation bar first, real close only after confirming.
 //
 // ★★★ SP15-P1-T9 · Step 0: generalised away from albums ★★★
 // It used to hardcode the album store for both halves of its job — reading which assets are
@@ -69,8 +73,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const timeline = useTimelineStore()
 
-// 选中集合直接存 flat 里给出的原始 id(与 flat 同源,类型天然一致,无需归一);
-// 提交时原样传给 addAssetsToAlbum,不做类型转换。
+// Selected set directly stores the raw ids from flat (same source as flat, types naturally align,
+// no normalization needed); submitted as-is to addAssetsToAlbum, no type conversion.
 // [T9] The ids are now handed to the caller unconverted instead — whatever type it wants is its
 // own business. Both album paths still pass them straight to addAssetsToAlbum, so not one byte
 // of the request body changed.
@@ -80,8 +84,9 @@ const discardConfirm = ref(false)
 // (see fillViewport below). Declared here, ahead of the open-watch that reaches it.
 const bodyRef = ref<HTMLElement | null>(null)
 
-// 照 Vue2 flat computed(:73-85):展平所有月份的照片,按 takenAt 降序。时间线本身已有
-// allPhotos 展平 computed(timeline.ts:61),这里复用它再排序,不重写展平逻辑。
+// Per Vue2 flat computed (:73-85): flatten all months' photos, sort by takenAt descending.
+// Timeline already has allPhotos flattened computed (timeline.ts:61), reuse it and sort, don't
+// rewrite flatten logic.
 const flat = computed<Photo[]>(() => {
   const out = timeline.allPhotos.slice()
   out.sort((a, b) => {
@@ -92,7 +97,8 @@ const flat = computed<Photo[]>(() => {
   return out
 })
 
-// 铁律:String 归一的 Set 值比较——相册资产 id 与时间线照片 id 类型可能不一致。
+// Iron rule: Set value comparison with String normalization — album asset ids and timeline photo
+// ids may have different types.
 // [T9] Only the consuming half of that normalisation is still here; the producing half (String()
 // while building the Set) moved to whoever owns the target collection. Each caller's test asserts
 // its own half — a numeric album asset id has to reach this component as '5'.
@@ -101,7 +107,7 @@ function isExisting(p: Photo): boolean {
 }
 
 // submitLabel may be a function of the selected count (both album paths: "Add (2)") or a fixed
-// string (moments: "Add selected") — see deviation (b) in the header.
+// string (moments: "Add selected") — see deviation (b) in the file header.
 const submitText = computed(() =>
   typeof props.submitLabel === 'function' ? props.submitLabel(selected.value.size) : props.submitLabel,
 )
@@ -124,7 +130,7 @@ function closeNow(): void {
   emit('update:open', false)
 }
 
-// 点取消 / 点遮罩:有未保存选择 → 先出确认条;无选择 → 直接关闭。
+// Click cancel / click overlay: with unsaved picks → show confirmation bar first; no picks → close immediately.
 function attemptClose(): void {
   if (selected.value.size > 0) {
     discardConfirm.value = true
@@ -140,15 +146,18 @@ function confirmDiscard(): void {
   closeNow()
 }
 
-// Esc 分层,document 级监听(不用模板 @keydown.esc)—— 同 T5 AlbumPickerDialog.vue 与
-// PhotoLightbox.vue:119-139 的既有范式:模板绑定的 keydown 依赖真实 DOM 焦点,用户从触发
-// 按钮打开面板、不点面板内部直接按 Esc 时事件到不了面板内的元素。确认条展开时 Esc 只收起
-// 确认条(不强制关闭面板——放弃选择必须显式点确认按钮,同 attemptClose 的安全语义一致)。
+// Esc layering, document-level listening (not template @keydown.esc) — same pattern as T5
+// AlbumPickerDialog.vue and PhotoLightbox.vue:119-139: template-bound keydown relies on real DOM
+// focus; when user opens from trigger button and presses Esc without clicking inside the panel,
+// the event doesn't reach elements inside. When confirmation bar expands, Esc only collapses it
+// (doesn't force close the panel — discarding picks requires explicit confirmation button click,
+// matching attemptClose's safety semantics).
 //
-// 终审必修 1(统一防御):本组件目前没有被灯箱层叠挂载,但同一份「document 先冒泡关面板、
-// 原生 keydown 默认继续冒泡到 window」的风险与 AlbumPickerDialog.vue 完全一致——未来一旦
-// 有宿主把它叠在灯箱之上打开(同款用法迟早出现),同样会把灯箱一起误关。这里同步补上
-// stopPropagation,不等真的踩到才修。
+// Final review mandatory 1 (unified defense): this component isn't currently mounted in lightbox
+// layers, but the risk of "document bubbles up closing panel, native keydown bubbles to window" is
+// identical to AlbumPickerDialog.vue — if a future host opens it stacked above a lightbox (the
+// pattern will eventually appear), it would mistakenly close the lightbox too. Adding stopPropagation
+// here preemptively, not waiting to step on it first.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   e.stopPropagation()
@@ -165,26 +174,25 @@ watch(
     if (isOpen) {
       selected.value = new Set()
       discardConfirm.value = false
-      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos
-      // are in hand yet -- this grid reads timeline.allPhotos (via `flat` above), so
-      // without this the picker would open on an empty grid even though the directory says
-      // the library isn't empty. Load the newest few months up front; fetchNewestBuckets is
-      // a no-op outside bucket mode, so legacy behaviour is unchanged. Scrolling to the
-      // bottom (onListScroll below) pages in earlier months as the user asks for them.
+      // Task 8b (owner ruling): in bucket mode `months` arriving does not mean any photos are in
+      // hand yet — this grid reads timeline.allPhotos (via `flat` above), so without this the
+      // picker would open on an empty grid even though the directory says the library isn't empty.
+      // Load the newest few months up front; fetchNewestBuckets is a no-op outside bucket mode, so
+      // legacy behaviour is unchanged. Scrolling to the bottom (onListScroll below) pages in earlier
+      // months as the user asks for them.
       //
-      // fetchNewestBuckets must wait for fetchTimeline to resolve first when the latter is
-      // needed -- firing both in parallel would read bucketMode before the probe that sets
-      // it has had a chance to run, silently no-op'ing on every fresh mount.
+      // fetchNewestBuckets must wait for fetchTimeline to resolve first when the latter is needed —
+      // firing both in parallel would read bucketMode before the probe that sets it has had a chance
+      // to run, silently no-op'ing on every fresh mount.
       const needsTimeline = timeline.months.length === 0
       void (async () => {
         if (needsTimeline) await timeline.fetchTimeline()
         await timeline.fetchNewestBuckets(3)
-        // Whole-branch review fix (minor 12): paging used to happen ONLY on a
-        // `scroll` event, so a library whose three newest months fit inside the
-        // panel never fired one and every earlier month was unreachable — the
-        // picker looked like the library ended three months ago. If the list does
-        // not overflow there is nothing for the user to scroll, so keep pulling
-        // months in until it does (or until the library runs out).
+        // Whole-branch review fix (minor 12): paging used to happen ONLY on a `scroll` event, so a
+        // library whose three newest months fit inside the panel never fired one and every earlier
+        // month was unreachable — the picker looked like the library ended three months ago. If the
+        // list does not overflow there is nothing for the user to scroll, so keep pulling months in
+        // until it does (or until the library runs out).
         await fillViewport()
       })()
       document.addEventListener('keydown', onDocumentKeydown)
@@ -196,12 +204,12 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the
-// already-loaded buckets. Scrolling near the bottom fetches the next unloaded dated bucket
-// so the user can keep paging back through the library instead of the whole thing being
-// pulled down at once. `loadingMore` caps it to one in-flight bucket load at a time --
-// fetchBucket already dedupes per key, but without this guard one scroll gesture could kick
-// off requests for a dozen different buckets before the first one lands.
+// Task 8b (owner ruling, second half): in bucket mode this grid only ever holds the already-loaded
+// buckets. Scrolling near the bottom fetches the next unloaded dated bucket so the user can keep
+// paging back through the library instead of the whole thing being pulled down at once. `loadingMore`
+// caps it to one in-flight bucket load at a time — fetchBucket already dedupes per key, but without
+// this guard one scroll gesture could kick off requests for a dozen different buckets before the
+// first one lands.
 let loadingMore = false
 // Returns false when there was nothing to page in (no unloaded dated bucket left,
 // or a load is already in flight), so callers can stop asking.
@@ -244,10 +252,10 @@ async function fillViewport(): Promise<void> {
   }
 }
 
-// Handing over the picked ids is where this component's job ends: the write, the success and
-// failure toasts and the closing all belong to the caller (see the Step 0 note in the header).
-// Neither `selected` nor `open` is touched here — on a failed write the caller leaves the panel
-// up, and the user's selection is still sitting in it, ready to resubmit.
+// Handing over the picked ids is where this component's job ends: the write, success and failure
+// toasts, and closing all belong to the caller (see the Step 0 note in the file header). Neither
+// `selected` nor `open` is touched here — on a failed write the caller leaves the panel up, and the
+// user's selection is still in it, ready to resubmit.
 function confirmAdd(): void {
   if (selected.value.size === 0 || props.submitting) return
   emit('confirm', Array.from(selected.value))
@@ -343,8 +351,8 @@ function confirmAdd(): void {
   padding: 32px 20px;
 }
 
-/* P2 血泪(同 T5 沿用):面板底色须用 --popup-bg,不用 --card-bg(深色主题下 --card-bg
-   近透明,叠在暗底上会看穿)。 */
+/* P2 tears (same as T5): panel background must use --popup-bg, not --card-bg (in dark theme
+   --card-bg is near-transparent, layered on dark background shows through). */
 .lib-picker-panel {
   width: min(760px, 100%);
   max-height: 82vh;
@@ -369,8 +377,9 @@ function confirmAdd(): void {
 .lib-picker-title { font-size: 14.5px; font-weight: 600; color: var(--fg); }
 .lib-picker-sub { font-size: 12px; color: var(--fg-muted); margin-top: 2px; }
 
-/* 头部 X 关闭按钮(评审补漏:Vue2 :10-12 确有,brief 结构清单漏列)—— 写法照
-   AlbumPickerDialog.vue 的 .alb-picker-close 既有范式,不引 Vue2 的 photos-icon 组件。 */
+/* Head X close button (review caught gap: Vue2 :10-12 has it, brief structure list missed) —
+   style follows AlbumPickerDialog.vue's .alb-picker-close existing pattern, don't import Vue2's
+   photos-icon component. */
 .lib-picker-close {
   flex: 0 0 auto;
   width: 24px;
@@ -411,11 +420,12 @@ function confirmAdd(): void {
 .lib-picker-tile[data-disabled="true"] { cursor: default; }
 
 .lib-picker-tile-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 0.4 与 Vue2 photos.scss :4402 的 [data-disabled="true"] { opacity: 0.4 } 保持像素级一致。 */
+/* 0.4 matches pixel-for-pixel with Vue2 photos.scss :4402's [data-disabled="true"] { opacity: 0.4 }. */
 .lib-picker-tile-img.is-dimmed { opacity: 0.4; }
 
-/* 覆盖标记:满铺半透明遮罩 + 文案。--overlay-bg/--fg 这一组合已在 PhotosGrid.vue 的
-   .tile-fav 上验证过(深浅主题都可读),这里沿用而非另造新 token。 */
+/* Overlay marking: full-coverage semi-transparent mask + text. The --overlay-bg/--fg combo
+   already verified on PhotosGrid.vue's .tile-fav (readable in both light/dark), reused here rather
+   than creating new token. */
 .lib-picker-already {
   position: absolute;
   inset: 0;
@@ -440,8 +450,8 @@ function confirmAdd(): void {
   align-items: center;
   justify-content: center;
   background: var(--accent);
-  /* Vue2 勾选图标是 color="white"(:30/:33)—— 改用 --on-accent(atop 纯色 accent 填充
-     的可读前景色语义 token),而不是写死颜色字面量。 */
+  /* Vue2 checkmark is color="white" (:30/:33) — changed to --on-accent (readable foreground
+     color semantic token atop pure accent fill), not hardcoded color literal. */
   color: var(--on-accent);
   font-size: 11px;
   line-height: 1;

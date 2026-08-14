@@ -1,8 +1,8 @@
-// Task 11 (SP7-P5 人物): PersonAssetGrid.vue —— 人物详情页按月资产网格
-// (多选 / 移出 / 每月展开全部)。纯展示 + emit,不碰 store,只 mock
-// @nimotech/nimoos-service 的 thumbnailUrl(同 PhotosGrid.test.ts / PersonHero.test.ts
-// 的既有 mock 方式)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:
-// 132-154(网格模板)、:760-763(assetThumb,size=large)、:868-883(选择逻辑)。
+// Task 11 (SP7-P5 people): PersonAssetGrid.vue — person detail page asset grid by month
+// (multi-select / detach / expand all per month). Pure display + emit, no store access, only mock
+// @nimotech/nimoos-service thumbnailUrl (same mock approach as PhotosGrid.test.ts / PersonHero.test.ts).
+// Each section follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:
+// 132-154 (grid template), :760-763 (assetThumb, size=large), :868-883 (select logic).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -17,9 +17,9 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PersonAssetGrid from '../PersonAssetGrid.vue'
-// 原始源码文本(Vite `?raw`),仅用于下方"覆盖控件默认透明"一组测试——jsdom 不做级联
-// 样式计算,mount 后读不出真实 hover 态的 opacity,只能对 <style> 文本做结构断言
-// (同 color-guard.test.ts 读 <style> 原文的既有先例)。
+// Raw source text (Vite `?raw`), used only for the "override control default transparency" test group below —
+// jsdom does not perform cascade style calculation, cannot read real hover opacity after mount, can only
+// assert structure against <style> raw text (same precedent as color-guard.test.ts reading <style> raw).
 import personAssetGridRaw from '../PersonAssetGrid.vue?raw'
 import { assetToPhoto, type Month, type Photo } from '../../util/assetToPhoto'
 
@@ -57,8 +57,8 @@ afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
 })
 
-describe('PersonAssetGrid.vue — 月份头', () => {
-  it('渲染 m.title 与真实总数(photosPeoplePhotosCount);首张有 place 时附加显示', () => {
+describe('PersonAssetGrid.vue — month header', () => {
+  it('Render m.title and real count (photosPeoplePhotosCount); additionally display first photo\'s place', () => {
     const months = [month('2026-07', 'July 2026', [photo('a', { placeName: 'Paris' }), photo('b')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(w.get('.person-month-head .title').text()).toBe('July 2026')
@@ -66,15 +66,15 @@ describe('PersonAssetGrid.vue — 月份头', () => {
     expect(w.get('.person-month-head .sub').text()).toContain('Paris')
   })
 
-  it('该月首张照片没有 place → 不渲染 place 段', () => {
+  it('First photo of that month has no place → do not render place section', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mountGrid({ months, selected: [], selectionMode: false })
     expect(w.get('.person-month-head .sub').text()).not.toContain('·')
   })
 })
 
-describe('PersonAssetGrid.vue — 每月展开全部(计划登记第 8 条)', () => {
-  it('20 张 → 默认渲染 16 个瓦片 + 出现"查看全部 20 张";点击后渲染 20 个且文案变收起;再点回到 16', async () => {
+describe('PersonAssetGrid.vue — expand all per month (plan registration item 8)', () => {
+  it('20 photos → default render 16 tiles + "Show all 20" button; click shows 20 and changes to "Collapse"; click again back to 16', async () => {
     const photos = Array.from({ length: 20 }, (_, i) => photo(`p${i}`))
     const months = [month('2026-07', 'July 2026', photos)]
     const w = mountGrid({ months, selected: [], selectionMode: false })

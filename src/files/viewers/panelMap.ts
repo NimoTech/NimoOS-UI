@@ -7,8 +7,8 @@ function union(...groups: string[][]): string[] {
   return Array.from(new Set(groups.flat()))
 }
 
-// pdf-viewer 覆盖原生 pdf + 需后端转换的旧版 Office(doc/wps/xls/ppt/pptx);
-// doc-viewer 仅 .docx(OOXML);各组扩展名互不相交,first-match 成立
+// pdf-viewer covers native PDF + legacy Office formats requiring backend conversion (doc/wps/xls/ppt/pptx);
+// doc-viewer is for .docx only (OOXML); each group of extensions is mutually exclusive, first-match holds true
 const filePanelMap: Record<PanelType, string[]> = {
   'code-editor': union(TEXT_X_GENERIC, TEXT_CSS, TEXT_HTML, TEXT_X_CMAKE, TEXT_DOCKERFILE),
   'video-player': union(BROWSER_PLAYABLE_VIDEO, AUDIO_X_GENERIC),
@@ -20,8 +20,8 @@ const filePanelMap: Record<PanelType, string[]> = {
 }
 
 export function getPanelType(name: string): PanelType | null {
-  const ext = fileExt(name) // 已小写
-  // 与 Vue2 getPanelType 一致:遍历映射,命中返回其键
+  const ext = fileExt(name) // already lowercase
+  // Consistent with Vue2 getPanelType: iterate mapping, return its key on match
   for (const key of Object.keys(filePanelMap) as PanelType[]) {
     if (filePanelMap[key].includes(ext)) return key
   }

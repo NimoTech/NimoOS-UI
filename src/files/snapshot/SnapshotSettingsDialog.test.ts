@@ -130,7 +130,7 @@ describe('SnapshotSettingsDialog', () => {
     expect(createMock).toHaveBeenCalledWith({ volume_uuid: 'u-data', label: '升级前' })
     expect(w.emitted('snapshot-created')).toHaveLength(1)
   })
-  it('备注为空时不带 label 字段', async () => {
+  it('when label is empty, do not include label field', async () => {
     createMock.mockResolvedValue({})
     const w = mountIt(); await flush(w)
     await (document.querySelector('.snap-set-create') as HTMLElement).click(); await flush(w)

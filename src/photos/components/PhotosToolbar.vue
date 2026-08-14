@@ -2,7 +2,7 @@
 // Ported (Options API -> <script setup> Composition API, logic unchanged) from
 // Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue (49 lines).
 // P1 scope cut (task-7-brief.md): no icon library — tabs/density buttons render as
-// plain text with i18n labels. (`after-tabs` 槽位已由 SP7-P7b-T3 补回。)
+// plain text with i18n labels. (`after-tabs` slot was restored by SP7-P7b-T3.)
 import { useI18n } from 'vue-i18n'
 
 const props = withDefaults(defineProps<{
@@ -34,9 +34,9 @@ function setDensity(v: string) { emit('update:density', v) }
       <button class="tab" :data-active="props.tab === 'ocr'" @click="setTab('ocr')">{{ t('photosTabOcr') }}</button>
       <button class="tab" :data-active="props.tab === 'video'" @click="setTab('video')">{{ t('photosTabVideos') }}</button>
     </div>
-    <!-- P7b-T3:EXIF 筛选条(漏斗 + 内联展开的胶囊)挂在标签页之后 —— 位置照 Vue2
-         NimoOS-UI src/views/Photos/PhotosToolbar.vue:15-16。P1 task-7-brief 当年
-         明确砍掉过这个槽位,本期按 P7b 补回。 -->
+    <!-- P7b-T3: EXIF filter bar (funnel + inline-expanding capsule) hangs after the tabs —
+         position matches Vue2 NimoOS-UI src/views/Photos/PhotosToolbar.vue:15-16. P1 task-7-brief
+         explicitly cut this slot back then, P7b restores it now. -->
     <slot name="after-tabs" />
     <div style="flex:1"></div>
     <span class="muted-text">{{ t('photosItemsCount', { count: props.count }) }}</span>

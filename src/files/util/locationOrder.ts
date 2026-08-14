@@ -1,7 +1,7 @@
 const ORDER_KEY = 'nimoos:location-order'
 const DEFAULT_KEY = 'nimoos:location-default'
 
-// 按保存顺序重排;未记录项(新盘)保持原相对位置、排到已知项之后。对齐 Vue2 applyLocationOrder。
+// Reorder by saved order; unrecorded items (new disks) preserve their relative order and appear after known items. Matches Vue2 applyLocationOrder.
 export function applyOrder<T extends { path: string }>(disks: T[], order: string[]): T[] {
   if (!order.length) return disks
   const rank = (p: string) => {
@@ -24,7 +24,7 @@ export function readOrder(): string[] {
 }
 
 export function writeOrder(order: string[]): void {
-  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)) } catch { /* 忽略 */ }
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(order)) } catch { /* ignore */ }
 }
 
 export function readDefault(): string {
@@ -32,5 +32,5 @@ export function readDefault(): string {
 }
 
 export function writeDefault(path: string): void {
-  try { localStorage.setItem(DEFAULT_KEY, path) } catch { /* 忽略 */ }
+  try { localStorage.setItem(DEFAULT_KEY, path) } catch { /* ignore */ }
 }

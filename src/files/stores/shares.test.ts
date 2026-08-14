@@ -41,7 +41,7 @@ describe('useSharesStore', () => {
     expect(createShare).not.toHaveBeenCalled()
   })
 
-  it('remove 调 deleteShare(id) 并重载', async () => {
+  it('remove should call deleteShare(id) and reload', async () => {
     listShares.mockResolvedValue([])
     const s = useSharesStore()
     await s.remove(7)

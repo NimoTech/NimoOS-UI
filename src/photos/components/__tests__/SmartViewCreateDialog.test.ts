@@ -1,10 +1,12 @@
-// SP7-P7a-T5: SmartViewCreateDialog.vue —— 智能视图创建弹窗测试。逐条对应
-// task-5-brief.md 「必含用例」清单。挂 Pinia + i18n(真实 zh_cn/en_us 词条),mock 共享包
-// @nimotech/nimoos-service(只用到 thumbnailUrl),用真实 usePhotosSmartViews() store——
-// 直接读写 store.preview / store.createBusy 驱动右栏与按钮态,createSmartView 用
-// vi.spyOn 控制成功/失败(照本区既有先例:AlbumPickerDialog.test.ts 端到端走真实 store,
-// 但本组件的"确认创建"结果需要精确控制,直接 spyOn store 方法比再绕一层 service mock
-// 更直接)。
+// SP7-P7a-T5: SmartViewCreateDialog.vue — Smart view creation dialog tests. Each case
+// corresponds to the 'required cases' list in task-5-brief.md. Mounts Pinia + i18n
+// (real zh_cn/en_us entries), mocks @nimotech/nimoos-service (only uses thumbnailUrl),
+// uses real usePhotosSmartViews() store — directly reads/writes store.preview /
+// store.createBusy to drive the right panel and button states; createSmartView is
+// controlled via vi.spyOn for success/failure (following the existing pattern in this
+// area: AlbumPickerDialog.test.ts does end-to-end with the real store, but this
+// component's "confirm create" result needs precise control, so spyOn-ing the store
+// method directly is cleaner than mocking the service layer again).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
@@ -57,40 +59,40 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// ── 结构清点(brief Step1 第一条:6 段左栏 + 4 段右栏 + 5 模板 + foot 两钮)───────────
-describe('结构清点', () => {
-  it('open:false → scrim 不渲染', () => {
+// ── Structure inventory (brief Step 1, condition 1: 6 left sections + 4 right sections + 5 templates + 2 footer buttons) ─
+describe('structure inventory', () => {
+  it('open:false → scrim does not render', () => {
     const w = mountDialog({ open: false })
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
   })
 
-  it('open:true → scrim 渲染,且左栏 6 段 / 右栏 4 段 / 5 模板 / foot 两钮都存在', async () => {
+  it('open:true → scrim renders, and left section has 6 parts / right section has 4 parts / 5 templates / footer has both buttons', async () => {
     const w = mountDialog({ open: true })
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
-    // 左栏 6 段
+    // Left section: 6 parts
     expect(w.find('[data-test="sv-name-input"]').exists()).toBe(true)
     expect(w.find('[data-test="sv-desc-textarea"]').exists()).toBe(true)
     await w.find('[data-test="sv-desc-textarea"]').setValue('sunset in tokyo')
-    expect(w.find('.sv-suggest').exists()).toBe(true) // 建议区(desc 非空时出现)
+    expect(w.find('.sv-suggest').exists()).toBe(true) // Suggestion area (appears when desc is not empty)
     expect(w.find('.sv-chip-bin').exists()).toBe(true)
     expect(w.find('[data-test="pts-range"]').exists()).toBe(true)
     expect(w.findAll('.sv-switch')).toHaveLength(2)
-    // 右栏 4 段
+    // Right section: 4 parts
     expect(w.find('.sv-preview-head').exists()).toBe(true)
     expect(w.find('.sv-preview-count').exists()).toBe(true)
     expect(w.find('.sv-preview-grid').exists()).toBe(true)
     expect(w.find('.sv-preview-help').exists()).toBe(true)
-    // 5 模板
+    // 5 templates
     expect(w.findAll('.sv-template-row')).toHaveLength(5)
-    // foot 两钮
+    // Footer: 2 buttons
     expect(w.find('.sv-btn-ghost').exists()).toBe(true)
     expect(w.find('[data-test="sv-confirm-btn"]').exists()).toBe(true)
   })
 })
 
-// ── 持久挂载坑:draft 重置走 watch,不走 onMounted ──────────────────────────────
-describe('draft 重置走 watch(持久挂载坑)', () => {
-  it('打开→填 name→关闭→再打开 → name 已重置为空', async () => {
+// ── Persistent mount pitfall: draft reset happens in watch, not onMounted ──────────
+describe('draft reset via watch (persistent mount pitfall)', () => {
+  it('open → fill name → close → reopen → name is reset to empty', async () => {
     const w = mountDialog({ open: false })
     await w.setProps({ open: true })
     await w.find('[data-test="sv-name-input"]').setValue('My View')
@@ -101,9 +103,9 @@ describe('draft 重置走 watch(持久挂载坑)', () => {
   })
 })
 
-// ── Nimo 建议 chips ──────────────────────────────────────────────────────────
-describe('Nimo 建议', () => {
-  it('desc = "sunset in tokyo" → 出现 scene: sunset 与 place: Japan 两条建议', async () => {
+// ── Nimo suggestion chips ────────────────────────────────────────────────────────
+describe('Nimo suggestions', () => {
+  it('desc = "sunset in tokyo" → two suggestions appear: scene: sunset and place: Japan', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-desc-textarea"]').setValue('sunset in tokyo')
     const chips = w.findAll('.sv-suggest-chip').map((c) => c.text())
@@ -111,7 +113,7 @@ describe('Nimo 建议', () => {
     expect(chips).toContain('+ place: Japan')
   })
 
-  it('点一个建议 → 进 chip-bin 且从建议区消失,refreshPreview 被调', async () => {
+  it('click a suggestion → enters chip-bin and disappears from suggestion area, refreshPreview is called', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
@@ -126,9 +128,9 @@ describe('Nimo 建议', () => {
   })
 })
 
-// ── chip 增删 ──────────────────────────────────────────────────────────────
-describe('chip 增删', () => {
-  it('输入 "scene: x" + Enter → chip-bin 多一项、input 清空,refreshPreview 被调', async () => {
+// ── Chip add/remove ────────────────────────────────────────────────────────────
+describe('chip add/remove', () => {
+  it('enter "scene: x" + Enter → chip-bin gets one more item, input is cleared, refreshPreview is called', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
@@ -141,7 +143,7 @@ describe('chip 增删', () => {
     expect(spy).toHaveBeenCalled()
   })
 
-  it('输入含逗号 → 同样提交一个 chip', async () => {
+  it('input with comma → also submits one chip', async () => {
     const w = mountDialog({ open: true })
     const input = w.find('[data-test="sv-chip-input"]')
     await input.setValue('scene: y')
@@ -149,7 +151,7 @@ describe('chip 增删', () => {
     expect(w.findAll('.sv-chip-item').some((c) => c.text().includes('scene: y'))).toBe(true)
   })
 
-  it('重复输入同一条 → chip 不重复', async () => {
+  it('duplicate input of the same item → chip is not duplicated', async () => {
     const w = mountDialog({ open: true })
     const input = w.find('[data-test="sv-chip-input"]')
     await input.setValue('scene: z')
@@ -159,7 +161,7 @@ describe('chip 增删', () => {
     expect(w.findAll('.sv-chip-item').filter((c) => c.text().includes('scene: z'))).toHaveLength(1)
   })
 
-  it('点 .sv-chip-x → 移除该 chip,refreshPreview 被调', async () => {
+  it('click .sv-chip-x → remove that chip, refreshPreview is called', async () => {
     const store = usePhotosSmartViews()
     const w = mountDialog({ open: true })
     const input = w.find('[data-test="sv-chip-input"]')
@@ -173,15 +175,15 @@ describe('chip 增删', () => {
   })
 })
 
-// ── 占位文案二态 + hint ────────────────────────────────────────────────────
-describe('chip 输入占位文案二态', () => {
-  it('chips 为空 → 占位是 photosSvTypeConditionEG,hint 出现', () => {
+// ── Placeholder text dual states + hint ───────────────────────────────────────────
+describe('chip input placeholder dual states', () => {
+  it('chips empty → placeholder is photosSvTypeConditionEG, hint appears', () => {
     const w = mountDialog({ open: true })
     expect(w.find('[data-test="sv-chip-input"]').attributes('placeholder')).toBe(zh.photosSvTypeConditionEG)
     expect(w.text()).toContain(zh.photosSvPressEnterAddPick.replace('{enter}', 'Enter'))
   })
 
-  it('chips 非空 → 占位变成 photosSvAddAnother,hint 消失', async () => {
+  it('chips not empty → placeholder changes to photosSvAddAnother, hint disappears', async () => {
     const w = mountDialog({ open: true })
     const input = w.find('[data-test="sv-chip-input"]')
     await input.setValue('scene: a')
@@ -191,9 +193,9 @@ describe('chip 输入占位文案二态', () => {
   })
 })
 
-// ── 阈值滑块 + preview-help 三档 ───────────────────────────────────────────
-describe('阈值滑块', () => {
-  it('拖到 92 → .sv-thresh-val 显示 ≥ 92%,refreshPreview 被调', async () => {
+// ── Threshold slider + preview-help three levels ──────────────────────────────────
+describe('threshold slider', () => {
+  it('drag to 92 → .sv-thresh-val displays ≥ 92%, refreshPreview is called', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
@@ -204,7 +206,7 @@ describe('阈值滑块', () => {
     expect(spy).toHaveBeenCalled()
   })
 
-  it('92 → strict 文案;60 → loose 文案;75(与边界 88/65)→ balanced 文案', async () => {
+  it('92 → strict copy; 60 → loose copy; 75 (and boundary 88/65) → balanced copy', async () => {
     const w = mountDialog({ open: true })
     const range = w.find('[data-test="pts-range"]')
     await range.setValue('92')
@@ -213,7 +215,7 @@ describe('阈值滑块', () => {
     expect(w.find('.sv-preview-help').text()).toBe(zh.photosSvLooseExpectSomeFalse)
     await range.setValue('75')
     expect(w.find('.sv-preview-help').text()).toBe(zh.photosSvBalancedHealthyMixCertainty)
-    // 边界:88 与 65 都落 balanced(else 分支)
+    // Boundary: 88 and 65 both fall into balanced (else branch)
     await range.setValue('88')
     expect(w.find('.sv-preview-help').text()).toBe(zh.photosSvBalancedHealthyMixCertainty)
     await range.setValue('65')
@@ -221,16 +223,16 @@ describe('阈值滑块', () => {
   })
 })
 
-// ── threshMuted:空表单不算失效 ─────────────────────────────────────────────
+// ── threshMuted: empty form does not count as inactive ────────────────────────────
 describe('threshMuted', () => {
-  it('thresholdActive=false + chips/desc 都空 → hint 不出现', () => {
+  it('thresholdActive=false + chips/desc both empty → hint does not appear', () => {
     const store = usePhotosSmartViews()
     store.preview = { count: 0, seeds: [], thresholdActive: false }
     const w = mountDialog({ open: true })
     expect(w.text()).not.toContain(zh.photosSvCurrentConditionsMatchExactly)
   })
 
-  it('同样 thresholdActive=false,但加一条 chip → hint 出现', async () => {
+  it('same thresholdActive=false, but add one chip → hint appears', async () => {
     const store = usePhotosSmartViews()
     store.preview = { count: 0, seeds: [], thresholdActive: false }
     const w = mountDialog({ open: true })
@@ -241,24 +243,24 @@ describe('threshMuted', () => {
   })
 })
 
-// ── 两个开关:accessible name + live 不触发/videos 触发 refreshPreview ───────
-describe('两个开关', () => {
-  it('都有 role=switch / aria-checked / aria-label,且随状态变', async () => {
+// ── Two switches: accessible name + live does not trigger / videos triggers refreshPreview ────
+describe('two switches', () => {
+  it('both have role=switch / aria-checked / aria-label, and change with state', async () => {
     const w = mountDialog({ open: true })
     const live = w.find('[data-test="sv-switch-live"]')
     expect(live.attributes('role')).toBe('switch')
-    expect(live.attributes('aria-checked')).toBe('true') // draft.live 默认 true
+    expect(live.attributes('aria-checked')).toBe('true') // draft.live defaults to true
     expect(live.attributes('aria-label')).toBeTruthy()
     await live.trigger('click')
     expect(live.attributes('aria-checked')).toBe('false')
 
     const videos = w.find('[data-test="sv-switch-videos"]')
     expect(videos.attributes('role')).toBe('switch')
-    expect(videos.attributes('aria-checked')).toBe('false') // 默认 false
+    expect(videos.attributes('aria-checked')).toBe('false') // Defaults to false
     expect(videos.attributes('aria-label')).toBeTruthy()
   })
 
-  it('点 includeVideos → refreshPreview 被调', async () => {
+  it('click includeVideos → refreshPreview is called', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
@@ -267,7 +269,7 @@ describe('两个开关', () => {
     expect(spy).toHaveBeenCalled()
   })
 
-  it('点 live → refreshPreview 未被调(照搬 Vue2 :127)', async () => {
+  it('click live → refreshPreview is not called (carried over from Vue2 :127)', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'refreshPreview')
     const w = mountDialog({ open: true })
@@ -277,9 +279,9 @@ describe('两个开关', () => {
   })
 })
 
-// ── 模板:descEn 契约(T1) ───────────────────────────────────────────────────
-describe('模板', () => {
-  it('点第 1 个模板行 → name/desc 变 i18n 值、thresh 变 75、chips 由 descEn 推出(含 family gathering)', async () => {
+// ── Templates: descEn contract (T1) ──────────────────────────────────────────────
+describe('templates', () => {
+  it('click the 1st template row → name/desc become i18n values, threshold becomes 75, chips are derived from descEn (includes family gathering)', async () => {
     const w = mountDialog({ open: true })
     await w.findAll('.sv-template-row')[0]!.trigger('click')
     expect((w.find('[data-test="sv-name-input"]').element as HTMLInputElement).value).toBe(zh.photosSvFamilyWeekends)
@@ -294,25 +296,25 @@ describe('模板', () => {
 
 // ── canSubmit ────────────────────────────────────────────────────────────
 describe('canSubmit', () => {
-  it('name 空 → primary disabled', () => {
+  it('name empty → primary disabled', () => {
     const w = mountDialog({ open: true })
     expect((w.find('[data-test="sv-confirm-btn"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('name 有值但 chips 与 desc 都空 → 仍 disabled', async () => {
+  it('name has value but chips and desc both empty → still disabled', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-name-input"]').setValue('Foo')
     expect((w.find('[data-test="sv-confirm-btn"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('name + desc → 可点', async () => {
+  it('name + desc → can click', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-name-input"]').setValue('Foo')
     await w.find('[data-test="sv-desc-textarea"]').setValue('bar')
     expect((w.find('[data-test="sv-confirm-btn"]').element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('store.createBusy = true → disabled(即便其余条件满足)', async () => {
+  it('store.createBusy = true → disabled (even if other conditions are met)', async () => {
     const store = usePhotosSmartViews()
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-name-input"]').setValue('Foo')
@@ -323,9 +325,9 @@ describe('canSubmit', () => {
   })
 })
 
-// ── confirm 成功/失败 ───────────────────────────────────────────────────────
+// ── Confirm success/failure ─────────────────────────────────────────────────────
 describe('confirm', () => {
-  it('成功:createSmartView 收到的对象逐字段断言(含 description: undefined),emit created + update:open(false)', async () => {
+  it('success: createSmartView receives object asserted field-by-field (including description: undefined), emit created + update:open(false)', async () => {
     const store = usePhotosSmartViews()
     const created = fullSv({ id: 'sv-123' })
     const spy = vi.spyOn(store, 'createSmartView').mockResolvedValue(created)
@@ -348,7 +350,7 @@ describe('confirm', () => {
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('desc 非空时 description 是 trim 后的字符串,不是 undefined', async () => {
+  it('when desc is not empty, description is the trimmed string, not undefined', async () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'createSmartView').mockResolvedValue(fullSv())
     const w = mountDialog({ open: true })
@@ -359,7 +361,7 @@ describe('confirm', () => {
     expect(spy).toHaveBeenCalledWith(expect.objectContaining({ description: 'bar desc' }))
   })
 
-  it('失败:createSmartView reject → toast.show 被调、update:open 未发出(弹窗不关)', async () => {
+  it('failure: createSmartView reject → toast.show is called, update:open not emitted (dialog does not close)', async () => {
     const store = usePhotosSmartViews()
     vi.spyOn(store, 'createSmartView').mockRejectedValue(new Error('boom'))
     const toastSpy = vi.spyOn(useToast(), 'show')
@@ -370,10 +372,12 @@ describe('confirm', () => {
     await w.find('[data-test="sv-confirm-btn"]').trigger('click')
     await w.vm.$nextTick()
     await w.vm.$nextTick()
-    // 直接断言 toast.show 被调(不是只靠"没有 update:open"这种间接信号)——删掉 confirm()
-    // 的 catch 会让这里从"确实调用了 toast"变成"promise 未处理地 reject",这条断言能
-    // 干净地抓住那个差异,而不必依赖 vitest 的 unhandled-rejection 检测(那个检测虽然也会
-    // 让整个测试文件以非零退出码收场,但不会挂在某一条具体断言上)。
+    // Assert toast.show directly (not relying on "no update:open" as an indirect signal)—
+    // removing the catch in confirm() would change this from "indeed called toast" to
+    // "unhandled promise rejection"; this assertion cleanly catches that difference
+    // without relying on vitest's unhandled-rejection detection (which would cause the
+    // whole test file to exit with non-zero status, but doesn't attach to a specific
+    // assertion).
     expect(toastSpy).toHaveBeenCalledWith(zh.photosAlbumCreateFailed)
     expect(w.emitted('update:open')).toBeUndefined()
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(true)
@@ -381,37 +385,37 @@ describe('confirm', () => {
   })
 })
 
-// ── 关闭入口 ────────────────────────────────────────────────────────────────
-describe('关闭', () => {
-  it('点关闭按钮 → emit update:open(false)', async () => {
+// ── Close entry points ─────────────────────────────────────────────────────────────
+describe('close', () => {
+  it('click close button → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-close-btn"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点 Cancel → emit update:open(false)', async () => {
+  it('click Cancel → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     await w.find('.sv-btn-ghost').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点 scrim 自身(click.self)→ emit update:open(false)', async () => {
+  it('click scrim itself (click.self) → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     await w.find('[data-test="sv-modal-scrim"]').trigger('click')
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 })
 
-// ── hover 级联(cssCascade)───────────────────────────────────────────────────
-describe('hover 态背景', () => {
-  it('.sv-btn-primary 的 hover 背景归属含 :hover 且含 -primary 的规则', () => {
+// ── Hover cascade (cssCascade) ───────────────────────────────────────────────────
+describe('hover state background', () => {
+  it('.sv-btn-primary hover background belongs to rule containing :hover and -primary', () => {
     const style = extractStyleBlock(smartViewCreateDialogRaw)
     const win = winningHoverBackground(style, ['sv-btn-primary'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('-primary')
   })
 
-  it('.sv-btn-ghost 的 hover 背景归属含 :hover 且含 -ghost 的规则', () => {
+  it('.sv-btn-ghost hover background belongs to rule containing :hover and -ghost', () => {
     const style = extractStyleBlock(smartViewCreateDialogRaw)
     const win = winningHoverBackground(style, ['sv-btn-ghost'])
     expect(win.selector).toContain(':hover')
@@ -419,13 +423,15 @@ describe('hover 态背景', () => {
   })
 })
 
-// ── 前景色合规:.sv-modal-icon 是本组件里唯一按 brief 字面要求正向断言的 --on-accent
-// 用法(其余两处 --on-accent 用法——.sv-switch[data-on] 的滑块、.sv-btn-primary 的文字——
-// 是本任务的回源发现/既有先例延伸,已在组件文件头注释与任务报告里登记,不在此重复断言,
-// 避免断言与"文件头注释"重复维护两套真相)。其余压照片的元素本组件没有
-// (.sv-preview-grid img 是纯图,无覆盖文字)。────────────────────────────────
-describe('前景色合规', () => {
-  it('.sv-modal-icon 用 --accent 实底 + --on-accent 前景', () => {
+// ── Foreground color compliance: .sv-modal-icon is the only element in this component
+// that asserts --on-accent usage per the brief's literal requirement (the other two
+// --on-accent usages — .sv-switch[data-on]'s knob, .sv-btn-primary's text — are
+// findings from source review/extension of existing patterns, already documented in the
+// component file header comment and task report; we don't repeat the assertion here to
+// avoid dual maintenance of truth between assertion and comment). The component has no
+// other photo-bearing elements (.sv-preview-grid img is pure image, no overlay text). ──
+describe('foreground color compliance', () => {
+  it('.sv-modal-icon uses --accent solid fill + --on-accent foreground', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-modal-icon')
     expect(rule).toBeDefined()
@@ -434,12 +440,12 @@ describe('前景色合规', () => {
   })
 })
 
-// ── 窄屏规则 ────────────────────────────────────────────────────────────────
-describe('窄屏规则', () => {
-  it('样式块含 max-width: 768px,且 .sv-modal-body 在该媒体块内改单列', () => {
+// ── Narrow screen rules ────────────────────────────────────────────────────────────
+describe('narrow screen rules', () => {
+  it('style block contains max-width: 768px, and .sv-modal-body changes to single column in that media block', () => {
     expect(smartViewCreateDialogRaw).toContain('max-width: 768px')
     const m = /@media \(max-width: 768px\)\s*\{([\s\S]*?)\n\}/.exec(smartViewCreateDialogRaw)
-    expect(m, '未找到窄屏媒体块').not.toBeNull()
+    expect(m, 'narrow screen media block not found').not.toBeNull()
     const rules = parseCssRules(m![1])
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-modal-body')
     expect(rule).toBeDefined()
@@ -449,9 +455,9 @@ describe('窄屏规则', () => {
 
 // ══════════════════════════════ Fix round 1 ══════════════════════════════
 
-// ── I2:模板行 sparkles 图标色 ────────────────────────────────────────────────
-describe('模板行图标色(fix round 1 · I2)', () => {
-  it('.sv-template-row svg 用 --accent-text,不是继承容器前景色(容器自己是 --fg)', () => {
+// ── I2: Template row sparkles icon color ────────────────────────────────────────────
+describe('template row icon color (fix round 1 · I2)', () => {
+  it('.sv-template-row svg uses --accent-text, not inherited container foreground (container is --fg)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-template-row svg')
     expect(rule).toBeDefined()
@@ -459,9 +465,9 @@ describe('模板行图标色(fix round 1 · I2)', () => {
   })
 })
 
-// ── I3:另两处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
-describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向断言)', () => {
-  it('.sv-switch[data-on="true"] 用 --accent 实底,::after 滑块用 --on-accent 前景', () => {
+// ── I3: The other two --on-accent positive assertions (.sv-modal-icon covered in "foreground color compliance" describe) ──
+describe('foreground color compliance supplementary (fix round 1 · I3: the other two --on-accent positive assertions)', () => {
+  it('.sv-switch[data-on="true"] uses --accent solid fill, ::after knob uses --on-accent foreground', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const bgRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]')
     expect(bgRule).toBeDefined()
@@ -471,7 +477,7 @@ describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向�
     expect(knobRule?.body).toContain('background: var(--on-accent)')
   })
 
-  it('.sv-btn-primary 用 --accent 实底 + --on-accent 前景', () => {
+  it('.sv-btn-primary uses --accent solid fill + --on-accent foreground', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
     expect(rule).toBeDefined()
@@ -480,16 +486,16 @@ describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向�
   })
 })
 
-// ── M1:Esc 关闭(此前未申报的 net-new,已补登记 + 用例)───────────────────────
-describe('Esc 关闭(fix round 1 · M1)', () => {
-  it('open:true 时按 Esc → emit update:open(false)', async () => {
+// ── M1: Esc close (previously undeclared net-new, retroactively registered + test) ────
+describe('Esc close (fix round 1 · M1)', () => {
+  it('when open:true, press Esc → emit update:open(false)', async () => {
     const w = mountDialog({ open: true })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('open:false 时按 Esc → 不 emit(document 监听器只在打开时挂载)', async () => {
+  it('when open:false, press Esc → do not emit (document listener only mounted when open)', async () => {
     const w = mountDialog({ open: false })
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
@@ -497,9 +503,9 @@ describe('Esc 关闭(fix round 1 · M1)', () => {
   })
 })
 
-// ── M5:.sv-preview-grid 的 img 渲染路径此前零覆盖(33 例里 seeds 恒为空)───────
-describe('preview-grid 渲染(fix round 1 · M5)', () => {
-  it('store.preview.seeds 非空 → 渲染对应数量 img,src 来自 thumbnailUrl(seed,"large"),带 loading=lazy', () => {
+// ── M5: .sv-preview-grid img rendering path had zero coverage before (seeds always empty in 33 cases) ─
+describe('preview-grid rendering (fix round 1 · M5)', () => {
+  it('store.preview.seeds not empty → renders corresponding number of img, src from thumbnailUrl(seed,"large"), with loading=lazy', () => {
     const store = usePhotosSmartViews()
     store.preview = { count: 2, seeds: ['seed-a', 'seed-b'], thresholdActive: true }
     const w = mountDialog({ open: true })
@@ -511,9 +517,9 @@ describe('preview-grid 渲染(fix round 1 · M5)', () => {
   })
 })
 
-// ── M6:自动聚焦(brief 结构规格第 3 条明写)+ 键盘可操作性此前零断言 ───────────
-describe('自动聚焦(fix round 1 · M6)', () => {
-  it('open:true → 名称输入框自动获得焦点', async () => {
+// ── M6: Autofocus (explicit in brief structure spec §3) + keyboard operability had zero assertion ──
+describe('autofocus (fix round 1 · M6)', () => {
+  it('open:true → name input field automatically receives focus', async () => {
     const w = mount(SmartViewCreateDialog, {
       props: { open: true },
       global: { plugins: [makeI18n()] },
@@ -525,8 +531,8 @@ describe('自动聚焦(fix round 1 · M6)', () => {
   })
 })
 
-describe('开关键盘可操作性(fix round 1 · M6,自加的 tabindex + Enter/Space)', () => {
-  it('两个开关都有 tabindex=0,且 Enter/Space 都能切换', async () => {
+describe('switch keyboard operability (fix round 1 · M6, added tabindex + Enter/Space)', () => {
+  it('both switches have tabindex=0, and both Enter/Space can toggle', async () => {
     const w = mountDialog({ open: true })
     const live = w.find('[data-test="sv-switch-live"]')
     expect(live.attributes('tabindex')).toBe('0')
@@ -537,9 +543,9 @@ describe('开关键盘可操作性(fix round 1 · M6,自加的 tabindex + Enter/
   })
 })
 
-// ── M7:onUnmounted 此前没调 store.cancelPreview()(离开路由时孤儿预览请求)───
-describe('卸载(fix round 1 · M7)', () => {
-  it('组件卸载 → store.cancelPreview() 被调', () => {
+// ── M7: onUnmounted did not call store.cancelPreview() before (orphaned preview requests when leaving route) ──
+describe('unmount (fix round 1 · M7)', () => {
+  it('component unmounts → store.cancelPreview() is called', () => {
     const store = usePhotosSmartViews()
     const spy = vi.spyOn(store, 'cancelPreview')
     const w = mountDialog({ open: true })
@@ -548,19 +554,19 @@ describe('卸载(fix round 1 · M7)', () => {
   })
 })
 
-// ══════════════════════════════ Fix round 2(task-8 评审同批发现,控制器授权连本文件
-// 一起补)══════════════════════════════
+// ═════════════════════ Fix round 2 (task-8 review batch findings, controller approval
+// including this file) ═════════════════════
 
-// ── M1:.sv-switch 漏了 photos.scss:2819-2820 那份低优先级规则贡献的 transition/box-shadow ──
-describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
-  it('.sv-switch 轨道背景色变化带 transition', () => {
+// ── M1: .sv-switch missed transition/box-shadow contributed by low-priority rule at photos.scss:2819-2820 ──
+describe('.sv-switch track transition + thumb shadow (fix round 2 · M1)', () => {
+  it('.sv-switch track background change has transition', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('transition: background 0.15s')
   })
 
-  it('.sv-switch::after 拇指带投影(color-mix 复刻,不是字面 rgba)', () => {
+  it('.sv-switch::after knob has shadow (color-mix replica, not literal rgba)', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
     expect(rule).toBeDefined()
@@ -574,15 +580,16 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 2 · M1)', () => {
 // dialog embedded in place of its own footer when the "Let Nimo draft it" fill option is
 // picked; standalone mode (PhotosSmartViews.vue's own mount) is untouched.
 describe('embedded mode (SP15-P2b Task 4)', () => {
-  it('embedded mode drops its own scrim, header and name field', async () => {
+  it('embedded mode drops its own scrim, header, and name field', async () => {
     const w = mountDialog({ open: true, embedded: true, initialName: 'Trip' })
     expect(w.find('[data-test="sv-modal-scrim"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-close-btn"]').exists()).toBe(false)
     expect(w.find('[data-test="sv-name-input"]').exists()).toBe(false)
   })
 
-  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode that ref
-  // is null (the name field is v-if="!embedded"), so opening the fused panel focused nothing.
+  // Final fix wave: focus went to nameInputRef unconditionally, and in embedded mode
+  // that ref is null (the name field is v-if="!embedded"), so opening the fused panel
+  // focused nothing.
   it('focuses the description in embedded mode, the name field otherwise', async () => {
     const embedded = mount(SmartViewCreateDialog, {
       props: { open: false, embedded: true, initialName: 'Trip' },
@@ -658,7 +665,7 @@ describe('embedded mode (SP15-P2b Task 4)', () => {
   })
 
   // SP15-P2b Task 4 review fix round 1 · Important: in embedded mode the ghost Cancel
-  // button is the *only* way to back out without submitting -- it is not gated by
+  // button is the *only* way to back out without submitting — it is not gated by
   // v-if="!embedded" the way the header close button and Name field are, and the Escape
   // listener is never attached in embedded mode (see the test above), so it cannot cover
   // this path either. This was previously untested: dismiss()'s embedded branch and

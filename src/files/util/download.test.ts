@@ -29,15 +29,15 @@ describe('shouldRefreshBeforeDownload', () => {
     const expiredSec = Math.floor(now / 1000) - 10
     expect(shouldRefreshBeforeDownload(expiredSec, now)).toBe(true)
   })
-  it('≤60s 内过期 → 刷新', () => {
-    const soonSec = Math.floor(now / 1000) + 30 // 30s 后过期,进 60s 缓冲
+  it('Expires within ≤60s → refresh', () => {
+    const soonSec = Math.floor(now / 1000) + 30 // expires in 30s, enters 60s buffer
     expect(shouldRefreshBeforeDownload(soonSec, now)).toBe(true)
   })
-  it('充裕(>60s)→ 不刷新', () => {
-    const farSec = Math.floor(now / 1000) + 3600 // 1h 后过期
+  it('Ample (>60s) → no refresh', () => {
+    const farSec = Math.floor(now / 1000) + 3600 // expires in 1h
     expect(shouldRefreshBeforeDownload(farSec, now)).toBe(false)
   })
-  it('expires_at 非法(NaN)→ 保守刷新', () => {
+  it('expires_at invalid (NaN) → conservative refresh', () => {
     expect(shouldRefreshBeforeDownload(NaN, now)).toBe(true)
   })
 })

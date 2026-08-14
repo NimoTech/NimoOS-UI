@@ -5,19 +5,19 @@ import { i18n } from '../../i18n'
 
 export type OfficeViewerState = 'loading' | 'ready' | 'error'
 
-// 把底层库的英文报错映射成用户可读的中文原因。docx-preview / excel 用 JSZip 解压
-// OOXML(.docx/.xlsx 本质是 zip);旧版二进制 .doc/.xls(OLE2)或损坏文件会报
-// "Can't find end of central directory : is this a zip file?" —— 归一成友好提示。
+// Maps underlying library English error messages to user-readable reasons. docx-preview / excel use
+// JSZip to decompress OOXML (.docx/.xlsx are zip files at heart); legacy binary .doc/.xls (OLE2) or
+// corrupted files report "Can't find end of central directory : is this a zip file?" —— normalize to a friendly message.
 function renderErrorReason(e: unknown): string {
   const msg = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
   if (/zip|central directory/i.test(msg)) return i18n.global.t('filesViewerOfficeLegacy')
   return i18n.global.t('filesViewerParseFailed')
 }
 
-// 三个重查看器(PDF/Word/Excel)共用:取字节 + 三态机 + 卸载守卫。
-// 字节走共享 service.file.getBytes(/v1/file, arraybuffer, 401 自愈);真实路径进 API。
-// @vue-office 组件挂 @rendered → onRendered()、@error → onRenderError(err)。
-// errorDetail 暴露失败原因(取字节失败 / 渲染失败),供 error 态展示,便于用户与诊断。
+// Three heavy viewers (PDF/Word/Excel) share: fetch bytes + state machine + unmount guard.
+// Bytes go through shared service.file.getBytes (/v1/file, arraybuffer, auto-heals on 401); real path goes to API.
+// @vue-office component hooks @rendered → onRendered(), @error → onRenderError(err).
+// errorDetail exposes failure reason (fetch failed / render failed), for error state display, aids user and diagnosis.
 export function useOfficeBytes(item: FileEntry): {
   state: Ref<OfficeViewerState>
   buffer: ShallowRef<ArrayBuffer | null>
@@ -28,14 +28,14 @@ export function useOfficeBytes(item: FileEntry): {
   const state = ref<OfficeViewerState>('loading')
   const buffer = shallowRef<ArrayBuffer | null>(null)
   const errorDetail = ref('')
-  // 异步 onMounted 的 await 期间可能已被卸载(用户快速关闭覆盖层)——卸载后放弃后续渲染。
+  // During await in async onMounted, unmount may already have happened (user closes overlay quickly) —— abandon rendering after unmount.
   let disposed = false
 
   onMounted(async () => {
     try {
       const buf = await service.file.getBytes(item.path)
       if (disposed) return
-      buffer.value = buf               // state 维持 loading,直到 @rendered
+      buffer.value = buf               // state stays loading until @rendered
     } catch {
       if (disposed) return
       errorDetail.value = i18n.global.t('filesViewerFetchFailed')

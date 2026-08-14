@@ -30,7 +30,7 @@ describe('fileOps store', () => {
     expect(s.active.map((t) => t.id)).toEqual(['1'])
   })
 
-  it('ingest:已完成任务 to===当前目录 → reload 当前目录', () => {
+  it('ingest: finished task with to === current directory → should reload current directory', () => {
     const files = useFilesStore(); files.currentPath = '/DATA/here'
     const spy = vi.spyOn(files, 'load')
     const s = useFileOpsStore()
@@ -38,7 +38,7 @@ describe('fileOps store', () => {
     expect(spy).toHaveBeenCalledWith('/DATA/here')
   })
 
-  it('ingest:完成任务 to 非当前目录 → 不 reload', () => {
+  it('ingest: finished task with to !== current directory → should not reload', () => {
     const files = useFilesStore(); files.currentPath = '/DATA/here'
     const spy = vi.spyOn(files, 'load')
     const s = useFileOpsStore()
@@ -46,7 +46,7 @@ describe('fileOps store', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('ingest:未完成任务即使 to===当前目录也不 reload(reload 要求 finished)', () => {
+  it('ingest: unfinished task even with to === current directory should not reload (reload requires finished)', () => {
     const files = useFilesStore(); files.currentPath = '/DATA/here'
     const spy = vi.spyOn(files, 'load')
     const s = useFileOpsStore()
@@ -54,7 +54,7 @@ describe('fileOps store', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('cancelAll 调 batch.deleteTask(0)', async () => {
+  it('cancelAll should call batch.deleteTask(0)', async () => {
     const s = useFileOpsStore()
     await s.cancelAll()
     expect(deleteTask).toHaveBeenCalledWith(0)

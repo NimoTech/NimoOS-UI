@@ -34,7 +34,8 @@ const isApp = computed(() => props.item.kind === 'appwidget')
 const appMeta = computed(() => (isApp.value ? useAppsStore().app(props.item.key) : undefined))
 const cardTitle = computed(() => (isApp.value ? appMeta.value?.name ?? props.item.key : meta.value?.title ? t(meta.value.title) : ''))
 
-// 各 widget 组件由后续任务(T6 起)逐个 import 并登记进此 map
+// Each widget component is imported and registered in this map by subsequent
+// tasks (T6 onwards)
 const WIDGET_COMPONENTS: Record<string, Component> = {
   ai: AiWidget,
   clock: ClockWidget,
@@ -143,9 +144,9 @@ const bodyComp = computed(() => (isApp.value ? AppIframeWidget : WIDGET_COMPONEN
 }
 
 /* ── Per-widget card-level overrides (base.css:132,153-155,228) ─────────── */
-/* Clock: full-bleed — hide the card header ("时间" 标题) and drop the card's
-   16px padding so the widget's fixed-size layout fills the frame like the
-   standalone preview. The clock component owns its own per-variant padding. */
+/* Clock: full-bleed — hide the card header (the "time" title) and drop the
+   card's 16px padding so the widget's fixed-size layout fills the frame like
+   the standalone preview. The clock component owns its own per-variant padding. */
 .card.w-clock { background: var(--clock-bg, var(--card-bg)); padding: 0; }
 .card.w-clock .card-head { display: none; }
 .card.w-clock .card-in { justify-content: center; border-radius: var(--radius); }

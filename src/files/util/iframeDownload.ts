@@ -1,4 +1,4 @@
-// 移植 Vue2 downloadFile 的隐藏 iframe:全应用复用一个,只换 src 触发下载。
+// Ported from Vue2 downloadFile hidden iframe: the entire application reuses one, only changing src to trigger download.
 let iframe: HTMLIFrameElement | null = null
 
 export function triggerIframeDownload(url: string): void {

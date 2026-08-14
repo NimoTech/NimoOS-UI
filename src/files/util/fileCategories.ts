@@ -1,4 +1,4 @@
-// 文件扩展名分类的单一真源(供 icons.ts 图标映射 + panelMap.ts 查看器映射复用)
+// Single source of truth for file extension categories (reused by icons.ts for icon mapping + panelMap.ts for viewer mapping)
 export const IMAGE_X_GENERIC = ['png', 'jpg', 'jpeg', 'bmp', 'gif', 'webp', 'svg', 'tiff']
 export const VIDEO_X_GENERIC = ['mkv', 'mp4', '3gp', 'avi', 'm2ts', 'webm', 'flv', 'vob', 'ts', 'mts', 'mov', 'wmv', 'rm', 'rmvb', 'asf', 'mpg', 'm4v', 'mpeg', 'f4v']
 export const AUDIO_X_GENERIC = ['aac', 'aiff', 'alac', 'amr', 'ape', 'flac', 'm4a', 'mp3', 'ogg', 'opus', 'wma', 'wav']
@@ -20,5 +20,6 @@ export const APPLICATION_X_APPLE = ['dmg', 'ipa', 'pkg']
 export const APPLICATION_X_PEM_KEY = ['pem', 'crt', 'ca-bundle', 'p7b', 'p7s', 'der', 'cer', 'pfx', 'p12']
 export const TEXT_X_CMAKE = ['makefile', 'cmake', 'dockerfile']
 export const TEXT_DOCKERFILE = ['dockerfile']
-// 播放白名单(Vue2 mixin.js:33-40)——视频图标覆盖更广(见 VIDEO_X_GENERIC),但播放器只认这 5 个
+// Playback whitelist (Vue2 mixin.js:33-40) — video icons cover more formats (see VIDEO_X_GENERIC),
+// but the player only recognizes these 5
 export const BROWSER_PLAYABLE_VIDEO = ['mp4', 'm4v', 'webm', 'mov', '3gp']

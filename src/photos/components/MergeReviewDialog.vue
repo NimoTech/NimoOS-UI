@@ -1,32 +1,38 @@
 <script setup lang="ts">
-// Task 8 (SP7-P5 人物): MergeReviewDialog.vue —— 合并建议逐条审阅弹窗。逐段照 Vue2
-// NimoOS-UI src/views/Photos/PhotosPeopleView.vue:364-434(模板结构)与 :595-614
-// (onAcceptReview/onRejectReview 的 emit 语义)移植。
+// Task 8 (SP7-P5 people): MergeReviewDialog.vue — merge suggestion review dialog shown item-by-item.
+// Ported segment-by-segment from Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:364-434
+// (template structure) and :595-614 (emit semantics of onAcceptReview/onRejectReview).
 //
-// 分工(同 T7 ClusterActionDialog 的先例,反过来也一样成立):本组件只收集用户点击并
-// emit,不调用 store、不发 toast、不做 index 钳制——这三件事全部在宿主 PhotosPeople.vue
-// (它持有 suggestions 数组与 index,brief 明确要求钳制逻辑放父组件)。
+// Division of concerns (same pattern as T7 ClusterActionDialog, equally reversible): this
+// component only collects user clicks and emits; it does not call store, does not show toast,
+// and does not clamp index — all three of those happen in the host PhotosPeople.vue (which holds
+// the suggestions array and index; the brief explicitly requires clamping logic in the parent).
 //
-// 头像复用 T5 的 PersonAvatar(加了 shape='square' 的加性扩展,见该组件改动),不自绘——
-// 好处是三级兜底(真图→首字母→person 图标)、失败态自愈全部白得,不用重复实现 Vue2
-// :385-399/403-417 的 avatarFailed/onAvatarError 那一套本地状态。
+// Avatar reuses T5's PersonAvatar (with added shape='square' extension; see that component's
+// changes), does not self-paint — the benefit is three-level fallback (real image → initials →
+// person icon) and self-healing on failure, all free of charge; no need to re-implement Vue2's
+// :385-399/403-417 local-state avatarFailed/onAvatarError machinery.
 //
-// 保真的不对称(brief 明确要求照搬,登记为 Vue2 现状,不是本组件的疏漏):左侧(fromId)
-// 姓名从 people 列表反查(:395-396);右侧(intoId)直接用 suggestion.intoName(:413-414),
-// 不查 people——intoName 是建议生成时刻的快照,可能与当前最新改名不一致,Vue2 就是这样。
+// Faithful asymmetry (brief explicitly requires copying as-is; logged as Vue2 status quo, not a
+// gap in this component): left side (fromId) name reverse-looked-up from people list (:395-396);
+// right side (intoId) uses suggestion.intoName directly (:413-414), no lookup — intoName is a
+// snapshot from suggestion-generation time, may not match the current latest renamed name; Vue2
+// works the same way.
 //
-// i18n 缺口(brief 列举的键里没有,确认缺失后按"确实缺了报上来"补的,已在任务报告登记):
-// photosPersonMergeGroupA/B(两列固定标签,原 Vue2 $t('Cluster A'/'Cluster B'),旧仓
-// zh_CN.json:1993-1994 译"集群 A/B" 触犯本期术语红线,改"组 A/B")、
-// photosPersonMergeNimoLead(理由条品牌前缀 $t('Nimo:'))。
+// i18n gaps (keys not listed in brief; confirmed missing and added per "report gaps as they
+// arise"; logged in task report): photosPersonMergeGroupA/B (two fixed column labels, original
+// Vue2 $t('Cluster A'/'Cluster B'); old repo zh_CN.json:1993-1994 translated to "clusters A/B"
+// which violates this period's terminology redline, changed to "group A/B"), and
+// photosPersonMergeNimoLead (brand-prefixed reason label $t('Nimo:')).
 import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
 import { mergeConfidencePct, mergeReasonKey, type Person } from '../util/peopleView'
-// 协调者裁定(fix,收到 task-8 报告后追加):头部品牌圆头像不是"AI 装饰件可以自由替代"的
-// 那一类,计划里明确写了要照 Vue2 用真资产。Vue2 的 nimo-logo.png(PhotosPeopleView.vue:370,
-// 372)本仓原来确实没有,现从旧仓 src/views/Photos/nimo-logo.png 原样复制进
-// src/photos/assets/nimo-logo.png(44850 字节,md5 校验与源文件一致),不是重新画的图。
+// Coordinator decision (fix, appended after task-8 report): the header brand circle avatar is not
+// the "AI decoration that can be freely substituted" category; the plan explicitly requires using
+// the real asset as Vue2 does. Vue2's nimo-logo.png (PhotosPeopleView.vue:370, 372) was originally
+// missing from this repo; now copied as-is from the old repo's src/views/Photos/nimo-logo.png to
+// src/photos/assets/nimo-logo.png (44850 bytes, md5 checksum matches source), not redrawn.
 import nimoLogoUrl from '../assets/nimo-logo.png'
 
 export interface MergeSuggestion {
@@ -45,10 +51,11 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   (e: 'update:open', v: boolean): void
-  // 声明满足 brief 给定的接口契约,但目前从未被调用:本组件没有任何独立的"跳到第 N 条"
-  // 导航控件(Vue2 也没有——reviewIdx 只在 openReview 时置 0,此后只随 accept/reject 由
-  // 宿主钳制)。留着这个 emit 是为了让 open/index 保持同一套 v-model 形态,不因为"暂时
-  // 用不到"就砍掉接口里明确要求的部分。
+  // Declared to satisfy the interface contract in the brief, but currently never called: this
+  // component has no independent "jump to item N" navigation control (Vue2 doesn't either —
+  // reviewIdx is only set to 0 when openReview is triggered, then clamped by the host only on
+  // accept/reject). Keeping this emit ensures open/index stay in a uniform v-model form, rather
+  // than cutting interface-required parts just because they're "not used yet".
   (e: 'update:index', v: number): void
   (e: 'accept', id: string | number): void
   (e: 'reject', id: string | number): void
@@ -56,15 +63,15 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 铁律:按 id 比较一律 String() 归一,后端 id 可能是数字。
+// Hard rule: all ID comparisons normalize to String(); backend IDs may be numbers.
 function sameId(a: string | number, b: string | number): boolean {
   return String(a) === String(b)
 }
 
-// Vue2 :518 currentMerge = mergeSuggestions[reviewIdx]。index 越界(宿主钳制发生在
-// await 之后,accept/reject 请求在途的那个窗口期里 suggestions 已经少一条但 index 还没
-// 钳过来)时落到 undefined——模板 v-if 一并挡住,不崩,同 Vue2 `v-if="reviewOpen && currentMerge"`
-// 的防御方式。
+// Vue2 :518 currentMerge = mergeSuggestions[reviewIdx]. When index is out of bounds (the host's
+// clamping happens after await; during the window when accept/reject is in flight, suggestions
+// has one fewer item but index hasn't been clamped yet), falls to undefined — template v-if
+// guards against it, no crash, same defensive pattern as Vue2's `v-if="reviewOpen && currentMerge"`.
 const current = computed<MergeSuggestion | undefined>(() => props.suggestions[props.index])
 
 const titleText = computed(() =>
@@ -74,15 +81,16 @@ const confidenceText = computed(() =>
   t('photosPersonMergeSuggestConfidence', { n: mergeConfidencePct(current.value?.confidence) }),
 )
 
-// 左侧姓名反查(Vue2 :395-396):从 people 列表按 fromId 找,找不到落空串
-// (personInitial 空串兜底走 person 图标,同 Vue2 `|| ''`)。
+// Left side name reverse lookup (Vue2 :395-396): search people list by fromId, return empty
+// string if not found (personInitial falls through to person icon on empty string, same as Vue2's
+// `|| ''`).
 const fromName = computed(() => {
   const s = current.value
   if (!s) return ''
   return props.people.find((p) => sameId(p.id, s.fromId))?.name ?? ''
 })
-// 头像缓存击穿 ver:两侧都走同一份查找逻辑(Vue2 :560-563 的 avatarUrl 对 fromId/intoId
-// 一视同仁,不对称的只是姓名显示,不是头像 URL/ver)。
+// Avatar cache-bust ver: both sides use the same lookup logic (Vue2 :560-563 avatarUrl treats
+// fromId/intoId identically; asymmetry is only in name display, not avatar URL/ver).
 const fromVer = computed(() => {
   const s = current.value
   if (!s) return null
@@ -99,9 +107,10 @@ const reasonText = computed(() => {
   return t(r.key, r.params)
 })
 
-// 主按钮文案:intoName 存在 → photosPersonMergeAs {name};缺失 → 用 photosPersonMergeAsSame
-// 填充同一个键的 {name} 槶位(Vue2 :429-430 的 v-if/v-else 两句在 New-UI locale 已经合成了
-// 一句,见 zh_cn.ts / en_us.ts 的 photosPersonMergeAs 定义)。
+// Primary button copy: intoName exists → photosPersonMergeAs {name}; missing → use
+// photosPersonMergeAsSame to fill the same key's {name} placeholder (Vue2's :429-430 v-if/v-else
+// two lines are already merged into one in New-UI locale; see photosPersonMergeAs definition in
+// zh_cn.ts / en_us.ts).
 const acceptLabel = computed(() =>
   t('photosPersonMergeAs', { name: current.value?.intoName || t('photosPersonMergeAsSame') }),
 )
@@ -118,10 +127,10 @@ function onAccept(): void {
   emit('accept', current.value.id)
 }
 
-// Esc:document 级 + watch(open) 挂/摘 + 分支内 stopPropagation(同 AlbumPickerDialog.vue:
-// 70-100 / ClusterActionDialog.vue:103-134 的先例)。点遮罩 @click.self 关闭。
-// z-index 必须低于三态弹窗(ClusterActionDialog 是 220,Vue2 本身两者是 100 vs 200 的比例
-// 关系),见样式区注释。
+// Esc: document-level + watch(open) attach/detach + stopPropagation inside (same pattern as
+// AlbumPickerDialog.vue:70-100 / ClusterActionDialog.vue:103-134). Click overlay @click.self to
+// close. z-index must be lower than the three-state dialog (ClusterActionDialog is 220; Vue2
+// itself has a 100 vs 200 ratio between the two), see comment in styles section.
 function onDocumentKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   e.stopPropagation()
@@ -142,8 +151,9 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   <div v-if="open && current" class="mrd-overlay" data-test="mrd-overlay" @click.self="close">
     <div class="mrd-panel" data-test="mrd-panel">
       <div class="mrd-head">
-        <!-- Vue2 :372 用 nimoLogoUrl 图片渲染品牌圆头像(background:url(...) center/cover)。
-             这里用等效的 <img> + object-fit:cover 还原同一几何,真资产见 import 处注释。 -->
+        <!-- Vue2 :372 renders brand circle avatar using nimoLogoUrl image (background:url(...)
+             center/cover). Here we use equivalent <img> + object-fit:cover to restore the same
+             geometry; real asset documented in import comment. -->
         <img :src="nimoLogoUrl" class="mrd-logo" data-test="mrd-logo" alt="" aria-hidden="true">
 
         <div class="mrd-head-text">
@@ -183,9 +193,10 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 .mrd-overlay {
   position: fixed;
   inset: 0;
-  /* 必须低于三态弹窗 ClusterActionDialog(220)——Vue2 源两者的比例是 100(本弹窗)
-     vs 200(三态弹窗),这里在本仓既有 z-index 序列里按"低于三态弹窗"这条硬约束取值,
-     不是照搬 Vue2 的绝对数字(本仓其它浮层已经占用了 50/150/220/230 这些值)。 */
+  /* Must be lower than three-state dialog ClusterActionDialog (220) — Vue2 source has ratio
+     100 (this dialog) vs 200 (three-state dialog); here we choose per the hard constraint "lower
+     than three-state dialog" within this repo's existing z-index sequence, not copying Vue2's
+     absolute number (other floating layers in this repo already use values 50/150/220/230). */
   z-index: 200;
   background: var(--overlay-bg);
   backdrop-filter: var(--overlay-blur);
@@ -195,8 +206,9 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   padding: 40px 24px;
 }
 
-/* P2 血泪(同 ClusterActionDialog.vue:257-258 的先例):面板底色须用 --popup-bg,
-   不用 --card-bg(深色主题下 --card-bg 近透明,叠在暗底上会看穿)。 */
+/* P2 hard-won lesson (precedent ClusterActionDialog.vue:257-258): panel background must use
+   --popup-bg, not --card-bg (in dark theme --card-bg is near-transparent, layered on dark
+   background becomes see-through). */
 .mrd-panel {
   width: 560px;
   max-width: 100%;
@@ -211,9 +223,9 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 .mrd-logo {
   width: 40px; height: 40px; flex: 0 0 auto; border-radius: 50%;
   object-fit: cover;
-  /* 图片加载前(或加载失败,<img> 没有兜底)的占位底色,不是给内容用的排版容器——
-     不需要 display:flex/align-items/justify-content/color(那套是给内部子节点排版的,
-     <img> 没有子节点)。 */
+  /* Placeholder background color before image loads (or on load failure; <img> has no fallback)
+     — not a layout container for content — does not need display:flex/align-items/justify-content
+     /color (those apply to child layout; <img> has no children). */
   background: var(--accent-soft);
 }
 .mrd-head-text { flex: 1 1 auto; min-width: 0; }
@@ -229,12 +241,14 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
 .mrd-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
 .mrd-side { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-/* PersonAvatar 的 size prop 只接受固定像素,不是百分比——Vue2 这里的头像是
-   width:100%/aspect-ratio:1 的真流式方块(:387,405)。用 !important 覆盖组件内联 style
-   把根节点收窄到"跟随列宽、保持 1:1"(CSS max-width/aspect-ratio 的计算优先级本就在
-   width 之后应用,这是标准行为,不是 hack),size=200 只留作 PersonAvatar 内部比例计算
-   的基准值(本处未展示收藏星标,不受影响)。窄屏兜底:没有这条,200px 方块在窄面板上
-   会溢出(560px 面板在手机宽度上会被 max-width:100% 压窄,方块却仍是钉死的 200px)。 */
+/* PersonAvatar's size prop accepts only fixed pixels, not percentages — Vue2's avatar here is
+   a true fluid block with width:100%/aspect-ratio:1 (:387,405). Use !important to override
+   component inline style to narrow the root node to "follow column width, maintain 1:1" (CSS
+   max-width/aspect-ratio precedence applies after width; this is standard behavior, not a hack);
+   size=200 remains as a basis value for PersonAvatar's internal ratio calculation (this view
+   doesn't show save stars, so no impact). Narrow-screen fallback: without this, 200px block would
+   overflow on narrow panel (560px panel gets narrowed to max-width:100% on phone width, but the
+   block stays pinned at 200px). */
 .mrd-side :deep(.person-avatar) {
   max-width: 100%;
   height: auto !important;
@@ -246,9 +260,10 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   padding: 12px; background: var(--accent-soft); border-radius: 10px;
   font-size: 12px; color: var(--fg); line-height: 1.5; margin-bottom: 16px;
 }
-/* Vue2 :423 用 var(--accent-hi)——本仓 theme.css 未定义这个 token(已 grep 确认两套主题块
-   均无),借用在两套主题都有真实定义的 --accent-text(同色调、已确立的"强调文字"角色,
-   同 PhotosPeople.vue .em / .check 的既有惯例),不新增/臆造 token。 */
+/* Vue2 :423 uses var(--accent-hi) — this repo's theme.css does not define this token (grep
+   confirms it's absent in both theme blocks); reuse --accent-text which is defined in both themes
+   (same hue, established role as "emphasis text"; consistent with existing PhotosPeople.vue .em
+   / .check convention), rather than adding/fabricating a new token. */
 .mrd-reason-lead { color: var(--accent-text); }
 
 .mrd-actions { display: flex; gap: 8px; }
@@ -262,9 +277,10 @@ onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
   background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
-/* 与 ClusterActionDialog 同款修复:`.mrd-btn:hover`(:260,优先级 (0,2,0))压过只有一个类的
-   `.mrd-btn-primary`(0,1,0),hover 时 accent 实底被换成近白的 --chip-bg-hi、文字仍是
-   --on-accent → 「合并」键整颗看不见。这条 :hover 里原本只有 filter,必须把背景也盖回来
-   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。 */
+/* Same fix as ClusterActionDialog: `.mrd-btn:hover` (:260, specificity (0,2,0)) overrides the
+   single-class `.mrd-btn-primary` (0,1,0); on hover, accent solid background gets replaced with
+   near-white --chip-bg-hi while text stays --on-accent → "Merge" button becomes completely
+   invisible. This :hover originally had only filter; must also restore the background (same as
+   the existing correct pattern in detail view PhotosPersonDetail.vue:1142). */
 .mrd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
 </style>

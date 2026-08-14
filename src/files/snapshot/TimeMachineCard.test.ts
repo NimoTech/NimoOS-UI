@@ -15,28 +15,28 @@ const mountIt = (props = {}) =>
   mount(TimeMachineCard, { props: { item: ITEM, state: 'front' as const, depth: 0, ...props }, global: { plugins: [i18n] } })
 
 describe('TimeMachineCard', () => {
-  it('显示时间、日期、类型徽章、备注', () => {
+  it('show time, date, type badge, and label', () => {
     const text = mountIt().text()
     expect(text).toContain('14:30')
     expect(text).toContain('今天')
     expect(text).toContain('手动')
     expect(text).toContain('改版前')
   })
-  it('没有备注时不渲染备注行', () => {
+  it('do not render label row when label is empty', () => {
     expect(mountIt({ item: { ...ITEM, label: '' } }).find('.tm-card-label').exists()).toBe(false)
   })
-  it('按状态与层数落 class(变换全交给 CSS)', () => {
+  it('apply class based on state and depth (all transformations delegated to CSS)', () => {
     expect(mountIt({ state: 'behind', depth: 2 }).classes()).toEqual(expect.arrayContaining(['tm-card', 'is-behind', 'depth-2']))
     expect(mountIt({ state: 'past', depth: 1 }).classes()).toContain('is-past')
   })
-  it('类型着色 class 三选一', () => {
+  it('type coloring class is one of three', () => {
     expect(mountIt().classes()).toContain('type-manual')
     expect(mountIt({ item: { ...ITEM, typeKind: 'auto', typeLabelKey: 'snapTypeAuto' } }).classes()).toContain('type-auto')
     expect(mountIt({ item: { ...ITEM, typeKind: 'preop', typeLabelKey: 'snapTypePreop' } }).classes()).toContain('type-preop')
   })
 })
 
-describe('卡片里的文件区网格', () => {
+describe('file grid inside card', () => {
   const preview = {
     status: 'ready' as const,
     total: 40,
@@ -46,7 +46,7 @@ describe('卡片里的文件区网格', () => {
       { path: '/s/n.txt', name: 'n.txt', is_dir: false, date: '2026-07-30T10:00:00Z', size: 12 },
     ],
   }
-  it('每个条目一格,图片走缩略图、其它走类型图标(与文件区同一个 FileThumb)', async () => {
+  it('one cell per entry, images use thumbnails, others use type icons (same FileThumb as file area)', async () => {
     const w = mountIt({ preview })
     // FileThumb's in-viewport detection sets inView in onMounted; wait a tick before it swaps to the thumbnail <img>
     await nextTick()
@@ -54,42 +54,42 @@ describe('卡片里的文件区网格', () => {
     expect(w.get('.tm-file:nth-child(2) img').attributes('src')).toContain('/v1/image')
     expect(w.get('.tm-file:nth-child(3) img').attributes('src')).not.toContain('/v1/image')
   })
-  it('显示文件名', () => {
+  it('show filenames', () => {
     expect(mountIt({ preview }).findAll('.tm-file-name').map((n) => n.text())).toEqual(['sub', 'a.jpg', 'n.txt'])
   })
-  it('副标题:文件带大写扩展名,文件夹只有时间(与文件区列表视图同一套字段)', () => {
+  it('subtitle: files show uppercase extension, folders show only time (same fields as file area list view)', () => {
     const subs = mountIt({ preview }).findAll('.tm-file-sub').map((n) => n.text())
     expect(subs[0]).not.toContain('·') // folders show no extension
     expect(subs[1]).toContain('JPG ·')
     expect(subs[2]).toContain('TXT ·')
   })
-  it('总数多于已给条目时显示 +N', () => {
+  it('show +N when total exceeds given entries', () => {
     expect(mountIt({ preview }).find('.tm-file-more').text()).toBe('+37')
   })
-  it('显示项数', () => { expect(mountIt({ preview }).text()).toContain('40 项') })
-  it('目录当时不存在 → 说人话,不显示空网格', () => {
+  it('show item count', () => { expect(mountIt({ preview }).text()).toContain('40 项') })
+  it('directory did not exist at that time → speak plainly, do not show empty grid', () => {
     const w = mountIt({ preview: { status: 'missing', entries: [], total: 0 } })
     expect(w.text()).toContain('此时还没有这个文件夹')
     expect(w.find('.tm-files').exists()).toBe(false)
   })
-  it('那一刻是空文件夹 → 说人话,不显示空网格', () => {
+  it('directory was empty at that moment → speak plainly, do not show empty grid', () => {
     const w = mountIt({ preview: { status: 'ready', entries: [], total: 0 } })
     expect(w.text()).toContain('此文件夹为空')
     expect(w.find('.tm-files').exists()).toBe(false)
   })
-  it('拉取失败 → 退回纯文字卡,不显示报错', () => {
+  it('fetch failed → fall back to plain text card, do not show error', () => {
     const w = mountIt({ preview: { status: 'failed', entries: [], total: 0 } })
     expect(w.find('.tm-files').exists()).toBe(false)
     expect(w.text()).toContain('14:30')
     expect(w.text()).not.toContain('失败')
   })
-  it('没有 preview(还没拉)→ 纯文字卡', () => {
+  it('no preview (not yet fetched) → plain text card', () => {
     expect(mountIt().find('.tm-files').exists()).toBe(false)
   })
   // The deck window holds 5 cards; one card of 36 cells = 180 <img>, each firing a real
   // thumbnail request. Rear cards are hidden except a top strip, so rendering the grid is
   // pure waste — this test guards that constraint.
-  it('后排卡片不铺网格(只有最前那张和正在飞出去的那张铺)', () => {
+  it('rear cards do not render grid (only front card and one flying out)', () => {
     expect(mountIt({ preview, state: 'behind', depth: 1 }).find('.tm-files').exists()).toBe(false)
     expect(mountIt({ preview, state: 'past', depth: 0 }).find('.tm-files').exists()).toBe(true)
     expect(mountIt({ preview, state: 'front' }).find('.tm-files').exists()).toBe(true)

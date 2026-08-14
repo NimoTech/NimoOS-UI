@@ -1,7 +1,7 @@
-// SP7-P7a-T12: PhotosFilterChip.vue —— 筛选胶囊基元。
-// 逐字比对结论(PhotosSearchView.vue:51-59 vs PhotosFilterBar.vue:16-24,任务报告里也登记
-// 一份):两侧标记逐字相同,唯二差别①处理器名(clearFilter/clearChip)②组件标签大小写
-// (<photos-icon>/<PhotosIcon>),都不影响 New-UI 落地。
+// SP7-P7a-T12: PhotosFilterChip.vue — filter chip primitive.
+// Character-by-character comparison result (PhotosSearchView.vue:51-59 vs PhotosFilterBar.vue:16-24,
+// also registered in the task report): markup on both sides is identical; only two differences:
+// ① handler name (clearFilter/clearChip), ② component tag casing (<photos-icon>/<PhotosIcon>), neither affects New-UI implementation.
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -16,24 +16,24 @@ function mountChip(props: { label: string; active: boolean; open?: boolean }, sl
   return mount(PhotosFilterChip, { props, slots, global: { plugins: [i18n] } })
 }
 
-describe('结构', () => {
-  it('渲染 .fchip-wrap / .fchip / .fchip-icon / chevD 图标各一', () => {
+describe('Structure', () => {
+  it('Renders one each of .fchip-wrap / .fchip / .fchip-icon / chevD icon', () => {
     const w = mountChip({ label: 'Date', active: false })
     expect(w.find('.fchip-wrap').exists()).toBe(true)
     expect(w.find('.fchip').exists()).toBe(true)
     expect(w.find('.fchip-icon').exists()).toBe(true)
-    // chevD 是 .fchip 内除 .fchip-icon 外的第一枚 svg(没有 .fchip-x 时唯一的 svg)。
+    // chevD is the first svg inside .fchip besides .fchip-icon (sole svg when .fchip-x is absent).
     expect(w.find('.fchip svg').exists()).toBe(true)
   })
 
-  it('active=false → 无 .fchip-x;active=true → 有 .fchip-x', () => {
+  it('active=false → no .fchip-x; active=true → .fchip-x is present', () => {
     const wOff = mountChip({ label: 'Date', active: false })
     expect(wOff.find('.fchip-x').exists()).toBe(false)
     const wOn = mountChip({ label: 'Date', active: true })
     expect(wOn.find('.fchip-x').exists()).toBe(true)
   })
 
-  it('data-on 随 active', () => {
+  it('data-on follows active', () => {
     const wOff = mountChip({ label: 'Date', active: false })
     expect(wOff.get('.fchip').attributes('data-on')).toBe('false')
     const wOn = mountChip({ label: 'Date', active: true })

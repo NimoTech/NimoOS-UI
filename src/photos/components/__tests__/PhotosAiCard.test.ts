@@ -1,12 +1,13 @@
-// SP7-P8a-T4: PhotosAiCard.vue —— 设置页 AI 卡。
-// 回源坐标见 task-4-brief.md;Vue2 PhotosSettings.vue:129-192(模板)/:283-291(watcher)/
-// :332-370(computed)/:458-486(rebuildIndex/doRecluster)。
+// SP7-P8a-T4: PhotosAiCard.vue — AI card for settings page.
+// Source coordinates: task-4-brief.md; Vue2 PhotosSettings.vue:129-192(template)/:283-291(watcher)/
+// :332-370(computed)/:458-486(rebuildIndex/doRecluster).
 //
-// 测试基建沿用 T3(PhotosStorageCard.test.ts)已验证过的既定做法(brief 草稿引用的
-// @pinia/testing / winningDeclaration 均不存在于本仓,详见该文件头注释):
-// - setActivePinia(createPinia()) 起真实 store,vi.spyOn(store, 'action') 按需 stub。
-// - mock 的是共享包 @nimotech/nimoos-service,不是 store 本身。
-// - hover 级联守卫用 cssCascade.ts 的 extractStyleBlock/winningHoverBackground。
+// Test infrastructure follows T3 (PhotosStorageCard.test.ts) established approach already verified
+// (brief draft references @pinia/testing / winningDeclaration do not exist in this repo, see that
+// file's head comment):
+// - setActivePinia(createPinia()) starts real store, vi.spyOn(store, 'action') stubs as needed.
+// - mock targets the shared package @nimotech/nimoos-service, not the store itself.
+// - hover cascade guard uses cssCascade.ts's extractStyleBlock/winningHoverBackground.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -58,7 +59,7 @@ describe('PhotosAiCard', () => {
     vi.useRealTimers()
   })
 
-  it('4 个开关顺序固定 faces→scenes→ocr→smartview(Vue2 :363-369)', () => {
+  it('4 switches in fixed order: faces→scenes→ocr→smartview(Vue2 :363-369)', () => {
     const { wrapper } = mountCard()
     const switches = wrapper.findAll('[data-test^="ai-switch-"]')
     expect(switches.map(s => s.attributes('data-test'))).toEqual([
@@ -66,7 +67,7 @@ describe('PhotosAiCard', () => {
     ])
   })
 
-  it('点开关调 setAiFeature(id, 新值);失败时 emit toast', async () => {
+  it('Clicking switch calls setAiFeature(id, newValue); on failure emits toast', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'setAiFeature').mockResolvedValue(false)
     store.aiFeatures.faces = true
@@ -79,7 +80,7 @@ describe('PhotosAiCard', () => {
     expect(toasts![0]![0]).toMatchObject({ icon: 'shield' })
   })
 
-  it('点开关成功不 emit toast', async () => {
+  it('On successful switch click, no toast is emitted', async () => {
     const { wrapper, store } = mountCard()
     vi.spyOn(store, 'setAiFeature').mockResolvedValue(true)
     store.aiFeatures.scenes = true
@@ -90,7 +91,7 @@ describe('PhotosAiCard', () => {
     expect(wrapper.emitted('toast')).toBeFalsy()
   })
 
-  it('indexedPct 把后端 0-1 小数换算成百分数(progress 0.42 → 42%)(Vue2 :339)', async () => {
+  it('indexedPct converts backend 0-1 decimal to percentage(progress 0.42 → 42%)(Vue2 :339)', async () => {
     const { wrapper, timeline } = mountCard()
     timeline.tasks = [rebuildTaskFixture({ progress: 0.42 })]
     await nextTick()

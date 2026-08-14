@@ -33,7 +33,7 @@ const appName = computed(() => {
 <style scoped>
 .sa-msg { font-size: 14px; color: var(--fg-muted); margin: 0; }
 .sa-starting { display: flex; align-items: center; gap: 12px; padding: 6px 0; }
-/* 与 SearchDialog .spinner 同款:--ring-track 底圈 + --accent 顶弧 */
+/* Same style as SearchDialog .spinner: --ring-track bottom ring + --accent top arc */
 .sa-spinner { flex: 0 0 auto; width: 24px; height: 24px; border-radius: 50%; border: 3px solid var(--ring-track); border-top-color: var(--accent); animation: sa-spin 0.8s linear infinite; }
 @keyframes sa-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .sa-spinner { animation-duration: 1.6s; } }

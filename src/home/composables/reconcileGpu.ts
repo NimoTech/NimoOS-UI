@@ -1,7 +1,7 @@
 import type { useLayoutStore } from '../stores/layout'
 import type { useLiveStatsStore } from '../stores/liveStats'
 
-// gpu 已知为空数组 → 移除布局中的 gpu widget(不持久化)
+// gpu known to be empty array → remove gpu widget from layout (not persisted)
 export function reconcileGpu(
   layout: ReturnType<typeof useLayoutStore>,
   live: ReturnType<typeof useLiveStatsStore>,

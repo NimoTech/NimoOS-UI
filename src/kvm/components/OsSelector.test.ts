@@ -6,10 +6,11 @@ import IsoBrowser from './IsoBrowser.vue'
 import { i18n } from '../../i18n'
 import type { IsoRow } from '../composables/useIsoList'
 
-// IsoBrowser(Task 6)是 OsSelector 的子组件,真实渲染时会自己调 useIsoBrowser() 拉目录——
-// 本文件只测官方模板半 + 自定义区选中后的转发/关弹窗,不测 IsoBrowser 内部浏览逻辑
-// (那部分已在 IsoBrowser.test.ts 单独覆盖),所以这里把它的数据层钉死成空目录/不加载,
-// 避免真实 service.folder.getList 调用泄进这个文件的测试。
+// IsoBrowser (Task 6) is a child component of OsSelector; in real rendering it calls useIsoBrowser() by itself
+// to fetch the directory. This file only tests the official template section + forwarding/dialog closing after
+// custom area selection, not the IsoBrowser internal browse logic (that part is already covered separately in
+// IsoBrowser.test.ts), so here we mock the data layer to an empty directory/not loading to avoid real
+// service.folder.getList calls leaking into this test file.
 vi.mock('../composables/useIsoBrowser', () => ({
   useIsoBrowser: () => ({
     path: { value: '/' }, items: { value: [] }, isLoading: { value: false },
@@ -23,12 +24,13 @@ const ROW = (over: Partial<IsoRow> = {}): IsoRow => ({
   minMemory: 512, minDisk: 8,
   _downloading: false, _downloaded: false, _progress: 0, _downloadedBytes: 0, ...over,
 })
-// 偏离登记(修 brief 手误,非仅第 3 条用例那一行):brief 的字面 ALPINE 只覆盖了
-// id/name/category/status/path/_downloaded/minDisk,version/size 沿用 ROW() 默认值
-// (Debian 的 '13 (Trixie)' / '676 MB')——但同一条用例断言 cards[1] 要包含 '3.19' 与
-// '60 MB',两者对不上(真机 alpine-319 的真实版本号是 3.19,体积远小于 Debian 的
-// 676MB)。这不是"语法能跑但语义废话"的三元占位,是 fixture 缺字段导致断言恒假,
-// 一并修正:补上 version/size 两个覆盖值,让断言真正验证渲染内容而不是必然失败。
+// Deviation logged (fixing brief typo, not just the 3rd test case line): the literal ALPINE in brief
+// only covers id/name/category/status/path/_downloaded/minDisk; version/size reuse ROW() defaults
+// (Debian's '13 (Trixie)' / '676 MB'). But the same test case assertion expects cards[1] to contain '3.19' and
+// '60 MB', which don't match (real alpine-319 on device has version 3.19, size far smaller than Debian's
+// 676MB). This is not a "ternary placeholder that runs but is semantically vacuous", it's a fixture with
+// missing fields causing the assertion to always fail; fixing it together: add version/size overrides to let
+// the assertion actually verify rendered content instead of inevitably failing.
 const ALPINE = ROW({
   id: 'alpine-319', name: 'Alpine', version: '3.19', category: 'linux', size: '60 MB',
   status: 'downloaded', path: '/DATA/KVM/isos/alpine-319.iso', _downloaded: true, minDisk: 2,
@@ -36,14 +38,15 @@ const ALPINE = ROW({
 const WIN = ROW({ id: 'win10', name: 'Windows 10', category: 'windows', minDisk: 60 })
 
 let w: VueWrapper | null = null
-// 硬约束 5:brief 逐字稿的 `mk` 是同步函数。实测 reka-ui 2.10(本仓库既有版本)的
-// DialogPortal/DialogContent 首次挂载要等下一个 microtask(nextTick)才把内容真正落地到
-// document.body——与 KvmDialog.test.ts / KvmGlobalSettingsDialog.test.ts 已确立的写法
-// 一致。这里把 `mk` 改成 async 并在 mount 之后 `await nextTick()`,断言内容一个不减。
+// Hard constraint 5: the `mk` in the brief's verbatim text is a sync function. Testing with
+// reka-ui 2.10 (this repo's existing version) shows that DialogPortal/DialogContent on first mount requires
+// waiting for the next microtask (nextTick) to actually mount content into document.body—consistent with the
+// established pattern in KvmDialog.test.ts / KvmGlobalSettingsDialog.test.ts. Here we make `mk` async and
+// `await nextTick()` after mount; all assertions remain unchanged.
 const mk = async (isos: IsoRow[] = [ROW(), ALPINE, WIN], downloadError = '') => {
   w = mount(OsSelector, {
-    // browserExpanded(SP16 Task 6):展开态由页面持有,本组件只透传。这里钉成收起 ——
-    // 自定义区的展开/浏览行为在 IsoBrowser.test.ts 单独覆盖。
+    // browserExpanded (SP16 Task 6): expanded state is held by the page; this component only forwards it. Here
+    // we pin it to collapsed—the custom area's expand/browse behavior is covered separately in IsoBrowser.test.ts.
     props: { open: true, isos, downloadError, browserExpanded: false },
     global: { plugins: [i18n] },
     attachTo: document.body,
@@ -54,22 +57,22 @@ const mk = async (isos: IsoRow[] = [ROW(), ALPINE, WIN], downloadError = '') => 
 afterEach(() => { w?.unmount(); w = null; document.body.innerHTML = '' })
 const qa = (sel: string) => [...document.body.querySelectorAll(sel)] as HTMLElement[]
 
-describe('OsSelector 官方模板半', () => {
-  it('四个分类按钮,默认 all 高亮', async () => {
+describe('OsSelector official template section', () => {
+  it('four category buttons, all highlighted by default', async () => {
     await mk()
     const btns = qa('.category-btn')
     expect(btns.map((b) => b.textContent?.trim())).toEqual(['全部', 'Windows', 'Linux', 'BSD'])
     expect(btns[0].classList.contains('active')).toBe(true)
   })
 
-  it('点 Windows 只留 windows 分类的卡片', async () => {
+  it('clicking Windows leaves only windows category cards', async () => {
     const wr = await mk()
     qa('.category-btn')[1].click(); await wr.vm.$nextTick()
     expect(qa('.os-card')).toHaveLength(1)
     expect(qa('.os-name')[0].textContent).toContain('Windows 10')
   })
 
-  it('卡片显示名/版本/大小,已下载的带 is-downloaded 类', async () => {
+  it('cards display name/version/size, downloaded ones have is-downloaded class', async () => {
     await mk()
     const cards = qa('.os-card')
     expect(cards[1].classList.contains('is-downloaded')).toBe(true)
@@ -78,7 +81,7 @@ describe('OsSelector 官方模板半', () => {
     expect(cards[1].textContent).toContain('60 MB')
   })
 
-  it('按钮三态:未下载=下载 / 已下载=选择 / 下载中=两位小数百分比(照 Vue2 :257-265)', async () => {
+  it('button three states: not-downloaded=download / downloaded=select / downloading=two-decimal-place percentage (per Vue2 :257-265)', async () => {
     await mk([ROW(), ALPINE, ROW({ id: 'ubuntu-2404', name: 'Ubuntu', _downloading: true, _progress: 37.456 })])
     const texts = qa('.os-action-btn').map((b) => b.textContent?.trim())
     expect(texts[0]).toBe('下载')
@@ -86,13 +89,13 @@ describe('OsSelector 官方模板半', () => {
     expect(texts[2]).toBe('37.46%')
   })
 
-  it('点未下载的卡片按钮 emit download(id)', async () => {
+  it('clicking not-downloaded card button emits download(id)', async () => {
     const wr = await mk()
     qa('.os-action-btn')[0].click(); await wr.vm.$nextTick()
     expect(wr.emitted('download')).toEqual([['debian-13']])
   })
 
-  it('点已下载的卡片按钮 emit select,path 是宿主机绝对路径、isLocal=false', async () => {
+  it('clicking downloaded card button emits select, path is host machine absolute path, isLocal=false', async () => {
     const wr = await mk()
     qa('.os-action-btn')[1].click(); await wr.vm.$nextTick()
     expect(wr.emitted('select')![0][0]).toMatchObject({
@@ -101,13 +104,13 @@ describe('OsSelector 官方模板半', () => {
     })
   })
 
-  it('选中后弹窗关闭(照 Vue2 selectOS → close)', async () => {
+  it('dialog closes after selection (per Vue2 selectOS → close)', async () => {
     const wr = await mk()
     qa('.os-action-btn')[1].click(); await wr.vm.$nextTick()
     expect(wr.emitted('update:open')).toEqual([[false]])
   })
 
-  it('点正在下载的卡片按钮 emit need-wait,不 emit select/download', async () => {
+  it('clicking downloading card button emits need-wait, does not emit select/download', async () => {
     const wr = await mk([ROW({ _downloading: true, _progress: 10 })])
     qa('.os-action-btn')[0].click(); await wr.vm.$nextTick()
     expect(wr.emitted('need-wait')).toHaveLength(1)
@@ -115,19 +118,19 @@ describe('OsSelector 官方模板半', () => {
     expect(wr.emitted('download')).toBeUndefined()
   })
 
-  it('已下载但后端没给 path 时不 emit select(后端契约:path 只在 downloaded 时出现)', async () => {
+  it('when downloaded but backend didn\'t provide path, does not emit select (backend contract: path only appears when downloaded)', async () => {
     const wr = await mk([ROW({ _downloaded: true, path: undefined })])
     qa('.os-action-btn')[0].click(); await wr.vm.$nextTick()
     expect(wr.emitted('select')).toBeUndefined()
   })
 
-  it('自定义区选中本地 ISO 也会关弹窗并透传 select(Task 6 接线:onLocalSelect)', async () => {
+  it('selecting local ISO in custom area also closes dialog and forwards select event (Task 6 wiring: onLocalSelect)', async () => {
     const wr = await mk()
     const localOs = {
       isLocal: true, id: 'local', name: 'haiku-r1.iso', path: '/DATA/haiku-r1.iso',
     }
-    // IsoBrowser 自己的浏览/反查逻辑已在 IsoBrowser.test.ts 单独覆盖;这里只验证
-    // OsSelector 把它的 select 事件原样转发 + 关弹窗这条接线,不重新走一遍文件点击流程。
+    // IsoBrowser's own browse/reverse-lookup logic is already covered separately in IsoBrowser.test.ts; here we
+    // only verify OsSelector forwards its select event as-is + closes the dialog via this wiring, not re-traversing the file-click flow.
     const isoBrowser = wr.findComponent(IsoBrowser)
     expect(isoBrowser.exists()).toBe(true)
     isoBrowser.vm.$emit('select', localOs)
@@ -136,11 +139,12 @@ describe('OsSelector 官方模板半', () => {
     expect(wr.emitted('update:open')).toEqual([[false]])
   })
 
-  // 全分支评审修复 A3:下载失败没有可见反馈——本组件负责把 KvmPage 写进来的
-  // downloadError 显示在遮罩之上(自己就是那个遮罩的内容,天然在上面,不需要额外
-  // z-index 处理)。先断言无错误时不存在(排除"元素本来就在"的混淆),再断言传入
-  // 非空值后出现,复用既有的 .cv-error 类(不新增 CSS)。
-  it('downloadError 为空不显示 .cv-error,非空时显示在遮罩内容里(A3)', async () => {
+  // Full-branch review fix A3: download failure had no visible feedback. This component is responsible for
+  // displaying the downloadError passed in by KvmPage above the overlay (it is the overlay content itself, naturally
+  // on top, no additional z-index handling needed). First assert it doesn't exist when there's no error (exclude the
+  // confusion of "element already there"), then assert it appears when non-empty value is passed; reuse the existing
+  // .cv-error class (don't add new CSS).
+  it('downloadError empty doesn\'t show .cv-error, non-empty shows in overlay content (A3)', async () => {
     const empty = await mk()
     expect(qa('.cv-error')).toHaveLength(0)
     empty.unmount()

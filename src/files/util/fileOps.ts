@@ -26,7 +26,7 @@ export function filterActive(tasks: FileTask[]): FileTask[] {
   return tasks.filter((t) => !t.finished)
 }
 
-// 移植 Vue2 FilePanel:已完成任务的目的地 === 当前目录 → 需要 reload
+// Ported from Vue2 FilePanel: completed task's destination === current directory → need to reload
 export function shouldReload(tasks: FileTask[], currentPath: string): boolean {
   return tasks.some((t) => t.finished && t.to === currentPath)
 }

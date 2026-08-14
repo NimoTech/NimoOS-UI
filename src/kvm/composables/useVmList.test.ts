@@ -10,7 +10,7 @@ const api = {
 }
 vi.mock('@nimotech/nimoos-service', () => ({ service: { get kvm() { return api } } }))
 
-// 可控的 MessageBus 桩:测试里手动 emit
+// Controllable MessageBus stub: manually emit in tests
 const handlers: Record<string, ((p: unknown) => void)[]> = {}
 vi.mock('../../composables/useMessageBus', () => ({
   useMessageBus: () => ({
@@ -32,8 +32,8 @@ const VM = (over: Partial<KvmVM> = {}): KvmVM => ({
   createdAt: '', updatedAt: '', ...over,
 })
 
-// P6 Task 8:同 CreateVmDialog.test.ts「校验通过 emit submit」那条用例产出的 payload
-// 逐字一致(alpine-319 官方模板 + 推荐规格),不是随手编的字面量。
+// P6 Task 8: payload matches exactly the output of the "validation passes emit submit" test case in CreateVmDialog.test.ts
+// (alpine-319 official template + recommended specs); not a random literal.
 const PAYLOAD: KvmCreateVMRequest = {
   name: 'p6-throwaway', vcpu: 1, memory: 512, disk: 8,
   iso: '/DATA/KVM/isos/alpine-319.iso', os: 'Alpine', osType: 'linux',
@@ -52,21 +52,21 @@ beforeEach(() => {
 })
 
 describe('fetchVMs', () => {
-  it('首次拉取后自动选中第一台(Vue2 :900)', async () => {
+  it('On first fetch, auto-select the first VM (Vue2 :900)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     expect(s.vms.value).toHaveLength(1)
     expect(s.selectedVM.value?.id).toBe('vm-1')
   })
 
-  it('空列表时 selectedVM 保持 null(P5 无创建弹窗,走空态;Vue2 这里自动弹创建框,P6 补)', async () => {
+  it('Empty list: selectedVM stays null (P5 has no create dialog, shows empty state; Vue2 auto-pops create modal here, P6 adds it)', async () => {
     api.getVMList.mockResolvedValue({ data: [], total: 0 })
     const s = useVmList()
     await s.fetchVMs()
     expect(s.selectedVM.value).toBeNull()
   })
 
-  it('刷新后原选中项仍在 → 换成新对象且保持选中', async () => {
+  it('After refresh, previously selected item still exists → swap to new object and keep it selected', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
@@ -74,7 +74,7 @@ describe('fetchVMs', () => {
     expect(s.selectedVM.value?.state).toBe('stopped')
   })
 
-  it('刷新后原选中项消失 → selectedVM 置空', async () => {
+  it('After refresh, previously selected item is gone → selectedVM set to null', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'other' })], total: 1 })
@@ -82,32 +82,32 @@ describe('fetchVMs', () => {
     expect(s.selectedVM.value).toBeNull()
   })
 
-  it('刷新时保活 spicePort(列表接口不返回,只有 /vnc 返回)', async () => {
+  it('Preserve spicePort during refresh (list endpoint does not return it, only /vnc does)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     s.selectedVM.value!.spicePort = 5901
     s.selectedVM.value!.spiceTlsPort = 5902
-    // 评审修正(critical 1):原来这里复用了 beforeEach 的 mockResolvedValue,但
-    // vi.fn().mockResolvedValue(v) 只在调用时求值一次、之后每次调用都返回同一个对象
-    // 引用——上面对 selectedVM 的直接赋值改的就是这个被共享的对象,导致第二次
-    // fetchVMs() 拿到的“新数据”其实还是那个已经被改过的旧对象,preserveSpice 删不删都
-    // 测不出来。这里显式 mockImplementation 成每次都新构造对象、spicePort 显式为 0,
-    // 才是真的模拟“后端吐一份全新的、不含 spicePort 的响应”。
+    // Review fix (critical 1): originally reused beforeEach's mockResolvedValue, but
+    // vi.fn().mockResolvedValue(v) evaluates once and returns the same object reference on every call —
+    // the direct assignment to selectedVM above mutates this shared object, so when fetchVMs()
+    // is called the second time, the “new data” is actually the already-mutated old object; preserveSpice's presence/absence
+    // cannot be tested. Here we explicitly mockImplementation to create a fresh object each time, with spicePort explicitly 0,
+    // truly simulating “backend returns fresh data without spicePort”.
     api.getVMList.mockImplementation(() =>
       Promise.resolve({ data: [VM({ spicePort: 0, spiceTlsPort: 0 })], total: 1 }))
-    await s.fetchVMs()  // 新数据 spicePort=0
+    await s.fetchVMs()  // new data spicePort=0
     expect(s.selectedVM.value?.spicePort).toBe(5901)
     expect(s.selectedVM.value?.spiceTlsPort).toBe(5902)
   })
 
-  it('请求失败时列表清空、不抛', async () => {
+  it('On request failure, clear list and do not throw', async () => {
     api.getVMList.mockRejectedValue(new Error('libvirt down'))
     const s = useVmList()
     await s.fetchVMs()
     expect(s.vms.value).toEqual([])
   })
 
-  it('runningCount 只数 running', async () => {
+  it('runningCount counts only running VMs', async () => {
     api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'b', state: 'stopped' })], total: 2 })
     const s = useVmList()
     await s.fetchVMs()
@@ -115,22 +115,22 @@ describe('fetchVMs', () => {
   })
 })
 
-describe('过期守卫', () => {
-  it('后发的 fetchVMs 先返回时,先发的迟到结果不得覆盖(交错路径)', async () => {
+describe('Staleness guard', () => {
+  it('When later fetchVMs returns first, earlier late-arriving result does not overwrite (interleaved path)', async () => {
     let resolveSlow: (v: unknown) => void = () => {}
     api.getVMList
-      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))       // 慢的,先发
-      .mockResolvedValueOnce({ data: [VM({ name: 'fresh' })], total: 1 })          // 快的,后发
+      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r }))       // slow, sent first
+      .mockResolvedValueOnce({ data: [VM({ name: 'fresh' })], total: 1 })          // fast, sent later
     const s = useVmList()
     const slow = s.fetchVMs()
-    await s.fetchVMs()                       // 后发先至
+    await s.fetchVMs()                       // later one arrives first
     expect(s.vms.value[0].name).toBe('fresh')
     resolveSlow({ data: [VM({ name: 'stale' })], total: 1 })
     await slow
-    expect(s.vms.value[0].name).toBe('fresh')  // 迟到的旧结果被丢弃
+    expect(s.vms.value[0].name).toBe('fresh')  // late old result discarded
   })
 
-  it('dispose 之后到达的结果不再写入', async () => {
+  it('Results arriving after dispose are not written', async () => {
     let resolveIt: (v: unknown) => void = () => {}
     api.getVMList.mockImplementationOnce(() => new Promise((r) => { resolveIt = r }))
     const s = useVmList()
@@ -141,7 +141,7 @@ describe('过期守卫', () => {
     expect(s.vms.value).toEqual([])
   })
 
-  it('dispose 后,在途的电源动作迟到结果不再写 state、不触发 VNC 回调(评审 3)', async () => {
+  it('After dispose, in-flight power action late results no longer write state or trigger VNC callbacks (review 3)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
     let resolveStart: () => void = () => {}
     api.startVM.mockImplementation(() => new Promise<void>((r) => { resolveStart = () => r(undefined) }))
@@ -157,26 +157,26 @@ describe('过期守卫', () => {
     expect(onC).not.toHaveBeenCalled()
   })
 
-  it('fetchVM 过期守卫:连点两台 VM,先发但迟到的详情响应不覆盖后发已经写入的数据', async () => {
+  it('fetchVM staleness guard: rapid clicks on two VMs, early-sent but late-arriving detail response does not overwrite later-sent already-written data', async () => {
     api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'b', state: 'stopped' })], total: 2 })
     let resolveSlow: (v: unknown) => void = () => {}
     api.getVM
-      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r })) // 选 vm-1,慢,先发
-      .mockResolvedValueOnce(VM({ id: 'b', state: 'stopped', name: 'b-detail' })) // 选 b,快,后发
+      .mockImplementationOnce(() => new Promise((r) => { resolveSlow = r })) // select vm-1, slow, sent first
+      .mockResolvedValueOnce(VM({ id: 'b', state: 'stopped', name: 'b-detail' })) // select b, fast, sent later
     const s = useVmList()
     await s.fetchVMs()
-    const p1 = s.selectVM(s.vms.value[0]) // 触发 fetchVM('vm-1'),挂起
-    await s.selectVM(s.vms.value[1])      // 触发 fetchVM('b'),先完成
+    const p1 = s.selectVM(s.vms.value[0]) // trigger fetchVM('vm-1'), hang
+    await s.selectVM(s.vms.value[1])      // trigger fetchVM('b'), completes first
     expect(s.vms.value[1].name).toBe('b-detail')
     resolveSlow(VM({ id: 'vm-1', name: 'stale-a-detail' }))
     await p1
-    // 迟到的 vm-1 详情被丢弃,列表项不应该被这份过期数据覆盖
+    // Late vm-1 detail discarded; list item should not be overwritten by this stale data
     expect(s.vms.value[0].name).not.toBe('stale-a-detail')
   })
 })
 
-describe('MessageBus 事件(照 Vue2 :766-826)', () => {
-  it('vm_started 把该 VM 改成 running 并触发 VNC 连接回调', async () => {
+describe('MessageBus events (mirrors Vue2 :766-826)', () => {
+  it('vm_started changes the VM to running and triggers VNC connect callback', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
     const s = useVmList()
     await s.fetchVMs()
@@ -188,7 +188,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(onConnect).toHaveBeenCalledOnce()
   })
 
-  it('vm_stopped 改状态并触发断开回调', async () => {
+  it('vm_stopped changes state and triggers disconnect callback', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onDisconnect = vi.fn()
@@ -199,7 +199,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(onDisconnect).toHaveBeenCalledOnce()
   })
 
-  it('vm_paused → paused 且断开;vm_resumed → running 且连接', async () => {
+  it('vm_paused → paused and disconnect; vm_resumed → running and connect', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onC = vi.fn(); const onD = vi.fn()
@@ -212,7 +212,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(onC).toHaveBeenCalledOnce()
   })
 
-  it('事件里没有 vm_id 时退化成整表刷新(Vue2 的 else 分支)', async () => {
+  it('When event lacks vm_id, degrade to full list refresh (Vue2 else branch)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockClear()
@@ -221,7 +221,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(api.getVMList).toHaveBeenCalledOnce()
   })
 
-  it('vm_deleted 从列表移除;若删的是选中项则清空选中', async () => {
+  it('vm_deleted removes from list; if deleted item was selected, clear selection', async () => {
     const s = useVmList()
     await s.fetchVMs()
     emit('kvm:vm_deleted', { vm_id: 'vm-1' })
@@ -230,7 +230,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(s.selectedVM.value).toBeNull()
   })
 
-  it('vm_created / vm_autostart_changed 触发整表刷新', async () => {
+  it('vm_created / vm_autostart_changed trigger full list refresh', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockClear()
@@ -240,7 +240,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(api.getVMList).toHaveBeenCalledTimes(2)
   })
 
-  it('事件针对的是别的 VM 时,不动当前选中项的 VNC', async () => {
+  it('When event targets a different VM, do not touch the currently selected VM's VNC', async () => {
     api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'other', state: 'stopped' })], total: 2 })
     const s = useVmList()
     await s.fetchVMs()
@@ -252,7 +252,7 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
     expect(onC).not.toHaveBeenCalled()
   })
 
-  it('dispose 后不再响应事件', async () => {
+  it('After dispose, stop responding to events', async () => {
     const s = useVmList()
     await s.fetchVMs()
     s.dispose()
@@ -262,8 +262,8 @@ describe('MessageBus 事件(照 Vue2 :766-826)', () => {
   })
 })
 
-describe('电源动作', () => {
-  it('start 乐观改状态为 running 并请求连接 VNC', async () => {
+describe('Power actions', () => {
+  it('start optimistically changes state to running and requests VNC connection', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
     const s = useVmList()
     await s.fetchVMs()
@@ -274,7 +274,7 @@ describe('电源动作', () => {
     expect(onC).toHaveBeenCalledOnce()
   })
 
-  it('start 失败时不改状态、写 lastError', async () => {
+  it('On start failure, do not change state and write lastError', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ state: 'stopped' })], total: 1 })
     api.startVM.mockRejectedValue(new Error('boom'))
     const s = useVmList()
@@ -284,26 +284,26 @@ describe('电源动作', () => {
     expect(s.lastError.value).toBeTruthy()
   })
 
-  it('restart 只断开、不立刻重连(修 Vue2 竞态,靠 vm_started 事件兜底)', async () => {
+  it('restart only disconnects, does not immediately reconnect (fixes Vue2 race, relies on vm_started event fallback)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onC = vi.fn(); const onD = vi.fn()
     s.onVncShouldConnect(onC); s.onVncShouldDisconnect(onD)
     await s.restart(s.selectedVM.value!)
     expect(onD).toHaveBeenCalledOnce()
-    expect(onC).not.toHaveBeenCalled()      // ← 与 Vue2 的偏离点,已登记
+    expect(onC).not.toHaveBeenCalled()      // ← Deviation from Vue2; already logged
     emit('kvm:vm_started', { vm_id: 'vm-1' })
     await nextTick()
     expect(onC).toHaveBeenCalledOnce()
   })
 
-  // 必修②(全分支终审):终审核了后端 NimoOS-KVM/service/vm_service.go:575-583,
-  // RestartVMWithForce = StopVM + StartVM,两者各自异步发布事件,kvm:vm_started 与
-  // restart 的 HTTP 响应几乎同时发出、顺序未定。上面那条用例只覆盖了"HTTP 响应先到"
-  // 这一种顺序;这里补交错路径的另一种顺序——事件先到,HTTP 响应后到达。旧实现下,
-  // 事件先建好连接(connectCb),随后 restart 的 onSuccess 还会无条件 disconnectCb()
-  // 把刚建好的连接拆掉,而 vm_started 只发一次,此后不会再有事件触发重连,永久黑屏。
-  it('必修②回归:kvm:vm_started 抢在 restart 的 HTTP 响应之前到达时,不能被 onSuccess 顺手拆掉(真实交错路径)', async () => {
+  // Mandatory ② (full-branch final review): final review checked backend NimoOS-KVM/service/vm_service.go:575-583;
+  // RestartVMWithForce = StopVM + StartVM; each publishes events asynchronously; kvm:vm_started and
+  // restart's HTTP response emit nearly simultaneously, order undefined. The test above covers only "HTTP response arrives first";
+  // here we add the other interleaved-path order — event arrives first, HTTP response later. Under the old implementation,
+  // the event builds the connection first (connectCb), then restart's onSuccess would unconditionally disconnectCb()
+  // tearing down the just-built connection; vm_started fires only once, no future event triggers reconnection, permanent black screen.
+  it('Mandatory ② regression: when kvm:vm_started arrives ahead of restart's HTTP response, onSuccess must not tear it down (real interleaved path)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onC = vi.fn(); const onD = vi.fn()
@@ -311,20 +311,20 @@ describe('电源动作', () => {
     let resolveRestart: () => void = () => {}
     api.restartVM.mockImplementation(() => new Promise<void>((r) => { resolveRestart = () => r(undefined) }))
 
-    const p = s.restart(s.selectedVM.value!) // HTTP 挂起,restart 还没完成
+    const p = s.restart(s.selectedVM.value!) // HTTP hung, restart not complete yet
 
-    // 事件先到达(后端 StopVM/StartVM 各自异步发布,顺序未定,这里模拟"先到"这一种)。
+    // Event arrives first (backend StopVM/StartVM each publish asynchronously, order undefined; here we simulate "first" scenario).
     emit('kvm:vm_started', { vm_id: 'vm-1' })
     await nextTick()
-    expect(onC).toHaveBeenCalledOnce() // 事件已经建好连接
+    expect(onC).toHaveBeenCalledOnce() // event has already built connection
 
-    // HTTP 响应随后才到:onSuccess 不该再把上面刚建好的连接拆掉。
+    // HTTP response arrives later: onSuccess must not tear down the just-built connection above.
     resolveRestart()
     await p
-    expect(onD).not.toHaveBeenCalled() // 修复前:这里会被断言翻红(onSuccess 无条件 disconnect)
+    expect(onD).not.toHaveBeenCalled() // Before fix: this assertion would fail (onSuccess unconditionally disconnects)
   })
 
-  it('pause 改 paused 并断开;resume/wakeup 改 running 并连接', async () => {
+  it('pause changes to paused and disconnects; resume/wakeup change to running and connect', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onC = vi.fn(); const onD = vi.fn()
@@ -337,7 +337,7 @@ describe('电源动作', () => {
     expect(onC).toHaveBeenCalledOnce()
   })
 
-  it('动作进行中 processing 含该 id,结束后移除', async () => {
+  it('While action in flight, processing contains its id; after completion, remove it', async () => {
     let done: () => void = () => {}
     api.stopVM.mockImplementation(() => new Promise<void>((r) => { done = r }))
     const s = useVmList()
@@ -348,20 +348,20 @@ describe('电源动作', () => {
     expect(s.processing.value.has('vm-1')).toBe(false)
   })
 
-  it('toggleAutostart 成功后翻转,失败时维持原值并写 lastError(Vue2 的“回滚”在这个写入顺序下不可达,已移除死代码)', async () => {
+  it('toggleAutostart flips on success, maintains original on failure and writes lastError (Vue2 “rollback” unreachable in this write order, dead code removed)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     await s.toggleAutostart(s.selectedVM.value!)
     expect(s.selectedVM.value?.autostart).toBe(true)
     api.setAutostart.mockRejectedValue(new Error('nope'))
     await s.toggleAutostart(s.selectedVM.value!)
-    // 注意:这里为 true 不是因为“回滚”生效——失败时 autostart 压根没被写过新值,
-    // 本来就还是 true。真正需要判别力的断言是下面的 lastError。
+    // Note: it's true here not because “rollback” works — on failure autostart was never written the new value,
+    // it was already true. The assertion with real discriminating power is lastError below.
     expect(s.selectedVM.value?.autostart).toBe(true)
     expect(s.lastError.value).toBeTruthy()
   })
 
-  it('remove 成功后从列表移除并清空选中', async () => {
+  it('remove succeeds: remove from list and clear selection', async () => {
     const s = useVmList()
     await s.fetchVMs()
     await s.remove(s.selectedVM.value!)
@@ -370,41 +370,41 @@ describe('电源动作', () => {
     expect(s.selectedVM.value).toBeNull()
   })
 
-  it('ejectInstallMedia 调 setBootFromDisk(true) 并整表刷新,成功返回空字符串', async () => {
+  it('ejectInstallMedia calls setBootFromDisk(true), refreshes entire list, returns empty string on success', async () => {
     const s = useVmList()
     await s.fetchVMs()
     api.getVMList.mockClear()
     const result = await s.ejectInstallMedia(s.selectedVM.value!)
     expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
     expect(api.getVMList).toHaveBeenCalledOnce()
-    expect(result).toBe('') // 评审二轮:返回值契约——成功是空字符串
+    expect(result).toBe('') // Review re-review: return value contract — success is empty string
   })
 
-  it('ejectInstallMedia 失败时返回错误文案(不再只写共享的 lastError)', async () => {
+  it('ejectInstallMedia on failure returns error message (no longer writes only to shared lastError)', async () => {
     api.setBootFromDisk.mockRejectedValue(new Error('disk busy'))
     const s = useVmList()
     await s.fetchVMs()
     const result = await s.ejectInstallMedia(s.selectedVM.value!)
     expect(result).toBe('disk busy')
-    expect(s.lastError.value).toBe('disk busy') // 仍然保留写共享 ref,供其它兜底路径消费
+    expect(s.lastError.value).toBe('disk busy') // Still write shared ref for other fallback paths to consume
   })
 
-  it('ejectInstallMedia 重入守卫:在途时再点一次不会发第二次请求(照 Vue2 :862-864 finishingInstall),被挡的那次返回空字符串', async () => {
+  it('ejectInstallMedia re-entrancy guard: clicking again while in-flight does not send second request (mirrors Vue2 :862-864 finishingInstall), blocked call returns empty string', async () => {
     let resolveIt: () => void = () => {}
     api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveIt = () => r(undefined) }))
     const s = useVmList()
     await s.fetchVMs()
     const p1 = s.ejectInstallMedia(s.selectedVM.value!)
-    const p2 = s.ejectInstallMedia(s.selectedVM.value!) // 在途时再点一次,应被挡下
+    const p2 = s.ejectInstallMedia(s.selectedVM.value!) // click again while in-flight, should be blocked
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
     resolveIt()
     const [r1, r2] = await Promise.all([p1, p2])
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
-    expect(r1).toBe('') // 真正跑的那次:成功
-    expect(r2).toBe('') // 被重入守卫挡下的那次:返回值契约——''=没有做任何事,不是错误
+    expect(r1).toBe('') // the one actually running: success
+    expect(r2).toBe('') // Blocked by re-entrancy guard: return value contract — '' = did nothing, not an error
   })
 
-  it('ejectInstallMedia dispose 之后到达的结果不再写 state,返回空字符串(评审二轮补测:返回值契约的 dispose 分支)', async () => {
+  it('ejectInstallMedia results arriving after dispose no longer write state, return empty string (review re-review added test: dispose branch of return value contract)', async () => {
     let resolveIt: () => void = () => {}
     api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveIt = () => r(undefined) }))
     const s = useVmList()
@@ -413,48 +413,48 @@ describe('电源动作', () => {
     s.dispose()
     resolveIt()
     const result = await p
-    expect(result).toBe('') // dispose 后不再纠结"算不算错误",直接短路返回空
-    expect(api.getVMList).toHaveBeenCalledTimes(1) // 只有初始 fetchVMs 那一次,dispose 后不再补打整表刷新(评审 3,行为不变)
+    expect(result).toBe('') // After dispose, stop worrying "is this an error", just short-circuit return empty
+    expect(api.getVMList).toHaveBeenCalledTimes(1) // Only the initial fetchVMs call; after dispose no full list refresh (review 3, behavior unchanged)
   })
 
-  it('ejectInstallMedia 不复用 processing:电源动作在途时调用,setBootFromDisk 照常被调用(不跨动作误拦)', async () => {
+  it('ejectInstallMedia does not reuse processing: calling while power action in-flight, setBootFromDisk still called normally (no cross-action mis-block)', async () => {
     let resolveStop: () => void = () => {}
     api.stopVM.mockImplementation(() => new Promise<void>((r) => { resolveStop = () => r(undefined) }))
     const s = useVmList()
     await s.fetchVMs()
-    const pStop = s.stop(s.selectedVM.value!) // processing 里已经有这台 VM 的 id 了
+    const pStop = s.stop(s.selectedVM.value!) // processing already has this VM's id
     await s.ejectInstallMedia(s.selectedVM.value!)
     expect(api.setBootFromDisk).toHaveBeenCalledWith('vm-1', true)
     resolveStop()
     await pStop
   })
 
-  it('ejectInstallMedia 不复用 processing:eject 在途时电源动作走完清了 processing,eject 的重入守卫依旧生效', async () => {
+  it('ejectInstallMedia does not reuse processing: while eject in-flight, power action completes and clears processing, eject re-entrancy guard still works', async () => {
     let resolveEject: () => void = () => {}
     api.setBootFromDisk.mockImplementation(() => new Promise<void>((r) => { resolveEject = () => r(undefined) }))
     const s = useVmList()
     await s.fetchVMs()
-    const pEject = s.ejectInstallMedia(s.selectedVM.value!) // 在途
-    await s.stop(s.selectedVM.value!) // 电源动作走完,finally 会清 processing.delete('vm-1')
-    await s.ejectInstallMedia(s.selectedVM.value!) // 再点一次:若守卫仍然独立生效,应被拦下
+    const pEject = s.ejectInstallMedia(s.selectedVM.value!) // in-flight
+    await s.stop(s.selectedVM.value!) // power action completes, finally will clear processing.delete('vm-1')
+    await s.ejectInstallMedia(s.selectedVM.value!) // click again: if guard still works independently, should be blocked
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
     resolveEject()
     await pEject
     expect(api.setBootFromDisk).toHaveBeenCalledTimes(1)
   })
 
-  it('lastError 取后端 message 原文,而不是写死文案', async () => {
+  it('lastError takes backend message verbatim, not hardcoded text', async () => {
     api.stopVM.mockRejectedValue(new Error('[KVM] domain is not running'))
     const s = useVmList()
     await s.fetchVMs()
     await s.stop(s.selectedVM.value!)
-    // Vue2 getErrMsg 会剥掉开头的 [xxx] 前缀
+    // Vue2 getErrMsg strips the leading [xxx] prefix
     expect(s.lastError.value).toBe('domain is not running')
   })
 })
 
 describe('selectVM', () => {
-  it('选中后单独拉一次详情合并进列表', async () => {
+  it('After selection, fetch detail once and merge into list', async () => {
     api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'b', state: 'stopped' })], total: 2 })
     api.getVM.mockResolvedValue(VM({ id: 'b', state: 'stopped', name: 'detailed' }))
     const s = useVmList()
@@ -465,7 +465,7 @@ describe('selectVM', () => {
     expect(s.vms.value[1].name).toBe('detailed')
   })
 
-  it('详情请求失败不清空选中(Vue2 只 console.warn)', async () => {
+  it('Detail request failure does not clear selection (Vue2 only console.warn)', async () => {
     api.getVM.mockRejectedValue(new Error('404'))
     const s = useVmList()
     await s.fetchVMs()
@@ -474,12 +474,12 @@ describe('selectVM', () => {
   })
 })
 
-// P6 Task 8:create() 返回值契约同 remove/toggleAutostart(''=成功,非空=文案),但
-// ⚠️ 与它们不同的一点(已在 create() 顶部注释登记)——create() 故意不写共享的
-// `lastError`,所以这里不像 `it('lastError 取后端 message 原文…')`那条一样断言
-// `s.lastError`,只断言返回值本身。
+// P6 Task 8: create() return value contract mirrors remove/toggleAutostart ('' = success, non-empty = message), but
+// ⚠️ one key difference (logged in create() top comment) — create() deliberately does not write shared
+// `lastError`, so unlike the `it('lastError takes backend message verbatim…')` test we don't assert
+// `s.lastError` here, only the return value itself.
 describe('create', () => {
-  it('成功后刷新列表并返回空串', async () => {
+  it('On success, refresh list and return empty string', async () => {
     api.createVM.mockResolvedValue({ id: 'new-1' })
     api.getVMList.mockResolvedValue({ data: [], total: 0 })
     const s = useVmList()
@@ -488,14 +488,14 @@ describe('create', () => {
     expect(api.getVMList).toHaveBeenCalled()
   })
 
-  it('失败返回后端 message,不刷新列表', async () => {
+  it('On failure, return backend message and do not refresh list', async () => {
     api.createVM.mockRejectedValue(new Error('domain name already exists'))
     const s = useVmList()
     expect(await s.create(PAYLOAD)).toBe('domain name already exists')
     expect(api.getVMList).not.toHaveBeenCalled()
   })
 
-  it('dispose 后落定不刷新列表(过期守卫)', async () => {
+  it('After dispose, completed call does not refresh list (staleness guard)', async () => {
     let release: (v: unknown) => void = () => {}
     api.createVM.mockReturnValue(new Promise((r) => { release = r }))
     const s = useVmList()
@@ -505,15 +505,15 @@ describe('create', () => {
   })
 })
 
-// P6 Task 9(VM 设置弹窗接线):update() 返回值契约同 create(''=成功,非空=文案),
-// 同样不写共享 lastError(理由见 update() 顶部注释)。
+// P6 Task 9 (VM settings dialog wiring): update() return value contract mirrors create ('' = success, non-empty = message),
+// likewise does not write shared lastError (reasoning in update() top comment).
 const UPDATE_PATCH: KvmUpdateVMRequest = {
   name: 'renamed', vcpu: 4, memory: 2048, disk: 8, iso: '/DATA/KVM/isos/debian-13.iso',
   bootFromDisk: false, firmware: 'uefi', networkMode: 'bridge', networkInterface: 'enp2s0',
 }
 
 describe('update', () => {
-  it('成功后调用 updateVM(id, patch)并回写可见字段(照 Vue2 saveSettings :1503-1508,不含 disk)', async () => {
+  it('On success, call updateVM(id, patch) and write back visible fields (mirrors Vue2 saveSettings :1503-1508, excludes disk)', async () => {
     api.updateVM.mockResolvedValue({})
     const s = useVmList()
     await s.fetchVMs()
@@ -529,24 +529,24 @@ describe('update', () => {
     expect(vm.firmware).toBe('uefi')
     expect(vm.networkMode).toBe('bridge')
     expect(vm.networkInterface).toBe('enp2s0')
-    // disk 字段不在回写集合里——disk 输入框在弹窗里是 disabled,值本来就没变,
-    // Vue2 saveSettings 的 Object.assign 语句本身也没有这个字段(:1503-1508)。
+    // disk field not in write-back set — disk input in dialog is already disabled, value unchanged,
+    // Vue2 saveSettings's Object.assign statement also doesn't include this field (:1503-1508).
     expect(vm.disk).toBe(originalDisk)
-    expect(s.lastError.value).toBe('') // 不写共享 lastError(理由同 create())
+    expect(s.lastError.value).toBe('') // Does not write shared lastError (reasoning same as create())
   })
 
-  it('传入对象与列表项不是同一引用时,vms 列表与 selectedVM 仍同步回写', async () => {
+  it('When passed object is not the same reference as list item, vms list and selectedVM still sync on write-back', async () => {
     api.updateVM.mockResolvedValue({})
     const s = useVmList()
     await s.fetchVMs()
     const listItem = s.vms.value[0]
-    const detached = { ...listItem } // 模拟"调用方传入的 vm 参数不是列表里那个对象引用"
+    const detached = { ...listItem } // Simulate "caller's passed vm param is not the list's object reference"
     await s.update(detached, UPDATE_PATCH)
     expect(listItem.name).toBe('renamed')
     expect(s.selectedVM.value?.name).toBe('renamed')
   })
 
-  it('失败返回后端 message,不写任何 vm 字段', async () => {
+  it('On failure, return backend message and do not write any vm field', async () => {
     api.updateVM.mockRejectedValue(new Error('name already exists'))
     const s = useVmList()
     await s.fetchVMs()
@@ -556,7 +556,7 @@ describe('update', () => {
     expect(vm).toEqual(before)
   })
 
-  it('dispose 后落定不再写 state(过期守卫)', async () => {
+  it('After dispose, completed call no longer writes state (staleness guard)', async () => {
     let release: (v: unknown) => void = () => {}
     api.updateVM.mockReturnValue(new Promise((r) => { release = r }))
     const s = useVmList()
@@ -570,19 +570,19 @@ describe('update', () => {
   })
 })
 
-// SP16 Task 8:restart 成功后**故意**把重连交给 kvm:vm_started(立刻重连必失败,因为
-// VNC 端口还没起来)。MessageBus 掉线时那个事件永远不到,于是断开之后再没人连回来 ——
-// 控制台一片黑、界面上零解释。这里守的是"至少说一声"这条兜底。
-describe('重启后的 VNC 重连兜底', () => {
-  it('kvm:vm_started 迟迟不来时通知调用方(而不是无声黑屏)', async () => {
+// SP16 Task 8: after restart succeeds, **deliberately** hand reconnection to kvm:vm_started (immediate reconnect fails because
+// VNC port not up yet). When MessageBus goes offline that event never arrives, so after disconnect no one reconnects —
+// console black, interface silent. Here we guard the "at least say something" fallback.
+describe('VNC reconnect fallback after restart', () => {
+  it('When kvm:vm_started does not arrive, notify caller (rather than silent black screen)', async () => {
     vi.useFakeTimers()
     const s = useVmList()
     const stalled = vi.fn()
     s.onVncReconnectStalled(stalled)
-    await s.fetchVMs()                       // 自动选中 vm-1
+    await s.fetchVMs()                       // auto-select vm-1
 
     await s.restart(s.selectedVM.value!)
-    expect(stalled).not.toHaveBeenCalled()   // 刚断开时还不该报
+    expect(stalled).not.toHaveBeenCalled()   // Just after disconnect should not report yet
 
     await vi.advanceTimersByTimeAsync(20_000)
     expect(stalled).toHaveBeenCalledTimes(1)
@@ -590,7 +590,7 @@ describe('重启后的 VNC 重连兜底', () => {
     vi.useRealTimers()
   })
 
-  it('kvm:vm_started 按时到达就不报', async () => {
+  it('When kvm:vm_started arrives on time, do not report', async () => {
     vi.useFakeTimers()
     const s = useVmList()
     const stalled = vi.fn()
@@ -606,7 +606,7 @@ describe('重启后的 VNC 重连兜底', () => {
     vi.useRealTimers()
   })
 
-  it('dispose 之后计时器不再回调', async () => {
+  it('After dispose, timer no longer calls back', async () => {
     vi.useFakeTimers()
     const s = useVmList()
     const stalled = vi.fn()

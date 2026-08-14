@@ -1,7 +1,8 @@
-// P6b-T7: PlaceCoverPicker.vue —— 地点详情"设置封面"全屏弹层(标签页/搜索/8 列候选
-// 网格/分页/恢复默认)。逐条对应 task-7-brief.md「必含测试清单」。纯展示 + emit,
-// 不碰 store——只 mock @nimotech/nimoos-service 的 thumbnailUrl(照 PlaceSpotDialog.test.ts
-// / PlacesRail.test.ts 的既有 mock 手法)。
+// P6b-T7: PlaceCoverPicker.vue — Place detail "set cover" fullscreen overlay (tabs / search / 8-column
+// candidate grid / pagination / restore default). Each case corresponds to the required test
+// checklist in task-7-brief.md. Pure presentation + emit, no store access — only mock
+// @nimotech/nimoos-service's thumbnailUrl (following the existing mock approach in
+// PlaceSpotDialog.test.ts / PlacesRail.test.ts).
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -15,8 +16,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 import PlaceCoverPicker from '../PlaceCoverPicker.vue'
-// 原始源码文本(Vite `?raw`):hover 级联 + 颜色合规两组测试要解析 <style> 原文——
-// jsdom 既不做级联样式计算也无法进入真实 hover 态(同 PlacesRail.test.ts 既有先例)。
+// Raw source text (Vite `?raw`): the hover cascade + color compliance two test groups
+// need to parse the <style> source — jsdom doesn't compute cascade styles or enter true
+// hover state (same pattern as existing in PlacesRail.test.ts).
 import placeCoverPickerRaw from '../PlaceCoverPicker.vue?raw'
 import { extractStyleBlock, hoverBackgroundRules, winningHoverBackground } from './cssCascade'
 
@@ -63,23 +65,23 @@ beforeEach(() => {
   thumbnailUrl.mockImplementation((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 })
 
-// ── open 开关 ───────────────────────────────────────────────────────────
-describe('open 开关', () => {
-  it('open=false → 整层不渲染', () => {
+// ── Open toggle ─────────────────────────────────────────────────────────
+describe('open toggle', () => {
+  it('open=false → entire layer does not render', () => {
     const w = mountPicker({ open: false })
     expect(w.find('.cp-scrim').exists()).toBe(false)
   })
 
-  it('open=true → .cp-scrim 与 .cp-shell 都在', () => {
+  it('open=true → .cp-scrim and .cp-shell both present', () => {
     const w = mountPicker({ open: true })
     expect(w.find('.cp-scrim').exists()).toBe(true)
     expect(w.find('.cp-shell').exists()).toBe(true)
   })
 })
 
-// ── 结构清点 ─────────────────────────────────────────────────────────────
-describe('结构清点', () => {
-  it('head:thumb / title / sub / close 各就位', () => {
+// ── Structure inventory ────────────────────────────────────────────────
+describe('structure inventory', () => {
+  it('head: thumb / title / sub / close all in place', () => {
     const w = mountPicker()
     expect(w.find('.cp-head-thumb').exists()).toBe(true)
     expect(w.find('.cp-head-title').exists()).toBe(true)
@@ -87,18 +89,18 @@ describe('结构清点', () => {
     expect(w.find('.cp-close-btn').exists()).toBe(true)
   })
 
-  it('tabs 数 = candidates.tabs.length,search input 就位', () => {
+  it('number of tabs = candidates.tabs.length, search input in place', () => {
     const w = mountPicker()
     expect(w.findAll('[data-test="cp-tab"]').length).toBe(4)
     expect(w.find('.cp-search input').exists()).toBe(true)
   })
 
-  it('grid:cell 数 = items 长度', () => {
+  it('grid: number of cells = items length', () => {
     const w = mountPicker({ candidates: candidates({ items: ['a1', 'a2', 'a3', 'a4'] }) })
     expect(w.findAll('[data-test="cp-cell"]').length).toBe(4)
   })
 
-  it('foot:reset / info / 两个 pager 各就位', () => {
+  it('foot: reset / info / two pagers all in place', () => {
     const w = mountPicker()
     expect(w.find('.cp-reset-btn').exists()).toBe(true)
     expect(w.find('.cp-foot-info').exists()).toBe(true)
@@ -106,43 +108,43 @@ describe('结构清点', () => {
     expect(w.find('[data-test="cp-page-next"]').exists()).toBe(true)
   })
 
-  it('currentAssetId 为空时,头部缩略图不渲染 img', () => {
+  it('when currentAssetId is empty, header thumbnail does not render img', () => {
     const w = mountPicker({ currentAssetId: '' })
     expect(w.find('.cp-head-thumb img').exists()).toBe(false)
   })
 
-  it('currentAssetId 非空时,头部缩略图渲染 img', () => {
+  it('when currentAssetId is not empty, header thumbnail renders img', () => {
     const w = mountPicker({ currentAssetId: 'hero-1' })
     expect(w.find('.cp-head-thumb img').exists()).toBe(true)
   })
 })
 
-// ── 标题/副标题插值 ───────────────────────────────────────────────────────
-describe('标题/副标题插值', () => {
-  it("city='杭州'、totalCount=12345 → 标题含杭州、副标题含千分位 12,345", () => {
+// ── Title/subtitle interpolation ──────────────────────────────────────────
+describe('title/subtitle interpolation', () => {
+  it("city='杭州', totalCount=12345 → title contains 杭州, subtitle contains thousand separator 12,345", () => {
     const w = mountPicker({ city: '杭州', totalCount: 12345 })
     expect(w.find('.cp-head-title').text()).toContain('杭州')
     expect(w.find('.cp-head-sub').text()).toContain('12,345')
   })
 })
 
-// ── 标签文案回落链(照搬 Vue2 :374-377)───────────────────────────────────
-describe('标签文案回落链三档', () => {
-  it("t.id='recent' → 中文「近期」", () => {
+// ── Tab label fallback chain (carried over from Vue2 :374-377) ────────────
+describe('tab label fallback chain three levels', () => {
+  it("t.id='recent' → Chinese '近期'", () => {
     const w = mountPicker({
       candidates: candidates({ tabs: [{ id: 'recent', label: 'Recent', icon: 'clock', count: 1 }] }),
     })
     expect(w.find('[data-test="cp-tab"]').text()).toContain('近期')
   })
 
-  it("t.id='zzz', label='Zzz'(无对应 i18n 键)→ 回落 label", () => {
+  it("t.id='zzz', label='Zzz' (no corresponding i18n key) → fall back to label", () => {
     const w = mountPicker({
       candidates: candidates({ tabs: [{ id: 'zzz', label: 'Zzz', icon: 'clock', count: 1 }] }),
     })
     expect(w.find('[data-test="cp-tab"]').text()).toContain('Zzz')
   })
 
-  it("t.id='zzz' 无 label → 回落 id 本身", () => {
+  it("t.id='zzz' no label → fall back to id itself", () => {
     const w = mountPicker({
       candidates: candidates({ tabs: [{ id: 'zzz', label: '', icon: 'clock', count: 1 }] }),
     })
@@ -150,19 +152,20 @@ describe('标签文案回落链三档', () => {
   })
 })
 
-// ── cp-tab-count 千分位缩写(照搬 Vue2 :1284)──────────────────────────────
-describe('cp-tab-count 缩写', () => {
-  // 偏离登记(回源核对):brief 给的手算"Math.round(1234/100)/10 = 12.3"有误——
-  // 1234/100=12.34,Math.round(12.34)=12,12/10=1.2,真实结果是 "1.2k"。已按 Vue2
-  // 源码 :1284 的公式原样照搬实现,以源码为准,这里改用手算校对过的正确期望值。
-  it('count=1234 → 文本 1.2k(Math.round(1234/100)/10 = 1.2,回源核对已登记)', () => {
+// ── cp-tab-count thousand separator abbreviation (carried over from Vue2 :1284) ──
+describe('cp-tab-count abbreviation', () => {
+  // Deviation note (source verification): brief's manual calculation
+  // "Math.round(1234/100)/10 = 12.3" is wrong — 1234/100=12.34, Math.round(12.34)=12,
+  // 12/10=1.2, actual result is "1.2k". Implemented exactly per Vue2 source :1284 formula;
+  // source is authoritative; here using manually-verified correct expected value.
+  it('count=1234 → text 1.2k (Math.round(1234/100)/10 = 1.2, source verification noted)', () => {
     const w = mountPicker({
       candidates: candidates({ tabs: [{ id: 'recent', label: 'Recent', icon: 'clock', count: 1234 }] }),
     })
     expect(w.find('.cp-tab-count').text()).toBe('1.2k')
   })
 
-  it('count=999 → 原样显示 999(边界,不进 k 分支)', () => {
+  it('count=999 → display 999 as-is (boundary, does not enter k branch)', () => {
     const w = mountPicker({
       candidates: candidates({ tabs: [{ id: 'recent', label: 'Recent', icon: 'clock', count: 999 }] }),
     })
@@ -170,9 +173,9 @@ describe('cp-tab-count 缩写', () => {
   })
 })
 
-// ── 图标分支(后端契约 clock/sparkles/star/grid,未知回落通用图标)───────────
-describe('标签图标分支', () => {
-  it('四个已知 icon 名各命中对应 data-test,未知值回落 fallback', () => {
+// ── Icon branching (backend contract: clock/sparkles/star/grid, unknown falls back to generic) ──
+describe('tab icon branching', () => {
+  it('four known icon names each hit corresponding data-test, unknown values fall back to fallback', () => {
     const w = mountPicker({
       candidates: candidates({
         tabs: [
@@ -192,11 +195,11 @@ describe('标签图标分支', () => {
   })
 })
 
-// ── 当前封面打勾(String 归一守卫)─────────────────────────────────────────
-describe('当前封面打勾', () => {
-  it('currentAssetId 为数字 7、items 含字符串 "7" → 该 cell 有 .is-active 且含 .cp-cell-check', () => {
+// ── Current cover checkmark (String normalization guard) ──────────────────
+describe('current cover checkmark', () => {
+  it('currentAssetId is number 7, items contains string "7" → that cell has .is-active and contains .cp-cell-check', () => {
     const w = mountPicker({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- 刻意传入数字模拟外部越界输入(brief 要求)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Intentionally passing number to simulate external out-of-bounds input (brief requirement)
       currentAssetId: 7 as any,
       candidates: candidates({ items: ['6', '7', '8'] }),
     })
@@ -208,31 +211,31 @@ describe('当前封面打勾', () => {
   })
 })
 
-// ── 点击/忙碌态 ───────────────────────────────────────────────────────────
-describe('点 cell / busy 态', () => {
-  it('点 cell → emit pick 带 String(assetId)', async () => {
+// ── Click / busy state ────────────────────────────────────────────────────
+describe('click cell / busy state', () => {
+  it('click cell → emit pick with String(assetId)', async () => {
     const w = mountPicker({ candidates: candidates({ items: ['a1', 'a2'] }) })
     await w.findAll('[data-test="cp-cell"]')[1].trigger('click')
     expect(w.emitted('pick')).toEqual([['a2']])
   })
 
-  it('busy=true 时所有 cell 与 reset 钮 disabled', () => {
+  it('when busy=true, all cells and reset button are disabled', () => {
     const w = mountPicker({ busy: true, candidates: candidates({ items: ['a1', 'a2'] }) })
     for (const cell of w.findAll('[data-test="cp-cell"]'))
       expect((cell.element as HTMLButtonElement).disabled).toBe(true)
     expect((w.find('.cp-reset-btn').element as HTMLButtonElement).disabled).toBe(true)
   })
 
-  it('点 reset 钮 → emit reset', async () => {
+  it('click reset button → emit reset', async () => {
     const w = mountPicker()
     await w.find('.cp-reset-btn').trigger('click')
     expect(w.emitted('reset')).toHaveLength(1)
   })
 })
 
-// ── 空态 ─────────────────────────────────────────────────────────────────
-describe('空态', () => {
-  it('items=[] → .cp-empty 出现且文案含查询词,.cp-grid 不渲染', () => {
+// ── Empty state ────────────────────────────────────────────────────────────
+describe('empty state', () => {
+  it('items=[] → .cp-empty appears and copy contains search query, .cp-grid does not render', () => {
     const w = mountPicker({ search: '西湖', candidates: candidates({ items: [] }) })
     expect(w.find('.cp-empty').exists()).toBe(true)
     expect(w.find('.cp-empty').text()).toContain('西湖')

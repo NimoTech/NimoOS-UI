@@ -1,64 +1,65 @@
 <script setup lang="ts">
-// Task 10 (SP7-P5 人物): PersonHero.vue —— 人物详情页 hero 区(封面 + 头像 + 姓名/收藏 +
-// Edit 菜单 + 关系分组下拉 + 四项统计 + 两个操作钮)。逐段照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosPersonDetail.vue:3-91(模板)、:492-529(cover/heroBg/
-// heroIsFallback/firstYear/firstMonthShort)、:586-590(relationLabel)、:782-840
-// (两个菜单的开关与定位)移植;样式段照 photos-people.scss:277-460。
+// Task 10 (SP7-P5 person details): PersonHero.vue —— person detail page hero section (cover + avatar + name/favorite +
+// edit menu + relation group dropdown + four stats + two action buttons). Port each section from Vue2 NimoOS-UI
+// src/views/Photos/PhotosPersonDetail.vue:3-91 (template), :492-529 (cover/heroBg/
+// heroIsFallback/firstYear/firstMonthShort), :586-590 (relationLabel), :782-840
+// (menu toggle and positioning logic); styles from photos-people.scss:277-460.
 //
-// 纯展示 + emit,不碰 store、不发请求 —— 所有副作用在 T14 容器里(brief 明确分工)。
-// Ask Nimo 按钮(Vue2 :85-87)不渲染(spec D1 已推迟 SP8)。
+// Pure presentation + emit, no store access, no requests — all side effects are in T14 container (brief defines responsibilities).
+// Ask Nimo button (Vue2 :85-87) is not rendered (spec D1 deferred to SP8).
 //
-// 实现方式偏离登记(已批准,brief 明确要求):Vue2 用 getBoundingClientRect 手算
-// fixed 坐标 + document mousedown + closest('.relation-menu') 判定两个菜单的开关/定位
-// (:598-617,782-831)。这里改成组件内 position:absolute 相对触发按钮锚定(同本仓已确立的
-// PhotosPeople.vue :352-358,412-424 的 people-pop-wrap/people-menu 先例),关闭仍走
-// document 级 mousedown + keydown(Esc),onMounted 挂 / onUnmounted 摘,成对。视觉位置
-// 保持一致(菜单出现在触发按钮正下方)。
+// Implementation deviation (approved, per brief): Vue2 uses getBoundingClientRect for manual fixed positioning +
+// document mousedown + closest('.relation-menu') to manage two menus (:598-617, 782-831).
+// Here changed to position:absolute anchored to trigger buttons within the component (same pattern as established
+// in PhotosPeople.vue :352-358, 412-424 with people-pop-wrap/people-menu), closing still uses document-level
+// mousedown + keydown(Esc), attached on onMounted / removed on onUnmounted, paired. Visual position remains consistent
+// (menu appears directly below trigger button).
 //
-// ★ 终审 Important 5 补登记 —— **Vue2 用 fixed 的理由**:它不是随手选的,而是为了绕开
-// `.detail-hero { overflow: hidden }`(photos-people.scss:277-281)。fixed 的包含块是视口,
-// 不受任何祖先 overflow 裁剪;absolute 的包含块是最近的定位祖先,祖先一裁就没了。
-// 改成 absolute 后 z-index 完全失效(裁剪发生在合成之前),而 hero 又没有滚动条可以救,
-// 菜单会被**直接切掉**:默认布局菜单底边 ≈279.5px 只差 0.5px 不裁;一旦长人名触发
-// `.hero-name-row { flex-wrap: wrap }` 换行,触发按钮下移约 46px、菜单底边到 ≈296px,
-// 最后一项「工作/Work」被切掉约一半(放大字号 / 窄视口同理)。
-// 修法(评审给了两个选项,这里选前者,理由见样式块里 .hero-clip 的注释):把
-// `overflow: hidden` 从 .person-hero 移到专门的 .hero-clip 裁剪层,菜单不再受祖先裁剪,
-// 保留 absolute 锚定这条已批准的偏离。
+// ★ Final review Important 5 deviation registration —— **Why Vue2 uses fixed**: not arbitrary, but to work around
+// `.detail-hero { overflow: hidden }` (photos-people.scss:277-281). fixed containment block is the viewport,
+// unaffected by any ancestor overflow clipping; absolute containment block is the nearest positioned ancestor,
+// and gets clipped if ancestor clips. Switching to absolute breaks z-index completely (clipping happens before compositing),
+// and hero has no scrollbar to rescue it—menu gets **directly clipped**: default layout menu bottom ≈279.5px
+// just 0.5px away from clipping; once a long name triggers `.hero-name-row { flex-wrap: wrap }` wrapping,
+// trigger button shifts down ~46px, menu bottom reaches ≈296px, last item "Work" gets clipped about halfway
+// (same for larger font / narrow viewport). Fix (review offered two options, chose the first; see .hero-clip comment
+// in style block): move `overflow: hidden` from .person-hero to dedicated .hero-clip clipping layer, menu no longer
+// affected by ancestor clipping, keep absolute anchoring this approved deviation.
 //
-// 偏离登记 10(此前未申报,终审顺带补齐):`.hero-name-row` 的 `flex-wrap: wrap` 是本仓新增 ——
-// Vue2 `.detail-hero .name`(photos-people.scss:325-331)是 `display:flex; align-items:center;
-// gap:12px`,**没有** flex-wrap,长人名会把 Edit/关系分组两个胶囊挤扁并溢出。保留 wrap
-// (属于"Vue2 的 bug 不照抄"那一类),但它改变了 hero 的实际高度,因此必须与上面那条一起看:
-// 正是 wrap 让菜单越界成为常态路径,而不是边角情况。
+// Deviation 10 registration (not previously declared, added in final review): `.hero-name-row` flex-wrap: wrap is new
+// to this repo —— Vue2 `.detail-hero .name` (photos-people.scss:325-331) is `display:flex; align-items:center;
+// gap:12px`, **no** flex-wrap, so long names compress Edit/relation-group capsules and overflow. Keep wrap
+// (part of "don't copy Vue2 bugs" category), but it changes hero's actual height, so must be viewed together with above:
+// wrap is what makes menu overflow a common path, not an edge case.
 //
-// 偏离登记 9(brief 明确要求改对,不照抄 Vue2 的 bug):Vue2 :528 把月份短名写死
-// toLocaleDateString('en', {month:'short'}) —— 这里改用 useI18n().locale 派生的 BCP-47
-// tag(照 PhotosPeople.vue:157 formatIndexedDate 的既有先例:locale.value.replace('_','-')),
-// 跟随当前语言渲染月份缩写。同时**不**照抄 Vue2 手动拼接的尾随 "."(:528 的
-// `+ '.'`)——那个句点只在英文缩写("Jan.")下是惯用排版,中文短月份格式(如"3月")
-// 本身没有这个标点习惯,强行拼接会变成"3月."这种不通顺的结果;改为完全信任
-// Intl.DateTimeFormat 按当前 locale 给出的本地化短月份,不再手动拼接标点(同 T6
-// formatIndexedDate 的既有做法:交给 Intl,不自己拼字符串)。
+// Deviation 9 registration (brief explicitly requires correction, don't copy Vue2 bug): Vue2 :528 hardcodes month
+// short names as toLocaleDateString('en', {month:'short'}) —— here changed to use BCP-47 tag derived from
+// useI18n().locale (same pattern as established in PhotosPeople.vue:157 formatIndexedDate: locale.value.replace('_', '-')),
+// renders month abbreviations following current language. Also **does not** copy Vue2's manual trailing "." concatenation
+// (:528's `+ '.'`) —— that period is only conventional typography for English abbreviations ("Jan."), Chinese short
+// month format (e.g. "3月") has no such punctuation convention, forced concatenation results in awkward "3月." —— changed
+// to completely trust Intl.DateTimeFormat to provide localized short month for current locale, no manual punctuation
+// concatenation (same approach as T6 formatIndexedDate: delegate to Intl, don't concatenate strings yourself).
 //
-// 配色红线(本任务最高危,brief 原文强调"本阶段已因为这个坑返工两次"):hero 上叠在
-// 暗化后的封面照片之上的一切前景(返回按钮/头像环外的姓名/统计数字与标签/收藏按钮/
-// Edit·关系分组触发按钮/两个操作钮的文字与图标)全部**钉死浅色**(theme-exception),
-// 不使用任何随主题变化的 --fg/--fg-muted/--fg-subtle(浅色主题下这些是深色,叠在暗化
-// 照片上会出现深底深字),更不用 --on-accent(它只在 var(--accent) 饱和实底上可用,
-// 这里背景是不可控的人脸照片,不满足前提)。两个下拉菜单本体(Edit 菜单/关系菜单)是
-// 例外——它们各自有 var(--popup-bg) 不透明底,不再叠在照片上,菜单内文字/高亮走正常
-// 随主题 token(--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg),不钉死。
+// Color critical path (highest risk in this task; brief emphasized "this gap caused two reworks in this phase"): everything
+// in the hero foreground layered over darkened cover photo (back button / avatar ring and name outside it / stat numbers
+// and labels / favorite button / Edit/relation group trigger buttons / text and icons of two action buttons) all
+// **locked to light colors** (theme-exception), using no dynamic --fg/--fg-muted/--fg-subtle tokens (in light theme
+// these are dark colors, layering on darkened photos creates dark-on-dark), especially not --on-accent (only works
+// over saturated solid --accent background, here background is uncontrollable face photo, doesn't meet precondition).
+// Two dropdown menu bodies (Edit menu / relation menu) are exceptions —— each has solid var(--popup-bg) background,
+// no longer layered on photo, menu text/highlight follows normal theme tokens (--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg), not locked.
 //
-// 暗化遮罩偏离登记(与 brief 建议公式不同,已在任务报告详细登记理由):brief 建议
-// New-UI 缺 --hero-scrim 时改用 linear-gradient(180deg, transparent, var(--bg) 95%)。
-// 但本仓浅色主题 --bg 接近纯白(#f7f5ef)——把遮罩混向 var(--bg) 会在 hero 中段(头像/
-// 姓名/统计恰好所在的垂直居中区域)洗成浅灰甚至近白,钉死的浅色文字在那一段恰恰读不清,
-// 与本任务最高优先级的"红线"目标直接矛盾。改用与主题无关的固定黑色渐变(同本仓已有的
-// PhotosAlbumDetail.vue .album-hero-bg::after 先例:那个类似的"照片 hero + 钉死浅色前景"
-// 场景就是用固定黑色渐变,不跟随 var(--bg)),两套主题下都能保证钉死的浅色文字有稳定对比度。
+// Dark scrim deviation registration (different from brief's suggested formula, detailed rationale recorded in task report):
+// brief suggested New-UI use linear-gradient(180deg, transparent, var(--bg) 95%) when lacking --hero-scrim.
+// But light theme --bg is near pure white (#f7f5ef) —— blending scrim toward var(--bg) washes the hero middle section
+// (avatar/name/stats in vertical center area) to light gray or near white, locked light text in that section becomes
+// unreadable, directly contradicting this task's highest priority "critical path" goal. Changed to fixed black gradient
+// unrelated to theme (same pattern as existing PhotosAlbumDetail.vue .album-hero-bg::after: that similar "photo hero +
+// locked light foreground" scenario also uses fixed black gradient, independent of var(--bg)), ensures locked light text
+// has stable contrast across both themes.
 //
-// 铁律:按 id 比较一律 String(a) === String(b)。
+// Rule: all id comparisons must use String(a) === String(b).
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -84,20 +85,20 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-// 用户验收新增:未命名人物现在有了详情页入口(列表页菜单「查看这些照片」),Vue2 里这条路
-// 走不到,所以它 :22 直接渲染 person.name、空名就是空白标题。这里补兜底文案。
-// trim 判定:后端可能存下只有空白的名字,渲染成几个空格与空白无异,一并走兜底。
+// User acceptance feedback: unnamed people now have a detail page entry (list menu "View these photos"),
+// unreachable in Vue2 so it :22 directly renders person.name, empty name becomes blank title. Added fallback copy here.
+// trim check: backend may store names that are only whitespace; rendering as spaces is same as blank, use fallback for both.
 const heroTitle = computed(() => props.person.name.trim() || t('photosPersonUnnamedTitle'))
 
-// ── 背景层(Vue2 :497-506)──────────────────────────────────────────────
-// heroAssetId 优先;否则用人脸缩略图当背景;两者都无 → 渐变兜底(isFallback)。
+// ── Background layer (Vue2 :497-506) ────────────────────────────────────
+// heroAssetId takes priority; otherwise use face thumbnail as background; if both missing → gradient fallback (isFallback).
 const heroBg = computed(() => {
   if (props.person.heroAssetId) return service.photos.thumbnailUrl(props.person.heroAssetId, 'large')
   return service.photos.personFaceThumbnailUrl(props.person.id, props.person.coverFaceId)
 })
 const isFallback = computed(() => !props.person.coverFaceId && !props.person.heroAssetId)
 
-// ── 最早出现(Vue2 :522-529,偏离登记 9 见文件头注释)────────────────────
+// ── First seen (Vue2 :522-529, deviation 9 explained in file header) ────
 function parsedFirstSeen(): Date | null {
   if (!props.person.firstSeen) return null
   const d = new Date(props.person.firstSeen)
@@ -114,7 +115,7 @@ const firstMonthShort = computed(() => {
   return new Intl.DateTimeFormat(tag, { month: 'short' }).format(d)
 })
 
-// ── 关系分组(Vue2 :586-590)────────────────────────────────────────────
+// ── Relation group (Vue2 :586-590) ────────────────────────────────────────
 const relationOptions = [
   { value: '', labelKey: 'photosPersonRelationNone' },
   { value: 'family', labelKey: 'photosPersonRelationFamily' },
@@ -128,7 +129,7 @@ const relationLabelKey = computed(() => {
   return opt ? opt.labelKey : 'photosPersonRelationNone'
 })
 
-// ── 两个菜单(Vue2 :782-840,实现方式偏离见文件头注释)───────────────────
+// ── Two menus (Vue2 :782-840, implementation deviation explained in file header) ───
 const editOpen = ref(false)
 const relationOpen = ref(false)
 const editWrapRef = ref<HTMLElement | null>(null)
@@ -153,8 +154,8 @@ function onDocMousedown(e: MouseEvent): void {
 }
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
-  // 两个菜单独立判断、都关——不能像早期实现那样第一个 if 命中就 return,那样如果两个菜单
-  // 同时开着,Esc 只会关掉先判断的那一个(本组件自己的测试删码验证抓到过这个真实回归)。
+  // Check both menus independently, close both —— can't use early return like early implementation because
+  // if both menus are open, Esc would only close the first one (caught as a real regression by component's own test validation).
   editOpen.value = false
   relationOpen.value = false
 }
@@ -170,8 +171,9 @@ onUnmounted(() => {
 
 <template>
   <div class="person-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
-    <!-- 终审 Important 5:裁剪层。模糊背景与暗化遮罩关在这里,`overflow: hidden` 由它自己承担,
-         .person-hero 不再裁 —— 否则两个 hero 下拉菜单(absolute)会被祖先切掉。 -->
+    <!-- Final review Important 5: clipping layer. Blurred background and darkening scrim are contained here,
+         `overflow: hidden` handled by itself, .person-hero no longer clips —— otherwise the two hero dropdown menus (absolute)
+         would get clipped by ancestor. -->
     <div class="hero-clip" data-test="hero-clip">
       <div
         class="hero-bg"
@@ -182,9 +184,9 @@ onUnmounted(() => {
       <div v-if="!isFallback" class="hero-scrim" data-test="hero-scrim" />
     </div>
 
-    <!-- 终审 Minor 7:文案是 t('photosPeople')(「人物」/ "People")—— 照 Vue2 :6 的 $t('People')。
-         不用 photosPersonBack(「返回人物」/ "Back to people"):那句是**人物不存在**空态里那个
-         返回按钮的文案(PhotosPersonDetail.vue 门控③),两处不是同一句。 -->
+    <!-- Final review Minor 7: copy is t('photosPeople') ("People") —— matches Vue2 :6 $t('People').
+         Not photosPersonBack ("Back to people"): that text is for the back button in **person not found** empty state
+         (PhotosPersonDetail.vue gate ③), two different contexts. -->
     <button type="button" class="hero-back" data-test="hero-back" :aria-label="t('photosPeople')" @click="emit('back')">
       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6" /></svg>
       {{ t('photosPeople') }}
@@ -199,8 +201,8 @@ onUnmounted(() => {
         <div class="hero-name-row">
           <span class="hero-name" data-test="hero-name">{{ heroTitle }}</span>
 
-          <!-- 终审 Minor 7:未收藏态的 title/aria 照 Vue2 :26 的 `Mark as favorite`(不是通用的
-               `Favorite`);已收藏态复用 photosUnfavorite,其中文与 Vue2 `Remove favorite` 的原译一致。 -->
+          <!-- Final review Minor 7: unfavorited state title/aria matches Vue2 :26 `Mark as favorite` (not generic
+               `Favorite`); favorited state reuses photosUnfavorite, whose text matches Vue2's original `Remove favorite` translation. -->
           <button
             type="button"
             class="hero-fav"
@@ -223,14 +225,14 @@ onUnmounted(() => {
             <div v-if="editOpen" class="hero-menu" data-test="hero-edit-menu">
               <button type="button" class="hero-menu-item" data-test="hero-edit-rename" @click="pickEdit('rename')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
-                <!-- 终审 Minor 6:短动词键(照 Vue2 :38 `$t('Rename')`);photosPersonRename
-                     是改名弹窗的标题「重命名人物」,不能顶替菜单项。 -->
+                <!-- Final review Minor 6: short verb key (matches Vue2 :38 `$t('Rename')`); photosPersonRename
+                     is the rename dialog title "Rename person", cannot replace menu item. -->
                 {{ t('photosPersonMenuRename') }}
               </button>
               <button type="button" class="hero-menu-item" data-test="hero-edit-merge" @click="pickEdit('merge')">
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.5L18 9l-4.1 1.5L12 15l-1.9-4.5L6 9l4.1-1.5z" /></svg>
-                <!-- 终审 Minor 6:同上,照 Vue2 :41 `$t('Merge into…')`;photosPersonMergeInto
-                     是合并弹窗的标题「合并到另一个人物」。 -->
+                <!-- Final review Minor 6: same as above, matches Vue2 :41 `$t('Merge into…')`; photosPersonMergeInto
+                     is the merge dialog title "Merge into another person". -->
                 {{ t('photosPersonMenuMergeInto') }}
               </button>
               <button type="button" class="hero-menu-item hero-menu-danger" data-test="hero-edit-delete" @click="pickEdit('delete')">
@@ -301,21 +303,21 @@ onUnmounted(() => {
 .person-hero {
   position: relative;
   min-height: 280px;
-  /* 终审 Important 5:**这里刻意没有 overflow: hidden**(Vue2 .detail-hero 有,
-     photos-people.scss:277-281)。两个下拉菜单是 absolute 锚定的(见文件头的实现方式偏离
-     登记),祖先一裁就整块消失、z-index 无用、也没有滚动条可救 —— 长人名触发
-     .hero-name-row 换行后菜单最后一项会被切掉约一半。裁剪职责下移到 .hero-clip。
-     加新的绝对定位子元素时留意:它现在**不会**被 hero 边界裁住。 */
+  /* Final review Important 5: **intentionally no overflow: hidden here** (Vue2 .detail-hero has it,
+     photos-people.scss:277-281). The two dropdown menus use absolute positioning (see implementation deviation
+     registration in file header), if ancestor clips they disappear entirely, z-index useless, no scrollbar to rescue ——
+     long names trigger .hero-name-row wrapping and menu's last item gets clipped about halfway. Clipping responsibility
+     moved to .hero-clip. When adding new absolutely positioned children, note: they will **not** be clipped by hero border. */
   flex: none;
 }
-/* 只裁"该裁的东西":模糊封面图 + 暗化遮罩。
-   为什么必须是**独立的祖先容器**,而不是让 .hero-bg 自己 overflow:hidden(评审建议的字面
-   写法):`filter: blur(40px)` 的输出按规范画在元素盒子**之外**(此处最多外溢约 120px),
-   `transform: scale(1.2)` 又把它整体放大 20% —— 元素自身的 overflow 管不了自己的滤镜输出,
-   只有**祖先**的 overflow 才能裁。若不裁,模糊边缘会溢到下方 tabs/网格与页面两侧。
-   另一个候选修法是把菜单改回 Vue2 的 position:fixed + getBoundingClientRect 手算坐标;
-   没选它,因为那要重新引入坐标计算,且 Vue2 那套在页面滚动/窗口缩放时菜单会脱锚(它没挂
-   scroll/resize 重算),等于用一个已知缺陷换另一个。 */
+/* Clip only "what needs clipping": blurred cover + darkening scrim.
+   Why must be **independent ancestor container**, not .hero-bg's own overflow:hidden (what review literally suggested):
+   `filter: blur(40px)` output is painted **outside** element box per spec (up to ~120px overflow here),
+   `transform: scale(1.2)` also enlarges it 20% —— element's own overflow can't clip its own filter output,
+   only **ancestor** overflow can. Without clipping, blur edges spill into lower tabs/grid and page sides.
+   Another candidate fix: revert menus to Vue2's position:fixed + getBoundingClientRect manual coordinates;
+   didn't choose it because requires reintroducing coordinate math, and Vue2's approach detaches on page scroll/window resize
+   (no scroll/resize recalc attached), trading one known gap for another. */
 .hero-clip {
   position: absolute;
   inset: 0;
@@ -330,10 +332,11 @@ onUnmounted(() => {
   transform: scale(1.2);
   opacity: 0.45;
 }
-/* 无封面/无人脸缩略图时的纯渐变兜底——不叠 blur/scale/opacity(那三条是为"模糊照片"设计的,
-   套在纯色渐变上只会把它洗成一片 45% 透明度的浅雾,而不是 PersonAvatar 三级兜底同款的
-   饱和渐变色块;Vue2 :1420-1422 的 [data-fallback] 覆盖规则没有解除父规则的 filter/opacity,
-   这里判定为无意的视觉稀释,不照抄——按同一渐变 token 但用满血不透明色块渲染)。 */
+/* Solid gradient fallback when no cover/no face thumbnail —— don't layer blur/scale/opacity
+   (those three designed for "blurred photos", on solid gradient just washes to 45% transparent haze,
+   not the same saturated gradient block as PersonAvatar's three-tier fallback; Vue2 :1420-1422 [data-fallback]
+   override doesn't remove parent filter/opacity, judged as unintended visual dilution, not copied ——
+   use same gradient token but render full-saturation opaque block). */
 .hero-bg.is-fallback {
   filter: none;
   transform: none;
@@ -343,9 +346,9 @@ onUnmounted(() => {
 .hero-scrim {
   position: absolute;
   inset: 0;
-  /* theme-exception: 叠在人物封面照片之上的固定暗化渐变,专为下方钉死的浅色前景文字/
-     图标提供跨主题恒定的可读对比度——理由与不采用 brief 建议的 var(--bg) 混合公式的
-     完整说明见本文件顶部注释,这里不重复。 */
+  /* theme-exception: fixed darkening gradient layered over person cover photo, provides cross-theme consistent
+     readable contrast for locked light foreground text/icons below —— complete explanation of rationale and why
+     brief's suggested var(--bg) blend formula not adopted, see file header comments, not repeated here. */
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.68) 100%);
 }
 
@@ -364,11 +367,11 @@ onUnmounted(() => {
   backdrop-filter: var(--blur);
   border: 1px solid var(--card-border);
   cursor: pointer;
-  color: #fff; /* theme-exception: hero 顶部 chrome 按钮,恒叠在暗化封面照片之上,需跨主题
-    恒定浅色前景(见文件头"配色红线"说明) */
+  color: #fff; /* theme-exception: chrome button at hero top, always layered over darkened cover photo, needs
+    cross-theme consistent light foreground (see file header "color critical path" explanation) */
 }
-/* theme-exception: hover 态往 --overlay-bg 里掺一点白提亮,掺入量是固定观感调校值,
-   与主题无关（同 .hero-back 本身钉死浅色前景的道理一致，见上方声明） */
+/* theme-exception: hover state adds white to --overlay-bg for brightening, amount is fixed visual tuning value,
+   independent of theme (same logic as .hero-back itself locking light foreground, see above declaration) */
 .hero-back:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
 
 .hero-inner {
@@ -404,8 +407,9 @@ onUnmounted(() => {
   font-size: 38px;
   font-weight: 600;
   letter-spacing: -0.025em;
-  color: #fff; /* theme-exception: 姓名直接叠在暗化封面照片上,需跨主题恒定浅色(见文件头
-    "配色红线"说明,不用 --fg——浅色主题下 --fg 是近黑色,叠在暗照片上会深底深字) */
+  color: #fff; /* theme-exception: name directly layered on darkened cover photo, needs cross-theme consistent
+    light color (see file header "color critical path" explanation, don't use --fg —— light theme --fg is near black,
+    layering on dark photo creates dark-on-dark) */
 }
 
 .hero-fav {
@@ -416,17 +420,18 @@ onUnmounted(() => {
   padding: 4px;
   display: inline-flex;
   align-items: center;
-  /* 未收藏态:半透明浅色描边星,同样钉死不随主题(见文件头"配色红线"说明)。
-     收藏态见下方 .hero-fav.is-fav 规则,复用本仓已确立的 --star-fg 兜底惯例。 */
+  /* Unfavorited state: semi-transparent light outline star, similarly locked independent of theme (see file header
+     "color critical path" explanation). Favorited state in .hero-fav.is-fav rule below, reuses established --star-fg
+     fallback convention in this repo. */
   color: rgba(255, 255, 255, 0.72); /* theme-exception */
 }
 .hero-fav.is-fav {
-  /* --star-fg 两套主题都不各自定义具体值,是本仓已确立的先例(PhotosGrid.vue/
-     PersonAvatar.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,
-     用 var(fallback) 形式表达,color-guard 按 token 用法放行,不算裸字面量。 */
+  /* --star-fg not separately defined in both themes, established precedent in this repo (PhotosGrid.vue/
+     PersonAvatar.vue both use var(--star-fg, #ffd60a)) —— fixed golden star unchanged across skins,
+     expressed as var(fallback) form, color-guard clears by token usage, not bare literal. */
   color: var(--star-fg, #ffd60a);
 }
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
+/* theme-exception: same as .hero-back:hover —— fixed white mix amount, independent of theme */
 .hero-fav:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
 
 .hero-menu-wrap { position: relative; display: inline-flex; align-items: center; }
@@ -446,13 +451,14 @@ onUnmounted(() => {
   backdrop-filter: var(--blur);
   cursor: pointer;
   font-family: var(--font);
-  color: #fff; /* theme-exception: 同 .hero-back——叠在暗化封面照片上的 chrome 按钮 */
+  color: #fff; /* theme-exception: same as .hero-back —— chrome button layered on darkened cover photo */
 }
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
+/* theme-exception: same as .hero-back:hover —— fixed white mix amount, independent of theme */
 .hero-trigger:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
 
-/* 下拉菜单本体有自己的不透明底(--popup-bg),不再叠在照片上——菜单内文字/高亮走正常
-   随主题 token,不钉死(与上方 hero 直接前景的处理刻意不同,理由见文件头"配色红线"说明)。 */
+/* Dropdown menu body has its own opaque background (--popup-bg), no longer layered on photo ——
+   menu text/highlight follow normal theme tokens, not locked (intentionally different from hero direct foreground
+   handling above, rationale in file header "color critical path" explanation). */
 .hero-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -485,8 +491,8 @@ onUnmounted(() => {
 }
 .hero-menu-item:hover { background: var(--hover); }
 .hero-menu-item[data-active="true"] {
-  /* Vue2 :60 用 var(--accent-hi)——本仓两套主题块均未定义这个 token(已 grep 确认,同
-     MergeReviewDialog.vue:249 的既有先例),借用同色调、两套主题都有定义的 --accent-text。 */
+  /* Vue2 :60 uses var(--accent-hi) —— this token not defined in both theme blocks in this repo (confirmed by grep,
+     same as existing MergeReviewDialog.vue:249 precedent), borrowing --accent-text with same tone, defined in both themes. */
   background: var(--accent-soft);
   color: var(--accent-text);
 }
@@ -500,20 +506,20 @@ onUnmounted(() => {
   font-weight: 600;
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
-  color: #fff; /* theme-exception: 统计数字叠在暗化封面照片上,见文件头"配色红线"说明 */
+  color: #fff; /* theme-exception: stat numbers layered on darkened cover photo, see file header "color critical path" explanation */
 }
 .hero-stat .k {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-top: 2px;
-  color: rgba(255, 255, 255, 0.72); /* theme-exception: 统计标签同上,钉死半透明浅色 */
+  color: rgba(255, 255, 255, 0.72); /* theme-exception: stat labels same as above, locked semi-transparent light */
 }
 .hero-stat-month {
   font-size: 12px;
   margin-left: 4px;
   font-family: var(--font);
-  color: rgba(255, 255, 255, 0.72); /* theme-exception: 同 .hero-stat .k */
+  color: rgba(255, 255, 255, 0.72); /* theme-exception: same as .hero-stat .k */
 }
 
 .hero-actions {
@@ -538,8 +544,8 @@ onUnmounted(() => {
   cursor: pointer;
   white-space: nowrap;
   font-family: var(--font);
-  color: #fff; /* theme-exception: 操作钮叠在暗化封面照片上,见文件头"配色红线"说明 */
+  color: #fff; /* theme-exception: action button layered on darkened cover photo, see file header "color critical path" explanation */
 }
-/* theme-exception: 同 .hero-back:hover——固定掺白提亮量,与主题无关 */
+/* theme-exception: same as .hero-back:hover —— fixed white mix amount, independent of theme */
 .hero-action-btn:hover { background: color-mix(in srgb, var(--overlay-bg) 80%, #fff 8%); }
 </style>

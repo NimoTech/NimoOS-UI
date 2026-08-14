@@ -136,13 +136,13 @@ describe('clampSize', () => {
 })
 
 describe('appwidget sizing', () => {
-  it('sizeOfItem: appwidget 用 APP_WIDGET_SIZE,widget 用 registry,其余 undefined', () => {
+  it('sizeOfItem: appwidget uses APP_WIDGET_SIZE, widget uses registry, rest undefined', () => {
     setActivePinia(createPinia())
     expect(sizeOfItem({ kind: 'appwidget', key: 'any-app' })).toEqual(APP_WIDGET_SIZE)
     expect(sizeOfItem({ kind: 'widget', key: 'clock' })).toEqual({ min: [2, 1], max: [4, 2] })
     expect(sizeOfItem({ kind: 'app', key: 'x' })).toBeUndefined()
   })
-  it('sizeOfItem: appwidget 应用自带范围 → 用自带的(夹进全局)', () => {
+  it('sizeOfItem: appwidget with built-in range → uses built-in (clamped into global)', () => {
     setActivePinia(createPinia())
     useAppsStore().setApps([
       { name: 'locked', desktop: true, status: 'running', port: '1',
@@ -153,7 +153,7 @@ describe('appwidget sizing', () => {
     expect(sizeOfItem({ kind: 'appwidget', key: 'locked' })).toEqual({ min: [3, 2], max: [3, 2] })
     expect(sizeOfItem({ kind: 'appwidget', key: 'ranged' })).toEqual({ min: [2, 1], max: [3, 4] })
   })
-  it('clampSize 对 appwidget 夹紧到 [2,1]..[4,4]', () => {
+  it('clampSize clamps appwidget to [2,1]..[4,4]', () => {
     setActivePinia(createPinia())
     const it = { id: 'i1', kind: 'appwidget', key: 'a', c: 1, r: 1, w: 2, h: 2 } as never
     expect(clampSize(it, 9, 9, sizeOfItem)).toEqual([4, 4])

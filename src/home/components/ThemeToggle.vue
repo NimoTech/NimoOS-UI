@@ -91,9 +91,9 @@ function pickPhoto() {
 .theme-opt .lbl { flex: 1; }
 .theme-opt .ck { color: var(--accent); font-weight: 600; }
 .sw { width: 18px; height: 18px; border-radius: 6px; border: 1px solid var(--card-border); flex: 0 0 auto; }
-/* theme-exception: 主题预览色块必须显示各主题的真实配色,与当前主题无关,故写死品牌色。 */
+/* theme-exception: theme preview swatches must display each theme's actual colors, independent of the current theme, so brand colors are hardcoded. */
 .sw-blue { background: linear-gradient(135deg, #8ab4ff, #b79bff); }
-/* theme-exception: 同上,白色主题预览块。 */
+/* theme-exception: same as above, light theme preview swatch. */
 .sw-light { background: linear-gradient(135deg, #f7f5ef 40%, #3b5bdb); }
 /* theme-exception: preview swatch shows what the photo option looks like, not
    the active theme's colours. */

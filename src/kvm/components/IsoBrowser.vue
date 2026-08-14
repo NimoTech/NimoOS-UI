@@ -1,14 +1,15 @@
 <script setup lang="ts">
-// ISO 选择器弹窗 —— 自定义(本地文件浏览)半。视觉 1:1 对 Vue2 components/KVM/OSSelector.vue
-// 模板 :54-93(可折叠标题条 + 面包屑 + 文件列表),逻辑对 fetchCustomDir(:304-321)/
-// navigateCustomUp(:323-326)/handleCustomItemClick(:328-361)——后两者已下沉到
-// useIsoBrowser composable(Task 6 本任务新增),本组件只负责渲染与把点击翻译成
-// composable 调用 + 对上层 emit('select', ...)。
+// ISO selector dialog—custom (local file browse) section. Visual 1:1 mirrors Vue2 components/KVM/OSSelector.vue
+// template :54-93 (collapsible title bar + breadcrumb + file list); logic mirrors fetchCustomDir (:304-321) /
+// navigateCustomUp (:323-326) / handleCustomItemClick (:328-361)—the latter two have been moved into
+// useIsoBrowser composable (Task 6, new in this task); this component only handles rendering and translates clicks
+// into composable calls + emit('select', ...) to parent.
 //
-// Task 5 的 OsSelector 官方模板半是纯展示层(isos 由页面级 useIsoList 持有),但本组件
-// 不同:本地目录浏览状态(当前路径/列表/loading)只在"自定义区展开"这段交互里才有意义,
-// 没有跨组件复用或需要在关闭弹窗后继续推进的理由(不像 ISO 下载进度),所以让
-// IsoBrowser 自己创建 useIsoBrowser() 实例,组件卸载时 dispose() 即可。
+// Task 5's OsSelector official template section is a pure presentation layer (isos held by page-level useIsoList),
+// but this component differs: local directory browse state (current path / list / loading) only makes sense during
+// the "custom area expanded" interaction, with no reason to reuse across components or continue after dialog close
+// (unlike ISO download progress), so let IsoBrowser create its own useIsoBrowser() instance; dispose() on component
+// unmount.
 import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { FolderEntry } from '@nimotech/nimoos-service'
@@ -20,10 +21,11 @@ import type { SelectedOs } from './OsSelector.vue'
 
 const props = defineProps<{
   isos: IsoRow[]
-  /** SP16 Task 6:展开态由父组件持有。Vue2 的选择器组件是常驻挂载的,所以这个区一旦
-   * 展开就一直是展开的;这里的弹窗内容由 reka 在每次关闭时卸载,状态留在组件内部就
-   * 必然归零 —— 用户展开、选完、再打开,又得重新展开一次。父组件(KvmPage)持有它,
-   * 本组件只上报开关动作。显式 props/emit 而不是 defineModel,同本仓既有约定。 */
+  /** SP16 Task 6: expanded state is held by parent component. Vue2's selector component is permanently mounted,
+   * so once this section expands it stays expanded; dialog content here is unmounted by reka each time it closes,
+   * with state left in the component inevitably resetting—user expands, selects, opens again, must re-expand. Parent
+   * component (KvmPage) holds it; this component only reports toggle actions. Explicit props/emit instead of defineModel,
+   * following this repo's existing convention. */
   expanded: boolean
 }>()
 const emit = defineEmits<{
@@ -33,13 +35,13 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-// 有意不解构(不写 `const { path, items, isLoading } = useIsoBrowser()`):Vue 的
-// ref 自动解包(以及 vue-tsc 对模板里 ref 类型的对应窄化)只发生在"顶层 setup 绑定
-// 本身就是一个 ref"这一种情况——一旦解构出 path/items/isLoading 作为顶层绑定,
-// 模板里裸写 `path` 会被自动解包成 string,但显式写 `path.value` 反而会被 vue-tsc
-// 当成"在 string 上取 .value"报类型错(TS2551,实测跑过);对着一个非 ref 的普通
-// 对象取嵌套属性(`browser.path`)则不享受这层自动解包,`.value` 照常是合法的
-// `Ref<string>` 访问。保留 `browser.xxx.value` 这种写法,类型与运行时行为一致。
+// Intentionally not destructured (don't write `const { path, items, isLoading } = useIsoBrowser()`): Vue's ref
+// auto-unwrap (and vue-tsc's corresponding type narrowing for ref in templates) only happens in the case "top-level
+// setup binding is itself a ref"—once destructured path/items/isLoading as top-level bindings, bare `path` in template
+// gets auto-unwrapped to string, but explicit `path.value` would be seen by vue-tsc as "accessing .value on string"
+// and report type error (TS2551, tested and works); accessing nested property on a non-ref plain object (`browser.path`)
+// doesn't get this auto-unwrap; `.value` remains a valid `Ref<string>` access. Keep the `browser.xxx.value` pattern so
+// type and runtime behavior are consistent.
 const browser = useIsoBrowser()
 onUnmounted(() => browser.dispose())
 
@@ -49,11 +51,11 @@ function toggle(): void {
   emit('update:expanded', !expanded.value)
 }
 
-// 照 Vue2 mounted/watch(visible)(:130-136):展开时拉取当前路径的目录内容。
-// 受控化之后 toggle() 不再直接改值,所以这一步从 toggle 里挪到对 expanded 的 watch 上
-// —— 语义不变,而且多覆盖了一种新出现的情况:父组件保活的展开态让本组件**挂载时**就
-// 已经是展开的,此时 watch 不会触发(值没变),但目录列表随组件卸载归零了,必须补拉一次。
-// `immediate` 正好同时管住这两条路径(初值 false 时它什么都不做)。
+// Per Vue2 mounted/watch(visible) (:130-136): fetch directory content of current path when expanded.
+// After controlled state, toggle() no longer directly changes value, so this step moved from toggle to watch on
+// expanded—semantics unchanged, and additionally covers a new scenario: parent-held expanded state leaves this component
+// **already expanded at mount time**; watch doesn't fire then (value hasn't changed), but directory list reset on component
+// unmount, requiring a re-fetch. `immediate` simultaneously manages both paths (does nothing when initial value is false).
 watch(expanded, (v) => {
   if (v) browser.fetch(browser.path.value)
 }, { immediate: true })
@@ -63,14 +65,14 @@ function onItemClick(item: FolderEntry): void {
     browser.fetch(item.path)
     return
   }
-  // 防御性判断(非疏漏):真实数据流里 useIsoBrowser.fetch 已经把非目录/非 .iso 的
-  // 条目过滤掉了,这里理论上只会收到 .iso 文件。但组件不该假设上游一定过滤干净
-  // (brief Step 3 最后一条用例就是在验证这个防御,模拟"漏进来"的非 .iso 文件),
-  // 命中这个分支时什么都不做,静默返回。
+  // Defensive check (not an oversight): in the real data flow useIsoBrowser.fetch already filters out non-directory/
+  // non-.iso items; theoretically we only receive .iso files. But the component shouldn't assume upstream filtering is
+  // always complete (the last test case in brief Step 3 verifies this defense, simulating "leaked" non-.iso files);
+  // when this branch is hit, do nothing and silently return.
   if (!isIsoFile(item.name)) return
 
-  // 照 Vue2 handleCustomItemClick(:328-357):按文件名反查模板,带出推荐规格;
-  // 反查不到时 id 落 'local'、推荐规格全部 undefined。
+  // Per Vue2 handleCustomItemClick (:328-357): reverse-lookup template by filename, bring out recommended specs;
+  // when reverse-lookup fails, id falls back to 'local', all recommended specs undefined.
   const tmpl = matchTemplateByFilename(item.name, props.isos)
   emit('select', {
     isLocal: true,
@@ -83,9 +85,9 @@ function onItemClick(item: FolderEntry): void {
     minMemory: tmpl?.minMemory,
     minDisk: tmpl?.minDisk,
   })
-  // 注意:本组件不自己关弹窗——Vue2 的 handleCustomItemClick 命中 .iso 分支后自己调
-  // this.close(),但 New-UI 把"选中后关弹窗"这个决定统一收在 OsSelector 的
-  // onLocalSelect 里(与官方模板半 selectOS 走同一条路径),IsoBrowser 只管上报 select。
+  // Note: this component does not close the dialog itself—Vue2's handleCustomItemClick calls
+  // this.close() after hitting the .iso branch, but New-UI consolidates the "close dialog after selection" decision
+  // in OsSelector's onLocalSelect (following the same path as official template's selectOS); IsoBrowser only reports select.
 }
 </script>
 

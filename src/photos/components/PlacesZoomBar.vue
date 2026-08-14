@@ -1,29 +1,31 @@
 <script setup lang="ts">
-// P6a-T8 (SP7-P6a 地点·地图主视图): PlacesZoomBar.vue —— 地图左侧垂直缩放滑杆。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:952-970(模板)、
-// :666-692(zoombarSetFromEvent / onZoombarDown|Move|Up 拖拽换算与 pointer capture)、
-// photos-places.scss:234-284(样式)。
+// P6a-T8 (SP7-P6a places/map main view): PlacesZoomBar.vue — map left-side vertical zoom slider.
+// Ported segment-by-segment from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:952-970
+// (template), :666-692 (zoombarSetFromEvent / onZoombarDown|Move|Up drag conversion + pointer
+// capture), photos-places.scss:234-284 (styling).
 //
-// 本组件不持有 scale 状态——只吃 T7 usePlacesView 派生的 zoomFrac,拖拽/按钮结果一律
-// emit 给 T11 容器,由它接线到 zoomBy/setScale/reset。onDown/onMove/onUp 直接用
-// e.currentTarget 取轨道元素(与 Vue2 :677/:686 的 setPointerCapture/releasePointerCapture
-// 读法一致),不额外建模板 ref——因为监听器本身就绑在 .zb-track 上,e.currentTarget 恒等于
-// Vue2 `this.$refs.zoomTrack`,只是同一元素的两种取法,不是行为改动。
+// This component doesn't hold scale state — only consumes zoomFrac derived from T7's usePlacesView,
+// drag/button results all emit to T11 container which wires them to zoomBy/setScale/reset. onDown/
+// onMove/onUp use e.currentTarget directly to get the track element (same as Vue2 :677/:686's
+// setPointerCapture/releasePointerCapture read), no extra template ref — the listener is bound on
+// .zb-track itself, e.currentTarget equals Vue2's `this.$refs.zoomTrack`, just two ways to read the
+// same element, not a behavior change.
 //
-// 偏离登记(颜色 token):
-//  1. Vue2 `.zb-btn:hover`/`.zb-track` 底色是 `rgba(var(--ink), 0.08/0.12)`——本仓没有
-//     `--ink` 这个 RGB 三元组 token,新增两个精确命名的 token(`--zb-hover-bg`/
-//     `--zb-track-bg`,见 theme.css/THEMING.md)。alpha 精确复刻 Vue2 的 0.08/0.12;RGB
-//     改取本仓 `--fg` 的真实分解值,不照抄 Vue2 light 主题里 `--ink` 的 `(35,37,43)`
-//     ——那本身只是 Vue2 注释自称的"AI --text-primary 近似",不是设计精确值。同类换基色
-//     先例见 theme.css `--pin-cluster-stroke`。
-//  2. `.zb-thumb` 的 `background: #fff` 与 box-shadow 第二层 `rgba(0,0,0,0.4)`——Vue2
-//     自己的深浅两套主题里这两个值从未变化。前者标 theme-exception(把手固定白,常见
-//     slider handle 惯例);后者新增 theme-invariant token `--zb-thumb-shadow`(两套主题
-//     块同值,先例见 `--place-current-trip`)。
-//  3. `.map-zoombar` 的 `background: var(--float-bg)` 是新增 token,精确复刻 Vue2
-//     photos.scss:49/84 的字面量(本仓之前没有等价的"浮动工具条底"token);
-//     `border: 1px solid var(--line)` 按既定映射表改用 `var(--card-border)`。
+// Deviations logged (color tokens):
+//  1. Vue2 `.zb-btn:hover`/`.zb-track` background is `rgba(var(--ink), 0.08/0.12)` — this repo
+//     lacks `--ink` as an RGB triple token, adding two precisely-named tokens (`--zb-hover-bg`/
+//     `--zb-track-bg`, see theme.css/THEMING.md). Alpha exactly replicates Vue2's 0.08/0.12; RGB
+//     sources from this repo's `--fg`'s real decomposed value, not copying Vue2 light theme's
+//     `--ink` of `(35,37,43)` — that's only what Vue2's comment called "AI --text-primary
+//     approximation", not a design-precise value. Same-type base color swap precedent in theme.css's
+//     `--pin-cluster-stroke`.
+//  2. `.zb-thumb`'s `background: #fff` and box-shadow's second layer `rgba(0,0,0,0.4)` — Vue2's
+//     light/dark themes never changed these values. Former marked theme-exception (handle fixed white,
+//     common slider handle convention); latter adds theme-invariant token `--zb-thumb-shadow` (same
+//     value in both theme blocks, precedent `--place-current-trip`).
+//  3. `.map-zoombar`'s `background: var(--float-bg)` is new token, precisely replicating Vue2
+//     photos.scss:49/84 literal (this repo previously lacked equivalent "floating toolbar bg" token);
+//     `border: 1px solid var(--line)` changed per mapping table to `var(--card-border)`.
 import { useI18n } from 'vue-i18n'
 import { MAX_SCALE } from '../util/placesMap'
 

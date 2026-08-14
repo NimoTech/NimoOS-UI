@@ -5,9 +5,9 @@
 // (src/files/components/SelectionToolbar.vue).
 import { useI18n } from 'vue-i18n'
 
-// Task 9 (SP7-P4 相册): 加回「加入相册」按钮(P1 按范围收口砍掉,见头部 PhotosGrid.vue
-// 的同款 delta 注释)——新 emit `add-to-album`,对宿主是可选监听,不接不报错。位置在
-// 「取消」与「删除」之间,非 danger 样式。
+// Task 9 (SP7-P4 album): restore "add-to-album" button (cut by P1 scope freeze, see
+// identical delta comment in PhotosGrid.vue above) — new emit `add-to-album`, optional for
+// host to listen, no error if ignored. Position is between "cancel" and "delete", not danger style.
 const props = defineProps<{ count: number }>()
 const emit = defineEmits<{ (e: 'clear'): void; (e: 'delete'): void; (e: 'add-to-album'): void }>()
 const { t } = useI18n()
@@ -29,7 +29,7 @@ const { t } = useI18n()
 .sel-btn:hover { background: var(--chip-bg-hi, rgba(255,255,255,0.14)); }
 .sel-btn.danger { color: var(--remove-fg, #ff8a8a); border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent); }
 .sel-btn.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 22%, transparent); }
-/* ≤768px:按钮流成 2-3 行(与 Files SelectionToolbar 一致) */
+/* ≤768px: buttons flow into 2-3 rows (matches Files SelectionToolbar) */
 @media (max-width: 768px) {
   .selection-toolbar { flex-wrap: wrap; row-gap: 8px; }
 }

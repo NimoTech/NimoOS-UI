@@ -1,6 +1,6 @@
-// Task 12 (SP7-P5 人物): PersonPlacesTab.vue —— 人物详情页「地点」tab
-// (迷你地图 + Top5 图例 + 全部地点卡片条)。纯展示,无 emits,不碰 store。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:157-183。
+// Task 12 (SP7-P5 people): PersonPlacesTab.vue — places tab of person detail page
+// (mini map + Top5 legend + all places chip strip). Pure display, no emits, no store mutations.
+// Follows Vue2 NimoOS-UI src/views/Photos/PhotosPersonDetail.vue:157-183 section by section.
 import { describe, it, expect, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -25,8 +25,8 @@ afterEach(() => {
   for (const w of mounted.splice(0)) w.unmount()
 })
 
-// 6 个不同地点,每个各出现一次(count 全相等,靠稳定排序保留原始顺序),
-// 用来钉住"图例只有 5 个、卡片条有全部 6 个"的区分。
+// Six different places, each appearing once (all counts equal, stable sorting preserves
+// original order), to pin down the distinction between "legend has only 5, chip strip has all 6".
 function sixPlaces(): PersonPlace[] {
   return Array.from({ length: 6 }, (_, i) => ({
     placeName: `Place${i}`, latitude: 10 + i, longitude: 20 + i,

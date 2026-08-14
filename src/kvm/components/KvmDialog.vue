@@ -42,7 +42,7 @@ const slots = useSlots()
       >
         <header class="create-vm-head">
           <DialogTitle class="create-vm-title">{{ title }}</DialogTitle>
-          <!-- ✕ 是单色文字符号(禁 emoji),同 P5 的 ⚙/⋮/‹ 一批占位债务。 -->
+          <!-- ✕ is a monochrome text symbol (emoji forbidden), same batch of placeholder debt as P5's ⚙/⋮/‹. -->
           <button
             type="button"
             class="create-vm-close"

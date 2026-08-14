@@ -17,7 +17,7 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.get('.sel-count').text()).toBe('已选择 3 项')
   })
 
-  // Task 9 起工具栏第三个按钮「加入相册」落地(取消/加入相册/删除),不再是两钮。
+  // As of Task 9, the third toolbar button "Add to album" is implemented (cancel/add to album/delete), not just two buttons anymore.
   it('renders as the Files-style .selection-toolbar with exactly three .sel-btn buttons', () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     expect(w.find('.selection-toolbar').exists()).toBe(true)
@@ -42,9 +42,10 @@ describe('PhotosSelectionToolbar', () => {
     expect(w.emitted('add-to-album')).toBeUndefined()
   })
 
-  // Task 9: 「加入相册」按钮在「取消」与「删除」之间,非 danger 样式,emit add-to-album,
-  // 不影响既有 clear/delete 契约(回归)。
-  it('「加入相册」位于取消与删除之间、非 danger、click 只 emit add-to-album', async () => {
+  // Task 9: the "Add to album" button is positioned between "Cancel" and "Delete",
+  // not danger-styled, emits add-to-album without affecting the existing clear/delete
+  // contract (regression test).
+  it('"Add to album" is positioned between Cancel and Delete, not danger-styled, click only emits add-to-album', async () => {
     const w = mount(PhotosSelectionToolbar, { props: { count: 2 }, global: { plugins: [i18n] } })
     const btns = w.findAll('.sel-btn')
     expect(btns[0]!.classes()).toContain('sel-clear')
