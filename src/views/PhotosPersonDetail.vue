@@ -601,14 +601,20 @@ watch(() => route.params.id, (raw) => {
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
+        <!-- Fix round 1 (controller ruling on Deviation A, 2026-08-14): no `back` here —
+             Vue2 truth (PhotosPeopleTopbar.vue:6-9/36) is that the People detail topbar always
+             shows title+sub, never a back chevron; the back affordance lives in the hero
+             (Vue2 `.detail-hero .back`; here that's PersonHero's own `hero-back` button, wired
+             to `goToPeopleList` below via `@back`). PhotosTopbar's `back` prop is mutually
+             exclusive with title/sub in its own template (built for PhotosSearch.vue's
+             exit-search case) — passing it here would have hidden this page's title/sub
+             entirely, which is what Deviation A flagged. -->
         <PhotosTopbar
           :collapsed="collapsed"
           :title="topbarTitle"
           :sub="t('photosPersonSubtitle')"
           :show-search="false"
-          back
           @toggle-collapse="onToggleCollapse"
-          @back="goToPeopleList"
         />
        <div class="photos-main">
         <!-- 门控 ①:还在加载且还没有数据 → 骨架 -->

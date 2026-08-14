@@ -236,13 +236,19 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
 // (选择态浮动条 / 七个 .pd-scrim 弹窗 / AlbumPickerDialog)搬进 .photos-root 内,唯独
 // PhotoLightbox 仍是 .photos-root 的兄弟(Plan F 前铁律,见文件模板处的注释)。
 describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', () => {
-  it('mounts .app shell; topbar shows person name with Unnamed fallback and back', async () => {
+  // Fix round 1(controller ruling on Deviation A,2026-08-14):plan 原文的 `back = true` 是
+  // 计划本身的缺陷 —— Vue2 源(权威依据)PhotosPeopleTopbar.vue:6-9/36 里 People 详情态顶栏
+  // 永远只有 title+sub,没有返回箭头;返回入口在 hero 里(Vue2 `.detail-hero .back`,本仓
+  // 对应 PersonHero 的 `hero-back` 按钮,emit('back') → 容器已有的 goToPeopleList)。
+  // PhotosTopbar.vue 保持不动,`back` 与 title/sub 互斥的原实现不变——所以这里断言
+  // back 假值 + title/sub 是真正要保的视觉契约。
+  it('mounts .app shell; topbar shows person name with Unnamed fallback, no back chevron', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
     const { w } = await mountView('7')
     const topbar = w.findComponent({ name: 'PhotosTopbar' })
     expect(topbar.props('title')).toBe(zh.photosPersonUnnamedTitle)
     expect(topbar.props('sub')).toBe(zh.photosPersonSubtitle)
-    expect(topbar.props('back')).toBe(true)
+    expect(topbar.props('back')).toBeFalsy()
     expect(w.find('.photos-root > .app').exists()).toBe(true)
   })
 
