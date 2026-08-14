@@ -26,7 +26,7 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn().mockResolvedValue(undefined),
     purgePerson: vi.fn().mockResolvedValue(undefined),
     rejectMergeSuggestion: vi.fn().mockResolvedValue(undefined),
-    // T7 (Plan D): Hidden people 分区 + hide/unhide 动作。
+    // T7 (Plan D): the Hidden people section + hide/unhide actions.
     listHiddenPersons: vi.fn().mockResolvedValue([]),
     hidePerson: vi.fn().mockResolvedValue(undefined),
     restorePerson: vi.fn().mockResolvedValue(undefined),
@@ -192,7 +192,7 @@ describe('PhotosPeople.vue — 生命周期与分区', () => {
   })
 })
 
-// Task 2 (Plan D 人物换壳): brief's Step 1 RED test, adapted to this file's own mountView()
+// Task 2 (Plan D People re-shell): brief's Step 1 RED test, adapted to this file's own mountView()
 // helper and to its zh_cn-only i18n fixture (every other assertion in this file checks
 // Chinese literal output, e.g. line 166-167 above — the brief's illustrative `'People'` /
 // `/named/i` text assumed an English fixture that doesn't exist here).
@@ -203,7 +203,7 @@ describe('PhotosPeople.vue — 换壳(Plan D Task 2)', () => {
     const topbar = w.findComponent({ name: 'PhotosTopbar' })
     expect(topbar.exists()).toBe(true)
     expect(topbar.props('title')).toBe(zh.photosPeople)
-    // sub 含已命名/未命名计数(照 Vue2 PhotosPeopleTopbar 的口径)
+    // sub includes the named/unnamed counts (mirroring Vue2 PhotosPeopleTopbar's own copy)
     expect(String(topbar.props('sub'))).toMatch(/已命名/)
   })
 
@@ -211,6 +211,26 @@ describe('PhotosPeople.vue — 换壳(Plan D Task 2)', () => {
     const { w } = await mountView()
     await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
     expect(w.find('.photos-root [data-test="cluster-menu"]').exists()).toBe(true)
+  })
+
+  // Final review 顺手项 3: the cluster menu's own assertion above only covers `.cluster-menu`;
+  // this adds the same DOM-descendant check for the two dialogs it opens onto — both must render
+  // as descendants of `.photos-root` (not template-root siblings) for the exact reason documented
+  // by this file's Task 2 header comment above and by ClusterActionDialog/MergeReviewDialog's own
+  // re-homing comments in the template: parity's `.photos-root .cad-overlay` /
+  // `.photos-root .mrd-overlay` selectors are descendant selectors that can't reach a sibling node.
+  it('renders ClusterActionDialog and MergeReviewDialog inside .photos-root when open', async () => {
+    svc.photos.mergeSuggestions.mockResolvedValue([
+      { id: 'm1', fromId: 'u1', intoId: 42, intoName: 'Alice', confidence: 0.91 },
+    ])
+    const { w } = await mountView()
+
+    await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
+    await w.find('[data-test="menu-name"]').trigger('click')
+    expect(w.find('.photos-root [data-test="cad-overlay"]').exists()).toBe(true)
+
+    await w.find('[data-test="merge-review"]').trigger('click')
+    expect(w.find('.photos-root [data-test="mrd-overlay"]').exists()).toBe(true)
   })
 })
 
@@ -443,9 +463,10 @@ describe('PhotosPeople.vue — 跳转与浮动菜单', () => {
     expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
   })
 
-  // T7:hiddenPeopleSupported 默认 true(listHiddenPersons mock 返回空数组,不是 404),
-  // 所以菜单里现在有五项——「查看这些照片」仍是第一项,命名/合并/隐藏/删除依次在后
-  // (照 Vue2 :260-287 字面顺序:命名/合并/隐藏/删除,New-UI 额外的「查看」放最前)。
+  // T7: hiddenPeopleSupported defaults to true (the listHiddenPersons mock returns an empty
+  // array, not a 404), so the menu now has five items — "View these photos" is still first,
+  // followed by name/merge/hide/delete in order (mirroring Vue2 :260-287's own literal order:
+  // name/merge/hide/delete, with New-UI's extra "View" placed first).
   it('「查看这些照片」是菜单里的第一项(命名/合并/隐藏/删除依次在后)', async () => {
     const { w } = await mountView()
     await w.findAll('[data-test="cluster-card"]')[0].trigger('click')
@@ -771,8 +792,9 @@ async function openReview(w: Awaited<ReturnType<typeof mountView>>['w']) {
   await w.find('[data-test="merge-review"]').trigger('click')
 }
 
-// T7 (Plan D): Hidden people 分区 + 「Hide person」菜单项 + unhide 接线。
-// hiddenPeopleSupported 特性探测走 listHiddenPersons:404 → false,其它任何结果(含空数组)→ true。
+// T7 (Plan D): the Hidden people section + the "Hide person" menu item + unhide wiring.
+// hiddenPeopleSupported's feature detection goes through listHiddenPersons: 404 → false, any
+// other result (including an empty array) → true.
 const HIDDEN1 = { id: 'h1', name: 'Zed', count: 4, confidence: 0.9, coverFaceId: 'f1' }
 const HIDDEN2 = { id: 'h2', name: '', count: 2, confidence: 0.8, coverFaceId: null }
 
@@ -806,7 +828,7 @@ describe('PhotosPeople.vue — T7 Hidden people 分区', () => {
     expect(cards[1]!.text()).toContain(zh.photosPersonUnnamedTitle)
     expect(w.findAll('[data-test="unhide-btn"]')).toHaveLength(2)
 
-    // 再点一次收起
+    // clicking again collapses it back
     await w.find('[data-test="section-hidden"]').trigger('click')
     expect(w.find('[data-test="hidden-grid"]').exists()).toBe(false)
   })
@@ -841,9 +863,10 @@ describe('PhotosPeople.vue — T7「Hide person」菜单项:门控 + 即时隐�
     expect(item.attributes('title')).toBe(zh.photosPersonHideGateTitle)
   })
 
-  // 照 Vue2:hide 没有确认弹窗,点了就即时执行(非破坏性、随时可从 Hidden 分区撤销)。
-  // U1 是未命名人物(name === ''),label 兜底成 photosPersonUnnamedLabel(照 Vue2
-  // hideClusterPerson :757 的 `name && name.trim() ? ... : $t('Unnamed person')`)。
+  // Mirroring Vue2: hide has no confirmation dialog, executes immediately on click
+  // (non-destructive, can always be undone from the Hidden section). U1 is an unnamed person
+  // (name === ''), so label falls back to photosPersonUnnamedLabel (mirroring Vue2
+  // hideClusterPerson :757's `name && name.trim() ? ... : $t('Unnamed person')`).
   it('点「Hide person」→ 无确认弹窗,即时调 hidePerson(id),成功后 toast 带兜底标签且菜单关闭', async () => {
     const { w } = await mountView()
     const toast = useToast()
@@ -853,7 +876,7 @@ describe('PhotosPeople.vue — T7「Hide person」菜单项:门控 + 即时隐�
     await flushPromises()
 
     expect(svc.photos.hidePerson).toHaveBeenCalledWith('u1')
-    // 无确认弹窗:三态弹窗(ClusterActionDialog)不应该出现。
+    // No confirmation dialog: the three-state dialog (ClusterActionDialog) shouldn't appear.
     expect(w.find('[data-test="cad-overlay"]').exists()).toBe(false)
     expect(w.find('[data-test="cluster-menu"]').exists()).toBe(false)
     expect(toast.toasts[0]!.text).toBe(

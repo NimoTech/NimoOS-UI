@@ -417,6 +417,10 @@
   background: linear-gradient(135deg, var(--accent), #b46cff);
   border-color: transparent;
 }
+/* Final review 顺手项 4: dead in real Vue2 (this button's inline `style` prop wins over these
+   rules for every property it sets, including on hover — see PersonHero.vue's own Fix round 1/2
+   comments on its `.fav-toggle` survivor rules); neutralized here by those PersonHero survivors.
+   Kept for source fidelity to Vue2's own stylesheet; removal decision deferred to Plan H. */
 .detail-hero .name .fav-toggle {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -428,6 +432,9 @@
   background: rgba(0, 0, 0, 0.5);
   border-color: var(--line-strong);
 }
+/* Final review 顺手项 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
+   .relation-trigger instead — see PersonHero.vue's own template); kept for Vue2-source fidelity,
+   removal decision deferred to Plan H. */
 .detail-hero .name .relation-select {
   font-family: var(--font-sans);
   font-size: 12px;
@@ -1787,7 +1794,9 @@
 /* Vue2 photos-people.scss:777-786 defines this OUTSIDE its own
    `.photos-root{}` wrapper — a bare top-level selector. Per the Plan A
    precedent, parity must never reproduce a root-external bare selector, so
-   it is folded in here instead (values unchanged from Vue2). */
+   it is folded in here instead (values unchanged from Vue2).
+   Final review 顺手项 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
+   .relation-trigger instead); kept for Vue2-source fidelity, removal decision deferred to Plan H. */
 .relation-select {
   background: var(--surface-2);
   border: 1px solid var(--line);

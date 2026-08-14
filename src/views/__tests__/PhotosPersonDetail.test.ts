@@ -32,7 +32,7 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn(),
     purgePerson: vi.fn(),
     detachAssetsFromPerson: vi.fn(),
-    // T7 (Plan D): Hidden people 分区 + hide/unhide 动作。
+    // T7 (Plan D): the Hidden people section + hide/unhide actions.
     hidePerson: vi.fn(),
     listHiddenPersons: vi.fn(),
     restorePerson: vi.fn(),
@@ -255,17 +255,22 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
   })
 })
 
-// Plan D Task 3(换壳 + 弹层归位):壳换成 PhotosPeople.vue/PhotosAlbums.vue 同款
-// `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main`;所有弹层
-// (选择态浮动条 / 七个 .pd-scrim 弹窗 / AlbumPickerDialog)搬进 .photos-root 内,唯独
-// PhotoLightbox 仍是 .photos-root 的兄弟(Plan F 前铁律,见文件模板处的注释)。
+// Plan D Task 3 (re-shell + re-home overlays): the shell became the same
+// `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main` as
+// PhotosPeople.vue/PhotosAlbums.vue; every overlay (the selection-state floating bar / the seven
+// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root, except PhotoLightbox
+// which stays a sibling of .photos-root (the standing rule until Plan F lands, see the comment at
+// the file's template).
+
 describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', () => {
-  // Fix round 1(controller ruling on Deviation A,2026-08-14):plan 原文的 `back = true` 是
-  // 计划本身的缺陷 —— Vue2 源(权威依据)PhotosPeopleTopbar.vue:6-9/36 里 People 详情态顶栏
-  // 永远只有 title+sub,没有返回箭头;返回入口在 hero 里(Vue2 `.detail-hero .back`,本仓
-  // 对应 PersonHero 的 `hero-back` 按钮,emit('back') → 容器已有的 goToPeopleList)。
-  // PhotosTopbar.vue 保持不动,`back` 与 title/sub 互斥的原实现不变——所以这里断言
-  // back 假值 + title/sub 是真正要保的视觉契约。
+  // Fix round 1 (controller ruling on Deviation A, 2026-08-14): the plan's original
+  // `back = true` was a defect in the plan itself — Vue2's source (the authority here),
+  // PhotosPeopleTopbar.vue:6-9/36, always shows only title+sub on the People detail-state topbar,
+  // never a back chevron; the back affordance lives in the hero instead (Vue2's own
+  // `.detail-hero .back`, this app's counterpart being PersonHero's `hero-back` button,
+  // emit('back') → the container's existing goToPeopleList). PhotosTopbar.vue itself is
+  // unchanged, its `back`-vs-title/sub mutual exclusivity unchanged — so asserting a falsy back
+  // plus title/sub here is the real visual contract worth pinning down.
   it('mounts .app shell; topbar shows person name with Unnamed fallback, no back chevron', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
     const { w } = await mountView('7')
@@ -281,14 +286,15 @@ describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', (
     w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
     await w.vm.$nextTick()
     expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
-    // PhotoLightbox 仍是 .photos-root 的兄弟(Plan F 前铁律)
+    // PhotoLightbox stays a sibling of .photos-root (the standing rule until Plan F lands)
     const rootEl = w.find('.photos-root').element
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
     expect(rootEl.contains(lbComp.element)).toBe(false)
   })
 
-  // Plan D Task 4(弹窗类名工程):七个弹窗的外层 scrim 类名已从 .pd-scrim 改锚到 Vue2 的
-  // .person-dialog-scrim,且仍挂在 .photos-root 内(Task 3 换壳/弹层归位的既定结构不变)。
+  // Plan D Task 4 (dialog class-name rework): the seven dialogs' outer scrim class has been
+  // re-anchored from .pd-scrim to Vue2's own .person-dialog-scrim, and still hangs inside
+  // .photos-root (Task 3's re-shell/re-home-overlays structure is unchanged).
   it('弹窗打开后其 scrim 挂在 .photos-root 内,类名为 Vue2 锚点 person-dialog-scrim', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'rename')
@@ -524,9 +530,10 @@ describe('PhotosPersonDetail.vue —— 改名弹窗', () => {
   })
 })
 
-// Task 7 (Plan D): 改名撞到已存在的名字 → 切到重名 dupconfirm 弹窗(Vue2 dupConfirmDialog
-// :293-314)。allPeople 等价物是 people.people(全量,含未命名)——这里让 listPersons 返回
-// 两个人:当前人物(id=7,名"妈妈")与另一个已命名的人物(id=9,名"Ada")。
+// Task 7 (Plan D): a rename that collides with an existing name switches to the duplicate-name
+// dupconfirm dialog (Vue2 dupConfirmDialog :293-314). The allPeople counterpart is people.people
+// (the full list, including unnamed) — this has listPersons return two people: the current
+// person (id=7, name "妈妈"/"Mom") and another already-named person (id=9, name "Ada").
 describe('PhotosPersonDetail.vue —— 改名弹窗:重名 dupconfirm', () => {
   beforeEach(() => {
     svc.photos.listPersons.mockResolvedValue({
@@ -555,15 +562,18 @@ describe('PhotosPersonDetail.vue —— 改名弹窗:重名 dupconfirm', () => {
     expect(w.find('[data-test="person-rename-dupconfirm"]').text()).toContain('Ada')
   })
 
-  // 中文名字改 trim 空白后与原名完全相同(如 "  妈妈 " → "妈妈")在 confirmRename 里会命中
-  // 更早的"名字未变"短路(照 Vue2 :911),根本走不到 findNamedDuplicate,测不出 excludeId
-  // 是否生效——换成人物 7 自己就叫英文名"Ada"、输入大小写变体"ADA"(trim 后与原名 'Ada' 不
-  // 相等,能过第一道短路),真正走到 findNamedDuplicate(people.people, 'ADA', '7') 这一步,
-  // 断言它没有把"自己"当成重名匹配到(excludeId 生效)。
+  // A Chinese name that, after trimming whitespace, is exactly identical to the original (e.g.
+  // "  妈妈 " → "妈妈") hits confirmRename's earlier "name unchanged" short-circuit (per Vue2
+  // :911) and never even reaches findNamedDuplicate — that path can't test whether excludeId
+  // actually takes effect. Using person 7's own English name "Ada" and typing the casing variant
+  // "ADA" instead (which, after trim, is NOT equal to the original 'Ada', so it clears that first
+  // short-circuit) actually reaches findNamedDuplicate(people.people, 'ADA', '7'), letting us
+  // assert it doesn't match "itself" as a duplicate (excludeId works).
   it('改成自己原名的大小写变体 → 不算重名(excludeId 生效),照常直接改名', async () => {
-    // 这条用例专属覆盖:people 列表里 id=7 自己也叫 "Ada"(与 detail 页看到的一致),
-    // id=9 换成不冲突的 "Bob"——否则"ADA"会先命中 id=9 的 "Ada" 判成真重名,测不出
-    // "排除的到底是不是自己"这件事。
+    // Overrides just for this test case: in the people list, id=7 is also named "Ada" (matching
+    // what the detail page shows), and id=9 is changed to a non-conflicting "Bob" — otherwise
+    // "ADA" would match id=9's "Ada" first and be judged a real duplicate, which wouldn't test
+    // whether it's actually excluding "itself".
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: 'Ada' }), relations: [] })
     svc.photos.listPersons.mockResolvedValue({
       persons: [rawPerson({ name: 'Ada' }), rawPerson({ id: 9, name: 'Bob', coverFaceId: 'face-9' })],
@@ -629,9 +639,10 @@ describe('PhotosPersonDetail.vue —— 改名弹窗:重名 dupconfirm', () => {
   })
 })
 
-// Task 7 (Plan D): 隐藏人物(Vue2 hideCurrentPerson :914-925)。即时执行,无确认弹窗,
-// 只在 hiddenPeopleSupported 时出现在 Edit 菜单里(PersonHero 已单独测过门控本身,这里
-// 只测容器接线:调用 store、toast、导航)。
+// Task 7 (Plan D): hiding a person (Vue2 hideCurrentPerson :914-925). Executes immediately, no
+// confirmation dialog, only shows in the Edit menu when hiddenPeopleSupported (PersonHero already
+// has its own tests for the gating itself; this only tests the container's wiring: calling the
+// store, the toast, navigation).
 describe('PhotosPersonDetail.vue —— 隐藏人物', () => {
   it('Edit 菜单里有「隐藏此人」项(hiddenPeopleSupported 默认 true)', async () => {
     const { w } = await mountView('7')
@@ -652,7 +663,7 @@ describe('PhotosPersonDetail.vue —— 隐藏人物', () => {
     const toast = useToast()
     await pickEditMenu(w, 'hide')
     expect(svc.photos.hidePerson).toHaveBeenCalledWith('7')
-    // 无确认弹窗:改名/删除等弹窗都不应该出现。
+    // No confirmation dialog: the rename/delete etc. dialogs shouldn't appear.
     expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
     expect(push).toHaveBeenCalledWith('/photos/people')
     expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', '"妈妈"'))
@@ -945,8 +956,9 @@ describe('PhotosPersonDetail.vue —— 删除人物', () => {
   })
 
   // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)。
-  // Plan D Task 4:类名工程后选择器改为 person-dialog-body-dim(原 .pd-body-dim,类名
-  // 已锚到 Vue2 person-dialog-* 家族,.pd-body-dim 已不存在于模板/scoped 中)。
+  // Plan D Task 4: after the class-name rework the selector is now person-dialog-body-dim
+  // (formerly .pd-body-dim; the class name is now re-anchored to Vue2's person-dialog-* family,
+  // .pd-body-dim no longer exists in the template/scoped styles).
   it('删除弹窗正文分两档:正文句 + 更淡的「5 秒内可撤销」', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
@@ -1258,8 +1270,9 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
-  // Plan D Task 4:类名工程后视频角标选择器改为 .tile-vid(Vue2 anchor,同 PersonAssetGrid
-  // 复用的那个类;原 .hero-picker-vid 已不存在于模板/scoped 中)。
+  // Plan D Task 4: after the class-name rework the video-badge selector is now .tile-vid (the
+  // Vue2 anchor, the same class PersonAssetGrid reuses; the former .hero-picker-vid no longer
+  // exists in the template/scoped styles).
   it('背景网格视频角标有 ▶ + 时长(Vue2 :352;同 T11 PersonAssetGrid 的同一元素)', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([
       { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },

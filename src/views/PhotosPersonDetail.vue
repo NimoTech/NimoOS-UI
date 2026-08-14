@@ -116,8 +116,9 @@ type Tab = 'timeline' | 'places' | 'relations'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
-// Plan D Task 3(换壳):同 T2(PhotosPeople.vue)/Plan C Task 2(PhotosAlbums.vue)的共享
-// composable —— 折叠态是跨 Photos 区所有页面的单例,不在这里另起一份。
+// Plan D Task 3 (re-skin): the same shared composable as T2 (PhotosPeople.vue) / Plan C Task 2
+// (PhotosAlbums.vue) — the collapsed state is a singleton across every page in the Photos area,
+// not started fresh here.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
@@ -141,10 +142,11 @@ const selectionMode = computed(() => selectedIds.value.length > 0)
 const renameOpen = ref(false)
 const renameInput = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
-// 弹窗 1b(Task 7,Plan D):重名 dupconfirm——Vue2 dupConfirmDialog(PhotosPersonDetail.vue
-// :293-314),改名撞到已存在人物名字时从弹窗 1 切过来(不是弹窗 1 的子状态,是独立弹窗——
-// Vue2 这里两者本就是两个不同的 data 字段 promptDialog/dupConfirmDialog,不像列表页
-// ClusterActionDialog 那样共用一个 mode 状态机)。
+// Dialog 1b (Task 7, Plan D): the duplicate-name dupconfirm — Vue2's dupConfirmDialog
+// (PhotosPersonDetail.vue:293-314); a rename that collides with an existing person's name
+// switches over from dialog 1 (not a substate of dialog 1, a separate dialog — Vue2 itself has
+// two distinct data fields here, promptDialog/dupConfirmDialog, unlike the index page's
+// ClusterActionDialog which shares one mode state machine).
 const dupConfirmOpen = ref(false)
 const dupConfirmName = ref('')
 const dupConfirmExisting = ref<Person | null>(null)
@@ -192,11 +194,12 @@ const allPhotos = computed<Photo[]>(() => detail.flatPhotos())
 // Vue2 :165-166,:241,:887 共用的兜底:名字为空时用"这个人"。
 const displayName = computed(() => detail.person.value?.name || t('photosPersonThisPerson'))
 
-// Plan D Task 3(换壳):PhotosTopbar 的 detail 态口径,逐字对照 Vue2
-// PhotosPeopleTopbar.vue:7-8/36(`view === 'detail'` 分支)—— 标题=人物名,空名兜底
-// $t('Unnamed person')(与 PersonHero.vue:90 的 heroTitle 同一兜底键,不另开一个);
-// 副行=固定文案「人物详情 · 面孔与关系」,不随 named/unnamed 计数变化(那是 index 态的口径,
-// 归 T2/PhotosPeople.vue 的 topbarSub)。
+// Plan D Task 3 (re-skin): PhotosTopbar's detail-state copy, matched verbatim against Vue2's
+// PhotosPeopleTopbar.vue:7-8/36 (`view === 'detail'` branch) — title = the person's name, with
+// empty-name falling back to $t('Unnamed person') (the same fallback key as PersonHero.vue:90's
+// heroTitle, not a second one); sub-line = the fixed copy "Person detail · faces & relations",
+// not varying with the named/unnamed count (that's the index state's own copy, owned by
+// T2/PhotosPeople.vue's topbarSub).
 const topbarTitle = computed(() => detail.person.value?.name || t('photosPersonUnnamedTitle'))
 
 // 合并候选(偏离登记 J):named 排除自身 → count 降序、同 count 按 name 升序(排序同 T7
@@ -347,9 +350,9 @@ async function onPickRelation(relation: string): Promise<void> {
   }
 }
 
-// 3) 改名(Vue2 :910-918 + 偏离登记 D)。applyRename 是真正的提交(命名/dupNameAnyway
-// 两条路径共用,照 Vue2 confirmDialog rename 分支 :1031 与 nameAnywayDupConfirm :1009
-// 共用同一个 applyRename 帮助函数的手法)。
+// 3) Rename (Vue2 :910-918 + deviation D). applyRename is the actual submit — shared by both the
+// naming path and dupNameAnyway (mirroring how Vue2's confirmDialog rename branch :1031 and
+// nameAnywayDupConfirm :1009 share one applyRename helper function).
 // 守卫判断:失败路径**不关弹窗**(这是有意的),所以确认按钮在请求在途期间仍在 DOM 上且可点
 // —— 连点会发两次 PATCH,守卫有防护价值。
 async function applyRename(name: string): Promise<void> {
@@ -369,16 +372,18 @@ async function applyRename(name: string): Promise<void> {
   }
 }
 
-// Task 7(Plan D):重名检测接入(照 Vue2 confirmDialog rename 分支 :1022-1032 ——
-// findNamedDuplicate(allPeople, v, person.id) 命中就切到 dupConfirmDialog,不命中才真的
-// applyRename)。`people.people` 是 Vue2 `allPeople`(state.people)的对应量:全量人物
-// (含未命名),excludeId 传 personId.value 排除自身,允许把名字改成"自己原名的大小写/
-// 空白变体"而不被误判成重名。
+// Task 7 (Plan D): wires up duplicate-name detection (mirroring Vue2's confirmDialog rename
+// branch :1022-1032 — findNamedDuplicate(allPeople, v, person.id) switches to dupConfirmDialog on
+// a hit, only calling the real applyRename otherwise). `people.people` is the counterpart of
+// Vue2's `allPeople` (state.people): the full person list (including unnamed), with excludeId set
+// to personId.value to exclude the current person — this lets a rename to a
+// case/whitespace-variant of the person's own current name go through without being misjudged as
+// a duplicate.
 async function confirmRename(): Promise<void> {
   const p = detail.person.value
   const v = renameInput.value.trim()
   if (!p || renaming.value) return
-  // 照 Vue2 :911:空名或没改动 → 直接关,不发请求。
+  // Per Vue2 :911: an empty name, or no change at all, just closes without a request.
   if (!v || v === p.name) {
     closeRename()
     return
@@ -399,15 +404,16 @@ function closeDupConfirm(): void {
   dupConfirmName.value = ''
   dupConfirmExisting.value = null
 }
-// "Name anyway"(Vue2 nameAnywayDupConfirm :1004-1010):照样用这个名字改名。
+// "Name anyway" (Vue2 nameAnywayDupConfirm :1004-1010): rename using this name regardless.
 async function dupNameAnyway(): Promise<void> {
   const name = dupConfirmName.value
   closeDupConfirm()
   await applyRename(name)
 }
-// "Merge into existing"(Vue2 mergeDupConfirm :1011-1017,经共享的 mergeCurrentPersonInto):
-// 改道合并到已存在的那个人物——复用现成的 confirmMerge() 提交路径(同一套成功/失败 toast、
-// 导航、in-flight 守卫),不重复一份合并逻辑。
+// "Merge into existing" (Vue2 mergeDupConfirm :1011-1017, via the shared
+// mergeCurrentPersonInto): redirects into merging with that already-existing person — reuses the
+// existing confirmMerge() submit path (the same success/failure toast, navigation, and in-flight
+// guard) instead of duplicating the merge logic.
 async function dupMergeIntoExisting(): Promise<void> {
   const target = dupConfirmExisting.value
   closeDupConfirm()
@@ -558,11 +564,13 @@ async function confirmCreateAlbum(): Promise<void> {
   }
 }
 
-// 10) 隐藏人物(Task 7,Plan D;Vue2 hideCurrentPerson :914-925)。即时执行,无确认弹窗——
-// 非破坏性、随时可从列表页「Hidden people」分区 unhide 撤销(同列表页 onHideCluster 的
-// 注释)。不需要独立 in-flight 守卫:成功后立刻导航离开这个详情页,失败时按钮仍在原处
-// 可以再点一次,连点两次的窗口极短且没有持久副作用上的坏处(照 T7/T8 的既定"装饰性守卫
-// 不加"纪律,这里是同一类判断)。
+// 10) Hide person (Task 7, Plan D; Vue2 hideCurrentPerson :914-925). Executes immediately, no
+// confirmation dialog — non-destructive, can always be undone via unhide from the index page's
+// "Hidden people" section (same reasoning as the index page's onHideCluster comment). Doesn't
+// need its own in-flight guard: success navigates away from this detail page right away, and on
+// failure the button is still right where it was and can be clicked again — the double-click
+// window is extremely short and has no lasting side-effect downside (same class of judgment as
+// the established "no decorative guards" discipline from T7/T8).
 async function onHidePerson(): Promise<void> {
   const p = detail.person.value
   if (!p) return
@@ -650,11 +658,12 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
 void detail.load(personId.value)
 // 合并弹窗的候选列表需要人物全量列表;这里只在还没加载过时补一次。
 if (!people.peopleLoaded) void people.fetchPeople()
-// Task 7(Plan D):补上 Vue2 mounted() :650-657 的深链缺口注释里说的那个动作——
-// /photos?person=xyz 这类深链可以直接打开详情页而完全不经过 PhotosPeopleView,那个页面
-// 的 eager fetchHiddenPeople 永远不会跑,hiddenPeopleSupported 会停在陈旧的默认值,Edit
-// 菜单的「Hide person」项该不该出现就判断错了。同一个 store 标志,幂等,只在还没拉过时补一次
-// (照上一行 fetchPeople 的既有 guard 风格,不是 Vue2 那种无条件每次 mount 都重拉)。
+// Task 7 (Plan D): fills the deep-link gap Vue2's own mounted() :650-657 comment calls out — a
+// deep link like /photos?person=xyz can open the detail page directly without ever going through
+// PhotosPeopleView, so that page's eager fetchHiddenPeople never runs, hiddenPeopleSupported is
+// stuck at its stale default, and the Edit menu gets the "Hide person" item's visibility wrong.
+// Same store flag, idempotent, only fetched once if it hasn't been fetched yet (same guard style
+// as the fetchPeople line above, not Vue2's unconditional re-fetch on every mount).
 if (!people.hiddenPeopleLoaded) void people.fetchHiddenPeople()
 
 // 铁律 2:hash 路由同组件不重建。
@@ -668,10 +677,12 @@ watch(() => route.params.id, (raw) => {
 </script>
 
 <template>
-  <!-- Plan D Task 3(换壳):同 T2(PhotosPeople.vue)/PhotosAlbums.vue:353-367 的既定结构 ——
+  <!-- Plan D Task 3 (re-skin): the same established structure as T2 (PhotosPeople.vue) /
+       PhotosAlbums.vue:353-367 —
        .photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main >
-       PhotosTopbar + .photos-main。四态门控整体挪进 .photos-main,吃 parity 的
-       .person-detail-fallback / .person-skeleton* 规则(挂在 .photos-main 的锚点上)。 -->
+       PhotosTopbar + .photos-main. The four-state gate as a whole moved into .photos-main, so it
+       picks up parity's `.person-detail-fallback` / `.person-skeleton*` rules (anchored on
+       .photos-main). -->
   <div class="photos-root" :class="themeClass">
     <div class="app" :data-collapsed="collapsed">
       <PhotosSidebar :collapsed="collapsed" />
@@ -703,29 +714,39 @@ watch(() => route.params.id, (raw) => {
 
         <!-- 门控 ②:加载失败(≠「没有这个人」)→ 错误文案 + 重试。协调者裁定 4:T9 的
              failed 标志就是为了让视图能区分这两种"person 为 null";Vue2 只 console.error,
-             两者在界面上完全一样。 -->
-        <div v-else-if="!detail.person.value && detail.failed.value" class="empty-state" data-test="person-load-failed">
-          <div class="empty-state-title">{{ t('photosPersonLoadFailed') }}</div>
-          <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
-               patch added it alongside this title. -->
-          <div class="empty-state-desc">{{ t('photosPersonLoadFailedHint') }}</div>
-          <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
-               !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
-          <button
-            type="button" class="person-dialog-btn" data-test="person-retry"
-            @click="retryLoad"
-          >{{ t('photosPersonRetry') }}</button>
+             两者在界面上完全一样。
+             Final review I1: re-anchored onto parity's own `.person-detail-fallback` /
+             `.fallback-body` / `.t` / `.d` / `.btn` selectors (photos-people.scss:1297-1308,
+             transcribed from Vue2's own fallback branch, PhotosPersonDetail.vue:461-476) instead
+             of this page's old local `.empty-state` family, so parity governs this state's visual
+             chrome directly. data-test anchors are unchanged. -->
+        <div v-else-if="!detail.person.value && detail.failed.value" class="person-detail-fallback" data-test="person-load-failed">
+          <div class="fallback-body">
+            <div class="t">{{ t('photosPersonLoadFailed') }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+                 patch added it alongside this title. -->
+            <div class="d">{{ t('photosPersonLoadFailedHint') }}</div>
+            <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
+                 !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
+            <button
+              type="button" class="btn" data-test="person-retry"
+              @click="retryLoad"
+            >{{ t('photosPersonRetry') }}</button>
+          </div>
         </div>
 
-        <!-- 门控 ③:加载完了确实没有这个人 -->
-        <div v-else-if="!detail.person.value" class="empty-state" data-test="person-not-found">
-          <div class="empty-state-title">{{ t('photosPersonNotFound') }}</div>
-          <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
-               patch added it alongside this title. -->
-          <div class="empty-state-desc">{{ t('photosPersonNotFoundHint') }}</div>
-          <button type="button" class="person-dialog-btn" data-test="person-not-found-back" @click="goToPeopleList">
-            {{ t('photosPersonBack') }}
-          </button>
+        <!-- 门控 ③:加载完了确实没有这个人。Final review I1: same re-anchor as the failed gate
+             above — see that gate's comment for the parity/Vue2 citations. -->
+        <div v-else-if="!detail.person.value" class="person-detail-fallback" data-test="person-not-found">
+          <div class="fallback-body">
+            <div class="t">{{ t('photosPersonNotFound') }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+                 patch added it alongside this title. -->
+            <div class="d">{{ t('photosPersonNotFoundHint') }}</div>
+            <button type="button" class="btn" data-test="person-not-found-back" @click="goToPeopleList">
+              {{ t('photosPersonBack') }}
+            </button>
+          </div>
         </div>
 
         <!-- 门控 ④:正常内容 -->
@@ -828,11 +849,13 @@ watch(() => route.params.id, (raw) => {
       </main>
     </div>
 
-    <!-- Plan D Task 3(弹层归位):选择态浮动条(Vue2 :232-244)与下面的七个弹窗、
-         AlbumPickerDialog 一并搬进 .photos-root 内(.app 的兄弟位)—— parity 的
-         `.photos-root .selection-bar` / `.photos-root .person-dialog-scrim` 等选择器都是后代选择器,
-         挂在模板根的兄弟节点上够不到(同 PhotosPeople.vue Task 2 注释的同一条道理)。
-         position:fixed 意味着挪进这里不会被 .app 的 overflow:hidden 裁剪。 -->
+    <!-- Plan D Task 3 (re-homing overlays): the selection-state floating bar (Vue2 :232-244),
+         the seven dialogs below it, and AlbumPickerDialog all move inside .photos-root together
+         (a sibling position to .app) — parity's `.photos-root .selection-bar` /
+         `.photos-root .person-dialog-scrim` selectors are descendant selectors that can't reach a
+         sibling node hung off the template root (the same reasoning as PhotosPeople.vue's own
+         Task 2 comment). position:fixed means moving them in here won't get clipped by .app's
+         overflow:hidden. -->
     <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
     <div class="selection-count">{{ t('photosSelectedCount', { count: selectedIds.length }) }}</div>
     <div class="selection-spacer" />
@@ -886,10 +909,12 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
-  <!-- ── 弹窗 1b(Task 7,Plan D):重名 dupconfirm(Vue2 dupConfirmDialog :293-314)——
-       字面按钮顺序 Name anyway(ghost)/ Cancel(plain)/ Merge into existing(primary),与
-       列表页 ClusterActionDialog 的顺序(merge/name-anyway/cancel)不同,两处各照各自的
-       Vue2 源,不强行统一。无头像(Vue2 这个弹窗本身就没有 PersonAvatar,只有标题+关闭钮)。 -->
+  <!-- ── Dialog 1b (Task 7, Plan D): duplicate-name dupconfirm (Vue2 dupConfirmDialog
+       :293-314) — button order follows Vue2 literally: Name anyway (ghost) / Cancel (plain) /
+       Merge into existing (primary), which differs from the index page's ClusterActionDialog
+       order (merge/name-anyway/cancel); each follows its own Vue2 source rather than being forced
+       to match. No avatar (Vue2's own version of this dialog has no PersonAvatar at all, just a
+       title + close button). -->
   <div v-if="dupConfirmOpen" class="person-dialog-scrim" data-test="person-rename-dupconfirm" @click.self="closeDupConfirm">
     <div class="person-dialog">
       <div class="person-dialog-head">
@@ -1140,11 +1165,12 @@ watch(() => route.params.id, (raw) => {
   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
   </div>
 
-  <!-- Plan D Task 3(标准做法沿用):PhotoLightbox 依旧是 .photos-root 的**兄弟**,不挪进去
-       —— 这是 Plan F 落地前的既定铁律(同 PhotosAlbumDetail.vue / PhotosPeople.vue 的
-       PhotoLightbox 接线先例)。灯箱自身是 fixed 全屏遮罩,挪进 .photos-root 会被
-       `.app` 的 overflow:hidden 裁剪;等 Plan F 统一处理灯箱定位时再一并搬,不在本任务
-       越权处理。 -->
+  <!-- Plan D Task 3 (following the established practice): PhotoLightbox stays a **sibling** of
+       .photos-root, not moved inside it — this is the standing rule until Plan F lands (the same
+       PhotoLightbox wiring precedent as PhotosAlbumDetail.vue / PhotosPeople.vue). The lightbox
+       is itself a fixed full-screen overlay; moving it inside .photos-root would get clipped by
+       `.app`'s overflow:hidden. It moves together with everything else once Plan F handles
+       lightbox positioning uniformly — not this task's call to make. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
@@ -1153,7 +1179,7 @@ watch(() => route.params.id, (raw) => {
 </template>
 
 <style scoped>
-/* Plan D Task 3(换壳)shadowing cleanup: the transitional `.sidebar` width pin and the
+/* Plan D Task 3 (re-skin) shadowing cleanup: the transitional `.sidebar` width pin and the
    flex-row `.photos-layout` rule (Fix round 1's stopgap, back when this page's root only wore
    `.photos-root` without its own `.app` grid) are both dead now — the real `.app` CSS Grid
    this task gave the page supplies the sidebar's column width directly, same as
@@ -1162,119 +1188,34 @@ watch(() => route.params.id, (raw) => {
    pages' own local copy. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-.empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; padding: 60px 20px; color: var(--fg-muted); text-align: center;
-}
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+/* Final review C1/I1: every remnant family below that shared an anchor with parity but disagreed
+   on values (`.person-skeleton*`, `.detail-tabs`/`.detail-tab`, `.detail-body`,
+   `.detail-section*`, `.coappear-*`, the `.selection-bar` family, and the old `.empty-state`
+   fallback rules) has been deleted so parity — the Vue2 pixel truth —
+   (src/photos/styles/vue2-parity/photos-people.scss) governs those elements directly instead of
+   an equal-specificity coin flip decided by stylesheet load order. The fallback gates (loading
+   failed / not found) were also re-anchored onto parity's own `.person-detail-fallback` /
+   `.fallback-body` / `.t` / `.d` / `.btn` selectors (see the template's own comment), so the old
+   local `.empty-state`/`.empty-state-title` rules had no remaining consumer here and were
+   removed along with them. Only two kinds of rule survive below: genuine New-UI-only additions
+   with no parity counterpart at all, and the two dialog-shell survivors documented in their own
+   comments. */
 
-/* ── 骨架(New-UI 补:Vue2 person 为 null 时整个模板 v-if 掉,首帧是全白)── */
-.person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
-.person-skeleton-hero { height: 280px; border-radius: 20px; background: var(--skeleton-bg); }
-.person-skeleton-tabs { height: 42px; border-radius: 10px; background: var(--skeleton-bg); }
-.person-skeleton-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
-.person-skeleton-tile { aspect-ratio: 1; border-radius: 3px; background: var(--skeleton-bg); }
-
-/* ── Tabs(照 photos-people.scss:445-465;Vue2 的 --line/--text-3/--text-1 代以
-      --divider/--fg-muted/--fg)── */
-.detail-tabs {
-  flex: none; display: flex; gap: 4px; padding: 0 8px;
-  border-bottom: 1px solid var(--divider);
-}
-.detail-tab {
-  padding: 12px 14px 11px; font: inherit; font-size: 13px; font-weight: 500;
-  color: var(--fg-muted); background: transparent; border: 0;
-  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.detail-tab:hover { color: var(--fg); }
-.detail-tab[data-active="true"] { color: var(--fg); border-bottom-color: var(--accent); }
-
-/* ── Body(照 photos-people.scss:467-472)── */
-.detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 8px 80px; }
-
-/* ── 共现横条(照 photos-people.scss:685-722)── */
-.detail-section { margin-top: 8px; margin-bottom: 22px; }
-.detail-section-title {
-  font-family: var(--font); font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
-  margin: 0 0 14px; display: flex; align-items: baseline; gap: 10px; color: var(--fg);
-}
-.detail-section-title .sub {
-  font-family: var(--font); font-size: 12px; font-weight: 400;
-  color: var(--fg-muted); letter-spacing: 0;
-}
-.coappear-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-.coappear-strip::-webkit-scrollbar { height: 0; }
-.coappear-card {
-  flex: none; width: 96px; display: flex; flex-direction: column; align-items: center;
-  gap: 6px; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer;
-}
-.coappear-card:hover { background: var(--hover); }
-.coappear-card .name-row { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
-.coappear-card .nm {
-  font-size: 12px; font-weight: 500; max-width: 88px; color: var(--fg);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.coappear-card .ct { font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-
-/* ── 选择态浮动条(照 Vue2 :1224-1276;--pop-bg → --popup-bg,--ink 混色 → --chip-bg)── */
-.selection-bar {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
-  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 14px; box-shadow: var(--card-shadow-hi);
-  backdrop-filter: var(--blur); min-width: 360px;
-}
-.selection-count { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
-.selection-spacer { flex: 1; }
-.selection-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
-  font: inherit; font-size: 12.5px; font-weight: 500; color: var(--fg);
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  border-radius: 999px; cursor: pointer;
-}
-.selection-btn:hover { background: var(--chip-bg-hi); }
-/* --star-fg 两套主题都不各自定义,是本仓已确立的先例(PhotosGrid.vue / PersonAvatar.vue /
-   PersonHero.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,用 var(fallback)
-   形式表达,color-guard 按 token 用法放行。 */
-.selection-btn-star {
-  color: var(--star-fg, #ffd60a);
-  background: color-mix(in srgb, var(--star-fg, #ffd60a) 12%, transparent);
-  border-color: color-mix(in srgb, var(--star-fg, #ffd60a) 30%, transparent);
-  font-weight: 600;
-}
-.selection-btn-star:hover { background: color-mix(in srgb, var(--star-fg, #ffd60a) 20%, transparent); }
-.selection-btn-danger {
-  color: var(--remove-fg);
-  background: color-mix(in srgb, var(--remove-fg) 12%, transparent);
-  border-color: color-mix(in srgb, var(--remove-fg) 40%, transparent);
-  font-weight: 600;
-}
-.selection-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 20%, transparent); }
-
-/* ── 弹窗外壳(Plan D Task 4:七个弹窗的 pd-* 类名工程 + scoped 清零)──────────────
-   模板类名已全部改锚到 Vue2 的 person-dialog-* / hero-picker-* / merge-candidate(s)-*
-   家族,parity(photos-people.scss)已经落位这整套规则(含本任务新补的
-   .person-dialog-body(-dim)/.person-dialog-btn-danger/.hero-picker-empty/
-   .merge-candidate-check/.merge-candidates-empty),下面这套 New-UI 本地 scoped
-   规则因此全部作废、删除。只留两条真正无法被 parity 覆盖的幸存者(见各自注释)。 */
-
-/* Survivor 1: parity 的 .person-dialog-btn 与 Vue2 自身逐字一致 —— Vue2 源
-   (NimoOS-UI/.../PhotosPersonDetail.vue:1476-1488)本就没有 flex 布局,因为 Vue2 的图标
-   走 <photos-icon> 组件、自带对齐。New-UI 的删除确认 / 合并确认按钮内嵌的是裸 <svg> +
-   文本,没有这层布局就会图标与文字错位对不齐(基线不一致)。这是 New-UI 自己的排版增强,
-   不是 parity 遗漏,所以留在本地、不塞进 parity(parity 必须逐字忠于 Vue2)。 */
+/* Survivor 1: parity's `.person-dialog-btn` matches Vue2 itself byte-for-byte — Vue2's source
+   (NimoOS-UI/.../PhotosPersonDetail.vue:1476-1488) has no flex layout at all, because Vue2's icon
+   is a `<photos-icon>` component that aligns itself. New-UI's delete-confirm / merge-confirm
+   buttons embed a bare `<svg>` + text instead, and without this layout the icon and text would be
+   misaligned (inconsistent baseline). This is New-UI's own typography enhancement, not something
+   parity omitted, so it stays local rather than going into parity (parity must stay byte-for-byte
+   faithful to Vue2). */
 .person-dialog-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
 
-/* Survivor 2: 与 T11 PersonAssetGrid.vue 的 .vid-play 逐字同款(同一视觉元素,同一字号)——
-   Vue2 这里没有对应类(用 <photos-icon name="play"/>),.vid-play 是 New-UI 自己给 ▶
-   字符定字号的手段,PersonAssetGrid.vue 保留了它自己的一份本地 scoped 副本,这里同款
-   留一份,不挪进 parity(parity 只收跨组件共享的全局规则)。 */
+/* Survivor 2: matches T11 PersonAssetGrid.vue's `.vid-play` byte-for-byte (same visual element,
+   same font size) — Vue2 has no equivalent class here (it uses `<photos-icon name="play"/>`);
+   `.vid-play` is New-UI's own way of sizing the ▶ character, and PersonAssetGrid.vue keeps its
+   own local scoped copy of it, so this file keeps a matching copy too rather than moving it into
+   parity (parity only takes rules genuinely shared across components). */
 .vid-play { font-size: 7px; }
-
-@media (max-width: 768px) {
-  .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
-}
 </style>
