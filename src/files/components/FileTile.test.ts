@@ -34,10 +34,10 @@ describe('FileTile', () => {
 
 // See FileRow.test.ts's matching block for why only the title attribute is
 // asserted here and the ellipsis itself is left to the real-browser evidence.
-describe('FileTile 长名称截断', () => {
+describe('FileTile long-name truncation', () => {
   const longName = 'a-very-long-file-name-'.repeat(12) + '.txt'
 
-  it('名称元素带 title,悬停可读到完整名字', () => {
+  it('gives the name element a title so hovering reveals the full name', () => {
     const w = mount(FileTile, {
       props: { entry: { ...fileEntry, name: longName, path: '/DATA/' + longName } },
       ...mountOpts,
@@ -45,7 +45,7 @@ describe('FileTile 长名称截断', () => {
     expect(w.get('.tile-name').attributes('title')).toBe(longName)
   })
 
-  it('短名字也带 title', () => {
+  it('sets a title on short names too', () => {
     const w = mount(FileTile, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.get('.tile-name').attributes('title')).toBe('a.txt')
   })

@@ -127,10 +127,10 @@ describe('FileRow', () => {
 // testable is the escape hatch: once a name can be visually cut off, the full
 // name has to stay reachable, and in a file manager that is the only way to
 // tell two 200-character names apart.
-describe('FileRow 长名称截断', () => {
+describe('FileRow long-name truncation', () => {
   const longName = 'a-very-long-file-name-'.repeat(12) + '.txt'
 
-  it('名称元素带 title,悬停可读到完整名字', () => {
+  it('gives the name element a title so hovering reveals the full name', () => {
     const w = mount(FileRow, {
       props: { entry: { ...fileEntry, name: longName, path: '/DATA/' + longName } },
       ...mountOpts,
@@ -138,7 +138,7 @@ describe('FileRow 长名称截断', () => {
     expect(w.get('.file-name').attributes('title')).toBe(longName)
   })
 
-  it('短名字也带 title(不做条件渲染,避免依赖测不到的宽度)', () => {
+  it('sets a title on short names too, rather than branching on a width jsdom cannot measure', () => {
     const w = mount(FileRow, { props: { entry: fileEntry }, ...mountOpts })
     expect(w.get('.file-name').attributes('title')).toBe('a.txt')
   })

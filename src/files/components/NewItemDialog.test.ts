@@ -52,8 +52,8 @@ describe('NewItemDialog', () => {
 // The check belongs here, live, and the message belongs INSIDE the dialog:
 // toasts sit at z-index 60 under the dialog's blurred 1000 overlay
 // (memory: newui-dialog-error-not-toast).
-describe('NewItemDialog 名称长度实时校验', () => {
-  it('超长名字内联报错并禁用确认按钮', async () => {
+describe('NewItemDialog live name-length validation', () => {
+  it('reports an over-long name inline and disables the confirm button', async () => {
     mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     await body().find('input').setValue('a'.repeat(256))
@@ -63,7 +63,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(body().find('.ui-confirm-btn').attributes('disabled')).toBeDefined()
   })
 
-  it('超长时点确认不发 confirm、也不关闭对话框', async () => {
+  it('neither emits confirm nor closes the dialog while the name is over-long', async () => {
     const w = mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     await body().find('input').setValue('a'.repeat(256))
@@ -72,7 +72,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(w.emitted('update:open')).toBeUndefined()
   })
 
-  it('超长时敲回车同样不发 confirm', async () => {
+  it('does not emit confirm on Enter either while the name is over-long', async () => {
     const w = mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     await body().find('input').setValue('a'.repeat(256))
@@ -80,7 +80,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(w.emitted('confirm')).toBeUndefined()
   })
 
-  it('改回合法长度后错误消失、按钮恢复、可以确认', async () => {
+  it('clears the error, re-enables the button and confirms once the name fits again', async () => {
     const w = mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     const input = body().find('input')
@@ -93,7 +93,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(w.emitted('confirm')?.[0]).toEqual(['ok'])
   })
 
-  it('边界按字节算:255 字节放行,256 字节拦截', async () => {
+  it('measures the boundary in bytes: 255 passes, 256 is blocked', async () => {
     mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     const input = body().find('input')
@@ -103,7 +103,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(body().find('.ui-field-error').exists()).toBe(true)
   })
 
-  it('中文按 3 字节/字算:85 字放行,86 字拦截', async () => {
+  it('counts a Chinese character as 3 bytes: 85 pass, 86 are blocked', async () => {
     mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     const input = body().find('input')
@@ -113,7 +113,7 @@ describe('NewItemDialog 名称长度实时校验', () => {
     expect(body().find('.ui-field-error').exists()).toBe(true)
   })
 
-  it('尾随空格不算进长度(确认时本来就会 trim)', async () => {
+  it('ignores trailing spaces, which confirm trims anyway', async () => {
     mount(NewItemDialog, { props: { open: true, mode: 'folder' }, ...opts })
     await nextTick()
     await body().find('input').setValue('a'.repeat(255) + '   ')
