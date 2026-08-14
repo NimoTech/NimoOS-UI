@@ -1180,6 +1180,55 @@ describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the globa
   })
 })
 
+// Fix-11 (owner acceptance, 2026-08-14): three leading icons the owner reported missing.
+// Root cause per element:
+//  1) Sort pill: the button had no leading icon element at all (Vue2 PhotosAlbumsView.vue:60-61
+//     leads it with `<photos-icon name="filter" :size="13"/>`) -- 'filter' didn't exist in this
+//     repo's PhotosIcon.vue at all, so there was nothing to render even if a caller had asked
+//     for it; the trailing chevron-down SVG (unaffected, always present) is what the owner's
+//     screenshot described as "a degenerate hollow triangle" with nothing in front of it.
+//  2) New album button: also had no leading icon (Vue2 :83-84 uses
+//     `<photos-icon name="album" :size="13"/>`) -- 'album' already existed in PhotosIcon.vue
+//     (used by the sidebar's own Albums nav item), just never wired into this button.
+//  3) Create tile's "plus" circle: rendered a literal "+" text character, a substitute an
+//     earlier cleanup (T3) explicitly registered pending a real icon (Vue2 :118-120 renders
+//     the same 'album' glyph as the New album button, just at :size="20" inside the circle).
+describe('Fix-11: albums-page leading icons restored (Vue2 truth)', () => {
+  it('the Sort pill leads with the filter icon (not just the trailing chevron)', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    const icon = btn.find('[data-test="albums-sort-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the New album button leads with the album icon', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-new-btn"]')
+    const icon = btn.find('[data-test="albums-new-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+  })
+
+  it('the create tile\'s "plus" circle renders the album icon, not a literal "+" character', async () => {
+    const w = await mountAlbums({})
+    const tile = w.get('[data-test="album-create-tile"]')
+    const icon = tile.find('[data-test="album-create-icon"]')
+    expect(icon.exists()).toBe(true)
+    expect(icon.element.tagName.toLowerCase()).toBe('svg')
+    expect(tile.find('.plus').text()).not.toContain('+')
+  })
+
+  it("PhotosIcon.vue's 'filter' branch matches Vue2's own path data byte-for-byte", () => {
+    const raw = fs.readFileSync(
+      path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/components/PhotosIcon.vue'),
+      'utf8',
+    )
+    const m = /name === 'filter'"[\s\S]*?<path d="([^"]+)"/.exec(raw)
+    expect(m?.[1]).toBe('M3 5h18l-7 9v6l-4-2v-4z')
+  })
+})
+
 // Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
 // (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
 // (outside its DOM subtree), but every one of its layout rules is written

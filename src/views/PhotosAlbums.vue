@@ -37,6 +37,7 @@ import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -391,6 +392,13 @@ onUnmounted(() => {
                    background regardless of theme, which is why the owner reported it as fine
                    and it is left untouched. -->
               <button type="button" class="btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
+                <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+                     (PhotosAlbumsView.vue:60-61) leads this button with
+                     `<photos-icon name="filter" :size="13"/>`. The owner's screenshot showed a
+                     lone chevron with nothing in front of it (described as "a degenerate hollow
+                     triangle"); root cause was a missing icon element, not a wrong/unmapped
+                     icon name -- this button never had a leading icon at all. -->
+                <PhotosIcon name="filter" :size="13" data-test="albums-sort-icon" />
                 {{ t('photosAlbumSort') }} {{ currentSort.label }}
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </button>
@@ -413,6 +421,10 @@ onUnmounted(() => {
               </div>
             </div>
             <button type="button" class="bar-btn btn-primary" data-test="albums-new-btn" @click="openCreate">
+              <!-- Fix-11 (owner acceptance, 2026-08-14): was missing entirely -- Vue2
+                   (PhotosAlbumsView.vue:83-84) leads this button with
+                   `<photos-icon name="album" :size="13"/>`. -->
+              <PhotosIcon name="album" :size="13" data-test="albums-new-icon" />
               {{ t('photosAlbumNew') }}
             </button>
           </div>
@@ -501,7 +513,17 @@ onUnmounted(() => {
                    height: it follows the theme's own font metrics. -->
               <div class="album-create" data-test="album-create-tile" @click="openCreate">
                 <div class="album-create-cover">
-                  <div class="plus">+</div>
+                  <!-- Fix-11 (owner acceptance, 2026-08-14): was a literal "+" text glyph, a
+                       substitute an earlier cleanup (T3) explicitly registered as standing in
+                       for "Vue2's PhotosIcon SVG that parity has no property for"
+                       (PhotosAlbumsView.vue:118-120 uses
+                       `<photos-icon name="album" :size="20"/>` inside `.plus`, the same 'album'
+                       glyph the New-album button above uses at a larger size) -- now that the
+                       glyph exists in this repo's own PhotosIcon.vue, the substitute is no
+                       longer needed. `.plus`'s own local `font-size: 20px` (sized the text
+                       glyph) is removed below since the icon component sizes itself via its
+                       own `:size` prop, not font-size. -->
+                  <div class="plus"><PhotosIcon name="album" :size="20" data-test="album-create-icon" /></div>
                   <div class="album-create-label">{{ t('photosAlbumNew') }}</div>
                   <div class="album-create-hint">{{ t('photosAlbumNewHint') }}</div>
                 </div>
@@ -813,12 +835,15 @@ onUnmounted(() => {
    `--chip-bg` glass background vs parity's solid `--surface-1`, `--accent-text` [New-UI's own
    blue] vs parity's `--accent-hi` [purple] on hover). `.album-create .plus`'s box is deleted the
    same way (40px/`--chip-bg-hi` vs parity's 44px/`--surface-2`, and parity's own
-   `.album-create:hover .plus` hover rule now applies for free); `font-size: 20px` survives
-   because it sizes this repo's literal "+" glyph, a substitute for Vue2's PhotosIcon SVG that
-   parity has no property for. `.album-create-label`/`-hint` survive too -- Vue2 renders this
-   pair via inline `style=` on unclassed divs (PhotosAlbumsView.vue:121-122), so parity's
-   extraction has no selector for them; hint's opacity corrected from 0.75 to Vue2's actual 0.7. */
-.album-create .plus { font-size: 20px; }
+   `.album-create:hover .plus` hover rule now applies for free). `.album-create-label`/`-hint`
+   survive too -- Vue2 renders this pair via inline `style=` on unclassed divs
+   (PhotosAlbumsView.vue:121-122), so parity's extraction has no selector for them; hint's
+   opacity corrected from 0.75 to Vue2's actual 0.7.
+   Fix-11 (owner acceptance, 2026-08-14): `.album-create .plus { font-size: 20px }` is deleted
+   here -- it sized this repo's literal "+" text glyph, now replaced with the real
+   `<PhotosIcon name="album" :size="20">` Vue2 itself renders inside `.plus`
+   (PhotosAlbumsView.vue:120); the icon component sizes itself via its own `:size` prop, so the
+   font-size rule has nothing left to size and would be dead CSS if kept. */
 .album-create-label { font-size: 12.5px; font-weight: 500; }
 .album-create-hint { font-size: 11px; opacity: 0.7; }
 
