@@ -19,11 +19,11 @@
 //    2 点名的那处)。
 // 3) `--on-accent` 在本组件其实还合法用于两处,不止 brief 说的"唯一"(fix round 1 · I3
 //    评审逐处核实,实现不用改,只改了论证依据——原注释误引了本分支不存在的文件):
-//    a) `.sv-switch[data-on="true"]::after`(开关滑块在 data-on=true 时同样叠在
-//       var(--accent) 实底上)——`role="switch"` 是本分支第一次使用(grep 全仓只命中
-//       这两行),没有分支内先例;这里 `--on-accent` 的合法性由紧邻的
-//       `.sv-switch[data-on="true"] { background: var(--accent) }` 自证(实底、不是
-//       渐变/半透明),不依赖任何外部先例。
+//    a) [Fix-5, 2026-08-14 撤销] `.sv-switch[data-on="true"]::after` 这一处的 --on-accent
+//       用法已被撤销,详见样式块 .sv-switch[data-on="true"]::after 自己的注释——parity 自己
+//       的开关滑块两态同色(photos-smartview.scss:786-789 只挪位置、不改背景),这里当初
+//       套「叠在纯色 accent 实底上就合法」的论证虽然自洽,却漏查了 Vue2 真值本就不随状态
+//       变色,结果做出了一个 owner 截图实测复现的真 bug(开关打开后滑块变深紫/深蓝)。
 //    b) `.sv-btn-primary`(background: var(--accent); color: var(--on-accent))——
 //       与本仓既有 primary 按钮先例同构:`ClusterActionDialog.vue:320`、
 //       `MergeReviewDialog.vue:262`(这两个文件在本分支真实存在,已核实)。
@@ -767,10 +767,22 @@ function thumbUrl(seed: string): string {
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* --on-accent 合法用法之二(文件头注释 3a,fix round 1 · I3 已去掉不存在的外部引用):
-   滑块叠在紧邻这条 [data-on="true"] 实底(var(--accent),非渐变/半透明)之上,合法性
-   由这条背景声明自证——role="switch" 是本分支第一次使用,没有分支内先例可引。 */
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (the file
+   header's own "legal use 3a", justified at the time as "legal atop a solid --accent fill", same
+   reasoning as `.sv-btn-primary`) was wrong for this element specifically: it made the knob track
+   the on/off *state* (near-white knob off, `--on-accent`'s dark-navy value on, in this repo's
+   dark theme) instead of staying constant like Vue2's -- the owner's screenshot ("Keep it live"
+   toggled on) is exactly that dark-navy-on-purple knob. Deleted; the knob now always uses the
+   base rule's `background: var(--text-1)` above, in both states, matching Vue2's own
+   single-value knob exactly and already correctly legible in both of `.photos-root`'s own themes
+   (dark: near-white on both the dark `--surface-3` off-track and the purple `--accent` on-track,
+   same as Vue2; light: near-black on both the light `--surface-3` off-track and the same
+   invariant purple on-track). File header comment 3a above is superseded by this note; "legal use
+   b" (`.sv-btn-primary`) is unaffected and still correct. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-preview-head {
   display: inline-flex;

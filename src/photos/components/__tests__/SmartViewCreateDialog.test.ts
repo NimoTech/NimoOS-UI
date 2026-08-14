@@ -464,24 +464,42 @@ describe('模板行图标色(fix round 1 · I2)', () => {
   })
 })
 
-// ── I3:另两处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
-describe('前景色合规补充(fix round 1 · I3:另两处 --on-accent 正向断言)', () => {
-  it('.sv-switch[data-on="true"] 用 --accent 实底,::after 滑块用 --on-accent 前景', () => {
-    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
-    const bgRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]')
-    expect(bgRule).toBeDefined()
-    expect(bgRule?.body).toContain('background: var(--accent)')
-    const knobRule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
-    expect(knobRule).toBeDefined()
-    expect(knobRule?.body).toContain('background: var(--on-accent)')
-  })
-
+// ── I3:另一处 --on-accent 正向断言(.sv-modal-icon 那条已在「前景色合规」describe 里)──
+// Fix-5 (owner acceptance, 2026-08-14): the `.sv-switch[data-on="true"]::after` case below this
+// comment used to assert the knob turns `--on-accent` when on -- that was the bug itself
+// (dark-navy/purple knob on toggle-on in this repo's dark theme, contradicting Vue2's own
+// invariant-white knob and the owner's explicit "knob stays white in both states" requirement).
+// Replaced with the corrected assertion in the describe block further down
+// ("Fix-5: 开关滑块两态同色").
+describe('前景色合规补充(fix round 1 · I3:另一处 --on-accent 正向断言)', () => {
   it('.sv-btn-primary 用 --accent 实底 + --on-accent 前景', () => {
     const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-btn-primary')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('background: var(--accent)')
     expect(rule?.body).toContain('color: var(--on-accent)')
+  })
+})
+
+// ── Fix-5 (owner acceptance, 2026-08-14): 开关滑块两态同色,不随 on/off 变色 ──────────
+// Root cause: parity's own `.photos-root .sv-switch[data-on="true"]::after`
+// (photos-smartview.scss:786-789) only moves the knob (`left: 16px`) -- it never overrides
+// `background`, so Vue2's knob is the exact same colour whether the switch is on or off. This
+// file's own `[data-on="true"]::after` rule used to add `background: var(--on-accent)`, making
+// the knob track state (near-white off, `--on-accent`'s dark-navy value on, in this repo's dark
+// theme) -- a straight bug, not a deviation from Vue2, reproduced in the owner's own screenshot
+// (Keep it live toggled on).
+describe('Fix-5: 开关滑块两态同色(不随 data-on 变色)', () => {
+  it('.sv-switch[data-on="true"]::after 只挪位置,不覆盖 background(两态同一个 knob 颜色)', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewCreateDialogRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob).toBeDefined()
+    expect(baseKnob?.body).toContain('background: var(--text-1)')
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob).toBeDefined()
+    expect(onKnob?.body).toContain('left: 16px')
+    // 状态位置的规则体不再声明 background —— knob 颜色恒由上面的基类规则供给,不随 data-on 变化。
+    expect(onKnob?.body).not.toMatch(/background\s*:/)
   })
 })
 

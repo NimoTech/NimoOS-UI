@@ -265,9 +265,20 @@ function distStyle(d: number, i: number): { height: string; opacity: number } {
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-/* --on-accent 合法用法:滑块叠在紧邻这条 [data-on="true"] 实底(var(--accent),非渐变/
-   半透明)之上,合法性由这条背景声明自证(同 SmartViewCreateDialog.vue 已立的先例)。 */
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (justified at
+   the time as "legal atop a solid --accent fill", same reasoning as `.sv-btn-primary`) was wrong
+   for this element specifically: it made the knob track the on/off *state* (near-white knob off,
+   `--on-accent`'s dark-navy value on, in this repo's dark theme) instead of staying constant like
+   Vue2's -- the owner's screenshot is exactly that dark-navy-on-purple knob. Deleted; the knob
+   now always uses the base rule's `background: var(--text-1)` above, in both states, matching
+   Vue2's own single-value knob exactly and already correctly legible in both of `.photos-root`'s
+   own themes (dark: near-white on both the dark `--surface-3` off-track and the purple
+   `--accent` on-track, same as Vue2; light: near-black on both the light `--surface-3` off-track
+   and the same invariant purple on-track). */
+.sv-switch[data-on="true"]::after { left: 16px; }
 .sv-switch[data-busy="true"] { cursor: not-allowed; opacity: 0.6; }
 
 /* ── 统计段(scss:626-658)── */

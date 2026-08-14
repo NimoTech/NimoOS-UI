@@ -316,3 +316,22 @@ describe('.sv-switch 轨道过渡 + 拇指投影(fix round 1 · M1)', () => {
     expect(rule?.body).toMatch(/box-shadow:\s*0 1px 3px color-mix\(/)
   })
 })
+
+// Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+// own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+// moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+// same colour in both states. This file's own `[data-on="true"]::after` rule used to add
+// `background: var(--on-accent)`, making the knob track state (near-white off, `--on-accent`'s
+// dark-navy value on, in this repo's dark theme) instead of staying constant like Vue2's -- the
+// owner's screenshot (Auto-add/Include videos toggled on) is exactly that colour change.
+describe('Fix-5: 开关滑块两态同色(不随 data-on 变色)', () => {
+  it('.sv-switch[data-on="true"]::after 不覆盖 background,knob 颜色恒由基类规则供给', () => {
+    const rules = parseCssRules(extractStyleBlock(smartViewSidePanelRaw))
+    const baseKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch::after')
+    expect(baseKnob?.body).toContain('background: var(--text-1)')
+    const onKnob = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === '.sv-switch[data-on="true"]::after')
+    expect(onKnob).toBeDefined()
+    expect(onKnob?.body).toContain('left: 16px')
+    expect(onKnob?.body).not.toMatch(/background\s*:/)
+  })
+})

@@ -490,7 +490,17 @@ async function confirm(): Promise<void> {
   box-shadow: 0 1px 3px color-mix(in srgb, black 30%, transparent);
 }
 .sv-switch[data-on="true"] { background: var(--accent); }
-.sv-switch[data-on="true"]::after { left: 16px; background: var(--on-accent); }
+/* Fix-5 (owner acceptance, 2026-08-14): straight bug fix, not a deviation from Vue2 -- parity's
+   own `.photos-root .sv-switch[data-on="true"]::after` (photos-smartview.scss:786-789) only
+   moves the knob (`left: 16px`); it never overrides `background`, so Vue2's knob is the exact
+   same colour in both states. The `--on-accent` override this rule used to carry (the C5 ruling
+   above pinned this file's `.sv-switch` to SmartViewCreateDialog.vue's values, which carried the
+   same bug) was wrong: it made the knob track the on/off *state* instead of staying constant
+   like Vue2's. Deleted here too, same fix as that file and SmartViewSidePanel.vue's own copy in
+   the same commit -- the knob now always uses the base rule's `background: var(--text-1)`
+   above, in both states, matching Vue2's own single-value knob exactly and already correctly
+   legible in both of `.photos-root`'s own themes. */
+.sv-switch[data-on="true"]::after { left: 16px; }
 
 .sv-btn-ghost {
   height: 36px;
