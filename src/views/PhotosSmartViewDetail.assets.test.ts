@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { ref, computed } from 'vue'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -26,16 +27,46 @@ const svc = vi.hoisted(() => ({
     // caught TypeError, and a noisy baseline is how a real error goes unnoticed.
     getConfig: vi.fn(async () => ({})),
     getTimeline: vi.fn(async () => []),
+    // Fix-12 (owner acceptance, 2026-08-14): PhotoLightbox.vue's own render needs these once it
+    // actually mounts (v-if opens) -- this page never mounted a `<PhotoLightbox>` before.
+    originalUrl: vi.fn((id: string) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string) => `mock://live/${id}`),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>` (it
+// never did before). That component's own internals call `useLightbox()` too and read
+// `lb.open.value`/etc directly in a `watch()` and its template's `v-if` -- the original
+// `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after this fix
+// crashed every case in this file. See PhotosSmartViewDetail.test.ts's own copy of this same fix
+// (or acceptance-fix-report.md §F12) for the full explanation of the two-step (`vi.hoisted`
+// placeholder, then `Object.assign` with real `ref()`s once `vue` is loaded) construction.
+const lbMock = vi.hoisted(() => ({ openAt: vi.fn<(...args: unknown[]) => void>() }))
 vi.mock('../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosSmartViewDetail from './PhotosSmartViewDetail.vue'
 import { usePhotosSmartViews } from '../photos/stores/smartViews'
 import { useToast } from '../stores/toast'
+
+const lbOpen = ref(false)
+const lbList = ref<Array<{ id: string | number }>>([])
+const lbIndex = ref(0)
+const lbCurrent = computed(() => lbList.value[lbIndex.value] ?? null)
+Object.assign(lbMock, {
+  open: lbOpen, list: lbList, index: lbIndex, current: lbCurrent, detail: lbCurrent,
+  searchQuery: ref(''), startMs: ref(0), ocrLines: ref([]),
+  hasPrev: ref(false), hasNext: ref(false), isFav: ref(false),
+  openAt: vi.fn((photo: { id: string | number }, list: Array<{ id: string | number }>) => {
+    lbOpen.value = true
+    lbList.value = list
+    lbIndex.value = Math.max(0, list.findIndex((p) => String(p.id) === String(photo.id)))
+  }),
+  close: vi.fn(() => { lbOpen.value = false }),
+  prev: vi.fn(), next: vi.fn(), goTo: vi.fn(),
+  hydrateDetail: vi.fn(), reconcileFav: vi.fn(), toggleFav: vi.fn(),
+  __resetForTest: vi.fn(() => { lbOpen.value = false; lbList.value = []; lbIndex.value = 0 }),
+})
 // The toast assertions below compare against the real locale entry rather than
 // `expect.any(String)`: a toast that fires with the wrong text, or with the wrong count in
 // it, is exactly the failure these tests exist to catch (final review, coverage holes).
@@ -112,7 +143,15 @@ beforeEach(() => {
   svc.photos.getSmartViewActivity.mockReset().mockResolvedValue([] as never)
   svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([] as never)
   svc.photos.getSmartView.mockReset().mockResolvedValue({} as never)
-  lbMock.openAt.mockReset()
+  // Fix-12: `.mockClear()`, not `.mockReset()` -- the latter would strip the custom
+  // implementation that flips `lbOpen`/`lbList` (Object.assign'd above), reverting `openAt` to a
+  // bare no-op for the rest of this file. Clear only wipes call history, which is all this line
+  // ever needed. Also reset the lightbox's own live state, or a test that opened it would leak
+  // `open=true` into the next one.
+  lbMock.openAt.mockClear()
+  lbOpen.value = false
+  lbList.value = []
+  lbIndex.value = 0
 })
 
 describe('pin badge', () => {

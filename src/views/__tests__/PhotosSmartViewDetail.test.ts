@@ -11,6 +11,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { ref, computed } from 'vue'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
 
@@ -26,6 +27,9 @@ const svc = vi.hoisted(() => ({
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
     thumbnailUrl: vi.fn((id: string | number, size = 'large') => `mock://thumb/${id}/${size}`),
+    // Fix-12: PhotoLightbox.vue's own render needs these once it actually mounts (v-if opens).
+    originalUrl: vi.fn((id: string | number) => `mock://original/${id}`),
+    liveUrl: vi.fn((id: string | number) => `mock://live/${id}`),
     // Fix-1 item 1: the topbar's title/sub here mirrors PhotosAlbums.vue's own (this page nests
     // under Vue2's 'albums' nav, see the describe block below) -- the sub needs the full album
     // list, which this page did not otherwise fetch before this fix.
@@ -44,14 +48,31 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 // `openAt` 属性指向同一个模块顶层函数——在这个新字面量上 `vi.spyOn(obj, 'openAt')` 只会
 // 影子这一个对象自身的属性,不会影响组件内部另一次 `useLightbox()` 调用拿到的另一份对象
 // (它的 `openAt` 仍指向未被拦截的真实函数)。本组件只用到 `lb.openAt` 这一个方法,直接
-// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `lbMock.openAt`。
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
-vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
+// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `mockLb.openAt`。
+//
+// Fix-12 (owner acceptance, 2026-08-14): this page now also mounts a real `<PhotoLightbox>`
+// (it never did before). That component's own internals call `useLightbox()` too and read
+// `lb.open.value`/`lb.list.value`/etc directly in a `watch()` and its template's `v-if` --
+// the original `{ openAt: vi.fn() }` fake had none of those, so simply mounting the page after
+// this fix crashed every existing test in this file (`Cannot read properties of undefined
+// (reading 'value')`). `vi.hoisted()` runs before `vue` itself is initialised (Vitest hoists
+// `vi.mock`/`vi.hoisted` above regular imports), so real `ref()`s can't be constructed inside
+// it -- `mockLb` is created here as a plain object (identity fixed by `vi.hoisted`, satisfying
+// the "reference the same object `useLightbox()` returns" requirement below), then immediately
+// after normal imports settle (this file's own later top-level code, once `vue` is fully
+// loaded), its properties are replaced in place with real `ref()`s via `Object.assign` on the
+// SAME object reference the mock factory already closed over. `openAt` is made to actually
+// flip them (so the "lightbox DOM renders after a tile click" cases below have something to
+// assert), while every *other* existing test in this file only ever calls
+// `.mockClear()`/inspects call args on `openAt` exactly as before -- unaffected.
+const mockLb = vi.hoisted(() => ({ openAt: vi.fn<(...args: unknown[]) => void>() }))
+vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => mockLb }))
 
 import PhotosSmartViewDetail from '../PhotosSmartViewDetail.vue'
 import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
 import { usePhotosAlbums } from '../../photos/stores/albums'
+import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
@@ -67,6 +88,45 @@ import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+// Fix-12 (owner acceptance, 2026-08-14): fill in `mockLb` (declared above, before `vue` was
+// ready) with real `ref()`s now that normal imports have settled -- see that declaration's own
+// comment for why this two-step construction is necessary. Mutates the same object identity the
+// `vi.mock` factory above already closed over.
+const lbOpen = ref(false)
+const lbList = ref<Array<{ id: string | number }>>([])
+const lbIndex = ref(0)
+// `current`/`detail` mirror the real module's own `computed(() => list.value[index.value] ??
+// null)` (useLightbox.ts) -- `PhotoLightbox.vue`'s own `doDelete()`/`onAddToAlbum()` read
+// `lb.current.value` to know which asset id to emit, so this must actually track `openAt`'s
+// argument, not stay permanently null.
+const lbCurrent = computed(() => lbList.value[lbIndex.value] ?? null)
+Object.assign(mockLb, {
+  open: lbOpen,
+  list: lbList,
+  index: lbIndex,
+  current: lbCurrent,
+  detail: lbCurrent,
+  searchQuery: ref(''),
+  startMs: ref(0),
+  ocrLines: ref([]),
+  hasPrev: ref(false),
+  hasNext: ref(false),
+  isFav: ref(false),
+  openAt: vi.fn((photo: { id: string | number }, list: Array<{ id: string | number }>) => {
+    lbOpen.value = true
+    lbList.value = list
+    lbIndex.value = Math.max(0, list.findIndex((p) => String(p.id) === String(photo.id)))
+  }),
+  close: vi.fn(() => { lbOpen.value = false }),
+  prev: vi.fn(),
+  next: vi.fn(),
+  goTo: vi.fn(),
+  hydrateDetail: vi.fn(),
+  reconcileFav: vi.fn(),
+  toggleFav: vi.fn(),
+  __resetForTest: vi.fn(() => { lbOpen.value = false; lbList.value = [] }),
+})
 
 const photosParityRaw = fs.readFileSync(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../photos/styles/vue2-parity/photos.scss'),
@@ -156,7 +216,13 @@ beforeEach(() => {
   svc.photos.exportSmartViewUrl.mockClear()
   svc.photos.thumbnailUrl.mockClear()
   svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
-  lbMock.openAt.mockClear()
+  mockLb.openAt.mockClear()
+  // Fix-12: the lightbox's own open/list refs are real, live state now (not just a call-history
+  // spy) -- reset them too, or a test that opened the lightbox would leak `open=true` into the
+  // next one.
+  lbOpen.value = false
+  lbList.value = []
+  lbIndex.value = 0
   // Fix-10: usePhotosToast() is a module-level singleton (not Pinia), reset per test.
   usePhotosToast().__resetForTests()
 })
@@ -689,8 +755,8 @@ describe('SP15-P2c Task 6: header action row', () => {
     // Sorted (taken desc): m2, m3, m1 -- the third tile is m1, not m3.
     await w.findAll('[data-test="sv-all-tile"]')[2].trigger('click')
 
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect((call[0] as { id: string }).id).toBe('m1')
     expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['m2', 'm3', 'm1'])
     // startMs, not an index -- untouched by this task (useLightbox.openAt computes the index
@@ -720,8 +786,8 @@ describe('SP15-P2c Task 6: header action row', () => {
     // Sorted (taken desc): r1, r2 -- the backend handed them back the other way round.
     await w.findAll('[data-test="sv-recent-tile"]')[0].trigger('click')
 
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect((call[0] as { id: string }).id).toBe('r1')
     expect((call[1] as Array<{ id: string }>).map((p) => p.id)).toEqual(['r1', 'r2'])
   })
@@ -1373,8 +1439,8 @@ describe('两段照片网格', () => {
     const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
     await w.find('[data-test="sv-all-tile"]').trigger('click')
     const store = usePhotosSmartViews()
-    expect(lbMock.openAt).toHaveBeenCalledTimes(1)
-    const call = lbMock.openAt.mock.calls[0]
+    expect(mockLb.openAt).toHaveBeenCalledTimes(1)
+    const call = mockLb.openAt.mock.calls[0]
     expect(call[1]).toEqual(store.matchedAssets)
     expect(call[1]).not.toBe(store.matchedAssets)
     expect(call[2]).toBe(0)
@@ -1391,6 +1457,70 @@ describe('两段照片网格', () => {
     await tile.trigger('click')
     await w.vm.$nextTick()
     expect(tile.find('.new-tag').exists()).toBe(false)
+  })
+})
+
+// Fix-12 (owner acceptance, 2026-08-14): this page always called `lb.openAt` (state opened,
+// network fired) but never mounted a `<PhotoLightbox>` of its own -- nothing on this page's own
+// tree ever rendered the photo. Added the mount; these cases assert the DOM actually appears
+// (not just that `openAt` was called, which every case above already covered) and that the
+// wired events invoke the right underlying store actions.
+describe('Fix-12: the lightbox is mounted on this page and its events are wired', () => {
+  it('clicking a tile renders the lightbox DOM (not just calling openAt)', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    expect(w.find('.lightbox').exists()).toBe(false)
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.find('.lightbox').exists()).toBe(true)
+  })
+
+  it('the lightbox renders OUTSIDE .photos-root (Fix-8 round 4 rule)', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    const lightbox = w.get('.lightbox').element
+    expect(lightbox.closest('.photos-root')).toBeNull()
+  })
+
+  it('@delete deletes the underlying asset via timeline.deleteAssets and refreshes this view', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    const timeline = useTimelineStore()
+    const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
+    svc.photos.getSmartViewAssets.mockClear()
+    svc.photos.getSmartViewExcluded.mockClear()
+
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-confirm-ok').trigger('click')
+    await flushPromises()
+
+    expect(deleteSpy).toHaveBeenCalledWith(['a1'])
+    // loadDetail/loadExcluded refresh this view's own data after the delete lands.
+    expect(svc.photos.getSmartViewAssets).toHaveBeenCalled()
+    expect(svc.photos.getSmartViewExcluded).toHaveBeenCalled()
+  })
+
+  it('@add-to-album opens AlbumPickerDialog for the current photo', async () => {
+    svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
+      return opts?.recent ? [] : [asset('a1')]
+    })
+    const { w } = await mountView('7', [makeSv({ id: 7, addedThisWeek: 0 })])
+    await w.find('[data-test="sv-all-tile"]').trigger('click')
+    await w.vm.$nextTick()
+    await w.find('.lb-add-album').trigger('click')
+    await w.vm.$nextTick()
+    expect(w.get('[data-test="album-picker-overlay"]').element).toBeTruthy()
   })
 })
 

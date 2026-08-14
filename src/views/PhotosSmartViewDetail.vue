@@ -70,8 +70,11 @@ import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { usePhotosSmartViews, type DeletedSmartView } from '../photos/stores/smartViews'
 import { usePhotosAlbums } from '../photos/stores/albums'
+import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
 import { isConflict } from '../photos/util/httpErrors'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -94,6 +97,7 @@ const route = useRoute()
 const router = useRouter()
 const store = usePhotosSmartViews()
 const albums = usePhotosAlbums()
+const timeline = useTimelineStore()
 const toast = useToast()
 // Fix-10 (owner acceptance, 2026-08-14): Vue2's duplicate-smart-view and convert-to-album
 // confirmations go through `window.PhotosToast` (photosToast.js), the photos-private
@@ -618,6 +622,40 @@ function onTileClick(p: Photo, list: Photo[]): void {
   // stays 0 unchanged from before this task.
   lb.openAt(p, list, 0)
 }
+
+// ── Fix-12 (owner acceptance, 2026-08-14): this page always called `lb.openAt` (above), but
+// never mounted a `<PhotoLightbox>` of its own -- `useLightbox` is a module-level singleton, so
+// the state flipped open (its network calls fired) with nothing on THIS page's own tree to
+// render it; the previous page's own mounted lightbox (if any) would pick up the stale `open`
+// state the next time it re-rendered, which is why the owner saw the photo appear only after
+// navigating back. Vue2's own SmartViewDetail component doesn't own a lightbox instance either
+// (it `$emit('open-photo', p, list)`s up to its single-page parent, which owns the one shared
+// lightbox and all its wiring) -- New-UI's per-route architecture has no such parent to hoist
+// to, so this page (like PhotosAlbumDetail.vue, the pattern reference) now owns its own
+// `<PhotoLightbox>` instance and wires it directly.
+//
+// Delete: mirrors PhotosAlbumDetail.vue's `onLightboxDelete` exactly -- the lightbox deletes the
+// underlying ASSET from the library entirely (`timeline.deleteAssets`), not merely "unpin from
+// this view", so this refreshes this page's own matched/excluded lists afterward the same way
+// removeSelected() already does, plus the shared 4000ms toast copy every other page's delete
+// path already uses.
+async function onLightboxDelete(assetId: string | number): Promise<void> {
+  const n = await timeline.deleteAssets([String(assetId)])
+  toast.show(t('photosDeletedToast', { count: n }), 4000)
+  const id = svId.value
+  await Promise.all([store.loadDetail(id), store.loadExcluded(id)])
+}
+
+// Add-to-album: same shape as PhotosAlbumDetail.vue's own `openAlbumPicker`/
+// `onAlbumPickerAdded` -- adds to a DIFFERENT album than the one being viewed, so there is
+// nothing of this page's own state to refresh once it lands.
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>): void {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+function onAlbumPickerAdded(): void {}
 
 // ── SP15-P2a: manual asset actions (Vue2 :456-534) ───────────────────────────────────────
 // A smart view's membership is generated from its conditions; these four actions are the
@@ -1282,7 +1320,30 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </div>
     </div>
     </Transition>
+  <!-- Fix-12 (owner acceptance, 2026-08-14): add-to-album picker for the lightbox's
+       `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog` mount --
+       stays nested inside `.photos-root` (its own panel background is `var(--surface-2)`, a
+       `.photos-root`-local token with no fallback, per the F1/F4 lesson class), unlike the
+       lightbox itself just below. -->
+  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
   </div>
+  <!-- Fix-12 (owner acceptance, 2026-08-14): this page never mounted a `<PhotoLightbox>` at all
+       (see `onLightboxDelete`'s own comment above for the full mechanism) -- added here,
+       deliberately a sibling of `.photos-root`, NOT nested inside it. Per Fix-8 round 4
+       (acceptance-fix-report.md §F8-r4): nesting `<PhotoLightbox>` inside `.photos-root`
+       activates parity's own `.photos-root .lightbox`/`.lb-*` rule family, which targets a
+       *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with named
+       grid-area children) than this component's own current, self-contained flex layout --
+       every colliding selector ties in specificity, and if parity's `display: grid` wins that
+       tie for the outer container, this component's real children (which carry none of the
+       grid-area names parity's layout expects) fall into unpredictable implicit placement,
+       breaking the whole overlay. **Do not nest this component inside `.photos-root` before
+       Plan F's own lightbox re-skin actually ports its DOM/CSS to match those parity rules.** -->
+  <PhotoLightbox
+    @delete="onLightboxDelete"
+    @toggle-fav="() => {}"
+    @add-to-album="(id) => openAlbumPicker([id])"
+  />
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/Convert/etc.)
        -- mounted once per photos view, Teleports to <body> and re-applies photos-root +
        themeClass on its own portal target (see PhotosToastHost.vue's own header comment), so its
