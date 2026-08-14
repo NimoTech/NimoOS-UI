@@ -281,10 +281,11 @@ export default {
   // 用同句英文原文当 key 查出。术语统一:Unnamed clusters→"未命名人物",不用"簇/聚类"
   // (下方标注 [聚类→人物] 的几条为按此规则改写,原查得译文含"聚类" 二字)。
   photosPeople: '人物',
-  // Plan D Task 2(换壳):PhotosTopbar 的 `sub` 副行,给这一页的 index 路由用。Vue2
-  // PhotosPeopleTopbar.vue:37 的 index 态副标题是 "Face clusters · {named} named ·
-  // {unnamed} unnamed";出这条键的 task brief 把计数部分逐字给了,但刻意不要 "Face
-  // clusters ·" 这个前缀(brief 原文如此),所以这里只保留计数分句,不是漏抄。
+  // Plan D Task 2 (re-shell): PhotosTopbar's `sub` line, for this page's index route. Vue2
+  // PhotosPeopleTopbar.vue:37's index-state subtitle is "Face clusters · {named} named ·
+  // {unnamed} unnamed"; this key's task brief gave the count portion verbatim but deliberately
+  // dropped the "Face clusters ·" prefix (per the brief itself), so only the count clause is
+  // kept here — not a missed transcription.
   photosPeopleTopbarSub: '{named} 个已命名 · {unnamed} 个未命名',
   photosPeopleNamed: '{n} 个已命名',
   photosPeopleUnnamedClusters: '{n} 个未命名人物', // [聚类→人物],原文 "{n} 个未命名聚类"
@@ -371,13 +372,15 @@ export default {
   // 两句在 Vue2 里字面不同,但语义都是"已合并到 X",同 mergeReason/PersonAvatar 的既有
   // 统一惯例(把 Vue2 里重复的同义文案收成一份),已在任务报告里登记这条不是疏漏。
   photosPersonMergeDismissedToast: '已忽略该合并建议',
-  // Plan D Task 3:photosPersonSubtitle(「人物详情 · 面孔与关系」)复活。终审 Minor 8(更早的
-  // P5 期)删过它,理由是当时详情页顶栏还是 AreaShell(只有 title,桌面态整条隐藏),
-  // Vue2 PhotosPeopleTopbar.vue:36 的 detail 态副标题没有容身之处。Task 3 把
-  // PhotosPersonDetail.vue 换壳到 PhotosTopbar(title/sub/back props),正是那个 detail 态
-  // 槽位,这个键现在真的用得上了。别跟 photosPeopleNamed / photosPeopleUnnamedClusters 弄混 ——
-  // 那两条来自 Vue2 的**横幅**(PhotosPeopleView.vue:7-9),落地在 People 列表页的 .people-sub,
-  // 与这里的顶栏副标题无关。
+  // Plan D Task 3: photosPersonSubtitle ("Person detail · faces & relations") is revived. Final
+  // review Minor 8 (back in the earlier P5 phase) deleted it, on the grounds that the detail
+  // page's topbar was AreaShell at the time (title only, hidden entirely on desktop), so Vue2
+  // PhotosPeopleTopbar.vue:36's detail-state subtitle had nowhere to live. Task 3 re-shelled
+  // PhotosPersonDetail.vue onto PhotosTopbar (title/sub/back props), which is exactly that
+  // detail-state slot — this key is genuinely needed again now. Don't confuse it with
+  // photosPeopleNamed / photosPeopleUnnamedClusters — those two come from Vue2's own **banner**
+  // (PhotosPeopleView.vue:7-9), landing in the People index page's .people-sub, unrelated to
+  // this topbar subtitle.
   photosPersonSubtitle: '人物详情 · 面孔与关系',
   photosPersonTabTimeline: '时间线',
   photosPersonTabPlaces: '地点',
@@ -388,8 +391,8 @@ export default {
   photosPersonStatFirstSeen: '最早出现',
   photosPersonMakeAlbum: '制作相册',
   photosPersonBackground: '背景',
-  // Task 8 (Plan D): hero 三按钮补齐(Vue2 PhotosPersonDetail.vue:89-91)。这里点击是
-  // no-op(接线归 Plan G),先补文案与视觉。
+  // Task 8 (Plan D): the hero's three buttons filled in (Vue2 PhotosPersonDetail.vue:89-91). The
+  // click here is a no-op (wiring belongs to Plan G); this only adds copy and visuals first.
   photosPersonAskAbout: '问 Nimo 关于 {name}',
   // ★ New-UI 补齐(Task 10):Vue2 :33 该按钮字面是通用的 $t('Edit')(胶囊触发按钮本身的
   // 文案,不是下面三个菜单项),本仓 photosAlbumEdit/topbarEdit 等既有"编辑"键都各自绑定
@@ -439,14 +442,20 @@ export default {
   //  `Person not found` / `Back to people` / `No people yet` / `Nimo groups faces…` /
   //  `Show all {n}` / `Show less` 均查无此条),所以 ★ 对它们是准确的,译文按术语惯例自拟成立。
   // 唯独上面 photosPersonRenamedFailed / photosPersonAlbumFailed 两条查得到原译,已改回(Minor 10)。
+  // Final-review follow-up (fix round, Plan D): the ★ that used to sit on `photosPersonNotFound`/
+  // `photosPersonBack` below has gone stale — Vue2 commit 03245590 later added matching copy for
+  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473, part of the same
+  // fallback-branch source this task's I1 re-anchor draws from), so they are no longer "no Vue2
+  // copy, authored here." ★ removed from both.
   photosPersonRelationFailed: '无法更新分组', // ★
   photosPersonFavFailed: '无法更新收藏', // ★
   photosPersonNoPhotos: '这个人还没有照片', // ★
-  photosPersonNotFound: '找不到这个人物', // ★
-  photosPersonBack: '返回人物', // ★
+  photosPersonNotFound: '找不到这个人物',
+  photosPersonBack: '返回人物',
   photosPeopleEmptyTitle: '还没有识别出人物', // ★
   // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
-  // Vue2 #137 分两支文案(人脸识别开/关),译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  // Vue2 #137 splits into two copy branches (face recognition on/off); translation taken from
+  // Vue2 commit 03245590's own zh_CN.json translation.
   photosPeopleEmptyHintFaces: '照片索引过程中会自动识别人脸，人物很快会出现在这里。',
   photosPeopleEmptyHintNoFaces: '开启人脸识别后，即可在照片中发现人物。',
   photosPersonShowAll: '查看全部 {n} 张', // ★
@@ -454,8 +463,8 @@ export default {
   photosPersonPlacesLegend: '常去地点',
   photosPersonNoPlaces: '暂无 {name} 的位置数据',
   photosPersonNimoRead: 'Nimo 的解读',
-  // Task 8 (Plan D): rel-insight-card 底部「深挖」按钮(Vue2 PhotosPersonDetail.vue:228-230
-  // `.nimo-btn`)。点击是 no-op(接线归 Plan G)。
+  // Task 8 (Plan D): the rel-insight-card's bottom "Dig deeper" button (Vue2
+  // PhotosPersonDetail.vue:228-230 `.nimo-btn`). The click is a no-op (wiring belongs to Plan G).
   photosPersonDigDeeper: '深挖',
   photosPersonInsightWith: '{name} 最常与 <b>{other}</b> 一起出现。',
   photosPersonInsightWithUnnamed: '{name} 与一位未命名的人一起出现。',
@@ -493,7 +502,8 @@ export default {
   photosPersonGraphLegendOccasional: '偶尔',
   photosPersonCoappearTitle: '共同出现',
   photosPersonPhotosTogether: '共同出现 {n} 张照片',
-  // Task 6 (Plan D, PR#137 gap-close): 关系图空态,译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  // Task 6 (Plan D, PR#137 gap-close): the relation-graph empty state; translation taken from
+  // Vue2 commit 03245590's own zh_CN.json translation.
   photosPersonRelGraphEmptyTitle: '暂无同框记录',
   photosPersonRelGraphEmptySub: '当这个人与其他人同框出现在照片里时，关系图会显示在这里。',
   // Task 14 补(容器 + 六个弹窗;brief 的键清单里没有,逐段核对 Vue2
@@ -527,8 +537,9 @@ export default {
   // 正是为此而加;Vue2 只 console.error,视图分不清)。同时补重试入口 —— P4 遗留过一条
   // 同类账(详情页加载失败 → 永久骨架、无错误态无重试),本期不再留。
   photosPersonLoadFailed: '无法加载这个人物',
-  // Task 6 (Plan D, PR#137 gap-close):加载失败/找不到人物两个兜底态缺一条说明文案 ——
-  // 译文取自 Vue2 commit 03245590 的 zh_CN.json 原译。
+  // Task 6 (Plan D, PR#137 gap-close): the load-failed/person-not-found fallback states were each
+  // missing a description line — translation taken from Vue2 commit 03245590's own zh_CN.json
+  // translation.
   photosPersonLoadFailedHint: '请检查网络连接后重试。',
   photosPersonNotFoundHint: '该人物可能已被删除或合并。',
   photosPersonRetry: '重试',
@@ -1129,27 +1140,29 @@ export default {
   // 没有 Esc 语义(搜索页是真路由,Esc 已被浮层统一治理占用),故文案改成描述真实去向
   // (返回照片库),不照抄带 "(Esc)" 字样的原文。
   photosSearchBackToLibrary: '返回照片库',
-  // ── Task 7(Plan D,SP7-P5 人物):Hidden people 分区 + hide 动作 + 重名 dupconfirm 流 ──
-  // Vue2 PhotosPeopleView.vue:228(分区标题 $t('Hidden people'))。
+  // ── Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide action + duplicate-name
+  // dupconfirm flow ──
+  // Vue2 PhotosPeopleView.vue:228 (section title $t('Hidden people')).
   photosPeopleHiddenSection: '隐藏的人物',
-  // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 两处菜单项字面同一句
-  // $t('Hide person'),共用一个键。
+  // Vue2 PhotosPeopleView.vue:279 / PhotosPersonDetail.vue:45 — both menu items are literally the
+  // same $t('Hide person'), sharing one key.
   photosPersonMenuHide: '隐藏此人',
-  // Vue2 两处菜单项的 title 说明文案,字面同一句(PhotosPeopleView.vue:274 /
+  // Both menu items' title copy is literally the same (PhotosPeopleView.vue:274 /
   // PhotosPersonDetail.vue:44):
   // $t('Person leaves the People page. Photos and face recognition are kept — you can unhide anytime.')
   photosPersonHideGateTitle: '此人物会从人物页移除。照片与人脸识别记录都会保留——你可以随时取消隐藏。',
-  // Vue2 PhotosPeopleView.vue:249 $t('Unhide')。
+  // Vue2 PhotosPeopleView.vue:249 $t('Unhide').
   photosPeopleUnhide: '取消隐藏',
-  // Vue2 hideClusterPerson/hideCurrentPerson 两处的成功 toast 字面同一句
-  // $t('{label} hidden')(PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923)。
+  // Vue2's hideClusterPerson/hideCurrentPerson success toasts are both literally the same
+  // $t('{label} hidden') (PhotosPeopleView.vue:759 / PhotosPersonDetail.vue:923).
   photosPersonHiddenToast: '{label} 已隐藏',
-  // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 两处 dupconfirm 弹窗标题
-  // 字面同一句 $t('A person named "{name}" already exists.')。
+  // Vue2 PhotosPeopleView.vue:317 / PhotosPersonDetail.vue:299 — both dupconfirm dialog titles
+  // are literally the same $t('A person named "{name}" already exists.').
   photosPersonDupExistsTitle: '已存在名为「{name}」的人物。',
-  // Vue2 两处 dupconfirm 的"合并"按钮字面同一句 $t('Merge into existing')(不带省略号,
-  // 与菜单项 photosPersonMergeExisting 的"…"版本是两句不同文案,不能共用)。
+  // Vue2's two dupconfirm "merge" buttons are literally the same $t('Merge into existing') (no
+  // ellipsis — a different sentence from the menu item photosPersonMergeExisting's "…" version,
+  // can't be shared).
   photosPersonDupMergeInto: '合并到已有人物',
-  // Vue2 两处 dupconfirm 的"照样命名"按钮 $t('Name anyway')。
+  // Vue2's two dupconfirm "name anyway" buttons: $t('Name anyway').
   photosPersonDupNameAnyway: '仍然使用这个名字',
 }

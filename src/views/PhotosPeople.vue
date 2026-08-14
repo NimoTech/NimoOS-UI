@@ -3,14 +3,16 @@
 // 合并建议横幅 + Pinned/Named/Unnamed 三分区网格 + 浮动操作菜单 + 空态。
 // 逐段对照 Vue2 NimoOS-UI src/views/Photos/PhotosPeopleView.vue:2-235 与
 // src/views/Photos/photos-people.scss:1-275 移植;Ask Nimo 分支照 brief 不建。
-// 壳最初照 PhotosAlbums.vue:185-188 的 AreaShell/.photos-layout/PhotosSidebar/.photos-main 复制
-// (不抽公共,P3/P4 既定)。document 级监听照 PhotosAlbums.vue:159-181。
+// The shell was originally copied from PhotosAlbums.vue:185-188's AreaShell/.photos-layout/
+// PhotosSidebar/.photos-main (not extracted into anything shared, per P3/P4). Document-level
+// listeners follow PhotosAlbums.vue:159-181.
 //
-// Plan D Task 2(换壳):AreaShell/.photos-layout 过渡态壳已换成 PhotosAlbums.vue 自己 Plan C
-// Task 2 的 `.photos-root > .app[data-collapsed] > PhotosSidebar + main.main > PhotosTopbar +
-// .photos-main` 结构(useSidebarCollapse 共享单例)。三个浮层(cluster-menu/
-// ClusterActionDialog/MergeReviewDialog)随之从模板根兄弟节点搬回 `.photos-root` 内部
-// (`.app` 的兄弟位),理由见它们自己上方的注释。详见 task-2-report.md。
+// Plan D Task 2 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped for
+// PhotosAlbums.vue's own Plan C Task 2 `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared singleton). The
+// three overlays (cluster-menu/ClusterActionDialog/MergeReviewDialog) moved back inside
+// `.photos-root` (a sibling of `.app`) along with it — see their own comments above for why. Full
+// detail in task-2-report.md.
 //
 // T7(本次追加):接入 ClusterActionDialog(命名/合并/删除三态弹窗),`dialog` 状态从
 // T6 的隐藏占位节点换成真实弹窗;三条提交路径(renamePerson/mergePersonInto/
@@ -91,7 +93,7 @@ const showUnnamed = ref(true)
 const confidenceOpen = ref(false)
 const sortOpen = ref(false)
 const clusterMenu = ref<{ person: Person; x: number; y: number } | null>(null)
-// T7(Plan D):「Hidden people」分区,默认折叠(照 Vue2 hiddenExpanded :559)。
+// T7 (Plan D): the "Hidden people" section, collapsed by default (mirroring Vue2 hiddenExpanded :559).
 const hiddenExpanded = ref(false)
 // T7 三态弹窗状态(本次接了真实弹窗)/ T8 审阅弹窗状态(仍是占位节点)。
 const dialog = ref<{ mode: DialogMode; person: Person } | null>(null)
@@ -228,9 +230,11 @@ function openDialog(mode: DialogMode): void {
   dialog.value = { mode, person: p }
 }
 
-// T7(Plan D):隐藏是即时执行,无确认弹窗——非破坏性、随时可从下面的「Hidden people」分区
-// unhide 撤销,一个确认步骤只会徒增摩擦(照 Vue2 hideClusterPerson :750-759 的注释)。
-// 菜单项本身已经用 v-if="people.hiddenPeopleSupported" 整体门控(见模板),这里不必重复判断。
+// T7 (Plan D): hiding executes immediately, no confirmation dialog — non-destructive, can always
+// be undone via unhide from the "Hidden people" section below; a confirmation step would only add
+// friction (mirroring Vue2 hideClusterPerson :750-759's own comment). The menu item itself is
+// already gated as a whole by v-if="people.hiddenPeopleSupported" (see the template), so there's
+// no need to check it again here.
 async function onHideCluster(): Promise<void> {
   const p = clusterMenu.value?.person ?? null
   clusterMenu.value = null
@@ -239,18 +243,20 @@ async function onHideCluster(): Promise<void> {
   const ok = await people.hidePerson(p.id)
   if (ok) {
     toast.show(t('photosPersonHiddenToast', { label }))
-    // New-UI 补齐:Vue2 hideClusterPerson 没有调用 fetchHiddenPeople(:750-759),隐藏后
-    // 「Hidden people」分区要等下次整页重挂载才会显示新隐藏的这一位,当次会话内是"隐了但
-    // 分区看不出来"的陈旧态。这里补一次刷新,让分区当场反映最新结果(纯加性改进,不影响
-    // 任何既有断言——Vue2 本就没有测试钉住"不刷新"这条行为)。
+    // New-UI addition: Vue2's hideClusterPerson never calls fetchHiddenPeople (:750-759), so the
+    // "Hidden people" section wouldn't show the newly-hidden person until the whole page
+    // remounts — within the same session it's stuck showing a stale "hidden but the section
+    // doesn't reflect it" state. This adds one refresh so the section reflects the latest result
+    // right away (a purely additive improvement, doesn't affect any existing assertion — Vue2
+    // never had a test pinning down "doesn't refresh" as behavior).
     void people.fetchHiddenPeople()
   }
 }
-// Vue2 unhideClusterPerson :770-772,直接转发给 store。
+// Vue2 unhideClusterPerson :770-772, forwards directly to the store.
 function onUnhide(p: Person): void {
   void people.unhidePerson(p.id)
 }
-// Vue2 toggleHiddenSection :765-767 —— 展开时不重新拉取(mounted 已经拉过一次,见下)。
+// Vue2 toggleHiddenSection :765-767 — doesn't re-fetch on expand (mounted already fetched once, see below).
 function toggleHidden(): void {
   hiddenExpanded.value = !hiddenExpanded.value
 }
@@ -434,9 +440,10 @@ onMounted(() => {
   // Vue2 :526-527 每次进页面都重拉,不做 loaded 去重,照搬。
   void people.fetchPeople()
   void people.fetchMergeSuggestions()
-  // T7:急切拉取(不是懒加载)——Vue2 mounted :622 的注释:这是一次很便宜的 GET,同时也
-  // 顺带完成 404 特性探测,老后端不会让分区闪一下又消失。分区本身仍默认折叠,只是计数
-  // 不再是懒加载的。
+  // T7: eager fetch (not lazy) — per Vue2 mounted :622's own comment: this is a cheap GET that
+  // also doubles as the 404 feature-detection probe, so a legacy backend won't flash the section
+  // and then make it disappear. The section itself is still collapsed by default; only the count
+  // is no longer lazy.
   void people.fetchHiddenPeople()
   // P8a-T6:改读共享 photosSettings store(§7e-10)。侧栏(PhotosSidebar,本页也挂载它)
   // 同帧也会调用 fetchAiFeatures() —— 并发去重收在 settings.ts 里,这里不需要关心。
@@ -692,10 +699,12 @@ onUnmounted(() => {
             </div>
           </template>
 
-          <!-- Hidden people(Vue2 :220-253):独立于上面 Pinned/Named/Unnamed 的空态门控 ——
-               只要有隐藏的人物就显示,不管 Named/Unnamed 此刻是否为空;特性探测:老后端没有
-               隐藏功能时 hiddenPeopleSupported 为 false,分区整体不出现,不对着确实有隐藏
-               人物的用户显示"(0)"或半成品的 loading 计数(照 Vue2 :220-223 的注释)。 -->
+          <!-- Hidden people (Vue2 :220-253): gated independently of the Pinned/Named/Unnamed
+               empty-state logic above — shows whenever there are any hidden people, regardless of
+               whether Named/Unnamed happen to be empty right now. Feature detection: on a legacy
+               backend without the hide feature, hiddenPeopleSupported is false and the whole
+               section never appears, rather than showing a user who does have hidden people a
+               bare "(0)" or a half-finished loading count (mirroring Vue2's own :220-223 comment). -->
           <template v-if="people.hiddenPeopleSupported && people.hiddenPeople.length > 0">
             <div class="section-head" data-test="section-hidden" style="cursor:pointer" @click="toggleHidden">
               <h2 style="display:flex;align-items:center;gap:8px">
@@ -765,9 +774,9 @@ onUnmounted(() => {
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
         <span>{{ t('photosPersonMergeExisting') }}</span>
       </button>
-      <!-- T7(Plan D):「Hide person」——Vue2 :274-280,只在 hiddenPeopleSupported 时出现,
-           带 title 说明文案;点击即时执行,不弹确认(见 onHideCluster 注释)。位置与 Vue2
-           字面顺序一致:命名/合并/隐藏/删除。 -->
+      <!-- T7 (Plan D): "Hide person" — Vue2 :274-280, only shows when hiddenPeopleSupported, with
+           an explanatory title; the click executes immediately, no confirmation (see the
+           onHideCluster comment). Position matches Vue2's own literal order: name/merge/hide/delete. -->
       <button
         v-if="people.hiddenPeopleSupported"
         type="button"

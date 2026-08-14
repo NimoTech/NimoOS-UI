@@ -165,8 +165,9 @@ describe('ClusterActionDialog.vue — 命名', () => {
   })
 })
 
-// Task 7 (Plan D): 命名一个已存在的名字 → 切到 dupconfirm 子状态,三个动作
-// (Merge into existing / Name anyway / Cancel),不直接 emit submit-name。
+// Task 7 (Plan D): naming with an already-existing name switches to the dupconfirm substate,
+// with three actions (Merge into existing / Name anyway / Cancel), instead of directly emitting
+// submit-name.
 describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
   const ADA = person({ id: 42, name: 'Ada', count: 30 })
 
@@ -177,7 +178,7 @@ describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
     await w.get('[data-test="cad-save-name"]').trigger('click')
     expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
     expect(w.emitted('submit-name')).toBeUndefined()
-    // 常规输入框/操作栏被替换掉,不是叠加在一起。
+    // The regular input/action row is replaced, not stacked alongside it.
     expect(w.find('[data-test="cad-name-input"]').exists()).toBe(false)
     expect(w.find('[data-test="cad-save-name"]').exists()).toBe(false)
   })
@@ -418,23 +419,30 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
   })
 })
 
-// ── Plan D Task 4(scoped 清零):此文件曾有一组"hover 态背景不被基类规则夺走"的测试,
-// 靠 `?raw` 读入组件自身的 <style scoped> 原文、用 ./cssCascade 的小型 CSS 优先级演算器
-// 断言 hover 态下真正生效的 background 声明。该组件的整段 <style scoped> 已在本任务删除
-// (类名不变,但样式接管权已交给 src/photos/styles/vue2-parity/photos-people.scss 里的
-// .cad-* parity 规则,见组件头部脚本注释),`?raw` 读进来的源码里已经没有 <style> 区块可
-// 提取,那组测试的前提不复存在,一并删除。这里只钉住一件事:组件根类名不受影响。
+// ── Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover
+// state's background doesn't get stolen by the base class's rule", reading the component's own
+// <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
+// calculator, which background declaration actually wins on hover. This task deleted the
+// component's entire <style scoped> block (the class names are unchanged, but styling authority
+// has moved to the .cad-* parity rules in src/photos/styles/vue2-parity/photos-people.scss — see
+// the component's own script-header comment), so the source read in via `?raw` no longer has a
+// <style> block to extract, and that test group's precondition no longer holds — deleted along
+// with it. All that's pinned down here is one thing: the component's root class name is unaffected.
 //
-// fix round 1(评审 Important):上面这段旧注释原来还写了一句"scoped 整体清零后不会复现,
-// parity 内部声明顺序本就正确"——**这句话错了,已删**。CSS 级联是按属性判胜负,不是按
-// 规则整体判胜负:`.cad-btn:hover { background: var(--surface-3); ... }` 与
-// `.cad-btn-danger:hover { filter: brightness(1.08); }`(改前)优先级相同(0,2,0),即便
-// parity 文件内 `.cad-btn-danger:hover` 写在 `.cad-btn:hover` 之后,只要它自己不重申
-// background,这条属性就完全没有来自变体规则的竞争声明,`.cad-btn:hover` 的 background
-// 依然生效——scoped 版本的 bug 换了个面孔在 parity 里原样复现了(删除确认按钮
-// data-test="cad-confirm-delete" hover 变成灰色而不是红色)。真正防复现的不是"删掉本地
-// scoped"这件事本身,而是"每个变体的 hover 规则必须自己重申 background"——下面这组测试
-// 直接读 parity 文件、按这条要求逐个断言,不再依赖组件本地 scoped 有没有被删。
+// Fix round 1 (final-review Important): the old comment above used to also say "once scoped is
+// entirely zeroed out this can't recur, parity's own internal declaration order is correct as
+// is" — **that sentence was wrong, and has been deleted.** The CSS cascade decides a winner per
+// property, not per rule as a whole: `.cad-btn:hover { background: var(--surface-3); ... }` and
+// `.cad-btn-danger:hover { filter: brightness(1.08); }` (before the fix) tie in specificity
+// (0,2,0) — even though parity's own `.cad-btn-danger:hover` is written after `.cad-btn:hover` in
+// the file, as long as it doesn't re-declare background itself, that property has no competing
+// declaration from the variant rule at all, so `.cad-btn:hover`'s background still wins — the
+// scoped version's bug reappeared wearing a different face, reproduced as-is inside parity (the
+// delete-confirm button data-test="cad-confirm-delete" turned gray on hover instead of red). What
+// actually prevents this from recurring isn't "delete the local scoped block" by itself, it's
+// "every variant's hover rule must re-declare background itself" — the test group below reads the
+// parity file directly and asserts against that requirement rule-by-rule, no longer depending on
+// whether the component's local scoped block has been deleted.
 describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
   it('挂载后 [data-test="cad-overlay"] 仍然带着 cad-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', async () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
@@ -444,25 +452,30 @@ describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不
   })
 })
 
-// ── Plan D Task 4, fix round 1(评审 Important):删除确认按钮 hover 态回归防线 ──────────
+// ── Plan D Task 4, fix round 1 (final-review Important): the delete-confirm button hover
+// regression guard ──────────
 //
-// jsdom 既不做级联样式计算也进不了真实 hover 态,而现在样式的真源已经不在这个组件文件里
-// (整段 <style scoped> 已删,类名规则全部搬进了 photos-people.scss),所以这组测试直接用
-// node:fs 读 parity 文件原文本身按选择器抓规则体(同 AppToast.zIndex.test.ts 已确立的
-// 读盘方式),不再走 ./cssCascade 那套"从组件 ?raw 提取 <style> 再算优先级"的旧路子——
-// 这里选择器都是简单的顶层类/伪类组合、互不嵌套,直接用一次性正则按"选择器名 { 花括号内容 }"
-// 抓规则体已经足够精确,不需要再引入完整的 CSS 解析。
+// jsdom neither computes the CSS cascade nor can enter a real hover state, and the real source of
+// styling now lives outside this component file entirely (the whole <style scoped> block is
+// deleted, all the class-name rules moved into photos-people.scss), so this test group reads the
+// parity file's own raw text via node:fs and pulls the rule body by selector (the same read-off-
+// disk approach already established by AppToast.zIndex.test.ts), rather than going through
+// ./cssCascade's older approach of "extract <style> from the component via ?raw, then compute
+// priority". The selectors here are all simple top-level class/pseudo-class combinations with no
+// nesting, so a one-shot regex pulling the rule body by "selector name { brace contents }" is
+// already precise enough — no need to bring in a full CSS parser.
 const PARITY_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../styles/vue2-parity/photos-people.scss',
 )
 const parityCss = readFileSync(PARITY_PATH, 'utf8')
 
-/** 精确按选择器名抓一条规则的花括号内容(不含嵌套花括号的简单按钮规则足够安全)。 */
+/** Precisely pulls one rule's brace contents by selector name (safe enough for simple button
+ *  rules with no nested braces). */
 function parityRuleBody(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
-  if (!m) throw new Error(`parity 文件里找不到规则:${selector}`)
+  if (!m) throw new Error(`Rule not found in parity file: ${selector}`)
   return m[1]
 }
 
@@ -478,7 +491,9 @@ describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1:parity 里变体
     const dangerBaseBg = backgroundOf(parityRuleBody('.cad-btn-danger'))
     expect(baseBg).toBe('var(--surface-3)')
     expect(dangerHoverBg, '.cad-btn-danger:hover 缺少 background 声明——按 CSS 级联规则,基类 .cad-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
-    // 值必须与自己的基础态一致(Vue2 是内联 style,hover 时背景本就不变,见组件里的 fix round 1 注释),不能只是"随便非空"。
+    // The value must match its own resting state (Vue2 uses an inline style, so the background
+    // never actually changes on hover — see the component's own fix round 1 comment); it can't
+    // just be "non-null, whatever it is".
     expect(dangerHoverBg).toBe(dangerBaseBg)
     expect(dangerHoverBg).not.toBe(baseBg)
   })

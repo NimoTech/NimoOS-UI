@@ -6,9 +6,10 @@
 // (两个菜单的开关与定位)移植;样式段照 photos-people.scss:277-460。
 //
 // 纯展示 + emit,不碰 store、不发请求 —— 所有副作用在 T14 容器里(brief 明确分工)。
-// Task 8 (Plan D):Ask about {name} 按钮(Vue2 :89-92 `.btn-ai`)此前推迟到 SP8 未渲染,
-// 现按 Vue2 顺序补上(actions 区第一位)。点击是 no-op —— 接线(真正调用 Ask Nimo)
-// 归 Plan G,这里只补文案 + 视觉 + 一个空函数占位(见下方 onAskNimo)。
+// Task 8 (Plan D): the Ask about {name} button (Vue2 :89-92 `.btn-ai`) was previously deferred
+// to SP8 and unrendered; now added back in Vue2's own order (first in the actions row). The
+// click is a no-op — wiring the real Ask Nimo call belongs to Plan G; this task only adds the
+// copy + visuals + an empty placeholder function (see onAskNimo below).
 //
 // 实现方式偏离登记(已批准,brief 明确要求):Vue2 用 getBoundingClientRect 手算
 // fixed 坐标 + document mousedown + closest('.relation-menu') 判定两个菜单的开关/定位
@@ -191,8 +192,10 @@ onUnmounted(() => {
        `src/photos/styles/vue2-parity/photos-people.scss` governs directly. data-test attributes,
        props/emits and all logic are unchanged. -->
   <div class="detail-hero" data-test="hero-root" :data-fallback="isFallback ? 'true' : 'false'">
-    <!-- 终审 Important 5:裁剪层。模糊背景与暗化遮罩关在这里,`overflow: hidden` 由它自己承担,
-         .detail-hero 不再裁 —— 否则两个 hero 下拉菜单(absolute)会被祖先切掉。 -->
+    <!-- Final review Important 5: the clip layer. The blurred background and the darkening scrim
+         are contained here, `overflow: hidden` is this element's own responsibility —
+         .detail-hero no longer clips, otherwise the two hero dropdown menus (absolute) would be
+         cut off by an ancestor. -->
     <div class="hero-clip" data-test="hero-clip">
       <div
         class="bg"
@@ -254,9 +257,11 @@ onUnmounted(() => {
                      是合并弹窗的标题「合并到另一个人物」。 -->
                 {{ t('photosPersonMenuMergeInto') }}
               </button>
-              <!-- Task 7 (Plan D): "Hide person"——照 Vue2 PhotosPersonDetail.vue:43-46,只在
-                   hiddenPeopleSupported 时出现,带 title 说明文案;点击即时执行,容器负责
-                   实际隐藏 + toast + 导航(本组件不碰 store,分工同文件头部注释)。 -->
+              <!-- Task 7 (Plan D): "Hide person" — per Vue2 PhotosPersonDetail.vue:43-46, only
+                   shows when hiddenPeopleSupported, with an explanatory title; the click executes
+                   immediately, the container owns the actual hide + toast + navigation (this
+                   component never touches the store, same division of labor as the file-header
+                   comment). -->
               <button
                 v-if="hiddenPeopleSupported"
                 type="button"
@@ -350,7 +355,8 @@ onUnmounted(() => {
    keeps an explicit `color` override here, because parity itself uses *themed* tokens
    (`--text-1`/`--text-2`) for these captions and relies on a light-theme text-shadow halo
    instead of a fixed light color — a real design difference from this app's already-reviewed
-   "配色红线" decision (see file-header comment), not something this cleanup should undo.
+   "pinned foreground color" red-line decision (see file-header comment), not something this
+   cleanup should undo.
    These color survivors are written as full parity-matching selector paths (not bare class
    names) specifically so the scoped-attribute specificity bump reliably beats parity's own
    rules for the same element regardless of stylesheet load order — a bare `.back { color }`
@@ -358,24 +364,30 @@ onUnmounted(() => {
    coin-flip this technique avoids. */
 .detail-hero {
   position: relative;
-  /* 终审 Important 5:**这里刻意没有 overflow: hidden**(parity 的 .detail-hero 有)。两个
-     下拉菜单是 absolute 锚定的(见文件头的实现方式偏离登记),祖先一裁就整块消失、z-index
-     无用、也没有滚动条可救 —— 长人名触发 .name 换行后菜单最后一项会被切掉约一半。裁剪
-     职责下移到 .hero-clip。加新的绝对定位子元素时留意:它现在**不会**被 hero 边界裁住。
+  /* Final review Important 5: overflow: hidden is deliberately absent here (parity's own
+     .detail-hero has it). The two dropdown menus are absolute-anchored (see the file-header
+     "implementation deviation" note); any ancestor clip would remove them entirely — z-index is
+     useless once the ancestor already clips, and there's no scrollbar to save it. A long name
+     wrapping `.name` pushes the trigger down, clipping off roughly half of the menu's last item.
+     Clipping responsibility moved down to .hero-clip. When adding new absolutely-positioned
+     children here, note this element no longer clips them at the hero's own bounds.
      min-height/border-bottom/background all now come from parity's own `.detail-hero` rule
      (duplicates deleted); flex:none is Vue2's own component-scoped supplement
      (PhotosPersonDetail.vue:1104), not transcribed into the shared parity file yet. */
   overflow: visible;
   flex: none;
 }
-/* 只裁"该裁的东西":模糊封面图 + 暗化遮罩。
-   为什么必须是**独立的祖先容器**,而不是让 .bg 自己 overflow:hidden(评审建议的字面
-   写法):`filter: blur(40px)` 的输出按规范画在元素盒子**之外**(此处最多外溢约 120px),
-   `transform: scale(1.2)` 又把它整体放大 20% —— 元素自身的 overflow 管不了自己的滤镜输出,
-   只有**祖先**的 overflow 才能裁。若不裁,模糊边缘会溢到下方 tabs/网格与页面两侧。
-   另一个候选修法是把菜单改回 Vue2 的 position:fixed + getBoundingClientRect 手算坐标;
-   没选它,因为那要重新引入坐标计算,且 Vue2 那套在页面滚动/窗口缩放时菜单会脱锚(它没挂
-   scroll/resize 重算),等于用一个已知缺陷换另一个。 */
+/* Clip only what actually needs clipping: the blurred cover image + the darkening scrim.
+   Why this must be a **separate ancestor container** rather than letting `.bg` clip itself
+   (the literal fix a reviewer suggested): `filter: blur(40px)`'s output is painted **outside**
+   the element's own box per spec (up to roughly 120px of bleed here), and `transform: scale(1.2)`
+   then enlarges the whole thing by 20% on top of that — an element's own `overflow` can't clip
+   its own filter output, only an **ancestor's** `overflow` can. Without this, the blur edges
+   would bleed into the tabs/grid below and the page's sides.
+   The other candidate fix was reverting the menus to Vue2's own position:fixed +
+   getBoundingClientRect coordinate math; not chosen because that reintroduces coordinate
+   calculation, and Vue2's own version loses its anchor on page scroll/window resize (it never
+   wires up scroll/resize recalculation) — that would just trade one known defect for another. */
 .hero-clip {
   position: absolute;
   inset: 0;
@@ -383,11 +395,13 @@ onUnmounted(() => {
 }
 /* `.bg`'s own base rule (position/inset/background-size/position/filter/transform/opacity)
    duplicated parity's `.detail-hero .bg` byte-for-byte and has been deleted. Only the
-   fallback modifier survives: 无封面/无人脸缩略图时的纯渐变兜底——不叠 blur/scale/opacity
-   (那三条是为"模糊照片"设计的,套在纯色渐变上只会把它洗成一片 45% 透明度的浅雾,而不是
-   PersonAvatar 三级兜底同款的饱和渐变色块;parity 的 [data-fallback] 覆盖规则同样没有解除
-   父规则的 filter/opacity,这里判定为 Vue2 无意的视觉稀释,不照抄——按同一渐变 token 但用
-   满血不透明色块渲染)。 */
+   fallback modifier survives: the plain-gradient fallback for when there is no cover photo and no
+   face thumbnail — it doesn't layer on blur/scale/opacity (those three are designed for "a
+   blurred photo"; stacked on a flat-color gradient they'd just wash it out into a 45%-opacity
+   pale haze, not the saturated gradient block PersonAvatar's own three-tier fallback uses).
+   Parity's own [data-fallback] override rule likewise never lifts the parent rule's
+   filter/opacity — judged here as an unintentional visual dilution on Vue2's part, not copied;
+   same gradient token, rendered as a full-strength opaque color block instead). */
 .bg.is-fallback {
   filter: none;
   transform: none;
@@ -403,8 +417,9 @@ onUnmounted(() => {
 .scrim {
   position: absolute;
   inset: 0;
-  /* theme-exception: 叠在人物封面照片之上的固定暗化渐变,专为下方钉死的浅色前景文字/
-     图标提供跨主题恒定的可读对比度——理由见本文件顶部注释,这里不重复。 */
+  /* theme-exception: a fixed darkening gradient layered over the person's cover photo, giving
+     the pinned-light foreground text/icons below it cross-theme-constant readable contrast — see
+     this file's header comment for the full reasoning, not repeated here. */
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.68) 100%);
 }
 
@@ -428,14 +443,16 @@ onUnmounted(() => {
    is no theme-exception concern here) and has been deleted entirely. */
 
 .name {
-  /* 偏离登记 10(已在文件头登记):flex-wrap:wrap 是本仓新增,parity/Vue2 的 `.name` 没有
-     这条,长人名会把 Edit/关系分组两个胶囊挤扁并溢出。display/align-items/gap/font/color
-     全部来自 parity 的 `.detail-hero .name`,只留这一条本地覆盖。 */
+  /* Deviation 10 (already registered in the file header): flex-wrap:wrap is a New-UI addition —
+     parity/Vue2's own `.name` doesn't have it, and a long name would squeeze and overflow the
+     Edit/relation-group pills. display/align-items/gap/font/color all come from parity's
+     `.detail-hero .name`; this is the only local override left. */
   flex-wrap: wrap;
 }
-/* theme-exception: 姓名直接叠在暗化封面照片上,需跨主题恒定浅色(不用 --fg——浅色主题下
-   --fg 是近黑色,叠在暗照片上会深底深字)。font-family/size/weight/letter-spacing 都从
-   parity 的 `.detail-hero .name` 继承,这里只需要 color 这一条。 */
+/* theme-exception: the name sits directly over the darkened cover photo, so it needs a
+   cross-theme-constant light color (not --fg — in the light theme --fg is near-black, which
+   would render dark-on-dark over the darkened photo). font-family/size/weight/letter-spacing all
+   come from parity's `.detail-hero .name` — only color needs overriding here. */
 .name-text { color: #fff; }
 
 /* Fix round 1 (Important, coordinator review): the previous bare `.fav-toggle { … }` here
@@ -462,8 +479,9 @@ onUnmounted(() => {
    Icon color stays a theme-exception pin (rgba/--star-fg), not Vue2's real per-state inline
    `color` prop (`#FFD60A` favorited / `var(--text-3)` unfavorited): with the pill background
    now gone, the icon sits directly over the photo, and `var(--text-3)` is exactly the kind of
-   themed-dark-in-light-theme value this whole component's "配色红线" section already exists to
-   keep out from here — not a fresh decision, the same established policy applied consistently. */
+   themed-dark-in-light-theme value this whole component's "pinned foreground color" red-line
+   section already exists to keep out from here — not a fresh decision, the same established
+   policy applied consistently. */
 .detail-hero .name .fav-toggle {
   background: transparent;
   border: 0;
@@ -471,8 +489,10 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   cursor: pointer;
-  /* 未收藏态:半透明浅色描边星,同样钉死不随主题(见文件头"配色红线"说明)。
-     收藏态见下方 .fav-toggle.is-fav 规则,复用本仓已确立的 --star-fg 兜底惯例。 */
+  /* Unfavorited state: a semi-transparent light outlined star, likewise pinned regardless of
+     theme (see the file-header "pinned foreground color" red-line note). The favorited state is
+     the `.fav-toggle.is-fav` rule below, reusing this app's already-established --star-fg
+     fallback convention. */
   color: rgba(255, 255, 255, 0.72); /* theme-exception */
 }
 .detail-hero .name .fav-toggle.is-fav {
@@ -519,8 +539,9 @@ onUnmounted(() => {
 .detail-hero .name .relation-trigger:hover { color: #fff; }
 
 /* The popup bodies themselves (`.relation-menu`/`.relation-option`/`.edit-menu-danger`) are
-   NOT part of the "pinned light foreground" family — per the file-header "配色红线" note, once
-   open they sit on their own opaque `var(--surface-1)` popup background, not on the photo, so
+   NOT part of the "pinned light foreground" family — per the file-header "pinned foreground
+   color" red-line note, once open they sit on their own opaque `var(--surface-1)` popup
+   background, not on the photo, so
    they follow normal theme tokens same as any other popup. Every property parity supplies for
    them (position/sizing/background/border/hover/active/danger colors) duplicated this
    component's old local rules 1:1 in intent (just different token names) and has been deleted
@@ -533,11 +554,13 @@ onUnmounted(() => {
   font-size: 12px;
   margin-left: 4px;
   font-family: var(--font);
-  color: rgba(255, 255, 255, 0.72); /* theme-exception: 同 .stat .k */
+  color: rgba(255, 255, 255, 0.72); /* theme-exception: same as .stat .k */
 }
-/* theme-exception: 统计数字/标签叠在暗化封面照片上,需跨主题恒定浅色——parity 自己的
-   `.detail-hero .stat .v`/`.stat .k` 用的是随主题 token(.v 甚至没设 color,靠继承;.k 是
-   var(--text-3)),字体/字号/字重等结构属性均从 parity 继承/复用,这里只覆盖 color。 */
+/* theme-exception: the stat numbers/labels sit over the darkened cover photo and need a
+   cross-theme-constant light color — parity's own `.detail-hero .stat .v`/`.stat .k` use themed
+   tokens (`.v` doesn't even set color, it inherits; `.k` uses var(--text-3)); font/size/weight
+   and other structural properties are all inherited/reused from parity, only color is overridden
+   here. */
 .detail-hero .stat .v { color: #fff; } /* theme-exception */
 .detail-hero .stat .k { color: rgba(255, 255, 255, 0.72); } /* theme-exception */
 

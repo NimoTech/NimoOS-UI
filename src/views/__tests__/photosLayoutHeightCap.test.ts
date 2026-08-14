@@ -34,12 +34,15 @@ const CAPPED = [
   // Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward)起,PhotosSearch.vue 同样
   // 换成 `.app` 网格壳,同理从下面摘掉——它已经不含 `.photos-layout {` 字面量,
   // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
-  // Plan D Task 2(人物换壳)起,PhotosPeople.vue 同样换成 `.app` 网格壳,同理从下面摘掉
-  // (`.people-body` 接过内层滚动职责,不变)——它已经不含 `.photos-layout {` 字面量,
-  // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
-  // Plan D Task 3(详情页换壳)起,PhotosPersonDetail.vue 同样换成 `.app` 网格壳,同理从下面
-  // 摘掉(`.detail-body` 接过内层滚动职责,不变)——它已经不含 `.photos-layout {` 字面量,
-  // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
+  // As of Plan D Task 2 (People re-shell), PhotosPeople.vue has likewise switched to the `.app`
+  // grid shell, so it's dropped from below the same way (`.people-body` still takes over the
+  // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
+  // so `allPhotosLayoutViews()` excludes it automatically; no need to move it into EXEMPT.
+  // As of Plan D Task 3 (detail-page re-shell), PhotosPersonDetail.vue has likewise switched to
+  // the `.app` grid shell, so it's dropped from below the same way (`.detail-body` still takes
+  // over the inner scroll responsibility, unchanged) — it no longer contains a literal
+  // `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to move it
+  // into EXEMPT.
   'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
   'PhotosPlaceAssets.vue',      // PhotosGrid 的 .photos-wrap
   'PhotosTrash.vue',            // .trash-scroll

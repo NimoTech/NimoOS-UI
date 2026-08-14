@@ -20,16 +20,21 @@
 // zh_CN.json:1993-1994 译"集群 A/B" 触犯本期术语红线,改"组 A/B")、
 // photosPersonMergeNimoLead(理由条品牌前缀 $t('Nimo:'))。
 //
-// Plan D Task 4(scoped 清零):本组件类名不改(Task 1 已按现名 .mrd-* 落 parity —— Vue2
-// 这整个弹窗同样靠 :style 绑定搭出来,没有类可以锚)。文件末尾原有的整段本地 scoped 样式
-// 块已删除:每条规则在 src/photos/styles/vue2-parity/photos-people.scss 里都能找到逐条比
-// 对过的对应规则(diff 过程中补的真缺口——原来的 `:deep(.person-avatar)` 头像方形约束,
-// 在 parity 里已改写成普通后代选择器 `.mrd-side .person-avatar`,因为 parity 不是 scoped
-// CSS,不需要 :deep;顺手修正的本地对 Vue2 的漂移——.mrd-overlay 内边距——也已经写进
-// parity 那条规则自己的注释里)。parity 是纯全局样式表,本组件不再带任何本地 scoped 规则
-// 之后,也就没有谁能在 specificity 上压过 parity 内部自身的声明顺序了——删掉的那条 hover
-// 修复注释(:hover 被基类 hover 抢背景)本就是"本地 scoped 规则自带 specificity 加成"导致
-// 的,scoped 整体清零之后这个前提不再成立,不会复现。
+// Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
+// landed them in parity under the current .mrd-* names — Vue2's entire dialog is likewise built
+// from :style bindings, so there's no class to anchor to). The whole local scoped style block
+// that used to live at the end of this file has been deleted: every rule now has a matching,
+// line-by-line-compared counterpart in src/photos/styles/vue2-parity/photos-people.scss (the
+// genuine gap filled in during the diff — the old `:deep(.person-avatar)` avatar square
+// constraint has been rewritten in parity as a plain descendant selector
+// `.mrd-side .person-avatar`, since parity isn't scoped CSS and doesn't need :deep; the local
+// drift from Vue2 corrected along the way — .mrd-overlay's padding — is also documented in that
+// parity rule's own comment). Parity is a plain global stylesheet, and once this component
+// carries no local scoped rules at all, nothing can out-specificity parity's own declaration
+// order anymore — the hover-fix comment that used to be here (":hover losing its background to
+// the base class's hover") existed precisely because a local scoped rule carries its own
+// specificity bump; once scoped is entirely zeroed out, that precondition no longer holds and
+// can't recur.
 import { computed, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'

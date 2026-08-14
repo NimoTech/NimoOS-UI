@@ -425,14 +425,19 @@ export default {
   // ★ means "no such copy in Vue2, authored here" (convention at :788 / :815). Re-checked
   // every ★ below against the old repo's zh_CN.json: none of these English sentences exist
   // there, so ★ is accurate for them. Only the two above were mismarked and are now fixed.
+  // Final-review follow-up (fix round, Plan D): the ★ that used to sit on `photosPersonNotFound`/
+  // `photosPersonBack` below has gone stale — Vue2 commit 03245590 later added matching copy for
+  // both (`Person not found` / `Back to People`, PhotosPersonDetail.vue:471/473, part of the same
+  // fallback-branch source this task's I1 re-anchor draws from), so they are no longer "no Vue2
+  // copy, authored here." ★ removed from both.
   photosPersonRelationFailed: 'Could not update group', // ★
   photosPersonFavFailed: 'Could not update favorite', // ★
   photosPersonNoPhotos: 'No photos for this person yet', // ★
-  photosPersonNotFound: 'Person not found', // ★
+  photosPersonNotFound: 'Person not found',
   // Task 6 (Plan D, PR#137 gap-close): source-of-truth casing check against the Vue2 patch
   // that introduced this string (`"Back to People": "Back to People"`) turned up a casing
   // mismatch here — fixed to match Vue2 verbatim (was 'Back to people').
-  photosPersonBack: 'Back to People', // ★
+  photosPersonBack: 'Back to People',
   photosPeopleEmptyTitle: 'No people yet', // ★
   // Task 6 (Plan D, PR#137 gap-close): replaces the old single `photosPeopleEmptyHint` —
   // Vue2's #137 patch (NimoOS-UI commit 03245590, PhotosPeopleView.vue) branches this hint on

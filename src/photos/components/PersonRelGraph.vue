@@ -36,7 +36,7 @@
 //     from Vue2's own scoped style block (photos-people.scss doesn't have this rule; the
 //     brief's controller ruling puts it there directly with this task, not Task 1).
 //
-// Unnamed-person fallback (one of the 5 "Unnamed person 兜底" spots the brief calls out):
+// Unnamed-person fallback (one of the 5 "Unnamed person fallback" spots the brief calls out):
 // centerName and the satellite name label both fall back to photosPersonUnnamedTitle — same
 // key PersonHero.vue/topbar already use. Ported verbatim from Vue2's own asymmetry: the
 // *displayed* satellite name falls back (`pos.name || $t('Unnamed person')`), but the *initial*
@@ -87,8 +87,8 @@ interface NodePos {
 }
 
 // Vue2 :68-85 positions computed —— 按 count 降序排列后按角度/距离公式摆放。
-// Task 6:排序后截断到 MAX_GRAPH_NODES(Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`)——防止
-// 关系很多的人物把图挤成一团不可读的线球。
+// Task 6: truncate to MAX_GRAPH_NODES after sorting (Vue2 :73 `.slice(0, MAX_GRAPH_NODES)`) —
+// prevents a person with a lot of relations from squashing the graph into an unreadable knot.
 const positions = computed<NodePos[]>(() => {
   if (props.relations.length === 0) return []
   const sorted = [...props.relations].sort((a, b) => b.count - a.count).slice(0, MAX_GRAPH_NODES)
@@ -275,7 +275,8 @@ function thumbUrl(pos: NodePos): string {
    color at two opacities, not Vue2's two literal hex tones (see script-block comment).
    `.rg-avatar-initial`'s fill is `--on-accent`: this text sits directly on the accent-derived
    fallback disc, which is exactly the saturated-accent-solid precondition `--on-accent` is
-   for (same rule already established in PersonHero.vue's "配色红线" section). */
+   for (same rule already established in PersonHero.vue's "pinned foreground color" red-line
+   section). */
 .rg-avatar-fallback-stop {
   stop-color: var(--accent);
 }

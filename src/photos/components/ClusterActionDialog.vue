@@ -31,15 +31,19 @@
 // 的"删除面部集群"——"集群"触犯本期术语红线,改"删除这组人脸"),警示条恢复
 // "标题行 + <br/> + 灰色小字正文" 的两行结构,三句各自归位。
 //
-// Plan D Task 4(scoped 清零):本组件类名不改(Task 1 已按现名 .cad-* 落 parity —— Vue2
-// 这整个弹窗靠 :style 绑定搭出来,没有类可以锚)。文件末尾原有的整段本地 scoped 样式块
-// 已删除:每条规则在 src/photos/styles/vue2-parity/photos-people.scss 里都能找到逐条比对
-// 过的对应规则(diff 过程中补的两个真缺口——.cad-input:focus、.mrd-side 头像方形约束——
-// 与顺手修正的两处本地对 Vue2 的漂移——.cad-overlay 内边距、.cad-btn-primary:disabled 的
-// 视觉——都已经写进 parity 文件那几条规则自己的注释里)。parity 是纯全局样式表,本组件不
-// 再带任何本地 scoped 规则之后,也就没有谁能在 specificity 上压过 parity 内部自身的声明
-// 顺序了——删掉的那些 hover 修复注释(:hover 被基类 hover 抢背景)本就是"本地 scoped 规则
-// 自带 specificity 加成"导致的,scoped 整体清零之后这个前提不再成立,不会复现。
+// Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
+// landed them in parity under the current .cad-* names — Vue2's entire dialog is built from
+// :style bindings, so there's no class to anchor to). The whole local scoped style block that
+// used to live at the end of this file has been deleted: every rule now has a matching,
+// line-by-line-compared counterpart in src/photos/styles/vue2-parity/photos-people.scss (the two
+// genuine gaps filled in during the diff — .cad-input:focus, .mrd-side's avatar square
+// constraint — and the two local drifts from Vue2 corrected along the way — .cad-overlay's
+// padding, .cad-btn-primary:disabled's visual — are all documented in those parity rules' own
+// comments). Parity is a plain global stylesheet, and once this component carries no local
+// scoped rules at all, nothing can out-specificity parity's own declaration order anymore — the
+// hover-fix comments that used to be here (":hover losing its background to the base class's
+// hover") existed precisely because a local scoped rule carries its own specificity bump; once
+// scoped is entirely zeroed out, that precondition no longer holds and can't recur.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
@@ -66,10 +70,11 @@ const nameInput = ref('')
 const mergeQuery = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
 const mergeInputRef = ref<HTMLInputElement | null>(null)
-// Task 7(Plan D,重名 dupconfirm):非 null 时 mode='name' 的模板切到 dupconfirm 子状态
-// (照 Vue2 PhotosPeopleView.vue confirmName() :774-785 把整个 clusterDialog.mode 换成
-// 'dupconfirm'——这里只是子状态,不是新的顶层 mode,因为 open/mode props 由宿主拥有,
-// 本组件只在内部私有 ref 里切换视图)。
+// Task 7 (Plan D, duplicate-name dupconfirm): when non-null, the mode='name' template switches
+// to the dupconfirm substate (mirroring Vue2's PhotosPeopleView.vue confirmName() :774-785, which
+// switches clusterDialog.mode wholesale to 'dupconfirm' — here it's only a substate, not a new
+// top-level mode, because the open/mode props are owned by the host; this component only
+// switches views inside its own private ref).
 const dupConfirm = ref<{ name: string; existing: Person } | null>(null)
 const dupConfirmRef = ref<HTMLElement | null>(null)
 
@@ -86,10 +91,12 @@ const titleKey = computed(() => {
   return 'photosPersonDeleteClusterTitle'
 })
 
-// Task 7(Plan D,重名 dupconfirm):dupConfirm 非空时(mode==='name' 子状态),头部标题槽位
-// 换成"已存在同名人物"的插值文案(照 Vue2 PhotosPeopleView.vue:317
-// `$t('A person named "{name}" already exists.', { name: clusterDialog.pendingName })`);
-// 头像/副标题(subtitleText)保持不变——它们描述的是这次命名的原始人物簇,不随子状态切换。
+// Task 7 (Plan D, duplicate-name dupconfirm): when dupConfirm is non-null (the mode==='name'
+// substate), the header title slot switches to the "a person with this name already exists"
+// interpolated copy (mirroring Vue2 PhotosPeopleView.vue:317
+// `$t('A person named "{name}" already exists.', { name: clusterDialog.pendingName })`); the
+// avatar/subtitle (subtitleText) stay unchanged — they describe this naming action's original
+// person cluster, and don't switch with the substate.
 const headTitle = computed(() => {
   if (props.mode === 'name' && dupConfirm.value) {
     return t('photosPersonDupExistsTitle', { name: dupConfirm.value.name })
@@ -164,28 +171,30 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
-// Task 7:重名检测接入(照 Vue2 confirmName :774-785 —— findNamedDuplicate(peopleNamed, name)
-// 命中就把 mode 换成 'dupconfirm' 并 focus 那个盒子,不命中才真的 applyName)。`candidates`
-// 已经是宿主传下来的 people.named 全量列表(合并模式复用的同一份),命名场景不需要 excludeId
-// ——这个 mode 只从未命名簇触发,簇本身不在 candidates(全量已命名列表)里,不会误判自身。
+// Task 7: wires up duplicate-name detection (mirroring Vue2's confirmName :774-785 —
+// findNamedDuplicate(peopleNamed, name) switches mode to 'dupconfirm' and focuses that box on a
+// hit, only calling the real applyName otherwise). `candidates` is already the host-supplied full
+// people.named list (the same one the merge mode reuses); the naming scenario doesn't need
+// excludeId — this mode only ever triggers from an unnamed cluster, and the cluster itself isn't
+// in candidates (the full named-people list), so it can't be misjudged as a duplicate of itself.
 function submitName(): void {
   const name = nameInput.value.trim()
   if (!name) return
   const dup = findNamedDuplicate(props.candidates, name)
   if (dup) {
     dupConfirm.value = { name, existing: dup }
-    // 照 Vue2 focusDlg() 的"dupconfirm 子状态下 focus 盒子本身"语义(:740-743)。
+    // Mirroring Vue2's focusDlg() semantics of "focus the box itself in the dupconfirm substate" (:740-743).
     void nextTick(() => dupConfirmRef.value?.focus())
     return
   }
   emit('submit-name', name)
 }
-// "Name anyway"(照 Vue2 dupNameAnyway :791-796):无视重名,照样提交这个名字。
+// "Name anyway" (mirroring Vue2 dupNameAnyway :791-796): ignore the duplicate, submit this name regardless.
 function dupNameAnyway(): void {
   if (!dupConfirm.value) return
   emit('submit-name', dupConfirm.value.name)
 }
-// "Merge into existing"(照 Vue2 dupMergeInto :797-802):改道合并到已存在的那个人物。
+// "Merge into existing" (mirroring Vue2 dupMergeInto :797-802): redirects into merging with that already-existing person.
 function dupMergeInto(): void {
   if (!dupConfirm.value) return
   emit('submit-merge', dupConfirm.value.existing.id)
@@ -213,8 +222,9 @@ function submitDelete(): void {
       </div>
 
       <template v-if="mode === 'name'">
-        <!-- Task 7:重名 dupconfirm 子状态 —— 照 Vue2 PhotosPeopleView.vue:396-419,替换掉
-             输入框/提示/常规操作栏,换成三个动作。头部(头像/副标题)不变,只有这一块内容切换。 -->
+        <!-- Task 7: the duplicate-name dupconfirm substate — mirroring Vue2
+             PhotosPeopleView.vue:396-419, replaces the input/hint/regular action row with three
+             actions. The header (avatar/subtitle) is unchanged; only this block's content switches. -->
         <template v-if="!dupConfirm">
           <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
           <input

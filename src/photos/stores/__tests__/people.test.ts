@@ -590,8 +590,8 @@ describe('photosPeople store', () => {
     })
   })
 
-  // Task 7 (Plan D, SP7-P5 人物): Hidden people 分区 + hide/unhide 动作,照 Vue2
-  // hidePersonAction/fetchHiddenPeople/unhidePerson(photos.js:1585-1633)。
+  // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
+  // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
   describe('hiddenPeople / hidePerson / unhidePerson', () => {
     it('fetchHiddenPeople 成功 → hiddenPeople 填充为 Person[],hiddenPeopleLoaded/hiddenPeopleSupported 都为 true', async () => {
       ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1', name: 'Zed' })])
@@ -651,7 +651,7 @@ describe('photosPeople store', () => {
       const ok = await s.hidePerson('p1')
       expect(ok).toBe(false)
       expect(s.people).toHaveLength(3)
-      expect(s.people[1]).toMatchObject({ id: 'p1', name: 'Ann' }) // 回插到原来的下标
+      expect(s.people[1]).toMatchObject({ id: 'p1', name: 'Ann' }) // reinserted at its original index
       consoleSpy.mockRestore()
     })
 
@@ -662,10 +662,11 @@ describe('photosPeople store', () => {
       let resolveHide: (() => void) | undefined
       ;(service.photos.hidePerson as any).mockImplementation(() => new Promise((resolve) => { resolveHide = () => resolve({}) }))
       const hidePromise = s.hidePerson('p1')
-      // 隐藏请求仍在途时,一次竞态的 fetchPeople 命中同一份后端数据(还没反映隐藏结果)。
+      // While the hide request is still in flight, a racing fetchPeople hits the same backend
+      // data (which doesn't reflect the hide result yet).
       ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
       await s.fetchPeople()
-      expect(s.people).toHaveLength(0) // 被 _pendingHides 挡住,没有诈尸
+      expect(s.people).toHaveLength(0) // blocked by _pendingHides, doesn't come back from the dead
       resolveHide?.()
       await hidePromise
     })
@@ -710,9 +711,10 @@ describe('photosPeople store', () => {
       expect(service.photos.purgePerson).not.toHaveBeenCalled() // 定时器已被清
     })
 
-    // Task 7 (Plan D): __resetForTest 也要清 Hidden people 相关状态与 _pendingHides,
-    // 否则同一 id 在下一条用例里被 hidePerson 时,fetchPeople 的过滤逻辑会被上一条用例
-    // 遗留的悬挂条目污染(同上一条用例注释里 _purgeTimers 的先例)。
+    // Task 7 (Plan D): __resetForTest must also clear the Hidden-people-related state and
+    // _pendingHides, otherwise when the same id gets hidePerson'd in the next test case,
+    // fetchPeople's filtering logic would be polluted by a dangling entry left over from the
+    // previous case (the same precedent as _purgeTimers in the previous test case's comment).
     it('清空 Hidden people 状态', async () => {
       const s = usePhotosPeople()
       ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1' })])

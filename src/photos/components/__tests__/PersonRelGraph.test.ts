@@ -212,8 +212,8 @@ describe('PersonRelGraph.vue — PR#137 移植:节点上限 / 头像首字母兜
     const relations: PersonRelation[] = [{ personId: 1, name: 'Zoe', count: 3 }]
     const w = mountGraph({ relations, person: P({ name: 'Amy' }) })
     const initials = w.findAll('.rg-avatar-initial').map((x) => x.text())
-    expect(initials).toContain('Z') // 卫星节点首字母
-    expect(initials).toContain('A') // 中心首字母
+    expect(initials).toContain('Z') // satellite node initial
+    expect(initials).toContain('A') // center node initial
   })
 
   it('relations 为空时渲染 .rg-empty 空态,文案为 photosPersonRelGraphEmptyTitle/Sub(照 Vue2 tests/photosRelGraph.test.js "renders empty state when no co-appearances")', () => {

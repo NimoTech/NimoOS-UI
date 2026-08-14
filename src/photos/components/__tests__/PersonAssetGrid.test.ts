@@ -331,9 +331,10 @@ describe('PersonAssetGrid.vue — 覆盖控件默认态透明,仅 hover/选择�
 // ── 终审 Minor 3:两个覆盖控件的**自身** hover 反馈 + 选中压暗 + 几何回源对齐 ──────
 // 原实现只有"整格 hover → 按钮淡入",鼠标压在按钮本体上零反馈;叠上「移出」按钮又没有
 // Vue2 的危险色,终审原话:这几项叠加会让**破坏性**的移出「×」认不出是删除键。
-// Task 5 记账:这条规则族已随上一个 describe 一起迁入 parity;`--remove-bg`(本仓主题跟随
-// token)也随之换成 parity 的 `var(--danger, #FF3860)`(Vue2 字面固定色,见 task-5-report.md
-// 偏离表)——下面的断言已同步改期望值。
+// Task 5 record: this rule family moved into parity together with the previous describe block;
+// `--remove-bg` (this app's theme-following token) has likewise been replaced by parity's
+// `var(--danger, #FF3860)` (Vue2's own literal fixed color, see task-5-report.md's deviations
+// table) — the assertions below have been updated to match the new expected values.
 describe('PersonAssetGrid.vue — 控件自身 hover 与选中态(照 Vue2 :1148-1222,现由 parity 承接)', () => {
   const rules = parseCssRules(extractStyleBlock(photosPeopleParityRaw))
 

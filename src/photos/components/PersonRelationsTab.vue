@@ -17,8 +17,9 @@
 // 见该文件注释),这里只做 t(key, params) 解析 + 空格拼接(照 :584
 // `parts.join(' ')`),以及 v-html 的安全加固(见下方 escapeHtml 注释)。
 //
-// Task 8 (Plan D): 洞察卡底部「深挖」按钮(Vue2 :228-230 `.nimo-btn`,$emit('ask-nimo', ...))
-// 此前推迟到 SP8 未渲染,现按 Vue2 补上。点击是 no-op —— 接线(真正调用 Ask Nimo)归 Plan G。
+// Task 8 (Plan D): the insight card's bottom "Dig deeper" button (Vue2 :228-230 `.nimo-btn`,
+// $emit('ask-nimo', ...)) was previously deferred to SP8 and unrendered; now added back per Vue2.
+// The click is a no-op — wiring the real Ask Nimo call belongs to Plan G.
 //
 // v-html 安全性(brief 给的两个选项之间的取舍,已在报告里详细说明):brief 建议
 // 「低成本的话改用 <i18n-t> 具名插槽把 <b> 做成 slot」。这里改用另一条更低成本、
@@ -138,8 +139,8 @@ function onDigDeeper(): void {}
         <div class="hd"><span class="orb" :style="{ backgroundImage: `url(${nimoLogoUrl})` }" /> {{ t('photosPersonNimoRead') }}</div>
         <!-- eslint-disable-next-line vue/no-v-html -- 插值参数已在 nimoReadHtml 里逐个转义,残留的 <b> 只可能来自翻译模板本身,见脚本区注释 -->
         <p class="insight-text" data-test="insight-text" v-html="nimoReadHtml" />
-        <!-- Task 8 (Plan D): 「深挖」按钮 —— Vue2 :228-230,点击是 no-op(onDigDeeper),
-             接线归 Plan G。 -->
+        <!-- Task 8 (Plan D): the "Dig deeper" button — Vue2 :228-230, click is a no-op
+             (onDigDeeper), wiring belongs to Plan G. -->
         <button type="button" class="nimo-btn" data-test="rel-insight-dig-deeper" @click="onDigDeeper">
           {{ t('photosPersonDigDeeper') }}
         </button>

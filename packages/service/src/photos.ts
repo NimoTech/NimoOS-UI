@@ -234,10 +234,10 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/persons/${id}/restore`, {})
       return body<unknown>(res.data)
     },
-    // Task 7(SP7-P5 人物,Plan D):Vue2 src/service/photos.js:78-79 的字面对应端点 ——
-    // hidePerson 是即时隐藏(非破坏性,无 grace-period,restorePerson 随时可撤销);
-    // listHiddenPersons 拉隐藏人物列表,后端裸数组响应(无信封),同 mergeSuggestions()
-    // 的解包方式。
+    // Task 7 (SP7-P5 People, Plan D): the literal counterpart of Vue2's src/service/photos.js:78-79
+    // endpoints — hidePerson is an immediate hide (non-destructive, no grace period,
+    // restorePerson can always undo it); listHiddenPersons fetches the hidden-person list, the
+    // backend responds with a bare array (no envelope), same unwrapping as mergeSuggestions().
     async hidePerson(id: string | number): Promise<unknown> {
       const res = await http.post(`/photos/persons/${id}/hide`, {})
       return body<unknown>(res.data)

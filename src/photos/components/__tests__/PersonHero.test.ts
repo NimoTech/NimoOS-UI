@@ -222,8 +222,8 @@ describe('PersonHero.vue — Edit 菜单', () => {
     expect(w.emitted('delete')).toHaveLength(1)
   })
 
-  // Task 7 (Plan D): "Hide person" 菜单项——门控 + title + emit,照 Vue2
-  // PhotosPersonDetail.vue:43-46(v-if="hiddenPeopleSupported" + title 说明文案)。
+  // Task 7 (Plan D): the "Hide person" menu item — gating + title + emit, mirroring Vue2
+  // PhotosPersonDetail.vue:43-46 (v-if="hiddenPeopleSupported" + an explanatory title).
   it('hiddenPeopleSupported=true → 菜单里有「隐藏此人」项,带 title 说明文案,点击 emit hide 并收起菜单', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0, hiddenPeopleSupported: true })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')
@@ -242,10 +242,12 @@ describe('PersonHero.vue — Edit 菜单', () => {
   })
 })
 
-// Task 8 (Plan D): hero 三按钮补齐 —— Vue2 PhotosPersonDetail.vue:89-91 有三个按钮
-// (Ask about {name} / Make album / Background),这里之前只渲染了后两个(见文件头注释
-// "Ask Nimo 按钮 ... 不渲染"),现在按 Vue2 顺序补上第一个。点击是 no-op(接线归 Plan G,
-// 见组件里的英文注释),这里只断言渲染位置/视觉/不抛错/不触发任何 emit。
+// Task 8 (Plan D): the hero's three buttons filled in — Vue2 PhotosPersonDetail.vue:89-91 has
+// three buttons (Ask about {name} / Make album / Background); previously only the latter two
+// rendered here (see the file-header comment "the Ask Nimo button ... unrendered"), now the
+// first is added back in Vue2's order. The click is a no-op (wiring belongs to Plan G, see the
+// component's own English comment) — this only asserts render position/visuals/no thrown
+// error/no emitted event.
 describe('PersonHero.vue — hero 三按钮之 Ask about(Task 8,接线归 Plan G)', () => {
   it('渲染 Ask about {name} 按钮,位于 actions 区第一位、.btn-ai 视觉', () => {
     const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
@@ -269,8 +271,9 @@ describe('PersonHero.vue — hero 三按钮之 Ask about(Task 8,接线归 Plan G
   it('点击不抛错、不 emit 任何已知业务事件(no-op,接线归 Plan G,不触发导航/弹窗)', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-ask-nimo"]').trigger('click')
-    // 组件全部已声明业务 emit(defineEmits 列表)一个都不该被触发 —— 这正是
-    // "不导航、不开弹窗"的可验证含义:能打开弹窗/触发导航的动作全部经由这些 emit。
+    // None of the component's declared business emits (the defineEmits list) should fire — this
+    // is exactly what "doesn't navigate, doesn't open a dialog" is verifiable as: every action
+    // that could open a dialog/trigger navigation goes through one of these emits.
     const knownEmits = [
       'back', 'toggle-fav', 'rename', 'merge', 'hide', 'delete',
       'pick-relation', 'make-album', 'open-hero-picker',
@@ -390,10 +393,11 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
   }
 
   it('.detail-hero 的 overflow 不得是 hidden(否则 absolute 锚定的菜单会被整块切掉,z-index 无用)', () => {
-    // Task 5 (Plan D):根类名从 .person-hero 改成 .detail-hero 以对齐 parity 锚点后,parity 自己
-    // 的 `.detail-hero { overflow: hidden }` 会级联生效——本组件必须显式覆盖回
-    // overflow:visible(不再是"干脆不写这条声明"),所以断言从"不得出现 overflow:"
-    // 改成"出现的 overflow 值不得是 hidden"。
+    // Task 5 (Plan D): once the root class name changed from .person-hero to .detail-hero to
+    // align with the parity anchor, parity's own `.detail-hero { overflow: hidden }` cascades
+    // in — this component must now explicitly override it back to overflow:visible (no longer
+    // "simply don't declare this at all"), so the assertion changed from "overflow: must not
+    // appear" to "whatever overflow value appears, it must not be hidden".
     expect(style).not.toBe('')
     expect(rule('.detail-hero')).not.toMatch(/overflow\s*:\s*hidden/)
   })
@@ -414,12 +418,12 @@ describe('PersonHero.vue —— 下拉菜单的裁剪边界', () => {
     const clip = w.get('[data-test="hero-clip"]')
     expect(clip.find('[data-test="hero-bg"]').exists()).toBe(true)
     expect(clip.find('[data-test="hero-scrim"]').exists()).toBe(true)
-    // 菜单不在裁剪层里 —— 它是 .detail-hero 的后代,但不是 .hero-clip 的后代。
+    // The menu is not inside the clip layer — it's a descendant of .detail-hero, but not of .hero-clip.
     expect(clip.find('[data-test="hero-edit-wrap"]').exists()).toBe(false)
   })
 
-  // Task 7 (Plan D): 默认 hiddenPeopleSupported=true(见 mountHero 头部注释),菜单现在
-  // 是四项(rename/merge/hide/delete),不再是三项。
+  // Task 7 (Plan D): hiddenPeopleSupported now defaults to true (see mountHero's own header
+  // comment), so the menu now has four items (rename/merge/hide/delete), not three.
   it('菜单挂在裁剪层之外(hero 根下),打开后确实渲染出全部四项', async () => {
     const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
     await w.get('[data-test="hero-edit-trigger"]').trigger('click')

@@ -173,21 +173,29 @@ describe('MergeReviewDialog', () => {
   })
 })
 
-// Plan D Task 4(scoped 清零):此文件曾有一组"hover 态背景不被基类规则夺走"的测试,靠
-// `?raw` 读入组件自身的 <style scoped> 原文、用 ./cssCascade 的小型 CSS 优先级演算器断言
-// hover 态下真正生效的 background 声明(与 ClusterActionDialog.test.ts 同款的优先级坑,
-// 全仓扫描当时只余这两处)。该组件的整段 <style scoped> 已在本任务删除(类名不变,但样式
-// 接管权已交给 src/photos/styles/vue2-parity/photos-people.scss 里的 .mrd-* parity 规则,
-// 见组件头部脚本注释),`?raw` 读进来的源码里已经没有 <style> 区块可提取,那组测试的前提
-// 不复存在,一并删除。这里只钉住一件事:组件根类名不受影响。
+// Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover state's
+// background doesn't get stolen by the base class's rule", reading the component's own
+// <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
+// calculator, which background declaration actually wins on hover (the same priority pitfall as
+// ClusterActionDialog.test.ts — a full-repo scan at the time found only these two spots). This
+// task deleted the component's entire <style scoped> block (the class names are unchanged, but
+// styling authority has moved to the .mrd-* parity rules in
+// src/photos/styles/vue2-parity/photos-people.scss — see the component's own script-header
+// comment), so the source read in via `?raw` no longer has a <style> block to extract, and that
+// test group's precondition no longer holds — deleted along with it. All that's pinned down here
+// is one thing: the component's root class name is unaffected.
 //
-// fix round 1(评审 Important,同 ClusterActionDialog.test.ts 那处一并改正):上面这段旧
-// 注释原来还写了一句"scoped 整体清零后不会复现,parity 内部声明顺序本就正确"——**这句话
-// 错了,已删**。CSS 级联按属性判胜负,不是按规则整体判胜负:即便 parity 文件内变体规则写
-// 在基类之后,只要变体的 :hover 自己不重申某个属性,这条属性上就完全没有来自变体的竞争
-// 声明,基类的值依然生效。ClusterActionDialog 那边的 `.cad-btn-danger:hover` 就是这样在
-// parity 里原样复现了 bug(详见该测试文件同一处注释);MRD 这边核实过 `.mrd-btn-primary:
-// hover` 一直都有自己的 background,没有中招,但仍然补一条回归断言防止以后被顺手砍掉。
+// Fix round 1 (final-review Important, corrected alongside the same spot in
+// ClusterActionDialog.test.ts): the old comment above used to also say "once scoped is entirely
+// zeroed out this can't recur, parity's own internal declaration order is correct as is" — **that
+// sentence was wrong, and has been deleted.** The CSS cascade decides a winner per property, not
+// per rule as a whole: even when parity's file writes a variant rule after the base class, as
+// long as the variant's :hover doesn't re-declare some property itself, that property has no
+// competing declaration from the variant at all, and the base class's value still wins.
+// ClusterActionDialog's own `.cad-btn-danger:hover` reproduced the bug this way, unchanged, inside
+// parity (see that test file's own comment at the same spot); on the MRD side, `.mrd-btn-primary:
+// hover` was checked and has always had its own background, so it wasn't affected — but a
+// regression assertion is still added here to stop it from being casually removed later.
 describe('MergeReviewDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
   it('挂载后 [data-test="mrd-overlay"] 仍然带着 mrd-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', () => {
     const w = mountDialog({ open: true, suggestions, index: 0, people })
@@ -196,9 +204,11 @@ describe('MergeReviewDialog.vue — Plan D Task 4:scoped 清零后根类名不�
   })
 })
 
-// ── Plan D Task 4, fix round 1(评审 Important):合并键 hover 背景回归防线 ────────────
-// 同 ClusterActionDialog.test.ts 那组测试同款做法:直接用 node:fs 读 parity 文件原文,
-// 按选择器名抓规则体(同 AppToast.zIndex.test.ts 已确立的读盘方式)。
+// ── Plan D Task 4, fix round 1 (final-review Important): the merge-button hover regression
+// guard ────────────
+// The same approach as ClusterActionDialog.test.ts's own test group: reads the parity file's raw
+// text directly via node:fs, pulls the rule body by selector name (the same read-off-disk
+// approach already established by AppToast.zIndex.test.ts).
 const PARITY_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../styles/vue2-parity/photos-people.scss',
@@ -208,7 +218,7 @@ const parityCss = readFileSync(PARITY_PATH, 'utf8')
 function parityRuleBody(selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
-  if (!m) throw new Error(`parity 文件里找不到规则:${selector}`)
+  if (!m) throw new Error(`Rule not found in parity file: ${selector}`)
   return m[1]
 }
 
