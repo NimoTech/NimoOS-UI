@@ -179,6 +179,15 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct, so this is GREEN immediately, no RED theater): the not-found state's description
+  // line was untested.
+  it('人物不存在态渲染说明文案 photosPersonNotFoundHint', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: null, relations: [] })
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-not-found"]').text()).toContain(zh.photosPersonNotFoundHint)
+  })
+
   // 协调者裁定 4:加载失败必须与「没有这个人」可区分(T9 的 failed 标志就是为此而加)。
   it('加载失败 → 专用错误文案 + 重试钮(不复用"找不到这个人物")', async () => {
     svc.photos.getPerson.mockRejectedValue(new Error('network down'))
@@ -188,6 +197,14 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
     // 不能落到「没有这个人」那一支
     expect(w.find('[data-test="person-not-found"]').exists()).toBe(false)
     expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition): the load-failed state's
+  // description line was untested.
+  it('加载失败态渲染说明文案 photosPersonLoadFailedHint', async () => {
+    svc.photos.getPerson.mockRejectedValue(new Error('network down'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-load-failed"]').text()).toContain(zh.photosPersonLoadFailedHint)
   })
 
   it('失败态点「重试」→ load 被再调一次;成功后翻到正常内容', async () => {
@@ -366,6 +383,20 @@ describe('PhotosPersonDetail.vue —— 共现横条', () => {
     // 切到地点 tab 后横条消失
     await w.find('[data-test="person-tab-places"]').trigger('click')
     expect(w.findAll('[data-test="coappear-card"]')).toHaveLength(0)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the co-appear
+  // card's Unnamed-person fallback (PhotosPersonDetail.vue:718) had no covering assertion.
+  it('name 为空的共现人物 → 卡片渲染 Unnamed person 兜底文案', async () => {
+    svc.photos.getPerson.mockResolvedValue({
+      person: rawPerson(),
+      relations: [{ personId: 13, name: '', coverFaceId: 'f13', count: 5 }],
+    })
+    const { w } = await mountView('7')
+    const cards = w.findAll('[data-test="coappear-card"]')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].text()).toContain(zh.photosPersonUnnamedTitle)
   })
 })
 

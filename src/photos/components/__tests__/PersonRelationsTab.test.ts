@@ -88,6 +88,15 @@ describe('PersonRelationsTab.vue', () => {
     expect(rows[2].text()).toContain('A')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the rel-row
+  // Unnamed-person fallback (PersonRelationsTab.vue:122) had no covering assertion.
+  it('name 为空的关系 → 列表行渲染 Unnamed person 兜底文案', () => {
+    const relations: PersonRelation[] = [{ personId: 5, name: '', count: 2 }]
+    const w = mountTab({ relations, person: P(), places: [] })
+    expect(w.get('.rel-row .nm').text()).toBe(zh.photosPersonUnnamedTitle)
+  })
+
   it('条形宽度比例正确(最大项 100%,照 :533-536 relMax)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 25 },

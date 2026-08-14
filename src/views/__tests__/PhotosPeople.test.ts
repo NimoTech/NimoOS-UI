@@ -546,6 +546,24 @@ describe('PhotosPeople.vue — 空态', () => {
     expect(usePhotosPeople().peopleLoaded).toBe(false)
     expect(w.find('[data-test="people-empty"]').exists()).toBe(false)
   })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so these are GREEN immediately, no RED theater): the
+  // empty-state hint's two branches (face recognition on/off) had no assertion on the actual
+  // rendered copy.
+  it('人脸识别开启时,空态渲染 photosPeopleEmptyHintFaces 文案', async () => {
+    svc.photos.listPersons.mockResolvedValue({ persons: [], facesIndexedUpTo: null })
+    svc.photos.getConfig.mockResolvedValue({ aiFeatures: { faces: true } })
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-empty"]').text()).toContain(zh.photosPeopleEmptyHintFaces)
+  })
+
+  it('人脸识别关闭时,空态渲染 photosPeopleEmptyHintNoFaces 文案', async () => {
+    svc.photos.listPersons.mockResolvedValue({ persons: [], facesIndexedUpTo: null })
+    svc.photos.getConfig.mockResolvedValue({ aiFeatures: { faces: false } })
+    const { w } = await mountView()
+    expect(w.find('[data-test="people-empty"]').text()).toContain(zh.photosPeopleEmptyHintNoFaces)
+  })
 })
 
 // ── T7:三态弹窗接线(命名/合并/删除三条提交路径 + 各自的重入守卫)──

@@ -161,6 +161,17 @@ describe('PersonRelGraph.vue', () => {
     expect(svc.photos.personFaceThumbnailUrl).toHaveBeenCalledWith(42, 'faceA')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): existing
+  // coverage only checked centerName's Unnamed fallback and the initial-glyph fallback; the
+  // satellite NAME LABEL (`.rg-name-dim` text, the `pos.name || t('photosPersonUnnamedTitle')`
+  // hunk) had no assertion of its own.
+  it('name 为空的卫星节点 → 名字标签(.rg-name-dim)渲染 Unnamed person 兜底文案', () => {
+    const relations: PersonRelation[] = [{ personId: 1, name: '', count: 5 }]
+    const w = mountGraph({ relations, person: P() })
+    expect(w.get('.rg-name-dim').text()).toBe('未命名人物')
+  })
+
   it('点卫星节点 → emit open-person 带 personId(补齐 affordance,Vue2 无此行为)', async () => {
     const relations: PersonRelation[] = [
       { personId: 101, name: 'A', count: 10 },
