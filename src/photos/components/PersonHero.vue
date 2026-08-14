@@ -444,15 +444,28 @@ onUnmounted(() => {
      用 var(fallback) 形式表达,color-guard 按 token 用法放行,不算裸字面量。 */
   color: var(--star-fg, #ffd60a);
 }
-/* New-UI addition, no Vue2 truth to align to: Vue2's real hover state is visually identical to
-   its base state (the inline style's background:transparent applies regardless of :hover, and
-   inline styles can't be scoped to a pseudo-class in the first place) — i.e. Vue2 genuinely has
-   no hover feedback here. A zero-feedback hover on an interactive toggle reads as broken rather
-   than intentional, so this keeps a small pre-existing affordance (a faint light tint) rather
-   than deleting it to chase 1:1 parity on a real Vue2 UX gap — same "don't copy a Vue2 bug"
-   posture already used elsewhere in this file (see 偏离登记 10). theme-exception: fixed
-   whitening amount, independent of theme. */
-.detail-hero .name .fav-toggle:hover { background: rgba(255, 255, 255, 0.08); }
+/* Fix round 2 (coordinator re-review, Important): the previous version of this rule kept a new
+   faint hover tint as a "don't copy a Vue2 UX gap" affordance. Ruling: pixel parity governs
+   here — this rule shape exists purely to neutralize a specificity problem, not to introduce
+   new visuals Vue2 never has. Vue2's real hover state is pixel-identical to its resting state
+   (the inline style's transparent background / zero border applies unconditionally — inline
+   styles aren't scoped to pseudo-classes, so there's nothing for a `:hover` rule to add or
+   change). Reverted to that: same values as the base rule above, no added tint.
+
+   This selector still has to exist, though — it is not a no-op left over from the old version.
+   The math: this file's own base rule above is `.detail-hero .name .fav-toggle` + the scoped
+   attribute = 4 class-level selectors, (0,4,0). Parity's OWN hover rule
+   (photos-people.scss:427-430) is `.detail-hero .name .fav-toggle:hover` = 4 class-level
+   selectors too (the `:hover` pseudo-class counts the same as a class) — also (0,4,0). Tied
+   specificity between an unscoped global rule and a scoped local one resolves by *stylesheet
+   load order*, which this app does not guarantee — so on hover, parity's own darkened,
+   dead-in-Vue2 background/border-color pair could win that coin flip and render a pill Vue2
+   never shows. Adding this `:hover`-qualified rule (base selector + `:hover` + the scoped
+   attribute = 5 class-level selectors, (0,5,0)) reliably beats parity's hover rule regardless of
+   load order, the same guaranteed-win technique used by every other survivor in this file — it
+   just now carries the *same* values as rest instead of a new tint, so hovering renders
+   pixel-identical to resting, matching Vue2. */
+.detail-hero .name .fav-toggle:hover { background: transparent; border: 0; }
 
 /* `.relation-picker`'s position/display/align-items duplicated parity's own rule exactly and
    has been deleted. */
