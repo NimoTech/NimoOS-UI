@@ -172,9 +172,16 @@ describe('PersonRelationsTab.vue', () => {
     expect(html).toContain('&lt;img')
   })
 
-  it('不渲染洞察卡底部"深挖"按钮(归 SP8,照 brief)', () => {
+  // Task 8 (Plan D): 之前推迟到 SP8 未渲染,这里按 Vue2 PhotosPersonDetail.vue:228-230
+  // 补齐 —— 点击是 no-op(接线归 Plan G),先补渲染 + 视觉。
+  it('渲染洞察卡底部"深挖"按钮,点击不抛错、不 emit 任何事件(no-op,接线归 Plan G)', async () => {
     const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P(), places: [] })
-    expect(w.find('.nimo-btn').exists()).toBe(false)
+    const btn = w.get('.nimo-btn')
+    expect(btn.attributes('data-test')).toBe('rel-insight-dig-deeper')
+    expect(btn.text()).toBe(zh.photosPersonDigDeeper)
+    await btn.trigger('click')
+    // 唯一的业务 emit(open-person)不该被触发 —— no-op,不导航。
+    expect(w.emitted('open-person')).toBeUndefined()
   })
 
   it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言)', () => {

@@ -242,6 +242,43 @@ describe('PersonHero.vue — Edit 菜单', () => {
   })
 })
 
+// Task 8 (Plan D): hero 三按钮补齐 —— Vue2 PhotosPersonDetail.vue:89-91 有三个按钮
+// (Ask about {name} / Make album / Background),这里之前只渲染了后两个(见文件头注释
+// "Ask Nimo 按钮 ... 不渲染"),现在按 Vue2 顺序补上第一个。点击是 no-op(接线归 Plan G,
+// 见组件里的英文注释),这里只断言渲染位置/视觉/不抛错/不触发任何 emit。
+describe('PersonHero.vue — hero 三按钮之 Ask about(Task 8,接线归 Plan G)', () => {
+  it('渲染 Ask about {name} 按钮,位于 actions 区第一位、.btn-ai 视觉', () => {
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 })
+    const buttons = w.findAll('.actions button')
+    expect(buttons).toHaveLength(3)
+    expect(buttons[0].attributes('data-test')).toBe('hero-ask-nimo')
+    expect(buttons[1].attributes('data-test')).toBe('hero-make-album')
+    expect(buttons[2].attributes('data-test')).toBe('hero-background')
+
+    const ask = w.get('[data-test="hero-ask-nimo"]')
+    expect(ask.classes()).toContain('btn')
+    expect(ask.classes()).toContain('btn-ai')
+    expect(ask.text()).toBe(zh.photosPersonAskAbout.replace('{name}', 'Sara'))
+  })
+
+  it('en_us locale 下按 en_us 文案渲染', () => {
+    const w = mountHero({ person: person({ name: 'Sara' }), relationCount: 0, placesCount: 0 }, makeI18n('en_us'))
+    expect(w.get('[data-test="hero-ask-nimo"]').text()).toBe(en.photosPersonAskAbout.replace('{name}', 'Sara'))
+  })
+
+  it('点击不抛错、不 emit 任何已知业务事件(no-op,接线归 Plan G,不触发导航/弹窗)', async () => {
+    const w = mountHero({ person: person(), relationCount: 0, placesCount: 0 })
+    await w.get('[data-test="hero-ask-nimo"]').trigger('click')
+    // 组件全部已声明业务 emit(defineEmits 列表)一个都不该被触发 —— 这正是
+    // "不导航、不开弹窗"的可验证含义:能打开弹窗/触发导航的动作全部经由这些 emit。
+    const knownEmits = [
+      'back', 'toggle-fav', 'rename', 'merge', 'hide', 'delete',
+      'pick-relation', 'make-album', 'open-hero-picker',
+    ]
+    for (const name of knownEmits) expect(w.emitted(name)).toBeUndefined()
+  })
+})
+
 describe('PersonHero.vue — 关系分组下拉', () => {
   it('四项渲染,当前项打勾', async () => {
     const w = mountHero({ person: person({ relation: 'friend' }), relationCount: 0, placesCount: 0 })

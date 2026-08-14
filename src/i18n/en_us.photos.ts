@@ -377,6 +377,9 @@ export default {
   photosPersonStatFirstSeen: 'First seen',
   photosPersonMakeAlbum: 'Make album',
   photosPersonBackground: 'Background',
+  // Task 8 (Plan D): hero action buttons completion (Vue2 PhotosPersonDetail.vue:89-91).
+  // Click is a no-op here — wiring deferred to Plan G — this only adds copy + visuals.
+  photosPersonAskAbout: 'Ask about {name}',
   // ★ New-UI addition (Task 10): see zh_cn.ts for the reasoning — Vue2 :33 is the generic
   // $t('Edit') label on the pill trigger button itself (not the three menu items below it);
   // reusing photosAlbumEdit/topbarEdit would tie this to unrelated features.
@@ -441,6 +444,9 @@ export default {
   photosPersonPlacesLegend: 'Top places',
   photosPersonNoPlaces: 'No location data for {name} yet',
   photosPersonNimoRead: "Nimo's read",
+  // Task 8 (Plan D): rel-insight-card's "dig deeper" button (Vue2 PhotosPersonDetail.vue:
+  // 228-230 `.nimo-btn`). Click is a no-op here — wiring deferred to Plan G.
+  photosPersonDigDeeper: 'Dig deeper',
   photosPersonInsightWith: '{name} appears most often with <b>{other}</b>.',
   photosPersonInsightWithUnnamed: '{name} appears together with an unnamed person.',
   photosPersonInsightPlaces2: 'Their photos cluster in <b>{place1}</b> and <b>{place2}</b>.',

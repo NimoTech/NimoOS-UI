@@ -388,6 +388,9 @@ export default {
   photosPersonStatFirstSeen: '最早出现',
   photosPersonMakeAlbum: '制作相册',
   photosPersonBackground: '背景',
+  // Task 8 (Plan D): hero 三按钮补齐(Vue2 PhotosPersonDetail.vue:89-91)。这里点击是
+  // no-op(接线归 Plan G),先补文案与视觉。
+  photosPersonAskAbout: '问 Nimo 关于 {name}',
   // ★ New-UI 补齐(Task 10):Vue2 :33 该按钮字面是通用的 $t('Edit')(胶囊触发按钮本身的
   // 文案,不是下面三个菜单项),本仓 photosAlbumEdit/topbarEdit 等既有"编辑"键都各自绑定
   // 别的具体场景(相册网格编辑态/桌面编辑态),语义不是"打开这个人物的重命名/合并/删除菜单"——
@@ -451,6 +454,9 @@ export default {
   photosPersonPlacesLegend: '常去地点',
   photosPersonNoPlaces: '暂无 {name} 的位置数据',
   photosPersonNimoRead: 'Nimo 的解读',
+  // Task 8 (Plan D): rel-insight-card 底部「深挖」按钮(Vue2 PhotosPersonDetail.vue:228-230
+  // `.nimo-btn`)。点击是 no-op(接线归 Plan G)。
+  photosPersonDigDeeper: '深挖',
   photosPersonInsightWith: '{name} 最常与 <b>{other}</b> 一起出现。',
   photosPersonInsightWithUnnamed: '{name} 与一位未命名的人一起出现。',
   photosPersonInsightPlaces2: '他们的照片集中在 <b>{place1}</b> 和 <b>{place2}</b>。',

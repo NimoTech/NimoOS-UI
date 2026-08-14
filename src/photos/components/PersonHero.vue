@@ -6,7 +6,9 @@
 // (两个菜单的开关与定位)移植;样式段照 photos-people.scss:277-460。
 //
 // 纯展示 + emit,不碰 store、不发请求 —— 所有副作用在 T14 容器里(brief 明确分工)。
-// Ask Nimo 按钮(Vue2 :85-87)不渲染(spec D1 已推迟 SP8)。
+// Task 8 (Plan D):Ask about {name} 按钮(Vue2 :89-92 `.btn-ai`)此前推迟到 SP8 未渲染,
+// 现按 Vue2 顺序补上(actions 区第一位)。点击是 no-op —— 接线(真正调用 Ask Nimo)
+// 归 Plan G,这里只补文案 + 视觉 + 一个空函数占位(见下方 onAskNimo)。
 //
 // 实现方式偏离登记(已批准,brief 明确要求):Vue2 用 getBoundingClientRect 手算
 // fixed 坐标 + document mousedown + closest('.relation-menu') 判定两个菜单的开关/定位
@@ -63,6 +65,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import PersonAvatar from './PersonAvatar.vue'
+import nimoLogoUrl from '../assets/nimo-logo.png'
 import type { Person } from '../util/peopleView'
 
 const props = defineProps<{
@@ -152,6 +155,13 @@ function pickRelation(value: string): void {
   relationOpen.value = false
   emit('pick-relation', value)
 }
+
+// Task 8 (Plan D): Vue2 :89 emits 'ask-nimo' with a canned prompt string; this component's
+// own ask-nimo wiring lands in Plan G (per this task's brief). Kept as a real no-op function
+// (not an inline no-op in the template) so it reads as a deliberate placeholder, not a
+// forgotten handler.
+// wired in Plan G (Ask Nimo)
+function onAskNimo(): void {}
 
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
@@ -309,6 +319,12 @@ onUnmounted(() => {
       </div>
 
       <div class="actions">
+        <!-- Task 8 (Plan D): Ask about {name} — Vue2 :89-92 `.btn-ai`, first in actions order.
+             Click is a no-op (onAskNimo) — wiring in Plan G. -->
+        <button type="button" class="btn btn-ai" data-test="hero-ask-nimo" @click="onAskNimo">
+          <span class="ask-nimo-icon" :style="{ backgroundImage: `url(${nimoLogoUrl})` }" />
+          {{ t('photosPersonAskAbout', { name: heroTitle }) }}
+        </button>
         <button type="button" class="btn" data-test="hero-make-album" @click="emit('make-album')">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg>
           {{ t('photosPersonMakeAlbum') }}
@@ -534,4 +550,19 @@ onUnmounted(() => {
    survives hover too without a separate hover rule). Everything else — padding/border-radius/
    background/backdrop-filter/border/hover background — now comes straight from parity. */
 .detail-hero .actions .btn { color: #fff; }
+
+/* Task 8 (Plan D): Ask-about icon — Vue2 :90 renders this as an inline-styled <span>
+   (display:inline-block;width:16px;height:16px;border-radius:99px;background:url(...)
+   center/cover no-repeat), not a class, so there is no parity selector to align to or
+   delete — values transcribed from that inline style; only the background-image itself
+   stays inline (imported asset URL, same technique as PersonRelationsTab.vue's `.hd .orb`). */
+.ask-nimo-icon {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
 </style>

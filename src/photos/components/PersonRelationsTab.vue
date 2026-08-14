@@ -17,6 +17,9 @@
 // 见该文件注释),这里只做 t(key, params) 解析 + 空格拼接(照 :584
 // `parts.join(' ')`),以及 v-html 的安全加固(见下方 escapeHtml 注释)。
 //
+// Task 8 (Plan D): 洞察卡底部「深挖」按钮(Vue2 :228-230 `.nimo-btn`,$emit('ask-nimo', ...))
+// 此前推迟到 SP8 未渲染,现按 Vue2 补上。点击是 no-op —— 接线(真正调用 Ask Nimo)归 Plan G。
+//
 // v-html 安全性(brief 给的两个选项之间的取舍,已在报告里详细说明):brief 建议
 // 「低成本的话改用 <i18n-t> 具名插槽把 <b> 做成 slot」。这里改用另一条更低成本、
 // 同样能关闭风险的路径——在拼句前对每个插值参数(人名/地名,均来自后端/用户输入)
@@ -87,6 +90,11 @@ const nimoReadHtml = computed(() => {
     })
     .join(' ')
 })
+
+// Task 8 (Plan D): Vue2 :228 emits 'ask-nimo' with a canned prompt string; this component's
+// own ask-nimo wiring lands in Plan G (per this task's brief).
+// wired in Plan G (Ask Nimo)
+function onDigDeeper(): void {}
 </script>
 
 <template>
@@ -130,6 +138,11 @@ const nimoReadHtml = computed(() => {
         <div class="hd"><span class="orb" :style="{ backgroundImage: `url(${nimoLogoUrl})` }" /> {{ t('photosPersonNimoRead') }}</div>
         <!-- eslint-disable-next-line vue/no-v-html -- 插值参数已在 nimoReadHtml 里逐个转义,残留的 <b> 只可能来自翻译模板本身,见脚本区注释 -->
         <p class="insight-text" data-test="insight-text" v-html="nimoReadHtml" />
+        <!-- Task 8 (Plan D): 「深挖」按钮 —— Vue2 :228-230,点击是 no-op(onDigDeeper),
+             接线归 Plan G。 -->
+        <button type="button" class="nimo-btn" data-test="rel-insight-dig-deeper" @click="onDigDeeper">
+          {{ t('photosPersonDigDeeper') }}
+        </button>
       </div>
     </div>
   </div>
