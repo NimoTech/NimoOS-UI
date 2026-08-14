@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseFileOperate, filterActive, shouldReload, buildPastePayload, taskPercent } from './fileOps'
+import { parseFileOperate, filterActive, shouldReload, buildPastePayload, taskPercent, landedName, landedSources } from './fileOps'
 
 const mk = (over: Partial<Record<string, unknown>> = {}) => ({
   id: '1', type: 'copy', finished: false, status: 'PROCESSING',
@@ -58,5 +58,33 @@ describe('fileOps util', () => {
     expect(taskPercent(mk({ processed_size: 50, total_size: 100 }) as never)).toBe(50)
     expect(taskPercent(mk({ processed_size: 1, total_size: 3 }) as never)).toBe(33)
     expect(taskPercent(mk({ processed_size: 5, total_size: 0 }) as never)).toBe(0)
+  })
+
+  // The landing check behind the favourite repoint: the backend reported a
+  // move as complete without having executed it (an empty-directory batch was
+  // dequeued as "already done"), so "the task said finished" is not on its own
+  // evidence that anything moved. These read the destination listing instead.
+  describe('landing verification', () => {
+    it('landedName keeps the last segment -- a move swaps the parent, not the name', () => {
+      expect(landedName('/DATA/Documents/Trip')).toBe('Trip')
+      expect(landedName('/DATA/a.txt')).toBe('a.txt')
+    })
+
+    it('landedName tolerates a trailing slash', () => {
+      expect(landedName('/DATA/Documents/Trip/')).toBe('Trip')
+    })
+
+    it('landedSources keeps only the sources actually visible in the destination', () => {
+      const entries = [{ name: 'Trip' }, { name: 'other' }]
+      expect(landedSources(['/DATA/Documents/Trip', '/DATA/Documents/Gone'], entries)).toEqual(['/DATA/Documents/Trip'])
+    })
+
+    it('landedSources returns nothing when the destination is empty (the backend lied about finishing)', () => {
+      expect(landedSources(['/DATA/Documents/Trip'], [])).toEqual([])
+    })
+
+    it('landedSources matches whole names, not prefixes', () => {
+      expect(landedSources(['/DATA/a'], [{ name: 'ab' }])).toEqual([])
+    })
   })
 })
