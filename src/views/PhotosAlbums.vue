@@ -372,7 +372,25 @@ onUnmounted(() => {
           </div>
           <div class="albums-actions">
             <div ref="sortMenuRef" class="albums-sort-wrap">
-              <button type="button" class="bar-btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
+              <!-- Fix-7 (owner acceptance, 2026-08-14): was `class="bar-btn"` -- a *global*
+                   New-UI button class (theme.css), not Vue2's real class for this button
+                   (NimoOS-UI PhotosAlbumsView.vue:60 uses `class="btn"`, parity's own
+                   `.photos-root .btn`, photos.scss:290-298). `.bar-btn`'s chrome
+                   (`--chip-bg`/`--chip-border`/`--fg`) is not shadowed on `.photos-root`, so it
+                   doesn't follow the private photos-is-light toggle -- in photos light mode
+                   `--chip-bg`'s dark-theme value (a translucent *white* glass gradient) sits on
+                   the parity light page's own near-white background and effectively
+                   disappears, same for the border. The result the owner saw: bare text, no
+                   border, no background. `.btn` is theme-correct throughout (--surface-2/--line/
+                   --text-1, all `.photos-root`-scoped and already correctly shadowed under
+                   `.photos-root.is-light`) and is the button Vue2 itself actually uses here.
+                   Renamed to match; no local override needed, parity's own rule governs
+                   directly. The "New album" button next to it (`bar-btn btn-primary`) is
+                   unaffected by this same underlying bug -- `.btn-primary`'s own solid
+                   `--accent` fill (also `.photos-root`-scoped) already wins over `.bar-btn`'s
+                   background regardless of theme, which is why the owner reported it as fine
+                   and it is left untouched. -->
+              <button type="button" class="btn" data-test="albums-sort-btn" @click.stop="sortOpen = !sortOpen">
                 {{ t('photosAlbumSort') }} {{ currentSort.label }}
                 <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
               </button>

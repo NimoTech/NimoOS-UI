@@ -1151,6 +1151,35 @@ describe('Fix-1 item 2: albums scroll container padding restored', () => {
   })
 })
 
+// Fix-7 (owner acceptance, 2026-08-14): owner screenshot shows the "Sort: Recently added ⌄"
+// pill rendering as bare text in photos light mode -- no border, no background (the "New
+// album" button next to it, and the same Sort pill on the album-detail/SV-detail pages, are
+// unaffected). Root cause: this button used `class="bar-btn"`, a *global* New-UI button class
+// (theme.css) whose chrome tokens (--chip-bg/--chip-border/--fg) are not shadowed on
+// `.photos-root`, so they don't follow the private photos-is-light toggle -- in photos light
+// mode `--chip-bg`'s dark-theme value (a translucent white glass gradient) sits on the parity
+// light page's own near-white background and disappears. Vue2's real class here
+// (NimoOS-UI PhotosAlbumsView.vue:60) is `.btn`, parity's own `.photos-root .btn`
+// (photos.scss:290-298, --surface-2/--line/--text-1, all correctly shadowed under
+// `.photos-root.is-light`) -- renamed to match.
+describe('Fix-7: albums-page Sort pill uses the parity .btn class, not the global .bar-btn', () => {
+  it('the Sort trigger button carries class="btn" (not "bar-btn")', async () => {
+    const w = await mountAlbums({})
+    const btn = w.get('[data-test="albums-sort-btn"]')
+    expect(btn.classes()).toContain('btn')
+    expect(btn.classes()).not.toContain('bar-btn')
+  })
+
+  it("parity's own .btn rule (not a local override) supplies the pill's border/background/text tokens", () => {
+    const m = /<style[^>]*>([\s\S]*)<\/style>/.exec(photosAlbumsRaw)
+    const style = m ? m[1] : ''
+    // This file must not restate `.btn`'s chrome locally -- if it did, the local copy would
+    // need its own is-light audit too, and parity's own (already-audited) rule should just
+    // govern directly, same doctrine as every other "let parity win" cleanup in this codebase.
+    expect(style).not.toMatch(/(^|[^-\w])\.btn\s*{/)
+  })
+})
+
 // Fix-1 item 3: owner reports "New album" does nothing. Root cause: the create-modal markup
 // (`.albums-modal-scrim`/`.albums-modal`) sits as a template-root SIBLING of `.photos-root`
 // (outside its DOM subtree), but every one of its layout rules is written
