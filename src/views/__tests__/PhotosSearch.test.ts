@@ -144,7 +144,7 @@ describe('路由 query 驱动', () => {
     // 先真的选中并提交一个过滤(type=OCR),确认它在换词后被清空——只开弹层不 Apply
     // 不构成"过滤生效"的证据(chipActive 判据看的是 filters,不是 openPop)。
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     expect(w.get('[data-test="chip-type"] .fchip').attributes('data-on')).toBe('true')
     await router.push('/photos/search?q=def')
@@ -314,7 +314,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
 
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 勾选第一个地点
+    await w.get('.fpop-item').trigger('click') // 勾选第一个地点
     expect(w.findAll('.tile')).toHaveLength(2) // 未提交,结果不变
   })
 
@@ -326,7 +326,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click') // Apply
     expect(w.findAll('.tile')).toHaveLength(1)
     expect(w.get('[data-test="chip-place"] .fchip').attributes('data-on')).toBe('true')
@@ -340,7 +340,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.fpop-quick').trigger('click') // Cancel(fpop-quick 的第一个是 Cancel)
     expect(w.findAll('.tile')).toHaveLength(2)
     expect(w.get('[data-test="chip-place"] .fchip').attributes('data-on')).toBe('false')
@@ -354,7 +354,7 @@ describe('draft 语义(Apply/Cancel/点外部)', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
     await w.vm.$nextTick()
     expect(w.find('.fpop-list').exists()).toBe(false) // 弹层已关
@@ -380,7 +380,7 @@ describe('filteredResults', () => {
   // type 分支的谓词全部取反,49/49 仍全绿。这里补三条真正设置 `filters.type` 的用例
   // (通过 type chip 的 PhotosFilterPopover 选中对应项 → Apply),brief Step 1 明确要求
   // "五种过滤各一条"。type chip 的 items 固定顺序是 `['Photos','OCR','Videos']`
-  // (`TYPE_ITEMS`),`.nav-item` 按同一顺序渲染,按下标选择对应项。
+  // (`TYPE_ITEMS`),`.fpop-item` 按同一顺序渲染,按下标选择对应项。
   it('type=Photos(下标 0)→ 只剩非视频、非 OCR 的照片', async () => {
     svc.photos.smartSearch.mockResolvedValue([
       rawAsset('photo1', { mimeType: 'image/jpeg', hasOcr: false }),
@@ -390,7 +390,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[0].trigger('click') // Photos
+    await w.findAll('.fpop-item')[0].trigger('click') // Photos
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -406,7 +406,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[1].trigger('click') // OCR
+    await w.findAll('.fpop-item')[1].trigger('click') // OCR
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -422,7 +422,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-type"] .fchip').trigger('click')
-    await w.findAll('.nav-item')[2].trigger('click') // Videos
+    await w.findAll('.fpop-item')[2].trigger('click') // Videos
     await w.get('.btn.btn-primary').trigger('click')
     const ids = w.findAll('.tile img').map((n) => n.attributes('src'))
     expect(ids).toHaveLength(1)
@@ -483,7 +483,7 @@ describe('filteredResults', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-place"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 选 Tokyo(排第一,频次高)
+    await w.get('.fpop-item').trigger('click') // 选 Tokyo(排第一,频次高)
     await w.get('.btn.btn-primary').trigger('click')
     await w.get('[data-test="chip-people"] .fchip').trigger('click')
     await w.get('.face-cell').trigger('click')
@@ -501,7 +501,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -525,7 +525,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -553,7 +553,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -578,7 +578,7 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
@@ -620,17 +620,17 @@ describe('filters.album', () => {
     await flushPromises()
     // 选 A → Apply(请求在途)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 重开弹层,取消 A → Apply(filters.album = null)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 再点一次 = 取消勾选
+    await w.get('.fpop-item').trigger('click') // 再点一次 = 取消勾选
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 再选 A → Apply(第一次请求仍未 resolve,这次调用会被 store 自己短路掉)。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click')
+    await w.get('.fpop-item').trigger('click')
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 第一次真正的请求这时才姗姗来迟,带着真实数据。
@@ -653,13 +653,13 @@ describe('filters.album', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
-    await w.get('.nav-item').trigger('click') // 选 A(id 1,慢响应,尚未 resolve)
+    await w.get('.fpop-item').trigger('click') // 选 A(id 1,慢响应,尚未 resolve)
     await w.get('.btn.btn-primary').trigger('click')
     await flushPromises()
     // 切到 B(id 2,快响应)之前,先重开弹层。
     await w.get('[data-test="chip-album"] .fchip').trigger('click')
     // 取消 A,勾选 B。
-    const items = w.findAll('.nav-item')
+    const items = w.findAll('.fpop-item')
     await items[0].trigger('click') // 取消 A
     await items[1].trigger('click') // 勾选 B
     await w.get('.btn.btn-primary').trigger('click')

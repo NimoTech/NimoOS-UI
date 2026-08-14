@@ -27,11 +27,13 @@
 //  10:悬停定位用显式 wrapEl ref,不靠 svg.parentElement(Vue2 :746-749 的读法)。
 //  11-⑤:wheel 用 addEventListener({ passive: false }) 显式注册在 svg 元素上,不用模板
 //     @wheel——模板绑定不保证 passive:false,Chrome 会警告并忽略 preventDefault。
+import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PlacesRail from '../photos/components/PlacesRail.vue'
 import PlacesMap from '../photos/components/PlacesMap.vue'
@@ -51,6 +53,7 @@ import { mapThemeStyleVars, resolveMapTheme } from '../photos/util/placesMapThem
 import { assetToPhoto } from '../photos/util/assetToPhoto'
 
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const router = useRouter()
 const store = usePhotosPlaces()
 const themeStore = useThemeStore()
@@ -371,7 +374,7 @@ async function retryLoad(): Promise<void> {
 
 <template>
   <AreaShell :title="t('photosPlaces')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <div class="map-shell">
@@ -537,6 +540,15 @@ async function retryLoad(): Promise<void> {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 

@@ -19,18 +19,41 @@ describe('createRaid', () => {
     expect(res).toEqual(arr)
   })
 
+  // 2026-08-12 契约(NimoOS-LocalStorage PR #22):recover 的 Data 是 {state, readded};
+  // status 可带 reattachable_members(仅 degraded 且成员盘已插回时)—— 标准信封,照常 unwrap。
+  it('recover unwraps {state, readded}', async () => {
+    const log: Array<[string, string, unknown]> = []
+    const res = await createRaid(fakeHttp(log, { state: 'rebuilding', readded: ['/dev/sdc'] })).recover(3)
+    expect(log).toEqual([['post', '/v2/raid/3/recover', undefined]])
+    expect(res).toEqual({ state: 'rebuilding', readded: ['/dev/sdc'] })
+  })
+
+  it('getStatus passes reattachable_members through the envelope', async () => {
+    const log: Array<[string, string, unknown]> = []
+    const status = {
+      live_state: 'clean, degraded', rebuild_pct: -1, total_bytes: 1, used_bytes: 0, free_bytes: 1, members: [],
+      reattachable_members: [{ path: '/dev/sdc', serial: 'WD-1', role: 'Active device 1', last_update: 'Wed Aug 12 03:43:02 2026' }],
+    }
+    const res = await createRaid(fakeHttp(log, status)).getStatus(3)
+    expect(res.reattachable_members).toEqual(status.reattachable_members)
+  })
+
   it('urls and verbs match Vue2 raid.js exactly', async () => {
     const log: Array<[string, string, unknown]> = []
     const r = createRaid(fakeHttp(log))
-    await r.create({ name: 'md0' }); await r.remove(3); await r.getStatus(3); await r.getUsage(3)
-    await r.replaceDisk(3, { old: '/dev/sda', new: '/dev/sdb' }); await r.recover(3)
+    // create/replaceDisk 的 body 形状即契约(RaidCreateBody/RaidReplaceDiskBody):
+    // wipe_raid_residue 是 2026-08-11 后端新增,residue 盘不带 true 会被 500 拒绝。
+    const createBody = { name: 'md0', level: 1, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: true, wipe_raid_residue: false }
+    const replaceBody = { old_disk_path: '/dev/sda', old_disk_serial: 'OLD-1', new_disk_path: '/dev/sdb', wipe_raid_residue: false }
+    await r.create(createBody); await r.remove(3); await r.getStatus(3); await r.getUsage(3)
+    await r.replaceDisk(3, replaceBody); await r.recover(3)
     await r.listTasks(); await r.getTask('t1')
     expect(log).toEqual([
-      ['post', '/v2/raid', { name: 'md0' }],
+      ['post', '/v2/raid', createBody],
       ['delete', '/v2/raid/3', undefined],
       ['get', '/v2/raid/3/status', undefined],
       ['get', '/v2/raid/3/usage', undefined],
-      ['post', '/v2/raid/3/disk', { old: '/dev/sda', new: '/dev/sdb' }],
+      ['post', '/v2/raid/3/disk', replaceBody],
       ['post', '/v2/raid/3/recover', undefined],
       ['get', '/v2/raid/tasks', undefined],
       ['get', '/v2/raid/tasks/t1', undefined],
@@ -50,13 +73,13 @@ describe('createRaid', () => {
 describe('createRaid create/listTasks/getTask tolerate raw (non-standard) envelopes', () => {
   it('create returns a raw {task_id,status} body (real backend: HTTP 202, no success field)', async () => {
     const http = { post: async () => ({ data: { task_id: 'abc', status: 'creating' } }) } as unknown as AxiosInstance
-    const res = await createRaid(http).create({ name: 'md0' })
+    const res = await createRaid(http).create({ name: 'md0', level: 1, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: false })
     expect(res).toEqual({ task_id: 'abc', status: 'creating' })
   })
 
   it('create also tolerates a standard {success,data:{task_id,status}} envelope', async () => {
     const http = { post: async () => ({ data: { success: 200, data: { task_id: 'xyz', status: 'creating' } } }) } as unknown as AxiosInstance
-    const res = await createRaid(http).create({ name: 'md0' })
+    const res = await createRaid(http).create({ name: 'md0', level: 1, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: false })
     expect(res).toEqual({ task_id: 'xyz', status: 'creating' })
   })
 

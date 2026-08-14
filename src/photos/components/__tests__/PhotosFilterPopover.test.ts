@@ -1,12 +1,22 @@
 // SP7-P7a-T12: PhotosFilterPopover.vue —— 列表型筛选弹层基元。
 // 弹层标记逐字比对结论(PhotosSearchView.vue:124-147 vs PhotosFilterBar.vue:25-63,任务
 // 报告里有完整版;fix round 1 · M9 已改正措辞,此前写"唯一实质差异"不准确):真实数值
-// 差异有两条——① 滚动容器 max-height 搜索侧 280px / FilterBar 侧 260px,以搜索侧为准取
-// 280(本测试断言 280),260 的差异登记交给 P7b/T16;② `.fpop` 内联宽度搜索侧 260 /
-// FilterBar 侧 240,已由 width prop 吸收(brief 接口段本就给了这两个数,不是本任务发现的
-// 新差异)。其余(empty 文案来源、label 转换来源、cancelPop 参数)New-UI 接口层面已经用
-// emptyHint/labelFor prop 统一抹平。
+// 差异有两条——① 滚动容器 max-height 搜索侧 280px / FilterBar 侧 260px;② `.fpop` 内联
+// 宽度搜索侧 260 / FilterBar 侧 240,已由 width prop 吸收(brief 接口段本就给了这两个数,
+// 不是本任务发现的新差异)。其余(empty 文案来源、label 转换来源、cancelPop 参数)New-UI
+// 接口层面已经用 emptyHint/labelFor prop 统一抹平。
+//
+// Plan B Task 5(2026-08-12):① 处的 260/260 差异当年登记"交给 P7b/T16 决定要不要开
+// prop"——本任务把它接通:max-height 从写死的 CSS 声明改成 maxHeight prop(默认 280,
+// 与既有 PhotosSearch 等消费方行为不变),照抄 width prop 已有的"inline style 覆写"写法
+// (:56-61 的 width 断言是这个模式的先例),FilterBar 侧显式传 260 命中 Vue2 数值。
+//
+// 机主验收回退(2026-08-13):EXIF 胶囊/弹层的玻璃质感例外被推翻,组件 scoped style 收缩
+// 到只剩 parity 真正不覆盖的部分(见 PhotosFilterPopover.vue 头部注释)。下方"样式"分组
+// 里原本针对 .btn/.btn-primary、.fpop-quick 的 cssCascade hover-lock 断言已随对应规则一并
+// 移出组件,替换为"组件不再拥有这条规则"+"共享 parity scss 自身顺序正确"两步断言。
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -24,6 +34,7 @@ type Props = {
   searchPlaceholder: string
   emptyHint: string
   width?: number
+  maxHeight?: number
   multiple?: boolean
   labelFor?: (item: string) => string
 }
@@ -49,7 +60,7 @@ describe('结构', () => {
     expect(w.find('.fpop').exists()).toBe(true)
     expect(w.get('.fpop-title').text()).toBe('File type')
     expect(w.find('.fpop-search').exists()).toBe(true)
-    expect(w.findAll('.nav-item').length).toBe(5)
+    expect(w.findAll('.fpop-item').length).toBe(5)
     expect(w.get('.fpop-foot').findAll('button').length).toBe(2)
   })
 
@@ -60,9 +71,16 @@ describe('结构', () => {
     expect(w240.get('.fpop').attributes('style')).toContain('width: 240px')
   })
 
-  it('items 5 条 → 5 个 .nav-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
+  it('maxHeight 默认 280(搜索侧既有行为不变);传 260 → .fpop-list 行内 style 是 260px(FilterBar 侧,Plan B Task 5)', () => {
+    const wDefault = mountPop(baseProps())
+    expect(wDefault.get('.fpop-list').attributes('style')).toContain('max-height: 280px')
+    const w260 = mountPop(baseProps({ maxHeight: 260 }))
+    expect(w260.get('.fpop-list').attributes('style')).toContain('max-height: 260px')
+  })
+
+  it('items 5 条 → 5 个 .fpop-item;selected 含第 2 条 → 它 data-active=true 且有 check 图标,其余 false 且无 check', () => {
     const w = mountPop(baseProps({ selected: ['Video'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     expect(rows).toHaveLength(5)
     rows.forEach((row, i) => {
       const isVideo = baseProps().items[i] === 'Video'
@@ -80,27 +98,27 @@ describe('结构', () => {
   it('搜索过滤:输入过滤词 → 列表变短;大小写不敏感;过滤到 0 条 → 空态文案出现且列表 0 条', async () => {
     const w = mountPop(baseProps())
     await w.get('.fpop-search').setValue('vid')
-    expect(w.findAll('.nav-item')).toHaveLength(1)
-    expect(w.get('.nav-item').text()).toBe('Video')
+    expect(w.findAll('.fpop-item')).toHaveLength(1)
+    expect(w.get('.fpop-item').text()).toBe('Video')
 
     await w.get('.fpop-search').setValue('VID')
-    expect(w.findAll('.nav-item')).toHaveLength(1)
+    expect(w.findAll('.fpop-item')).toHaveLength(1)
 
     await w.get('.fpop-search').setValue('nonexistent-xyz')
-    expect(w.findAll('.nav-item')).toHaveLength(0)
+    expect(w.findAll('.fpop-item')).toHaveLength(0)
     expect(w.get('.fpop-empty').text()).toBe('Nothing here yet')
   })
 
   it('labelFor 生效:传 it => "X" + it → 渲染文本含 X', () => {
     const w = mountPop(baseProps({ labelFor: (it) => `X${it}` }))
-    expect(w.get('.nav-item').text()).toContain('XPhoto')
+    expect(w.get('.fpop-item').text()).toContain('XPhoto')
   })
 })
 
 describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
   it('点未选项 → update:selected 带 [...原, it]', async () => {
     const w = mountPop(baseProps({ selected: ['Photo'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[1]!.trigger('click') // Video
     expect(w.emitted('update:selected')).toEqual([[['Photo', 'Video']]])
   })
@@ -109,7 +127,7 @@ describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
     const original = ['Photo', 'Video']
     const originalSnapshot = [...original]
     const w = mountPop(baseProps({ selected: original }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[0]!.trigger('click') // Photo,已选 → 移除
     expect(w.emitted('update:selected')).toEqual([[['Video']]])
     expect(original).toEqual(originalSnapshot) // 没被就地 push/splice
@@ -119,14 +137,14 @@ describe('multiple: true(默认)—— 数组增删,不原地改 prop', () => {
 describe('multiple: false —— 单选语义(照搬 Vue2 toggleDraftItem 的 v === it ? null : it)', () => {
   it('点未选项 → [it]', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: [] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[2]!.trigger('click') // RAW
     expect(w.emitted('update:selected')).toEqual([[['RAW']]])
   })
 
   it('点已选项 → []', async () => {
     const w = mountPop(baseProps({ multiple: false, selected: ['RAW'] }))
-    const rows = w.findAll('.nav-item')
+    const rows = w.findAll('.fpop-item')
     await rows[2]!.trigger('click')
     expect(w.emitted('update:selected')).toEqual([[[]]])
   })
@@ -181,37 +199,56 @@ describe('脚部按钮 + 冒泡', () => {
 })
 
 describe('样式', () => {
-  it('cssCascade:.btn.btn-primary 的 hover 胜出规则含 :hover 且含 -primary', () => {
+  // 2026-08-13 回退(机主推翻 EXIF 玻璃例外):.btn/.btn-primary(+:hover)已从本组件的
+  // scoped style 整体删除——vue2-parity/photos.scss 的全局 `.photos-root .btn`/
+  // `.photos-root .btn-primary`(+:hover)家族(:262-273)app-wide 覆盖所有挂在
+  // .photos-root 下的按钮,不需要本组件自带一份。原地断言这套颜色规则已经不在本组件里,
+  // hover-lock 的保障改为核对共享文件本身。
+  it('本组件 scoped style 不再含 .btn/.btn-primary 颜色规则(已整体移交全局 .photos-root .btn 家族)', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    expect(style.length).toBeGreaterThan(0)
-    const winner = winningHoverBackground(style, ['btn', 'btn-primary'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('-primary')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s === '.btn' || s === '.btn-primary')).toBe(false)
   })
 
-  it('cssCascade(B4 补的第三处硬约束):.nav-item[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
+  it('parity scss:.photos-root .btn-primary:hover 排在 .photos-root .btn:hover 之后(hover 时主按钮的 accent 底盖过基类 hover 底,Vue2 原始写法)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const baseHoverIdx = parityScss.indexOf('.photos-root .btn:hover')
+    const primaryHoverIdx = parityScss.indexOf('.photos-root .btn-primary:hover')
+    expect(baseHoverIdx).toBeGreaterThan(-1)
+    expect(primaryHoverIdx).toBeGreaterThan(baseHoverIdx)
+  })
+
+  it('cssCascade(B4 补的第三处硬约束):.fpop-item[data-active="true"] 的 hover 胜出规则含 :hover 且含 data-active', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    const winner = winningHoverBackground(style, ['nav-item'])
+    const winner = winningHoverBackground(style, ['fpop-item'])
     expect(winner.selector).toContain(':hover')
     expect(winner.selector).toContain('data-active')
   })
 
-  it('滚动容器(.fpop-list)有 max-height: 280px 与 overflow-y: auto(先锚定规则体,不做全文件级 toContain)', () => {
+  it('滚动容器(.fpop-list)的静态规则里有 overflow-y: auto(max-height 已改为 maxHeight prop 驱动的行内 style,见上方结构测试)', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
     const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-list')
     expect(rule).toBeDefined()
-    expect(rule?.body).toContain('max-height: 280px')
+    expect(rule?.body).not.toContain('max-height')
     expect(rule?.body).toContain('overflow-y: auto')
   })
 
-  // fix round 1 · M2(评审并入):brief 结构规格 3 明确要求过 .fpop-quick 基类 hover 的
-  // 断言,当前无 [data-on] 变体所以无风险,但 T13 加变体时这条基线断言就是防线——先钉住
-  // "现在唯一存在的 hover 规则就是基类自己"。
-  it('cssCascade:.fpop-quick 基类的 hover 胜出规则就是它自己(当前无变体,T13 加 [data-on] 时的防线)', () => {
+  // 2026-08-13 回退:.fpop-quick(+:hover)同样整体移交 vue2-parity/photos.scss
+  // (:2674-2678,单条 `.fpop-quick:hover, .fpop-quick[data-on="true"] { … }` 规则、两个
+  // 选择器共享同一组值,不存在谁压过谁——因此这里不需要像 .fchip/.btn 那样另外核对源码
+  // 顺序)。原地断言本组件不再自带这条规则。
+  it('本组件 scoped style 不再含 .fpop-quick 颜色规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    const winner = winningHoverBackground(style, ['fpop-quick'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('fpop-quick')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors.some((s) => s.startsWith('.fpop-quick'))).toBe(false)
+  })
+
+  it('parity scss 的 .fpop-quick:hover, .fpop-quick[data-on="true"] 是单条规则、共享同一组值(不是两条互相压制的规则)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.includes('.fpop-quick:hover') && r.selectors.includes('.fpop-quick[data-on="true"]'),
+    )
+    expect(rule).toBeDefined()
   })
 
   // fix round 1 · M7(评审并入):非颜色视觉属性补程序化断言,先锚定规则体再断言属性。
@@ -226,9 +263,9 @@ describe('样式', () => {
     expect(rule?.body).toContain('justify-content: center')
   })
 
-  it('.nav-icon 规则含 width: 16px 与 justify-content: center', () => {
+  it('.fpop-item-icon 规则含 width: 16px 与 justify-content: center', () => {
     const style = extractStyleBlock(photosFilterPopoverRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.nav-icon')
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fpop-item-icon')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('width: 16px')
     expect(rule?.body).toContain('justify-content: center')

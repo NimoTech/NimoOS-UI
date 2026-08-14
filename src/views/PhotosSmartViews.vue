@@ -45,10 +45,12 @@
 //     phase deleted that hero, which is exactly the state the acceptance device is in
 //     (moments table = 0 rows). Vue 2's target renders section + hero unconditionally and
 //     gates only the grid; the gate now sits where Vue 2 has it.
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -57,6 +59,7 @@ import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
 import { useToast } from '../stores/toast'
 
 const { t } = useI18n()
+const { themeClass } = usePhotosTheme()
 const router = useRouter()
 const settings = usePhotosSettingsStore()
 const moments = usePhotosMoments()
@@ -144,7 +147,7 @@ onMounted(() => {
 
 <template>
   <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.
@@ -195,6 +198,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 

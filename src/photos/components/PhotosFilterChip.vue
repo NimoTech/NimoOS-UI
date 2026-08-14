@@ -20,12 +20,11 @@
 // src/views/Photos/PhotosIcon.vue 对应 name 分支(P6b 终审抓过 4 处 glyph 漏抄/错抄,三道
 // 门全测不出),测试对渲染出的 <path d> 做精确断言钉住。
 //
-// 偏离登记 3(token 映射,控制器裁定 B2):chevD 颜色 Vue2 原值是 var(--text-3)
-// (PhotosSearchView.vue:55),不是 brief 写的 --fg-subtle(那是 text-4)。本期已确立的
-// 四档映射(SmartViewCreateDialog.vue:43-45)text-1→--fg / text-2→--fg-muted /
-// text-3→--fg-faint / text-4→--fg-subtle,这里用 --fg-faint。
-// (ClusterActionDialog.vue:368 把 text-3 映射成 --fg-muted 是 P6b 既有代码,与本期表不
-// 一致,但那是既有代码不许动,也不作为本任务依据——本任务以 T5 的表为准。)
+// 偏离登记 3(token 映射,控制器裁定 B2,已被 2026-08-13 回退取代):chevD 颜色 Vue2
+// 原值是 var(--text-3)(PhotosSearchView.vue:55)。T5 当时把 New-UI 四档通用 token 映射
+// (text-3→--fg-faint)套在这上面,是"玻璃质感"例外期间的产物。2026-08-13 回退后本组件
+// 不再走通用四档映射——.photos-root 本地就定义着 --text-3(parity scss :23-26/浅色版
+// :83-86),chevD 直接写 var(--text-3),与 Vue2 逐字一致,不需要再经一层映射表转译。
 //
 // open prop:Vue2 没有对应概念(chip 的视觉态只有 data-on,没有"弹层是否展开"这个独立
 // 维度)。brief 冻结的接口里带了这个可选 prop,这里原样接住;具体消费(要不要挂 CSS 钩子)
@@ -34,6 +33,17 @@
 // DOM(:data-open="open ? 'true' : undefined"),不恒渲染——Vue2 的 .fchip 上根本没有
 // 这个属性,默认态(open 未传或为 false)时 DOM 应与 Vue2 逐字一致,不能凭空多一个
 // data-open="false"。语义(要不要在其上挂样式)由 T13 定,当前无 CSS 消费。
+//
+// 机主验收回退(2026-08-13,推翻 Task 5 当时机主拍板的"第四处视觉例外"——EXIF 胶囊/
+// 弹层维持 New-UI 玻璃质感):玻璃质感在亮色主题下不可见(玻璃靠深色底叠加透明层才有
+// 辨识度,parity token 表虽然在 .photos-root.is-light 下给了完整浅色取值,但玻璃本身这
+// 一层视觉语言在浅背景上直接消失)。这不是"亮色下玻璃出 bug 需要修",裁决是反过来
+// 整个撤回玻璃、回退到 Vue2 原始扁平胶囊样式——纯样式改动,组件保持 Vue3 代码不变。
+// 下方样式块因此整块收缩:.fchip/.fchip-wrap/.fchip-icon/.fchip-x 等 Vue2 原有
+// class 名字段(parity scss :2614-2645 逐字有对应裸选择器)全部从这里删除,交给
+// src/photos/styles/vue2-parity/photos.scss 的裸规则接管——那份文件是 Vue2 CSS 的逐字
+// 转录,组件不必再自带一份颜色重复的 scoped 版本。留在这里的只剩 parity 确实不覆盖的
+// New-UI 专属结构规则(见下方 .fchip-icon :deep(svg) 的独立注释)。
 defineProps<{
   label: string
   active: boolean
@@ -53,7 +63,7 @@ const emit = defineEmits<{
       <span>{{ label }}</span>
       <svg
         class="fchip-chevd" width="11" height="11" viewBox="0 0 24 24" fill="none"
-        stroke="var(--fg-faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+        stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
       >
         <path d="m6 9 6 6 6-6" />
       </svg>
@@ -71,88 +81,37 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
-/* token 映射:Vue2 --surface-2/--surface-3(实底胶囊底色/hover 底色)→ 本仓既有
-   --chip-bg/--chip-bg-hi(同 ClusterActionDialog.vue/PhotosToolbar.vue/AlbumPickerDialog.vue
-   等既有先例的通用映射);--line → --chip-border;--text-1/2/3 → --fg/--fg-muted/--fg-faint
-   (上方偏离登记 3 的四档表);--accent-hi(不存在,已 grep 确认)→ --accent-text(同
-   MergeReviewDialog.vue:249-252/PersonHero.vue:488-491 等既有先例);Vue2 的边框是一个
-   写死的 accent 紫色、透明度三成(不是 var(--accent-rgb) 写法,但同一色调同一透明度量级)
-   → 既有三档 accent 家族里最接近三成透明度的 --accent-soft-bd(dark 3.6 成 / light 3 成)。 */
-.fchip-wrap {
-  position: relative;
-  display: inline-flex;
-}
-.fchip {
-  height: 30px;
-  padding: 0 12px;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 99px;
-  background: var(--chip-bg);
-  border: 1px solid var(--chip-border);
-  color: var(--fg-muted);
-  font-size: 12.5px;
-  position: relative;
-  cursor: pointer;
-}
-.fchip:hover {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-.fchip[data-on='true'] {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--fg);
-}
-/* hover 硬约束(本任务受此约束的三处之一):基类 .fchip:hover 是 (0,2,0),变体
-   .fchip[data-on="true"] 未 hover 时只有 (0,2,0)(class + 属性选择器),二者相等 ⇒ 会靠
-   书写顺序苟活(P6a 四次事故的第二种形态)。T7 已修好 cssCascade.ts 的 classSpecificity——
-   属性选择器现在计入优先级,所以给变体自带 :hover 后是 (0,3,0),稳赢基类,不必再改成伴生
-   类。数值原样复刻未 hover 时的 [data-on] 态,即"选中态在鼠标悬停时保持不变"。 */
-.fchip[data-on='true']:hover {
-  background: var(--accent-soft);
-  border-color: var(--accent-soft-bd);
-  color: var(--fg);
-}
-.fchip[data-on='true'] .fchip-icon {
-  color: var(--accent-text);
-}
-.fchip-icon {
-  color: var(--fg-faint);
-  display: flex;
+/* 2026-08-13 回退:.fchip-wrap/.fchip(+:hover/[data-on]/.fchip-icon)/.fchip-x(+:hover)
+   这一整批 Vue2 原生 class 名字段,在 vue2-parity/photos.scss:2614-2645 已经有逐字对应的
+   裸选择器(.fchip-wrap/.fchip/.fchip:hover/.fchip[data-on="true"]/
+   .fchip[data-on="true"] .fchip-icon/.fchip-icon/.fchip-x/.fchip-x:hover),值就是 Vue2
+   原文的 --surface-2/--surface-3/--line/--text-1/2/3/--accent-hi 等本地 token(dark 与
+   .photos-root.is-light 两套都有定义)。此前这里各自重复一份、颜色映射到本仓通用玻璃
+   token(--chip-bg/--fg-muted/--accent-text 等),靠 scoped 编译出的 [data-v-xxxx] 属性
+   把优先级顶到 parity 裸选择器之上,是玻璃质感能"赢"的唯一原因——删掉这份重复,parity
+   的裸规则直接生效,不需要再借数据属性提权。
+   .fchip-x 上原有的 border:0/background:transparent/cursor:pointer 同样删除,不是漏移植:
+   Vue2 photos.scss:92(parity 转录在 :104)本就有 `.photos-root button { background:
+   transparent; border:0; color:inherit; cursor:pointer; }` 全局重置,.fchip-x 是
+   `<button>` 且本组件只会挂在 .photos-root 之内(a822ef1d 起全体 photos 视图皆然),这条
+   重置天然覆盖,重复写等于两份真相。真实指标:该重置的 `color: inherit` specificity
+   (0,1,1) 高于裸 `.fchip-x` 的 (0,1,0),所以 .fchip-x 非 hover 态文字色其实是从 .fchip
+   继承而来、并不真的等于 --text-3——这与真实 Vue2(同一份 CSS)的渲染结果完全一致,是
+   如实复刻而非本仓引入的新缺陷,不属于"修 bug",不额外提权去覆盖。仅 `padding: 0`
+   予以保留——没有任何全局重置会清空 <button> 的 UA 默认内边距,少了它 16×16 的圆形
+   叉号会被撑大,这是 parity 真正没覆盖到的结构性质。 */
+.fchip-x {
+  padding: 0;
 }
 /* fix round 1 · M3(评审并入,牵动 T13/T14/T16/P7b 四个下游):Vue2
    PhotosSearchView.vue:53 用 <photos-icon :name="chip.icon" :size="13"/>,即 svg
    width/height 各 13px。本组件把 icon 从字符串 prop 换成 #icon 具名插槽后,这条尺寸
    契约不能只靠报告里一句话交代——用 :deep(svg) 把宿主传入的 svg 焊死在 13×13,不管
    宿主内联的 svg 自己写了多大尺寸,渲染出来都会被这条规则收敛,不依赖下游任务自觉记住
-   13 这个数字。 */
+   13 这个数字。parity scss 没有这条规则(Vue2 原文走 :size prop 而不是插槽 + CSS 焊死),
+   New-UI 专属,保留。 */
 .fchip-icon :deep(svg) {
   width: 13px;
   height: 13px;
-}
-.fchip-x {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  margin-left: 2px;
-  margin-right: -4px;
-  color: var(--fg-faint);
-  border: 0;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
-/* Vue2 用一个跟随文字色、透明度一成的淡叠层做透明背景上的 hover 底(基于 Vue2 自己的
-   --ink 文字色 token 取一成透明度)——本仓没有 --ink 这个 RGB 三元组 token,代以语义
-   等价、两套主题都有定义的 --hover(同 PersonRelationsTab.vue:218 .rel-row:hover 的
-   既有先例)。 */
-.fchip-x:hover {
-  background: var(--hover);
-  color: var(--fg);
 }
 </style>

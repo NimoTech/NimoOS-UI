@@ -98,6 +98,15 @@ const canCreate = computed(
     !store.raidCreating,
 )
 
+// 带外来阵列残留超块的已选盘(role:"residue";本机成员后端已从 avail 剔除,到不了这里)。
+// 确认弹窗点名将清除哪些盘的残留,请求体据此带 wipe_raid_residue —— 不带 true 后端会
+// 500 拒绝("...requires explicit confirmation")。
+const residueDisks = computed(() => selectedDisks.value.filter((d) => d.raid?.role === 'residue'))
+// ⚠️ array_name 来自盘上 mdadm 超块,是不可信文本 —— 只经模板插值渲染,不拼 HTML。
+const residueList = computed(() =>
+  residueDisks.value.map((d) => `${d.path} (${d.raid?.array_name || '?'})`).join(', '),
+)
+
 const defaultName = computed(() => computeNextStorageName(DEFAULT_STORAGE_NAME, existingNames.value))
 watch(
   defaultName,
@@ -158,6 +167,7 @@ async function doCreate(): Promise<void> {
     chunk_kb: 512 as const,
     filesystem: selectedFilesystem.value,
     enable_snapshots: isBtrfs.value ? enableSnapshots.value : false,
+    wipe_raid_residue: residueDisks.value.length > 0,
   }
   const task = await store.createRaid(body)
   if (task) {
@@ -273,6 +283,7 @@ async function doCreate(): Promise<void> {
 
       <Dialog :open="confirmOpen" :title="t('raidCreateConfirmTitle')" @update:open="confirmOpen = $event">
         <p class="rcv-confirm-msg">{{ t('raidCreateConfirmMsg', { level: selectedLevel, name: arrayName, n: diskCount }) }}</p>
+        <p v-if="residueDisks.length" class="rcv-residue-warn">⚠️ {{ t('raidResidueWillErase', { disks: residueList }) }}</p>
         <template #footer>
           <button type="button" class="rcv-dialog-cancel" @click="confirmOpen = false">{{ t('storageCancel') }}</button>
           <button type="button" class="rcv-dialog-create" :disabled="store.raidCreating" @click="doCreate">
@@ -363,6 +374,7 @@ async function doCreate(): Promise<void> {
 .rcv-back:hover { background: var(--chip-bg-hi); }
 
 .rcv-confirm-msg { margin: 0; font-size: 14px; color: var(--fg); }
+.rcv-residue-warn { margin: 10px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--dem-fg); max-width: 420px; }
 .rcv-dialog-cancel, .rcv-dialog-create {
   padding: 7px 16px; border-radius: 999px; border: 1px solid var(--chip-border);
   background: var(--chip-bg); color: var(--fg); cursor: pointer; font-size: 13px;

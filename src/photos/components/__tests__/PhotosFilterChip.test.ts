@@ -3,12 +3,13 @@
 // 一份):两侧标记逐字相同,唯二差别①处理器名(clearFilter/clearChip)②组件标签大小写
 // (<photos-icon>/<PhotosIcon>),都不影响 New-UI 落地。
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
 import PhotosFilterChip from '../PhotosFilterChip.vue'
 import photosFilterChipRaw from '../PhotosFilterChip.vue?raw'
-import { extractStyleBlock, parseCssRules, winningHoverBackground } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -104,13 +105,29 @@ describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue,防止漏抄/�
   })
 })
 
-describe('样式:hover 硬约束(基类 .fchip:hover 与变体 .fchip[data-on="true"] 优先级相等,变体必须自带 :hover)', () => {
-  it('cssCascade:.fchip[data-on="true"] 的 hover 胜出规则含 :hover 且含 data-on', () => {
+// 2026-08-13 回退(机主推翻 EXIF 玻璃例外):.fchip 系列的整套颜色规则(含下面这条曾经的
+// hover 硬约束变体)已经从本组件的 scoped style 里删除,交给
+// vue2-parity/photos.scss:2614-2645 的裸选择器接管——组件自己的 <style> 不再拥有这份
+// 样式,原地断言它已经不成立(没有规则可抽)。hover-lock 的保障因此改为对 parity.scss
+// 本身的断言:该文件里 `.fchip:hover` 与 `.fchip[data-on="true"]` 没有各自的 :hover 变体
+// 互相压制,而是单靠源码顺序(Vue2 原始行为——parity scss 是逐字转录,连这个"靠顺序"的
+// 写法都原样保留),`.fchip[data-on="true"]` 必须排在 `.fchip:hover` 之后,否则悬停时选中
+// 态会被基类 hover 背景顶掉。
+describe('样式:hover 硬约束现由共享 parity scss 承担(不再是本组件自己的 scoped style)', () => {
+  it('本组件 scoped style 不再含 .fchip/.fchip:hover/.fchip[data-on] 颜色规则(已整体移交 parity)', () => {
     const style = extractStyleBlock(photosFilterChipRaw)
-    expect(style.length).toBeGreaterThan(0)
-    const winner = winningHoverBackground(style, ['fchip'])
-    expect(winner.selector).toContain(':hover')
-    expect(winner.selector).toContain('data-on')
+    const selectors = parseCssRules(style).flatMap((r) => r.selectors)
+    expect(selectors).not.toContain('.fchip')
+    expect(selectors).not.toContain('.fchip:hover')
+    expect(selectors.some((s) => s.includes('data-on'))).toBe(false)
+  })
+
+  it('parity scss:.fchip[data-on="true"] 排在 .fchip:hover 之后(源码顺序是这条 hover-lock 唯一的保障,Vue2 原始写法)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const hoverIdx = parityScss.indexOf('.fchip:hover')
+    const activeIdx = parityScss.indexOf('.fchip[data-on="true"]')
+    expect(hoverIdx).toBeGreaterThan(-1)
+    expect(activeIdx).toBeGreaterThan(hoverIdx)
   })
 })
 
@@ -131,12 +148,23 @@ describe('样式:#icon 插槽尺寸契约(13px,Vue2 :size="13" 的等价复刻)'
 
 // fix round 1 · M7(评审并入):非颜色视觉属性也要程序化断言,不能只靠回源核对——先锚定
 // 规则体再断言属性,不做全文件级 toContain。
-describe('样式:.fchip-x 的负外边距(Vue2 原值,让叉号往胶囊右边缘贴一点,不是随手写的数字)', () => {
-  it('.fchip-x 规则含 margin-left: 2px 与 margin-right: -4px', () => {
-    const style = extractStyleBlock(photosFilterChipRaw)
-    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fchip-x')
+// 2026-08-13 回退:margin-left/margin-right 这两条已随 .fchip-x 整块移交 parity scss
+// (:2640-2644),本组件的 scoped .fchip-x 现在只剩 `padding: 0` 这一条 parity 没覆盖的
+// 结构性质(UA 默认 button 内边距会撑大 16×16 圆形叉号,parity/全局重置都不清零它)。
+describe('样式:.fchip-x 的负外边距(Vue2 原值)现由 parity scss 承担;本组件只留 padding:0 这条结构性质', () => {
+  it('parity scss 的 .fchip-x 规则含 margin-left: 2px 与 margin-right: -4px', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fchip-x')
     expect(rule).toBeDefined()
     expect(rule?.body).toContain('margin-left: 2px')
     expect(rule?.body).toContain('margin-right: -4px')
+  })
+
+  it('本组件 scoped .fchip-x 只剩 padding: 0(margin 已不在这里,交给 parity)', () => {
+    const style = extractStyleBlock(photosFilterChipRaw)
+    const rule = parseCssRules(style).find((r) => r.selectors.length === 1 && r.selectors[0] === '.fchip-x')
+    expect(rule).toBeDefined()
+    expect(rule?.body).not.toContain('margin')
+    expect(rule?.body).toContain('padding: 0')
   })
 })

@@ -213,7 +213,11 @@ export const SERVICE_DELETE = [
   // SP15-P2b-T1 added a ninth sibling (album <-> smart view conversion). Same omission
   // pattern as the two comments above — the leak guard would go red without this line.
   'src/photos.convert.test.ts',
-  'src/photos.uploads.test.ts',
+  // Photos parity plan A, task 1 (2026-08-12): the upload capability was removed from the
+  // service layer entirely, so photos.uploads.test.ts is gone. Its sprite-hover coverage
+  // (spriteMeta/spriteUrl/previewUrl, unrelated to uploads) moved to photos.sprite.test.ts,
+  // which still needs an entry here — same omission pattern as the comments above.
+  'src/photos.sprite.test.ts',
   'src/photos.views.test.ts',
   // SP9-P7:search 域(agentTool 四源聚合 + 归一化)。开源版没有 Search/AI 服务,
   // 唯一消费方是已删的 SearchDialog.vue / src/home/search/**。

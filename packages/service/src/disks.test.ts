@@ -11,6 +11,27 @@ describe('createDisks', () => {
     expect(cfg?.data).toEqual({ mount_point: '/media/usb1' })
   })
 
+  it('getDiskList unwraps the real {disks, avail} envelope (2026-08-11 真机形状:含 raid/disk_by_id/children mount_point+used_bytes)', async () => {
+    const data = {
+      disks: [{
+        name: 'sda', path: '/dev/sda', size: 1000204886016, model: 'WDC', serial: 'WD-1',
+        disk_by_id: 'ata-WDC_WD-1', health: 'true', temperature: 47, power_on_time: 2494,
+        disk_type: 'HDD', need_format: false,
+        children: [{ name: 'md127', size: 1, format: 'btrfs', supported: false, mount_point: '/media/RAID_raid10', used_bytes: 42 }],
+        raid: { role: 'member', array_name: 'raid10', array_uuid: 'u', level: 'raid10', md_device: '/dev/md127', registered: true, active: true },
+      }],
+      avail: [{
+        name: 'sdb', path: '/dev/sdb', size: 1, model: 'WDC', serial: 'WD-2', health: '',
+        temperature: 41, power_on_time: 148, disk_type: 'HDD', need_format: true,
+        raid: { role: 'residue', array_name: 'zimaos:fc56', array_uuid: 'u2', level: 'raid5', registered: false, active: false, created_at: 'Thu Aug  6 21:54:49 2026', updated_at: 'Fri Aug  7 00:29:17 2026' },
+      }],
+    }
+    const http = { get: async () => ({ data: { success: 200, data } }) } as unknown as AxiosInstance
+    const res = await createDisks(http).getDiskList()
+    expect(res).toEqual(data)
+    expect(res.avail[0].raid?.role).toBe('residue')
+  })
+
   it('getDiskList forwards params and unwraps envelope', async () => {
     let seen: unknown
     const http = { get: async (_u: string, cfg?: { params?: unknown }) => { seen = cfg?.params; return { data: { success: 200, data: [{ path: '/dev/sda' }] } } } } as unknown as AxiosInstance

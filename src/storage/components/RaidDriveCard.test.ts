@@ -103,6 +103,25 @@ describe('RaidDriveCard', () => {
     const w = mount(RaidDriveCard, { props: { disk: { path: '/dev/sdz', size: 1 }, selected: false } })
     expect(w.find('.rdc-tip-temp').text()).toBe('-')
   })
+
+  // 2026-08-11:后端把带外来阵列残留超块的盘放进 avail(residue),可选但要打警告标;
+  // 本机阵列成员(member)后端已剔除,不会出现在候选里。
+  it('residue 盘 → 渲染 RAID 残留警告标(title 点名归属阵列)', () => {
+    const residue = {
+      role: 'residue' as const, array_name: 'zimaos:fc5616382c017331', array_uuid: 'u', level: 'raid5',
+      registered: false, active: false,
+    }
+    const w = mount(RaidDriveCard, { props: { disk: { ...disk, raid: residue }, selected: false } })
+    const tag = w.find('.rdc-residue')
+    expect(tag.exists()).toBe(true)
+    expect(tag.text()).toContain('RAID 残留')
+    expect(tag.attributes('title')).toContain('zimaos:fc5616382c017331')
+  })
+
+  it('干净盘 → 无残留警告标', () => {
+    const w = mount(RaidDriveCard, { props: { disk, selected: false } })
+    expect(w.find('.rdc-residue').exists()).toBe(false)
+  })
 })
 
 // 层叠守卫。jsdom 不做布局也不算层叠上下文,这个缺陷只能靠文本断言钉住:

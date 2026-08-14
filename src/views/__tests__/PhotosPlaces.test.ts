@@ -135,7 +135,10 @@ describe('壳', () => {
   it('AreaShell title 为「地点」,PhotosSidebar 存在', async () => {
     const { w } = await mountView()
     expect(w.find('.area-title').text()).toBe('地点')
-    expect(w.find('.photos-sidebar').exists()).toBe(true)
+    // Task 3(壳 + 侧栏重刻)把 PhotosSidebar 的根元素类名从 `.photos-sidebar` 换成 Vue2 的
+    // `.sidebar`——PhotosPlaces.vue 自身仍是旧 AreaShell 壳(不在本任务范围,Plan H 再处理),
+    // 这里只是跟着共享组件的改名同步选择器,不是本文件所属任务的功能改动。
+    expect(w.find('.sidebar').exists()).toBe(true)
   })
 })
 
@@ -544,7 +547,10 @@ describe('路由 + 侧栏(只追加,不重排)', () => {
   // 收窄成 Moments-only「为你推荐」页,智能相册迁进了 Albums)——同步更新第 5 项文案。
   it('侧栏 NAV 顺序为 library, albums, people, places, smart-views, favorites, trash', async () => {
     const { w } = await mountView()
-    const ids = w.findAll('.side-item').map((n) => n.find('.side-name').text())
+    // Task 3(壳 + 侧栏重刻)把导航项类名从 `.side-item`/`.side-name` 换成 Vue2 的
+    // `.nav-item`(单个裸 <span> 装标签文字,没有专门的 name 子类——与 Vue2 源码一致)。
+    // 这里跟着改选择器,不是本文件所属任务的功能改动。
+    const ids = w.findAll('.nav-item').map((n) => n.text())
     // 侧栏渲染的是 i18n 标签文字,直接比对文案序列(与 photosLibrary/.../photosTrash 的
     // zh_CN 字典值一一对应),不需要额外解析源码——这就是"侧栏真的按此顺序渲染"的直接证据。
     expect(ids).toEqual(['照片库', '相册', '人物', '地点', '为你推荐', '收藏', '最近删除'])

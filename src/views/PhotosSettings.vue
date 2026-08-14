@@ -17,8 +17,11 @@
      是"整页只有一份 PhotosSidebar 副本"而不是"完全不挂"。测试见下方守卫用例。
   2. 没有 `open` prop、没有 ESC 关闭、没有 `$emit('close')`——路由页靠浏览器返回键,
      与本区其它视图一致。因此也没有 Vue2 :497-501/:527-528 的全局 keydown 监听。
-  3. Vue2 的 `themeMixin`/`photosThemeClass`(相册私有明暗主题开关)不迁——台账第二笔,
-     整个迁移期都不做。
+  3. （已撤销,登记作废)Vue2 的 `themeMixin`/`photosThemeClass`(相册私有明暗主题开关)
+     曾定为"整个迁移期都不做"——spec 2026-08-11 §4 推翻了这条,私有开关已随
+     `usePhotosTheme`(composable)+ `PhotosThemeToggle.vue` 一并带回,本页在下方挂了
+     一份该开关;`themeClass` 应用到 `.photos-root` 根节点的像素级接线随 Plan H 落地,
+     这里只接功能。
   4. 页脚的「Sign out」不迁(D22)——New-UI 已有全局登出
      (`src/settings/panels/AccountPanel.vue:167` → `useAuth().logout()`),Vue2 那颗
      自己手清 4 个 localStorage 键 + 跳 `/logout`,与 New-UI 登出通道不一致。
@@ -45,18 +48,22 @@
   一份白名单然后漂开。
 -->
 <script setup lang="ts">
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosStorageCard from '../photos/components/PhotosStorageCard.vue'
 import PhotosAiCard from '../photos/components/PhotosAiCard.vue'
+import PhotosThemeToggle from '../photos/components/PhotosThemeToggle.vue'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 
 interface ToastPayload { icon: string; text: string }
 
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const route = useRoute()
 const settings = usePhotosSettingsStore()
 
@@ -133,7 +140,7 @@ onUnmounted(() => {
 
 <template>
   <AreaShell :title="t('photosSettingsTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <div ref="pageRef" class="ps-scroll scroll">
@@ -148,6 +155,7 @@ onUnmounted(() => {
 
           <PhotosStorageCard @toast="showToast" />
           <PhotosAiCard @toast="showToast" />
+          <PhotosThemeToggle />
 
           <footer class="ps-footer">
             <div class="ps-footer-app">
@@ -168,6 +176,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }

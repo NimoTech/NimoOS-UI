@@ -19,12 +19,38 @@
 // FilterBar 挂进 PhotosToolbar 的 after-tabs 槽位(T3);exifFilter 态 + gridMonths
 // 派生 + filteredCount/onOpenTile 改用 gridMonths,三处同源(网格数据源、顶栏计数、
 // 灯箱翻页集)。
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+//
+// Task 3(壳 + 侧栏重刻):根结构改为 Vue2 的 `.photos-root[themeClass] > .app[data-collapsed]
+// [data-selecting] > PhotosSidebar + main.main`(NimoOS-UI PhotosTimeline.vue:943-956),
+// 取代旧的 AreaShell + `.photos-layout` flex-row 外壳。内容槽位(当时是 PhotosSearchBar 起到
+// PhotosGrid 止)原样保留在 `.photos-main` 里,只是外面多套了一层 `.app`/`main.main` 网格壳。
+//
+// Task 4(顶栏重刻,D13):`main.main` 下新增 `<PhotosTopbar>` 作为 `.photos-main` 的**同级
+// 前一个兄弟**(照 Vue2 PhotosTimeline.vue:956-971 的 `<main class="main"><PhotosTopbar/>
+// <PhotosSearchView v-if=.../>...</main>` 结构——topbar 是 main 的直接子节点,不嵌进内容槽位
+// 容器里)。原先内联在这里的 `<PhotosSearchBar>` 一行与紧随其后的 `.photos-summary` 计数行
+// 一并移入 PhotosTopbar.vue 内部(标题块 `.topbar-title`+`.topbar-sub`,副行=恒全库计数;
+// 搜索框=`.topbar` 内居中的 `.search`)。`collapsed` 的持久化 ref/toggle 语义不变,只是现在
+// 有了真正的点击入口(T3 报告"Concerns"第 4 条留的坑——Vue2 自己的折叠按钮就在顶栏,不在
+// AreaShell 的汉堡菜单里,补在这里正是 Vue2 的原始位置)。
+// PhotosSearchBar.vue 组件本身没删——grep 确认它仍被 `PhotosSearch.vue`(搜索结果页自己的
+// 顶部搜索框)复用,只是本文件不再引用它。
+//
+// AreaShell 去留判定(brief Step 4):读过 AreaShell.vue —— 桌面态(≥769px)`.area-bar`
+// 确实 `display:none`(D13 注释属实),但 `.area-body` 仍带 `padding:20px` 且
+// `overflow:auto`,`.area-shell` 还包一层 `height:100vh` 的 flex 列容器。这不是"零可见
+// chrome":Vue2 pixel baseline 里侧栏是贴边到视口左沿的(`.app` 网格本身就是 100vh 无内边距),
+// AreaShell 的 20px padding + 多一层 flex 包裹会把整个 `.app` 网格向内推、且与 `.app` 自带的
+// `height:100vh` 叠加造成双重滚动容器。故 Photos.vue 从本任务起脱离 AreaShell,直接以
+// `.photos-root` 为根——与 AI Agent 区(src/ai/views/AgentPage.vue)同款自定义整页壳的现有
+// 先例一致(AgentPage.vue 同样是从不借 AreaShell 的独立视口壳)。
+import '../photos/styles/vue2-parity'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
-import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
@@ -33,8 +59,12 @@ import PhotosFilterBar, { type ExifFilterValue } from '../photos/components/Phot
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosDeepLinks } from '../photos/composables/usePhotosDeepLinks'
+import { useSidebarDrawer } from '../composables/useSidebarDrawer'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
+import { usePhotosTrash } from '../photos/stores/trash'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
 import { unwrapTaskBusPayload, type TaskBusPayload } from '../photos/util/taskBus'
@@ -46,9 +76,47 @@ import type { Photo } from '../photos/util/assetToPhoto'
 const { t } = useI18n()
 const router = useRouter()
 const store = useTimelineStore()
+const trash = usePhotosTrash()
 const toast = useToast()
+// Task 8: delete-flow toasts (batch + lightbox) move off the global app toast
+// onto the Photos-private queue (Task 2's usePhotosToast) — icon/Undo affordance
+// parity with Vue2's window.PhotosToast (PhotosTimeline.vue:704-718). The
+// task-progress coalescer below stays on the global `toast` — it is
+// task-progress UX, not part of the delete flow this task owns (see the
+// doneCoalescer wiring further down).
+const photosToast = usePhotosToast()
 const bus = useMessageBus()
 const lb = useLightbox()
+
+// Task 3: photos-private theme, applied to the `.photos-root` grid root (Task 1's shared
+// composable — see usePhotosTheme.ts).
+const { themeClass } = usePhotosTheme()
+
+// Task 3: sidebar collapse (Vue2 PhotosTimeline.vue's `collapsed` data + the topbar toggle
+// button that flips it — the toggle button itself lands with the topbar in T4+; this task
+// only owns the persisted state and the `.app[data-collapsed]` wiring). Persisted here
+// (not in PhotosSidebar) per the brief's interface contract — the sidebar is a shared
+// component mounted by every photos-area page, this state is Photos.vue's own.
+const COLLAPSE_KEY = 'nimo_photos_sidebar_collapsed'
+const collapsed = ref(localStorage.getItem(COLLAPSE_KEY) === '1')
+watch(collapsed, (v) => { localStorage.setItem(COLLAPSE_KEY, v ? '1' : '0') })
+// Task 4: the topbar's collapse-toggle button (Vue2 PhotosTopbar's own `☰`, wired at
+// PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`) — same flip, now reachable.
+//
+// final-review fix (item 6): on a ≤768px viewport PhotosSidebar renders as its own fixed
+// drawer instead of the desktop two-column grid track (useSidebarDrawer — a module
+// singleton PhotosSidebar.vue already consumes for its is-narrow/is-drawer/is-open
+// classes). Flipping `collapsed` there is a no-op: that flag only ever drives the
+// `.app[data-collapsed]` desktop column-width rule, which the drawer isn't part of — so
+// the topbar's panelLeft button had no way to open the sidebar on mobile at all (Task 3's
+// shell rewrite dropped the old AreaShell hamburger that used to do that job). Route the
+// same click to the drawer's own toggle() when isNarrow is true instead.
+const { isNarrow: sidebarIsNarrow, toggle: toggleSidebarDrawer } = useSidebarDrawer()
+function onToggleCollapse() {
+  if (sidebarIsNarrow.value) { toggleSidebarDrawer(); return }
+  collapsed.value = !collapsed.value
+}
+
 // Default tab: aligned with Vue2 NimoOS-UI src/views/Photos/PhotosTimeline.vue's
 // `data() { tab: 'photo' }` — 'all' was an unsanctioned drift introduced during
 // the port (SP7-P1 review finding), sanctioned fix.
@@ -103,7 +171,10 @@ const filteredCount = computed(() =>
 
 // T16 接线(结构规格 22):搜索框恒显示(对应 Vue2 `show-search = isLibraryView`,
 // New-UI 没有"库视图/其余视图"这个多态壳,时间线页本身就只有这一种形态,故无 v-if
-// 条件)。提交→跳转 /photos/search,空串→仍然跳转但不带 q(落到搜索页的预搜索态)。
+// 条件)。提交→跳转 /photos/search。空串早已在 PhotosTopbar.submitSearch 里被挡下
+// （trim 后为空直接 return,不 emit search-submit——ledger 六-2,owner 裁决),这个
+// handler 根本收不到空串;下面的 `q ? { q } : {}` 只是防御性写法(万一将来有别的调用
+// 方式传空串进来也不会拼出 `?q=` 这个空查询参数),不代表"空提交仍会跳转"。
 function onSearchSubmit(q: string) {
   router.push({ path: '/photos/search', query: q ? { q } : {} })
 }
@@ -129,11 +200,24 @@ function onAlbumAdded() {
 }
 
 async function onBatchDelete(ids: Array<string | number>) {
-  const count = await store.deleteAssets(ids.map(String))
-  // 4000ms, aligned with Vue2's delete/task-done toasts (NimoOS-UI
-  // src/views/Photos/PhotosTimeline.vue:329, :574) — longer than the app
-  // default (1500ms) so the user has time to register what happened.
-  toast.show(t('photosDeletedToast', { count }), 4000)
+  // Snapshot the full requested id set (not just however many
+  // store.deleteAssets reports as actually deleted) — Undo has to hand back
+  // exactly what was asked to go, same as Vue2's onBatchDelete/restoreTrash
+  // pair (PhotosTimeline.vue:704-718), which never distinguishes a partial
+  // failure either.
+  const snapshot = ids.map(String)
+  const count = await store.deleteAssets(snapshot)
+  photosToast.show({
+    text: t('photosDeletedToast', { count }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      // Undo restores through the trash store (restoreTrashBatch + refetch
+      // trash + refresh timeline) and does NOT show a second toast — Vue2
+      // parity: the Undo click only dispatches photos/restoreTrash.
+      onClick: () => { void trash.restore(snapshot) },
+    },
+  })
   selected.value = []
 }
 
@@ -148,8 +232,19 @@ function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
 
 async function onLightboxDelete(id: string | number) {
   // 灯箱已在用户确认删除时自行 close(见 PhotoLightbox.vue doDelete),这里不再重复关闭。
-  await store.deleteAssets([String(id)])
-  toast.show(t('photosDeletedToast', { count: 1 }), 4000)
+  const snapshot = [String(id)]
+  await store.deleteAssets(snapshot)
+  // Same toast/Undo shape as onBatchDelete — Vue2's lightbox delete reuses
+  // onBatchDelete([id]) wholesale (PhotosTimeline.vue:1138), so a single
+  // delete gets the identical trash-icon + Undo toast, count 1.
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => { void trash.restore(snapshot) },
+    },
+  })
 }
 
 // ─── task-done toast coalescing ───────────────────────────────────────────
@@ -226,51 +321,56 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout">
-      <PhotosSidebar />
-      <main class="photos-main">
-        <PhotosSearchBar @submit="onSearchSubmit" />
-        <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
-        <template v-else>
-          <div class="photos-summary">
-            {{ t('photosCountSummary', { photos: store.photoCount, videos: store.videoCount }) }}
-          </div>
-          <PhotosSelectionToolbar
-            v-if="selected.length"
-            :count="selected.length"
-            @clear="cancelSelection"
-            @delete="onBatchDelete([...selected])"
-            @add-to-album="openAlbumPicker([...selected])"
-          />
-          <PhotosToolbar
-            :tab="tab" :density="density" :count="filteredCount"
-            @update:tab="tab = $event" @update:density="density = $event"
-          >
-            <template #after-tabs>
-              <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
-                   就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
-                   gridMonths)。
-                   Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
-                   模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
-                   photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
-                   变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
-                   只是把注释改成实情。 -->
-              <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
-            </template>
-          </PhotosToolbar>
-          <div class="photos-grid-slot">
-            <PhotosGrid
-              :months="gridMonths" :tab="tab" :density="density" :selected="selected"
-              @open="onOpenTile"
-              @toggle-select="toggleSelect"
-              @need-bucket="(k: string) => store.fetchBucket(k)"
-            />
-          </div>
-        </template>
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
+        <div class="photos-main">
+          <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
+          <template v-else>
+            <PhotosToolbar
+              :tab="tab" :density="density" :count="filteredCount"
+              @update:tab="tab = $event" @update:density="density = $event"
+            >
+              <template #after-tabs>
+                <!-- facet 源取 allPhotos 而不是 gridMonths —— 否则筛掉某个年份后,该年份
+                     就从下拉里消失、再也选不回来(Vue2 的 facet 源同样是 displayMonths 而非
+                     gridMonths)。
+                     Whole-branch review fix (minor 11):此前这句写的是「恒取全库」,在分桶
+                     模式下不成立 —— allPhotos 展平的是 `months`,而分桶模式下未加载的月份
+                     photos 恒为空数组,所以 facet 列表只覆盖**已加载的桶**,会随用户滚动
+                     变长。行为本身是已登记的限制(spec §5.1,真正的修法是后端筛选),这里
+                     只是把注释改成实情。 -->
+                <PhotosFilterBar v-model:filter="exifFilter" :photos="store.allPhotos" />
+              </template>
+            </PhotosToolbar>
+            <!-- Task 7 (D19): the floating selectbar moves off being PhotosToolbar's
+                 preceding sibling (P1 layout) and mounts INSIDE the grid slot instead — Vue2
+                 pixel parity has `.selectbar` `position:absolute` anchored to the grid/scrubber
+                 area it floats over (NimoOS-UI PhotosGrid.vue:109), not the toolbar row above
+                 it. `.photos-grid-slot` is already `position: relative` (see this file's
+                 style block below), so no extra positioning container is needed. -->
+            <div class="photos-grid-slot">
+              <PhotosSelectionToolbar
+                v-if="selected.length"
+                :count="selected.length"
+                @clear="cancelSelection"
+                @delete="onBatchDelete([...selected])"
+                @add-to-album="openAlbumPicker([...selected])"
+              />
+              <PhotosGrid
+                :months="gridMonths" :tab="tab" :density="density" :selected="selected"
+                @open="onOpenTile"
+                @toggle-select="toggleSelect"
+                @need-bucket="(k: string) => store.fetchBucket(k)"
+              />
+            </div>
+          </template>
+        </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
   <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
        此处空接即可,无需再往上冒泡处理。 -->
   <PhotoLightbox
@@ -279,25 +379,36 @@ onUnmounted(() => {
     @add-to-album="(id) => openAlbumPicker([id])"
   />
   <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
+  <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
+       Teleports to <body> (see PhotosToastHost.vue). -->
+  <PhotosToastHost />
 </template>
 
 <style scoped>
-/* height(不是 min-height)—— 这一屏封顶,页面本身不滚,只有内层滚动容器滚。
-   照 Vue2 NimoOS-UI src/views/Photos/photos.scss:109 `.app { height: 100vh; overflow: hidden }`
-   + :295-300 `.content { flex:1; min-height:0; overflow:hidden }` / `.photos-wrap { overflow-y:auto }`。
-   移植期误写成 min-height:100%(至少一屏、可无限长高)→ 照片区把整页撑高,侧栏与右侧
-   月份刻度尺跟着照片一起滚走:实测 785 张时侧栏「设置」按钮落在距页顶 83580px 处、
-   刻度尺被拉成 83508px 高(刻度全挤在最顶端,滚下去就点不到)。P8a 验收轮 2 缺陷,
-   全相册区 11 页同源(同一行复制粘贴),逐页同改;反向回归闸见
-   src/views/__tests__/photosLayoutHeightCap.test.ts。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 3 起,外层高度封顶不再由这里的 `.photos-layout` 规则负责(该规则已删除,类名不再
+   出现在本文件源码里——photosLayoutHeightCap.test.ts 的 CAPPED 名单已同步移除 Photos.vue,
+   见该文件注释)。封顶现在由 Vue2 结构的 `.app` 网格自己扛(parity scss photos.scss:116-128
+   `height: 100vh; overflow: hidden`)。 */
+/* New-UI mobile enhancement (Vue2 has no responsive drawer here — PhotosSidebar.vue's own
+   file-header comment registers this deviation): once the sidebar switches into is-drawer
+   mode (position:fixed, taken out of grid flow) at ≤768px, collapse `.app`'s sidebar column
+   too, so `.main` doesn't leave a dead var(--sidebar-w) gutter where the now-floating sidebar
+   used to sit. Parity scss only defines the two-column desktop grid; this override is
+   New-UI-only and lives here rather than in the shared stylesheet. */
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+}
+
+/* `.photos-main`/`.photos-loading`/`.photos-grid-slot`: content-slot styling — now a sibling
+   of `<PhotosTopbar>` under `main.main` (Task 4 moved the topbar out to be `.photos-main`'s
+   preceding sibling, matching Vue2's `<main class="main"><PhotosTopbar/><content/></main>`
+   structure), instead of wrapping the search bar itself as it did through Task 3.
+   `align-self: stretch` is a harmless leftover from the old flex-row parent (`.photos-main`'s
+   former sibling was `.photos-sidebar`); `main.main`'s default grid `align-items: stretch`
+   already does the same job.
+   `.photos-summary` (Task 4): the standalone full-library count line moved into
+   `PhotosTopbar.vue`'s `.topbar-sub` — no longer rendered here, rule deleted with it. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 .photos-loading { color: var(--fg-muted, #9aa4bf); font-size: 14px; padding: 20px 0; }
-.photos-summary { color: var(--fg-muted); font-size: 13px; padding: 4px 4px 0; }
 .photos-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
-
-/* ≤768px:侧栏已收抽屉(PhotosSidebar.is-drawer 脱离文档流),布局单列 */
-@media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-}
 </style>
