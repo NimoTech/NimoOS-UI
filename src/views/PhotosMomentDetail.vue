@@ -158,11 +158,13 @@
 // 23) Save as Album carries Vue 2's `data-primary="true"` and an accent fill again (it had
 //     been ported as a plain .sv-action-btn, reading as a third neutral chip next to
 //     "Add photos" and "Select"). Substitute rule and specificity note at the CSS.
+import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import { usePhotosMoments, type MomentMember, type MomentPlace } from '../photos/stores/moments'
@@ -173,6 +175,7 @@ import type { Photo } from '../photos/util/assetToPhoto'
 const route = useRoute()
 const router = useRouter()
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const store = usePhotosMoments()
 const lightbox = useLightbox()
 const toast = useToast()
@@ -557,7 +560,7 @@ async function doDelete(): Promise<void> {
 
 <template>
   <AreaShell :title="moment ? moment.title : t('photosMoBackToAll')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <!-- Gate 1: the list has not arrived yet (New-UI only — Vue 2 always had the object). -->
@@ -859,6 +862,15 @@ async function doDelete(): Promise<void> {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height (not min-height): this screen is capped and only the inner containers scroll — same
    fix, and the same Vue 2 source, as the note at the matching rule in src/views/Photos.vue.
    Registered in views/__tests__/photosLayoutHeightCap.test.ts under CAPPED. */

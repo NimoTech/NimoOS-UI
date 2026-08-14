@@ -6,11 +6,16 @@ import StorageShell from '../storage/components/StorageShell.vue'
 import RaidMemberList from '../storage/components/RaidMemberList.vue'
 import RaidDeleteDialog from '../storage/components/RaidDeleteDialog.vue'
 import RaidReplaceDialog from '../storage/components/RaidReplaceDialog.vue'
+import RaidReclaimCard from '../storage/components/RaidReclaimCard.vue'
 import SnapshotPanel from '../storage/components/SnapshotPanel.vue'
 import { useStorageStore } from '../storage/stores/storage'
+import { useToast } from '../stores/toast'
 import { useGuardedPoll } from '../composables/useGuardedPoll'
 import { useDiskHotplug } from '../composables/useDiskHotplug'
 import { fmtSize } from '../home/util/format'
+import { findReplaceTarget, type ReplaceTarget } from '../storage/util/raidReplace'
+import { useRaidEta } from '../storage/composables/useRaidEta'
+import type { RaidMemberDiskRow } from '@nimotech/nimoos-service'
 import {
   resolveRaidState, raidSeverity, raidStateLabelKey, raidUsagePercent, levelInfo, memberDiskCount, mergeVacatedSlot,
   type RaidArray,
@@ -62,10 +67,20 @@ const flags = computed(() => resolveRaidState(array.value, status.value))
 const severity = computed(() => raidSeverity(flags.value))
 const labelKey = computed(() => raidStateLabelKey(flags.value))
 
-// 重建中时 5000ms 单飞重拉详情(活体进度);无重建则不发请求
-useGuardedPoll(() => store.loadRaidDetail(idStr.value), {
+// 收回成员盘任务是否属于本阵列。它必须与 isRebuilding **并联**当轮询开关:
+// --re-add 后头几秒内核把盘登记成 spare、rebuild_pct 还是 -1,不算重建态,
+// 只挂 isRebuilding 会一拍都不发请求,spare→recovering 过渡永远观察不到。
+const reclaimActive = computed(() => store.reclaimTask?.arrayId === idStr.value)
+
+// 重建中/收回进行中时 5000ms 单飞重拉详情(活体进度);否则不发请求。
+// 收回任务在场时额外拉一次列表:reclaimTask 的完成判定挂在 loadRaid → syncReclaimTask
+// 上,而本页平时只刷 raidDetail —— 不带上 loadRaid,停在详情页时任务永远收不了口。
+useGuardedPoll(async () => {
+  await store.loadRaidDetail(idStr.value)
+  if (reclaimActive.value) await store.loadRaid()
+}, {
   intervalMs: 5000,
-  active: () => flags.value.isRebuilding,
+  active: () => flags.value.isRebuilding || reclaimActive.value,
 })
 
 const usedBytes = computed(() => Number(status.value?.used_bytes) || 0)
@@ -102,7 +117,10 @@ const filesystem = computed(() => {
 })
 const uuid = computed(() => array.value.uuid || '—')
 const chunk = computed(() => (array.value.chunk_kb ? `${array.value.chunk_kb} KB` : '—'))
-const rebuildFinish = computed(() => strField(status.value, 'rebuild_finish'))
+// 重建剩余时间:优先 rebuild_eta_seconds(增量同步时内核的 rebuild_finish 按已拷贝
+// 字节算、会膨胀到几周),每 5 秒交替时长/完成时刻;老后端回退内核原始串。
+// etaText 是自足整句,详情表里占满一行,不配 key 列。
+const { etaText } = useRaidEta(() => status.value)
 const rebuildSpeed = computed(() => strField(status.value, 'rebuild_speed'))
 
 const btrfsFreeBytes = computed(() => Number(usage.value?.btrfs_usage?.free_estimated_bytes) || 0)
@@ -115,6 +133,15 @@ const btrfsCachedAtLabel = computed(() => {
 const showBtrfsRows = computed(() => filesystem.value === 'btrfs' && btrfsFreeBytes.value > 0)
 
 const members = computed(() => status.value?.members || [])
+// 可收回的成员盘(后端仅在 degraded 且盘已插回时下发,见 service 包 RaidStatus 注释)。
+// 非空即挂「收回成员盘」横幅 —— 摆在成员列表(换盘入口)之前:收回本阵列自己的盘是
+// 便宜且正确的补救,换盘要清掉一块盘,不应让用户先看到破坏性的那条路。
+const reattachable = computed(() => status.value?.reattachable_members || [])
+async function onReclaim() {
+  await store.reclaimRaidMembers(idStr.value)
+  // toast/看板/详情刷新都在 store action 里;留在本页看成员行进入重建 —— 轮询由
+  // reclaimActive 顶着(上方 useGuardedPoll),不依赖 isRebuilding。
+}
 // 表头计数用"有设备路径的行"而不是总行数:空槽位占位行不是一块盘,数进去会把
 // 3 盘阵列在降级时写成 MEMBER DISKS (4)(见 raidView.ts memberDiskCount)。
 const diskCount = computed(() => memberDiskCount(members.value))
@@ -145,16 +172,38 @@ async function onDelete() {
   }
 }
 
-// 换盘(P4 T7):RaidMemberList 的 faulty 成员行 emit replace-disk(diskPath) → 开弹窗;
-// 弹窗 emit confirm(newDiskPath) 才真正调 store(store 调用留在视图,不在弹窗内)。
+// 换盘(P4 T7 + 2026-08-11 serial 语义):RaidMemberList 的 faulty/空槽位行 emit
+// replace-disk(diskPath) → 本视图用 findReplaceTarget 识别被换的盘(在位 faulty 盘按
+// 实时 path;拔掉的盘按 serial,陈旧缓存路径不当身份)→ 开弹窗;弹窗 emit
+// confirm({newDiskPath, wipeResidue}) 才真正调 store(store 调用留在视图,不在弹窗内)。
 const replaceOpen = ref(false)
-const replaceTarget = ref('')
+const replaceTarget = ref<ReplaceTarget | null>(null)
 function onReplaceRequested(diskPath: string) {
-  replaceTarget.value = diskPath
+  const live = members.value
+  const rows = (array.value.member_disks || []) as RaidMemberDiskRow[]
+  // 用户点的是某一行:该行是在位 faulty 盘时按它建 target(多盘同时故障时不至于
+  // 换错盘);空槽位行(diskPath 为空)或找不到时退回 findReplaceTarget 的通用识别。
+  const clicked = diskPath ? live.find((m) => m.path === diskPath && m.state === 'faulty') : undefined
+  const target = clicked
+    ? { path: clicked.path, serial: clicked.serial || '', label: clicked.path }
+    : findReplaceTarget(live, rows)
+  if (!target) {
+    // status 没拉到,或什么都不缺、不故障 —— 硬开弹窗只会让用户"替换"一个空白
+    useToast().show(t('raidReplaceNoTarget'))
+    return
+  }
+  replaceTarget.value = target
   replaceOpen.value = true
 }
-async function onReplace(newDiskPath: string) {
-  const ok = await store.replaceRaidDisk(idStr.value, { old_disk_path: replaceTarget.value, new_disk_path: newDiskPath })
+async function onReplace(payload: { newDiskPath: string; wipeResidue: boolean }) {
+  const target = replaceTarget.value
+  if (!target) return
+  const ok = await store.replaceRaidDisk(idStr.value, {
+    old_disk_path: target.path,
+    old_disk_serial: target.serial,
+    new_disk_path: payload.newDiskPath,
+    wipe_raid_residue: payload.wipeResidue,
+  })
   if (!ok) return
   replaceOpen.value = false
   // 提交成功即退回列表页看进度(用户指定):重建是长活儿(真实硬盘可达数小时),
@@ -194,8 +243,8 @@ async function onReplace(newDiskPath: string) {
       <RaidReplaceDialog
         :open="replaceOpen"
         :raid-id="idStr"
-        :faulty-disk-path="replaceTarget"
-        :available-disks="store.availDisks"
+        :target="replaceTarget"
+        :disks="store.availDisks"
         :busy="store.raidReplacing"
         @update:open="replaceOpen = $event"
         @confirm="onReplace"
@@ -206,7 +255,16 @@ async function onReplace(newDiskPath: string) {
            阵列的数据。两种情况都不该把不属于本页的内容摆出来。 -->
       <div v-if="!detail" class="rd-loading">{{ t('storageLoading') }}</div>
 
-      <div v-else class="rd-cols">
+      <template v-else>
+      <!-- 收回成员盘横幅:置于两栏(含成员列表的换盘入口)之前,主色调、非破坏性 -->
+      <RaidReclaimCard
+        v-if="reattachable.length"
+        :members="reattachable"
+        :busy="store.raidRecovering"
+        @reclaim="onReclaim"
+      />
+
+      <div class="rd-cols">
         <div class="rd-col-left">
           <div class="rd-card rd-donut-card">
             <div class="rd-donut" :style="donutStyle">
@@ -252,7 +310,8 @@ async function onReplace(newDiskPath: string) {
               <span class="rd-key">{{ t('raidDetailState') }}</span>
               <span class="rd-val" :style="{ color: `var(${severityToken(severity)})` }">{{ t(labelKey) }}</span>
             </div>
-            <div v-if="rebuildFinish" class="rd-row"><span class="rd-key">{{ t('raidRebuildFinish') }}</span><span class="rd-val" style="color: var(--accent)">{{ rebuildFinish }}</span></div>
+            <!-- 重建 ETA 是自足整句(剩余约 X / 预计…完成 交替),不走 key/value 两列 -->
+            <div v-if="flags.isRebuilding && etaText" class="rd-row"><span class="rd-val" style="color: var(--accent)">{{ etaText }}</span></div>
             <div v-if="rebuildSpeed" class="rd-row"><span class="rd-key">{{ t('raidRebuildSpeed') }}</span><span class="rd-val" style="color: var(--accent)">{{ rebuildSpeed }}</span></div>
             <div v-if="showBtrfsRows" class="rd-row"><span class="rd-key">{{ t('raidBtrfsFreeEst') }}</span><span class="rd-val">{{ fmtSize(btrfsFreeBytes) }}</span></div>
             <div v-if="showBtrfsRows && btrfsCachedAtLabel" class="rd-row"><span class="rd-key">{{ t('raidBtrfsCachedAt') }}</span><span class="rd-val">{{ btrfsCachedAtLabel }}</span></div>
@@ -269,6 +328,7 @@ async function onReplace(newDiskPath: string) {
           </div>
         </div>
       </div>
+      </template>
     </div>
   </StorageShell>
 </template>

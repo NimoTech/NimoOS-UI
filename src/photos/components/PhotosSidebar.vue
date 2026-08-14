@@ -1,23 +1,80 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, watch } from 'vue'
+// Task 3 (壳 + 侧栏重刻): re-skinned to the Vue2 pixel baseline (NimoOS-UI
+// src/views/Photos/PhotosSidebar.vue:1-93). Structure/classes transcribed
+// verbatim (.sidebar/.sidebar-head/.nav-section/.nav-item/.nav-label/
+// .sidebar-foot/.storage-mini*, collapsed → centered brand-icon + icon-btn
+// column) — styling for all of it lives in the shared parity stylesheet
+// (photos/styles/vue2-parity/photos.scss:104-260), scoped under `.photos-root`.
+//
+// Script-level logic is NOT ported from Vue2's local `activeNav` prop/emit
+// model — this repo already gave every nav entry a real vue-router route
+// (SP7-P7a-T4's NAV table + activeNavId()), a sanctioned deviation predating
+// this task. That routing plumbing (NAV table, isActive-by-route, storage
+// usedPercent, router.push, the aiFeatures smartview-hide filter, the mobile
+// drawer via useSidebarDrawer) is kept as-is; only the template/classes and
+// the two things Vue2 actually owns here — the theme toggle and the
+// collapsed prop — are new.
+//
+// Deviation (registered per brief): Vue2 has no responsive drawer for this
+// sidebar at all — collapsing to the 56px icon rail is its only concession to
+// narrow viewports, at any width. New-UI's mobile drawer (is-narrow → fixed
+// overlay + scrim, closes on route change/ESC/backdrop click) predates this
+// task and is kept as a New-UI-only enhancement; the parity scss has no
+// opinion on it (it only defines the two-column desktop grid), so the
+// drawer's positioning rules stay in this component's own scoped style block.
+//
+// IMPORTANT (updated post-a822ef1d): all 13 photos-area pages are now rooted under
+// `.photos-root` (fix commit a822ef1d0edaebf6d0dc104ae306316385ec5f1f, "root every photos
+// view under photos-root so the shared sidebar keeps its layout") — the parity scss above
+// reaches every one of them, not just this one. The 12 pages that haven't had their own
+// `.app`-grid re-skin yet still carry a transitional `.sidebar { flex: 0 0 var(--sidebar-w) }`
+// pin plus the accepted parity-token/theme.css collision (--bg/--accent/--accent-soft/
+// --success shadowed to Vue2's values) described in task-3-report.md's token-collision
+// table — a known, registered hybrid transitional look, not a missing-styling gap anymore.
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useSidebarDrawer } from '../../composables/useSidebarDrawer'
 import { useTimelineStore } from '../stores/timeline'
 import { usePhotosSettingsStore } from '../stores/settings'
+import { usePhotosFavorites } from '../stores/favorites'
+import { usePhotosTheme } from '../composables/usePhotosTheme'
+import { useSessionStore } from '../../stores/session'
 import { renderSize } from '../../files/util/format'
 import { activeNavId } from '../util/activeNavId'
+import PhotosIcon from './PhotosIcon.vue'
+
+withDefaults(defineProps<{ collapsed?: boolean }>(), { collapsed: false })
 
 const router = useRouter()
 const route = useRoute()
 const { t } = useI18n()
 const timeline = useTimelineStore()
+const favorites = usePhotosFavorites()
+const session = useSessionStore()
+
+// Task 3: sidebar-head theme toggle (Vue2 PhotosSidebar.vue:27-33's
+// `$store.dispatch('photos/toggleTheme')` icon button) — this is Vue2's
+// actual toggle location. The Plan A stopgap segmented toggle inside
+// PhotosSettings.vue is untouched (a different, pre-existing entry point to
+// the same shared usePhotosTheme() singleton; both stay in sync for free).
+const photosTheme = usePhotosTheme()
+const isLight = computed(() => photosTheme.theme.value === 'light')
+function toggleTheme() {
+  photosTheme.set(isLight.value ? 'dark' : 'light')
+}
+
 // P8a-T6 (§7e-15):侧栏是相册区全部页面共用组件,自己拉一次 aiFeatures 配置来决定是否
 // 隐藏 smart-views 条目。store 是单例,与任意视图各自的 onMounted 同帧挂载会并发调用
 // fetchAiFeatures() —— 并发去重收在 settings.ts 里(见该文件 fetchAiFeatures 头部注释),
 // 这里只管调用,不用关心去重细节。
 const settings = usePhotosSettingsStore()
 onMounted(() => { void settings.fetchAiFeatures() })
+// Storage-bar data (timeline.indexStatus) is deliberately NOT fetched here — Photos.vue
+// already owns that (fetchIndexStatus/startIndexPoll, Task 8's socket wiring). Unlike Vue2
+// (single-page tab-switcher, sidebar mounts once per session), this sidebar remounts on every
+// photos-area route change; fetching here too would mean a request on every nav click instead
+// of Vue2's one-time cost. Existing behavior, unchanged by this task.
 
 // 抽屉态:注意必须解构(嵌套 ref 在模板里不会自动解包,drawer.isNarrow 恒真值是坑)——照 FilesSidebar。
 const { isNarrow, open: drawerOpen, close: closeDrawer } = useSidebarDrawer()
@@ -33,129 +90,189 @@ watch(drawerOpen, (o) => {
 })
 onUnmounted(() => document.removeEventListener('keydown', onDrawerKeydown))
 
-// 导航条目注册表。
+// 导航条目注册表 —— 内容/顺序不变(SP7-P7a-T4/SP15-P2b 既有登记),这里只补一个 `icon`
+// 字段(Vue2 nav1/nav2 的 icon 名)供新模板渲染 PhotosIcon;nav1 与 nav2 的切分点也照
+// Vue2(favorites/trash 归 nav2,其余归 nav1)。
 const NAV_ALL = [
-  { id: 'library', route: '/photos', labelKey: 'photosLibrary' },
-  { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums' },
-  { id: 'people', route: '/photos/people', labelKey: 'photosPeople' },
-  { id: 'places', route: '/photos/places', labelKey: 'photosPlaces' },
+  { id: 'library', route: '/photos', labelKey: 'photosLibrary', icon: 'clock' },
+  { id: 'albums', route: '/photos/albums', labelKey: 'photosAlbums', icon: 'album' },
+  { id: 'people', route: '/photos/people', labelKey: 'photosPeople', icon: 'person' },
+  { id: 'places', route: '/photos/places', labelKey: 'photosPlaces', icon: 'map' },
   // SP7-P7a-T4:插在 places 之后、favorites 之前,照 Vue2 PhotosSidebar.vue:114-118 的顺序
   // (library / albums / people / places / smart)。7 项(原 6 项),favorites/trash 下标各 +1。
   // SP15-P2b (Vue2 939a7d3a:PhotosSidebar.vue:118): the page behind this entry is now a
   // Moments-only "For You" page -- the smart albums moved into Albums. Only the label
   // changes; id and route stay so the ?view=smart deep link and the hide-when-off filter
   // keep working.
-  { id: 'smart-views', route: '/photos/smart-views', labelKey: 'photosMoForYou' },
-  { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites' },
-  { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash' },
+  { id: 'smart-views', route: '/photos/smart-views', labelKey: 'photosMoForYou', icon: 'sparkles' },
+  { id: 'favorites', route: '/photos/favorites', labelKey: 'photosFavorites', icon: 'starOutline' },
+  { id: 'trash', route: '/photos/trash', labelKey: 'photosTrash', icon: 'trash' },
 ]
 
 // P8a-T6(§7e-15):Vue2 PhotosSidebar.vue:120-122 —— `ai.smartview === false` 时
 // `items.filter(i => i.id !== 'smart')`。判据必须是 `=== false`,不是 `!x`:aiFeatures.
 // smartview 的默认值与"取数失败/字段缺失"的兜底值都是 `true`,只有后端明确说关了才隐藏这一
 // 条——配置读取抖动/请求失败不该让导航条目消失,吓用户以为功能不见了。
-const NAV = computed(() =>
+const visibleNav = computed(() =>
   settings.aiFeatures.smartview === false
     ? NAV_ALL.filter((n) => n.id !== 'smart-views')
     : NAV_ALL,
 )
 
+// Vue2 nav1/nav2 split (PhotosSidebar.vue:112-131): nav1 is the un-labelled top section,
+// nav2 (favorites/trash) sits under the collapsible "Photo library" drawer header.
+const nav1 = computed(() => visibleNav.value.filter((n) => n.id !== 'favorites' && n.id !== 'trash'))
+const nav2 = computed(() => visibleNav.value.filter((n) => n.id === 'favorites' || n.id === 'trash'))
+// Collapsed-state icon column renders both sections flattened, Vue2 `allNav` (:133).
+const allNav = computed(() => visibleNav.value)
+
+// Vue2 PhotosSidebar.vue:107 `data() { libraryOpen: true }` — the nav2 drawer starts open.
+const libraryOpen = ref(true)
+
 function isActive(n: { id: string }): boolean {
-  return activeNavId(route.path, NAV.value) === n.id
+  return activeNavId(route.path, visibleNav.value) === n.id
 }
 
+// Favorites count badge (Vue2 nav2 :129 `this.favCount`) — sourced from the favorites store,
+// which every photos page already reconciles on mount elsewhere (Task 10, Photos.vue).
+// Trash's count badge is intentionally NOT wired this task: unlike favorites, there is no
+// cheap always-loaded source for it in New-UI's current store split (trash.ts only fetches
+// on the Trash page itself) and fetching it eagerly from every sidebar mount would mean an
+// extra backend call on every photos-area page just for a badge — out of scope for a
+// shell/sidebar re-skin. Registered gap, not an oversight.
+function countFor(id: string): number | null {
+  if (id === 'favorites') return favorites.favIdsLoaded ? favorites.favIds.size : null
+  return null
+}
+
+// displayName (Vue2 :134-142) — session store already holds the same localStorage-backed
+// `user` object Vue2 read directly; this repo's equivalent.
+const displayName = computed(() => session.user?.username || '')
+
 // 存储条:usedText = totalBytes 人类可读;percent = (diskTotal-diskAvail)/diskTotal,除零守卫。
+const hasStorageInfo = computed(() => timeline.indexStatus.diskTotal > 0)
 const usedText = computed(() => renderSize(timeline.indexStatus.totalBytes))
-const usedPercent = computed(() => {
+const storagePercent = computed(() => {
+  if (!hasStorageInfo.value) return 0
   const total = timeline.indexStatus.diskTotal
-  if (!total) return 0
   const used = total - timeline.indexStatus.diskAvail
-  return Math.min(100, Math.max(0, (used / total) * 100))
+  return Math.min(100, Math.max(0, Math.round((used / total) * 100)))
 })
+
+function go(routePath: string) {
+  router.push(routePath)
+}
 </script>
 
 <template>
   <div v-if="isNarrow && drawerOpen" class="side-scrim" @click="closeDrawer"></div>
-  <aside class="photos-sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
-    <!-- 桌面态:回主页 + 标题并入侧栏玻璃面板(AreaShell 顶栏同时段隐藏);窄屏走顶栏,抽屉内不重复 -->
-    <div v-if="!isNarrow" class="side-top">
-      <h1 class="side-app-title">{{ t('photosTitle') }}</h1>
-      <button class="bar-btn side-home-btn" type="button" @click="router.push('/')">‹ {{ t('areaBackHome') }}</button>
-    </div>
-    <section class="side-section">
-      <ul class="side-list">
-        <li
-          v-for="n in NAV" :key="n.id"
-          class="side-item" :class="{ active: isActive(n) }"
-          @click="router.push(n.route)"
-        >
-          <span class="side-name">{{ t(n.labelKey) }}</span>
-        </li>
-      </ul>
-    </section>
-    <section class="side-section storage-bar">
-      <h4 class="side-title">{{ t('photosStorage') }}</h4>
-      <div class="storage-bar-track">
-        <div class="storage-bar-fill" :style="{ width: usedPercent + '%' }"></div>
+  <aside class="sidebar" :class="{ 'is-drawer': isNarrow, 'is-open': drawerOpen }">
+    <template v-if="collapsed">
+      <div class="sidebar-head" style="justify-content:center;padding:0">
+        <div class="brand-icon"></div>
       </div>
-      <p class="storage-bar-text">{{ usedText }}</p>
-    </section>
+      <div class="nav-section" style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:10px 0">
+        <button
+          v-for="n in allNav" :key="n.id"
+          class="icon-btn" :data-active="isActive(n)"
+          :title="t(n.labelKey)"
+          @click="go(n.route)"
+        >
+          <PhotosIcon :name="n.icon" :size="17" />
+        </button>
+      </div>
+      <div style="flex:1"></div>
+    </template>
 
-    <!-- SP7-P8a-T5:侧栏底部设置入口,照 Vue2 PhotosSidebar.vue:34-35 的齿轮按钮(那边
-         @open-settings 是 emit 给挂着 open prop 的全屏 overlay;本仓是真路由,直接
-         router.push)。不改 NAV 数组/既有导航项顺序——T6 要接的"smart-views 条件隐藏"
-         同样改 NAV,两者互不打扰。 -->
-    <section class="side-section side-settings">
-      <button type="button" class="side-settings-btn" data-test="sidebar-settings-link" @click="router.push('/photos/settings')">
-        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-        <span class="side-name">{{ t('photosSettingsTitle') }}</span>
-      </button>
-    </section>
+    <template v-else>
+      <div class="sidebar-head">
+        <div class="brand-icon"></div>
+        <div style="flex:1;min-width:0">
+          <div class="brand-name">{{ t('photosTitle') }}</div>
+          <div v-if="displayName" class="brand-user">{{ displayName }}</div>
+        </div>
+        <button
+          class="icon-btn"
+          :title="isLight ? t('photosSwitchToDarkTheme') : t('photosSwitchToLightTheme')"
+          @click="toggleTheme"
+        >
+          <PhotosIcon :name="isLight ? 'moon' : 'sun'" :size="15" />
+        </button>
+        <button
+          class="icon-btn" :title="t('photosSettingsTitle')"
+          data-test="sidebar-settings-link"
+          @click="go('/photos/settings')"
+        >
+          <PhotosIcon name="settings" :size="15" />
+        </button>
+      </div>
+
+      <div class="nav-section">
+        <div
+          v-for="n in nav1" :key="n.id"
+          class="nav-item" :data-active="isActive(n)"
+          @click="go(n.route)"
+        >
+          <span class="nav-icon"><PhotosIcon :name="n.icon" :size="16" /></span>
+          <span>{{ t(n.labelKey) }}</span>
+          <span v-if="countFor(n.id) != null" class="nav-count">{{ countFor(n.id) }}</span>
+        </div>
+      </div>
+
+      <div class="nav-section">
+        <div
+          class="nav-label"
+          style="cursor:pointer;display:flex;align-items:center;gap:4px;user-select:none"
+          @click="libraryOpen = !libraryOpen"
+        >
+          <PhotosIcon
+            :name="libraryOpen ? 'chevD' : 'chevR'"
+            :size="10"
+            color="var(--text-3)"
+            :style="{ opacity: 0.65 }"
+          />
+          <span>{{ t('photosLibrary') }}</span>
+        </div>
+        <template v-if="libraryOpen">
+          <div
+            v-for="n in nav2" :key="n.id"
+            class="nav-item" :data-active="isActive(n)"
+            @click="go(n.route)"
+          >
+            <span class="nav-icon"><PhotosIcon :name="n.icon" :size="16" /></span>
+            <span>{{ t(n.labelKey) }}</span>
+            <span v-if="countFor(n.id) != null" class="nav-count">{{ countFor(n.id)!.toLocaleString() }}</span>
+          </div>
+        </template>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div class="sidebar-foot">
+        <div class="storage-mini">
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+            <span style="color:var(--text-2)">{{ t('photosStorage') }}</span>
+            <span v-if="hasStorageInfo" class="storage-mini-usage">
+              {{ usedText }} ({{ storagePercent }}%)
+            </span>
+          </div>
+          <div class="storage-mini-bar"><div :style="{ width: storagePercent + '%' }"></div></div>
+        </div>
+      </div>
+    </template>
   </aside>
 </template>
 
 <style scoped>
-/* 与 FilesSidebar/AppsSidebar 同一壳形态(玻璃面板 + 窄屏抽屉)。token 五件套照抄。 */
-.photos-sidebar {
-  flex: 0 0 220px; align-self: stretch; box-sizing: border-box;
-  display: flex; flex-direction: column; gap: 18px;
-  padding: 14px; overflow-y: auto;
-  background: var(--panel-bg); border: 1px solid var(--card-border);
-  border-radius: var(--radius); box-shadow: var(--panel-shadow);
-  backdrop-filter: var(--blur);
-}
-.side-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.side-home-btn { font-size: 13px; flex: 0 0 auto; }
-.side-app-title { font-size: clamp(20px, 1.8vw, 28px); font-weight: 600; margin: 0 0 0 2px; color: var(--fg); }
-.side-section { min-width: 0; }
-.side-title { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted, #9aa4bf); margin: 0 0 6px; }
-.side-list { list-style: none; margin: 0; padding: 0; }
-.side-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 10px; cursor: pointer; color: var(--fg); }
-.side-item:hover { background: var(--chip-bg-hi); }
-.side-item.active { background: color-mix(in srgb, var(--accent) 16%, transparent); }
-.side-name { flex: 1 1 auto; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-.storage-bar { margin-top: auto; } /* 存储条压到侧栏底部 */
-.storage-bar-track { height: 6px; border-radius: 999px; background: var(--chip-bg-hi); overflow: hidden; }
-.storage-bar-fill { height: 100%; border-radius: 999px; background: var(--accent); }
-.storage-bar-text { margin: 6px 0 0; font-size: 12px; color: var(--fg-muted, #9aa4bf); }
-
-/* 设置入口:紧跟存储条之后,视觉上处于侧栏最底部。 */
-.side-settings-btn {
-  display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 10px;
-  padding: 6px 8px; border: none; border-radius: 10px; background: transparent;
-  color: var(--fg); font: inherit; cursor: pointer;
-}
-.side-settings-btn:hover { background: var(--chip-bg-hi); }
-
+/* Vue2 has no mobile drawer for this sidebar at all (see file-header deviation note) — this
+   is a New-UI-only responsive enhancement. Everything else (background, width via the .app
+   grid column, nav item look, storage bar, ...) comes from the shared parity stylesheet
+   (photos/styles/vue2-parity/photos.scss:104-260), scoped under `.photos-root`. */
 .side-scrim { position: fixed; inset: 0; z-index: 150; background: var(--overlay-bg); }
-.photos-sidebar.is-drawer {
+.sidebar.is-drawer {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 151; width: 250px;
-  padding: 16px; background: var(--card-bg); backdrop-filter: var(--blur);
-  border: none; border-right: 1px solid var(--card-border);
-  border-radius: 0; box-shadow: none;
   transform: translateX(-105%); transition: transform 0.25s var(--ease);
 }
-.photos-sidebar.is-drawer.is-open { transform: none; }
-@media (prefers-reduced-motion: reduce) { .photos-sidebar.is-drawer { transition: none; } }
+.sidebar.is-drawer.is-open { transform: none; }
+@media (prefers-reduced-motion: reduce) { .sidebar.is-drawer { transition: none; } }
 </style>

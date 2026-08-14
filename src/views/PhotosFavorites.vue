@@ -10,9 +10,11 @@
 // PhotosAlbums.vue(T7)新建相册模态的 --popup-bg/token 用法,精简掉本任务不需要的
 // source-picker 部分。Esc 关闭用 document 级监听 + watch(saveAlbumOpen) 增删(照
 // AlbumPickerDialog.vue:60-83 定型写法),不用模板 @keydown.esc。
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosToolbar from '../photos/components/PhotosToolbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
@@ -30,6 +32,7 @@ import { topPersons, topPlaces, byYear as byYearOf } from '../photos/util/people
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
+const { themeClass } = usePhotosTheme()
 const fav = usePhotosFavorites()
 const albums = usePhotosAlbums()
 // 删除是全局操作(资产真删),与时间线视图同一个 store/接口;收藏 store 自己没有
@@ -213,7 +216,7 @@ onMounted(() => {
 
 <template>
   <AreaShell :title="t('photosFavTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <div class="fav-header">
@@ -288,18 +291,22 @@ onMounted(() => {
             </div>
           </div>
 
-          <PhotosSelectionToolbar
-            v-if="selected.length"
-            :count="selected.length"
-            @clear="cancelSelection"
-            @delete="onBatchDelete([...selected])"
-            @add-to-album="openAlbumPicker([...selected])"
-          />
           <PhotosToolbar
             :tab="tab" :density="density" :count="filteredCount"
             @update:tab="tab = $event" @update:density="density = $event"
           />
+          <!-- Task 7 (D19, ported alongside Photos.vue's same move): the floating
+               selectbar mounts INSIDE the grid slot (already `position: relative`, see this
+               file's style block below) so its absolute top:50px anchors to the grid area, same
+               as Vue2 and same as Photos.vue's timeline view. -->
           <div class="photos-grid-slot">
+            <PhotosSelectionToolbar
+              v-if="selected.length"
+              :count="selected.length"
+              @clear="cancelSelection"
+              @delete="onBatchDelete([...selected])"
+              @add-to-album="openAlbumPicker([...selected])"
+            />
             <PhotosGrid
               :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
               @open="onOpenTile"
@@ -372,6 +379,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }

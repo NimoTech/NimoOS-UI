@@ -376,7 +376,7 @@ describe('网格 + 灯箱', () => {
   // (复选框确实没渲染出来),标题改成反映这一点。
   it('D10 落地:本页显式传 selectable=false,复选框确实不渲染', async () => {
     const { w } = await mountView('/photos/places/7')
-    expect(w.find('.tile-check').exists()).toBe(false)
+    expect(w.find('.tile-checkbox').exists()).toBe(false)
   })
 
   it('PhotosGrid emit open → lb.openAt 收到的 list 是整页 photos(D9 翻页集)', async () => {

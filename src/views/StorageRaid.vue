@@ -22,12 +22,13 @@ useDiskHotplug(() => store.loadRaid())
 // 重建中时 5000ms 单飞重拉状态(活体进度);无重建则不发请求
 const anyRebuilding = () =>
   isRebuildingList(store.raidArrays.map((a) => resolveRaidState(a, store.raidStatusMap[String(a.id)])))
-// 换盘看板在场时也必须轮询,不能只看 anyRebuilding:刚提交那几秒内核还没接手,
-// rebuild_pct 是 -1、live_state 也还没出现 recovering,isRebuilding 为 false ——
-// 只挂 anyRebuilding 会一拍都不发请求,看板永远转下去、完成也观察不到。
+// 换盘/收回看板在场时也必须轮询,不能只看 anyRebuilding:刚提交那几秒内核还没接手,
+// rebuild_pct 是 -1、live_state 也还没出现 recovering(--re-add 的盘还挂在 spare 态),
+// isRebuilding 为 false —— 只挂 anyRebuilding 会一拍都不发请求,看板永远转下去、
+// 完成也观察不到。
 useGuardedPoll(() => store.loadRaid(), {
   intervalMs: 5000,
-  active: () => anyRebuilding() || !!store.replaceTask,
+  active: () => anyRebuilding() || !!store.replaceTask || !!store.reclaimTask,
 })
 
 // 创建任务检测:mount 时探测一次,命中 creating 后 1500ms 单飞轮询(卡片 UI 见 T8)

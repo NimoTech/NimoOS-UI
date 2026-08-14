@@ -963,6 +963,9 @@ export default {
   photosSettingsRecluster: 'Re-cluster faces',
   photosSettingsReclusterStarted: 'Face re-clustering started in background',
   photosSettingsReclusterFailed: 'Failed to start re-clustering',
+  photosSettingsAppearance: 'Appearance',
+  photosSettingsThemeDark: 'Dark',
+  photosSettingsThemeLight: 'Light',
   // 自拟(Vue2 PhotosSettings.vue:196 内联 "Nimo Photos")
   photosSettingsFooterApp: 'Nimo Photos',
   photosSettingsRunningOn: 'Running on',
@@ -1040,4 +1043,13 @@ export default {
   photosMoDeleteMoment: 'Delete moment',
   photosMoDeleteBody: 'The moment is removed. The {n} photos in your library are untouched.',
   photosMoDeleted: 'Moment "{name}" deleted',
+  // ── Task 3 (shell + sidebar re-skin): sidebar-head theme toggle button title,
+  // Vue2 PhotosSidebar.vue:29's $t('Switch to dark theme')/$t('Switch to light theme').
+  photosSwitchToDarkTheme: 'Switch to dark theme',
+  photosSwitchToLightTheme: 'Switch to light theme',
+  // ── Task 4 (topbar re-skin): the topbar's collapse-toggle button title,
+  // Vue2 PhotosTopbar.vue:3's $t('Toggle sidebar'). KVM already has the same copy under
+  // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
+  // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
+  photosToggleSidebar: 'Toggle sidebar',
 }

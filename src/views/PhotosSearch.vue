@@ -13,10 +13,12 @@
 // `q` 才是唯一真相来源(浏览器前进/后退、直接改地址栏、刷新都要让结果对得上)——因此
 // 这里把"触发 smartSearch/clear"也并入同一个 `watch(query, ..., {immediate:true})`,
 // 这是相对 Vue2 的刻意架构调整,不是漏抄。
+import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
 import PhotosFilterChip from '../photos/components/PhotosFilterChip.vue'
@@ -45,6 +47,7 @@ const router = useRouter()
 // toLocaleString 会抛 RangeError,一律要转破折号形式(既定写法,照 SearchPeoplePopover.vue
 // :59-63 / SmartViewCard.vue:38 等既有先例)。
 const { t, locale } = useI18n()
+const { themeClass } = usePhotosTheme()
 const localeTag = computed(() => locale.value.replace('_', '-'))
 const search = usePhotosSearch()
 const people = usePhotosPeople()
@@ -561,7 +564,7 @@ onMounted(() => {
 
 <template>
   <AreaShell :title="t('photosTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <PhotosSearchBar :value="query" autofocus @submit="submitQuery" />
@@ -751,6 +754,15 @@ onMounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }

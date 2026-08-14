@@ -8,7 +8,7 @@
 // a status:'done' transition observed at ingest time goes straight into the
 // coalescer.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
 
@@ -36,6 +36,12 @@ const svc = vi.hoisted(() => ({
     // usePhotosAlbums()(listAlbums/batchAddToAlbum),不是 stub。
     listAlbums: vi.fn().mockResolvedValue([]),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+    // Task 8: delete-toast Undo restores through the trash store's real
+    // restore() action (restoreTrashBatch + fetchTrash + refresh timeline) —
+    // not a spy-replaced no-op — so the wiring exercises the same path a
+    // browser would.
+    restoreTrashBatch: vi.fn().mockResolvedValue(undefined),
+    listTrash: vi.fn().mockResolvedValue([]),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -52,7 +58,9 @@ import PhotosGrid from '../../photos/components/PhotosGrid.vue'
 import PhotosToolbar from '../../photos/components/PhotosToolbar.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
+import { useSidebarDrawer, __resetSidebarDrawerForTest } from '../../composables/useSidebarDrawer'
 
 const lb = useLightbox()
 
@@ -136,7 +144,10 @@ beforeEach(() => {
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.batchAddToAlbum.mockClear().mockResolvedValue(undefined)
+  svc.photos.restoreTrashBatch.mockClear().mockResolvedValue(undefined)
+  svc.photos.listTrash.mockClear().mockResolvedValue([])
   lb.__resetForTest()
+  usePhotosToast().__resetForTests()
 })
 
 afterEach(() => {
@@ -197,63 +208,93 @@ describe('Photos.vue integration', () => {
     expect(w.findAll('.tile')).toHaveLength(2)
   })
 
-  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → notify photosDeletedToast → 清空 selected', async () => {
+  it('批量删除:top PhotosSelectionToolbar delete → store.deleteAssets → photosToast(trash+Undo) → 清空 selected', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
-    const toast = useToast()
+    const photosToast = usePhotosToast()
     const deleteSpy = vi.spyOn(store, 'deleteAssets').mockResolvedValue(2)
-    const showSpy = vi.spyOn(toast, 'show')
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a'), asset('b')] }]
     await flushPromises()
     await w.vm.$nextTick()
 
     // Selection toolbar absent until something is selected.
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
 
-    // Select both tiles via their native checkbox (Files-region pattern, P1 restyle).
-    const checkboxes = w.findAll('.tile-check-box')
+    // Select both tiles via Vue2's click-to-toggle checkbox div (Task 6 re-skin).
+    const checkboxes = w.findAll('.tile-checkbox')
     expect(checkboxes).toHaveLength(2)
-    await checkboxes[0].trigger('change')
-    await checkboxes[1].trigger('change')
+    await checkboxes[0].trigger('click')
+    await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
-    // Bar now lives at the TOP of the content, styled like Files' SelectionToolbar.
-    const bar = w.find('.selection-toolbar')
+    // Task 7 (D19): bar is now the Vue2 floating glass pill (`.selectbar`), anchored
+    // absolute over the grid slot instead of Files' rectangular top bar.
+    const bar = w.find('.selectbar')
     expect(bar.exists()).toBe(true)
-    const deleteBtn = bar.find('.sel-delete')
+    const deleteBtn = bar.find('[data-test="selectbar-delete"]')
     expect(deleteBtn.exists()).toBe(true)
-    expect(deleteBtn.classes()).toContain('danger')
+    expect(deleteBtn.attributes('data-danger')).toBe('true')
     await deleteBtn.trigger('click')
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a', 'b'])
-    // 4000ms duration (Fix 7, aligned with Vue2's delete/task-done toast duration).
-    expect(showSpy).toHaveBeenCalledWith(expect.stringContaining('2'), 4000)
-    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected cleared -> bar gone
+    expect(w.find('.selectbar').exists()).toBe(false) // selected cleared -> bar gone
+
+    // Task 8: delete toast is the Photos-private usePhotosToast (not the global
+    // app toast) — icon 'trash', Undo action present. Vue2 parity:
+    // PhotosTimeline.vue:704-718.
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.icon).toBe('trash')
+    expect(toastItem.text).toContain('2')
+    expect(toastItem.action?.label).toBeTruthy()
+
+    // Undo → clicking the toast's action button (PhotosToastHost Teleports to
+    // the real document.body regardless of this wrapper's own attachment)
+    // restores through the trash store's real restore() action, which
+    // refetches the timeline so the restored assets come back into view —
+    // and it does NOT show a second toast (Vue2 parity: Undo's onClick only
+    // dispatches photos/restoreTrash, no follow-up toast).
+    const fetchTimelineSpy = vi.spyOn(store, 'fetchTimeline')
+    const body = new DOMWrapper(document.body)
+    const undoBtn = body.find('[data-role="photos-toast-action"]')
+    expect(undoBtn.exists()).toBe(true)
+    await undoBtn.trigger('click')
+    await flushPromises()
+
+    expect(svc.photos.restoreTrashBatch).toHaveBeenCalledWith(['a', 'b'])
+    expect(fetchTimelineSpy).toHaveBeenCalled()
+    expect(photosToast.toasts.value).toHaveLength(0)
   })
 
-  it('顶部选择栏出现在 PhotosToolbar 之上(DOM 顺序)', async () => {
+  // Task 7 (D19): the selectbar's mount point moved from being PhotosToolbar's preceding
+  // sibling (P1 layout) to living INSIDE `.photos-grid-slot`, as a sibling of PhotosGrid's
+  // `.content` root — Vue2 pixel parity floats `.selectbar` (position:absolute, top:50px)
+  // over the grid/scrubber area it belongs to, not over the toolbar row above it.
+  it('选择栏挂载在 .photos-grid-slot 内(与 PhotosGrid 同级),不再是 PhotosToolbar 的上一个兄弟', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
     await flushPromises()
     await w.vm.$nextTick()
 
-    await w.get('.tile-check-box').trigger('change')
+    await w.get('.tile-checkbox').trigger('click')
     await w.vm.$nextTick()
 
-    const main = w.find('.photos-main')
-    const html = main.html()
-    const barIdx = html.indexOf('selection-toolbar')
-    const toolbarIdx = html.indexOf('photos-toolbar')
-    expect(barIdx).toBeGreaterThan(-1)
-    expect(toolbarIdx).toBeGreaterThan(-1)
-    expect(barIdx).toBeLessThan(toolbarIdx)
+    const slot = w.find('.photos-grid-slot')
+    expect(slot.exists()).toBe(true)
+    expect(slot.find('.selectbar').exists()).toBe(true)
+    expect(slot.find('.content').exists()).toBe(true) // PhotosGrid's root, still a sibling
 
-    // Clear button in the top bar cancels the selection.
-    await w.get('.sel-clear').trigger('click')
+    // Not a descendant of PhotosToolbar (`.toolbar`) — it lives in the grid slot instead.
+    const toolbar = w.find('.toolbar')
+    expect(toolbar.exists()).toBe(true)
+    expect(toolbar.find('.selectbar').exists()).toBe(false)
+
+    // Close (x) button in the pill cancels the selection.
+    await w.get('[data-test="selectbar-close"]').trigger('click')
     await w.vm.$nextTick()
-    expect(w.find('.selection-toolbar').exists()).toBe(false)
+    expect(w.find('.selectbar').exists()).toBe(false)
   })
 
   // Task 9: 选择工具栏「加入相册」→ AlbumPickerDialog(open=true, assetIds=已选中)→
@@ -267,12 +308,12 @@ describe('Photos.vue integration', () => {
     await flushPromises()
     await w.vm.$nextTick()
 
-    const checkboxes = w.findAll('.tile-check-box')
-    await checkboxes[0].trigger('change')
-    await checkboxes[1].trigger('change')
+    const checkboxes = w.findAll('.tile-checkbox')
+    await checkboxes[0].trigger('click')
+    await checkboxes[1].trigger('click')
     await w.vm.$nextTick()
 
-    const addBtn = w.find('.sel-add-album')
+    const addBtn = w.find('[data-test="selectbar-add-album"]')
     expect(addBtn.exists()).toBe(true)
     await addBtn.trigger('click')
     await flushPromises()
@@ -286,7 +327,7 @@ describe('Photos.vue integration', () => {
     await w.vm.$nextTick()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(1, ['a', 'b'])
-    expect(w.find('.selection-toolbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
+    expect(w.find('.selectbar').exists()).toBe(false) // selected 清空 -> 工具栏消失
   })
 
   it('socket connect → 重同步 fetchTasks/fetchIndexStatus/fetchTimeline', async () => {
@@ -416,28 +457,88 @@ describe('Photos.vue integration', () => {
   })
 })
 
-// SP7-P7a-T16: 顶部搜索框恒显示,提交 → 跳转 /photos/search(结构规格 22)。
-describe('Photos.vue 搜索框接线(T16)', () => {
-  it('顶部渲染 PhotosSearchBar(搜索输入框)', async () => {
+// SP7-P7a-T16: 顶部搜索框恒显示,提交非空词 → 跳转 /photos/search(结构规格 22)。
+// Task 4(顶栏重刻):搜索框从独立的 `<PhotosSearchBar>` 挪进了 `<PhotosTopbar>` 内的
+// `.topbar .search`(Vue2 topbar 原生结构),选择器同步改为 `.topbar .search input`——
+// 非空词提交/路由跳转的逻辑本身(onSearchSubmit)没有变,只是发出提交事件的组件变了。
+// fix round 1(owner 裁决 ledger-六-2):空串 Enter 的行为改了——PhotosTopbar 现在照 Vue2
+// submitSearch 的空串守卫,空串不 emit,onSearchSubmit 压根不会被调,见下方最后一例。
+describe('Photos.vue 搜索框接线(T16;Task 4 起接线对象是 PhotosTopbar)', () => {
+  it('顶部渲染 PhotosTopbar 的搜索框(.topbar .search input)', async () => {
     const w = await mountPhotos()
-    expect(w.find('.photos-search-bar input').exists()).toBe(true)
+    expect(w.find('.topbar .search input').exists()).toBe(true)
   })
 
   it('提交非空词 → router.push 到 /photos/search 带 q', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
-    await w.get('.photos-search-bar input').setValue('sunset')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('sunset')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'sunset' } })
   })
 
-  it('提交空串 → router.push 时 query 为空对象', async () => {
+  // fix round 1 · Important(owner 裁决 ledger-六-2,覆盖第一版"提交空串仍导航"的选择):
+  // 时间线顶栏空串 Enter = 无动作,不再跳转——PhotosTopbar 组件层已经不 emit
+  // search-submit,onSearchSubmit 根本不会被调用,router.push 完全没被调过。
+  it('提交空串 → 不跳转(ledger-六-2,PhotosTopbar 空串不 emit)', async () => {
     const w = await mountPhotos()
     const router = w.vm.$router
     const pushSpy = vi.spyOn(router, 'push')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
-    expect(pushSpy).toHaveBeenCalledWith({ path: '/photos/search', query: {} })
+    await w.get('.topbar .search input').trigger('keydown.enter')
+    expect(pushSpy).not.toHaveBeenCalled()
+  })
+})
+
+// Task 4:折叠按钮从 T3 遗留的"无入口"状态(见 task-3-report.md Concerns#4)真正接上——
+// 点击顶栏的折叠 icon-btn → Photos.vue 的 `collapsed` ref 翻转 → `.app[data-collapsed]`
+// 跟着变(Vue2 PhotosTimeline.vue:965 `@toggle="collapsed = !collapsed"`同款)。
+describe('Photos.vue 折叠按钮接线(Task 4)', () => {
+  it('点击顶栏折叠按钮 → .app[data-collapsed] 翻转', async () => {
+    // 初始值不锚定具体的 'true'/'false'(取决于 localStorage 持久化态,本文件其它用例
+    // 不清 localStorage,跨用例可能被前一个用例写脏)——只锚定"点一次必翻一次"。
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before === 'true' ? 'false' : 'true')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before)
+  })
+})
+
+// final-review fix (item 6): on a ≤768px narrow viewport, PhotosSidebar switches into its
+// fixed 'is-drawer' mode (position:fixed, out of the `.app` grid flow) via the module-
+// singleton useSidebarDrawer() it shares with this file. Task 3's shell rewrite dropped
+// the old AreaShell hamburger that used to open/close that drawer and left the topbar's
+// panelLeft button wired only to `collapsed` (Task 4) — a flag the drawer's own isNarrow/
+// open state never reads, so on mobile there was no way to open the sidebar at all. Fix:
+// route the same button to the drawer's toggle() when isNarrow is true.
+describe('Photos.vue 折叠按钮接线 —— 窄屏走抽屉(final-review 修复项 6)', () => {
+  afterEach(() => { __resetSidebarDrawerForTest() })
+
+  it('窄屏(isNarrow=true):点击顶栏按钮打开抽屉,不动 .app[data-collapsed]', async () => {
+    const drawer = useSidebarDrawer()
+    drawer.isNarrow.value = true
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    expect(drawer.open.value).toBe(false)
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(drawer.open.value).toBe(true)
+    expect(w.get('aside.sidebar').classes()).toContain('is-open')
+    expect(app.attributes('data-collapsed')).toBe(before)
+  })
+
+  it('桌面态(isNarrow=false):点击顶栏按钮仍走 collapsed 翻转,不碰抽屉', async () => {
+    const drawer = useSidebarDrawer()
+    drawer.isNarrow.value = false
+    const w = await mountPhotos()
+    const app = w.get('.app')
+    const before = app.attributes('data-collapsed')
+    await w.get('.topbar .icon-btn').trigger('click')
+    expect(app.attributes('data-collapsed')).toBe(before === 'true' ? 'false' : 'true')
+    expect(drawer.open.value).toBe(false)
   })
 })
 

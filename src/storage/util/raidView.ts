@@ -176,20 +176,36 @@ export function raidUsagePercent(used: number, total: number): number {
   return Math.round(pct)
 }
 
-// RaidDetailPanel mirrorPairs L291-307: group by floor(number/2), set-A first.
-export function mirrorPairs(members: RaidMemberDisk[]): RaidMemberDisk[][] {
-  const groups = new Map<number, RaidMemberDisk[]>()
+// RAID10 mirror pairs group by **array slot** (mdadm's RaidDevice column): under the default
+// near=2 layout, slots (0,1), (2,3)... mirror each other. Grouping by floor(number/2) was a bug
+// copied verbatim from the old Vue2 implementation -- mdadm's Number is a device-table index,
+// not a position: after a disk swap the new member usually gets number=max+1, so grouping by
+// number invents phantom mirror pairs and shows the wrong disks as each other's mirror (a user
+// who pulls "the other half of the mirror pair" from that view destroys both copies of the same
+// data). Matches Vue2 raidUtils.js groupMirrorPairs line for line (2026-08-11 audit fix
+// 69ea4798): pair by floor(slot/2), and rows that hold no slot (slot<0: an ejected faulty disk,
+// an idle hot spare, a row from an older backend with no slot) belong to no pair -- the caller
+// (RaidMemberList) lays those out after the mirror pairs rather than forcing them into a wrong one.
+//
+// New-UI addition, with no Vue2 counterpart: rows first pass through mergeVacatedSlot. A merged
+// row carries slot=-1 (it was ejected) but the slot number it stands in for is in vacatedSlot, so
+// taking the effective slot as vacatedSlot ?? slot is what keeps merged rows from vanishing out
+// of the mirror-pair view. For un-merged input the behaviour is identical to Vue2.
+export function mirrorPairs<T extends { slot?: number; vacatedSlot?: number }>(members: T[]): T[][] {
+  const effSlot = (m: T): number => {
+    if (typeof m?.vacatedSlot === 'number') return m.vacatedSlot
+    return typeof m?.slot === 'number' ? m.slot : -1
+  }
+  const groups = new Map<number, T[]>()
   for (const m of members || []) {
-    const key = Math.floor((Number(m?.number) || 0) / 2)
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key)!.push(m)
+    const slot = effSlot(m)
+    if (slot < 0) continue
+    const pid = Math.floor(slot / 2)
+    if (!groups.has(pid)) groups.set(pid, [])
+    groups.get(pid)!.push(m)
   }
   return [...groups.keys()].sort((a, b) => a - b).map((k) =>
-    groups.get(k)!.slice().sort((a, b) => {
-      const aA = (a.state || '').includes('set-A') ? 0 : 1
-      const bA = (b.state || '').includes('set-A') ? 0 : 1
-      return aA - bA
-    }),
+    groups.get(k)!.slice().sort((a, b) => effSlot(a) - effSlot(b)),
   )
 }
 
@@ -253,6 +269,46 @@ export function replaceOutcome(
   const s = m.state || ''
   if (s.startsWith('active sync')) return 'done'
   if (s.includes('rebuilding')) return 'rebuilding'
+  return 'pending'
+}
+
+// -- Reclaim-member-disk dashboard task (one-click reclaim of reattachable_members) --------
+// Same mechanism as ReplaceTask: the recover endpoint returns the readded paths synchronously,
+// the real incremental sync runs in the kernel, the task state is held by the frontend and
+// completion is decided by checking status.members. A separate task type rather than a reused
+// ReplaceTask, because a reclaim can pull back several disks at once (readded is an array) and
+// requires **all** of them to land; replaceOutcome watches a single newPath, so forcing this
+// through it would lose disks.
+export interface ReclaimTask {
+  arrayId: string
+  arrayName: string
+  // The readded device paths recover returned. A reclaimed disk has just been plugged back in, so
+  // the path comes from this round of probing and can be trusted.
+  paths: string[]
+}
+
+// reclaimOutcome -- which step the reclaim task is at right now. Same semantics as
+// replaceOutcome, judged across several disks:
+//   gone       the array is no longer in the list; drop the dashboard, do not report completion
+//   pending    cannot tell yet: status is unreachable, or some disk has not appeared in the
+//              member table. In the first seconds after --re-add the kernel registers the disk as
+//              a spare and has not entered recovering, which is **not** a rebuilding state, so
+//              the polling switch must never hang off isRebuilding alone -- this task has to hold
+//              it open across the spare -> recovering window
+//   rebuilding the reclaimed disks are in place and syncing
+//   done       **every** reclaimed disk is active sync
+export function reclaimOutcome(
+  task: ReclaimTask,
+  status: { members?: RaidMemberDisk[] } | null | undefined,
+  arrayExists: boolean,
+): ReplaceOutcome {
+  if (!arrayExists) return 'gone'
+  if (!status) return 'pending'
+  if (!task.paths.length) return 'done'
+  const members = status.members || []
+  const states = task.paths.map((p) => members.find((x) => x?.path === p)?.state || '')
+  if (states.every((s) => s.startsWith('active sync'))) return 'done'
+  if (states.some((s) => s.includes('rebuilding'))) return 'rebuilding'
   return 'pending'
 }
 

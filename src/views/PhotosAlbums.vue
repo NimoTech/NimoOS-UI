@@ -14,11 +14,13 @@
 // 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
 // (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
 // 不需要 T5/T6 那种「随 open prop watch 增删监听」的写法。
+import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
 import AreaShell from '../components/shell/AreaShell.vue'
+import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
@@ -37,6 +39,7 @@ import { isConflict } from '../photos/util/httpErrors'
 type SourceId = 'empty' | 'recent' | 'select' | 'nimo'
 
 const { t } = useI18n()
+const { themeClass } = usePhotosTheme()
 const router = useRouter()
 const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
@@ -316,7 +319,7 @@ onUnmounted(() => {
 
 <template>
   <AreaShell :title="t('photosAlbumsTitle')">
-    <div class="photos-layout">
+    <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
         <div class="albums-banner">
@@ -614,6 +617,15 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
+   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
+   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
+   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
+   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
+   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
+   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
+.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
+
 /* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
    出处见 src/views/Photos.vue 同一规则处的注释。 */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }

@@ -33,6 +33,9 @@ const { t } = useI18n()
 
 const isSsd = computed(() => props.disk.disk_type === 'SSD')
 const atRisk = computed(() => isDiskAtRisk(props.disk))
+// 外来阵列残留超块:可选,但要打警告标 —— 创建确认页会点名清除,请求带 wipe_raid_residue。
+// array_name 来自盘上 mdadm 超块(不可信文本),只经模板插值渲染。
+const hasResidue = computed(() => props.disk.raid?.role === 'residue')
 const groupToken = computed(() => (props.groupKey ? GROUP_TOKEN_MAP[props.groupKey] : undefined))
 
 // 健康信息展示(Vue2 RaidDriveCard.vue:64-72 的同名 computed)。
@@ -79,6 +82,10 @@ function decideSide(): void {
            而后端候选盘的 health 恒为空串 → 点永不出现 = 健康状态完全不可见。 -->
       <span class="rdc-dot" :class="`rdc-dot--${healthTone}`" aria-hidden="true"></span>
       <span class="rdc-cap">{{ fmtSize(disk.size) }}</span>
+    </div>
+
+    <div v-if="hasResidue" class="rdc-residue" :title="t('raidResidueExplain', { name: disk.raid?.array_name })">
+      ⚠ {{ t('raidResidue') }}
     </div>
 
     <div v-if="groupToken" class="rdc-stripe" :style="{ background: `var(${groupToken})` }"></div>
@@ -153,6 +160,7 @@ function decideSide(): void {
 
 .rdc-meta { display: flex; align-items: center; gap: 4px; }
 .rdc-cap { font-size: 10px; color: var(--fg-muted); }
+.rdc-residue { font-size: 10px; line-height: 1.2; color: var(--dem-fg); }
 
 /* 健康色点:三档语义色全部走 token —— Vue2 的绿/琥珀/红三个写死色值分别对应
    --sem-fg / --dem-fg / --remove-fg(色值本身不在此复述,color-guard 连注释一起扫) */

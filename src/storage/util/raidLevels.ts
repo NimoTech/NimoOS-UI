@@ -5,6 +5,8 @@
 // groupColorKey: it outputs group semantic keys ('group-a'..'group-e'), never literal colors —— the component layer maps them to --nrm-*/--accent etc. tokens.
 // Not migrated (deliberately deferred, failure simulator): survival(), rebuildable().
 
+import type { DiskRaidInfo } from '@nimotech/nimoos-service'
+
 // Local minimal disk view type, aligned with the Vue2 disk.path/size/disk_type/health/temperature/power_on_time/model reads
 // (raidView.ts exports no equivalent type). Field names keep the backend /v1/disks originals so AvailDisk is structurally assignable.
 export interface RaidDisk {
@@ -15,6 +17,10 @@ export interface RaidDisk {
   temperature?: number
   power_on_time?: number
   model?: string
+  serial?: string
+  // 外来阵列残留超块(/v1/disks raid 字段,role:"residue" 才会出现在候选盘里)。
+  // 选盘卡片打警告标;创建/换盘请求据此带 wipe_raid_residue。
+  raid?: DiskRaidInfo | null
 }
 
 export type RaidRole = 'data' | 'mirror' | 'parity' | 'parity2'

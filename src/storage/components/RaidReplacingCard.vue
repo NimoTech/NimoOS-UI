@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RaidStatus } from '@nimotech/nimoos-service'
 import type { ReplaceTask } from '../util/raidView'
+import { useRaidEta } from '../composables/useRaidEta'
 
 // 换盘进行中的看板卡。视觉照 RaidCreatingCard(同一套 spinner / 标签 / 进度条尺寸),
 // 但进度来源不同:创建有后端任务的 step/progress,换盘没有 —— 后端换盘接口是同步的,
@@ -22,7 +23,8 @@ const pct = computed(() => {
 })
 const hasPct = computed(() => pct.value >= 0)
 const pctText = computed(() => `${Math.round(pct.value * 10) / 10}%`)
-const finish = computed(() => (props.status?.rebuild_finish as string) || '')
+// 剩余时间:优先 rebuild_eta_seconds、5 秒交替时长/完成时刻;老后端回退内核原始串
+const { etaText } = useRaidEta(() => props.status)
 const speed = computed(() => (props.status?.rebuild_speed as string) || '')
 </script>
 
@@ -33,7 +35,7 @@ const speed = computed(() => (props.status?.rebuild_speed as string) || '')
       <div class="rpc-name">{{ task.arrayName }}</div>
       <div class="rpc-meta">
         {{ task.oldPath }} → {{ task.newPath }}
-        <span v-if="finish"> · {{ t('raidRebuildFinish') }} {{ finish }}</span>
+        <span v-if="etaText"> · {{ etaText }}</span>
         <span v-if="speed"> · {{ t('raidRebuildSpeed') }} {{ speed }}</span>
       </div>
     </div>
