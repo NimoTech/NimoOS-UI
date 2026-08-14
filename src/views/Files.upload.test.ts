@@ -460,8 +460,11 @@ describe('Files.vue upload wiring', () => {
 //     and `input.webkitEntries` empty — the folder NAME is nowhere to be found.
 //   * Because the selection did not change, the browser fires `cancel`, not `change`.
 //     An empty pick is therefore indistinguishable from dismissing the dialog.
-// So the input path can only give feedback, never create the folder; the File System
-// Access API (secure contexts only) is the sole path that can actually do it.
+// So the input path can never create the folder, and it cannot even report the problem:
+// reacting to `cancel` would also fire every time the user simply backs out of the dialog.
+// The degraded path therefore stays silent, and the button carries a hover hint telling
+// the user to drag empty folders in instead. The File System Access API (secure contexts
+// only) is the sole path that can actually create an empty folder from a pick.
 describe('Files.vue folder picker: empty folders', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -492,31 +495,27 @@ describe('Files.vue folder picker: empty folders', () => {
     return { kind: 'directory', name, async *values() { for (const c of children) yield c } }
   }
 
-  it('no File System Access API: a cancelled/empty folder pick tells the user instead of doing nothing', async () => {
+  it('the upload-folder button carries a hover hint sending empty folders to drag-and-drop', async () => {
+    const w = await mountFiles()
+    // Guard against a vacuous pass: an absent i18n key and an absent `title` attribute are
+    // both `undefined`, so assert the copy exists before comparing the two.
+    expect(zh.filesUploadFolderEmptyHint).toBeTruthy()
+    expect(w.find('.tb-upload-folder').attributes('title')).toBe(zh.filesUploadFolderEmptyHint)
+  })
+
+  it('a pick that yields nothing stays silent — "empty folder" and "user backed out" are the same event', async () => {
     delete (globalThis as any).showDirectoryPicker
     const w = await mountFiles()
     const toast = useToast()
     const showSpy = vi.spyOn(toast, 'show')
 
     await w.find('.tb-upload-folder').trigger('click')
-    // The browser reports "nothing selected" (empty folder OR dismissed dialog) as `cancel`.
+    // The browser reports "nothing selected" (empty folder OR dismissed dialog) as `cancel`,
+    // with an identical empty payload either way — so there is nothing truthful to say.
     w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
     await flushPromises()
 
-    expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
-  })
-
-  it('does not hijack the re-upload-missing-files picker with the empty-folder hint', async () => {
-    delete (globalThis as any).showDirectoryPicker
-    const w = await mountFiles()
-    const toast = useToast()
-    const showSpy = vi.spyOn(toast, 'show')
-
-    ;(w.vm as any).onRefill({ targetPath: '/DATA/Documents', missing: ['a.txt'] })
-    w.find('input[webkitdirectory]').element.dispatchEvent(new Event('cancel'))
-    await flushPromises()
-
-    expect(showSpy).not.toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
+    expect(showSpy).not.toHaveBeenCalled()
   })
 
   it('with the File System Access API: picking an empty folder actually creates it', async () => {
@@ -535,8 +534,6 @@ describe('Files.vue folder picker: empty folders', () => {
     expect(picker).toHaveBeenCalledTimes(1)
     expect(createSpy).toHaveBeenCalledWith(joinPath(files.currentPath, 'EmptyPick'))
     expect(showSpy).toHaveBeenCalledWith(zh.filesEmptyDirsCreated.replace('{count}', '1'))
-    // The hint belongs to the degraded path only.
-    expect(showSpy).not.toHaveBeenCalledWith(zh.filesEmptyFolderPickHint, 5000)
   })
 
   it('with the File System Access API: a folder with files still uploads them, empty subdirs included', async () => {

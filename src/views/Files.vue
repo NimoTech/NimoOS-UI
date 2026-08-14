@@ -236,6 +236,11 @@ function triggerFileSelect() { refillPending.value = null; fileInput.value?.clic
 //    `value === ''` and `webkitEntries` empty — the folder's name is nowhere on the
 //    event, so there is nothing to create. See dirPicker.ts for the full measurement.
 //
+// The fallback stays silent on an empty pick, deliberately: an empty folder and a
+// dismissed dialog arrive as the very same `cancel` event with the same empty payload,
+// so any message here would also fire every time the user simply backs out. The button
+// carries a `title` hint instead (see the template) — do not re-add a `cancel` handler.
+//
 // Prefer the first, fall back to the second.
 async function triggerFolderSelect() {
   refillPending.value = null
@@ -271,22 +276,6 @@ function onInputChange(e: Event) {
   const input = e.target as HTMLInputElement
   if (input.files && input.files.length) handleSelectedFiles(input.files)
   input.value = '' // 允许重复选择同一文件再次触发 change
-}
-
-// The `<input webkitdirectory>` fallback fires `cancel` — not `change` — when the pick
-// yields no files, because the selection did not change. An empty folder and a dismissed
-// dialog are therefore literally the same event with the same (empty) payload: the folder
-// name is unrecoverable, so this path can never create the folder. What it must not do is
-// what it did before: nothing at all, silently. Say so instead, worded to be true whether
-// the user picked an empty folder or backed out.
-//
-// Best-effort by construction: browsers without the `cancel` event stay as silent as they
-// are today. Skipped when the File System Access path is available (it handles empty
-// folders for real) and during a re-upload refill (that picker's cancellation is a
-// different story, already handled by refillPending's single-use semantics).
-function onFolderPickCancelled() {
-  if (supportsDirectoryPicker() || refillPending.value) return
-  toast.show(t('filesEmptyFolderPickHint'), 5000)
 }
 
 function onRefill(p: { targetPath: string; missing: string[] }): void {
@@ -789,7 +778,10 @@ onMounted(() => { browse.ensureVolumes() })
               <button class="chip tb-new-folder" @click="openNew('folder')">{{ t('filesNewFolder') }}</button>
               <button class="chip tb-new-file" @click="openNew('file')">{{ t('filesNewFile') }}</button>
               <button class="chip tb-upload-file" @click="triggerFileSelect">{{ t('filesCtxUploadFile') }}</button>
-              <button class="chip tb-upload-folder" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
+              <!-- Native `title` for the hover hint, as everywhere else in this app: the picker
+                   silently drops empty folders and cannot report it (see triggerFolderSelect),
+                   so the button says up front where empty folders have to go. -->
+              <button class="chip tb-upload-folder" :title="t('filesUploadFolderEmptyHint')" @click="triggerFolderSelect">{{ t('filesCtxUploadFolder') }}</button>
               <button v-if="clipboard.hasPasteData" class="chip tb-paste" @click="ops.paste()">{{ t('filesPaste') }}</button>
             </div>
             <div class="files-viewtoggle">
@@ -888,7 +880,7 @@ onMounted(() => { browse.ensureVolumes() })
     <UploadPanel />
     <UploadPreparingOverlay :open="preparing" />
     <input ref="fileInput" type="file" multiple style="display:none" @change="onInputChange" />
-    <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" @cancel="onFolderPickCancelled" />
+    <input ref="folderInput" type="file" webkitdirectory multiple style="display:none" @change="onInputChange" />
     <ViewerHost />
     <TimeMachineOverlay
       v-if="browse.wheelOpen"

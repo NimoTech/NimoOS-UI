@@ -851,8 +851,8 @@ export default {
   wpChangeWallpaper: '更换壁纸',
   themePhoto: '照片…',
 
-  // Shown when the folder picker comes back with nothing. The browser cannot tell an
-  // empty-folder selection apart from a dismissed dialog, so the wording has to read
-  // correctly in both cases.
-  filesEmptyFolderPickHint: '未选择任何文件。空文件夹无法通过选择器上传,请把文件夹拖放到这里。',
+  // Hover hint on the "upload folder" button. The picker cannot carry an empty folder
+  // through (the browser reports no name for it), so point the user at drag-and-drop
+  // up front rather than reporting the failure after the fact.
+  filesUploadFolderEmptyHint: '空文件夹请拖拽上传',
 }
