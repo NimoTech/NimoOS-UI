@@ -68,6 +68,7 @@ import PhotosAlbumDetail from '../PhotosAlbumDetail.vue'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import PhotosLibraryPicker from '../../photos/components/PhotosLibraryPicker.vue'
 import AlbumConvertToSmartDialog from '../../photos/components/AlbumConvertToSmartDialog.vue'
@@ -163,6 +164,9 @@ function findSortItem(w: ReturnType<typeof mount>, sortId: string) {
 beforeEach(() => {
   setActivePinia(createPinia())
   lb.__resetForTest()
+  // Fix-10: usePhotosToast() is a module-level singleton (not Pinia), so its queue must be
+  // reset per test the same way lb.__resetForTest() already resets the lightbox singleton.
+  usePhotosToast().__resetForTests()
   svc.photos.listAlbums.mockClear().mockResolvedValue([rawAlbum(7, { name: 'Trip', coverAssetId: 'cover-1' })])
   svc.photos.getAlbum.mockClear().mockResolvedValue({ assets: [] })
   svc.photos.updateAlbum.mockClear().mockResolvedValue({})
@@ -1346,12 +1350,14 @@ describe('P2c album more menu', () => {
     expect(actionsIndex).toBeLessThan(aboutIndex)
   })
 
-  it('duplicates the album and closes the menu', async () => {
+  // Fix-10 (owner acceptance, 2026-08-14): was asserted against the generic `useToast()` --
+  // Vue2's real duplicate-success confirmation is `window.PhotosToast.show({ icon: 'sparkles',
+  // ... })`, the photos-private bottom-pill toast, not the app-wide generic one. Updated to
+  // assert against `usePhotosToast()`'s queue instead, including the icon.
+  it('duplicates the album and shows the photos-private toast, closes the menu', async () => {
     const w = await mountDetail({ album: { id: 'a1', name: 'Trip' }, assets: [] })
     const albums = usePhotosAlbums()
-    const toast = useToast()
     const dupSpy = vi.spyOn(albums, 'duplicateAlbum')
-    const showSpy = vi.spyOn(toast, 'show')
 
     await openMenu(w)
     await w.find('[data-test="album-menu-duplicate"]').trigger('click')
@@ -1360,7 +1366,9 @@ describe('P2c album more menu', () => {
 
     expect(dupSpy).toHaveBeenCalledWith('a1')
     expect(svc.photos.createAlbum).toHaveBeenCalledWith('Trip copy')
-    expect(showSpy).toHaveBeenCalledWith(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))
+    expect(toasts.find((t) => t.text === zh.photosSvDuplicatedNameOpenCopy.replace('{name}', 'Trip'))?.icon).toBe('sparkles')
     expect(w.find('[data-test="album-menu"]').exists()).toBe(false)
   })
 

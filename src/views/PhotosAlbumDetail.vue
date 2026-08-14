@@ -35,6 +35,8 @@ import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import AlbumConvertToSmartDialog from '../photos/components/AlbumConvertToSmartDialog.vue'
@@ -64,6 +66,13 @@ const albums = usePhotosAlbums()
 const timeline = useTimelineStore()
 const settings = usePhotosSettingsStore()
 const toast = useToast()
+// Fix-10 (owner acceptance, 2026-08-14): Vue2's duplicate-album confirmation goes through
+// `window.PhotosToast` (photosToast.js), the photos-private bottom-pill toast whose surface
+// literals already carry both theme branches (light + dark) -- not the app-wide generic toast.
+// `duplicateAlbum()` below used the generic `toast` (useToast()) for this one flow, which is
+// why the owner no longer saw "the bottom toast confirmation" they remembered from Vue2: the
+// generic toast is a different UI element entirely, not a themed/mis-themed copy of it.
+const photosToast = usePhotosToast()
 const lb = useLightbox()
 
 // T6: this repo's locale ids (`zh_cn`/`en_us`) are not valid BCP-47 tags -- handing one to
@@ -407,12 +416,18 @@ async function duplicateAlbum(): Promise<void> {
     await albums.duplicateAlbum(albumId.value)
     // Target's own success copy (33b05636:PhotosAlbumDetail.vue:713-716) -- identical wording to
     // the smart-view sidebar's own duplicate toast, hence the shared key.
-    toast.show(t('photosSvDuplicatedNameOpenCopy', { name }))
+    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (the generic app-wide toast) --
+    // Vue2's real call here is `window.PhotosToast.show({ icon: 'sparkles', title: ... })`
+    // (photosToast.js), so this switches to the photos-private `photosToast` with the matching
+    // icon (see PhotosToastHost.vue's ICON_PATHS, ported verbatim from Vue2's own svgIcon()).
+    photosToast.show({ text: t('photosSvDuplicatedNameOpenCopy', { name }), icon: 'sparkles' })
   } catch (e) {
     if (albums.duplicateBusy) return // a second click while the first is still in flight -- not a failure
     console.error('[album-detail] duplicateAlbum', e)
     // Target reuses the same "name already exists" copy the rename path shows for its own 409.
-    toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosSvDuplicateFailed'))
+    // Fix-10: same switch as the success path -- Vue2's failure call is
+    // `window.PhotosToast.show({ icon: 'trash', accent: '#FF6B5C', title: msg })`.
+    photosToast.show({ text: isConflict(e) ? t('photosAlbumNameExists') : t('photosSvDuplicateFailed'), icon: 'trash' })
   }
 }
 
@@ -1196,6 +1211,14 @@ watch(gridRef, () => {
     @converted="onConverted"
   />
   </div>
+  <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/etc.) --
+       mounted once per photos view, Teleports to <body> and re-applies photos-root + themeClass
+       on its own portal target (see PhotosToastHost.vue's own header comment), so its position
+       here relative to `.photos-root`'s closing tag makes no rendering difference -- same
+       placement convention Photos.vue already uses for this exact component. This page
+       previously had no mount for it at all (only `Photos.vue` did), which is why
+       `duplicateAlbum()`'s `photosToast.show(...)` call had nothing to render it. -->
+  <PhotosToastHost />
 </template>
 
 <style scoped>

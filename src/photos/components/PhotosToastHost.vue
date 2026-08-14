@@ -20,12 +20,25 @@ const { themeClass } = usePhotosTheme()
 // 24x24 viewBox, stroke-based, rendered at 14x14 tinted by the accent
 // color via `currentColor` (see .photos-toast-icon below). Only the icon
 // names actually consumed by a photos caller are ported here as they come
-// up (currently just the delete-toast's 'trash', PhotosTimeline.vue:704-718
-// in Vue2) — an unmapped `icon` renders nothing rather than falling back to
-// a generic glyph like Vue2 did, so a typo'd name is visibly silent instead
-// of silently substituting the wrong picture.
+// up (currently the delete-toast's 'trash', PhotosTimeline.vue:704-718 in
+// Vue2; Fix-10's 'sparkles' -- the duplicate-success toast both
+// PhotosAlbumDetail.vue's `duplicateAlbum()` and PhotosSmartViewDetail.vue's
+// `duplicateSv()` show; and Fix-10's 'album' -- the smart-view-to-album
+// convert-success toast, PhotosSmartViewDetail.vue's `doConvertToAlbum()`.
+// All three verbatim path data from Vue2 photosToast.js:24) — an unmapped
+// `icon` renders nothing rather than falling back to a generic glyph like
+// Vue2 did, so a typo'd name is visibly silent instead of silently
+// substituting the wrong picture.
 const ICON_PATHS: Record<string, string> = {
   trash: 'M4 7h16M9 7V4h6v3M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13',
+  // Vue2's 'sparkles' glyph is a path + a circle, and 'album' is a rect + a
+  // path (photosToast.js:24) -- the second shape of each is rendered as a
+  // separate <circle>/<rect> element in the template below, gated on the
+  // matching icon name, since this component's single-`<path d>` model
+  // can't express an ellipse/rect as path data without an ugly
+  // arc/line-command approximation.
+  sparkles: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1',
+  album: 'M3 14l5-4 4 3 3-2 6 5',
 }
 
 function iconPath(icon?: string): string | undefined {
@@ -47,7 +60,11 @@ function iconPath(icon?: string): string | undefined {
             width="14"
             height="14"
             aria-hidden="true"
-          ><path :d="iconPath(toast.icon)" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" /></svg>
+          ><rect
+              v-if="toast.icon === 'album'" x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" stroke-width="2" fill="none"
+            /><path :d="iconPath(toast.icon)" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" /><circle
+              v-if="toast.icon === 'sparkles'" cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" fill="none"
+            /></svg>
           <span class="photos-toast-text">{{ toast.text }}</span>
           <button
             v-if="toast.action"

@@ -53,6 +53,7 @@ import photosSmartViewDetailRaw from '../PhotosSmartViewDetail.vue?raw'
 import { usePhotosSmartViews, type SmartView } from '../../photos/stores/smartViews'
 import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useToast } from '../../stores/toast'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 import PhotosTopbar from '../../photos/components/PhotosTopbar.vue'
 import PhotosSidebar from '../../photos/components/PhotosSidebar.vue'
 import { extractStyleBlock, parseCssRules, winningHoverBackground } from '../../photos/components/__tests__/cssCascade'
@@ -156,6 +157,8 @@ beforeEach(() => {
   svc.photos.thumbnailUrl.mockClear()
   svc.photos.getSmartViewExcluded.mockReset().mockResolvedValue([])
   lbMock.openAt.mockClear()
+  // Fix-10: usePhotosToast() is a module-level singleton (not Pinia), reset per test.
+  usePhotosToast().__resetForTests()
 })
 afterEach(() => {
   usePhotosSmartViews().__resetForTest()
@@ -1160,24 +1163,31 @@ describe('删除智能视图', () => {
 })
 
 // ── 复制 ──────────────────────────────────────────────────────────────────
+// Fix-10 (owner acceptance, 2026-08-14): both cases below used to assert against the generic
+// `useToast()` -- Vue2's real duplicate confirmation is `window.PhotosToast.show(...)`, the
+// photos-private bottom-pill toast. Updated to assert against `usePhotosToast()`'s queue.
 describe('复制', () => {
-  it('duplicateSmartView 被调 + toast', async () => {
+  it('duplicateSmartView 被调 + photos-private toast(sparkles 图标)', async () => {
     svc.photos.duplicateSmartView.mockResolvedValue(makeSv({ id: 9, name: 'Sunsets copy' }))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-duplicate"]').trigger('click')
     await flushPromises()
     expect(svc.photos.duplicateSmartView).toHaveBeenCalledWith('7')
-    expect(useToast().msg).toContain('Sunsets')
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.some((t) => t.text.includes('Sunsets'))).toBe(true)
+    expect(toasts.find((t) => t.text.includes('Sunsets'))?.icon).toBe('sparkles')
   })
 
-  it('duplicateSmartView reject → toast 失败文案', async () => {
+  it('duplicateSmartView reject → photos-private toast 失败文案(trash 图标)', async () => {
     svc.photos.duplicateSmartView.mockRejectedValue(new Error('500'))
     const { w } = await mountView('7', [makeSv({ id: 7, name: 'Sunsets' })])
     await w.find('[data-test="sv-more-toggle"]').trigger('click')
     await w.find('[data-test="sv-more-duplicate"]').trigger('click')
     await flushPromises()
-    expect(useToast().msg).toBe(zh.photosSvDuplicateFailed)
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvDuplicateFailed)
+    expect(toasts.find((t) => t.text === zh.photosSvDuplicateFailed)?.icon).toBe('trash')
   })
 })
 
@@ -1221,6 +1231,22 @@ describe('convert to regular album', () => {
     await w.find('[data-test="sv-convert-ok"]').trigger('click')
     await flushPromises()
     expect(push).toHaveBeenCalledWith('/photos/albums/al-new')
+  })
+
+  // Fix-10 (owner acceptance, 2026-08-14): Vue2's real convert-success confirmation is
+  // `window.PhotosToast.show({ icon: 'album', title: 'Converted to regular album' })` -- this
+  // page's own `doConvertToAlbum()` used to call the generic `useToast()` instead, so the
+  // owner never saw a bottom-pill confirmation for it. No prior test asserted this toast at
+  // all (net-new coverage, not a changed assertion).
+  it('shows the photos-private toast (album icon) on a successful convert', async () => {
+    convertFromSmartView.mockResolvedValue({ id: 'al-new' } as never)
+    const { w } = await mountView('7', [makeSv({ id: 7, count: 12 })])
+    await openConvertConfirm(w)
+    await w.find('[data-test="sv-convert-ok"]').trigger('click')
+    await flushPromises()
+    const toasts = usePhotosToast().toasts.value
+    expect(toasts.map((t) => t.text)).toContain(zh.photosSvConvertedToAlbum)
+    expect(toasts.find((t) => t.text === zh.photosSvConvertedToAlbum)?.icon).toBe('album')
   })
 
   it('keeps the confirmation open with an inline message when it fails', async () => {

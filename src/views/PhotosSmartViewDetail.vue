@@ -65,6 +65,8 @@ import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import SmartViewSidePanel from '../photos/components/SmartViewSidePanel.vue'
 import SmartViewActivityFeed from '../photos/components/SmartViewActivityFeed.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
@@ -93,6 +95,15 @@ const router = useRouter()
 const store = usePhotosSmartViews()
 const albums = usePhotosAlbums()
 const toast = useToast()
+// Fix-10 (owner acceptance, 2026-08-14): Vue2's duplicate-smart-view and convert-to-album
+// confirmations go through `window.PhotosToast` (photosToast.js), the photos-private
+// bottom-pill toast -- not the app-wide generic toast used everywhere else on this page.
+// `duplicateSv()`/`doConvertToAlbum()` below used the generic `toast` (useToast()) for these
+// two flows, which is why the owner no longer saw "the bottom toast confirmation" they
+// remembered from Vue2. Scoped narrowly to these two flows (the ones the owner named) -- this
+// page's other ~15 `toast.show(...)` calls also use the generic store and are NOT touched here;
+// registered as a separate, larger pre-existing gap in the report rather than silently expanded.
+const photosToast = usePhotosToast()
 const lb = useLightbox()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
@@ -521,10 +532,15 @@ async function duplicateSv(): Promise<void> {
   if (!s) return
   try {
     await store.duplicateSmartView(s.id)
-    toast.show(t('photosSvDuplicatedNameOpenCopy', { name: s.name }))
+    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (generic) -- Vue2's real call
+    // here is `window.PhotosToast.show({ icon: 'sparkles', title: ... })`, same as
+    // PhotosAlbumDetail.vue's `duplicateAlbum()`. See PhotosToastHost.vue's ICON_PATHS.
+    photosToast.show({ text: t('photosSvDuplicatedNameOpenCopy', { name: s.name }), icon: 'sparkles' })
   } catch (e) {
     console.error('[photos-smartviews] duplicateSv', e)
-    toast.show(t('photosSvDuplicateFailed'))
+    // Fix-10: same switch as the success path -- Vue2's failure call is
+    // `window.PhotosToast.show({ icon: 'trash', accent: '#FF6B5C', title: ... })`.
+    photosToast.show({ text: t('photosSvDuplicateFailed'), icon: 'trash' })
   }
 }
 
@@ -553,7 +569,11 @@ async function doConvertToAlbum(): Promise<void> {
   try {
     const album = await albums.convertFromSmartView(s.id)
     convertToAlbumOpen.value = false
-    toast.show(t('photosSvConvertedToAlbum'))
+    // Fix-10 (owner acceptance, 2026-08-14): was `toast.show(...)` (generic) -- Vue2's real call
+    // here is `window.PhotosToast.show({ icon: 'album', title: 'Converted to regular album' })`.
+    // The failure path just below is unaffected -- it is already an inline message by deliberate
+    // design (see its own comment), not a toast, so there is no Vue2 toast to restore there.
+    photosToast.show({ text: t('photosSvConvertedToAlbum'), icon: 'album' })
     // Vue2 :631-647 emits to its host, which closes the panel, refetches both lists and
     // opens the new album. Here the destination is a real route that loads the album
     // itself, and the smart view no longer exists server-side -- no refetch needed.
@@ -1263,6 +1283,15 @@ async function onExcludedTileClick(id: string): Promise<void> {
     </div>
     </Transition>
   </div>
+  <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/Convert/etc.)
+       -- mounted once per photos view, Teleports to <body> and re-applies photos-root +
+       themeClass on its own portal target (see PhotosToastHost.vue's own header comment), so its
+       position here relative to `.photos-root`'s closing tag makes no rendering difference --
+       same placement convention Photos.vue already uses for this exact component. This page
+       previously had no mount for it at all (only `Photos.vue` did), which is why
+       `duplicateSv()`/`doConvertToAlbum()`'s `photosToast.show(...)` calls had nothing to
+       render them. -->
+  <PhotosToastHost />
 </template>
 
 <style scoped>
