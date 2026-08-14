@@ -221,13 +221,18 @@ describe('Photos.vue 灯箱接线', () => {
 })
 
 // Fix-4 item 1 (owner acceptance, 2026-08-13; same F1/F2 lesson class, found here on the
-// timeline page): AlbumPickerDialog and PhotoLightbox used to be template-root SIBLINGS of
-// `.photos-root` instead of its DOM descendant, so `.photos-root .album-picker-panel`'s
-// `background: var(--surface-2)` (a `.photos-root`-local custom property with no global
-// fallback, vue2-parity/photos.scss:1072-1102) resolved to nothing outside it — the picker
-// panel likely rendered with a transparent background. Same fix as Fix-1 item 3 / Fix-2 item 5:
-// nest both back inside `.photos-root`.
-describe('Fix-4 item 1: the lightbox and album picker are real descendants of .photos-root', () => {
+// timeline page): AlbumPickerDialog used to be a template-root SIBLING of `.photos-root` instead
+// of its DOM descendant, so `.photos-root .album-picker-panel`'s `background: var(--surface-2)`
+// (a `.photos-root`-local custom property with no global fallback, vue2-parity/
+// photos.scss:1072-1102) resolved to nothing outside it — the picker panel likely rendered with
+// a transparent background. Same fix as Fix-1 item 3 / Fix-2 item 5: nest it back inside
+// `.photos-root`.
+//
+// PhotoLightbox was ALSO nested here by that same fix, on the same reasoning -- Fix-8 round 4
+// (2026-08-14) found that reasoning didn't hold for this one component specifically (see that
+// test's own comment below) and un-nested it again. The two now have opposite intended
+// positions, which is why they are asserted separately below rather than as one shared case.
+describe('Fix-4 item 1 / Fix-8 round 4: the album picker is a real descendant of .photos-root; the lightbox is deliberately NOT', () => {
   it('the album picker overlay renders inside .photos-root (so parity .album-picker-panel can match)', async () => {
     svc.photos.listAlbums.mockResolvedValue([{ id: 9, name: 'Solo', assetCount: 0 }])
     const w = await mountPhotos()
@@ -246,7 +251,22 @@ describe('Fix-4 item 1: the lightbox and album picker are real descendants of .p
     expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 
-  it('the lightbox renders inside .photos-root', async () => {
+  // Fix-8 round 4 (owner acceptance, 2026-08-14): this case used to assert the OPPOSITE (F4
+  // item 1 nested `<PhotoLightbox>` inside `.photos-root` alongside AlbumPickerDialog, on the
+  // stated belief that "this move changes nothing about how the lightbox itself renders" --
+  // that belief was wrong. Nesting it activates parity's own `.photos-root .lightbox`/`.lb-*`
+  // rule family (vue2-parity/photos.scss:499-1061+), which targets a *future* Plan-F re-skin
+  // describing a different DOM/CSS shape (a CSS Grid with named grid-area children) than this
+  // component's own current, self-contained flex layout -- every colliding selector ties in
+  // specificity, so which one wins is bundler-order-dependent, and if parity's `display: grid`
+  // wins for the outer `.lightbox` container, none of this component's real children carry the
+  // grid-area names parity's layout expects, collapsing/hiding the whole overlay. Confirmed by
+  // real-device evidence: `lb.openAt`'s network calls fired (state opened) but the lightbox
+  // never became visible. Flipped to the corrected, intended structure -- a sibling of
+  // `.photos-root`, same as before F4 item 1 first nested it (see acceptance-fix-report.md
+  // §F8-r4 for the full collision list and sweep). Do not flip this back before Plan F's own
+  // lightbox re-skin actually ports the DOM/CSS parity's rules describe.
+  it('the lightbox renders OUTSIDE .photos-root (parity\'s future-re-skin .lightbox/.lb-* rules must not match this component yet)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -258,6 +278,6 @@ describe('Fix-4 item 1: the lightbox and album picker are real descendants of .p
     await w.vm.$nextTick()
 
     const lightbox = w.get('.lightbox').element
-    expect(lightbox.closest('.photos-root')).not.toBeNull()
+    expect(lightbox.closest('.photos-root')).toBeNull()
   })
 })

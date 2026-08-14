@@ -363,42 +363,62 @@ onUnmounted(() => {
     </div>
 
     <!-- Fix-4 item 1 (owner acceptance, 2026-08-13; F1/F2 lesson class, now found on the
-         timeline page too): PhotoLightbox and AlbumPickerDialog used to be template-root
-         SIBLINGS of `.photos-root` (a Vue 3 multi-root fragment) rather than its DOM
-         descendants — the same root cause as Fix-1 item 3's "New album" modal bug and Fix-2
-         item 5's detail-page dialogs (acceptance-fix-report.md §F1/§F2), just never audited on
-         this page until now. AlbumPickerDialog's own parity styling is written as
-         `.photos-root .album-picker-panel` etc. (vue2-parity/photos.scss:1072-1102) and its
-         panel background is `var(--surface-2)` — a `.photos-root`-local custom property with
-         NO fallback and no global (theme.css) definition at all, so outside `.photos-root` it
-         resolves to nothing: the add-to-album picker panel likely rendered with a fully
-         transparent background over the fixed dark scrim, not merely "wrong colour." Moved back
-         inside `.photos-root`, as a sibling of `.app` (matching Vue2's own single-shell nesting
-         and the F1/F2 precedent) — it is `position: fixed`, so nesting it inside the scrolling
-         column buys nothing either way, and `.photos-root` itself sets no transform/filter/
-         perspective/`contain` that would create a new containing block for `position: fixed`
-         (same reasoning already verified in F1/F2).
-         PhotoLightbox moved too, for the same structural consistency the three detail pages
-         already have (F2 explicitly moved it there) — disclosed, not asserted as a rendering
-         fix: read `PhotoLightbox.vue`'s own `<style>` block and confirmed every token it uses
-         (`--app-bg`/`--popup-bg`/`--card-border`/`--fg`/`--fg-muted`) is a GLOBAL theme.css
-         token, not a `.photos-root`-scoped one, so this move changes nothing about how the
-         lightbox itself renders today — it is nested purely so this page's shell shape matches
-         every other photos-area page's, not because a bug was found in it.
+         timeline page too): AlbumPickerDialog used to be a template-root SIBLING of
+         `.photos-root` (a Vue 3 multi-root fragment) rather than its DOM descendant — the same
+         root cause as Fix-1 item 3's "New album" modal bug and Fix-2 item 5's detail-page
+         dialogs (acceptance-fix-report.md §F1/§F2), just never audited on this page until now.
+         Its own parity styling is written as `.photos-root .album-picker-panel` etc.
+         (vue2-parity/photos.scss:1072-1102) and its panel background is `var(--surface-2)` — a
+         `.photos-root`-local custom property with NO fallback and no global (theme.css)
+         definition at all, so outside `.photos-root` it resolves to nothing: the add-to-album
+         picker panel likely rendered with a fully transparent background over the fixed dark
+         scrim, not merely "wrong colour." Moved back inside `.photos-root`, as a sibling of
+         `.app` (matching Vue2's own single-shell nesting and the F1/F2 precedent) — it is
+         `position: fixed`, so nesting it inside the scrolling column buys nothing either way,
+         and `.photos-root` itself sets no transform/filter/perspective/`contain` that would
+         create a new containing block for `position: fixed` (same reasoning already verified in
+         F1/F2).
          PhotosToastHost is NOT moved: it Teleports to `<body>` and re-applies `photos-root` +
          `themeClass` on its own portal target by design (see its own header comment and the
          comment just below) — moving its mount point in the template would not change where it
          actually renders, so there is nothing to fix there; it stays a sibling of `.photos-root`
          as it always was. -->
-    <!-- 收藏态由 photosFavorites store 同源(灯箱内部已直接调用 usePhotosFavorites().toggle),
-         此处空接即可,无需再往上冒泡处理。 -->
-    <PhotoLightbox
-      @delete="onLightboxDelete"
-      @toggle-fav="() => {}"
-      @add-to-album="(id) => openAlbumPicker([id])"
-    />
     <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
   </div>
+  <!-- Fix-8 round 4 (owner acceptance, 2026-08-14; correction of this same file's F4-item-1
+       comment above, which used to also nest `<PhotoLightbox>` here and asserted "this move
+       changes nothing about how the lightbox itself renders today" — that assertion was WRONG,
+       confirmed by real-device evidence: openAt's network calls fired (state opened) but the
+       lightbox never became visible. Root cause: nesting `<PhotoLightbox>` inside `.photos-root`
+       activates parity's own `.photos-root .lightbox`/`.lb-*` rule family
+       (vue2-parity/photos.scss:499-1061+) for the FIRST time — those rules target a *future*
+       Plan-F pixel re-skin of this component and describe a completely different DOM/CSS
+       structure (a `display: grid; grid-template-areas: "top top" "main info" "strip info"`
+       container with named-area children) than what `PhotoLightbox.vue`'s own current,
+       pre-Plan-F, self-contained `<style scoped>` implements (`display: flex; flex-direction:
+       column`, plain nested divs, no grid-area assignments at all). Both rule sets share
+       IDENTICAL specificity for every colliding selector (`.photos-root .lightbox` = two
+       classes vs. the component's own scoped `.lightbox[data-v-xxx]` = one class + one
+       attribute, (0,2,0) either way, for `.lightbox`/`.lb-top`/`.lb-title`/`.lb-media`/
+       `.lb-nav`/`.lb-strip`/`.lb-thumb`/`.lb-info`/`.lb-live-badge` alike) — a genuine cascade
+       TIE, resolved only by bundler-internal CSS source order, not by anything this component
+       controls. Should parity's `display: grid` ever win that tie for the outer `.lightbox`
+       container, none of this component's actual children carry the `top`/`main`/`info`/`strip`
+       grid-area names parity's `grid-template-areas` expects, so they fall into unpredictable
+       implicit grid placement — collapsing/overlapping/effectively invisible, exactly matching
+       "state opens, render fails." Un-nested back to a sibling of `.photos-root` (its pre-F4
+       position) so parity's `.photos-root`-scoped rule family stops matching this component's
+       DOM at all, same as every other page in this sweep (see acceptance-fix-report.md §F8-r4)
+       — **do not re-nest this component inside `.photos-root` before Plan F's own lightbox
+       re-skin actually ports its DOM/CSS to match those parity rules; until then, the class
+       overlap is a hazard, not a feature.** `.photos-toast-host`'s photos-root reapplication
+       trick (PhotosToastHost.vue) is not a usable fix here either -- PhotoLightbox is not
+       Teleported and does not carry its own portal target to re-apply the class to. -->
+  <PhotoLightbox
+    @delete="onLightboxDelete"
+    @toggle-fav="() => {}"
+    @add-to-album="(id) => openAlbumPicker([id])"
+  />
   <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
        Teleports to <body> (see PhotosToastHost.vue). -->
   <PhotosToastHost />

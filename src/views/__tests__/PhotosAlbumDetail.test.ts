@@ -1119,6 +1119,26 @@ describe('P2c detail skeleton', () => {
     })
   })
 
+  // Fix-8 round 4 (owner acceptance, 2026-08-14): unlike every other element in the "Fix-2 item
+  // 5" block above, `<PhotoLightbox>` is deliberately NOT nested inside `.photos-root` here.
+  // Nesting it (as an earlier fix round on this same file did) activates parity's own
+  // `.photos-root .lightbox`/`.lb-*` rule family (vue2-parity/photos.scss:499-1061+), which
+  // targets a *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with
+  // named grid-area children) than this component's own current, self-contained flex layout --
+  // every colliding selector ties in specificity between the component's own scoped rule and
+  // parity's, a genuine cascade tie settled only by bundler-internal CSS order. Confirmed by
+  // real-device evidence: `lb.openAt`'s network calls fired (state opened) but the lightbox
+  // never became visible. See acceptance-fix-report.md §F8-r4 for the full collision list.
+  describe('Fix-8 round 4: the lightbox is deliberately NOT nested inside .photos-root', () => {
+    it('the lightbox renders OUTSIDE .photos-root (parity\'s future-re-skin .lightbox/.lb-* rules must not match this component yet)', async () => {
+      const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
+      await w.find('.tile').trigger('click')
+      await flushPromises()
+      const lightbox = w.get('.lightbox').element
+      expect(lightbox.closest('.photos-root')).toBeNull()
+    })
+  })
+
   it('removes the selected photos and keeps the guard against a double click', async () => {
     let resolveRemove: (() => void) | undefined
     const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
