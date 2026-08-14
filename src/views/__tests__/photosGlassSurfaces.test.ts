@@ -42,19 +42,29 @@ function ruleBody(text: string, selector: string): string {
 }
 
 describe('相册区表面用玻璃 token,不刷应用底色', () => {
-  it('搜索页的筛选条不画背景(玻璃壳透上来,与上下两行一致)', () => {
-    const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // 不是"别用 --bg"而是"这条横条根本不该画底" —— 它上面的 .search-hero、下面的排序行
-    // 都是透明的,画任何底色都会在玻璃壳上留下一条色带。
-    expect(body, `.filterbar 又画上背景了:${body.trim()}`).not.toMatch(/background\s*:/)
+  // Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward) correction: this case's own
+  // premise -- "this page still lives inside AreaShell's glass shell, so any background paints a
+  // visible band" -- is no longer true, same class of correction as Fix-2 item 6 below did for
+  // PhotosSmartViewDetail.vue's `.sv-detail-side`. This task un-wrapped PhotosSearch.vue from its
+  // old flex-row `.photos-layout` shell into the SAME opaque `.photos-root > .app` grid every
+  // other migrated page uses (`--bg: #0A0A0C`, a solid near-black page, not a translucent
+  // wallpaper backdrop) -- the exact problem this case originally guarded against cannot recur
+  // here. PhotosSearch.vue no longer carries its own local `.filterbar` rule at all: the
+  // 2026-08-13 rollback (see PhotosSearch.vue's own style-block header comment) deleted it along
+  // with every other selector name already covered by vue2-parity/photos.scss, letting THAT rule
+  // (which does paint `background: var(--bg)`, matching Vue2 1:1, photos.scss:2610-2616) govern
+  // directly.
+  it('搜索页不再自带本地 .filterbar 规则(已随 2026-08-13 回退整体移交 parity)', () => {
+    const src = read('views/PhotosSearch.vue')
+    expect(src, '搜索页仍留着一份本地 .filterbar 规则,应已随回退删除').not.toMatch(/\n\.filterbar\s*\{/)
   })
 
-  it('搜索页筛选条仍保留分隔线与层叠(只去底色,不动别的)', () => {
-    const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // border-bottom 是它与排序行之间唯一的视觉分界,去了底色更要留着。
-    expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--divider\)/)
+  it('parity 自己的 .filterbar 画底色(Plan C 已脱离 AreaShell 玻璃壳,画底色不再产生色带)+ 仍保留分隔线与层叠', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.filterbar {')
+    expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
+    // border-bottom 是它与排序行之间唯一的视觉分界。
+    expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--line\)/)
     // position/z-index 不是装饰:筛选弹层(.fpop)是它的后代,靠这两条才画得到下方网格之上。
-    // 删掉会让弹层被瓦片压住 —— 与本次"去底色"无关,必须保留。
     expect(body).toMatch(/position\s*:\s*sticky/)
     expect(body).toMatch(/z-index\s*:\s*6/)
   })

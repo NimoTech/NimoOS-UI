@@ -43,18 +43,34 @@ import { useTimelineStore } from '../stores/timeline'
 // these three props are additive overrides so Photos.vue's own existing usage (no props
 // passed) is byte-for-byte unchanged — see PhotosTopbar.test.ts's pre-existing default-mount
 // assertions, none of which pass title/sub/showSearch.
+//
+// Fix-3 item 7 (owner acceptance, 2026-08-13 pull-forward of Plan F): PhotosSearch.vue's own
+// shell migration needs the `searchMode` half of Vue2 PhotosTopbar.vue:6-12 — a second
+// `icon-btn` (chevL) rendered as a sibling of the collapse toggle, replacing the title/sub
+// block entirely (Vue2's `v-if="searchMode"` / `v-if="!searchMode"` pair). `back` is the
+// New-UI prop name for that state (Vue2's `searchMode`); the emitted event is `back` rather
+// than Vue2's `exit-search` since New-UI's search page is a real route and "back" means
+// "navigate away", not "toggle a local state flag" — PhotosSearch.vue wires it to
+// `router.push('/photos')`. showSearch stays independently settable: PhotosSearch.vue passes
+// `show-search=false` here because its own body already carries the query-editing input
+// (PhotosSearchBar.vue, already reusing this same chip-bg/chip-border glass fill) — Vue2 only
+// has ONE search box (this component's own `.search`) because its search "page" and library
+// page are the same component; New-UI would render two redundant boxes if both were shown.
 const props = withDefaults(defineProps<{
   collapsed?: boolean
   title?: string
   sub?: string
   showSearch?: boolean
+  back?: boolean
 }>(), {
   showSearch: true,
+  back: false,
 })
 
 const emit = defineEmits<{
   (e: 'toggle-collapse'): void
   (e: 'search-submit', q: string): void
+  (e: 'back'): void
 }>()
 
 const { t } = useI18n()
@@ -99,7 +115,13 @@ function onKbd(e: KeyboardEvent): void {
     <button class="icon-btn" :aria-expanded="!collapsed" :title="t('photosToggleSidebar')" @click="emit('toggle-collapse')">
       <PhotosIcon name="panelLeft" :size="17" />
     </button>
-    <div style="display:flex;flex-direction:column">
+    <!-- Fix-3 item 7: Vue2 PhotosTopbar.vue:6-8 (searchMode's back button, chevL glyph
+         copied verbatim from NimoOS-UI PhotosIcon.vue's chevL branch — same path already
+         used by SearchDatePopover.vue's cal-nav "previous month" button). -->
+    <button v-if="back" class="icon-btn" :title="t('photosSearchBackToLibrary')" @click="emit('back')">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6" /></svg>
+    </button>
+    <div v-if="!back" style="display:flex;flex-direction:column">
       <div class="topbar-title">{{ title }}</div>
       <div class="topbar-sub">{{ sub }}</div>
     </div>

@@ -3,6 +3,7 @@
 // SearchResultTile.test.ts 的 tile 级断言外)。只 mock @nimotech/nimoos-service 的
 // thumbnailUrl;IntersectionObserver 用 stub(afterEach 复原,防渗漏到别的测试文件)。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../i18n/zh_cn'
@@ -222,10 +223,21 @@ describe('样式', () => {
     expect(m![1]).toMatch(/gap:\s*4px/)
   })
 
-  it('.more-results-bar hover 时生效的 background 是 --chip-bg-hi(cssCascade 判优先级,选择器含 :hover)', () => {
-    const win = winningHoverBackground(styleText, ['more-results-bar'])
+  // 2026-08-13 回退(Fix-3 item 7 追加执行):.more-results-bar(+:hover)/.load-more-sentinel/
+  // .load-more-status 已从本组件的 scoped style 里整体删除,交给 vue2-parity/photos.scss 的
+  // 裸选择器接管——原地断言这套规则已经不在本组件里,hover 的保障改为核对共享 parity 文件。
+  it('本组件 scoped style 不再含 .more-results-bar/.load-more-sentinel/.load-more-status 规则(已整体移交 parity)', () => {
+    const selectors = [...styleText.matchAll(/([^{}]+)\{/g)].map((m) => m[1].trim())
+    expect(selectors.some((s) => s.includes('more-results-bar'))).toBe(false)
+    expect(selectors.some((s) => s.includes('load-more-sentinel'))).toBe(false)
+    expect(selectors.some((s) => s.includes('load-more-status'))).toBe(false)
+  })
+
+  it('parity scss:.more-results-bar hover 时生效的 background 是 --surface-3', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const win = winningHoverBackground(parityScss, ['more-results-bar'])
     expect(win.selector).toContain(':hover')
-    expect(win.value).toContain('--chip-bg-hi')
+    expect(win.value).toContain('--surface-3')
   })
 
   it('.match-badge 不在样式块里(死 CSS,scss:2728-2738 未迁,反向断言)', () => {

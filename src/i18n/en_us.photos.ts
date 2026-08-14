@@ -1052,4 +1052,10 @@ export default {
   // kvmToggleSidebar, but that key is namespaced to the KVM area per this repo's
   // per-area-prefix key convention — a new photos-prefixed key here, not a cross-area reuse.
   photosToggleSidebar: 'Toggle sidebar',
+  // ── Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward): PhotosTopbar's
+  // search-mode back-button title, mapped from Vue2 PhotosTopbar.vue:8's $t('Back (Esc)') —
+  // New-UI has no Esc semantics here (the search page is a real route, and Esc is already
+  // owned by the unified overlay-dismiss handling), so the copy describes the real
+  // destination instead of keeping the "(Esc)" wording.
+  photosSearchBackToLibrary: 'Back to library',
 }

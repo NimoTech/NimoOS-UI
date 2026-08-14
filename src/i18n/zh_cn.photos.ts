@@ -1100,4 +1100,9 @@ export default {
   // 约定专属 KVM 区,本区另起 photos 前缀键而非跨区复用,与本仓"键名按区前缀"的既有惯例
   // 一致(不是漏查复用)。
   photosToggleSidebar: '切换侧边栏',
+  // ── Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward):PhotosTopbar 的
+  // 搜索模式返回键 title,对应 Vue2 PhotosTopbar.vue:8 的 $t('Back (Esc)')——New-UI 这里
+  // 没有 Esc 语义(搜索页是真路由,Esc 已被浮层统一治理占用),故文案改成描述真实去向
+  // (返回照片库),不照抄带 "(Esc)" 字样的原文。
+  photosSearchBackToLibrary: '返回照片库',
 }

@@ -130,22 +130,15 @@ function toggleMore(): void {
    Vue2 photos.scss:318 的固定 7 列——这是相对 Vue2 的刻意偏离,已登记。 */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 4px; padding: 0 32px 40px; }
 
-/* Vue2 photos.scss:2711-2718(.more-results-bar + :hover)。token 映射照本期既定表:
-   --surface-2→--chip-bg / --surface-3→--chip-bg-hi / --line→--card-border /
-   --text-1→--fg / --text-2→--fg-muted(SmartViewCreateDialog.vue:43-45 四档映射)。 */
-.more-results-bar {
-  display: flex; align-items: center; gap: 6px;
-  margin: 4px 32px 16px; padding: 9px 14px;
-  border-radius: 8px; border: 1px dashed var(--card-border);
-  background: var(--chip-bg); color: var(--fg-muted);
-  font-size: 12px; font-weight: 500; cursor: pointer;
-}
-.more-results-bar:hover { background: var(--chip-bg-hi); color: var(--fg); }
-
-/* Vue2 photos.scss:2722-2726(.load-more-sentinel/.load-more-status)。 */
-.load-more-sentinel {
-  display: flex; align-items: center; justify-content: center;
-  height: 1px; margin: 4px auto 24px; padding: 20px 0;
-}
-.load-more-status { font-size: 12px; font-weight: 500; color: var(--fg-faint); }
+/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+   回退):.more-results-bar(+:hover)/.load-more-sentinel/.load-more-status 这三条 Vue2
+   原生 class 名字段,在 vue2-parity/photos.scss(:2743-2757)已有逐字对应的裸选择器,值
+   就是 Vue2 原文本地 token(--line/--surface-2/--surface-3/--text-1/--text-2/--text-3,
+   dark 与 .photos-root.is-light 两套都有定义)。此前这里各自重复一份、颜色映射到本仓通用
+   玻璃语义(--card-border/--chip-bg/--chip-bg-hi/--fg-muted/--fg/--fg-faint)——那些 token
+   均未被 `.photos-root` 本地重定义,会落到 theme.css 的全局蓝紫玻璃值,靠 scoped 编译出的
+   [data-v-xxxx] 属性把优先级顶到 parity 裸选择器之上。删掉这份重复,parity 的裸规则直接
+   生效,不需要再借数据属性提权。`.photos-wrap`/`.grid` 两条(D2/D7 登记的刻意偏离)不受
+   影响,继续留在本组件——它们本就不是 Vue2 原生 class 名或数值,parity 没有同名裸选择器
+   可以移交。 */
 </style>
