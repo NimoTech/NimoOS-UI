@@ -189,6 +189,13 @@ watch(() => props.server?.id, () => {
 // unlike `runTest()` above, which actually dials the server.
 const toolRows = ref<McpToolRow[]>([])
 const toolsLoading = ref(false)
+// Fix round (review point B/C): whether a server-level ('*') grant exists at
+// all, plus its own stale reason/key if void -- see McpToolList.vue's
+// `serverLevelApproved` prop doc comment for why this can't be derived from
+// `toolRows` alone.
+const serverLevelApproved = ref(false)
+const serverLevelStaleReason = ref('')
+const serverLevelStaleReasonKey = ref('')
 // Same race the `reqSeq` guard above protects `runTest()` against, applied
 // to this independent request: switching servers while a `listMCPTools` call
 // is in flight must not let the old server's tools land in the new server's
@@ -204,9 +211,15 @@ async function loadTools(id: number) {
     const res = await service.ai.listMCPTools(id)
     if (seq !== toolsSeq) return
     toolRows.value = Array.isArray(res?.tools) ? res.tools : []
+    serverLevelApproved.value = !!res?.server_level_approved
+    serverLevelStaleReason.value = res?.server_level_stale_reason || ''
+    serverLevelStaleReasonKey.value = res?.server_level_stale_reason_key || ''
   } catch {
     if (seq !== toolsSeq) return
     toolRows.value = []
+    serverLevelApproved.value = false
+    serverLevelStaleReason.value = ''
+    serverLevelStaleReasonKey.value = ''
   } finally {
     if (seq === toolsSeq) toolsLoading.value = false
   }
@@ -216,6 +229,9 @@ watch(() => props.server?.id, (id) => {
   toolsSeq += 1 // invalidate any in-flight load from the previous server
   toolRows.value = []
   toolsLoading.value = false
+  serverLevelApproved.value = false
+  serverLevelStaleReason.value = ''
+  serverLevelStaleReasonKey.value = ''
   if (id !== undefined) loadTools(id)
 }, { immediate: true })
 
@@ -407,7 +423,7 @@ function doDelete() {
             </div>
             <div class="sk-section-body">
               <div class="sk-description">{{ t('aiMcpSrvToolsNote') }}</div>
-              <div v-if="toolsLoading" style="display: grid; place-items: center; padding: 14px 0">
+              <div v-if="toolsLoading" data-test="tools-loading" style="display: grid; place-items: center; padding: 14px 0">
                 <div class="sk-spinner" />
               </div>
               <McpToolList
@@ -415,6 +431,9 @@ function doDelete() {
                 :server-id="server.id"
                 :tools="toolRows"
                 show-server-level
+                :server-level-approved="serverLevelApproved"
+                :server-level-stale-reason="serverLevelStaleReason"
+                :server-level-stale-reason-key="serverLevelStaleReasonKey"
               />
             </div>
           </div>

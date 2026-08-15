@@ -34,17 +34,17 @@
 
   `stale_reason` (non-empty only for an approval that is currently void --
   e.g. every approval for a server goes void after its URL is edited, so the
-  identity fingerprint the approval was granted for no longer matches) is
-  rendered verbatim. This differs from `McpServerDetail.vue`'s test-connection
-  error panel (its "D8" deviation), which maps backend errors through an
-  `error_key` before ever showing English on screen -- but there is no such
-  key here to map through: grepping `NimoOS-AI/service/mcp_approvals.go`
-  shows the backend only ever sends the English sentence itself ("config
-  changed: ...", "tool no longer offered by the server", "interface changed:
-  ...", "stale: tool not seen in the last 7 days"). Showing it as-is is the
-  intended shape for this diagnostic annotation, not a lapse of the
-  never-echo-backend-English convention (which applies specifically where a
-  localized alternative was actually built).
+  identity fingerprint the approval was granted for no longer matches) was
+  originally rendered verbatim, because the backend only ever sent English
+  prose with no machine-readable counterpart. Task 20's fix round added one
+  (`stale_reason_key`, one of `config_changed`/`tool_removed`/
+  `schema_changed`/`stale` -- see `NimoOS-AI/service/mcp_approvals.go`'s
+  `StaleReasonXxx` constants), so this component now maps it through
+  `mcpErrorKey.ts`'s `staleReasonKeyToI18nKey` -- the same backend-code -> i18n
+  -key shape `McpServerDetail.vue`'s test-connection panel already uses for
+  `error_key`. A key that doesn't resolve (empty, or a future code shipped
+  before its i18n string lands) falls back to the raw prose rather than
+  rendering nothing -- see `resolveStaleText` below.
 
   Kept visually and structurally distinct from the `desc_changed` badge
   (`.mcp-tool-badge-desc-changed`, a small pill next to the tool name): the
@@ -61,17 +61,38 @@ import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import type { McpToolRow } from '@nimotech/nimoos-service'
 import { useToast } from '../../../../stores/toast'
+import { staleReasonKeyToI18nKey } from '../../../util/mcpErrorKey'
 
 const props = withDefaults(defineProps<{
   serverId: number | string
   tools: McpToolRow[]
   showServerLevel?: boolean
+  /** Whether a server-level ('*') grant currently exists (`listMCPTools`'s
+   *  `server_level_approved`) -- true even if it is currently void, mirroring
+   *  each tool row's own `approved` semantics. Initializes the server-level
+   *  switch; without this it always started off even when a live grant was
+   *  in force. */
+  serverLevelApproved?: boolean
+  serverLevelStaleReason?: string
+  serverLevelStaleReasonKey?: string
 }>(), {
   showServerLevel: false,
+  serverLevelApproved: false,
+  serverLevelStaleReason: '',
+  serverLevelStaleReasonKey: '',
 })
 
 const { t } = useI18n()
 const toast = useToast()
+
+/** Maps `stale_reason_key` to its i18n text via `staleReasonKeyToI18nKey`;
+ *  falls back to the raw prose `reason` when the key is empty or does not
+ *  resolve (see this file's header comment) -- never renders nothing when
+ *  `reason` itself is non-empty. */
+function resolveStaleText(reason: string | undefined, key: string | undefined): string {
+  const i18nKey = staleReasonKeyToI18nKey(key)
+  return i18nKey ? t(i18nKey) : (reason || '')
+}
 
 // See file header comment for the rationale behind this specific cutoff.
 const STALE_SEEN_SECONDS = 30 * 86400
@@ -111,12 +132,13 @@ async function toggleTool(tool: McpToolRow) {
   }
 }
 
-// Server-level state is a plain local toggle, not derived from `tools`:
-// `listMCPTools` has no field reporting whether a wildcard ("*") approval is
-// currently in force, only the named-tool rows. Turning this on always
-// issues the grant; there is no persisted "currently on" signal available
-// to this component to pre-check it from.
-const serverLevelOn = ref(false)
+// Server-level toggle: initialized from `serverLevelApproved`
+// (`listMCPTools`'s `server_level_approved`), then a plain local toggle from
+// there on -- a click flips it and calls setMCPApproval directly, same as
+// the per-tool toggles above. Re-synced if the prop changes (e.g. the parent
+// reloads the tool list after a save), same pattern as the `rows` watch.
+const serverLevelOn = ref(props.serverLevelApproved)
+watch(() => props.serverLevelApproved, (next) => { serverLevelOn.value = next })
 const serverLevelPending = ref(false)
 
 async function toggleServerLevel() {
@@ -142,6 +164,13 @@ async function toggleServerLevel() {
         <div class="lbl">{{ t('aiMcpToolServerLevelLabel') }}</div>
         <div data-test="server-level-hint" class="mcp-tool-list-server-level-hint">
           {{ t('aiMcpToolServerLevelHint') }}
+        </div>
+        <div
+          v-if="serverLevelOn && (serverLevelStaleReason || serverLevelStaleReasonKey)"
+          data-test="server-level-stale-reason"
+          class="mcp-tool-row-hint mcp-tool-row-hint-stale"
+        >
+          {{ resolveStaleText(serverLevelStaleReason, serverLevelStaleReasonKey) }}
         </div>
       </div>
       <div
@@ -173,8 +202,12 @@ async function toggleServerLevel() {
       <div v-if="isMissing(tool)" class="mcp-tool-row-hint mcp-tool-row-hint-missing">
         {{ t('aiMcpToolMissingHint') }}
       </div>
-      <div v-if="tool.stale_reason" data-test="stale-reason" class="mcp-tool-row-hint mcp-tool-row-hint-stale">
-        {{ tool.stale_reason }}
+      <div
+        v-if="tool.stale_reason || tool.stale_reason_key"
+        data-test="stale-reason"
+        class="mcp-tool-row-hint mcp-tool-row-hint-stale"
+      >
+        {{ resolveStaleText(tool.stale_reason, tool.stale_reason_key) }}
       </div>
       <div
         data-test="approval-toggle"

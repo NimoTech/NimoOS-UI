@@ -12,6 +12,13 @@ export interface McpToolRow {
    *  the UI tell "approved and in force" apart from "approved but void".
    *  The backend sends this field `omitempty`, so it may be absent or ''. */
   stale_reason?: string
+  /** Machine-readable counterpart of `stale_reason` -- one of the backend's
+   *  `service.StaleReasonXxx` codes (`config_changed` / `tool_removed` /
+   *  `schema_changed` / `stale`), added so the UI can map it through its own
+   *  i18n table (`mcpErrorKey.ts`'s `staleReasonKeyToI18nKey`) instead of
+   *  rendering `stale_reason`'s English prose directly. `omitempty` on the
+   *  backend, same as `stale_reason` -- may be absent or ''. */
+  stale_reason_key?: string
 }
 
 /** One row of the cross-server summary (`GET /mcp/approvals`). */
@@ -438,8 +445,17 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
     // the backend, PREFIX = '/ai' here) -- not '/v2/ai'.
 
     /** Zero-network on the server side -- reads the persisted tool list, does
-     *  not re-probe the MCP server itself. */
-    async listMCPTools(id: string | number): Promise<{ tools: McpToolRow[] }> {
+     *  not re-probe the MCP server itself. `server_level_approved` reports
+     *  whether a server-level ('*') grant exists at all -- true even if it is
+     *  currently void, mirroring each tool row's own `approved` semantics
+     *  (see `McpToolRow`'s doc comment) -- since the `tools` rows alone give
+     *  no signal either way. */
+    async listMCPTools(id: string | number): Promise<{
+      tools: McpToolRow[]
+      server_level_approved: boolean
+      server_level_stale_reason?: string
+      server_level_stale_reason_key?: string
+    }> {
       const res = await http.get(`${PREFIX}/mcp/servers/${id}/tools`)
       return res.data
     },

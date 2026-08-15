@@ -858,7 +858,7 @@ export default {
   aiMcpSrvTestStdioHint: 'stdio 首次可能需要几分钟(会现场下载 server)。',
   aiMcpSrvTestOk: '已连接 · {n} 个工具',
   aiMcpSrvTestFailed: '连接失败',
-  aiMcpSrvToolsNote: '工具由该服务在握手时声明。对话中首次调用会请求你的许可。',
+  aiMcpSrvToolsNote: '工具由该服务在握手时声明。下方开关控制是否还会再次询问你的许可。',
   aiMcpSrvRemoveTitle: '移除该 MCP 服务?',
   aiMcpSrvRemoveBody: 'Nimo 将断开与 {name} 的连接,其工具不再对 Agent 可用。你可以稍后重新添加。',
   aiMcpSrvRemoveConfirm: '移除',
@@ -912,6 +912,13 @@ export default {
   aiMcpToolMissingHint: '该工具当前不在服务器上,可能已被移除。',
   aiMcpToolApprovalFailed: '更新授权失败',
   // <<< mcp-progressive-disclosure Task 20
+  // >>> mcp-progressive-disclosure Task 20 fix round -- stale_reason_key → i18n
+  // (backend's service.StaleReasonXxx codes, config_changed/tool_removed/schema_changed/stale)
+  aiMcpToolStaleConfigChanged: '服务器的配置已变更,此前的授权已失效。',
+  aiMcpToolStaleToolRemoved: '该工具已不再由服务器提供。',
+  aiMcpToolStaleSchemaChanged: '该工具的接口已变更,需要重新确认。',
+  aiMcpToolStaleStale: '已有一段时间没有在服务器上看到这个工具了。',
+  // <<< mcp-progressive-disclosure Task 20 fix round
   // >>> SP8-P5a Task 5 —— 知识库占位页(K7),Vue2 没有对应文案,本期新造
   aiKbDeferredTitle: '即将上线',
   aiKbDeferredHint: '这个页面还在迁移到新界面。',

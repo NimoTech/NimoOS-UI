@@ -3,15 +3,19 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
 import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../../i18n/zh_cn'
+import en from '../../../../i18n/en_us'
 import type { McpToolRow } from '@nimotech/nimoos-service'
 
 // Task 20 (2026-08-13 mcp-progressive-disclosure plan) -- per-server tool
 // list with per-tool and server-level approval toggles. The first four
 // `it(...)` blocks below are the brief's Step-1 contract, reproduced
-// verbatim (assertions untouched); the surrounding harness (i18n plugin,
-// pinia, service mock, `nowSec()` helper) follows this repo's existing
-// McpSection.test.ts / McpServerDetail.test.ts conventions -- the brief's
-// code block did not show that boilerplate, only the assertions.
+// verbatim (assertions untouched, descriptions translated to English per the
+// fix-round review -- the brief's own contract was the assertions, not the
+// Chinese description strings, matching every other test in this file); the
+// surrounding harness (i18n plugin, pinia, service mock, `nowSec()` helper)
+// follows this repo's existing McpSection.test.ts / McpServerDetail.test.ts
+// conventions -- the brief's code block did not show that boilerplate, only
+// the assertions.
 
 const h = vi.hoisted(() => ({ setMCPApproval: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
@@ -19,13 +23,27 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 import McpToolList from './McpToolList.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
+const i18nEn = createI18n({ legacy: false, locale: 'en_us', messages: { en_us: en } })
 
 function nowSec(): number {
   return Math.floor(Date.now() / 1000)
 }
 
-function mountList(props: { serverId: number | string; tools: McpToolRow[]; showServerLevel?: boolean }) {
+type ListProps = {
+  serverId: number | string
+  tools: McpToolRow[]
+  showServerLevel?: boolean
+  serverLevelApproved?: boolean
+  serverLevelStaleReason?: string
+  serverLevelStaleReasonKey?: string
+}
+
+function mountList(props: ListProps) {
   return mount(McpToolList, { props, global: { plugins: [i18n] } })
+}
+
+function mountListEn(props: ListProps) {
+  return mount(McpToolList, { props, global: { plugins: [i18nEn] } })
 }
 
 const tools: McpToolRow[] = [
@@ -41,25 +59,34 @@ beforeEach(() => {
 })
 
 describe('McpToolList', () => {
-  it('每个工具渲染一个「不再询问」开关', () => {
+  it('renders one "don\'t ask again" toggle per tool', () => {
     const w = mountList({ serverId: 1, tools })
     expect(w.findAll('[data-test=approval-toggle]')).toHaveLength(3)
   })
 
-  it('长期未见的工具标灰并注明不在服务器上', () => {
+  it('greys out a long-unseen tool and notes it is not on the server', () => {
     const w = mountList({ serverId: 1, tools })
     const row = w.find('[data-test=tool-row-old_tool]')
     expect(row.classes()).toContain('is-missing')
   })
 
-  it('description 变更的工具打角标', () => {
+  it('badges a tool whose description changed', () => {
     const w = mountList({ serverId: 1, tools })
     expect(w.find('[data-test=tool-row-changed] [data-test=desc-changed-badge]').exists()).toBe(true)
   })
 
-  it('服务级开关的文案必须写明包含日后新增的工具', () => {
+  it('the server-level toggle copy must state it also covers tools added later', () => {
     const w = mountList({ serverId: 1, tools, showServerLevel: true })
     expect(w.find('[data-test=server-level-hint]').text()).toMatch(/新增|future|added later/)
+  })
+
+  // Fix-round addition (review point E): the zh_cn assertion above accepts
+  // either language's wording, so an English-side reword that dropped the
+  // "added later" meaning would still pass it. Mounting under en_us pins the
+  // English string specifically -- a regression there now fails on its own.
+  it('en_us: the server-level hint also states it covers tools added later', () => {
+    const w = mountListEn({ serverId: 1, tools, showServerLevel: true })
+    expect(w.find('[data-test=server-level-hint]').text()).toMatch(/adds later|future/)
   })
 })
 
@@ -125,5 +152,58 @@ describe('McpToolList -- additional behavior (Task 20)', () => {
     const w = mountList({ serverId: 9, tools: [], showServerLevel: true })
     await w.find('[data-test=server-level-toggle]').trigger('click')
     expect(h.setMCPApproval).toHaveBeenCalledWith(9, '*', true)
+  })
+})
+
+// Fix-round additions (review points A/B/C): consuming the backend's new
+// stale_reason_key and server_level_approved fields.
+describe('McpToolList -- stale_reason_key and server_level_approved (Task 20 fix round)', () => {
+  it('a known stale_reason_key renders the localized text instead of the raw prose', () => {
+    const staleTools: McpToolRow[] = [{
+      name: 'voided_tool', approved: true, last_seen_at: nowSec(), desc_changed: false,
+      stale_reason: 'config changed: server identity no longer matches the approved one',
+      stale_reason_key: 'config_changed',
+    }]
+    const w = mountList({ serverId: 1, tools: staleTools })
+    const text = w.find('[data-test=tool-row-voided_tool] [data-test=stale-reason]').text()
+    expect(text).toBe(zh.aiMcpToolStaleConfigChanged)
+    expect(text).not.toContain('config changed: server identity')
+  })
+
+  it('an unrecognized stale_reason_key falls back to the raw prose rather than rendering nothing', () => {
+    const staleTools: McpToolRow[] = [{
+      name: 'voided_tool', approved: true, last_seen_at: nowSec(), desc_changed: false,
+      stale_reason: 'a future reason not yet mapped',
+      stale_reason_key: 'a_future_code_not_shipped_yet',
+    }]
+    const w = mountList({ serverId: 1, tools: staleTools })
+    expect(w.find('[data-test=tool-row-voided_tool] [data-test=stale-reason]').text())
+      .toBe('a future reason not yet mapped')
+  })
+
+  it('serverLevelApproved initializes the server-level toggle on (not hardcoded off)', () => {
+    const w = mountList({ serverId: 1, tools: [], showServerLevel: true, serverLevelApproved: true })
+    expect(w.find('[data-test=server-level-toggle]').attributes('data-on')).toBe('true')
+  })
+
+  it('serverLevelApproved defaults to false when the prop is omitted', () => {
+    const w = mountList({ serverId: 1, tools: [], showServerLevel: true })
+    expect(w.find('[data-test=server-level-toggle]').attributes('data-on')).toBe('false')
+  })
+
+  it('a void server-level grant (serverLevelApproved true + a stale reason) renders its own explanation', () => {
+    const w = mountList({
+      serverId: 1, tools: [], showServerLevel: true,
+      serverLevelApproved: true,
+      serverLevelStaleReason: 'config changed: server identity no longer matches the approved one',
+      serverLevelStaleReasonKey: 'config_changed',
+    })
+    const text = w.find('[data-test=server-level-stale-reason]').text()
+    expect(text).toBe(zh.aiMcpToolStaleConfigChanged)
+  })
+
+  it('a live (non-void) server-level grant renders no stale explanation', () => {
+    const w = mountList({ serverId: 1, tools: [], showServerLevel: true, serverLevelApproved: true })
+    expect(w.find('[data-test=server-level-stale-reason]').exists()).toBe(false)
   })
 })

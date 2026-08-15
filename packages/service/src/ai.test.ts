@@ -568,6 +568,30 @@ describe('createAi — MCP tool approvals (progressive disclosure)', () => {
     expect(res.tools[0].stale_reason).toBe('')
   })
 
+  it('listMCPTools passes stale_reason_key and the server_level_approved fields through unchanged', async () => {
+    const { http } = recorder((verb, url) => {
+      if (verb === 'get' && url === '/ai/mcp/servers/1/tools') {
+        return {
+          tools: [
+            {
+              name: 'create_issue', approved: true, last_seen_at: 100, desc_changed: false,
+              stale_reason: 'config changed: server identity no longer matches the approved one',
+              stale_reason_key: 'config_changed',
+            },
+          ],
+          server_level_approved: true,
+          server_level_stale_reason: 'config changed: server identity no longer matches the approved one',
+          server_level_stale_reason_key: 'config_changed',
+        }
+      }
+      return null
+    })
+    const res = await createAi(http, () => null).listMCPTools(1)
+    expect(res.tools[0].stale_reason_key).toBe('config_changed')
+    expect(res.server_level_approved).toBe(true)
+    expect(res.server_level_stale_reason_key).toBe('config_changed')
+  })
+
   it('setMCPApproval PUTs /ai/mcp/servers/:id/approvals/:tool with body {approved}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).setMCPApproval(1, 'create_issue', true)

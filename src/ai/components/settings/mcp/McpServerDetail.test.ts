@@ -35,7 +35,7 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
 beforeEach(() => {
   setActivePinia(createPinia())
   h.listMCPTools.mockReset()
-  h.listMCPTools.mockResolvedValue({ tools: [] })
+  h.listMCPTools.mockResolvedValue({ tools: [], server_level_approved: false })
 })
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -532,5 +532,97 @@ describe('测试连接', () => {
     expect(w.find('.mcp-test-btn').text()).toContain(zh.aiMcpSrvTesting)
     expect(w.find('.mcp-test-btn').attributes('disabled')).toBeDefined()
     expect(w.find('.mcp-test-result').exists()).toBe(false)
+  })
+})
+
+// Task 20 fix round (review point F): dedicated coverage for the tool-list
+// loading logic added to this component -- until now only the harness
+// (mocking listMCPTools so pre-existing tests keep passing) was touched,
+// with no test exercising loadTools/toolsSeq itself.
+function nowSec(): number {
+  return Math.floor(Date.now() / 1000)
+}
+
+describe('tool list loading (Task 20)', () => {
+  it('calls listMCPTools with the selected server id on mount', async () => {
+    mountDetail(srv({ id: 42 }))
+    await flushPromises()
+    expect(h.listMCPTools).toHaveBeenCalledWith(42)
+  })
+
+  it('calls listMCPTools again with the new id when the selected server changes', async () => {
+    const w = mountDetail(srv({ id: 1 }))
+    await flushPromises()
+    h.listMCPTools.mockClear()
+    await w.setProps({ server: srv({ id: 7, name: 'other' }) })
+    await flushPromises()
+    expect(h.listMCPTools).toHaveBeenCalledWith(7)
+  })
+
+  it('shows a loading spinner while listMCPTools is in flight, then renders the tool list once it resolves', async () => {
+    let resolve!: (v: unknown) => void
+    h.listMCPTools.mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const w = mountDetail(srv({ id: 1 }))
+    await nextTick()
+    expect(w.find('[data-test=tools-loading]').exists()).toBe(true)
+    expect(w.findComponent({ name: 'McpToolList' }).exists()).toBe(false)
+    resolve({ tools: [], server_level_approved: false })
+    await flushPromises()
+    expect(w.find('[data-test=tools-loading]').exists()).toBe(false)
+    expect(w.findComponent({ name: 'McpToolList' }).exists()).toBe(true)
+  })
+
+  it('renders the tools listMCPTools resolves with', async () => {
+    h.listMCPTools.mockResolvedValueOnce({
+      tools: [{ name: 'create_issue', approved: true, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    const w = mountDetail(srv({ id: 1 }))
+    await flushPromises()
+    expect(w.find('[data-test=tool-row-create_issue]').exists()).toBe(true)
+  })
+
+  // ★ The safety-critical guard named in this component's own comments:
+  // switching servers while a listMCPTools call is still in flight must not
+  // let the old server's tools land in the new server's panel. A weak
+  // assertion (only checking the panel is non-empty) would pass even without
+  // the guard; this one lets the stale request land AFTER the switch, which
+  // only a real seq-based guard survives.
+  it('discards a stale listMCPTools response after switching to a different server', async () => {
+    let resolveOld!: (v: unknown) => void
+    h.listMCPTools.mockReturnValueOnce(new Promise((r) => { resolveOld = r }))
+    const w = mountDetail(srv({ id: 1, name: 'old' }))
+    await nextTick()
+
+    h.listMCPTools.mockResolvedValueOnce({
+      tools: [{ name: 'fresh-tool', approved: false, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    await w.setProps({ server: srv({ id: 2, name: 'new' }) })
+    await flushPromises()
+    expect(w.find('[data-test=tool-row-fresh-tool]').exists()).toBe(true)
+
+    // The old server's request now lands late, with a tool that must never
+    // appear in the (now server-2) panel.
+    resolveOld({
+      tools: [{ name: 'leaked-tool', approved: true, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    await flushPromises()
+    expect(w.find('[data-test=tool-row-leaked-tool]').exists()).toBe(false)
+    expect(w.find('[data-test=tool-row-fresh-tool]').exists()).toBe(true)
+  })
+
+  // D11-style control: without the guard, this would also pass by accident
+  // (nothing switched), so it doesn't by itself prove the guard works -- but
+  // it does prove the guard doesn't wrongly discard a normal, unswitched load.
+  it('control: a normal (unswitched) listMCPTools response is not discarded', async () => {
+    h.listMCPTools.mockResolvedValueOnce({
+      tools: [{ name: 'kept-tool', approved: true, last_seen_at: nowSec(), desc_changed: false }],
+      server_level_approved: false,
+    })
+    const w = mountDetail(srv({ id: 1 }))
+    await flushPromises()
+    expect(w.find('[data-test=tool-row-kept-tool]').exists()).toBe(true)
   })
 })
