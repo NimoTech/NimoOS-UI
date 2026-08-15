@@ -1,5 +1,32 @@
 # 开源快照解封 · 交接（2026-08-15）
 
+> ## ✅ 已执行完毕(2026-08-15,master `099183bc → c1880b40`,5 个提交,未 push)
+>
+> | 完成的定义 | 结果 |
+> |---|---|
+> | 1. `check-anchors` broken: 0 | ✅ `anchors ok: 300  broken: 0` |
+> | 2. `vitest run oss` 全绿 | ✅ 500/500 |
+> | 3. `export.mjs`(不带 `--publish`)跑通 | ✅ 零真实泄漏,产出 `/tmp/nimoos-web-preview` |
+> | 4. 产物树复扫 | ✅ 无台账/文档泄漏,LICENSE+NOTICE+README 在位;导出器注入的中文散文已清零 |
+> | 5. 语言探测三处改完 | ✅ 抽到 `src/i18n/locale.ts`,`index.ts`/`main.ts`/`Welcome.vue` 共用 |
+> | 6. 全量 `pnpm test` 不高于基线 | ✅ 11 文件 / 84 例(基线 17 / 94),其中 2 例是并行抖动、单跑全绿 |
+>
+> 额外收获与偏差:
+>
+> - **产物树自己也跑了一遍测试**:436 文件 / 4641 例,只红 `kvmStyles.test.ts` 那 1 条 ——
+>   私有侧一字不差地红,是既有缺陷,不是导出引入。
+> - **本文档「明确不做」里那句"残留中文绝大多数是断言值/fixture/i18n 词条"不准确**:
+>   `manifest.mjs` 的 `replace` 载荷本身还在往英文产物树里注水(15 行注释 + 9 条用例标题),
+>   已全部译掉;`src/i18n/` 三份守卫测试(parity / i18nKeys / shardDisjoint)整份还是中文,
+>   也一并译掉。**现在产物树里的中文只剩三类**:zh_cn 词表自己的注释与值、
+>   双语的 Google Drive 指引页、以及"被测对象就是 CJK"的那几行。
+> - **附带修好一个隐形一个月的缺陷**:`packages/service/src/{kvm,sys}.test.ts` 的用例标题里
+>   有 `doesn't` 撇号截断字符串,整份文件从 `2ad712f8` 起解析失败、**56 例断言一次都没跑过**
+>   (vitest 只报 `Failed Suites`,不计入失败数)。
+>
+> 下面是执行前的原始交接内容,保留备查。
+
+
 **目标**:让 `node oss/export.mjs` 跑通,产出一份可以公开给英语用户的 NimoOS-Web 快照。
 
 当前在 **master**,最新提交 `62dbb485`,工作树干净,**未 push**(master 领先 `origin/master` 82 个提交,push 被 deny 规则挡着,由机主自己推)。
