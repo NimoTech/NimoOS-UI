@@ -256,7 +256,69 @@ describe('back prop(额外覆盖,Fix-4 item 2)', () => {
   })
 })
 
-// 非颜色视觉属性锚定(与 PhotosSearchBar.test.ts 同一约定,I5):组件自身 scoped style 里
+// Plan F Task 1 (D13 topbar alignment): PhotosSearch.vue retires its own in-page
+// PhotosSearchBar.vue (no other consumer left, grep-confirmed) and instead makes THIS
+// component's `.search` box the one editable input, echoing the route's `q` — mirrors Vue2
+// PhotosTopbar.vue's own `query` prop (:47-57: `data() { return { searchText: this.query } }`
+// + a `query(v) { if (v !== this.searchText) this.searchText = v || '' }` watcher, the exact
+// "don't clobber in-progress typing" guard PhotosSearchBar.vue's own `value` prop used to
+// implement). `query` is additive and optional (default ''), so Photos.vue's existing
+// no-props usage is unaffected.
+describe('query prop(回显,Plan F Task 1)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('不传 query → input 默认空(向后兼容,Photos.vue 的既有用法)', () => {
+    const w = mountTopbar()
+    expect((w.get('.search input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('传 query → 回显进 input value', () => {
+    const w = mountTopbar({ query: 'sunset' })
+    expect((w.get('.search input').element as HTMLInputElement).value).toBe('sunset')
+  })
+
+  it('query prop 变化 → input 跟着变', async () => {
+    const w = mountTopbar({ query: 'a' })
+    await w.setProps({ query: 'b' })
+    expect((w.get('.search input').element as HTMLInputElement).value).toBe('b')
+  })
+
+  it('input 里已有用户输入且与 query 不同时,query 未变则不覆盖(不打断用户打字)', async () => {
+    const w = mountTopbar({ query: 'a' })
+    await w.get('.search input').setValue('user is typing')
+    await w.setProps({ query: 'a' })
+    expect((w.get('.search input').element as HTMLInputElement).value).toBe('user is typing')
+  })
+})
+
+// Plan F Task 1: mirrors Vue2 PhotosTopbar.vue's own `searchMode(on) { if (on) ... focus() }`
+// watcher (:60-62) — entering search focuses the box. New-UI's `back` prop is the routed
+// equivalent of Vue2's `searchMode` (Fix-3 item 7's own header comment), and PhotosSearch.vue
+// mounts with `back` already true (it's a dedicated route, not a toggled local flag), so the
+// equivalent moment is `onMounted`, not a prop-change watcher.
+describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMode 聚焦行为)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('back=true → mounted 后 document.activeElement 是搜索框', () => {
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const w = mount(PhotosTopbar, { props: { back: true }, global: { plugins: [i18n] }, attachTo: el })
+    expect(document.activeElement).toBe(w.get('.search input').element)
+    w.unmount()
+    el.remove()
+  })
+
+  it('back 未传(默认 false)→ 不自动聚焦', () => {
+    const el = document.createElement('div')
+    document.body.appendChild(el)
+    const w = mount(PhotosTopbar, { global: { plugins: [i18n] }, attachTo: el })
+    expect(document.activeElement).not.toBe(w.get('.search input').element)
+    w.unmount()
+    el.remove()
+  })
+})
+
+// 非颜色视觉属性锚定(I5,曾与已退役的 PhotosSearchBar.test.ts 同一约定):组件自身 scoped style 里
 // 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
 // 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。
 describe('样式:scoped 块最小化(仅 FILL 偏离)', () => {

@@ -138,6 +138,31 @@
   /* RGB takes this repo's light --accent-text (53,80,196), alpha copied exactly at 0.85 from
      Vue2 (see the dark block's own comment). */
   --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
+
+  /* Plan F Task 1 (glass-exception dark-band fix, 2026-08-15): PhotosTopbar.vue's `.search` box
+     is an owner-approved GLASS exception (see that component's own scoped-style comment) that
+     deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
+     instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the owner's
+     "亮色顶部暗带" (light-top dark-band) report: this `.photos-root.is-light` block never
+     redefined those two token NAMES, so in the very common "photos-light + app-global-dark"
+     combination (Photos has its own light/dark toggle, independent of theme.css's app-wide
+     toggle — dark is theme.css's default `:root`, no `data-theme="light"` attribute needed to
+     hit it) the glass box fell straight through to theme.css's DARK values — a translucent
+     white gradient designed to glow on a dark AreaShell page — painted on top of THIS page's
+     own near-white --bg. Fix, scoped to photos only (theme.css itself is untouched — Task 1
+     brief requires this): give these two token NAMES a photos-private light-context value
+     here, so any photos glass exception consuming them (currently just PhotosTopbar's
+     `.search`) gets a legible light-glass look instead of silently falling through to
+     theme.css's dark design. Values are a translucent take on theme.css's own LIGHT
+     --chip-bg/--chip-border (theme.css:356-358, solid `#ffffff` / `#e7e3d9`) — same
+     white-on-light-warm-neutral direction, cited as the source, kept as a soft gradient + alpha
+     (using this block's own `--ink` channel for the border, same pattern `--line`/`--text-*`
+     use above) so the glass EFFECT itself — not just the color — still reads as glass rather
+     than a flat opaque chip. Dark mode (plain `.photos-root`, no `.is-light`) is intentionally
+     NOT touched here — it keeps falling through to theme.css's global tokens exactly as
+     before, byte-for-byte (see photosGlassSurfaces.test.ts's own guard for this). */
+  --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
+  --chip-border: rgba(var(--ink), 0.14);
 }
 
 .photos-root * { box-sizing: border-box; }

@@ -33,8 +33,10 @@
 // 搜索框=`.topbar` 内居中的 `.search`)。`collapsed` 的持久化 ref/toggle 语义不变,只是现在
 // 有了真正的点击入口(T3 报告"Concerns"第 4 条留的坑——Vue2 自己的折叠按钮就在顶栏,不在
 // AreaShell 的汉堡菜单里,补在这里正是 Vue2 的原始位置)。
-// PhotosSearchBar.vue 组件本身没删——grep 确认它仍被 `PhotosSearch.vue`(搜索结果页自己的
-// 顶部搜索框)复用,只是本文件不再引用它。
+// PhotosSearchBar.vue 组件当时没删——grep 确认它仍被 `PhotosSearch.vue`(搜索结果页自己的
+// 顶部搜索框)复用,只是本文件不再引用它。（Plan F Task 1,2026-08-15 更新:该组件后来
+// 也从 `PhotosSearch.vue` 退场——`PhotosSearch.vue` 改用与本文件同一个 `PhotosTopbar`
+// 实例回显路由 `q`,`PhotosSearchBar.vue` 已无消费方,组件与其测试文件一并删除。）
 //
 // AreaShell 去留判定(brief Step 4):读过 AreaShell.vue —— 桌面态(≥769px)`.area-bar`
 // 确实 `display:none`(D13 注释属实),但 `.area-body` 仍带 `padding:20px` 且

@@ -183,8 +183,8 @@ describe('路由 query 驱动', () => {
     const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
     expect(spy).toHaveBeenCalledTimes(1)
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(spy).toHaveBeenCalledTimes(2)
     expect(spy).toHaveBeenNthCalledWith(2, 'abc')
@@ -214,6 +214,41 @@ describe('预搜索态', () => {
     const replaceSpy = vi.spyOn(router, 'replace')
     await chips[1].trigger('click')
     expect(replaceSpy).toHaveBeenCalledWith({ path: '/photos/search', query: { q: 'b' } })
+  })
+})
+
+// ── Plan F Task 1: D13 topbar alignment ───────────────────────────────────
+// Vue2 ground truth (NimoOS-UI PhotosSearchView.vue + PhotosTopbar.vue) has exactly ONE
+// search input on this page — the shared topbar's `.search` box — and this page's own hero
+// is a pure TEXT echo row (`.search-query` + `.kw` spans), never an editable input. New-UI's
+// own PhotosSearchBar.vue (a D13 deviation: a second, page-body-local editable input) has been
+// retired: grep-confirmed no other consumer remains, so the component + its test file were
+// deleted outright rather than left dead in the tree.
+describe('顶栏搜索框:PhotosSearchBar 退场,topbar 的 .search 是唯一输入框(Plan F Task 1)', () => {
+  it('顶栏搜索框回显路由 q 的值', async () => {
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    expect((w.get('.topbar .search input').element as HTMLInputElement).value).toBe('sunset')
+  })
+
+  it('q 为空 → 顶栏搜索框也是空', async () => {
+    const { w } = await mountSearch('/photos/search')
+    expect((w.get('.topbar .search input').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('页面里只有一个 input(顶栏那个),不再渲染 PhotosSearchBar 的独立输入框', async () => {
+    const { w } = await mountSearch('/photos/search?q=sunset')
+    await flushPromises()
+    expect(w.findAll('input')).toHaveLength(1)
+    expect(w.find('.photos-search-bar').exists()).toBe(false)
+  })
+
+  it('hero 区没有 input,只有 .search-query 文本回显(+ .kw 高亮)', async () => {
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a')])
+    const { w } = await mountSearch('/photos/search?q=my%20videos')
+    await flushPromises()
+    expect(w.find('[data-test="search-hero"] input').exists()).toBe(false)
+    expect(w.find('[data-test="search-query"]').exists()).toBe(true)
   })
 })
 
@@ -889,12 +924,12 @@ describe('搜索历史', () => {
   // 测试要补上等待)。
   it('onSubmit("abc") → localStorage 里是 ["abc"];再 "def" → ["def","abc"]', async () => {
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc'])
-    await w.get('.photos-search-bar input').setValue('def')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('def')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['def', 'abc'])
   })
@@ -902,8 +937,8 @@ describe('搜索历史', () => {
   it('重复 "abc" → 去重提前:["abc","def"]', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['def', 'abc']))
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('abc')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('abc')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     expect(JSON.parse(localStorage.getItem('nimo_search_history')!)).toEqual(['abc', 'def'])
   })
@@ -911,8 +946,8 @@ describe('搜索历史', () => {
   it('超过 6 条 → 只留 6', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['1', '2', '3', '4', '5', '6']))
     const { w } = await mountSearch('/photos/search')
-    await w.get('.photos-search-bar input').setValue('7')
-    await w.get('.photos-search-bar input').trigger('keydown.enter')
+    await w.get('.topbar .search input').setValue('7')
+    await w.get('.topbar .search input').trigger('keydown.enter')
     await flushPromises()
     const stored = JSON.parse(localStorage.getItem('nimo_search_history')!)
     expect(stored).toHaveLength(6)
@@ -923,8 +958,8 @@ describe('搜索历史', () => {
     const { w } = await mountSearch('/photos/search')
     const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('quota') })
     await expect(
-      w.get('.photos-search-bar input').setValue('boom').then(() =>
-        w.get('.photos-search-bar input').trigger('keydown.enter')),
+      w.get('.topbar .search input').setValue('boom').then(() =>
+        w.get('.topbar .search input').trigger('keydown.enter')),
     ).resolves.not.toThrow()
     spy.mockRestore()
   })
@@ -1140,9 +1175,11 @@ describe('路由', () => {
 })
 
 // ── fix round 1 · I4:8 枚本文件新增内联 svg 的 glyph 精确复刻 ──────────────────
-// 本文件另有一枚(search 图标,用在预搜索态 chip)+ PhotosSearchBar.vue 的 search 图标
-// 已在各自组件的测试文件里断言。评审同时改坏 clock 与 map 两枚的 d 值 → 上一轮 49/49
-// 全绿,本轮给 9 枚(8 枚本文件 + 已在 PhotosSearchBar.test.ts 断言的 1 枚)逐一补断言。
+// 本文件另有一枚(search 图标,用在预搜索态 chip)+ 顶栏 PhotosTopbar.vue 的 search 图标
+// 已在各自组件的测试文件里断言(Plan F Task 1:此前是 PhotosSearchBar.vue 断言这一枚,
+// 该组件已随本任务退场,同款断言现在活在 PhotosTopbar.test.ts 里)。评审同时改坏 clock
+// 与 map 两枚的 d 值 → 上一轮 49/49 全绿,本轮给 9 枚(8 枚本文件 + 已在 PhotosTopbar.test.ts
+// 断言的 1 枚)逐一补断言。
 describe('glyph 精确复刻(逐字符抄自 Vue2 PhotosIcon.vue)', () => {
   it('预搜索态 search chip 图标的 path d', async () => {
     localStorage.setItem('nimo_search_history', JSON.stringify(['a']))

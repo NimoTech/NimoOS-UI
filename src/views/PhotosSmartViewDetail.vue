@@ -1079,8 +1079,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 @click="refineInSearch"
               >
                 <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
-                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
-                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
+                     其余 4 处(PhotosTopbar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2;
+                     Plan F Task 1,2026-08-15:原列表里的 PhotosSearchBar.vue 已退场,它的
+                     那一处如今是 PhotosTopbar.vue 自己的 `.search` 图标,总数不变)都用
+                     `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
                      长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
                      放大镜手柄长度此前会跳一下——改成统一值。 -->
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>

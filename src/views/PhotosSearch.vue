@@ -7,6 +7,15 @@
 // PhotosTopbar.vue、PhotosTimeline.vue:208-215(searchActive/history)、:650-668
 // (onSearch + 历史写入)。
 //
+// Plan F Task 1(D13 对齐 + 暗带根治,2026-08-15):此前本页 `show-search=false` 给顶栏、
+// 自己另渲染一个独立的 `PhotosSearchBar.vue` 输入框——这是相对 Vue2 的一处 D13 偏离
+// (Vue2 只有一个搜索框:共享顶栏自己的 `.search`,库页/搜索页是同一个组件)。裁决 7
+// (binding)已把它改正:顶栏 `showSearch` 留默认值(true),新增的 `query` prop 把路由
+// 的 `q` 回显进顶栏那一个输入框,提交经 `@search-submit` 接回既有的 `submitQuery()`——
+// 与 Photos.vue 时间线页复用的是**同一个**顶栏组件、同一套回显/提交契约。
+// `PhotosSearchBar.vue` 已退场:grep 确认删除前它唯一的消费方就是本文件,组件与其测试
+// 文件一并删除(不留死代码)。
+//
 // ★ 架构差异(结构规格 7,§7e-3):Vue2 里 `query` 是父组件(PhotosTimeline)下发的
 // prop,真正触发 smartSearch 的是 `onSearch()`(提交时一次性 dispatch),`query` 自身
 // 的 watcher 只负责"重置筛选 chip + 套用 understood 预填"。New-UI 是真路由,地址栏的
@@ -21,7 +30,6 @@ import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
-import PhotosSearchBar from '../photos/components/PhotosSearchBar.vue'
 import PhotosFilterChip from '../photos/components/PhotosFilterChip.vue'
 import PhotosFilterPopover from '../photos/components/PhotosFilterPopover.vue'
 import SearchDatePopover from '../photos/components/SearchDatePopover.vue'
@@ -119,8 +127,9 @@ function writeHistory(q: string): void {
   }
 }
 
-// 提交一个词:用路由 replace 同步地址栏。onSubmit(PhotosSearchBar)、预搜索态的最近搜索
-// chip、hero 里的历史词,三处入口共用同一份逻辑。
+// 提交一个词:用路由 replace 同步地址栏。顶栏 PhotosTopbar 的 search-submit(Plan F Task 1
+// 起,取代已退场的 PhotosSearchBar)、预搜索态的最近搜索 chip、hero 里的历史词,三处入口
+// 共用同一份逻辑。
 //
 // fix round 1 · I1(评审查实的真缺陷,Important):历史写入**不在这里做**,而是挪到下面
 // 的主 query watcher 里(非空分支)——见该 watcher 上方的详细登记。这里只剩路由跳转。
@@ -315,10 +324,10 @@ function applyUnderstood(): void {
 //    历史写入、chip 重置、understood 预填、saved 复位 ────────────────────────
 //
 // fix round 1 · I1(评审查实的真缺陷,Important):历史写入挪到这里(非空分支),不是
-// 三个入口(Photos.vue 顶部搜索框 / PhotosSearch.vue 自己的 PhotosSearchBar / T6 的
-// 「在搜索中细化」)各自调用一次。Vue2 之所以只有一处写历史(`PhotosTimeline.vue`
-// `onSearch()`),是因为 Vue2 只有一个 view、三种触发方式最终都调同一个方法;New-UI
-// 是真路由,这三处分散在三个文件里各自 `router.push`,若要求"提交时写"就必须让三处
+// 三个入口(Photos.vue 顶部搜索框 / 本页顶栏自己的 search-submit,Plan F Task 1 起取代
+// 已退场的 PhotosSearchBar / T6 的「在搜索中细化」)各自调用一次。Vue2 之所以只有一处写
+// 历史(`PhotosTimeline.vue` `onSearch()`),是因为 Vue2 只有一个 view、三种触发方式最终
+// 都调同一个方法;New-UI 是真路由,这三处分散在三个文件里各自 `router.push`,若要求"提交时写"就必须让三处
 // 永远保持同步——**在到达路由后统一写(watcher)天然覆盖全部入口**,包括深链与刷新,
 // 比三处调用点手动保持同步更稳。
 //
@@ -591,14 +600,16 @@ onMounted(() => {
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
         <!-- `back`: Vue2 searchMode's chevL button, replacing title/sub (PhotosTopbar.vue:6-12
-             region). `show-search="false"`: PhotosSearchBar below already carries the editable
-             query box (owner's standing glass-fill exception) — Vue2 has only one search box
-             because its search "page" and library page are the same component; rendering the
-             topbar's own box here too would duplicate it. -->
-        <PhotosTopbar :collapsed="collapsed" back :show-search="false" @toggle-collapse="onToggleCollapse" @back="onBack" />
+             region). Plan F Task 1: `showSearch` stays at its default (true) and `query` echoes
+             the route's `q` into the topbar's own `.search` box (owner's standing glass-fill
+             exception) — Vue2 has only ONE search box because its search "page" and library
+             page are the same component; this page now matches that 1:1 instead of rendering a
+             second, page-body-local input (the retired PhotosSearchBar.vue). -->
+        <PhotosTopbar
+          :collapsed="collapsed" back :query="query"
+          @toggle-collapse="onToggleCollapse" @back="onBack" @search-submit="submitQuery"
+        />
       <div class="photos-main">
-        <PhotosSearchBar :value="query" autofocus @submit="submitQuery" />
-
         <!-- 预搜索态(结构规格 15)-->
         <div v-if="!query" class="search-prestate" data-test="search-prestate">
           <div class="nimo-orb" />

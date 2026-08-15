@@ -146,3 +146,42 @@ describe('Fix-2 item 6b: .app 建立自己的层叠上下文,压在全局 aurora
     expect(body).toMatch(/background\s*:\s*var\(--bg\)/)
   })
 })
+
+// Plan F Task 1 (search page D13 alignment + glass light-context fix): the topbar's `.search`
+// box is an owner-approved GLASS exception (PhotosTopbar.vue's own scoped style) that
+// deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
+// instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the "亮色顶部
+// 暗带" (light-top dark-band) the owner reported: `.photos-root.is-light` never redefined
+// those two token NAMES, so in the very common "photos-light + app-global-dark" combination
+// (Photos has its own light/dark toggle, independent of theme.css's app-wide toggle — dark is
+// theme.css's default, no `data-theme="light"` attribute needed to hit it) the glass box fell
+// straight through to theme.css's DARK values — a translucent white gradient designed to glow
+// on a dark AreaShell page — painted on top of THIS page's own near-white `--bg`. This guard
+// closes the blind spot: it was possible to regress the dark-band fix by deleting the
+// `.photos-root.is-light` override below without any existing test in this file catching it.
+describe('搜索框玻璃例外(topbar .search)的暗带根治:--chip-bg/--chip-border 在 is-light 下有亮色语境值', () => {
+  it('.photos-root.is-light 覆盖 --chip-bg/--chip-border(photos 私有,不碰全局 theme.css)', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root.is-light {')
+    expect(body).toMatch(/--chip-bg\s*:/)
+    expect(body).toMatch(/--chip-border\s*:/)
+    // 不是把 theme.css 的深色玻璃值原样抄一份——真的换了一套亮色语境的值,不是摆设。
+    expect(body).not.toMatch(/rgba\(255,\s*255,\s*255,\s*0\.26\)/)
+  })
+
+  it('.photos-root(深色块)不重定义 --chip-bg/--chip-border ——深色玻璃质感字节不变,继续吃全局 theme.css 的深色值', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root {')
+    expect(body).not.toMatch(/--chip-bg\s*:/)
+    expect(body).not.toMatch(/--chip-border\s*:/)
+  })
+
+  it('全局 src/styles/theme.css 未被本次修复触碰(暗带根治严格限定在 photos 私有作用域内)', () => {
+    const themeCss = read('styles/theme.css')
+    // 只做存在性/计数式的粗粒度守卫:深浅两套主题各自的 --chip-bg 声明应保持恰好各一处
+    // (:root 一处 + :root[data-theme="light"] 一处),不应该因为这次修复被误改成别的值或
+    // 多出/少了一处——那将意味着有人把 photos 私有的覆盖误写回了全局文件。按行首匹配
+    // (允许前导空白),排除文件里提到 `--chip-bg` 这个词但只是散文注释的行(如"不复用
+    // --chip-bg:它在纸感主题是纯白……"那一句,不是真的声明)。
+    const chipBgCount = themeCss.split('\n').filter((line) => /^\s*--chip-bg\s*:/.test(line)).length
+    expect(chipBgCount).toBe(2)
+  })
+})

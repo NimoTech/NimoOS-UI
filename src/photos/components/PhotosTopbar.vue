@@ -29,7 +29,7 @@
 // 把"时间线顶栏空串 Enter 不动作"列为要清的债、覆盖那条约定——但只覆盖**这个顶栏**,
 // PhotosSearchBar.vue 自己（PhotosSearch.vue 独立搜索页用的那个框）的"空串也 emit"仍然
 // 有效、不受本次裁决影响,两者是不同范围、故意留出的不同行为,不是漏改。
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
 import { useTimelineStore } from '../stores/timeline'
@@ -51,20 +51,27 @@ import { useTimelineStore } from '../stores/timeline'
 // New-UI prop name for that state (Vue2's `searchMode`); the emitted event is `back` rather
 // than Vue2's `exit-search` since New-UI's search page is a real route and "back" means
 // "navigate away", not "toggle a local state flag" — PhotosSearch.vue wires it to
-// `router.push('/photos')`. showSearch stays independently settable: PhotosSearch.vue passes
-// `show-search=false` here because its own body already carries the query-editing input
-// (PhotosSearchBar.vue, already reusing this same chip-bg/chip-border glass fill) — Vue2 only
-// has ONE search box (this component's own `.search`) because its search "page" and library
-// page are the same component; New-UI would render two redundant boxes if both were shown.
+// `router.push('/photos')`.
+//
+// Plan F Task 1 (D13 topbar alignment, supersedes the "show-search=false" note this comment
+// used to carry): PhotosSearch.vue used to pass `show-search=false` here and render its own,
+// separate in-page editable input (PhotosSearchBar.vue) — a D13 deviation from Vue2, which has
+// only ONE search box (this component's own `.search`) because its search "page" and library
+// page are the same component. PhotosSearchBar.vue has been retired (grep-confirmed no other
+// consumer remained) and PhotosSearch.vue now leaves `showSearch` at its default (true) and
+// wires THIS component's own `.search` box to the route via the new `query` prop below —
+// matching Vue2 1:1 (one search box, shared by both the library and search "views").
 const props = withDefaults(defineProps<{
   collapsed?: boolean
   title?: string
   sub?: string
   showSearch?: boolean
   back?: boolean
+  query?: string
 }>(), {
   showSearch: true,
   back: false,
+  query: '',
 })
 
 const emit = defineEmits<{
@@ -75,6 +82,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const store = useTimelineStore()
+const searchInputRef = ref<HTMLInputElement | null>(null)
 
 // Default title: Vue2's own library-nav value (topbarTitle's default branch,
 // PhotosTimeline.vue:194). A caller passing `title` (albums/for-you) overrides it.
@@ -96,7 +104,16 @@ const sub = computed(() => props.sub ?? t('photosCountSummary', {
   videos: store.videoCount.toLocaleString(),
 }))
 
-const searchText = ref('')
+// Plan F Task 1 (D13 topbar alignment): mirrors Vue2 PhotosTopbar.vue's own `query` prop
+// contract exactly (:47-57 `data() { return { searchText: this.query } }` + a
+// `query(v) { if (v !== this.searchText) this.searchText = v || '' }` watcher) — the same
+// "echo the route/store query, but never clobber in-progress typing" guard the now-retired
+// PhotosSearchBar.vue's own `value` prop used to implement.
+const searchText = ref(props.query)
+
+watch(() => props.query, (v) => {
+  if (v !== searchText.value) searchText.value = v || ''
+})
 
 function submitSearch(): void {
   const q = searchText.value.trim()
@@ -106,13 +123,25 @@ function submitSearch(): void {
 
 function onKbd(e: KeyboardEvent): void {
   // Case-insensitive: a real Enter keypress gives `e.key === 'Enter'`, but
-  // @vue/test-utils' `trigger('keydown.enter')` helper (used by this component's
-  // own tests, matching the sibling PhotosSearchBar.test.ts's convention) sets the
+  // @vue/test-utils' `trigger('keydown.enter')` helper (used by this component's own tests,
+  // a convention formerly shared with the now-retired PhotosSearchBar.test.ts) sets the
   // synthetic event's `key` to the lowercase modifier name it was given — mirrors
   // how Vue's own compiled `.enter` template modifier compares via `hyphenate()`
   // internally (also case-insensitive), so this isn't loosening real behavior.
   if (e.key.toLowerCase() === 'enter') { e.preventDefault(); submitSearch() }
 }
+
+// Plan F Task 1: mirrors Vue2 PhotosTopbar.vue's own `searchMode(on) { if (on) ... focus() }`
+// watcher (:60-62) — entering search focuses the box. New-UI's `back` prop is the routed
+// equivalent of Vue2's `searchMode` (see the Fix-3 item 7 comment above this component's props
+// block); PhotosSearch.vue mounts with `back` already true (a dedicated route, not a toggled
+// local flag that transitions after mount), so the equivalent moment here is `onMounted`, not
+// a prop-change watcher — by `onMounted` time the template ref is already bound (no `nextTick`
+// needed, same synchronous pattern the now-retired PhotosSearchBar.vue's own `autofocus` prop
+// used). Losing this would be an observable regression vs. that component.
+onMounted(() => {
+  if (props.back) searchInputRef.value?.focus()
+})
 </script>
 
 <template>
@@ -141,6 +170,7 @@ function onKbd(e: KeyboardEvent): void {
       <div v-if="showSearch" class="search">
         <PhotosIcon name="search" :size="14" />
         <input
+          ref="searchInputRef"
           v-model="searchText"
           :placeholder="t('photosSearchSearchBarPlaceholder')"
           @keydown="onKbd"
