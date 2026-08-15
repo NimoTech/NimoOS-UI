@@ -904,6 +904,14 @@ export default {
   aiMcpSrvParseErrOnlyEnv: '只有环境变量,后面缺一条命令',
   aiMcpSrvParseErrQuotes: '引号没有配对',
   // <<< SP8-P4 Task 4
+  // >>> mcp-progressive-disclosure Task 20 —— 工具清单与授权开关,Vue2 没有对应文案,本期新造
+  aiMcpSrvToolsTitle: '工具',
+  aiMcpToolServerLevelLabel: '整台服务器',
+  aiMcpToolServerLevelHint: '批准这整台服务器,覆盖当前列出的全部工具,以及它日后新增的任何工具。',
+  aiMcpToolDescChanged: '描述已变更',
+  aiMcpToolMissingHint: '该工具当前不在服务器上,可能已被移除。',
+  aiMcpToolApprovalFailed: '更新授权失败',
+  // <<< mcp-progressive-disclosure Task 20
   // >>> SP8-P5a Task 5 —— 知识库占位页(K7),Vue2 没有对应文案,本期新造
   aiKbDeferredTitle: '即将上线',
   aiKbDeferredHint: '这个页面还在迁移到新界面。',

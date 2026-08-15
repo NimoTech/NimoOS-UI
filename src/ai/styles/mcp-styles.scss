@@ -140,4 +140,47 @@
 .mcp-quickadd-row { display: flex; gap: 8px; align-items: center; }
 .mcp-quickadd-row input { flex: 1; }
 .mcp-quickadd-row .sk-btn { flex: none; white-space: nowrap; }
+
+// Task 20 (mcp-progressive-disclosure) — McpToolList.vue: per-server tool
+// list, per-tool + server-level approval toggles. All colors reuse existing
+// tokens, zero new tokens added.
+.mcp-tool-list-server-level {
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 16px; border-radius: var(--r-sm);
+  background: var(--bg-chip); margin-bottom: 8px;
+}
+.mcp-tool-list-server-level-main { flex: 1; min-width: 0; }
+.mcp-tool-list-server-level .lbl { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.mcp-tool-list-server-level-hint { font-size: 12px; color: var(--text-tertiary); margin-top: 2px; }
+
+.mcp-tool-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  padding: 10px 16px; border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+}
+.mcp-tool-row-main { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.mcp-tool-row-name { font-family: var(--font-mono); font-size: 13px; color: var(--text-primary); }
+// Long-unseen tools: greyed out, distinct from the stale-reason hint below —
+// this is a purely visual "might not exist anymore" signal, not the same
+// thing as a void approval (see file-level comment in McpToolList.vue).
+.mcp-tool-row.is-missing .mcp-tool-row-name { color: var(--text-tertiary); }
+.mcp-tool-row.is-missing { opacity: 0.65; }
+
+// The desc-changed badge: a small pill next to the tool name.
+.mcp-tool-badge-desc-changed {
+  font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px;
+  background: var(--warning-soft); color: var(--warning);
+}
+
+// Per-row explanatory hints, each a full-width line under the name — kept
+// visually distinct from the badge above (different shape, own color per
+// hint kind) rather than reusing the pill treatment.
+.mcp-tool-row-hint { flex-basis: 100%; font-size: 11.5px; }
+.mcp-tool-row-hint-missing { color: var(--text-tertiary); }
+.mcp-tool-row-hint-stale { color: var(--danger); }
+
+.mcp-tool-row .sw[aria-disabled="true"],
+.mcp-tool-list-server-level .sw[aria-disabled="true"] {
+  opacity: 0.5; pointer-events: none;
+}
 .mcp-quickadd-err { margin-top: 6px; font-size: 12px; color: var(--danger); }

@@ -1801,6 +1801,7 @@ const COMPONENTS_VUE_FILES = [
   'settings/sections/ExecutionSection.vue',
   'settings/sections/McpSection.vue',
   'settings/sections/McpTokensSection.vue',
+  'settings/sections/McpToolList.vue',
   'settings/sections/MemorySection.vue',
   'settings/sections/ModelsSection.vue',
   'settings/sections/ObservabilitySection.vue',

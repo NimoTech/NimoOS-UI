@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { createI18n } from 'vue-i18n'
+import { setActivePinia, createPinia } from 'pinia'
 import zh from '../../../../i18n/zh_cn'
 import McpServerDetail from './McpServerDetail.vue'
 import type { McpServer } from '../../../types/mcpServer'
@@ -14,10 +15,28 @@ import type { McpServer } from '../../../types/mcpServer'
 // 异步断言用 flushPromises() 不用单个 await nextTick()。
 
 // vi.hoisted 避免 ESM 提升的 TDZ(公共约束 §9 先例 agentStore.test.ts:4-19)。
-// 只 mock service.ai.testMCPServer 这一个方法——本文件其余用例不碰网络请求,
-// 不需要也不应该 mock 掉整个 service.ai 命名空间。
-const h = vi.hoisted(() => ({ testMCPServer: vi.fn() }))
+// Task 20 (mcp-progressive-disclosure plan) added `listMCPTools` alongside
+// `testMCPServer` -- McpServerDetail.vue now loads the persisted tool list
+// via `service.ai.listMCPTools` on mount / whenever `server.id` changes (see
+// that file's `loadTools`/`toolsSeq` watch), so it must be mocked here too or
+// every test in this file would hit an unmocked call.
+const h = vi.hoisted(() => ({ testMCPServer: vi.fn(), listMCPTools: vi.fn() }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai: h } }))
+
+// Default: no tools, resolved immediately -- keeps every pre-existing test in
+// this file exercising exactly what it exercised before Task 20 (empty
+// McpToolList renders no rows and, since `showServerLevel` is always passed,
+// just the server-level hint block). Tests that care about actual tool rows
+// override this per-test.
+//
+// setActivePinia is also new here: McpToolList.vue calls `useToast()` (a
+// Pinia store) to surface a rejected setMCPApproval -- this file had no
+// Pinia dependency before Task 20 nested that component in.
+beforeEach(() => {
+  setActivePinia(createPinia())
+  h.listMCPTools.mockReset()
+  h.listMCPTools.mockResolvedValue({ tools: [] })
+})
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 

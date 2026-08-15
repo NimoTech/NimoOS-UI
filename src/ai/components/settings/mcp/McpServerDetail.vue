@@ -76,11 +76,13 @@ import {
   DialogRoot, DialogPortal, DialogOverlay, DialogContent, DialogTitle, VisuallyHidden,
 } from 'reka-ui'
 import type { McpServer, McpTestView } from '../../../types/mcpServer'
+import type { McpToolRow } from '@nimotech/nimoos-service'
 import { toTestView, toTestViewFromError } from '../../../util/mcpErrorKey'
 import { protocolLine } from '../../../util/mcpProtocol'
 import { serverColor, transportLabel, SERVER_GLYPH } from '../../../util/mcpServerVisual'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import SkillTile from '../skills/SkillTile.vue'
+import McpToolList from '../sections/McpToolList.vue'
 
 // 对齐 Vue2 `props: { server: { type: Object, default: null } }`(:139)。
 const props = defineProps<{ server: McpServer | null }>()
@@ -179,6 +181,43 @@ watch(() => props.server?.id, () => {
   testing.value = false
   testView.value = null
 })
+
+// Task 20 (mcp-progressive-disclosure plan) -- the persisted tool list +
+// approval state, read via `listMCPTools` and handed to `McpToolList.vue`.
+// Zero-network on the server side (see that component's file header), so
+// this loads instantly even for a server that is currently unreachable --
+// unlike `runTest()` above, which actually dials the server.
+const toolRows = ref<McpToolRow[]>([])
+const toolsLoading = ref(false)
+// Same race the `reqSeq` guard above protects `runTest()` against, applied
+// to this independent request: switching servers while a `listMCPTools` call
+// is in flight must not let the old server's tools land in the new server's
+// panel. Kept as its own counter rather than reusing `reqSeq` -- the two
+// requests are unrelated and run concurrently, sharing one counter would let
+// finishing one wrongly invalidate the other.
+let toolsSeq = 0
+
+async function loadTools(id: number) {
+  const seq = ++toolsSeq
+  toolsLoading.value = true
+  try {
+    const res = await service.ai.listMCPTools(id)
+    if (seq !== toolsSeq) return
+    toolRows.value = Array.isArray(res?.tools) ? res.tools : []
+  } catch {
+    if (seq !== toolsSeq) return
+    toolRows.value = []
+  } finally {
+    if (seq === toolsSeq) toolsLoading.value = false
+  }
+}
+
+watch(() => props.server?.id, (id) => {
+  toolsSeq += 1 // invalidate any in-flight load from the previous server
+  toolRows.value = []
+  toolsLoading.value = false
+  if (id !== undefined) loadTools(id)
+}, { immediate: true })
 
 // 对齐 Vue2 `closeAnd(fn)`(:155)。
 function closeAnd(fn?: () => void) {
@@ -359,9 +398,24 @@ function doDelete() {
             </div>
           </div>
 
+          <!-- Task 20 (mcp-progressive-disclosure plan): the persisted tool
+               list + per-tool/server-level approval toggles, replacing what
+               was previously just a static note here. -->
           <div class="sk-section">
+            <div class="sk-section-head">
+              <div class="sk-section-title">{{ t('aiMcpSrvToolsTitle') }}</div>
+            </div>
             <div class="sk-section-body">
               <div class="sk-description">{{ t('aiMcpSrvToolsNote') }}</div>
+              <div v-if="toolsLoading" style="display: grid; place-items: center; padding: 14px 0">
+                <div class="sk-spinner" />
+              </div>
+              <McpToolList
+                v-else
+                :server-id="server.id"
+                :tools="toolRows"
+                show-server-level
+              />
             </div>
           </div>
         </div>

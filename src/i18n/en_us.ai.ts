@@ -882,6 +882,14 @@ export default {
   aiMcpSrvParseErrOnlyEnv: 'Only environment variables — a command is missing',
   aiMcpSrvParseErrQuotes: 'Unbalanced quotes',
   // <<< SP8-P4 Task 4
+  // >>> mcp-progressive-disclosure Task 20 — tool list & approval toggles, new copy, no Vue2 equivalent
+  aiMcpSrvToolsTitle: 'Tools',
+  aiMcpToolServerLevelLabel: 'Entire server',
+  aiMcpToolServerLevelHint: 'Approve this whole server — covers every tool listed here now, plus any tools it adds later.',
+  aiMcpToolDescChanged: 'Description changed',
+  aiMcpToolMissingHint: 'Not currently offered by this server — it may have been removed.',
+  aiMcpToolApprovalFailed: 'Failed to update approval',
+  // <<< mcp-progressive-disclosure Task 20
   // >>> SP8-P5a Task 5 — knowledge base deferred placeholder page (K7), new copy, no Vue2 equivalent
   aiKbDeferredTitle: 'Coming soon',
   aiKbDeferredHint: 'This page is still being migrated to the new UI.',
