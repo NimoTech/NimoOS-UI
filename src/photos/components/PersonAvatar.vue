@@ -140,6 +140,27 @@ function onImgError(): void {
 </template>
 
 <style scoped>
+/* Task 5 (Plan D) shadowing cleanup — audited, nothing to shrink here (and deliberately no
+   class renames): unlike the other five components in this task, this one has no single Vue2
+   ancestor to align to. It replaces FIVE different pieces of Vue2 markup that each use their
+   own class names for what is structurally the same three-tier avatar (real image / initial /
+   icon fallback): `.face-card .ring` (people list), `.rel-row .av` (co-appear list), `.coappear-
+   card .ring` (person-detail timeline strip), `.detail-hero .avatar` (hero), and the merge
+   dialog's own avatar markup. Parity anchors each of those five shapes to its own selector
+   path with its own sizing/border — this component can't literally *be* `.ring` and `.av` and
+   `.detail-hero .avatar` at once without either duplicating itself per call site or accepting
+   a variant-name prop (out of scope: "props/emits/logic untouched"). The already-established
+   pattern (see PhotosPeople.vue's Task 2 survivor comments) is the opposite direction: keep
+   this component's own class names (`.person-avatar-img` etc.) stable, and let each *consumer*
+   add its own `:deep()` override for the one Vue2 shape it needs. PersonHero.vue and
+   PersonRelationsTab.vue (both touched by this task) were checked against this same rule — see
+   task-5-report.md. Nothing here duplicates a parity anchor (there isn't one to duplicate),
+   and the `--card-border`/`--avatar-fallback`/`--overlay-bg`/`--star-fg` tokens below are this
+   app's own theme.css tokens (not parity's private set), left as-is: since there is no single
+   parity anchor this component's own class names should adopt, there's also no reason to
+   switch its token vocabulary — that decision belongs to whichever consumer's `:deep()`
+   override, if any, needs to match a specific parity anchor (see PhotosPeople.vue's Task 2
+   survivors for the established pattern). */
 .person-avatar {
   position: relative;
   flex-shrink: 0;

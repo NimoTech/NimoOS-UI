@@ -86,6 +86,31 @@ export function personInitial(name: unknown): string {
   return name.trim()[0].toUpperCase()
 }
 
+// peopleUtils.js:36-40 (findNamedDuplicate). Finds an already-named person in `list` whose
+// name matches `name` (trimmed, case-insensitive). `excludeId` skips a specific person — e.g.
+// the one currently being renamed, so renaming to one's own current name (case/whitespace
+// aside) isn't flagged as a duplicate. Returns the matching person, or null when there's no
+// duplicate. Used by both ClusterActionDialog.vue (naming an unnamed cluster) and
+// PhotosPersonDetail.vue (renaming an already-named person) to switch into a "dupconfirm"
+// sub-state offering Merge into existing / Name anyway / Cancel.
+//
+// Iron rule (id comparisons always via String()): Vue2's own `p.id !== excludeId` is a strict
+// equality check; here `excludeId` is compared via String() like every other id comparison in
+// this codebase (this file's own toPerson/personById callers, ClusterActionDialog.vue's
+// sameId, etc.) — no behavior difference in practice, since ids are consistently typed within
+// a single backend response.
+export function findNamedDuplicate(
+  list: Person[], name: string, excludeId?: string | number | null,
+): Person | null {
+  const target = (name || '').trim().toLowerCase()
+  if (!target || !Array.isArray(list)) return null
+  return list.find((p) => {
+    if (!p) return false
+    if (excludeId != null && String(p.id) === String(excludeId)) return false
+    return (p.name || '').trim().toLowerCase() === target
+  }) ?? null
+}
+
 // store/modules/photos.js:333
 export function namedOf(people: Person[]): Person[] {
   return people.filter((p) => p.name && p.name.trim() !== '')

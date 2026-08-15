@@ -4,6 +4,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import zh from '../../../i18n/zh_cn'
 
 // 本组件自己不调用 service,但渲染的 PersonAvatar 子组件会——照 PersonAvatar.test.ts 的既有 mock。
@@ -15,11 +18,6 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import ClusterActionDialog from '../ClusterActionDialog.vue'
-// 原始源码文本(Vite `?raw`),仅用于文末「hover 态背景不被基类规则夺走」一组测试——
-// jsdom 既不做级联样式计算也无法进入真实 hover 态,只能解析 <style> 原文自行按
-// CSS 优先级判胜负(同 PersonAssetGrid.test.ts:210-243 的既有先例)。
-import clusterActionDialogRaw from '../ClusterActionDialog.vue?raw'
-import { extractStyleBlock, ownBackground, winningHoverBackground } from './cssCascade'
 import type { Person } from '../../util/peopleView'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
@@ -164,6 +162,96 @@ describe('ClusterActionDialog.vue — 命名', () => {
     const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
     await w.vm.$nextTick()
     expect(document.activeElement).toBe(w.get('[data-test="cad-name-input"]').element)
+  })
+})
+
+// Task 7 (Plan D): naming with an already-existing name switches to the dupconfirm substate,
+// with three actions (Merge into existing / Name anyway / Cancel), instead of directly emitting
+// submit-name.
+describe('ClusterActionDialog.vue — 命名:重名 dupconfirm', () => {
+  const ADA = person({ id: 42, name: 'Ada', count: 30 })
+
+  it('输入已存在姓名(大小写/空白不敏感)并保存 → 出现 dupconfirm,不 emit submit-name', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('  ada ')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+    expect(w.emitted('submit-name')).toBeUndefined()
+    // The regular input/action row is replaced, not stacked alongside it.
+    expect(w.find('[data-test="cad-name-input"]').exists()).toBe(false)
+    expect(w.find('[data-test="cad-save-name"]').exists()).toBe(false)
+  })
+
+  it('回车提交重名同样切到 dupconfirm(不只是点按钮才生效)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    const input = w.get('[data-test="cad-name-input"]')
+    await input.setValue('Ada')
+    await input.trigger('keydown', { key: 'Enter' })
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+  })
+
+  it('头部标题换成"已存在同名人物",头像/副标题不变', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person({ count: 9, confidence: 0.87 }), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-title"]').text()).toContain('Ada')
+    expect(w.find('[data-test="cad-subtitle"]').text()).toContain('9')
+    expect(w.find('[data-test="cad-subtitle"]').text()).toContain('87%')
+  })
+
+  it('不重名的名字 → 直接 emit submit-name,不出现 dupconfirm', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Nobody')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.emitted('submit-name')).toEqual([['Nobody']])
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Merge into existing" → emit submit-merge 带既有人物 id', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-merge"]').trigger('click')
+    expect(w.emitted('submit-merge')).toEqual([[42]])
+    expect(w.emitted('submit-name')).toBeUndefined()
+  })
+
+  it('"Name anyway" → emit submit-name 带原始输入的名字(trim 后)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('  ada ')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-name-anyway"]').trigger('click')
+    expect(w.emitted('submit-name')).toEqual([['ada']])
+    expect(w.emitted('submit-merge')).toBeUndefined()
+  })
+
+  it('"Cancel" → 整个弹窗关闭(emit update:open false),不是退回普通命名态', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    await w.get('[data-test="cad-dup-cancel"]').trigger('click')
+    expect(w.emitted('update:open')).toEqual([[false]])
+  })
+
+  it('重新打开弹窗时 dupconfirm 状态被清空(不会带着上一次的子状态重新出现)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [ADA] })
+    await w.vm.$nextTick()
+    await w.get('[data-test="cad-name-input"]').setValue('Ada')
+    await w.get('[data-test="cad-save-name"]').trigger('click')
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(true)
+
+    await w.setProps({ open: false })
+    await w.setProps({ open: true })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="cad-dupconfirm"]').exists()).toBe(false)
+    expect(w.find('[data-test="cad-name-input"]').exists()).toBe(true)
   })
 })
 
@@ -331,45 +419,89 @@ describe('ClusterActionDialog.vue — 关闭交互', () => {
   })
 })
 
-// ── hover 态背景不被基类规则夺走(真机验收发现:删除确认按钮 hover 后整颗变白)──
+// ── Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover
+// state's background doesn't get stolen by the base class's rule", reading the component's own
+// <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
+// calculator, which background declaration actually wins on hover. This task deleted the
+// component's entire <style scoped> block (the class names are unchanged, but styling authority
+// has moved to the .cad-* parity rules in src/photos/styles/vue2-parity/photos-people.scss — see
+// the component's own script-header comment), so the source read in via `?raw` no longer has a
+// <style> block to extract, and that test group's precondition no longer holds — deleted along
+// with it. All that's pinned down here is one thing: the component's root class name is unaffected.
 //
-// 缺陷机理:两个变体键(`.cad-btn-danger` / `.cad-btn-primary`)与基类 `.cad-btn`
-// 同时挂在一个 <button> 上。基类的 `.cad-btn:hover` 带一个伪类,优先级 (0,2,0);
-// 变体规则只有一个类,优先级 (0,1,0)。CSS 优先级高者胜、与书写顺序无关,所以指针
-// 一进按钮,变体的实底/渐变背景就被基类的 `var(--chip-bg-hi)`(浅色主题 #f2efe7 米白、
-// 深色主题近白半透明渐变)整块替换,而文字色 `#fff` / `var(--on-accent)` 仍由变体规则
-// 提供 —— 白底白字,按钮和文案一起消失。
+// Fix round 1 (final-review Important): the old comment above used to also say "once scoped is
+// entirely zeroed out this can't recur, parity's own internal declaration order is correct as
+// is" — **that sentence was wrong, and has been deleted.** The CSS cascade decides a winner per
+// property, not per rule as a whole: `.cad-btn:hover { background: var(--surface-3); ... }` and
+// `.cad-btn-danger:hover { filter: brightness(1.08); }` (before the fix) tie in specificity
+// (0,2,0) — even though parity's own `.cad-btn-danger:hover` is written after `.cad-btn:hover` in
+// the file, as long as it doesn't re-declare background itself, that property has no competing
+// declaration from the variant rule at all, so `.cad-btn:hover`'s background still wins — the
+// scoped version's bug reappeared wearing a different face, reproduced as-is inside parity (the
+// delete-confirm button data-test="cad-confirm-delete" turned gray on hover instead of red). What
+// actually prevents this from recurring isn't "delete the local scoped block" by itself, it's
+// "every variant's hover rule must re-declare background itself" — the test group below reads the
+// parity file directly and asserts against that requirement rule-by-rule, no longer depending on
+// whether the component's local scoped block has been deleted.
+describe('ClusterActionDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
+  it('挂载后 [data-test="cad-overlay"] 仍然带着 cad-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', async () => {
+    const w = mountDialog({ open: true, mode: 'name', person: person(), candidates: [] })
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="cad-overlay"]').classes()).toContain('cad-overlay')
+    expect(w.find('[data-test="cad-panel"]').classes()).toContain('cad-panel')
+  })
+})
+
+// ── Plan D Task 4, fix round 1 (final-review Important): the delete-confirm button hover
+// regression guard ──────────
 //
-// 这组测试不断言"修复长什么样",而是按 CSS 优先级算出 hover 态下真正生效的那条
-// background 声明(辅助函数见 ./cssCascade.ts),再断言它属于变体规则 —— 任何把变体
-// 背景重新盖回去的写法都能通过,但把 hover 背景还给基类就会红。详情页
-// PhotosPersonDetail.vue:1142/1151 早已是正确写法(变体自带 :hover 背景)。
+// jsdom neither computes the CSS cascade nor can enter a real hover state, and the real source of
+// styling now lives outside this component file entirely (the whole <style scoped> block is
+// deleted, all the class-name rules moved into photos-people.scss), so this test group reads the
+// parity file's own raw text via node:fs and pulls the rule body by selector (the same read-off-
+// disk approach already established by AppToast.zIndex.test.ts), rather than going through
+// ./cssCascade's older approach of "extract <style> from the component via ?raw, then compute
+// priority". The selectors here are all simple top-level class/pseudo-class combinations with no
+// nesting, so a one-shot regex pulling the rule body by "selector name { brace contents }" is
+// already precise enough — no need to bring in a full CSS parser.
+const PARITY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../styles/vue2-parity/photos-people.scss',
+)
+const parityCss = readFileSync(PARITY_PATH, 'utf8')
 
-describe('ClusterActionDialog.vue — hover 态下变体按钮的背景不被 .cad-btn:hover 夺走', () => {
-  const styleText = extractStyleBlock(clusterActionDialogRaw)
+/** Precisely pulls one rule's brace contents by selector name (safe enough for simple button
+ *  rules with no nested braces). */
+function parityRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
+  if (!m) throw new Error(`Rule not found in parity file: ${selector}`)
+  return m[1]
+}
 
-  it('删除键 hover 时生效的 background 仍是危险红渐变,不是 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger'])
-    expect(win.value).toContain('--remove-')
-    expect(win.value).not.toContain('--chip-bg-hi')
+function backgroundOf(body: string): string | null {
+  const m = /background\s*:\s*([^;]+)/.exec(body)
+  return m ? m[1].trim() : null
+}
+
+describe('ClusterActionDialog.vue — Plan D Task 4 fix round 1:parity 里变体按钮 hover 背景不被 .cad-btn:hover 夺走', () => {
+  it('.cad-btn-danger:hover 必须自己重申 background(否则被基类 .cad-btn:hover 的 var(--surface-3) 顶掉,回归本轮修的那个 bug)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
+    const dangerHoverBg = backgroundOf(parityRuleBody('.cad-btn-danger:hover'))
+    const dangerBaseBg = backgroundOf(parityRuleBody('.cad-btn-danger'))
+    expect(baseBg).toBe('var(--surface-3)')
+    expect(dangerHoverBg, '.cad-btn-danger:hover 缺少 background 声明——按 CSS 级联规则,基类 .cad-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
+    // The value must match its own resting state (Vue2 uses an inline style, so the background
+    // never actually changes on hover — see the component's own fix round 1 comment); it can't
+    // just be "non-null, whatever it is".
+    expect(dangerHoverBg).toBe(dangerBaseBg)
+    expect(dangerHoverBg).not.toBe(baseBg)
   })
 
-  it('主行动键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-primary'])
-    expect(win.value).toContain('--accent')
-    expect(win.value).not.toContain('--chip-bg-hi')
-  })
-
-  // 删除键的 hover 背景是把基础声明的渐变逐字重复了一遍(不引入本地别名变量,见组件里的
-  // 注释)。这条断言钉住两处不许漂移:改了基础渐变却忘了改 hover,会红。
-  it('删除键 hover 背景与其基础背景逐字相同(防两处漂移)', () => {
-    const base = ownBackground(styleText, '.cad-btn-danger')
-    const hover = winningHoverBackground(styleText, ['cad-btn', 'cad-btn-danger']).value
-    expect(hover).toBe(base)
-  })
-
-  it('取消键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['cad-btn'])
-    expect(win.value).toContain('--chip-bg-hi')
+  it('.cad-btn-primary:hover 已经正确重申 background(回归防线——本轮顺带核实过,未受影响,别在后续改动里砍掉)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.cad-btn:hover'))
+    const primaryHoverBg = backgroundOf(parityRuleBody('.cad-btn-primary:hover'))
+    expect(primaryHoverBg).not.toBeNull()
+    expect(primaryHoverBg).not.toBe(baseBg)
   })
 })

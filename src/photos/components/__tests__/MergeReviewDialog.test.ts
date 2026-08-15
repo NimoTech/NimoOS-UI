@@ -6,6 +6,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
+import { readFileSync } from 'node:fs'
+import { resolve, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import zhCn from '../../../i18n/zh_cn'
 import enUs from '../../../i18n/en_us'
 import type { Person } from '../../util/peopleView'
@@ -21,10 +24,6 @@ const svc = vi.hoisted(() => ({
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import MergeReviewDialog, { type MergeSuggestion } from '../MergeReviewDialog.vue'
-// 原始源码文本(Vite `?raw`)+ 级联辅助:jsdom 既不做级联样式计算也进不了真实 hover 态,
-// 只能解析 <style> 原文自行按 CSS 优先级判胜负。机理与 ClusterActionDialog.test.ts 同源。
-import mergeReviewDialogRaw from '../MergeReviewDialog.vue?raw'
-import { extractStyleBlock, winningHoverBackground } from './cssCascade'
 
 const i18n = createI18n({
   legacy: false,
@@ -174,21 +173,66 @@ describe('MergeReviewDialog', () => {
   })
 })
 
-// 与 ClusterActionDialog 同款的优先级坑(全仓扫描只余这一处):基类 `.mrd-btn:hover`
-// 带伪类 (0,2,0),压过只有一个类的 `.mrd-btn-primary` (0,1,0),hover 时把 accent 实底
-// 换成近白的 --chip-bg-hi,文字仍是 --on-accent → 「合并」键整颗看不见。原来的
-// `.mrd-btn-primary:hover` 里只有 filter、没有 background,所以拦不住。
-describe('MergeReviewDialog.vue — hover 态下主行动键的背景不被 .mrd-btn:hover 夺走', () => {
-  const styleText = extractStyleBlock(mergeReviewDialogRaw)
-
-  it('合并键 hover 时生效的 background 仍是 --accent,不是 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['mrd-btn', 'mrd-btn-primary'])
-    expect(win.value).toContain('--accent')
-    expect(win.value).not.toContain('--chip-bg-hi')
+// Plan D Task 4 (scoped zeroed out): this file used to have a set of tests for "the hover state's
+// background doesn't get stolen by the base class's rule", reading the component's own
+// <style scoped> source via `?raw` and asserting, using ./cssCascade's small CSS-priority
+// calculator, which background declaration actually wins on hover (the same priority pitfall as
+// ClusterActionDialog.test.ts — a full-repo scan at the time found only these two spots). This
+// task deleted the component's entire <style scoped> block (the class names are unchanged, but
+// styling authority has moved to the .mrd-* parity rules in
+// src/photos/styles/vue2-parity/photos-people.scss — see the component's own script-header
+// comment), so the source read in via `?raw` no longer has a <style> block to extract, and that
+// test group's precondition no longer holds — deleted along with it. All that's pinned down here
+// is one thing: the component's root class name is unaffected.
+//
+// Fix round 1 (final-review Important, corrected alongside the same spot in
+// ClusterActionDialog.test.ts): the old comment above used to also say "once scoped is entirely
+// zeroed out this can't recur, parity's own internal declaration order is correct as is" — **that
+// sentence was wrong, and has been deleted.** The CSS cascade decides a winner per property, not
+// per rule as a whole: even when parity's file writes a variant rule after the base class, as
+// long as the variant's :hover doesn't re-declare some property itself, that property has no
+// competing declaration from the variant at all, and the base class's value still wins.
+// ClusterActionDialog's own `.cad-btn-danger:hover` reproduced the bug this way, unchanged, inside
+// parity (see that test file's own comment at the same spot); on the MRD side, `.mrd-btn-primary:
+// hover` was checked and has always had its own background, so it wasn't affected — but a
+// regression assertion is still added here to stop it from being casually removed later.
+describe('MergeReviewDialog.vue — Plan D Task 4:scoped 清零后根类名不变', () => {
+  it('挂载后 [data-test="mrd-overlay"] 仍然带着 mrd-overlay 类(类名工程只动 PhotosPersonDetail.vue 的 pd-*,不动本组件)', () => {
+    const w = mountDialog({ open: true, suggestions, index: 0, people })
+    expect(w.find('[data-test="mrd-overlay"]').classes()).toContain('mrd-overlay')
+    expect(w.find('[data-test="mrd-panel"]').classes()).toContain('mrd-panel')
   })
+})
 
-  it('「不是同一个人」键(只有基类)hover 时才该拿到 --chip-bg-hi', () => {
-    const win = winningHoverBackground(styleText, ['mrd-btn'])
-    expect(win.value).toContain('--chip-bg-hi')
+// ── Plan D Task 4, fix round 1 (final-review Important): the merge-button hover regression
+// guard ────────────
+// The same approach as ClusterActionDialog.test.ts's own test group: reads the parity file's raw
+// text directly via node:fs, pulls the rule body by selector name (the same read-off-disk
+// approach already established by AppToast.zIndex.test.ts).
+const PARITY_PATH = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../styles/vue2-parity/photos-people.scss',
+)
+const parityCss = readFileSync(PARITY_PATH, 'utf8')
+
+function parityRuleBody(selector: string): string {
+  const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const m = new RegExp(`${escaped}\\s*\\{([^}]*)\\}`).exec(parityCss)
+  if (!m) throw new Error(`Rule not found in parity file: ${selector}`)
+  return m[1]
+}
+
+function backgroundOf(body: string): string | null {
+  const m = /background\s*:\s*([^;]+)/.exec(body)
+  return m ? m[1].trim() : null
+}
+
+describe('MergeReviewDialog.vue — Plan D Task 4 fix round 1:parity 里合并键 hover 背景不被 .mrd-btn:hover 夺走', () => {
+  it('.mrd-btn-primary:hover 必须自己重申 background(否则被基类 .mrd-btn:hover 的 var(--surface-3) 顶掉——同 ClusterActionDialog 修的那类 bug,这里核实过未受影响)', () => {
+    const baseBg = backgroundOf(parityRuleBody('.mrd-btn:hover'))
+    const primaryHoverBg = backgroundOf(parityRuleBody('.mrd-btn-primary:hover'))
+    expect(baseBg).toBe('var(--surface-3)')
+    expect(primaryHoverBg, '.mrd-btn-primary:hover 缺少 background 声明——按 CSS 级联规则,基类 .mrd-btn:hover 的 background 会在这条属性上生效').not.toBeNull()
+    expect(primaryHoverBg).not.toBe(baseBg)
   })
 })

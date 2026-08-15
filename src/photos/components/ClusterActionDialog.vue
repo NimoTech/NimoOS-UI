@@ -30,10 +30,24 @@
 // photosPersonDeleteClusterTitle(en 逐字 'Delete face cluster';zh 不照抄 zh_CN.json
 // 的"删除面部集群"——"集群"触犯本期术语红线,改"删除这组人脸"),警示条恢复
 // "标题行 + <br/> + 灰色小字正文" 的两行结构,三句各自归位。
+//
+// Plan D Task 4 (scoped zeroed out): this component's class names are unchanged (Task 1 already
+// landed them in parity under the current .cad-* names — Vue2's entire dialog is built from
+// :style bindings, so there's no class to anchor to). The whole local scoped style block that
+// used to live at the end of this file has been deleted: every rule now has a matching,
+// line-by-line-compared counterpart in src/photos/styles/vue2-parity/photos-people.scss (the two
+// genuine gaps filled in during the diff — .cad-input:focus, .mrd-side's avatar square
+// constraint — and the two local drifts from Vue2 corrected along the way — .cad-overlay's
+// padding, .cad-btn-primary:disabled's visual — are all documented in those parity rules' own
+// comments). Parity is a plain global stylesheet, and once this component carries no local
+// scoped rules at all, nothing can out-specificity parity's own declaration order anymore — the
+// hover-fix comments that used to be here (":hover losing its background to the base class's
+// hover") existed precisely because a local scoped rule carries its own specificity bump; once
+// scoped is entirely zeroed out, that precondition no longer holds and can't recur.
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PersonAvatar from './PersonAvatar.vue'
-import { mergeConfidencePct, type Person } from '../util/peopleView'
+import { findNamedDuplicate, mergeConfidencePct, type Person } from '../util/peopleView'
 
 type DialogMode = 'name' | 'merge' | 'delete'
 
@@ -56,6 +70,13 @@ const nameInput = ref('')
 const mergeQuery = ref('')
 const nameInputRef = ref<HTMLInputElement | null>(null)
 const mergeInputRef = ref<HTMLInputElement | null>(null)
+// Task 7 (Plan D, duplicate-name dupconfirm): when non-null, the mode='name' template switches
+// to the dupconfirm substate (mirroring Vue2's PhotosPeopleView.vue confirmName() :774-785, which
+// switches clusterDialog.mode wholesale to 'dupconfirm' — here it's only a substate, not a new
+// top-level mode, because the open/mode props are owned by the host; this component only
+// switches views inside its own private ref).
+const dupConfirm = ref<{ name: string; existing: Person } | null>(null)
+const dupConfirmRef = ref<HTMLElement | null>(null)
 
 // 铁律:按 id 比较一律 String() 归一。
 function sameId(a: string | number, b: string | number): boolean {
@@ -68,6 +89,19 @@ const titleKey = computed(() => {
   // 评审必修 1:delete 模式的头部标题槶位对应 Vue2 :262 $t('Delete face cluster'),
   // 与警示条内部自己的标题行(photosPersonDeleteTitle,:341)是两句不同文案,不能共用键。
   return 'photosPersonDeleteClusterTitle'
+})
+
+// Task 7 (Plan D, duplicate-name dupconfirm): when dupConfirm is non-null (the mode==='name'
+// substate), the header title slot switches to the "a person with this name already exists"
+// interpolated copy (mirroring Vue2 PhotosPeopleView.vue:317
+// `$t('A person named "{name}" already exists.', { name: clusterDialog.pendingName })`); the
+// avatar/subtitle (subtitleText) stay unchanged — they describe this naming action's original
+// person cluster, and don't switch with the substate.
+const headTitle = computed(() => {
+  if (props.mode === 'name' && dupConfirm.value) {
+    return t('photosPersonDupExistsTitle', { name: dupConfirm.value.name })
+  }
+  return t(titleKey.value)
 })
 
 const subtitleText = computed(() => {
@@ -117,6 +151,7 @@ watch(
     if (isOpen) {
       nameInput.value = ''
       mergeQuery.value = ''
+      dupConfirm.value = null
       document.addEventListener('keydown', onDocumentKeydown)
       // 照 Vue2 openNameDialog/openMergeDialog :624-637 的 $nextTick + focus(+select,brief
       // 明确要求;输入框此刻为空,select() 是无操作但保留以照 brief 字面描述)。
@@ -136,10 +171,33 @@ watch(
 )
 onUnmounted(() => document.removeEventListener('keydown', onDocumentKeydown))
 
+// Task 7: wires up duplicate-name detection (mirroring Vue2's confirmName :774-785 —
+// findNamedDuplicate(peopleNamed, name) switches mode to 'dupconfirm' and focuses that box on a
+// hit, only calling the real applyName otherwise). `candidates` is already the host-supplied full
+// people.named list (the same one the merge mode reuses); the naming scenario doesn't need
+// excludeId — this mode only ever triggers from an unnamed cluster, and the cluster itself isn't
+// in candidates (the full named-people list), so it can't be misjudged as a duplicate of itself.
 function submitName(): void {
   const name = nameInput.value.trim()
   if (!name) return
+  const dup = findNamedDuplicate(props.candidates, name)
+  if (dup) {
+    dupConfirm.value = { name, existing: dup }
+    // Mirroring Vue2's focusDlg() semantics of "focus the box itself in the dupconfirm substate" (:740-743).
+    void nextTick(() => dupConfirmRef.value?.focus())
+    return
+  }
   emit('submit-name', name)
+}
+// "Name anyway" (mirroring Vue2 dupNameAnyway :791-796): ignore the duplicate, submit this name regardless.
+function dupNameAnyway(): void {
+  if (!dupConfirm.value) return
+  emit('submit-name', dupConfirm.value.name)
+}
+// "Merge into existing" (mirroring Vue2 dupMergeInto :797-802): redirects into merging with that already-existing person.
+function dupMergeInto(): void {
+  if (!dupConfirm.value) return
+  emit('submit-merge', dupConfirm.value.existing.id)
 }
 function pickCandidate(p: Person): void {
   emit('submit-merge', p.id)
@@ -157,42 +215,61 @@ function submitDelete(): void {
           <PersonAvatar :person-id="person?.id ?? null" :name="person?.name" :ver="person?.coverFaceId ?? null" :size="44" />
         </div>
         <div class="cad-head-text">
-          <div class="cad-title" data-test="cad-title">{{ t(titleKey) }}</div>
+          <div class="cad-title" data-test="cad-title">{{ headTitle }}</div>
           <div class="cad-subtitle" data-test="cad-subtitle">{{ subtitleText }}</div>
         </div>
         <button type="button" class="cad-close" data-test="cad-close" :aria-label="t('photosClose')" @click="close">×</button>
       </div>
 
       <template v-if="mode === 'name'">
-        <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
-        <input
-          ref="nameInputRef"
-          v-model="nameInput"
-          type="text"
-          class="cad-input"
-          data-test="cad-name-input"
-          :placeholder="t('photosPersonNamePlaceholder')"
-          @keydown.enter="submitName"
-        >
-        <div class="cad-hint" data-test="cad-name-hint">
-          {{ t('photosPersonNameHint', { n: person?.count ?? 0 }) }}
-        </div>
-        <div class="cad-actions">
-          <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
-          <button
-            type="button"
-            class="cad-btn cad-btn-primary"
-            data-test="cad-save-name"
-            :disabled="!canSaveName"
-            @click="submitName"
+        <!-- Task 7: the duplicate-name dupconfirm substate — mirroring Vue2
+             PhotosPeopleView.vue:396-419, replaces the input/hint/regular action row with three
+             actions. The header (avatar/subtitle) is unchanged; only this block's content switches. -->
+        <template v-if="!dupConfirm">
+          <label class="cad-label" data-test="cad-name-label">{{ t('photosPersonNameLabel') }}</label>
+          <input
+            ref="nameInputRef"
+            v-model="nameInput"
+            type="text"
+            class="cad-input"
+            data-test="cad-name-input"
+            :placeholder="t('photosPersonNamePlaceholder')"
+            @keydown.enter="submitName"
           >
-            <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
-                 原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
-                 三兄弟只有它是纯文字 —— 内部不自洽。 -->
-            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
-            {{ t('photosPersonSaveName') }}
-          </button>
-        </div>
+          <div class="cad-hint" data-test="cad-name-hint">
+            {{ t('photosPersonNameHint', { n: person?.count ?? 0 }) }}
+          </div>
+          <div class="cad-actions">
+            <button type="button" class="cad-btn" data-test="cad-cancel" @click="close">{{ t('photosCancel') }}</button>
+            <button
+              type="button"
+              class="cad-btn cad-btn-primary"
+              data-test="cad-save-name"
+              :disabled="!canSaveName"
+              @click="submitName"
+            >
+              <!-- 终审 Minor 1:Vue2 PhotosPeopleView.vue:293 钮内有 check 图标(size 13),
+                   原实现漏了。同文件同一排的删除键(:235)与 MergeReviewDialog 的 accept 都有,
+                   三兄弟只有它是纯文字 —— 内部不自洽。 -->
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+              {{ t('photosPersonSaveName') }}
+            </button>
+          </div>
+        </template>
+        <template v-else>
+          <div ref="dupConfirmRef" class="cad-dupconfirm" data-test="cad-dupconfirm" tabindex="-1">
+            <button type="button" class="cad-dup-primary" data-test="cad-dup-merge" @click="dupMergeInto">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+              {{ t('photosPersonDupMergeInto') }}
+            </button>
+            <button type="button" class="cad-dup-secondary" data-test="cad-dup-name-anyway" @click="dupNameAnyway">
+              {{ t('photosPersonDupNameAnyway') }}
+            </button>
+            <button type="button" class="cad-dup-cancel" data-test="cad-dup-cancel" @click="close">
+              {{ t('photosCancel') }}
+            </button>
+          </div>
+        </template>
       </template>
 
       <template v-else-if="mode === 'merge'">
@@ -253,130 +330,3 @@ function submitDelete(): void {
     </div>
   </div>
 </template>
-
-<style scoped>
-.cad-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 220;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 24px;
-}
-
-/* P2 血泪(brief 明确点名):面板底色须用 --popup-bg,不用 --card-bg(深色主题下
-   --card-bg 近透明,叠在暗底上会看穿)。 */
-.cad-panel {
-  width: 440px;
-  max-width: 100%;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 22px;
-  box-shadow: var(--card-shadow-hi);
-}
-
-.cad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
-/* Vue2 :246-247 的头像外圈装饰环:48px border-box 容器 + 2px 描边,内容区实际 44px——
-   PersonAvatar 按 size=44 传,这里只负责外圈几何,不改组件契约。 */
-.cad-avatar-ring {
-  width: 48px; height: 48px; box-sizing: border-box; flex: 0 0 auto;
-  border-radius: 50%; border: 2px solid var(--accent-soft); overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-}
-.cad-head-text { flex: 1 1 auto; min-width: 0; }
-.cad-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.cad-subtitle { font-size: 11.5px; color: var(--fg-muted); margin-top: 2px; }
-.cad-close {
-  flex: 0 0 auto;
-  width: 24px; height: 24px; border-radius: 50%; border: 0; background: transparent;
-  color: var(--fg-muted); font-size: 15px; line-height: 1; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.cad-close:hover { background: var(--hover); color: var(--fg); }
-
-.cad-input {
-  width: 100%; height: 36px; padding: 0 12px; margin-bottom: 12px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 13px; outline: none;
-}
-.cad-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-.cad-label { display: block; font-size: 11.5px; color: var(--fg-muted); margin-bottom: 6px; }
-
-.cad-hint { font-size: 11px; color: var(--fg-muted); line-height: 1.5; padding: 8px 0 16px; }
-
-.cad-actions { display: flex; gap: 10px; padding-top: 6px; border-top: 1px solid var(--divider); }
-.cad-btn {
-  flex: 1; height: 38px; border-radius: 10px; background: var(--chip-bg);
-  border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px;
-  font-weight: 500; cursor: pointer;
-}
-.cad-btn:hover { background: var(--chip-bg-hi); }
-.cad-btn-primary {
-  flex: 1.4; background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600;
-  /* 终审 Minor 1:补 check 图标后需要 Vue2 :291-292 的 inline-flex 居中 + 6px gap
-     (与同文件 .cad-btn-danger 同款几何)。 */
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-}
-/* 真机验收修复:`.cad-btn:hover`(上一行,优先级 (0,2,0))会压过只有一个类的
-   `.cad-btn-primary`(0,1,0),hover 时把 accent 实底换成近白的 --chip-bg-hi,而文字
-   仍是 --on-accent → 白底白字整颗看不见。变体必须自带 :hover 背景把自己盖回来
-   (同详情页 PhotosPersonDetail.vue:1142 的既有正确写法)。
-   背景声明放在不带 :not(:disabled) 的规则里:disabled 态同样会被基类 hover 夺走背景,
-   两处都得护住;brightness 提亮仍只在可点时给(下一行保持原样)。 */
-.cad-btn-primary:hover { background: var(--accent); }
-.cad-btn-primary:hover:not(:disabled) { filter: brightness(1.08); }
-.cad-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-/* 照 Vue2 :351-357 的实底红填充(不是描边)——渐变复用 PhotosTrash.vue:446
-   `.trash-btn-cta.danger` 的既有惯例(--remove-fg → --remove-bg),不是新配色。 */
-.cad-btn-danger {
-  flex: 1.4; border: 0; font-weight: 600;
-  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
-  color: #fff; /* theme-exception: 危险渐变胶囊按钮文字,背景恒为危险红渐变
-    (--remove-fg/--remove-bg),两套主题下白字对比度都稳定——同 PhotosTrash.vue
-    .trash-btn-cta.danger 惯例,不用 --on-accent(它只在背景确为 var(--accent) 饱和
-    实底时才可读,这里背景不是 accent) */
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--remove-bg) 35%, transparent);
-}
-.cad-btn-danger svg { color: #fff; /* theme-exception: 同上,图标随按钮文字钉死白色 */ }
-/* 同上:hover 时必须把危险红渐变重新盖回来,否则被 `.cad-btn:hover` 的 --chip-bg-hi
-   顶掉、配上钉死的白字 → 按钮和文案一起消失(这就是真机验收报的那颗按钮)。
-   渐变与 .cad-btn-danger 的基础声明逐字相同,测试里有一条等值断言钉住两者不许漂移。 */
-.cad-btn-danger:hover {
-  background: linear-gradient(135deg, var(--remove-fg), var(--remove-bg));
-  filter: brightness(1.08);
-}
-
-.cad-candidates {
-  max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
-  margin-bottom: 14px;
-}
-.cad-candidate {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.cad-candidate:hover { background: var(--chip-bg-hi); }
-.cad-candidate-info { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.cad-candidate-name { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cad-candidate-count { font-size: 11px; color: var(--fg-muted); }
-/* 终审 Minor 2:行尾 chevR。Vue2 :322 给的是 --text-3,本仓该档对应 --fg-muted
-   (同上一行 .cad-candidate-count 的既有映射)。 */
-.cad-candidate-chev { flex: 0 0 auto; color: var(--fg-muted); }
-.cad-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12px; }
-
-/* 危险色调(Vue2 的删除警示条是半透明红,不是 --warn-* 那套琥珀色 —— 那套是"人脸识别
-   关闭"这类非破坏性提示用的语义,删除警示要用 --remove-fg 危险红族)。 */
-.cad-warning {
-  padding: 14px; background: color-mix(in srgb, var(--remove-fg) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--remove-fg) 25%, transparent); border-radius: 10px;
-  font-size: 12.5px; color: var(--fg); line-height: 1.55; margin-bottom: 16px;
-}
-/* Vue2 :342 的内层灰色小字正文(照 var(--text-3)/11.5px)。 */
-.cad-warning-body { color: var(--fg-muted); font-size: 11.5px; }
-</style>

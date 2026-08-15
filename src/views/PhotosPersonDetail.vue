@@ -91,9 +91,10 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import PersonHero from '../photos/components/PersonHero.vue'
 import PersonAssetGrid from '../photos/components/PersonAssetGrid.vue'
@@ -107,7 +108,7 @@ import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { useToast } from '../stores/toast'
-import { groupPlaces, type Person } from '../photos/util/peopleView'
+import { findNamedDuplicate, groupPlaces, type Person } from '../photos/util/peopleView'
 import { isConflict, isNotFound } from '../photos/util/httpErrors'
 import type { Photo } from '../photos/util/assetToPhoto'
 
@@ -115,6 +116,10 @@ type Tab = 'timeline' | 'places' | 'relations'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Plan D Task 3 (re-skin): the same shared composable as T2 (PhotosPeople.vue) / Plan C Task 2
+// (PhotosAlbums.vue) — the collapsed state is a singleton across every page in the Photos area,
+// not started fresh here.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const people = usePhotosPeople()
@@ -137,6 +142,14 @@ const selectionMode = computed(() => selectedIds.value.length > 0)
 const renameOpen = ref(false)
 const renameInput = ref('')
 const renameInputRef = ref<HTMLInputElement | null>(null)
+// Dialog 1b (Task 7, Plan D): the duplicate-name dupconfirm — Vue2's dupConfirmDialog
+// (PhotosPersonDetail.vue:293-314); a rename that collides with an existing person's name
+// switches over from dialog 1 (not a substate of dialog 1, a separate dialog — Vue2 itself has
+// two distinct data fields here, promptDialog/dupConfirmDialog, unlike the index page's
+// ClusterActionDialog which shares one mode state machine).
+const dupConfirmOpen = ref(false)
+const dupConfirmName = ref('')
+const dupConfirmExisting = ref<Person | null>(null)
 // 弹窗 2:建相册(+ 弹窗 7:没有照片可用的提示,照 Vue2 promptDialog 的 info 模式)
 const albumOpen = ref(false)
 const albumInput = ref('')
@@ -181,6 +194,14 @@ const allPhotos = computed<Photo[]>(() => detail.flatPhotos())
 // Vue2 :165-166,:241,:887 共用的兜底:名字为空时用"这个人"。
 const displayName = computed(() => detail.person.value?.name || t('photosPersonThisPerson'))
 
+// Plan D Task 3 (re-skin): PhotosTopbar's detail-state copy, matched verbatim against Vue2's
+// PhotosPeopleTopbar.vue:7-8/36 (`view === 'detail'` branch) — title = the person's name, with
+// empty-name falling back to $t('Unnamed person') (the same fallback key as PersonHero.vue:90's
+// heroTitle, not a second one); sub-line = the fixed copy "Person detail · faces & relations",
+// not varying with the named/unnamed count (that's the index state's own copy, owned by
+// T2/PhotosPeople.vue's topbarSub).
+const topbarTitle = computed(() => detail.person.value?.name || t('photosPersonUnnamedTitle'))
+
 // 合并候选(偏离登记 J):named 排除自身 → count 降序、同 count 按 name 升序(排序同 T7
 // ClusterActionDialog.vue:85-92)→ 搜索过滤 → **不截断**(照 Vue2 详情页 :515-520;
 // T7 那个弹窗才有 6/8 的截断)。
@@ -194,6 +215,9 @@ const mergeCandidates = computed(() => {
 // ── 弹窗开关 ────────────────────────────────────────────────────────────────
 function closeAllDialogs(): void {
   renameOpen.value = false
+  dupConfirmOpen.value = false
+  dupConfirmName.value = ''
+  dupConfirmExisting.value = null
   albumOpen.value = false
   noPhotosOpen.value = false
   detachOpen.value = false
@@ -326,24 +350,19 @@ async function onPickRelation(relation: string): Promise<void> {
   }
 }
 
-// 3) 改名(Vue2 :910-918 + 偏离登记 D)。
+// 3) Rename (Vue2 :910-918 + deviation D). applyRename is the actual submit — shared by both the
+// naming path and dupNameAnyway (mirroring how Vue2's confirmDialog rename branch :1031 and
+// nameAnywayDupConfirm :1009 share one applyRename helper function).
 // 守卫判断:失败路径**不关弹窗**(这是有意的),所以确认按钮在请求在途期间仍在 DOM 上且可点
 // —— 连点会发两次 PATCH,守卫有防护价值。
-async function confirmRename(): Promise<void> {
-  const p = detail.person.value
-  const v = renameInput.value.trim()
-  if (!p || renaming.value) return
-  // 照 Vue2 :911:空名或没改动 → 直接关,不发请求。
-  if (!v || v === p.name) {
-    closeRename()
-    return
-  }
+async function applyRename(name: string): Promise<void> {
+  if (renaming.value) return
   renaming.value = true
   const myId = personId.value                    // 身份守卫,见"身份守卫"小节
   try {
-    await people.renamePerson(myId, v)
+    await people.renamePerson(myId, name)
     // 已经切到别人页了:名字属于上一位人物,不写、也不动弹窗(弹窗早被 closeAllDialogs 关了)。
-    if (!detail.patchPerson({ name: v }, myId)) return
+    if (!detail.patchPerson({ name }, myId)) return
     closeRename()
   } catch {
     if (!detail.isCurrent(myId)) return
@@ -351,6 +370,56 @@ async function confirmRename(): Promise<void> {
   } finally {
     renaming.value = false
   }
+}
+
+// Task 7 (Plan D): wires up duplicate-name detection (mirroring Vue2's confirmDialog rename
+// branch :1022-1032 — findNamedDuplicate(allPeople, v, person.id) switches to dupConfirmDialog on
+// a hit, only calling the real applyRename otherwise). `people.people` is the counterpart of
+// Vue2's `allPeople` (state.people): the full person list (including unnamed), with excludeId set
+// to personId.value to exclude the current person — this lets a rename to a
+// case/whitespace-variant of the person's own current name go through without being misjudged as
+// a duplicate.
+async function confirmRename(): Promise<void> {
+  const p = detail.person.value
+  const v = renameInput.value.trim()
+  if (!p || renaming.value) return
+  // Per Vue2 :911: an empty name, or no change at all, just closes without a request.
+  if (!v || v === p.name) {
+    closeRename()
+    return
+  }
+  const dup = findNamedDuplicate(people.people, v, personId.value)
+  if (dup) {
+    closeRename()
+    dupConfirmName.value = v
+    dupConfirmExisting.value = dup
+    dupConfirmOpen.value = true
+    return
+  }
+  await applyRename(v)
+}
+
+function closeDupConfirm(): void {
+  dupConfirmOpen.value = false
+  dupConfirmName.value = ''
+  dupConfirmExisting.value = null
+}
+// "Name anyway" (Vue2 nameAnywayDupConfirm :1004-1010): rename using this name regardless.
+async function dupNameAnyway(): Promise<void> {
+  const name = dupConfirmName.value
+  closeDupConfirm()
+  await applyRename(name)
+}
+// "Merge into existing" (Vue2 mergeDupConfirm :1011-1017, via the shared
+// mergeCurrentPersonInto): redirects into merging with that already-existing person — reuses the
+// existing confirmMerge() submit path (the same success/failure toast, navigation, and in-flight
+// guard) instead of duplicating the merge logic.
+async function dupMergeIntoExisting(): Promise<void> {
+  const target = dupConfirmExisting.value
+  closeDupConfirm()
+  if (!target) return
+  mergeTarget.value = target
+  await confirmMerge()
 }
 
 // 4) 设为关键照片(Vue2 onSetKeyPhoto :642-662)。
@@ -495,6 +564,24 @@ async function confirmCreateAlbum(): Promise<void> {
   }
 }
 
+// 10) Hide person (Task 7, Plan D; Vue2 hideCurrentPerson :914-925). Executes immediately, no
+// confirmation dialog — non-destructive, can always be undone via unhide from the index page's
+// "Hidden people" section (same reasoning as the index page's onHideCluster comment). Doesn't
+// need its own in-flight guard: success navigates away from this detail page right away, and on
+// failure the button is still right where it was and can be clicked again — the double-click
+// window is extremely short and has no lasting side-effect downside (same class of judgment as
+// the established "no decorative guards" discipline from T7/T8).
+async function onHidePerson(): Promise<void> {
+  const p = detail.person.value
+  if (!p) return
+  const label = p.name.trim() ? `"${p.name.trim()}"` : t('photosPersonUnnamedLabel')
+  const ok = await people.hidePerson(personId.value)
+  if (ok) {
+    void router.push('/photos/people')
+    toast.show(t('photosPersonHiddenToast', { label }))
+  }
+}
+
 // ── 网格 / 灯箱 / 导航接线 ──────────────────────────────────────────────────
 // T11 已在组件内部做了 selectionMode 分支(选择态 → toggle-select,否则 → open),
 // 这里只接住两个 emit。
@@ -543,7 +630,7 @@ function goToPerson(id: string | number): void {
 
 // ── Esc(文件头"Esc 分层"说明)────────────────────────────────────────────────
 const anyDialogOpen = computed(() =>
-  renameOpen.value || albumOpen.value || noPhotosOpen.value || detachOpen.value
+  renameOpen.value || dupConfirmOpen.value || albumOpen.value || noPhotosOpen.value || detachOpen.value
   || deleteOpen.value || heroOpen.value || mergeOpen.value)
 
 function onDocumentKeydown(e: KeyboardEvent): void {
@@ -551,6 +638,7 @@ function onDocumentKeydown(e: KeyboardEvent): void {
   // 必须挡住,否则同一次 Esc 冒泡到 window 会把灯箱一起关掉(P4 终审抓到过)。
   e.stopPropagation()
   if (renameOpen.value) { closeRename(); return }
+  if (dupConfirmOpen.value) { closeDupConfirm(); return }
   if (albumOpen.value) { closeAlbum(); return }
   if (noPhotosOpen.value) { noPhotosOpen.value = false; return }
   if (detachOpen.value) { closeDetach(); return }
@@ -570,6 +658,13 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onDocumentKeydown)
 void detail.load(personId.value)
 // 合并弹窗的候选列表需要人物全量列表;这里只在还没加载过时补一次。
 if (!people.peopleLoaded) void people.fetchPeople()
+// Task 7 (Plan D): fills the deep-link gap Vue2's own mounted() :650-657 comment calls out — a
+// deep link like /photos?person=xyz can open the detail page directly without ever going through
+// PhotosPeopleView, so that page's eager fetchHiddenPeople never runs, hiddenPeopleSupported is
+// stuck at its stale default, and the Edit menu gets the "Hide person" item's visibility wrong.
+// Same store flag, idempotent, only fetched once if it hasn't been fetched yet (same guard style
+// as the fetchPeople line above, not Vue2's unconditional re-fetch on every mount).
+if (!people.hiddenPeopleLoaded) void people.fetchHiddenPeople()
 
 // 铁律 2:hash 路由同组件不重建。
 watch(() => route.params.id, (raw) => {
@@ -582,12 +677,32 @@ watch(() => route.params.id, (raw) => {
 </script>
 
 <template>
-  <!-- 未命名人物的 name 是空串 —— 用 `||` 而不是三元,否则顶栏标题会是空白(照 T12 的
-       displayName 同款兜底思路,但这里的兜底是区名而不是"这个人")。 -->
-  <AreaShell :title="detail.person.value?.name || t('photosPeople')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <!-- Plan D Task 3 (re-skin): the same established structure as T2 (PhotosPeople.vue) /
+       PhotosAlbums.vue:353-367 —
+       .photos-root[themeClass] > .app[data-collapsed] > PhotosSidebar + main.main >
+       PhotosTopbar + .photos-main. The four-state gate as a whole moved into .photos-main, so it
+       picks up parity's `.person-detail-fallback` / `.person-skeleton*` rules (anchored on
+       .photos-main). -->
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <!-- Fix round 1 (controller ruling on Deviation A, 2026-08-14): no `back` here —
+             Vue2 truth (PhotosPeopleTopbar.vue:6-9/36) is that the People detail topbar always
+             shows title+sub, never a back chevron; the back affordance lives in the hero
+             (Vue2 `.detail-hero .back`; here that's PersonHero's own `hero-back` button, wired
+             to `goToPeopleList` below via `@back`). PhotosTopbar's `back` prop is mutually
+             exclusive with title/sub in its own template (built for PhotosSearch.vue's
+             exit-search case) — passing it here would have hidden this page's title/sub
+             entirely, which is what Deviation A flagged. -->
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="topbarTitle"
+          :sub="t('photosPersonSubtitle')"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+       <div class="photos-main">
         <!-- 门控 ①:还在加载且还没有数据 → 骨架 -->
         <div v-if="detail.loading.value && !detail.person.value" class="person-skeleton" data-test="person-skeleton">
           <div class="person-skeleton-hero" />
@@ -599,23 +714,39 @@ watch(() => route.params.id, (raw) => {
 
         <!-- 门控 ②:加载失败(≠「没有这个人」)→ 错误文案 + 重试。协调者裁定 4:T9 的
              failed 标志就是为了让视图能区分这两种"person 为 null";Vue2 只 console.error,
-             两者在界面上完全一样。 -->
-        <div v-else-if="!detail.person.value && detail.failed.value" class="empty-state" data-test="person-load-failed">
-          <div class="empty-state-title">{{ t('photosPersonLoadFailed') }}</div>
-          <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
-               !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
-          <button
-            type="button" class="pd-btn" data-test="person-retry"
-            @click="retryLoad"
-          >{{ t('photosPersonRetry') }}</button>
+             两者在界面上完全一样。
+             Final review I1: re-anchored onto parity's own `.person-detail-fallback` /
+             `.fallback-body` / `.t` / `.d` / `.btn` selectors (photos-people.scss:1297-1308,
+             transcribed from Vue2's own fallback branch, PhotosPersonDetail.vue:461-476) instead
+             of this page's old local `.empty-state` family, so parity governs this state's visual
+             chrome directly. data-test anchors are unchanged. -->
+        <div v-else-if="!detail.person.value && detail.failed.value" class="person-detail-fallback" data-test="person-load-failed">
+          <div class="fallback-body">
+            <div class="t">{{ t('photosPersonLoadFailed') }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+                 patch added it alongside this title. -->
+            <div class="d">{{ t('photosPersonLoadFailedHint') }}</div>
+            <!-- 评审 Minor 3:原来这里有 :disabled="detail.loading.value" —— 门控前提本就是
+                 !loading,该绑定恒为 false,已删(理由见 retryLoad 注释)。 -->
+            <button
+              type="button" class="btn" data-test="person-retry"
+              @click="retryLoad"
+            >{{ t('photosPersonRetry') }}</button>
+          </div>
         </div>
 
-        <!-- 门控 ③:加载完了确实没有这个人 -->
-        <div v-else-if="!detail.person.value" class="empty-state" data-test="person-not-found">
-          <div class="empty-state-title">{{ t('photosPersonNotFound') }}</div>
-          <button type="button" class="pd-btn" data-test="person-not-found-back" @click="goToPeopleList">
-            {{ t('photosPersonBack') }}
-          </button>
+        <!-- 门控 ③:加载完了确实没有这个人。Final review I1: same re-anchor as the failed gate
+             above — see that gate's comment for the parity/Vue2 citations. -->
+        <div v-else-if="!detail.person.value" class="person-detail-fallback" data-test="person-not-found">
+          <div class="fallback-body">
+            <div class="t">{{ t('photosPersonNotFound') }}</div>
+            <!-- Task 6 (Plan D, PR 137 gap-close): description line was missing — Vue2's PR 137
+                 patch added it alongside this title. -->
+            <div class="d">{{ t('photosPersonNotFoundHint') }}</div>
+            <button type="button" class="btn" data-test="person-not-found-back" @click="goToPeopleList">
+              {{ t('photosPersonBack') }}
+            </button>
+          </div>
         </div>
 
         <!-- 门控 ④:正常内容 -->
@@ -624,10 +755,12 @@ watch(() => route.params.id, (raw) => {
             :person="detail.person.value"
             :relation-count="detail.relations.value.length"
             :places-count="detail.person.value.placesCount"
+            :hidden-people-supported="people.hiddenPeopleSupported"
             @back="goToPeopleList"
             @toggle-fav="onToggleFav"
             @rename="openRename"
             @merge="openMerge"
+            @hide="onHidePerson"
             @delete="openDelete"
             @pick-relation="onPickRelation"
             @make-album="openMakeAlbum"
@@ -677,7 +810,10 @@ watch(() => route.params.id, (raw) => {
                     <!-- 尺寸 72px:回 Vue2 photos-people.scss:701-703 核对得(偏离登记 L)-->
                     <PersonAvatar :person-id="r.personId" :name="r.name" :ver="r.coverFaceId" :size="72" />
                     <div class="name-row">
-                      <span class="nm">{{ r.name }}</span>
+                      <!-- Task 6 (Plan D, PR 137 gap-close): Vue2 PR 137 patch (PhotosPersonDetail.vue,
+                           info-tab co-appear card) added `r.name || $t('Unnamed person')` — this
+                           card was missing that fallback. -->
+                      <span class="nm">{{ r.name || t('photosPersonUnnamedTitle') }}</span>
                       <span class="ct">{{ r.count.toLocaleString() }}</span>
                     </div>
                   </div>
@@ -709,13 +845,18 @@ watch(() => route.params.id, (raw) => {
             />
           </div>
         </template>
+       </div>
       </main>
     </div>
-  </AreaShell>
 
-  <!-- 选择态浮动条(Vue2 :232-244)。放在 AreaShell 之外:position:fixed,避免被祖先的
-       transform/overflow 裁剪(同 PhotosPeople.vue:624 的既有先例)。 -->
-  <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
+    <!-- Plan D Task 3 (re-homing overlays): the selection-state floating bar (Vue2 :232-244),
+         the seven dialogs below it, and AlbumPickerDialog all move inside .photos-root together
+         (a sibling position to .app) — parity's `.photos-root .selection-bar` /
+         `.photos-root .person-dialog-scrim` selectors are descendant selectors that can't reach a
+         sibling node hung off the template root (the same reasoning as PhotosPeople.vue's own
+         Task 2 comment). position:fixed means moving them in here won't get clipped by .app's
+         overflow:hidden. -->
+    <div v-if="selectionMode && detail.person.value" class="selection-bar" data-test="person-selection-bar">
     <div class="selection-count">{{ t('photosSelectedCount', { count: selectedIds.length }) }}</div>
     <div class="selection-spacer" />
     <button
@@ -740,57 +881,86 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 1:改名(Vue2 :268-285 的 rename 模式)── -->
-  <div v-if="renameOpen" class="pd-scrim" data-test="person-rename-dialog" @click.self="closeRename">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="renameOpen" class="person-dialog-scrim" data-test="person-rename-dialog" @click.self="closeRename">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonRename') }}</div>
-          <div class="pd-sub">{{ t('photosPersonRenameHint') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonRename') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonRenameHint') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeRename">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeRename">×</button>
       </div>
-      <label class="pd-label">{{ t('photosPersonNameLabel') }}</label>
+      <label class="person-dialog-label">{{ t('photosPersonNameLabel') }}</label>
       <input
-        ref="renameInputRef" v-model="renameInput" class="pd-input" data-test="person-rename-input"
+        ref="renameInputRef" v-model="renameInput" class="person-dialog-input" data-test="person-rename-input"
         :placeholder="t('photosPersonNamePlaceholder')" @keydown.enter="confirmRename"
       >
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeRename">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeRename">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-rename-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-rename-confirm"
           :disabled="!renameInput.trim()" @click="confirmRename"
         >{{ t('photosPersonSaveName') }}</button>
       </div>
     </div>
   </div>
 
+  <!-- ── Dialog 1b (Task 7, Plan D): duplicate-name dupconfirm (Vue2 dupConfirmDialog
+       :293-314) — button order follows Vue2 literally: Name anyway (ghost) / Cancel (plain) /
+       Merge into existing (primary), which differs from the index page's ClusterActionDialog
+       order (merge/name-anyway/cancel); each follows its own Vue2 source rather than being forced
+       to match. No avatar (Vue2's own version of this dialog has no PersonAvatar at all, just a
+       title + close button). -->
+  <div v-if="dupConfirmOpen" class="person-dialog-scrim" data-test="person-rename-dupconfirm" @click.self="closeDupConfirm">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonDupExistsTitle', { name: dupConfirmName }) }}</div>
+        </div>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDupConfirm">×</button>
+      </div>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn person-dialog-btn-ghost" data-test="person-rename-dup-name-anyway" @click="dupNameAnyway">
+          {{ t('photosPersonDupNameAnyway') }}
+        </button>
+        <button type="button" class="person-dialog-btn" data-test="person-rename-dup-cancel" @click="closeDupConfirm">
+          {{ t('photosCancel') }}
+        </button>
+        <button type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-rename-dup-merge" @click="dupMergeIntoExisting">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.6L18.5 9.5 13.9 11.4 12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/></svg>
+          {{ t('photosPersonDupMergeInto') }}
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── 弹窗 2:建相册(Vue2 :268-285 的 album 模式)── -->
-  <div v-if="albumOpen" class="pd-scrim" data-test="person-album-dialog" @click.self="closeAlbum">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="albumOpen" class="person-dialog-scrim" data-test="person-album-dialog" @click.self="closeAlbum">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosAlbumCreateTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonAlbumHint', { n: albumIds.length }) }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosAlbumCreateTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonAlbumHint', { n: albumIds.length }) }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeAlbum">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeAlbum">×</button>
       </div>
-      <label class="pd-label">{{ t('photosAlbumNameLabel') }}</label>
+      <label class="person-dialog-label">{{ t('photosAlbumNameLabel') }}</label>
       <input
-        ref="albumInputRef" v-model="albumInput" class="pd-input" data-test="person-album-input"
+        ref="albumInputRef" v-model="albumInput" class="person-dialog-input" data-test="person-album-input"
         :placeholder="t('photosAlbumNamePlaceholder')" @keydown.enter="confirmCreateAlbum"
       >
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeAlbum">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeAlbum">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-album-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-album-confirm"
           :disabled="!albumInput.trim()" @click="confirmCreateAlbum"
         >{{ t('photosAlbumCreate') }}</button>
       </div>
@@ -798,51 +968,51 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 7(Vue2 promptDialog 的 info 模式 :845-851;brief 六个清单外的补齐)── -->
-  <div v-if="noPhotosOpen" class="pd-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="noPhotosOpen" class="person-dialog-scrim" data-test="person-no-photos-dialog" @click.self="noPhotosOpen = false">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonNoPhotosTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonNoPhotosAlbumHint') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonNoPhotosTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonNoPhotosAlbumHint') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="noPhotosOpen = false">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="noPhotosOpen = false">×</button>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="noPhotosOpen = false">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="noPhotosOpen = false">{{ t('photosCancel') }}</button>
       </div>
     </div>
   </div>
 
   <!-- ── 弹窗 3:移出确认(Vue2 :268-285 的 detach 模式)── -->
-  <div v-if="detachOpen" class="pd-scrim" data-test="person-detach-dialog" @click.self="closeDetach">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="detachOpen" class="person-dialog-scrim" data-test="person-detach-dialog" @click.self="closeDetach">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">
             {{ detachIds.length === 1
               ? t('photosPersonDetachTitleOne', { name: displayName })
               : t('photosPersonDetachTitleMany', { name: displayName, n: detachIds.length }) }}
           </div>
-          <div class="pd-sub">
+          <div class="person-dialog-sub">
             {{ detachIds.length === 1
               ? t('photosPersonDetachHintOne', { name: displayName })
               : t('photosPersonDetachHintMany', { name: displayName, n: detachIds.length }) }}
           </div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeDetach">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDetach">×</button>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeDetach">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeDetach">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-danger" data-test="person-detach-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-danger" data-test="person-detach-confirm"
           @click="confirmDetach"
         >{{ t('photosPersonDetachConfirm') }}</button>
       </div>
@@ -850,31 +1020,31 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 4:删除人物确认(Vue2 :290-323)── -->
-  <div v-if="deleteOpen" class="pd-scrim" data-test="person-delete-dialog" @click.self="closeDelete">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="deleteOpen" class="person-dialog-scrim" data-test="person-delete-dialog" @click.self="closeDelete">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
+        <div class="person-dialog-titles">
           <!-- 评审 Minor 4:原来错用了 photosPersonDeleteTitle(= "删除这个人物分组?",
                T7 警示条专用的另一句,ClusterActionDialog.vue:66 注释已声明不可共用)。
                Vue2 :304 是 "Delete person?",另开专属键。 -->
-          <div class="pd-title">{{ t('photosPersonDeletePersonTitle') }}</div>
+          <div class="person-dialog-title">{{ t('photosPersonDeletePersonTitle') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeDelete">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeDelete">×</button>
       </div>
       <!-- 评审 Minor 6:Vue2 :310-312 是两档灰 —— 正文(--text-2)+ 更淡的
            "You can undo within 5 seconds."(--text-3)。原实现合成了单色一条。 -->
-      <div class="pd-body">
+      <div class="person-dialog-body">
         {{ t('photosPersonDeleteKeptBody') }}
-        <span class="pd-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
+        <span class="person-dialog-body-dim">{{ t('photosPersonDeleteUndoHint') }}</span>
       </div>
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeDelete">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeDelete">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-danger" data-test="person-delete-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-danger" data-test="person-delete-confirm"
           @click="confirmDeletePerson"
         >
           <!-- 评审必修 2:Vue2 :319 钮内有 trash 图标(size 11),原实现漏了 -->
@@ -886,18 +1056,18 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 5:背景选择(宽弹窗,Vue2 :325-371)── -->
-  <div v-if="heroOpen" class="pd-scrim" data-test="person-hero-dialog" @click.self="closeHeroPicker">
-    <div class="pd-panel pd-panel-wide">
-      <div class="pd-head">
+  <div v-if="heroOpen" class="person-dialog-scrim" data-test="person-hero-dialog" @click.self="closeHeroPicker">
+    <div class="person-dialog person-dialog-wide">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonHeroTitle') }}</div>
-          <div class="pd-sub">{{ t('photosPersonHeroSub') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonHeroTitle') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonHeroSub') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeHeroPicker">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeHeroPicker">×</button>
       </div>
 
       <div class="hero-picker-grid">
@@ -910,7 +1080,7 @@ watch(() => route.params.id, (raw) => {
           <img :src="service.photos.thumbnailUrl(p.id, 'large')" alt="">
           <!-- 评审必修 2:Vue2 :352 角标是 play 图标 + 时长;同期 T11
                PersonAssetGrid.vue:118 的同一视觉元素已经渲染了 ▶,这里按同一手法补齐。 -->
-          <span v-if="p.isVideo" class="hero-picker-vid">
+          <span v-if="p.isVideo" class="tile-vid">
             <span class="vid-play">▶</span> {{ p.duration }}
           </span>
           <span v-if="String(heroSelectedId) === String(p.id)" class="hero-picker-check">
@@ -920,13 +1090,13 @@ watch(() => route.params.id, (raw) => {
         <div v-if="!allPhotos.length" class="hero-picker-empty">{{ t('photosPersonNoPhotos') }}</div>
       </div>
 
-      <div class="pd-actions">
-        <button type="button" class="pd-btn pd-btn-ghost" data-test="person-hero-use-key" @click="onUseKeyPhoto">
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn person-dialog-btn-ghost" data-test="person-hero-use-key" @click="onUseKeyPhoto">
           {{ t('photosPersonUseKeyPhoto') }}
         </button>
-        <button type="button" class="pd-btn" @click="closeHeroPicker">{{ t('photosCancel') }}</button>
+        <button type="button" class="person-dialog-btn" @click="closeHeroPicker">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-hero-save"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-hero-save"
           :disabled="heroSelectedId === null" @click="onSaveHero"
         >{{ t('photosPersonSaveHero') }}</button>
       </div>
@@ -934,51 +1104,51 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <!-- ── 弹窗 6:合并到他人(Vue2 :374-432)── -->
-  <div v-if="mergeOpen" class="pd-scrim" data-test="person-merge-dialog" @click.self="closeMerge">
-    <div class="pd-panel">
-      <div class="pd-head">
+  <div v-if="mergeOpen" class="person-dialog-scrim" data-test="person-merge-dialog" @click.self="closeMerge">
+    <div class="person-dialog">
+      <div class="person-dialog-head">
         <PersonAvatar
           :person-id="detail.person.value?.id ?? null" :name="detail.person.value?.name"
           :ver="detail.person.value?.coverFaceId ?? null" :size="48"
         />
-        <div class="pd-titles">
-          <div class="pd-title">{{ t('photosPersonMergeInto') }}</div>
-          <div class="pd-sub">{{ t('photosPersonMergeIntoSub') }}</div>
+        <div class="person-dialog-titles">
+          <div class="person-dialog-title">{{ t('photosPersonMergeInto') }}</div>
+          <div class="person-dialog-sub">{{ t('photosPersonMergeIntoSub') }}</div>
         </div>
-        <button type="button" class="pd-close" :aria-label="t('photosClose')" @click="closeMerge">×</button>
+        <button type="button" class="icon-btn" :aria-label="t('photosClose')" @click="closeMerge">×</button>
       </div>
 
       <input
-        v-model="mergeQuery" class="pd-input" data-test="person-merge-search"
+        v-model="mergeQuery" class="person-dialog-input" data-test="person-merge-search"
         :placeholder="t('photosPersonMergeSearch')"
       >
 
-      <div class="merge-list">
+      <div class="merge-candidates-list">
         <button
           v-for="p in mergeCandidates" :key="p.id"
-          type="button" class="merge-row" data-test="person-merge-candidate"
+          type="button" class="merge-candidate-row" data-test="person-merge-candidate"
           :data-person-id="String(p.id)"
           :data-selected="mergeTarget !== null && String(mergeTarget.id) === String(p.id)"
           @click="mergeTarget = p"
         >
           <PersonAvatar :person-id="p.id" :name="p.name" :ver="p.coverFaceId" :size="36" />
-          <span class="merge-info">
-            <span class="merge-name">{{ p.name }}</span>
-            <span class="merge-meta">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
+          <span class="merge-candidate-info">
+            <span class="merge-candidate-name">{{ p.name }}</span>
+            <span class="merge-candidate-meta">{{ t('photosPeoplePhotosCount', { n: p.count.toLocaleString() }) }}</span>
           </span>
           <svg
             v-if="mergeTarget !== null && String(mergeTarget.id) === String(p.id)"
-            class="merge-check" viewBox="0 0 24 24" width="13" height="13" fill="none"
+            class="merge-candidate-check" viewBox="0 0 24 24" width="13" height="13" fill="none"
             stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"
           ><path d="M5 13l4 4L19 7" /></svg>
         </button>
-        <div v-if="!mergeCandidates.length" class="merge-empty">{{ t('photosPersonNoMatch') }}</div>
+        <div v-if="!mergeCandidates.length" class="merge-candidates-empty">{{ t('photosPersonNoMatch') }}</div>
       </div>
 
-      <div class="pd-actions">
-        <button type="button" class="pd-btn" @click="closeMerge">{{ t('photosCancel') }}</button>
+      <div class="person-dialog-actions">
+        <button type="button" class="person-dialog-btn" @click="closeMerge">{{ t('photosCancel') }}</button>
         <button
-          type="button" class="pd-btn pd-btn-primary" data-test="person-merge-confirm"
+          type="button" class="person-dialog-btn person-dialog-btn-primary" data-test="person-merge-confirm"
           :disabled="mergeTarget === null" @click="confirmMerge"
         >
           <!-- 评审必修 2:Vue2 :427 选中目标后钮内有 sparkles 图标(size 13),未选中时不渲染
@@ -992,244 +1162,60 @@ watch(() => route.params.id, (raw) => {
     </div>
   </div>
 
+  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
+  </div>
+
+  <!-- Plan D Task 3 (following the established practice): PhotoLightbox stays a **sibling** of
+       .photos-root, not moved inside it — this is the standing rule until Plan F lands (the same
+       PhotoLightbox wiring precedent as PhotosAlbumDetail.vue / PhotosPeople.vue). The lightbox
+       is itself a fixed full-screen overlay; moving it inside .photos-root would get clipped by
+       `.app`'s overflow:hidden. It moves together with everything else once Plan F handles
+       lightbox positioning uniformly — not this task's call to make. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
-  <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Plan D Task 3 (re-skin) shadowing cleanup: the transitional `.sidebar` width pin and the
+   flex-row `.photos-layout` rule (Fix round 1's stopgap, back when this page's root only wore
+   `.photos-root` without its own `.app` grid) are both dead now — the real `.app` CSS Grid
+   this task gave the page supplies the sidebar's column width directly, same as
+   PhotosPeople.vue/PhotosAlbums.vue's own re-skin. `.photos-main` stays: no parity selector
+   exists by that name (it's this page's own scroll-region scaffolding), same as those two
+   pages' own local copy. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-.empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 10px; padding: 60px 20px; color: var(--fg-muted); text-align: center;
-}
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
+/* Final review C1/I1: every remnant family below that shared an anchor with parity but disagreed
+   on values (`.person-skeleton*`, `.detail-tabs`/`.detail-tab`, `.detail-body`,
+   `.detail-section*`, `.coappear-*`, the `.selection-bar` family, and the old `.empty-state`
+   fallback rules) has been deleted so parity — the Vue2 pixel truth —
+   (src/photos/styles/vue2-parity/photos-people.scss) governs those elements directly instead of
+   an equal-specificity coin flip decided by stylesheet load order. The fallback gates (loading
+   failed / not found) were also re-anchored onto parity's own `.person-detail-fallback` /
+   `.fallback-body` / `.t` / `.d` / `.btn` selectors (see the template's own comment), so the old
+   local `.empty-state`/`.empty-state-title` rules had no remaining consumer here and were
+   removed along with them. Only two kinds of rule survive below: genuine New-UI-only additions
+   with no parity counterpart at all, and the two dialog-shell survivors documented in their own
+   comments. */
 
-/* ── 骨架(New-UI 补:Vue2 person 为 null 时整个模板 v-if 掉,首帧是全白)── */
-.person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
-.person-skeleton-hero { height: 280px; border-radius: 20px; background: var(--skeleton-bg); }
-.person-skeleton-tabs { height: 42px; border-radius: 10px; background: var(--skeleton-bg); }
-.person-skeleton-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
-.person-skeleton-tile { aspect-ratio: 1; border-radius: 3px; background: var(--skeleton-bg); }
-
-/* ── Tabs(照 photos-people.scss:445-465;Vue2 的 --line/--text-3/--text-1 代以
-      --divider/--fg-muted/--fg)── */
-.detail-tabs {
-  flex: none; display: flex; gap: 4px; padding: 0 8px;
-  border-bottom: 1px solid var(--divider);
-}
-.detail-tab {
-  padding: 12px 14px 11px; font: inherit; font-size: 13px; font-weight: 500;
-  color: var(--fg-muted); background: transparent; border: 0;
-  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer;
-  display: inline-flex; align-items: center; gap: 6px;
-}
-.detail-tab:hover { color: var(--fg); }
-.detail-tab[data-active="true"] { color: var(--fg); border-bottom-color: var(--accent); }
-
-/* ── Body(照 photos-people.scss:467-472)── */
-.detail-body { flex: 1; min-height: 0; overflow-y: auto; padding: 24px 8px 80px; }
-
-/* ── 共现横条(照 photos-people.scss:685-722)── */
-.detail-section { margin-top: 8px; margin-bottom: 22px; }
-.detail-section-title {
-  font-family: var(--font); font-size: 16px; font-weight: 600; letter-spacing: -0.01em;
-  margin: 0 0 14px; display: flex; align-items: baseline; gap: 10px; color: var(--fg);
-}
-.detail-section-title .sub {
-  font-family: var(--font); font-size: 12px; font-weight: 400;
-  color: var(--fg-muted); letter-spacing: 0;
-}
-.coappear-strip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
-.coappear-strip::-webkit-scrollbar { height: 0; }
-.coappear-card {
-  flex: none; width: 96px; display: flex; flex-direction: column; align-items: center;
-  gap: 6px; padding: 8px 4px; border-radius: var(--radius-sm); cursor: pointer;
-}
-.coappear-card:hover { background: var(--hover); }
-.coappear-card .name-row { display: inline-flex; align-items: baseline; gap: 6px; max-width: 100%; }
-.coappear-card .nm {
-  font-size: 12px; font-weight: 500; max-width: 88px; color: var(--fg);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.coappear-card .ct { font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
-
-/* ── 选择态浮动条(照 Vue2 :1224-1276;--pop-bg → --popup-bg,--ink 混色 → --chip-bg)── */
-.selection-bar {
-  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 150;
-  display: flex; align-items: center; gap: 12px; padding: 10px 14px;
-  background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 14px; box-shadow: var(--card-shadow-hi);
-  backdrop-filter: var(--blur); min-width: 360px;
-}
-.selection-count { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
-.selection-spacer { flex: 1; }
-.selection-btn {
-  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px;
-  font: inherit; font-size: 12.5px; font-weight: 500; color: var(--fg);
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  border-radius: 999px; cursor: pointer;
-}
-.selection-btn:hover { background: var(--chip-bg-hi); }
-/* --star-fg 两套主题都不各自定义,是本仓已确立的先例(PhotosGrid.vue / PersonAvatar.vue /
-   PersonHero.vue 均为 var(--star-fg, #ffd60a))——固定金色星标跨皮肤不变,用 var(fallback)
-   形式表达,color-guard 按 token 用法放行。 */
-.selection-btn-star {
-  color: var(--star-fg, #ffd60a);
-  background: color-mix(in srgb, var(--star-fg, #ffd60a) 12%, transparent);
-  border-color: color-mix(in srgb, var(--star-fg, #ffd60a) 30%, transparent);
-  font-weight: 600;
-}
-.selection-btn-star:hover { background: color-mix(in srgb, var(--star-fg, #ffd60a) 20%, transparent); }
-.selection-btn-danger {
-  color: var(--remove-fg);
-  background: color-mix(in srgb, var(--remove-fg) 12%, transparent);
-  border-color: color-mix(in srgb, var(--remove-fg) 40%, transparent);
-  font-weight: 600;
-}
-.selection-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 20%, transparent); }
-
-/* ── 弹窗外壳(照 Vue2 :1278-1395;七个弹窗共用这套 CSS 类,但各自自绘模板 ——
-      P4 已登记「模态外壳不抽公共组件」为既定惯例)── */
-.pd-scrim {
-  position: fixed; inset: 0; z-index: 220;
-  background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
-  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
-}
-/* P2 血泪:面板底色须用 --popup-bg,不用 --card-bg(深色主题下近透明会看穿)。 */
-.pd-panel {
-  width: 460px; max-width: 100%; max-height: 100%; overflow-y: auto;
-  background: var(--popup-bg); border: 1px solid var(--card-border);
-  border-radius: 16px; padding: 22px; box-shadow: var(--card-shadow-hi);
-  display: flex; flex-direction: column; gap: 14px;
-}
-.pd-panel-wide { width: 560px; }
-.pd-head { display: flex; align-items: center; gap: 12px; }
-.pd-titles { flex: 1; min-width: 0; }
-.pd-title { font-size: 15px; font-weight: 600; color: var(--fg); }
-.pd-sub { font-size: 11.5px; color: var(--fg-subtle); margin-top: 2px; line-height: 1.5; }
-.pd-close {
-  width: 26px; height: 26px; flex: none; border: 0; border-radius: 50%;
-  background: transparent; color: var(--fg-muted); font-size: 16px; line-height: 1;
-  cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
-}
-.pd-close:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.pd-label { font-size: 11.5px; color: var(--fg-muted); margin-bottom: -6px; }
-.pd-body { font-size: 12.5px; color: var(--fg-muted); line-height: 1.6; }
-/* 评审 Minor 6:Vue2 :312 的第二档灰(--text-3)。本仓 --fg-subtle 两套主题都有定义
-   (已 grep theme.css 确认),与 .pd-sub 用的是同一档,语义一致:比正文更淡的补充说明。 */
-.pd-body-dim { color: var(--fg-subtle); }
-.pd-input {
-  width: 100%; height: 38px; padding: 0 12px; box-sizing: border-box;
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  border-radius: 10px; color: var(--fg); font: inherit; font-size: 13px; outline: none;
-}
-.pd-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.pd-actions {
-  display: flex; gap: 10px; padding-top: 12px; margin-top: 2px;
-  border-top: 1px solid var(--divider);
-}
-.pd-btn {
-  flex: 1; height: 38px; border-radius: 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border);
-  color: var(--fg); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+/* Survivor 1: parity's `.person-dialog-btn` matches Vue2 itself byte-for-byte — Vue2's source
+   (NimoOS-UI/.../PhotosPersonDetail.vue:1476-1488) has no flex layout at all, because Vue2's icon
+   is a `<photos-icon>` component that aligns itself. New-UI's delete-confirm / merge-confirm
+   buttons embed a bare `<svg>` + text instead, and without this layout the icon and text would be
+   misaligned (inconsistent baseline). This is New-UI's own typography enhancement, not something
+   parity omitted, so it stays local rather than going into parity (parity must stay byte-for-byte
+   faithful to Vue2). */
+.person-dialog-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
 }
-.pd-btn:hover { background: var(--chip-bg-hi); }
-.pd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.pd-btn-primary {
-  flex: 1.4; background: var(--accent); border-color: transparent;
-  /* --on-accent 的唯一合法场景:底色是 var(--accent) 饱和实底。 */
-  color: var(--on-accent); font-weight: 600;
-}
-.pd-btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-.pd-btn-primary:disabled { filter: none; }
-.pd-btn-ghost { background: transparent; color: var(--fg-muted); }
-.pd-btn-ghost:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.pd-btn-danger {
-  color: var(--remove-fg);
-  border-color: color-mix(in srgb, var(--remove-fg) 45%, transparent);
-  background: color-mix(in srgb, var(--remove-fg) 8%, transparent);
-}
-.pd-btn-danger:hover { background: color-mix(in srgb, var(--remove-fg) 16%, transparent); }
 
-/* ── 背景选择网格(照 Vue2 :1453-1497)── */
-.hero-picker-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 6px;
-  max-height: 340px; overflow-y: auto; border-radius: 10px; padding: 2px;
-}
-.hero-picker-tile {
-  position: relative; aspect-ratio: 1; border-radius: 8px; overflow: hidden;
-  cursor: pointer; padding: 0; background: var(--chip-bg);
-  border: 2px solid transparent;
-  /* 照 Vue2 :1474 —— 选中态切换有过渡,不是硬切(顺带覆盖下面新补的外发光) */
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-.hero-picker-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 终审 Minor 4:补回 Vue2 :1482-1485 的外发光。本仓没有 --accent-glow 这个 token(已 grep
-   theme.css 两套主题块确认),Vue2 那边它的值是 accent 的 35% 透明版(photos.scss:18),
-   这里用 color-mix 由 --accent 现算,与 PhotosPeople.vue 处理同一 token 的既有做法一致。
-   少了这一圈,2px 描边在 100px 小瓦片密排里几乎看不出哪张被选中。 */
-.hero-picker-tile[data-selected="true"] {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent);
-}
-.hero-picker-vid {
-  position: absolute; right: 4px; bottom: 4px; padding: 1px 5px; border-radius: 999px;
-  font-size: 9px; background: var(--overlay-bg);
-  display: inline-flex; align-items: center; gap: 3px;
-  /* theme-exception: 叠在照片缩略图上的时长角标,需跨主题恒定浅色前景(同
-     PersonAssetGrid.vue .tile-vid 的既有先例,理由见 PersonHero.vue 文件头"配色红线")。 */
-  color: #fff;
-}
-/* 与 T11 PersonAssetGrid.vue 的 .vid-play 逐字同款(同一视觉元素,同一字号)。 */
+/* Survivor 2: matches T11 PersonAssetGrid.vue's `.vid-play` byte-for-byte (same visual element,
+   same font size) — Vue2 has no equivalent class here (it uses `<photos-icon name="play"/>`);
+   `.vid-play` is New-UI's own way of sizing the ▶ character, and PersonAssetGrid.vue keeps its
+   own local scoped copy of it, so this file keeps a matching copy too rather than moving it into
+   parity (parity only takes rules genuinely shared across components). */
 .vid-play { font-size: 7px; }
-.hero-picker-check {
-  position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; border-radius: 50%;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent); color: var(--on-accent);
-}
-.hero-picker-empty {
-  grid-column: 1 / -1; padding: 40px; text-align: center;
-  color: var(--fg-muted); font-size: 13px;
-}
-
-/* ── 合并候选列表(照 Vue2 :1511-1560)── */
-.merge-list {
-  max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
-}
-.merge-row {
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px;
-  background: var(--chip-bg); border: 1px solid var(--chip-border); border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left;
-}
-.merge-row:hover { background: var(--chip-bg-hi); }
-.merge-row[data-selected="true"] { background: var(--accent-soft); border-color: var(--accent-soft); }
-.merge-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.merge-name { font-weight: 500; color: var(--fg); }
-.merge-meta { font-size: 11px; color: var(--fg-subtle); font-variant-numeric: tabular-nums; }
-/* Vue2 :414 把这个勾写死成旧主题的品牌紫字面量;这里跟随当前主题的强调色。 */
-.merge-check { flex: none; color: var(--accent-text); }
-.merge-empty { padding: 24px; text-align: center; color: var(--fg-muted); font-size: 12.5px; }
-
-@media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-  .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
-}
 </style>

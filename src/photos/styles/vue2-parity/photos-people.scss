@@ -315,6 +315,11 @@
 }
 .detail-hero .back {
   position: absolute; top: 18px; left: 18px;
+  /* Task 5 (Plan D): transcribed from Vue2's own inline
+     `style="position:relative;z-index:5;cursor:pointer"` on this button
+     (PhotosPersonDetail.vue:5) — this bare-selector rule previously omitted
+     it, an accidental gap in the original transcription. */
+  z-index: 5;
   display: inline-flex; align-items: center; gap: 6px;
   font-size: 12.5px;
   color: var(--text-2);
@@ -323,6 +328,7 @@
   background: var(--float-bg);
   backdrop-filter: blur(12px);
   border: 1px solid var(--line);
+  cursor: pointer;
 }
 .detail-hero .back:hover { color: var(--text-1); background: var(--float-bg-hover); }
 .detail-hero .avatar {
@@ -343,21 +349,6 @@
   letter-spacing: -0.025em;
   display: flex; align-items: center; gap: 12px;
 }
-.detail-hero .name .edit-btn {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-3);
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 999px;
-  border: 1px solid var(--line);
-  background: var(--float-bg);
-  backdrop-filter: blur(12px);
-  display: inline-flex; align-items: center; gap: 4px;
-  line-height: 1;
-}
-.detail-hero .name .edit-btn:hover { color: var(--text-1); border-color: var(--line-strong); }
 .detail-hero .stats-row {
   display: flex; gap: 28px;
   margin-top: 14px;
@@ -426,6 +417,10 @@
   background: linear-gradient(135deg, var(--accent), #b46cff);
   border-color: transparent;
 }
+/* Final review 顺手项 4: dead in real Vue2 (this button's inline `style` prop wins over these
+   rules for every property it sets, including on hover — see PersonHero.vue's own Fix round 1/2
+   comments on its `.fav-toggle` survivor rules); neutralized here by those PersonHero survivors.
+   Kept for source fidelity to Vue2's own stylesheet; removal decision deferred to Plan H. */
 .detail-hero .name .fav-toggle {
   border: 1px solid var(--line);
   border-radius: 999px;
@@ -437,6 +432,9 @@
   background: rgba(0, 0, 0, 0.5);
   border-color: var(--line-strong);
 }
+/* Final review 顺手项 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
+   .relation-trigger instead — see PersonHero.vue's own template); kept for Vue2-source fidelity,
+   removal decision deferred to Plan H. */
 .detail-hero .name .relation-select {
   font-family: var(--font-sans);
   font-size: 12px;
@@ -513,6 +511,49 @@
   border-radius: 3px;
 }
 
+/* Task 5 (Plan D): tile hover-reveal controls (detach / multi-select check),
+   transcribed from Vue2's own PhotosPersonDetail.vue <style scoped> block
+   (::v-deep stripped) at :1259-1337 — this family was missing from this
+   shared file entirely (Vue2 kept it component-local). Colors here are
+   Vue2's own literal fixed values, not this app's theme tokens: both
+   controls sit on top of unpredictable face-photo pixels, so Vue2 itself
+   never lets them follow a light/dark swap — same "theme-invariant overlay
+   chrome" rule this parity file already applies elsewhere (e.g. `.rel-row`
+   avatars, hero back button). */
+.person-grid .tile { position: relative; overflow: hidden; }
+.person-grid .tile .tile-detach {
+  position: absolute; top: 6px; right: 6px; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  opacity: 0; transform: scale(0.9);
+  transition: opacity 0.15s, transform 0.15s, background 0.15s, color 0.15s;
+  backdrop-filter: blur(8px);
+  z-index: 2;
+}
+.person-grid .tile:hover .tile-detach { opacity: 1; transform: scale(1); }
+.person-grid .tile .tile-detach:hover { background: var(--danger, #FF3860); color: white; border-color: transparent; }
+.person-grid .tile .tile-detach svg { width: 15px; height: 15px; flex-shrink: 0; }
+.person-grid .tile .tile-check {
+  position: absolute; top: 6px; left: 6px; width: 20px; height: 20px; padding: 0; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  display: inline-flex; align-items: center; justify-content: center;
+  z-index: 2; cursor: pointer;
+  opacity: 0; transform: scale(0.85);
+  transition: opacity 0.15s, transform 0.15s, background 0.15s;
+}
+.person-grid .tile:hover .tile-check,
+.person-grid .tile[data-selection-mode="true"] .tile-check,
+.person-grid .tile[data-selected="true"] .tile-check { opacity: 1; transform: scale(1); }
+.person-grid .tile .tile-check:hover { background: rgba(0, 0, 0, 0.65); border-color: #fff; }
+.person-grid .tile[data-selected="true"] .tile-check { background: var(--accent); border-color: var(--accent); }
+.person-grid .tile[data-selection-mode="true"] { cursor: pointer; }
+.person-grid .tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
+.person-grid .tile[data-selected="true"] img { opacity: 0.85; }
+
 /* Relationship graph */
 .rel-section {
   display: grid;
@@ -547,6 +588,22 @@
    node labels here so they stay readable in both themes. */
 .rel-graph-wrap svg .rg-name { fill: var(--text-1); }
 .rel-graph-wrap svg .rg-name-dim { fill: var(--text-2); }
+
+/* Task 6 (Plan D, PR#137 gap-close): relation-graph empty state (no co-appearances at all).
+   Transcribed verbatim from Vue2 NimoOS-UI commit 03245590's PhotosRelGraph.vue own scoped
+   <style> block — that commit is what introduced this rule, so it lands here with this task
+   rather than Task 1 (controller preflight ruling). */
+.rg-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  gap: 6px;
+  text-align: center;
+}
+.rg-empty .t { font-size: 13.5px; font-weight: 600; color: var(--text-2); }
+.rg-empty .d { font-size: 12px; color: var(--text-3); max-width: 320px; line-height: 1.5; }
 
 .rel-list {
   display: flex; flex-direction: column; gap: 4px;
@@ -772,8 +829,974 @@
 .merge-banner .title { font-size: 13px; }
 .person-month-head .title { font-size: 16px; }
 .map-card .legend .title { font-size: 12.5px; }
+
+/* ===== Person Detail — dialogs, selection bar, avatar fallback =====
+   Transcribed from Vue2 PhotosPersonDetail.vue's own <style lang="scss" scoped>
+   block (::v-deep stripped) — NimoOS-UI/src/views/Photos/PhotosPersonDetail.vue
+   ~1092-1692. Vue2's own var(--surface-1/2, --line, --text-1/2/3, --accent*,
+   --danger, --pop-bg, --ink, --r-md/--r-sm, --font-sans/--font-display) already
+   match this parity file's private token names 1:1 — no swaps needed. No
+   `.is-light` branch exists inside this scoped block (checked; nothing to
+   transcribe for that). */
+
+/* -- relation/edit menu trigger family (PhotosPersonDetail.vue:1169-1241) -- */
+.detail-hero .name .relation-picker { position: relative; display: inline-flex; align-items: center; }
+/* Fix round 1 (Important 1): Vue2 has two competing sources for .edit-btn —
+   a bare global rule (photos-people.scss:346-359: color var(--text-3), gap
+   4px) and a ::v-deep scoped rule in PhotosPersonDetail.vue:1170-1177 (color
+   var(--text-2), gap 6px, box-sizing/transition). In real Vue2 the scoped
+   attribute selector out-specifies the bare rule, so the scoped values below
+   are what actually renders — the stale bare-rule duplicate that used to
+   live near `.detail-hero .name` (photos-people.scss:346-360) has been
+   deleted so there is only ONE `.edit-btn` rule in this file. */
+.detail-hero .name .edit-btn {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .relation-trigger {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .detail-select-btn {
+  height: 28px; padding: 0 12px; font-size: 12px; font-weight: 500; line-height: 1;
+  box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--float-bg);
+  backdrop-filter: blur(12px);
+  color: var(--text-2); cursor: pointer; font-family: var(--font-sans);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.detail-hero .name .edit-btn:hover,
+.detail-hero .name .relation-trigger:hover,
+.detail-hero .name .detail-select-btn:hover {
+  color: var(--text-1);
+  border-color: var(--line-strong);
+  background: var(--float-bg-hover);
+}
+.detail-hero .name .relation-menu {
+  position: fixed;
+  min-width: 140px;
+  padding: 6px;
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.detail-hero .name .relation-option {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 7px 10px;
+  font-size: 12.5px;
+  color: var(--text-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  text-align: left;
+}
+.detail-hero .name .relation-option:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+.detail-hero .name .relation-option[data-active="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-hi);
+}
+.detail-hero .name .edit-menu .relation-option { width: 100%; }
+.detail-hero .name .edit-menu-label {
+  display: inline-flex; align-items: center; gap: 7px;
+}
+.detail-hero .name .edit-menu-danger { color: var(--danger, #FF3860); }
+.detail-hero .name .edit-menu-danger:hover {
+  background: rgba(255, 56, 96, 0.1);
+  color: var(--danger, #FF3860);
 }
 
+/* -- selection bar (PhotosPersonDetail.vue:1339-1391, 1550-1559) -- */
+.selection-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 24px;
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--pop-bg);
+  border: 1px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px) saturate(180%);
+  min-width: 360px;
+}
+.selection-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+.selection-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-1);
+  background: rgba(var(--ink), 0.06);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, filter 0.15s;
+}
+.selection-btn:hover {
+  background: rgba(var(--ink), 0.12);
+  border-color: var(--line-strong);
+}
+.selection-btn-danger {
+  background: var(--danger, #FF3860);
+  border-color: transparent;
+  color: white;
+  font-weight: 600;
+}
+.selection-btn-danger:hover {
+  filter: brightness(1.08);
+  background: var(--danger, #FF3860);
+  border-color: transparent;
+}
+.selection-btn-star {
+  background: rgba(255, 214, 10, 0.12);
+  border-color: rgba(255, 214, 10, 0.3);
+  color: #FFD60A;
+  font-weight: 600;
+}
+.selection-btn-star:hover {
+  background: rgba(255, 214, 10, 0.2);
+  border-color: rgba(255, 214, 10, 0.5);
+}
+
+/* -- person dialog: name / merge / delete / hero-picker (PhotosPersonDetail.vue:1393-1511, 1561-1620) -- */
+.person-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.person-dialog {
+  width: 460px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.person-dialog-wide { width: 560px; }
+.person-dialog-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.person-dialog-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  overflow: hidden;
+  flex-shrink: 0;
+  border: 2px solid var(--accent-soft);
+  background: var(--surface-2);
+}
+.person-dialog-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.person-dialog-titles { flex: 1; min-width: 0; }
+.person-dialog-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-1);
+}
+.person-dialog-sub {
+  font-size: 11.5px;
+  color: var(--text-3);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+.person-dialog-label {
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-bottom: -6px;
+}
+.person-dialog-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.person-dialog-input:focus {
+  border-color: var(--accent-soft);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+/* Task 4 addition: no dedicated Vue2 class for this text block — Vue2's delete-person
+   dialog renders it as a plain <div> with an inline style (NimoOS-UI
+   PhotosPersonDetail.vue:337-339): padding 12px 0 14px, font-size 12.5px,
+   color var(--text-2), line-height 1.6, with the "undo within 5 seconds" clause in its
+   own nested <span style="color:var(--text-3)">. Named within the person-dialog-* family
+   for consistency since it belongs to this same dialog family. */
+.person-dialog-body { padding: 12px 0 14px; font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+.person-dialog-body-dim { color: var(--text-3); }
+.person-dialog-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+}
+.person-dialog-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.person-dialog-btn:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.person-dialog-btn-primary {
+  flex: 1.4;
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.person-dialog-btn-primary:hover {
+  background: var(--accent-hi);
+  border-color: transparent;
+}
+.person-dialog-btn-primary:disabled {
+  background: var(--accent-glow);
+  box-shadow: none;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+.person-dialog-btn-ghost {
+  color: var(--text-2);
+  background: transparent;
+  border-color: var(--line);
+}
+.person-dialog-btn-ghost:hover {
+  background: var(--surface-3);
+  color: var(--text-1);
+}
+/* Task 4 addition: no dedicated Vue2 class either — Vue2's delete/detach confirm buttons
+   are plain `.person-dialog-btn` with an inline literal-color style (:343-344:
+   color:var(--danger);border-color:rgba(255,56,96,0.35);background:rgba(255,56,96,0.08)).
+   New-UI's theme-token convention forbids literal colors in template style attributes, so
+   this is expressed as a dedicated modifier class instead, using the same --danger token
+   Vue2 itself uses elsewhere in this file (see .edit-menu-danger above) with the same
+   rgba fallback values. */
+.person-dialog-btn-danger {
+  color: var(--danger, #FF3860);
+  border-color: rgba(255, 56, 96, 0.35);
+  background: rgba(255, 56, 96, 0.08);
+}
+/* Vue2's inline style sets background/border-color directly on the element, which beats
+   any class-based :hover rule in the cascade — so in real Vue2 hovering this button causes
+   no visible background change. Re-assert the same values here so the base
+   .person-dialog-btn:hover rule above (background var(--surface-3)) can't clobber the
+   danger look on hover (same tie-breaking issue already fixed for .cad-btn-primary:hover /
+   .mrd-btn-primary:hover below — and, per fix round 1, for .cad-btn-danger:hover too). */
+.person-dialog-btn-danger:hover {
+  border-color: rgba(255, 56, 96, 0.35);
+  background: rgba(255, 56, 96, 0.08);
+}
+
+.hero-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 6px;
+  max-height: 340px;
+  overflow-y: auto;
+  border-radius: 10px;
+  padding: 2px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.hero-picker-grid::-webkit-scrollbar { width: 6px; }
+.hero-picker-grid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 6px; }
+.hero-picker-grid::-webkit-scrollbar-track { background: transparent; }
+.hero-picker-tile {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s;
+}
+.hero-picker-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-picker-tile[data-selected="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.hero-picker-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+/* Task 4 addition: New-UI addition, no Vue2 class — Vue2's "no photos yet" placeholder in
+   this same dialog is a bare inline-styled div (:384-387: grid-column:1/-1; padding:40px;
+   text-align:center; color:var(--text-3); font-size:13px). Values transcribed as-is. */
+.hero-picker-empty {
+  grid-column: 1 / -1;
+  padding: 40px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+/* -- merge candidates list, PersonDetail's own "merge into" flow (PhotosPersonDetail.vue:1625-1675) -- */
+.merge-candidates-list {
+  max-height: 280px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.2) transparent;
+}
+.merge-candidates-list::-webkit-scrollbar { width: 6px; }
+.merge-candidates-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 6px; }
+.merge-candidate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.merge-candidate-row:hover {
+  background: var(--surface-3);
+  border-color: var(--line-strong);
+}
+.merge-candidate-row[data-selected="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+}
+.merge-candidate-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: linear-gradient(135deg, #6E5BFF, #4A3BD1);
+}
+.merge-candidate-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.merge-candidate-info { flex: 1; min-width: 0; }
+.merge-candidate-name { font-weight: 500; color: var(--text-1); }
+.merge-candidate-meta { font-size: 11px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+/* Task 4 addition: deliberate deviation, not a missing-coverage gap. Vue2 hardcodes this
+   checkmark to a legacy brand-purple literal (:441 `color="#8950F2"`), a color from an
+   older theme that predates this app's token system. New-UI follows the CURRENT theme's
+   accent color instead (--accent-hi, same token this file already uses for other check/
+   highlight icons, e.g. .people-menu-item .check above) so the checkmark stays in sync
+   with whichever theme/skin is active, rather than reproducing a frozen non-token literal. */
+.merge-candidate-check { flex: none; color: var(--accent-hi); }
+/* Task 4 addition: New-UI addition, no Vue2 class — Vue2's "no matching people" empty
+   state in this same list is a bare inline-styled div (:443-446: padding:24px;
+   text-align:center; color:var(--text-3); font-size:12.5px). Values transcribed as-is. */
+.merge-candidates-empty { padding: 24px; text-align: center; color: var(--text-3); font-size: 12.5px; }
+
+/* -- avatar fallback + hero fallback mode (PhotosPersonDetail.vue:1512-1548) -- */
+.avatar-fallback-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #6E5BFF, #4A3BD1);
+  border-radius: inherit;
+}
+.avatar-initial {
+  color: #fff;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1;
+  font-family: var(--font-display);
+  user-select: none;
+}
+.detail-hero .avatar .avatar-fallback-wrap {
+  border-radius: 50%;
+}
+.detail-hero[data-fallback="true"] .bg {
+  background: linear-gradient(135deg, #6E5BFF 0%, #4A3BD1 100%);
+}
+.detail-hero[data-fallback="true"] .bg::after {
+  display: none;
+}
+.detail-hero[data-fallback="true"] .name,
+.detail-hero[data-fallback="true"] .stat .v,
+.detail-hero[data-fallback="true"] .stat .k {
+  color: #fff;
+  text-shadow: none;
+}
+
+/* -- loading / not-found / error fallback (PhotosPersonDetail.vue:1678-1691) -- */
+.person-detail-fallback {
+  padding: 24px;
+  .fallback-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    .t { font-size: 15px; font-weight: 600; }
+    .d { font-size: 12.5px; color: var(--text-3); }
+    .btn { margin-top: 8px; }
+  }
+}
+
+/* ===== People index — cluster action menu / three-state dialog / merge
+   review overlay. Vue2 PhotosPeopleView.vue has no classed CSS for these —
+   they are built from `:style` bindings (clusterMenu ~:255-288, clusterDialog
+   ~:291-445, merge review overlay ~:447-518). Values below are transcribed
+   from those inline bindings; class names follow New-UI's already-
+   established naming (src/views/PhotosPeople.vue,
+   src/photos/components/ClusterActionDialog.vue,
+   src/photos/components/MergeReviewDialog.vue) since Vue2 has none to anchor
+   to. z-index is normalized to this file's own stacking map rather than
+   Vue2's local per-component numbers: scrims/overlays = 200, fixed menus =
+   260 (this file already uses 150/200/300 elsewhere for the same roles). -- */
+.cluster-menu {
+  position: fixed;
+  transform: translateX(-50%);
+  min-width: 200px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  z-index: 260;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+.cluster-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+/* Vue2's inline-styled menu buttons carry no :hover of their own; borrow the
+   hover convention already established above for .relation-option. */
+.cluster-menu-item:hover { background: var(--surface-3); }
+.cluster-menu-item svg { flex: none; color: var(--accent-hi); }
+.cluster-menu-item span { flex: 1; }
+.cluster-menu-item.is-danger { color: #FF6B5C; }
+.cluster-menu-item.is-danger svg { color: #FF6B5C; }
+
+.cad-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.cad-panel {
+  width: 440px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+}
+.cad-head { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.cad-avatar-ring {
+  width: 48px; height: 48px; box-sizing: border-box; flex: none;
+  border-radius: 50%;
+  border: 2px solid var(--accent-soft);
+  overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+}
+.cad-head-text { flex: 1; min-width: 0; }
+.cad-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.cad-subtitle { font-size: 11.5px; color: var(--text-3); margin-top: 2px; }
+.cad-close, .mrd-close {
+  flex: none;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.cad-close:hover, .mrd-close:hover { background: var(--surface-3); color: var(--text-1); }
+
+.cad-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 12px;
+  margin-bottom: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+}
+/* Task 4 addition: New-UI addition, no Vue2 source — Vue2 builds this whole dialog from
+   `:style` bindings, which cannot express a `:focus` pseudo-class, so Vue2's input has no
+   custom focus ring at all (browser default only). New-UI adds a visible keyboard-focus
+   ring here as an accessibility improvement, not a pixel-parity requirement. */
+.cad-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cad-label {
+  display: block;
+  font-size: 11.5px;
+  color: var(--text-2);
+  margin-bottom: 6px;
+}
+.cad-hint {
+  font-size: 11px;
+  color: var(--text-3);
+  line-height: 1.5;
+  padding: 8px 0 16px;
+}
+.cad-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.cad-btn {
+  flex: 1;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cad-btn:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-btn-primary {
+  flex: 1.4;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.cad-btn-primary:hover { background: var(--accent-hi); }
+.cad-btn-primary:disabled {
+  background: var(--accent-glow);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+.cad-btn-danger {
+  flex: 1.4;
+  background: #FF6B5C;
+  border: 0;
+  color: white;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(255, 107, 92, 0.35);
+}
+/* Fix round 1: this rule used to redeclare only `filter`, relying on the deleted local
+   scoped `<style>` block's own `.cad-btn-danger:hover` (data-v-boosted to (0,3,0)) to have
+   already re-asserted `background` and out-rank `.cad-btn:hover` (0,2,0). Now that the
+   scoped block is gone, both `.cad-btn:hover` and this rule sit at equal specificity
+   (0,2,0) — without redeclaring `background` here, `.cad-btn:hover`'s `var(--surface-3)`
+   wins on source order and the delete-confirm button (data-test="cad-confirm-delete")
+   shows a neutral gray hover instead of red. Redeclare the same value the base
+   `.cad-btn-danger` rule above already uses (#FF6B5C) — same pattern as
+   `.cad-btn-primary:hover` / `.mrd-btn-primary:hover` below, which already redeclare
+   background and were not affected. */
+.cad-btn-danger:hover { background: #FF6B5C; filter: brightness(1.08); }
+
+.cad-candidates {
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 14px;
+}
+.cad-candidate {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.cad-candidate:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-candidate-info { flex: 1; min-width: 0; }
+.cad-candidate-name { font-weight: 500; }
+.cad-candidate-count { font-size: 11px; color: var(--text-3); }
+.cad-candidate-chev { color: var(--text-3); }
+.cad-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.cad-warning {
+  padding: 14px;
+  background: rgba(255, 107, 92, 0.08);
+  border: 1px solid rgba(255, 107, 92, 0.25);
+  border-radius: 10px;
+  font-size: 12.5px;
+  color: var(--text-1);
+  line-height: 1.55;
+  margin-bottom: 16px;
+}
+.cad-warning-body { color: var(--text-3); font-size: 11.5px; }
+
+/* Task 7 (Plan D, 重名 dupconfirm): PhotosPeopleView.vue:396-419 (mode='dupconfirm', a
+   sub-state of the shared cluster-action dialog) — transcribed from its raw inline :style
+   bindings (same situation as every .cad-* rule above: Vue2 builds this whole dialog from
+   :style, no Vue2 CSS class to anchor to). Column stack of three buttons, distinct from
+   cad-actions' horizontal two-button row (name/merge/delete modes each have exactly two) —
+   dupconfirm always has exactly these three, in this fixed order (merge / name-anyway /
+   cancel, matching Vue2's own literal order at that call site). */
+.cad-dupconfirm { display: flex; flex-direction: column; gap: 8px; padding-top: 2px; outline: none; }
+.cad-dup-primary {
+  height: 38px;
+  border-radius: 10px;
+  background: var(--accent);
+  border: 0;
+  color: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+.cad-dup-primary:hover { background: var(--accent-hi); }
+.cad-dup-secondary {
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.cad-dup-secondary:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.cad-dup-cancel {
+  height: 36px;
+  border-radius: 10px;
+  background: transparent;
+  border: 0;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  margin-top: 2px;
+}
+.cad-dup-cancel:hover { color: var(--text-1); }
+
+.mrd-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+}
+.mrd-panel {
+  width: 560px;
+  max-width: 100%;
+  background: var(--surface-1);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+}
+.mrd-head { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+/* Vue2 fakes the logo as a background-image span; New-UI renders a real
+   <img>, so this is only its pre-load placeholder fill, not a value with a
+   literal Vue2 counterpart. */
+.mrd-logo {
+  width: 40px; height: 40px; flex: none;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--accent-soft);
+}
+.mrd-head-text { flex: 1; min-width: 0; }
+.mrd-title { font-size: 15px; font-weight: 600; color: var(--text-1); }
+.mrd-confidence { font-size: 11.5px; color: var(--text-3); }
+.mrd-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.mrd-side { text-align: center; }
+/* Task 4 addition: values ARE Vue2-pixel-sourced (PhotosPeopleView.vue:471/474/489/492:
+   width:'100%', aspectRatio:'1' on the compare-side <img>s) — New-UI just reaches them
+   through PersonAvatar (a component with its own internal fixed-size inline style) instead
+   of a raw <img>, so this override is needed to make the component follow the column width
+   and stay square. In the component's own scoped style this needed `:deep()`; here (a
+   plain global stylesheet, not scoped CSS) an ordinary descendant selector does the same
+   job without it. `!important` matches the component-local original — PersonAvatar sets
+   height inline, which otherwise wins over a plain class rule. */
+.mrd-side .person-avatar {
+  max-width: 100%;
+  height: auto !important;
+  aspect-ratio: 1;
+}
+.mrd-side-label { margin-top: 8px; font-size: 12px; color: var(--text-2); }
+.mrd-reason {
+  padding: 12px;
+  background: var(--accent-soft);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-1);
+  margin-bottom: 16px;
+}
+.mrd-reason-lead { color: var(--accent-hi); }
+.mrd-actions { display: flex; gap: 8px; }
+/* .mrd-btn / .mrd-btn-primary reuse Vue2's own shared .btn / .btn-primary
+   values (see .photos-root .btn in photos.scss) — Vue2's accept/reject
+   buttons are literally class="btn" / class="btn btn-primary" plus an
+   inline flex:1. */
+.mrd-btn {
+  flex: 1;
+  height: 32px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--text-1);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.mrd-btn:hover { background: var(--surface-3); border-color: var(--line-strong); }
+.mrd-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.mrd-btn-primary:hover { background: var(--accent-hi); }
+
+/* ===== People index — filter dropdowns + misc chrome. =====
+   Fix round 1 (Important 2): the `.people-menu*` / `.people-pop-wrap` family
+   below is NOT "furniture with no Vue2 pixel source" — Vue2
+   PhotosPeopleView.vue's confidence dropdown (~:15-39) and sort dropdown
+   (~:61-82) build this exact menu from `:style` bindings, the same situation
+   as the clusterMenu/clusterDialog/mrd family transcribed earlier in this
+   file (New-UI's own src/views/PhotosPeople.vue:755 comment already flags
+   this). No Vue2 class name exists to anchor to, so — same policy as that
+   earlier section — class names follow New-UI's already-established naming
+   (src/views/PhotosPeople.vue scoped block, ~707-917) while every value
+   below has been re-checked against those two Vue2 inline-style blocks
+   (see the per-selector notes; the `.check` width split below is the one
+   place a value actually diverged and was fixed).
+   `.people-icon-btn` / `.people-btn-primary` are a separate, third Vue2
+   source: the merge-suggestion banner's dismiss / "Review" buttons, which
+   reuse Vue2's own shared global `.icon-btn` / `.btn`+`.btn-primary` classes
+   (already transcribed as `.photos-root .icon-btn` / `.photos-root
+   .btn-primary` in photos.scss) rather than any `:style` binding of their
+   own — `.people-icon-btn`'s geometry has been corrected below to match
+   `.icon-btn` (32px/var(--r-sm), not New-UI's original 28px/50%);
+   `.people-btn-primary` already matched `.btn-primary`'s colors exactly. */
+.people-pop-wrap { position: relative; }
+.people-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.people-menu-conf { min-width: 200px; padding: 8px; }
+.people-menu-head {
+  font-size: 10.5px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 6px 8px;
+}
+.people-menu-sort { min-width: 220px; padding: 4px; }
+.people-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+.people-menu-item.is-stacked { align-items: flex-start; padding: 8px 10px; }
+.people-menu-item:hover { background: var(--surface-3); }
+.people-menu-item[data-active="true"] { background: var(--accent-soft); }
+.people-menu-item .check { width: 12px; flex: none; color: var(--accent-hi); }
+/* Fix round 1 (Important 2): Vue2's confMenu check icon/placeholder is
+   11px (PhotosPeopleView.vue:32-33: `:size="11"` / `width:11px`), sortMenu's
+   is 12px (:75-76: `:size="12"` / `width:12px`). New-UI shares one `.check`
+   span class across both dropdowns (base rule above matches sortMenu);
+   narrow it back to 11px inside the confidence dropdown so both stay
+   byte-correct to their own Vue2 source. */
+.people-menu-conf .people-menu-item .check { width: 11px; }
+.people-menu-item .lbl { flex: 1; }
+.people-menu-item .tail { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.people-menu-item .stack-text { flex: 1; display: flex; flex-direction: column; }
+.people-menu-item .stack-text .lbl { font-weight: 500; }
+.people-menu-item .stack-text .hint { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+.people-icon-btn {
+  width: 32px; height: 32px; flex: none;
+  border-radius: var(--r-sm);
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.people-icon-btn:hover { background: var(--surface-3); color: var(--text-1); }
+
+.people-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.people-btn-primary:hover { background: var(--accent-hi); }
+
+/* New-UI's actual markup uses a flat `.people-sub` (not nested under
+   `.people-banner` like the already-transcribed rule above), so that rule
+   never matches it — same values, standalone selector. */
+.people-sub { color: var(--text-3); font-size: 12.5px; margin-top: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.people-sub .sep { width: 4px; height: 4px; border-radius: 50%; background: var(--text-4); flex: none; }
+
+/* Plan D Task 2: same situation as `.people-sub` above — New-UI's actual markup wraps the
+   banner's action row in a single `.people-banner-actions` class (Vue2 nests an unclassed
+   `.actions` div instead, matched by `.people-banner .actions` above), so that descendant
+   selector never matches it either. Same values, standalone selector. */
+.people-banner-actions { margin-left: auto; display: inline-flex; gap: 8px; }
+
+/* New-UI addition: loading skeleton, no Vue2 source */
+.person-skeleton { display: flex; flex-direction: column; gap: 12px; padding: 4px; }
+.person-skeleton-hero { height: 280px; border-radius: 20px; background: var(--surface-2); }
+.person-skeleton-tabs { height: 42px; border-radius: 10px; background: var(--surface-2); }
+.person-skeleton-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; }
+.person-skeleton-tile { aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); }
+@media (max-width: 768px) {
+  .person-skeleton-grid { grid-template-columns: repeat(4, 1fr); }
+}
+
+/* Vue2 photos-people.scss:777-786 defines this OUTSIDE its own
+   `.photos-root{}` wrapper — a bare top-level selector. Per the Plan A
+   precedent, parity must never reproduce a root-external bare selector, so
+   it is folded in here instead (values unchanged from Vue2).
+   Final review 顺手项 4: zero consumers in New-UI's DOM (New-UI uses .relation-picker/
+   .relation-trigger instead); kept for Vue2-source fidelity, removal decision deferred to Plan H. */
 .relation-select {
   background: var(--surface-2);
   border: 1px solid var(--line);
@@ -783,4 +1806,5 @@
   font-size: 12px;
   padding: 4px 8px;
   cursor: pointer;
+}
 }

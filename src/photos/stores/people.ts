@@ -11,6 +11,7 @@ import {
   toPerson, namedOf, unnamedOf, visibleUnnamedOf, hiddenSingletonCountOf,
   type Person, type PeopleFilter,
 } from '../util/peopleView'
+import { isNotFound } from '../util/httpErrors'
 
 const LS_CONFIDENCE = 'nimo_people_confidence'
 const LS_SHOW_SINGLETONS = 'nimo_people_show_singletons'
@@ -21,6 +22,15 @@ const PURGE_DELAY_MS = 5000
 // key 一律 String(id)(铁律:后端 id 可能是数字、路由参数恒是字符串)。
 interface PurgeEntry { timer: ReturnType<typeof setTimeout>; snapshot: Person | null; idx: number; committed: boolean }
 const _purgeTimers = new Map<string, PurgeEntry>()
+
+// Task 7 (Plan D, SP7-P5 People): a temporary guard for while a hide request is in flight —
+// prevents a racing fetchPeople from pulling back in a person that was just optimistically
+// removed (mirroring Vue2's hidePersonAction's _pendingPersonRemovals window: added before the
+// request, removed in finally, photos.js:1592-1607). Not reusing _purgeTimers: that Map stores
+// the snapshot/idx/timer an undo closure needs — semantically a "5-second undoable purge"; hiding
+// has no such window and only needs to cover this one HTTP round trip, so a separate small Set is
+// clearer and won't interfere with purge's "reuse the first idx" branch.
+const _pendingHides = new Set<string>()
 
 function readFilter(): PeopleFilter {
   // 照 Vue2 photos.js:283-291 的 IIFE:白名单校验 + 严格 '1' 比较 + 整体 try 兜底(隐私模式/SSR)。
@@ -43,6 +53,14 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   const facesIndexedUpTo = ref<string | null>(null)
   const filter = ref<PeopleFilter>(readFilter())
   const mergeSuggestions = ref<Array<Record<string, unknown>>>([])
+
+  // Task 7 (Plan D): Hidden people section state (mirroring Vue2 photos.js:392-399).
+  const hiddenPeople = ref<Person[]>([])
+  const hiddenPeopleLoaded = ref(false)
+  // Assumed true until a real 404 proves the backend doesn't have the hide feature yet (a
+  // pre-S4 legacy backend) — the People page uses this to hide the whole "Hidden people" section
+  // and "Hide person" menu item, without popping an error toast (mirroring Vue2 :396-399).
+  const hiddenPeopleSupported = ref(true)
 
   const named = computed(() => namedOf(people.value))
   const unnamed = computed(() => unnamedOf(people.value))
@@ -79,8 +97,14 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
         { persons?: unknown; facesIndexedUpTo?: unknown } | undefined
       const list = Array.isArray(raw?.persons) ? (raw?.persons as Record<string, unknown>[]) : []
       const mapped = list.map(toPerson)
-      // 撤销窗口期内的人物要从重拉结果里滤掉,否则「删了又冒出来」(Vue2 mutation SET_PEOPLE :507)。
-      people.value = _purgeTimers.size ? mapped.filter((p) => !_purgeTimers.has(key(p.id))) : mapped
+      // Both people still inside the undo window and people whose hide request is in flight must
+      // be filtered out of the re-fetch result, otherwise "deleted/hidden, then pops back up"
+      // (Vue2's SET_PEOPLE mutation :507,724-726 uses the same one _pendingPersonRemovals set;
+      // here _purgeTimers and _pendingHides are two separate mechanisms — see the comment where
+      // _pendingHides is declared).
+      people.value = (_purgeTimers.size || _pendingHides.size)
+        ? mapped.filter((p) => !_purgeTimers.has(key(p.id)) && !_pendingHides.has(key(p.id)))
+        : mapped
       // 未登记偏离(评审必修 3,补登记):这里的 `!== undefined` 照的是 Vue2 **mutation**
       // 层(:509)的判定,但 Vue2 **action** 层(fetchPeople :1085)总是把
       // `data.facesIndexedUpTo || null` 传给 mutation——成功路径永远是"有值或 null",
@@ -323,24 +347,92 @@ export const usePhotosPeople = defineStore('photosPeople', () => {
   // 纯本地清空:后端没有「全部忽略」端点,下次 fetchMergeSuggestions 建议会重新出现(照 Vue2 :1248 的注释)。
   function dismissAllMerges(): void { mergeSuggestions.value = [] }
 
+  // ── Hide person (Task 7, Plan D). Mirrors Vue2's hidePersonAction/fetchHiddenPeople/
+  // unhidePerson (photos.js:1585-1633) — the three actions map to Vue2's own one-for-one, not
+  // merged together.
+
+  // Executes immediately, no confirmation dialog: non-destructive, can always be undone via
+  // unhidePerson from the "Hidden people" section (mirroring Vue2's own :1585-1591 comment).
+  // Optimistic REMOVE_PERSON + snapshot rollback on failure, the same technique as
+  // purgePersonWithUndo's snapshot/idx (minus that function's own 5-second undo timer — hiding
+  // has no such undo window, doesn't need one). Returns whether it succeeded; the caller (the
+  // view layer) decides whether to toast/navigate.
+  async function hidePerson(id: string | number): Promise<boolean> {
+    const k = key(id)
+    const idx = people.value.findIndex((p) => key(p.id) === k)
+    const snapshot = idx >= 0 ? { ...people.value[idx] } : null
+    removePerson(id)
+    _pendingHides.add(k)
+    try {
+      await service.photos.hidePerson(id)
+    } catch (e) {
+      console.error('[photos-people] hidePerson', e)
+      if (snapshot) insertPersonAt(snapshot, idx)
+      return false
+    } finally {
+      _pendingHides.delete(k)
+    }
+    return true
+  }
+
+  // Fetches the hidden-person list. Feature detection: a legacy backend without the hide feature
+  // makes GET /persons/hidden 404 — a hit flips hiddenPeopleSupported to false, letting the view
+  // hide the whole "Hidden people" section/menu item without popping an error toast (mirroring
+  // Vue2 :1608-1623).
+  async function fetchHiddenPeople(): Promise<void> {
+    try {
+      const list = (await service.photos.listHiddenPersons()) as Record<string, unknown>[] | undefined
+      hiddenPeople.value = Array.isArray(list) ? list.map(toPerson) : []
+      hiddenPeopleLoaded.value = true
+      hiddenPeopleSupported.value = true
+    } catch (e) {
+      if (isNotFound(e)) {
+        hiddenPeopleSupported.value = false
+      } else {
+        console.error('[photos-people] fetchHiddenPeople', e)
+      }
+    }
+  }
+
+  // Unhide reuses restorePerson (the same endpoint as undoing a delete) — on the server, hiding
+  // and deleting are both just moving a person out of the visible list (mirroring Vue2 :1624-1633).
+  // Both lists are re-fetched to reconcile regardless of success/failure (mirroring Vue2's own
+  // unconditional finally dispatch, unlike other write paths here that branch on success/failure).
+  async function unhidePerson(id: string | number): Promise<void> {
+    try {
+      await service.photos.restorePerson(id)
+    } catch (e) {
+      console.error('[photos-people] unhidePerson', e)
+    } finally {
+      void fetchPeople()
+      void fetchHiddenPeople()
+    }
+  }
+
   function __resetForTest(): void {
     for (const entry of _purgeTimers.values()) clearTimeout(entry.timer)
     _purgeTimers.clear()
+    _pendingHides.clear()
     people.value = []
     peopleLoaded.value = false
     facesIndexedUpTo.value = null
     mergeSuggestions.value = []
     filter.value = readFilter()
+    hiddenPeople.value = []
+    hiddenPeopleLoaded.value = false
+    hiddenPeopleSupported.value = true
   }
 
   return {
     people, peopleLoaded, facesIndexedUpTo, filter, mergeSuggestions,
+    hiddenPeople, hiddenPeopleLoaded, hiddenPeopleSupported,
     named, unnamed, visibleUnnamed, namedCount, unnamedCount, hiddenSingletonCount,
     personById, patchPerson,
     fetchPeople, fetchMergeSuggestions, setConfidence, setShowSingletons,
     renamePerson, setPersonRelation, setPersonFavorite, setPersonCover, setPersonHero,
     mergePersonInto, purgePersonWithUndo,
     acceptMergeSuggestion, rejectMergeSuggestion, dismissAllMerges,
+    fetchHiddenPeople, hidePerson, unhidePerson,
     __resetForTest,
   }
 })

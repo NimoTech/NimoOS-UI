@@ -165,24 +165,9 @@ function thumbnailSrc(id: string | number): string {
   font-size: 13px;
 }
 
-.person-month { margin-bottom: 28px; }
-.person-month-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 4px 0 10px;
-}
-.person-month-head .title {
-  font-family: var(--font);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--fg);
-}
-.person-month-head .sub {
-  color: var(--fg-muted);
-  font-size: 12px;
-}
+/* Task 5 (Plan D) shadowing cleanup: `.person-month`/`.person-month-head` (+`.title`/`.sub`)
+   duplicated parity's own rules under the same selectors and have been deleted — parity now
+   governs directly. */
 .show-all-btn {
   margin-left: auto;
   padding: 0;
@@ -196,27 +181,19 @@ function thumbnailSrc(id: string | number): string {
 }
 .show-all-btn:hover { text-decoration: underline; }
 
-/* 照 photos-people.scss:492-500 —— 固定 8 列 + 3px 圆角,与 PhotosGrid 的响应式
-   auto-fill/density 契约刻意不同(brief 记账理由②)。 */
-.person-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 3px;
-}
-
-.tile {
-  position: relative;
-  aspect-ratio: 1;
-  border-radius: 3px;
-  overflow: hidden;
-  cursor: pointer;
-  background: var(--chip-bg);
-}
+/* Task 5 (Plan D) shadowing cleanup: `.person-grid` (8-column grid) duplicated parity's own
+   rule and has been deleted. `.tile img`/`[data-selected] { outline }`/`[data-selected] img
+   { opacity }` are likewise now transcribed into parity's `.person-grid .tile` family
+   (geometry was already Vue2-accurate here; only the color tokens moved — see
+   task-5-report.md). Base positioning (`position/overflow`) also moved to parity; what's left
+   here is New-UI-only: a placeholder background while the thumbnail loads (no Vue2 value to
+   transcribe) and `cursor: pointer`, which parity doesn't set for `.tile` either. */
+.tile { background: var(--chip-bg); cursor: pointer; }
+/* New-UI addition, no Vue2 source: Vue2's build has a global image reset this app doesn't
+   (its own `.tile img` rule is likewise absent from both Vue2's scoped block and parity —
+   confirmed by grep), so this app's raw `<img>` needs its own cover-fit sizing rule or it
+   would render at native image size instead of filling the tile. */
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.tile[data-selected="true"] { outline: 3px solid var(--accent); outline-offset: -3px; }
-/* 终审 Minor 3:Vue2 :1222 —— 选中的瓦片把图压暗一档。原实现只有 accent 描边,选中/未选中在
-   一屏缩略图里对比太弱。 */
-.tile[data-selected="true"] img { opacity: 0.85; }
 
 .tile-vid {
   position: absolute; right: 4px; bottom: 4px; z-index: 2;
@@ -230,91 +207,14 @@ function thumbnailSrc(id: string | number): string {
 }
 .vid-play { font-size: 7px; }
 
-/* 终审 Minor 3(几何逐条回 Vue2 :1184-1215 核对后对齐):20×20 / 偏移 6px / **2px** 描边 /
-   勾 12px —— 原实现是 18×18 / 4px / 1px / 10px,整体偏小一档且描边太细,在 8 列小瓦片上
-   与「移出」按钮几乎分不出体量差。描边由 var(--card-border) 改回钉死的半透明浅色:这个圈叠在
-   不可控的人脸照片上,随主题的描边在浅色主题下会变成浅底浅边、直接消失(同本组件其它前景元素
-   的"配色红线"处理,见文件头)。 */
-.tile-check {
-  position: absolute; top: 6px; left: 6px; z-index: 2;
-  display: flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; padding: 0;
-  /* theme-exception: 叠在照片上的选择圈描边,需跨主题恒定浅色(照 Vue2 :1195) */
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  border-radius: 50%;
-  background: var(--overlay-bg);
-  cursor: pointer;
-  /* 照 Vue2 PhotosPersonDetail.vue:1199-1208 —— 默认透明,只在 hover/选择态可见,不是
-     永久叠在每张缩略图上(同本仓已确立先例 PhotosGrid.vue:374-376 .tile-check-box)。
-     Vue2 原文只靠 opacity 隐藏、未加 :focus-visible 覆盖,键盘 tab 仍能聚焦到隐藏态的
-     按钮——这是 Vue2 自带的可访问性缺口,照搬登记,不在本任务范围内补(未申报的新增
-     范围)。 */
-  opacity: 0;
-  transform: scale(0.85);
-  /* background/border-color 也要过渡 —— 下面 :hover 与选中态都改这两个属性(照 Vue2 :1202) */
-  transition: opacity 0.15s, transform 0.15s, background 0.15s, border-color 0.15s;
-}
-.tile:hover .tile-check,
-.tile[data-selection-mode="true"] .tile-check,
-.tile[data-selected="true"] .tile-check {
-  opacity: 1;
-  transform: scale(1);
-}
-/* 终审 Minor 3:Vue2 :1209-1212 的**按钮自身 hover 变深**。原实现整格 hover 只让按钮从透明
-   淡入,鼠标压在按钮本体上没有任何反馈 —— 认不出它是个可点的控件。 */
-.tile-check:hover {
-  /* theme-exception: 在叠照片的半透明底上再掺一档黑加深,掺入量是固定观感调校值、与主题无关
-     (同 PersonHero.vue .hero-back:hover 掺白提亮的既有先例,方向相反而已) */
-  background: color-mix(in srgb, var(--overlay-bg) 65%, #000 35%);
-  /* theme-exception: hover 时描边提到全不透明白(照 Vue2 :1211) */
-  border-color: #fff;
-}
-.tile[data-selected="true"] .tile-check {
-  /* 选中态背景切到饱和 --accent 实底(不再叠在照片上,是组件自己控制的纯色)——这正是
-     --on-accent 合法使用的前提场景(任务颜色红线:--on-accent 只在 var(--accent) 饱和
-     实底上可用),与未选中态(半透明叠在照片上,须钉死浅色前景)刻意区分,不是疏漏。 */
-  background: var(--accent);
-  border-color: var(--accent);
-}
+/* Task 5 (Plan D) shadowing cleanup: the full `.tile-check`/`.tile-detach` geometry, opacity,
+   transitions and hover states duplicated parity's newly-added `.person-grid .tile .tile-check`
+   / `.tile-detach` family (transcribed from Vue2's own PhotosPersonDetail.vue:1263-1331) and
+   have been deleted — parity now governs directly, including the background/border colors
+   (Vue2's own literal fixed overlay colors, not this app's theme tokens; see
+   task-5-report.md's deviations table for the token → literal-color changes this produced).
+   `.tile-check-icon` survives: Vue2 sets this icon's color via an inline `color="white"` prop
+   on its icon component (PhotosPersonDetail.vue:150), not a CSS rule — there is nothing for
+   parity to hold, and this app's SVG needs a CSS-driven color since it isn't prop-driven. */
 .tile-check-icon { color: var(--on-accent); }
-
-/* 终审 Minor 3(几何逐条回 Vue2 :1148-1181 核对后对齐):22×22 / 偏移 6px / 1px 半透明浅色描边
-   / backdrop-filter —— 原实现是 18×18 / 4px / 无描边 / 无模糊。 */
-.tile-detach {
-  position: absolute; top: 6px; right: 6px; z-index: 2;
-  display: flex; align-items: center; justify-content: center;
-  width: 22px; height: 22px; padding: 0;
-  /* theme-exception: 叠在照片上的移出按钮描边,需跨主题恒定半透明浅色(照 Vue2 :1156,
-     同 PersonAvatar.vue .person-avatar-fav 的既有先例) */
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  background: var(--overlay-bg);
-  /* 照 Vue2 :1165 —— 半透明底之上再糊一层,免得照片高频细节从按钮里透出来 */
-  backdrop-filter: var(--blur);
-  cursor: pointer;
-  /* 照 Vue2 PhotosPersonDetail.vue:1162-1171 —— 默认透明,只在 .tile:hover 时可见;
-     不像 .tile-check 那样受 selectionMode/selected 强制可见(Vue2 原文只给 tile-check
-     加了那两条强制可见规则,tile-detach 没有——照搬,不是遗漏)。 */
-  opacity: 0;
-  transform: scale(0.9);
-  transition: opacity 0.15s, transform 0.15s, background 0.15s, color 0.15s, border-color 0.15s;
-  /* theme-exception: 同 .tile-vid——叠在照片上的移出按钮,恒定浅色前景。透明度 0.85 照
-     Vue2 :1157(不是全白):默认态刻意比 hover 态弱一档。 */
-  color: rgba(255, 255, 255, 0.85);
-}
-.tile:hover .tile-detach {
-  opacity: 1;
-  transform: scale(1);
-}
-/* 终审 Minor 3:Vue2 :1172-1177 的**按钮自身 hover 变危险色**。这是本组件唯一的破坏性动作
-   (把照片从这个人物身上摘掉),缺了这一步它跟旁边的选择圈只有位置差别 —— 终审原话:
-   叠加起来会让这个「×」认不出是删除键。--remove-bg 是本仓已有的实底危险红
-   (两套主题都定义,theme.css:165/254;同 theme.css:392 `.grid-item .remove` 的既有用法)。 */
-.tile-detach:hover {
-  background: var(--remove-bg);
-  border-color: transparent;
-  /* theme-exception: 危险红实底之上的白色图标,同 theme.css:392 的既有惯例,不用
-     --on-accent(它只在 var(--accent) 饱和实底上可用,这里背景不是 accent)。 */
-  color: #fff;
-}
 </style>

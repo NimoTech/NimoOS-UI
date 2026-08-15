@@ -41,7 +41,9 @@ function onAction(t: ToastItem) {
 /* bottom-anchored stack: newest sits at the original spot, older ones push up */
 /* z-index — **toasts must sit above every overlay in the repo** (layer ladder: docs/THEMING.md §8).
    With the old value 60, every "failed but the dialog is deliberately kept open for retry" path
-   hid the failure reason: the scrims (.pd-scrim / .cad-overlay = 220, ui-dialog-overlay = 1000,
+   hid the failure reason: the scrims (.pd-scrim / .cad-overlay = 220 at the time, since
+   renamed to .person-dialog-scrim and now 200 per Plan D Task 4's Vue2-parity fix — still
+   below toast either way; ui-dialog-overlay = 1000,
    dialog panel = 1001, .sk-modal-bg = 1100) all sat above the toast, and with backdrop-filter the
    toast was blurred into oblivion — users thought the button did nothing and kept retrying
    (reproduced 2026-07-30: user clicked copy in the "create token" dialog).

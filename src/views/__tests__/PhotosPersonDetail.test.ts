@@ -32,6 +32,10 @@ const svc = vi.hoisted(() => ({
     mergePersons: vi.fn(),
     purgePerson: vi.fn(),
     detachAssetsFromPerson: vi.fn(),
+    // T7 (Plan D): the Hidden people section + hide/unhide actions.
+    hidePerson: vi.fn(),
+    listHiddenPersons: vi.fn(),
+    restorePerson: vi.fn(),
     // albums store (saveAsAlbum = createAlbum + batchAddToAlbum + fetchAlbums)
     createAlbum: vi.fn(),
     batchAddToAlbum: vi.fn(),
@@ -111,7 +115,7 @@ async function mountView(id: string | number = '7') {
 }
 
 /** 打开 Edit 菜单并点其中一项(PersonHero 内部菜单,T10 的 data-test 命名)。 */
-async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'delete') {
+async function pickEditMenu(w: ReturnType<typeof mount>, which: 'rename' | 'merge' | 'hide' | 'delete') {
   await w.find('[data-test="hero-edit-trigger"]').trigger('click')
   await w.find(`[data-test="hero-edit-${which}"]`).trigger('click')
   await flushPromises()
@@ -138,6 +142,9 @@ beforeEach(() => {
   svc.photos.mergePersons.mockReset().mockResolvedValue(undefined)
   svc.photos.purgePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.detachAssetsFromPerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.hidePerson.mockReset().mockResolvedValue(undefined)
+  svc.photos.listHiddenPersons.mockReset().mockResolvedValue([])
+  svc.photos.restorePerson.mockReset().mockResolvedValue(undefined)
   svc.photos.createAlbum.mockReset().mockResolvedValue({ id: 'alb-1', name: 'x' })
   svc.photos.batchAddToAlbum.mockReset().mockResolvedValue(undefined)
   svc.photos.listAlbums.mockReset().mockResolvedValue([])
@@ -179,6 +186,15 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct, so this is GREEN immediately, no RED theater): the not-found state's description
+  // line was untested.
+  it('人物不存在态渲染说明文案 photosPersonNotFoundHint', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: null, relations: [] })
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-not-found"]').text()).toContain(zh.photosPersonNotFoundHint)
+  })
+
   // 协调者裁定 4:加载失败必须与「没有这个人」可区分(T9 的 failed 标志就是为此而加)。
   it('加载失败 → 专用错误文案 + 重试钮(不复用"找不到这个人物")', async () => {
     svc.photos.getPerson.mockRejectedValue(new Error('network down'))
@@ -188,6 +204,14 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
     // 不能落到「没有这个人」那一支
     expect(w.find('[data-test="person-not-found"]').exists()).toBe(false)
     expect(w.find('[data-test="person-skeleton"]').exists()).toBe(false)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition): the load-failed state's
+  // description line was untested.
+  it('加载失败态渲染说明文案 photosPersonLoadFailedHint', async () => {
+    svc.photos.getPerson.mockRejectedValue(new Error('network down'))
+    const { w } = await mountView('7')
+    expect(w.find('[data-test="person-load-failed"]').text()).toContain(zh.photosPersonLoadFailedHint)
   })
 
   it('失败态点「重试」→ load 被再调一次;成功后翻到正常内容', async () => {
@@ -228,6 +252,54 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
     expect(w.findComponent(PersonHero).exists()).toBe(true)
     expect(w.findComponent(PersonAssetGrid).exists()).toBe(true)
     expect(w.find('[data-test="hero-name"]').text()).toBe('妈妈')
+  })
+})
+
+// Plan D Task 3 (re-shell + re-home overlays): the shell became the same
+// `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main` as
+// PhotosPeople.vue/PhotosAlbums.vue; every overlay (the selection-state floating bar / the seven
+// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root, except PhotoLightbox
+// which stays a sibling of .photos-root (the standing rule until Plan F lands, see the comment at
+// the file's template).
+
+describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', () => {
+  // Fix round 1 (controller ruling on Deviation A, 2026-08-14): the plan's original
+  // `back = true` was a defect in the plan itself — Vue2's source (the authority here),
+  // PhotosPeopleTopbar.vue:6-9/36, always shows only title+sub on the People detail-state topbar,
+  // never a back chevron; the back affordance lives in the hero instead (Vue2's own
+  // `.detail-hero .back`, this app's counterpart being PersonHero's `hero-back` button,
+  // emit('back') → the container's existing goToPeopleList). PhotosTopbar.vue itself is
+  // unchanged, its `back`-vs-title/sub mutual exclusivity unchanged — so asserting a falsy back
+  // plus title/sub here is the real visual contract worth pinning down.
+  it('mounts .app shell; topbar shows person name with Unnamed fallback, no back chevron', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.props('title')).toBe(zh.photosPersonUnnamedTitle)
+    expect(topbar.props('sub')).toBe(zh.photosPersonSubtitle)
+    expect(topbar.props('back')).toBeFalsy()
+    expect(w.find('.photos-root > .app').exists()).toBe(true)
+  })
+
+  it('renders selection bar and person dialogs inside .photos-root, lightbox outside', async () => {
+    const { w } = await mountView('7')
+    w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
+    await w.vm.$nextTick()
+    expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
+    // PhotoLightbox stays a sibling of .photos-root (the standing rule until Plan F lands)
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(false)
+  })
+
+  // Plan D Task 4 (dialog class-name rework): the seven dialogs' outer scrim class has been
+  // re-anchored from .pd-scrim to Vue2's own .person-dialog-scrim, and still hangs inside
+  // .photos-root (Task 3's re-shell/re-home-overlays structure is unchanged).
+  it('弹窗打开后其 scrim 挂在 .photos-root 内,类名为 Vue2 锚点 person-dialog-scrim', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    expect(w.find('.photos-root .person-dialog-scrim').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').classes()).toContain('person-dialog-scrim')
   })
 })
 
@@ -324,6 +396,20 @@ describe('PhotosPersonDetail.vue —— 共现横条', () => {
     // 切到地点 tab 后横条消失
     await w.find('[data-test="person-tab-places"]').trigger('click')
     expect(w.findAll('[data-test="coappear-card"]')).toHaveLength(0)
+  })
+
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the co-appear
+  // card's Unnamed-person fallback (PhotosPersonDetail.vue:718) had no covering assertion.
+  it('name 为空的共现人物 → 卡片渲染 Unnamed person 兜底文案', async () => {
+    svc.photos.getPerson.mockResolvedValue({
+      person: rawPerson(),
+      relations: [{ personId: 13, name: '', coverFaceId: 'f13', count: 5 }],
+    })
+    const { w } = await mountView('7')
+    const cards = w.findAll('[data-test="coappear-card"]')
+    expect(cards).toHaveLength(1)
+    expect(cards[0].text()).toContain(zh.photosPersonUnnamedTitle)
   })
 })
 
@@ -441,6 +527,164 @@ describe('PhotosPersonDetail.vue —— 改名弹窗', () => {
     expect(svc.photos.updatePerson).toHaveBeenCalledTimes(1)
     release!()
     await flushPromises()
+  })
+})
+
+// Task 7 (Plan D): a rename that collides with an existing name switches to the duplicate-name
+// dupconfirm dialog (Vue2 dupConfirmDialog :293-314). The allPeople counterpart is people.people
+// (the full list, including unnamed) — this has listPersons return two people: the current
+// person (id=7, name "妈妈"/"Mom") and another already-named person (id=9, name "Ada").
+describe('PhotosPersonDetail.vue —— 改名弹窗:重名 dupconfirm', () => {
+  beforeEach(() => {
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson(), rawPerson({ id: 9, name: 'Ada', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+  })
+
+  it('输入已存在姓名(大小写/空白不敏感)→ 出现 dupconfirm,不发 updatePerson', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(true)
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+  })
+
+  it('标题带上输入的名字', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').text()).toContain('Ada')
+  })
+
+  // A Chinese name that, after trimming whitespace, is exactly identical to the original (e.g.
+  // "  妈妈 " → "妈妈") hits confirmRename's earlier "name unchanged" short-circuit (per Vue2
+  // :911) and never even reaches findNamedDuplicate — that path can't test whether excludeId
+  // actually takes effect. Using person 7's own English name "Ada" and typing the casing variant
+  // "ADA" instead (which, after trim, is NOT equal to the original 'Ada', so it clears that first
+  // short-circuit) actually reaches findNamedDuplicate(people.people, 'ADA', '7'), letting us
+  // assert it doesn't match "itself" as a duplicate (excludeId works).
+  it('改成自己原名的大小写变体 → 不算重名(excludeId 生效),照常直接改名', async () => {
+    // Overrides just for this test case: in the people list, id=7 is also named "Ada" (matching
+    // what the detail page shows), and id=9 is changed to a non-conflicting "Bob" — otherwise
+    // "ADA" would match id=9's "Ada" first and be judged a real duplicate, which wouldn't test
+    // whether it's actually excluding "itself".
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: 'Ada' }), relations: [] })
+    svc.photos.listPersons.mockResolvedValue({
+      persons: [rawPerson({ name: 'Ada' }), rawPerson({ id: 9, name: 'Bob', coverFaceId: 'face-9' })],
+      facesIndexedUpTo: null,
+    })
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('ADA')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ADA' })
+  })
+
+  it('"Name anyway" → 照样改名(带原始输入的名字),弹窗关闭', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('  ada ')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-name-anyway"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.updatePerson).toHaveBeenCalledWith('7', { name: 'ada' })
+    expect(w.find('[data-test="hero-name"]').text()).toBe('ada')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Merge into existing" → 合并到既有人物(id=9),导航回列表页', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-merge"]').trigger('click')
+    await flushPromises()
+    expect(svc.photos.mergePersons).toHaveBeenCalledWith('7', 9)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+
+  it('"Cancel" → 关闭 dupconfirm,不改名不合并', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    await w.find('[data-test="person-rename-dup-cancel"]').trigger('click')
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+    expect(svc.photos.updatePerson).not.toHaveBeenCalled()
+    expect(svc.photos.mergePersons).not.toHaveBeenCalled()
+  })
+
+  it('Esc 关闭 dupconfirm(同其余弹窗的 Esc 分层规范)', async () => {
+    const { w } = await mountView('7')
+    await pickEditMenu(w, 'rename')
+    await w.find('[data-test="person-rename-input"]').setValue('Ada')
+    await w.find('[data-test="person-rename-confirm"]').trigger('click')
+    await flushPromises()
+    pressEscape()
+    await w.vm.$nextTick()
+    expect(w.find('[data-test="person-rename-dupconfirm"]').exists()).toBe(false)
+  })
+})
+
+// Task 7 (Plan D): hiding a person (Vue2 hideCurrentPerson :914-925). Executes immediately, no
+// confirmation dialog, only shows in the Edit menu when hiddenPeopleSupported (PersonHero already
+// has its own tests for the gating itself; this only tests the container's wiring: calling the
+// store, the toast, navigation).
+describe('PhotosPersonDetail.vue —— 隐藏人物', () => {
+  it('Edit 菜单里有「隐藏此人」项(hiddenPeopleSupported 默认 true)', async () => {
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(true)
+  })
+
+  it('hiddenPeopleSupported=false(listHiddenPersons 404)→ 菜单里没有「隐藏此人」项', async () => {
+    svc.photos.listHiddenPersons.mockRejectedValue(Object.assign(new Error('not found'), { response: { status: 404 } }))
+    const { w } = await mountView('7')
+    await w.find('[data-test="hero-edit-trigger"]').trigger('click')
+    expect(w.find('[data-test="hero-edit-hide"]').exists()).toBe(false)
+  })
+
+  it('成功:调 hidePerson(id)、无确认弹窗、toast 带人物名、导航回列表页', async () => {
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(svc.photos.hidePerson).toHaveBeenCalledWith('7')
+    // No confirmation dialog: the rename/delete etc. dialogs shouldn't appear.
+    expect(w.find('[data-test="person-rename-dialog"]').exists()).toBe(false)
+    expect(push).toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', '"妈妈"'))
+  })
+
+  it('未命名人物 → toast 用兜底标签(照 Vue2 :919 的 name.trim() 判断)', async () => {
+    svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ name: '' }), relations: [] })
+    const { w } = await mountView('7')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(toast.toasts[0]!.text).toBe(zh.photosPersonHiddenToast.replace('{label}', zh.photosPersonUnnamedLabel))
+  })
+
+  it('失败:不导航、不弹成功 toast', async () => {
+    svc.photos.hidePerson.mockRejectedValueOnce(new Error('boom'))
+    const { w, router } = await mountView('7')
+    const push = vi.spyOn(router, 'push')
+    const toast = useToast()
+    await pickEditMenu(w, 'hide')
+    expect(push).not.toHaveBeenCalledWith('/photos/people')
+    expect(toast.toasts).toHaveLength(0)
   })
 })
 
@@ -711,13 +955,16 @@ describe('PhotosPersonDetail.vue —— 删除人物', () => {
     expect(dlg.text()).not.toContain(zh.photosPersonDeleteTitle)
   })
 
-  // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)
+  // 评审 Minor 6:正文两档灰 —— 第二句在自己的 <span> 里(才能上更淡的一档 token)。
+  // Plan D Task 4: after the class-name rework the selector is now person-dialog-body-dim
+  // (formerly .pd-body-dim; the class name is now re-anchored to Vue2's person-dialog-* family,
+  // .pd-body-dim no longer exists in the template/scoped styles).
   it('删除弹窗正文分两档:正文句 + 更淡的「5 秒内可撤销」', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
     const dlg = w.find('[data-test="person-delete-dialog"]')
     expect(dlg.text()).toContain(zh.photosPersonDeleteKeptBody)
-    const dim = dlg.find('.pd-body-dim')
+    const dim = dlg.find('.person-dialog-body-dim')
     expect(dim.exists()).toBe(true)
     expect(dim.text()).toBe(zh.photosPersonDeleteUndoHint)
   })
@@ -1023,6 +1270,9 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
+  // Plan D Task 4: after the class-name rework the video-badge selector is now .tile-vid (the
+  // Vue2 anchor, the same class PersonAssetGrid reuses; the former .hero-picker-vid no longer
+  // exists in the template/scoped styles).
   it('背景网格视频角标有 ▶ + 时长(Vue2 :352;同 T11 PersonAssetGrid 的同一元素)', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([
       { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },
@@ -1030,7 +1280,7 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('open-hero-picker')
     await w.vm.$nextTick()
-    const badge = w.find('.hero-picker-vid')
+    const badge = w.find('.tile-vid')
     expect(badge.exists()).toBe(true)
     expect(badge.find('.vid-play').text()).toBe('▶')
     expect(badge.text()).toContain('0:05')

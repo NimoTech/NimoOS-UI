@@ -11,6 +11,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
       purgePerson: vi.fn(() => Promise.resolve({})),
       mergePersons: vi.fn(() => Promise.resolve({})),
       rejectMergeSuggestion: vi.fn(() => Promise.resolve({})),
+      hidePerson: vi.fn(() => Promise.resolve({})),
+      listHiddenPersons: vi.fn(() => Promise.resolve([])),
+      restorePerson: vi.fn(() => Promise.resolve({})),
     },
   },
 }))
@@ -587,6 +590,107 @@ describe('photosPeople store', () => {
     })
   })
 
+  // Task 7 (Plan D, SP7-P5 People): the Hidden people section + hide/unhide actions, mirroring
+  // Vue2 hidePersonAction/fetchHiddenPeople/unhidePerson (photos.js:1585-1633).
+  describe('hiddenPeople / hidePerson / unhidePerson', () => {
+    it('fetchHiddenPeople 成功 → hiddenPeople 填充为 Person[],hiddenPeopleLoaded/hiddenPeopleSupported 都为 true', async () => {
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1', name: 'Zed' })])
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      expect(s.hiddenPeople[0]).toMatchObject({ id: 'h1', name: 'Zed' })
+      expect(s.hiddenPeopleLoaded).toBe(true)
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('hiddenPeopleSupported 初始默认 true(假定支持,直到一次真实 404 证伪)', () => {
+      const s = usePhotosPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+    })
+
+    it('fetchHiddenPeople 404 → hiddenPeopleSupported 翻为 false(特性探测,不是错误,不 console.error)', async () => {
+      const err = Object.assign(new Error('not found'), { response: { status: 404 } })
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(err)
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(false)
+      expect(consoleSpy).not.toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('fetchHiddenPeople 非 404 失败 → hiddenPeopleSupported 保持不变,console.error 被调用', async () => {
+      ;(service.photos.listHiddenPersons as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeopleSupported).toBe(true)
+      expect(consoleSpy).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+
+    it('hidePerson 成功 → 调 service.photos.hidePerson(id)、乐观从 people 移除、返回 true', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(true)
+      expect(s.people).toHaveLength(0)
+      expect(service.photos.hidePerson).toHaveBeenCalledWith('p1')
+    })
+
+    it('hidePerson 失败 → 回滚快照到原位置、返回 false', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({
+        persons: [rawPerson({ id: 'p0' }), rawPerson({ id: 'p1', name: 'Ann' }), rawPerson({ id: 'p2' })],
+        facesIndexedUpTo: null,
+      })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      ;(service.photos.hidePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const ok = await s.hidePerson('p1')
+      expect(ok).toBe(false)
+      expect(s.people).toHaveLength(3)
+      expect(s.people[1]).toMatchObject({ id: 'p1', name: 'Ann' }) // reinserted at its original index
+      consoleSpy.mockRestore()
+    })
+
+    it('hidePerson 在途期间:一次竞态的 fetchPeople 不会把刚移除的人物又拉回来', async () => {
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      const s = usePhotosPeople()
+      await s.fetchPeople()
+      let resolveHide: (() => void) | undefined
+      ;(service.photos.hidePerson as any).mockImplementation(() => new Promise((resolve) => { resolveHide = () => resolve({}) }))
+      const hidePromise = s.hidePerson('p1')
+      // While the hide request is still in flight, a racing fetchPeople hits the same backend
+      // data (which doesn't reflect the hide result yet).
+      ;(service.photos.listPersons as any).mockResolvedValueOnce({ persons: [rawPerson({ id: 'p1', name: 'Ann' })], facesIndexedUpTo: null })
+      await s.fetchPeople()
+      expect(s.people).toHaveLength(0) // blocked by _pendingHides, doesn't come back from the dead
+      resolveHide?.()
+      await hidePromise
+    })
+
+    it('unhidePerson 成功 → 调 restorePerson(id),finally 重拉 people 与 hiddenPeople', async () => {
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(service.photos.restorePerson).toHaveBeenCalledWith('h1')
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+    })
+
+    it('unhidePerson 失败 → 仍然重拉两份列表(照 Vue2 unconditional finally),console.error 被调用', async () => {
+      ;(service.photos.restorePerson as any).mockRejectedValueOnce(new Error('boom'))
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const s = usePhotosPeople()
+      await s.unhidePerson('h1')
+      expect(consoleSpy).toHaveBeenCalled()
+      expect(service.photos.listPersons).toHaveBeenCalled()
+      expect(service.photos.listHiddenPersons).toHaveBeenCalled()
+      consoleSpy.mockRestore()
+    })
+  })
+
   describe('__resetForTest', () => {
     // 风格清理:用 describe 级 beforeEach/afterEach 切换 fake timers,而不是在 it() 内联
     // vi.useFakeTimers()/vi.useRealTimers()——跟文件里其余用到 fake timers 的 describe 一致。
@@ -605,6 +709,21 @@ describe('photosPeople store', () => {
       expect(s.mergeSuggestions).toEqual([])
       await vi.advanceTimersByTimeAsync(5000)
       expect(service.photos.purgePerson).not.toHaveBeenCalled() // 定时器已被清
+    })
+
+    // Task 7 (Plan D): __resetForTest must also clear the Hidden-people-related state and
+    // _pendingHides, otherwise when the same id gets hidePerson'd in the next test case,
+    // fetchPeople's filtering logic would be polluted by a dangling entry left over from the
+    // previous case (the same precedent as _purgeTimers in the previous test case's comment).
+    it('清空 Hidden people 状态', async () => {
+      const s = usePhotosPeople()
+      ;(service.photos.listHiddenPersons as any).mockResolvedValueOnce([rawPerson({ id: 'h1' })])
+      await s.fetchHiddenPeople()
+      expect(s.hiddenPeople).toHaveLength(1)
+      s.__resetForTest()
+      expect(s.hiddenPeople).toEqual([])
+      expect(s.hiddenPeopleLoaded).toBe(false)
+      expect(s.hiddenPeopleSupported).toBe(true)
     })
   })
 })

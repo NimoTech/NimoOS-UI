@@ -88,6 +88,15 @@ describe('PersonRelationsTab.vue', () => {
     expect(rows[2].text()).toContain('A')
   })
 
+  // Task 6 fix round 1 (coordinator finding, plain coverage addition — code already verified
+  // correct against Vue2 PR#137, so this is GREEN immediately, no RED theater): the rel-row
+  // Unnamed-person fallback (PersonRelationsTab.vue:122) had no covering assertion.
+  it('name 为空的关系 → 列表行渲染 Unnamed person 兜底文案', () => {
+    const relations: PersonRelation[] = [{ personId: 5, name: '', count: 2 }]
+    const w = mountTab({ relations, person: P(), places: [] })
+    expect(w.get('.rel-row .nm').text()).toBe(zh.photosPersonUnnamedTitle)
+  })
+
   it('条形宽度比例正确(最大项 100%,照 :533-536 relMax)', () => {
     const relations: PersonRelation[] = [
       { personId: 1, name: 'A', count: 25 },
@@ -163,9 +172,17 @@ describe('PersonRelationsTab.vue', () => {
     expect(html).toContain('&lt;img')
   })
 
-  it('不渲染洞察卡底部"深挖"按钮(归 SP8,照 brief)', () => {
+  // Task 8 (Plan D): previously deferred and unrendered in SP8, now added back here per Vue2
+  // PhotosPersonDetail.vue:228-230 — the click is a no-op (wiring belongs to Plan G), this only
+  // adds the render + visuals first.
+  it('渲染洞察卡底部"深挖"按钮,点击不抛错、不 emit 任何事件(no-op,接线归 Plan G)', async () => {
     const w = mountTab({ relations: [{ personId: 1, name: 'A', count: 1 }], person: P(), places: [] })
-    expect(w.find('.nimo-btn').exists()).toBe(false)
+    const btn = w.get('.nimo-btn')
+    expect(btn.attributes('data-test')).toBe('rel-insight-dig-deeper')
+    expect(btn.text()).toBe(zh.photosPersonDigDeeper)
+    await btn.trigger('click')
+    // The one business emit (open-person) shouldn't fire — a no-op, no navigation.
+    expect(w.emitted('open-person')).toBeUndefined()
   })
 
   it('模板里不出现任何裸颜色字面量(十六进制或 rgba()/hsla() 函数式,兜底断言)', () => {
