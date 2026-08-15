@@ -180,12 +180,11 @@ describe('McpSection — delete confirmation names the cascade (Task 21)', () =>
     return el as HTMLElement
   }
 
-  it('deleting a server warns it will also delete its approvals', async () => {
+  // No `total_stored_approvals` in this fixture (an older backend that
+  // predates the Task 21 fix-round field) -- exercises the fallback
+  // derivation: one approved tool + a server-level grant = 2.
+  it('deleting a server warns it will also delete its approvals (fallback derivation, no total_stored_approvals field)', async () => {
     h.listMCPServers.mockResolvedValue([srv(1, { name: 'github' })])
-    // Stored truth per listMCPTools's contract: `approved` on a tool row and
-    // `server_level_approved` both reflect a persisted approval row
-    // regardless of gating -- one approved tool + a server-level grant = 2
-    // rows CASCADE will delete.
     h.listMCPTools.mockResolvedValue({
       tools: [
         { name: 'create_issue', approved: true, last_seen_at: Date.now() / 1000, desc_changed: false },
@@ -200,6 +199,30 @@ describe('McpSection — delete confirmation names the cascade (Task 21)', () =>
     await w.find('[data-test=delete-server-1]').trigger('click')
     await flushPromises()
     expect(confirmDialog().textContent).toMatch(/2\s*条|2 approvals/)
+  })
+
+  // Task 21 fix round: `total_stored_approvals` is the primary source and
+  // must win even when it disagrees with (exceeds) what the tool rows alone
+  // imply -- exactly the removed-tool scenario the fix closes: an approval
+  // whose tool no longer appears in `tools` at all, so the fallback
+  // derivation (1 approved row + no server-level grant = 1) would silently
+  // undercount CASCADE's true 3.
+  it('a total_stored_approvals that exceeds what the tool rows imply wins -- the true, larger number is shown', async () => {
+    h.listMCPServers.mockResolvedValue([srv(1, { name: 'github' })])
+    h.listMCPTools.mockResolvedValue({
+      tools: [
+        { name: 'create_issue', approved: true, last_seen_at: Date.now() / 1000, desc_changed: false },
+      ],
+      server_level_approved: false,
+      total_stored_approvals: 3,
+    })
+
+    const w = mountFullSection()
+    await flushPromises()
+
+    await w.find('[data-test=delete-server-1]').trigger('click')
+    await flushPromises()
+    expect(confirmDialog().textContent).toMatch(/3\s*条|3 approvals/)
   })
 
   it('a server with zero stored approvals gets no cascade line at all (nothing to lose, nothing to warn about)', async () => {

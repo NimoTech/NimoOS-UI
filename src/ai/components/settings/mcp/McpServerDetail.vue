@@ -16,6 +16,13 @@
   这里而不是 `McpSection.vue`。级联条数的取数来源与理由见下方 `approvalCascadeCount`
   的头注释;新增的独立删除入口(`data-test="delete-server-<id>"`,单击直开确认弹窗,
   不需要先展开「...」菜单)见模板里该按钮旁的注释。
+
+  【Task 21 fix round(评审后追加,2026-08-15)—— 上一段申报的"漏计已从服务器移除的
+  工具的授权"这个残留缺口不是架构限制,是后端一行没接的疏漏:`route/v2/mcp_approvals.go`
+  的 `Tools` handler 早就把全量、不带任何门槛的 `ListForServer` 结果取到了变量
+  `approvals` 里,只是从没把 `len(approvals)` 放上线。已在 NimoOS-AI 补上
+  `total_stored_approvals` 字段(该仓单独提交),`approvalCascadeCount` 现在优先读它,
+  只有面对没有这个字段的旧后端时才退回本文件原有的推导式——见下方该常量自己的头注释。】
 -->
 <!--
 
@@ -207,6 +214,11 @@ const toolsLoading = ref(false)
 const serverLevelApproved = ref(false)
 const serverLevelStaleReason = ref('')
 const serverLevelStaleReasonKey = ref('')
+// Task 21 fix round -- see `approvalCascadeCount` below for why this (not a
+// derivation from `toolRows`/`serverLevelApproved`) is the count's primary
+// source. `undefined` (not 0) when the field is missing, so the computed can
+// tell "backend predates this field" apart from "honestly zero approvals".
+const totalStoredApprovals = ref<number | undefined>(undefined)
 // Same race the `reqSeq` guard above protects `runTest()` against, applied
 // to this independent request: switching servers while a `listMCPTools` call
 // is in flight must not let the old server's tools land in the new server's
@@ -215,33 +227,37 @@ const serverLevelStaleReasonKey = ref('')
 // finishing one wrongly invalidate the other.
 let toolsSeq = 0
 
-// Task 21 (mcp-progressive-disclosure plan) -- the honest count of stored
-// approval rows this server's delete cascades to. Deliberately NOT
+// Task 21 (mcp-progressive-disclosure plan, fix round) -- the honest count of
+// stored approval rows this server's delete cascades to. Deliberately NOT
 // `listMCPApprovals()` (the gated cross-server summary McpApprovalsSection.vue
 // reads) -- that endpoint only returns approvals that currently pass every
 // invalidation gate, so a stored-but-void approval (e.g. every approval for a
 // server goes void once its URL is edited) would silently disappear from the
-// count even though CASCADE will still drop its row. `toolRows`/
-// `serverLevelApproved` above are already the stored-truth data this panel
-// loads for the tool list (Task 20) -- `McpToolRow.approved` and
-// `server_level_approved` both reflect a persisted `mcp_tool_approvals` row
-// regardless of gating (see their doc comments in
-// packages/service/src/ai.ts), and the backend's `ListForServer` (which feeds
-// this same endpoint) queries `WHERE server_id = ?` with no gate applied --
-// the same predicate CASCADE deletes against. No second network call needed:
-// this panel already has the data by the time the delete button is visible.
+// count even though CASCADE will still drop its row.
 //
-// Known residual gap (documented, not fixed here -- no available endpoint
-// closes it): a tool that has been fully removed from the server's current
-// tool list is dropped from `toolRows` entirely by the backend's `Tools`
-// handler (it only iterates the server's CURRENT handshake tool metas, not
-// every stored approval row), so an approval for a since-removed tool is
-// undercounted here even though its row still exists in the DB and will still
-// be deleted by CASCADE. This is narrower and rarer than the config-changed
-// gate this count is built to survive, and is called out in the task report.
-const approvalCascadeCount = computed(
-  () => toolRows.value.filter((tool) => tool.approved).length + (serverLevelApproved.value ? 1 : 0),
-)
+// Primary source: `listMCPTools`'s `total_stored_approvals` (backend
+// `route/v2/mcp_approvals.go`'s `Tools` handler, Task 21 fix round) -- the
+// raw `len(approvals)` from `ListForServer`, which queries
+// `mcp_tool_approvals WHERE server_id = ?` with NO gate applied at all, the
+// same predicate a server-delete CASCADE acts against. This is the one
+// number that cannot undercount: unlike the per-tool `tools` rows below (each
+// built by ranging over the server's CURRENT handshake tool metas), it is not
+// filtered by whether a tool still appears in the latest listing -- an
+// approval for a tool the server has since stopped offering is still counted
+// here even though it no longer produces a `McpToolRow` at all. See that
+// field's doc comment in `packages/service/src/ai.ts` for the full backend
+// trace.
+//
+// Fallback: `toolRows.filter(approved).length + (serverLevelApproved ? 1 : 0)`
+// -- the original Task 21 derivation, kept only for a backend that predates
+// `total_stored_approvals` (the field is `undefined` there, not absent-but-
+// zero, so `!= null` distinguishes "old backend" from "field is honestly 0").
+// This fallback still has the removed-tool undercount `total_stored_approvals`
+// exists to close; it is a compatibility floor, not a second correct source.
+const approvalCascadeCount = computed(() => {
+  if (totalStoredApprovals.value != null) return totalStoredApprovals.value
+  return toolRows.value.filter((tool) => tool.approved).length + (serverLevelApproved.value ? 1 : 0)
+})
 
 async function loadTools(id: number) {
   const seq = ++toolsSeq
@@ -253,12 +269,14 @@ async function loadTools(id: number) {
     serverLevelApproved.value = !!res?.server_level_approved
     serverLevelStaleReason.value = res?.server_level_stale_reason || ''
     serverLevelStaleReasonKey.value = res?.server_level_stale_reason_key || ''
+    totalStoredApprovals.value = res?.total_stored_approvals
   } catch {
     if (seq !== toolsSeq) return
     toolRows.value = []
     serverLevelApproved.value = false
     serverLevelStaleReason.value = ''
     serverLevelStaleReasonKey.value = ''
+    totalStoredApprovals.value = undefined
   } finally {
     if (seq === toolsSeq) toolsLoading.value = false
   }
@@ -271,6 +289,7 @@ watch(() => props.server?.id, (id) => {
   serverLevelApproved.value = false
   serverLevelStaleReason.value = ''
   serverLevelStaleReasonKey.value = ''
+  totalStoredApprovals.value = undefined
   if (id !== undefined) loadTools(id)
 }, { immediate: true })
 

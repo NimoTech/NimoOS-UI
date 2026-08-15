@@ -592,6 +592,25 @@ describe('createAi — MCP tool approvals (progressive disclosure)', () => {
     expect(res.server_level_stale_reason_key).toBe('config_changed')
   })
 
+  // mcp-progressive-disclosure Task 21 fix round -- total_stored_approvals
+  // can exceed what tools/server_level_approved alone imply (a stored
+  // approval for a since-removed tool never gets a `tools` row), so it must
+  // pass through unchanged rather than being derived or dropped here.
+  it('listMCPTools passes total_stored_approvals through unchanged', async () => {
+    const { http } = recorder((verb, url) => {
+      if (verb === 'get' && url === '/ai/mcp/servers/1/tools') {
+        return {
+          tools: [{ name: 'create_issue', approved: true, last_seen_at: 100, desc_changed: false }],
+          server_level_approved: false,
+          total_stored_approvals: 2,
+        }
+      }
+      return null
+    })
+    const res = await createAi(http, () => null).listMCPTools(1)
+    expect(res.total_stored_approvals).toBe(2)
+  })
+
   it('setMCPApproval PUTs /ai/mcp/servers/:id/approvals/:tool with body {approved}', async () => {
     const { http, calls } = recorder()
     await createAi(http, () => null).setMCPApproval(1, 'create_issue', true)
