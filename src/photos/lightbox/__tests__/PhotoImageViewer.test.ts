@@ -2,6 +2,9 @@ import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import PhotoImageViewer from '../PhotoImageViewer.vue'
+// Plan F Task 4: style assertion reads the component's own source text (jsdom doesn't compute
+// cascade), same idiom as PhotoLightbox.test.ts/PhotoFilmstrip.test.ts/PhotoInfoPanel.test.ts.
+import IMAGE_VIEWER_SRC from '../PhotoImageViewer.vue?raw'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -41,6 +44,33 @@ describe('PhotoImageViewer src 计算(HEIC/TIFF/RAW 回退大图缩略图)', () 
   it('HEIC 等浏览器不可原生解码 mimeType 回退 thumbnailUrl(id, "large")', async () => {
     const w = await mountViewer({ assetId: 'a2', mimeType: 'image/heic' })
     expect(w.get('img.img-el').attributes('src')).toBe('/v1/photos/assets/a2/thumbnail?size=large&token=t')
+  })
+})
+
+// Plan F Task 4: byte-exact per Vue2 (photos.scss:500-510)/parity (photos.scss:616-622) --
+// yellow highlighter box + entrance pulse, replacing the earlier `--accent` token approximation.
+describe('PhotoImageViewer OCR 命中框动画(lb-ocr-pulse,Plan F Task 4)', () => {
+  const rule = (): string => {
+    const m = /\.lb-ocr-hit\s*\{([^}]*)\}/.exec(IMAGE_VIEWER_SRC)
+    expect(m, '找不到 .lb-ocr-hit 规则').not.toBeNull()
+    return m![1]
+  }
+
+  it('引用 lb-ocr-pulse 入场动画,时长/缓动逐字节对齐 Vue2', () => {
+    expect(rule()).toMatch(/animation:\s*lb-ocr-pulse 0\.45s cubic-bezier\(0\.22,\s*0\.61,\s*0\.36,\s*1\) both/)
+  })
+
+  it('配色逐字节对齐 Vue2(黄底 30% + 白描边 85% + 黄光 55%),不再借用 --accent 系 token', () => {
+    const body = rule()
+    expect(body).toMatch(/background:\s*rgba\(255,\s*214,\s*10,\s*0\.30\)/)
+    expect(body).toMatch(/box-shadow:\s*0 0 0 1\.5px rgba\(255,\s*255,\s*255,\s*0\.85\),\s*0 0 12px rgba\(255,\s*214,\s*10,\s*0\.55\)/)
+    expect(body).not.toMatch(/var\(--accent/)
+  })
+
+  it('圆角 4px(Vue2/parity 值,此前是 3px);不再画独立 border(改用 box-shadow 双层描边)', () => {
+    const body = rule()
+    expect(body).toMatch(/border-radius:\s*4px/)
+    expect(body).not.toMatch(/\bborder:\s*1\.5px solid/)
   })
 })
 

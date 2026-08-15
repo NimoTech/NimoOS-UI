@@ -167,6 +167,33 @@ describe('PhotoFilmstrip 滚轮 → 横向滚动 + 停手 140ms 后居中项 emi
   })
 })
 
+// Plan F Task 4 (Vue2 param alignment): Vue2 mounted() calls `centerActiveThumb()` with no
+// argument -- the default `smooth = true` -- so every lightbox open smooth-scrolls the strip to
+// the active thumbnail. This component previously passed `false` (instant) on mount with no
+// documented reason; corrected to match. `HTMLElement.prototype.scrollTo` is stubbed globally
+// (not per-element via stubGeometry) so the call made during onMounted -- before the test can
+// reach into the mounted wrapper to stub the specific strip element -- is captured too.
+describe('PhotoFilmstrip 挂载时居中(Vue2 mounted() 参数对齐,Plan F Task 4)', () => {
+  let scrollToSpy: ReturnType<typeof vi.fn<(...a: unknown[]) => void>>
+  let restore: () => void
+
+  beforeEach(() => {
+    scrollToSpy = vi.fn<(...a: unknown[]) => void>()
+    const proto = HTMLElement.prototype as unknown as { scrollTo: (...a: unknown[]) => void }
+    const original = proto.scrollTo
+    proto.scrollTo = ((...a: unknown[]) => scrollToSpy(...a)) as typeof proto.scrollTo
+    restore = () => { proto.scrollTo = original }
+  })
+  afterEach(() => restore())
+
+  it('挂载即调用 scrollTo 居中当前项,behavior 为 smooth(非此前的 instant)', () => {
+    mountFilmstrip(makeList(5), 2)
+    expect(scrollToSpy).toHaveBeenCalledTimes(1)
+    const arg = scrollToSpy.mock.calls[0]![0] as { behavior: string }
+    expect(arg.behavior).toBe('smooth')
+  })
+})
+
 describe('PhotoFilmstrip index 变化时把该缩略图居中(centerActiveThumb 移植)', () => {
   it('props.index 变化后调用 strip.scrollTo 把该缩略图居中', async () => {
     const w = mountFilmstrip(makeList(5), 0)

@@ -1129,6 +1129,15 @@
 .photos-root .filter-clear:hover { background: rgba(110,91,255,0.28); }
 .photos-root .toolbar-filter-active { color: var(--accent-hi) !important; }
 
+/* New-UI annotation (Plan F Task 4, 2026-08-15): the `.lb-nav[data-disabled="true"]`/
+   `.lb-nav.shake` pair below is transcribed verbatim from Vue2 (byte-identical) but is DORMANT
+   on both sides of the port -- grep-confirmed against NimoOS-UI's PhotosLightbox.vue: no Vue2 JS
+   anywhere sets a `data-disabled` attribute or a `.shake` class on `.lb-nav` (the prev/next
+   buttons only ever get the native `:disabled` boolean, which this rule's own selector doesn't
+   even target). New-UI's PhotoLightbox.vue wires the same native `:disabled` attribute the same
+   way and does not add `data-disabled`/`.shake` either. Per this task's controller ruling 5:
+   transcribe-only, keep dormant, do not wire either attribute/class in either script -- this
+   comment only documents that dormancy, it changes no rule. */
 /* === Lightbox nav boundary shake === */
 .photos-root .lb-nav[data-disabled="true"] { opacity: 0.25; cursor: default; }
 .photos-root .lb-nav.shake {

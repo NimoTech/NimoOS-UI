@@ -24,6 +24,12 @@
 // style 块里维护一份对齐 parity 结构的网格/定位规则,值上尽量复用已有 New-UI token
 // 与既有视觉(非 Vue2 的原始色值),直到 Task 5 把整个组件重新挂进 `.photos-root`、
 // parity 的全局规则真正接管为止 —— 届时这里的本地骨架规则应当被评估/精简掉。
+//
+// Plan F Task 4 (2026-08-15,灯箱动画 frame-exact):`.lb-media` 现在包一层
+// `<transition :name="'lb-swap-' + navDir">`(navDir 见下方 script),byte-exact 复刻 Vue2 的
+// swap/scale 动画;容器补 `lb-in` 入场动画引用;`.lb-media` 定位改 absolute+inset:0(crossfade
+// 承重值,见该规则的 style 注释)。详见本文件与 PhotoImageViewer.vue/PhotoFilmstrip.vue 各自
+// 的 style/script 注释,以及 task-4-report.md 的参数核值表。
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -105,6 +111,25 @@ function onMouseMove(): void {
 const videoEl = ref<HTMLVideoElement | null>(null)
 let startApplied = false
 let startPhotoId: string | number | null = null
+
+// —— 切换方向(Plan F Task 4,忠于 Vue2 PhotosLightbox.vue :233-238 的 data()/watch)——
+// Vue2: `data() { return { navDir: 'next', _lastIdx: 0, ... } }` + `watch: { 'photo.id'(newId) {
+// this.navDir = this.idx >= this._lastIdx ? 'next' : 'prev'; this._lastIdx = this.idx; ... } }`
+// (idx 是 `photos.findIndex(p => p.id === photo.id)` 算出来的下标)。New-UI 的下标本就是
+// useLightbox 自身的状态源(lb.index,goTo/next/prev 直接改它),不必像 Vue2 那样从列表反查
+// id 对应的下标 —— 直接 watch lb.index 就是同一件事的等价触发点。
+const navDir = ref<'next' | 'prev'>('next') // 默认值同 Vue2 data() 的 navDir: 'next'
+let lastIdx = 0
+watch(() => lb.index.value, (newIdx) => {
+  // 灯箱已关闭(或正在被 close()/resetState() 归零 index)时的下标变化不算一次真实翻页 ——
+  // close() 先把 open 置 false、再把 index 归 0(同一批次),若不设防,这次归零会被误判成
+  // 一次 "prev",污染下一次重开时的初始动画方向(见下方 open-watch 里 lastIdx 复位的同一个
+  // 持久挂载坑)。
+  if (!lb.open.value) return
+  navDir.value = newIdx >= lastIdx ? 'next' : 'prev'
+  lastIdx = newIdx
+})
+
 watch(
   () => lb.open.value,
   (isOpen) => {
@@ -113,6 +138,14 @@ watch(
       startPhotoId = lb.current.value?.id ?? null
       onMouseMove()
       showInfo.value = false
+      // 组件持久挂载、跨开合复用同一个 navDir/lastIdx(同上面 startApplied/showInfo 的复位
+      // 理由)—— 每次重新打开都把两者复位到 Vue2 每次全新 mount 时的默认态(data() 的
+      // `navDir: 'next'`,`_lastIdx` 对齐当次 idx),否则:1) 上一次关闭前若曾真实翻页到
+      // 'prev',这次重开的首帧 swap 会沿用那个陈旧方向;2) 就算 navDir 没被沿用,起始下标与
+      // 上一次关闭时的下标之间的巨大跳变也会被误判成一次真实的 next/prev 翻页。Vue2 没有这个
+      // 问题,因为它是逐次 mount 的新实例,两者每次都在 mounted() 里重新对齐 —— 见 :279-281。
+      navDir.value = 'next'
+      lastIdx = lb.index.value
     }
   },
   { immediate: true }, // 兼容组件在灯箱已开时才挂载的边缘情况
@@ -230,59 +263,71 @@ onBeforeUnmount(() => {
          with PhotoInfoPanel is gone; both now claim their own named grid area independently
          (see this file's scoped-style header comment). -->
     <div class="lb-main">
-      <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
-        <!-- (a) 视频。`.lb-photo` is parity's anchor for the media element itself
-             (`.lb-media > .lb-photo(img|video)`, parity photos.scss:593-598); `.lb-video`
-             is kept alongside it for this component's own video-specific sizing rule
-             (net addition -- Vue2's lightbox has no separate video-only class). -->
-        <video
-          v-if="lb.current.value?.isVideo"
-          ref="videoEl"
-          class="lb-photo lb-video"
-          :src="originalUrl(lb.current.value.id)"
-          :poster="thumbnailUrl(lb.current.value.id, 'large')"
-          controls
-          preload="metadata"
-          playsinline
-          @loadedmetadata="applyStartTime"
-        ></video>
+      <!-- Plan F Task 4: swap transition, byte-exact per Vue2 (PhotosLightbox.vue:25
+           `<transition :name="'lb-swap-' + navDir">`, wrapping the same id-keyed `.lb-media`
+           it already wrapped in Vue2). Params (opacity 0.32s / transform 0.42s,
+           cubic-bezier(0.22, 0.61, 0.36, 1), translateX ±36px, scale 0.97) live in parity's own
+           bare `.lb-swap-*` rules (photos.scss:627-637) -- "bare" as in NOT `.photos-root`-scoped,
+           unlike most of that file's rules, so they're already live on every page that mounts
+           this component regardless of the "not yet inside .photos-root" interim state (see
+           this file's scoped-style header comment for the one naming gap that still needed a
+           local shim: Vue3 renamed the bare `-enter` class to `-enter-from`). navDir is computed in
+           the script above (watch on lb.index, mirroring Vue2's idx-vs-_lastIdx comparison). -->
+      <transition :name="'lb-swap-' + navDir">
+        <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
+          <!-- (a) 视频。`.lb-photo` is parity's anchor for the media element itself
+               (`.lb-media > .lb-photo(img|video)`, parity photos.scss:593-598); `.lb-video`
+               is kept alongside it for this component's own video-specific sizing rule
+               (net addition -- Vue2's lightbox has no separate video-only class). -->
+          <video
+            v-if="lb.current.value?.isVideo"
+            ref="videoEl"
+            class="lb-photo lb-video"
+            :src="originalUrl(lb.current.value.id)"
+            :poster="thumbnailUrl(lb.current.value.id, 'large')"
+            controls
+            preload="metadata"
+            playsinline
+            @loadedmetadata="applyStartTime"
+          ></video>
 
-        <!-- (b) 实况照片(非视频):静图 + 徽标 + 按住播 -->
-        <template v-else-if="lb.current.value?.isLivePhoto">
+          <!-- (b) 实况照片(非视频):静图 + 徽标 + 按住播 -->
+          <template v-else-if="lb.current.value?.isLivePhoto">
+            <PhotoImageViewer
+              :asset-id="lb.current.value.id"
+              :mime-type="lb.current.value.mimeType"
+              :ocr-lines="lb.ocrLines.value"
+            />
+            <video
+              v-if="liveActive"
+              ref="liveVideoEl"
+              class="lb-live-video"
+              :src="liveUrl(lb.current.value.id)"
+              muted
+              playsinline
+            ></video>
+            <button
+              class="lb-live-badge"
+              type="button"
+              @pointerdown="liveStart"
+              @pointerup="liveStop"
+              @pointerleave="liveStop"
+              @pointercancel="liveStop"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/></svg>
+              {{ t('photosLivePhoto') }}
+            </button>
+          </template>
+
+          <!-- (c) 静图 -->
           <PhotoImageViewer
+            v-else-if="lb.current.value"
             :asset-id="lb.current.value.id"
             :mime-type="lb.current.value.mimeType"
             :ocr-lines="lb.ocrLines.value"
           />
-          <video
-            v-if="liveActive"
-            ref="liveVideoEl"
-            class="lb-live-video"
-            :src="liveUrl(lb.current.value.id)"
-            muted
-            playsinline
-          ></video>
-          <button
-            class="lb-live-badge"
-            type="button"
-            @pointerdown="liveStart"
-            @pointerup="liveStop"
-            @pointerleave="liveStop"
-            @pointercancel="liveStop"
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="8.5" stroke-dasharray="3 3"/></svg>
-            {{ t('photosLivePhoto') }}
-          </button>
-        </template>
-
-        <!-- (c) 静图 -->
-        <PhotoImageViewer
-          v-else-if="lb.current.value"
-          :asset-id="lb.current.value.id"
-          :mime-type="lb.current.value.mimeType"
-          :ocr-lines="lb.ocrLines.value"
-        />
-      </div>
+        </div>
+      </transition>
 
       <!-- 翻页箭头。Plan F Task 3: side modifier moved from a `.lb-nav-prev`/`.lb-nav-next`
            class to parity's real anchor attribute `data-side="prev"|"next"`
@@ -361,6 +406,18 @@ onBeforeUnmount(() => {
   background: var(--app-bg);
   display: grid;
   grid-template-rows: 56px 1fr 88px;
+  /* Plan F Task 4: container entrance, byte-exact per Vue2/parity (`.photos-root .lightbox`,
+     photos.scss:572-577: `animation: lb-in 0.22s ease-out`). Only referencing the name here,
+     NOT redefining `@keyframes lb-in` -- keyframes-guard (src/styles/keyframes-guard.test.ts)
+     forbids a same-named duplicate across unscoped sources. This is safe without any interim
+     duplicate: `@keyframes` are top-level constructs that can't be nested under a selector, so
+     `lb-in`'s definition (photos.scss:587) is never actually `.photos-root`-scoped regardless of
+     which *rule* references it -- it's already loaded and resolvable on every page that mounts
+     this component (all 8 host pages `import '../photos/styles/vue2-parity'`), independent of
+     whether this element itself renders inside `.photos-root` yet (Task 5's job). Only parity's
+     *rule* assigning the animation to `.lightbox` is `.photos-root`-scoped and doesn't reach this
+     component yet -- hence this local line. */
+  animation: lb-in 0.22s ease-out;
 }
 .lightbox[data-info="true"] {
   grid-template-columns: 1fr 360px;
@@ -421,14 +478,36 @@ onBeforeUnmount(() => {
   place-items: center;
   overflow: hidden;
 }
+/* Plan F Task 4: position:relative + width/height:100% -> position:absolute + inset:0, matching
+   parity's own `.photos-root .lb-media` exactly (photos.scss:607-611). Load-bearing, not a
+   cosmetic value pick: `.lb-main`'s grid (display:grid; place-items:center, no own row/column
+   template) auto-places each child into successive implicit rows by default -- with `.lb-media`
+   merely `position:relative`, the outgoing and incoming instances that briefly coexist during
+   the swap transition's enter/leave overlap (see the <transition> above; no `mode` is set, same
+   as Vue2, so both run concurrently) would stack one above the other instead of crossfading in
+   the same spot. Absolute positioning inside `.lb-main` (already `position: relative`, see that
+   rule above) makes every coexisting instance occupy the exact same box regardless of how many
+   siblings exist at once -- the whole point of a crossfade transition. */
 .lb-media {
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+/* Plan F Task 4: Vue3 renamed Vue2's bare `-enter` transition class to `-enter-from` (`-leave-to`
+   kept its name in both) -- same C7 precedent as SearchSaveSmartView.vue's
+   `.save-pop-enter-from,.save-pop-leave-to` local shim. Parity's own `.lb-swap-next-enter`/
+   `.lb-swap-prev-enter` (photos.scss:634,636) verbatim-transcribe Vue2's own dead names
+   (Vue2 photos.scss:518,520) as documented dead-source lines -- they never match any real Vue3
+   transition class, so this local pair supplies the actual Vue3 selector. The `-enter-active`/
+   `-leave-active` transition-timing rule and the `-leave-to` end-state (name unchanged between
+   Vue2 and Vue3) are NOT duplicated here: parity's own copies of those (photos.scss:627-633,635,
+   637) are bare, unscoped selectors -- not `.photos-root`-gated -- already live on every host
+   page (see the <transition> template comment above for the full reasoning), so only the
+   dead-named `-enter` half needs a local replacement. */
+.lb-swap-next-enter-from { opacity: 0; transform: translateX(36px) scale(0.97); }
+.lb-swap-prev-enter-from { opacity: 0; transform: translateX(-36px) scale(0.97); }
 .lb-video { max-width: 100%; max-height: 100%; }
 .lb-live-video {
   position: absolute;

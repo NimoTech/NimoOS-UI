@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
-import { nextTick } from 'vue'
+import { nextTick, Transition } from 'vue'
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils'
 import PhotoLightbox from '../PhotoLightbox.vue'
 // 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到,且 jsdom 不算级联)——
@@ -175,6 +175,106 @@ describe('PhotoLightbox 结构:容器 grid + data-info 契约(Plan F Task 3)', (
     const next = w.get('.lb-nav[data-side="next"]')
     expect(prev.classes()).not.toContain('lb-nav-prev')
     expect(next.classes()).not.toContain('lb-nav-next')
+  })
+})
+
+// Plan F Task 4: swap transition, byte-exact per Vue2 (PhotosLightbox.vue:25
+// `<transition :name="'lb-swap-' + navDir">`, watch 'photo.id' comparing idx against _lastIdx).
+// `findComponent(Transition)`'s overload resolution collapses to the untyped `WrapperLike`
+// (no usable `.props()` typing) for this built-in component -- casting the result to this
+// minimal local shape restores a typed accessor without weakening the runtime assertion.
+function swapTransitionName(w: VueWrapper): string {
+  const t = w.findComponent(Transition as never) as unknown as {
+    exists: () => boolean
+    props: (key: string) => unknown
+  }
+  expect(t.exists()).toBe(true)
+  return t.props('name') as string
+}
+
+describe('PhotoLightbox 切换动画:swap transition + navDir(Plan F Task 4)', () => {
+  it('.lb-media 被 <transition> 包裹,name 随 navDir 变化', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    expect(swapTransitionName(w)).toBe('lb-swap-next') // 默认值同 Vue2 data() 的 navDir: 'next'
+  })
+
+  it('下标增大(next()/goTo 更大下标)→ navDir="next"', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE) // idx 0
+    await nextTick()
+    lb.next() // idx 0 -> 1,增大
+    await nextTick()
+    expect(swapTransitionName(w)).toBe('lb-swap-next')
+  })
+
+  it('下标减小(prev())→ navDir="prev"', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_C, THREE) // idx 2
+    await nextTick()
+    lb.prev() // idx 2 -> 1,减小
+    await nextTick()
+    expect(swapTransitionName(w)).toBe('lb-swap-prev')
+  })
+
+  it('goTo 绝对下标同样按增减判定方向(不仅限相邻翻页)', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE) // idx 0
+    await nextTick()
+    lb.goTo(2) // 0 -> 2,增大
+    await nextTick()
+    expect(swapTransitionName(w)).toBe('lb-swap-next')
+    lb.goTo(0) // 2 -> 0,减小
+    await nextTick()
+    expect(swapTransitionName(w)).toBe('lb-swap-prev')
+  })
+
+  it('重新打开(组件持久挂载、复用同一个 lastIdx)不会把起始下标突变误判成一次翻页', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_C, THREE) // idx 2
+    await nextTick()
+    lb.close()
+    await nextTick()
+    lb.openAt(IMG_A, THREE) // 重开在 idx 0(远小于上次关闭时的 2)
+    await nextTick()
+    // 若未按 open 重置 lastIdx,这里会被误判成 idx 从 2 掉到 0 的一次 "prev";
+    // 正确行为是复位基准,新一轮打开默认仍是 Vue2 data() 的初始值 'next'。
+    expect(swapTransitionName(w)).toBe('lb-swap-next')
+  })
+
+  it('.lightbox 引用全局 lb-in 入场动画(不重复定义 @keyframes,交给 keyframes-guard 把关)', () => {
+    const m = /\.lightbox\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(m).not.toBeNull()
+    expect(m![1]).toMatch(/animation:\s*lb-in 0\.22s ease-out/)
+    // 只认真正的 @keyframes 声明(后面紧跟 `{`),不被本文件注释里提到"@keyframes lb-in"这个
+    // 名字本身(解释"为什么不重新定义它")误伤。
+    expect(LIGHTBOX_SRC).not.toMatch(/@keyframes\s+lb-in\s*\{/)
+  })
+
+  it('.lb-media 是 position:absolute + inset:0(swap 过渡期间 enter/leave 两实例须重叠,不是纵向堆叠)', () => {
+    const m = /\.lb-media\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(m).not.toBeNull()
+    expect(m![1]).toMatch(/position:\s*absolute/)
+    expect(m![1]).toMatch(/inset:\s*0/)
+    expect(m![1]).not.toMatch(/width:\s*100%/)
+  })
+
+  it('本地补 Vue3 的 -enter-from 选择器(parity 只留 Vue2 死名 -enter),数值逐字节对齐 Vue2', () => {
+    const next = /\.lb-swap-next-enter-from\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    const prev = /\.lb-swap-prev-enter-from\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(next, '找不到 .lb-swap-next-enter-from').not.toBeNull()
+    expect(prev, '找不到 .lb-swap-prev-enter-from').not.toBeNull()
+    expect(next![1]).toMatch(/opacity:\s*0/)
+    expect(next![1]).toMatch(/transform:\s*translateX\(36px\) scale\(0\.97\)/)
+    expect(prev![1]).toMatch(/opacity:\s*0/)
+    expect(prev![1]).toMatch(/transform:\s*translateX\(-36px\) scale\(0\.97\)/)
+  })
+
+  // 控制器裁定 5:`.lb-nav.shake`/`[data-disabled]` 是 Vue2 死码(未接线),本任务不接线。
+  it('.lb-nav.shake / [data-disabled] 未在本组件接线(死码维持死码)', () => {
+    expect(LIGHTBOX_SRC).not.toMatch(/data-disabled/)
+    expect(LIGHTBOX_SRC).not.toMatch(/\bshake\b/)
   })
 })
 

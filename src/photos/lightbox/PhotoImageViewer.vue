@@ -265,12 +265,27 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   inset: 0;
   pointer-events: none;
 }
+/* Plan F Task 4: byte-exact per Vue2 (photos.scss:500-510) + parity's own scoped copy
+   (`.photos-root .lb-ocr-hit`, photos.scss:616-622) -- these values replace the earlier
+   accent-token approximation now that this task brought the real Vue2 numbers into scope.
+   `border` dropped entirely (Vue2 has none; the earlier `--accent` border was this component's
+   own invention, superseded below by the two-layer box-shadow ring, which IS how Vue2 draws the
+   outline). Interim-scoping note: parity's own rule is `.photos-root`-scoped and doesn't reach
+   this component yet (Task 5's job), but the `lb-ocr-pulse` keyframes it references are a bare,
+   top-level construct -- keyframes can't be selector-scoped -- already loaded on every host page
+   (see PhotoLightbox.vue's `.lightbox` animation comment for the same reasoning), so referencing
+   it here by name is safe today; only the surrounding property values needed local duplication.
+   theme-exception: this highlighter color is a fixed, skin-invariant literal in Vue2 itself (one
+   rule, no light/dark split) -- not a themeable app surface, so a literal value is correct here
+   rather than `var(--token)`, same precedent as PhotoFilmstrip.vue's `.thumb-vid` chrome badge. */
 .lb-ocr-hit {
   position: absolute;
-  border: 1.5px solid var(--accent);
-  border-radius: 3px;
-  background: var(--accent-soft);
-  box-shadow: 0 0 0 1px var(--accent-soft-bd);
+  box-sizing: border-box;
+  border-radius: 4px;
+  /* theme-exception: see the full explanation in this rule's header comment above -- fixed,
+     skin-invariant highlighter literal, not a themeable surface. */
+  background: rgba(255, 214, 10, 0.30); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 0 12px rgba(255, 214, 10, 0.55);
+  animation: lb-ocr-pulse 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 .img-toolbar {
   position: absolute;

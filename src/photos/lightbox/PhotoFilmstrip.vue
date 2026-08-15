@@ -107,7 +107,13 @@ watch(() => props.index, () => {
 })
 
 onMounted(() => {
-  centerActiveThumb(false)
+  // Plan F Task 4 (Vue2 param alignment, see task-4-report.md's filmstrip param table): Vue2
+  // mounted() calls `centerActiveThumb()` with no argument -- i.e. the default `smooth = true`
+  // (Vue2 PhotosLightbox.vue mounted():279-282) -- so every lightbox open smooth-scrolls the
+  // strip to the active thumbnail. This previously passed `false` (instant) here with no
+  // documented reason; corrected to match (no arg = same default as the function signature
+  // above, `smooth = true`).
+  centerActiveThumb()
   stripEl.value?.addEventListener('wheel', onStripWheel, { passive: false })
 })
 onBeforeUnmount(() => {
