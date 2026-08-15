@@ -796,6 +796,16 @@
   .trip-row .body .name { font-size: 12.5px; font-weight: 500; color: var(--text-1); }
   .trip-row .body .meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
+  /* New-UI annotation (Plan E Task 7, 2026-08-15): the `.app[data-map-mode="atlas"/"heatmap"]`
+     block below is transcribed verbatim from Vue2 (byte-identical, grep-confirmed against
+     NimoOS-UI's photos-places.scss) but is DORMANT on both sides of the port — no Vue2 JS
+     anywhere sets a `data-map-mode` attribute on `.app` (grep-confirmed across NimoOS-UI's
+     src/), and New-UI never sets it either. It is not the same feature as the "map theme"
+     picker (default/ocean/sand/mono + custom, see placesMapThemes.ts) — that's a live,
+     user-facing preset switch; this `data-map-mode` selector family looks like leftover
+     scaffolding for a "tweaks" mode switch that was never wired to any UI in either codebase.
+     Per this task's preflight ruling: transcribe-only, keep dormant, do not add any UI to
+     drive `data-map-mode` — this comment only documents that dormancy, it changes no rule. */
   /* ============================================================
      Tweaks-driven mode (style switch)
      ============================================================ */
