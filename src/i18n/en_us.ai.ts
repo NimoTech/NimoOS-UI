@@ -1526,4 +1526,16 @@ export default {
   aiKbWkTreeError: 'Failed to load the wiki tree',
   aiKbWkViewSource: 'View source',
   // <<< SP8-P5f Task 1
+  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) -- cross-server
+  // approvals overview + the delete confirmation's cascade warning, no Vue2
+  // counterpart, newly authored this round
+  aiCfgMcpApprovals: 'MCP approvals',
+  aiMcpApprovalsDesc: 'Every "don\'t ask again" you have granted to an MCP server is summarized here, grouped by server, so you can revoke it at any time.',
+  aiMcpApprovalsEmpty: 'No saved approvals yet.',
+  aiMcpApprovalsAllTools: 'All tools on this server',
+  aiMcpApprovalsRevoke: 'Revoke',
+  aiMcpApprovalsRevoked: 'Revoked all approvals for {handle}',
+  aiMcpApprovalsRevokeFailed: 'Failed to revoke approvals',
+  aiMcpSrvRemoveApprovalsCount: 'This will also delete {count} approvals',
+  // <<< Task 21
 }

@@ -184,3 +184,25 @@
   opacity: 0.5; pointer-events: none;
 }
 .mcp-quickadd-err { margin-top: 6px; font-size: 12px; color: var(--danger); }
+
+// Task 21 (mcp-progressive-disclosure) — McpApprovalsSection.vue: cross-server
+// approvals overview, grouped by server. All colors reuse existing tokens,
+// zero new tokens added.
+.mcp-approvals-group {
+  border: 1px solid var(--line-faint);
+  border-radius: var(--r-md);
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  &:last-child { margin-bottom: 0; }
+}
+.mcp-approvals-group-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.mcp-approvals-group-name {
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+.mcp-approvals-list { margin: 0; padding: 0; list-style: none; }
+.mcp-approvals-list li {
+  font-size: 13px; color: var(--text-secondary); padding: 5px 0;
+  border-top: 1px solid var(--line-faint);
+  &:first-child { border-top: 0; }
+}

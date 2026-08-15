@@ -1563,4 +1563,15 @@ export default {
   aiKbWkTreeError: '加载 Wiki 树失败',
   aiKbWkViewSource: '查看原文',
   // <<< SP8-P5f Task 1
+  // >>> Task 21 (2026-08-13 mcp-progressive-disclosure plan) —— 跨服务器授权汇总页 +
+  // 删除确认的级联提示,Vue2 没有对应文案,本期新造
+  aiCfgMcpApprovals: 'MCP 授权',
+  aiMcpApprovalsDesc: '你曾经对某个 MCP 服务器选择"不再询问"的每一项授权,都汇总在这里,按服务器分组,可随时撤销。',
+  aiMcpApprovalsEmpty: '还没有任何已保存的授权。',
+  aiMcpApprovalsAllTools: '此服务器的全部工具',
+  aiMcpApprovalsRevoke: '撤销',
+  aiMcpApprovalsRevoked: '已撤销 {handle} 的全部授权',
+  aiMcpApprovalsRevokeFailed: '撤销授权失败',
+  aiMcpSrvRemoveApprovalsCount: '同时会删除 {count} 条已授权工具',
+  // <<< Task 21
 }

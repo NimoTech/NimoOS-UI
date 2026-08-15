@@ -48,6 +48,10 @@ const ai = vi.hoisted(() => ({
   // `Array.isArray` 兜底不会抛错,但补齐这个键是让「mock 齐全」这件事显式,
   // 不依赖兜底的隐性容错)。
   listMCPServers: vi.fn(),
+  // Task 21 (mcp-progressive-disclosure) —— mcpapprovals 分区挂载真组件
+  // McpApprovalsSection,onMounted 里调 service.ai.listMCPApprovals()。同上,
+  // 补上这个键让「mock 齐全」显式,不依赖 Array.isArray 兜底的隐性容错。
+  listMCPApprovals: vi.fn(),
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: { ai } }))
 
@@ -347,7 +351,8 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
   // `for` 循环体永远不执行,留着就是空转断言,不如直接删除,机制层面的钉子已经
   // 由 `sections.test.ts` 的两条新用例(`DEFERRED_SECTIONS` 为空 / 机制仍在)
   // 覆盖,不需要在这里重复一份等价空转的写法。
-  it('SP8-P4 收口 —— 13 个已实现分区渲染后页面不含占位文案(无一分区仍是 SectionPlaceholder）', async () => {
+  // Task 21 (mcp-progressive-disclosure) 新增 'mcpapprovals' 后变成 14 个已实现分区。
+  it('SP8-P4 收口 + Task 21 —— 14 个已实现分区渲染后页面不含占位文案(无一分区仍是 SectionPlaceholder）', async () => {
     const store = useSettingsStore()
     stubNetworkActions(store)
     const { w } = await mountPage()
@@ -355,7 +360,8 @@ describe('SettingsPage — ③ 内容区两种渲染模式', () => {
 
     const implemented: SectionId[] = [
       'models', 'providers', 'privacy', 'thinking',
-      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcp', 'mcptokens', 'channels',
+      'blacklist', 'execution', 'search', 'memory', 'observability', 'skills', 'mcp',
+      'mcpapprovals', 'mcptokens', 'channels',
     ]
     for (const id of implemented) {
       store.setActiveSection(id)

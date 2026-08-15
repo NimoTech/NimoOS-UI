@@ -59,6 +59,7 @@ import MemorySection from '../components/settings/sections/MemorySection.vue'
 import ObservabilitySection from '../components/settings/sections/ObservabilitySection.vue'
 import SkillsSection from '../components/settings/sections/SkillsSection.vue'
 import McpSection from '../components/settings/sections/McpSection.vue'
+import McpApprovalsSection from '../components/settings/sections/McpApprovalsSection.vue'
 import McpTokensSection from '../components/settings/sections/McpTokensSection.vue'
 import ChannelsSection from '../components/settings/sections/ChannelsSection.vue'
 import AgentIcon from '../components/icons/AgentIcon.vue'
@@ -106,6 +107,7 @@ const SECTION_COMPONENTS: Record<SectionId, Component> = {
   observability: ObservabilitySection, // SP8-P2b Task 8 —— 已实现,收官接线
   skills: SkillsSection, // SP8-P3a Task 7 —— 已实现,收官接线
   mcp: McpSection, // SP8-P4 Task 9 —— 已实现,收官接线(DEFERRED_SECTIONS 就此清空)
+  mcpapprovals: McpApprovalsSection, // Task 21 (mcp-progressive-disclosure) —— 已实现
   mcptokens: McpTokensSection, // SP8-P2b Task 10 —— 已实现,收官接线
   channels: ChannelsSection, // SP8-P2b Task 12 —— 已实现,收官接线
 }

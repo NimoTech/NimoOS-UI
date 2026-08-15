@@ -9,9 +9,10 @@ describe('sections 导航配置', () => {
     expect(GROUPS.map((g) => g.id)).toEqual(['model', 'agent', 'plugin', 'channel'])
   })
 
-  it('仍然覆盖全部 13 个分区', () => {
+  // Task 21 (mcp-progressive-disclosure) 新增 'mcpapprovals',从 13 变 14。
+  it('仍然覆盖全部 14 个分区', () => {
     expect([...VALID_SECTIONS].sort()).toEqual([
-      'blacklist', 'channels', 'execution', 'mcp', 'mcptokens', 'memory',
+      'blacklist', 'channels', 'execution', 'mcp', 'mcpapprovals', 'mcptokens', 'memory',
       'models', 'observability', 'privacy', 'providers', 'search', 'skills', 'thinking',
     ])
   })
@@ -29,15 +30,15 @@ describe('sections 导航配置', () => {
     expect(GROUPS.find((g) => g.id === 'agent')!.items.map((i) => i.id))
       .toEqual(['blacklist', 'execution', 'search', 'memory', 'observability'])
     expect(GROUPS.find((g) => g.id === 'plugin')!.items.map((i) => i.id))
-      .toEqual(['skills', 'mcp', 'mcptokens'])
+      .toEqual(['skills', 'mcp', 'mcpapprovals', 'mcptokens'])
     expect(GROUPS.find((g) => g.id === 'channel')!.items.map((i) => i.id))
       .toEqual(['channels'])
   })
 
-  it('ALL_ITEMS 是四个组的扁平拼接,长度 13', () => {
-    expect(ALL_ITEMS).toHaveLength(13)
+  it('ALL_ITEMS 是四个组的扁平拼接,长度 14', () => {
+    expect(ALL_ITEMS).toHaveLength(14)
     expect(ALL_ITEMS[0].id).toBe('models')
-    expect(ALL_ITEMS[12].id).toBe('channels')
+    expect(ALL_ITEMS[13].id).toBe('channels')
   })
 
   it('groupOf 找到分区所属的组', () => {

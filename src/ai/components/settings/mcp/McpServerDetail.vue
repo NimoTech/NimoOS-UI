@@ -8,6 +8,17 @@
   T7 的两条偏离(**D8** 错误呈现本地化 + 可折叠技术详情、**D11** 在途请求竞态守卫)
   见 `<script>` 里 `runTest`/`reqSeq` 头注释与模板 `mcp-test-result` 分支内的注释。
 
+  【Task 21(2026-08-13 mcp-progressive-disclosure 计划,删除确认的级联提示)—— 与
+  brief 文件清单的偏离,已申报】brief 把这个功能列在 "Modify: ... McpSection.vue"
+  下,但删除确认弹窗(`.sk-confirm`)从 T6 起就一直实现在**本文件**里,`McpSection.vue`
+  只是转发 `@delete` 事件、从不持有弹窗自己的状态——brief 显然没意识到这一层文件边界。
+  沿用 sections.ts 注册那条已授权的原则("与真实代码不符时以真实代码为准"),改动落在
+  这里而不是 `McpSection.vue`。级联条数的取数来源与理由见下方 `approvalCascadeCount`
+  的头注释;新增的独立删除入口(`data-test="delete-server-<id>"`,单击直开确认弹窗,
+  不需要先展开「...」菜单)见模板里该按钮旁的注释。
+-->
+<!--
+
   【偏离 D3,公共约束 §3 第 3 条】`SkillIcon.vue` 不移植,统一用
   `../../icons/AgentIcon.vue`(承 P3a/T5 先例)。
   Vue2 `:121` 给删除按钮的 `SkillIcon` 传了一个具名色字面量——本仓不传。
@@ -204,6 +215,34 @@ const serverLevelStaleReasonKey = ref('')
 // finishing one wrongly invalidate the other.
 let toolsSeq = 0
 
+// Task 21 (mcp-progressive-disclosure plan) -- the honest count of stored
+// approval rows this server's delete cascades to. Deliberately NOT
+// `listMCPApprovals()` (the gated cross-server summary McpApprovalsSection.vue
+// reads) -- that endpoint only returns approvals that currently pass every
+// invalidation gate, so a stored-but-void approval (e.g. every approval for a
+// server goes void once its URL is edited) would silently disappear from the
+// count even though CASCADE will still drop its row. `toolRows`/
+// `serverLevelApproved` above are already the stored-truth data this panel
+// loads for the tool list (Task 20) -- `McpToolRow.approved` and
+// `server_level_approved` both reflect a persisted `mcp_tool_approvals` row
+// regardless of gating (see their doc comments in
+// packages/service/src/ai.ts), and the backend's `ListForServer` (which feeds
+// this same endpoint) queries `WHERE server_id = ?` with no gate applied --
+// the same predicate CASCADE deletes against. No second network call needed:
+// this panel already has the data by the time the delete button is visible.
+//
+// Known residual gap (documented, not fixed here -- no available endpoint
+// closes it): a tool that has been fully removed from the server's current
+// tool list is dropped from `toolRows` entirely by the backend's `Tools`
+// handler (it only iterates the server's CURRENT handshake tool metas, not
+// every stored approval row), so an approval for a since-removed tool is
+// undercounted here even though its row still exists in the DB and will still
+// be deleted by CASCADE. This is narrower and rarer than the config-changed
+// gate this count is built to survive, and is called out in the task report.
+const approvalCascadeCount = computed(
+  () => toolRows.value.filter((tool) => tool.approved).length + (serverLevelApproved.value ? 1 : 0),
+)
+
 async function loadTools(id: number) {
   const seq = ++toolsSeq
   toolsLoading.value = true
@@ -288,6 +327,24 @@ function doDelete() {
           :aria-checked="server.enabled ? 'true' : 'false'"
           @click="emit('toggle', server.id, !server.enabled)"
         />
+        <!-- Task 21 (mcp-progressive-disclosure plan) -- a standalone, directly
+             clickable delete trigger, additional to the "..." menu's "Remove"
+             item below (kept as-is; existing tests 9a-9c drive it through the
+             menu). Both open the same `confirmOpen` dialog -- this one exists
+             so deleting a server is a single click, not "open menu, then find
+             the danger item inside it". Deliberately `.icon-btn`, not
+             `.sk-pill-more` -- that class is also on the "..." button right
+             below, and existing tests locate it with `find('.sk-pill-more')`
+             (which returns the FIRST match); sharing the class would make
+             those tests silently click this new button instead. -->
+        <button
+          class="icon-btn"
+          :data-test="`delete-server-${server.id}`"
+          :title="t('aiMcpSrvRemove')"
+          @click="openConfirmDialog"
+        >
+          <AgentIcon name="trash" :size="16" />
+        </button>
         <div ref="menuWrap" style="position: relative">
           <button class="sk-pill-more" @click="menuOpen = !menuOpen">
             <AgentIcon name="settings" :size="16" />
@@ -447,9 +504,17 @@ function doDelete() {
           <DialogOverlay class="sk-modal-bg">
             <DialogContent class="sk-modal sk-confirm" :aria-describedby="undefined">
               <VisuallyHidden as-child><DialogTitle>{{ t('aiMcpSrvRemoveTitle') }}</DialogTitle></VisuallyHidden>
-              <div class="sk-confirm-body">
+              <div data-test="delete-confirm" class="sk-confirm-body">
                 <h3>{{ t('aiMcpSrvRemoveTitle') }}</h3>
                 <p>{{ t('aiMcpSrvRemoveBody', { name: server.name }) }}</p>
+                <!-- Task 21 (mcp-progressive-disclosure plan) -- the cascade
+                     must be named before the user confirms, not discovered
+                     after. Hidden entirely when there is nothing to lose
+                     (see approvalCascadeCount's doc comment for the count's
+                     source). -->
+                <p v-if="approvalCascadeCount > 0" class="mcp-reveal-warn" style="margin-top: 6px">
+                  {{ t('aiMcpSrvRemoveApprovalsCount', { count: approvalCascadeCount }) }}
+                </p>
               </div>
               <div class="sk-modal-foot">
                 <div class="right">

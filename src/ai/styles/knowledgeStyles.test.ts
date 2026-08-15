@@ -1799,6 +1799,7 @@ const COMPONENTS_VUE_FILES = [
   'settings/sections/BlacklistSection.vue',
   'settings/sections/ChannelsSection.vue',
   'settings/sections/ExecutionSection.vue',
+  'settings/sections/McpApprovalsSection.vue',
   'settings/sections/McpSection.vue',
   'settings/sections/McpTokensSection.vue',
   'settings/sections/McpToolList.vue',
