@@ -70,7 +70,7 @@ src/
 ├── home/              # desktop home: app grid, Dock, widgets, container event bridge
 ├── files/             # files area: list, upload, sharing, viewers/ preview components
 ├── views/             # page-level components: Home / Files / Login / Welcome
-├── i18n/              # zh_cn.ts (default) + en_us.ts, keys must be kept in sync
+├── i18n/              # zh_cn.ts + en_us.ts (locale.ts picks one), keys must be kept in sync
 └── styles/theme.css   # global theme tokens (see below)
 docs/
 ├── THEMING.md         # theme system authority document
@@ -84,6 +84,8 @@ docs/
 **All visible colors must come from tokens defined in `src/styles/theme.css` (`var(--…)`), hardcoded color literals are forbidden** (`#fff`, `rgba(...)`, named colors). Themes are switched globally via the root node's `data-theme` attribute: default is blue/dark glass theme, `data-theme="light"` is beige/paper theme. When adding new color semantics, add a token in `theme.css` and assign values in **every theme block**. See [`docs/THEMING.md`](docs/THEMING.md) for complete rules and exceptions.
 
 ### i18n
+
+The language of a first visit follows the browser: any Chinese `navigator.language` gets `zh_cn`, everything else gets `en_us` (`src/i18n/locale.ts`, shared by `i18n/index.ts`, `main.ts`'s `getLang` and the Welcome picker). A language the user has picked is stored and always wins.
 
 When adding new copy keys, they must be added to **both** `src/i18n/zh_cn.ts` and `en_us.ts` — `parity.test.ts` asserts that both files have identical keys, test fails if one is missing.
 

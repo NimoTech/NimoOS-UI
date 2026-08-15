@@ -110,7 +110,7 @@ There are only two exceptions, and each must be marked with a comment: `.ic-*` a
 
 ## i18n
 
-Locale files are in `src/i18n/` (`zh_cn` by default / `en_us`). **New copy keys must be added to both files simultaneously** — `src/i18n/parity.test.ts` asserts that the key sets are identical on both sides; missing one fails the test.
+Locale files are in `src/i18n/` (`zh_cn` / `en_us`). On a first visit the language follows the browser — any Chinese `navigator.language` gets `zh_cn`, everything else gets `en_us` (`src/i18n/locale.ts`); once the user picks a language it is stored and always wins. **New copy keys must be added to both files simultaneously** — `src/i18n/parity.test.ts` asserts that the key sets are identical on both sides; missing one fails the test.
 
 ## Known gaps
 

@@ -2,13 +2,12 @@ import { defineStore } from 'pinia'
 import { i18n } from '../i18n'
 import { readSystemConfig, patchSystemConfig } from '../settings/util/systemConfig'
 import { useToast } from './toast'
+import { LOCALES, isLocale, type Locale } from '../i18n/locale'
 
-export const LOCALES = ['zh_cn', 'en_us'] as const
-export type Locale = (typeof LOCALES)[number]
-
-function isLocale(v: unknown): v is Locale {
-  return typeof v === 'string' && (LOCALES as readonly string[]).includes(v)
-}
+// Locale identity lives in i18n/locale.ts (it has to be reachable from i18n/index.ts
+// without importing this store). Re-exported here so existing call sites keep working.
+export { LOCALES, isLocale }
+export type { Locale }
 
 export const useLocaleStore = defineStore('locale', () => {
   function setLocale(lang: Locale) {

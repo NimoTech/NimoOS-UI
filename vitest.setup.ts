@@ -25,6 +25,12 @@ vi.mock('@xterm/xterm', () => ({ Terminal: vi.fn(function () { return { open: vi
 import { config } from '@vue/test-utils'
 import { i18n } from './src/i18n'
 config.global.plugins = [...(config.global.plugins ?? []), i18n]
+// Pin the catalogue the suite asserts against. The app's own default follows the
+// browser (i18n/locale.ts detectLocale), which would otherwise make every test that
+// asserts rendered copy depend on the locale of the machine running the suite --
+// green on a zh-CN laptop, red in en-US CI, for reasons that have nothing to do with
+// the code under test. Tests about the detection itself call it directly.
+i18n.global.locale.value = 'zh_cn'
 
 // jsdom does not implement Element.prototype.scrollIntoView (it's a layout API,
 // and jsdom does no layout). Any component that calls it -- e.g.
