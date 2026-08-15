@@ -4,10 +4,26 @@
 // delta(见 task-6-brief.md):1) 加入相册已于 P4(Task 9)加回,Ask Nimo 仍归 SP8;2) 详情栏改可 toggle(占位到 T7);
 // 3) 顶栏不放缩放钮(PhotoImageViewer 自持底部缩放条,减少跨组件 ref);4) 当前项一律按 id 比较。
 // Task 9 收尾:挂载 T7 的 PhotoInfoPanel(读 lb.detail,水合后的明细,而非 list-item 占位的
-// current)与 T8 的 PhotoFilmstrip(绝对下标 select → lb.goTo)。PhotoInfoPanel 自身样式假设
-// "并排 flex row" 布局(它内部就带 flex:0 0 auto),故把舞台从 lb-stage 单飞的 flex:1 列项
-// 改包一层 .lb-body(行 flex),让详情栏与舞台并排,而不是硬套 T6 之前留的绝对定位 .lb-info 占位
-// (已删除,详情栏定位改由 PhotoInfoPanel 自己的样式承担)。
+// current)与 T8 的 PhotoFilmstrip(绝对下标 select → lb.goTo)。
+//
+// Plan F Task 3 (2026-08-15,结构重刻 flex→parity grid + 类名全对齐):
+// 容器 `.lightbox` 从 flex column 改成 CSS Grid,行/列/区域完全照抄 Vue2/parity
+// (parity photos.scss:564-578):`grid-template-rows: 56px 1fr 88px`;`data-info="true"` 时
+// `grid-template-columns: 1fr 360px` + areas "top top"/"main info"/"strip info","false" 时单列
+// areas "top"/"main"/"strip"。这意味着 T9 留下的 `.lb-body`(行 flex,把 `.lb-stage` 与
+// PhotoInfoPanel 并排包一层)整个删除 —— `.lb-main`(重命名自 `.lb-stage`)、PhotoInfoPanel
+// 根(重命名为 `.lb-info`)、PhotoFilmstrip 根(`.lb-strip`,类名本就已对齐)三者都改成
+// `.lightbox` 的直接子元素,靠各自的 `grid-area` 认领网格区域,不再靠 DOM 嵌套关系摆位。
+//
+// 【暂存可渲染性决策】本任务 DO NOT 把灯箱挪进 `.photos-root`(Task 5 的活)——那意味着
+// parity 全局的 `.photos-root .lightbox`/`.lb-*` 规则族(photos.scss:564-793)此刻依旧对
+// 本组件不生效(Fix-8 round 4 的教训:见 Photos.lightbox.test.ts/PhotosAlbumDetail.test.ts
+// 里 "renders OUTSIDE .photos-root" 的用例与其详尽注释)。若只改类名、不提供等价的本地
+// scoped CSS,组件在真机上会在 Task 5 落地前变成裸网格/无样式的一段时间。因此这里选择
+// "最小暂存骨架"策略:本文件(以及 PhotoInfoPanel.vue/PhotoFilmstrip.vue)各自的 scoped
+// style 块里维护一份对齐 parity 结构的网格/定位规则,值上尽量复用已有 New-UI token
+// 与既有视觉(非 Vue2 的原始色值),直到 Task 5 把整个组件重新挂进 `.photos-root`、
+// parity 的全局规则真正接管为止 —— 届时这里的本地骨架规则应当被评估/精简掉。
 import { ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -153,9 +169,9 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="lb.open.value" class="lightbox" :data-info="showInfo" @mousemove="onMouseMove">
     <!-- 顶部工具栏。用户 2026-07-31 验收要求:顶栏不做透明、图片显示在上下两栏之间 ——
-         故它是 flex 流内项(不再 position:absolute 盖在舞台上)且**不参与 5s 自隐**
-         (不透明的 chrome 一旦收起,舞台会随之变高、图片跳一下;翻页箭头仍随 isMoving 自隐,
-         它们是叠在照片上的浮层)。 -->
+         故它是网格自己的一行(Plan F Task 3 起为 grid-area: top,此前是 flex 流内项;
+         不再 position:absolute 盖在舞台上)且**不参与 5s 自隐**(不透明的 chrome 一旦收起,
+         舞台会随之变高、图片跳一下;翻页箭头仍随 isMoving 自隐,它们是叠在照片上的浮层)。 -->
     <div class="lb-top">
       <button class="lb-icon-btn lb-close" type="button" :title="t('photosClose')" @click="lb.close()">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -209,15 +225,20 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 舞台 + 详情栏:并排 flex row(详情栏样式假设自己是 row 内 flex 项,见头部注释) -->
-    <div class="lb-body">
-    <div class="lb-stage">
+    <!-- Plan F Task 3: `.lb-main` (renamed from `.lb-stage`) is a direct grid child of
+         `.lightbox` (grid-area: main) -- the `.lb-body` flex-row wrapper that used to pair it
+         with PhotoInfoPanel is gone; both now claim their own named grid area independently
+         (see this file's scoped-style header comment). -->
+    <div class="lb-main">
       <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
-        <!-- (a) 视频 -->
+        <!-- (a) 视频。`.lb-photo` is parity's anchor for the media element itself
+             (`.lb-media > .lb-photo(img|video)`, parity photos.scss:593-598); `.lb-video`
+             is kept alongside it for this component's own video-specific sizing rule
+             (net addition -- Vue2's lightbox has no separate video-only class). -->
         <video
           v-if="lb.current.value?.isVideo"
           ref="videoEl"
-          class="lb-video"
+          class="lb-photo lb-video"
           :src="originalUrl(lb.current.value.id)"
           :poster="thumbnailUrl(lb.current.value.id, 'large')"
           controls
@@ -263,10 +284,13 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <!-- 翻页箭头 -->
+      <!-- 翻页箭头。Plan F Task 3: side modifier moved from a `.lb-nav-prev`/`.lb-nav-next`
+           class to parity's real anchor attribute `data-side="prev"|"next"`
+           (Vue2 PhotosLightbox.vue:57-71, parity photos.scss:630-639). -->
       <button
         v-if="isMoving"
-        class="lb-nav lb-nav-prev"
+        class="lb-nav"
+        data-side="prev"
         type="button"
         :disabled="!lb.hasPrev.value"
         :title="t('photosPrev')"
@@ -276,7 +300,8 @@ onBeforeUnmount(() => {
       </button>
       <button
         v-if="isMoving"
-        class="lb-nav lb-nav-next"
+        class="lb-nav"
+        data-side="next"
         type="button"
         :disabled="!lb.hasNext.value"
         :title="t('photosNext')"
@@ -286,21 +311,30 @@ onBeforeUnmount(() => {
       </button>
     </div>
 
-    <!-- 详情栏(T7):读水合后的 lb.detail,而非 list-item 占位的 lb.current -->
+    <!-- 详情栏(T7):读水合后的 lb.detail,而非 list-item 占位的 lb.current。Plan F Task 3:
+         no longer wrapped in `.lb-body` -- PhotoInfoPanel's own root now carries `.lb-info`
+         and claims `grid-area: info` itself (see that component's scoped style). -->
     <PhotoInfoPanel :photo="lb.detail.value" :visible="showInfo" />
-    </div>
 
     <!-- 缩略图条(T8):绝对下标 select → lb.goTo -->
     <PhotoFilmstrip :list="lb.list.value" :index="lb.index.value" @select="lb.goTo" />
 
-    <!-- 删除确认模态 -->
+    <!-- 删除确认模态。Plan F Task 3: buttons renamed from the invented `.lb-confirm-cancel`/
+         `.lb-confirm-ok.danger` to the `.trash-btn-ghost`/`.trash-btn-cta.trash-btn-cta-danger`
+         family Vue2 actually uses (PhotosLightbox.vue:158-161) and that sibling Photos pages
+         (PhotosMomentDetail.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue) already
+         adopted for their own copies of this exact dialog -- this was the one remaining
+         un-migrated copy. The icon is added back too (Vue2 :154, dropped when this dialog was
+         first built) -- same trash glyph as the `.lb-delete` button above, at parity's icon
+         size (22px vs. the top bar's 17px). -->
     <div v-if="confirmDelete" class="lb-confirm-scrim" @click.self="confirmDelete = false">
       <div class="lb-confirm">
+        <div class="lb-confirm-icon" style="color: var(--remove-fg, #ff5d5d)"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>
         <div class="lb-confirm-title">{{ t('photosDeleteConfirmTitle') }}</div>
         <div class="lb-confirm-body">{{ t('photosDeleteConfirmBody') }}</div>
         <div class="lb-confirm-foot">
-          <button class="lb-confirm-cancel" type="button" @click="confirmDelete = false">{{ t('photosCancel') }}</button>
-          <button class="lb-confirm-ok danger" type="button" @click="doDelete">{{ t('photosConfirmDelete') }}</button>
+          <button class="trash-btn-ghost" type="button" @click="confirmDelete = false">{{ t('photosCancel') }}</button>
+          <button class="trash-btn-cta trash-btn-cta-danger" type="button" @click="doDelete">{{ t('photosConfirmDelete') }}</button>
         </div>
       </div>
     </div>
@@ -308,25 +342,45 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Plan F Task 3: `display: flex; flex-direction: column` replaced with a CSS Grid whose rows/
+   columns/areas mirror Vue2/parity exactly (parity photos.scss:564-578). z-index bumped
+   100→200 to match this component's own pre-existing value (see the deviation comment on
+   parity's `.photos-root .lightbox` rule for the other side of this same change) -- both sides
+   of the z ruling now agree, and photosOverlayZIndex.test.ts's floor check (>= 100) still
+   holds for either value.
+   Interim-renderability note: this local grid is a deliberate, temporary skeleton -- the
+   lightbox does not render inside `.photos-root` yet (Task 5's job), so parity's own
+   `.photos-root .lightbox`/`.lb-*` global rules do not reach this component at runtime. The
+   rules below exist so the component keeps rendering correctly on its own in the interim;
+   they should be re-evaluated for removal once Task 5 re-nests it and those global rules take
+   over for real. */
 .lightbox {
   position: fixed;
   inset: 0;
   z-index: 200;
-  display: flex;
-  flex-direction: column;
   background: var(--app-bg);
+  display: grid;
+  grid-template-rows: 56px 1fr 88px;
+}
+.lightbox[data-info="true"] {
+  grid-template-columns: 1fr 360px;
+  grid-template-areas: "top top" "main info" "strip info";
+}
+.lightbox[data-info="false"] {
+  grid-template-columns: 1fr;
+  grid-template-areas: "top" "main" "strip";
 }
 /* 用户 2026-07-31 验收要求:顶栏改成不透明的流内 chrome(原先是 position:absolute + 从黑到
-   透明的渐变,盖在舞台上,图片会钻到它底下)。改成流内项后 .lb-body(flex:1)自然只占
-   顶栏与底部胶片条之间的那一段,图片就夹在两栏中间;底色用实底 --popup-bg 后,栏内文字/
+   透明的渐变,盖在舞台上,图片会钻到它底下)。改成网格区域后顶栏占满 grid-template-rows
+   的第一行(56px,同 parity),图片就夹在两栏中间;底色用实底 --popup-bg 后,栏内文字/
    图标压的是主题面而不是照片,原先那条「固定暗化保对比度」的 theme-exception 一并作废。 */
 .lb-top {
-  flex: 0 0 auto;
+  grid-area: top;
   z-index: 3;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 0 16px;
   background: var(--popup-bg);
   border-bottom: 1px solid var(--card-border);
 }
@@ -352,21 +406,15 @@ onBeforeUnmount(() => {
 .lb-info-toggle.active { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); color: var(--accent); }
 .lb-icon-btn.danger:hover { color: var(--remove-fg, #ff5d5d); }
 
-.lb-body {
+/* Plan F Task 3: `.lb-body` (the flex-row wrapper that used to pair `.lb-stage` with
+   PhotoInfoPanel) is deleted -- `.lb-main` (renamed from `.lb-stage`) now claims its own
+   `grid-area: main` directly on `.lightbox`'s grid, a sibling of `.lb-top`/`.lb-info`/
+   `.lb-strip` rather than a nested flex child. */
+.lb-main {
+  grid-area: main;
   position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: stretch;
-  overflow: hidden;
-}
-.lb-stage {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   overflow: hidden;
 }
 .lb-media {
@@ -388,10 +436,16 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 2;
 }
+/* Deviation (value, parity wins): position moved from bottom-right to top-left, matching both
+   Vue2 (photos.scss:879-889 in NimoOS-UI, the same rule's origin) and parity's own copy
+   (photos.scss:987-1001) -- both place this badge at `top: 12px; left: 12px`. This component's
+   Live Photo feature is itself a net addition (Vue2's real lightbox never renders this badge --
+   confirmed empty template search), but since the rule already exists under this exact name in
+   both ground-truth sources, its position is corrected here rather than left diverging. */
 .lb-live-badge {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  top: 12px;
+  left: 12px;
   z-index: 4;
   display: inline-flex;
   align-items: center;
@@ -427,13 +481,17 @@ onBeforeUnmount(() => {
 }
 .lb-nav:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.16)); }
 .lb-nav:disabled { opacity: 0.35; cursor: default; }
-.lb-nav-prev { left: 16px; }
-.lb-nav-next { right: 16px; }
+/* Plan F Task 3: renamed from `.lb-nav-prev`/`.lb-nav-next` modifier classes to parity's real
+   anchor attribute `[data-side="prev"|"next"]` (see template comment). */
+.lb-nav[data-side="prev"] { left: 16px; }
+.lb-nav[data-side="next"] { right: 16px; }
 
-/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(.info-panel),这里只管它在灯箱内的外边距,
-   不重复定义外观。上边距原为 64px —— 那是给绝对定位的顶栏让位;顶栏 2026-07-31 改成流内
-   chrome 后不再需要让位,四边统一 16px,否则详情栏会比同排的舞台整体下沉一截。*/
-:deep(.info-panel) { margin: 16px 16px 16px 0; }
+/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(现为 `.lb-info`),这里只管它在灯箱内的外
+   边距,不重复定义外观。上边距原为 64px —— 那是给绝对定位的顶栏让位;顶栏 2026-07-31 改成
+   流内 chrome 后不再需要让位,四边统一 16px,否则详情栏会比同排的舞台整体下沉一截。
+   Plan F Task 3: selector renamed from `:deep(.info-panel)` to `:deep(.lb-info)` (PhotoInfoPanel
+   root rename, see that file). */
+:deep(.lb-info) { margin: 16px 16px 16px 0; }
 
 .lb-confirm-scrim {
   position: absolute;
@@ -458,11 +516,21 @@ onBeforeUnmount(() => {
   color: var(--fg);
   box-shadow: var(--media-overlay-shadow, 0 12px 40px rgba(0, 0, 0, 0.4));
 }
+/* Plan F Task 3: `.lb-confirm-icon` added back (Vue2 PhotosLightbox.vue:154, dropped when this
+   dialog was first built without it). Sized/spaced like the sibling copies of this exact dialog
+   already on PhotosMomentDetail.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue. */
+.lb-confirm-icon { margin-bottom: 10px; }
 .lb-confirm-title { font-size: 16px; font-weight: 600; }
 .lb-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
 .lb-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-.lb-confirm-cancel,
-.lb-confirm-ok {
+/* Plan F Task 3: renamed from the invented `.lb-confirm-cancel`/`.lb-confirm-ok.danger` to the
+   `.trash-btn-ghost`/`.trash-btn-cta`(+`.trash-btn-cta-danger`) family Vue2 actually uses
+   (PhotosLightbox.vue:158-161, parity photos.scss:737-783) and that this app's own sibling
+   Photos pages already standardized on for their own copies of this same dialog (see template
+   comment) -- this was the one remaining un-migrated copy. Values kept as they were under the
+   old names (interim skeleton, see this file's scoped-style header note), only the selectors moved. */
+.trash-btn-ghost,
+.trash-btn-cta {
   padding: 8px 16px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -471,10 +539,10 @@ onBeforeUnmount(() => {
   font-size: 13px;
   cursor: pointer;
 }
-.lb-confirm-cancel:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.1)); }
-.lb-confirm-ok.danger {
+.trash-btn-ghost:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.1)); }
+.trash-btn-cta-danger {
   border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent);
   color: var(--remove-fg, #ff5d5d);
 }
-.lb-confirm-ok.danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 20%, transparent); }
+.trash-btn-cta-danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 20%, transparent); }
 </style>

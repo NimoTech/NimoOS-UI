@@ -182,20 +182,30 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
     @dragstart.prevent
   >
     <div class="img-wrap">
+      <!-- Plan F Task 3: `class="img-el"` keeps its name (the zoom family's own hook -- net
+           addition over Vue2, kept per controller ruling 4) and gains parity's anchor
+           `.lb-photo` alongside it (Vue2 PhotosLightbox.vue:38-45 `<img class="lb-photo">`,
+           parity photos.scss:593-598). Both classes coexist: `.img-el` still drives the zoom/
+           pan transform + cursor rules above, `.lb-photo` is the anchor Task 4/5 will target
+           once this renders under `.photos-root`'s real parity CSS. -->
       <img
         ref="imgEl"
-        class="img-el"
+        class="img-el lb-photo"
         :src="src"
         :style="imgStyle"
         alt=""
         draggable="false"
         @load="recomputeOcrRects"
       />
-      <div v-if="ocrRects.length" class="ocr-overlay" :style="imgStyle">
+      <!-- Plan F Task 3: renamed from the invented `.ocr-overlay`/`.ocr-hit` to parity's real
+           anchors `.lb-ocr-overlay`/`.lb-ocr-hit` (Vue2 PhotosLightbox.vue:46-53, parity
+           photos.scss:604-618). Task 4 adds the `lb-ocr-pulse` entrance animation to
+           `.lb-ocr-hit`; this task only re-shapes the class names. -->
+      <div v-if="ocrRects.length" class="lb-ocr-overlay" :style="imgStyle">
         <div
           v-for="(r, i) in ocrRects"
           :key="i"
-          class="ocr-hit"
+          class="lb-ocr-hit"
           :style="{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }"
         />
       </div>
@@ -247,13 +257,15 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
      瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
 }
 /* overlay 绑定与 img 完全相同的 imgStyle(transform 一致),二者共享同一未变换前的
-   包围盒(均为 .img-wrap 的 inset:0),因此缩放/平移/旋转时视觉上严丝合缝同步移动。 */
-.ocr-overlay {
+   包围盒(均为 .img-wrap 的 inset:0),因此缩放/平移/旋转时视觉上严丝合缝同步移动。
+   Plan F Task 3: renamed from `.ocr-overlay`/`.ocr-hit` to parity's anchors
+   `.lb-ocr-overlay`/`.lb-ocr-hit` (see template comment). */
+.lb-ocr-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.ocr-hit {
+.lb-ocr-hit {
   position: absolute;
   border: 1.5px solid var(--accent);
   border-radius: 3px;

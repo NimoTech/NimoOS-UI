@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PhotoFilmstrip from '../PhotoFilmstrip.vue'
+// Plan F Task 3: style assertion reads the component's own source text (jsdom doesn't compute
+// cascade), same idiom as PhotoLightbox.test.ts/PhotoInfoPanel.test.ts.
+import FILMSTRIP_SRC from '../PhotoFilmstrip.vue?raw'
 import type { Photo } from '../../util/assetToPhoto'
 
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -56,12 +59,22 @@ function fireWheel(strip: HTMLElement, deltaY: number, deltaX = 0): WheelEvent {
   return e
 }
 
+// Plan F Task 3: root is now a direct grid child of PhotoLightbox's `.lightbox` grid
+// (grid-area: strip) rather than a nested flex-row child of the removed `.lb-body` wrapper.
+describe('PhotoFilmstrip 结构:grid-area 契约(Plan F Task 3)', () => {
+  it('.lb-strip 规则里带 grid-area: strip', () => {
+    const m = /\.lb-strip\s*\{([^}]*)\}/.exec(FILMSTRIP_SRC)
+    expect(m).not.toBeNull()
+    expect(m![1]).toMatch(/grid-area:\s*strip/)
+  })
+})
+
 describe('PhotoFilmstrip 渲染', () => {
-  it('渲染 N 个缩略图,当前 index 项有 active class', () => {
+  it('渲染 N 个缩略图,当前 index 项有 data-active 属性(Plan F Task 3:原 .active 布尔类改为 [data-active])', () => {
     const w = mountFilmstrip(makeList(5), 2)
     const thumbs = w.findAll('.lb-thumb')
     expect(thumbs.length).toBe(5)
-    thumbs.forEach((t, i) => { expect(t.classes('active')).toBe(i === 2) })
+    thumbs.forEach((t, i) => { expect(t.attributes('data-active')).toBe(i === 2 ? 'true' : 'false') })
   })
 
   it('缩略图 src 来自 service.photos.thumbnailUrl(id, "small"), loading=lazy', () => {

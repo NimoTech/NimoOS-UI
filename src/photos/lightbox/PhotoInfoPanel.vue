@@ -81,7 +81,14 @@ async function onCopyPath(): Promise<void> {
 </script>
 
 <template>
-  <aside v-if="visible && photo" class="info-panel scroll">
+  <!-- Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real
+       anchor `.lb-info` (Vue2 PhotosLightbox.vue:74 `<aside class="lb-info scroll">`, parity
+       photos.scss:677 `.photos-root .lb-info { grid-area: info; ... }`). This component is
+       mounted as a direct child of PhotoLightbox's `.lightbox` grid (see that file's
+       scoped-style header comment) and needs the `grid-area: info` placement itself -- kept
+       local/scoped here rather than in the parent, since the parent doesn't otherwise reach
+       into this component's box model. -->
+  <aside v-if="visible && photo" class="lb-info">
     <!-- 图片:相机与拍摄 -->
     <div v-if="!photo.isVideo" class="info-section">
       <div class="info-label">{{ t('photosInfoCameraCapture') }}</div>
@@ -144,7 +151,11 @@ async function onCopyPath(): Promise<void> {
     <div v-if="tags.length > 0" class="info-section" data-section="nimo-sees">
       <div class="info-label">{{ t('photosInfoNimoSees') }}<template v-if="photo.scene"> · {{ photo.scene }}</template></div>
       <div class="tag-row">
-        <span v-for="tag in tags" :key="tag" class="tag-chip">{{ tag }}</span>
+        <!-- Plan F Task 3: renamed from the invented `.tag-chip` to parity's real anchor
+             `.tag[data-kind="ai"]` (Vue2 PhotosLightbox.vue:137, parity photos.scss:696-697).
+             This section only ever renders Nimo-recognized tags (the "Nimo sees" section),
+             so data-kind is unconditionally "ai", matching Vue2's own hard-coded value. -->
+        <span v-for="tag in tags" :key="tag" class="tag" data-kind="ai">{{ tag }}</span>
       </div>
     </div>
 
@@ -162,10 +173,26 @@ async function onCopyPath(): Promise<void> {
 </template>
 
 <style scoped>
-.info-panel {
-  width: 360px;
+/* Plan F Task 3: `.info-panel` renamed to parity's anchor `.lb-info` and `grid-area: info`
+   added -- this component is now placed as a direct grid child of PhotoLightbox's `.lightbox`
+   grid (grid-template-areas "top top" / "main info" / "strip info" when data-info="true"),
+   not a flex sibling inside a `.lb-body` row wrapper (that wrapper is gone, see
+   PhotoLightbox.vue's scoped-style header comment). The explicit `width: 360px` is dropped in favor
+   of the grid's own `1fr 360px` column track -- a grid item stretches to fill its track by
+   default, so re-declaring the width here would be redundant. `max-width: 100%` is kept as a
+   defensive floor for the narrow-screen media query below, which switches this element out of
+   grid flow entirely (`position: fixed`).
+   Deviation (value, New-UI wins): parity's own `.photos-root .lb-info` (photos.scss:677-681)
+   is a bare flush panel -- `background: var(--surface-1); border-left: 1px solid var(--line);
+   padding: 18px 0;` with no radius/box-shadow/backdrop-filter of its own (it visually blends
+   into the lightbox's `--lb-bg` canvas). This component still renders standalone (not yet
+   nested inside `.photos-root` -- see PhotoLightbox.vue's interim-skeleton note), so it keeps
+   its own self-contained card look (radius/border/shadow/blur) rather than the flush parity
+   look, which would look like an unstyled empty column without `.photos-root`'s surrounding
+   chrome. Revisit when Task 5 re-nests the lightbox into `.photos-root`. */
+.lb-info {
+  grid-area: info;
   max-width: 100%;
-  flex: 0 0 auto;
   box-sizing: border-box;
   overflow-y: auto;
   padding: 16px;
@@ -185,7 +212,9 @@ async function onCopyPath(): Promise<void> {
 .info-row .k { color: var(--fg-muted); flex: 0 0 auto; }
 .info-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 140px; border: 1px solid var(--card-border); }
+/* Deviation (value, parity wins): height 132px matches Vue2/parity exactly
+   (PhotosLightbox.vue's `.map-mini`, parity photos.scss:698) -- was 140px. */
+.map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 132px; border: 1px solid var(--card-border); }
 /* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
    (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
    iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
@@ -223,7 +252,12 @@ async function onCopyPath(): Promise<void> {
   width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 600;
   color: var(--fg); background: color-mix(in srgb, var(--accent) 30%, transparent);
 }
-.tag-chip { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg); }
+/* Plan F Task 3: renamed from the invented `.tag-chip` to parity's real anchor `.tag` +
+   `[data-kind="ai"]` modifier (Vue2 PhotosLightbox.vue:137, parity photos.scss:696-697: base
+   `.tag` is a shared neutral chip elsewhere in the app; `[data-kind="ai"]` tints it toward the
+   accent for Nimo-recognized tags -- the only kind this section ever renders). */
+.tag { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg); }
+.tag[data-kind="ai"] { background: var(--accent-soft); color: var(--accent); }
 
 .path-row { display: flex; align-items: center; gap: 8px; }
 .path-text { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -235,7 +269,7 @@ async function onCopyPath(): Promise<void> {
 
 /* 窄屏:桌面态右栏 → 底部浮层/全宽覆盖(独立浮层,不接 useSidebarDrawer——那是侧栏专用) */
 @media (max-width: 768px) {
-  .info-panel {
+  .lb-info {
     position: fixed; left: 0; right: 0; bottom: 0; top: auto;
     width: auto; max-height: 70vh;
     border-radius: var(--radius) var(--radius) 0 0;

@@ -124,7 +124,7 @@ onBeforeUnmount(() => {
       :key="p.id"
       ref="thumbEls"
       class="lb-thumb"
-      :class="{ active: i === index }"
+      :data-active="i === index"
       @click="onThumbClick(i)"
     >
       <img :src="thumbnailSrc(p.id)" alt="" loading="lazy" />
@@ -137,7 +137,11 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Plan F Task 3: this root is now a direct grid child of PhotoLightbox's `.lightbox` grid
+   (grid-area: strip), not a flex-column flow item -- see PhotoLightbox.vue's scoped-style
+   header comment for the removed `.lb-body` wrapper and the grid rewrite. */
 .lb-strip {
+  grid-area: strip;
   display: flex;
   gap: 8px;
   padding: 10px 16px;
@@ -159,7 +163,9 @@ onBeforeUnmount(() => {
   opacity: 0.6;
 }
 .lb-thumb:hover { opacity: 0.85; }
-.lb-thumb.active {
+/* Plan F Task 3: renamed from the boolean `.active` class to parity's real anchor
+   `[data-active="true"]` (Vue2 PhotosLightbox.vue:171, parity photos.scss:668-676). */
+.lb-thumb[data-active="true"] {
   border-color: var(--accent);
   opacity: 1;
 }

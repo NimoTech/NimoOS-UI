@@ -20,6 +20,18 @@ const mountViewer = async (props: Partial<{ assetId: string | number; mimeType: 
   return w
 }
 
+// Plan F Task 3: the <img> keeps its own `.img-el` hook (zoom/pan mechanics, net addition over
+// Vue2 -- controller ruling 4) and gains parity's anchor `.lb-photo` alongside it
+// (`.lb-media > .lb-photo(img|video)`, Vue2 PhotosLightbox.vue:38-45).
+describe('PhotoImageViewer 结构:.lb-photo 锚点(Plan F Task 3)', () => {
+  it('<img> 同时带 .img-el 与 .lb-photo 两个类', async () => {
+    const w = await mountViewer()
+    const img = w.get('img.img-el')
+    expect(img.classes()).toContain('img-el')
+    expect(img.classes()).toContain('lb-photo')
+  })
+})
+
 describe('PhotoImageViewer src 计算(HEIC/TIFF/RAW 回退大图缩略图)', () => {
   it('浏览器可原生解码的 mimeType 用 originalUrl', async () => {
     const w = await mountViewer({ assetId: 'a1', mimeType: 'image/jpeg' })
@@ -209,9 +221,9 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     return w
   }
 
-  it('ocrLines 非空:overlay 内出现对应 .ocr-hit,矩形与 mapOcrBoxesToRects 一致', async () => {
+  it('ocrLines 非空:overlay 内出现对应 .lb-ocr-hit,矩形与 mapOcrBoxesToRects 一致', async () => {
     const w = await mountWithOcr([{ box: [0, 0, 1, 0, 1, 1, 0, 1] }])
-    const hits = w.findAll('.ocr-overlay .ocr-hit')
+    const hits = w.findAll('.lb-ocr-overlay .lb-ocr-hit')
     expect(hits.length).toBe(1)
     const style = hits[0]!.attributes('style')!
     expect(style).toContain('left: 0px')
@@ -220,25 +232,25 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     expect(style).toContain('height: 100px')
   })
 
-  it('ocrLines 为空:不渲染任何 .ocr-hit', async () => {
+  it('ocrLines 为空:不渲染任何 .lb-ocr-hit', async () => {
     const w = await mountWithOcr([])
-    expect(w.findAll('.ocr-overlay .ocr-hit').length).toBe(0)
+    expect(w.findAll('.lb-ocr-overlay .lb-ocr-hit').length).toBe(0)
   })
 
-  it('ocrLines 缺省(未传 prop):不渲染任何 .ocr-hit', async () => {
+  it('ocrLines 缺省(未传 prop):不渲染任何 .lb-ocr-hit', async () => {
     const w = mount(PhotoImageViewer, { props: { assetId: 'a1', mimeType: 'image/jpeg' } })
     await nextTick()
-    expect(w.findAll('.ocr-overlay .ocr-hit').length).toBe(0)
+    expect(w.findAll('.lb-ocr-overlay .lb-ocr-hit').length).toBe(0)
   })
 
-  it('.ocr-overlay 与 <img> 同处 .img-wrap 内,且随缩放同步变换(不是舞台的旁支兄弟)', async () => {
+  it('.lb-ocr-overlay 与 <img> 同处 .img-wrap 内,且随缩放同步变换(不是舞台的旁支兄弟)', async () => {
     const w = await mountWithOcr([{ box: [0, 0, 1, 0, 1, 1, 0, 1] }])
     const wrap = w.get('.img-wrap').element
     expect(wrap.contains(w.get('img.img-el').element)).toBe(true)
-    expect(wrap.contains(w.get('.ocr-overlay').element)).toBe(true)
+    expect(wrap.contains(w.get('.lb-ocr-overlay').element)).toBe(true)
     await (w.vm as any).zoomIn()
     const imgStyle = w.get('img.img-el').attributes('style')!
-    const overlayStyle = w.get('.ocr-overlay').attributes('style')!
+    const overlayStyle = w.get('.lb-ocr-overlay').attributes('style')!
     expect(imgStyle).toContain('scale(1.1)')
     expect(overlayStyle).toContain('scale(1.1)') // 覆盖层随图片同步缩放/平移
   })

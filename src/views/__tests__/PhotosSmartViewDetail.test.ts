@@ -1502,7 +1502,7 @@ describe('Fix-12: the lightbox is mounted on this page and its events are wired'
     await w.vm.$nextTick()
     await w.find('.lb-delete').trigger('click')
     await w.vm.$nextTick()
-    await w.find('.lb-confirm-ok').trigger('click')
+    await w.find('.trash-btn-cta-danger').trigger('click')
     await flushPromises()
 
     expect(deleteSpy).toHaveBeenCalledWith(['a1'])

@@ -561,9 +561,17 @@
 .photos-root .selectbar-btn[data-ai="true"]:hover { background: rgba(110,91,255,0.32); }
 
 /* === Lightbox === */
+/* Deviation (value, New-UI wins; English per repo convention -- z-index is an architecture
+   quantity, not a visual-parity one): Vue2's source z-index is 100, bumped to 200 here to match
+   PhotoLightbox.vue's own component-scoped z-index (also 200, see that file's <style> header
+   comment). New-UI's overlay z-map governs actual stacking order across the whole app (see
+   photosOverlayZIndex.test.ts), not Vue2's isolated page-local value -- 200 is what this
+   component already committed to. Both this global copy and the component's local one now
+   agree; Task 5 will make this copy the one that actually governs once the lightbox is
+   re-nested inside `.photos-root`. */
 .photos-root .lightbox {
   position: fixed; inset: 0;
-  background: var(--lb-bg); z-index: 100;
+  background: var(--lb-bg); z-index: 200;
   display: grid;
   grid-template-rows: 56px 1fr 88px;
   animation: lb-in 0.22s ease-out;

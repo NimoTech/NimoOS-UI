@@ -103,6 +103,28 @@ describe('PhotoInfoPanel', () => {
     expect(w.find('.map-pin').exists()).toBe(true)
   })
 
+  // Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real anchor
+  // `.lb-info` (grid-area: info), and `.map-mini`'s height corrected to parity's 132px.
+  describe('结构:.lb-info 锚点 + grid-area(Plan F Task 3)', () => {
+    it('根元素渲染为 .lb-info(不是旧的 .info-panel)', () => {
+      const w = mountPanel(makePhoto())
+      expect(w.find('.lb-info').exists()).toBe(true)
+      expect(w.find('.info-panel').exists()).toBe(false)
+    })
+
+    it('.lb-info 规则里带 grid-area: info(作为 PhotoLightbox 网格的直接子元素)', () => {
+      const m = /\.lb-info\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(m).not.toBeNull()
+      expect(m![1]).toMatch(/grid-area:\s*info/)
+    })
+
+    it('.map-mini 高度对齐 Vue2/parity 的 132px(此前是 140px)', () => {
+      const m = /\.map-mini\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(m).not.toBeNull()
+      expect(m![1]).toMatch(/height:\s*132px/)
+    })
+  })
+
   // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
   // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
   // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。
@@ -157,7 +179,8 @@ describe('PhotoInfoPanel', () => {
     expect(w.findAll('.face-chip')).toHaveLength(2)
     expect(w.find('.face-chip img').exists()).toBe(false) // people list empty → no unique match, placeholder only
     expect(w.find('[data-section="nimo-sees"]').exists()).toBe(true)
-    expect(w.findAll('.tag-chip')).toHaveLength(2)
+    // Plan F Task 3: renamed from `.tag-chip` to parity's real anchor `.tag[data-kind="ai"]`.
+    expect(w.findAll('.tag[data-kind="ai"]')).toHaveLength(2)
   })
 
   // Task 15B(SP7-P5 两笔记账收口):人脸 chip 真头像。前置事实纠正(见 task-15-brief.md):
@@ -230,12 +253,12 @@ describe('PhotoInfoPanel', () => {
 
   it('renders nothing when visible=false', () => {
     const w = mountPanel(makePhoto(), false)
-    expect(w.find('.info-panel').exists()).toBe(false)
+    expect(w.find('.lb-info').exists()).toBe(false)
   })
 
   it('renders nothing when photo is null', () => {
     const w = mountPanel(null, true)
-    expect(w.find('.info-panel').exists()).toBe(false)
+    expect(w.find('.lb-info').exists()).toBe(false)
   })
 
   it('copies the file path via the clipboard util and flips to the copied label for ~2s', async () => {

@@ -118,6 +118,66 @@ describe('PhotoLightbox 开合 + 标题/计数', () => {
   })
 })
 
+// Plan F Task 3: container re-shaped from a flex column to a CSS Grid mirroring Vue2/parity
+// exactly (grid-template-rows 56px 1fr 88px; data-info="true" → columns 1fr 360px + named
+// areas "top top"/"main info"/"strip info"; "false" → single column). Style assertions read
+// the component's own source text (jsdom doesn't compute cascade), same idiom as the
+// "顶栏是不透明流内 chrome" block below.
+describe('PhotoLightbox 结构:容器 grid + data-info 契约(Plan F Task 3)', () => {
+  const rule = (selector: string): string => {
+    const m = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(LIGHTBOX_SRC)
+    expect(m, `找不到规则 ${selector}`).not.toBeNull()
+    return m![1]
+  }
+
+  it('.lightbox 是 display:grid,行高 56px 1fr 88px,z-index 200', () => {
+    const body = rule('\\.lightbox')
+    expect(body).toMatch(/display:\s*grid/)
+    expect(body).toMatch(/grid-template-rows:\s*56px 1fr 88px/)
+    expect(body).toMatch(/z-index:\s*200/)
+    expect(body).toMatch(/position:\s*fixed/)
+  })
+
+  it('data-info="true":两列(1fr 360px)+ 三区域命名(top top / main info / strip info)', () => {
+    const body = rule('\\.lightbox\\[data-info="true"\\]')
+    expect(body).toMatch(/grid-template-columns:\s*1fr 360px/)
+    expect(body).toMatch(/grid-template-areas:\s*"top top" "main info" "strip info"/)
+  })
+
+  it('data-info="false":单列 + 三区域各占一整行(top / main / strip)', () => {
+    const body = rule('\\.lightbox\\[data-info="false"\\]')
+    expect(body).toMatch(/grid-template-columns:\s*1fr;/)
+    expect(body).toMatch(/grid-template-areas:\s*"top" "main" "strip"/)
+  })
+
+  it('.lb-main/.lb-nav[data-side]/.lb-strip/.lb-info 都是 .lightbox 的直接子元素(不再嵌套在 .lb-body 里)', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    await w.find('.lb-info-toggle').trigger('click')
+    await nextTick()
+    const lightbox = w.get('.lightbox').element
+    const main = w.get('.lb-main').element
+    const info = w.get('.lb-info').element // PhotoInfoPanel 的 stub(见 mountLb 的 stubs)
+    const strip = w.get('.stub-filmstrip').element // PhotoFilmstrip 的 stub
+    expect(main.parentElement).toBe(lightbox)
+    expect(info.parentElement).toBe(lightbox)
+    expect(strip.parentElement).toBe(lightbox)
+    // 不存在旧的 .lb-body 包裹元素
+    expect(w.find('.lb-body').exists()).toBe(false)
+  })
+
+  it('翻页箭头用 data-side 属性而非 .lb-nav-prev/.lb-nav-next 修饰类', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    const prev = w.get('.lb-nav[data-side="prev"]')
+    const next = w.get('.lb-nav[data-side="next"]')
+    expect(prev.classes()).not.toContain('lb-nav-prev')
+    expect(next.classes()).not.toContain('lb-nav-next')
+  })
+})
+
 describe('PhotoLightbox 舞台分发', () => {
   it('视频项渲染原生 <video> 且 src=originalUrl,不渲染静图查看器', async () => {
     const w = mountLb()
@@ -127,6 +187,10 @@ describe('PhotoLightbox 舞台分发', () => {
     expect(video.exists()).toBe(true)
     expect(video.attributes('src')).toBe('/v1/photos/assets/v1/original?token=t')
     expect(w.findComponent({ name: 'PhotoImageViewer' }).exists()).toBe(false)
+    // Plan F Task 3: the media element carries parity's anchor `.lb-photo`
+    // (`.lb-media > .lb-photo(img|video)`) alongside this component's own `.lb-video`.
+    expect(video.classes()).toContain('lb-photo')
+    expect(video.classes()).toContain('lb-video')
   })
 
   it('图片项渲染 PhotoImageViewer(stub),不渲染 <video>', async () => {
@@ -175,8 +239,8 @@ describe('PhotoLightbox 翻页', () => {
     const w = mountLb()
     lb.openAt(IMG_A, THREE)
     await nextTick()
-    expect((w.find('.lb-nav-prev').element as HTMLButtonElement).disabled).toBe(true)
-    await w.find('.lb-nav-next').trigger('click')
+    expect((w.find('.lb-nav[data-side="prev"]').element as HTMLButtonElement).disabled).toBe(true)
+    await w.find('.lb-nav[data-side="next"]').trigger('click')
     await nextTick()
     expect(w.text()).toContain('2 / 3')
   })
@@ -185,7 +249,7 @@ describe('PhotoLightbox 翻页', () => {
     const w = mountLb()
     lb.openAt(IMG_C, THREE)
     await nextTick()
-    expect((w.find('.lb-nav-next').element as HTMLButtonElement).disabled).toBe(true)
+    expect((w.find('.lb-nav[data-side="next"]').element as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('ArrowRight 前进、ArrowLeft 后退', async () => {
@@ -266,7 +330,7 @@ describe('PhotoLightbox 删除确认', () => {
     await w.find('.lb-delete').trigger('click')
     await nextTick()
     expect(w.find('.lb-confirm').exists()).toBe(true)
-    await w.find('.lb-confirm-ok').trigger('click')
+    await w.find('.trash-btn-cta-danger').trigger('click')
     await nextTick()
     expect(w.emitted('delete')?.[0]).toEqual(['a'])
     expect(lb.open.value).toBe(false)
@@ -278,7 +342,7 @@ describe('PhotoLightbox 删除确认', () => {
     await nextTick()
     await w.find('.lb-delete').trigger('click')
     await nextTick()
-    await w.find('.lb-confirm-cancel').trigger('click')
+    await w.find('.trash-btn-ghost').trigger('click')
     await nextTick()
     expect(w.find('.lb-confirm').exists()).toBe(false)
     expect(lb.open.value).toBe(true)
@@ -295,14 +359,14 @@ describe('PhotoLightbox chrome 自隐', () => {
     lb.openAt(IMG_A, THREE)
     await nextTick()
     expect(w.find('.lb-top').exists()).toBe(true)
-    expect(w.find('.lb-nav-next').exists()).toBe(true)
+    expect(w.find('.lb-nav[data-side="next"]').exists()).toBe(true)
     vi.advanceTimersByTime(5000)
     await nextTick()
     // 顶栏不再受 isMoving 管辖 —— 删掉模板里那个 v-if 的守卫就靠这一条
     expect(w.find('.lb-top').exists()).toBe(true)
-    expect(w.find('.lb-nav-next').exists()).toBe(false)
+    expect(w.find('.lb-nav[data-side="next"]').exists()).toBe(false)
     await w.find('.lightbox').trigger('mousemove')
-    expect(w.find('.lb-nav-next').exists()).toBe(true)
+    expect(w.find('.lb-nav[data-side="next"]').exists()).toBe(true)
   })
 })
 
@@ -321,14 +385,19 @@ describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收
     expect(body).not.toMatch(/linear-gradient/)
   })
 
-  it('是 flex 流内项并与舞台之间有分隔线(图片因此夹在上下两栏之间)', () => {
+  // Plan F Task 3: the container switched from a flex column to a CSS Grid (parity's own
+  // row/column/area shape) -- `.lb-top` now claims its row via `grid-area: top` instead of
+  // `flex: 0 0 auto`. The underlying user-facing requirement (an opaque row of its own, with a
+  // separating line from the stage below) is unchanged; only the layout mechanism is.
+  it('占据网格自己的一行(grid-area: top)并与舞台之间有分隔线(图片因此夹在上下两栏之间)', () => {
     const body = topRule()
-    expect(body).toMatch(/flex:\s*0\s+0\s+auto/)
+    expect(body).toMatch(/grid-area:\s*top/)
     expect(body).toMatch(/border-bottom:\s*1px solid var\(--card-border\)/)
   })
 
   it('详情栏上边距不再为顶栏让位(64px → 16px,否则比同排舞台下沉一截)', () => {
-    const m = /:deep\(\.info-panel\)\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    // Plan F Task 3: PhotoInfoPanel's root renamed `.info-panel` → `.lb-info`.
+    const m = /:deep\(\.lb-info\)\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
     expect(m).not.toBeNull()
     expect(m![1]).toMatch(/margin:\s*16px 16px 16px 0/)
   })
@@ -392,7 +461,7 @@ describe('PhotoLightbox 持久挂载:onMounted 时灯箱未开', () => {
     await nextTick()
     expect(w.find('.lightbox').exists()).toBe(true)
     expect(w.find('.lb-top').exists()).toBe(true) // 顶栏工具栏(收藏/下载/详情/删除等)
-    expect(w.find('.lb-nav-next').exists()).toBe(true) // 翻页箭头
+    expect(w.find('.lb-nav[data-side="next"]').exists()).toBe(true) // 翻页箭头
   })
 
   it('open 时 showInfo 复位为 false,即便上一次打开曾切到 true', async () => {
