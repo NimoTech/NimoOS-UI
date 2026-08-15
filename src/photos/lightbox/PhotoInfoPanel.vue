@@ -182,19 +182,22 @@ async function onCopyPath(): Promise<void> {
    alone (this was the exact "revisit when Task 5 re-nests" flagged by that original comment).
    Layout structure with no parity counterpart survives: `max-width`/`box-sizing` (defensive floor
    for the narrow-screen media query below, which switches this element out of grid flow
-   entirely), `display: flex; flex-direction: column; gap: 16px` (parity's own child spacing comes
-   from each `.info-section`'s own padding/border-bottom instead, but that doesn't conflict with
-   an additional flex gap here -- no shared property), and `color` (parity never sets a base text
-   color on the panel itself, each child sets its own). */
+   entirely) and `color` (parity never sets a base text color on the panel itself, each child sets
+   its own).
+
+   I3 (final review, 2026-08-15): `display: flex; flex-direction: column; gap: 16px` here, plus
+   `.info-section`'s own `display: flex; flex-direction: column; gap: 6px` below, were an
+   unregistered pixel deviation -- Vue2 stacks `.info-section`s flush against each other (parity
+   :690-691: `padding: 12px 20px; border-bottom: 1px solid var(--line)` is the ONLY spacing
+   mechanism between sections, no gap layered on top). Both flex/flex-direction/gap declarations
+   deleted so parity's flush, padding+border-driven stacking is what actually governs, matching
+   Vue2's real vertical rhythm instead of an extra 16px/6px gap Vue2 never had. */
 .lb-info {
   max-width: 100%;
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
   color: var(--fg);
 }
-.info-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.info-section { min-width: 0; }
 /* `.info-label` retired -- byte-duplicate of parity's `.photos-root .info-label` (font-size/
    font-weight/color/text-transform/letter-spacing all collide; parity additionally sets
    `margin-bottom`). */
@@ -215,7 +218,10 @@ async function onCopyPath(): Promise<void> {
    `.photos-root .map-mini` (height already matched byte-exact per the prior Task 4 fix, parity
    additionally sets `margin-top`/`background`) -- retired; only the `border` survives (parity's
    own map area has none, but this component's border ring doesn't conflict with any parity
-   property and isn't part of the "card look" being un-done above). */
+   property and isn't part of the "card look" being un-done above). New-UI addition, no Vue2
+   source (M6): Vue2's own `.map-mini` (PhotosLightbox.vue:119-122) has no border ring at all --
+   this is a New-UI-only visual accent with nothing to cite on the Vue2 side, kept because it
+   doesn't collide with any parity-declared property. */
 .map-mini { border: 1px solid var(--card-border); }
 /* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
    (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。

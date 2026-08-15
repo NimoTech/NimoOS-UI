@@ -248,6 +248,11 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
     'photos/lightbox/PhotoFilmstrip.vue::background: rgba(0, 0, 0, 0.55); color: #fff;',
     'photos/lightbox/PhotoInfoPanel.vue::color: rgba(255, 255, 255, 0.72);',
     'photos/lightbox/PhotoInfoPanel.vue::text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);',
+    // M2 (final review, 2026-08-15): the delete-confirm dialog's trash-icon color matches Vue2
+    // PhotosLightbox.vue:154's own hardcoded literal exactly (see this line's own theme-exception
+    // comment in PhotoLightbox.vue) -- a deliberate one-off parity match, not a drift back toward
+    // hardcoded colors generally.
+    'photos/lightbox/PhotoLightbox.vue::<div class="lb-confirm-icon" style="color: #FF6B5C"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>',
   ])
 
   // A line counts as "bare" only if it has a color literal (rgba()/hex) with NO `var(--…)`

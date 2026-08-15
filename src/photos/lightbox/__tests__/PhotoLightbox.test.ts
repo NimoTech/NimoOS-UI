@@ -475,6 +475,29 @@ describe('PhotoLightbox 删除确认', () => {
     expect(lb.open.value).toBe(true)
     expect(w.emitted('delete')).toBeUndefined()
   })
+
+  // I1 (owner red line: no animation dropped) -- Vue2 wraps the confirm scrim in
+  // `<transition name="lb-confirm">` (PhotosLightbox.vue:151-165); this component had regressed
+  // to a bare `v-if` with no transition wrapper at all. Assert the wrapper is back.
+  it('确认弹窗以 <transition name="lb-confirm"> 包裹(I1:owner red line,忠于 Vue2 :151-165)', async () => {
+    const w = mountLb()
+    lb.openAt(IMG_A, THREE)
+    await nextTick()
+    await w.find('.lb-delete').trigger('click')
+    await nextTick()
+    const transitions = w.findAllComponents(Transition as never) as unknown as Array<{
+      props: (key: string) => unknown
+    }>
+    const confirmTransition = transitions.find((t) => t.props('name') === 'lb-confirm')
+    expect(confirmTransition, '找不到 name="lb-confirm" 的 <transition>').not.toBeUndefined()
+  })
+
+  it('本地补 Vue3 的 -enter-from 选择器(parity 的 .lb-confirm-enter 是 Vue2 死名逐字节转录,同 .lb-swap-*-enter-from 的既有先例)', () => {
+    const m = /\.lb-confirm-enter-from\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    expect(m, '找不到 .lb-confirm-enter-from').not.toBeNull()
+    expect(m![1]).toMatch(/opacity:\s*0/)
+    expect(m![1]).toMatch(/transform:\s*scale\(0\.95\)/)
+  })
 })
 
 describe('PhotoLightbox chrome 自隐', () => {

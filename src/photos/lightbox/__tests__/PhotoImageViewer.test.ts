@@ -16,6 +16,10 @@ const PARITY_SRC = fs.readFileSync(
   path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
   'utf8',
 )
+// I2 (final review, 2026-08-15) -- read this component's own scoped <style> the same way
+// PhotoLightbox.test.ts already does for its sibling component (`?raw`, unaffected by the
+// `.scss?raw` interception noted above since this is a `.vue` file, not `.scss`).
+import IMAGE_VIEWER_SRC from '../PhotoImageViewer.vue?raw'
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -294,5 +298,27 @@ describe('PhotoImageViewer OCR 覆盖层(随变换同容器,不叠加 offsetLeft
     const overlayStyle = w.get('.lb-ocr-overlay').attributes('style')!
     expect(imgStyle).toContain('scale(1.1)')
     expect(overlayStyle).toContain('scale(1.1)') // 覆盖层随图片同步缩放/平移
+  })
+})
+
+// I2 (final review, 2026-08-15) -- `.img-el { max-width:100%; max-height:100% }` used to sit at
+// equal specificity with parity's own `.photos-root .lb-photo` (also targeting this exact <img>,
+// since it carries both classes) and, being injected after the parity stylesheet on every host
+// page, always won the tie -- silently overriding parity's `calc(100% - 80px)`/`calc(100% - 24px)`
+// arrow clearance with a flush 100%. Assert the local rule no longer declares either property, so
+// parity's `.lb-photo` is the only max-width/max-height source reaching this element.
+describe('PhotoImageViewer .img-el 不再与 parity .lb-photo 打平手(I2)', () => {
+  it('.img-el 本地规则不声明 max-width/max-height', () => {
+    const m = /(?<!\.lb-)\.img-el\s*\{([^}]*)\}/.exec(IMAGE_VIEWER_SRC)
+    expect(m, '找不到 .img-el 规则').not.toBeNull()
+    expect(m![1]).not.toMatch(/max-width/)
+    expect(m![1]).not.toMatch(/max-height/)
+  })
+
+  it('parity 的 .lb-photo 仍携带 80px/24px 的箭头留白值(锚点没挪走)', () => {
+    const m = /\.photos-root \.lb-photo\s*\{([^}]*)\}/.exec(PARITY_SRC)
+    expect(m, '找不到 parity 的 .photos-root .lb-photo').not.toBeNull()
+    expect(m![1]).toMatch(/max-width:\s*calc\(100% - 80px\)/)
+    expect(m![1]).toMatch(/max-height:\s*calc\(100% - 24px\)/)
   })
 })

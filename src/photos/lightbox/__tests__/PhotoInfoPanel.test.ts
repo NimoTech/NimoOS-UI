@@ -143,6 +143,42 @@ describe('PhotoInfoPanel', () => {
     })
   })
 
+  // I3 (final review, 2026-08-15): `.lb-info { display:flex; flex-direction:column; gap:16px }` +
+  // `.info-section { ...; gap:6px }` were an unregistered pixel deviation -- Vue2 stacks sections
+  // flush (padding 12px 20px + border-bottom, no gap at all, parity :690-691), not with a 16px/6px
+  // flex gap layered on top. Assert both rules stop declaring flex/flex-direction/gap so parity's
+  // flush stacking governs.
+  describe('.lb-info / .info-section 不再叠加 flex gap(I3, 对齐 Vue2 的贴靠堆叠)', () => {
+    // 只在真正的 <style scoped> 块内找规则 -- 本文件顶部 template 注释里就引用过
+    // "`.lb-info { grid-area: info; ... }`" 这样一段解释性文字(描述 parity 的规则长什么样),
+    // 若直接对整份 PANEL_SRC 用无锚定正则,会先命中注释里的这段示例文本而不是真正的 CSS 规则,
+    // 静默产生假阳性(2026-08-15 final review 排查实证过)。
+    const STYLE_BLOCK = /<style[^>]*>([\s\S]*)<\/style>/.exec(PANEL_SRC)![1]
+
+    it('.lb-info 本地规则不声明 display/flex-direction/gap', () => {
+      const m = /\.lb-info\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
+      expect(m, '找不到 .lb-info 规则').not.toBeNull()
+      expect(m![1]).not.toMatch(/display:\s*flex/)
+      expect(m![1]).not.toMatch(/flex-direction/)
+      expect(m![1]).not.toMatch(/gap/)
+    })
+
+    it('.info-section 本地规则不声明 display/flex-direction/gap', () => {
+      const m = /(?<!\.)\.info-section\s*\{([^}]*)\}/.exec(STYLE_BLOCK)
+      expect(m, '找不到 .info-section 规则').not.toBeNull()
+      expect(m![1]).not.toMatch(/display:\s*flex/)
+      expect(m![1]).not.toMatch(/flex-direction/)
+      expect(m![1]).not.toMatch(/gap/)
+    })
+
+    it('parity 的 .photos-root .info-section 仍是 padding + border-bottom 的贴靠堆叠', () => {
+      const m = /\.photos-root \.info-section\s*\{([^}]*)\}/.exec(PARITY_SRC)
+      expect(m, '找不到 parity 的 .photos-root .info-section').not.toBeNull()
+      expect(m![1]).toMatch(/padding:\s*12px 20px/)
+      expect(m![1]).toMatch(/border-bottom/)
+    })
+  })
+
   // 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的页脚文字(Report a problem /
   // Make a Donation / Website and API terms)。iframe 跨域、内部元素无法用 CSS 隐藏,
   // 只能外层裁切;裁切必须上下对称,否则 OSM 自己的标记会掉到 .map-pin 下方错位。

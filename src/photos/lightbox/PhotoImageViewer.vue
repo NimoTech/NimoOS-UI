@@ -239,16 +239,40 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
 .img-stage:active { cursor: grabbing; }
 /* .img-wrap 只按 img 的渲染尺寸收缩包裹(shrink-to-fit),使 .ocr-overlay(绝对定位、
    inset:0)的原点与 img 完全重合 —— img 是其唯一参与布局的内容,故 OCR 矩形无需
-   再叠加 offsetLeft/offsetTop 换算。 */
+   再叠加 offsetLeft/offsetTop 换算。
+
+   I2 (final review, 2026-08-15) containing-block analysis -- why `max-width: 100%;
+   max-height: 100%;` MUST stay here even though the identically-named pair was just deleted from
+   `.img-el` below: this wrap is a shrink-to-fit box (`display: inline-flex`, no explicit
+   width/height of its own) sitting between `.img-stage` (a definite, 100%-sized box -- this
+   component's own root) and the `<img class="img-el lb-photo">`. Percentages on a descendant
+   always resolve against its own containing block, i.e. THIS element, not `.img-stage` directly --
+   so for the img's `.lb-photo` max-width (now solely parity's `calc(100% - 80px)`, no local
+   competitor after the deletion below) to mean "80px in from `.img-stage`'s edge" rather than
+   something computed relative to an already shrink-wrapped, content-dependent box, this wrapper's
+   OWN percentage basis has to be a plain, unconstrained pass-through of `.img-stage`'s real size --
+   which is exactly what an unqualified `100%` here provides (it is never the binding constraint in
+   practice: the img's own max-width already caps the rendered size below `.img-stage`'s, so this
+   wrapper's shrink-to-fit width always lands under its own 100% cap and never gets clamped by it).
+   Deleting this rule instead of `.img-el`'s would reopen exactly the same problem one layer up (an
+   `.img-wrap` with no size cap at all lets an oversized photo's wrap balloon past `.img-stage`,
+   independent of whatever max-width the img itself declares) -- so this is the "sizing
+   pass-through" layer, kept deliberately, while `.img-el` below carries none of its own. */
 .img-wrap {
   position: relative;
   display: inline-flex;
   max-width: 100%;
   max-height: 100%;
 }
+/* I2 (final review, 2026-08-15): `max-width: 100%; max-height: 100%;` used to live here too --
+   at equal specificity with parity's own `.photos-root .lb-photo` (also targeting this exact
+   <img>, since it carries both classes, see the Task 3 comment above) and, being injected after
+   the parity stylesheet on every host page, this local copy always won the tie, silently
+   overriding parity's `calc(100% - 80px)`/`calc(100% - 24px)` arrow clearance with a flush 100%.
+   Deleted outright -- parity's `.lb-photo` rule is now the only max-width/max-height declaration
+   reaching this element, no tie left to win (see `.img-wrap`'s own comment above for why ITS
+   pass-through `100%` has to stay so the percentage still resolves against `.img-stage`). */
 .img-el {
-  max-width: 100%;
-  max-height: 100%;
   object-fit: contain;
   user-select: none;
   -webkit-user-drag: none;
