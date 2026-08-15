@@ -78,28 +78,26 @@ const pct = computed(() => matchPct(props.result.score))
 </template>
 
 <style scoped>
-/* fix 波 F4(终审引用清扫,回源核对真值):此前这段的行号引用指到了完全无关的 CSS——
-   photos.scss:112-116 实际是 `.photos-root .app` 的 font-family/font-size/line-height
-   (整个页面外壳的字体设置),不是 `.tile`。`.photos-root .tile` 基本形态的真实行号是
-   :321-325(position/aspect-ratio/overflow/border-radius/background/cursor/isolation),
-   img 缩放悬停(`.tile img` + `.tile:hover img`)真实行号是 :327-328。搜索结果只用
-   comfortable 密度,不接 loose 变体的 border-radius:6px 覆盖(真实行号 :326,那条只在
-   loose 密度下生效,本组件没有 loose 概念)。background 按本区既定映射
-   --surface-2 → --chip-bg(PlacesRail.vue 等既有先例)。
-   fix round 1 · M-5(评审必修,控制器拍板):border-radius 改用 PhotosGrid.vue:376
-   的 8px,不是 Vue2 photos.scss:323 的 3px——理由与 D2(.grid 列宽)同源:Vue2 全局
-   `.tile` 本来就是 3px,New-UI 已在 P3 把整个相册区改成 8px,搜索结果页照 Vue2 抄回
-   3px 会让同一台设备上搜索瓦片比图库瓦片棱角明显更利,New-UI 内部自相矛盾。这是
-   相对 Vue2 的刻意偏离,已双处登记(此处 + 报告)。 */
-.tile {
-  position: relative;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  border-radius: 8px;
-  background: var(--chip-bg);
-  cursor: pointer;
-  isolation: isolate;
-}
+/* Plan F Task 2 (2026-08-15, tile-to-parity cleanup): the `.tile` base rule that used to live
+   here (position/aspect-ratio/overflow/border-radius/background/cursor/isolation) is deleted
+   outright — `vue2-parity/photos.scss`'s own `.photos-root .tile` (:427-430) already declares
+   the exact same property set, so this component now simply lets that bare rule apply (this
+   file's tiles always render inside a `.photos-root` ancestor, same precondition every other
+   parity-consuming Photos component relies on).
+   Two real bugs this removal fixes, not just deduplication:
+   1. `background: var(--chip-bg)` was the generic cross-app glass token — never locally
+      redefined by `.photos-root`, so it fell through to theme.css's global blue-glass value
+      instead of the Photos-local `--surface-2` parity actually uses. Same class of leak the
+      owner's 2026-08-13 reversal fixed for the fchip/fpop family.
+   2. `border-radius: 8px` carried a citation ("matches PhotosGrid.vue's own 8px, so search
+      tiles don't look sharper-cornered than library tiles on the same device") that is no
+      longer true: PhotosGrid.vue's Task 6 网格重刻 re-skin (predating this task) already
+      reverted ITS OWN `.tile` to Vue2 parity's 3px (confirmed — `grep -n
+      "border-radius" src/photos/components/PhotosGrid.vue` has zero hits; its tiles get 3px
+      from the same bare `.photos-root .tile` parity rule this file now also defers to).
+      Keeping 8px here would have recreated the exact inconsistency the deviation was
+      originally trying to avoid, now inverted (search tiles rounder than grid tiles instead
+      of the other way around) — so this survivor is retired, not carried forward. */
 .tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.4s ease, filter 0.2s ease; }
 .tile:hover img { transform: scale(1.04); }
 

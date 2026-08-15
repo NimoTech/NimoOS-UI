@@ -16,10 +16,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { photos: { thumbnailUrl: (...a: unknown[]) => (thumbnailUrl as (...a: unknown[]) => string)(...a) } },
 }))
 
+import { readFileSync } from 'node:fs'
 import SearchResultTile from '../SearchResultTile.vue'
 import searchResultTileRaw from '../SearchResultTile.vue?raw'
 import themingDocRaw from '../../../../docs/THEMING.md?raw'
-import { extractStyleBlock } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -204,14 +205,33 @@ describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁
     }
   })
 
-  // fix round 1 · M-5(评审并入,控制器拍板):.tile 圆角改跟 PhotosGrid.vue 的 8px,
-  // 不是 Vue2 photos.scss:323(`.photos-root .tile` 规则体里的 `border-radius: 3px`,
-  // fix 波 F4 回源核对更正,此前误写成 :112,那是 `.photos-root .app` 的字体设置)
-  // 的 3px——理由与 D2(.grid 列宽)同源,防止同一台设备上搜索结果瓦片比图库瓦片棱角更利。
-  it('.tile 规则体的 border-radius 是 8px(跟 PhotosGrid.vue,不是 Vue2 的 3px)', () => {
-    const m = /\.tile\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '未找到 .tile 规则体').toBeTruthy()
-    expect(m![1]).toMatch(/border-radius:\s*8px/)
+  // Plan F Task 2 (2026-08-15): the fix round 1 · M-5 ruling this test used to pin ("8px to
+  // match PhotosGrid.vue, not Vue2's 3px, so search tiles aren't sharper-cornered than library
+  // tiles") stopped being true once PhotosGrid.vue's own Task 6 网格重刻 re-skin reverted ITS
+  // tiles back to Vue2 parity's 3px (predating this task; `grep -n "border-radius"
+  // src/photos/components/PhotosGrid.vue` has zero hits). Keeping 8px here would have recreated
+  // the exact inconsistency the deviation was meant to avoid, just inverted. The whole `.tile`
+  // rule (background + border-radius) is deleted from this component's scoped style — it was a
+  // byte-for-byte duplicate of vue2-parity/photos.scss's own `.photos-root .tile` (:427-430)
+  // once background used the correct local `--surface-2` instead of the leaking generic
+  // `--chip-bg`, so nothing is lost handing it over outright.
+  it('本组件 scoped style 不再含 .tile 规则(已整体移交 parity,含 border-radius 与 background 两处修正)', () => {
+    const rules = parseCssRules(styleText)
+    expect(rules.some((r) => r.selectors.length === 1 && r.selectors[0] === '.tile')).toBe(false)
+  })
+
+  it('parity scss:.photos-root .tile 规则含 border-radius: 3px / background: var(--surface-2)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root .tile',
+    )
+    expect(rule).toBeDefined()
+    expect(rule?.body).toMatch(/border-radius:\s*3px/)
+    expect(rule?.body).toMatch(/background:\s*var\(--surface-2\)/)
+  })
+
+  it('本组件 style 块不再引用 --chip-bg(此前 .tile 背景误用的全局玻璃 token;历史说明性文字仍可在脚本注释里提到这个名字,故只查样式块)', () => {
+    expect(styleText).not.toMatch(/--chip-bg\b/)
   })
 
   it('.tile-overlay 规则体含渐变背景与 transition(两条腿:内联/scss 非颜色属性)', () => {

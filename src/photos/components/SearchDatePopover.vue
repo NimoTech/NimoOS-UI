@@ -15,10 +15,14 @@
 // 文件抄(T12 那份为列表弹层做过 width prop 化等调整,照抄会串味——这正是 brief A1 那条
 // 跨任务坑的教训:T12 判定 width:320px"恒不可达"是针对列表弹层成立,对本弹层不成立)。
 //
-// token 映射(与 T12/PlaceDetailPanel 等既有先例一致的通用表,不重复展开每一条):
-// --text-1/2/3 → --fg/--fg-muted/--fg-faint;--surface-2/3 → --chip-bg/--chip-bg-hi;
-// --line → --chip-border;--menu-bg → --popup-bg;--accent-hi(本仓不存在)→ --accent-text;
-// rgba(110,91,255,0.30)(accent 30% 边框)→ --accent-soft-bd。
+// Stale-comment cleanup (Plan F Task 2): the paragraph that used to sit here described a
+// generic New-UI glass token-mapping table (--text-1/2/3 → --fg/--fg-muted/--fg-faint, etc.)
+// as this file's current design. That table stopped being true the moment the 2026-08-13
+// owner reversal (see this file's own style-block comment below) deleted every scoped color
+// rule in this component — the mapping paragraph was simply never updated to say so, leaving
+// documentation describing a state the code had already left. Removed rather than "corrected
+// in place" since there is nothing left to map: this component's style block carries zero
+// `var(--...)` references now (parity supplies every color).
 //
 // locale 转 BCP-47(A2):T9 的 rangeLabel/calDowLabels/calMonthLabel 内部已做
 // `locale.replace('_','-')`,本组件直接把 useI18n().locale.value 原样传给它们,不重复转换。

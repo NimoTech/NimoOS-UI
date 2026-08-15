@@ -269,34 +269,40 @@ async function confirm(): Promise<void> {
 </template>
 
 <style scoped>
-/* token 映射(同 T5/T12/T13 既定表,不重复展开每一条):--surface-1→--popup-bg;
-   --line→--card-border;--text-1/2/3/4→--fg/--fg-muted/--fg-faint/--fg-subtle;
-   --surface-2→--chip-bg;--accent-hi→--accent-text;半透明 accent 描边(0.3 阿尔法)就近取
-   --accent-soft-bd(本仓无逐分量 accent-rgb token,Global Constraints §33)。投影统一走
-   --card-shadow-hi(本仓"不透明浮动面板"的既定组合,先例见 PhotosFilterPopover.vue/
-   SearchDatePopover.vue/SmartViewCreateDialog.vue 头部注释——不复刻 Vue2 那条额外的
-   0 0 0 1px 极淡 accent 描边,这三个先例都统一省略了这层,不是本任务新的偏离)。 */
-.save-pop {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 8px);
-  width: 360px;
-  background: var(--surface-1);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  box-shadow: var(--card-shadow-hi);
-  z-index: 50;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-.save-pop-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
-}
+/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Plan F Task 2 补做——本组件此前漏了这一轮
+   回退,同 PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue 的既定手法):
+   the paragraph that used to sit here mapped every color in this block onto the generic
+   cross-app glass tokens (--surface-1→--popup-bg, --line→--card-border, --text-1/2/3/4→
+   --fg/--fg-muted/--fg-faint/--fg-subtle, --surface-2→--chip-bg, --accent-hi→--accent-text,
+   shadow→--card-shadow-hi) — the exact aesthetic the owner reverted for the fchip/fpop family.
+   `.save-pop`/`.save-pop-head`/`.save-pop-body`/`.save-pop-field`/`.save-pop-label`/
+   `.save-pop-sub`/`.save-pop-input`(+:focus)/`.save-pop-conds`/`.save-pop-cond`/
+   `.save-pop-toggle`/`.save-pop-foot`/`.save-pop-enter-active,.save-pop-leave-active` are
+   deleted below — every one of them was already a byte-for-byte duplicate of
+   vue2-parity/photos.scss's own bare rules (:2892-2911) once the wrong generic token names
+   were swapped for the local ones parity actually uses, so nothing is lost by handing them
+   over outright. One of those "duplicates" was hiding a real bug, not just a naming
+   preference: `.save-pop-cond`'s border used `var(--accent-soft-bd)`, a GLOBAL theme.css
+   token (blue channel family) that `.photos-root` never locally redefines — parity's own value
+   is a Photos-local purple literal instead, matching this file's own `--accent-rgb` (see the
+   component test file for the exact numbers). Deleting the rule instead of hand-fixing the
+   token also fixes the leak, for free.
+   Survivors (kept below, NOT part of this cleanup): `.save-pop-icon` (C11: deliberate solid
+   --accent + --on-accent vs. parity's literal purple gradient, unrelated to the glass-token
+   family), `.icon-btn` (M1: deliberate 28px vs. Vue2's global 32px `.icon-btn`, ditto),
+   `.save-pop-head-text`/`.save-pop-thresh-label`/`.save-pop-thresh-val`/
+   `.save-pop-conds-empty`/`.save-pop-toggle-text`/`.save-pop-toggle-label`/
+   `.save-pop-toggle-desc` (zero parity coverage — Vue2's real markup here is inline style,
+   not a class, same registered reasoning as `.fpop-item`/`.fpop-empty` in
+   PhotosFilterPopover.vue; their color tokens were already the correct local ones, nothing to
+   revert), and `.save-pop-enter-from,.save-pop-leave-to` (C7: Vue3 renamed Vue2's bare
+   enter/leave transition classes to an -from-suffixed pair, so parity's own verbatim
+   transcription of Vue2's SFC transition selector never matches any real Vue3 transition
+   class; this rule cannot be handed over by selector name, only its
+   `-active` sibling can). The `.sv-switch`/`.sv-btn-ghost`/`.sv-btn-primary` family further
+   below is untouched by this pass — C5 pinned those to a different, still-standing precedent
+   (T5 SmartViewCreateDialog.vue's `photos-smartview.scss` values), not to the fchip/fpop
+   glass-token family this task is about. */
 /* C11:28×28、border-radius:9px(不是 T5 .sv-modal-icon 的 32×32——两处尺寸独立核实,
    不能互相套用)。Vue2 原背景是写死的紫色渐变,改成 --accent 实底后前景满足"背景确为
    --accent 饱和实底"的条件,--on-accent 合法(同 T5 对 .sv-modal-icon 的既定处理口径)。 */
@@ -351,22 +357,6 @@ async function confirm(): Promise<void> {
   color: var(--text-1);
 }
 
-.save-pop-body {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.save-pop-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.save-pop-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--text-2);
-}
 .save-pop-thresh-label {
   display: flex;
   align-items: baseline;
@@ -378,54 +368,9 @@ async function confirm(): Promise<void> {
   font-variant-numeric: tabular-nums;
   font-size: 13px;
 }
-.save-pop-input {
-  padding: 8px 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  color: var(--text-1);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  transition: border-color 0.12s, background 0.12s;
-}
-.save-pop-input:focus {
-  border-color: var(--accent);
-  background: var(--surface-1);
-}
-.save-pop-conds {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 8px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  max-height: 70px;
-  overflow-y: auto;
-}
-.save-pop-cond {
-  padding: 2px 9px;
-  border-radius: 99px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-soft-bd);
-  color: var(--accent-hi);
-  font-size: 11px;
-  font-weight: 500;
-}
 .save-pop-conds-empty {
   font-size: 11px;
   color: var(--text-4);
-}
-.save-pop-toggle {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 9px 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  cursor: pointer;
 }
 .save-pop-toggle-text {
   flex: 1;
@@ -440,22 +385,13 @@ async function confirm(): Promise<void> {
   color: var(--text-3);
   margin-top: 1px;
 }
-.save-pop-foot {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  background: var(--surface-1);
-}
-
 /* C7:Vue2 的 <transition name="save-pop"> 规则,Vue3 类名是 -enter-from 不是 Vue2 的
-   -enter(T6 fix round 教训:写成 -enter 会静默失效)。 */
-.save-pop-enter-active,
-.save-pop-leave-active {
-  transition: opacity 0.16s ease, transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-  transform-origin: top right;
-}
+   -enter(T6 fix round 教训:写成 -enter 会静默失效)。`-enter-active`/`-leave-active` (same
+   selector name in Vue2 and Vue3 — only the non-`-active` half was renamed) is NOT kept here:
+   vue2-parity/photos.scss's own `.save-pop-enter-active, .save-pop-leave-active` (:2911) is a
+   byte-identical transition, so it's handed over like every other duplicate above. Only the
+   `-enter-from`/`-leave-to` half survives, since parity's corresponding rule uses Vue2's dead
+   `.save-pop-enter` name that no Vue3 transition ever applies. */
 .save-pop-enter-from,
 .save-pop-leave-to {
   opacity: 0;
