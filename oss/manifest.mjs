@@ -1972,7 +1972,7 @@ function mountHome() {
     expect(rows[2].text()).toContain('用户数据库')
     expect(rows[3].text()).toContain('相册缓存')
   })`,
-    replace: `  it('渲染三行数据位置 —— 后端给了 4 个 key(含未知的第 4 个 key),界面 1:1 只显示 3 行', async () => {
+    replace: `  it('renders three data-location rows -- the backend sent 4 keys (one of them unknown), the UI shows only 3', async () => {
     const w = mountPanel()
     await flushPromises()
     const rows = w.findAll('.set-app-row')
@@ -1984,7 +1984,7 @@ function mountHome() {
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: '  it(\'clear-local-pending-uploads row: UI is present, button disabled, labeled as pending photos-migration ("just for show" per policy 3)\', async () => {',
     // I5-guard(⑤b)复核:原标题仍带 "政策三"做样子""(REPLACE-only 时代未覆盖到 PATCH,漏检)。
-    replace: '  it(\'清理本地待上传缓存行:UI 在、按钮禁用、带禁用态标注\', async () => {' },
+    replace: "  it('clear-local-pending-uploads row: present, button disabled, carries the disabled-state note', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "    expect(w.text()).toContain('待相册区迁移完成后启用')\n",
     replace: "    expect(w.text()).toContain('该功能所需的后端能力尚未提供')\n" },
@@ -1996,7 +1996,7 @@ function mountHome() {
     replace: '  // Review Important #3: while the fetch is in flight, must not render three rows of fake' },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: "  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real four rows only after both endpoints settle', async () => {",
-    replace: "  it('取数在途渲染加载骨架,不渲染 0 值假读数;两个接口都落定后才渲染真实三行', async () => {" },
+    replace: "  it('stays on the loading skeleton (no zero-value fake rows) while fetching; renders the real three rows only after both endpoints settle', async () => {" },
   { path: 'src/settings/panels/AppsPanel.test.ts',
     find: `    resolveStorage(RAW_STORAGE)
     await flushPromises()
@@ -2016,7 +2016,7 @@ function mountHome() {
     expect(w.findAll('.set-app-row')).toHaveLength(3)
   })
 
-  it('取数失败时三行仍在(空路径),不白屏', async () => {
+  it('still shows three rows (with empty paths) when the fetch fails -- no blank screen', async () => {
     getSystemPaths.mockRejectedValue(new Error('boom'))
     const w = mountPanel()
     await flushPromises()
@@ -2038,7 +2038,7 @@ function mountHome() {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database', 'photos_data'])
   })`,
-    replace: `  it('恒返回 3 行且顺序固定 —— 后端给了 4 个 key(含未知的第 4 个 key),只渲染前 3 行', () => {
+    replace: `  it('always returns 3 rows in a fixed order -- the backend sent 4 keys (one of them unknown), only the first 3 are built', () => {
     const rows = buildAppPathRows(PATHS, [SYS_VOL])
     expect(rows.map((r) => r.key)).toEqual(['app_data', 'images', 'database'])
   })` },
@@ -2061,7 +2061,7 @@ function mountHome() {
     expect(rows[3].path).toBe('/DATA/.system_data/photos')
     expect(rows[3].size).toBe(6281536962)
   })`,
-    replace: `  it('后端 data 为 null / 缺 key 时给出空路径 0 大小的三行,不抛', () => {
+    replace: `  it('gives three empty-path, zero-size rows (not a throw) when backend data is null / missing keys', () => {
     const rows = buildAppPathRows(null, [SYS_VOL])
     expect(rows).toHaveLength(3)
     expect(rows[0]).toMatchObject({ path: '', size: 0 })
@@ -2111,7 +2111,7 @@ function mountHome() {
   //    的孪生产品代码注释(installedApps.ts 同一行,已在上面改过) ─────────────
   { path: 'src/apps/stores/installedApps.test.ts',
     find: "  it('refresh filters system background containers (nimoos.system=true, e.g. AI agent / Photos ML)', async () => {",
-    replace: "  it('refresh 过滤系统幕后容器(nimoos.system=true,供其他应用使用的内部服务容器)', async () => {" },
+    replace: "  it('refresh filters system background containers (nimoos.system=true, internal service containers used by other apps)', async () => {" },
 
   // ── systemApp.test.ts:文件头注释独立复述了同一段解释,同样点名 Photos ML,
   //    与 systemApp.ts 源文件那处 T7 洗白对齐(该文件本身不在 REPLACE/PATCH 表里
@@ -2438,10 +2438,10 @@ function mountHome() {
     replace: '// The files entry uses in-app router.push, so the router singleton must be mocked (vi.mock is hoisted above imports).' },
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  it('appstore tile should use in-app router.push /apps/store (SP5-P8 cutover)', () => {",
-    replace: "  it('appstore 磁贴应用内 router.push /apps/store', () => {" },
+    replace: "  it('appstore tile should use in-app router.push /apps/store', () => {" },
   { path: 'src/home/composables/useOpenAction.test.ts',
     find: "  it('storage tile should use in-app router.push /storage (SP6-P6 cutover)', () => {",
-    replace: "  it('storage 磁贴应用内 router.push /storage', () => {" },
+    replace: "  it('storage tile should use in-app router.push /storage', () => {" },
   { path: 'src/files/drop/protocol.ts',
     find: '// Hard constraint: before P8 strangler flip, old and new pages coexist and interoperate;\n// any shape/value changes break compatibility.',
     replace: '// Hard constraint: this protocol carries transfers between pages; any shape/value change\n// breaks compatibility.' },

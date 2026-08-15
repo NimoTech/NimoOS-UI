@@ -128,7 +128,7 @@ describe('createKvm — envelope depth hardcoded per endpoint', () => {
     expect(calls[0].body).toEqual({ autostart: true })
   })
 
-  it('setBootFromDisk has body, doesn't throw even if data is null', async () => {
+  it('setBootFromDisk has body, does not throw even if data is null', async () => {
     const { http, calls } = stub({ [`/kvm/vms/${VM_ROW.id}/boot`]: { success: true, data: null } })
     await createKvm(http).setBootFromDisk(VM_ROW.id, true)
     expect(calls[0].body).toEqual({ bootFromDisk: true })
@@ -150,7 +150,7 @@ describe('createKvm — envelope depth hardcoded per endpoint', () => {
     await expect(createKvm(http).getVMList()).rejects.toThrow('kvm request failed')
   })
 
-  it('list endpoints degrade to empty list when data.data is missing, don't throw', async () => {
+  it('list endpoints degrade to empty list when data.data is missing, do not throw', async () => {
     // backend nil slice → data:{data:null,total:0}
     const { http } = stub({ '/kvm/vms': { success: true, data: { data: null, total: 0 } } })
     expect(await createKvm(http).getVMList()).toEqual({ data: [], total: 0 })

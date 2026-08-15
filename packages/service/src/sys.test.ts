@@ -164,7 +164,7 @@ describe('createSys write operation payloads', () => {
     await expect(createSys(http).updateOs()).rejects.toThrow('upgrade already running')
   })
 
-  it('doesn't throw when envelope is successful', async () => {
+  it('does not throw when envelope is successful', async () => {
     const { http } = writeHttp({ success: 200, message: 'ok', data: null })
     await expect(createSys(http).updateOs()).resolves.toBeUndefined()
   })
@@ -212,7 +212,7 @@ describe('createSys gateway endpoints (envelope depth varies by endpoint)', () =
     expect(c.effective_time.startsWith('0001')).toBe(true) // zero value time, UI should display '---'
   })
 
-  it('setSSLConfig sends only 4 fields (doesn't echo read-only time)', async () => {
+  it('setSSLConfig sends only 4 fields (does not echo read-only time)', async () => {
     const { calls, http } = writeHttp()
     await createSys(http).setSSLConfig({ enabled: true, domain: 'nimoos.local', port: '443', cert_type: 'auto' })
     expect(calls[0].body).toEqual({ enabled: true, domain: 'nimoos.local', port: '443', cert_type: 'auto' })
