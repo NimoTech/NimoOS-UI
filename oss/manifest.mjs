@@ -278,17 +278,17 @@ export const REPLACE = [
   // T10:MediaViewer 拆转录面板(摘要/转录/Ask 三 tab、说话人分色、章节过滤全删;
   // 保留自绘播放器 + 真实波形 + 视频/图片通路 + 封面元数据)
   { path: 'src/files/viewers/MediaViewer.vue', from: 'MediaViewer.vue',
-    privateSha256: 'a82ed56d908a27a0a00f4fa325c3d2d300fb551c453202af18732a8e88944031' },
+    privateSha256: 'cdcf9a6d4cb75ffcfc7ad8b638602a73e57a7e94f24c29ccae51579563f1fd05' },
 
   // T11:AddPanel 去照片 tab(模板块 + tab 定义 + usePhotosStore 声明/import +
   // .lib-photo-* 样式四处一并删除;409 行附近 ic-photos 注释改泛化措辞)
   { path: 'src/home/components/AddPanel.vue', from: 'AddPanel.vue',
-    privateSha256: '948b9dcae47cef319b93342e551a4f1dd65e358c63174df525dd457f44d656fe' },
+    privateSha256: '7faf9cf8605b22bb37f811d616543e80016961551f53dc99379cce3d4b13f01f' },
 
   // T12:README 重写(面向外部开发者,私有版讲的是与 Vue 2 并存/绞杀迁移/同级克隆
   // Service —— 受众不同且后两条在开源包里都是假的,没有可继承内容,整文件替换)
   { path: 'README.md', from: 'README.md',
-    privateSha256: 'bc30420593910b48cc5750dc759d646bea8db62a24ff400d1763e106f243c155' },
+    privateSha256: '36ffced1dbd637bc05334518a75e85dd2c0768463aa2d2c0eae367336af98931' },
 ]
 
 /** 类 3 · 锚点补丁。命中次数必须恰好 1 次。T6-T9 填。 */
