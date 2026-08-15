@@ -45,13 +45,29 @@
 // formatIndexedDate 的既有做法:交给 Intl,不自己拼字符串)。
 //
 // 配色红线(本任务最高危,brief 原文强调"本阶段已因为这个坑返工两次"):hero 上叠在
-// 暗化后的封面照片之上的一切前景(返回按钮/头像环外的姓名/统计数字与标签/收藏按钮/
-// Edit·关系分组触发按钮/两个操作钮的文字与图标)全部**钉死浅色**(theme-exception),
-// 不使用任何随主题变化的 --fg/--fg-muted/--fg-subtle(浅色主题下这些是深色,叠在暗化
-// 照片上会出现深底深字),更不用 --on-accent(它只在 var(--accent) 饱和实底上可用,
-// 这里背景是不可控的人脸照片,不满足前提)。两个下拉菜单本体(Edit 菜单/关系菜单)是
-// 例外——它们各自有 var(--popup-bg) 不透明底,不再叠在照片上,菜单内文字/高亮走正常
-// 随主题 token(--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg),不钉死。
+// 暗化后的封面照片之上、且**没有自己不透明底色**的前景(头像环外的姓名/统计数字与
+// 标签、收藏按钮图标)钉死浅色(theme-exception),不使用任何随主题变化的
+// --fg/--fg-muted/--fg-subtle(浅色主题下这些是深色,叠在暗化照片上会出现深底深字),
+// 更不用 --on-accent(它只在 var(--accent) 饱和实底上可用,这里背景是不可控的人脸照片,
+// 不满足前提)。两个下拉菜单本体(Edit 菜单/关系菜单)是例外——它们各自有
+// var(--popup-bg) 不透明底,不再叠在照片上,菜单内文字/高亮走正常随主题 token
+// (--fg/--fg-muted/--accent-soft/--accent-text/--remove-fg),不钉死。
+//
+// Owner acceptance Fix-1 (2026-08-14) 更正:返回按钮 `.back`、Edit/关系分组触发按钮
+// `.edit-btn`/`.relation-trigger`、以及两个操作钮 `.actions .btn`(Ask about 除外)
+// 曾被错误地划进上面这条"钉死浅色"红线——但它们其实**都带 var(--float-bg) 胶囊底色**
+// (parity 供给,backdrop-filter 磨砂玻璃),不是裸叠在照片上的文字。Vue2 真身
+// (NimoOS-UI src/views/Photos/photos-people.scss:320/327,350/360,406;
+// PhotosPersonDetail.vue:1133,1175/1183,1197)对这几个元素从未钉死颜色,一律用主题
+// token `var(--text-2)`/`var(--text-1)` 配同样主题化的 `var(--float-bg)` 胶囊底——两者
+// 同步换挡,浅色主题下自然是"深字配浅底",从不需要专门的 `is-light` 分支
+// (photos-people.scss 全文只有 4 处 is-light/data-fallback 分支,没有一处碰按钮)。
+// 本组件之前把这三处也钉成 `#fff`,配上同样主题化、浅色主题下会变近白的
+// `var(--float-bg)` 胶囊底,就是"白字配白底"——2026-08-14 机主验收反馈"亮色主题下按键
+// 和字看不清"命中的正是这个组合。修法:退回这三处为主题化 var(--text-2)/var(--text-1),
+// 让它跟随同样主题化的胶囊底一起换挡,同 Vue2。`.name-text`/`.stat .v`/`.stat .k`/
+// `.fav-toggle` 图标依旧裸叠在照片上(无胶囊底),红线钉死浅色的判断对它们仍然成立,
+// 未改动。
 //
 // 暗化遮罩偏离登记(与 brief 建议公式不同,已在任务报告详细登记理由):brief 建议
 // New-UI 缺 --hero-scrim 时改用 linear-gradient(180deg, transparent, var(--bg) 95%)。
@@ -350,13 +366,27 @@ onUnmounted(() => {
    governs directly, using its own token set). What survives is exactly two kinds of rule:
    (1) structural New-UI-only additions with no Vue2/parity counterpart at all (`.hero-clip`,
    `.scrim`, the `.bg::after` neutralizer, `.stat-month`, the approved `overflow`/`flex-wrap`
-   deviations); (2) the hero's "pinned light foreground" theme-exception family — every
-   caption/label/icon that sits directly over the (possibly light-themed) blurred cover photo
-   keeps an explicit `color` override here, because parity itself uses *themed* tokens
+   deviations); (2) the hero's "pinned light foreground" theme-exception family — captions/
+   labels/icons that sit *directly* over the (possibly light-themed) blurred cover photo with
+   no opaque backing of their own (`.name-text`, `.stat .v`/`.stat .k`, the `.fav-toggle`
+   icon) keep an explicit `color` override here, because parity itself uses *themed* tokens
    (`--text-1`/`--text-2`) for these captions and relies on a light-theme text-shadow halo
    instead of a fixed light color — a real design difference from this app's already-reviewed
    "pinned foreground color" red-line decision (see file-header comment), not something this
    cleanup should undo.
+
+   Owner acceptance Fix-1 (2026-08-14): `.back`, `.edit-btn`/`.relation-trigger`, and
+   `.actions .btn` (excluding `.btn-ai`) were previously miscategorized into that same "pinned
+   light foreground" family and hardcoded to a fixed white. They don't belong there — all three carry
+   their own themed `var(--float-bg)` pill background (parity-supplied, not overridden here),
+   so in the light theme that pill goes near-white while the text stayed pinned white too:
+   white-on-white, exactly the owner-reported "hero pills/text hard to read in light theme"
+   defect. Vue2's own rules for these three (photos-people.scss:320/327, 350/360, 406;
+   PhotosPersonDetail.vue:1133, 1175/1183, 1197) were never pinned — they use themed
+   `var(--text-2)`/`var(--text-1)`, which stays correctly paired with the themed pill
+   background across both themes, with no `is-light` branch needed at all. Reverted below to
+   match.
+
    These color survivors are written as full parity-matching selector paths (not bare class
    names) specifically so the scoped-attribute specificity bump reliably beats parity's own
    rules for the same element regardless of stylesheet load order — a bare `.back { color }`
@@ -423,12 +453,17 @@ onUnmounted(() => {
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.5) 45%, rgba(0, 0, 0, 0.68) 100%);
 }
 
-/* theme-exception: hero chrome pinned to a light foreground, base + hover (parity's own
-   `.back`/`.back:hover` use var(--text-2)/var(--text-1) — themed, not pinned — everything else
-   about this button — position/padding/border-radius/background/backdrop-filter/border/hover
-   background — now comes straight from parity, duplicates deleted). */
-.detail-hero .back,
-.detail-hero .back:hover { color: #fff; }
+/* Owner acceptance Fix-1: this button has its own themed `var(--float-bg)` pill background
+   (parity-supplied), so it should NOT join the "pinned light foreground" family — pinning its
+   text white while its background is themed (and goes near-white in the light theme) produced
+   the reported white-on-white washout. Matches Vue2's own `.back`/`.back:hover`
+   (photos-people.scss:320/327), which have always used themed var(--text-2)/var(--text-1) —
+   correctly paired with the same themed pill background in both themes, no `is-light` branch
+   needed. Everything else about this button — position/padding/border-radius/background/
+   backdrop-filter/border/hover background — still comes straight from parity, duplicates
+   deleted. */
+.detail-hero .back { color: var(--text-2); }
+.detail-hero .back:hover { color: var(--text-1); }
 
 /* `.inner`'s position/display/align-items/gap/padding duplicated parity's own `.detail-hero
    .inner` rule and have been deleted. `z-index`/`min-height` survive: Vue2 itself has TWO
@@ -527,16 +562,21 @@ onUnmounted(() => {
 /* `.relation-picker`'s position/display/align-items duplicated parity's own rule exactly and
    has been deleted. */
 
-/* theme-exception: hero trigger chrome pinned to a light foreground (parity's own rule uses
-   var(--text-2), themed) — base + hover written as parity's own compound selectors so the
-   scoped-attribute specificity bump reliably beats parity's `:hover` variant too (parity's
-   hover selector is itself a 4-class compound, `.detail-hero .name .edit-btn:hover`, so a bare
-   local `.edit-btn:hover` would lose outright, not just tie). Height/padding/border-radius/
-   border/background/backdrop-filter/font — all now come straight from parity. */
+/* Owner acceptance Fix-1: same reasoning as `.back` above — these two triggers carry their own
+   themed `var(--float-bg)` pill background, so pinning their text white produced white-on-
+   near-white in the light theme (owner-reported "Edit/No group pills... hard to read"). Vue2's
+   own `.edit-btn`/`.relation-select` (photos-people.scss:350/360, 442/452;
+   PhotosPersonDetail.vue:1175/1183/1197) have always used themed var(--text-2)/var(--text-1),
+   correctly paired with the same themed pill background, no `is-light` branch needed. Base +
+   hover still written as parity's own compound selectors so the scoped-attribute specificity
+   bump reliably beats parity's `:hover` variant too (parity's hover selector is itself a
+   4-class compound, `.detail-hero .name .edit-btn:hover`, so a bare local `.edit-btn:hover`
+   would lose outright, not just tie). Height/padding/border-radius/border/background/
+   backdrop-filter/font — all still come straight from parity. */
 .detail-hero .name .edit-btn,
-.detail-hero .name .relation-trigger,
+.detail-hero .name .relation-trigger { color: var(--text-2); }
 .detail-hero .name .edit-btn:hover,
-.detail-hero .name .relation-trigger:hover { color: #fff; }
+.detail-hero .name .relation-trigger:hover { color: var(--text-1); }
 
 /* The popup bodies themselves (`.relation-menu`/`.relation-option`/`.edit-menu-danger`) are
    NOT part of the "pinned light foreground" family — per the file-header "pinned foreground
@@ -568,11 +608,20 @@ onUnmounted(() => {
    actually a superset — it also sets align-items:stretch, which this component's old local
    rule was missing) and has been deleted. */
 
-/* theme-exception: action button text/icon pinned to a light foreground (parity's own rule
-   uses var(--text-1), themed, and doesn't change it on hover — so this single declaration
-   survives hover too without a separate hover rule). Everything else — padding/border-radius/
-   background/backdrop-filter/border/hover background — now comes straight from parity. */
-.detail-hero .actions .btn { color: #fff; }
+/* Owner acceptance Fix-1: same reasoning as `.back` above — "Make album"/"Background" carry
+   their own themed `var(--float-bg)` pill background, so pinning their text white produced
+   white-on-near-white in the light theme (owner-reported "Make album/Background... washed-out
+   translucent white pills with white text"). Vue2's own `.actions .btn`
+   (photos-people.scss:397; PhotosPersonDetail.vue:1133) has always used themed var(--text-1),
+   correctly paired with the same themed pill background, no `is-light` branch needed; it
+   doesn't change color on hover either, so this single declaration survives hover too without
+   a separate hover rule. `:not(.btn-ai)` scopes this to the two plain buttons only — `.btn-ai`
+   (the purple "Ask about {name}" button, already correct and explicitly out of scope for this
+   fix) also carries the `.btn` class, and its own always-white text must stay untouched;
+   parity's own `.detail-hero .actions .btn-ai` rule (declared after `.btn` in the same file)
+   still wins that tie for it exactly as before. Everything else — padding/border-radius/
+   background/backdrop-filter/border/hover background — still comes straight from parity. */
+.detail-hero .actions .btn:not(.btn-ai) { color: var(--text-1); }
 
 /* Task 8 (Plan D): Ask-about icon — Vue2 :90 renders this as an inline-styled <span>
    (display:inline-block;width:16px;height:16px;border-radius:99px;background:url(...)
