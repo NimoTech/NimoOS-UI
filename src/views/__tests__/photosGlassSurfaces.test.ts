@@ -185,3 +185,84 @@ describe('搜索框玻璃例外(topbar .search)的暗带根治:--chip-bg/--chip-
     expect(chipBgCount).toBe(2)
   })
 })
+
+// Plan F Task 6: audit of the lightbox's own is-light chain, closing the same class of blind
+// spot the search-topbar guard above closes for --chip-bg/--chip-border. --lb-bg (canvas) /
+// --lb-chrome (top bar + filmstrip bottom bar) are photos-private tokens (not global theme.css
+// ones) declared in BOTH of `.photos-root`'s own theme blocks — unlike --chip-bg/--chip-border,
+// which the dark block deliberately leaves undefined to fall through to theme.css, --lb-bg/
+// --lb-chrome are redefined in the dark block too (Vue2 parity's own literal values), so the
+// guard here is the mirror shape: assert BOTH blocks declare them, and that light's values are
+// a real different value (not dark's literals copy-pasted under the light selector).
+describe('灯箱(Task 6):--lb-bg/--lb-chrome 在深浅两套主题下都有值,且亮色确实换了语境值', () => {
+  it('.photos-root(深色块)声明 --lb-bg/--lb-chrome 为 Vue2 原始字面值(photos.scss:62-89 真值核对)', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root {')
+    expect(body).toMatch(/--lb-bg\s*:\s*#000\s*;/)
+    expect(body).toMatch(/--lb-chrome\s*:\s*rgba\(0,\s*0,\s*0,\s*0\.6\)\s*;/)
+  })
+
+  it('.photos-root.is-light 覆盖 --lb-bg/--lb-chrome —— 近白 oklch 画布 + 白玻璃顶/底栏,不是深色照抄', () => {
+    const body = ruleBody(read('photos/styles/vue2-parity/photos.scss'), '.photos-root.is-light {')
+    expect(body).toMatch(/--lb-bg\s*:\s*oklch\(0\.975 0\.004 80\)/)
+    expect(body).toMatch(/--lb-chrome\s*:\s*rgba\(255,\s*255,\s*255,\s*0\.8\)/)
+    // 换了真值,不是把深色块的 #000/rgba(0,0,0,0.6) 原样搬进 is-light 块。
+    expect(body).not.toMatch(/--lb-bg\s*:\s*#000/)
+    expect(body).not.toMatch(/--lb-chrome\s*:\s*rgba\(0,\s*0,\s*0/)
+  })
+
+  it('灯箱画布/顶栏/胶片底栏都吃 --lb-bg/--lb-chrome(不是别的 token 或字面量)——`.lightbox` 现已重新挂进 `.photos-root` 内(Task 5),这两条规则才真正生效', () => {
+    const scss = read('photos/styles/vue2-parity/photos.scss')
+    expect(ruleBody(scss, '.photos-root .lightbox {')).toMatch(/background\s*:\s*var\(--lb-bg\)/)
+    expect(ruleBody(scss, '.photos-root .lb-top {')).toMatch(/background\s*:\s*var\(--lb-chrome\)/)
+    expect(ruleBody(scss, '.photos-root .lb-strip {')).toMatch(/background\s*:\s*var\(--lb-chrome\)/)
+  })
+})
+
+// Plan F Task 6 (brief item 3): sweep the lightbox's own 4 component files for a *bare* color
+// literal (no `var(--token…)` wrapper at all, fallback or otherwise) on any surface that should
+// be following `.photos-root.is-light` — the exact "dark-literal fallback that would defeat
+// is-light" defect class the brief calls out. A `var(--lb-chrome, rgba(0,0,0,0.6))`-style
+// fallback is explicitly FINE (the token resolves for real once nested inside `.photos-root`,
+// per the case above) — this guard only fires on literals with no token wrapper at all.
+//
+// The two survivors below are pre-existing, individually-commented `theme-exception`s in their
+// own files: a video-duration badge overlaid on an arbitrary photo thumbnail (PhotoFilmstrip.vue,
+// same established precedent as PhotosGrid.vue's own `.tile-vid`, photos.scss:467-472 — fixed
+// white text needs to read over ANY photo, in either theme) and a map-attribution caption
+// overlaid on an arbitrary OSM tile (PhotoInfoPanel.vue, same precedent as PlacesRail.vue's own
+// map-credit handling) — neither was ever theme-tokenized in Vue2 either, so this isn't a
+// regression of is-light, it's an unrelated, pre-existing, correctly-commented exception. A
+// whitelist (not a blanket "no rgba" ban) is the right shape here — same idiom as this file's
+// own `--panel-bg-solid` consumer whitelist above: any new bare literal must be explicitly added
+// here, forcing a reviewer to ask "is this really a fixed-contrast-over-arbitrary-content case,
+// or did someone just forget the token?"
+describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不新增绕过 is-light 的写死颜色', () => {
+  const LIGHTBOX_FILES = [
+    'photos/lightbox/PhotoLightbox.vue',
+    'photos/lightbox/PhotoFilmstrip.vue',
+    'photos/lightbox/PhotoImageViewer.vue',
+    'photos/lightbox/PhotoInfoPanel.vue',
+  ]
+
+  const ALLOWED_BARE_LITERALS = new Set([
+    'photos/lightbox/PhotoFilmstrip.vue::background: rgba(0, 0, 0, 0.55); color: #fff;',
+    'photos/lightbox/PhotoInfoPanel.vue::color: rgba(255, 255, 255, 0.72);',
+    'photos/lightbox/PhotoInfoPanel.vue::text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);',
+  ])
+
+  // A line counts as "bare" only if it has a color literal (rgba()/hex) with NO `var(--…)`
+  // anywhere on the same line — `var(--lb-chrome, rgba(0,0,0,0.6))`-style fallbacks (token
+  // present, literal only as the fallback arm) are correctly excluded by this same check.
+  function bareColorLiteralLines(rel: string): string[] {
+    return read(rel)
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => /rgba?\(|#[0-9a-fA-F]{3,8}\b/.test(l) && !/var\(--/.test(l))
+      .map((l) => `${rel}::${l}`)
+  }
+
+  it('4 个文件里裸色字面量的完整清单恰好等于已登记的白名单(多一条就红)', () => {
+    const found = new Set(LIGHTBOX_FILES.flatMap(bareColorLiteralLines))
+    expect(found).toEqual(ALLOWED_BARE_LITERALS)
+  })
+})

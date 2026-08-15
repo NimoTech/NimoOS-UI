@@ -62,9 +62,14 @@ import PlacesFilterMenu from '../photos/components/PlacesFilterMenu.vue'
 import PlacesThemeMenu, { type MapThemeSelection } from '../photos/components/PlacesThemeMenu.vue'
 import PlaceDetailPanel from '../photos/components/PlaceDetailPanel.vue'
 import PlaceCoverPicker from '../photos/components/PlaceCoverPicker.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosPlaces, type PlaceSpot, type PlaceVisit } from '../photos/stores/places'
+import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosTrash } from '../photos/stores/trash'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { usePlacesView } from '../photos/composables/usePlacesView'
 import { useToast } from '../stores/toast'
 import { countCountries, countPhotos, filterPlaces, type Pin, type Place, type PlacesFilter } from '../photos/util/placesMap'
@@ -83,6 +88,11 @@ const router = useRouter()
 const store = usePhotosPlaces()
 const toast = useToast()
 const lb = useLightbox()
+// Task 6 (Plan F): real delete/Undo pathway for this page's own PhotoLightbox mount (see
+// onLightboxDelete's own comment below for why this page needed them at all).
+const timeline = useTimelineStore()
+const trash = usePhotosTrash()
+const photosToast = usePhotosToast()
 
 const activeId = ref<string | null>(null)
 const hoverId = ref<string | null>(null)
@@ -369,6 +379,63 @@ function onOpenPhoto(assetId: string, list: string[]): void {
   lb.openAt(target, photos)
 }
 
+// ── Task 6 (Plan F): PhotoLightbox event wiring ─────────────────────────────────────────
+// This page mounted <PhotoLightbox> with NO listeners at all (delete/add-to-album silently
+// no-op'd — the same false-success bug class Plan F Task 5's fix round 1 found and fixed on
+// PhotosSearch.vue, now formally audited and closed here too).
+//
+// @toggle-fav: no-op, same convention every other host page uses — useLightbox's own
+// onToggleFav already optimistically flips favIds and re-renders the star icon internally;
+// the emit only matters to a host page that keeps its own separate favorited-items list
+// needing a local update (PhotosFavorites.vue). This page's hero/recent/spot photos aren't a
+// favorites list, so there's nothing local to react to.
+function onLightboxToggleFav(): void {}
+
+// @delete: real timeline.deleteAssets pathway (same as Photos.vue's/PhotosSearch.vue's own
+// onLightboxDelete: service.photos.deleteAsset under the hood) + usePhotosToast Undo.
+//
+// Data-source note (brief's "check each page's data source" requirement): the ids the
+// lightbox opens here (hero/recent grid/spot photos) all ultimately come from `store.detail`
+// (PlaceDetail: `recent`, `spots[].thumb`, `visits[].thumbs`), which also carries
+// server-computed counts (`place.count`, `spot.count`, `visit.photos`) and cover/thumbnail
+// picks. Patching any one of those arrays locally risks a stale count or a thumb that now
+// points at the just-deleted asset — there is no single "right" array to splice, there are at
+// least four, all interdependent. Full refetch via the already-idempotent `store.loadDetail`
+// (same call `activeId` watch/`retryLoad` already reuse) is the documented, safer choice —
+// the brief explicitly sanctions "full refetch acceptable fallback, document".
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const snapshot = [String(id)]
+  await timeline.deleteAssets(snapshot)
+  if (activeId.value) void store.loadDetail(activeId.value)
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => {
+        void (async () => {
+          await trash.restore(snapshot)
+          // trash.restore() only refreshes the global timeline store — this page's own
+          // place-detail data is a separate fetch, so it needs its own refresh too (same
+          // "Undo re-fetches this page's own data source" fallback PhotosSearch.vue's
+          // onLightboxDelete documents for its `search.smartSearch` re-run).
+          if (activeId.value) void store.loadDetail(activeId.value)
+        })()
+      },
+    },
+  })
+}
+
+// @add-to-album: single-asset picker, same PhotosMomentDetail.vue/PhotosSearch.vue precedent
+// (no batch-selection state exists on this page to clear afterward either).
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>): void {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+function onAlbumPickerAdded(): void {}
+
 // ── P6b-T8: 跳库导航。key 用后端原始 key(int32),不是归一后的 activeId —— 跳库页要拿它
 // 直接打后端。 ──────────────────────────────────────────────────────────────
 function goLibrary(): void {
@@ -572,7 +639,19 @@ async function retryLoad(): Promise<void> {
     </div>
 
     <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
-    <PhotoLightbox />
+    <!-- Task 6 (Plan F): event wiring added -- this mount had none before (delete/add-to-album
+         silently no-op'd, see onLightboxDelete's own comment above). -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="onLightboxToggleFav"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
+    <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+    <!-- Required now that onLightboxDelete fires a real usePhotosToast() Undo toast -- without a
+         mount, the toast state flips but nothing on this page's own tree renders it. Teleports to
+         <body> and re-applies photos-root + themeClass on its own portal target (same mount
+         Photos.vue/PhotosSearch.vue already use for the identical Undo-toast pattern). -->
+    <PhotosToastHost />
   </div>
 
   <!-- Task 1 (Plan E re-shell): PlaceCoverPicker stays declared here as a template-root sibling

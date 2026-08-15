@@ -58,9 +58,14 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePlaceAssets } from '../photos/composables/usePlaceAssets'
 import { usePhotosPlaces } from '../photos/stores/places'
+import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosTrash } from '../photos/stores/trash'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import type { Photo } from '../photos/util/assetToPhoto'
 // P7b-T5:跳库页叠加 EXIF 筛选(D19)——对应 Vue2 PhotosTimeline.vue:167,spot 分支把
 // placeAssets 作为基础集,在其上叠加 FilterBar 的 years/cameras 两个维度。位置维度按 D19
@@ -82,6 +87,11 @@ const router = useRouter()
 const store = usePhotosPlaces()
 const assets = usePlaceAssets()
 const lb = useLightbox()
+// Task 6 (Plan F): real delete/Undo pathway for this page's own PhotoLightbox mount (see
+// onLightboxDelete's own comment below).
+const timeline = useTimelineStore()
+const trash = usePhotosTrash()
+const photosToast = usePhotosToast()
 
 // ── 结构规格 2:参数归一 ──────────────────────────────────────────────────────
 const placeKey = computed(() => String(route.params.key))
@@ -190,6 +200,60 @@ function onOpen(photo: Photo, _list: undefined, startMs: number): void {
 function retry(): void {
   void assets.load(placeKey.value, spotKey.value, lat.value, lon.value)
 }
+
+// ── Task 6 (Plan F): PhotoLightbox event wiring ─────────────────────────────────────────
+// This page mounted <PhotoLightbox> with NO listeners at all (delete/add-to-album silently
+// no-op'd — the same false-success bug class Plan F Task 5's fix round 1 found and fixed on
+// PhotosSearch.vue, now formally audited and closed here too).
+//
+// @toggle-fav: no-op, same convention every other host page uses — see PhotosSearch.vue's own
+// onLightboxToggleFav comment for the full rationale (useLightbox's own internal optimistic
+// flip already covers the visible star icon; this page keeps no separate favorited list).
+function onLightboxToggleFav(): void {}
+
+// @delete: real timeline.deleteAssets pathway + usePhotosToast Undo, same shape as
+// Photos.vue/PhotosSearch.vue's own onLightboxDelete.
+//
+// Data-source note (brief's "check each page's data source" requirement): unlike
+// PhotosPlaces.vue's own detail payload (several interdependent id arrays with server-computed
+// counts, hence that page's full-refetch choice), this page's data source is
+// `usePlaceAssets()`'s own `photos` ref — a flat `Photo[]` this composable hands back verbatim
+// (`usePlaceAssets.ts:22/50`), no derived counts or thumbnail picks layered on top. A precise
+// local removal (same pattern as PhotosSearch.vue's `search.results` filter) is both correct
+// and cheap here, and it preserves this page's own EXIF-filter/month-grouping state instead of
+// discarding it for a full re-`load()`.
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const snapshot = [String(id)]
+  await timeline.deleteAssets(snapshot)
+  assets.photos.value = assets.photos.value.filter((p) => String(p.id) !== String(id))
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => {
+        void (async () => {
+          await trash.restore(snapshot)
+          // trash.restore() only refreshes the global timeline store — this page's own
+          // place-assets list is a separate one-shot fetch (usePlaceAssets), so Undo re-runs
+          // the same load() to bring the restored asset back into view (same "Undo re-fetches
+          // this page's own data source" fallback PhotosSearch.vue's onLightboxDelete documents).
+          void assets.load(placeKey.value, spotKey.value, lat.value, lon.value)
+        })()
+      },
+    },
+  })
+}
+
+// @add-to-album: single-asset picker, same PhotosMomentDetail.vue/PhotosSearch.vue precedent
+// (D10: this page has no batch-selection state to clear afterward either).
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>): void {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+function onAlbumPickerAdded(): void {}
 </script>
 
 <template>
@@ -271,7 +335,19 @@ function retry(): void {
     </div>
 
     <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
-    <PhotoLightbox />
+    <!-- Task 6 (Plan F): event wiring added -- this mount had none before (delete/add-to-album
+         silently no-op'd, see onLightboxDelete's own comment above). -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="onLightboxToggleFav"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
+    <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+    <!-- Required now that onLightboxDelete fires a real usePhotosToast() Undo toast -- without a
+         mount, the toast state flips but nothing on this page's own tree renders it. Teleports to
+         <body> and re-applies photos-root + themeClass on its own portal target (same mount
+         Photos.vue/PhotosSearch.vue already use for the identical Undo-toast pattern). -->
+    <PhotosToastHost />
   </div>
 </template>
 
