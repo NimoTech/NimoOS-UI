@@ -140,11 +140,29 @@ onBeforeUnmount(() => {
 /* Plan F Task 3: this root is now a direct grid child of PhotoLightbox's `.lightbox` grid
    (grid-area: strip), not a flex-column flow item -- see PhotoLightbox.vue's scoped-style
    header comment for the removed `.lb-body` wrapper and the grid rewrite. */
+/* Fix round 1 (review): gap/padding/background/border-top corrected to parity's exact values
+   (parity photos.scss:640-646 `.photos-root .lb-strip`) -- gap 8px->4px, padding
+   `10px 16px`->`12px calc(50% - 28px)`, and background/border-top were missing entirely
+   (this row rendered fully transparent, blending into `.lightbox`'s own `--app-bg`). The
+   `calc(50% - 28px)` horizontal padding is load-bearing, not cosmetic: it's what lets
+   `centerActiveThumb()` scroll the active thumbnail to true viewport-center (half the strip's
+   own thumb width, 56px/2=28px, subtracted so the *edge* of the outermost thumbs can still
+   reach dead-center) -- `10px 16px` never gave a centered thumb enough room to scroll to the
+   middle of the strip. `--lb-chrome`/`--line` are parity-scoped tokens (defined only inside
+   `.photos-root` in vue2-parity/photos.scss) that don't resolve while this component renders
+   outside `.photos-root` (interim skeleton, see PhotoLightbox.vue's scoped-style header
+   comment) -- literal dark-theme fallbacks are used per the same interim pattern already
+   established elsewhere in this file, values taken from Vue2 photos.scss's dark block:
+   `--lb-chrome` is black at 60% opacity (line 59), `--line` is white at 6% opacity (line 19,
+   `--ink` resolves to plain white in the dark block). Once Task 5 re-nests the lightbox
+   inside `.photos-root`, the real tokens take over and these fallbacks become moot. */
 .lb-strip {
   grid-area: strip;
   display: flex;
-  gap: 8px;
-  padding: 10px 16px;
+  gap: 4px;
+  padding: 12px calc(50% - 28px);
+  background: var(--lb-chrome, rgba(0, 0, 0, 0.6));
+  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.06));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;

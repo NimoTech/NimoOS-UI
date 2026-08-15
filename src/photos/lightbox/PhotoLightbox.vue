@@ -379,7 +379,11 @@ onBeforeUnmount(() => {
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 8px;
+  /* Fix round 1 (review): gap corrected from 8px to parity's 12px
+     (parity photos.scss:582, `.photos-root .lb-top`'s own gap) -- an undisclosed value drift
+     caught in review; not previously registered as a deviation because it was simply wrong,
+     not an intentional choice. */
+  gap: 12px;
   padding: 0 16px;
   background: var(--popup-bg);
   border-bottom: 1px solid var(--card-border);
