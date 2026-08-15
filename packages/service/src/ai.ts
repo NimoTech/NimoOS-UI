@@ -1,5 +1,26 @@
 import type { AxiosInstance } from 'axios'
 
+/** Aligns with the backend's per-tool row (`GET /mcp/servers/:id/tools`, and
+ *  each item embedded in `POST .../test`'s tool list going forward). */
+export interface McpToolRow {
+  name: string
+  approved: boolean
+  last_seen_at: number
+  desc_changed: boolean
+  /** Non-empty when this approval is currently void (e.g. every approval for
+   *  a server goes void after its URL is edited) -- the only signal that lets
+   *  the UI tell "approved and in force" apart from "approved but void".
+   *  The backend sends this field `omitempty`, so it may be absent or ''. */
+  stale_reason?: string
+}
+
+/** One row of the cross-server summary (`GET /mcp/approvals`). */
+export interface McpApprovalRow {
+  server_id: number
+  server_handle: string
+  tool_name: string
+}
+
 /**
  * ai 域 —— agent 会话核心组(sessions / confirm / attachments / staged-changes / thinking)。
  *
@@ -409,6 +430,38 @@ export function createAi(http: AxiosInstance, getToken: () => string | null) {
 
     async parseMCPCommand(commandLine: string): Promise<unknown> {
       const res = await http.post(`${PREFIX}/mcp/servers/parse`, { command_line: commandLine })
+      return res.data
+    },
+
+    // ---- MCP tool approvals (progressive disclosure) ----
+    // Same `/v1/ai` prefix as the MCP server routes above (common.V2APIPath on
+    // the backend, PREFIX = '/ai' here) -- not '/v2/ai'.
+
+    /** Zero-network on the server side -- reads the persisted tool list, does
+     *  not re-probe the MCP server itself. */
+    async listMCPTools(id: string | number): Promise<{ tools: McpToolRow[] }> {
+      const res = await http.get(`${PREFIX}/mcp/servers/${id}/tools`)
+      return res.data
+    },
+
+    /** `tool` of `"*"` means server-level approval. The segment is sent raw
+     *  -- not run through encodeURIComponent -- so `"*"` reaches the backend
+     *  as a literal `*`; encoding it to `%2A` would make the backend see an
+     *  unknown tool name instead of the server-level wildcard. */
+    async setMCPApproval(id: string | number, tool: string, approved: boolean): Promise<void> {
+      const res = await http.put(`${PREFIX}/mcp/servers/${id}/approvals/${tool}`, { approved })
+      return res.data
+    },
+
+    /** Revokes every approval recorded for this server. */
+    async clearMCPApprovals(id: string | number): Promise<void> {
+      const res = await http.delete(`${PREFIX}/mcp/servers/${id}/approvals`)
+      return res.data
+    },
+
+    /** Cross-server approval summary. */
+    async listMCPApprovals(): Promise<{ items: McpApprovalRow[] }> {
+      const res = await http.get(`${PREFIX}/mcp/approvals`)
       return res.data
     },
 

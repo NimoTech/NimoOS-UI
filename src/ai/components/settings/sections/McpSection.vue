@@ -70,7 +70,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import type { McpServer, McpServerFormPayload } from '../../../types/mcpServer'
-import { saveServerErrorKey } from '../../../util/mcpErrorKey'
+import { saveServerErrorKey, toTestView, toTestViewFromError } from '../../../util/mcpErrorKey'
 import { useToast } from '../../../../stores/toast'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import McpServerGroup from '../mcp/McpServerGroup.vue'
@@ -89,6 +89,11 @@ const modalOpen = ref(false)
 const editing = ref<McpServer | null>(null)
 const saving = ref(false)
 const saveError = ref('')
+// Task 19: synchronous connectivity probe after a successful add/edit. True
+// while the reused `testMCPServer` request (axios 135s timeout) is in flight,
+// so the template can show that work is still happening even though the
+// modal has already closed.
+const probing = ref(false)
 
 // 弹窗关闭时清掉行内错误(见文件头注释「偏离 D5」末段,照 SkillsSection.vue:126-128),
 // 并清掉 editing(修复轮 M5)。
@@ -193,21 +198,39 @@ async function onDelete(id: number) {
 }
 
 // 对齐 Vue2 `onSave`(`:109-128`)。偏离 D1 第 2 处 / D5 见文件头注释。
+//
+// Task 19: after a successful save, probe the server synchronously by
+// reusing the existing `testMCPServer` (axios 135s > Go 125s > Python 120s
+// timeout chain, already built and already tested). An async probe pushed
+// over MessageBus was considered and rejected during design: it only hides
+// the couple of minutes a first stdio package install can take, at the cost
+// of a whole push-and-state-machine apparatus. `probeId` is only set once the
+// corresponding create/update call has actually succeeded, so a save failure
+// (caught below) never triggers a probe, and the probe itself runs in its own
+// try/catch/finally after the modal has closed and the list reloaded, so a
+// probe-side failure is never mistaken for a save failure and never reopens
+// the modal.
 async function onSave(payload: McpServerFormPayload) {
   saving.value = true
   saveError.value = ''
+  let probeId: number | undefined
   try {
     // 共享包形参类型是 `Record<string, unknown>`(NimoOS-Service/dist/ai.d.ts:85-86)
     // ——`McpServerFormPayload` 是具名 interface,不带隐式索引签名,TS 判定不兼容
     // (TS2345),故转型一次;字段值本身未做任何改动(与 SkillsSection.vue
     // `onCreate` 同款说明)。
     if (editing.value) {
-      await service.ai.updateMCPServer(editing.value.id, payload as unknown as Record<string, unknown>)
+      const id = editing.value.id
+      await service.ai.updateMCPServer(id, payload as unknown as Record<string, unknown>)
+      probeId = id
       toast.show(t('aiCfgSaved'))
     } else {
       const created = await service.ai.createMCPServer(payload as unknown as Record<string, unknown>)
       const id = (created as { id?: number } | undefined)?.id
-      if (id) activeId.value = id
+      if (id) {
+        activeId.value = id
+        probeId = id
+      }
       toast.show(t('aiMcpSrvAddedName', { name: payload.name }))
     }
     closeModal()
@@ -217,6 +240,38 @@ async function onSave(payload: McpServerFormPayload) {
   } finally {
     saving.value = false
   }
+  if (probeId !== undefined) {
+    await probeServer(probeId)
+  }
+}
+
+/** Task 19: the synchronous post-save probe. Mirrors `McpServerDetail.vue`'s
+ *  `runTest()` mapping (`toTestView`/`toTestViewFromError`) so the same i18n
+ *  keys and never-echo-backend-English rule apply here too -- success shows
+ *  the tool count, failure (whether the request rejected outright or the
+ *  server answered `200 {ok:false,...}`) shows the mapped localized reason as
+ *  a danger toast. Both paths clear `probing` via `finally`. */
+async function probeServer(id: number) {
+  probing.value = true
+  try {
+    const body = await service.ai.testMCPServer(id)
+    const view = toTestView(body)
+    if (view.ok) {
+      toast.show(t('aiMcpSrvTestOk', { n: view.toolCount }))
+    } else {
+      toast.show(t(view.msgKey), 3000, 'danger')
+    }
+  } catch (e) {
+    // toTestViewFromError always returns the ok:false branch, but its
+    // declared return type is the full McpTestView union -- narrow before
+    // reading msgKey (mirrors the `if (view.ok)` narrowing above).
+    const view = toTestViewFromError(e)
+    if (!view.ok) {
+      toast.show(t(view.msgKey), 3000, 'danger')
+    }
+  } finally {
+    probing.value = false
+  }
 }
 </script>
 
@@ -225,6 +280,11 @@ async function onSave(payload: McpServerFormPayload) {
     <div class="sk-col">
       <div class="sk-col-head">
         <div class="sk-col-actions">
+          <!-- Task 19: post-save probe indicator. Reuses the existing
+               `.sk-spinner` class (same one the `loading` state below uses)
+               so the in-flight `testMCPServer` request has a visible signal
+               even though the modal has already closed by this point. -->
+          <span v-if="probing" class="sk-spinner" :title="t('aiMcpSrvTesting')" />
           <button class="icon-btn" :title="t('aiCfgRefresh')" @click="reload">
             <AgentIcon name="refresh" :size="15" />
           </button>

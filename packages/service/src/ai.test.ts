@@ -546,6 +546,89 @@ describe('createAi — skills / mcp servers / mcp tokens / channels', () => {
   })
 })
 
+// SP8-P4/P5 progressive disclosure -- MCP tool approval endpoints. All four
+// live under the same `/v1/ai` prefix as the existing `/mcp/servers*` routes
+// (common.V2APIPath on the backend, `PREFIX = '/ai'` here), not `/v2/ai`.
+describe('createAi — MCP tool approvals (progressive disclosure)', () => {
+  it('listMCPTools hits GET /ai/mcp/servers/:id/tools and passes the tools array through', async () => {
+    const { http, calls } = recorder((verb, url) => {
+      if (verb === 'get' && url === '/ai/mcp/servers/1/tools') {
+        return {
+          tools: [
+            { name: 'create_issue', approved: true, last_seen_at: 100, desc_changed: false, stale_reason: '' },
+          ],
+        }
+      }
+      return null
+    })
+    const res = await createAi(http, () => null).listMCPTools(1)
+    expect(calls[0].verb).toBe('get')
+    expect(calls[0].url).toBe('/ai/mcp/servers/1/tools')
+    expect(res.tools[0].name).toBe('create_issue')
+    expect(res.tools[0].stale_reason).toBe('')
+  })
+
+  it('setMCPApproval PUTs /ai/mcp/servers/:id/approvals/:tool with body {approved}', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).setMCPApproval(1, 'create_issue', true)
+    expect(calls[0].verb).toBe('put')
+    expect(calls[0].url).toBe('/ai/mcp/servers/1/approvals/create_issue')
+    expect(calls[0].body).toEqual({ approved: true })
+  })
+
+  it('setMCPApproval sends the "*" tool segment raw, not percent-encoded', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).setMCPApproval(1, '*', false)
+    expect(calls[0].url).toBe('/ai/mcp/servers/1/approvals/*')
+    expect(calls[0].url).not.toContain('%2A')
+    expect(calls[0].body).toEqual({ approved: false })
+  })
+
+  it('clearMCPApprovals DELETEs /ai/mcp/servers/:id/approvals', async () => {
+    const { http, calls } = recorder()
+    await createAi(http, () => null).clearMCPApprovals(1)
+    expect(calls[0].verb).toBe('delete')
+    expect(calls[0].url).toBe('/ai/mcp/servers/1/approvals')
+  })
+
+  it('listMCPApprovals GETs /ai/mcp/approvals and passes the items array through', async () => {
+    const { http, calls } = recorder((verb, url) => {
+      if (verb === 'get' && url === '/ai/mcp/approvals') {
+        return { items: [{ server_id: 1, server_handle: 'srv-a', tool_name: 'create_issue' }] }
+      }
+      return null
+    })
+    const res = await createAi(http, () => null).listMCPApprovals()
+    expect(calls[0].verb).toBe('get')
+    expect(calls[0].url).toBe('/ai/mcp/approvals')
+    expect(res.items[0].tool_name).toBe('create_issue')
+  })
+
+  // Fleshes out the brief's Step 1 stub ("add a server, then probe it
+  // synchronously: POST first, then test, with the 135s timeout"). The probe
+  // timeout chain must nest outside-in -- axios 135s > Go 125s > Python 120s
+  // -- otherwise the frontend gives up before the backend can report the real
+  // failure reason. This pins the two-call contract the UI wiring relies on:
+  // createMCPServer's returned id feeds straight into testMCPServer, and the
+  // test call still carries its 135s timeout.
+  it('probing a freshly-created server: POST /mcp/servers then POST .../:id/test with the 135s timeout', async () => {
+    const { http, calls } = recorder((verb, url) => {
+      if (verb === 'post' && url === '/ai/mcp/servers') return { id: 7 }
+      return {}
+    })
+    const ai = createAi(http, () => null)
+    const created = await ai.createMCPServer({ name: 'm1' })
+    const id = (created as { id: number }).id
+    await ai.testMCPServer(id)
+
+    expect(calls.map((c) => `${c.verb} ${c.url}`)).toEqual([
+      'post /ai/mcp/servers',
+      'post /ai/mcp/servers/7/test',
+    ])
+    expect(calls[1].cfg).toEqual({ timeout: 135000 })
+  })
+})
+
 describe('createAi — user-settings / memory / observability / search 知识库组', () => {
   it('URL+动词表驱动断言(全部方法各调一次)', async () => {
     const { http, calls } = recorder()
