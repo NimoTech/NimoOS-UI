@@ -10,15 +10,15 @@
 // *identity* survives an unrelated reactive change is a strictly more precise proof of "this
 // subtree did no Vue work" than a raw update-count spy would be.
 //
-// Deliberate value deviations from Vue2's own assertions (documented at each site, not silent):
-//  · Vue2's post-#106 colour semantics (its sub-commits 1-3, NOT sub-commit 4/this task) bound
-//    "Land dot color" to `--map-dot-bg` (a wash) and "City light color" to `--map-dot` (the lit
-//    colour), and made custom-mode `bg` follow the app's light/dark theme. New-UI's
-//    resolveMapTheme() (src/photos/util/placesMapThemes.ts, landed in an earlier task) ported
-//    Vue2's PRE-#106 mapping instead (dot input → `dot` field, i.e. `--map-dot`; bg hardcoded
-//    `#0A0A0C` regardless of isLight) — this task's brief scopes it to sub-commit 4 only (the
-//    render-isolation architecture), so the colour semantics are asserted here as they actually
-//    exist in this codebase, not silently "corrected" to Vue2's later fix.
+// Task 6 (Plan E, 2026-08-15) update: this task's own brief scoped Task 5 to sub-commit 4 only
+// (the render-isolation architecture) and explicitly deferred #106's sub-commits 1-3 (colour
+// value/mapping fixes) plus the D5 signal-source revert to a later task — that later task is
+// this one. Case 8's describe block below (and its two `it.each` cases) has been rewritten to
+// assert the NOW-correct sub-commit-3 mapping (see src/photos/util/placesMapThemes.ts's own
+// resolveMapTheme() comment) instead of the deliberately-deferred pre-#106 mapping the previous
+// version of this file pinned down; two more cases were added directly below it proving the D5
+// signal switch works in both directions (photos-private theme flips the map, global theme
+// does not) — this is the RED-then-GREEN test Task 6's brief mandates for that switch.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick, ref } from 'vue'
 import { mount } from '@vue/test-utils'
@@ -32,6 +32,7 @@ import PlacesThemeMenu from '../PlacesThemeMenu.vue'
 import placesThemeMenuRaw from '../PlacesThemeMenu.vue?raw'
 import { usePhotosPlaces } from '../../stores/places'
 import { useThemeStore } from '../../../stores/theme'
+import { __resetPhotosThemeForTests, usePhotosTheme } from '../../composables/usePhotosTheme'
 import type { Place } from '../../util/placesMap'
 
 // PhotosPlaces.vue (mounted only by the last describe block, case 8) pulls in PhotoLightbox,
@@ -235,7 +236,7 @@ describe('PlacesThemeMenu · 弹层打开时把当前颜色喂给无绑定的取
     // 无绑定(uncontrolled)契约的另一半:模板上不应该再有 :value 绑定——否则每次拖动都会
     // 把 customDotColor 拉回这个组件的渲染依赖里,读源文本确认删码没有复发。
     expect(placesThemeMenuRaw).not.toMatch(/:value="selection\.customDotColor"/)
-    expect(placesThemeMenuRaw).not.toMatch(/:value="selection\.customGridColor"/)
+    expect(placesThemeMenuRaw).not.toMatch(/:value="selection\.customCityColor"/)
   })
 })
 
@@ -264,7 +265,7 @@ describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStora
       // 每次 @input 都 emit update:selection,但这个 harness 没有容器接住 emit 往 store 写——
       // 直接调用 store action 模拟"容器 onUpdateThemeSelection 已经接线"这一步(容器接线本身
       // 由 PhotosPlaces.test.ts 的既有集成用例覆盖,不在本文件重复挂一整个容器)。
-      store.setCustomColors(dotInput.element.value, store.themePrefs.customGridColor)
+      store.setCustomColors(dotInput.element.value, store.themePrefs.customCityColor)
     }
     expect(setItemSpy).not.toHaveBeenCalled() // 拖动过程中不落盘
 
@@ -282,7 +283,7 @@ describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStora
     const store = usePhotosPlaces()
     const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
 
-    store.setCustomColors('#123456', store.themePrefs.customGridColor)
+    store.setCustomColors('#123456', store.themePrefs.customCityColor)
     expect(setItemSpy).not.toHaveBeenCalled() // 还在 250ms 防抖窗口内
 
     // 卸载即 flush——PhotosPlaces.vue 的 onUnmounted 调用的正是这同一个 store action。
@@ -295,19 +296,19 @@ describe('PlacesThemeMenu → store:连续拖拽取色器只落一次 localStora
   })
 })
 
-// ── Case 8:自定义配色在亮/暗两种 app 主题下都能正确地(命令式地)落到 <svg> 上——mount 整个
-// PhotosPlaces.vue 容器,验证 store→resolveMapTheme→mapThemeStyleVars→PlacesMap.applyMapVars
-// 全链路真的接通(前面几个 case 都只挂了半截树,这条补上端到端)。────────────────────────
-// 偏离登记(见本文件顶部注释):New-UI 当前 resolveMapTheme() 的 custom 分支不读 isLight——
-// bg 恒为 '#0A0A0C',这是 T10(早于本任务)已落地的既有行为,Vue2 sub-commit 3(bg 跟随
-// app 亮暗)不在本任务范围内(brief 只消费 sub-commit 4)。这里验证的是本任务实际负责的那部分
-// 机制——不管 app 是亮是暗,「命令式写入 CSS 变量」这条管线本身都稳定生效,不因为 isLight 分支
-// 而绕开 applyMapVars()——不是重新断言 Vue2 sub-commit 3 那个尚未移植的颜色值本身。
-describe('自定义配色的命令式写入在亮/暗两种 app 主题下都生效(端到端)', () => {
+// ── Case 8(Task 6 rewrite):自定义配色在亮/暗两种 **photos 私有主题**下都能正确地(命令式
+// 地)落到 <svg> 上,且这个信号只跟 photos 私有主题走、不跟全局 app 主题走(D5 revert)——
+// mount 整个 PhotosPlaces.vue 容器,验证 store→resolveMapTheme→mapThemeStyleVars→
+// PlacesMap.applyMapVars 全链路真的接通(前面几个 case 都只挂了半截树,这条补上端到端)。
+describe('自定义配色的命令式写入在亮/暗两种 photos 私有主题下都生效(端到端,D5 signal)', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    __resetPhotosThemeForTests()
     svc.photos.listPlaces.mockClear()
+  })
+  afterEach(() => {
+    __resetPhotosThemeForTests()
   })
 
   async function mountContainer() {
@@ -325,11 +326,10 @@ describe('自定义配色的命令式写入在亮/暗两种 app 主题下都生�
   }
 
   it.each([
-    ['dark', false],
-    ['light', true],
-  ] as const)('app 主题 = %s:选自定义色后,svg 的 --map-dot 与 background 都落地', async (_label, isLight) => {
-    const themeStore = useThemeStore()
-    themeStore.setTheme(isLight ? 'light' : 'blue')
+    ['dark', 'dark', 'rgb(10, 10, 12)'], // '#0A0A0C'
+    ['light', 'light', 'oklch(0.975 0.004 80)'],
+  ] as const)('photos 私有主题 = %s:选自定义色后,svg 的 --map-dot-bg(经 hexToRgba 洗色)与 background(跟随主题)都落地', async (_label, photosThemeValue, expectedBg) => {
+    usePhotosTheme().set(photosThemeValue)
 
     const w = await mountContainer()
     await w.find('[data-test="mtm-chip"]').trigger('click')
@@ -337,10 +337,43 @@ describe('自定义配色的命令式写入在亮/暗两种 app 主题下都生�
     await dotInput.setValue('#ff00aa')
 
     const svg = w.find('svg.map-canvas').element as SVGSVGElement
-    // custom 模式:dot 字段直接取 customDotColor(D5/T10 既有语义,登记见上方大注释)。
-    expect(svg.style.getPropertyValue('--map-dot')).toBe('#ff00aa')
-    // custom 模式 bg 恒为深空字面量,不随 isLight 变化(T10 既有行为,非本任务范围)。
-    expect(svg.style.background).toBe('rgb(10, 10, 12)')
+    // #106 sub-commit 3 remap: "Land dot color" 拾色器现在喂 dotBg(经 hexToRgba 固定 0.30
+    // alpha 的洗色),不再直接喂 --map-dot(那是 pre-#106 的错误映射,Task 6 已修)。
+    expect(svg.style.getPropertyValue('--map-dot-bg')).toBe('rgba(255,0,170,0.3)')
+    // custom 模式 bg 现在跟随 isLight(#106 sub-commit 3 修的 bug:取色器一动,浅色地图不再
+    // 翻黑),isLight 的信号来源是 photos 私有主题(D5 revert),不是全局 app 主题。
+    expect(svg.style.background).toBe(expectedBg)
+
+    w.unmount()
+  })
+
+  // ── D5 revert 的核心断言:两个方向都要覆盖 —— 全局主题切换不再牵动地图;
+  // photos 私有主题切换才牵动地图。只测一个方向不足以证明"信号源换对了",两个方向合起来
+  // 才排除掉"两个信号恰好同步"的巧合。────────────────────────────────────────────────
+  it('D5:全局 app 主题切换不影响地图 —— photos 私有主题恒为 dark,即使全局主题切 light,custom 模式 bg 仍是深色字面量', async () => {
+    usePhotosTheme().set('dark')
+    useThemeStore().setTheme('light') // 全局主题切浅色——地图不该跟着变
+
+    const w = await mountContainer()
+    await w.find('[data-test="mtm-chip"]').trigger('click')
+    await w.get<HTMLInputElement>('[data-test="mtm-dot-input"]').setValue('#ff00aa')
+
+    const svg = w.find('svg.map-canvas').element as SVGSVGElement
+    expect(svg.style.background).toBe('rgb(10, 10, 12)') // 仍是深色,没被全局主题带偏
+
+    w.unmount()
+  })
+
+  it('D5:photos 私有主题切亮时地图跟着变浅 —— 即使全局主题仍是默认深色', async () => {
+    usePhotosTheme().set('light')
+    useThemeStore().setTheme('blue') // 全局主题仍是默认深色主题
+
+    const w = await mountContainer()
+    await w.find('[data-test="mtm-chip"]').trigger('click')
+    await w.get<HTMLInputElement>('[data-test="mtm-dot-input"]').setValue('#ff00aa')
+
+    const svg = w.find('svg.map-canvas').element as SVGSVGElement
+    expect(svg.style.background).toBe('oklch(0.975 0.004 80)') // 跟着 photos 私有主题变浅
 
     w.unmount()
   })

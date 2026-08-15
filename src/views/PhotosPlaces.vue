@@ -66,21 +66,21 @@ import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosPlaces, type PlaceSpot, type PlaceVisit } from '../photos/stores/places'
 import { usePlacesView } from '../photos/composables/usePlacesView'
-import { useThemeStore } from '../stores/theme'
 import { useToast } from '../stores/toast'
 import { countCountries, countPhotos, filterPlaces, type Pin, type Place, type PlacesFilter } from '../photos/util/placesMap'
 import { mapThemeStyleVars, resolveMapTheme } from '../photos/util/placesMapThemes'
 import { assetToPhoto } from '../photos/util/assetToPhoto'
 
 const { t, locale } = useI18n()
-const { themeClass } = usePhotosTheme()
+// `theme` (Task 6, Plan E) feeds the map's isLight signal (D5 revert, see the `isLight`
+// computed below); `themeClass` (pre-existing) drives `.photos-root.is-light` on the shell.
+const { theme: photosTheme, themeClass } = usePhotosTheme()
 // Task 1 (Plan E re-shell): same shared module singleton every other re-shelled Photos page
 // uses (PhotosPeople.vue/PhotosAlbums.vue's own precedent) — toggle wired straight to the
 // topbar button.
 const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const store = usePhotosPlaces()
-const themeStore = useThemeStore()
 const toast = useToast()
 const lb = useLightbox()
 
@@ -151,14 +151,19 @@ const topbarSub = computed(() => t('photosPlacesTopbarSub', {
   countries: countryCount.value,
 }))
 
-// D5:浅色信号改读全局 data-theme(useThemeStore),不读相册私有字段(T10 已定,这里只是
-// 算出布尔值传给子组件)。
-const isLight = computed(() => themeStore.theme === 'light')
+// D5 revert (Plan E Task 6, 2026-08-15): T10/T11's original decision read the global
+// `useThemeStore()` here — this task reverts that back to Vue2's own signal, the photos-private
+// theme (`usePhotosTheme()`, same source `themeClass` above already uses to toggle
+// `.photos-root.is-light`). Vue2's currentTheme computed reads `this.$store.state.photos.theme`
+// (a Vuex module scoped to the Photos area, NOT the app-wide theme module) — `usePhotosTheme()`
+// is its Vue3 counterpart. Switching the global app theme must no longer move the map; toggling
+// the photos-private theme must (both directions covered by placesMapPerf.test.ts's D5 cases).
+const isLight = computed(() => photosTheme.value === 'light')
 const resolvedTheme = computed(() =>
   resolveMapTheme(
     store.themePrefs.mapTheme,
     store.themePrefs.customDotColor,
-    store.themePrefs.customGridColor,
+    store.themePrefs.customCityColor,
     isLight.value,
   ),
 )
@@ -216,11 +221,11 @@ function onHoverClear(): void {
 }
 // 消歧义 3:PlacesThemeMenu 只 emit,写路径由容器决定落到哪个 store action——读永远走
 // store.themePrefs(直连,见下方模板 :selection 绑定)。pickPreset 恒发非 'custom' 的
-// mapTheme(customDotColor/customGridColor 原样携带不变);取色器恒发 mapTheme:'custom'
+// mapTheme(customDotColor/customCityColor 原样携带不变);取色器恒发 mapTheme:'custom'
 // (见 PlacesThemeMenu.vue onDotInput/onGridInput)。两条分支互斥、不重叠。
 function onUpdateThemeSelection(next: MapThemeSelection): void {
   if (next.mapTheme === 'custom') {
-    store.setCustomColors(next.customDotColor, next.customGridColor)
+    store.setCustomColors(next.customDotColor, next.customCityColor)
   } else {
     store.setMapTheme(next.mapTheme)
   }

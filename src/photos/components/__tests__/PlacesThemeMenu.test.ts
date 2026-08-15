@@ -14,7 +14,7 @@ function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
 }
 
 function defaultSelection(overrides: Partial<MapThemeSelection> = {}): MapThemeSelection {
-  return { mapTheme: 'default', customDotColor: '#6E5BFF', customGridColor: '#9C8EFF', ...overrides }
+  return { mapTheme: 'default', customDotColor: '#6E5BFF', customCityColor: '#9C8EFF', ...overrides }
 }
 
 const mounted: VueWrapper[] = []
@@ -102,7 +102,7 @@ describe('预设列表', () => {
   })
 
   it('点预设 → emit update:selection(mapTheme 变该 id,颜色字段原样保留)+ emit update:open(false)', async () => {
-    const original = defaultSelection({ customDotColor: '#123456', customGridColor: '#abcdef' })
+    const original = defaultSelection({ customDotColor: '#123456', customCityColor: '#abcdef' })
     const w = mountMenu({ open: true, selection: original })
     await w.get('[data-theme-id="sand"]').trigger('click')
     const next = w.emitted('update:selection')![0][0] as MapThemeSelection
@@ -124,8 +124,8 @@ describe('自定义取色器', () => {
     expect(w.get('[data-test="mtm-grid-input"]').attributes('type')).toBe('color')
   })
 
-  it('陆地点颜色 @input → emit payload.mapTheme===custom 且 customDotColor 被更新,customGridColor 原样保留', async () => {
-    const original = defaultSelection({ mapTheme: 'ocean', customGridColor: '#abcdef' })
+  it('陆地点颜色 @input → emit payload.mapTheme===custom 且 customDotColor 被更新,customCityColor 原样保留', async () => {
+    const original = defaultSelection({ mapTheme: 'ocean', customCityColor: '#abcdef' })
     const w = mountMenu({ open: true, selection: original })
     const input = w.get<HTMLInputElement>('[data-test="mtm-dot-input"]')
     input.element.value = '#ff00ff'
@@ -133,10 +133,10 @@ describe('自定义取色器', () => {
     const next = w.emitted('update:selection')![0][0] as MapThemeSelection
     expect(next.mapTheme).toBe('custom')
     expect(next.customDotColor).toBe('#ff00ff')
-    expect(next.customGridColor).toBe('#abcdef')
+    expect(next.customCityColor).toBe('#abcdef')
   })
 
-  it('城市灯颜色 @input → emit payload.mapTheme===custom 且 customGridColor 被更新,customDotColor 原样保留', async () => {
+  it('城市灯颜色 @input → emit payload.mapTheme===custom 且 customCityColor 被更新,customDotColor 原样保留', async () => {
     const original = defaultSelection({ mapTheme: 'sand', customDotColor: '#123456' })
     const w = mountMenu({ open: true, selection: original })
     const input = w.get<HTMLInputElement>('[data-test="mtm-grid-input"]')
@@ -144,7 +144,7 @@ describe('自定义取色器', () => {
     await input.trigger('input')
     const next = w.emitted('update:selection')![0][0] as MapThemeSelection
     expect(next.mapTheme).toBe('custom')
-    expect(next.customGridColor).toBe('#00ffff')
+    expect(next.customCityColor).toBe('#00ffff')
     expect(next.customDotColor).toBe('#123456')
   })
 

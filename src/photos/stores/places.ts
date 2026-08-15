@@ -15,9 +15,13 @@ import {
 } from '../util/placesMap'
 
 // New-UI 命名法,刻意不沿用 Vue2 的 `photos.placesMapTheme` / `photos.placesRailCollapsed`
-// (偏离登记):Vue2 与 New-UI 同源共享同一个浏览器 localStorage,而本期(D5)把浅色地图变体
-// 的触发信号从"相册私有 mapTheme 字段"改成了全局 `data-theme` 属性——若沿用同一个 key,
-// 两边会互相读写对方写入的旧结构,互相污染。改用独立 key 让两套实现的持久化状态互不干扰。
+// (偏离登记):Vue2 与 New-UI 同源共享同一个浏览器 localStorage。Task 6(Plan E,2026-08-15)
+// 之前这里的注释以"D5 把触发信号改成全局 data-theme"解释这条独立 key 的必要性——该决定已经
+// 撤回(见 placesMapThemes.ts 头注释「D5」段与 usePhotosTheme.ts),但独立 key 本身依然保留:
+// New-UI 的 MapThemePrefs 形状(customCityColor 字段名、custom 分支的 bg/grid 跟随语义)与
+// Vue2 当前的 customCityColor 结构虽然同名同构,双方的持久化仍各自独立维护,不共享同一把
+// localStorage key 更安全——沿用同一个 key 会让此仓将来任何一次结构调整都直接污染 Vue2 侧
+// 反之亦然。
 const LS_THEME = 'nimo_places_map_theme'
 const LS_RAIL_COLLAPSED = 'nimo_places_rail_collapsed'
 
@@ -25,12 +29,16 @@ const THEME_ALLOWED = ['default', 'ocean', 'sand', 'mono', 'custom']
 const HEX_RE = /^#[0-9a-f]{6}$/i
 // 照 Vue2 PhotosPlacesView.vue:86-87 的默认值。
 const DEFAULT_DOT_COLOR = '#6E5BFF'
-const DEFAULT_GRID_COLOR = '#9C8EFF'
+// Task 6(Plan E,2026-08-15):从 DEFAULT_GRID_COLOR 改名——同 Vue2 PR #106 sub-commit 3 把
+// `customGridColor` 改名 `customCityColor` 的理由(该值现在喂的是"城市灯"实色,不是网格线):
+// 旧字段名的 localStorage 值不做迁移,读到旧结构时这个字段本就缺失,直接落回这个默认值,
+// 与 Vue2 自己的处理方式一致(brief 引用的 Vue2 sub-commit 3 commit message 原文如此)。
+const DEFAULT_CITY_COLOR = '#9C8EFF'
 
 export interface MapThemePrefs {
   mapTheme: string // 'default' | 'ocean' | 'sand' | 'mono' | 'custom'
   customDotColor: string // '#RRGGBB'
-  customGridColor: string
+  customCityColor: string
 }
 
 // 三个原先内联在 PlaceDetail 里的匿名对象类型提成具名导出(P6b-T2):T3-T6 四个组件的
@@ -72,7 +80,7 @@ const EMPTY_STATS: PlacesStats = { cities: 0, countries: 0, photos: 0 }
 // 照 Vue2 mounted :339-348 的 IIFE 读法:白名单/正则校验 + 整体 try 兜底(隐私模式/SSR/坏 JSON)。
 // 单字段独立回落——mapTheme 非法不连累已经合法的自定义色,反之亦然。
 function readThemePrefs(): MapThemePrefs {
-  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customGridColor: DEFAULT_GRID_COLOR }
+  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customCityColor: DEFAULT_CITY_COLOR }
   try {
     const raw = localStorage.getItem(LS_THEME)
     if (!raw) return def
@@ -80,7 +88,7 @@ function readThemePrefs(): MapThemePrefs {
     return {
       mapTheme: THEME_ALLOWED.includes(t.mapTheme as string) ? (t.mapTheme as string) : 'default',
       customDotColor: HEX_RE.test(t.customDotColor ?? '') ? (t.customDotColor as string) : DEFAULT_DOT_COLOR,
-      customGridColor: HEX_RE.test(t.customGridColor ?? '') ? (t.customGridColor as string) : DEFAULT_GRID_COLOR,
+      customCityColor: HEX_RE.test(t.customCityColor ?? '') ? (t.customCityColor as string) : DEFAULT_CITY_COLOR,
     }
   } catch {
     return def
@@ -416,8 +424,8 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     persistTheme()
   }
   // 照 Vue2 模板 :940/:944 的 `@input="mapTheme = 'custom'"`:挑自定义色即视为切到 custom 主题。
-  function setCustomColors(dotColor: string, gridColor: string): void {
-    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customGridColor: gridColor }
+  function setCustomColors(dotColor: string, cityColor: string): void {
+    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customCityColor: cityColor }
     persistTheme()
   }
 

@@ -13,10 +13,12 @@
 // 取色器本身没有伴随关闭动作。是否真的调用 store.setMapTheme/setCustomColors 落盘,
 // 由 T11 容器接住这两个 emit 后决定(brief 消歧义 1:读可直连 store、写走 emit)。
 //
-// isLight 的来源(D5 相对 Vue2 的信号替换):不读相册私有 store,改由调用方(T11 容器)
-// 从全局 src/stores/theme.ts 的响应式 theme ref 算出 `theme === 'light'` 传进来
-// (该 store 已是响应式,不必新造 MutationObserver——本组件不直接依赖任何 store,
-// 保持纯 props/emit 的展示组件)。
+// isLight 的来源:调用方(T11 容器)算好布尔值传进来——本组件不直接依赖任何 store/
+// composable,保持纯 props/emit 的展示组件。Task 6(Plan E,2026-08-15)把调用方那一侧的
+// 信号来源从全局 `useThemeStore()` 改回了 photos 私有的 `usePhotosTheme()`(D5 revert,
+// 撤回 T11 当时"改读全局"的决定,详见 PhotosPlaces.vue 的 isLight computed 与
+// placesMapThemes.ts 头注释「D5」段)——这次改动只发生在调用方内部,本组件的 prop 契约
+// (`isLight: boolean`)完全不变,不需要跟着改。
 //
 // 浮层规范(同 T9 PlacesFilterMenu.vue 的既定模式):open 为 prop,document 级
 // mousedown(容器外点击关闭)+ keydown(Esc 关闭),watch(open) 挂/摘监听,不用
@@ -42,7 +44,11 @@ import { MAP_THEME_PRESETS, swatchColors } from '../util/placesMapThemes'
 export interface MapThemeSelection {
   mapTheme: string // 'default' | 'ocean' | 'sand' | 'mono' | 'custom'
   customDotColor: string
-  customGridColor: string
+  // Task 6 (Plan E, 2026-08-15): renamed from customGridColor — same reason Vue2 PR #106
+  // sub-commit 3 renamed its own field of the same name (git show 78cf3335): this value feeds
+  // the "City light color" picker below, which maps to the lit-city dot colour (`--map-dot`),
+  // never a grid line. See placesMapThemes.ts's resolveMapTheme() for the mapping itself.
+  customCityColor: string
 }
 
 const props = defineProps<{
@@ -64,7 +70,7 @@ const gridInputRef = ref<HTMLInputElement | null>(null)
 // Vue2 syncColorInputs()(:436-441)的 Vue3 等价物:无绑定的取色器只能靠命令式赋值获得初值。
 function syncColorInputs(): void {
   if (dotInputRef.value) dotInputRef.value.value = props.selection.customDotColor
-  if (gridInputRef.value) gridInputRef.value.value = props.selection.customGridColor
+  if (gridInputRef.value) gridInputRef.value.value = props.selection.customCityColor
 }
 // Vue2 :351-354 的 themeOpen watcher,逐字移植语义:只在 open 从 false 变 true 时喂一次初值
 // ——不带 immediate(弹层默认关闭,真实使用路径下 open 恒以 false 起步,不需要挂载即同步;
@@ -93,10 +99,10 @@ function onDotInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customDotColor: value })
 }
-// Vue2 :944,同上,换成 customGridColor。
+// Vue2 :944,同上,换成 customCityColor。
 function onGridInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
-  emit('update:selection', { ...props.selection, mapTheme: 'custom', customGridColor: value })
+  emit('update:selection', { ...props.selection, mapTheme: 'custom', customCityColor: value })
 }
 
 // ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────

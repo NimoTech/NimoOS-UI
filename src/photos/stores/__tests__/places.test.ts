@@ -554,11 +554,11 @@ describe('fetchCoverCandidates', () => {
 
 describe('localStorage 持久化', () => {
   it('mapTheme 白名单外的值回落 default,自定义色非 #RRGGBB 回落默认', () => {
-    localStorage.setItem('nimo_places_map_theme', JSON.stringify({ mapTheme: 'rainbow', customDotColor: 'red', customGridColor: '#ABCDEF' }))
+    localStorage.setItem('nimo_places_map_theme', JSON.stringify({ mapTheme: 'rainbow', customDotColor: 'red', customCityColor: '#ABCDEF' }))
     const s = usePhotosPlaces()
     expect(s.themePrefs.mapTheme).toBe('default')
     expect(s.themePrefs.customDotColor).toBe('#6E5BFF')
-    expect(s.themePrefs.customGridColor).toBe('#ABCDEF')
+    expect(s.themePrefs.customCityColor).toBe('#ABCDEF')
   })
 
   it('坏 JSON 不抛,回落全默认', () => {
@@ -567,9 +567,24 @@ describe('localStorage 持久化', () => {
     expect(s.themePrefs.mapTheme).toBe('default')
   })
 
+  // Task 6 (Plan E, 2026-08-15): customCityColor is a rename of customGridColor (same reason
+  // Vue2 PR #106 sub-commit 3 renamed its own field — the value now feeds the city-light dot,
+  // never a grid line). Vue2's own commit message is explicit that the old localStorage value
+  // is NOT migrated — a stored blob shaped like the pre-rename field just doesn't have the new
+  // field, so it falls back to the default like any other missing field. This proves the same
+  // no-migration behavior here rather than assuming it.
+  it('旧字段名 customGridColor 的存量值不迁移,新字段 customCityColor 直接回落默认(Vue2 同款不迁移行为)', () => {
+    localStorage.setItem('nimo_places_map_theme', JSON.stringify({ mapTheme: 'ocean', customDotColor: '#111111', customGridColor: '#ABCDEF' }))
+    const s = usePhotosPlaces()
+    expect(s.themePrefs.mapTheme).toBe('ocean') // 未变的字段照常读入
+    expect(s.themePrefs.customDotColor).toBe('#111111') // 未变的字段照常读入
+    expect(s.themePrefs.customCityColor).toBe('#9C8EFF') // 旧键名对新字段是"没写过",回落默认
+    expect((s.themePrefs as unknown as Record<string, unknown>).customGridColor).toBeUndefined() // 旧字段名不会被保留在结果里
+  })
+
   it('没有保存过任何值时用默认值', () => {
     const s = usePhotosPlaces()
-    expect(s.themePrefs).toEqual({ mapTheme: 'default', customDotColor: '#6E5BFF', customGridColor: '#9C8EFF' })
+    expect(s.themePrefs).toEqual({ mapTheme: 'default', customDotColor: '#6E5BFF', customCityColor: '#9C8EFF' })
   })
 
   // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 落盘现在 250ms 防抖(见
@@ -586,7 +601,7 @@ describe('localStorage 持久化', () => {
     expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // 第二次调用仍在防抖窗口内
     vi.advanceTimersByTime(250)
     const saved = JSON.parse(localStorage.getItem('nimo_places_map_theme')!)
-    expect(saved).toMatchObject({ mapTheme: 'custom', customDotColor: '#111111', customGridColor: '#222222' })
+    expect(saved).toMatchObject({ mapTheme: 'custom', customDotColor: '#111111', customCityColor: '#222222' })
     vi.useRealTimers()
   })
 
