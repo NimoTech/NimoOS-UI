@@ -911,7 +911,7 @@
     color: var(--text-1);
     font: inherit; font-size: 11.5px;
     /* `color-scheme: dark` deliberately dropped (Plan E Task 3 fix, superseding PlacesFilterMenu.vue's
-       own former scoped override of this exact rule — 评审 I1): Vue2 photos-places.scss:882 hardcodes
+       own former scoped override of this exact rule — review I1): Vue2 photos-places.scss:882 hardcodes
        this, forcing native <input type="date"> chrome (calendar glyph, unfilled placeholder text) into
        dark styling always. This app's root node already sets `color-scheme` per-theme (theme.css's
        `:root` / `:root[data-theme="light"]` blocks) — that cascades down correctly for both of
@@ -1254,7 +1254,12 @@
    specificity) or a reordering of this file would silently let the base hover win back over
    the active state's own background. */
 .places-cover-portal .cp-tab:hover { background: rgba(var(--ink), 0.06); }
-.places-cover-portal .cp-tab.is-active:hover { background: rgba(var(--ink), 0.06); }
+/* Review I1 fix: hover LOCKS the active value (rgba(var(--ink), 0.10), matching
+   `.cp-tab.is-active` above at :1137) rather than dropping to the base hover value — the
+   cp-cell family below already gets this right (`.cp-cell.is-active:hover` keeps
+   `--chip-bg-hi`, same as its own non-hover `.is-active` rule); this was the one place in the
+   family where the hover variant had regressed to the base value instead. */
+.places-cover-portal .cp-tab.is-active:hover { background: rgba(var(--ink), 0.10); }
 .places-cover-portal .cp-cell:hover { background: var(--chip-bg-hi); }
 .places-cover-portal .cp-cell.is-active { background: var(--chip-bg-hi); }
 .places-cover-portal .cp-cell.is-active:hover { background: var(--chip-bg-hi); }
@@ -1268,5 +1273,9 @@
 
 /* Checkmark badge icon color: New-UI's badge icon uses `stroke="currentColor"` and needs a
    CSS color; Vue2 hardcodes white via a `<PhotosIcon color="white">` prop, no CSS
-   counterpart at all for `.cp-cell-check`. */
-.places-cover-portal .cp-cell-check { color: var(--on-accent); }
+   counterpart at all for `.cp-cell-check`. Review I2 fix: `var(--on-accent)` is calibrated
+   against New-UI's *global* accent (navy `#16203a` in this app's dark theme) — laid over this
+   badge's actually-purple, Photos-fixed `--accent` background it goes near-invisible. Vue2's
+   own value here is a flat white, theme-invariant (same precedent as `.spot-rename-save`'s
+   `color: #fff` below, :664) — no token needed, this is a hardcoded-white exception. */
+.places-cover-portal .cp-cell-check { color: #fff; }

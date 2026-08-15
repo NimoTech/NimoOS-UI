@@ -20,8 +20,9 @@
 //
 // Task 5 (Plan E #106 perf architecture port, 2026-08-15): two changes ported from
 // Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) — this component's
-// share of the "拖动取色器不再重绘整张地图" fix (the other share, the colour-input
-// uncontrolled + debounced-persist half, lives in PlacesThemeMenu.vue/places.ts):
+// share of the "dragging a color picker no longer repaints the whole map" fix (the other
+// share — the colour-input uncontrolled + debounced-persist half — lives in
+// PlacesThemeMenu.vue/places.ts):
 //  a. The land-dot matrix used to be an inline `<circle v-for>` in THIS component's own
 //     template. It's now `<PlacesWorldDots :dots="dots" />` (T5 new file) — a real
 //     child component boundary, not scoped-CSS-only isolation, so Vue's prop-diffing
@@ -47,9 +48,11 @@ const props = defineProps<{
   places: Place[] // 已过滤的地点(不吃 rail 的搜索词,同 Vue2 :229/:237)
   activeId: string | null
   view: { tx: number, ty: number, scale: number } // T7 的变换态
-  // T10 resolveMapTheme()+mapThemeStyleVars() 的产物。不再经 :style 绑定进模板——applyMapVars()
-  // (下方)把它写成 <svg> 上的命令式 CSS 变量,读它的是一个独立的 watch() 副作用,不是本组件的
-  // 渲染函数,颜色变化因此不会触发本组件重渲染(Task 5 偏离登记 b,见上方大注释)。
+  // Output of T10's resolveMapTheme()+mapThemeStyleVars(). No longer bound into the template via
+  // :style — applyMapVars() (below) writes it onto the <svg> as imperative CSS custom properties;
+  // the code that reads it is a separate watch() side effect, not this component's own render
+  // function, so a colour change no longer triggers a re-render of this component (Task 5
+  // deviation-log item b, see the big comment above).
   themeVars: Record<string, string>
 }>()
 
@@ -65,11 +68,14 @@ const svgEl = ref<SVGSVGElement | null>(null)
 const dots = computed(() => visitedDots(props.places))
 const pins = computed(() => buildPins(props.places, props.view.scale, props.activeId))
 
-// Vue2 applyMapVars()(:419-433)的 Vue3 等价物:命令式写 <svg> 的 style,不进模板 :style 绑定
-// ——见上方大注释 b。conditional `--map-dot-bg` 的语义照搬 mapThemeStyleVars() 的产出契约:
-// 该 key 只在 dotBg 非 null 时才会出现在 vars 里,深色主题分支不出现时要显式 removeProperty
-// 清掉上一次可能残留的值(不能什么都不做——否则从"有 dotBg 的浅色主题"切回深色主题时,
-// 陆地点阵会卡在上一次的浅色回落值上)。
+// Vue3 equivalent of Vue2's applyMapVars() (:419-433): writes the <svg>'s style imperatively,
+// never through a template :style binding — see the big comment above, item b. The conditional
+// handling of `--map-dot-bg` copies mapThemeStyleVars()'s own output contract exactly: that key
+// only appears in `vars` when dotBg is non-null, so when the dark-theme branch omits it, it must
+// be explicitly removed via removeProperty to clear out whatever value was left from the
+// previous call (doing nothing here would be wrong — switching from "a light theme with dotBg"
+// back to a dark theme would leave the land-dot lattice stuck on the previous light fallback
+// value).
 function applyMapVars(vars: Record<string, string>): void {
   const svg = svgEl.value
   if (!svg) return
@@ -79,8 +85,9 @@ function applyMapVars(vars: Record<string, string>): void {
   if (vars['--map-dot-bg']) svg.style.setProperty('--map-dot-bg', vars['--map-dot-bg'])
   else svg.style.removeProperty('--map-dot-bg')
 }
-// mounted 时补一次初值(watch 本身不带 immediate——见下方注释),之后每次 themeVars 变化都
-// 补写(watch 是独立副作用,不耦合进本组件的渲染函数,见上方大注释 b)。
+// Fills in the initial value once on mount (the watch below isn't `immediate`), then writes
+// again on every subsequent themeVars change (the watch is a separate side effect, not coupled
+// to this component's render function — see the big comment above, item b).
 onMounted(() => applyMapVars(props.themeVars))
 watch(() => props.themeVars, applyMapVars)
 
@@ -145,12 +152,20 @@ defineExpose({ svgEl })
    pair — including the Vue2→Vue3 enter-from/leave-to rename — `.pin-scale`'s geometry
    declarations, and `.geo-pin:hover`'s `var(--pin-glow)` reference — the `.world-dot` fallback
    token this comment used to also cite has since moved to PlacesWorldDots.vue's own
-   `<style scoped>`, see Task 5 note below), and the pin/dot color chain (`--pin-bg`/
-   `--pin-stroke`/`--pin-active-bg`/`--pin-cluster-stroke`/`--pin-cluster-hover-bg`/
-   `--pin-pulse`/`--pin-glow`) is deliberately *not* parity's static per-`data-map-mode`
-   literals — it's fed at runtime via the `themeVars` prop (T10's `resolveMapTheme()`), which is
-   how this component reproduces Vue2's atlas/heatmap/dark map-mode swatches without hardcoding
-   three copies of every color. Animation values verified byte-exact against Vue2/parity:
+   `<style scoped>`, see Task 5 note below). Review I3 correction (Plan E final-fix): the
+   comment that used to sit here claimed the pin/dot color chain (`--pin-bg`/`--pin-stroke`/
+   `--pin-active-bg`/`--pin-cluster-stroke`/`--pin-cluster-hover-bg`/`--pin-pulse`/`--pin-glow`)
+   was fed at runtime via the `themeVars` prop — that was false. `applyMapVars()` (script block
+   above) only ever writes `background`, `--map-dot`, `--map-grid`, and conditionally
+   `--map-dot-bg`; it never touches any `--pin-*` custom property. The pin chain is read
+   statically below (`.geo-pin .pin-bg { fill: var(--pin-bg); … }` etc.) straight off whichever
+   `--pin-*` values are in scope on `.photos-root`/`.photos-root.is-light` (now defined in
+   `photos.scss`, migrated there from global `theme.css` by this same review item — see that
+   file's comment) — a plain CSS cascade read, not a JS-driven one. The per-`data-map-mode`
+   swatches (atlas/heatmap) genuinely ARE parity's own static literals, overriding these tokens
+   at higher specificity via `.app[data-map-mode="atlas"] .geo-pin .pin-bg` and its heatmap
+   counterpart in `photos-places.scss` — those two sentences got conflated in the old comment.
+   Animation values verified byte-exact against Vue2/parity:
    `.pin-pulse`'s `animation: mapPulse 2.4s ease-out infinite` and its `@keyframes mapPulse`
    (scale 0.7→2.4, opacity 0.6→0) match photos-places.scss:414-420 exactly;
    `.pin-merge-enter-active/.pin-merge-leave-active .pin-scale`'s

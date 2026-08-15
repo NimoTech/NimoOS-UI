@@ -64,6 +64,32 @@
   --accent-ink: #CFC6FF;           /* readable accent-tinted text */
   --accent-ink-dim: rgba(179,155,255,0.6);
   --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
+
+  /* Geo-pin tokens (PlacesMap.vue). Review I3 (Plan E final-fix): migrated here from the global
+     `src/styles/theme.css`, where these seven tokens used to be the ONLY place they were
+     defined — meaning pins followed this app's *global* light/dark theme while the map
+     canvas/dots they sit on top of followed Photos' own *private* theme (`.photos-root` /
+     `.photos-root.is-light`), a dual-signal split. "Global light app theme + photos-private dark
+     theme" is the DEFAULT combination for a light-app user (Photos defaults to dark), so this
+     wasn't an edge case. Values below are copied byte-for-byte from theme.css's former `:root`
+     block — this is purely a relocation, not a re-derivation; the RGB channel is still the blue
+     family theme.css used (not this file's own purple --accent-rgb) — that blue-vs-purple
+     deviation is a separate, already-standing P6a ruling the owner will judge at acceptance,
+     left untouched here. --accent-rgb itself is theme-invariant in Vue2 (always 110,91,255) —
+     the pins are painted on the map preset's own canvas (4 presets + a custom color, all
+     independent of app theme; custom mode is always a black canvas), so alpha never scales down
+     with the app theme — only the RGB channel differs between the two blocks below. */
+  --pin-bg: rgba(138, 180, 255, 0.16);
+  --pin-stroke: rgba(138, 180, 255, 0.55);
+  --pin-active-bg: rgba(138, 180, 255, 0.30);
+  --pin-pulse: rgba(138, 180, 255, 0.25);
+  --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
+  --pin-glow: rgba(138, 180, 255, 0.7);
+  /* Vue2's own value here is a lighter lavender, rgba(196,184,255,0.85), so a cluster reads as
+     "a group" rather than a single pin; RGB here instead takes this repo's --accent-text
+     (169,198,255) — the semantic is "a lighter, more readable accent", alpha copied exactly at
+     0.85. */
+  --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
 }
 
 /* === Light theme — aligned 1:1 with the AI Agent palette
@@ -98,6 +124,20 @@
   --accent-ink: #5340E0;
   --accent-ink-dim: rgba(83,64,224,0.55);
   --hero-scrim: rgba(255,255,255,0.40);
+
+  /* Geo-pin tokens — see the `.photos-root` block's own comment above for the full rationale
+     (Review I3, Plan E final-fix). Alpha is identical to the dark block (theme-invariant, the
+     pins sit on the map preset's own canvas, independent of app theme); RGB switches to this
+     repo's light --accent-rgb (59,91,219). */
+  --pin-bg: rgba(59, 91, 219, 0.16);
+  --pin-stroke: rgba(59, 91, 219, 0.55);
+  --pin-active-bg: rgba(59, 91, 219, 0.30);
+  --pin-pulse: rgba(59, 91, 219, 0.25);
+  --pin-cluster-hover-bg: rgba(59, 91, 219, 0.42);
+  --pin-glow: rgba(59, 91, 219, 0.7);
+  /* RGB takes this repo's light --accent-text (53,80,196), alpha copied exactly at 0.85 from
+     Vue2 (see the dark block's own comment). */
+  --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
 }
 
 .photos-root * { box-sizing: border-box; }

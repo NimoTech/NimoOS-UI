@@ -498,15 +498,17 @@ describe('hover 态背景不被基类规则夺走(删码 ⑦)', () => {
 // used to run (that sweep's job now belongs to color-guard.test.ts's own exemption, not to
 // this component's test file).
 describe('颜色合规', () => {
-  it('.cp-cell-check 规则含 --on-accent(背景为 accent 实底,允许用法)', () => {
+  it('.cp-cell-check 规则存在(New-UI 追加,Vue2 无此属性)', () => {
     const rule = parseCssRules(portalCss).find(r => r.selectors.includes('.places-cover-portal .cp-cell-check'))
     expect(rule, '未找到 .places-cover-portal .cp-cell-check 规则').toBeDefined()
   })
 
-  it('.cp-cell-check 的 color 声明来自一条含 --on-accent 的规则(New-UI 追加,Vue2 无此属性)', () => {
+  it('评审 I2:.cp-cell-check 的 color 是硬编码白(#fff),不是 --on-accent(该 token 按 New-UI 全局 accent 校准,在默认深色主题下是深藏青,叠在 Photos 固定紫色 accent 徽标底上会近乎不可见)', () => {
     const rules = parseCssRules(portalCss).filter(r => r.selectors.includes('.places-cover-portal .cp-cell-check'))
-    const colorRule = rules.find(r => /color\s*:\s*var\(--on-accent\)/.test(r.body))
-    expect(colorRule, '未找到含 --on-accent 的 .cp-cell-check color 规则').toBeDefined()
+    const colorRule = rules.find(r => /color\s*:\s*#fff\b/i.test(r.body))
+    expect(colorRule, '未找到 color:#fff 的 .cp-cell-check 规则').toBeDefined()
+    const onAccentRule = rules.find(r => /var\(--on-accent\)/.test(r.body))
+    expect(onAccentRule, '不应再引用 --on-accent').toBeUndefined()
   })
 })
 
