@@ -60,7 +60,7 @@ export const DELETE = [
   // 文档 / AI 辅助开发痕迹 / 设计稿(E7/E8:用户拍板一份文档都不带)
   'docs',
   'CLAUDE.md',
-  'design-export',
+  // 'design-export' 已在 2ad712f8 从私有仓删除,这里不再需要(留着会触发 stale 硬失败)
 
   // 各期台账(2026-08-05 起入库,见 .superpowers/.gitignore)。282 份报告里写满了
   // 内部决策、后端接口实测、AI/相册/搜索的设计过程 —— 属于 E7「一份文档都不带」的范围,
