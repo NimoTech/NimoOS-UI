@@ -130,10 +130,19 @@ describe('搜索 submit', () => {
     expect(w.emitted('search-submit')).toEqual([['sunset']])
   })
 
-  // fix round 1 · Important(owner 裁决 ledger-六-2,覆盖第一版"空串也 emit"的选择):
-  // 时间线顶栏空串 Enter = 无动作,照 Vue2 自己 submitSearch(:65-69)的空串 return 守卫。
-  // 只覆盖这个顶栏——PhotosSearchBar.vue 自己(PhotosSearch.vue 独立搜索页用的那个框)的
-  // "空串也 emit"约定不受影响,范围不同,不是同一件事改了两次。
+  // fix round 1 · Important (owner ruling ledger-六-2, overriding the first version's "empty
+  // string also emits" choice): empty Enter here = no-op, matching Vue2's own submitSearch
+  // (:65-69) empty-return guard.
+  //
+  // Plan F Task 1 (2026-08-15) update: PhotosSearchBar.vue — the component that used to carry
+  // the "empty string also emits" convention — has been retired outright (no consumer left).
+  // PhotosSearch.vue's own search page now shares THIS exact topbar box instead of rendering a
+  // separate input, so this no-op-on-empty guard is no longer scoped to "just the timeline
+  // topbar" — it is this repo's only search-box behavior everywhere, matching Vue2 1:1 (Vue2
+  // likewise has only one search box, shared by both the library and search "views"). The old
+  // PhotosSearchBar path where an empty Enter emitted and returned the search page to its
+  // pre-search state is intentionally gone with the retirement — the D13-aligned outcome, not
+  // an accidental loss.
   it('空串 Enter → 不 emit search-submit(ledger-六-2,照 Vue2 submitSearch 空串守卫)', async () => {
     const w = mountTopbar()
     await w.get('.search input').trigger('keydown.enter')

@@ -23,12 +23,23 @@
 // timeline.ts:131-145),不随 Photos.vue 自己的 tab/EXIF 筛选变化,toLocaleString 千分位
 // 格式化(brief 明示)。
 //
-// 搜索 submit 语义(fix round 1 · Important,owner 裁决 ledger-六-2):空串 Enter = 无动作,
-// 照 Vue2 自己的 submitSearch(:65-69)语义——trim 后为空直接 return,不 emit。
-// 第一版曾照搬 PhotosSearchBar.vue"空串也 emit"的约定(结构规格 3),owner 裁决 ledger-六-2
-// 把"时间线顶栏空串 Enter 不动作"列为要清的债、覆盖那条约定——但只覆盖**这个顶栏**,
-// PhotosSearchBar.vue 自己（PhotosSearch.vue 独立搜索页用的那个框）的"空串也 emit"仍然
-// 有效、不受本次裁决影响,两者是不同范围、故意留出的不同行为,不是漏改。
+// Search submit semantics (fix round 1 · Important, owner ruling ledger-六-2): empty Enter =
+// no-op, matching Vue2's own submitSearch (:65-69) — trim to empty, return, don't emit. The
+// first version of this component had copied the now-retired PhotosSearchBar.vue's own
+// "empty string also emits" convention (structural spec 3); owner ruling ledger-六-2
+// overrode that for the timeline topbar with "empty Enter here is a no-op" instead.
+//
+// Plan F Task 1 (2026-08-15) update: PhotosSearchBar.vue has since been retired outright (no
+// consumer left — grep-confirmed) and PhotosSearch.vue's own search page now shares THIS
+// exact topbar box (via the `query`/`search-submit` props below) instead of rendering its own
+// separate input. So the no-op-on-empty guard below is no longer scoped to "just the timeline
+// topbar" — it is now this repo's only search-box behavior, everywhere PhotosTopbar is used,
+// and it matches Vue2 1:1 (Vue2 likewise has only one search box, shared by both the library
+// and search "views", with this same empty-Enter no-op). One observable behavior change from
+// the retirement: PhotosSearchBar's old "empty string also emits" used to let an empty Enter
+// on the search page clear the query and fall back to the pre-search state; that specific path
+// is intentionally gone now — an empty Enter is simply a no-op everywhere, the D13-aligned
+// outcome, not an accidental loss.
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import PhotosIcon from './PhotosIcon.vue'
