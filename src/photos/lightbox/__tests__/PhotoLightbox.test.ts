@@ -6,6 +6,23 @@ import PhotoLightbox from '../PhotoLightbox.vue'
 // 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到,且 jsdom 不算级联)——
 // 同 P6b-T7 已落地的「先锚定规则体、再断言属性」体例。
 import LIGHTBOX_SRC from '../PhotoLightbox.vue?raw'
+// Plan F Task 5: the grid/chrome/crossfade rules these style assertions used to read straight
+// off this component's own scoped <style> were retired once the lightbox actually nests inside
+// `.photos-root` -- parity's own `.photos-root .lightbox`/`.lb-*` family now solely governs those
+// properties (see PhotoLightbox.vue's scoped-style retirement note). The assertions below that
+// cover retired rules are retargeted to read parity's source instead of the component's.
+// Read via node:fs rather than a Vite `?raw` import -- unlike this component's own `.vue?raw`
+// import above, Vite's CSS/SCSS handling intercepts `.scss?raw` before the raw-loader can return
+// it (empirically returns an empty string in this project's vitest setup), same reason every
+// other guard test that reads vue2-parity/*.scss (keyframes-guard.test.ts,
+// class-collision-guard.test.ts, photosOverlayZIndex.test.ts) already reads it via fs instead.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import { useLightbox } from '../useLightbox'
 import { usePhotosFavorites } from '../../stores/favorites'
 import type { Photo } from '../../util/assetToPhoto'
@@ -123,15 +140,19 @@ describe('PhotoLightbox 开合 + 标题/计数', () => {
 // areas "top top"/"main info"/"strip info"; "false" → single column). Style assertions read
 // the component's own source text (jsdom doesn't compute cascade), same idiom as the
 // "顶栏是不透明流内 chrome" block below.
-describe('PhotoLightbox 结构:容器 grid + data-info 契约(Plan F Task 3)', () => {
+describe('PhotoLightbox 结构:容器 grid + data-info 契约(Plan F Task 3, retargeted to parity in Task 5)', () => {
+  // Plan F Task 5: `.lightbox`/`[data-info]` no longer have local copies (retired -- see
+  // PhotoLightbox.vue's scoped-style header note); these read parity's `.photos-root`-scoped
+  // rules, which is what actually governs this component's layout now that it nests inside
+  // `.photos-root`.
   const rule = (selector: string): string => {
-    const m = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(LIGHTBOX_SRC)
+    const m = new RegExp(`${selector}\\s*\\{([^}]*)\\}`).exec(PARITY_SRC)
     expect(m, `找不到规则 ${selector}`).not.toBeNull()
     return m![1]
   }
 
   it('.lightbox 是 display:grid,行高 56px 1fr 88px,z-index 200', () => {
-    const body = rule('\\.lightbox')
+    const body = rule('\\.photos-root \\.lightbox')
     expect(body).toMatch(/display:\s*grid/)
     expect(body).toMatch(/grid-template-rows:\s*56px 1fr 88px/)
     expect(body).toMatch(/z-index:\s*200/)
@@ -139,13 +160,13 @@ describe('PhotoLightbox 结构:容器 grid + data-info 契约(Plan F Task 3)', (
   })
 
   it('data-info="true":两列(1fr 360px)+ 三区域命名(top top / main info / strip info)', () => {
-    const body = rule('\\.lightbox\\[data-info="true"\\]')
+    const body = rule('\\.photos-root \\.lightbox\\[data-info="true"\\]')
     expect(body).toMatch(/grid-template-columns:\s*1fr 360px/)
     expect(body).toMatch(/grid-template-areas:\s*"top top" "main info" "strip info"/)
   })
 
   it('data-info="false":单列 + 三区域各占一整行(top / main / strip)', () => {
-    const body = rule('\\.lightbox\\[data-info="false"\\]')
+    const body = rule('\\.photos-root \\.lightbox\\[data-info="false"\\]')
     expect(body).toMatch(/grid-template-columns:\s*1fr;/)
     expect(body).toMatch(/grid-template-areas:\s*"top" "main" "strip"/)
   })
@@ -244,7 +265,10 @@ describe('PhotoLightbox 切换动画:swap transition + navDir(Plan F Task 4)', (
   })
 
   it('.lightbox 引用全局 lb-in 入场动画(不重复定义 @keyframes,交给 keyframes-guard 把关)', () => {
-    const m = /\.lightbox\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    // Plan F Task 5: the local `.lightbox` rule (and its `animation` declaration) is retired --
+    // parity's own `.photos-root .lightbox` carries it now that the component nests inside
+    // `.photos-root`. Read parity's source instead.
+    const m = /\.photos-root \.lightbox\s*\{([^}]*)\}/.exec(PARITY_SRC)
     expect(m).not.toBeNull()
     expect(m![1]).toMatch(/animation:\s*lb-in 0\.22s ease-out/)
     // 只认真正的 @keyframes 声明(后面紧跟 `{`),不被本文件注释里提到"@keyframes lb-in"这个
@@ -253,7 +277,10 @@ describe('PhotoLightbox 切换动画:swap transition + navDir(Plan F Task 4)', (
   })
 
   it('.lb-media 是 position:absolute + inset:0(swap 过渡期间 enter/leave 两实例须重叠,不是纵向堆叠)', () => {
-    const m = /\.lb-media\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    // Plan F Task 5: the local `.lb-media` rule is retired -- byte-identical to parity's own
+    // `.photos-root .lb-media`, which now solely governs (see PhotoLightbox.vue's retirement
+    // note).
+    const m = /\.photos-root \.lb-media\s*\{([^}]*)\}/.exec(PARITY_SRC)
     expect(m).not.toBeNull()
     expect(m![1]).toMatch(/position:\s*absolute/)
     expect(m![1]).toMatch(/inset:\s*0/)
@@ -470,17 +497,20 @@ describe('PhotoLightbox chrome 自隐', () => {
   })
 })
 
-describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收要求)', () => {
-  // 样式断言:先锚定 .lb-top 规则体再断言属性(全文件级 toContain 是恒真的)。
+describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收要求;retargeted to parity in Task 5)', () => {
+  // Plan F Task 5: `.lb-top` no longer has a local copy (retired -- byte-duplicate of parity's
+  // `.photos-root .lb-top`, see PhotoLightbox.vue's scoped-style retirement note). These now read
+  // parity's rule, which is what actually governs the top bar's chrome now that the lightbox
+  // nests inside `.photos-root`.
   const topRule = (): string => {
-    const m = /\.lb-top\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
+    const m = /\.photos-root \.lb-top\s*\{([^}]*)\}/.exec(PARITY_SRC)
     expect(m).not.toBeNull()
     return m![1]
   }
 
-  it('实底 --popup-bg,不是渐变、不是绝对定位', () => {
+  it('实底 --lb-chrome,不是渐变、不是绝对定位', () => {
     const body = topRule()
-    expect(body).toMatch(/background:\s*var\(--popup-bg\)/)
+    expect(body).toMatch(/background:\s*var\(--lb-chrome\)/)
     expect(body).not.toMatch(/position:\s*absolute/)
     expect(body).not.toMatch(/linear-gradient/)
   })
@@ -492,14 +522,17 @@ describe('PhotoLightbox 顶栏是不透明流内 chrome(用户 2026-07-31 验收
   it('占据网格自己的一行(grid-area: top)并与舞台之间有分隔线(图片因此夹在上下两栏之间)', () => {
     const body = topRule()
     expect(body).toMatch(/grid-area:\s*top/)
-    expect(body).toMatch(/border-bottom:\s*1px solid var\(--card-border\)/)
+    expect(body).toMatch(/border-bottom:\s*1px solid var\(--line\)/)
   })
 
-  it('详情栏上边距不再为顶栏让位(64px → 16px,否则比同排舞台下沉一截)', () => {
-    // Plan F Task 3: PhotoInfoPanel's root renamed `.info-panel` → `.lb-info`.
-    const m = /:deep\(\.lb-info\)\s*\{([^}]*)\}/.exec(LIGHTBOX_SRC)
-    expect(m).not.toBeNull()
-    expect(m![1]).toMatch(/margin:\s*16px 16px 16px 0/)
+  it('详情栏不再靠本地 margin 为顶栏让位 —— Task 5 起改为紧贴网格区域的 flush 面板(同 parity)', () => {
+    // Plan F Task 5: the `:deep(.lb-info) { margin: 16px 16px 16px 0; }` override is retired --
+    // parity's own `.photos-root .lb-info` is a flush panel with no margin at all (Vue2's real
+    // lightbox never floats this panel either), and PhotoInfoPanel.vue's own "card look" is
+    // retired to match (see that file's Plan F Task 5 note). Assert the override rule is gone
+    // (not merely absent from prose -- the component's own retirement comment mentions the old
+    // selector by name), not that some byte-exact margin value survives.
+    expect(LIGHTBOX_SRC).not.toMatch(/:deep\(\.lb-info\)\s*\{/)
   })
 })
 
@@ -610,7 +643,7 @@ describe('PhotoLightbox 实况照片', () => {
     const w = mountLb()
     lb.openAt(makePhoto({ id: 'lp', title: 'Live', isLivePhoto: true, livePhotoVideoId: 'lpv' }), [])
     await nextTick()
-    const badge = w.find('.lb-live-badge')
+    const badge = w.find('.lb-live-btn') // Plan F Task 5: renamed to avoid parity's own unrelated `.lb-live-badge` rule
     expect(badge.exists()).toBe(true)
     expect(badge.text()).toContain('实况')
     expect(w.find('video.lb-live-video').exists()).toBe(false)

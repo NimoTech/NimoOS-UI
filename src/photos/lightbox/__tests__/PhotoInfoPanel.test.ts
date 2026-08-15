@@ -7,6 +7,20 @@ import PhotoInfoPanel from '../PhotoInfoPanel.vue'
 // 样式断言读组件源文本(scoped <style> 的声明在 jsdom 里拿不到)——同 P6b-T7 的
 // 「先锚定规则体、再断言属性」体例。
 import PANEL_SRC from '../PhotoInfoPanel.vue?raw'
+// Plan F Task 5: `.lb-info`'s `grid-area`/`.map-mini`'s `height` no longer have local copies
+// (retired -- both were byte-duplicates of parity's own `.photos-root .lb-info`/`.map-mini`, see
+// PhotoInfoPanel.vue's scoped-style retirement note). Read parity's source instead now that it's
+// what actually governs.
+// Read via node:fs rather than a Vite `?raw` import -- Vite's CSS/SCSS handling intercepts
+// `.scss?raw` before the raw-loader can return it (empirically empty in this project's vitest
+// setup); every other guard test reading vue2-parity/*.scss uses fs for the same reason.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import { osmEmbedSrc } from '../util/osmMap'
 import { usePhotosPeople } from '../../stores/people'
 import type { Photo } from '../../util/assetToPhoto'
@@ -105,7 +119,11 @@ describe('PhotoInfoPanel', () => {
 
   // Plan F Task 3: root class renamed from the invented `.info-panel` to parity's real anchor
   // `.lb-info` (grid-area: info), and `.map-mini`'s height corrected to parity's 132px.
-  describe('结构:.lb-info 锚点 + grid-area(Plan F Task 3)', () => {
+  // Plan F Task 5: both style assertions below are retargeted to parity's source -- `grid-area`/
+  // `height` no longer have local copies (retired as byte-duplicates, see PhotoInfoPanel.vue's
+  // scoped-style retirement note); parity's `.photos-root .lb-info`/`.photos-root .map-mini`
+  // solely govern now that this component nests inside `.photos-root`.
+  describe('结构:.lb-info 锚点 + grid-area(Plan F Task 3, retargeted to parity in Task 5)', () => {
     it('根元素渲染为 .lb-info(不是旧的 .info-panel)', () => {
       const w = mountPanel(makePhoto())
       expect(w.find('.lb-info').exists()).toBe(true)
@@ -113,13 +131,13 @@ describe('PhotoInfoPanel', () => {
     })
 
     it('.lb-info 规则里带 grid-area: info(作为 PhotoLightbox 网格的直接子元素)', () => {
-      const m = /\.lb-info\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      const m = /\.photos-root \.lb-info\s*\{([^}]*)\}/.exec(PARITY_SRC)
       expect(m).not.toBeNull()
       expect(m![1]).toMatch(/grid-area:\s*info/)
     })
 
     it('.map-mini 高度对齐 Vue2/parity 的 132px(此前是 140px)', () => {
-      const m = /\.map-mini\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      const m = /\.photos-root \.map-mini\s*\{([^}]*)\}/.exec(PARITY_SRC)
       expect(m).not.toBeNull()
       expect(m![1]).toMatch(/height:\s*132px/)
     })

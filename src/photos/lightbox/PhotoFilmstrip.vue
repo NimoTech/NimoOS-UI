@@ -143,63 +143,34 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Plan F Task 3: this root is now a direct grid child of PhotoLightbox's `.lightbox` grid
-   (grid-area: strip), not a flex-column flow item -- see PhotoLightbox.vue's scoped-style
-   header comment for the removed `.lb-body` wrapper and the grid rewrite. */
-/* Fix round 1 (review): gap/padding/background/border-top corrected to parity's exact values
-   (parity photos.scss:640-646 `.photos-root .lb-strip`) -- gap 8px->4px, padding
-   `10px 16px`->`12px calc(50% - 28px)`, and background/border-top were missing entirely
-   (this row rendered fully transparent, blending into `.lightbox`'s own `--app-bg`). The
-   `calc(50% - 28px)` horizontal padding is load-bearing, not cosmetic: it's what lets
-   `centerActiveThumb()` scroll the active thumbnail to true viewport-center (half the strip's
-   own thumb width, 56px/2=28px, subtracted so the *edge* of the outermost thumbs can still
-   reach dead-center) -- `10px 16px` never gave a centered thumb enough room to scroll to the
-   middle of the strip. `--lb-chrome`/`--line` are parity-scoped tokens (defined only inside
-   `.photos-root` in vue2-parity/photos.scss) that don't resolve while this component renders
-   outside `.photos-root` (interim skeleton, see PhotoLightbox.vue's scoped-style header
-   comment) -- literal dark-theme fallbacks are used per the same interim pattern already
-   established elsewhere in this file, values taken from Vue2 photos.scss's dark block:
-   `--lb-chrome` is black at 60% opacity (line 59), `--line` is white at 6% opacity (line 19,
-   `--ink` resolves to plain white in the dark block). Once Task 5 re-nests the lightbox
-   inside `.photos-root`, the real tokens take over and these fallbacks become moot. */
+/* Plan F Task 5: `.lb-strip`'s `grid-area`/`display`/`gap`/`padding`/`background`/`border-top`/
+   `overflow-x` are retired -- Fix round 1 had already brought every one of these to byte-exact
+   parity values (parity photos.scss:648-654 `.photos-root .lb-strip`; `calc(50% - 28px)` is
+   `centerActiveThumb()`'s own load-bearing centering math, unchanged, just no longer duplicated
+   locally), so keeping the local copies was pure duplication once this component actually nests
+   inside `.photos-root` and the `--lb-chrome`/`--line` tokens resolve for real (their fallback
+   literals are dropped along with the rest -- see PhotoLightbox.vue's retirement note for why
+   duplicated properties, not just fallback literals, needed to go: this component's own scoped
+   style registers AFTER parity's stylesheet in every host page's import order, so a surviving
+   duplicate would keep outvoting parity on every tie). Only the two properties parity's own
+   `.lb-strip` doesn't declare survive: `overflow-y: hidden` and `scrollbar-width: none`
+   (Firefox's scrollbar-hiding property; parity's own `::-webkit-scrollbar` rule below only
+   covers WebKit). */
 .lb-strip {
-  grid-area: strip;
-  display: flex;
-  gap: 4px;
-  padding: 12px calc(50% - 28px);
-  background: var(--lb-chrome, rgba(0, 0, 0, 0.6));
-  border-top: 1px solid var(--line, rgba(255, 255, 255, 0.06));
-  overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
 }
-.lb-strip::-webkit-scrollbar { display: none; }
+/* `::-webkit-scrollbar` retired -- parity's own `.photos-root .lb-strip::-webkit-scrollbar`
+   (`height: 0`) achieves the identical "no visible scrollbar" outcome by a different property;
+   no need for both. */
 
-.lb-thumb {
-  position: relative;
-  flex: none;
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  border: 2px solid transparent;
-  opacity: 0.6;
-}
-.lb-thumb:hover { opacity: 0.85; }
-/* Plan F Task 3: renamed from the boolean `.active` class to parity's real anchor
-   `[data-active="true"]` (Vue2 PhotosLightbox.vue:171, parity photos.scss:668-676). */
-.lb-thumb[data-active="true"] {
-  border-color: var(--accent);
-  opacity: 1;
-}
-.lb-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  pointer-events: none;
-}
+/* Plan F Task 5: the whole `.lb-thumb` family (base/`:hover`/`[data-active="true"]`/`img`) is
+   retired -- parity's own `.photos-root .lb-thumb` family (photos.scss:656-684) is a full,
+   richer replacement (56px thumbs, not 64px -- `.lb-strip`'s `calc(50% - 28px)` centering math
+   above assumes parity's own 56px/2=28px, so the local 64px size was already stale the moment
+   Fix round 1 byte-matched the strip's own padding; an outline+scale-pop active state instead of
+   a border-color swap; `will-change`/richer transitions). Nothing here survives that parity
+   doesn't already implement more completely. */
 
 .thumb-vid {
   position: absolute;

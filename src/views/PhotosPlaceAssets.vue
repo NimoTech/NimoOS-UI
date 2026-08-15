@@ -45,10 +45,9 @@
 // here at all). `sub=""` is PhotosTopbar's explicit opt-out for exactly this case (see that
 // component's own fix-round comment) — it renders no `.topbar-sub` node. No `back` (Plan D ruling: back
 // affordances don't go in the topbar — this page's own breadcrumb already carries that
-// affordance, see `showWholeCity`/the `.place-crumb` markup below). PhotoLightbox stays exactly
-// where it was: a template-root sibling of the shell, outside `.photos-root` entirely — this
-// app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows the
-// same rule).
+// affordance, see `showWholeCity`/the `.place-crumb` markup below). PhotoLightbox re-nested in
+// Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded
+// against (see the mount site near this file's template root for the full note).
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -270,14 +269,10 @@ function retry(): void {
         </div>
       </main>
     </div>
-  </div>
 
-  <!-- Task 1 (Plan E re-shell): PhotoLightbox stays exactly where it was — a template-root
-       sibling of the shell, outside `.photos-root` entirely (position:fixed, avoids being
-       clipped by an ancestor's transform/overflow, same PhotosPersonDetail.vue:708-710
-       precedent) — this app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's
-       own lightbox follows the same rule). -->
-  <PhotoLightbox />
+    <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
+    <PhotoLightbox />
+  </div>
 </template>
 
 <style scoped>

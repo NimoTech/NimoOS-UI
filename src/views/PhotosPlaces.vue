@@ -39,9 +39,9 @@
 // topbar), no Ask Nimo button (Vue2's own, registered as a Plan G input, not built here).
 // PlacesFilterMenu/PlacesThemeMenu were already rendered in-tree (inside the old
 // `.photos-layout` subtree) — they stay exactly where they are, now inside `.photos-main`.
-// PhotoLightbox stays exactly where it was: a template-root sibling of the shell, outside
-// `.photos-root` entirely — this app's standing exception (same rule PhotosPeople.vue/
-// PhotosPersonDetail.vue's own lightbox follows). PlaceCoverPicker is still declared here as
+// PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade
+// tie that F8-r4 guarded against (see the mount site near this file's template root for the full
+// note). PlaceCoverPicker is still declared here as
 // a template-root sibling too, but as of Task 2 (Plan E) it Teleports its own content to
 // `document.body` internally and re-applies `photos-root` + themeClass to its own portal
 // root (Vue2 PhotosPlacesView.vue :1338 semantics) — this container no longer needs to do
@@ -570,17 +570,17 @@ async function retryLoad(): Promise<void> {
         </div>
       </main>
     </div>
+
+    <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
+    <PhotoLightbox />
   </div>
 
-  <!-- Task 1 (Plan E re-shell): PlaceCoverPicker/PhotoLightbox stay declared here as
-       template-root siblings of the shell, outside `.photos-root` entirely (position:fixed,
-       avoids being clipped by an ancestor's transform/overflow, same
-       PhotosPersonDetail.vue:708-710 precedent). PhotoLightbox outside `.photos-root` is this
-       app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows
-       the same rule). PlaceCoverPicker (Task 2, Plan E) now Teleports its own content to
-       `document.body` internally, so its actual rendered DOM lives outside this template
-       entirely regardless of where it's declared — this component-tree position only matters
-       for props/emits wiring. -->
+  <!-- Task 1 (Plan E re-shell): PlaceCoverPicker stays declared here as a template-root sibling
+       of the shell, outside `.photos-root` entirely (position:fixed, avoids being clipped by an
+       ancestor's transform/overflow, same PhotosPersonDetail.vue:708-710 precedent). It now
+       Teleports its own content to `document.body` internally (Task 2, Plan E), so its actual
+       rendered DOM lives outside this template entirely regardless of where it's declared —
+       this component-tree position only matters for props/emits wiring. -->
   <PlaceCoverPicker
     :open="coverOpen"
     :city="activePlace?.city ?? ''"
@@ -598,7 +598,6 @@ async function retryLoad(): Promise<void> {
     @pick="onPickCover"
     @reset="onResetCover"
   />
-  <PhotoLightbox />
 </template>
 
 <style scoped>

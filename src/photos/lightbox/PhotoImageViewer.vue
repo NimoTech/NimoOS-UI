@@ -256,37 +256,14 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   /* 勿加 will-change: transform —— 大图被固定成合成层后,缩放只拉伸旧瓦片不重绘,
      瓦片接缝会在照片上显出白色网格细线(真机截图实证过);去掉后缩放会触发重绘,无缝。 */
 }
-/* overlay 绑定与 img 完全相同的 imgStyle(transform 一致),二者共享同一未变换前的
-   包围盒(均为 .img-wrap 的 inset:0),因此缩放/平移/旋转时视觉上严丝合缝同步移动。
-   Plan F Task 3: renamed from `.ocr-overlay`/`.ocr-hit` to parity's anchors
-   `.lb-ocr-overlay`/`.lb-ocr-hit` (see template comment). */
-.lb-ocr-overlay {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-/* Plan F Task 4: byte-exact per Vue2 (photos.scss:500-510) + parity's own scoped copy
-   (`.photos-root .lb-ocr-hit`, photos.scss:616-622) -- these values replace the earlier
-   accent-token approximation now that this task brought the real Vue2 numbers into scope.
-   `border` dropped entirely (Vue2 has none; the earlier `--accent` border was this component's
-   own invention, superseded below by the two-layer box-shadow ring, which IS how Vue2 draws the
-   outline). Interim-scoping note: parity's own rule is `.photos-root`-scoped and doesn't reach
-   this component yet (Task 5's job), but the `lb-ocr-pulse` keyframes it references are a bare,
-   top-level construct -- keyframes can't be selector-scoped -- already loaded on every host page
-   (see PhotoLightbox.vue's `.lightbox` animation comment for the same reasoning), so referencing
-   it here by name is safe today; only the surrounding property values needed local duplication.
-   theme-exception: this highlighter color is a fixed, skin-invariant literal in Vue2 itself (one
-   rule, no light/dark split) -- not a themeable app surface, so a literal value is correct here
-   rather than `var(--token)`, same precedent as PhotoFilmstrip.vue's `.thumb-vid` chrome badge. */
-.lb-ocr-hit {
-  position: absolute;
-  box-sizing: border-box;
-  border-radius: 4px;
-  /* theme-exception: see the full explanation in this rule's header comment above -- fixed,
-     skin-invariant highlighter literal, not a themeable surface. */
-  background: rgba(255, 214, 10, 0.30); box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.85), 0 0 12px rgba(255, 214, 10, 0.55);
-  animation: lb-ocr-pulse 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
-}
+/* Plan F Task 5: `.lb-ocr-overlay`/`.lb-ocr-hit` are retired -- both were byte-exact duplicates
+   of parity's own `.photos-root .lb-ocr-overlay`/`.photos-root .lb-ocr-hit` (photos.scss:612-
+   626), property-for-property (including the `lb-ocr-pulse` keyframe reference, a bare top-level
+   construct that was already reachable from this component regardless of nesting -- see
+   PhotoLightbox.vue's own retirement note for the same reasoning about `lb-in`). Now that this
+   component actually renders inside `.photos-root`, parity's copies alone govern; keeping the
+   local duplicates would only be the identical same-specificity tie flagged across this whole
+   file family. */
 .img-toolbar {
   position: absolute;
   bottom: 40px;

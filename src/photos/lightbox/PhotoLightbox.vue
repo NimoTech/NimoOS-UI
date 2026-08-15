@@ -15,15 +15,15 @@
 // 根(重命名为 `.lb-info`)、PhotoFilmstrip 根(`.lb-strip`,类名本就已对齐)三者都改成
 // `.lightbox` 的直接子元素,靠各自的 `grid-area` 认领网格区域,不再靠 DOM 嵌套关系摆位。
 //
-// 【暂存可渲染性决策】本任务 DO NOT 把灯箱挪进 `.photos-root`(Task 5 的活)——那意味着
-// parity 全局的 `.photos-root .lightbox`/`.lb-*` 规则族(photos.scss:564-793)此刻依旧对
-// 本组件不生效(Fix-8 round 4 的教训:见 Photos.lightbox.test.ts/PhotosAlbumDetail.test.ts
-// 里 "renders OUTSIDE .photos-root" 的用例与其详尽注释)。若只改类名、不提供等价的本地
-// scoped CSS,组件在真机上会在 Task 5 落地前变成裸网格/无样式的一段时间。因此这里选择
-// "最小暂存骨架"策略:本文件(以及 PhotoInfoPanel.vue/PhotoFilmstrip.vue)各自的 scoped
-// style 块里维护一份对齐 parity 结构的网格/定位规则,值上尽量复用已有 New-UI token
-// 与既有视觉(非 Vue2 的原始色值),直到 Task 5 把整个组件重新挂进 `.photos-root`、
-// parity 的全局规则真正接管为止 —— 届时这里的本地骨架规则应当被评估/精简掉。
+// 【暂存可渲染性决策,已于 Task 5 收尾】Task 3 曾选择"最小暂存骨架"策略——本文件(以及
+// PhotoInfoPanel.vue/PhotoFilmstrip.vue)各自维护一份对齐 parity 结构的网格/定位规则,值上
+// 尽量复用已有 New-UI token 与既有视觉,直到灯箱重新挂进 `.photos-root`、parity 的全局规则
+// 真正接管为止。Plan F Task 5(2026-08-15)已把灯箱在全部 9 个宿主页里回迁进 `.photos-root`
+// 内(见各页面挂载点的注释与 task-5-report.md),该骨架已按此收尾:凡本地规则与 parity 同名
+// 规则完整覆盖同一批属性的,一律删除(避免 F8-r4 警告过的同特异性平局——本组件 scoped 样式
+// 在当前每个宿主页的 import 顺序下实测排在 parity 样式表之后注入,平局时本地规则会一直赢,
+// 悄悄架空 parity、违背回迁的初衷);仅保留 parity 未覆盖的属性/规则(见下方样式块各处
+// 注释)。
 //
 // Plan F Task 4 (2026-08-15,灯箱动画 frame-exact):`.lb-media` 现在包一层
 // `<transition :name="'lb-swap-' + navDir">`(navDir 见下方 script),byte-exact 复刻 Vue2 的
@@ -268,10 +268,10 @@ onBeforeUnmount(() => {
            it already wrapped in Vue2). Params (opacity 0.32s / transform 0.42s,
            cubic-bezier(0.22, 0.61, 0.36, 1), translateX ±36px, scale 0.97) live in parity's own
            bare `.lb-swap-*` rules (photos.scss:627-637) -- "bare" as in NOT `.photos-root`-scoped,
-           unlike most of that file's rules, so they're already live on every page that mounts
-           this component regardless of the "not yet inside .photos-root" interim state (see
-           this file's scoped-style header comment for the one naming gap that still needed a
-           local shim: Vue3 renamed the bare `-enter` class to `-enter-from`). navDir is computed in
+           unlike most of that file's rules, so they were already live on every page that mounts
+           this component even before Task 5 nested it inside `.photos-root` (see this file's
+           scoped-style header comment for the one naming gap that still needed a local shim:
+           Vue3 renamed the bare `-enter` class to `-enter-from`). navDir is computed in
            the script above (watch on lb.index, mirroring Vue2's idx-vs-_lastIdx comparison). -->
       <transition :name="'lb-swap-' + navDir">
         <div class="lb-media" :key="String(lb.current.value?.id ?? '')">
@@ -306,8 +306,10 @@ onBeforeUnmount(() => {
               muted
               playsinline
             ></video>
+            <!-- Plan F Task 5: renamed from `.lb-live-badge` -- see this file's scoped-style
+                 `.lb-live-btn` comment for why the name had to change once nested. -->
             <button
-              class="lb-live-badge"
+              class="lb-live-btn"
               type="button"
               @pointerdown="liveStart"
               @pointerup="liveStop"
@@ -387,66 +389,26 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* Plan F Task 3: `display: flex; flex-direction: column` replaced with a CSS Grid whose rows/
-   columns/areas mirror Vue2/parity exactly (parity photos.scss:564-578). z-index bumped
-   100→200 to match this component's own pre-existing value (see the deviation comment on
-   parity's `.photos-root .lightbox` rule for the other side of this same change) -- both sides
-   of the z ruling now agree, and photosOverlayZIndex.test.ts's floor check (>= 100) still
-   holds for either value.
-   Interim-renderability note: this local grid is a deliberate, temporary skeleton -- the
-   lightbox does not render inside `.photos-root` yet (Task 5's job), so parity's own
-   `.photos-root .lightbox`/`.lb-*` global rules do not reach this component at runtime. The
-   rules below exist so the component keeps rendering correctly on its own in the interim;
-   they should be re-evaluated for removal once Task 5 re-nests it and those global rules take
-   over for real. */
-.lightbox {
-  position: fixed;
-  inset: 0;
-  z-index: 200;
-  background: var(--app-bg);
-  display: grid;
-  grid-template-rows: 56px 1fr 88px;
-  /* Plan F Task 4: container entrance, byte-exact per Vue2/parity (`.photos-root .lightbox`,
-     photos.scss:572-577: `animation: lb-in 0.22s ease-out`). Only referencing the name here,
-     NOT redefining `@keyframes lb-in` -- keyframes-guard (src/styles/keyframes-guard.test.ts)
-     forbids a same-named duplicate across unscoped sources. This is safe without any interim
-     duplicate: `@keyframes` are top-level constructs that can't be nested under a selector, so
-     `lb-in`'s definition (photos.scss:587) is never actually `.photos-root`-scoped regardless of
-     which *rule* references it -- it's already loaded and resolvable on every page that mounts
-     this component (all 8 host pages `import '../photos/styles/vue2-parity'`), independent of
-     whether this element itself renders inside `.photos-root` yet (Task 5's job). Only parity's
-     *rule* assigning the animation to `.lightbox` is `.photos-root`-scoped and doesn't reach this
-     component yet -- hence this local line. */
-  animation: lb-in 0.22s ease-out;
-}
-.lightbox[data-info="true"] {
-  grid-template-columns: 1fr 360px;
-  grid-template-areas: "top top" "main info" "strip info";
-}
-.lightbox[data-info="false"] {
-  grid-template-columns: 1fr;
-  grid-template-areas: "top" "main" "strip";
-}
-/* 用户 2026-07-31 验收要求:顶栏改成不透明的流内 chrome(原先是 position:absolute + 从黑到
-   透明的渐变,盖在舞台上,图片会钻到它底下)。改成网格区域后顶栏占满 grid-template-rows
-   的第一行(56px,同 parity),图片就夹在两栏中间;底色用实底 --popup-bg 后,栏内文字/
-   图标压的是主题面而不是照片,原先那条「固定暗化保对比度」的 theme-exception 一并作废。 */
-.lb-top {
-  grid-area: top;
-  z-index: 3;
-  display: flex;
-  align-items: center;
-  /* Fix round 1 (review): gap corrected from 8px to parity's 12px
-     (parity photos.scss:582, `.photos-root .lb-top`'s own gap) -- an undisclosed value drift
-     caught in review; not previously registered as a deviation because it was simply wrong,
-     not an intentional choice. */
-  gap: 12px;
-  padding: 0 16px;
-  background: var(--popup-bg);
-  border-bottom: 1px solid var(--card-border);
-}
+/* Plan F Task 5 (2026-08-15, lightbox re-nested inside `.photos-root`): the interim grid/chrome/
+   confirm-dialog skeleton Task 3/4 kept here -- byte-mirroring parity so this component stayed
+   renderable standalone before it actually lived inside `.photos-root` -- is retired below. Every
+   rule removed had a parity counterpart (`.photos-root .lightbox`/`.lb-*`/`.lb-confirm` family,
+   vue2-parity/photos.scss:564-793) that already covers every property it declared; keeping a
+   local duplicate would only recreate the exact same-specificity cascade tie F8-r4 warned
+   against -- and this component's own scoped `<style>` is registered via its SFC import, which in
+   every host page's current import order lands AFTER the `vue2-parity` stylesheet import, so a
+   surviving local duplicate would silently keep outvoting parity on every tie, defeating the
+   whole point of nesting. z-index/animation: parity's own `.photos-root .lightbox` already
+   carries `z-index: 200` (bumped to match this component's pre-existing value, see that rule's
+   own deviation comment) and `animation: lb-in 0.22s ease-out` -- neither needs a local copy any
+   more. photosOverlayZIndex.test.ts's "`.lightbox` (component-scoped)" entry is retargeted to
+   drop the now-removed rule (see that test file's own Plan F Task 5 comment).
+   Only rules with NO parity counterpart, or properties parity doesn't touch, remain below. */
 .lb-titlebox { display: flex; flex-direction: column; min-width: 0; }
-.lb-title { font-size: 14px; font-weight: 600; color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* font-size/font-weight/color now come solely from parity's `.photos-root .lb-title`
+   (13px/500/var(--text-1)); only the truncation behaviour survives locally -- parity's own title
+   isn't wrapped in a fixed-width flex box like `.lb-titlebox` and has no overflow to guard. */
+.lb-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .lb-sub { font-size: 12px; color: var(--fg-muted); }
 .lb-spacer { flex: 1; }
 .lb-icon-btn {
@@ -467,34 +429,11 @@ onBeforeUnmount(() => {
 .lb-info-toggle.active { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); color: var(--accent); }
 .lb-icon-btn.danger:hover { color: var(--remove-fg, #ff5d5d); }
 
-/* Plan F Task 3: `.lb-body` (the flex-row wrapper that used to pair `.lb-stage` with
-   PhotoInfoPanel) is deleted -- `.lb-main` (renamed from `.lb-stage`) now claims its own
-   `grid-area: main` directly on `.lightbox`'s grid, a sibling of `.lb-top`/`.lb-info`/
-   `.lb-strip` rather than a nested flex child. */
-.lb-main {
-  grid-area: main;
-  position: relative;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
-}
-/* Plan F Task 4: position:relative + width/height:100% -> position:absolute + inset:0, matching
-   parity's own `.photos-root .lb-media` exactly (photos.scss:607-611). Load-bearing, not a
-   cosmetic value pick: `.lb-main`'s grid (display:grid; place-items:center, no own row/column
-   template) auto-places each child into successive implicit rows by default -- with `.lb-media`
-   merely `position:relative`, the outgoing and incoming instances that briefly coexist during
-   the swap transition's enter/leave overlap (see the <transition> above; no `mode` is set, same
-   as Vue2, so both run concurrently) would stack one above the other instead of crossfading in
-   the same spot. Absolute positioning inside `.lb-main` (already `position: relative`, see that
-   rule above) makes every coexisting instance occupy the exact same box regardless of how many
-   siblings exist at once -- the whole point of a crossfade transition. */
-.lb-media {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* `.lb-main`/`.lb-media` are byte-identical to parity's own `.photos-root .lb-main`/
+   `.photos-root .lb-media` (grid-area:main+position:relative+display:grid+place-items:center+
+   overflow:hidden, and position:absolute+inset:0+display:flex+align-items+justify-content for
+   the crossfade layer respectively -- parity additionally sets `will-change` on both) -- both
+   local copies are retired, parity's alone now governs. */
 /* Plan F Task 4: Vue3 renamed Vue2's bare `-enter` transition class to `-enter-from` (`-leave-to`
    kept its name in both) -- same C7 precedent as SearchSaveSmartView.vue's
    `.save-pop-enter-from,.save-pop-leave-to` local shim. Parity's own `.lb-swap-next-enter`/
@@ -519,13 +458,18 @@ onBeforeUnmount(() => {
   pointer-events: none;
   z-index: 2;
 }
-/* Deviation (value, parity wins): position moved from bottom-right to top-left, matching both
-   Vue2 (photos.scss:879-889 in NimoOS-UI, the same rule's origin) and parity's own copy
-   (photos.scss:987-1001) -- both place this badge at `top: 12px; left: 12px`. This component's
-   Live Photo feature is itself a net addition (Vue2's real lightbox never renders this badge --
-   confirmed empty template search), but since the rule already exists under this exact name in
-   both ground-truth sources, its position is corrected here rather than left diverging. */
-.lb-live-badge {
+/* Plan F Task 5: renamed from `.lb-live-badge` to `.lb-live-btn` to break a genuine class-name
+   collision with parity's OWN, unrelated `.photos-root .lb-live-badge` rule (photos.scss:995-
+   1009) -- that rule styles a different, non-interactive "LIVE" indicator (Vue2's real lightbox
+   never renders this badge at all, confirmed empty template search; this component's Live Photo
+   press-and-hold feature is a net addition). Sharing the name was harmless while this component
+   rendered outside `.photos-root` (parity's rule couldn't reach it, see the pre-Task-5 deviation
+   note this comment replaces -- position `top: 12px; left: 12px` already matched both ground-
+   truth sources even then). Nesting would make both rules match the exact same class, and
+   parity's copy sets `pointer-events: none` -- which would silently kill this button's press-and-
+   hold interaction if it ever won the cascade tie. Renaming removes the ambiguity outright
+   instead of fighting over specificity. */
+.lb-live-btn {
   position: absolute;
   top: 12px;
   left: 12px;
@@ -545,87 +489,33 @@ onBeforeUnmount(() => {
   touch-action: none;
 }
 
-.lb-nav {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 3;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 999px;
-  color: var(--fg);
-  background: var(--popup-bg, rgba(0, 0, 0, 0.4));
-  backdrop-filter: var(--blur);
-  cursor: pointer;
-}
-.lb-nav:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.16)); }
+/* `.lb-nav`'s shape/position/color/backdrop/:hover are now byte-owned by parity's own
+   `.photos-root .lb-nav` family (photos.scss:638-647); only the two properties parity doesn't
+   declare survive locally -- the stacking order above the media layer and an explicit pointer
+   cursor (some UA button resets default to `cursor: default`). `[data-side="prev"|"next"]`'s
+   `left`/`right: 16px` is also a byte-exact parity duplicate, retired the same way. */
+.lb-nav { z-index: 3; cursor: pointer; }
 .lb-nav:disabled { opacity: 0.35; cursor: default; }
-/* Plan F Task 3: renamed from `.lb-nav-prev`/`.lb-nav-next` modifier classes to parity's real
-   anchor attribute `[data-side="prev"|"next"]` (see template comment). */
-.lb-nav[data-side="prev"] { left: 16px; }
-.lb-nav[data-side="next"] { right: 16px; }
 
-/* PhotoInfoPanel(T7)自带定位/尺寸/配色样式(现为 `.lb-info`),这里只管它在灯箱内的外
-   边距,不重复定义外观。上边距原为 64px —— 那是给绝对定位的顶栏让位;顶栏 2026-07-31 改成
-   流内 chrome 后不再需要让位,四边统一 16px,否则详情栏会比同排的舞台整体下沉一截。
-   Plan F Task 3: selector renamed from `:deep(.info-panel)` to `:deep(.lb-info)` (PhotoInfoPanel
-   root rename, see that file). */
-:deep(.lb-info) { margin: 16px 16px 16px 0; }
+/* The `:deep(.lb-info)` margin override (previously `margin: 16px 16px 16px 0`) is retired -- it
+   was a New-UI-only inset around an otherwise self-contained "card" look (see PhotoInfoPanel.vue's
+   own Plan F Task 5 note for that card look being retired too), diverging from parity's flush
+   panel (`.photos-root .lb-info` sits flush in its grid cell, no margin at all -- Vue2's real
+   lightbox never floats this panel). Now that both sides agree on a flush panel, no local margin
+   override is needed. */
 
-.lb-confirm-scrim {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--scrim, rgba(0, 0, 0, 0.55));
-  /* theme-exception: 模态遮罩暗化层,皮肤无关 */
-}
-.lb-confirm {
-  width: 340px;
-  max-width: 90vw;
-  padding: 22px;
-  border-radius: 16px;
-  /* 用 --popup-bg(不透明弹层色:深色主题深蓝玻璃 0.9/0.95、浅色主题实心白),
-     不用 --card-bg —— 后者深色下是近透明白玻璃(alpha 0.085~0.26),叠在灯箱暗底上
-     会看穿(真机验收反馈:删除弹窗"透明")。两套主题各自不同的实底色。 */
-  background: var(--popup-bg);
-  border: 1px solid var(--border);
-  color: var(--fg);
-  box-shadow: var(--media-overlay-shadow, 0 12px 40px rgba(0, 0, 0, 0.4));
-}
-/* Plan F Task 3: `.lb-confirm-icon` added back (Vue2 PhotosLightbox.vue:154, dropped when this
-   dialog was first built without it). Sized/spaced like the sibling copies of this exact dialog
-   already on PhotosMomentDetail.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue. */
-.lb-confirm-icon { margin-bottom: 10px; }
-.lb-confirm-title { font-size: 16px; font-weight: 600; }
-.lb-confirm-body { margin-top: 8px; font-size: 13px; color: var(--fg-muted); line-height: 1.5; }
-.lb-confirm-foot { margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px; }
-/* Plan F Task 3: renamed from the invented `.lb-confirm-cancel`/`.lb-confirm-ok.danger` to the
-   `.trash-btn-ghost`/`.trash-btn-cta`(+`.trash-btn-cta-danger`) family Vue2 actually uses
-   (PhotosLightbox.vue:158-161, parity photos.scss:737-783) and that this app's own sibling
-   Photos pages already standardized on for their own copies of this same dialog (see template
-   comment) -- this was the one remaining un-migrated copy. Values kept as they were under the
-   old names (interim skeleton, see this file's scoped-style header note), only the selectors moved. */
-.trash-btn-ghost,
-.trash-btn-cta {
-  padding: 8px 16px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font-size: 13px;
-  cursor: pointer;
-}
-.trash-btn-ghost:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.1)); }
-.trash-btn-cta-danger {
-  border-color: color-mix(in srgb, var(--remove-fg, #ff5d5d) 45%, transparent);
-  color: var(--remove-fg, #ff5d5d);
-}
-.trash-btn-cta-danger:hover { background: color-mix(in srgb, var(--remove-fg, #ff5d5d) 20%, transparent); }
+/* `.lb-confirm-scrim`/`.lb-confirm`/`.lb-confirm-icon`/`.lb-confirm-title`/`.lb-confirm-foot` and
+   the whole `.trash-btn-ghost`/`.trash-btn-cta`/`.trash-btn-cta-danger` family are retired --
+   parity's own nested `.photos-root .lb-confirm { … }` (photos.scss:730-793) already implements
+   every one of these under the exact same selectors, including the `.trash-btn-*` button family
+   this dialog adopted in Task 3. The deeply-nested ones (`.lb-confirm-icon`/`-title`/`-foot`/
+   `.trash-btn-*`, each an extra SCSS nesting level under `.lb-confirm`) compile to MORE classes
+   than this component's scoped copies and were always going to win outright, no tie involved;
+   `.lb-confirm-scrim`/`.lb-confirm` themselves tie at equal specificity with the local scoped
+   rule (both two classes) -- the same import-order hazard as everything else retired in this
+   file, resolved the same way: delete the local duplicate so there's nothing left to tie with.
+   `.lb-confirm-body` keeps the two properties parity doesn't declare (`margin-top`/`line-height`;
+   parity uses `margin-bottom` on the same element instead, a different property, so no conflict
+   and no double-spacing). */
+.lb-confirm-body { margin-top: 8px; line-height: 1.5; }
 </style>

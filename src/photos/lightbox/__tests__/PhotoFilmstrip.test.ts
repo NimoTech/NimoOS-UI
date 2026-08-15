@@ -2,9 +2,19 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { nextTick } from 'vue'
 import { mount, type VueWrapper } from '@vue/test-utils'
 import PhotoFilmstrip from '../PhotoFilmstrip.vue'
-// Plan F Task 3: style assertion reads the component's own source text (jsdom doesn't compute
-// cascade), same idiom as PhotoLightbox.test.ts/PhotoInfoPanel.test.ts.
-import FILMSTRIP_SRC from '../PhotoFilmstrip.vue?raw'
+// Plan F Task 5: `.lb-strip`'s `grid-area` no longer has a local copy (retired -- byte-duplicate
+// of parity's own `.photos-root .lb-strip`, see PhotoFilmstrip.vue's scoped-style retirement
+// note). Read parity's source instead now that it's what actually governs.
+// Read via node:fs rather than a Vite `?raw` import -- Vite's CSS/SCSS handling intercepts
+// `.scss?raw` before the raw-loader can return it (empirically empty in this project's vitest
+// setup); every other guard test reading vue2-parity/*.scss uses fs for the same reason.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 import type { Photo } from '../../util/assetToPhoto'
 
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -61,9 +71,9 @@ function fireWheel(strip: HTMLElement, deltaY: number, deltaX = 0): WheelEvent {
 
 // Plan F Task 3: root is now a direct grid child of PhotoLightbox's `.lightbox` grid
 // (grid-area: strip) rather than a nested flex-row child of the removed `.lb-body` wrapper.
-describe('PhotoFilmstrip 结构:grid-area 契约(Plan F Task 3)', () => {
+describe('PhotoFilmstrip 结构:grid-area 契约(Plan F Task 3, retargeted to parity in Task 5)', () => {
   it('.lb-strip 规则里带 grid-area: strip', () => {
-    const m = /\.lb-strip\s*\{([^}]*)\}/.exec(FILMSTRIP_SRC)
+    const m = /\.photos-root \.lb-strip\s*\{([^}]*)\}/.exec(PARITY_SRC)
     expect(m).not.toBeNull()
     expect(m![1]).toMatch(/grid-area:\s*strip/)
   })

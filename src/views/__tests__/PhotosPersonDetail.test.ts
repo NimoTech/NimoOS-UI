@@ -258,9 +258,9 @@ describe('PhotosPersonDetail.vue —— 四态门控(骨架 / 加载失败+重�
 // Plan D Task 3 (re-shell + re-home overlays): the shell became the same
 // `.photos-root > .app > PhotosSidebar + main.main > PhotosTopbar + .photos-main` as
 // PhotosPeople.vue/PhotosAlbums.vue; every overlay (the selection-state floating bar / the seven
-// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root, except PhotoLightbox
-// which stays a sibling of .photos-root (the standing rule until Plan F lands, see the comment at
-// the file's template).
+// person-dialog-scrim dialogs / AlbumPickerDialog) moved inside .photos-root. Plan F Task 5
+// (2026-08-15) joins PhotoLightbox to them -- the re-skin (Tasks 3-4) removed the scoped-vs-
+// parity cascade tie that used to make nesting it unsafe (F8-r4).
 
 describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', () => {
   // Fix round 1 (controller ruling on Deviation A, 2026-08-14): the plan's original
@@ -281,15 +281,15 @@ describe('PhotosPersonDetail.vue —— 换壳 + 弹层归位(Plan D Task 3)', (
     expect(w.find('.photos-root > .app').exists()).toBe(true)
   })
 
-  it('renders selection bar and person dialogs inside .photos-root, lightbox outside', async () => {
+  it('renders selection bar and person dialogs inside .photos-root, lightbox inside too', async () => {
     const { w } = await mountView('7')
     w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
     await w.vm.$nextTick()
     expect(w.find('.photos-root .selection-bar').exists()).toBe(true)
-    // PhotoLightbox stays a sibling of .photos-root (the standing rule until Plan F lands)
+    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root.
     const rootEl = w.find('.photos-root').element
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
-    expect(rootEl.contains(lbComp.element)).toBe(false)
+    expect(rootEl.contains(lbComp.element)).toBe(true)
   })
 
   // Plan D Task 4 (dialog class-name rework): the seven dialogs' outer scrim class has been

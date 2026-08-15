@@ -1477,7 +1477,12 @@ describe('Fix-12: the lightbox is mounted on this page and its events are wired'
     expect(w.find('.lightbox').exists()).toBe(true)
   })
 
-  it('the lightbox renders OUTSIDE .photos-root (Fix-8 round 4 rule)', async () => {
+  // Plan F Task 5 (2026-08-15): flipped from OUTSIDE to INSIDE -- the Fix-8 round 4 rule this
+  // test used to assert no longer applies. Plan F Tasks 3-5 re-skinned PhotoLightbox.vue's DOM/
+  // CSS onto parity's own grid shape and retired the local skeleton CSS that used to duplicate
+  // parity's `.photos-root .lightbox`/`.lb-*` selectors (Task 5), removing the same-specificity
+  // cascade tie that made nesting unsafe. See task-5-report.md for the full sweep.
+  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the F8-r4 cascade tie)', async () => {
     svc.photos.getSmartViewAssets.mockImplementation(async (_id: string, opts: { recent?: boolean }) => {
       return opts?.recent ? [] : [asset('a1')]
     })
@@ -1485,7 +1490,7 @@ describe('Fix-12: the lightbox is mounted on this page and its events are wired'
     await w.find('[data-test="sv-all-tile"]').trigger('click')
     await w.vm.$nextTick()
     const lightbox = w.get('.lightbox').element
-    expect(lightbox.closest('.photos-root')).toBeNull()
+    expect(lightbox.closest('.photos-root')).not.toBeNull()
   })
 
   it('@delete deletes the underlying asset via timeline.deleteAssets and refreshes this view', async () => {

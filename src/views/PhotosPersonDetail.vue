@@ -1163,19 +1163,14 @@ watch(() => route.params.id, (raw) => {
   </div>
 
   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="() => {}" />
-  </div>
 
-  <!-- Plan D Task 3 (following the established practice): PhotoLightbox stays a **sibling** of
-       .photos-root, not moved inside it — this is the standing rule until Plan F lands (the same
-       PhotoLightbox wiring precedent as PhotosAlbumDetail.vue / PhotosPeople.vue). The lightbox
-       is itself a fixed full-screen overlay; moving it inside .photos-root would get clipped by
-       `.app`'s overflow:hidden. It moves together with everything else once Plan F handles
-       lightbox positioning uniformly — not this task's call to make. -->
+  <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+  </div>
 </template>
 
 <style scoped>

@@ -1324,28 +1324,18 @@ async function onExcludedTileClick(id: string): Promise<void> {
     </Transition>
   <!-- Fix-12 (owner acceptance, 2026-08-14): add-to-album picker for the lightbox's
        `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog` mount --
-       stays nested inside `.photos-root` (its own panel background is `var(--surface-2)`, a
-       `.photos-root`-local token with no fallback, per the F1/F4 lesson class), unlike the
-       lightbox itself just below. -->
+       nested inside `.photos-root` (its own panel background is `var(--surface-2)`, a
+       `.photos-root`-local token with no fallback, per the F1/F4 lesson class); the lightbox
+       just below joins it there too as of Plan F Task 5. -->
   <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
-  </div>
-  <!-- Fix-12 (owner acceptance, 2026-08-14): this page never mounted a `<PhotoLightbox>` at all
-       (see `onLightboxDelete`'s own comment above for the full mechanism) -- added here,
-       deliberately a sibling of `.photos-root`, NOT nested inside it. Per Fix-8 round 4
-       (acceptance-fix-report.md §F8-r4): nesting `<PhotoLightbox>` inside `.photos-root`
-       activates parity's own `.photos-root .lightbox`/`.lb-*` rule family, which targets a
-       *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with named
-       grid-area children) than this component's own current, self-contained flex layout --
-       every colliding selector ties in specificity, and if parity's `display: grid` wins that
-       tie for the outer container, this component's real children (which carry none of the
-       grid-area names parity's layout expects) fall into unpredictable implicit placement,
-       breaking the whole overlay. **Do not nest this component inside `.photos-root` before
-       Plan F's own lightbox re-skin actually ports its DOM/CSS to match those parity rules.** -->
+
+  <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+  </div>
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/Convert/etc.)
        -- mounted once per photos view, Teleports to <body> and re-applies photos-root +
        themeClass on its own portal target (see PhotosToastHost.vue's own header comment), so its

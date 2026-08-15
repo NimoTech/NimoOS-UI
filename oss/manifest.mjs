@@ -142,6 +142,7 @@ export const DELETE = [
   'src/views/__tests__/PhotosPersonDetail.test.ts',
   'src/views/__tests__/PhotosPlaceAssets.test.ts',
   'src/views/__tests__/PhotosPlaces.test.ts',
+  'src/views/__tests__/PhotosSearch.lightbox.test.ts',
   'src/views/__tests__/PhotosSearch.test.ts',
   'src/views/__tests__/PhotosSettings.test.ts',
   'src/views/__tests__/PhotosSmartViewDetail.test.ts',

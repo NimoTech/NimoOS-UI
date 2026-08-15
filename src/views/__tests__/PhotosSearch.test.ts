@@ -27,7 +27,34 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
+// Plan F Task 5: PhotoLightbox is now actually mounted in PhotosSearch.vue's template (this page
+// never had a mount before -- see task-5-report.md), so this mock must satisfy every property/
+// method PhotoLightbox.vue's own setup script touches unconditionally (its two `watch()` calls
+// read `lb.index.value`/`lb.open.value`/`lb.current.value` at setup time regardless of whether
+// the lightbox is ever opened). Plain `{ value: ... }` objects (not real Vue `ref()`s) are enough
+// here -- this file's ~100 other tests never open the lightbox, so `open.value` stays `false`
+// forever and the `v-if` gate keeps the rest of PhotoLightbox's template from ever evaluating;
+// no reactivity is needed for a value that never changes. The dedicated "click result opens
+// lightbox" test lives in PhotosSearch.lightbox.test.ts instead, using the real useLightbox()
+// singleton (same split as Photos.vue/Photos.lightbox.test.ts).
+const lbMock = vi.hoisted(() => ({
+  open: { value: false },
+  current: { value: null },
+  detail: { value: null },
+  list: { value: [] },
+  index: { value: 0 },
+  isFav: { value: false },
+  hasPrev: { value: false },
+  hasNext: { value: false },
+  ocrLines: { value: [] },
+  startMs: { value: 0 },
+  openAt: vi.fn(),
+  close: vi.fn(),
+  prev: vi.fn(),
+  next: vi.fn(),
+  goTo: vi.fn(),
+  toggleFav: vi.fn(),
+}))
 vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
 import PhotosSearch from '../PhotosSearch.vue'

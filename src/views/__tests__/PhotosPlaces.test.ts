@@ -163,11 +163,11 @@ describe('PhotosPlaces.vue —— 换壳(Plan E Task 1)', () => {
     expect(root.findComponent(PlacesFilterMenu).exists()).toBe(true)
     expect(root.findComponent(PlacesThemeMenu).exists()).toBe(true)
 
-    // PhotoLightbox stays a sibling of .photos-root (this app's standing exception, same rule
-    // PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows).
+    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root -- the re-skin
+    // (Tasks 3-4) removed the scoped-vs-parity cascade tie that made nesting unsafe (F8-r4).
     const rootEl = w.find('.photos-root').element
     const lbComp = w.findComponent({ name: 'PhotoLightbox' })
-    expect(rootEl.contains(lbComp.element)).toBe(false)
+    expect(rootEl.contains(lbComp.element)).toBe(true)
   })
 })
 

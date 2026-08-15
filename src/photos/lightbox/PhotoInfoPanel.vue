@@ -173,48 +173,50 @@ async function onCopyPath(): Promise<void> {
 </template>
 
 <style scoped>
-/* Plan F Task 3: `.info-panel` renamed to parity's anchor `.lb-info` and `grid-area: info`
-   added -- this component is now placed as a direct grid child of PhotoLightbox's `.lightbox`
-   grid (grid-template-areas "top top" / "main info" / "strip info" when data-info="true"),
-   not a flex sibling inside a `.lb-body` row wrapper (that wrapper is gone, see
-   PhotoLightbox.vue's scoped-style header comment). The explicit `width: 360px` is dropped in favor
-   of the grid's own `1fr 360px` column track -- a grid item stretches to fill its track by
-   default, so re-declaring the width here would be redundant. `max-width: 100%` is kept as a
-   defensive floor for the narrow-screen media query below, which switches this element out of
-   grid flow entirely (`position: fixed`).
-   Deviation (value, New-UI wins): parity's own `.photos-root .lb-info` (photos.scss:677-681)
-   is a bare flush panel -- `background: var(--surface-1); border-left: 1px solid var(--line);
-   padding: 18px 0;` with no radius/box-shadow/backdrop-filter of its own (it visually blends
-   into the lightbox's `--lb-bg` canvas). This component still renders standalone (not yet
-   nested inside `.photos-root` -- see PhotoLightbox.vue's interim-skeleton note), so it keeps
-   its own self-contained card look (radius/border/shadow/blur) rather than the flush parity
-   look, which would look like an unstyled empty column without `.photos-root`'s surrounding
-   chrome. Revisit when Task 5 re-nests the lightbox into `.photos-root`. */
+/* Plan F Task 5: the Task 3 "card look" deviation on `.lb-info` (border/border-radius/box-
+   shadow/backdrop-filter/background/padding/overflow-y, all self-contained so the panel stayed
+   legible while rendering standalone outside `.photos-root`) is retired now that this component
+   actually nests inside `.photos-root` -- parity's own `.photos-root .lb-info` (photos.scss:685-
+   689: `grid-area: info; background: var(--surface-1); border-left: 1px solid var(--line);
+   overflow-y: auto; padding: 18px 0;`) is a bare flush panel and now governs those properties
+   alone (this was the exact "revisit when Task 5 re-nests" flagged by that original comment).
+   Layout structure with no parity counterpart survives: `max-width`/`box-sizing` (defensive floor
+   for the narrow-screen media query below, which switches this element out of grid flow
+   entirely), `display: flex; flex-direction: column; gap: 16px` (parity's own child spacing comes
+   from each `.info-section`'s own padding/border-bottom instead, but that doesn't conflict with
+   an additional flex gap here -- no shared property), and `color` (parity never sets a base text
+   color on the panel itself, each child sets its own). */
 .lb-info {
-  grid-area: info;
   max-width: 100%;
   box-sizing: border-box;
-  overflow-y: auto;
-  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
-  background: var(--panel-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius);
-  box-shadow: var(--panel-shadow);
-  backdrop-filter: var(--blur);
   color: var(--fg);
 }
 .info-section { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.info-label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-muted); }
-.info-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font-size: 13px; }
-.info-row .k { color: var(--fg-muted); flex: 0 0 auto; }
-.info-row .v { color: var(--fg); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* `.info-label` retired -- byte-duplicate of parity's `.photos-root .info-label` (font-size/
+   font-weight/color/text-transform/letter-spacing all collide; parity additionally sets
+   `margin-bottom`). */
+/* `.info-row`'s own `display`/`justify-content`/`gap`/`font-size` collide with parity's
+   `.photos-root .info-row` (which also adds `padding: 4px 0`) -- retired, only `align-items:
+   baseline` survives (parity doesn't set it, and it only takes effect once `display: flex` is
+   in play, which parity's own copy already supplies). */
+.info-row { align-items: baseline; }
+/* `.k`'s `color` collides with parity's `.photos-root .info-row .k`; only `flex: 0 0 auto`
+   (parity doesn't set it) survives, keeping the label from shrinking. */
+.info-row .k { flex: 0 0 auto; }
+/* `.v`'s `color`/`text-align` collide with parity's `.photos-root .info-row .v` (which also adds
+   `font-variant-numeric: tabular-nums`); only the truncation trio survives (parity doesn't set
+   any of them). */
+.info-row .v { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-/* Deviation (value, parity wins): height 132px matches Vue2/parity exactly
-   (PhotosLightbox.vue's `.map-mini`, parity photos.scss:698) -- was 140px. */
-.map-mini { position: relative; border-radius: 10px; overflow: hidden; height: 132px; border: 1px solid var(--card-border); }
+/* `.map-mini`'s `position`/`border-radius`/`overflow`/`height` collide with parity's
+   `.photos-root .map-mini` (height already matched byte-exact per the prior Task 4 fix, parity
+   additionally sets `margin-top`/`background`) -- retired; only the `border` survives (parity's
+   own map area has none, but this component's border ring doesn't conflict with any parity
+   property and isn't part of the "card look" being un-done above). */
+.map-mini { border: 1px solid var(--card-border); }
 /* 用户 2026-07-31 验收要求:去掉 OSM 内嵌页自带的那条页脚文字
    (Report a problem | © OpenStreetMap contributors ♥ Make a Donation. Website and API terms)。
    iframe 是跨域的,内部元素无法用 CSS 隐藏,只能靠外层裁切;实测在 328px 宽处那条页脚会
@@ -235,31 +237,36 @@ async function onCopyPath(): Promise<void> {
   /* theme-exception: 同上,投影为固定暗色描边 */
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
-.map-pin {
-  position: absolute; top: 50%; left: 50%; width: 10px; height: 10px;
-  transform: translate(-50%, -50%); border-radius: 50%;
-  background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 30%, transparent);
-  pointer-events: none;
-}
+/* Plan F Task 5: `.map-pin` retired -- byte-duplicate anchor of parity's `.photos-root .map-pin`,
+   which additionally corrects the anchor point (`transform: translate(-50%, -100%)`, a bottom-
+   anchored teardrop pin vs this rule's centered dot) and size (14px vs 10px) to match Vue2's
+   real pin exactly; nothing here survives that parity doesn't already cover. */
 
-.face-row, .tag-row { display: flex; flex-wrap: wrap; gap: 8px; }
-.face-chip {
-  display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px 4px 4px;
-  border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg);
-}
-.face-avatar {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%; font-size: 11px; font-weight: 600;
-  color: var(--fg); background: color-mix(in srgb, var(--accent) 30%, transparent);
-}
-/* Plan F Task 3: renamed from the invented `.tag-chip` to parity's real anchor `.tag` +
-   `[data-kind="ai"]` modifier (Vue2 PhotosLightbox.vue:137, parity photos.scss:696-697: base
-   `.tag` is a shared neutral chip elsewhere in the app; `[data-kind="ai"]` tints it toward the
-   accent for Nimo-recognized tags -- the only kind this section ever renders). */
-.tag { display: inline-flex; padding: 4px 10px; border-radius: 999px; font-size: 12px; color: var(--fg); background: var(--chip-bg); }
-.tag[data-kind="ai"] { background: var(--accent-soft); color: var(--accent); }
+/* Plan F Task 5: `.face-row`/`.tag-row` retired -- byte-duplicate of parity's own
+   `.photos-root .face-row`/`.photos-root .tag-row` (display/flex-wrap/gap all collide; only the
+   gap value differs, 8px here vs parity's 6px -- parity's now governs alone). */
+/* `.face-chip` retired -- collides with parity's `.photos-root .face-chip` on every property it
+   declares (display/align-items/gap/padding/border-radius/font-size/background); parity
+   additionally adds a `border`, nothing survives locally. */
+/* `.face-avatar` retired -- collides with parity's `.photos-root .face-avatar` on every property
+   (display/align-items/justify-content/width/height/border-radius/font-size/font-weight/color/
+   background); parity's is Vue2's literal pastel gradient avatar, this component's `color-mix`
+   approximation is superseded. */
+/* `.tag`'s `padding`/`border-radius`/`font-size`/`color`/`background` collide with parity's
+   `.photos-root .tag` (which additionally adds a `border`); only `display: inline-flex` survives
+   (parity leaves display unset, relying on the element's own inline default -- harmless either
+   way since this component's tag chips are text-only, no icon needing flex centering). */
+.tag { display: inline-flex; }
+/* `.tag[data-kind="ai"]`'s `background`/`color` collide with parity's own modifier (which
+   additionally adds `border-color`) -- retired, nothing left to declare locally. */
 
-.path-row { display: flex; align-items: center; gap: 8px; }
+/* Plan F Task 5: `.path-row` retired -- byte-duplicate of parity's `.photos-root .path-row`
+   (display/align-items/gap all collide, identical values too); parity additionally adds
+   padding/border-radius/background/border/font/color -- a bonus "code chip" look this component
+   never had, now inherited for free. `.path-text` has no parity counterpart (parity's own
+   `.path-row` uses a bare text node + a `.open` action link, not a wrapper span) and survives
+   unchanged; `.copy-btn` likewise shares no class name with parity's differently-named `.open`
+   link, so there is no collision to resolve there either. */
 .path-text { flex: 1 1 auto; min-width: 0; font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .copy-btn {
   flex: 0 0 auto; font-size: 12px; padding: 4px 10px; border-radius: 8px;

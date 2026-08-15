@@ -251,22 +251,17 @@ describe('Fix-4 item 1 / Fix-8 round 4: the album picker is a real descendant of
     expect(overlay.closest('.photos-root')).not.toBeNull()
   })
 
-  // Fix-8 round 4 (owner acceptance, 2026-08-14): this case used to assert the OPPOSITE (F4
-  // item 1 nested `<PhotoLightbox>` inside `.photos-root` alongside AlbumPickerDialog, on the
-  // stated belief that "this move changes nothing about how the lightbox itself renders" --
-  // that belief was wrong. Nesting it activates parity's own `.photos-root .lightbox`/`.lb-*`
-  // rule family (vue2-parity/photos.scss:499-1061+), which targets a *future* Plan-F re-skin
-  // describing a different DOM/CSS shape (a CSS Grid with named grid-area children) than this
-  // component's own current, self-contained flex layout -- every colliding selector ties in
-  // specificity, so which one wins is bundler-order-dependent, and if parity's `display: grid`
-  // wins for the outer `.lightbox` container, none of this component's real children carry the
-  // grid-area names parity's layout expects, collapsing/hiding the whole overlay. Confirmed by
-  // real-device evidence: `lb.openAt`'s network calls fired (state opened) but the lightbox
-  // never became visible. Flipped to the corrected, intended structure -- a sibling of
-  // `.photos-root`, same as before F4 item 1 first nested it (see acceptance-fix-report.md
-  // §F8-r4 for the full collision list and sweep). Do not flip this back before Plan F's own
-  // lightbox re-skin actually ports the DOM/CSS parity's rules describe.
-  it('the lightbox renders OUTSIDE .photos-root (parity\'s future-re-skin .lightbox/.lb-* rules must not match this component yet)', async () => {
+  // Plan F Task 5 (2026-08-15): this case used to assert the OPPOSITE (Fix-8 round 4 flipped
+  // `<PhotoLightbox>` back OUT of `.photos-root` because nesting it activated parity's own
+  // `.photos-root .lightbox`/`.lb-*` rule family against this component's then-current,
+  // pre-Plan-F self-contained flex layout -- a genuine same-specificity cascade tie, collapsing
+  // the overlay). Plan F Tasks 3-5 removed that tie: the component's DOM/CSS was re-skinned onto
+  // parity's own grid shape (Task 3), then the interim local skeleton CSS that kept it
+  // standalone-renderable was retired once nesting actually happened (Task 5) -- there is no
+  // longer a competing local rule for parity's selectors to tie with. Flipped back to a
+  // descendant of `.photos-root` (a sibling of `.app`, same position as AlbumPickerDialog) --
+  // see task-5-report.md for the full retirement/re-nest sweep.
+  it('the lightbox renders INSIDE .photos-root (Plan F Task 5: the re-skin removed the cascade tie F8-r4 guarded against)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     store.timelineGroups = [{ year: 2026, month: 7, assets: [asset('a')] }]
@@ -278,6 +273,6 @@ describe('Fix-4 item 1 / Fix-8 round 4: the album picker is a real descendant of
     await w.vm.$nextTick()
 
     const lightbox = w.get('.lightbox').element
-    expect(lightbox.closest('.photos-root')).toBeNull()
+    expect(lightbox.closest('.photos-root')).not.toBeNull()
   })
 })

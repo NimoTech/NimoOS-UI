@@ -2,9 +2,20 @@ import { describe, it, expect, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import PhotoImageViewer from '../PhotoImageViewer.vue'
-// Plan F Task 4: style assertion reads the component's own source text (jsdom doesn't compute
-// cascade), same idiom as PhotoLightbox.test.ts/PhotoFilmstrip.test.ts/PhotoInfoPanel.test.ts.
-import IMAGE_VIEWER_SRC from '../PhotoImageViewer.vue?raw'
+// Plan F Task 5: `.lb-ocr-hit`'s byte-exact values no longer have a local copy in this component
+// (retired -- duplicate of parity's own `.photos-root .lb-ocr-hit`, see PhotoImageViewer.vue's
+// scoped-style retirement note). Read parity's source instead now that it's what actually
+// governs.
+// Read via node:fs rather than a Vite `?raw` import -- Vite's CSS/SCSS handling intercepts
+// `.scss?raw` before the raw-loader can return it (empirically empty in this project's vitest
+// setup); every other guard test reading vue2-parity/*.scss uses fs for the same reason.
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+const PARITY_SRC = fs.readFileSync(
+  path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../styles/vue2-parity/photos.scss'),
+  'utf8',
+)
 
 vi.mock('@nimotech/nimoos-service', () => ({
   service: {
@@ -49,9 +60,9 @@ describe('PhotoImageViewer src 计算(HEIC/TIFF/RAW 回退大图缩略图)', () 
 
 // Plan F Task 4: byte-exact per Vue2 (photos.scss:500-510)/parity (photos.scss:616-622) --
 // yellow highlighter box + entrance pulse, replacing the earlier `--accent` token approximation.
-describe('PhotoImageViewer OCR 命中框动画(lb-ocr-pulse,Plan F Task 4)', () => {
+describe('PhotoImageViewer OCR 命中框动画(lb-ocr-pulse,Plan F Task 4, retargeted to parity in Task 5)', () => {
   const rule = (): string => {
-    const m = /\.lb-ocr-hit\s*\{([^}]*)\}/.exec(IMAGE_VIEWER_SRC)
+    const m = /\.photos-root \.lb-ocr-hit\s*\{([^}]*)\}/.exec(PARITY_SRC)
     expect(m, '找不到 .lb-ocr-hit 规则').not.toBeNull()
     return m![1]
   }

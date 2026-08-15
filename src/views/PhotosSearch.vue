@@ -36,6 +36,8 @@ import SearchDatePopover from '../photos/components/SearchDatePopover.vue'
 import SearchPeoplePopover from '../photos/components/SearchPeoplePopover.vue'
 import SearchSaveSmartView from '../photos/components/SearchSaveSmartView.vue'
 import PhotosSearchGrid from '../photos/components/PhotosSearchGrid.vue'
+import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
+import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { usePhotosSearch } from '../photos/stores/search'
 import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -581,6 +583,40 @@ function onOpen(photo: Photo): void {
   lb.openAt(photo, sortedResults.value.map((r) => r.p), 0, query.value)
 }
 
+// ── Plan F Task 5: PhotoLightbox event wiring for this page's own search-results context ──
+// (this page never mounted <PhotoLightbox> at all before -- lb.openAt above fired into a
+// dangling singleton with no visible overlay, the F8 bug class; see task-5-report.md).
+// @toggle-fav: no-op, same convention Photos.vue/PhotosAlbumDetail.vue already use -- useLightbox
+// itself optimistically flips favIds and re-renders the star icon internally (PhotoLightbox.vue's
+// own onToggleFav comment); the emit only exists for a host page that keeps its OWN separate
+// favorited-items list needing a local update (e.g. PhotosFavorites.vue removing an unfavorited
+// item). This page's results list is a search result set, not a favorites list, so there is
+// nothing local to react to.
+function onLightboxToggleFav(): void {}
+
+// @delete: no-op. Unlike Photos.vue/PhotosAlbumDetail.vue (which own a mutable local list and can
+// splice the deleted id back out), usePhotosSearch()'s `search.results` has no exposed mutation
+// for removing a single item, and this page has no batch-delete/select-toolbar infrastructure to
+// piggyback on either (structure spec 9: search results are browse-only, same as
+// PhotosPlaces.vue/PhotosPlaceAssets.vue's own unwired lightbox). Deleting the underlying asset
+// elsewhere already keeps it out of *future* searches; wiring a real delete here would need new
+// store-level support (index removal + reactive result-list mutation) that is out of scope for a
+// re-nest task ("logic untouched except the PhotosSearch wiring addition").
+function onLightboxDelete(): void {}
+
+// @add-to-album IS meaningfully supportable without any of the above -- it only needs the asset
+// id and AlbumPickerDialog's own API call, no mutation of this page's search-results list at all
+// (the closest analog is PhotosMomentDetail.vue's own single-item `openAlbumPicker`/
+// `onAlbumPickerAdded` pair, not Photos.vue's batch-selection variant -- this page has no
+// selection state to clear afterward either).
+const albumPickerOpen = ref(false)
+const albumPickerIds = ref<Array<string | number>>([])
+function openAlbumPicker(ids: Array<string | number>): void {
+  albumPickerIds.value = ids
+  albumPickerOpen.value = true
+}
+function onAlbumPickerAdded(): void {}
+
 // onMounted 若 people/albums 未加载则各拉一次(照搬 Vue2 :817-818)。用 New-UI store
 // 自带的 loaded 门控标志,不是 Vue2 的 `!array.length`(避免"确实零条"与"还没拉过"
 // 混淆——store 已经为此专门做了区分,直接复用)。
@@ -792,6 +828,18 @@ onMounted(() => {
       </div>
       </main>
     </div>
+
+    <!-- Plan F Task 5: PhotoLightbox mount added -- this page never had one before (see
+         onOpen's own comment above for the F8 bug class this closes: lb.openAt fired into a
+         dangling singleton with no overlay to render into). Nested inside `.photos-root` from
+         the start (no F8-r4-style un-nest/re-nest history here), matching every other page's
+         final position after this same task's sweep. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="onLightboxToggleFav"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
+    <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
   </div>
 </template>
 
