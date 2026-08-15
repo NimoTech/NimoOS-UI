@@ -1,29 +1,29 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { LAST_TAB_KEY, readLastTab, writeLastTab } from './lastTab'
 
-describe('设置区「上次 tab」记忆', () => {
+describe('settings tab "last tab" memory', () => {
   beforeEach(() => localStorage.clear())
 
-  it('沿用 Vue2 的 localStorage 键名', () => {
+  it('reuses the Vue2 localStorage key name', () => {
     expect(LAST_TAB_KEY).toBe('nimoos_settings_last_tab')
   })
 
-  it('空存储 → general', () => {
+  it('empty storage → general', () => {
     expect(readLastTab()).toBe('general')
   })
 
-  it('读回写入的合法 tab', () => {
+  it('reads back a written, valid tab', () => {
     writeLastTab('network')
     expect(localStorage.getItem(LAST_TAB_KEY)).toBe('network')
     expect(readLastTab()).toBe('network')
   })
 
-  it('存了非法值 → 回落 general(不是崩,也不是原样返回)', () => {
+  it('stored an invalid value → falls back to general (not a crash, not returned as-is)', () => {
     localStorage.setItem(LAST_TAB_KEY, 'bogus')
     expect(readLastTab()).toBe('general')
   })
 
-  it('localStorage 抛错(隐私模式/配额)也不炸,回落 general', () => {
+  it('localStorage throwing (private mode / quota) does not blow up either -- falls back to general', () => {
     const orig = Storage.prototype.getItem
     Storage.prototype.getItem = () => {
       throw new Error('denied')
@@ -35,7 +35,7 @@ describe('设置区「上次 tab」记忆', () => {
     }
   })
 
-  it('写入抛错被吞掉,不影响调用方', () => {
+  it('a write throwing is swallowed and does not affect the caller', () => {
     const orig = Storage.prototype.setItem
     Storage.prototype.setItem = () => {
       throw new Error('quota')

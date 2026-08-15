@@ -14,27 +14,27 @@ function snap(over: Partial<FolderPermSnapshot> = {}): FolderPermSnapshot {
   }
 }
 
-describe('coveredBy —— 取最短祖先(最外层的那个才是「覆盖者」)', () => {
-  it('多个祖先时取最短的', () => {
+describe('coveredBy — takes the shortest ancestor (the outermost one is the "coverer")', () => {
+  it('takes the shortest one when there are multiple ancestors', () => {
     expect(coveredBy('/DATA/A/B/C', ['/DATA/A/B', '/DATA/A', '/other'])).toBe('/DATA/A')
   })
-  it('没有祖先返回 null', () => {
+  it('returns null when there is no ancestor', () => {
     expect(coveredBy('/DATA/A', ['/DATA/AB', '/mnt'])).toBeNull()
   })
-  it('自己不算自己的祖先', () => {
+  it('a path does not count as its own ancestor', () => {
     expect(coveredBy('/DATA/A', ['/DATA/A'])).toBeNull()
   })
 })
 
 describe('searchItems', () => {
-  it('按路径排序,并标出被谁覆盖', () => {
+  it('sorts by path and marks what covers each one', () => {
     const s = snap({ searchRoots: ['/DATA/A/B', '/DATA/A'] })
     expect(searchItems(s)).toEqual([
       { path: '/DATA/A', coveredBy: null },
       { path: '/DATA/A/B', coveredBy: '/DATA/A' },
     ])
   })
-  it('不改动原数组(slice 后再 sort)', () => {
+  it('does not mutate the original array (slices, then sorts)', () => {
     const roots = ['/b', '/a']
     searchItems(snap({ searchRoots: roots }))
     expect(roots).toEqual(['/b', '/a'])
@@ -42,7 +42,7 @@ describe('searchItems', () => {
 })
 
 describe('knowledgeRootItems', () => {
-  it('按 path localeCompare 排序,enabled 归一成布尔', () => {
+  it('sorts by path via localeCompare, and normalizes enabled to a boolean', () => {
     const s = snap({
       wikiRoots: [
         { id: 2, path: '/DATA/Z', enabled: 1 as unknown as boolean },
@@ -57,13 +57,13 @@ describe('knowledgeRootItems', () => {
 })
 
 describe('knowledgeExcludeItems', () => {
-  it('只收 action=deny、能反解成路径的规则,并按路径排序', () => {
+  it('keeps only action=deny rules that resolve back to a path, sorted by path', () => {
     const s = snap({
       denyRules: [
         { id: 1, root_id: 1, path_glob: '/DATA/Z/*', action: 'deny' },
         { id: 2, root_id: 1, path_glob: '/DATA/A/*', action: 'deny' },
-        { id: 3, root_id: 1, path_glob: '/DATA/X/*', action: 'allow' }, // 非 deny,丢
-        { id: 4, root_id: 1, path_glob: '*.key', action: 'deny' }, // 反解不出路径,丢
+        { id: 3, root_id: 1, path_glob: '/DATA/X/*', action: 'allow' }, // not deny, dropped
+        { id: 4, root_id: 1, path_glob: '*.key', action: 'deny' }, // cannot resolve to a path, dropped
       ],
     })
     expect(knowledgeExcludeItems(s)).toEqual([
@@ -80,19 +80,19 @@ describe('knowledgeKindOf', () => {
       { id: 2, path: '/DATA/Off', enabled: false },
     ],
   })
-  it('路径本身就是根 → root(即便该根是停用的)', () => {
+  it('the path itself is a root → root (even if that root is disabled)', () => {
     expect(knowledgeKindOf('/DATA/Off', s)).toBe('root')
   })
-  it('在启用根之下 → subdir', () => {
+  it('under an enabled root → subdir', () => {
     expect(knowledgeKindOf('/DATA/Docs', s)).toBe('subdir')
   })
-  it('不在任何启用根之下 → uncovered', () => {
+  it('not under any enabled root → uncovered', () => {
     expect(knowledgeKindOf('/mnt/X', s)).toBe('uncovered')
   })
 })
 
-describe('aiItems —— 目录项与 glob 规则分流', () => {
-  it('能反解成目录的进 items(排序 + coveredBy),其余只计数', () => {
+describe('aiItems — splits directory entries from glob rules', () => {
+  it('entries that resolve to a directory go into items (sorted + coveredBy), the rest are only counted', () => {
     const s = snap({
       blacklist: [
         { id: 1, pattern: '/DATA/Z/**' },
@@ -111,13 +111,13 @@ describe('aiItems —— 目录项与 glob 规则分流', () => {
       globCount: 2,
     })
   })
-  it('空黑名单 → items 空、globCount 0', () => {
+  it('empty blacklist → items empty, globCount 0', () => {
     expect(aiItems(snap())).toEqual({ items: [], globCount: 0 })
   })
 })
 
 describe('photosItems', () => {
-  it('排序 + coveredBy', () => {
+  it('sorts + coveredBy', () => {
     const s = snap({ photos: { auto: false, dirs: ['/DATA/G/Sub', '/DATA/G'], stale: false } })
     expect(photosItems(s)).toEqual([
       { path: '/DATA/G', coveredBy: null },

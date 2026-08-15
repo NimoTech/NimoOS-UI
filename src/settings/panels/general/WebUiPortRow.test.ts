@@ -9,8 +9,9 @@ const state = {
   port: '80',
   editCalls: [] as unknown[],
   editFail: false,
-  // 交错测试专用(下方"挂载期间用户已编辑"用例):非 null 时 getServerPort 返回它而不是
-  // state.port,用来手动控制 onMounted 的 await 何时 resolve。其余用例不设置,行为不变。
+  // Only for the interleaving test below ("user already edited while mounting" case): when
+  // non-null, getServerPort returns this instead of state.port, so we can manually control
+  // when onMounted's await resolves. Other cases leave this unset and behave as before.
   portPromise: null as Promise<string> | null,
 }
 vi.mock('@nimotech/nimoos-service', () => ({
@@ -28,8 +29,8 @@ vi.mock('@nimotech/nimoos-service', () => ({
 import WebUiPortRow from './WebUiPortRow.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
-// navigate 是可选 prop(生产环境不传 → 真跳转);测试传 spy。
-// 不用 defineExpose 开测试后门 —— 那是只为测试存在的生产接口。
+// navigate is an optional prop (not passed in production → real navigation); tests pass a spy.
+// Not using defineExpose to open a test-only backdoor — that would be a production API existing only for tests.
 const mountRow = (navigate?: (url: string) => void) =>
   mount(WebUiPortRow, { props: navigate ? { navigate } : {}, global: { plugins: [i18n] } })
 
@@ -44,42 +45,45 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
 describe('WebUiPortRow', () => {
-  it('挂载后填入当前端口', async () => {
+  it('fills in the current port after mounting', async () => {
     const w = mountRow()
     await flushPromises()
     expect((w.find('input').element as HTMLInputElement).value).toBe('80')
   })
 
-  // 交错防护回归测试(移植纪律 #4 之外的第 4 项行为:初始异步加载不能压过用户编辑)。
-  // 关键:必须走"编辑在前、resolve 在后"的交错路径,且 resolve 用的快照要在编辑*之前*捕获
-  // ——否则"陈旧值"其实等于用户刚输入的值,测试即便没有防护也会通过,验证不了任何东西。
-  it('挂载期间用户已编辑:onMounted 的旧端口不能覆盖用户输入(交错防护)', async () => {
+  // Interleaving-guard regression test (a 4th behaviour beyond porting rule #4: the initial
+  // async load must not stomp on a user edit).
+  // Key point: must exercise the "edit first, resolve second" interleaving path, and the
+  // snapshot used to resolve must be captured *before* the edit — otherwise the "stale value"
+  // would actually equal what the user just typed, and the test would pass even with no guard
+  // in place, proving nothing.
+  it('user has already edited while mounting: onMounted\'s stale port must not overwrite the user\'s input (interleaving guard)', async () => {
     let resolveLoad!: (v: string) => void
     state.portPromise = new Promise<string>((resolve) => { resolveLoad = resolve })
     const w = mountRow()
     await flushPromises()
-    // 加载仍未 resolve 时,用户先编辑了输入框
+    // While the load hasn't resolved yet, the user edits the input first
     await w.find('input').setValue('9999')
-    // 现在才放行 onMounted 的 await —— 用编辑前捕获的快照 '80'
+    // Only now let onMounted's await proceed — using the '80' snapshot captured before the edit
     resolveLoad('80')
     await flushPromises()
     expect((w.find('input').element as HTMLInputElement).value).toBe('9999')
   })
 
-  it('端口未改动时不显示提交按钮(对位 Vue2 portChanged)', async () => {
+  it('does not show the submit button when the port is unchanged (maps to Vue2 portChanged)', async () => {
     const w = mountRow()
     await flushPromises()
     expect(w.find('.wpr-submit').exists()).toBe(false)
   })
 
-  it('改动后出现提交按钮', async () => {
+  it('the submit button appears after a change', async () => {
     const w = mountRow()
     await flushPromises()
     await w.find('input').setValue('8080')
     expect(w.find('.wpr-submit').exists()).toBe(true)
   })
 
-  it('越界端口:提示错误且不发请求', async () => {
+  it('out-of-range port: shows an error and sends no request', async () => {
     const w = mountRow()
     await flushPromises()
     await w.find('input').setValue('79')
@@ -89,7 +93,7 @@ describe('WebUiPortRow', () => {
     expect(w.text()).toContain('端口范围为 80-65535')
   })
 
-  it('合法端口:下发字符串形态的 port', async () => {
+  it('valid port: sends port as a string', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('down') }))
     const w = mountRow()
     await flushPromises()
@@ -99,7 +103,7 @@ describe('WebUiPortRow', () => {
     expect(state.editCalls).toEqual([{ port: '8080' }])
   })
 
-  it('保存配置失败:停在原地并提示,不进入探活', async () => {
+  it('save config fails: stays put with an error, does not enter probing', async () => {
     state.editFail = true
     const fetchSpy = vi.fn()
     vi.stubGlobal('fetch', fetchSpy)
@@ -111,7 +115,7 @@ describe('WebUiPortRow', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 
-  it('探活成功后跳转到新端口的当前页(移植纪律 #5)', async () => {
+  it('navigates to the current page on the new port once probing succeeds (porting rule #5)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ success: 200, data: '8080' }) })))
     const assign = vi.fn()
     const w = mountRow(assign)
@@ -125,7 +129,7 @@ describe('WebUiPortRow', () => {
     expect(assign.mock.calls[0][0]).toContain(':8080')
   })
 
-  it('探活到上限仍不通:停表 + 提示手动访问,不无限探(移植纪律 #4)', async () => {
+  it('still unreachable after hitting the probe limit: stops the timer + prompts manual navigation, does not probe forever (porting rule #4)', async () => {
     const fetchSpy = vi.fn(async () => { throw new TypeError('down') })
     vi.stubGlobal('fetch', fetchSpy)
     const w = mountRow()
@@ -139,7 +143,7 @@ describe('WebUiPortRow', () => {
     expect(w.text()).toContain('新端口没有响应')
   })
 
-  it('组件卸载后停表(不留定时器)', async () => {
+  it('stops the timer after unmount (leaves no dangling timer)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('down') }))
     const w = mountRow()
     await flushPromises()

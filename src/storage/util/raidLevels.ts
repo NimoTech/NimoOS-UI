@@ -18,8 +18,8 @@ export interface RaidDisk {
   power_on_time?: number
   model?: string
   serial?: string
-  // 外来阵列残留超块(/v1/disks raid 字段,role:"residue" 才会出现在候选盘里)。
-  // 选盘卡片打警告标;创建/换盘请求据此带 wipe_raid_residue。
+  // Residual superblock from a foreign array (/v1/disks raid field; only appears in candidate disks when role: "residue").
+  // The disk-selection card shows a warning tag; create/replace-disk requests include wipe_raid_residue based on this.
   raid?: DiskRaidInfo | null
 }
 

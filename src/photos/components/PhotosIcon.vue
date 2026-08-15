@@ -1,5 +1,5 @@
 <!--
-  Task 3 (壳 + 侧栏重刻): minimal port of Vue2 NimoOS-UI src/views/Photos/PhotosIcon.vue.
+  Task 3 (shell + sidebar re-skin): minimal port of Vue2 NimoOS-UI src/views/Photos/PhotosIcon.vue.
   This is presentation-only SVG path data (transcribed, not "script code" in the sense the
   re-skin doctrine warns against) — each `name` branch below is a byte-for-byte copy of the
   matching Vue2 <template> branch's <path>/<circle>/etc children.

@@ -210,7 +210,7 @@
  * color-guard and this file's own unit tests can't reach "values correct" layer (only check
  * "bare color literals / tokens declared"), knowledgeStyles.test.ts added case pinning these
  * three must be in light block (see file bottom describe block), already RED-probe verified
- * (delete one → exact red).
+ * (delete one → exact danger tone).
  */
 
 /* ===== Design tokens — dark (New-UI default <html> has no data-theme) =====
@@ -361,11 +361,11 @@
      tokens, remaining new declarations from mapping 17 color literals per-location in Appendix B §B.0.
      Explicit values in both themes, declaration marked line-by-line with base file:line + Appendix B section:
 
-       --paper-surface (base knowledge.scss:599 .k-rcard-icon "white paper" background named bare value)
+       --paper-surface (base knowledge.scss:599 .k-rcard-icon "paper-sheet" background named bare value)
          🔴 **not newly created** — it's an **existing exception token** yet to be declared here:
          AI tokens.scss:193(light) / :342(dark) same in both themes, original comment there lists it with
          --kind-* / --scrim-dark as same-family "skin-agnostic" exception; skills-styles.scss:402-404
-         original comment also says "exception token registered specifically for this 'white paper' file icon".
+         original comment also says "exception token registered specifically for this 'paper-sheet' file icon".
          .k-rcard-icon is exactly that (one sheet + top-right fold + bottom type tag). Appendix B §B.1 row 1
 
        --rtag-pdf / -md / -doc / -txt / -code (base :618-622 .k-rcard-tag[data-kind]
@@ -373,7 +373,7 @@
          same values. Appendix B §B.2.1
          🔴 Why separate --rtag-* prefix, not borrow --kind-* / --purple names (following --grad-sk-blue
          → --grad-sandbox rename precedent): ① tokens.scss:210/:351's --kind-txt vs. this TXT
-         **different values** (that one neutral gray, also fallback for unknown type), re-declaring
+         **different values** (that one neutral muted, also fallback for unknown type), re-declaring
          --kind-txt in .knowledge-app creates same-name two values repo-wide = review landmine;
          ② since txt member must rename, all five need same family prefix, can't 4 borrow + 1 new;
          ③ --purple is **pure hue name**, not file-type semantic, lending to code tag same -sk- borrowing
@@ -743,7 +743,7 @@
   }
   .k-banner-icon {
     width: 22px; height: 22px; border-radius: 7px;
-    /* base :236 orange semi-transparent background literal → the "0.2x → warning-soft-border" bucket */
+    /* base :236 amber-toned semi-transparent background literal → the "0.2x → warning-soft-border" bucket */
     background: var(--warning-soft-border);
     color: var(--warning);
     display: grid; place-items: center;
@@ -756,7 +756,7 @@
     border-radius: var(--r-sm);
     color: var(--text-tertiary);
     font-size: 12px;
-    /* base :247 neutral-darkened semi-transparent black literal → --line (same neutral-darken
+    /* base :247 neutral-darkened semi-transparent dark literal → --line (same neutral-darken
        as base's .k-filt-clear:hover (:1759); both theme tiers already have this token) */
     &:hover { background: var(--line); color: var(--text-primary); }
   }
@@ -953,7 +953,7 @@
        · :599 .k-rcard-icon's named background literal → --paper-surface (the existing
          white-paper-swatch exception token, see the comment at its declaration)
        · :616 .k-rcard-tag's named foreground literal → --text-on-accent (text on a solid
-         chip; exact-match precedent = this file's .k-type-legacy comment, "pure white text
+         chip; exact-match precedent = this file's .k-type-legacy comment, "pure light text
          on a solid warning-color chip → --text-on-accent"; the rule of thumb "--on-accent is
          only usable on a solid accent background" holds here — all 5 [data-kind] backgrounds
          below **are opaque solids**)
@@ -966,8 +966,8 @@
          semi-transparent background + dark-green foreground literal pair → token", and base
          :1893 and this spot's :639 are **the exact same value pair** (alpha differs by 0.02) —
          A-9 explicitly rules "don't special-case a few points of alpha difference". The base's
-         "low" tier is an orange-leaning red, still classified under the danger family: it's the
-         "low relevance" warning semantic, and --danger is this file's only red/orange-red
+         "low" tier is an amber-leaning danger tone, still classified under the danger family: it's the
+         "low relevance" warning semantic, and --danger is this file's only danger/amber-danger
          semantic token. */
   .k-results { display: flex; flex-direction: column; gap: 8px; }
   .k-result-count {
@@ -1090,11 +1090,11 @@
     width: 96px; height: 96px;
     border-radius: 50%;
     background:
-      /* base :693 is a white semi-transparent highlight literal — Appendix B's mapping table
+      /* base :693 is a light semi-transparent highlight literal — Appendix B's mapping table
          doesn't cover the "gradient highlight layer" usage (its foreground-literal bucket only
          talks about "foreground color → --text-on-accent"), but --text-on-accent is opaque
-         pure white in both theme tiers, sharing the same origin as this decorative highlight
-         in the base (both are "pure white, semi-transparent overlay"); color-mix derives an
+         pure light in both theme tiers, sharing the same origin as this decorative highlight
+         in the base (both are "pure light, semi-transparent overlay"); color-mix derives an
          equivalent opacity from the existing token, adding no custom property and hardcoding
          no color literal. */
       radial-gradient(circle at 30% 30%, color-mix(in srgb, var(--text-on-accent) 60%, transparent), transparent 60%),
@@ -1181,8 +1181,8 @@
     color: var(--text-secondary);
   }
   .k-filter-pill[data-on="true"] .k-filter-pill-count {
-    /* base :770 is a white semi-transparent overlay literal on a solid accent-color chip —
-       --text-on-accent is opaque pure white in both theme tiers, so color-mix derives an
+    /* base :770 is a light semi-transparent overlay literal on a solid accent-color chip —
+       --text-on-accent is opaque pure light in both theme tiers, so color-mix derives an
        equivalent opacity from the existing token (same technique as this file's
        .k-empty-illust highlight and .k2-ob-layer .k2-tag overlay, following the precedent set
        by P5a T11). */
@@ -1190,7 +1190,7 @@
     color: var(--text-on-accent); /* base :771 foreground literal color → token */
   }
   .k-filter-pill[data-tone="danger"] .k-filter-pill-count {
-    background: var(--danger-soft); /* base :774 red semi-transparent background literal → token */
+    background: var(--danger-soft); /* base :774 danger-toned semi-transparent background literal → token */
     color: var(--danger);
   }
   .k-filter-pill[data-tone="danger"][data-on="true"] .k-filter-pill-count {
@@ -1260,7 +1260,7 @@
     &.primary {
       background: var(--accent);
       color: var(--text-on-accent); /* base :839 foreground literal color → token */
-      /* base :840 blue semi-transparent shadow literal → "0.2x → --accent-soft-2" */
+      /* base :840 accent-toned semi-transparent shadow literal → "0.2x → --accent-soft-2" */
       box-shadow: 0 2px 6px var(--accent-soft-2);
       &:hover:not(:disabled) { background: var(--accent-hover); }
     }
@@ -1339,7 +1339,7 @@
       background: var(--accent-soft); color: var(--accent);
       animation: k-pulse 1.4s ease-in-out infinite;
     }
-    &[data-state="failed"]  { /* base :899 red semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
+    &[data-state="failed"]  { /* base :899 danger-toned semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
   }
   .k-row-name {
     font-weight: 500;
@@ -1398,7 +1398,7 @@
     color: var(--text-tertiary);
     transition: all 100ms ease;
     &:hover { background: var(--bg-chip); color: var(--text-primary); }
-    &[data-tone="danger"]:hover { /* base :958 red semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
+    &[data-tone="danger"]:hover { /* base :958 danger-toned semi-transparent background literal → token */ background: var(--danger-soft); color: var(--danger); }
   }
   .k-table-foot {
     padding: 10px 14px;
@@ -1476,7 +1476,7 @@
     border-radius: 8px;
     display: grid; place-items: center;
     /* base :1003 named-color foreground → --text-on-accent (Appendix B §B.3-②). Sits on top
-       of g.bg's brand-gradient solid background; the semantic is "pure white foreground on a
+       of g.bg's brand-gradient solid background; the semantic is "pure light foreground on a
        solid background", the same precedent already established for .kn-inbox-icon. */
     color: var(--text-on-accent); flex-shrink: 0;
   }
@@ -1596,11 +1596,11 @@
     border-radius: var(--r-pill);
     font-size: 11.5px; font-weight: 600;
     width: fit-content;
-    /* base :1120 semi-transparent green background + dark-green foreground literal pair →
+    /* base :1120 semi-transparent success-toned background + dark-green foreground literal pair →
        --success-soft / --success (Appendix B §B.4 rows 1 and 2, landing in the bucket P5a §B.2
        already established, zero new tokens created) */
     &[data-act="allow"] { background: var(--success-soft); color: var(--success); }
-    /* base :1121 semi-transparent red background literal → --danger-soft (Appendix B §B.4 row 3);
+    /* base :1121 semi-transparent danger-toned background literal → --danger-soft (Appendix B §B.4 row 3);
        the color on the same line was already a token in the base, copied as-is */
     &[data-act="deny"]  { background: var(--danger-soft); color: var(--danger); }
   }
@@ -1631,7 +1631,7 @@
        E :1203-1225  .k-sw (includes &::after and &[data-on="true"])
        F :1227-1247  .k-set-svc / .k-svc-state / .k-svc-light / .k-svc-name / .k-svc-cn
        G :1249-1265  .k-set-danger (includes .k-set-row-title, which turns the danger-zone
-                     title red) / .k-set-soon
+                     title danger-toned) / .k-set-soon
        H :1267-1293  .k-sandbox-link (with &:hover) / .k-sandbox-icon
      🔴 N15: base :1151-1157's six classes .k-progress-card / -row / -label / -nums / -bar /
      -fill are sandwiched right between segments B and C, neither of this period's two pages
@@ -1730,12 +1730,12 @@
     width: 10px; height: 10px;
     border-radius: 50%;
     background: var(--success);
-    /* base :1239 green semi-transparent glow literal → --success-soft (already present in both tiers) */
+    /* base :1239 success-toned semi-transparent glow literal → --success-soft (already present in both tiers) */
     box-shadow: 0 0 0 4px var(--success-soft);
     flex-shrink: 0;
     &[data-state="paused"] {
       background: var(--warning);
-      /* base :1243 orange semi-transparent glow literal → --warning-soft (already present in both tiers) */
+      /* base :1243 amber-toned semi-transparent glow literal → --warning-soft (already present in both tiers) */
       box-shadow: 0 0 0 4px var(--warning-soft);
     }
   }
@@ -1743,9 +1743,9 @@
   .k-svc-cn { font-size: 11px; color: var(--text-tertiary); }
 
   .k-set-danger {
-    /* base :1250 red semi-transparent border literal → --danger-soft-border (already present in both tiers) */
+    /* base :1250 danger-toned semi-transparent border literal → --danger-soft-border (already present in both tiers) */
     border-color: var(--danger-soft-border);
-    /* base :1251 a lighter-tier red semi-transparent background literal than danger-soft →
+    /* base :1251 a lighter-tier danger-toned semi-transparent background literal than danger-soft →
        --danger-soft-faint (already present in both tiers, declared by P5b-T2); the gradient
        angle and the second color stop's transparent are copied verbatim */
     background: linear-gradient(135deg, var(--danger-soft-faint), transparent);
@@ -1920,11 +1920,11 @@
     border-radius: 7px;
     display: grid; place-items: center;
     flex-shrink: 0;
-    /* base :1392 semi-transparent green background + dark-green foreground literal pair →
+    /* base :1392 semi-transparent success-toned background + dark-green foreground literal pair →
        --success-soft / --success (Appendix B §B.4 rows 4 and 5; alpha 0.14 lands in the 0.1x
        bucket, same token group as :1120) */
     &[data-tone="allow"] { background: var(--success-soft); color: var(--success); }
-    /* base :1393 semi-transparent red background literal → --danger-soft (Appendix B §B.4
+    /* base :1393 semi-transparent danger-toned background literal → --danger-soft (Appendix B §B.4
        row 6); the color on the same line was already a token in the base, copied as-is */
     &[data-tone="deny"]  { background: var(--danger-soft); color: var(--danger); }
   }
@@ -1947,7 +1947,7 @@
   .k-confirm-icon {
     width: 56px; height: 56px;
     border-radius: 16px;
-    background: var(--danger-soft); /* base :1405 red semi-transparent background literal → token */
+    background: var(--danger-soft); /* base :1405 danger-toned semi-transparent background literal → token */
     color: var(--danger);
     display: grid; place-items: center;
     margin: 0 auto;
@@ -1959,11 +1959,11 @@
   }
   .k-confirm-summary {
     padding: 12px;
-    /* base :1417 a lighter-tier red semi-transparent background literal than danger-soft →
+    /* base :1417 a lighter-tier danger-toned semi-transparent background literal than danger-soft →
        new token --danger-soft-faint (governance file §6.2 ownership table assigns it to T2's
        declaration, reused by the T6 section at :1972) */
     background: var(--danger-soft-faint);
-    /* base :1418 red semi-transparent border literal → --danger-soft-border (already present in both tiers) */
+    /* base :1418 danger-toned semi-transparent border literal → --danger-soft-border (already present in both tiers) */
     border: 1px solid var(--danger-soft-border);
     border-radius: var(--r-md);
     font-size: 13px;
@@ -2271,7 +2271,7 @@
     &[data-s="indexing"] { background: var(--accent-soft); color: var(--accent); }
     &[data-s="indexing"] svg { animation: k-pulse 1.4s ease-in-out infinite; }
     &[data-s="error"] {
-      /* base :1860's error-state red semi-transparent background literal → token (the
+      /* base :1860's error-state danger-toned semi-transparent background literal → token (the
          foreground was already a token in the base).
          Note: a comment sandwiched between two nested child rules must always be written
          **inside the child rule** — writing it at the parent-rule level would make sass emit a

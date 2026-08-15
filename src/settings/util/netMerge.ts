@@ -1,20 +1,25 @@
-// 接口列表的数据装配层(spec §1.7 / §5.3)。
+// Data assembly layer for the interface list (spec §1.7 / §5.3).
 //
-// 为什么列表源是 /v1/sys/utilization 的 net 而不是 /v2/nimoos/network/interfaces:
-// 后者只有**配置过**的网卡(读 /etc/nimoos/network-config.json),本机的 wlp1s0 就不在里面;
-// 前者是实时枚举(GetNet(true) = 只物理口)。照 Vue2 SettingsPanel.vue:2134-2176 的做法,
-// **不要"优化"成直接列 config**,否则 Wi-Fi 卡会整个从界面消失。
+// Why the list source is the `net` field of /v1/sys/utilization instead of
+// /v2/nimoos/network/interfaces:
+// The latter only has **configured** NICs (read from /etc/nimoos/network-config.json),
+// so the local machine's wlp1s0 wouldn't be in there; the former is a live enumeration
+// (GetNet(true) = physical interfaces only). Following Vue2 SettingsPanel.vue:2134-2176,
+// **don't "optimize" this into listing config directly**, or the Wi-Fi card will
+// disappear from the UI entirely.
 //
-// config 只用来按 name 匹配后补 zone / type / ipv4 / wireless / hybridCapable,
-// 并在静态 IP 时覆盖显示地址。
+// config is only used to match by name and then fill in zone / type / ipv4 / wireless /
+// hybridCapable, and to override the displayed address when static IP is set.
 import type { NetworkInterfaceConfig, NetworkIPv4Config, NetworkWirelessConfig } from '@nimotech/nimoos-service'
 
-/** concurrent 模式下后端造出来的虚拟 AP 口(NimoOS-Common/pkg/network/wifi_mode.go:15
- *  VirtualApIfacePrefix = "wlan_ap"),界面上不作为独立网卡展示。 */
+/** The virtual AP interface the backend creates in concurrent mode
+ *  (NimoOS-Common/pkg/network/wifi_mode.go:15 VirtualApIfacePrefix = "wlan_ap");
+ *  not shown as a standalone NIC in the UI. */
 export const VIRTUAL_AP_IFACE = 'wlan_ap'
 
-/** /v1/sys/utilization 的 net 数组里我们要用的字段(对位 NimoOS model.IOCountersStat)。
- *  其余流量计数字段(bytesSent 等)本期界面不用,不进类型。 */
+/** The fields we use from the `net` array of /v1/sys/utilization (maps to NimoOS
+ *  model.IOCountersStat). Other traffic-counter fields (bytesSent etc.) aren't used
+ *  by this milestone's UI, so they aren't part of the type. */
 export interface NetRuntimeStat {
   name: string
   state: string
@@ -45,9 +50,11 @@ function strOr(v: unknown, dflt = ''): string {
   return typeof v === 'string' ? v : dflt
 }
 
-/** 共享包的 `Utilization.net` 类型是 `Record<string, unknown> | null`,而真实值是**数组**
- *  (parseUtil 的 jget 里 `typeof [] === 'object'` 原样透过)。这里收窄。
- *  **不要去改共享包那个宽类型** —— 主页/小组件都在吃它,改了波及面大。 */
+/** The shared package's `Utilization.net` type is `Record<string, unknown> | null`,
+ *  but the real value is an **array** (jget's `typeof [] === 'object'` in parseUtil
+ *  passes it through as-is). We narrow it here.
+ *  **Don't change that wide type in the shared package** — it's consumed by the
+ *  home screen and widgets too; changing it has a wide blast radius. */
 export function normalizeNetStats(net: unknown): NetRuntimeStat[] {
   if (!Array.isArray(net)) return []
   const out: NetRuntimeStat[] = []
@@ -67,13 +74,15 @@ export function normalizeNetStats(net: unknown): NetRuntimeStat[] {
   return out
 }
 
-/** 记住每张网卡的 max_speed。
- *  ⚠️ 为什么需要:同一份 net 数据两条腿字段不一致 ——
- *    HTTP  `/v1/sys/utilization`(NimoOS/route/v1/system.go:388)**有** item.MaxSpeed;
- *    MessageBus 5 秒推送(NimoOS/route/periodical.go:44-47)**没有那一行** → max_speed 恒 0
- *    (socket.io 实证 2026-07-31)。
- *  速率标签是 `maxSpeed > speed ? "1 Gbps / 2.5 Gbps" : "1 Gbps"`,若直接吃推送值,
- *  2.5G 网卡协商在 1G 时标签会每 5 秒在两种形态之间闪。所以只在拿到非零值时更新。 */
+/** Remember each NIC's max_speed.
+ *  ⚠️ Why this is needed: the same `net` data comes from two paths whose fields
+ *    disagree —
+ *    HTTP `/v1/sys/utilization` (NimoOS/route/v1/system.go:388) **has** item.MaxSpeed;
+ *    the MessageBus 5-second push (NimoOS/route/periodical.go:44-47) **is missing that
+ *    line** → max_speed is always 0 (verified via socket.io on 2026-07-31).
+ *  The speed label is `maxSpeed > speed ? "1 Gbps / 2.5 Gbps" : "1 Gbps"`; if we fed it
+ *  the push value directly, a 2.5G NIC negotiated down to 1G would flicker between the
+ *  two label forms every 5 seconds. So we only update when we get a non-zero value. */
 export class MaxSpeedMemo {
   private m = new Map<string, number>()
   remember(stats: NetRuntimeStat[]): void {
@@ -86,9 +95,11 @@ export class MaxSpeedMemo {
   }
 }
 
-/** 前端按名字前缀判定虚拟网卡 —— **不用后端的 is_virtual 字段**(照 Vue2 L2149)。
- *  注:`data.net` 来自 GetNet(true)=只物理口,所以这个分支在本机不可达;
- *  别的机器(装了 ZeroTier 等)未必如此,故照抄保留。 */
+/** The frontend determines virtual NICs by name prefix — **not the backend's
+ *  is_virtual field** (following Vue2 L2149).
+ *  Note: `data.net` comes from GetNet(true) = physical interfaces only, so this
+ *  branch is unreachable on this machine; other machines (with ZeroTier etc.
+ *  installed) may differ, so it's kept as-is for parity. */
 function isVirtualName(name: string): boolean {
   return name.startsWith('zt') || name === 'docker0' || name.startsWith('br-') || name.startsWith('veth')
 }
@@ -107,8 +118,10 @@ export function mergeInterfaces(
     if (s.name === VIRTUAL_AP_IFACE) continue
     const cfg = cfgs.find((c) => c && c.name === s.name)
 
-    // 静态 IP 时以 config 的 address 覆盖显示;但 concurrent 模式的静态 IP 属于虚拟 AP 口,
-    // 物理口自己是 DHCP 客户端 → 不覆盖(Vue2 L2152 的 mode !== 'concurrent' 条件)。
+    // Override the displayed address with config's address for static IP; but in
+    // concurrent mode, the static IP belongs to the virtual AP interface — the
+    // physical interface itself is a DHCP client → don't override (matches the
+    // mode !== 'concurrent' condition in Vue2 L2152).
     const isStatic = !!cfg?.ipv4 && cfg.ipv4.method === 'static' && cfg.wireless?.mode !== 'concurrent'
     const addr = isStatic ? (cfg?.ipv4?.address || s.addr || '') : (s.addr || '')
 

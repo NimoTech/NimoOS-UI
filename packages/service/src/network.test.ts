@@ -3,7 +3,7 @@ import type { AxiosInstance } from 'axios'
 import { createNetwork, networkErrorText } from './network'
 import type { NetworkInterfaceConfig } from './types.js'
 
-// 记录调用的 http 桩:get 按 url 返回、put 记下 url + body
+// http stub that records calls: get returns by url, put records url + body
 function stub(getMap: Record<string, unknown> = {}) {
   const calls: { url: string; body?: unknown; params?: unknown }[] = []
   const http = {
@@ -20,14 +20,14 @@ function stub(getMap: Record<string, unknown> = {}) {
 }
 
 describe('createNetwork.getInterfaces', () => {
-  // curl 实证 2026-07-31:GET /v2/nimoos/network/interfaces → 裸数组,mac/state 是空串,
-  // 未配置过的网卡(wlp1s0)根本不在里面。
+  // Verified via curl on 2026-07-31: GET /v2/nimoos/network/interfaces → a bare array, mac/state are empty strings,
+  // an interface that has never been configured (wlp1s0) isn't in there at all.
   const REAL: NetworkInterfaceConfig[] = [
     { name: 'enp2s0', type: 'ethernet', is_virtual: false, mac: '', state: '', ipv4: { method: 'dhcp' } },
     { name: 'enp4s0', type: 'ethernet', is_virtual: false, mac: '', state: '', ipv4: { method: 'dhcp' } },
   ]
 
-  it('打的是 /v2 前缀的裸 JSON 端点,不过 unwrap', async () => {
+  it('hits the /v2-prefixed bare JSON endpoint, no unwrap', async () => {
     const { http, calls } = stub({ '/v2/nimoos/network/interfaces': REAL })
     const list = await createNetwork(http).getInterfaces()
     expect(calls[0].url).toBe('/v2/nimoos/network/interfaces')
@@ -36,8 +36,8 @@ describe('createNetwork.getInterfaces', () => {
     expect(list[0].ipv4?.method).toBe('dhcp')
   })
 
-  it('body 是 null(Go nil slice)时退化成空数组,不抛', async () => {
-    // network-config.json 为空 map 时 GetAllInterfaceConfigs 返回 nil slice → c.JSON(200, nil) → null
+  it('degrades to an empty array when body is null (Go nil slice), never throws', async () => {
+    // When network-config.json is an empty map, GetAllInterfaceConfigs returns a nil slice → c.JSON(200, nil) → null
     const { http } = stub({ '/v2/nimoos/network/interfaces': null })
     expect(await createNetwork(http).getInterfaces()).toEqual([])
   })

@@ -1,29 +1,31 @@
-// 从 NimoOS-UI/src/utils/raidUtils.js 逐字移植(2026-08-11,commit 0623ce20/69ea4798/b6cffd6c):
-// findReplaceTarget(L190-213)+ filterReplacementCandidates(L219-227)。行为保持一致,
-// 包括「无实时成员视图 → null」的守卫;只加 TS 类型,不改判定逻辑。
+// Ported byte-for-byte from NimoOS-UI/src/utils/raidUtils.js (2026-08-11, commit 0623ce20/69ea4798/b6cffd6c):
+// findReplaceTarget (L190-213) + filterReplacementCandidates (L219-227). Behavior stays identical,
+// including the "no live member view → null" guard; only TS types were added, the decision logic is unchanged.
 //
-// 背景(2026-08-11 事故):拔盘换新后,被拔盘腾出的设备字母(/dev/sdb)会被新盘复用 ——
-// 被拔盘在 DB 里缓存的 device_path_cache 从此指向一块**别的**物理盘。按 path 识别/过滤
-// 会把候选盘列表清空、请求体里点错盘。所以:在位故障盘(faulty)path 可信、直接用;
-// 拔掉的盘只能按 serial 匹配,它的陈旧缓存路径绝不当作盘本身暴露出去。
+// Background (2026-08-11 incident): after pulling a disk and swapping in a new one, the device
+// letter freed up by the pulled disk (/dev/sdb) gets reused by the new disk — the pulled disk's
+// device_path_cache cached in the DB now points at **a different** physical disk. Identifying/
+// filtering by path would empty out the candidate-disk list and target the wrong disk in the
+// request body. So: an in-place faulty disk's path is trustworthy, use it directly; a pulled
+// disk can only be matched by serial, and its stale cached path must never be exposed as if it were the disk itself.
 import type { DiskRaidInfo, RaidMemberDiskRow } from '@nimotech/nimoos-service'
 
 export interface ReplaceTarget {
-  // 在位故障盘的实时路径;拔掉的盘为 ''(陈旧缓存路径不暴露)
+  // Live path of an in-place faulty disk; '' for a pulled disk (stale cached path is never exposed)
   path: string
   serial: string
-  // 展示用:在位盘是 path,拔掉的盘是 serial(再兜底缓存路径)
+  // For display: an in-place disk shows path, a pulled disk shows serial (falling back to the cached path)
   label: string
 }
 
-// findReplaceTarget 吃 status.members 的行(path/state/serial),字段全可缺席以兼容老后端。
+// findReplaceTarget consumes status.members rows (path/state/serial); all fields may be absent for compatibility with older backends.
 export interface LiveMemberLike {
   path?: string
   state?: string
   serial?: string
 }
 
-// 候选盘输入:store.availDisks(AvailDisk)结构上满足;path 缺席时退 name(Vue2 同款)。
+// Candidate-disk input: store.availDisks (AvailDisk) satisfies this structurally; falls back to name when path is absent (same as Vue2).
 export interface CandidateDiskLike {
   path?: string
   name?: string
@@ -36,20 +38,21 @@ export interface ReplacementCandidate {
   path: string
   size: number
   serial: string
-  // residue 信息透传:换盘弹窗靠它打警告标 + 弹清除确认
+  // residue info passed through as-is: the replace-disk dialog uses it to show a warning badge + pop a wipe confirmation
   raid: DiskRaidInfo | null
 }
 
-// 识别降级阵列里被换掉的成员。
-// 打了 faulty 标的盘还在位,实时 path 可信;拔掉的盘只剩 DB 成员行,按 serial 匹配,
-// 陈旧缓存路径不作为盘身份暴露。后端不报成员 serial 时保留按 path 检测的回退。
+// Identifies the swapped-out member in a degraded array.
+// A disk marked faulty is still in place, its live path is trustworthy; a pulled disk only has
+// its DB member row left, matched by serial, and its stale cached path is never exposed as
+// disk identity. When the backend doesn't report member serial, fall back to detecting by path.
 export function findReplaceTarget(
   liveMembers: LiveMemberLike[] | null | undefined,
   memberDisks: RaidMemberDiskRow[] | null | undefined,
 ): ReplaceTarget | null {
   const live = (liveMembers || []).filter((m) => m && m.path)
-  // 完全没有实时视图(status 还没拉到,或 mdadm 不可达)是「没有信息」,
-  // 不是「所有成员都不见了」—— 没有这道守卫,第一块健康盘会被当成故障盘端出来。
+  // A completely absent live view (status hasn't been fetched yet, or mdadm is unreachable) means
+  // "no information," not "every member is gone" — without this guard, the first healthy disk would be served up as the faulty one.
   if (!live.length) return null
   const faulty = live.find((m) => m.state === 'faulty')
   if (faulty) {
@@ -70,9 +73,9 @@ export function findReplaceTarget(
   }
 }
 
-// 过滤替换候选盘:被换的盘自己绝不出现在候选里。
-// 双方都有 serial 时按 serial 匹配 —— 热插拔后新盘可能正坐在被拔盘的旧路径上,
-// 这种路径撞车不能把候选盘列表清空。
+// Filters replacement candidates: the disk being replaced must never appear among the candidates.
+// When both sides have a serial, match by serial — after hot-swapping, the new disk may sit at
+// exactly the pulled disk's old path, and that path collision must not empty out the candidate list.
 export function filterReplacementCandidates(
   disks: CandidateDiskLike[] | null | undefined,
   target: ReplaceTarget | null | undefined,

@@ -55,8 +55,8 @@ describe('createUsers', () => {
   })
 })
 
-// ── SP9-P4 追加 ───────────────────────────────────────────────────────────
-// fixture 全部来自 2026-08-01 真机 curl(见 plan §Fixtures),不得手编。
+// ── SP9-P4 additions ───────────────────────────────────────────────────────────
+// All fixtures come from real-device curl on 2026-08-01 (see plan §Fixtures); none are hand-written.
 
 function httpAll(map: Record<string, unknown>, calls?: { url: string; body?: unknown }[]): AxiosInstance {
   const rec = (url: string, body?: unknown) => { calls?.push({ url, body }) }
@@ -68,8 +68,8 @@ function httpAll(map: Record<string, unknown>, calls?: { url: string; body?: unk
   } as unknown as AxiosInstance
 }
 
-describe('createUsers — SP9-P4 users 域补全', () => {
-  // 真机响应逐字:{"success":200,"message":"ok","data":{...}}
+describe('createUsers — SP9-P4 users domain completion', () => {
+  // Verbatim real-device response: {"success":200,"message":"ok","data":{...}}
   const CURRENT = {
     success: 200, message: 'ok',
     data: {
@@ -79,7 +79,7 @@ describe('createUsers — SP9-P4 users 域补全', () => {
     },
   }
 
-  it('getUserInfo 走 /users/current 并剥一层信封', async () => {
+  it('getUserInfo hits /users/current and strips one envelope layer', async () => {
     const calls: { url: string }[] = []
     const u = createUsers(httpAll({ '/users/current': CURRENT }, calls))
     const info = await u.getUserInfo()
@@ -89,37 +89,37 @@ describe('createUsers — SP9-P4 users 域补全', () => {
     expect(info.avatar).toBe('')
   })
 
-  it('getMembers 剥信封;真机返回空数组', async () => {
+  it('getMembers strips the envelope; real device returns an empty array', async () => {
     const u = createUsers(httpAll({ '/users/members': { success: 200, message: 'ok', data: [] } }))
     expect(await u.getMembers()).toEqual([])
   })
 
-  it('getMembers 非数组 data 一律回退成 [](后端 nil slice 防线)', async () => {
+  it('getMembers always falls back to [] for non-array data (backend nil slice safety net)', async () => {
     const u = createUsers(httpAll({ '/users/members': { success: 200, message: 'ok', data: null } }))
     expect(await u.getMembers()).toEqual([])
   })
 
-  it('getMembers 保留 folder_count / created_at / role 原字段名', async () => {
+  it('getMembers preserves the original field names folder_count / created_at / role', async () => {
     const one = { id: 3, username: 'alice', role: 'user', folder_count: 2, created_at: '2026-07-01T10:20:30Z' }
     const u = createUsers(httpAll({ '/users/members': { success: 200, message: 'ok', data: [one] } }))
     expect(await u.getMembers()).toEqual([one])
   })
 
-  it('getMemberFolders 拼 /users/members/<id>/folders 并剥信封', async () => {
+  it('getMemberFolders builds /users/members/<id>/folders and strips the envelope', async () => {
     const calls: { url: string }[] = []
     const u = createUsers(httpAll({ '/users/members/7/folders': { success: 200, message: 'ok', data: [] } }, calls))
     expect(await u.getMemberFolders(7)).toEqual([])
     expect(calls[0].url).toBe('/users/members/7/folders')
   })
 
-  it('getMemberFolders 非数组 data 回退成 []', async () => {
+  it('getMemberFolders falls back to [] for non-array data', async () => {
     const u = createUsers(httpAll({ '/users/members/7/folders': { success: 200, message: 'ok', data: null } }))
     expect(await u.getMemberFolders(7)).toEqual([])
   })
 })
 
-describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 Go struct 对)', () => {
-  it('changePassword 用 old_password / password 两个 snake_case 键 PUT', async () => {
+describe('createUsers — SP9-P4 write endpoints (⛔ not curl-verified, types are only matched against the Go struct)', () => {
+  it('changePassword PUTs the two snake_case keys old_password / password', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const u = createUsers(httpAll({ '/users/current/password': { success: 200, message: 'ok', data: {} } }, calls))
     await u.changePassword('old-pw', 'new-pw')
@@ -127,7 +127,7 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
     expect(calls[0].body).toEqual({ old_password: 'old-pw', password: 'new-pw' })
   })
 
-  it('saveAvatar 把 dataURL 放进 { file } PUT 到 /users/avatar', async () => {
+  it('saveAvatar puts the dataURL into { file } and PUTs to /users/avatar', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const u = createUsers(httpAll({ '/users/avatar': { success: 200, message: 'ok', data: {} } }, calls))
     await u.saveAvatar('data:image/png;base64,AAAA')
@@ -135,17 +135,17 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
     expect(calls[0].body).toEqual({ file: 'data:image/png;base64,AAAA' })
   })
 
-  it('avatarPath 带 token 与 v 版本号(缓存击穿)', () => {
+  it('avatarPath carries token and v version number (cache busting)', () => {
     const u = createUsers(httpAll({}))
     expect(u.avatarPath(3, 'tok en')).toBe('/v1/users/avatar?token=tok%20en&v=3')
   })
 
-  it('avatarPath 无 token 时不带 token 参数', () => {
+  it('avatarPath omits the token param when there is no token', () => {
     const u = createUsers(httpAll({}))
     expect(u.avatarPath(1, null)).toBe('/v1/users/avatar?v=1')
   })
 
-  it('createMember POST username/password 并剥信封', async () => {
+  it('createMember POSTs username/password and strips the envelope', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const created = { id: 5, username: 'bob', role: 'user', folder_count: 0, created_at: 'x' }
     const u = createUsers(httpAll({ '/users/members': { success: 200, message: 'ok', data: created } }, calls))
@@ -160,7 +160,7 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
     expect(calls[0].url).toBe('/users/9')
   })
 
-  it('grantMemberFolder 默认 read,body 是 { path, permission }', async () => {
+  it('grantMemberFolder defaults to read, body is { path, permission }', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const perm = { id: 1, user_id: 3, path: '/DATA/Downloads', permission: 'read', created_at: 'x' }
     const u = createUsers(httpAll({ '/users/members/3/folders': { success: 200, message: 'ok', data: perm } }, calls))
@@ -168,21 +168,21 @@ describe('createUsers — SP9-P4 写端点(⛔ 未经 curl 实证,类型只照 G
     expect(calls[0].body).toEqual({ path: '/DATA/Downloads', permission: 'read' })
   })
 
-  it('grantMemberFolder 显式 write 会透传', async () => {
+  it('grantMemberFolder passes through an explicit write', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const u = createUsers(httpAll({ '/users/members/3/folders': { success: 200, message: 'ok', data: {} } }, calls))
     await u.grantMemberFolder(3, '/DATA/Docs', 'write')
     expect(calls[0].body).toEqual({ path: '/DATA/Docs', permission: 'write' })
   })
 
-  it('revokeMemberFolder 把 perm_id 放进 query string(后端读 QueryParam,不是 body)', async () => {
+  it('revokeMemberFolder puts perm_id into the query string (the backend reads a QueryParam, not the body)', async () => {
     const calls: { url: string }[] = []
     const u = createUsers(httpAll({ '/users/members/3/folders?perm_id=11': { success: 200, message: 'ok' } }, calls))
     await u.revokeMemberFolder(3, 11)
     expect(calls[0].url).toBe('/users/members/3/folders?perm_id=11')
   })
 
-  it('setUserInfo PUT /users/current 并剥信封(本期无消费方,见 plan C10)', async () => {
+  it('setUserInfo PUTs /users/current and strips the envelope (no consumer this phase, see plan C10)', async () => {
     const calls: { url: string; body?: unknown }[] = []
     const u = createUsers(httpAll({ '/users/current': { success: 200, message: 'ok', data: { username: 'x' } } }, calls))
     expect(await u.setUserInfo({ username: 'x' })).toEqual({ username: 'x' })
@@ -197,7 +197,7 @@ describe('user image (SP11 wallpaper)', () => {
     // real transformRequest, which is what actually flattens a FormData body
     // to `{}` when a JSON content-type is already set -- so the only way to
     // catch a missing override here is to assert the header this call site
-    // must pass, the same way sys.test.ts's 'uploadSSLCert 走 multipart' does.
+    // must pass, the same way sys.test.ts's 'uploadSSLCert uses multipart' does.
     const calls: { url: string; body: unknown; config?: unknown }[] = []
     const http = {
       post: async (url: string, body: unknown, config?: unknown) => {

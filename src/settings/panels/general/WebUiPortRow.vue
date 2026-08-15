@@ -1,8 +1,10 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue L176-208(行)+ L1385-1440(逻辑)。
-// 流程:校验 → PUT /v1/gateway/port → 轮询新端口的 /v1/gateway/port → 通了就跳过去。
-// 网关换端口是「先起新端口、/ping 确认、再优雅关旧端口」(顶层 CLAUDE.md),
-// 所以旧端口上的这个页面在切换窗口内还活着,能完成探活。
+// Corresponds to Vue2 SettingsPanel.vue L176-208 (markup) + L1385-1440 (logic).
+// Flow: validate → PUT /v1/gateway/port → poll the new port's /v1/gateway/port →
+// once it responds, navigate over.
+// Changing the gateway port means "bring up the new port, confirm with /ping, then
+// gracefully close the old port" (top-level CLAUDE.md), so this page on the old port
+// stays alive during the switchover window, long enough to complete the probe.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -23,8 +25,10 @@ const busy = ref(false)
 const error = ref('')
 const probing = ref(false)
 
-// 跳转做成**可选 prop**:直接写 window.location.href 在 jsdom 里既测不到也会报警告。
-// 用 prop 而不是 defineExpose 的测试后门 —— 后者是只为测试存在的生产接口。
+// Navigation is made an **optional prop**: writing window.location.href directly is both
+// untestable in jsdom and triggers a warning there.
+// Using a prop instead of a defineExpose test backdoor — the latter would be a
+// production API that exists only for testing.
 const props = defineProps<{ navigate?: (url: string) => void }>()
 function go(url: string) {
   if (props.navigate) props.navigate(url)
@@ -36,11 +40,15 @@ let tries = 0
 
 const changed = computed(() => port.value.trim() !== '' && port.value.trim() !== originalPort.value)
 
-// 交错防护(评审 fix 3,同 TimezoneRow.vue / DiskStandbyRow.vue 的理由):真实网络延迟下,
-// 用户可能在 onMounted 的读取返回前就已经改了输入框 —— 读取回调不能把显示值冲回服务端的旧快照。
-// 就地布尔标志,不抽公共 helper(本仓库此前评审裁定这是过早抽象)。
-// 注意:标志要在"用户编辑输入框"时就置位,而不是等到点提交才置位 —— 用户可能编辑了
-// 但还没点提交,这时如果加载 resolve,仍不能覆盖已经在输入框里的内容。
+// Interleaving guard (review fix 3, same rationale as TimezoneRow.vue / DiskStandbyRow.vue):
+// under real network latency, the user may have already edited the input before onMounted's
+// read resolves — the read callback must not overwrite the displayed value with the server's
+// stale snapshot.
+// Inline boolean flag, not extracted into a shared helper (a previous review in this repo
+// ruled that would be premature abstraction).
+// Note: the flag must be set the moment the user edits the input, not deferred until they
+// click submit — the user may have edited it but not yet submitted, in which case if the
+// load resolves in the meantime, it still must not overwrite what's already in the input.
 let touched = false
 
 function onInput(e: Event) {
@@ -50,7 +58,7 @@ function onInput(e: Event) {
 
 onMounted(async () => {
   try {
-    const p = await service.sys.getServerPort()   // 实测是字符串 "80"
+    const p = await service.sys.getServerPort()   // confirmed empirically to be the string "80"
     if (touched) return
     port.value = p
     originalPort.value = p
@@ -63,7 +71,8 @@ function stopProbe() {
   if (timer) { clearInterval(timer); timer = null }
   probing.value = false
 }
-// 移植纪律 #4:Vue2 只在 beforeDestroy 清表,这里卸载与超时都清。
+// Porting discipline #4: Vue2 only clears the timer in beforeDestroy; here it's cleared on
+// both unmount and timeout.
 onBeforeUnmount(stopProbe)
 
 async function submit() {
@@ -81,7 +90,7 @@ async function submit() {
     busy.value = false
     toast.show(t('settingsSaveFailed'))
     console.warn('[settings] editServerPort failed', e)
-    return   // 保存都没成功就不要进探活
+    return   // Don't proceed to probing if the save itself didn't succeed
   }
   startProbe(next)
 }

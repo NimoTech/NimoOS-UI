@@ -1,19 +1,25 @@
 <script setup lang="ts">
-// Task 7 (SP7-P4 相册): 相册列表视图——卡片网格 + 排序 + 新建三种填充方式(empty/recent/
-// select,Ask Nimo 分支照 brief 明确不建)+ 空态。壳照 Photos.vue:176-180/PhotosFavorites.vue/
-// PhotosTrash.vue 的 AreaShell/.photos-layout/.photos-main 复制(不抽公共,P3 T8 同样处理)。
-// 结构照 Vue2 NimoOS-UI src/views/Photos/PhotosAlbumsView.vue:16-86(banner+网格)、:99-165
-// (新建模态)。路由注册留给 T11。
+// Task 7 (SP7-P4 albums): the album list view — card grid + sort + the three new-album fill
+// modes (empty/recent/select; the Ask Nimo branch is deliberately not built per the brief) +
+// empty state. The shell copies AreaShell/.photos-layout/.photos-main from
+// Photos.vue:176-180/PhotosFavorites.vue/PhotosTrash.vue (not extracted into a shared piece,
+// same treatment as P3 T8). The structure follows Vue2 NimoOS-UI
+// src/views/Photos/PhotosAlbumsView.vue:16-86 (banner+grid), :99-165 (new-album modal).
+// Route registration is left for T11.
 //
-// 点卡片跳真路由(Vue2 是页内 openAlbumId state)——router.push('/photos/albums/' + view.id),
-// 铁律:id 可能是数字,字符串拼接自动 toString(),不需要额外 String() 包一层。
+// Clicking a card navigates to a real route (Vue2 kept it as in-page openAlbumId state) —
+// router.push('/photos/albums/' + view.id); hard rule: id may be numeric, string
+// concatenation already calls toString() automatically, no extra String() wrap needed.
 //
-// 排序:接 util/mixedAlbums.ts 的 sortMixed(不在本视图重写排序逻辑;T2 收官修复见下方
-// views computed 的注释)。sort 下拉菜单 + 新建模态的 Esc/点外部关闭
-// 一律 document 级监听(onMounted 挂一次、onUnmounted 摘干净),不用模板 @keydown.esc——
-// 同 Vue2 mounted/beforeDestroy 的两个全局监听(:240-259)等价语义,组件本身随路由挂载/卸载
-// (不是像 T6 PhotosLibraryPicker 那样 v-if 控制的子组件),故直接照 Vue2 一次性挂载/卸载,
-// 不需要 T5/T6 那种「随 open prop watch 增删监听」的写法。
+// Sort: hooks into util/mixedAlbums.ts's sortMixed (sort logic is not reimplemented in this
+// view; see the comment on the views computed below for the T2 wrap-up fix). The sort dropdown
+// and the new-album modal's Esc/click-outside-to-close both listen at the document level
+// (attached once in onMounted, cleanly removed in onUnmounted) rather than the template's
+// @keydown.esc — the same semantics as Vue2's two global listeners in mounted/beforeDestroy
+// (:240-259); the component itself mounts/unmounts with the route (unlike T6
+// PhotosLibraryPicker, which is a v-if-controlled child), so it follows Vue2's one-shot
+// mount/unmount directly, rather than the "add/remove listeners on the open prop's watch"
+// pattern used by T5/T6.
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -61,7 +67,8 @@ const pickerOpen = ref(false)
 const pickerAlbumId = ref<string | number>('')
 const pickerAlbumName = ref('')
 
-// 随 locale 热切换重新求值(照 Vue2 :192 的既有教训——computed 而非 data() 里固化一份)。
+// Re-evaluates on a hot locale switch (per the existing lesson from Vue2 :192 — a computed
+// rather than baking a copy into data()).
 const sortOptions = computed(() => [
   { id: 'created' as MixedSortId, label: t('photosAlbumSortCreated'), hint: t('photosAlbumSortCreatedHint') },
   { id: 'name' as MixedSortId, label: t('photosAlbumSortName'), hint: t('photosAlbumSortNameHint') },
@@ -97,8 +104,9 @@ const currentSort = computed(() => sortOptions.value.find((s) => s.id === sort.v
 const aiSmartViewOff = computed(() => settings.aiFeatures.smartview === false)
 
 function coverUrl(view: AlbumView): string {
-  // 只有真实资产 id 才生成缩略图 URL;空相册/无封面落到 .album-cover-fallback 渐变占位
-  // (Vue2 :274-281 同语义,但 New-UI 一律走 service.photos.thumbnailUrl,不手拼 URL)。
+  // Only generate a thumbnail URL for a real asset id; an empty album/no cover falls through
+  // to the .album-cover-fallback gradient placeholder (same semantics as Vue2 :274-281, but
+  // New-UI always goes through service.photos.thumbnailUrl rather than hand-building the URL).
   if (view.cover == null || view.cover === '') return ''
   return service.photos.thumbnailUrl(view.cover, 'large')
 }
@@ -152,8 +160,8 @@ function onSmartAlbumCreated(): void {
   closeCreate()
 }
 
-// 照 Vue2 :309-358(去掉 nimo 分支,Task 4 补回短路):建成功 → 按 source 分支处理 →
-// toast → finally 关模态。
+// Follows Vue2 :309-358 (minus the nimo branch, Task 4 added back the short-circuit):
+// creation succeeds → branch on source → toast → finally close the modal.
 async function confirmCreate(): Promise<void> {
   // SP15-P2b Task 4 (Vue2 :525-530): with nimo picked, the panel body *is* the smart form
   // and it owns its own submit (SmartViewCreateDialog's confirm()). Falling through here
@@ -164,18 +172,24 @@ async function confirmCreate(): Promise<void> {
   if (!title || creating.value) return
   creating.value = true
   try {
-    // 刻意偏离 Vue2 的地方(评审 Important 裁定为新缺陷,本轮已修):Vue2 的相册列表
-    // 从来不是独立路由——它是 PhotosTimeline.vue 内部按 activeNav 切换的 v-else-if 子块
-    // (NimoOS-UI src/router/route.js:206-208 只注册了一个 /photos 路由),而
-    // PhotosTimeline.mounted() 无条件 dispatch fetchTimeline,与 activeNav 无关,所以
-    // Vue2 下"时间线数据必然已加载"是父组件预热带来的结构性保证。New-UI 把相册改成了
-    // 独立真路由(/photos/albums),这层保证不再成立:用户直链/刷新进本页且从未访问过
-    // /photos 时,timeline.allPhotos 是空数组,若不在这里补一次 fetchTimeline,会静默
-    // 建出一个空相册 + 一条虚假的"已创建"成功 toast,零错误信号。这里补的守卫只在
-    // timeline 尚未拉取过时才 fetch(避免用户从时间线视图跳转过来时的无谓重拉)。
-    // 终审 Minor 5:判空条件统一改用 timeline.months(PhotosLibraryPicker.vue:114 已是这个
-    // 写法)——months 是 timelineGroups 的 1:1 map(timeline.ts:60),两者长度永远相等、
-    // 永远同真同假,统一成消费侧真正关心的语义(“有没有可展示的月份”),不留两种等价写法。
+    // Deliberate deviation from Vue2 here (review Important verdict: a new defect, fixed this
+    // round): Vue2's album list was never a standalone route — it was a v-else-if sub-block
+    // inside PhotosTimeline.vue switched on activeNav (NimoOS-UI src/router/route.js:206-208
+    // registers only a single /photos route), and PhotosTimeline.mounted() unconditionally
+    // dispatches fetchTimeline regardless of activeNav, so under Vue2 "the timeline data is
+    // necessarily already loaded" was a structural guarantee that came from the parent
+    // component's warm-up. New-UI turned albums into a standalone real route
+    // (/photos/albums), so that guarantee no longer holds: when a user deep-links or refreshes
+    // straight into this page having never visited /photos, timeline.allPhotos is an empty
+    // array, and without an extra fetchTimeline here this would silently create an empty album
+    // plus a fake "created" success toast, with zero error signal. The guard added here only
+    // fetches when the timeline hasn't been pulled yet (to avoid a pointless refetch when the
+    // user navigates over from the timeline view).
+    // Final review Minor 5: unify the emptiness check on timeline.months (already the pattern
+    // in PhotosLibraryPicker.vue:114) — months is a 1:1 map of timelineGroups (timeline.ts:60),
+    // so the two always have equal length and are always true/false together; unify on the
+    // semantics the consumer actually cares about ("are there any months to show"), rather than
+    // leaving two equivalent spellings around.
     //
     // Task 8b: bucket mode hands us months without their photos -- the guard above is
     // satisfied while allPhotos is still empty, which used to make this create an empty
@@ -210,7 +224,8 @@ async function confirmCreate(): Promise<void> {
     if (recentIds && albumId != null) {
       await albums.addAssetsToAlbum(albumId, recentIds)
     } else if (newAlbumSource.value === 'select' && albumId != null) {
-      // 预取相册资产,使 PhotosLibraryPicker 的 existingIds 一开就正确(照 Vue2 :330-335)。
+      // Pre-fetch the album's assets so PhotosLibraryPicker's existingIds is correct from the
+      // moment it opens (per Vue2 :330-335).
       await albums.fetchAlbumAssets(albumId)
       pickerAlbumId.value = albumId
       pickerAlbumName.value = title
@@ -222,8 +237,9 @@ async function confirmCreate(): Promise<void> {
     console.error('[albums] createAlbum', e)
     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumCreateFailed'))
   } finally {
-    // Vue2 :354-357 是 finally 关模态(不是只成功才关)——select 分支的模态关闭不影响
-    // 已经打开的 pickerOpen(两者是独立的 v-if 层)。
+    // Vue2 :354-357 closes the modal in finally (not only on success) — closing the modal on
+    // the select branch doesn't affect the already-open pickerOpen (the two are independent
+    // v-if layers).
     createOpen.value = false
     creating.value = false
   }
@@ -268,12 +284,15 @@ async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
   }
 }
 
-// 终审 Important 1(全支收尾):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
-// 刻意不变),旧实现下 `isEmpty = albums.albumsLoaded && albums.albums.length === 0` 因此恒假
-// → 落进网格分支,渲染"我的相册"分区头 + 光秃秃的新建卡片,没有任何失败提示/重试入口——与
-// PhotosFavorites.vue/PhotosAlbumDetail.vue 已经收口过的同一缺陷(P8a Task 9)是同一个 store、
-// 同一种符号(loadError),这里补第三处。写法照搬这两个姐妹页的既定形状:本地 retrying 守卫
-// (不进 store)+ disabled 反馈 + 复用同一个 fetchAlbums。
+// Final review Important 1 (whole-branch wrap-up): when fetchAlbums fails, albumsLoaded stays
+// false (see albums.ts's comment, deliberately unchanged), so under the old implementation
+// `isEmpty = albums.albumsLoaded && albums.albums.length === 0` was therefore always false
+// → it fell into the grid branch, rendering the "My Albums" section head plus a bare create
+// tile with no failure notice/retry entry point at all — the same defect already closed on
+// PhotosFavorites.vue/PhotosAlbumDetail.vue (P8a Task 9), same store, same symbol (loadError);
+// this closes the third spot. The pattern is copied straight from those two sibling pages'
+// established shape: a local retrying guard (not in the store) + disabled feedback + reusing
+// the same fetchAlbums.
 const retryingAlbums = ref(false)
 async function retryAlbums(): Promise<void> {
   if (retryingAlbums.value) return
@@ -285,7 +304,7 @@ async function retryAlbums(): Promise<void> {
   }
 }
 
-// 照 Vue2 :240-259 的两个全局监听,onUnmounted 摘干净。
+// Mirrors Vue2's two global listeners at :240-259, cleanly removed in onUnmounted.
 function onDocMousedown(e: MouseEvent): void {
   if (sortOpen.value && sortMenuRef.value && !sortMenuRef.value.contains(e.target as Node)) {
     sortOpen.value = false
@@ -357,9 +376,11 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 终审 Important 1:失败态优先级在空态之前——loadError 一旦为真,albumsLoaded 仍是
-             假(刻意,见 albums.ts 注释),不该再落进空态分支渲染一个没有任何提示的空网格。
-             同 PhotosFavorites.vue/PhotosAlbumDetail.vue 已收口的两处一致形状。
+        <!-- Final review Important 1: the failure state takes priority over the empty state —
+             once loadError is true, albumsLoaded still reads false (deliberate, see albums.ts's
+             comment), so it must not fall into the empty-state branch and render an empty grid
+             with no notice at all. Same shape already closed on
+             PhotosFavorites.vue/PhotosAlbumDetail.vue.
              SP15-P2b Task 3 fix round 1 (Important 3): the standalone "isEmpty" panel that
              used to sit here (data-test="albums-empty") is gone -- it duplicated the section
              subtitle below with the exact same "还没有相册" copy once smart albums joined the
@@ -379,14 +400,18 @@ onUnmounted(() => {
           >{{ t('photosRetry') }}</button>
         </div>
 
-        <!-- 终审必修 3:Vue2 PhotosAlbumsView.vue:52-58 在网格之上无条件渲染的分区头
-             (「我的相册 / 你创建的相册」)——New-UI 曾直接从 banner 落到网格,漏渲染整段,
-             连带两个专为它准备的 i18n 键(photosAlbumsMine/photosAlbumsMineHint)成了死码。
-             滚动容器安置:Vue2 的滚动容器是外层 .albums-body(photos.scss:3202-3206),分区头
-             和网格都是它内部一起滚动的静态内容,不是网格自己另开一层滚动区——这里同构,把
-             flex:1+overflow-y:auto 从 .album-grid 挪到新包一层的 .albums-scroll 上,
-             .album-grid 收窄回纯网格布局(display:grid + gap),分区头和卡片网格一起随
-             .albums-scroll 滚动,不会分裂成两段独立滚动区。 -->
+        <!-- Final review must-fix 3: Vue2 PhotosAlbumsView.vue:52-58 unconditionally renders a
+             section head above the grid ("My Albums / albums you created") — New-UI used to
+             fall straight from the banner to the grid, missing this entire block, and along
+             with it the two i18n keys prepared just for it (photosAlbumsMine/photosAlbumsMineHint)
+             became dead code.
+             Scroll-container placement: Vue2's scroll container is the outer .albums-body
+             (photos.scss:3202-3206) — the section head and the grid are both static content
+             that scrolls together inside it, not a separate scroll region owned by the grid
+             itself. Same structure here: move flex:1+overflow-y:auto off .album-grid onto a
+             newly wrapped .albums-scroll layer, narrow .album-grid back to a plain grid layout
+             (display:grid + gap), and let the section head and the card grid scroll together
+             with .albums-scroll, rather than splitting into two independent scroll regions. -->
         <div class="albums-scroll scroll">
           <!-- SP15-P2b Task 3: AI-off banner, moved here from PhotosSmartViews.vue (Vue2
                939a7d3a:PhotosAlbumsView.vue:79-85) now that smart albums live in this grid too.
@@ -626,16 +651,18 @@ onUnmounted(() => {
    flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
 .sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
 
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
+/* height (not min-height): this screen is capped, only the inner scroll container scrolls —
+   same-origin fix, see the comment on the same rule in src/views/Photos.vue for the Vue2
+   source rationale. */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--fg-muted); text-align: center; }
 .empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
 .empty-state-desc { font-size: 13px; }
-/* 终审 Important 1:与 PhotosFavorites.vue/PhotosAlbumDetail.vue 的同款失败态间距对齐
-   (两处已有此规则),否则三个失败屏视觉不一致。 */
+/* Final review Important 1: align spacing with the same failure-state pattern in
+   PhotosFavorites.vue/PhotosAlbumDetail.vue (both already have this rule), otherwise the
+   three failure screens look visually inconsistent. */
 .empty-state .bar-btn { margin-top: 10px; }
 
 /* ── Banner ── */
@@ -685,9 +712,10 @@ onUnmounted(() => {
 .albums-ai-banner-desc { font-size: 11.5px; color: var(--fg-muted); margin-top: 3px; line-height: 1.5; }
 .albums-ai-banner-link { color: var(--accent-text); text-decoration: underline; cursor: pointer; }
 
-/* ── 分区头 + Grid ──
-   滚动容器挪到这一层(照 Vue2 photos.scss:3202-3206 的 .albums-body):分区头与网格一起
-   滚动,.album-grid 本身只负责网格布局,不再兼任滚动容器。
+/* ── Section head + Grid ──
+   The scroll container moved to this layer (per Vue2 photos.scss:3202-3206's .albums-body):
+   the section head and the grid scroll together, and .album-grid itself is only responsible
+   for the grid layout, no longer doubling as the scroll container.
    SP15-P2b Task 3: minmax(220px, 1fr) below is deliberately NOT changed to the
    minmax(320px, 1fr) SmartViewCard was designed against (PhotosSmartViews.vue's old .sv-grid) --
    the two card kinds now share one grid, and a smart card is therefore narrower here than it
@@ -723,15 +751,18 @@ onUnmounted(() => {
 .album-cover { position: relative; aspect-ratio: 4 / 5; border-radius: 16px; overflow: hidden; background: var(--chip-bg); box-shadow: var(--card-shadow-hi); }
 .album-cover img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.5s ease; }
 .album-card:hover .album-cover img { transform: scale(1.04); }
-/* 终审 Minor 4:原来这里与 PhotosAlbumDetail.vue:104 各写一份逐字相同的渐变表达式,
-   提成 theme.css 的 --album-cover-fallback token,两处都改用它,不再重复。 */
+/* Final review Minor 4: this used to have its own copy of a gradient expression identical,
+   character for character, to PhotosAlbumDetail.vue:104 — lifted into theme.css's
+   --album-cover-fallback token, and both places now use it instead of duplicating it. */
 .album-cover-fallback {
   position: absolute; inset: 0;
   background: var(--album-cover-fallback);
   display: flex; align-items: center; justify-content: center;
 }
-/* Vue2 图标色是写死的半透明白色字面量(叠在彩色渐变上的语义前景)——改用 --on-accent(atop
-   accent 填充的可读前景色 token)+ opacity 弱化,而非写死颜色字面量。 */
+/* Vue2's icon colour was a hardcoded semi-transparent light-toned literal (a semantic
+   foreground sitting atop the colourful gradient) -- switched to --on-accent (the token for a
+   readable foreground atop an accent fill) + reduced opacity, rather than hardcoding a colour
+   literal. */
 .album-cover-icon { color: var(--on-accent); opacity: 0.7; }
 .album-title { font-size: 14px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; padding: 0 4px; }
 .album-meta { font-size: 11.5px; color: var(--fg-muted); padding: 0 4px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
@@ -791,8 +822,9 @@ onUnmounted(() => {
   position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
   display: flex; align-items: center; justify-content: center; padding: 32px 20px;
 }
-/* P2/P3 血泪(brief 明确点名):模态底色须用 --popup-bg,不用 --card-bg(深色主题下
-   --card-bg 近透明,叠在暗底上会看穿)。 */
+/* P2/P3 hard-won lesson (called out explicitly in the brief): the modal background must use
+   --popup-bg, not --card-bg (in the dark theme --card-bg is nearly transparent and shows
+   through when layered over a dark backdrop). */
 .albums-modal {
   width: min(440px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
   border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 20px 22px 18px;
@@ -850,7 +882,7 @@ onUnmounted(() => {
 .albums-btn-cta { padding: 8px 18px; border-radius: 9px; border: 0; background: var(--accent); color: var(--on-accent); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .albums-btn-cta:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* ≤768px: sidebar has collapsed into a drawer, layout goes single-column */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
 }

@@ -559,20 +559,23 @@ describe('Photos.vue collapse button wiring — narrow screens go through the dr
   })
 })
 
-// SP7-P7b-T4: 时间线页 EXIF 筛选接线——FilterBar 挂进 PhotosToolbar#after-tabs,
-// 三处同源逻辑(gridMonths 网格数据源 / filteredCount 顶栏计数 / onOpenTile 灯箱翻页集)
-// 全部改用 EXIF 筛后的月份集合;FilterBar 自身的 facet 源 (:photos) 恒取全库
-// store.allPhotos,不随 gridMonths 收窄——照 Vue2 PhotosTimeline.vue facet 源是
-// displayMonths 而非过滤后的 gridMonths 同一约束。
-// fix round 1(评审必修 1):原先并行新建的 Photos.test.ts 已并入本文件,复用本文件
-// 现成的 mountPhotos()/svc mock 脚手架,不再另起一套。
-describe('P7b-T4: EXIF 筛选接线', () => {
-  it('工具栏 after-tabs 槽位里挂着 PhotosFilterBar', async () => {
+// SP7-P7b-T4: timeline page EXIF filtering wiring — FilterBar mounts into
+// PhotosToolbar#after-tabs; three same-source logic paths (gridMonths grid data source /
+// filteredCount header count / onOpenTile lightbox paging set) all switch to the
+// EXIF-filtered month set; FilterBar's own facet source (:photos) always takes the
+// full-library store.allPhotos, not narrowed by gridMonths — matching the same constraint
+// as Vue2 PhotosTimeline.vue, whose facet source is displayMonths rather than the filtered
+// gridMonths.
+// fix round 1 (review-mandatory fix 1): the Photos.test.ts previously created in parallel
+// has been merged into this file, reusing this file's existing mountPhotos()/svc mock
+// scaffolding instead of starting a separate one.
+describe('P7b-T4: EXIF filtering wiring', () => {
+  it('PhotosFilterBar is mounted in the toolbar after-tabs slot', async () => {
     const w = await mountPhotos()
     expect(w.findComponent(PhotosFilterBar).exists()).toBe(true)
   })
 
-  it('FilterBar 的 facet 源是全库 allPhotos,不随已生效的筛选收窄', async () => {
+  it('FilterBar facet source is the full-library allPhotos, not narrowed by the active filter', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -581,7 +584,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
 
     const bar = w.findComponent(PhotosFilterBar)
     const before = (bar.props('photos') as unknown[]).length
-    expect(before).toBe(5) // 全库:2023-06 三张 + 2024-01 两张
+    expect(before).toBe(5) // full library: three in 2023-06 + two in 2024-01
 
     await bar.vm.$emit('update:filter', { years: ['2023'], places: [], cameras: [] })
     await w.vm.$nextTick()
@@ -589,7 +592,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect((w.findComponent(PhotosFilterBar).props('photos') as unknown[]).length).toBe(before)
   })
 
-  it('筛选生效后网格只拿到命中的照片,且空月份被丢掉', async () => {
+  it('once the filter takes effect the grid only gets matching photos, and empty months are dropped', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -602,14 +605,15 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     await w.vm.$nextTick()
 
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
-    // 2024-01 整月不命中 years:['2023'],月份本身应被丢掉——只剩 2023-06 一个月。
+    // The whole 2024-01 month doesn't match years:['2023'], so the month itself should be
+    // dropped — leaving only the 2023-06 month.
     expect(months).toHaveLength(1)
     expect(months.every((m) => m.photos.length > 0)).toBe(true)
-    // 2023-06 三张全命中(它们的 takenAt 都在 2023 年),2024-01 的两张全部消失。
+    // All three in 2023-06 match (their takenAt is all in 2023), and both in 2024-01 disappear.
     expect(months.flatMap((m) => m.photos)).toHaveLength(3)
   })
 
-  it('D20:顶栏计数跟着 EXIF 筛选减', async () => {
+  it('D20: header count decreases along with the EXIF filter', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -629,9 +633,10 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect(countAfter).toBe(3)
   })
 
-  // fix round 1(评审必修 2):锁住 onOpenTile 翻页集必须用 gridMonths(EXIF 筛后)而
-  // 不是 store.months——否则灯箱能翻到被筛掉的照片。变异验证见 task-4-report.md。
-  it('筛选生效后点开一张图 → 灯箱翻页集同样只含命中的照片(与网格同源)', async () => {
+  // fix round 1 (review-mandatory fix 2): pin down that onOpenTile's paging set must use
+  // gridMonths (EXIF-filtered), not store.months — otherwise the lightbox can page to
+  // photos that were filtered out. See task-4-report.md for the mutation verification.
+  it('once the filter takes effect, opening a photo -> the lightbox paging set also only contains matching photos (same source as the grid)', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -656,9 +661,10 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     expect(ids).not.toContain('b2')
   })
 
-  // fix round 1(评审必修 3):补 cameras 维度的贯通(此前四条都只筛 years)——
-  // camera 值形如 "Sony · A7",过滤谓词按 split('·')[0].trim() 匹配。
-  it('cameras 维度贯通:按 make·model 拆分匹配,命中月份保留、不命中月份被丢掉', async () => {
+  // fix round 1 (review-mandatory fix 3): add end-to-end coverage for the cameras dimension
+  // (the previous four cases only filtered on years) — the camera value looks like
+  // "Sony · A7", and the filter predicate matches on split('·')[0].trim().
+  it('cameras dimension end-to-end: matches by splitting make·model, matching months are kept and non-matching months are dropped', async () => {
     const w = await mountPhotos()
     const store = useTimelineStore()
     seedTimeline(store)
@@ -671,7 +677,7 @@ describe('P7b-T4: EXIF 筛选接线', () => {
     await w.vm.$nextTick()
 
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: Array<{ id: string }> }>
-    // 只有 2024-01(Sony · A7)命中,2023-06(Canon · EOS R5)被丢掉。
+    // Only 2024-01 (Sony · A7) matches; 2023-06 (Canon · EOS R5) is dropped.
     expect(months).toHaveLength(1)
     const ids = months.flatMap((m) => m.photos).map((p) => p.id)
     expect(ids.sort()).toEqual(['b1', 'b2'])

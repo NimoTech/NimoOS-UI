@@ -73,75 +73,75 @@ afterEach(() => {
 })
 
 describe('formatSslDate', () => {
-  it('Go 零值时间 → ---(实测本机就是 0001-01-01)', () => {
+  it('Go zero-value time → --- (confirmed on this machine: it really is 0001-01-01)', () => {
     expect(formatSslDate('0001-01-01T00:00:00Z')).toBe('---')
   })
-  it('空 / undefined → ---', () => {
+  it('empty / undefined → ---', () => {
     expect(formatSslDate('')).toBe('---')
     expect(formatSslDate(undefined)).toBe('---')
   })
-  it('非法日期 → ---(Vue2 用 try/catch 但 new Date 不抛,会输出 NaN/NaN/NaN —— 不照抄)', () => {
+  it('invalid date → --- (Vue2 uses try/catch but new Date does not throw; it produces NaN/NaN/NaN — do not copy that behavior)', () => {
     expect(formatSslDate('不是日期')).toBe('---')
   })
-  it('正常日期 → DD/MM/YYYY(对位 Vue2 formatDate)', () => {
+  it('valid date → DD/MM/YYYY (matches Vue2 formatDate)', () => {
     expect(formatSslDate('2027-03-09T10:00:00Z')).toMatch(/^\d{2}\/\d{2}\/2027$/)
   })
 })
 
 describe('WebUiHttpsDialog', () => {
-  it('打开时拉配置并填入表单', async () => {
+  it('fetches config on open and fills the form', async () => {
     mountIt(); await flushPromises()
     expect((body().find('.wh-domain').element as HTMLInputElement).value).toBe('nimoos.local')
     expect((body().find('.wh-port').element as HTMLInputElement).value).toBe('443')
   })
 
-  it('open=false 不拉配置', async () => {
+  it('open=false does not fetch config', async () => {
     const svc = await import('@nimotech/nimoos-service')
     const spy = vi.spyOn(svc.service.sys, 'getSSLConfig')
     mountIt(false); await flushPromises()
     expect(spy).not.toHaveBeenCalled()
   })
 
-  it('零值时间显示 ---', async () => {
+  it('zero-value time displays ---', async () => {
     mountIt(); await flushPromises()
     expect(body().findAll('.wh-date').map((e) => e.text())).toEqual(['---', '---'])
   })
 
-  it('cert_type=auto 时显示「下载 CA 证书」,不显示上传位', async () => {
+  it('cert_type=auto shows "Download CA certificate" and hides the upload slot', async () => {
     mountIt(); await flushPromises()
     expect(body().find('.wh-ca').exists()).toBe(true)
     expect(body().find('.wh-upload').exists()).toBe(false)
   })
 
-  it('切到 custom 显示上传位,隐藏 CA 下载', async () => {
+  it('switching to custom shows the upload slot and hides the CA download', async () => {
     mountIt(); await flushPromises()
     await body().find('.wh-cert').setValue('custom')
     expect(body().find('.wh-upload').exists()).toBe(true)
     expect(body().find('.wh-ca').exists()).toBe(false)
   })
 
-  it('auto 保存:只下发 4 个字段,不回传只读时间', async () => {
+  it('auto save: only sends 4 fields, does not send the read-only timestamps back', async () => {
     mountIt(); await flushPromises()
     await body().find('.wh-save').trigger('click'); await flushPromises()
     expect(state.setCalls).toEqual([{ enabled: false, domain: 'nimoos.local', port: '443', cert_type: 'auto' }])
     expect(state.uploadCalls).toBe(0)
   })
 
-  it('保存成功后 emit saved 并关窗', async () => {
+  it('emits saved and closes the dialog after a successful save', async () => {
     const w = mountIt(); await flushPromises()
     await body().find('.wh-save').trigger('click'); await flushPromises()
     expect(w.emitted('saved')).toBeTruthy()
     expect(w.emitted('update:open')).toEqual([[false]])
   })
 
-  it('保存配置失败不关窗(让用户能改了再试)', async () => {
+  it('a failed config save does not close the dialog (so the user can fix and retry)', async () => {
     state.setFail = true
     const w = mountIt(); await flushPromises()
     await body().find('.wh-save').trigger('click'); await flushPromises()
     expect(w.emitted('update:open')).toBeFalsy()
   })
 
-  it('custom 但只选了一个文件:提示要两个,不发上传也不发保存', async () => {
+  it('custom with only one file selected: prompts for both, sends neither an upload nor a save', async () => {
     mountIt(); await flushPromises()
     await body().find('.wh-cert').setValue('custom')
     await pickFiles(new File(['x'], 'a.pem'), null)
@@ -151,7 +151,7 @@ describe('WebUiHttpsDialog', () => {
     expect(body().text()).toContain('请同时上传')
   })
 
-  it('custom 且两个文件都选了:先上传再保存', async () => {
+  it('custom with both files selected: uploads first, then saves', async () => {
     mountIt(); await flushPromises()
     await body().find('.wh-cert').setValue('custom')
     await pickFiles(new File(['x'], 'a.pem'), new File(['y'], 'b.crt'))
@@ -160,7 +160,7 @@ describe('WebUiHttpsDialog', () => {
     expect(state.setCalls).toHaveLength(1)
   })
 
-  it('上传失败就不再保存配置(避免配置说 custom 而证书没上去)', async () => {
+  it('an upload failure prevents the config save (avoids saying custom while no certificate actually got uploaded)', async () => {
     state.uploadFail = true
     mountIt(); await flushPromises()
     await body().find('.wh-cert').setValue('custom')
@@ -169,7 +169,7 @@ describe('WebUiHttpsDialog', () => {
     expect(state.setCalls).toEqual([])
   })
 
-  it('custom 但一个文件都没选:直接保存(沿用服务端已有证书)', async () => {
+  it('custom with no file selected at all: saves directly (reuses the certificate already on the server)', async () => {
     state.ssl = { ...SSL, cert_type: 'custom' }
     mountIt(); await flushPromises()
     await body().find('.wh-save').trigger('click'); await flushPromises()
@@ -182,7 +182,7 @@ describe('WebUiHttpsDialog', () => {
   // must not overwrite what the user just typed.
   // The snapshot must be taken BEFORE the user input, and resolve with that stale snapshot —
   // don't read state.ssl at resolve time (it would already be mutated; not a true "late arrival").
-  it('打开弹窗后加载还没返回,用户先改了域名,迟到的服务端值不能覆盖用户输入(交错路径守卫)', async () => {
+  it('load has not returned after opening the dialog, the user already changed the domain — the late-arriving server value must not override the user input (interleaved-path guard)', async () => {
     state.ssl = { ...SSL, domain: 'server-stale.local' }
     const staleSnapshot = { ...state.ssl }
     const svc = await import('@nimotech/nimoos-service')

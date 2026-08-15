@@ -3,14 +3,14 @@ import type { AxiosInstance } from 'axios'
 import { createCloud } from './cloud'
 
 describe('createCloud', () => {
-  it('list 标准信封 → 映射 mount_point→mountPoint', async () => {
+  it('list standard envelope → maps mount_point→mountPoint', async () => {
     const http = { get: async () => ({ data: { success: 200, data: [
       { fs: 'gdrive:', name: 'MyDrive', icon: './img/driver/GoogleDrive.svg', mount_point: '/mnt/gdrive' },
     ] } }) } as unknown as AxiosInstance
     const res = await createCloud(http).list()
     expect(res).toEqual([{ fs: 'gdrive:', name: 'MyDrive', icon: './img/driver/GoogleDrive.svg', mountPoint: '/mnt/gdrive' }])
   })
-  it('list 裸数组容错', async () => {
+  it('list tolerates a bare array', async () => {
     const http = { get: async () => ({ data: [{ fs: 'f', name: 'n', icon: 'i', mount_point: '/m' }] }) } as unknown as AxiosInstance
     expect(await createCloud(http).list()).toEqual([{ fs: 'f', name: 'n', icon: 'i', mountPoint: '/m' }])
   })

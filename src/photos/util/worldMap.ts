@@ -2,7 +2,7 @@
 // Plate carrée (equirectangular) projection.
 // Land mask rasterized from Natural Earth 110m land data, 2.5° grid.
 // Ported verbatim from Vue2 src/views/Photos/worldMap.js — do not change the
-// four geometry constants or the mask-parsing algorithm (P6 复用同一份).
+// four geometry constants or the mask-parsing algorithm (P6 reuses this same file).
 
 export const MAP_W = 1000
 export const MAP_H = 500

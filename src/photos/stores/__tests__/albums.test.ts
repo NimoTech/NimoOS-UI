@@ -125,8 +125,8 @@ describe('photosAlbums store', () => {
         () => new Promise((resolve) => { resolveFn = resolve }),
       )
       const s = usePhotosAlbums()
-      const p = s.fetchAlbumAssets(7) // 数字 id 发起
-      expect(s.isLoadingAssets('7')).toBe(true) // 字符串查,in-flight 时必须命中
+      const p = s.fetchAlbumAssets(7) // initiated with a numeric id
+      expect(s.isLoadingAssets('7')).toBe(true) // queried with a string; must hit while in-flight
       resolveFn!({ assets: [] })
       await p
       expect(s.isLoadingAssets('7')).toBe(false)
@@ -177,7 +177,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('deleteAlbum', () => {
-    it('清该 id 资产缓存 + listAlbums 再调', async () => {
+    it('clears the asset cache for that id + calls listAlbums again', async () => {
       const s = usePhotosAlbums()
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({ assets: [{ id: 'p1', takenAt: null }] })
       await s.fetchAlbumAssets('9')
@@ -187,9 +187,10 @@ describe('photosAlbums store', () => {
       expect(s.assetsOf('9')).toEqual([])
       expect(service.photos.listAlbums).toHaveBeenCalledTimes(1)
     })
-    // 负向:deleteAlbum 无乐观删除(Vue2 :905-909 先 await 后端,成功后才 commit)——
-    // 在后端调用尚未 resolve 期间,albums 列表必须原封不动。
-    it('无乐观删除:后端调用 in-flight 期间 albums 列表未变', async () => {
+    // Negative case: deleteAlbum has no optimistic delete (Vue2 :905-909 awaits the backend
+    // first, only committing after success) -- while the backend call has not yet resolved,
+    // the albums list must remain completely unchanged.
+    it('no optimistic delete: the albums list is unchanged while the backend call is in flight', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'A' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -198,14 +199,14 @@ describe('photosAlbums store', () => {
         () => new Promise((resolve) => { resolveFn = resolve }),
       )
       const p = s.deleteAlbum('a1')
-      expect(s.albums).toEqual([{ id: 'a1', name: 'A' }]) // 未被乐观移除
+      expect(s.albums).toEqual([{ id: 'a1', name: 'A' }]) // not optimistically removed
       resolveFn!({})
       await p
     })
   })
 
   describe('fetchAlbumAssets', () => {
-    it('成功 → assetsOf 为 assetToPhoto 映射结果', async () => {
+    it('success -> assetsOf is the assetToPhoto mapping result', async () => {
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({
         assets: [{ id: 'p1', takenAt: '2026-01-01T00:00:00Z', originalName: 'x.jpg' }],
       })
@@ -215,7 +216,7 @@ describe('photosAlbums store', () => {
         expect.objectContaining({ id: 'p1', file: 'x.jpg' }),
       ])
     })
-    it('并发二次调用被防重入吞掉(getAlbum 只调 1 次)', async () => {
+    it('a concurrent second call is swallowed by the re-entrancy guard (getAlbum is called only once)', async () => {
       let resolveFn: (v: unknown) => void
       ;(service.photos.getAlbum as any).mockImplementationOnce(
         () => new Promise((resolve) => { resolveFn = resolve }),
@@ -227,19 +228,22 @@ describe('photosAlbums store', () => {
       await Promise.all([p1, p2])
       expect(service.photos.getAlbum).toHaveBeenCalledTimes(1)
     })
-    // 评审挡门项:必须先填充旧值再让第二次拉取失败,否则「清空为 []」和"未知 key 本来
-    // 就返回 []"（albums.ts 的 `?? []`）无法区分——把实现里清空那行整行删掉这条测试也会
-    // 通过。见 Vue2 photos.js:928(拉失败要抹掉旧内容,不能让用户对着陈旧列表操作)。
-    it('reject → assetsOf 从「有旧值」变为 []（非保留旧值)+ loading 收尾为 false + console.error', async () => {
+    // Review gating item: the old value must be populated first before letting the second
+    // fetch fail, otherwise "cleared to []" and "an unknown key just naturally returns []"
+    // (the `?? []` in albums.ts) cannot be told apart -- deleting the whole clearing line
+    // from the implementation would still pass this test. See Vue2 photos.js:928 (a failed
+    // fetch must wipe the stale content, the user must not be left operating against a stale
+    // list).
+    it('reject -> assetsOf goes from "has an old value" to [] (not kept), loading ends as false, console.error is called', async () => {
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({ assets: [{ id: 'p1', takenAt: null }] })
       const s = usePhotosAlbums()
       await s.fetchAlbumAssets('a1')
-      expect(s.assetsOf('a1')).toHaveLength(1) // 先证明有旧值
+      expect(s.assetsOf('a1')).toHaveLength(1) // first prove there is an old value
 
       const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       ;(service.photos.getAlbum as any).mockRejectedValueOnce(new Error('x'))
       await s.fetchAlbumAssets('a1')
-      expect(s.assetsOf('a1')).toEqual([]) // 这句现在才有区分力:证明旧值被真的抹掉了
+      expect(s.assetsOf('a1')).toEqual([]) // only this assertion has discriminating power: it proves the old value was really wiped
       expect(s.isLoadingAssets('a1')).toBe(false)
       expect(errSpy).toHaveBeenCalled()
       errSpy.mockRestore()
@@ -247,7 +251,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('renameAlbum', () => {
-    it('调用 updateAlbum(id,{name}),本地写回后端返回的 name', async () => {
+    it('calls updateAlbum(id, {name}) and writes the backend-returned name back locally', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Old' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -255,11 +259,12 @@ describe('photosAlbums store', () => {
       await s.renameAlbum('a1', 'New Name')
       expect(service.photos.updateAlbum).toHaveBeenCalledWith('a1', { name: 'New Name' })
       expect(s.albumById('a1')?.name).toBe('服务端名')
-      // 负向:renameAlbum 不重拉列表(Vue2 :933-936 只 commit 本地,不 dispatch fetchAlbums)——
-      // listAlbums 只应有 setup 阶段的 1 次调用。
+      // Negative case: renameAlbum does not refetch the list (Vue2 :933-936 only commits
+      // locally, it does not dispatch fetchAlbums) -- listAlbums should only have been
+      // called once, during setup.
       expect(service.photos.listAlbums).toHaveBeenCalledTimes(1)
     })
-    it('reject → 抛出且本地未改', async () => {
+    it('reject -> throws and the local state is unchanged', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Old' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -267,10 +272,12 @@ describe('photosAlbums store', () => {
       await expect(s.renameAlbum('a1', 'New Name')).rejects.toThrow('x')
       expect(s.albumById('a1')?.name).toBe('Old')
     })
-    // 回归保护(逐行核对 Vue2 :934-935 发现的出入):Vue2 是 res.data.name **无兜底**,
-    // brief 快照误加了 `?? name`。若这里被误改回加兜底,后端漏返回 name 时本测试会挂红
-    // (期望 undefined,兜底实现会得到入参 'New Name')。
-    it('Vue2 保真:后端响应缺 name 字段时写回 undefined,不兜底成入参', async () => {
+    // Regression guard (found by a line-by-line check against Vue2 :934-935): Vue2 uses
+    // res.data.name **with no fallback**; the brief's snapshot mistakenly added `?? name`.
+    // If this is ever changed back to add a fallback, this test goes red when the backend
+    // omits name (expected undefined, a fallback implementation would get the input arg
+    // 'New Name').
+    it('Vue2 fidelity: when the backend response omits the name field, undefined is written back, not falling back to the input arg', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', name: 'Old' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -281,7 +288,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('setAlbumCover', () => {
-    it('调用前本地立即变新 cover(乐观)', async () => {
+    it('the local cover changes to the new one immediately, before the call resolves (optimistic)', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', coverAssetId: 'p0' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -294,7 +301,7 @@ describe('photosAlbums store', () => {
       resolveFn!({})
       await p
     })
-    it('reject → 回滚为 prev 且抛出', async () => {
+    it('reject -> rolls back to prev and throws', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', coverAssetId: 'p0' }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -302,11 +309,13 @@ describe('photosAlbums store', () => {
       await expect(s.setAlbumCover('a1', 'p1')).rejects.toThrow('x')
       expect(s.albumById('a1')?.coverAssetId).toBe('p0')
     })
-    // 回归保护(逐行核对 Vue2 :938-939 发现的出入):Vue2 的 prev 在相册存在但
-    // coverAssetId 字段缺失时是 undefined(属性直读),不是 null;brief 快照用 `?? null`
-    // 把这种情况也归一成了 null。若这里被误改回 `?? null`,本测试会挂红(期望 undefined)。
-    it('Vue2 保真:相册存在但 coverAssetId 字段缺失时,回滚值是 undefined 不是 null', async () => {
-      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // 无 coverAssetId 字段
+    // Regression guard (found by a line-by-line check against Vue2 :938-939): Vue2's prev is
+    // undefined (a direct property read) when the album exists but the coverAssetId field is
+    // missing, not null; the brief's snapshot used `?? null` and normalized this case to
+    // null too. If this is ever changed back to `?? null`, this test goes red (expected
+    // undefined).
+    it('Vue2 fidelity: when the album exists but the coverAssetId field is missing, the rollback value is undefined, not null', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // no coverAssetId field
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       ;(service.photos.updateAlbum as any).mockRejectedValueOnce(new Error('x'))
@@ -316,7 +325,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('reorderAlbumAssets', () => {
-    it('立即按传入顺序重排;传入含未知 id 该项被丢弃', async () => {
+    it('reorders immediately to the passed-in order; an unknown id in the input is dropped', async () => {
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({
         assets: [
           { id: 'p1', takenAt: null },
@@ -335,7 +344,7 @@ describe('photosAlbums store', () => {
       resolveFn!({})
       await p
     })
-    it('reject → 整份还原且抛出', async () => {
+    it('reject -> fully restores and throws', async () => {
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({
         assets: [
           { id: 'p1', takenAt: null },
@@ -351,7 +360,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('addAssetsToAlbum', () => {
-    it('立即 assetCount=prev+n;成功后 getAlbum 被调且 assetCount 被真实长度覆盖', async () => {
+    it('assetCount=prev+n immediately; after success getAlbum is called and assetCount is overwritten with the real length', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 2 }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -369,7 +378,7 @@ describe('photosAlbums store', () => {
       expect(service.photos.getAlbum).toHaveBeenCalledWith('a1')
       expect(s.albumById('a1')?.assetCount).toBe(3) // real length after refetch
     })
-    it('reject → 计数回滚为 prev 且抛出', async () => {
+    it('reject -> count rolls back to prev and throws', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 2 }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -380,7 +389,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('removeAssetsFromAlbum', () => {
-    it('立即移除+计数减;removeFromAlbum 逐条调用;成功后 listAlbums 再调', async () => {
+    it('removes immediately and decrements the count; removeFromAlbum is called one at a time; after success listAlbums is called again', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 3 }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -393,14 +402,14 @@ describe('photosAlbums store', () => {
       })
       await s.fetchAlbumAssets('a1')
       const p = s.removeAssetsFromAlbum('a1', ['p1', 'p2'])
-      // 乐观写发生在 await Promise.all(...) 之前的同步段,故 await p 前即可断言。
+      // The optimistic write happens in the synchronous section before await Promise.all(...), so it can be asserted before awaiting p.
       expect(s.assetsOf('a1').map((x) => x.id)).toEqual(['p3'])
       expect(s.albumById('a1')?.assetCount).toBe(1)
       await p
       expect(service.photos.removeFromAlbum).toHaveBeenCalledTimes(2)
       expect(service.photos.listAlbums).toHaveBeenCalledTimes(2) // initial fetchAlbums + post-remove refetch
     })
-    it('reject → assets 与计数整份回滚且抛出', async () => {
+    it('reject -> assets and the count both fully roll back and throw', async () => {
       ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1', assetCount: 3 }])
       const s = usePhotosAlbums()
       await s.fetchAlbums()
@@ -412,9 +421,11 @@ describe('photosAlbums store', () => {
         ],
       })
       await s.fetchAlbumAssets('a1')
-      // .mockRejectedValueOnce 两次(对应 assetIds 长度 2 次调用),避免 mockRejectedValue
-      // (非 Once)让 mock 实现在本文件余生永久 reject——vi.clearAllMocks() 只清调用记录,
-      // 不清实现,是 brief 警告的跨用例"实现泄漏"。
+      // .mockRejectedValueOnce twice (matching the 2 calls for assetIds length), avoiding
+      // mockRejectedValue (without Once), which would make the mock implementation reject
+      // forever for the rest of this file -- vi.clearAllMocks() only clears call records,
+      // not implementations, which is the "implementation leak" across cases that the brief
+      // warns about.
       ;(service.photos.removeFromAlbum as any)
         .mockRejectedValueOnce(new Error('x'))
         .mockRejectedValueOnce(new Error('x'))
@@ -422,12 +433,14 @@ describe('photosAlbums store', () => {
       expect(s.assetsOf('a1').map((x) => x.id)).toEqual(['p1', 'p2', 'p3'])
       expect(s.albumById('a1')?.assetCount).toBe(3)
     })
-    // 回归保护(逐行核对 Vue2 :979-980 发现的出入):Vue2 的 prevCount 在相册存在但
-    // assetCount 字段缺失时兜底 0(`album.assetCount || 0`),只有相册整个找不到时才兜底
-    // snapshot.length;brief 快照用 `?? snapshot.length` 把两种情况都兜底成了
-    // snapshot.length。若这里被误改回 `??`,本测试会挂红(期望 0,误实现会得到 3)。
-    it('Vue2 保真:相册存在但 assetCount 字段缺失时,回滚计数是 0 不是 snapshot.length', async () => {
-      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // 无 assetCount 字段
+    // Regression guard (found by a line-by-line check against Vue2 :979-980): Vue2's
+    // prevCount falls back to 0 (`album.assetCount || 0`) when the album exists but the
+    // assetCount field is missing, and only falls back to snapshot.length when the album
+    // cannot be found at all; the brief's snapshot used `?? snapshot.length` and fell back
+    // to snapshot.length in both cases. If this is ever changed back to `??`, this test goes
+    // red (expected 0, a wrong implementation would get 3).
+    it('Vue2 fidelity: when the album exists but the assetCount field is missing, the rollback count is 0, not snapshot.length', async () => {
+      ;(service.photos.listAlbums as any).mockResolvedValueOnce([{ id: 'a1' }]) // no assetCount field
       const s = usePhotosAlbums()
       await s.fetchAlbums()
       ;(service.photos.getAlbum as any).mockResolvedValueOnce({
@@ -447,7 +460,7 @@ describe('photosAlbums store', () => {
   })
 
   describe('saveAsAlbum', () => {
-    it('createAlbum → batchAddToAlbum(新id, ids) → listAlbums 顺序调用,返回新相册', async () => {
+    it('createAlbum -> batchAddToAlbum(new id, ids) -> listAlbums called in order, returns the new album', async () => {
       const s = usePhotosAlbums()
       const order: string[] = []
       ;(service.photos.createAlbum as any).mockImplementationOnce(async () => {
@@ -466,7 +479,7 @@ describe('photosAlbums store', () => {
       expect(service.photos.batchAddToAlbum).toHaveBeenCalledWith('new2', ['p1', 'p2'])
       expect(order).toEqual(['createAlbum', 'batchAddToAlbum', 'listAlbums'])
     })
-    it('createAlbum reject(409) → 抛出且 batchAddToAlbum 未被调', async () => {
+    it('createAlbum reject(409) -> throws and batchAddToAlbum is not called', async () => {
       ;(service.photos.createAlbum as any).mockRejectedValueOnce(new Error('409 conflict'))
       const s = usePhotosAlbums()
       await expect(s.saveAsAlbum('Trip', ['p1'])).rejects.toThrow('409')

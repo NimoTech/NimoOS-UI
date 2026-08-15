@@ -6,15 +6,19 @@ import { fmtSize } from '../../home/util/format'
 import { toFahrenheit, type PhysicalDrive } from '../util/storageMap'
 import { pohDisplay } from '../util/raidLevels'
 
-// 迁移自 NimoOS-UI/src/components/Storage/DiskDetailModal.vue(b6cffd6c):磁盘完整身份
-// (型号/路径/序列号/disk_by_id)、健康/温度/通电、分区表(含挂载点与已用字节)、
-// RAID 关系(本机成员 → 中性说明;外来残留 → 警告框点名残留阵列 + 创建/最后活动时间)。
+// Ported from NimoOS-UI/src/components/Storage/DiskDetailModal.vue (b6cffd6c): full disk
+// identity (model/path/serial/disk_by_id), health/temperature/power-on time, partition
+// table (including mount point and used bytes), RAID relationship (local member → neutral
+// note; foreign residue → warning box calling out the residual array + created/last-active
+// time).
 //
-// ⚠️ raid.array_name/created_at/updated_at 来自盘上 mdadm 超块 —— 任何插进来的盘都能
-// 控制这些字符串,只能经模板插值({{ }})渲染,绝不能 v-html / 拼 HTML。
+// ⚠️ raid.array_name/created_at/updated_at come from the mdadm superblock on the disk —
+// any disk that gets plugged in can control these strings, so they may only be rendered
+// via template interpolation ({{ }}), never v-html / string-concatenated HTML.
 //
-// health 是字符串 "true"/"false":严格比较三态展示(正常/损坏/未知),
-// 真值判断会把 "false" 当健康(Vue2 曾有此缺陷)。
+// health is the string "true"/"false": use strict comparison for the three-state display
+// (healthy/damaged/unknown) — a truthy check would treat "false" as healthy (Vue2 had this
+// defect).
 const props = defineProps<{ open: boolean; drive: PhysicalDrive }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
 const { t } = useI18n()

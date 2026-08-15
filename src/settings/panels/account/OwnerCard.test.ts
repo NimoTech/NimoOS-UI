@@ -6,11 +6,11 @@ import OwnerCard from './OwnerCard.vue'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// 本组件在 document 上挂 click 监听(对位 Vue2 mounted/destroyed),不 unmount 会串味。
+// This component attaches a click listener on document (maps to Vue2 mounted/destroyed); not unmounting would leak across tests.
 let mountedWrappers: Array<{ unmount: () => void }> = []
 afterEach(() => {
   for (const w of mountedWrappers) {
-    try { w.unmount() } catch { /* 已 unmount 过 */ }
+    try { w.unmount() } catch { /* already unmounted */ }
   }
   mountedWrappers = []
 })
@@ -25,33 +25,33 @@ function setFiles(el: Element, file: File) {
   Object.defineProperty(el, 'files', { value: [file], configurable: true })
 }
 
-describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', () => {
-  it('显示「本机所有者账户」小标 + 用户名', () => {
+describe('OwnerCard — maps to the top half of Vue2 AccountPanel state 1 (:630-662)', () => {
+  it('shows the "local owner account" label + the username', () => {
     const w = mountCard()
     expect(w.text()).toContain(zh.settingsAccOwnerLabel)
     expect(w.find('[data-test="acc-username"]').text()).toBe('nimoos')
   })
 
-  it('三个按钮:更改密码 / 更改头像 / 退出账户', () => {
+  it('three buttons: change password / change avatar / log out', () => {
     const w = mountCard()
     expect(w.find('[data-test="acc-change-password"]').text()).toContain(zh.settingsAccChangePassword)
     expect(w.find('[data-test="acc-change-avatar"]').text()).toContain(zh.settingsAccChangeAvatar)
     expect(w.find('[data-test="acc-logout"]').text()).toContain(zh.settingsAccLogout)
   })
 
-  it('点「更改密码」发 change-password 事件', async () => {
+  it('clicking "change password" emits the change-password event', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-change-password"]').trigger('click')
     expect(w.emitted('change-password')).toHaveLength(1)
   })
 
-  it('点「退出账户」发 logout 事件', async () => {
+  it('clicking "log out" emits the logout event', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-logout"]').trigger('click')
     expect(w.emitted('logout')).toHaveLength(1)
   })
 
-  it('头像来源菜单默认收起,点「更改头像」才展开(Vue2 toggleAvatarMenu)', async () => {
+  it('the avatar source menu is collapsed by default, and only expands on clicking "change avatar" (Vue2 toggleAvatarMenu)', async () => {
     const w = mountCard()
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(false)
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
@@ -60,14 +60,14 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     expect(w.text()).toContain(zh.settingsAccChooseFromNas)
   })
 
-  it('再点一次「更改头像」收起菜单(toggle 语义)', async () => {
+  it('clicking "change avatar" again collapses the menu (toggle semantics)', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(false)
   })
 
-  it('点「从NAS选择」发 choose-from-nas 并收起菜单', async () => {
+  it('clicking "choose from NAS" emits choose-from-nas and collapses the menu', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     await w.find('[data-test="acc-nas"]').trigger('click')
@@ -75,7 +75,7 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(false)
   })
 
-  it('点文档任意处收起菜单(Vue2 document click 监听)', async () => {
+  it('clicking anywhere in the document collapses the menu (Vue2 document click listener)', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(true)
@@ -84,15 +84,15 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(false)
   })
 
-  it('点卡片内的按钮不会被 document 监听顺手关掉菜单(@click.stop 那层)', async () => {
+  it('clicking a button inside the card does not get incidentally closed by the document listener (the @click.stop layer)', async () => {
     const w = mountCard()
-    // 直接点「更改头像」按钮:事件会冒泡到 .set-acc-avatar-picker 被 stop 住,
-    // 不会到 document → 菜单保持打开。
+    // Directly clicking the "change avatar" button: the event bubbles up to
+    // .set-acc-avatar-picker where it gets stopped, never reaching document → menu stays open.
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     expect(w.find('[data-test="acc-avatar-menu"]').exists()).toBe(true)
   })
 
-  it('非图片文件被拒:发 invalid-file 而不是 pick-local-file', async () => {
+  it('non-image files are rejected: emits invalid-file instead of pick-local-file', async () => {
     const w = mountCard()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
     const input = w.find('[data-test="acc-file-input"]')
@@ -102,7 +102,7 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     expect(w.emitted('pick-local-file')).toBeUndefined()
   })
 
-  it('合法图片发 pick-local-file,带一个 objectURL', async () => {
+  it('a valid image emits pick-local-file, with an objectURL', async () => {
     const spy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:fake-0')
     const w = mountCard()
     await w.find('[data-test="acc-change-avatar"]').trigger('click')
@@ -113,7 +113,7 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     spy.mockRestore()
   })
 
-  it('本组件不自己 revoke objectURL —— 生命周期归宿主(plan C12)', async () => {
+  it('this component does not revoke the objectURL itself — lifecycle belongs to the host (plan C12)', async () => {
     const create = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:z')
     const revoke = vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
     const w = mountCard()
@@ -126,7 +126,7 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     create.mockRestore(); revoke.mockRestore()
   })
 
-  it('头像 <img> 加载失败时回退成首字母块(真机 /v1/users/avatar 实测 404)', async () => {
+  it('falls back to the initial-letter block when the avatar <img> fails to load (on real hardware, /v1/users/avatar was observed returning 404)', async () => {
     const w = mountCard('nimoos')
     expect(w.find('[data-test="acc-avatar-img"]').exists()).toBe(true)
     await w.find('[data-test="acc-avatar-img"]').trigger('error')
@@ -134,13 +134,13 @@ describe('OwnerCard —— 对位 Vue2 AccountPanel state 1 上半(:630-662)', (
     expect(w.find('[data-test="acc-avatar-fallback"]').text()).toBe('N')
   })
 
-  it('用户名为空时首字母块也不炸(取数失败的形态)', async () => {
+  it('the initial-letter block does not blow up when the username is empty (shape of a failed data fetch)', async () => {
     const w = mountCard('')
     await w.find('[data-test="acc-avatar-img"]').trigger('error')
     expect(w.find('[data-test="acc-avatar-fallback"]').text()).toBe('')
   })
 
-  it('avatarSrc 变化(版本号 +1)时重新尝试加载图片,清掉上次的失败状态', async () => {
+  it('retries loading the image when avatarSrc changes (version +1), clearing the previous failure state', async () => {
     const w = mountCard('nimoos', '/v1/users/avatar?v=1')
     await w.find('[data-test="acc-avatar-img"]').trigger('error')
     expect(w.find('[data-test="acc-avatar-fallback"]').exists()).toBe(true)

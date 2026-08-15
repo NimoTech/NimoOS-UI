@@ -1,6 +1,6 @@
-/* 从 folder-permissions 快照派生出四个分区的列表。1:1 移植 Vue2
- * NimoOS-UI/src/components/settings/folderPermissionsView.js(65 行)。
- * 纯渲染派生:所有写操作仍走引擎的 planToggle。
+/* Derives the four section lists from a folder-permissions snapshot. 1:1 port of Vue2
+ * NimoOS-UI/src/components/settings/folderPermissionsView.js (65 lines).
+ * Pure rendering derivation: all writes still go through the engine's planToggle.
  */
 import {
   coveringEnabledRoot,
@@ -15,7 +15,7 @@ export interface KnowledgeRootItem { path: string; enabled: boolean; rootId: num
 export interface ExcludeItem { id: number | string; path: string }
 export interface AiItem { id: number | string; path: string; coveredBy: string | null }
 
-/** 覆盖该路径的**最短**祖先(最外层那个才是用户眼里的「覆盖者」)。 */
+/** The **shortest** ancestor that covers this path (the outermost one is the "coverer" in the user's eyes). */
 export function coveredBy(path: string, paths: string[]): string | null {
   const ancestors = paths.filter((p) => isUnder(path, p))
   if (!ancestors.length) return null

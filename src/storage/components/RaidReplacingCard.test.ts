@@ -14,7 +14,7 @@ const mountCard = (status?: Record<string, unknown> | null) =>
   })
 
 describe('RaidReplacingCard', () => {
-  it('显示阵列名与 旧盘 → 新盘', () => {
+  it('shows the array name and old drive -> new drive', () => {
     const w = mountCard(null)
     expect(w.text()).toContain('Main-storage')
     expect(w.text()).toContain('/dev/sda')
@@ -22,9 +22,10 @@ describe('RaidReplacingCard', () => {
     expect(w.text()).toContain('替换中')
   })
 
-  // 混合进度第一段:内核尚未报数(rebuild_pct = -1)。这里必须是不确定态扫动条,
-  // 不能显示 "0%" —— 刚提交那几秒显示 0% 会看起来像卡死。
-  it('rebuild_pct = -1 → 不确定态扫动条,不显示百分比数字', () => {
+  // Hybrid progress, segment one: the kernel hasn't reported numbers yet (rebuild_pct = -1).
+  // This must render the indeterminate sweeping bar, never "0%" — showing 0% in the first
+  // few seconds after submission would look like it's stuck.
+  it('rebuild_pct = -1 -> indeterminate sweeping bar, no percentage number shown', () => {
     const w = mountCard({ rebuild_pct: -1, rebuild_finish: '', rebuild_speed: '' })
     expect(w.find('.rpc-fill-indet').exists()).toBe(true)
     expect(w.find('.rpc-fill-det').exists()).toBe(false)
@@ -32,14 +33,15 @@ describe('RaidReplacingCard', () => {
     expect(w.text()).not.toContain('%')
   })
 
-  it('status 缺失 → 同样落不确定态', () => {
+  it('missing status -> also falls into indeterminate state', () => {
     const w = mountCard(null)
     expect(w.find('.rpc-fill-indet').exists()).toBe(true)
     expect(w.find('.rpc-pct').exists()).toBe(false)
   })
 
-  // 混合进度第二段:内核开始报数 → 真实百分比条 + 数字 + 剩余时间 + 速度
-  it('rebuild_pct >= 0 → 确定态进度条 + 百分比 + 剩余时间 + 速度', () => {
+  // Hybrid progress, segment two: the kernel starts reporting numbers -> real percentage bar
+  // + number + time remaining + speed
+  it('rebuild_pct >= 0 -> determinate progress bar + percentage + time remaining + speed', () => {
     const w = mountCard({ rebuild_pct: 67.4, rebuild_finish: '12.3min', rebuild_speed: '88888K/sec' })
     expect(w.find('.rpc-fill-indet').exists()).toBe(false)
     const det = w.find('.rpc-fill-det')
@@ -50,17 +52,17 @@ describe('RaidReplacingCard', () => {
     expect(w.text()).toContain('88888K/sec')
   })
 
-  it('rebuild_pct = 0 属"已开始报数",走确定态(区别于 -1)', () => {
+  it('rebuild_pct = 0 counts as "already reporting numbers", so it uses the determinate state (distinct from -1)', () => {
     const w = mountCard({ rebuild_pct: 0, rebuild_finish: '', rebuild_speed: '' })
     expect(w.find('.rpc-fill-det').exists()).toBe(true)
     expect(w.find('.rpc-pct').text()).toBe('0%')
   })
 
-  it('百分比夹在 0..100(后端异常值不撑破进度条)', () => {
+  it('percentage is clamped to 0..100 (a bad backend value cannot overflow the progress bar)', () => {
     expect(mountCard({ rebuild_pct: 140 }).find('.rpc-fill-det').attributes('style')).toContain('width: 100%')
   })
 
-  it('✕ 逃生门 emit dismiss(重建挂住时用户能关掉看板)', async () => {
+  it('the escape-hatch X emits dismiss (lets the user close the dashboard when the rebuild is stuck)', async () => {
     const w = mountCard({ rebuild_pct: -1 })
     await w.find('.rpc-dismiss').trigger('click')
     expect(w.emitted('dismiss')).toHaveLength(1)

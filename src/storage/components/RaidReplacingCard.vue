@@ -5,14 +5,19 @@ import type { RaidStatus } from '@nimotech/nimoos-service'
 import type { ReplaceTask } from '../util/raidView'
 import { useRaidEta } from '../composables/useRaidEta'
 
-// 换盘进行中的看板卡。视觉照 RaidCreatingCard(同一套 spinner / 标签 / 进度条尺寸),
-// 但进度来源不同:创建有后端任务的 step/progress,换盘没有 —— 后端换盘接口是同步的,
-// 重建在内核里跑,只能读 status.rebuild_pct(详见 storage.ts replaceTask 处说明)。
+// Dashboard card for an in-progress drive replacement. Visually matches RaidCreatingCard
+// (same spinner / label / progress bar sizing), but the progress source differs: creation has
+// a backend task's step/progress, replacement does not — the backend replace API is
+// synchronous, and the rebuild runs in the kernel, so all we can read is
+// status.rebuild_pct (see the note at storage.ts's replaceTask).
 //
-// 因此进度是**混合**的两段:
-//   rebuild_pct < 0(内核尚未接手/尚未开始报数)→ 与创建卡同款左右扫动的不确定条
-//   rebuild_pct >= 0                          → 真实百分比条 + 数字 + 剩余时间 + 速度
-// 不用"一律显示 0%",那在刚提交的几秒里看起来像卡死了。
+// Progress is therefore **hybrid**, in two segments:
+//   rebuild_pct < 0 (kernel hasn't taken over / hasn't started reporting yet) → the same
+//     left-right sweeping indeterminate bar as the creation card
+//   rebuild_pct >= 0                                                          → a real
+//     percentage bar + number + time remaining + speed
+// We avoid "always show 0%" — in the first few seconds after submission that would look like
+// it's stuck.
 const props = defineProps<{ task: ReplaceTask; status?: RaidStatus | null }>()
 defineEmits<{ (e: 'dismiss'): void }>()
 const { t } = useI18n()
@@ -23,7 +28,8 @@ const pct = computed(() => {
 })
 const hasPct = computed(() => pct.value >= 0)
 const pctText = computed(() => `${Math.round(pct.value * 10) / 10}%`)
-// 剩余时间:优先 rebuild_eta_seconds、5 秒交替时长/完成时刻;老后端回退内核原始串
+// Time remaining: prefers rebuild_eta_seconds, alternating every 5s between duration and
+// completion time; falls back to the raw kernel string for older backends
 const { etaText } = useRaidEta(() => props.status)
 const speed = computed(() => (props.status?.rebuild_speed as string) || '')
 </script>
@@ -41,15 +47,17 @@ const speed = computed(() => (props.status?.rebuild_speed as string) || '')
     </div>
     <div class="rpc-right">
       <span class="rpc-tag">{{ t('raidReplacing') }}</span>
-      <!-- 有真实百分比:确定态进度条 + 数字 -->
+      <!-- Real percentage available: determinate progress bar + number -->
       <div v-if="hasPct" class="rpc-pctwrap">
         <div class="rpc-track"><div class="rpc-fill-det" :style="{ width: Math.min(100, Math.max(0, pct)) + '%' }" /></div>
         <span class="rpc-pct">{{ pctText }}</span>
       </div>
-      <!-- 内核还没报数:不确定态扫动条(同创建卡) -->
+      <!-- Kernel hasn't reported numbers yet: indeterminate sweeping bar (same as the creation card) -->
       <div v-else class="rpc-track"><div class="rpc-fill-indet" /></div>
-      <!-- 逃生门:重建万一挂住(内核没接手、盘再次掉线),看板不该永远转下去无法关闭。
-           完成时卡片自动消失,不需要用户点这里 —— 这颗按钮只为卡死场景兜底。 -->
+      <!-- Escape hatch: if the rebuild ever gets stuck (kernel never takes over, drive drops
+           out again), the dashboard shouldn't spin forever with no way to close it. The card
+           disappears automatically on completion — the user shouldn't need to click here;
+           this button only exists as a fallback for the stuck case. -->
       <button class="rpc-dismiss" type="button" :title="t('raidReplacingDismiss')" @click="$emit('dismiss')">✕</button>
     </div>
   </article>

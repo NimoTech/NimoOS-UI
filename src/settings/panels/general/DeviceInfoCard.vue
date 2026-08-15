@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 对位 Vue2 SettingsPanel.vue L76-96 的设备信息卡:
-// 左「NimoOS」标题 + 「设备信息」按钮 + 「NimoOS v<版本>」,右 logo。
-// spec §5.1 提到的 Premium 推广条(Vue2 L67-73)本期不做 —— 用户 2026-07-31 拍板,授权偏离 #6。
+// Device info card, mirrors Vue2 SettingsPanel.vue L76-96:
+// "NimoOS" title on the left + "Device Info" button + "NimoOS v<version>", logo on the right.
+// The Premium promo banner mentioned in spec §5.1 (Vue2 L67-73) is out of scope this phase -- user signed off on 2026-07-31, authorized deviation #6.
 /// <reference types="vite/client" />
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -16,7 +16,7 @@ const hw = ref<HardwareInfo | null>(null)
 const dialogOpen = ref(false)
 
 onMounted(async () => {
-  // 失败静默:版本号回退 1.0.0(与 Vue2 一致),不让整张卡消失
+  // Fails silently: version falls back to 1.0.0 (consistent with Vue2), so the whole card doesn't disappear
   try { hw.value = await service.sys.hardwareInfo() } catch (e) { console.warn('[settings] hardwareInfo failed', e) }
 })
 </script>

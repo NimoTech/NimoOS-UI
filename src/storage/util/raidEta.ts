@@ -1,7 +1,9 @@
-// 重建 ETA 纯格式化(逐字移植 Vue2 NimoOS-UI src/utils/raidUtils.js
-// etaDurationParts / etaCompletionParts,commit 028837e8;行为保持一致,只加 TS 类型)。
-// 输入是后端 status 的 rebuild_eta_seconds:按重建位置推进速率估算的剩余秒数,
-// -1/缺席 = 未知(见 service 包 RaidStatus 注释)。
+// Pure formatting for the rebuild ETA (ported verbatim from Vue2 NimoOS-UI
+// src/utils/raidUtils.js etaDurationParts / etaCompletionParts, commit 028837e8;
+// behavior is kept identical, only TS types were added).
+// The input is the backend status's rebuild_eta_seconds: remaining seconds estimated
+// from the rebuild position's advance rate, -1/absent = unknown (see the RaidStatus
+// comment in the service package).
 
 export interface EtaDurationParts {
   days: number
@@ -9,8 +11,9 @@ export interface EtaDurationParts {
   minutes: number
 }
 
-// 剩余时长拆件。分钟向上取整 —— 重建还在跑就绝不显示「0 分钟」;
-// 未知(null / 负数)返回 null,由调用方给「正在估算…」文案。
+// Split the remaining duration into parts. Minutes round up — while the rebuild is
+// still running it must never show "0 minutes"; unknown (null / negative) returns null,
+// leaving the "estimating…" copy to the caller.
 export function etaDurationParts(seconds: number | null | undefined): EtaDurationParts | null {
   if (seconds == null || seconds < 0) return null
   const totalMinutes = Math.ceil(seconds / 60)
@@ -28,8 +31,9 @@ export interface EtaCompletionParts {
   time: string // HH:mm
 }
 
-// now + seconds 落在哪一天?'today' / 'tomorrow' / 'other'(带具体日期)+ HH:mm ——
-// 供重建横幅的「预计今天 14:32 完成」交替显示用。
+// Which day does now + seconds land on? 'today' / 'tomorrow' / 'other' (with a specific
+// date) + HH:mm — used by the rebuild banner to alternate with an "expected to finish
+// today at 14:32" style display.
 export function etaCompletionParts(
   seconds: number | null | undefined,
   now: Date = new Date(),

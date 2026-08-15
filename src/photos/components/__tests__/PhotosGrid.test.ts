@@ -8,7 +8,7 @@
 //  - the selection action bar lives out of this component entirely — it lives in
 //    the parent as PhotosSelectionToolbar.vue, so this component no longer emits
 //    batch-delete/cancel.
-//  - Task 6 (网格重刻): the per-tile checkbox was briefly (SP7 acceptance feedback)
+//  - Task 6 (grid rework): the per-tile checkbox was briefly (SP7 acceptance feedback)
 //    the Files-region native-checkbox pattern (`.tile-check`/`.tile-check-box`
 //    <input>) — Task 6 supersedes that with Vue2's own `.tile-checkbox` div
 //    (click-to-toggle, no native <input>). Likewise the favorite star splits
@@ -138,9 +138,10 @@ describe('PhotosGrid', () => {
     expect(tiles[1].attributes('data-selected')).toBe('true')
   })
 
-  // P6b-T9: `selectable` prop (偏离登记 14) —— 地点照片页(D10)不接多选,复用本组件时不该
-  // 有复选框。默认值必须保持 true,否则 Photos.vue/PhotosFavorites.vue 这两个既有消费方
-  // (都不传 selectable)会静默丢失复选框——这条是纯粹的默认值回归断言。
+  // P6b-T9: `selectable` prop (deviation log 14) -- the place-photos page (D10) doesn't support
+  // multi-select, so reusing this component there shouldn't show a checkbox. The default value
+  // must stay true, or the two existing consumers Photos.vue/PhotosFavorites.vue (neither passes
+  // selectable) would silently lose their checkbox -- this is purely a default-value regression assertion.
   it('not passing `selectable` at all still renders .tile-checkbox (default-value regression for existing consumers)', () => {
     const months = [month('2026-07', 'July 2026', [photo('a')])]
     const w = mount(PhotosGrid, { props: { months, tab: 'all', density: 'comfortable', selected: [] } })
@@ -380,7 +381,7 @@ describe('PhotosGrid', () => {
     }
   })
 
-  // Task 6 (网格重刻): Vue2 PhotosGrid.vue:65-76 splits favoriting into TWO elements —
+  // Task 6 (grid rework): Vue2 PhotosGrid.vue:65-76 splits favoriting into TWO elements —
   // a decorative bottom-left `.tile-fav` (v-if="p.fav && !selecting", no click handler)
   // and the actual click target, a top-right `.tile-act` button inside `.tile-actions`
   // (always present, hover-visible via CSS, `data-on` reflects fav state). This

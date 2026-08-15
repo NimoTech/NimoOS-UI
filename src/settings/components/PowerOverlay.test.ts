@@ -10,7 +10,7 @@ const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { .
 
 // Mount the six overlay states directly on the pure presentational PowerOverlay —
 // it only takes a phase prop, so no test-only production hooks like __setPhase on PowerFlow.
-describe('PowerOverlay 六个浮层态', () => {
+describe('PowerOverlay six overlay states', () => {
   // The task brief originally typed this as (phase: string), which is incompatible with
   // the prop's PowerPhase type under vue-tsc strict (TS2322) — tightened to PowerPhase, same behavior.
   const mountOverlay = (phase: PowerPhase) =>
@@ -23,19 +23,19 @@ describe('PowerOverlay 六个浮层态', () => {
   it('done', () => expect(mountOverlay('done').text()).toContain('正在跳转'))
   it('appUpdating', () => expect(mountOverlay('appUpdating').text()).toContain('系统正在更新'))
 
-  it('每个态的标题都有译文(没渲染出裸 key)', () => {
+  it('every state has a translated title (no bare key rendered)', () => {
     for (const ph of ['shutting', 'offline', 'restarting', 'reconnecting', 'done', 'appUpdating', 'fallback'] as const) {
       expect(mountOverlay(ph).find('.pf-card-title').text()).not.toMatch(/^settings/)
     }
   })
 
-  it('fallback 带警示色与刷新按钮', () => {
+  it('fallback has a warning color and a reload button', () => {
     const w = mountOverlay('fallback')
     expect(w.find('.set-warn').exists()).toBe(true)
     expect(w.find('.pf-reload').exists()).toBe(true)
   })
 
-  it('offline 与 fallback 可关闭,点关闭 emit close(其余等待态不给关闭按钮)', async () => {
+  it('offline and fallback can be closed, clicking close emits close (other waiting states get no close button)', async () => {
     for (const ph of ['offline', 'fallback'] as const) {
       const w = mountOverlay(ph)
       expect(w.find('.pf-close').exists()).toBe(true)
@@ -47,7 +47,7 @@ describe('PowerOverlay 六个浮层态', () => {
     }
   })
 
-  it('idle 时什么都不渲染', () => {
+  it('renders nothing when idle', () => {
     expect(mountOverlay('idle').find('.pf-overlay').exists()).toBe(false)
   })
 })

@@ -192,7 +192,7 @@ describe('PhotosPersonDetail.vue — four-state gate (skeleton / load failed+ret
 
   // Coordinator ruling 4: a load failure must be distinguishable from "person does not
   // exist" (T9's failed flag was added exactly for this).
-  it('load failure → dedicated error copy + retry button (does not reuse "找不到这个人物")', async () => {
+  it('load failure → dedicated error copy + retry button (does not reuse "Person not found")', async () => {
     svc.photos.getPerson.mockRejectedValue(new Error('network down'))
     const { w } = await mountView('7')
     expect(w.find('[data-test="person-load-failed"]').exists()).toBe(true)
@@ -580,7 +580,7 @@ describe('PhotosPersonDetail.vue — selection state and key photo', () => {
     expect(w.findComponent(PersonHero).props('person').coverFaceId).toBeNull()
   })
 
-  it('setting the key photo 404 → dedicated copy "那张照片里没有这个人的脸"', async () => {
+  it('setting the key photo 404 → dedicated copy "No face of this person in that photo"', async () => {
     svc.photos.setPersonCover.mockRejectedValue({ response: { status: 404 } })
     const { w } = await mountView('7')
     w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
@@ -724,8 +724,8 @@ describe('PhotosPersonDetail.vue — delete person', () => {
     expect(router.currentRoute.value.path).toBe('/photos/people')
   })
 
-  // Review Minor 4: the title must be Vue2 :304's "删除人物?", not T7's warning-strip
-  // string "删除这个人物分组?"
+  // Review Minor 4: the title must be Vue2 :304's "Delete person?", not T7's warning-strip
+  // string "Delete this person group?"
   it('the delete dialog title uses the person-specific key, does not reuse T7\'s warning-strip string', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
@@ -847,7 +847,7 @@ describe('PhotosPersonDetail.vue — background-picker dialog', () => {
   // Review Minor 7: when the backend echoes "no hero" back verbatim as an empty string,
   // it must not fall into the "selected" state — otherwise no tile would be highlighted
   // yet the save button would still be clickable, and clicking it would resend the empty
-  // string and still report "背景已更新".
+  // string and still report "Background updated".
   it('heroAssetId is an empty string → treated as unselected (no tile highlighted + save button disabled)', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: '' }), relations: [] })
     const { w } = await mountView('7')
@@ -874,7 +874,7 @@ describe('PhotosPersonDetail.vue — background-picker dialog', () => {
 
   // Coordinator ruling 3: the two entry points have different toast semantics ("reset
   // back to the key photo" vs "changed to the selected one") and must not be merged.
-  it('"使用关键照片" = clears heroAssetId, and uses the **reset**-specific toast (not "背景已更新")', async () => {
+  it('"Use key photo" = clears heroAssetId, and uses the **reset**-specific toast (not "Background updated")', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: 'a2' }), relations: [] })
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('open-hero-picker')
@@ -887,7 +887,7 @@ describe('PhotosPersonDetail.vue — background-picker dialog', () => {
     expect(useToast().msg).not.toBe(zh.photosPersonHeroSavedToast)
   })
 
-  it('"使用关键照片" failure → **reset**-specific failure copy', async () => {
+  it('"Use key photo" failure → **reset**-specific failure copy', async () => {
     svc.photos.getPerson.mockResolvedValue({ person: rawPerson({ heroAssetId: 'a2' }), relations: [] })
     svc.photos.updatePerson.mockRejectedValue(new Error('boom'))
     const { w } = await mountView('7')
@@ -970,7 +970,7 @@ describe('PhotosPersonDetail.vue — create album', () => {
     expect(toast.msg).toBe(zh.photosPersonAlbumFailed)
   })
 
-  it('shows the "暂无可用照片" prompt when there are no photos, and does not fire a request', async () => {
+  it('shows the "No photos available" prompt when there are no photos, and does not fire a request', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([])
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('make-album')
@@ -1011,7 +1011,7 @@ describe('PhotosPersonDetail.vue — lightbox wiring', () => {
     expect(lb.list.value[19].id).toBe('p19')
   })
 
-  it('灯箱删除 → deleteAssets + toast + 重新对账 load', async () => {
+  it('lightbox delete → deleteAssets + toast + reconciliation load', async () => {
     const { w } = await mountView('7')
     const before = svc.photos.getPerson.mock.calls.length
     await w.findAll('.person-grid .tile')[0].trigger('click')
@@ -1024,22 +1024,23 @@ describe('PhotosPersonDetail.vue — lightbox wiring', () => {
   })
 })
 
-// 评审必修 2(界面 1:1 红线):Vue2 这四个按钮/角标内各有一个图标,原实现漏渲染。
-describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', () => {
-  it('选择态移除钮内有 x 图标(Vue2 :240)', async () => {
+// Review mandatory 2 (interface 1:1 redline): each of these four Vue2 buttons/badges has an
+// icon inside it; the original implementation missed rendering them.
+describe('PhotosPersonDetail.vue —— icons inside buttons (must have everything Vue2 has)', () => {
+  it('the selection-mode remove button has an x icon inside it (Vue2 :240)', async () => {
     const { w } = await mountView('7')
     w.findComponent(PersonAssetGrid).vm.$emit('toggle-select', 'a1')
     await w.vm.$nextTick()
     expect(w.find('[data-test="person-remove-from"] svg').exists()).toBe(true)
   })
 
-  it('删除确认钮内有 trash 图标(Vue2 :319)', async () => {
+  it('the delete-confirm button has a trash icon inside it (Vue2 :319)', async () => {
     const { w } = await mountView('7')
     await pickEditMenu(w, 'delete')
     expect(w.find('[data-test="person-delete-confirm"] svg').exists()).toBe(true)
   })
 
-  it('合并确认钮:选中目标后才出 sparkles 图标(Vue2 :427 的 v-if)', async () => {
+  it('the merge-confirm button: the sparkles icon only appears once a target is selected (Vue2 :427\'s v-if)', async () => {
     svc.photos.listPersons.mockResolvedValue({
       persons: [rawPerson(), rawPerson({ id: 9, name: '小红', count: 90 })], facesIndexedUpTo: null,
     })
@@ -1050,7 +1051,7 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
     expect(w.find('[data-test="person-merge-confirm"] svg').exists()).toBe(true)
   })
 
-  it('背景网格视频角标有 ▶ + 时长(Vue2 :352;同 T11 PersonAssetGrid 的同一元素)', async () => {
+  it('the background-picker grid\'s video badge has a ▶ + duration (Vue2 :352; the same element as T11\'s PersonAssetGrid)', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([
       { id: 'v1', takenAt: '2026-05-01T10:00:00Z', mimeType: 'video/mp4', originalName: 'v1.mp4', durationMs: 5000 },
     ])
@@ -1064,26 +1065,26 @@ describe('PhotosPersonDetail.vue —— 按钮内图标(Vue2 有的都要有)', 
   })
 })
 
-describe('PhotosPersonDetail.vue —— 七个弹窗的 Esc 都要挡住灯箱(六 + info 提示)', () => {
+describe('PhotosPersonDetail.vue —— Esc must block the lightbox for all seven dialogs (six + the info prompt)', () => {
   const cases: Array<[string, string, (w: ReturnType<typeof mount>) => Promise<void>]> = [
-    ['改名', 'person-rename-dialog', async (w) => { await pickEditMenu(w, 'rename') }],
-    ['合并', 'person-merge-dialog', async (w) => { await pickEditMenu(w, 'merge') }],
-    ['删除', 'person-delete-dialog', async (w) => { await pickEditMenu(w, 'delete') }],
-    ['背景', 'person-hero-dialog', async (w) => {
+    ['rename', 'person-rename-dialog', async (w) => { await pickEditMenu(w, 'rename') }],
+    ['merge', 'person-merge-dialog', async (w) => { await pickEditMenu(w, 'merge') }],
+    ['delete', 'person-delete-dialog', async (w) => { await pickEditMenu(w, 'delete') }],
+    ['background', 'person-hero-dialog', async (w) => {
       w.findComponent(PersonHero).vm.$emit('open-hero-picker'); await w.vm.$nextTick()
     }],
-    ['建相册', 'person-album-dialog', async (w) => {
+    ['make album', 'person-album-dialog', async (w) => {
       w.findComponent(PersonHero).vm.$emit('make-album'); await w.vm.$nextTick()
     }],
-    ['移出', 'person-detach-dialog', async (w) => {
+    ['detach', 'person-detach-dialog', async (w) => {
       w.findComponent(PersonAssetGrid).vm.$emit('detach', ['a1']); await w.vm.$nextTick()
     }],
   ]
 
   for (const [label, testId, open] of cases) {
-    it(`${label}弹窗:Esc 只关弹窗,灯箱不受影响`, async () => {
+    it(`${label} dialog: Esc only closes the dialog, the lightbox is unaffected`, async () => {
       const { w } = await mountView('7')
-      // 先开灯箱(它在 window 上挂 keydown)
+      // Open the lightbox first (it attaches a keydown handler on window)
       await w.findAll('.person-grid .tile')[0].trigger('click')
       await flushPromises()
       expect(lb.open.value).toBe(true)
@@ -1094,11 +1095,11 @@ describe('PhotosPersonDetail.vue —— 七个弹窗的 Esc 都要挡住灯箱(�
       pressEscape()
       await w.vm.$nextTick()
       expect(w.find(`[data-test="${testId}"]`).exists()).toBe(false)
-      expect(lb.open.value).toBe(true)      // 灯箱没被同一次 Esc 一起关掉
+      expect(lb.open.value).toBe(true)      // the lightbox wasn't closed by the same Esc
     })
   }
 
-  it('「暂无可用照片」提示也能被 Esc 关掉,且不连累灯箱', async () => {
+  it('the "No photos available" prompt can also be closed with Esc, without affecting the lightbox', async () => {
     svc.photos.getPersonAssets.mockResolvedValue([])
     const { w } = await mountView('7')
     w.findComponent(PersonHero).vm.$emit('make-album')
@@ -1109,7 +1110,7 @@ describe('PhotosPersonDetail.vue —— 七个弹窗的 Esc 都要挡住灯箱(�
     expect(w.find('[data-test="person-no-photos-dialog"]').exists()).toBe(false)
   })
 
-  it('没有弹窗打开时不挂 document 监听(Esc 应能照常关灯箱)', async () => {
+  it('does not attach a document listener when no dialog is open (Esc should still close the lightbox as usual)', async () => {
     const { w } = await mountView('7')
     await w.findAll('.person-grid .tile')[0].trigger('click')
     await flushPromises()

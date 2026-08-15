@@ -1386,9 +1386,10 @@ watch(gridRef, () => {
   outline-offset: -1px;
 }
 
-/* ★ Cover 徽章:Vue2 原色值 rgba 110/91/255 alpha .85 → color-mix(accent 85% + transparent)。
-   edit 态下隐藏(与多选勾选圈同占左上角,选中圈优先——同 Vue2 :3743-3745)。 */
-/* Minor 补齐(Vue2 photos.scss:3649-3652):当前封面瓦片描一圈 accent 实线,与其余瓦片区分。 */
+/* ★ Cover badge: Vue2's original color value was rgba 110/91/255 at alpha .85 -> replaced with
+   color-mix(accent 85% + transparent). Hidden in edit mode (it shares the top-left corner with
+   the multi-select check circle, and the check circle takes priority — same as Vue2 :3743-3745). */
+/* Minor fill-in (Vue2 photos.scss:3649-3652): the current cover tile gets a solid accent outline, to set it apart from the other tiles. */
 .tile[data-cover="true"] { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tile[data-cover="true"]::after {
   content: "★ Cover"; position: absolute; top: 6px; left: 6px; z-index: 2; pointer-events: none;
@@ -1408,22 +1409,27 @@ watch(gridRef, () => {
    stopped matching. The target's answer (Vue2 photos.scss:3546, :3604) is to mark the grid
    container itself, so they are plain descendant selectors on .album-photos-wrap now. */
 .album-photos-wrap[data-edit="true"] .tile[data-cover="true"]::after { display: none; }
-/* Minor 补齐(Vue2 photos.scss:3685-3688):edit 态每个瓦片加虚线描边,提示"可选中/可拖拽"。
-   Vue2 原 token `--line-strong` 在本仓库 theme.css 两套主题里都不存在(只在 Vue2 自己的
-   AI/Agent/tokens.scss 局部定义过,不是全局 token)——换用本仓已有、语义等价的 --card-border
-   (专门用于卡片/瓦片描边,两套主题都有定义),不新增 token。 */
+/* Minor fill-in (Vue2 photos.scss:3685-3688): in edit mode each tile gets a dashed outline,
+   hinting "selectable/draggable". Vue2's original token `--line-strong` doesn't exist in either
+   of this repo's theme.css theme blocks (it was only ever defined locally in Vue2's own
+   AI/Agent/tokens.scss, not as a global token) — swapped for this repo's existing, semantically
+   equivalent --card-border (dedicated to card/tile outlines, defined in both themes), without
+   adding a new token. */
 .album-photos-wrap[data-edit="true"] .tile { outline: 1px dashed var(--card-border); outline-offset: -1px; }
 
-/* 封面星标按钮:Vue2 原底色 rgba 0/0/0 alpha .55 → --overlay-bg;字形色见下方
-   theme-exception(评审 Critical 1 修正:固定 #fff,不用 --on-accent,理由见该行注释)。 */
+/* Cover star button: Vue2's original background was rgba 0/0/0 at alpha .55 -> --overlay-bg;
+   the glyph color is the theme-exception below (review Critical 1 fix: pinned to #fff instead of
+   --on-accent, see the comment on that line for why). */
 .tile-cover-btn {
   position: absolute; top: 6px; right: 6px; z-index: 3; width: 22px; height: 22px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center; border: 0;
   background: var(--overlay-bg); opacity: 0; transform: scale(0.85);
   transition: opacity 0.15s ease, transform 0.15s ease, background 0.15s ease; cursor: pointer; font-size: 11px;
-  /* theme-exception: 底色平时是 --overlay-bg(暗化封面上的固定深底),hover/data-on 才切到
-     --accent 实底——星形字符在两种底色下都需要固定浅色可读,不能用 --on-accent(默认深色
-     主题下是深藏青色,叠在 --overlay-bg 上不可读——评审 Critical 1 修正)。 */
+  /* theme-exception: the background is normally --overlay-bg (a fixed dark backing that darkens
+     the cover), switching to a solid --accent background only on hover/data-on — the star glyph
+     needs a fixed, legible light color under both backgrounds, and can't use --on-accent (in the
+     default dark theme it resolves to a deep, dark tone that becomes illegible on top of
+     --overlay-bg — review Critical 1 fix). */
   color: #fff;
 }
 .tile:hover .tile-cover-btn { opacity: 1; transform: scale(1); }
@@ -1437,13 +1443,14 @@ watch(gridRef, () => {
 }
 .tile[data-selected="true"] .tile-select-check { background: var(--accent); border-color: var(--accent); }
 
-/* ── 删除相册确认模态 ── */
+/* ── delete album confirmation modal ── */
 .album-confirm-scrim {
   position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
   display: flex; align-items: center; justify-content: center; padding: 32px 20px;
 }
-/* P2/P3 血泪(brief 明确点名):模态底色须用 --popup-bg,不用 --card-bg(深色主题下
-   --card-bg 近透明,叠在暗底上会看穿)。 */
+/* P2/P3 hard-won lesson (the brief explicitly calls this out): the modal background must use
+   --popup-bg, not --card-bg (under the dark theme --card-bg is nearly transparent, and stacking
+   it on a dark backing lets it show through). */
 .album-confirm {
   width: min(380px, 100%); background: var(--popup-bg); border: 1px solid var(--card-border);
   border-radius: 16px; box-shadow: var(--card-shadow-hi); padding: 22px;
@@ -1496,7 +1503,7 @@ watch(gridRef, () => {
 }
 .sv-dist-x { display: flex; justify-content: space-between; font-size: 10px; color: var(--fg-subtle); margin-top: 4px; }
 
-/* ≤768px:侧栏已收抽屉,布局单列 */
+/* ≤768px: the sidebar has collapsed into a drawer, layout goes single-column */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
   .sv-header h1 { font-size: 24px; }

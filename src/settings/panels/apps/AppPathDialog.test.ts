@@ -64,13 +64,13 @@ const mountDlg = (volumes: StorageVolume[] = [SYS, EXT], opts: { withCtxStubs?: 
       plugins: [i18n],
       stubs: opts.withCtxStubs ? { ContextMenu: ContextMenuStub, ContextMenuItem: ContextMenuItemStub } : {},
     },
-    attachTo: document.body,   // reka DialogPortal teleport 到 body
+    attachTo: document.body,   // reka DialogPortal teleports into body
   })
   mountedWrappers.push(w)
   return w
 }
 
-/** 选中 EXT 分区 → 进浏览步骤(root 目录列表已到)。给写路径(新建/重命名/删除)测试复用。 */
+/** Select the EXT partition -> enter the browse step (root folder list has arrived). Reused by the write-path (create/rename/delete) tests. */
 async function enterBrowse() {
   await (document.querySelector('.set-mig-item') as HTMLElement).click()
   await (document.querySelector('.set-mig-next') as HTMLElement).click()
@@ -86,16 +86,18 @@ describe('AppPathDialog', () => {
     ] })
   })
   afterEach(() => {
-    for (const w of mountedWrappers) { try { w.unmount() } catch { /* 测试自己已经 unmount 过 */ } }
+    for (const w of mountedWrappers) { try { w.unmount() } catch { /* the test itself already unmounted */ } }
     mountedWrappers = []
     document.body.innerHTML = ''
   })
 
-  // brief 原文这两条是同步断言(mountDlg() 后不 await 就查 DOM)。实测 reka 的
-  // DialogPortal/DialogContent 要等一个 tick 才把内容传送进 document.body(同款先例见
-  // DeviceInfoDialog.test.ts / NetworkIfaceConfigDialog.test.ts,两处 mount 后都
-  // await flushPromises() 才查 DOM)——这里补上,否则查询恒空,不是产品代码的问题。
-  it('第一步列出可选分区,当前所在分区被剔除', async () => {
+  // The brief's original text has these two as synchronous assertions (querying the DOM
+  // right after mountDlg() without awaiting). In practice reka's DialogPortal/DialogContent
+  // needs a tick before it teleports content into document.body (same precedent in
+  // DeviceInfoDialog.test.ts / NetworkIfaceConfigDialog.test.ts, both of which await
+  // flushPromises() after mount before querying the DOM) -- added here, otherwise the
+  // query is always empty; this is not a product-code issue.
+  it('step 1 lists selectable partitions, excluding the current partition', async () => {
     mountDlg()
     await flushPromises()
     const items = document.querySelectorAll('.set-mig-item')
@@ -103,14 +105,14 @@ describe('AppPathDialog', () => {
     expect(items[0].textContent).toContain('Backup')
   })
 
-  it('本机只有一个分区时显示"没有其他可用的存储",下一步按钮禁用', async () => {
+  it('shows "no other storage available" when the device has only one partition, and disables the next button', async () => {
     mountDlg([SYS])
     await flushPromises()
     expect(document.body.textContent).toContain('没有其他可用的存储')
     expect(document.querySelector('.set-mig-next')?.hasAttribute('disabled')).toBe(true)
   })
 
-  it('选中分区后进浏览步骤,根路径按挂载点派生并拉一次目录', async () => {
+  it('enters the browse step after selecting a partition; root path is derived from the mount point and fetches the directory once', async () => {
     mountDlg()
     await flushPromises()
     await (document.querySelector('.set-mig-item') as HTMLElement).click()
@@ -120,7 +122,7 @@ describe('AppPathDialog', () => {
     expect(document.body.textContent).toContain('/media/Backup/AppData')
   })
 
-  it('确认步骤展示目标路径与 Docker 会停的警告', async () => {
+  it('confirmation step shows the target path and the warning that Docker will stop', async () => {
     mountDlg()
     await flushPromises()
     await (document.querySelector('.set-mig-item') as HTMLElement).click()
@@ -128,13 +130,15 @@ describe('AppPathDialog', () => {
     await flushPromises()
     await (document.querySelector('.set-mig-next') as HTMLElement).click()
     await flushPromises()
-    // brief 原文标点是半角逗号+叹号的手误;源头 Vue2 zh_CN.json:605 是全角"，"——
-    // 中文文案必须以 Vue2 为准(含标点,见 CLAUDE.md/记忆 newui-zh-copy-source-of-truth),
-    // 这里按 zh_cn.sp9.ts 的 settingsMigNoteDocker 逐字核对后改回全角。
+    // The brief's original text has a half-width comma+exclamation mark as a typo; the source
+    // Vue2 zh_CN.json:605 uses full-width "，" -- Chinese copy must match Vue2 exactly
+    // (including punctuation, see CLAUDE.md/memory newui-zh-copy-source-of-truth),
+    // here changed back to full-width after character-by-character verification against
+    // settingsMigNoteDocker in zh_cn.sp9.ts.
     expect(document.body.textContent).toContain('在此过程中，Docker 将暂时停止。')
   })
 
-  it('开始迁移后按 200ms 轮询,done 时进完成步骤', async () => {
+  it('polls every 200ms after migration starts, and enters the done step when status is done', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus
@@ -153,12 +157,13 @@ describe('AppPathDialog', () => {
     vi.advanceTimersByTime(200); await flushPromises()
     expect(document.body.textContent).toContain('42')
     vi.advanceTimersByTime(200); await flushPromises()
-    // 同上:brief 原文"迁移完成!"是半角叹号手误,源头 zh_CN.json:608 是全角"！"。
+    // Same as above: the brief's original text "迁移完成!" has a half-width exclamation mark
+    // typo; the source zh_CN.json:608 uses full-width "！".
     expect(document.body.textContent).toContain('迁移完成！')
     vi.useRealTimers()
   })
 
-  it('迁移中不给关闭按钮(防用户中途关窗)', async () => {
+  it('shows no close button during migration (to prevent the user from closing the window midway)', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus.mockResolvedValue({ id: 'job-1', type: 'app_data', status: 'running', phase: 'copying', stopping_apps: 0, progress: 5, processed_size: 1, total_size: 100 })
@@ -169,15 +174,16 @@ describe('AppPathDialog', () => {
     await (document.querySelector('.set-mig-next') as HTMLElement).click(); await flushPromises()
     await (document.querySelector('.set-mig-start') as HTMLElement).click(); await flushPromises()
     vi.advanceTimersByTime(200); await flushPromises()
-    // 评审 Important #1:头部 × 按钮与页脚"关闭"主按钮曾共用 .set-mig-close,拆开后
-    // 分别用 .set-mig-x(头部)与 .set-mig-close(页脚)两个类名,这里显式查两处,
-    // 不再靠共用类名"顺便"覆盖两个位置。
+    // Review Important #1: the header X button and the footer "Close" primary button used to
+    // share .set-mig-close; after splitting them into .set-mig-x (header) and .set-mig-close
+    // (footer), this explicitly checks both spots instead of relying on a shared class name
+    // to "incidentally" cover both locations.
     expect(document.querySelector('.set-mig-x')).toBeNull()
     expect(document.querySelector('.set-mig-close')).toBeNull()
     vi.useRealTimers()
   })
 
-  it('status=error 时进错误步骤并显示后端 error 原文 + 已自动清理说明', async () => {
+  it('enters the error step on status=error and shows the raw backend error plus an auto-cleanup note', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus.mockResolvedValue({ id: 'job-1', type: 'app_data', status: 'error', phase: 'copying', stopping_apps: 0, progress: 0, processed_size: 0, total_size: 0, error: 'insufficient space on target /media/Backup' })
@@ -193,9 +199,10 @@ describe('AppPathDialog', () => {
     vi.useRealTimers()
   })
 
-  // 评审 Important #2:Vue2 pollStatus 的 done 和 error 两支都会 $emit('finish', job),
-  // 这里之前只有 done 支 emit——补一条测试钉住 error 支也要发,父组件靠它重取一次路径。
-  it('status=error 时也发 finish 事件(1:1 Vue2,失败后锚点可能已经换了一半)', async () => {
+  // Review Important #2: in Vue2, both the done and error branches of pollStatus $emit('finish', job),
+  // but here previously only the done branch emitted -- add a test to pin down that the error
+  // branch must also emit; the parent component relies on it to refetch the path once.
+  it('also emits the finish event on status=error (1:1 with Vue2 -- after a failure the anchor may already be half-changed)', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus.mockResolvedValue({ id: 'job-1', type: 'app_data', status: 'error', phase: 'copying', stopping_apps: 0, progress: 0, processed_size: 0, total_size: 0, error: 'rollback rename failed' })
@@ -211,7 +218,7 @@ describe('AppPathDialog', () => {
     vi.useRealTimers()
   })
 
-  it('轮询连续失败 5 次后停表并报错(移植纪律:Vue2 只 console.error,会无限轮询)', async () => {
+  it('stops the timer and reports an error after 5 consecutive polling failures (port discipline: Vue2 only calls console.error and polls forever)', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus.mockRejectedValue(Object.assign(new Error('job not found'), { code: 4000 }))
@@ -225,11 +232,11 @@ describe('AppPathDialog', () => {
     expect(document.body.textContent).toContain('job not found')
     const calls = getMigrateStatus.mock.calls.length
     vi.advanceTimersByTime(2000); await flushPromises()
-    expect(getMigrateStatus.mock.calls.length).toBe(calls)   // 已停表
+    expect(getMigrateStatus.mock.calls.length).toBe(calls)   // timer already stopped
     vi.useRealTimers()
   })
 
-  it('启动迁移的请求本身失败时直接进错误步骤', async () => {
+  it('goes straight to the error step when the migration-start request itself fails', async () => {
     migrateAppPath.mockRejectedValue(new Error('boom'))
     mountDlg()
     await flushPromises()
@@ -240,7 +247,7 @@ describe('AppPathDialog', () => {
     expect(document.body.textContent).toContain('boom')
   })
 
-  it('卸载时停表,不留下定时器', async () => {
+  it('stops the timer on unmount, leaving no timer behind', async () => {
     vi.useFakeTimers()
     migrateAppPath.mockResolvedValue({ job_id: 'job-1' })
     getMigrateStatus.mockResolvedValue({ id: 'job-1', type: 'app_data', status: 'running', phase: 'copying', stopping_apps: 0, progress: 5, processed_size: 1, total_size: 100 })
@@ -258,10 +265,12 @@ describe('AppPathDialog', () => {
     vi.useRealTimers()
   })
 
-  // ── 过期守卫(约束 #5):浏览步骤快速切换目录,前一次 folder.getList 的迟到结果不能覆盖
-  // 后一次的。真实路径:root → 点进子目录 A(请求挂起)→ 中途点面包屑回到 root(新请求先落定)
-  // → A 的请求才姗姗来迟,此时列表必须仍是 root 的,不能被 A 的迟到结果覆盖回去。
-  it('⚠️ 过期守卫:浏览步骤快速切换目录时,前一次列目录的迟到结果不能盖掉后一次的', async () => {
+  // -- Stale guard (constraint #5): switching directories quickly in the browse step, a late-
+  // arriving result from a previous folder.getList call must not overwrite the latest one.
+  // Real-world path: root -> click into subfolder A (request pending) -> click the breadcrumb
+  // back to root midway (new request settles first) -> A's request finally arrives late, and
+  // the list must still be root's, not overwritten by A's late result.
+  it('⚠️ stale guard: when switching directories quickly in the browse step, a late-arriving directory listing must not clobber a newer one', async () => {
     type Deferred<T> = { promise: Promise<T>; resolve: (v: T) => void }
     function deferred<T>(): Deferred<T> {
       let resolve!: (v: T) => void
@@ -276,9 +285,9 @@ describe('AppPathDialog', () => {
     let call = 0
     folderGetList.mockImplementation(() => {
       call++
-      if (call === 1) return Promise.resolve(rootListing)       // 进入浏览步骤:列 root
-      if (call === 2) return pendingA.promise                    // 点进 A:挂起
-      if (call === 3) return Promise.resolve(freshRootListing)   // 中途点回 root:立刻落定
+      if (call === 1) return Promise.resolve(rootListing)       // enter the browse step: list root
+      if (call === 2) return pendingA.promise                    // click into A: pending
+      if (call === 3) return Promise.resolve(freshRootListing)   // click back to root midway: settles immediately
       return Promise.resolve({ content: [] })
     })
 
@@ -287,14 +296,14 @@ describe('AppPathDialog', () => {
     await (document.querySelector('.set-mig-item') as HTMLElement).click()
     await (document.querySelector('.set-mig-next') as HTMLElement).click()
     await flushPromises()
-    expect(document.body.textContent).toContain('A') // root 列表已到
+    expect(document.body.textContent).toContain('A') // root list has arrived
 
-    // 点进 A(call 2,挂起,列表变空 —— loading 态替换掉了原列表)
+    // Click into A (call 2, pending, list goes empty -- the loading state replaces the original list)
     await (document.querySelector('.set-mig-folder') as HTMLElement).click()
     await flushPromises()
     expect(folderGetList).toHaveBeenCalledTimes(2)
 
-    // 还没等 A 落定,就点面包屑回到 root(call 3,立刻落定)
+    // Before A settles, click the breadcrumb back to root (call 3, settles immediately)
     const rootCrumb = document.querySelectorAll('.set-mig-crumb')[0] as HTMLElement
     await rootCrumb.click()
     await flushPromises()
@@ -302,18 +311,20 @@ describe('AppPathDialog', () => {
     expect(document.body.textContent).toContain('FreshRoot')
     expect(document.body.textContent).not.toContain('StaleOnly')
 
-    // A 那次的请求现在才姗姗来迟 —— 不许把 FreshRoot 冲掉
+    // A's request finally arrives late now -- it must not clobber FreshRoot
     pendingA.resolve(staleAListing)
     await flushPromises()
     expect(document.body.textContent).toContain('FreshRoot')
     expect(document.body.textContent).not.toContain('StaleOnly')
   })
 
-  // ── 评审 Important #2:新建/重命名/删除是本任务开头 ⛔ 破坏性说明点名的三条写路径,
-  // 之前一条测试都没有——mock 声明了却从没被断言调用过,等于摆设。这里补上,每条至少
-  // 成功 + 失败两例,并单独钉住 isProtectedFolder 真的接到了右键菜单的 disabled 上。
-  describe('新建文件夹', () => {
-    it('成功:提交拼好的完整路径(裁剪空白 + 剥离斜杠)→ 成功后关闭输入框并重新列目录', async () => {
+  // -- Review Important #2: create/rename/delete are the three write paths called out by
+  // the ⛔ destructive-action note at the top of this task, and previously had zero tests --
+  // the mocks were declared but never asserted on, purely decorative. Added here, with at
+  // least a success + failure case for each, and a dedicated pin that isProtectedFolder is
+  // actually wired into the context menu's disabled state.
+  describe('create folder', () => {
+    it('success: submits the assembled full path (trims whitespace + strips slashes) -> closes the input and relists the directory after success', async () => {
       folderCreate.mockResolvedValue(undefined)
       mountDlg()
       await flushPromises()
@@ -324,19 +335,19 @@ describe('AppPathDialog', () => {
       await flushPromises()
       const input = document.querySelector('.set-mig-newfolder-row input') as HTMLInputElement
       expect(input).not.toBeNull()
-      input.value = '  My/Folder  ' // 名字里混了要剥掉的 '/' 和首尾空白
+      input.value = '  My/Folder  ' // the name mixes in a '/' to strip and leading/trailing whitespace
       input.dispatchEvent(new Event('input', { bubbles: true }))
       input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       await flushPromises()
 
-      // browsePath 是 '/media/Backup'(EXT 的挂载点即 browseRoot),拼出来必须是裁剪 + 剥离后的名字
+      // browsePath is '/media/Backup' (EXT's mount point, i.e. browseRoot); the assembled result must use the trimmed + stripped name
       expect(folderCreate).toHaveBeenCalledWith('/media/Backup/MyFolder')
-      expect(folderGetList.mock.calls.length).toBe(listCallsBefore + 1) // 成功后重新列了一次目录
-      expect(document.querySelector('.set-mig-newfolder-row')).toBeNull() // 行内输入框已关闭
+      expect(folderGetList.mock.calls.length).toBe(listCallsBefore + 1) // relisted the directory once after success
+      expect(document.querySelector('.set-mig-newfolder-row')).toBeNull() // inline input closed
       expect(document.querySelector('.set-danger')).toBeNull()
     })
 
-    it('失败:弹窗内联 .set-danger 显示后端 message(不是 toast),输入框不关闭', async () => {
+    it('failure: dialog-inline .set-danger shows the backend message (not a toast), input stays open', async () => {
       folderCreate.mockRejectedValue(new Error('permission denied'))
       mountDlg()
       await flushPromises()
@@ -351,16 +362,16 @@ describe('AppPathDialog', () => {
       await flushPromises()
 
       expect(document.querySelector('.set-danger')?.textContent).toBe('permission denied')
-      expect(document.querySelector('.set-mig-newfolder-row')).not.toBeNull() // 还在编辑态,没关闭
+      expect(document.querySelector('.set-mig-newfolder-row')).not.toBeNull() // still in editing state, not closed
     })
   })
 
-  describe('重命名 / 删除(右键菜单,ContextMenu + ContextMenuItem 打了 stub,见 mountDlg 上方注释)', () => {
-    it('重命名成功:folder.rename 收到(旧路径,同一父目录下的新路径),成功后重新列目录', async () => {
+  describe('rename / delete (context menu, ContextMenu + ContextMenuItem are stubbed, see the comment above mountDlg)', () => {
+    it('rename success: folder.rename receives (old path, new path under the same parent directory), relists the directory after success', async () => {
       folderRename.mockResolvedValue(undefined)
       mountDlg([SYS, EXT], { withCtxStubs: true })
       await flushPromises()
-      await enterBrowse() // 默认 folderGetList mock:一个文件夹 'Backup' @ /media/Backup/Backup
+      await enterBrowse() // default folderGetList mock: one folder 'Backup' @ /media/Backup/Backup
       const listCallsBefore = folderGetList.mock.calls.length
 
       const renameItem = document.querySelector('.ui-ctx-item:not(.danger)') as HTMLElement
@@ -370,10 +381,13 @@ describe('AppPathDialog', () => {
 
       const input = document.querySelector('.set-mig-folder .set-mig-input') as HTMLInputElement
       expect(input).not.toBeNull()
-      // #7:startRename 的 nextTick(() => renameInputEl.value?.focus()) 必须真的聚焦到这个
-      // input——本期实测过 v-for 里的字符串 ref 会被 Vue 收集成数组,.value 变成 [el] 而不是
-      // el 本身,导致 .focus() 在数组上找不到方法直接被吞掉(unhandled rejection,不是断言,
-      // 只看 "N passed" 会漏)。已改函数式 ref(setRenameInputEl)修正,这里补断言钉住它。
+      // #7: startRename's nextTick(() => renameInputEl.value?.focus()) must actually focus
+      // this input -- verified this cycle that a string ref inside v-for gets collected by
+      // Vue into an array, so .value becomes [el] instead of el itself, causing .focus() to
+      // be swallowed silently because the method doesn't exist on an array (an unhandled
+      // rejection, not an assertion failure -- easy to miss if you only look at "N passed").
+      // Fixed by switching to a functional ref (setRenameInputEl); this adds an assertion to
+      // pin it down.
       expect(document.activeElement).toBe(input)
       input.value = 'Renamed'
       input.dispatchEvent(new Event('input', { bubbles: true }))
@@ -382,10 +396,10 @@ describe('AppPathDialog', () => {
 
       expect(folderRename).toHaveBeenCalledWith('/media/Backup/Backup', '/media/Backup/Renamed')
       expect(folderGetList.mock.calls.length).toBe(listCallsBefore + 1)
-      expect(document.querySelector('.set-mig-folder .set-mig-input')).toBeNull() // 编辑态已关闭
+      expect(document.querySelector('.set-mig-folder .set-mig-input')).toBeNull() // editing state closed
     })
 
-    it('重命名失败:弹窗内联 .set-danger 显示后端 message,退出编辑态', async () => {
+    it('rename failure: dialog-inline .set-danger shows the backend message, exits editing state', async () => {
       folderRename.mockRejectedValue(new Error('name already exists'))
       mountDlg([SYS, EXT], { withCtxStubs: true })
       await flushPromises()
@@ -404,10 +418,11 @@ describe('AppPathDialog', () => {
       expect(document.querySelector('.set-mig-folder .set-mig-input')).toBeNull()
     })
 
-    it('受保护目录(如 AppData):右键菜单重命名/删除两项都 disabled(钉住 isProtectedFolder 接上了)', async () => {
-      // AppData 在 PROTECTED_FOLDER_NAMES 里,但 type='app_data' 时 filterBrowseFolders 不会
-      // 把 'AppData' 过滤掉(那个禁用名单是给别的迁移类型用的)—— 所以它能正常出现在列表里,
-      // 但两项菜单必须是 disabled。故意换一个跟 currentPath 前缀不冲突的路径,确保它会被渲染。
+    it('protected folder (e.g. AppData): both rename/delete context menu items are disabled (pins that isProtectedFolder is wired in)', async () => {
+      // AppData is in PROTECTED_FOLDER_NAMES, but when type='app_data', filterBrowseFolders
+      // does not filter out 'AppData' (that exclusion list is for other migration types) --
+      // so it appears normally in the list, but both menu items must be disabled. Deliberately
+      // use a path that doesn't conflict with the currentPath prefix, to guarantee it renders.
       folderGetList.mockResolvedValue({ content: [
         { name: 'AppData', path: '/media/Backup/AppData', is_dir: true, is_symlink: false },
       ] })
@@ -416,14 +431,14 @@ describe('AppPathDialog', () => {
       await enterBrowse()
 
       const items = document.querySelectorAll('.ui-ctx-item')
-      expect(items).toHaveLength(2) // 重命名 + 删除
+      expect(items).toHaveLength(2) // rename + delete
       expect(items[0].hasAttribute('disabled')).toBe(true)
       expect(items[1].hasAttribute('disabled')).toBe(true)
 
-      // vue-test-utils 不给 disabled 元素派发事件,这里改断言 disabled 属性本身,不去点击验证"点了没反应"
+      // vue-test-utils won't dispatch events on disabled elements, so assert the disabled attribute itself instead of clicking to verify "nothing happens on click"
     })
 
-    it('删除:先出二次确认框(此时尚未调用 delete),确认后才调用且参数是 [路径]', async () => {
+    it('delete: shows a confirmation dialog first (delete is not called yet), only calls it with [path] after confirming', async () => {
       batchDelete.mockResolvedValue(undefined)
       mountDlg([SYS, EXT], { withCtxStubs: true })
       await flushPromises()
@@ -435,7 +450,7 @@ describe('AppPathDialog', () => {
       await deleteItem.click()
       await flushPromises()
 
-      // 二次确认框已弹出,但真正的 delete 请求还没发出去
+      // the confirmation dialog has popped up, but the real delete request hasn't been sent yet
       expect(batchDelete).not.toHaveBeenCalled()
       expect(document.body.textContent).toContain('删除')
 
@@ -445,10 +460,10 @@ describe('AppPathDialog', () => {
       await flushPromises()
 
       expect(batchDelete).toHaveBeenCalledWith(['/media/Backup/Backup'])
-      expect(folderGetList.mock.calls.length).toBe(listCallsBefore + 1) // 成功后重新列了一次目录
+      expect(folderGetList.mock.calls.length).toBe(listCallsBefore + 1) // relisted the directory once after success
     })
 
-    it('删除失败:弹窗内联 .set-danger 显示后端 message', async () => {
+    it('delete failure: dialog-inline .set-danger shows the backend message', async () => {
       batchDelete.mockRejectedValue(new Error('directory not empty'))
       mountDlg([SYS, EXT], { withCtxStubs: true })
       await flushPromises()

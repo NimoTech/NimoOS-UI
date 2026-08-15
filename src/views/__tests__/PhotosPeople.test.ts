@@ -74,8 +74,9 @@ async function mountView() {
 const ALICE = { id: 42, name: 'Alice', favorite: true, relation: 'family', count: 120, confidence: 0.99, lastSeen: '2026-07-20T00:00:00Z', firstSeen: '2020-01-01T00:00:00Z' }
 const CAROL = { id: 3, name: 'Carol', favorite: false, relation: 'family', count: 50, confidence: 0.98, lastSeen: '2026-07-10T00:00:00Z', firstSeen: '2021-01-01T00:00:00Z' }
 const BOB = { id: 'b7', name: 'Bob', favorite: false, relation: 'friend', count: 90, confidence: 0.97, lastSeen: '2026-06-01T00:00:00Z', firstSeen: '2019-01-01T00:00:00Z' }
-// 未命名(name 空串)。默认 confidence=80 / showSingletons=false 下:u1+u2 可见,
-// u3(0.95 但只有 1 张)是被单照片开关藏起来的那一个,u4(0.72)低于阈值。
+// Unnamed (empty-string name). Under the defaults confidence=80 / showSingletons=false:
+// u1+u2 are visible, u3 (0.95 but only 1 photo) is the one hidden by the singleton toggle,
+// u4 (0.72) is below the threshold.
 const U1 = { id: 'u1', name: '', favorite: false, relation: '', count: 9, confidence: 0.87 }
 const U2 = { id: 'u2', name: '', favorite: false, relation: '', count: 5, confidence: 0.93 }
 const U3 = { id: 'u3', name: '', favorite: false, relation: '', count: 1, confidence: 0.95 }
@@ -99,11 +100,13 @@ beforeEach(() => {
   svc.photos.purgePerson.mockClear().mockResolvedValue(undefined)
   svc.photos.rejectMergeSuggestion.mockClear().mockResolvedValue(undefined)
 })
-// 关键隔离(同 people.test.ts:46-54 的既有教训):_purgeTimers 是 people store 模块作用域
-// 单例,不随 setActivePinia(createPinia()) 重置。T7 的删除测试用同一个 id('u1')反复调
-// purgePersonWithUndo,若不清,上一条用例留下的悬挂 entry(未 advanceTimers 也未 undo())
-// 会在下一条用例里被"复用首次 idx/snapshot"分支捡到,插回的是上一个 store 实例的快照——
-// 用 afterEach(不是 beforeEach,理由同上引处)兜底清空。
+// Critical isolation (same lesson as people.test.ts:46-54): _purgeTimers is a module-scoped
+// singleton on the people store, not reset by setActivePinia(createPinia()). T7's delete
+// tests repeatedly call purgePersonWithUndo with the same id ('u1'); if not cleared, a
+// dangling entry left over from the previous case (neither advanceTimers'd nor undo()'d) gets
+// picked up in the next case by the "reuse the first idx/snapshot" branch, splicing back in a
+// snapshot from the previous store instance — cleared as a fallback with afterEach (not
+// beforeEach, for the same reason cited above).
 afterEach(() => {
   usePhotosPeople().__resetForTest()
 })

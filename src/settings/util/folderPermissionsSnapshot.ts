@@ -1,36 +1,49 @@
-/* folder-permissions 的数据腿 —— **本期(SP9-P4)是明确标注的空实现**。
+/* Data layer for folder-permissions — **explicitly a stub implementation for this
+ * milestone (SP9-P4)**.
  *
- * 为什么空:Vue2 的 folderPermissionsStore.js(132 行)是个**六路聚合器**,依赖
- *   wiki.getCandidates/getRoots/createRoot/patchRootEnabled  → `wiki` 域**无 SP 归属**,
- *                                                              用户已拍板挂账(债务 D12)
- *   api.get/post/delete('/ai/parser/allowlist/folders')       → 经 AI 代理,SP8
+ * Why it's a stub: Vue2's folderPermissionsStore.js (132 lines) is a **six-way
+ * aggregator**, depending on:
+ *   wiki.getCandidates/getRoots/createRoot/patchRootEnabled  → the `wiki` domain has
+ *                                                              **no SP assigned yet**,
+ *                                                              user has already signed
+ *                                                              off on carrying it as
+ *                                                              debt (debt D12)
+ *   api.get/post/delete('/ai/parser/allowlist/folders')       → via AI proxy, SP8
  *   ai.getSearchSettings / putSearchSettings                  → SP8
  *   ai.listBlacklist / addBlacklistPattern / removeBlacklistPattern → SP8
  *   photos.getConfig / updateConfig                           → SP7
- * sp7-photos 与 sp8-ai 两条分支都还没合进 master,所以按 spec §3.1 **政策三**:
- * 界面照 Vue2 做完整,数据源与写操作留空并在界面上标注,合并后**只换本文件的
- * fetchSnapshot / execute 两个函数即可接线,界面不用重做**(债务 D11)。
+ * Neither the sp7-photos nor the sp8-ai branch has been merged into master yet, so
+ * per spec §3.1 **policy three**: build the UI complete to match Vue2, leave the
+ * data source and write operations stubbed and flagged in the UI, and after the
+ * merge **only this file's fetchSnapshot / execute functions need to be swapped in
+ * to wire it up — the UI doesn't need to be redone** (debt D11).
  *
- * ⚠️ 接线时要做的事(留给 D11 的执行者):
- *   1. fetchSnapshot:照 Vue2 folderPermissionsStore.js:25-54 的 Promise.all + safe() 六路并发,
- *      每路失败单独记 offline,不要让一路失败拖垮整屏。注意 search 的响应把值套在
- *      `settings` 下(GET /v1/search/settings → {restart_fields,runtime_fields,settings:{fileindex_roots}}),
- *      而 PUT 的 body 是**扁平** patch 形状。
- *   2. execute:照 :56-86 逐 action 派发。
- *   3. WIRED 改成 true —— 界面的「数据源待接入」说明条会自动消失
- *      (见 FolderPermissionsPanel.vue)。
- *   4. 把面板的列表行补回删除按钮 / 开关(位置已在模板里留好注释),走
- *      planToggle + execute + 全量 refresh(Vue2 :101-111 的语义:**无论成败都全量
- *      refresh**,因为超时不代表未写入)。
+ * ⚠️ Things to do when wiring this up (for whoever picks up debt D11):
+ *   1. fetchSnapshot: follow Vue2 folderPermissionsStore.js:25-54's Promise.all +
+ *      safe() six-way concurrency — record each path's failure as offline
+ *      independently, don't let one failing path take down the whole screen. Note
+ *      that search's response nests the value under `settings`
+ *      (GET /v1/search/settings → {restart_fields,runtime_fields,settings:{fileindex_roots}}),
+ *      while the PUT body is a **flat** patch shape.
+ *   2. execute: dispatch per action, following :56-86.
+ *   3. Flip WIRED to true — the UI's "data source not wired yet" notice bar will
+ *      disappear automatically (see FolderPermissionsPanel.vue).
+ *   4. Add the delete button / toggle back to the panel's list rows (the spot is
+ *      already commented in the template), going through planToggle + execute +
+ *      a full refresh (Vue2 :101-111's semantics: **refresh fully regardless of
+ *      success or failure**, since a timeout doesn't mean the write didn't land).
  */
 import type { FolderPermAction, FolderPermSnapshot } from './folderPermissions'
 
-/** 本期是否已接上真实数据源。false → 界面显示「数据源待接入」并禁用一切写操作。 */
+/** Whether a real data source has been wired up for this milestone. false → the UI
+ *  shows "data source not wired yet" and disables all write operations. */
 export const WIRED = false
 
-/** 全空 + 四路全离线的快照。四路标 offline=true 是**故意的**:
- *  Vue2 的每个分区在 offline 时渲染「服务离线」徽标并隐藏列表与添加按钮,
- *  这正好是本期「无数据」的正确视觉形态,不需要再造一种空态。 */
+/** An all-empty snapshot with all four paths marked offline. Marking all four
+ *  offline=true is **deliberate**: each of Vue2's sections renders a "service
+ *  offline" badge and hides the list and add button when offline, which is exactly
+ *  the correct visual form for "no data" this milestone — no need to invent another
+ *  empty state. */
 export function emptySnapshot(): FolderPermSnapshot {
   return {
     candidates: [],
@@ -43,13 +56,15 @@ export function emptySnapshot(): FolderPermSnapshot {
   }
 }
 
-/** 本期**不打任何接口**。保持 async 是为了让接线时签名不变、消费方零改动。 */
+/** This milestone **doesn't call any API**. Kept async so the signature stays
+ *  unchanged when wiring it up — zero changes for consumers. */
 export async function fetchSnapshot(): Promise<FolderPermSnapshot> {
   return emptySnapshot()
 }
 
-/** 本期写操作一律不许发生。抛错而不是静默 no-op —— 万一将来有人误接上调用点,
- *  要在测试/控制台里立刻看得见,而不是悄悄什么都没做。 */
+/** Write operations are never allowed to happen this milestone. Throws instead of
+ *  silently no-op-ing — if someone accidentally wires up a call site in the future,
+ *  it must be immediately visible in tests/console, not silently do nothing. */
 export async function execute(actions: FolderPermAction[]): Promise<void> {
   void actions
   throw new Error('folder-permissions writes are not wired yet (SP9-P4, debt D11)')

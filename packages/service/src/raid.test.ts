@@ -19,8 +19,8 @@ describe('createRaid', () => {
     expect(res).toEqual(arr)
   })
 
-  // 2026-08-12 契约(NimoOS-LocalStorage PR #22):recover 的 Data 是 {state, readded};
-  // status 可带 reattachable_members(仅 degraded 且成员盘已插回时)—— 标准信封,照常 unwrap。
+  // 2026-08-12 contract (NimoOS-LocalStorage PR #22): recover's Data is {state, readded};
+  // status can carry reattachable_members (only when degraded and a member disk has been reinserted) — standard envelope, unwrap as usual.
   it('recover unwraps {state, readded}', async () => {
     const log: Array<[string, string, unknown]> = []
     const res = await createRaid(fakeHttp(log, { state: 'rebuilding', readded: ['/dev/sdc'] })).recover(3)
@@ -41,8 +41,8 @@ describe('createRaid', () => {
   it('urls and verbs match Vue2 raid.js exactly', async () => {
     const log: Array<[string, string, unknown]> = []
     const r = createRaid(fakeHttp(log))
-    // create/replaceDisk 的 body 形状即契约(RaidCreateBody/RaidReplaceDiskBody):
-    // wipe_raid_residue 是 2026-08-11 后端新增,residue 盘不带 true 会被 500 拒绝。
+    // create/replaceDisk body shape is the contract (RaidCreateBody/RaidReplaceDiskBody):
+    // wipe_raid_residue was added on the backend on 2026-08-11 — a residue disk without true gets rejected with a 500.
     const createBody = { name: 'md0', level: 1, disk_paths: ['/dev/sda', '/dev/sdb'], chunk_kb: 512, filesystem: 'btrfs', enable_snapshots: true, wipe_raid_residue: false }
     const replaceBody = { old_disk_path: '/dev/sda', old_disk_serial: 'OLD-1', new_disk_path: '/dev/sdb', wipe_raid_residue: false }
     await r.create(createBody); await r.remove(3); await r.getStatus(3); await r.getUsage(3)
@@ -61,15 +61,18 @@ describe('createRaid', () => {
   })
 })
 
-// POST /v2/raid、GET /v2/raid/tasks、GET /v2/raid/tasks/:id 三个端点返回裸 JSON,没有
-// success 字段(route/v2/raid.go: CreateRAIDArray 187-190 用 ctx.JSON(202, map[string]string{...});
-// ListCreateTasks 299 用 ctx.JSON(200, tasks) 裸数组; GetCreateTask 200 时 309 用 ctx.JSON(200,
-// buildTaskResponse(t)) 裸对象、404 时 307 用 ctx.JSON(404, map[string]string{"error":...}))。
-// unwrap() 要求 success===200 否则必抛 —— 之前 create() 对这个裸体必抛,把"创建成功"误报成
-// "创建失败"(真机验收 07-28 抓到:后端三步全过、任务 status=done,前端仍弹失败 toast)。
-// 这里验证三个方法都能容忍裸体,同时不放弃对标准信封的兼容(万一后端将来补上信封)。
-// 注意:同域其余方法(list/remove/getStatus/getUsage/replaceDisk/recover)后端确认是标准信封
-// (model.Result{Success,Message,Data}),不要照这个模式放宽,放宽了会把真错误也吞掉。
+// POST /v2/raid, GET /v2/raid/tasks, and GET /v2/raid/tasks/:id all return raw JSON with no
+// success field (route/v2/raid.go: CreateRAIDArray 187-190 uses ctx.JSON(202, map[string]string{...});
+// ListCreateTasks 299 uses ctx.JSON(200, tasks), a bare array; GetCreateTask on 200 at 309 uses ctx.JSON(200,
+// buildTaskResponse(t)), a bare object, and on 404 at 307 uses ctx.JSON(404, map[string]string{"error":...})).
+// unwrap() requires success===200 or it throws — create() used to throw on this bare body, misreporting a
+// successful create as a failed one (caught in the 07-28 real-device acceptance: all three backend steps
+// passed, task status=done, yet the frontend still popped a failure toast).
+// This verifies all three methods tolerate the bare body while still staying compatible with the standard
+// envelope (in case the backend adds one later).
+// Note: the domain's other methods (list/remove/getStatus/getUsage/replaceDisk/recover) are confirmed by the
+// backend to use the standard envelope (model.Result{Success,Message,Data}) — don't relax them the same way,
+// doing so would swallow real errors too.
 describe('createRaid create/listTasks/getTask tolerate raw (non-standard) envelopes', () => {
   it('create returns a raw {task_id,status} body (real backend: HTTP 202, no success field)', async () => {
     const http = { post: async () => ({ data: { task_id: 'abc', status: 'creating' } }) } as unknown as AxiosInstance

@@ -28,14 +28,14 @@ const LIVE_NVME: RaidDisk = {
 }
 
 describe('RAID_LEVELS', () => {
-  it('含 5 个级别,顺序 0,1,5,6,10', () => {
+  it('contains 5 levels, in order 0,1,5,6,10', () => {
     expect(RAID_LEVELS.map(l => l.id)).toEqual([0, 1, 5, 6, 10])
   })
-  it('每级最少盘数逐字对齐 Vue2', () => {
+  it('minimum disk count per level matches Vue2 byte-for-byte', () => {
     const min = Object.fromEntries(RAID_LEVELS.map(l => [l.id, l.min]))
     expect(min).toEqual({ 0: 2, 1: 2, 5: 3, 6: 4, 10: 4 })
   })
-  it('容量公式:4 盘 × 1000 → RAID0=4000 / RAID1=1000 / RAID5=3000 / RAID6=2000 / RAID10=2000', () => {
+  it('capacity formula: 4 disks × 1000 → RAID0=4000 / RAID1=1000 / RAID5=3000 / RAID6=2000 / RAID10=2000', () => {
     const cap = (id: number) => RAID_LEVELS.find(l => l.id === id)!.capacity(4, 1000)
     expect(cap(0)).toBe(4000)
     expect(cap(1)).toBe(1000)
@@ -43,7 +43,7 @@ describe('RAID_LEVELS', () => {
     expect(cap(6)).toBe(2000)
     expect(cap(10)).toBe(2000)
   })
-  it('布局角色数量随盘数:RAID5 3盘 = 2 data + 1 parity', () => {
+  it('layout role counts scale with disk count: RAID5 with 3 disks = 2 data + 1 parity', () => {
     const roles = RAID_LEVELS.find(l => l.id === 5)!.layout(3)
     expect(roles.filter(r => r === 'data')).toHaveLength(2)
     expect(roles.filter(r => r === 'parity')).toHaveLength(1)
@@ -51,7 +51,7 @@ describe('RAID_LEVELS', () => {
 })
 
 describe('recommendRaidLevel', () => {
-  it('2盘→1, 3盘→5, 4盘→10, 6盘→10, 5盘→5', () => {
+  it('2 disks→1, 3 disks→5, 4 disks→10, 6 disks→10, 5 disks→5', () => {
     expect(recommendRaidLevel(2)).toBe(1)
     expect(recommendRaidLevel(3)).toBe(5)
     expect(recommendRaidLevel(4)).toBe(10)
@@ -61,38 +61,38 @@ describe('recommendRaidLevel', () => {
 })
 
 describe('diskHealthState', () => {
-  it('真机 avail 的空串 health → unknown(既不算健康也不算风险)', () => {
+  it('real-hardware avail\'s empty-string health → unknown (counted as neither healthy nor at risk)', () => {
     expect(diskHealthState(LIVE_AVAIL_SDA)).toBe('unknown')
   })
-  it('真机 "true" → good;SMART 未过的 "false" → bad', () => {
+  it('real-hardware "true" → good; SMART-failed "false" → bad', () => {
     expect(diskHealthState(LIVE_NVME)).toBe('good')
     expect(diskHealthState({ ...LIVE_NVME, health: 'false' })).toBe('bad')
   })
-  it('字段缺失 → unknown(不能默认健康)', () => {
+  it('missing field → unknown (must not default to healthy)', () => {
     expect(diskHealthState({ path: '/dev/sdz', size: 1 })).toBe('unknown')
   })
 })
 
 describe('isDiskAtRisk', () => {
-  it('只有 SMART 明确未过("false")才判风险', () => {
+  it('only flags a risk when SMART explicitly failed ("false")', () => {
     expect(isDiskAtRisk({ ...LIVE_NVME, health: 'false' })).toBe(true)
   })
-  it('真机 avail 的空串 health 不判风险(结论未知 ≠ 有风险)', () => {
+  it('real-hardware avail\'s empty-string health is not flagged as risk (verdict unknown ≠ at risk)', () => {
     expect(isDiskAtRisk(LIVE_AVAIL_SDA)).toBe(false)
   })
-  it('"true" 与字段缺失都不判风险', () => {
+  it('neither "true" nor a missing field is flagged as risk', () => {
     expect(isDiskAtRisk(LIVE_NVME)).toBe(false)
     expect(isDiskAtRisk({ path: '/dev/sdz', size: 1 })).toBe(false)
   })
 })
 
-describe('温度显示与分级(逐字对齐 Vue2 raidUtils.js:112-120)', () => {
-  it('tempDisplay:真机 38 → "38°C";0 与缺失 → "-"', () => {
+describe('temperature display and tiering (matches Vue2 raidUtils.js:112-120 byte-for-byte)', () => {
+  it('tempDisplay: real-hardware 38 → "38°C"; 0 and missing → "-"', () => {
     expect(tempDisplay(LIVE_AVAIL_SDA.temperature)).toBe('38°C')
     expect(tempDisplay(0)).toBe('-')
     expect(tempDisplay(undefined)).toBe('-')
   })
-  it('tempTone:阈值 42(warn)/46(bad)', () => {
+  it('tempTone: thresholds 42 (warn) / 46 (bad)', () => {
     expect(tempTone(38)).toBe('good')
     expect(tempTone(41)).toBe('good')
     expect(tempTone(42)).toBe('warn')
@@ -101,15 +101,15 @@ describe('温度显示与分级(逐字对齐 Vue2 raidUtils.js:112-120)', () => 
   })
 })
 
-describe('通电时长显示与分级(逐字对齐 Vue2 raidUtils.js:122-133)', () => {
-  it('pohDisplay:假盘 0 → "-";<1000 按小时;>=1000 按 8760 折算年、1 位小数', () => {
+describe('power-on-hours display and tiering (matches Vue2 raidUtils.js:122-133 byte-for-byte)', () => {
+  it('pohDisplay: fake disk 0 → "-"; <1000 in hours; >=1000 converted to years via 8760, 1 decimal place', () => {
     expect(pohDisplay(0)).toBe('-')
     expect(pohDisplay(undefined)).toBe('-')
     expect(pohDisplay(999)).toBe('999h')
     expect(pohDisplay(LIVE_NVME.power_on_time)).toBe('0.2yr')
     expect(pohDisplay(8760)).toBe('1.0yr')
   })
-  it('pohTone:阈值 18000(warn)/35000(bad)', () => {
+  it('pohTone: thresholds 18000 (warn) / 35000 (bad)', () => {
     expect(pohTone(0)).toBe('good')
     expect(pohTone(1381)).toBe('good')
     expect(pohTone(18000)).toBe('warn')
@@ -117,22 +117,22 @@ describe('通电时长显示与分级(逐字对齐 Vue2 raidUtils.js:122-133)', 
   })
 })
 
-describe('diskHealthScore / diskHealthTone(逐字对齐 Vue2 raidUtils.js:135-149)', () => {
-  it('真机假盘(health "" / 38°C / 0h)→ 100 分、good —— 健康态可见,不再一片空白', () => {
+describe('diskHealthScore / diskHealthTone (matches Vue2 raidUtils.js:135-149 byte-for-byte)', () => {
+  it('real-hardware fake disk (health "" / 38°C / 0h) → score 100, good — health state is visible, no longer blank', () => {
     expect(diskHealthScore(LIVE_AVAIL_SDA)).toBe(100)
     expect(diskHealthTone(diskHealthScore(LIVE_AVAIL_SDA))).toBe('good')
   })
-  it('SMART 未过直接 0 分、bad', () => {
+  it('SMART failed → score 0 directly, bad', () => {
     expect(diskHealthScore({ ...LIVE_AVAIL_SDA, health: 'false' })).toBe(0)
     expect(diskHealthTone(0)).toBe('bad')
   })
-  it('高温扣 15/30,长通电扣 15/30,可叠加且不低于 0', () => {
+  it('high temperature deducts 15/30, long power-on time deducts 15/30, deductions stack and never go below 0', () => {
     expect(diskHealthScore({ ...LIVE_AVAIL_SDA, temperature: 42 })).toBe(85)
     expect(diskHealthScore({ ...LIVE_AVAIL_SDA, temperature: 46 })).toBe(70)
     expect(diskHealthScore({ ...LIVE_AVAIL_SDA, power_on_time: 18000 })).toBe(85)
     expect(diskHealthScore({ ...LIVE_AVAIL_SDA, temperature: 46, power_on_time: 35000 })).toBe(40)
   })
-  it('diskHealthTone:>=85 good / >=60 warn / 其余 bad', () => {
+  it('diskHealthTone: >=85 good / >=60 warn / otherwise bad', () => {
     expect(diskHealthTone(100)).toBe('good')
     expect(diskHealthTone(85)).toBe('good')
     expect(diskHealthTone(84)).toBe('warn')
@@ -147,23 +147,23 @@ describe('groupColorKey', () => {
   const diskA: RaidDisk = { path: '/dev/sda', size: 1000, disk_type: 'ssd' }
   const diskB: RaidDisk = { path: '/dev/sdb', size: 2000, disk_type: 'hdd' }
 
-  it('diskSpecKey 按 size|disk_type 组合', () => {
+  it('diskSpecKey combines size|disk_type', () => {
     expect(diskSpecKey(diskA)).toBe('1000|ssd')
     expect(diskSpecKey({ path: '/dev/sdc', size: 500 } as RaidDisk)).toBe('500|')
   })
 
-  it('按 groups 中的位置返回分组语义 key,不返回字面色', () => {
+  it('returns a group semantic key based on position in groups, never a literal color', () => {
     const groups = [{ key: diskSpecKey(diskA) }, { key: diskSpecKey(diskB) }]
     expect(groupColorKey(diskA, groups)).toBe('group-a')
     expect(groupColorKey(diskB, groups)).toBe('group-b')
   })
 
-  it('未匹配任何分组时回退到第一个语义 key', () => {
+  it('falls back to the first semantic key when no group matches', () => {
     const unknown: RaidDisk = { path: '/dev/sdz', size: 999, disk_type: 'nvme' }
     expect(groupColorKey(unknown, [{ key: diskSpecKey(diskA) }])).toBe('group-a')
   })
 
-  it('返回值不含字面色特征(不以 # 开头,不含 rgb)', () => {
+  it('the return value has no literal-color traits (does not start with #, does not contain rgb)', () => {
     const groups = [{ key: diskSpecKey(diskA) }]
     const result = groupColorKey(diskA, groups)
     expect(result).not.toMatch(/^#/)

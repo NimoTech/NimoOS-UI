@@ -25,18 +25,21 @@ describe('TerminalPanel', () => {
   })
   afterEach(() => { vi.useRealTimers(); localStorage.removeItem('user') })
 
-  it('挂载即拉一次日志并渲染(时间戳前缀已裁掉)', async () => {
+  it('fetches logs once on mount and renders them (timestamp prefix already stripped)', async () => {
     const w = mountPanel()
     await flushPromises()
     expect(getLogs).toHaveBeenCalledTimes(1)
-    // M7:原断言用 toContain,若 formatSysLog 的 .substring(8) 被删掉,输出会变成
-    // '2026-04-13T15:38:19.417-0400 …'——那段仍然「包含」这个子串,断言恒绿、
-    // 测不出前缀被裁掉这个行为。改 startsWith 使其真的具判别力(sysLog.test.ts
-    // 已经对 formatSysLog 本身有具判别力的覆盖,这里只是让这条组件层断言名副其实)。
+    // M7: the original assertion used toContain — if formatSysLog's .substring(8) were
+    // removed, the output would become '2026-04-13T15:38:19.417-0400 …', which would
+    // still "contain" that substring, so the assertion would stay green and would never
+    // catch the prefix-stripping behavior regressing. Switched to startsWith to make it
+    // actually discriminating (sysLog.test.ts already has discriminating coverage of
+    // formatSysLog itself; this is just making this component-level assertion live up
+    // to its name).
     expect(w.find('[data-test="logs-pre"]').text().startsWith('13T15:38:19.417-0400')).toBe(true)
   })
 
-  it('每 5 秒自动刷新一次', async () => {
+  it('auto-refreshes every 5 seconds', async () => {
     mountPanel()
     await flushPromises()
     vi.advanceTimersByTime(5000)
@@ -44,7 +47,7 @@ describe('TerminalPanel', () => {
     expect(getLogs).toHaveBeenCalledTimes(2)
   })
 
-  it('卸载后停表(移植纪律:Vue2 只在切 tab 时清,组件销毁会漏)', async () => {
+  it('stops the timer on unmount (porting discipline: Vue2 only clears it on tab switch, which misses component destroy)', async () => {
     const w = mountPanel()
     await flushPromises()
     w.unmount()
@@ -53,7 +56,7 @@ describe('TerminalPanel', () => {
     expect(getLogs).toHaveBeenCalledTimes(1)
   })
 
-  it('拉日志失败时保留上一次内容,不清空', async () => {
+  it('keeps the previous content when fetching logs fails, instead of clearing it', async () => {
     const w = mountPanel()
     await flushPromises()
     getLogs.mockRejectedValueOnce(new Error('boom'))
@@ -88,7 +91,7 @@ describe('TerminalPanel', () => {
     expect(w.find('[data-test="logs-pre"]').exists()).toBe(true)
   })
 
-  it('下载日志的链接带 token 查询参数', async () => {
+  it('the download-logs link carries a token query parameter', async () => {
     localStorage.setItem('access_token', 'tok123')
     const w = mountPanel()
     await flushPromises()
@@ -96,31 +99,35 @@ describe('TerminalPanel', () => {
     localStorage.removeItem('access_token')
   })
 
-  // 过期守卫(约束 #2,brief 未列,评审要求就地实现 + 交错测试证明):
-  // 挂载发起的第一次拉取被挂住(deferred),期间 5 秒定时器触发第二次(更新的)拉取
-  // 并让它先落定,随后再放行第一次的旧结果——旧结果必须被丢弃,不能覆盖新结果。
-  // 若组件按「谁后落定就用谁」写(即没有代际守卫),这条会翻红:旧的 STALE 内容
-  // 会覆盖新的 NEWER 内容,最后一个 toContain('NEWER') 断言会失败。
-  it('旧请求晚于新请求落定时不覆盖新结果(过期守卫)', async () => {
+  // Stale-response guard (constraint #2, not listed in the brief, added at reviewer's
+  // request with an interleaved test to prove it):
+  // the first fetch kicked off on mount is left pending (deferred); while it's pending,
+  // the 5-second timer fires a second (newer) fetch and lets it settle first, then the
+  // first fetch's stale result is allowed to resolve afterward — the stale result must
+  // be discarded and must not overwrite the newer result.
+  // If the component were written as "whichever settles last wins" (i.e. no generation
+  // guard), this test would go red: the old STALE content would overwrite the newer
+  // NEWER content, and the final toContain('NEWER') assertion would fail.
+  it('does not overwrite the newer result when a stale request settles after the newer one (stale guard)', async () => {
     let resolveFirst!: (v: string) => void
     const first = new Promise<string>((resolve) => { resolveFirst = resolve })
     getLogs.mockReturnValueOnce(first)
 
     const w = mountPanel()
-    await flushPromises() // 挂载的 loadLogs 跑到 await 处并挂住
+    await flushPromises() // The mount's loadLogs runs to the await and hangs there
 
-    // 定时器触发的第二次(更新的)请求先落定
+    // The second (newer) request, fired by the timer, settles first
     getLogs.mockResolvedValueOnce('2026-04-13T15:38:19.417-0400\tinfo\tNEWER\n')
     vi.advanceTimersByTime(5000)
     await flushPromises()
     expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER')
 
-    // 现在才放行第一次的旧结果
+    // Only now let the first request's stale result resolve
     resolveFirst('2026-04-13T15:38:19.417-0400\tinfo\tSTALE\n')
     await flushPromises()
 
-    expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER') // 仍是新结果
-    expect(w.find('[data-test="logs-pre"]').text()).not.toContain('STALE') // 旧结果没有覆盖它
+    expect(w.find('[data-test="logs-pre"]').text()).toContain('NEWER') // Still the newer result
+    expect(w.find('[data-test="logs-pre"]').text()).not.toContain('STALE') // The stale result didn't overwrite it
   })
 
   // ── Paging (fixes the "page unresponsive" freeze) ────────────────────────

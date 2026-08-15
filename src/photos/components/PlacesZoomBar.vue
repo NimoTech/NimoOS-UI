@@ -183,7 +183,7 @@ function resetView(): void {
   margin-left: -7px;
   margin-bottom: -7px;
   border-radius: 50%;
-  /* theme-exception: handle fixed white, theme-independent; Vue2's light/dark never changed this,
+  /* theme-exception: handle fixed white, theme-independent — Vue2's light/dark never changed this,
      common slider handle convention. */
   background: #fff;
   box-shadow: 0 0 0 3px var(--accent, #8950F2), 0 1px 4px var(--zb-thumb-shadow);

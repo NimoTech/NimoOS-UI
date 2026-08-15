@@ -8,7 +8,7 @@ const props = defineProps<{ open: boolean; task: RaidTask }>()
 const emit = defineEmits<{ (e: 'update:open', v: boolean): void }>()
 const { t } = useI18n()
 
-// 逐字移植 Vue2 RaidCreateProgressModal.vue L112-125。
+// Ported verbatim from Vue2 RaidCreateProgressModal.vue L112-125.
 function isStepDone(n: number): boolean {
   return props.task.status === 'done' || n < props.task.step
 }

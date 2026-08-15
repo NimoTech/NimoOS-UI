@@ -1,11 +1,16 @@
 <script setup lang="ts">
-// 账号卡 —— 对位 Vue2 AccountPanel.vue state 1 上半(:630-662)。
-// 左侧:「本机所有者账户」小标 + 大号用户名 + 三个按钮;右侧:108px 圆形头像。
+// Account card -- mirrors Vue2 AccountPanel.vue state 1, upper half (:630-662).
+// Left side: "local owner account" small label + large username + three buttons;
+// right side: 108px round avatar.
 //
-// 🔧 plan C11:Vue2 选完本地文件后走 FileReader → 嗅探魔数算出 image.type,但那个 type
-// **模板里零引用**(死代码)。这里只产出 objectURL 交给宿主,不做嗅探。
-// 🔧 plan C12:objectURL 的生命周期由**宿主**统一管(赋新值前 revoke 旧值 + 卸载时 revoke),
-// 本组件只负责 create 并往上报,不自己 revoke —— 否则宿主还没用就被释放了。
+// plan C11: after picking a local file, Vue2 runs it through FileReader -> sniffs the
+// magic bytes to compute image.type, but that type is **never referenced in the
+// template** (dead code). Here we only produce an objectURL and hand it to the host,
+// without sniffing.
+// plan C12: the objectURL's lifecycle is managed entirely by the **host** (revoke the
+// old value before assigning a new one + revoke on unmount); this component only
+// creates the URL and reports it upward, it never revokes it itself -- otherwise it
+// could be freed before the host even uses it.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { isAllowedImageFile } from '../../util/avatar'
@@ -25,8 +30,10 @@ const menuOpen = ref(false)
 const avatarFailed = ref(false)
 const initial = computed(() => (props.username || '').slice(0, 1).toUpperCase())
 
-// 真机实测 GET /v1/users/avatar 返回 404(DB avatar 为空串且两个兜底 svg 都不存在),
-// 所以失败兜底不是可选项。换头像后宿主会把版本号 +1 → src 变 → 清掉失败态重试。
+// Measured on a real device: GET /v1/users/avatar returns 404 (the avatar field in the
+// DB is an empty string and neither fallback svg exists), so the failure fallback is
+// not optional. After changing the avatar, the host bumps the version number +1 -> src
+// changes -> clears the failed state to retry.
 watch(
   () => props.avatarSrc,
   () => {
@@ -34,7 +41,7 @@ watch(
   },
 )
 
-// Vue2 mounted 里 document.addEventListener('click', closeAvatarMenu),destroyed 摘掉。
+// Vue2's mounted hook does document.addEventListener('click', closeAvatarMenu), removed in destroyed.
 function closeMenu() {
   menuOpen.value = false
 }
@@ -65,7 +72,7 @@ function onFileSelected(e: Event) {
           {{ t('settingsAccChangePassword') }}
         </button>
 
-        <!-- @click.stop:别让这一层的点击冒到 document 上把刚打开的菜单又关掉 -->
+        <!-- @click.stop: keep clicks on this layer from bubbling up to document and closing the menu we just opened -->
         <div class="set-acc-avatar-picker" @click.stop>
           <button class="set-btn" type="button" data-test="acc-change-avatar" @click="menuOpen = !menuOpen">
             {{ t('settingsAccChangeAvatar') }}

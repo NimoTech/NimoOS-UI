@@ -15,66 +15,66 @@ const P = (over: Partial<Person>): Person => ({
 })
 
 describe('toPerson', () => {
-  it('缺字段全部落到安全缺省', () => {
+  it('missing fields all fall back to safe defaults', () => {
     expect(toPerson({ id: 7 })).toMatchObject({
       id: 7, name: '', confidence: 0, count: 0, favorite: false, relation: '',
       coverFaceId: null, heroAssetId: null, firstSeen: null, lastSeen: null, placesCount: 0,
     })
   })
-  it('保留数字 id 不做字符串化', () => { expect(toPerson({ id: 12 }).id).toBe(12) })
-  it('confidence/count 走 Number 归一', () => {
+  it('keeps a numeric id without stringifying it', () => { expect(toPerson({ id: 12 }).id).toBe(12) })
+  it('confidence/count are normalized via Number', () => {
     expect(toPerson({ id: 1, confidence: 0.82, count: 3 })).toMatchObject({ confidence: 0.82, count: 3 })
   })
 })
 
 describe('personInitial', () => {
-  it('取 trim 后首字母大写', () => { expect(personInitial(' sara')).toBe('S') })
-  it('空/纯空白/非字符串 → 空串', () => {
+  it('takes the uppercase first letter after trimming', () => { expect(personInitial(' sara')).toBe('S') })
+  it('empty/whitespace-only/non-string → empty string', () => {
     expect(personInitial('')).toBe(''); expect(personInitial('   ')).toBe(''); expect(personInitial(null)).toBe('')
   })
 })
 
 describe('namedOf / unnamedOf', () => {
   const list = [P({ id: 1, name: '小明' }), P({ id: 2, name: '' }), P({ id: 3, name: '   ' })]
-  it('已命名 = name 非空白', () => { expect(namedOf(list).map((p) => p.id)).toEqual([1]) })
-  it('未命名 = 已命名的补集,两者并集等于全集', () => {
+  it('named = name is non-blank', () => { expect(namedOf(list).map((p) => p.id)).toEqual([1]) })
+  it('unnamed = the complement of named; the union of both equals the full set', () => {
     expect(unnamedOf(list).map((p) => p.id)).toEqual([2, 3])
     expect(namedOf(list).length + unnamedOf(list).length).toBe(list.length)
   })
-  it('不改变原顺序、不原地修改入参', () => {
+  it('does not change the original order or mutate the input in place', () => {
     const src = [...list]; namedOf(src); expect(src.map((p) => p.id)).toEqual([1, 2, 3])
   })
 })
 
 describe('visibleUnnamedOf', () => {
   const un = [
-    P({ id: 'a', confidence: 0.8, count: 5 }),   // 恰好等于阈值 80
-    P({ id: 'b', confidence: 0.79, count: 5 }),  // 低于阈值
-    P({ id: 'c', confidence: 0.95, count: 1 }),  // 单照片
+    P({ id: 'a', confidence: 0.8, count: 5 }),   // exactly equal to the 80 threshold
+    P({ id: 'b', confidence: 0.79, count: 5 }),  // below threshold
+    P({ id: 'c', confidence: 0.95, count: 1 }),  // single photo
   ]
-  it('阈值是闭区间 >=(0.8*100 === 80 要保留)', () => {
+  it('threshold is a closed interval >= (0.8*100 === 80 must be kept)', () => {
     expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: false }).map((p) => p.id)).toEqual(['a'])
   })
-  it('showSingletons 打开时放行单照片', () => {
+  it('showSingletons on lets single photos through', () => {
     expect(visibleUnnamedOf(un, { confidence: 80, showSingletons: true }).map((p) => p.id)).toEqual(['a', 'c'])
   })
-  it('与 hiddenSingletonCountOf 严格互补', () => {
+  it('is strictly complementary with hiddenSingletonCountOf', () => {
     const f = { confidence: 80, showSingletons: false }
     const atThreshold = un.filter((p) => p.confidence * 100 >= f.confidence).length
     expect(visibleUnnamedOf(un, f).length + hiddenSingletonCountOf(un, f)).toBe(atThreshold)
   })
-  it('showSingletons 打开时 hidden 恒为 0', () => {
+  it('hidden is always 0 when showSingletons is on', () => {
     expect(hiddenSingletonCountOf(un, { confidence: 50, showSingletons: true })).toBe(0)
   })
 })
 
 describe('unnamedCountAt', () => {
   const un = [P({ id: 'a', confidence: 0.9, count: 4 }), P({ id: 'b', confidence: 0.6, count: 4 }), P({ id: 'c', confidence: 0.9, count: 1 })]
-  it('按传入阈值预览,不受当前阈值影响', () => {
+  it('previews using the passed-in threshold, unaffected by the current threshold', () => {
     expect(unnamedCountAt(un, 50, false)).toBe(2)
     expect(unnamedCountAt(un, 90, false)).toBe(1)
   })
-  it('showSingletons 参与判定', () => { expect(unnamedCountAt(un, 90, true)).toBe(2) })
+  it('showSingletons participates in the determination', () => { expect(unnamedCountAt(un, 90, true)).toBe(2) })
 })
 
 describe('sortNamed', () => {
@@ -85,40 +85,40 @@ describe('sortNamed', () => {
     P({ id: 'b', name: 'Alpha', relation: 'work', lastSeen: day(200), firstSeen: day(30) }),
     P({ id: 'c', name: 'Gamma', relation: 'family', lastSeen: null, firstSeen: null }),
   ]
-  it('all + freq → 原序(信任后端顺序)', () => {
+  it('all + freq → original order (trusts backend ordering)', () => {
     expect(sortNamed(list, 'all', 'freq', NOW).map((p) => p.id)).toEqual(['a', 'b', 'c'])
   })
-  it('按关系分组过滤', () => {
+  it('filters by relation group', () => {
     expect(sortNamed(list, 'family', 'freq', NOW).map((p) => p.id)).toEqual(['a', 'c'])
   })
-  it('recent 过滤 = 90 天内且 lastSeen 存在', () => {
+  it('recent filter = within 90 days and lastSeen exists', () => {
     expect(sortNamed(list, 'recent', 'freq', NOW).map((p) => p.id)).toEqual(['a'])
   })
-  it('recent 的 90 天是闭区间(整 90 天前仍保留)', () => {
+  it('the 90-day window for recent is a closed interval (exactly 90 days ago is still kept)', () => {
     const edge = [P({ id: 'e', name: 'E', lastSeen: new Date(NOW - 90 * 864e5).toISOString() })]
     expect(sortNamed(edge, 'recent', 'freq', NOW).map((p) => p.id)).toEqual(['e'])
   })
-  it('name 字母序 / recent 最近优先 / oldest 最早优先', () => {
+  it('name alphabetical / recent most-recent-first / oldest earliest-first', () => {
     expect(sortNamed(list, 'all', 'name', NOW).map((p) => p.name)).toEqual(['Alpha', 'Beta', 'Gamma'])
     expect(sortNamed(list, 'all', 'recent', NOW).map((p) => p.id)).toEqual(['a', 'b', 'c'])
     expect(sortNamed(list, 'all', 'oldest', NOW).map((p) => p.id)).toEqual(['c', 'a', 'b'])
   })
-  it('不原地修改入参数组', () => {
+  it('does not mutate the input array in place', () => {
     const src = [...list]; sortNamed(src, 'all', 'name', NOW); expect(src.map((p) => p.id)).toEqual(['a', 'b', 'c'])
   })
 })
 
 describe('monthKeyLabel', () => {
-  it('YYYY-MM → 英文全称月份 + 年', () => { expect(monthKeyLabel('2026-03')).toBe('March 2026') })
-  it('非法月份原样返回 key', () => {
+  it('YYYY-MM → full English month name + year', () => { expect(monthKeyLabel('2026-03')).toBe('March 2026') })
+  it('returns the key unchanged for an invalid month', () => {
     expect(monthKeyLabel('2026-13')).toBe('2026-13')
     expect(monthKeyLabel('unknown')).toBe('unknown')
   })
-  it('空/非字符串 → 空串', () => { expect(monthKeyLabel('')).toBe(''); expect(monthKeyLabel(null)).toBe('') })
+  it('empty/non-string → empty string', () => { expect(monthKeyLabel('')).toBe(''); expect(monthKeyLabel(null)).toBe('') })
 })
 
 describe('mergeConfidencePct', () => {
-  it('0~1 → 整数百分比,缺失记 0', () => {
+  it('0~1 → integer percentage, missing counts as 0', () => {
     expect(mergeConfidencePct(0.876)).toBe(88); expect(mergeConfidencePct(undefined)).toBe(0)
   })
 })
@@ -127,26 +127,28 @@ const UNKNOWN = '未知'
 const PL = (over: Partial<PersonPlace>): PersonPlace => ({ placeName: null, latitude: null, longitude: null, ...over })
 
 describe('groupPlaces (PhotosPersonDetail.vue:537-551)', () => {
-  it('placeName 优先,不查坐标', () => {
+  it('placeName takes priority, does not look up coordinates', () => {
     const g = groupPlaces([PL({ placeName: 'Paris', latitude: 999, longitude: 999 })], UNKNOWN)
     expect(g).toEqual([{ name: 'Paris', count: 1, color: PLACE_PALETTE[0] }])
   })
 
-  it('缺 placeName 但有坐标 → 走 countryFromCoords 反查', () => {
-    // 46.6N,2.4E 是法国本土中心,France 边界框在 assetToPhoto.ts 的 COUNTRIES 表里已验证命中。
+  it('missing placeName but has coordinates → falls back to countryFromCoords reverse lookup', () => {
+    // 46.6N, 2.4E is the center of mainland France; the France bounding box in the COUNTRIES
+    // table in assetToPhoto.ts has already been verified to match.
     const g = groupPlaces([PL({ latitude: 46.6, longitude: 2.4 })], UNKNOWN)
     expect(g).toEqual([{ name: 'France', count: 1, color: PLACE_PALETTE[0] }])
   })
 
-  it('既无 placeName 也无坐标命中 → unknownLabel(纯函数,标签由调用方传入,不依赖 i18n)', () => {
-    // -20,-140 落在南太平洋公海,assetToPhoto.ts 的国家边界框表里已验证不命中任何国家。
+  it('neither placeName nor a coordinate match → unknownLabel (a pure function; the label is passed in by the caller, no i18n dependency)', () => {
+    // -20, -140 falls in the South Pacific high seas; the country bounding box table in
+    // assetToPhoto.ts has already been verified to match no country.
     const g1 = groupPlaces([PL({})], UNKNOWN)
     const g2 = groupPlaces([PL({ latitude: -20, longitude: -140 })], UNKNOWN)
     expect(g1).toEqual([{ name: UNKNOWN, count: 1, color: PLACE_PALETTE[0] }])
     expect(g2).toEqual([{ name: UNKNOWN, count: 1, color: PLACE_PALETTE[0] }])
   })
 
-  it('按 count 降序', () => {
+  it('sorted by count descending', () => {
     const places = [
       PL({ placeName: 'A' }), PL({ placeName: 'B' }),
       PL({ placeName: 'A' }), PL({ placeName: 'A' }),
@@ -155,18 +157,18 @@ describe('groupPlaces (PhotosPersonDetail.vue:537-551)', () => {
     expect(g.map((x) => [x.name, x.count])).toEqual([['A', 3], ['B', 1]])
   })
 
-  it('7 色循环边界:第 8 个不同地点的颜色回到 PLACE_PALETTE[0]', () => {
+  it('7-color cycle boundary: the color of the 8th distinct place wraps back to PLACE_PALETTE[0]', () => {
     const places = Array.from({ length: 8 }, (_, i) => PL({ placeName: `P${i}` }))
     const g = groupPlaces(places, UNKNOWN)
     expect(g).toHaveLength(8)
     expect(g[0].color).toBe(PLACE_PALETTE[0])
     expect(g[6].color).toBe(PLACE_PALETTE[6])
-    expect(g[7].color).toBe(PLACE_PALETTE[0]) // idx 7 % 7 === 0,与 idx 0 撞色
+    expect(g[7].color).toBe(PLACE_PALETTE[0]) // idx 7 % 7 === 0, collides in color with idx 0
   })
 })
 
 describe('colorPoints (PhotosPersonDetail.vue:552-570)', () => {
-  it('只保留 typeof lat/lon 均为 number 的点', () => {
+  it('keeps only points where typeof lat/lon are both number', () => {
     const places: PersonPlace[] = [
       PL({ placeName: 'A', latitude: 1, longitude: 2 }),
       PL({ placeName: 'B', latitude: null, longitude: 2 }),
@@ -177,7 +179,7 @@ describe('colorPoints (PhotosPersonDetail.vue:552-570)', () => {
     expect(pts).toEqual([{ latitude: 1, longitude: 2, color: groups.find((g) => g.name === 'A')!.color }])
   })
 
-  it('颜色与所属分组一致', () => {
+  it('color matches its owning group', () => {
     const places = [
       PL({ placeName: 'A', latitude: 1, longitude: 1 }),
       PL({ placeName: 'A', latitude: 2, longitude: 2 }),
@@ -190,7 +192,7 @@ describe('colorPoints (PhotosPersonDetail.vue:552-570)', () => {
     expect(pts[2].color).toBe(PLACE_PALETTE[1])
   })
 
-  it('分组里查不到名字(如传入了不匹配的 groups)时回落 PALETTE[0]', () => {
+  it('falls back to PALETTE[0] when the name is not found in groups (e.g. mismatched groups passed in)', () => {
     const places = [PL({ placeName: 'Ghost', latitude: 5, longitude: 5 })]
     const pts = colorPoints(places, [], UNKNOWN)
     expect(pts).toEqual([{ latitude: 5, longitude: 5, color: PLACE_PALETTE[0] }])
@@ -198,29 +200,29 @@ describe('colorPoints (PhotosPersonDetail.vue:552-570)', () => {
 })
 
 describe('mergeReasonKey', () => {
-  it('s 为空 → unnamed key,pct 为 0', () => {
+  it('s is empty → unnamed key, pct is 0', () => {
     expect(mergeReasonKey(null)).toEqual({ key: 'photosPeopleMergeReasonUnnamed', params: { pct: 0 } })
     expect(mergeReasonKey(undefined)).toEqual({ key: 'photosPeopleMergeReasonUnnamed', params: { pct: 0 } })
   })
-  it('intoName 非空 → named key,带 name 与 pct', () => {
+  it('intoName is non-empty → named key, with name and pct', () => {
     expect(mergeReasonKey({ confidence: 0.876, intoName: '小明' })).toEqual({
       key: 'photosPeopleMergeReasonNamed', params: { pct: 88, name: '小明' },
     })
   })
-  it('无 intoName → unnamed key,带 pct', () => {
+  it('no intoName → unnamed key, with pct', () => {
     expect(mergeReasonKey({ confidence: 0.5 })).toEqual({
       key: 'photosPeopleMergeReasonUnnamed', params: { pct: 50 },
     })
   })
 })
 
-// Task 13 (SP7-P5 人物): nimoReadParts —— 照 Vue2 PhotosPersonDetail.vue:571-585
-// (nimoRead computed)的拼句规则,搬成不依赖 i18n 的纯函数,返回 {key, params}[]
-// 供视图层各自 t() 后拼接。
+// Task 13 (SP7-P5 people): nimoReadParts — mirrors Vue2 PhotosPersonDetail.vue:571-585's
+// (nimoRead computed) sentence-composition rule, ported into an i18n-independent pure
+// function that returns {key, params}[] for the view layer to call t() on and concatenate.
 describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
   const PG = (name: string, count = 1): PlaceGroup => ({ name, count, color: PLACE_PALETTE[0] })
 
-  it('有具名关系 + 两个地点 → With + Places2 两段', () => {
+  it('has a named relation + two places → With + Places2, two segments', () => {
     const parts = nimoReadParts('小明', [{ name: '小红' }], [PG('北京'), PG('上海')])
     expect(parts).toEqual([
       { key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } },
@@ -228,7 +230,7 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
     ])
   })
 
-  it('有具名关系 + 一个地点 → With + Place1 两段', () => {
+  it('has a named relation + one place → With + Place1, two segments', () => {
     const parts = nimoReadParts('小明', [{ name: '小红' }], [PG('北京')])
     expect(parts).toEqual([
       { key: 'photosPersonInsightWith', params: { name: '小明', other: '小红' } },
@@ -236,33 +238,36 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
     ])
   })
 
-  it('无关系、无地点 → 单条 InsightNone', () => {
+  it('no relation, no place → a single InsightNone', () => {
     expect(nimoReadParts('小明', [], [])).toEqual([
       { key: 'photosPersonInsightNone', params: { name: '小明' } },
     ])
   })
 
-  it('关系存在但 name 为空/缺失 → WithUnnamed(不带 other)', () => {
+  it('relation exists but name is empty/missing → WithUnnamed (without other)', () => {
     const parts = nimoReadParts('小明', [{ name: '' }], [])
     expect(parts).toEqual([
       { key: 'photosPersonInsightWithUnnamed', params: { name: '小明' } },
     ])
-    // name 字段整个缺失(undefined)同样落这一支。
+    // the name field being entirely missing (undefined) also falls into this branch.
     const parts2 = nimoReadParts('小明', [{}], [])
     expect(parts2).toEqual([
       { key: 'photosPersonInsightWithUnnamed', params: { name: '小明' } },
     ])
   })
 
-  // 关键回归(brief 硬约束的易错点):Vue2 :573 用的是 `this.relations[0]`——
-  // 原始顺序的第一个,不是按 count 排序后的第一个。这里故意把「count 更大」的
-  // 关系放在数组第二位,断言取到的仍是数组第一位那个人。
+  // Key regression (an easy-to-get-wrong point the brief hard-requires): Vue2 :573 uses
+  // `this.relations[0]` — the first item in original order, not the first after sorting by
+  // count. Here we deliberately place the relation with the "larger count" second in the
+  // array, and assert that the person taken is still the first one in the array.
   //
-  // 证伪验证(已做,过程见任务报告):把实现临时改成
-  // `[...relations].sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0]` 后重跑,
-  // 本用例从绿变红(取到了 count 更大的"小刚"而不是数组第一位的"小红")——
-  // 说明这条断言真的在守着"原始顺序"这个行为,不是摆设。已改回 relations[0]。
-  it('取 relations[0] 而非按 count 排序后的第一个', () => {
+  // Falsification check (already done, see the task report for the process): temporarily
+  // changed the implementation to
+  // `[...relations].sort((a, b) => (b.count ?? 0) - (a.count ?? 0))[0]` and reran — this test
+  // went from green to red (it picked up "小刚" with the larger count instead of "小红" who is
+  // first in the array) — proving this assertion really is guarding the "original order"
+  // behavior, not just decoration. Reverted back to relations[0].
+  it('takes relations[0], not the first after sorting by count', () => {
     const parts = nimoReadParts(
       '小明',
       [{ name: '小红', count: 1 } as { name: string; count: number }, { name: '小刚', count: 100 } as { name: string; count: number }],
@@ -272,8 +277,8 @@ describe('nimoReadParts (PhotosPersonDetail.vue:571-585)', () => {
   })
 })
 
-// Task 15A (SP7-P5): topPersons/topPlaces/byYear —— 照 Vue2
-// PhotosFavoritesView.vue:369-385(byPersonAll/byPlaceAll/byYearAll)。
+// Task 15A (SP7-P5): topPersons/topPlaces/byYear — mirrors Vue2
+// PhotosFavoritesView.vue:369-385 (byPersonAll/byPlaceAll/byYearAll).
 function ph(over: Partial<Photo> = {}): Photo {
   return {
     id: 'x', title: 'x', file: '', date: '', time: '', takenAt: null, indexedAt: null,
@@ -288,7 +293,7 @@ function ph(over: Partial<Photo> = {}): Photo {
 }
 
 describe('topPersons (PhotosFavoritesView.vue:369-372)', () => {
-  it('按出现次数降序', () => {
+  it('sorted by occurrence count descending', () => {
     const photos = [
       ph({ faces: ['Alice', 'Bob'] }),
       ph({ faces: ['Alice'] }),
@@ -296,13 +301,13 @@ describe('topPersons (PhotosFavoritesView.vue:369-372)', () => {
     ]
     expect(topPersons(photos)).toEqual([['Alice', 3], ['Bob', 2]])
   })
-  it('faces 缺失/为空不炸,直接跳过', () => {
+  it('does not blow up when faces is missing/empty, just skips it', () => {
     expect(topPersons([ph({ faces: undefined as unknown as string[] }), ph({ faces: [] })])).toEqual([])
   })
 })
 
 describe('topPlaces (PhotosFavoritesView.vue:373-377)', () => {
-  it('falsy place 跳过,按出现次数降序', () => {
+  it('skips falsy place, sorted by occurrence count descending', () => {
     const photos = [
       ph({ place: 'Paris, France' }), ph({ place: null }), ph({ place: 'Paris, France' }), ph({ place: 'Tokyo' }),
     ]
@@ -311,10 +316,12 @@ describe('topPlaces (PhotosFavoritesView.vue:373-377)', () => {
 })
 
 describe('byYear (PhotosFavoritesView.vue:378-385)', () => {
-  it('空 takenAt 跳过,按年份字符串降序 —— 不是按 count', () => {
-    // 2024 只出现 1 次、2025 出现 2 次:若误按 count 排序,2025 会排在最前;
-    // 正确实现按年份字符串降序,2025 仍然在前但原因不同——用第三个年份来把两条规则的
-    // 结果彻底分岔:2023 出现 3 次(count 最多)但年份最小,必须排在最后。
+  it('skips empty takenAt, sorted by year string descending — not by count', () => {
+    // 2024 appears only once and 2025 appears twice: if mistakenly sorted by count, 2025 would
+    // come first; the correct implementation sorts by year string descending, where 2025 still
+    // comes first but for a different reason — a third year is used to fully diverge the results
+    // of the two rules: 2023 appears 3 times (the highest count) but has the smallest year, and
+    // must sort last.
     const photos = [
       ph({ takenAt: '2023-01-01' }), ph({ takenAt: '2023-06-01' }), ph({ takenAt: '2023-12-01' }),
       ph({ takenAt: '2024-01-01' }),
@@ -324,31 +331,33 @@ describe('byYear (PhotosFavoritesView.vue:378-385)', () => {
     expect(byYear(photos)).toEqual([['2025', 2], ['2024', 1], ['2023', 3]])
   })
 
-  // 删码验证①(见任务报告):把排序键临时改成按 count 降序(`b[1] - a[1]`)重跑此用例,
-  // 断言从绿变红(2023 count=3 会跑到最前而不是排在 2025/2024 之后)——证明上面的断言
-  // 真的在守着"按年份不是按 count"这条规则,不是摆设。已改回按年份字符串降序。
+  // Mutation check ① (see the task report): temporarily changed the sort key to count
+  // descending (`b[1] - a[1]`) and reran this test — the assertion went from green to red (2023
+  // with count=3 would jump to the front instead of sorting after 2025/2024) — proving the
+  // assertion above really is guarding the "by year, not by count" rule, not just decoration.
+  // Reverted back to sorting by year string descending.
 })
 
-describe('resolvePersonByName (Task 15B, PhotosLightbox.vue:125-129 前置事实纠正)', () => {
+describe('resolvePersonByName (Task 15B, PhotosLightbox.vue:125-129 prerequisite fact correction)', () => {
   const P = (over: Partial<Person>): Person => ({
     id: 'x', name: '', confidence: 1, count: 5, favorite: false, relation: '',
     coverFaceId: null, heroAssetId: null, firstSeen: null, lastSeen: null, placesCount: 0, ...over,
   })
-  it('唯一命中返回该人', () => {
+  it('returns the person on a unique match', () => {
     const people = [P({ id: 1, name: 'Alice' }), P({ id: 2, name: 'Bob' })]
     expect(resolvePersonByName(people, 'Alice')).toEqual(people[0])
   })
-  it('重名两个 → null(宁可退回首字母,也不显示错的人脸)', () => {
+  it('two people with the same name → null (better to fall back to the initial than show the wrong face)', () => {
     const people = [P({ id: 1, name: 'Alice' }), P({ id: 2, name: 'Alice' })]
     expect(resolvePersonByName(people, 'Alice')).toBeNull()
   })
-  it('无匹配 → null', () => {
+  it('no match → null', () => {
     expect(resolvePersonByName([P({ id: 1, name: 'Alice' })], 'Zoe')).toBeNull()
   })
-  it('两侧 trim,大小写敏感精确比较', () => {
+  it('trims both sides, case-sensitive exact comparison', () => {
     const people = [P({ id: 1, name: ' Alice ' })]
     expect(resolvePersonByName(people, 'Alice')).toEqual(people[0])
     expect(resolvePersonByName(people, '  Alice')).toEqual(people[0])
-    expect(resolvePersonByName(people, 'alice')).toBeNull() // 大小写敏感,不做模糊匹配
+    expect(resolvePersonByName(people, 'alice')).toBeNull() // case-sensitive, no fuzzy matching
   })
 })

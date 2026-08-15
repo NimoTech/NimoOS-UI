@@ -1322,9 +1322,9 @@ watch(() => route.params.id, (raw) => {
   font-size: 9px; background: var(--overlay-bg);
   display: inline-flex; align-items: center; gap: 3px;
   /* theme-exception: the duration badge overlaid on the photo thumbnail needs a fixed
-     light foreground across themes (same precedent as PersonAssetGrid.vue's .tile-vid;
+     light foreground across themes (same precedent as PersonAssetGrid.vue's .tile-vid —
      rationale in PersonHero.vue's file-header "color red line"). */
-  color: #fff;
+  color: #fff —
 }
 /* Identical, verbatim, to T11 PersonAssetGrid.vue's .vid-play (same visual element, same
    font size). */

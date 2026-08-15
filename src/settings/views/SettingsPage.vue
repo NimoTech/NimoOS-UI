@@ -1,7 +1,7 @@
 <script setup lang="ts">
-// 设置区路由组件:按 :tab 挑一个骨架塞进外壳,并维护「上次 tab」记忆。
-// 未知 :tab 的回落由路由 beforeEnter 负责(见 src/settings/settingsRoutes.ts),
-// 此处仍做一次兜底 —— 组件也可能被直接挂载(测试/将来的复用)。
+// Settings-area route component: picks a skeleton for :tab and slots it into the shell, tracking the "last tab" memory.
+// Fallback for an unknown :tab is handled by the route's beforeEnter (see src/settings/settingsRoutes.ts),
+// but we still do a fallback here too -- the component may also be mounted directly (tests / future reuse).
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SettingsShell from '../components/SettingsShell.vue'
@@ -27,8 +27,8 @@ function go(next: string) {
 
 <template>
   <SettingsShell :current="tab" @select="go">
-    <!-- key 让切 tab 时重建骨架而不是复用同一实例(各 panel 后续会各自持有请求状态)。
-         整块靠 <component :is> 换,不存在 v-show —— sp8 P2a 记过 v-show 的窄屏回归坑。 -->
+    <!-- The key rebuilds the skeleton instead of reusing the same instance when switching tabs (each panel will later hold its own request state).
+         The whole block swaps via <component :is>, there's no v-show -- sp8 P2a recorded a v-show narrow-screen regression trap. -->
     <component :is="panel" :key="tab" @open-tab="go" />
   </SettingsShell>
 </template>

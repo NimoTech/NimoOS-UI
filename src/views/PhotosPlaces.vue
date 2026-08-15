@@ -360,9 +360,10 @@ function onSaveTrip(v: PlaceVisit): void { // Vue2 :463-472
   void createAlbum(`${activePlace.value?.city ?? ''} · ${v.when}`, v.from, v.to)
 }
 
-// ── P6b-T8: 灯箱(D9)。详情 payload 只给 assetId 字符串,没有资产对象;灯箱 openAt 需要
-// Photo。assetToPhoto({ id }) 产出带默认值的合法 Photo,useLightbox 打开后会用
-// getAsset(id) 水合真实明细(useLightbox.ts:95-124),所以占位对象足够。 ──────────────
+// ── P6b-T8: Lightbox (D9). The detail payload only gives an assetId string, no asset
+// object; lightbox openAt needs a Photo. assetToPhoto({ id }) produces a valid Photo with
+// default values, and once useLightbox opens it hydrates the real detail via getAsset(id)
+// (useLightbox.ts:95-124), so the placeholder object is enough. ──────────────
 function onOpenPhoto(assetId: string, list: string[]): void {
   const ids = list.length ? list : [assetId]
   const photos = ids.map((id) => assetToPhoto({ id }))
@@ -370,8 +371,8 @@ function onOpenPhoto(assetId: string, list: string[]): void {
   lb.openAt(target, photos)
 }
 
-// ── P6b-T8: 跳库导航。key 用后端原始 key(int32),不是归一后的 activeId —— 跳库页要拿它
-// 直接打后端。 ──────────────────────────────────────────────────────────────
+// ── P6b-T8: Jump-to-library navigation. key uses the backend's raw key (int32), not the
+// normalized activeId — the jump-to-library page needs it to hit the backend directly. ──────────────────────────────────────────────────────────────
 function goLibrary(): void {
   const key = activePlace.value?.key ?? activeId.value
   if (key == null) return
@@ -381,17 +382,19 @@ function onOpenSpotLibrary(): void {
   const spot = activeDetail.value?.spots.find((s) => String(s.key) === String(activeSpotKey.value))
   const key = activePlace.value?.key ?? activeId.value
   if (key == null || !spot) return
-  activeSpotKey.value = null // 照 Vue2 :484:跳走前关掉弹窗
+  activeSpotKey.value = null // Per Vue2 :484: close the popover before navigating away
   void router.push({
     path: `/photos/places/${encodeURIComponent(String(key))}`,
     query: { spot: String(spot.key), lat: String(spot.lat), lon: String(spot.lon) },
   })
 }
 
-// Vue2 :412-413 把"没有选中项就选 places[0]"放在 loadPlaces() 内部,所以每一次成功加载
-// (首次进入页面、或失败后重试)都会重新选中并 autoPan。T3 store 刻意没做这一步(留给视图层),
-// 但这意味着调用方必须在**每一次**成功的 fetchPlaces 之后都补这一步——评审 I4:抽成一个
-// 函数,onMounted 与 retryLoad 都调,不能只在 onMounted 里做一次。
+// Vue2 :412-413 puts "select places[0] when nothing is selected" inside loadPlaces() itself,
+// so every successful load (first page entry, or a retry after failure) re-selects and
+// re-autoPans. T3's store deliberately doesn't do this step (left for the view layer), but
+// that means the caller must add this step after **every** successful fetchPlaces call —
+// review I4: extract it into a function that both onMounted and retryLoad call, not just
+// once inside onMounted.
 function selectFirstIfNeeded(): void {
   if (!activeId.value && store.places.length > 0) {
     activeId.value = store.places[0].id
@@ -453,13 +456,16 @@ async function retryLoad(): Promise<void> {
               <div class="map-spacer"></div>
             </div>
 
-            <!-- 加载中骨架(偏离登记 9,Vue2 没有这层概念)。评审 M2:首帧(`attempted` 还没
-                 置真)也算进这一支——onMounted 的 fetchPlaces 是异步的,首次渲染发生在它
-                 真正跑起来之前,此时 loading 也还是初始 false,不能落到"失败"分支。 -->
+            <!-- Loading skeleton (deviation log 9, Vue2 has no such concept). Review M2: the
+                 very first frame (before `attempted` is set true) also belongs in this branch —
+                 onMounted's fetchPlaces is async, and the first render happens before it
+                 actually starts running, when loading is still its initial false; it must not
+                 fall into the "failed" branch. -->
             <div v-if="!store.placesLoaded && (store.loading || !attempted)" class="map-skeleton" data-test="places-skeleton"></div>
 
-            <!-- 加载失败(偏离登记 9)。评审 M2:必须带 `attempted` 收紧,否则"还没请求过"
-                 会被误判成"请求过且失败了"。 -->
+            <!-- Load failed (deviation log 9). Review M2: must be tightened with `attempted`,
+                 otherwise "hasn't been requested yet" gets misjudged as "requested and
+                 failed". -->
             <div v-else-if="attempted && !store.placesLoaded && !store.loading" class="map-failed" data-test="places-failed">
               <div class="map-failed-title">{{ t('photosPlacesLoadFailed') }}</div>
               <button type="button" class="bar-btn" data-test="places-retry" @click="retryLoad">
@@ -491,8 +497,8 @@ async function retryLoad(): Promise<void> {
                 @pointercancel="onPointerUp"
               />
 
-              <!-- P6b-T8: 详情面板(DOM 顺序不影响层级,z-index 已定 6,但保持
-                   "地图 → 面板 → tip/家具"的可读顺序)。 -->
+              <!-- P6b-T8: Detail panel (DOM order doesn't affect stacking, z-index is already
+                   fixed at 6, but keeps the readable "map → panel → tip/furniture" order). -->
               <PlaceDetailPanel
                 v-if="hasPanel"
                 :place="activePlace" :detail="activeDetail"
@@ -511,7 +517,7 @@ async function retryLoad(): Promise<void> {
                 @save-trip="onSaveTrip"
               />
 
-              <!-- 悬停卡片(照 Vue2 :1013-1028)。 -->
+              <!-- Hover card (per Vue2 :1013-1028). -->
               <div
                 v-if="showHoverTip"
                 class="map-tip"
@@ -529,8 +535,9 @@ async function retryLoad(): Promise<void> {
                 </div>
               </div>
 
-              <!-- 图例(照 Vue2 :1030-1044)。三个数字字面量与 T2 tierRadius 耦合(见该函数
-                   上方注释),第四组绿色改用 --place-current-trip token(消歧义/brief §5)。 -->
+              <!-- Legend (per Vue2 :1030-1044). The three numeric literals are coupled to T2's
+                   tierRadius (see the comment above that function); the fourth group's accent
+                   colour now uses the --place-current-trip token (disambiguation/brief §5). -->
               <div class="map-legend" data-test="map-legend">
                 <div class="grp"><span class="dot s1"></span><b>&lt; 40</b></div>
                 <div class="grp"><span class="dot s2"></span><b>40–100</b></div>
@@ -540,7 +547,7 @@ async function retryLoad(): Promise<void> {
                 </div>
               </div>
 
-              <!-- 统计(照 Vue2 :1046-1056)。 -->
+              <!-- Stats (per Vue2 :1046-1056). -->
               <div class="map-stats" data-test="map-stats">
                 <div class="stat">
                   <span class="v">{{ filteredPlaces.length }}</span><span class="k">{{ t('photosPlacesCities') }}</span>
@@ -559,8 +566,9 @@ async function retryLoad(): Promise<void> {
     </div>
   </AreaShell>
 
-  <!-- P6b-T8: 封面弹层 + 灯箱,挂在 AreaShell 之外(position:fixed,避免被祖先
-       transform/overflow 裁剪,同 PhotosPersonDetail.vue:708-710 的既有先例)。 -->
+  <!-- P6b-T8: Cover popover + lightbox, mounted outside AreaShell (position:fixed, to avoid
+       being clipped by an ancestor's transform/overflow, same precedent as
+       PhotosPersonDetail.vue:708-710). -->
   <PlaceCoverPicker
     :open="coverOpen"
     :city="activePlace?.city ?? ''"
@@ -594,9 +602,10 @@ async function retryLoad(): Promise<void> {
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* 评审 M4:Vue2 scss:29-36 的 .map-shell 只有 flex/grid/background 三条,没有边框/圆角/
-   overflow——这三条(border/border-radius/overflow:hidden)是 New-UI 新增,给整块地图区
-   一个统一的卡片外框(同区其它整屏容器的既有惯例),不是保真移植的一部分,登记但不撤回。 */
+/* Review M4: Vue2 scss:29-36's .map-shell only has flex/grid/background, no border/
+   border-radius/overflow — these three (border/border-radius/overflow:hidden) are a New-UI
+   addition, giving the whole map area a unified card frame (an existing convention for other
+   full-screen containers in this area); not part of a faithful port, logged but not reverted. */
 .map-shell {
   flex: 1 1 auto; min-height: 0;
   display: grid; grid-template-columns: 300px 1fr; gap: 0;
@@ -611,30 +620,37 @@ async function retryLoad(): Promise<void> {
   display: flex; flex-direction: column;
   min-height: 0;
   overflow: hidden;
-  /* Vue2 photos-places.scss:196 是写死的深空渐变字面量;letterbox 区域(SVG
-     preserveAspectRatio 留白处)才会露出这层底色。D3:布局结构照 Vue2,底色属于"组件体系/
-     surface treatment",归 New-UI 重塑——同 PlacesFilterMenu.vue 弹层底色的既定裁定,
-     改用随 app 主题走的 panel-bg 基调渐变,不精确复刻这个 theme-invariant 的深空字面量。 */
+  /* Vue2 photos-places.scss:196 is a hardcoded dark gradient literal; only the letterbox
+     area (the blank space left by the SVG's preserveAspectRatio) shows this background
+     through. D3: the layout structure follows Vue2, but the background belongs to "component
+     system / surface treatment", which New-UI reshapes — same established ruling as
+     PlacesFilterMenu.vue's popover background: switch to a panel-bg-based gradient that
+     follows the app theme, rather than faithfully reproducing this theme-invariant dark
+     literal. */
   background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 6%, var(--panel-bg)) 0%, var(--panel-bg) 70%);
 }
 
 .map-toolbar {
   position: absolute;
   top: 12px; left: 12px; right: 12px;
-  /* 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2
-     photos-places.scss:199-207(.map-toolbar)与 :234-245(.map-zoombar)把两者都设成
-     z-index:4——.map-toolbar 因 position:absolute 且 z-index 非 auto 自成层叠上下文,
-     它内部弹层(PlacesFilterMenu.vue/PlacesThemeMenu.vue 的 z-index:30)只在 toolbar
-     内部竞争,跨不过同级的 .map-zoombar;同 z-index 时由 DOM 顺序决胜,模板里
-     .map-zoombar(PlacesZoomBar.vue)排在 .map-toolbar 之后,于是缩放条画在
-     Filters/主题弹层上面——Vue2 里点开任一弹层,缩放条会从中间穿透过来。本仓把
-     toolbar 从 4 提到 7:本区既有的层级梯度是 4(地图家具——zoombar/legend/stats)
-     < 5(.map-tip)< 6(留给 P6b 详情面板)< 7(此处),7 让工具栏及其内部弹层稳定
-     盖住地图区一切浮层,同时不占用给 P6b 预留的 6。 */
+  /* Deviation log (real-device acceptance feedback, a Vue2 defect, corrected per the hard
+     rule + logged, not copied verbatim): Vue2 photos-places.scss:199-207 (.map-toolbar) and
+     :234-245 (.map-zoombar) both set z-index:4 — .map-toolbar, being position:absolute with a
+     non-auto z-index, forms its own stacking context, so its inner popovers
+     (PlacesFilterMenu.vue/PlacesThemeMenu.vue at z-index:30) only compete within the toolbar
+     and can never rise above the sibling .map-zoombar; with equal z-index, DOM order decides,
+     and in the template .map-zoombar (PlacesZoomBar.vue) comes after .map-toolbar, so the
+     zoom bar paints on top of the Filters/theme popovers — in Vue2, opening either popover
+     lets the zoom bar bleed through the middle of it. This repo raises the toolbar from 4 to
+     7: the existing stacking gradient in this area is 4 (map furniture — zoombar/legend/stats)
+     < 5 (.map-tip) < 6 (reserved for the P6b detail panel) < 7 (here), so 7 lets the toolbar
+     and its inner popovers stably sit above everything in the map area, without taking the 6
+     reserved for P6b. */
   z-index: 7;
   display: flex; align-items: center; gap: 10px;
-  /* 照搬 Vue2 scss:199-207 的透明带 + 子元素恢复可点——否则这条工具栏会吃掉地图拖拽
-     (brief 硬约束,程序化断言见 PhotosPlaces.test.ts)。 */
+  /* Copied verbatim from Vue2 scss:199-207's transparent strip + re-enabling pointer events on
+     children — otherwise this toolbar would eat the map's drag gestures (a hard constraint
+     from the brief, asserted programmatically in PhotosPlaces.test.ts). */
   pointer-events: none;
 }
 .map-toolbar > * { pointer-events: auto; }
@@ -649,7 +665,7 @@ async function retryLoad(): Promise<void> {
 }
 .map-spacer { flex: 1; }
 
-/* 加载中/失败(偏离登记 9,New-UI 新增)。 */
+/* Loading/failed (deviation log 9, a New-UI addition). */
 .map-skeleton {
   flex: 1; margin: 16px; border-radius: 16px;
   background: var(--skeleton-bg);
@@ -660,9 +676,11 @@ async function retryLoad(): Promise<void> {
 }
 .map-failed-title { font-size: 14px; font-weight: 600; color: var(--fg); }
 
-/* 悬停卡片(照 Vue2 photos-places.scss:437-473)。评审 M4:本仓没有等价 Vue2 --r-md/--r-sm
-   的圆角 token,下面几处圆角是就近取的字面 px 值,不是那两个 token 的精确复刻(数值有出入,
-   非负数字面量不受 color-guard 管,登记但不新增 token)。 */
+/* Hover card (per Vue2 photos-places.scss:437-473). Review M4: this repo has no equivalent
+   of Vue2's --r-md/--r-sm border-radius tokens, so the border-radius values below are
+   nearby literal px values, not an exact reproduction of those two tokens (the numbers
+   differ slightly; non-negative numeric literals aren't governed by the color guard, so
+   this is logged rather than adding a new token). */
 .map-tip {
   position: absolute;
   z-index: 5;
@@ -677,8 +695,10 @@ async function retryLoad(): Promise<void> {
   box-shadow: var(--card-shadow-hi);
   min-width: 180px;
 }
-/* 评审 M4:Vue2 scss:453 的缩略图占位底是写死的纯黑;这里改用 --chip-bg(随主题走),
-   不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface treatment 归 New-UI 重塑。 */
+/* Review M4: Vue2 scss:453's thumbnail placeholder background is a hardcoded solid dark
+   literal; switched here to --chip-bg (which follows the theme) rather than exactly
+   reproducing that theme-invariant dark background — same ruling as D3: surface treatment
+   belongs to New-UI's reshaping. */
 .map-tip .thumb { width: 44px; height: 44px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--chip-bg); }
 .map-tip .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .map-tip .name { font-size: 12.5px; font-weight: 600; color: var(--fg); }
@@ -694,7 +714,7 @@ async function retryLoad(): Promise<void> {
   border-bottom: 1px solid var(--card-border);
 }
 
-/* 图例(照 Vue2 photos-places.scss:285-309)。 */
+/* Legend (per Vue2 photos-places.scss:285-309). */
 .map-legend {
   position: absolute;
   bottom: 16px; left: 16px;
@@ -708,29 +728,35 @@ async function retryLoad(): Promise<void> {
   font-size: 11px; color: var(--fg-subtle);
 }
 .map-legend .grp { display: flex; align-items: center; gap: 6px; }
-/* box-shadow 的 0.2 透明度精确复刻 Vue2 scss:304 那条给 accent 取同一透明度的写法——本仓
-   没有 accent 的 RGB 三元组 token,改用 color-mix 直接对 var(--accent) 取同一个精确 alpha,同
-   PlacesFilterMenu.vue .map-chip.is-active 的既有技法,不新增 token、不近似。 */
+/* The box-shadow's 0.2 opacity exactly reproduces Vue2 scss:304's rule for taking the same
+   opacity on the accent colour — this repo has no accent RGB-triplet token, so color-mix is
+   used directly against var(--accent) to get the exact same alpha, the same technique
+   already used by PlacesFilterMenu.vue's .map-chip.is-active, without adding a new token or
+   approximating. */
 .map-legend .dot { display: inline-block; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); }
 .map-legend .dot.s1 { width: 6px; height: 6px; }
 .map-legend .dot.s2 { width: 10px; height: 10px; }
 .map-legend .dot.s3 { width: 14px; height: 14px; }
 .map-legend b { color: var(--fg-muted); font-weight: 500; }
 .map-legend .legend-trip { margin-left: 6px; }
-/* 第四组绿色改用 T6 已建的 --place-current-trip token,不复刻 Vue2 :1041 的内联字面量
-   (brief §5 明确要求)。box-shadow 0.2 透明度同上,对 --place-current-trip 取同一技法。
-   评审 M3(hover 级联铁律的姊妹坑,本仓"优先级相等靠源码顺序苟活"这一种形态,T5/T9/T10
-   已各遇一次):选择器必须写成 `.map-legend .dot.dot-trip`(两个 class,优先级 0,3,0),
-   不能只写 `.map-legend .dot-trip`(0,2,0)——那与上面 `.map-legend .dot`(0,2,0)同级,
-   只靠"恰好写在后面"赢,重排样式块就会静默变回 accent 色。cssCascade.ts 的
-   winningHoverBackground 系是给 :hover 态设计的,这里没有 hover 态,改用
-   parseCssRules 直接比选择器 specificity(见测试)。 */
+/* The fourth group's accent colour switches to the --place-current-trip token T6 already
+   built, rather than reproducing Vue2 :1041's inline literal (explicitly required by brief
+   §5). The box-shadow's 0.2 opacity uses the same technique as above, against
+   --place-current-trip.
+   Review M3 (a sibling pitfall of the hover-cascade hard rule; this repo's "equal specificity
+   surviving only on source order" shape, already hit once each in T5/T9/T10): the selector
+   must be written as `.map-legend .dot.dot-trip` (two classes, specificity 0,3,0), not just
+   `.map-legend .dot-trip` (0,2,0) — that would tie with `.map-legend .dot` above (0,2,0) and
+   win only by "happening to be written later", so reordering the style block would silently
+   revert it back to the accent colour. cssCascade.ts's winningHoverBackground family is
+   designed for :hover states; there is no hover state here, so parseCssRules is used to
+   compare selector specificity directly instead (see the test). */
 .map-legend .dot.dot-trip {
   background: var(--place-current-trip);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--place-current-trip) 20%, transparent);
 }
 
-/* 统计(照 Vue2 photos-places.scss:311-330)。 */
+/* Stats (per Vue2 photos-places.scss:311-330). */
 .map-stats {
   position: absolute;
   bottom: 16px; right: 16px;
@@ -746,7 +772,8 @@ async function retryLoad(): Promise<void> {
 .map-stats .stat .v { display: block; font-family: var(--font); font-size: 16px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
 .map-stats .stat .k { color: var(--fg-subtle); font-size: 10.5px; }
 
-/* ≤768px:侧栏已收抽屉,地图自己的两栏(rail + canvas)也收窄成单列,避免横向溢出。 */
+/* ≤768px: sidebar has collapsed into a drawer, and the map's own two columns (rail + canvas)
+   also narrow to a single column to avoid horizontal overflow. */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
   .map-shell { grid-template-columns: 1fr; }

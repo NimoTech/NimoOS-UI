@@ -73,14 +73,14 @@ describe('createPhotos', () => {
   })
 })
 
-describe('photos 核心块', () => {
-  it('getAsset 发 GET /photos/assets/:id 并解信封', async () => {
+describe('photos core block', () => {
+  it('getAsset sends GET /photos/assets/:id and unwraps the envelope', async () => {
     const { http, calls } = capture({ id: 'a1' })
     const r = await createPhotos(http, noToken).getAsset('a1')
     expect(calls[0]).toMatchObject({ method: 'get', url: '/photos/assets/a1' })
     expect(r).toEqual({ id: 'a1' })
   })
-  it('getAssetOcr 带 q 传 params,不带 q 无 params', async () => {
+  it('getAssetOcr passes params when given q, no params when q is omitted', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.getAssetOcr('a1', '猫')
@@ -88,17 +88,17 @@ describe('photos 核心块', () => {
     await p.getAssetOcr('a1')
     expect(calls[1].params).toBeUndefined()
   })
-  it('deleteAsset 发 DELETE /photos/assets/:id', async () => {
+  it('deleteAsset sends DELETE /photos/assets/:id', async () => {
     const { http, calls } = capture()
     await createPhotos(http, noToken).deleteAsset('a1')
     expect(calls[0]).toMatchObject({ method: 'delete', url: '/photos/assets/a1' })
   })
-  it('deleteAsset 204 空体 → resolve undefined(后端 NoContent,对齐 unfavorite 同款)', async () => {
+  it('deleteAsset 204 empty body → resolves undefined (backend NoContent, matches the unfavorite pattern)', async () => {
     const http = { delete: async () => ({ data: '', headers: {} }) } as unknown as AxiosInstance
     const r = await createPhotos(http, noToken).deleteAsset('a1')
     expect(r).toBeUndefined()
   })
-  it('updateConfig 只带非空字段(对齐 Vue2 逐字段判空)', async () => {
+  it('updateConfig only includes non-empty fields (matches Vue2 field-by-field emptiness checks)', async () => {
     const { http, calls } = capture()
     await createPhotos(http, noToken).updateConfig(['/DATA/Gallery'], 30, null, { ocrEnabled: true })
     expect(calls[0]).toMatchObject({ method: 'put', url: '/photos/config' })
@@ -113,16 +113,16 @@ describe('photos 核心块', () => {
     ['pruneCache', 'post', '/photos/cache/prune'],
     ['rebuildIndex', 'post', '/photos/index/rebuild'],
     ['triggerScan', 'post', '/photos/scan'],
-  ] as const)('%s 发 %s %s', async (m, verb, url) => {
+  ] as const)('%s sends %s %s', async (m, verb, url) => {
     const { http, calls } = capture()
     await (createPhotos(http, noToken) as never as Record<string, () => Promise<unknown>>)[m]()
     expect(calls[0]).toMatchObject({ method: verb, url })
   })
-  it('信封 success!==200 抛错', async () => {
+  it('envelope throws when success !== 200', async () => {
     const http = { get: async () => ({ data: { success: 500, message: '炸了' } }) } as unknown as AxiosInstance
     await expect(createPhotos(http, noToken).getConfig()).rejects.toThrow('炸了')
   })
-  it('originalUrl/liveUrl 统一追加 token,无 token 不加', () => {
+  it('originalUrl/liveUrl consistently append token, omit when there is none', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T&1')
     expect(p.originalUrl('a1')).toBe('/v1/photos/assets/a1/original?token=T%261')
     expect(p.liveUrl('a1')).toBe('/v1/photos/assets/a1/live?token=T%261')

@@ -5,10 +5,11 @@ import RaidDeleteDialog from './RaidDeleteDialog.vue'
 import zh from '../../i18n/zh_cn'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
-// attachTo: document.body 挂载的实例不会在测试间自动 unmount(Dialog 内容还经
-// reka-ui Portal Teleport 到 body,脱离 wrapper 根节点),不清空的话下一测试的
-// querySelector 会先命中上一测试留在 body 里的旧节点——同目录 FormatDialog.test.ts/
-// UnmountDialog.test.ts 均以此 beforeEach 处理,这里沿用同一模式。
+// Instances mounted with attachTo: document.body don't auto-unmount between tests (the Dialog
+// content is also Teleported into body via reka-ui's Portal, detached from the wrapper's root
+// node) — without clearing it, the next test's querySelector would hit the previous test's
+// leftover node in body first. FormatDialog.test.ts / UnmountDialog.test.ts in this same
+// directory both handle it with this same beforeEach; we follow the same pattern here.
 beforeEach(() => {
   document.body.innerHTML = ''
 })
@@ -18,12 +19,15 @@ describe('RaidDeleteDialog', () => {
     props: { open: true, name: 'vault' }, global: { plugins: [i18n] },
     attachTo: document.body,
   })
-  it('输入不等于阵列名 → 删除按钮禁用', async () => {
+  it('input not equal to the array name -> delete button is disabled', async () => {
     const w = mountIt()
-    // Dialog 底座(reka-ui DialogPortal)把内容 Teleport 进 body 是异步的(onMounted 里翻 isMounted
-    // 再触发一次渲染),挂载后必须先等一次 nextTick 才能查到内容——同目录 FormatDialog.test.ts/
-    // UnmountDialog.test.ts 均遵循这个模式;brief 给的样例测试代码在第一次查询前漏了这次 await,
-    // 实测会导致 querySelector 恒为 null(与阵列名是否匹配无关),故在此补上,不改变任何断言意图。
+    // The Dialog's base (reka-ui's DialogPortal) Teleporting content into body is async (it
+    // flips isMounted inside onMounted, triggering an extra render pass) — after mounting you
+    // must await one nextTick before content is queryable; FormatDialog.test.ts /
+    // UnmountDialog.test.ts in this same directory both follow this pattern. The sample test
+    // code given in the brief was missing this await before its first query, which testing
+    // showed makes querySelector always return null (regardless of whether the name matches),
+    // so it's added here without changing any assertion intent.
     await w.vm.$nextTick()
     const input = document.body.querySelector('.rdd-input') as HTMLInputElement
     input.value = 'vaul'; input.dispatchEvent(new Event('input'))
@@ -31,7 +35,7 @@ describe('RaidDeleteDialog', () => {
     const ok = document.body.querySelector('.rdd-ok') as HTMLButtonElement
     expect(ok.disabled).toBe(true)
   })
-  it('输入等于阵列名 → 启用,点击 emit confirm(无 payload)', async () => {
+  it('input equal to the array name -> enabled; clicking emits confirm (no payload)', async () => {
     const w = mountIt()
     await w.vm.$nextTick()
     const input = document.body.querySelector('.rdd-input') as HTMLInputElement
@@ -43,7 +47,7 @@ describe('RaidDeleteDialog', () => {
     expect(w.emitted('confirm')).toHaveLength(1)
     expect(w.emitted('confirm')![0]).toEqual([])
   })
-  it('开/关都清空输入', async () => {
+  it('clears input on both open and close', async () => {
     const w = mountIt()
     await w.vm.$nextTick()
     const input = document.body.querySelector('.rdd-input') as HTMLInputElement

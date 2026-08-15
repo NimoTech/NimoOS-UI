@@ -663,7 +663,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(w.find('[data-test="album-edit-toggle"]').attributes('data-open')).toBe('false')
   })
 
-  it('onMounted 调 drag.refresh();edit/sortBy 切换调 drag.refresh();卸载调 drag.destroy()', async () => {
+  it('onMounted calls drag.refresh(); toggling edit/sortBy calls drag.refresh(); unmounting calls drag.destroy()', async () => {
     const { w } = await mountView('7')
     expect(dragMock.refresh).toHaveBeenCalled()
     const afterMount = dragMock.refresh.mock.calls.length
@@ -673,7 +673,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh.mock.calls.length).toBeGreaterThan(afterMount)
     const afterEdit = dragMock.refresh.mock.calls.length
 
-    await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit back to false (可见排序下拉)
+    await w.find('[data-test="album-edit-toggle"]').trigger('click') // edit back to false (sort dropdown becomes visible)
     await w.vm.$nextTick()
     await w.find('[data-test="album-sort-btn"]').trigger('click')
     await w.vm.$nextTick()
@@ -685,7 +685,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.destroy).toHaveBeenCalled()
   })
 
-  it('路由切换(params.id 变化)→ 重新 fetchAlbumAssets + 清空 selected + drag.refresh()', async () => {
+  it('route switch (params.id changes) -> re-runs fetchAlbumAssets + clears selected + drag.refresh()', async () => {
     svc.photos.listAlbums.mockResolvedValue([
       rawAlbum(7, { name: 'Trip' }),
       rawAlbum(8, { name: 'Other' }),
@@ -710,7 +710,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh).toHaveBeenCalled()
   })
 
-  it('Minor 回归:同实例路由切换须清掉未提交的标题编辑草稿(否则相册 7 的草稿名会被提交给相册 8)', async () => {
+  it('Minor regression: switching routes on the same instance must clear an uncommitted title-edit draft (otherwise Album 7\'s draft name gets submitted to Album 8)', async () => {
     svc.photos.listAlbums.mockResolvedValue([
       rawAlbum(7, { name: 'Trip' }),
       rawAlbum(8, { name: 'Other' }),
@@ -719,25 +719,26 @@ describe('PhotosAlbumDetail.vue', () => {
     const albums = usePhotosAlbums()
     const renameSpy = vi.spyOn(albums, 'renameAlbum')
 
-    // 给相册 7 改名,但还没提交(不回车/不 blur)——titleEditing/titleDraft 停在编辑态。
+    // Rename Album 7, but don't commit it yet (no enter/no blur) -- titleEditing/titleDraft stay in the editing state.
     await w.find('[data-test="album-title"]').trigger('click')
     await w.vm.$nextTick()
     await w.find('[data-test="album-title-input"]').setValue('Draft For 7')
     expect(w.find('[data-test="album-title-input"]').exists()).toBe(true)
 
-    // 同一组件实例切到相册 8(hash 路由不销毁重建)。
+    // Switch to Album 8 on the same component instance (hash routing doesn't destroy/recreate it).
     await router.push('/photos/albums/8')
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 编辑态必须已复位——input 消失,标题态回到普通展示态,残留草稿不会在下次 blur/回车时
-    // 被误提交给相册 8。
+    // The editing state must already be reset -- the input disappears, the title reverts to its
+    // normal display state, and the leftover draft won't be mistakenly submitted to Album 8 on
+    // the next blur/enter.
     expect(w.find('[data-test="album-title-input"]').exists()).toBe(false)
     expect(w.find('[data-test="album-title"]').text()).toBe('Other')
     expect(renameSpy).not.toHaveBeenCalled()
   })
 
-  it('onOrder(T4 回调)触发且 store 抛错 → toast photosAlbumOrderFailed', async () => {
+  it('onOrder (T4 callback) fires and the store throws -> toast photosAlbumOrderFailed', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     svc.photos.reorderAlbumAssets.mockRejectedValue(new Error('boom'))
     const { w } = await mountView('7')
@@ -753,11 +754,14 @@ describe('PhotosAlbumDetail.vue', () => {
     void w
   })
 
-  it('评审 Important 2 回归:空相册 edit 态下添加照片,网格从「不存在」变为「存在」时须重新挂载拖拽(gridRef watch)', async () => {
-    // 复现路径:空相册挂载(gridRef 只绑在 v-else 第三分支,骨架/空态两支都拿不到它)→ 进 edit
-    // (watch([edit,sortBy]) 触发过一次 refresh,但此刻 gridRef 仍是 null)→ 添加照片 →
-    // fetchAlbumAssets 回来资产非空 → 模板切到 v-else 分支、gridRef 才第一次有值 → 除非专门
-    // watch(gridRef),否则没有任何现有触发点会在这一刻再调 refresh(),Sortable 永远建不起来。
+  it('review Important 2 regression: adding photos while an empty album is in edit mode, when the grid flips from "absent" to "present", must re-mount the drag integration (gridRef watch)', async () => {
+    // Repro path: an empty album mounts (gridRef is only bound in the v-else third branch,
+    // neither the skeleton nor empty-state branch can get it) -> enter edit
+    // (watch([edit,sortBy]) fires a refresh once, but gridRef is still null at that point) ->
+    // add photos -> fetchAlbumAssets comes back with non-empty assets -> the template switches
+    // to the v-else branch and gridRef gets its first value -> unless there's a dedicated
+    // watch(gridRef), no existing trigger point calls refresh() again at this moment, and
+    // Sortable never gets built.
     const { w } = await mountView('7')
     expect(w.find('[data-test="album-empty"]').exists()).toBe(true)
 
@@ -779,7 +783,7 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(dragMock.refresh).toHaveBeenCalled()
   })
 
-  it('灯箱 delete → timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets 刷新', async () => {
+  it('lightbox delete -> timeline.deleteAssets([String(id)]) + toast + albums.fetchAlbumAssets refreshes', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
     const timeline = useTimelineStore()
@@ -804,10 +808,11 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(fetchSpy).toHaveBeenCalledWith('7')
   })
 
-  // Task 9: 灯箱「加入相册」→ 打开 AlbumPickerDialog(assetIds=[当前项 id])。只接灯箱这一处——
-  // edit 工具条的「添加照片」(PhotosLibraryPicker)已有自己的语义,不重复放「加入相册」;
-  // 加到的是别的相册,不需要刷新本相册的资产列表。
-  it('灯箱「加入相册」→ AlbumPickerDialog 打开(不刷新本相册资产)', async () => {
+  // Task 9: lightbox "Add to album" -> opens AlbumPickerDialog (assetIds=[current item's id]).
+  // Only wired up in the lightbox -- the edit toolbar's "Add photos" (PhotosLibraryPicker)
+  // already has its own semantics, don't duplicate "Add to album" there; what gets added goes
+  // to a different album, so this album's asset list doesn't need refreshing.
+  it('lightbox "Add to album" -> AlbumPickerDialog opens (does not refresh this album\'s assets)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     svc.photos.batchAddToAlbum.mockClear()
     const { w } = await mountView('7')
@@ -819,14 +824,14 @@ describe('PhotosAlbumDetail.vue', () => {
     await w.vm.$nextTick()
     expect(lb.open.value).toBe(true)
 
-    fetchAssetsSpy.mockClear() // 只关心「加入相册」之后是否多调了一次
+    fetchAssetsSpy.mockClear() // only care whether "add to album" caused an extra call after this point
 
     await w.find('.lb-add-album').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
 
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
-    expect(lb.open.value).toBe(true) // 灯箱不因加入相册而关闭
+    expect(lb.open.value).toBe(true) // the lightbox doesn't close just because of adding to an album
 
     const item = w.find('[data-test="album-picker-item"]')
     expect(item.exists()).toBe(true)
@@ -834,14 +839,16 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
 
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledWith(7, ['a'])
-    expect(fetchAssetsSpy).not.toHaveBeenCalled() // 加到的是别的相册,不刷新本相册
+    expect(fetchAssetsSpy).not.toHaveBeenCalled() // what got added went to a different album, so this album doesn't refresh
   })
 
-  // 终审必修 1:灯箱在 window 上挂 keydown(PhotoLightbox.vue:144),AlbumPickerDialog 在
-  // document 上挂(:74)。同一次 Esc 冒泡顺序是 document 先于 window——不做任何处理时,
-  // document 监听先关掉选择器,冒泡继续到 window 又把灯箱也关了(T9 设计明确「灯箱本身不
-  // 关闭」,PhotoLightbox.vue:51-52)。断言:选择器关闭,但灯箱仍 open。
-  it('必修1回归:灯箱开着时按 Esc,加入相册选择器随 Esc 关闭,但灯箱不跟着被误关', async () => {
+  // Final-review must-fix 1: the lightbox hangs its keydown on window (PhotoLightbox.vue:144),
+  // while AlbumPickerDialog hangs its on document (:74). For a single Esc press, the bubble order
+  // is document before window -- with no handling, document's listener closes the picker first,
+  // then bubbling continues up to window and closes the lightbox too (T9's design explicitly
+  // says "the lightbox itself must not close", PhotoLightbox.vue:51-52). Assertion: the picker
+  // closes, but the lightbox is still open.
+  it('must-fix-1 regression: pressing Esc while the lightbox is open closes the add-to-album picker via Esc, but the lightbox does not get mistakenly closed along with it', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a')] })
     const { w } = await mountView('7')
 
@@ -853,8 +860,9 @@ describe('PhotosAlbumDetail.vue', () => {
     await flushPromises()
     expect(w.find('[data-test="album-picker-overlay"]').exists()).toBe(true)
 
-    // bubbles:true——真实用户按键的原生 keydown 默认冒泡到 window;这里显式带上,
-    // 才是复现「document 冒泡先关面板,继续冒泡到 window 又把灯箱关了」的真实路径。
+    // bubbles: true -- a real user keypress's native keydown bubbles to window by default;
+    // making it explicit here is what actually reproduces the real path of "document's bubble
+    // phase closes the panel first, then bubbling continues to window and closes the lightbox too".
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await flushPromises()
     await w.vm.$nextTick()
@@ -863,8 +871,9 @@ describe('PhotosAlbumDetail.vue', () => {
     expect(lb.open.value).toBe(true)
   })
 
-  // 终审 Minor 6:removeSelected 请求飞行期不 disable,连点会对同一批 id 发两轮并发 DELETE。
-  it('Minor 6 回归:连点两次「移除选中」→ removeAssetsFromAlbum 只被调一次(重入守卫)', async () => {
+  // Final-review Minor 6: removeSelected doesn't disable itself while its request is in flight,
+  // so double-clicking fires two concurrent rounds of DELETE against the same batch of ids.
+  it('Minor 6 regression: clicking "Remove selected" twice in a row -> removeAssetsFromAlbum is only called once (re-entrancy guard)', async () => {
     svc.photos.getAlbum.mockResolvedValue({ assets: [asset('a'), asset('b')] })
     let resolveRemove: (() => void) | undefined
     const removeSpy = vi.spyOn(usePhotosAlbums(), 'removeAssetsFromAlbum').mockImplementation(
@@ -879,7 +888,7 @@ describe('PhotosAlbumDetail.vue', () => {
 
     const removeBtn = w.find('[data-test="album-remove-selected"]')
     await removeBtn.trigger('click')
-    await removeBtn.trigger('click') // 第二次点击在第一次未 resolve 前触发
+    await removeBtn.trigger('click') // the second click fires before the first one resolves
     await flushPromises()
 
     expect(removeSpy).toHaveBeenCalledTimes(1)

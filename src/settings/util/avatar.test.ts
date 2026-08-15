@@ -3,32 +3,32 @@ import { isAllowedImageFile, readAccessToken } from './avatar'
 
 describe('readAccessToken', () => {
   beforeEach(() => localStorage.clear())
-  it('读 localStorage 的 access_token', () => {
+  it('reads access_token from localStorage', () => {
     localStorage.setItem('access_token', 'abc')
     expect(readAccessToken()).toBe('abc')
   })
-  it('没有则返回 null(<img> 会拿到不带 token 的 URL;localhost 免鉴权时仍然通)', () => {
+  it('returns null when absent (<img> gets a URL without a token; still works when localhost is exempt from auth)', () => {
     expect(readAccessToken()).toBeNull()
   })
 })
 
-describe('isAllowedImageFile —— 1:1 对位 Vue2 onFileSelected(:252-259)', () => {
-  it('mime 命中即通过', () => {
+describe('isAllowedImageFile -- 1:1 mirrors Vue2 onFileSelected (:252-259)', () => {
+  it('passes when mime matches', () => {
     expect(isAllowedImageFile('whatever.bin', 'image/png')).toBe(true)
   })
-  it('mime 不命中但扩展名命中也通过(Vue2 是 || 关系)', () => {
+  it('also passes when mime does not match but the extension does (Vue2 uses an || relationship)', () => {
     expect(isAllowedImageFile('photo.WEBP', 'application/octet-stream')).toBe(true)
   })
-  it('两者都不命中则拒绝', () => {
+  it('rejects when neither matches', () => {
     expect(isAllowedImageFile('doc.pdf', 'application/pdf')).toBe(false)
   })
-  it('扩展名大小写不敏感', () => {
+  it('extension matching is case-insensitive', () => {
     expect(isAllowedImageFile('a.JPG', '')).toBe(true)
   })
-  it('无扩展名且无 mime 时拒绝', () => {
+  it('rejects when there is no extension and no mime', () => {
     expect(isAllowedImageFile('noext', '')).toBe(false)
   })
-  it('六种扩展名与五种 mime 与 Vue2 逐字一致,svg 不在任何名单里', () => {
+  it('six extensions and five mime types match Vue2 exactly, svg is on neither list', () => {
     for (const e of ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp']) {
       expect(isAllowedImageFile(`x.${e}`, '')).toBe(true)
     }

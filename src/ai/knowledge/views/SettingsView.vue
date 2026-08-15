@@ -84,7 +84,7 @@
         paused → send `resume` → refreshed `paused === false` → toast "Paused" (wrong)
         running → send `pause` → refreshed `paused === true` → toast "Resumed" (wrong)
     **Both tiers inverted**, reproducible user-visible error (governance §2 rule: "is → fix and
-    log"). Red flag: the other three actions in the reference **all store intent first**
+    log"). Critical: the other three actions in the reference **all store intent first**
     (`setConcurrency` stores param `n`, `setDevice` stores param `d`, `toggleOcr` stores
     `:308` `const next = !ocr_enabled`) — **three of four in the same file correct, one wrong**
     suggests missed refactoring, not intentional design. This repo's fix (minimal): read `paused`
@@ -182,7 +182,7 @@
     `this.store.actions.loadCandidates()` → `store.loadCandidates()`.
 
   【K27 — all `notesApi.*` goes through shared package】Reference `notesApi.getSettings()` /
-    `putSettings()` / `dirInfo()` (`@/service/notes.js`) → `service.notes.*`. Red flag:
+    `putSettings()` / `dirInfo()` (`@/service/notes.js`) → `service.notes.*`. Critical:
     **layer detail**: `service.notes.getSettings/putSettings` internally goes through
     `normalizeSettings` (`NimoOS-Service/src/notes.ts:131-137`) → receives **camelCase with only
     `{ notesRoot, autoExtract }` two fields**; HTTP layer `distill_roots` / `distill_daily_cap` /
@@ -294,7 +294,7 @@ const browserRoots = computed(() => pickerRoots(store.wikiCandidates))
 
 /**
  * Reference `async created()` (`:228-230`) — sole read request.
- * Red flag: catch **swallows error and keeps defaults** (reference comment `/* keep defaults *\/`):
+ * Critical: catch **swallows error and keeps defaults** (reference comment `/* keep defaults *\/`):
  * when settings fetch fails, `notesSettings` stays at `{ notesRoot: '', autoExtract: true }`,
  * page renders normally, `notesRoot` uses template `|| '/DATA/Notes'` fallback. Copied verbatim,
  * do not change to toast error.
@@ -331,7 +331,7 @@ function openRootPicker(): void {
  * Success branch reference includes comment: "A later pick may have superseded this probe —
  * only apply if current."; catch reference includes comment: "Probe is best-effort UX; the
  * backend migrate guard remains the gate."
- * Red flag: omit either guard, "click A then B, A response arrives late" puts A's probe
+ * Critical: omit either guard, "click A then B, A response arrives late" puts A's probe
  * result onto B's selection (badge and "Move files" button clickability both wrong).
  */
 async function onPick(path: string): Promise<void> {
@@ -348,7 +348,7 @@ async function onPick(path: string): Promise<void> {
 
 /**
  * Reference `toggleAutoExtract()` (`:254-262`) — `next` computed before sending request
- * (same as `toggleOcr`). Red flag: payload **only includes `autoExtract`**, not `notesRoot`
+ * (same as `toggleOcr`). Critical: payload **only includes `autoExtract`**, not `notesRoot`
  * (package's `buildSettingsBody` only writes `notes_root` + `mode` when `notesRoot` has value).
  * Catch uses K30 fixed key.
  */
@@ -406,7 +406,7 @@ async function applyRoot(mode: string): Promise<void> {
 
 /**
  * Reference `togglePause()` (`:282-289`).
- * Red flag: `wasPaused` is this repo's bug fix (see file header "Deviation, §2" section):
+ * Critical: `wasPaused` is this repo's bug fix (see file header "Deviation, §2" section):
  * reference reads `controlState.paused` again **after** `await`, but `setControl` internally
  * `await loadOverview()` already replaced it with new value → both tier toasts inverted. Here
  * store intent **before** sending request, use in both places.
@@ -496,7 +496,7 @@ function goSandbox(): void {
               <div class="k-set-row-cn">{{ t('aiKbConcurrencyLevel') }}</div>
               <div class="k-set-row-desc">{{ t('aiKbSetConcurrencyDesc') }}</div>
             </div>
-            <!-- Red flag: button text **is the number itself** (N15 family: tier names in ParserStatus, not here) -->
+            <!-- Critical: button text **is the number itself** (N15 family: tier names in ParserStatus, not here) -->
             <div class="k-radio-group">
               <button v-for="n in [1, 2, 4]" :key="n"
                       :data-on="String(controlState.concurrency === n)"
@@ -512,7 +512,7 @@ function goSandbox(): void {
                 {{ t('aiKbSetCurrentlyUsing') }} <b>{{ deviceLabel }}</b>
               </div>
             </div>
-            <!-- Red flag: second tier's data-on accepts both `cuda` **and** `gpu` values (reference :46) -->
+            <!-- Critical: second tier's data-on accepts both `cuda` **and** `gpu` values (reference :46) -->
             <div class="k-radio-group">
               <button :data-on="String(controlState.device === 'auto')" @click="setDevice('auto')">{{ t('aiKbDeviceAuto') }}</button>
               <button :data-on="String(controlState.device === 'cuda' || controlState.device === 'gpu')" @click="setDevice('cuda')">GPU</button>
@@ -528,7 +528,7 @@ function goSandbox(): void {
                 <span class="warn"><KIcon name="danger" :size="11" /> {{ t('aiKbSetOcrWarn') }}</span>. {{ t('aiKbSetOcrOnlyScanned') }}
               </div>
             </div>
-            <!-- Red flag: `!!` double negation copied (reference :59): when backend omits field,
+            <!-- Critical: `!!` double negation copied (reference :59): when backend omits field,
                  String(undefined) renders as "undefined" -->
             <button class="k-sw" :data-on="String(!!controlState.ocr_enabled)" @click="toggleOcr" />
           </div>
@@ -550,7 +550,7 @@ function goSandbox(): void {
                 <div class="k-set-row-title">{{ t('aiKbSetNotesFolder') }}</div>
                 <div class="k-set-row-cn">{{ t('aiKbSetNotesFolderCn') }}</div>
                 <div class="k-set-row-desc">
-                  <!-- Red flag: N7 family: `|| '/DATA/Notes'` fallback copied (display fallback
+                  <!-- Critical: N7 family: `|| '/DATA/Notes'` fallback copied (display fallback
                        when backend returns empty) -->
                   <code>{{ notesSettings.notesRoot || '/DATA/Notes' }}</code> — {{ t('aiKbSetNotesFolderDesc') }}
                 </div>
@@ -559,7 +559,7 @@ function goSandbox(): void {
                   <div v-if="rootPicker.path" class="kn-picked" style="margin-top: 10px">
                     <!-- Colon is bare ASCII `:` in template (not in t()), copied from reference :82 -->
                     {{ t('aiKbSetSelected') }}: <code>{{ rootPicker.path }}</code>
-                    <!-- Red flag: three tier badges: loading / done+migratable / done+not-migratable.
+                    <!-- Critical: three tier badges: loading / done+migratable / done+not-migratable.
                          When `state === 'error'` **none display** (reference has no fourth branch). -->
                     <span v-if="dirProbe.state === 'loading'" class="kn-badge" data-s="archived">{{ t('aiKbSetChecking') }}</span>
                     <span v-else-if="dirProbe.state === 'done' && dirProbe.migratable" class="kn-badge" data-s="curated">{{ t('aiKbSetDirEmptyMigratable') }}</span>
@@ -569,7 +569,7 @@ function goSandbox(): void {
                     <button class="k-btn primary" :disabled="!rootPicker.path" @click="applyRoot('adopt')">
                       <KIcon name="folder" :size="12" /> {{ t('aiKbSetPointToExisting') }}
                     </button>
-                    <!-- Red flag: this button's disabled is **two** conditions: path not selected,
+                    <!-- Critical: this button's disabled is **two** conditions: path not selected,
                          or probe explicitly says target non-empty. When probe is still loading /
                          error it is **clickable** (backend migrate guard is final gate). Clicking
                          only sets migrating true, **sends no request**. -->
@@ -593,14 +593,14 @@ function goSandbox(): void {
                 <div class="k-set-row-cn">{{ t('aiKbSetAutoCaptureCn') }}</div>
                 <div class="k-set-row-desc">
                   {{ t('aiKbSetAutoCaptureDesc') }}
-                  <!-- Red flag: tested on device auto_extract:true → this line **does not render**
+                  <!-- Critical: tested on device auto_extract:true → this line **does not render**
                        (governance §13, is correct behavior) -->
                   <span v-if="!notesSettings.autoExtract" class="warn" style="display: block; margin-top: 2px">
                     <KIcon name="danger" :size="11" /> {{ t('aiKbSetAutoCaptureOffWarn') }}
                   </span>
                 </div>
               </div>
-              <!-- Red flag: `!!` double negation copied (reference :115) -->
+              <!-- Critical: `!!` double negation copied (reference :115) -->
               <button class="k-sw" :data-on="String(!!notesSettings.autoExtract)" @click="toggleAutoExtract" />
             </div>
           </div>
@@ -631,7 +631,7 @@ function goSandbox(): void {
                   </div>
                   <ul class="kn-mig-req" style="margin-top: 10px">
                     <li>
-                      <!-- Red flag: only first item's :color is ternary (turns danger when target
+                      <!-- Critical: only first item's :color is ternary (turns danger when target
                            non-empty), other two always success -->
                       <KIcon name="check" :size="13" :color="dirProbe.state === 'done' && !dirProbe.migratable ? 'var(--danger)' : 'var(--success)'" />
                       <span>

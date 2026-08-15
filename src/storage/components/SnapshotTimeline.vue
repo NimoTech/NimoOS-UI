@@ -15,9 +15,10 @@ const { t } = useI18n()
 const router = useRouter()
 const mountPoint = computed(() => store.volume?.mount ?? '')
 
-// 跳文件区的快照只读浏览。走 /files?path=<真实路径> 这条既有深链格式:Files.vue 的 sync()
-// 会把它归一成规范的 /files/<虚拟段>(真实路径→虚拟路径的映射依赖 displayNames,那份数据
-// 在存储区这边并不齐全,交给文件区自己解更可靠)。
+// Jumps to the Files area's read-only snapshot browsing, via the existing deep-link format
+// /files?path=<real path>: Files.vue's sync() normalizes it into the canonical /files/<virtual
+// segment> (the real-path -> virtual-path mapping depends on displayNames, which isn't fully
+// populated on the storage side — better to let Files resolve it itself).
 function browse(name: string) {
   if (!mountPoint.value) return
   router.push({ path: '/files', query: { path: snapshotBrowsePath(mountPoint.value, name) } })
@@ -28,7 +29,7 @@ let expandInitialized = false
 
 const deleteOpen = ref(false)
 const deleteTarget = ref<SnapshotItemView | null>(null)
-// 弹窗正文里的时间:Vue2 用 new Date(item.createdAt).toLocaleString()
+// Time shown in the dialog body: Vue2 uses new Date(item.createdAt).toLocaleString()
 const deleteTimeText = computed(() =>
   deleteTarget.value ? new Date(deleteTarget.value.createdAt).toLocaleString() : '',
 )
@@ -38,10 +39,12 @@ function confirmDelete(item: SnapshotItemView) {
   deleteOpen.value = true
 }
 
-// 偏离披露(Important I1):Vue2 用的 buefy dialog.confirm 是点确认瞬间就关闭弹窗,
-// 删除请求转入后台跑,失败时只弹一个 toast、用户已经看不到弹窗了。这里**故意不照抄**:
-// 弹窗只在删除成功后才关闭,失败则留在原地(仍是 busy→非 busy,可直接重试),让用户
-// 不必重新找回该条目再点一次删除 —— 行为对用户更正确,但明确是对 Vue2 的一处偏离。
+// Deviation disclosure (Important I1): Vue2's buefy dialog.confirm closes the dialog as soon
+// as you click confirm, then runs the delete request in the background — on failure it only
+// shows a toast, and by then the user can't see the dialog anymore. This is **deliberately not
+// replicated**: here the dialog only closes after the delete succeeds; on failure it stays put
+// (still busy -> non-busy, directly retryable), so the user doesn't have to re-find the entry
+// and click delete again — more correct for the user, but explicitly a deviation from Vue2.
 async function onDeleteConfirmed() {
   const target = deleteTarget.value
   if (!target) return
@@ -51,7 +54,8 @@ async function onDeleteConfirmed() {
 
 const groups = computed(() => groupSnapshotsByDay(store.snapshots))
 
-// Vue2:首次拿到非空分组时才初始化默认展开(最近 2 天),之后刷新不覆盖用户的折叠选择
+// Vue2: only initializes the default expansion (last 2 days) the first time a non-empty
+// group arrives; subsequent refreshes don't override the user's collapse choices
 watch(groups, (g) => {
   if (!expandInitialized && g.length) {
     expandedKeys.value = defaultExpandedDayKeys(g)
@@ -169,7 +173,7 @@ function toggleGroup(dayKey: string) {
 .st-badge.manual { background: var(--accent-soft); color: var(--accent); }
 .st-badge.preop { background: var(--dem-bg); color: var(--dem-fg); }
 .st-label { font-size: 12px; color: var(--fg-muted); overflow: hidden; text-overflow: ellipsis; }
-/* hover 才显形,但保留在 DOM 里可 tab(Vue2 注释同款理由) */
+/* Only visible on hover, but kept in the DOM so it stays tabbable (same rationale as the Vue2 comment) */
 .st-actions { display: flex; flex: none; gap: 6px; opacity: 0; pointer-events: none; transition: opacity 0.15s var(--ease); }
 .st-btn { padding: 3px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit; }
 .st-browse { border: 1px solid var(--accent); background: var(--chip-bg); color: var(--accent); }
@@ -180,9 +184,10 @@ function toggleGroup(dayKey: string) {
 
 @keyframes st-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
 
-/* Vue2 SnapshotTimeline.vue:353-361 的折叠/展开过渡 1:1 移植 —— 颜色/时长照搬,
-   仅类名按 Vue3 Transition 语义改写:Vue2 用 `-enter`,Vue3 用 `-enter-from`
-  (`-leave-to`/`-enter-active`/`-leave-active` 两版同名)。 */
+/* Ported 1:1 from Vue2 SnapshotTimeline.vue:353-361's collapse/expand transition — colors and
+   durations carried over as-is, only the class names rewritten for Vue3 Transition semantics:
+   Vue2 uses `-enter`, Vue3 uses `-enter-from`
+  (`-leave-to`/`-enter-active`/`-leave-active` share the same names in both versions). */
 .st-collapse-enter-active,
 .st-collapse-leave-active {
   transition: opacity 0.15s ease, transform 0.15s ease;

@@ -46,49 +46,49 @@ beforeEach(() => {
   for (const k of Object.keys(busHandlers)) delete busHandlers[k]
 })
 
-describe('UpdateRow 端点选择(命名陷阱)', () => {
-  it('kind=os 打 getOsVersion(/sys/os_version)', async () => {
+describe('UpdateRow endpoint selection (naming trap)', () => {
+  it('kind=os hits getOsVersion (/sys/os_version)', async () => {
     mountRow('os'); await flushPromises()
     expect(state.osCalls).toHaveLength(1)
     expect(state.appCalls).toHaveLength(0)
   })
-  it('kind=app 打 getAppVersion(/sys/version)', async () => {
+  it('kind=app hits getAppVersion (/sys/version)', async () => {
     mountRow('app'); await flushPromises()
     expect(state.appCalls).toHaveLength(1)
     expect(state.osCalls).toHaveLength(0)
   })
-  it('挂载时不带 trigger_download(不能一进设置页就开始下载)', async () => {
+  it('mounting does not pass trigger_download (must not start downloading the moment settings opens)', async () => {
     mountRow('os'); await flushPromises()
     expect(state.osCalls[0]).toBeUndefined()
   })
 })
 
-describe('UpdateRow 标签与副标题(Vue2 的标签/数据源是交叉的,1:1 照留)', () => {
-  it('os 行标签「固件更新」,副标题用传入的 sub', async () => {
+describe('UpdateRow label and subtitle (Vue2 crosses the label/data source; kept 1:1)', () => {
+  it('os row label is "Firmware update", subtitle uses the passed-in sub', async () => {
     const w = mountRow('os', '1.9.3-alpha1+25.gc8d7d14-dirty'); await flushPromises()
     expect(w.find('.set-row-label').text()).toBe('固件更新')
     expect(w.find('.set-row-sub').text()).toBe('v1.9.3-alpha1+25.gc8d7d14-dirty')
   })
-  it('app 行标签「系统更新」,副标题用自己的 current_version', async () => {
+  it('app row label is "System update", subtitle uses its own current_version', async () => {
     const w = mountRow('app'); await flushPromises()
     expect(w.find('.set-row-label').text()).toBe('系统更新')
     expect(w.find('.set-row-sub').text()).toBe('v1.9.3-alpha1+25.gc8d7d14-dirty')
   })
-  it('current_version 缺失时副标题回退 v1.0.0', async () => {
+  it('subtitle falls back to v1.0.0 when current_version is missing', async () => {
     state.app = { current_version: '', need_update: false }
     const w = mountRow('app'); await flushPromises()
     expect(w.find('.set-row-sub').text()).toBe('v1.0.0')
   })
 })
 
-describe('UpdateRow 四种状态(对位 Vue2 L249-312)', () => {
-  it('无需更新:显示「当前已经是最新版」+「检查更新」按钮', async () => {
+describe('UpdateRow four states (maps to Vue2 L249-312)', () => {
+  it('no update needed: shows "already on the latest version" + "Check for updates" button', async () => {
     const w = mountRow('os'); await flushPromises()
     expect(w.find('.set-ok').text()).toContain('当前已经是最新版')
     expect(w.find('.ur-check').text()).toBe('检查更新')
   })
 
-  it('已下载:显示版本 + 已下载,按钮变「立即升级」', async () => {
+  it('already downloaded: shows version + downloaded, button becomes "Upgrade now"', async () => {
     state.os = { current_version: '1.0.0', latest_version: '1.1.0', need_update: true, is_downloaded: true }
     const w = mountRow('os'); await flushPromises()
     expect(w.find('.set-info').text()).toContain('v1.1.0')
@@ -96,41 +96,41 @@ describe('UpdateRow 四种状态(对位 Vue2 L249-312)', () => {
     expect(w.find('.ur-open').text()).toBe('立即升级')
   })
 
-  it('下载中:按钮显示百分比', async () => {
+  it('downloading: button shows the percentage', async () => {
     state.os = { current_version: '1.0.0', need_update: true, is_downloading: true, download_progress: 37 }
     const w = mountRow('os'); await flushPromises()
     expect(w.find('.ur-progress').text()).toContain('37')
   })
 
-  it('下载中且进度缺失:按 0% 显示而不是 NaN', async () => {
+  it('downloading with missing progress: shows 0% instead of NaN', async () => {
     state.os = { current_version: '1.0.0', need_update: true, is_downloading: true }
     const w = mountRow('os'); await flushPromises()
     expect(w.find('.ur-progress').text()).toContain('0')
     expect(w.text()).not.toContain('NaN')
   })
 
-  it('有更新但未下载:按钮是「检查更新」(Vue2 同一个按钮)', async () => {
+  it('update available but not downloaded: button is "Check for updates" (Vue2 uses the same button)', async () => {
     state.os = { current_version: '1.0.0', need_update: true }
     const w = mountRow('os'); await flushPromises()
     expect(w.find('.ur-check').exists()).toBe(true)
   })
 })
 
-describe('UpdateRow 检查更新交互', () => {
-  it('无更新时点检查:不开弹窗,提示已是最新', async () => {
+describe('UpdateRow check-for-updates interaction', () => {
+  it('clicking check with no update available: does not open the dialog, shows already-latest message', async () => {
     const w = mountRow('os'); await flushPromises()
     await w.find('.ur-check').trigger('click'); await flushPromises()
     expect(w.findComponent({ name: 'UpdateDialog' }).props('open')).toBe(false)
   })
 
-  it('有更新时点检查:打开弹窗', async () => {
+  it('clicking check when an update is available: opens the dialog', async () => {
     state.os = { current_version: '1.0.0', latest_version: '1.1.0', need_update: true }
     const w = mountRow('os'); await flushPromises()
     await w.find('.ur-check').trigger('click'); await flushPromises()
     expect(w.findComponent({ name: 'UpdateDialog' }).props('open')).toBe(true)
   })
 
-  it('检查失败不卡在 loading', async () => {
+  it('a failed check does not get stuck in loading', async () => {
     const svc = await import('@nimotech/nimoos-service')
     vi.spyOn(svc.service.sys, 'getOsVersion').mockRejectedValueOnce(new Error('boom'))
     const w = mountRow('os'); await flushPromises()
@@ -139,32 +139,32 @@ describe('UpdateRow 检查更新交互', () => {
   })
 })
 
-describe('UpdateRow MessageBus 进度(逐字对位 Vue2 sockets 块)', () => {
-  it('os 行只听 upgrade 系事件,app 行只听 app 系事件', async () => {
+describe('UpdateRow MessageBus progress (maps 1:1 to Vue2\'s sockets block)', () => {
+  it('the os row only listens for upgrade events, the app row only listens for app events', async () => {
     mountRow('os'); await flushPromises()
     expect(Object.keys(busHandlers).sort()).toEqual(['nimoos:upgrade:downloaded', 'nimoos:upgrade:progress'])
   })
 
-  it('收到进度事件后行上显示百分比', async () => {
+  it('shows the percentage on the row after receiving a progress event', async () => {
     const w = mountRow('os'); await flushPromises()
     busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '42.5' }))
     await flushPromises()
     expect(w.find('.ur-progress').text()).toContain('42.5')
   })
 
-  it('进度不回退(Vue2 checkVersion 有这个保护:轮询回来的旧进度不许覆盖更大的实时进度)', async () => {
+  it('progress does not regress (Vue2 checkVersion has this protection: an older polled progress value must not overwrite a larger real-time progress value)', async () => {
     const w = mountRow('os'); await flushPromises()
-    // 实时事件把进度推到 80
+    // the real-time event pushes progress to 80
     busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '80' }))
     await flushPromises()
-    // 服务端此刻只报到 30;downloaded 事件会触发一次 fetchInfo —— 守卫必须挡住这次回退
+    // the server reports only 30 at this point; the downloaded event triggers a fetchInfo — the guard must block this regression
     state.os = { current_version: '1.0.0', need_update: true, is_downloading: true, download_progress: 30 }
     busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
     await flushPromises()
     expect(w.find('.ur-progress').text()).toContain('80')
   })
 
-  it('服务端报的进度更大时采用服务端值(守卫只挡回退,不是永不更新)', async () => {
+  it('adopts the server value when the server-reported progress is larger (the guard only blocks regression, not all updates)', async () => {
     const w = mountRow('os'); await flushPromises()
     busHandlers['nimoos:upgrade:progress'].forEach((f) => f({ progress: '20' }))
     await flushPromises()
@@ -174,7 +174,7 @@ describe('UpdateRow MessageBus 进度(逐字对位 Vue2 sockets 块)', () => {
     expect(w.find('.ur-progress').text()).toContain('55')
   })
 
-  it('downloaded 事件后重新拉状态', async () => {
+  it('re-fetches status after the downloaded event', async () => {
     mountRow('os'); await flushPromises()
     const before = state.osCalls.length
     busHandlers['nimoos:upgrade:downloaded'].forEach((f) => f({}))
@@ -182,7 +182,7 @@ describe('UpdateRow MessageBus 进度(逐字对位 Vue2 sockets 块)', () => {
     expect(state.osCalls.length).toBeGreaterThan(before)
   })
 
-  it('卸载后取消订阅', async () => {
+  it('unsubscribes after unmount', async () => {
     const w = mountRow('os'); await flushPromises()
     w.unmount()
     expect(busHandlers['nimoos:upgrade:progress']).toHaveLength(0)

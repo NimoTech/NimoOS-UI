@@ -202,12 +202,12 @@ function onImgError(): void {
   width: 32%;
   height: 32%;
 }
-/* theme-exception: --avatar-fallback is not pure accent solid (dark theme mixes 55% black;
-   see same-name token in theme.css), --on-accent defaults to dark teal in dark theme; layered
-   on this dim gradient results in dark bottom, dark text (review Critical correction; precedent
+/* theme-exception: --avatar-fallback is not pure accent solid (dark theme mixes 55% black —
+   see same-name token in theme.css), --on-accent defaults to dark teal in dark theme — layered
+   on this dim gradient results in dark bottom, dark text (review Critical correction — precedent
    PhotosAlbumDetail.vue:733 tile-cover-btn). Shifting ~10% contrast along gradient diagonal axis
-   drops below small-text 4.5:1 threshold; glyph strokes already fall outside this offset range;
-   circular clipping can't eliminate this risk; merge-candidate rows and similar small avatars
+   drops below small-text 4.5:1 threshold — glyph strokes already fall outside this offset range —
+   circular clipping can't eliminate this risk — merge-candidate rows and similar small avatars
    have even smaller font size, no large-text 3:1 exemption. Both themes uniformly pin to light
    color, not just dark-theme branch. */
 .person-avatar-initial,
@@ -236,7 +236,7 @@ function onImgError(): void {
   background: var(--overlay-bg);
   backdrop-filter: var(--blur);
 }
-/* theme-exception: star presses on uncontrollable face photo; needs constant semi-transparent
+/* theme-exception: star presses on uncontrollable face photo — needs constant semi-transparent
    light border outline on top of dark base */
 .person-avatar-fav { border: 1px solid rgba(255, 255, 255, 0.12); }
 .person-avatar-fav svg {

@@ -1,14 +1,18 @@
 <script setup lang="ts">
-// 设置 · 存储。**授权偏离 #3**(spec §5.5,用户 2026-07-31 拍板):
-//   Vue2 在这个 tab 里重做了一整套概览/系统盘/存储列表/回收站,而 SP6 已经把这套完整迁到
-//   了 /storage 路由页。在设置区再实现一遍 = 同一功能两处维护 → 这里只放
-//   **一张容量概览卡 + 一张「打开存储区」入口卡**,点击跳 /storage。
+// Settings · Storage. **Authorized deviation #3** (spec §5.5, user sign-off 2026-07-31):
+//   Vue2 rebuilds a whole overview/system-disk/storage-list/recycle-bin stack in this tab,
+//   and SP6 has already fully migrated that stack to the /storage route page. Reimplementing
+//   it here would mean maintaining the same feature in two places → so this tab only holds
+//   **one capacity overview card + one "open storage" entry card**, which navigates to /storage.
 //
-// 容量口径逐字照 Vue2 SettingsPanel.vue:1139-1171(8% 系统盘启发式),保证读数与旧 UI 一致:
-//   storageTotal = 全部分区 size 之和;storageOsUsed = 系统分区 min(usedSize, size*0.08);
-//   storageDataUsed = 其余已用;storageAvail = total - used。这里不调用 raid.list() 做
-//   RAID 过滤——Vue2 这段计算直接吃 /v1/storage 原始列表,不排除 RAID 卷,与 SP6
-//   /storage 页(useStorageStore,会用 raid.list 排重)是两套不同的口径,本 tab 照 Vue2。
+// The capacity math is copied verbatim from Vue2 SettingsPanel.vue:1139-1171 (the 8%
+// system-disk heuristic), to keep the numbers consistent with the old UI:
+//   storageTotal = sum of all partition sizes; storageOsUsed = system partition
+//   min(usedSize, size*0.08); storageDataUsed = the rest of used space;
+//   storageAvail = total - used. This does not call raid.list() to filter out RAID
+//   volumes — Vue2's calculation here reads the raw /v1/storage list directly and does
+//   not exclude RAID volumes, which is a different accounting basis from the SP6
+//   /storage page (useStorageStore, which dedupes via raid.list). This tab follows Vue2.
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -37,14 +41,15 @@ const avail = computed(() => total.value - osUsed.value - dataUsed.value)
 const osPct = computed(() => (total.value ? (osUsed.value / total.value) * 100 : 0))
 const dataPct = computed(() => (total.value ? (dataUsed.value / total.value) * 100 : 0))
 
-// 就地守卫(不抽公共 helper):防止请求在途时组件被卸载、迟到的结果仍去回写已卸载组件的 ref。
+// Inline guard (not extracted into a shared helper): prevents a late-arriving response
+// from writing back into a ref after the component has unmounted mid-request.
 let alive = true
 onUnmounted(() => { alive = false })
 
 onMounted(async () => {
   try {
     const vols = mapVolumes(await service.storage.list({ system: 'show' }))
-    if (!alive) return // 组件已卸载,不回写
+    if (!alive) return // Component already unmounted, do not write back
     volumes.value = vols
   } catch {
     if (!alive) return
@@ -57,10 +62,12 @@ onMounted(async () => {
 
 <template>
   <SettingsSection :title="t('settingsTabStorage')">
-    <!-- 评审 Important #3:取数在途时(!loaded)不能落到下面的 v-else 分支去渲染概览卡——
-         那样会显示一段错误读数(0 Bytes 可用 + 空进度条),不是中性空态。加一个显式的
-         加载态分支,收敛条件是 onMounted 里那个 try/catch/finally 的 finally(不论
-         成功失败都会落 loaded=true),与 AppsPanel 的"两个接口都落定"同一收敛口径。 -->
+    <!-- Review Important #3: while the fetch is in flight (!loaded) it must not fall through
+         to the v-else branch below and render the overview card — that would show a bogus
+         reading (0 Bytes available + an empty progress bar), not a neutral empty state. Add
+         an explicit loading-state branch, gated on the finally of the try/catch/finally in
+         onMounted (loaded=true lands regardless of success or failure), the same convergence
+         basis as AppsPanel's "both endpoints have settled". -->
     <div v-if="!loaded" class="set-skeleton">{{ t('settingsNetLoading') }}</div>
     <div v-else-if="!volumes.length" class="set-empty">{{ t('settingsStoreNoStorage') }}</div>
     <div v-else class="set-card set-store-overview">

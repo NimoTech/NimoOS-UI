@@ -61,7 +61,7 @@ describe('sortMixed', () => {
   // THE POINT OF THIS TASK. Vue2 939a7d3a:PhotosAlbumsView.vue:686-693 puts a missing
   // timestamp FIRST, with its own comment explaining why: treating it as epoch 0 would
   // bury it at the end instead. This is the opposite of what albumView.sortAlbums used
-  // to assert ("缺失记 0 排最后"), and reverting it is a regression, not a cleanup.
+  // to assert ("missing recorded as 0, sorted last"), and reverting it is a regression, not a cleanup.
   it('ranks a missing createdAt FIRST, not last', () => {
     expect(ids(sortMixed(items, 'created'))).toEqual(['s2', 's1', 'u1', 'u2'])
   })

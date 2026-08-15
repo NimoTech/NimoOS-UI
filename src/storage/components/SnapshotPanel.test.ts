@@ -42,8 +42,8 @@ beforeEach(() => {
   createSnap.mockResolvedValue(undefined)
 })
 
-describe('SnapshotPanel 三态', () => {
-  it('端点 404(listVolumes 抛错)→ 不支持态:有说明、无开关,且不拉策略', async () => {
+describe('SnapshotPanel three states', () => {
+  it('endpoint 404 (listVolumes throws) → unsupported state: shows an explanation, no switch, and does not fetch the policy', async () => {
     listVolumes.mockRejectedValue(new Error('404'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     const w = mountPanel(); await flush(w)
@@ -51,12 +51,12 @@ describe('SnapshotPanel 三态', () => {
     expect(w.find('.sp-switch').exists()).toBe(false)
     expect(getPolicy).not.toHaveBeenCalled()
   })
-  it('supported=false → 不支持态', async () => {
+  it('supported=false → unsupported state', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: false }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-unsupported').exists()).toBe(true)
   })
-  it('已关闭态:有开关(未选中)+ 解释行,无状态行/无策略摘要', async () => {
+  it('disabled state: has a switch (unchecked) + explanation line, no status line/no policy summary', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
@@ -64,17 +64,17 @@ describe('SnapshotPanel 三态', () => {
     expect(w.find('.sp-policy-summary').exists()).toBe(false)
     expect(getPolicy).not.toHaveBeenCalled()
   })
-  it('开关有可访问名称(aria-label),不依赖旁边 .sp-key 的兄弟节点关系', async () => {
+  it('the switch has an accessible name (aria-label), not dependent on a sibling relationship with the nearby .sp-key', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-switch').attributes('aria-label')).toBe(zh.snapTitle)
   })
-  it('已关闭但仍有历史快照 → 额外出"已有快照仍会保留"行', async () => {
+  it('disabled but still has historical snapshots → shows an extra "existing snapshots are still retained" line', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-kept').exists()).toBe(true)
   })
-  it('已启用态:开关选中 + 状态摘要 + 保留承诺 + 策略摘要(且策略只拉一次)', async () => {
+  it('enabled state: switch checked + status summary + retention promise + policy summary (and the policy is fetched only once)', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 5, last_at: '2026-07-27T01:00:00Z' }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('true')
@@ -83,25 +83,25 @@ describe('SnapshotPanel 三态', () => {
     expect(w.find('.sp-policy-summary').text()).toContain('24')
     expect(getPolicy).toHaveBeenCalledTimes(1)
   })
-  it('已启用但零快照 → 状态行显示"暂无快照"', async () => {
+  it('enabled but zero snapshots → status line shows "no snapshots yet"', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 0, last_at: '' }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-status').text()).toBe(zh.snapNoneYet)
   })
-  it('paused_reason 非空 → 出暂停警告行,内容含原因', async () => {
+  it('paused_reason non-empty → shows a paused warning line whose content includes the reason', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 1, last_at: '2026-07-27T01:00:00Z', paused_reason: '磁盘使用率 95%' }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-paused').text()).toContain('磁盘使用率 95%')
   })
-  it('无 paused_reason → 不出暂停行', async () => {
+  it('no paused_reason → no paused line', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 1 }])
     const w = mountPanel(); await flush(w)
     expect(w.find('.sp-paused').exists()).toBe(false)
   })
 })
 
-describe('SnapshotPanel 保护开关', () => {
-  it('点开关 → togglePolicy(uuid, 目标值);切换后本地状态跟随', async () => {
+describe('SnapshotPanel protection switch', () => {
+  it('clicking the switch → togglePolicy(uuid, target value); local state follows after the toggle', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 1 }])
     const w = mountPanel(); await flush(w)
     await w.find('.sp-switch').trigger('click')
@@ -109,7 +109,7 @@ describe('SnapshotPanel 保护开关', () => {
     expect(togglePolicy).toHaveBeenCalledWith('u1', false)
     expect(w.find('.sp-switch').attributes('aria-checked')).toBe('false')
   })
-  it('切换在途时开关禁用(防连点)', async () => {
+  it('the switch is disabled while the toggle is in flight (prevents double-clicking)', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
     let release: (v?: unknown) => void = () => {}
     togglePolicy.mockImplementation(() => new Promise((r) => { release = r }))
@@ -121,7 +121,7 @@ describe('SnapshotPanel 保护开关', () => {
     expect((w.find('.sp-switch').element as HTMLButtonElement).disabled).toBe(false)
   })
 
-  it('必修 4 接缝测试:disabled→enabled 后 watch(state) 触发一次 loadPolicy', async () => {
+  it('Required-4 seam test: after disabled→enabled, watch(state) triggers loadPolicy once', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
     const w = mountPanel(); await flush(w)
     expect(getPolicy).not.toHaveBeenCalled()
@@ -133,10 +133,10 @@ describe('SnapshotPanel 保护开关', () => {
   })
 })
 
-describe('SnapshotPanel 高级策略表单', () => {
+describe('SnapshotPanel advanced policy form', () => {
   const enabledVol = [{ volume_uuid: 'u1', supported: true, enabled: true, count: 2, last_at: '2026-07-27T01:00:00Z' }]
 
-  it('点"高级设置"→ 表单以当前策略为初值展开,摘要行让位', async () => {
+  it('clicking "Advanced settings" → the form expands with the current policy as initial values, the summary line gives way', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     const w = mountPanel(); await flush(w)
     await w.find('.sp-advanced-btn').trigger('click')
@@ -146,7 +146,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect((w.find('.sp-in-pct').element as HTMLInputElement).value).toBe('90')
   })
 
-  it('策略缺失(getPolicy 抛错)时表单落默认值 24/7/4/90', async () => {
+  it('when the policy is missing (getPolicy throws) the form falls back to defaults 24/7/4/90', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     getPolicy.mockRejectedValue(new Error('x'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -156,7 +156,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect((w.find('.sp-in-weekly').element as HTMLInputElement).value).toBe('4')
   })
 
-  it('非法输入 → 显示逐字段错误且不发请求', async () => {
+  it('invalid input → shows per-field errors and does not send the request', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     const w = mountPanel(); await flush(w)
     await w.find('.sp-advanced-btn').trigger('click')
@@ -169,7 +169,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect(w.find('.sp-advanced').exists()).toBe(true)   // form stays open
   })
 
-  it('合法输入 → patchPolicy 收到四字段数字(非字符串),成功后收起表单', async () => {
+  it('valid input → patchPolicy receives the four fields as numbers (not strings), the form collapses after success', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     patchPolicy.mockResolvedValue(null)
     const w = mountPanel(); await flush(w)
@@ -184,7 +184,7 @@ describe('SnapshotPanel 高级策略表单', () => {
     expect(w.find('.sp-policy-summary').text()).toContain('12')
   })
 
-  it('取消 → 收起表单、错误清空、不发请求', async () => {
+  it('cancel → collapses the form, clears errors, does not send the request', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     const w = mountPanel(); await flush(w)
     await w.find('.sp-advanced-btn').trigger('click')
@@ -199,10 +199,10 @@ describe('SnapshotPanel 高级策略表单', () => {
   })
 })
 
-describe('SnapshotPanel 手动创建快照', () => {
+describe('SnapshotPanel manual snapshot creation', () => {
   const enabledVol = [{ volume_uuid: 'u1', supported: true, enabled: true, count: 2, last_at: '2026-07-27T01:00:00Z' }]
 
-  it('填备注后点创建 → create 收到 {volume_uuid,label},成功后输入框清空', async () => {
+  it('after filling in a note and clicking create → create receives {volume_uuid,label}, the input clears after success', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     createSnap.mockResolvedValue(undefined)
     const w = mountPanel(); await flush(w)
@@ -212,7 +212,7 @@ describe('SnapshotPanel 手动创建快照', () => {
     expect((w.find('.sp-label-input').element as HTMLInputElement).value).toBe('')
   })
 
-  it('创建失败 → 备注保留(便于重试)', async () => {
+  it('creation failure → the note is retained (to make retrying easier)', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     createSnap.mockRejectedValue(new Error('x'))
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -222,7 +222,7 @@ describe('SnapshotPanel 手动创建快照', () => {
     expect((w.find('.sp-label-input').element as HTMLInputElement).value).toBe('升级前')
   })
 
-  it('创建在途:按钮与输入框都禁用', async () => {
+  it('creation in flight: both the button and the input are disabled', async () => {
     listVolumes.mockResolvedValue(enabledVol)
     let release: (v?: unknown) => void = () => {}
     createSnap.mockImplementation(() => new Promise((r) => { release = r }))
@@ -235,11 +235,11 @@ describe('SnapshotPanel 手动创建快照', () => {
   })
 })
 
-describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
+describe('SnapshotPanel volume switch (Required-1 critical regression)', () => {
   // Repro path: under the same pinia instance mount A first (has count, enabled=true), then switch the prop to B
   // (B's volume data differs: enabled=false/count=0). Without reset()+watch(volumeUuid),
   // the singleton store keeps the panel showing A's switch/count while sending protection-toggle and retention-policy writes for B.
-  it('切到 B 后不再残留 A 的开关/数量,B 重新拉了卷', async () => {
+  it('after switching to B, the switch/count from A no longer lingers, B re-fetches its volume', async () => {
     listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7, last_at: '2026-07-27T01:00:00Z' }])
     const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
     await flush(w)
@@ -257,7 +257,7 @@ describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
     expect(w.find('.sp-status').exists()).toBe(false)
   })
 
-  it('切到 B 且 B 也是 enabled → getPolicy 以 B 被重新调用过(不是继续用 A 的策略)', async () => {
+  it('switching to B, which is also enabled → getPolicy is called again with B (not continuing to use the policy from A)', async () => {
     listVolumes.mockResolvedValueOnce([{ volume_uuid: 'A', supported: true, enabled: true, count: 7 }])
     getPolicy.mockResolvedValueOnce({ hourly_keep: 24, daily_keep: 7, weekly_keep: 4, pause_threshold_pct: 90 })
     const w = mount(SnapshotPanel, { props: { volumeUuid: 'A' }, global: { plugins: [i18n] } })
@@ -274,18 +274,18 @@ describe('SnapshotPanel 换卷(必修 1 Critical 回归)', () => {
   })
 })
 
-describe('SnapshotPanel 内嵌时间线可见性(1:1 照 Vue2)', () => {
-  it('已启用 → 时间线出现', async () => {
+describe('SnapshotPanel embedded timeline visibility (1:1 match with Vue2)', () => {
+  it('enabled → the timeline appears', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: true, count: 0 }])
     const w = mountPanel(); await flush(w)
     expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
   })
-  it('已关闭且有历史快照 → 时间线仍出现(保住"快照仍保留"的承诺)', async () => {
+  it('disabled but has historical snapshots → the timeline still appears (honors the "snapshots are still retained" promise)', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 3 }])
     const w = mountPanel(); await flush(w)
     expect(w.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(true)
   })
-  it('已关闭且无历史 → 无时间线;不支持 → 无时间线', async () => {
+  it('disabled with no history → no timeline; unsupported → no timeline', async () => {
     listVolumes.mockResolvedValue([{ volume_uuid: 'u1', supported: true, enabled: false, count: 0 }])
     const w1 = mountPanel(); await flush(w1)
     expect(w1.findComponent({ name: 'SnapshotTimeline' }).exists()).toBe(false)

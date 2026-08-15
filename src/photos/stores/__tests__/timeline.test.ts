@@ -48,7 +48,7 @@ describe('photos-timeline store', () => {
     vi.useRealTimers()
   })
 
-  it('fetchTimeline: 裸数组落 state,loading 包裹', async () => {
+  it('fetchTimeline: a bare array lands in state, wrapped by loading', async () => {
     const s = useTimelineStore()
     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
     const p = s.fetchTimeline()
@@ -58,14 +58,14 @@ describe('photos-timeline store', () => {
     expect(s.timelineGroups).toEqual([GROUP_A])
   })
 
-  it('fetchTimeline: null/undefined 兜底为 []', async () => {
+  it('fetchTimeline: null/undefined falls back to []', async () => {
     const s = useTimelineStore()
     svc.photos.getTimeline.mockResolvedValueOnce(undefined)
     await s.fetchTimeline()
     expect(s.timelineGroups).toEqual([])
   })
 
-  it('refreshTimelineQuiet: 不改 loading', async () => {
+  it('refreshTimelineQuiet: does not change loading', async () => {
     const s = useTimelineStore()
     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A])
     await s.refreshTimelineQuiet()
@@ -73,7 +73,7 @@ describe('photos-timeline store', () => {
     expect(s.timelineGroups).toEqual([GROUP_A])
   })
 
-  it('months getter:按 groupToMonth 正确分组(标题/key/照片数)', async () => {
+  it('months getter: groups correctly via groupToMonth (title/key/photo count)', async () => {
     const s = useTimelineStore()
     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A, GROUP_B])
     await s.fetchTimeline()
@@ -82,7 +82,7 @@ describe('photos-timeline store', () => {
     expect(s.months[1].photos[0].isVideo).toBe(true)
   })
 
-  it('photoCount/videoCount:扫全部月份资产', async () => {
+  it('photoCount/videoCount: scans assets across every month', async () => {
     const s = useTimelineStore()
     svc.photos.getTimeline.mockResolvedValueOnce([GROUP_A, GROUP_B])
     await s.fetchTimeline()
@@ -90,7 +90,7 @@ describe('photos-timeline store', () => {
     expect(s.videoCount).toBe(1)
   })
 
-  it('fetchIndexStatus: indexed 增长触发 refreshTimelineQuiet(quiet 刷新时间线,不切 loading)', async () => {
+  it('fetchIndexStatus: growth in indexed triggers refreshTimelineQuiet (quietly refreshes the timeline, without flipping loading)', async () => {
     const s = useTimelineStore()
     svc.photos.getStatus.mockResolvedValueOnce({ pending: 1, indexed: 0, error: 0, queueLen: 1, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
     await s.fetchIndexStatus()
@@ -108,7 +108,7 @@ describe('photos-timeline store', () => {
     expect(s.timelineGroups).toEqual([GROUP_A])
   })
 
-  it('fetchIndexStatus: indexed 不变/下降不触发 quiet 刷新', async () => {
+  it('fetchIndexStatus: indexed unchanged/decreasing does not trigger a quiet refresh', async () => {
     const s = useTimelineStore()
     svc.photos.getStatus.mockResolvedValueOnce({ pending: 0, indexed: 5, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
     svc.photos.getTimeline.mockResolvedValueOnce([])
@@ -126,7 +126,7 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getTimeline.mock.calls.length).toBe(callsAfterFirst)
   })
 
-  it('fetchIndexStatus: idle(pending=0,queueLen=0)且无在途 upload 任务 → 清空 index 任务', async () => {
+  it('fetchIndexStatus: idle (pending=0, queueLen=0) with no in-flight upload task → clears index tasks', async () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'done' })
     s.ingestTaskBus({ id: 'face-1', type: 'face', status: 'running' })
@@ -136,7 +136,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks.some(t => t.type === 'face')).toBe(true)
   })
 
-  it('fetchIndexStatus: idle 但有在途 upload 任务 → 不清 index 任务(避免任务栏闪烁消失)', async () => {
+  it('fetchIndexStatus: idle but with an in-flight upload task → does not clear index tasks (avoids the task bar flickering out)', async () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'running' })
     s.ingestTaskBus({ id: 'up-1', type: 'upload', status: 'uploading' })
@@ -145,7 +145,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks.some(t => t.type === 'index')).toBe(true)
   })
 
-  it('fetchIndexStatus: not idle(pending>0) → 不清 index 任务', async () => {
+  it('fetchIndexStatus: not idle (pending>0) → does not clear index tasks', async () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'running' })
     svc.photos.getStatus.mockResolvedValueOnce({ pending: 2, indexed: 0, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
@@ -153,7 +153,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks.some(t => t.type === 'index')).toBe(true)
   })
 
-  it('startIndexPoll: 立即拉一次 + 每 5s 轮询;幂等(重复调用不重开 timer)', async () => {
+  it('startIndexPoll: fetches once immediately + polls every 5s; idempotent (calling again does not restart the timer)', async () => {
     const s = useTimelineStore()
     svc.photos.getStatus.mockResolvedValue({ pending: 0, indexed: 0, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
     s.startIndexPoll()
@@ -168,7 +168,7 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getStatus).toHaveBeenCalledTimes(3)
   })
 
-  it('stopIndexPoll: 清干净,之后推进时间不再调用', async () => {
+  it('stopIndexPoll: cleans up fully, advancing time afterward no longer calls it', async () => {
     const s = useTimelineStore()
     svc.photos.getStatus.mockResolvedValue({ pending: 0, indexed: 0, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
     s.startIndexPoll()
@@ -179,14 +179,14 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getStatus.mock.calls.length).toBe(callsAfterStop)
   })
 
-  it('fetchTasks: 从 {tasks:[...]} 抽取', async () => {
+  it('fetchTasks: extracts from {tasks:[...]}', async () => {
     const s = useTimelineStore()
     svc.photos.listTasks.mockResolvedValueOnce({ tasks: [{ id: 't1', type: 'index', status: 'running' }] })
     await s.fetchTasks()
     expect(s.tasks).toEqual([{ id: 't1', type: 'index', status: 'running' }])
   })
 
-  it('fetchTasks: null/无 tasks 字段兜底为 []', async () => {
+  it('fetchTasks: null / no tasks field falls back to []', async () => {
     const s = useTimelineStore()
     svc.photos.listTasks.mockResolvedValueOnce(undefined)
     await s.fetchTasks()
@@ -197,7 +197,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toEqual([])
   })
 
-  it('ingestTaskBus: unwrap 后同 id 合并更新字段,新 id 追加', () => {
+  it('ingestTaskBus: after unwrap, same id merges updated fields, new id gets appended', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 't1', type: 'index', status: 'running', current: 1, total: 10 })
     expect(s.tasks).toHaveLength(1)
@@ -208,7 +208,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toHaveLength(2)
   })
 
-  it('ingestTaskBus: unwrap 失败(非法 payload)静默丢弃', () => {
+  it('ingestTaskBus: unwrap failure (invalid payload) is silently dropped', () => {
     const s = useTimelineStore()
     s.ingestTaskBus(null)
     s.ingestTaskBus('nope')
@@ -216,7 +216,7 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toHaveLength(0)
   })
 
-  it('deleteAssets: 逐个调用 deleteAsset,计数成功数,之后 quiet 刷新', async () => {
+  it('deleteAssets: calls deleteAsset one by one, counts successes, then does a quiet refresh', async () => {
     const s = useTimelineStore()
     svc.photos.deleteAsset.mockResolvedValueOnce(undefined)
     svc.photos.deleteAsset.mockRejectedValueOnce(new Error('boom'))
@@ -230,7 +230,7 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getTimeline).toHaveBeenCalled()
   })
 
-  it('deleteAssets: 全部失败仍不抛,返回 0,不触发刷新', async () => {
+  it('deleteAssets: still does not throw when everything fails, returns 0, does not trigger a refresh', async () => {
     const s = useTimelineStore()
     svc.photos.deleteAsset.mockRejectedValue(new Error('boom'))
     const n = await s.deleteAssets(['a1'])
@@ -238,7 +238,7 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getTimeline).not.toHaveBeenCalled()
   })
 
-  it('isIndexing getter:pending>0 或 queueLen>0 为真', async () => {
+  it('isIndexing getter: true when pending>0 or queueLen>0', async () => {
     const s = useTimelineStore()
     expect(s.isIndexing).toBe(false)
     svc.photos.getStatus.mockResolvedValueOnce({ pending: 1, indexed: 0, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
@@ -246,7 +246,7 @@ describe('photos-timeline store', () => {
     expect(s.isIndexing).toBe(true)
   })
 
-  it('__resetForTest: 清 timer 且 $reset 状态', async () => {
+  it('__resetForTest: clears timers and $reset state', async () => {
     const s = useTimelineStore()
     svc.photos.getStatus.mockResolvedValue({ pending: 0, indexed: 0, error: 0, queueLen: 0, totalBytes: 0, galleryDir: '', diskTotal: 0, diskAvail: 0, mlReady: null })
     s.startIndexPoll()
@@ -259,9 +259,10 @@ describe('photos-timeline store', () => {
     expect(svc.photos.getStatus.mock.calls.length).toBe(callsAfterReset)
   })
 
-  // P8a-T10(P1 挂账):照 Vue2 scheduleTaskRemove(store/modules/photos.js:50-58,
-  // _onTaskBus :1388-1402)——非 index 类型的 done 任务 5s 后自动从列表移除。
-  it('ingestTaskBus: 非 index 类型 done 任务 5s 后从列表移除(边界:4999ms 仍在,+2ms 已移除)', () => {
+  // P8a-T10 (P1 pending item): following Vue2's scheduleTaskRemove (store/modules/photos.js:50-58,
+  // _onTaskBus :1388-1402) — a done task of a non-index type is automatically removed
+  // from the list after 5s.
+  it('ingestTaskBus: a non-index done task is removed from the list after 5s (boundary: still present at 4999ms, removed by +2ms)', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
     expect(s.tasks).toHaveLength(1)
@@ -271,10 +272,12 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toHaveLength(0)
   })
 
-  // 终审 Minor 5:Vue2 :1403-1406 对 error 任务同样 scheduleTaskRemove,只是延迟 10s
-  // (不是 done 的 5s)。此前只搬了 running/done,error 任务永久留在列表——补上同款
-  // 边界用例(9999ms 仍在 / +2ms 已移除),复用同一张 _doneRemovalTimers 表。
-  it('ingestTaskBus: error 任务 10s 后从列表移除(边界:9999ms 仍在,+2ms 已移除)', () => {
+  // Final review Minor 5: Vue2 :1403-1406 applies scheduleTaskRemove to error tasks too,
+  // just with a 10s delay (not the 5s used for done). Previously only running/done were
+  // ported over, leaving error tasks permanently stuck in the list — adding the matching
+  // boundary cases here (still present at 9999ms / removed by +2ms), reusing the same
+  // _doneRemovalTimers table.
+  it('ingestTaskBus: an error task is removed from the list after 10s (boundary: still present at 9999ms, removed by +2ms)', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'ocr-err-1', type: 'ocr', status: 'error' })
     expect(s.tasks).toHaveLength(1)
@@ -284,29 +287,30 @@ describe('photos-timeline store', () => {
     expect(s.tasks).toHaveLength(0)
   })
 
-  it('ingestTaskBus: index 类型的 done 任务不走 5s 过期(留给 fetchIndexStatus 的 idle 对账)', () => {
+  it('ingestTaskBus: an index-type done task does not go through the 5s expiry (left to fetchIndexStatus\'s idle reconciliation)', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'idx-1', type: 'index', status: 'done' })
     vi.advanceTimersByTime(5001)
-    expect(s.tasks).toHaveLength(1) // 计时器不管 index,只有 idle 对账才会摘掉它
+    expect(s.tasks).toHaveLength(1) // the timer ignores index; only idle reconciliation removes it
   })
 
-  it('ingestTaskBus: done 任务的移除计时器在同 id 再次 running 时取消', () => {
+  it('ingestTaskBus: a done task\'s removal timer is cancelled when the same id goes running again', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
     vi.advanceTimersByTime(3000)
     s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'running', current: 1, total: 10 })
-    vi.advanceTimersByTime(5000) // 若旧计时器没被取消,这里会把复活的任务错误摘掉
+    vi.advanceTimersByTime(5000) // if the old timer wasn't cancelled, this would incorrectly remove the revived task
     expect(s.tasks).toHaveLength(1)
     expect(s.tasks[0]).toMatchObject({ status: 'running' })
   })
 
-  it('__resetForTest 清掉挂起的 done 移除计时器(不留潜在的跨测试污染)', () => {
+  it('__resetForTest clears any pending done-removal timers (no potential cross-test contamination left behind)', () => {
     const s = useTimelineStore()
     s.ingestTaskBus({ id: 'ocr-1', type: 'ocr', status: 'done' })
     s.__resetForTest()
     expect(s.tasks).toEqual([])
-    // 计时器已随 reset 清掉;之后即使继续推进时间也不该抛错或访问已重置的 state。
+    // The timer has already been cleared along with reset; advancing time further afterward
+    // should not throw or access already-reset state.
     expect(() => vi.advanceTimersByTime(10000)).not.toThrow()
   })
 })

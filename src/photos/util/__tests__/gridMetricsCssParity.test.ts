@@ -1,4 +1,4 @@
-// Task 6 (网格重刻) migrates the single source of truth for grid geometry from
+// Task 6 (grid rewrite) migrates the single source of truth for grid geometry from
 // PhotosGrid.vue's own <style> to src/photos/styles/vue2-parity/photos.scss (ported
 // verbatim from NimoOS-UI's photos.scss) — the component no longer carries ANY column/
 // gap CSS of its own; `.grid[data-density]`'s three fixed-column rules live only in the

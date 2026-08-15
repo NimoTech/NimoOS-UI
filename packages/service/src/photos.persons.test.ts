@@ -17,8 +17,8 @@ function capture(data: unknown = []) {
 }
 const noToken = () => null
 
-describe('photos 人物', () => {
-  it('列表/详情/更新/封面', async () => {
+describe('photos persons', () => {
+  it('list / detail / update / cover', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.listPersons()
@@ -32,7 +32,7 @@ describe('photos 人物', () => {
     expect(calls[3]).toMatchObject({ method: 'put', url: '/photos/persons/p1/cover', body: { assetId: 'a1' } })
     expect(calls[4]).toMatchObject({ method: 'delete', url: '/photos/persons/p1/cover' })
   })
-  it('删除/彻底清除(?purge=true 在 URL)/恢复', async () => {
+  it('delete / purge (?purge=true in the URL) / restore', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.deletePerson('p1'); await p.purgePerson('p1'); await p.restorePerson('p1')
@@ -40,7 +40,7 @@ describe('photos 人物', () => {
     expect(calls[1]).toMatchObject({ method: 'delete', url: '/photos/persons/p1?purge=true' })
     expect(calls[2]).toMatchObject({ method: 'post', url: '/photos/persons/p1/restore' })
   })
-  it('资产分页/关系/地点', async () => {
+  it('asset paging / relations / places', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.getPersonAssets('p1', 100, 200)
@@ -50,7 +50,7 @@ describe('photos 人物', () => {
     expect(calls[1]).toMatchObject({ url: '/photos/persons/p1/relations' })
     expect(calls[2]).toMatchObject({ url: '/photos/persons/p1/places' })
   })
-  it('合并建议流(snake_case 请求体对齐后端)与重聚类/摘除', async () => {
+  it('merge-suggestions flow (snake_case request body matches the backend) with recluster/detach', async () => {
     const { http, calls } = capture()
     const p = createPhotos(http, noToken)
     await p.mergePersons('p1', 'p2')
@@ -64,19 +64,19 @@ describe('photos 人物', () => {
     expect(calls[3]).toMatchObject({ method: 'post', url: '/photos/persons/recluster' })
     expect(calls[4]).toMatchObject({ method: 'post', url: '/photos/persons/p1/detach', body: { assetIds: ['a1'] } })
   })
-  it('personFaceThumbnailUrl 带 token', () => {
+  it('personFaceThumbnailUrl includes token', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.personFaceThumbnailUrl('p1')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')
   })
-  it('personFaceThumbnailUrl 带 ver 时拼 ?v= 且 token 改用 &', () => {
+  it('personFaceThumbnailUrl appends ?v= when ver is given, and token switches to &', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.personFaceThumbnailUrl('p1', 'face9')).toBe('/v1/photos/persons/p1/face-thumbnail?v=face9&token=T1')
   })
-  it('ver 为 0 视为合法(不是缺省)', () => {
+  it('ver of 0 is treated as valid (not a default/omission)', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.personFaceThumbnailUrl('p1', 0)).toBe('/v1/photos/persons/p1/face-thumbnail?v=0&token=T1')
   })
-  it('ver 缺省/空串时与旧签名完全一致(向后兼容)', () => {
+  it('ver omitted/empty string matches the old signature exactly (backward compatible)', () => {
     const p = createPhotos({} as AxiosInstance, () => 'T1')
     expect(p.personFaceThumbnailUrl('p1')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')
     expect(p.personFaceThumbnailUrl('p1', '')).toBe('/v1/photos/persons/p1/face-thumbnail?token=T1')

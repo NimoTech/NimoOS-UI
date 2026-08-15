@@ -32,12 +32,12 @@ const day = (d: number, h: number) => new Date(2026, 6, d, h, 0).toISOString()
 beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks(); document.body.innerHTML = '' })
 
 describe('SnapshotTimeline', () => {
-  it('挂载即按卷拉列表', async () => {
+  it('fetches the list by volume as soon as it mounts', async () => {
     listMock.mockResolvedValue([])
     const w = mountIt(); await flush(w)
     expect(listMock).toHaveBeenCalledWith('u1')
   })
-  it('加载中显示骨架、加载完不显示', async () => {
+  it('shows the skeleton while loading, hides it once loaded', async () => {
     let release: (v: unknown) => void = () => {}
     listMock.mockImplementation(() => new Promise((r) => { release = r }))
     const w = mountIt(); await w.vm.$nextTick()
@@ -45,13 +45,13 @@ describe('SnapshotTimeline', () => {
     release([]); await flush(w)
     expect(w.find('.st-skeleton').exists()).toBe(false)
   })
-  it('空列表 → 空态双句', async () => {
+  it('empty list → shows the two empty-state lines', async () => {
     listMock.mockResolvedValue([])
     const w = mountIt(); await flush(w)
     expect(w.find('.st-empty').text()).toContain(zh.snapNoneYet)
     expect(w.find('.st-empty').text()).toContain(zh.snapEmptyHint)
   })
-  it('按天分组:组头带组名与计数,最近两组默认展开、第三组收起', async () => {
+  it('grouped by day: group header carries the group name and count, the most recent two groups are expanded by default, the third is collapsed', async () => {
     listMock.mockResolvedValue([
       { id: 1, name: 'a', type: 'auto-hourly', created_at: day(27, 9) },
       { id: 2, name: 'b', type: 'manual', label: '升级前', created_at: day(27, 20) },
@@ -62,10 +62,10 @@ describe('SnapshotTimeline', () => {
     const headers = w.findAll('.st-group-header')
     expect(headers).toHaveLength(3)
     expect(headers[0].find('.st-group-count').text()).toBe('2')
-    // 默认展开最近 2 组 = 3 条可见(2 + 1),第三组收起
+    // the most recent 2 groups are expanded by default = 3 items visible (2 + 1), the third group is collapsed
     expect(w.findAll('.st-item')).toHaveLength(3)
   })
-  it('点组头折叠/展开切换', async () => {
+  it('clicking the group header toggles collapse/expand', async () => {
     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
     const w = mountIt(); await flush(w)
     expect(w.findAll('.st-item')).toHaveLength(1)
@@ -74,7 +74,7 @@ describe('SnapshotTimeline', () => {
     await w.find('.st-group-header').trigger('click')
     expect(w.findAll('.st-item')).toHaveLength(1)
   })
-  it('条目渲染时钟/类别徽章/备注,类别圆点带类别修饰类', async () => {
+  it('an item renders the clock/category badge/note, the category dot carries a category modifier class', async () => {
     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', label: '升级前', created_at: day(27, 9) }])
     const w = mountIt(); await flush(w)
     const item = w.find('.st-item')
@@ -83,20 +83,21 @@ describe('SnapshotTimeline', () => {
     expect(item.find('.st-label').text()).toBe('升级前')
     expect(item.find('.st-dot').classes()).toContain('manual')
   })
-  it('不渲染[浏览]入口(文件区快照套件推迟);动作区只有删除一个按钮', async () => {
+  it('does not render the [browse] entry (deferred to the Files-area snapshot suite); the actions area has only a delete button', async () => {
     listMock.mockResolvedValue([{ id: 1, name: 'a', type: 'manual', created_at: day(27, 9) }])
     const w = mountIt(); await flush(w)
-    // .st-browse 这个类从未出现在实现里,原断言是空断言(恒真);改成对动作区按钮数量
-    // 的实质约束 —— 只有删除一个按钮,才是"浏览入口未渲染"真正会失败的检验。
+    // The .st-browse class never appears in the implementation, so the original assertion was a vacuous one (always true);
+    // changed it to a real constraint on the number of action-area buttons — only one delete button — which is
+    // the check that would actually fail if the "browse entry not rendered" claim were false.
     expect(w.findAll('.st-actions button')).toHaveLength(1)
     expect(w.text()).not.toContain(zh.filesTitle ?? '文件')
   })
-  it('换卷 → 重置展开态并重拉(不沿用旧卷的展开集合)', async () => {
-    // 旧卷:单条,落在与新卷完全不同的日期(2026-07-15),默认展开。
-    // 新卷:3 组(2+1+1),默认展开规则是"最近 2 组" —— 若换卷不重置
-    // expandedKeys/expandInitialized,旧卷的展开键('2026-07-15')在新卷分组里
-    // 找不到任何匹配,会导致新卷的三组全部维持"收起"(0 条可见),而不是新卷
-    // 自己应有的默认展开结果(2 条 + 1 条 = 3 条可见、第三组收起)。
+  it('switching volumes → resets the expanded state and refetches (does not carry over the expanded set from the old volume)', async () => {
+    // Old volume: a single entry, on a date completely different from the new volume (2026-07-15), expanded by default.
+    // New volume: 3 groups (2+1+1), the default-expand rule is "the most recent 2 groups" — if switching volumes does not reset
+    // expandedKeys/expandInitialized, the old volume's expand key ('2026-07-15') finds no match in the new
+    // volume's grouping, causing all three of the new volume's groups to stay "collapsed" (0 items visible), instead of the
+    // default-expand result the new volume should actually have (2 items + 1 item = 3 items visible, third group collapsed).
     listMock
       .mockResolvedValueOnce([{ id: 1, name: 'old', type: 'manual', created_at: day(15, 9) }])
       .mockResolvedValueOnce([
@@ -106,21 +107,21 @@ describe('SnapshotTimeline', () => {
         { id: 5, name: 'd', type: 'auto-daily', created_at: day(20, 8) },
       ])
     const w = mountIt(); await flush(w)
-    expect(w.findAll('.st-item')).toHaveLength(1)   // 旧卷:单条,默认展开
+    expect(w.findAll('.st-item')).toHaveLength(1)   // old volume: a single entry, expanded by default
     listMock.mockClear()
     await w.setProps({ volumeUuid: 'u2' }); await flush(w)
     expect(listMock).toHaveBeenCalledWith('u2')
     expect(w.findAll('.st-group-header')).toHaveLength(3)
-    // 新卷按默认展开最近 2 组渲染(2 条 + 1 条 = 3 条可见,第三组收起)——
-    // 这就是"展开态被重置、按新卷重新计算默认展开"的直接证据。
+    // The new volume renders with the most recent 2 groups expanded by default (2 items + 1 item = 3 items visible, third group collapsed) —
+    // this is the direct evidence that the expanded state was reset and the default expansion recomputed for the new volume.
     expect(w.findAll('.st-item')).toHaveLength(3)
   })
 })
 
-describe('SnapshotTimeline 删除', () => {
+describe('SnapshotTimeline delete', () => {
   const one = [{ id: 1, name: '20260727T090000Z_manual_升级前', type: 'manual', created_at: day(27, 9) }]
 
-  it('条目有删除按钮;点击弹确认框(此时还没发请求)', async () => {
+  it('an item has a delete button; clicking pops a confirm dialog (no request sent yet at this point)', async () => {
     listMock.mockResolvedValue(one)
     const w = mountIt(); await flush(w)
     expect(w.find('.st-delete').exists()).toBe(true)
@@ -129,7 +130,7 @@ describe('SnapshotTimeline 删除', () => {
     expect(removeMock).not.toHaveBeenCalled()
   })
 
-  it('确认后才发 remove(name, uuid),成功则该条从列表消失', async () => {
+  it('sends remove(name, uuid) only after confirming, the item disappears from the list on success', async () => {
     listMock.mockResolvedValue(one)
     removeMock.mockResolvedValue(undefined)
     const w = mountIt(); await flush(w)
@@ -140,7 +141,7 @@ describe('SnapshotTimeline 删除', () => {
     expect(w.findAll('.st-item')).toHaveLength(0)
   })
 
-  it('取消 → 不发请求,条目还在', async () => {
+  it('cancel → no request sent, the item is still there', async () => {
     listMock.mockResolvedValue(one)
     const w = mountIt(); await flush(w)
     await w.find('.st-delete').trigger('click'); await flush(w)
@@ -151,17 +152,17 @@ describe('SnapshotTimeline 删除', () => {
   })
 })
 
-describe('浏览按钮(SP6-P5 缺席项补回)', () => {
+describe('browse button (SP6-P5 backfilled missing item)', () => {
   const SNAP = { id: 1, name: 'snap-a', label: '', type: 'manual', created_at: new Date().toISOString() }
 
-  it('每个快照条目有浏览按钮', async () => {
+  it('every snapshot item has a browse button', async () => {
     listMock.mockResolvedValue([SNAP])
     const w = mountIt(); await flush(w)
     useSnapshotStore().volume = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true } as never
     await w.vm.$nextTick()
     expect(w.findAll('.st-browse')).toHaveLength(1)
   })
-  it('点浏览跳文件区深链,带上快照目录真实路径', async () => {
+  it('clicking browse navigates to a Files-area deep link, carrying the actual snapshot directory path', async () => {
     listMock.mockResolvedValue([SNAP])
     const w = mountIt(); await flush(w)
     useSnapshotStore().volume = { volume_uuid: 'u1', mount: '/DATA', supported: true, enabled: true } as never
@@ -169,7 +170,7 @@ describe('浏览按钮(SP6-P5 缺席项补回)', () => {
     await w.find('.st-browse').trigger('click')
     expect(pushMock).toHaveBeenCalledWith({ path: '/files', query: { path: '/DATA/.snapshots/snap-a' } })
   })
-  it('卷挂载点未知时不显示浏览按钮(跳过去也没意义)', async () => {
+  it('does not show the browse button when the volume mount point is unknown (jumping there would be meaningless)', async () => {
     listMock.mockResolvedValue([SNAP])
     const w = mountIt(); await flush(w)
     useSnapshotStore().volume = null

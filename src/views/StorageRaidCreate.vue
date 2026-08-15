@@ -1,14 +1,20 @@
 <!--
-  RAID 创建向导(P4 T5)。迁移自 NimoOS-UI RaidCreateWizard.vue(2 步:选盘+级别 / 确认),
-  组装 T1(RAID_LEVELS/recommendRaidLevel)、T3(RaidDriveBay)、T4(RaidMatrix)已完成的零件。
+  RAID creation wizard (P4 T5). Ported from NimoOS-UI RaidCreateWizard.vue (2 steps: choose
+  drives + level / confirm), assembling the parts already completed by T1
+  (RAID_LEVELS/recommendRaidLevel), T3 (RaidDriveBay), and T4 (RaidMatrix).
 
-  与 Vue2 源的一处刻意简化(缩小本任务范围,非遗漏):
-  1) 不迁移混规格容量警告/故障容错文案说明等纯装饰性文案 —— 已有 RaidDriveBay/RaidMatrix
-     承担对应可视化,此页只负责编排 + 请求体组装。
+  One deliberate simplification vs. the Vue2 source (narrowing this task's scope, not an
+  omission):
+  1) Mixed-capacity warnings / fault-tolerance explainer copy and other purely decorative
+     text are not ported — RaidDriveBay/RaidMatrix already carry the corresponding
+     visualization, and this page is only responsible for orchestration + request body
+     assembly.
 
-  选盘变化时"自动挑推荐级别" watcher(Vue2 RaidCreateWizard.vue:365-383)已逐字对齐恢复:
-  userPickedLevel 标记用户手动选级别(快捷卡/矩阵点击)后锁定自动推荐;盘数变化令当前级别
-  失效时解锁并清空,再在未锁定时把 selectedLevel 拉回 recommendRaidLevel(diskCount)。
+  The "auto-pick recommended level" watcher on drive selection changes (Vue2
+  RaidCreateWizard.vue:365-383) has been restored verbatim: userPickedLevel marks that the
+  user manually picked a level (quick card / matrix click), locking out auto-recommendation;
+  when a drive-count change invalidates the current level, it unlocks and clears, and then
+  while unlocked pulls selectedLevel back to recommendRaidLevel(diskCount).
 -->
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
@@ -28,14 +34,17 @@ const store = useStorageStore()
 const router = useRouter()
 const { t } = useI18n()
 
-// 候选盘复用创建单盘存储向导同一来源(GET /v1/disks 的 avail 字段);
-// AvailDisk 结构上满足 RaidDisk:除 path/name/model/size/needFormat/serial 外,还带
-// disk_type/health/temperature/power_on_time(健康信息展示要用;字段名与后端原文一致才好直接赋值)。
+// Candidate drives reuse the same source as the single-disk storage creation wizard (the
+// avail field from GET /v1/disks); the AvailDisk shape satisfies RaidDisk: besides
+// path/name/model/size/needFormat/serial, it also carries disk_type/health/temperature/
+// power_on_time (needed for the health-info display; keeping the field names identical to
+// the backend's makes direct assignment possible).
 useDiskHotplug(() => store.loadDrives())
 const candidateDisks = computed<RaidDisk[]>(() => store.availDisks)
 const hasNoDisk = computed(() => candidateDisks.value.length === 0)
-// 冷深链(直接进 /storage/raid/create)时 store.raidArrays/volumes 可能为空 —— 补加载,
-// 使 existingNames 去重(默认名 + nameError 重名校验)在深链场景也生效。
+// On a cold deep link (landing directly on /storage/raid/create), store.raidArrays/volumes
+// may be empty — load them here so existingNames dedup (default name + nameError duplicate
+// check) also works on the deep-link path.
 onMounted(() => {
   store.loadRaid()
   store.loadVolumes()
@@ -57,10 +66,11 @@ const diskCount = computed(() => selectedDisks.value.length)
 const minDiskSize = computed(() => (diskCount.value ? Math.min(...selectedDisks.value.map((d) => d.size)) : 0))
 const quickLevels = RAID_LEVELS
 const currentLevel = computed<RaidLevelSpec | null>(() => RAID_LEVELS.find((l) => l.id === selectedLevel.value) ?? null)
-// raidUtils.js 无 <2 盘前置校验(P1 raidLevels.ts 迁移笔记),由向导自己在选盘阶段兜底。
+// raidUtils.js has no <2-drive precondition check (per the P1 raidLevels.ts porting notes);
+// the wizard itself covers it at the drive-selection step.
 const recommendedLevel = computed(() => (diskCount.value >= 2 ? recommendRaidLevel(diskCount.value) : null))
 
-// RAID 10 需要 >=4 且为偶数盘(RaidMatrix.vue isAvailable 同款判定),其余按 lv.min。
+// RAID 10 needs >=4 drives and an even count (same check as RaidMatrix.vue's isAvailable); everything else goes by lv.min.
 function levelMinOk(lv: RaidLevelSpec, n: number): boolean {
   if (lv.id === 10) return n >= 4 && n % 2 === 0
   return n >= lv.min
@@ -76,13 +86,14 @@ function cardCapacity(lv: RaidLevelSpec): string {
 const canProceed = computed(
   () => diskCount.value >= 2 && !!currentLevel.value && levelMinOk(currentLevel.value, diskCount.value),
 )
-// RAID 名与存储名共享命名空间(Vue2 existingRaidNames 同款合并)。
+// RAID names and storage names share a namespace (same merge as Vue2's existingRaidNames).
 const existingNames = computed(() =>
   [...store.raidArrays.map((a) => a.name), ...store.volumes.map((v) => v.name)].filter(Boolean),
 )
 const existingNamesLower = computed(() => existingNames.value.map((n) => n.toLowerCase()))
-// Vue2 nameError computed(RaidCreateWizard.vue:322-331)逐字对齐:未 touch 前不提示必填,
-// 已 touch 且为空 → 必填提示;非空且与既有阵列/卷重名(大小写不敏感)→ 重名提示。
+// Matches Vue2's nameError computed (RaidCreateWizard.vue:322-331) verbatim: no required-field
+// prompt before the field is touched; once touched and empty → required-field prompt; non-empty
+// and duplicating an existing array/volume name (case-insensitive) → duplicate-name prompt.
 const nameError = computed(() => {
   const n = arrayName.value.trim()
   if (!n) return arrayNameTouched.value ? t('raidCreateNameRequired') : ''
@@ -98,11 +109,14 @@ const canCreate = computed(
     !store.raidCreating,
 )
 
-// 带外来阵列残留超块的已选盘(role:"residue";本机成员后端已从 avail 剔除,到不了这里)。
-// 确认弹窗点名将清除哪些盘的残留,请求体据此带 wipe_raid_residue —— 不带 true 后端会
-// 500 拒绝("...requires explicit confirmation")。
+// Selected drives carrying a leftover superblock from a foreign array (role: "residue"; local
+// array members are already stripped out of avail by the backend, so they never reach here).
+// The confirmation dialog calls out which drives' residue will be wiped, and the request body
+// carries wipe_raid_residue accordingly — without true the backend rejects with 500
+// ("...requires explicit confirmation").
 const residueDisks = computed(() => selectedDisks.value.filter((d) => d.raid?.role === 'residue'))
-// ⚠️ array_name 来自盘上 mdadm 超块,是不可信文本 —— 只经模板插值渲染,不拼 HTML。
+// ⚠️ array_name comes from the mdadm superblock on the drive and is untrusted text — it
+// is only rendered through template interpolation, never concatenated into HTML.
 const residueList = computed(() =>
   residueDisks.value.map((d) => `${d.path} (${d.raid?.array_name || '?'})`).join(', '),
 )
@@ -115,9 +129,11 @@ watch(
   },
   { immediate: true },
 )
-// Vue2 selectedDisks watch(RaidCreateWizard.vue:365-383)逐字对齐恢复:
-// 1) 盘数变化令当前已选级别失效 → 清空并解锁(userPickedLevel=false);
-// 2) 未被用户手动锁定时,把 selectedLevel 拉回 recommendRaidLevel(diskCount)。
+// Vue2 selectedDisks watch (RaidCreateWizard.vue:365-383) restored verbatim:
+// 1) a drive-count change that invalidates the currently selected level → clear it and
+//    unlock (userPickedLevel=false);
+// 2) when not manually locked by the user, pull selectedLevel back to
+//    recommendRaidLevel(diskCount).
 watch(selectedDisks, (disks) => {
   if (selectedLevel.value !== null && currentLevel.value) {
     const invalid = !levelMinOk(currentLevel.value, disks.length)
@@ -351,10 +367,13 @@ async function doCreate(): Promise<void> {
   width: 100%; box-sizing: border-box; padding: 9px 12px; font-size: 14px;
   border-radius: 10px; border: 1px solid var(--chip-border); background: var(--chip-bg); color: var(--fg);
 }
-/* 上面那条把 background 设成了 var(--chip-bg) —— 深色主题下它是**半透明白的渐变**。
- * 作者一旦给 <select> 指定背景,Chrome 就把它带到弹出列表上,而原生 option **不渲染 gradient**
- * (退回浏览器默认白底),配上近白的 --fg 就是白底白字。根节点的 color-scheme: dark 救不了
- * (作者背景优先)。所以这里显式钉住实心底色与字色。守卫:styles/selectPopup.test.ts。 */
+/* The rule above sets background to var(--chip-bg) — under the dark theme that's a
+ * **semi-transparent, pale-toned gradient**. The moment an author assigns a background to a
+ * <select>, Chrome carries it over to the popup list, and native option elements **don't
+ * render a gradient** (it falls back to the browser's default pale background), which paired
+ * with a near-pale --fg becomes unreadable pale-on-pale text. The root node's
+ * color-scheme: dark can't save it (the author-supplied background takes priority). So this
+ * pins down a solid background and text color explicitly. Guarded by: styles/selectPopup.test.ts. */
 .rcv-fs-select option,
 .rcv-fs-select optgroup {
   background-color: var(--set-option-bg);

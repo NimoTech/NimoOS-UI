@@ -54,7 +54,7 @@ async function create() {
   }
 }
 
-// step 3 挂载后播放完成动画,结束跳首页
+// Once step 3 is mounted, play the completion animation and navigate to the home page when it ends
 let anim: ReturnType<typeof lottie.loadAnimation> | null = null
 watch([step, doneEl], ([s, el]) => {
   if (s === 3 && el) {

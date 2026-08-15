@@ -22,8 +22,9 @@ import DeveloperPanel from './DeveloperPanel.vue'
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: { ...zh, ...zhSp9 } } })
 const mountIt = () => mount(DeveloperPanel, { global: { plugins: [i18n] } })
 
-// 同 WebUiHttpsDialog.test.ts:交错路径守卫要用一个可控 Promise 卡住服务端读取,
-// resolve 时用提前拍好的旧快照,而不是 resolve 时刻再读共享 state。
+// Same as WebUiHttpsDialog.test.ts: the interleaved-path guard needs a controllable
+// Promise to stall the server read, and resolves with a stale snapshot captured
+// ahead of time, rather than reading shared state at resolve time.
 function createDeferred<T>() {
   let resolve!: (v: T) => void
   const promise = new Promise<T>((r) => { resolve = r })
@@ -37,70 +38,73 @@ beforeEach(() => {
 })
 
 describe('DeveloperPanel', () => {
-  it('用返回按钮而不是标题,点它 emit open-tab general(P0 行为不变)', async () => {
+  it('uses a back button instead of a title; clicking it emits open-tab general (P0 behavior unchanged)', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.find('.set-section-title').exists()).toBe(false)
     await w.find('.set-back').trigger('click')
     expect(w.emitted('open-tab')).toEqual([['general']])
   })
 
-  it('P0 的空态占位已拆掉', async () => {
+  it('P0\'s empty-state placeholder has been removed', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.find('.set-skeleton').exists()).toBe(false)
   })
 
-  it('渲染 HTTPS 开关,状态来自服务端', async () => {
+  it('renders the HTTPS toggle, with state coming from the server', async () => {
     state.ssl.enabled = true
     const w = mountIt(); await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
   })
 
-  it('关闭时不显示配置入口行(对位 Vue2 v-if="sslEnabled")', async () => {
+  it('does not show the config entry row when off (parity with Vue2 v-if="sslEnabled")', async () => {
     const w = mountIt(); await flushPromises()
     expect(w.find('.dp-config').exists()).toBe(false)
   })
 
-  it('开启时显示配置入口行', async () => {
+  it('shows the config entry row when on', async () => {
     state.ssl.enabled = true
     const w = mountIt(); await flushPromises()
     expect(w.find('.dp-config').exists()).toBe(true)
   })
 
-  it('拨开 HTTPS:下发 enabled:true 并补齐 domain/port/cert_type 兜底值', async () => {
+  it('flips HTTPS on: sends enabled:true and fills in the fallback domain/port/cert_type values', async () => {
     const w = mountIt(); await flushPromises()
     await w.find('[role="switch"]').trigger('click'); await flushPromises()
     expect(state.setCalls).toEqual([{ enabled: true, domain: 'nimoos.local', port: '443', cert_type: 'auto' }])
   })
 
-  it('服务端字段为空时用 Vue2 的兜底值(nimoos.local / 443 / auto)', async () => {
+  it('uses Vue2\'s fallback values (nimoos.local / 443 / auto) when server fields are empty', async () => {
     state.ssl = { ...state.ssl, domain: '', port: '', cert_type: '' }
     const w = mountIt(); await flushPromises()
     await w.find('[role="switch"]').trigger('click'); await flushPromises()
     expect(state.setCalls[0]).toEqual({ enabled: true, domain: 'nimoos.local', port: '443', cert_type: 'auto' })
   })
 
-  it('下发失败时开关弹回(对位 Vue2 sslEnabled = !val)', async () => {
+  it('the toggle bounces back when sending fails (parity with Vue2 sslEnabled = !val)', async () => {
     state.setFail = true
     const toast = useToast()
     const w = mountIt(); await flushPromises()
     await w.find('[role="switch"]').trigger('click'); await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('false')
-    // 评审 fix round 2 · Important:此前只验证了开关弹回,没验证真的提示了用户。
+    // Review fix round 2 · Important: previously this only verified the toggle bounced
+    // back, not that the user was actually notified.
     expect(toast.toasts).toHaveLength(1)
     expect(toast.msg).toBe(i18n.global.t('settingsSaveFailed'))
   })
 
-  it('点配置入口打开弹窗', async () => {
-    // .dp-config 作为 class 传给 SettingsRow 落在其根 wrapper(.set-row-wrap)上,
-    // 不在内部可点的 <button>(.set-list-item)上 —— 点 wrapper 不会触发 click。
-    // 在测试里定位到内部按钮,不改共用的 SettingsRow(brief 拍板:取前者)。
+  it('clicking the config entry opens the dialog', async () => {
+    // .dp-config, passed as a class to SettingsRow, lands on its root wrapper
+    // (.set-row-wrap), not on the clickable inner <button> (.set-list-item) — clicking
+    // the wrapper doesn't trigger click.
+    // The test targets the inner button rather than changing the shared SettingsRow
+    // (brief's call: go with the former).
     state.ssl.enabled = true
     const w = mountIt(); await flushPromises()
     await w.find('.dp-config .set-list-item').trigger('click')
     expect(w.findComponent({ name: 'WebUiHttpsDialog' }).props('open')).toBe(true)
   })
 
-  it('弹窗 saved 后重新拉配置(对位 Vue2 modal close → getSSLConfig)', async () => {
+  it('re-fetches config after the dialog emits saved (parity with Vue2 modal close → getSSLConfig)', async () => {
     state.ssl.enabled = true
     const svc = await import('@nimotech/nimoos-service')
     const spy = vi.spyOn(svc.service.sys, 'getSSLConfig')
@@ -111,22 +115,26 @@ describe('DeveloperPanel', () => {
     expect(spy.mock.calls.length).toBeGreaterThan(before)
   })
 
-  // 交错路径守卫(newui-async-stale-guard):挂载时 getSSLConfig 还没返回,用户已经拨了
-  // 开关(且下发成功)。迟到的加载结果(旧的 enabled:false)不能把开关弹回去 ——
-  // 那会让界面撒谎,说成用户的操作没生效。
-  it('挂载时加载还没返回,用户已经拨了开关且下发成功,迟到的加载结果不能把开关弹回去(交错路径守卫)', async () => {
-    const staleSnapshot = { ...state.ssl } // enabled: false,挂载/操作之前拍下的旧快照
+  // Interleaved-path guard (newui-async-stale-guard): getSSLConfig hasn't returned yet
+  // at mount time, and the user has already flipped the toggle (and it sent
+  // successfully). The late-arriving load result (the old enabled:false) must not
+  // bounce the toggle back — that would make the UI lie, claiming the user's action
+  // didn't take effect.
+  it('the late-arriving load result must not bounce the toggle back when the user already flipped it (with a successful send) before load returned (interleaved-path guard)', async () => {
+    const staleSnapshot = { ...state.ssl } // enabled: false, a stale snapshot captured before mount/the action
     const svc = await import('@nimotech/nimoos-service')
     const deferred = createDeferred<typeof state.ssl>()
     vi.spyOn(svc.service.sys, 'getSSLConfig').mockReturnValueOnce(deferred.promise)
 
     const w = mountIt()
-    // 此时 onMounted 里的 load() 还卡在 deferred,用户已经点了开关(setSSLConfig 走的是
-    // 另一个不受 deferred 影响的 mock,会正常 resolve):
+    // At this point onMounted's load() is still stuck on deferred, and the user has
+    // already clicked the toggle (setSSLConfig goes through a different mock, unaffected
+    // by deferred, which resolves normally):
     await w.find('[role="switch"]').trigger('click')
     await flushPromises()
     expect(w.find('[role="switch"]').attributes('aria-checked')).toBe('true')
-    // 加载才姗姗来迟地返回(用提前拍好的旧快照,而不是当下的 state.ssl):
+    // Only now does the load belatedly return (using the stale snapshot captured ahead
+    // of time, not the current state.ssl):
     deferred.resolve(staleSnapshot)
     await flushPromises()
 

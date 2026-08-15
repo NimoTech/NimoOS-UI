@@ -1,15 +1,17 @@
 <script setup lang="ts">
-// folder-permissions 的「添加文件夹 / 添加排除」弹窗。
-// 对位 Vue2 FolderPermissions.vue L157-174(b-modal + FolderBrowser + 手输框)。
+// folder-permissions' "Add folder / Add exclusion" dialog.
+// Corresponds to Vue2 FolderPermissions.vue L157-174 (b-modal + FolderBrowser + manual input box).
 //
-// ⚠️ 本期(SP9-P4)按 spec §3.1 政策三:**弹窗打得开、选择器和手输框都在,但「添加」按钮
-// 恒 disabled**,不触发任何写操作。接线时(债务 D11)去掉那个 disabled、换成
-// Vue2 L169 的 `:disabled="!newPath.startsWith('/')"`,并把点击接到面板的 confirmAdd 上,
-// 界面不用重做。
+// ⚠️ This phase (SP9-P4) follows spec §3.1 policy three: **the dialog opens, the picker and
+// manual input box are both present, but the "Add" button is always disabled** — it triggers
+// no write. When wiring it up (debt D11), remove that disabled and replace it with Vue2 L169's
+// `:disabled="!newPath.startsWith('/')"`, and hook the click up to the panel's confirmAdd —
+// the UI does not need rework.
 //
-// ⚠️ 本期 roots 恒为 pickerRoots([]) 的回退三根(/DATA、/media、/mnt),因为快照的
-// candidates 是空的(那份数据来自 wiki.getCandidates,wiki 域挂账 = 债务 D12)。
-// 根按钮因此也是 disabled:点进去要 folder.getList 列目录,那是接线时的事,本期不发请求。
+// ⚠️ This phase's roots are always the pickerRoots([]) fallback three (/DATA, /media, /mnt),
+// because the snapshot's candidates is empty (that data comes from wiki.getCandidates, and
+// the wiki domain is punted = debt D12). The root buttons are therefore also disabled: clicking
+// into one needs folder.getList to list the directory, which is wiring-time work — no requests fire this phase.
 import { ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Dialog from '../../../components/ui/Dialog.vue'
@@ -22,7 +24,7 @@ const emit = defineEmits<{ 'update:open': [boolean] }>()
 const { t } = useI18n()
 const newPath = ref('')
 
-// Vue2 openAdd() 每次打开都重置 newPath —— 照抄这个行为(不让上次输入残留)。
+// Vue2's openAdd() resets newPath on every open — copying this behavior verbatim (don't let the previous input linger).
 watch(
   () => props.open,
   (v) => {
@@ -54,7 +56,7 @@ watch(
       <button class="ui-btn" type="button" data-test="fp-picker-cancel" @click="emit('update:open', false)">
         {{ t('settingsCancel') }}
       </button>
-      <!-- 政策三:本期恒禁用。接线时改成 :disabled="!newPath.startsWith('/')"(Vue2 L169)。 -->
+      <!-- Policy three: always disabled this phase. Change to :disabled="!newPath.startsWith('/')" (Vue2 L169) when wiring it up. -->
       <button class="ui-btn" type="button" data-test="fp-picker-add" disabled>
         {{ t('settingsFpAddFolder') }}
       </button>

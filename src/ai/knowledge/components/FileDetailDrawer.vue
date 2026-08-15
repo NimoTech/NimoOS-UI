@@ -293,10 +293,10 @@ fetchFull()
           <div class="k-chunk-content" v-html="viewerHtml" />
           <div class="k-chunk-viewer-foot">
             <button class="k-btn ghost" @click="copy"><KIcon name="check" :size="12" /> {{ t('aiKbFdCopy') }}</button>
-            <!-- "跳到原文位置" intentionally removed for this version: jumping to
+            <!-- "Jump to original location" intentionally removed for this version: jumping to
                  a specific PDF page reliably across @vue-office/pdf's progressive
                  render proved too brittle. Users open the file via the top
-                 "打开原文件" button and scroll manually. -->
+                 "Open file" button and scroll manually. -->
           </div>
         </div>
       </div>

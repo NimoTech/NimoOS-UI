@@ -568,7 +568,7 @@ async function doConvertToAlbum(): Promise<void> {
   }
 }
 
-// ── 两段照片网格(结构规格 10)─────────────────────────────────────────────────
+// ── Two photo grids (structure spec 10) ─────────────────────────────────────────────────
 // The lightbox's browsing range is scoped to this smart view's full match set (not the whole
 // library). Both grids share this one handler, but SP15-P2c Task 9 (target 33b05636 :96/:107
 // `onTileClick(p, list)`) stopped always forwarding `store.matchedAssets`: each grid now passes
@@ -587,9 +587,12 @@ function onTileClick(p: Photo, list: Photo[]): void {
     return
   }
   const r = store.recentAssets.find((x) => String(x.id) === String(p.id))
-  // 就地改 recentAssets 里那个元素的属性(不是替换数组/新建对象):店内乐观清除,提前隐藏
-  // "New" 角标——真实浏览记录由 lb.openAt 内部的 recordView 之类的动作在后端异步落地,
-  // 这里只是即时反馈,刻意写注释说明这处直接改 store ref 元素属性是有意为之。
+  // Mutate that element's property inside recentAssets directly, in place (not replacing the
+  // array or creating a new object): an in-store optimistic clear that hides the "New" badge
+  // early -- the real view record lands asynchronously on the backend via something like
+  // recordView inside lb.openAt; this is just immediate feedback here. The comment deliberately
+  // spells out that mutating the store ref's element property directly is intentional, not an
+  // oversight.
   if (r && r.isNew) r.isNew = false
   // The third arg is startMs (only meaningful for isVideo), not an index -- openAt computes the
   // index itself from the photo's position in `list` (useLightbox.ts's photoIndexById), so this
@@ -724,7 +727,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
     <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
-        <!-- 门控①:列表还没加载完 → 骨架(New-UI 新增,Vue2 没有这层概念) -->
+        <!-- Gate ①: the list has not finished loading yet → skeleton (new to New-UI, Vue2 has no such concept) -->
         <div v-if="!store.listLoaded" class="sv-skeleton" data-test="sv-skeleton">
           <div class="sv-skel-bar" />
           <div class="sv-skel-header" />
@@ -733,7 +736,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </div>
         </div>
 
-        <!-- 门控②:列表加载完了,但 byId 查无此项(偏离登记 1:New-UI 新增路径) -->
+        <!-- Gate ②: the list has finished loading, but byId finds no match (registered deviation 1: a path new to New-UI) -->
         <div v-else-if="!sv" class="sv-not-found" data-test="sv-not-found">
           <div class="sv-not-found-title">{{ t('photosSvNotFound') }}</div>
           <button
@@ -742,7 +745,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           >{{ t('photosAlbumBack') }}</button>
         </div>
 
-        <!-- 门控③:正常内容 -->
+        <!-- Gate ③: normal content -->
         <template v-else>
           <div class="sv-detail-bar">
             <!-- Deviation from Vue 2, registered. 939a7d3a:PhotosSmartViewDetail.vue:5 still
@@ -763,10 +766,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
             <span class="sv-last-updated">{{ t('photosSvLastUpdatedTime', { time: lastUpdated }) }}</span>
           </div>
 
-          <!-- fix round 1 · M2:Vue2 :10-11 两层容器(sv-detail-layout grid 1fr/320px +
-               sv-detail-main),第一版漏建,`.sv-detail-side` 自创了一个挂在网格下面的空壳
-               margin——T8 一填内容就会出现在网格下方而不是右栏,是一次可预见的结构返工。
-               本轮补建,aside 内部仍是 T8 的空挂载点,不提前实现内容。 -->
+          <!-- fix round 1 · M2: Vue2 :10-11's two-layer container (sv-detail-layout grid 1fr/320px +
+               sv-detail-main) was missing from the first pass -- `.sv-detail-side` invented its own
+               empty-shell margin sitting below the grid instead. The moment T8 fills it with content,
+               that content would land below the grid instead of in the right rail -- a foreseeable
+               structural rework. Built in this round; the aside's inside is still T8's empty mount
+               point, content not implemented ahead of time. -->
           <div class="sv-detail-layout">
           <div class="sv-detail-main">
           <div class="sv-header">
@@ -788,7 +793,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
               </h1>
 
               <!-- SP15-P2c Task 8: "Add condition" button + popover deleted here (ported from
-                   Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30, "用户追加需求") --
+                   Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30, "user-added requirement") --
                    only the removable chips survive. This used to mount a dedicated
                    condition-editor component; once `add` was gone it was down to a
                    bare v-for with no local state, so it folded back in here (see
@@ -943,8 +948,9 @@ async function onExcludedTileClick(id: string): Promise<void> {
             </div>
           </div>
 
-          <!-- SP15-P2a 「已排除」分节(Vue2 :161-172):整块只在有排除项时出现,且默认折叠——
-               它是过去决定的记录,不是这个视图的内容。点一张即恢复,没有二次确认。 -->
+          <!-- SP15-P2a "Excluded" section (Vue2 :161-172): the whole block only appears when there
+               are excluded items, and is collapsed by default -- it's a record of past decisions,
+               not this view's content. Clicking a tile restores it immediately, no confirmation. -->
           <template v-if="store.excluded.length">
             <div
               class="sv-section-head sv-excluded-head" data-test="sv-excluded-head"
@@ -966,7 +972,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
           </template>
           </div>
 
-          <!-- T8 兑现:右栏(阈值滑块 / 设置开关 / 统计四格 / 匹配分布)+ 活动流。 -->
+          <!-- T8 delivered: right rail (threshold slider / settings toggles / four stat tiles / match distribution) + activity feed. -->
           <aside class="sv-detail-side" data-test="sv-side-mount">
             <!-- Task 7 (target 33b05636 :127-225). The "..." menu's target home -- moved here
                  from the header's .sv-actions, where Task 6 parked it unchanged (mounting it
@@ -1008,11 +1014,13 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 type="button" class="sv-action-btn" data-test="sv-action-refine"
                 @click="refineInSearch"
               >
-                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
-                     其余 4 处(PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2)
-                     都用 `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
-                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
-                     放大镜手柄长度此前会跳一下——改成统一值。 -->
+                <!-- fix wave F7 (final review, incidental item): the magnifier handle used to be
+                     `M21 21l-4.3-4.3` -- the one outlier in the whole repo; the other 4 places
+                     (PhotosSearchBar.vue/PhotosSearch.vue/PlaceCoverPicker.vue x2) all use
+                     `m20 20-3.5-3.5` (the circle params cx=11 cy=11 r=7 already matched across all
+                     four, only the handle length differed). When the user clicks "Refine in search"
+                     on this detail page into the search page, the magnifier handle length used to
+                     jump between the two screens -- changed to the same value. -->
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                 {{ t('photosSvRefineSearch') }}
               </button>
@@ -1077,8 +1085,8 @@ async function onExcludedTileClick(id: string): Promise<void> {
                            was a deliberate registration back in SP15-P2b (this page's Convert
                            entry existed before this task). Only the two titles were shortened
                            in the target's own commit for cross-page parity; the descs were
-                           left alone there too ("Vue2 :119-123 三处内联的那个珊瑚红字面量" note
-                           below shows Vue2 continuing to carry its own full desc copy
+                           left alone there too (the "Vue2 :119-123's three inline coral-red
+                           literals" note below shows Vue2 continuing to carry its own full desc copy
                            unchanged). Realigning this desc now would be scope creep onto a
                            different task's registered decision for a wording difference with
                            no user-visible parity gap -- recorded here rather than changed. -->
@@ -1086,7 +1094,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
                     </div>
                   </button>
                   <div class="sv-export-sep" />
-                  <!-- Vue2 :119-123 三处内联的那个珊瑚红字面量全部改 --remove-fg 家族(见样式块)。 -->
+                  <!-- All three of Vue2 :119-123's inline coral-red literals become the --remove-fg family (see the style block). -->
                   <button type="button" class="sv-export-item sv-export-item-danger" data-test="sv-more-delete" @click="openDeleteConfirm">
                     <div class="sv-export-icon sv-export-icon-danger"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /></svg></div>
                     <div>
@@ -1113,8 +1121,10 @@ async function onExcludedTileClick(id: string): Promise<void> {
       </main>
     </div>
 
-    <!-- 导出结果的页内浮条(结构规格 7):Vue2 这是页内定位的浮条(scss:458-476),与全局
-         useToast 的位置不同,信息层级不一样——照 Vue2 自绘,不复用 useToast。 -->
+    <!-- Export-result in-page floating bar (structure spec 7): in Vue2 this is an in-page
+         positioned floating bar (scss:458-476), different from useToast's global position --
+         the information hierarchy differs, so it's hand-drawn to match Vue2 rather than reusing
+         useToast. -->
     <transition name="sv-toast-fade">
       <div v-if="exportToast" class="sv-toast" data-test="sv-export-toast">
         <svg v-if="exportToast.icon === 'download'" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>
@@ -1170,9 +1180,11 @@ async function onExcludedTileClick(id: string): Promise<void> {
       @confirm="onPickPhotos"
     />
 
-    <!-- 删除确认弹窗(结构规格 9,照搬 Vue2 :239-253 的内容与文案;类名不沿用 Vue2 借用
-         灯箱的 lb-confirm-* 命名——本仓 PhotoLightbox.vue 已有一份同名但作用域不同的样式,
-         这里另起 sv-confirm-* 避免误导读者以为是同一处,视觉 1:1 移植)。 -->
+    <!-- Delete confirmation dialog (structure spec 9, copied verbatim from Vue2 :239-253's
+         content and copy; the class names don't reuse Vue2's borrowed lightbox lb-confirm-*
+         naming -- this repo's PhotoLightbox.vue already has a same-named but differently-scoped
+         style, so this uses sv-confirm-* instead to avoid misleading readers into thinking it's
+         the same place; visually a 1:1 port). -->
     <Transition name="sv-confirm">
     <div v-if="confirmDeleteOpen" class="sv-confirm-scrim" data-test="sv-confirm-scrim" @click.self="closeDeleteConfirm">
       <div class="sv-confirm-panel">
@@ -1230,25 +1242,26 @@ async function onExcludedTileClick(id: string): Promise<void> {
    flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
 .sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
 
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
+/* height (not min-height): this screen is capped, only the inner scroll container scrolls -- a
+   same-source fix, reasoning and Vue2 origin are in the comment on the equivalent rule in
+   src/views/Photos.vue. */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── 骨架(New-UI 新增)── */
+/* ── Skeleton (new to New-UI) ── */
 .sv-skeleton { display: flex; flex-direction: column; gap: 14px; padding: 16px 32px; }
 .sv-skel-bar { height: 20px; width: 200px; border-radius: 6px; background: var(--skeleton-bg); }
 .sv-skel-header { height: 90px; border-radius: var(--radius-sm); background: var(--skeleton-bg); }
 .sv-skel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
 .sv-skel-tile { aspect-ratio: 1; border-radius: 6px; background: var(--skeleton-bg); }
 
-/* ── 找不到(偏离登记 1,New-UI 新增)── */
+/* ── Not found (registered deviation 1, new to New-UI) ── */
 .sv-not-found { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
 .sv-not-found-title { font-size: 15px; font-weight: 600; color: var(--fg); }
 .sv-not-found-back { height: 34px; padding: 0 16px; border-radius: 8px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg); font: inherit; font-size: 13px; cursor: pointer; }
 .sv-not-found-back:hover { background: var(--chip-bg-hi); }
 
-/* ── 顶栏(scss:146-159)── */
+/* ── Top bar (scss:146-159) ── */
 .sv-detail-bar { padding: 16px 32px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--divider); }
 .sv-back-btn { display: inline-flex; align-items: center; gap: 4px; padding: 6px 10px 6px 8px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border); color: var(--fg-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .sv-back-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
@@ -1258,9 +1271,9 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-header { padding: 24px 32px 16px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
 .sv-header h1 { font-family: var(--font-display, var(--font)); font-size: 28px; font-weight: 600; letter-spacing: -0.02em; margin: 0 0 8px; display: flex; align-items: center; gap: 10px; }
 .sv-title { cursor: text; color: var(--fg); }
-/* Vue2 :22 内联 style 逐属性对照:font-size:28px(已在 h1 上)/font-weight:600(同)/
-   letter-spacing:-0.02em(同)/min-width:300px/background/border/border-radius/padding/
-   color/font/outline。 */
+/* Vue2 :22 inline style, property by property: font-size:28px (already on h1) / font-weight:600
+   (same) / letter-spacing:-0.02em (same) / min-width:300px / background / border / border-radius /
+   padding / color / font / outline. */
 .sv-title-input {
   background: var(--chip-bg); border: 1px solid var(--accent); border-radius: 8px;
   padding: 2px 10px; color: var(--fg); font: inherit; font-size: 28px; font-weight: 600;
@@ -1284,7 +1297,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .live-pill.paused-pill .live-dot { background: var(--dem-fg); box-shadow: 0 0 6px var(--dem-fg); animation: none; }
 @keyframes sv-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
-/* T7 兑现:Vue2 scss:252 的容器布局(T6 只留了 min-height 占位)。 */
+/* T7 delivered: Vue2 scss:252's container layout (T6 only left a min-height placeholder). */
 .sv-header-conds { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; align-items: center; min-height: 4px; }
 
 /* SP15-P2c Task 8: chip styles moved in from the deleted condition-editor component
@@ -1335,7 +1348,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-header-stats b { color: var(--fg); font-weight: 600; }
 .sv-header-stats .delta { color: var(--success); }
 
-/* ── 操作栏(scss:386-404)── */
+/* ── Action bar (scss:386-404) ── */
 .sv-actions { display: flex; gap: 8px; align-items: center; }
 .sv-action-btn {
   height: 32px; padding: 0 12px; border-radius: 99px; background: var(--chip-bg); border: 1px solid var(--chip-border);
@@ -1405,7 +1418,7 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-sort-item .sv-sort-check { width: 12px; flex-shrink: 0; color: var(--accent-text); }
 .sv-sort-item .lbl { display: block; font-weight: 500; }
 
-/* ── 导出 / more 菜单(scss:407-452)── */
+/* ── Export / more menu (scss:407-452) ── */
 .sv-export-menu {
   position: absolute; right: 0; top: calc(100% + 6px); min-width: 280px;
   background: var(--popup-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 6px;
@@ -1424,26 +1437,28 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-export-title { font-size: 12.5px; font-weight: 500; line-height: 1.2; }
 .sv-export-desc { font-size: 11px; color: var(--fg-muted); margin-top: 3px; line-height: 1.35; }
 .sv-export-sep { height: 1px; margin: 4px 6px; background: var(--divider); }
-/* Vue2 :119-123 三处内联的那个珊瑚红字面量 → --remove-fg 家族。 */
+/* Vue2 :119-123's three inline coral-red literals → --remove-fg family. */
 .sv-export-item-danger, .sv-export-item-danger .sv-export-title { color: var(--remove-fg); }
 .sv-export-icon-danger { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); color: var(--remove-fg); }
-/* fix round 1:复合选择器 (0,3,0) 稳赢基类 `.sv-export-item:hover` 的 (0,2,0),不靠书写顺序。 */
+/* fix round 1: the compound selector (0,3,0) reliably beats the base class `.sv-export-item:hover`'s (0,2,0), not relying on source order. */
 .sv-export-item.sv-export-item-danger:hover { background: color-mix(in srgb, var(--remove-fg) 14%, transparent); }
 
-/* fix round 1 · I2:Vue2 :79/:102 各包一层 `<transition name="sv-menu">`,规则在
-   scss:454-455(opacity 0.14s + translateY(-4px) scale(0.97),140ms 缩放淡入)。
-   Vue3 用 `-enter-from`/`-leave-to`(不是 Vue2 的 `-enter`),照本文件已有的
-   `.sv-toast-fade-*` 既定写法。 */
+/* fix round 1 · I2: Vue2 :79/:102 each wrap a `<transition name="sv-menu">`, with the rule at
+   scss:454-455 (opacity 0.14s + translateY(-4px) scale(0.97), a 140ms scale-fade-in).
+   Vue3 uses `-enter-from`/`-leave-to` (not Vue2's `-enter`), matching this file's existing
+   `.sv-toast-fade-*` convention. */
 .sv-menu-enter-active, .sv-menu-leave-active { transition: opacity 0.14s ease, transform 0.16s cubic-bezier(0.2, 0.8, 0.2, 1); transform-origin: top right; }
 .sv-menu-enter-from, .sv-menu-leave-to { opacity: 0; transform: translateY(-4px) scale(0.97); }
 
-/* ── 两段网格(scss:480-525)── */
+/* ── Two-band grid (scss:480-525) ── */
 .sv-section-head { padding: 18px 32px 8px; display: flex; align-items: center; gap: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--fg-muted); }
 .sv-section-head .pill { padding: 1px 8px; border-radius: 99px; background: var(--chip-bg); color: var(--fg-muted); text-transform: none; letter-spacing: 0; font-weight: 500; }
 .sv-grid-photos { padding: 0 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
-/* Vue2 :136 内联 `padding-bottom:18px` 只加在"最近添加"段的网格上(全部匹配段没有这条),
-   给该段留出与下方"全部匹配"标题的呼吸间距。审计时发现模板已加了这个类但样式块漏写,
-   补上——同类漏渲染是本工程最高频缺陷,回源逐条核对时揪出。 */
+/* Vue2 :136's inline `padding-bottom:18px` is only added on the "Recently added" section's grid
+   (the "All matches" section doesn't have it), giving that section breathing room from the
+   "All matches" heading below it. The audit found the template already had this class but the
+   style block was missing it -- filled in here; this class of missing-render bug is the most
+   frequent defect in this project, caught by checking against the source line by line. */
 .sv-grid-photos-recent { padding-bottom: 18px; }
 /* SP15-P2c Task 6, compact density (Vue2 photos-smartview.scss:557-559): the only change is
    the auto-fill minimum, 180px down to 120px, so more thumbnails fit per row. Both grids on
@@ -1452,10 +1467,12 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-grid-photos.is-compact { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
 .sv-grid-photos .tile { position: relative; aspect-ratio: 1; cursor: pointer; border-radius: 4px; overflow: hidden; }
 .sv-grid-photos .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* fix round 1 · I3:Vue2 scss:506-513 在 accent 边框内侧还叠一圈半透明黑色内阴影,作用是
-   在浅色照片上把 accent 环压出对比(纯白照片上单靠 2px accent 边框太容易被背景冲淡)。
-   `color-mix(in srgb, black 40%, transparent)` 复刻同样的暗度,不写字面 hex/rgb 函数——
-   `black` 关键字加 color-mix 有本仓先例 `PhotosTrash.vue:405`。 */
+/* fix round 1 · I3: Vue2 scss:506-513 also layers a translucent dark inset shadow just inside
+   the accent border, to push the accent ring into contrast on light-toned photos (on a very
+   pale photo, a plain 2px accent border alone is too easily washed out by the background).
+   `color-mix(in srgb, black 40%, transparent)` reproduces the same darkness without writing a
+   literal hex/rgb function -- the `black` keyword paired with color-mix already has a precedent
+   in this repo, `PhotosTrash.vue:405`. */
 .sv-grid-photos .tile.recent::after {
   content: ""; position: absolute; inset: 0; border: 2px solid var(--accent); border-radius: inherit;
   pointer-events: none;
@@ -1523,37 +1540,43 @@ async function onExcludedTileClick(id: string): Promise<void> {
 
 .sv-grid-photos .new-tag {
   position: absolute; top: 6px; left: 6px; padding: 2px 7px; border-radius: 99px; background: var(--accent);
-  /* --on-accent 唯一合法场景:底色是 var(--accent) 饱和实底。 */
+  /* --on-accent's only legal scenario: the base colour is a fully saturated, solid var(--accent) fill. */
   color: var(--on-accent); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
 }
 
-/* fix round 1 · M2(task-8 评审:T6 挂的账,本任务真正引入了 4 段可滚动内容,现在结账):
-   Vue2 scss:161-166(sv-detail-layout)+ :167-172(sv-detail-main)+ :187-194(sv-detail-side
-   基础外观)。--line → --divider、--surface-1 → --panel-bg-solid(先例
-   PlaceDetailPanel.vue:38/312:同类"内容旁的常驻实底侧栏",不用 --popup-bg——那是浮层专用)。
-   **决定:不移植 Vue2 scss:195-209 的 `::-webkit-scrollbar` 滚动条美化(accent 渐变
-   thumb / 10px 宽 / accent 6% 轨道),`.sv-detail-main`/`.sv-detail-side` 都只走
-   `overflow-y: auto` 交给浏览器默认滚动条。** 理由:本分支惯例是滚动条只隐藏
-   (`scrollbar-width: none` / `display: none`)不重画,已有先例
-   `PhotosGrid.vue:420`、`PhotoFilmstrip.vue`、`PhotosPersonDetail.vue:1041`;
-   `theme.css` 已有全局细滚动条兜底;且 SP5-P6 实证过 Chrome 121+ 一旦元素吃到标准
-   `scrollbar-width`/`scrollbar-color`,浏览器就会整体禁用该元素上的
-   `::-webkit-scrollbar` 定制族——照搬 Vue2 那套等于引入死代码。 */
+/* fix round 1 · M2 (task-8 review: a debt T6 left on the books, this task actually introduces
+   4 scrollable sections, so it's settled now): Vue2 scss:161-166 (sv-detail-layout) +
+   :167-172 (sv-detail-main) + :187-194 (sv-detail-side base look). --line → --divider,
+   --surface-1 → --panel-bg-solid (precedent PlaceDetailPanel.vue:38/312: the same kind of
+   "permanent solid sidebar beside content" -- not --popup-bg, which is reserved for floating
+   layers).
+   **Decision: do NOT port Vue2 scss:195-209's `::-webkit-scrollbar` scrollbar styling (accent
+   gradient thumb / 10px wide / accent 6% track); `.sv-detail-main`/`.sv-detail-side` both just
+   use `overflow-y: auto` and leave it to the browser's default scrollbar.** Reasoning: this
+   branch's convention is to only hide scrollbars (`scrollbar-width: none` / `display: none`),
+   not to repaint them -- existing precedent at `PhotosGrid.vue:420`, `PhotoFilmstrip.vue`,
+   `PhotosPersonDetail.vue:1041`; `theme.css` already has a global thin-scrollbar fallback; and
+   SP5-P6 proved that once an element picks up the standard `scrollbar-width`/`scrollbar-color`
+   on Chrome 121+, the browser disables the entire `::-webkit-scrollbar` customisation family on
+   that element -- porting Vue2's version wholesale would just introduce dead code. */
 .sv-detail-layout { display: grid; grid-template-columns: 1fr 320px; flex: 1 1 auto; min-height: 0; }
 .sv-detail-main { min-width: 0; overflow-y: auto; padding-bottom: 60px; }
-/* 底色订正(真机截图:整条右栏在玻璃壳上显示成一块黑板)。原先按 T6 的映射走
-   `--surface-1` → `--panel-bg-solid`,援引的先例是 PlaceDetailPanel —— 但那条先例是
-   **功能性**的:它压在 PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。
-   本栏底下没有地图、只有区域壳,不透明实底就只剩"与自己所在的区域不一致"这一个效果:
-   同区常驻侧栏 PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 / PersonPlacesTab:188
-   全是 `var(--panel-bg)`。改用玻璃底,与它们一致。
-   `--panel-bg-solid` 的消费方白名单见 views/__tests__/photosGlassSurfaces.test.ts。 */
+/* Background colour correction (real-device screenshot: the whole right rail rendered as a
+   featureless dark slab over the glass shell). It originally followed T6's mapping,
+   `--surface-1` → `--panel-bg-solid`, citing PlaceDetailPanel as precedent -- but that
+   precedent is **functional**: it sits over PlacesMap's canvas, and translucency would let the
+   map's grid dots show through (P6b real-device acceptance feedback). This rail has no map
+   underneath, only the area shell, so an opaque solid fill only produces one effect here:
+   "inconsistent with the area it sits in" -- the other permanent sidebars in the same area,
+   PhotosSidebar:119 / PlacesRail:200 / PhotoInfoPanel:175 / PersonPlacesTab:188, are all
+   `var(--panel-bg)`. Switched to the glass background to match them.
+   `--panel-bg-solid`'s consumer allowlist is in views/__tests__/photosGlassSurfaces.test.ts. */
 .sv-detail-side {
   border-left: 1px solid var(--divider); background: var(--panel-bg);
   overflow-y: auto; padding: 20px 18px 40px; min-height: 4px;
 }
 
-/* ── 导出结果浮条(scss:458-476)── */
+/* ── Export-result floating bar (scss:458-476) ── */
 .sv-toast {
   position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
   display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px;
@@ -1564,8 +1587,9 @@ async function onExcludedTileClick(id: string): Promise<void> {
 .sv-toast-fade-enter-active, .sv-toast-fade-leave-active { transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1); }
 .sv-toast-fade-enter-from, .sv-toast-fade-leave-to { opacity: 0; transform: translate(-50%, 8px); }
 
-/* ── 删除确认(scss 无独立区块;照 PhotoLightbox.vue 的 .lb-confirm-* 视觉先例,类名
-     另起 sv-confirm-* 避免与灯箱同名样式混淆,见模板处注释)── */
+/* ── Delete confirmation (no dedicated block in scss; matches PhotoLightbox.vue's own
+     .lb-confirm-* visual precedent, class names use sv-confirm-* instead to avoid confusion
+     with the lightbox's same-named styles -- see the comment at the template site) ── */
 .sv-confirm-scrim {
   position: fixed; inset: 0; z-index: 220; background: var(--overlay-bg); backdrop-filter: var(--overlay-blur);
   display: flex; align-items: center; justify-content: center; padding: 40px 20px;
@@ -1619,14 +1643,16 @@ async function onExcludedTileClick(id: string): Promise<void> {
 /* Both buttons are disabled while the conversion is in flight (the delete dialog above never
    disables either), so this pair only ever shows up on the convert confirmation. */
 .sv-confirm-cancel:disabled, .sv-confirm-ok:disabled { opacity: 0.6; cursor: not-allowed; }
-/* fix round 1 · I2:Vue2 :239 包 `<transition name="lb-confirm">`,规则在
-   photos.scss:702-707(opacity + scale(0.95),200ms)。类名不沿用 `lb-confirm`(同上方
-   scrim/panel 命名理由,避免与 PhotoLightbox.vue 已有的同名 transition 混淆)。 */
+/* fix round 1 · I2: Vue2 :239 wraps a `<transition name="lb-confirm">`, with the rule at
+   photos.scss:702-707 (opacity + scale(0.95), 200ms). Class names don't reuse `lb-confirm`
+   (same naming rationale as the scrim/panel above, to avoid confusion with
+   PhotoLightbox.vue's existing same-named transition). */
 .sv-confirm-enter-active, .sv-confirm-leave-active { transition: opacity 0.2s, transform 0.2s; }
 .sv-confirm-enter-from, .sv-confirm-leave-to { opacity: 0; transform: scale(0.95); }
 
-/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态);详情页自己的两列(内容/右栏)同样
-   塌成单列,右栏排到内容下方。 */
+/* ≤768px: the sidebar is already tucked into a drawer, layout is single-column (this area's
+   established shape); the detail page's own two columns (content/right rail) likewise
+   collapse to a single column, with the right rail falling below the content. */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
   .sv-detail-layout { grid-template-columns: 1fr; }

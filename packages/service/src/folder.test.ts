@@ -76,7 +76,7 @@ describe('createFolder', () => {
     expect(params).toEqual({ path: '/DATA/x' })
   })
 
-  it('条目的 size 字段被保留(OSSelector 自定义区要显示文件大小)', async () => {
+  it('the entry\'s size field is preserved (the OSSelector custom area needs to display file size)', async () => {
     const http = { get: vi.fn().mockResolvedValue({ data: { success: 200, data: { content: [
       { name: 'alpine.iso', path: '/DATA/alpine.iso', is_dir: false, is_symlink: false, size: 1048576 },
     ] } } }) }

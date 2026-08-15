@@ -1,11 +1,11 @@
 import type { AxiosInstance } from 'axios'
 
 /**
- * wiki 域 —— NimoOS-Wiki 服务,Gateway 直达 `/v1/wiki/*`(不经 NimoOS-AI)。
- * 1:1 移植自 Vue2 `src/service/wiki.js`(99 行)。
- * ⚠️ 设备现状(2026-07-31):`file_events` 1.42 亿行 + `pkg/db/db.go:29`
- * SetMaxOpenConns(1) → `/roots`、`/tree`、`/node` 实测超时(60 s axios timeout);
- * `/candidates`、`/raw` 200。见设计 §6.3。本域实现与单测不受影响。
+ * wiki domain —— the NimoOS-Wiki service, reached directly by the Gateway at `/v1/wiki/*` (not via NimoOS-AI).
+ * Ported 1:1 from Vue2 `src/service/wiki.js` (99 lines).
+ * Warning: device state as of 2026-07-31: `file_events` has 142 million rows + `pkg/db/db.go:29`
+ * SetMaxOpenConns(1) → `/roots`, `/tree`, `/node` time out in practice (60 s axios timeout);
+ * `/candidates`, `/raw` return 200. See design §6.3. This domain's implementation and unit tests are unaffected.
  */
 
 export interface WikiRoot {
@@ -22,16 +22,16 @@ export interface WikiRoot {
 }
 
 /**
- * getCandidates() 的元素形状 —— **声明式断言,不是运行时保证**:
- * 蓝本 `wiki.js:77` 的行尾注释写 `// [{path, type, size, label}]`,`getCandidates`
- * 本身 `return r.data || []` 原样透传、不做任何归一化,所以这个类型只是给 TS 一个
- * 标注,后端字段真变了也不会在这里报错。
- * 已回后端复核(2026-08-01,只读,未改 NimoOS-Wiki 仓):
- * `NimoOS-Wiki/service/roots/candidates.go:13-18` 的 `Candidate` struct 与蓝本注释
- * 完全吻合 —— `Path`/`Type` 恒有(json tag 无 omitempty),`Size`/`Label` 是
- * `omitempty`(值为零/空时整个键缺失,不是空字符串/0)。
- * ⚠️ 设计 §6.3 实测:设备上 `/candidates` 现状回 `[]`(它不查库,只是当前无候选)—
- * **没有真机非空样本可对**,这条类型完全靠蓝本注释 + 后端源码推导,未经真机验证。
+ * Element shape of getCandidates() —— **a declarative assertion, not a runtime guarantee**:
+ * the blueprint's `wiki.js:77` trailing comment says `// [{path, type, size, label}]`, and `getCandidates`
+ * itself does `return r.data || []`, passing the data straight through with no normalization at all, so this type is only an annotation for TS —
+ * if the backend field actually changes, nothing here will catch it.
+ * Cross-checked against the backend (2026-08-01, read-only, did not modify the NimoOS-Wiki repo):
+ * the `Candidate` struct at `NimoOS-Wiki/service/roots/candidates.go:13-18` matches the blueprint comment
+ * exactly —— `Path`/`Type` are always present (no omitempty json tag), while `Size`/`Label` are
+ * `omitempty` (when the value is zero/empty the whole key is absent, not an empty string/0).
+ * Warning: design §6.3 in practice: on-device `/candidates` currently returns `[]` (it doesn't query the DB, there are simply no candidates right now) —
+ * **there is no real-device non-empty sample to check against**, so this type is derived entirely from the blueprint comment + backend source, unverified against a real device.
  */
 export interface WikiCandidate {
   path: string
@@ -173,13 +173,13 @@ export function createWiki(http: AxiosInstance) {
       return typeof res.data === 'string' ? res.data : String(res.data == null ? '' : res.data)
     },
 
-    /* SP8-P5a Task 2 结构性偏离(评审裁定合理): 蓝本 wiki.js:93-96 的这四个
-     * 方法是 `return api.post(...)` / `return api.delete(...)` 等,直接把
-     * axios 响应对象原样交给调用方(调用方自己再取 `.data`)。本包统一改成
-     * `await` + `return res.data`,把「剥一层信封」的职责收进包内,与本文件
-     * 其余方法(getRoots/getNode/…)及 T1 notes.ts 的既定分层一致(K1:
-     * 单层取数——消费端不应再剥一层)。请求 verb/URL/body 逐行照抄蓝本,
-     * 只挪了「解包」这一步,不是行为改动。*/
+    /* SP8-P5a Task 2 structural deviation (review deemed reasonable): these four
+     * methods in the blueprint wiki.js:93-96 are `return api.post(...)` / `return api.delete(...)` etc, handing the
+     * axios response object straight to the caller as-is (the caller then takes `.data` itself). This package uniformly changes them to
+     * `await` + `return res.data`, pulling the "strip one envelope layer" responsibility into the package, consistent with this file's
+     * other methods (getRoots/getNode/…) and T1 notes.ts's established layering (K1:
+     * single-layer data retrieval —— the consumer shouldn't have to strip another layer). Request verb/URL/body are copied line-for-line from the blueprint,
+     * only the "unwrap" step was moved; this is not a behavior change. */
     async createRoot(body: Record<string, unknown>): Promise<unknown> {
       const res = await http.post(`${PREFIX}/roots`, body)
       return res.data

@@ -133,13 +133,13 @@ const allSources: Array<{ rel: string; text: string }> = [
   ...vueUnscopedFiles,
 ]
 
-describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名劫持复发)', () => {
-  it('至少扫描到了预期的几处来源(守卫不能悄悄扫空)', () => {
+describe('global @keyframes name-uniqueness guard (prevents a recurrence of pulse hijacking theme.css)', () => {
+  it('scanned at least the expected number of sources (the guard must not silently scan nothing)', () => {
     expect(cssFiles.length).toBeGreaterThan(0)
     expect(parityFiles.length).toBeGreaterThan(0)
   })
 
-  it('所有非 scoped 来源里的 @keyframes 名称不冲突(同名必须同体,否则判定为劫持风险)', () => {
+  it('no @keyframes name conflicts across non-scoped sources (a shared name must share a body, or it counts as a hijack risk)', () => {
     const byName = new Map<string, KeyframeHit[]>()
     for (const { rel, text } of allSources) {
       for (const hit of extractKeyframes(text, rel)) {
@@ -161,7 +161,7 @@ describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名
       const bodies = new Set(hits.map((h) => normalize(h.body)))
       if (bodies.size > 1) {
         offenders.push(
-          `  @keyframes ${name} 在以下文件中被定义为不同内容(名称冲突,后加载的会静默覆盖先加载的):\n` +
+          `  @keyframes ${name} is defined with different bodies in the following files (name collision — whichever loads last silently overrides the earlier one):\n` +
             hits.map((h) => `    - ${h.file}`).join('\n'),
         )
       }
@@ -169,8 +169,8 @@ describe('全局 @keyframes 名称唯一性守卫(防 pulse 与 theme.css 同名
 
     expect(
       offenders,
-      `\n发现 @keyframes 名称冲突(不同文件用同一个名字定义了不同的动画 —— 这正是本条守卫要防的
-Critical#1 复发:parity 的 pulse 曾经就是这样劫持了 theme.css 的全局 pulse / AiWidget 的轨道呼吸动画):\n${offenders.join(
+      `\nFound @keyframes name collisions (different files define different animations under the same name — this is exactly what this guard exists to prevent
+Recurrence of Critical#1: parity's pulse once hijacked theme.css's global pulse / AiWidget's orb breathing animation this same way):\n${offenders.join(
         '\n',
       )}`,
     ).toEqual([])

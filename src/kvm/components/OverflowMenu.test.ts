@@ -106,9 +106,9 @@ describe('inline double-confirmation', () => {
 
   it('confirmation state on stop transfers to restart when clicked, does not accidentally trigger stop', async () => {
     const w = mk(VM('running'))
-    await clickByText(w, '强制关机')          // stop 进入待确认
+    await clickByText(w, '强制关机')          // stop enters pending confirmation
     const restart = w.findAll('.dropdown-item').find((x) => x.text().includes('强制重启'))!
-    await restart.trigger('click')            // 点了另一项
+    await restart.trigger('click')            // clicked a different item
     expect(w.emitted('action')).toBeUndefined()
     expect(restart.text()).toContain('你确定吗？')
   })

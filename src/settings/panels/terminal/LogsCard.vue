@@ -1,12 +1,15 @@
 <script setup lang="ts">
-// 设置 · 终端与日志 —— 日志卡。对位 Vue2 components/logsAndTerminal/LogsCard.vue(111 行)。
-// 移植纪律(登记):Vue2 用 v-html 把服务端日志原文当 HTML 渲染 —— 日志里有用户可控内容
-//   (文件名/路径)时是注入面。这里用文本插值 + white-space: pre-wrap,视觉结果一致。
+// Settings · Terminal & Logs -- the logs card. Maps to Vue2 components/logsAndTerminal/LogsCard.vue (111 lines).
+// Porting discipline (logged): Vue2 uses v-html to render the raw server log text as HTML --
+//   an injection surface when the log contains user-controllable content (filenames/paths).
+//   Here we use text interpolation + white-space: pre-wrap instead, with the same visual result.
 //
-// 2026-08 机主验收 SP9-P3:改用 apps/console/LogsPane.vue 同一套展示壳(components/ui/
-// LogConsole.vue),不再自成一套外观 —— 深色控制台底 + 圆角 + 右上角浮动工具条 + 贴底自动
-// 滚动都与应用控制台一致。原先 .set-logs 的 padding-top: 52px 硬编码撑距离已废,改由
-// LogConsole 的 --log-console-* 自定义属性覆盖(见 settings.css .set-logs-wrap 处的注释)。
+// 2026-08 owner acceptance SP9-P3: switched to the same display shell as apps/console/LogsPane.vue
+// (components/ui/LogConsole.vue) instead of maintaining its own look -- the dark console
+// background + rounded corners + floating toolbar in the top-right corner + auto-scroll-to-bottom
+// now all match the app console. The old hardcoded .set-logs padding-top: 52px spacer is gone,
+// replaced by LogConsole's --log-console-* custom properties (see the comment at
+// .set-logs-wrap in settings.css).
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import LogConsole from '../../../components/ui/LogConsole.vue'

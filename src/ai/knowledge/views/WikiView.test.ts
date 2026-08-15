@@ -406,8 +406,8 @@ describe('WikiView — fixture copy self-check (N46: HTTP original snake_case �
   it('🔴 no __meta in fixture copy at all (ruling R14: take only data fields, convert source to comment)', () => {
     for (const n of TREE_RAW_NORMAL) expect(Object.keys(n)).not.toContain('__meta')
     for (const r of ROOTS_NORMALIZED) expect(Object.keys(r)).not.toContain('__meta')
-    expect(TREE_RAW_NORMAL.length, '抄本为空 —— 防空转').toBe(3)
-    expect(ROOTS_NORMALIZED.length, '抄本为空 —— 防空转').toBe(2)
+    expect(TREE_RAW_NORMAL.length, 'fixture copy is empty — guards against a no-op').toBe(3)
+    expect(ROOTS_NORMALIZED.length, 'fixture copy is empty — guards against a no-op').toBe(2)
   })
 
   it('🔴 tree fixture copy is HTTP original snake_case (`ai_label` / `last_modified`), not camelCase', () => {
@@ -865,7 +865,7 @@ describe('WikiView — N56 deep link second half: watch without immediate (bluep
     const d = makeDeferred<WikiTreeNode[]>()
     wiki.getTree.mockReturnValue(d.promise)
     const { w } = await mountPage({ query: { path: '/DATA/Documents' } })
-    expect(w.find('.kw-crumb').exists(), '树还没回包就选中了').toBe(false)
+    expect(w.find('.kw-crumb').exists(), 'tree has not responded yet but something already got selected').toBe(false)
     expect(wiki.getNode).not.toHaveBeenCalled()
     d.resolve(TREE_NORMAL.map((n) => ({ ...n })))
     await flush()
@@ -1202,7 +1202,7 @@ function extractTemplate(src: string): { tmpl: string; byLine: string; tail: str
   const OPEN = '<template>\n'
   const CLOSE = '\n</template>'
   const EMPTY = { tmpl: '', byLine: '', tail: '' }
-  // 🔴 第 0 列锚定:只认「行首 + `<template>` + 换行」这一种形态。
+  // 🔴 Column-0 anchoring: accept only one shape — line start + `<template>` + newline.
   let openAt = -1
   for (let i = src.indexOf(OPEN); i >= 0; i = src.indexOf(OPEN, i + 1)) {
     if (i === 0 || src[i - 1] === '\n') {
@@ -1214,7 +1214,7 @@ function extractTemplate(src: string): { tmpl: string; byLine: string; tail: str
   if (openAt < 0 || closeAt <= openAt) return EMPTY
   const tmpl = src.slice(openAt + OPEN.length, closeAt)
 
-  // ── 独立推导:逐行扫(与上面的字符串推导互不复用)──
+  // ── Independent derivation: line-by-line scan (does not reuse the string derivation above) ──
   const lines: string[] = src.split('\n')
   const openLine = lines.findIndex((l: string) => l === '<template>')
   let closeLine = -1
@@ -1382,10 +1382,10 @@ function useNodeFixture(): void {
 //    (that "just forwards renderMarkdown" assertion is in T3's `wikiViewHelpers.test.ts`, different layer).
 describe('WikiView — §9.15 v-html XSS surface (real renderMarkdown + real DOM)', () => {
   it('🔴 prerequisite self-proof: `renderMarkdown` **not** mocked (criterion: whoever vi.mocks it, this fails immediately)', () => {
-    expect(vi.isMockFunction(renderMarkdown), 'renderMarkdown 被 mock 了 —— XSS 用例退化成安慰剂').toBe(
+    expect(vi.isMockFunction(renderMarkdown), 'renderMarkdown was mocked — the XSS test degrades into a placebo').toBe(
       false,
     )
-    // 真渲染产物自检:真实现会把 markdown 变成 HTML(mock 出来的空壳不会)。
+    // Real-render output self-check: the real implementation turns markdown into HTML (a mocked-out shell would not).
     expect(renderMarkdown('# hi')).toContain('<h1>')
     expect(renderMarkdown('')).toBe('')
   })
@@ -1405,7 +1405,7 @@ describe('WikiView — §9.15 v-html XSS surface (real renderMarkdown + real DOM
     wiki.getRaw.mockResolvedValue(evil)
     const { w } = await mountPage()
     const summary = w.find('.kw-summary')
-    expect(summary.exists(), '摘要区没渲染 —— 本条测不到 v-html').toBe(true)
+    expect(summary.exists(), 'summary section did not render — this case cannot exercise v-html').toBe(true)
     const el = summary.element as HTMLElement
 
     // ① no <script> allowed (entire page scope).
@@ -1420,7 +1420,7 @@ describe('WikiView — §9.15 v-html XSS surface (real renderMarkdown + real DOM
     expect(el.querySelector('h1')?.textContent).toBe('标题仍在')
     expect(el.querySelector('li')?.textContent).toBe('列表项仍在')
     expect(el.querySelector('code')?.textContent).toBe('inline code 仍在')
-    // ④ 危险串以**转义后的纯文本**留在页面上(证明它确实被喂进来了,不是没到达)。
+    // ④ The dangerous string survives on the page as **escaped plain text** (proving it really was fed in, not that it never arrived).
     expect(el.textContent).toContain('alert(1)')
   })
 
@@ -1449,7 +1449,7 @@ describe('WikiView — §9.15 v-html XSS surface (real renderMarkdown + real DOM
     const pre = w.find('pre.kw-rawsrc')
     expect(pre.exists()).toBe(true)
     expect(pre.text()).toContain('<script>alert(2)</script>')
-    expect((pre.element as HTMLElement).querySelectorAll('*').length, 'pre 里冒出了子元素').toBe(0)
+    expect((pre.element as HTMLElement).querySelectorAll('*').length, 'child elements appeared inside <pre>').toBe(0)
   })
 })
 
@@ -1510,7 +1510,7 @@ describe('WikiView — showSource toggle button text (blueprint :137-139)', () =
     expect(norm(btn().text())).toBe('查看原文 →')
     await btn().trigger('click')
     await flush()
-    expect(norm(btn().text()), '切到源码视图后按钮该变成「渲染视图」').toBe('渲染视图 →')
+    expect(norm(btn().text()), 'after switching to source view, the button should read "Rendered view"').toBe('渲染视图 →')
     await btn().trigger('click')
     await flush()
     expect(norm(btn().text()), 'clicking again should flip back').toBe('查看原文 →')
@@ -1584,8 +1584,8 @@ describe('WikiView — childMap directory section (blueprint :97-117)', () => {
     useNodeFixture()
     const { w } = await mountPage()
     const metas = w.findAll('.kw-child-meta').map((n) => norm(n.text()))
-    expect(metas[0], 'Documents 的 last_modified 是 10:12,离 12:12 正好 2 小时').toBe('2 小时前')
-    expect(metas[3], 'Archive 的 last_modified 缺席 ⇒ 归一成空串 ⇒ 这一格必须是空的').toBe('')
+    expect(metas[0], 'Documents last_modified is 10:12, exactly 2 hours before 12:12').toBe('2 小时前')
+    expect(metas[3], 'Archive last_modified is absent ⇒ normalizes to an empty string ⇒ this cell must be empty').toBe('')
   })
 
   it('🔴 `childClick` branch A — byPath matches ⇒ `select(full)` (criterion: change to always openFileInNewTab → fails)', async () => {
@@ -1608,7 +1608,7 @@ describe('WikiView — childMap directory section (blueprint :97-117)', () => {
     await flush()
     expect(openFileInNewTab).toHaveBeenCalledTimes(1)
     expect(openFileInNewTab).toHaveBeenCalledWith('/DATA/notes.md')
-    // 选中没动(没有 select 到一个树里不存在的路径)。
+    // Selection did not move (never selects a path that does not exist in the tree).
     expect(norm(w.find('.kw-crumb .cur').text())).toBe('/DATA')
   })
 
@@ -1655,10 +1655,10 @@ describe('WikiView — changes recent changes (blueprint :119-132 / :198-208)', 
   it('🔴 `.slice(0, 10)` limit: copy has 12 items only render 10 (criterion: remove slice → must fail)', async () => {
     useNodeFixture()
     const { w } = await mountPage()
-    expect(NODE_DATA.recentChanges.length, '前置:抄本必须是 12 条').toBe(12)
+    expect(NODE_DATA.recentChanges.length, 'prerequisite: the fixture copy must have 12 items').toBe(12)
     const rows = w.findAll('.kw-change')
-    expect(rows.length, 'changes 没有 slice(0, 10) —— 12 条全渲染出来了').toBe(10)
-    // 第 11、12 条(a11 / a12)不许出现。
+    expect(rows.length, 'changes has no slice(0, 10) — all 12 items rendered').toBe(10)
+    // Items 11 and 12 (a11 / a12) must not appear.
     const names = rows.map((r) => r.find('.kw-change-name').text())
     expect(names).not.toContain('Documents/a11.md')
     expect(names).not.toContain('Documents/a12.md')
@@ -1666,22 +1666,22 @@ describe('WikiView — changes recent changes (blueprint :119-132 / :198-208)', 
     expect(names[9]).toBe('Documents/a10.md')
   })
 
-  it('🔴 前缀剥离两侧:命中根前缀 → 相对路径;不命中 → 全路径(title 恒为全路径)', async () => {
+  it('🔴 prefix stripping both sides: hits root prefix → relative path; misses → full path (title always full path)', async () => {
     useNodeFixture()
     const { w } = await mountPage()
     const rows = w.findAll('.kw-change')
-    // 命中侧:root.path = '/DATA' ⇒ prefix '/DATA/' 被剥掉。
+    // Hit side: root.path = '/DATA' ⇒ prefix '/DATA/' gets stripped.
     expect(rows[0]!.find('.kw-change-name').text()).toBe('Documents/a1.md')
     expect(rows[0]!.find('.kw-change-name').attributes('title')).toBe('/DATA/Documents/a1.md')
-    // 不命中侧:'/outside/a6.md' 不以 '/DATA/' 开头 ⇒ 原样显示全路径。
+    // Miss side: '/outside/a6.md' does not start with '/DATA/' ⇒ shows the full path as-is.
     expect(
       rows[5]!.find('.kw-change-name').text(),
-      '跨根条目被错误地剥了前缀',
+      'cross-root entry had its prefix stripped incorrectly',
     ).toBe('/outside/a6.md')
     expect(rows[5]!.find('.kw-change-name').attributes('title')).toBe('/outside/a6.md')
   })
 
-  it('🔴 owningRoot 为 null ⇒ prefix 为空串 ⇒ 一条都不剥(前缀剥离的第三侧)', async () => {
+  it('🔴 owningRoot is null ⇒ prefix is empty string ⇒ nothing gets stripped (third side of prefix stripping)', async () => {
     wiki.getRoots.mockResolvedValue([])
     useNodeFixture()
     const { w, store } = await mountPage()
@@ -1689,46 +1689,46 @@ describe('WikiView — changes recent changes (blueprint :119-132 / :198-208)', 
     expect(w.findAll('.kw-change-name')[0]!.text()).toBe('/DATA/Documents/a1.md')
   })
 
-  it('🔴 `opToType(c.op)` → `data-type`(四个已知值 + 未知值兜底 mod)', async () => {
+  it('🔴 `opToType(c.op)` → `data-type` (four known values + fallback to mod for unknown)', async () => {
     useNodeFixture()
     const { w } = await mountPage()
     const types = w.findAll('.kw-change').map((r) => r.attributes('data-type'))
-    // a1 create → add · a2 modify → mod · a3 delete → del · a4 rename → ren · a5 chmod(未知)→ mod
+    // a1 create → add · a2 modify → mod · a3 delete → del · a4 rename → ren · a5 chmod (unknown) → mod
     expect(types.slice(0, 6)).toEqual(['add', 'mod', 'del', 'ren', 'mod', 'mod'])
   })
 
-  it('🔴 `c.at ? fmtAgo(parseTs(c.at)) : ""` 两侧', async () => {
+  it('🔴 `c.at ? fmtAgo(parseTs(c.at)) : ""` both sides', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-05T12:00:00+08:00'))
-    // 🔴 抄本的空 `at` 那条(a12)排在第 12 位,被 slice(0,10) 切掉了 ⇒ 这里从抄本里
-    //    **逐字挑出两条**(a1 有 at / a12 无 at)组成一个 2 条的 recentChanges,值一字未改。
+    // 🔴 The fixture copy's empty-`at` entry (a12) sits at position 12 and gets cut off by slice(0,10) ⇒ here we
+    //    **pick two entries verbatim** from the fixture (a1 has at / a12 does not) to build a 2-item recentChanges, values unchanged.
     const picked = [NODE_DATA.recentChanges[0]!, NODE_DATA.recentChanges[11]!]
     expect(picked[0]!.at).toBe('2026-08-05T11:00:00+08:00')
-    expect(picked[1]!.at, '前置:第 12 条的 at 必须是空串').toBe('')
+    expect(picked[1]!.at, 'prerequisite: at for entry 12 must be an empty string').toBe('')
     wiki.getNode.mockImplementation((p: string) =>
       Promise.resolve(p === '/DATA' ? { ...NODE_DATA, recentChanges: picked } : nodeFor(p)),
     )
     const { w } = await mountPage()
     const times = w.findAll('.kw-change-time').map((n) => norm(n.text()))
-    expect(times[0], 'at 非空 ⇒ 该走 fmtAgo').toBe('1 小时前')
-    expect(times[1], 'at 为空串 ⇒ 这一格必须是空的(不是「—」也不是 1970)').toBe('')
+    expect(times[0], 'at is non-empty ⇒ should go through fmtAgo').toBe('1 小时前')
+    expect(times[1], 'at is an empty string ⇒ this cell must be empty (not "—" and not 1970)').toBe('')
   })
 
-  // 🔴 参数化守卫 —— §9.14-4 防空循环:先钉死用例条数,再逐条 it。
+  // 🔴 Parameterized guard — §9.14-4 empty-loop prevention: pin down the case count first, then go case by case with it.
   const OP_LABEL_CASES: Array<{ op: string; zh: string }> = [
     { op: 'create', zh: '新增' },
     { op: 'modify', zh: '更新' },
     { op: 'delete', zh: '已删除' },
     { op: 'rename', zh: '重命名' },
-    { op: 'chmod', zh: '更新' }, // 未知 op 兜底 → 'Updated'(蓝本 :205)
+    { op: 'chmod', zh: '更新' }, // unknown op falls back to 'Updated' (blueprint :205)
   ]
-  it('🔴 参数化守卫防空循环:OP_LABEL_CASES 必须正好 5 条(否则下面的 it.each 是空转)', () => {
+  it('🔴 parameterized guard empty-loop prevention: OP_LABEL_CASES must have exactly 5 entries (else the it.each below is a no-op)', () => {
     expect(OP_LABEL_CASES.length).toBe(5)
     expect(new Set(OP_LABEL_CASES.map((c) => c.op)).size).toBe(5)
   })
 
   it.each(OP_LABEL_CASES)(
-    '🔴 OP_LABEL_KEYS —— op=$op 的标签文案是「$zh」',
+    '🔴 OP_LABEL_KEYS — the label copy for op=$op is $zh',
     async ({ op, zh }) => {
       wiki.getNode.mockImplementation((p: string) =>
         Promise.resolve(
@@ -1739,7 +1739,7 @@ describe('WikiView — changes recent changes (blueprint :119-132 / :198-208)', 
       )
       const { w } = await mountPage()
       const rows = w.findAll('.kw-change')
-      expect(rows.length, `op=${op} 那一行没渲染出来 —— 本条测不到标签`).toBe(1)
+      expect(rows.length, `op=${op} row did not render — this case cannot exercise the label`).toBe(1)
       expect(norm(rows[0]!.find('.kw-change-type').text())).toBe(zh)
     },
   )
@@ -1759,7 +1759,7 @@ describe('WikiView — rescan() (blueprint :295-307)', () => {
   /** `<script setup>` setup binding readable from `w.vm` under VTU (T6 proven readable/writable). */
   function rescanOf(w: ReturnType<typeof mount>): () => Promise<void> {
     const vm = w.vm as unknown as { rescan: () => Promise<void> }
-    expect(typeof vm.rescan, 'rescan 没暴露到 vm —— 本组的函数门用例全部失效').toBe('function')
+    expect(typeof vm.rescan, 'rescan not exposed on vm — every function-gate case in this group is void').toBe('function')
     return vm.rescan
   }
 
@@ -1782,40 +1782,40 @@ describe('WikiView — rescan() (blueprint :295-307)', () => {
     ).not.toHaveBeenCalled()
   })
 
-  it('🔴 rescanBusy 在飞 ⇒ 第二发不发(函数门;判据:去掉 `|| rescanBusy` → 本条必须报红)', async () => {
+  it('🔴 rescanBusy in flight ⇒ second call does not fire (function gate; criterion: remove `|| rescanBusy` → this case must fail red)', async () => {
     wiki.getRaw.mockRejectedValue(httpError(404))
     const { w, store } = await mountPage()
     const d = makeDeferred<void>()
     const rescanRoot = vi.spyOn(store, 'rescanRoot').mockReturnValue(d.promise)
     const rescan = rescanOf(w)
-    const p1 = rescan() // 第一发,挂起
-    const p2 = rescan() // 🔴 同步紧跟第二发 —— 必须被函数门挡住
-    expect(rescanRoot, 'rescanBusy 门没挡住第二发').toHaveBeenCalledTimes(1)
+    const p1 = rescan() // first call, in flight
+    const p2 = rescan() // 🔴 second call synchronously right after — must be blocked by the function gate
+    expect(rescanRoot, 'rescanBusy gate did not block the second call').toHaveBeenCalledTimes(1)
     d.resolve()
     await Promise.all([p1, p2])
     await flush()
   })
 
-  it('🔴 对照层:第一发在飞时按钮真的是 `disabled`(UI 侧的那一层)', async () => {
+  it('🔴 control layer: while the first call is in flight the button really is `disabled` (the UI-side layer)', async () => {
     wiki.getRaw.mockRejectedValue(httpError(404))
     const { w, store } = await mountPage()
     const d = makeDeferred<void>()
     vi.spyOn(store, 'rescanRoot').mockReturnValue(d.promise)
     const btn = w.find('.kw-pending button')
-    expect((btn.element as HTMLButtonElement).hasAttribute('disabled'), '起手不该是 disabled').toBe(
+    expect((btn.element as HTMLButtonElement).hasAttribute('disabled'), 'should not start out disabled').toBe(
       false,
     )
     await btn.trigger('click')
     await nextTick()
     expect(
       (w.find('.kw-pending button').element as HTMLButtonElement).hasAttribute('disabled'),
-      'rescanBusy 期间按钮没变 disabled',
+      'button did not become disabled during rescanBusy',
     ).toBe(true)
     d.resolve()
     await flush()
   })
 
-  it('🔴 成功 → `rescanRoot(root.id)` + 「已开始重新扫描」toast(点真按钮,§9.17 先证可点)', async () => {
+  it('🔴 success → `rescanRoot(root.id)` + "Rescan started" toast (click the real button, §9.17 proves it is clickable first)', async () => {
     wiki.getRaw.mockRejectedValue(httpError(404))
     const { w, store } = await mountPage()
     const rescanRoot = vi.spyOn(store, 'rescanRoot').mockResolvedValue(undefined)
@@ -1825,13 +1825,13 @@ describe('WikiView — rescan() (blueprint :295-307)', () => {
     expect((btn.element as HTMLButtonElement).hasAttribute('disabled')).toBe(false)
     await btn.trigger('click')
     await flush()
-    // 🔴 id 而不是 path —— 传错了后端 404,而三门不会响。
+    // 🔴 id, not path — passing the wrong one 404s on the backend, and none of the three gates would react.
     expect(rescanRoot).toHaveBeenCalledWith('dfcd1840f5dab439cd9d7050aa5bafd0')
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast.mock.calls[0]![0]).toBe('已开始重新扫描')
   })
 
-  it('🔴 失败 → 「操作失败」toast,且**不回显后端 body**(K58 形态 A)', async () => {
+  it('🔴 failure → "Operation failed" toast, and **does not echo the backend body** (K58 form A)', async () => {
     wiki.getRaw.mockRejectedValue(httpError(404))
     const { w, store } = await mountPage()
     vi.spyOn(store, 'rescanRoot').mockRejectedValue(new Error('PROBE-T7-RESCAN-500'))
@@ -1841,10 +1841,10 @@ describe('WikiView — rescan() (blueprint :295-307)', () => {
     expect(toast).toHaveBeenCalledTimes(1)
     expect(toast.mock.calls[0]![0]).toBe('操作失败')
     expect(String(toast.mock.calls[0]![0])).not.toContain('PROBE-T7-RESCAN')
-    expect(w.html(), '后端串漏进了页面').not.toContain('PROBE-T7-RESCAN')
+    expect(w.html(), 'backend string leaked into the page').not.toContain('PROBE-T7-RESCAN')
   })
 
-  it('🔴 `finally` 里 rescanBusy 归位:失败之后**还能再发一次**(判据:删掉 finally → 本条必须报红)', async () => {
+  it('🔴 `finally` resets rescanBusy: can fire again after a failure (criterion: remove finally → this case must fail red)', async () => {
     wiki.getRaw.mockRejectedValue(httpError(404))
     const { w, store } = await mountPage()
     const rescanRoot = vi
@@ -1854,14 +1854,14 @@ describe('WikiView — rescan() (blueprint :295-307)', () => {
     const rescan = rescanOf(w)
     await rescan()
     await flush()
-    // 按钮也必须解除 disabled(finally 没归位的话它会永远灰着)。
+    // The button must also become un-disabled (if finally never reset it, it would stay gray forever).
     expect(
       (w.find('.kw-pending button').element as HTMLButtonElement).hasAttribute('disabled'),
-      '失败后按钮还灰着 —— finally 没把 rescanBusy 放回来',
+      'button still gray after failure — finally did not restore rescanBusy',
     ).toBe(false)
     await rescan()
     await flush()
-    expect(rescanRoot, '第二发没发出去 —— rescanBusy 卡死了').toHaveBeenCalledTimes(2)
+    expect(rescanRoot, 'second call never fired — rescanBusy got stuck').toHaveBeenCalledTimes(2)
   })
 })
 
@@ -1886,7 +1886,7 @@ describe('WikiView — kw-foot (blueprint :134-140)', () => {
     )
   })
 
-  it('换选中之后 `{path}` 跟着变(不是挂载时那个)', async () => {
+  it('`{path}` follows along after switching selection (not the one at mount time)', async () => {
     const { w } = await mountPage()
     expect(norm(w.find('.kw-foot').text())).toContain('/DATA/.wiki.md')
     await treeRows(w)[1].trigger('click')
@@ -1910,12 +1910,12 @@ describe('WikiView — kw-sec-en decorator text copy literals (Appendix A §A.4 
   it('🔴 both `kw-sec-en` must be English literals, must not pass through $t()', async () => {
     useNodeFixture()
     const { w } = await mountPage()
-    // 防空转:这两块(目录区 / 最近变更)得真渲染出来,否则下面断的是空数组。
-    expect(w.find('.kw-children').exists(), '前置:目录区没渲染 ⇒ 本条无从判别').toBe(true)
-    expect(w.find('.kw-changes').exists(), '前置:最近变更没渲染 ⇒ 本条无从判别').toBe(true)
+    // Prevent empty loop: these two blocks (directory section / recent changes) must truly render, else what is asserted below is an empty array.
+    expect(w.find('.kw-children').exists(), 'prerequisite: directory section did not render ⇒ this case cannot discriminate').toBe(true)
+    expect(w.find('.kw-changes').exists(), 'prerequisite: recent changes did not render ⇒ this case cannot discriminate').toBe(true)
     expect(
       w.findAll('.kw-sec-en').map((n) => norm(n.text())),
-      'kw-sec-en 被 i18n 化了 —— 蓝本这两处未过 $t(),照抄字面量(附录 A §A.4)',
+      'kw-sec-en got run through i18n — the blueprint never passes these two through $t(), copy the literals as-is (Appendix A §A.4)',
     ).toEqual(['Contents', 'Recent changes'])
   })
 })

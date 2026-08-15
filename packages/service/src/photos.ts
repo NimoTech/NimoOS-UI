@@ -3,8 +3,8 @@ import type { PhotoAsset } from './types.js'
 import { unwrap } from './unwrap.js'
 import type { StdEnvelope } from './types.js'
 
-// Photos v1 后端(同 KVM)不走系统标准信封:裸数组/裸对象直接返回,部分端点 204 空体。
-// 防御性兼容:万一某端点包了标准信封(带数字 success 字段)仍解开。
+// The Photos v1 backend (like KVM) doesn't use the system's standard envelope: bare arrays/bare objects are returned directly, and some endpoints return a 204 empty body.
+// Defensive compatibility: still unwrap if some endpoint ever wraps a standard envelope (a numeric success field).
 function body<T>(d: unknown): T {
   if (d && typeof d === 'object' && !Array.isArray(d) && typeof (d as { success?: unknown }).success === 'number') {
     return unwrap<T>(d as StdEnvelope<T>)
@@ -13,7 +13,7 @@ function body<T>(d: unknown): T {
 }
 
 export function createPhotos(http: AxiosInstance, getToken: () => string | null) {
-  // 统一口径:媒体/导出 URL 一律追加 token(后端对媒体路径本就豁免 JWT,带上无害且兼容转发场景)
+  // Uniform rule: media/export URLs always append token (the backend already exempts media paths from JWT anyway, adding it is harmless and covers proxied scenarios)
   const tokenQ = (sep: '?' | '&') => {
     const t = getToken()
     return t ? `${sep}token=${encodeURIComponent(t)}` : ''
@@ -46,7 +46,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get(`/photos/assets/${id}`)
       return body<PhotoAsset>(res.data)
     },
-    // OCR 行坐标:q 为搜索词时只返回命中行;不带 q 返回全部行(对齐 Vue2 注释)
+    // OCR line coordinates: when q is a search term, only matching lines are returned; without q, all lines are returned (matches the Vue2 comment)
     async getAssetOcr(id: string | number, q?: string): Promise<unknown> {
       const res = await http.get(`/photos/assets/${id}/ocr`, q ? { params: { q } } : undefined)
       return body<unknown>(res.data)
@@ -59,7 +59,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/config')
       return body<Record<string, unknown>>(res.data)
     },
-    // extra: { scenesEnabled, ocrEnabled, smartViewEnabled, scanInterval } — 省略的字段后端保持现值
+    // extra: { scenesEnabled, ocrEnabled, smartViewEnabled, scanInterval } — the backend keeps the current value for any field that's omitted
     async updateConfig(
       watchDirs: string[],
       retentionDays?: number | null,
@@ -87,7 +87,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get('/photos/status')
       return body<Record<string, unknown>>(res.data)
     },
-    // 后端返回 {tasks:[...]} 对象包裹(非裸数组);Vue2 store 自行解包,包内不抽取。
+    // The backend returns an object-wrapped {tasks:[...]} (not a bare array); the Vue2 store unwraps it itself, this package doesn't extract it.
     async listTasks(): Promise<unknown> {
       const res = await http.get('/photos/tasks')
       return body<unknown>(res.data)
@@ -113,8 +113,8 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
     liveUrl(id: string | number): string {
       return `/v1/photos/assets/${id}/live${tokenQ('?')}`
     },
-    // ─── 搜索 ───
-    // offset 须为 limit 整数倍;深页由后端标记 belowCut(对齐 Vue2 注释)
+    // ─── Search ───
+    // offset must be an integer multiple of limit; deep pages are flagged belowCut by the backend (matches the Vue2 comment)
     async smartSearch(query: string, limit = 50, offset = 0, filters: Record<string, unknown> = {}): Promise<unknown> {
       const res = await http.post('/photos/search/smart', { query, limit, offset, filters })
       return body<unknown>(res.data)
@@ -123,7 +123,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.get(`/photos/search/faces/${personId}`, { params: { limit, offset } })
       return body<unknown>(res.data)
     },
-    // ─── 收藏 ───
+    // ─── Favorites ───
     async listFavoriteIds(): Promise<unknown[]> {
       const res = await http.get('/photos/favorites/ids')
       return body<unknown[]>(res.data)
@@ -146,16 +146,16 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/views/${assetId}`, {})
       return body<unknown>(res.data)
     },
-    // Vue2 此处误传 { params: { limit } } 作 params(发出 params[limit]=N,后端走默认)——包内修正为正确形态
+    // Vue2 mistakenly passed { params: { limit } } as params here (sends params[limit]=N, backend falls back to its default) —— fixed to the correct shape in this package
     async topFavorites(limit = 5): Promise<unknown> {
       const res = await http.get('/photos/favorites/top', { params: { limit } })
       return body<unknown>(res.data)
     },
-    // 浏览器原生下载用,token 走注入的 getToken(Vue2 版直读 localStorage)
+    // For native browser downloads; token goes through the injected getToken (the Vue2 version reads localStorage directly)
     exportFavoritesUrl(): string {
       return `/v1/photos/favorites/export${tokenQ('?')}`
     },
-    // ─── 相册 ───
+    // ─── Albums ───
     // SP15-P2c Task 2. Same GET + token shape as exportFavoritesUrl above: the backend serves
     // this as a plain download URL the browser navigates to, and Photos exempts the
     // `/albums/:id/export` suffix from JWT so the query token is the only credential
@@ -200,8 +200,8 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.patch(`/photos/albums/${id}/assets/order`, { assetIds })
       return body<unknown>(res.data)
     },
-    // ─── 人物 ───
-    // 后端返回 {persons, facesIndexedUpTo} 对象包裹(非裸数组);Vue2 store 自行解包,包内不抽取。
+    // ─── Persons ───
+    // The backend returns an object-wrapped {persons, facesIndexedUpTo} (not a bare array); the Vue2 store unwraps it itself, this package doesn't extract it.
     async listPersons(): Promise<unknown> {
       const res = await http.get('/photos/persons')
       return body<unknown>(res.data)
@@ -267,13 +267,13 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       return body<unknown>(res.data)
     },
     personFaceThumbnailUrl(id: string | number, ver?: string | number | null): string {
-      // ver = coverFaceId,换封面后用于打破浏览器缓存(Vue2 peopleUtils.js:37-41 的 personAvatarUrl)。
-      // Vue2 判空是 `ver != null && ver !== ''`——数字 0 是合法 ver,不能用 falsy 判断。
+      // ver = coverFaceId, used to bust the browser cache after changing the cover (Vue2 peopleUtils.js:37-41 personAvatarUrl).
+      // Vue2's null check is `ver != null && ver !== ''` —— the number 0 is a valid ver, so a falsy check can't be used.
       const v = ver != null && ver !== '' ? `?v=${encodeURIComponent(String(ver))}` : ''
       return `/v1/photos/persons/${id}/face-thumbnail${v}${tokenQ(v ? '&' : '?')}`
     },
-    // ─── 地点 ───
-    // 后端返回 {regions, places, stats} 对象包裹(非裸数组;见 service/places_types.go PlacesResponse)。
+    // ─── Places ───
+    // The backend returns an object-wrapped {regions, places, stats} (not a bare array; see service/places_types.go PlacesResponse).
     async listPlaces(params: Record<string, unknown> = {}): Promise<unknown> {
       const res = await http.get('/photos/places', { params })
       return body<unknown>(res.data)
@@ -281,7 +281,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
     async listAssetsByPlace(placeKey: string, spotKey = '', limit = 500, lat: number | null = null, lon: number | null = null): Promise<unknown> {
       const params: Record<string, unknown> = { place_key: placeKey, limit }
       if (spotKey) params.spot_key = spotKey
-      // 质心钉住精确 spot 簇(避免网格 key 撞车);仅与 spotKey 成对时有意义,后端要求成对
+      // Centroid pins the exact spot cluster (avoids grid-key collisions); only meaningful paired with spotKey, the backend requires them together
       if (spotKey && lat != null && lon != null) { params.spot_lat = lat; params.spot_lon = lon }
       const res = await http.get('/photos/assets', { params })
       return body<unknown>(res.data)
@@ -314,7 +314,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post(`/photos/places/${key}/album`, { name, from, to })
       return body<unknown>(res.data)
     },
-    // ─── 智能视图 ───
+    // ─── Smart views ───
     async listSmartViews(): Promise<unknown[]> {
       const res = await http.get('/photos/smart-views')
       return body<unknown[]>(res.data)
@@ -451,7 +451,7 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/moments/recompute', {})
       return body<unknown>(res.data)
     },
-    // ─── 回收站 ───
+    // ─── Trash ───
     // limit/offset mirror listFavorites: omitted (limit = 0) leaves the backend
     // to apply its own default, which since NimoOS-Photos#54 is 500 rather than
     // "everything" — callers that must see the whole list have to page.
@@ -481,10 +481,10 @@ export function createPhotos(http: AxiosInstance, getToken: () => string | null)
       const res = await http.post('/photos/trash/empty', {})
       return body<unknown>(res.data)
     },
-    // ─── 视频悬停 sprite(经共享 axios,401 走单飞——SP7 决策:全区唯一裸 fetch 并入共享通道)───
-    // 请求 URL 必须与叠加层 <img src="spriteUrl(id)"> 完全一致(同带 tokenQ 片段),
-    // 否则浏览器缓存按不同 URL 各存一份,sprite 被下载两次(修 SP7-P1 review 发现的
-    // 双下载)。withVersion() 对已带 /v1 前缀的 URL 原样放行,故这里手写 /v1 前缀。
+    // ─── Video hover sprite (via shared axios, 401 goes through singleflight —— SP7 decision: fold this domain's one remaining bare fetch into the shared channel) ───
+    // The request URL must exactly match the overlay's <img src="spriteUrl(id)"> (including the same tokenQ fragment),
+    // otherwise the browser cache stores each distinct URL separately and the sprite gets downloaded twice (the
+    // double-download fixed after SP7-P1 review found it). withVersion() passes a URL that already has the /v1 prefix through unchanged, hence the hand-written /v1 prefix here.
     async spriteMeta(id: string | number): Promise<{ frames: number; durationMs: number; frameW: number; frameH: number }> {
       const res = await http.get(`/v1/photos/assets/${id}/sprite${tokenQ('?')}`, { responseType: 'blob' })
       const h = res.headers as Record<string, string | undefined>

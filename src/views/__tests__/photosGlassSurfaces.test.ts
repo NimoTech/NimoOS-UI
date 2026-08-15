@@ -1,23 +1,30 @@
-// SP7 修复:相册区两处"不透明深色板压在玻璃壳上"。
+// SP7 fix: two spots in the photos section where an "opaque dark panel sits on top of the glass shell".
 //
-// 病根是一类移植缺陷 —— **照抄 token 名,但两个同名 token 的语境不同**:
-//   · Vue2 相册区是一整块**不透明深色页面**(`photos.scss:3` `--bg: #0A0A0C`),页内任何
-//     元素刷 `var(--bg)` 都与页底无缝;
-//   · New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明 + 壁纸/渐变透上来),同样刷
-//     `var(--bg)`(`#1a2138`)就变成一块黑板 —— 真机截图里那条横贯整宽的黑带就是它。
+// The root cause is a class of porting defect — **copying the token name, while the two
+// same-named tokens carry different context**:
+//   · Vue2's photos section is one whole **opaque dark page** (`photos.scss:3` `--bg: #0A0A0C`),
+//     so any element inside the page painting `var(--bg)` blends seamlessly with the page background;
+//   · New-UI's photos section lives inside AreaShell's **glass shell** (semi-transparent, with the
+//     wallpaper/gradient showing through), so painting the same `var(--bg)` (`#1a2138`) turns into
+//     a solid slab — the band running the full width in the real-device screenshot is exactly that.
 //
-// 本仓 `--bg` 的**正当用法是"占满视口、自己就是页底"的壳**(StorageShell / SettingsShell /
-// MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色;内嵌在区域壳里的行/条/面板
-// 一律走玻璃 token(`--panel-bg`),同区先例:PhotosSidebar / PlacesRail / PhotoInfoPanel /
-// PersonPlacesTab 全是 `var(--panel-bg)`。
+// In this repo, the **legitimate use of `--bg`** is for a shell that "fills the viewport and is
+// itself the page background" (StorageShell / SettingsShell / MediaViewer / SearchDialog), plus the
+// gap color in SmartViewCard's collage image; rows/bars/panels embedded inside an area shell must
+// always use the glass token (`--panel-bg`) — precedent in this same section: PhotosSidebar /
+// PlacesRail / PhotoInfoPanel / PersonPlacesTab all use `var(--panel-bg)`.
 //
-// `--panel-bg-solid`(深色是不透明渐变实底)是**为地图专门引入的**:PlaceDetailPanel 压在
-// PlacesMap 的画布上,半透会把地图网格点透上来(P6b 真机验收反馈)。除此之外没有第二个
-// 合法场景 —— 所以下面第三组用**白名单**钉住它的消费方集合,多一个就红。
+// `--panel-bg-solid` (an opaque gradient fill in dark mode) was **introduced specifically for the
+// map**: PlaceDetailPanel sits on top of the PlacesMap canvas, and translucency would let the map's
+// grid dots show through (P6b real-device acceptance feedback). There is no second legitimate use
+// case beyond that — so the third group below pins down its set of consumers with an **allowlist**;
+// one more consumer than that and it goes red.
 //
-// jsdom 不算级联、也不做布局,这类缺陷单测抓不到(5952 例全绿也没抓到),故与
-// color-guard.test.ts / photosLayoutHeightCap.test.ts 同一路数:对样式块原文做文本断言。
-// 读盘一律 node:fs —— 本仓 `?raw` 在测试环境恒空(color-guard 曾因此空转)。
+// jsdom doesn't compute cascade or do layout, so this class of defect isn't caught by unit tests
+// (5952 passing tests didn't catch it either), so — same approach as color-guard.test.ts /
+// photosLayoutHeightCap.test.ts — this asserts against the raw style-block text. Always read files
+// via node:fs — `?raw` is always empty in this repo's test environment (color-guard once spun idle
+// because of this).
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -26,49 +33,55 @@ const SRC = path.resolve(__dirname, '../..')
 
 function read(rel: string): string {
   const text = fs.readFileSync(path.join(SRC, rel), 'utf8')
-  expect(text.length, `${rel} 读到空内容,取数方式失效了`).toBeGreaterThan(0)
+  expect(text.length, `${rel} read back empty — the read helper is broken`).toBeGreaterThan(0)
   return text
 }
 
-/** 取某个选择器的规则体(只取第一处,够用:这几个类在各自 SFC 里都只有一条规则)。 */
+/** Grab a selector's rule body (first occurrence only — good enough since each of these classes has only one rule in its own SFC). */
 function ruleBody(text: string, selector: string): string {
   const i = text.indexOf(selector)
-  expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
+  expect(i, `couldn't find selector ${selector}`).toBeGreaterThan(-1)
   const open = text.indexOf('{', i)
   const close = text.indexOf('}', open)
-  expect(open, `${selector} 后面没有 {`).toBeGreaterThan(-1)
-  expect(close, `${selector} 的规则体没有 }`).toBeGreaterThan(open)
+  expect(open, `${selector} has no { after it`).toBeGreaterThan(-1)
+  expect(close, `${selector}'s rule body has no }`).toBeGreaterThan(open)
   return text.slice(open + 1, close)
 }
 
-describe('相册区表面用玻璃 token,不刷应用底色', () => {
-  it('搜索页的筛选条不画背景(玻璃壳透上来,与上下两行一致)', () => {
+describe('Photos section surfaces use the glass token, not the app background color', () => {
+  it('search page filter bar paints no background (glass shell shows through, consistent with the rows above and below)', () => {
     const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // 不是"别用 --bg"而是"这条横条根本不该画底" —— 它上面的 .search-hero、下面的排序行
-    // 都是透明的,画任何底色都会在玻璃壳上留下一条色带。
-    expect(body, `.filterbar 又画上背景了:${body.trim()}`).not.toMatch(/background\s*:/)
+    // Not "don't use --bg" but "this bar shouldn't paint a background at all" — the .search-hero
+    // above it and the sort row below it are both transparent, so any fill here would leave a
+    // colored band on the glass shell.
+    expect(body, `.filterbar has a background painted again: ${body.trim()}`).not.toMatch(/background\s*:/)
   })
 
-  it('搜索页筛选条仍保留分隔线与层叠(只去底色,不动别的)', () => {
+  it('search page filter bar still keeps its divider and stacking (only the background was removed, nothing else)', () => {
     const body = ruleBody(read('views/PhotosSearch.vue'), '.filterbar {')
-    // border-bottom 是它与排序行之间唯一的视觉分界,去了底色更要留着。
+    // border-bottom is the only visual boundary between it and the sort row — removing the
+    // background makes keeping this even more important.
     expect(body).toMatch(/border-bottom\s*:\s*1px solid var\(--divider\)/)
-    // position/z-index 不是装饰:筛选弹层(.fpop)是它的后代,靠这两条才画得到下方网格之上。
-    // 删掉会让弹层被瓦片压住 —— 与本次"去底色"无关,必须保留。
+    // position/z-index aren't decorative: the filter popover (.fpop) is a descendant of this
+    // element, and these two properties are what let it render above the grid below.
+    // Removing them would let it get covered by tiles — unrelated to this "remove background"
+    // change, so they must be kept.
     expect(body).toMatch(/position\s*:\s*sticky/)
     expect(body).toMatch(/z-index\s*:\s*6/)
   })
 
-  it('智能视图详情的右侧栏用玻璃底(与同区 PhotosSidebar / PlacesRail 一致)', () => {
+  it('smart view detail right sidebar uses the glass background (consistent with PhotosSidebar / PlacesRail in the same section)', () => {
     const body = ruleBody(read('views/PhotosSmartViewDetail.vue'), '.sv-detail-side {')
     expect(body).toMatch(/background\s*:\s*var\(--panel-bg\)/)
-    expect(body, '右侧栏底下没有地图,用不着不透明实底').not.toMatch(/var\(--panel-bg-solid\)/)
+    expect(body, 'nothing behind the right sidebar is a map, so it has no need for an opaque solid fill').not.toMatch(/var\(--panel-bg-solid\)/)
   })
 })
 
-describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
-  // 唯一合法场景:压在 PlacesMap 画布上的地点详情面板(半透会把地图网格点透上来)。
-  // 每新增一条都必须先问"它底下真的有地图吗" —— 没有就该用 --panel-bg。
+describe('--panel-bg-solid consumer allowlist (reverse gate)', () => {
+  // The one legitimate use case: the place detail panel that sits on top of the PlacesMap canvas
+  // (translucency would let the map's grid dots show through).
+  // Every new addition must first answer "is there really a map underneath it?" — if not, it
+  // should use --panel-bg instead.
   const ALLOW = new Set(['photos/components/PlaceDetailPanel.vue'])
 
   function walk(dir: string, out: string[] = []): string[] {
@@ -86,14 +99,14 @@ describe('--panel-bg-solid 的消费方白名单(反向闸)', () => {
 
   const files = walk(SRC)
 
-  it('取数有效(扫到了 .vue 文件)', () => {
+  it('the scan actually found something (picked up .vue files)', () => {
     expect(files.length).toBeGreaterThan(50)
   })
 
-  it('只有白名单里的组件用 --panel-bg-solid', () => {
+  it('only the components on the allowlist use --panel-bg-solid', () => {
     const users = files
       .filter((p) => fs.readFileSync(p, 'utf8').includes('var(--panel-bg-solid)'))
       .map((p) => path.relative(SRC, p).replace(/\\/g, '/'))
-    expect(users.slice().sort(), `--panel-bg-solid 的消费方变了`).toEqual([...ALLOW].sort())
+    expect(users.slice().sort(), `the set of --panel-bg-solid consumers has changed`).toEqual([...ALLOW].sort())
   })
 })
