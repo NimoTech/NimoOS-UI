@@ -7,7 +7,7 @@
 // file mocks useLightbox to a dumb, permanently-closed stub for its ~100 unrelated assertions;
 // this dedicated file uses the real thing to prove the lightbox actually opens).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { mount, flushPromises, DOMWrapper } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -34,6 +34,12 @@ const svc = vi.hoisted(() => ({
     favorite: vi.fn().mockResolvedValue(undefined),
     unfavorite: vi.fn().mockResolvedValue(undefined),
     batchAddToAlbum: vi.fn().mockResolvedValue(undefined),
+    // Fix round 1 (review): real @delete wiring needs the same delete/restore pathway
+    // Photos.vue's own onLightboxDelete uses (timeline.deleteAssets -> service.photos.deleteAsset,
+    // Undo -> trash.restore -> service.photos.restoreTrashBatch).
+    deleteAsset: vi.fn().mockResolvedValue(undefined),
+    restoreTrashBatch: vi.fn().mockResolvedValue(undefined),
+    listTrash: vi.fn().mockResolvedValue([]),
   },
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
@@ -43,6 +49,8 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 ;(HTMLMediaElement.prototype as unknown as { pause: () => void }).pause = vi.fn()
 
 import PhotosSearch from '../PhotosSearch.vue'
+import { useTimelineStore } from '../../photos/stores/timeline'
+import { usePhotosToast } from '../../photos/composables/usePhotosToast'
 
 const i18n = createI18n({ legacy: false, locale: 'zh_cn', messages: { zh_cn: zh } })
 
@@ -87,7 +95,11 @@ beforeEach(() => {
   svc.photos.listAlbums.mockClear().mockResolvedValue([])
   svc.photos.recordView.mockClear().mockResolvedValue(undefined)
   svc.photos.listFavoriteIds.mockClear().mockResolvedValue([])
+  svc.photos.deleteAsset.mockClear().mockResolvedValue(undefined)
+  svc.photos.restoreTrashBatch.mockClear().mockResolvedValue(undefined)
+  svc.photos.listTrash.mockClear().mockResolvedValue([])
   lb.__resetForTest()
+  usePhotosToast().__resetForTests()
 })
 
 afterEach(() => {
@@ -143,5 +155,97 @@ describe('PhotosSearch.vue 灯箱接线(Plan F Task 5:新增挂载,补 F8 类缺
     await w.get('.lb-add-album').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.album-picker-overlay').exists()).toBe(true)
+  })
+})
+
+// Fix round 1 (review, 2026-08-15): `@delete` used to be a no-op -- the button + confirm dialog
+// rendered unconditionally, so the user could complete the whole confirm flow (dialog + lightbox
+// close, exactly as on a real success) while nothing was actually deleted. Vue2's own
+// search-opened lightbox has a WORKING delete (shared single lightbox instance, wired the same as
+// every other entry point), so function parity requires the same here -- mirrors Photos.vue's
+// `onLightboxDelete` (Photos.vue:221-236: timeline.deleteAssets + photosToast Undo).
+describe('PhotosSearch.vue 灯箱「删除」(Fix round 1:补真删,不再是隐形 no-op)', () => {
+  it('确认删除 → 调 timeline.deleteAssets(真删路径)+ 从渲染结果里移除该项', async () => {
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a'), rawAsset('b')])
+    const w = await mountSearch('/photos/search?q=receipt')
+    const timeline = useTimelineStore()
+    const deleteSpy = vi.spyOn(timeline, 'deleteAssets').mockResolvedValue(1)
+
+    expect(w.findAll('.tile')).toHaveLength(2)
+    await w.get('.tile').trigger('click') // 打开第一张(id='a')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(lb.open.value).toBe(true)
+
+    await w.get('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.get('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    // 真删路径被调用,不再是空 no-op。
+    expect(deleteSpy).toHaveBeenCalledWith(['a'])
+    // 灯箱自己在 doDelete 里已经 close(PhotoLightbox.vue 既有行为)。
+    expect(lb.open.value).toBe(false)
+    // 结果从渲染出的搜索结果里真的消失了(不是"看起来成功但其实没变")。
+    expect(w.findAll('.tile')).toHaveLength(1)
+    expect(w.find('.tile').exists()).toBe(true)
+  })
+
+  it('删除后弹出带 Undo 的 photosToast(同 Photos.vue 的 trash 图标 + Undo 文案)', async () => {
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a')])
+    const w = await mountSearch('/photos/search?q=receipt')
+    const photosToast = usePhotosToast()
+    vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
+
+    await w.get('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    await w.get('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.get('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(photosToast.toasts.value).toHaveLength(1)
+    const toastItem = photosToast.toasts.value[0]
+    expect(toastItem.icon).toBe('trash')
+    expect(toastItem.text).toContain('1')
+    expect(toastItem.action?.label).toBeTruthy()
+
+    // Toast 真的有地方渲染(PhotosToastHost 已挂载),不是状态翻了但界面上什么都看不到。
+    const body = new DOMWrapper(document.body)
+    expect(body.find('[data-role="photos-toast-action"]').exists()).toBe(true)
+  })
+
+  it('点 Undo → trash.restore(真实还原路径)+ 重新按当前 query 搜一次(带回结果)', async () => {
+    svc.photos.smartSearch.mockResolvedValue([rawAsset('a')])
+    const w = await mountSearch('/photos/search?q=receipt')
+    vi.spyOn(useTimelineStore(), 'deleteAssets').mockResolvedValue(1)
+
+    await w.get('.tile').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    await w.get('.lb-delete').trigger('click')
+    await w.vm.$nextTick()
+    await w.get('.trash-btn-cta-danger').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.findAll('.tile')).toHaveLength(0)
+
+    svc.photos.smartSearch.mockClear().mockResolvedValue([rawAsset('a')]) // Undo 重搜命中同一张
+    const body = new DOMWrapper(document.body)
+    await body.get('[data-role="photos-toast-action"]').trigger('click')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(svc.photos.restoreTrashBatch).toHaveBeenCalledWith(['a'])
+    // Deviation (documented in PhotosSearch.vue's onLightboxDelete comment): this page's results
+    // are a search snapshot, not the timeline store trash.restore() already refreshes -- Undo
+    // re-runs the same query to bring the restored item back, the controller-approved fallback.
+    const calls = svc.photos.smartSearch.mock.calls
+    const lastCall = calls[calls.length - 1]
+    expect(lastCall?.[0]).toBe('receipt')
+    expect(w.findAll('.tile')).toHaveLength(1)
   })
 })

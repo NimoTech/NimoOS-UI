@@ -38,10 +38,14 @@ import SearchSaveSmartView from '../photos/components/SearchSaveSmartView.vue'
 import PhotosSearchGrid from '../photos/components/PhotosSearchGrid.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
 import { usePhotosSearch } from '../photos/stores/search'
 import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
+import { useTimelineStore } from '../photos/stores/timeline'
+import { usePhotosTrash } from '../photos/stores/trash'
 import { useLightbox } from '../photos/lightbox/useLightbox'
+import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { understood, type PersonOption, type UnderstoodKind, type UnderstoodToken } from '../photos/util/searchUnderstood'
 import { queryParts } from '../photos/util/searchQueryParts'
@@ -69,8 +73,11 @@ const localeTag = computed(() => locale.value.replace('_', '-'))
 const search = usePhotosSearch()
 const people = usePhotosPeople()
 const albums = usePhotosAlbums()
+const timeline = useTimelineStore()
+const trash = usePhotosTrash()
 const lb = useLightbox()
 const toast = useToast()
+const photosToast = usePhotosToast()
 
 // ── query:从路由读,只读 computed,永远不直接赋值(§7e-3 的可证伪守卫)───────────
 const query = computed(() => String(route.query.q ?? ''))
@@ -594,15 +601,49 @@ function onOpen(photo: Photo): void {
 // nothing local to react to.
 function onLightboxToggleFav(): void {}
 
-// @delete: no-op. Unlike Photos.vue/PhotosAlbumDetail.vue (which own a mutable local list and can
-// splice the deleted id back out), usePhotosSearch()'s `search.results` has no exposed mutation
-// for removing a single item, and this page has no batch-delete/select-toolbar infrastructure to
-// piggyback on either (structure spec 9: search results are browse-only, same as
-// PhotosPlaces.vue/PhotosPlaceAssets.vue's own unwired lightbox). Deleting the underlying asset
-// elsewhere already keeps it out of *future* searches; wiring a real delete here would need new
-// store-level support (index removal + reactive result-list mutation) that is out of scope for a
-// re-nest task ("logic untouched except the PhotosSearch wiring addition").
-function onLightboxDelete(): void {}
+// @delete: Fix round 1 (review, 2026-08-15) -- Function parity with Vue2 requires a REAL delete
+// here, not a no-op: the delete button + confirm dialog render unconditionally inside
+// PhotoLightbox, so a no-op handler let the user complete the whole confirm flow (dialog closes,
+// lightbox closes, exactly as if the delete succeeded) while nothing actually happened -- a
+// false-success illusion, not a harmless gap. Vue2's own search-opened lightbox has a working
+// delete (single shared lightbox instance owned by PhotosTimeline.vue, wired the same as every
+// other entry point), so New-UI owes the same here.
+// Mirrors Photos.vue's `onLightboxDelete` (Photos.vue:221-236) byte-for-byte on the delete/toast
+// side: same `timeline.deleteAssets([id])` pathway (the real `service.photos.deleteAsset` call,
+// reused rather than reinvented), same Photos-private toast shape (trash icon, count 1, Undo
+// action) via the same `usePhotosToast()` composable.
+// Deviation (documented, controller-approved): `usePhotosSearch()`'s `results` is a plain,
+// unwrapped ref (not a store method) -- a targeted local filter removes the deleted id directly,
+// no new store mutation needed. This is preferred over re-running smartSearch because
+// `filteredResults`/`sortedResults`/`tiers`/`best`/`more` all derive from `search.results` via
+// `computed()`, so one filter cascades through the whole results pipeline for free, and it
+// preserves this page's own scroll/offset/exhausted pagination state (a fresh smartSearch would
+// reset `offset` to 0 the same way a real re-submit does).
+// Undo: Photos.vue's Undo relies on `trash.restore()`'s own `refreshTimelineAfterTrashChange()`
+// to refresh the SAME timeline store its list reads from -- that mechanism doesn't reach this
+// page's results (a search snapshot, not the timeline store), so restoring the asset
+// server-side wouldn't put it back in `search.results` on its own. Re-running the same query
+// after restore is the documented fallback for exactly this case: it brings the restored item
+// back (if it still matches), at the cost of resetting pagination -- the same cost every fresh
+// `submitQuery()` on this page already pays.
+async function onLightboxDelete(id: string | number): Promise<void> {
+  const snapshot = [String(id)]
+  await timeline.deleteAssets(snapshot)
+  search.results = search.results.filter((p) => String(p.id) !== String(id))
+  photosToast.show({
+    text: t('photosDeletedToast', { count: 1 }),
+    icon: 'trash',
+    action: {
+      label: t('photosTrashUndo'),
+      onClick: () => {
+        void (async () => {
+          await trash.restore(snapshot)
+          if (query.value) void search.smartSearch(query.value, search.filtersPayload)
+        })()
+      },
+    },
+  })
+}
 
 // @add-to-album IS meaningfully supportable without any of the above -- it only needs the asset
 // id and AlbumPickerDialog's own API call, no mutation of this page's search-results list at all
@@ -840,6 +881,14 @@ onMounted(() => {
       @add-to-album="(id) => openAlbumPicker([id])"
     />
     <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
+    <!-- Fix round 1 (review, 2026-08-15): required now that `onLightboxDelete` fires a real
+         `usePhotosToast()` Undo toast -- without a mount, the toast state flips but nothing on
+         this page's own tree renders it, the exact same "state changed, nothing visible" bug
+         class the delete no-op itself was flagged for. Teleports to <body> and re-applies
+         `photos-root` + `themeClass` on its own portal target (see that component's own header
+         comment), same mount Photos.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue already
+         use for the identical Undo-toast pattern. -->
+    <PhotosToastHost />
   </div>
 </template>
 
