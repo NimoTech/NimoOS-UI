@@ -1184,3 +1184,53 @@
 .places-cover-portal .cp-pagers button:disabled {
   opacity: 0.4; cursor: not-allowed; color: var(--text-3);
 }
+
+/* New-UI additions (Task 2, Plan E — cover picker Teleport-to-body task, 2026-08-15): the
+   properties below have no Vue2 counterpart in this file's own `.places-cover-portal`
+   family above (grep-confirmed against NimoOS-UI's photos-places.scss). PlaceCoverPicker.vue
+   used to carry these as its own local `<style scoped>` overrides; that whole block was
+   deleted in favor of this shared file governing 100% of `.places-cover-portal`'s rules
+   once the component started teleporting there — these survive here since there is
+   nowhere else left for them to live. Global New-UI theme tokens (`--chip-bg`,
+   `--chip-bg-hi`, `--on-accent`) are used where the original addition already chose them;
+   this section only relocates, it does not redesign. */
+
+/* Placeholder background visible before a thumbnail image finishes loading (D3 ruling,
+   PlacesRail.vue's own precedent: surface treatment is New-UI's to reshape, not a precise
+   port of a Vue2 literal — Vue2's `.cp-head-thumb` has no background at all). */
+.places-cover-portal .cp-head-thumb { background: var(--chip-bg); }
+
+/* New-UI's inline `<svg class="cp-search-ic">` needs its own color rule — Vue2 colors its
+   search icon via a `<PhotosIcon color="var(--text-3)">` component prop, not a CSS class
+   (same value, different mechanism, hence the parity-local `--text-3` token here). */
+.places-cover-portal .cp-search-ic { color: var(--text-3); flex-shrink: 0; }
+
+/* Vue2's empty-state text spacing is an inline `style="margin-top:12px"` on the template
+   node (PhotosPlacesView.vue:1378), not a CSS class — New-UI expresses the same value via
+   a class instead of an inline style (non-color, no token needed). */
+.places-cover-portal .cp-empty-text { margin-top: 12px; }
+
+/* Hover feedback for tabs/cells: Vue2 has no `:hover` rules anywhere in this family besides
+   `.cp-close-btn:hover` above (grep-confirmed) — these are New-UI-only additions. Hover
+   cascade priority rule (same as PlacesRail.vue:299-308 / PlacesFilterMenu.vue's own
+   citations of it): a base `.cp-tab:hover`/`.cp-cell:hover` and its `.is-active` variant sit
+   at equal specificity, so the variant needs its own explicit `:hover` rule (strictly higher
+   specificity) or a reordering of this file would silently let the base hover win back over
+   the active state's own background. */
+.places-cover-portal .cp-tab:hover { background: rgba(var(--ink), 0.06); }
+.places-cover-portal .cp-tab.is-active:hover { background: rgba(var(--ink), 0.06); }
+.places-cover-portal .cp-cell:hover { background: var(--chip-bg-hi); }
+.places-cover-portal .cp-cell.is-active { background: var(--chip-bg-hi); }
+.places-cover-portal .cp-cell.is-active:hover { background: var(--chip-bg-hi); }
+
+/* Busy-state disabling: New-UI added `:disabled="busy"` to cover-cell/reset/pager buttons
+   while a cover-set request is in flight — Vue2 has no such affordance at all in this view. */
+.places-cover-portal .cp-cell:disabled { opacity: 0.5; cursor: not-allowed; }
+.places-cover-portal .cp-reset-btn:hover:not(:disabled) { background: var(--chip-bg-hi); color: var(--text-1); }
+.places-cover-portal .cp-reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.places-cover-portal .cp-pagers button:hover:not(:disabled) { background: var(--chip-bg-hi); }
+
+/* Checkmark badge icon color: New-UI's badge icon uses `stroke="currentColor"` and needs a
+   CSS color; Vue2 hardcodes white via a `<PhotosIcon color="white">` prop, no CSS
+   counterpart at all for `.cp-cell-check`. */
+.places-cover-portal .cp-cell-check { color: var(--on-accent); }

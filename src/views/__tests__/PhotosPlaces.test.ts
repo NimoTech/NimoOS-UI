@@ -9,7 +9,7 @@
 // PlacesMap.test.ts/placesMap.test.ts 各自的单测里覆盖过,这里只验证"容器收到 emit 之后
 // 接线是否正确",避免把聚类算法的实现细节耦合进这份集成测试里造成脆弱。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -124,7 +124,15 @@ beforeEach(() => {
 })
 afterEach(() => {
   vi.restoreAllMocks()
+  // Task 2 (Plan E): PlaceCoverPicker now Teleports to `document.body` — clear it between
+  // tests so a still-open picker from one test doesn't leak into the next test's queries.
+  document.body.innerHTML = ''
 })
+
+// PlaceCoverPicker Teleports its content to `document.body` (Task 2, Plan E) — queries for
+// its own DOM (e.g. `[data-test="cp-scrim"]`) must go through `document.body` directly, not
+// through the page wrapper's own subtree (same PhotosToastHost.test.ts idiom).
+const body = () => new DOMWrapper(document.body)
 
 // 一次性把在途动画“瞬移”到终点(ease(k=1)):真实场景下 420ms 后必然到达,这里跳过等待。
 function flushAnim(): void {
@@ -942,13 +950,13 @@ describe('P6b-T8: 三浮层同开时一次 Esc 三者都关(P5-T10 的 bug 形�
 
     expect(w.find('[data-test="pfm-pop"]').exists()).toBe(true)
     expect(w.find('[data-test="mtm-pop"]').exists()).toBe(true)
-    expect(w.find('[data-test="cp-scrim"]').exists()).toBe(true)
+    expect(body().find('[data-test="cp-scrim"]').exists()).toBe(true)
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await w.vm.$nextTick()
 
     expect(w.find('[data-test="pfm-pop"]').exists()).toBe(false)
     expect(w.find('[data-test="mtm-pop"]').exists()).toBe(false)
-    expect(w.find('[data-test="cp-scrim"]').exists()).toBe(false)
+    expect(body().find('[data-test="cp-scrim"]').exists()).toBe(false)
   })
 })
