@@ -1078,13 +1078,16 @@ async function onExcludedTileClick(id: string): Promise<void> {
                 type="button" class="sv-action-btn" data-test="sv-action-refine"
                 @click="refineInSearch"
               >
-                <!-- fix 波 F7(终审顺带项):放大镜手柄此前是 `M21 21l-4.3-4.3`——全仓孤例,
-                     其余 4 处(PhotosTopbar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2;
-                     Plan F Task 1,2026-08-15:原列表里的 PhotosSearchBar.vue 已退场,它的
-                     那一处如今是 PhotosTopbar.vue 自己的 `.search` 图标,总数不变)都用
-                     `m20 20-3.5-3.5`(圆圈参数 cx=11 cy=11 r=7 四处本就相同,只有手柄
-                     长度不一样)。用户从这个详情页点「在搜索中细化」进搜索页,前后两屏的
-                     放大镜手柄长度此前会跳一下——改成统一值。 -->
+                <!-- fix wave F7 (final-review add-on): the magnifying-glass handle used to be
+                     `M21 21l-4.3-4.3` here -- a repo-wide outlier; the other 4 occurrences
+                     (PhotosTopbar.vue/PhotosSearch.vue/PlaceCoverPicker.vue ×2; Plan F Task 1,
+                     2026-08-15: the original list's PhotosSearchBar.vue has since been retired,
+                     its occurrence is now PhotosTopbar.vue's own `.search` icon, the count stays
+                     4) all use `m20 20-3.5-3.5` (the circle params cx=11 cy=11 r=7 were already
+                     identical across all four, only the handle length differed). Clicking
+                     "Refine within search" from this detail page into the search page used to
+                     make the magnifying-glass handle length jump between the two screens --
+                     unified to the same value. -->
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
                 {{ t('photosSvRefineSearch') }}
               </button>

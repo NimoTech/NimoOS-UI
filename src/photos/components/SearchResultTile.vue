@@ -91,7 +91,7 @@ const pct = computed(() => matchPct(props.result.score))
       owner's 2026-08-13 reversal fixed for the fchip/fpop family.
    2. `border-radius: 8px` carried a citation ("matches PhotosGrid.vue's own 8px, so search
       tiles don't look sharper-cornered than library tiles on the same device") that is no
-      longer true: PhotosGrid.vue's Task 6 网格重刻 re-skin (predating this task) already
+      longer true: PhotosGrid.vue's Task 6 grid-re-cast re-skin (predating this task) already
       reverted ITS OWN `.tile` to Vue2 parity's 3px (confirmed — `grep -n
       "border-radius" src/photos/components/PhotosGrid.vue` has zero hits; its tiles get 3px
       from the same bare `.photos-root .tile` parity rule this file now also defers to).

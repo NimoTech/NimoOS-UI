@@ -269,8 +269,9 @@ async function confirm(): Promise<void> {
 </template>
 
 <style scoped>
-/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Plan F Task 2 补做——本组件此前漏了这一轮
-   回退,同 PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue 的既定手法):
+/* 2026-08-13 revert (the owner overturned the EXIF glass exception; Plan F Task 2 fills this in
+   retroactively -- this component had missed that revert round, using the same established
+   approach as PhotosFilterPopover.vue/SearchDatePopover.vue/SearchPeoplePopover.vue):
    the paragraph that used to sit here mapped every color in this block onto the generic
    cross-app glass tokens (--surface-1→--popup-bg, --line→--card-border, --text-1/2/3/4→
    --fg/--fg-muted/--fg-faint/--fg-subtle, --surface-2→--chip-bg, --accent-hi→--accent-text,
@@ -385,8 +386,9 @@ async function confirm(): Promise<void> {
   color: var(--text-3);
   margin-top: 1px;
 }
-/* C7:Vue2 的 <transition name="save-pop"> 规则,Vue3 类名是 -enter-from 不是 Vue2 的
-   -enter(T6 fix round 教训:写成 -enter 会静默失效)。`-enter-active`/`-leave-active` (same
+/* C7: for Vue2's <transition name="save-pop"> rule, the Vue3 class name is -enter-from, not
+   Vue2's -enter (a lesson from T6's fix round: writing -enter silently fails to match).
+   `-enter-active`/`-leave-active` (same
    selector name in Vue2 and Vue3 — only the non-`-active` half was renamed) is NOT kept here:
    vue2-parity/photos.scss's own `.save-pop-enter-active, .save-pop-leave-active` (:2911) is a
    byte-identical transition, so it's handed over like every other duplicate above. Only the
