@@ -1,9 +1,9 @@
-// SP8-P4 Task 3 — MCP partition “backend string → i18n key” mapping.
+// SP8-P4 Task 3 — MCP partition "backend string → i18n key" mapping.
 //
 // Why not use `apiError.apiErrorMessage`: its file header has its own warning
 // (`apiError.ts:18-20`) — return value may still be backend English original (FastAPI's
-// `detail` passed through directly), only suited for “temporary fallback”, doesn't meet the
-// hard constraint “UI never echoes backend original”. This file shares the same role as
+// `detail` passed through directly), only suited for "temporary fallback", doesn't meet the
+// hard constraint "UI never echoes backend original". This file shares the same role as
 // `channelsFormat.addBotErrorKey` (`:65-76`): pure function only unifies backend errors to
 // i18n **keys**, doesn't touch vue-i18n, caller uses `t()` to get current language copy.
 //
@@ -16,7 +16,7 @@
 // brief/design doc line numbers have one or two line offset from actual test, reported in
 // report, doesn't affect the strings themselves):
 //   - `NimoOS-AI/route/v2/mcp.go:277,282,286` (validateAndClean three 400s)
-//   - `mcp.go:152,168,186,332,441` (five 404 “mcp server not found”; brief only lists
+//   - `mcp.go:152,168,186,332,441` (five 404 "mcp server not found"; brief only lists
 //     152/187/332 three, test shows 168, 441 two more not copied — same string, doesn't
 //     affect mapping)
 //   - `mcp.go:351` (502 agent unreachable, `c.JSON` direct output, not via echo.HTTPError)

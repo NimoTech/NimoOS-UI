@@ -83,21 +83,22 @@ const { t } = useI18n()
 const prompt = ref('')
 const state = ref<'idle' | 'running' | 'done'>('idle')
 const sandbox = ref(initSandboxState())
-// 对齐 Vue2 run() 里的局部变量 startedAt(:157)——普通变量,不是 ref,不需要触发渲染。
+// Aligned with Vue2 run()'s local variable startedAt (:157) — a plain variable, not a ref,
+// since it doesn't need to trigger rendering.
 let startedAt = 0
 let ctrl: AbortController | null = null
 
-// 对齐 Vue2 computed.canRun(:124-126)。
+// Aligned with Vue2 computed.canRun (:124-126).
 const canRun = computed(() => prompt.value.trim().length > 0 && state.value !== 'running')
 
-// 对齐 Vue2 computed.placeholder(:127-131)。
+// Aligned with Vue2 computed.placeholder (:127-131).
 const placeholder = computed(() => {
   const ex = props.skill.examples && props.skill.examples[0]
   if (ex) return t('aiSkTestPlaceholderEx', { ex })
   return t('aiSkTestPlaceholder')
 })
 
-// 对齐 Vue2 onKeydown(:146-151)。
+// Aligned with Vue2 onKeydown (:146-151).
 function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
     e.preventDefault()
@@ -109,27 +110,33 @@ function onEvent(ev: Record<string, unknown>) {
   sandbox.value = reduceSandboxEvent(sandbox.value, ev, Date.now() - startedAt)
 }
 
-// 对齐 Vue2 onEvent 里 ev.type === 'error' 走后端文本的分支之外的、传输层失败路径
-// （T3 runSkillTest 的 onError 回调:非 2xx HTTP 或非 AbortError 的异常）。
-// 有 status → HTTP 层失败本地化串;拿不到 status（非 HTTP 形状）→ 通用兜底串。
-// 两种都不回显后端 body（见文件头注释「HTTP 层失败不回显后端 body」）。
+// Aligned with the transport-layer failure path outside Vue2 onEvent's ev.type === 'error'
+// branch that goes through backend text (T3 runSkillTest's onError callback: a non-2xx HTTP
+// response or a non-AbortError exception).
+// If status is present -> the HTTP-layer failure localized string; if status is unavailable
+// (a non-HTTP shape) -> the generic fallback string.
+// Neither case echoes the backend body back (see the file header comment "HTTP layer failure
+// no show backend body").
 function onError(e: unknown) {
   const err = e as { status?: number } | null | undefined
   const msg = err && typeof err.status === 'number'
     ? t('aiSkTestHttpFailed', { status: err.status })
     : t('aiSkTestFailed')
-  // failed 显式置真(P3b 终审 I2 同一处修复的对称写法——传输层失败本来就一定有一条
-  // 非空的本地化文案,这里不依赖 error 是否非空来判定失败态)。
+  // failed is explicitly set true (the symmetric counterpart of the P3b final review I2 fix at
+  // the same spot — a transport-layer failure always has a non-empty localized message anyway,
+  // so this doesn't rely on whether error is non-empty to determine the failed state).
   sandbox.value = { ...sandbox.value, error: msg, failed: true }
 }
 
-// 对齐 Vue2 run()(:152-179),但改用 T3 的 Promise 形状而非 Vue2 的
-// `{ onEvent, onClose } => { close }` 回调协议。await 返回后若仍处于 running
-// （即从未收到 SSE 'done' 事件、连接就已关闭)→ 兜底置 done,对齐 Vue2 onClose
-// (:174-177) 的 fallback 语义。仅在成功完成(done 且未 failed)时才 emit('test')
-// （偏离 D5,见文件头注释)。判 `sandbox.value.failed` 而不是 `!sandbox.value.error`
-// (P3b 终审 I2)——`error` 事件的 content 对某些后端异常是空串,`!error` 会把这种
-// 失败误判成成功,连带让 D5「只在成功完成时 +1」失守。
+// Aligned with Vue2 run() (:152-179), but uses T3's Promise shape instead of Vue2's
+// `{ onEvent, onClose } => { close }` callback protocol. If still `running` after await
+// returns (i.e., the connection closed without ever receiving an SSE 'done' event) -> falls
+// back to `done`, aligned with Vue2 onClose's (:174-177) fallback semantics. Only emits
+// `'test'` on successful completion (done and not failed) (deviation D5, see file header
+// comment). Checks `sandbox.value.failed` rather than `!sandbox.value.error`
+// (P3b final review I2) — the `error` event's content is an empty string for some backend
+// exceptions, and `!error` would misjudge that failure as success, which would in turn break
+// D5's "only +1 on successful completion" invariant.
 async function run() {
   if (!canRun.value) return
   state.value = 'running'
@@ -141,10 +148,13 @@ async function run() {
   if (state.value === 'done' && !sandbox.value.failed) emit('test')
 }
 
-// 对齐 Vue2 watch: 'skill.id'(:133-141)——原样保留复位逻辑做 1:1 视觉/交互对照。
-// 注意:T7 挂载本组件时会带 `:key="skill.id"`,那种情况下整个组件会被销毁重建,
-// 这个 watcher 实际上不会触发(key 变化直接走 unmount→mount,不会保留组件实例)。
-// 所以真正兜底的清理必须落在下面的 onBeforeUnmount,不能只靠这个 watcher。
+// Aligned with Vue2 watch: 'skill.id' (:133-141) — the reset logic is kept as-is for a 1:1
+// visual/interaction comparison.
+// Note: T7 mounts this component with `:key="skill.id"`, in which case the whole component
+// gets destroyed and recreated, so this watcher never actually fires (a key change goes
+// straight to unmount -> mount without preserving the component instance).
+// So the real fallback cleanup has to live in onBeforeUnmount below — it can't rely on this
+// watcher alone.
 watch(() => props.skill.id, () => {
   prompt.value = ''
   state.value = 'idle'
@@ -153,8 +163,9 @@ watch(() => props.skill.id, () => {
   ctrl = null
 })
 
-// 对齐 Vue2 beforeDestroy(:142-144),即 Vue3 的 onBeforeUnmount。见上面注释:
-// 这是唯一保证一定会执行的清理点(watcher 在 :key 重建场景下不会触发)。
+// Aligned with Vue2 beforeDestroy (:142-144), i.e. Vue3's onBeforeUnmount. See the comment
+// above: this is the only cleanup point guaranteed to run (the watcher doesn't fire in the
+// :key-recreation scenario).
 onBeforeUnmount(() => {
   ctrl?.abort()
 })
@@ -244,10 +255,12 @@ onBeforeUnmount(() => {
             <span class="bullet" />
             {{ t('aiSkTestFailed') }}
           </div>
-          <!-- P3b 终审 I2:error 事件的 content 可能是空串(后端某些异常 str(e) 为
-               空)——设计 §5「空则留空，由 UI 填本地化兜底文案」这半此前没做,空串
-               会原样渲染成一段空白正文。兜底复用既有键 aiSkTestFailed(上面 label
-               已经在用),不新增键。 -->
+          <!-- P3b final review I2: the error event's content can be an empty string (str(e) is
+               empty for some backend exceptions) — the design spec §5's half "if empty, leave
+               it empty and let the UI fill in the localized fallback copy" wasn't done before
+               this, so the empty string would render verbatim as a blank body. The fallback
+               reuses the existing key aiSkTestFailed (already used by the label above), no new
+               key added. -->
           <div>{{ sandbox.error || t('aiSkTestFailed') }}</div>
         </div>
       </div>

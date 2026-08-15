@@ -167,8 +167,8 @@ describe('AppConsolePage', () => {
     expect(w.find('[data-test="console-tab-logs"]').attributes('aria-selected')).toBe('true')
 
     // Switch app: load() internally has tab.value = 'terminal' hardcoded before try — this path
-    // completely skips the service selector's @change handler, avoiding “load already reset +
-    // @change resets again” double-trigger.
+    // completely skips the service selector's @change handler, avoiding "load already reset +
+    // @change resets again" double-trigger.
     svc.compose.containers.mockResolvedValueOnce({ main: 'app', containers: { app: { ID: 'c-other' } } })
     routeMock.params.name = 'other-app'
     await flushPromises()

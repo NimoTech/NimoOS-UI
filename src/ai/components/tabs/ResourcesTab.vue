@@ -260,10 +260,11 @@ function onRemoveResource(r: VisibleResource) {
               <span class="rt-badge" :class="`badge-${badgeFor(it.op)}`">{{ badgeFor(it.op) }}</span>
               <span class="rt-icon">📄</span>
               <span class="rt-path">{{ formatStagedPath(it) }}</span>
-              <!-- 有意背离 Vue2:Vue2 ResourcesTab.vue:99/:117 用 `it.size_bytes ? … : '—'`
-                   模板短路,导致 0 字节暂存项显示 '—'(与 formatSize 自身 `n !== 0` 分支及
-                   Vue2 附件行 :40 直接调 formatSize 的行为矛盾——Vue2 自相不一致)。
-                   这里直接调 formatStagedSize,0 → '0 B'。已登记(见任务 12 报告)。 -->
+              <!-- Deliberate divergence from Vue2: Vue2 ResourcesTab.vue:99/:117 uses
+                   `it.size_bytes ? … : '—'` template short-circuiting, so a 0-byte staged item
+                   shows '—' (contradicting formatSize's own `n !== 0` branch and the Vue2
+                   attachment row :40, which calls formatSize directly — Vue2 is self-inconsistent
+                   here). Here we call formatStagedSize directly, so 0 → '0 B'. Logged (see task 12 report). -->
               <span class="rt-size">{{ formatStagedSize(it.size_bytes) }}</span>
               <span v-if="it.snapshot_missing" class="rt-orphan-tag" :title="t('aiResOrphanTitle')">{{ t('aiResOrphan') }}</span>
               <button
@@ -282,8 +283,8 @@ function onRemoveResource(r: VisibleResource) {
             <span class="rt-badge" :class="`badge-${badgeFor(it.op)}`">{{ badgeFor(it.op) }}</span>
             <span class="rt-icon">📄</span>
             <span class="rt-path">{{ formatStagedPath(it) }}</span>
-            <!-- 同上方 batch items 处的有意背离说明(Vue2 ResourcesTab.vue:99/:117 短路 → '—',
-                 这里 0 → '0 B'),已登记。 -->
+            <!-- Same deliberate-divergence note as the batch items above (Vue2 ResourcesTab.vue:99/:117
+                 short-circuits to '—', here 0 → '0 B'). Logged. -->
             <span class="rt-size">{{ formatStagedSize(it.size_bytes) }}</span>
             <span v-if="it.snapshot_missing" class="rt-orphan-tag" :title="t('aiResOrphanTitle')">{{ t('aiResOrphan') }}</span>
           </li>
@@ -312,8 +313,10 @@ function onRemoveResource(r: VisibleResource) {
 .rt-item { display: flex; align-items: center; gap: 6px; font-size: 13px; }
 .rt-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rt-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--accent-soft); color: var(--accent); }
-// Vue2 裸色 1/2(ResourcesTab.vue:247-250): 橙色半透明背景 + 橙色兜底字色 → 既有 token。
-// 注:此处不写出原字面值 —— color-guard 扫描 <style> 块时不跳注释行,写了会误判。
+// Vue2 bare colour 1/2 (ResourcesTab.vue:247-250): translucent warning-tinted background +
+// warning-tinted fallback text colour → existing tokens.
+// Note: the original literal values aren't written out here — color-guard scans <style> blocks
+// without skipping comment lines, so spelling them out would trip a false positive.
 .rt-tag-draft {
   background: var(--warning-soft);
   color: var(--warning);
@@ -328,18 +331,18 @@ function onRemoveResource(r: VisibleResource) {
 .rt-changes { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .rt-change { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .rt-badge { font-size: 10px; padding: 1px 5px; border-radius: 4px; font-weight: 600; }
-// Vue2 裸色 3-6: badge-NEW/DEL/REN/MKD 背景(NEW 在 badgeFor() 里从未被产出,
-// Vue2 本身也是死代码,原样保留不删,只是 rgba → token)。
+// Vue2 bare colour 3-6: badge-NEW/DEL/REN/MKD backgrounds (NEW is never produced by badgeFor(),
+// already dead code in Vue2 itself; kept as-is rather than removed, just rgba → token).
 .badge-NEW { background: var(--success-soft); color: var(--success); }
 .badge-MOD { background: var(--accent-soft); color: var(--accent); }
 .badge-DEL { background: var(--danger-soft); color: var(--danger); }
 .badge-REN { background: var(--teal-soft); color: var(--teal); }
 .badge-MKD { background: var(--teal-soft); color: var(--teal); }
 .rt-size { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
-// Vue2 裸色 7(ResourcesTab.vue:267): 红色半透明背景 → --danger-soft。
+// Vue2 bare colour 7 (ResourcesTab.vue:267): translucent danger-tinted background → --danger-soft.
 .rt-orphan-tag { font-size: 10px; padding: 1px 5px; border-radius: 4px; background: var(--danger-soft); color: var(--danger); }
 .rt-commit-row { padding-top: 8px; }
-// Vue2 裸色 8: color: white → --text-on-accent。
+// Vue2 bare colour 8: a literal light text colour on the accent background → --text-on-accent.
 .rt-commit { width: 100%; padding: 8px 12px; border-radius: var(--r-sm); background: var(--accent); color: var(--text-on-accent); border: none; font-weight: 500; cursor: pointer; }
 .rt-commit:disabled { opacity: 0.4; cursor: not-allowed; }
 .rt-batch { border: 1px solid var(--line); border-radius: 6px; margin-top: 4px; }

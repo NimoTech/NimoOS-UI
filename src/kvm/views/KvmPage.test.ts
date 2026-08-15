@@ -1178,9 +1178,9 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     await flush()
     await w.vm.$nextTick()
 
-    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机') // 没关
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机') // not closed
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain name already exists')
-    expect(useToast().toasts).toEqual([]) // 硬约束 3:弹窗内报错不许 toast
+    expect(useToast().toasts).toEqual([]) // hard constraint 3: inline error inside a dialog must not toast
     w.unmount()
   })
 
@@ -1322,7 +1322,7 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('ISO 下载完成 → toast「Debian 已下载」(拼法照 Vue2 :165 `${os.name} ${$t("downloaded")}`)', async () => {
+  it('ISO download complete → toast「Debian 已下载」(text matches Vue2 :165 `${os.name} ${$t("downloaded")}`)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1335,17 +1335,18 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     w.unmount()
   })
 
-  // 全分支评审修复 A3(此前 toast「下载失败」被 OS 选择器自己的遮罩挡住,用户看不见——
-  // 已改成 OsSelector 内联展示,不再走 toast):打开创建弹窗 → 打开 OsSelector(此时它
-  // 的遮罩正盖在屏幕上,与真实用户盯着下载百分比的场景一致)→ 收到下载失败事件 →
-  // 内联 `.cv-error` 显示,不弹 toast。
-  it('ISO 下载失败 → OsSelector 内联 .cv-error 显示「下载失败」,不弹 toast(A3)', async () => {
+  // Full-branch review fix A3 (previously the "download failed" toast was hidden behind OS selector's own
+  // overlay, invisible to the user — changed to inline display inside OsSelector instead of a toast): open
+  // the create dialog → open OsSelector (its overlay is now covering the screen, matching the real
+  // scenario of a user watching download progress) → receive the download-failed event →
+  // inline `.cv-error` shows, no toast.
+  it('ISO download failed → OsSelector inline .cv-error shows「下载失败」, no toast (A3)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openCreateAndPickIso(w)
-    expect(document.body.querySelector('.cv-error')).toBeNull() // 排除混淆:此刻确实还没有报错
+    expect(document.body.querySelector('.cv-error')).toBeNull() // exclude confusion: confirm no error yet at this point
 
     emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
     await flush()
@@ -1356,9 +1357,10 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     w.unmount()
   })
 
-  // 全分支评审修复 A3:新一轮下载开始前清掉上一次的失败报错——不清的话,下载同一个/
-  // 另一个 ISO 重试时,旧的红字会一直挂在那里,即便这次下载本身还没有结果。
-  it('新一轮下载开始前清掉上一次的失败报错残留(A3)', async () => {
+  // Full-branch review fix A3: clear the previous failure error before starting a new download — otherwise
+  // retrying the same/another ISO would leave the old red text stuck there, even though this download
+  // itself hasn't produced a result yet.
+  it('clears the previous download-failure error residue before starting a new download (A3)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1368,21 +1370,21 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     emitBus('kvm:iso_download_failed', { iso_id: 'debian-13' })
     await flush()
     await w.vm.$nextTick()
-    expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败') // 先确认报错确实还在
+    expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败') // first confirm the error really is still there
 
     const dlBtn = document.body.querySelector('.os-action-btn') as HTMLElement
     dlBtn.click()
     await flush()
     await w.vm.$nextTick()
 
-    expect(api.downloadISO).toHaveBeenCalled() // 下载调用本身没有被这层包装吞掉
-    expect(document.body.querySelector('.cv-error')).toBeNull() // 旧报错已清空
+    expect(api.downloadISO).toHaveBeenCalled() // the download call itself wasn't swallowed by this wrapper layer
+    expect(document.body.querySelector('.cv-error')).toBeNull() // old error has been cleared
     w.unmount()
   })
 
-  // 全分支评审修复 A3:关闭选择器时清掉报错残留——不清的话,下次(哪怕是给设置弹窗)
-  // 重新打开会带出上一次已经不相关的旧报错。
-  it('关闭 OsSelector 后重新打开不会带出上一次的下载失败报错(A3)', async () => {
+  // Full-branch review fix A3: clear the error residue when closing the selector — otherwise reopening it
+  // next time (even for the settings dialog) would carry over the previous, now-irrelevant old error.
+  it('reopening OsSelector after closing it doesn\'t carry over the previous download-failure error (A3)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN()])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1394,9 +1396,9 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     await w.vm.$nextTick()
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('下载失败')
 
-    // 关闭 OsSelector(点它的 ✕),再从创建弹窗重新打开一次。
+    // Close OsSelector (click its ✕), then reopen it once from the create dialog.
     const closeBtns = [...document.body.querySelectorAll('.create-vm-close')]
-    ;(closeBtns[closeBtns.length - 1] as HTMLElement).click() // 最上层(z 920)的那个是 OsSelector
+    ;(closeBtns[closeBtns.length - 1] as HTMLElement).click() // the topmost one (z 920) is OsSelector
     await flush()
     await w.vm.$nextTick()
 
@@ -1408,7 +1410,7 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     w.unmount()
   })
 
-  it('点正在下载的卡片 → toast「请等待下载完成」', async () => {
+  it('clicking a card that is currently downloading → toast「请等待下载完成」', async () => {
     api.getVMList.mockResolvedValue({ data: [VM()], total: 1 })
     api.getISOList.mockResolvedValue([ISO_DEBIAN({ status: 'downloading', progress: 42 })])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1422,23 +1424,25 @@ describe('KvmPage create flow wiring (P6 Task 8)', () => {
     await w.vm.$nextTick()
 
     expect(useToast().toasts.map((x) => x.text)).toContain('请等待下载完成')
-    // 硬约束(OsSelector.vue handleAction):点正在下载的卡片只 emit need-wait,不该
-    // 顺带把弹窗关了或触发别的动作——间接验证:创建弹窗还在。
+    // Hard constraint (OsSelector.vue handleAction): clicking a card that is currently downloading should
+    // only emit need-wait, and must not also close the dialog or trigger any other action — indirect
+    // verification: the create dialog is still there.
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('创建新虚拟机')
     w.unmount()
   })
 })
 
-// P6 Task 9:VM 设置弹窗接线——齿轮解禁 → 弹窗回填 → 保存成功/失败 → OsSelector 路由到
-// 设置弹窗而不是创建弹窗(osSelectorTarget,与创建流程共用同一个 OsSelector 实例)。
-describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
+// P6 Task 9: VM settings dialog wiring — gear icon unlocks → dialog pre-fills → save success/failure →
+// OsSelector routes to the settings dialog instead of the create dialog (osSelectorTarget, sharing the
+// same OsSelector instance with the create flow).
+describe('KvmPage VM settings dialog wiring (P6 Task 9)', () => {
   const openSettings = async (w: VueWrapper): Promise<void> => {
-    await w.get('.action-btn').trigger('click') // 齿轮是 console-actions 里第一个 action-btn
+    await w.get('.action-btn').trigger('click') // the gear icon is the first action-btn inside console-actions
     await flush()
     await w.vm.$nextTick()
   }
 
-  it('齿轮点击后弹出 VM 设置弹窗,标题与 General 表单回填选中 VM 的当前值', async () => {
+  it('clicking the gear pops the VM settings dialog, title and General form pre-fill the selected VM\'s current values', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', name: 'sp9-alpine-test', state: 'stopped', vcpu: 2, memory: 1024 })],
       total: 1,
@@ -1454,7 +1458,7 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     w.unmount()
   })
 
-  it('保存成功 → 调用 updateVM(id, patch)、关弹窗、弹 toast「设置已保存」,选中 VM 的可见字段被回写', async () => {
+  it('save success → calls updateVM(id, patch), closes the dialog, toasts「设置已保存」, selected VM\'s visible fields are written back', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', name: 'sp9-alpine-test', state: 'stopped' })],
       total: 1,
@@ -1468,45 +1472,48 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     nameInput.dispatchEvent(new Event('input'))
     await w.vm.$nextTick()
 
-    // P6 Task 10 起:`.cv-primary-btn` 不再唯一——快照 tab 默认内容(真实 SnapshotsTab)
-    // 里"创建"按钮也是这个类且 v-show 不移出 DOM,裸选择器会先命中它。限定在
-    // `.create-vm-foot` 容器内才是 General tab 的"保存"按钮。
+    // Since P6 Task 10: `.cv-primary-btn` is no longer unique — the snapshots tab's default content
+    // (the real SnapshotsTab) also has a "create" button with this class, and v-show doesn't remove it
+    // from the DOM, so a bare selector would hit it first. Scoping to inside the `.create-vm-foot`
+    // container is what makes it the General tab's "save" button.
     ;(document.body.querySelector('.create-vm-foot .cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
     expect(api.updateVM).toHaveBeenCalledWith('vm-1', expect.objectContaining({ name: 'renamed-vm' }))
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 关弹窗
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // dialog closed
     expect(useToast().toasts.map((x) => x.text)).toContain('设置已保存')
-    // 回写生效的直接证据:控制台头的标题(读 s.selectedVM.value.name)跟着变了,
-    // 不需要手动刷新页面——这是 useVmList.update() 成功后 Object.assign 回写的效果。
+    // Direct evidence the write-back took effect: the console header's title (reads s.selectedVM.value.name)
+    // updates along with it, no manual page refresh needed — this is the effect of useVmList.update()'s
+    // Object.assign write-back after success.
     expect(w.get('.console-title h3').text()).toBe('renamed-vm')
     w.unmount()
   })
 
-  it('保存失败 → 弹窗不关,内联显示后端 message(不弹 toast)', async () => {
+  it('save failure → dialog stays open, shows backend message inline (no toast)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.updateVM.mockRejectedValue(new Error('domain name already exists'))
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openSettings(w)
 
-    // 同上一条注释:限定在 `.create-vm-foot` 容器内,避免误点快照 tab 默认内容里的
-    // "创建"按钮。
+    // Same as the comment above: scope to inside the `.create-vm-foot` container, to avoid mis-clicking
+    // the "create" button in the snapshots tab's default content.
     ;(document.body.querySelector('.create-vm-foot .cv-primary-btn') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
 
-    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置') // 没关
+    expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置') // not closed
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain name already exists')
     expect(useToast().toasts).toEqual([])
     w.unmount()
   })
 
-  // osSelectorTarget 路由的真实覆盖:设置弹窗与创建弹窗共用同一个页面级 OsSelector 实例,
-  // 从设置弹窗打开 OsSelector 选中的结果必须落进设置弹窗自己的 iso 行,不能串到创建
-  // 弹窗那边(创建弹窗此刻甚至从未打开过)。
-  it('设置弹窗里点 ISO 行打开 OsSelector,选中结果落进设置弹窗(不是创建弹窗)', async () => {
+  // Real coverage of osSelectorTarget routing: the settings dialog and the create dialog share the same
+  // page-level OsSelector instance. Opening OsSelector from the settings dialog and picking a result must
+  // land in the settings dialog's own iso row, not leak over to the create dialog (which hasn't even been
+  // opened at this point).
+  it('clicking the ISO row in the settings dialog opens OsSelector, selection lands in the settings dialog (not the create dialog)', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'stopped', iso: '', bootFromDisk: true })],
       total: 1,
@@ -1527,7 +1534,8 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     await flush()
     await w.vm.$nextTick()
 
-    // OsSelector 选中即关,此刻只应剩设置弹窗一个 .create-vm-modal(创建弹窗从未打开过)。
+    // OsSelector closes itself on selection, so at this point only the settings dialog's one
+    // .create-vm-modal should remain (the create dialog was never opened).
     expect([...document.body.querySelectorAll('.create-vm-modal')]).toHaveLength(1)
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
     expect(document.body.querySelector('.cv-iso-btn')?.textContent)
@@ -1535,13 +1543,14 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     w.unmount()
   })
 
-  // 全分支评审修复 A2:vmSettingsOpen 是独立于 `v-if="s.selectedVM.value"` 的一个 ref。
-  // 选中的 VM 在别处被删除时(另一浏览器标签页/CLI/另一用户),v-if 会卸载弹窗,但
-  // vmSettingsOpen 本身留在 true——下次选中任意一台别的 VM,v-if 转真,弹窗会带着这个
-  // 陈旧的 true 自己弹出来。判别力设计:先证明"不选中新 VM 之前,弹窗确实已经因为
-  // v-if 卸载消失了"(排除"弹窗从来没关过"这个混淆因素),再选中新 VM 断言它没有
-  // 自己重新出现。
-  it('评审修复 A2:VM 在别处被删除后,选中另一台 VM 时设置弹窗不会带着陈旧状态自己弹出来', async () => {
+  // Full-branch review fix A2: vmSettingsOpen is a ref independent of `v-if="s.selectedVM.value"`.
+  // When the selected VM is deleted elsewhere (another browser tab / CLI / another user), v-if unmounts
+  // the dialog, but vmSettingsOpen itself stays true — next time any other VM is selected, v-if turns true
+  // again and the dialog pops back up on its own, carrying this stale true. Discriminative design: first
+  // prove that "before a new VM is selected, the dialog has indeed already disappeared because v-if
+  // unmounted it" (excluding the confound of "the dialog was never actually closed"), then select a new
+  // VM and assert it doesn't reappear on its own.
+  it('review fix A2: after the VM is deleted elsewhere, selecting another VM doesn\'t pop the settings dialog back up with stale state', async () => {
     api.getVMList.mockResolvedValue({
       data: [
         VM({ id: 'vm-1', name: 'vm-x', state: 'stopped' }),
@@ -1551,34 +1560,35 @@ describe('KvmPage VM 设置弹窗接线(P6 Task 9)', () => {
     })
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
-    // 自动选中列表第一台(vm-1),打开它的设置弹窗。
+    // Auto-selects the first VM in the list (vm-1), open its settings dialog.
     await openSettings(w)
     expect(document.body.querySelector('.create-vm-title')?.textContent).toContain('虚拟机设置')
 
-    // vm-1 在别处被删除——带 vm_id,useVmList 直接把 selectedVM 置 null,不会自动重选
-    // 别的 VM(useVmList.ts:141-149)。
+    // vm-1 is deleted elsewhere — with vm_id, useVmList sets selectedVM straight to null and doesn't
+    // auto-reselect another VM (useVmList.ts:141-149).
     emitBus('kvm:vm_deleted', { vm_id: 'vm-1' })
     await flush()
     await w.vm.$nextTick()
-    // 先确认:此刻弹窗确实已经消失(v-if 卸载),不是"从来没关过"。
+    // First confirm: at this point the dialog has indeed already disappeared (v-if unmounted it) —
+    // it wasn't "never actually closed".
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
 
-    // 选中另一台 VM(此刻列表只剩 vm-2 一条)。
+    // Select another VM (only vm-2 remains in the list now).
     const items = w.findAll('.vm-list-item')
     expect(items).toHaveLength(1)
     await items[0].trigger('click')
     await flush()
     await w.vm.$nextTick()
 
-    // 断言:设置弹窗没有带着陈旧的 vmSettingsOpen=true 自己弹出来。
+    // Assert: the settings dialog didn't pop back up on its own carrying the stale vmSettingsOpen=true.
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
     w.unmount()
   })
 })
 
-describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
+describe('KvmPage snapshots tab wiring (P6 Task 10)', () => {
   const openSettings = async (w: VueWrapper): Promise<void> => {
-    await w.get('.action-btn').trigger('click') // 齿轮是 console-actions 里第一个 action-btn
+    await w.get('.action-btn').trigger('click') // the gear icon is the first action-btn inside console-actions
     await flush()
     await w.vm.$nextTick()
   }
@@ -1589,9 +1599,10 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await w.vm.$nextTick()
   }
 
-  // 照 Vue2 :250 点 tab 才拉:齿轮打开后(General tab)不应该已经调用 getSnapshots,
-  // 点了快照 tab 之后才调用,且列表渲染出来。
-  it('点快照 tab → 调用 getSnapshots(vmId),渲染出列表', async () => {
+  // Following Vue2 :250, the fetch only happens on tab click: right after the gear opens (General tab),
+  // getSnapshots shouldn't have been called yet — it's only called after clicking the snapshots tab, and
+  // then the list renders.
+  it('clicking the snapshots tab → calls getSnapshots(vmId), renders the list', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '升级前备份', state: 'complete', createdAt: '2026-08-03T10:00:00Z' },
@@ -1599,7 +1610,7 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openSettings(w)
-    expect(api.getSnapshots).not.toHaveBeenCalled() // General tab 不应该已经拉取
+    expect(api.getSnapshots).not.toHaveBeenCalled() // General tab shouldn't have fetched yet
 
     await openSnapshotsTab(w)
     expect(api.getSnapshots).toHaveBeenCalledWith('vm-1')
@@ -1607,11 +1618,11 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     w.unmount()
   })
 
-  it('创建快照成功 → 调用 createSnapshot、弹 toast「快照创建成功」、列表刷新一遍', async () => {
+  it('create snapshot success → calls createSnapshot, toasts「快照创建成功」, list refreshes once', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots
-      .mockResolvedValueOnce([]) // 点 tab 时第一次拉:空
-      .mockResolvedValueOnce([ // create 成功后再拉一遍:非空
+      .mockResolvedValueOnce([]) // first fetch on tab click: empty
+      .mockResolvedValueOnce([ // fetches again after create succeeds: non-empty
         { id: 'snap-new', vmId: 'vm-1', name: 'after-create', description: '', state: 'complete', createdAt: '' },
       ])
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1628,13 +1639,13 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await w.vm.$nextTick()
 
     expect(api.createSnapshot).toHaveBeenCalledWith('vm-1', { name: 'before-upgrade', description: '' })
-    expect(api.getSnapshots).toHaveBeenCalledTimes(2) // 点 tab 一次 + create 成功后再一次
+    expect(api.getSnapshots).toHaveBeenCalledTimes(2) // one call from clicking the tab + one more after create succeeds
     expect(useToast().toasts.map((x) => x.text)).toContain('快照创建成功')
     expect(document.body.querySelector('.cv-snapshot-name')?.textContent).toContain('after-create')
     w.unmount()
   })
 
-  it('创建快照失败 → 内联显示后端 message,不弹 toast', async () => {
+  it('create snapshot failure → shows backend message inline, no toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.createSnapshot.mockRejectedValue(new Error('disk quota exceeded'))
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
@@ -1651,11 +1662,11 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
 
     expect(document.body.querySelector('.snapshots-body .cv-error')?.textContent).toBe('disk quota exceeded')
     expect(useToast().toasts).toEqual([])
-    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // dialog not closed
     w.unmount()
   })
 
-  it('删除二次确认通过 → 挂进度遮罩(标题/正文照 Vue2 拼法),完成后摘遮罩、成功弹 toast「name 已删除」,列表本地过滤', async () => {
+  it('delete double-confirmation passed → shows progress overlay (title/body text matches Vue2), overlay removed on completion, success toasts「name 已删除」, list filtered locally', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1667,12 +1678,12 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await openSnapshotsTab(w)
 
     const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
-    delBtn().click() // 第一次:只变确认文字
+    delBtn().click() // first click: only changes the confirmation text
     await w.vm.$nextTick()
-    delBtn().click() // 第二次:真正触发
+    delBtn().click() // second click: actually triggers
     await w.vm.$nextTick()
 
-    // 此刻 deleteSnapshot 的 promise 还没 resolve,遮罩应该已经挂上了。
+    // At this point deleteSnapshot's promise hasn't resolved yet, the overlay should already be mounted.
     const overlay = document.body.querySelector('.kvm-progress-overlay')
     expect(overlay).not.toBeNull()
     expect(overlay!.querySelector('.kvm-progress-title')?.textContent).toContain('正在删除快照')
@@ -1684,17 +1695,17 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
     expect(api.deleteSnapshot).toHaveBeenCalledWith('vm-1', 'snap-1')
     expect(useToast().toasts.map((x) => x.text)).toContain('before-upgrade 已删除')
-    expect(document.body.querySelector('.cv-empty-state')?.textContent).toContain('暂无快照') // 本地过滤后为空
+    expect(document.body.querySelector('.cv-empty-state')?.textContent).toContain('暂无快照') // empty after local filtering
     w.unmount()
   })
 
-  // 评审修复:delete/restore 失败原先走 toast,但全局 toast 是 z-index:60
-  // (src/components/AppToast.vue:12 `.toast-stack`),KVM 弹窗遮罩是 z-index:900、
-  // 内容 901(KvmDialog.vue:23 默认 zBase:900 + :33/:36),60 < 900——删除/恢复只可能在
-  // 设置弹窗打开时发生,toast 会被弹窗遮罩完全盖住,用户看不见。改成内联显示在
-  // SnapshotsTab 自己的 `.cv-error`(经 KvmPage 的 snapCreateError → VmSettingsDialog 的
-  // snapshotSubmitError prop → SnapshotsTab 的 submitError prop 透传)。
-  it('删除失败 → .cv-error 内联显示后端 message,设置弹窗不关,不弹 toast', async () => {
+  // Review fix: delete/restore failures used to go through toast, but the global toast is z-index:60
+  // (src/components/AppToast.vue:12 `.toast-stack`), while the KVM dialog overlay is z-index:900, content
+  // 901 (KvmDialog.vue:23 default zBase:900 + :33/:36), 60 < 900 — delete/restore can only happen while the
+  // settings dialog is open, so the toast would be completely covered by the dialog overlay, invisible to
+  // the user. Changed to display inline in SnapshotsTab's own `.cv-error` (threaded through via KvmPage's
+  // snapCreateError → VmSettingsDialog's snapshotSubmitError prop → SnapshotsTab's submitError prop).
+  it('delete failure → .cv-error shows backend message inline, settings dialog stays open, no toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1703,8 +1714,9 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openSnapshotsTab(w)
-    // 先确认无错误时 .cv-error 不存在——这样下面出现的那条红字只能由这次删除失败解释,
-    // 不会跟"页面本来就带着一条不相关的 .cv-error"这种混淆因素搞混。
+    // First confirm .cv-error doesn't exist when there's no error — this way the red text that appears
+    // below can only be explained by this delete failure, and won't get confused with the confound of
+    // "the page already had an unrelated .cv-error to begin with".
     expect(document.body.querySelector('.cv-error')).toBeNull()
 
     const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
@@ -1716,12 +1728,12 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
 
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('snapshot is in use')
-    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关
-    expect(useToast().toasts).toEqual([]) // 失败不弹 toast
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // dialog not closed
+    expect(useToast().toasts).toEqual([]) // failure doesn't toast
     w.unmount()
   })
 
-  it('恢复失败 → .cv-error 内联显示后端 message,设置弹窗不关,不弹 toast', async () => {
+  it('restore failure → .cv-error shows backend message inline, settings dialog stays open, no toast', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1730,7 +1742,7 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     const w = mount(KvmPage, { global: { plugins: [i18n] }, attachTo: document.body })
     await flush()
     await openSnapshotsTab(w)
-    expect(document.body.querySelector('.cv-error')).toBeNull() // 同上,排除混淆
+    expect(document.body.querySelector('.cv-error')).toBeNull() // same as above, excludes confusion
 
     const restoreBtn = () => document.body.querySelector('.cv-btn-restore') as HTMLElement
     restoreBtn().click()
@@ -1741,12 +1753,12 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
 
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('domain snapshot not found')
-    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // 弹窗没关(与成功分支的"关弹窗"相对)
+    expect(document.body.querySelector('.create-vm-title')).not.toBeNull() // dialog not closed (contrasts with the success branch's "dialog closes")
     expect(useToast().toasts).toEqual([])
     w.unmount()
   })
 
-  it('恢复二次确认通过(VM 已停止)→ 挂进度遮罩(标题/正文照 Vue2 拼法),成功弹 toast「name 已恢复」且关闭整个设置弹窗', async () => {
+  it('restore double-confirmation passed (VM stopped) → shows progress overlay (title/body text matches Vue2), success toasts「name 已恢复」and closes the entire settings dialog', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1758,9 +1770,9 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await openSnapshotsTab(w)
 
     const restoreBtn = () => document.body.querySelector('.cv-btn-restore') as HTMLElement
-    restoreBtn().click() // 第一次:只变确认文字(恢复按钮此刻 vmState==='stopped',可点)
+    restoreBtn().click() // first click: only changes the confirmation text (the restore button is clickable here since vmState==='stopped')
     await w.vm.$nextTick()
-    restoreBtn().click() // 第二次:真正触发
+    restoreBtn().click() // second click: actually triggers
     await w.vm.$nextTick()
 
     const overlay = document.body.querySelector('.kvm-progress-overlay')
@@ -1774,18 +1786,20 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     expect(document.body.querySelector('.kvm-progress-overlay')).toBeNull()
     expect(api.restoreSnapshot).toHaveBeenCalledWith('vm-1', 'snap-1')
     expect(useToast().toasts.map((x) => x.text)).toContain('before-upgrade 已恢复')
-    // 恢复成功后关掉整个设置弹窗(照 Vue2 :1282)。
+    // Closes the entire settings dialog after restore succeeds (per Vue2 :1282).
     expect(document.body.querySelector('.create-vm-title')).toBeNull()
     w.unmount()
   })
 
-  // P6 Task 11 收尾补的回归测试(评审 Minor d):KvmPage.vue 的 case 'settings' 分支里有
-  // 一句 `snapCreateError.value = ''`,清掉上一轮快照操作留下的报错残留——这句本身没有
-  // 单测覆盖过。判别力设计:先在**不关闭**设置弹窗的情况下确认那条 `.cv-error` 确实还在
-  // (与上面「删除失败」那条用例是同一断言,不是新写法),这样才能排除"错误本来就会自己
-  // 消失"这个混淆因素;再关闭弹窗、重新打开并切到快照 tab,断言旧的 `.cv-error` 不再
-  // 出现——如果把 `snapCreateError.value = ''` 那一行删掉,这条用例会失败(旧错误残留)。
-  it('设置弹窗重新打开会清掉上一轮快照操作的报错残留(评审 Minor d)', async () => {
+  // Regression test added at the tail end of P6 Task 11 (review Minor d): KvmPage.vue's case 'settings'
+  // branch has a line `snapCreateError.value = ''` that clears the error residue left over from the
+  // previous snapshot operation — this line itself was never covered by a unit test. Discriminative
+  // design: first confirm the `.cv-error` is indeed still there **without closing** the settings dialog
+  // (the same assertion as the "delete failure" test above, not a new pattern), so the confound of "the
+  // error would disappear on its own anyway" can be excluded; then close the dialog, reopen it, switch to
+  // the snapshots tab, and assert the old `.cv-error` no longer appears — deleting the
+  // `snapCreateError.value = ''` line would make this test fail (old error residue).
+  it('reopening the settings dialog clears the error residue from the previous snapshot operation (review Minor d)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'stopped' })], total: 1 })
     api.getSnapshots.mockResolvedValue([
       { id: 'snap-1', vmId: 'vm-1', name: 'before-upgrade', description: '', state: 'complete', createdAt: '' },
@@ -1796,36 +1810,38 @@ describe('KvmPage 快照 tab 接线(P6 Task 10)', () => {
     await openSnapshotsTab(w)
 
     const delBtn = () => document.body.querySelector('.cv-btn-delete') as HTMLElement
-    delBtn().click() // 第一次:只变确认文字
+    delBtn().click() // first click: only changes the confirmation text
     await w.vm.$nextTick()
-    delBtn().click() // 第二次:真正触发删除,后端拒绝
+    delBtn().click() // second click: actually triggers the delete, backend rejects it
     await flush()
     await w.vm.$nextTick()
 
-    // 先确认:不关弹窗的话,这条错误确实还留在页面上——排除"错误本来就会自己消失"
-    // 这个混淆因素,下面重新打开后的"消失了"才能归因于 case 'settings' 那句清空。
+    // First confirm: without closing the dialog, this error really is still on the page — this excludes
+    // the confound of "the error would disappear on its own anyway", so the "disappeared" after reopening
+    // below can be attributed to the case 'settings' clear line.
     expect(document.body.querySelector('.cv-error')?.textContent).toBe('snapshot is in use')
 
     ;(document.body.querySelector('.create-vm-close') as HTMLElement).click()
     await flush()
     await w.vm.$nextTick()
-    expect(document.body.querySelector('.create-vm-title')).toBeNull() // 弹窗确实关了
+    expect(document.body.querySelector('.create-vm-title')).toBeNull() // dialog really did close
 
     await openSnapshotsTab(w)
-    expect(document.body.querySelector('.cv-error')).toBeNull() // 旧报错没有跟着重新打开露出来
+    expect(document.body.querySelector('.cv-error')).toBeNull() // old error didn't resurface after reopening
     w.unmount()
   })
 })
 
-describe('SP16 Task 6:重开 OS 选择器时列表要刷新', () => {
-  it('每次打开都重拉 ISO 列表(Vue2 每次 visible:true 都拉)', async () => {
+describe('SP16 Task 6: the list must refresh when reopening the OS selector', () => {
+  it('refetches the ISO list every time it opens (Vue2 fetches every time visible:true)', async () => {
     api.getVMList.mockResolvedValue({ data: [VM({ id: 'vm-1', state: 'running' })], total: 1 })
     const w = mountPage()
     await flush()
     const before = api.getISOList.mock.calls.length
 
-    // 直接驱动页面自己的开关 ref —— 打开 OS 选择器的入口藏在创建弹窗内部,
-    // 经它点进去会把「创建流程」也拖进这条用例,断言的东西就不纯粹了。
+    // Drive the page's own toggle ref directly — the entry point for opening the OS selector is hidden
+    // inside the create dialog, and clicking through it would drag the "create flow" into this test too,
+    // making the assertion less pure.
     const page = w.vm as unknown as { osSelectorOpen: boolean }
     page.osSelectorOpen = true
     await flush()
@@ -1839,8 +1855,8 @@ describe('SP16 Task 6:重开 OS 选择器时列表要刷新', () => {
   })
 })
 
-describe('SP16 Task 7:eject 失败不能弹成功提示', () => {
-  it('eject 在途时离开页面,之后失败不再弹「已弹出」', async () => {
+describe('SP16 Task 7: eject failure must not pop a success toast', () => {
+  it('leaving the page while eject is in flight, a later failure no longer toasts「已弹出」', async () => {
     api.getVMList.mockResolvedValue({
       data: [VM({ id: 'vm-1', state: 'running', bootFromDisk: false, iso: '/data/alpine.iso' })],
       total: 1,
@@ -1851,13 +1867,14 @@ describe('SP16 Task 7:eject 失败不能弹成功提示', () => {
     await flush()
     const toast = useToast()
 
-    await w.get('.banner-btn').trigger('click')  // eject 发出,还没 resolve
-    w.unmount()                                  // 请求在途时整页跳走
-    reject(new Error('boom'))                    // 之后才失败
+    await w.get('.banner-btn').trigger('click')  // eject sent, not resolved yet
+    w.unmount()                                  // whole page navigates away while the request is in flight
+    reject(new Error('boom'))                    // fails only afterward
     await flush()
 
-    // 文案取自 zh_cn.sp9.ts:458 的字面量(kvmEjectSuccess),不是自己编的。
-    // toast 容器挂在 App.vue 层、比本页活得久 ⇒ 这条提示用户真的看得见。
+    // Text is taken from the literal in zh_cn.sp9.ts:458 (kvmEjectSuccess), not made up.
+    // The toast container is mounted at the App.vue level and outlives this page ⇒ this message would
+    // really be visible to the user.
     expect(toast.toasts.map((x) => x.text))
       .not.toContain('光盘已弹出，虚拟机将在下次重启时从硬盘引导。')
   })

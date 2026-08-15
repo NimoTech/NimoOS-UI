@@ -941,16 +941,16 @@ describe('ParserTest — scored card two states + N18 + 🔴 governance §4.2 fa
     const w = await mountPage()
     await runWith(w)
     const texts = w.findAll('.rank-text').map((n) => n.text())
-    expect(texts[0]).toBe(s200) // 恰好 200 → 不截(蓝本是严格 `>`)
+    expect(texts[0]).toBe(s200) // exactly 200 → not truncated (blueprint uses strict `>`)
     expect(texts[0]).toHaveLength(200)
-    expect(texts[1]).toBe('b'.repeat(200) + '…') // 201 → 截 + 省略号
+    expect(texts[1]).toBe('b'.repeat(200) + '…') // 201 → truncated + ellipsis
     expect(texts[1]).toHaveLength(201)
   })
 
-  it('🔴 chunkText 找不到对应 chunk_no → 回空串(蓝本 `c ? c.text : \'\'`)', async () => {
+  it('🔴 chunkText finds no matching chunk_no → falls back to empty string (blueprint `c ? c.text : \'\'`)', async () => {
     ai.parserTestAnalyze.mockResolvedValue({
       ...MD_OK,
-      scored: [{ chunk_no: 99, cos_sim: 0.5 }], // chunks 里只有 chunk_no 0
+      scored: [{ chunk_no: 99, cos_sim: 0.5 }], // chunks only has chunk_no 0
     })
     const w = await mountPage()
     await runWith(w)
@@ -960,8 +960,8 @@ describe('ParserTest — scored card two states + N18 + 🔴 governance §4.2 fa
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— docling 卡两态 + 折叠(蓝本 :97-104)+ 🔴 治理 §4.2 事实①', () => {
-  it('🔴 事实①:两份成功 fixture(`.md` / `.txt`)都**不产生 `docling_markdown`** → 整卡不渲染', async () => {
+describe('ParserTest — docling card two states + collapse (blueprint :97-104) + 🔴 governance §4.2 fact①', () => {
+  it('🔴 fact①: both success fixtures (`.md` / `.txt`) produce **no `docling_markdown`** → whole card does not render', async () => {
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.docling-card').exists()).toBe(false)
@@ -973,26 +973,26 @@ describe('ParserTest —— docling 卡两态 + 折叠(蓝本 :97-104)+ 🔴 治
     expect(w.find('.docling-card').exists()).toBe(false)
   })
 
-  it('mock 造一份带 `docling_markdown` 的:折叠按钮文案 `▶ docling 转出的 markdown（N 字符）`,默认折起', async () => {
-    // 治理 §13:要看到这张卡得传 `.docx`/`.pptx`/`.xlsx`(🔴 **别传 `.pdf`**,会触发
-    // ~200 MB 模型下载)→ 本机验渲染只能靠 mock 造。
+  it('mock creates one with `docling_markdown`: collapse button text `▶ docling 转出的 markdown（N 字符）`, collapsed by default', async () => {
+    // governance §13: to see this card you must send `.docx`/`.pptx`/`.xlsx` (🔴 **do not send `.pdf`**,
+    // it triggers a ~200 MB model download) → on this device, rendering can only be verified via mock.
     const md = '# Title\n\nbody text'
     ai.parserTestAnalyze.mockResolvedValue({ ...MD_OK, docling_markdown: md })
     const w = await mountPage()
     await runWith(w, makeFile('doc.docx', 4096))
     const card = w.find('.docling-card')
     expect(card.exists()).toBe(true)
-    // N16:`▼`/`▶` 在 t() 外面;`{n}` 取的是 `docling_markdown.length`(实测 18)
+    // N16: `▼`/`▶` are outside t(); `{n}` is `docling_markdown.length` (observed 18)
     expect(md).toHaveLength(18)
     expect(sq(card.find('.toggle').text())).toBe('▶ docling 转出的 markdown（18 字符）')
-    // v-show 折起 → 元素在但 display: none
+    // v-show collapsed → element present but display: none
     const pre = card.find('pre.docling-md')
     expect(pre.exists()).toBe(true)
     expect((pre.element as HTMLElement).style.display).toBe('none')
     expect(pre.text()).toBe(md)
   })
 
-  it('点折叠按钮 → 箭头翻成 `▼`、`<pre>` 可见;再点收回', async () => {
+  it('clicking the collapse button → arrow flips to `▼`, `<pre>` becomes visible; clicking again collapses it back', async () => {
     ai.parserTestAnalyze.mockResolvedValue({ ...MD_OK, docling_markdown: 'x' })
     const w = await mountPage()
     await runWith(w, makeFile('doc.docx', 4096))
@@ -1009,22 +1009,23 @@ describe('ParserTest —— docling 卡两态 + 折叠(蓝本 :97-104)+ 🔴 治
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 422 为什么不测:文件头注释已抄下那份响应体并说明 —— 提交按钮
-// `:disabled="!file || loading"` + `submit()` 开头 `if (!file) return` 双重挡住,
-// **UI 到不了「不传 file」这条路**;治理 §4.2 / §5.1 明令不为它加数组分支、也不写单测。
-// 下面只测两条 400(`detail` 是字符串,真机可复现)与「无 response 的网络错误」。
-describe('ParserTest —— 失败侧:两条 400 的 .error-box + 取值链兜底(蓝本 :221-224 / :92)', () => {
-  it('400 `target_tokens must be in [50, 4000]` 原文进 .error-box', async () => {
+// 🔴 Why 422 is not tested: the file-head comment already copied that response body and explained it —
+// the submit button's `:disabled="!file || loading"` + `submit()`'s opening `if (!file) return` block it
+// **doubly**; **the UI can never reach "submit without a file"**; governance §4.2 / §5.1 mandate: add no
+// array branch for it, write no unit test for it.
+// Below only tests the two 400s (`detail` is a string, reproducible on real devices) and "network error with no response".
+describe('ParserTest — failure side: two 400s in .error-box + value-chain fallback (blueprint :221-224 / :92)', () => {
+  it('400 `target_tokens must be in [50, 4000]` verbatim into .error-box', async () => {
     ai.parserTestAnalyze.mockRejectedValue(httpError(400, ERR_400_TARGET))
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.error-box').text()).toBe('target_tokens must be in [50, 4000]')
-    // 失败时 result 保持为 null → 三张结果卡都不渲染
+    // On failure, result stays null → all three result cards do not render
     expect(w.find('.ok-hint').exists()).toBe(false)
     expect(w.find('.chunks-card').exists()).toBe(false)
   })
 
-  it('400 不支持的扩展名 —— 整串原文(含分号后那一长串扩展名清单)进 .error-box', async () => {
+  it('400 unsupported extension — whole string verbatim (including the long extension list after the semicolon) into .error-box', async () => {
     ai.parserTestAnalyze.mockRejectedValue(httpError(400, ERR_400_EXT))
     const w = await mountPage()
     await runWith(w, makeFile('p5c-probe.bin', 12, 'application/octet-stream'))
@@ -1033,29 +1034,29 @@ describe('ParserTest —— 失败侧:两条 400 的 .error-box + 取值链兜�
     )
   })
 
-  it('取值链第二档:`response.data.error`(没有 `detail` 时)', async () => {
-    // 蓝本 :222 是 `data.detail || data.error` —— 两个都读,照抄。
+  it('value-chain second tier: `response.data.error` (when there is no `detail`)', async () => {
+    // Blueprint :222 is `data.detail || data.error` — both are read, copied as-is.
     ai.parserTestAnalyze.mockRejectedValue(httpError(500, { error: 'internal boom' }))
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.error-box').text()).toBe('internal boom')
   })
 
-  it('取值链第三档:无 response(网络层错误)→ 回落 `e.message`', async () => {
+  it('value-chain third tier: no response (network-layer error) → falls back to `e.message`', async () => {
     ai.parserTestAnalyze.mockRejectedValue(new Error('Network Error'))
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.error-box').text()).toBe('Network Error')
   })
 
-  it('取值链第四档:message 为空 → 回落 `String(e)`', async () => {
+  it('value-chain fourth tier: message is empty → falls back to `String(e)`', async () => {
     ai.parserTestAnalyze.mockRejectedValue(new Error(''))
     const w = await mountPage()
     await runWith(w)
     expect(w.find('.error-box').text()).toBe('Error')
   })
 
-  it('失败后 loading 归位(`finally`)→ 按钮解禁、文案回「运行」', async () => {
+  it('after failure, loading resets (`finally`) → button re-enabled, text back to 「运行」', async () => {
     ai.parserTestAnalyze.mockRejectedValue(httpError(400, ERR_400_TARGET))
     const w = await mountPage()
     await runWith(w)
@@ -1065,36 +1066,36 @@ describe('ParserTest —— 失败侧:两条 400 的 .error-box + 取值链兜�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— fmtBytes 三档边界两侧(蓝本 :236-240)', () => {
-  // 通过 `.file-meta .hint` 观察(蓝本 :34 是它唯一的调用点之一),走真实渲染路径。
+describe('ParserTest — fmtBytes: both sides of all three tier boundaries (blueprint :236-240)', () => {
+  // Observed via `.file-meta .hint` (blueprint :34 is one of its only call sites), through the real render path.
   async function bytesLabel(size: number): Promise<string> {
     const w = await mountPage()
     await pickFile(w, makeFile('x.md', size))
     return w.find('.file-meta .hint').text()
   }
 
-  it('B 档:0 / 1 / 1023 —— 整数直接拼 `" B"`,不带小数', async () => {
+  it('B tier: 0 / 1 / 1023 — integers concatenated directly with `" B"`, no decimals', async () => {
     expect(await bytesLabel(0)).toBe('0 B')
     expect(await bytesLabel(1)).toBe('1 B')
     expect(await bytesLabel(1023)).toBe('1023 B')
   })
 
-  it('🔴 第一个边界 1024:上侧进 KB 档、toFixed(1)', async () => {
+  it('🔴 first boundary 1024: above it enters the KB tier, toFixed(1)', async () => {
     expect(await bytesLabel(1024)).toBe('1.0 KB')
     expect(await bytesLabel(1536)).toBe('1.5 KB')
   })
 
-  it('🔴 第二个边界 1048575 / 1048576:下侧仍 KB(toFixed(1))、上侧进 MB(toFixed(2))', async () => {
+  it('🔴 second boundary 1048575 / 1048576: below stays KB (toFixed(1)), above enters MB (toFixed(2))', async () => {
     expect(await bytesLabel(1024 * 1024 - 1)).toBe('1024.0 KB')
     expect(await bytesLabel(1024 * 1024)).toBe('1.00 MB')
   })
 
-  it('MB 档:两位小数', async () => {
+  it('MB tier: two decimal places', async () => {
     expect(await bytesLabel(30 * 1024 * 1024)).toBe('30.00 MB')
     expect(await bytesLabel(1024 * 1024 * 3 + 512 * 1024)).toBe('3.50 MB')
   })
 
-  it('ok-hint 里的 size 也走同一个 fmtBytes(md-ok 的 50 → `50 B`)', async () => {
+  it('size inside ok-hint also goes through the same fmtBytes (md-ok\'s 50 → `50 B`)', async () => {
     const w = await mountPage()
     await runWith(w, makeFile('p5c-probe.md', 50))
     expect(sq(w.find('.ok-hint').text())).toContain('· 50 B ·')
@@ -1102,21 +1103,24 @@ describe('ParserTest —— fmtBytes 三档边界两侧(蓝本 :236-240)', () =>
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能判别)', () => {
-  // 治理 §9.2:凡「必须用键 A、不许用键 B,理由是 **en 不同**」的条目,只比 zh 的断言
-  // **零判别力**(T6 评审实测:换成被禁键 47/47 全绿)。
+describe('ParserTest — 🔴 §9.2 strong en-locale assertions (zh collides; only en can discriminate)', () => {
+  // Governance §9.2: for any item where "must use key A, not key B, because **en differs**", an assertion
+  // that only compares zh has **zero discriminating power** (T6 review measured: swapping in the banned key still passes 47/47).
   //
-  // 🔴 本刀已把本页 23 个键的 zh 值与**全表 1503 键**做过程序化撞车扫描,结果:
-  //   `aiKbPtProcessing`   zh 处理中…  <撞>  `appsWorking`        en `Processing…` vs `Working…`  ← **EN-DIFF**
-  //   `aiKbPtReset`        zh 重置      <撞>  `filesViewerReset`   en `Reset` vs `Reset`           ← EN-SAME(无判别力)
-  //   `aiKbPtRun`          zh 运行      <撞>  `aiSkTestRun`        en `Run` vs `Run`               ← EN-SAME(无判别力)
-  // → **唯一有 en 判别力的同族键是 `aiKbPtProcessing` / `appsWorking`**:两者 zh 逐字相同
-  //   (都是「处理中…」),只有英文界面能分辨。若有人图省事复用 `appsWorking`,中文界面
-  //   看不出任何差别、三门全绿,只有切英文才看得出按钮写着 `Working…`(Vue2 是 `Processing…`)
-  //   = 界面不 1:1。故这一对必须有 en 档正向 + 反向断言。
-  // 另两对 EN-SAME 的靠源码键名守(渲染断言对它们零判别力,同 T6 对 A-1 的处置)。
+  // 🔴 This pass already ran a programmatic collision scan of this page's 23 keys' zh values against
+  //   **the full 1503-key table**, result:
+  //   `aiKbPtProcessing`   zh 处理中…  <collides with>  `appsWorking`        en `Processing…` vs `Working…`  ← **EN-DIFF**
+  //   `aiKbPtReset`        zh 重置      <collides with>  `filesViewerReset`   en `Reset` vs `Reset`           ← EN-SAME (no discriminating power)
+  //   `aiKbPtRun`          zh 运行      <collides with>  `aiSkTestRun`        en `Run` vs `Run`               ← EN-SAME (no discriminating power)
+  // → **the only sibling-key pair with en discriminating power is `aiKbPtProcessing` / `appsWorking`**: their zh
+  //   values are identical character-for-character (both 「处理中…」), only the English UI can tell them apart.
+  //   If someone lazily reuses `appsWorking`, the Chinese UI shows no visible difference and all three gates
+  //   pass green — only switching to English reveals the button reads `Working…` (Vue2 has `Processing…`)
+  //   = the interface is no longer 1:1. Hence this pair must have both a positive and a negative en-locale assertion.
+  // The other two EN-SAME pairs are guarded via source-level key names (rendering assertions have zero
+  // discriminating power for them, same treatment T6 applied to A-1).
   //
-  // 🔴 locale 是全局单例 → 必须 try/finally 还原,否则污染同文件后续用例。
+  // 🔴 locale is a global singleton → must be restored via try/finally, otherwise it pollutes later test cases in this file.
   const localeRef = i18n.global.locale as unknown as { value: string }
 
   async function inEn<T>(fn: (w: W) => Promise<T> | T): Promise<T> {
@@ -1130,7 +1134,7 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
     }
   }
 
-  it('🔴 en 档:在飞时按钮逐字 `Processing…`,落地后逐字 `Run`', async () => {
+  it('🔴 en locale: button reads exactly `Processing…` while in flight, exactly `Run` after landing', async () => {
     await inEn(async (w) => {
       const d = deferred<unknown>()
       ai.parserTestAnalyze.mockReturnValue(d.promise)
@@ -1144,7 +1148,7 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
     })
   })
 
-  it('🔴 反向:en 档渲染结果里不许出现被禁复用键 `appsWorking` 的 en 值(`Working…`)', async () => {
+  it('🔴 negative: the en-locale render must never contain the en value (`Working…`) of the banned reused key `appsWorking`', async () => {
     await inEn(async (w) => {
       const d = deferred<unknown>()
       ai.parserTestAnalyze.mockReturnValue(d.promise)
@@ -1156,7 +1160,7 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
       d.resolve(MD_OK)
       await flushPromises()
     })
-    // 反过来实证这一对**只有 en 能判别**:zh 逐字相同
+    // conversely proves this pair **only en can discriminate**: zh values are identical character-for-character
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
     expect(zh.aiKbPtProcessing).toBe(zh.appsWorking)
@@ -1165,15 +1169,15 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
     expect(en.appsWorking).toBe('Working…')
   })
 
-  it('两对 EN-SAME 同族键(`aiKbPtReset`/`filesViewerReset` · `aiKbPtRun`/`aiSkTestRun`)只能靠源码键名守', async () => {
-    // 它们 en 与 zh 双双同值 → 任何渲染断言都分不出来(同 T6 对裁定 A-1 的处置)。
+  it('the two EN-SAME sibling-key pairs (`aiKbPtReset`/`filesViewerReset` · `aiKbPtRun`/`aiSkTestRun`) can only be guarded via source-level key names', async () => {
+    // Their en and zh values are both identical on each side → no rendering assertion can tell them apart (same treatment T6 applied to ruling A-1).
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
     expect(zh.aiKbPtReset).toBe(zh.filesViewerReset)
     expect(en.aiKbPtReset).toBe(en.filesViewerReset)
     expect(zh.aiKbPtRun).toBe(zh.aiSkTestRun)
     expect(en.aiKbPtRun).toBe(en.aiSkTestRun)
-    // → 判据落在「模板用的是哪个键」的调用形状上(治理 §9 第九条:钉形状不钉裸标识符)
+    // → the criterion falls on the call shape of "which key the template uses" (governance §9 clause 9: pin the shape, not the bare identifier)
     const src = blankComments(readSrc())
     expect(src).toContain("t('aiKbPtReset')")
     expect(src).toContain("t('aiKbPtRun')")
@@ -1181,7 +1185,7 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
     expect(src).not.toMatch(/\bt\(\s*['"]aiSkTestRun['"]/)
   })
 
-  it('en 档整页关键文案逐字(证明 23 个键全部走对了 en 值)', async () => {
+  it('en locale: whole-page key copy matches character-for-character (proves all 23 keys resolve to the correct en value)', async () => {
     await inEn(async (w) => {
       expect(w.find('.page-header h2').text()).toBe('Parser test sandbox')
       expect(w.find('a.back-link').text()).toBe('← Back to details')
@@ -1199,7 +1203,7 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
     })
   })
 
-  it('切回 zh 后仍是中文(证明 locale 已还原、无污染)', async () => {
+  it('switching back to zh is still Chinese (proves locale was restored, no pollution)', async () => {
     const w = await mountPage()
     expect(w.find('.page-header h2').text()).toBe('Parser 测试沙盒')
     expect(w.find('.submit-btn').text()).toBe('运行')
@@ -1207,8 +1211,8 @@ describe('ParserTest —— 🔴 §9.2 en 档强断言(zh 撞车、只有 en 能
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— N16 emoji / 符号位置核对(一个都不许挪进/挪出 t())', () => {
-  it('本页 23 个键的键值零 emoji / 零箭头 / 零 `✓⚠×▼▶`(证明符号在模板里,不在语言包里)', () => {
+describe('ParserTest — N16 emoji / symbol placement check (none may move into or out of t())', () => {
+  it("this page's 23 key values contain zero emoji / zero arrows / zero `✓⚠×▼▶` (proves the symbols live in the template, not the locale pack)", () => {
     const zh = zhCn as Record<string, string>
     const en = enUs as Record<string, string>
     const KEYS = [
@@ -1225,15 +1229,15 @@ describe('ParserTest —— N16 emoji / 符号位置核对(一个都不许挪进
       expect(zh[k]).not.toMatch(/[←✓⚠×▼▶🧪→]/u)
       expect(en[k]).not.toMatch(/[←✓⚠×▼▶🧪→]/u)
     }
-    // 🔴 反过来:`…`(U+2026)**在** `aiKbPtProcessing` 的键值里(不是模板拼的)
+    // 🔴 conversely: `…` (U+2026) **is** inside `aiKbPtProcessing`'s key value (not concatenated by the template)
     expect(zh.aiKbPtProcessing).toBe('处理中…')
     expect(en.aiKbPtProcessing).toBe('Processing…')
   })
 
-  it('模板里符号与译文之间恰好一个空格,顺序是「符号 → 文案」', async () => {
+  it('exactly one space between symbol and copy in the template, order is 「symbol → copy」', async () => {
     const w = await mountPage()
     expect(w.find('a.back-link').text()).toBe('← 返回详情')
-    expect(w.find('.clear-btn').exists()).toBe(false) // 未选文件时没有 ×
+    expect(w.find('.clear-btn').exists()).toBe(false) // no × when no file is selected
     await runWith(w)
     expect(w.find('.clear-btn').text()).toBe('×')
     expect(sq(w.find('.ok-hint').text()).startsWith('✓ ')).toBe(true)
@@ -1248,20 +1252,22 @@ describe('ParserTest —— N16 emoji / 符号位置核对(一个都不许挪进
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语言包」', () => {
-  // 🔴 **M-2(评审 2026-08-04)—— 这两条守卫已从「宽子串扫描」收紧成「精确值 + 键集闭合」。**
-  // 第一版对 `'cos '` / `'rr '` / `'chunk #'` 这类**通用子串**做 `v.includes(s)` 全包扫描:
-  // 当前 0 命中,但将来任何**无关**新键的值里含这些子串(比如某处文案写了「rr 」)就会
-  // **假报红** —— 与治理 §9 第九条(否定式断言撞上无关内容 → 冤枉正确代码 → 诱使去"修"
-  // 一个没坏的东西)同族。收紧后判别力**没降**:真正要守的事实是
-  //   ① 没有任何键的**整值**就是这些技术串(= 没人给它们建键);
-  //   ② 本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`(= 没人偷偷多接一个键)。
-  // ② 才是「有人把技术串补成 i18n 键」这件事的真正判据 —— 补键必然要在模板里多一次
-  // `t()` 调用,键集闭合当场炸。RED 探针 H(往 zh_cn.ts 塞 `aiKbPtRerankTop20`)与
-  // 探针 I(把模板里的裸 `rerank top-20` 换成 `{{ t('aiKbPtRerankTop20') }}`)分别验这两条。
-  it('①15 串技术标识符不是两档语言包里任何键的**整值**(精确相等,不用宽子串)', () => {
-    // 🔴 治理 §3.5 N22:这些是技术标识符/参数名,Vue2 刻意没进 i18n。
-    // 补键 = 凭空多出 Vue2 没有的键,且 en/zh 两档一填英文 = 纯噪音。
+describe('ParserTest — 🔴 N22: hardcoded technical identifiers 「ruled out of the locale pack」', () => {
+  // 🔴 **M-2 (review 2026-08-04) — these two guards were tightened from "broad substring scan" to "exact value + key-set closure".**
+  // The first version ran a `v.includes(s)` blanket scan for **generic substrings** like `'cos '` / `'rr '` / `'chunk #'`:
+  // currently 0 hits, but in the future any **unrelated** new key whose value contains these substrings (e.g. some
+  // copy elsewhere happens to write 「rr 」) would produce a **false red** — the same family as governance §9 clause 9
+  // (a negation assertion hitting unrelated content → wrongly blames correct code → tempts someone to "fix" something
+  // that isn't broken). After tightening, discriminating power **did not drop**: the facts actually worth guarding are
+  //   ① no key's **whole value** equals any of these technical strings (= nobody built a key for them);
+  //   ② this page template's `t()` key set is **exactly** those 23 `aiKbPt*` keys (= nobody sneakily added one more key).
+  // ② is the real criterion for "someone turned a technical string into an i18n key" — adding a key necessarily means
+  // one more `t()` call in the template, and the key-set closure immediately breaks. RED probe H (stuffing
+  // `aiKbPtRerankTop20` into zh_cn.ts) and probe I (swapping the bare `rerank top-20` in the template for
+  // `{{ t('aiKbPtRerankTop20') }}`) verify these two facts respectively.
+  it('①the 15 technical identifier strings are not the **whole value** of any key in either locale pack (exact equality, no broad substring)', () => {
+    // 🔴 governance §3.5 N22: these are technical identifiers / parameter names, deliberately kept out of i18n by Vue2.
+    // Adding a key = conjuring up a key Vue2 never had, and filling both en/zh with English = pure noise.
     const TECH = [
       'rerank top-20',
       'dense [0:8]:',
@@ -1282,19 +1288,21 @@ describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语�
     expect(TECH).toHaveLength(15)
     for (const [name, pack] of [['zh_cn', zhCn], ['en_us', enUs]] as Array<[string, Record<string, unknown>]>) {
       const entries = Object.entries(pack).filter((e): e is [string, string] => typeof e[1] === 'string')
-      expect(entries.length).toBeGreaterThan(1400) // 扫的是全表,不是空集合
+      expect(entries.length).toBeGreaterThan(1400) // scanning the full table, not an empty set
       for (const s of TECH) {
-        // 🔴 **精确整值相等**(不是 `includes`):判据是「有没有人给这个技术串建了键」。
-        // 报错消息带上 pack 名与命中的键名,便于定位。
+        // 🔴 **exact whole-value equality** (not `includes`): the criterion is 「whether someone built a key for this technical string」.
+        // The error message carries the pack name and matched key name, for easy localization.
         expect(entries.filter(([, v]) => v === s).map(([k]) => `${name}.${k}`)).toEqual([])
       }
     }
   })
 
-  it('②本页模板里 `t()` 的键集**恰好**是那 23 个 `aiKbPt*`(键集闭合 —— 补一个键就炸)', () => {
-    // 🔴 这一条才是「有人把技术串补成 i18n 键」的真正判据:补键必然在模板里多一次
-    // `t()` 调用 → 键集不再等于这 23 个 → 报红。比宽子串扫描更准、且零假报红面。
-    // 剥注释(保行版)后再扫,否则会撞上本文件/组件头注释里提到的键名(治理 §9 第九条)。
+  it('②this page template\'s `t()` key set is **exactly** those 23 `aiKbPt*` keys (key-set closure — add one key and it breaks)', () => {
+    // 🔴 this is the real criterion for "someone turned a technical string into an i18n key": adding a key
+    // necessarily means one more `t()` call in the template → the key set no longer equals these 23 → red.
+    // More precise than a broad substring scan, with zero false-red surface.
+    // Strip comments (line-preserving) before scanning, otherwise it would hit key names mentioned in this
+    // file's / the component's head comment (governance §9 clause 9).
     const src = blankComments(readSrc())
     const keys = [...src.matchAll(/(?<![\w$])t\(\s*'([^']+)'/g)].map((m) => m[1]!)
     const EXPECTED_23 = [
@@ -1306,19 +1314,19 @@ describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语�
       'aiKbPtTooBig', 'aiKbPtViaDocling', 'aiKbPtZeroChunks',
     ]
     expect(EXPECTED_23).toHaveLength(23)
-    // 调用次数 = 23(每个键恰好用一次,与蓝本 23 个 `$t()` 一一对应)
+    // call count = 23 (each key used exactly once, one-to-one with the blueprint's 23 `$t()` calls)
     expect(keys).toHaveLength(23)
     expect([...keys].sort()).toEqual([...EXPECTED_23].sort())
-    // 键集闭合:一个都不多、一个都不少
+    // key-set closure: not one more, not one fewer
     expect(new Set(keys).size).toBe(23)
-    // 且这 23 个键在两档语言包里都存在(否则渲染出键名本身)
+    // and these 23 keys all exist in both locale packs (otherwise the key name itself would render)
     for (const k of EXPECTED_23) {
       expect(typeof (zhCn as Record<string, unknown>)[k]).toBe('string')
       expect(typeof (enUs as Record<string, unknown>)[k]).toBe('string')
     }
   })
 
-  it('这 15 串在模板里是**裸文本**(不经 t()),逐串在剥注释后的模板里命中', () => {
+  it('these 15 strings are **bare text** in the template (not routed through t()), each one hits in the comment-stripped template', () => {
     const src = blankComments(readSrc())
     const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)
     expect(m).not.toBeNull()
@@ -1347,26 +1355,27 @@ describe('ParserTest —— 🔴 N22:硬编码技术标识符「判定不入语�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserTest —— 守卫缺口③:<template> 块零裸色字面量', () => {
-  // 治理 §9 缺口③:`color-guard.test.ts:44-56` 的 `styleLines()` 对 `.vue` 只取
-  // `<style>` 块 → 模板 `style=` / `:style=` 属性零扫描;本文件补一条定向断言堵这个盲区。
-  // ⚠️ **沿用现状写法**(非贪婪 + 隐式靠「`</template>` 在第 0 列」锚定,先例
-  // `ParserStatus.test.ts` / `QueueView.test.ts` / `IndexedFilesView.test.ts`);
-  // 治理 §9 缺口③′ 的「统一改成贪婪匹配 + 覆盖度自检」归 **T8**,本刀不动它。
-  // 🔴 读源文件用 `node:fs`,不用 Vite 的 `?raw`。
-  it('<template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量', () => {
+describe('ParserTest — guard gap③: zero bare color literals in the <template> block', () => {
+  // governance §9 gap③: `color-guard.test.ts:44-56`'s `styleLines()` only takes the `<style>` block for
+  // `.vue` files → template `style=` / `:style=` attributes get zero scanning; this file adds one targeted
+  // assertion to plug that blind spot.
+  // ⚠️ **follows the existing convention** (non-greedy + implicitly anchored on 「`</template>` at column 0」,
+  // precedent: `ParserStatus.test.ts` / `QueueView.test.ts` / `IndexedFilesView.test.ts`);
+  // governance §9 gap③′'s "unify to greedy matching + coverage self-check" belongs to **T8**, this pass leaves it alone.
+  // 🔴 read the source file with `node:fs`, not Vite's `?raw`.
+  it('<template> block (after stripping var()/color-mix()) contains no bare hex / rgb / hsl literals', () => {
     const src: string = readSrc()
     const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)
     expect(m).not.toBeNull()
     const tmpl = m![1]!
-    // 覆盖度自检:抽出的片段必须同时含模板**首部**与**尾部**的特征串。
-    // 本组件唯一的嵌套 `<template v-if="result">` 带属性(不是裸 `<template>`)、其闭合
-    // 标签也是缩进的 → 不会把第 0 列的 `</template>` 提前截断。
-    expect(tmpl).toContain("t('aiKbPtTitle')") // 首部(页头 h2)
-    expect(tmpl).toContain("join(' · ') }}</code>") // 尾部(chunks 卡最后一行内容)
+    // coverage self-check: the extracted fragment must contain both the template's **head** and **tail** marker strings.
+    // This component's only nested `<template v-if="result">` carries an attribute (not a bare `<template>`), and
+    // its closing tag is also indented → the column-0 `</template>` will not be cut off early.
+    expect(tmpl).toContain("t('aiKbPtTitle')") // head (page header h2)
+    expect(tmpl).toContain("join(' · ') }}</code>") // tail (chunks card's last line of content)
 
-    // 剥掉 var(...) 与 color-mix(...) 的内部(照 color-guard.test.ts 的 stripVar
-    // 同款手法:逐字符扫描配对括号深度,支持嵌套 fallback)
+    // strip the insides of var(...) and color-mix(...) (same technique as color-guard.test.ts's stripVar:
+    // scan character by character tracking matched-parenthesis depth, supports nested fallback)
     function stripCalls(s: string, prefixes: string[]): string {
       let out = ''
       let i = 0
@@ -1374,7 +1383,7 @@ describe('ParserTest —— 守卫缺口③:<template> 块零裸色字面量', (
         const hit = prefixes.find((p) => s.startsWith(p, i))
         if (hit) {
           let depth = 0
-          let j = i + hit.length - 1 // 落在开括号上
+          let j = i + hit.length - 1 // lands on the opening parenthesis
           for (; j < s.length; j++) {
             if (s[j] === '(') depth++
             else if (s[j] === ')') {
@@ -1398,13 +1407,13 @@ describe('ParserTest —— 守卫缺口③:<template> 块零裸色字面量', (
     expect(scrubbed).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  it('本文件零 <style> 块(K24:样式在 parser-styles.scss,走 JS 侧 import)', () => {
+  it('this file has zero <style> blocks (K24: styles live in parser-styles.scss, imported on the JS side)', () => {
     const src: string = readSrc()
     expect(src).not.toMatch(/^<style/m)
     expect(src).toContain("import '../../styles/parser-styles.scss'")
   })
 
-  it('零 KIcon(治理 §1.2 / E-2 / N16:两个 Parser 页蓝本一个 KIcon 都不用)', async () => {
+  it('zero KIcon (governance §1.2 / E-2 / N16: neither of the two Parser page blueprints uses KIcon)', async () => {
     const src: string = readSrc()
     expect(src).not.toMatch(/^import KIcon/m)
     const w = await mountPage()

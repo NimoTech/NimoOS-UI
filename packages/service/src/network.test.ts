@@ -42,14 +42,14 @@ describe('createNetwork.getInterfaces', () => {
     expect(await createNetwork(http).getInterfaces()).toEqual([])
   })
 
-  it('把标准信封误当数据时也不炸(异形退化)', async () => {
+  it('does not blow up when a standard envelope is mistaken for data (malformed shape degrades gracefully)', async () => {
     const { http } = stub({ '/v2/nimoos/network/interfaces': { success: 200, data: [] } })
     expect(await createNetwork(http).getInterfaces()).toEqual([])
   })
 })
 
 describe('createNetwork.updateInterface', () => {
-  it('PUT 到同一个 URL,body 原样下发', async () => {
+  it('PUT hits the same URL, body is passed through as-is', async () => {
     const { http, calls } = stub()
     await createNetwork(http).updateInterface({ name: 'wlp1s0', wireless: { mode: 'client' } })
     expect(calls[0].url).toBe('/v2/nimoos/network/interfaces')
@@ -58,13 +58,13 @@ describe('createNetwork.updateInterface', () => {
 })
 
 describe('createNetwork.scanWifi', () => {
-  // curl 实证 2026-07-31:GET /v2/nimoos/network/wifi/scan?iface=wlp1s0(取两条)
+  // Verified via curl on 2026-07-31: GET /v2/nimoos/network/wifi/scan?iface=wlp1s0 (took two entries)
   const REAL = [
     { ssid: 'NIMO_Network', bssid: '60:a3:e3:a9:db:05', signal: -45, channel: 11, secure: true, connected: false },
     { ssid: 'TP-LINK_12E0', bssid: '9c:bf:cd:12:0d:d0', signal: -38, channel: 6, secure: true, connected: false },
   ]
 
-  it('iface 走 params(axios 负责编码),返回数组', async () => {
+  it('iface goes through params (axios handles encoding), returns an array', async () => {
     const { http, calls } = stub({ '/v2/nimoos/network/wifi/scan': REAL })
     const nets = await createNetwork(http).scanWifi('wlp1s0')
     expect(calls[0].url).toBe('/v2/nimoos/network/wifi/scan')
@@ -73,24 +73,24 @@ describe('createNetwork.scanWifi', () => {
     expect(nets[0].signal).toBe(-45)
   })
 
-  it('扫描失败时后端返回 HTTP 200 + null → 退化空数组(不是错误)', async () => {
-    // 实证:iface=nosuch0 / 以太网口 / AP 模式 → 200 body=null(wifi.go:32 return nil, nil)
+  it('when scan fails, backend returns HTTP 200 + null → degrades to an empty array (not an error)', async () => {
+    // Verified: iface=nosuch0 / ethernet port / AP mode → 200 body=null (wifi.go:32 return nil, nil)
     const { http } = stub({ '/v2/nimoos/network/wifi/scan': null })
     expect(await createNetwork(http).scanWifi('nosuch0')).toEqual([])
   })
 })
 
 describe('networkErrorText', () => {
-  it('从 {"error": …} 里取后端文本(network 域的错误体不是 message)', () => {
-    // 实证:缺 iface → 400 {"error":"iface parameter is required"}
-    //       名字非法 → 500 {"error":"invalid interface name: \"0bad\""}
+  it('reads the backend text out of {"error": ...} (the network domain error body is not message)', () => {
+    // Verified: missing iface → 400 {"error":"iface parameter is required"}
+    //           invalid name → 500 {"error":"invalid interface name: \"0bad\""}
     expect(networkErrorText({ response: { data: { error: 'iface parameter is required' } } }))
       .toBe('iface parameter is required')
     expect(networkErrorText({ response: { data: { error: 'invalid interface name: "0bad"' } } }))
       .toBe('invalid interface name: "0bad"')
   })
 
-  it('没有可用文本时返回 undefined,让调用方用自己的兜底文案', () => {
+  it('returns undefined when there is no usable text, letting the caller use its own fallback message', () => {
     expect(networkErrorText({ response: { data: { message: 'ok' } } })).toBeUndefined()
     expect(networkErrorText({ response: { data: { error: '   ' } } })).toBeUndefined()
     expect(networkErrorText(new Error('boom'))).toBeUndefined()

@@ -361,8 +361,8 @@ describe('FolderBrowser — §5.2 `_seq` race guard (interleaved paths)', () => 
 
     const wA = mountFb([{ path: '/A', label: 'A' }])
     const wB = mountFb([{ path: '/B', label: 'B' }])
-    await wA.find('.fb-row').trigger('click') // 实例 A:go('/A') 在飞
-    await wB.find('.fb-row').trigger('click') // 实例 B:go('/B') 在飞
+    await wA.find('.fb-row').trigger('click') // instance A: go('/A') in flight
+    await wB.find('.fb-row').trigger('click') // instance B: go('/B') in flight
     expect(folder.getList.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/A', '/B'])
 
     // Interleaving: later-sent B returns first, then A — neither instance should be affected by the other
@@ -436,7 +436,7 @@ describe('FolderBrowser — guard gap ③: <template> block has no bare color li
         const hit = prefixes.find((p) => s.startsWith(p, i))
         if (hit) {
           let depth = 0
-          let j = i + hit.length - 1 // 落在开括号上
+          let j = i + hit.length - 1 // lands on the opening paren
           for (; j < s.length; j++) {
             if (s[j] === '(') depth++
             else if (s[j] === ')') {

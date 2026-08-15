@@ -1,15 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export const THEMES = ['blue', 'light'] as const // blue = 默认/兜底
+export const THEMES = ['blue', 'light'] as const // blue = default/fallback
 export type Theme = (typeof THEMES)[number]
 
 export function isTheme(v: unknown): v is Theme {
   return typeof v === 'string' && (THEMES as readonly string[]).includes(v)
 }
 
-// 直接写 <html data-theme>,无需 Pinia —— 供 main.ts 在 mount 前调用(防闪)。
-// blue 是 :root 默认块,移除属性即回落;light 置属性触发 :root[data-theme="light"] 覆盖块。
+// Writes <html data-theme> directly, no Pinia needed -- lets main.ts call this before mount (avoids a flash).
+// blue is the :root default block; removing the attribute falls back to it. light sets the
+// attribute, which triggers the :root[data-theme="light"] override block.
 export function applyTheme(t: Theme): void {
   if (t === 'blue') delete document.documentElement.dataset.theme
   else document.documentElement.dataset.theme = t

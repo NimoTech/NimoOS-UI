@@ -323,14 +323,14 @@ describe('SkillsSection (P3b write operations half)', () => {
     await flush()
 
     expect(h.updateSkill).toHaveBeenCalledWith('a', { enabled: false })
-    // 列表项原地替换成后端返回的新对象(enabled:false → 渲染 off 标记)。
+    // List item replaced in place with the new object the backend returns (enabled:false → renders off mark).
     expect(w.find('.sk-item-off').exists()).toBe(true)
     expect(show).toHaveBeenCalledWith(zh.aiSkPausedToast)
   })
 
   // Single layer fetch criteria (negative) — align P3a Task 6 reload() that two pinned cases (line 86/97),
   // same technique applied to onToggle: feed axios layer shape mock, prove this repo's consumer is
-  // single layer fetch, not leaving implementation a “peeling off again also works” out.
+  // single layer fetch, not leaving implementation a "peeling off again also works" out.
   it('single layer fetch criteria (negative): toggle fed { data: skill } envelope shape → list item name becomes empty (not real value inside envelope), prove consumer is single layer fetch', async () => {
     h.listSkills.mockResolvedValue([makeSkill({ id: 'a', name: 'skill-a' })])
     h.updateSkill.mockResolvedValue(
@@ -484,8 +484,8 @@ describe('SkillsSection (P3b write operations half)', () => {
 
     expect(h.createSkill).toHaveBeenCalledTimes(1)
     expect(w.findAll('.sk-item')).toHaveLength(1)
-    expect(w.find('.sk-name span').text()).toBe('invoice-tagger') // 新建后立即选中
-    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关
+    expect(w.find('.sk-name span').text()).toBe('invoice-tagger') // selected immediately after creation
+    expect(document.querySelector('.sk-modal')).toBeNull() // dialog closed
     expect(show).toHaveBeenCalledWith('已添加 invoice-tagger')
   })
 
@@ -502,8 +502,8 @@ describe('SkillsSection (P3b write operations half)', () => {
 
     const errEl = document.querySelector('.sk-modal .sk-field-err')
     expect(errEl?.textContent).toBe(zh.aiSkErrDuplicate)
-    expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开,用户能改完重试
-    expect(w.findAll('.sk-item')).toHaveLength(0) // 列表不变
+    expect(document.querySelector('.sk-modal')).not.toBeNull() // dialog still open, user can edit and retry
+    expect(w.findAll('.sk-item')).toHaveLength(0) // list unchanged
   })
 
   // Dialog close must clear createError (brief "two places pre-resolved by coordinator" place 2): inline error
@@ -545,7 +545,7 @@ describe('SkillsSection (P3b write operations half)', () => {
     ])
     const w = mountSection()
     await flush()
-    expect(w.find('.sk-name span').text()).toBe('Skill A') // 默认选中第一项
+    expect(w.find('.sk-name span').text()).toBe('Skill A') // first item selected by default
 
     const detail = w.findComponent(SkillDetail)
     detail.vm.$emit('test')

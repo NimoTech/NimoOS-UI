@@ -218,7 +218,7 @@ defineExpose({ currentPreviewTimeMs })
   justify-content: center; /* center this frame */
 }
 .sprite-window {
-  /* Width/height injected by computeWindowStyle in %: narrow to “exactly one frame” (contain),
+  /* Width/height injected by computeWindowStyle in %: narrow to "exactly one frame" (contain),
      parent centering + parent black background form black borders; window width = one frame, entire <img> inside shifted by translateX to select frame,
      adjacent frames fall outside window clipped by overflow:hidden. */
   flex: 0 0 auto;

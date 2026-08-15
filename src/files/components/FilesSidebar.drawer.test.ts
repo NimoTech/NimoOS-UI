@@ -76,7 +76,7 @@ describe('FilesSidebar drawer', () => {
     d.open.value = true
     const w = mountSidebar()
     await nextTick()
-    await w.findAll('.side-item')[0].trigger('click') // 「shares」 item → router.push('/files/shares')
+    await w.findAll('.side-item')[0].trigger('click') // the "shares" item → router.push('/files/shares')
     await testRouter.isReady()
     await nextTick(); await nextTick() // Wait for watch(route.fullPath) to fire
     await flushPromises() // router.push's pending navigation requires a macrotask to settle in this repo's vue-router version; nextTick alone is insufficient (verified through testing)

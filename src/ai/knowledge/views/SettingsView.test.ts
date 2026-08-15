@@ -1438,19 +1438,19 @@ describe('SettingsView/T9 — onPick stale guards (blueprint :241-253, two guard
     notes.dirInfo.mockImplementation((p: string) => (p === '/DATA' ? dA.promise : dB.promise))
     const { w } = await mountPage()
     await openPicker(w)
-    await pickRoot(w, 0) // A = /DATA(探针在飞)
+    await pickRoot(w, 0) // A = /DATA (probe in flight)
     await backToRoot(w)
-    await pickRoot(w, 1) // B = /media(探针在飞)
+    await pickRoot(w, 1) // B = /media (probe in flight)
     expect(notes.dirInfo.mock.calls.map((c: unknown[]) => c[0])).toEqual(['/DATA', '/media'])
     expect(folderRow(w).find('.kn-picked code').text()).toBe('/media')
 
-    // 后发(B)先回 → 落地
+    // later call (B) returns first -> lands
     dB.resolve({ exists: true, empty: true })
     await flushPromises()
     expect(badge(w).attributes('data-s')).toBe('curated')
 
-    // 先发(A)后回 → 🔴 必须被守卫挡住,不许把 B 的 curated 覆盖成 draft
-    // 判据:拿掉成功分支那处 `if (rootPicker.path !== path) return` → 变 draft → 报红
+    // earlier call (A) returns later -> 🔴 must be blocked by the guard, must not overwrite B's curated with draft
+    // criterion: drop the success branch's `if (rootPicker.path !== path) return` -> turns into draft -> test goes red
     dA.resolve({ exists: true, empty: false })
     await flushPromises()
     expect(badge(w).attributes('data-s')).toBe('curated')
@@ -1780,11 +1780,13 @@ describe('SettingsView/T9 — applyRoot two modes + doMigrate close-then-send (b
   })
 
   it('🔴 "Start migration" → mode: "migrate" (second value), and **close dialog then send request** (blueprint :268-269 order)', async () => {
-    // 🔴 判别「先关后发」的**唯一可观测差别**是「请求在飞的那段时间弹窗在不在」——
-    //   所以 `putSettings` 必须挂在一个可控 promise 上。
-    //   (第一版在 mockImplementation 里查 DOM,查到的是**尚未 flush** 的 DOM:
-    //    `closeMigrate()` 与 `putSettings()` 之间没有 await,Vue 还没重渲染 → 恒 false。
-    //    那不是「顺序错」,是「探针问对象错了」。)
+    // 🔴 the **only observable difference** distinguishing "close then send" is "whether the
+    //   dialog is still open while the request is in flight" -- so `putSettings` must hang off
+    //   a controllable promise.
+    //   (the first version checked the DOM inside mockImplementation, but that DOM had **not yet
+    //    flushed**: there's no await between `closeMigrate()` and `putSettings()`, so Vue hasn't
+    //    re-rendered yet -> always false.
+    //    that wasn't "wrong order", it was "probing the wrong thing".)
     const host = withHost()
     notes.dirInfo.mockResolvedValue({ exists: true, empty: true })
     const d = makeDeferred<NotesSettings>()
@@ -1799,14 +1801,14 @@ describe('SettingsView/T9 — applyRoot two modes + doMigrate close-then-send (b
     await flushPromises()
     await tickAck(host)
     dangerFootBtn(host).click()
-    // reka 的 FocusScope 卸载要多走一轮微任务(`data-focus-scope-unmounting`),
-    // 只 `nextTick()` 的话节点还挂着(`data-state="closed"`)。`flushPromises()`
-    // 只排微任务,**不会**让 `d.promise` 兑现 —— 请求仍在飞。
+    // reka's FocusScope unmount takes one extra microtask tick (`data-focus-scope-unmounting`);
+    // a bare `nextTick()` still leaves the node mounted (`data-state="closed"`). `flushPromises()`
+    // only drains microtasks, it **will not** make `d.promise` settle -- the request is still in flight.
     await nextTick()
     await flushPromises()
     await nextTick()
-    // 请求还在飞 —— 弹窗**已经关了**。
-    // 判据:把 doMigrate 里的 closeMigrate() 挪到 await 之后 → 弹窗此刻仍在 → 报红。
+    // the request is still in flight -- the dialog **is already closed**.
+    // criterion: move closeMigrate() in doMigrate to after the await -> dialog would still be open here -> test goes red.
     expect(notes.putSettings).toHaveBeenCalledWith({ notesRoot: '/DATA', mode: 'migrate' })
     expect(host.querySelector('.k-modal')).toBeNull()
 
@@ -1923,30 +1925,38 @@ describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this c
   const zh = zhCn as Record<string, string>
   const en = enUs as Record<string, string>
 
-  it('本刀 29 个键在两档都存在(键名回附录 A + 语言包双向核准过 —— E-18 的教训)', () => {
+  it('all 29 keys added by this cut exist in both locales (key names traced back to Appendix A + bidirectional locale-pack verification -- lesson from E-18)', () => {
     expect(T9_KEYS).toHaveLength(29)
     for (const k of T9_KEYS) {
-      expect(typeof zh[k], `zh_cn.ts 缺 ${k}`).toBe('string')
-      expect(typeof en[k], `en_us.ts 缺 ${k}`).toBe('string')
+      expect(typeof zh[k], `zh_cn.ts is missing ${k}`).toBe('string')
+      expect(typeof en[k], `en_us.ts is missing ${k}`).toBe('string')
     }
-    // 全表键数用**真实模块导入**计(治理 §9.3 第 2 条:文本解析会少算)。
-    // 原为 1503(P5c-T9 引入的快照,此后从未改过);P5d-T1 加 92 键后订正为 1595 ——
-    // 依据协调者裁定 R15 / E-43(该快照与本用例被测对象——T9 自己的 29 个键——无关,
-    // 只是恰好嵌在同一条用例里,每个后续加键的期都会撞上它一次;D-3 已挂账交 P5e 拍板
-    // 是否改成下限断言,本次只订正数字,不重构这条守卫)。
-    // P5c-T9 引入快照 → P5d-T1 订正 1503→1595(裁定 R15 / 勘误 E-43)→ P5e 依据治理 §0.1
-    // (债务票 D-3)改为下限断言。原两行:
+    // Full-table key count is computed via **real module import** (governance §9.3 clause 2:
+    // text parsing would undercount).
+    // Originally 1503 (the snapshot introduced by P5c-T9, never touched since); after P5d-T1
+    // added 92 keys it was corrected to 1595 --
+    // per coordinator ruling R15 / E-43 (this snapshot is unrelated to what this test case actually
+    // covers -- T9's own 29 keys -- it just happens to be embedded in the same test case, so every
+    // subsequent key-adding milestone collides with it once; D-3 is filed pending P5e's decision on
+    // whether to switch to a lower-bound assertion; this pass only corrects the number, it does not
+    // refactor this guard).
+    // P5c-T9 introduced the snapshot -> P5d-T1 corrected 1503->1595 (ruling R15 / erratum E-43) ->
+    // P5e switched to a lower-bound assertion per governance §0.1 (debt ticket D-3). The original
+    // two lines were:
     //   expect(Object.keys(zh)).toHaveLength(1595)
     //   expect(Object.keys(en)).toHaveLength(1595)
-    // 精确的键集一致性由 src/i18n/parity.test.ts 守(它断言 zh/en 键集完全相等,比「两个数字
-    // 相等」强);快照唯一多出的价值是「键总数不会下降」(防批量误删),下限断言恰好只保留
-    // 这个价值,同时让「每个加键的期都红在一个与该期毫不相干的文件里」的跨期陷阱永久归零。
-    // 下限值 = P5e Task 1 落地后的实测值(真实模块导入,治理 §9.3 第 2 条:文本解析会少算)。
+    // Exact key-set parity is guarded by src/i18n/parity.test.ts (it asserts the zh/en key sets are
+    // fully equal, stronger than "two numbers being equal"); the snapshot's only added value was
+    // "the total key count never drops" (guards against bulk accidental deletion), and the lower-
+    // bound assertion preserves exactly that value while permanently zeroing out the cross-milestone
+    // trap of "every key-adding milestone goes red in a file that has nothing to do with it".
+    // Lower bound = the measured value after P5e Task 1 landed (real module import, governance §9.3
+    // clause 2: text parsing would undercount).
     expect(Object.keys(zh).length).toBeGreaterThanOrEqual(1648)
     expect(Object.keys(en).length).toBeGreaterThanOrEqual(1648)
   })
 
-  it('🔴 方向 1(§9.2):zh 撞车的对里,en **没有**一对不同(有就必须按 N21 登记)', () => {
+  it('🔴 direction 1 (§9.2): among zh-colliding pairs, en has **no** differing pair (if any, must register via N21)', () => {
     const bad: string[] = []
     for (const k of T9_KEYS) {
       for (const o of Object.keys(zh)) {
@@ -1957,7 +1967,7 @@ describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this c
     expect(bad).toEqual([])
   })
 
-  it('🔴 方向 2(§9.3):en 撞车的对里,zh **没有**一对不同(镜像方向,T8 评审加的)', () => {
+  it('🔴 direction 2 (§9.3): among en-colliding pairs, zh has **no** differing pair (mirror direction, added by T8 review)', () => {
     const bad: string[] = []
     for (const k of T9_KEYS) {
       for (const o of Object.keys(en)) {
@@ -1968,7 +1978,7 @@ describe('SettingsView/T9 — §9.2/§9.3 bidirectional same-family scan: this c
     expect(bad).toEqual([])
   })
 
-  it('实测的 8 对撞车确实存在且两档同值(证明上面两条不是「扫不到东西」的空转)', () => {
+  it('the 8 measured colliding pairs genuinely exist and match in both locales (proves the two tests above are not just scanning nothing)', () => {
     const pairs: Array<[string, string]> = [
       ['aiKbCancel', 'filesCancel'],
       ['aiKbCancel', 'startAppCancel'],

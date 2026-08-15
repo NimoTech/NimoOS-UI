@@ -126,8 +126,8 @@ function setupServiceMocks(): void {
     return Promise.resolve({ jobs: [] })
   })
   ai.parserRetryJobs.mockResolvedValue({ retried: 0 }) // jobs-retry-empty.http
-  ai.parserDeleteJob.mockResolvedValue('') // §4.1:204 空体,axios res.data === ''
-  ai.parserClearFailedJobs.mockResolvedValue({ cleared: 0 }) // README「源码推定」段
+  ai.parserDeleteJob.mockResolvedValue('') // §4.1: 204 empty body, axios res.data === ''
+  ai.parserClearFailedJobs.mockResolvedValue({ cleared: 0 }) // README's "inferred from source" section
 
   notes.listDistillJobs.mockImplementation((filterArg: string) => {
     const counts = { pending: 1, running: 1, failed: 2 }
@@ -227,7 +227,7 @@ describe('QueueView — scope toggle (spec :6-13)', () => {
     const { w } = await mountQueue()
     ai.parserJobs.mockClear()
     const pills = w.findAll('.k-filter-pill')
-    await pills[0].trigger('click') // 已经是 index
+    await pills[0].trigger('click') // already at that index
     await flush()
     expect(ai.parserJobs).not.toHaveBeenCalled()
   })

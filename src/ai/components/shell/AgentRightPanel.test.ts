@@ -1,10 +1,12 @@
-// 1:1 移植自 Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue(80 行)。SP8-P1c2
-// Task 10 建壳、Task 13 把 SystemTab/ResourcesTab 两个占位 div 换成真组件。
-// 哑组件:props 进、emit 出,父组件(AgentPage)持有全部状态。
+// 1:1 ported from Vue2 src/views/AI/Agent/shell/AgentRightPanel.vue (80 lines). SP8-P1c2
+// Task 10 built the shell, Task 13 replaced the SystemTab/ResourcesTab placeholder divs
+// with the real components.
+// Dumb component: props in, emit out, the parent (AgentPage) holds all state.
 //
-// Task 13 起 tab='system' 会真的挂 SystemTab —— 它内部 useUtilization() 要 Pinia +
-// service.sys.getUtilization + MessageBus 订阅,故这里补上与 SystemTab.test.ts 同款
-// 的三件套 mock;i18n 也从手写子集换成整份 zh_cn(ResourcesTab 用到几十个键)。
+// Starting with Task 13, tab='system' actually mounts SystemTab — its internal
+// useUtilization() needs Pinia + service.sys.getUtilization + a MessageBus subscription,
+// so the same three-piece mock as SystemTab.test.ts is added here; i18n was also switched
+// from a hand-written subset to the full zh_cn (ResourcesTab uses dozens of keys).
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -39,17 +41,17 @@ describe('AgentRightPanel', () => {
     attachmentRawUrl.mockClear()
   })
 
-  it('collapsed=true → 不渲染(v-if="!collapsed")', () => {
+  it('collapsed=true → does not render (v-if="!collapsed")', () => {
     const w = mountPanel({ collapsed: true })
     expect(w.find('aside.rightpanel').exists()).toBe(false)
   })
 
-  it('collapsed=false(默认)→ 渲染 <aside class="rightpanel">', () => {
+  it('collapsed=false (default) → renders <aside class="rightpanel">', () => {
     const w = mountPanel({ collapsed: false })
     expect(w.find('aside.rightpanel').exists()).toBe(true)
   })
 
-  it('4 个 tab 按钮点击各自 emit set-tab', async () => {
+  it('each of the 4 tab buttons emits set-tab on click', async () => {
     const w = mountPanel()
     const buttons = w.findAll('.right-tab')
     expect(buttons.length).toBe(4)
@@ -60,14 +62,14 @@ describe('AgentRightPanel', () => {
     expect(w.emitted('set-tab')).toEqual([['activity'], ['context'], ['system'], ['resources']])
   })
 
-  it('data-active 反映当前 tab', () => {
+  it('data-active reflects the current tab', () => {
     const w = mountPanel({ tab: 'context' })
     const buttons = w.findAll('.right-tab')
     expect(buttons[0].attributes('data-active')).toBe('false')
     expect(buttons[1].attributes('data-active')).toBe('true')
   })
 
-  it('未知 tab 值落 Resources(v-else 兜底,与 Vue2 逐字一致)', () => {
+  it('an unknown tab value lands on Resources (v-else fallback, matches Vue2 verbatim)', () => {
     const w = mountPanel({ tab: 'nonexistent-tab' })
     expect(w.findComponent(ResourcesTab).exists()).toBe(true)
     expect(w.findComponent(SystemTab).exists()).toBe(false)
@@ -75,7 +77,7 @@ describe('AgentRightPanel', () => {
     expect(w.findComponent({ name: 'ContextTab' }).exists()).toBe(false)
   })
 
-  it('四选一分支:activity/context/system/resources 各自只渲染对应内容', () => {
+  it('one-of-four branch: activity/context/system/resources each render only their own content', () => {
     const activity = mountPanel({ tab: 'activity' })
     expect(activity.findComponent({ name: 'ActivityTab' }).exists()).toBe(true)
     expect(activity.findComponent(SystemTab).exists()).toBe(false)
@@ -85,7 +87,7 @@ describe('AgentRightPanel', () => {
     expect(context.findComponent({ name: 'ContextTab' }).exists()).toBe(true)
     expect(context.findComponent(SystemTab).exists()).toBe(false)
 
-    // Task 13:曾经的 data-testid="system-tab-placeholder" 占位 div 已换成真 SystemTab。
+    // Task 13: the former data-testid="system-tab-placeholder" placeholder div has been replaced by the real SystemTab.
     const system = mountPanel({ tab: 'system' })
     expect(system.findComponent(SystemTab).exists()).toBe(true)
     expect(system.findComponent(ResourcesTab).exists()).toBe(false)
@@ -97,17 +99,17 @@ describe('AgentRightPanel', () => {
     expect(resources.find('[data-testid="resources-tab-placeholder"]').exists()).toBe(false)
   })
 
-  it('Task 13:storage prop 直传 SystemTab(systemMetrics 有意不存在——SystemTab 自取实时数据)', () => {
+  it('Task 13: the storage prop is passed straight through to SystemTab (systemMetrics is intentionally absent — SystemTab fetches its own real-time data)', () => {
     const storage = { used: 5, total: 12, breakdown: [{ name: 'Used', value: 5, color: 'var(--accent)' }], label: 'NAS' }
     const w = mountPanel({ tab: 'system', storage })
     const sys = w.findComponent(SystemTab)
     expect(sys.props('storage')).toEqual(storage)
-    // Vue2 AgentRightPanel.vue:48 有 systemMetrics prop,本仓有意删掉(见组件注释)。
+    // Vue2 AgentRightPanel.vue:48 has a systemMetrics prop; intentionally dropped here (see the component comment).
     expect(Object.keys(sys.props())).not.toContain('systemMetrics')
     expect(Object.keys(w.props())).not.toContain('systemMetrics')
   })
 
-  it('Task 13:7 个 prop 逐条直传 ResourcesTab(Vue2 AgentRightPanel.vue:16-24)', () => {
+  it('Task 13: all 7 props are passed straight through to ResourcesTab one by one (Vue2 AgentRightPanel.vue:16-24)', () => {
     const props = {
       tab: 'resources',
       sessionId: 'sess-1',
@@ -128,7 +130,7 @@ describe('AgentRightPanel', () => {
     expect(rt.props('reverting')).toEqual({ run1: true })
   })
 
-  it('Task 13:ResourcesTab 的 6 个 emit 原样上抛(Vue2 AgentRightPanel.vue:25-30)', () => {
+  it('Task 13: the 6 emits from ResourcesTab are forwarded as-is (Vue2 AgentRightPanel.vue:25-30)', () => {
     const w = mountPanel({ tab: 'resources' })
     const rt = w.findComponent(ResourcesTab)
     rt.vm.$emit('remove-resource', 'r1')
@@ -145,15 +147,15 @@ describe('AgentRightPanel', () => {
     expect(w.emitted('commit-all')).toEqual([[]])
   })
 
-  // F1(终审 opus 复查)—— 第 7 个 emit,原样透传给父组件(AgentPage)。
-  it('F1:ResourcesTab 的 remove-resource-by-path 原样上抛', () => {
+  // F1 (final-review opus pass) — the 7th emit, forwarded as-is to the parent (AgentPage).
+  it('F1: the remove-resource-by-path emit from ResourcesTab is forwarded as-is', () => {
     const w = mountPanel({ tab: 'resources' })
     const rt = w.findComponent(ResourcesTab)
     rt.vm.$emit('remove-resource-by-path', '/DATA/streamed-dir')
     expect(w.emitted('remove-resource-by-path')).toEqual([['/DATA/streamed-dir']])
   })
 
-  it('pendingCount > 0 时 Resources 按钮显示 .badge-pending 且数值正确', () => {
+  it('the Resources button shows .badge-pending with the correct value when pendingCount > 0', () => {
     const w = mountPanel({
       stagedChanges: [
         { run_id: 1, created_at: 0, items: [{ seq: 1 }, { seq: 2 }] },
@@ -165,27 +167,28 @@ describe('AgentRightPanel', () => {
     expect(badge.text()).toBe('3')
   })
 
-  it('pendingCount === 0(默认空数组)时不显示角标', () => {
+  it('the badge is not shown when pendingCount === 0 (default empty array)', () => {
     const w = mountPanel()
     expect(w.find('.badge-pending').exists()).toBe(false)
   })
 
-  it('stagedChanges 里某组缺 items 数组时不炸,按 0 计入', () => {
+  it('does not blow up when a group in stagedChanges is missing its items array, counts it as 0', () => {
     const w = mountPanel({
       stagedChanges: [
         { run_id: 1, created_at: 0, items: [{ seq: 1 }] },
-        // 缺 items —— 流式建组时可能先 push 组再补 items,brief 明确要求容错。
+        // Missing items — a streamed group may be pushed before its items are filled in; the brief explicitly requires tolerating this.
         { run_id: 2, created_at: 0 },
       ],
     })
     expect(w.find('.badge-pending').text()).toBe('1')
   })
 
-  // Task 13:systemMetrics 删除后 props 从 12 个降到 11 个。
-  it('11 个 props 均有合理默认值,空 props 挂载不炸', () => {
-    // F4 修复(终审 opus 复查)—— 原有 `expect(() => mountPanel()).not.toThrow()`
-    // 是同义反复:同步挂载本来就不会抛,异步 rejection 也不经这条断言,删掉。
-    // 下面这条真断言(props 计数)保留。
+  // Task 13: with systemMetrics removed, props went from 12 down to 11.
+  it('all 11 props have sensible defaults, mounting with empty props does not blow up', () => {
+    // F4 fix (final-review opus pass) — the original `expect(() => mountPanel()).not.toThrow()`
+    // was a tautology: a synchronous mount never throws anyway, and an async rejection wouldn't
+    // hit this assertion either, so it was removed. The real assertion below (the props count)
+    // is kept.
     expect(Object.keys(mountPanel().props()).length).toBe(11)
   })
 })

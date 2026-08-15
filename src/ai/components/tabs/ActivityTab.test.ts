@@ -56,7 +56,7 @@ describe('ActivityTab', () => {
     const w = mountTab({ steps: [], busy: false })
     expect(w.find('.dots').exists()).toBe(false)
     expect(w.text()).toContain('Agent 步骤将在运行时显示在这里')
-    // AgentIcon name="layers" 渲染为 svg
+    // AgentIcon name="layers" renders as an svg
     expect(w.find('svg').exists()).toBe(true)
   })
 

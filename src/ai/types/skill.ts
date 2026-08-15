@@ -6,9 +6,9 @@
 //
 // [P3b final review M4] The three path comments in this file were previously mistakenly written
 // as `/v2/ai/skills` — now corrected to `/v1/ai/skills`. Actual prefix: Go side `route/v2.go:88`
-// has `e.Group(common.V2APIPath)`, `common/constants.go:23` defines `V2APIPath = “/v1/ai”` (“v2”
+// has `e.Group(common.V2APIPath)`, `common/constants.go:23` defines `V2APIPath = "/v1/ai"` ("v2"
 // refers to this batch of handlers' code generation/package name, not a URL version), routes hung
-// at `route/v2.go:207-215` (`g.GET(“/skills”, ...)` etc.) — assembled is `/v1/ai/skills`, pure
+// at `route/v2.go:207-215` (`g.GET("/skills", ...)` etc.) — assembled is `/v1/ai/skills`, pure
 // doc drift, does not affect runtime behavior (actual requests go through shared package
 // `@nimotech/nimoos-service`, don't read the path strings in this comment block).
 

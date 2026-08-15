@@ -132,7 +132,7 @@ describe('kvm.css .cv-snapshot-date completes cursor/text-decoration (C2)', () =
 // ════════════════════════════════════════════════════════════════════
 // Task 11 final fix: reverse check on the allowlist.
 //
-// The “no unregistered class names” test above is one-directional — it only checks whether
+// The "no unregistered class names" test above is one-directional — it only checks whether
 // class names appearing in kvm.css are registered in ALLOWED, but not the reverse (template
 // uses a class, but kvm.css has no rule for it). Task 9 missed `.settings-tabs`/`.settings-tab`
 // styling entirely because of this: the two tabs rendered as browser default buttons, and all
@@ -142,7 +142,7 @@ describe('kvm.css .cv-snapshot-date completes cursor/text-decoration (C2)', () =
 //
 // Here we add an automated reverse check and no longer rely on humans remembering to run that
 // comm command from the brief:
-// 1) Only collect **static** `class=”...”` attributes in .vue templates (exclude `:class=”...”`)
+// 1) Only collect **static** `class="..."` attributes in .vue templates (exclude `:class="..."`)
 //    — dynamic `:class` bindings with object/array syntax (e.g., `{ active: x, 'is-loading': busy }`)
 //    would match JS variable names / string literals too (like `busy`/`form.firmware`/`'uefi'`),
 //    which are not class names, and simple regex cannot reliably separate them from real class
@@ -151,7 +151,7 @@ describe('kvm.css .cv-snapshot-date completes cursor/text-decoration (C2)', () =
 //    regression. Strip `<!-- -->` HTML comments before scanning to avoid sample code in comments
 //    (e.g., test-writing examples in VmSettingsDialog.vue's comments) being mistaken for actual
 //    template usage.
-// 2) After stripping comments from kvm.css, split by “selector {“, and from each non-@-prefixed
+// 2) After stripping comments from kvm.css, split by "selector {", and from each non-@-prefixed
 //    selector collect all `.class` tokens (not just the first one at line start — compound/
 //    descendant selectors like `.snapshots-body .cv-snapshot-item:hover` have `cv-snapshot-item`
 //    not at line start but definitely has a rule managing it). This prevents misdetecting classes

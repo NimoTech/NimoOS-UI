@@ -970,47 +970,55 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
     expect(rest, 'hwb() appears outside the declaration layer').not.toMatch(/\bhwb\(/)
     expect(rest, 'color() appears outside the declaration layer').not.toMatch(/\bcolor\(/)
     // 【Guard hole found in T11 self-check, corrected】The original 8 named-color checks used `\bWORD\b`. JS regex's
-    // `\b` 在字母↔连字符的过渡处同样成立(`-` 是非单词字符),所以 `/\bwhite\b/` 会被
-    // 完全合法的 CSS 属性 `white-space` 撞对(`white` 右边紧跟 `-`,一样满足"单词边界"),
-    // `/\bblack\b/`/`/\bred\b/` 等对 `black-ish`/`foo-red` 这类连字符复合词同理会假阳性
-    // ——这是本档第五次同类"守卫自己有窟窿"事故(前四次见文件顶部注释)。T11 的仪表盘
-    // 段落大量使用 `white-space: nowrap`(蓝本原文如此,1:1 照抄),原版规则会把这些
-    // 完全合规的规则误判成"裸色字面量"。改用「左右都不能紧跟单词字符或连字符」的
-    // 双向负向断言(与文件顶部「没有搬多」测试已经用过的 `(?![\w-])` 同一手法,这里补上
-    // 左侧的 `(?<![\w-])`),`white-space` 左边是空格/分号等非单词字符、但右边紧跟 `-`
-    // 会被右侧的 `(?![\w-])` 挡住,不再误判;真正的字面量(如 `color: white;`,两侧都是
-    // 空格/分号)两侧仍都满足负向断言,继续能报红。
-    expect(rest, '声明层之外出现具名色 white').not.toMatch(/(?<![\w-])white(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 black').not.toMatch(/(?<![\w-])black(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 red').not.toMatch(/(?<![\w-])red(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 green').not.toMatch(/(?<![\w-])green(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 blue').not.toMatch(/(?<![\w-])blue(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 orange').not.toMatch(/(?<![\w-])orange(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 gray').not.toMatch(/(?<![\w-])gray(?![\w-])/)
-    expect(rest, '声明层之外出现具名色 grey').not.toMatch(/(?<![\w-])grey(?![\w-])/)
+    // `\b` holds the same way at a letter↔hyphen boundary (`-` counts as a non-word character), so `/\bwhite\b/`
+    // collides with the entirely legitimate CSS property `white-space` (`white` is immediately followed by `-`,
+    // which still satisfies "word boundary"); `/\bblack\b/` / `/\bred\b/` have the same false-positive problem
+    // with hyphenated compounds like `black-ish` / `foo-red`. This is this file's fifth incident of the same
+    // "the guard has a hole" kind (see the first four in the comment at the top of the file). The T11 dashboard
+    // section makes heavy use of `white-space: nowrap` (verbatim from the blueprint, copied 1:1), and the
+    // original rule misjudged these fully compliant declarations as "bare color literals". Switched to a
+    // bidirectional negative-lookaround assertion — "neither side may be immediately followed by a word
+    // character or hyphen" (the same technique the "didn't over-copy" test at the top of the file already uses
+    // for `(?![\w-])`, here adding `(?<![\w-])` on the left) — `white-space` has a space/semicolon (a non-word
+    // character) on its left, but is immediately followed by `-` on its right, so the right-side `(?![\w-])`
+    // blocks it and it's no longer a false positive; a genuine literal (e.g. `color: white;`, with spaces or
+    // semicolons on both sides) still satisfies the negative lookaround on both sides and keeps failing
+    // correctly.
+    expect(rest, 'named color `white` appears outside the declaration layer').not.toMatch(/(?<![\w-])white(?![\w-])/)
+    expect(rest, 'named color `black` appears outside the declaration layer').not.toMatch(/(?<![\w-])black(?![\w-])/)
+    expect(rest, 'named color `red` appears outside the declaration layer').not.toMatch(/(?<![\w-])red(?![\w-])/)
+    expect(rest, 'named color `green` appears outside the declaration layer').not.toMatch(/(?<![\w-])green(?![\w-])/)
+    expect(rest, 'named color `blue` appears outside the declaration layer').not.toMatch(/(?<![\w-])blue(?![\w-])/)
+    expect(rest, 'named color `orange` appears outside the declaration layer').not.toMatch(/(?<![\w-])orange(?![\w-])/)
+    expect(rest, 'named color `gray` appears outside the declaration layer').not.toMatch(/(?<![\w-])gray(?![\w-])/)
+    expect(rest, 'named color `grey` appears outside the declaration layer').not.toMatch(/(?<![\w-])grey(?![\w-])/)
   })
 
-  it('.knowledge-app 两档都显式声明 color-scheme(P2b 教训:嵌套主题作用域不声明会继承 :root)', () => {
+  it('.knowledge-app explicitly declares color-scheme in both variants (P2b lesson: a nested theme scope inherits :root if it does not declare its own)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    expect(darkBody, '暗色档缺 color-scheme: dark').toContain('color-scheme: dark')
-    expect(lightBody, '浅色档缺 color-scheme: light').toContain('color-scheme: light')
+    expect(darkBody, 'dark variant missing color-scheme: dark').toContain('color-scheme: dark')
+    expect(lightBody, 'light variant missing color-scheme: light').toContain('color-scheme: light')
   })
 
-  // R2(协调者拍板)—— 附录 B「New-UI 已有的直接用」对 *-soft 家族是错的:那批 token
-  // 只在 tokens.scss 的 .agent-app/.ai-toast-scope 作用域声明,.knowledge-app 解析不到,
-  // 必须自己在两档声明层里各补一份。这条钉住:删掉任何一档的任何一个就报红。
-  // 【T11 追加】仪表盘 k2-* 段另用到 --danger-soft-border(k2-qchip[data-tone=danger]
-  // 的 hover 强化态)与 --modal-scrim(k2-ob-layer .k2-tag 暗色蒙版的 color-mix 派生源),
-  // 4→6 个,同一断言扩容,不新开 describe。
-  // 【P5b-T2 追加】共享底座段另用到 3 个:--success-soft-border(.kn-badge[data-s="curated"]
-  // 的边框,蓝本 :2038)、--danger-soft-faint(.k-confirm-summary 的底色,蓝本 :1417;
-  // T6 段 :1972 会复用)、--danger-hover(.k-btn.danger 的 hover 底色,蓝本 :846)。
-  // 归属依治理文件 §6.2 的 token 归属表(--purple-soft 归 T6,本任务不声明)。6→9 个。
-  // 【P5b-T6 追加】"已收录文件"段(S8)只新用到 1 个:--purple-soft(蓝本 :1894 的
-  // .k-type-tag[data-kind="code"] 底色),归属表判给 T6 声明。本段用到的
-  // --danger-soft-faint 已由 T2 声明(蓝本 :1972 是它的第二个使用点),不重复。9→10 个。
-  it('R2 —— 10 个本档用到的 *-soft/-scrim/-hover token 两档都有值(T4 的 4 + T11 的 2 + P5b-T2 的 3 + P5b-T6 的 1)', () => {
+  // R2 (coordinator's call) — Appendix B's "New-UI already has direct uses" is wrong for the *-soft family:
+  // those tokens are declared only in tokens.scss's .agent-app/.ai-toast-scope scope, which .knowledge-app can't
+  // resolve, so we must add our own copy in both variants' declaration layers. This pins it down: dropping
+  // either variant's copy of any one of them fails.
+  // 【T11 addition】The dashboard k2-* section also uses --danger-soft-border (the hover-intensified state of
+  // k2-qchip[data-tone=danger]) and --modal-scrim (the color-mix source for k2-ob-layer .k2-tag's dark overlay),
+  // 4→6 tokens, expanding the same assertion, no new describe block.
+  // 【P5b-T2 addition】The shared foundation section uses 3 more: --success-soft-border (the border of
+  // .kn-badge[data-s="curated"], blueprint :2038), --danger-soft-faint (the background of
+  // .k-confirm-summary, blueprint :1417; reused by the T6 section at :1972), --danger-hover (the hover
+  // background of .k-btn.danger, blueprint :846).
+  // Attribution follows the token-ownership table in the governance doc §6.2 (--purple-soft belongs to T6,
+  // not declared by this task). 6→9 tokens.
+  // 【P5b-T6 addition】The "collected files" section (S8) newly uses only 1: --purple-soft (the background of
+  // .k-type-tag[data-kind="code"] at blueprint :1894), which the ownership table assigns to T6. This section's
+  // use of --danger-soft-faint was already declared by T2 (blueprint :1972 is its second use site), so it is
+  // not duplicated. 9→10 tokens.
+  it('R2 — all 10 *-soft/-scrim/-hover tokens this file uses have values in both variants (4 from T4 + 2 from T11 + 3 from P5b-T2 + 1 from P5b-T6)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const tok of [
@@ -1019,22 +1027,26 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
       '--success-soft-border:', '--danger-soft-faint:', '--danger-hover:',
       '--purple-soft:',
     ]) {
-      expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
-      expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
+      expect(darkBody, `dark variant missing ${tok}`).toContain(tok)
+      expect(lightBody, `light variant missing ${tok}`).toContain(tok)
     }
   })
 
-  // R4(评审 2026-07-31 裁定,覆盖附录 B 原表)—— --shadow-* 带颜色,不是无色结构量,
-  // 两档必须各给一份不同的值(暗色档取 tokens.scss:360-363 的暗投影,浅色档取
-  // :107-110 的暖投影)。之前按"结构量,两档共享"处理,只在暗色档声明一份、浅色档
-  // 沿用同一份暖投影值——会让 .k-rail-item[data-active]/.k-rail-svc 的投影在暗色底上
-  // 几乎看不见。这条钉住两档必须分别声明、且取值不同(防止将来被"合并成一份"回归)。
-  // 评审技法自查(RED 探针 3 暴露的教训,详见报告)—— 最初这条守卫只用"lightBody 里
-  // 某处出现过 rgba(40,35,25,…)"这种整块子串检查,4 个 token 共享同一个断言,只要
-  // --shadow-sm/md/lg 三个还在暖投影,即使把 --shadow-xs 单独改回暗投影也测不出来
-  // (探针实测:改坏 --shadow-xs 一个,9/9 仍然全绿)。改成**逐个 token 精确匹配自己
-  // 那一行**,任何一个 token 的值被单独改错都能报红。
-  it('R4 —— --shadow-xs/sm/md/lg 每一个 token 在两档里分别精确取暗/浅两套不同的投影值', () => {
+  // R4 (review ruling 2026-07-31, supersedes Appendix B's original table) — --shadow-* carries color, it is
+  // not a colorless structural value, so both variants must each give a different value (the dark variant
+  // takes the dark-toned shadow from tokens.scss:360-363, the light variant takes the warm-toned shadow from
+  // :107-110). It used to be treated as "a structural value shared by both variants" — only the dark variant
+  // declared one, and the light variant reused the same warm-toned value — which made
+  // .k-rail-item[data-active]/.k-rail-svc's shadow nearly invisible against a dark background. This pins down
+  // that both variants must declare it separately with different values (guards against a future regression
+  // back to "merged into one").
+  // Review-technique self-check (a lesson exposed by RED probe 3, see the report for details) — this guard
+  // originally only did a whole-substring check like "does rgba(40,35,25,…) appear somewhere in lightBody",
+  // with all 4 tokens sharing one assertion; as long as --shadow-sm/md/lg stayed on the warm-toned shadow,
+  // even reverting --shadow-xs alone back to the dark-toned shadow wouldn't be caught (probe confirmed:
+  // break --shadow-xs alone, 9/9 still all green). Changed to **matching each token's own line individually**
+  // — now any single token's value being changed incorrectly on its own will fail.
+  it('R4 — each of --shadow-xs/sm/md/lg takes its own distinct dark/light shadow value exactly in both variants', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, { dark: string; light: string }> = {
@@ -1056,132 +1068,139 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
       },
     }
     for (const [tok, { dark, light }] of Object.entries(expected)) {
-      expect(darkBody, `暗色档 ${tok} 值不对`).toContain(dark)
-      expect(lightBody, `浅色档 ${tok} 值不对`).toContain(light)
-      // 反向:两档不能是同一份值(防止被"合并回结构量共享"的回归)
-      expect(darkBody, `暗色档 ${tok} 不该出现浅色档的暖投影值`).not.toContain(light)
-      expect(lightBody, `浅色档 ${tok} 不该出现暗色档的黑投影值`).not.toContain(dark)
+      expect(darkBody, `dark variant ${tok} value is wrong`).toContain(dark)
+      expect(lightBody, `light variant ${tok} value is wrong`).toContain(light)
+      // Reverse: the two variants must not share the same value (guards against a regression back to "merged into a shared structural value")
+      expect(darkBody, `dark variant ${tok} should not contain the light variant's warm-toned shadow value`).not.toContain(light)
+      expect(lightBody, `light variant ${tok} should not contain the dark variant's dark-toned shadow value`).not.toContain(dark)
     }
   })
 
-  // 【P5b-T2】--danger-hover 是本期**全仓无源、新造**的唯一一个 token(另两个
-  // --success-soft-border / --danger-soft-faint 都能在 AI tokens.scss 里回源核对)。
-  // 设计 §6.2 附了一句派生描述("对本档 --danger 做与蓝本同比例的加深,亮度 −9%"),
-  // 但 T0 实测**这条规则复算不出给定的两个十六进制**,治理文件 §6.2 因此明文裁定
-  // "以设计给出的十六进制为准,禁止下游按规则重算出别的值"。上面 R2 那条只查
-  // "有没有声明",查不到"值被谁按那条描述重算过" —— 这条把两档取值逐字钉死。
-  it('--danger-hover 两档取值逐字等于设计 §6.2 给定值(治理 §6.2:禁止按"亮度 −9%"重算)', () => {
+  // 【P5b-T2】--danger-hover is the only token **created with no source anywhere in the repo** this cycle
+  // (the other two, --success-soft-border / --danger-soft-faint, can both be traced back and verified against
+  // AI's tokens.scss). Design §6.2 attached a derivation note ("darken this variant's --danger by the same
+  // ratio as the blueprint, −9% lightness"), but T0 testing found **this rule cannot reproduce the two given
+  // hex values**, so the governance doc §6.2 explicitly ruled: "the hex values design gave are authoritative,
+  // downstream must not recompute other values from the rule." The R2 check above only verifies "was it
+  // declared", not "did someone recompute the value from that derivation note" — this test pins both
+  // variants' values down verbatim.
+  it('--danger-hover matches design §6.2 given value verbatim in both variants (governance §6.2: recomputing from "−9% lightness" is forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    expect(darkBody, '暗档 --danger-hover 取值被改动').toContain('--danger-hover: #E35F52;')
-    expect(lightBody, '浅档 --danger-hover 取值被改动').toContain('--danger-hover: #A83226;')
-    // 反向:两档不能同值(同值 = 有人把它当成了"结构量/两档共享")
+    expect(darkBody, 'dark variant --danger-hover value was changed').toContain('--danger-hover: #E35F52;')
+    expect(lightBody, 'light variant --danger-hover value was changed').toContain('--danger-hover: #A83226;')
+    // Reverse: the two variants must not share the same value (same value = someone treated it as "a shared structural value")
     expect(darkBody).not.toContain('--danger-hover: #A83226;')
     expect(lightBody).not.toContain('--danger-hover: #E35F52;')
   })
 
-  // 【P5c-T2a】本任务新声明 4 个 token(附录 B §B.8),名字里都不含 `-soft`/`-scrim`/
-  // `-hover` 后缀 → 上面 R2 那条数组按治理 §B.8 的裁定**不扩**;但"两档都有声明"这层
-  // 由下面「浅色档颜色 token 覆盖完整性」的集合断言自动覆盖,而**取值有没有被重算/改动**
-  // 则没有任何守卫 —— 附录 B §B.8 明写这 4 个全部是"仓内逐字同值出处、零凭空造、禁重算"
-  // (承 P5a T11 R9 的教训:自行发明 color-mix 比例)。这条照 --danger-hover 那条的同款
-  // 写法,把两档取值逐字钉死;并反向钉住"两档同值"这个 theme-invariant 属性
-  // (与既有 --purple/--pink/--teal/--modal-scrim 同族)。
-  it('P5c-T2a 的 4 个新 token 两档取值逐字等于 AI tokens.scss 出处值(附录 B §B.8:禁重算)', () => {
+  // 【P5c-T2a】This task newly declares 4 tokens (Appendix B §B.8), none of whose names carry a `-soft`/
+  // `-scrim`/`-hover` suffix, so per governance §B.8's ruling the R2 array above **is not expanded**; but the
+  // "declared in both variants" layer is auto-covered by the "light variant color-token coverage completeness"
+  // set assertion below, while **whether the value was recomputed/changed** has no guard at all — Appendix B
+  // §B.8 explicitly states all 4 have "a verbatim same-value source in the repo, none invented from thin air,
+  // recomputation forbidden" (per the lesson from P5a T11 R9: inventing a color-mix ratio yourself). This test
+  // uses the same style as the --danger-hover one to pin both variants' values down verbatim, and reversely
+  // pins down the theme-invariant property of "same value in both variants" (in the same family as the
+  // existing --purple/--pink/--teal/--modal-scrim).
+  it('P5c-T2a 4 new tokens match AI tokens.scss source values verbatim in both variants (Appendix B §B.8: recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
-      // tokens.scss:201(浅)/ :345(暗)—— iOS 开关拨钮前景,theme-invariant
+      // tokens.scss:201 (light) / :345 (dark) — foreground of the iOS switch thumb, theme-invariant
       '--switch-thumb': '--switch-thumb: #ffffff;',
-      // tokens.scss:202 / :346 —— 同一个拨钮的投影,整条 box-shadow 都在 token 里
+      // tokens.scss:202 / :346 — the shadow of the same thumb, the whole box-shadow lives in the token
       '--switch-thumb-shadow': '--switch-thumb-shadow: 0 2px 4px rgba(0, 0, 0, 0.18);',
-      // tokens.scss:162 / :321 —— .k-sandbox-icon 的 inset 高光,整条 box-shadow 在 token 里
+      // tokens.scss:162 / :321 — the inset highlight of .k-sandbox-icon, the whole box-shadow lives in the token
       '--gloss-inset-dot': '--gloss-inset-dot: inset 0 0 0 0.5px rgba(255, 255, 255, 0.2);',
-      // tokens.scss:236 的 --grad-sk-blue 改名不改值(-sk- 是技能区专用命名)
+      // Renamed from tokens.scss:236's --grad-sk-blue without changing the value (-sk- is skills-section-specific naming)
       '--grad-sandbox': '--grad-sandbox: linear-gradient(135deg, #5AC8FA, #007AFF);',
     }
     for (const [tok, decl] of Object.entries(expected)) {
-      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
-      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+      expect(darkBody, `dark variant ${tok} missing declaration or value was changed`).toContain(decl)
+      expect(lightBody, `light variant ${tok} missing declaration or value was changed (both variants having the same value doesn't excuse skipping one)`).toContain(decl)
     }
   })
 
-  // 【P5d-T2 · K39】本任务新声明 9 个 token(附录 B §B.1 是权威)。7 个 theme-invariant
-  // (4 个笔记渐变 + 2 个 wash 渐变 + 2 个代码块色),两档同值;--shadow-warning-glow
-  // 两档**不同值**(RGB 三元组随 --warning-soft-border 换档,alpha 沿用蓝本 0.3/0.24)。
-  // 🔴 诚实登记(K39 明令,不许照抄 P5c "4/4 都有出处"那句):4 个笔记渐变里只有
-  // --grad-note-note 与既有 --grad-sandbox 逐字同值,另 3 个全仓零同值先例,蓝本设计包
-  // 是值的唯一权威源 —— 这条测试只钉「取值没有被下游重算/改动」,不代表这些值本身
-  // 有仓内先例。
-  it('K39 —— 7 个 theme-invariant 新 token 两档取值逐字相同(附录 B §B.1,禁重算)', () => {
+  // 【P5d-T2 · K39】This task newly declares 9 tokens (Appendix B §B.1 is authoritative). 7 are theme-invariant
+  // (4 note gradients + 2 wash gradients + 2 code-block colors), same value in both variants;
+  // --shadow-warning-glow **differs** between variants (the RGB triple switches with --warning-soft-border,
+  // alpha stays at the blueprint's 0.3/0.24).
+  // Honest disclosure (K39's explicit order, do not copy P5c's "4/4 all have a source" line): of the 4 note
+  // gradients, only --grad-note-note is verbatim identical to the existing --grad-sandbox; the other 3 have
+  // zero same-value precedent anywhere in the repo, and the blueprint design package is the sole authority for
+  // the value — this test only pins down "the value was not recomputed/changed downstream", it does not mean
+  // these values themselves have a repo precedent.
+  it('K39 — 7 theme-invariant new tokens match verbatim in both variants (Appendix B §B.1, recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
-      // notesViewHelpers.js:6,与既有 --grad-sandbox 逐字同值(仍另建新名,理由见 scss 头注释)
+      // notesViewHelpers.js:6, verbatim identical to existing --grad-sandbox (still given a separate new name; see the scss header comment for why)
       '--grad-note-note': '--grad-note-note: linear-gradient(135deg, #5AC8FA, #007AFF);',
-      // notesViewHelpers.js:7,全仓零同值先例
+      // notesViewHelpers.js:7, zero same-value precedent anywhere in the repo
       '--grad-note-summary': '--grad-note-summary: linear-gradient(135deg, #30B0C7, #34C759);',
-      // notesViewHelpers.js:8 与 knowledge.scss:2066(.kn-inbox-icon)共用同一份,全仓零同值先例
+      // notesViewHelpers.js:8, shared with knowledge.scss:2066 (.kn-inbox-icon), zero same-value precedent anywhere in the repo
       '--grad-note-insight': '--grad-note-insight: linear-gradient(135deg, #FF9500, #FFCC00);',
-      // notesViewHelpers.js:9,全仓零同值先例
+      // notesViewHelpers.js:9, zero same-value precedent anywhere in the repo
       '--grad-note-digest': '--grad-note-digest: linear-gradient(135deg, #AF52DE, #FF2D55);',
-      // knowledge.scss:2060,保留蓝本色相(裁定 R11)
+      // knowledge.scss:2060, keeps the blueprint's hue (ruling R11)
       '--grad-inbox-wash':
         '--grad-inbox-wash: linear-gradient(160deg, rgba(255, 149, 0, 0.07), rgba(255, 204, 0, 0.04) 55%, transparent);',
-      // knowledge.scss:2132,保留蓝本色相(裁定 R11)
+      // knowledge.scss:2132, keeps the blueprint's hue (ruling R11)
       '--grad-draftbar-wash':
         '--grad-draftbar-wash: linear-gradient(135deg, rgba(255, 149, 0, 0.09), rgba(255, 204, 0, 0.04));',
-      // NotesMarkdownEditor.vue:44,theme-invariant
+      // NotesMarkdownEditor.vue:44, theme-invariant
       '--code-block-bg': '--code-block-bg: #0d0d0d;',
       '--code-block-fg': '--code-block-fg: #ffffff;',
     }
     for (const [tok, decl] of Object.entries(expected)) {
-      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
-      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+      expect(darkBody, `dark variant ${tok} missing declaration or value was changed`).toContain(decl)
+      expect(lightBody, `light variant ${tok} missing declaration or value was changed (both variants having the same value doesn't excuse skipping one)`).toContain(decl)
     }
   })
 
-  it('K39 —— --shadow-warning-glow 两档取值不同(暗 0.3 / 浅 0.24,附录 B §B.1 第 7 行)', () => {
+  it('K39 — --shadow-warning-glow differs between variants (dark 0.3 / light 0.24, Appendix B §B.1 row 7)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    expect(darkBody, '暗档 --shadow-warning-glow 取值被改动').toContain(
+    expect(darkBody, 'dark variant --shadow-warning-glow value was changed').toContain(
       '--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);',
     )
-    expect(lightBody, '浅档 --shadow-warning-glow 取值被改动').toContain(
+    expect(lightBody, 'light variant --shadow-warning-glow value was changed').toContain(
       '--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);',
     )
-    // 反向:两档不能同值(同值 = 有人把它当成了 theme-invariant)
+    // Reverse: the two variants must not share the same value (same value = someone treated it as theme-invariant)
     expect(darkBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(200, 134, 10, 0.24);')
     expect(lightBody).not.toContain('--shadow-warning-glow: 0 3px 8px rgba(224, 165, 59, 0.3);')
   })
 
-  it('K39 —— #FF9500,#FFCC00 只声明一份 --grad-note-insight(两个消费方共用,不许声明两份)', () => {
+  it('K39 — #FF9500,#FFCC00 declare only one copy of --grad-note-insight (shared by two consumers, must not declare it twice)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const body of [darkBody, lightBody]) {
       const hits = body.match(/--grad-note-insight:/g) || []
-      expect(hits.length, '--grad-note-insight 声明次数应为 1(#FF9500,#FFCC00 两个消费方共用一份)').toBe(1)
+      expect(hits.length, '--grad-note-insight should be declared exactly once (shared by the two consumers of #FF9500,#FFCC00)').toBe(1)
     }
-    // 消费方(.kn-inbox-icon 与 K44 顶层段外的其余引用留给 T3/T6/T7)本刀只核 scss 内的
-    // .kn-inbox-icon 一处,确认它引用 token 而不是重复声明色值。
-    expect(css, '.kn-inbox-icon 应引用 --grad-note-insight 而不是重复声明字面量').toContain(
+    // Consumers (.kn-inbox-icon and the remaining references outside K44's top-level section, left to T3/T6/T7) — this pass only checks the one
+    // .kn-inbox-icon site inside the scss, confirming it references the token instead of re-declaring the color literal.
+    expect(css, '.kn-inbox-icon should reference --grad-note-insight instead of re-declaring the literal').toContain(
       'background: var(--grad-note-insight);',
     )
   })
 
-  // 【P5e-T2 · 附录 B §B.1 / §B.2】本刀在两档各补 8 个声明:--paper-surface(本档尚未
-  // 声明的**既有例外 token**,不是新建)+ 7 个新建(--rtag-* 五个 / --shadow-drawer /
-  // --mark-hl-bg)。上面「浅色档颜色 token 覆盖完整性」的集合断言只查「有没有声明」,
-  // **查不到取值被谁重算过** —— 这两条照 --danger-hover / K39 那两条的同款写法把取值逐字
-  // 钉死(附录 B §B.5-2 明令「本表以外的任何色字面量 → NEEDS_CONTEXT,不许自选 token」,
-  // 反过来表内的值也不许下游重算)。
-  it('P5e-T2 —— --paper-surface + 5 个 --rtag-* 两档取值逐字相同(theme-invariant,附录 B §B.1/§B.2.1)', () => {
+  // 【P5e-T2 · Appendix B §B.1 / §B.2】This pass adds 8 declarations in each variant: --paper-surface (an
+  // **existing exception token** this file has not yet declared, not a new one) + 7 new ones (5 --rtag-* /
+  // --shadow-drawer / --mark-hl-bg). The "light variant color-token coverage completeness" set assertion above
+  // only checks "was it declared", **it cannot tell whether the value was recomputed by someone** — these two
+  // tests use the same style as the --danger-hover / K39 ones to pin the values down verbatim (Appendix B
+  // §B.5-2 explicitly rules "any color literal outside this table → NEEDS_CONTEXT, do not pick your own
+  // token"; conversely, values that are in the table must not be recomputed downstream either).
+  it('P5e-T2 — --paper-surface + 5 --rtag-* tokens match verbatim in both variants (theme-invariant, Appendix B §B.1/§B.2.1)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
-      // AI tokens.scss:193(浅)/:342(暗)两档同值,skin-agnostic 例外 token
+      // AI tokens.scss:193 (light) / :342 (dark), same value in both variants, a skin-agnostic exception token
       '--paper-surface': '--paper-surface: #ffffff;',
-      // 蓝本 :618-622;与 AI tokens.scss --kind-pdf/-md/-doc/-xls 及本档 --purple 逐字同值
+      // Blueprint :618-622; verbatim identical to AI tokens.scss's --kind-pdf/-md/-doc/-xls and this file's --purple
       '--rtag-pdf': '--rtag-pdf: #FF3B30;',
       '--rtag-md': '--rtag-md: #1a1a1a;',
       '--rtag-doc': '--rtag-doc: #007AFF;',
@@ -1189,97 +1208,104 @@ describe('knowledge.scss — hard color constraint (this file has no automated g
       '--rtag-code': '--rtag-code: #AF52DE;',
     }
     for (const [tok, decl] of Object.entries(expected)) {
-      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
-      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+      expect(darkBody, `dark variant ${tok} missing declaration or value was changed`).toContain(decl)
+      expect(lightBody, `light variant ${tok} missing declaration or value was changed (both variants having the same value doesn't excuse skipping one)`).toContain(decl)
     }
-    // 🔴 反向:--rtag-txt 不许被"顺手借名"成 --kind-txt —— tokens.scss:210/:351 的
-    // --kind-txt 是另一个值(中性灰,也是未知类型兜底),在本档重声明会造成全仓同名两值。
-    expect(darkBody, '本档不许重声明 --kind-txt(全仓同名两值)').not.toContain('--kind-txt:')
-    expect(lightBody, '本档不许重声明 --kind-txt(全仓同名两值)').not.toContain('--kind-txt:')
+    // Reverse: --rtag-txt must not be casually reused under the name --kind-txt — tokens.scss:210/:351's
+    // --kind-txt is a different value (a muted neutral, also an unknown-type fallback); re-declaring it here would create two values under the same name across the repo.
+    expect(darkBody, 'this file must not re-declare --kind-txt (two values under the same name across the repo)').not.toContain('--kind-txt:')
+    expect(lightBody, 'this file must not re-declare --kind-txt (two values under the same name across the repo)').not.toContain('--kind-txt:')
   })
 
-  it('P5e-T2 —— --shadow-drawer / --mark-hl-bg 两档取值不同(附录 B §B.2.2/§B.2.3,禁重算)', () => {
+  it('P5e-T2 — --shadow-drawer / --mark-hl-bg differ between variants (Appendix B §B.2.2/§B.2.3, recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    // 几何部分逐字照蓝本 :1582;颜色部分照裁定 R4(暗档纯色投影 / 浅档暖调投影,
-    // alpha 取同档 --shadow-lg 首段)。蓝本原值是冷调,与本档 R4 已统一的两套不同源,不照抄。
+    // The geometry part follows blueprint :1582 verbatim; the color part follows ruling R4 (a plain dark-toned
+    // shadow for the dark variant / a warm-toned shadow for the light variant, alpha taken from the same
+    // variant's --shadow-lg's first segment). The blueprint's original value is cool-toned, from a different
+    // source than the two sets this file already unified under R4, so it is not copied verbatim.
     const darkShadow = '--shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.55);'
     const lightShadow = '--shadow-drawer: -20px 0 60px rgba(40, 35, 25, 0.10);'
-    expect(darkBody, '暗档 --shadow-drawer 取值被改动').toContain(darkShadow)
-    expect(lightBody, '浅档 --shadow-drawer 取值被改动').toContain(lightShadow)
-    expect(darkBody, '暗档不该出现浅档的暖调投影值').not.toContain(lightShadow)
-    expect(lightBody, '浅档不该出现暗档的投影值').not.toContain(darkShadow)
-    // 蓝本 :1660;浅档逐字照蓝本 alpha,暗档降 alpha(.k-chunk-content 的前景是
-    // --text-primary,照抄浅档 alpha 会把底推到中间调、浅色字对比度最差)。
+    expect(darkBody, 'dark variant --shadow-drawer value was changed').toContain(darkShadow)
+    expect(lightBody, 'light variant --shadow-drawer value was changed').toContain(lightShadow)
+    expect(darkBody, 'dark variant should not contain the warm-toned shadow value of the light variant').not.toContain(lightShadow)
+    expect(lightBody, 'light variant should not contain the shadow value of the dark variant').not.toContain(darkShadow)
+    // Blueprint :1660; the light variant follows the blueprint's alpha verbatim, the dark variant lowers the
+    // alpha (.k-chunk-content's foreground is --text-primary; copying the light variant's alpha would push the
+    // background toward a mid-tone, giving light-colored text the worst contrast).
     const darkMark = '--mark-hl-bg: rgba(255, 235, 0, 0.22);'
     const lightMark = '--mark-hl-bg: rgba(255, 235, 0, 0.40);'
-    expect(darkBody, '暗档 --mark-hl-bg 取值被改动').toContain(darkMark)
-    expect(lightBody, '浅档 --mark-hl-bg 取值被改动').toContain(lightMark)
-    expect(darkBody, '暗档不该用浅档的 alpha').not.toContain(lightMark)
-    expect(lightBody, '浅档不该用暗档的 alpha').not.toContain(darkMark)
+    expect(darkBody, 'dark variant --mark-hl-bg value was changed').toContain(darkMark)
+    expect(lightBody, 'light variant --mark-hl-bg value was changed').toContain(lightMark)
+    expect(darkBody, 'dark variant should not use the alpha of the light variant').not.toContain(lightMark)
+    expect(lightBody, 'light variant should not use the alpha of the dark variant').not.toContain(darkMark)
   })
 
-  // 🔴 附录 D §D.6 明令:三条 mark 规则里**只有蓝本 :1660 是字面量**,另两条
-  // (:653 .k-rcard-snippet mark / :1645 .k-chunk-item-preview mark)蓝本用的就是
-  // --accent-soft/--accent 两个 token —— **不许一起改成 --mark-hl-bg**。
-  // 上面的全文色扫抓不到这种「改对了方向但改错了对象」的偏离。
-  it('附录 D §D.6 —— 三条 mark 规则各归其位(只有 .k-chunk-content mark 用 --mark-hl-bg)', () => {
+  // 🔴 Appendix D §D.6 explicitly rules: of the three mark rules, **only blueprint :1660 is a literal**; the
+  // other two (:653 .k-rcard-snippet mark / :1645 .k-chunk-item-preview mark) use the tokens --accent-soft/
+  // --accent in the blueprint — **do not change them to --mark-hl-bg along with it**.
+  // The whole-file color scan above cannot catch this kind of "changed in the right direction but on the
+  // wrong target" drift.
+  it('Appendix D §D.6 — each of the three mark rules stays in its own place (only .k-chunk-content mark uses --mark-hl-bg)', () => {
     const markRules = [...css.matchAll(/^\s*(?:\.[\w-]+ )?mark\b[^\n]*$|^\s*\.[\w-]+ mark \{[^\n]*$/gm)].map((m) => m[0].trim())
-    // 逐条精确核对(锚在各自的父块选择器上,不是全文裸计数)
+    // Check each one precisely (anchored on its own parent block selector, not a whole-file bare count)
     const snippetMark = nestedBlockBody(cssKeepLines, '.k-rcard-snippet {')
-    expect(snippetMark, '.k-rcard-snippet mark 应保持蓝本 :654-655 的 token').toContain('background: var(--accent-soft);')
-    expect(snippetMark, '.k-rcard-snippet mark 被误改成 --mark-hl-bg').not.toContain('--mark-hl-bg')
+    expect(snippetMark, '.k-rcard-snippet mark should keep the token from blueprint :654-655').toContain('background: var(--accent-soft);')
+    expect(snippetMark, '.k-rcard-snippet mark was mistakenly changed to --mark-hl-bg').not.toContain('--mark-hl-bg')
     const previewLine = css.split('\n').filter((l) => l.includes('.k-chunk-item-preview mark'))
-    expect(previewLine.length, '.k-chunk-item-preview mark 规则应恰好 1 条').toBe(1)
-    expect(previewLine[0], '.k-chunk-item-preview mark 应保持蓝本 :1645 的 token').toContain('background: var(--accent-soft);')
-    expect(previewLine[0], '.k-chunk-item-preview mark 被误改成 --mark-hl-bg').not.toContain('--mark-hl-bg')
+    expect(previewLine.length, '.k-chunk-item-preview mark should have exactly 1 rule').toBe(1)
+    expect(previewLine[0], '.k-chunk-item-preview mark should keep the token from blueprint :1645').toContain('background: var(--accent-soft);')
+    expect(previewLine[0], '.k-chunk-item-preview mark was mistakenly changed to --mark-hl-bg').not.toContain('--mark-hl-bg')
     const contentLine = css.split('\n').filter((l) => l.includes('.k-chunk-content mark'))
-    expect(contentLine.length, '.k-chunk-content mark 规则应恰好 1 条').toBe(1)
-    expect(contentLine[0], '.k-chunk-content mark 应用 --mark-hl-bg(蓝本 :1660 是唯一的字面量处)').toContain('background: var(--mark-hl-bg);')
-    // 覆盖度自检:确实抓到了 mark 规则(防止上面的正则一条都没匹配到而"假通过")
-    expect(markRules.length, '一条 mark 规则都没抓到(正则失效 = 零判别力)').toBeGreaterThanOrEqual(3)
+    expect(contentLine.length, '.k-chunk-content mark should have exactly 1 rule').toBe(1)
+    expect(contentLine[0], '.k-chunk-content mark should use --mark-hl-bg (blueprint :1660 is the only literal spot)').toContain('background: var(--mark-hl-bg);')
+    // Coverage self-check: confirm mark rules were actually captured (guards against the regex above matching nothing and "passing" vacuously)
+    expect(markRules.length, 'not a single mark rule was captured (a dead regex has zero discriminating power)').toBeGreaterThanOrEqual(3)
   })
 
-  it('--accent-soft-2 不在本档重复声明(R2 例外:全局 theme.css 的 :root 与浅色块已有,跟随全局解析)', () => {
+  it('--accent-soft-2 is not re-declared in this file (R2 exception: already in the global theme.css, in :root and the light block, follows the global resolution)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     expect(darkBody).not.toContain('--accent-soft-2:')
     expect(lightBody).not.toContain('--accent-soft-2:')
-    // 但壳段确实引用了它(k-banner[data-tone="info"] 与 k-btn.primary 的阴影)
+    // But the shell section does reference it (the shadow of k-banner[data-tone="info"] and k-btn.primary)
     expect(css).toContain('var(--accent-soft-2)')
   })
 
-  // 评审 2026-07-31 Critical 订正 —— 初版曾在浅色声明块里"刻意不声明 --accent/
-  // --accent-soft/--success,靠 CSS 继承拿外层浅色值"。这个推理不成立:暗色块
-  // `.knowledge-app { … }` 的选择器无条件命中(没有 data-theme 限定),在浅色主题下
-  // 同样作用于这个元素本身;custom property 继承规则是"元素自身有声明时自身声明
-  // 胜出",所以浅色块留空并不会继承到浅色值,而是被暗色块的字面值(#5E97F2 等)
-  // 直接命中 —— 浅色主题下强调色/成功态会用错暗色调色板。这条钉住浅色块必须显式
-  // 声明这三项字面值,任何一项被"优化掉"都会精确报红。
-  it('浅色档必须显式声明 --accent/--accent-soft/--success(不能靠继承,见头注释订正说明)', () => {
+  // Review 2026-07-31 Critical correction — the initial version deliberately left --accent/--accent-soft/
+  // --success undeclared in the light declaration block, relying on CSS inheritance to pick up the outer
+  // light value. That reasoning doesn't hold: the dark block's selector, `.knowledge-app { … }`, matches
+  // unconditionally (no data-theme qualifier), so it applies to this same element under the light theme too;
+  // the custom-property inheritance rule is "the element's own declaration wins when the element has one", so
+  // leaving the light block empty does not inherit the light value — it gets hit directly by the dark block's
+  // literal values (#5E97F2 etc.) instead — the accent/success states end up using the dark palette under the
+  // light theme. This test pins down that the light block must explicitly declare these three literal values;
+  // any one of them being "optimized away" fails precisely.
+  it('light variant must explicitly declare --accent/--accent-soft/--success (cannot rely on inheritance, see the correction note in the header comment)', () => {
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
-    expect(lightBody, '浅色档缺 --accent(会被暗色块的 #5E97F2 命中)').toContain('--accent: #3b5bdb')
-    expect(lightBody, '浅色档缺 --accent-soft(会被暗色块的值命中)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
-    expect(lightBody, '浅色档缺 --success(会被暗色块的 #4FB870 命中)').toContain('--success: #15754c')
-    // 反向:确认没有退回自引用循环写法
+    expect(lightBody, 'light variant missing --accent (would get hit by #5E97F2 from the dark block)').toContain('--accent: #3b5bdb')
+    expect(lightBody, 'light variant missing --accent-soft (would get hit by the value from the dark block)').toContain('--accent-soft: rgba(59, 91, 219, 0.11)')
+    expect(lightBody, 'light variant missing --success (would get hit by #4FB870 from the dark block)').toContain('--success: #15754c')
+    // Reverse: confirm it didn't fall back to a self-referential circular declaration
     expect(lightBody).not.toContain('--accent: var(--accent)')
     expect(lightBody).not.toContain('--accent-soft: var(--accent-soft)')
     expect(lightBody).not.toContain('--success: var(--success)')
   })
 })
 
-// 【P5d-T2 · K44 顶层裸选择器例外(治理 §6.2-2 明令 / 裁定 R4 / 附录 D §D.2.2)】
-// 🔴 这条断言是**新建**,不是修改 —— 现状文件里压根没有任何「顶层裸选择器」相关断言
-// (`grep -n "顶层\|裸选择器\|top-level" knowledgeStyles.test.ts` 在本刀之前只命中
-// K10 注释,查不到这条)。基线:改动前的现状文件 depth-0(顶层、零缩进)开块选择器
-// 共 15 条,全部是 `.knowledge-app`(含与 `.parser-app` 复合的两个 token 声明块)/
-// `:root[data-theme="light"] …`/`@keyframes` —— 排除这三类后「裸选择器」实测 = 0。
-// K44 搬入唯一一条真正的顶层裸选择器:`.nme-content .ProseMirror`(蓝本
-// NotesMarkdownEditor.vue:41-46,理由见 knowledge.scss 该段注释)。
+// 【P5d-T2 · K44 top-level bare-selector exception (governance §6.2-2 explicit ruling / ruling R4 / Appendix D §D.2.2)】
+// 🔴 This assertion is **newly added**, not modified — the file as it stood had no "top-level bare selector"
+// assertion at all (`grep -n "top-level\|bare selector\|top-level" knowledgeStyles.test.ts` before this pass
+// only matched the K10 comment, this one wasn't found). Baseline: before this change, the file had 15
+// depth-0 (top-level, zero-indent) opening block selectors, all `.knowledge-app` (including the two
+// token-declaration blocks composed with `.parser-app`) / `:root[data-theme="light"] …` / `@keyframes` —
+// after excluding these three kinds, "bare selectors" measured 0. K44 brings in the one genuine top-level
+// bare selector: `.nme-content .ProseMirror` (blueprint NotesMarkdownEditor.vue:41-46, see the comment on
+// that section in knowledge.scss for why).
 //
-// 判据:抽出全文件 depth-0(大括号深度为 0 时遇到的 `{`)选择器,过滤掉
-// `.knowledge-app*`/`:root*`/`@*` 三类,断言剩下的**集合恰好等于**
-// `['.nme-content .ProseMirror']` —— 集合相等式,不是「排除掉就算了」(裁定 R4 明令)。
+// Criterion: extract the file's depth-0 selectors (the `{` encountered while brace depth is 0), filter out
+// the three kinds `.knowledge-app*`/`:root*`/`@*`, and assert the remaining **set is exactly equal to**
+// `['.nme-content .ProseMirror']` — a set-equality check, not "excluded, so good enough" (ruling R4's explicit order).
 function depthZeroSelectors(text: string): string[] {
   const out: string[] = []
   let depth = 0
@@ -1300,53 +1326,59 @@ function depthZeroSelectors(text: string): string[] {
   return out
 }
 
-describe('knowledge.scss —— K44 顶层裸选择器例外(治理 §6.2-2 / 裁定 R4,T2 新建断言)', () => {
+describe('knowledge.scss — K44 top-level bare-selector exception (governance §6.2-2 / ruling R4, new assertion added in T2)', () => {
   function bareTopLevelSelectors(): string[] {
     return depthZeroSelectors(css).filter(
       (s) => !s.startsWith('.knowledge-app') && !s.startsWith(':root') && !s.startsWith('@'),
     )
   }
 
-  it('顶层裸选择器(排除 .knowledge-app 系 / :root 系 / @ 开头)恰好只有 .nme-content .ProseMirror 一条', () => {
+  it('top-level bare selectors (excluding .knowledge-app family / :root family / @ prefixed) are exactly the one .nme-content .ProseMirror', () => {
     expect(bareTopLevelSelectors()).toEqual(['.nme-content .ProseMirror'])
   })
 })
 
-// 【终审 ⚠️-D1,2026-08-01 补,本轮修复最有价值的一条】上面几条(R2/R4/"3 个同名
-// token")各自只逐个点名钉住了 13 个具名 token(6 个 *-soft/scrim + 4 个 --shadow-*
-// + 3 个同名 --accent/--accent-soft/--success)。除这 13 个之外,任何一个颜色 token
-// 从浅色块消失都**没有任何守卫**——终审 RED 探针实证:删掉浅色块
-// `--line-strong: #D8D3C7;` 一整行,`knowledgeStyles` + `color-guard` 209/209
-// 全绿,无人报红。真机后果:浅色主题下 `.k2-root-add` 的虚线边框会取到暗色块的
-// `#3A3A3D`——本档已经因为同一款故障(浅色块漏声明)吃过一次 Critical
-// (T4:--accent/--accent-soft/--success 三个)。
+// 【Final review ⚠️-D1, added 2026-08-01, the most valuable fix in this round】The tests above (R2/R4/the
+// "3 same-named tokens" one) each only pin down 13 named tokens one by one (6 *-soft/scrim + 4 --shadow-* + 3
+// same-named --accent/--accent-soft/--success). Any color token other than these 13 disappearing from the
+// light block has **no guard at all** — the final review's RED probe confirmed it: delete the whole
+// `--line-strong: #D8D3C7;` line from the light block, and `knowledgeStyles` + `color-guard` still come back
+// 209/209 all green, nobody fails. Real-device consequence: under the light theme, `.k2-root-add`'s dashed
+// border would pick up the dark block's `#3A3A3D` instead — this file has already paid for the exact same
+// kind of failure (a missing declaration in the light block) once before, as a Critical (T4: the three
+// --accent/--accent-soft/--success).
 //
-// 判据(头注释「隐藏坑」段已经证明过的前提):暗色块 `.knowledge-app { … }` 选择器
-// 无条件命中,浅色主题下同样作用于这个元素本身,custom property 继承规则是
-// "元素自身有声明时自身声明胜出"——所以暗色块声明的每一个**颜色** token,浅色块
-// 都必须也显式声明(值可以不同,只要求"有声明",值是否正确由上面 R2/R4/3-同名
-// 那几条各自的精确值断言负责,两层不重复)。
+// Criterion (building on the premise the header comment's "hidden pitfall" section already established): the
+// dark block's selector, `.knowledge-app { … }`, matches unconditionally, so it applies to this same element
+// under the light theme too; the custom-property inheritance rule is "the element's own declaration wins when
+// the element has one" — so every **color** token the dark block declares must also be explicitly declared by
+// the light block (the value may differ; this only requires "it is declared" — whether the value is correct
+// is the job of the precise-value assertions in R2/R4/the 3-same-named tests above, the two layers do not
+// overlap).
 //
-// 例外(两档共享、只在暗色/基础块声明一次,不要求浅色块重复声明)登记如下,
-// 每条都写明理由——这份清单不许当垃圾桶塞,新增例外必须像下面这样逐条写理由:
+// Exceptions (shared by both variants, declared once in the dark/base block only, the light block is not
+// required to repeat it) are registered below, each with its reason spelled out — this list must not be used
+// as a dumping ground; any new exception must have its reason written out item by item like the ones below:
 const SHARED_STRUCTURAL_EXCEPTIONS = [
-  // 9 个真结构量 —— 圆角半径与字体栈,不带任何色度/色相/明度信息,不是"颜色 token"。
-  // 附录 B 原文就把这 9 个归类为"结构量,两档共享,只写基础块"。
+  // 9 genuine structural values — border-radius and font stacks, carrying no hue/chroma/lightness information,
+  // not "color tokens". Appendix B's original text already classifies these 9 as "structural values, shared
+  // by both variants, declared only in the base block".
   '--r-xs', '--r-sm', '--r-md', '--r-lg', '--r-xl', '--r-2xl', '--r-pill',
   '--font-sans', '--font-mono',
-  // 2 个品牌渐变色 —— --grad-iri/--grad-iri-soft 是彩虹品牌识别渐变,与皮肤无关。
-  // 回源核实:AI tokens.scss 自己也只在 :119-120 声明一次(暗色块 :250 起不重定义),
-  // `.agent-app` 两档共用同一份 —— 与本档做法一致,属 `theme.css` 例外清单第 1 类
-  // (品牌识别色、皮肤无关的例外),不是漏声明。
+  // 2 brand gradient colors — --grad-iri/--grad-iri-soft are the rainbow brand-identity gradient, skin-agnostic.
+  // Traced back and verified: AI's own tokens.scss also declares them only once, at :119-120 (the dark block
+  // starting at :250 does not redefine them), and `.agent-app` shares the same copy across both variants —
+  // consistent with this file's approach, falling under `theme.css`'s exception-list category 1 (brand-identity
+  // colors, skin-agnostic exceptions), not a missing declaration.
   '--grad-iri', '--grad-iri-soft',
 ]
 
-describe('knowledge.scss —— 浅色档颜色 token 覆盖完整性(终审 ⚠️-D1,集合断言)', () => {
+describe('knowledge.scss — light variant color-token coverage completeness (final review ⚠️-D1, set assertion)', () => {
   function declaredTokenNames(body: string): Set<string> {
     return new Set([...body.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
   }
 
-  it('暗色块声明的每一个颜色 token,浅色块必须也声明(白名单外漏一个就精确指名)', () => {
+  it('every color token declared by the dark block must also be declared by the light block (any one missing outside the whitelist is named precisely)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const darkTokens = declaredTokenNames(darkBody)
@@ -1354,68 +1386,74 @@ describe('knowledge.scss —— 浅色档颜色 token 覆盖完整性(终审 ⚠
     const missing = [...darkTokens].filter(
       (t) => !SHARED_STRUCTURAL_EXCEPTIONS.includes(t) && !lightTokens.has(t),
     )
-    expect(missing, `浅色档漏声明的颜色 token(白名单外):${missing.join(', ')}`).toEqual([])
+    expect(missing, `color tokens missing from the light variant (outside the whitelist): ${missing.join(', ')}`).toEqual([])
   })
 
-  it('例外清单当前恰好是这 11 个,不多不少(防止清单被悄悄扩大当垃圾桶)', () => {
+  it('the exception list currently has exactly these 11 entries, no more and no less (guards against the list being quietly expanded into a dumping ground)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const darkTokens = declaredTokenNames(darkBody)
     const lightTokens = declaredTokenNames(lightBody)
-    // 「暗有浅无」的真实差集必须恰好等于登记的例外清单——多出来的说明例外清单漏登记
-    // 了新的真实缺口(应该报红修 scss,不是往清单里加一条了事);少了/清单里有的其实
-    // 浅色档也声明了,说明清单该收紧。
+    // The actual "in dark but not in light" difference set must be exactly equal to the registered exception
+    // list — extra entries mean the exception list is missing a genuine new gap (should fail and get the scss
+    // fixed, not just get another list entry added); fewer entries, or an entry in the list that the light
+    // variant actually does declare, means the list should be tightened.
     const actualOnlyDark = [...darkTokens].filter((t) => !lightTokens.has(t)).sort()
     expect(actualOnlyDark).toEqual([...SHARED_STRUCTURAL_EXCEPTIONS].sort())
   })
 })
 
-// 【评审 2026-08-01 Important I-3】色扫/白名单/R2/R4 等断言都只检查"有没有裸色字面量"/
-// "类名是否存在",完全没检查过 var(--x) 引用的 --x 是否真的有地方声明 —— 评审 RED
-// 探针实证:把 .k2-prog-pct 的 var(--ly-vec) 换成 var(--k2-nonexistent),三门 + 本档
-// 全部断言 10/10 全绿放行(sass 不解析自定义属性引用,vue-tsc/build 更不会管)。真机
-// 上这类引用会落成 CSS 规范定义的 guaranteed-invalid value —— 对应的 background/color
-// 直接变透明(或继承),页面"少了一块颜色"却没有任何编译期报错。本档已经因为同款
-// 故障吃过一次亏(R2 那批 *-soft token 只在 tokens.scss 的 .agent-app/.ai-toast-scope
-// 声明、.knowledge-app 解析不到,见文件头 R2 注释),证明这不是假想风险。
+// 【Review 2026-08-01 Important I-3】The color scan/whitelist/R2/R4 assertions etc. only check "is there a bare
+// color literal" / "does the class name exist", they never check whether a var(--x) reference's --x is
+// actually declared anywhere — the review's RED probe confirmed it: swap .k2-prog-pct's var(--ly-vec) for
+// var(--k2-nonexistent), and all three gates plus this file's own assertions still come back 10/10 all green
+// (sass does not resolve custom-property references, and vue-tsc/build care even less). On a real device this
+// kind of reference lands as the CSS-spec-defined guaranteed-invalid value — the corresponding background/
+// color simply turns transparent (or inherits), and the page is "missing a patch of color" with zero
+// compile-time error. This file has already paid for the exact same kind of failure once (the batch of R2
+// *-soft tokens declared only in tokens.scss's .agent-app/.ai-toast-scope scope, unresolvable from
+// .knowledge-app, see the R2 comment at the top of the file), proving this is not a hypothetical risk.
 //
-// 覆盖范围:knowledge.scss 全文所有 var(--x[, fallback]) 引用,--x 必须能在
-// ①本档任意位置声明过(含两个 token 声明块 + 规则内局部声明,如 .k2-layer 的
-// --ly/--ly-soft/--ly-ln)或 ②全局 src/styles/theme.css 里声明过,两处都没有才报红。
-// 例外:带 fallback 的引用(如 .k2-glue-id i 的 var(--g, var(--text-quaternary)))是
-// **有意由消费方(模板 inline style)注入**的 token,不强制要求本档/全局声明——但
-// fallback 本身(--text-quaternary)仍然要走正常的可解析性检查(matchAll 抓的是每一个
-// 独立的 var( 调用,fallback 里嵌套的 var() 是单独一次匹配,不受外层豁免影响)。
-describe('knowledge.scss —— var() 引用闭环(评审 Important I-3)', () => {
+// Coverage: every var(--x[, fallback]) reference in the whole of knowledge.scss — --x must be declared either
+// ① somewhere in this file (including the two token-declaration blocks plus local in-rule declarations, such
+// as .k2-layer's --ly/--ly-soft/--ly-ln) or ② in the global src/styles/theme.css; it fails only if neither
+// has it. Exception: a reference with a fallback (e.g. .k2-glue-id i's var(--g, var(--text-quaternary))) is a
+// token **deliberately injected by the consumer** (a template inline style), and is not required to be
+// declared by this file or globally — but the fallback itself (--text-quaternary) still goes through the
+// normal resolvability check (matchAll captures each independent var( call; a var() nested inside a fallback
+// is a separate match, unaffected by the outer exemption).
+describe('knowledge.scss — var() reference closure (review Important I-3)', () => {
   const theme = read('../../styles/theme.css')
 
   function declaredTokens(text: string): Set<string> {
     return new Set([...text.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
   }
 
-  it('全文所有 var(--x) 引用都能在本档或全局 theme.css 里找到声明(--g 这类 inline 注入例外见下条)', () => {
+  it('every var(--x) reference in the whole file resolves to a declaration in this file or the global theme.css (the --g style inline-injection exception is the next test)', () => {
     const declaredHere = declaredTokens(css)
     const declaredGlobal = declaredTokens(theme)
     const used = new Set(
       [...css.matchAll(/var\((--[a-z0-9-]+)(\s*,)?/g)]
-        .filter((m) => !m[2]) // 带 fallback 的引用豁免(--g,见头注释)
+        .filter((m) => !m[2]) // References with a fallback are exempt (--g, see the header comment)
         .map((m) => m[1]),
     )
     const unresolved = [...used].filter((t) => !declaredHere.has(t) && !declaredGlobal.has(t))
-    expect(unresolved, `引用了未声明的 token(真机会渲染成透明):${unresolved.join(', ')}`).toEqual([])
+    expect(unresolved, `references to undeclared tokens (would render transparent on a real device): ${unresolved.join(', ')}`).toEqual([])
   })
 
-  it('--g 是本档唯一登记的"消费方 inline 注入"例外(.k2-glue-id i,理由见头注释)', () => {
+  it('--g is the only registered "consumer inline injection" exception in this file (.k2-glue-id i, see the header comment for why)', () => {
     expect(css).toContain('var(--g, var(--text-quaternary))')
   })
 })
 
-// 【评审 2026-08-01 Minor M-2】白名单只查类是否存在,不查 [data-layer] 三色是否齐全——
-// RED 探针:删掉 `.k2-layer[data-layer="vec"]` 一整条,10/10 仍然全绿。brief 自己预警过
-// "漏一个 = 可见回归,单测只查属性值不查颜色"。这条钉住 wiki/vec/note 三色在
-// k2-layer 与 k2-ob-layer 上都齐(两个宿主 × 三色 = 6 条,缺哪个就精确指名哪个)。
-describe('knowledge.scss —— [data-layer] 三色完整性(评审 Minor M-2)', () => {
-  it('k2-layer 与 k2-ob-layer 的 [data-layer=wiki/vec/note] 三色缺一不可', () => {
+// 【Review 2026-08-01 Minor M-2】The whitelist only checks whether a class exists, not whether all three
+// [data-layer] colors are present — RED probe: delete the entire `.k2-layer[data-layer="vec"]` rule, and it is
+// still 10/10 all green. The brief itself warned that "missing one is a visible regression, and unit tests
+// only check the attribute value, not the color". This test pins down that the wiki/vec/note colors are all
+// present on both k2-layer and k2-ob-layer (2 hosts × 3 colors = 6 combinations; whichever is missing gets
+// named precisely).
+describe('knowledge.scss — [data-layer] three-color completeness (review Minor M-2)', () => {
+  it('none of the [data-layer=wiki/vec/note] colors may be missing on k2-layer or k2-ob-layer', () => {
     const hosts = ['k2-layer', 'k2-ob-layer']
     const layers = ['wiki', 'vec', 'note']
     const missing: string[] = []
@@ -1425,38 +1463,42 @@ describe('knowledge.scss —— [data-layer] 三色完整性(评审 Minor M-2)',
         if (!re.test(css)) missing.push(`${host}[data-layer="${layer}"]`)
       }
     }
-    expect(missing, `缺失的 data-layer 组合:${missing.join(', ')}`).toEqual([])
+    expect(missing, `missing data-layer combinations: ${missing.join(', ')}`).toEqual([])
   })
 })
 
-// 【评审 2026-08-01 Minor M-3】删掉 @keyframes 后 `animation: X` 引用还在,动画静默失效
-// (spinner 不转/闪烁不亮),没人报红。这条钉住:凡文件里出现过 `animation: X` 的引用,
-// 同档必须能找到对应 `@keyframes X`(反过来:声明了但没人用的 keyframes 不报红,只是
-// "冗余",不是缺陷 —— 本档 T4 的 7 个 keyframes 里只有 k-shimmer/k-pulse 被用到,
-// 其余是给后续批次预留的,同样不该报红)。
-describe('knowledge.scss —— animation 引用与 @keyframes 声明一一对应(评审 Minor M-3)', () => {
-  // 【P5b-T6 · N11】唯一登记的例外:`fade-in`。
-  // 蓝本 knowledge.scss:1941 的 `.k-file-detail { animation: fade-in 160ms ease }` 引用了
-  // 一个**蓝本自己都没有定义**的 keyframes —— 蓝本全档的 @keyframes 只有 `k-fade-in`
-  // (T0 已核蓝本 @keyframes 全表:
-  //  :1511/1515/1519/1523/1527/1531/1535/1541/1542/1844/2440/2441,没有裸 `fade-in`)。
-  // animation-name 悬空 ⇒ 这条淡入在 Vue2 里**从来没播过**。
-  // 治理文件 §3.5 N11 明文判为"照抄条":改成 `k-fade-in` 会凭空多出一个 Vue2 没有的
-  // 淡入动画 = 界面不 1:1(本期纪律:Vue2 的 bug 不照抄,但"悬空 animation-name /
-  // 未定义类 / 永不命中的选择器"这类**不影响正确性、只影响像素**的东西必须照抄)。
+// 【Review 2026-08-01 Minor M-3】Delete an @keyframes and the `animation: X` reference to it is still there —
+// the animation silently stops working (the spinner does not spin, the flash does not flash) with nobody
+// failing. This test pins down: wherever a `animation: X` reference appears in the file, this same file must
+// have a matching `@keyframes X` (conversely: a keyframes block that is declared but unused by anyone does not
+// fail — that is merely "redundant", not a defect — of T4's 7 keyframes in this file, only k-shimmer/k-pulse
+// are actually used, and the rest are reserved for later batches, which likewise should not fail).
+describe('knowledge.scss — every animation reference has a matching @keyframes declaration (review Minor M-3)', () => {
+  // 【P5b-T6 · N11】The one registered exception: `fade-in`.
+  // Blueprint knowledge.scss:1941's `.k-file-detail { animation: fade-in 160ms ease }` references a keyframes
+  // that **the blueprint itself never defines** — the blueprint's whole file only has `@keyframes k-fade-in`
+  // (T0 already checked the blueprint's full @keyframes table: :1511/1515/1519/1523/1527/1531/1535/1541/1542/
+  // 1844/2440/2441, no bare `fade-in`). The animation-name dangles ⇒ this fade-in **never played, even in
+  // Vue2**.
+  // Governance doc §3.5 N11 explicitly rules this a "copy verbatim" item: changing it to `k-fade-in` would
+  // conjure up a fade-in animation Vue2 never had = the UI is no longer 1:1 (this cycle's discipline: do not
+  // copy Vue2's bugs, but things like "a dangling animation-name / an undefined class / a selector that never
+  // matches" — which **do not affect correctness, only pixels** — must be copied verbatim).
   //
-  // 🔴 登记方式刻意做成"点名豁免一个名字",不是把整条守卫关掉:
-  //   ① 下面的过滤器只跳过 `fade-in` 这一个字符串,任何**别的**悬空引用照样报红;
-  //   ② 第二条用例反过来钉住"这个例外必须真的存在"——`.k-file-detail` 里必须**确实**
-  //      写着 `animation: fade-in`,而且不能是 `k-fade-in`。要是哪天有人"顺手改对"了,
-  //      这条会报红提醒他这是 N11 的照抄条;要是有人把 `fade-in` 从清单里删了却没改
-  //      scss,第一条会报红。两条互为对角,谁也绕不过去。
-  //   ③ 反向确认(T6 RED 探针 4 已实证):`k-fade-in` 是真实存在且被 `.k-modal-bg`
-  //      引用的 keyframes,它**不在**豁免清单里 —— 删掉 `@keyframes k-fade-in` 定义,
-  //      第一条用例仍然精确报红。证明豁免的是"fade-in 这一个名字",不是整条守卫。
+  // 🔴 The registration is deliberately done as "name one exempt string", not "turn off the whole guard":
+  //   ① the filter below only skips the one string `fade-in`; any **other** dangling reference still fails;
+  //   ② the second test case reversely pins down that "this exception must actually exist" — `.k-file-detail`
+  //      must **genuinely** say `animation: fade-in`, and not `k-fade-in`. If someone "helpfully corrects" it
+  //      one day, this test fails and reminds them this is N11's copy-verbatim item; if someone deletes
+  //      `fade-in` from the exception list without touching the scss, the first test fails. The two are
+  //      diagonal to each other — neither can be routed around.
+  //   ③ Reverse confirmation (already proven by T6 RED probe 4): `k-fade-in` is a keyframes block that
+  //      genuinely exists and is referenced by `.k-modal-bg`, and it is **not** in the exemption list — delete
+  //      the `@keyframes k-fade-in` definition, and the first test still fails precisely. This proves the
+  //      exemption is for "the one name fade-in", not the whole guard.
   const DANGLING_ANIMATION_EXCEPTIONS = ['fade-in']
 
-  it('每一个 animation: X 引用都有对应的 @keyframes X(N11 的 fade-in 是唯一登记例外)', () => {
+  it('every animation: X reference has a matching @keyframes X (N11 fade-in is the only registered exception)', () => {
     const used = new Set(
       [...css.matchAll(/animation(?:-name)?:\s*([a-zA-Z0-9_-]+)/g)].map((m) => m[1]),
     )
@@ -1466,44 +1508,47 @@ describe('knowledge.scss —— animation 引用与 @keyframes 声明一一对�
     const missing = [...used].filter(
       (name) => !declared.has(name) && !DANGLING_ANIMATION_EXCEPTIONS.includes(name),
     )
-    expect(missing, `引用了但未声明的 @keyframes:${missing.join(', ')}`).toEqual([])
+    expect(missing, `referenced but undeclared @keyframes: ${missing.join(', ')}`).toEqual([])
   })
 
-  it('N11 —— .k-file-detail 的悬空 animation 照抄蓝本 :1941 的 fade-in,没有被"顺手改成" k-fade-in', () => {
-    // 取 .k-file-detail 规则块的块体(从选择器到第一个 `}`),只在块内断言,
-    // 避免被文件别处的 `animation: k-fade-in`(.k-modal-bg)撞对。
+  it('N11 — the dangling animation on .k-file-detail copies the fade-in from blueprint :1941 verbatim, and has not been "helpfully corrected" to k-fade-in', () => {
+    // Take the body of the .k-file-detail rule block (from the selector to the first `}`) and assert only
+    // within that block, to avoid matching `animation: k-fade-in` elsewhere in the file (.k-modal-bg).
     const at = css.search(/\.k-file-detail\s*\{/)
-    expect(at, '找不到 .k-file-detail 规则块').toBeGreaterThan(-1)
+    expect(at, 'could not find the .k-file-detail rule block').toBeGreaterThan(-1)
     const body = css.slice(at, css.indexOf('}', at))
-    expect(body, 'N11 被违反:.k-file-detail 的 animation-name 被改动了').toContain('animation: fade-in 160ms ease')
-    expect(body, 'N11 被违反:.k-file-detail 被"顺手改对"成 k-fade-in,会凭空多出 Vue2 没有的淡入').not.toContain('k-fade-in')
-    // 例外清单恰好只有这一条(同上面几处"清单不许当垃圾桶"的口径)
+    expect(body, 'N11 violated: the animation-name on .k-file-detail was changed').toContain('animation: fade-in 160ms ease')
+    expect(body, 'N11 violated: .k-file-detail was "helpfully corrected" to k-fade-in, which would conjure up a fade-in Vue2 never had').not.toContain('k-fade-in')
+    // The exception list has exactly this one entry (same "the list is not a dumping ground" rule as above)
     expect(DANGLING_ANIMATION_EXCEPTIONS).toEqual(['fade-in'])
   })
 })
 
-// 【评审 Important 开放发现 2,2026-08-01 补】把 `KnowledgeLayout.vue:41` 的
-// `import '../../styles/knowledge.scss'` 注释掉 → 全量全绿,无人报红 —— 这是本批
-// 最严重的一类故障(整个知识库区裸奔,视觉上一无所有),之前没有任何自动化守卫。
-// 上面 38 个类的存在性/色字面量等断言全部只读 `knowledge.scss` 这份源文件本身,
-// 完全不关心它有没有被任何生产代码 import——文件内容再正确,没人 import 它就是
-// 死代码,产物里一行 CSS 都不会有(这正是 R8 那条 Critical 的直接后果:C1 之前
-// KnowledgeDeferred.vue 没 import 它、KnowledgeLayout.vue 写了但父路由没接上它、
-// dist 里搜不到 `knowledge-app`)。
+// 【Review Important open finding 2, added 2026-08-01】Comment out `KnowledgeLayout.vue:41`'s
+// `import '../../styles/knowledge.scss'` → the whole suite is still all green, nobody fails — this is the
+// most severe category of failure in this batch (the whole knowledge section runs bare, visually nothing at
+// all), and there had never been any automated guard for it before. All 38 classes' existence/color-literal
+// assertions above only read the `knowledge.scss` source file itself, and never care whether any production
+// code imports it — no matter how correct the file's content is, if nobody imports it, it is dead code and
+// not a single line of CSS ends up in the build output (this is exactly the direct consequence of the R8
+// Critical: before C1, KnowledgeDeferred.vue did not import it, KnowledgeLayout.vue wrote the import but the
+// parent route never wired it up, and `knowledge-app` could not be found anywhere in dist).
 //
-// 复用本档已有的 node:fs 技法(不用 Vite `?raw` —— 同头注释③,CSSEnablerPlugin
-// 会把 .vue SFC 里 <style> 块之外的部分保留,但这里我们直接读 .vue 源文件的原始
-// 文本找 import 语句字面量,不经过任何编译管线,不受 CSSEnablerPlugin 影响,所以
-// 用 `?raw` 或 node:fs 读 .vue 都可以——为了手法统一,同样用 node:fs)。
+// Reuses this file's existing node:fs technique (not Vite's `?raw` — same as header comment ③: CSSEnablerPlugin
+// preserves the parts of a .vue SFC outside the `<style>` block, but here we read the .vue source file's raw
+// text directly to find the literal import statement, going through no compilation pipeline at all and
+// unaffected by CSSEnablerPlugin — so either `?raw` or node:fs works fine for reading a .vue; node:fs is used
+// here too, for a consistent technique).
 //
-// 【自己做 RED 探针时抓到的真实 bug,已修正】第一版用 `content.includes(needle)`
-// 裸子串匹配——把生产文件里的 `import '../../styles/knowledge.scss'` 注释掉
-// (`// import '../../styles/knowledge.scss'`)之后再跑,这条守卫**仍然通过**:
-// 注释掉的那一行文本里子串 `styles/knowledge.scss` 原封不动还在,子串匹配根本
-// 分不清「真的 import」与「写在注释里的同一段文字」。这正是 P3b 教训 4 那类
-// 「子串检查抓不住真实缺陷」的同款坑,只是这次是我自己的探针把自己的守卫抓出来
-// 的。改成逐行检查:只有「整行去空白后以 `import` 开头、且包含 needle」才算数,
-// 注释行(以 `//` 开头)自然不满足「以 import 开头」这个前提,不会被误判。
+// 【A real bug caught while writing my own RED probe, now fixed】The first version used a bare
+// `content.includes(needle)` substring match — comment out the production file's
+// `import '../../styles/knowledge.scss'` (`// import '../../styles/knowledge.scss'`) and run this again, and
+// the guard **still passes**: the substring `styles/knowledge.scss` is still sitting there, unchanged, on the
+// commented-out line — a substring match simply cannot tell "a genuine import" apart from "the same text
+// written inside a comment". This is the same species of bug as P3b lesson 4, "a substring check cannot catch
+// a genuine defect" — this time it is my own probe catching my own guard. Changed to a line-by-line check:
+// only "the whole line, whitespace stripped, starts with `import` and contains the needle" counts; a comment
+// line (starting with `//`) naturally fails the "starts with import" premise, so it can't be misjudged.
 function lineIsLiveImport(line: string, needle: string): boolean {
   const trimmed = line.trim()
   return trimmed.startsWith('import') && trimmed.includes(needle)
@@ -1525,53 +1570,60 @@ function findVueFilesImporting(dir: string, needle: string): string[] {
   return hits
 }
 
-describe('knowledge.scss —— 必须被至少一个生产 .vue 文件 import(评审 Important 开放发现 2)', () => {
-  it('src/ai 下有 .vue 文件 import 了 knowledge.scss,否则样式表编译不出任何 CSS、整个知识库区裸奔', () => {
+describe('knowledge.scss — must be imported by at least one production .vue file (review Important open finding 2)', () => {
+  it('some .vue file under src/ai imports knowledge.scss, otherwise the stylesheet compiles no CSS at all and the whole knowledge section runs bare', () => {
     const aiDir = resolve(__dirname, '..')
     const importers = findVueFilesImporting(aiDir, 'styles/knowledge.scss')
     expect(
       importers.length,
-      '没有任何 .vue 文件 import knowledge.scss —— 见 R8:这曾经是真实发生过的情况' +
-        '(KnowledgeDeferred.vue 不 import、父路由不接 KnowledgeLayout.vue,dist 里搜不到 knowledge-app)',
+      'no .vue file imports knowledge.scss — see R8: this genuinely happened once before' +
+        '(KnowledgeDeferred.vue did not import it, the parent route did not wire up KnowledgeLayout.vue, and knowledge-app could not be found anywhere in dist)',
     ).toBeGreaterThan(0)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5c Task 8 —— 🔴 **守卫缺口③′(P5b 交接项 #4)的统一堵法**(治理 §9 缺口表)。
+// SP8-P5c Task 8 — 🔴 **the unified fix for guard gap ③' (P5b handoff item #4)** (governance §9 gap table).
 //
-// 【缺口③ 是什么】`color-guard.test.ts:44-56` 的 `styleLines()` 对 `.vue` 只取 `<style>`
-//   块 → **模板里的 `style=` / `:style=` / `color=` 属性零扫描**。P5a/P5b 的补法是「每个新
-//   `.vue` 在自己的 `*.test.ts` 里补一条定向断言」。
+// 【What gap ③ is】`color-guard.test.ts:44-56`'s `styleLines()` only takes the `<style>` block for a `.vue`
+//   file → **zero scanning of `style=` / `:style=` / `color=` attributes in the template**. P5a/P5b's fix was
+//   "add one targeted assertion in each new `.vue`'s own `*.test.ts`".
 //
-// 【缺口③′ 是什么】那条定向断言的现有写法是
+// 【What gap ③' is】That targeted assertion's existing implementation is
 //       /<template>([\s\S]*?)\n<\/template>/
-//   —— **非贪婪** + 靠「`</template>` 恰好在第 0 列」这个**隐式锚定**。今天五个文件
-//   (`QueueView` / `IndexedFilesView` / `FolderBrowser` / `ParserStatus` / `ParserTest`)
-//   碰巧都成立(嵌套的闭合标签都是缩进的),所以**现在是对的**;但换个 formatter、
-//   或者有人手改缩进把某个嵌套 `</template>` 顶到第 0 列,正则就会**提前截断** →
-//   静默少扫一大段模板,而三门全绿。实测嵌套 `</template>` 数量:`QueueView` **12** 个、
-//   `IndexedFilesView` **7** 个(治理 §9 缺口表写的「7/12」把两个文件对调了,数字本身对)。
+//   — **non-greedy**, relying on the implicit anchor "the `</template>` happens to sit at column 0". Today,
+//   for all five files (`QueueView` / `IndexedFilesView` / `FolderBrowser` / `ParserStatus` / `ParserTest`)
+//   this happens to hold (every nested closing tag is indented), so **it is correct for now**; but swap
+//   formatters, or have someone manually re-indent and push a nested `</template>` to column 0, and the regex
+//   would **truncate early** → silently under-scanning a large chunk of the template, while all three gates
+//   stay green. Measured nested-`</template>` counts: `QueueView` has **12**, `IndexedFilesView` has **7**
+//   (governance §9's gap table wrote "7/12", swapping the two files — the numbers themselves are correct).
 //
-// 【本刀的堵法(协调者指定:统一改掉,别再复制)】
-//   ① 抽取改成**贪婪** —— 取**最后一个**第 0 列 `</template>`(`lastIndexOf('\n</template>')`),
-//      而不是第一个;
-//   ② 加**覆盖度自检** —— 断言抽出的片段包含「模板最后一行」的特征串。特征串由**从文件
-//      末尾往前扫行**得出(与抽取用的 `lastIndexOf` 是两条独立代码路径),所以一旦有人把
-//      抽取换回非贪婪写法、被第一个嵌套 `</template>` 截断,这条自检立刻报红;
-//   ③ **集中在本文件**扫 `src/ai/knowledge/**/*.vue` 全部文件,不再每个视图复制一份。
-//      五个既有文件里那份脆弱写法仍在(它们与它们的测试都在治理 §1.1 的全期零改动清单里,
-//      为一条守卫去碰 P5b/T6/T7 的收官产物不值)——**本文件这条是它们的上位守卫**:
-//      即使那五条被截断得一点判别力都不剩,本条仍然扫全模板。
-//      🔴 **本刀之后新加的视图一律靠本条**(`SettingsView.test.ts` 就没有复制那个正则,
-//      它改用「零 `<style>` 块 → 全文件扫描」这个更严的等价写法)。
-//   ④ 文件清单做**集合相等**防漂移:新增视图必须显式进清单(与本档「白名单/例外清单
-//      不许当垃圾桶」的既定口径一致)。
+// 【This pass's fix (coordinator's directive: fix it uniformly, stop copying it)】
+//   ① Change the extraction to be **greedy** — take the **last** column-0 `</template>`
+//      (`lastIndexOf('\n</template>')`) instead of the first one;
+//   ② Add a **coverage self-check** — assert that the extracted slice contains a signature string for "the
+//      template's last line". The signature string is derived by **scanning lines backward from the end of
+//      the file** (an independent code path from the `lastIndexOf` used for extraction), so the moment someone
+//      reverts the extraction to the non-greedy form and it gets truncated by the first nested `</template>`,
+//      this self-check fails immediately;
+//   ③ **Centralize in this file** the scan over every file under `src/ai/knowledge/**/*.vue`, instead of every
+//      view copying its own copy. The fragile implementation still sits in the five existing files (they and
+//      their tests are on governance §1.1's whole-cycle zero-touch list; touching P5b/T6/T7's already-shipped
+//      output just for one guard is not worth it) — **this test in this file is their superior guard**: even
+//      if those five are truncated down to zero discriminating power, this one still scans the whole template.
+//      🔴 **Every view added after this pass relies on this test alone** (`SettingsView.test.ts` never copied
+//      that regex; it uses the stricter equivalent "zero `<style>` blocks → whole-file scan" instead).
+//   ④ The file list uses a **set-equality** check against drift: newly added views must be explicitly added to
+//      the list (consistent with this file's established rule that "the whitelist/exception list is not a
+//      dumping ground").
 //
-// RED 探针(T8 报告 §7 贴完整输出):对**每一个**被扫文件,在其模板**最后一行**塞一个裸色
-//   → 本条必须精确指名那个文件报红;另有一条「把某个嵌套 `</template>` 顶到第 0 列 + 在它
-//   之后塞裸色」的探针,专门证明「贪婪 vs 非贪婪」这次改动本身有判别力(非贪婪写法在那种
-//   输入下全绿放行)。探针后 md5 逐字节还原、`git status` 干净(治理 §1.3)。
+// RED probe (T8's report §7 pastes the full output): for **every** scanned file, drop a bare color literal
+//   into the **last line** of its template → this test must fail and name that exact file; there is also a
+//   probe that "pushes some nested `</template>` to column 0 and drops a bare color literal after it",
+//   specifically to prove this "greedy vs. non-greedy" change itself has discriminating power (the non-greedy
+//   form passes all-green on that input). After each probe, an md5 byte-for-byte restore left `git status`
+//   clean (governance §1.3).
 const KNOWLEDGE_VUE_FILES = [
   'components/FileDetailDrawer.vue',
   'components/FolderBrowser.vue',
@@ -1591,12 +1643,13 @@ const KNOWLEDGE_VUE_FILES = [
   'views/RootsView.vue',
   'views/SearchView.vue',
   'views/SettingsView.vue',
-  // SP8-P5f Task 6 —— 新建 `views/WikiView.vue`(上半;T7 续写下半,**不重复登记**)。
-  // 不登记会打红上面那条「文件清单集合相等」防漂移断言 —— 那是正确行为(§9.10)。
+  // SP8-P5f Task 6 — newly created `views/WikiView.vue` (the top half; T7 continues writing the bottom
+  // half, **not registered twice**). Failing to register it would fail the "file list set equality"
+  // anti-drift assertion above — that is correct behavior (§9.10).
   'views/WikiView.vue',
 ]
 
-/** 递归列出目录下所有 `.vue`,返回相对 `src/ai/knowledge/` 的 POSIX 风格路径。 */
+/** Recursively list every `.vue` under a directory, returned as POSIX-style paths relative to `src/ai/knowledge/`. */
 function listVueFiles(dir: string, prefix = ''): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir)) {
@@ -1609,17 +1662,21 @@ function listVueFiles(dir: string, prefix = ''): string[] {
 }
 
 /**
- * 🔴 **贪婪**抽取根 `<template>` 块:取最后一个第 0 列 `</template>`。
- * 返回三样东西,后两样专供覆盖度自检,且**都由「从文件末尾往前扫行」得出**,
- * 与抽取用的 `lastIndexOf` 是两条独立代码路径:
- *   - `tmpl`     抽出的模板正文
- *   - `byLine`   同一段正文的**逐行独立推导**(开/闭标签行都靠行内容判定)
- *   - `tail`     模板**最后 3 个非空行**的原文(含缩进),当特征串
+ * 🔴 **Greedy** extraction of the root `<template>` block: takes the last column-0 `</template>`.
+ * Returns three things; the latter two exist purely for the coverage self-check, and **both are derived by
+ * scanning lines backward from the end of the file** — an independent code path from the `lastIndexOf` used
+ * for extraction:
+ *   - `tmpl`     the extracted template body
+ *   - `byLine`   an **independent, line-by-line derivation** of the same body (open/close tag lines are both
+ *                judged from line content)
+ *   - `tail`     the raw text of the template's **last 3 non-blank lines**, used as the signature string
  *
- * ⚠️ **为什么特征串不能只取「最后一行 trim 后的文本」**(第一版就是这么写的,探针 B 当场
- * 抓出它没判别力):模板最后一行几乎总是 `</div>` 这种通用闭合标签,truncate 之后的片段
- * 里到处都是它 → `toContain` 恒真。改成「最后 3 行含缩进的原文 + `endsWith` 定位」,
- * 再加一条「两条推导逐字相等」,才真的堵住「被第一个嵌套 `</template>` 提前截断」。
+ * ⚠️ **Why the signature string cannot just be "the last line's text, trimmed"** (the first version did
+ * exactly this, and probe B caught on the spot that it had no discriminating power): a template's last line
+ * is almost always a generic closing tag like `</div>`, and after truncation the surviving slice is full of
+ * them too → `toContain` is vacuously true. Changed to "the raw text of the last 3 lines, indentation
+ * included, plus `endsWith` for positioning", with an added check that "the two derivations are identical
+ * verbatim" — only then does this genuinely block "truncated early by the first nested `</template>`".
  */
 function extractTemplate(src: string): { tmpl: string; byLine: string; tail: string } {
   const OPEN = '<template>\n'
@@ -1630,7 +1687,7 @@ function extractTemplate(src: string): { tmpl: string; byLine: string; tail: str
   if (openAt < 0 || closeAt <= openAt) return EMPTY
   const tmpl = src.slice(openAt + OPEN.length, closeAt)
 
-  // ── 独立推导:逐行扫 ──
+  // ── Independent derivation: scan line by line ──
   const lines: string[] = src.split('\n')
   const openLine = lines.findIndex((l: string) => l === '<template>')
   let closeLine = -1
@@ -1642,12 +1699,13 @@ function extractTemplate(src: string): { tmpl: string; byLine: string; tail: str
   }
   if (openLine < 0 || closeLine <= openLine) return EMPTY
   const body = lines.slice(openLine + 1, closeLine)
-  // `tail` 取**原始最后 3 行**(含缩进、含可能的空行)→ 天然是连续片段,
-  // 抽取正确时 `tmpl.endsWith(tail)` 必真;被提前截断时必假。
+  // `tail` takes the **raw last 3 lines** (indentation included, possibly blank lines included) → naturally a
+  // contiguous slice, so `tmpl.endsWith(tail)` must be true when extraction is correct, and must be false when
+  // truncated early.
   return { tmpl, byLine: body.join('\n'), tail: body.slice(-3).join('\n') }
 }
 
-/** 逐字符扫描配对括号,整段剥掉 `var(...)` / `color-mix(...)`(同 color-guard 的 stripVar 手法)。 */
+/** Character-by-character bracket-pairing scan that strips out `var(...)` / `color-mix(...)` wholesale (the same technique as color-guard's stripVar). */
 function stripColorCalls(s: string): string {
   const prefixes = ['var(', 'color-mix(']
   let out = ''
@@ -1677,28 +1735,30 @@ function stripColorCalls(s: string): string {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5d Task 5 —— 票 3(治理 §15.3 / §9.6):守卫缺口③′ 补两条判别力。
+// SP8-P5d Task 5 — Ticket 3 (governance §15.3 / §9.6): add two more units of discriminating power to guard gap ③'.
 //
-// 【票 3a:具名色扫描】`color-guard.test.ts` 与本文件的既有 ③′ 断言都只认
-// `#hex` / `rgb()`/`hsl()`,CSS 具名色(`color: white` 这种)全程零覆盖。
-// 🔴 朴素的「全文找 white 这个词」会冤枉 `white-space: nowrap`(QueueView.vue:474
-// 就有一处)—— 必须钉在「属性值位置」:只在 `color:` / `background:` /
-// `background-color:` / `border-color:` / `border:` / `box-shadow:` / `fill:` /
-// `stroke:` 的**值**部分里找整词具名色。`white-space` 的属性名本身就进不了这张
-// 名单(它不是上面任何一个字符串,`\s*:` 也不会跟在 `white-space` 后面因为中间
-// 隔着连字符不影响——重点是名单里没有 `white-space` 这个键),因此“钉属性值位置”
-// 这一招天然把 `white-space: nowrap` 排除在外,不需要再对值本身做连字符特判。
+// 【Ticket 3a: named-color scanning】Both `color-guard.test.ts` and this file's existing ③' assertion only
+// recognize `#hex` / `rgb()`/`hsl()` — CSS named colors (things like `color: white`) have zero coverage
+// anywhere. 🔴 A naive "search the whole text for the word white" would wrongly flag `white-space: nowrap`
+// (there is one at QueueView.vue:474) — it must be pinned to "attribute-value position": look for a whole-word
+// named color only inside the **value** part of `color:` / `background:` / `background-color:` /
+// `border-color:` / `border:` / `box-shadow:` / `fill:` / `stroke:`. The property name `white-space` itself
+// can never enter this list (it isn't any of the strings above, and it doesn't matter that `\s*:` could
+// theoretically follow `white-space` because of the hyphen — the point is `white-space` simply isn't a key in
+// the list), so "pin to attribute-value position" naturally excludes `white-space: nowrap` without needing any
+// extra hyphen special-casing on the value itself.
 //
-// 【票 3b:覆盖范围】既有 ③′ 只扫 `src/ai/knowledge/**`,`src/ai/components/**`
-// (P2a/P2b 产出,Agent 区的卡片/侧栏/设置子组件)的模板 `style=`/`:style=` 是盲区。
-// 协调者已用独立脚本对全部 70 个文件做过一次性程序化 dry-run(见任务报告 §7):
-// hex / rgb / hsl / 具名色在属性值位置上**零命中**——扩大范围不会带出既有违规,
-// 因此本刀直接把同款断言铺到这个目录,不触发 NEEDS_CONTEXT。
+// 【Ticket 3b: coverage】The existing ③' only scans `src/ai/knowledge/**`; `src/ai/components/**` (P2a/P2b's
+// output, the Agent section's cards/sidebar/settings subcomponents) is a blind spot for template
+// `style=`/`:style=`. The coordinator already ran a one-off scripted dry-run over all 70 files independently
+// (see the task report §7): hex / rgb / hsl / named colors get **zero hits** in attribute-value position —
+// expanding the scope will not surface any pre-existing violation, so this pass lays down the same assertion
+// over this directory directly, without triggering NEEDS_CONTEXT.
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** 只在这些 CSS 属性的值部分里找具名色;长名排在短名前面,避免
- *  `background-color`/`border-color` 被 `background`/`border`/`color` 抢先切碎
- *  (正则引擎按数组书写顺序尝试各分支,书写顺序即優先级)。*/
+/** Look for named colors only inside the value part of these CSS properties; longer names are listed before
+ *  shorter ones so `background-color`/`border-color` don't get chopped up prematurely by `background`/
+ *  `border`/`color` (the regex engine tries branches in the array's written order, so order is priority). */
 const COLOR_VALUE_PROPS = [
   'background-color',
   'border-color',
@@ -1709,16 +1769,17 @@ const COLOR_VALUE_PROPS = [
   'fill',
   'stroke',
 ]
-// 与 §5(本文件既有的具名色清单,`:510-517`)保持同一份 8 词清单,口径一致。
+// Kept as the same 8-word list as §5 (this file's existing named-color list, `:510-517`), for a consistent standard.
 const NAMED_COLORS = ['white', 'black', 'red', 'green', 'blue', 'orange', 'gray', 'grey']
 
 /**
- * 在「属性值位置」找具名色。先用 `prop\s*:\s*([^;]+)` 抓出每一段 `属性: 值`
- * (输入应先经 `stripColorCalls` 剥掉 `var(...)`/`color-mix(...)`,token 名字
- * 本身不会被当成色值误判),再对值部分做整词匹配(`(?<![\w-])COLOR(?![\w-])`,
- * 同 `:510-517` 的写法,排除 `whitesmoke` 这类以该词为前缀的复合词)。
- * `white-space: nowrap` 这类行天生不会被抓到——它的属性名 `white-space` 根本
- * 不在 `COLOR_VALUE_PROPS` 名单里,正则连切都不会去切它。
+ * Look for named colors at "attribute-value position". First use `prop\s*:\s*([^;]+)` to capture each
+ * `property: value` segment (the input should already have had `var(...)`/`color-mix(...)` stripped out by
+ * `stripColorCalls`, so a token name itself won't be misjudged as a color value), then do a whole-word match
+ * on the value part (`(?<![\w-])COLOR(?![\w-])`, the same technique as `:510-517`, which excludes compound
+ * words prefixed with the color name such as `whitesmoke`). Lines like `white-space: nowrap` are never
+ * captured in the first place — its property name `white-space` is simply not in the `COLOR_VALUE_PROPS`
+ * list, so the regex never even tries to slice it.
  */
 function namedColorOffensesInValues(scrubbed: string): string[] {
   const offenders: string[] = []
@@ -1736,60 +1797,64 @@ function namedColorOffensesInValues(scrubbed: string): string[] {
   return offenders
 }
 
-describe('守卫缺口③′ —— 知识库区每个 .vue 的 <template> 块零裸色(贪婪抽取 + 覆盖度自检)', () => {
+describe('guard gap ③′ — every .vue in the knowledge section has zero bare colors in its <template> block (greedy extraction + coverage self-check)', () => {
   const kbDir = resolve(__dirname, '../knowledge')
 
-  it('文件清单集合相等(防漂移:新增视图必须显式进清单,否则本条报红)', () => {
+  it('file list is set-equal (anti-drift: newly added views must be explicitly added to the list, otherwise this test fails)', () => {
     expect(listVueFiles(kbDir)).toEqual([...KNOWLEDGE_VUE_FILES].sort())
   })
 
-  it.each(KNOWLEDGE_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
+  it.each(KNOWLEDGE_VUE_FILES)('%s — greedy extraction succeeds + coverage self-check (the slice extends all the way to the template last line)', (rel) => {
     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
     const { tmpl, byLine, tail } = extractTemplate(src)
-    expect(tmpl, `${rel}:根 <template> 块没抽出来(第 0 列的 <template>/</template> 缺一个?)`).not.toBe('')
-    expect(tail, `${rel}:找不到模板尾部特征串`).not.toBe('')
-    // 🔴 覆盖度自检 ①:片段必须**以模板最后 3 行原文收尾**。非贪婪写法会在第一个嵌套
-    //    `</template>` 处截断 → 尾部特征串不在片段末尾 → 报红。
+    expect(tmpl, `${rel}: the root <template> block was not extracted (missing a column-0 <template>/</template>?)`).not.toBe('')
+    expect(tail, `${rel}: could not find the template's tail signature string`).not.toBe('')
+    // 🔴 Coverage self-check ①: the slice must **end with the template's raw last 3 lines**. The non-greedy
+    //    form would truncate at the first nested `</template>` → the tail signature string would not be at
+    //    the end of the slice → this fails.
     expect(
       tmpl.endsWith(tail),
-      `${rel}:抽出的模板片段没延伸到最后一行(尾部特征串:\n${tail}\n)—— 被提前截断了`,
+      `${rel}: the extracted template slice does not extend to the last line (tail signature string:\n${tail}\n) — it was truncated early`,
     ).toBe(true)
-    // 🔴 覆盖度自检 ②:两条**独立推导**(字符串 lastIndexOf vs 逐行从末尾扫)必须逐字相等。
-    //    这条与文本内容无关,是最硬的一层:只要抽取边界错一行就报红。
-    expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
+    // 🔴 Coverage self-check ②: the two **independent derivations** (string lastIndexOf vs. scanning line by
+    //    line from the end) must be identical verbatim. This one has nothing to do with text content — it is
+    //    the hardest layer: the extraction boundary being off by even one line fails it.
+    expect(tmpl, `${rel}: the string extraction and the line-by-line derivation disagree — the extraction boundary is wrong`).toBe(byLine)
   })
 
-  it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
+  it.each(KNOWLEDGE_VUE_FILES)('%s — zero hex / rgb / hsl literals inside the template (after stripping var()/color-mix())', (rel) => {
     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
     const scrubbed = stripColorCalls(tmpl)
-    expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
-    expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+    expect(scrubbed, `${rel}: the template has a bare hex color`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(scrubbed, `${rel}: the template has an rgb()/hsl() function color`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  // SP8-P5d Task 5 · 票 3a:属性值位置的具名色扫描(新增)。
-  it.each(KNOWLEDGE_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
+  // SP8-P5d Task 5 · Ticket 3a: named-color scanning at attribute-value position (newly added).
+  it.each(KNOWLEDGE_VUE_FILES)('%s — zero named colors at attribute-value position (color/background/border/box-shadow/fill/stroke) inside the template', (rel) => {
     const src: string = readFileSync(resolve(kbDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
     const scrubbed = stripColorCalls(tmpl)
     const offenders = namedColorOffensesInValues(scrubbed)
-    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
+    expect(offenders, `${rel}: found named colors at attribute-value position inside the template:\n${offenders.join('\n')}`).toEqual([])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SP8-P5d Task 7 · 修复轮 1(裁定 R17,票据 E-47)—— §0.3「注释里也不许出现
-// 色字面量」在「.vue 的 <script> 块注释」这个位置此前零守卫:
-// `color-guard.test.ts` 只扫 `.vue`/`.css` 的 `<style>`/属性形态,缺口③′ 只扫
-// `<template>` 文本,T5 的具名色扫描钉在 `<template>` 的属性值位置 —— 三条都不看
-// `<script>` 块的注释。评审在 `NoteEditPane.vue`(T7)与 `NotesView.vue`(T6)里
-// 各逮到一处「申报注释里写了 rgba(...) 字面量」的真违规(已修,见两文件头注释)。
-// 🔴 范围钉死在既有 `KNOWLEDGE_VUE_FILES` 清单(与本文件其它守卫同一份文件表),
-// **不扩到全仓** —— 扩范围可能扫出别期产出的既有违规,那是 NEEDS_CONTEXT,不是
-// 本刀该修的(T5 已有此教训)。`transparent` 是关键字,不算色字面量,不扫它。
-describe('§0.3 —— .vue 的 <script> 块注释零色字面量(R17,票据 E-47,范围钉死 KNOWLEDGE_VUE_FILES)', () => {
-  /** 抽取一个 .vue 源文件里全部 `<script ...>...</script>` 块的原始内容
-   * (一个 SFC 可能同时有 `<script>` 与 `<script setup>` 两块,都要扫)。 */
+// SP8-P5d Task 7 · Fix round 1 (ruling R17, ticket E-47) — §0.3 ("no color literals in comments either") had
+// zero guard coverage at "comments inside a .vue's <script> block" until now:
+// `color-guard.test.ts` only scans the `<style>`/attribute forms of `.vue`/`.css`, guard gap ③' only scans the
+// `<template>` text, and T5's named-color scan is pinned to attribute-value position inside `<template>` —
+// none of the three look at `<script>` block comments. Review caught one genuine violation each in
+// `NoteEditPane.vue` (T7) and `NotesView.vue` (T6) — "a declaration comment writing out an rgba(...) literal"
+// (already fixed, see the header comment of both files). 🔴 Scope is pinned to the existing
+// `KNOWLEDGE_VUE_FILES` list (the same file table as this file's other guards), **not expanded to the whole
+// repo** — expanding scope might surface pre-existing violations from other cycles, which is NEEDS_CONTEXT,
+// not something this pass should fix (T5 already learned this lesson). `transparent` is a keyword, not a
+// color literal, and is not scanned for.
+describe('§0.3 — zero color literals in <script> block comments of .vue files (R17, ticket E-47, scope pinned to KNOWLEDGE_VUE_FILES)', () => {
+  /** Extract the raw content of every `<script ...>...</script>` block in a .vue source file
+   * (a SFC may have both a `<script>` block and a `<script setup>` block; scan both). */
   function extractScriptBlocks(src: string): string[] {
     const blocks: string[] = []
     const re = /<script[^>]*>([\s\S]*?)<\/script>/g
@@ -1798,8 +1863,9 @@ describe('§0.3 —— .vue 的 <script> 块注释零色字面量(R17,票据 E-4
     return blocks
   }
 
-  /** 从一段脚本源码里抽出全部注释文本(块注释 + 行注释)。§0.3 只管注释,不管
-   * 代码本体(代码本体的颜色治理由 color-guard.test.ts 等既有守卫管)。 */
+  /** Extract all comment text (block comments + line comments) from a chunk of script source. §0.3 only
+   * concerns comments, not the code itself (the code's own color governance is handled by existing guards
+   * like color-guard.test.ts). */
   function extractScriptComments(code: string): string {
     const blockComments = code.match(/\/\*[\s\S]*?\*\//g) || []
     const lineComments = code.match(/\/\/.*$/gm) || []
@@ -1808,21 +1874,22 @@ describe('§0.3 —— .vue 的 <script> 块注释零色字面量(R17,票据 E-4
 
   const kbDir2 = resolve(__dirname, '../knowledge')
 
-  it.each(KNOWLEDGE_VUE_FILES)('%s —— <script> 块注释里零 hex / rgb() / hsl() 色字面量', (rel) => {
+  it.each(KNOWLEDGE_VUE_FILES)('%s — zero hex / rgb() / hsl() color literals in <script> block comments', (rel) => {
     const src: string = readFileSync(resolve(kbDir2, rel), 'utf8')
     const comments = extractScriptBlocks(src).map(extractScriptComments).join('\n')
-    expect(comments, `${rel}:<script> 块注释里发现裸 hex 色字面量`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
-    expect(comments, `${rel}:<script> 块注释里发现 rgb()/hsl() 色字面量`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+    expect(comments, `${rel}: found a bare hex color literal in a <script> block comment`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(comments, `${rel}: found an rgb()/hsl() color literal in a <script> block comment`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  // RED + 反向探针见任务报告「修复轮 1」一节(①在清单内文件的 <script> 注释里
-  // 注入色字面量必须报红;②一条只引 file:line + 附录 B 行号、不含色值的正常
-  // 申报注释必须不报红)。探针注入/还原走 cp + md5 逐字节比对,禁 git checkout。
+  // See the "Fix round 1" section of the task report for the RED + reverse probes (① injecting a color
+  // literal into a <script> comment of a file on the list must fail; ② a normal declaration comment that only
+  // cites file:line + an Appendix B line number, with no color value, must not fail). Probe injection/restore
+  // went through cp + byte-for-byte md5 comparison; git checkout was forbidden.
 })
 
-// SP8-P5d Task 5 · 票 3b:同款扫描扩到 `src/ai/components/**`(P2a/P2b 产出,
-// Agent 区的卡片/侧栏/设置子组件)。既有 ③′ 只覆盖 `src/ai/knowledge/**`,
-// 那个目录的模板 `style=`/`:style=` 是盲区。文件清单同样做集合相等防漂移。
+// SP8-P5d Task 5 · Ticket 3b: the same scan expanded to `src/ai/components/**` (P2a/P2b's output, the Agent
+// section's cards/sidebar/settings subcomponents). The existing ③' only covers `src/ai/knowledge/**`; that
+// directory's template `style=`/`:style=` is a blind spot. The file list similarly does a set-equality anti-drift check.
 const COMPONENTS_VUE_FILES = [
   'blocks/ActionsRow.vue',
   'blocks/BlockRenderer.vue',
@@ -1898,86 +1965,91 @@ const COMPONENTS_VUE_FILES = [
   'tabs/SystemTab.vue',
 ]
 
-describe('守卫缺口③′ 扩展(票 3b)—— src/ai/components/** 同款模板裸色扫描', () => {
+describe('guard gap ③′ extended (ticket 3b) — same bare-color template scan for src/ai/components/**', () => {
   const compDir = resolve(__dirname, '../components')
 
-  it('文件清单集合相等(防漂移:新增组件必须显式进清单,否则本条报红)', () => {
+  it('file list is set-equal (anti-drift: newly added components must be explicitly added to the list, otherwise this test fails)', () => {
     expect(listVueFiles(compDir)).toEqual([...COMPONENTS_VUE_FILES].sort())
   })
 
-  it.each(COMPONENTS_VUE_FILES)('%s —— 贪婪抽取成功 + 覆盖度自检(片段一直延伸到模板最后一行)', (rel) => {
+  it.each(COMPONENTS_VUE_FILES)('%s — greedy extraction succeeds + coverage self-check (the slice extends all the way to the template last line)', (rel) => {
     const src: string = readFileSync(resolve(compDir, rel), 'utf8')
     const { tmpl, byLine, tail } = extractTemplate(src)
-    expect(tmpl, `${rel}:根 <template> 块没抽出来(第 0 列的 <template>/</template> 缺一个?)`).not.toBe('')
-    expect(tail, `${rel}:找不到模板尾部特征串`).not.toBe('')
+    expect(tmpl, `${rel}: the root <template> block was not extracted (missing a column-0 <template>/</template>?)`).not.toBe('')
+    expect(tail, `${rel}: could not find the template's tail signature string`).not.toBe('')
     expect(
       tmpl.endsWith(tail),
-      `${rel}:抽出的模板片段没延伸到最后一行(尾部特征串:\n${tail}\n)—— 被提前截断了`,
+      `${rel}: the extracted template slice does not extend to the last line (tail signature string:\n${tail}\n) — it was truncated early`,
     ).toBe(true)
-    expect(tmpl, `${rel}:字符串抽取与逐行推导不一致 —— 抽取边界错了`).toBe(byLine)
+    expect(tmpl, `${rel}: the string extraction and the line-by-line derivation disagree — the extraction boundary is wrong`).toBe(byLine)
   })
 
-  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内(剥离 var()/color-mix() 后)零 hex / rgb / hsl 字面量', (rel) => {
+  it.each(COMPONENTS_VUE_FILES)('%s — zero hex / rgb / hsl literals inside the template (after stripping var()/color-mix())', (rel) => {
     const src: string = readFileSync(resolve(compDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
     const scrubbed = stripColorCalls(tmpl)
-    expect(scrubbed, `${rel}:模板里有裸 hex 色`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
-    expect(scrubbed, `${rel}:模板里有 rgb()/hsl() 函数色`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
+    expect(scrubbed, `${rel}: the template has a bare hex color`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
+    expect(scrubbed, `${rel}: the template has an rgb()/hsl() function color`).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  it.each(COMPONENTS_VUE_FILES)('%s —— 模板内属性值位置(color/background/border/box-shadow/fill/stroke)零具名色', (rel) => {
+  it.each(COMPONENTS_VUE_FILES)('%s — zero named colors at attribute-value position (color/background/border/box-shadow/fill/stroke) inside the template', (rel) => {
     const src: string = readFileSync(resolve(compDir, rel), 'utf8')
     const { tmpl } = extractTemplate(src)
     const scrubbed = stripColorCalls(tmpl)
     const offenders = namedColorOffensesInValues(scrubbed)
-    expect(offenders, `${rel}:模板里在属性值位置发现具名色:\n${offenders.join('\n')}`).toEqual([])
+    expect(offenders, `${rel}: found named colors at attribute-value position inside the template:\n${offenders.join('\n')}`).toEqual([])
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【P5e-T8 新增,裁定 R23】补 T4 评审 Important-1「祖先链结论零自动化守卫」的缺口。
+// 【Newly added in P5e-T8, ruling R23】Fixes the gap from T4's review Important-1, "the ancestor-chain
+// conclusion has zero automated guarding".
 //
-// 事实(T4 评审自加探针实证,见 p5e-task-4-review.md §3-B / 裁定 R23):给
-// `.knowledge-app` 加一行 `transform: translateZ(0)` → 全量 4134/4134 仍绿。
-// K46 的全部立论(`.k-fileviewer-host` 的 `position: fixed; inset: 0` 能铺满
-// 视口,前提是 `.knowledge-app` 及其向上到 <html> 的整条真实 DOM 祖先链都不产生
-// 新的 containing block —— 见 `src/files/viewers/ViewerShell.vue:24` 的
-// `position: absolute; inset: 0; z-index: 200`,它需要一个铺满视口的定位祖先)
-// 目前只靠 T4 的一次性人工实测报告担保,没有自动化回归防线。将来任何一次给
-// `.knowledge-app`/`.k-main`/`body`/`html` 加 transform/filter/will-change 之类
-// 做过渡动画/性能优化(即便本身正当),都会在真机上悄悄让 in-app 预览器塌陷
-// (相对该祖先定位而非铺满视口)—— 而预览器不报错,只错位/不铺满视口,单测、
-// sass 门、color-guard 三道全都抓不到。
+// Fact (proven by a probe T4's own review added; see p5e-task-4-review.md §3-B / ruling R23): add one line,
+// `transform: translateZ(0)`, to `.knowledge-app` → the whole suite still comes back 4134/4134 green. K46's
+// entire argument (that `.k-fileviewer-host`'s `position: fixed; inset: 0` can fill the viewport, on the
+// premise that `.knowledge-app` and the whole real DOM ancestor chain above it up to <html> never establish a
+// new containing block — see `src/files/viewers/ViewerShell.vue:24`'s `position: absolute; inset: 0;
+// z-index: 200`, which needs a viewport-filling positioned ancestor) currently rests only on T4's one-off
+// manual test report, with no automated regression backstop. Any future addition of a transform/filter/
+// will-change etc. to `.knowledge-app`/`.k-main`/`body`/`html` for a transition animation/perf optimization
+// (even a legitimate one) would quietly collapse the in-app previewer on a real device (positioned relative to
+// that ancestor instead of filling the viewport) — and the previewer does not error, it just mispositions/
+// fails to fill the viewport, something none of the unit tests, the sass gate, or color-guard can catch.
 //
-// 本仓可控的真实祖先链(T4 报告 §4 逐段实测,本条断言据此钉住)=
-// router-view → .k-main → .knowledge-app → KnowledgeLayout 根(该组件零
-// <style>,只在 <script setup> 里 JS 侧 import knowledge.scss)→ App.vue(零
-// <style>)→ #app(全仓无此选择器的样式规则)→ body → html。链上真正有 CSS
-// declaration 落点的只有两处:knowledge.scss 的 `.knowledge-app`/`.k-main`
-// 自身声明,以及 theme.css 的 `body`/`html` 自身声明。
+// The real, controllable ancestor chain in this repo (measured section by section in T4's report §4; this
+// test is pinned to it) =
+// router-view → .k-main → .knowledge-app → the KnowledgeLayout root (this component has zero <style> blocks,
+// it only imports knowledge.scss on the JS side inside <script setup>) → App.vue (zero <style> blocks) → #app
+// (no style rule anywhere in the repo targets this selector) → body → html. Only two points on this chain
+// actually have a CSS declaration landing on them: knowledge.scss's own declarations for `.knowledge-app`/
+// `.k-main`, and theme.css's own declarations for `body`/`html`.
 //
-// 🔴 必须排除伪元素:`body::before`(theme.css:335)/ `body::after`
-// (theme.css:352)各自声明了 transform/filter,这是合法且无害的 —— 伪元素是
-// 生成内容子节点,与 `#app` 是兄弟关系而非祖先关系(T4 评审已独立坐实这条 CSS
-// 规范推理:containing block 降级只作用于该属性所应用到的那个盒子本身,
-// `body::before`/`::after` 的 transform/filter 只影响它们自己的盒子,不会让
-// `body` 本身变成新的 containing block)。下面用于抓 `body`/`html` 规则的正则
-// 要求选择器结尾紧跟 `{`(`body::before {` 中间夹了 `::before`,不会被这条规则
-// 捕获),天然只抓 body/html 元素自身的规则,不会误伤伪元素。
-describe('祖先链守卫(R23)—— .knowledge-app / .k-main / body / html 自身声明零 transform·filter·will-change·contain·perspective', () => {
-  // 只匹配「属性名紧跟冒号」的真实声明,不匹配作为别的属性值出现的同名词
-  // (例如 `transition: transform 0.45s var(--ease);` 里的 `transform` 是
-  // transition 的值,不是一条 transform 声明,后面不紧跟冒号,不会被匹配);
-  // 负向前瞻 `(?<![\w-])` 同时排除 `backdrop-filter:` 这类以连字符复合的属性名
-  // (它不建立 transform 意义上的 containing block 关注点,且不在禁用清单里)。
+// 🔴 Pseudo-elements must be excluded: `body::before` (theme.css:335) / `body::after` (theme.css:352) each
+// declare transform/filter, and that is legitimate and harmless — a pseudo-element is a generated-content
+// child, a sibling of `#app` rather than an ancestor of it (T4's review independently established this CSS-spec
+// reasoning: a containing-block downgrade only applies to the box the property itself is applied to;
+// `body::before`/`::after`'s transform/filter only affects their own boxes, and does not turn `body` itself
+// into a new containing block). The regex below, used to capture `body`/`html` rules, requires the selector to
+// be immediately followed by `{` (`body::before {` has `::before` in between, so it is not captured by this
+// rule), so it naturally only captures rules on the body/html elements themselves, without accidentally
+// catching pseudo-elements.
+describe('ancestor-chain guard (R23) — .knowledge-app / .k-main / body / html declare zero transform/filter/will-change/contain/perspective of their own', () => {
+  // Only matches a genuine declaration where "the property name is immediately followed by a colon", not the
+  // same word appearing as some other property's value (e.g. in `transition: transform 0.45s var(--ease);`,
+  // `transform` is transition's value, not a transform declaration — it isn't immediately followed by a colon,
+  // so it isn't matched); the negative lookbehind `(?<![\w-])` also excludes hyphenated compound property
+  // names like `backdrop-filter:` (it doesn't raise the same containing-block concern as transform, and isn't
+  // on the forbidden list).
   const FORBIDDEN = /(?<![\w-])(transform|filter|will-change|contain|perspective)\s*:/
 
-  // 剥掉某个嵌套规则块里所有更深一层的嵌套选择器块,只留该选择器自身的顶层声明。
-  // knowledge.scss 是 SCSS 嵌套写法,`.knowledge-app { … 大段嵌套 … }` 把几乎全部
-  // 规则都嵌在里面(nestedBlockBody 会把这一整段都取出来,含 `.chev`/`.k2-layer:hover`
-  // 等后代选择器自己的 transform/filter——那些只影响各自的盒子,不是 `.knowledge-app`
-  // 自身的祖先链关注点,必须先剥掉才能只看「该选择器自己写了什么」)。逐层剥离
-  // `{[^{}]*}`(先剥最内层、再剥外一层……)直到再也剥不出更多嵌套块为止。
+  // Strip out every deeper level of nested selector block inside a given nested rule block, keeping only that
+  // selector's own top-level declarations. knowledge.scss is written in SCSS nesting style, so
+  // `.knowledge-app { … a large nested section … }` nests almost every rule inside it (nestedBlockBody pulls
+  // out this entire section, including descendant selectors' own transform/filter such as `.chev`/
+  // `.k2-layer:hover` — those only affect their own boxes and are not `.knowledge-app`'s own ancestor-chain
+  // concern, and must be stripped out first so only "what this selector itself wrote" remains). Strips
+  // `{[^{}]*}` layer by layer (innermost first, then the next layer out, …) until no more nested blocks can be stripped.
   function ownDeclarations(nestedText: string): string {
     const first = nestedText.indexOf('{')
     const last = nestedText.lastIndexOf('}')
@@ -1990,132 +2062,151 @@ describe('祖先链守卫(R23)—— .knowledge-app / .k-main / body / html 自�
     return inner
   }
 
-  // 判据(裁定 R23 ②):给 `.knowledge-app` 加一行 `transform: translateZ(0);` →
-  // 这条必须报红。任务报告贴了改前(绿)/改后(红)两段输出 + cp 副本 md5sum 逐字节
-  // 还原确认,此处的探针改动本身不进 git(只在报告里留痕)。
-  it('.knowledge-app 自身声明零 transform/filter/will-change/contain/perspective(判据:加 transform: translateZ(0) → 必须报红)', () => {
+  // Criterion (ruling R23 ②): add one line, `transform: translateZ(0);`, to `.knowledge-app` → this test must
+  // fail. The task report pastes both the before (green) / after (red) outputs, confirmed with a cp copy plus
+  // byte-for-byte md5sum restore; the probe change itself never went into git (only left a trace in the report).
+  it('.knowledge-app declares zero transform/filter/will-change/contain/perspective of its own (criterion: adding transform: translateZ(0) must fail)', () => {
     const own = ownDeclarations(nestedBlockBody(cssKeepLines, DARK_TOKEN_SELECTOR))
     const hit = own.match(new RegExp(FORBIDDEN, 'g'))
-    expect(hit, `.knowledge-app 自身出现了禁用属性:${JSON.stringify(hit)}`).toBeNull()
+    expect(hit, `.knowledge-app itself has a forbidden property: ${JSON.stringify(hit)}`).toBeNull()
   })
 
-  it('.k-main 自身声明零 transform/filter/will-change/contain/perspective', () => {
+  it('.k-main declares zero transform/filter/will-change/contain/perspective of its own', () => {
     const own = ownDeclarations(nestedBlockBody(cssKeepLines, '.k-main {'))
     const hit = own.match(new RegExp(FORBIDDEN, 'g'))
-    expect(hit, `.k-main 自身出现了禁用属性:${JSON.stringify(hit)}`).toBeNull()
+    expect(hit, `.k-main itself has a forbidden property: ${JSON.stringify(hit)}`).toBeNull()
   })
 
-  // theme.css 的 body/html 自身声明 —— body::before / body::after 伪元素除外
-  // (见头注释:生成内容子节点,不是 #app 的祖先)。
-  it('theme.css 的 body/html 自身声明零 transform/filter/will-change/contain/perspective(body::before/::after 伪元素除外)', () => {
+  // theme.css's own declarations for body/html — excluding the body::before / body::after pseudo-elements
+  // (see the header comment: generated-content children, not ancestors of #app).
+  it('theme.css declares zero transform/filter/will-change/contain/perspective of its own for body/html (excluding the body::before/::after pseudo-elements)', () => {
     const themeRaw = read('../../styles/theme.css')
     const themeCss = stripComments(themeRaw)
-    // 选择器紧跟 `{`(排除 `body::before {`/`body::after {` 这类伪元素,它们的
-    // `{` 前面还夹着 `::before`/`::after`,不会被这条规则捕获);负向前瞻排除
-    // 前面还带字母/点/井号/连字符的情形(避免误配复合类名或 id 里的同名子串)。
+    // The selector immediately followed by `{` (excludes pseudo-elements like `body::before {`/
+    // `body::after {`, whose `{` has `::before`/`::after` in between and is not captured by this rule); the
+    // negative lookbehind excludes cases preceded by a letter/dot/hash/hyphen (avoids mismatching the same
+    // substring inside a compound class name or id).
     const RULE = /(?<![\w.#-])(html|body)\s*\{([^{}]*)\}/g
     const blocks: string[] = []
     let m: RegExpExecArray | null
     while ((m = RULE.exec(themeCss))) blocks.push(m[2])
-    expect(blocks.length, 'theme.css 里一条 body/html 规则块都没扫到 —— 选择器写法是不是变了?').toBeGreaterThan(0)
+    expect(blocks.length, 'not a single body/html rule block was scanned in theme.css — did the selector style change?').toBeGreaterThan(0)
     for (const decl of blocks) {
       const hit = decl.match(new RegExp(FORBIDDEN, 'g'))
-      expect(hit, `theme.css 的 body/html 规则里出现了禁用属性:${JSON.stringify(hit)}\n块内容:\n${decl}`).toBeNull()
+      expect(hit, `theme.css's body/html rule has a forbidden property: ${JSON.stringify(hit)}\nblock content:\n${decl}`).toBeNull()
     }
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【SP8-P5f Task 2 新增守卫】本刀搬入四段(蓝本 :985-1141 / :1342-1396 / :2453-2561
-// + K60 的 :1500-1503)与 K53 的 9 个 `kr-*`。以下断言覆盖本刀四类**新增**风险:
-//   ① 段边界陷阱(整段搬会带进已搬类的重复定义 —— 白名单/死类断言都抓不到);
-//   ② K60(裁定 R2)那条 @media 覆盖真的在;
-//   ③ K53 的「自动上膛」条件断言 + `kr-` 前缀全仓唯一(丢 scoped 无害的判据);
-//   ④ K54 的两处兜底真的换成了纯 token、K55 的三个新 token 两档取值没被重算。
-// 🔴 一律只**加**断言,不改任何既有断言(§9.10)。
+// 【New guard added in SP8-P5f Task 2】This pass ports in four sections (blueprint :985-1141 / :1342-1396 /
+// :2453-2561 + K60's :1500-1503) and K53's 9 `kr-*`. The assertions below cover this pass's four **new**
+// categories of risk:
+//   ① the section-boundary trap (porting a whole section can drag in a duplicate definition of an
+//      already-ported class — neither the whitelist assertion nor the dead-class assertion can catch it);
+//   ② K60 (ruling R2)'s @media override genuinely exists;
+//   ③ K53's "auto-armed" conditional assertion + the `kr-` prefix being unique across the whole repo
+//      (a criterion for "dropping scoped is harmless");
+//   ④ K54's two fallback sites are genuinely swapped for pure tokens, and K55's three new tokens have not had
+//      their values recomputed in either variant.
+// 🔴 This pass only **adds** assertions, it never modifies any existing one (§9.10).
 // ═══════════════════════════════════════════════════════════════════════════
 
-describe('knowledge.scss —— P5f-T2 段边界陷阱:已搬类不许被重复定义(裁定 R4 / 勘误 E-69)', () => {
-  // 🔴 为什么这条必须存在:Allowlist A 段的正确边界是蓝本 `:985-1141`,而治理原文写的是
-  // `:985-1160`。按 `:1160` 整段搬会把 `:1142` 的 `.k-set-card` 与 `:1159` 的 `.k-set-row`
-  // (**P5c-T2a 已搬**)第二次带进来。**重复定义不会被白名单断言捕获**(类名本来就在
-  // 白名单里),也不会被 24 死类断言捕获(它们不是死类)—— 只有这种「恰好 N 处」的
-  // 计数断言会响。手法与本档 K10 守 `.k-confirm-*` 恰好 1 次完全同款。
-  // 同理弹窗段边界是 `:1396` 而不是 `:1400`:`:1398` 起是 `.k-confirm-body`(P5b-T2 已搬),
-  // 那一个由既有的 K10 断言守着,这里不重复。
+describe('knowledge.scss — P5f-T2 section-boundary trap: already-ported classes must not be redefined (ruling R4 / errata E-69)', () => {
+  // 🔴 Why this test must exist: Allowlist section A's correct boundary is blueprint `:985-1141`, but the
+  // governance doc's original text says `:985-1160`. Porting the whole section up to `:1160` would drag in a
+  // second copy of `:1142`'s `.k-set-card` and `:1159`'s `.k-set-row` (**already ported by P5c-T2a**). **A
+  // duplicate definition is not caught by the whitelist assertion** (the class name is already on the
+  // whitelist), nor by the 24-dead-class assertion (they are not dead classes) — only this kind of "exactly N
+  // occurrences" count assertion responds. Same technique as this file's own K10 guarding `.k-confirm-*` to
+  // exactly 1 occurrence.
+  // Likewise, the modal section's boundary is `:1396`, not `:1400`: `:1398` onward is `.k-confirm-body`
+  // (already ported by P5b-T2), which is already guarded by the existing K10 assertion, so it is not repeated
+  // here.
   it.each([
     ['k-set-card', 1],
     ['k-set-row', 1],
-  ])('%s 在本档恰好 %i 处规则(>1 = A 段按 :1160 整段搬,把 P5c-T2a 已搬的那份又搬了一遍)', (cls, n) => {
+  ])('%s has exactly %i rule in this file (>1 = section A was ported as a whole block up to :1160, dragging in the copy P5c-T2a already ported)', (cls, n) => {
     const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
-    expect(hits.length, `${cls} 出现 ${hits.length} 次(应为 ${n})`).toBe(n)
+    expect(hits.length, `${cls} appears ${hits.length} times (should be ${n})`).toBe(n)
   })
 
-  // 反向覆盖度自检:本刀真的搬进来了 —— 否则上面那条「恰好 1 次」在「整段都没搬」的
-  // 情况下也会绿(零判别力)。`.k-section-body` 与 `.k-priority-hint` 是 A 段的首尾两条。
-  it('覆盖度自检 —— A 段首尾两条规则(.k-section-body / .k-priority-hint)确实在档内', () => {
-    expect(css, 'A 段首条 .k-section-body 没搬进来').toMatch(/\.k-section-body(?![\w-])/)
-    expect(css, 'A 段末条 .k-priority-hint 没搬进来').toMatch(/\.k-priority-hint(?![\w-])/)
+  // Reverse coverage self-check: this pass genuinely ported the section in — otherwise the "exactly 1
+  // occurrence" test above would also pass green in the case where "the whole section was never ported at
+  // all" (zero discriminating power). `.k-section-body` and `.k-priority-hint` are section A's first and last rules.
+  it('coverage self-check — section A first and last rules (.k-section-body / .k-priority-hint) are genuinely present in this file', () => {
+    expect(css, 'section A first rule .k-section-body was not ported in').toMatch(/\.k-section-body(?![\w-])/)
+    expect(css, 'section A last rule .k-priority-hint was not ported in').toMatch(/\.k-priority-hint(?![\w-])/)
   })
 })
 
-describe('knowledge.scss —— K60(裁定 R2):.k-frow 的窄屏 @media 覆盖(P5f-T2 新建)', () => {
-  // 🔴 事实:P5b 判蓝本 `:1500-1503` 是死规则,判据原文是**条件式**的
-  // (「两个模板里没有任何元素用 class="k-frow"」)。`AllowlistView`(P5f)用的正是
-  // `class="k-frow"` ⇒ 前提到期,裁定 R2 批准搬入,登记为偏差 K60。
-  // 不搬的后果:窄屏(≤860px)下白名单页文件夹规则表格的列宽与 Vue2 不一致 ——
-  // **单测/sass 门/color-guard 三道全都抓不到**,只有这条断言。
-  // 判据:删掉这条 @media 内的 `.k-frow { … }` → 本条必须报红。
-  it('既有 @media (max-width: 860px) 块内含 .k-frow 的窄屏列宽覆盖(删掉 → 报红)', () => {
-    // 用大括号配对切出那个 @media 块,只在块内断言(不对全文裸计数 —— 全文里
-    // `.k-frow` 的**基类**规则也在,裸计数分不清两者)。
+describe('knowledge.scss — K60 (ruling R2): .k-frow narrow-screen @media override (newly created in P5f-T2)', () => {
+  // 🔴 Fact: P5b judged blueprint `:1500-1503` a dead rule; the original criterion was **conditional**
+  // ("no element in either template uses class=\"k-frow\""). `AllowlistView` (P5f) uses exactly
+  // `class="k-frow"` ⇒ the premise expired, ruling R2 approved porting it in, registered as deviation K60.
+  // Consequence of not porting it: under a narrow screen (≤860px), the whitelist page's folder-rules table
+  // column widths would not match Vue2 — **none of unit tests/the sass gate/color-guard can catch this**, only
+  // this test can.
+  // Criterion: delete the `.k-frow { … }` inside this @media block → this test must fail.
+  it('the existing @media (max-width: 860px) block contains the .k-frow narrow-screen column-width override (deleting it must fail)', () => {
+    // Use brace pairing to slice out that @media block, and assert only within it (not a bare whole-file
+    // count — the file also has `.k-frow`'s **base-class** rule elsewhere, and a bare count cannot tell the two apart).
     const body = nestedBlockBody(cssKeepLines, '@media (max-width: 860px) {')
-    expect(body.length, '没抓到 @media (max-width: 860px) 块 —— 零判别力').toBeGreaterThan(100)
-    expect(body, '@media 块里找不到 .k-frow 覆盖(K60 没落地?)').toMatch(/\.k-frow \{/)
-    expect(body, 'K60 的 grid-template-columns 被改动了(蓝本 :1501 逐字)').toContain(
+    expect(body.length, 'the @media (max-width: 860px) block was not captured — zero discriminating power').toBeGreaterThan(100)
+    expect(body, 'could not find the .k-frow override inside the @media block (did K60 not land?)').toMatch(/\.k-frow \{/)
+    expect(body, 'K60 grid-template-columns was changed (verbatim from blueprint :1501)').toContain(
       'grid-template-columns: 80px 1fr 70px 28px;',
     )
-    expect(body, 'K60 的 font-size 被改动了(蓝本 :1502 逐字)').toContain('font-size: 12px;')
+    expect(body, 'K60 font-size was changed (verbatim from blueprint :1502)').toContain('font-size: 12px;')
   })
 
-  // 🔴 R2-① 的落地判据:只搬了那一条,**没有顺带搬** 同段的 .k-quick-grid / .k-status-strip
-  // (两者仍不在白名单,且 .k-quick-grid 还是 24 个死类之一)。
-  it('R2-① —— 没有顺带搬 .k-status-strip(.k-quick-grid 由 24 死类断言另行钉住)', () => {
-    expect(new RegExp('\\.k-status-strip(?![\\w-])').test(css), '.k-status-strip 被顺带搬了进来').toBe(false)
+  // 🔴 The landing criterion for R2-①: only that one rule was ported, and .k-quick-grid / .k-status-strip from
+  // the same section were **not dragged in along with it** (both are still not on the whitelist, and
+  // .k-quick-grid is also one of the 24 dead classes).
+  it('R2-① — .k-status-strip was not dragged in along with it (.k-quick-grid is separately pinned by the 24-dead-class assertion)', () => {
+    expect(new RegExp('\\.k-status-strip(?![\\w-])').test(css), '.k-status-strip was dragged in along with it').toBe(false)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【P5f-T2b 新建,裁定 **R19 / R20 的 C-1**】K44 的「知识库区 `.vue` 一律零 `<style>` 块」
-// 谓词从**裸子串**加固成**先剥注释 + 行首锚定**,并从「只钉 RootsView.vue 一个文件」
-// 扩成 `src/ai/knowledge/**` 全体的参数化断言(一次上膛,T5/T6/T7 免每刀记账)。
+// 【Newly created in P5f-T2b, ruling **C-1 of R19 / R20**】K44's predicate for "every .vue in the knowledge
+// section has zero `<style>` blocks, without exception" is hardened from a **bare substring** into
+// **comments stripped first, then anchored at start-of-line**, and expanded from "pinned to just the one file
+// RootsView.vue" into a parameterized assertion over all of `src/ai/knowledge/**` (armed once, so T5/T6/T7
+// don't each have to add their own bookkeeping).
 //
-// 🔴 **为什么必须换形态**(裁定 R19 的原文事实,不是推测):T2 用 `src.includes('<style')`
-// 判「文件里有没有 style 块」,它在本仓 `src/ai/knowledge/**` 的 16 个 `.vue` 里命中 **10 个**
-// —— 而这 16 个文件的 `</style>` 计数**全部是 0**,10 个命中**全是注释里
-// 「零 `<style>` 块」/「蓝本 `<style scoped>`」这类**字面文字**。
-// 后果已被评审实证:按同目录既定文风建一个**零 style 块**、注释里写「零 `<style>` 块」的
-// `RootsView.vue`,旧谓词**误报红**,而且报的是「出现 <style> 块」⇒ T5 会去找根本不存在的
-// 东西,最可能的动作是**放宽这条守卫**(正是 §9.10 最要防的)。
+// 🔴 **Why the form had to change** (a fact from ruling R19's own text, not speculation): T2 used
+// `src.includes('<style')` to judge "does the file have a style block", and it hits **10** of the 16 `.vue`
+// files under `src/ai/knowledge/**` in this repo — while all 16 of these files have a `</style>` count of
+// **zero**, and all 10 hits are **literal text inside comments** such as "zero `<style>` blocks" / "blueprint
+// `<style scoped>`".
+// The consequence has already been proven by review: build a `RootsView.vue` that follows the same directory's
+// established comment style — genuinely zero style blocks, with a comment saying "zero `<style>` blocks" — and
+// the old predicate **falsely fails**, reporting "a <style> block is present" ⇒ T5 would go looking for
+// something that does not exist at all, and the most likely response would be to **loosen this guard**
+// (exactly what §9.10 is most trying to prevent).
 //
-// 🔴 **加固自证(程序化,不是自我声明)**:同一批 16 个文件上
-// 「裸子串命中 10 个 / 剥注释+行首锚定命中 0 个」;全仓 185 个 `.vue` 上
-// 「裸子串 136 / 剥注释+行首锚定 115 / `</style>` 115」——
-// 新谓词与「`</style>` 独立口径」**逐文件同解**,旧谓词多出 21 个假阳性。
-// 这两组数由下面的「加固自证」与「防空转②」两条断言常驻钉住(R21:两条独立口径)。
+// 🔴 **Hardening self-proof (programmatic, not a self-declaration)**: on the same 16 files, "the bare
+// substring hits 10 / comments-stripped-plus-start-of-line-anchored hits 0"; across the whole repo's 185
+// `.vue` files, "bare substring 136 / comments-stripped-plus-anchored 115 / `</style>` 115" — the new
+// predicate agrees with the independent "`</style>`" criterion **file for file**, while the old predicate has
+// 21 extra false positives. These two sets of numbers are permanently pinned down by the "hardening
+// self-proof" and "anti-vacuous-pass ②" tests below (R21: two independent criteria).
 //
-// 🔴 剥注释 **和** 行首锚定**缺一不可**:只行首锚定挡不住块注释里独占一行的
-// `<style scoped>` 引用;只剥注释挡不住行内引用被子串撞对。
+// 🔴 Stripping comments **and** anchoring at start-of-line are **both required, neither is optional**:
+// anchoring alone cannot block a `<style scoped>` reference sitting alone on its own line inside a block
+// comment; stripping comments alone cannot block an inline reference from being matched by the substring check.
 function stripVueComments(src: string): string {
   return src
-    .replace(/<!--[\s\S]*?-->/g, '') // HTML 注释(`<!-- … -->`,SFC 模板/文件头惯用)
-    .replace(/\/\*[\s\S]*?\*\//g, '') // JS/CSS 块注释
-    .replace(/^[ \t]*\/\/.*$/gm, '') // 整行 JS 行注释(同本档 stripComments 的既定口径)
+    .replace(/<!--[\s\S]*?-->/g, '') // HTML comments (`<!-- … -->`, conventional in SFC templates/file headers)
+    .replace(/\/\*[\s\S]*?\*\//g, '') // JS/CSS block comments
+    .replace(/^[ \t]*\/\/.*$/gm, '') // whole-line JS line comments (the same established criterion as this file's own stripComments)
 }
 
-// 真 `<style>` 块的存在式判据。两条独立口径**取或**(更敏感 = 加固):
-// ① 开标签独占行首 `^\s*<style[\s>]`;② 闭标签独占行首 `^\s*</style>`。
-// 🔴 **禁裸子串 `includes('<style')`**(裁定 R19)。
+// The existence criterion for a genuine `<style>` block. Two independent criteria, **OR**'d together (more
+// sensitive = hardened): ① the opening tag alone at start-of-line, `^\s*<style[\s>]`; ② the closing tag alone
+// at start-of-line, `^\s*</style>`.
+// 🔴 **The bare substring `includes('<style')` is forbidden** (ruling R19).
 function hasStyleBlock(src: string): boolean {
   const stripped = stripVueComments(src)
   return /^[ \t]*<style[\s>]/m.test(stripped) || /^[ \t]*<\/style>\s*$/m.test(stripped)
@@ -2131,74 +2222,80 @@ function collectVueFiles(dir: string, out: string[] = []): string[] {
   return out
 }
 
-describe('K44(裁定 R19/R20 C-1)—— src/ai/knowledge/** 全体 .vue 零 <style> 块(P5f-T2b 重写)', () => {
+describe('K44 (ruling R19/R20 C-1) — every .vue under src/ai/knowledge/** has zero <style> blocks (rewritten in P5f-T2b)', () => {
   const KNOWLEDGE_DIR = resolve(__dirname, '../knowledge')
   const SRC_DIR = resolve(__dirname, '..', '..')
   const knowledgeVues: string[] = collectVueFiles(KNOWLEDGE_DIR).sort()
   const relKnowledge = (p: string) => p.slice(KNOWLEDGE_DIR.length + 1)
 
-  // 🔴 防空转①(§9.14-4 / §9.19):路径基座必须是真的 —— 少了这条,目录写错/改名会让
-  // 下面的 it.each 退化成**零用例静默全绿**,而 vitest 对空 it.each 不报任何错。
-  it('防空转① —— knowledge 目录扫到的 .vue > 0,且 views 子目录在扫描范围内', () => {
-    expect(knowledgeVues.length, 'src/ai/knowledge 下一个 .vue 都没扫到 —— 路径基座写错了?').toBeGreaterThan(0)
+  // 🔴 Anti-vacuous-pass ① (§9.14-4 / §9.19): the path base must be genuine — without this, a wrong/renamed
+  // directory would let the it.each below degenerate into **zero test cases, silently all green**, and vitest
+  // reports no error at all for an empty it.each.
+  it('anti-vacuous-pass ① — .vue files scanned under the knowledge directory > 0, and the views subdirectory is within the scan scope', () => {
+    expect(knowledgeVues.length, 'not a single .vue was scanned under src/ai/knowledge — was the path base written wrong?').toBeGreaterThan(0)
     expect(
       knowledgeVues.some((p: string) => p.includes('/knowledge/views/')),
-      'views 子目录没被递归扫到 —— 参数化断言会漏掉 T5/T6/T7 新建的视图',
+      'the views subdirectory was not recursively scanned — the parameterized assertion would miss views newly created by T5/T6/T7',
     ).toBe(true)
   })
 
-  // 🔴 防空转②(裁定 R20 C-1 明令):**正例必须取自全仓真有 style 块的 `.vue`**,
-  // 不是知识库区那 4 行注释。全仓 185 个 `.vue` 里有 115 个真有 style 块
-  // (独立口径:`grep -rl '</style>' src --include=*.vue | wc -l` = 115,两条口径同解)。
-  it('防空转② —— hasStyleBlock 在全仓真有 style 块的 .vue 上恒为真(正例取自 src/**,非知识库区注释)', () => {
+  // 🔴 Anti-vacuous-pass ② (ruling R20 C-1's explicit order): **the positive example must come from a .vue
+  // file with a genuine style block somewhere in the whole repo**, not from the knowledge section's 4 lines
+  // of comment. Of the whole repo's 185 `.vue` files, 115 genuinely have a style block (independent criterion:
+  // `grep -rl '</style>' src --include=*.vue | wc -l` = 115, the two criteria agree).
+  it('anti-vacuous-pass ② — hasStyleBlock is always true on a .vue file with a genuine style block anywhere in the repo (the positive example comes from src/**, not a knowledge-section comment)', () => {
     const allVues = collectVueFiles(SRC_DIR)
-    expect(allVues.length, '全仓一个 .vue 都没扫到 —— 零判别力').toBeGreaterThan(100)
-    // 独立口径:含闭标签的文件集合(与谓词的实现路径不同,R21 的「第二条口径」)
+    expect(allVues.length, 'not a single .vue was scanned in the whole repo — zero discriminating power').toBeGreaterThan(100)
+    // Independent criterion: the set of files containing the closing tag (a different implementation path from the predicate, R21's "second criterion")
     const byClosingTag = allVues.filter((p: string) => readFileSync(p, 'utf8').includes('</style>'))
-    expect(byClosingTag.length, '全仓没有任何 .vue 真有 style 块 —— 谓词可能恒假(空壳)').toBeGreaterThan(100)
+    expect(byClosingTag.length, 'not a single .vue in the whole repo genuinely has a style block — the predicate might be always false (an empty shell)').toBeGreaterThan(100)
     const missed = byClosingTag.filter((p: string) => !hasStyleBlock(readFileSync(p, 'utf8')))
-    expect(missed, `这些文件真有 </style> 却被谓词判成「无 style 块」(谓词漏检):\n${missed.join('\n')}`).toEqual([])
-    // 反向:谓词判真的,必须都真有闭标签(防谓词恒真)
+    expect(missed, `these files genuinely have </style> but the predicate judges them as "no style block" (the predicate misses them):\n${missed.join('\n')}`).toEqual([])
+    // Reverse: whatever the predicate judges true must genuinely have a closing tag (guards against the predicate being always true)
     const byPredicate = allVues.filter((p: string) => hasStyleBlock(readFileSync(p, 'utf8')))
-    expect(byPredicate.length, '谓词一个都没判真 —— 零判别力').toBeGreaterThan(100)
+    expect(byPredicate.length, 'the predicate judged nothing true — zero discriminating power').toBeGreaterThan(100)
     expect(
       byPredicate.filter((p: string) => !byClosingTag.includes(p)),
-      '谓词判真但没有 </style> —— 谓词可能被注释撞对(裸子串复发)',
+      'the predicate judged true but there is no </style> — the predicate may have been matched by a comment (a bare-substring recurrence)',
     ).toEqual([])
   })
 
-  // 🔴 加固自证(§9.10:「加固前 X 命中 N 个 / 加固后 1 个」必须程序化,自我声明不算证明)。
-  // 同一批知识库 `.vue` 上:旧裸子串谓词命中 ≥ 4(实测 10),新谓词命中 0。
-  it('加固自证 —— 同一批知识库 .vue 上,旧裸子串谓词命中 > 0 而新谓词命中 0(证明这次是加固不是放宽)', () => {
+  // 🔴 Hardening self-proof (§9.10: "before hardening X hits N / after hardening 1" must be programmatic, a
+  // self-declaration does not count as proof). On the same batch of knowledge-section `.vue` files: the old
+  // bare-substring predicate hits ≥ 4 (measured 10), the new predicate hits 0.
+  it('hardening self-proof — on the same batch of knowledge-section .vue files, the old bare-substring predicate hits > 0 while the new predicate hits 0 (proves this change is a hardening, not a loosening)', () => {
     const naiveHits = knowledgeVues.filter((p: string) => readFileSync(p, 'utf8').includes('<style'))
     const hardenedHits = knowledgeVues.filter((p: string) => hasStyleBlock(readFileSync(p, 'utf8')))
-    expect(naiveHits.length, '旧裸子串谓词一个都不命中 —— 加固自证失去对照组').toBeGreaterThan(0)
+    expect(naiveHits.length, 'the old bare-substring predicate hits nothing at all — the hardening self-proof loses its control group').toBeGreaterThan(0)
     expect(
       hardenedHits.map(relKnowledge),
-      '知识库区出现真 <style> 块(K44 被破) —— 或者新谓词也被注释撞对了',
+      'a genuine <style> block appears in the knowledge section (K44 is broken) — or the new predicate was also matched by a comment',
     ).toEqual([])
-    expect(naiveHits.length, '加固后命中数没有严格减少 —— 这次改动零可观测').toBeGreaterThan(hardenedHits.length)
+    expect(naiveHits.length, 'the hit count did not strictly decrease after hardening — this change is unobservable').toBeGreaterThan(hardenedHits.length)
   })
 
-  // 🔴 参数化(裁定 R20 C-1:「扩成 src/ai/knowledge/** 全体,一次上膛,免每刀记账」)。
-  // 清单在**测试运行时**从磁盘读 ⇒ T5 建 `RootsView.vue`、T6 建 `WikiView.vue`、
-  // T7 建 `AllowlistView.vue` 的那一刻,本条自动多出一个用例,无需任何人改这里。
-  // §9.19 跨刀冲突论证:K44 是全期纪律,T5/T6/T7 本来就不许写 `<style>` 块 ⇒ 不冲突。
-  // ⚠️ 这里**故意不做集合相等**(那会变成「每刀记账」,正是 R20 要免掉的)。
+  // 🔴 Parameterized (ruling R20 C-1: "expand to all of src/ai/knowledge/**, armed once, no per-pass bookkeeping").
+  // The list is read from disk **at test-run time** ⇒ the moment T5 creates `RootsView.vue`, T6 creates
+  // `WikiView.vue`, or T7 creates `AllowlistView.vue`, this test automatically gains one more test case, with
+  // nobody needing to touch this file.
+  // §9.19's cross-pass-conflict argument: K44 is a whole-cycle discipline, and T5/T6/T7 were never allowed to
+  // write a `<style>` block in the first place ⇒ no conflict.
+  // ⚠️ **Deliberately not** doing a set-equality check here (that would turn into "per-pass bookkeeping",
+  // exactly what R20 is meant to eliminate).
   it.each(knowledgeVues.map((p: string) => [relKnowledge(p), p] as [string, string]))(
-    'K44 —— %s 零 <style> 块(剥注释 + 行首锚定;注释里写「零 <style> 块」必须仍绿)',
+    'K44 — %s has zero <style> blocks (comments stripped + start-of-line anchored; a comment saying "zero <style> blocks" must still pass)',
     (_rel: string, full: string) => {
       const src: string = readFileSync(full, 'utf8')
-      expect(src.length, `${_rel} 读出来是空的 —— node:fs 读法失效了`).toBeGreaterThan(0)
+      expect(src.length, `${_rel} read out empty — the node:fs read failed`).toBeGreaterThan(0)
       expect(
         hasStyleBlock(src),
-        `${_rel} 出现真 <style> 块 —— K44 要求整块搬进 src/ai/styles/knowledge.scss,.vue 侧零 <style>`,
+        `${_rel} has a genuine <style> block — K44 requires the whole block to be ported into src/ai/styles/knowledge.scss, with zero <style> on the .vue side`,
       ).toBe(false)
     },
   )
 })
 
-describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue 侧零 <style>(P5f-T2 新建)', () => {
+describe('knowledge.scss — K53: RootsView kr-* has been ported in as a whole block + zero <style> on the .vue side (newly created in P5f-T2)', () => {
   const VIEWS_DIR = resolve(__dirname, '../knowledge/views')
   const ROOTS_VUE = resolve(VIEWS_DIR, 'RootsView.vue')
 
@@ -2211,67 +2308,78 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
     }
   }
 
-  // 🔴 防空转①(治理 §9.14-4 / §9.19):路径基座必须是真的。少了这条,
-  // 「RootsView.vue 还不存在」那一支会退化成「什么都没测」,而且路径写错
-  // (少一层 `..`、目录改名)永远发现不了 —— 那正是「守卫是空壳」的典型形态。
-  it('防空转 —— views 目录存在且已有 .vue 文件(否则「文件不存在」这个分支毫无意义)', () => {
+  // 🔴 Anti-vacuous-pass ① (governance §9.14-4 / §9.19): the path base must be genuine. Without this, the
+  // "RootsView.vue does not exist yet" branch would degenerate into "testing nothing at all", and a wrong path
+  // (a missing `..` level, a renamed directory) would never be discovered — that is the classic shape of "the
+  // guard is an empty shell".
+  it('anti-vacuous-pass — the views directory exists and already has .vue files (otherwise the "file does not exist" branch is meaningless)', () => {
     const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
-    expect(vues.length, 'views 目录里一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
+    expect(vues.length, 'the views directory has no .vue at all — was the path base written wrong?').toBeGreaterThan(0)
   })
 
-  // 🔴 防空转②:同一个「node:fs 读文件 → 判有没有 style 块」的谓词必须**真的有判别力**。
-  //   (a) 每个既有视图都能读到**非空**内容 —— 直接堵死「读到空串 ⇒ 恒判无 ⇒ 恒绿」
-  //       这条空壳路径(Vite `?raw` 在 vitest 下恒空那个铁律要防的正是它);
-  //   (b) 谓词在**真有 style 块的文件**上必须判真 —— 正例见上方新 describe 的「防空转②」
-  //       (取自全仓 115 个真有 style 块的 `.vue`)。
+  // 🔴 Anti-vacuous-pass ②: the same "node:fs read the file → judge whether it has a style block" predicate
+  // must **genuinely have discriminating power**.
+  //   (a) every existing view can be read with **non-empty** content — this directly blocks the empty-shell
+  //       path of "reads an empty string ⇒ always judged false ⇒ always green" (exactly what the ironclad
+  //       rule "Vite `?raw` is always empty under vitest" is guarding against);
+  //   (b) the predicate must judge true on a **file that genuinely has a style block** — the positive example
+  //       is in the "anti-vacuous-pass ②" test in the new describe above (taken from the whole repo's 115
+  //       `.vue` files that genuinely have a style block).
   //
-  // 🔴🔴 **P5f-T2b 订正(裁定 R19,承「反转不删」)**:本条原文写的是
-  // 「至少一个既有视图**含** `<style`、至少一个不含」,谓词用的是裸子串 `src.includes('<style')`。
-  // **那个『正例』完全由 4 行注释文字撑着** —— `KnowledgeDeferred` / `KnowledgeLayout` /
-  // `SearchView` / `SettingsView` 的 `</style>` 计数**全部是 0**,命中的是注释里
-  // 「零 `<style>` 块」这句话本身。⇒ 它证明的不是谓词有判别力,而是注释里有那个词;
-  // 而且任何人改一下那 4 行注释的措辞,本条会**无故报红**。
-  // 现在:谓词换成 `hasStyleBlock()`(先剥注释 + 行首锚定),正例移到上方 describe
-  // 用全仓真样本做;本条只保留「读得到非空内容」这一半 + 「全区判假」。
-  it('防空转 —— 同目录既有视图能读到非空内容,且新谓词在本目录一致判「无 style 块」', () => {
+  // 🔴🔴 **P5f-T2b correction (ruling R19, per "reverse, don't delete")**: this test's original text said
+  // "at least one existing view **contains** `<style`, at least one does not", with the predicate being the
+  // bare substring `src.includes('<style')`. **That "positive example" was entirely propped up by 4 lines of
+  // comment text** — `KnowledgeDeferred` / `KnowledgeLayout` / `SearchView` / `SettingsView` all have a
+  // `</style>` count of **zero**, and the hit is the phrase "zero `<style>` blocks" inside a comment, nothing
+  // more. ⇒ what it proves is not that the predicate has discriminating power, but that the comment happens to
+  // contain that word; and if anyone rewords those 4 comment lines, this test would **fail for no reason**.
+  // Now: the predicate is swapped for `hasStyleBlock()` (comments stripped first, then start-of-line
+  // anchored), the positive example is moved to the describe above using genuine whole-repo samples; this
+  // test only keeps the "can read non-empty content" half plus "judged false throughout this section".
+  it('anti-vacuous-pass — existing views in the same directory read as non-empty content, and the new predicate consistently judges "no style block" throughout this directory', () => {
     const vues = readdirSync(VIEWS_DIR).filter((f: string) => f.endsWith('.vue'))
-    expect(vues.length, 'views 目录一个 .vue 都没有 —— 零判别力').toBeGreaterThan(0)
+    expect(vues.length, 'the views directory has no .vue at all — zero discriminating power').toBeGreaterThan(0)
     const withStyle: string[] = []
     for (const f of vues) {
       const src: string = readFileSync(resolve(VIEWS_DIR, f), 'utf8')
-      expect(src.length, `${f} 读出来是空的 —— node:fs 读法失效了`).toBeGreaterThan(0)
+      expect(src.length, `${f} read out empty — the node:fs read failed`).toBeGreaterThan(0)
       if (hasStyleBlock(src)) withStyle.push(f)
     }
-    expect(withStyle, `views 目录出现真 <style> 块的文件(K44 被破):${withStyle.join(', ')}`).toEqual([])
+    expect(withStyle, `files in the views directory with a genuine <style> block (K44 is broken): ${withStyle.join(', ')}`).toEqual([])
   })
 
-  // 🔴 「自动上膛」条件断言(治理 §9.19)。T2 落地时 `RootsView.vue` 还不存在
-  // (它是 T5 的活),本条走「尚未存在」分支;**T5 一建文件就自动上膛**。
-  // §9.19 要求论证与后续刀的范围不冲突:**不冲突** —— K44 是全期纪律,
-  // T5 本来就不许在 `.vue` 里写 `<style>` 块,本条不向 T5 索要任何它无权写的东西
-  // (与 P5e 的 T5↔T6 冲突形成对照:那次是守卫索要 T6 无权写的 markup)。
-  // 🔴 P5f-T2b:谓词由裸子串换成 `hasStyleBlock()`(剥注释 + 行首锚定),裁定 R19。
-  // 上方新 describe 的参数化断言在 `RootsView.vue` 建出来后会自动覆盖同一件事;
-  // 本条保留是因为它带 K53 专属的错误信息(「那 66 行整块搬进 knowledge.scss」),
-  // 且它是 T2 已过评审的断言 —— §9.10 只许加固不许删。
-  it('K53 —— 若 views/RootsView.vue 存在,则它必须不含 <style>(T5 建文件时自动上膛)', () => {
+  // 🔴 "Auto-armed" conditional assertion (governance §9.19). At the time T2 landed, `RootsView.vue` did not
+  // exist yet (it is T5's job), so this test takes the "does not exist yet" branch; **the moment T5 creates
+  // the file, it auto-arms**.
+  // §9.19 requires arguing this does not conflict with a later pass's scope: **it does not conflict** — K44 is
+  // a whole-cycle discipline, and T5 was never allowed to write a `<style>` block inside a `.vue` in the first
+  // place, so this test never asks T5 for anything it has no right to write (contrast with P5e's T5↔T6
+  // conflict: that time the guard asked T6 for markup it had no right to write).
+  // 🔴 P5f-T2b: the predicate is swapped from a bare substring to `hasStyleBlock()` (comments stripped +
+  // start-of-line anchored), ruling R19. The parameterized assertion in the new describe above will
+  // automatically cover the same thing once `RootsView.vue` is built; this test is kept because it carries a
+  // K53-specific error message ("those 66 lines must be ported into knowledge.scss as a whole block"), and it
+  // is an assertion T2 already passed review on — §9.10 only allows hardening, never deletion.
+  it('K53 — if views/RootsView.vue exists, it must not contain <style> (auto-arms once T5 creates the file)', () => {
     if (!exists(ROOTS_VUE)) {
-      expect(exists(ROOTS_VUE), 'RootsView.vue 尚未创建(T5 的活)—— 本条处于「上膛待发」状态').toBe(false)
+      expect(exists(ROOTS_VUE), 'RootsView.vue has not been created yet (T5 job) — this test is in "armed, awaiting fire" state').toBe(false)
       return
     }
     const src: string = readFileSync(ROOTS_VUE, 'utf8')
-    expect(src.length, 'RootsView.vue 读出来是空的').toBeGreaterThan(0)
+    expect(src.length, 'RootsView.vue read out empty').toBeGreaterThan(0)
     expect(
       hasStyleBlock(src),
-      'RootsView.vue 出现真 <style> 块 —— K53 要求那 66 行整块搬进 knowledge.scss,.vue 侧零 <style>',
+      'RootsView.vue has a genuine <style> block — K53 requires those 66 lines to be ported into knowledge.scss as a whole block, with zero <style> on the .vue side',
     ).toBe(false)
   })
 
-  // 🔴 K53 判据④:丢 `scoped` 无害的**逐类**证明。判据 = `kr-` 前缀在全仓唯一。
-  // 范围钉在「选择器可能出现的地方」= 全部 .scss/.css(本档除外)+ 全部 .vue 的
-  // `<style>` 块内容。**不扫模板与测试**(T5 的模板会写 `class="kr-empty"`、它的测试
-  // 会写 `find('.kr-empty')` —— 那些都不是选择器定义,扫进来会把后续刀无辜打红)。
-  // 🔴 一律用**完整 token 精确匹配** `(?![\w-])`,禁 `\b`(E-25:`\b` 在 `-` 前也成立)。
+  // 🔴 K53 criterion ④: **class-by-class** proof that dropping `scoped` is harmless. Criterion = the `kr-`
+  // prefix is unique across the whole repo. Scope is pinned to "everywhere a selector could plausibly appear"
+  // = every .scss/.css (excluding this file) + the `<style>` block content of every .vue. **Templates and
+  // tests are not scanned** (T5's template will write `class="kr-empty"`, and its test will write
+  // `find('.kr-empty')` — neither of those is a selector definition; scanning them in would wrongly fail later
+  // passes).
+  // 🔴 Always use **exact whole-token matching** `(?![\w-])`, never `\b` (E-25: `\b` also holds before a `-`).
   const KR_CLASSES = [
     'kr-adv-row', 'kr-badge', 'kr-check', 'kr-empty', 'kr-error',
     'kr-hint', 'kr-input', 'kr-label', 'kr-path',
@@ -2295,46 +2403,48 @@ describe('knowledge.scss —— K53:RootsView 的 kr-* 已整块搬入 + .vue �
     return out
   }
 
-  it('K53 判据④ —— 9 个 kr-* 在「knowledge.scss 之外的全部样式来源」里逐类零出现(丢 scoped 无害)', () => {
+  it('K53 criterion ④ — the 9 kr-* classes appear zero times, class by class, in "every style source outside knowledge.scss" (dropping scoped is harmless)', () => {
     const sources = collectSelectorSources(resolve(__dirname, '../..'))
-    // 覆盖度自检:真的扫到了东西(否则「零命中」是假象 —— R13「没看到 ≠ 不存在」)
-    expect(sources.length, '一个样式来源都没扫到 —— 零判别力').toBeGreaterThan(3)
+    // Coverage self-check: something was genuinely scanned (otherwise "zero hits" is an illusion — R13's "not seen ≠ does not exist")
+    expect(sources.length, 'not a single style source was scanned — zero discriminating power').toBeGreaterThan(3)
     const collisions: string[] = []
     for (const cls of KR_CLASSES) {
       const re = new RegExp(`\\.${cls}(?![\\w-])`)
       for (const [file, text] of sources) if (re.test(text)) collisions.push(`${cls} @ ${file}`)
     }
-    expect(collisions, `kr-* 前缀发生碰撞(scoped 语义的丢失不再无害):\n${collisions.join('\n')}`).toEqual([])
+    expect(collisions, `a kr-* prefix collision occurred (losing scoped semantics is no longer harmless):\n${collisions.join('\n')}`).toEqual([])
   })
 
-  it('K53 —— 9 个 kr-* 在 knowledge.scss 内各恰好 1 条基类规则(整块搬入,不多不少)', () => {
+  it('K53 — each of the 9 kr-* classes has exactly 1 base-class rule inside knowledge.scss (ported in as a whole block, no more and no less)', () => {
     for (const cls of KR_CLASSES) {
       const hits = css.match(new RegExp(`\\.${cls}(?![\\w-])`, 'g')) || []
-      expect(hits.length, `${cls} 在 knowledge.scss 里出现 ${hits.length} 次(应为 1)`).toBe(1)
+      expect(hits.length, `${cls} appears ${hits.length} times in knowledge.scss (should be 1)`).toBe(1)
     }
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 【P5f-T2b 新建,裁定 **R20 的 I-1**】P5e 裁定 **R16** 同族缺口的**第二次**:
-// 本期把 8 处色字面量映射成 token(附录 B §B.3-②③ 两处 + §B.4 六处),
-// 产品码逐处正确,但**没有一条断言把「哪个选择器消费哪个 token」钉住**
-// ⇒ 评审实证:把 allow / deny 消费的 token **互换**、把 `--text-on-accent` 换成
-// `--text-primary`,跑全量 **4337 全绿,零红**。
+// 【Newly created in P5f-T2b, ruling **I-1 of R20**】The **second** occurrence of the same family of gap as
+// P5e's ruling **R16**: this cycle maps 8 color literals onto tokens (2 sites in Appendix B §B.3-②③ + 6 sites
+// in §B.4); the production code is correct site by site, but **no assertion pins down which selector consumes
+// which token** ⇒ review confirmed it: **swap** the tokens allow/deny consume with each other, swap
+// `--text-on-accent` for `--text-primary`, and run the whole suite — **4337 all green, zero red**.
 //
-// 现实后果:① allow/deny 互换 = 白名单页「允许」显示成红、「拒绝」显示成绿(**语义反转**),
-// 而 §9.17 认定 `AllowlistView` 两个分区在本机 🟢 **全部可达**、是要逐条真机验收的写操作屏;
-// ② `--text-on-accent` 被换掉 = 压在品牌渐变/accent 实底上的图标变成暗档深色前景,
-// **正是附录 B §B.3.1 花整节警告的失效形态**。
+// Real-world consequence: ① swapping allow/deny = the whitelist page shows "allow" in red and "deny" in green
+// (a **semantic inversion**), and §9.17 ruled that both sections of `AllowlistView` are 🟢 **fully reachable**
+// on this machine and are write-operation screens meant for real-device acceptance testing item by item;
+// ② `--text-on-accent` being swapped out = the icon sitting on the brand gradient/accent solid background
+// turns into a dark-toned foreground under the dark variant, **exactly the failure mode Appendix B §B.3.1
+// devotes a whole section to warning about**.
 //
-// 手法沿用本档 R16 小节的 `nestedBlockBody()` 模具,零发明。
-// 🔴 判据(裁定 R20):① 互换 allow/deny 消费的 token → 必须报红;
-//    ② 换掉 `--text-on-accent` → 必须报红。两段输出 + md5sum 还原见 T2b 报告。
-describe('knowledge.scss —— I-1(裁定 R20):8 个色映射落点的 token 消费绑定(P5f-T2b 新建)', () => {
-  // 附录 B §B.4 六处 —— 两个块 × {allow, deny} × {background, color}。
-  // 🔴 逐处钉「选择器 → 属性 → token」,互换任意一对都会精确指名。
+// The technique reuses this file's own R16 section's `nestedBlockBody()` mold, nothing invented.
+// 🔴 Criterion (ruling R20): ① swapping the tokens allow/deny consume → must fail;
+//    ② swapping out `--text-on-accent` → must fail. Both output sections + the md5sum restore are in the T2b report.
+describe('knowledge.scss — I-1 (ruling R20): token-consumption binding for the 8 color-mapping sites (newly created in P5f-T2b)', () => {
+  // Appendix B §B.4's 6 sites — 2 blocks × {allow, deny} × {background, color}.
+  // 🔴 Pins down "selector → property → token" site by site; swapping any pair fails and names it precisely.
   const B4_BINDINGS: Array<[string, string, string, string]> = [
-    // [块选择器行, 变体选择器, 属性, token]
+    // [block selector line, variant selector, property, token]
     ['.k-frow-action {', '&[data-act="allow"]', 'background', '--success-soft'],
     ['.k-frow-action {', '&[data-act="allow"]', 'color', '--success'],
     ['.k-frow-action {', '&[data-act="deny"]', 'background', '--danger-soft'],
@@ -2345,63 +2455,69 @@ describe('knowledge.scss —— I-1(裁定 R20):8 个色映射落点的 token �
     ['.k-radio-card-icon {', '&[data-tone="deny"]', 'color', '--danger'],
   ]
 
-  // 从块体里切出某个 `&[…]` 变体那一行(蓝本源序里它们都是单行 `{ … }`)。
-  // 🔴 整行 trim 后**以变体选择器开头**才算,不是子串搜索(承本档五次「子串撞注释」教训;
-  //    注释在 cssKeepLines 里已被 blankComments 换成等量空格,连内容都不在了)。
+  // Slice out a given `&[…]` variant's line from a block body (in the blueprint's source order they are all
+  // single-line `{ … }`). 🔴 Only counts if the whole line, trimmed, **starts with the variant selector** —
+  // not a substring search (per this file's own five-time lesson of "substring matched against a comment";
+  // comments in cssKeepLines have already been replaced by blankComments with an equal number of spaces, so
+  // the content is not even there anymore).
   function variantLine(blockBody: string, variantSelector: string): string {
     const hits = blockBody
       .split('\n')
       .map((l: string) => l.trim())
       .filter((l: string) => l.startsWith(variantSelector))
-    expect(hits.length, `块内找不到唯一的 ${variantSelector} 变体行(命中 ${hits.length} 条)`).toBe(1)
+    expect(hits.length, `could not find a unique ${variantSelector} variant line inside the block (${hits.length} hits)`).toBe(1)
     return hits[0]
   }
 
   it.each(B4_BINDINGS)(
-    '附录 B §B.4 —— %s 内 %s 的 %s 消费 var(%s)(判据:allow/deny 互换 → 必须报红)',
+    'Appendix B §B.4 — %s consumes var(%s) inside %s of %s (criterion: swapping allow/deny must fail)',
     (block: string, variant: string, prop: string, token: string) => {
       const line = variantLine(nestedBlockBody(cssKeepLines, block), variant)
-      expect(line, `${block} 的 ${variant} 里 ${prop} 不是 var(${token}):${line}`).toContain(
+      expect(line, `inside ${block}'s ${variant}, ${prop} is not var(${token}): ${line}`).toContain(
         `${prop}: var(${token});`,
       )
     },
   )
 
-  // 防空转(§9.14-4):参数化清单必须真的有 8 条,且 8 条各不相同 —— 否则
-  // `it.each([])` 会零用例静默全绿,重复项则会让「8 处全覆盖」变成假象。
-  it('防空转 —— §B.4 绑定清单恰好 8 条且互不重复(防空循环 / 防重复项冒充覆盖)', () => {
+  // Anti-vacuous-pass (§9.14-4): the parameterized list must genuinely have 8 entries, all distinct from each
+  // other — otherwise `it.each([])` would silently pass with zero test cases, and duplicate entries would turn
+  // "full coverage of all 8 sites" into an illusion.
+  it('anti-vacuous-pass — the §B.4 binding list has exactly 8 entries and no duplicates (guards against an empty loop / a duplicate entry masquerading as coverage)', () => {
     expect(B4_BINDINGS).toHaveLength(8)
-    expect(new Set(B4_BINDINGS.map((b) => b.join('|'))).size, '绑定清单里有重复项').toBe(8)
+    expect(new Set(B4_BINDINGS.map((b) => b.join('|'))).size, 'the binding list has a duplicate entry').toBe(8)
   })
 
-  // 附录 B §B.3-② —— `.k-extgroup-icon` 的前景压在 `g.bg` 品牌渐变实底上
-  it('附录 B §B.3-② —— .k-extgroup-icon 前景消费 var(--text-on-accent)(判据:换成 --text-primary → 必须报红)', () => {
+  // Appendix B §B.3-② — `.k-extgroup-icon`'s foreground sits on the `g.bg` brand gradient's solid background
+  it('Appendix B §B.3-② — .k-extgroup-icon foreground consumes var(--text-on-accent) (criterion: swapping to --text-primary must fail)', () => {
     const body = nestedBlockBody(cssKeepLines, '.k-extgroup-icon {')
-    expect(body, '.k-extgroup-icon 的 color 不是 var(--text-on-accent) —— 见附录 B §B.3.1').toContain(
+    expect(body, '.k-extgroup-icon color is not var(--text-on-accent) — see Appendix B §B.3.1').toContain(
       'color: var(--text-on-accent);',
     )
-    // 🔴 反向:块内不许出现 --on-accent / --text-primary 这两个已被 §B.3.1 明确排除的替身
-    expect(/var\(--on-accent\)/.test(body), '.k-extgroup-icon 用了 --on-accent(暗档是深色,压实底上失效)').toBe(false)
+    // 🔴 Reverse: the block must not contain --on-accent / --text-primary, the two substitutes §B.3.1 explicitly excludes
+    expect(/var\(--on-accent\)/.test(body), '.k-extgroup-icon uses --on-accent (dark-toned under the dark variant, fails on a solid background)').toBe(false)
   })
 
-  // 附录 B §B.3-③ —— `.k-ext-chip[data-on="true"] .k-ext-chip-mark` 压在 --accent 实底上。
-  // 🔴 `.k-ext-chip-mark {` 在本档有**两处**(嵌套的 + 顶层基类),整行精确匹配会撞对第一处
-  //    ⇒ 必须**逐层下钻**:.k-ext-chip → &[data-on="true"] → .k-ext-chip-mark,不许直接锚。
-  it('附录 B §B.3-③ —— .k-ext-chip[data-on="true"] 下的 .k-ext-chip-mark 前景消费 var(--text-on-accent)', () => {
+  // Appendix B §B.3-③ — `.k-ext-chip[data-on="true"] .k-ext-chip-mark` sits on the --accent solid background.
+  // 🔴 `.k-ext-chip-mark {` appears **twice** in this file (a nested one + a top-level base class), so an exact
+  //    whole-line match would match the first one ⇒ must **drill down layer by layer**:
+  //    .k-ext-chip → &[data-on="true"] → .k-ext-chip-mark, anchoring directly is not allowed.
+  it('Appendix B §B.3-③ — the foreground of .k-ext-chip-mark under .k-ext-chip[data-on="true"] consumes var(--text-on-accent)', () => {
     const chip = nestedBlockBody(cssKeepLines, '.k-ext-chip {')
     const on = nestedBlockBody(chip, '&[data-on="true"] {')
     const mark = nestedBlockBody(on, '.k-ext-chip-mark {')
-    expect(mark, '[data-on="true"] 下的 .k-ext-chip-mark 前景不是 var(--text-on-accent)').toContain(
+    expect(mark, 'the foreground of .k-ext-chip-mark under [data-on="true"] is not var(--text-on-accent)').toContain(
       'color: var(--text-on-accent);',
     )
-    // 覆盖度自检:真的下钻到了那一层(块体里必须同时有 --accent 底色,否则锚错了块)
-    expect(mark, '下钻到的不是 [data-on="true"] 那一层的 .k-ext-chip-mark').toContain('background: var(--accent);')
+    // Coverage self-check: genuinely drilled down to that layer (the block body must also have the --accent background, otherwise the anchor landed on the wrong block)
+    expect(mark, 'did not drill down to the .k-ext-chip-mark under the [data-on="true"] layer').toContain('background: var(--accent);')
   })
 
-  // 覆盖度自检:8 处 + 2 处 = 附录 B 落在 knowledge.scss 里的全部 10 个 token 引用点。
-  // 🔴 「§B.4 六处」在 scss 里是 4 行 × 平均 2 个属性 = 8 个属性级落点(附录按字面量记 6 处,
-  //    其中 `color: var(--danger)` 两处蓝本本来就是 token、照抄不改 —— 一并钉住是加固)。
-  it('覆盖度自检 —— 4 条变体行确实都在档内且各只有一条(锚点没有漂到别的块)', () => {
+  // Coverage self-check: 8 sites + 2 sites = all 10 token reference points Appendix B lands inside
+  // knowledge.scss. 🔴 "§B.4's 6 sites" in the scss is 4 lines × an average of 2 properties = 8
+  // property-level landing points (Appendix B counts 6 by the literal count; the two `color: var(--danger)`
+  // sites among them were already tokens in the blueprint, copied verbatim without change — pinning them down
+  // too is a hardening).
+  it('coverage self-check — all 4 variant lines are genuinely present in this file and each has exactly one (the anchor has not drifted onto another block)', () => {
     for (const [block, variant] of [
       ['.k-frow-action {', '&[data-act="allow"]'],
       ['.k-frow-action {', '&[data-act="deny"]'],
@@ -2413,62 +2529,68 @@ describe('knowledge.scss —— I-1(裁定 R20):8 个色映射落点的 token �
   })
 })
 
-describe('knowledge.scss —— K54:kr-* 的两处 var() 兜底已改成纯 token(P5f-T2 新建)', () => {
-  // 🔴 蓝本原文:`.kr-badge` 是 `var(--bg-tertiary, <中性灰兜底>)`、`.kr-input` 是
-  // `var(--border, <中性灰兜底>)`。治理 §6 明令 rgba() 一律禁止(注释里也不许有)
-  // ⇒ 兜底字面量不能照抄。附录 B §B.2.2 定死落地取值,实现者零裁量。
-  // 上面那条全文色扫只能抓「有没有裸值」,**抓不到「换成了别的 token」** —— 这两条
-  // 把落点逐字钉死(手法同 P5e-T4 的「token → 消费选择器绑定」那批)。
+describe('knowledge.scss — K54: the two var() fallbacks of kr-* have been changed to pure tokens (newly created in P5f-T2)', () => {
+  // 🔴 The blueprint's original text: `.kr-badge` is `var(--bg-tertiary, <a muted-neutral fallback>)`,
+  // `.kr-input` is `var(--border, <a muted-neutral fallback>)`. Governance §6 forbids rgba() outright (not
+  // even in comments) ⇒ the fallback literal cannot be copied verbatim. Appendix B §B.2.2 fixes the landed
+  // value, leaving the implementer zero discretion. The whole-file color scan above can only catch "is there a
+  // bare literal", **it cannot catch "swapped for a different token"** — these two tests pin the landing site
+  // down verbatim (the same technique as P5e-T4's batch of "token → consuming-selector binding" tests).
   //
-  // 🔴🔴 诚实登记(勘误 E-73):`--bg-tertiary` 在蓝本与本仓**两侧都零声明** ⇒ 兜底
-  // 一直在生效 ⇒ `.kr-badge` 换成 `--bg-chip` 是**可见变化,不是等价替换**。
-  // `--border` 那一处才适用「兜底本是死代码」的论证(本仓 theme.css 有声明)。
-  it('K54-① —— .kr-badge 底色是 var(--bg-chip)(附录 B §B.2.2-①,判据:换成别的 token → 报红)', () => {
+  // 🔴🔴 Honest disclosure (errata E-73): `--bg-tertiary` has **zero declarations on both sides** — neither
+  // the blueprint nor this repo ⇒ the fallback has always been in effect ⇒ `.kr-badge` being changed to
+  // `--bg-chip` is a **visible change, not an equivalent substitution**. Only the `--border` site is where the
+  // "the fallback was dead code all along" argument applies (this repo's theme.css does declare it).
+  it('K54-① — .kr-badge background is var(--bg-chip) (Appendix B §B.2.2-①, criterion: swapping to a different token must fail)', () => {
     const body = nestedBlockBody(cssKeepLines, '.kr-badge {')
-    expect(body, '.kr-badge 底色不是 var(--bg-chip)').toContain('background: var(--bg-chip);')
+    expect(body, '.kr-badge background is not var(--bg-chip)').toContain('background: var(--bg-chip);')
   })
 
-  it('K54-② —— .kr-input 边框是 var(--line)(附录 B §B.2.2-②,判据:换成别的 token → 报红)', () => {
+  it('K54-② — .kr-input border is var(--line) (Appendix B §B.2.2-②, criterion: swapping to a different token must fail)', () => {
     const body = nestedBlockBody(cssKeepLines, '.kr-input {')
-    expect(body, '.kr-input 边框不是 1px solid var(--line)').toContain('border: 1px solid var(--line);')
+    expect(body, '.kr-input border is not 1px solid var(--line)').toContain('border: 1px solid var(--line);')
   })
 
-  it('K54 —— 这两个 token 两档都有值(否则真机会渲染成 guaranteed-invalid)', () => {
+  it('K54 — both tokens have values in both variants (otherwise a real device would render guaranteed-invalid)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     for (const tok of ['--bg-chip:', '--line:']) {
-      expect(darkBody, `暗色档缺 ${tok}`).toContain(tok)
-      expect(lightBody, `浅色档缺 ${tok}`).toContain(tok)
+      expect(darkBody, `dark variant missing ${tok}`).toContain(tok)
+      expect(lightBody, `light variant missing ${tok}`).toContain(tok)
     }
   })
 
-  // 🔴 反向:本档不许出现 `--bg-tertiary` / `--border` 这两个名字的 var() 引用
-  // (照抄进来 = K54 没落地;而它们在本档映射层零声明 ⇒ 真机会整块失色)。
-  it('K54 —— 本档零 var(--bg-tertiary) / var(--border) 引用(照抄兜底即报红)', () => {
-    expect(css, '本档出现 var(--bg-tertiary)').not.toMatch(/var\(\s*--bg-tertiary/)
-    expect(css, '本档出现 var(--border[,)])').not.toMatch(/var\(\s*--border\s*[,)]/)
+  // 🔴 Reverse: this file must not contain a var() reference to either name `--bg-tertiary` / `--border`
+  // (copying it in verbatim = K54 did not land; and since they are zero-declared at this file's mapping
+  // layer, a real device would lose the whole patch of color).
+  it('K54 — this file has zero var(--bg-tertiary) / var(--border) references (copying the fallback verbatim must fail)', () => {
+    expect(css, 'this file has var(--bg-tertiary)').not.toMatch(/var\(\s*--bg-tertiary/)
+    expect(css, 'this file has var(--border[,)])').not.toMatch(/var\(\s*--border\s*[,)]/)
   })
 
-  // 🔴 M-6 申报的可回归化部分:`.kr-path` / `.kr-input` 的字体栈**逐字照抄蓝本硬编码值**
-  // (裁定 §三 M-6;字体栈不是颜色,不在本仓 token 约束范围内)。这条钉住它没有被
-  // 「顺手统一」成 var(--font-mono) —— 那是改蓝本行为 + 未申报的偏离。
-  it('M-6 —— .kr-path / .kr-input 的字体栈照抄蓝本硬编码值,没有被顺手统一成 var(--font-mono)', () => {
+  // 🔴 The regressable part of M-6's disclosure: `.kr-path` / `.kr-input`'s font stacks **copy the
+  // blueprint's hardcoded values verbatim** (ruling §3 M-6; a font stack is not a color, it is outside this
+  // repo's token constraints). This test pins down that it was not "helpfully unified" into
+  // var(--font-mono) — that would be changing blueprint behavior plus an undisclosed deviation.
+  it('M-6 — the font stacks of .kr-path / .kr-input copy the blueprint hardcoded values verbatim, and have not been helpfully unified into var(--font-mono)', () => {
     const STACK = 'font-family: ui-monospace, SFMono-Regular, Menlo, monospace;'
     for (const sel of ['.kr-path {', '.kr-input {']) {
       const body = nestedBlockBody(cssKeepLines, sel)
-      expect(body, `${sel} 的字体栈被改动了(蓝本 RootsView.vue:235 / :259 逐字)`).toContain(STACK)
-      expect(body, `${sel} 被"顺手统一"成 var(--font-mono) —— 那是改蓝本行为`).not.toContain('var(--font-mono)')
+      expect(body, `${sel}'s font stack was changed (verbatim from blueprint RootsView.vue:235 / :259)`).toContain(STACK)
+      expect(body, `${sel} was "helpfully unified" into var(--font-mono) — that would be changing blueprint behavior`).not.toContain('var(--font-mono)')
     }
   })
 })
 
-describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取值(P5f-T2 新建)', () => {
-  // 🔴 蓝本把这三个渐变写死在 `AllowlistView.vue` 的 `GROUPS_TEMPLATE` 常量里,
-  // 经 `:style="{background: g.bg}"` 渲染;`color-guard` **压根不扫 `.ts`/`<script>` 常量**
-  // ⇒ 不 token 化就是裸奔(票 B 位置④,变异实测「注释注入 hex 全量全绿」)。
-  // 本刀负责**声明层**;常量侧只留 `var(--…)` 引用 + 定向断言,由 T4 落地。
-  // 两档同值(品牌识别渐变),但按头注释「隐藏坑」段的论证仍须各写一份。
-  it('三个 --grad-ext-* 两档取值逐字相同(theme-invariant,附录 B §B.6,禁重算)', () => {
+describe('knowledge.scss — K55: the three extension-group gradient tokens values in both variants (newly created in P5f-T2)', () => {
+  // 🔴 The blueprint hardcodes these three gradients in `AllowlistView.vue`'s `GROUPS_TEMPLATE` constant,
+  // rendered via `:style="{background: g.bg}"`; `color-guard` **does not scan `.ts`/`<script>` constants at
+  // all** ⇒ not tokenizing this runs bare (ticket B, location ④; a mutation test confirmed "injecting a hex
+  // literal into a comment stays all green"). This pass is responsible for the **declaration layer**; the
+  // constant side only keeps a `var(--…)` reference + a targeted assertion, landed by T4.
+  // Same value in both variants (a brand-identity gradient), but per the argument in the header comment's
+  // "hidden pitfall" section, each variant must still write its own copy.
+  it('the three --grad-ext-* tokens match verbatim in both variants (theme-invariant, Appendix B §B.6, recomputing forbidden)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     const lightBody = declBlockBody(css, LIGHT_TOKEN_SELECTOR)
     const expected: Record<string, string> = {
@@ -2477,46 +2599,53 @@ describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取�
       '--grad-ext-code': '--grad-ext-code: linear-gradient(135deg, #C18CFF, #AF52DE);',
     }
     for (const [tok, decl] of Object.entries(expected)) {
-      expect(darkBody, `暗色档 ${tok} 缺声明或取值被改动`).toContain(decl)
-      expect(lightBody, `浅色档 ${tok} 缺声明或取值被改动(不许"两档同值就省一档")`).toContain(decl)
+      expect(darkBody, `dark variant ${tok} missing declaration or value was changed`).toContain(decl)
+      expect(lightBody, `light variant ${tok} missing declaration or value was changed (both variants having the same value doesn't excuse skipping one)`).toContain(decl)
     }
   })
 
-  // 🔴 为什么另建新名而不复用:--grad-ext-docs 与既有 --grad-note-note / --grad-sandbox
-  // **逐字同值**,但 K39/K40 立的规矩就是「同值也另建新名」(语义属主不同)。
-  // 这条钉住三者各自独立声明,没有被"去重"成互相引用。
-  it('K39/K40 同款 —— 三个 --grad-ext-* 各自独立声明,没有被"去重"成 var(--grad-note-note) 之类', () => {
+  // 🔴 Why give it a separate new name instead of reusing one: --grad-ext-docs is **verbatim identical** to
+  // the existing --grad-note-note / --grad-sandbox, but the rule K39/K40 established is "give it a separate
+  // new name even with the same value" (different semantic owner). This test pins down that all three are
+  // declared independently, and have not been "deduplicated" into referencing each other.
+  it('same style as K39/K40 — the three --grad-ext-* tokens are each declared independently, and have not been "deduplicated" into something like var(--grad-note-note)', () => {
     const darkBody = declBlockBody(css, DARK_TOKEN_SELECTOR)
     for (const tok of ['--grad-ext-docs', '--grad-ext-text', '--grad-ext-code']) {
       const line = darkBody.split('\n').find((l: string) => l.trim().startsWith(`${tok}:`))
-      expect(line, `找不到 ${tok} 的声明行`).toBeTruthy()
-      expect(line!, `${tok} 被写成了对别的 token 的引用`).not.toContain('var(--grad-')
+      expect(line, `could not find the declaration line for ${tok}`).toBeTruthy()
+      expect(line!, `${tok} was written as a reference to a different token`).not.toContain('var(--grad-')
     }
   })
 
   // ═══════════════════════════════════════════════════════════════════════
-  // 【P5f-T2b 新建,裁定 **R20 的 M-a**】三个 `--grad-ext-*` 目前是**零消费绑定**:
-  // 声明层有两条断言(两档取值逐字 + 没被去重成互相引用),但**没有任何东西保证它们
-  // 真的被消费** —— 消费方 `GROUPS_TEMPLATE` 属于 T4。失效形态是**静默的**:
-  // T4 若忘了换、或换错了对应关系(docs↔code 串位),三个 token 就成死声明,四门全绿。
+  // 【Newly created in P5f-T2b, ruling **M-a of R20**】The three `--grad-ext-*` tokens currently have **zero
+  // consumption binding**: the declaration layer has two assertions (matching verbatim in both variants +
+  // not deduplicated into referencing each other), but **nothing guarantees they are genuinely consumed** —
+  // the consumer, `GROUPS_TEMPLATE`, belongs to T4. The failure mode is **silent**: if T4 forgets to swap it,
+  // or gets the mapping wrong (docs↔code cross-wired), the three tokens become dead declarations, with all
+  // four gates staying green.
   //
-  // 落法 = 「自动上膛」条件断言(§9.19),与 K53 那条同款模具:
-  // **现在**(`views/AllowlistView.vue` 不存在)走惰性分支通过;**T4 一建文件立刻上膛**。
-  // 🔴 §9.19 跨刀冲突论证:计划书 T4-2 本来就明令「`GROUPS_TEMPLATE` 的三个 `bg` 字段改
-  // `var(--…)`(附录 B 定死)」⇒ 本条不向 T4 索要任何它无权写的东西,**不冲突**。
-  // 🔴 §9.19 另一条:新守卫必须自带**防空转断言** —— 见下方「谓词判别力」那条,
-  // 它拿两份合成样本证明 `groupBgErrors()` 在文件还不存在时就已经是有牙的。
-  // 🔴 读文件一律 `node:fs`(铁律:Vite 的 `?raw` 在 vitest 下**恒空**)。
+  // Approach = an "auto-armed" conditional assertion (§9.19), the same mold as the K53 test:
+  // **right now** (`views/AllowlistView.vue` does not exist) it passes via the lazy branch; **the moment T4
+  // creates the file, it arms**.
+  // 🔴 §9.19's cross-pass-conflict argument: the plan document's T4-2 already explicitly orders "change
+  // `GROUPS_TEMPLATE`'s three `bg` fields to `var(--…)` (fixed by Appendix B)" ⇒ this test never asks T4 for
+  // anything it has no right to write, **no conflict**.
+  // 🔴 §9.19's other requirement: a new guard must carry its own **anti-vacuous-pass assertion** — see the
+  // "predicate discriminating power" test below, which uses two synthetic samples to prove `groupBgErrors()`
+  // already has teeth even while the file does not exist yet.
+  // 🔴 Always read files with `node:fs` (ironclad rule: Vite's `?raw` is **always empty** under vitest).
   const GRAD_EXT_BINDINGS: Array<[string, string]> = [
     ['docs', '--grad-ext-docs'],
     ['text', '--grad-ext-text'],
     ['code', '--grad-ext-code'],
   ]
 
-  // 纯函数:给一段 `AllowlistView.vue` 源码,返回三个分组的 `bg` 绑定错误清单(空 = 全对)。
-  // 🔴 定位手法**与格式无关**:从 `id: 'docs'` 起、到下一个 `id:` 或文本末尾为止的窗口,
-  //    该窗口内必须出现 `var(--grad-ext-docs)`,且**不许**出现另外两个 `--grad-ext-*`
-  //    (串位就是这样被抓住的);同时该窗口的 `bg` 值里不许有色字面量。
+  // Pure function: given a chunk of `AllowlistView.vue` source, return the list of `bg`-binding errors for
+  // the three groups (empty = all correct). 🔴 The locating technique is **format-agnostic**: the window from
+  //    `id: 'docs'` up to the next `id:` or the end of the text — `var(--grad-ext-docs)` must appear inside
+  //    that window, and the other two `--grad-ext-*` **must not** (this is exactly how a cross-wiring gets
+  //    caught); the window's `bg` value must also have no color literal.
   function groupBgErrors(src: string): string[] {
     const errs: string[] = []
     const idRe = /\bid:\s*['"]([a-z]+)['"]/g
@@ -2526,49 +2655,50 @@ describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取�
     for (const [gid, token] of GRAD_EXT_BINDINGS) {
       const i = marks.findIndex(([name]) => name === gid)
       if (i < 0) {
-        errs.push(`GROUPS_TEMPLATE 里找不到 id: '${gid}' 分组`)
+        errs.push(`could not find the id: '${gid}' group in GROUPS_TEMPLATE`)
         continue
       }
       const start = marks[i][1]
       const end = i + 1 < marks.length ? marks[i + 1][1] : src.length
       const win = src.slice(start, end)
-      if (!win.includes(`var(${token})`)) errs.push(`分组 '${gid}' 的 bg 没有消费 var(${token})`)
+      if (!win.includes(`var(${token})`)) errs.push(`group ${gid}: bg does not consume var(${token})`)
       for (const [, other] of GRAD_EXT_BINDINGS) {
         if (other !== token && win.includes(`var(${other})`)) {
-          errs.push(`分组 '${gid}' 的窗口里混进了 var(${other}) —— 三个渐变 token 串位了`)
+          errs.push(`group ${gid}: window has var(${other}) mixed in — the three gradient tokens are cross-wired`)
         }
       }
-      // 🔴 color-guard 不扫 `.vue` 的 `<script>` 常量 ⇒ 这里是唯一防线(票 B 位置④)
+      // 🔴 color-guard does not scan a `.vue`'s `<script>` constants ⇒ this is the only line of defense (ticket B, location ④)
       const bgLine = win.match(/\bbg:\s*[^,\n]*/)
       if (bgLine && /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(|linear-gradient\(/.test(bgLine[0])) {
-        errs.push(`分组 '${gid}' 的 bg 里仍有色字面量 / 内联 gradient:${bgLine[0].trim()}`)
+        errs.push(`group ${gid}: bg still has a color literal / inline gradient: ${bgLine[0].trim()}`)
       }
     }
     return errs
   }
 
-  // 🔴 防空转(§9.19 明令,且是「惰性通过期」唯一能证明这条守卫有牙的手段):
-  // 拿两份**合成样本**跑同一个谓词 —— 正确形态必须零错误,三种偏态必须各自被抓住。
-  it('防空转 —— groupBgErrors 谓词在合成样本上有判别力(文件还不存在时就先证明它不是空壳)', () => {
+  // 🔴 Anti-vacuous-pass (§9.19's explicit order, and the only way to prove this guard has teeth during its
+  // "lazy pass" period): run the same predicate on two **synthetic samples** — the correct shape must give
+  // zero errors, and each of three deviant shapes must be caught.
+  it('anti-vacuous-pass — the groupBgErrors predicate has discriminating power on synthetic samples (proves it is not an empty shell even before the file exists)', () => {
     const good = `
       const GROUPS_TEMPLATE = [
         { id: 'docs', labelKey: 'Documents', icon: 'file', bg: 'var(--grad-ext-docs)' },
         { id: 'text', labelKey: 'Text', icon: 'edit', bg: 'var(--grad-ext-text)' },
         { id: 'code', labelKey: 'Code', icon: 'code', bg: 'var(--grad-ext-code)' },
       ]`
-    expect(groupBgErrors(good), '正确形态被误判成有错 —— 谓词过严,会对 T4 误报').toEqual([])
-    // 偏态①:docs / code 串位
+    expect(groupBgErrors(good), 'the correct shape was misjudged as having an error — the predicate is too strict and would false-fail on T4').toEqual([])
+    // Deviant shape ①: docs / code cross-wired
     const swapped = good.replace('var(--grad-ext-docs)', 'var(--grad-ext-code)')
-    expect(groupBgErrors(swapped).length, '串位没有被抓住 —— 谓词零判别力').toBeGreaterThan(0)
-    // 偏态②:某一组没换 token,照抄蓝本的裸渐变
+    expect(groupBgErrors(swapped).length, 'the cross-wiring was not caught — the predicate has zero discriminating power').toBeGreaterThan(0)
+    // Deviant shape ②: one group never swapped its token, copying the blueprint's bare gradient verbatim
     const literal = good.replace("'var(--grad-ext-text)'", "'linear-gradient(135deg, #5DD68A, #2EB05B)'")
-    expect(groupBgErrors(literal).length, '裸色字面量没有被抓住 —— color-guard 不扫这里,本条是唯一防线').toBeGreaterThan(0)
-    // 偏态③:整组缺失
+    expect(groupBgErrors(literal).length, 'the bare color literal was not caught — color-guard does not scan here, this test is the only line of defense').toBeGreaterThan(0)
+    // Deviant shape ③: a whole group missing
     const missing = good.replace("{ id: 'code', labelKey: 'Code', icon: 'code', bg: 'var(--grad-ext-code)' },", '')
-    expect(groupBgErrors(missing).length, '分组缺失没有被抓住').toBeGreaterThan(0)
+    expect(groupBgErrors(missing).length, 'the missing group was not caught').toBeGreaterThan(0)
   })
 
-  it('M-a 自动上膛 —— 若 views/AllowlistView.vue 存在,则 GROUPS_TEMPLATE 三个 bg 各消费对应 --grad-ext-*(T4 建文件时上膛)', () => {
+  it('M-a auto-arms — if views/AllowlistView.vue exists, each of GROUPS_TEMPLATE three bg fields consumes its matching --grad-ext-* (arms once T4 creates the file)', () => {
     const ALLOWLIST_VUE = resolve(__dirname, '../knowledge/views/AllowlistView.vue')
     let src: string | null = null
     try {
@@ -2577,40 +2707,43 @@ describe('knowledge.scss —— K55:三个扩展名分组渐变 token 两档取�
       src = null
     }
     if (src === null) {
-      // 惰性分支:文件是 T4 的活。🔴 路径基座自检 —— views 目录必须真的存在,
-      // 否则「读不到 ⇒ 惰性通过」会退化成「路径写错也永远通过」的空壳。
+      // Lazy branch: the file is T4's job. 🔴 Path-base self-check — the views directory must genuinely
+      // exist, otherwise "cannot read ⇒ passes lazily" would degenerate into an empty shell that "always
+      // passes even with a wrong path".
       const vues = readdirSync(resolve(__dirname, '../knowledge/views')).filter((f: string) => f.endsWith('.vue'))
-      expect(vues.length, 'views 目录一个 .vue 都没有 —— 路径基座写错了?').toBeGreaterThan(0)
-      expect(vues, 'AllowlistView.vue 尚未创建(T4 的活)—— 本条处于「上膛待发」状态').not.toContain(
+      expect(vues.length, 'the views directory has no .vue at all — was the path base written wrong?').toBeGreaterThan(0)
+      expect(vues, 'AllowlistView.vue has not been created yet (T4 job) — this test is in "armed, awaiting fire" state').not.toContain(
         'AllowlistView.vue',
       )
       return
     }
-    expect(src.length, 'AllowlistView.vue 读出来是空的 —— node:fs 读法失效了').toBeGreaterThan(0)
-    expect(src, 'AllowlistView.vue 里找不到 GROUPS_TEMPLATE 常量').toContain('GROUPS_TEMPLATE')
+    expect(src.length, 'AllowlistView.vue read out empty — the node:fs read failed').toBeGreaterThan(0)
+    expect(src, 'could not find the GROUPS_TEMPLATE constant in AllowlistView.vue').toContain('GROUPS_TEMPLATE')
     const errs = groupBgErrors(src)
-    expect(errs, `三个 --grad-ext-* 的消费绑定不成立(附录 B §B.6 / 计划书 T4-2):\n${errs.join('\n')}`).toEqual([])
+    expect(errs, `the consumption binding for the three --grad-ext-* tokens does not hold (Appendix B §B.6 / plan document T4-2):\n${errs.join('\n')}`).toEqual([])
   })
 })
 
-describe('knowledge.scss —— var() 兜底豁免的加固(P5f-T2 新建)', () => {
-  // 【为什么补】既有那条「--g 是本档唯一登记的消费方 inline 注入例外」只断言了
-  // `css` 里含某个字符串,**没有**程序化证明「只有 --g 依赖这层豁免」。本刀搬入的
-  // Wiki 段引入了第二处带兜底的引用 `var(--tone, var(--text-quaternary))`(蓝本 :2529)——
-  // 但 `--tone` 由 `.kw-change[data-type=…]` 四条规则在本档**真实声明**,它**不依赖**
-  // 那层豁免。这条把「谁真的依赖豁免」变成集合相等断言:多出一个未声明的兜底 token
-  // (= 真的靠豁免蒙混过关的引用)就精确指名。🔴 纯新增,既有断言一行未改(§9.10)。
+describe('knowledge.scss — hardening the var() fallback exemption (newly created in P5f-T2)', () => {
+  // 【Why this was added】The existing test "--g is the only registered consumer inline-injection exception in
+  // this file" only asserts that `css` contains a certain string, it **does not** programmatically prove
+  // "only --g relies on this exemption". The Wiki section ported in by this pass introduces a second reference
+  // with a fallback, `var(--tone, var(--text-quaternary))` (blueprint :2529) — but `--tone` is **genuinely
+  // declared** in this file by four `.kw-change[data-type=…]` rules, and it **does not rely on** that
+  // exemption. This test turns "who genuinely relies on the exemption" into a set-equality assertion: one
+  // extra undeclared fallback token (= a reference genuinely sneaking through on the exemption) gets named
+  // precisely. 🔴 Purely additive, not a single line of any existing assertion was changed (§9.10).
   const theme2 = read('../../styles/theme.css')
   function declaredTokens(text: string): Set<string> {
     return new Set([...text.matchAll(/(--[a-z0-9-]+)\s*:/g)].map((m) => m[1]))
   }
 
-  it('依赖「带兜底则豁免」的 token 恰好只有 --g(--tone 在本档真实声明,不靠豁免)', () => {
+  it('the only token relying on the "exempt if it has a fallback" rule is exactly --g (--tone is genuinely declared in this file, does not rely on the exemption)', () => {
     const declared = new Set([...declaredTokens(css), ...declaredTokens(theme2)])
     const withFallback = [...new Set([...css.matchAll(/var\((--[a-z0-9-]+)\s*,/g)].map((m) => m[1]))]
-    // 覆盖度自检:确实抓到了带兜底的引用(否则"恰好只有 --g"是空集恒真)
-    expect(withFallback.length, '一处带兜底的 var() 都没抓到 —— 零判别力').toBeGreaterThanOrEqual(2)
+    // Coverage self-check: a reference with a fallback was genuinely captured (otherwise "exactly --g" would be a vacuously true empty set)
+    expect(withFallback.length, 'not a single var() reference with a fallback was captured — zero discriminating power').toBeGreaterThanOrEqual(2)
     const relying = withFallback.filter((t) => !declared.has(t)).sort()
-    expect(relying, `真正依赖兜底豁免的 token(应只有 --g):${relying.join(', ')}`).toEqual(['--g'])
+    expect(relying, `tokens genuinely relying on the fallback exemption (should only be --g): ${relying.join(', ')}`).toEqual(['--g'])
   })
 })

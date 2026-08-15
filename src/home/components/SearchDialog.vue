@@ -24,16 +24,16 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //
 // ⚠️ **Rendering uses `state` as the only switch** (upstream handoff contract): useSearchQuery neither clears
 //    the view when it fails nor when a new query round starts — the previous results stay alive. Any
-//    “display results” check must include `state === 'done'`, never write `v-if=”view”`; otherwise failed requests
+//    "display results" check must include `state === 'done'`, never write `v-if="view"`; otherwise failed requests
 //    will display previous results alongside error state, or search-in-progress shows stale results.
 //
-// ── Seven declared deviations from “visual 1:1 to Vue2 / logic correctness” ─────────────────
+// ── Seven declared deviations from "visual 1:1 to Vue2 / logic correctness" ─────────────────
 //   1. openPhotos() used to hardcode a colleague's machine's LAN IP as the jump origin (demo residue, broken
 //      on any other machine) → changed to same-origin relative redirect. This is **fixing a real defect**, not
 //      changing the UI (spec §7.9).
-//   2. Media row subtitle `.media-acc-label` (“match accuracy” / “text recognized”) removed: accuracy percent
-//      replaced with source badge, so “matching accuracy” label is now meaningless. Also `.media-acc-num`'s
-//      18px was designed for “98%”; for short badges like “filename” it's too large → changed to 13px.
+//   2. Media row subtitle `.media-acc-label` ("match accuracy" / "text recognized") removed: accuracy percent
+//      replaced with source badge, so "matching accuracy" label is now meaningless. Also `.media-acc-num`'s
+//      18px was designed for "98%"; for short badges like "filename" it's too large → changed to 13px.
 //   3. `row.thumbnailUrl` (Photos thumbnail URL from images source) **not consumed this cycle**; media thumbnails
 //      all use service.image.thumbUrl(realPath): Photos thumbnail auth cannot be validated locally (images
 //      source always unavailable locally), premature changes would introduce unvalidatable paths. Data still
@@ -46,27 +46,27 @@ import type { ResultRow, SourceBadge } from '../search/types'
 //      This is a visibly different character, noted on record (not a new defect in real-device checks).
 //   6. **Album card accepts only images / OCR source rows; filename-matched images move to media single-line**
 //      (decided 2026-08-04, plan a). **Why this is behavior correction, not UI change**: spec §7.10g says
-//      “album card cannot run locally”, so stuffing all isMedia rows into album card was safe — that premise
+//      "album card cannot run locally", so stuffing all isMedia rows into album card was safe — that premise
 //      is **wrong**. Images source is always unavailable locally, so the only media rows come from filenames source;
 //      album card not only runs, it's the default experience. But filename-matched images (real test:
-//      /DATA/Documents/life/Nick's receipt.jpg) are not in the album library, so “open album” inevitably lands
-//      on empty page. That is, old rendering gave an **always-broken entry**, which belongs to “don't copy Vue2 bugs”,
-//      not “changed the UI to something else”. Two points of change: displayList 'all' branch (routing) and
+//      /DATA/Documents/life/Nick's receipt.jpg) are not in the album library, so "open album" inevitably lands
+//      on empty page. That is, old rendering gave an **always-broken entry**, which belongs to "don't copy Vue2 bugs",
+//      not "changed the UI to something else". Two points of change: displayList 'all' branch (routing) and
 //      `.media-row` left-click and top-right CTA (openMediaRow / button choosing by badge). The latter also
-//      affects **filename-matched** media rows under Images / Videos tabs (CTA changes from “open album ›” to
-//      “open folder ›”) — same reason, both noted.
+//      affects **filename-matched** media rows under Images / Videos tabs (CTA changes from "open album ›" to
+//      "open folder ›") — same reason, both noted.
 //   7. **`.media-row` adds filename + containing folder two lines** (decided 2026-08-04). This is the **side-effect patch**
 //      from #6 above: `.media-row` was originally designed for album / OCR matches — those rows prioritize thumbnails,
 //      so only thumbnail + source badge, no filename or path. After routing, **filename-matched images now use this row**,
-//      creating “user searches receipt and hits Nick's receipt.jpg but doesn't see the searched name on that row”.
+//      creating "user searches receipt and hits Nick's receipt.jpg but doesn't see the searched name on that row".
 //      Matching `.result` row styling (`.result-name` / `.result-path`, same token set) add two lines to the right of
 //      thumbnail. Album / OCR match rows also show filename and path — decided with that understood and accepted,
 //      no longer two separate layouts by source.
 //
-// Ask Nimo AI entry on the right of search input: gradient capsule button (star icon + “Ask Nimo” text, like Gemini),
+// Ask Nimo AI entry on the right of search input: gradient capsule button (star icon + "Ask Nimo" text, like Gemini),
 // height matches close (✕) button (36px).
 // Interactions: left-click result = reuse file page's ViewerHost for in-place preview (docx/pdf/xlsx/images/video/audio/text all supported);
-//            directory row has no preview, left-click goes into that directory; each row's top-right “open folder” = new window
+//            directory row has no preview, left-click goes into that directory; each row's top-right "open folder" = new window
 //            to the file's containing folder; album card = enter AI photo library and search.
 // Dialog is non-modal (modal=false), so ViewerHost's fullscreen layer won't be made inert by modality; when preview is open,
 // intercept outside clicks/Esc to avoid accidentally closing the search.
@@ -533,7 +533,7 @@ watch(() => route.query.q, (raw) => {
 .close-btn svg { width: 16px; height: 16px; }
 
 /* Ask Nimo AI — entry button on right of input box, height matches close (✕) button (36px);
-   capsule shape, contains gradient star icon + “Ask Nimo” text, like Gemini's Ask button (gradient follows theme) */
+   capsule shape, contains gradient star icon + "Ask Nimo" text, like Gemini's Ask button (gradient follows theme) */
 .ask-nimo-btn {
   flex: 0 0 auto; display: inline-flex; align-items: center; gap: 7px;
   height: 36px; padding: 0 15px; border-radius: 999px; cursor: pointer; white-space: nowrap;

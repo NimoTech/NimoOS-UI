@@ -30,7 +30,7 @@
   ===== N1 (public constraint §3.5.1, follow exactly, confirmed) =====
   Vue2 `valid` (lines 141-146) requires non-empty name; backend `validateAndClean`
   (`mcp.go:273-289`) has zero validation. This repo copies exactly (see computed below),
-  **no new validation, no deletion** — design doc §6 decision N1: not “frontend stricter than
+  **no new validation, no deletion** — design doc §6 decision N1: not "frontend stricter than
   backend” issue, pure UI requirement (unnamed server = unidentifiable blank list entry),
   no data transformation involved.
 

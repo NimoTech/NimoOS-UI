@@ -91,7 +91,7 @@ export function useVmList() {
         const fresh = findVm(oldSelected.id)
         selectedVM.value = fresh ? preserveSpice(fresh, oldSelected) : null
         if (fresh && selectedVM.value) {
-          // preserveSpice may return a new object; swap it back into the list item to maintain the “same reference” contract.
+          // preserveSpice may return a new object; swap it back into the list item to maintain the "same reference" contract.
           const idx = vms.value.findIndex((v) => v.id === fresh.id)
           if (idx !== -1) vms.value[idx] = selectedVM.value
         }
@@ -333,9 +333,9 @@ export function useVmList() {
     // ⚠️ Deviation from Vue2 (SP9-P5 logged, review 2): Vue2 toggleAutoStart(:1516-1528) records
     // originalValue first, then writes vm.autostart = newValue(:1522) only after await succeeds, then in catch
     // changes vm.autostart back to originalValue(:1525). But with this write order, the failure branch never writes the new value —
-    // vm.autostart is already originalValue, the catch “rollback” is dead code (copying this logic has no observable effect;
-    // verified by deleting the test). Following “UI matches Vue2, logic is correct” we keep only the meaningful part:
-    // on failure do not write autostart (it is already the original value), only set lastError; no “optimistic write then revert” rollback
+    // vm.autostart is already originalValue, the catch "rollback" is dead code (copying this logic has no observable effect;
+    // verified by deleting the test). Following "UI matches Vue2, logic is correct" we keep only the meaningful part:
+    // on failure do not write autostart (it is already the original value), only set lastError; no "optimistic write then revert" rollback
     // (that would make the toggle flicker and snap back, a different visible behavior, violating 1:1 UI match).
     processing.value.add(vm.id)
     try {

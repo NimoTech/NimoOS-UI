@@ -83,12 +83,12 @@ function mountLb(): VueWrapper {
 // Create pinia only once (not rebuild in each beforeEach): useLightbox's isFav computed is a
 // module-level singleton. Its `current.value && fav.isFav(...)` short-circuit structure means
 // when the current reference value is reused across two evaluation windows (IMG_A/B/C in this file
-// are module-level constants shared across tests), Vue judges “no change” and skips re-evaluation,
+// are module-level constants shared across tests), Vue judges "no change" and skips re-evaluation,
 // causing isFav to hang indefinitely on the previous store instance's favIds (which is now defunct
 // from createPinia()) and never receive notification of state flips in the new store. We keep the
 // same pinia/store, and instead reset state in each test with store's own __resetForTest() —
-// semantically equivalent to the pre-refactoring approach of “same module-level favIds ref, reset
-// .value before each test”.
+// semantically equivalent to the pre-refactoring approach of "same module-level favIds ref, reset
+// .value before each test".
 setActivePinia(createPinia())
 const lb = useLightbox()
 

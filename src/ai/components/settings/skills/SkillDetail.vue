@@ -16,25 +16,25 @@
   `DialogContent`) to construct Vue2's exact DOM in this component — reason in task 6.1: `SkModal` forces
   title bar + close button rendering (Vue2's confirmation dialog has no title bar, title is the
   `<h3>` inside `.sk-confirm-body`), default slot with `.sk-modal-body` stacks with `.sk-confirm-body`'s built-in padding,
-  `.sk-modal` class hardcoded and cannot add `.sk-confirm`. `DialogPortal to=”.set-app”` cannot be omitted — AI zone
+  `.sk-modal` class hardcoded and cannot add `.sk-confirm`. `DialogPortal to=".set-app"` cannot be omitted — AI zone
   token defined in `.agent-app` scope, portaling to body would make `var(--bg-elevated)` and similar all
   fail to parse (same as SkModal.vue header comment D1). Accessibility title uses
   `<VisuallyHidden as-child><DialogTitle>` (reka requires DialogTitle inside DialogContent),
   precedent `src/home/components/SearchDialog.vue:317`. Confirm/cancel buttons use plain
   `<button>` hand-written `@click` (not `AlertDialogAction`/`DialogClose`) — those two reka components
-  hardcode `@click=”onOpenChange(false)”` in template, consumer's `@click` after `$attrs` merge
+  hardcode `@click="onOpenChange(false)"` in template, consumer's `@click` after `$attrs` merge
   `update:open` fires before custom handler (P1c1 Task 11's pitfall); this component's confirm button
   handler directly reads `props.skill.id`, does not depend on `open` state, naturally unaffected by this pitfall,
   but still follows the existing pattern (plain `<button @click>`, not DialogClose) for consistency,
   no new pattern introduced.
 
   [Implementation choice, not behavior deviation, analogous to SetSwitch.vue header comment's v-model/update:modelValue line
-  “framework API difference, not behavior change”] External click closes menu, reuses existing `useClickOutside`
+  "framework API difference, not behavior change"] External click closes menu, reuses existing `useClickOutside`
   composable (`../../../composables/useClickOutside.ts`, existing precedent
   `ModelPicker.vue:26,69`), not hand-written Vue2 :214-225's `watch(menuOpen)` with
   conditional addEventListener/removeEventListener. Behavior to user is completely equivalent (external
   mousedown closes menu, listeners must be removed after component unmount), `useClickOutside` uses onMounted/
-  onUnmounted unconditionally attach/detach, does not have Vue2's “only attach listener when menuOpen is true” conditional
+  onUnmounted unconditionally attach/detach, does not have Vue2's "only attach listener when menuOpen is true" conditional
   race (P1c1 Task 7's leak came from conditional mount timing). `skill.id` change resets
   `menuOpen`/`confirmOpen` still uses separate `watch`, aligns with Vue2 :226-229.
 
@@ -49,63 +49,63 @@
 
   [Color change, shared constraint §6] Vue2 :64-73's status dot is inline `:style` constructing `rgba(...)`
   (explicitly forbidden by color-guard, see constraint §6 point 5 naming `SkillDetail.vue:67-72`).
-  Here changed to: output `data-disabled=”true”/”false”` on `.val` based on `!skill.enabled`,
+  Here changed to: output `data-disabled="true"/"false"` on `.val` based on `!skill.enabled`,
   color rules entirely delegated to Task 1's already-written
-  `.sk-meta-cell .val .dot` / `.val[data-disabled=”true”] .dot` static CSS in skills-styles.scss:280-316 — this component's
-  `<span class=”dot” />` no longer carries any inline styles or color-related data attributes.
+  `.sk-meta-cell .val .dot` / `.val[data-disabled="true"] .dot` static CSS in skills-styles.scss:280-316 — this component's
+  `<span class="dot" />` no longer carries any inline styles or color-related data attributes.
 
   [last_used no mapping] Per Vue2 :88 use `skill.last_used || '—'` as-is. If backend later
-  writes English relative time strings (like “3 hours ago”) to this field, need to add a localization layer here —
+  writes English relative time strings (like "3 hours ago") to this field, need to add a localization layer here —
   currently backend contract (NimoOS-AI/service/skills.go) this field is any string or empty, no handling needed.
 
-  [TestPanel placeholder] Vue2 :108-112's `TestPanel` sits between “description” and “SKILL.md”
+  [TestPanel placeholder] Vue2 :108-112's `TestPanel` sits between "description" and "SKILL.md"
   `.sk-section` blocks. P3a does not render it, two sections directly adjacent; template below leaves one comment line marking
   where P3b should reinsert it, avoid inserting in wrong order.
 
-  SP8-P3b Task 7 — D4 dialog (disabled skill “try in chat” prompts first) + mount TestPanel.
+  SP8-P3b Task 7 — D4 dialog (disabled skill "try in chat" prompts first) + mount TestPanel.
 
   [Deviation notice 3, shared constraint §3 deviation 3 / task D4] Address P3a backlog ③: backend
   `NimoOS-AI/service/skills_runtime.go:57` excludes `disabled` skills from runtime view, disabled
-  skill's “try in chat” sends `X-Skill-Id` but agent cannot find `SKILL.md`, UI gives zero feedback.
+  skill's "try in chat" sends `X-Skill-Id` but agent cannot find `SKILL.md`, UI gives zero feedback.
   Vue2 `SkillDetail.vue:240-242 tryInChat()` completely ignores `skill.enabled`, always jumps directly —
-  this is a reproducible bug to fix, not a “visual/interaction” to copy. Changed to: when `skill.enabled === false`
-  do not jump, instead show a D4 confirmation dialog (“enable and try” / cancel); when `enabled === true` behavior unchanged
+  this is a reproducible bug to fix, not a "visual/interaction" to copy. Changed to: when `skill.enabled === false`
+  do not jump, instead show a D4 confirmation dialog ("enable and try" / cancel); when `enabled === true` behavior unchanged
   (P3a already implemented, jump directly). **This dialog does not exist in Vue2** (user decided to add 2026-07-30),
-  not a duplication target, so uses standard shell `SkModal` (see “two dialog shells coexist” comment below), not
+  not a duplication target, so uses standard shell `SkModal` (see "two dialog shells coexist" comment below), not
   this file's reka primitive hand-construction.
 
   [Two dialog shells coexist, not inconsistency] This file has two dialog patterns: delete/uninstall confirmation dialog uses bare reka
-  Dialog primitives (see above “Deviation notice 2”), because it must pixel-perfectly duplicate Vue2's **dialog without title bar**,
+  Dialog primitives (see above "Deviation notice 2"), because it must pixel-perfectly duplicate Vue2's **dialog without title bar**,
   `SkModal`'s forced title bar + close button shape won't fit; D4 this dialog is new this period,
-  Vue2 has no corresponding object, no “duplication target”, so directly uses ready-made standard shell `SkModal`
+  Vue2 has no corresponding object, no "duplication target", so directly uses ready-made standard shell `SkModal`
   (`:open`+`@update:open`+default slot+`#footer`, precedent `sections/ChannelsSection.vue:427`),
-  gets Esc/focus trap/`.set-app` scoping handling for free. Both selection rationale same rule: “have pixel-perfect
-  duplication target → hand-construct close to Vue2; no duplication target (new UI this period) → use standard shell”,
+  gets Esc/focus trap/`.set-app` scoping handling for free. Both selection rationale same rule: "have pixel-perfect
+  duplication target → hand-construct close to Vue2; no duplication target (new UI this period) → use standard shell",
   not style drift.
 
-  [`pendingTryId` one-time semantics] “Enable and try” emits `emit('toggle', id, true)`, must wait
+  [`pendingTryId` one-time semantics] "Enable and try" emits `emit('toggle', id, true)`, must wait
   **parent truly changes this skill's `enabled` to true** (toggle succeeds) before navigating; if toggle fails parent
   doesn't change `enabled`, `watch` won't see value change, naturally won't navigate, no need for extra failure branch. Use
   `pendingTryId` (records skill id at request moment, not a boolean flag) instead of timers/await emit
-  (emit is synchronous, no return value, cannot wait for “parent finished processing” event). Three clear paths:
-  ① Before navigate (`watch` hits `enabled===true` and id matches) immediately clear, prevent future “switch on→user manually opens”
-     being misread as “waiting to navigate” and redirecting user;
-  ② Click “cancel” immediately clear;
+  (emit is synchronous, no return value, cannot wait for "parent finished processing" event). Three clear paths:
+  ① Before navigate (`watch` hits `enabled===true` and id matches) immediately clear, prevent future "switch on→user manually opens"
+     being misread as "waiting to navigate" and redirecting user;
+  ② Click "cancel" immediately clear;
   ③ `skill.id` change clear (shared same `watch` with existing `menuOpen`/`confirmOpen` reset) — this way
      after switching to another skill, previous skill's registration won't linger, also won't rely on watcher firing order
      between multiple watchers: `watch(enabled)` callback extra checks `skill.id === pendingTryId`, two-layer defense
      stacked, not depending on Vue internal watcher scheduling order implementation detail.
 
   [Post-review revision (Important 1, task D4's simplification vs design doc §9.4 original)]  Task simplified
-  §9.4 “first `toggle(id, true)`, **navigate only on success**; on failure **stay in dialog** + danger toast, no
-  navigate” into “emit toggle then close dialog”, kept only half (no navigate on failure), missed “dialog must
-  stay before success” — this is task's simplification loss of design doc, per design doc: `confirmEnableAndTry`
+  §9.4 "first `toggle(id, true)`, **navigate only on success**; on failure **stay in dialog** + danger toast, no
+  navigate" into "emit toggle then close dialog", kept only half (no navigate on failure), missed "dialog must
+  stay before success" — this is task's simplification loss of design doc, per design doc: `confirmEnableAndTry`
   no longer closes `tryModalOpen` at toggle moment, instead stays open; `watch(enabled)` hits
   `id match && enabled===true` **same step** closes dialog + navigates. Toggle fails → `enabled`
-  unchanged, dialog stays open, user can retry “enable and try” or click “cancel”. Danger toast
+  unchanged, dialog stays open, user can retry "enable and try" or click "cancel". Danger toast
   by parent (T8 `SkillsSection.onToggle`), this component won't repeat.
   Additionally (self-judgment scope, not design doc forced): `busy[skill.id]` is true (toggle request in flight)
-  “enable and try” button `disabled`, prevent user repeatedly clicking before request returns, avoid
+  "enable and try" button `disabled`, prevent user repeatedly clicking before request returns, avoid
   multiple `toggle` requests.
 
   No <style> block: all used classes (sk-detail*, sk-name, sk-pill-try, sk-meta-grid,

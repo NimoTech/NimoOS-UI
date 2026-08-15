@@ -90,9 +90,9 @@ describe('fetchVMs', () => {
     // Review fix (critical 1): originally reused beforeEach's mockResolvedValue, but
     // vi.fn().mockResolvedValue(v) evaluates once and returns the same object reference on every call —
     // the direct assignment to selectedVM above mutates this shared object, so when fetchVMs()
-    // is called the second time, the “new data” is actually the already-mutated old object; preserveSpice's presence/absence
+    // is called the second time, the "new data" is actually the already-mutated old object; preserveSpice's presence/absence
     // cannot be tested. Here we explicitly mockImplementation to create a fresh object each time, with spicePort explicitly 0,
-    // truly simulating “backend returns fresh data without spicePort”.
+    // truly simulating "backend returns fresh data without spicePort".
     api.getVMList.mockImplementation(() =>
       Promise.resolve({ data: [VM({ spicePort: 0, spiceTlsPort: 0 })], total: 1 }))
     await s.fetchVMs()  // new data spicePort=0
@@ -355,7 +355,7 @@ describe('Power actions', () => {
     expect(s.selectedVM.value?.autostart).toBe(true)
     api.setAutostart.mockRejectedValue(new Error('nope'))
     await s.toggleAutostart(s.selectedVM.value!)
-    // Note: it's true here not because “rollback” works — on failure autostart was never written the new value,
+    // Note: it's true here not because "rollback" works — on failure autostart was never written the new value,
     // it was already true. The assertion with real discriminating power is lastError below.
     expect(s.selectedVM.value?.autostart).toBe(true)
     expect(s.lastError.value).toBeTruthy()

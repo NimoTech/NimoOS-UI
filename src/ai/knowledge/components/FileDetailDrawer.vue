@@ -14,7 +14,7 @@
 //
 // 🔴 N42 (blueprint comes with `reqId` stale guard, :148/:155/:159/:162) — copy as-is,
 // see `fetchFull()`. `activeId` is component-local (`ref`, top of `<script setup>`,
-// each instance has its own) — “two instances interleaved” test in `FileDetailDrawer.test.ts`
+// each instance has its own) — "two instances interleaved" test in `FileDetailDrawer.test.ts`
 // (criterion: move it to module-level → must fail).
 //
 // 🔴 N43 (blueprint :182-190 method convention) — blueprint wrote `submitDistill`/`notify`
@@ -29,8 +29,8 @@
 // 🔴 N41 — `created`/`beforeDestroy` → `onMounted`/`onBeforeUnmount` (lifecycle rewrite,
 // not divergence). With `KFileViewer.vue` each independently registers/unregisters `keydown`
 // Esc — both when mounted simultaneously press Esc closes both, that's blueprint's existing
-// behavior, don't add `stopPropagation`/hierarchy management to “fix” it.
-// ⚠️ `fetchFull()` first call placed “at creation time” per blueprint (corresponds Vue2
+// behavior, don't add `stopPropagation`/hierarchy management to "fix" it.
+// ⚠️ `fetchFull()` first call placed "at creation time" per blueprint (corresponds Vue2
 // `created()`, here = `<script setup>` top level, runs sync at component instance creation),
 // don't move into `onMounted` — their timing differs (created before mount), moving into
 // onMounted delays first data request until after DOM mounts, observable timing divergence.

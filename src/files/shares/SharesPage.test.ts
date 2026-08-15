@@ -12,8 +12,8 @@ import SharesPage from './SharesPage.vue'
 //
 // storageList is a controlled deferred: the first call to files.loadRoots() in onMounted will
 // hang on it without resolving. This is used to simulate the real race condition in a deep-link
-// scenario “loadRoots() hasn't finished running when the user clicks 'goto'” rather than letting
-// the mock resolve immediately and thus “testing away” the race-condition window.
+// scenario "loadRoots() hasn't finished running when the user clicks 'goto'" rather than letting
+// the mock resolve immediately and thus "testing away" the race-condition window.
 const { listShares, storageList, resolveStorage } = vi.hoisted(() => {
   let resolveFn!: (v: unknown) => void
   const pending = new Promise((resolve) => { resolveFn = resolve })
