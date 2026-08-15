@@ -157,13 +157,13 @@ export const SOFT = [
       { file: /src\/files\/upload\/dropEntries\.test\.ts$/, re: exactLine("expect(rels).toEqual(['Folder/.hidden', 'Folder/notes.txt', 'Folder/photo.jpg', 'Folder/video.mp4'])") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotBrowsePath('/DATA/.snapshots/snap1/Photos/2024')).toEqual({") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("mount: '/DATA', snapshotName: 'snap1', relPath: 'Photos/2024',") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('有相对路径就拼上', () => { expect(liveVolumePath('/DATA', 'Photos/2024')).toBe('/DATA/Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('concat with relative path if present', () => { expect(liveVolumePath('/DATA', 'Photos/2024')).toBe('/DATA/Photos/2024') })") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("await expect(resolveExitTarget({ mount: '/DATA', snapshotName: 's1', relPath: 'Photos/2024' }, dirExists))") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine(".resolves.toBe('/DATA/Photos/2024')") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(dirExists).toHaveBeenCalledWith('/DATA/Photos/2024')") },
       { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("expect(parseSnapshotsContainerPath('/DATA/Photos')).toBeNull()") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('取相对卷根的路径', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })") },
-      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('容忍两侧末尾斜杠', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('get relative path from volume root', () => { expect(relPathUnderMount('/DATA', '/DATA/Photos/2024')).toBe('Photos/2024') })") },
+      { file: /src\/files\/util\/snapshotPath\.test\.ts$/, re: exactLine("it('tolerate trailing slash on both sides', () => { expect(relPathUnderMount('/DATA/', '/DATA/Photos/')).toBe('Photos') })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("const restore = vi.fn().mockResolvedValue({ restored_path: '/DATA/Photos/a.jpg.restored-1' })") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("item: { path: '/DATA/.snapshots/snap1/Photos/a.jpg' },") },
       { file: /src\/files\/util\/snapshotRestore\.test\.ts$/, re: exactLine("expect(restore).toHaveBeenCalledWith({ volume_uuid: 'u-data', snapshot: 'snap1', path: 'Photos/a.jpg' })") },
@@ -238,6 +238,10 @@ export const SOFT = [
       { file: /src\/styles\/theme\.css$/, re: exactLine("/* SP11: the paper theme's text is near-black (#1c1b19), so a dark photo needs") },
       { file: /src\/styles\/theme\.css$/, re: exactLine('     15% on 2026-08-08, down from the 55% this shipped with: at 55% the photo was') },
       { file: /src\/styles\/theme\.css$/, re: exactLine('     the photo and almost all of its text. Anything the veil alone has to carry') },
+      // 2026-08-15: the English-ification sweep turned this shadow comment's "照片/视频"
+      // into "photos/videos". Same sense as the entries above -- the media the overlay
+      // sits on top of (image/video preview is a kept surface), not the photos app.
+      { file: /src\/styles\/theme\.css$/, re: exactLine("/* Shadow for overlays sitting above media (photos/videos): content color can't be") },
     ],
   },
   {
@@ -249,6 +253,10 @@ export const SOFT = [
       { file: /src\/settings\/util\/migrateBrowse\.ts$/, re: /Gallery/ },
       { file: /src\/settings\/panels\/AppsPanel\.vue$/, re: /Gallery/ },
       { file: /src\/home\/grid\/defaultLayout\.ts$/, re: /\/DATA\/Gallery/ },
+      // 2026-08-15: the frozen copy oss/files/defaultLayout.ts had its ASCII grid map
+      // translated, so the folder tile drawn as "[图库]" is now "[Gallery]". Same
+      // system default folder as the entry above, drawn instead of written as a path.
+      { file: /src\/home\/grid\/defaultLayout\.ts$/, re: exactLine('// r6  [                  ][Docs][Downloads][Media][Gallery][      ][    ][    ]') },
       { file: /src\/i18n\/(zh_cn|en_us)\.ts$/, re: /Gallery/ },
       // E6:Vue2 逐字移植的路径归一(应用导入时的目录归一化),/DATA/Gallery 是
       // LocalStorage 开机自建的系统目录,与相册功能无关,是保留面。
@@ -343,8 +351,14 @@ export const SOFT = [
       // 重复出现两次,exactLine 天然覆盖两处)。
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("await w.get('.store-search input').setValue('jelly')") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("expect(replace).toHaveBeenCalledWith({ query: { search: 'jelly' } })") },
-      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('?search= 生效时前端过滤;点卡片进详情', async () => {") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('When ?search= takes effect, frontend filtering; click card to go to detail', async () => {") },
       { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("routeQuery.search = 'jelly'") },
+      // 2026-08-15:StorePage.test.ts 的三条用例标题与 Files.vue 的粘贴注释已在私有侧译成
+      // 英文,原中文整行(登记在下面 '搜索' 那条)不再命中。语义未变:应用商店自己的关键字
+      // 过滤器 / 文件区自己的文件名过滤输入框,都与被剥离的 NimoOS-Search 无关。整行精确匹配。
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Search input debounced 250ms then replace route query (frontend filtering, deep link)', async () => {") },
+      { file: /src\/apps\/views\/StorePage\.test\.ts$/, re: exactLine("it('Featured strip only shows when there is no search + all categories + all sources', async () => {") },
+      { file: /src\/views\/Files\.vue$/, re: exactLine("// Don't steal the browser's default paste when focus is in an input (rename/search/etc.); silently ignore when the clipboard holds only text.") },
       // write-root-redirect.sh / writeRootRedirect.test.ts:这里的 'search' 是浏览器
       // Location 接口的 .search 属性(URL 查询串),根重定向页把它原样透传给 /app/
       // 目标应用(连同 .hash),与被剥离的 NimoOS-Search 服务/SearchDialog.vue 毫无关系。
@@ -430,6 +444,10 @@ export const SOFT = [
       { file: /src\/i18n\/zh_cn\.base\.ts$/, re: exactLine("appsStoreSearch: '搜索应用…',") },
       // StorePage 这三行注释是"应用商店按关键字过滤"语义,与 AI 语义搜索无关。逐行精确匹配,
       // 不是给整个文件的"搜索"二字开洞 —— 见上方复审 Critical 的复现证据。
+      // 2026-08-15:这三行连同 StorePage.test.ts 的用例标题、Files.vue 的粘贴注释都已在
+      // 私有侧译成英文,产出树里不再出现中文原文;条目保留是因为守卫自检用它们当样本
+      // (forbidden.test.mjs 逐条构造"合法原文 + 尾部追加泄漏"),等价的英文整行登记在
+      // 上面 'search' 那条。
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 搜索输入:250ms 防抖(Vue2 同款)后写 query;外部 query 变化(后退)回灌输入框') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 分类/作者是后端参数:query 变化即重拉;搜索纯前端不重拉') },
       { file: /src\/apps\/views\/StorePage\.vue$/, re: exactLine('// 推荐带只在「未过滤未搜索」的首屏语境显示——过滤/搜索时列表就是用户要的答案,带子是噪音') },
@@ -519,6 +537,10 @@ export const SOFT = [
       // 这里按**包名精确枚举**,如果 lockfile 里哪天真的出现 nimoos-parser 或任何其他
       // 新的 "*-parser" 依赖,这条正则不会匹配到它,仍然会被抓到人工看一眼。
       { file: /(^|\/)pnpm-lock\.yaml$/, re: /@babel\/(helper-string-)?parser\b|@csstools\/css-(parser-algorithms|color-parser)\b|(?:engine|socket)\.io-parser\b|yargs-parser\b/ },
+      // 2026-08-15: the English-ification sweep rendered "不依赖解析器" as
+      // "parser-independent" here. It describes the colour guard doing regex over raw
+      // source text instead of jsdom's CSSOM -- nothing to do with NimoOS-Parser.
+      { file: /src\/styles\/color-guard\.test\.ts$/, re: exactLine("// Detection method (parser-independent, so it doesn't rely on jsdom's CSSOM): strip `/* … */` **non-greedily** per CSS semantics") },
     ],
   },
   { word: 'wiki', re: /wiki/i, allow: [] },

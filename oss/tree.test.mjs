@@ -526,9 +526,9 @@ describe('Class 2 · README', () => {
     }
   })
 
-  it('讲清安装、内嵌共享包与四条已知缺口', () => {
+  it('covers install, the inlined shared package and the four known gaps', () => {
     const s = read('README.md')
-    for (const k of ['pnpm', 'packages/service', '快照', '语言', '终端', '存储']) {
+    for (const k of ['pnpm', 'packages/service', 'snapshot', 'language', 'Terminal', 'Storage']) {
       expect(s, k).toContain(k)
     }
   })
@@ -682,7 +682,7 @@ describe('泄漏守卫', () => {
       const out = execFileSync('node', [path.join(OSS, 'export.mjs'), '--out', guardOut,
         '--no-commit', '--allow-dirty-oss'],
         { encoding: 'utf8', stdio: 'pipe' })
-      expect(out).toContain('零真实泄漏命中')
+      expect(out).toContain('Zero real leaks')
     } finally {
       fs.rmSync(guardOut, { recursive: true, force: true })
     }

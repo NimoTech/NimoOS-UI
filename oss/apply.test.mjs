@@ -67,7 +67,7 @@ describe('applyReplace hash pin', () => {
     write(ossDir, 'x.ts', 'PUBLIC')
     expect(() =>
       applyReplace(root, [{ path: 'src/x.ts', from: 'x.ts', privateSha256: sha256('PRIVATE') }], ossDir),
-    ).toThrow(/private.*src\/x\.ts.*changed.*review.*oss\/files\/x\.ts/s)
+    ).toThrow(/Private repo's src\/x\.ts changed.*Review whether oss\/files\/x\.ts/s)
   })
 
   it('source file missing in oss/files/ throws with path and from manifest coordinates', () => {
@@ -113,7 +113,7 @@ describe('applyPatch anchor uniqueness', () => {
   it('0 hits throws (anchor drifted in private main)', () => {
     write(root, 'src/x.ts', 'keep\n')
     expect(() => applyPatch(root, [{ path: 'src/x.ts', find: 'GONE', replace: '' }]))
-      .toThrow(/anchor.*no match.*src\/x\.ts/s)
+      .toThrow(/Anchor no match.*src\/x\.ts/s)
   })
 
   it('2 hits throws (anchor not unique; replace would damage)', () => {
@@ -145,7 +145,7 @@ describe('applyPatch anchor uniqueness', () => {
     // Explicitly rejecting empty string must block all lengths; here verify 0/1/2/3/4 char.
     for (const content of ['', 'a', 'ab', 'abc', 'abcd']) {
       write(root, 'src/x.ts', content)
-      expect(() => applyPatch(root, [{ path: 'src/x.ts', find: '', replace: 'Z' }])).toThrow(/anchor.*missing or not string/)
+      expect(() => applyPatch(root, [{ path: 'src/x.ts', find: '', replace: 'Z' }])).toThrow(/Anchor missing or not string/)
       // and file content must be unchanged — rejection must happen before write
       expect(fs.readFileSync(path.join(root, 'src/x.ts'), 'utf8')).toBe(content)
     }
@@ -159,9 +159,9 @@ describe('applyPatch anchor uniqueness', () => {
   it('find is undefined/null (field name misspell entry point) gives designed diagnostic, not native TypeError', () => {
     write(root, 'src/x.ts', 'abc')
     expect(() => applyPatch(root, [{ path: 'src/x.ts', replace: 'Z' }])) // omit find
-      .toThrow(/anchor.*missing or not string/)
+      .toThrow(/Anchor missing or not string/)
     expect(() => applyPatch(root, [{ path: 'src/x.ts', find: null, replace: 'Z' }]))
-      .toThrow(/anchor.*missing or not string/)
+      .toThrow(/Anchor missing or not string/)
     // and both cases shouldn't be native TypeError
     try { applyPatch(root, [{ path: 'src/x.ts', replace: 'Z' }]) } catch (err) {
       expect(err).not.toBeInstanceOf(TypeError)

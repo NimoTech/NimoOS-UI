@@ -399,17 +399,17 @@ describe('isExpectedSkip: expected (binary/symlink) warning-only, unexpected (re
 
   it('remaining four skip reasons (read/stat/directory-read failure/over-size-limit) all judged as unexpected', () => {
     for (const excerpt of [
-      '读取失败,未扫描:EACCES: permission denied',
-      'stat 失败,未扫描:ENOENT: no such file or directory',
-      '目录读取失败,未扫描:EACCES: permission denied',
-      '超过 2097152 字节上限,未扫描',
+      'read failed, not scanned: EACCES: permission denied',
+      'stat failed, not scanned: ENOENT: no such file or directory',
+      'directory read failed, not scanned: EACCES: permission denied',
+      'exceeded 2097152 byte limit, not scanned',
     ]) {
       expect(isExpectedSkip(excerpt), excerpt).toBe(false)
     }
   })
 
-  it('change one punctuation (Chinese comma→ASCII comma) no longer judged as expected — proves not substring/loose match', () => {
-    expect(isExpectedSkip('symbolic link, not followed, not scanned')).toBe(false) // changed comma
+  it('dropping one punctuation mark no longer judged as expected — proves not substring/loose match', () => {
+    expect(isExpectedSkip('symbolic link not followed, not scanned')).toBe(false) // missing comma
     expect(isExpectedSkip('determined to be binary not scanned')).toBe(false) // missing comma
   })
 })
@@ -549,7 +549,7 @@ describe('scanTree: exclusion-based, not extension whitelist', () => {
       const hit = findings.find((f) => f.file === 'big.txt')
       expect(hit).toBeTruthy()
       expect(hit.word).toBe('__skipped__')
-      expect(hit.excerpt).toBe('超过 2097152 字节上限,未扫描')
+      expect(hit.excerpt).toBe('exceeded 2097152 byte limit, not scanned')
       expect(isExpectedSkip(hit.excerpt)).toBe(false)
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
@@ -575,7 +575,7 @@ describe('scanTree: exclusion-based, not extension whitelist', () => {
       const hit = findings.find((f) => f.file === 'big-locked.bin')
       expect(hit).toBeTruthy()
       expect(hit.word).toBe('__skipped__')
-      expect(hit.excerpt.startsWith('读取失败,未扫描:')).toBe(true)
+      expect(hit.excerpt.startsWith('read failed, not scanned: ')).toBe(true)
       expect(isExpectedSkip(hit.excerpt)).toBe(false)
     } finally {
       fs.chmodSync(bigPath, 0o644) // 恢复权限,否则 rmSync 递归删除会失败
