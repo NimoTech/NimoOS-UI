@@ -1,69 +1,84 @@
 <!--
-  SP8-P4 Task 9(收官)—— 1:1 移植自 Vue2 `NimoOS-UI/src/views/AI/MCP/McpSection.vue`
-  (136 行)。孪生兄弟是 `./SkillsSection.vue`(SP8-P3a/P3b,已评审通过)——本文件的
-  `<script setup>` 写法、四个数据方法(reload/toggle/delete/save)的结构、`+` 按钮
-  接线方式全部照它抄,不引入第三种模式。做完本文件,`sections.ts` 的
-  `DEFERRED_SECTIONS` 清空——13 个设置分区全部接入真组件。
+  SP8-P4 Task 9 (wrap-up) — ported 1:1 from Vue2 `NimoOS-UI/src/views/AI/MCP/McpSection.vue`
+  (136 lines). Its twin sibling is `./SkillsSection.vue` (SP8-P3a/P3b, already reviewed and
+  approved) — this file's `<script setup>` style, the structure of the four data methods
+  (reload/toggle/delete/save), and the `+` button wiring are all copied from it; no third
+  pattern is introduced. Once this file is done, `sections.ts`'s `DEFERRED_SECTIONS` is
+  empty — all 13 settings sections are now wired to real components.
 
-  【偏离 D1(公共约束 §3 第 1 条,强制,命中两处)】
+  [Divergence D1 (public constraint §3 item 1, mandatory, hits two spots)]
 
-  1. `reload()` —— Vue2 `:74` `this.servers = resp.data || []`。共享包
-     `service.ai.listMCPServers()` 已 `return res.data`(剥过一次 axios 层),后端
-     `mcp.go:96` 是 `c.JSON(200, out)` 裸数组,再剥一次在裸数组上恒 `undefined`,
-     `this.servers` 就恒为 `[]`(`|| []` 兜底把"取到 undefined"这件事盖住了)——
-     服务器列表永远空。本仓直接把返回值当数组用:`Array.isArray(list) ? list : []`
-     (与 `SkillsSection.vue` 的 `reload()` 同一模具,同一句写法)。
-  2. `onSave` 新建分支 —— Vue2 `:117` `const id = resp.data && resp.data.id`。
-     共享包 `service.ai.createMCPServer` 同样已剥过一层,后端 `mcp.go:121` 是
-     `201 {"id": <int64>}`——不是完整对象,再剥一次恒 `undefined`,新建成功后
-     不会选中新服务器。本仓直接读 `(created as { id?: number })?.id`。
+  1. `reload()` — Vue2 `:74` `this.servers = resp.data || []`. The shared package's
+     `service.ai.listMCPServers()` already `return res.data` (peels off the axios layer
+     once), while the backend `mcp.go:96` is `c.JSON(200, out)` — a bare array. Peeling
+     off `.data` again on a bare array is always `undefined`, so `this.servers` is always
+     `[]` (the `|| []` fallback masks the fact that it actually got `undefined`) — the
+     server list is forever empty. This repo uses the return value directly as an array:
+     `Array.isArray(list) ? list : []` (same mold, same line, as `SkillsSection.vue`'s
+     `reload()`).
+  2. `onSave`'s create branch — Vue2 `:117` `const id = resp.data && resp.data.id`.
+     The shared package's `service.ai.createMCPServer` is likewise already peeled once,
+     while the backend `mcp.go:121` is `201 {"id": <int64>}` — not a full object. Peeling
+     off `.data` again is always `undefined`, so the new server never gets selected after
+     a successful create. This repo reads `(created as { id?: number })?.id` directly.
 
-  【偏离 D2(公共约束 §3 第 2 条)】`.sk-toast`(Vue2 `:32-34`,`showToast()`)不
-  移植,改用全局 `useToast().show()`。Vue2 的 `.sk-toast` 模板**无条件**渲染绿色
-  check 图标(`:33`),连失败提示也顶着一个"成功"勾——这是 Vue2 自己的缺陷,不照抄
-  (承 P3a/P3b,与 `SkillsSection.vue` 同款申报)。失败态统一走
-  `toast.show(t(...), 3000, 'danger')`,`danger` tier 天然不带勾。
+  [Divergence D2 (public constraint §3 item 2)] `.sk-toast` (Vue2 `:32-34`, `showToast()`)
+  is not ported; switched to the global `useToast().show()`. Vue2's `.sk-toast` template
+  **unconditionally** renders a green check icon (`:33`) — even a failure message wears a
+  "success" checkmark. This is Vue2's own defect and is not copied (carried over from
+  P3a/P3b, declared the same way as `SkillsSection.vue`). Failure states uniformly go
+  through `toast.show(t(...), 3000, 'danger')`; the `danger` tier naturally has no check.
 
-  【偏离 D4(公共约束 §3 第 4 条)】不写 `console.error`(Vue2 `:79,93,105,124` 四处)
-  ——本仓三个兄弟分区(BlacklistSection/ExecutionSection/MemorySection)与
-  `SkillsSection.vue` 都没有这个惯例,静默吞错 + toast/行内错误呈现已经足够。
+  [Divergence D4 (public constraint §3 item 4)] No `console.error` (Vue2 has four:
+  `:79,93,105,124`) — none of this repo's three sibling sections
+  (BlacklistSection/ExecutionSection/MemorySection) nor `SkillsSection.vue` follow that
+  convention; silently swallowing the error plus toast/inline error display is enough.
 
-  【偏离 D5(公共约束 §3 第 5 条)】`onSave` 失败不再读 Vue2 `:125` 的
-  `e.response.data.message`(后端英文原文,界面永不回显原文的硬约束),改用
-  `util/mcpErrorKey.ts`(T3)的 `saveServerErrorKey(e)` 映射成 i18n 键,`saveError`
-  传给 `McpServerModal` 的 `serverError` prop——**弹窗不关**(用户可改后重试),
-  行内展示而不是 toast(承 P3b `SkillsSection.vue` `onCreate` 同款写法)。
-  `watch(modalOpen)` 关闭时清 `saveError`(照 `SkillsSection.vue:126-128`)——
-  下次打开弹窗不会看到上一次的报错残留。
+  [Divergence D5 (public constraint §3 item 5)] `onSave` failure no longer reads Vue2
+  `:125`'s `e.response.data.message` (raw backend English text — the hard rule is the UI
+  never echoes it back). Instead it uses `util/mcpErrorKey.ts` (T3)'s
+  `saveServerErrorKey(e)` to map to an i18n key; `saveError` is passed to
+  `McpServerModal`'s `serverError` prop — **the dialog stays open** (so the user can edit
+  and retry), shown inline rather than as a toast (carried over from P3b's
+  `SkillsSection.vue` `onCreate`, same pattern). `watch(modalOpen)` clears `saveError` on
+  close (per `SkillsSection.vue:126-128`) — so the next time the dialog opens it won't
+  show a leftover error from the previous attempt.
 
-  【偏离 D7(公共约束 §3 第 7 条)】`+` 按钮的 `AgentIcon` 不传具名色 `color="white"`
-  (Vue2 `:7`)——不传 `color`,走 `currentColor`,由 `.sk-add-btn` 的
-  `--text-on-accent`(`skills-styles.scss:183` 起)供色,与 `SkillsSection.vue` 同款。
+  [Divergence D7 (public constraint §3 item 7)] The `+` button's `AgentIcon` does not pass
+  the named color `color="white"` (Vue2 `:7`) — no `color` prop, falls back to
+  `currentColor`, colored by `.sk-add-btn`'s `--text-on-accent` (from
+  `skills-styles.scss:183`), same as `SkillsSection.vue`.
 
-  【N4 照抄不改(公共约束 §3.5 第 4 条,已确认照抄)】`activeServer` 在**未过滤的
-  `servers`** 上查(Vue2 `:64`),不是在 `filtered` 上查——搜索时右侧详情面板
-  不跟着清空,与 `SkillsSection.vue` 的 `activeSkill` 同款,不是本文件的新决定。
+  [N4 copied verbatim, unchanged (public constraint §3.5 item 4, confirmed as intentional
+  copy)] `activeServer` is looked up in **the unfiltered `servers`** (Vue2 `:64`), not in
+  `filtered` — so the right-hand detail panel doesn't clear itself while searching, same
+  as `SkillsSection.vue`'s `activeSkill`; not a new decision made in this file.
 
-  【删除后选中项落位,对齐 Vue2 `:102`】只有删的是**当前选中项**才把 `activeId`
-  落到剩余第一项;删别的项时 `activeId` 不动——与 `SkillsSection.vue` `onDelete`
-  同一条件。
+  [Selected-item placement after delete, matching Vue2 `:102`] `activeId` only falls back
+  to the first remaining item when the deleted item **was the currently selected one**;
+  deleting a different item leaves `activeId` untouched — same condition as
+  `SkillsSection.vue`'s `onDelete`.
 
-  【接口偏离(裁定 3,沿用 T8 `McpServerModal` 的既定接口)】Vue2 是
-  `v-if="modalOpen"`(每次打开重建实例,`data()` 天然只跑一次)+ `@close`。本仓
-  `McpServerModal` 已经是 `v-model:open` 常挂 + `server`/`serverError` 两个 prop
-  的设计(见该文件头注释),`McpSection` 侧只需要在 `openCreate`/`openEdit` 里
-  同步设置 `editing` 与 `modalOpen`(同一函数体内先设 `editing.value` 再设
-  `modalOpen.value = true`,Vue 的响应式更新会在下一次渲染前把两者一起同步给
-  `McpServerModal` 的 `watch(() => props.open, ...)`,不会出现"弹窗先以旧
-  server 弹出、下一帧才刷新成新 server"的闪烁)——协调者追加的两条集成用例
-  (「编辑 A → 关闭 → 编辑 B」「新增 → 关闭 → 编辑」)钉的正是这条时序。
+  [Interface divergence (ruling 3, following the interface `McpServerModal` already
+  established in T8)] Vue2 uses `v-if="modalOpen"` (rebuilds the instance on every open,
+  so `data()` naturally only runs once) plus `@close`. In this repo `McpServerModal` is
+  already designed as `v-model:open` always-mounted plus two props, `server`/`serverError`
+  (see that file's header comment); `McpSection`'s side just needs to set `editing` and
+  `modalOpen` together inside `openCreate`/`openEdit` (setting `editing.value` first, then
+  `modalOpen.value = true`, in the same function body — Vue's reactivity will sync both to
+  `McpServerModal`'s `watch(() => props.open, ...)` before the next render, so there's no
+  flicker where "the dialog first pops open with the old server, then refreshes to the new
+  server on the next frame"). The two integration tests the coordinator added
+  ("edit A → close → edit B", "create → close → edit") are exactly what pins down this
+  ordering.
 
-  【`+` 按钮不传具名色,零 <style> 块】用到的每个类均已存在于既有 scss:
-  `set-split`/`sk-col*`/`sk-list`/`sk-col-empty`/`sk-spinner`/`icon-btn`/
-  `sk-col-actions`/`sk-add-btn`(`settings-styles.scss`/`skills-styles.scss`,
-  与 `SkillsSection.vue` 完全同一组类,已在该文件评审通过)。Vue2 `:13`/`:16`
-  的内联 `style="width: 18px; height: 18px"` / `style="display: grid; place-items:
-  center; padding: 28px 0"` 是尺寸/布局不是颜色,原样照抄(公共约束 §6 明确允许)。
+  [`+` button doesn't pass a named color, zero <style> blocks] Every class used already
+  exists in the existing scss: `set-split`/`sk-col*`/`sk-list`/`sk-col-empty`/`sk-spinner`/
+  `icon-btn`/`sk-col-actions`/`sk-add-btn` (`settings-styles.scss`/`skills-styles.scss`,
+  the exact same class set as `SkillsSection.vue`, already reviewed and approved in that
+  file). Vue2 `:13`/`:16`'s inline `style="width: 18px; height: 18px"` /
+  `style="display: grid; place-items: center; padding: 28px 0"` are size/layout, not
+  color, and are copied as-is (public constraint §6 explicitly allows this).
 -->
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
@@ -90,19 +105,22 @@ const editing = ref<McpServer | null>(null)
 const saving = ref(false)
 const saveError = ref('')
 
-// 弹窗关闭时清掉行内错误(见文件头注释「偏离 D5」末段,照 SkillsSection.vue:126-128),
-// 并清掉 editing(修复轮 M5)。
+// Clear the inline error when the dialog closes (see the "Divergence D5" section of the
+// file header comment, per SkillsSection.vue:126-128), and also clear `editing` (fix
+// round M5).
 //
-// 【修复轮 M5,未申报偏离】Vue2 `closeModal()`(`:85`)是
-// `{ this.modalOpen = false; this.editing = null }`——**每一条关闭路径**都清
-// `editing`。本仓早前只在 `closeModal()`(见下方,onSave 成功后才调用)里清,
-// 取消 / 右上角 X / 遮罩三条关闭路径走的是 `v-model:open` 直接把 `modalOpen`
-// 置 false,不经过 `closeModal()`,`editing` 会残留旧值。虽然 `openCreate`/
-// `openEdit` 每次都会重新设置 `editing`,`McpServerModal` 的 `watch(open)`
-// true 分支也会用 `props.server` 回填,实测无可见后果——但这是一条未在任何
-// 报告里申报过的行为差异,按移植纪律「未申报的偏离本身就是缺陷」改正:把清
-// `editing` 挪到这个 watch 里,与清 `saveError` 同一处、覆盖全部关闭路径,
-// 和 Vue2 `closeModal()` 逐条路径都清的行为对齐。
+// [Fix round M5, undeclared divergence] Vue2's `closeModal()` (`:85`) is
+// `{ this.modalOpen = false; this.editing = null }` — **every** close path clears
+// `editing`. This repo previously only cleared it inside `closeModal()` (below, only
+// called after a successful onSave); the cancel / top-right X / overlay close paths all
+// go through `v-model:open` setting `modalOpen` to false directly, bypassing
+// `closeModal()`, so `editing` would keep its stale value. Although `openCreate`/
+// `openEdit` reset `editing` every time, and `McpServerModal`'s `watch(open)` true branch
+// also backfills from `props.server`, testing showed no visible consequence — but this
+// was a behavioral difference never declared in any report, and per porting discipline
+// "an undeclared divergence is itself a defect", it's fixed here: clearing `editing` was
+// moved into this watch, alongside clearing `saveError`, covering every close path, to
+// match Vue2's `closeModal()` clearing both on every path.
 watch(modalOpen, (v) => {
   if (!v) {
     saveError.value = ''
@@ -110,39 +128,42 @@ watch(modalOpen, (v) => {
   }
 })
 
-// 对齐 Vue2 `computed`(`:57-64`)。
+// Matches Vue2's `computed` (`:57-64`).
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase()
   if (!q) return servers.value
-  // Vue2 `:60` 只搜 name/url 两个字段,不搜 command——照抄(设计 §5.1)。
+  // Vue2 `:60` only searches the name/url fields, not command — copied as-is (design §5.1).
   return servers.value.filter(
     (s) => (s.name || '').toLowerCase().includes(q) || (s.url || '').toLowerCase().includes(q),
   )
 })
 const enabled = computed(() => filtered.value.filter((s) => s.enabled))
 const disabled = computed(() => filtered.value.filter((s) => !s.enabled))
-// N4 照抄不改(见文件头注释):activeServer 在未过滤的 servers 上查,搜索不清空
-// 详情面板。
+// N4 copied verbatim, unchanged (see file header comment): activeServer is looked up in
+// the unfiltered servers, so searching doesn't clear the detail panel.
 const activeServer = computed(() => servers.value.find((s) => s.id === activeId.value) || null)
 
 function setActive(id: number) {
   activeId.value = id
 }
 
-// 对齐 Vue2 `reload()`(`:70-82`)。
+// Matches Vue2's `reload()` (`:70-82`).
 async function reload() {
   loading.value = true
   try {
-    // 偏离 D1 第 1 处(见文件头注释):单层取数,不再多剥一层 `.data`。
+    // Divergence D1 spot 1 (see file header comment): single-layer unwrap, no extra
+    // `.data` peel.
     const list = await service.ai.listMCPServers()
     servers.value = Array.isArray(list) ? list : []
-    // 选中态保持逻辑,对齐 Vue2 `:75-77`:当前选中项还在新列表里就不动,否则落到
-    // 第一项(空列表落 null)。
+    // Selection-retention logic, matching Vue2 `:75-77`: leave it alone if the currently
+    // selected item is still in the new list, otherwise fall back to the first item
+    // (falls to null on an empty list).
     if (!activeId.value || !servers.value.find((s) => s.id === activeId.value)) {
       activeId.value = servers.value[0]?.id ?? null
     }
   } catch {
-    // 偏离 D2/D4(见文件头注释):不写 console.error,失败走全局 danger toast。
+    // Divergence D2/D4 (see file header comment): no console.error, failure goes through
+    // the global danger toast.
     toast.show(t('aiMcpSrvLoadFailed'), 3000, 'danger')
   } finally {
     loading.value = false
@@ -164,7 +185,7 @@ function closeModal() {
   editing.value = null
 }
 
-// 对齐 Vue2 `onToggle`(`:86-96`)。204 无内容,不读返回值。
+// Matches Vue2's `onToggle` (`:86-96`). 204 has no body, so the return value isn't read.
 async function onToggle(id: number, enabledVal: boolean) {
   try {
     await service.ai.updateMCPServer(id, { enabled: enabledVal })
@@ -176,8 +197,10 @@ async function onToggle(id: number, enabledVal: boolean) {
   }
 }
 
-// 对齐 Vue2 `onDelete`(`:97-108`)。204 无内容,不读返回值。删除后选中项落位见
-// 文件头注释——只有删的是当前选中项才把 activeId 落到剩余第一项。
+// Matches Vue2's `onDelete` (`:97-108`). 204 has no body, so the return value isn't read.
+// See the file header comment for selected-item placement after delete — activeId only
+// falls back to the first remaining item when the deleted item was the currently
+// selected one.
 async function onDelete(id: number) {
   const s = servers.value.find((x) => x.id === id)
   try {
@@ -192,15 +215,17 @@ async function onDelete(id: number) {
   }
 }
 
-// 对齐 Vue2 `onSave`(`:109-128`)。偏离 D1 第 2 处 / D5 见文件头注释。
+// Matches Vue2's `onSave` (`:109-128`). Divergence D1 spot 2 / D5, see the file header
+// comment.
 async function onSave(payload: McpServerFormPayload) {
   saving.value = true
   saveError.value = ''
   try {
-    // 共享包形参类型是 `Record<string, unknown>`(NimoOS-Service/dist/ai.d.ts:85-86)
-    // ——`McpServerFormPayload` 是具名 interface,不带隐式索引签名,TS 判定不兼容
-    // (TS2345),故转型一次;字段值本身未做任何改动(与 SkillsSection.vue
-    // `onCreate` 同款说明)。
+    // The shared package's parameter type is `Record<string, unknown>`
+    // (NimoOS-Service/dist/ai.d.ts:85-86) — `McpServerFormPayload` is a named interface
+    // without an implicit index signature, so TS considers them incompatible (TS2345),
+    // hence the one-off cast; the field values themselves are untouched (same note as
+    // SkillsSection.vue's `onCreate`).
     if (editing.value) {
       await service.ai.updateMCPServer(editing.value.id, payload as unknown as Record<string, unknown>)
       toast.show(t('aiCfgSaved'))
@@ -228,7 +253,7 @@ async function onSave(payload: McpServerFormPayload) {
           <button class="icon-btn" :title="t('aiCfgRefresh')" @click="reload">
             <AgentIcon name="refresh" :size="15" />
           </button>
-          <!-- 对齐 Vue2 :7。不传具名 color——见文件头注释「偏离 D7」。 -->
+          <!-- Matches Vue2 :7. No named color passed — see "Divergence D7" in the file header comment. -->
           <button class="sk-add-btn" :title="t('aiMcpSrvAdd')" @click="openCreate">
             <AgentIcon name="plus" :size="15" />
           </button>

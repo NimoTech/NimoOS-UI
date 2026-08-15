@@ -5,15 +5,19 @@ import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import zh from '../../../../i18n/zh_cn'
 
-// SP8-P2b Task 12 —— 承接 Vue2 src/views/AI/Settings/__tests__/ChannelsSection.spec.js
-// 的 7 条组件级用例(编号 1-7,注释里标出对应 spec.js 的 it() 标题),另加 brief 新增的
-// 16 条(编号 8/10-24;编号 9 是「Vue2 watch:isAdmin 在本仓不可能触发」的未移植项,不写
-// 测试,见 ChannelsSection.vue 头注释与下方 8 号用例后的说明)。
+// SP8-P2b Task 12 — carries over the 7 component-level cases from Vue2's
+// src/views/AI/Settings/__tests__/ChannelsSection.spec.js (numbered 1-7, each comment
+// notes the corresponding spec.js it() title), plus 16 more from the brief (numbered
+// 8/10-24; number 9 is the unported "Vue2 watch:isAdmin can never fire in this repo"
+// item, not written as a test — see the ChannelsSection.vue header comment and the note
+// after case 8 below).
 //
-// Vue2 spec.js 断言的是 `w.vm.*` 内部状态(pairable/revealedCode/showCode/codeInstance/
-// bindings/…)与 mock 调用参数;Vue3 <script setup> 不暴露任何内部状态给外部,故这里把每条
-// 断言改成「渲染出的 DOM + service mock 的调用」这两类可观察事实,断言的仍是同一件事实
-// (承接清单见组件头/任务报告,不在此重复贴)。
+// The Vue2 spec.js asserts `w.vm.*` internal state (pairable/revealedCode/showCode/
+// codeInstance/bindings/…) plus mock call arguments; Vue3 <script setup> exposes no
+// internal state to the outside, so every assertion here is rewritten as one of two
+// observable facts instead — "rendered DOM" or "service mock calls" — while asserting
+// the same underlying fact (see the component header / task report for the carry-over
+// list; not repeated here).
 
 const h = vi.hoisted(() => ({
   listPairableChannelInstances: vi.fn(),
@@ -65,7 +69,7 @@ function mountSection() {
 const flush = async () => { await nextTick(); await nextTick(); await nextTick() }
 
 /** Click the reka-ui AlertDialogAction/Cancel whose visible text matches `label`
- *  (excludes PromptDialog-style data-testid buttons; same手法 as McpTokensSection.test.ts). */
+ *  (excludes PromptDialog-style data-testid buttons; same approach as McpTokensSection.test.ts). */
 function clickAlertButton(label: string) {
   const btn = Array.from(document.body.querySelectorAll('button')).find(
     (b) => b.textContent?.trim() === label && b.className.includes('ui-btn') && !b.dataset.testid,
@@ -91,8 +95,9 @@ beforeEach(() => {
   h.setChannelBindingDownloadDir.mockResolvedValue({})
   h.deleteChannelBinding.mockResolvedValue({})
   h.copyText.mockResolvedValue(undefined)
-  // SkModal portal 目标默认是 '.set-app'(见 SkModal.vue 头注释 D1),目标元素必须在组件
-  // 挂载前就存在于 DOM,同 SkModal.test.ts / McpTokensSection.test.ts 的 host 手法。
+  // SkModal's default portal target is '.set-app' (see SkModal.vue header comment D1);
+  // the target element must already exist in the DOM before the component mounts, same
+  // "host" approach as SkModal.test.ts / McpTokensSection.test.ts.
   const host = document.createElement('div')
   host.className = 'set-app'
   document.body.appendChild(host)
@@ -103,7 +108,7 @@ afterEach(() => {
 })
 
 describe('ChannelsSection', () => {
-  // ---- 承接 Vue2 spec.js 7 条 ----
+  // ---- carried over from Vue2 spec.js (7 cases) ----
 
   it('1. loads pairable instances and bindings on create (non-admin)', async () => {
     h.listPairableChannelInstances.mockResolvedValue({
@@ -114,12 +119,12 @@ describe('ChannelsSection', () => {
     await flush()
     expect(h.listPairableChannelInstances).toHaveBeenCalled()
     expect(h.listChannelBindings).toHaveBeenCalled()
-    // Vue2 断言 w.vm.pairable 长度为 1 —— 改成断言渲染出的配对行数
+    // Vue2 asserts w.vm.pairable has length 1 — rewritten to assert the rendered pairing row count
     expect(w.findAll('.set-row')).toHaveLength(1)
     expect(w.find('.set-row .lbl').text()).toContain('fam')
-    // non-admin 不该加载管理员段数据(否定断言)
+    // non-admin must not load admin-section data (negative assertion)
     expect(h.listChannelInstances).not.toHaveBeenCalled()
-    // Vue2 断言 w.vm.isAdmin === false —— 改成断言管理员段未渲染
+    // Vue2 asserts w.vm.isAdmin === false — rewritten to assert the admin section isn't rendered
     expect(w.find('.sk-section-title').exists() ? w.text().includes('机器人配置') : true).toBe(false)
   })
 
@@ -142,10 +147,11 @@ describe('ChannelsSection', () => {
     await w.find('.set-row .sk-btn.primary').trigger('click')
     await flush()
     expect(h.createChannelPairingCode).toHaveBeenCalledWith('i1')
-    // Vue2 断言 w.vm.revealedCode / w.vm.showCode —— 改成断言弹窗已挂载且明文码落在只读输入框
+    // Vue2 asserts w.vm.revealedCode / w.vm.showCode — rewritten to assert the dialog has
+    // mounted and the plaintext code landed in the read-only input
     const codeInput = document.querySelector('.sk-modal input.set-input.full.mono') as HTMLInputElement
     expect(codeInput.value).toBe('12345678')
-    // codeInstance 驱动配对指引里的 bot 用户名(fillPairInstructions 的 {bot} 替换)
+    // codeInstance drives the bot username in the pairing instructions (fillPairInstructions's {bot} substitution)
     expect(document.querySelector('.sk-modal')?.textContent).toContain('fam_bot')
   })
 
@@ -162,7 +168,8 @@ describe('ChannelsSection', () => {
     picker.vm.$emit('select', 'local:llama2')
     await flush()
     expect(h.setChannelBindingModel).toHaveBeenCalledWith('b1', 'local:llama2')
-    // Vue2 断言 b.default_model —— 改成断言该行 ModelPicker 收到新 selectedKey 且展示新模型名
+    // Vue2 asserts b.default_model — rewritten to assert this row's ModelPicker received
+    // the new selectedKey and displays the new model name
     expect(picker.props('selectedKey')).toBe('local:llama2')
     expect(picker.find('.model-pill-name').text()).toBe('llama2')
   })
@@ -178,7 +185,7 @@ describe('ChannelsSection', () => {
     await input.trigger('change')
     await flush()
     expect(h.setChannelBindingDownloadDir).toHaveBeenCalledWith('b1', '/DATA/Downloads/tg2')
-    // Vue2 断言 b.download_dir —— 改成断言输入框的受控值确实更新为新目录
+    // Vue2 asserts b.download_dir — rewritten to assert the input's controlled value did update to the new directory
     expect((w.find('.tok-row input.set-input').element as HTMLInputElement).value).toBe('/DATA/Downloads/tg2')
   })
 
@@ -194,7 +201,7 @@ describe('ChannelsSection', () => {
     clickAlertButton('解绑')
     await flush()
     expect(h.deleteChannelBinding).toHaveBeenCalledWith('b1')
-    // Vue2 断言 w.vm.bindings.map(id) —— 改成断言剩余行数与该行从 DOM 消失
+    // Vue2 asserts w.vm.bindings.map(id) — rewritten to assert the remaining row count and that this row vanished from the DOM
     expect(w.findAll('.tok-row')).toHaveLength(1)
   })
 
@@ -226,18 +233,20 @@ describe('ChannelsSection', () => {
     })
   })
 
-  // ---- 新增(编号对齐 brief;9 号是未移植项,不写测试) ----
+  // ---- new cases (numbering matches the brief; number 9 is unported, no test) ----
 
-  it('8. 非管理员不渲染「机器人配置」段;管理员渲染(对照组)', async () => {
+  it("8. non-admin doesn't render the 「机器人配置」 section; admin does (control group)", async () => {
     asUser()
     const wUser = mountSection()
     await flush()
     expect(wUser.text()).not.toContain('机器人配置')
 
-    // useSessionStore().user 是读 localStorage 的 computed,同一 Pinia 实例内首次求值后会
-    // 缓存(见 stores/session.ts 头注释:「computed 读 localStorage 不构成响应式依赖」)——
-    // 复用上面同一个 active pinia 会让这里读到 wUser 求值时缓存的旧结果。换一个新 Pinia
-    // 实例(等价于真实场景的整页重载)才能让第二次挂载读到 asAdmin() 刚写入的新角色。
+    // useSessionStore().user is a computed that reads localStorage; within the same Pinia
+    // instance it gets cached after the first evaluation (see the stores/session.ts header
+    // comment: "a computed reading localStorage doesn't establish a reactive dependency") —
+    // reusing the same active pinia here would read the stale result cached when wUser was
+    // evaluated. Only a fresh Pinia instance (the equivalent of a real full page reload) lets
+    // the second mount read the new role that asAdmin() just wrote.
     asAdmin()
     setActivePinia(createPinia())
     const wAdmin = mountSection()
@@ -245,34 +254,35 @@ describe('ChannelsSection', () => {
     expect(wAdmin.text()).toContain('机器人配置')
   })
 
-  it('10. 三个加载各自独立失败,互不影响', async () => {
+  it("10. the three loads fail independently and don't affect each other", async () => {
     h.listPairableChannelInstances.mockRejectedValue(new Error('boom'))
     h.listChannelBindings.mockRejectedValue(new Error('boom'))
     h.listChannelInstances.mockRejectedValue(new Error('boom'))
     asAdmin()
     const w = mountSection()
     await flush()
-    expect(w.find('.sk-section-body .set-note').exists()).toBe(true) // 尚未配置聊天机器人
+    expect(w.find('.sk-section-body .set-note').exists()).toBe(true) // no chat bot configured yet
     expect(w.text()).toContain('加载失败。')
-    // 管理员段没有崩溃、按钮仍可见(instances 落空数组而非抛出未捕获异常)
+    // the admin section doesn't crash and its button stays visible (instances falls back
+    // to an empty array instead of throwing an uncaught exception)
     expect(w.text()).toContain('机器人配置')
   })
 
-  it('11. 可配对列表为空 → 渲染「尚未配置聊天机器人，请联系管理员添加。」', async () => {
+  it('11. empty pairable list → renders 「尚未配置聊天机器人，请联系管理员添加。」', async () => {
     asUser()
     const w = mountSection()
     await flush()
     expect(w.text()).toContain('尚未配置聊天机器人，请联系管理员添加。')
   })
 
-  it('12. 绑定列表为空 → 渲染「还没有绑定账号。…」', async () => {
+  it('12. empty bindings list → renders 「还没有绑定账号。…」', async () => {
     asUser()
     const w = mountSection()
     await flush()
     expect(w.text()).toContain('还没有绑定账号。在上方生成配对码并发送给机器人即可。')
   })
 
-  it('13. 机器人行显示 @bot_username 与 token 尾号;invite_url 存在才渲染邀请链接(对照组)', async () => {
+  it("13. bot row shows @bot_username and the token's last digits; invite link only renders when invite_url exists (control group)", async () => {
     h.listChannelInstances.mockResolvedValue({
       instances: [
         { id: 'a', name: 'Fam bot', channel_type: 'telegram', bot_username: 'fam_bot', token_tail: 'ab12', enabled: true, invite_url: 'https://discord.com/invite/xyz' },
@@ -293,7 +303,7 @@ describe('ChannelsSection', () => {
     expect(rows[1].text()).toContain('token ···cd34')
   })
 
-  it('14. 切换机器人启用开关成功 → setChannelInstanceEnabled 被调、补拉 listPairableChannelInstances', async () => {
+  it('14. successfully toggling a bot enabled switch → setChannelInstanceEnabled is called, listPairableChannelInstances is refetched', async () => {
     h.listChannelInstances.mockResolvedValue({
       instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: false }],
     })
@@ -306,10 +316,10 @@ describe('ChannelsSection', () => {
     await checkbox.trigger('change')
     await flush()
     expect(h.setChannelInstanceEnabled).toHaveBeenCalledWith('a', true)
-    expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1) // Vue2 :246 成功后补拉一次
+    expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1) // Vue2 :246 refetches once after success
   })
 
-  it('15. 启用开关失败 → danger toast,且不改写数据源(inst.enabled 未被写入)', async () => {
+  it("15. failed enable toggle → danger toast, and the data source isn't rewritten (inst.enabled isn't written)", async () => {
     h.listChannelInstances.mockResolvedValue({
       instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: true }],
     })
@@ -321,42 +331,46 @@ describe('ChannelsSection', () => {
     const show = vi.spyOn(toast, 'show')
     const checkbox = w.find('.chan-switch input[type="checkbox"]')
     expect((checkbox.element as HTMLInputElement).checked).toBe(true)
-    ;(checkbox.element as HTMLInputElement).checked = false // 模拟用户手动取消勾选
+    ;(checkbox.element as HTMLInputElement).checked = false // simulate the user manually unchecking it
     await checkbox.trigger('change')
     await flush()
     expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
-    expect(h.listPairableChannelInstances).not.toHaveBeenCalledTimes(2) // 失败不补拉(只有挂载时那一次)
-    // Vue2 :280 与本组件都是「inst.enabled = enabled 写在 await 之后,失败时不改」——但
-    // `:checked="inst.enabled"`(非 v-model)这个绑定在 Vue 3(与 Vue2 同理)只有当
-    // `next !== prev` 才会真正把值写回 DOM 的 checked 属性(runtime-core patchElement 对
-    // 'checked' 没有像 'value' 那样的强制回写例外);inst.enabled 从未改变,意味着就算
-    // 强制这个组件整体重渲染,Vue 也不会把我们手动改过的原生 DOM checked 状态纠正回来 ——
-    // 这不是本组件的缺陷,是这个绑定模式(Vue2 原文一样的写法)本身的已知局限,不属于
-    // 「1:1 照 Vue2」要修的可复现错误行为(constraints §7),不在这里改绑定方式。
-    // 因此不测 DOM 残留的 checked 状态,改测「数据源真的没被改写」这件事本身:用同一份
-    // (仍返回 enabled:true 的)mock 全新挂载一份组件实例——一次干净的从零渲染,不经历
-    // 上面这次失败的 patch 残留,能证明失败路径没有把 false 提交回上层数据源。
+    expect(h.listPairableChannelInstances).not.toHaveBeenCalledTimes(2) // on failure it doesn't refetch (only the one call from mount)
+    // Both Vue2 :280 and this component write `inst.enabled = enabled` after the await, so it
+    // stays unchanged on failure — but the `:checked="inst.enabled"` binding (not v-model) in
+    // Vue 3 (same as Vue2) only actually writes back to the DOM's `checked` property when
+    // `next !== prev` (runtime-core's patchElement has no forced-writeback exception for
+    // 'checked' the way it does for 'value'); since inst.enabled never changes, even forcing a
+    // full re-render of this component won't make Vue correct the native DOM `checked` state we
+    // manually edited — this isn't a bug in this component, it's a known limitation of this
+    // binding pattern itself (the exact same code as Vue2), and it isn't the kind of
+    // reproducible incorrect behavior that "1:1 with Vue2" (constraints §7) requires fixing, so
+    // the binding approach isn't changed here. So instead of testing the leftover DOM `checked`
+    // state, we test the thing that actually matters — "the data source really wasn't
+    // rewritten" — by mounting a brand-new component instance with the same mock (still
+    // returning enabled:true): a clean render from scratch that never goes through the failed
+    // patch above, proving the failure path never committed `false` back to the upstream data source.
     const fresh = mountSection()
     await flush()
     const freshCheckbox = fresh.find('.chan-switch input[type="checkbox"]')
     expect((freshCheckbox.element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('16. 删除机器人:确认后调用接口、行消失、补拉可配对列表;取消不发请求', async () => {
+  it('16. deleting a bot: confirming calls the API, the row disappears, the pairable list is refetched; cancelling sends no request', async () => {
     h.listChannelInstances.mockResolvedValue({
       instances: [{ id: 'a', name: 'Fam bot', channel_type: 'telegram', enabled: true }],
     })
     asAdmin()
     const w = mountSection()
     await flush()
-    // 取消路径
+    // cancel path
     await w.find('.tok-del').trigger('click')
     await flush()
     clickAlertButton('取消')
     await flush()
     expect(h.deleteChannelInstance).not.toHaveBeenCalled()
     expect(w.findAll('.tok-row')).toHaveLength(1)
-    // 确认路径
+    // confirm path
     h.listPairableChannelInstances.mockClear()
     await w.find('.tok-del').trigger('click')
     await flush()
@@ -367,7 +381,7 @@ describe('ChannelsSection', () => {
     expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1)
   })
 
-  it('17. addBot 的 token 为空/纯空格 → 提交按钮 disabled 且不发请求', async () => {
+  it('17. addBot with an empty/whitespace-only token → submit button is disabled and no request is sent', async () => {
     asAdmin()
     const w = mountSection()
     await flush()
@@ -376,18 +390,18 @@ describe('ChannelsSection', () => {
     const submitBtn = Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
       (b) => b.textContent?.trim() === '添加机器人',
     ) as HTMLButtonElement
-    expect(submitBtn.disabled).toBe(true) // token 为空
+    expect(submitBtn.disabled).toBe(true) // token is empty
     const tokenInput = document.querySelector('.sk-modal .sk-field:nth-of-type(3) input') as HTMLInputElement
     tokenInput.value = '   '
     tokenInput.dispatchEvent(new Event('input'))
     await flush()
-    expect(submitBtn.disabled).toBe(true) // 纯空格同样禁用
+    expect(submitBtn.disabled).toBe(true) // whitespace-only is disabled too
     submitBtn.click()
     await flush()
     expect(h.createChannelInstance).not.toHaveBeenCalled()
   })
 
-  it('18. addBot 成功:弹窗关闭、表单复位、两个列表各补拉一次', async () => {
+  it('18. addBot succeeds: the dialog closes, the form resets, both lists are refetched once each', async () => {
     asAdmin()
     const w = mountSection()
     await flush()
@@ -407,10 +421,10 @@ describe('ChannelsSection', () => {
     ) as HTMLButtonElement
     submitBtn.click()
     await flush()
-    expect(document.querySelector('.sk-modal')).toBeNull() // 弹窗已关闭
+    expect(document.querySelector('.sk-modal')).toBeNull() // dialog is closed
     expect(h.listChannelInstances).toHaveBeenCalledTimes(1)
     expect(h.listPairableChannelInstances).toHaveBeenCalledTimes(1)
-    // 表单复位:重新打开弹窗,字段应回到初始值
+    // form reset: reopening the dialog, the fields should be back to their initial values
     await w.find('.sk-btn.primary').trigger('click')
     await flush()
     const reopenedName = document.querySelector('.sk-modal .sk-field:nth-of-type(2) input') as HTMLInputElement
@@ -423,12 +437,14 @@ describe('ChannelsSection', () => {
     expect(telegramBtn.dataset.active).toBe('true')
   })
 
-  // 【申报级偏离 Vue2 1:1,用户 2026-07-30 验收时拍板】原用例断言的是 Vue2 的 danger toast
-  // (`Vue2 ChannelsSection.vue:270-272`)。用户原话:「添加错误 token 的机器人我希望错误提示
-  // 在 token 输入栏上面而不是 toast 的形式,不要用以前 vue2 的模式了」。故本用例整体改写:
-  // 错误落在 token 字段上方的行内提示,**且不再弹 toast**。弹窗不关这一点不变。
-  it('19. addBot 失败 → token 输入框上方行内报错(本地化文案,认不出的后端原文一律不回显),不弹 toast、弹窗不关', async () => {
-    // 后端(agent/main.py:424)真实形状:FastAPI 的 {detail:"bot token rejected"}
+  // 【Declared deviation from 1:1 with Vue2, decided by the user during 2026-07-30 acceptance】
+  // The original case asserted Vue2's danger toast (`Vue2 ChannelsSection.vue:270-272`). The
+  // user's own words: "when adding a bot with a bad token, I want the error shown above the
+  // token field, not as a toast — don't use the old Vue2 pattern anymore." So this case was
+  // rewritten wholesale: the error now lands as an inline hint above the token field, **and no
+  // longer triggers a toast**. The dialog staying open is unchanged.
+  it('19. addBot fails → inline error above the token input (localized copy; unrecognized backend text is never echoed back), no toast, dialog stays open', async () => {
+    // actual backend shape (agent/main.py:424): FastAPI's {detail:"bot token rejected"}
     h.createChannelInstance.mockRejectedValueOnce({ response: { data: { detail: 'bot token rejected' } } })
     asAdmin()
     const w = mountSection()
@@ -450,26 +466,26 @@ describe('ChannelsSection', () => {
 
     const err = tokenField.querySelector('.chan-field-err') as HTMLElement
     expect(err).not.toBeNull()
-    // 显示的是本地化文案(zh_cn 的 aiCfgChannelsErrTokenRejected),不是后端英文原文
+    // shows localized copy (zh_cn's aiCfgChannelsErrTokenRejected), not the raw backend English text
     expect(err.textContent).toBe(zh.aiCfgChannelsErrTokenRejected)
     expect(err.textContent).not.toContain('bot token rejected')
-    // 关键回归:界面上永不出现 JSON 片段(用户 2026-07-30 看到过 {"detail":"..."} )
+    // key regression: JSON fragments must never appear on screen (the user saw {"detail":"..."} on 2026-07-30)
     expect(err.textContent).not.toContain('{')
     expect(err.textContent).not.toContain('detail')
-    // 位置:必须在 token <input> **之前**(DOM 顺序 = 视觉上在输入框上方)
+    // position: must be **before** the token <input> in the DOM (DOM order = visually above the input)
     expect(err.compareDocumentPosition(tokenInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    // 不再走 toast
+    // no longer goes through toast
     expect(show).not.toHaveBeenCalled()
-    expect(document.querySelector('.sk-modal')).not.toBeNull() // 弹窗仍开着
+    expect(document.querySelector('.sk-modal')).not.toBeNull() // the dialog is still open
 
-    // 认不出的后端对象 → 通用本地化兜底,且原文不外泄
+    // unrecognized backend object → generic localized fallback, and the raw text isn't leaked
     h.createChannelInstance.mockRejectedValueOnce({ response: { data: { detail: '机器人名额已满' } } })
     submitBtn.click()
     await flush()
     expect((tokenField.querySelector('.chan-field-err') as HTMLElement).textContent)
       .toBe(zh.aiCfgChannelsAddBotFailed)
 
-    // 完全空的错误 → 同一条兜底
+    // completely empty error → same fallback
     h.createChannelInstance.mockRejectedValueOnce({})
     submitBtn.click()
     await flush()
@@ -478,7 +494,7 @@ describe('ChannelsSection', () => {
     expect(show).not.toHaveBeenCalled()
   })
 
-  it('19b. 行内报错在改动 token / 切换平台 / 重开弹窗时都会清除', async () => {
+  it('19b. the inline error clears when the token changes / the platform switches / the dialog reopens', async () => {
     h.createChannelInstance.mockRejectedValue({ response: { data: { message: '机器人名额已满' } } })
     asAdmin()
     const w = mountSection()
@@ -499,14 +515,14 @@ describe('ChannelsSection', () => {
       return { field, input }
     }
 
-    // ① 改动 token 后清除
+    // ① clears after the token changes
     const a = await openAndFail()
     a.input.value = 'tg:token2'
     a.input.dispatchEvent(new Event('input'))
     await flush()
     expect(a.field.querySelector('.chan-field-err')).toBeNull()
 
-    // ② 切换平台后清除
+    // ② clears after switching platform
     const b = await openAndFail()
     ;(Array.from(document.querySelectorAll('.chan-type-opt')).find(
       (x) => x.textContent?.trim() === 'Discord',
@@ -514,7 +530,7 @@ describe('ChannelsSection', () => {
     await flush()
     expect(b.field.querySelector('.chan-field-err')).toBeNull()
 
-    // ③ 关掉再重开时不残留上一次的错误
+    // ③ no leftover error from the previous attempt after closing and reopening
     const c = await openAndFail()
     ;(Array.from(document.querySelectorAll('.sk-modal-foot button')).find(
       (x) => x.textContent?.trim() === '取消',
@@ -526,7 +542,7 @@ describe('ChannelsSection', () => {
     expect(document.querySelector('.sk-modal .chan-field-err')).toBeNull()
   })
 
-  it('20. 配对码弹窗指引文案含 bot 用户名与 code;点复制 → copyText(code) + 「已复制」toast', async () => {
+  it('20. pairing code dialog instructions include the bot username and the code; clicking copy → copyText(code) + 「已复制」 toast', async () => {
     h.listPairableChannelInstances.mockResolvedValue({
       instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
     })
@@ -550,7 +566,7 @@ describe('ChannelsSection', () => {
     expect(show).toHaveBeenCalledWith('已复制')
   })
 
-  it('21. 配对码弹窗关闭(完成) → code 清空、补拉 listChannelBindings', async () => {
+  it('21. closing the pairing code dialog (Done) → code is cleared, listChannelBindings is refetched', async () => {
     h.listPairableChannelInstances.mockResolvedValue({
       instances: [{ id: 'i1', channel_type: 'telegram', name: 'fam', bot_username: 'fam_bot' }],
     })
@@ -570,7 +586,7 @@ describe('ChannelsSection', () => {
     expect(h.listChannelBindings).toHaveBeenCalledTimes(1)
   })
 
-  it('22. setModel / saveDownloadDir 失败 → 各弹 danger toast「保存失败」', async () => {
+  it('22. setModel / saveDownloadDir fail → each shows a danger toast 「保存失败」', async () => {
     h.listChannelBindings.mockResolvedValue({
       bindings: [{ id: 'b1', default_model: null, download_dir: '/DATA/Downloads/telegram' }],
     })
@@ -596,23 +612,23 @@ describe('ChannelsSection', () => {
     expect(show).toHaveBeenCalledWith('保存失败', 3000, 'danger')
   })
 
-  it('23. saveDownloadDir 输入未变化或为空白 → 不发请求', async () => {
+  it('23. saveDownloadDir with an unchanged or blank input → no request is sent', async () => {
     h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', download_dir: '/DATA/Downloads/telegram' }] })
     asUser()
     const w = mountSection()
     await flush()
     const input = w.find('.tok-row input.set-input')
-    ;(input.element as HTMLInputElement).value = '/DATA/Downloads/telegram' // 未变化
+    ;(input.element as HTMLInputElement).value = '/DATA/Downloads/telegram' // unchanged
     await input.trigger('change')
     await flush()
     expect(h.setChannelBindingDownloadDir).not.toHaveBeenCalled()
-    ;(input.element as HTMLInputElement).value = '   ' // 空白
+    ;(input.element as HTMLInputElement).value = '   ' // blank
     await input.trigger('change')
     await flush()
     expect(h.setChannelBindingDownloadDir).not.toHaveBeenCalled()
   })
 
-  it('24a. loadModels:listModels 给本地模型(前缀 local:),listProviders 失败不影响本地模型', async () => {
+  it('24a. loadModels: listModels supplies local models (local: prefix); listProviders failing does not affect local models', async () => {
     h.listModels.mockResolvedValue({ models: [{ name: 'llama2', size: 500 }] })
     h.listProviders.mockRejectedValue(new Error('down'))
     h.listChannelBindings.mockResolvedValue({ bindings: [{ id: 'b1', default_model: null }] })
@@ -624,7 +640,7 @@ describe('ChannelsSection', () => {
     expect(models).toEqual([{ key: 'local:llama2', source: 'local', displayName: 'llama2', size: 500 }])
   })
 
-  it('24b. loadModels:listProviders 经 buildCloudModelList 追加云端模型,listModels 失败不影响云端模型', async () => {
+  it('24b. loadModels: listProviders appends cloud models via buildCloudModelList; listModels failing does not affect cloud models', async () => {
     h.listModels.mockRejectedValue(new Error('down'))
     h.listProviders.mockResolvedValue([
       { id: 6, name: 'DeepSeek', enabled: true, provider_type: 'deepseek', models: [{ name: 'deepseek-chat', favorite: true, supports_thinking: false }] },

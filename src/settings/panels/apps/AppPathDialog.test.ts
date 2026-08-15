@@ -33,12 +33,14 @@ const SYS: StorageVolume = {
 }
 const EXT: StorageVolume = { ...SYS, uuid: 'ext-1', name: 'Backup', isSystem: false, mountPoint: '/media/Backup' }
 
-// reka-ui 真实 ContextMenuItem 要 inject 由真实 ContextMenuRoot 提供的 MenuRootContext;
-// 我们的 ContextMenu.vue 把 ContextMenuContent 传送进 Portal,靠一次真实右键 + 等待动画帧
-// 在 jsdom 里很脆弱。同款先例 FileContextMenu.test.ts:stub 掉 ContextMenu(直接渲染
-// default + #menu 两个 slot,不再门控在"是否右键打开"上)和 ContextMenuItem(按 class
-// 透传 + 点击发 select,disabled 时不发),只验证"菜单渲染了什么 + 点了发生什么"这层
-// 纯逻辑;真实的右键定位/动画留 T10 真机验证范畴。
+// reka-ui's real ContextMenuItem needs the MenuRootContext injected by a real ContextMenuRoot;
+// our ContextMenu.vue teleports ContextMenuContent into a Portal via an actual right-click +
+// waiting for an animation frame, which is flaky in jsdom. Same precedent as
+// FileContextMenu.test.ts: stub out ContextMenu (render the default + #menu slots directly,
+// no longer gated on "was it opened via right-click") and ContextMenuItem (pass class through +
+// emit select on click, don't emit when disabled) -- this only verifies the pure-logic layer of
+// "what did the menu render + what happens on click"; real right-click positioning/animation is
+// left to T10 on-device verification.
 const ContextMenuStub = { template: '<div><slot /><slot name="menu" /></div>' }
 const ContextMenuItemStub = {
   props: ['disabled'],
@@ -46,12 +48,14 @@ const ContextMenuItemStub = {
   template: '<div :disabled="disabled ? \'\' : null" @click="!disabled && $emit(\'select\')"><slot /></div>',
 }
 
-// 加了写路径这批测试后,mount() 次数变多——之前 11 例从没显式 unmount(靠 afterEach 只
-// 清 document.body.innerHTML),之前侥幸没事;新测试里 AlertDialog 的 Portal + reka 内部
-// watch 在下一个测试的 flushPromises() 里才触发,这时上一个测试的 app 实例还"活着"却发现
-// 挂载点已经被直接挖空,patch 时 Cannot read properties of null(unhandled rejection)。
-// 改为跟踪每次 mountDlg() 产生的 wrapper,afterEach 统一 unmount 干净(个别测试自己已经
-// unmount 过的,重复 unmount 用 try/catch 吞掉)。
+// Adding this batch of write-path tests increased the mount() count -- the previous 11 cases
+// never explicitly unmounted (afterEach only cleared document.body.innerHTML), and got away
+// with it by luck. In the new tests, AlertDialog's Portal + reka's internal watch only fire
+// inside the next test's flushPromises(), by which point the previous test's app instance is
+// still "alive" but finds its mount point already gutted -- Cannot read properties of null
+// on patch (an unhandled rejection). Fixed by tracking the wrapper produced by every
+// mountDlg() call and unmounting them all cleanly in afterEach (a few tests already unmount
+// themselves; the redundant unmount is swallowed with try/catch).
 let mountedWrappers: Array<{ unmount: () => void }> = []
 const mountDlg = (volumes: StorageVolume[] = [SYS, EXT], opts: { withCtxStubs?: boolean } = {}) => {
   const w = mount(AppPathDialog, {

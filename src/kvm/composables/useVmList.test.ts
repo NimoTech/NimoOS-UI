@@ -240,7 +240,7 @@ describe('MessageBus events (mirrors Vue2 :766-826)', () => {
     expect(api.getVMList).toHaveBeenCalledTimes(2)
   })
 
-  it('When event targets a different VM, do not touch the currently selected VM's VNC', async () => {
+  it('When event targets a different VM, do not touch the currently selected VM\'s VNC', async () => {
     api.getVMList.mockResolvedValue({ data: [VM(), VM({ id: 'other', state: 'stopped' })], total: 2 })
     const s = useVmList()
     await s.fetchVMs()
@@ -303,7 +303,7 @@ describe('Power actions', () => {
   // here we add the other interleaved-path order — event arrives first, HTTP response later. Under the old implementation,
   // the event builds the connection first (connectCb), then restart's onSuccess would unconditionally disconnectCb()
   // tearing down the just-built connection; vm_started fires only once, no future event triggers reconnection, permanent black screen.
-  it('Mandatory ② regression: when kvm:vm_started arrives ahead of restart's HTTP response, onSuccess must not tear it down (real interleaved path)', async () => {
+  it('Mandatory ② regression: when kvm:vm_started arrives ahead of restart\'s HTTP response, onSuccess must not tear it down (real interleaved path)', async () => {
     const s = useVmList()
     await s.fetchVMs()
     const onC = vi.fn(); const onD = vi.fn()

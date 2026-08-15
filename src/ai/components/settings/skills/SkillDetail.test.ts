@@ -604,12 +604,12 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-8', true]])
 
-    // toggle 请求“失败”(父组件从不把 enabled 改成 true)——用 X 关掉弹窗,而不是点取消。
+    // toggle request "fails" (parent never changes enabled to true) — close the dialog with X, not cancel.
     ;(host.querySelector('.sk-x') as HTMLButtonElement).click()
     await flush()
     expect(host.querySelector('.sk-modal')).toBeNull()
 
-    // 之后用户自己在顶部条把这个技能启用(与「启用并试用」无关的独立操作)。
+    // Afterwards the user enables this skill themselves from the top bar (an independent action unrelated to "enable and try").
     await w.setProps({ skill: makeSkill({ id: 'sk-8', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
@@ -623,12 +623,12 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-10', true]])
 
-    // 响应到达前,用户已经切到另一个技能——skill.id 变化的 watch 会清掉挂号。
+    // Before the response arrives, the user has already switched to another skill — the watch on skill.id change clears the registration.
     await w.setProps({ skill: makeSkill({ id: 'sk-11', enabled: false }) })
     await flush()
 
-    // 迟到的响应此刻才把 sk-10 的 enabled 改成 true(用户又切回了 sk-10)——因为
-    // 挂号已经在切换那一刻被清空,不应该被误读成"待跳转"而 push。
+    // The late response only now flips sk-10's enabled to true (the user switched back to sk-10) — because
+    // the registration was already cleared at the moment of the switch, it must not be misread as "pending navigation" and push.
     await w.setProps({ skill: makeSkill({ id: 'sk-10', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
@@ -647,7 +647,7 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     await flush()
     expect(push).toHaveBeenCalledTimes(1)
 
-    // 用户之后自己用开关把这个技能关闭再打开——不该被误读成"待跳转"而再跳一次。
+    // The user later turns this skill off and back on themselves via the switch — must not be misread as "pending navigation" and navigate again.
     await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: false }) })
     await flush()
     await w.setProps({ skill: makeSkill({ id: 'sk-3', enabled: true }) })
@@ -666,16 +666,16 @@ describe('SkillDetail (read-only half + P3b write operations half)', () => {
     const w = mountDetail(makeSkill({ id: 'sk-9', enabled: false }))
     await w.find('.sk-pill-try').trigger('click')
     await flush()
-    // 合成竞态:弹窗打开期间技能被别处启用(此时还没点确认,pendingTryId 仍是 null)。
+    // Synthetic race: the skill gets enabled elsewhere while the dialog is open (confirm hasn't been clicked yet, pendingTryId is still null).
     await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: true }) })
     await flush()
     expect(push).not.toHaveBeenCalled()
-    // 用户仍然点了确认——enabled 已经是 true,不构成"变化",watcher 不会再触发,
-    // pendingTryId 挂号后悬而不清。
+    // The user still clicks confirm — enabled is already true, so it doesn't count as a "change," the watcher
+    // won't fire again, and the pendingTryId registration lingers uncleared.
     ;(host.querySelector('.sk-btn.primary') as HTMLButtonElement).click()
     await flush()
     expect(w.emitted('toggle')).toEqual([['sk-9', true]])
-    // enabled 被别处改回 false——watcher 第一次真正触发,newVal 是 false。
+    // enabled gets flipped back to false elsewhere — the watcher truly fires for the first time, with newVal false.
     await w.setProps({ skill: makeSkill({ id: 'sk-9', enabled: false }) })
     await flush()
     expect(push).not.toHaveBeenCalled()

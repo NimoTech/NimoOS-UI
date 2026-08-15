@@ -1,54 +1,69 @@
 <!--
-  SP8-P3b Task 5 —— 1:1 移植自 Vue2 src/views/AI/Skills/AddSkillModal.vue(188 行)。
+  SP8-P3b Task 5 — 1:1 port from Vue2 src/views/AI/Skills/AddSkillModal.vue (188 lines).
 
-  外壳换成 SkModal(reka Dialog),不照抄 Vue2 裸 `.sk-modal-bg` + `@click.self`
-  (P2b Task 3 已定先例,视觉规则不变)。footer 用 SkModal 本任务新加的 `footerLeft`
-  插槽承载「保存在这台 NAS 本地」说明,`footer` 插槽承载取消/创建两个按钮 —— 对齐
-  Vue2 :96-108 的两栏布局(左 `.save-note`,右 `.right`),详见 SkModal.vue 头注释。
+  Shell swapped for SkModal (reka Dialog), instead of copying Vue2's bare `.sk-modal-bg` +
+  `@click.self` (precedent set by P2b Task 3, visual rules unchanged). Footer uses SkModal's
+  new `footerLeft` slot (added for this task) to hold the "saved locally on this NAS" note,
+  and the `footer` slot holds the Cancel/Create buttons — matching Vue2's :96-108 two-column
+  layout (`.save-note` on the left, `.right` on the right); see SkModal.vue's header comment
+  for details.
 
-  ===== 三处拍板偏离(逐条三件套,公共约束 §3.6/3.7/3.8,brief §5.1)=====
+  ===== Three deliberate deviations (each documented per the three-part convention, common
+  constraints §3.6/3.7/3.8, brief §5.1) =====
 
-  【偏离 1 —— 颜色圆点不用内联 :style】
-  Vue2 :56-64 用 `:style="{ background: c.bg }"` 内联传渐变字符串,本仓禁内联颜色
-  (公共约束 §6)。改 `:data-color="id"`,底色由 T1 埋进 skills-styles.scss:717-723 的
-  7 条 `[data-color=…]` 规则供(值为 P3a Task 1 建的 `--grad-sk-*` token)。选中态仍走
-  `:data-active`,与 Vue2 :60 语义一致。
+  [Deviation 1 — color dots don't use inline :style]
+  Vue2 :56-64 passes the gradient string via inline `:style="{ background: c.bg }"`; this repo
+  forbids inline colors (common constraint §6). Changed to `:data-color="id"`, with the actual
+  color supplied by the 7 `[data-color=…]` rules T1 placed in skills-styles.scss:717-723 (values
+  are the `--grad-sk-*` tokens built in P3a Task 1). Selected state still goes through
+  `:data-active`, semantically matching Vue2 :60.
 
-  【偏离 2 —— 提交前本地校验】
-  Vue2 :173-174 `submit()` 只查 `!this.valid`(两字段非空),填完一整屏才被后端一句英文
-  顶回来。这里 submit() 先跑 T2 的 `validateSkillForm(name, description)`(逐条对齐后端
-  skills_store.go 的校验规则),非 null 则把对应 i18n 键渲染进 `.sk-field-err`(落在
-  `.sk-modal-body` 顶部,先于所有字段)。`valid`(按钮禁用条件,:137-139)仍只查两字段
-  非空 —— 完整校验只在点击时跑,不塞进禁用态,否则用户不知道为什么点不动。
-  `serverError` prop 与本地校验错误显示在同一个位——本地校验通不过时不会发请求,两者
-  天然互斥,不需要额外的优先级判断。
+  [Deviation 2 — local validation before submit]
+  Vue2 :173-174's `submit()` only checks `!this.valid` (both fields non-empty), so the user
+  fills the whole screen only to be bounced back by a single English sentence from the backend.
+  Here submit() first runs T2's `validateSkillForm(name, description)` (mirroring the backend's
+  skills_store.go validation rules field by field); if it returns non-null, the matching i18n key
+  is rendered into `.sk-field-err` (placed at the top of `.sk-modal-body`, ahead of all fields).
+  `valid` (the button's disabled condition, :137-139) still only checks that both fields are
+  non-empty — the full validation only runs on click, not folded into the disabled state,
+  otherwise the user wouldn't know why the button won't respond.
+  The `serverError` prop and the local validation error render in the same slot — when local
+  validation fails no request is sent, so the two are naturally mutually exclusive and need no
+  extra priority logic.
 
-  【偏离 3 —— >1 MiB 文件不再静默丢弃】
-  Vue2 :164-167 `f.size > 1024*1024` 直接 `continue`,用户看不到文件消失。这里改为累计
-  跳过数(`skippedCount`),达到 >0 时在文件字段下方追加一条 `.sk-field-hint`,文案
-  `aiSkFilesSkippedTooBig`(先例:P1c1 附件管线的 500 MB 门)。
+  [Deviation 3 — files over 1 MiB are no longer silently dropped]
+  Vue2 :164-167 does a bare `continue` on `f.size > 1024*1024`, so the user never sees the file
+  disappear. Here we instead accumulate a skip count (`skippedCount`) and, once it's > 0, append
+  a `.sk-field-hint` below the file field with copy key `aiSkFilesSkippedTooBig` (precedent:
+  P1c1's attachment pipeline's 500 MB gate).
 
-  ===== reka 初始焦点实测结论(任务书要求先实测,不要照猜)=====
-  用 SkModal.vue 现有测试同款手法起了一个探针挂载(mount 后连续 `nextTick` 查
-  `document.activeElement`):reka Dialog 的 FocusScope 默认把 mount-auto-focus 落在
-  DialogContent 内**第一个可聚焦元素**——本组件里那是 SkModal 内置的 `.sk-x` 关闭按钮
-  (它在 DOM 顺序上先于本组件的名称输入框),不是名称框。与 Vue2 :133-135「打开即聚焦
-  名称输入框」不一致,所以需要显式 `focus()`。
-  但进一步实测发现:reka 的 auto-focus 分派发生在 `FocusScope` 自己的
-  `watchEffect(async () => { await nextTick(); ...dispatchMountAutoFocus... })` 里,
-  与本组件在 `watch(() => props.open, ...)` 里同样用 `nextTick()` 再 `focus()` 是**同一
-  微任务级时序在赛跑**——实测两者谁赢不确定(在 jsdom 环境下 reka 的分派后跑,直接抢回
-  `.sk-x`)。改成宏任务级延迟(`setTimeout(fn, 0)`)后实测稳定胜出、落在名称输入框上,
-  不再被 reka 的默认行为抢走(不修改 SkModal 本身的默认聚焏逃辑,只在本组件里用更晚的
-  时机覆盖它,不影响 ChannelsSection/McpTokensSection 两个既有消费方的默认聚焦)。
+  ===== reka initial-focus empirical finding (the task brief required testing this first, not
+  guessing) =====
+  Using the same probe-mount technique as SkModal.vue's existing tests (mount, then repeated
+  `nextTick` checks of `document.activeElement`): reka Dialog's FocusScope by default lands
+  mount-auto-focus on the **first focusable element** inside DialogContent — in this component
+  that's SkModal's built-in `.sk-x` close button (it comes before this component's name input in
+  DOM order), not the name field. That's inconsistent with Vue2 :133-135 ("focus the name input
+  as soon as it opens"), so an explicit `focus()` is needed.
+  Further testing found: reka's auto-focus dispatch happens inside `FocusScope`'s own
+  `watchEffect(async () => { await nextTick(); ...dispatchMountAutoFocus... })`, which is
+  **racing at the same microtask-level timing** as this component's own `nextTick()` + `focus()`
+  inside `watch(() => props.open, ...)` — empirically which one wins is not deterministic (under
+  jsdom, reka's dispatch runs later and steals focus back to `.sk-x`). Switching to a macrotask-
+  level delay (`setTimeout(fn, 0)`) empirically wins reliably and lands focus on the name input,
+  no longer getting stolen by reka's default behavior (this doesn't change SkModal's own default
+  focus logic, it only overrides it later within this component, and doesn't affect the two
+  existing consumers ChannelsSection/McpTokensSection's default focus behavior).
 
-  ===== 非「拍板偏离」但需要说明的实现细节 =====
-  Vue2 每次打开这个弹窗都是父级 `v-if` 重新创建一份组件实例(`mounted()` 天然只跑一次,
-  表单永远从空白开始)。本组件走 SkModal 的 `open` prop 控制可见性,组件实例本身是
-  常驻的,不会随每次打开/关闭重新创建——若不显式复位,「取消」后再次打开会看到上一次
-  残留的输入。这不是新增行为,是为了在架构变化后仍旧还原 Vue2 那个「每次打开都是空表单」
-  的可见行为:`watch(open)` 在关闭时（`v === false`）复位全部字段,不在这里额外申报为
-  行为偏离。
+  ===== Implementation details that aren't "deliberate deviations" but still need explaining =====
+  In Vue2, every time this modal opens the parent's `v-if` recreates a fresh component instance
+  (`mounted()` naturally only runs once, so the form always starts blank). This component instead
+  uses SkModal's `open` prop to control visibility — the component instance itself is persistent
+  and isn't recreated on every open/close. Without an explicit reset, reopening after "Cancel"
+  would show the previous input still lingering. This isn't new behavior, it's there to preserve
+  Vue2's visible behavior of "every open is a blank form" after the architecture change:
+  `watch(open)` resets every field on close (`v === false`); not separately declared as a
+  behavioral deviation here.
 -->
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
@@ -57,9 +72,9 @@ import SkModal from '../SkModal.vue'
 import AgentIcon from '../../icons/AgentIcon.vue'
 import { SKILL_COLOR_IDS } from './SkillTile.vue'
 import { validateSkillForm } from '../../../util/skillsErrorKey'
-// SP8-P3b Task 8 —— 协调者预先解歧义①:`SkillFormPayload`/`SkillScript` 挪到
-// `types/skill.ts` 并导出(纯搬移,字段未改),供 `SkillsSection.vue` 的 `onCreate`
-// 标注 `@save` payload 类型。见 skill.ts 头注释「Task 8」段。
+// SP8-P3b Task 8 — Coordinator pre-disambiguation ①: `SkillFormPayload`/`SkillScript` moved to
+// `types/skill.ts` and exported (pure relocation, fields unchanged), so `SkillsSection.vue`'s
+// `onCreate` can type-annotate the `@save` payload. See the "Task 8" section in skill.ts's header comment.
 import type { SkillFormPayload } from '../../../types/skill'
 
 interface PickedFile { name: string; content: string; size: number }
@@ -75,7 +90,7 @@ const { t } = useI18n()
 const name = ref('')
 const description = ref('')
 const trigger = ref<'auto' | 'slash' | 'manual'>('auto')
-const color = ref<string>(SKILL_COLOR_IDS[0]) // Vue2 data() color: 'blue' —— 首个 id 即 blue
+const color = ref<string>(SKILL_COLOR_IDS[0]) // Vue2 data() color: 'blue' — the first id is blue
 const md = ref('')
 const files = ref<PickedFile[]>([])
 const skippedCount = ref(0)
@@ -84,22 +99,24 @@ const localErrorKey = ref('')
 const nameInputEl = ref<HTMLInputElement | null>(null)
 const filesInputEl = ref<HTMLInputElement | null>(null)
 
-// Vue2 :137-139 —— 按钮禁用条件只查两字段非空,完整校验只在 submit() 时跑。
+// Vue2 :137-139 — the button's disabled condition only checks that both fields are non-empty; full validation only runs in submit().
 const valid = computed(() => name.value.trim().length > 0 && description.value.trim().length > 0)
 
-// 偏离 2:本地校验错误优先显示;两者互斥(本地校验不过就不会发请求,serverError 不会
-// 与本地错误同时非空)。
+// Deviation 2: local validation errors take display priority; the two are mutually exclusive
+// (if local validation fails no request is sent, so serverError is never non-empty at the same
+// time as a local error).
 const errorText = computed(() => (localErrorKey.value ? t(localErrorKey.value) : props.serverError || ''))
 
-// 对齐 ChannelsSection.vue:176-177 的既定手法——用户一动字段就撤掉旧错误,免得改完
-// 还挂着上一次的红字。
+// Matches the established approach in ChannelsSection.vue:176-177 — clear the old error as soon
+// as the user touches a field, so it doesn't still show last time's red text after editing.
 watch([name, description], () => { localErrorKey.value = '' })
 
 const triggerOptions: { id: 'auto' | 'slash' | 'manual'; nameKey: string; descKey: string }[] = [
   { id: 'auto', nameKey: 'aiSkTrigOptAuto', descKey: 'aiSkTrigDescAuto' },
   { id: 'slash', nameKey: 'aiSkTrigOptSlash', descKey: 'aiSkTrigDescSlash' },
-  // 手动选项名复用 aiSkTagManual(与技能列表的「手动」标签同一个词,Vue2 :147 用的也是
-  // 同一个 $t('Manual')),公共约束 §7 点名的可复用键之一。
+  // The "manual" option name reuses aiSkTagManual (same word as the "Manual" tag in the
+  // skills list, Vue2 :147 also uses the same $t('Manual')) — one of the reusable keys
+  // called out in common constraint §7.
   { id: 'manual', nameKey: 'aiSkTagManual', descKey: 'aiSkTrigDescManual' },
 ]
 
@@ -128,8 +145,9 @@ watch(
       resetForm()
       return
     }
-    // 显式聚焦名称输入框,对齐 Vue2 :133-135。见头注释「reka 初始焦点实测结论」——
-    // 必须是宏任务级延迟才能稳定压过 reka FocusScope 自己的 mount-auto-focus。
+    // Explicitly focus the name input, matching Vue2 :133-135. See the header comment's "reka
+    // initial-focus empirical finding" — a macrotask-level delay is required to reliably beat
+    // reka FocusScope's own mount-auto-focus.
     setTimeout(() => { nameInputEl.value?.focus() }, 0)
   },
   { immediate: true },
@@ -142,7 +160,7 @@ async function onFilesPicked(e: Event) {
   let skipped = 0
   for (const f of list) {
     if (f.size > 1024 * 1024) {
-      // 偏离 3:Vue2 :164-167 直接 continue 静默丢弃,这里累计跳过数,行内提示。
+      // Deviation 3: Vue2 :164-167 does a bare continue and silently drops the file; here we accumulate a skip count and show an inline hint.
       skipped++
       continue
     }

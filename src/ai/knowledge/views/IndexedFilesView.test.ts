@@ -950,7 +950,7 @@ const FILE_UNKNOWN_STATUS = {
   tombstoned_at: null,
   vector_count: 5,
   last_error: null,
-  status: 'quarantined', // 不在 statusBadgeMap 里
+  status: 'quarantined', // not in statusBadgeMap
 }
 
 async function mountWithFiles(fileArr: unknown[], total = fileArr.length) {
@@ -972,7 +972,7 @@ describe('IndexedFilesView — Header row (blueprint :148-165)', () => {
       '大小',
       '已收录',
       '向量数',
-      '类型', // aiKbColAction 的 ⚠️N 错译,照抄
+      '类型', // aiKbColAction's ⚠️N mistranslation, copied as-is
       '',
     ])
   })
@@ -1032,7 +1032,7 @@ describe('IndexedFilesView — N14: statusBadgeMap four states (data-s/icon/Chin
     expect(badge.attributes('title')).not.toBe('aiKbStatusError')
   })
 
-  it('tombstoned:data-s="tombstoned"、图标 tomb(只经 map 动态取到,不是字面量)、文案「已删除」、title="Removed"(英文原串)', async () => {
+  it('tombstoned: data-s="tombstoned", icon tomb (only obtained dynamically via the map, not a literal), text "已删除", title="Removed" (English original)', async () => {
     const w = await mountWithFiles([FILE_TOMBSTONED])
     const badge = w.find('.k-status-badge')
     expect(badge.attributes('data-s')).toBe('tombstoned')
@@ -1160,7 +1160,7 @@ describe('IndexedFilesView — Type tag (simplifyMime 5 data-kind + Legacy badge
     expect(tag.text()).toContain('MD')
   })
 
-  it('type tag 的 title = file.mime 原文', async () => {
+  it('type tag title equals the raw file.mime string', async () => {
     const w = await mountWithFiles([mk('text/markdown')])
     expect(w.find('.k-type-tag').attributes('title')).toBe('text/markdown')
   })
@@ -1176,7 +1176,7 @@ describe('IndexedFilesView — Size/time cells (wiring verification, boundary se
     // Constrain to file row (header "vector count" column title span also has .k-frow-num, can't
     // use page findAll or index shifts relative to header span).
     const row = w.find('.k-frow-f:not(.k-frow-fhead)')
-    const cell = row.findAll('.k-frow-num')[0] // 行内第一个 .k-frow-num 是大小列(向量数列另有 k-frow-vec 复合类)
+    const cell = row.findAll('.k-frow-num')[0] // the first .k-frow-num in the row is the size column (the vector-count column has its own k-frow-vec compound class)
     expect(cell.text()).toBe(fmtBytesRef(FILE_OK.size))
     expect(cell.attributes('title')).toBe(FILE_OK.size.toLocaleString() + ' bytes')
   })
@@ -1272,11 +1272,11 @@ describe('IndexedFilesView — Expand button (data-open, K13 expSet) + inline de
   // selector (`.k-fd-v.mono[title]` also hits `.k-fd-sha`, see I-2 notes).
   function fdValueFor(w: Awaited<ReturnType<typeof mountFiles>>, key: string) {
     const item = w.findAll('.k-fd-item').find((it) => it.find('.k-fd-k').text() === key)
-    expect(item, `找不到字段格 "${key}"`).toBeTruthy()
+    expect(item, `field row "${key}" not found`).toBeTruthy()
     return item!.find('.k-fd-v')
   }
 
-  it('详情面板 5 个字段格:parser_version/modalities_done/sha256_full/mime,tombstoned_at 条件出现(此行非 tombstoned,不出现)', async () => {
+  it('Detail panel has 5 field rows: parser_version/modalities_done/sha256_full/mime, tombstoned_at appears conditionally (this row isn\'t tombstoned, so it doesn\'t appear)', async () => {
     const w = await mountWithFiles([FILE_OK])
     await w.find('.k-frow-expand').trigger('click')
     await flush()
@@ -1284,30 +1284,31 @@ describe('IndexedFilesView — Expand button (data-open, K13 expSet) + inline de
     expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'mime'])
     expect(w.find('.k-fd-sha').text()).toBe(FILE_OK.sha256_full)
     expect(w.find('.k-fd-sha').attributes('title')).toBe(FILE_OK.sha256_full)
-    // M-3:parser_version / mime 两处值绑定此前零覆盖(评审探针⑨:三处同时换成
-    // 常量后 107 例全绿),补上。
+    // M-3: the parser_version / mime value bindings had zero coverage before (review probe ⑨:
+    // swapping all three to constants at once left 107 tests green) — added here.
     expect(fdValueFor(w, 'parser_version').text()).toBe(FILE_OK.parser_version)
     expect(fdValueFor(w, 'mime').text()).toBe(FILE_OK.mime)
   })
 
-  it('tombstoned_at 条件出现:tombstoned 行多一个字段格,mono 文字/title = fmtAbs(tombstoned_at)', async () => {
+  it('tombstoned_at appears conditionally: a tombstoned row has one extra field row, mono text/title = fmtAbs(tombstoned_at)', async () => {
     const w = await mountWithFiles([FILE_TOMBSTONED])
     await w.find('.k-frow-expand').trigger('click')
     await flush()
     const keys = w.findAll('.k-fd-k').map((k) => k.text())
     expect(keys).toEqual(['parser_version', 'modalities_done', 'sha256_full', 'tombstoned_at', 'mime'])
-    // 修复轮 1,I-2:`.k-fd-v.mono[title]` 是恒真断言 —— `.k-fd-sha`
-    // (class="k-fd-v mono k-fd-sha" :title="...")同样命中这个选择器,只要详情
-    // 面板渲染出来这条就永真,与 tombstoned_at 格本身的值毫无关系(评审探针⑧:
-    // 把这一格整体换成 `WRONG` 常量后 107 例全绿)。改成先定位到 tombstoned_at
-    // 自己的格,再比文字与 title 两侧都等于 fmtAbs(tombstoned_at)。
+    // Fix round 1, I-2: `.k-fd-v.mono[title]` is a tautological assertion — `.k-fd-sha`
+    // (class="k-fd-v mono k-fd-sha" :title="...") matches the same selector, so this assertion
+    // is always true as soon as the detail panel renders, regardless of the tombstoned_at cell's
+    // own value (review probe ⑧: swapping this whole cell for a `WRONG` constant left 107 tests
+    // green). Changed to locate the tombstoned_at cell specifically first, then compare both its
+    // text and title against fmtAbs(tombstoned_at).
     const cell = fdValueFor(w, 'tombstoned_at')
     const expected = fmtAbsRef(FILE_TOMBSTONED.tombstoned_at)
     expect(cell.text()).toBe(expected)
     expect(cell.attributes('title')).toBe(expected)
   })
 
-  it('modalities_done 非空时渲染 chip 列表,空时渲染 "—"(两侧对照,含回落值断言)', async () => {
+  it('modalities_done renders a chip list when non-empty, and "—" when empty (both sides covered, including the fallback value assertion)', async () => {
     const w1 = await mountWithFiles([FILE_OK]) // modalities_done: { text: 'bge-m3/v1' }
     await w1.find('.k-frow-expand').trigger('click')
     await flush()
@@ -1317,12 +1318,13 @@ describe('IndexedFilesView — Expand button (data-open, K13 expSet) + inline de
     await w2.find('.k-frow-expand').trigger('click')
     await flush()
     expect(w2.find('.k-fd-mods').exists()).toBe(false)
-    // M-3:用例名声称"空时渲染 —"但此前只断言了 .k-fd-mods 不存在,没断言 —
-    // 这个回落值本身(评审探针⑨点名的第三处零覆盖)。
+    // M-3: the test name claims "renders — when empty", but previously only asserted that
+    // .k-fd-mods doesn't exist, never asserted the fallback value "—" itself (the third
+    // zero-coverage spot flagged by review probe ⑨).
     expect(fdValueFor(w2, 'modalities_done').text()).toBe('—')
   })
 
-  it('last_error 条:有值时渲染 .k-fd-error,无值时不渲染(两侧对照)', async () => {
+  it('last_error row: renders .k-fd-error when present, doesn\'t render when absent (both sides covered)', async () => {
     const w1 = await mountWithFiles([FILE_ERROR])
     await w1.find('.k-frow-expand').trigger('click')
     await flush()
@@ -1339,30 +1341,30 @@ describe('IndexedFilesView — Expand button (data-open, K13 expSet) + inline de
 // ──────────────────────────────────────────────────────────────────────
 // Pagination — boundary of four computations currentPage/pageCount/pageFrom/pageTo
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', () => {
-  it('total=0:pageState=empty,pager 不渲染;直接读组件内部 computed 确认边界值(state 存在但入口未渲染,同 T8 established 技巧)', async () => {
+describe('IndexedFilesView — Pagination boundaries (total=0 / exact division / last page)', () => {
+  it('total=0: pageState=empty, pager doesn\'t render; read the component\'s internal computed values directly to confirm the boundary (the state exists but its rendering entry point doesn\'t, same technique established in T8)', async () => {
     const w = await mountWithFiles([], 0)
     expect(w.find('.k-pager').exists()).toBe(false)
     const vm = w.vm as unknown as { pageFrom: number; pageTo: number; pageCount: number }
     expect(vm.pageFrom).toBe(0)
     expect(vm.pageTo).toBe(0)
-    expect(vm.pageCount).toBe(1) // Math.max(1, …) 兜底
+    expect(vm.pageCount).toBe(1) // Math.max(1, …) fallback
   })
 
-  it('total 恰好整除 limit:第 2(末)页,pageFrom/pageTo 精确、下一页禁用、上一页启用(RED 探针②的钉子)', async () => {
+  it('total exactly divisible by limit: page 2 (the last page), pageFrom/pageTo exact, next-page disabled, previous-page enabled (RED probe ② anchor)', async () => {
     const w = await mountWithFiles([FILE_OK], 16)
     const store = useKnowledgeStore()
     store.indexedFiles.filters.limit = 8
-    store.indexedFiles.filters.offset = 8 // 第 2 页,16/8 恰好整除,这是末页
+    store.indexedFiles.filters.offset = 8 // page 2, 16/8 divides exactly, this is the last page
     await flush()
     expect(w.find('.k-pager-page').text()).toBe('2 / 2')
     expect(w.find('.k-pager-info').text()).toBe('显示 9–16 / 16')
-    expect(w.find('.k-pager button.k-btn').attributes('disabled')).toBeUndefined() // 上一页
+    expect(w.find('.k-pager button.k-btn').attributes('disabled')).toBeUndefined() // previous page
     const nextBtn = w.findAll('.k-pager button.k-btn')[1]
-    expect(nextBtn.attributes('disabled')).toBeDefined() // 下一页禁用(末页)
+    expect(nextBtn.attributes('disabled')).toBeDefined() // next page disabled (last page)
   })
 
-  it('末页(不整除):total=17, limit=8, offset=16 → 第 3 页只有 1 条,pageTo 钳到 17 不越界', async () => {
+  it('last page (not evenly divisible): total=17, limit=8, offset=16 → page 3 has only 1 row, pageTo clamps to 17 without overflowing', async () => {
     const w = await mountWithFiles([FILE_OK], 17)
     const store = useKnowledgeStore()
     store.indexedFiles.filters.limit = 8
@@ -1374,7 +1376,7 @@ describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', (
     expect(nextBtn.attributes('disabled')).toBeDefined()
   })
 
-  it('首页:上一页禁用,下一页启用(两侧对照)', async () => {
+  it('first page: previous-page disabled, next-page enabled (both sides covered)', async () => {
     const w = await mountWithFiles([FILE_OK], 16)
     const store = useKnowledgeStore()
     store.indexedFiles.filters.limit = 8
@@ -1386,26 +1388,26 @@ describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', (
     expect(nextBtn.attributes('disabled')).toBeUndefined()
   })
 
-  it('点击「上一步」/「下一步」推进 offset 并重载', async () => {
+  it('clicking "previous"/"next" advances offset and reloads', async () => {
     const w = await mountWithFiles([FILE_OK], 24)
     const store = useKnowledgeStore()
     store.indexedFiles.filters.limit = 8
     store.indexedFiles.filters.offset = 8
     await flush()
     ai.parserFiles.mockClear()
-    await w.findAll('.k-pager button.k-btn')[1].trigger('click') // 下一步
+    await w.findAll('.k-pager button.k-btn')[1].trigger('click') // next
     await flush()
     expect(store.indexedFiles.filters.offset).toBe(16)
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
 
     ai.parserFiles.mockClear()
-    await w.findAll('.k-pager button.k-btn')[0].trigger('click') // 上一步
+    await w.findAll('.k-pager button.k-btn')[0].trigger('click') // previous
     await flush()
     expect(store.indexedFiles.filters.offset).toBe(8)
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
   })
 
-  it('每页条数下拉:4 档 [50,100,200,500],切换后清选择 + 归零 offset + 重载(不清 errorBanner,与 _applyFilter 不同)', async () => {
+  it('page-size dropdown: 4 tiers [50,100,200,500], switching clears the selection + zeroes offset + reloads (doesn\'t clear errorBanner, unlike _applyFilter)', async () => {
     const w = await mountWithFiles([FILE_OK], 300)
     const store = useKnowledgeStore()
     const opts = w.find('.k-pager-size select').findAll('option')
@@ -1419,7 +1421,8 @@ describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', (
     expect(store.indexedFiles.filters.limit).toBe(200)
     expect(store.indexedFiles.filters.offset).toBe(0)
     expect(ai.parserFiles).toHaveBeenCalledTimes(1)
-    // 与 _applyFilter 不同:onPageSizeChange 不清 errorBanner(蓝本本来就没这行,照抄不补齐)
+    // Unlike _applyFilter: onPageSizeChange doesn't clear errorBanner (the blueprint never had
+    // this line either — copied as-is, not backfilled)
     expect((w.vm as unknown as { errorBanner: string | null }).errorBanner).toBe('stale banner text')
   })
 })
@@ -1427,8 +1430,8 @@ describe('IndexedFilesView — 分页边界(total=0 / 恰好整除 / 末页)', (
 // ──────────────────────────────────────────────────────────────────────
 // Multi-select checkboxes (read+write, this cut's scope; selectedCount/action bar/confirm dialog is T10)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两侧对照)', () => {
-  it('.k-frow-f data-selected 两侧都覆盖:勾选行 checkbox → true,再取消 → false', async () => {
+describe('IndexedFilesView — Multi-select checkboxes (toggleRow/toggleAll, attributes covered both sides)', () => {
+  it('.k-frow-f data-selected covered both sides: checking the row checkbox → true, unchecking → false', async () => {
     const w = await mountWithFiles([FILE_OK])
     const row = () => w.find('.k-frow-f:not(.k-frow-fhead)')
     expect(row().attributes('data-selected')).toBe('false')
@@ -1440,35 +1443,35 @@ describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两
     expect(row().attributes('data-selected')).toBe('false')
   })
 
-  it('tombstoned 行的复选框禁用,title=aiKbTombstonedNoSelect', async () => {
+  it('tombstoned row\'s checkbox is disabled, title=aiKbTombstonedNoSelect', async () => {
     const w = await mountWithFiles([FILE_TOMBSTONED])
     const cb = w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check')
     expect(cb.attributes('disabled')).toBeDefined()
     expect(cb.attributes('title')).toBe('已删除文件不可选')
   })
 
-  it('非 tombstoned 行复选框不禁用,title 为空字符串', async () => {
+  it('non-tombstoned row\'s checkbox isn\'t disabled, title is an empty string', async () => {
     const w = await mountWithFiles([FILE_OK])
     const cb = w.find('.k-frow-f:not(.k-frow-fhead) .k-row-check')
     expect(cb.attributes('disabled')).toBeUndefined()
     expect(cb.attributes('title')).toBe('')
   })
 
-  it('全选:点击表头复选框选中所有可选行(排除 tombstoned),再点一次取消全选', async () => {
+  it('select-all: clicking the header checkbox selects all selectable rows (excluding tombstoned), clicking again deselects all', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR, FILE_TOMBSTONED])
     await w.find('.k-frow-fhead .k-row-check').setValue(true)
     await flush()
     const rows = w.findAll('.k-frow-f:not(.k-frow-fhead)')
     expect(rows[0].attributes('data-selected')).toBe('true') // FILE_OK
     expect(rows[1].attributes('data-selected')).toBe('true') // FILE_ERROR
-    expect(rows[2].attributes('data-selected')).toBe('false') // FILE_TOMBSTONED,不可选,全选不影响它
+    expect(rows[2].attributes('data-selected')).toBe('false') // FILE_TOMBSTONED, not selectable, select-all doesn't affect it
     await w.find('.k-frow-fhead .k-row-check').setValue(false)
     await flush()
     expect(rows[0].attributes('data-selected')).toBe('false')
     expect(rows[1].attributes('data-selected')).toBe('false')
   })
 
-  it('.k-frow-f data-done:baseline 恒为 false(doneSet 本刀只读不写);直接改内部 ref 验证「true」侧渲染正确(状态存在但写入口留给 T10,同 T8 established 技巧)', async () => {
+  it('.k-frow-f data-done: always false at baseline (this cut only reads doneSet, never writes it); directly mutate the internal ref to verify the "true" side renders correctly (the state exists but its write entry point is left for T10, same technique established in T8)', async () => {
     const w = await mountWithFiles([FILE_OK])
     const row = () => w.find('.k-frow-f:not(.k-frow-fhead)')
     expect(row().attributes('data-done')).toBe('false')
@@ -1477,7 +1480,7 @@ describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两
     expect(row().attributes('data-done')).toBe('true')
   })
 
-  it('.k-frow-f data-status 直接透传 file.status(ok/indexing/error/tombstoned 四值)', async () => {
+  it('.k-frow-f data-status passes file.status straight through (all four values: ok/indexing/error/tombstoned)', async () => {
     for (const [file, status] of [
       [FILE_OK, 'ok'],
       [FILE_INDEXING, 'indexing'],
@@ -1523,9 +1526,9 @@ describe('IndexedFilesView — 多选复选框(toggleRow/toggleAll,attribute 两
 // button `disabled`), not reading component internal state self-proving.
 // ══════════════════════════════════════════════════════════════════════
 
-// 逐字取自 p5b-fixtures/reindex-cap-400.http(已实测)。
+// Copied verbatim from p5b-fixtures/reindex-cap-400.http (measured on device).
 const CAP_400_FILE_IDS = { response: { data: { detail: 'too many file_ids (max 500)' } } }
-// 取自 fixture README「未实测 · 源码推定」表(filter 模式超限)。
+// Taken from the fixture README's "not tested · source-inferred" table (filter-mode cap exceeded).
 const CAP_400_FILTER = {
   response: {
     data: {
@@ -1535,14 +1538,15 @@ const CAP_400_FILTER = {
   },
 }
 
-// FILE_OK(= FILES_ALL_8[1],真实 fixture 行)换 file_id,造够 501 个不同 id。
+// FILE_OK (= FILES_ALL_8[1], a real fixture row) with file_id swapped, to build 501 distinct ids.
 function capIds(n: number): Set<string> {
   return new Set(Array.from({ length: n }, (_, i) => `cap-probe-${i}`))
 }
 
-// K7:弹窗 portal 目标 —— 本视图独立挂载时不在 .knowledge-app 子树里(生产环境
-// 由 KnowledgeLayout.vue 提供),测试须先在 body 里放一个同名宿主
-// (先例 QueueView.test.ts::withHost() / SkillDetail.test.ts::withHost())。
+// K7: modal portal target — when this view is mounted standalone it isn't inside the
+// .knowledge-app subtree (production supplies it via KnowledgeLayout.vue), so the test must
+// first place a same-named host in the body (precedent: QueueView.test.ts::withHost() /
+// SkillDetail.test.ts::withHost()).
 function withHost(): HTMLElement {
   const host = document.createElement('div')
   host.className = 'knowledge-app'
@@ -1550,8 +1554,8 @@ function withHost(): HTMLElement {
   return host
 }
 
-/** 与 mountWithFiles 相同,只是 attachTo document.body —— 照 T5 挂 reka 弹窗用例
- * 的既有写法(reka 的 DismissableLayer 往 document 上挂 pointerdown 监听)。 */
+/** Same as mountWithFiles, just attachTo document.body — following the existing pattern from
+ * T5's reka modal tests (reka's DismissableLayer attaches a pointerdown listener to document). */
 async function mountAttachedWithFiles(fileArr: unknown[], total = fileArr.length) {
   ai.parserFiles.mockResolvedValueOnce({ total, limit: 100, offset: 0, files: fileArr })
   const w = mount(IndexedFilesView, {
@@ -1568,10 +1572,10 @@ const setSel = (w: ReturnType<typeof mount>, s: Set<string>) => {
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// 底部粘性动作条(蓝本 :322-353)
+// Bottom sticky action bar (blueprint :322-353)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
-  it('data-active 两侧都断言:未选中 "false",勾选一行后 "true",再取消回 "false"(直接比字符串值)', async () => {
+describe('IndexedFilesView — Bottom sticky action bar (blueprint :322-353)', () => {
+  it('data-active asserted on both sides: "false" when nothing is selected, "true" after checking a row, back to "false" after unchecking (compares the string value directly)', async () => {
     const w = await mountWithFiles([FILE_OK])
     const bar = () => w.find('.k-files-actionbar')
     expect(bar().exists()).toBe(true)
@@ -1584,7 +1588,7 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
     expect(bar().attributes('data-active')).toBe('false')
   })
 
-  it('.k-ab-info 未选中时是提示文案、选中后换成「已选 {n} 项」(两侧对照,提示文案此时消失)', async () => {
+  it('.k-ab-info shows the hint text when nothing is selected, switches to "{n} selected" once something is (both sides covered, the hint text disappears at that point)', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR])
     expect(w.find('.k-ab-info').text()).toBe('勾选文件后可批量强制重建')
     await w.find('.k-frow-fhead .k-row-check').setValue(true)
@@ -1593,7 +1597,7 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
     expect(w.find('.k-ab-info').text()).not.toContain('勾选文件后可批量强制重建')
   })
 
-  it('「重建该 Root 全部」按钮:文案 + total>0 时不禁用、title 是匹配数提示', async () => {
+  it('"Rebuild all under this root" button: copy + not disabled when total>0, title is the match-count hint', async () => {
     const w = await mountWithFiles([FILE_OK], 8)
     const btn = w.find('.k-files-actionbar .k-btn.outline')
     expect(btn.text()).toContain('重建该 Root 全部')
@@ -1601,7 +1605,7 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
     expect(btn.attributes('title')).toBe('重建当前筛选匹配的 8 个文件')
   })
 
-  it('「重建该 Root 全部」按钮:total===0 时禁用、title 换成「没有匹配的文件」(两侧对照)', async () => {
+  it('"Rebuild all under this root" button: disabled when total===0, title switches to "No matching files" (both sides covered)', async () => {
     ai.parserFiles.mockReset()
     ai.parserFiles.mockResolvedValue(EMPTY_RESULT)
     const w = await mountFiles()
@@ -1610,7 +1614,7 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
     expect(btn.attributes('title')).toBe('没有匹配的文件')
   })
 
-  it('「重建选中 ({n})」按钮:未选中时文案带 0 且禁用;选中 1 行后文案变 1 且启用(两侧对照)', async () => {
+  it('"Rebuild selected ({n})" button: copy shows 0 and is disabled when nothing is selected; after selecting 1 row, copy shows 1 and it\'s enabled (both sides covered)', async () => {
     const w = await mountWithFiles([FILE_OK])
     const btn = () => w.find('.k-files-actionbar .k-btn.primary')
     expect(btn().text()).toContain('重建选中 (0)')
@@ -1621,7 +1625,7 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
     expect(btn().attributes('disabled')).toBeUndefined()
   })
 
-  it('title 的千分位:total=12345 → 「重建当前筛选匹配的 12,345 个文件」', async () => {
+  it('title\'s thousands separator: total=12345 → "Rebuild the 12,345 files matching the current filter"', async () => {
     const w = await mountWithFiles([FILE_OK], 12345)
     expect(w.find('.k-files-actionbar .k-btn.outline').attributes('title')).toBe(
       '重建当前筛选匹配的 12,345 个文件',
@@ -1630,11 +1634,12 @@ describe('IndexedFilesView — 底部粘性动作条(蓝本 :322-353)', () => {
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 双上限的阈值两侧 —— EXPLICIT_REBUILD_CAP = 500(前端硬拦)
-// 承 P5a T6 教训:不钉两侧等于没测(`fmtAgo` 的 h<24 改成 h<48 曾 16/16 全绿)。
+// 🔴 Both sides of the dual-cap threshold — EXPLICIT_REBUILD_CAP = 500 (hard-blocked on the frontend)
+// Carrying forward the P5a T6 lesson: not pinning both sides of a boundary is the same as not
+// testing it (`fmtAgo`'s h<24 changed to h<48 once left 16/16 tests green).
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — EXPLICIT_REBUILD_CAP 阈值两侧(500 / 501)', () => {
-  it('选中 500 个(= 上限,后端判据是 len > 500)→ 不超限:无警告、「重建选中」可点', async () => {
+describe('IndexedFilesView — EXPLICIT_REBUILD_CAP threshold, both sides (500 / 501)', () => {
+  it('selecting exactly 500 (= the cap, the backend\'s rule is len > 500) → not over the limit: no warning, "Rebuild selected" is clickable', async () => {
     const w = await mountWithFiles([FILE_OK])
     setSel(w, capIds(500))
     await flush()
@@ -1644,7 +1649,7 @@ describe('IndexedFilesView — EXPLICIT_REBUILD_CAP 阈值两侧(500 / 501)', ()
     expect(w.find('.k-files-actionbar .k-btn.primary').attributes('disabled')).toBeUndefined()
   })
 
-  it('选中 501 个(> 上限)→ 超限:出 .k-ab-warn 警告、「重建选中」禁用(RED 探针①的钉子:> 改 >= 会让 500 那条报红)', async () => {
+  it('selecting 501 (> the cap) → over the limit: .k-ab-warn warning appears, "Rebuild selected" is disabled (RED probe ① anchor: changing > to >= would turn the 500 case red)', async () => {
     const w = await mountWithFiles([FILE_OK])
     setSel(w, capIds(501))
     await flush()
@@ -1655,18 +1660,19 @@ describe('IndexedFilesView — EXPLICIT_REBUILD_CAP 阈值两侧(500 / 501)', ()
     expect(w.find('.k-files-actionbar .k-btn.primary').attributes('disabled')).toBeDefined()
   })
 
-  it('超限时 rebuildSelected 直接 return(蓝本 :773 的双保险):即便绕过 disabled 也一个请求都不发', async () => {
+  it('rebuildSelected returns immediately when over the cap (blueprint :773\'s belt-and-suspenders check): not a single request is sent even if disabled is bypassed', async () => {
     const w = await mountWithFiles([FILE_OK])
     setSel(w, capIds(501))
     await flush()
     ai.parserReindexFiles.mockClear()
-    // 绕过 disabled 直接调内部函数 —— 正是这条守卫存在的意义(键盘/程序化调用)。
+    // Bypass disabled and call the internal function directly — this is exactly what the guard
+    // exists for (keyboard / programmatic invocation).
     await (w.vm as unknown as { rebuildSelected: () => Promise<void> }).rebuildSelected()
     await flush()
     expect(ai.parserReindexFiles).not.toHaveBeenCalled()
   })
 
-  it('选中 0 个时 rebuildSelected 同样直接 return(蓝本 :773 前半个条件)', async () => {
+  it('rebuildSelected also returns immediately when 0 are selected (the first half of blueprint :773\'s condition)', async () => {
     const w = await mountWithFiles([FILE_OK])
     ai.parserReindexFiles.mockClear()
     await (w.vm as unknown as { rebuildSelected: () => Promise<void> }).rebuildSelected()
@@ -1676,10 +1682,11 @@ describe('IndexedFilesView — EXPLICIT_REBUILD_CAP 阈值两侧(500 / 501)', ()
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 双上限的阈值两侧 —— FILTER_REBUILD_CAP = 10000(前端只警告,真拦在后端)
+// 🔴 Both sides of the dual-cap threshold — FILTER_REBUILD_CAP = 10000 (the frontend only warns,
+// the real block is on the backend)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — FILTER_REBUILD_CAP 阈值两侧(10000 / 10001)', () => {
-  it('total=10000(= 上限,后端判据是 n > 10000)→ 弹窗里**不出**超限横幅', async () => {
+describe('IndexedFilesView — FILTER_REBUILD_CAP threshold, both sides (10000 / 10001)', () => {
+  it('total=10000 (= the cap, the backend\'s rule is n > 10000) → the modal does **not** show an over-limit banner', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 10000)
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
@@ -1688,7 +1695,7 @@ describe('IndexedFilesView — FILTER_REBUILD_CAP 阈值两侧(10000 / 10001)', 
     expect(host.querySelector('.k-modal .k-banner')).toBeNull()
   })
 
-  it('total=10001(> 上限)→ 弹窗里出超限横幅,文案带两个千分位数字(两侧对照)', async () => {
+  it('total=10001 (> the cap) → the modal shows an over-limit banner, copy includes two thousands-separated numbers (both sides covered)', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 10001)
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
@@ -1703,28 +1710,31 @@ describe('IndexedFilesView — FILTER_REBUILD_CAP 阈值两侧(10000 / 10001)', 
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 indeterminate 四种组合(T9 已落地那两个 watch,本刀补测试覆盖)
-// jsdom 下 `indeterminate` 可读写但无视觉表现 → 断言读 DOM 属性本身。
-// 每条都设计成「先经历相反状态、再回落」,不靠挂载后的 DOM 默认值蒙对
-// (RED 探针⑤:把两个 watch 里的赋值删掉,下面 2/4 与 4/4 会报红)。
+// 🔴 The four indeterminate combinations (T9 already landed those two watchers, this cut adds
+// the test coverage).
+// Under jsdom, `indeterminate` is readable/writable but has no visual effect → assertions read
+// the DOM property directly.
+// Each case is designed to "go through the opposite state first, then settle back", rather than
+// relying on the DOM's default value right after mount to happen to be correct
+// (RED probe ⑤: delete the assignments in the two watchers, and 2/4 and 4/4 below go red).
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 全选复选框的 indeterminate(四种组合)', () => {
+describe('IndexedFilesView — select-all checkbox\'s indeterminate (four combinations)', () => {
   const indet = (w: ReturnType<typeof mount>) =>
     (w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).indeterminate
 
-  it('1/4 全不选:先勾一行让它变 true,再取消 → 回 false(不是靠挂载默认值蒙对)', async () => {
+  it('1/4 nothing selected: check one row first to make it true, then uncheck → back to false (not relying on the post-mount default value happening to be correct)', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR])
     const rowCheck = () => w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0]
     await rowCheck().setValue(true)
     await flush()
-    expect(indet(w)).toBe(true) // 中间态,证明下一步的 false 不是恒 false
+    expect(indet(w)).toBe(true) // intermediate state, proving the next step's false isn't just always false
     await rowCheck().setValue(false)
     await flush()
     expect(indet(w)).toBe(false)
     expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('2/4 部分选(2 行里选 1 行)→ indeterminate=true,且全选框自身 checked=false', async () => {
+  it('2/4 partially selected (1 of 2 rows selected) → indeterminate=true, and the select-all checkbox itself has checked=false', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR])
     await w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0].setValue(true)
     await flush()
@@ -1732,26 +1742,28 @@ describe('IndexedFilesView — 全选复选框的 indeterminate(四种组合)', 
     expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('3/4 全选(2 行全选中)→ indeterminate=false(先经过部分选的 true 再补齐第二行)', async () => {
+  it('3/4 all selected (both rows selected) → indeterminate=false (goes through the partially-selected true state first, then fills in the second row)', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR])
     const rows = () => w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')
     await rows()[0].setValue(true)
     await flush()
-    expect(indet(w)).toBe(true) // 中间态
+    expect(indet(w)).toBe(true) // intermediate state
     await rows()[1].setValue(true)
     await flush()
     expect(indet(w)).toBe(false)
     expect((w.find('.k-frow-fhead .k-row-check').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('4/4 可选行为 0:先在有可选行时变 true,再让当前页只剩 tombstoned 行 → indeterminate 回 false 且全选框禁用', async () => {
-    // 需要**两个**可选行才能造出「部分选」中间态(只有一个可选行时,选它就等于
-    // 全选,allSelected 立刻为真、indeterminate 恒 false)。
+  it('4/4 zero selectable rows: first make it true while there are selectable rows, then leave only tombstoned rows on the current page → indeterminate goes back to false and the select-all checkbox is disabled', async () => {
+    // Needs **two** selectable rows to produce the "partially selected" intermediate state (with
+    // only one selectable row, selecting it is equivalent to selecting all, so allSelected becomes
+    // true immediately and indeterminate is always false).
     const w = await mountWithFiles([FILE_OK, FILE_ERROR, FILE_TOMBSTONED])
     await w.findAll('.k-frow-f:not(.k-frow-fhead) .k-row-check')[0].setValue(true)
     await flush()
-    expect(indet(w)).toBe(true) // 中间态(2 个可选行里选中 1 个)
-    // 模拟切到「只看已删除」后重载:当前页零可选行,但 selSet 里还留着上一页的 id。
+    expect(indet(w)).toBe(true) // intermediate state (1 of 2 selectable rows selected)
+    // Simulate a reload after switching to "only show deleted": the current page has zero
+    // selectable rows, but selSet still holds ids from the previous page.
     useKnowledgeStore().indexedFiles.files = [FILE_TOMBSTONED] as never
     await flush()
     expect(w.find('.k-frow-fhead .k-row-check').attributes('disabled')).toBeDefined()
@@ -1760,10 +1772,10 @@ describe('IndexedFilesView — 全选复选框的 indeterminate(四种组合)', 
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// rebuildRow(T9 留的空占位,本刀补全)
+// rebuildRow (T9 left an empty placeholder, this cut fills it in)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — rebuildRow(蓝本 :760-770)', () => {
-  it('点行内「恢复」按钮:派 file_ids + reason、toast「已入队 1 个任务」、起轮询', async () => {
+describe('IndexedFilesView — rebuildRow (blueprint :760-770)', () => {
+  it('clicking the in-row "Restore" button: dispatches file_ids + reason, toasts "1 task queued", starts polling', async () => {
     const w = await mountWithFiles([FILE_OK])
     const store = useKnowledgeStore()
     const toast = vi.spyOn(store, 'toast')
@@ -1778,7 +1790,7 @@ describe('IndexedFilesView — rebuildRow(蓝本 :760-770)', () => {
     expect(poll).toHaveBeenCalled()
   })
 
-  it('toast 的 {n} 取响应体的 queued(不是写死 1):queued=7 → 「已入队 7 个任务」', async () => {
+  it('the toast\'s {n} comes from the response body\'s queued field (not hardcoded to 1): queued=7 → "7 tasks queued"', async () => {
     const w = await mountWithFiles([FILE_OK])
     const store = useKnowledgeStore()
     const toast = vi.spyOn(store, 'toast')
@@ -1788,7 +1800,7 @@ describe('IndexedFilesView — rebuildRow(蓝本 :760-770)', () => {
     expect(toast).toHaveBeenCalledWith('已入队 7 个任务')
   })
 
-  it('K5:失败只弹固定「重建失败」,不回显 e.message / 后端 detail(反向断言)', async () => {
+  it('K5: failure only toasts the fixed "Rebuild failed", never echoes e.message / the backend\'s detail (inverse assertion)', async () => {
     const w = await mountWithFiles([FILE_OK])
     const store = useKnowledgeStore()
     const toast = vi.spyOn(store, 'toast')
@@ -1805,17 +1817,18 @@ describe('IndexedFilesView — rebuildRow(蓝本 :760-770)', () => {
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 _flashDone 的 2200 ms —— fake timers 断言「加」与「撤」两侧
-// (RED 探针②:删掉 setTimeout → 「撤」那侧报红)
+// 🔴 _flashDone's 2200 ms — fake timers assert both the "set" and "unset" sides
+// (RED probe ②: delete the setTimeout → the "unset" side goes red)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — _flashDone 2200 ms 绿闪(蓝本 :811-823)', () => {
-  it('重建成功后该行 data-done 立刻 true;2199 ms 仍 true;满 2200 ms 后撤成 false', async () => {
+describe('IndexedFilesView — _flashDone\'s 2200 ms green flash (blueprint :811-823)', () => {
+  it('after a successful rebuild the row\'s data-done is true immediately; still true at 2199 ms; flips back to false once 2200 ms elapses', async () => {
     vi.useFakeTimers()
     try {
       setActivePinia(createPinia())
       vi.clearAllMocks()
-      // 用非 Once 的 mock:store 的 reindexIndexedByIds 内部会再 loadIndexedFiles
-      // 一次,列表必须稳定返回同一行,否则 data-done 的宿主行会被换掉。
+      // Use a non-Once mock: the store's reindexIndexedByIds calls loadIndexedFiles again
+      // internally, so the list must keep returning the same row consistently, or the row
+      // hosting data-done gets swapped out.
       ai.parserFiles.mockResolvedValue({ total: 1, limit: 100, offset: 0, files: [FILE_OK] })
       ai.parserReindexFiles.mockResolvedValue(REINDEX_OK)
       const w = mount(IndexedFilesView, { global: { plugins: [i18n] } })
@@ -1829,23 +1842,23 @@ describe('IndexedFilesView — _flashDone 2200 ms 绿闪(蓝本 :811-823)', () =
       await w.find('.k-rebuild-btn').trigger('click')
       await flushPromises()
       await nextTick()
-      expect(row().attributes('data-done')).toBe('true') // 「加」侧
+      expect(row().attributes('data-done')).toBe('true') // the "set" side
 
       vi.advanceTimersByTime(2199)
       await flushPromises()
       await nextTick()
-      expect(row().attributes('data-done')).toBe('true') // 还没到点,精确钉住 2200
+      expect(row().attributes('data-done')).toBe('true') // not there yet, pinning exactly at 2200
 
       vi.advanceTimersByTime(1)
       await flushPromises()
       await nextTick()
-      expect(row().attributes('data-done')).toBe('false') // 「撤」侧
+      expect(row().attributes('data-done')).toBe('false') // the "unset" side
     } finally {
       vi.useRealTimers()
     }
   })
 
-  it('rebuildSelected 不绿闪(蓝本 :772-784 没有调 _flashDone,只有 rebuildRow 有)', async () => {
+  it('rebuildSelected doesn\'t green-flash (blueprint :772-784 never calls _flashDone, only rebuildRow does)', async () => {
     vi.useFakeTimers()
     try {
       setActivePinia(createPinia())
@@ -1869,10 +1882,10 @@ describe('IndexedFilesView — _flashDone 2200 ms 绿闪(蓝本 :811-823)', () =
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// rebuildSelected(蓝本 :772-784)
+// rebuildSelected (blueprint :772-784)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — rebuildSelected(蓝本 :772-784)', () => {
-  it('选中两行后点「重建选中」:派全部选中 id + reason、toast、起轮询、清空选择', async () => {
+describe('IndexedFilesView — rebuildSelected (blueprint :772-784)', () => {
+  it('select two rows then click "Rebuild selected": dispatches all selected ids + reason, toasts, starts polling, clears the selection', async () => {
     const w = await mountWithFiles([FILE_OK, FILE_ERROR])
     const store = useKnowledgeStore()
     const toast = vi.spyOn(store, 'toast')
@@ -1888,12 +1901,12 @@ describe('IndexedFilesView — rebuildSelected(蓝本 :772-784)', () => {
     })
     expect(toast).toHaveBeenCalledWith('已入队 1 个任务')
     expect(poll).toHaveBeenCalled()
-    // 蓝本 :778 —— 成功后清空选择,动作条回到未选中态(两侧对照)
+    // blueprint :778 — clears the selection on success, the action bar returns to its unselected state (both sides covered)
     expect(w.find('.k-ab-info').text()).toBe('勾选文件后可批量强制重建')
     expect(w.find('.k-files-actionbar').attributes('data-active')).toBe('false')
   })
 
-  it('失败时**不清空**选择(蓝本 :778 在 try 里、catch 里没有),并走 K5 固定文案', async () => {
+  it('on failure the selection is **not** cleared (blueprint :778 is inside the try block, not in catch), and it follows K5\'s fixed copy', async () => {
     const w = await mountWithFiles([FILE_OK])
     const store = useKnowledgeStore()
     const toast = vi.spyOn(store, 'toast')
@@ -1913,14 +1926,14 @@ describe('IndexedFilesView — rebuildSelected(蓝本 :772-784)', () => {
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// K7:整库重建确认弹窗(reka Dialog 原语,portal 到 .knowledge-app)
+// K7: whole-library rebuild confirmation modal (reka Dialog primitive, portal to .knowledge-app)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', () => {
-  it('点「重建该 Root 全部」打开弹窗(portal 到 .knowledge-app,不在组件子树里),标题/两段正文/两个按钮文案正确', async () => {
+describe('IndexedFilesView — K7: whole-library rebuild confirmation modal (blueprint :355-381)', () => {
+  it('clicking "Rebuild all under this root" opens the modal (portaled to .knowledge-app, not inside the component\'s own subtree); title / two body paragraphs / two button labels are all correct', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     expect(host.querySelector('.k-modal')).toBeNull()
-    // 反向确认:弹窗不是渲染在组件自身子树里(K7 要求 portal 到知识库容器)
+    // Inverse check: the modal doesn't render inside the component's own subtree (K7 requires portaling to the knowledge-base container)
     expect(w.find('.k-modal').exists()).toBe(false)
 
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
@@ -1937,15 +1950,15 @@ describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', ()
       b.textContent!.trim(),
     )
     expect(btns).toEqual(['取消', '确认重建 8 个'])
-    // reka a11y:DialogContent 就是 role=dialog,且 VisuallyHidden 包的 DialogTitle
-    // 通过 aria-labelledby 挂上去(缺了它 reka 会在控制台告警)。
+    // reka a11y: DialogContent is role=dialog, and the DialogTitle wrapped in VisuallyHidden
+    // is wired up via aria-labelledby (without it, reka logs a console warning).
     expect(modal!.getAttribute('role')).toBe('dialog')
     const labelId = modal!.getAttribute('aria-labelledby')
     expect(labelId).toBeTruthy()
     expect(host.querySelector(`#${labelId}`)!.textContent).toBe('重建整个匹配集合？')
   })
 
-  it('total===0 时按钮禁用,openRebuildAllConfirm 即便被直接调用也不开弹窗(蓝本 :787 的守卫)', async () => {
+  it('the button is disabled when total===0, and openRebuildAllConfirm doesn\'t open the modal even when called directly (blueprint :787\'s guard)', async () => {
     const host = withHost()
     ai.parserFiles.mockReset()
     ai.parserFiles.mockResolvedValue(EMPTY_RESULT)
@@ -1956,7 +1969,7 @@ describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', ()
     expect(host.querySelector('.k-modal')).toBeNull()
   })
 
-  it('点「取消」关闭弹窗且不发请求', async () => {
+  it('clicking "Cancel" closes the modal and sends no request', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
@@ -1971,7 +1984,7 @@ describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', ()
     expect(ai.parserReindexFiles).not.toHaveBeenCalled()
   })
 
-  it('点「确认重建」发 filter 请求、toast、起轮询,并关闭弹窗', async () => {
+  it('clicking "Confirm rebuild" sends the filter request, toasts, starts polling, and closes the modal', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     const store = useKnowledgeStore()
@@ -1993,15 +2006,16 @@ describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', ()
     expect(host.querySelector('.k-modal')).toBeNull()
   })
 
-  it('点遮罩(弹窗外部)关闭;点弹窗内部不关闭(reka pointerDownOutside 等价蓝本 :356 @click / :357 @click.stop)', async () => {
+  it('clicking the overlay (outside the modal) closes it; clicking inside the modal doesn\'t (reka\'s pointerDownOutside is the equivalent of blueprint :356\'s @click / :357\'s @click.stop)', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
     await flush()
     expect(host.querySelector('.k-modal')).not.toBeNull()
 
-    // reka 的 usePointerDownOutside 用 setTimeout(0) 延后挂 document 的 pointerdown
-    // 监听(见 T5 QueueView.test.ts 同款注释),补一次真宏任务 tick。
+    // reka's usePointerDownOutside defers attaching the document pointerdown listener with
+    // setTimeout(0) (see the matching comment in T5's QueueView.test.ts) — add one real macrotask
+    // tick to account for it.
     await new Promise((resolve) => setTimeout(resolve, 0))
 
     const titleEl = host.querySelector('.k-confirm-title') as HTMLElement
@@ -2017,16 +2031,17 @@ describe('IndexedFilesView — K7:整库重建确认弹窗(蓝本 :355-381)', ()
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 doRebuildAll 的 filterObj 组装:四个条件各一条 + 全空一条
-// (RED 探针③:删掉 `tombstoned !== 'all'` 判据 → 「全空」那条报红)
+// 🔴 doRebuildAll's filterObj assembly: one case per condition (four) plus one all-empty case
+// (RED probe ③: delete the `tombstoned !== 'all'` condition → the "all-empty" case goes red)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — doRebuildAll 的 filterObj 组装(蓝本 :793-799)', () => {
+describe('IndexedFilesView — doRebuildAll\'s filterObj assembly (blueprint :793-799)', () => {
   /**
-   * 打开弹窗 → 点确认 → 返回实际发出去的 filter 对象。
-   * 🔴 一个用例里可能连调两次(两侧对照),所以进来先把上一轮的 wrapper 与 portal
-   * 宿主清干净 —— `DialogPortal to=".knowledge-app"` 用的是 `document.querySelector`,
-   * 只认**第一个**同名宿主;不清理的话第二轮的弹窗会落进第一轮遗留的宿主里,
-   * 本轮 `host.querySelectorAll` 一个按钮都找不到(实测踩过)。
+   * Open the modal → click confirm → return the filter object that was actually sent.
+   * 🔴 A single test case may call this twice in a row (both sides covered), so on entry it
+   * first tears down the previous round's wrapper and portal host — `DialogPortal to=".knowledge-app"`
+   * uses `document.querySelector`, which only ever finds the **first** host with that name; without
+   * cleanup, the second round's modal would land inside the first round's leftover host, and this
+   * round's `host.querySelectorAll` wouldn't find any buttons (hit this in practice).
    */
   async function rebuildAllWith(
     patch: Partial<Record<'path_prefix' | 'mime_prefix' | 'has_error' | 'tombstoned', unknown>>,
@@ -2045,44 +2060,44 @@ describe('IndexedFilesView — doRebuildAll 的 filterObj 组装(蓝本 :793-799
     ) as HTMLElement
     confirm.click()
     await flush()
-    // 本仓 tsconfig 的 lib 低于 es2022,`Array.prototype.at` 无类型声明(TS2550),
-    // 改用等价的下标写法。
+    // This repo's tsconfig targets a lib below es2022, so `Array.prototype.at` has no type
+    // declaration (TS2550) — using the equivalent index-based form instead.
     const calls = ai.parserReindexFiles.mock.calls
     const call = calls[calls.length - 1][0] as { filter: Record<string, unknown> }
     return call.filter
   }
 
-  it('1/5 全空:tombstoned="all" 且其余三项默认 → filter 是 {}(证明 `tombstoned !== "all"` 判据真的在起作用)', async () => {
+  it('1/5 all empty: tombstoned="all" and the other three fields at their defaults → filter is {} (proves the `tombstoned !== "all"` condition is really in effect)', async () => {
     expect(await rebuildAllWith({ tombstoned: 'all' })).toEqual({})
   })
 
-  it('2/5 path_prefix 非空 → 带 path_prefix', async () => {
+  it('2/5 path_prefix non-empty → includes path_prefix', async () => {
     expect(await rebuildAllWith({ tombstoned: 'all', path_prefix: '/DATA/Wiki/' })).toEqual({
       path_prefix: '/DATA/Wiki/',
     })
   })
 
-  it('3/5 mime_prefix 非空 → 带 mime_prefix', async () => {
+  it('3/5 mime_prefix non-empty → includes mime_prefix', async () => {
     expect(
       await rebuildAllWith({ tombstoned: 'all', mime_prefix: 'application/legacy-office/' }),
     ).toEqual({ mime_prefix: 'application/legacy-office/' })
   })
 
-  it('4/5 has_error=true → 带 has_error;false 时不带(两侧对照)', async () => {
+  it('4/5 has_error=true → includes has_error; excluded when false (both sides covered)', async () => {
     expect(await rebuildAllWith({ tombstoned: 'all', has_error: true })).toEqual({
       has_error: true,
     })
     expect(await rebuildAllWith({ tombstoned: 'all', has_error: false })).toEqual({})
   })
 
-  it('5/5 tombstoned 非 "all" → 带 tombstoned(默认 "alive" 与显式 "tombstoned" 各一次)', async () => {
+  it('5/5 tombstoned other than "all" → includes tombstoned (once for the default "alive" and once for explicit "tombstoned")', async () => {
     expect(await rebuildAllWith({})).toEqual({ tombstoned: 'alive' })
     expect(await rebuildAllWith({ tombstoned: 'tombstoned' })).toEqual({
       tombstoned: 'tombstoned',
     })
   })
 
-  it('四项同时非默认 → 四个字段一起带上', async () => {
+  it('all four non-default at once → all four fields included together', async () => {
     expect(
       await rebuildAllWith({
         path_prefix: '/DATA/',
@@ -2100,13 +2115,14 @@ describe('IndexedFilesView — doRebuildAll 的 filterObj 组装(蓝本 :793-799
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 🔴 K14 —— 走真实入口(doRebuildAll)的 400 分支反向断言
-// T8 那条是用 wrapper.vm 直接塞 errorBanner 驱动的(当时没有真实入口),
-// **本刀不削弱它**,而是补上真实入口这一半:后端 400 带 detail → DOM 不含 detail。
-// (RED 探针④:把渲染改回回显 detail → 下面两条一起报红)
+// 🔴 K14 — inverse assertions for the 400 branch, driven through the real entry point (doRebuildAll)
+// The T8 case drove this by poking errorBanner directly on wrapper.vm (there was no real entry
+// point at the time). **This cut doesn't weaken that test** — it adds the other half, the real
+// entry point: backend 400 with detail → the DOM contains no detail.
+// (RED probe ④: revert the rendering to echo detail → the two cases below both go red)
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — K14 真实入口:doRebuildAll 400 不回显后端 detail', () => {
-  it('filter 超限 400 → 警示条只有「400 Bad Request」+ aiKbRebuildCapHint,后端 detail 一个字都没有', async () => {
+describe('IndexedFilesView — K14 real entry point: doRebuildAll\'s 400 doesn\'t echo the backend\'s detail', () => {
+  it('filter over the cap, 400 → the warning banner only has "400 Bad Request" + aiKbRebuildCapHint, not a single character of the backend\'s detail', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     ai.parserReindexFiles.mockRejectedValueOnce(CAP_400_FILTER)
@@ -2123,15 +2139,15 @@ describe('IndexedFilesView — K14 真实入口:doRebuildAll 400 不回显后端
     expect(banner.attributes('data-tone')).toBe('warn')
     expect(banner.text()).toContain('400 Bad Request')
     expect(banner.text()).toContain('重建匹配文件超过 10,000 上限')
-    // 反向断言:后端 detail 原文一个字都不能出现
+    // Inverse assertion: not a single character of the backend's raw detail may appear
     expect(banner.text()).not.toContain('filter matches')
     expect(banner.text()).not.toContain('12345')
     expect(banner.text()).not.toContain('max_reindex_by_filter')
-    // 弹窗必须已关(蓝本 :792 第一行就关,失败也不重开)
+    // The modal must already be closed (blueprint :792's first line closes it, and it doesn't reopen on failure)
     expect(host.querySelector('.k-modal')).toBeNull()
   })
 
-  it('普通网络错误(无 response.data.detail)同样只渲染固定文案,不回显 e.message', async () => {
+  it('a plain network error (no response.data.detail) also only renders the fixed copy, never echoing e.message', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     ai.parserReindexFiles.mockRejectedValueOnce(new Error('ECONNREFUSED leak-me-please'))
@@ -2149,7 +2165,7 @@ describe('IndexedFilesView — K14 真实入口:doRebuildAll 400 不回显后端
     expect(banner.text()).not.toContain('leak-me-please')
   })
 
-  it('成功路径不留警示条(两侧对照:证明上面那条不是「横幅恒显示」)', async () => {
+  it('the success path leaves no warning banner (both sides covered: proves the case above isn\'t just "the banner always shows")', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     await w.find('.k-files-actionbar .k-btn.outline').trigger('click')
@@ -2164,11 +2180,12 @@ describe('IndexedFilesView — K14 真实入口:doRebuildAll 400 不回显后端
 })
 
 // ──────────────────────────────────────────────────────────────────────
-// 整页 DOM 完整性 —— 收官刀的自证:蓝本 826 行的三个 T10 区块都在,
-// 且文件里没有留下任何占位/空函数体/TODO。
+// Full-page DOM completeness — self-proof for the final cut: all three T10 sections from the
+// blueprint's 826 lines are present, and the file has no leftover placeholders / empty function
+// bodies / TODOs.
 // ──────────────────────────────────────────────────────────────────────
-describe('IndexedFilesView — 收官刀:整页落地完整性', () => {
-  it('三个 T10 区块的宿主元素同时存在(动作条 + 弹窗 + 行内重建按钮)', async () => {
+describe('IndexedFilesView — final cut: full-page landing completeness', () => {
+  it('the three T10 sections\' host elements all exist at once (action bar + modal + inline rebuild button)', async () => {
     const host = withHost()
     const w = await mountAttachedWithFiles([FILE_OK], 8)
     expect(w.find('.k-files-actionbar .k-ab-inner').exists()).toBe(true)
@@ -2181,17 +2198,18 @@ describe('IndexedFilesView — 收官刀:整页落地完整性', () => {
     expect(host.querySelector('.k-modal .k-modal-foot .right')).not.toBeNull()
   })
 
-  it('源文件里没有 TODO / 待补 / 空函数体占位(剥掉注释后扫描)', () => {
+  it('the source file has no TODO / to-be-filled-in / empty-function-body placeholders (scanned after stripping comments)', () => {
     const src: string = readFileSync(resolve(__dirname, './IndexedFilesView.vue'), 'utf8')
-    // 先剥 HTML 注释与 JS 行/块注释(治理 §9:「在文件里找文本」必须先排除注释,
-    // 否则头注释里那些解释性的「T10 补全 / 占位」字样会把断言撞对/撞错)。
+    // First strip HTML comments and JS line/block comments (governance §9: "searching a file for
+    // text" must exclude comments first, otherwise explanatory phrases like "T10 fill-in /
+    // placeholder" in the header comments would trip the assertion, right or wrong).
     const noComments = src
       .replace(/<!--[\s\S]*?-->/g, '')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/(^|[^:'"`])\/\/[^\n]*/g, '$1')
     expect(noComments).not.toMatch(/\bTODO\b/i)
     expect(noComments).not.toMatch(/\bFIXME\b/i)
-    // 空函数体(`{ }` 或 `{\n}`)—— T9 留的 rebuildRow 占位就是这个形状。
+    // Empty function body (`{ }` or `{\n}`) — the rebuildRow placeholder T9 left behind is exactly this shape.
     expect(noComments).not.toMatch(/function\s+\w+\s*\([^)]*\)\s*(:\s*[\w<>|\s]+)?\s*\{\s*\}/)
   })
 })

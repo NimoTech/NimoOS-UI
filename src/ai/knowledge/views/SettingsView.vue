@@ -294,7 +294,7 @@ const browserRoots = computed(() => pickerRoots(store.wikiCandidates))
 
 /**
  * Reference `async created()` (`:228-230`) — sole read request.
- * Red flag: catch **swallows error and keeps defaults** (reference comment `/* keep defaults */`):
+ * Red flag: catch **swallows error and keeps defaults** (reference comment `/* keep defaults *\/`):
  * when settings fetch fails, `notesSettings` stays at `{ notesRoot: '', autoExtract: true }`,
  * page renders normally, `notesRoot` uses template `|| '/DATA/Notes'` fallback. Copied verbatim,
  * do not change to toast error.

@@ -1,32 +1,47 @@
 <script setup lang="ts">
-// Task 11 (SP7-P6a 地点·地图主视图,本期收官): PhotosPlaces.vue —— 容器,把前 10 个任务的
-// 产物接成一个可用页面:壳 + 图例/统计/悬停卡片 + 五个子组件接线 + 路由与侧栏第 4 条目。
-// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue :760-761+:827-828+:949-950+
-// :1250-1251(容器骨架)、:1013-1028(悬停卡片)、:1030-1044(图例)、:1046-1056(统计)、
-// :70-132(state)、:290-322(watch)、:323-357(mounted,跳过封面弹层/文档 mousedown 部分——
-// 那些是 Vue2 封面选择器 + Filters/Theme 弹层的旧版点外部关闭逻辑,封面选择器归 P6b,
-// Filters/Theme 弹层的浮层规范已经各自在 T9/T10 组件内部落地,不在本容器重复)、
-// :724-753(autoPan/pickPin/setHover)移植。
-// 壳照 PhotosAlbums.vue:185-188/346-347 的 AreaShell/.photos-layout/PhotosSidebar/
-// .photos-main 逐段复制(P3/P4/P5 既定:不抽公共)。
+// Task 11 (SP7-P6a Places · map main view, wraps up this phase): PhotosPlaces.vue — the
+// container that wires the output of the previous 10 tasks into one usable page: shell +
+// legend/stats/hover card + wiring for five child components + route and 4th sidebar entry.
+// Ported section by section from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue
+// :760-761+:827-828+:949-950+:1250-1251 (container skeleton), :1013-1028 (hover card),
+// :1030-1044 (legend), :1046-1056 (stats), :70-132 (state), :290-322 (watch), :323-357
+// (mounted, skipping the cover-picker popover / document mousedown parts — those are the
+// Vue2 cover picker plus the Filters/Theme popover's old click-outside-to-close logic; the
+// cover picker belongs to P6b, and the popover specs for the Filters/Theme popovers have
+// already each landed inside the T9/T10 components, so they aren't repeated in this
+// container), and :724-753 (autoPan/pickPin/setHover).
+// The shell is copied section by section from PhotosAlbums.vue:185-188/346-347's
+// AreaShell/.photos-layout/PhotosSidebar/.photos-main (per the P3/P4/P5 decision: don't
+// extract a shared component).
 //
-// 回源核对(动手前逐条核对 brief 给的行号/数值,有出入以源码为准,已在任务报告列出):
-//  - 容器骨架收尾闭合标签的实际行号是 :1250(closes .map-canvas-wrap)/:1251(closes
-//    .map-shell),brief 写的 ":1250-1251" 与实测一致,未见出入。
-//  - 图例第四组的 i18n 文案键 photosPlacesCurrentTrip 的实际值是"本次旅行"(zh_cn.ts:1061,
-//    T4 commit a04ca2b 已改回 json 原文)——brief 正文与 Step1 测试清单里写的"当前行程"是
-//    概念性转述,不是字面值,断言以 i18n 字典真实值"本次旅行"为准(已在任务报告登记)。
-//  - autoPan()/pickPin()/setHover() 的实际行号是 :724-753(brief 给的 :736-753 只覆盖
-//    pickPin/setHover 两段,autoPan 本身在 :724-735,回源确认语义与 brief 描述一致)。
+// Source cross-check (verified each line/number the brief gives against the source before
+// starting work; discrepancies favor the source and are listed in the task report):
+//  - The container skeleton's closing tags actually land at :1250 (closes .map-canvas-wrap)
+//    / :1251 (closes .map-shell); the brief's ":1250-1251" matches, no discrepancy found.
+//  - The legend's fourth group uses the i18n key photosPlacesCurrentTrip, whose actual
+//    value is "本次旅行" (zh_cn.ts:1061, restored to the original json text by T4 commit
+//    a04ca2b) — the brief text and the Step1 test checklist's "当前行程" is a conceptual
+//    paraphrase, not the literal value; assertions go by the i18n dictionary's real value
+//    "本次旅行" (recorded in the task report).
+//  - autoPan()/pickPin()/setHover() actually land at :724-753 (the brief's :736-753 only
+//    covers the pickPin/setHover portion; autoPan itself is at :724-735 — confirmed against
+//    the source that the semantics match the brief's description).
 //
-// 偏离登记(brief 已列,逐条落地,不重复展开论证——各自的完整论证见对应组件/composable):
-//  8(继承 T3):hasDetailPanel 恒返 false —— 详情面板归 P6b,这里只保留 loadDetail 调用
-//     作为接缝(brief §7 明确要求保留,不因为面板不存在就省掉)。
-//  9:失败态三态门控(骨架/失败重试/正常)是 New-UI 新增,Vue2 没有这层概念,Vue2 加载
-//     失败只 console.error(见 T3 store fetchPlaces 注释),视图上和"零地点"完全分不清。
-//  10:悬停定位用显式 wrapEl ref,不靠 svg.parentElement(Vue2 :746-749 的读法)。
-//  11-⑤:wheel 用 addEventListener({ passive: false }) 显式注册在 svg 元素上,不用模板
-//     @wheel——模板绑定不保证 passive:false,Chrome 会警告并忽略 preventDefault。
+// Deviation log (already enumerated by the brief; implemented item by item without
+// re-arguing each one here — the full rationale for each lives in the corresponding
+// component/composable):
+//  8 (inherited from T3): hasDetailPanel always returns false — the detail panel belongs to
+//     P6b; this only keeps the loadDetail call as a seam (brief §7 explicitly requires
+//     keeping it, not dropping it just because the panel doesn't exist yet).
+//  9: the three-state loading gate (skeleton/failed-retry/normal) is a New-UI addition —
+//     Vue2 has no such concept; Vue2's load failure is just a console.error (see T3 store's
+//     fetchPlaces comment), and on screen it's indistinguishable from "zero places".
+//  10: hover positioning uses an explicit wrapEl ref instead of relying on
+//     svg.parentElement (the approach Vue2 :746-749 reads).
+//  11-⑤: wheel is registered explicitly on the svg element via
+//     addEventListener({ passive: false }) instead of the template's @wheel — template
+//     bindings can't guarantee passive: false, and Chrome will warn and ignore
+//     preventDefault.
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -65,22 +80,26 @@ const hoverId = ref<string | null>(null)
 const hoverPos = ref({ x: 0, y: 0 })
 const filterOpen = ref(false)
 const themeOpen = ref(false)
-// 评审 M2:失败态判据必须区分"还没请求过"与"请求过且失败了"——onMounted 里
-// `await store.fetchPlaces()` 之前那个短暂窗口(甚至只是当前这次同步渲染,尚未跑到
-// onMounted)`placesLoaded`/`loading` 都是初始的 false,若失败态条件只看这两个字段会在
-// 首帧就命中"失败"(还没发出请求就报失败)。`attempted` 只在 onMounted 真正开始一次
-// fetchPlaces 调用时才置真,首帧渲染时它还是初始值 false。
+// Review M2: the failure-state predicate must distinguish "hasn't been requested yet" from
+// "requested and failed" — during the brief window in onMounted before
+// `await store.fetchPlaces()` resolves (or even just this current synchronous render,
+// before onMounted has run), `placesLoaded`/`loading` are both still their initial `false`.
+// If the failure condition only looked at those two fields it would hit "failed" on the
+// very first frame (reporting failure before a request has even gone out). `attempted` is
+// only set true once onMounted actually starts a fetchPlaces call — on the first frame it's
+// still its initial value of `false`.
 const attempted = ref(false)
 
-// ── P6b-T8: 详情面板容器状态(照 Vue2 :114-121)。 ──────────────────────────
+// ── P6b-T8: detail panel container state (mirrors Vue2 :114-121). ──────────────────────────
 const activeSpotKey = ref<string | null>(null)
 const coverOpen = ref(false)
 const coverTab = ref('recent')
 const coverSearch = ref('')
 const coverPage = ref(0)
 
-// Vue2 data() :76-81 的六个过滤字段,合成一个整体对象;T9 PlacesFilterMenu 按"整体替换"
-// 写回(不就地改字段)。
+// The six filter fields from Vue2 data() :76-81, combined into one object; T9
+// PlacesFilterMenu writes back by "replacing the whole object" (not mutating fields in
+// place).
 const filter = ref<PlacesFilter>({
   timeFilter: 'all',
   customStart: '',
@@ -94,9 +113,10 @@ const wrapEl = ref<HTMLElement | null>(null)
 const mapRef = ref<InstanceType<typeof PlacesMap> | null>(null)
 const svgRef = ref<SVGSVGElement | null>(null)
 
-// P6b-T8(偏离登记 4):activePlace 只按 activeId 在列表里找;activeDetail 只在
-// store.detail 的 id 与当前 activeId 一致时才认——切城市后新详情回来之前,store.detail
-// 还是上一个城市的(Vue2 :204 的 `activeDetail || find()` 会让 hero 短暂显示上一个城市)。
+// P6b-T8 (deviation log 4): activePlace only looks up activeId in the list; activeDetail is
+// only accepted when store.detail's id matches the current activeId — after switching
+// cities, before the new detail comes back, store.detail is still the previous city's
+// (Vue2 :204's `activeDetail || find()` would let the hero briefly show the previous city).
 const activePlace = computed<Place | null>(() =>
   store.places.find((p) => String(p.id) === String(activeId.value)) ?? null)
 const activeDetail = computed(() =>
@@ -108,15 +128,17 @@ const {
   onWheel, onPointerDown, onPointerMove, onPointerUp, dispose,
 } = usePlacesView({ svgEl: svgRef, wrapEl, hasDetailPanel: () => hasPanel.value })
 
-// ── 过滤后地点(照 Vue2 :152-175 / T2 filterPlaces):同时喂 rail 与 map。rail 的搜索是
-// 它自己的内部状态(T5 既定),不经过这里、也不影响地图(核 Vue2 :229/:237 已确认地图只吃
-// visiblePlaces,不吃 searched)。
+// ── Filtered places (mirrors Vue2 :152-175 / T2 filterPlaces): feeds both the rail and the
+// map. The rail's search is its own internal state (settled in T5), doesn't flow through
+// here, and doesn't affect the map (checked against Vue2 :229/:237, which confirmed the map
+// only consumes visiblePlaces, not searched).
 const filteredPlaces = computed<Place[]>(() => filterPlaces(store.places, filter.value))
 const totalPhotos = computed(() => countPhotos(filteredPlaces.value))
 const countryCount = computed(() => countCountries(filteredPlaces.value))
 
-// D5:浅色信号改读全局 data-theme(useThemeStore),不读相册私有字段(T10 已定,这里只是
-// 算出布尔值传给子组件)。
+// D5: the light-mode signal now reads the global data-theme (useThemeStore) instead of a
+// Photos-private field (settled in T10 — here we just compute the boolean to pass to child
+// components).
 const isLight = computed(() => themeStore.theme === 'light')
 const resolvedTheme = computed(() =>
   resolveMapTheme(
@@ -127,16 +149,19 @@ const resolvedTheme = computed(() =>
   ),
 )
 const themeVars = computed(() => mapThemeStyleVars(resolvedTheme.value))
-// PlacesZoomBar 的滑杆强调色取同一份 resolveMapTheme() 结果的 .dot(消歧义 2)。
+// PlacesZoomBar's slider accent color takes the same resolveMapTheme() result's .dot
+// (disambiguation 2).
 const dotColor = computed(() => resolvedTheme.value.dot)
 
-// Vue2 hoverPlace :213 读 this.places(全量列表)。这里从 filteredPlaces 里找——悬停只可能
-// 发生在地图上实际渲染出的图钉上,而图钉正是从 filteredPlaces 建出来的,恒是其子集。
+// Vue2's hoverPlace :213 reads this.places (the full list). Here we look it up from
+// filteredPlaces instead — hover can only happen on a pin actually rendered on the map, and
+// pins are built from filteredPlaces, so it's always a subset.
 const hoverPlace = computed<Place | null>(() => {
   if (!hoverId.value) return null
   return filteredPlaces.value.find((p) => String(p.id) === String(hoverId.value)) ?? null
 })
-// Vue2 :1014 `v-if="hoverPlace && hoverPlace.id !== activeId"` —— 当前选中的地点不出 tip。
+// Vue2 :1014 `v-if="hoverPlace && hoverPlace.id !== activeId"` — don't show the tip for the
+// currently selected place.
 const showHoverTip = computed(() => hoverPlace.value != null && String(hoverPlace.value.id) !== String(activeId.value))
 const hoverThumbSrc = computed(() => {
   const p = hoverPlace.value
@@ -144,19 +169,22 @@ const hoverThumbSrc = computed(() => {
   const id = p.coverAssetId || p.thumbs[0] || ''
   return id ? service.photos.thumbnailUrl(id, 'large') : ''
 })
-// 偏离登记(与 PlacesRail.vue 既有决定一致,brief §4 明确要求"本地化日期"):日期跟随
-// i18n locale 显示,不复刻 Vue2 :1025 的裸后端英文串;lastDate 为 null 时回落原串。
+// Deviation log (consistent with PlacesRail.vue's existing decision; brief §4 explicitly
+// requires "localized dates"): the date follows the i18n locale, not a verbatim copy of
+// Vue2 :1025's raw backend English string; falls back to the original string when lastDate
+// is null.
 function formatLast(p: Place): string {
   if (!p.lastDate) return p.last
   const tag = locale.value.replace('_', '-')
   return new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'short', day: 'numeric' }).format(p.lastDate)
 }
 
-// ── 五个子组件接线 ──────────────────────────────────────────────────────────
+// ── Wiring for the five child components ──────────────────────────────────────────────────────────
 function onToggleFold(regionId: string): void {
   store.toggleRegionFold(regionId)
 }
-// Vue2 :736-743。stopPropagation 免得点击继续冒泡触发底层平移的 pointerdown 逻辑。
+// Vue2 :736-743. stopPropagation so the click doesn't bubble up and trigger the underlying
+// pan's pointerdown logic.
 function onPickPin(pin: Pin, ev: MouseEvent): void {
   ev.stopPropagation()
   if (pin.cluster) {
@@ -165,7 +193,8 @@ function onPickPin(pin: Pin, ev: MouseEvent): void {
     activeId.value = pin.id
   }
 }
-// Vue2 :744-752,换成显式 wrapEl ref(偏离登记 10),不靠 svg.parentElement 推导。
+// Vue2 :744-752, switched to an explicit wrapEl ref (deviation log 10) instead of deriving
+// it from svg.parentElement.
 function onHoverPin(pin: Pin, ev: MouseEvent): void {
   hoverId.value = pin.id
   const wrap = wrapEl.value
@@ -178,10 +207,12 @@ function onHoverPin(pin: Pin, ev: MouseEvent): void {
 function onHoverClear(): void {
   hoverId.value = null
 }
-// 消歧义 3:PlacesThemeMenu 只 emit,写路径由容器决定落到哪个 store action——读永远走
-// store.themePrefs(直连,见下方模板 :selection 绑定)。pickPreset 恒发非 'custom' 的
-// mapTheme(customDotColor/customGridColor 原样携带不变);取色器恒发 mapTheme:'custom'
-// (见 PlacesThemeMenu.vue onDotInput/onGridInput)。两条分支互斥、不重叠。
+// Disambiguation 3: PlacesThemeMenu only emits; the container decides which store action
+// the write path lands on — reads always go through store.themePrefs (wired directly, see
+// the :selection binding in the template below). pickPreset always emits a non-'custom'
+// mapTheme (customDotColor/customGridColor carried through unchanged); the color picker
+// always emits mapTheme: 'custom' (see PlacesThemeMenu.vue's onDotInput/onGridInput). The
+// two branches are mutually exclusive and don't overlap.
 function onUpdateThemeSelection(next: MapThemeSelection): void {
   if (next.mapTheme === 'custom') {
     store.setCustomColors(next.customDotColor, next.customGridColor)
@@ -190,8 +221,10 @@ function onUpdateThemeSelection(next: MapThemeSelection): void {
   }
 }
 
-// ── wheel 显式注册(偏离登记 11-⑤)。svgRef 随 PlacesMap 的挂载/卸载(骨架↔地图切换)
-// 变化,监听跟着搬——上一个元素先摘、新元素再挂,不会重复注册或悬空。
+// ── Explicit wheel registration (deviation log 11-⑤). svgRef changes as PlacesMap
+// mounts/unmounts (skeleton ↔ map toggling), and the listener moves along with it — the
+// previous element is detached first, then the new one attached, so it never double-
+// registers or dangles.
 function handleWheel(e: WheelEvent): void {
   onWheel(e)
 }
@@ -199,16 +232,19 @@ watch(svgRef, (el, prev) => {
   if (prev) prev.removeEventListener('wheel', handleWheel)
   if (el) el.addEventListener('wheel', handleWheel, { passive: false })
 })
-// flush:'post' —— 必须等 DOM/模板 ref 提交之后才能读到 PlacesMap 刚挂载的实例。
+// flush: 'post' — must wait until DOM/template refs are committed before we can read the
+// PlacesMap instance that just mounted.
 watch(mapRef, (inst) => {
   svgRef.value = (inst as unknown as { svgEl: SVGSVGElement | null } | null)?.svgEl ?? null
 }, { flush: 'post' })
 
-// ── activeId watch(Vue2 :291-294):变化且非空 → autoPanTo;总是 loadDetail(next)。
-// Vue3 的 watch() 本身只在值真的变化时触发(不同于 Vue2 watcher 理论上可能的空转),
-// 这里不再复刻 Vue2 `next !== prev` 的多余判断——`next` 非空这一条足以覆盖"变化且非空"。
-// P6b-T8 追加(照 Vue2 :295-301):切城市重置封面弹层/spot 状态——既有的 autoPanTo +
-// loadDetail 两行不动。
+// ── activeId watch (Vue2 :291-294): changed and non-empty → autoPanTo; always
+// loadDetail(next). Vue3's watch() only fires when the value actually changes (unlike a
+// Vue2 watcher, which could in theory fire with no real change), so we don't replicate
+// Vue2's redundant `next !== prev` check here — `next` being non-empty is enough to cover
+// "changed and non-empty".
+// P6b-T8 addition (mirrors Vue2 :295-301): reset the cover popover/spot state on city
+// switch — the existing autoPanTo + loadDetail two lines stay unchanged.
 watch(activeId, (next) => {
   if (next) {
     const place = store.places.find((p) => String(p.id) === String(next)) ?? null
@@ -222,15 +258,19 @@ watch(activeId, (next) => {
   activeSpotKey.value = null
 })
 
-// ── P6b-T8: 封面候选的三个 watch(照 Vue2 :304-312)。拉取前置条件 activeId && coverOpen——
-// 弹层关闭时改 tab/搜索词/翻页都不发请求(删码清单⑧)。不加 debounce(偏离 15-①,用户
-// 2026-07-31 pre-flight 裁定:节奏照搬 Vue2 逐键请求,只保留 store 侧结果落盘的 seq 守卫)。
-// 评审 M3(补登):coverPage > 0 时改 tab/搜索词会双发一次参数完全相同的请求——本 watch
-// 自己调 fetchCandidatesIfOpen() 一次,赋值 `coverPage.value = 0` 又触发下面 coverPage
-// watcher 的 fetchCandidatesIfOpen() 一次。Vue2 :304-312 同形(coverTab/coverSearch 各自
-// 的 watcher 也是先置 coverPage=0 再调 loadCoverCandidates(),coverPage watcher 另起一次),
-// 属照搬,不是本仓引入的新问题——store 的 coverSeq 竞态守卫保证两次结果不别名,只是多打
-// 一次请求,不影响正确性。
+// ── P6b-T8: the three cover-candidate watches (mirrors Vue2 :304-312). Fetch precondition
+// is activeId && coverOpen — changing tab/search/page while the popover is closed doesn't
+// fire a request (deletion checklist item ⑧). No debounce (deviation 15-①, per the user's
+// 2026-07-31 pre-flight ruling: keep the same pacing as Vue2's fire-on-every-keystroke,
+// relying only on the store-side seq guard on the landed result).
+// Review M3 (backfilled): when coverPage > 0, changing tab/search fires two requests with
+// identical parameters — this watch calls fetchCandidatesIfOpen() itself once, and setting
+// `coverPage.value = 0` triggers the coverPage watcher's fetchCandidatesIfOpen() below a
+// second time. Vue2 :304-312 has the same shape (the coverTab/coverSearch watchers also
+// each set coverPage=0 first and then call loadCoverCandidates(), with the coverPage
+// watcher firing again separately) — this is a straight port, not a new problem introduced
+// by this repo. The store's coverSeq race guard ensures the two results never get aliased;
+// it's just one extra request, and correctness is unaffected.
 function fetchCandidatesIfOpen(): void {
   if (!activeId.value || !coverOpen.value) return
   void store.fetchCoverCandidates(activeId.value, { tab: coverTab.value, q: coverSearch.value, page: coverPage.value })
@@ -247,21 +287,21 @@ watch(coverPage, () => {
   fetchCandidatesIfOpen()
 })
 
-// openCoverPicker() = 置 coverOpen = true 后拉一次(照 Vue2 :517-521 的 toggle 语义:
-// 打开时拉、关闭时不拉)。
+// openCoverPicker() = set coverOpen = true then fetch once (mirrors Vue2 :517-521's toggle
+// semantics: fetch on open, don't fetch on close).
 function openCoverPicker(): void {
   coverOpen.value = true
   fetchCandidatesIfOpen()
 }
 
-// ── P6b-T8: 封面提交 ────────────────────────────────────────────────────────
+// ── P6b-T8: Cover submission ────────────────────────────────────────────────────────
 async function onPickCover(assetId: string): Promise<void> {
-  coverOpen.value = false // 照 Vue2 :538:先关弹层再提交
+  coverOpen.value = false // Mirrors Vue2 :538: close the popover before submitting
   if (!activeId.value) return
   try {
     await store.setPlaceCover(activeId.value, assetId)
   } catch {
-    toast.show(t('photosPlacesCoverFailed')) // 偏离登记 6:Vue2 无 catch
+    toast.show(t('photosPlacesCoverFailed')) // Deviation log 6: Vue2 has no catch
   }
 }
 async function onResetCover(): Promise<void> {
@@ -274,7 +314,7 @@ async function onResetCover(): Promise<void> {
   }
 }
 
-// ── P6b-T8: spot 三个动作 ───────────────────────────────────────────────────
+// ── P6b-T8: The three spot actions ───────────────────────────────────────────────────
 function onPickSpot(spot: PlaceSpot): void {
   activeSpotKey.value = String(spot.key)
 }
@@ -286,9 +326,11 @@ async function onRenameSpot(name: string): Promise<void> {
     toast.show(t('photosPlacesSpotRenameFailed'))
   }
 }
-// D8。失败文案与重命名共用一条(同一资源的同类操作)。成功后不关弹窗、不再补
-// loadDetail(偏离 7:setSpotName 已就地回写 detail.spots;resetSpotName 在 store 内部
-// 自己重拉)。弹窗的编辑态由组件自己在 props.spot.name 变化后退出(T4 已实现)。
+// D8. The failure message is shared with rename (same category of operation on the same
+// resource). On success, don't close the dialog and don't call loadDetail again (deviation
+// 7: setSpotName already writes detail.spots back in place; resetSpotName refetches on its
+// own inside the store). The dialog's edit state is exited by the component itself once
+// props.spot.name changes (already implemented in T4).
 async function onResetSpotName(): Promise<void> {
   if (!activeId.value || !activeSpotKey.value) return
   try {
@@ -298,7 +340,7 @@ async function onResetSpotName(): Promise<void> {
   }
 }
 
-// ── P6b-T8: 相册与 toast ────────────────────────────────────────────────────
+// ── P6b-T8: Albums and toast ────────────────────────────────────────────────────
 async function createAlbum(name: string, from?: string, to?: string): Promise<void> {
   if (!activeId.value) return
   try {
@@ -309,7 +351,7 @@ async function createAlbum(name: string, from?: string, to?: string): Promise<vo
       { label: t('photosPlacesToastOpen'), onClick: () => { void router.push(`/photos/albums/${album.albumId}`) } },
     )
   } catch (e) {
-    // busy 重入不是错误,不弹 toast(见 T2 的 albumBusy 契约)
+    // A busy re-entry isn't an error — don't show a toast (see T2's albumBusy contract)
     if ((e as Error)?.message !== 'albumBusy') toast.show(t('photosPlacesAlbumCreateFailed'))
   }
 }

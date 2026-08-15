@@ -1,261 +1,294 @@
 <!--
-  SP8-P5d Task 7 —— `NoteEditPane.vue` **上半**(顶栏 + 草稿横幅 + 主列编辑器)。
-  1:1 移植自 Vue2 蓝本 `NimoOS-UI`(main@7a6ee6b7)
-  `src/views/AI/Knowledge/NoteEditPane.vue`(338 行,`git show 7a6ee6b7:` 读取)。
+  SP8-P5d Task 7 —— `NoteEditPane.vue` **upper half** (top bar + draft banner + main-column editor).
+  Ported 1:1 from the Vue2 blueprint `NimoOS-UI` (main@7a6ee6b7)
+  `src/views/AI/Knowledge/NoteEditPane.vue` (338 lines, read via `git show 7a6ee6b7:`).
 
-  🔴 【范围边界 —— 计划书 §T7/§T8,T8 已落地】T7(本节以上)写了:顶栏(:7-22)·
-  草稿横幅(:25-32)· 主列(:35-71:标题/描述输入 + kn-editor 工具栏 + rich/md
-  双模式 + 状态栏)。**T8(本次提交)补齐了侧栏 5 卡(:74-144)与冲突弹窗
-  (:148-180)**,规格见文件尾新增的「═══ T8 ═══」大节。
-  T8 在 `.kn-edit` 关闭标签前插入了 `<div class="kn-edit-aside">`;冲突弹窗
-  (转 reka `DialogRoot`,见下方 T8 节)**逐字保持蓝本 `:148` 的原始嵌套**——
-  是 `.k-scroll` 内、`.k-scroll-inner` **之后**的兄弟节点(蓝本 `:146-147`
-  两处收窄标签之间),不是模板的第二个根。`DialogPortal to=".knowledge-app"`
-  会把渲染结果**运行时**传送到别处,但这是 reka 的行为、不改变**源码**里的
-  嵌套关系,本文件全程只有一个 `<template>` 根 `.k-scroll`。
+  🔴 [SCOPE BOUNDARY — plan doc §T7/§T8, T8 has since landed] T7 (everything above this section) wrote:
+  top bar (:7-22) · draft banner (:25-32) · main column (:35-71: title/description
+  inputs + kn-editor toolbar + rich/md dual mode + status bar). **T8 (this commit) filled in
+  the 5 sidebar cards (:74-144) and the conflict modal
+  (:148-180)** — spec in the new "═══ T8 ═══" section appended at the end of this file.
+  T8 inserted `<div class="kn-edit-aside">` right before `.kn-edit`'s closing tag; the conflict modal
+  (converted to reka `DialogRoot`, see the T8 section below) **preserves the blueprint's `:148` nesting verbatim** —
+  it is a sibling node **after** `.k-scroll-inner`, inside `.k-scroll` (between the blueprint's two
+  narrowing tags at `:146-147`), not a second template root. `DialogPortal to=".knowledge-app"`
+  teleports the rendered output elsewhere **at runtime**, but that's reka's own behavior — it doesn't
+  change the nesting in the **source**; this file has exactly one `<template>` root, `.k-scroll`,
+  throughout.
 
-  结构对照(蓝本行区间 → 本文件):
-    :7-22    顶栏(返回列表 / 状态徽标 / 保存提示 / 保存按钮)
-    :25-32   草稿横幅(N26 三段式拼接)
-    :35-71   主列(标题/描述输入 · kn-editor 工具栏 8 个 kn-tb-btn · k-seg 双模式切换 ·
-              rich(NotesMarkdownEditor)/md(textarea)· 状态栏字数统计)
-    对应 script:props/data/isNew/status/wordCount/created()/onEditorReady/tbActive/
-    cmd/save/curateInPlace,以及为 save() 成立而必须实现的 addTag()/openConflict()
-    (见下方"任务切分判断"一节)。
+  Structure mapping (blueprint line range → this file):
+    :7-22    top bar (back to list / status badge / save hint / save button)
+    :25-32   draft banner (N26 three-piece concatenation)
+    :35-71   main column (title/description inputs · kn-editor toolbar's 8 kn-tb-btn ·
+              k-seg dual-mode toggle · rich (NotesMarkdownEditor)/md (textarea) · status-bar word count)
+    Corresponding script: props/data/isNew/status/wordCount/created()/onEditorReady/tbActive/
+    cmd/save/curateInPlace, plus addTag()/openConflict(), which must be implemented for save() to work
+    (see the "task division decision" section below).
 
-  ═══ K41 类型收窄(治理 §3 / 本刀 DoD 1,登记「包侧类型 → 本仓收窄 + 字段依据」)═══
-  包 `NimoOS-Service/src/notes.ts:21-34` 的 `Note` 接口:
-    - `tags: unknown[]` → 消费侧一次性 `as string[]`(蓝本 `:215` 读
-      `[...this.note.tags]` 直接当字符串数组展开,本仓 `loadNote()` 同样位置收窄)。
-    - `body?: unknown` → 消费侧一次性 `as string | undefined`(蓝本 `:214` 读
-      `this.note.body || ''`,同位置收窄)。
-    - `revision?: number` / `status?: string` / `type?: string` 是 optional。
-      本刀两处用**非空断言 `!`**(K34 同族,T6 `deleting.value!.id` 先例)而非新增
-      默认值/防御分支 —— 断言零运行时行为,只在编译期消音,与 Vue2 未做任何校验的
-      隐式假设逐字等价:
-        · `loadNote()` 里 `form.type = n.type!`(蓝本 `:214` `type: this.note.type`
-          没有任何兜底,直接赋值,undefined 时 Vue2 也会把 `undefined` 塞进
-          `form.type`——非空断言不改变这个事实,只是让 TS 不再因为
-          `string | undefined` 赋给 `string` 报错)。
-        · `save()` 的 update 分支 `expectedRevision: note.value.revision!`
-          (蓝本 `:285` `expectedRevision: this.note.revision`)——此分支只在
-          `!isNew` 时执行,而 `note` 此刻必然是 `loadNote()` 里 `service.notes.get()`
-          真实回包过的对象,`revision` 运行时必有值。
-      🔴 禁 `as any`;上面两处都是**类型层**动作,零运行时校验、零行为改变,符合
-      K41「若需要运行时校验才安全,那就不是 K41」的边界(这两处不需要运行时校验,
-      故仍归 K41)。
-      ⚠️ `status` 只经 `computed` 读出(不被赋值到更严格的类型),不需要断言。
-      ⚠️ `sourceRefs`/`backlinks` 的类型收窄(`SourceRef`/`Backlink` 本地接口)是
-      K41 的**另一半**,T7 提交时尚未建、**T8(本次提交)已补齐** —— 见文件尾
-      新增「═══ T8 · K41 另一半 ═══」大节,字段依据引蓝本 `:128`/`:131`/`:132`/
-      `:139`/`:141`。
+  ═══ K41 type narrowing (governance §3 / this pass's DoD 1, registering "package-side type → this repo's narrowing + field basis") ═══
+  The `Note` interface in `NimoOS-Service/src/notes.ts:21-34`:
+    - `tags: unknown[]` → one-time `as string[]` on the consumer side (blueprint `:215` reads
+      `[...this.note.tags]` and spreads it directly as a string array; this repo's `loadNote()`
+      narrows at the same spot).
+    - `body?: unknown` → one-time `as string | undefined` on the consumer side (blueprint `:214`
+      reads `this.note.body || ''`, narrowed at the same spot).
+    - `revision?: number` / `status?: string` / `type?: string` are optional.
+      This pass uses a **non-null assertion `!`** in two spots (K34 family, precedent set by T6's
+      `deleting.value!.id`) instead of adding a default value/defensive branch — the assertion is
+      zero runtime behavior, it only silences the compiler, and matches Vue2's implicit assumption
+      (which never validated anything) verbatim:
+        · In `loadNote()`, `form.type = n.type!` (blueprint `:214` `type: this.note.type` has no
+          fallback at all, assigns directly — when undefined, Vue2 also stuffs `undefined` into
+          `form.type`; the non-null assertion doesn't change that fact, it just stops TS from
+          erroring on assigning `string | undefined` to `string`).
+        · In `save()`'s update branch, `expectedRevision: note.value.revision!`
+          (blueprint `:285` `expectedRevision: this.note.revision`) — this branch only runs when
+          `!isNew`, and by that point `note` must be the real object returned from
+          `service.notes.get()` inside `loadNote()`, so `revision` is guaranteed to have a value
+          at runtime.
+      🔴 `as any` is forbidden; both spots above are **type-level** moves — zero runtime validation,
+      zero behavior change — which fits K41's boundary ("if it needs runtime validation to be safe,
+      it isn't K41"; neither spot needs runtime validation, so both stay K41).
+      ⚠️ `status` is only ever read through a `computed` (never assigned into a stricter type), so
+      it needs no assertion.
+      ⚠️ The type narrowing for `sourceRefs`/`backlinks` (the local `SourceRef`/`Backlink` interfaces)
+      is the **other half** of K41. It didn't exist yet at T7 commit time — **T8 (this commit) has
+      filled it in** — see the new "═══ T8 · K41 other half ═══" section appended at the end of
+      this file; field basis cites blueprint `:128`/`:131`/`:132`/`:139`/`:141`.
 
-  ═══ N29(本刀最容易被"顺手清理"的一行,不许删)═══
-  `tbActive()` 里 `tbTick.value >= 0 &&` 是**故意的假依赖**(蓝本 `:228` 注释原文
-  "tbTick makes this computed-on-demand check re-run on every transaction")——
-  Vue3 的渲染 effect 会在求值时真正读到 `tbTick.value`,从而把这个 ref 记进依赖,
-  `@transaction="tbTick++"` 每次触发都会让本方法重新求值,工具栏 `data-on` 高亮
-  才会跟着编辑器的选区/格式状态刷新。删掉这半条,工具栏在切换粗体/标题等操作后
-  永远不会更新高亮态。
-  🔴 **裁定 R5**:附录 D §D.6.1 的 tiptap 可测性探针**没有挂载父组件**(只挂了
-  `NotesMarkdownEditor` 这个编辑器 SFC 本身),因此"删掉 tbTick.value >= 0 && 会
-  让工具栏 data-on 不刷新"这条因果链在 T0 阶段**没有被实证过**,本刀不许引 §D.6.1
-  当已证,必须自己挂载 `NoteEditPane`(含真实 `NotesMarkdownEditor`)并附变异证据 ——
-  见 `NoteEditPane.test.ts` 对应 describe 块与任务报告 §变异证据。
+  ═══ N29 (the line in this pass most likely to get "cleaned up" by mistake — do not delete it) ═══
+  `tbTick.value >= 0 &&` in `tbActive()` is a **deliberate fake dependency** (blueprint `:228`'s
+  comment verbatim: "tbTick makes this computed-on-demand check re-run on every transaction") —
+  Vue3's render effect genuinely reads `tbTick.value` when this evaluates, which records the ref
+  as a dependency; every time `@transaction="tbTick++"` fires, this method re-evaluates, and that's
+  what keeps the toolbar's `data-on` highlight in sync with the editor's selection/format state.
+  Delete this half-clause and the toolbar's highlight state will never update after toggling
+  bold/heading/etc.
+  🔴 **Ruling R5**: the tiptap testability probe in Appendix D §D.6.1 **doesn't mount the parent
+  component** (it only mounts the `NotesMarkdownEditor` editor SFC itself), so the causal chain
+  "deleting `tbTick.value >= 0 &&` breaks the toolbar's `data-on` refresh" was **never actually
+  proven** at the T0 stage. This pass may not cite §D.6.1 as proof — it must mount `NoteEditPane`
+  itself (with the real `NotesMarkdownEditor`) and attach mutation evidence — see the corresponding
+  describe block in `NoteEditPane.test.ts` and the task report's §Mutation Evidence.
 
-  ═══ K5/K30(不回显后端 e.message)═══
-  蓝本全部 6 处 catch(`created`/`copyPath`/`curateInPlace`/`save`/`openConflict`/
-  `copyMine`,后两个 copy* 归 T8)都是 `$t('Operation failed') + ': ' + (e.message
-  || e)`。本仓按既定模具(P2a/P2b/P5b K19/P5c K30/P5d T6 K5)只弹固定文案
-  `aiKbOpFailed`,不回显后端消息 —— **这是有意偏离,显式申报**。断言用排除式:
-  toast 文本必须**不含**任何后端错误串。
+  ═══ K5/K30 (don't echo the backend's e.message) ═══
+  All 6 blueprint catch blocks (`created`/`copyPath`/`curateInPlace`/`save`/`openConflict`/
+  `copyMine` — the latter two copy* belong to T8) are `$t('Operation failed') + ': ' + (e.message
+  || e)`. Following the established mold in this repo (P2a/P2b/P5b K19/P5c K30/P5d T6 K5), we only
+  pop the fixed string `aiKbOpFailed` and never echo the backend message — **this is a deliberate
+  deviation, explicitly declared**. Assertions use the exclusion form: the toast text must
+  **not contain** any backend error string.
 
-  ═══ N27(四档三元嵌套,照抄不改)═══
-  蓝本 `:17` 的四档三元嵌套(`saving ? Saving… : dirty ? Unsaved changes :
-  isNew ? Not saved yet : Saved · rev {n}`)直接写在模板里,不抽成 computed 映射表
-  (那会把"看哪个分支命中"的判定逻辑从一条可读的三元链变成一次对象查找,属于
-  N17/N27 明令禁止的无关重构)。四档都有对应用例。
+  ═══ N27 (four-way ternary chain, copy verbatim, don't rewrite) ═══
+  The blueprint's `:17` four-way ternary chain (`saving ? Saving… : dirty ? Unsaved changes :
+  isNew ? Not saved yet : Saved · rev {n}`) is written directly in the template, not pulled out into
+  a computed lookup table (that would turn "which branch matched" from a readable ternary chain into
+  an object lookup — exactly the kind of unrelated refactor N17/N27 explicitly forbid). All four
+  branches have corresponding test cases.
 
-  ═══ N26(三段式拼接,照抄不改)═══
-  蓝本 `:28` 的草稿横幅是三个独立键 + 中间加粗(`aiKbNeDraftBar1` <b>`aiKbNeDraftBar2`
-  </b>`aiKbNeDraftBar3`),不合成一个带 HTML 的键(那要 v-html)、不用 i18n slot
-  语法(蓝本没有)。
+  ═══ N26 (three-piece concatenation, copy verbatim, don't rewrite) ═══
+  The blueprint's `:28` draft banner is three independent keys with the middle one bolded
+  (`aiKbNeDraftBar1` <b>`aiKbNeDraftBar2`</b>`aiKbNeDraftBar3`) — not merged into a single
+  HTML-bearing key (that would require v-html), and not using i18n slot syntax (the blueprint
+  doesn't use it either).
 
-  ═══ N28(wordCount 正则,照抄不改)═══
-  蓝本 `:207` 的 `/[#|\-*`>\s]/g` 照抄,把 `#`/`|`/`-`/`*`/反引号/`>`/空白全部剥掉
-  再数长度 —— 不是真正的"字数",不"修正"成 markdown 感知的计数。
+  ═══ N28 (wordCount regex, copy verbatim, don't rewrite) ═══
+  The blueprint's `:207` regex `/[#|\-*`>\s]/g` is copied as-is: it strips every
+  `#`/`|`/`-`/`*`/backtick/`>`/whitespace before counting length — this isn't a true "word count",
+  and it is not "fixed" into a markdown-aware count.
 
-  ═══ 属性态 String() 照抄(P5b E-9 裁定,不改写)═══
-  `data-on`(8 个 kn-tb-btn + k-seg 2 个按钮)与 `data-dirty` 全部套 `String(...)`
-  (蓝本 `:15/43/44/45/47/48/50/51/52/55/56`)——套不套渲染一致,改写= 无关重构。
-  测试断言 `toBe('true')`/`toBe('false')`,不用 `toBeUndefined()`。
+  ═══ Attribute-state String() copied verbatim (P5b E-9 ruling, don't rewrite) ═══
+  `data-on` (8 kn-tb-btn buttons + 2 k-seg buttons) and `data-dirty` are all wrapped in `String(...)`
+  (blueprint `:15/43/44/45/47/48/50/51/52/55/56`) — wrapping it or not renders identically, so
+  rewriting it is an unrelated refactor. Tests assert `toBe('true')`/`toBe('false')`, not
+  `toBeUndefined()`.
 
-  ═══ §5.2 过期守卫(K15 同族,本刀第 9 次)═══
-  `loadNote()`(蓝本 created() 的等效)发两个请求(`get` + `backlinks`),用组件本地
-  (非模块级!)的 `let loadEpoch` 判断"我还是最新那一发吗"。`:key="editingId"`
-  (父组件 NotesView.vue:290)会在切换笔记时重建整个 NoteEditPane 实例,使"两实例
-  交错"这个场景在本组件里格外真实(旧实例还在收尾迟到响应的同时,新实例已经
-  发出了自己的首发请求)。判据:把 `loadEpoch` 挪到模块顶层,"两实例交错"用例
-  必须报红。
+  ═══ §5.2 stale guard (K15 family, 9th occurrence in this pass) ═══
+  `loadNote()` (the equivalent of the blueprint's created()) fires two requests (`get` +
+  `backlinks`) and uses a component-local (NOT module-level!) `let loadEpoch` to decide "am I still
+  the latest fire?". `:key="editingId"` (parent component NotesView.vue:290) rebuilds the entire
+  `NoteEditPane` instance on note switch, which makes the "two instances interleaving" scenario
+  unusually real in this component (an old instance can still be wrapping up a late response while
+  a new instance has already fired its own first request). Criterion: moving `loadEpoch` to module
+  level must make the "two instances interleaving" test case fail red.
 
-  ═══ 任务切分判断(需要申报的两处,brief §"需要你自己判断并申报的地方")═══
-  ① `addTag()`(蓝本 `:238-243`)—— brief 明确点名:`save()` 开头调用它
-     (蓝本 `:273`),UI(标签输入框/焦点/删除)归 T8,但 brief 要求"你需要一个
-     最小可用的 addTag(够 save() 的行为成立)"。**本刀选择:实现 addTag() 本体
-     (非最小占位),因为它是纯逻辑(读 tagInput ref、写 form.tags 数组、
-     parseTags 去重),不依赖任何 T8 才存在的 DOM ref 或方法。T8 只需要在
-     侧栏补标签输入框的模板(:120-121,`v-model="tagInput"` /
-     `@blur="addTag"`),不需要改动这个函数本体。**
-  ② `openConflict()`(蓝本 `:302-309`)—— brief §3 的"不写"清单把它归进 T8 的
-     script 列表,但计划书 T7 DoD 第 9 条明确要求 `save()` 的 catch 分岔
-     "conflictMessage(e) && !isNew → openConflict()……本刀只到「conflict state
-     被设上」"。这两句字面对不上:若 `openConflict` 完全不存在,`save()` 就无法
-     达成"conflict state 被设上"这个可观察结果。**本刀判断:`openConflict()`
-     与 `addTag()` 同族 —— 它是纯数据获取 + 状态设置(重新 `get()` 一次笔记、
-     把 `conflict` ref 设为 `{latest, baseRevision}`),没有任何 DOM/UI 依赖,
-     与"backlinks 的取数是本刀的事、卡片渲染才是 T8 的事"(治理 §4.1 明文)是
-     完全相同的模式。本刀因此完整实现 openConflict(),T8 只需要在冲突弹窗模板里
-     消费已经存在的 `conflict` 状态并接线三个按钮(adoptDisk/keepMine/copyMine,
-     T8 DoD 5)。若协调者认为这个判断错了,`openConflict()` 的搬动/删除是一处
-     T8 可以低成本调整的边界(它没有被 T7 自己的断言依赖,只被 save() 的一条
-     "冲突态被设上"用例覆盖,后者断言的是 `conflict` 的值而不是这个函数名本身)。**
+  ═══ Task-division decisions (two spots requiring declaration, brief §"places where you must judge and declare") ═══
+  ① `addTag()` (blueprint `:238-243`) — the brief explicitly calls out that `save()` calls it at the
+     start (blueprint `:273`); the UI (tag input/focus/delete) belongs to T8, but the brief requires
+     "a minimally usable addTag (enough for save()'s behavior to hold)". **This pass's choice:
+     implement the full body of addTag() (not a minimal stub), because it's pure logic (reads the
+     tagInput ref, writes the form.tags array, dedupes via parseTags) with no dependency on any DOM
+     ref or method that only exists once T8 lands. T8 only needs to add the tag-input template in
+     the sidebar (:120-121, `v-model="tagInput"` / `@blur="addTag"`) — it doesn't need to touch this
+     function's body.**
+  ② `openConflict()` (blueprint `:302-309`) — the brief §3 "don't write" list assigns it to T8's
+     script list, but the plan doc's T7 DoD item 9 explicitly requires that `save()`'s catch branch
+     "conflictMessage(e) && !isNew → openConflict() ... this pass only needs to get as far as
+     'conflict state being set'". These two statements don't literally line up: if `openConflict`
+     doesn't exist at all, `save()` cannot reach the observable result "conflict state being set".
+     **This pass's judgment: `openConflict()` belongs to the same family as `addTag()` — it's pure
+     data fetch + state setting (re-`get()` the note, set the `conflict` ref to
+     `{latest, baseRevision}`), with zero DOM/UI dependency, following exactly the same pattern as
+     "fetching backlinks is this pass's job, rendering the card is T8's job" (governance §4.1,
+     explicit). This pass therefore fully implements openConflict(); T8 only needs to consume the
+     already-existing `conflict` state in the conflict-modal template and wire up the three buttons
+     (adoptDisk/keepMine/copyMine, T8 DoD 5). If the coordinator judges this call to be wrong,
+     moving/deleting `openConflict()` is a boundary T8 can adjust at low cost — it isn't depended on
+     by any of T7's own assertions, only covered by one save() test case for "conflict state being
+     set", which asserts the value of `conflict`, not this function's name.**
 
-  ═══ 数据契约(mock 层次,治理 §4.1 / p5d-fixtures/README.md §2)═══
-  `service.notes.get(id)` 返回**已归一化的单个 Note**(camelCase)。
-  `service.notes.backlinks(id)` 返回**数组**,空时 `[]`(不是 `{backlinks:[]}` 信封,
-  `notes.ts:247-250`)——T7 的 `loadNote()` 发它并存进 `backlinks` ref(维持包
-  原始的 `unknown[]`,**T8 本刀零改动该 ref 声明**)。T8 在文件尾新增只读
-  computed `sourceRefs`/`backlinkList` 做 K41 另一半的类型收窄消费,不改写
-  `backlinks` 本身、不新增运行时校验。
-  `service.notes.create`/`update`/`curate` 返回**单个 Note**(camelCase)。
+  ═══ Data contract (mock layering, governance §4.1 / p5d-fixtures/README.md §2) ═══
+  `service.notes.get(id)` returns an **already-normalized single Note** (camelCase).
+  `service.notes.backlinks(id)` returns an **array**, `[]` when empty (not a `{backlinks:[]}`
+  envelope, `notes.ts:247-250`) — T7's `loadNote()` fires it and stores it into the `backlinks` ref
+  (keeping the package's original `unknown[]`; **T8 in this pass makes zero changes to that ref's
+  declaration**). T8 adds read-only computeds `sourceRefs`/`backlinkList` at the end of the file
+  for K41's other-half type-narrowing consumption, without rewriting `backlinks` itself or adding
+  any runtime validation.
+  `service.notes.create`/`update`/`curate` return a **single Note** (camelCase).
 
-  ═══ 缺口③(模板零裸色)═══
-  T7 模板段(:7-71)零内联色字面量。**唯一一处内联色在蓝本 `:152`(冲突弹窗
-  头图标底色,附录 B §B.4 第 35 行是权威映射)——T8(本次提交)已换成
-  `var(--warning-soft)`**,见文件尾冲突弹窗模板。`components/NoteEditPane.vue`
-  已在 T7 时加进 `../../styles/knowledgeStyles.test.ts` 的 `KNOWLEDGE_VUE_FILES`
-  集合(该文件的"守卫缺口③′"贪婪抽取整个 <template> 块做文本级正则扫描,天然
-  覆盖 T8 新增的这段模板),不需要再补重复的定向断言。
+  ═══ Gap ③ (template has zero raw colors) ═══
+  T7's template section (:7-71) has zero inline color literals. **The single inline color is in
+  the blueprint at `:152` (the conflict modal's header-icon background color; Appendix B §B.4
+  line 35 is the authoritative mapping) — T8 (this commit) has already switched it to
+  `var(--warning-soft)`**, see the conflict-modal template at the end of the file.
+  `components/NoteEditPane.vue` was already added to the `KNOWLEDGE_VUE_FILES` set in
+  `../../styles/knowledgeStyles.test.ts` back in T7 (that file's "guard gap ③′" greedily extracts
+  the whole `<template>` block and runs a text-level regex scan over it, which naturally covers
+  the template T8 just added), so no duplicate targeted assertion is needed.
 
-  ═══ 定位器策略(brief §4,T8 会在这个文件里插入内容,定位器要钉死)═══
-  本刀所有测试定位器一律基于**结构唯一的 class 组合或父子链**,不依赖
-  "文件里现在只有一个 X"这种隐含前提:
-    · `.kn-edit-top` / `.kn-draftbar` / `.kn-edit-main` 三个顶层区块类名各自
-      唯一(T8 插入的 `.kn-edit-aside` 是第四个同级兄弟,不会与前三者的选择器
-      产生歧义);
-    · 工具栏按钮统一用 `.kn-editor-toolbar .kn-tb-btn`(限定在工具栏容器内,
-      不裸用 `.kn-tb-btn`,防止 T8 未来在别处引入同类名元素时误命中);
-    · `.k-seg` 双模式切换按钮用 `.kn-editor-toolbar .k-seg button`(同一限定);
-    · rich/md 容器分别用 `.kn-editor-body-wrap`(rich)与 `.kn-editor-src`
-      (md,textarea 自身类名唯一)——两者 v-if/v-else 互斥,不会同时存在;
-    · 顶栏保存按钮用 `.kn-edit-top .k-btn.primary`(限定在顶栏内,冲突弹窗
-      的 `.k-btn.primary`——T8 新增——在 DOM 树的完全不同分支,不会被这个
-      限定选择器命中)。
-  这样即使 T8 往 `.kn-edit` 里插入 `.kn-edit-aside`(内含自己的 `.k-btn`/
-  `.kn-aside-*` 等)、往模板根后追加冲突弹窗,本刀的定位器都不会被指向错误
-  的元素,T8 不需要动本刀写的任何一条断言。
+  ═══ Locator strategy (brief §4 — T8 will insert content into this file, so locators need to be pinned down) ═══
+  Every test locator in this pass is based on a **structurally-unique class combination or
+  parent/child chain**, never on the implicit assumption "there's currently only one X in the file":
+    · `.kn-edit-top` / `.kn-draftbar` / `.kn-edit-main` are each unique top-level block class names
+      (T8's inserted `.kn-edit-aside` is a fourth sibling and won't create ambiguity with the first
+      three's selectors);
+    · Toolbar buttons uniformly use `.kn-editor-toolbar .kn-tb-btn` (scoped to the toolbar container,
+      never bare `.kn-tb-btn`, to guard against T8 later introducing an element with the same class
+      elsewhere and mismatching);
+    · The `.k-seg` mode-toggle buttons use `.kn-editor-toolbar .k-seg button` (same scoping);
+    · The rich/md containers use `.kn-editor-body-wrap` (rich) and `.kn-editor-src`
+      (md — the textarea's own class name is unique) respectively — the two are mutually exclusive
+      via v-if/v-else, never present at the same time;
+    · The top-bar save button uses `.kn-edit-top .k-btn.primary` (scoped to the top bar; the conflict
+      modal's `.k-btn.primary` — added by T8 — lives on a completely different branch of the DOM
+      tree and won't be matched by this scoped selector).
+  This way, even after T8 inserts `.kn-edit-aside` into `.kn-edit` (containing its own `.k-btn`/
+  `.kn-aside-*` etc.) and appends the conflict modal after the template root, none of this pass's
+  locators will end up pointing at the wrong element, and T8 doesn't need to touch any assertion
+  written in this pass.
 
   ═══════════════════════════════════════════════════════════════════════
-  ═══ T8 —— 下半(侧栏 5 卡 + 标签编辑 + 冲突弹窗),brief/计划书 §T8 ═══
+  ═══ T8 — lower half (5 sidebar cards + tag editing + conflict modal), brief/plan doc §T8 ═══
   ═══════════════════════════════════════════════════════════════════════
 
-  结构对照(蓝本行区间 → 本文件,本节新增):
-    :74-90    状态卡(isNew:提示语;!isNew:三态徽标 + 来源 + 最后修改)
-    :91-108   磁盘文件卡(isNew:提示语;!isNew:路径 + 提示 + 文件管理器/复制路径)
-    :110-123  属性卡(类型下拉 + 标签编辑:chip / 删除 / 键盘事件 / 失焦提交)
-    :125-135  来源卡(v-if !isNew && sourceRefs.length)
-    :137-143  被引用卡(v-if !isNew && backlinkList.length)
-    :148-180  冲突弹窗(转 reka DialogRoot,见下方 K36 一节)
-  对应 script(本刀新增):`sourceRefs`/`backlinkList`(K41 另一半)/
+  Structure mapping (blueprint line range → this file, new in this section):
+    :74-90    Status card (isNew: hint text; !isNew: three-state badge + source + last modified)
+    :91-108   File-on-disk card (isNew: hint text; !isNew: path + hint + file manager/copy path)
+    :110-123  Properties card (type dropdown + tag editing: chip / delete / keyboard event / commit on blur)
+    :125-135  Sources card (v-if !isNew && sourceRefs.length)
+    :137-143  Referenced-by card (v-if !isNew && backlinkList.length)
+    :148-180  Conflict modal (converted to reka DialogRoot, see the K36 section below)
+  Corresponding script (new in this pass): `sourceRefs`/`backlinkList` (K41 other half) /
   `focusTagInput`/`removeTag`/`onTagKey`/`refLabel`/`openRef`/`openSessionRef`/
-  `revealFile`/`copyPath`/`copyMine`/`adoptDisk`/`keepMine`/`onConflictOpenChange`。
-  🔴 **`addTag()`/`openConflict()` 已在 T7 落地(协调者裁定 R16 追认,brief §2),
-  本刀不重复实现** —— 只在模板里接线(标签输入框 `@blur="addTag"`;冲突弹窗
-  三个按钮消费既有的 `conflict` 状态)。
+  `revealFile`/`copyPath`/`copyMine`/`adoptDisk`/`keepMine`/`onConflictOpenChange`.
+  🔴 **`addTag()`/`openConflict()` already landed in T7 (coordinator ruling R16 ratified this,
+  brief §2); this pass does not re-implement them** — only wired up in the template (tag input's
+  `@blur="addTag"`; the conflict modal's three buttons consuming the existing `conflict` state).
 
-  ═══ K41 另一半(DoD-1,禁 `as any`)═══
-  `Note.sourceRefs`(`NimoOS-Service/src/notes.ts:28`)与
-  `service.notes.backlinks()`(`:247-250`)的返回值都是 `unknown[]`。本地接口:
+  ═══ K41 other half (DoD-1, `as any` forbidden) ═══
+  Both `Note.sourceRefs` (`NimoOS-Service/src/notes.ts:28`) and
+  `service.notes.backlinks()` (`:247-250`) return `unknown[]`. Local interfaces:
     interface SourceRef { path?: string; session_id?: string; label?: string }
     interface Backlink { id: string; title: string }
-  字段依据(逐条引蓝本行):`:128` 读 `r.path` · `:131` 读 `r.session_id` ·
-  `:132` 经 `refLabel(r)` 读 `r.label` · `:139` 读 `b.id`(`:key="b.id"`)·
-  `:141` 读 `b.title`。
-  消费手法:`sourceRefs` 是新增 computed
-  (`(note.value.sourceRefs as SourceRef[] | undefined) || []`——蓝本 `:206`
-  自己的计算属性也是 `this.note.sourceRefs || []`,`|| []` 是 1:1 保留的蓝本
-  防御写法,不是本刀新增的运行时校验);`backlinkList` 是新增 computed
-  (`backlinks.value as Backlink[]`,**T7 的 `backlinks` ref 声明一字不改**)。
-  两处都是类型层的一次性重断言,零运行时校验、零行为改变,符合 K41 边界
-  (「若需要运行时校验才安全,那就不是 K41」不适用于这两处)。
+  Field basis (cited line-by-line against the blueprint): `:128` reads `r.path` · `:131` reads
+  `r.session_id` · `:132` reads `r.label` via `refLabel(r)` · `:139` reads `b.id`
+  (`:key="b.id"`) · `:141` reads `b.title`.
+  Consumption technique: `sourceRefs` is a new computed
+  (`(note.value.sourceRefs as SourceRef[] | undefined) || []` — the blueprint's own `:206`
+  computed is also `this.note.sourceRefs || []`; the `|| []` is a 1:1 preserved blueprint
+  defensive idiom, not new runtime validation added by this pass); `backlinkList` is a new
+  computed (`backlinks.value as Backlink[]`, **T7's `backlinks` ref declaration left untouched**).
+  Both spots are one-time type-level re-assertions — zero runtime validation, zero behavior
+  change — and fit within K41's boundary ("if it needs runtime validation to be safe, it isn't
+  K41" doesn't apply to either of these).
 
-  ═══ refLabel(r)(DoD-9,三种输入都要用例)═══
-  蓝本 `:255`:`r.label || String(r.session_id || '').slice(0, 8)`——三档:
-  ① 有 `label` 直接用;② 无 `label` 但有 `session_id`,取前 8 位;
-  ③ 两者都没有,`String(undefined || '').slice(0, 8)` = `''`。
+  ═══ refLabel(r) (DoD-9, needs a test case for all three inputs) ═══
+  Blueprint `:255`: `r.label || String(r.session_id || '').slice(0, 8)` — three tiers:
+  ① has `label`, use it directly; ② no `label` but has `session_id`, take the first 8 chars;
+  ③ neither present, `String(undefined || '').slice(0, 8)` = `''`.
 
-  ═══ 冲突弹窗三个动作(DoD-5,`dirty` 的值全部要断言)═══
-  蓝本 `:316-323`(`adoptDisk`)/`:324-331`(`keepMine`)/`:310-315`(`copyMine`)
-  逐字照抄语义:
-    · `adoptDisk()`:`note = latest` + `form.body = latest.body || ''`(K41
-      同族的 `unknown → string` 收窄写法,与 `loadNote()` 同一手法)+
-      `conflict = null` + **`dirty = true`**。
-    · `keepMine()`:蓝本 `:325` 注释原文「Rebase onto the disk revision so the
-      next save overwrites it」——**只 rebase revision**
-      (`note = {...note, revision: rev}`),**body 不动**,`conflict = null`,
-      **`dirty = true`**,toast 带 `{n: rev}`。
-    · `copyMine()`:`navigator.clipboard.writeText(form.body || '')`,成功
-      toast `aiKbNeDraftCopied`。
-  三者内部访问 `conflict.value!` 用非空断言(K34 同族,T6/T7 先例)——它们只在
-  冲突弹窗渲染期间(`v-if="conflict"`)才可能被点击,`conflict.value` 此刻
-  必然非空,与蓝本 `this.conflict.latest` 零防御的隐式假设逐字等价。
+  ═══ The conflict modal's three actions (DoD-5, `dirty`'s value must be asserted in every case) ═══
+  Copied verbatim in semantics from blueprint `:316-323` (`adoptDisk`) / `:324-331` (`keepMine`) /
+  `:310-315` (`copyMine`):
+    · `adoptDisk()`: `note = latest` + `form.body = latest.body || ''` (the same `unknown → string`
+      narrowing idiom used by K41's family, same technique as `loadNote()`) +
+      `conflict = null` + **`dirty = true`**.
+    · `keepMine()`: blueprint `:325`'s comment verbatim, "Rebase onto the disk revision so the
+      next save overwrites it" — **only rebases the revision**
+      (`note = {...note, revision: rev}`), **leaves body untouched**, `conflict = null`,
+      **`dirty = true`**, toast carries `{n: rev}`.
+    · `copyMine()`: `navigator.clipboard.writeText(form.body || '')`, on success toasts
+      `aiKbNeDraftCopied`.
+  All three access `conflict.value!` with a non-null assertion internally (K34 family, precedent
+  set by T6/T7) — they can only ever be clicked while the conflict modal is rendered
+  (`v-if="conflict"`), at which point `conflict.value` is guaranteed non-null, matching the
+  blueprint's zero-defense implicit assumption of `this.conflict.latest` verbatim.
 
-  ═══ 🔴 `navigator.clipboard` 在 HTTP-IP 下不存在(治理 §9.9,记忆
-      `newui-clipboard-insecure-reka`)═══
-  `copyPath()`/`copyMine()` 的 `navigator.clipboard.writeText(...)` 在本仓
-  HTTP-IP 真机访问下 `navigator.clipboard` 是 `undefined`,调用同步抛
-  `TypeError`,落进各自 `catch` 弹 `aiKbOpFailed`。**这是蓝本行为**(蓝本
-  `:259-264`/`:310-315` 也只有裸 try/catch,零 `execCommand` 兜底)——按 N
-  系列照抄,**不许**顺手加本仓 Files 区那套 `execCommand` 兜底(那是文件区的
-  既有增强,不是笔记区蓝本行为)。**前端票(登记,交 P5e/P5f)**:「笔记区
-  `copyPath`/`copyMine` 应复用本仓 Files 区既有的 `execCommand` 兜底,让 HTTP
-  访问下也能真正复制成功,而不是弹『操作失败』」。验收清单需显式写明:「这
-  两个按钮在 HTTP 访问下弹『操作失败』= 预期,不是缺陷」。
+  ═══ 🔴 `navigator.clipboard` doesn't exist under HTTP-IP (governance §9.9, memory
+      `newui-clipboard-insecure-reka`) ═══
+  `copyPath()`/`copyMine()`'s `navigator.clipboard.writeText(...)` — under this repo's real-device
+  HTTP-IP access, `navigator.clipboard` is `undefined`, the call throws a synchronous `TypeError`,
+  which falls into each function's own `catch` and pops `aiKbOpFailed`. **This is blueprint
+  behavior** (blueprint `:259-264`/`:310-315` also have only a bare try/catch, zero `execCommand`
+  fallback) — copied as-is per the N series; it is **forbidden** to opportunistically add this
+  repo's Files-area `execCommand` fallback (that's an existing Files-area enhancement, not
+  blueprint behavior for the notes area). **Front-end ticket (logged, handed to P5e/P5f)**:
+  "The notes area's `copyPath`/`copyMine` should reuse this repo's existing Files-area
+  `execCommand` fallback, so copy actually succeeds under HTTP access instead of popping
+  'Operation failed'." The acceptance checklist needs to explicitly state: "these two buttons
+  popping 'Operation failed' under HTTP access = expected, not a defect."
 
-  ═══ 🔴 冲突弹窗转 reka(DoD-7,K7/K29/K36 同族,对齐 `SettingsView.vue`
-      而非 `QueueView.vue`)═══
-  蓝本 `:149` 是裸 `.k-modal-bg` + `@click`/`@click.stop`。T6 的删除确认弹窗
-  (`NotesView.vue:418-452`)已转并核准跟 `SettingsView.vue:349-624` 的先例——
-  **本弹窗蓝本 `:155` 本来就有可见标题 `.k-modal-title`**,K36 的既定选择是
-  `<DialogTitle as-child>` 直接套在那个 div 上,不额外插入 `VisuallyHidden`
-  隐藏节点(那是 `IndexedFilesView.vue` 无可见标题时的另一套先例,本弹窗不
-  适用)。`DialogPortal to=".knowledge-app" defer`,结构照 `NotesView.vue:418-
-  452` 抄:`DialogRoot :open="!!conflict" @update:open="onConflictOpenChange"`,
-  `onConflictOpenChange(v) { if (!v) conflict.value = null }`(K29 同族——蓝本
-  只有「点遮罩」「点 × 」两条关闭路径,没有独立的「取消」按钮,都收敛成这
-  一句)。K36 a11y 常驻断言(`aria-labelledby` 与 `.k-modal-title` 的 `id`
-  同值同元素 + 弹窗内恰好一个带 `id` 的元素)见 `NoteEditPane.test.ts`,变异
-  证据见任务报告。
+  ═══ 🔴 Converting the conflict modal to reka (DoD-7, K7/K29/K36 family, aligned with
+      `SettingsView.vue` rather than `QueueView.vue`) ═══
+  The blueprint's `:149` is a bare `.k-modal-bg` + `@click`/`@click.stop`. T6's delete-confirmation
+  modal (`NotesView.vue:418-452`) already converted and got approved against the precedent set by
+  `SettingsView.vue:349-624` — **this modal's blueprint `:155` already has a visible title
+  `.k-modal-title`**, so K36's established choice is to wrap `<DialogTitle as-child>` directly
+  around that div, without inserting an extra hidden `VisuallyHidden` node (that's the other
+  precedent, used by `IndexedFilesView.vue` when there's no visible title — it doesn't apply to
+  this modal). `DialogPortal to=".knowledge-app" defer`, structure copied from `NotesView.vue:418-
+  452`: `DialogRoot :open="!!conflict" @update:open="onConflictOpenChange"`,
+  `onConflictOpenChange(v) { if (!v) conflict.value = null }` (K29 family — the blueprint only has
+  two close paths, "click the overlay" and "click ×", with no separate "Cancel" button, both
+  converge into this one line). K36's standing a11y assertions (`aria-labelledby` matching
+  `.k-modal-title`'s `id`, same value same element + exactly one element with an `id` inside the
+  modal) are in `NoteEditPane.test.ts`; mutation evidence is in the task report.
 
-  ═══ §9.9 可点性(DoD-8,每个条件两侧都要用例)═══
-  来源卡 `v-if="!isNew && sourceRefs.length"`;被引用卡
-  `v-if="!isNew && backlinkList.length"`;磁盘文件卡的 `<template v-else>`
-  (即 `!isNew`)。🔴 **fixtures 实测(README §4)**:本机 23 条笔记
-  `source_refs` 每条都非空(`pipeline` 来源都带 `[{session_id}]`)→ 来源卡
-  真机**会**渲染(治理原猜"手写笔记通常零 source_refs"对本机不成立);
-  `backlinks` 端点本机恒 `[]` → 被引用卡真机**不**渲染,该条件的「有」那侧
-  只能靠 mock 断言。
+  ═══ §9.9 clickability (DoD-8, needs a test case for both sides of every condition) ═══
+  The sources card is `v-if="!isNew && sourceRefs.length"`; the referenced-by card is
+  `v-if="!isNew && backlinkList.length"`; the file-on-disk card's `<template v-else>`
+  (i.e. `!isNew`). 🔴 **Real-device fixture testing (README §4)**: on this machine all 23 notes'
+  `source_refs` are non-empty (every `pipeline`-sourced note carries `[{session_id}]`) → the
+  sources card **does** render on the real device (governance's original guess that "hand-written
+  notes usually have zero source_refs" doesn't hold on this machine); the `backlinks` endpoint is
+  permanently `[]` on this machine → the referenced-by card does **not** render on the real device,
+  so the "has entries" side of that condition can only be covered by a mock assertion.
 
-  ═══ 定位器加固(DoD-11,T7 评审预警的隐性脆弱点)═══
-  T7 评审已指出:`.kn-badge[data-s="draft"]`/`[data-s="archived"]` 两条既有
-  断言,在本刀插入状态卡(蓝本 `:82-84`,与顶栏 `:12-13` 同构同文案)后,
-  `.find()` 会从「唯一命中」退化成「命中两个、`.find()` 巧合仍取到文档序
-  第一个即顶栏那个」——测试仍绿但判别力已从「断言到确定元素」退化成「断言到
-  文档序第一个且巧合同值的元素」。这两条断言按 brief §3 的要求**加固**(钉
-  `.kn-edit-top` 祖先,不再依赖文档序),属于「被迫改动」,记在任务报告的
-  「除 N 处外 T7 一字未动」一节,附加固前/后对照证据。除这 2 处外,
-  `NoteEditPane.test.ts` 里 T7 写的其余全部断言本刀一字未动(本刀只新增
-  describe 块,零删除、零修改既有 describe 内部)。
+  ═══ Locator hardening (DoD-11, a latent fragility flagged by T7 review) ═══
+  T7's review already flagged this: the two existing assertions on `.kn-badge[data-s="draft"]`/
+  `[data-s="archived"]`, once this pass inserts the status card (blueprint `:82-84`, structurally
+  and textually identical to the top bar's `:12-13`), will have `.find()` degrade from "matches
+  exactly one" to "matches two, and `.find()` happens to still grab the first one in document
+  order, which is the top-bar one" — the test still passes green, but its discriminating power has
+  degraded from "asserts against a determined element" to "asserts against the first element in
+  document order that happens to have the same value." Per brief §3's requirement, these two
+  assertions are **hardened** (pinned to the `.kn-edit-top` ancestor, no longer relying on document
+  order); this counts as a "forced change," logged in the task report's "T7 left untouched except
+  for N spots" section, with before/after hardening evidence attached. Apart from these 2 spots,
+  every other assertion T7 wrote in `NoteEditPane.test.ts` is left untouched by this pass (this
+  pass only adds new describe blocks — zero deletions, zero modifications inside existing describe
+  blocks).
 -->
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
@@ -303,14 +336,15 @@ const backlinks = ref<unknown[]>([])
 
 const saving = ref(false)
 const tagInput = ref('')
-/** 蓝本 `ref="tagInput"`(`:120`)—— Vue3 模板 ref,`focusTagInput()` 消费
- * (蓝本 `:237` `this.$refs.tagInput`)。 */
+/** Blueprint `ref="tagInput"` (`:120`) — Vue3 template ref, consumed by `focusTagInput()`
+ * (blueprint `:237` `this.$refs.tagInput`). */
 const tagInputEl = ref<HTMLInputElement | null>(null)
 const mode = ref<'rich' | 'md'>('rich')
 const dirty = ref(false)
-/** 冲突态(蓝本 `:199` `conflict: null`,`:304-305` 赋值形状)。`baseRevision`
- * 保持与 `Note.revision` 一致的 `number | undefined`(K41:revision 本身就是
- * optional),渲染冲突弹窗时的兜底显示是 T8 的事,本刀不额外收窄。 */
+/** Conflict state (blueprint `:199` `conflict: null`, `:304-305` the assignment shape).
+ * `baseRevision` keeps the same `number | undefined` as `Note.revision` (K41: revision is
+ * itself optional) — the fallback display when rendering the conflict modal is T8's concern,
+ * this pass doesn't narrow it any further. */
 const conflict = ref<{ latest: Note; baseRevision: number | undefined } | null>(null)
 const editor = ref<Editor>()
 const tbTick = ref(0)

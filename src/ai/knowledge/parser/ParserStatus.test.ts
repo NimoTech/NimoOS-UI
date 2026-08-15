@@ -198,13 +198,16 @@ function makeRouter() {
     history: createWebHashHistory('/app/'),
     routes: [
       { path: '/ai/parser', name: 'AIParser', component: ParserStatus },
-      // 蓝本 `:6` 的 `router-link to="/ai/parser/test"` 需要目标路由存在才能解析出 href。
-      // 【订正,SP8-P5d Task 9,治理 §15.2 / 计划书 §T9 第 6 条】上一条注释双重过期:
-      // ① 说「生产环境这条路由此刻仍指占位页」——生产里这条路由早已反转成真正的
-      // ParserTest(P5c-T10 的产出,knowledgeRoutes.ts 头注释有完整记录);
-      // ② 它引的行号也早漂了。这里的 stub 组件只是本测试文件自己路由表里的占位,
-      // 与生产路由是否占位无关——保留 stub 是因为本文件只关心 href 能否解析出来,
-      // 不关心 `/ai/parser/test` 页面本身渲染什么。
+      // Blueprint `:6`'s `router-link to="/ai/parser/test"` needs the target route to
+      // exist for the href to resolve at all.
+      // [Correction, SP8-P5d Task 9, governance §15.2 / plan §T9 item 6] The previous comment
+      // was doubly stale: (1) it said "in production this route still points at a placeholder
+      // page" — production reversed this ages ago to the real ParserTest (output of P5c-T10,
+      // fully documented in knowledgeRoutes.ts's header comment); (2) the line number it cited
+      // had also drifted. The stub component here is only a placeholder in this test file's own
+      // route table, unrelated to whether production's route is a placeholder — the stub stays
+      // because this file only cares whether the href resolves, not what the
+      // `/ai/parser/test` page itself renders.
       { path: '/ai/parser/test', name: 'AIParserTest', component: { template: '<div />' } },
     ],
   })
@@ -212,7 +215,7 @@ function makeRouter() {
   return router
 }
 
-/** 挂载但**不 flush** —— 用于观察「四发在飞时」的 `loading` 档。 */
+/** Mount but **don't flush** — for observing the `loading` state while the four calls are in flight. */
 async function mountRaw() {
   const router = makeRouter()
   await router.isReady()
@@ -221,7 +224,7 @@ async function mountRaw() {
   return w
 }
 
-/** 挂载并等四发落地。 */
+/** Mount and wait for all four calls to land. */
 async function mountPage() {
   const w = await mountRaw()
   await flushPromises()
@@ -265,20 +268,21 @@ describe('ParserStatus — K31 two-layer root element (scroll container + 900px 
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 页头(蓝本 :3-9)', () => {
-  it('标题 / 🧪 测试沙盒链接(含 href)/ 刷新按钮的文案逐字', async () => {
+describe('ParserStatus — page header (blueprint :3-9)', () => {
+  it('title / 🧪 test-sandbox link (incl. href) / refresh button copy, verbatim', async () => {
     const w = await mountPage()
     expect(w.find('.page-header h2').text()).toBe('Parser 详情')
     const link = w.find('a.test-link')
-    // N16:🧪 在 t() 外面 —— 渲染成「🧪 测试沙盒」(emoji + 空格 + 译文)
+    // N16: 🧪 sits outside t() — renders as "🧪 测试沙盒" (emoji + space + translation)
     expect(link.text()).toBe('🧪 测试沙盒')
-    // hash 路由:jsdom 里 location 是 `http://localhost:3000/`,`createWebHashHistory('/app/')`
-    // 解析出的 href 就是纯 hash(生产环境浏览器地址栏里是 `…/app/#/ai/parser/test`)
+    // Hash routing: in jsdom, location is `http://localhost:3000/`, and the href resolved
+    // via `createWebHashHistory('/app/')` is a bare hash (in production the browser address
+    // bar shows `…/app/#/ai/parser/test`)
     expect(link.attributes('href')).toBe('#/ai/parser/test')
     expect(w.find('.refresh-btn').text()).toBe('刷新')
   })
 
-  it('挂载即拉一次(四发各一次,参数照蓝本)', async () => {
+  it('fires once on mount (each of the four calls once, args matching the blueprint)', async () => {
     await mountPage()
     expect(ai.parserStats).toHaveBeenCalledTimes(1)
     expect(ai.parserState).toHaveBeenCalledTimes(1)
@@ -286,7 +290,7 @@ describe('ParserStatus —— 页头(蓝本 :3-9)', () => {
     expect(ai.parserJobs).toHaveBeenCalledWith({ status: 'failed', limit: 5 })
   })
 
-  it('点刷新按钮 → 再拉一次(蓝本 reload() :137)', async () => {
+  it('clicking refresh → fires again (blueprint reload() :137)', async () => {
     const w = await mountPage()
     await w.find('.refresh-btn').trigger('click')
     await flushPromises()
@@ -294,7 +298,7 @@ describe('ParserStatus —— 页头(蓝本 :3-9)', () => {
     expect(ai.parserFolders).toHaveBeenCalledTimes(2)
   })
 
-  it('🔴 :disabled="loading" 两侧 —— 四发在飞时刷新按钮 + 三档单选 + OCR 勾选框全禁用,落地后全解禁', async () => {
+  it('🔴 both sides of :disabled="loading" — while the four calls are in flight, refresh button + three radio groups + OCR checkbox are all disabled; all re-enabled once landed', async () => {
     const d = deferred<ParserStatsBody>()
     ai.parserStats.mockReturnValue(d.promise)
     const w = await mountRaw()
@@ -302,9 +306,9 @@ describe('ParserStatus —— 页头(蓝本 :3-9)', () => {
 
     const btn = () => w.find('.refresh-btn').element as HTMLButtonElement
     const inputs = () => w.findAll('.control-card input').map((n) => n.element as HTMLInputElement)
-    // 在飞:loading 已同步置真(`parserStore.ts:161` 在 await 之前)
+    // In flight: loading is set to true synchronously (`parserStore.ts:161`, before the await)
     expect(btn().disabled).toBe(true)
-    expect(inputs()).toHaveLength(7) // 3 并发 + 3 设备 + 1 OCR
+    expect(inputs()).toHaveLength(7) // 3 concurrency + 3 device + 1 OCR
     expect(inputs().every((el) => el.disabled === true)).toBe(true)
 
     d.resolve(STATS)
@@ -316,8 +320,8 @@ describe('ParserStatus —— 页头(蓝本 :3-9)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— unreachable 两态(蓝本 :11-14)', () => {
-  it('四发全成功 → 不出警示卡,四张卡都在', async () => {
+describe('ParserStatus — unreachable, two states (blueprint :11-14)', () => {
+  it('all four calls succeed → no warning card, all four cards present', async () => {
     const w = await mountPage()
     expect(w.find('.card.unreachable').exists()).toBe(false)
     expect(w.find('.control-card').exists()).toBe(true)
@@ -326,10 +330,11 @@ describe('ParserStatus —— unreachable 两态(蓝本 :11-14)', () => {
     expect(w.find('.failures-card').exists()).toBe(true)
   })
 
-  it('任一发失败 → 出警示卡并把 store.error 回显在 <small> 里,四张卡整块不渲染(v-else)', async () => {
-    // 蓝本 `:13` 的 `<small>{{ store.state.error }}</small>` 回显的是网络层
-    // `e.message || String(e)`(`parserStore.ts:184`)—— 蓝本行为,照抄(K5/K30 不适用,
-    // 它们管的是「不把后端响应 body 的 detail 拼进 toast」,不是同一件事)。
+  it('any one call fails → warning card appears with store.error echoed in <small>, all four cards go away entirely (v-else)', async () => {
+    // Blueprint `:13`'s `<small>{{ store.state.error }}</small>` echoes the network layer's
+    // `e.message || String(e)` (`parserStore.ts:184`) — blueprint behavior, copied as-is
+    // (K5/K30 don't apply here; those guard against splicing a backend response body's
+    // `detail` into a toast, which is a different concern).
     ai.parserFolders.mockRejectedValue(new Error('parser down'))
     const w = await mountPage()
     const card = w.find('.card.unreachable')
@@ -340,24 +345,25 @@ describe('ParserStatus —— unreachable 两态(蓝本 :11-14)', () => {
     expect(w.find('.queue-card').exists()).toBe(false)
     expect(w.find('.folders-card').exists()).toBe(false)
     expect(w.find('.failures-card').exists()).toBe(false)
-    // 页头永远在 v-if/v-else 之外
+    // The page header always sits outside the v-if/v-else
     expect(w.find('.page-header h2').text()).toBe('Parser 详情')
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 控制卡:状态灯 + 暂停按钮(蓝本 :19-29)', () => {
-  it('本机实测 paused:true → .dot 带 paused 类、文案「已暂停」、按钮「▶ 恢复」', async () => {
+describe('ParserStatus — control card: status light + pause button (blueprint :19-29)', () => {
+  it('real device measurement paused:true → .dot carries the paused class, copy "已暂停", button "▶ 恢复"', async () => {
     const w = await mountPage()
     const dot = w.find('.status-text .dot')
     expect(dot.classes()).toContain('paused')
     expect(w.find('.status-text').text()).toBe('已暂停')
-    // N16:`▶ ` 由 script 拼接,i18n 键值是纯「恢复」
+    // N16: `▶ ` is concatenated by script; the i18n key value is plain "恢复"
     expect(w.find('.pause-btn').text()).toBe('▶ 恢复')
   })
 
-  it('fixture 变体 paused:false → .dot 不带 paused 类、文案「运行中」、按钮「⏸ 暂停」', async () => {
-    // 只改 `paused` 这一个字段(治理 §4.3:本机是暂停态,运行档只能靠变体覆盖)
+  it('fixture variant paused:false → .dot has no paused class, copy "运行中", button "⏸ 暂停"', async () => {
+    // Only change the `paused` field (governance §4.3: the real device is in the paused
+    // state, so the running state can only be covered via a fixture variant)
     ai.parserState.mockResolvedValue({ ...STATE, paused: false })
     const w = await mountPage()
     expect(w.find('.status-text .dot').classes()).not.toContain('paused')
@@ -365,7 +371,7 @@ describe('ParserStatus —— 控制卡:状态灯 + 暂停按钮(蓝本 :19-29)'
     expect(w.find('.pause-btn').text()).toBe('⏸ 暂停')
   })
 
-  it('paused 时点按钮 → 走 resume(蓝本三元 :139-141)', async () => {
+  it('clicking the button while paused → calls resume (blueprint ternary :139-141)', async () => {
     const w = await mountPage()
     await w.find('.pause-btn').trigger('click')
     await flushPromises()
@@ -373,7 +379,7 @@ describe('ParserStatus —— 控制卡:状态灯 + 暂停按钮(蓝本 :19-29)'
     expect(ai.parserControl).toHaveBeenCalledWith({ action: 'resume' })
   })
 
-  it('未暂停时点按钮 → 走 pause', async () => {
+  it('clicking the button while not paused → calls pause', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, paused: false })
     const w = await mountPage()
     await w.find('.pause-btn').trigger('click')
@@ -384,8 +390,8 @@ describe('ParserStatus —— 控制卡:状态灯 + 暂停按钮(蓝本 :19-29)'
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 控制卡:并发档(N17,蓝本 :30-40)', () => {
-  it('N17 数组下标取 i18n → 三档文案顺序「省电 (1)」「平衡 (2)」「全力 (4)」', async () => {
+describe('ParserStatus — control card: concurrency level (N17, blueprint :30-40)', () => {
+  it('N17 takes i18n by array index → three-way copy order "省电 (1)" "平衡 (2)" "全力 (4)"', async () => {
     const w = await mountPage()
     expect(w.find('.concurrency-row > label').text()).toBe('并发档位:')
     const radios = w.findAll('.concurrency-row .radio')
@@ -393,21 +399,21 @@ describe('ParserStatus —— 控制卡:并发档(N17,蓝本 :30-40)', () => {
     expect(radios.map((r) => r.text())).toEqual(['省电 (1)', '平衡 (2)', '全力 (4)'])
   })
 
-  it('🔴 :checked 两侧 —— concurrency:2 时只有第二档为 true', async () => {
+  it('🔴 both sides of :checked — with concurrency:2, only the second option is true', async () => {
     const w = await mountPage()
     const els = w.findAll('.concurrency-row input').map((n) => n.element as HTMLInputElement)
     expect(els.map((el) => el.checked)).toEqual([false, true, false])
     expect(els.map((el) => el.getAttribute('value'))).toEqual(['1', '2', '4'])
   })
 
-  it('🔴 :checked 两侧 —— fixture 变体 concurrency:4 时只有第三档为 true', async () => {
+  it('🔴 both sides of :checked — fixture variant concurrency:4, only the third option is true', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, concurrency: 4 })
     const w = await mountPage()
     const els = w.findAll('.concurrency-row input').map((n) => n.element as HTMLInputElement)
     expect(els.map((el) => el.checked)).toEqual([false, false, true])
   })
 
-  it('@change → setConcurrency(n),载荷键是 `n`(与后端 controlReq 一致)', async () => {
+  it('@change → setConcurrency(n), payload key is `n` (matches the backend controlReq)', async () => {
     const w = await mountPage()
     await w.findAll('.concurrency-row input')[2]!.trigger('change')
     await flushPromises()
@@ -416,28 +422,36 @@ describe('ParserStatus —— 控制卡:并发档(N17,蓝本 :30-40)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔴 I-1(评审 2026-08-04 猎出的守卫缺口)—— **N21 #3 的键选纪律必须有 en 档守卫**。
+// 🔴 I-1 (guard gap caught by review 2026-08-04) — **N21 #3's key-selection discipline
+// needs an en-locale guard.**
 //
-// 评审探针:把三档并发的键换成治理**明令禁止复用**的 `aiKbCcPowerSaver` /
-// `aiKbCcFullSpeed` → 上面那批用例 **47/47 全绿**。原因:那些断言只比 **zh** 文本,
-// 而这两组键的 **zh 逐字撞车、只有 en 不同**:
-//     aiKbPrCcPowerSaving  en `Power-saving`  zh 省电   ← 本页必须用的(T1 新建)
-//     aiKbCcPowerSaver     en `Power saver`   zh 省电   ← 被禁复用的(既有)
-//     aiKbPrCcFullPower    en `Full power`    zh 全力   ← 本页必须用的(T1 新建)
-//     aiKbCcFullSpeed      en `Full speed`    zh 全力   ← 被禁复用的(既有)
-// → 复用会让**英文界面**渲染成 `Power saver` / `Full speed`,与 Vue2 不同 = 界面不 1:1,
-//   而中文界面**看不出任何差别**、三门全绿放行。这条纪律此前零守卫。
+// Review probe: swap the three concurrency keys for the ones governance **explicitly bans
+// from reuse** — `aiKbCcPowerSaver` / `aiKbCcFullSpeed` — and the whole batch of tests above
+// still goes **47/47 green**. Reason: those assertions only compare **zh** text, and these
+// two key pairs **collide verbatim in zh, differing only in en**:
+//     aiKbPrCcPowerSaving  en `Power-saving`  zh 省电   ← the one this page must use (T1, new)
+//     aiKbCcPowerSaver     en `Power saver`   zh 省电   ← the one banned from reuse (pre-existing)
+//     aiKbPrCcFullPower    en `Full power`    zh 全力   ← the one this page must use (T1, new)
+//     aiKbCcFullSpeed      en `Full speed`    zh 全力   ← the one banned from reuse (pre-existing)
+// → reusing them would make the **English UI** render `Power saver` / `Full speed`, diverging
+//   from Vue2 — i.e. not a pixel-for-pixel port — while the **Chinese UI shows no difference
+//   at all**, so all three gates pass green. This discipline had zero guard before now.
 //
-// **做法选型**:切 locale 到 `en_us` 真挂一次组件、断言渲染文本 —— 而不是直接读语言包
-// 比键值。理由:要守的不变量是「**这一页渲染出来的英文**是 Vue2 那三串」,读键值只能证明
-// 「某个键的值是什么」,证不到「模板用的是哪个键」;走渲染路径把「键选对了」与「值对了」
-// 一次钉死。**并加反向断言**(不等于被禁那两个键的 en 值),这样即使将来某人把
-// `aiKbCcPowerSaver` 的 en 值也改成 `Power-saving`,正向断言会绿但反向断言仍在守着
-// 「渲染结果里不许出现 `Power saver`/`Full speed`」这个用户可见事实。
+// **Approach chosen**: switch locale to `en_us`, actually mount the component once, and
+// assert the rendered text — rather than reading the locale file's key values directly.
+// Reason: the invariant to guard is "**the English rendered on this page** is those three
+// Vue2 strings"; reading key values only proves "what some key's value is", not "which key
+// the template actually uses". Going through the render path pins both "the right key was
+// chosen" and "the value is correct" at once. **A reverse assertion is added too** (not
+// equal to the en values of the two banned keys), so that even if someone later changes
+// `aiKbCcPowerSaver`'s en value to also be `Power-saving`, the forward assertion would go
+// green but the reverse assertion still guards the user-visible fact that "the rendered
+// output must never contain `Power saver`/`Full speed`".
 //
-// 🔴 locale 是全局单例 → 必须 `try/finally` 还原,否则污染同文件后续用例。
-describe('ParserStatus —— 🔴 I-1:N21 #3 键选纪律的 en 档强断言(zh 撞车、只有 en 能判别)', () => {
-  /** `i18n.global.locale` 在 composition 模式下是 WritableComputedRef。 */
+// 🔴 locale is a global singleton → must be restored with `try/finally`, otherwise it
+// pollutes later tests in this file.
+describe('ParserStatus — 🔴 I-1: strong en-locale assertions for N21 #3 key-selection discipline (zh collides, only en can tell them apart)', () => {
+  /** `i18n.global.locale` is a WritableComputedRef in composition mode. */
   const localeRef = i18n.global.locale as unknown as { value: string }
 
   async function mountInEn() {
@@ -451,7 +465,7 @@ describe('ParserStatus —— 🔴 I-1:N21 #3 键选纪律的 en 档强断言(zh
     }
   }
 
-  it('en 档三档并发标签逐字 = `Power-saving (1)` / `Balanced (2)` / `Full power (4)`', async () => {
+  it('en-locale three-way concurrency labels verbatim = `Power-saving (1)` / `Balanced (2)` / `Full power (4)`', async () => {
     const { w, restore } = await mountInEn()
     try {
       expect(w.findAll('.concurrency-row .radio').map((r) => r.text())).toEqual([
@@ -465,13 +479,13 @@ describe('ParserStatus —— 🔴 I-1:N21 #3 键选纪律的 en 档强断言(zh
     }
   })
 
-  it('🔴 反向:en 档渲染结果里不许出现被禁复用键的 en 值(`Power saver` / `Full speed`)', async () => {
+  it('🔴 reverse: en-locale rendered output must never contain the en values of the banned keys (`Power saver` / `Full speed`)', async () => {
     const { w, restore } = await mountInEn()
     try {
       const row = w.find('.concurrency-row').text()
-      expect(row).not.toContain('Power saver') // = aiKbCcPowerSaver 的 en 值
-      expect(row).not.toContain('Full speed') // = aiKbCcFullSpeed 的 en 值
-      // 整页范围也扫一遍(防将来别处误用)
+      expect(row).not.toContain('Power saver') // = aiKbCcPowerSaver's en value
+      expect(row).not.toContain('Full speed') // = aiKbCcFullSpeed's en value
+      // Also sweep the whole page (in case of future misuse elsewhere)
       expect(w.text()).not.toContain('Power saver')
       expect(w.text()).not.toContain('Full speed')
     } finally {
@@ -479,75 +493,86 @@ describe('ParserStatus —— 🔴 I-1:N21 #3 键选纪律的 en 档强断言(zh
     }
   })
 
-  it('切回 zh 后三档仍是「省电 (1)」/「平衡 (2)」/「全力 (4)」(证明 locale 已还原、无污染)', async () => {
+  it('switching back to zh, the three options are still "省电 (1)"/"平衡 (2)"/"全力 (4)" (proves locale was restored, no pollution)', async () => {
     const w = await mountPage()
     expect(w.findAll('.concurrency-row .radio').map((r) => r.text())).toEqual([
       '省电 (1)', '平衡 (2)', '全力 (4)',
     ])
   })
 
-  // 🔴 裁定 A-1(`aiKbDeviceAuto` 不许复用 `aiKbOriginAuto`)的守卫**只能落在源码上**:
-  // 两个键 **en 与 zh 双双逐字相同**(`Auto` / `自动`,实测 `en_us.ts:1548` vs `:1625`、
-  // `zh_cn.ts:1562` vs `:1652`)→ **任何渲染断言都没有判别力**(这也正是裁定 A-1 的理由
-  // 原文:「复用渲染完全一致,但键名语义是『沉淀任务来源』,将来改沉淀文案会静默改掉
-  // 设备下拉」)。故这条纪律只能靠「模板用的是哪个键」的源码断言守。
-  // ⚠️ 断言必须钉「**`t()` 调用**」而不是裸子串:本文件头注释里就有一句「**不复用**
-  // `aiKbOriginAuto`」的说明文字,`not.toContain('aiKbOriginAuto')` 会撞上那句注释而假报红
-  // (第一版就栽了一次)—— 与治理 §9 第七/第八条那族「在文件里找某段文本撞注释」同源,
-  // 这次发生在**读**侧。判据落在 `t('aiKbOriginAuto')` 这个调用形状上。
-  it('🔴 A-1:设备档用 aiKbDeviceAuto,零 `t(\'aiKbOriginAuto\')` 调用(en/zh 双双同值 → 渲染断言无判别力)', () => {
+  // 🔴 the guard for ruling A-1 (`aiKbDeviceAuto` must not reuse `aiKbOriginAuto`) **can only
+  // live at the source-code level**:
+  // — the two keys are **verbatim identical in en and zh** (`Auto` / `自动`, confirmed at
+  // `en_us.ts:1548` vs `:1625`, `zh_cn.ts:1562` vs `:1652`) → **no rendering assertion has
+  // any discriminating power** here (which is exactly ruling A-1's stated rationale: "reuse
+  // renders identically, but the key names carry the semantics of 'where the value settled
+  // from', and future changes to the settle-from copy would silently change the device
+  // dropdown too"). So this discipline can only be guarded by a source-code assertion on
+  // "which key the template actually uses".
+  // Warning: the assertion must pin the **`t()` call shape**, not a bare substring: this
+  // file's header comment itself contains a sentence saying "**does not reuse**
+  // `aiKbOriginAuto`" — `not.toContain('aiKbOriginAuto')` would collide with that comment
+  // and false-fail (the first version tripped on exactly this) — same family as governance
+  // §9 items 7/8 ("a string search in the file colliding with a comment"), just happening
+  // on the **read** side this time. The discriminator is pinned on the call shape
+  // `t('aiKbOriginAuto')`.
+  it('🔴 A-1: the device option uses aiKbDeviceAuto, zero calls to `t(\'aiKbOriginAuto\')` (en/zh both equal → rendering assertions have no discriminating power)', () => {
     const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
     expect(src).toContain("{ value: 'auto', label: t('aiKbDeviceAuto') }")
     expect(src).not.toMatch(/\bt\(\s*['"]aiKbOriginAuto['"]/)
-    // 反过来实证「为什么必须走源码」:两个键两档都同值,渲染永远分不出来
+    // Proof, in reverse, of why this must go through source code: both keys have the same
+    // value in both locales, so rendering can never tell them apart
     const zh = zhCn as Record<string, string>
     expect(zh.aiKbDeviceAuto).toBe(zh.aiKbOriginAuto)
   })
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 控制卡:推理设备(蓝本 :41-55)', () => {
-  it('三档文案:「自动」走 i18n,「GPU (CUDA)」/「CPU」是硬编码技术标识符(不进 i18n)', async () => {
+describe('ParserStatus — control card: inference device (blueprint :41-55)', () => {
+  it('three-way copy: "自动" goes through i18n, "GPU (CUDA)"/"CPU" are hardcoded technical identifiers (not in i18n)', async () => {
     const w = await mountPage()
     expect(w.find('.device-row > label').text()).toBe('推理设备:')
     const radios = w.findAll('.device-row .radio')
     expect(radios).toHaveLength(3)
     expect(radios.map((r) => r.text())).toEqual(['自动', 'GPU (CUDA)', 'CPU'])
-    // 蓝本 `:123-124` 那两串刻意不进 i18n(N22 同族)→ 源码里是**裸字面量**,不经 t()。
-    // ⚠️ 不能反过来断言「语言包里搜不到 'CPU'」—— 本仓语言包里确实另有键的值恰好是 'CPU'
-    //    (硬件相关文案),那与本页无关。判据落在**本页源码怎么写的**上。
+    // Blueprint `:123-124`'s two strings deliberately stay out of i18n (same family as N22)
+    // → in source they are **bare literals**, not passed through t().
+    // Warning: don't flip this into asserting "the locale file has no key whose value is
+    // 'CPU'" — this repo's locale file genuinely has another key whose value happens to be
+    // 'CPU' (hardware-related copy), unrelated to this page. The discriminator is **how this
+    // page's own source is written**.
     const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
     expect(src).toContain("{ value: 'cuda', label: 'GPU (CUDA)' }")
     expect(src).toContain("{ value: 'cpu', label: 'CPU' }")
     expect(Object.values(zhCn as Record<string, unknown>)).not.toContain('GPU (CUDA)')
   })
 
-  it('🔴 :checked 两侧 —— device:"auto" 时只有第一档为 true', async () => {
+  it('🔴 both sides of :checked — with device:"auto", only the first option is true', async () => {
     const w = await mountPage()
     const els = w.findAll('.device-row input').map((n) => n.element as HTMLInputElement)
     expect(els.map((el) => el.checked)).toEqual([true, false, false])
     expect(els.map((el) => el.getAttribute('value'))).toEqual(['auto', 'cuda', 'cpu'])
   })
 
-  it('🔴 :checked 两侧 —— fixture 变体 device:"cpu" 时只有第三档为 true', async () => {
+  it('🔴 both sides of :checked — fixture variant device:"cpu", only the third option is true', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, device: 'cpu' })
     const w = await mountPage()
     const els = w.findAll('.device-row input').map((n) => n.element as HTMLInputElement)
     expect(els.map((el) => el.checked)).toEqual([false, false, true])
   })
 
-  it('device=auto + resolved_device=cpu → .resolved-hint 渲染「→ 实际 CPU」(toUpperCase)', async () => {
+  it('device=auto + resolved_device=cpu → .resolved-hint renders "→ 实际 CPU" (toUpperCase)', async () => {
     const w = await mountPage()
     expect(w.find('.device-row .resolved-hint').text()).toBe('→ 实际 CPU')
   })
 
-  it('device 不是 auto 时 .resolved-hint 整个不渲染(v-if 前半)', async () => {
+  it('when device is not auto, .resolved-hint does not render at all (v-if, first half)', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, device: 'cpu' })
     const w = await mountPage()
     expect(w.find('.device-row .resolved-hint').exists()).toBe(false)
   })
 
-  it('device=auto 但 resolved_device 为空串时也不渲染(v-if 后半)', async () => {
+  it('device=auto but resolved_device is an empty string → also does not render (v-if, second half)', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, resolved_device: '' })
     const w = await mountPage()
     expect(w.find('.device-row .resolved-hint').exists()).toBe(false)
@@ -562,29 +587,30 @@ describe('ParserStatus —— 控制卡:推理设备(蓝本 :41-55)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 控制卡:OCR 开关(蓝本 :56-65)', () => {
-  it('文案 + N21 那条错译提示逐字照抄(「真实索引的扫描件」是语言包自身的错译)', async () => {
+describe('ParserStatus — control card: OCR toggle (blueprint :56-65)', () => {
+  it('copy + N21\'s mistranslated hint, copied verbatim ("真实索引的扫描件" is a mistranslation baked into the locale file itself)', async () => {
     const w = await mountPage()
     expect(w.find('.checkbox').text()).toBe('扫描 PDF 启用 OCR (RapidOCR)')
-    // 最后一行 .resolved-hint 是 OCR 提示(第一处在 .device-row 里)
+    // The last line's .resolved-hint is the OCR hint (the first one is in .device-row)
     const hints = w.findAll('.control-card .resolved-hint')
     expect(hints[hints.length - 1]!.text()).toBe('慢 5-10x，只对真实索引的扫描件有用')
   })
 
-  // 🔴 M-3(评审,2026-08-04):原本这两态挤在同一个 `it()` 里、中间换 pinia 挂第二个实例
-  // —— 与本文件其余「一态一用例」的写法不一致(并发档 / 设备档都是拆开的)。已拆成两条。
-  it('🔴 :checked 两侧(其一)—— 本机 ocr_enabled:false → checked 为 false', async () => {
+  // 🔴 M-3 (review, 2026-08-04): these two states used to be crammed into one `it()`, swapping
+  // in a second pinia instance halfway through — inconsistent with the rest of this file's
+  // "one state per test" convention (concurrency / device are both split out). Split into two.
+  it('🔴 both sides of :checked (one) — real device ocr_enabled:false → checked is false', async () => {
     const w = await mountPage()
     expect((w.find('.checkbox input').element as HTMLInputElement).checked).toBe(false)
   })
 
-  it('🔴 :checked 两侧(其二)—— fixture 变体 ocr_enabled:true → checked 为 true', async () => {
+  it('🔴 both sides of :checked (two) — fixture variant ocr_enabled:true → checked is true', async () => {
     ai.parserState.mockResolvedValue({ ...STATE, ocr_enabled: true })
     const w = await mountPage()
     expect((w.find('.checkbox input').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('@change 从 $event.target.checked 取值 → setOcr(true) / setOcr(false)', async () => {
+  it('@change reads from $event.target.checked → setOcr(true) / setOcr(false)', async () => {
     const w = await mountPage()
     const box = w.find('.checkbox input')
     ;(box.element as HTMLInputElement).checked = true
@@ -599,8 +625,8 @@ describe('ParserStatus —— 控制卡:OCR 开关(蓝本 :56-65)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 队列卡 6 格(蓝本 :68-76)', () => {
-  it('六格文本逐字(N16:emoji 全在 t() 外面),数字取本机实测值', async () => {
+describe('ParserStatus — queue card, 6 cells (blueprint :68-76)', () => {
+  it('all six cells\' text verbatim (N16: every emoji sits outside t()), numbers taken from real device measurements', async () => {
     const w = await mountPage()
     const kvs = w.findAll('.queue-card .kv')
     expect(kvs).toHaveLength(6)
@@ -610,12 +636,13 @@ describe('ParserStatus —— 队列卡 6 格(蓝本 :68-76)', () => {
       '✅ 完成 9',
       '❌ 已失败 0',
       '📦 已入向量 5592',
-      // formatCursor 走 toLocaleString(),随运行环境的 locale/时区变 → 现算而不是钉死
+      // formatCursor goes through toLocaleString(), which varies with the running
+      // environment's locale/timezone → compute it live rather than pinning it
       `📍 上次同步 ${new Date(1784775953391).toLocaleString()}`,
     ])
   })
 
-  it('六格的数字各自落在 <b> 里(蓝本每格 `<b>{{…}}</b>`)', async () => {
+  it('each of the six cells\' numbers sits inside a <b> (blueprint has `<b>{{…}}</b>` per cell)', async () => {
     const w = await mountPage()
     const bs = w.findAll('.queue-card .kv b')
     expect(bs).toHaveLength(6)
@@ -624,7 +651,7 @@ describe('ParserStatus —— 队列卡 6 格(蓝本 :68-76)', () => {
     ])
   })
 
-  it('formatCursor(0) → U+2014 破折号(蓝本 :147 的 `if (!ms) return "—"`)', async () => {
+  it('formatCursor(0) → U+2014 em dash (blueprint :147\'s `if (!ms) return "—"`)', async () => {
     ai.parserStats.mockResolvedValue({ ...STATS, last_cursor_ms: 0 })
     const w = await mountPage()
     const last = w.findAll('.queue-card .kv')[5]!
@@ -634,13 +661,13 @@ describe('ParserStatus —— 队列卡 6 格(蓝本 :68-76)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 文件夹卡(蓝本 :78-89)', () => {
-  it('标题两个占位符各有来源:{top}=列表长度 20、{total}=后端 total_groups 119', async () => {
+describe('ParserStatus — folders card (blueprint :78-89)', () => {
+  it('the title\'s two placeholders each have a distinct source: {top} = list length 20, {total} = backend total_groups 119', async () => {
     const w = await mountPage()
     expect(w.find('.folders-card h3').text()).toBe('待处理文件夹（top 20 / 共 119 组）')
   })
 
-  it('走 v-else 列表分支:20 行,每行 path + count + 进度条', async () => {
+  it('takes the v-else list branch: 20 rows, each with path + count + progress bar', async () => {
     const w = await mountPage()
     expect(w.find('.folders-card .empty').exists()).toBe(false)
     const rows = w.findAll('.folder-row')
@@ -652,7 +679,7 @@ describe('ParserStatus —— 文件夹卡(蓝本 :78-89)', () => {
     expect(rows[19]!.find('.folder-count').text()).toBe('4')
   })
 
-  it('barWidth:最大项 100%、末项 round(4/18*100)=22%', async () => {
+  it('barWidth: max item is 100%, last item is round(4/18*100)=22%', async () => {
     const w = await mountPage()
     const bars = w.findAll('.folder-bar')
     expect(bars).toHaveLength(20)
@@ -660,9 +687,9 @@ describe('ParserStatus —— 文件夹卡(蓝本 :78-89)', () => {
     expect(bars[19]!.attributes('style')).toBe('width: 22%;')
   })
 
-  it('🔴 barWidth 的 `|| 1` 兜底:所有 count 都是 0 时宽度是 0%(不是 NaN%)', async () => {
-    // 判据:去掉 `|| 1` → reduce 得 0 → 0/0 = NaN → `width: NaN%` 被 jsdom 判为无效值
-    // → style 属性拿不到 'width: 0%;' → 本条报红。
+  it('🔴 barWidth\'s `|| 1` fallback: when every count is 0, width is 0% (not NaN%)', async () => {
+    // Discriminator: drop `|| 1` → reduce yields 0 → 0/0 = NaN → `width: NaN%` gets judged
+    // invalid by jsdom → the style attribute never reads 'width: 0%;' → this test fails.
     ai.parserFolders.mockResolvedValue({
       folders: [
         { root_id: 'r', folder: '/DATA/a', count: 0 },
@@ -677,7 +704,7 @@ describe('ParserStatus —— 文件夹卡(蓝本 :78-89)', () => {
     expect(bars[1]!.attributes('style')).toBe('width: 0%;')
   })
 
-  it('v-if 空态:folders 为空 → 「无待处理」,零 .folder-row(治理 §13:本机验不到,靠 mock 覆盖)', async () => {
+  it('v-if empty state: folders empty → "无待处理", zero .folder-row (governance §13: unreachable on the real device, covered via mock)', async () => {
     ai.parserFolders.mockResolvedValue({ folders: [], total_groups: 0 })
     const w = await mountPage()
     expect(w.find('.folders-card .empty').text()).toBe('无待处理')
@@ -687,11 +714,13 @@ describe('ParserStatus —— 文件夹卡(蓝本 :78-89)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
-  // 🔴 N19:`<ul v-show="failedOpen" v-if="store.failedJobs.length">` 两个指令同挂。
-  // Vue 里 `v-if` 优先级高于 `v-show` → 空桶时整个 `<ul>` 不渲染、`v-show` 是死的。
-  // 判据:合并成单一指令(只留 v-show 或只留 v-if)→ 本组三条里至少一条必须报红。
-  it('N19 态①:本机空桶 —— 折叠按钮无条件渲染且能点(「▶ 最近失败（0）」),但点开后 <ul> 整个不渲染', async () => {
+describe('ParserStatus — failures card + N19 three states (blueprint :91-102)', () => {
+  // 🔴 N19: `<ul v-show="failedOpen" v-if="store.failedJobs.length">` has both directives
+  // attached at once. In Vue, `v-if` takes priority over `v-show` → with an empty bucket the
+  // whole `<ul>` doesn't render at all, so `v-show` is dead code.
+  // Discriminator: merge into a single directive (keep only v-show, or only v-if) → at least
+  // one of the three tests in this group must then fail.
+  it('N19 state ①: real device has an empty bucket — collapse button renders unconditionally and is clickable ("▶ 最近失败（0）"), but the <ul> still doesn\'t render at all after opening it', async () => {
     const w = await mountPage()
     const btn = w.find('.failures-card .toggle')
     expect(btn.exists()).toBe(true)
@@ -700,13 +729,15 @@ describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
 
     await btn.trigger('click')
     await nextTick()
-    // 箭头翻了(证明 failedOpen 真的置真、按钮真的可点)
+    // The arrow flipped (proving failedOpen really did get set true and the button is
+    // genuinely clickable)
     expect(w.find('.failures-card .toggle').text()).toBe('▼ 最近失败（0）')
-    // 但列表仍然不存在 —— 这是**正确行为**(v-if 先判掉),不是缺陷(治理 §13)
+    // But the list still doesn't exist — this is **correct behavior** (v-if short-circuits
+    // first), not a defect (governance §13)
     expect(w.find('.failure-list').exists()).toBe(false)
   })
 
-  it('N19 态②:非空桶 + 未展开 —— <ul> 渲染出来了,但被 v-show 隐藏(display: none)', async () => {
+  it('N19 state ②: non-empty bucket + not expanded — <ul> does render, but hidden by v-show (display: none)', async () => {
     ai.parserJobs.mockResolvedValue({ jobs: [FAILED_ROW] })
     const w = await mountPage()
     const ul = w.find('.failure-list')
@@ -715,7 +746,7 @@ describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
     expect(w.find('.failures-card .toggle').text()).toBe('▶ 最近失败（1）')
   })
 
-  it('N19 态③:非空桶 + 展开 —— <ul> 可见,行里 path + 截断后的 error', async () => {
+  it('N19 state ③: non-empty bucket + expanded — <ul> visible, row has path + truncated error', async () => {
     ai.parserJobs.mockResolvedValue({ jobs: [{ ...FAILED_ROW, last_error: 'boom' }] })
     const w = await mountPage()
     await w.find('.failures-card .toggle').trigger('click')
@@ -729,7 +760,7 @@ describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
     expect(w.find('.failures-card .toggle').text()).toBe('▼ 最近失败（1）')
   })
 
-  it('truncateErr 边界:120 字符原样、121 字符截成前 120 + U+2026(蓝本 :156 是严格 `> 120`)', async () => {
+  it('truncateErr boundary: 120 chars passes through unchanged, 121 chars truncates to the first 120 + U+2026 (blueprint :156 is strictly `> 120`)', async () => {
     const e120 = 'x'.repeat(120)
     const e121 = 'y'.repeat(121)
     ai.parserJobs.mockResolvedValue({
@@ -743,13 +774,13 @@ describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
     await nextTick()
     const errs = w.findAll('.failure-list .error')
     expect(errs).toHaveLength(2)
-    expect(errs[0]!.text()).toBe(e120) // 恰好 120 → 不截
+    expect(errs[0]!.text()).toBe(e120) // exactly 120 → not truncated
     expect(errs[0]!.text()).toHaveLength(120)
-    expect(errs[1]!.text()).toBe('y'.repeat(120) + '…') // 121 → 截 + 省略号
+    expect(errs[1]!.text()).toBe('y'.repeat(120) + '…') // 121 → truncated + ellipsis
     expect(errs[1]!.text()).toHaveLength(121)
   })
 
-  it('truncateErr 空值:last_error 为 null(本机真行的实测值)→ 渲染空串,不渲染 "null"', async () => {
+  it('truncateErr null value: last_error is null (a real measured row on the device) → renders an empty string, not "null"', async () => {
     ai.parserJobs.mockResolvedValue({ jobs: [FAILED_ROW] }) // FAILED_ROW.last_error === null
     const w = await mountPage()
     await w.find('.failures-card .toggle').trigger('click')
@@ -759,18 +790,20 @@ describe('ParserStatus —— 失败卡 + N19 三态(蓝本 :91-102)', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载清理(蓝本 :127-135)', () => {
-  // 照 `QueueView.test.ts:859-891` 的既有写法:`onMounted` 里的 `loadAll()` 是同步
-  // 发起调用(`Promise.all` 内四个 `service.ai.parser*` 是同步触发,只有各自 resolve
-  // 走微任务),不需要 `runOnlyPendingTimersAsync` 去"催"—— 那个 API 会把尚未到期的
-  // setInterval 也提前打一次,导致误判成多发一轮。
-  it('频率就是 5000ms:推进 4999ms 不发,再推进 1ms 才发一轮', async () => {
+describe('ParserStatus — N20: 5-second polling + document.hidden guard + unmount cleanup (blueprint :127-135)', () => {
+  // Following the existing convention from `QueueView.test.ts:859-891`: `onMounted`'s
+  // `loadAll()` fires its calls synchronously (the four `service.ai.parser*` calls inside
+  // `Promise.all` trigger synchronously; only their individual resolutions go through a
+  // microtask), so there's no need to "nudge" things with `runOnlyPendingTimersAsync` — that
+  // API would also fire a not-yet-due setInterval early, which would be misread as an extra
+  // round of calls.
+  it('the interval really is 5000ms: advancing 4999ms fires nothing, one more ms fires one round', async () => {
     vi.useFakeTimers()
     try {
       const router = makeRouter()
       await router.isReady()
       const w = mount(ParserStatus, { global: { plugins: [router, i18n] } } as never)
-      expect(ai.parserStats).toHaveBeenCalledTimes(1) // mounted 立即一发
+      expect(ai.parserStats).toHaveBeenCalledTimes(1) // fires once immediately on mount
 
       ai.parserStats.mockClear()
       vi.advanceTimersByTime(4999)
@@ -778,7 +811,7 @@ describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载�
       vi.advanceTimersByTime(1)
       expect(ai.parserStats).toHaveBeenCalledTimes(1)
 
-      // 再一拍(证明是 setInterval 而不是 setTimeout)
+      // One more tick (proves it's a setInterval, not a setTimeout)
       ai.parserStats.mockClear()
       vi.advanceTimersByTime(5000)
       expect(ai.parserStats).toHaveBeenCalledTimes(1)
@@ -788,8 +821,9 @@ describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载�
     }
   })
 
-  it('🔴 document.hidden 为 true 时跳过这一拍;转回 false 后恢复', async () => {
-    // 判据:拿掉 `if (!document.hidden)` 守卫 → 中间那段会发出请求 → 本条报红。
+  it('🔴 skips a tick while document.hidden is true; resumes once it goes back to false', async () => {
+    // Discriminator: remove the `if (!document.hidden)` guard → the middle stretch would
+    // fire a request → this test fails.
     vi.useFakeTimers()
     const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(false)
     try {
@@ -799,7 +833,7 @@ describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载�
       ai.parserStats.mockClear()
 
       hidden.mockReturnValue(true)
-      vi.advanceTimersByTime(15000) // 三拍全跳过
+      vi.advanceTimersByTime(15000) // all three ticks skipped
       expect(ai.parserStats).not.toHaveBeenCalled()
 
       hidden.mockReturnValue(false)
@@ -812,18 +846,18 @@ describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载�
     }
   })
 
-  it('🔴 onBeforeUnmount 清定时器:卸载后再怎么推进都不再发请求', async () => {
+  it('🔴 onBeforeUnmount clears the timer: no more requests fire after unmount no matter how far time advances', async () => {
     vi.useFakeTimers()
     try {
       const router = makeRouter()
       await router.isReady()
       const w = mount(ParserStatus, { global: { plugins: [router, i18n] } } as never)
       vi.advanceTimersByTime(5000)
-      expect(ai.parserStats).toHaveBeenCalledTimes(2) // mounted + 一拍
+      expect(ai.parserStats).toHaveBeenCalledTimes(2) // mounted + one tick
 
       w.unmount()
       ai.parserStats.mockClear()
-      vi.advanceTimersByTime(60000) // 12 拍
+      vi.advanceTimersByTime(60000) // 12 ticks
       expect(ai.parserStats).not.toHaveBeenCalled()
     } finally {
       vi.useRealTimers()
@@ -832,13 +866,13 @@ describe('ParserStatus —— N20:5 秒轮询 + document.hidden 守卫 + 卸载�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— N16 emoji / 符号位置核对(一个都不许挪进/挪出 t())', () => {
-  it('i18n 键值本身零 emoji / 零箭头符号(证明符号在模板或 script 侧,不在语言包里)', () => {
+describe('ParserStatus — N16 emoji / symbol placement audit (none may move into or out of t())', () => {
+  it('the i18n key values themselves contain zero emoji / zero arrow symbols (proving the symbols live in the template or script, not in the locale file)', () => {
     const t = i18n.global.t as unknown as (k: string) => string
-    // 由 script 拼接的两个(蓝本 :27)
+    // The two that are concatenated by script (blueprint :27)
     expect(t('aiKbResume')).toBe('恢复')
     expect(t('aiKbPause')).toBe('暂停')
-    // 在 t() 外面的七个 emoji 所属的键值(蓝本 :6 / :70-75)
+    // The key values belonging to the seven emoji that sit outside t() (blueprint :6 / :70-75)
     expect(t('aiKbPrTestLink')).toBe('测试沙盒')
     expect(t('aiKbPending')).toBe('待处理')
     expect(t('aiKbPrQueueRunning')).toBe('处理中')
@@ -853,16 +887,18 @@ describe('ParserStatus —— N16 emoji / 符号位置核对(一个都不许挪�
     ]) {
       expect(t(k)).not.toMatch(/[🧪⏳🔄✅❌📦📍▼▶⏸]/u)
     }
-    // 🔴 反过来:`→` **在**键值里(蓝本 :53 的 `$t('→ actual {device}')`),不在模板里。
-    //    这里读语言包原串(过 `t()` 会把 `{device}` 当缺失参数吃掉)。
+    // 🔴 Conversely: `→` **is** in the key value (blueprint :53's `$t('→ actual {device}')`),
+    //    not in the template. Read the raw locale string here (going through `t()` would eat
+    //    `{device}` as a missing param).
     expect((zhCn as Record<string, string>).aiKbPrResolvedHint).toBe('→ 实际 {device}')
   })
 
-  it('模板里 emoji 与译文之间恰好一个空格,顺序是「符号 → 文案」', async () => {
+  it('in the template, exactly one space sits between the emoji and the translation, in the order "symbol → copy"', async () => {
     const w = await mountPage()
     expect(w.find('a.test-link').text()).toBe('🧪 测试沙盒')
-    // ⚠️ 不用 `slice(0, 2)` 取首字符:🔄/📦/📍 是非 BMP 码点(各占 2 个 UTF-16 单元),
-    //    ⏳/✅/❌ 是 BMP(各占 1 个)—— 按单元切会切出不同长度。用带 `u` 标志的正则。
+    // Warning: don't use `slice(0, 2)` to grab the leading character: 🔄/📦/📍 are non-BMP
+    //    code points (2 UTF-16 units each), while ⏳/✅/❌ are BMP (1 unit each) — slicing by
+    //    unit would cut out different lengths. Use a regex with the `u` flag.
     expect(w.findAll('.queue-card .kv').map((k) => k.text())).toEqual([
       expect.stringMatching(/^⏳ \S/u),
       expect.stringMatching(/^🔄 \S/u),
@@ -877,26 +913,32 @@ describe('ParserStatus —— N16 emoji / 符号位置核对(一个都不许挪�
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('ParserStatus —— 守卫缺口③:<template> 块零裸色字面量', () => {
-  // 治理 §9 缺口③:`color-guard.test.ts:44-56` 的 `styleLines()` 对 `.vue` 只取
-  // `<style>` 块 → 模板 `style=` / `:style=` 属性零扫描;本文件补一条定向断言堵这个盲区。
-  // ⚠️ 沿用现状写法(非贪婪 + 隐式靠「`</template>` 在第 0 列」锚定,先例
-  // `QueueView.test.ts` / `IndexedFilesView.test.ts` / `FolderBrowser.test.ts`);
-  // 治理 §9 缺口③′ 的「统一改成贪婪匹配 + 覆盖度自检」归 **T8**,本刀不动它。
-  // 🔴 读源文件用 `node:fs`,不用 Vite 的 `?raw`。
-  it('<template> 块内(剥离 var()/color-mix() 之后)不含任何裸 hex / rgb / hsl 字面量', () => {
+describe('ParserStatus — guard gap ③: zero bare color literals in the <template> block', () => {
+  // Governance §9 gap ③: `color-guard.test.ts:44-56`'s `styleLines()` only extracts `.vue`
+  // `<style>` blocks → template `style=` / `:style=` attributes get zero scanning; this file
+  // adds a targeted assertion to plug that blind spot.
+  // Warning: sticks with the existing approach (non-greedy + implicitly anchored on
+  // "`</template>` sits in column 0", precedent set by `QueueView.test.ts` /
+  // `IndexedFilesView.test.ts` / `FolderBrowser.test.ts`); governance §9 gap ③′'s
+  // "switch uniformly to greedy matching + a coverage self-check" belongs to **T8** — this
+  // pass leaves it alone.
+  // 🔴 Reads the source file with `node:fs`, not Vite's `?raw`.
+  it('the <template> block (after stripping var()/color-mix()) contains no bare hex / rgb / hsl literals', () => {
     const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
     const m = /<template>([\s\S]*?)\n<\/template>/.exec(src)
     expect(m).not.toBeNull()
     const tmpl = m![1]
-    // 覆盖度自检:抽出的片段必须同时含模板**首部**与**尾部**的特征串。
-    // 本组件唯一的嵌套 `<template v-else>` 带属性(不是裸 `<template>`)、其闭合标签
-    // 也是缩进的 → 不会把第 0 列的 `</template>` 提前截断。
-    expect(tmpl).toContain('aiKbPrDetailsTitle') // 首部(页头 h2)
-    expect(tmpl).toContain('truncateErr(j.last_error)') // 尾部(失败卡最后一行内容)
+    // Coverage self-check: the extracted slice must contain characteristic strings from both
+    // the template's **head** and **tail**.
+    // This component's only nested `<template v-else>` carries an attribute (so it's not a
+    // bare `<template>`), and its closing tag is also indented → it won't cause the column-0
+    // `</template>` to truncate the match early.
+    expect(tmpl).toContain('aiKbPrDetailsTitle') // head (page header h2)
+    expect(tmpl).toContain('truncateErr(j.last_error)') // tail (last line of the failures card)
 
-    // 剥掉 var(...) 与 color-mix(...) 的内部(照 color-guard.test.ts 的 stripVar
-    // 同款手法:逐字符扫描配对括号深度,支持嵌套 fallback)
+    // Strip the insides of var(...) and color-mix(...) (same technique as
+    // color-guard.test.ts's stripVar: scan character by character tracking paired-bracket
+    // depth, supporting nested fallbacks)
     function stripCalls(s: string, prefixes: string[]): string {
       let out = ''
       let i = 0
@@ -904,7 +946,7 @@ describe('ParserStatus —— 守卫缺口③:<template> 块零裸色字面量',
         const hit = prefixes.find((p) => s.startsWith(p, i))
         if (hit) {
           let depth = 0
-          let j = i + hit.length - 1 // 落在开括号上
+          let j = i + hit.length - 1 // lands on the opening bracket
           for (; j < s.length; j++) {
             if (s[j] === '(') depth++
             else if (s[j] === ')') {
@@ -928,13 +970,13 @@ describe('ParserStatus —— 守卫缺口③:<template> 块零裸色字面量',
     expect(scrubbed).not.toMatch(/\b(rgba?|hsla?)\s*\(/)
   })
 
-  it('本文件零 <style> 块(K24:样式在 parser-styles.scss,走 JS 侧 import)', () => {
+  it('this file has zero <style> blocks (K24: styling lives in parser-styles.scss, imported on the JS side)', () => {
     const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
     expect(src).not.toMatch(/^<style/m)
     expect(src).toContain("import '../../styles/parser-styles.scss'")
   })
 
-  it('零 KIcon(治理 §1.2 / N16:两个 Parser 页蓝本一个 KIcon 都不用)', async () => {
+  it('zero KIcon (governance §1.2 / N16: neither Parser page blueprint uses a KIcon)', async () => {
     const src: string = readFileSync(resolve(__dirname, './ParserStatus.vue'), 'utf8')
     expect(src).not.toMatch(/^import KIcon/m)
     const w = await mountPage()

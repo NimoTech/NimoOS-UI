@@ -887,7 +887,7 @@ describe('WikiView — N55 fetchArticle stale guards (blueprint :261-281)', () =
     return { get, impl: (p: string) => get(p).promise }
   }
 
-  it('🔴 ① logic interleaving: A → B, B returns first, A returns late ⇒ final state is B's (blueprint :270)', async () => {
+  it('🔴 ① logic interleaving: A → B, B returns first, A returns late ⇒ final state is B\'s (blueprint :270)', async () => {
     const nodes = deferredByPath<WikiNode>()
     const raws = deferredByPath<string>()
     wiki.getNode.mockImplementation(nodes.impl)
@@ -1161,7 +1161,7 @@ describe('WikiView — loadRoots gate in created (blueprint :215-218)', () => {
 // 🔴 file reading always via `node:fs` (Vite's `?raw` always empty in vitest → assertion false positive on empty string).
 // ═══════════════════════════════════════════════════════════════════════════
 
-/** Line-preserving comment stripper — covers `<!-- -->` (template) · `/* */` (script) · whole-line `//`. */
+/** Line-preserving comment stripper — covers `<!-- -->` (template) · `/* *\/` (script) · whole-line `//`. */
 function blankComments(src: string): string {
   const blank = (m: string): string => m.replace(/[^\n]/g, ' ')
   return src
@@ -1456,7 +1456,7 @@ describe('WikiView — §9.15 v-html XSS surface (real renderMarkdown + real DOM
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔴 `raw !== null` vs `null` two branches (plan T7-3) — four tests
 describe('WikiView — raw two branches (blueprint :84-95)', () => {
-  it('① raw non-null + showSource=false → render `.kw-summary`, don't render `.kw-rawsrc`', async () => {
+  it('① raw non-null + showSource=false → render `.kw-summary`, don\'t render `.kw-rawsrc`', async () => {
     const { w } = await mountPage()
     expect(w.find('.kw-summary').exists()).toBe(true)
     expect(w.find('.kw-summary').classes()).toContain('kw-md')

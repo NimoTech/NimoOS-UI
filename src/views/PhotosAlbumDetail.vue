@@ -1,9 +1,12 @@
 <script setup lang="ts">
-// Task 8 (SP7-P4 相册): 相册详情视图——本期最大的一件。结构/时序逐段对照 Vue2 NimoOS-UI
-// src/views/Photos/PhotosAlbumDetail.vue(419 行)移植:hero(封面/改名/编辑切换/⋯菜单删除)
-// + 工具条(批量移除/添加照片,或排序+密度)+ 自绘网格(拖拽排序/封面星标/多选)+ 删除确认模态
-// + PhotosLibraryPicker(T6,添加照片)+ PhotoLightbox(P2,查看/删除)。路由 /photos/albums/:id
-// 注册留给 T11。去掉 Slideshow(Vue2 本身也只弹"敬请期待" toast)与 Ask Nimo(归 SP8)。
+// Task 8 (SP7-P4 albums): the album detail view -- the biggest single item this period.
+// Structure/sequencing ported section-by-section from Vue2 NimoOS-UI
+// src/views/Photos/PhotosAlbumDetail.vue (419 lines): hero (cover/rename/edit toggle/⋯ menu
+// delete) + toolbar (bulk remove/add photos, or sort+density) + a hand-drawn grid (drag reorder/
+// cover star/multi-select) + delete confirm modal + PhotosLibraryPicker (T6, add photos) +
+// PhotoLightbox (P2, view/delete). Route /photos/albums/:id registration is left for T11. Drops
+// Slideshow (Vue2's own version only ever popped a "coming soon" toast) and Ask Nimo (deferred
+// to SP8).
 //
 // ★ SP15-P2c Task 3 supersedes the two structures named above. The cover hero and the toolbar
 // band are both gone; the page now wears the same skeleton as PhotosSmartViewDetail.vue --
@@ -11,14 +14,17 @@
 // action row + photo grid) and the .sv-detail-side rail. Edit mode's two buttons moved to a
 // floating .sv-select-bar at the bottom. Target: 33b05636:src/views/Photos/PhotosAlbumDetail.vue.
 //
-// 铁律(逐条落实,见文件内注释登记):
-//  1) route.params.id 恒为字符串;albumId 统一走 String(route.params.id),所有对 store 的调用
+// Hard rules (implemented item by item, registered in inline comments below):
+//  1) route.params.id is always a string; albumId uniformly goes through
+//     String(route.params.id), and every store call
 //     (fetchAlbumAssets/renameAlbum/setAlbumCover/removeAssetsFromAlbum/deleteAlbum/
-//     reorderAlbumAssets)都传这个归一后的字符串——T2 store 内部本就按 String(key) 比较,
-//     传字符串永远安全,不需要在这里猜后端 id 的真实类型。
-//  2) 封面判定 isCover(p) = String(p.id) === String(album.cover)(album.cover 可能是数字)。
-//  3) selected 用 Set<string>(String 归一)。
-//  4) 全程无对象引用 ===。
+//     reorderAlbumAssets) passes this normalized string -- the T2 store itself already
+//     compares via String(key), so passing a string is always safe and there's no need to
+//     guess the backend id's real type here.
+//  2) Cover check: isCover(p) = String(p.id) === String(album.cover) (album.cover may be a
+//     number).
+//  3) selected is a Set<string> (String-normalized).
+//  4) No object-reference === anywhere in this file.
 import '../photos/styles/vue2-parity'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -60,10 +66,11 @@ const lb = useLightbox()
 // PhotosMomentDetail.vue's own localeTag.
 const localeTag = computed(() => locale.value.replace('_', '-'))
 
-// 铁律 1:route.params.id 恒为字符串——统一在这一处归一,下游所有 store 调用都用它。
+// Hard rule 1: route.params.id is always a string -- normalized in this one place, and every
+// downstream store call uses it.
 const albumId = computed(() => String(route.params.id))
 
-// ── 本地状态(照 brief 结构清单命名)──
+// ── Local state (named per the brief's structure checklist) ──
 const edit = ref(false)
 const selected = ref<Set<string>>(new Set())
 const sortBy = ref<SortBy>('manual')
@@ -74,21 +81,25 @@ const titleCommitting = ref(false)
 const menuOpen = ref(false)
 const sortMenuOpen = ref(false)
 const confirmDelete = ref(false)
-// 终审 Minor 6:「移除选中」请求飞行期不 disable,连点会对同一批 id 发两轮并发 DELETE——
-// 第二轮基于已移除后的快照回滚,失败时会恢复错的快照。同款重入守卫(照 T7
-// PhotosAlbums.vue `creating` / AlbumPickerDialog.vue `submitting`/`adding` 的既定写法)。
+// Final review Minor 6: without disabling the button while a "remove selected" request is in
+// flight, double-clicking fires two concurrent DELETE rounds for the same batch of ids -- the
+// second round would roll back from a snapshot taken after the first removal, restoring the
+// wrong snapshot on failure. Same reentrancy guard as the established pattern in T7
+// PhotosAlbums.vue's `creating` / AlbumPickerDialog.vue's `submitting`/`adding`.
 const removing = ref(false)
 const pickerOpen = ref(false)
-// Task 9(SP7-P4 相册):灯箱「加入相册」→ 加到别的相册(不是本相册)—— 命名与上面
-// PhotosLibraryPicker 的 pickerOpen(本相册「添加照片」)区分,避免同名 ref 混淆两个不同面板。
+// Task 9 (SP7-P4 albums): the lightbox's "Add to album" -> adds to some *other* album (not this
+// one) -- named distinctly from PhotosLibraryPicker's pickerOpen above (this album's "Add
+// photos"), to avoid a same-named ref conflating two different panels.
 const albumPickerOpen = ref(false)
 const albumPickerIds = ref<Array<string | number>>([])
 function openAlbumPicker(ids: Array<string | number>) {
   albumPickerIds.value = ids
   albumPickerOpen.value = true
 }
-// 加到的是别的相册,不是本相册——无需 fetchAlbumAssets 刷新(brief 明确)。空函数只为占位,
-// 与 Photos.vue/PhotosFavorites.vue 的同名接线保持一致的可读性。
+// Adds to some other album, not this one -- no fetchAlbumAssets refresh needed (per the brief).
+// This empty function is a placeholder only, kept for readability consistency with the
+// same-named wiring in Photos.vue/PhotosFavorites.vue.
 function onAlbumPickerAdded(): void {}
 
 const titleInputRef = ref<HTMLInputElement | null>(null)
@@ -104,17 +115,19 @@ const gridRef = ref<HTMLElement | null>(null)
 // clips against .sv-detail-side's own overflow-y:auto once the menu grew to five entries.
 const { menuStyle } = useFixedMenuPosition(menuOpen, moreBtnRef)
 
-// ── 派生数据 ──
-// album 为 null 有两种子情形(区分见模板):albumsLoaded===false → 还没加载完,渲染骨架;
-// albumsLoaded===true 但仍是 null → 相册真不存在(New-UI 补齐项,Vue2 因页内 state 不会
-// 出现此情形,记账)。
+// ── Derived data ──
+// album being null has two sub-cases (distinguished in the template): albumsLoaded===false ->
+// not loaded yet, render the skeleton; albumsLoaded===true but still null -> the album genuinely
+// doesn't exist (a New-UI gap-fill; Vue2's in-page state never produces this case -- noted for
+// the record).
 const album = computed(() => {
   const raw = albums.albumById(albumId.value)
   return raw ? albumToView(raw, t('photosAlbumUntitled')) : null
 })
 const notFound = computed(() => albums.albumsLoaded && album.value === null)
 
-// Vue2 :224-242(photos computed)—— 由 T1 sortAlbumPhotos 提供排序,这里只接线数据源。
+// Vue2 :224-242 (photos computed) -- sorting is provided by T1's sortAlbumPhotos; this just
+// wires up the data source.
 const photos = computed<Photo[]>(() => sortAlbumPhotos(albums.assetsOf(albumId.value), sortBy.value))
 const isLoadingPhotos = computed(() => albums.isLoadingAssets(albumId.value))
 const isAlbumEmpty = computed(() => !isLoadingPhotos.value && photos.value.length === 0)
@@ -221,7 +234,7 @@ const placesTitle = computed(() =>
 )
 
 function isCover(p: Photo): boolean {
-  // 铁律 2:值比较,不管两边谁是字符串谁是数字。
+  // Hard rule 2: value comparison, regardless of which side is a string and which is a number.
   return String(p.id) === String(album.value?.cover)
 }
 function isSelected(p: Photo): boolean {
@@ -253,7 +266,7 @@ const tileHintTitle = computed(() => {
   return sortBy.value === 'manual' ? t('photosAlbumHintSelectDragCover') : t('photosAlbumHintSelectCover')
 })
 
-// ── T4 拖拽排序接线 ──
+// ── T4 drag-reorder wiring ──
 const drag = useAlbumDragSort({
   container: gridRef,
   enabled: () => edit.value && sortBy.value === 'manual',
@@ -265,14 +278,15 @@ const drag = useAlbumDragSort({
   },
 })
 
-// ── 瓦片交互 ──
+// ── Tile interactions ──
 function toggleSelect(p: Photo): void {
   const key = String(p.id)
   if (selected.value.has(key)) selected.value.delete(key)
   else selected.value.add(key)
 }
 
-// 拖拽守卫(照 Vue2 :380-384 `_dragging`)—— 必须在最前面,否则拖完那一下会误触发选中/开灯箱。
+// Drag guard (following Vue2 :380-384's `_dragging`) -- must come first, or the click that ends
+// a drag would wrongly trigger select/open-lightbox.
 function onTileClick(p: Photo): void {
   if (drag.isDragging()) return
   if (edit.value) toggleSelect(p)
@@ -289,7 +303,7 @@ async function setCover(p: Photo): Promise<void> {
   }
 }
 
-// ── Hero:标题编辑 ──
+// ── Hero: title editing ──
 function startTitleEdit(): void {
   titleDraft.value = album.value?.title ?? ''
   titleEditing.value = true
@@ -314,8 +328,9 @@ async function commitTitle(): Promise<void> {
     await albums.renameAlbum(albumId.value, v)
     toast.show(t('photosAlbumRenamedToast'))
   } catch (e) {
-    // 失败时 store 从未写回本地(T2 renameAlbum 只在成功后才 updateAlbumLocal),album.title
-    // 这个 computed 因此自然保持原值——不需要额外代码"还原标题"。
+    // On failure the store never writes back locally (T2's renameAlbum only calls
+    // updateAlbumLocal after success), so the album.title computed naturally keeps its
+    // original value -- no extra code needed to "restore the title".
     toast.show(isConflict(e) ? t('photosAlbumNameExists') : t('photosAlbumRenameFailed'))
   } finally {
     titleCommitting.value = false
@@ -323,20 +338,26 @@ async function commitTitle(): Promise<void> {
   }
 }
 
-// Minor 修正:同 PhotosAlbums.vue:85-87 的具名函数写法,把导航调用从模板内联表达式挪出来——
-// 模板里内联 `@click="router.push(...)"` 会把返回的 promise 挂在事件处理器上不管,导航被
-// 取消/重复时 reject 没人接住(vue-router 的已知坑,console 会打未捕获 rejection);这里额外
-// 加 `void` 显式标记"不关心其 resolve/reject"。
+// Minor fix: same named-function style as PhotosAlbums.vue:85-87, moving the navigation call
+// out of an inline template expression -- an inline `@click="router.push(...)"` in the template
+// leaves the returned promise hanging off the event handler unattended; when navigation is
+// cancelled/duplicated the rejection goes uncaught (a known vue-router pitfall that logs an
+// unhandled-rejection to the console), so `void` is added here to explicitly mark "don't care
+// about its resolve/reject".
 function goToAlbumsList(): void {
   void router.push('/photos/albums')
 }
 
-// Task 9(P8a,P4 遗留收口):fetchAlbums 失败时 albumsLoaded 保持假(见 albums.ts 注释,
-// 刻意不变),旧实现下 `!album && !albums.albumsLoaded` 因此恒真 → 永久停在骨架屏。新增
-// loadError 分支(见模板,优先级在骨架分支之前)+ 这个重试入口,直接重新调用同一个 fetch。
-// 评审 Important 1 修正:本地 retrying 守卫——fetchAlbums 只在成功时才清 loadError
-// (见 albums.ts 同批修正注释),所以按钮本身不再需要靠"清空态"给用户即时反馈;这个 ref
-// 补上这份反馈(disabled),同时顺带堵住连点两次重试派发两个并发 fetch 的口子。
+// Task 9 (P8a, closing out a P4 leftover): when fetchAlbums fails, albumsLoaded stays false (see
+// the albums.ts comment -- deliberate, not a bug), so under the old implementation
+// `!album && !albums.albumsLoaded` was therefore permanently true -> stuck on the skeleton
+// forever. Adds a loadError branch (see the template, gated ahead of the skeleton branch) plus
+// this retry entry point, which just re-invokes the same fetch.
+// Review Important 1 fix: a local `retrying` guard -- fetchAlbums only clears loadError on
+// success (see the same review's comment in albums.ts), so the button itself no longer needs to
+// rely on "clearing the error state" for immediate user feedback; this ref supplies that
+// feedback (disabled), while also incidentally blocking a double-click from firing two
+// concurrent fetches.
 const retryingAlbums = ref(false)
 async function retryAlbums(): Promise<void> {
   if (retryingAlbums.value) return
@@ -348,7 +369,7 @@ async function retryAlbums(): Promise<void> {
   }
 }
 
-// ── Hero:编辑态/⋯菜单 ──
+// ── Hero: edit mode / ⋯ menu ──
 function toggleEditMode(): void {
   edit.value = !edit.value
   if (!edit.value) selected.value.clear()
@@ -425,7 +446,7 @@ function onConverted(sv: SmartView): void {
   void router.push('/photos/smart-views/' + sv.id)
 }
 
-// ── 工具条:批量移除 ──
+// ── Toolbar: bulk remove ──
 async function removeSelected(): Promise<void> {
   if (!selected.value.size || removing.value) return
   removing.value = true
@@ -442,7 +463,7 @@ async function removeSelected(): Promise<void> {
   }
 }
 
-// ── 删除相册(唯一带二次确认的操作)──
+// ── Delete album (the only action with a second confirmation) ──
 async function doDelete(): Promise<void> {
   confirmDelete.value = false
   const name = album.value?.title ?? ''
@@ -456,13 +477,13 @@ async function doDelete(): Promise<void> {
   }
 }
 
-// ── 排序下拉 ──
+// ── Sort dropdown ──
 function pickSort(s: SortBy): void {
   sortBy.value = s
   sortMenuOpen.value = false
 }
 
-// ── PhotosLibraryPicker(T6)接线 ──
+// ── PhotosLibraryPicker (T6) wiring ──
 // SP15-P1-T9 · Step 0: with the component generalised, the write, the success/failure toasts and
 // closing the panel belong to the caller (the component only picks photos). Behaviour is
 // unchanged from before the refactor: the same addAssetsToAlbum, the same photosAlbumAddedToast
@@ -524,22 +545,28 @@ async function onPickerConfirm(ids: Array<string | number>): Promise<void> {
   }
 }
 
-// ── PhotoLightbox(P2)接线——@delete + @add-to-album(T9:只接灯箱一处,edit 工具条
-// 「添加照片」已有自己的语义,不重复放「加入相册」)──
-// 照 P3 收藏视图 T8 的同款处理:灯箱已在真实资产层面删除,相册内的引用也要跟着消失,
-// 靠重新拉取该相册的资产列表实现(而不是本地过滤,store 才是真源)。
+// ── PhotoLightbox (P2) wiring -- @delete + @add-to-album (T9: only wired at the lightbox; the
+// edit toolbar's "Add photos" already has its own semantics, so "Add to album" isn't duplicated
+// there) ──
+// Following the same handling as P3's favorites view T8: the lightbox has already deleted at the
+// real-asset level, so the album's reference to it must disappear too, achieved by re-fetching
+// this album's asset list (not local filtering -- the store is the source of truth).
 async function onLightboxDelete(assetId: string | number): Promise<void> {
-  // Minor 修正:timeline.deleteAssets 逐项删除、吞掉单项失败,返回真实成功计数
-  // (src/photos/stores/timeline.ts:162-176)——原实现忽略返回值恒报 count:1,单项删除这里
-  // 恒真但仍是错的语义;照 PhotosFavorites.vue:52-57 的批量写法读返回值,并用同一个 4000ms
-  // 时长(默认 1500ms 太短,是 P3 定的时长)。
+  // Minor fix: timeline.deleteAssets deletes item-by-item, swallows a per-item failure, and
+  // returns the real success count (src/photos/stores/timeline.ts:162-176) -- the original
+  // implementation ignored the return value and always reported count:1, which happened to be
+  // true here (single-item delete) but was the wrong semantics regardless; follows the same
+  // batch-write pattern as PhotosFavorites.vue:52-57 in reading the return value, and uses the
+  // same 4000ms duration (the default 1500ms is too short, per P3's own decision).
   const n = await timeline.deleteAssets([String(assetId)])
   toast.show(t('photosDeletedToast', { count: n }), 4000)
   void albums.fetchAlbumAssets(albumId.value)
 }
 
-// ── document 级监听(⋯菜单/排序菜单点外部关闭,删除确认模态 Esc)──
-// 照既有范式(T5/T6/T7/PhotoLightbox.vue):不用模板 @keydown.esc,依赖真实焦点会漏判。
+// ── document-level listeners (close the ⋯ menu/sort menu on outside click, Esc for the delete
+// confirm modal) ──
+// Following the established pattern (T5/T6/T7/PhotoLightbox.vue): not using the template's
+// @keydown.esc, since relying on real focus can miss cases.
 function onDocMousedown(e: MouseEvent): void {
   if (menuOpen.value && morePopRef.value && !morePopRef.value.contains(e.target as Node)) {
     menuOpen.value = false
@@ -555,13 +582,17 @@ function onDocKeydown(e: KeyboardEvent): void {
   if (sortMenuOpen.value) sortMenuOpen.value = false
 }
 
-// ── 生命周期 / watch(照 Vue2 :257-280 的三个触发点 + brief 补的 route watch)──
-// Minor 3 修正:首次资产 fetch 从 onMounted 挪到 setup 阶段直接发起(不等 onMounted 回调)——
-// fetchAlbumAssets 内部同步(await 之前)就会把 isLoadingAssets 标志置位,挪到这里意味着首次
-// render 提交前该标志已经是 true 了。不挪的话:从相册列表页跳进来时 album 已加载、album.value
-// 立即非 null,而 isLoadingPhotos 首帧仍是 false(loading 标志要等 onMounted 跑完才置位)、
-// photos.length 也是 0 → isAlbumEmpty 首帧判 true,先闪一帧"相册是空的"再翻到骨架分支。
-// fetchAlbumAssets 自带 isLoadingAssets 防重入 guard,提前调用是安全的,不会重复请求。
+// ── Lifecycle / watch (following Vue2 :257-280's three trigger points + the route watch the
+// brief added) ──
+// Minor 3 fix: the first asset fetch is moved from onMounted to fire directly during setup
+// (not waiting for the onMounted callback) -- fetchAlbumAssets sets the isLoadingAssets flag
+// synchronously (before the await), so moving it here means that flag is already true before
+// the first render commits. Without this move: arriving from the album list page, the album is
+// already loaded, album.value is immediately non-null, but isLoadingPhotos is still false on the
+// first frame (the loading flag only gets set once onMounted finishes running), and
+// photos.length is also 0 -> isAlbumEmpty evaluates true on the first frame, flashing "the album
+// is empty" for one frame before flipping to the skeleton branch. fetchAlbumAssets has its own
+// isLoadingAssets reentrancy guard, so calling it early is safe and won't duplicate the request.
 void albums.fetchAlbumAssets(albumId.value)
 
 onMounted(() => {
@@ -595,11 +626,14 @@ onBeforeUnmount(() => {
 // half, covering a confirm that is already in flight the instant this watcher runs.
 watch(() => route.params.id, () => {
   selected.value.clear()
-  // Minor 修正(刻意不照抄 Vue2 的潜在 bug——本期纪律:界面照 Vue2,逻辑 bug 不照抄):Vue2
-  // 同名 watch(PhotosAlbumDetail.vue:258-260)只重拉资产,没清标题编辑态。同一组件实例路由切换
-  // (hash 跳到另一个相册,组件不销毁重建)场景下:给相册 7 改名,还没提交就切到相册 8,
-  // titleEditing/titleDraft 会带着相册 7 的草稿名残留到相册 8 上,之后 blur/回车会把草稿名
-  // 提交给相册 8——这是真实数据损坏路径,不是"细枝末节",所以在此清掉。
+  // Minor fix (deliberately not reproducing a latent Vue2 bug -- this period's rule: match Vue2
+  // visually, don't copy its logic bugs): Vue2's same-named watch
+  // (PhotosAlbumDetail.vue:258-260) only re-fetches assets, never clears the title-editing state.
+  // On the same component instance across a route switch (a hash jump to a different album,
+  // no unmount/remount): rename album 7, switch to album 8 before committing, and
+  // titleEditing/titleDraft carry album 7's draft name over onto album 8 -- a subsequent
+  // blur/Enter would then commit that stray draft name to album 8. This is a real data-corruption
+  // path, not a "minor detail", hence it's cleared here.
   titleEditing.value = false
   titleDraft.value = ''
   edit.value = false
@@ -610,14 +644,18 @@ watch(() => route.params.id, () => {
 watch([edit, sortBy], () => {
   void nextTick(() => drag.refresh())
 })
-// 评审 Important 2 修正:`gridRef` 只绑在骨架/空态/真实网格三个 v-if 分支里最后一支——
-// 骨架态和空态是不同元素,Vue 3 给每个 v-if 分支各自隐式 key,元素不复用,所以这两支渲染期间
-// gridRef 恒为 null(useAlbumDragSort.refresh() 见容器为 null 直接 bail)。原有三个触发点
-// (onMounted / route.params.id watch / [edit,sortBy] watch)全部挂在"用户改的状态"上,没有一个
-// 在"网格自己从无到有出现"这一刻触发——典型复现路径:空相册 → 进 edit(此时 gridRef 仍 null)→
-// 添加照片 → fetchAlbumAssets 回来资产非空 → 模板才第一次切到真实网格分支、gridRef 才第一次有
-// 值 → 但没有 watch 命中这个时机,Sortable 永远不会被创建,拖拽静默失效。这里专门加一个键在
-// 容器本身上的 watch 补上这个触发点。
+// Review Important 2 fix: `gridRef` is only bound in the last of the three v-if branches
+// (skeleton / empty / real grid) -- the skeleton and empty states are different elements, and
+// Vue 3 gives each v-if branch its own implicit key so elements aren't reused, meaning gridRef is
+// always null while either of those two renders (useAlbumDragSort.refresh() bails immediately
+// when it sees a null container). None of the three original trigger points (onMounted /
+// route.params.id watch / [edit,sortBy] watch) fire on "the moment the grid itself first appears"
+// -- they're all hung off "state the user changed". Typical repro path: empty album -> enter
+// edit mode (gridRef is still null here) -> add photos -> fetchAlbumAssets comes back non-empty
+// -> the template switches to the real-grid branch for the first time and gridRef gets its first
+// value -> but no watch fires at that moment, Sortable never gets created, and drag silently
+// stops working. This adds a watch keyed on the container itself specifically to cover that
+// trigger point.
 watch(gridRef, () => {
   void nextTick(() => drag.refresh())
 })
@@ -628,9 +666,10 @@ watch(gridRef, () => {
     <div class="photos-layout photos-root" :class="themeClass">
       <PhotosSidebar />
       <main class="photos-main">
-        <!-- Task 9(P4 遗留收口):失败态优先级在骨架分支之前——loadError 一旦为真,
-             albumsLoaded 仍是假(刻意,见 albums.ts 注释),不该再落进骨架分支永久显示
-             "正在加载"。 -->
+        <!-- Task 9 (closing out a P4 leftover): the failure state is gated ahead of the skeleton
+             branch -- once loadError is true, albumsLoaded is still false (deliberate, see the
+             albums.ts comment), so it should no longer fall through to the skeleton branch and
+             show "Loading" forever. -->
         <div v-if="albums.loadError" class="empty-state" data-test="album-load-error">
           <div class="empty-state-title">{{ t('photosAlbumLoadFailed') }}</div>
           <button
@@ -642,7 +681,7 @@ watch(gridRef, () => {
           >{{ t('photosRetry') }}</button>
         </div>
 
-        <!-- 还没加载完:骨架 -->
+        <!-- Not loaded yet: skeleton -->
         <!-- SP15-P2c Task 3: the placeholder used to be a 260px hero-shaped block. With the hero
              gone it stands in for the detail bar + header instead, which is what actually
              arrives when the album lands. -->
@@ -651,7 +690,7 @@ watch(gridRef, () => {
           <div class="album-skel-header"></div>
         </div>
 
-        <!-- 加载完了确实没有:New-UI 补齐项 -->
+        <!-- Loaded, and genuinely doesn't exist: a New-UI gap-fill -->
         <div v-else-if="notFound" class="empty-state" data-test="album-not-found">
           <div class="empty-state-title">{{ t('photosAlbumNotFoundTitle') }}</div>
           <div class="empty-state-desc">{{ t('photosAlbumNotFoundHint') }}</div>
@@ -1066,7 +1105,7 @@ watch(gridRef, () => {
     </div>
   </AreaShell>
 
-  <!-- 删除相册确认模态(唯一带二次确认的操作) -->
+  <!-- Delete album confirmation modal (the only action with a second confirmation) -->
   <div
     v-if="confirmDelete"
     class="album-confirm-scrim"
@@ -1124,8 +1163,9 @@ watch(gridRef, () => {
    flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
 .sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
 
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
+/* height (not min-height): this screen is capped, only the inner scroll container scrolls --
+   same-source fix; see the comment at the same rule in src/views/Photos.vue for the Vue2
+   origin. */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
@@ -1323,7 +1363,8 @@ watch(gridRef, () => {
    base .group rule already colours. */
 .sv-select-bar .group { font-size: 13px; font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
 
-/* ── Grid(列宽照 Vue2 photos.scss :3629-3691:comfortable=6 列,compact=9 列)── */
+/* ── Grid (column count following Vue2 photos.scss :3629-3691: comfortable=6 columns,
+   compact=9 columns) ── */
 /* SP15-P2c Task 3: no scroll container of its own any more -- .sv-detail-main scrolls the header
    and the grid together (Vue2 photos.scss:3486-3489), and two nested scrollers would put two
    scrollbars side by side. Padding matches the header's 32px gutter. */
@@ -1335,8 +1376,9 @@ watch(gridRef, () => {
 .tile:hover img { transform: scale(1.04); }
 .album-tile-skeleton { background: var(--skeleton-bg); }
 
-/* T4 useAlbumDragSort 的 ghostClass(sortablejs 拖拽占位元素)。Vue2 原值 rgba 137/80/242
-   alpha .15 底 + alpha .6 虚线描边 → color-mix(accent) 替代,不写死颜色字面量。 */
+/* T4's useAlbumDragSort ghostClass (the sortablejs drag placeholder element). Vue2's original
+   value was rgba 137/80/242 with a 0.15-alpha fill + 0.6-alpha dashed outline -> replaced with
+   color-mix(accent) so no color literal is hard-coded. */
 .tile-drag-ghost {
   opacity: 0.4;
   background: color-mix(in srgb, var(--accent) 15%, transparent);

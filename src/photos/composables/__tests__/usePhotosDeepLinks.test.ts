@@ -301,7 +301,7 @@ describe('usePhotosDeepLinks · ?album', () => {
   // porting discipline's "don't copy Vue2 bugs": fixed to proper encoding, logged this deviation
   // in implementation file. Use named route + params to let vue-router encode itself (encodeParam
   // encodes `/` too, equivalent to encodeURIComponent), not hand-stitched strings + encodeURIComponent.
-  it('When id contains /, URL-encode it, don't truncate path (Vue2 unencoded is a bug, fixed)', async () => {
+  it('When id contains /, URL-encode it, don\'t truncate path (Vue2 unencoded is a bug, fixed)', async () => {
     const { router } = await mountWithQuery({ album: 'a/b' }, {})
     await flushPromises()
     expect(router.currentRoute.value.name).toBe('photos-album-detail')
@@ -559,7 +559,7 @@ describe('usePhotosDeepLinks · ?view (Vue2 NAV_KEYS normalized to real routes)'
     expect(router.replace).not.toHaveBeenCalled()
   })
 
-  it('Use replace not push (compatibility URL shouldn't stay in history)', async () => {
+  it('Use replace not push (compatibility URL shouldn\'t stay in history)', async () => {
     const { router } = await mountWithQuery({ view: 'trash' })
     await flushPromises()
     expect(router.replace).toHaveBeenCalledWith('/photos/trash')

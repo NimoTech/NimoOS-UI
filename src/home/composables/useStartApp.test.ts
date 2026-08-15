@@ -45,7 +45,7 @@ describe('useStartApp', () => {
     expect(nav).toHaveBeenCalledWith(`http://${window.location.hostname}:8096/web`)
   })
 
-  it('dismiss during startup: don't navigate on completion', async () => {
+  it('dismiss during startup: don\'t navigate on completion', async () => {
     const apps = useAppsStore()
     apps.setApps([stopped] as never)
     ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([{ ...stopped, status: 'running' }])
@@ -58,7 +58,7 @@ describe('useStartApp', () => {
     expect(nav).not.toHaveBeenCalled()
   })
 
-  it('timeout: close dialog, return false, don't navigate', async () => {
+  it('timeout: close dialog, return false, don\'t navigate', async () => {
     const apps = useAppsStore()
     apps.setApps([stopped] as never)
     ;(service.apps.getGrid as ReturnType<typeof vi.fn>).mockResolvedValue([stopped]) // always exited

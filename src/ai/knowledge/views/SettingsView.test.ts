@@ -460,7 +460,7 @@ describe('SettingsView — deviceLabel four branches + null fallback (blueprint 
     expect(devLabelB(w).text()).toBe('Auto (currently )')
   })
 
-  it('🔴 branch ① edge case — when backend omits `resolved_device` field, blueprint's `(r || "")` fallback truly activates', async () => {
+  it('🔴 branch ① edge case — when backend omits `resolved_device` field, blueprint\'s `(r || "")` fallback truly activates', async () => {
     // test criterion: remove `(r || '')` → `undefined.toUpperCase()` throws TypeError → test fails.
     // (empty string case **cannot verify** this fallback: `''.toUpperCase()` is legal anyway —
     //  first version only had empty string case, probe immediately saw zero discrimination against
@@ -758,7 +758,7 @@ describe('SettingsView — sandbox entry (blueprint :158-166)', () => {
     expect(router.currentRoute.value.path).toBe('/ai/parser/test')
   })
 
-  it('`@click.prevent` — bare `<a>` (no href), won't trigger browser navigation', async () => {
+  it('`@click.prevent` — bare `<a>` (no href), won\'t trigger browser navigation', async () => {
     const { w } = await mountPage()
     const a = w.find('a.k-sandbox-link')
     expect((a.element as HTMLElement).hasAttribute('href')).toBe(false)
@@ -967,7 +967,7 @@ describe('SettingsView — zero `<style>` block + whole file zero color literals
  * "preserve-lines" comment stripper (governance §9 clause 8): replace comment content with equal
  * spaces, **preserve all newlines** —
  * deleting comments eats newlines too, offsetting reported line numbers by dozens.
- * Covers `<!-- -->` (SFC template/file header) · `/* */` (JSDoc) · `//` (line comments).
+ * Covers `<!-- -->` (SFC template/file header) · `/* *\/` (JSDoc) · `//` (line comments).
  */
 function blankComments(src: string): string {
   const blank = (m: string) => m.replace(/[^\n]/g, ' ')

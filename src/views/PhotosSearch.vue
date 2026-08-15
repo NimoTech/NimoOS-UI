@@ -1,18 +1,21 @@
 <script setup lang="ts">
-// SP7-P7a-T16: PhotosSearch.vue —— 搜索容器接线(路由 /photos/search)。
-// 兑现本期挂账的三件事:①T6「在搜索中细化」按钮的落点(见 PhotosSmartViewDetail.vue)
-// ②灯箱 OCR 高亮激活(@open 传 query 给 useLightbox().openAt 第四参)③D12「保存为
-// 智能视图」的宿主接线(.save-smart 按钮 + SearchSaveSmartView)。
-// Read-only 参考: Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue 全文、
-// PhotosTopbar.vue、PhotosTimeline.vue:208-215(searchActive/history)、:650-668
-// (onSearch + 历史写入)。
+// SP7-P7a-T16: PhotosSearch.vue -- search container wiring (route /photos/search).
+// Delivers three items carried over from that phase: (1) the landing spot for T6's "Refine in
+// search" button (see PhotosSmartViewDetail.vue); (2) lightbox OCR highlight activation (@open
+// passes query as the fourth arg to useLightbox().openAt); (3) D12's host wiring for "save as
+// smart view" (.save-smart button + SearchSaveSmartView).
+// Read-only reference: Vue2 NimoOS-UI src/views/Photos/PhotosSearchView.vue in full,
+// PhotosTopbar.vue, PhotosTimeline.vue:208-215 (searchActive/history), :650-668
+// (onSearch + history write).
 //
-// ★ 架构差异(结构规格 7,§7e-3):Vue2 里 `query` 是父组件(PhotosTimeline)下发的
-// prop,真正触发 smartSearch 的是 `onSearch()`(提交时一次性 dispatch),`query` 自身
-// 的 watcher 只负责"重置筛选 chip + 套用 understood 预填"。New-UI 是真路由,地址栏的
-// `q` 才是唯一真相来源(浏览器前进/后退、直接改地址栏、刷新都要让结果对得上)——因此
-// 这里把"触发 smartSearch/clear"也并入同一个 `watch(query, ..., {immediate:true})`,
-// 这是相对 Vue2 的刻意架构调整,不是漏抄。
+// * Architectural difference (structure spec 7, §7e-3): in Vue2, `query` is a prop handed down
+// by the parent component (PhotosTimeline), and what actually triggers smartSearch is
+// `onSearch()` (a one-shot dispatch on submit); `query`'s own watcher is only responsible for
+// "resetting filter chips + applying the understood prefill". New-UI is a real route, and the
+// address bar's `q` is the single source of truth (browser forward/back, editing the address bar
+// directly, and refresh must all keep the results consistent) -- so here "triggering
+// smartSearch/clear" is folded into the same `watch(query, ..., {immediate:true})` as well.
+// This is a deliberate architectural adjustment relative to Vue2, not a missed port.
 import '../photos/styles/vue2-parity'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -40,12 +43,14 @@ import type { Photo } from '../photos/util/assetToPhoto'
 
 const route = useRoute()
 const router = useRouter()
-// fix 波 F2(终审必修项):`locale` 又用回来了——全支唯一的裸 `toLocaleString()`
-// (`filteredResults.length.toLocaleString()`)不跟 locale 走,中文界面下数字千分位格式
-// 会随浏览器自身 locale 漂移。fix round 1 · M14 那次删掉是因为当时确实没用到,不是"以后
-// 也不该用到";本仓 locale 标识是 `zh_cn`/`en_us`(下划线,不是合法 BCP-47),裸传给
-// toLocaleString 会抛 RangeError,一律要转破折号形式(既定写法,照 SearchPeoplePopover.vue
-// :59-63 / SmartViewCard.vue:38 等既有先例)。
+// fix wave F2 (final-review-required item): `locale` is back in use again -- the codebase's
+// only bare `toLocaleString()` call (`filteredResults.length.toLocaleString()`) wasn't following
+// locale, so under a Chinese UI the thousands-separator formatting would drift with the
+// browser's own locale. It was deleted in fix round 1 * M14 because it genuinely wasn't used at
+// the time, not because it "should never be used again"; this repo's locale tags are
+// `zh_cn`/`en_us` (underscore, not valid BCP-47), and passing them raw to toLocaleString throws
+// a RangeError, so they must always be converted to hyphenated form (an established convention,
+// following existing precedent in SearchPeoplePopover.vue:59-63 / SmartViewCard.vue:38, etc.).
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
 const localeTag = computed(() => locale.value.replace('_', '-'))
@@ -55,10 +60,11 @@ const albums = usePhotosAlbums()
 const lb = useLightbox()
 const toast = useToast()
 
-// ── query:从路由读,只读 computed,永远不直接赋值(§7e-3 的可证伪守卫)───────────
+// ── query: read from the route, a read-only computed, never assigned to directly (the
+//    falsifiable guard from §7e-3) ───────────────────────────────────────────
 const query = computed(() => String(route.query.q ?? ''))
 
-// ── 本地 state(结构规格 9)───────────────────────────────────────────────────
+// ── local state (structure spec 9) ──────────────────────────────────────────
 interface SearchFilters {
   date: DateRange | null
   people: string[]
@@ -82,15 +88,16 @@ const openPop = ref<string | null>(null)
 const moreExpanded = ref(false)
 const saveOpen = ref(false)
 const saved = ref(false)
-// albumAssetIds 不再是一个由 watcher 写入的 ref——见下方 fix round 1 · I2 的重新设计,
-// 改成从 albums store 现读的 computed(fix round 2 · Minor#3 校正:实际定义在
-// filters.album 相关的 watcher 那一段,不在 realAlbumItems 附近——两者相隔约 230 行)。
+// albumAssetIds is no longer a ref written by a watcher -- see the redesign in fix round 1 * I2
+// below; it's now a computed that reads live from the albums store (fix round 2 * Minor#3
+// correction: it's actually defined in the watcher block for filters.album, not near
+// realAlbumItems -- the two are about 230 lines apart).
 
 const filterbarRef = ref<HTMLElement | null>(null)
 const saveBtnRef = ref<HTMLElement | null>(null)
 
-// ── 搜索历史(结构规格 16,与 Vue2 同 localStorage key)──────────────────────
-const HISTORY_KEY = 'nimo_search_history' // 与 Vue2 同键:cutover 期间两边历史互通是好事。
+// ── search history (structure spec 16, same localStorage key as Vue2) ───────
+const HISTORY_KEY = 'nimo_search_history' // Same key as Vue2: shared history between the two during cutover is a good thing.
 function readHistory(): string[] {
   try {
     const raw = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
@@ -108,22 +115,27 @@ function writeHistory(q: string): void {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(next))
     history.value = next
   } catch {
-    // 照搬 Vue2 PhotosTimeline.vue:658 的整体吞错:写失败不崩、也不影响当前搜索流程。
+    // Mirrors Vue2 PhotosTimeline.vue:658's blanket swallow: a write failure doesn't crash and
+    // doesn't affect the current search flow.
   }
 }
 
-// 提交一个词:用路由 replace 同步地址栏。onSubmit(PhotosSearchBar)、预搜索态的最近搜索
-// chip、hero 里的历史词,三处入口共用同一份逻辑。
+// Submit a term: sync the address bar via a route replace. onSubmit (PhotosSearchBar), the
+// recent-search chips in the pre-search state, and the history terms in the hero all share this
+// one code path.
 //
-// fix round 1 · I1(评审查实的真缺陷,Important):历史写入**不在这里做**,而是挪到下面
-// 的主 query watcher 里(非空分支)——见该 watcher 上方的详细登记。这里只剩路由跳转。
+// fix round 1 * I1 (a real defect confirmed in review, Important): history is **not** written
+// here -- it's moved to the main query watcher below (the non-empty branch). See the detailed
+// note above that watcher. Only the route navigation is left here.
 //
-// fix round 1 · M15(评审并入,已修):Vue2 `onSearch()` 每次提交都无条件 dispatch
-// smartSearch,New-UI 用路由驱动——同一个词再提交一次时 `router.replace` 到**同一个
-// route**(path 与 query 都不变),vue-router 视为无导航,`query` 这个 computed 不会
-// 触发变化,主 watcher 也就不会重新调用 smartSearch,"重复提交想强制刷新一次结果"这个
-// 操作会静默失效。这里补一条捷径:目标词与当前 route 的 q 完全相同时,不走路由,直接
-// 再调一次 smartSearch(不需要写历史——它已经是历史队列最前面那个词,顺序不变)。
+// fix round 1 * M15 (folded in during review, fixed): Vue2's `onSearch()` unconditionally
+// dispatches smartSearch on every submit; New-UI is route-driven -- resubmitting the same term
+// does a `router.replace` to the **same route** (neither path nor query changes), which
+// vue-router treats as no navigation, so the `query` computed never fires, and the main watcher
+// never calls smartSearch again. The "resubmit to force a refresh of the results" action would
+// silently fail. This adds a shortcut: when the target term exactly matches the current route's
+// q, skip the route and call smartSearch again directly (no need to write history -- it's
+// already the front of the history queue, so the order doesn't change).
 function submitQuery(q: string): void {
   if (q && q === query.value) {
     void search.smartSearch(q)
@@ -132,11 +144,12 @@ function submitQuery(q: string): void {
   void router.replace({ path: '/photos/search', query: q ? { q } : {} })
 }
 
-// ── 数据源三处(结构规格 11)──────────────────────────────────────────────────
-// people.named 的过滤口径(p.name && p.name.trim() !== '')与 Vue2 realPeopleList 的
-// `.filter(p => p.name && p.name.trim())` 逐字一致(E5 已回源核对,见任务报告),直接
-// 复用,不再自己过滤一遍。排序(按人脸数降序)与 → PersonOption 的映射仍由本文件做
-// (SearchPeoplePopover 的 people prop 依赖调用方已排好序,组件自己不排序)。
+// ── three data sources (structure spec 11) ───────────────────────────────────
+// people.named's filter criteria (p.name && p.name.trim() !== '') matches Vue2's realPeopleList
+// `.filter(p => p.name && p.name.trim())` verbatim (checked against the source in E5, see the
+// task report), so it's reused directly rather than filtering again here. The sort (descending
+// by face count) and the mapping to PersonOption are still done in this file (SearchPeoplePopover's
+// people prop relies on the caller having already sorted it; the component itself doesn't sort).
 const realPeopleList = computed<PersonOption[]>(() =>
   people.named
     .map((p) => ({
@@ -152,7 +165,8 @@ const realAlbumItems = computed<string[]>(() =>
   albums.albums.map((a) => (typeof a.name === 'string' ? a.name : '')).filter(Boolean),
 )
 
-// 照搬 Vue2 :452-465 连注释:从**当前搜索结果**(过滤前)统计地名首段频次,按频次降序。
+// Mirrors Vue2 :452-465, comment included: tallies frequency of the first segment of the place
+// name from the **current search results** (pre-filter), sorted by descending frequency.
 const realPlaceItems = computed<string[]>(() => {
   const freq = new Map<string, number>()
   for (const r of results.value) {
@@ -163,12 +177,15 @@ const realPlaceItems = computed<string[]>(() => {
   return Array.from(freq.keys()).sort((a, b) => (freq.get(b) || 0) - (freq.get(a) || 0))
 })
 
-// File type 是资产内禀属性,不接后端——照搬 Vue2 typeItems 静态数组。
+// File type is an intrinsic asset attribute, not backend-driven -- mirrors Vue2's static
+// typeItems array.
 const TYPE_ITEMS = ['Photos', 'OCR', 'Videos'] as const
-// 'photosSearchType' + v 的直接拼接在 OCR 上会拼出 'photosSearchTypeOCR'(大写),与
-// 真实键名 'photosSearchTypeOcr' 大小写不同——不能靠字符串拼接,须显式映射表(本任务
-// 回源核对时查实的一处会致命的拼接坑,若照抄 brief 字面公式实现会在 OCR 类型上悄悄
-// 掉回英文原文,和 §7e-13 要修的缺陷是同一类问题)。
+// Naively concatenating 'photosSearchType' + v produces 'photosSearchTypeOCR' (uppercase) for
+// OCR, which doesn't match the real key name 'photosSearchTypeOcr' in case -- string
+// concatenation can't be relied on here, so an explicit lookup table is required (this is a
+// concatenation trap confirmed against the source during this task; implementing the brief's
+// literal formula as-is would silently fall back to the raw English string for the OCR type,
+// which is the same class of defect §7e-13 needs fixed).
 const TYPE_LABEL_KEYS: Record<string, string> = {
   Photos: 'photosSearchTypePhotos',
   OCR: 'photosSearchTypeOcr',
@@ -178,7 +195,7 @@ function typeLabel(v: string): string {
   return t(TYPE_LABEL_KEYS[v] ?? v)
 }
 
-// ── chip 定义(结构规格 10,顺序照搬 Vue2 :564-572)────────────────────────────
+// ── chip definitions (structure spec 10, order mirrors Vue2 :564-572) ────────
 type ChipKey = 'date' | 'people' | 'place' | 'album' | 'type'
 const chips = computed(() => [
   { key: 'date' as ChipKey, icon: 'clock', label: t('photosSearchDate') },
@@ -200,16 +217,18 @@ function chipActive(key: ChipKey): boolean {
   return Array.isArray(v) ? v.length > 0 : !!v
 }
 
-// ── 结果推导(结构规格 12,顺序照搬 Vue2 :339-404:results → filteredResults →
-//    sortedResults → 双档,双档切分在排序之后)────────────────────────────────
+// ── result derivation (structure spec 12, order mirrors Vue2 :339-404: results ->
+//    filteredResults -> sortedResults -> the two tiers, tier split happens after sorting) ────
 const results = computed<ScoredPhoto[]>(() => {
   if (!query.value) return []
-  // 在途窗口(路由 q 已更新、store 仍是旧词/从未搜过)返回空,杜绝把上一次结果闪现。
+  // Return empty during the in-flight window (route q already updated, store still has the old
+  // term or has never searched) to avoid flashing the previous results.
   if (!search.matchesQuery(query.value)) return []
   return search.results.map((p) => ({ p, score: p.matchScore ?? null }))
 })
 
-// 在途态:已有查询词但 store 结果尚不属于它。用于抑制空态文案。
+// In-flight state: there's a query term but the store's results don't belong to it yet. Used to
+// suppress the empty-state copy.
 const searching = computed(() => !!query.value && !search.matchesQuery(query.value))
 
 const filteredResults = computed<ScoredPhoto[]>(() => {
@@ -224,8 +243,9 @@ const filteredResults = computed<ScoredPhoto[]>(() => {
       return f.people.some((name) => faces.includes(name))
     })
   }
-  // String() 兜底:Photo.takenAt 类型是 string | number | null(真实数据恒为 ISO 字符串,
-  // number 只是防御性类型宽容——同款处理见 peopleView.ts:330-337 的既有先例注释)。
+  // String() fallback: Photo.takenAt's type is string | number | null (real data is always an
+  // ISO string; number is just defensive type leniency -- see the matching precedent comment
+  // in peopleView.ts:330-337 for the same treatment).
   if (f.date) arr = arr.filter((r) => dateInRange(r.p.takenAt != null ? String(r.p.takenAt) : null, f.date))
   if (f.place.length) arr = arr.filter((r) => f.place.includes((r.p.place || '').split(',')[0].trim()))
   if (f.album && albumAssetIds.value) {
@@ -240,7 +260,7 @@ const tiers = computed(() => splitTiers(sortedResults.value, sort.value))
 const best = computed(() => tiers.value.best)
 const more = computed(() => tiers.value.more)
 
-// 照搬 Vue2 :413-415。
+// Mirrors Vue2 :413-415.
 const showSentinel = computed(() => moreExpanded.value && !search.exhausted && more.value.length > 0)
 
 const topScore = computed(() => {
@@ -249,7 +269,7 @@ const topScore = computed(() => {
   return pct != null ? pct + '%' : null
 })
 
-// ── hero:query 高亮 + Nimo 理解为(结构规格 15)──────────────────────────────
+// ── hero: query highlighting + "Nimo understood" (structure spec 15) ─────────
 const understoodTokens = computed<UnderstoodToken[]>(() => understood(query.value, realPeopleList.value))
 const queryPartsComputed = computed(() => queryParts(query.value, understoodTokens.value.map((tk) => tk.v.toLowerCase())))
 
@@ -258,10 +278,11 @@ function understoodKeyFor(k: UnderstoodKind): string {
   if (k === 'type') return 'photosSearchTokType'
   return 'photosSearchTokTime'
 }
-// 第 13 条 Vue2 缺陷修复(§7e-13):Vue2 `:44` 是 `<b>{{ t.v }}</b>` 直出英文
-// (如查 'my videos' 显示 'Videos'),中文界面下出英文。这里按 token 种类做本地化映射:
-// person → 人名原样;type → t('photosSearchType'+v);time → quick 是数字(年份)则原样,
-// 是 QuickKey 字符串则 v 本身就是 i18n 键名,t() 一下。
+// Vue2 defect fix #13 (§7e-13): Vue2's `:44` is `<b>{{ t.v }}</b>`, which outputs the raw
+// English string directly (e.g. searching 'my videos' displays 'Videos'), so English leaks into
+// a Chinese UI. Here the localization mapping is done per token kind: person -> the name as-is;
+// type -> t('photosSearchType'+v); time -> if quick is a number (a year) keep it as-is, if it's
+// a QuickKey string then v itself is the i18n key, so run it through t().
 function understoodValueFor(tok: UnderstoodToken): string {
   if (tok.k === 'person') return tok.v
   if (tok.k === 'type') return typeLabel(tok.v)
@@ -269,7 +290,7 @@ function understoodValueFor(tok: UnderstoodToken): string {
   return t(tok.v)
 }
 
-// ── applyUnderstood(结构规格 14,照搬 Vue2 :659-672)──────────────────────────
+// ── applyUnderstood (structure spec 14, mirrors Vue2 :659-672) ───────────────
 function applyUnderstood(): void {
   const u = understoodTokens.value
   if (!u.length) return
@@ -292,29 +313,35 @@ function applyUnderstood(): void {
   }
 }
 
-// ── 主 watcher(结构规格 7+8+21,§7e-3/§7e-14):合并路由驱动的搜索 dispatch、
-//    历史写入、chip 重置、understood 预填、saved 复位 ────────────────────────
+// ── main watcher (structure spec 7+8+21, §7e-3/§7e-14): merges the route-driven search
+//    dispatch, history write, chip reset, understood prefill, and saved reset ─────────────
 //
-// fix round 1 · I1(评审查实的真缺陷,Important):历史写入挪到这里(非空分支),不是
-// 三个入口(Photos.vue 顶部搜索框 / PhotosSearch.vue 自己的 PhotosSearchBar / T6 的
-// 「在搜索中细化」)各自调用一次。Vue2 之所以只有一处写历史(`PhotosTimeline.vue`
-// `onSearch()`),是因为 Vue2 只有一个 view、三种触发方式最终都调同一个方法;New-UI
-// 是真路由,这三处分散在三个文件里各自 `router.push`,若要求"提交时写"就必须让三处
-// 永远保持同步——**在到达路由后统一写(watcher)天然覆盖全部入口**,包括深链与刷新,
-// 比三处调用点手动保持同步更稳。
+// fix round 1 * I1 (a real defect confirmed in review, Important): history writing is moved
+// here (the non-empty branch) instead of being called once from each of three entry points
+// (Photos.vue's top search box / PhotosSearch.vue's own PhotosSearchBar / T6's "Refine in
+// search"). The reason Vue2 only writes history in one place (`PhotosTimeline.vue`'s
+// `onSearch()`) is that Vue2 has a single view and all three trigger paths ultimately call the
+// same method; New-UI has real routes, so these three call sites live in three separate files
+// each doing their own `router.push`. Requiring "write on submit" would mean keeping all three
+// permanently in sync -- **writing once, uniformly, after the route lands (in the watcher)
+// naturally covers every entry point**, including deep links and refresh, and is more robust
+// than manually keeping three call sites in sync.
 //
-// **偏离登记(相对 Vue2 的可观察差异,必须写清楚)**:Vue2 是「提交时记录」——只有真的
-// 调用 `onSearch(query)` 才写历史。New-UI 这里是「到达时记录」——任何让 `query` 变成
-// 非空新值的方式都会写历史,包括:分享来的深链、浏览器前进/后退键、直接手改地址栏。
-// 也就是说这些操作现在也会把词记进「最近搜索」并把它排到最前面,这是本任务刻意接受的
-// 行为差异(对深链场景反而更合理:说明用户确实看到了这次搜索的结果),不是疏漏。
+// **Deviation registered (an observable difference from Vue2, must be documented)**: Vue2
+// records "on submit" -- history is only written when `onSearch(query)` is actually called.
+// Here, New-UI records "on arrival" -- any way that makes `query` become a new non-empty value
+// writes history, including: a shared deep link, the browser's forward/back buttons, or editing
+// the address bar directly. In other words these actions now also push the term into "recent
+// searches" and move it to the front. This is a behavior difference this task deliberately
+// accepts (it's actually more sensible for the deep-link case: it means the user did see the
+// results of that search), not an oversight.
 watch(
   query,
   (q, old) => {
     if (old !== undefined && q !== old) {
       filters.value = emptyFilters()
       moreExpanded.value = false
-      saved.value = false // 第 14 条 Vue2 缺陷修复(§7e-14):换查询词后「已保存」复位。
+      saved.value = false // Vue2 defect fix #14 (§7e-14): reset "saved" after the query term changes.
     }
     applyUnderstood()
     if (q) {
@@ -327,7 +354,7 @@ watch(
   { immediate: true },
 )
 
-// 人物异步加载完成后重跑一次 understood 预填(照搬 Vue2 :591)。
+// Re-run the understood prefill once people finish loading asynchronously (mirrors Vue2 :591).
 watch(
   () => people.peopleLoaded,
   (loaded) => {
@@ -335,74 +362,96 @@ watch(
   },
 )
 
-// ── filters.album 的相册资产解析(结构规格 13,E4)───────────────────────────
+// ── filters.album's album-asset resolution (structure spec 13, E4) ───────────
 //
-// fix round 1 · I2(评审查实的真缺陷,Important,已重新设计,不是打补丁):第一版把
-// `albumAssetIds` 做成一个由 `fetchAlbumAssets(id).then(...)` 写入的 ref,靠一个自建
-// 的 `albumSeq` 计数器挡"旧响应覆盖新响应"——但这只挡得住**跨 id**的竞态(选 A 又快速
-// 切到 B),挡不住评审实测出的**同 id 重入**竞态:`albums.ts:82`(fix round 3 · #3
-// 自查校正:此前误写成 `:81`,那一行其实是函数签名 `async function fetchAlbumAssets`)
-// 的 `if (isLoadingAssets(id)) return`——同一个 id 的请求还
-// 在飞行中时再次调用会**立即 resolve、不带任何数据**。完整复现路径:选相册 A → Apply
-// (请求 A 在途)→ 重开弹层取消 A → Apply(`filters.album=null`)→ 再选 A → Apply ⇒
-// 第二次对 A 的 `fetchAlbumAssets` 命中 `isLoadingAssets(A)===true` 短路立即 resolve,
-// `.then()` 里 `mine===albumSeq` 成立(它是最新一次合法调用),但 `assetsOf(A)` 此刻
-// 仍是空——`albumAssetIds` 被写成空 Set,**结果永久归零**;等第一次真正的请求落地,
-// 没有任何代码路径会再去读它。
+// fix round 1 * I2 (a real defect confirmed in review, Important, redesigned rather than
+// patched): the first version made `albumAssetIds` a ref written by
+// `fetchAlbumAssets(id).then(...)`, guarded by a homegrown `albumSeq` counter against "an old
+// response overwriting a new one" -- but that only guards against **cross-id** races (pick A,
+// then quickly switch to B). It doesn't guard against the **same-id re-entrancy** race review
+// actually found: `albums.ts:82`'s (fix round 3 * #3 self-check correction: previously
+// mis-cited as `:81`, which is actually the function signature `async function
+// fetchAlbumAssets`) `if (isLoadingAssets(id)) return` -- calling this again for the same id
+// while its request is still in flight **resolves immediately with no data at all**. Full
+// repro: select album A -> Apply (request A in flight) -> reopen the popover and cancel A ->
+// Apply (`filters.album=null`) -> select A again -> Apply => the second `fetchAlbumAssets` call
+// for A hits `isLoadingAssets(A)===true`, short-circuits, and resolves immediately; in
+// `.then()`, `mine===albumSeq` holds (it's the most recent legitimate call), but `assetsOf(A)`
+// is still empty at that moment -- `albumAssetIds` gets written as an empty Set, **permanently
+// zeroing the result**; by the time the first real request lands, no code path ever reads it
+// again.
 //
-// 修法(结构性消除,不是加更多计数器):把 `albumAssetIds` 从"由某一次 promise resolve
-// 写入的快照"改成"从 `albums` store 现读的 computed"——每次访问都直接读
-// `albums.assetsOf(当前选中相册的 id)`,这是一个响应式引用,`albumAssetsByID` 无论被
-// 哪一次(甚至是哪一个被短路吞掉数据的)`fetchAlbumAssets` 调用写入,只要写的是"当前
-// 选中相册"这个 id,本 computed 就会自动重新求值拿到最新数据——不需要判断"是不是我这次
-// 请求的响应",因为压根不依赖某一次 promise 的返回值。跨 id 竞态(选 A 慢响应还没回来
-// 就切到 B)也因此结构性免疫:切到 B 后本 computed 读的是 `assetsOf(B)`,A 的迟到响应
-// 只会写 `albumAssetsByID['A']`,不影响正在读取的 `assetsOf(B)`。`fetchAlbumAssets`
-// 的调用因此降级为一个**纯触发副作用**的独立 watcher,不再负责写任何本地状态。
+// Fix (a structural elimination, not more counters): change `albumAssetIds` from "a snapshot
+// written by some promise's resolve" to "a computed that reads live from the `albums` store" --
+// every access reads `albums.assetsOf(the currently selected album's id)` directly, which is a
+// reactive reference. Regardless of which `fetchAlbumAssets` call (even one whose data got
+// swallowed by the short-circuit) writes to `albumAssetsByID`, as long as it writes to the id of
+// the "currently selected album", this computed automatically re-evaluates and picks up the
+// latest data -- there's no need to check "is this the response to my request", because it
+// never depends on any single promise's return value in the first place. The cross-id race
+// (select A, its slow response hasn't come back yet, switch to B) is therefore structurally
+// immune too: after switching to B, this computed reads `assetsOf(B)`; A's late response only
+// writes `albumAssetsByID['A']` and doesn't affect the `assetsOf(B)` being read. The
+// `fetchAlbumAssets` call is thus demoted to a standalone watcher that is a **pure trigger side
+// effect** and no longer writes any local state.
 function findAlbumIdByName(name: string): string | number | null {
   const found = albums.albums.find((a) => (typeof a.name === 'string' ? a.name : '') === name)
   return found ? (found.id as string | number) : null
 }
-// fix round 2 · Important#1(评审查实的新回归,真实功能缺陷):`albums.assetsOf(id)`
-// 在**缓存槽压根没建立**(请求在途 / 还没发起)时与"缓存槽已建立但确实是空数组"
-// (相册真的没有照片)返回的都是同一个 `[]`——不能只看 `assetsOf(id).length` 来判断
-// "该不该过滤"。选相册 Apply 的那一刻,请求通常还没落地,若直接把"暂时读不到数据"
-// 当成"这个相册没有照片"处理,`filteredResults` 会瞬间归零,`.empty-search`(80px
-// padding 的"无匹配"大块内容)会在请求飞行的这段窗口里整块闪现——这是"首次按相册过滤"
-// 的**常规路径**,不是极端时序,且没有测试覆盖到过(fix round 1 的删码/变异验证清单
-// 里没有一条会让它变红,因为所有相册测试要么 mock 成立即 resolve、要么显式等
-// `flushPromises()` 之后才断言,天然跳过了"还没 resolve 那一刻"这个窗口)。
+// fix round 2 * Important#1 (a new regression confirmed in review, a real functional defect):
+// `albums.assetsOf(id)` returns the same `[]` both when the **cache slot hasn't been created at
+// all** (request in flight / not yet issued) and when "the cache slot exists but genuinely is an
+// empty array" (the album really has no photos) -- you can't decide "should this filter apply"
+// by looking only at `assetsOf(id).length`. At the moment you Apply an album selection, the
+// request usually hasn't landed yet; treating "data isn't available yet" as "this album has no
+// photos" makes `filteredResults` instantly zero out, and `.empty-search` (the "no matches"
+// block with 80px padding) flashes across the whole area during the request's in-flight window
+// -- this is the **normal path** for "filtering by album for the first time", not an edge-case
+// timing, and no test ever covered it (none of fix round 1's mutation-testing/deletion checklist
+// items would turn red for it, because every album test either mocks an immediate resolve or
+// explicitly waits for `flushPromises()` before asserting, which naturally skips over the "not
+// yet resolved" window).
 //
-// 修法:区分"缓存槽不存在"(`String(id) in albums.albumAssetsByID` 为假 ⇒ 在途/未拉,
-// 照 Vue2 `PhotosSearchView.vue:593-602` 的口径——**在途期间不过滤**,与"选中即
-// `albumAssetIds = null`"那一刻的初始状态一致)和"缓存槽已经落地,内容恰好是空数组"
-// (⇒ 真的没有照片,应该精确收窄成空集,不能因为"看起来和在途一样都是 []"就放行不过滤,
-// 那会让 I7 的"空相册"语义混同回"在途")。`in` 判据只看键是否存在(`albums.ts` 的
-// `fetchAlbumAssets` 无论成功失败都会写入这个相册的槽——成功路径在 `try` 体里
-// `setAlbumAssets(id, ...)`(`albums.ts:87`),失败路径在 `catch` 体里
-// `setAlbumAssets(id, [])`(`albums.ts:90`);`finally`(`:91-93`)只负责把
-// `isLoadingAssets` 复位,不碰这个槽——即便结果是空数组,只有从未发起过请求/请求还没
-// 完成时,槽才不存在)——不是"看长度是否为 0",这正是本条修复的关键区分,必须用 `in`
-// 而不能用 `assetsOf(id).length === 0` 来判定"还没落地"(fix round 3 · #2 校正:
-// 上一轮这里误写成"在 finally 里写入",槽写入的位置说错了,结论——成功/失败都会落
-// 槽——本身是对的,已按 albums.ts 的真实代码位置改正)。
+// Fix: distinguish "the cache slot doesn't exist" (`String(id) in albums.albumAssetsByID` is
+// false => in flight/not fetched, following Vue2's `PhotosSearchView.vue:593-602` convention --
+// **don't filter while in flight**, matching the initial state at the moment of "just selected,
+// `albumAssetIds = null`") from "the cache slot has landed and its content just happens to be an
+// empty array" (=> genuinely no photos, should precisely narrow to an empty set; don't skip
+// filtering just because "it looks the same `[]` as in-flight" -- that would collapse I7's
+// "empty album" semantics back into "in flight"). The `in` check only looks at whether the key
+// exists (`albums.ts`'s `fetchAlbumAssets` writes this album's slot regardless of success or
+// failure -- the success path does `setAlbumAssets(id, ...)` in the `try` body (`albums.ts:87`),
+// the failure path does `setAlbumAssets(id, [])` in the `catch` body (`albums.ts:90`); `finally`
+// (`:91-93`) is only responsible for resetting `isLoadingAssets` and doesn't touch this slot --
+// even when the result is an empty array, the slot only fails to exist when no request has ever
+// been issued/completed) -- not "is the length 0", which is exactly the key distinction this fix
+// makes: it must use `in` rather than `assetsOf(id).length === 0` to determine "hasn't landed
+// yet" (fix round 3 * #2 correction: the previous round mistakenly said "written in finally" --
+// the location of the slot write was wrong, though the conclusion -- both success and failure
+// write the slot -- was correct, and has now been corrected to match albums.ts's actual code
+// location).
 //
-// fix round 3 · #4(评审并入,补登记一处相对 Vue2 的可观察差异——此前只提了"首次选中"
-// 那一半,漏了"切换"这一半):Vue2 `PhotosSearchView.vue:593-602` 的 `albumAssetIds`
-// 在途期间**保留上一次的值**——所以"相册 A 已落地(过滤生效)→ 用户切到相册 B、B 的
-// 请求还在飞行"这段窗口里,Vue2 仍然**按 A 过滤**(旧值没被清掉)。New-UI 这里统一
-// "缓存槽不存在就不过滤",同一窗口会**显示未过滤的全集**,不是"继续按 A 过滤"。
-// **首次选中相册时两者行为一致**(都不过滤,因为都还没有任何缓存值可用);**只有"切换
-// 相册"这个子场景不同**。判断:从"不该用一个已经不再选中的相册去误导性地过滤结果"这个
-// 角度看,New-UI 的新行为更合理(总比"静默地用上一个相册的旧过滤结果"更不容易让用户
-// 困惑),但这确实是相对 Vue2 的一处可观察行为差异,在此登记(报告里也有一份)。
+// fix round 3 * #4 (folded in during review, registering an observable difference from Vue2 that
+// was missed -- the earlier note only covered the "first selection" half, missing the
+// "switching" half): Vue2's `PhotosSearchView.vue:593-602` `albumAssetIds` **keeps its previous
+// value** while in flight -- so during the window where "album A has landed (filter active) ->
+// the user switches to album B, and B's request is still in flight", Vue2 still **filters by
+// A** (the old value hasn't been cleared). New-UI's rule here is uniformly "don't filter if the
+// cache slot doesn't exist", so the same window will **show the unfiltered full set** instead of
+// "continuing to filter by A". **Both behave the same on the first album selection** (neither
+// filters, since neither has any cached value available yet); **only the "switching albums"
+// sub-case differs**. Judgment call: from the angle of "results shouldn't be misleadingly
+// filtered by an album that's no longer selected", New-UI's new behavior is more reasonable
+// (it's less confusing than silently showing the previous album's stale filtered results), but
+// this is indeed an observable behavior difference from Vue2, registered here (also noted in the
+// report).
 const albumAssetIds = computed<Set<string> | null>(() => {
   const name = filters.value.album
   if (!name) return null
   const id = findAlbumIdByName(name)
-  if (id === null) return new Set() // 相册名查不到 id ⇒ 结果为空集,不是不过滤(I7)。
-  if (!(String(id) in albums.albumAssetsByID)) return null // 缓存槽不存在 ⇒ 在途/未拉,不过滤。
-  return new Set(albums.assetsOf(id).map((a) => String(a.id))) // 缓存槽已落地 ⇒ 精确收窄。
+  if (id === null) return new Set() // Album name has no matching id => the result is an empty set, not "don't filter" (I7).
+  if (!(String(id) in albums.albumAssetsByID)) return null // Cache slot doesn't exist => in flight/not fetched, don't filter.
+  return new Set(albums.assetsOf(id).map((a) => String(a.id))) // Cache slot has landed => narrow precisely.
 })
 watch(
   () => filters.value.album,
@@ -410,11 +459,11 @@ watch(
     if (!name) return
     const id = findAlbumIdByName(name)
     if (id === null) return
-    void albums.fetchAlbumAssets(id) // 纯触发;结果由上面的 computed 响应式读取,不在这里处理。
+    void albums.fetchAlbumAssets(id) // Pure trigger; the result is read reactively by the computed above, not handled here.
   },
 )
 
-// ── chip / popover 交互(结构规格 20,照搬 Vue2 :739-753 + :783-797)──────────
+// ── chip / popover interaction (structure spec 20, mirrors Vue2 :739-753 + :783-797) ─────
 function togglePop(key: string): void {
   if (openPop.value === key) {
     openPop.value = null
@@ -437,32 +486,35 @@ function clearFilter(key: keyof SearchFilters): void {
 function clearAll(): void {
   filters.value = emptyFilters()
 }
-// fix round 1 · I8(评审并入,补登记——之前顺手修对了但没写清楚;fix round 3 · #3
-// 校正:枚举那行实际是 Vue2 `:562`,`:561` 是 `const f = this.filters`):Vue2 `:562`
-// 的 `anyFilter` **不含 album**(`f.date || f.people.length || f.place.length ||
-// f.cameras.length || f.type.length || f.src.length || f.scene.length`,枚举里没有
-// `f.album`)——这意味着 Vue2 里只选中一个相册过滤时,「清除全部」按钮根本不会出现,
-// 用户没法一键清掉已选的相册。这里补上 `f.album`,是修正 Vue2 的这处遗漏(相册和
-// 其余四个筛选维度理应同等对待),不是照抄,已在此登记。
+// fix round 1 * I8 (folded in during review, a registration note for a fix that was made in
+// passing earlier but never written up; fix round 3 * #3 correction: the enumeration line is
+// actually Vue2 `:562`, `:561` is `const f = this.filters`): Vue2 `:562`'s `anyFilter` **does
+// not include album** (`f.date || f.people.length || f.place.length || f.cameras.length ||
+// f.type.length || f.src.length || f.scene.length` -- `f.album` is missing from the
+// enumeration) -- meaning that in Vue2, when only an album filter is selected, the "Clear all"
+// button never appears at all, and the user has no way to clear the selected album with one
+// click. This adds `f.album` back in, fixing this omission in Vue2 (album should be treated the
+// same as the other four filter dimensions) -- it's not a straight port, and is registered here.
 const anyFilter = computed(() => {
   const f = filters.value
   return !!(f.date || f.people.length || f.place.length || f.type || f.album)
 })
 
-// 单选类 chip(album/type)在 filters/draft 里存的是 string|null,但
-// PhotosFilterPopover 的 selected 是 string[]——这里做双向适配。
+// Single-select chips (album/type) store string|null in filters/draft, but
+// PhotosFilterPopover's selected is string[] -- this adapts between the two shapes both ways.
 function singleSelected(v: string | null): string[] {
   return v ? [v] : []
 }
 
-// ── activeConditions(结构规格 18,照搬 Vue2 :498-508;'type: '/'album: ' 前缀发给
-//    后端 parser,不进 i18n)──────────────────────────────────────────────────
+// ── activeConditions (structure spec 18, mirrors Vue2 :498-508; the 'type: '/'album: '
+//    prefixes are sent to the backend parser and don't go through i18n) ──────────────
 const activeConditions = computed<string[]>(() => {
   const out: string[] = []
   const f = filters.value
-  // fix round 1 · I8(评审并入,补登记):Vue2 `:501` 的兜底是硬编码英文字面量
-  // `f.date.label || 'Date'`——中文界面下若 `label` 恰好缺失会漏出一个英文单词。这里
-  // 改用 `t('photosSearchDate')` 走本地化,已在此登记(相对 Vue2 的刻意偏离,不是抄错)。
+  // fix round 1 * I8 (folded in during review, a registration note): Vue2 `:501`'s fallback is
+  // the hardcoded English literal `f.date.label || 'Date'` -- if `label` happened to be missing,
+  // an English word would leak into the Chinese UI. Here it's changed to `t('photosSearchDate')`
+  // for localization, registered here as a deliberate deviation from Vue2, not a copying mistake.
   if (f.date) out.push(f.date.label || t('photosSearchDate'))
   f.people.forEach((p) => out.push(p))
   f.place.forEach((p) => out.push(p))
@@ -471,7 +523,7 @@ const activeConditions = computed<string[]>(() => {
   return out
 })
 
-// ── defaultSaveName(结构规格 17,照搬 Vue2 :550-559)──────────────────────────
+// ── defaultSaveName (structure spec 17, mirrors Vue2 :550-559) ───────────────
 const defaultSaveName = computed(() => {
   const q = (query.value || '').trim().replace(/^['"]|['"]$/g, '')
   if (q.length < 40) return q
@@ -487,11 +539,13 @@ function openSave(): void {
   if (saved.value) return
   saveOpen.value = true
 }
-// fix 波 F1(终审必修项,真实功能缺口):保存成功此前只翻了 `saved` 这一个布尔,没有任何
-// 用户可见反馈——Vue2 confirmSave()(:806-812)成功后弹一条 5 秒的 `.save-toast`(sparkles
-// 图标 + 「"{name}" 已保存为智能视图」+「在智能视图中打开 →」跳转链接,:283-288)。这里用
-// 通用 `useToast` 的第三参(撤销 pill 同款签名,`{ label, onClick }`,T6 回收站撤销正在用,
-// src/stores/toast.ts:13-19)1:1 映上:label 是跳转文案,onClick 换成路由跳转。
+// fix wave F1 (final-review-required item, a real functional gap): a successful save previously
+// only flipped the `saved` boolean, with no user-visible feedback at all -- Vue2's
+// confirmSave() (:806-812) pops a 5-second `.save-toast` on success (sparkles icon + `"{name}"
+// saved as a smart view` + an `Open in Smart Views ->` navigation link, :283-288). This maps
+// that 1:1 onto the generic `useToast`'s third arg (the same signature as the undo pill,
+// `{ label, onClick }`, currently used by T6's recycle-bin undo, src/stores/toast.ts:13-19):
+// label is the navigation copy, onClick is swapped for a route push.
 // Deviation registered (SP15-P2b Task 5, fix round 2): Vue 2's target is `#/photos` (its
 // smart views and album home share the same screen), and at 939a7d3a its label there is
 // still "Open in Smart Views →" -- unchanged from before this branch's IA merge, since
@@ -514,16 +568,19 @@ function onSaved(_id: string, name: string): void {
   })
 }
 
-// ── 浮层统一治理(结构规格 19,硬约束):一个 mousedown + 一个 keydown,禁止早退。
-//    保存弹层自己的点外部/Esc 已经由 SearchSaveSmartView 内部处理(ignoreEl 判据)——
-//    这里的 keydown 仍然显式也去关 saveOpen,保证"chip 弹层与保存弹层同开时一次 Esc
-//    两者都关"这条硬约束在宿主层面也成立,不完全依赖子组件的内部实现。
+// ── unified overlay governance (structure spec 19, a hard constraint): one mousedown + one
+//    keydown, no early returns. The save popover's own outside-click/Esc handling is already
+//    done internally by SearchSaveSmartView (the ignoreEl check) -- the keydown here still
+//    explicitly closes saveOpen too, to guarantee that the hard constraint "one Esc closes both
+//    the chip popover and the save popover when both are open" also holds at the host level, not
+//    relying entirely on the child component's internal implementation.
 function onDocKeydown(e: KeyboardEvent): void {
   if (e.key !== 'Escape') return
   if (openPop.value !== null) openPop.value = null
   if (saveOpen.value) saveOpen.value = false
-  // 偏离登记(结构规格 19):Vue2 的 Esc 是 exitSearch()(退出搜索,:834),这里不迁——
-  // New-UI 用 Esc 关浮层(与本仓其余页面一致),退出搜索走侧栏/浏览器后退键。
+  // Deviation registered (structure spec 19): Vue2's Esc is exitSearch() (exits search, :834) --
+  // not ported here. New-UI uses Esc to close overlays (consistent with the rest of this repo);
+  // exiting search goes through the sidebar / browser back button instead.
 }
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
@@ -547,15 +604,17 @@ onBeforeUnmount(() => {
   document.removeEventListener('mousedown', onDocMousedown)
 })
 
-// ── 结果打开(结构规格 15,§7e-3/E3 的核心接线):第四参传 query 激活灯箱 OCR 高亮;
-//    翻页集是 sortedResults 而非 filteredResults(照搬 Vue2 :725)。────────────
+// ── opening a result (structure spec 15, the core wiring for §7e-3/E3): the fourth arg passes
+//    query to activate lightbox OCR highlighting; the paging set is sortedResults, not
+//    filteredResults (mirrors Vue2 :725). ─────────────────────────────────────
 function onOpen(photo: Photo): void {
   lb.openAt(photo, sortedResults.value.map((r) => r.p), 0, query.value)
 }
 
-// onMounted 若 people/albums 未加载则各拉一次(照搬 Vue2 :817-818)。用 New-UI store
-// 自带的 loaded 门控标志,不是 Vue2 的 `!array.length`(避免"确实零条"与"还没拉过"
-// 混淆——store 已经为此专门做了区分,直接复用)。
+// onMounted fetches people/albums once each if they haven't loaded yet (mirrors Vue2 :817-818).
+// Uses New-UI's store's own loaded gating flag, not Vue2's `!array.length` (avoiding confusion
+// between "genuinely zero items" and "hasn't been fetched yet" -- the store already
+// distinguishes these specifically, so it's reused directly).
 onMounted(() => {
   if (!people.peopleLoaded) void people.fetchPeople()
   if (!albums.albumsLoaded) void albums.fetchAlbums()
@@ -569,7 +628,7 @@ onMounted(() => {
       <main class="photos-main">
         <PhotosSearchBar :value="query" autofocus @submit="submitQuery" />
 
-        <!-- 预搜索态(结构规格 15)-->
+        <!-- pre-search state (structure spec 15)-->
         <div v-if="!query" class="search-prestate" data-test="search-prestate">
           <div class="nimo-orb" />
           <h2>{{ t('photosSearchSearchLibrary') }}</h2>
@@ -592,7 +651,7 @@ onMounted(() => {
         </div>
 
         <template v-else>
-          <!-- hero(结构规格 15)-->
+          <!-- hero (structure spec 15)-->
           <div class="search-hero" data-test="search-hero">
             <div class="search-query-row">
               <div class="search-query" data-test="search-query">
@@ -621,7 +680,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- chip 栏(结构规格 10、19、20)-->
+          <!-- chip bar (structure spec 10, 19, 20)-->
           <div ref="filterbarRef" class="filterbar" data-test="filterbar">
             <PhotosFilterChip
               v-for="chip in chips" :key="chip.key" :label="chipLabel(chip)" :active="chipActive(chip.key)"
@@ -707,7 +766,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 排序 / 计数栏(结构规格 15)-->
+          <!-- sort / count bar (structure spec 15)-->
           <div class="results-bar" data-test="results-bar">
             <span>{{ t('photosSearchSort') }}</span>
             <div class="sort">
@@ -731,7 +790,7 @@ onMounted(() => {
             </span>
           </div>
 
-          <!-- 空态(结构规格 15,D1:不建 Ask Nimo 按钮)-->
+          <!-- empty state (structure spec 15, D1: no Ask Nimo button)-->
           <div v-if="filteredResults.length === 0 && !searching" class="empty-search" data-test="empty-search">
             <div class="nimo-orb" />
             <h2>{{ t('photosSearchNoMatches') }}</h2>
@@ -741,7 +800,7 @@ onMounted(() => {
             </div>
           </div>
 
-          <!-- 结果网格 -->
+          <!-- results grid -->
           <PhotosSearchGrid
             v-else :best="best" :more="more" :more-expanded="moreExpanded" :show-sentinel="showSentinel"
             :loading-more="search.loadingMore" @open="onOpen" @update:more-expanded="(v) => (moreExpanded = v)"
@@ -763,27 +822,31 @@ onMounted(() => {
    flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
 .sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
 
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
+/* height (not min-height): this screen has a hard cap, only the inner scroll container scrolls
+   -- a same-source fix; see the comment on the equivalent rule in src/views/Photos.vue for the
+   Vue2 rationale. */
 .photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
-/* ── 自绘 nimo-orb(本仓没有,brief E 段裁定自绘,颜色全走 accent 家族 token)──
-   Vue2 是一张紫色系 logo 图(url(./nimo-logo.png)),本仓改成径向渐变 + 既有
-   --orb-glow token 的 drop-shadow(AiWidget.vue:37 的 .ai-orb 已是同一个 token 的
-   既定先例,不新增 token)。 */
+/* ── hand-drawn nimo-orb (this repo has no asset for it; brief section E ruled it should be
+   hand-drawn, with colors entirely from the accent family of tokens) ──
+   Vue2 uses a purple-toned logo image (url(./nimo-logo.png)); this repo replaces it with a
+   radial gradient plus a drop-shadow using the existing --orb-glow token (AiWidget.vue:37's
+   .ai-orb is already an established precedent using this same token, so no new token is
+   introduced). */
 .nimo-orb {
   display: inline-block;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 32%, var(--accent-soft-2), var(--accent) 72%);
-  /* fix round 1 · M12(评审并入,fix round 2 · Minor#3 校正行号):Vue2
-     photos.scss:875(不是第一版写的 876)的 `.nimo-orb` 有 `flex-shrink: 0`,第一版
-     漏了这条——`.understood` 是 `inline-flex` 容器,窄屏/长文案挤压时那颗 18px 的 orb
-     会被压扁变形。补回。 */
+  /* fix round 1 * M12 (folded in during review, fix round 2 * Minor#3 corrected the line
+     number): Vue2 photos.scss:875 (not 876 as the first version cited) has `flex-shrink: 0` on
+     `.nimo-orb`, which the first version missed -- `.understood` is an `inline-flex` container,
+     and on a narrow viewport or with long copy squeezing it, that 18px orb gets squashed out of
+     shape. Restored here. */
   flex-shrink: 0;
 }
 
-/* ── 预搜索态(photos.scss:2779-2793)── */
+/* ── pre-search state (photos.scss:2779-2793) ── */
 .search-prestate { text-align: center; padding: 96px 32px 40px; max-width: 560px; margin: 0 auto; }
 .search-prestate .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
 .search-prestate h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
@@ -826,21 +889,31 @@ onMounted(() => {
 .understood-k { color: var(--fg-faint); }
 .understood-v { margin: 0 4px; }
 
-/* ── filterbar(photos.scss:2610-2657)── */
-/* 刻意**不画背景**(修复真机截图里那条横贯整宽的黑带)。
-   Vue2 `photos.scss:2616` 这里是 `background: var(--bg)`,在 Vue2 里成立 —— 它的相册区是
-   一整块**不透明深色页面**(自己的 `--bg` 定义在 `photos.scss:3`,是近黑实色),条底与页底
-   同色、看不出边界。New-UI 的相册区活在 AreaShell 的**玻璃壳**里(半透明,壁纸/渐变透上来),
-   而本仓同名 `--bg`(`theme.css:42`,深蓝灰实色)刷上去就是一块色板。
-   属"照抄 token 名、但两个 --bg 语境不同"的移植缺陷,
-   按「界面照 Vue2(视觉效果)/ 逻辑照正确」修:去掉底色,与上面的 .search-hero、下面的排序行
-   一致由玻璃壳透上来,分界交给 border-bottom。
-   本仓 `--bg` 的正当用法是"占满视口、自己就是页底"的壳(StorageShell / SettingsShell /
-   MediaViewer / SearchDialog)与 SmartViewCard 拼贴图的缝隙色,不该由区域壳内的行/条来刷。
-   **position/z-index 保留**:筛选弹层(.fpop)是本条的后代,靠这两条才画得到下方网格之上;
-   sticky 在本布局里其实是空操作(滚动容器在 PhotosSearchGrid 内部、是兄弟不是祖先),但它
-   同时承担"建立定位上下文"的作用,删掉会让弹层被瓦片压住 —— 与去底色无关,不动。
-   反向闸见 __tests__/photosGlassSurfaces.test.ts。 */
+/* ── filterbar (photos.scss:2610-2657) ── */
+/* Deliberately **draws no background** (fixes a band of black spanning the full width seen in
+   real-device screenshots).
+   Vue2's `photos.scss:2616` has `background: var(--bg)` here, which works fine in Vue2 -- its
+   albums area is one **opaque dark page** (its own `--bg` is defined at `photos.scss:3` as a
+   near-black solid color), so the bar's background matches the page's background and the
+   boundary is invisible. New-UI's albums area lives inside AreaShell's **glass shell**
+   (translucent, with the wallpaper/gradient showing through), and this repo's identically-named
+   `--bg` (`theme.css:42`, a solid dark blue-gray) painted here just becomes an opaque color
+   swatch.
+   This is a porting defect of the "copied the token name, but the two --bg's contexts differ"
+   kind. Per "match Vue2's visuals / get the logic right", the fix removes the background color
+   so this bar lets the glass shell show through consistently with .search-hero above and the
+   sort row below, leaving the boundary to border-bottom instead.
+   The legitimate use of this repo's `--bg` is for shells that "fill the viewport and are
+   themselves the page floor" (StorageShell / SettingsShell / MediaViewer / SearchDialog) and for
+   the gap color in SmartViewCard's collage image -- it shouldn't be painted onto a row/bar
+   living inside an area shell.
+   **position/z-index are kept**: the filter popover (.fpop) is a descendant of this element and
+   relies on these two properties to render above the grid below; sticky is effectively a no-op
+   in this layout (the scroll container lives inside PhotosSearchGrid, a sibling rather than an
+   ancestor), but it still serves the role of "establishing a positioning context" -- removing it
+   would let the popover get covered by the tiles -- unrelated to removing the background, so
+   left alone.
+   See the regression guard in __tests__/photosGlassSurfaces.test.ts. */
 .filterbar {
   padding: 12px 32px; border-bottom: 1px solid var(--divider);
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -850,9 +923,11 @@ onMounted(() => {
 .clear { font-size: 12px; color: var(--fg-faint); padding: 6px 8px; background: none; border: 0; cursor: pointer; }
 .clear:hover { color: var(--accent-text); }
 
-/* save-smart:E9,accent 家族映射(渐变 0.20/0.08 两档均值≈--accent-soft 的 .14 挡)+
-   [data-saved] 态复用 T3 already 建立的 --success token(见 SmartViewCard.vue),不
-   照抄 Vue2 三个 !important——scoped SFC 内没有别的规则与之打特异性战,不需要。 */
+/* save-smart: E9, mapped onto the accent family of tokens (the gradient's two stops, 0.20/0.08,
+   average out to roughly --accent-soft's .14 level) + the [data-saved] state reuses the
+   --success token T3 already established (see SmartViewCard.vue); Vue2's three !important flags
+   aren't ported over -- there's no other rule inside this scoped SFC to win a specificity fight
+   against, so they aren't needed. */
 .save-smart {
   display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 12px; border-radius: 999px;
@@ -872,9 +947,10 @@ onMounted(() => {
   color: var(--success);
 }
 
-/* ── results-bar(photos.scss:2702-2708)。Vue2 的 .sort button 没有任何 :hover
-   反馈——本仓其余可点按钮一律有 hover,这里补上(加性 UX 改进,登记见报告),并让
-   [data-active] 变体自带 :hover 满足本仓"胜出规则须含 :hover"的硬约束。 */
+/* ── results-bar (photos.scss:2702-2708). Vue2's .sort button has no :hover feedback at all --
+   every other clickable button in this repo has hover, so it's added here (an additive UX
+   improvement, registered in the report), with the [data-active] variant also carrying its own
+   :hover to satisfy this repo's hard constraint that "the winning rule must include :hover". */
 .results-bar { display: flex; align-items: center; gap: 12px; padding: 10px 32px; font-size: 12.5px; color: var(--fg-faint); }
 .sort { display: inline-flex; gap: 0; background: var(--chip-bg); padding: 2px; border-radius: 99px; }
 .sort button {
@@ -885,25 +961,29 @@ onMounted(() => {
 .sort button[data-active='true'] { background: var(--chip-bg-hi); color: var(--fg); }
 .sort button[data-active='true']:hover { background: var(--chip-bg-hi); color: var(--fg); }
 
-/* ── 空态(photos.scss:2771-2776)── */
+/* ── empty state (photos.scss:2771-2776) ── */
 .empty-search { text-align: center; padding: 80px 32px; max-width: 480px; margin: 0 auto; }
 .empty-search .nimo-orb { width: 68px; height: 68px; margin: 0 auto 16px; filter: drop-shadow(0 0 24px var(--orb-glow)); }
 .empty-search h2 { font-family: var(--font-display, var(--font)); font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 6px; color: var(--fg); }
 .empty-search p { color: var(--fg-faint); font-size: 13.5px; line-height: 1.5; margin: 0 0 24px; }
 .empty-search .conditions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-bottom: 24px; }
-/* E10(T12 交接):空态里 chip 的紧凑变体归本任务实现。这里没有共享的 .fchip 基类可继承
-   (PhotosFilterChip 的 .fchip 是它自己 scoped 样式,跨组件不可见),直接以"已选中"的
-   视觉(accent-soft 底 + accent-soft-bd 边)按 photos.scss:2776 的紧凑尺寸整条写出。
-   fix round 1 · M13(评审并入,fix round 2 · Minor#3 校正行号):`padding` 改回 Vue2
-   基类 `.fchip`(photos.scss:2622-2623,不是第一版写的 2617——那一行其实是
-   `.filterbar` 的 `z-index: 6`)的 `0 12px`——第一版写成 `0 10px` 是抄错,不是刻意
-   收紧,已按 Vue2 字面值改回。 */
+/* E10 (handed off from T12): the compact chip variant in the empty state is implemented by this
+   task. There's no shared .fchip base class to inherit here (PhotosFilterChip's .fchip is its
+   own scoped style, invisible across components), so the "selected" look (accent-soft
+   background + accent-soft-bd border) is written out directly at the compact size from
+   photos.scss:2776.
+   fix round 1 * M13 (folded in during review, fix round 2 * Minor#3 corrected the line number):
+   `padding` reverted to Vue2's base class `.fchip`'s (photos.scss:2622-2623, not 2617 as the
+   first version cited -- that line is actually `.filterbar`'s `z-index: 6`) `0 12px` -- the
+   first version wrote `0 10px`, which was a copying mistake, not a deliberate tightening, and
+   has been reverted to Vue2's literal value. */
 .empty-search .conditions .fchip {
   display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 99px;
   background: var(--accent-soft); border: 1px solid var(--accent-soft-bd); color: var(--fg); font-size: 11.5px;
 }
 
-/* ≤768px:侧栏已收抽屉,布局单列(本区既定形态)。 */
+/* <=768px: the sidebar collapses into a drawer, layout goes single-column (this area's
+   established pattern). */
 @media (max-width: 768px) {
   .photos-layout { gap: 0; }
 }

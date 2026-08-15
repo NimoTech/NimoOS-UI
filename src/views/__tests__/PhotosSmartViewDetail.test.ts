@@ -1,11 +1,15 @@
-// SP7-P7a-T6: PhotosSmartViewDetail.vue —— 智能视图详情页外壳(byId 数据源 + header +
-// 三菜单 + 删除确认 + 导出修 401 + 两段网格)。逐条对应 task-6-brief.md「必含用例」清单。
+// SP7-P7a-T6: PhotosSmartViewDetail.vue -- smart view detail page shell (byId data source +
+// header + three menus + delete confirmation + export 401 fix + two-section grid). Maps
+// item by item to task-6-brief.md's "required cases" checklist.
 //
-// 测试策略:store(usePhotosSmartViews)用真实实现,只 mock 共享包 service —— byId 的
-// "改 store 后视图自动跟着变"是 §7e-2 本期核心修复的主守卫,必须走真实 store 才有意义。
-// useLightbox 是模块级单例(同 PhotosAlbumDetail.test.ts 的既有手法),这里 spy 掉
-// openAt 本体(mockImplementation 空函数),只断言调用参数,不放真实 hydrate 链路进来
-// (那需要额外 mock getAsset/getAssetOcr/favorites,与本任务无关)。
+// Test strategy: the store (usePhotosSmartViews) uses its real implementation; only the
+// shared-package service is mocked -- byId's "the view automatically follows once the store
+// changes" is §7e-2's main guard for this cycle's core fix, and it only means anything if it
+// goes through the real store. useLightbox is a module-level singleton (same technique as
+// PhotosAlbumDetail.test.ts's existing approach); here we spy out the openAt method itself
+// (mockImplementation as an empty function), asserting only the call arguments, without
+// pulling the real hydrate chain in (that would need extra mocks for
+// getAsset/getAssetOcr/favorites, which is out of scope for this task).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
@@ -22,7 +26,7 @@ const svc = vi.hoisted(() => ({
     getSmartViewActivity: vi.fn(),
     updateSmartView: vi.fn(),
     deleteSmartView: vi.fn(),
-    createSmartView: vi.fn(), // restoreSmartView 的底层调用
+    createSmartView: vi.fn(), // the underlying call restoreSmartView makes
     duplicateSmartView: vi.fn(),
     exportSmartViewAlbum: vi.fn(),
     exportSmartViewUrl: vi.fn((id: string | number, format: string) => `/v1/photos/smart-views/${id}/export?format=${format}&token=tok`),
@@ -37,11 +41,14 @@ const svc = vi.hoisted(() => ({
 }))
 vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
-// useLightbox 是模块级单例:每次调用 useLightbox() 都会返回一个**新的对象字面量**,但其
-// `openAt` 属性指向同一个模块顶层函数——在这个新字面量上 `vi.spyOn(obj, 'openAt')` 只会
-// 影子这一个对象自身的属性,不会影响组件内部另一次 `useLightbox()` 调用拿到的另一份对象
-// (它的 `openAt` 仍指向未被拦截的真实函数)。本组件只用到 `lb.openAt` 这一个方法,直接
-// mock 整个模块最简单也最可靠——测试文件与组件内部拿到的是同一个 `lbMock.openAt`。
+// useLightbox is a module-level singleton: every call to useLightbox() returns a **new
+// object literal**, but its `openAt` property points at the same module-top-level function --
+// so `vi.spyOn(obj, 'openAt')` on this new literal only shadows that one object's own
+// property, and does not affect a different object returned by another `useLightbox()` call
+// inside the component (its `openAt` still points at the real, unintercepted function). This
+// component only ever touches the single `lb.openAt` method, so mocking the whole module
+// directly is both the simplest and most reliable approach -- the test file and the
+// component's internals end up sharing the exact same `lbMock.openAt`.
 const lbMock = vi.hoisted(() => ({ openAt: vi.fn() }))
 vi.mock('../../photos/lightbox/useLightbox', () => ({ useLightbox: () => lbMock }))
 
@@ -142,9 +149,9 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-// ── 数据源三态(§7e-2 结构规格 1)────────────────────────────────────────────
-describe('数据源三态', () => {
-  it('listLoaded 假(请求未 resolve)→ 骨架,不渲染 header', async () => {
+// ── Data-source three states (§7e-2 structural spec 1) ──────────────────────────────
+describe('data-source three states', () => {
+  it('listLoaded false (request not yet resolved) -> skeleton, no header rendered', async () => {
     let resolveFn: ((v: RawSv[]) => void) | undefined
     svc.photos.listSmartViews.mockImplementation(() => new Promise((res) => { resolveFn = res }))
     const router = makeRouter('/photos/smart-views/7')

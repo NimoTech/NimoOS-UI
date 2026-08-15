@@ -1,45 +1,56 @@
 <script setup lang="ts">
-// SP7-P7a-T6: PhotosSmartViewDetail.vue —— 智能视图详情页外壳(路由 /photos/smart-views/:id)。
-// 本期架构关键任务:证明 §7e-2 的核心修复(T2 store 的 byId(id))成立。
+// SP7-P7a-T6: PhotosSmartViewDetail.vue — smart-view detail page shell (route /photos/smart-views/:id).
+// This phase's key architectural task: prove that §7e-2's core fix (store's byId(id) in T2) holds.
 //
-// ★★★ 与 Vue2 最重要的架构性差异,必须读完才能理解本文件为什么这么短 ★★★
-// Vue2 详情页(NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue)把整个 sv 对象当
-// **prop** 持有(:285 `props: { sv: { type: Object, required: true } }`),而列表侧
-// UPDATE_SMART_VIEW mutation 用 `splice(i, 1, {...})` 换成**新对象**——这意味着编辑/暂停/
-// 改名之后,Vue2 详情页手里那份 prop 引用已经过期,界面读不出变化,直到用户重新打开详情页。
-// 为了压制这个真 bug,Vue2 搭了一整套本地状态同步机制:本地 `thresh`/`paused`/
-// `includeVideos` + `syncingSv` 标志 + 三个 watcher(:288-291、:345-371)——`sv` prop 变化时
-// 把新值复制进本地 state,同时用 syncingSv 挡住"复制进本地 state"这个动作反过来触发本地
-// watcher 再发一次 PATCH 请求的死循环。
+// ★★★ The most important architectural difference from Vue2 — read this fully before you can
+// understand why this file is so short ★★★
+// Vue2's detail page (NimoOS-UI src/views/Photos/PhotosSmartViewDetail.vue) holds the entire sv
+// object as a **prop** (:285 `props: { sv: { type: Object, required: true } }`), while the list
+// side's UPDATE_SMART_VIEW mutation swaps in a **new object** via `splice(i, 1, {...})` — meaning
+// that after an edit/pause/rename, the Vue2 detail page's own prop reference has gone stale and
+// the UI can't see the change until the user reopens the detail page.
+// To paper over this real bug, Vue2 built an entire local-state sync mechanism: local `thresh`/
+// `paused`/`includeVideos` + a `syncingSv` flag + three watchers (:288-291, :345-371) — when the
+// `sv` prop changes, copy the new value into local state, while using syncingSv to block that
+// "copy into local state" step from triggering the local watcher again and firing another PATCH
+// request in an infinite loop.
 //
-// New-UI 走真路由:`sv = computed(() => store.byId(String(route.params.id)))`,每次渲染
-// 都从 store 数组现取,数据来源只有一份。**这个 bug 结构性消失**——store 更新数组项之后,
-// 任何读 `sv.value` 的地方(包括这个 computed 本身)都会立刻拿到新对象,不需要任何本地
-// state 副本、不需要 syncingSv、不需要三个 watcher。`paused` 直接是
-// `computed(() => !sv.value?.live)` 的**派生量**,不是本地 state——这是本任务测试套件里
-// "§7e-2 主守卫"那条用例专门钉住的行为(直接改 store 里的 sv.live,不重新 mount,pill 文案
-// 自动跟着变;删码验证①把 byId 换成本地 ref 缓存一份 sv 对象,这条用例就会变红)。
+// New-UI takes the real-routing path: `sv = computed(() => store.byId(String(route.params.id)))`,
+// pulling fresh from the store array on every render, with a single source of truth.
+// **This bug is structurally gone** — once the store updates the array entry, every place that
+// reads `sv.value` (including this computed itself) picks up the new object immediately, with no
+// local state copy, no syncingSv, no three watchers needed. `paused` is directly a **derived
+// value** of `computed(() => !sv.value?.live)`, not local state — this is exactly the behaviour
+// the "§7e-2 main guard" test case in this task's suite pins down (mutate sv.live on the store
+// directly, without remounting, and the pill's copy follows automatically; deletion-verification
+// ① — swapping byId for a local ref that caches a copy of the sv object — turns that case red).
 //
-// 本文件范围(task-6-brief.md 结构规格 1-9):壳 + header(标题编辑 / live-paused pill /
-// 统计四格)+ 操作栏三菜单(暂停恢复 / 在搜索中细化[T16 已接线,见 refineInSearch] /
-// 导出[ZIP 修 401 + 静态相册] / more[重命名/复制/删除])+ 删除确认弹窗 +
-// 两段照片网格(最近添加 / 全部匹配)。
-// T7(加条件弹层)与 T8(右栏阈值/设置/统计/活动流)只留挂载点,见下方 TODO 注释。
+// This file's scope (task-6-brief.md structure spec 1-9): shell + header (title editing /
+// live-paused pill / four stat tiles) + the action bar's three menus (pause/resume / refine in
+// search [T16 wired, see refineInSearch] / export [ZIP 401 fix + static album] / more
+// [rename/duplicate/delete]) + delete confirmation dialog + two photo grids (recently added /
+// all matches).
+// T7 (add-condition popover) and T8 (right rail threshold/settings/stats/activity feed) leave only
+// mounting points, see the TODO comments below.
 //
-// ── 偏离登记(brief 已预先要求登记的几处)──────────────────────────────────────
-//  1)「找不到」空态(listLoaded && !sv):Vue2 不存在这个路径——它的详情页只在父组件
-//     `v-if="openSv"` 时才渲染,`openSv` 恒是一个真实对象,不可能出现"有 id 但查无此项"。
-//     New-UI 是真路由,用户手改地址栏 / 点开旧书签会走到这里,New-UI 新增。
-//  2) live/paused pill:Vue2 只有 `role="button"`,无键盘可达性。这里补 `tabindex="0"` +
-//     `@keydown.enter`。
-//  3) commitTitle 失败:Vue2 `:512-513` 无 catch(乐观地假设 PATCH 总成功)。这里 catch →
-//     toast + 保持编辑态(不擅自退出,以免用户以为改名生效了)。
-//  4) 「在搜索中细化」T6 阶段曾临时 disabled(搜索路由 /photos/search 那时还没建)。
-//     T16 已把搜索路由建好并接线(见下方 refineInSearch),按钮不再 disabled。
-//  5) `smartViewId` 死参数不迁:Vue2 `:520` 的 refineInSearch payload 是
-//     `{ q: sv.name, smartViewId: sv.id }`,但全 Vue2 仓库 grep `smartViewId` 只有这一处
-//     写入、零消费方(`grep -rn smartViewId NimoOS-UI/src/` 只命中这一行)。T16 接线只传
-//     `q`,不带这个死参数。
+// ── Registered deviations (the handful the brief pre-asked us to register) ──────────────────
+//  1) "Not found" empty state (listLoaded && !sv): this path does not exist in Vue2 — its detail
+//     page only ever renders while the parent's `v-if="openSv"` holds, and `openSv` is always a
+//     real object, so "has an id but no matching item" can never happen there.
+//     New-UI has real routing, so a user hand-editing the address bar / opening an old bookmark
+//     lands here — this is new to New-UI.
+//  2) live/paused pill: Vue2 only has `role="button"`, no keyboard accessibility. Here we add
+//     `tabindex="0"` + `@keydown.enter`.
+//  3) commitTitle failure: Vue2 `:512-513` has no catch (optimistically assumes the PATCH always
+//     succeeds). Here, catch → toast + stay in edit mode (don't quietly exit, or the user might
+//     think the rename took effect).
+//  4) "Refine in search" was temporarily disabled during the T6 phase (the /photos/search route
+//     didn't exist yet). T16 has since built the search route and wired it up (see refineInSearch
+//     below), so the button is no longer disabled.
+//  5) `smartViewId` dead parameter not ported: Vue2 `:520`'s refineInSearch payload is
+//     `{ q: sv.name, smartViewId: sv.id }`, but grepping the whole Vue2 repo for `smartViewId`
+//     turns up only this one write site and zero consumers (`grep -rn smartViewId NimoOS-UI/src/`
+//     matches only this line). T16's wiring only passes `q`, dropping this dead parameter.
 //  6) SP15-P2a final review, finding 4 — an excluded tile is inert while selecting.
 //     Vue 2 :167 wires `restoreOne` onto the excluded tiles unconditionally, so in
 //     selection mode every tile on the page toggles a checkmark except an excluded one,
@@ -89,29 +100,30 @@ const lb = useLightbox()
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
 
-// 唯一的归一点(铁律:按 id 找对象一律 String() 比较)。
+// The single normalisation point (hard rule: always compare-by-id via String()).
 const svId = computed(() => String(route.params.id))
-// ★ §7e-2 核心修复:每次渲染都从 store 数组现取,不持有对象引用。
+// ★ §7e-2 core fix: pull fresh from the store array on every render, never hold an object reference.
 const sv = computed(() => store.byId(svId.value))
 
 function fmtNum(n: number): string {
   return n.toLocaleString(locale.value.replace('_', '-'))
 }
 
-// 包一层 ref 而非直接在模板里裸调 Date.now():测试可以在 mount 前用
-// vi.useFakeTimers()/setSystemTime 固定这个值,而组件代码本身仍是"就用当前时间"的
-// 正常写法(不是 workflow 脚本,允许用 Date.now())。
+// Wrapped in a ref rather than calling Date.now() bare in the template: tests can pin this value
+// before mount with vi.useFakeTimers()/setSystemTime, while the component code itself still
+// reads as the normal "just use the current time" idiom (this is not a workflow script, so
+// Date.now() is allowed).
 const now = ref(Date.now())
 const lastUpdated = computed(() => (sv.value?.evaluatedAt ? relTime(sv.value.evaluatedAt, now.value, t, locale.value) : '—'))
 
-// ── 加载(结构规格 1)────────────────────────────────────────────────────────
+// ── Loading (structure spec 1) ────────────────────────────────────────────────────────
 onMounted(async () => {
   if (!store.listLoaded) await store.fetchSmartViews()
   await store.loadDetail(svId.value)
   void store.loadExcluded(svId.value)
 })
 watch(() => route.params.id, (raw) => {
-  if (raw === undefined) return // 已离开本路由(同 PhotosPersonDetail.vue 的既有先例)
+  if (raw === undefined) return // Left this route (same existing precedent as PhotosPersonDetail.vue)
   // SP15-P2a: everything the manual actions hold is keyed to the id we are leaving, so it all
   // resets here. `edit`/`selectedIds` are the pair with a write consequence —
   // removeSelected() reads svId.value at call time, so a selection carried across an :id
@@ -141,7 +153,7 @@ watch(() => route.params.id, (raw) => {
   void store.loadExcluded(String(raw))
 })
 
-// ── 标题编辑(结构规格 3、8)───────────────────────────────────────────────
+// ── Title editing (structure spec 3, 8) ───────────────────────────────────────────────
 const titleEdit = ref(false)
 const titleDraft = ref('')
 const titleInputRef = ref<HTMLInputElement | null>(null)
@@ -164,7 +176,8 @@ async function commitTitle(): Promise<void> {
   const s = sv.value
   if (!s) { titleEdit.value = false; return }
   const v = titleDraft.value.trim()
-  // 未改动或清空 → 直接退出,不发请求(照 Vue2 :511 的 `if (v && v !== this.sv.name)`)。
+  // Unchanged or empty → exit right away without sending a request (mirrors Vue2 :511's
+  // `if (v && v !== this.sv.name)`).
   if (!v || v === s.name) {
     titleEdit.value = false
     return
@@ -172,27 +185,30 @@ async function commitTitle(): Promise<void> {
   try {
     await store.updateSmartView(s.id, { name: v })
     toast.show(t('photosSvSmartViewRenamed'))
-    // 退出编辑态交给下面的 watch(sv.name):成功后 store 回写新名 → sv.value.name 变化 →
-    // watch 触发 → titleEdit = false。失败时 name 不变,watch 不触发,titleEdit 保持 true
-    // (偏离登记 3:Vue2 无 catch,这里失败要留在编辑态,不能悄悄退出让用户以为改名生效了)。
+    // Exiting edit mode is left to the watch(sv.name) below: on success the store writes back
+    // the new name → sv.value.name changes → the watch fires → titleEdit = false. On failure
+    // name is unchanged, the watch never fires, and titleEdit stays true (deviation 3: Vue2 has
+    // no catch; here a failure must stay in edit mode instead of quietly exiting and letting the
+    // user think the rename took effect).
   } catch (e) {
     console.error('[photos-smartviews] commitTitle', e)
     toast.show(t('photosSvRenameFailed'))
   }
 }
-// 删码验证②的主体:去掉这个 watch,「成功后退出编辑态」这条用例会红(名字变了但 titleEdit
-// 永远不会被这里置回 false;“未改动”分支不受影响,因为那条路径在 commitTitle 内部就同步
-// 退出了,不依赖这个 watch)。
+// The core of deletion-verification ②: remove this watch and the "exits edit mode on success"
+// test case goes red (the name changes but titleEdit never gets reset to false here; the
+// "unchanged" branch is unaffected, since that path exits synchronously inside commitTitle
+// itself and doesn't depend on this watch).
 watch(() => sv.value?.name, () => {
   if (titleEdit.value) titleEdit.value = false
 })
 
-// ── paused:派生量,不是本地 state(结构规格 8,§7e-2 的最大简化)───────────────
+// ── paused: a derived value, not local state (structure spec 8, §7e-2's biggest simplification) ───────────────
 const paused = computed(() => !sv.value?.live)
 async function togglePaused(): Promise<void> {
   const s = sv.value
   if (!s) return
-  const nextLive = paused.value // paused===true ⇔ 当前 !live,切换即取反 = paused 本身
+  const nextLive = paused.value // paused===true ⇔ currently !live, so toggling means negating, i.e. just paused itself
   try {
     await store.updateSmartView(s.id, { live: nextLive })
   } catch (e) {
@@ -204,8 +220,10 @@ function onPillKeydown(e: KeyboardEvent): void {
   if (e.key === 'Enter') void togglePaused()
 }
 
-// T16 兑现(结构规格 23):「在搜索中细化」→ 跳到搜索页,用该智能视图的名字作查询词。
-// 只传 q——Vue2 :520 的 smartViewId 是全仓零消费方的死参数(见文件头偏离登记 5)。
+// T16 delivered (structure spec 23): "Refine in search" → navigate to the search page, using
+// this smart view's name as the query term.
+// Only passes q — Vue2 :520's smartViewId is a dead parameter with zero consumers repo-wide
+// (see registered deviation 5 in the file header).
 function refineInSearch(): void {
   const s = sv.value
   if (!s) return
@@ -214,7 +232,7 @@ function refineInSearch(): void {
 
 // ── T7 wiring, shrunk by SP15-P2c Task 8 (structure spec T7) ────────────────────
 // SP15-P2c Task 8, ported from Vue2 NimoOS-UI 33b05636 PhotosSmartViewDetail.vue:26-30 +
-// :700-710 ("用户追加需求" -- a deliberate product decision, not an oversight): the
+// :700-710 ("user-added requirement" -- a deliberate product decision, not an oversight): the
 // "Add condition" entry (button + popover) is deleted along with the four Vue2 methods
 // that only served it, and this repo's equivalents inside the now-deleted, formerly
 // separate condition-editor component (see task-8-report.md for the exact names on both
@@ -261,7 +279,7 @@ async function onSidePatch(patch: { threshold?: number; live?: boolean; includeV
   }
 }
 
-// ── header 统计四格(结构规格 3)──────────────────────────────────────────────
+// ── header's four stat tiles (structure spec 3) ──────────────────────────────────────────────
 const newCount = computed(() => sv.value?.addedThisWeek || 0)
 const median = computed(() => sv.value?.median || 0)
 const storageText = computed(() => formatMB(sv.value?.storageBytes || 0))
@@ -374,21 +392,22 @@ onBeforeUnmount(() => {
   if (toastTimer) clearTimeout(toastTimer)
 })
 
-// ── 导出(结构规格 5、6)──────────────────────────────────────────────────────
+// ── Export (structure spec 5, 6) ──────────────────────────────────────────────────────
 interface ExportToast { icon: 'download' | 'plus'; text: string }
 const exportToast = ref<ExportToast | null>(null)
 let toastTimer: ReturnType<typeof setTimeout> | null = null
 function showExportToast(icon: ExportToast['icon'], text: string): void {
   exportToast.value = { icon, text }
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { exportToast.value = null }, 2800) // 照搬 Vue2 :499
+  toastTimer = setTimeout(() => { exportToast.value = null }, 2800) // Matches Vue2 :499
 }
 
-// exportSmartViewUrl 走的 /v1/photos/smart-views/:id/export 不在后端 mediaGetSkip
-// 豁免表里(只有 /favorites/export 后缀被豁免),且 Photos 的 JWT 中间件只从
-// Authorization 头取 token、没有 query 通路 —— 所以 Vue2 的 window.location.href
-// 必然 401(plan Global Constraints §7e-1,已回源实证 NimoOS-Photos/route/router.go)。
-// 这里改成带 Authorization 的 fetch + blob 下载。
+// exportSmartViewUrl hits /v1/photos/smart-views/:id/export, which is not in the backend's
+// mediaGetSkip exemption table (only the /favorites/export suffix is exempt), and Photos' JWT
+// middleware only ever reads the token from the Authorization header — there is no query-string
+// path — so Vue2's window.location.href is guaranteed to 401 (plan Global Constraints §7e-1,
+// verified against source at NimoOS-Photos/route/router.go).
+// Switched here to a fetch + blob download that carries the Authorization header.
 async function downloadZip(): Promise<void> {
   const s = sv.value
   // Task 7: this used to close the export menu (`exportOpen`); ZIP is now the unified menu's
@@ -397,16 +416,18 @@ async function downloadZip(): Promise<void> {
   if (!s) return
   try {
     const url = service.photos.exportSmartViewUrl(String(s.id), 'zip')
-    // ⚠ 不要加 'Bearer ' 前缀 —— 本仓存的是裸 token:共享包拦截器是
-    // `cfg.headers.Authorization = token`(NimoOS-Service/src/http.ts:59-60),token 来自
-    // `localStorage.getItem('access_token')`(main.ts:24 的 getToken 回调),全仓 grep 不到
-    // 任何 'Bearer' 字面量。后端 `strings.TrimPrefix(auth, "Bearer ")` 对裸 token 是恒等的,
-    // 两种都能过,但这里与共享包保持同一口径(删码验证⑤的主体)。
-    // fix round 1 · C1(Critical,已回源实证):这个端点 `route/v1/smartviews.go:34` 只注册了
-    // `g.POST(...)`,全仓 grep `"/smart-views/:id/export"` 只有这一条、没有 GET 版本——
-    // `fetch` 默认 GET 会被 Echo 拒成 405(不是 401,但同样 100% 不通)。必须显式
-    // `method: 'POST'`。不需要 body——handler(`smartviews.go:208-215`)优先取 query 的
-    // `format`,`exportSmartViewUrl` 已经把 `?format=zip` 拼进 URL 里了。
+    // ⚠ Do not add a 'Bearer ' prefix — this repo stores a bare token: the shared package's
+    // interceptor does `cfg.headers.Authorization = token` (NimoOS-Service/src/http.ts:59-60),
+    // and the token comes from `localStorage.getItem('access_token')` (the getToken callback in
+    // main.ts:24) — grepping the whole repo turns up not a single 'Bearer' literal. The backend's
+    // `strings.TrimPrefix(auth, "Bearer ")` is a no-op on a bare token, so both forms would work,
+    // but this keeps the same convention as the shared package (the core of deletion-verification ⑤).
+    // fix round 1 · C1 (Critical, verified against source): this endpoint `route/v1/smartviews.go:34`
+    // only registers `g.POST(...)` — grepping the whole repo for `"/smart-views/:id/export"` finds
+    // only this one route, no GET variant — so `fetch`'s default GET would get rejected by Echo as
+    // a 405 (not a 401, but equally 100% broken). `method: 'POST'` must be explicit. No body is
+    // needed — the handler (`smartviews.go:208-215`) reads `format` from the query first, and
+    // `exportSmartViewUrl` already appends `?format=zip` to the URL.
     const res = await fetch(url, { method: 'POST', headers: { Authorization: localStorage.getItem('access_token') ?? '' } })
     if (!res.ok) throw new Error(`export ${res.status}`)
     const blob = await res.blob()
@@ -417,7 +438,7 @@ async function downloadZip(): Promise<void> {
     document.body.appendChild(a)
     a.click()
     a.remove()
-    URL.revokeObjectURL(href) // 删码验证⑥的主体
+    URL.revokeObjectURL(href) // The core of deletion-verification ⑥
     showExportToast('download', t('photosSvPreparingZipNPhotos', { n: fmtNum(s.count) }))
   } catch (e) {
     console.error('[photos-smartviews] downloadZip', e)
@@ -428,8 +449,8 @@ async function downloadZip(): Promise<void> {
 // Task 7: `exportAlbumAction` ("Save as static album" / sv-export-album) is deleted, not
 // re-homed into the unified menu. This is an empirically-verified capability removal, not a
 // guess: the Vue2 target's own final state (933a7d3a comment restated at 33b05636
-// :184-189) records that Vue2 killed the identical button ("Save as static Album 子项整体
-// 删除", i.e. "the Save as static Album entry is deleted entirely") in the same commit range
+// :184-189) records that Vue2 killed the identical button ("Save as static Album entry deleted
+// entirely" in the original commit's own words) in the same commit range
 // that produced the five-entry menu, keeping only the backend
 // endpoint (`photosService.exportSmartViewAlbum`) as a capability with no frontend caller.
 // This page's Convert entry (`askConvertToAlbum` below) already does the equivalent job --
@@ -457,22 +478,28 @@ async function doDelete(): Promise<void> {
     // SP15-P2b Task 5: smart albums now live inside Albums (Tasks 3/4), so a deleted
     // smart view's owner list is the Albums page, not this now-Moments-only route.
     void router.push('/photos/albums')
-    // 撤销键复用 P3 回收站已有的既定「撤销」键(grep 本仓 zh_cn.ts 已确认
-    // photosTrashUndo = '撤销' / photosPersonUndo 同值,取前者——两者语义都是通用的
-    // "撤销"文案,不新增)。duration 5000 照 P5「5 秒可撤销」的既有口径。
+    // The undo label reuses the existing "Undo" key established by the P3 recycle bin (grepping
+    // this repo's zh_cn.ts confirms photosTrashUndo = '撤销' matches photosPersonUndo's value --
+    // both carry the same generic "undo" copy, so we take the former rather than adding a new
+    // one). duration 5000 follows P5's existing "5-second undo window" convention.
     toast.show(t('photosSvSmartViewNameDeleted', { name: s.name }), 5000, {
       label: t('photosTrashUndo'),
-      // fix 波 F3(终审必修项):`void store.restoreSmartView(...)` 把失败 reject 直接吞成
-      // 未处理的 promise rejection——store 的 restoreSmartView 失败时是 throw(smartViews.ts
-      // :303-304 的 catch 只 console.error 再原样抛出),`void` 调用不接这个 throw,
-      // 界面上什么反馈都不会出现。真实时序:用户点删除 → 已被上面 `router.push` 送回
-      // 列表页(这条智能视图已从列表 splice 掉)→ 5 秒内点撤销 → 后端失败 → 原实现下
-      // 界面毫无反应,这条智能视图就永久从列表消失了(后端其实还在,刷新页面才会重新出现)。
-      // 违反 Global Constraints「向上抛出的 action 保持抛出(视图层 catch → toast)」——
-      // 同文件 doDelete 自己是 try/catch + 失败 toast,只有这个 undo 回调漏了这层。
-      // 文案复用:grep 全仓已确认没有专门的"撤销智能视图失败"键;`photosTrashRestoreFailed`
-      // (P3 回收站,PhotosTrash.vue:121/171 同款"撤销恢复失败"场景,duration 同为 4500)
-      // 语义完全对得上"恢复/撤销这个动作失败了",复用它,不新增键。
+      // fix wave F3 (final-review must-fix): `void store.restoreSmartView(...)` swallows a
+      // failed rejection into an unhandled promise rejection -- the store's restoreSmartView
+      // throws on failure (smartViews.ts :303-304's catch only console.errors before rethrowing),
+      // and a `void` call doesn't catch that throw, so the UI gives zero feedback. The real
+      // sequence: the user clicks delete → the `router.push` above has already sent them back to
+      // the list page (this smart view has already been spliced out of the list) → they click
+      // undo within 5 seconds → the backend call fails → under the original implementation the
+      // UI shows no reaction at all, and this smart view vanishes from the list permanently (it
+      // still exists on the backend; only refreshing the page would bring it back).
+      // Violates Global Constraints' "an action thrown upward stays thrown (view-layer catch →
+      // toast)" -- this same file's doDelete itself is try/catch + failure toast, only this undo
+      // callback was missing that layer.
+      // Copy reuse: grepping the whole repo confirms there is no dedicated "undo smart view
+      // failed" key; `photosTrashRestoreFailed` (P3 recycle bin, PhotosTrash.vue:121/171's same
+      // "undo restore failed" scenario, same duration 4500) is semantically an exact match for
+      // "the restore/undo action failed" -- reused as-is, no new key added.
       onClick: () => {
         store.restoreSmartView(result as DeletedSmartView).catch((e: unknown) => {
           console.error('[photos-smartviews] undo delete', e)

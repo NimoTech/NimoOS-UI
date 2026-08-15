@@ -269,7 +269,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
   })
 
   // Drift prevention: numbers in constant name must match array length (this file's convention, name itself is part of assertion).
-  it('Whitelist exactly 425 items (Appendix D §D.0: 102 + T2's 32 + T6's 53 + P5c-T2a's 39 + P5d-T2's 65+2 + P5e-T2's 55 + P5f-T2's 27+41+9)', () => {
+  it('Whitelist exactly 425 items (Appendix D §D.0: 102 + T2\'s 32 + T6\'s 53 + P5c-T2a\'s 39 + P5d-T2\'s 65+2 + P5e-T2\'s 55 + P5f-T2\'s 27+41+9)', () => {
     expect(WHITELIST_425).toHaveLength(425)
     expect(new Set(WHITELIST_425).size, 'Whitelist has duplicate items').toBe(425)
   })
@@ -531,7 +531,7 @@ describe('knowledge.scss — Appendix D whitelist deployment (425 classes, R1 + 
     expect(nonKClassNames(css)).toEqual([...NON_K_HELPER_CLASSES].sort())
   })
 
-  it('R8/R1 — NON_K_HELPER_CLASSES constant exactly 20 items (P5d's 16 + P5e-T2's 3 + P5f-T2's 1; not governance A-10's 10)', () => {
+  it('R8/R1 — NON_K_HELPER_CLASSES constant exactly 20 items (P5d\'s 16 + P5e-T2\'s 3 + P5f-T2\'s 1; not governance A-10\'s 10)', () => {
     expect(NON_K_HELPER_CLASSES).toHaveLength(20)
     expect(new Set(NON_K_HELPER_CLASSES).size, 'Registry has duplicate items').toBe(20)
   })

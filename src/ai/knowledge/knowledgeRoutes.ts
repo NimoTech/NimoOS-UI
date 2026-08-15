@@ -24,26 +24,31 @@
 // `''` child route reserved for T12 to replace with real DashboardView; remaining 8 child routes
 // and 2 parser routes reserved for later batches to replace one by one (K7 mechanism unchanged,
 // just parent layer changes from "placeholder to placeholder" to "real layout + placeholder children").
-// 【T12,2026-08-01】`''` 子路由(仪表盘位)从占位页 KnowledgeDeferred 反转成
-// 真正的 DashboardView(K7 机制不变,反转不是删除 —— 见
-// knowledgeRoutes.test.ts 的改前/改后原文对照)。其余 8 个子路由 + 2 条独立
-// parser 路由仍是占位页,留给后续批次逐个替换。
+// [T12, 2026-08-01] The `''` child route (dashboard slot) is flipped from the placeholder page
+// KnowledgeDeferred to the real DashboardView (K7 mechanism unchanged, flipping is not deleting —
+// see the before/after original-text comparison in knowledgeRoutes.test.ts). The remaining 8
+// child routes + 2 standalone parser routes are still placeholder pages, left for later batches
+// to replace one by one.
 //
-// 【SP8-P5b Task 5,2026-08-01】`queue` 子路由(任务队列位)同样从占位页
-// KnowledgeDeferred 反转成真正的 QueueView(K7 机制不变,反转不是删除 —— 见
-// knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 对 `''` 子路由的先例)。
-// 其余 7 个子路由 + 2 条独立 parser 路由仍是占位页,留给后续批次逐个替换。
+// [SP8-P5b Task 5, 2026-08-01] The `queue` child route (task-queue slot) is likewise flipped from
+// the placeholder page KnowledgeDeferred to the real QueueView (K7 mechanism unchanged, flipping
+// is not deleting — see the before/after original-text comparison in knowledgeRoutes.test.ts,
+// following the T12 precedent for the `''` child route). The remaining 7 child routes + 2
+// standalone parser routes are still placeholder pages, left for later batches to replace one by
+// one.
 //
-// 【SP8-P5b Task 10,2026-08-02】`indexed-files` 子路由(已收录文件位)同样从占位页
-// KnowledgeDeferred 反转成真正的 IndexedFilesView(K7 机制不变,反转不是删除 ——
-// 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12/T5 的同一先例)。
-// 其余 6 个子路由 + 2 条独立 parser 路由仍是占位页,留给后续批次逐个替换。
+// [SP8-P5b Task 10, 2026-08-02] The `indexed-files` child route (indexed-files slot) is likewise
+// flipped from the placeholder page KnowledgeDeferred to the real IndexedFilesView (K7 mechanism
+// unchanged, flipping is not deleting — see the before/after original-text comparison in
+// knowledgeRoutes.test.ts, following the same T12/T5 precedent). The remaining 6 child routes + 2
+// standalone parser routes are still placeholder pages, left for later batches to replace one by
+// one.
 //
-// 【SP8-P5c Task 10,2026-08-04】本期一次反转**三条**(承 T12 / P5b T5 / P5b T10
-// 三次同款先例,反转不是删除):
-//   · `settings` 子路由 → 真正的 SettingsView(T8 上半 + T9 下半的产出);
-//   · 顶层 `/ai/parser`      → 真正的 ParserStatus(T6 的产出);
-//   · 顶层 `/ai/parser/test` → 真正的 ParserTest(T7 的产出)。
+// [SP8-P5c Task 10, 2026-08-04] This batch flips **three** routes at once (following the T12 /
+// P5b T5 / P5b T10 three same-style precedents, flipping is not deleting):
+//   · `settings` child route → real SettingsView (output of T8 first half + T9 second half);
+//   · top-level `/ai/parser`      → real ParserStatus (output of T6);
+//   · top-level `/ai/parser/test` → real ParserTest (output of T7).
 // 🔴 This is also the **first time `src/ai/styles/parser-styles.scss` (T2b output) is
 // entry-reachably imported** — before this ParserStatus/ParserTest had zero production imports
 // in entire repo, module doesn't enter Vite graph; that scss file's side-effect import never
@@ -62,31 +67,42 @@
 // 🔴 Current latest state always follows last reverse record at end of file + `deferred.ts` header,
 // don't just read this section.
 //
-// 【SP8-P5d Task 10,2026-08-05】`notes` 子路由(笔记位)同样从占位页
-// KnowledgeDeferred 反转成真正的 NotesView(T6-T9 四刀收官的产出;K7 占位机制
-// 本身不变 —— 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 / P5b T5 /
-// P5b T10 / P5c T10 四次同款先例)。**本刀是本期(P5d)最后一环** —— `/ai/knowledge`
-// 左栏第 4 项「笔记」第一次真正可达。剩下 4 个子路由(`search` / `wiki` / `roots` /
-// `allowlist`)仍指 KnowledgeDeferred,归属见 `deferred.ts` 文件头。
-// 【M-5 复发,P5f-T8 顺手订正,2026-08-06 —— 只改语气,不改它描述的历史事实】
-// 🔴 上面那句「剩下 4 个子路由**仍指** KnowledgeDeferred」是 **P5d-T10 落笔当时
-// (2026-08-05)的状态快照**,用的是现在时;它此后已被 P5e-T8(4→3)推进过一次。
-// 按「反转不删」原文整体保留,**读作历史记录**:*于 P5d-T10 完成的那一刻*,那 4 个
-// 子路由确实都还指向占位页。当前状态见文件末尾最近一次反转记录。
+// [SP8-P5d Task 10, 2026-08-05] The `notes` child route (notes slot) is likewise flipped from
+// the placeholder page KnowledgeDeferred to the real NotesView (output of the T6-T9 four-task
+// closeout; the K7 placeholder mechanism itself unchanged — see the before/after original-text
+// comparison in knowledgeRoutes.test.ts, following the T12 / P5b T5 / P5b T10 / P5c T10 four
+// same-style precedents). **This move is the final step of this period (P5d)** — `/ai/knowledge`
+// left rail item 4 "Notes" is truly reachable for the first time. The remaining 4 child routes
+// (`search` / `wiki` / `roots` / `allowlist`) still point to KnowledgeDeferred; ownership is
+// documented in the `deferred.ts` file header.
+// [M-5 recurrence, fixed in passing by P5f-T8, 2026-08-06 — tone only, does not change the
+// historical facts it describes]
+// 🔴 The sentence above, "the remaining 4 child routes **still point to** KnowledgeDeferred," is
+// a **snapshot of state at the moment P5d-T10 was written (2026-08-05)**, written in present
+// tense; it has since been advanced once by P5e-T8 (4→3). Preserved intact per "flip, don't
+// delete," **read as a historical record**: *at the moment P5d-T10 was completed*, those 4 child
+// routes truly all still pointed to the placeholder page. See the most recent flip record at the
+// end of the file for the current state.
 //
-// 【SP8-P5e Task 8,2026-08-05,第六次反转(不是删除)】`search` 子路由(搜索位)同样
-// 从占位页 KnowledgeDeferred 反转成真正的 SearchView(T4-T7 四刀收官的产出;K7 占位
-// 机制本身不变 —— 见 knowledgeRoutes.test.ts 的改前/改后原文对照,承 T12 / P5b T5 /
-// P5b T10 / P5c T10 / P5d T10 五次同款先例)。**本刀是本期(P5e)最后一环** ——
-// `/ai/knowledge` 左栏第 2 项「搜索」第一次真正可达。剩下 3 个子路由(`wiki` /
-// `roots` / `allowlist`)仍指 KnowledgeDeferred,全部归 P5f(见 `deferred.ts` 文件头)。
-// 【M-5 复发,P5f-T8 顺手订正,2026-08-06 —— 只改语气,不改它描述的历史事实】
-// 🔴 同上:「剩下 3 个子路由**仍指** KnowledgeDeferred」是 **P5e-T8 落笔当时
-// (2026-08-05)的状态快照**;本刀(P5f-T8)已把这 3 条全部反转成真组件(3→0)。
-// 按「反转不删」原文保留,**读作历史记录**。
-// 🔴 **通用读法(M-5 已连续复发三期,写死在这里)**:本文件头是一条**逐代追加的
-// 谱系**,每一段都只描述「该刀落笔那一刻」的状态。**当前最新状态永远以最后一段
-// 反转记录为准,不要引用中间任何一段的「剩下 N 个」。**
+// [SP8-P5e Task 8, 2026-08-05, sixth flip (not a deletion)] The `search` child route (search
+// slot) is likewise flipped from the placeholder page KnowledgeDeferred to the real SearchView
+// (output of the T4-T7 four-task closeout; the K7 placeholder mechanism itself unchanged — see
+// the before/after original-text comparison in knowledgeRoutes.test.ts, following the T12 / P5b
+// T5 / P5b T10 / P5c T10 / P5d T10 five same-style precedents). **This move is the final step of
+// this period (P5e)** — `/ai/knowledge` left rail item 2 "Search" is truly reachable for the
+// first time. The remaining 3 child routes (`wiki` / `roots` / `allowlist`) still point to
+// KnowledgeDeferred, all owned by P5f (see the `deferred.ts` file header).
+// [M-5 recurrence, fixed in passing by P5f-T8, 2026-08-06 — tone only, does not change the
+// historical facts it describes]
+// 🔴 Same as above: "the remaining 3 child routes **still point to** KnowledgeDeferred" is a
+// **snapshot of state at the moment P5e-T8 was written (2026-08-05)**; this move (P5f-T8) has
+// already flipped all 3 of them to real components (3→0). Preserved per "flip, don't delete,"
+// **read as a historical record**.
+// 🔴 **General reading rule (M-5 has recurred three periods running now, spelled out here for
+// good)**: this file header is a **generation-by-generation appended lineage**, where each
+// paragraph only describes the state "at the moment that move was written." **The current latest
+// state always follows the last flip record at the end of the file — never cite the "N
+// remaining" figure from any intermediate paragraph.**
 //
 // [SP8-P5f Task 8, 2026-08-06, seventh reverse (not delete) — final closing move] This move reverses
 // **three routes** (following T12 / P5b T5 / P5b T10 / P5c T10 / P5d T10 / P5e T8 six precedents):
@@ -110,15 +126,19 @@
 // has `__name:"WikiView"` / `"RootsView"` / `"AllowlistView"` and `kw-split` all **0 hits**,
 // after change all hit (evidence in p5f-task-8-report.md).
 import type { RouteRecordRaw } from 'vue-router'
-// 🔴 【P5f T8 申报】本刀反转最后三条路由之后,**本文件已无任何一条路由指向
-// KnowledgeDeferred** ⇒ 这行 import 在本文件里成了「未被引用的 import」。
-// **刻意保留,不删**(K8 / 承 P4 I2 的「留代码要留能力」+ 治理 §9.10「只许加固」):
-//   · 它是 K7 占位机制在生产侧的唯一锚点 —— 删掉后 `KnowledgeDeferred.vue` 全仓零
-//     生产 import、彻底掉出 Vite 图,机制就只剩一个没人引的文件;
-//   · 将来要给新页面挂占位,只需把某条路由的 component 改回它,一行即可;
-//   · `noUnusedLocals` 未开启,`vue-tsc --noEmit` 与 `vite build` 均 exit 0(已实测)。
-// knowledgeRoutes.test.ts 侧仍逐条 `not.toBe(KnowledgeDeferred)` 消费它,并用
-// 「KnowledgeDeferred 在 11 个 component 里出现 0 次」+ 防空转锚点钉住当前状态。
+// 🔴 [P5f T8 declaration] After this move flips the last three routes, **this file no longer has
+// any route pointing to KnowledgeDeferred** ⇒ this import line has become an "unused import" in
+// this file. **Kept intentionally, not deleted** (K8 / following P4 I2's "keep the capability
+// when you keep the code" + governance §9.10 "hardening only"):
+//   · It is the sole production-side anchor of the K7 placeholder mechanism — deleting it would
+//     leave `KnowledgeDeferred.vue` with zero production imports repo-wide, dropping it out of
+//     the Vite graph entirely, leaving the mechanism as just a file nobody references;
+//   · If a new page ever needs a placeholder again, just point that route's component back to
+//     it — one line;
+//   · `noUnusedLocals` is not enabled; both `vue-tsc --noEmit` and `vite build` exit 0 (verified).
+// knowledgeRoutes.test.ts still consumes it route-by-route via `not.toBe(KnowledgeDeferred)`, and
+// pins the current state with "KnowledgeDeferred appears 0 times across the 11 components" plus
+// an anti-empty-loop anchor.
 import KnowledgeDeferred from './views/KnowledgeDeferred.vue'
 import KnowledgeLayout from './views/KnowledgeLayout.vue'
 import DashboardView from './views/DashboardView.vue'
@@ -140,13 +160,13 @@ export const knowledgeRoutes: RouteRecordRaw[] = [
     children: [
       { path: '', name: 'KnowledgeDashboard', component: DashboardView },
       { path: 'search', name: 'KnowledgeSearch', component: SearchView },
-      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred —— 见文件头 P5f T8 记录。
+      // Before (P5e T8 original text, pre-flip): component: KnowledgeDeferred — see the P5f T8 record in the file header.
       { path: 'wiki', name: 'KnowledgeWiki', component: WikiView },
       { path: 'indexed-files', name: 'KnowledgeIndexedFiles', component: IndexedFilesView },
       { path: 'queue', name: 'KnowledgeQueue', component: QueueView },
-      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred。
+      // Before (P5e T8 original text, pre-flip): component: KnowledgeDeferred.
       { path: 'roots', name: 'KnowledgeRoots', component: RootsView },
-      // 改前(P5e T8 原文,反转前):component: KnowledgeDeferred。
+      // Before (P5e T8 original text, pre-flip): component: KnowledgeDeferred.
       { path: 'allowlist', name: 'KnowledgeAllowlist', component: AllowlistView },
       { path: 'notes', name: 'KnowledgeNotes', component: NotesView },
       { path: 'settings', name: 'KnowledgeSettings', component: SettingsView },

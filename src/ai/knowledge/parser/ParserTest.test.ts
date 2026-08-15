@@ -151,7 +151,7 @@ function sq(s: string): string {
 /**
  * "Line-preserving" comment stripping (governance §9 clause 8): replace comment content with equal spaces,
  * **preserve all newlines** — deletion-based stripping eats newlines too, causing line numbers in reports
- * to shift by tens of lines. Covers `<!-- -->` (template) and `/* */` (script); this file's `.vue` has no `//` line comments,
+ * to shift by tens of lines. Covers `<!-- -->` (template) and `/* *\/` (script); this file's `.vue` has no `//` line comments,
  * so `//` is not handled (would need to distinguish `//` inside strings, not worth it).
  */
 function blankComments(src: string): string {

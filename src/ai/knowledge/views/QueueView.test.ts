@@ -39,7 +39,8 @@ import { useKnowledgeStore } from '../stores/knowledgeStore'
 // → __dirname unavailable under ESM, use fileURLToPath + node:path equivalent instead.
 // Type declarations for node: prefixed modules provided by `@types/node`, already installed
 // in this repo (SP8-P6 merged from master), vue-tsc passes directly, **does not need**
-// @ts-expect-error suppression (original suppression lines on sp8-ai branch deleted at merge;
+// any `@ts-expect-error` suppression (the original suppression lines on the sp8-ai branch
+// were deleted at merge;
 // see knowledgeStyles.test.ts top comments ①②).
 import { readFileSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
@@ -740,7 +741,7 @@ describe('QueueView — K18: three retry entry points all call store.retryFailed
     expect(toast).toHaveBeenCalledWith('已重试全部失败任务')
   })
 
-  it('bulkRetry (batch retry button) — unlike spec's original "fileIds always empty array, never send request" false success, actually sends request', async () => {
+  it('bulkRetry (batch retry button) — unlike spec\'s original "fileIds always empty array, never send request" false success, actually sends request', async () => {
     const { w } = await mountQueue({ filter: 'failed' })
     const s = useKnowledgeStore()
     s.stats = { ...s.stats, queue_depth: { pending: 0, running: 0, failed: 2, done: 0 } }
