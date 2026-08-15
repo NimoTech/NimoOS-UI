@@ -148,102 +148,47 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-.mtm-anchor { position: relative; }
+/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:964-1025`
+   (`.map-theme-pop` family) now governs almost every rule this component used to duplicate,
+   for the same reason as PlacesFilterMenu.vue's identical cleanup this same task (see that
+   file's header comment for the full argument — same shadowing pattern, same D3 chrome
+   ruling, same hover-lock convention, not repeated verbatim here). Three things survive: */
 
-.map-chip {
-  background: transparent;
-  border: none;
-  font: inherit; font-size: 12px; font-weight: 500;
-  color: var(--fg-muted);
-  padding: 5px 12px;
-  border-radius: 99px;
-  cursor: pointer;
-}
-.map-chip:hover { color: var(--fg); }
+/* Non-color structural necessity, no parity counterpart (same category as
+   PlacesFilterMenu.vue's `.pfm-anchor`/`.pfm-chip-icon`). */
+.mtm-anchor { position: relative; }
 .mtm-chip-icon { vertical-align: -1px; }
 
-/* 弹层 chrome(底色/投影):同 T9 PlacesFilterMenu.vue 的 .map-filter-pop 既定裁定——用
-   本仓「不透明浮动菜单/面板」的既定组合 token(--popup-bg + --card-shadow-hi),不精确
-   复刻 Vue2 photos-places.scss:969/974 那个纯灰实底(--surface-2)+ 单层黑色投影。依据
-   同一条区级 spec D3 与同一批既有先例(ContextMenu.vue/Dialog.vue/AlertDialog.vue/
-   ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 两个下拉菜单),详细论证
-   见 PlacesFilterMenu.vue 里那段裁定注释,这里不重复展开,只重申结论并保持两处一致。 */
+/* D3 surface-treatment ruling (same as PlacesFilterMenu.vue's `.map-filter-pop` — see that
+   file's full citation, reused here rather than restated): popover chrome (background/
+   border/shadow) is New-UI's to reshape, using the established --popup-bg + --card-shadow-hi
+   pair instead of Vue2's flat --surface-2 + single box-shadow. */
 .map-theme-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 260px;
   background: var(--popup-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 12px;
-  z-index: 30;
   box-shadow: var(--card-shadow-hi);
 }
-.map-theme-pop h6 {
-  font-size: 10.5px;
-  color: var(--fg-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 8px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.map-theme-pop .mtp-title-custom { margin-top: 14px; }
 
-.map-theme-pop .mtp-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
-.map-theme-pop .mtp-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 8px 10px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  color: var(--fg);
-  font: inherit; font-size: 12px;
-  cursor: pointer;
-  text-align: left;
-}
-/* Vue2 没有给 .mtp-item 单独的 :hover(scss :986-996 只给 .is-active 特殊底色)——本仓
-   桌面交互惯例新增(同 PlacesFilterMenu.vue :330 的既有先例)。 */
+/* New-UI-only hover affordance (verified absent from Vue2/parity: parity's own `.mtp-item`
+   carries no `:hover` rule at all, only `.is-active`) + its cssCascade hover-lock variant,
+   value copied from parity's own `.mtp-item.is-active` so hovering the active preset never
+   flips its color. PlacesThemeMenu.test.ts's `winningHoverBackground` assertion pins this
+   pair to this file's own `<style>` text (same convention as PlacesFilterMenu.test.ts), so
+   it stays local rather than moving to parity. */
 .map-theme-pop .mtp-item:hover { background: var(--chip-bg); }
-.map-theme-pop .mtp-item.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-}
-/* 变体自带 :hover(优先级 (0,3,1),高于基类 hover 的 (0,2,1)):指针进入已选中项时不会被
-   基类 hover 背景整块夺走——同 PlacesFilterMenu.vue 的 hover 级联铁律处理手法。 */
 .map-theme-pop .mtp-item.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
 }
-.map-theme-pop .mtp-swatch {
-  width: 24px; height: 24px;
-  border-radius: 5px;
-  border: 1px solid var(--card-border);
-  flex-shrink: 0;
-  position: relative;
-}
-.map-theme-pop .mtp-dot {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 4px; height: 4px;
-  border-radius: 99px;
-}
-.map-theme-pop .mtp-body { flex: 1; display: flex; flex-direction: column; }
-.map-theme-pop .mtp-name { font-weight: 500; }
-.map-theme-pop .mtp-desc { font-size: 10.5px; color: var(--fg-subtle); margin-top: 1px; }
-.map-theme-pop .mtp-color-row {
-  display: flex; align-items: center; justify-content: space-between;
-  font-size: 11.5px; color: var(--fg-muted);
-  padding: 6px 0;
-}
-.map-theme-pop .mtp-color-row input[type="color"] {
-  width: 36px; height: 24px;
-  border: 1px solid var(--card-border);
-  border-radius: 6px;
-  background: transparent;
-  padding: 0;
-  cursor: pointer;
-}
+
+/* New-UI markup uses `<span class="mtp-body"><span class="mtp-name">…</span><span
+   class="mtp-desc">…</span></span>` (inline elements); Vue2's own template
+   (PhotosPlacesView.vue:1006-1011) uses `<div class="mtp-body"><div class="mtp-name">…
+   </div><div class="mtp-desc">…</div></div>` — block elements that stack vertically for
+   free. Parity's `.mtp-body { flex: 1; }` (photos-places.scss:1010) is a faithful port of
+   Vue2's own rule (verified: Vue2 has no `display`/`flex-direction` on this selector
+   either), so it does *not* stack New-UI's `<span>`s — this is a genuine, New-UI-only
+   layout necessity caused by the tag-type difference, not a value to delete in favor of
+   parity. */
+.map-theme-pop .mtp-body { display: flex; flex-direction: column; }
 </style>

@@ -235,203 +235,91 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* token 映射(既定,同 PlacesRail.vue:179-180 先例):--text-1/2/3 → --fg/--fg-muted/
-   --fg-subtle;--line → --card-border;--accent-hi → --accent-text(本仓无 --accent-hi,
-   MergeReviewDialog.vue:249-252/PersonHero.vue:488-491/PersonRelationsTab.vue:249-251/
-   PlacesRail.vue:329 既有先例)。
-
-   偏离登记(面板底色,本任务新决定,与 brief 给的通用 "--surface-2 → --chip-bg" 映射
-   不同,理由见任务报告):Vue2 `.map-filter-pop` 用 `--surface-2`(完全不透明的纯灰色,
-   见 photos.scss 定义)当**整块弹层自身**的底色——这与 PlacesRail.vue 里 `--surface-2 →
-   --chip-bg`
-   的既有映射服务的是不同场景:那里 `--chip-bg` 是叠在**已经不透明**的侧栏(`--panel-bg`)
-   之上的小元素填充(搜索框/hover 底),本身半透明也没问题;这里 `.map-filter-pop` 直接
-   悬浮在繁忙的地图画布上,如果用半透明的 `--chip-bg` 渐变,面板会透出地图、内容基本不可读。
-   本仓已有专门服务"不透明浮动菜单/面板"这个场景的组合 token ——
-   `--popup-bg`(不透明底)+ `--card-shadow-hi`(配套阴影),ContextMenu.vue/Dialog.vue/
-   AlertDialog.vue/ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 的两个下拉
-   菜单全部用这一对(结构与本组件完全同构:触发按钮下方的绝对定位下拉面板)。改用它们,
-   不新增 token。 */
+/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:199-231` (chip)
+   + `:854-963` (popover) now governs almost every rule this component used to duplicate —
+   the deleted rules were structurally identical to parity and only diverged by pointing at
+   global New-UI theme tokens (--fg-muted/--card-border/--chip-bg/--accent-text/--on-accent
+   etc.) instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-2/--line/
+   --surface-3/--accent-hi/literal "white") that parity itself consumes — same shadowing bug
+   as PhotosFilterChip.vue's 2026-08-13 fix round and PlacesRail.vue's own Task 3 cleanup.
+   The old per-rule "token 映射" comment this replaces was that earlier state's own
+   self-documentation, not a design requirement, so it goes with the rules it justified.
+   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission (评审 I1) has been
+   transcribed upstream into parity itself instead of staying a local override — see that
+   rule in photos-places.scss for the updated citation.
+   What survives below, and why:
+   1. `.pfm-anchor`/`.pfm-chip-icon`/`.pfm-badge` — non-color structural necessities with no
+      parity counterpart (Vue2 renders the badge text via an inline `style=` attribute on a
+      bare `<span>`, not a class — same value, different mechanism, same pattern as parity's
+      own `.places-cover-portal .cp-search-ic` New-UI-additions citation).
+   2. `.map-filter-pop`'s background/border/box-shadow (D3 surface-treatment ruling, reviewed
+      and upheld — the popover's own chrome, not its content, is New-UI's to reshape; see the
+      full argument preserved below, still accurate).
+   3. Three `:hover`/`.is-active:hover`/`.is-on:hover` pairs Vue2 never had at all (verified:
+      parity's own `.mfp-count-row button` / `.mfp-region-row button` / `.mfp-checkbox` carry
+      no `:hover` rule whatsoever) — desktop hover affordance this repo's convention requires,
+      plus the cssCascade hover-lock variant so the affordance can't steal the `.is-active`/
+      `.is-on` state's own background. PlacesFilterMenu.test.ts's three
+      `winningHoverBackground`/substring assertions pin these to this file's own `<style>`
+      text, so they stay local rather than moving to parity. */
 .pfm-anchor { position: relative; }
 
-.map-chip {
-  background: transparent;
-  border: none;
-  font: inherit; font-size: 12px; font-weight: 500;
-  color: var(--fg-muted);
-  padding: 5px 12px;
-  border-radius: 99px;
-  cursor: pointer;
-}
-.map-chip:hover { color: var(--fg); }
-.map-chip.is-active {
-  /* Vue2 用 rgba 函数包 accent 通道、0.18 透明度 —— 本仓 --accent 随主题变化、没有
-     对应的 RGB 通道 token;改用 color-mix 直接对 var(--accent) 取同一个精确 alpha,
-     不近似、不新增 token。评审纠正:先例不是 --album-cover-fallback(那个是混两个
-     不透明色做渐变端点,技法不同);同技法(color-mix 对 transparent 取 alpha)的
-     既有先例见 PhotosSidebar.vue:99(.side-item.active)、theme.css 的
-     file-flash-kf 关键帧、PersonRelationsTab.vue:263-266、PhotoInfoPanel.vue:189/201。 */
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent-text);
-}
+/* Vue2 has no equivalent classes for either of these — the chip icon's baseline nudge and
+   the badge's spacing/opacity are inline-style concerns in Vue2 (see `.pfm-badge` below),
+   expressed here as classes instead because New-UI's markup uses raw `<svg>`/`<span>`. */
 .pfm-chip-icon { vertical-align: -1px; }
+/* Same value as Vue2's own inline `style="margin-left:4px;font-variant-numeric:tabular-nums;
+   opacity:0.7"` on the badge `<span>` (PhotosPlacesView.vue:915-917) — different mechanism
+   (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 
+/* D3 surface-treatment ruling (reviewed and upheld — kept verbatim, still accurate):
+   this deliberately uses this repo's established floating-menu/panel chrome convention
+   (--popup-bg / --card-shadow-hi) rather than porting Vue2's flat opaque grey
+   (`--surface-2`) + single box-shadow. Basis: area-level spec D3 — "reshape per New-UI's
+   design language (AreaShell/tokens/component system, same precedent as SP4/SP5); port
+   Vue2's layout structure and information hierarchy, not its 4498-line photos.scss
+   verbatim." A popover's own background/shadow is "component system / surface treatment",
+   New-UI's side of that split; this component already ported Vue2's layout structure and
+   information hierarchy (all six sections, none skipped), so it does not also copy Vue2's
+   concrete color implementation for the shell itself. This differs from the *content*
+   tokens ported precisely elsewhere in the Places family (pin colors, selected city row,
+   zoom-track base) — those have no established convention in this repo, so they either
+   copy Vue2's alpha exactly or get a new token; popover chrome already has an established
+   convention here (ContextMenu.vue/Dialog.vue/AlertDialog.vue/ClusterActionDialog.vue/
+   AlbumPickerDialog.vue/PersonHero.vue's two dropdowns all use this --popup-bg +
+   --card-shadow-hi pair), and reusing it is exactly what D3 asks for, not laziness. Visible
+   difference: --card-shadow-hi carries an inset top-edge highlight in dark theme
+   (theme.css:175+) that Vue2's flat popover never had; if that's ever rejected on real-device
+   review, the fix is two new tokens (--filter-pop-bg/--filter-pop-shadow) precisely
+   replicating Vue2's flat grey + single 0.6-alpha shadow (photos-places.scss:864), not
+   reverting this rule. */
 .map-filter-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 280px;
-  /* 评审 Important 复核结论(驳回改法,维持现状——原文摘录):
-     ①这里刻意用本仓既定的弹层 chrome 约定(--popup-bg / --card-shadow-hi),不复刻
-     Vue2 的纯灰实底(见 photos.scss --surface-2 定义)+ 单层 box-shadow。
-     ②依据是区级 spec D3 ——"照 New-UI 设计语言重塑(AreaShell/token/组件体系,同
-     SP4/SP5 前例);布局结构与信息层级照 Vue2,不搬 4498 行 photos.scss"。弹层的底色与
-     投影属于"组件体系 / surface treatment",归 New-UI 一侧;本组件已把布局结构与信息
-     层级(六段一个不漏)照 Vue2 做了,这里不再额外照抄 Vue2 的具体颜色实现。
-     ③与 T5/T6/T8 那几处新增精确 token 的区别:那些是**内容色**(图钉色/选中城市行/
-     滑杆轨道底),本仓对它们没有既定约定,所以要么精确复刻 Vue2 的 alpha、要么新增
-     token;而**弹层 chrome 在本仓已有既定约定**——ContextMenu.vue/Dialog.vue/
-     AlertDialog.vue/ClusterActionDialog.vue/AlbumPickerDialog.vue/PersonHero.vue 的
-     两个下拉菜单全部用 --popup-bg + --card-shadow-hi 这一对,复用它正是 D3 要求的
-     一致性,不是"就近偷懒"。
-     ④真机验收看点:--card-shadow-hi 深色主题下含一层 inset 白色上缘高光(见
-     theme.css:175 起的定义),Vue2 那个纯扁平菜单没有这层高光。若用户验收不认可这个
-     视觉差异,改法是新增 --filter-pop-bg / --filter-pop-shadow 两个 token,精确复刻
-     Vue2 那个纯灰实底与单层黑色投影(0.6 透明度,见 photos-places.scss:864 定义,两套
-     主题各给值)。 */
   background: var(--popup-bg);
   border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 12px;
-  z-index: 30;
   box-shadow: var(--card-shadow-hi);
 }
-.map-filter-pop h6 {
-  font-size: 10.5px;
-  color: var(--fg-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 8px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.map-filter-pop .mfp-section + .mfp-section { margin-top: 14px; }
-.map-filter-pop .mfp-date-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.map-filter-pop .mfp-date-sep { color: var(--fg-subtle); font-size: 11px; }
-.map-filter-pop .mfp-date-row input {
-  flex: 1; height: 32px; padding: 0 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 6px;
-  color: var(--fg);
-  font: inherit; font-size: 11.5px;
-  /* 评审 I1:Vue2 photos-places.scss:882 写死深色 color-scheme,逼原生日期控件(日历图标、
-     未填占位文字)按深色配色渲染。本仓根节点已按主题分设 color-scheme(theme.css 的
-     :root 与 light 覆盖块),刻意不照抄这一行——照抄会在浅色主题下让白色图标/占位文字
-     铺在这里的浅底(--chip-bg)上洗白到不可读,让根节点的值级联下来才是两套主题都可读的
-     正确行为。 */
-  outline: none;
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-.map-filter-pop .mfp-date-sub {
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--fg-subtle);
-  margin-bottom: 14px;
-  padding: 0 2px;
-}
-.map-filter-pop .mfp-count-row { display: flex; gap: 4px; }
-.map-filter-pop .mfp-count-row button {
-  flex: 1; height: 28px; border-radius: 6px;
-  background: var(--chip-bg); border: 0;
-  color: var(--fg-muted);
-  font: inherit; font-size: 11.5px; font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-/* Vue2 没有给这些按钮 :hover(本仓桌面交互惯例新增,brief"hover 级联铁律"要求的对象)。 */
+
+/* New-UI-only hover affordances (verified absent from Vue2/parity — see header comment).
+   `.is-active:hover` variants exist solely to out-rank the base `:hover` rule's background
+   (equal specificity would otherwise let source order decide, which this repo's convention
+   treats as unreliable — see PlacesRail.vue's own citation of the same lesson); their values
+   are copied from parity's own `.is-active` rules so hovering an active control never
+   flips its color. */
 .map-filter-pop .mfp-count-row button:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.map-filter-pop .mfp-count-row button.is-active {
-  background: var(--accent); color: var(--on-accent);
-}
-/* 变体自带 :hover,优先级 (0,3,1) 高于基类 hover 的 (0,2,1),指针进入时不会被基类夺走底色。 */
-.map-filter-pop .mfp-count-row button.is-active:hover {
-  background: var(--accent); color: var(--on-accent);
-}
-.map-filter-pop .mfp-region-row { display: flex; flex-wrap: wrap; gap: 4px; }
-.map-filter-pop .mfp-region-row button {
-  height: 26px; padding: 0 10px; border-radius: 99px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit; font-size: 11px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
+/* theme-exception: literal text color below matches parity's own `.mfp-count-row
+   button.is-active` (photos-places.scss), which is the same literal in both of Vue2's
+   themes (theme-invariant) — kept in lockstep with that value, not a hardcoded escape. */
+.map-filter-pop .mfp-count-row button.is-active:hover { background: var(--accent); color: white; }
 .map-filter-pop .mfp-region-row button:hover { background: var(--chip-bg); color: var(--fg); }
-.map-filter-pop .mfp-region-row button.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
 .map-filter-pop .mfp-region-row button.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: var(--accent-text);
-}
-.map-filter-pop .mfp-checkbox {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 12px; color: var(--fg);
-  background: var(--chip-bg);
-  border-radius: 8px;
-  margin-top: 4px;
+  color: var(--accent-hi);
 }
 .map-filter-pop .mfp-checkbox:hover { background: var(--chip-bg-hi); }
-.map-filter-pop .mfp-checkbox .mfp-tick {
-  width: 14px; height: 14px;
-  border-radius: 4px;
-  border: 1.5px solid var(--fg-subtle);
-  background: transparent;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.map-filter-pop .mfp-checkbox.is-on .mfp-tick {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-/* 变体自带 :hover(挂在 .is-on 上,而不是让基类 .mfp-checkbox:hover 通过后代选择器影响
-   .mfp-tick——两者选择器结构不同不会互相覆盖,但显式写一条同值规则钉死,不依赖"基类
-   hover 恰好没有声明同名属性"这个偶然事实)。 */
 .map-filter-pop .mfp-checkbox.is-on:hover .mfp-tick {
   border-color: var(--accent);
   background: var(--accent);
 }
-.map-filter-pop .mfp-foot {
-  display: flex; gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--card-border);
-}
-.map-filter-pop .mfp-foot .mfp-reset {
-  flex: 1; height: 30px; border-radius: 7px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit; font-size: 11.5px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.map-filter-pop .mfp-foot .mfp-reset:hover { background: var(--chip-bg); color: var(--fg); }
-.map-filter-pop .mfp-foot .mfp-done {
-  flex: 1; height: 30px; border-radius: 7px;
-  background: var(--accent); border: 0;
-  color: var(--on-accent);
-  font: inherit; font-size: 11.5px; font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.map-filter-pop .mfp-foot .mfp-done:hover { background: var(--accent); }
 </style>

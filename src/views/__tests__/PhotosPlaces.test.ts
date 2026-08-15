@@ -8,6 +8,7 @@
 // buildPins/clusterByOverlap 几何排布去反查某个具体图钉的 DOM 位置——那层几何已经在
 // PlacesMap.test.ts/placesMap.test.ts 各自的单测里覆盖过,这里只验证"容器收到 emit 之后
 // 接线是否正确",避免把聚类算法的实现细节耦合进这份集成测试里造成脆弱。
+import { readFileSync } from 'node:fs'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
@@ -50,7 +51,6 @@ import PlacesFilterMenu from '../../photos/components/PlacesFilterMenu.vue'
 import PlacesThemeMenu from '../../photos/components/PlacesThemeMenu.vue'
 import PlaceDetailPanel from '../../photos/components/PlaceDetailPanel.vue'
 import PlaceCoverPicker from '../../photos/components/PlaceCoverPicker.vue'
-import placesZoomBarRaw from '../../photos/components/PlacesZoomBar.vue?raw'
 import { usePhotosPlaces } from '../../photos/stores/places'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import { useToast } from '../../stores/toast'
@@ -547,8 +547,14 @@ describe('.map-toolbar 的 pointer-events 守卫(程序化断言,防重塑时丢
 // 同级的 zoombar,DOM 顺序又让 zoombar 排在 toolbar 之后,于是缩放条画在 Filters/主题
 // 弹层上面(见 .map-toolbar 上方登记)。这里钉的是"工具栏在这些浮层之上"这条不变量本身
 // (toolbar z-index 严格大于 legend/stats/tip 与 zoombar 里的最大值),不是写死数值 7——
-// 任何等效的层级调整都放行,把 toolbar 降回 4 就会红。.map-zoombar 的样式在
-// PlacesZoomBar.vue 里,不在本容器的样式块里,所以两个源文件都要读。
+// 任何等效的层级调整都放行,把 toolbar 降回 4 就会红。
+//
+// Plan E Task 3 update(shadowing cleanup): `.map-zoombar`'s z-index used to live in
+// PlacesZoomBar.vue's own `<style scoped>` block; that whole block has since been deleted
+// (parity governs 100% of `.map-zoombar` now, and this component no longer carries a
+// `<style>` tag at all — `extractStyleBlock` would throw "未找到样式块" on it). Read the
+// same rule from the shared parity stylesheet instead, which is now the *only* place this
+// value lives — same source of truth the app itself renders from.
 describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被缩放条穿透)', () => {
   function zIndexOf(rules: ReturnType<typeof parseCssRules>, selector: string): number {
     const rule = rules.find((r) => r.selectors.length === 1 && r.selectors[0] === selector)
@@ -558,11 +564,17 @@ describe('.map-toolbar 层叠顺序守卫(真机验收反馈 2:弹层不应被�
     return Number(m[1])
   }
 
-  it('.map-toolbar 的 z-index 严格大于容器内其它浮层(.map-legend/.map-stats/.map-tip)与另一文件的 .map-zoombar', () => {
+  it('.map-toolbar 的 z-index 严格大于容器内其它浮层(.map-legend/.map-stats/.map-tip)与 parity 的 .map-zoombar', () => {
     const containerRules = parseCssRules(extractStyleBlock(photosPlacesRaw))
     const toolbarZ = zIndexOf(containerRules, '.map-toolbar')
     const othersInContainer = ['.map-legend', '.map-stats', '.map-tip'].map((s) => zIndexOf(containerRules, s))
-    const zoombarRules = parseCssRules(extractStyleBlock(placesZoomBarRaw))
+    // Strip comments first (same as extractStyleBlock does for <style> blocks) — parseCssRules'
+    // simple regex has no notion of nesting, so an un-stripped leading `/* comment */` right
+    // above `.map-zoombar {` gets folded into the captured selector text and breaks the exact
+    // `r.selectors[0] === '.map-zoombar'` match below.
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos-places.scss', 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+    const zoombarRules = parseCssRules(parityScss)
     const zoombarZ = zIndexOf(zoombarRules, '.map-zoombar')
     const maxOther = Math.max(...othersInContainer, zoombarZ)
     expect(toolbarZ).toBeGreaterThan(maxOther)
