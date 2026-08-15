@@ -15,7 +15,7 @@
 // duplicate of `src/photos/styles/vue2-parity/photos-places.scss:234-284` (`.map-zoombar`
 // family) — the old rationale below (kept for history) mapped Vue2's local
 // `rgba(var(--ink), α)` idiom onto three new global theme.css tokens (`--zb-hover-bg`/
-// `--zb-track-bg`/`--zb-thumb-shadow`) because "本仓没有 --ink 这个 RGB 三元组 token" — but
+// `--zb-track-bg`/`--zb-thumb-shadow`) because "this repo has no --ink RGB-triple token" — but
 // that's only true of the *global* token set. `.photos-root` (photos.scss:53/88) already
 // defines a local `--ink` for exactly this purpose, and parity's own `.zb-btn:hover`/
 // `.zb-track`/`.zb-thumb` rules already consume it directly. Since this component always
@@ -30,12 +30,14 @@
 //
 // Historical rationale (superseded, kept only so the "why was this token created" question
 // doesn't need re-litigating from theme.css alone):
-//  1. Vue2 `.zb-btn:hover`/`.zb-track` 底色是 `rgba(var(--ink), 0.08/0.12)`——alpha 精确复刻
-//     Vue2 的 0.08/0.12;RGB 改取本仓 `--fg` 的真实分解值。
-//  2. `.zb-thumb` 的 `background: #fff` 与 box-shadow 第二层 `rgba(0,0,0,0.4)`——Vue2 两套
-//     主题里这两个值从未变化(theme-invariant)。
-//  3. `.map-zoombar` 的 `background: var(--float-bg)`——`--float-bg` 其实早已在 photos.scss
-//     的 `.photos-root` 本地 token 表里定义,不是"本仓之前没有"。
+//  1. Vue2's `.zb-btn:hover`/`.zb-track` background is `rgba(var(--ink), 0.08/0.12)` — alpha
+//     copied exactly from Vue2's 0.08/0.12; RGB instead took this repo's `--fg`'s real
+//     decomposed value.
+//  2. `.zb-thumb`'s `background: #fff` and the second box-shadow layer `rgba(0,0,0,0.4)` — these
+//     two values never changed across Vue2's two themes (theme-invariant).
+//  3. `.map-zoombar`'s `background: var(--float-bg)` — `--float-bg` had actually already been
+//     defined in photos.scss's `.photos-root` local token table; it was never "missing from this
+//     repo".
 //
 // Task 5 (Plan E #106 perf architecture port, 2026-08-15): `dotColor` used to feed the root
 // element's `--accent` via `:style="{ '--accent': dotColor }"` — a template binding, which ties

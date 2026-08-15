@@ -33,31 +33,41 @@
 //     (`trips === 1 ? $t('trip') : $t('trips')`)。这里把第三统计格也改成用
 //     tripUnitKey 条件化(是相对 Vue2 的改进,不是照搬),此前漏登记这条偏离。
 //
-// 【Plan E Task 4 shadowing-cleanup 订正,2026-08-15】上面这条 token 映射表已废——它记录的
-// 是"把 Vue2 本地 token 换成本仓全局 token"这条思路本身就是本批次要清掉的遮蔽 bug 根因
-// (同 PlacesZoomBar.vue 等 T3 组件的教训)。parity `photos-places.scss` 现在已经用它*自己*
-// 的本地 token(--text-1/2/3、--surface-1/2/3、--line/--line-strong、--r-sm、--font-display、
-// --accent-rgb、--accent-hi 等,定义在 photos.scss 的 `.photos-root {...}` 局部作用域里)
-// 精确复刻 Vue2 像素真值,组件不再需要(也不应该)把这些值再翻译成全局 --fg/--chip-bg/
-// --card-border/--radius-sm/--font/--card-shadow-hi/--on-accent 一遍——那正是"用全局皮肤
-// 遮蔽 Photos 本地精确值"的 bug。本文件 scoped 块已缩到只剩:parity 完全没有覆盖的选择器
-// (.hero-cover-btn 及其 hover、.ttl-badge 三兄弟、.detail-body-skeleton、窄屏媒体查询)、
-// 测试钉死必须留在本文件原文里的属性(.map-detail 的 z-index/background/transition、
-// .close/.ttl-region/.ttl-name 的钉死浅色字面量、.btn.btn-primary:hover 的复合选择器、
-// 三处 hover-lock:.spot-row:hover/.detail-grid .ph.more:hover 及其 winningHoverBackground
-// 断言)、以及一条 D3 裁定的表面处理(.spot-row .thumb 的 background)。逐条处置理由就近写
-// 在各条规则自己的注释里,不再集中列一张已经失真的映射表。
+// [Plan E Task 4 shadowing-cleanup correction, 2026-08-15] The token-mapping table above this
+// note is retired — it recorded the very idea ("translate Vue2's local tokens into this repo's
+// global tokens") that turned out to be the root cause of this batch's shadowing bug (same
+// lesson as PlacesZoomBar.vue and the other T3 components). Parity's `photos-places.scss` now
+// reproduces Vue2's exact pixel values using its *own* local tokens (--text-1/2/3,
+// --surface-1/2/3, --line/--line-strong, --r-sm, --font-display, --accent-rgb, --accent-hi,
+// etc., all defined in photos.scss's `.photos-root {...}` local scope) — this component no
+// longer needs (and must not) re-translate those values into the global --fg/--chip-bg/
+// --card-border/--radius-sm/--font/--card-shadow-hi/--on-accent family; doing so was exactly
+// the "global skin shadowing Photos' local precise values" bug. This file's scoped block has
+// shrunk down to only: selectors parity doesn't cover at all (.hero-cover-btn and its hover,
+// the .ttl-badge trio, .detail-body-skeleton, the narrow-screen media query), properties tests
+// pin down as required to live in this file's own raw text (.map-detail's z-index/background/
+// transition, the hardcoded light-color literals on .close/.ttl-region/.ttl-name, the
+// .btn.btn-primary:hover compound selector, the three hover-locks — .spot-row:hover /
+// .detail-grid .ph.more:hover and their winningHoverBackground assertions), and one D3-ruled
+// surface treatment (.spot-row .thumb's background). The reasoning for each individual rule now
+// lives next to that rule's own comment, instead of one aggregate (and by now stale) mapping
+// table.
 //
-// hero 前景色红线(本任务最高危,brief 原文强调,结论不变,只是落地方式变了——见上一段):
-// hero 上叠在暗化封面照片之上的一切前景(.close/设置封面按钮的图标色、.ttl-region/.ttl-name/
-// .ttl-badge-trip/.ttl-badge-home 的文字色、::after 暗化渐变本身)全部**钉死浅色 +
-// theme-exception**(`.ttl-sub`/`.detail-hero::after` 两条值与 parity 完全相同,已删本地
-// 副本改由 parity 单独承担,颜色红线的结论对它们依然成立,只是不再需要本文件重复声明),
-// **禁用 --on-accent**(它按 New-UI *全局* accent 校准,随 app 深浅主题变化;Photos 视图
-// 自己的 --accent 是固定紫色,不随 app 主题变——两者语境不匹配,--on-accent 在本文件已全部
-// 删除,包括曾经出现在 .btn-primary 上的那处,见该规则处注释详述)。「本次旅行」绿用已建的
-// --place-current-trip;「常驻地」紫是本任务新增 --place-home-base(取值依据见 theme.css
-// 里的 token 注释与任务报告)。
+// Hero-foreground color redline (the highest-risk item in this task's brief, conclusion
+// unchanged, only how it's implemented has changed — see previous paragraph): every foreground
+// element sitting over the hero's darkened cover photo (.close / the set-cover button's icon
+// color, .ttl-region/.ttl-name/.ttl-badge-trip/.ttl-badge-home text colors, the ::after darkening
+// gradient itself) is **hardcoded light + theme-exception** (`.ttl-sub` / `.detail-hero::after`
+// carry the same values as parity byte-for-byte and have had their local copies deleted, letting
+// parity own them alone — the color redline conclusion still holds for them, this file just no
+// longer needs to redeclare it), and **`--on-accent` is banned** (it's calibrated against
+// New-UI's *global* accent, which changes with the app's light/dark theme; Photos' own --accent
+// is a fixed purple that never follows the app theme — the two contexts don't match, so
+// --on-accent has been removed everywhere in this file, including the one that used to sit on
+// .btn-primary — see that rule's own comment for the full account). The "current trip" green
+// uses the already-established --place-current-trip; the "home base" purple is this task's new
+// --place-home-base (see theme.css's own token comment and the task report for how its value was
+// derived).
 //
 // 铁律:按 id 比较一律 String(a) === String(b)（本组件不做 id 比较，place.id 未被读取，
 // 仅供容器/未来任务使用，此处无需归一）。
@@ -340,7 +350,7 @@ function onSpotOpenPhoto(assetId: string): void {
    former `font-family: var(--font)` were both the shadowing bug (global tokens standing in for
    Photos-local `--line`/`--font-display|`); deleted along with everything else redundant. */
 .close {
-  color: #fff; /* theme-exception: hero chrome 按钮,恒定浅色前景,压在暗化封面照片之上(见文件头配色红线说明) */
+  color: #fff; /* theme-exception: hero chrome button, constant light foreground over the darkened cover photo (see the file-header color redline note) */
 }
 
 .hero-cover-btn {
@@ -357,22 +367,22 @@ function onSpotOpenPhoto(assetId: string): void {
   z-index: 10;
   width: 30px; height: 30px;
   display: inline-flex; align-items: center; justify-content: center;
-  /* theme-exception: 同 .close——hero chrome 按钮固定深色底 */
+  /* theme-exception: same as .close — hero chrome button, fixed dark background */
   background: rgba(0, 0, 0, 0.6);
   /* 评审 I1:精确复刻 Vue2 内联样式 backdropFilter:'blur(8px)'(PhotosPlacesView.vue:1068)——
      此前漏迁,补回毛玻璃;非颜色属性,不涉及 color-guard。 */
   backdrop-filter: blur(8px);
   border: none;
   border-radius: 50%;
-  color: #fff; /* theme-exception: 同 .close——hero chrome 按钮,恒定浅色前景 */
+  color: #fff; /* theme-exception: same as .close — hero chrome button, constant light foreground */
   cursor: pointer;
 }
 /* Vue2's inline style has no `:hover` mechanism at all (can't express pseudo-classes via a
    `:style` binding) — this is a genuine New-UI addition, not a parity port. */
-.hero-cover-btn:hover { background: rgba(0, 0, 0, 0.85); } /* theme-exception: 同 .close:hover——hero chrome 按钮固定深色底,恒叠在暗化封面照片之上,与主题无关 */
+.hero-cover-btn:hover { background: rgba(0, 0, 0, 0.85); } /* theme-exception: same as .close:hover — hero chrome button, fixed dark background, always over the darkened cover photo, theme-independent */
 
 .ttl-region {
-  color: rgba(255, 255, 255, 0.7); /* theme-exception: hero 前景文字,恒叠在暗化封面照片之上,需跨主题恒定浅色(见文件头配色红线说明) */
+  color: rgba(255, 255, 255, 0.7); /* theme-exception: hero foreground text, always over the darkened cover photo, must stay light across both themes (see the file-header color redline note) */
 }
 /* .ttl-badge-trip/.ttl-badge-home: Vue2 expresses these via inline color-styled spans
    (PhotosPlacesView.vue:1155-1156, green for current-trip / light purple for home-base),
@@ -383,7 +393,7 @@ function onSpotOpenPhoto(assetId: string): void {
 .ttl-badge-trip { color: var(--place-current-trip); }
 .ttl-badge-home { color: var(--place-home-base); }
 .ttl-name {
-  color: #fff; /* theme-exception: hero 标题文字,恒叠在暗化封面照片之上,需跨主题恒定浅色 */
+  color: #fff; /* theme-exception: hero title text, always over the darkened cover photo, must stay light across both themes */
 }
 
 /* New-UI addition, no Vue2/parity counterpart at all (Vue2 has no loading-skeleton concept
@@ -422,8 +432,10 @@ function onSpotOpenPhoto(assetId: string): void {
    optional, to actually cancel it (font-size/color/font-weight/text-transform/letter-spacing
    are deleted too, redundant with parity's identical values). */
 .detail-section h4 .more { cursor: auto; }
-/* 「最近的照片」段的「查看全部 N 张」是真可点的(不同于 spots 段那个纯静态装饰 .more)——
-   叠加修饰类补手型,优先级高于上面那条 cursor: auto。无 parity 对应(New-UI 净新增)。 */
+/* The "Recent Photos" section's "View all N" is actually clickable (unlike the spots section's
+   purely decorative, non-interactive .more) — this modifier class restores the pointer cursor,
+   at higher priority than the cursor: auto rule above. No parity counterpart (net-new in
+   New-UI). */
 .detail-section h4 .more.is-clickable { cursor: pointer; }
 
 /* .detail-grid / .ph survive only for the test-pinned hover-lock rule (winningHoverBackground

@@ -13,12 +13,14 @@
 // 取色器本身没有伴随关闭动作。是否真的调用 store.setMapTheme/setCustomColors 落盘,
 // 由 T11 容器接住这两个 emit 后决定(brief 消歧义 1:读可直连 store、写走 emit)。
 //
-// isLight 的来源:调用方(T11 容器)算好布尔值传进来——本组件不直接依赖任何 store/
-// composable,保持纯 props/emit 的展示组件。Task 6(Plan E,2026-08-15)把调用方那一侧的
-// 信号来源从全局 `useThemeStore()` 改回了 photos 私有的 `usePhotosTheme()`(D5 revert,
-// 撤回 T11 当时"改读全局"的决定,详见 PhotosPlaces.vue 的 isLight computed 与
-// placesMapThemes.ts 头注释「D5」段)——这次改动只发生在调用方内部,本组件的 prop 契约
-// (`isLight: boolean`)完全不变,不需要跟着改。
+// Where `isLight` comes from: the caller (the T11 container) computes the boolean and passes it
+// in — this component doesn't depend on any store/composable directly, staying a pure props/emit
+// presentational component. Task 6 (Plan E, 2026-08-15) changed the caller-side signal source
+// from the global `useThemeStore()` back to Photos' own private `usePhotosTheme()` (a D5 revert —
+// undoing T11's earlier decision to "read from global" — see PhotosPlaces.vue's `isLight`
+// computed and placesMapThemes.ts's own header comment's "D5" section for the full account); that
+// change only happens inside the caller, this component's own prop contract (`isLight: boolean`)
+// is completely unchanged and doesn't need to follow.
 //
 // 浮层规范(同 T9 PlacesFilterMenu.vue 的既定模式):open 为 prop,document 级
 // mousedown(容器外点击关闭)+ keydown(Esc 关闭),watch(open) 挂/摘监听,不用
@@ -66,16 +68,23 @@ const { t } = useI18n()
 const rootRef = ref<HTMLElement | null>(null)
 const dotInputRef = ref<HTMLInputElement | null>(null)
 const gridInputRef = ref<HTMLInputElement | null>(null)
+// `gridInputRef`/`onGridInput` below are historic names, kept for continuity with Vue2's own
+// `customGridColor` field — Task 6 (Plan E, 2026-08-15) renamed the underlying data field to
+// `customCityColor` (this picker feeds the lit-city dot colour, never a grid line; see
+// `MapThemeSelection.customCityColor`'s own comment above), but the local ref/handler names here
+// were left as-is and have since semantically drifted from what they actually do.
 
-// Vue2 syncColorInputs()(:436-441)的 Vue3 等价物:无绑定的取色器只能靠命令式赋值获得初值。
+// Vue3 equivalent of Vue2's syncColorInputs() (:436-441): an unbound color picker can only get
+// its initial value via an imperative assignment.
 function syncColorInputs(): void {
   if (dotInputRef.value) dotInputRef.value.value = props.selection.customDotColor
   if (gridInputRef.value) gridInputRef.value.value = props.selection.customCityColor
 }
-// Vue2 :351-354 的 themeOpen watcher,逐字移植语义:只在 open 从 false 变 true 时喂一次初值
-// ——不带 immediate(弹层默认关闭,真实使用路径下 open 恒以 false 起步,不需要挂载即同步;
-// 需要挂载即为 open=true 的场景只出现在测试直接以 open:true 挂载,那类场景不代表真实交互,
-// 不必特殊处理)。
+// Vue2's themeOpen watcher (:351-354), semantics ported verbatim: seeds the initial value only
+// the moment `open` flips from false to true — not `immediate` (the popover starts closed by
+// default; the real usage path always starts with open === false, so there's nothing to sync on
+// mount; the only scenario needing sync-on-mount-with-open===true is a test mounting directly
+// with open: true, which isn't representative of real interaction and needs no special handling).
 watch(
   () => props.open,
   (isOpen) => {
@@ -99,7 +108,7 @@ function onDotInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customDotColor: value })
 }
-// Vue2 :944,同上,换成 customCityColor。
+// Vue2 :944, same as above, swapped in customCityColor.
 function onGridInput(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   emit('update:selection', { ...props.selection, mapTheme: 'custom', customCityColor: value })

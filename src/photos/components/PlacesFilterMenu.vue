@@ -242,9 +242,9 @@ onUnmounted(() => {
    etc.) instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-2/--line/
    --surface-3/--accent-hi/literal "white") that parity itself consumes — same shadowing bug
    as PhotosFilterChip.vue's 2026-08-13 fix round and PlacesRail.vue's own Task 3 cleanup.
-   The old per-rule "token 映射" comment this replaces was that earlier state's own
+   The old per-rule "token mapping" comment this replaces was that earlier state's own
    self-documentation, not a design requirement, so it goes with the rules it justified.
-   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission (评审 I1) has been
+   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission (review I1) has been
    transcribed upstream into parity itself instead of staying a local override — see that
    rule in photos-places.scss for the updated citation.
    What survives below, and why:
@@ -269,7 +269,7 @@ onUnmounted(() => {
    expressed here as classes instead because New-UI's markup uses raw `<svg>`/`<span>`. */
 .pfm-chip-icon { vertical-align: -1px; }
 /* Same value as Vue2's own inline `style="margin-left:4px;font-variant-numeric:tabular-nums;
-   opacity:0.7"` on the badge `<span>` (PhotosPlacesView.vue:915-917) — different mechanism
+   opacity:0.7"` on the badge `<span>` (PhotosPlacesView.vue:921) — different mechanism
    (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 

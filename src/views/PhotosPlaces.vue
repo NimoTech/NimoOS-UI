@@ -636,7 +636,7 @@ async function retryLoad(): Promise<void> {
    pair for opaque dropdown/floating panels). `--font-display` → `--font` is the same substitution
    PlacesRail.vue's own `.map-rail-head h2` already made (uncited there, but consistently applied —
    cited explicitly here). Parity's `--r-sm`/`--r-md` corner-radius tokens have no New-UI
-   equivalent at all (already flagged by the pre-existing "评审 M4" comment kept below) — those
+   equivalent at all (already flagged by the pre-existing "review M4" comment kept below) — those
    spots keep their approximated literal px values, unchanged from before this fix round. */
 
 /* 评审 M4:Vue2 scss:29-36 的 .map-shell 只有 flex/grid/background 三条,没有边框/圆角/

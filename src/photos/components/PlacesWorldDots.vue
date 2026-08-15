@@ -64,9 +64,11 @@ defineProps<{
   fill: var(--map-dot-bg, var(--map-dot-bg-fallback));
   transition: fill 0.2s;
 }
-/* --map-dot 的回落 var(--accent) 实际不可达:Vue2 :974 无条件注入 --map-dot(不像
-   --map-dot-bg 那样看 dotBg 是否为真才注入),所以这条回落路径在 Vue2 里从未走过——
-   登记但不改值(评审判定低影响,只需登记)。同一条登记原样带过来,不因搬家改判定。 */
+/* The `var(--accent)` fallback on --map-dot is actually unreachable: Vue2 :974 injects --map-dot
+   unconditionally (unlike --map-dot-bg, which is only injected when dotBg is truthy), so this
+   fallback path never actually gets exercised in Vue2 — logged, value left unchanged (review
+   judged this low-impact, logging is sufficient). Same log item carried over verbatim; moving
+   the rule to this file doesn't change that judgment. */
 .world-dot.is-visited {
   fill: var(--map-dot, var(--accent));
   transition: fill 0.2s;

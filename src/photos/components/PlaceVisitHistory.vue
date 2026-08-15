@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // P6b-T6: PlaceVisitHistory.vue —— 地点详情面板的"到访记录"时间线段。逐段照 Vue2
 // NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1204-1245(模板)移植;样式照
-// photos-places.scss:599-618(时间线本体)+ :835-851(`.visit-save-btn`,在文件另一处,
+// photos-places.scss:599-618(时间线本体)+ :837-853(`.visit-save-btn`,在文件另一处,
 // 已回源核对行号——brief 给的 scss 行号只覆盖到 :618,`.visit-save-btn` 需要单独定位)。
 //
 // 分工:纯展示 + emit,不碰 store、不发请求——PlaceDetailPanel 原样透传 save-trip /
@@ -118,7 +118,7 @@ function thumbUrl(assetId: string): string {
        `.visit-when`/`.visit-len`/`.visit-stats`/`b`/`.visit-thumbs`/`img`/`img:hover` all
        substituted global New-UI tokens (`--card-border`/`--fg-subtle`/`--chip-bg`/`--fg`/
        `--fg-muted`) for Photos-local ones (`--line`/`--text-3`/`--surface-2`/`--text-1`/
-       `--text-2`) that parity (`:599-618`, `:835-851` for `.visit-save-btn`) already declares
+       `--text-2`) that parity (`:599-618`, `:837-853` for `.visit-save-btn`) already declares
        correctly for these exact selectors, plus `.visit-save-btn`/`:hover` used global blue-family
        `--accent-soft-bd`/`--accent-text`/`--accent-soft-2` in place of Photos-local
        `--accent-rgb`/`--accent-hi` (wrong hue) — same shadowing pattern as PlacesZoomBar.vue's

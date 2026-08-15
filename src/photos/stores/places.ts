@@ -15,13 +15,15 @@ import {
 } from '../util/placesMap'
 
 // New-UI 命名法,刻意不沿用 Vue2 的 `photos.placesMapTheme` / `photos.placesRailCollapsed`
-// (偏离登记):Vue2 与 New-UI 同源共享同一个浏览器 localStorage。Task 6(Plan E,2026-08-15)
-// 之前这里的注释以"D5 把触发信号改成全局 data-theme"解释这条独立 key 的必要性——该决定已经
-// 撤回(见 placesMapThemes.ts 头注释「D5」段与 usePhotosTheme.ts),但独立 key 本身依然保留:
-// New-UI 的 MapThemePrefs 形状(customCityColor 字段名、custom 分支的 bg/grid 跟随语义)与
-// Vue2 当前的 customCityColor 结构虽然同名同构,双方的持久化仍各自独立维护,不共享同一把
-// localStorage key 更安全——沿用同一个 key 会让此仓将来任何一次结构调整都直接污染 Vue2 侧
-// 反之亦然。
+// (deviation log): Vue2 and New-UI share the same origin's browser localStorage. This comment
+// used to explain the need for this separate key via "D5 changed the trigger signal to the
+// global data-theme" — that decision has since been reverted (see placesMapThemes.ts's own
+// header comment's "D5" section and usePhotosTheme.ts), but the separate key itself stays: even
+// though New-UI's MapThemePrefs shape (the customCityColor field name, the custom branch's
+// bg/grid-follow semantics) and Vue2's current customCityColor structure happen to be
+// name-for-name/shape-for-shape identical, it's safer for the two persistence layers to stay
+// independent rather than share one localStorage key — sharing it would mean any future
+// structural change on either side directly corrupts the other's data, and vice versa.
 const LS_THEME = 'nimo_places_map_theme'
 const LS_RAIL_COLLAPSED = 'nimo_places_rail_collapsed'
 
@@ -29,10 +31,12 @@ const THEME_ALLOWED = ['default', 'ocean', 'sand', 'mono', 'custom']
 const HEX_RE = /^#[0-9a-f]{6}$/i
 // 照 Vue2 PhotosPlacesView.vue:86-87 的默认值。
 const DEFAULT_DOT_COLOR = '#6E5BFF'
-// Task 6(Plan E,2026-08-15):从 DEFAULT_GRID_COLOR 改名——同 Vue2 PR #106 sub-commit 3 把
-// `customGridColor` 改名 `customCityColor` 的理由(该值现在喂的是"城市灯"实色,不是网格线):
-// 旧字段名的 localStorage 值不做迁移,读到旧结构时这个字段本就缺失,直接落回这个默认值,
-// 与 Vue2 自己的处理方式一致(brief 引用的 Vue2 sub-commit 3 commit message 原文如此)。
+// Task 6 (Plan E, 2026-08-15): renamed from DEFAULT_GRID_COLOR — same reason as Vue2 PR #106
+// sub-commit 3 renaming its own `customGridColor` to `customCityColor` (this value now feeds the
+// solid "city light" colour, not a grid line): no migration for the old field name's localStorage
+// value — reading an old-shape record simply finds this field already missing and falls straight
+// back to this default, matching Vue2's own handling (per the brief's quote of that sub-commit's
+// own commit message).
 const DEFAULT_CITY_COLOR = '#9C8EFF'
 
 export interface MapThemePrefs {
@@ -391,7 +395,8 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms 防抖 + 卸载 flush,ported
+  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms debounce + flush-on-unmount,
+  // ported
   // from Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) persistTheme()/
   // writeThemeNow()/beforeDestroy(). localStorage.setItem is synchronous, and dragging the
   // custom-colour picker fires an `input` event (and, before this task, a synchronous
@@ -409,10 +414,11 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     if (persistThemeTimer !== null) clearTimeout(persistThemeTimer)
     persistThemeTimer = setTimeout(writeThemeNow, 250)
   }
-  // Vue2 beforeDestroy(:393-397)的等价物:视图卸载时把还没落盘的最后一次选色 flush 掉,不能
-  // 指望用户下次打开页面前浏览器不会关掉——调用方是 PhotosPlaces.vue 的 onUnmounted。也被
-  // __resetForTest 自己调用(见下方),防止一个已重置的旧 store 实例遗留的定时器在之后的
-  // 某个测试里意外触发、写入一份不属于当前测试的 themePrefs 快照。
+  // Equivalent of Vue2's beforeDestroy (:393-397): flushes the last not-yet-persisted colour pick
+  // when the view unmounts — can't rely on the browser staying open until the user reopens the
+  // page. The caller is PhotosPlaces.vue's onUnmounted. Also called by __resetForTest itself
+  // (below), to keep a leftover timer from an already-reset old store instance from firing later
+  // during some other test and writing a themePrefs snapshot that doesn't belong to that test.
   function flushThemePersist(): void {
     if (persistThemeTimer !== null) {
       clearTimeout(persistThemeTimer)
@@ -466,11 +472,12 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     albumBusy.value = false
     // 有意不重置 coverSeq:理由同上面 seq 的注释——重置会让重置后的下一次
     // fetchCoverCandidates 落在同一个 mine 值上,与重置前仍在途的旧请求产生别名冲突。
-    // Task 5:重置前先 flush 任何还没落盘的防抖写入——不这样做的话,若上一个测试/调用方
-    // 刚 setMapTheme/setCustomColors 过又立刻 __resetForTest(不等 250ms),下面的
-    // readThemePrefs() 会读到 flush 之前的旧 localStorage 内容,而不是"重置前最后一次写入
-    // 的值"(这条不变量被 places.test.ts 的 __resetForTest 用例钉住)。同时避免这个即将被
-    // 丢弃的 store 实例遗留一个仍在倒计时的定时器。
+    // Task 5: flush any not-yet-persisted debounced write before resetting — without this, if the
+    // previous test/caller just called setMapTheme/setCustomColors and immediately called
+    // __resetForTest (without waiting the 250ms), the readThemePrefs() call below would read the
+    // stale pre-flush localStorage content rather than "the last value written before the reset"
+    // (an invariant places.test.ts's own __resetForTest case pins down). This also keeps the
+    // about-to-be-discarded store instance from leaving behind a still-ticking timer.
     flushThemePersist()
     themePrefs.value = readThemePrefs()
     railCollapsed.value = readRailCollapsed()
