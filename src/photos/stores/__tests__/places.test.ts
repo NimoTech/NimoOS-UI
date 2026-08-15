@@ -572,13 +572,46 @@ describe('localStorage 持久化', () => {
     expect(s.themePrefs).toEqual({ mapTheme: 'default', customDotColor: '#6E5BFF', customGridColor: '#9C8EFF' })
   })
 
-  it('setMapTheme / setCustomColors 立即落盘', () => {
+  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 落盘现在 250ms 防抖(见
+  // src/photos/stores/places.ts 的 persistTheme() 注释,ported from Vue2 PR #106's own
+  // perf sub-commit)——in-memory 的 `themePrefs` 仍是同步更新的(下面第一个 expect 不需要
+  // 计时器推进就该为真),只有实际写 localStorage 这一步被合并。
+  it('setMapTheme / setCustomColors 更新 themePrefs 同步、落盘防抖 250ms 合并成一次', () => {
+    vi.useFakeTimers()
     const s = usePhotosPlaces()
     s.setMapTheme('ocean')
-    expect(JSON.parse(localStorage.getItem('nimo_places_map_theme')!).mapTheme).toBe('ocean')
+    expect(s.themePrefs.mapTheme).toBe('ocean') // 内存态同步,不必等计时器
+    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // 但还没落盘
     s.setCustomColors('#111111', '#222222')
+    expect(localStorage.getItem('nimo_places_map_theme')).toBeNull() // 第二次调用仍在防抖窗口内
+    vi.advanceTimersByTime(250)
     const saved = JSON.parse(localStorage.getItem('nimo_places_map_theme')!)
     expect(saved).toMatchObject({ mapTheme: 'custom', customDotColor: '#111111', customGridColor: '#222222' })
+    vi.useRealTimers()
+  })
+
+  it('卸载 flush:flushThemePersist() 立即把防抖中的写入落盘,且清掉定时器(不会再落第二次)', () => {
+    vi.useFakeTimers()
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+    const s = usePhotosPlaces()
+    s.setMapTheme('sand')
+    expect(setItemSpy).not.toHaveBeenCalled()
+    s.flushThemePersist()
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(localStorage.getItem('nimo_places_map_theme')!).mapTheme).toBe('sand')
+    // 定时器已被 flush 清掉,推进计时不会再触发第二次写入。
+    vi.advanceTimersByTime(1000)
+    expect(setItemSpy).toHaveBeenCalledTimes(1)
+    setItemSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('没有待落盘的写入时,flushThemePersist() 是安全的空操作', () => {
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem')
+    const s = usePhotosPlaces()
+    s.flushThemePersist()
+    expect(setItemSpy).not.toHaveBeenCalled()
+    setItemSpy.mockRestore()
   })
 
   it('railCollapsed 读入时 map(String) 归一(偏离登记 7)', () => {

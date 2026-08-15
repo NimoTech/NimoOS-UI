@@ -36,14 +36,31 @@
 //     主题里这两个值从未变化(theme-invariant)。
 //  3. `.map-zoombar` 的 `background: var(--float-bg)`——`--float-bg` 其实早已在 photos.scss
 //     的 `.photos-root` 本地 token 表里定义,不是"本仓之前没有"。
+//
+// Task 5 (Plan E #106 perf architecture port, 2026-08-15): `dotColor` used to feed the root
+// element's `--accent` via `:style="{ '--accent': dotColor }"` — a template binding, which ties
+// every colour pick to this component's own render effect (reading a prop in the template ties
+// it to that effect). Vue2's own applyMapVars() (PhotosPlacesView.vue :419-433) wrote to BOTH
+// `$refs.svg` and `$refs.zoombar` imperatively for exactly this reason; this component's half of
+// that same mechanism is ported here — `rootRef` + a `watch()` (a separate reactive effect from
+// the render effect) + `style.setProperty`, so `dotColor` changes no longer re-render this
+// component's own template at all, only repaint via CSS custom property inheritance.
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MAX_SCALE } from '../util/placesMap'
 
-defineProps<{
+const props = defineProps<{
   zoomFrac: number
   /** T10 地图主题的强调色,喂给 --accent 局部覆盖——D5 地图主题的一部分,不算违反 token 铁律。 */
   dotColor: string
 }>()
+
+const rootRef = ref<HTMLElement | null>(null)
+function applyAccent(color: string): void {
+  rootRef.value?.style.setProperty('--accent', color)
+}
+onMounted(() => applyAccent(props.dotColor))
+watch(() => props.dotColor, applyAccent)
 
 const emit = defineEmits<{
   (e: 'zoom-by', factor: number): void
@@ -110,7 +127,7 @@ function resetView(): void {
 </script>
 
 <template>
-  <div class="map-zoombar" :style="{ '--accent': dotColor }">
+  <div ref="rootRef" class="map-zoombar">
     <button class="zb-btn" :title="t('photosPlacesZoomIn')" @click="zoomIn">
       +
     </button>

@@ -400,6 +400,11 @@ onMounted(async () => {
 onUnmounted(() => {
   dispose()
   if (svgRef.value) svgRef.value.removeEventListener('wheel', handleWheel)
+  // Task 5 (Plan E #106 perf architecture port): Vue2 beforeDestroy's flush equivalent
+  // (git show 78cf3335 :393-397) — the store's theme-persist write is now 250ms-debounced
+  // (perf: a picker drag no longer writes localStorage per input event), so a pick made just
+  // before navigating away must still be flushed here or it's lost when the timer never fires.
+  store.flushThemePersist()
 })
 
 async function retryLoad(): Promise<void> {

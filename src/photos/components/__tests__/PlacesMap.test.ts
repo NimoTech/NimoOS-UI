@@ -8,6 +8,11 @@ import PlacesMap from '../PlacesMap.vue'
 // 原始源码文本(Vite `?raw`)—— 一部分测试要读源文本本身(颜色 attribute 守卫、
 // theme-exception 注释合规),不是 DOM 断言能覆盖的,同 PlacesRail.test.ts:19 的既有先例。
 import placesMapRaw from '../PlacesMap.vue?raw'
+// Task 5 (Plan E #106 perf port): `.world-dot`'s CSS rule moved out of PlacesMap.vue's own
+// <style> block into PlacesWorldDots.vue's (the dots now render inside that child component's
+// own template, not this one's — see that file's own header comment on why the rule had to move
+// with the elements). The raw-source rule-lookup test below is repointed at the new home.
+import placesWorldDotsRaw from '../PlacesWorldDots.vue?raw'
 import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 // 注意:cssCascade.ts 的 extractStyleBlock() 会先剥掉 CSS 注释再返回(给"选择器优先级"
@@ -95,8 +100,11 @@ describe('结构规格 3: 陆地点阵(删码⑤靶)', () => {
   // 评审 I1:.world-dot 的 fill 回落必须是专用 token --map-dot-bg-fallback,不能是 --fg-faint
   // ——深色 --fg-faint(0.52)会亮到盖过 is-visited 点,浅色 --fg-faint 是不透明暖灰,铺在地图
   // 黑底画布上会变成一块不透明色块(两条都是 Vue2 最常见路径,不是罕见分支)。
+  // Task 5 (Plan E #106 perf port): 这条规则现在住在 PlacesWorldDots.vue 自己的 <style> 块里
+  // (点阵 <circle> 已抽成那个子组件,scoped 属性只挂它自己模板产出的元素——留在 PlacesMap.vue
+  // 会变成一条谁都匹配不到的死规则),读源文本的靶子跟着挪过去,断言内容不变。
   it('.world-dot 的 fill 回落引用 --map-dot-bg-fallback,不是 --fg-faint(删码:换回 --fg-faint 必红)', () => {
-    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+    const rules = parseCssRules(extractStyleBlock(placesWorldDotsRaw))
     const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.world-dot')
     expect(rule, '.world-dot 独立规则未找到').toBeTruthy()
     expect(rule!.body).toMatch(/fill:\s*var\(--map-dot-bg,\s*var\(--map-dot-bg-fallback\)\)/)

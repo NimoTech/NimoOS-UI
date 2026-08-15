@@ -24,7 +24,18 @@
 // 自己只管一个 open 状态,没有第二个分支可早退,不是 P5-T10 那种两弹层共享判定函数漏检
 // 第二个分支的早退 bug;那个场景要等 T11 把本组件与 PlacesFilterMenu 一起装进容器才会
 // 出现,集成断言归 T11。
-import { onUnmounted, ref, watch } from 'vue'
+//
+// Task 5 (Plan E #106 perf architecture port, 2026-08-15): the two `<input type="color">`s
+// below are now UNCONTROLLED — no `:value` binding. Vue2's own fix (PR #106, git show
+// 78cf3335) made these same two inputs uncontrolled for the identical reason: a `:value`
+// binding ties the bound expression to this component's own render effect, so every `input`
+// event fired while dragging the picker (many per second) would re-render this component on
+// every one. `syncColorInputs()` (ported from Vue2's own method of the same name) seeds the
+// inputs' `.value` imperatively instead, run once when the popover transitions open (Vue2's own
+// `themeOpen(open) { if (open) this.$nextTick(this.syncColorInputs) }` watcher, ported
+// verbatim below) — the popover's `v-if="open"` means the inputs don't exist in the DOM until
+// then, hence the `nextTick()` wait for the DOM to catch up before the refs resolve.
+import { nextTick, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { MAP_THEME_PRESETS, swatchColors } from '../util/placesMapThemes'
 
@@ -47,6 +58,24 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
+const dotInputRef = ref<HTMLInputElement | null>(null)
+const gridInputRef = ref<HTMLInputElement | null>(null)
+
+// Vue2 syncColorInputs()(:436-441)的 Vue3 等价物:无绑定的取色器只能靠命令式赋值获得初值。
+function syncColorInputs(): void {
+  if (dotInputRef.value) dotInputRef.value.value = props.selection.customDotColor
+  if (gridInputRef.value) gridInputRef.value.value = props.selection.customGridColor
+}
+// Vue2 :351-354 的 themeOpen watcher,逐字移植语义:只在 open 从 false 变 true 时喂一次初值
+// ——不带 immediate(弹层默认关闭,真实使用路径下 open 恒以 false 起步,不需要挂载即同步;
+// 需要挂载即为 open=true 的场景只出现在测试直接以 open:true 挂载,那类场景不代表真实交互,
+// 不必特殊处理)。
+watch(
+  () => props.open,
+  (isOpen) => {
+    if (isOpen) nextTick(syncColorInputs)
+  },
+)
 
 function toggleOpen(): void {
   emit('update:open', !props.open)
@@ -137,11 +166,11 @@ onUnmounted(() => {
       <h6 class="mtp-title-custom">{{ t('photosPlacesMapThemeCustom') }}</h6>
       <label class="mtp-color-row">
         <span>{{ t('photosPlacesLandDotColor') }}</span>
-        <input type="color" data-test="mtm-dot-input" :value="selection.customDotColor" @input="onDotInput">
+        <input ref="dotInputRef" type="color" data-test="mtm-dot-input" @input="onDotInput">
       </label>
       <label class="mtp-color-row">
         <span>{{ t('photosPlacesCityLightColor') }}</span>
-        <input type="color" data-test="mtm-grid-input" :value="selection.customGridColor" @input="onGridInput">
+        <input ref="gridInputRef" type="color" data-test="mtm-grid-input" @input="onGridInput">
       </label>
     </div>
   </div>

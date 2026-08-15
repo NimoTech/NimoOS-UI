@@ -383,8 +383,33 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  function persistTheme(): void {
+  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms 防抖 + 卸载 flush,ported
+  // from Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) persistTheme()/
+  // writeThemeNow()/beforeDestroy(). localStorage.setItem is synchronous, and dragging the
+  // custom-colour picker fires an `input` event (and, before this task, a synchronous
+  // setCustomColors() → persistTheme() call) per mouse-move — writing to disk on every one of
+  // those stutters the drag. Only the *disk write* is debounced; `themePrefs.value` itself is
+  // still assigned synchronously in setMapTheme/setCustomColors below, so every other reactive
+  // consumer (PlacesMap's themeVars, PlacesThemeMenu's own selection prop, etc.) sees the new
+  // value immediately — only the localStorage.setItem call is coalesced.
+  let persistThemeTimer: ReturnType<typeof setTimeout> | null = null
+  function writeThemeNow(): void {
+    persistThemeTimer = null
     try { localStorage.setItem(LS_THEME, JSON.stringify(themePrefs.value)) } catch { /* 忽略写入失败 */ }
+  }
+  function persistTheme(): void {
+    if (persistThemeTimer !== null) clearTimeout(persistThemeTimer)
+    persistThemeTimer = setTimeout(writeThemeNow, 250)
+  }
+  // Vue2 beforeDestroy(:393-397)的等价物:视图卸载时把还没落盘的最后一次选色 flush 掉,不能
+  // 指望用户下次打开页面前浏览器不会关掉——调用方是 PhotosPlaces.vue 的 onUnmounted。也被
+  // __resetForTest 自己调用(见下方),防止一个已重置的旧 store 实例遗留的定时器在之后的
+  // 某个测试里意外触发、写入一份不属于当前测试的 themePrefs 快照。
+  function flushThemePersist(): void {
+    if (persistThemeTimer !== null) {
+      clearTimeout(persistThemeTimer)
+      writeThemeNow()
+    }
   }
   function setMapTheme(theme: string): void {
     themePrefs.value = { ...themePrefs.value, mapTheme: theme }
@@ -433,6 +458,12 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     albumBusy.value = false
     // 有意不重置 coverSeq:理由同上面 seq 的注释——重置会让重置后的下一次
     // fetchCoverCandidates 落在同一个 mine 值上,与重置前仍在途的旧请求产生别名冲突。
+    // Task 5:重置前先 flush 任何还没落盘的防抖写入——不这样做的话,若上一个测试/调用方
+    // 刚 setMapTheme/setCustomColors 过又立刻 __resetForTest(不等 250ms),下面的
+    // readThemePrefs() 会读到 flush 之前的旧 localStorage 内容,而不是"重置前最后一次写入
+    // 的值"(这条不变量被 places.test.ts 的 __resetForTest 用例钉住)。同时避免这个即将被
+    // 丢弃的 store 实例遗留一个仍在倒计时的定时器。
+    flushThemePersist()
     themePrefs.value = readThemePrefs()
     railCollapsed.value = readRailCollapsed()
   }
@@ -444,6 +475,7 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     fetchPlaces, loadDetail, clearDetail,
     setPlaceCover, resetPlaceCover, setSpotName, resetSpotName, createPlaceAlbum, fetchCoverCandidates,
     setMapTheme, setCustomColors, toggleRegionFold, isRegionCollapsed,
+    flushThemePersist,
     __resetForTest,
   }
 })
