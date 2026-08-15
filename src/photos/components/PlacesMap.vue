@@ -101,13 +101,28 @@ defineExpose({ svgEl })
 </template>
 
 <style scoped>
-.map-canvas {
-  flex: 1;
-  width: 100%;
-  height: 100%;
-  cursor: grab;
-}
-.map-canvas:active { cursor: grabbing; }
+/* Shadowing cleanup (Plan E Task 4, 2026-08-15): `.map-canvas`/`.map-canvas:active` deleted —
+   byte-identical duplicate of `photos-places.scss:350-355`. Most of the rest of this file's
+   style block is intentionally left untouched: PlacesMap.test.ts pins a large fraction of it
+   directly against this file's own raw `<style>` text (the `.world-dot` fallback token, the
+   `.pin-merge-*` transition/transform pair — including the Vue2→Vue3 enter-from/leave-to
+   rename — `.pin-scale`'s geometry declarations, and `.geo-pin:hover`'s `var(--pin-glow)`
+   reference), and the pin/dot color chain (`--pin-bg`/`--pin-stroke`/`--pin-active-bg`/
+   `--pin-cluster-stroke`/`--pin-cluster-hover-bg`/`--pin-pulse`/`--pin-glow`) is deliberately
+   *not* parity's static per-`data-map-mode` literals — it's fed at runtime via the
+   `themeVars` prop (T10's `resolveMapTheme()`), which is how this component reproduces Vue2's
+   atlas/heatmap/dark map-mode swatches without hardcoding three copies of every color. That
+   mechanism is explicitly Task 5's to restructure (brief: "styles only here"), so it's left
+   alone even where a value looks redundant with parity on paper. Animation values verified
+   byte-exact against Vue2/parity: `.pin-pulse`'s `animation: mapPulse 2.4s ease-out infinite`
+   and its `@keyframes mapPulse` (scale 0.7→2.4, opacity 0.6→0) match photos-places.scss:414-420
+   exactly; `.pin-merge-enter-active/.pin-merge-leave-active .pin-scale`'s
+   `transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.28s` and the
+   enter-from/leave-to `transform: scale(0.25); opacity: 0;` match :409-417 exactly. Both
+   `@keyframes` names (`mapPulse` here, `pulseDot` in PlaceVisitHistory.vue) legitimately
+   coexist with parity's identically-named global keyframes — this file's `<style scoped>`
+   block is compiler-hashed, so keyframes-guard.test.ts's global-uniqueness check exempts it
+   (see that file's own header comment on why scoped blocks can't actually collide at runtime). */
 
 /* 陆地点阵:--map-dot-bg / --map-dot 这两个变量本身由 T10 注入到 <svg> 的 inline style 上,
    不是本组件定义的 theme token——这里只给回落值,回落值也要 token 化。
@@ -127,16 +142,8 @@ defineExpose({ svgEl })
   transition: fill 0.2s;
 }
 
-/* Pins */
-.geo-pin {
-  cursor: pointer;
-  transition: filter 0.15s;
-}
-/* Invisible, screen-constant click target so small pins stay easy to hit. */
-.geo-pin .pin-hit {
-  fill: transparent;
-  pointer-events: all;
-}
+/* Pins. `.geo-pin` (base cursor/transition) and `.geo-pin .pin-hit` are deleted here —
+   byte-identical duplicates of `photos-places.scss:375-383`; neither is read by any test. */
 .geo-pin:hover { filter: drop-shadow(0 0 14px var(--pin-glow)); }
 .geo-pin .pin-bg {
   fill: var(--pin-bg);

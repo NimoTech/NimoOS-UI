@@ -118,45 +118,25 @@ function iconName(ico: string): IconName {
   </div>
 </template>
 
-<style scoped>
-/* token 映射(Vue2 → New-UI,同 PlaceDetailPanel.vue 文件头 §6 既定表):--text-1/2/3 →
-   --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--line → --card-border;
-   --r-sm → --radius-sm。本组件是独立 SFC,scoped 样式不跨组件边界生效(Vue 的
-   scoped CSS 只把父级 scope 属性透传给子组件的根节点,不会透传给子组件模板内部的
-   后代元素——PlaceDetailPanel.vue 里已有的 `.detail-section h4` 规则够不着这里的
-   <h4>),故这里需要自己一份等价的标题样式,同 PersonPlacesTab.vue 的既有先例
-   (该文件同样各自持有自己的 .detail-section 样式,不依赖跨组件共享)。 */
-.detail-section h4 {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--fg-subtle);
-  margin: 0 0 10px;
-  line-height: 1.4;
-}
 
-.insights {
-  display: flex; flex-direction: column;
-  gap: 10px;
-}
-.insight-card {
-  display: grid;
-  grid-template-columns: 24px 1fr;
-  gap: 10px;
-  padding: 10px 12px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  color: var(--fg-muted);
-  line-height: 1.5;
-}
-.insight-card .ico {
-  width: 24px; height: 24px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  border-radius: 50%;
-  margin-top: 1px;
-}
-.insight-card b { color: var(--fg); font-weight: 600; }
-</style>
+<!-- Shadowing cleanup (Plan E Task 4, 2026-08-15): the `<style scoped>` block that used to
+     live here has been deleted entirely. Every rule it carried (`.detail-section h4`,
+     `.insights`, `.insight-card`, `.insight-card .ico`, `.insight-card b`) was a duplicate of
+     `src/photos/styles/vue2-parity/photos-places.scss:675-682`(`.detail-section h4`)/
+     `:750-774`(`.insights`/`.insight-card` family) — this component always renders inside
+     `.photos-root` (via PlaceDetailPanel.vue → PlacesMap-page), so parity's *unscoped* global
+     selectors already reach it fine; the old header comment's claim that "Vue scoped CSS
+     doesn't cross component boundaries, so this file needs its own copy" only explains why
+     PlaceDetailPanel.vue's own *scoped* `.detail-section h4` can't reach here — it does not
+     apply to parity's plain, unscoped CSS, which crosses every component boundary the same
+     way any global stylesheet does. Two real value bugs this also fixes: `.insight-card .ico`
+     used the global New-UI token `--accent-text` (`#a9c6ff`, a blue family calibrated for
+     New-UI's own accent) instead of Photos-local `--accent-hi`/`--accent-ink` (`#8A7AFF`/
+     `#CFC6FF`, purple family) — wrong hue; and the base `.detail-section h4`/`.insights`/
+     `.insight-card`/`b` rules all substituted global tokens (`--fg-subtle`/`--chip-bg`/
+     `--card-border`/`--radius-sm`/`--fg-muted`/`--fg`) for Photos-local ones
+     (`--text-3`/`--surface-2`/`--line`/`--r-sm`/`--text-2`/`--text-1`) that parity already
+     declares correctly for these exact selectors — same shadowing-bug pattern as
+     PlacesZoomBar.vue's 2026-08-15 fix (Plan E Task 3). No test in PlaceInsights.test.ts reads
+     this component's own raw `<style>` text (grep-confirmed: no `cssCascade`/`extractStyleBlock`
+     import), so nothing here needed to survive locally. -->

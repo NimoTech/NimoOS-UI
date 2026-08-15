@@ -33,19 +33,31 @@
 //     (`trips === 1 ? $t('trip') : $t('trips')`)。这里把第三统计格也改成用
 //     tripUnitKey 条件化(是相对 Vue2 的改进,不是照搬),此前漏登记这条偏离。
 //
-// token 映射(Vue2 → New-UI,brief §6):--text-1/2/3 → --fg/--fg-muted/--fg-subtle;
-// --surface-2 → --chip-bg;--line/--line-strong → --card-border;--r-sm → --radius-sm;
-// --font-display → --font;.map-detail 的 --surface-1 → --panel-bg-solid(真机验收后从
-// --panel-bg 改过来:半透底会把下面的地图网格点透上来,见该规则处注释);
-// box-shadow: -8px 0 40px … → var(--card-shadow-hi)(D3,同 P6a 弹层裁定)。
+// 【Plan E Task 4 shadowing-cleanup 订正,2026-08-15】上面这条 token 映射表已废——它记录的
+// 是"把 Vue2 本地 token 换成本仓全局 token"这条思路本身就是本批次要清掉的遮蔽 bug 根因
+// (同 PlacesZoomBar.vue 等 T3 组件的教训)。parity `photos-places.scss` 现在已经用它*自己*
+// 的本地 token(--text-1/2/3、--surface-1/2/3、--line/--line-strong、--r-sm、--font-display、
+// --accent-rgb、--accent-hi 等,定义在 photos.scss 的 `.photos-root {...}` 局部作用域里)
+// 精确复刻 Vue2 像素真值,组件不再需要(也不应该)把这些值再翻译成全局 --fg/--chip-bg/
+// --card-border/--radius-sm/--font/--card-shadow-hi/--on-accent 一遍——那正是"用全局皮肤
+// 遮蔽 Photos 本地精确值"的 bug。本文件 scoped 块已缩到只剩:parity 完全没有覆盖的选择器
+// (.hero-cover-btn 及其 hover、.ttl-badge 三兄弟、.detail-body-skeleton、窄屏媒体查询)、
+// 测试钉死必须留在本文件原文里的属性(.map-detail 的 z-index/background/transition、
+// .close/.ttl-region/.ttl-name 的钉死浅色字面量、.btn.btn-primary:hover 的复合选择器、
+// 三处 hover-lock:.spot-row:hover/.detail-grid .ph.more:hover 及其 winningHoverBackground
+// 断言)、以及一条 D3 裁定的表面处理(.spot-row .thumb 的 background)。逐条处置理由就近写
+// 在各条规则自己的注释里,不再集中列一张已经失真的映射表。
 //
-// hero 前景色红线(本任务最高危,brief 原文强调):hero 上叠在暗化封面照片之上的一切前景
-// (.close/设置封面按钮的图标色、.ttl-region/.ttl-name/.ttl-sub 的文字色、::after 暗化
-// 渐变本身)全部**钉死浅色 + theme-exception**,**禁用 --on-accent**(它只在 var(--accent)
-// 饱和实底上可用——见下方 .btn-primary 才是它的合法场景;这里背景是不可控的照片,不满足
-// 前提，同 PersonHero.vue 文件头"配色红线"说明与 PhotosAlbumDetail.vue .album-hero-bg::after
-// 先例)。「本次旅行」绿用已建的 --place-current-trip;「常驻地」紫是本任务新增
-// --place-home-base（取值依据见 theme.css 里的 token 注释与任务报告）。
+// hero 前景色红线(本任务最高危,brief 原文强调,结论不变,只是落地方式变了——见上一段):
+// hero 上叠在暗化封面照片之上的一切前景(.close/设置封面按钮的图标色、.ttl-region/.ttl-name/
+// .ttl-badge-trip/.ttl-badge-home 的文字色、::after 暗化渐变本身)全部**钉死浅色 +
+// theme-exception**(`.ttl-sub`/`.detail-hero::after` 两条值与 parity 完全相同,已删本地
+// 副本改由 parity 单独承担,颜色红线的结论对它们依然成立,只是不再需要本文件重复声明),
+// **禁用 --on-accent**(它按 New-UI *全局* accent 校准,随 app 深浅主题变化;Photos 视图
+// 自己的 --accent 是固定紫色,不随 app 主题变——两者语境不匹配,--on-accent 在本文件已全部
+// 删除,包括曾经出现在 .btn-primary 上的那处,见该规则处注释详述)。「本次旅行」绿用已建的
+// --place-current-trip;「常驻地」紫是本任务新增 --place-home-base(取值依据见 theme.css
+// 里的 token 注释与任务报告)。
 //
 // 铁律:按 id 比较一律 String(a) === String(b)（本组件不做 id 比较，place.id 未被读取，
 // 仅供容器/未来任务使用，此处无需归一）。
@@ -301,61 +313,48 @@ function onSpotOpenPhoto(assetId: string): void {
 </template>
 
 <style scoped>
+/* Shadowing cleanup (Plan E Task 4, 2026-08-15): this rule used to carry the full geometry
+   (position/top/right/bottom/width/display/flex-direction/border-left/box-shadow/opacity/
+   transform) duplicated from `photos-places.scss:497-509` — all deleted below since parity's
+   values are byte-identical (or, for `border-left`/`box-shadow`, *corrected*: this rule used
+   to substitute global `--card-border`/`--card-shadow-hi` for Photos-local `--line-strong`/
+   the literal black drop shadow parity already declares (see photos-places.scss:505 for the
+   exact offset/blur/alpha) — same shadowing pattern as PlacesZoomBar.vue's 2026-08-15 fix).
+   What survives is exactly what
+   PlaceDetailPanel.test.ts pins to this file's own raw `<style>` text: the z-index invariant
+   (`z-index 不变量` describe block), the opaque-panel background token (`面板底完全不透明`,
+   a deliberate design decision, not a bug — see that test's own comment for the SP8-P6 T10
+   history), and the entrance transition (`.map-detail 进场 transition`). */
 .map-detail {
-  position: absolute;
-  top: 0; right: 0; bottom: 0;
-  width: 420px;
   z-index: 6;
-  /* 真机验收反馈:这块面板绝对定位压在地图画布上,--panel-bg(深色 10% 白 / 浅色 42% 白)
-     会把地图网格点透上来。改用完全不透明的 --panel-bg-solid;左侧 .map-rail 在 grid 流内、
-     底下只有 --app-bg,不受影响,仍用 --panel-bg。 */
   background: var(--panel-bg-solid);
-  border-left: 1px solid var(--card-border);
-  display: flex; flex-direction: column;
-  box-shadow: var(--card-shadow-hi);
-  /* 评审 I2:`.map-detail.is-entering`(Vue2 photos-places.scss:491-494)是死 CSS,模板
-     从未切换这个 class,不迁——但这条 base 上的 opacity/transform 起始态 + transition
-     属于要迁的部分(plan 原文:"进场只由 .map-detail 自身的 transition 承担"),不是
-     is-entering 的连带死代码,后人重塑样式时不要一并清掉。精确复刻 Vue2 :487-489。 */
-  opacity: 1;
-  transform: translateX(0);
   transition: transform 0.28s cubic-bezier(.16, .84, .44, 1), opacity 0.2s ease-out;
 }
 
-.detail-hero {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-.detail-hero img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
-}
-.detail-hero::after {
-  content: ""; position: absolute; inset: 0;
-  /* theme-exception: 叠在任意地点封面照片上的固定暗化渐变,精确复刻 Vue2
-     photos-places.scss:503-506 的写死深色到透明渐变,保证下方钉死浅色前景的可读对比度,
-     皮肤无关(同 PhotosAlbumDetail.vue .album-hero-bg::after 先例)。 */
-  background: linear-gradient(180deg, transparent 30%, rgba(19, 19, 24, 0.95) 100%);
-}
-
+/* .close / .ttl-region / .ttl-name below are trimmed to only the literal hero-foreground
+   colors PlaceDetailPanel.test.ts's `hero 前景色合规` block requires to exist (with a
+   theme-exception comment) in this file's own raw text — every other property they used to
+   carry (position/size/border/background geometry) duplicated
+   `photos-places.scss:526-560` (`.detail-hero .close`/`.ttl-region`/`.ttl-name`), which now
+   governs alone. `.close`'s former `border: 1px solid var(--card-border)` and `.ttl-name`'s
+   former `font-family: var(--font)` were both the shadowing bug (global tokens standing in for
+   Photos-local `--line`/`--font-display|`); deleted along with everything else redundant. */
 .close {
-  position: absolute; top: 12px; right: 12px;
-  z-index: 2;
-  width: 30px; height: 30px;
-  display: inline-flex; align-items: center; justify-content: center;
-  /* theme-exception: hero chrome 按钮固定深色底,恒叠在暗化封面照片之上,与主题无关 */
-  background: rgba(0, 0, 0, 0.6);
-  border: 1px solid var(--card-border);
-  border-radius: 50%;
-  color: #fff; /* theme-exception: 同上——需要跨主题恒定浅色前景(见文件头配色红线说明) */
-  cursor: pointer;
+  color: #fff; /* theme-exception: hero chrome 按钮,恒定浅色前景,压在暗化封面照片之上(见文件头配色红线说明) */
 }
-/* theme-exception: 固定加深底色的 hover 态,与主题无关(同 .close 本身钉死浅色前景的道理一致) */
-.close:hover { background: rgba(0, 0, 0, 0.85); }
 
 .hero-cover-btn {
   position: absolute; top: 12px; left: 12px;
-  z-index: 2;
+  /* Vue2 has no CSS class for this button at all — it's a raw inline `:style` object
+     (PhotosPlacesView.vue:1068-1069), so there is no parity selector to fall back on; every
+     property here must stay local. Corrected against that inline style's literal values
+     (previously wrong on two points): `z-index` is `10` in Vue2 (this rule used to say `2`,
+     apparently copied from `.close`'s unrelated z-index instead of this button's own inline
+     value), and `border` is `0` in Vue2 (this rule used to add
+     `1px solid var(--card-border)`, which Vue2's inline style never had — explicit `none`
+     below, since a bare `<button>` needs *something* to cancel the browser's default border,
+     unlike `.close` which gets that from parity). */
+  z-index: 10;
   width: 30px; height: 30px;
   display: inline-flex; align-items: center; justify-content: center;
   /* theme-exception: 同 .close——hero chrome 按钮固定深色底 */
@@ -363,205 +362,91 @@ function onSpotOpenPhoto(assetId: string): void {
   /* 评审 I1:精确复刻 Vue2 内联样式 backdropFilter:'blur(8px)'(PhotosPlacesView.vue:1068)——
      此前漏迁,补回毛玻璃;非颜色属性,不涉及 color-guard。 */
   backdrop-filter: blur(8px);
-  border: 1px solid var(--card-border);
+  border: none;
   border-radius: 50%;
   color: #fff; /* theme-exception: 同 .close——hero chrome 按钮,恒定浅色前景 */
   cursor: pointer;
 }
-/* theme-exception: 同 .close:hover */
-.hero-cover-btn:hover { background: rgba(0, 0, 0, 0.85); }
+/* Vue2's inline style has no `:hover` mechanism at all (can't express pseudo-classes via a
+   `:style` binding) — this is a genuine New-UI addition, not a parity port. */
+.hero-cover-btn:hover { background: rgba(0, 0, 0, 0.85); } /* theme-exception: 同 .close:hover——hero chrome 按钮固定深色底,恒叠在暗化封面照片之上,与主题无关 */
 
-.ttl {
-  position: absolute;
-  bottom: 16px; left: 18px; right: 60px;
-  z-index: 2;
-}
 .ttl-region {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
   color: rgba(255, 255, 255, 0.7); /* theme-exception: hero 前景文字,恒叠在暗化封面照片之上,需跨主题恒定浅色(见文件头配色红线说明) */
-  display: inline-flex; align-items: center; gap: 6px;
-  margin-bottom: 6px;
 }
+/* .ttl-badge-trip/.ttl-badge-home: Vue2 expresses these via inline color-styled spans
+   (PhotosPlacesView.vue:1155-1156, green for current-trip / light purple for home-base),
+   not a CSS class — no parity selector exists, so these stay local. Token values verified
+   byte-equal to those inline literals (see theme.css's own token comments for both, both
+   theme blocks). */
 .ttl-badge { margin-left: 6px; }
 .ttl-badge-trip { color: var(--place-current-trip); }
 .ttl-badge-home { color: var(--place-home-base); }
 .ttl-name {
-  font-family: var(--font);
-  font-size: 22px; font-weight: 600; letter-spacing: -0.01em;
   color: #fff; /* theme-exception: hero 标题文字,恒叠在暗化封面照片之上,需跨主题恒定浅色 */
-  margin: 0;
-  line-height: 1.2;
-}
-.ttl-sub {
-  font-size: 12px;
-  color: rgba(255, 255, 255, 0.7); /* theme-exception: 同 .ttl-region——hero 前景文字,恒定浅色 */
-  margin-top: 4px;
-  display: flex; gap: 6px; align-items: center;
 }
 
-.detail-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  border-bottom: 1px solid var(--card-border);
-}
-.detail-stat {
-  text-align: center;
-  padding: 14px 8px;
-  border-right: 1px solid var(--card-border);
-}
-.detail-stat:last-child { border-right: none; }
-.detail-stat .v {
-  font-family: var(--font);
-  font-size: 18px; font-weight: 600; letter-spacing: -0.01em;
-  color: var(--fg);
-  display: block;
-}
-.detail-stat .k {
-  font-size: 11px; color: var(--fg-subtle);
-  display: block;
-  margin-top: 2px;
-}
-
-.detail-actions {
-  display: flex; gap: 8px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--card-border);
-}
-.btn {
-  flex: 1;
-  height: 32px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  color: var(--fg);
-  font: inherit; font-size: 12px; font-weight: 500;
-  display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  cursor: pointer;
-}
-.btn:hover { border-color: var(--accent); }
-.btn-primary {
-  background: var(--accent);
-  /* --on-accent 的唯一合法场景:底色是 var(--accent) 饱和实底(同 PersonHero.vue
-     .pd-btn-primary / ClusterActionDialog.vue .cad-btn-primary 的既有先例)——这条不在
-     hero 上,不属于上面的"配色红线"钉死场景。 */
-  color: var(--on-accent);
-  border-color: var(--accent);
-}
-/* brief 要求「变体自带 :hover,写成本仓既定写法,并用 cssCascade.ts 断言胜出规则含
-   :hover 且归属 -primary」。回源核对 Vue2 :582(`.detail-actions .btn:hover { border-color:
-   var(--accent) }`)后确认它本身只碰 border-color、不设 background——不存在字面意义上的
-   "背景被基类 hover 夺走"(那类真实故障见 ClusterActionDialog.vue :331-332 的
-   `.cad-btn:hover` 本身就设 background 的情形,与这里不同)。仍按 brief 要求给
-   `.btn-primary` 一条专属 :hover 背景规则,并且选择器写成 `.btn.btn-primary:hover`
-   (复合类,优先级 3)而不是单类 `.btn-primary:hover`(优先级 2)——与单类 `.btn:hover`
-   (优先级 2)打平需要靠书写顺序才能赢,复合类写法则不依赖顺序,同 PlacesRail.vue
-   `.rail-place.is-active:hover` 的既有先例。 */
-.btn.btn-primary:hover { background: var(--accent); filter: brightness(1.08); }
-
-.detail-body {
-  flex: 1; overflow-y: auto;
-  padding: 18px;
-  display: flex; flex-direction: column;
-  gap: 22px;
-}
+/* New-UI addition, no Vue2/parity counterpart at all (Vue2 has no loading-skeleton concept
+   in this view) — stays local, single owner. */
 .detail-body-skeleton {
   height: 120px;
   border-radius: var(--radius-sm);
   background: var(--skeleton-bg);
 }
+/* .btn.btn-primary:hover survives because PlaceDetailPanel.test.ts's `hover 态背景不被基类
+   规则夺走` block regex-matches this exact compound-selector text
+   (`.btn.btn-primary:hover { … background …}`) directly against this file's own raw `<style>`
+   source — parity's equivalent selector (a descendant form) doesn't satisfy that regex, so
+   this rule cannot be deleted even though parity also declares the same state. Value
+   corrected from the former filter-brightness approximation to Vue2/parity's own mechanism:
+   the Photos-local "hi" accent token with the same literal fallback parity itself uses (see
+   photos-places.scss for the exact declaration this now matches). The base
+   `.btn`/`.btn-primary`/`.btn:hover` rules that used to sit above this one are deleted — they
+   duplicated parity's `.detail-actions` button family using global tokens in place of
+   Photos-local ones, including Vue2's own always-white button-primary text, which the former
+   local override replaced with the global "on-accent" token. That substitution was a latent
+   bug, not just noise: the global token is calibrated against New-UI's *app-wide* accent
+   (which changes per theme), not Photos' fixed local purple accent (constant across both of
+   Photos' own themes) — in this app's dark theme the global token resolves to a dark,
+   low-contrast color, a mismatch against the intended light-on-purple Vue2 look that parity's
+   plain white avoids entirely. */
+.btn.btn-primary:hover { background: var(--accent-hi, #8a7bff); }
 
-/* P6b-T4: spots 列表段(照 Vue2 photos-places.scss:656-701)。--text-1/2/3 →
-   --fg/--fg-muted/--fg-subtle;--surface-2 → --chip-bg;--r-sm → --radius-sm(同文件头
-   token 映射表)。 */
-.detail-section h4 {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--fg-subtle);
-  margin: 0 0 10px;
-  line-height: 1.4;
-  display: flex; align-items: baseline; justify-content: space-between;
-}
-/* spec §7c-9:这个 .more 是共享基类,本段(spots)用它当纯静态文本,故意不带
-   cursor:pointer。T5「查看全部 N 张」那处若要可点,请另加修饰类(如
-   .more.is-clickable { cursor: pointer })叠加在这条规则之上,不要改动这条基类
-   本身——否则会把 spots 段这个本该不可点的 .more 也带成手型。 */
-.detail-section h4 .more {
-  font-size: 11px; color: var(--accent); font-weight: 500;
-  text-transform: none; letter-spacing: 0;
-}
-/* P6b-T5: 「最近的照片」段的「查看全部 N 张」是真可点的(不同于 spots 段那个纯静态
-   装饰 .more)——叠加修饰类补手型,不动上面的共享基类本身(T4 留下的注释指引)。 */
+/* Shadowing cleanup: the base `.detail-section h4` rule (font-size/weight/letter-spacing/
+   text-transform/color/margin/line-height/display/align-items/justify-content) is deleted —
+   it duplicated `photos-places.scss:675-682` using global `--fg-subtle` in place of
+   Photos-local `--text-3`. `.detail-section h4 .more` survives *only* for its `cursor`
+   override: spec §7c-9 wants the spots-section `.more` non-clickable, but parity's own
+   `.detail-section h4 .more` (:683-687) sets `cursor: pointer` — a rule that reaches every
+   `.more` on the page (not scoped-blocked), so an explicit override is required here, not
+   optional, to actually cancel it (font-size/color/font-weight/text-transform/letter-spacing
+   are deleted too, redundant with parity's identical values). */
+.detail-section h4 .more { cursor: auto; }
+/* 「最近的照片」段的「查看全部 N 张」是真可点的(不同于 spots 段那个纯静态装饰 .more)——
+   叠加修饰类补手型,优先级高于上面那条 cursor: auto。无 parity 对应(New-UI 净新增)。 */
 .detail-section h4 .more.is-clickable { cursor: pointer; }
 
-/* P6b-T5: 最近的照片网格(照 Vue2 photos-places.scss:702-724)。--surface-2 →
-   --chip-bg;--text-2 → --fg-muted;--text-1 → --fg;Vue2 hover 底色那个带字面量
-   兜底值的 surface-3 token → 本仓既有 --chip-bg-hi(同文件头 §6 token 映射表口径,
-   兜底字面量本身不迁——color-guard 不剥注释,写在这里也会判红)。 */
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 3px;
-}
-.detail-grid .ph {
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  cursor: pointer;
-  border-radius: 2px;
-}
-.detail-grid .ph img {
-  width: 100%; height: 100%; object-fit: cover;
-  display: block;
-  transition: transform 0.25s;
-}
-.detail-grid .ph:hover img { transform: scale(1.04); }
-.detail-grid .ph.more {
-  display: flex; align-items: center; justify-content: center;
-  background: var(--chip-bg);
-  font-size: 13px; color: var(--fg-muted);
-  font-weight: 600;
-  cursor: pointer;
-}
-/* hover 级联铁律:变体必须自带 :hover,用 cssCascade winningHoverBackground 断言
-   胜出规则含 :hover(本区第四次登记这条坑——同一根因反复出现,见 PlaceDetailPanel.test.ts
-   同名 describe)。 */
-.detail-grid .ph.more:hover { background: var(--chip-bg-hi); color: var(--fg); }
+/* .detail-grid / .ph survive only for the test-pinned hover-lock rule (winningHoverBackground
+   reads this file's own raw <style> for classes ['detail-grid','ph','more']). Base
+   `.detail-grid`/`.ph`/`img`/`:hover img`/`.ph.more` deleted — duplicated
+   `photos-places.scss:722-747` using global `--chip-bg`/`--fg-muted` for Photos-local
+   `--surface-2`/`--text-2`. Hover value switched from the former `--chip-bg-hi`/`--fg` (global)
+   to parity's own Photos-local `--surface-3`/`--text-1` (:747, `var(--surface-3, #22222A)`). */
+.detail-grid .ph.more:hover { background: var(--surface-3, #22222A); color: var(--text-1); }
 
-.spot-list {
-  display: flex; flex-direction: column;
-  gap: 4px;
-}
-.spot-row {
-  display: grid;
-  grid-template-columns: 36px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-}
-.spot-row:hover { background: var(--chip-bg); }
-/* 评审既定处置(同 P6a PlacesRail.vue `.rail-place .thumb` 已登记的 D3 裁定):Vue2
-   这处缩略图占位底写死纯黑,这里改用随主题走的 --chip-bg,不精确复刻那个
-   theme-invariant 黑底。 */
-.spot-row .thumb {
-  width: 36px; height: 36px; border-radius: var(--radius-sm);
-  overflow: hidden; background: var(--chip-bg);
-}
-.spot-row .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.spot-row .name {
-  font-size: 12.5px; font-weight: 500; color: var(--fg);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.spot-row .sub { font-size: 11px; color: var(--fg-subtle); margin-top: 1px; }
-.spot-row .count {
-  font-family: var(--num-font);
-  font-size: 11px; color: var(--fg-muted);
-  padding: 3px 7px; border-radius: 99px;
-  background: var(--chip-bg);
-}
+/* .spot-row:hover survives only for its own hover-lock pin (winningHoverBackground(['spot-row'])).
+   .spot-row .thumb survives only for its `background` — D3 ruling (same precedent as
+   PlacesRail.vue's `.rail-place .thumb`): Vue2 hardcodes this placeholder to solid black
+   (theme-invariant), New-UI deliberately reshapes it to a theme-following surface instead of
+   porting the literal. Everything else in the old `.spot-list`/`.spot-row`/`.thumb`/`.name`/
+   `.sub`/`.count` rules is deleted — duplicated `photos-places.scss:690-719` using global
+   tokens (`--chip-bg`/`--fg`/`--fg-subtle`/`--fg-muted`/`--num-font`) for Photos-local ones
+   (`--surface-2`/`--text-1`/`--text-3`/`--text-2`, and Vue2's own `ui-monospace, monospace`
+   font stack) that parity already gets right. */
+.spot-row:hover { background: var(--surface-2); }
+.spot-row .thumb { background: var(--chip-bg); }
 
+/* New-UI addition (no Vue2 responsive breakpoint in this view at all). */
 @media (max-width: 768px) {
   .map-detail { width: 100%; }
 }
