@@ -296,8 +296,8 @@ try {
     const gitignore = fs.existsSync(gitignorePath) ? fs.readFileSync(gitignorePath, 'utf8') : ''
     if (!gitignore.split('\n').some((l) => l.trim() === '.export-report.txt')) {
       throw new Error(
-        '.export-report.txt will be mistakenly committed by git add -A: output tree .gitignore doesn't have this line yet.\n' +
-        'Task 7 .gitignore patch not landed; report file will be mistaken ly committed — land that patch first, or use --no-commit to skip commit.', )
+        '.export-report.txt will be mistakenly committed by git add -A: the output tree .gitignore does not have this line yet.\n' +
+        'Task 7 .gitignore patch not landed; the report file would be mistakenly committed — land that patch first, or use --no-commit to skip the commit.', )
     }
     if (!fs.existsSync(path.join(OUT, '.git'))) git(OUT, 'init', '-b', 'main')
     execFileSync('git', ['-C', OUT, 'add', '-A'])
