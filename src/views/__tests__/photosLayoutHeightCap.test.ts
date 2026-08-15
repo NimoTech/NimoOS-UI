@@ -43,8 +43,12 @@ const CAPPED = [
   // over the inner scroll responsibility, unchanged) — it no longer contains a literal
   // `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to move it
   // into EXEMPT.
+  // As of Plan E Task 1 (Places re-shell), PhotosPlaceAssets.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (PhotosGrid's own `.photos-wrap`
+  // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
+  // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
+  // move it into EXEMPT.
   'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
-  'PhotosPlaceAssets.vue',      // PhotosGrid 的 .photos-wrap
   'PhotosTrash.vue',            // .trash-scroll
   'PhotosSettings.vue',         // .ps-scroll
 ]
@@ -56,9 +60,12 @@ const CAPPED = [
 // PhotosSmartViews.vue 已于 Plan C Task 2 补建滚动容器(`.mo-section` 升格为
 // flex:1+overflow-y:auto)并随换壳一起封顶,从本名单移除(它也不再含 `.photos-layout {`
 // 字面量,`allPhotosLayoutViews()` 已自动排除它)。
-const EXEMPT: Record<string, string> = {
-  'PhotosPlaces.vue': '地点地图页无内层滚动容器且掏着地图画布尺寸,封顶风险高;待单独一票处理',
-}
+//
+// PhotosPlaces.vue 已于 Plan E Task 1 换壳(`.app` CSS Grid),同样从本名单移除——它也不再含
+// `.photos-layout {` 字面量,`allPhotosLayoutViews()` 已自动排除它。地图画布本身仍没有内层
+// 滚动容器,但换壳后的高度封顶职责已转移给 `.app` 网格(与 PhotosPeople.vue 等页同理),原先
+// 「待单独一票处理」的风险点已经不存在。
+const EXEMPT: Record<string, string> = {}
 
 const CAPPED_RULE = '.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }'
 const UNCAPPED_RULE = '.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }'

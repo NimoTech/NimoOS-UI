@@ -46,6 +46,7 @@ import photosPlacesRaw from '../PhotosPlaces.vue?raw'
 import PlacesRail from '../../photos/components/PlacesRail.vue'
 import PlacesMap from '../../photos/components/PlacesMap.vue'
 import PlacesZoomBar from '../../photos/components/PlacesZoomBar.vue'
+import PlacesFilterMenu from '../../photos/components/PlacesFilterMenu.vue'
 import PlacesThemeMenu from '../../photos/components/PlacesThemeMenu.vue'
 import PlaceDetailPanel from '../../photos/components/PlaceDetailPanel.vue'
 import PlaceCoverPicker from '../../photos/components/PlaceCoverPicker.vue'
@@ -131,14 +132,34 @@ function flushAnim(): void {
   for (const cb of cbs) cb(performance.now() + 100000)
 }
 
-describe('壳', () => {
-  it('AreaShell title 为「地点」,PhotosSidebar 存在', async () => {
+// Task 1 (Plan E re-shell): brief's Step 1 RED test — the transitional AreaShell/.photos-layout
+// shell has been swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
+// (PhotosPeople.vue/PhotosAlbums.vue's own precedent, PhotosPeople.test.ts's own re-shell test
+// as the style reference).
+describe('PhotosPlaces.vue —— 换壳(Plan E Task 1)', () => {
+  it('mounts the app shell: .photos-root .app exists, PhotosTopbar title/sub, FilterMenu/ThemeMenu inside root, lightbox outside', async () => {
     const { w } = await mountView()
-    expect(w.find('.area-title').text()).toBe('地点')
-    // Task 3(壳 + 侧栏重刻)把 PhotosSidebar 的根元素类名从 `.photos-sidebar` 换成 Vue2 的
-    // `.sidebar`——PhotosPlaces.vue 自身仍是旧 AreaShell 壳(不在本任务范围,Plan H 再处理),
-    // 这里只是跟着共享组件的改名同步选择器,不是本文件所属任务的功能改动。
-    expect(w.find('.sidebar').exists()).toBe(true)
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('title')).toBe(zh.photosPlaces)
+    // sub mirrors Vue2 PhotosPlacesTopbar.vue's own subtitle (cities/countries counts)
+    expect(String(topbar.props('sub'))).toContain('城市')
+    expect(String(topbar.props('sub'))).toContain('国家')
+
+    // PlacesFilterMenu/PlacesThemeMenu were already rendered in-tree before the re-shell —
+    // still true afterwards, now as descendants of `.photos-root` (inside `.photos-main`).
+    const root = w.find('.photos-root')
+    expect(root.findComponent(PlacesFilterMenu).exists()).toBe(true)
+    expect(root.findComponent(PlacesThemeMenu).exists()).toBe(true)
+
+    // PhotoLightbox stays a sibling of .photos-root (this app's standing exception, same rule
+    // PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows).
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(false)
   })
 })
 

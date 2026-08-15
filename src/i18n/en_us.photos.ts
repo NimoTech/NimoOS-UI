@@ -573,6 +573,11 @@ export default {
   photosPlaces: 'Places',
   photosPlacesCities: 'cities',
   photosPlacesCountries: 'countries',
+  // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line on the Places index page — value
+  // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI
+  // src/views/Photos/PhotosPlacesTopbar.vue:34, which uses the English literal itself as the
+  // i18n key, English-source-as-key convention) and NimoOS-UI/src/assets/lang/en_US.json:2442.
+  photosPlacesTopbarSub: '{cities} cities · {countries} countries · indexed by Nimo',
   photosPlacesPhotos: 'photos',
   photosPlacesSearchPlaceholder: 'Search cities or countries',
   photosPlacesCityCount: '{n} cities',

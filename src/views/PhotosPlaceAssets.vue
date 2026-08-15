@@ -29,13 +29,29 @@
 // 城市的名字。姐妹页 PhotosPlaces.vue:99-100 的 `activeDetail` 对同一个 store 已有这个先例
 // (`store.detail && String(store.detail.id) === String(activeId.value)`),这里照抄同一手法,
 // 不是新发明的复杂度。
+//
+// Task 1 (Plan E re-shell, 2026-08-14): the transitional AreaShell/.photos-layout shell has been
+// swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar + main.main >
+// PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses (PhotosPeople
+// .vue/PhotosAlbums.vue's own Plan C/D Task 2 precedent), via the shared `useSidebarCollapse`
+// singleton. Topbar copy: `title = cityName` (this page's existing fallback logic, unchanged —
+// city name once the detail resolves, `t('photosPlaces')` before it does); no `sub` — Vue2 has
+// no dedicated topbar for this detail context at all (this route's Vue2 counterpart is a
+// breadcrumb embedded inside PhotosTimeline.vue's own library topbar area, not a standalone
+// topbar component with a sub-line), so nothing is passed. No `back` (Plan D ruling: back
+// affordances don't go in the topbar — this page's own breadcrumb already carries that
+// affordance, see `showWholeCity`/the `.place-crumb` markup below). PhotoLightbox stays exactly
+// where it was: a template-root sibling of the shell, outside `.photos-root` entirely — this
+// app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows the
+// same rule).
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
@@ -53,6 +69,10 @@ import { groupPhotosByMonth } from '../photos/util/groupPhotosByMonth'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Task 1 (Plan E re-shell): same shared module singleton every other re-shelled Photos page
+// uses (PhotosPeople.vue/PhotosAlbums.vue's own precedent) — toggle wired straight to the
+// topbar button.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const route = useRoute()
 const router = useRouter()
 const store = usePhotosPlaces()
@@ -169,10 +189,17 @@ function retry(): void {
 </script>
 
 <template>
-  <AreaShell :title="cityName">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="cityName"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+        <div class="photos-main">
         <!-- 面包屑(结构规格 4)——独立于下面的三态门控,任何状态下都显示。 -->
         <div class="place-crumb" data-test="place-crumb">
           <svg class="crumb-icon" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
@@ -234,30 +261,39 @@ function retry(): void {
             @open="onOpen"
           />
         </div>
+        </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 
-  <!-- 灯箱挂在 AreaShell 之外:position:fixed,避免被祖先的 transform/overflow 裁剪
-       (同 PhotosPersonDetail.vue:708-710 的既有先例)。 -->
+  <!-- Task 1 (Plan E re-shell): PhotoLightbox stays exactly where it was — a template-root
+       sibling of the shell, outside `.photos-root` entirely (position:fixed, avoids being
+       clipped by an ancestor's transform/overflow, same PhotosPersonDetail.vue:708-710
+       precedent) — this app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's
+       own lightbox follows the same rule). -->
   <PhotoLightbox />
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-/* height(不是 min-height):这一屏封顶,只有内层滚动容器滚 —— 同源修复,理由与 Vue2
-   出处见 src/views/Photos.vue 同一规则处的注释。 */
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }
+/* Task 1 (Plan E re-shell): the transitional `.sidebar` flex-width pin and the `.photos-layout`
+   flex-row shell (Fix round 1's own interim AreaShell workaround) are both gone — the shell is
+   now the shared Vue2-structured `.app` CSS Grid (parity photos.scss's own `.app`/`.main` rules
+   under `.photos-root`), which already gives the sidebar its pixel-parity column width and the
+   page its height cap (same as PhotosPeople.vue's own re-shell; see
+   photosLayoutHeightCap.test.ts for why this page no longer needs a local height-capping rule
+   or a mobile-only `gap:0` override — the old max-width:768px media query wrapped nothing but
+   that one now-deleted rule, so the whole query block is deleted outright rather than kept as
+   an empty shell). `.photos-main` survives as pure layout scaffolding — no
+   parity selector by that name (same situation as every other re-shelled Photos page's own
+   copy) — it's just the flex child that now sits inside `<main class="main">`, after
+   `<PhotosTopbar>`, instead of being the `<main>` element itself. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
+/* New-UI addition: this page's own breadcrumb (city › spot). No Vue2 CSS class to anchor to —
+   Vue2's equivalent breadcrumb is inline markup inside PhotosTimeline.vue's own template
+   (:1073-1090), which is a different component with its own literal styles; this page is a
+   standalone route with no Vue2 counterpart component to diff a `.photos-root .place-crumb`
+   parity rule against. */
 .place-crumb { display: flex; align-items: center; gap: 6px; padding: 4px 4px 14px; flex: 0 0 auto; color: var(--fg-muted); }
 .crumb-icon { flex: 0 0 auto; }
 .crumb-city {
@@ -271,17 +307,27 @@ button.crumb-city:hover { color: var(--accent); }
 .crumb-spacer { flex: 1; }
 .crumb-count { font-size: 12px; color: var(--fg-muted); }
 
-.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 80px 20px; color: var(--fg-muted); text-align: center; }
-.empty-state-title { font-size: 16px; font-weight: 600; color: var(--fg); }
-.empty-state-desc { font-size: 13px; max-width: 340px; }
+/* Task 1 cleanup: parity does have a same-anchor `.photos-root .empty-state`/-title/-desc
+   (photos.scss:1105-1124), but this page's own values predate the Plan C/D re-shell token
+   migration — they were still on the pre-migration `--fg`/`--fg-muted` app-wide tokens and a
+   stray `padding: 80px 20px`/`max-width: 340px` that don't match parity OR the convention this
+   fleet settled on once re-shelled (identical byte-for-byte in both PhotosAlbums.vue and
+   PhotosPeople.vue: `padding: 60px 20px 20px`, `--text-2`/`--text-1`, no max-width on the desc
+   line — parity's own `font-size: 13px` on `.empty-state-desc` already matches, so nothing
+   local is needed there at all). Aligned to that same cross-page convention here rather than
+   left on stale tokens now that this page is re-shelled too. */
+.empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 60px 20px 20px; color: var(--text-2); text-align: center; }
+.empty-state-title { font-size: 16px; font-weight: 600; color: var(--text-1); }
+.empty-state-desc { font-size: 13px; }
 .empty-state .bar-btn { margin-top: 10px; }
 
+/* New-UI addition: loading skeleton, no Vue2 source (same situation as PhotosPersonDetail.vue's
+   own `.person-skeleton*` family — Vue2 has no loading-skeleton concept anywhere in this area,
+   see this file's own `place-assets-skeleton` gate comment above). */
 .place-skeleton-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; padding: 4px; }
 .place-skeleton-tile { aspect-ratio: 1; border-radius: 3px; background: var(--skeleton-bg); }
 
+/* New-UI addition: pure layout scaffolding for the PhotosGrid slot, no parity selector by this
+   name (same situation as `.photos-main` above). */
 .place-grid-slot { position: relative; flex: 1 1 auto; min-height: 0; }
-
-@media (max-width: 768px) {
-  .photos-layout { gap: 0; }
-}
 </style>

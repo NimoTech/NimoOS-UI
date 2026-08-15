@@ -578,6 +578,9 @@ export default {
   photosPlaces: '地点',
   photosPlacesCities: '城市', // json 实际值(zh_CN.json:1990),非 brief 快照的"座城市"
   photosPlacesCountries: '国家', // json 实际值(:2002),非 brief 快照的"个国家"
+  // Task 1(Plan E 换壳):地点主视图 PhotosTopbar 的 sub 行——译文取自 zh_CN.json:2518
+  // (与 en_US.json:2442 同一英文 key 对应的中文值),回源 Vue2 PhotosPlacesTopbar.vue:34。
+  photosPlacesTopbarSub: '{cities} 个城市 · {countries} 个国家 · 由 Nimo 建立索引',
   photosPlacesPhotos: '张照片',
   photosPlacesSearchPlaceholder: '搜索城市或国家',
   photosPlacesCityCount: '{n} 个城市', // json 实际值(:2084),非 brief 快照的"{n} 座城市"

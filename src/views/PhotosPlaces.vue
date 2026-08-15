@@ -27,14 +27,31 @@
 //  10:悬停定位用显式 wrapEl ref,不靠 svg.parentElement(Vue2 :746-749 的读法)。
 //  11-⑤:wheel 用 addEventListener({ passive: false }) 显式注册在 svg 元素上,不用模板
 //     @wheel——模板绑定不保证 passive:false,Chrome 会警告并忽略 preventDefault。
+//
+// Task 1 (Plan E re-shell, 2026-08-14): the transitional AreaShell/.photos-layout shell (Fix
+// round 1's own interim workaround, see this file's git history for the removed `.sidebar`/
+// `.photos-layout` scoped rules) has been swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
+// (PhotosPeople.vue/PhotosAlbums.vue's own Plan C/D Task 2 precedent), via the shared
+// `useSidebarCollapse` singleton. Topbar copy: `title = t('photosPlaces')`, `sub` mirrors Vue2
+// PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI src/views/Photos/
+// PhotosPlacesTopbar.vue:32-35) — no `back` (Plan D ruling: back affordances don't go in the
+// topbar), no Ask Nimo button (Vue2's own, registered as a Plan G input, not built here).
+// PlacesFilterMenu/PlacesThemeMenu were already rendered in-tree (inside the old
+// `.photos-layout` subtree) — they stay exactly where they are, now inside `.photos-main`.
+// PlaceCoverPicker/PhotoLightbox stay exactly where they were: template-root siblings of the
+// shell, outside `.photos-root` entirely — PlaceCoverPicker's own teleport is a separate task
+// (Task 2), and PhotoLightbox outside `.photos-root` is this app's standing exception (same
+// rule PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows).
 import '../photos/styles/vue2-parity'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { service } from '@nimotech/nimoos-service'
-import AreaShell from '../components/shell/AreaShell.vue'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
+import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
+import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PlacesRail from '../photos/components/PlacesRail.vue'
 import PlacesMap from '../photos/components/PlacesMap.vue'
 import PlacesZoomBar from '../photos/components/PlacesZoomBar.vue'
@@ -54,6 +71,10 @@ import { assetToPhoto } from '../photos/util/assetToPhoto'
 
 const { t, locale } = useI18n()
 const { themeClass } = usePhotosTheme()
+// Task 1 (Plan E re-shell): same shared module singleton every other re-shelled Photos page
+// uses (PhotosPeople.vue/PhotosAlbums.vue's own precedent) — toggle wired straight to the
+// topbar button.
+const { collapsed, toggle: onToggleCollapse } = useSidebarCollapse()
 const router = useRouter()
 const store = usePhotosPlaces()
 const themeStore = useThemeStore()
@@ -114,6 +135,18 @@ const {
 const filteredPlaces = computed<Place[]>(() => filterPlaces(store.places, filter.value))
 const totalPhotos = computed(() => countPhotos(filteredPlaces.value))
 const countryCount = computed(() => countCountries(filteredPlaces.value))
+
+// Task 1 (Plan E re-shell): PhotosTopbar's `sub` line mirrors Vue2 PhotosPlacesTopbar.vue's own
+// subtitle computed (NimoOS-UI src/views/Photos/PhotosPlacesTopbar.vue:32-35) — cities/countries
+// counts. Vue2 feeds that component from `placesStats`, itself fed by this same view's own
+// `update:visible-stats` emit off `visiblePlaces.length`/`countries` (PhotosPlacesView.vue:341/
+// 490) — i.e. the *filtered* set, not the raw fetch total. Reuses filteredPlaces/countryCount
+// rather than a second computation so this line can never disagree with the .map-stats footer
+// below, which shows the identical two numbers.
+const topbarSub = computed(() => t('photosPlacesTopbarSub', {
+  cities: filteredPlaces.value.length,
+  countries: countryCount.value,
+}))
 
 // D5:浅色信号改读全局 data-theme(useThemeStore),不读相册私有字段(T10 已定,这里只是
 // 算出布尔值传给子组件)。
@@ -373,10 +406,18 @@ async function retryLoad(): Promise<void> {
 </script>
 
 <template>
-  <AreaShell :title="t('photosPlaces')">
-    <div class="photos-layout photos-root" :class="themeClass">
-      <PhotosSidebar />
-      <main class="photos-main">
+  <div class="photos-root" :class="themeClass">
+    <div class="app" :data-collapsed="collapsed">
+      <PhotosSidebar :collapsed="collapsed" />
+      <main class="main">
+        <PhotosTopbar
+          :collapsed="collapsed"
+          :title="t('photosPlaces')"
+          :sub="topbarSub"
+          :show-search="false"
+          @toggle-collapse="onToggleCollapse"
+        />
+        <div class="photos-main">
         <div class="map-shell">
           <PlacesRail
             :places="filteredPlaces"
@@ -513,12 +554,18 @@ async function retryLoad(): Promise<void> {
             </template>
           </div>
         </div>
+        </div>
       </main>
     </div>
-  </AreaShell>
+  </div>
 
-  <!-- P6b-T8: 封面弹层 + 灯箱,挂在 AreaShell 之外(position:fixed,避免被祖先
-       transform/overflow 裁剪,同 PhotosPersonDetail.vue:708-710 的既有先例)。 -->
+  <!-- Task 1 (Plan E re-shell): PlaceCoverPicker/PhotoLightbox stay exactly where they were —
+       template-root siblings of the shell, outside `.photos-root` entirely (position:fixed,
+       avoids being clipped by an ancestor's transform/overflow, same
+       PhotosPersonDetail.vue:708-710 precedent). PlaceCoverPicker's own teleport into
+       `.photos-root` is Task 2's job, not this one's; PhotoLightbox outside `.photos-root` is
+       this app's standing exception (PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox
+       follows the same rule). -->
   <PlaceCoverPicker
     :open="coverOpen"
     :city="activePlace?.city ?? ''"
@@ -540,16 +587,15 @@ async function retryLoad(): Promise<void> {
 </template>
 
 <style scoped>
-/* Fix round 1 (controller-adjudicated, task-3-report.md Disclosure 1): this page still
-   uses the old flex-row `.photos-layout` shell (its own re-skin task hasn't landed yet), but
-   its root now carries `.photos-root` so the shared PhotosSidebar's Vue2 `.sidebar` root gets
-   the parity look. Parity scss deliberately sets no width on `.sidebar` itself (real
-   pixel-parity width comes from the `.app` CSS Grid column Task 3 gave Photos.vue) — pin it
-   here so the sidebar doesn't collapse to its shrink-to-fit content width in this page's
-   flex row. Transitional: drop this rule once this page gets its own `.app` grid re-skin. */
-.sidebar { flex: 0 0 var(--sidebar-w); align-self: stretch; overflow-y: auto; }
-
-.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }
+/* Task 1 (Plan E re-shell): the transitional `.sidebar` flex-width pin and the `.photos-layout`
+   flex-row shell (Fix round 1's own interim AreaShell workaround) are both gone — the shell is
+   now the shared Vue2-structured `.app` CSS Grid (parity photos.scss's own `.app`/`.main` rules
+   under `.photos-root`), which already gives the sidebar its pixel-parity column width and the
+   page its height cap (same as PhotosPeople.vue's own re-shell; see photosLayoutHeightCap.test.ts
+   for why this page no longer needs a local height-capping rule). `.photos-main` survives as
+   pure layout scaffolding — no parity selector by that name (same situation as every other
+   re-shelled Photos page's own copy) — it's just the flex child that now sits inside `<main
+   class="main">`, after `<PhotosTopbar>`, instead of being the `<main>` element itself. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
 /* 评审 M4:Vue2 scss:29-36 的 .map-shell 只有 flex/grid/background 三条,没有边框/圆角/
@@ -706,7 +752,6 @@ async function retryLoad(): Promise<void> {
 
 /* ≤768px:侧栏已收抽屉,地图自己的两栏(rail + canvas)也收窄成单列,避免横向溢出。 */
 @media (max-width: 768px) {
-  .photos-layout { gap: 0; }
   .map-shell { grid-template-columns: 1fr; }
 }
 </style>
