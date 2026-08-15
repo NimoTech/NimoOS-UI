@@ -35,10 +35,15 @@
 // PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses (PhotosPeople
 // .vue/PhotosAlbums.vue's own Plan C/D Task 2 precedent), via the shared `useSidebarCollapse`
 // singleton. Topbar copy: `title = cityName` (this page's existing fallback logic, unchanged —
-// city name once the detail resolves, `t('photosPlaces')` before it does); no `sub` — Vue2 has
+// city name once the detail resolves, `t('photosPlaces')` before it does); `sub=""` — Vue2 has
 // no dedicated topbar for this detail context at all (this route's Vue2 counterpart is a
 // breadcrumb embedded inside PhotosTimeline.vue's own library topbar area, not a standalone
-// topbar component with a sub-line), so nothing is passed. No `back` (Plan D ruling: back
+// topbar component with a sub-line). Fix round 1 · Important 1 (2026-08-14 review): simply
+// omitting `sub` does NOT mean "no subtitle" — PhotosTopbar's own default computed falls back
+// to the library-wide photo/video count summary on an omitted prop, which would render a wrong,
+// stray subtitle under the city name (a regression vs. the old AreaShell shell, which had none
+// here at all). `sub=""` is PhotosTopbar's explicit opt-out for exactly this case (see that
+// component's own fix-round comment) — it renders no `.topbar-sub` node. No `back` (Plan D ruling: back
 // affordances don't go in the topbar — this page's own breadcrumb already carries that
 // affordance, see `showWholeCity`/the `.place-crumb` markup below). PhotoLightbox stays exactly
 // where it was: a template-root sibling of the shell, outside `.photos-root` entirely — this
@@ -196,6 +201,7 @@ function retry(): void {
         <PhotosTopbar
           :collapsed="collapsed"
           :title="cityName"
+          sub=""
           :show-search="false"
           @toggle-collapse="onToggleCollapse"
         />

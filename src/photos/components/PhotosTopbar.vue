@@ -84,6 +84,13 @@ const title = computed(() => props.title ?? t('photosLibrary'))
 // -library photo/video counts. A caller passing `sub` (albums' own album-aggregate line)
 // overrides it; the for-you pages reuse this default as-is (Vue2's navMap has no 'smart'
 // entry either, PhotosTimeline.vue:229-233).
+//
+// Fix round 1 · Important 1 (Plan E Task 1 review, 2026-08-14): an explicit `sub=""` is a
+// distinct, additive opt-out — "render no subtitle at all" — from omitting the prop, which
+// still means "use the library default" (`??` only falls back on null/undefined, not on '').
+// PhotosPlaceAssets.vue needs exactly this: Vue2 has no topbar/sub concept for that detail
+// context at all, so neither the library default nor an empty-but-rendered `.topbar-sub` node
+// is correct there.
 const sub = computed(() => props.sub ?? t('photosCountSummary', {
   photos: store.photoCount.toLocaleString(),
   videos: store.videoCount.toLocaleString(),
@@ -123,7 +130,10 @@ function onKbd(e: KeyboardEvent): void {
     </button>
     <div v-if="!back" style="display:flex;flex-direction:column">
       <div class="topbar-title">{{ title }}</div>
-      <div class="topbar-sub">{{ sub }}</div>
+      <!-- Fix round 1 · Important 1: `sub=""` (explicit empty string) is the opt-out — no
+           `.topbar-sub` node at all — distinct from omitting the prop, which still renders the
+           library-default fallback computed above. -->
+      <div v-if="sub" class="topbar-sub">{{ sub }}</div>
     </div>
     <div style="flex:1;display:flex;justify-content:center">
       <!-- Vue2 keeps this outer centering wrapper unconditional and only gates the inner

@@ -132,9 +132,15 @@ describe('PhotosPlaceAssets.vue —— 换壳(Plan E Task 1)', () => {
     const topbar = w.findComponent({ name: 'PhotosTopbar' })
     expect(topbar.exists()).toBe(true)
     expect(topbar.props('title')).toBe('Kyoto')
-    // Vue2 has no dedicated topbar/sub for this detail context (see this file's own Task 1
-    // header comment) — nothing is passed.
-    expect(topbar.props('sub')).toBeUndefined()
+    // Fix round 1 · Important 1 (2026-08-14 review): Vue2 has no dedicated topbar/sub for this
+    // detail context (see this file's own Task 1 header comment). A prop-level assertion here
+    // let a real regression slip through review — PhotosTopbar's `sub` computed falls back to
+    // the library-wide count summary on an *omitted* prop (`??` only catches null/undefined,
+    // not ''), so simply not passing `sub` would render a stray, wrong subtitle under the city
+    // name. The page now passes `sub=""` (the explicit opt-out PhotosTopbar.vue was given this
+    // same fix round), and PhotosTopbar itself now renders no `.topbar-sub` node at all for an
+    // empty string — assert that DOM outcome directly, not the prop value.
+    expect(w.find('.topbar-sub').exists()).toBe(false)
 
     // PhotoLightbox stays a sibling of .photos-root (this app's standing exception, same rule
     // PhotosPeople.vue/PhotosPersonDetail.vue's own lightbox follows).

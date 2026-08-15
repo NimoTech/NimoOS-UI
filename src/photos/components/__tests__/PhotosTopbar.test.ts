@@ -182,6 +182,32 @@ describe('title/sub/showSearch props(额外覆盖,Fix-1 item 1)', () => {
   })
 })
 
+// Fix round 1 · Important 1 (Plan E Task 1 review, 2026-08-14): PhotosPlaceAssets.vue needs a
+// clean way to render "no subtitle at all" (Vue2 has no topbar/sub concept for that detail
+// context — see that file's own header comment). Omitting `sub` doesn't do it: the computed
+// `sub` falls back to the library-wide count summary (line 87-90 above), so an omitted prop on
+// a non-library page would render a wrong, stray subtitle — a real regression vs. the old
+// AreaShell shell (which had no subtitle at all there). Controller ruling: an explicit empty
+// string is the opt-out — `sub=""` means "render no `.topbar-sub` node", distinct from omitting
+// the prop (which still means "use the library default"). This is an additive contract on a
+// shared photos-area component: every existing caller that never passes `sub=''` is unaffected.
+describe('sub="" 显式抑制副行(fix round 1 · Important 1,与"不传 sub"语义不同)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('sub="" → 不渲染 .topbar-sub 节点(显式 opt-out,不是"用空字符串当文案渲染出来")', () => {
+    const w = mountTopbar({ sub: '' })
+    expect(w.find('.topbar-sub').exists()).toBe(false)
+    // 标题块本身还在,只是副行这一行被抑制,不是整个标题块都被吞掉。
+    expect(w.find('.topbar-title').exists()).toBe(true)
+  })
+
+  it('不传 sub(省略)→ 与显式空串不同——仍走默认全库计数回落,.topbar-sub 照常渲染(库页行为不受影响)', () => {
+    const w = mountTopbar()
+    expect(w.find('.topbar-sub').exists()).toBe(true)
+    expect(w.get('.topbar-sub').text()).toBe(zh.photosCountSummary.replace('{photos}', '0').replace('{videos}', '0'))
+  })
+})
+
 // Fix-4 item 2 (owner acceptance, 2026-08-13): `back` prop had zero test coverage in Fix-3 —
 // every other prop added that wave (title/sub/showSearch, Fix-1 item 1) got one, this one didn't.
 // Mirrors Vue2 PhotosTopbar.vue:6-12's searchMode swap: `v-if="back"` renders a second icon-btn

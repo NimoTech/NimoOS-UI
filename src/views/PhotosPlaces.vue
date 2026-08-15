@@ -598,23 +598,54 @@ async function retryLoad(): Promise<void> {
    class="main">`, after `<PhotosTopbar>`, instead of being the `<main>` element itself. */
 .photos-main { position: relative; flex: 1 1 auto; min-width: 0; align-self: stretch; display: flex; flex-direction: column; min-height: 0; }
 
+/* Fix round 1 · Important 2 (Plan E Task 1 review, 2026-08-14): every `.map-*` rule below has
+   been re-diffed property-by-property against `photos-places.scss`'s same-anchor rules (all
+   nested under that file's own `.photos-root { … }`, so they already cascade onto this page
+   without any local duplicate needed). Properties whose value is byte-identical to parity have
+   been deleted outright — parity governs them directly. What's left in each rule is only:
+   (a) properties with no parity counterpart at all (a fresh New-UI addition), (b) properties
+   parity gives a different value, kept here under an established, previously-documented token
+   substitution (cited by name below, not reconstructed by inference), or (c) properties that
+   must stay physically present in this file's own source text because a test in
+   PhotosPlaces.test.ts parses `PhotosPlaces.vue?raw` directly and asserts on them (the
+   `.map-toolbar` pointer-events guard and the `.map-toolbar`/`.map-legend`/`.map-stats`/
+   `.map-tip` z-index guards) — those are called out individually where they occur.
+
+   Established token-substitution table this Places area has used since PlacesRail.vue's own
+   original task (cited again by PlacesFilterMenu.vue/PlacesThemeMenu.vue/PlacesZoomBar.vue —
+   see each of their own scoped-style header comments): `--text-1/2/3` → `--fg`/`--fg-muted`/
+   `--fg-subtle`; `--line`/`--line-strong` → `--card-border`; `--surface-1` → `--panel-bg`;
+   `--surface-2` → `--chip-bg`; parity's "content-heavy floating panel" pairing `--pop-bg` (+ no
+   dedicated shadow token) → New-UI's own equivalent pairing `--popup-bg` + `--card-shadow-hi`
+   (PlacesFilterMenu.vue's own citation lists six already-reviewed components using that exact
+   pair for opaque dropdown/floating panels). `--font-display` → `--font` is the same substitution
+   PlacesRail.vue's own `.map-rail-head h2` already made (uncited there, but consistently applied —
+   cited explicitly here). Parity's `--r-sm`/`--r-md` corner-radius tokens have no New-UI
+   equivalent at all (already flagged by the pre-existing "评审 M4" comment kept below) — those
+   spots keep their approximated literal px values, unchanged from before this fix round. */
+
 /* 评审 M4:Vue2 scss:29-36 的 .map-shell 只有 flex/grid/background 三条,没有边框/圆角/
    overflow——这三条(border/border-radius/overflow:hidden)是 New-UI 新增,给整块地图区
-   一个统一的卡片外框(同区其它整屏容器的既有惯例),不是保真移植的一部分,登记但不撤回。 */
+   一个统一的卡片外框(同区其它整屏容器的既有惯例),不是保真移植的一部分,登记但不撤回。
+   `flex`/`min-height`/`display`/`grid-template-columns`/`gap` all matched parity byte-for-byte
+   (parity: `flex: 1`, this rule previously duplicated `flex: 1 1 auto` — flagged by review as
+   undocumented; corrected to parity's exact value since a single-child flex column behaves
+   identically either way, so there was no reason to diverge) and have been deleted; `background`
+   deviates from parity's `var(--surface-0, #0A0A0C)` (a token that is never actually defined
+   anywhere in this codebase, so it always resolves to that literal near-black fallback — a
+   theme-invariant Vue2 literal) under the same D3 "surface treatment is New-UI's to reshape"
+   ruling `.map-canvas-wrap`'s own background uses just below, not a separate ad-hoc choice. */
 .map-shell {
-  flex: 1 1 auto; min-height: 0;
-  display: grid; grid-template-columns: 300px 1fr; gap: 0;
   background: var(--panel-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
+/* `position`/`display`/`flex-direction`/`min-height`/`overflow` all matched parity
+   byte-for-byte and have been deleted; only `background` survives, under the same D3 ruling
+   cited above. */
 .map-canvas-wrap {
-  position: relative;
-  display: flex; flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
   /* Vue2 photos-places.scss:196 是写死的深空渐变字面量;letterbox 区域(SVG
      preserveAspectRatio 留白处)才会露出这层底色。D3:布局结构照 Vue2,底色属于"组件体系/
      surface treatment",归 New-UI 重塑——同 PlacesFilterMenu.vue 弹层底色的既定裁定,
@@ -622,9 +653,10 @@ async function retryLoad(): Promise<void> {
   background: radial-gradient(ellipse at 50% 30%, color-mix(in srgb, var(--accent) 6%, var(--panel-bg)) 0%, var(--panel-bg) 70%);
 }
 
+/* `top`/`left`/`right`/`display`/`align-items`/`gap` all matched parity byte-for-byte and have
+   been deleted. `z-index` and `pointer-events` survive for two different reasons, each noted at
+   its own declaration below. */
 .map-toolbar {
-  position: absolute;
-  top: 12px; left: 12px; right: 12px;
   /* 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2
      photos-places.scss:199-207(.map-toolbar)与 :234-245(.map-zoombar)把两者都设成
      z-index:4——.map-toolbar 因 position:absolute 且 z-index 非 auto 自成层叠上下文,
@@ -636,24 +668,31 @@ async function retryLoad(): Promise<void> {
      < 5(.map-tip)< 6(留给 P6b 详情面板)< 7(此处),7 让工具栏及其内部弹层稳定
      盖住地图区一切浮层,同时不占用给 P6b 预留的 6。 */
   z-index: 7;
-  display: flex; align-items: center; gap: 10px;
-  /* 照搬 Vue2 scss:199-207 的透明带 + 子元素恢复可点——否则这条工具栏会吃掉地图拖拽
-     (brief 硬约束,程序化断言见 PhotosPlaces.test.ts)。 */
+  /* Same value as parity (`pointer-events: none`) — kept here anyway, not deleted, because
+     PhotosPlaces.test.ts's own ".map-toolbar 的 pointer-events 守卫" test parses THIS file's
+     raw source text and regexes for this exact declaration inside `.map-toolbar { … }`; relying
+     on parity to supply it would make that guard's regex find nothing and fail. 照搬 Vue2
+     scss:199-207 的透明带 + 子元素恢复可点——否则这条工具栏会吃掉地图拖拽。 */
   pointer-events: none;
 }
+/* Same-value duplicate of parity's identical rule, kept for the same raw-text-guard reason as
+   `pointer-events: none` above (the same test asserts on this selector too). */
 .map-toolbar > * { pointer-events: auto; }
 
+/* `display`/`gap`/`padding`/`background`/`backdrop-filter`/`border-radius` all matched parity
+   byte-for-byte and have been deleted. `border` survives under the established `--line` →
+   `--card-border` substitution cited in this section's header comment (PlacesRail.vue/
+   PlacesFilterMenu.vue/PlacesZoomBar.vue precedent — none of them re-derive this per-file
+   either, they cite the same table). */
 .map-chip-row {
-  display: flex; gap: 6px;
-  padding: 5px;
-  background: var(--float-bg);
-  backdrop-filter: blur(14px);
   border: 1px solid var(--card-border);
-  border-radius: 99px;
 }
-.map-spacer { flex: 1; }
+/* Byte-identical to parity's `.map-spacer { flex: 1; }` — deleted entirely, parity governs. */
 
-/* 加载中/失败(偏离登记 9,New-UI 新增)。 */
+/* 加载中/失败(偏离登记 9,New-UI 新增)。No parity counterpart at all for `.map-skeleton`/
+   `.map-failed`/`.map-failed-title` (grep-confirmed against photos-places.scss) — Vue2 has no
+   loading-skeleton/failed-state concept for this view (see this file's own script-header
+   deviation 9), so there is nothing to diff these three selectors against; pure survivors. */
 .map-skeleton {
   flex: 1; margin: 16px; border-radius: 16px;
   background: var(--skeleton-bg);
@@ -666,60 +705,80 @@ async function retryLoad(): Promise<void> {
 
 /* 悬停卡片(照 Vue2 photos-places.scss:437-473)。评审 M4:本仓没有等价 Vue2 --r-md/--r-sm
    的圆角 token,下面几处圆角是就近取的字面 px 值,不是那两个 token 的精确复刻(数值有出入,
-   非负数字面量不受 color-guard 管,登记但不新增 token)。 */
+   非负数字面量不受 color-guard 管,登记但不新增 token)。
+   Fix round 1 · Important 2: `position`/`transform`/`padding`/`display`/`gap`/`align-items`/
+   `min-width`/`backdrop-filter` all matched parity byte-for-byte and have been deleted.
+   `z-index: 5` is a same-value duplicate kept only because PhotosPlaces.test.ts's own
+   `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules, '.map-tip')` off this file's raw
+   source text (see that test's own comment for why). `background`/`box-shadow` deviate from
+   parity's `--pop-bg` token plus a literal opaque-black drop shadow (a similar shape/spread/
+   blur, near-black at ~55% alpha) under the established `--pop-bg` → `--popup-bg`+
+   `--card-shadow-hi` pairing cited in this section's header comment. `border`/`border-radius`
+   deviate under the `--line-strong` → `--card-border` mapping (also cited above) and the
+   `--r-md` radius-approximation this same M4 note already covers. */
 .map-tip {
-  position: absolute;
   z-index: 5;
   pointer-events: none;
-  transform: translate(-50%, calc(-100% - 14px));
   background: var(--popup-bg);
-  backdrop-filter: blur(14px);
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  padding: 10px 12px;
-  display: flex; gap: 10px; align-items: center;
   box-shadow: var(--card-shadow-hi);
-  min-width: 180px;
 }
 /* 评审 M4:Vue2 scss:453 的缩略图占位底是写死的纯黑;这里改用 --chip-bg(随主题走),
-   不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface treatment 归 New-UI 重塑。 */
-.map-tip .thumb { width: 44px; height: 44px; border-radius: 8px; overflow: hidden; flex-shrink: 0; background: var(--chip-bg); }
-.map-tip .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.map-tip .name { font-size: 12.5px; font-weight: 600; color: var(--fg); }
-.map-tip .meta { font-size: 11px; color: var(--fg-subtle); margin-top: 2px; }
+   不是精确复刻那个 theme-invariant 的黑底——同 D3 裁定,surface treatment 归 New-UI 重塑。
+   `width`/`height`/`overflow`/`flex-shrink` matched parity byte-for-byte and have been deleted;
+   `border-radius` keeps the same `--r-sm` literal-px approximation the M4 note above covers. */
+.map-tip .thumb { border-radius: 8px; background: var(--chip-bg); }
+/* Byte-identical to parity's `.map-tip .thumb img` rule — deleted entirely, parity governs. */
+/* `font-size`/`font-weight` matched parity byte-for-byte and have been deleted; `color`
+   deviates under the established `--text-1` → `--fg` mapping cited above. */
+.map-tip .name { color: var(--fg); }
+/* `font-size`/`margin-top` matched parity byte-for-byte and have been deleted; `color`
+   deviates under the established `--text-3` → `--fg-subtle` mapping cited above. */
+.map-tip .meta { color: var(--fg-subtle); }
+/* `content`/`position`/`left`/`bottom`/`transform`/`width`/`height` all matched parity
+   byte-for-byte and have been deleted (this pseudo-element still gets them from parity's own
+   identical `.map-tip::after` rule, which cascades onto any `.photos-root` descendant — deleting
+   a duplicate declaration here doesn't remove the property, only the local copy of it).
+   `background`/`border-right`/`border-bottom` deviate under the same two mappings cited above
+   (`--pop-bg` pairing, `--line-strong` → `--card-border`). */
 .map-tip::after {
-  content: "";
-  position: absolute;
-  left: 50%; bottom: -6px;
-  transform: translateX(-50%) rotate(45deg);
-  width: 10px; height: 10px;
   background: var(--popup-bg);
   border-right: 1px solid var(--card-border);
   border-bottom: 1px solid var(--card-border);
 }
 
-/* 图例(照 Vue2 photos-places.scss:285-309)。 */
+/* 图例(照 Vue2 photos-places.scss:285-309)。
+   Fix round 1 · Important 2: `position`/`bottom`/`left`/`display`/`align-items`/`gap`/
+   `padding`/`background`/`backdrop-filter` all matched parity byte-for-byte and have been
+   deleted. `z-index: 4` is a same-value duplicate kept only because
+   PhotosPlaces.test.ts's `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules,
+   '.map-legend')` off this file's raw source text. `border`/`border-radius`/`color` deviate
+   under the established `--line` → `--card-border`, `--r-md` radius-approximation (M4 note
+   above), and `--text-3` → `--fg-subtle` mappings cited in this section's header comment. */
 .map-legend {
-  position: absolute;
-  bottom: 16px; left: 16px;
   z-index: 4;
-  display: flex; align-items: center; gap: 14px;
-  padding: 10px 14px;
-  background: var(--float-bg);
-  backdrop-filter: blur(14px);
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  font-size: 11px; color: var(--fg-subtle);
+  color: var(--fg-subtle);
 }
-.map-legend .grp { display: flex; align-items: center; gap: 6px; }
+/* Byte-identical to parity's `.map-legend .grp` rule — deleted entirely, parity governs. */
 /* box-shadow 的 0.2 透明度精确复刻 Vue2 scss:304 那条给 accent 取同一透明度的写法——本仓
    没有 accent 的 RGB 三元组 token,改用 color-mix 直接对 var(--accent) 取同一个精确 alpha,同
-   PlacesFilterMenu.vue .map-chip.is-active 的既有技法,不新增 token、不近似。 */
-.map-legend .dot { display: inline-block; background: var(--accent); border-radius: 50%; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); }
-.map-legend .dot.s1 { width: 6px; height: 6px; }
-.map-legend .dot.s2 { width: 10px; height: 10px; }
-.map-legend .dot.s3 { width: 14px; height: 14px; }
-.map-legend b { color: var(--fg-muted); font-weight: 500; }
+   PlacesFilterMenu.vue .map-chip.is-active 的既有技法,不新增 token、不近似。
+   `display`/`background`/`border-radius` matched parity byte-for-byte and have been deleted;
+   only the differing `box-shadow` alpha-technique survives. This rule must still exist under
+   this exact selector (not merged away) — PhotosPlaces.test.ts's own specificity test
+   (`第四组的选择器优先级真的高于基类...`) parses this file's raw text for a standalone rule
+   whose only selector is `.map-legend .dot`. */
+.map-legend .dot { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent); }
+/* `.dot.s1`/`.s2`/`.s3` width/height all matched parity byte-for-byte (photos-places.scss:
+   306-308) — all three rules deleted entirely, parity governs. */
+/* `font-weight: 500` matched parity byte-for-byte and has been deleted; `color` deviates under
+   the established `--text-2` → `--fg-muted` mapping cited above. */
+.map-legend b { color: var(--fg-muted); }
+/* No parity counterpart (Vue2 has no dedicated 4th-tier "current trip" legend class) — pure
+   survivor, see the `.dot.dot-trip` comment just below for the full story on this tier. */
 .map-legend .legend-trip { margin-left: 6px; }
 /* 第四组绿色改用 T6 已建的 --place-current-trip token,不复刻 Vue2 :1041 的内联字面量
    (brief §5 明确要求)。box-shadow 0.2 透明度同上,对 --place-current-trip 取同一技法。
@@ -734,21 +793,26 @@ async function retryLoad(): Promise<void> {
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--place-current-trip) 20%, transparent);
 }
 
-/* 统计(照 Vue2 photos-places.scss:311-330)。 */
+/* 统计(照 Vue2 photos-places.scss:311-330)。
+   Fix round 1 · Important 2: `position`/`bottom`/`right`/`display`/`gap`/`padding`/
+   `background`/`backdrop-filter`/`font-size` all matched parity byte-for-byte and have been
+   deleted. `z-index: 4` is a same-value duplicate kept only because PhotosPlaces.test.ts's
+   `.map-toolbar 层叠顺序守卫` test reads `zIndexOf(rules, '.map-stats')` off this file's raw
+   source text. `border`/`border-radius` deviate under the `--line` → `--card-border` and
+   `--r-md` radius-approximation mappings cited in this section's header comment. */
 .map-stats {
-  position: absolute;
-  bottom: 16px; right: 16px;
   z-index: 4;
-  display: flex; gap: 18px;
-  padding: 10px 16px;
-  background: var(--float-bg);
-  backdrop-filter: blur(14px);
   border: 1px solid var(--card-border);
   border-radius: 12px;
-  font-size: 11px;
 }
-.map-stats .stat .v { display: block; font-family: var(--font); font-size: 16px; font-weight: 600; color: var(--fg); letter-spacing: -0.01em; }
-.map-stats .stat .k { color: var(--fg-subtle); font-size: 10.5px; }
+/* `display`/`font-size`/`font-weight`/`letter-spacing` all matched parity byte-for-byte and
+   have been deleted. `font-family`/`color` deviate under the `--font-display` → `--font`
+   (PlacesRail.vue's own `.map-rail-head h2` precedent, cited above) and `--text-1` → `--fg`
+   mappings. */
+.map-stats .stat .v { font-family: var(--font); color: var(--fg); }
+/* `font-size` matched parity byte-for-byte and has been deleted; `color` deviates under the
+   established `--text-3` → `--fg-subtle` mapping. */
+.map-stats .stat .k { color: var(--fg-subtle); }
 
 /* ≤768px:侧栏已收抽屉,地图自己的两栏(rail + canvas)也收窄成单列,避免横向溢出。 */
 @media (max-width: 768px) {
