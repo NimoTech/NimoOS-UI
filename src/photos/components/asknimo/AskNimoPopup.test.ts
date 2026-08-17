@@ -51,4 +51,18 @@ describe('AskNimoPopup', () => {
     expect(wrapper.find('.nimo-mp').exists()).toBe(true)
     expect(wrapper.find('.nimo-chat').exists()).toBe(true)
   })
+
+  // Review fix (inherited parity gap): Vue2 PhotosAskNimo.vue:70,126-132 anchors the popup
+  // above the FAB's CURRENT (possibly dragged) position via a `popStyle` computed, not a
+  // hardcoded corner. Set fabRight/fabBottom to non-default values (well inside jsdom's
+  // default 1024px innerWidth, so the maxRight clamp never engages) and assert the inline
+  // style reflects `right: fabRight` / `bottom: fabBottom + 54`.
+  it('anchors the popup above the FAB\'s current (dragged) position', () => {
+    useAskNimo().openWith('hi')
+    useAskNimo().setFabPositionLocal(120, 40)
+    const wrapper = mount(AskNimoPopup)
+    const style = wrapper.find('.nimo-pop').attributes('style')
+    expect(style).toContain('right: 120px')
+    expect(style).toContain('bottom: 94px')
+  })
 })
