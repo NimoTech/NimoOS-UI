@@ -65,6 +65,14 @@
   --accent-ink-dim: rgba(179,155,255,0.6);
   --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
 
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both blocks below carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
+
   /* Fix-5 (owner acceptance, 2026-08-17, P6a formally overturned): the seven `--pin-bg`/
      `--pin-stroke`/`--pin-active-bg`/`--pin-pulse`/`--pin-cluster-hover-bg`/`--pin-glow`/
      `--pin-cluster-stroke` geo-pin tokens that used to live here (migrated from global
@@ -143,6 +151,14 @@
      before, byte-for-byte (see photosGlassSurfaces.test.ts's own guard for this). */
   --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
   --chip-border: rgba(var(--ink), 0.14);
+
+  /* Plan G (Ask Nimo): FAB progress ring gradient endpoints. Theme-invariant by design (Vue2
+     itself never re-themes this ring), so both blocks below carry the identical literal values --
+     not a token-substitution gap, a deliberate parity choice. */
+  --nimo-ring-from: #b39bff;
+  --nimo-ring-to: #6e5bff;
+  --nimo-ring-err-from: #FFB783;
+  --nimo-ring-err-to: #FF9F43;
 }
 
 .photos-root * { box-sizing: border-box; }
@@ -790,7 +806,7 @@
   display: inline-flex; align-items: center; gap: 10px;
   font-size: 13px; font-weight: 500;
   box-shadow: 0 12px 40px -8px rgba(0,0,0,0.7), 0 0 0 1px rgba(110,91,255,0.10);
-  z-index: 50;
+  z-index: 148; /* Plan G: normalized to the drawer-adjacent overlay tier, was Vue2's raw 50 */
   cursor: grab;
   user-select: none;
   transition: background 0.15s, transform 0.12s, box-shadow 0.15s;
@@ -955,7 +971,8 @@
   background: var(--pop-bg); backdrop-filter: blur(28px) saturate(180%);
   border: 1px solid var(--line-strong); border-radius: 16px;
   box-shadow: 0 24px 80px -12px rgba(0,0,0,0.7);
-  z-index: 51;
+  z-index: 190; /* Plan G: overlay tier, deliberately 10 below the lightbox's 200 so an
+                   in-chat photo tile always opens the lightbox on top regardless of DOM order */
   overflow: hidden;
   animation: pop-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -2561,7 +2578,7 @@
 
 /* === Chat Drawer (from shell.js injectChatDrawerStyle) === */
 .photos-root .chat-drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 96vw; z-index: 50;
+  position: fixed; top: 0; right: 0; bottom: 0; width: 460px; max-width: 96vw; z-index: 191; /* Plan G: same overlay tier as .nimo-pop, still below lightbox's 200 */
   background: var(--surface-1); border-left: 1px solid var(--line);
   display: flex; flex-direction: column;
   box-shadow: -16px 0 40px rgba(0,0,0,0.5);
@@ -4151,7 +4168,8 @@
 .photos-root .nimo-mp-list {
   position: fixed;
   min-width: 220px; max-height: 280px; overflow-y: auto;
-  z-index: 60;
+  z-index: 260; /* Plan G: reuses the established "fixed dropdown menu" tier, exact analog to
+                   .cluster-menu (photos-people.scss:1338) -- same UI role (portaled dropdown list) */
   background: var(--surface-2); border: 1px solid var(--line);
   border-radius: 10px; padding: 4px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
@@ -4254,6 +4272,129 @@
   box-shadow: 0 4px 14px -4px rgba(255,107,92,0.55);
 }
 
+/* === NimoChat message body (from PhotosAgentChat.vue's own <style>, not scoped in Vue2 --
+   global under .photos-root there too, so this is a straight append, no selector rewrite). === */
+.photos-root .nimo-md { line-height: 1.5; }
+.photos-root .nimo-md p { margin: 0 0 6px; }
+.photos-root .nimo-md p:last-child { margin-bottom: 0; }
+.photos-root .nimo-md ul,
+.photos-root .nimo-md ol { margin: 0 0 6px; padding-left: 18px; }
+.photos-root .nimo-md li { margin-bottom: 2px; }
+.photos-root .nimo-md code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.16);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.photos-root .nimo-md pre {
+  background: var(--well-bg);
+  border: 1px solid rgba(var(--ink), 0.06);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+.photos-root .nimo-md pre code { background: transparent; padding: 0; font-size: 11px; }
+.photos-root .nimo-md strong { font-weight: 600; color: var(--accent-hi); }
+.photos-root .nimo-md em { font-style: italic; }
+.photos-root .nimo-md a { color: var(--accent-hi); text-decoration: underline; }
+.photos-root .nimo-md h1,
+.photos-root .nimo-md h2,
+.photos-root .nimo-md h3 { font-weight: 600; margin: 6px 0 4px; line-height: 1.3; }
+.photos-root .nimo-md table { border-collapse: collapse; margin: 4px 0 6px; font-size: 11px; max-width: 100%; }
+.photos-root .nimo-md th,
+.photos-root .nimo-md td { border: 1px solid rgba(var(--ink), 0.10); padding: 3px 6px; text-align: left; vertical-align: top; }
+.photos-root .nimo-md th { font-weight: 600; color: var(--accent-hi); background: rgba(var(--accent-rgb), 0.10); }
+
+.photos-root .nimo-tool-line { font-size: 10.5px; color: rgba(var(--ink), 0.38); padding: 1px 0; line-height: 1.3; }
+.photos-root .nimo-tool-line.is-running { color: var(--accent-ink-dim); animation: nimoToolPulse 1.4s ease-in-out infinite; }
+@keyframes nimoToolPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
+.photos-root .nimo-tool-err { color: #ff6b5c; }
+
+.photos-root .nimo-photo-grid { width: 100%; }
+.photos-root .nimo-photo-grid-label { font-size: 10.5px; color: rgba(var(--ink), 0.42); margin-bottom: 5px; }
+.photos-root .nimo-photo-grid-tiles { display: flex; flex-wrap: wrap; gap: 3px; }
+.photos-root .nimo-photo-tile {
+  width: 56px; height: 56px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(var(--ink), 0.06);
+  flex-shrink: 0;
+  position: relative;
+}
+.photos-root .nimo-photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; transition: opacity 0.15s; }
+.photos-root .nimo-photo-tile:hover img { opacity: 0.8; }
+.photos-root .nimo-photo-tile-more {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 600;
+  color: rgba(var(--ink), 0.6);
+  background: rgba(var(--ink), 0.08);
+}
+
+.photos-root .nimo-typing { display: inline-block; font-size: 14px; color: var(--accent-ink-dim); animation: nimoTyping 1.1s ease-in-out infinite; letter-spacing: 2px; }
+@keyframes nimoTyping { 0%,100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.photos-root .nimo-ctx-chip {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 10.5px; color: var(--accent-ink);
+  background: rgba(var(--accent-rgb), 0.12);
+  border-radius: 6px; padding: 2px 8px; margin-bottom: 6px;
+  width: fit-content;
+}
+.photos-root .nimo-ctx-chip-x { background: none; border: none; color: rgba(var(--ink), 0.5); cursor: pointer; font-size: 12px; padding: 0 2px; }
+.photos-root .nimo-ctx-chip-x:hover { color: var(--text-1); }
+
+/* === Confirm/access_request card (from PhotosAgentConfirm.vue's own <style>) === */
+.photos-root .pac-wrap {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: rgba(var(--ink), 0.04);
+  border: 1px solid rgba(var(--ink), 0.10);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 2px 0;
+}
+.photos-root .pac-desc { font-size: 11.5px; color: rgba(var(--ink), 0.80); line-height: 1.4; }
+.photos-root .pac-code {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: rgba(var(--ink), 0.50);
+  background: var(--well-bg);
+  border-radius: 4px;
+  padding: 3px 6px;
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.photos-root .pac-btns { display: flex; align-items: center; gap: 6px; }
+.photos-root .pac-btn {
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+.photos-root .pac-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.photos-root .pac-btn-allow { background: var(--accent); color: white; border-color: var(--accent); }
+.photos-root .pac-btn-allow:not(:disabled):hover { background: var(--accent-hi); }
+.photos-root .pac-btn-deny {
+  background: rgba(var(--ink), 0.06);
+  color: rgba(var(--ink), 0.70);
+  border-color: rgba(var(--ink), 0.12);
+}
+.photos-root .pac-btn-deny:not(:disabled):hover { background: rgba(var(--ink), 0.12); }
+.photos-root .pac-err { font-size: 10.5px; color: #ff6b5c; }
+.photos-root .pac-result { font-size: 10.5px; }
+.photos-root .pac-result-allow { color: rgba(52,199,89,0.85); }
+.photos-root .pac-result-deny { color: rgba(var(--ink), 0.38); }
+
 /* === NimoTaskBar === */
 .photos-root .nimo-tb {
   flex-shrink: 0;
@@ -4282,6 +4423,20 @@
 .photos-root .nimo-tb-row { display: flex; align-items: center; padding: 2px 0; }
 .photos-root .nimo-tb-row-label { flex: 1; font-size: 11px; color: var(--text-2); }
 .photos-root .nimo-tb-row-pct { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+
+/* === NimoTaskBar expanded per-type breakdown (from NimoTaskBar.vue's own <style scoped> --
+   the .nimo-tb-list / .nimo-tb-row family above is Vue2's OWN dead legacy variant, left
+   untouched; this block is the live one). === */
+.photos-root .nimo-tb-types { margin-top: 7px; padding-top: 6px; border-top: 1px solid rgba(var(--ink), 0.05); }
+.photos-root .nimo-tb-type { padding: 3px 0; }
+.photos-root .nimo-tb-type.has-error .nimo-tb-type-pct { color: #ff6b5c; }
+.photos-root .nimo-tb-type-head { display: flex; align-items: center; gap: 6px; }
+.photos-root .nimo-tb-type-icon { display: inline-flex; width: 12px; flex-shrink: 0; }
+.photos-root .nimo-tb-row-alert { color: #ff6b5c; font-weight: 700; font-size: 10px; }
+.photos-root .nimo-tb-type-label { flex: 1; font-size: 11px; color: var(--text-2); }
+.photos-root .nimo-tb-type-pct { font-size: 10px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.photos-root .nimo-tb-type-count { color: var(--text-3); }
+.photos-root .nimo-tb-error-detail { margin-top: 4px; font-size: 10.5px; color: #ff6b5c; line-height: 1.35; }
 
 /* Auto-resume upload: lightweight corner notice bar */
 .recovery-notice {
@@ -4351,6 +4506,12 @@
   pointer-events: none;
   animation: nimoRingIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* === FAB ring transition (from PhotosAskNimo.vue's own <style scoped>) === */
+.photos-root .nimo-fab-ring stop,
+.photos-root .nimo-fab-mini-ring stop { transition: stop-color 0.3s; }
+.photos-root .nimo-fab-ring circle,
+.photos-root .nimo-fab-mini-ring circle { transition: stroke-dashoffset 0.5s cubic-bezier(0.22, 0.61, 0.36, 1); }
 
 /* ──────────────────────────────────────────────────────────────
    Album detail — drag-to-reorder ghost
