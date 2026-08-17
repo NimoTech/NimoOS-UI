@@ -35,6 +35,16 @@
   --danger:  #FF453A;
   --info:    #5AC8FA;
 
+  /* Plan H Task 8 review fix: PhotosTrashView.vue's confirm-modal icon (:100-102) and its
+     hero/hero-button danger icons (:6/:20) use two literal Vue2 colors that are NEITHER of
+     this file's own `--accent`/`--danger` (both a different hue) NOR theme.css's app-wide
+     `--remove-fg` (which is itself re-themed per light/dark, #ff8a8a / #c0392b -- neither
+     value is Vue2's literal). Theme-invariant by design (Vue2 has no light/dark toggle at
+     all), same "identical literal in both blocks" convention as `--nimo-ring-*` below --
+     not a token-substitution gap, a deliberate parity choice. */
+  --trash-confirm-fg: #5e94ff; /* confirm-modal icon, non-danger/restore case, Vue2 :101-102 */
+  --trash-danger-fg: #FF6B5C;  /* hero icon (:6), hero "Empty trash" button icon (:20), confirm-modal icon danger case (:101-102) */
+
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 14px;
@@ -159,6 +169,11 @@
   --nimo-ring-to: #6e5bff;
   --nimo-ring-err-from: #FFB783;
   --nimo-ring-err-to: #FF9F43;
+
+  /* Plan H Task 8 review fix: same theme-invariant pair as the dark `.photos-root` block above
+     (see its own comment) -- identical literal values, Vue2 has no light-mode override. */
+  --trash-confirm-fg: #5e94ff;
+  --trash-danger-fg: #FF6B5C;
 }
 
 .photos-root * { box-sizing: border-box; }

@@ -479,15 +479,19 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 /* Icon glyph colors: parity's own `.lib-hero-icon[data-tint]`/`.trash-modal-icon` rules only
    set the background circle, not the glyph itself (same gap as PhotosFavorites.vue's own
    `.fav-hero-star-icon`) -- these two page-local overrides supply Vue2's explicit inline
-   `color` props. `.trash-danger-icon` is Vue2's always-red icon (PhotosTrashView.vue:6 hero
-   icon, :20 hero "Empty trash" button icon -- both hard-coded `color="#FF6B5C"`); the fallback
-   is Vue2's literal hex, not the softer `--remove-fg` default used elsewhere in this codebase,
-   to stay pixel-exact. `.trash-modal-icon`'s color is dynamic (:101-102: blue `#5e94ff` for the
-   informational/restore case, red `#FF6B5C` for the danger/delete case), inherited by the
-   glyph via `currentColor`. */
-.trash-danger-icon { color: var(--remove-fg, #FF6B5C); }
-.trash-modal-icon { color: var(--accent, #5e94ff); }
-.trash-modal[data-danger="true"] .trash-modal-icon { color: var(--remove-fg, #FF6B5C); }
+   `color` props, via the photos-private `--trash-danger-fg`/`--trash-confirm-fg` tokens
+   (defined on `.photos-root`/`.photos-root.is-light` in photos/styles/vue2-parity/photos.scss,
+   review fix). Neither this file's own `--accent` (a different hue entirely) nor theme.css's
+   app-wide `--remove-fg` (itself re-themed per light/dark, so its value drifts across themes)
+   already carries Vue2's literal colors, hence the two dedicated tokens rather than reusing
+   either -- see that scss file's own comment for the exact hex values and the full reasoning.
+   `.trash-danger-icon` is Vue2's always-red icon (PhotosTrashView.vue:6 hero icon, :20 hero
+   "Empty trash" button icon). `.trash-modal-icon`'s color is dynamic (:101-102: blue for the
+   informational/restore case, red for the danger/delete case), inherited by the glyph via
+   `currentColor`. */
+.trash-danger-icon { color: var(--trash-danger-fg); }
+.trash-modal-icon { color: var(--trash-confirm-fg); }
+.trash-modal[data-danger="true"] .trash-modal-icon { color: var(--trash-danger-fg); }
 
 /* ── Filters / sort (parity has no `.trash-filters`/`.trash-chip`/`.trash-sort` anchors --
      out of this task's rewrite scope, kept as-is). Horizontal padding bumped from 4px to 32px
