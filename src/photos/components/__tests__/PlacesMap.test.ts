@@ -23,6 +23,12 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const themeCssRaw = fs.readFileSync(path.resolve(__dirname, '../../../styles/theme.css'), 'utf8')
+// Fix-5 (owner acceptance, 2026-08-17): parity's own photos-places.scss, needed to verify the
+// `.geo-pin:hover` glow rule now governs from THERE (purple `rgba(var(--accent-rgb), …)`) rather
+// than from this component's own (now-deleted) local `--pin-glow`-consuming duplicate.
+const placesParityScssRaw = fs.readFileSync(
+  path.resolve(__dirname, '../../styles/vue2-parity/photos-places.scss'), 'utf8',
+)
 
 // 注意:cssCascade.ts 的 extractStyleBlock() 会先剥掉 CSS 注释再返回(给"选择器优先级"
 // 那组测试用,注释会污染选择器解析)。theme-exception 合规检查恰恰要看注释本身的原文,
@@ -271,11 +277,25 @@ describe('结构规格 4/8: .pin-scale 几何声明 + hover 发光引用(补测,
     expect(rule!.body).toMatch(/transform-origin:\s*center/)
   })
 
-  it('.geo-pin:hover 引用 var(--pin-glow) 做外发光', () => {
+  // Fix-5 (owner acceptance, 2026-08-17, P6a overturned): this local `.geo-pin:hover` rule (blue
+  // `var(--pin-glow)`) is DELETED from PlacesMap.vue's own `<style scoped>` — it was shadowing
+  // parity's already-correct, byte-transcribed-from-Vue2 purple rule at a cascade tie (see
+  // PlacesMap.vue's own Fix-5 header comment). Retargeted: assert the local rule is gone, and
+  // that parity's own `.photos-root .geo-pin:hover` (photos-places.scss) is what actually governs
+  // the glow now, using the purple `rgba(var(--accent-rgb), 0.7)` family Vue2 itself uses.
+  it('本地不再有 .geo-pin:hover 规则(已删除,让 parity 接管)', () => {
     const rules = parseCssRules(extractStyleBlock(placesMapRaw))
     const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
-    expect(rule, '.geo-pin:hover 规则未找到').toBeTruthy()
-    expect(rule!.body).toMatch(/filter:\s*drop-shadow\([^)]*var\(--pin-glow\)/)
+    expect(rule, '.geo-pin:hover 规则应已从本地删除').toBeUndefined()
+  })
+
+  it('parity 的 .photos-root .geo-pin:hover 用紫色 rgba(var(--accent-rgb), 0.7) 做外发光(Vue2 原值)', () => {
+    // photos-places.scss is a bare .scss, not a Vue SFC -- no `<style>` wrapper for
+    // extractStyleBlock() to find, so strip comments directly and hand parseCssRules the raw text.
+    const rules = parseCssRules(placesParityScssRaw.replace(/\/\*[\s\S]*?\*\//g, ''))
+    const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
+    expect(rule, 'parity 的 .geo-pin:hover 规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/filter:\s*drop-shadow\(0 0 14px rgba\(var\(--accent-rgb\), 0\.7\)\)/)
   })
 })
 
