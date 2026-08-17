@@ -211,7 +211,7 @@ describe('ConfirmCard', () => {
     const w = mount(ConfirmCard, { props: { confirmId: 'c1', description: 'x' }, global: globalOpts })
     await w.findAll('button')[0].trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('confirmation expired')
+    expect(w.text()).toContain('确认已过期')
     expect(w.findAll('button')).toHaveLength(0)
   })
 
@@ -320,7 +320,7 @@ describe('McpInstallCard', () => {
     const w = mount(McpInstallCard, { props: { confirmId: 'c4', name: 'my-server' }, global: globalOpts })
     await w.find('.mcc-allow').trigger('click')
     await flushPromises()
-    expect(w.text()).toContain('confirmation expired')
+    expect(w.text()).toContain('确认已过期')
     expect(w.findAll('button')).toHaveLength(0)
   })
 
