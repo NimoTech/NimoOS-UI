@@ -218,6 +218,34 @@ async function submitCreate(): Promise<void> {
    漂移,即 T3 albums 弹层清理时踩过的坑)。下面只保留 parity 完全没有覆盖的选择器,逐条注释
    保留理由。 */
 
+/* Fix-2 item 3 (owner acceptance, 2026-08-16): parity's own `.photos-root .album-picker-panel`
+   (vue2-parity/photos.scss:1160-1161, `width: 280px; max-height: 360px;`) is byte-transcribed
+   from Vue2's real dialog -- a plain `window.prompt`-era text list, no cover thumbnails. The
+   owner's acceptance screenshot flagged this box as too small now that this component renders
+   real 40px cover thumbnails + a title/count two-line layout (this component's own, documented
+   structural addition over Vue2, see the next comment below). This is a deliberate, owner-
+   directed DEVIATION from parity's pixel value here -- not a transcription bug -- enlarging the
+   panel and making it viewport-responsive.
+
+   Sizing formula: `width: min(520px, 90vw)` reads comfortably on a wide monitor (capped at 520px
+   so the album list doesn't stretch into an awkwardly wide single column) while still fitting a
+   narrow window with a 5vw margin on each side; `max-height: min(640px, 80vh)` leaves headroom
+   above/below the dialog on both a tall desktop viewport and a short one -- `.album-picker-body`'s
+   existing `overflow-y: auto; flex: 1` (parity, untouched below) keeps a long album list
+   scrolling internally rather than growing the dialog past this cap.
+
+   Specificity note: this selector is a plain, single-class `.album-picker-panel`, which under
+   `<style scoped>` compiles to `.album-picker-panel[data-v-xxxx]` -- 0-2-0, the SAME specificity
+   as parity's two-class `.photos-root .album-picker-panel`. Per this whole file's own established
+   convention (this component's scoped `<style>` registers AFTER the parity stylesheet in every
+   host page's import order, see this file's other retirement comments), a genuine specificity tie
+   is won by whichever rule loads later -- so this local override reliably wins over parity's
+   small value instead of losing to it. */
+.album-picker-panel {
+  width: min(520px, 90vw);
+  max-height: min(640px, 80vh);
+}
+
 /* 结构补充(parity 未覆盖):本组件相册项承载封面缩略图 + 标题/计数两列布局,并用原生
    <button> 承载可点击语义(Vue2 版是纯文本 <div>,靠 window.prompt 建相册,没有封面/计数
    这层子结构)——这里只保留 flex 布局与 button 外观重置这两类 parity 完全不涉及的属性;

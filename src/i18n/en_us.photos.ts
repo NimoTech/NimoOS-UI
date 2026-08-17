@@ -37,10 +37,10 @@ export default {
   photosUnfavorite: 'Unfavorite',
   photosDownload: 'Download',
   photosClose: 'Close',
-  photosZoomIn: 'Zoom in',
-  photosZoomOut: 'Zoom out',
-  photosRotate: 'Rotate',
-  photosReset: 'Reset',
+  // Fix-2 item 1 (owner acceptance, 2026-08-16): photosZoomIn/photosZoomOut/photosRotate/
+  // photosReset were only ever used by the now-removed bottom zoom toolbar
+  // (PhotoImageViewer.vue's `.img-toolbar`) -- deleted here (both locales) rather than left
+  // orphaned, since nothing else in the app consumed them.
   photosPrev: 'Previous',
   photosNext: 'Next',
   photosInfoToggle: 'Info',
@@ -53,6 +53,9 @@ export default {
   photosInfoLocation: 'Location',
   photosInfoPeople: 'People',
   photosInfoNimoSees: 'Nimo sees',
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): Vue2's exact label, PhotosLightbox.vue:86
+  // `{{ $t('Hand off to Nimo') }}`.
+  photosHandOffToNimo: 'Hand off to Nimo',
   photosInfoFile: 'File on NAS',
   photosFieldCamera: 'Camera',
   photosFieldIso: 'ISO',

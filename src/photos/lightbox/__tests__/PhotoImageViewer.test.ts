@@ -110,26 +110,33 @@ describe('PhotoImageViewer 缩放(wheel + defineExpose)', () => {
   })
 })
 
-describe('PhotoImageViewer 工具栏按钮 click 生效', () => {
-  it('放大改 scale、旋转改 rotate', async () => {
+// Fix-2 item 1 (owner acceptance, 2026-08-16): the bottom `.img-toolbar` (Zoom in/Zoom out/
+// Rotate/Reset buttons) is removed in both themes -- the owner flagged it as a dark box that
+// stayed illegible in light mode and had no light-mode variant of its own. Zoom remains reachable
+// via wheel (already covered by the "PhotoImageViewer 缩放" describe above) and the new
+// double-click toggle below. The two describe blocks that used to exercise `.img-toolbar .tb-item`
+// buttons (a click-to-zoom/rotate test and a pointer-capture guard proving toolbar clicks don't
+// get eaten by stage drag) are deleted outright along with the buttons themselves -- nothing to
+// retarget, the element no longer exists.
+
+describe('PhotoImageViewer 双击缩放切换(Fix-2 item 1,cheap companion gesture alongside wheel-zoom)', () => {
+  it('未缩放时双击 → 缩到 2x', async () => {
     const w = await mountViewer()
-    const items = w.findAll('.img-toolbar .tb-item')
-    await items[0]!.trigger('click') // 放大
-    expect(w.get('img.img-el').attributes('style')).toContain('scale(1.1)')
-    await items[2]!.trigger('click') // 旋转
-    expect(w.get('img.img-el').attributes('style')).toContain('rotate(90deg)')
+    await w.get('.img-stage').trigger('dblclick')
+    expect(w.get('img.img-el').attributes('style')).toContain('scale(2)')
+  })
+
+  it('已缩放(committedZoom×scale > 1)时双击 → 复位(scale(1)、旋转/位移归零)', async () => {
+    const w = await mountViewer()
+    await (w.vm as any).zoomIn() // 有效倍数 1.1 > 1.01 阈值
+    await w.get('.img-stage').trigger('dblclick')
+    const style = w.get('img.img-el').attributes('style')!
+    expect(style).toContain('scale(1)')
+    expect(style).toContain('rotate(0deg)')
   })
 })
 
-describe('PhotoImageViewer 指针拖拽守卫(pointer capture 不吞工具栏按钮 click)', () => {
-  it('工具栏上按下指针不得进入舞台拖拽', async () => {
-    const w = await mountViewer()
-    const btn = w.findAll('.img-toolbar .tb-item')[0]! // 放大键
-    await btn.trigger('pointerdown', { clientX: 10, clientY: 10 })
-    await w.get('.img-stage').trigger('pointermove', { clientX: 60, clientY: 80 })
-    expect(w.get('img.img-el').attributes('style')).toContain('translate(0px, 0px)')
-  })
-
+describe('PhotoImageViewer 舞台拖拽(工具栏移除后,pointerdown 不再需要 .img-toolbar 放行守卫)', () => {
   it('舞台空白处拖拽可平移图片', async () => {
     const w = await mountViewer()
     const stage = w.get('.img-stage')

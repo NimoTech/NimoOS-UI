@@ -7,6 +7,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
+import fs from 'node:fs'
+import path from 'node:path'
 import zh from '../../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
@@ -297,5 +299,45 @@ describe('AlbumPickerDialog.vue', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledTimes(1)
     resolveAdd?.()
     await flushPromises()
+  })
+})
+
+// Fix-2 item 3 (owner acceptance, 2026-08-16): enlarge the dialog + make it viewport-responsive
+// (screenshot showed a small fixed 280px/360px box that no longer fits real cover thumbnails +
+// title/count rows). jsdom doesn't compute cascade/specificity, so this is a raw-source assertion
+// (same idiom as color-guard.test.ts/photosGlassSurfaces.test.ts's own rule-body reads) rather
+// than a rendered-DOM measurement.
+describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () => {
+  const SRC = fs.readFileSync(path.resolve(__dirname, '../AlbumPickerDialog.vue'), 'utf8')
+  const PARITY_SRC = fs.readFileSync(
+    path.resolve(__dirname, '../../styles/vue2-parity/photos.scss'),
+    'utf8',
+  )
+
+  function ruleBody(text: string, selector: string): string {
+    const i = text.indexOf(selector)
+    expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
+    const open = text.indexOf('{', i)
+    const close = text.indexOf('}', open)
+    return text.slice(open + 1, close)
+  }
+
+  it('本地 .album-picker-panel 覆盖为 width: min(520px, 90vw); max-height: min(640px, 80vh)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    const body = ruleBody(styleBlock, '.album-picker-panel')
+    expect(body).toMatch(/width:\s*min\(520px,\s*90vw\)/)
+    expect(body).toMatch(/max-height:\s*min\(640px,\s*80vh\)/)
+  })
+
+  it('parity 自己的 280px/360px 小尺寸原值未被误改(本地覆盖赢在同特异性平局，不是改了共享真源）', () => {
+    const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-panel')
+    expect(body).toMatch(/width:\s*280px/)
+    expect(body).toMatch(/max-height:\s*360px/)
+  })
+
+  it('.album-picker-body 仍是 parity 的内部滚动(overflow-y: auto; flex: 1),放大后长列表不撑破对话框', () => {
+    const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-body')
+    expect(body).toMatch(/overflow-y:\s*auto/)
+    expect(body).toMatch(/flex:\s*1/)
   })
 })

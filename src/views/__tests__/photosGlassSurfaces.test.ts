@@ -268,6 +268,11 @@ describe('灯箱 4 个组件文件(Task 6):裸色字面量白名单 —— 不�
     // comment in PhotoLightbox.vue) -- a deliberate one-off parity match, not a drift back toward
     // hardcoded colors generally.
     'photos/lightbox/PhotoLightbox.vue::<div class="lb-confirm-icon" style="color: #FF6B5C"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg></div>',
+    // Fix-2 item 4 (owner acceptance, 2026-08-16): the solid-gold favorite star is a fixed
+    // semantic color across themes, matching Vue2's own inline hex literal
+    // (PhotosLightbox.vue:11, `:color="photo.fav ? '#FFD60A' : 'currentColor'"`) -- same
+    // one-off-parity-match precedent as the confirm-icon entry above.
+    'photos/lightbox/PhotoLightbox.vue::.lb-fav.is-fav { color: #ffd60a; }',
   ])
 
   // A line counts as "bare" only if it has a color literal (rgba()/hex) with NO `var(--…)`
@@ -352,5 +357,46 @@ describe('Fix-1 items 1/6: Places 区不再消费全局玻璃/文本 token(只�
     const raw = read('photos/components/PlaceSpotDialog.vue')
     expect(raw).not.toMatch(/var\(--accent-text\)/)
     expect(raw).toContain('color: var(--accent-hi); flex: none')
+  })
+})
+
+// Fix-2 item 4 (owner acceptance, 2026-08-16): same defect class as the Places sweep above
+// (Fix-1 items 1/6), found independently in the lightbox family via the owner's acceptance
+// screenshot ("light-mode lightbox illegible -- buttons, text, arrows all washed out"). Root
+// cause identical: rules consuming *global* New-UI theme.css tokens instead of this area's own
+// `.photos-root`/`.photos-root.is-light`-scoped equivalents. Global tokens only follow the
+// app-wide `[data-theme]` attribute; Photos has its own PRIVATE toggle
+// (`usePhotosTheme()`/`.photos-root.is-light`), so in the common "Photos-light + app-global-dark"
+// combination every rule below stayed stuck in its dark appearance. This guard is the lightbox
+// counterpart of the Places whitelist sweep: every one of these token names should have ZERO
+// `var(...)` occurrences left in the 4 lightbox-family component files' `<style>` blocks.
+describe('Fix-2 item 4: 灯箱家族不再消费全局玻璃/文本 token(只跟全站主题、不跟 Photos 私有 is-light)', () => {
+  const LIGHTBOX_FILES = [
+    'photos/lightbox/PhotoLightbox.vue',
+    'photos/lightbox/PhotoInfoPanel.vue',
+    'photos/lightbox/PhotoImageViewer.vue',
+    'photos/lightbox/PhotoFilmstrip.vue',
+  ]
+
+  // `--blur` is deliberately NOT banned here -- it's a shared structural token (blur radius, not a
+  // color), consistent with this codebase's "structural values stay shared across themes"
+  // convention (CLAUDE.md's theming section); `.lb-live-btn`'s own Fix-2 comment explains this
+  // choice for its one remaining consumer.
+  const BANNED_TOKENS = [
+    '--fg\\b', '--fg-muted', '--fg-subtle', '--card-border', '--tool-bg-hi', '--star-fg',
+    '--remove-fg', '--popup-bg', '--chip-bg-hi', '--chip-bg\\b',
+  ]
+  const BANNED_RE = new RegExp(`var\\((${BANNED_TOKENS.join('|')})\\)`)
+
+  function bannedTokenUsages(rel: string): string[] {
+    return extractStyleBlock(read(rel))
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => BANNED_RE.test(l))
+      .map((l) => `${rel}::${l}`)
+  }
+
+  it('4 个灯箱组件文件里,以上全局 token 的 var(...) 消费方数量恰好为 0', () => {
+    expect(LIGHTBOX_FILES.flatMap(bannedTokenUsages)).toEqual([])
   })
 })

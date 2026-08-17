@@ -299,10 +299,28 @@ describe('PhotoInfoPanel', () => {
     })
   })
 
-  it('does not render the ask-nimo hand-off button (removed delta)', () => {
-    const w = mountPanel(makePhoto())
-    expect(w.text()).not.toContain('Nimo')
-    expect(w.find('.give-nimo').exists()).toBe(false)
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): the "Hand off to Nimo" button is restored per
+  // Vue2 PhotosLightbox.vue:84-87 -- this case used to assert its ABSENCE (Task 7's original
+  // delta #1); flipped to assert presence + a safe no-op click (real wiring is Plan G's job, same
+  // precedent as PersonHero.vue's onAskNimo).
+  describe('「交给 Nimo」按钮(Fix-2 item 2,Vue2 PhotosLightbox.vue:84-87 复原)', () => {
+    it('渲染 .give-nimo,data-test=lb-give-nimo,文案取 photosHandOffToNimo', () => {
+      const w = mountPanel(makePhoto())
+      const btn = w.find('[data-test="lb-give-nimo"]')
+      expect(btn.exists()).toBe(true)
+      expect(btn.classes()).toContain('give-nimo')
+      expect(btn.text()).toBe(zh.photosHandOffToNimo)
+    })
+
+    it('点击不抛异常(no-op,真接线属 Plan G)', async () => {
+      const w = mountPanel(makePhoto())
+      await expect(w.find('[data-test="lb-give-nimo"]').trigger('click')).resolves.not.toThrow()
+    })
+
+    it('visible=false 时按钮也不渲染(随整个面板一起隐藏)', () => {
+      const w = mountPanel(makePhoto(), false)
+      expect(w.find('[data-test="lb-give-nimo"]').exists()).toBe(false)
+    })
   })
 
   it('renders nothing when visible=false', () => {
@@ -329,5 +347,30 @@ describe('PhotoInfoPanel', () => {
     await Promise.resolve()
     expect(w.text()).not.toContain(zh.photosCopied)
     vi.useRealTimers()
+  })
+
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): slide-in open/close transition, an owner-directed
+  // net addition over Vue2 (which has none -- bare `v-if`, see this component's Fix-2 style-block
+  // comment). jsdom doesn't run CSS transitions, so this is a raw-source assertion (same idiom as
+  // PhotoLightbox.test.ts's own `.lb-swap-*`/`.lb-confirm` transition-name/timing checks).
+  describe('详情栏开合的滑入过渡(Fix-2 item 2,owner-directed net addition)', () => {
+    it('<aside class="lb-info"> 被 <transition name="lb-info-slide"> 包裹', () => {
+      expect(PANEL_SRC).toMatch(/<transition name="lb-info-slide">\s*<aside v-if="visible && photo" class="lb-info">/)
+    })
+
+    it('过渡时长/缓动用房子统一的 cubic-bezier(0.22, 0.61, 0.36, 1),只变 transform/opacity', () => {
+      const activeRule = /\.lb-info-slide-enter-active,\s*\.lb-info-slide-leave-active\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(activeRule, '找不到 .lb-info-slide-enter-active/-leave-active 规则').not.toBeNull()
+      expect(activeRule![1]).toMatch(/transition:\s*transform 0\.28s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\), opacity 0\.22s cubic-bezier\(0\.22, 0\.61, 0\.36, 1\)/)
+    })
+
+    it('进入前/离开后状态:向右偏移 + 透明,不含任何布局属性(不会挤动 .lb-main)', () => {
+      const endStateRule = /\.lb-info-slide-enter-from,\s*\.lb-info-slide-leave-to\s*\{([^}]*)\}/.exec(PANEL_SRC)
+      expect(endStateRule, '找不到 .lb-info-slide-enter-from/-leave-to 规则').not.toBeNull()
+      const body = endStateRule![1]
+      expect(body).toMatch(/transform:\s*translateX\(24px\)/)
+      expect(body).toMatch(/opacity:\s*0/)
+      expect(body).not.toMatch(/width|height|margin|padding|grid/)
+    })
   })
 })

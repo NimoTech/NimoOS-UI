@@ -464,7 +464,20 @@ onBeforeUnmount(() => {
    (13px/500/var(--text-1)); only the truncation behaviour survives locally -- parity's own title
    isn't wrapped in a fixed-width flex box like `.lb-titlebox` and has no overflow to guard. */
 .lb-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.lb-sub { font-size: 12px; color: var(--fg-muted); }
+/* Fix-2 item 4 (owner acceptance, 2026-08-16): every color below was New-UI's *global* theme.css
+   token (`--fg`/`--fg-muted`/`--tool-bg-hi`/`--star-fg`/`--remove-fg`) -- those only follow the
+   app-wide `[data-theme]` attribute on `<html>`, not Photos' own PRIVATE light/dark toggle
+   (`usePhotosTheme()`/`.photos-root.is-light`, independent of the global one -- see
+   src/photos/composables/usePhotosTheme.ts). In the very common "Photos-light + app-global-dark"
+   combination every rule below stayed stuck in its dark appearance regardless of Photos' own
+   switch: white icon glyphs on the now-near-white `.lb-top`/`.lb-chrome`, i.e. exactly the owner's
+   acceptance screenshot ("top-bar icon buttons + title/counter text ... washed out"). Same root
+   cause and same fix shape as the Places-area sweep done this same day
+   (photosGlassSurfaces.test.ts's "Places 区不再消费全局玻璃/文本 token" describe block) -- swapped
+   for this area's own `.photos-root`/`.photos-root.is-light`-scoped tokens
+   (vue2-parity/photos.scss), matching parity's own `.icon-btn`/`.icon-btn:hover`/
+   `.icon-btn[data-active="true"]` pattern (photos.scss:262-268) property-for-property. */
+.lb-sub { font-size: 12px; color: var(--text-2); }
 .lb-spacer { flex: 1; }
 .lb-icon-btn {
   display: inline-flex;
@@ -475,14 +488,15 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: var(--fg);
+  color: var(--text-2);
   cursor: pointer;
 }
-.lb-icon-btn:hover { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); }
-.lb-fav.is-fav { color: var(--star-fg, #ffd60a); }
-/* theme-exception: the solid-gold favorite star is a fixed semantic color across themes */
-.lb-info-toggle.active { background: var(--tool-bg-hi, rgba(255, 255, 255, 0.12)); color: var(--accent); }
-.lb-icon-btn.danger:hover { color: var(--remove-fg, #ff5d5d); }
+.lb-icon-btn:hover { background: var(--surface-3); color: var(--text-1); }
+/* theme-exception: the solid-gold favorite star is a fixed semantic color across themes, matches
+   Vue2's own inline `:color="photo.fav ? …gold-hex… : 'currentColor'"` (PhotosLightbox.vue:11) */
+.lb-fav.is-fav { color: #ffd60a; }
+.lb-info-toggle.active { background: var(--accent-soft); color: var(--accent-hi); }
+.lb-icon-btn.danger:hover { color: var(--danger); }
 
 /* `.lb-main`/`.lb-media` are byte-identical to parity's own `.photos-root .lb-main`/
    `.photos-root .lb-media` (grid-area:main+position:relative+display:grid+place-items:center+
@@ -554,8 +568,12 @@ onBeforeUnmount(() => {
   border: none;
   border-radius: 999px;
   font-size: 12px;
-  color: var(--fg);
-  background: var(--popup-bg, rgba(0, 0, 0, 0.5));
+  /* Fix-2 item 4: `--fg`/`--popup-bg` (global, app-theme-only) → `--text-1`/`--pop-bg` (this
+     area's own is-light-aware tokens, same root cause as `.lb-icon-btn` above). `--blur` is left
+     as the shared global structural token -- it's a blur radius, not a color, and this codebase's
+     convention is that non-color structural values stay shared (see CLAUDE.md's theming section). */
+  color: var(--text-1);
+  background: var(--pop-bg);
   backdrop-filter: var(--blur);
   cursor: pointer;
   user-select: none;

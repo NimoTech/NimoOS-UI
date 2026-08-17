@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
 import { browserCanDisplayImage } from '../util/browserCanDisplayImage'
 import { mapOcrBoxesToRects } from './util/ocrHighlight'
@@ -10,7 +9,6 @@ const props = defineProps<{
   mimeType: string
   ocrLines?: Array<{ box: number[] }>
 }>()
-const { t } = useI18n()
 
 // HEIC/TIFF/RAW 等浏览器无法原生解码的格式回退到已转码的大图缩略图(照 Vue2 PhotosLightbox imageSrc)
 const src = computed(() =>
@@ -78,8 +76,20 @@ function setZoom(effective: number) {
 }
 function zoomIn() { setZoom(committedZoom.value * scale.value + 0.1) }
 function zoomOut() { setZoom(committedZoom.value * scale.value - 0.1) }
+// Fix-2 item 1 (owner acceptance, 2026-08-16): the bottom zoom toolbar (both themes) is removed
+// below -- rotate() loses its only UI entry point along with it (acceptable per owner ruling:
+// zoom was the one feature explicitly named for preservation). Kept live and reachable, not
+// deleted -- still exposed via defineExpose for any future programmatic/keyboard trigger.
 function rotate() { rotation.value += 90 }
 function onWheel(e: WheelEvent) { e.deltaY < 0 ? zoomIn() : zoomOut() }
+// Fix-2 item 1: double-click companion gesture (cheap addition alongside wheel-zoom, which
+// already covers "zoom in/out must remain reachable" without any button). Toggles between the
+// current effective zoom and a fixed 2x, reusing the exact same setZoom/resetTransform mechanics
+// the (now-removed) toolbar buttons drove.
+function onDblClick() {
+  if (committedZoom.value * scale.value > 1.01) resetTransform()
+  else setZoom(2)
+}
 
 // 换图时复位变换 + 重算 OCR 覆盖层(单图无内部 index,按 assetId 换图)
 watch(() => props.assetId, () => { resetTransform(); recomputeOcrRects() })
@@ -111,9 +121,6 @@ function clampPan() {
 }
 
 function onPointerDown(e: PointerEvent) {
-  // 工具栏按钮的 pointerdown 会冒泡到舞台;若在此 setPointerCapture,指针被舞台
-  // 捕获后 click 不再派发给按钮,整排工具栏点击失效 —— 起于工具栏的按下直接放行。
-  if ((e.target as HTMLElement).closest('.img-toolbar')) return
   dragging = true
   startX = e.clientX; startY = e.clientY; baseX = tx.value; baseY = ty.value
   ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -128,15 +135,6 @@ function onPointerMove(e: PointerEvent) {
 }
 function onPointerUp() { dragging = false }
 
-// —— 工具栏 5s 无操作自动隐藏(忠于 files ImageViewer)——
-const isMoving = ref(false)
-let hideTimer: ReturnType<typeof setTimeout> | null = null
-function onMouseMove() {
-  isMoving.value = true
-  if (hideTimer) clearTimeout(hideTimer)
-  hideTimer = setTimeout(() => { isMoving.value = false; hideTimer = null }, 5000)
-}
-
 // —— OCR 覆盖层:rects 与 <img> 共享同一变换(见 .ocr-overlay 的 :style="imgStyle"),
 // 缩放/平移/旋转时随图片同步移动;.img-wrap 只是让 overlay 与 img 共享定位原点的
 // 壳(img 是其唯一内容,原点对齐),因此不必再叠加 offsetLeft/offsetTop。——
@@ -150,7 +148,6 @@ watch(() => props.ocrLines, recomputeOcrRects)
 
 let resizeObserver: ResizeObserver | undefined
 onMounted(() => {
-  onMouseMove()
   recomputeOcrRects()
   if (typeof ResizeObserver !== 'undefined' && imgEl.value) {
     resizeObserver = new ResizeObserver(recomputeOcrRects)
@@ -158,7 +155,6 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => {
-  if (hideTimer) clearTimeout(hideTimer)
   if (commitTimer) clearTimeout(commitTimer)
   if (suppressTimer) clearTimeout(suppressTimer)
   resizeObserver?.disconnect()
@@ -171,9 +167,8 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
   <div
     ref="stageEl"
     class="img-stage"
-    @mousemove="onMouseMove"
-    @touchmove="onMouseMove"
     @wheel.prevent="onWheel"
+    @dblclick="onDblClick"
     @pointerdown="onPointerDown"
     @pointermove="onPointerMove"
     @pointerup="onPointerUp"
@@ -209,13 +204,6 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
           :style="{ left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px` }"
         />
       </div>
-    </div>
-
-    <div v-if="isMoving" class="img-toolbar">
-      <button type="button" class="tb-item" @click="zoomIn">{{ t('photosZoomIn') }}</button>
-      <button type="button" class="tb-item" @click="zoomOut">{{ t('photosZoomOut') }}</button>
-      <button type="button" class="tb-item" @click="rotate">{{ t('photosRotate') }}</button>
-      <button type="button" class="tb-item" @click="resetTransform">{{ t('photosReset') }}</button>
     </div>
   </div>
 </template>
@@ -288,33 +276,10 @@ defineExpose({ zoomIn, zoomOut, rotate, resetTransform })
    component actually renders inside `.photos-root`, parity's copies alone govern; keeping the
    local duplicates would only be the identical same-specificity tie flagged across this whole
    file family. */
-.img-toolbar {
-  position: absolute;
-  bottom: 40px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  display: flex;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 10px;
-  box-shadow: var(--media-overlay-shadow);
-  background: var(--popup-bg);
-  backdrop-filter: var(--blur);
-}
-.tb-item {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 34px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--fg);
-  font-size: 13px;
-  white-space: nowrap;
-  cursor: pointer;
-  border-radius: 6px;
-}
-.tb-item:hover { background: var(--tool-bg-hi); }
+/* Fix-2 item 1 (owner acceptance, 2026-08-16): `.img-toolbar`/`.tb-item` (the Zoom in/Zoom out/
+   Rotate/Reset button row) are removed outright, both themes -- the owner's acceptance screenshot
+   flagged this floating box as visual clutter that also read as unreadably dark-on-light in the
+   light theme (it never had a light-mode variant of its own, only global dark-glass tokens). Zoom
+   remains reachable via wheel (onWheel, pre-existing) and the new double-click toggle (onDblClick,
+   this same file's script) -- see that function's own comment for what replaces the buttons. */
 </style>
