@@ -877,14 +877,33 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-thumb-active: rgba(138, 180, 255, 0.18);
 `,
     replace: '' },
-  // Fix-5 (owner acceptance, 2026-08-17): the seven --pin-* geo-pin tokens (P6a formally
-  // overturned) were removed from theme.css outright on the private side -- moved to
-  // photos.scss during an earlier task, then deleted entirely once PlacesMap.vue's own
-  // shadowing rules were fixed to let parity's already-correct purple rules govern (see
-  // photos.scss's own Fix-5 comment). Nothing left here for this PATCH entry to strip, so
-  // the entry itself (dark block, light 6-token block, and light cluster-stroke block below)
-  // is retired along with the tokens -- retargeting it at some other text would just be
-  // re-inventing a strip rule for content that no longer exists on the private side at all.
+  // --pin-* retirement note (PlacesMap 图钉,Fix-5 P6a overturned)
+  // Fix-5 (owner acceptance, 2026-08-17): the seven --pin-* geo-pin token VALUES are long gone
+  // from theme.css (moved to photos.scss during an earlier task, then deleted entirely once
+  // PlacesMap.vue's own shadowing rules were fixed to let parity's already-correct purple rules
+  // govern), but the explanatory comment that used to sit above them is still here, still
+  // mentions "photo(s)" by name, and still needs stripping from the OSS export like every other
+  // Photos-only comment in this file -- re-anchored to that surviving comment's own current text
+  // (it was never updated off its original Review-I3 wording).
+  { path: 'src/styles/theme.css',
+    find: `  /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens that used to live here have
+     moved to \`src/photos/styles/vue2-parity/photos.scss\`'s \`.photos-root { }\`/
+     \`.photos-root.is-light { }\` blocks — see that file for the values and rationale. They were
+     following this app's *global* light/dark theme while the map canvas/dots they sit on top of
+     follow Photos' own *private* theme, a dual-signal split that made "global light + photos
+     dark" (the default for light-app users, since photos defaults to dark) render pins in the
+     wrong palette. Confirmed via \`/usr/bin/grep -rn 'pin-bg\\|pin-stroke\\|pin-active-bg\\|
+     pin-pulse\\|pin-cluster\\|pin-glow' src/\` that nothing outside Photos consumed these tokens,
+     so they were moved wholesale rather than left duplicated here. */
+`,
+    replace: '' },
+  // light:--pin-* retirement note
+  { path: 'src/styles/theme.css',
+    find: `  /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark \`.photos-root\` block's own Fix-5 comment
+     above for the full rationale. */
+`,
+    replace: '' },
   // --place-current-trip
   { path: 'src/styles/theme.css',
     find: `  /* Vue2's original value #34c759 (the current-trip color, also used by the legend's fourth
@@ -917,19 +936,27 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   // --map-dot-bg-fallback(PlacesMap 陆地点阵)
+  // Fix-5-adjacent note: Task 6 (Plan E, 2026-08-15, private-side only) bumped this literal
+  // from 0.10 to 0.30 (Vue2 PR #106's contrast raise) and rewrote the comment accordingly --
+  // this anchor tracks the current (0.30) private-side text, not the pre-Task-6 original.
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) land-dot-grid base color CSS fallback -- theme-invariant, same
-     value in both theme blocks. An exact port of Vue2 photos-places.scss:347's literal
-     rgba(255,255,255,0.10) (that view deliberately avoids the --ink/text-color family,
-     because this layer sits over the map preset's own dark canvas, independent of the
-     app theme). This can't be swapped for this repo's --fg-faint: dark theme's --fg-faint
-     is rgba(255,255,255,0.52) (0.52 vs 0.10 -- the land dot grid would brighten enough to
-     overpower --map-dot's visited-point markers), and light theme's --fg-faint is worse
-     still, an opaque warm neutral #9a958a (which turns into a solid tinted block when laid
-     over custom mode's plain dark map canvas) -- review I1 re-verified this failure path
-     is genuinely reachable (Vue2's two most common paths, :150/:137, both leave dotBg
-     null, i.e. both fall through to this CSS default -- not a rare branch). */
-  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+    find: `  /* PlacesMap.vue (P6a-T6) land-dot-lattice CSS fallback color — theme-invariant, same value in
+     both theme blocks. Task 6 (Plan E, 2026-08-15) updated the literal from
+     rgba(255,255,255,0.10) to 0.30: Vue2 PR #106 (git show 78cf3335) raised this contrast twice
+     (0.10→0.20→0.30); this had been left stuck at the pre-#106 initial value and is now brought
+     up to the final value, an exact reproduction of Vue2 photos-places.scss:349's literal
+     \`rgba(255,255,255,0.30)\` (this view deliberately doesn't route through the --ink/text-color
+     family here, since this layer sits over the map preset's own dark canvas, independent of the
+     app theme).
+     Can't substitute this repo's --fg-faint: the dark --fg-faint is rgba(255,255,255,0.52)
+     (0.52 vs 0.30 — the land-dot lattice would then be bright enough to wash out --map-dot's
+     already-visited dots, whose dark final value is 0.32; 0.30 vs 0.32 is a deliberately narrow
+     but still-perceptible gap, and 0.52 would swamp it instead), and the light --fg-faint is an
+     opaque warm grey #9a958a (which would turn into an opaque grey block over the custom mode's
+     solid-black map canvas) — review I1 confirmed by hands-on testing that this failure path is
+     actually reachable (Vue2 :150/:137, the two most common paths, both have dotBg === null,
+     i.e. both fall through to this CSS fallback — not a rare branch). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
 `,
     replace: '' },
   // --float-bg(PlacesZoomBar 浮动药丸底)
@@ -1064,13 +1091,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-home-base: #c4b8ff;
 `,
     replace: '' },
-  // light:--map-dot-bg-fallback
+  // light:--map-dot-bg-fallback (Fix-5-adjacent: value/comment bumped to 0.30, see the dark
+  // entry's own note above)
   { path: 'src/styles/theme.css',
-    find: `  /* theme-invariant, same value in both theme blocks -- see the :root token of the same
-     name's comment (same reasoning as above for not using --fg-faint: light theme's
-     --fg-faint is an opaque warm neutral #9a958a, which would likewise turn into a solid
-     tinted block over the map canvas). */
-  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+    find: `  /* theme-invariant, same value in both theme blocks — see the :root token's own comment
+     (Task 6 updated the literal from 0.10 to 0.30; the reasoning against --fg-faint is the same
+     as there — light --fg-faint is an opaque warm grey #9a958a, which would likewise turn into
+     an opaque block over the map canvas). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
 `,
     replace: '' },
   // light:--float-bg
