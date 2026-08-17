@@ -68,6 +68,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
 import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
@@ -180,7 +181,9 @@ onMounted(() => {
           :collapsed="collapsed"
           :title="t('photosMoForYou')"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <!-- ── Moments · For You (Vue2 939a7d3a :18-32) -- now this page's sole content.

@@ -327,6 +327,26 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
   })
 })
 
+// Plan G Task 16 (preflight F-06/F-17): additive `showAskNimo` prop (default false, non-breaking
+// for the 5 existing library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2
+// truth: the topbar Ask button opens the drawer directly, no prefill (baseline research report
+// §2.1, PhotosTopbar.vue:29 in the Vue2 repo) — this component only emits, the caller (T2's
+// useAskNimo().openDrawer()) owns that behavior.
+describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
+  beforeEach(() => { setActivePinia(createPinia()) })
+
+  it('does not render the Ask Nimo button by default (non-breaking for existing callers)', () => {
+    const w = mountTopbar({ title: 'x' })
+    expect(w.find('[data-test="topbar-ask-nimo"]').exists()).toBe(false)
+  })
+
+  it('renders it when showAskNimo is true, emitting ask-nimo on click', async () => {
+    const w = mountTopbar({ title: 'x', showAskNimo: true })
+    await w.find('[data-test="topbar-ask-nimo"]').trigger('click')
+    expect(w.emitted('ask-nimo')).toBeTruthy()
+  })
+})
+
 // 非颜色视觉属性锚定(I5,曾与已退役的 PhotosSearchBar.test.ts 同一约定):组件自身 scoped style 里
 // 唯一允许存在的规则是搜索框 FILL 的已拍板玻璃质感偏离(chip-bg/chip-border),不应该出现
 // 任何 Vue2 已在 parity scss 里给出的其它视觉属性(高度/圆角/尺寸等一律让 parity 生效)。

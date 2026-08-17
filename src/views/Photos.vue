@@ -69,6 +69,7 @@ import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -367,7 +368,7 @@ onUnmounted(() => {
            photos-area page has no topbar and needs the sidebar's own trigger. -->
       <PhotosSidebar :collapsed="collapsed" hide-drawer-trigger />
       <main class="main">
-        <PhotosTopbar :collapsed="collapsed" @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" />
+        <PhotosTopbar :collapsed="collapsed" show-ask-nimo @toggle-collapse="onToggleCollapse" @search-submit="onSearchSubmit" @ask-nimo="useAskNimo().openDrawer()" />
         <div class="photos-main">
           <p v-if="store.loading" class="photos-loading">{{ t('photosTitle') }}…</p>
           <template v-else>

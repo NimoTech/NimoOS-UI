@@ -77,6 +77,7 @@ import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -543,7 +544,9 @@ onUnmounted(() => {
           :title="t('photosPeople')"
           :sub="topbarSub"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <!-- ── Banner (Vue2 :3-42) ── -->

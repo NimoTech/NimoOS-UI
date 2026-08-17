@@ -50,6 +50,7 @@ import PhotosIcon from '../photos/components/PhotosIcon.vue'
 import PhotosLibraryPicker from '../photos/components/PhotosLibraryPicker.vue'
 import SmartViewCreateDialog from '../photos/components/SmartViewCreateDialog.vue'
 import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import { usePhotosAlbums } from '../photos/stores/albums'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSmartViews, type SmartView } from '../photos/stores/smartViews'
@@ -386,7 +387,9 @@ onUnmounted(() => {
           :title="topbarTitle"
           :sub="topbarSub"
           :show-search="false"
+          show-ask-nimo
           @toggle-collapse="onToggleCollapse"
+          @ask-nimo="useAskNimo().openDrawer()"
         />
        <div class="photos-main">
         <div class="albums-banner">
