@@ -1339,6 +1339,9 @@ async function onExcludedTileClick(id: string): Promise<void> {
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/Convert/etc.)
        -- mounted once per photos view, Teleports to <body> and re-applies photos-root +
@@ -1349,9 +1352,6 @@ async function onExcludedTileClick(id: string): Promise<void> {
        `duplicateSv()`/`doConvertToAlbum()`'s `photosToast.show(...)` calls had nothing to
        render them. -->
   <PhotosToastHost />
-  <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
-       as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
-  <AskNimoHost />
 </template>
 
 <style scoped>

@@ -1260,6 +1260,9 @@ watch(gridRef, () => {
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/etc.) --
        mounted once per photos view, Teleports to <body> and re-applies photos-root + themeClass
@@ -1269,9 +1272,6 @@ watch(gridRef, () => {
        previously had no mount for it at all (only `Photos.vue` did), which is why
        `duplicateAlbum()`'s `photosToast.show(...)` call had nothing to render it. -->
   <PhotosToastHost />
-  <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
-       as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
-  <AskNimoHost />
 </template>
 
 <style scoped>

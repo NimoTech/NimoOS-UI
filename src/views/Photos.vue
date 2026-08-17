@@ -441,13 +441,13 @@ onUnmounted(() => {
       @toggle-fav="() => {}"
       @add-to-album="(id) => openAlbumPicker([id])"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
   <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
        Teleports to <body> (see PhotosToastHost.vue). -->
   <PhotosToastHost />
-  <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
-       as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
-  <AskNimoHost />
 </template>
 
 <style scoped>
