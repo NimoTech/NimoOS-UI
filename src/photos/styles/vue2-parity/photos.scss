@@ -878,6 +878,18 @@
 .photos-root .nimo-fab.nimo-fab-swap-leave-to { transform: scale(0.9) translateX(8px); }
 .photos-root .nimo-fab-mini.nimo-fab-swap-enter,
 .photos-root .nimo-fab-mini.nimo-fab-swap-leave-to { transform: translateX(100%); }
+/* Review fix (IMPORTANT #1): Vue2→Vue3 framework-difference fix, same precedent as
+   PlacesMap.vue's .pin-merge-enter-from and PhotoLightbox.vue's .lb-swap-*-enter-from. Vue3
+   renamed the bare `-enter` transition class to `-enter-from` (`-leave-to` kept its name in
+   both versions). The three `-enter` selectors just above are the verbatim Vue2 transcription
+   (parity record, kept as documented dead source -- Vue3's <transition> never applies that
+   class name, so they never actually fire); this block supplies the real Vue3 selector so
+   AskNimoFab.vue's `<transition name="nimo-fab-swap">` swap animation actually runs. The
+   `-leave-to` half is unchanged between Vue2 and Vue3, so it needs no shim -- already covered
+   by the combined selectors above. */
+.photos-root .nimo-fab-swap-enter-from { opacity: 0; }
+.photos-root .nimo-fab.nimo-fab-swap-enter-from { transform: scale(0.9) translateX(8px); }
+.photos-root .nimo-fab-mini.nimo-fab-swap-enter-from { transform: translateX(100%); }
 
 /* FAB orb specific size */
 .photos-root .nimo-fab .nimo-orb {

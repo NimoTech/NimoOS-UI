@@ -5,6 +5,7 @@ import { useAgentStore } from '../../../ai/stores/agentStore'
 import { useTimelineStore } from '../../stores/timeline'
 import { useAskNimo } from '../../composables/useAskNimo'
 import AskNimoFab from './AskNimoFab.vue'
+import askNimoFabRaw from './AskNimoFab.vue?raw'
 
 describe('AskNimoFab', () => {
   beforeEach(() => {
@@ -131,5 +132,30 @@ describe('AskNimoFab', () => {
     await wrapper.vm.$nextTick()
     expect(useAskNimo().fabBottom.value).toBe(14) // untouched -- no drag was ever started (corrected 14 default)
     wrapper.unmount()
+  })
+
+  // Review fix (IMPORTANT #1): the full/mini swap must go through Vue's <transition>, not a bare
+  // v-if/v-else -- otherwise photos.scss's already-ported .nimo-fab-swap-* rules (and their
+  // Vue3 -enter-from shim) never get a chance to apply to anything. Deliberately NOT asserting
+  // on enter/leave timing (jsdom has no real animation clock, and @vue/test-utils' findComponent
+  // doesn't type-match Vue's built-in <transition> cleanly) -- a raw-source check for the
+  // wrapper + its name is the same lightweight pattern SearchSaveSmartView.test.ts already uses
+  // for its own `<Transition name="save-pop">`, per the controller's "do not fight jsdom
+  // animation timing" guidance.
+  it('wraps the full/mini swap in a <transition name="nimo-fab-swap">', () => {
+    expect(askNimoFabRaw).toMatch(/<transition\s+name="nimo-fab-swap">/)
+  })
+
+  // Review fix (IMPORTANT #2): deliberate deviation from Vue2 (which has no @click.stop on the
+  // dismiss "x" -- see the comment at dismiss()'s definition). Guards against a regression this
+  // port's architecture is uniquely exposed to: openFab() unconditionally opens the popup (no
+  // toggle semantics), so without .stop, the "x" click bubbling to the FAB's own @click would
+  // reopen the popup in the same click that just dismissed the FAB.
+  it('clicking the dismiss x with the popup closed does not bubble into opening the popup', async () => {
+    const wrapper = mount(AskNimoFab)
+    expect(useAskNimo().popupOpen.value).toBe(false)
+    await wrapper.find('.nimo-fab-x').trigger('click')
+    expect(useAskNimo().fabDismissed.value).toBe(true)
+    expect(useAskNimo().popupOpen.value).toBe(false)
   })
 })

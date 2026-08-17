@@ -126,8 +126,15 @@ function startDragFab(e: MouseEvent): void {
     onFabUp = null
     if (dragMoved) {
       nimo.setFabPosition(Math.round(nimo.fabRight.value), Math.round(nimo.fabBottom.value))
+      // Review fix (minor #3): Vue2 PhotosAskNimo.vue:203 defers clearing `dragging` by one
+      // tick (setTimeout 0) rather than clearing it synchronously here -- this keeps
+      // `.is-dragging`'s `transition: none` (photos.scss:817-823) in effect through the
+      // synthetic click event that immediately follows mouseup, so the FAB's position snap
+      // doesn't pick up a stray transition on that one frame.
+      setTimeout(() => { dragging.value = false }, 0)
+    } else {
+      dragging.value = false
     }
-    dragging.value = false
   }
   window.addEventListener('mousemove', onFabMove)
   window.addEventListener('mouseup', onFabUp)
@@ -157,8 +164,11 @@ function startDragMini(e: MouseEvent): void {
     onMiniUp = null
     if (dragMoved) {
       nimo.setMiniY(Math.round(nimo.miniY.value))
+      // Review fix (minor #3): same deferred-clear as onFabUp above (Vue2 PhotosAskNimo.vue:232).
+      setTimeout(() => { dragging.value = false }, 0)
+    } else {
+      dragging.value = false
     }
-    dragging.value = false
   }
   window.addEventListener('mousemove', onMiniMove)
   window.addEventListener('mouseup', onMiniUp)
@@ -172,6 +182,17 @@ function openFab(): void {
 // this template's dismiss() is only bound to @click, but the button itself also sits inside the
 // .nimo-fab that has @mousedown="startDragFab" -- without stopping propagation here, pressing
 // and slightly moving on the x button would kick off a whole-FAB drag instead of just dismissing.
+//
+// Review fix (deliberate deviation from Vue2, ruled correct): the template's "x" also carries
+// `@click.stop`, which Vue2's own dismiss button does NOT have (PhotosAskNimo.vue:31-38 only
+// stops the mousedown). This is required by this port's architecture, not an oversight: Vue2's
+// FAB click handler is `toggle()` (open/close the SAME popup), so `dismiss()`'s bubbled click
+// just closed a popup that was already about to be hidden by dismissal anyway -- harmless there.
+// This port's FAB click handler is `openFab()` -> `nimo.openWith('')`, which has no toggle
+// semantics and unconditionally opens the popup. Without `.stop` here, clicking the "x" would
+// bubble to `openFab()` and reopen the popup in the same click that just dismissed the FAB to
+// its mini edge-tab -- a regression this architecture doesn't have. See the
+// "closes without reopening the popup" test below.
 function dismiss(): void {
   nimo.dismissFab()
 }
@@ -190,8 +211,16 @@ onBeforeUnmount(() => {
 
 <template>
   <div>
+    <!-- Review fix (IMPORTANT #1): Vue2 wraps this whole full/mini pair in
+         `<transition name="nimo-fab-swap">` (PhotosAskNimo.vue:3-68) -- the brief's Step-3
+         snippet dropped this wrapper even though the CSS was already ported (photos.scss:871-880),
+         leaving that CSS permanently dead. Wired back in; the *-enter-from Vue3 shim these rules
+         need is added alongside the verbatim Vue2 *-enter selectors in photos.scss, following the
+         same precedent as PlacesMap.vue's .pin-merge-enter-from / PhotoLightbox.vue's
+         .lb-swap-*-enter-from. -->
+    <transition name="nimo-fab-swap">
     <button
-      v-if="!nimo.fabDismissed.value" type="button" class="nimo-fab" :class="{ 'is-dragging': dragging }"
+      v-if="!nimo.fabDismissed.value" key="full" type="button" class="nimo-fab" :class="{ 'is-dragging': dragging }"
       :style="{ right: nimo.fabRight.value + 'px', bottom: nimo.fabBottom.value + 'px' }"
       @mousedown="startDragFab" @click="openFab"
     >
@@ -218,7 +247,7 @@ onBeforeUnmount(() => {
       </span>
     </button>
     <button
-      v-else type="button" class="nimo-fab-mini" :class="{ 'is-dragging': dragging }"
+      v-else key="mini" type="button" class="nimo-fab-mini" :class="{ 'is-dragging': dragging }"
       :style="{ bottom: nimo.miniY.value + 'px' }" :title="t('photosNimoDragHint')"
       @mousedown="startDragMini" @click="restore"
     >
@@ -243,5 +272,6 @@ onBeforeUnmount(() => {
         </svg>
       </span>
     </button>
+    </transition>
   </div>
 </template>
