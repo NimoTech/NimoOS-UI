@@ -130,6 +130,12 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
       <path d="M3 12a9 9 0 0 1 15.5-6.3L21 8" /><path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-15.5 6.3L3 16" /><path d="M3 21v-5h5" />
     </template>
+    <!-- Task 3 review fix (Plan H): transcribed byte-identical from Vue2 PhotosIcon.vue's
+         'download' branch -- needed for the Favorites hero's Export button leading icon
+         (PhotosFavoritesView.vue:27). -->
+    <template v-else-if="name === 'download'">
+      <path d="M12 4v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </template>
     <template v-else>
       <g></g>
     </template>

@@ -639,6 +639,14 @@ describe('PhotosFavorites.vue', () => {
       const hero = w.find('[data-test="fav-hero"]')
       expect(hero.exists()).toBe(true)
       expect(hero.find('[data-test="fav-hero-badge"]').exists()).toBe(true)
+      // Review fix: real assertions, not just existence -- 1 photo (jpeg) + 1 video (mp4),
+      // year span from byYear (string year-prefix, immune to the Date().getFullYear() /
+      // local-timezone divergence risk against the By-year stat card fixed in this round).
+      expect(hero.text()).toContain('2024–2026')
+      const bolds = hero.findAll('b')
+      expect(bolds[0].text()).toBe('1') // heroPhotoCount
+      expect(bolds[1].text()).toBe('1') // heroVideoCount
+      expect(bolds[2].text()).toBe('2024–2026') // heroYearSpan
     })
 
     it('does not render the hero on the empty-favorites branch', async () => {

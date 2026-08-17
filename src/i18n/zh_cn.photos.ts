@@ -80,9 +80,13 @@ export default {
   photosFavExport: '下载为 ZIP',
   photosFavExporting: '开始打包下载…',
   photosFavCount: '{count} 张收藏',
-  // Task 3 (Plan H): hero stats sub-line.
-  photosFavHeroPhotos: '{n} 张照片',
-  photosFavHeroVideos: '{n} 个视频',
+  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
+  // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
+  // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
+  // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
+  // copy exactly ('张照片'/'视频', no quantifier word).
+  photosFavHeroPhotosNoun: '张照片',
+  photosFavHeroVideosNoun: '视频',
   photosFavHeroKeptForever: '永久保留',
   // ── 相册:最近删除视图 ──
   photosTrashTitle: '最近删除',

@@ -30,4 +30,11 @@ describe('PhotosIcon — Plan H additions', () => {
     const w = mount(PhotosIcon, { props: { name: 'not-a-real-icon' } })
     expect(w.find('g').exists()).toBe(true)
   })
+
+  // Task 3 review fix: Favorites hero's Export button needs this leading icon
+  // (Vue2 PhotosFavoritesView.vue:27's `<photos-icon name="download" :size="13"/>`).
+  it('renders a single path for name="download" (byte-identical to Vue2 PhotosIcon.vue)', () => {
+    const w = mount(PhotosIcon, { props: { name: 'download' } })
+    expect(w.find('path').attributes('d')).toBe('M12 4v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2')
+  })
 })

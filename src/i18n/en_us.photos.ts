@@ -86,9 +86,13 @@ export default {
   photosFavExport: 'Download as ZIP',
   photosFavExporting: 'Preparing download…',
   photosFavCount: '{count} favorites',
-  // Task 3 (Plan H): hero stats sub-line.
-  photosFavHeroPhotos: '{n} photos',
-  photosFavHeroVideos: '{n} videos',
+  // Task 3 (Plan H) review fix: hero stats sub-line -- Vue2 bolds ONLY the raw
+  // number (`<b>{{ photoCount }}</b> {{ $t('photos_count') }}`), the noun sits
+  // outside <b>, so these are noun-only keys (not "{n} photos" one-piece
+  // strings) matching Vue2 PhotosFavoritesView.vue:11-12's photos_count/videos
+  // copy exactly.
+  photosFavHeroPhotosNoun: 'photos',
+  photosFavHeroVideosNoun: 'videos',
   photosFavHeroKeptForever: 'kept forever',
   // ── Photos: Trash view ──
   photosTrashTitle: 'Recently Deleted',

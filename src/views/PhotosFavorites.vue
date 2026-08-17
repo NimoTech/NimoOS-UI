@@ -85,7 +85,7 @@ const byPerson = computed(() => topPersons(fav.favoritesList ?? []).slice(0, 4))
 const byPlace = computed(() => topPlaces(fav.favoritesList ?? []).slice(0, 3))
 const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
 
-// Task 3 (Plan H): hero sub-line -- photoCount/videoCount/yearSpan have no server-side per-type
+// Task 3 (Plan H): hero sub-line -- photoCount/videoCount have no server-side per-type
 // aggregate (only favoritesTotal, from favIds.size, is exact), so these stay derived from
 // the loaded page. In the common case (<=500 favorites) favoritesList IS the full set, so
 // photoCount+videoCount naturally equals favoritesTotal -- no visible inconsistency. Past
@@ -94,14 +94,20 @@ const byYear = computed(() => byYearOf(fav.favoritesList ?? []))
 // competes with the topbar's exact total on the error/empty branches either.
 const heroPhotoCount = computed(() => (fav.favoritesList ?? []).filter((p) => !p.isVideo).length)
 const heroVideoCount = computed(() => (fav.favoritesList ?? []).filter((p) => p.isVideo).length)
+// Review fix: derive from the existing `byYear` computed (Vue2's own formula chain, string
+// year-prefix via `String(takenAt).slice(0,4)` -- see peopleView.ts's byYear) instead of
+// re-parsing takenAt with `new Date(...).getFullYear()`. Date.getFullYear() reads the
+// *local* timezone, so an asset near a year boundary (e.g. 2025-12-31T23:00 UTC in UTC+2)
+// could disagree with the By-year stat card below, which is built from this same `byYear`
+// computed -- re-deriving independently risked exactly that divergence for the same asset.
+// byYear is sorted year-string descending (Vue2 :423's `b[0].localeCompare(a[0])`), so
+// byYear[0] is the newest year and the last entry is the oldest -- matches Vue2 :429-433's
+// `yearSpan` (`${ys[ys.length-1]}–${ys[0]}` over the same descending-sorted array).
 const heroYearSpan = computed(() => {
-  const years = (fav.favoritesList ?? [])
-    .map((p) => (p.takenAt ? new Date(p.takenAt).getFullYear() : null))
-    .filter((y): y is number => y != null)
-  if (!years.length) return ''
-  const min = Math.min(...years)
-  const max = Math.max(...years)
-  return min === max ? String(min) : `${min}–${max}`
+  const ys = byYear.value
+  if (!ys.length) return ''
+  if (ys.length === 1) return ys[0][0]
+  return `${ys[ys.length - 1][0]}–${ys[0][0]}`
 })
 
 function toggleSelect(id: string | number) {
@@ -316,26 +322,39 @@ onMounted(() => {
                  all-zero sub-counts. F-11: .lib-hero-actions carries the Export/Save-as-Album
                  buttons that used to live in the deleted .fav-header (Task 5 will insert a
                  Slideshow button at the front of this same container, matching Vue2's
-                 Slideshow -> Save as Album -> Export order). -->
-            <div class="lib-hero" data-test="fav-hero" data-tint="fav">
+                 Slideshow -> Save as Album -> Export order). Review fix: `data-tint="fav"` only
+                 sits on .lib-hero-icon (Vue2 :5's only tint usage) -- .lib-hero itself never
+                 carried it in Vue2 or in parity CSS, so it was dead weight, dropped. -->
+            <div class="lib-hero" data-test="fav-hero">
               <div class="lib-hero-icon" data-tint="fav">
                 <PhotosIcon name="star" :size="24" class="fav-hero-star-icon" />
               </div>
               <div style="flex:1">
                 <h1 class="lib-hero-title">{{ t('photosFavTitle') }}</h1>
+                <!-- Review fix: Vue2 :11-13 bolds ONLY the raw number/year-span, not the
+                     trailing noun -- `<b>{{ photoCount }}</b> {{ $t('photos_count') }}`. Split
+                     into count + noun-only i18n keys so <b> wraps just the number here too. -->
                 <div class="lib-hero-sub">
-                  <b>{{ t('photosFavHeroPhotos', { n: heroPhotoCount }) }}</b>
-                  &middot; <b>{{ t('photosFavHeroVideos', { n: heroVideoCount }) }}</b>
+                  <b>{{ heroPhotoCount }}</b> {{ t('photosFavHeroPhotosNoun') }}
+                  &middot; <b>{{ heroVideoCount }}</b> {{ t('photosFavHeroVideosNoun') }}
                   <template v-if="heroYearSpan"> &middot; <b>{{ heroYearSpan }}</b></template>
                   &middot; <span data-test="fav-hero-badge" class="fav-hero-star-label">&#9733; {{ t('photosFavHeroKeptForever') }}</span>
                 </div>
               </div>
               <div class="lib-hero-actions">
-                <button type="button" class="btn" data-test="fav-save-album-btn" :disabled="!(fav.favoritesList?.length)" @click="openSaveAlbum">{{ t('photosFavSaveAlbum') }}</button>
+                <!-- Review fix: restores Vue2 :21/:26's leading icon inside each button
+                     (album/download, :size=13) -- dropped by mistake in the first pass. -->
+                <button type="button" class="btn" data-test="fav-save-album-btn" :disabled="!(fav.favoritesList?.length)" @click="openSaveAlbum">
+                  <PhotosIcon name="album" :size="13" /> {{ t('photosFavSaveAlbum') }}
+                </button>
                 <!-- R-3: gains data-test="fav-export-btn" -- this button had no anchor before (only
                      the save-album button did), leaving the 3 existing .fav-export text-selector
-                     assertions with nowhere to migrate to. -->
-                <button type="button" class="btn" data-test="fav-export-btn" :disabled="!(fav.favoritesList?.length)" @click="onExport">{{ t('photosFavExport') }}</button>
+                     assertions with nowhere to migrate to. Export's dropdown-menu (Vue2's
+                     .fav-export-menu on click) is a separately ledgered gap, out of this task's
+                     scope -- onExport still fires the direct zip export as before. -->
+                <button type="button" class="btn" data-test="fav-export-btn" :disabled="!(fav.favoritesList?.length)" @click="onExport">
+                  <PhotosIcon name="download" :size="13" /> {{ t('photosFavExport') }}
+                </button>
               </div>
             </div>
 
@@ -498,8 +517,12 @@ onMounted(() => {
 /* Task 3 review handoff (Minor-4): .fav-stats/.fav-stat-card/.fav-stat-bar's own scoped copy
    used to live here, shadowing parity photos.scss:1804-1845's grid layout/tokens with a
    value-divergent flex layout -- deleted so parity governs; .fav-stat-sub (the "in {year}"
-   caption) has no parity counterpart (Vue2 uses an inline style, not a class) and stays. */
-.fav-stat-sub { font-size: 11px; color: var(--fg-muted); font-weight: 400; margin-left: 4px; }
+   caption) has no parity counterpart (Vue2 uses an inline style, not a class) and stays, values
+   aligned exactly to Vue2 PhotosFavoritesView.vue :77's inline style
+   (`font-size:11px;color:var(--text-3);font-weight:400`, --text-3 mapped to this repo's
+   equivalent --fg-muted token) -- review fix: dropped this file's own extra `margin-left: 4px`,
+   which Vue2's inline style does not have. */
+.fav-stat-sub { font-size: 11px; color: var(--fg-muted); font-weight: 400; }
 
 /* Save-as-album naming modal -- structure follows PhotosAlbums.vue's (T7) new-album modal
    (hard-won P2/P3 lesson: the background must use --popup-bg, not --card-bg -- in the dark
