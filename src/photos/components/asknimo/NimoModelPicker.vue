@@ -1,5 +1,6 @@
 <!-- Model dropdown for Ask Nimo. Pixel source: Vue2 NimoOS-UI src/views/Photos/NimoModelPicker.vue
-     + photos.scss:4176-4227 (already ported, this component only supplies markup/logic).
+     + Vue2 photos.scss:4034-4084 -> this repo vue2-parity/photos.scss:4178-4230 (already
+     ported, this component only supplies markup/logic; both ranges grep-verified).
      No props/emits: reads useAgentStore('photos') directly, same self-contained pattern Vue2
      used via store injection -- New-UI has no provide() chain in Photos, so direct store access
      is the equivalent seam.

@@ -34,6 +34,18 @@ describe('AskNimoFab', () => {
     expect(localStorage.getItem('nimo_fab_dismissed')).toBe('1')
   })
 
+  // Review fix (residual #2): Vue2 PhotosAskNimo.vue:170-174's dismiss() also emits
+  // `update:open false` -- dismissing the FAB while the popup is open must close the popup too,
+  // not just flip the persisted dismissed flag.
+  it('clicking the dismiss x while the popup is open closes both the FAB and the popup', async () => {
+    const wrapper = mount(AskNimoFab)
+    useAskNimo().openWith('hello')
+    expect(useAskNimo().popupOpen.value).toBe(true)
+    await wrapper.find('.nimo-fab-x').trigger('click')
+    expect(useAskNimo().fabDismissed.value).toBe(true)
+    expect(useAskNimo().popupOpen.value).toBe(false)
+  })
+
   it('clicking the mini tab restores the full FAB', async () => {
     useAskNimo().dismissFab()
     const wrapper = mount(AskNimoFab)

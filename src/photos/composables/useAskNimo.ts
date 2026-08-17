@@ -114,6 +114,10 @@ function closeDrawer(): void { drawerOpen.value = false }
 
 function dismissFab(): void {
   fabDismissed.value = true
+  // Review fix (residual #2): Vue2 PhotosAskNimo.vue:170-174's dismiss() also emits
+  // `update:open false`, closing the popup at the same time it dismisses the FAB to its mini
+  // edge-tab -- not just a persisted flag flip.
+  popupOpen.value = false
   writeStorage(FAB_DISMISSED_KEY, '1')
 }
 function restoreFab(): void {

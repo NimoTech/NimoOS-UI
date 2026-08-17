@@ -194,12 +194,15 @@ function openFab(): void {
 //
 // Review fix (deliberate deviation from Vue2, ruled correct): the template's "x" also carries
 // `@click.stop`, which Vue2's own dismiss button does NOT have (PhotosAskNimo.vue:31-38 only
-// stops the mousedown). `dismiss()` only flips `fabDismissed` -- it never touches `popupOpen` --
-// so without `.stop` here, the click would still bubble up to `openFab()`'s now-restored toggle
-// semantics (Vue2 PhotosAskNimo.vue:211-213) and flip the popup open/closed as a side effect of
-// dismissing the FAB to its mini edge-tab, a spurious side effect Vue2 itself never has (there,
-// dismiss and the popup's own open state are the same click target's concern, not two competing
-// handlers on nested elements). See the "closes without reopening the popup" test below.
+// stops the mousedown). `dismiss()` -> `nimo.dismissFab()` now ALSO sets `popupOpen` false
+// (Vue2 PhotosAskNimo.vue:170-174 parity, see dismissFab()'s own comment), synchronously, before
+// the click ever bubbles. Without `.stop` here, that same click would continue bubbling up to
+// `openFab()`'s now-restored toggle semantics (Vue2 PhotosAskNimo.vue:211-213), which reads
+// `popupOpen` as already-false (dismissFab() just set it) and would take the "closed -> open"
+// branch, reopening the popup in the same click that just closed it -- a spurious reopen Vue2's
+// own async prop-passing (parent hasn't re-rendered synchronously) happens not to expose. See
+// the "clicking the dismiss x with the popup closed does not bubble into opening the popup" test
+// below, and its "while the popup is open closes both the FAB and the popup" sibling.
 function dismiss(): void {
   nimo.dismissFab()
 }
