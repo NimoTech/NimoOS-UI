@@ -67,6 +67,7 @@ import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import MomentCard from '../photos/components/MomentCard.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
 import { usePhotosMoments } from '../photos/stores/moments'
 import { useAlbumDragSort } from '../photos/composables/useAlbumDragSort'
@@ -227,6 +228,10 @@ onMounted(() => {
        </div>
       </main>
     </div>
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 

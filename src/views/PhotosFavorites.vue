@@ -24,6 +24,7 @@ import PhotosGrid from '../photos/components/PhotosGrid.vue'
 import PhotosSelectionToolbar from '../photos/components/PhotosSelectionToolbar.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -357,6 +358,10 @@ onMounted(() => {
         @toggle-fav="() => {}"
         @add-to-album="(id) => openAlbumPicker([id])"
       />
+      <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+           shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+           mount this once at. -->
+      <AskNimoHost />
     </div>
   </AreaShell>
   <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />

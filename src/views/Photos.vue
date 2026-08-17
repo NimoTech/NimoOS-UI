@@ -68,6 +68,7 @@ import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosFavorites } from '../photos/stores/favorites'
 import { usePhotosTrash } from '../photos/stores/trash'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosToast } from '../photos/composables/usePhotosToast'
 import { useToast } from '../stores/toast'
 import { useMessageBus } from '../composables/useMessageBus'
@@ -444,6 +445,9 @@ onUnmounted(() => {
   <!-- Task 8: Photos-private toast queue (delete/Undo) — mounted once per photos view,
        Teleports to <body> (see PhotosToastHost.vue). -->
   <PhotosToastHost />
+  <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+       as PhotosToastHost (where present) -- Photos has no shared shell to mount this once at. -->
+  <AskNimoHost />
 </template>
 
 <style scoped>

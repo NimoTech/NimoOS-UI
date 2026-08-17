@@ -24,6 +24,7 @@ import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import { usePhotosTrash } from '../photos/stores/trash'
 import { useToast } from '../stores/toast'
 import type { TrashPhoto } from '../photos/util/trashAssetToPhoto'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 
 const { t } = useI18n()
 const { themeClass } = usePhotosTheme()
@@ -388,6 +389,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           </div>
         </template>
       </main>
+      <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+           shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+           mount this once at. -->
+      <AskNimoHost />
     </div>
   </AreaShell>
 

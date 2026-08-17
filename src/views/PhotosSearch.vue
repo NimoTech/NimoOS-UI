@@ -41,6 +41,7 @@ import PhotosSearchGrid from '../photos/components/PhotosSearchGrid.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosSearch } from '../photos/stores/search'
 import { usePhotosPeople } from '../photos/stores/people'
 import { usePhotosAlbums } from '../photos/stores/albums'
@@ -921,6 +922,9 @@ onMounted(() => {
          comment), same mount Photos.vue/PhotosAlbumDetail.vue/PhotosSmartViewDetail.vue already
          use for the identical Undo-toast pattern. -->
     <PhotosToastHost />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 

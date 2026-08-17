@@ -64,6 +64,7 @@ import PlaceDetailPanel from '../photos/components/PlaceDetailPanel.vue'
 import PlaceCoverPicker from '../photos/components/PlaceCoverPicker.vue'
 import AlbumPickerDialog from '../photos/components/AlbumPickerDialog.vue'
 import PhotosToastHost from '../photos/components/PhotosToastHost.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import PhotoLightbox from '../photos/lightbox/PhotoLightbox.vue'
 import { useLightbox } from '../photos/lightbox/useLightbox'
 import { usePhotosPlaces, type PlaceSpot, type PlaceVisit } from '../photos/stores/places'
@@ -690,6 +691,9 @@ async function retryLoad(): Promise<void> {
          <body> and re-applies photos-root + themeClass on its own portal target (same mount
          Photos.vue/PhotosSearch.vue already use for the identical Undo-toast pattern). -->
     <PhotosToastHost />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body" shape
+         as PhotosToastHost -- Photos has no shared shell to mount this once at. -->
+    <AskNimoHost />
   </div>
 
   <!-- Task 1 (Plan E re-shell): PlaceCoverPicker stays declared here as a template-root sibling

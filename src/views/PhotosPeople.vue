@@ -76,6 +76,7 @@ import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PersonAvatar from '../photos/components/PersonAvatar.vue'
 import ClusterActionDialog from '../photos/components/ClusterActionDialog.vue'
 import MergeReviewDialog, { type MergeSuggestion } from '../photos/components/MergeReviewDialog.vue'
+import AskNimoHost from '../photos/components/asknimo/AskNimoHost.vue'
 import { usePhotosPeople } from '../photos/stores/people'
 import { useTimelineStore } from '../photos/stores/timeline'
 import { usePhotosSettingsStore } from '../photos/stores/settings'
@@ -899,6 +900,10 @@ onUnmounted(() => {
       @accept="onReviewAccept"
       @reject="onReviewReject"
     />
+    <!-- Plan G: Ask Nimo FAB + popup + drawer, same "mount once per view, Teleport to body"
+         shape as PhotosToastHost (not present on this view) -- Photos has no shared shell to
+         mount this once at. -->
+    <AskNimoHost />
   </div>
 </template>
 
