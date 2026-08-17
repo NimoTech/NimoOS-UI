@@ -138,6 +138,23 @@ function writeHistory(q: string): void {
   }
 }
 
+// Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: Vue2 never had a clear-history
+// affordance at all. Wipes both the persisted localStorage key and the reactive `history` ref
+// together, in the same tick, so BOTH render spots -- the prestate `.prestate-recent` chips block
+// and the results-state `.search-history` row -- empty immediately. Their existing `v-if`
+// conditions (`history.length` / `history.length > 1`) already hide on an empty array; no extra
+// wiring needed there.
+function clearHistory(): void {
+  try {
+    localStorage.removeItem(HISTORY_KEY)
+  } catch {
+    // Same broad-catch precedent as readHistory/writeHistory above -- a storage failure here
+    // shouldn't crash the page, it should just leave the reactive ref (cleared below) as the
+    // source of truth for this session.
+  }
+  history.value = []
+}
+
 // Submitting a term: syncs the address bar via router replace. The top bar PhotosTopbar's
 // search-submit (since Plan F Task 1, replacing the now-retired PhotosSearchBar), the recent-
 // search chips in the pre-search state, and the history terms in the hero all share this same
@@ -700,7 +717,15 @@ onMounted(() => {
           <h2>{{ t('photosSearchSearchLibrary') }}</h2>
           <p>{{ t('photosSearchDescribeReLookingPeople') }}</p>
           <div v-if="history.length" class="prestate-recent">
-            <span class="prestate-recent-label">{{ t('photosSearchRecentSearches') }}</span>
+            <div class="prestate-recent-head">
+              <span class="prestate-recent-label">{{ t('photosSearchRecentSearches') }}</span>
+              <!-- Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: see clearHistory()
+                   above for what clicking this does to both render spots. -->
+              <button
+                type="button" class="prestate-recent-clear" data-test="search-history-clear"
+                @click="clearHistory"
+              >{{ t('photosSearchClearHistory') }}</button>
+            </div>
             <div class="prestate-chips">
               <button
                 v-for="h in history.slice(0, 6)" :key="h" type="button" class="prestate-chip"
@@ -949,6 +974,19 @@ onMounted(() => {
    here was the same New-UI-global-token leak the rest of this rollback removes. */
 .understood-k { color: var(--text-3); }
 .understood-v { margin: 0 4px; }
+
+/* Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: neither selector has a parity
+   counterpart -- Vue2's recent-searches block never had a clear affordance to transcribe. Kept
+   subtle to match the label it sits next to: a plain text button, `--text-3` at rest (same token
+   `.prestate-recent-label` itself uses, so it reads as part of the same quiet header row rather
+   than a competing call-to-action) brightening to `--text-1` on hover -- both `.photos-root`-local,
+   is-light-aware tokens, legible in both themes by construction. */
+.prestate-recent-head { display: flex; align-items: center; gap: 10px; }
+.prestate-recent-clear {
+  background: transparent; border: 0; padding: 0; cursor: pointer;
+  font-size: 11px; color: var(--text-3);
+}
+.prestate-recent-clear:hover { color: var(--text-1); }
 
 /* `.sort button:hover` / `.sort button[data-active="true"]:hover`: Vue2's own `.sort button` has
    NO hover feedback at all (photos.scss:2696-2698 has no `:hover` rule, and parity's transcription

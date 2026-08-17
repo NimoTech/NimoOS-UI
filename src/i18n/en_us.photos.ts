@@ -888,6 +888,8 @@ export default {
   photosSearchPreviousMonth: 'Previous month',
   photosSearchQuickRange: 'Quick range',
   photosSearchRecentSearches: 'Recent searches',
+  // Fix-4 (owner-directed addition, 2026-08-17): clear-history button, no Vue2 source.
+  photosSearchClearHistory: 'Clear',
   photosSearchRecent: 'Recent:',
   photosSearchRelevance: 'Relevance',
   photosSearchSaveSmartView: 'Save as Smart View',

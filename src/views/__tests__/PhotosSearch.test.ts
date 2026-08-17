@@ -244,6 +244,49 @@ describe('预搜索态', () => {
   })
 })
 
+// Fix-4 (owner-directed addition, 2026-08-17), no Vue2 source: a clear-history affordance.
+// Clicking wipes the persisted localStorage key and the reactive `history` ref together, so both
+// render spots -- the prestate `.prestate-recent` chips block and the results-state
+// `.search-history` row -- empty in the same tick (their existing v-if guards already hide on an
+// empty array).
+describe('Fix-4: 清除搜索历史', () => {
+  it('history 非空时渲染 .prestate-recent-head 里的清除按钮(data-test=search-history-clear)', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['c', 'b', 'a']))
+    const { w } = await mountSearch('/photos/search')
+    expect(w.find('[data-test="search-history-clear"]').exists()).toBe(true)
+  })
+
+  it('history 为空 → 不渲染 .prestate-recent 整块(含清除按钮)', async () => {
+    const { w } = await mountSearch('/photos/search')
+    expect(w.find('.prestate-recent').exists()).toBe(false)
+    expect(w.find('[data-test="search-history-clear"]').exists()).toBe(false)
+  })
+
+  it('点清除 → localStorage 键被删、.prestate-recent 整块(含 chips)消失', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['c', 'b', 'a']))
+    const { w } = await mountSearch('/photos/search')
+    expect(w.findAll('[data-test="prestate-chip"]')).toHaveLength(3)
+
+    await w.get('[data-test="search-history-clear"]').trigger('click')
+
+    expect(localStorage.getItem('nimo_search_history')).toBeNull()
+    expect(w.find('.prestate-recent').exists()).toBe(false)
+    expect(w.findAll('[data-test="prestate-chip"]')).toHaveLength(0)
+  })
+
+  it('清除后导航到有结果的查询态 → .search-history 结果态历史行也不再出现(同一个 history ref)', async () => {
+    localStorage.setItem('nimo_search_history', JSON.stringify(['b', 'a']))
+    const { w, router } = await mountSearch('/photos/search')
+    await w.get('[data-test="search-history-clear"]').trigger('click')
+
+    await router.push('/photos/search?q=other')
+    await flushPromises()
+    await w.vm.$nextTick()
+
+    expect(w.find('.search-history').exists()).toBe(false)
+  })
+})
+
 // ── Plan F Task 1: D13 topbar alignment ───────────────────────────────────
 // Vue2 ground truth (NimoOS-UI PhotosSearchView.vue + PhotosTopbar.vue) has exactly ONE
 // search input on this page — the shared topbar's `.search` box — and this page's own hero

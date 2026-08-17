@@ -911,6 +911,7 @@ export default {
   photosSearchPreviousMonth: '上个月',
   photosSearchQuickRange: '快速范围',
   photosSearchRecentSearches: '最近搜索',
+  photosSearchClearHistory: '清除',
   photosSearchRecent: '最近：',
   photosSearchRelevance: '相关度',
   photosSearchSaveSmartView: '保存为智能视图',
