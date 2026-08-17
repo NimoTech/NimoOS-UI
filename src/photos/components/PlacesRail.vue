@@ -1,32 +1,25 @@
 <script setup lang="ts">
-// P6a-T5 (SP7-P6a places map main view): PlacesRail.vue — left-side city rail on places page
-// (region grouping with collapse + search + active state). Line-by-line port from Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue :762-825 (template), photos-places.scss:39-190
-// (styles, skip dead code :80-95 for .rail-segments/.rail-seg — Vue2 template does not use those
-// classes). regions order comes from Vue2 :406 `this.regionKeys = this.regions.map(r => r.id)`
-// (verification results in task-5-report.md).
+// P6a-T5 (SP7-P6a 地点·地图主视图): PlacesRail.vue —— 地点页左侧城市 rail(大洲分组
+// 折叠 + 搜索 + 激活态)。逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue
+// :762-825(模板)、photos-places.scss:39-190(样式,跳过死码 :80-95 的 .rail-segments/
+// .rail-seg——Vue2 模板零消费那两个 class)。regions 顺序来自 Vue2 :406
+// `this.regionKeys = this.regions.map(r => r.id)`(核对结果见 task-5-report.md)。
 //
-// Controller decisions (brief was unclear, these are authoritative):
-//  - collapsed state directly consumes usePhotosPlaces().isRegionCollapsed(rId, searchActive)
-//    — component does not reimplement "search overrides collapse" logic (that semantic's only
-//    implementation stays in T3 store).
-//  - write path (toggle collapse) still goes through emit('toggle-fold', rId), container (T11)
-//    calls store.toggleRegionFold.
-//  - props removed brief's draft field collapsed: string[] (conflicts with above, removed).
+// 控制器裁定(brief 未写清,以此为准):
+//  - 折叠态直接消费 usePhotosPlaces().isRegionCollapsed(rId, searchActive)——组件自己
+//    不重写"搜索压过折叠"这条判断(那条语义的唯一实现留在 T3 store)。
+//  - 写路径(切换折叠)仍走 emit('toggle-fold', rId),由容器(T11)调 store.toggleRegionFold。
+//  - props 去掉 brief 草稿里的 collapsed: string[](与上面这条会打架,已去掉)。
 //
-// Deviation log (brief already declared, not new defects):
-//  1. Search term is component internal state, not Vue2's view-level data — searched is only
-//     consumed by grouped; map side uses visiblePlaces(props.places); verified Vue2 :229/:237
-//     that map does not consume search.
-//  2. Date display follows i18n locale (Intl.DateTimeFormat), not Vue2's :813 raw backend
-//     English string; when lastDate is null, falls back to backend raw p.last (same precedent
-//     as PhotosPeople.vue:151-158).
-//  3. Region name: regionLabelKey(rId) returns key, then t(key); missing key falls back to
-//     regions.find(r=>r.id===rId)?.label (Vue2 :789 directly uses backend label, New-UI
-//     prioritizes i18n).
-//  4. id rule: backend Place.Key is int32, activeId is string, all comparisons use String().
-//  9. Empty state three-state is New-UI addition (Vue2 has no loaded gate/skeleton concept,
-//     view assumes places already loaded).
+// 偏离登记(brief 已声明,非新缺陷):
+//  1. 搜索词是本组件内部状态,不是 Vue2 的 view 级 data——searched 只被 grouped 消费,
+//     地图侧用 visiblePlaces(props.places),核对 Vue2 :229/:237 确认地图不吃搜索。
+//  2. 日期显示走 i18n locale(Intl.DateTimeFormat),不是 Vue2 :813 的裸后端英文串;
+//     lastDate 为 null 时回落显示后端原串 p.last(同 PhotosPeople.vue:151-158 先例)。
+//  3. 大洲名:regionLabelKey(rId) 有键则 t(key),无键回落 regions.find(r=>r.id===rId)?.label
+//     (Vue2 :789 直接用后端 label,New-UI 优先走 i18n)。
+//  4. id 铁律:后端 Place.Key 是 int32,activeId 是字符串,一切比较用 String()。
+//  9. 空态三态是 New-UI 新增(Vue2 没有 loaded 门控/骨架这层概念,视图默认地点已加载完)。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -34,17 +27,15 @@ import { groupByRegion, regionLabelKey, searchPlaces, type Place, type RegionCou
 import { usePhotosPlaces } from '../stores/places'
 
 const props = defineProps<{
-  places: Place[] // filtered (by time/count/region/current trip) but not yet searched
-  regions: RegionCount[] // backend region order — use this for grouping order, no custom sort
+  places: Place[] // 已过滤(时间/数量/大洲/当前行程)但未搜索的地点
+  regions: RegionCount[] // 后端大洲顺序——分组顺序以它为准,不自己排
   activeId: string | null
   totalPhotos: number
   countryCount: number
-  loaded: boolean // store.placesLoaded, used as empty-state gate
-  // Review I3 (New-UI addition, no Vue2 equivalent): unfiltered total place count, only used to
-  // split places.length === 0 into two empty states — totalPlaces === 0 is "truly no location
-  // data", totalPlaces > 0 means filter conditions narrowed results to zero; these two cases
-  // should not show the same message "no photos with location info" (would make user think
-  // indexing is broken).
+  loaded: boolean // store.placesLoaded,用于空态门控
+  // 评审 I3(New-UI 新增,无 Vue2 对应):未过滤的全量地点数,只用来给 places.length === 0
+  // 分流两种空态——全量为 0 才是"真没有位置数据",全量非 0 说明是筛选条件把结果收窄成了
+  // 零,这两种情况不该显示同一句"还没有带位置信息的照片"(那会让用户以为索引坏了)。
   totalPlaces: number
 }>()
 
@@ -59,27 +50,25 @@ const placesStore = usePhotosPlaces()
 const search = ref('')
 const searchActive = computed(() => search.value.trim().length > 0)
 
-// Follow Vue2 :189-195 (searched)/:196-203 (grouped), use pure functions already landed in T2,
-// do not reimplement.
+// 照 Vue2 :189-195(searched)/:196-203(grouped),用 T2 已落地的纯函数,不重写一遍。
 const searched = computed(() => searchPlaces(props.places, search.value))
 const grouped = computed(() => groupByRegion(searched.value))
-// Follow Vue2 :406 `regionKeys = regions.map(r => r.id)` — grouping iteration order follows
-// regions array, not Object.keys(grouped) (dictionary order happens to equal insertion order in
-// most JS engines, but cannot be relied upon).
+// 照 Vue2 :406 `regionKeys = regions.map(r => r.id)`——分组遍历顺序跟 regions 数组,
+// 不是 Object.keys(grouped)(字典序在多数 JS 引擎里恰好等于插入序,但不可依赖)。
 const regionIds = computed(() => props.regions.map(r => r.id))
 
 function isCollapsed(rId: string): boolean {
   return placesStore.isRegionCollapsed(rId, searchActive.value)
 }
 
-// Unknown id returns null, falls back to backend label (deviation log 3).
+// 未知 id 返回 null,回落到后端 label(偏离登记 3)。
 function regionLabel(rId: string): string {
   const key = regionLabelKey(rId)
   if (key) return t(key)
   return props.regions.find(r => r.id === rId)?.label ?? ''
 }
 
-// Never hand-build /v1/photos/... URLs in component, always use shared package generators.
+// 组件里不手拼 /v1/photos/... ,一律走共享包生成器。
 function thumbAssetId(p: Place): string {
   return p.coverAssetId || p.thumbs[0] || ''
 }
@@ -88,16 +77,16 @@ function thumbSrc(p: Place): string {
   return id ? service.photos.thumbnailUrl(id, 'large') : ''
 }
 
-// Deviation log 2: date display follows i18n locale, lastDate null falls back to backend raw
-// string (same precedent as PhotosPeople.vue:151-158 formatIndexedDate).
+// 偏离登记 2:日期显示跟随 i18n locale,lastDate 为 null 时回落后端原串
+// (同 PhotosPeople.vue:151-158 formatIndexedDate 的既有先例)。
 function formatLast(p: Place): string {
   if (!p.lastDate) return p.last
   const tag = locale.value.replace('_', '-')
   return new Intl.DateTimeFormat(tag, { year: 'numeric', month: 'short', day: 'numeric' }).format(p.lastDate)
 }
 
-// id rule: backend key is int32, activeId is string — both sides go through String() before
-// comparison/return, do not assume the string type annotation on props is always true at runtime.
+// id 铁律:后端 key 是 int32,activeId 是字符串——两侧都过 String() 再比较/回传,
+// 不假设 props 类型上标注的 string 在运行时就真的是字符串。
 function isActive(p: Place): boolean {
   return String(p.id) === String(props.activeId)
 }
@@ -126,26 +115,25 @@ function onToggleFold(rId: string): void {
     </div>
 
     <div class="rail-list">
-      <!-- !loaded: skeleton (follows PhotosAlbumDetail.vue:357-359 skeleton pattern, New-UI
-           addition, Vue2 has no loaded gate — deviation log 9). -->
+      <!-- !loaded:骨架(照 PhotosAlbumDetail.vue:357-359 的骨架体例,New-UI 新增,
+           Vue2 没有这层门控——偏离登记 9)。 -->
       <template v-if="!loaded">
         <div v-for="i in 6" :key="i" class="rail-place-skeleton" data-test="rail-skeleton"></div>
       </template>
 
-      <!-- loaded and zero places, totalPlaces is also 0 (deviation log 9). -->
+      <!-- loaded 且零地点,全量本就是 0(偏离登记 9)。 -->
       <div v-else-if="places.length === 0 && totalPlaces === 0" class="rail-empty-state" data-test="rail-empty">
         <div class="rail-empty-title">{{ t('photosPlacesEmpty') }}</div>
         <div class="rail-empty-hint">{{ t('photosPlacesEmptyHint') }}</div>
       </div>
 
-      <!-- Review I3: loaded and zero places, but totalPlaces > 0 — filter conditions narrowed
-           results to zero, not truly no location data; must show different message (otherwise
-           user would think indexing is broken). -->
+      <!-- 评审 I3:loaded 且零地点,但全量非零——是筛选条件把结果收窄成了零,不是没有
+           位置数据,必须显示不同的文案(否则用户会误以为索引坏了)。 -->
       <div v-else-if="places.length === 0" class="rail-empty-state" data-test="rail-filter-empty">
         <div class="rail-empty-title">{{ t('photosPlacesFilterEmpty') }}</div>
       </div>
 
-      <!-- Search yields no results (deviation log 9). -->
+      <!-- 搜索无果(偏离登记 9)。 -->
       <div v-else-if="searched.length === 0" class="rail-empty-state" data-test="rail-search-empty">
         {{ t('photosPlacesSearchEmpty', { q: search }) }}
       </div>
@@ -168,9 +156,8 @@ function onToggleFold(rId: string): void {
               </div>
               <em>{{ t('photosPlacesCityCount', { n: grouped[rId].length }) }}</em>
             </div>
-            <!-- grid-template-rows 1fr→0fr animates collapse based on group's true height;
-                 rows stay mounted (per Vue2 :793-794 comment: preserves lazy-loaded thumbnail
-                 state) — never change to v-if. -->
+            <!-- grid-rows 1fr→0fr 按分组真实高度做折叠动画;行保持挂载
+                 (照 Vue2 :793-794 的注释:留住懒加载缩略图的已加载状态)——绝不能改成 v-if。 -->
             <div class="rail-group-fold" :class="{ 'is-folded': isCollapsed(rId) }">
               <div class="rail-group-fold-inner">
                 <div
@@ -198,174 +185,53 @@ function onToggleFold(rId: string): void {
 </template>
 
 <style scoped>
-/* Follow photos-places.scss:39-190 (skip dead code :80-95 for .rail-segments/.rail-seg).
-   Token mapping: --text-1/2/3 → --fg/--fg-muted/--fg-subtle; --surface-2 → --chip-bg;
-   --line → --card-border; --surface-1 (Vue2 sidebar background, not listed in brief mapping table)
-   → --panel-bg (theme.css:162-163 comment "sidebar panel glass...file section sidebar", semantics
-   match here); --accent-soft already exists by name; Vue2's accent-rgb 0.22 transparency
-   → --accent-soft-2 (as specified in brief). .is-active's own background/border-color
-   (accent-rgb 0.10/0.30) and .thumb::after's accent-rgb 0.18 — review decision I1: these three
-   must be precise numeric replicas, cannot approximate from --accent-soft bands (that's a design
-   judgment, not a port judgment); added dedicated tokens --place-row-bg/--place-row-border/
-   --place-thumb-active in theme.css; values and justification in that file's comments and
-   docs/THEMING.md. */
-.map-rail {
-  border-right: 1px solid var(--card-border);
-  background: var(--panel-bg);
-  display: flex; flex-direction: column;
-  min-height: 0;
-}
-.map-rail-head {
-  padding: 16px 18px 12px;
-  border-bottom: 1px solid var(--card-border);
-}
-.map-rail-head h2 {
-  font-family: var(--font);
-  font-size: 18px; font-weight: 600; margin: 0 0 4px;
-  color: var(--fg);
-}
-.map-rail-head .sub {
-  font-size: 11.5px; color: var(--fg-subtle);
-  display: flex; gap: 5px; align-items: center;
-}
-.map-rail-head .sub b { color: var(--fg); font-weight: 600; }
+/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:39-190`
+   (`.map-rail` family) now governs the vast majority of this component's chrome — it was
+   already a byte-for-byte structural match, just pointed at global New-UI theme tokens
+   (--fg/--card-border/--panel-bg/--chip-bg/--accent-soft-2/--accent-text/--skeleton-bg)
+   instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-1/--line/
+   --surface-1/--surface-2/an accent-rgb-channel alpha blend/--accent-ink) that parity
+   itself consumes. Since this component always renders inside `.photos-root`, the old scoped
+   rules were shadowing parity's correct local-token values via `[data-v-xxxx]`
+   specificity — same bug pattern as PhotosFilterChip.vue's 2026-08-13 fix round; the old
+   per-rule "token mapping" comment this replaces was that fix's self-documentation, not a
+   design requirement, so it goes with the rules it justified. Two things earn a spot below
+   as documented survivors rather than deletion; everything else has been removed. Kept
+   `.rail-empty-state`/`.rail-place-skeleton` family relocated into parity's own New-UI
+   additions (photos-places.scss, right after `.rail-place.is-active .count`) — Vue2 has no
+   loaded-gate/skeleton concept for this view at all, so there's nowhere in parity's own
+   Vue2-derived rules for them to land; this is a pure relocation of identical values, not a
+   redesign. */
 
-.map-search {
-  position: relative;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--card-border);
-}
-.map-search input {
-  width: 100%;
-  height: 30px; border: none; background: var(--chip-bg);
-  border-radius: 8px;
-  color: var(--fg); font: inherit; font-size: 12px;
-  padding: 0 12px 0 32px;
-  outline: none;
-}
-.map-search input::placeholder { color: var(--fg-subtle); }
-.map-search input:focus { box-shadow: 0 0 0 1.5px var(--accent-soft); }
-.map-search .search-ic {
-  position: absolute; left: 22px; top: 50%; transform: translateY(-50%);
-  color: var(--fg-subtle); pointer-events: none;
-}
+/* cssCascade hover-lock safety net (PlacesRail.test.ts's own two `hoverBackgroundRules`/
+   `winningHoverBackground` assertions read this component's *own* `<style>` text via
+   `?raw`, per the project-wide hover-cascade-lock convention — see cssCascade.ts's doc
+   comment and its many other consumers). Parity's own `.rail-place:hover` /
+   `.rail-place.is-active` pair (photos-places.scss:152-156) relies on source order alone
+   (is-active written after hover, so it wins the specificity tie) — that's faithful to
+   Vue2, which has no such defensive convention, but it means parity alone doesn't give
+   PlacesRail.test.ts's own-file assertions anything to find. These two rules exist only to
+   lock in *cascade priority* inside this file, not to re-declare different colors — both
+   values are copied verbatim from parity's `.rail-place:hover` / `.rail-place.is-active` so
+   there is no color-flip between the hover and non-hover states of an active row. Keep
+   these two values in lockstep with parity if it ever changes. */
+.rail-place:hover { background: var(--surface-2); }
+/* theme-exception: the accent-rgb-channel alpha blend below is not an escape from the token
+   system — the R/G/B channels come entirely from the `--accent-rgb` token (which has its own
+   dark/light values), only the 0.10 alpha is a literal, and this is the exact idiom parity's
+   own `.rail-place.is-active` rule uses for the same property. */
+.rail-place.is-active:hover { background: rgba(var(--accent-rgb), 0.10); }
 
-.rail-list {
-  flex: 1; overflow-y: auto;
-  padding: 6px 8px 16px;
-  display: flex; flex-direction: column;
-  gap: 2px;
-}
-
-.rail-region-head {
-  font-size: 10px; font-weight: 600;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--fg-subtle);
-  padding: 14px 10px 6px;
-  display: flex; justify-content: space-between; align-items: center;
-  cursor: pointer; user-select: none;
-  transition: color 0.15s;
-}
-.rail-region-head:hover { color: var(--fg-muted); }
-.rail-region-head:first-child { padding-top: 4px; }
-.rail-region-head em { color: var(--fg-subtle); font-style: normal; font-weight: 400; letter-spacing: 0; font-size: 11px; text-transform: none; }
-.rail-region-head-left {
-  display: flex; align-items: center; gap: 4px;
-}
-.rail-region-chevron {
-  transition: transform 0.2s;
-}
-.rail-region-chevron.is-collapsed { transform: rotate(-90deg); }
-
-/* Fold animation: grid-template-rows 1fr→0fr tracks the group's real height,
-   so variable-length city lists collapse smoothly without max-height guesses.
-   Rows stay mounted (overflow clips them), keeping lazy thumbs loaded. */
-.rail-group-fold {
-  display: grid;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.rail-group-fold.is-folded { grid-template-rows: 0fr; }
-.rail-group-fold-inner {
-  min-height: 0;
-  overflow: hidden;
-  display: flex; flex-direction: column;
-  gap: 2px;
-}
-
-.rail-place {
-  display: grid;
-  grid-template-columns: 40px 1fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 8px 10px;
-  border-radius: 10px;
-  cursor: pointer;
-  background: transparent;
-  border: 1px solid transparent;
-  transition: background 0.12s, border-color 0.12s;
-}
-.rail-place:hover { background: var(--chip-bg); }
-.rail-place.is-active {
-  background: var(--place-row-bg);
-  border-color: var(--place-row-border);
-}
-/* Base hover rule: .rail-place:hover and .rail-place.is-active both change background,
-   selectors have same specificity ((0,2,0) vs (0,2,0)). In this file, .is-active happens to
-   be written after .rail-place:hover, so writing order alone would win — but unreliable (P5
-   real-device acceptance once had white-on-white accident when this assumption broke). This
-   :hover rule has specificity (0,3,0) (two classes + one pseudo-class), strictly higher than
-   base (0,2,0); no matter which base rule comes first, .is-active always wins on hover —
-   independent of writing order. Deletion verification locks this: cssCascade.ts's
-   hoverBackgroundRules() asserts "exists a rule hitting is-active with higher precedence than
-   base :hover"; deleting this line fails that test. If only assert winningHoverBackground()
-   picks who under current writing order, the "happens to be correct order" illusion would hide
-   deletion (verified with real deletion experiments and recorded in report). */
-.rail-place.is-active:hover { background: var(--place-row-bg); }
-/* Review M3: Vue2 photos-places.scss's thumbnail placeholder background is hard-coded pure black;
-   here changed to --chip-bg (follows theme), not precisely replicating that theme-invariant black —
-   same as the already-recorded D3 decision on PhotosPlaces.vue's `.map-tip .thumb` (surface
-   treatment remade in New-UI); here we complete the same record. */
-.rail-place .thumb {
-  width: 40px; height: 40px; border-radius: 6px;
-  overflow: hidden; background: var(--chip-bg);
-  position: relative;
-}
-.rail-place .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.rail-place.is-active .thumb::after {
-  content: "";
-  position: absolute; inset: 0;
-  background: var(--place-thumb-active);
-}
-.rail-place .body { min-width: 0; }
-.rail-place .name {
-  font-size: 13px; font-weight: 500;
-  color: var(--fg);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.rail-place .meta {
-  font-size: 11px; color: var(--fg-subtle);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  margin-top: 1px;
-}
-.rail-place .count {
-  font-family: ui-monospace, monospace;
-  font-size: 11px; font-weight: 600;
-  color: var(--fg-muted);
-  padding: 3px 7px; border-radius: 99px;
-  background: var(--chip-bg);
-}
-.rail-place.is-active .count { background: var(--accent-soft-2); color: var(--accent-text); }
-
-/* Empty state/skeleton (New-UI addition, deviation log 9 — Vue2 has no loaded gate). */
-.rail-empty-state {
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 6px; padding: 40px 16px; color: var(--fg-muted); text-align: center; font-size: 12px;
-}
-.rail-empty-title { font-size: 13px; font-weight: 600; color: var(--fg); }
-.rail-empty-hint { font-size: 11.5px; }
-.rail-place-skeleton {
-  height: 56px; border-radius: 10px; background: var(--skeleton-bg);
-  margin: 1px 0;
-}
+/* D3 surface-treatment ruling (established precedent: PhotosPlaces.vue's `.map-tip .thumb`,
+   parity's own `.places-cover-portal .cp-head-thumb` New-UI-additions section): Vue2's
+   thumbnail placeholder background is a theme-invariant literal solid black; the
+   surface/chrome color a loading placeholder sits on is New-UI's to reshape, not a value
+   that needs pixel-precise Vue2 replication (unlike the accent-tinted *content* states
+   above, which do). Kept local rather than moved to parity because it's a deliberate,
+   already-reviewed deviation from parity's own value, not an omission parity should carry.
+   Fix-1 item 6 (2026-08-16): `background` corrected from the global `--chip-bg` to local
+   `--surface-2` — the D3 reshape must still land on a Photos-local, is-light-aware token (the
+   global one only follows the app-wide `[data-theme]` attribute, not Photos' own private
+   `.photos-root.is-light` toggle). */
+.rail-place .thumb { background: var(--surface-2); }
 </style>

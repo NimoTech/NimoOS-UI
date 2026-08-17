@@ -64,6 +64,21 @@
   --accent-ink: #CFC6FF;           /* readable accent-tinted text */
   --accent-ink-dim: rgba(179,155,255,0.6);
   --hero-scrim: rgba(10,10,12,0.30); /* veil over blurred hero backdrops */
+
+  /* Fix-5 (owner acceptance, 2026-08-17, P6a formally overturned): the seven `--pin-bg`/
+     `--pin-stroke`/`--pin-active-bg`/`--pin-pulse`/`--pin-cluster-hover-bg`/`--pin-glow`/
+     `--pin-cluster-stroke` geo-pin tokens that used to live here (migrated from global
+     `theme.css` during Plan E's final fix wave, Review I3) carried the app's BLUE accent family
+     — a deviation from Vue2, which paints map pins with the PURPLE `--accent`/`--accent-rgb`
+     family directly (photos-places.scss:367-437), theme-constant with no light-mode override at
+     all (grep-verified against NimoOS-UI's real source). PlacesMap.vue's own `<style scoped>`
+     rules that consumed these seven tokens have been deleted/trimmed (see that file's own Fix-5
+     comment) so parity's own `rgba(var(--accent-rgb), …)`/`var(--accent)` rules
+     (photos-places.scss, same file) govern directly — restoring Vue2's purple. With that done,
+     these seven tokens have ZERO remaining consumers anywhere in this repo (grep-confirmed:
+     `/usr/bin/grep -rn 'pin-bg\|pin-stroke\|pin-active\|pin-pulse\|pin-cluster\|pin-glow' src/`
+     turns up only this now-deleted definition site and the also-updated test files) — removed
+     entirely rather than kept dormant. */
 }
 
 /* === Light theme — aligned 1:1 with the AI Agent palette
@@ -98,6 +113,36 @@
   --accent-ink: #5340E0;
   --accent-ink-dim: rgba(83,64,224,0.55);
   --hero-scrim: rgba(255,255,255,0.40);
+
+  /* Fix-5: the seven `--pin-*` geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark `.photos-root` block's own Fix-5 comment above
+     for the full rationale. Vue2 has no light-mode override for pins at all (accent purple is
+     theme-constant there); this block correctly has none now either. */
+
+  /* Plan F Task 1 (glass-exception dark-band fix, 2026-08-15): PhotosTopbar.vue's `.search` box
+     is an owner-approved GLASS exception (see that component's own scoped-style comment) that
+     deliberately consumes the app's GLOBAL --chip-bg/--chip-border tokens (src/styles/theme.css)
+     instead of this file's own `.photos-root`-scoped parity tokens. Root cause of the owner's
+     "亮色顶部暗带" (light-top dark-band) report: this `.photos-root.is-light` block never
+     redefined those two token NAMES, so in the very common "photos-light + app-global-dark"
+     combination (Photos has its own light/dark toggle, independent of theme.css's app-wide
+     toggle — dark is theme.css's default `:root`, no `data-theme="light"` attribute needed to
+     hit it) the glass box fell straight through to theme.css's DARK values — a translucent
+     white gradient designed to glow on a dark AreaShell page — painted on top of THIS page's
+     own near-white --bg. Fix, scoped to photos only (theme.css itself is untouched — Task 1
+     brief requires this): give these two token NAMES a photos-private light-context value
+     here, so any photos glass exception consuming them (currently just PhotosTopbar's
+     `.search`) gets a legible light-glass look instead of silently falling through to
+     theme.css's dark design. Values are a translucent take on theme.css's own LIGHT
+     --chip-bg/--chip-border (theme.css:356-358, solid `#ffffff` / `#e7e3d9`) — same
+     white-on-light-warm-neutral direction, cited as the source, kept as a soft gradient + alpha
+     (using this block's own `--ink` channel for the border, same pattern `--line`/`--text-*`
+     use above) so the glass EFFECT itself — not just the color — still reads as glass rather
+     than a flat opaque chip. Dark mode (plain `.photos-root`, no `.is-light`) is intentionally
+     NOT touched here — it keeps falling through to theme.css's global tokens exactly as
+     before, byte-for-byte (see photosGlassSurfaces.test.ts's own guard for this). */
+  --chip-bg: linear-gradient(160deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.62));
+  --chip-border: rgba(var(--ink), 0.14);
 }
 
 .photos-root * { box-sizing: border-box; }
@@ -496,9 +541,17 @@
 .photos-root .selectbar-btn[data-ai="true"]:hover { background: rgba(110,91,255,0.32); }
 
 /* === Lightbox === */
+/* Deviation (value, New-UI wins; English per repo convention -- z-index is an architecture
+   quantity, not a visual-parity one): Vue2's source z-index is 100, bumped to 200 here to match
+   PhotoLightbox.vue's own component-scoped z-index (also 200, see that file's <style> header
+   comment). New-UI's overlay z-map governs actual stacking order across the whole app (see
+   photosOverlayZIndex.test.ts), not Vue2's isolated page-local value -- 200 is what this
+   component already committed to. Both this global copy and the component's local one now
+   agree; Task 5 will make this copy the one that actually governs once the lightbox is
+   re-nested inside `.photos-root`. */
 .photos-root .lightbox {
   position: fixed; inset: 0;
-  background: var(--lb-bg); z-index: 100;
+  background: var(--lb-bg); z-index: 200;
   display: grid;
   grid-template-rows: 56px 1fr 88px;
   animation: lb-in 0.22s ease-out;
@@ -1056,6 +1109,15 @@
 .photos-root .filter-clear:hover { background: rgba(110,91,255,0.28); }
 .photos-root .toolbar-filter-active { color: var(--accent-hi) !important; }
 
+/* New-UI annotation (Plan F Task 4, 2026-08-15): the `.lb-nav[data-disabled="true"]`/
+   `.lb-nav.shake` pair below is transcribed verbatim from Vue2 (byte-identical) but is DORMANT
+   on both sides of the port -- grep-confirmed against NimoOS-UI's PhotosLightbox.vue: no Vue2 JS
+   anywhere sets a `data-disabled` attribute or a `.shake` class on `.lb-nav` (the prev/next
+   buttons only ever get the native `:disabled` boolean, which this rule's own selector doesn't
+   even target). New-UI's PhotoLightbox.vue wires the same native `:disabled` attribute the same
+   way and does not add `data-disabled`/`.shake` either. Per this task's controller ruling 5:
+   transcribe-only, keep dormant, do not wire either attribute/class in either script -- this
+   comment only documents that dormancy, it changes no rule. */
 /* === Lightbox nav boundary shake === */
 .photos-root .lb-nav[data-disabled="true"] { opacity: 0.25; cursor: default; }
 .photos-root .lb-nav.shake {

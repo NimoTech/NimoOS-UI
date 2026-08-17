@@ -1,8 +1,8 @@
-// SP7-P7a-T15: SearchResultTile.vue — single search result tile (shared by photo/long-tail grids).
-// Structure deduplication (brief struct spec 4 decision): Vue2 PhotosSearchView.vue repeated same 8-line markup
-// twice (:243-250 and :261-268), New-UI extracted to standalone file, visual 1:1 per element, structure deduplicated.
-// Each corresponds to task-15-brief.md "required test list" section B tile part + two-leg audit (scss :2711-2770,
-// skip :2728-2738 dead CSS). Only mock @nimotech/nimoos-service thumbnailUrl.
+// SP7-P7a-T15: SearchResultTile.vue —— 搜索结果单个瓦片(照片/长尾两个网格共用)。
+// 结构去重(brief 结构规格 4 的裁定):Vue2 PhotosSearchView.vue 把同样 8 行标记重复
+// 写了两遍(:243-250 与 :261-268),New-UI 抽成独立文件,视觉逐元素 1:1、结构去重。
+// 逐条对应 task-15-brief.md「必含测试清单」B 段的 tile 部分 + 两条腿审计(scss :2711-2770,
+// 跳过 :2728-2738 死 CSS)。只 mock @nimotech/nimoos-service 的 thumbnailUrl。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -16,10 +16,11 @@ vi.mock('@nimotech/nimoos-service', () => ({
   service: { photos: { thumbnailUrl: (...a: unknown[]) => (thumbnailUrl as (...a: unknown[]) => string)(...a) } },
 }))
 
+import { readFileSync } from 'node:fs'
 import SearchResultTile from '../SearchResultTile.vue'
 import searchResultTileRaw from '../SearchResultTile.vue?raw'
 import themingDocRaw from '../../../../docs/THEMING.md?raw'
-import { extractStyleBlock } from './cssCascade'
+import { extractStyleBlock, parseCssRules } from './cssCascade'
 
 function makeI18n(locale: 'zh_cn' | 'en_us' = 'zh_cn') {
   return createI18n({ legacy: false, locale, messages: { zh_cn: zh, en_us: en } })
@@ -42,8 +43,8 @@ beforeEach(() => {
   thumbnailUrl.mockImplementation((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 })
 
-describe('Media type badge (four states, ternary order: isVideo > hasOcr > photo)', () => {
-  it('Pure photo → data-type="photo"', () => {
+describe('媒体类型徽标(四态,三元顺序:isVideo > hasOcr > photo)', () => {
+  it('纯照片 → data-type="photo"', () => {
     const w = mountTile(scored('1', 0.9))
     expect(w.get('.type-badge').attributes('data-type')).toBe('photo')
   })
@@ -55,61 +56,61 @@ describe('Media type badge (four states, ternary order: isVideo > hasOcr > photo
     const w = mountTile(scored('1', 0.9, { hasOcr: true }))
     expect(w.get('.type-badge').attributes('data-type')).toBe('ocr')
   })
-  it('isVideo and hasOcr both true → video wins (ternary order, not ocr)', () => {
+  it('isVideo 与 hasOcr 同真 → video 胜出(三元顺序,不是 ocr)', () => {
     const w = mountTile(scored('1', 0.9, { isVideo: true, hasOcr: true }))
     expect(w.get('.type-badge').attributes('data-type')).toBe('video')
   })
 })
 
-describe('Match source (ocr text hit vs semantic similarity percent, mutually exclusive)', () => {
-  it("matchedBy: 'ocr' → shows .match-source and no .match-score", () => {
+describe('匹配来源(ocr 文本命中 vs 语义相似度百分比,互斥)', () => {
+  it("matchedBy: 'ocr' → 出 .match-source 且无 .match-score", () => {
     const w = mountTile(scored('1', 1, { matchedBy: 'ocr' }))
     expect(w.find('.match-source').exists()).toBe(true)
     expect(w.find('.match-score').exists()).toBe(false)
     expect(w.get('.match-source').text()).toBe('文本匹配')
   })
-  it("matchedBy: 'semantic' + score: 0.87 → .match-score text 87%", () => {
+  it("matchedBy: 'semantic' + score: 0.87 → .match-score 文本 87%", () => {
     const w = mountTile(scored('1', 0.87, { matchedBy: 'semantic' }))
     expect(w.find('.match-source').exists()).toBe(false)
     expect(w.get('.match-score').text()).toBe('87%')
   })
-  it('score: null (and not ocr) → neither shows', () => {
+  it('score: null(且非 ocr)→ 两者都无', () => {
     const w = mountTile({ p: photo('1', { matchedBy: null }), score: null })
     expect(w.find('.match-source').exists()).toBe(false)
     expect(w.find('.match-score').exists()).toBe(false)
   })
 })
 
-describe('Favorite star', () => {
-  it('fav: true → .tile-fav exists', () => {
+describe('收藏星', () => {
+  it('fav: true → .tile-fav 在', () => {
     const w = mountTile(scored('1', 0.9, { fav: true }))
     expect(w.find('.tile-fav').exists()).toBe(true)
   })
-  it('fav: false → .tile-fav absent', () => {
+  it('fav: false → .tile-fav 不在', () => {
     const w = mountTile(scored('1', 0.9, { fav: false }))
     expect(w.find('.tile-fav').exists()).toBe(false)
   })
-  // fix round 1 · I1 (review Important required): previously only asserted whether .tile-fav exists,
-  // never asserted star <path d> itself — review mutation changed final `6-.9z`→`6-.8z` and all 50 tests still pass,
-  // proves this guard didn't exist. d copied char-by-char from Vue2 PhotosIcon.vue star branch.
-  it('fav: true → star path d matches PhotosIcon.vue char-by-char', () => {
+  // fix round 1 · I1(评审 Important 必修):此前只断言 .tile-fav 是否存在,从未断言过
+  // 星形 <path d> 本身——评审变异把末位 `6-.9z`→`6-.8z` 后 50 例全绿,证明这条护栏
+  // 此前不存在。d 逐字符抄自 Vue2 PhotosIcon.vue 的 star 分支。
+  it('fav: true → star 的 path d 与 PhotosIcon.vue 逐字符一致', () => {
     const w = mountTile(scored('1', 0.9, { fav: true }))
     expect(w.get('.tile-fav svg path').attributes('d')).toBe('M12 3l2.7 5.5 6 .9-4.3 4.2 1 6-5.4-2.8L6.6 19.6l1-6L3.3 9.4l6-.9z')
   })
 })
 
-describe('Interaction', () => {
-  it('Click tile → emit open with r.p', () => {
+describe('交互', () => {
+  it('点击 tile → emit open 带 r.p', () => {
     const r = scored('42', 0.5)
     const w = mountTile(r)
     w.get('.tile').trigger('click')
     expect(w.emitted('open')?.[0]).toEqual([r.p])
   })
-  it("thumbnailUrl arguments are (id, 'small')", () => {
+  it("thumbnailUrl 参数是 (id, 'small')", () => {
     mountTile(scored('7', 0.5))
     expect(thumbnailUrl).toHaveBeenCalledWith('7', 'small')
   })
-  it('img has loading="lazy" and empty alt (per Vue2 :244)', () => {
+  it('img 带 loading="lazy" 与空 alt(照 Vue2 :244)', () => {
     const w = mountTile(scored('1', 0.5))
     const img = w.get('img')
     expect(img.attributes('loading')).toBe('lazy')
@@ -118,7 +119,7 @@ describe('Interaction', () => {
 })
 
 describe('i18n', () => {
-  it('Three badge texts correct in English locale', () => {
+  it('英文 locale 下三个徽标文案正确', () => {
     const wPhoto = mountTile(scored('1', 0.9), makeI18n('en_us'))
     expect(wPhoto.get('.type-badge').text()).toBe('Photo')
     const wVideo = mountTile(scored('1', 0.9, { isVideo: true }), makeI18n('en_us'))
@@ -128,80 +129,75 @@ describe('i18n', () => {
   })
 })
 
-// extractStyleBlock strips CSS comments first (avoid comments above rules being merged into selector,
-// see comment at top of cssCascade.ts), so use it for selector/property matching; but this test
-// precisely needs to check "what the comment itself says", must keep raw comments,
-// write separate extractor that doesn't strip comments (logic same as color-guard.test.ts styleLines,
-// dedicated for this file).
+// extractStyleBlock 会先剥掉 CSS 注释(避免规则上方的注释被并进选择器,见 cssCascade.ts
+// 顶部注释),所以选择器/属性匹配用它;但这条测试恰恰要检查"注释本身写了什么",必须留着
+// 原始注释,另写一个不剥注释的提取器(逻辑同 color-guard.test.ts 的 styleLines,专供本文件)。
 function rawStyleBlock(src: string): string {
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('Style block not found')
+  if (!m) throw new Error('未找到样式块')
   return m[1]
 }
 
-// ── Two-leg audit: scss :2711-2772 (skip :2728-2738 dead CSS) + tile self structure styles ──────
-describe('Styles: badge foreground color compliant + theme-exception three prohibitions + dead CSS not migrated', () => {
+// ── 两条腿审计:scss :2711-2772(跳过 :2728-2738 死 CSS)+ tile 结构自身样式 ──────
+describe('样式:徽标前景色合规 + theme-exception 三禁 + 死 CSS 未迁', () => {
   const styleText = extractStyleBlock(searchResultTileRaw)
   const rawStyleText = rawStyleBlock(searchResultTileRaw)
 
-  it('Style text non-empty (guard against silent no-op)', () => {
+  it('样式文本非空(防守卫静默空转)', () => {
     expect(styleText.trim().length).toBeGreaterThan(0)
   })
 
-  it('.match-badge not in styles (dead CSS, scss:2728-2738 not migrated)', () => {
+  it('.match-badge 不在样式块里(死 CSS,scss:2728-2738 未迁)', () => {
     expect(styleText).not.toMatch(/\.match-badge/)
   })
 
-  it('Rules with four badge classes don\'t contain --on-accent (overlaid on photo, disable saturated solid foreground semantic)', () => {
+  it('四个徽标类所在规则不含 --on-accent(叠在照片上,禁用饱和实底前景色语义)', () => {
     expect(styleText).not.toMatch(/--on-accent/)
   })
 
-  it('Three badge tokens referenced (--badge-photo/--badge-video/--badge-ocr)', () => {
+  it('三个 badge token 被引用(--badge-photo/--badge-video/--badge-ocr)', () => {
     expect(styleText).toMatch(/--badge-photo/)
     expect(styleText).toMatch(/--badge-video/)
     expect(styleText).toMatch(/--badge-ocr/)
   })
 
-  // fix round 1 · I2 (review Important required, brief:81 explicitly required but previously missing):
-  // three tokens only registered in docs/THEMING.md text, previously no guard — delete that line, tokens
-  // regress to "magic color appearing out of nowhere in theme.css", full suite still all green.
-  // § 6 exception list is only searchable index, must pin it. File reading guard first asserts non-empty
-  // (else no-op, color-guard historically no-op'd once), then assert each three token names once
-  // (three independent assertions, delete any and it fails).
-  it('docs/THEMING.md can find three badge tokens (only searchable index, prevent token-doc loss of sync)', () => {
+  // fix round 1 · I2(评审 Important 必修,brief:81 明文要求但此前缺席):三个 token
+  // 的登记只落在 docs/THEMING.md 的文本里,此前没有任何守卫——删掉那一行,token 就
+  // 退化成"theme.css 里凭空出现的魔术色",而全量仍全绿。§6 例外清单是唯一的可查索引,
+  // 必须钉住。读文件的守卫先断言非空(否则空转,color-guard 历史上就空转过一次),
+  // 再对三个 token 名各断一次(三条独立断言,删任一个都红)。
+  it('docs/THEMING.md 能查到三个 badge token(唯一可查索引,防止 token 与文档失联)', () => {
     expect(themingDocRaw.trim().length).toBeGreaterThan(0)
     expect(themingDocRaw).toContain('--badge-photo')
     expect(themingDocRaw).toContain('--badge-video')
     expect(themingDocRaw).toContain('--badge-ocr')
   })
 
-  it('Each theme-exception comment\'s next declaration is the exempted literal, comment text has no ; / } / hex #', () => {
+  it('每个 theme-exception 注释紧贴的下一条声明是被豁免的字面量声明,注释文本不含 ; / } / 字面 #', () => {
     const lines = rawStyleText.split('\n')
     const exceptionLines: number[] = []
     lines.forEach((l, i) => { if (l.includes('theme-exception')) exceptionLines.push(i) })
     expect(exceptionLines.length).toBeGreaterThan(0)
     for (const i of exceptionLines) {
-      // Comment may span lines (e.g., .tile-fav here), find where comment truly ends
-      // (line with `*/`), then check adjacent declaration line after — consistent with
-      // color-guard.test.ts "exemption applies to next ; or }" state machine semantic,
-      // not requiring comment physically on one line.
+      // 注释可能跨多行(本文件里 .tile-fav 那条即是),先找到注释块真正结束的那一行
+      // (含 `*/` 的那一行),再检查其后紧邻的声明行——这与 color-guard.test.ts 的
+      // "豁免作用到下一个 ; 或 }" 状态机语义一致,而不是要求注释物理上只占一行。
       let closeIdx = i
       while (closeIdx < lines.length && !lines[closeIdx].includes('*/')) closeIdx++
-      expect(closeIdx, `theme-exception comment at line ${i} didn't find closing */`).toBeLessThan(lines.length)
-      // Comment text itself (span i..closeIdx) cannot contain literal color or statement terminators
-      // (else color-guard's line-by-line state machine misinterprets as declaration, prematurely closes
-      // exemption window or false-reports bare color).
+      expect(closeIdx, `第 ${i} 行的 theme-exception 注释没有找到闭合 */`).toBeLessThan(lines.length)
+      // 注释文本本身(跨越 i..closeIdx 的整段)不能包含字面颜色值或语句结束符
+      // (否则会被 color-guard 的逐行状态机当作声明误判、提前收豁免窗口或误报裸色值)。
       const commentBody = lines.slice(i, closeIdx + 1).join('\n').replace(/\/\*|\*\//g, '')
       expect(commentBody).not.toMatch(/#[0-9a-fA-F]{3,8}\b/)
       expect(commentBody).not.toContain(';')
-      // fix round 1 · M-2 (review merged in): test title says "no ; / } / hex #" three prohibitions,
-      // but previously only asserted ; and #, missed } — } in comment also lets color-guard's line-by-line state machine
-      // (fix wave F4 reference sweep, source-check true value: real line is color-guard.test.ts:98
-      // `if (line.includes(';') || line.includes('}')) exempt = false` — line :96 actually is
-      // `if (HEX.test(bare) || FUNC.test(bare)) offenders.push(...)`, different check in same forEach,
-      // not this one) prematurely close exemption window, consequence same as ; must assert together.
+      // fix round 1 · M-2(评审并入):测试标题写"不含 ; / } / 字面 #"三禁,但此前只
+      // 断言了 ; 与 #,漏了 }——注释里出现 } 同样会让 color-guard 的逐行状态机
+      // (fix 波 F4 引用清扫,回源核对真值:真实行号是 color-guard.test.ts:98
+      // `if (line.includes(';') || line.includes('}')) exempt = false`——:96 那行
+      // 实际是 `if (HEX.test(bare) || FUNC.test(bare)) offenders.push(...)`,是同一个
+      // forEach 里另一条判断,不是这条)提前收豁免窗口,后果与 ; 同类,必须一起断言。
       expect(commentBody).not.toContain('}')
-      // Adjacent declaration truly exists: same line (comment + declaration together) or next line.
+      // 紧邻声明真实存在:同一行(注释与声明同行)或紧接的下一行。
       const closeLine = lines[closeIdx]
       const sameLineHasDecl = /:\s*[^;]+;/.test(closeLine.replace(/\/\*[\s\S]*?\*\//, ''))
       const nextLineHasDecl = closeIdx + 1 < lines.length && /:\s*[^;]+;/.test(lines[closeIdx + 1])
@@ -209,19 +205,38 @@ describe('Styles: badge foreground color compliant + theme-exception three prohi
     }
   })
 
-  // fix round 1 · M-5 (review merged in, controller approved): .tile border-radius follows PhotosGrid.vue 8px,
-  // not Vue2 photos.scss:323 (`.photos-root .tile` rule body `border-radius: 3px`, fix wave F4 source-check
-  // correction, previously mistaken as :112 which is `.photos-root .app` font setting)
-  // 3px — reason same origin as D2 (.grid column width), prevent search result tiles having sharper corners than gallery tiles on same device.
-  it('.tile rule body border-radius is 8px (same as PhotosGrid.vue, not Vue2 3px)', () => {
-    const m = /\.tile\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '.tile rule body not found').toBeTruthy()
-    expect(m![1]).toMatch(/border-radius:\s*8px/)
+  // Plan F Task 2 (2026-08-15): the fix round 1 · M-5 ruling this test used to pin ("8px to
+  // match PhotosGrid.vue, not Vue2's 3px, so search tiles aren't sharper-cornered than library
+  // tiles") stopped being true once PhotosGrid.vue's own Task 6 网格重刻 re-skin reverted ITS
+  // tiles back to Vue2 parity's 3px (predating this task; `grep -n "border-radius"
+  // src/photos/components/PhotosGrid.vue` has zero hits). Keeping 8px here would have recreated
+  // the exact inconsistency the deviation was meant to avoid, just inverted. The whole `.tile`
+  // rule (background + border-radius) is deleted from this component's scoped style — it was a
+  // byte-for-byte duplicate of vue2-parity/photos.scss's own `.photos-root .tile` (:427-430)
+  // once background used the correct local `--surface-2` instead of the leaking generic
+  // `--chip-bg`, so nothing is lost handing it over outright.
+  it('本组件 scoped style 不再含 .tile 规则(已整体移交 parity,含 border-radius 与 background 两处修正)', () => {
+    const rules = parseCssRules(styleText)
+    expect(rules.some((r) => r.selectors.length === 1 && r.selectors[0] === '.tile')).toBe(false)
   })
 
-  it('.tile-overlay rule body contains gradient background and transition (two-leg: inline/scss non-color property)', () => {
+  it('parity scss:.photos-root .tile 规则含 border-radius: 3px / background: var(--surface-2)', () => {
+    const parityScss = readFileSync('src/photos/styles/vue2-parity/photos.scss', 'utf8')
+    const rule = parseCssRules(parityScss).find(
+      (r) => r.selectors.length === 1 && r.selectors[0] === '.photos-root .tile',
+    )
+    expect(rule).toBeDefined()
+    expect(rule?.body).toMatch(/border-radius:\s*3px/)
+    expect(rule?.body).toMatch(/background:\s*var\(--surface-2\)/)
+  })
+
+  it('本组件 style 块不再引用 --chip-bg(此前 .tile 背景误用的全局玻璃 token;历史说明性文字仍可在脚本注释里提到这个名字,故只查样式块)', () => {
+    expect(styleText).not.toMatch(/--chip-bg\b/)
+  })
+
+  it('.tile-overlay 规则体含渐变背景与 transition(两条腿:内联/scss 非颜色属性)', () => {
     const m = /\.tile-overlay\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '.tile-overlay rule body not found').toBeTruthy()
+    expect(m, '未找到 .tile-overlay 规则体').toBeTruthy()
     const body = m![1]
     expect(body).toMatch(/opacity:\s*0/)
     expect(body).toMatch(/transition:\s*opacity 0\.18s ease/)
@@ -229,9 +244,9 @@ describe('Styles: badge foreground color compliant + theme-exception three prohi
     expect(body).toMatch(/pointer-events:\s*none/)
   })
 
-  it('.type-badge base class contains text-transform/letter-spacing/font-weight/backdrop-filter/box-shadow (D3, each not missed)', () => {
+  it('.type-badge 基类含 text-transform/letter-spacing/font-weight/backdrop-filter/box-shadow(D3,逐条不漏)', () => {
     const m = /(?<!\[data-type[^{]*)\.type-badge\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '.type-badge base class rule body not found').toBeTruthy()
+    expect(m, '未找到 .type-badge 基类规则体').toBeTruthy()
     const body = m![1]
     expect(body).toMatch(/text-transform:\s*uppercase/)
     expect(body).toMatch(/letter-spacing:\s*0\.05em/)
@@ -240,18 +255,18 @@ describe('Styles: badge foreground color compliant + theme-exception three prohi
     expect(body).toMatch(/box-shadow:/)
   })
 
-  it('.match-source rule body contains backdrop-filter + box-shadow (D4)', () => {
+  it('.match-source 规则体含 backdrop-filter + box-shadow(D4)', () => {
     const m = /\.match-source\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '.match-source rule body not found').toBeTruthy()
+    expect(m, '未找到 .match-source 规则体').toBeTruthy()
     const body = m![1]
     expect(body).toMatch(/backdrop-filter:\s*blur\(8px\)/)
     expect(body).toMatch(/box-shadow:/)
     expect(body).toMatch(/text-transform:\s*uppercase/)
   })
 
-  it('.tile-fav rule body contains filter: drop-shadow (D5 precedent, favorite star shadow)', () => {
+  it('.tile-fav 规则体含 filter: drop-shadow(D5 先例,收藏星投影)', () => {
     const m = /\.tile-fav\s*\{([^}]*)\}/.exec(styleText)
-    expect(m, '.tile-fav rule body not found').toBeTruthy()
+    expect(m, '未找到 .tile-fav 规则体').toBeTruthy()
     expect(m![1]).toMatch(/filter:\s*drop-shadow/)
   })
 })

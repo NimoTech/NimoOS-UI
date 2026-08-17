@@ -351,13 +351,14 @@ onMounted(() => {
           </div>
         </template>
       </main>
+      <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
+      <PhotoLightbox
+        @delete="onLightboxDelete"
+        @toggle-fav="() => {}"
+        @add-to-album="(id) => openAlbumPicker([id])"
+      />
     </div>
   </AreaShell>
-  <PhotoLightbox
-    @delete="onLightboxDelete"
-    @toggle-fav="() => {}"
-    @add-to-album="(id) => openAlbumPicker([id])"
-  />
   <AlbumPickerDialog v-model:open="pickerOpen" :asset-ids="pickerIds" @added="onAlbumAdded" />
 
   <div

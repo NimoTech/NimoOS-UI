@@ -886,9 +886,9 @@ async function doDelete(): Promise<void> {
 
           <!-- Fix-12 (owner acceptance, 2026-08-14): add-to-album picker for the lightbox's
                `@add-to-album`, same shape as PhotosAlbumDetail.vue's own `AlbumPickerDialog`
-               mount -- stays nested inside `.photos-root` (its own panel background is
+               mount -- nested inside `.photos-root` (its own panel background is
                `var(--surface-2)`, a `.photos-root`-local token with no fallback, per the F1/F4
-               lesson class), unlike the lightbox itself further down. -->
+               lesson class); the lightbox itself joins it there too as of Plan F Task 5. -->
           <AlbumPickerDialog v-model:open="albumPickerOpen" :asset-ids="albumPickerIds" @added="onAlbumPickerAdded" />
 
           <!-- Delete confirmation (Vue 2 :127-141, class names verified against its real
@@ -936,24 +936,13 @@ async function doDelete(): Promise<void> {
        </div>
       </main>
     </div>
+    <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
+    <PhotoLightbox
+      @delete="onLightboxDelete"
+      @toggle-fav="() => {}"
+      @add-to-album="(id) => openAlbumPicker([id])"
+    />
   </div>
-  <!-- Fix-12 (owner acceptance, 2026-08-14): this page never mounted a `<PhotoLightbox>` at all
-       (see `onLightboxDelete`'s own comment above for the full mechanism) -- added here,
-       deliberately a sibling of `.photos-root`, NOT nested inside it. Per Fix-8 round 4
-       (acceptance-fix-report.md §F8-r4): nesting `<PhotoLightbox>` inside `.photos-root`
-       activates parity's own `.photos-root .lightbox`/`.lb-*` rule family, which targets a
-       *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with named
-       grid-area children) than this component's own current, self-contained flex layout --
-       every colliding selector ties in specificity, and if parity's `display: grid` wins that
-       tie for the outer container, this component's real children (which carry none of the
-       grid-area names parity's layout expects) fall into unpredictable implicit placement,
-       breaking the whole overlay. **Do not nest this component inside `.photos-root` before
-       Plan F's own lightbox re-skin actually ports its DOM/CSS to match those parity rules.** -->
-  <PhotoLightbox
-    @delete="onLightboxDelete"
-    @toggle-fav="() => {}"
-    @add-to-album="(id) => openAlbumPicker([id])"
-  />
 </template>
 
 <style scoped>

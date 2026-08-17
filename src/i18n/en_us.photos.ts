@@ -37,10 +37,10 @@ export default {
   photosUnfavorite: 'Unfavorite',
   photosDownload: 'Download',
   photosClose: 'Close',
-  photosZoomIn: 'Zoom in',
-  photosZoomOut: 'Zoom out',
-  photosRotate: 'Rotate',
-  photosReset: 'Reset',
+  // Fix-2 item 1 (owner acceptance, 2026-08-16): photosZoomIn/photosZoomOut/photosRotate/
+  // photosReset were only ever used by the now-removed bottom zoom toolbar
+  // (PhotoImageViewer.vue's `.img-toolbar`) -- deleted here (both locales) rather than left
+  // orphaned, since nothing else in the app consumed them.
   photosPrev: 'Previous',
   photosNext: 'Next',
   photosInfoToggle: 'Info',
@@ -53,6 +53,9 @@ export default {
   photosInfoLocation: 'Location',
   photosInfoPeople: 'People',
   photosInfoNimoSees: 'Nimo sees',
+  // Fix-2 item 2 (owner acceptance, 2026-08-16): Vue2's exact label, PhotosLightbox.vue:86
+  // `{{ $t('Hand off to Nimo') }}`.
+  photosHandOffToNimo: 'Hand off to Nimo',
   photosInfoFile: 'File on NAS',
   photosFieldCamera: 'Camera',
   photosFieldIso: 'ISO',
@@ -573,6 +576,11 @@ export default {
   photosPlaces: 'Places',
   photosPlacesCities: 'cities',
   photosPlacesCountries: 'countries',
+  // Task 1 (Plan E re-shell): PhotosTopbar's `sub` line on the Places index page — value
+  // copied verbatim from Vue2 PhotosPlacesTopbar.vue's own subtitle computed (NimoOS-UI
+  // src/views/Photos/PhotosPlacesTopbar.vue:34, which uses the English literal itself as the
+  // i18n key, English-source-as-key convention) and NimoOS-UI/src/assets/lang/en_US.json:2442.
+  photosPlacesTopbarSub: '{cities} cities · {countries} countries · indexed by Nimo',
   photosPlacesPhotos: 'photos',
   photosPlacesSearchPlaceholder: 'Search cities or countries',
   photosPlacesCityCount: '{n} cities',
@@ -880,6 +888,8 @@ export default {
   photosSearchPreviousMonth: 'Previous month',
   photosSearchQuickRange: 'Quick range',
   photosSearchRecentSearches: 'Recent searches',
+  // Fix-4 (owner-directed addition, 2026-08-17): clear-history button, no Vue2 source.
+  photosSearchClearHistory: 'Clear',
   photosSearchRecent: 'Recent:',
   photosSearchRelevance: 'Relevance',
   photosSearchSaveSmartView: 'Save as Smart View',

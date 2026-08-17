@@ -1,24 +1,41 @@
-// P6a-T6: PlacesMap.vue — SVG map stage for Places page.
-// Each test corresponds to items in task-6-brief.md "required tests checklist"; adds coverage for
-// structure specs 1-8 and cleanup checklist 5 items.
+// P6a-T6: PlacesMap.vue —— 地点页的 SVG 地图舞台。
+// 逐条对应 task-6-brief.md 的「必含测试清单」,补充覆盖结构规格 1-8 与删码清单 5 处。
 import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { visitedDots, type Place } from '../../util/placesMap'
 import { WORLD_DOTS } from '../../util/worldMap'
 import PlacesMap from '../PlacesMap.vue'
-// Raw source text (Vite `?raw`) — some tests need to read source text itself (color attribute
-// guards, theme-exception comment compliance), not coverable by DOM assertions; same pattern
-// as PlacesRail.test.ts:19.
+// 原始源码文本(Vite `?raw`)—— 一部分测试要读源文本本身(颜色 attribute 守卫、
+// theme-exception 注释合规),不是 DOM 断言能覆盖的,同 PlacesRail.test.ts:19 的既有先例。
 import placesMapRaw from '../PlacesMap.vue?raw'
+// Task 5 (Plan E #106 perf port): `.world-dot`'s CSS rule moved out of PlacesMap.vue's own
+// <style> block into PlacesWorldDots.vue's (the dots now render inside that child component's
+// own template, not this one's — see that file's own header comment on why the rule had to move
+// with the elements). The raw-source rule-lookup test below is repointed at the new home.
+import placesWorldDotsRaw from '../PlacesWorldDots.vue?raw'
 import { extractStyleBlock, parseCssRules } from './cssCascade'
+// Task 6 (Plan E, 2026-08-15): `.css?raw` comes back empty in this test environment (same
+// pitfall views/__tests__/photosGlassSurfaces.test.ts's header comment documents for CSS
+// files specifically — Vite's own CSS plugin intercepts the import before the raw-suffix
+// loader runs, unlike `.vue?raw` used elsewhere in this file, which isn't intercepted the same
+// way); read theme.css via node:fs instead, same as that file's own `read()` helper.
+import fs from 'node:fs'
+import path from 'node:path'
 
-// Note: extractStyleBlock() from cssCascade.ts strips CSS comments before returning
-// (for cascade tests where comments would pollute selector parsing). But theme-exception
-// compliance check needs to see the original comment text itself, so we extract an
-// unstripped <style> block here and don't reuse that helper.
+const themeCssRaw = fs.readFileSync(path.resolve(__dirname, '../../../styles/theme.css'), 'utf8')
+// Fix-5 (owner acceptance, 2026-08-17): parity's own photos-places.scss, needed to verify the
+// `.geo-pin:hover` glow rule now governs from THERE (purple `rgba(var(--accent-rgb), …)`) rather
+// than from this component's own (now-deleted) local `--pin-glow`-consuming duplicate.
+const placesParityScssRaw = fs.readFileSync(
+  path.resolve(__dirname, '../../styles/vue2-parity/photos-places.scss'), 'utf8',
+)
+
+// 注意:cssCascade.ts 的 extractStyleBlock() 会先剥掉 CSS 注释再返回(给"选择器优先级"
+// 那组测试用,注释会污染选择器解析)。theme-exception 合规检查恰恰要看注释本身的原文,
+// 所以这里自己抓一次未剥注释的 <style> 块,不复用那个工具函数。
 function rawStyleBlock(src: string): string {
   const m = /<style[^>]*>([\s\S]*?)<\/style>/.exec(src)
-  if (!m) throw new Error('style block not found')
+  if (!m) throw new Error('未找到样式块')
   return m[1]
 }
 
@@ -31,15 +48,15 @@ function place(over: Partial<Place> = {}): Place {
   }
 }
 
-// Single inactive, non-recent small location (used for hitR cleanup check ④).
+// 单个不激活、不最近的小地点(用于 hitR 删码验证④)。
 const PLAIN = place({ id: 'plain', city: 'Plain City', lon: 100, lat: 20, count: 3, recent: false })
-// Active + recent single point (full 5-layer structure: pulse/core/label all present).
+// 激活 + 最近的单点(五层结构齐备:pulse/core/label 都要出现)。
 const ACTIVE_RECENT = place({ id: 'active-recent', city: 'Activeville', lon: -70, lat: 40, count: 10, recent: true })
-// Two mutually very close, both inactive/non-recent points — must merge into one cluster at scale=1.
+// 两个彼此极近、都不激活/不最近的点 —— 在 scale=1 下必然合并成一个簇。
 const CLUSTER_A = place({ id: 'clus-a', city: 'Cluster A', lon: 10, lat: 10, count: 5, recent: false })
 const CLUSTER_B = place({ id: 'clus-b', city: 'Cluster B', lon: 10.01, lat: 10.01, count: 5, recent: false })
-// One truly landed point (near London, land mask covers it); asserts land-dot is-visited count —
-// not just "present/absent", but "count exactly equals visitedDots() result" (cleanup check ⑤ target).
+// 一个真实落地(伦敦附近,land mask 覆盖)的点,用来断言陆地点阵的 is-visited 计数
+// ——不是只判断「有没有」,是判断「数量精确等于 visitedDots() 算出来的」(删码⑤的靶)。
 const LONDON = place({ id: 'london', city: 'London', lon: 0, lat: 51, count: 1, recent: false })
 
 function mountMap(over: Partial<InstanceType<typeof PlacesMap>['$props']> = {}) {
@@ -54,15 +71,15 @@ function mountMap(over: Partial<InstanceType<typeof PlacesMap>['$props']> = {}) 
   })
 }
 
-describe('Structure spec 1: <svg> viewBox / preserveAspectRatio', () => {
-  it('viewBox is "0 0 1000 500", preserveAspectRatio is xMidYMid meet', () => {
+describe('结构规格 1: <svg> viewBox / preserveAspectRatio', () => {
+  it('viewBox 是 "0 0 1000 500",preserveAspectRatio 是 xMidYMid meet', () => {
     const w = mountMap()
     const svg = w.find('svg')
     expect(svg.attributes('viewBox')).toBe('0 0 1000 500')
     expect(svg.attributes('preserveAspectRatio')).toBe('xMidYMid meet')
   })
 
-  it('themeVars applied to <svg> style (background and --map-dot both present)', () => {
+  it('themeVars 落到 <svg> 的 style 上(background 与 --map-dot 都在)', () => {
     const w = mountMap({ themeVars: { background: 'rgb(1, 2, 3)', '--map-dot': 'rgba(4, 5, 6, 1)' } })
     const el = w.find('svg').element as SVGSVGElement
     expect(el.style.background).toContain('rgb(1, 2, 3)')
@@ -70,46 +87,61 @@ describe('Structure spec 1: <svg> viewBox / preserveAspectRatio', () => {
   })
 })
 
-describe('Structure spec 2: outer <g> transform', () => {
-  it('exactly translate(12 34) scale(2)', () => {
+describe('结构规格 2: 外层 <g> 的 transform', () => {
+  it('逐字为 translate(12 34) scale(2)', () => {
     const w = mountMap({ view: { tx: 12, ty: 34, scale: 2 }, places: [] })
     const g = w.find('svg > g')
     expect(g.attributes('transform')).toBe('translate(12 34) scale(2)')
   })
 })
 
-describe('Structure spec 3: land dot grid (cleanup check ⑤ target)', () => {
-  it('rendered count === WORLD_DOTS.length', () => {
+describe('结构规格 3: 陆地点阵(删码⑤靶)', () => {
+  it('渲染数量 === WORLD_DOTS.length', () => {
     const w = mountMap({ places: [] })
     expect(w.findAll('.world-dot').length).toBe(WORLD_DOTS.length)
   })
 
-  it('visited items have .is-visited, non-visited don\'t — exact count, not just existence', () => {
+  it('visited 项带 .is-visited、非 visited 不带 —— 精确计数,不只判断存在', () => {
     const w = mountMap({ places: [LONDON] })
     const expected = visitedDots([LONDON])
     const expectedVisited = expected.filter(d => d.visited).length
     const expectedNotVisited = expected.length - expectedVisited
-    // London fixture must actually hit at least one land cell, else this test is blunt for cleanup ⑤.
+    // 伦敦这条 fixture 必须真的命中至少一个陆地格,否则这条测试对删码⑤是钝的。
     expect(expectedVisited).toBeGreaterThan(0)
     expect(w.findAll('.world-dot.is-visited').length).toBe(expectedVisited)
     expect(w.findAll('.world-dot:not(.is-visited)').length).toBe(expectedNotVisited)
   })
 
-  // Review I1: .world-dot fill fallback must be dedicated token --map-dot-bg-fallback,
-  // not --fg-faint — dark --fg-faint (0.52) is bright enough to cover is-visited dots;
-  // light --fg-faint is opaque warm-gray that becomes solid color block on dark map canvas
-  // (both are Vue2 most common paths, not rare branches).
-  it('.world-dot fill fallback references --map-dot-bg-fallback, not --fg-faint (cleanup: switch back to --fg-faint will fail)', () => {
-    const rules = parseCssRules(extractStyleBlock(placesMapRaw))
+  // 评审 I1:.world-dot 的 fill 回落必须是专用 token --map-dot-bg-fallback,不能是 --fg-faint
+  // ——深色 --fg-faint(0.52)会亮到盖过 is-visited 点,浅色 --fg-faint 是不透明暖灰,铺在地图
+  // 黑底画布上会变成一块不透明色块(两条都是 Vue2 最常见路径,不是罕见分支)。
+  // Task 5 (Plan E #106 perf port): 这条规则现在住在 PlacesWorldDots.vue 自己的 <style> 块里
+  // (点阵 <circle> 已抽成那个子组件,scoped 属性只挂它自己模板产出的元素——留在 PlacesMap.vue
+  // 会变成一条谁都匹配不到的死规则),读源文本的靶子跟着挪过去,断言内容不变。
+  it('.world-dot 的 fill 回落引用 --map-dot-bg-fallback,不是 --fg-faint(删码:换回 --fg-faint 必红)', () => {
+    const rules = parseCssRules(extractStyleBlock(placesWorldDotsRaw))
     const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.world-dot')
-    expect(rule, '.world-dot standalone rule not found').toBeTruthy()
+    expect(rule, '.world-dot 独立规则未找到').toBeTruthy()
     expect(rule!.body).toMatch(/fill:\s*var\(--map-dot-bg,\s*var\(--map-dot-bg-fallback\)\)/)
     expect(rule!.body).not.toContain('--fg-faint')
   })
+
+  // Task 6 (Plan E, 2026-08-15): --map-dot-bg-fallback's own literal was still the pre-#106
+  // value (rgba(255,255,255,0.10)) — Vue2 PR #106 (git show 78cf3335) bumped it twice
+  // (0.10→0.20→0.30) and this repo's token never caught up. Both theme blocks (`:root` dark and
+  // `:root[data-theme="light"]`) must carry the same 0.30 literal — this fallback is only ever
+  // reached on the dark-canvas path (dotBg is null; a light preset always supplies its own
+  // dotBg), so it's intentionally theme-invariant, matching Vue2's own single non-varying
+  // literal at photos-places.scss:349.
+  it('--map-dot-bg-fallback 两套主题块都是 0.30(不是 pre-#106 的 0.10)', () => {
+    const matches = [...themeCssRaw.matchAll(/--map-dot-bg-fallback:\s*([^;]+);/g)].map(m => m[1].trim())
+    expect(matches.length, '两套主题块(:root / :root[data-theme="light"])都应定义这个 token').toBe(2)
+    for (const v of matches) expect(v).toBe('rgba(255, 255, 255, 0.30)')
+  })
 })
 
-describe('Structure spec 4: pin 5-layer structure (render-omission main guard)', () => {
-  it('non-cluster active pin: pin-hit/pin-pulse/pin-bg/pin-core/geo-pin-label each 1', () => {
+describe('结构规格 4: 图钉五层结构(漏渲染主守卫)', () => {
+  it('非簇且 active 的图钉:pin-hit/pin-pulse/pin-bg/pin-core/geo-pin-label 各 1', () => {
     const w = mountMap({ places: [PLAIN, ACTIVE_RECENT], activeId: 'active-recent' })
     const pin = w.findAll('.geo-pin').find(g => g.classes().includes('is-active'))!
     expect(pin.findAll('.pin-hit').length).toBe(1)
@@ -119,19 +151,19 @@ describe('Structure spec 4: pin 5-layer structure (render-omission main guard)',
     expect(pin.findAll('.geo-pin-label').length).toBe(1)
   })
 
-  it('cluster pin: pin-core/pin-pulse/geo-pin-label all 0 (following Vue2 v-if, cleanup check ①)', () => {
+  it('簇图钉:pin-core/pin-pulse/geo-pin-label 都为 0(照 Vue2 的 v-if,删码①靶)', () => {
     const w = mountMap({ places: [CLUSTER_A, CLUSTER_B], activeId: null, view: { tx: 0, ty: 0, scale: 1 } })
     const clusterPin = w.findAll('.geo-pin').find(g => g.classes().includes('is-cluster'))
-    expect(clusterPin, 'two close locations at scale=1 should merge into one cluster pin').toBeTruthy()
+    expect(clusterPin, '两个近距地点在 scale=1 下应合并成一个簇图钉').toBeTruthy()
     expect(clusterPin!.findAll('.pin-core').length).toBe(0)
     expect(clusterPin!.findAll('.pin-pulse').length).toBe(0)
     expect(clusterPin!.findAll('.geo-pin-label').length).toBe(0)
-    // cluster pin itself still needs pin-hit + pin-bg (v-if only affects core/pulse/label, not these two).
+    // 簇图钉本身仍然要有 pin-hit + pin-bg(v-if 只吃 core/pulse/label,不吃这两层)。
     expect(clusterPin!.findAll('.pin-hit').length).toBe(1)
     expect(clusterPin!.findAll('.pin-bg').length).toBe(1)
   })
 
-  it('.pin-scale exists and pin-pulse/pin-bg/pin-core all inside it (cleanup check ②)', () => {
+  it('.pin-scale 存在且 pin-pulse/pin-bg/pin-core 都在它内部(删码②靶)', () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent' })
     const pin = w.find('.geo-pin')
     expect(pin.find('.pin-scale').exists()).toBe(true)
@@ -140,20 +172,20 @@ describe('Structure spec 4: pin 5-layer structure (render-omission main guard)',
     expect(pin.find('.pin-scale .pin-core').exists()).toBe(true)
   })
 
-  it('pin-hit r equals p.hitR, and on small pin (count=3) strictly greater than p.r (cleanup check ④)', () => {
+  it('pin-hit 的 r 等于 p.hitR,且在小图钉(count=3)上严格大于 p.r(删码④靶)', () => {
     const w = mountMap({ places: [PLAIN], activeId: null, view: { tx: 0, ty: 0, scale: 1 } })
     const pin = w.find('.geo-pin')
     const hit = pin.find('.pin-hit')
     const bg = pin.find('.pin-bg')
     const hitR = Number(hit.attributes('r'))
     const bgR = Number(bg.attributes('r'))
-    // count=3 < 40 → tierRadius=7, scale=1 → r=7, hitR=max(7, 9/1)=9.
+    // count=3 < 40 → tierRadius=7,scale=1 → r=7,hitR=max(7, 9/1)=9。
     expect(hitR).toBe(9)
     expect(bgR).toBe(7)
     expect(hitR).toBeGreaterThan(bgR)
   })
 
-  it('.pin-core radius is .pin-bg radius times 0.55', () => {
+  it('.pin-core 的半径是 .pin-bg 半径的 0.55 倍', () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent' })
     const pin = w.find('.geo-pin')
     const bgR = Number(pin.find('.pin-bg').attributes('r'))
@@ -162,15 +194,15 @@ describe('Structure spec 4: pin 5-layer structure (render-omission main guard)',
   })
 })
 
-describe('Structure spec 4: condition classes stackable', () => {
-  it('active → .is-active; recent → .is-recent; cluster → .is-cluster; all three stackable', () => {
-    // ACTIVE_RECENT single point: active + recent, not a cluster.
+describe('结构规格 4: 条件类可叠加', () => {
+  it('active → .is-active;recent → .is-recent;簇 → .is-cluster;三者可叠加', () => {
+    // ACTIVE_RECENT 单独一个点:active + recent,不是簇。
     const w1 = mountMap({ places: [PLAIN, ACTIVE_RECENT], activeId: 'active-recent' })
     const activePin = w1.findAll('.geo-pin').find(g => g.classes().includes('is-active'))!
     expect(activePin.classes()).toContain('is-recent')
     expect(activePin.classes()).not.toContain('is-cluster')
 
-    // if cluster member is both activeId and recent: three condition classes on same cluster pin.
+    // 簇里若某成员既是 activeId 又 recent:三个条件类同时出现在同一个簇图钉上。
     const clusA = place({ id: 'ca2', city: 'CA2', lon: 50, lat: -30, count: 5, recent: true })
     const clusB = place({ id: 'cb2', city: 'CB2', lon: 50.01, lat: -30.01, count: 5, recent: false })
     const w2 = mountMap({ places: [clusA, clusB], activeId: 'ca2', view: { tx: 0, ty: 0, scale: 1 } })
@@ -181,33 +213,31 @@ describe('Structure spec 4: condition classes stackable', () => {
   })
 })
 
-describe('Structure spec 4: label counter-scale (cleanup check ③)', () => {
-  it('when view.scale = 4, font-size=2.75px, stroke-width=0.85, y = 4.5 (all hand-calculated hardcoded)', () => {
+describe('结构规格 4: 标签反缩放(删码③靶)', () => {
+  it('view.scale = 4 时,font-size=2.75px、stroke-width=0.85、y = 4.5(全部手算写死)', () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent', view: { tx: 0, ty: 0, scale: 4 } })
     const pin = w.find('.geo-pin')
     const label = pin.find('.geo-pin-label')
     expect(label.exists()).toBe(true)
     const style = (label.element as unknown as HTMLElement).style
-    // Hand-calculated, not reverse-inferred from DOM p.r (review Minor 3: if p.r itself
-    // is wrong, old reverse-inference won't catch it). ACTIVE_RECENT.count = 10 →
-    // tierRadius(10) = 7 (< 40 tier) → p.r = 7 / scale = 7 / 4 = 1.75. font-size = 11 / 4 = 2.75,
-    // stroke-width = 3.4 / 4 = 0.85, y = p.r + 11/4 = 1.75 + 2.75 = 4.5.
+    // 手算,不读 DOM 的 p.r 反推(评审 Minor 3:若 p.r 本身算错,读 DOM 反推的旧写法测不出来)。
+    // ACTIVE_RECENT.count = 10 → tierRadius(10) = 7(< 40 档)→ p.r = 7 / scale = 7 / 4 = 1.75。
+    // font-size = 11 / 4 = 2.75, stroke-width = 3.4 / 4 = 0.85, y = p.r + 11/4 = 1.75 + 2.75 = 4.5。
     expect(style.fontSize).toBe('2.75px')
     expect(style.strokeWidth).toBe('0.85')
     expect(Number(label.attributes('y'))).toBeCloseTo(4.5, 10)
   })
 })
 
-// jsdom does neither real Vue transition enter/exit state, nor render name="pin-merge" as DOM attribute
-// (that's pure JS-side transition config, never hits DOM) — after mount, can't assert "animation actually played".
-// ambiguity-resolved item 5 gives the alternative: ① assert <transition-group> exists with name="pin-merge"
-// (can only read template source, not render result); ② programmatically assert all four animation rules
-// exist with expected properties in style block.
-describe('Structure spec 4: pin-merge enter/leave animation (source-level assertion, reason above)', () => {
-  it('rendered transition-group is name="pin-merge", tag="g", class="pins-layer"', () => {
-    // @vue/test-utils by default stubs <transition-group> as <transition-group-stub> (not real <g>),
-    // but stub element passes tag/name props as-is into DOM attributes — asserting from them is more
-    // reliable than regex on template source (doesn't depend on attribute order/quote style).
+// jsdom 既不做 Vue transition 的真实进出场态,也不会把 name="pin-merge" 落成 DOM 属性
+// (那是纯 JS 侧的过渡配置,不进 DOM)——mount 后没法断言"动画真的播了"。ambiguity-resolved
+// 第 5 条给的替代方案:①断言 <transition-group> 存在且 name="pin-merge"(只能读模板源文本,
+// 不能读渲染结果);②在样式块里程序化断言四条动画规则存在且带预期属性。
+describe('结构规格 4: pin-merge 入场/离场动画(源码级断言,理由见上方注释)', () => {
+  it('渲染出的 transition-group 是 name="pin-merge"、tag="g"、class="pins-layer"', () => {
+    // @vue/test-utils 默认把 <transition-group> stub 成 <transition-group-stub>(不渲染成真实
+    // <g>),但 stub 元素会把 tag/name 等 prop 原样落成 DOM attribute——用它们断言比正则抠模板
+    // 源文本更可靠(不依赖属性书写顺序/引号风格)。
     const w = mountMap({ places: [] })
     const layer = w.find('.pins-layer')
     expect(layer.exists()).toBe(true)
@@ -215,50 +245,62 @@ describe('Structure spec 4: pin-merge enter/leave animation (source-level assert
     expect(layer.attributes('tag')).toBe('g')
   })
 
-  it('four animation rules all present with expected properties (active uses transition, enter-from/leave-to use scale(0.25)+opacity:0)', () => {
+  it('四条动画规则都存在且带预期属性(active 用 transition,enter-from/leave-to 用 scale(0.25)+opacity:0)', () => {
     const rules = parseCssRules(extractStyleBlock(placesMapRaw))
     const activeRule = rules.find(r =>
       r.selectors.includes('.pin-merge-enter-active .pin-scale')
       && r.selectors.includes('.pin-merge-leave-active .pin-scale'))
-    expect(activeRule, '.pin-merge-enter-active/.pin-merge-leave-active .pin-scale rule not found').toBeTruthy()
+    expect(activeRule, '.pin-merge-enter-active/.pin-merge-leave-active 的 .pin-scale 规则未找到').toBeTruthy()
     expect(activeRule!.body).toMatch(/transition:\s*transform[^;]*,\s*opacity/)
 
-    // This rule's selectors must be Vue3 enter-from/leave-to (not Vue2 .pin-merge-enter) —
-    // if someone copy-pastes Vue2 class name, selector string won't match and rule won't be found, test fails.
+    // 这条规则的选择器必须是 Vue3 的 enter-from/leave-to(不是 Vue2 的 .pin-merge-enter)——
+    // 若有人照抄 Vue2 类名,这里会因为选择器字符串不匹配而找不到规则,测试变红。
     const hiddenRule = rules.find(r =>
       r.selectors.includes('.pin-merge-enter-from .pin-scale')
       && r.selectors.includes('.pin-merge-leave-to .pin-scale'))
-    expect(hiddenRule, '.pin-merge-enter-from/.pin-merge-leave-to .pin-scale rule not found (Vue2→Vue3 class rename missed?)').toBeTruthy()
+    expect(hiddenRule, '.pin-merge-enter-from/.pin-merge-leave-to 的 .pin-scale 规则未找到(Vue2→Vue3 类名改名是否漏做?)').toBeTruthy()
     expect(hiddenRule!.body).toMatch(/transform:\s*scale\(0\.25\)/)
     expect(hiddenRule!.body).toMatch(/opacity:\s*0\b/)
   })
 })
 
-// Review Minor 1: without either transform-box: fill-box or transform-origin: center,
-// merge/split animations scale around SVG user-space origin and pins fly off-screen — but jsdom
-// does no layout or transform calculation; DOM assertions can't catch visual consequences; can
-// only pin these two declarations exist at style-source level. Similarly, .geo-pin:hover
-// var(--pin-glow) reference previously had zero coverage (deleting whole rule: 19/19 still pass);
-// adding coverage for both here.
-describe('Structure spec 4/8: .pin-scale geometry + hover glow reference (supplementary, previously zero coverage)', () => {
-  it('.pin-scale rule contains both transform-box: fill-box and transform-origin: center', () => {
+// 评审 Minor 1:transform-box: fill-box / transform-origin: center 缺任一条,合并/裂变动画会
+// 绕 SVG 用户坐标原点缩放,图钉会飞出屏幕——但 jsdom 不做布局也不做变换计算,DOM 断言测不到
+// 视觉后果,只能在样式源码层面钉住这两条声明确实存在。同理 .geo-pin:hover 的 var(--pin-glow)
+// 引用此前也是零覆盖(删掉整条规则 19/19 仍然全绿),一并补上。
+describe('结构规格 4/8: .pin-scale 几何声明 + hover 发光引用(补测,原先零覆盖)', () => {
+  it('.pin-scale 规则同时含 transform-box: fill-box 与 transform-origin: center', () => {
     const rules = parseCssRules(extractStyleBlock(placesMapRaw))
     const rule = rules.find(r => r.selectors.length === 1 && r.selectors[0] === '.pin-scale')
-    expect(rule, '.pin-scale standalone rule not found').toBeTruthy()
+    expect(rule, '.pin-scale 独立规则未找到').toBeTruthy()
     expect(rule!.body).toMatch(/transform-box:\s*fill-box/)
     expect(rule!.body).toMatch(/transform-origin:\s*center/)
   })
 
-  it('.geo-pin:hover references var(--pin-glow) for outer glow', () => {
+  // Fix-5 (owner acceptance, 2026-08-17, P6a overturned): this local `.geo-pin:hover` rule (blue
+  // `var(--pin-glow)`) is DELETED from PlacesMap.vue's own `<style scoped>` — it was shadowing
+  // parity's already-correct, byte-transcribed-from-Vue2 purple rule at a cascade tie (see
+  // PlacesMap.vue's own Fix-5 header comment). Retargeted: assert the local rule is gone, and
+  // that parity's own `.photos-root .geo-pin:hover` (photos-places.scss) is what actually governs
+  // the glow now, using the purple `rgba(var(--accent-rgb), 0.7)` family Vue2 itself uses.
+  it('本地不再有 .geo-pin:hover 规则(已删除,让 parity 接管)', () => {
     const rules = parseCssRules(extractStyleBlock(placesMapRaw))
     const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
-    expect(rule, '.geo-pin:hover rule not found').toBeTruthy()
-    expect(rule!.body).toMatch(/filter:\s*drop-shadow\([^)]*var\(--pin-glow\)/)
+    expect(rule, '.geo-pin:hover 规则应已从本地删除').toBeUndefined()
+  })
+
+  it('parity 的 .photos-root .geo-pin:hover 用紫色 rgba(var(--accent-rgb), 0.7) 做外发光(Vue2 原值)', () => {
+    // photos-places.scss is a bare .scss, not a Vue SFC -- no `<style>` wrapper for
+    // extractStyleBlock() to find, so strip comments directly and hand parseCssRules the raw text.
+    const rules = parseCssRules(placesParityScssRaw.replace(/\/\*[\s\S]*?\*\//g, ''))
+    const rule = rules.find(r => r.selectors.includes('.geo-pin:hover'))
+    expect(rule, 'parity 的 .geo-pin:hover 规则未找到').toBeTruthy()
+    expect(rule!.body).toMatch(/filter:\s*drop-shadow\(0 0 14px rgba\(var\(--accent-rgb\), 0\.7\)\)/)
   })
 })
 
-describe('emit: click / hover / leave', () => {
-  it('click pin emits pick-pin with pin and event', async () => {
+describe('emit: 点击 / 悬停 / 离开', () => {
+  it('点图钉 emit pick-pin 带 pin 与事件', async () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent' })
     const pin = w.find('.geo-pin')
     await pin.trigger('click')
@@ -268,7 +310,7 @@ describe('emit: click / hover / leave', () => {
     expect(ev).toBeInstanceOf(MouseEvent)
   })
 
-  it('mouseenter emits hover-pin, mouseleave emits hover-clear', async () => {
+  it('mouseenter emit hover-pin,mouseleave emit hover-clear', async () => {
     const w = mountMap({ places: [ACTIVE_RECENT], activeId: 'active-recent' })
     const pin = w.find('.geo-pin')
     await pin.trigger('mouseenter')
@@ -281,21 +323,21 @@ describe('emit: click / hover / leave', () => {
   })
 })
 
-describe('expose: svgEl handed to T7/T11 for coordinate conversion and pointer capture', () => {
-  it('defineExpose svgEl is the rendered <svg> element', () => {
+describe('expose: svgEl 交给 T7/T11 做坐标换算与 pointer capture', () => {
+  it('defineExpose 出的 svgEl 就是渲染出的 <svg> 元素', () => {
     const w = mountMap()
     expect((w.vm as unknown as { svgEl: SVGSVGElement }).svgEl).toBe(w.find('svg').element)
   })
 })
 
-describe('Style block zero-color attribute (prevent future shortcutting with attributes)', () => {
-  it('component source never has color attribute syntax (review Minor 2: original list too narrow; expanded to cover stroke="#/fill="rgb/bound string var()', () => {
+describe('样式块零颜色 attribute(防日后有人图省事写回 attribute)', () => {
+  it('组件源文本不出现任何颜色 attribute 写法(评审 Minor 2:原列表偏窄,补齐 stroke="#/fill="rgb/绑定字符串 var(', () => {
     expect(placesMapRaw).not.toContain('fill="#')
     expect(placesMapRaw).not.toContain('fill="var(')
     expect(placesMapRaw).not.toContain('stroke="var(')
-    // Added four: original list only caught bare attribute hex/var patterns,
-    // missed stroke hex, rgb() function, and :fill="'var(--x)'" wrapping var()
-    // as string then binding (also bypasses CSS rules, not scanned by color-guard).
+    // 补的四种:原列表只挡了裸 attribute 的 hex/var 两种写法,漏了 stroke 的 hex、rgb() 函数、
+    // 以及 :fill="'var(--x)'" 这种把 var() 包成字符串再绑定的写法(同样绕开 CSS 规则,不受
+    // color-guard 的样式块扫描)。
     expect(placesMapRaw).not.toContain('stroke="#')
     expect(placesMapRaw).not.toContain('fill="rgb')
     expect(placesMapRaw).not.toContain('stroke="rgb')
@@ -304,8 +346,8 @@ describe('Style block zero-color attribute (prevent future shortcutting with att
   })
 })
 
-describe('theme-exception comment compliance (following color-guard exemption-window rules)', () => {
-  it('bare color literals in .geo-pin-label rule all covered by adjacent theme-exception comment exemption window', () => {
+describe('theme-exception 注释合规(照 color-guard 的豁免窗口规则)', () => {
+  it('.geo-pin-label 规则内的裸颜色字面量都被紧邻的 theme-exception 注释豁免窗口覆盖', () => {
     const styleText = rawStyleBlock(placesMapRaw)
     const start = styleText.indexOf('.geo-pin-label {')
     expect(start).toBeGreaterThan(-1)
@@ -313,12 +355,11 @@ describe('theme-exception comment compliance (following color-guard exemption-wi
     const bodyEnd = styleText.indexOf('}', bodyStart)
     const ruleLines = styleText.slice(start, bodyEnd + 1).split('\n')
 
-    // Exact replica of src/styles/color-guard.test.ts exemption-window state machine
-    // (file: exempt opens on theme-exception comment, closes on next ; or }).
-    // Pitfall: putting comment above rule/selector — first line of body (font-family) has ;
-    // prematurely closes window; following bare rgba() in fill/stroke truly exposed;
-    // color-guard would really turn red. Here we don't just assert "comment exists",
-    // but actually run through state machine to confirm every bare color is truly covered.
+    // 逐字复刻 src/styles/color-guard.test.ts 的豁免窗口状态机(该文件:exempt 在遇到
+    // theme-exception 注释后打开,遇到下一个 ; 或 } 就关闭)。踩过的坑:把注释整块挂在
+    // 规则最前面、选择器上方——规则体第一行(font-family)就带 `;` 提前关窗,后面
+    // fill/stroke 的裸 rgba() 其实裸奔,color-guard 会真的红。这里不只断言"有注释",
+    // 而是真的按该状态机跑一遍,确认每处裸色都真被盖住。
     const HEX = /#[0-9a-fA-F]{3,8}\b/
     const FUNC = /\b(rgba?|hsla?)\s*\(/
     let exempt = false
@@ -334,9 +375,8 @@ describe('theme-exception comment compliance (following color-guard exemption-wi
       if (line.includes(';') || line.includes('}'))
         exempt = false
     })
-    expect(offenders, `bare colors not covered by exemption window:\n${offenders.join('\n')}`).toEqual([])
-    // Must truly use exemption mechanism (not that rule simply has no bare colors;
-    // that would make empty array above meaningless).
+    expect(offenders, `裸颜色未被豁免窗口覆盖:\n${offenders.join('\n')}`).toEqual([])
+    // 必须真的用上了豁免机制(不是规则里干脆没有裸色,那样上面的空数组毫无意义)。
     expect(comments.length).toBeGreaterThan(0)
     for (const c of comments) {
       expect(c).not.toContain(';')

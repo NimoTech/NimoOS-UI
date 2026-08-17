@@ -1,34 +1,31 @@
 <script setup lang="ts">
-// SP7-P7a-T13: SearchDatePopover.vue — date search popover (5 quick range buttons + real calendar; D14
-// the 3rd 'shell' implementation outside the popover primitives). Structure corresponds to Vue2
-// PhotosSearchView.vue:61-91 (template), :755-777 (setDraftDateQuick/shiftCalMonth/pickCalDay),
-// :790-796 (togglePop date branch). Styles correspond to photos.scss:2658-2688 (each line in the
-// range verified one by one; see task report 'two-pronged audit').
+// SP7-P7a-T13: SearchDatePopover.vue —— 搜索日期弹层(5 个快捷区间按钮 + 真日历,D14 两个
+// 弹层基元之外的第 3 个"外壳"实现)。结构对应 Vue2 PhotosSearchView.vue:61-91(模板)、
+// :755-777(setDraftDateQuick/shiftCalMonth/pickCalDay)、:790-796(togglePop 的 date 分支)。
+// 样式对应 photos.scss:2658-2688(区间内每一条已逐条核对,详见任务报告「两条腿审计」)。
 //
-// Shell duplication registry (controller decision: write as-is for this task, no shared shell
-// component extracted): `.fpop` / `.fpop-title` / `.fpop-quick` (+:hover) / `.btn` / `.btn-primary`
-// — this shell duplicates a copy in T12's PhotosFilterPopover.vue, ~8 declarations total (.fpop,
-// .fpop-title, .fpop-quick, .fpop-quick:hover, .btn, .btn:hover, .btn-primary,
-// .btn.btn-primary:hover). This is an inevitable cost under scoped SFC with two independent popovers
-// — this one is 'fixed 320px + calendar', T12 is 'width prop + search box + list'; structures differ
-// and are not suitable for sharing (repo 'no unrelated refactoring' rule + D14 only froze two
-// primitives). Whether to extract a shared shell is left to the full review panel (T14 onwards
-// will be the 4th duplicate).
-// Value sources: all .fpop/.fpop-quick/.btn series values in this file are copied verbatim from
-// Vue2 photos.scss, not from T12 file (T12's version has width prop adjustments for the list
-// popover, copying would cause mixing — this is the lesson from brief A1's cross-task pitfall:
-// T12's determination that width:320px is 'forever unreachable' applies to the list popover but
-// not to this one).
+// 外壳重复登记(控制器裁定:本任务照写,不抽公共外壳组件):`.fpop` / `.fpop-title` /
+// `.fpop-quick`(+:hover)/ `.btn` / `.btn-primary` 这套外壳与 T12 的 PhotosFilterPopover.vue
+// 里已有一份重复,约 8 条声明(.fpop、.fpop-title、.fpop-quick、.fpop-quick:hover、.btn、
+// .btn:hover、.btn-primary、.btn.btn-primary:hover)。这是 scoped SFC 下两个独立弹层的必然
+// 代价——本弹层是"固定 320px + 日历",T12 是"width prop + 搜索框 + 列表",结构不同不适合
+// 抽共享组件(仓库"禁无关重构"约定 + D14 只冻结了两个基元)。是否抽公共外壳留给整支终审
+// triage(T14 之后会是第 4 份重复)。
+// 数值来源:本文件的 .fpop/.fpop-quick/.btn 系列数值一律照抄 Vue2 photos.scss,不从 T12
+// 文件抄(T12 那份为列表弹层做过 width prop 化等调整,照抄会串味——这正是 brief A1 那条
+// 跨任务坑的教训:T12 判定 width:320px"恒不可达"是针对列表弹层成立,对本弹层不成立)。
 //
-// Token mapping (generic table consistent with T12/PlaceDetailPanel and other existing precedents,
-// not repeated for each): --text-1/2/3 → --fg/--fg-muted/--fg-faint; --surface-2/3 →
-// --chip-bg/--chip-bg-hi; --line → --chip-border; --menu-bg → --popup-bg; --accent-hi (does not
-// exist in this repo) → --accent-text; rgba(110,91,255,0.30) (accent 30% border) →
-// --accent-soft-bd.
+// Stale-comment cleanup (Plan F Task 2): the paragraph that used to sit here described a
+// generic New-UI glass token-mapping table (--text-1/2/3 → --fg/--fg-muted/--fg-faint, etc.)
+// as this file's current design. That table stopped being true the moment the 2026-08-13
+// owner reversal (see this file's own style-block comment below) deleted every scoped color
+// rule in this component — the mapping paragraph was simply never updated to say so, leaving
+// documentation describing a state the code had already left. Removed rather than "corrected
+// in place" since there is nothing left to map: this component's style block carries zero
+// `var(--...)` references now (parity supplies every color).
 //
-// Locale to BCP-47 (A2): T9's rangeLabel/calDowLabels/calMonthLabel internally do
-// `locale.replace('_','-')`, this component passes useI18n().locale.value as-is to them, no
-// duplicate conversion.
+// locale 转 BCP-47(A2):T9 的 rangeLabel/calDowLabels/calMonthLabel 内部已做
+// `locale.replace('_','-')`,本组件直接把 useI18n().locale.value 原样传给它们,不重复转换。
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
@@ -57,12 +54,10 @@ const emit = defineEmits<{
 
 const { t, locale } = useI18n()
 
-// The year-month displayed by the calendar is component-internal state; its initial value is
-// determined by committed — copied from Vue2's togglePop() date branch (:790-796): if
-// committed.end exists take its year-month, otherwise take today. This is only a one-time
-// initial value at mount, not a reactive binding that continuously follows committed — the
-// host (T16) remounts this component with v-if every time the popover opens (same technique as
-// T12's PhotosFilterPopover.vue), equivalent to Vue2 recalculating each time togglePop is called.
+// 日历显示的年月是组件内部 state,初值由 committed 决定——照搬 Vue2 togglePop() 的 date
+// 分支(:790-796):有 committed.end 则取它的年月,否则取今天。这只是挂载时的一次性初值,
+// 不是持续跟随 committed 的响应式绑定——宿主(T16)每次打开弹层都会用 v-if 重新挂载本组件
+// (同 T12 PhotosFilterPopover.vue 的既定手法),等价于 Vue2 每次 togglePop 时重算一次。
 function initCalYearMonth(): { y: number; m: number } {
   if (props.committed && props.committed.end) {
     const [y, m] = props.committed.end.split('-')
@@ -79,15 +74,15 @@ const dows = computed(() => calDowLabels(locale.value))
 const cells = computed(() => calCells(calYear.value, calMonth.value, props.draft))
 const monthLabel = computed(() => calMonthLabel(calYear.value, calMonth.value, locale.value))
 
-// Copy Vue2's class concatenation order (:81: cal-cell → blank → in → start → end).
+// 照搬 Vue2 :81 的 class 拼接顺序(cal-cell → blank → in → start → end)。
 function cellClass(c: CalCell): string {
   return ['cal-cell', c.blank ? 'blank' : '', c.in ? 'in' : '', c.start ? 'start' : '', c.end ? 'end' : '']
     .filter(Boolean)
     .join(' ')
 }
 
-// Copy Vue2's setDraftDateQuick (:755-759). quickRange() already fills in the input key to the
-// return value's DateRange.key (T9 revision, see dateRange.ts); no need to splice it again here.
+// 照搬 Vue2 setDraftDateQuick(:755-759)。quickRange() 已经把入参 key 填进返回值的
+// DateRange.key(T9 回改,见 dateRange.ts),不需要在这里再拼一次。
 function setQuick(key: QuickKey): void {
   const rng = quickRange(key, new Date(), t(QUICK_LABEL_KEYS[key]))
   emit('update:draft', rng)
@@ -96,26 +91,25 @@ function setQuick(key: QuickKey): void {
   calMonth.value = Number(m) - 1
 }
 
-// Copy Vue2's shiftCalMonth (:761-764) — use `new Date(year, month+delta, 1)` to get year-month,
-// naturally handles year boundary (December +1 → next year January, January -1 → previous year
-// December); do not manually split into if branches and rewrite.
+// 照搬 Vue2 shiftCalMonth(:761-764)——用 `new Date(year, month+delta, 1)` 取年月,
+// 天然处理跨年(12 月 +1 → 次年 1 月,1 月 -1 → 上一年 12 月),不要手动拆 if 分支重写。
 function shiftMonth(delta: number): void {
   const d = new Date(calYear.value, calMonth.value + delta, 1)
   calYear.value = d.getFullYear()
   calMonth.value = d.getMonth()
 }
 
-// Copy Vue2's pickCalDay (:765-777). The newly created DateRange after pick does not carry a key
-// field — custom ranges do not belong to any quick key, which is the precondition for the
-// 'data-on uses key comparison' criterion to hold (see file header + task report 'A3').
+// 照搬 Vue2 pickCalDay(:765-777)。
+// pick 之后新建的 DateRange 不带 key 字段——自定义区间不属于任何快捷键,这是「data-on
+// 用 key 比较」这条判据能成立的前提(见文件头 + 任务报告「A3」)。
 function pick(c: CalCell): void {
   if (c.blank || !c.date) return
   const r = props.draft
   if (!r || !r.start || r.end) {
-    // Open a new single-day range (r doesn't exist / no start / already complete range; all three cases restart).
+    // 开一段新单日区间(r 不存在 / 无 start / 已是完整区间,三种情况都重开)。
     emit('update:draft', { label: rangeLabel(c.date, c.date, locale.value), start: c.date, end: null })
   } else {
-    // Complete the range; sort endpoints, swap if end < start.
+    // 补全区间;两端点排序,end < start 则交换。
     let start = r.start
     let end = c.date
     if (end < start) {
@@ -175,33 +169,26 @@ function pick(c: CalCell): void {
 </template>
 
 <style scoped>
-/* 2026-08-13 rollback (the owner overturned the EXIF glass exception; Fix-3 item 7 follow-up —
-   this component was missed in that round, and the brief names it explicitly: "align their
-   chrome to parity like the FilterChip/Popover treatment"): the whole batch of Vue2-native
-   class names .fpop/.fpop-title/.fpop-row/.fpop-quick(+:hover/[data-on])/.cal-head/
-   .cal-nav(+:hover)/.cal/.cal-cell(+ every variant)/.btn/.btn-primary(+ both :hover rules)
-   already have character-for-character bare selectors in vue2-parity/photos.scss (:2690-2726;
-   the .btn family goes through the global `.photos-root .btn` / `.photos-root .btn-primary`
-   rules at :290-301), whose values are Vue2's own local tokens (--surface-2/3, --text-1/2/3,
-   --line, --accent-soft, --accent-hi and so on, defined in both the dark block and the
-   .photos-root.is-light block). This file used to carry a duplicate of each, mapped onto the
-   repo-wide glass semantics (--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/
-   --accent-text and friends) — none of which `.photos-root` redefines locally, so they fell
-   through to theme.css's global accent-toned glass values, and the [data-v-xxxx] attribute
-   that scoped compilation adds pushed them above the parity bare selectors, which is the only
-   reason that mismatched colour set could win at all. Dropping the duplicate lets the parity
-   rules apply directly, with no attribute-driven specificity boost needed. `@keyframes pop-in`
-   goes for the same reason — the parity scss already has a keyframe of that name, and
-   animation names live in a global namespace that scoped compilation does not touch.
-   `.cal-cell.muted` (Vue2 photos.scss:2685) has zero hits in PhotosSearchView.vue's template
-   and no consumer at all; parity transcribed that dead CSS, this component never repeated the
-   declaration, and nothing here changes. */
+/* 2026-08-13 回退(机主推翻 EXIF 玻璃例外,Fix-3 item 7 追加执行——本组件此前漏了这一轮
+   回退,brief 明确点名"align their chrome to parity like the FilterChip/Popover treatment"):
+   .fpop/.fpop-title/.fpop-row/.fpop-quick(+:hover/[data-on])/.cal-head/.cal-nav(+:hover)/.cal/
+   .cal-cell(+全部变体)/.btn/.btn-primary(+:hover 两条)这一整批 Vue2 原生 class 名字段,在
+   vue2-parity/photos.scss(:2690-2726,.btn 系列走全局 `.photos-root .btn`/`.photos-root
+   .btn-primary` 家族 :290-301)已有逐字对应的裸选择器,值就是 Vue2 原文本地 token
+   (--surface-2/3、--text-1/2/3、--line、--accent-soft、--accent-hi 等,dark 与
+   .photos-root.is-light 两套都有定义)。此前这里各自重复一份、颜色映射到本仓通用玻璃语义
+   (--popup-bg/--card-border/--card-shadow-hi/--chip-bg/--fg-muted/--accent-text 等)——那些
+   token 均未被 `.photos-root` 本地重定义,会落到 theme.css 的全局蓝紫玻璃值,靠 scoped
+   编译出的 [data-v-xxxx] 属性把优先级顶到 parity 裸选择器之上,是这份颜色错配能"赢"的唯一
+   原因。删掉这份重复,parity 的裸规则直接生效,不需要再借数据属性提权。`@keyframes pop-in`
+   同理删除——parity scss 已有同名关键帧,动画名是全局命名空间,不受 scoped 影响。
+   `.cal-cell.muted`(Vue2 photos.scss:2685)在 PhotosSearchView.vue 模板里零命中、没有消费
+   方,parity 转录了这条死 CSS,本组件原样不重复声明,不受影响。 */
 
-/* `.fpop-row`'s `flex-wrap: wrap` is not a property Vue2/parity has (Vue2 photos.scss:2660's
-   `.fpop-row` carries only `display:flex; gap:6px; margin-bottom:6px`, no flex-wrap) — it is a
-   New-UI-only additive fix: without wrapping, the five quick-range buttons overflow a 320px-wide
-   popover under some languages' button copy. The rollback keeps this one declaration (only the
-   addition stays; everything else goes to parity's bare `.fpop-row`). */
+/* `.fpop-row` 的 `flex-wrap: wrap` 不是 Vue2/parity 有的属性(Vue2 photos.scss:2660 的
+   `.fpop-row` 只有 `display:flex;gap:6px;margin-bottom:6px`,没有 flex-wrap)——这是
+   New-UI 专属的加性修复:5 个快捷区间按钮在 320px 宽的弹层里不换行会在某些语言的按钮文案
+   下溢出,回退时保留这一条(只留新增属性,其余交给 parity 的裸 `.fpop-row`)。 */
 .fpop-row {
   flex-wrap: wrap;
 }

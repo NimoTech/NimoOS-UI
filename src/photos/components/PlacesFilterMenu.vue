@@ -1,32 +1,29 @@
 <script setup lang="ts">
-// Task 9 (SP7-P6a places / map main view): PlacesFilterMenu.vue — map toolbar "Filters" pill
-// button + dropdown panel (time range / minimum photos / continent / current trip only — four
-// filter sections + chip badge count + reset/done). Ported section-by-section from Vue2
-// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:830-906 (template, chip and panel in same
-// position:relative container), :152-186 (visual filter state derivation anyExtraFilter /
-// extraFilterCount, already landed in T2 as extraFilterCount pure function in placesMap.ts,
-// consumed here), :329-336 (document mousedown toggle check), :441-449 (toggleRegion /
-// clearFilters); styles from photos-places.scss:199-231 (chip part) and :854-963 (panel part).
+// Task 9(SP7-P6a 地点·地图主视图):PlacesFilterMenu.vue —— 地图工具栏「Filters」胶囊按钮 +
+// 下拉弹层(时间范围/最少照片数/大洲/只看当前行程 四段过滤 + chip 徽标计数 + 重置/完成)。
+// 逐段照 Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:830-906(模板,chip 与弹层
+// 同在一个 position:relative 容器里)、:152-186(视觉过滤态派生 anyExtraFilter/
+// extraFilterCount,已在 T2 落到 placesMap.ts 的 extraFilterCount 纯函数,这里直接消费)、
+// :329-336(document mousedown 开关判定)、:441-449(toggleRegion/clearFilters)移植;样式段
+// 照 photos-places.scss:199-231(chip 部分)与 :854-963(弹层部分)。
 //
-// props.filter must not be mutated in-place — always emit update:filter with the entire
-// replaced new object (brief iron rule, test pin: "other fields consistent with input").
+// props.filter 不许就地改——一律 emit update:filter 传整体替换后的新对象(brief 铁律,有
+// 测试钉"其余字段与传入一致")。
 //
-// Floating panel spec (P4 hard-won + established ClusterActionDialog.vue precedent in this
-// repo): Esc on document-level keydown, watch(open) attaches/removes, not
-// stopImmediatePropagation (that would drag down other panel listeners on the same document —
-// ClusterActionDialog uses plain stopPropagation, affects only other listeners on same node,
-// this component doesn't call it at all for safety). Plus document mousedown check whether
-// click is outside container ref — Vue2 source also does this (:329-336), just without Esc
-// listener; Esc is new in New-UI floating panel spec. `onDocKeydown` has only one early exit
-// (skip non-Escape keys) — this component manages one open state, no "other branch" to early
-// exit; P5-T10's early-exit bug was two panels sharing one check function missing the second
-// branch, scenario won't appear until T11 installs this component and theme panel in a
-// container together, integration assertion belongs to T11, this task only logs (see task report).
+// 浮层规范(P4 血泪 + 本仓已确立的 ClusterActionDialog.vue 先例):Esc 走 document 级
+// keydown,watch(open) 挂/摘,不用 stopImmediatePropagation(那会连累同 document 上的其它
+// 弹层监听器收不到事件——ClusterActionDialog 用的是普通 stopPropagation,对同一节点上的
+// 其它监听器无影响,本组件干脆不调用,更安全)。另加 document mousedown 判定点击是否在
+// 容器 ref 外——Vue2 原文件也是这个模式(:329-336),只是 Vue2 没有 Esc 监听,这条是
+// New-UI 侧新增的浮层规范。`onDocKeydown` 内部只有一条早退(非 Escape 键跳过)——本组件
+// 自己只管一个 open 状态,没有"另一个分支"可早退;P5-T10 的早退 bug 是两个弹层共享一个
+// 判定函数时漏检第二个分支,那个场景要等 T11 把本组件与主题弹层一起装进容器才会出现,
+// 集成断言归 T11,本任务只记账(见任务报告)。
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { extraFilterCount, regionLabelKey, type PlacesFilter, type RegionCount } from '../util/placesMap'
 
-// Vue2 :865 (verified against source, no differences).
+// Vue2 :865(回源核对无出入)。
 const MIN_COUNT_STEPS = [0, 10, 50, 100, 200] as const
 
 const props = defineProps<{
@@ -43,14 +40,12 @@ const { t } = useI18n()
 
 const rootRef = ref<HTMLElement | null>(null)
 
-// ── chip badge / active state (Vue2 :176-186, already landed in T2 as extraFilterCount
-//    pure function) ────────────────────────────────────────────────────────────────
+// ── chip 徽标/激活态(Vue2 :176-186,已在 T2 落到 extraFilterCount 纯函数)────────
 const extraCount = computed(() => extraFilterCount(props.filter))
 const badgeCount = computed(() => extraCount.value + (props.filter.timeFilter !== 'all' ? 1 : 0))
 const chipActive = computed(() => extraCount.value > 0 || props.filter.timeFilter !== 'all')
 
-// Deviation logging 3 (T2 decided, brief restatement): continent names go through
-// regionLabelKey; if key exists translate, otherwise fall back to backend label.
+// 偏离登记 3(T2 既定,brief 复述):大洲名走 regionLabelKey 有键则译、无键回落后端 label。
 function regionLabel(r: RegionCount): string {
   const key = regionLabelKey(r.id)
   return key ? t(key) : r.label
@@ -60,21 +55,17 @@ function toggleOpen(): void {
   emit('update:open', !props.open)
 }
 
-// Vue2 :849/:854 — when only one endpoint filled, time filter reverts to "all time", only
-// both filled is 'custom'.
+// Vue2 :849/:854 —— 只填一头时整条时间过滤退回"全部时间",两头都填才是 'custom'。
 //
-// Deviation logging (real device feedback, Vue2 defect, correct per iron rule + log, not
-// copying): Vue2's two `<input type="date">` have no cross-constraint, user can select an
-// inverted interval "end before start" — filterPlaces returns zero results for inverted
-// interval, user sees empty map with no clue why (both inputs look filled). This repo: first,
-// add native `:max`/:min` cross-constraints to both template inputs (native date picker won't
-// let user select invalid values, user's clicking in picker), second, tighten `timeFilter`
-// criterion from "both filled" to "both filled AND customEnd >= customStart" (user could still
-// hand-type invalid values, native constraints can't stop keyboard input) — invalid intervals
-// treated as "interval not done yet", fall into existing `timeFilter = 'all'` branch, no new
-// semantic added. Date strings are fixed-length 'YYYY-MM-DD' format, string lexical comparison
-// equals date order comparison, no `new Date()` parsing needed. ">=" not ">" — both ends on
-// same day is a legal single-day interval.
+// 偏离登记(真机验收反馈,Vue2 缺陷,按铁律改正确 + 登记,不照抄):Vue2 这两个
+// `<input type="date">` 互不约束,用户可以选出"结束早于起始"的倒置区间——filterPlaces
+// 对倒置区间会筛出零结果,用户看到空地图却不知道为什么(两个输入看起来都填好了)。本仓
+// 一是给模板里的两个 input 加原生 `:max`/`:min` 相互约束(原生日期选择器直接不让选到
+// 非法值,用户实际就是用选择器点的);二是这里把 `timeFilter` 的判据从"两头都填"收紧为
+// "两头都填且 customEnd >= customStart"(用户仍可能手打出非法值,原生约束防不住键盘
+// 输入)——非法区间按"区间还没填好"处理,归到既有的 `timeFilter = 'all'` 分支,不新增
+// 第三种语义。日期串是定长 'YYYY-MM-DD' 格式,字符串字典序比较即等价于日期先后比较,
+// 不需要 `new Date()` 解析。「>=」不是「>」——两端同一天是合法的单日区间。
 function setStart(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const end = props.filter.customEnd
@@ -84,7 +75,7 @@ function setStart(e: Event): void {
     timeFilter: (value && end && end >= value) ? 'custom' : 'all',
   })
 }
-// Same deviation logging as setStart above, logic swaps customStart/customEnd.
+// 同上 setStart 的登记,逻辑对调 customStart/customEnd。
 function setEnd(e: Event): void {
   const value = (e.target as HTMLInputElement).value
   const start = props.filter.customStart
@@ -100,15 +91,14 @@ function setMinCount(v: number): void {
 function setRegion(id: string | null): void {
   emit('update:filter', { ...props.filter, regionFilter: id })
 }
-// Vue2 :441 toggleRegion — click again to clear, not one-way assignment.
+// Vue2 :441 toggleRegion —— 再点一次清空,不是单向赋值。
 function toggleRegion(id: string): void {
   emit('update:filter', { ...props.filter, regionFilter: props.filter.regionFilter === id ? null : id })
 }
 function toggleRecentOnly(): void {
   emit('update:filter', { ...props.filter, recentOnly: !props.filter.recentOnly })
 }
-// Vue2 :442-449 clearFilters — all six fields back to default, not partial change from
-// current filter.
+// Vue2 :442-449 clearFilters —— 六个字段全回默认,不是从当前 filter 局部改。
 function resetFilters(): void {
   emit('update:filter', {
     timeFilter: 'all',
@@ -119,13 +109,12 @@ function resetFilters(): void {
     recentOnly: false,
   })
 }
-// Done closes panel only, no filter change (brief disambiguation 3).
+// 完成只关弹层,不带 filter(brief 消歧义 3)。
 function done(): void {
   emit('update:open', false)
 }
 
-// ── Floating panel spec: when open is true, attach document-level mousedown/keydown,
-//    watch(open) attaches/removes ────────────────────────────────────────────────
+// ── 浮层规范:open 为真时挂 document 级 mousedown/keydown,watch(open) 挂/摘 ─────────
 function onDocMousedown(e: MouseEvent): void {
   const target = e.target as Node
   if (rootRef.value && !rootRef.value.contains(target)) emit('update:open', false)
@@ -226,7 +215,14 @@ onUnmounted(() => {
           @click.prevent="toggleRecentOnly"
         >
           <span class="mfp-tick" data-test="pfm-tick">
-            <svg v-if="filter.recentOnly" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="var(--on-accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
+            <!-- Fix-1 item 6 (2026-08-16): `--on-accent` banned here (same precedent as
+                 PlaceDetailPanel.vue's `.btn-primary`) — it's calibrated against New-UI's
+                 *global* accent, which follows the app-wide theme, while `.mfp-tick.is-on`'s
+                 background is Photos' own FIXED local `--accent` (theme-invariant purple,
+                 never overridden by `.photos-root.is-light`, photos.scss:28/100). A checkmark
+                 over a constant-purple chip needs a constant light stroke in both Photos
+                 themes, not a token that could resolve dark and vanish. -->
+            <svg v-if="filter.recentOnly" viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
           </span>
           <input type="checkbox" :checked="filter.recentOnly" style="display:none" tabindex="-1">
           <span class="mfp-checkbox-label">{{ t('photosPlacesCurrentTripOnly') }}</span>
@@ -246,213 +242,102 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
-/* token mapping (established, follows PlacesRail.vue:179-180 precedent): --text-1/2/3 →
-   --fg/--fg-muted/--fg-subtle; --line → --card-border; --accent-hi → --accent-text (this
-   repo has no --accent-hi, established precedent in MergeReviewDialog.vue:249-252 /
-   PersonHero.vue:488-491 / PersonRelationsTab.vue:249-251 / PlacesRail.vue:329).
-
-   Deviation logging (panel background, this task new decision, differs from brief's generic
-   "--surface-2 → --chip-bg" mapping, rationale in task report): Vue2 `.map-filter-pop` uses
-   `--surface-2` (fully opaque solid gray, see photos.scss definition) as **the entire panel
-   itself** background — different scenario from existing `--surface-2 → --chip-bg` mapping in
-   PlacesRail.vue: there `--chip-bg` layers on top of **already-opaque** sidebar (`--panel-bg`)
-   as small element fills (search box / hover background), semi-transparent works fine; here
-   `.map-filter-pop` floats directly over busy map canvas, using semi-transparent `--chip-bg`
-   gradient would show map through panel, content unreadable. This repo already has a token
-   pair dedicated to "opaque floating menu/panel" scenario — `--popup-bg` (opaque background)
-   + `--card-shadow-hi` (matching shadow), used by both dropdowns in ContextMenu.vue / Dialog.vue
-   / AlertDialog.vue / ClusterActionDialog.vue / AlbumPickerDialog.vue / PersonHero.vue
-   (structure identical to this component: absolute-positioned dropdown below trigger button).
-   Switch to them, no new token. */
+/* Shadowing cleanup (Plan E Task 3, 2026-08-15): parity `photos-places.scss:199-231` (chip)
+   + `:854-963` (popover) now governs almost every rule this component used to duplicate —
+   the deleted rules were structurally identical to parity and only diverged by pointing at
+   global New-UI theme tokens (--fg-muted/--card-border/--chip-bg/--accent-text/--on-accent
+   etc.) instead of the local `.photos-root`-scoped Vue2-precise tokens (--text-2/--line/
+   --surface-3/--accent-hi/literal "white") that parity itself consumes — same shadowing bug
+   as PhotosFilterChip.vue's 2026-08-13 fix round and PlacesRail.vue's own Task 3 cleanup.
+   The old per-rule "token mapping" comment this replaces was that earlier state's own
+   self-documentation, not a design requirement, so it goes with the rules it justified.
+   `.map-filter-pop .mfp-date-row input`'s `color-scheme: dark` omission (review I1) has been
+   transcribed upstream into parity itself instead of staying a local override — see that
+   rule in photos-places.scss for the updated citation.
+   What survives below, and why:
+   1. `.pfm-anchor`/`.pfm-chip-icon`/`.pfm-badge` — non-color structural necessities with no
+      parity counterpart (Vue2 renders the badge text via an inline `style=` attribute on a
+      bare `<span>`, not a class — same value, different mechanism, same pattern as parity's
+      own `.places-cover-portal .cp-search-ic` New-UI-additions citation).
+   2. `.map-filter-pop`'s background/border/box-shadow (D3 surface-treatment ruling, reviewed
+      and upheld — the popover's own chrome, not its content, is New-UI's to reshape; see the
+      full argument preserved below, still accurate).
+   3. Three `:hover`/`.is-active:hover`/`.is-on:hover` pairs Vue2 never had at all (verified:
+      parity's own `.mfp-count-row button` / `.mfp-region-row button` / `.mfp-checkbox` carry
+      no `:hover` rule whatsoever) — desktop hover affordance this repo's convention requires,
+      plus the cssCascade hover-lock variant so the affordance can't steal the `.is-active`/
+      `.is-on` state's own background. PlacesFilterMenu.test.ts's three
+      `winningHoverBackground`/substring assertions pin these to this file's own `<style>`
+      text, so they stay local rather than moving to parity. */
 .pfm-anchor { position: relative; }
 
-.map-chip {
-  background: transparent;
-  border: none;
-  font: inherit; font-size: 12px; font-weight: 500;
-  color: var(--fg-muted);
-  padding: 5px 12px;
-  border-radius: 99px;
-  cursor: pointer;
-}
-.map-chip:hover { color: var(--fg); }
-.map-chip.is-active {
-  /* Vue2 uses rgba wrapping accent channel with 0.18 opacity — this repo's --accent varies
-     by theme, no corresponding RGB channel token; use color-mix instead to get exact alpha
-     on var(--accent) directly, no approximation, no new token. Review correction: precedent
-     not --album-cover-fallback (that mixes two opaques as gradient endpoints, different
-     technique); same technique (color-mix on transparent for alpha) precedent in
-     PhotosSidebar.vue:99 (.side-item.active), theme.css file-flash-kf keyframes,
-     PersonRelationsTab.vue:263-266, PhotoInfoPanel.vue:189/201. */
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent-text);
-}
+/* Vue2 has no equivalent classes for either of these — the chip icon's baseline nudge and
+   the badge's spacing/opacity are inline-style concerns in Vue2 (see `.pfm-badge` below),
+   expressed here as classes instead because New-UI's markup uses raw `<svg>`/`<span>`. */
 .pfm-chip-icon { vertical-align: -1px; }
+/* Same value as Vue2's own inline `style="margin-left:4px;font-variant-numeric:tabular-nums;
+   opacity:0.7"` on the badge `<span>` (PhotosPlacesView.vue:921) — different mechanism
+   (class vs. inline style), not a different value. */
 .pfm-badge { margin-left: 4px; font-variant-numeric: tabular-nums; opacity: 0.7; }
 
+/* D3 surface-treatment ruling — REVERSED (Fix-1 item 6, owner acceptance, 2026-08-16).
+   The former "reviewed and upheld" note below (kept for history) argued for this repo's
+   established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) over
+   Vue2's own flat grey + single shadow, on the basis that a popover's chrome is "component
+   system / surface treatment", New-UI's side of the D3 split. That argument assumed the
+   substitute tokens were merely a *different-looking* convention; they are also *global*
+   New-UI tokens that only follow the app-wide `[data-theme]` attribute, never Photos' own
+   private `.photos-root.is-light` toggle (`usePhotosTheme()`) — so in the very common
+   "Photos-light + app-global-dark" combination (dark is theme.css's default, no
+   `data-theme="light"` attribute needed to hit it) this popover stayed dark regardless of
+   Photos' own theme switch. That is a functional is-light bug, not a stylistic one, and the
+   owner's real-device acceptance report ("Filters / Map theme chips stay dark") is the
+   real-device rejection the original note itself said would trigger this exact reversal.
+   Restored to parity's own literal values (photos-places.scss's own `.map-filter-pop` rule):
+   flat `--surface-2` + `--line` border + Vue2's own literal drop shadow (see that declaration's
+   own theme-exception comment just below for the exact value) — Vue2 never themes this shadow
+   either, same literal in both of Photos' own themes, so a plain literal is the precise parity
+   value, not an approximation. Both the background and border are Photos-local tokens,
+   correctly redefined under `.photos-root.is-light`.
+
+   [Former note, superseded above, kept for history: "this deliberately uses this repo's
+   established floating-menu/panel chrome convention (--popup-bg / --card-shadow-hi) rather
+   than porting Vue2's flat opaque grey (--surface-2) + single box-shadow... if that's ever
+   rejected on real-device review, the fix is two new tokens (--filter-pop-bg/
+   --filter-pop-shadow) precisely replicating Vue2's own flat grey + single-alpha shadow
+   (photos-places.scss:864), not reverting this rule." — real-device review rejected it; no
+   new tokens were needed since parity's own local tokens already cover this exactly.] */
 .map-filter-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 280px;
-  /* Review Important finding (rejected change, maintain as-is — original text excerpt):
-     ① Here intentionally use this repo's established floating panel chrome convention
-     (--popup-bg / --card-shadow-hi), don't replicate Vue2's solid gray (see photos.scss
-     --surface-2 definition) + single box-shadow.
-     ② Basis is area-level spec D3 — "reshape per New-UI design language (AreaShell/token/
-     component system, same as SP4/SP5 precedent); layout structure and information hierarchy
-     per Vue2, don't port 4498 lines of photos.scss". Panel background and shadow are "component
-     system / surface treatment", New-UI side; this component already did layout structure and
-     information hierarchy (all six sections) per Vue2, here don't additionally copy Vue2's
-     specific color implementation.
-     ③ Differs from T5/T6/T8 several new precise tokens: those are **content colors** (pin
-     color / selected city row / slider track background), repo has no established convention
-     for them, so either precisely replicate Vue2's alpha or add token; but **panel chrome
-     already has established convention here** — both dropdowns in ContextMenu.vue / Dialog.vue
-     / AlertDialog.vue / ClusterActionDialog.vue / AlbumPickerDialog.vue / PersonHero.vue use
-     --popup-bg + --card-shadow-hi pair, reusing it is exactly D3's required consistency, not
-     "lazy nearby copying".
-     ④ Real device acceptance checkpoint: --card-shadow-hi in dark theme has an inset white
-     top-edge highlight (see definition starting at theme.css:175), Vue2's flat menu has none.
-     If user acceptance doesn't approve this visual difference, remediation is add --filter-pop-bg
-     / --filter-pop-shadow two tokens, precisely replicate Vue2's solid gray + single black
-     shadow (0.6 opacity, see photos-places.scss:864 definition, give values in both themes). */
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 12px;
-  z-index: 30;
-  box-shadow: var(--card-shadow-hi);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  /* theme-exception: Vue2's own literal drop shadow (photos-places.scss:867, black at 60%
+     alpha) — theme-invariant in Vue2 itself (same value in both of Photos' own themes), not a
+     token substitution. */
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
 }
-.map-filter-pop h6 {
-  font-size: 10.5px;
-  color: var(--fg-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin: 0 0 8px;
-  font-weight: 600;
-  line-height: 1.3;
-}
-.map-filter-pop .mfp-section + .mfp-section { margin-top: 14px; }
-.map-filter-pop .mfp-date-row { display: flex; gap: 6px; align-items: center; margin-bottom: 6px; }
-.map-filter-pop .mfp-date-sep { color: var(--fg-subtle); font-size: 11px; }
-.map-filter-pop .mfp-date-row input {
-  flex: 1; height: 32px; padding: 0 8px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 6px;
-  color: var(--fg);
-  font: inherit; font-size: 11.5px;
-  /* Review I1: Vue2 photos-places.scss:882 hardcodes dark color-scheme, forcing native date
-     control (calendar icon, unfilled placeholder text) to render in dark colors. This repo's
-     root already has theme-split color-scheme (theme.css :root and light override blocks),
-     intentionally not copying this line — copying would bleach white icons/placeholder on
-     light background (--chip-bg) in light theme to unreadable, letting root value cascade down
-     is correct behavior readable in both themes. */
-  outline: none;
-  cursor: pointer;
-  font-variant-numeric: tabular-nums;
-}
-.map-filter-pop .mfp-date-sub {
-  display: flex; justify-content: space-between;
-  font-size: 10px; color: var(--fg-subtle);
-  margin-bottom: 14px;
-  padding: 0 2px;
-}
-.map-filter-pop .mfp-count-row { display: flex; gap: 4px; }
-.map-filter-pop .mfp-count-row button {
-  flex: 1; height: 28px; border-radius: 6px;
-  background: var(--chip-bg); border: 0;
-  color: var(--fg-muted);
-  font: inherit; font-size: 11.5px; font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-/* Vue2 has no :hover for these buttons (new in this repo's desktop interaction convention,
-   required object of brief's "hover cascade iron rule"). */
-.map-filter-pop .mfp-count-row button:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.map-filter-pop .mfp-count-row button.is-active {
-  background: var(--accent); color: var(--on-accent);
-}
-/* Variant has its own :hover, specificity (0,3,1) higher than base class hover (0,2,1),
-   pointer won't get base class background stolen. */
-.map-filter-pop .mfp-count-row button.is-active:hover {
-  background: var(--accent); color: var(--on-accent);
-}
-.map-filter-pop .mfp-region-row { display: flex; flex-wrap: wrap; gap: 4px; }
-.map-filter-pop .mfp-region-row button {
-  height: 26px; padding: 0 10px; border-radius: 99px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit; font-size: 11px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.map-filter-pop .mfp-region-row button:hover { background: var(--chip-bg); color: var(--fg); }
-.map-filter-pop .mfp-region-row button.is-active {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
+
+/* New-UI-only hover affordances (verified absent from Vue2/parity — see header comment).
+   `.is-active:hover` variants exist solely to out-rank the base `:hover` rule's background
+   (equal specificity would otherwise let source order decide, which this repo's convention
+   treats as unreliable — see PlacesRail.vue's own citation of the same lesson); their values
+   are copied from parity's own `.is-active` rules so hovering an active control never
+   flips its color. Fix-1 item 6: `--chip-bg`/`--chip-bg-hi`/`--fg` (global) corrected to
+   local `--surface-2`/`--surface-3`/`--text-1`, same is-light rationale as `.map-filter-pop`
+   above. */
+.map-filter-pop .mfp-count-row button:hover { background: var(--surface-3); color: var(--text-1); }
+/* theme-exception: literal text color below matches parity's own `.mfp-count-row
+   button.is-active` (photos-places.scss), which is the same literal in both of Vue2's
+   themes (theme-invariant) — kept in lockstep with that value, not a hardcoded escape. */
+.map-filter-pop .mfp-count-row button.is-active:hover { background: var(--accent); color: white; }
+.map-filter-pop .mfp-region-row button:hover { background: var(--surface-2); color: var(--text-1); }
 .map-filter-pop .mfp-region-row button.is-active:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
-  color: var(--accent-text);
+  color: var(--accent-hi);
 }
-.map-filter-pop .mfp-checkbox {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px;
-  cursor: pointer;
-  font-size: 12px; color: var(--fg);
-  background: var(--chip-bg);
-  border-radius: 8px;
-  margin-top: 4px;
-}
-.map-filter-pop .mfp-checkbox:hover { background: var(--chip-bg-hi); }
-.map-filter-pop .mfp-checkbox .mfp-tick {
-  width: 14px; height: 14px;
-  border-radius: 4px;
-  border: 1.5px solid var(--fg-subtle);
-  background: transparent;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.map-filter-pop .mfp-checkbox.is-on .mfp-tick {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-/* Variant has its own :hover (on .is-on, not letting base class .mfp-checkbox:hover affect
-   .mfp-tick via descendant selector — different selector structures won't override each other,
-   but explicitly write identical-value rule to nail it down, not depending on the accidental
-   fact that "base class hover happens to not declare same-name property"). */
+.map-filter-pop .mfp-checkbox:hover { background: var(--surface-3); }
 .map-filter-pop .mfp-checkbox.is-on:hover .mfp-tick {
   border-color: var(--accent);
   background: var(--accent);
 }
-.map-filter-pop .mfp-foot {
-  display: flex; gap: 8px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--card-border);
-}
-.map-filter-pop .mfp-foot .mfp-reset {
-  flex: 1; height: 30px; border-radius: 7px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit; font-size: 11.5px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s;
-}
-.map-filter-pop .mfp-foot .mfp-reset:hover { background: var(--chip-bg); color: var(--fg); }
-.map-filter-pop .mfp-foot .mfp-done {
-  flex: 1; height: 30px; border-radius: 7px;
-  background: var(--accent); border: 0;
-  color: var(--on-accent);
-  font: inherit; font-size: 11.5px; font-weight: 500;
-  cursor: pointer;
-  transition: background 0.12s;
-}
-.map-filter-pop .mfp-foot .mfp-done:hover { background: var(--accent); }
 </style>

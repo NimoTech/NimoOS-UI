@@ -1,35 +1,25 @@
-// P6b-T9 (SP7 Photos "Places" detail, the final task of this sprint): PhotosPlaceAssets.vue —
-// The `/photos/places/:key` place-photos page: month-grouped grid + lightbox + breadcrumb
-// "city › spot" + three-state gating.
-// D10: this is the leanest possible drill-in page — no multi-select/batch operations
-// (selectable=false).
+// P6b-T9(SP7 相册「地点」详情,本期最后一任务): PhotosPlaceAssets.vue ——
+// `/photos/places/:key` 地点照片页:按月分组网格 + 灯箱 + 面包屑「城市 › spot」+ 三态门控。
+// D10:跳库页最小面,不接多选/批操作(selectable=false)。
 //
-// Two hard requirements carried over from review (stronger than the brief, must be
-// reflected in this file):
-//  1) The route must be genuinely registered and the test must genuinely resolve it — not
-//     just spy on router.push. See describe('Route registration and resolution')'s
-//     resolve() assertion against **the real app router**
-//     (`import { router as appRouter } from '../../router'`), and the rest of this file's
-//     cases uniformly use a real router instance to push/replace (no mocking router).
-//  2) The breadcrumb's city name / spot name must be derived from key + spot query via the
-//     source of truth (store.detail) — they must not rely on the URL carrying
-//     city/spotName. In this file's fixtures the URL never carries those two strings; they
-//     are all read from the mocked getPlace response.
+// 评审转来的两条硬要求(比 brief 更强,必须在本文件体现):
+//  1) 路由必须真注册且测试要真解析——不能只 spy router.push。见 describe('路由注册与解析')
+//     里对**真实应用路由**(`import { router as appRouter } from '../../router'`)的
+//     resolve() 断言,以及本文件其余用例统一用真实 router 实例 push/replace(不 mock router)。
+//  2) 面包屑的城市名/spot 名必须从 key + spot query 回源导出(store.detail),不能指望 URL
+//     里带 city/spotName——本文件的 fixture 里 URL 上从不带这两个字符串,全部从 mock 的
+//     getPlace 响应里读。
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createRouter, createWebHashHistory } from 'vue-router'
-// Source file text (Vite `?raw` import, types come from node_modules/vite/client.d.ts:243,
-// no dependency on @types/node).
-// [SP8-P6 T10 correction] The original tail note "this repo never had it installed" no
-// longer holds — after the merge, `@types/node` is installed (devDependencies `^26.1.2`).
-// This line's conclusion still stands: `?raw` works for **`.ts`/`.vue`** and only needs
-// vite/client; in other words using `?raw` here isn't a workaround, it's simply sufficient.
-// (⚠️ `?raw` on **`.css`/`.scss`** is the one case that's always an empty-string trap.)
-// See the comment on the "append, don't reorder" case below for how this is used.
+// 源文件文本(Vite `?raw` 导入,类型来自 node_modules/vite/client.d.ts:243,不依赖 @types/node)。
+// 【SP8-P6 T10 订正】原文尾巴「本仓本就没有装它」已不成立 —— 合流后 `@types/node` 已装
+// (devDependencies `^26.1.2`)。本行结论不变:`?raw` 对 **`.ts`/`.vue`** 有效且只需 vite/client;
+// 换句话说这里用 `?raw` 不是被迫,而是够用。(⚠️ `?raw` 对 **`.css`/`.scss`** 才是恒空的坑。)
+// 用途见下方"追加不重排"用例的注释。
 import routerSource from '../../router/index.ts?raw'
-// Review I1: verifying the breadcrumb icon glyph against its source can likewise only be
-// judged by reading the source file text (same `?raw` technique as above).
+// 评审 I1:面包屑图标 glyph 回源核对同样只能读源文件文本判定(同上一条 ?raw 手法)。
 import photosPlaceAssetsRaw from '../PhotosPlaceAssets.vue?raw'
 import zh from '../../i18n/zh_cn'
 
@@ -37,10 +27,8 @@ const svc = vi.hoisted(() => ({
   photos: {
     getPlace: vi.fn(),
     listAssetsByPlace: vi.fn(),
-    // Existing dependencies of PhotosGrid + lightbox (same precedent as
-    // PhotosAlbumDetail.test.ts/PhotosPersonDetail.test.ts — a missing mock throws
-    // uncaught exceptions on the hover/openAt path, polluting the test run; it doesn't
-    // affect assertions but still needs to be plugged).
+    // PhotosGrid + 灯箱的既有依赖(同 PhotosAlbumDetail.test.ts/PhotosPersonDetail.test.ts
+    // 前例——缺 mock 会在 hover/openAt 路径上抛未捕获异常,污染测试运行,不影响断言但需堵上)。
     thumbnailUrl: vi.fn((id: string | number, size?: string) => `mock://thumb/${id}/${size ?? 'large'}`),
     previewUrl: vi.fn((id: string | number) => `mock://preview/${id}`),
     spriteUrl: vi.fn((id: string | number) => `mock://sprite/${id}`),
@@ -60,21 +48,18 @@ vi.mock('@nimotech/nimoos-service', () => ({ service: svc }))
 
 import PhotosPlaceAssets from '../PhotosPlaceAssets.vue'
 import PhotosGrid from '../../photos/components/PhotosGrid.vue'
-// P7b-T5: FilterBar consumer (D19).
+// P7b-T5:FilterBar 消费(D19)。
 import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
 import { usePhotosPlaces } from '../../photos/stores/places'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
 import { router as appRouter } from '../../router'
 
 const lb = useLightbox()
-// P7b-T5 (global constraint 4): no longer building a separate createI18n instance —
-// vitest.setup.ts already installs the src/i18n singleton into config.global.plugins,
-// taking effect on every mount; the second instance previously built here would install
-// alongside it and duplicate it, spamming 7 [Vue warn] lines per test case (the same issue
-// already hit and fixed elsewhere this sprint, in T3/T4). After removing it, the three
-// mount calls below also drop this local i18n from `global.plugins`, keeping only router —
-// locale still falls back to zh_cn (localStorage is empty under jsdom), so existing Chinese
-// copy assertions are unaffected.
+// P7b-T5(全局约束 4):不再自建 createI18n 实例——vitest.setup.ts 已把 src/i18n 单例装进
+// config.global.plugins,对每次 mount 生效;这里此前另建的第二份实例会与它重复安装,
+// 每条用例刷 7 条 [Vue warn](本期 T3/T4 已踩过、已修同款问题)。删掉后下面三处 mount 调用的
+// `global.plugins` 也一并去掉这个局部 i18n,只留 router——locale 仍回落 zh_cn(jsdom 下
+// localStorage 为空),既有中文文案断言不受影响。
 
 function rawPlace(key: string | number, overrides: Record<string, unknown> = {}) {
   return {
@@ -133,43 +118,67 @@ afterEach(() => {
   lb.__resetForTest()
 })
 
-describe('Route registration and resolution (T8 review hard requirement 1: must genuinely register, test must genuinely resolve)', () => {
-  it('the real app router resolves /photos/places/7 to name=photos-place-assets, with the component already attached', () => {
+// Task 1 (Plan E re-shell): brief's Step 1 RED test — the transitional AreaShell/.photos-layout
+// shell has been swapped for the same `.photos-root > .app[data-collapsed] > PhotosSidebar +
+// main.main > PhotosTopbar + .photos-main` structure every other re-shelled Photos page uses
+// (PhotosPeople.vue/PhotosAlbums.vue's own precedent, PhotosPeople.test.ts's own re-shell test
+// as the style reference).
+describe('PhotosPlaceAssets.vue —— 换壳(Plan E Task 1)', () => {
+  it('mounts the app shell: .photos-root .app exists, PhotosTopbar title=city name with no sub, lightbox outside', async () => {
+    svc.photos.getPlace.mockResolvedValue(rawPlace('7', { city: 'Kyoto' }))
+    const { w } = await mountView('/photos/places/7')
+    expect(w.find('.photos-root .app').exists()).toBe(true)
+
+    const topbar = w.findComponent({ name: 'PhotosTopbar' })
+    expect(topbar.exists()).toBe(true)
+    expect(topbar.props('title')).toBe('Kyoto')
+    // Fix round 1 · Important 1 (2026-08-14 review): Vue2 has no dedicated topbar/sub for this
+    // detail context (see this file's own Task 1 header comment). A prop-level assertion here
+    // let a real regression slip through review — PhotosTopbar's `sub` computed falls back to
+    // the library-wide count summary on an *omitted* prop (`??` only catches null/undefined,
+    // not ''), so simply not passing `sub` would render a stray, wrong subtitle under the city
+    // name. The page now passes `sub=""` (the explicit opt-out PhotosTopbar.vue was given this
+    // same fix round), and PhotosTopbar itself now renders no `.topbar-sub` node at all for an
+    // empty string — assert that DOM outcome directly, not the prop value.
+    expect(w.find('.topbar-sub').exists()).toBe(false)
+
+    // Plan F Task 5 (2026-08-15): PhotoLightbox re-nested INSIDE .photos-root -- the re-skin
+    // (Tasks 3-4) removed the scoped-vs-parity cascade tie that made nesting unsafe (F8-r4).
+    const rootEl = w.find('.photos-root').element
+    const lbComp = w.findComponent({ name: 'PhotoLightbox' })
+    expect(rootEl.contains(lbComp.element)).toBe(true)
+  })
+})
+
+describe('路由注册与解析(T8 评审硬要求 1:必须真注册、测试要真解析)', () => {
+  it('真实应用路由把 /photos/places/7 解析到 name=photos-place-assets,且组件已挂上', () => {
     const match = appRouter.resolve('/photos/places/7')
     expect(match.matched.length).toBeGreaterThan(0)
     expect(match.name).toBe('photos-place-assets')
     expect(match.matched[0]?.components?.default).toBeTruthy()
   })
 
-  // Measured correction (the brief's numbers/assertion were wrong; going by actual
-  // source/runtime behavior and recording it here): vue-router 4's `getRoutes()` sorts the
-  // match table by its own scoring algorithm (routes with dynamic segments get moved as a
-  // block toward the front of the list) — it is **not** declaration order. In this repo's
-  // route table, `photos-place-assets` actually ends up sorted **before**
-  // `photos-places` (because the former carries a `:key` dynamic segment), so asserting
-  // "sorted after" via a `getRoutes()` index would necessarily be a false red — unrelated
-  // to the "append, don't reorder" hard constraint itself (that constraint is about the
-  // source file, to minimize rebase conflicts, not runtime match priority). Instead assert
-  // against **the source file text**: the `/photos/places/:key` line is genuinely appended
-  // after the `/photos/places` line, and both lines are still present (neither was moved
-  // elsewhere).
+  // 实测纠正(brief 数值/断言有误,以源码/运行时实况为准并登记):vue-router 4 的
+  // `getRoutes()` 按自己的打分算法排序匹配表(动态段路由被整体挪到列表靠前的一段),
+  // **不是**声明顺序——实测本仓路由表里 `photos-place-assets` 会排在 `photos-places`
+  // **之前**(因为前者带 `:key` 动态段),用 `getRoutes()` 下标断言"排在之后"必然是假的
+  // 红灯,与"追加不重排"这条硬约束本身无关(那是源文件层面的要求,为了 rebase 冲突最小化,
+  // 不是运行时匹配优先级)。改为在**源文件文本**里断言:`/photos/places/:key` 那一行确实
+  // 在 `/photos/places` 那一行之后追加,且两条都还在(没有被移动到别处)。
   //
-  // Review Minor (division of labor note): `src/router/index.test.ts` already has a
-  // matching `?raw` source-text-order assertion, but it checks **a different pair** of
-  // boundaries (`/photos/people/:id` → `/photos/places` → `/login`, set up during the
-  // P6a-T11 append) and has never covered where this task's new `/photos/places/:key`
-  // lands. Both assertions use the same *technique* (`?raw` text order) but check the
-  // route boundaries newly added by two different tasks — this is not a duplicate
-  // assertion of the same thing. Deliberately not touching `router/index.test.ts` (leaving
-  // its existing assertions alone); this case belongs here instead.
-  it('in the source file, /photos/places/:key is appended after the /photos/places line (existing routes are not reordered)', () => {
+  // 评审 Minor(分工说明):`src/router/index.test.ts` 已有一条同款 `?raw` 源文本序断言,
+  // 但它核的是**另一对**边界(`/photos/people/:id` → `/photos/places` → `/login`,P6a-T11
+  // 那次追加时立的),从未覆盖本任务新增的 `/photos/places/:key` 落在哪——两条断言用的是
+  // 同一种检验*手法*(`?raw` 文本序),但检验的是两次不同任务各自新增的路由边界,不是重复
+  // 断言同一件事。刻意不去改 `router/index.test.ts`(不动既有断言),就近把这条放在本文件里。
+  it('源文件里 /photos/places/:key 追加在 /photos/places 那一行之后(不重排既有路由)', () => {
     const placesLine = routerSource.indexOf("path: '/photos/places',")
     const assetsLine = routerSource.indexOf("path: '/photos/places/:key',")
     expect(placesLine).toBeGreaterThanOrEqual(0)
     expect(assetsLine).toBeGreaterThan(placesLine)
   })
 
-  it('after a real push to /photos/places/9, currentRoute.name is genuinely photos-place-assets (not just a spied push)', async () => {
+  it('真实 push 到 /photos/places/9 之后 currentRoute.name 确实是 photos-place-assets(不是仅 spy push)', async () => {
     const router = makeRouter()
     await router.push('/photos/places/9')
     await router.isReady()
@@ -178,14 +187,14 @@ describe('Route registration and resolution (T8 review hard requirement 1: must 
   })
 })
 
-describe('orchestrates data on mount (parameter normalization + T8 hard requirement 2: breadcrumb sources from key/spot, ignores stale strings on the URL)', () => {
-  it('no query → loadDetail("7") and assets.load("7", "", null, null)', async () => {
+describe('挂载即编排数据(参数归一 + T8 硬要求 2:面包屑从 key/spot 回源,不吃 URL 上的旧字符串)', () => {
+  it('无 query → loadDetail("7") 与 assets.load("7", "", null, null)', async () => {
     await mountView('/photos/places/7')
     expect(svc.photos.getPlace).toHaveBeenCalledWith('7')
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', '', 500, null, null)
   })
 
-  it('with spot/lat/lon query → assets.load("7", "s1", 30.1, 120.2)', async () => {
+  it('带 spot/lat/lon query → assets.load("7", "s1", 30.1, 120.2)', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', {
       spots: [{ key: 's1', name: 'Shibuya Crossing', lat: 30.1, lon: 120.2, count: 5, thumb: '' }],
     }))
@@ -193,7 +202,7 @@ describe('orchestrates data on mount (parameter normalization + T8 hard requirem
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', 's1', 500, 30.1, 120.2)
   })
 
-  it('lat is not numeric (lat=abc) → passes null, never sends NaN to the backend', async () => {
+  it('lat 非数字(lat=abc)→ 传 null,不把 NaN 带给后端', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', {
       spots: [{ key: 's1', name: 'Shibuya Crossing', lat: 30.1, lon: 120.2, count: 5, thumb: '' }],
     }))
@@ -201,38 +210,35 @@ describe('orchestrates data on mount (parameter normalization + T8 hard requirem
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', 's1', 500, null, 120.2)
   })
 
-  // Review I1: lat/lon must be paired with spotKey and never take effect on their own,
-  // matching Vue2's `_applyPlaceFromQuery` (PhotosTimeline.vue:538-545) semantics of only
-  // assigning coordinates when spot is actually matched. In-app navigation never hits this
-  // path (showWholeCity/spot cards always clear or carry all three keys together), but
-  // hand-edited address bars/stale bookmarks can: `?lat=1&lon=2` with **no** `spot=` →
-  // lat/lon must both be collapsed to null, never sent to the backend as orphaned
-  // coordinates (that would violate the shared package's "lat/lon paired with spotKey"
-  // invariant).
-  it('has lat/lon but no spot query → lat/lon both collapse to null, spotKey is sent as an empty string', async () => {
+  // 评审 I1:lat/lon 必须与 spotKey 成对,不能脱钩独立生效——照 Vue2
+  // `_applyPlaceFromQuery`(PhotosTimeline.vue:538-545)只在 spot 命中时才赋坐标的语义。
+  // 应用内导航碰不到这条(showWholeCity/spot 卡片都是三键一起清、一起带),但手改地址栏/
+  // 旧书签会:`?lat=1&lon=2` 且**没有** `spot=` → lat/lon 必须都被压成 null,不能带着孤立坐标
+  // 传给后端(违反共享包「lat/lon 与 spotKey 成对」的不变量)。
+  it('有 lat/lon 但无 spot query → lat/lon 都被压成 null,spotKey 传空串', async () => {
     await mountView('/photos/places/7?lat=1&lon=2')
     expect(svc.photos.listAssetsByPlace).toHaveBeenCalledWith('7', '', 500, null, null)
   })
 
-  it('title: AreaShell\'s title is the city name sourced from store.detail (the URL never carries a city string)', async () => {
+  it('标题:PhotosTopbar 的 title 是 store.detail 回源的城市名(URL 上从不带 city 字符串)', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', { city: 'Kyoto' }))
     const { w } = await mountView('/photos/places/7')
-    expect(w.find('.area-title').text()).toBe('Kyoto')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Kyoto')
   })
 
-  it('title: falls back to t("photosPlaces") ("地点") while detail has not yet arrived', async () => {
-    svc.photos.getPlace.mockReturnValue(new Promise(() => {})) // never resolves
+  it('标题:详情尚未到位时回落 t("photosPlaces")("地点")', async () => {
+    svc.photos.getPlace.mockReturnValue(new Promise(() => {})) // 永不 resolve
     const router = makeRouter()
     await router.push('/photos/places/7')
     await router.isReady()
     const w = mount(PhotosPlaceAssets, { global: { plugins: [router] } })
     await w.vm.$nextTick()
-    expect(w.find('.area-title').text()).toBe(zh.photosPlaces)
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe(zh.photosPlaces)
   })
 })
 
-describe('reruns when route params change (SP6-P5.5 lesson #6: hash routing does not rebuild the same component, missing a watcher renders stale data)', () => {
-  it('key changes from 7 to 9 → loadDetail/assets.load each get called again, and no stale data lingers', async () => {
+describe('路由参数变化重跑(SP6-P5.5 第 6 条教训:hash 路由同组件不重建,缺 watcher 会渲染陈旧数据)', () => {
+  it('key 从 7 改到 9 → loadDetail/assets.load 各再调一次,且旧数据不残留', async () => {
     svc.photos.getPlace.mockImplementation((key: string) =>
       Promise.resolve(rawPlace(key, { city: key === '7' ? 'Tokyo' : 'Osaka' })))
     svc.photos.listAssetsByPlace.mockImplementation((key: string) => {
@@ -241,7 +247,7 @@ describe('reruns when route params change (SP6-P5.5 lesson #6: hash routing does
     })
     const { w, router } = await mountView('/photos/places/7')
     expect(w.findAll('.tile')).toHaveLength(2)
-    expect(w.find('.area-title').text()).toBe('Tokyo')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Tokyo')
 
     const getPlaceCallsBefore = svc.photos.getPlace.mock.calls.length
     const listCallsBefore = svc.photos.listAssetsByPlace.mock.calls.length
@@ -254,22 +260,21 @@ describe('reruns when route params change (SP6-P5.5 lesson #6: hash routing does
     expect(svc.photos.listAssetsByPlace.mock.calls.length).toBe(listCallsBefore + 1)
     expect(svc.photos.getPlace).toHaveBeenLastCalledWith('9')
     expect(svc.photos.listAssetsByPlace).toHaveBeenLastCalledWith('9', '', 500, null, null)
-    // The old data (2 photos, a1/a2) doesn't linger — the grid switches to the new place's
-    // 3 photos, b1/b2/b3.
+    // 旧数据(2 张 a1/a2)不残留,网格换成新地点的 3 张 b1/b2/b3。
     expect(w.findAll('.tile')).toHaveLength(3)
-    expect(w.find('.area-title').text()).toBe('Osaka')
+    expect(w.findComponent({ name: 'PhotosTopbar' }).props('title')).toBe('Osaka')
   })
 })
 
-describe('breadcrumb (mirrors Vue2 PhotosTimeline.vue:1073-1090\'s information hierarchy)', () => {
-  it('no spot → the city segment is a span (not a button)', async () => {
+describe('面包屑(照 Vue2 PhotosTimeline.vue:1073-1090 的信息层级)', () => {
+  it('无 spot → 城市段是 span(不是 button)', async () => {
     const { w } = await mountView('/photos/places/7')
     expect(w.find('[data-test="place-crumb-city-span"]').exists()).toBe(true)
     expect(w.find('[data-test="place-crumb-city-btn"]').exists()).toBe(false)
     expect(w.find('[data-test="place-crumb-spot"]').exists()).toBe(false)
   })
 
-  it('has spot and it\'s found by key in detail → the city segment is a button + spot name + right chevron', async () => {
+  it('有 spot 且详情里能按 key 找到 → 城市段是 button + spot 名 + 右尖角', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', {
       spots: [{ key: 's1', name: 'Shibuya Crossing', lat: 30.1, lon: 120.2, count: 5, thumb: '' }],
     }))
@@ -280,7 +285,7 @@ describe('breadcrumb (mirrors Vue2 PhotosTimeline.vue:1073-1090\'s information h
     expect(w.find('.crumb-chev').exists()).toBe(true)
   })
 
-  it('clicking the city segment → router.replace to the same path with no query', async () => {
+  it('点城市段 → router.replace 到无 query 的同 path', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', {
       spots: [{ key: 's1', name: 'Shibuya Crossing', lat: 30.1, lon: 120.2, count: 5, thumb: '' }],
     }))
@@ -291,15 +296,15 @@ describe('breadcrumb (mirrors Vue2 PhotosTimeline.vue:1073-1090\'s information h
     expect(router.currentRoute.value.query).toEqual({})
   })
 
-  it('photo count = photosPlacesPhotoCount({n: photos.length})', async () => {
+  it('照片计数 = photosPlacesPhotoCount({n: photos.length})', async () => {
     svc.photos.listAssetsByPlace.mockResolvedValue({ assets: [asset('a1'), asset('a2')] })
     const { w } = await mountView('/photos/places/7')
     expect(w.find('[data-test="place-crumb-count"]').text()).toBe('2 张照片')
   })
 })
 
-describe('stale data doesn\'t linger during the second load (review I2)', () => {
-  it('key changes from 7 to 9; before 9\'s response arrives: the page takes the skeleton branch, no trace of 7\'s old photo grid', async () => {
+describe('第二次加载期间旧数据不残留(评审 I2)', () => {
+  it('key 从 7 改到 9,9 的响应还没到达前:页面走骨架分支,看不到 7 的旧照片网格', async () => {
     svc.photos.getPlace.mockImplementation((key: string) =>
       Promise.resolve(rawPlace(key, { city: key === '7' ? 'Tokyo' : 'Osaka' })))
     let resolveNine: (v: unknown) => void = () => {}
@@ -314,8 +319,7 @@ describe('stale data doesn\'t linger during the second load (review I2)', () => 
     await flushPromises()
     await w.vm.$nextTick()
 
-    // 9's response hasn't arrived yet — it should not keep showing 7's old photos; it
-    // should take the skeleton branch.
+    // 9 的响应还没到达——不该继续显示 7 的旧照片,应走骨架分支。
     expect(w.find('[data-test="place-assets-skeleton"]').exists()).toBe(true)
     expect(w.findAll('.tile')).toHaveLength(0)
 
@@ -327,33 +331,33 @@ describe('stale data doesn\'t linger during the second load (review I2)', () => 
   })
 })
 
-describe('breadcrumb icon glyph matches its source (review I1)', () => {
-  it('.crumb-icon is a folded map (Vue2 PhotosIcon.vue name="map"), not a map pin', () => {
+describe('面包屑图标 glyph 回源(评审 I1)', () => {
+  it('.crumb-icon 是折叠地图(Vue2 PhotosIcon.vue name="map"),不是地图别针', () => {
     const m = /<svg class="crumb-icon"[^>]*>([\s\S]*?)<\/svg>/.exec(photosPlaceAssetsRaw)
-    expect(m, 'could not find the .crumb-icon svg').not.toBeNull()
+    expect(m, '未找到 .crumb-icon 的 svg').not.toBeNull()
     expect(m![1]).toContain('M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z')
     expect(m![1]).toContain('M9 4v14M15 6v14')
     expect(m![1]).not.toContain('M12 21s-7-7.5-7-12')
   })
 })
 
-describe('silently degrades when spot isn\'t found (mirrors Vue2 PhotosTimeline.vue:547-551, no toast)', () => {
-  it('query has spot=zzz, not present in detail\'s spots → no spot segment appears, router.replace clears spot/lat/lon', async () => {
+describe('spot 找不到时静默降级(照 Vue2 PhotosTimeline.vue:547-551,不弹 toast)', () => {
+  it('query 有 spot=zzz、详情 spots 里没有 → 不出现 spot 段,router.replace 清掉 spot/lat/lon', async () => {
     svc.photos.getPlace.mockResolvedValue(rawPlace('7', {
       spots: [{ key: 's1', name: 'Shibuya Crossing', lat: 30.1, lon: 120.2, count: 5, thumb: '' }],
     }))
     const { w, router } = await mountView('/photos/places/7?spot=zzz&lat=1&lon=2')
     await flushPromises()
     expect(w.find('[data-test="place-crumb-spot"]').exists()).toBe(false)
-    expect(w.find('[data-test="place-crumb-city-span"]').exists()).toBe(true) // already degraded to a whole-city leaf
+    expect(w.find('[data-test="place-crumb-city-span"]').exists()).toBe(true) // 已降级为整城 leaf
     expect(router.currentRoute.value.query.spot).toBeUndefined()
     expect(router.currentRoute.value.query.lat).toBeUndefined()
     expect(router.currentRoute.value.query.lon).toBeUndefined()
   })
 })
 
-describe('three-state gating', () => {
-  it('loading && !loaded → skeleton', async () => {
+describe('三态门控', () => {
+  it('loading && !loaded → 骨架', async () => {
     svc.photos.listAssetsByPlace.mockReturnValue(new Promise(() => {}))
     const router = makeRouter()
     await router.push('/photos/places/7')
@@ -365,7 +369,7 @@ describe('three-state gating', () => {
     expect(w.find('[data-test="place-assets-empty"]').exists()).toBe(false)
   })
 
-  it('failed → failure copy + retry button, clicking retry calls load again', async () => {
+  it('failed → 失败文案 + 重试钮,点重试再调 load', async () => {
     svc.photos.listAssetsByPlace.mockRejectedValueOnce(new Error('network down'))
     const { w } = await mountView('/photos/places/7')
     expect(w.find('[data-test="place-assets-failed"]').exists()).toBe(true)
@@ -380,7 +384,7 @@ describe('three-state gating', () => {
     expect(w.findAll('.tile')).toHaveLength(1)
   })
 
-  it('loaded with zero photos → reuses the existing empty-state copy', async () => {
+  it('loaded 且零照片 → 复用既有空态文案', async () => {
     svc.photos.listAssetsByPlace.mockResolvedValue({ assets: [] })
     const { w } = await mountView('/photos/places/7')
     expect(w.find('[data-test="place-assets-empty"]').exists()).toBe(true)
@@ -389,8 +393,8 @@ describe('three-state gating', () => {
   })
 })
 
-describe('grid + lightbox', () => {
-  it('months is passed through to PhotosGrid; selectable is passed as false (D10: no multi-select)', async () => {
+describe('网格 + 灯箱', () => {
+  it('months 透传给 PhotosGrid;selectable 传的是 false(D10:不接多选)', async () => {
     const { w } = await mountView('/photos/places/7')
     const grid = w.findComponent(PhotosGrid)
     expect(grid.exists()).toBe(true)
@@ -399,17 +403,15 @@ describe('grid + lightbox', () => {
     expect(months.flatMap((m) => m.photos).map((p) => p.id)).toEqual(['a1', 'a2'])
   })
 
-  // Review Minor fix: the original title "when selectable isn't passed…" was worded
-  // inaccurately — this page's template actually **does explicitly** pass
-  // `:selectable="false"` (D10: no multi-select); it's not "not passed". What this
-  // assertion actually verifies is the D10 semantics themselves (the checkbox genuinely
-  // isn't rendered), so the title was changed to reflect that.
-  it('D10 in practice: this page explicitly passes selectable=false, and the checkbox genuinely does not render', async () => {
+  // 评审 Minor 修正:原标题「不传 selectable 时…」措辞不准——本页模板其实**显式**传了
+  // `:selectable="false"`(D10:不接多选),不是"没传"。这条断言真正验证的是 D10 语义本身
+  // (复选框确实没渲染出来),标题改成反映这一点。
+  it('D10 落地:本页显式传 selectable=false,复选框确实不渲染', async () => {
     const { w } = await mountView('/photos/places/7')
     expect(w.find('.tile-checkbox').exists()).toBe(false)
   })
 
-  it('PhotosGrid emits open → lb.openAt receives a list that is the whole page\'s photos (D9 paging set)', async () => {
+  it('PhotosGrid emit open → lb.openAt 收到的 list 是整页 photos(D9 翻页集)', async () => {
     const { w } = await mountView('/photos/places/7')
     await w.find('.tile').trigger('click')
     await flushPromises()
@@ -418,16 +420,13 @@ describe('grid + lightbox', () => {
   })
 })
 
-// P7b-T5: wires EXIF filtering into the drill-in page (D19: keep only the year + camera
-// chips, no location dimension — the city is already framed by the route, so a second
-// layer of location-text filtering would be a mis-fire; matches Vue2
-// PhotosTimeline.vue:167's spot branch).
-describe('P7b-T5: EXIF filter wiring (D19)', () => {
-  // Fixture: two photos spanning two years (2023 / 2020), neither landing on 1999, which
-  // any test assertion uses — filtering years:['2023'] hits 1 photo (p1), filtering
-  // years:['1999'] hits 0, and the place total is always 2. Reuses the existing `asset()`
-  // helper (id, takenAt) to produce the base shape, then layers on placeName/make/model
-  // (assetToPhoto.ts:319-321, 367 read out camera/place respectively).
+// P7b-T5:跳库页接线 EXIF 筛选(D19:只留年份 + 相机两个胶囊,位置维度不出现——城市已经
+// 被路由框定,再套一层位置文本筛选是误杀,回源 Vue2 PhotosTimeline.vue:167 spot 分支)。
+describe('P7b-T5: EXIF 筛选接线(D19)', () => {
+  // 夹具:两张照片跨两个年份(2023 / 2020),不落在任一测试断言用到的 1999 上——
+  // 筛 years:['2023'] 命中 1 张(p1),筛 years:['1999'] 命中 0 张,地点总数恒为 2。
+  // 复用既有 `asset()` 助手(id, takenAt)生产基础形状,再叠 placeName/make/model
+  // (assetToPhoto.ts:319-321、367 分别读出 camera/place)。
   function placeFixtureAssets() {
     return [
       { ...asset('p1', '2023-06-15T10:00:00Z'), placeName: 'Tokyo', make: 'Canon', model: 'EOS R5' },
@@ -439,61 +438,49 @@ describe('P7b-T5: EXIF filter wiring (D19)', () => {
     svc.photos.listAssetsByPlace.mockReset().mockResolvedValue({ assets: placeFixtureAssets() })
   })
 
-  // "Existing helper": the brief's `mountPlaceAssets()` is just this file's existing
-  // `mountView(path)` — this file has never had a helper actually named mountPlaceAssets;
-  // the brief was using an illustrative name. Reusing the one that already exists here
-  // rather than adding a parallel mounting scaffold.
+  // “已有助手”:brief 里的 `mountPlaceAssets()` 就是本文件既有的 `mountView(path)`——
+  // 本文件历来没有一个叫 mountPlaceAssets 的助手,brief 用的是示意名,这里复用现成的那个,
+  // 不新增并行的挂载脚手架。
   async function mountPlaceAssets() {
     return mountView('/photos/places/7')
   }
 
-  it('D19: renders only the year and camera chips, no location chip', async () => {
+  it('D19:只渲染年份与相机两个胶囊,没有位置胶囊', async () => {
     const { w } = await mountPlaceAssets()
     const bar = w.findComponent(PhotosFilterBar)
     expect(bar.exists()).toBe(true)
     expect(bar.props('chipKeys')).toEqual(['years', 'cameras'])
     expect(w.find('[data-test="exif-chip-places"]').exists()).toBe(false)
-    // fix round 1, must-fix 1 (review): a props assertion can't catch "mounted the right
-    // component in the wrong place" bugs — moving <PhotosFilterBar> in front of
-    // .crumb-spacer (the shape the implementer actually wrote wrong the first time, only
-    // caught by eyeballing it against the brief) leaves the three assertions above still
-    // green, but on screen the filter bar jumps from the right side to sit next to the
-    // breadcrumb text: .crumb-spacer{flex:1} pushes apart whatever comes "after" it, so
-    // inserting FilterBar before it makes it hug the breadcrumb text instead of appearing
-    // on the right next to the count. Pin the DOM order down with adjacent-sibling
-    // selectors: .crumb-spacer is immediately followed by .exif-filter (FilterBar's root
-    // node), and .exif-filter is immediately followed by .crumb-count — comment nodes in
-    // between don't affect the CSS adjacent-sibling selector's match.
-    // Mutation testing (executed by hand and reverted; evidence in task-5-report.md's "fix
-    // round 1" section): moving <PhotosFilterBar> in the template to before
-    // <div class="crumb-spacer"> → both of these assertions turn red
-    // (neither crumb-spacer + exif-filter nor exif-filter + crumb-count can find a
-    // matching node) → reverted.
+    // fix round 1 必修 1(评审):props 断言逮不住"挂对了组件、挂错了位置"这类错误——
+    // 把 <PhotosFilterBar> 挪到 .crumb-spacer 之前(实现者自己第一遍写错、靠肉眼对照 brief
+    // 才发现的那个形态)上面三条断言依旧全绿,但界面上筛选条会从右侧跳到面包屑文字旁边:
+    // .crumb-spacer{flex:1} 顶开的是"它之后"的内容,插在它之前 FilterBar 就贴着面包屑文字,
+    // 不再贴着计数出现在右侧。用相邻兄弟选择器钉死 DOM 序:
+    // .crumb-spacer 之后紧跟 .exif-filter(FilterBar 根节点),.exif-filter 之后紧跟
+    // .crumb-count——中间的注释节点不影响 CSS 相邻兄弟选择器的判定。
+    // 变异验证(已人工执行并复原,证据见 task-5-report.md「fix round 1」一节):把模板里
+    // <PhotosFilterBar> 移到 <div class="crumb-spacer"> 之前 → 这两条断言双双转红
+    // (crumb-spacer + exif-filter 与 exif-filter + crumb-count 均找不到匹配节点)→ 已复原。
     expect(w.find('.crumb-spacer + .exif-filter').exists()).toBe(true)
     expect(w.find('.exif-filter + .crumb-count').exists()).toBe(true)
   })
 
-  // fix round (sprint-end final review, must-fix I2): the drill-in page's facet-source
-  // invariant had no assertion at all before this — the timeline page side
-  // (Photos.integration.test.ts's "FilterBar's facet source is the whole-library
-  // allPhotos, not narrowed by an already-applied filter") has a dedicated regression
-  // lock; the drill-in page was bare. `:photos="assets.photos.value"` must always be the
-  // unfiltered collection, otherwise the bug the plan called out by name shows up: after
-  // filtering out a year, that year disappears from the dropdown and can never be
-  // selected again. Same shape as the timeline page's lock: record the facet source's
-  // length before submitting, apply a filter, then confirm the facet source's length is
-  // unchanged (the photos prop FilterBar receives doesn't narrow along with gridMonths).
+  // fix round(整期终审必修 I2):跳库页的 facet 源不变量此前一条断言都没有——时间线页
+  // 那边(Photos.integration.test.ts「FilterBar 的 facet 源是全库 allPhotos,不随已生效的
+  // 筛选收窄」)有专用回归锁,跳库页是裸的。`:photos="assets.photos.value"` 必须恒是未筛选
+  // 集合,否则会出现计划书点名的那个 bug:筛掉一个年份后,该年份从下拉里消失、再也选不回来。
+  // 与时间线页那条锁同型:先记下提交前的 facet 源长度,提交一次筛选,再确认 facet 源长度
+  // 不变(FilterBar 收到的 photos prop 不随 gridMonths 收窄)。
   //
-  // Mutation testing (executed by hand and reverted; evidence in task-5-report.md's
-  // "sprint-end final review fix wave" section): temporarily changing PhotosFilterBar's
-  // `:photos="assets.photos.value"` in the template to
-  // `:photos="gridMonths.flatMap(m => m.photos)"` → the assertion below turns red, from 2
-  // to 1 (the facet source narrowed along with the filter) → reverted.
-  it('FilterBar\'s facet source is always the unfiltered assets.photos, not narrowed by an already-applied filter', async () => {
+  // 变异验证(已人工执行并复原,证据见 task-5-report.md「整期终审修复波」一节):把模板里
+  // PhotosFilterBar 的 `:photos="assets.photos.value"` 临时改成
+  // `:photos="gridMonths.flatMap(m => m.photos)"` → 下面这条断言从 2 转红为 1(facet 源
+  // 跟着筛选收窄了)→ 已复原。
+  it('FilterBar 的 facet 源恒是未筛选的 assets.photos,不随已生效的筛选收窄', async () => {
     const { w } = await mountPlaceAssets()
     const bar = w.findComponent(PhotosFilterBar)
     const before = (bar.props('photos') as unknown[]).length
-    expect(before).toBe(2) // fixture math: placeFixtureAssets() has two.
+    expect(before).toBe(2) // 夹具算准:placeFixtureAssets() 两张。
 
     await bar.vm.$emit('update:filter', { years: ['2023'], places: [], cameras: [] })
     await w.vm.$nextTick()
@@ -501,88 +488,68 @@ describe('P7b-T5: EXIF filter wiring (D19)', () => {
     expect((w.findComponent(PhotosFilterBar).props('photos') as unknown[]).length).toBe(before)
   })
 
-  // fix round (sprint-end final review, suggested to bundle in M1): even if future code
-  // (deep links/store) stuffs a value into exifFilter.places, D19 (the drill-in page only
-  // filters by year/camera) must self-certify at the data layer — the grid result must not
-  // narrow just because places has a value. Traced back to `PhotosPlaceAssets.vue`'s
-  // gridMonths: after changing it to an explicit projection
-  // `{ years: exifFilter.value.years, cameras: exifFilter.value.cameras }`,
-  // `applyExifFilters` can no longer even read the places key, so it cannot take effect no
-  // matter what value it's stuffed with.
-  it('M1: exifFilter.places has no effect even when given a value (D19 self-certifies at the data layer, not just relying on the UI not rendering a location chip)', async () => {
+  // fix round(整期终审建议带上 M1):即便未来有代码(深链/store)往 exifFilter.places
+  // 塞值,D19(跳库页只按年份/相机筛选)也必须在数据层自证——网格结果不能因为 places
+  // 有值而收窄。回源 `PhotosPlaceAssets.vue` 的 gridMonths:改成显式投影
+  // `{ years: exifFilter.value.years, cameras: exifFilter.value.cameras }` 之后,
+  // `applyExifFilters` 根本读不到 places 键,即便它被塞值也不可能生效。
+  it('M1:exifFilter.places 即便被塞值也不生效(D19 数据层自证,不只靠 UI 不渲染位置胶囊)', async () => {
     const { w } = await mountPlaceAssets()
-    // Stuff in a value that matches neither fixture asset's place('Tokyo') — if places
-    // were actually read and applied, the result would be filtered down to 0; if places is
-    // correctly ignored (data-layer self-certification), the result is unaffected and
-    // still the pre-filter 2.
+    // 塞一个两张夹具资产的 place('Tokyo')都不匹配的值——若 places 被读取生效,结果会被
+    // 筛成 0 张;若 places 被正确忽略(数据层自证),结果不受影响,仍是未筛选前的 2 张。
     await w.findComponent(PhotosFilterBar).vm.$emit(
       'update:filter', { years: [], places: ['某个不存在的地名'], cameras: [] })
     await w.vm.$nextTick()
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
-    expect(months.flatMap((m) => m.photos)).toHaveLength(2) // if places took effect, this would be 0.
+    expect(months.flatMap((m) => m.photos)).toHaveLength(2) // 若 places 生效,这里会是 0。
   })
 
-  it('once a filter takes effect, the grid only gets the matching photos (the empty-month gate itself is vacuously true here — see below for why), and the lightbox paging set narrows along with it', async () => {
-    // fix round 1, Minor 1 (review): the original case name promised that "empty months
-    // get dropped", but that's a vacuously-true assertion — groupPhotosByMonth
-    // (util/groupPhotosByMonth.ts:15-23)'s buckets are only created when a photo lands in
-    // them, so an empty bucket can never be produced; this page also filters before
-    // grouping, so the `.filter(m => m.photos.length > 0)` in PhotosPlaceAssets.vue is
-    // structurally incapable of removing anything on this call path — deleting that
-    // .filter wouldn't turn this case red either. The case name has been changed to stop
-    // promising something it doesn't actually verify; the `months.every(...)` line below is
-    // kept as-is (it verifies "the months that do match genuinely have photos", not the
-    // unsupportable claim "empty months get dropped").
+  it('筛选生效后网格只拿到命中的照片(空月份门控本身在这里是恒真——理由见下),灯箱翻页集也跟着收窄', async () => {
+    // fix round 1 Minor 1(评审):原用例名承诺了"空月份被丢掉",但这是恒真断言——
+    // groupPhotosByMonth(util/groupPhotosByMonth.ts:15-23)的桶遇到照片才创建,永不产出
+    // 空桶,本页又是先筛后分组,PhotosPlaceAssets.vue 里那个 `.filter(m => m.photos.length
+    // > 0)` 在这条调用链上结构性地不可能剔掉任何东西——删掉那个 .filter 这条用例也不会红。
+    // 用例名已改口,不再承诺自己没验的事;下面 `months.every(...)` 这行仍然保留(它验证的
+    // 是"命中的月份里确实有照片",不是"空月份被丢掉"这个不成立的命题)。
     const { w } = await mountPlaceAssets()
     await w.findComponent(PhotosFilterBar).vm.$emit(
       'update:filter', { years: ['2023'], places: [], cameras: [] })
     await w.vm.$nextTick()
     const months = w.findComponent(PhotosGrid).props('months') as Array<{ photos: unknown[] }>
     expect(months.every((m) => m.photos.length > 0)).toBe(true)
-    // fixture math: 2023 only matches p1 (p2 is 2020).
+    // 夹具算准:2023 只命中 p1 一张(p2 是 2020)。
     expect(months.flatMap((m) => m.photos)).toHaveLength(1)
 
-    // fix round 1, must-fix 2 (review, constraint 5 / a regression lock of the same shape
-    // as D9): the lightbox paging set must narrow along with the filter — it must not be
-    // the "pre-filter" whole-page photos. Once p2 (2020) is filtered out, the paging set
-    // should no longer be able to page to it. The existing "emit open → list is the whole
-    // page's photos" case is a zero-filter scenario where both assets land in the same
-    // month/bucket, so assets.photos.value and gridMonths.flatMap have the same value and
-    // order in that scenario and are insensitive to this change — it can't be counted as
-    // existing coverage, so a direct assertion for the post-filter case is added here.
-    // Mutation testing (executed by hand and reverted; evidence in task-5-report.md):
-    // temporarily reverting PhotosPlaceAssets.vue's onOpen from
-    // `gridMonths.value.flatMap(...)` back to `assets.photos.value` → the assertion below
-    // turns red, from `['p1']` to `['p1', 'p2']` (the paging set picked up the filtered-out
-    // p2) → reverted.
+    // fix round 1 必修 2(评审,约束 5 / D9 同型的回归锁):灯箱翻页集必须跟着筛选收窄,
+    // 不能是"筛选前"的整页 photos——p2(2020)被筛掉后,翻页集里不该还能翻到它。
+    // 既有那条"emit open → list 是整页 photos"用例是零筛选场景,两张 asset 同月同桶,
+    // assets.photos.value 与 gridMonths.flatMap 在该场景下同值同序,对这处改动不敏感,
+    // 不能当作已有保护——这里补一条筛选生效后的直接断言。
+    // 变异验证(已人工执行并复原,证据见 task-5-report.md):把 PhotosPlaceAssets.vue 里
+    // onOpen 的 `gridMonths.value.flatMap(...)` 临时改回 `assets.photos.value` →
+    // 下面这条断言从 `['p1']` 转红为 `['p1', 'p2']`(翻页集混入了被筛掉的 p2)→ 已复原。
     await w.find('.tile').trigger('click')
     await flushPromises()
     expect(lb.list.value.map((p) => p.id)).toEqual(['p1'])
   })
 
-  // fix round (sprint-end final review, must-fix I1, case name changed): what this locks
-  // down is **which gating branch runs** — when filtering down to zero, the code takes the
-  // v-else below (PhotosGrid renders its own empty grid), not the `place-assets-empty`
-  // branch. But the empty-state copy rendered by both paths is byte-identical (both are
-  // photosNoPhotos / photosNoPhotosHint — PhotosGrid's own empty state uses exactly those
-  // two keys), so what the user sees doesn't differ based on which branch runs — the
-  // original case name "doesn't fall into that empty state" implied "what the user sees is
-  // different", which doesn't hold, so it's been reworded. This assertion is still worth
-  // keeping: it pins down the logical invariant that "the three-state gate's empty-state
-  // decision must read unfiltered data, and must not mistake an empty filter result for the
-  // whole place having no assets", even though this is invisible to the user.
-  it('when filtered down to zero, the three-state gate takes v-else (not the place-assets-empty branch); the breadcrumb count is still the place total', async () => {
+  // fix round(整期终审必修 I1,用例名改口):这条锁的是**门控走向**——筛到零时代码走的是
+  // 下面的 v-else(PhotosGrid 自己渲染空网格),不经过 `place-assets-empty` 那个分支。但
+  // 两条路径渲染出的空态文案逐字相同(都是 photosNoPhotos / photosNoPhotosHint,PhotosGrid
+  // 自己的空态用的正是这两个键),用户看到的东西不会因为走哪条分支而不同——原用例名「不落到
+  // 那个空态」暗示了"用户看到的不一样",这不成立,已改口。这条断言仍值得保留:它钉住的是
+  // 「三态门控的空态判定必须读未筛选数据、不能因为筛选结果为空就误判整个地点没有资产」这个
+  // 逻辑不变量,即便对用户不可见。
+  it('筛到零时三态门控走 v-else(不经过 place-assets-empty 分支);面包屑计数仍是地点总数', async () => {
     const { w } = await mountPlaceAssets()
     await w.findComponent(PhotosFilterBar).vm.$emit(
       'update:filter', { years: ['1999'], places: [], cameras: [] })
     await w.vm.$nextTick()
     expect(w.find('[data-test="place-assets-empty"]').exists()).toBe(false)
-    // fix round 1, Minor 2 (review): the original `.toContain('2')` was too loose — the
-    // fixture's rawPlace() defaults to count:42 (this file, :66); if the count were
-    // mistakenly changed to read store.detail.count it would render "42 张照片", and
-    // toContain('2') would still pass (because "42" contains "2"). Changed to an exact
-    // full-string match to pin down the contract: the count must read the place's asset
-    // array length (2), not that count field in detail.
+    // fix round 1 Minor 2(评审):原来的 `.toContain('2')` 过松——夹具里 rawPlace() 默认
+    // count:42(本文件 :66),如果计数被误改成读 store.detail.count 会渲染"42 张照片",
+    // toContain('2') 仍然通过(因为 "42" 里含 "2")。改成精确匹配整串,钉死口径:计数读的
+    // 必须是地点资产数组长度(2),不是详情里那个 count 字段。
     expect(w.get('[data-test="place-crumb-count"]').text()).toBe('2 张照片')
   })
 })

@@ -5,8 +5,7 @@
 //              :392-399  (toggleRegionFold), :400-418 (loadPlaces),
 //              :419-433  (loadDetail), :495-516 (saveSpotName),
 //              :522-536  (loadCoverCandidates), :537-560 (setCover/resetCover)
-// Photos v1 backend lacks response envelope: listPlaces() is wrapped in {regions, places, stats}
-// object; not unpacked inside, we unwrap it here.
+// Photos v1 后端无信封:listPlaces() 是 {regions, places, stats} 对象包裹体,包内不解包,这里自己解。
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { service } from '@nimotech/nimoos-service'
@@ -15,31 +14,39 @@ import {
   type Place, type RegionCount, type PlacesStats,
 } from '../util/placesMap'
 
-// New-UI naming convention, intentionally different from Vue2's
-// `photos.placesMapTheme` / `photos.placesRailCollapsed` (deviation note): Vue2 and
-// New-UI share the same browser localStorage. This period (D5) changed light map
-// variant trigger from "album-private mapTheme field" to global `data-theme`
-// attribute. Using the same key would let both sides read/write each other's old
-// structures, cross-polluting. Independent keys let the two implementations' persistent
-// state not interfere.
+// New-UI 命名法,刻意不沿用 Vue2 的 `photos.placesMapTheme` / `photos.placesRailCollapsed`
+// (deviation log): Vue2 and New-UI share the same origin's browser localStorage. This comment
+// used to explain the need for this separate key via "D5 changed the trigger signal to the
+// global data-theme" — that decision has since been reverted (see placesMapThemes.ts's own
+// header comment's "D5" section and usePhotosTheme.ts), but the separate key itself stays: even
+// though New-UI's MapThemePrefs shape (the customCityColor field name, the custom branch's
+// bg/grid-follow semantics) and Vue2's current customCityColor structure happen to be
+// name-for-name/shape-for-shape identical, it's safer for the two persistence layers to stay
+// independent rather than share one localStorage key — sharing it would mean any future
+// structural change on either side directly corrupts the other's data, and vice versa.
 const LS_THEME = 'nimo_places_map_theme'
 const LS_RAIL_COLLAPSED = 'nimo_places_rail_collapsed'
 
 const THEME_ALLOWED = ['default', 'ocean', 'sand', 'mono', 'custom']
 const HEX_RE = /^#[0-9a-f]{6}$/i
-// Following Vue2 PhotosPlacesView.vue:86-87 default values.
+// 照 Vue2 PhotosPlacesView.vue:86-87 的默认值。
 const DEFAULT_DOT_COLOR = '#6E5BFF'
-const DEFAULT_GRID_COLOR = '#9C8EFF'
+// Task 6 (Plan E, 2026-08-15): renamed from DEFAULT_GRID_COLOR — same reason as Vue2 PR #106
+// sub-commit 3 renaming its own `customGridColor` to `customCityColor` (this value now feeds the
+// solid "city light" colour, not a grid line): no migration for the old field name's localStorage
+// value — reading an old-shape record simply finds this field already missing and falls straight
+// back to this default, matching Vue2's own handling (per the brief's quote of that sub-commit's
+// own commit message).
+const DEFAULT_CITY_COLOR = '#9C8EFF'
 
 export interface MapThemePrefs {
   mapTheme: string // 'default' | 'ocean' | 'sand' | 'mono' | 'custom'
   customDotColor: string // '#RRGGBB'
-  customGridColor: string
+  customCityColor: string
 }
 
-// Three anonymous object types formerly inlined in PlaceDetail promoted to named
-// exports (P6b-T2): four components T3-T6 all use them; single-point definition
-// avoids hand-written duplication like PersonPlace in P5-T12.
+// 三个原先内联在 PlaceDetail 里的匿名对象类型提成具名导出(P6b-T2):T3-T6 四个组件的
+// props 都要用它们,单点定义避免像 P5-T12 的 PersonPlace 那样两处手写重复。
 export interface PlaceSpot { key: string, name: string, lon: number, lat: number, count: number, thumb: string }
 export interface PlaceInsight { ico: string, key: string, params: Record<string, unknown> }
 export interface PlaceVisit {
@@ -74,11 +81,10 @@ export interface CoverCandidates {
 const EMPTY_COVER_CANDIDATES: CoverCandidates = { tabs: [], items: [], page: 0, totalPages: 1, total: 0 }
 const EMPTY_STATS: PlacesStats = { cities: 0, countries: 0, photos: 0 }
 
-// Following Vue2 mounted :339-348 IIFE pattern: whitelist/regex validation + outer
-// try fallback (private mode / SSR / malformed JSON). Per-field independent fallback —
-// invalid mapTheme doesn't discard already-valid custom colors, and vice versa.
+// 照 Vue2 mounted :339-348 的 IIFE 读法:白名单/正则校验 + 整体 try 兜底(隐私模式/SSR/坏 JSON)。
+// 单字段独立回落——mapTheme 非法不连累已经合法的自定义色,反之亦然。
 function readThemePrefs(): MapThemePrefs {
-  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customGridColor: DEFAULT_GRID_COLOR }
+  const def: MapThemePrefs = { mapTheme: 'default', customDotColor: DEFAULT_DOT_COLOR, customCityColor: DEFAULT_CITY_COLOR }
   try {
     const raw = localStorage.getItem(LS_THEME)
     if (!raw) return def
@@ -86,17 +92,16 @@ function readThemePrefs(): MapThemePrefs {
     return {
       mapTheme: THEME_ALLOWED.includes(t.mapTheme as string) ? (t.mapTheme as string) : 'default',
       customDotColor: HEX_RE.test(t.customDotColor ?? '') ? (t.customDotColor as string) : DEFAULT_DOT_COLOR,
-      customGridColor: HEX_RE.test(t.customGridColor ?? '') ? (t.customGridColor as string) : DEFAULT_GRID_COLOR,
+      customCityColor: HEX_RE.test(t.customCityColor ?? '') ? (t.customCityColor as string) : DEFAULT_CITY_COLOR,
     }
   } catch {
     return def
   }
 }
 
-// Following Vue2 mounted :349-357. Deviation note 7: `.map(String)` normalization on read —
-// invariant requires railCollapsed region ids to match the type in toggleRegionFold/
-// isRegionCollapsed comparisons. localStorage is user-alterable external input; we cannot
-// trust element types are actually strings.
+// 照 Vue2 mounted :349-357。偏离登记 7:读入时 `.map(String)` 归一——铁律要求 railCollapsed
+// 里的 region id 与 toggleRegionFold/isRegionCollapsed 的比较对象类型一致,localStorage 是
+// 用户可篡改的外部输入,不能信任里面的元素类型就是字符串。
 function readRailCollapsed(): string[] {
   try {
     const raw = localStorage.getItem(LS_RAIL_COLLAPSED)
@@ -128,8 +133,7 @@ function toPlaceDetail(raw: unknown): PlaceDetail {
 
 function toCreatedAlbum(raw: unknown, fallbackName: string): CreatedAlbum {
   const r = (raw ?? {}) as Record<string, unknown>
-  // resolvePlaceKey same trap: backend albumId is a number; tests require normalizing
-  // it to a string for callers (album routes use string ids).
+  // resolvePlaceKey 同款坑:后端 albumId 是数字,测试要求归一成字符串给调用方(相册路由用字符串 id)。
   return {
     albumId: String(r.albumId ?? ''),
     name: String(r.name ?? fallbackName),
@@ -151,68 +155,56 @@ function toCoverCandidates(raw: unknown): CoverCandidates {
 export const usePhotosPlaces = defineStore('photosPlaces', () => {
   const places = ref<Place[]>([])
   const regions = ref<RegionCount[]>([])
-  // Review M6: stats has no consumer in P6a — Vue2's only use was to feed topbar, and
-  // topbar is explicitly not being built per spec §7c-6. Rail header and .map-stats
-  // display filtered stats sourced from filteredPlaces (computed by the container itself:
-  // countPhotos/countCountries), not from here. Backend global stats retained for P6b
-  // and future consumption — not an omission.
+  // 评审 M6:stats 在 P6a 无消费方——Vue2 的唯一用途是喂 topbar,而 topbar 按 spec §7c-6
+  // 明确不建;rail 头与 .map-stats 显示的是过滤后统计,来源是 filteredPlaces(容器自己算的
+  // countPhotos/countCountries),不是这里。保留后端全局统计供 P6b/后续消费,不是遗漏。
   const stats = ref<PlacesStats>({ ...EMPTY_STATS })
-  // Empty-state gate following people.ts peopleLoaded pattern: set to true only on
-  // success path, leave false on failure so it can be retried.
+  // 空态门控,照 people.ts 的 peopleLoaded 手法:只在成功路径置 true,失败留 false 可重试。
   const placesLoaded = ref(false)
   const loading = ref(false)
 
   const detail = ref<PlaceDetail | null>(null)
   const detailLoading = ref(false)
-  // loadDetail seq race guard (deviation note 8), pattern follows usePersonDetail.ts:40-82.
-  // Not in state: pure internal counter; views don't need to read it.
+  // loadDetail 的 seq 竞态守卫(偏离登记 8),手法照 usePersonDetail.ts:40-82。
+  // 不进 state:纯内部序号,视图不需要读它。
   let seq = 0
-  // fetchCoverCandidates independent seq guard (deviation note 5), same pattern, same
-  // not-in-state. Above seq and this one are two unrelated locks: loadDetail and
-  // fetchCoverCandidates are completely independent request flows (former is place detail,
-  // latter is cover-picker-dialog candidate list). Sharing one counter would let one side's
-  // staleness check bias the other's. Vue2 loadCoverCandidates :522-536 has no guard at all;
-  // rapid tab switching / pagination in the dialog lets a late-returning old response
-  // overwrite the new result.
+  // fetchCoverCandidates 的独立 seq 守卫(偏离登记 5),同样手法、同样不进 state。
+  // 与上面的 seq 是两把互不相关的锁:loadDetail 与 fetchCoverCandidates 是两个完全
+  // 独立的请求流(前者是地点详情,后者是封面选择弹层的候选列表),共用一把计数器会让
+  // 一边的请求把另一边的"过期"判断带偏。Vue2 loadCoverCandidates :522-536 逐键请求
+  // 完全没有守卫,弹层里快速切 tab/翻页时,后发先回的旧响应会把新结果盖掉。
   let coverSeq = 0
 
   const coverCandidates = ref<CoverCandidates>({ ...EMPTY_COVER_CANDIDATES })
-  // In-flight short-circuit for three write paths. coverBusy guards both setPlaceCover
-  // and resetPlaceCover — both are mutually exclusive writes to the same resource
-  // (current place's cover), so sharing one lock is reasonable tightening, not an omission.
-  // spotBusy guards setSpotName alone, completely independent from coverBusy — changing
-  // a spot name while a cover submit is in flight (or vice versa) should not block each other.
-  // Two unrelated resources should not share one lock.
+  // 三个提交路径的 in-flight 短路。coverBusy 同时守 setPlaceCover/resetPlaceCover——
+  // 这两者都是对"当前地点封面"这同一份资源的互斥写操作,共享一把锁是合理的收紧,不是遗漏;
+  // spotBusy 单独守 setSpotName,与 coverBusy 完全独立——正在提交封面时改 spot 名字
+  // (或反过来)不应互相卡住,两条互不相关的资源不该共享一把锁。
   const coverBusy = ref(false)
   const spotBusy = ref(false)
-  // createPlaceAlbum reentry lock, independent from the two above — creating an album
-  // and changing cover/spot name are unrelated resources.
+  // createPlaceAlbum 的重入锁,独立于上面两把——建相册与封面/spot 改名是互不相关的资源。
   const albumBusy = ref(false)
 
   const themePrefs = ref<MapThemePrefs>(readThemePrefs())
   const railCollapsed = ref<string[]>(readRailCollapsed())
 
-  // Three write paths reverse-lookup the backend's original key (int32) from id,
-  // consolidated in one place following loadDetail's same technique. Falls back to the
-  // passed id itself when not found (deep-link scenario, list not yet loaded).
+  // 三个提交路径按 id 反查后端原始 key(int32),照 loadDetail 的同一手法收进一处。
+  // 找不到(深链场景,列表尚未加载)时回落用传入的 id 本身。
   function resolvePlaceKey(id: string): string | number {
     const hit = places.value.find(p => String(p.id) === String(id))
     return hit ? hit.key : id
   }
-  // Review required (Minor): `resolvePlaceKey(id) as string` at call sites is
-  // **intentional** type assertion — do not "clean it up" to `String(resolvePlaceKey(id))`.
-  // The shared package's `service.photos.getPlace` etc. methods declare `key` as pure
-  // `string` in their TS signatures (inconsistent with same-file `getPerson(id: string | number)`,
-  // but Service-side forbids changing it). Backend `Place.key` is actually int32, and tests
-  // require passing the raw number as-is to backend (`expect(getPlace).toHaveBeenCalledWith(7)`,
-  // not `'7'`). `as string` only affects compile-time checks; at runtime it still passes
-  // the original number returned by `resolvePlaceKey`. Switching to `String()` would actually
-  // convert it to a string at runtime, silently failing that assertion above.
+  // 评审必修(Minor):调用点的 `resolvePlaceKey(id) as string` 是**故意**的类型断言,
+  // 不要"清理"成 `String(resolvePlaceKey(id))`。共享包 `service.photos.getPlace` 等
+  // 方法的 TS 签名把 `key` 声明成纯 `string`(与同文件 `getPerson(id: string | number)`
+  // 不一致,但 Service 侧禁改),而后端 `Place.key` 实际是 int32、且测试要求原始数字
+  // 原样传给后端(`expect(getPlace).toHaveBeenCalledWith(7)`,不是 `'7'`)。`as string`
+  // 只影响编译期检查,运行时仍把 `resolvePlaceKey` 返回的原始 number 传下去;换成
+  // `String()` 会在运行时真的转成字符串,悄悄把上面那条断言改红。
 
-  // Following Vue2 loadPlaces :400-418. **Not doing** Vue2 :412-413's "auto-select places[0]
-  // after load" — that is view-layer responsibility (P6b/T11), so unit tests can pin down
-  // "which place is selected when entering the page" interaction logic. Store only manages
-  // data.
+  // 照 Vue2 loadPlaces :400-418。**不做** Vue2 :412-413 的"加载完自动选中 places[0]"——
+  // 那是视图层职责(P6b/T11),便于用视图层单测钉住"进入页面选中哪个地点"这条交互逻辑,
+  // store 只管数据。
   async function fetchPlaces(): Promise<void> {
     loading.value = true
     try {
@@ -224,29 +216,25 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
       stats.value = (raw?.stats as PlacesStats | undefined) ?? { ...EMPTY_STATS }
       placesLoaded.value = true
     } catch (e) {
-      // Deviation note 9: Vue2 :400-418 has no catch (exception goes straight to caller /
-      // console; no one in mounted() catches it, so it becomes an uncaught rejection).
-      // Here we add catch: log only, retain previous data, placesLoaded doesn't revert
-      // (failure leaves it false for retry, not "confirmed zero places").
+      // 偏离登记 9:Vue2 :400-418 没有 catch(异常直接抛给调用方/控制台,mounted() 里
+      // 没人接住会变成未捕获的 rejection)。这里补 catch:只记日志、保留上一次数据,
+      // placesLoaded 不倒退(首次失败留 false 可重试,不是"确认零地点")。
       console.error('[photos-places] fetchPlaces', e)
     } finally {
       loading.value = false
     }
   }
 
-  // Following Vue2 loadDetail :419-433, adding seq race guard (deviation note 8).
-  // Vue2 post-compares with `this.activeId === key`; clicking two cities with late-arriving
-  // responses overwrites new details with old — Vue2's key parameter is activeId itself,
-  // so this comparison stays true unless there's a third click. Here we use monotonically
-  // increasing seq, independent of external state.
+  // 照 Vue2 loadDetail :419-433,补 seq 竞态守卫(偏离登记 8):Vue2 用 `this.activeId === key`
+  // 事后比对,连点两个城市且后发先回时,先发的旧响应会覆盖新详情——因为 Vue2 的 key 参数就是
+  // activeId 本身,只要没有第三次点击,这个比对恒真。这里用单调递增的 seq,不依赖外部状态。
   async function loadDetail(id: string | null): Promise<void> {
     if (id == null) {
-      seq++ // invalidate any in-flight old request, prevent it from writing detail back to non-null later
+      seq++ // 让任何在途的旧请求作废,避免它稍后把 detail 又写回非 null
       detail.value = null
-      // Review required (I1): unconditional reset, cannot rely on in-flight request's finally
-      // to do this — seq is already incremented, so the `if (mine === seq)` check in that
-      // finally will be false and skipped. Without resetting here, detailLoading stays true
-      // permanently (P6b shows loading spinner spinning forever after clearing detail).
+      // 评审必修(I1):无条件复位,不能指望在途请求的 finally 来做这件事——seq 已经
+      // 推进,那个 finally 里的 `if (mine === seq)` 必然为 false 而被跳过,不复位这里
+      // 会让 detailLoading 永久卡 true(P6b 表现为清空详情后加载指示器永久转圈)。
       detailLoading.value = false
       return
     }
@@ -255,10 +243,10 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     const key = resolvePlaceKey(id) as string
     try {
       const raw = await service.photos.getPlace(key)
-      if (mine !== seq) return // stale response, discard (success path)
+      if (mine !== seq) return // 过期响应,丢弃(成功路径)
       detail.value = toPlaceDetail(raw)
     } catch (e) {
-      if (mine !== seq) return // stale response, discard (catch path — Vue2 :429-432 has no this check)
+      if (mine !== seq) return // 过期响应,丢弃(catch 路径——Vue2 :429-432 没有这层判断)
       console.error('[photos-places] loadDetail', e)
       detail.value = null
     } finally {
@@ -267,17 +255,15 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
   }
 
   function clearDetail(): void {
-    seq++ // invalidate any in-flight loadDetail, prevent it from writing detail back later
+    seq++ // 作废任何在途的 loadDetail,防止它稍后把 detail 写回来
     detail.value = null
-    // Review required (I1): same reason as loadDetail(null) branch — seq is incremented,
-    // in-flight request's finally has `mine === seq` false, won't reset detailLoading for us,
-    // must write unconditionally here.
+    // 评审必修(I1):同 loadDetail(null)分支的理由——seq 已推进,在途请求的 finally
+    // 里 `mine === seq` 必然为 false,不会替我们把 detailLoading 复位,这里必须无条件写。
     detailLoading.value = false
   }
 
-  // Following Vue2 setCover :537-548. On success, optimistically rewrite in two places:
-  // detail and the matched item in places' coverAssetId, avoid making another listPlaces
-  // just to sync one thumbnail. Failure rethrows (view layer handles toast), not swallowed.
+  // 照 Vue2 setCover :537-548。成功后乐观回写两处:detail 与 places 里命中项的 coverAssetId,
+  // 避免为了同步一份缩略图再打一次 listPlaces。失败 rethrow(视图层负责 toast),不吞。
   async function setPlaceCover(id: string, assetId: string | number): Promise<void> {
     if (coverBusy.value) return
     coverBusy.value = true
@@ -295,7 +281,7 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Following Vue2 resetCover :549-560. Rewrite to empty string in both places, rest same as above.
+  // 照 Vue2 resetCover :549-560。两处回写为空串,其余同上。
   async function resetPlaceCover(id: string): Promise<void> {
     if (coverBusy.value) return
     coverBusy.value = true
@@ -313,12 +299,10 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Deviation note: Vue2 saveSpotName :495-516 is "change dialog.spot.name locally, then
-  // loadDetail to refetch entire detail, then re-find the same spot by key in new detail
-  // and point dialog back to it". New-UI leaves "whether to refetch, how to re-anchor
-  // dialog focus after refetch" view-interaction decisions to P6b's view layer. Store only
-  // does minimal, deterministic local rewrite: change only the name of the key-matched item
-  // in detail.spots, don't refetch detail.
+  // 偏离登记:Vue2 saveSpotName :495-516 是"先本地改 dialog.spot.name + 再整体 loadDetail
+  // 重拉 + 再按 key 从新详情里把 dialog 指回同一个 spot"。New-UI 把"要不要重拉、重拉后
+  // 怎么把弹层焦点找回来"这类视图交互决策留给 P6b 的视图层,store 只做最小、确定性的本地
+  // 回写:只改 detail.spots 里 key 命中的那一项的 name,不重拉详情。
   async function setSpotName(id: string, spotKey: string, name: string): Promise<void> {
     if (spotBusy.value) return
     spotBusy.value = true
@@ -339,16 +323,14 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // D8: restore default spot name. Deliberately uses two different success-path handling
-  // strategies alongside setSpotName — not an omission, but the unique correct approach
-  // for each input type:
-  //   · setSpotName when renaming: new name is **passed by the caller**, frontend knows it,
-  //     local rewrite suffices. Re-fetching detail is just an extra request.
-  //   · resetSpotName when restoring default: new name (backend-computed default display name)
-  //     is something frontend **cannot compute** — no local data can derive it, only way to
-  //     get the new value is refetching detail.
-  // If a future developer "unifies" these into one rewrite strategy, either setSpotName
-  // does a pointless extra network request, or resetSpotName shows the wrong name (old or empty).
+  // D8:恢复默认 spot 名。与紧邻的 setSpotName 刻意走两条不同的成功后处理路径——不是
+  // 疏漏,是两种输入各自唯一正确的做法:
+  //   · setSpotName 改名时,新名字是**调用方传进来的**,前端已经知道,本地回写即可,
+  //     再重拉一次详情只是多打一次请求。
+  //   · resetSpotName 恢复默认时,新名字(后端算出来的默认展示名)前端**算不出来**——
+  //     没有任何本地数据能推导出它,唯一拿到新值的办法就是重新请求详情。
+  // 后人若把两者"统一"成同一种回写策略,要么 setSpotName 平白多一次网络请求,要么
+  // resetSpotName 展示的名字是错的(旧名或空)。
   async function resetSpotName(id: string, spotKey: string): Promise<void> {
     if (spotBusy.value) return
     spotBusy.value = true
@@ -364,13 +346,11 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Create album. Deliberately diverges from this repo's "entry short-circuit silent return"
-  // convention: this function **has a return value** (the newly created album object,
-  // caller uses it to navigate / show toast). Silent return would let a reentrant caller
-  // get undefined, conflating it with "actually succeeded but couldn't get the album".
-  // Change to: when busy, directly reject with an Error whose message is fixed at 'albumBusy' —
-  // caller (T8) uses this message to distinguish "blocked reentry, don't show error toast"
-  // from "real failure, show it", rather than swallowing / faking a result.
+  // 建相册。与本仓「入口短路静默 return」的惯例刻意不同:本函数**有返回值**(新建的
+  // 相册对象,调用方要用它跳转/展示 toast),静默 return 会让重入的调用方拿到
+  // undefined,和"真的建成功但拿不到相册"混为一谈。改成忙时直接 reject 一个
+  // message 固定为 'albumBusy' 的 Error——调用方(T8)靠这条 message 区分「这是被
+  // 挡下的重入,别弹错误 toast」还是「这是真失败,该弹」,而不是吞掉/伪造一个结果。
   async function createPlaceAlbum(
     id: string,
     opts: { name: string, from?: string, to?: string },
@@ -393,13 +373,11 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     }
   }
 
-  // Following Vue2 loadCoverCandidates :522-536. This copies Vue2's "clear on failure",
-  // deliberately different from fetchPlaces' "retain old data on failure": fetchPlaces is
-  // primary data (place list), a network hiccup shouldn't erase data the user is already
-  // viewing. This is a one-shot query result inside the cover-picker dialog; the dialog
-  // refetches on every open / pagination / search. Keeping the previous search's candidates
-  // after failure would mislead the user into thinking the query succeeded. This is not
-  // inconsistent omission — two correct strategies due to different data lifespans.
+  // 照 Vue2 loadCoverCandidates :522-536。这条照搬 Vue2 的"失败清空",与 fetchPlaces 的
+  // "失败保留旧数据"口径刻意不同:fetchPlaces 是主数据(地点列表),一次网络抖动不该抹掉
+  // 用户已经在看的数据;这里是封面选择弹层内的一次性查询结果,弹层每次打开/翻页/搜索都会
+  // 重新查询,失败后留着上一次搜索的候选项反而会误导用户以为查询成功了。两者不是不一致的
+  // 疏漏,是数据生命周期不同导致的两种正确策略。
   async function fetchCoverCandidates(
     id: string,
     opts: { tab?: string, q?: string, page?: number } = {},
@@ -408,35 +386,60 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     try {
       const key = resolvePlaceKey(id) as string
       const raw = await service.photos.placeCoverCandidates(key, opts)
-      if (mine !== coverSeq) return // stale response, discard (success path)
+      if (mine !== coverSeq) return // 过期响应,丢弃(成功路径)
       coverCandidates.value = toCoverCandidates(raw)
     } catch (e) {
-      if (mine !== coverSeq) return // stale response, discard (catch path — Vue2 :522-536 has no this check)
+      if (mine !== coverSeq) return // 过期响应,丢弃(catch 路径——Vue2 :522-536 没有这层判断)
       console.error('[photos-places] fetchCoverCandidates', e)
       coverCandidates.value = { ...EMPTY_COVER_CANDIDATES }
     }
   }
 
+  // Task 5 (Plan E #106 perf architecture port, 2026-08-15): 250ms debounce + flush-on-unmount,
+  // ported
+  // from Vue2 NimoOS-UI PR #106's own perf sub-commit (git show 78cf3335) persistTheme()/
+  // writeThemeNow()/beforeDestroy(). localStorage.setItem is synchronous, and dragging the
+  // custom-colour picker fires an `input` event (and, before this task, a synchronous
+  // setCustomColors() → persistTheme() call) per mouse-move — writing to disk on every one of
+  // those stutters the drag. Only the *disk write* is debounced; `themePrefs.value` itself is
+  // still assigned synchronously in setMapTheme/setCustomColors below, so every other reactive
+  // consumer (PlacesMap's themeVars, PlacesThemeMenu's own selection prop, etc.) sees the new
+  // value immediately — only the localStorage.setItem call is coalesced.
+  let persistThemeTimer: ReturnType<typeof setTimeout> | null = null
+  function writeThemeNow(): void {
+    persistThemeTimer = null
+    try { localStorage.setItem(LS_THEME, JSON.stringify(themePrefs.value)) } catch { /* 忽略写入失败 */ }
+  }
   function persistTheme(): void {
-    try { localStorage.setItem(LS_THEME, JSON.stringify(themePrefs.value)) } catch { /* ignore write failure */ }
+    if (persistThemeTimer !== null) clearTimeout(persistThemeTimer)
+    persistThemeTimer = setTimeout(writeThemeNow, 250)
+  }
+  // Equivalent of Vue2's beforeDestroy (:393-397): flushes the last not-yet-persisted colour pick
+  // when the view unmounts — can't rely on the browser staying open until the user reopens the
+  // page. The caller is PhotosPlaces.vue's onUnmounted. Also called by __resetForTest itself
+  // (below), to keep a leftover timer from an already-reset old store instance from firing later
+  // during some other test and writing a themePrefs snapshot that doesn't belong to that test.
+  function flushThemePersist(): void {
+    if (persistThemeTimer !== null) {
+      clearTimeout(persistThemeTimer)
+      writeThemeNow()
+    }
   }
   function setMapTheme(theme: string): void {
     themePrefs.value = { ...themePrefs.value, mapTheme: theme }
     persistTheme()
   }
-  // Following Vue2 template :940/:944 `@input="mapTheme = 'custom'"`: picking custom
-  // colors counts as switching to custom theme.
-  function setCustomColors(dotColor: string, gridColor: string): void {
-    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customGridColor: gridColor }
+  // 照 Vue2 模板 :940/:944 的 `@input="mapTheme = 'custom'"`:挑自定义色即视为切到 custom 主题。
+  function setCustomColors(dotColor: string, cityColor: string): void {
+    themePrefs.value = { ...themePrefs.value, mapTheme: 'custom', customDotColor: dotColor, customCityColor: cityColor }
     persistTheme()
   }
 
   function persistRailCollapsed(): void {
-    try { localStorage.setItem(LS_RAIL_COLLAPSED, JSON.stringify(railCollapsed.value)) } catch { /* ignore write failure */ }
+    try { localStorage.setItem(LS_RAIL_COLLAPSED, JSON.stringify(railCollapsed.value)) } catch { /* 忽略写入失败 */ }
   }
-  // Following Vue2 toggleRegionFold :392-399. This is the "collapse a continent region" toggle
-  // in the album-list sidebar, distinct from map-level continent filtering (toggleRegion, not
-  // part of this store).
+  // 照 Vue2 toggleRegionFold :392-399。这是相册列表侧栏里"折叠某大洲分组"的开关,
+  // 与地图上的大洲筛选(toggleRegion,不属于本 store)是两回事。
   function toggleRegionFold(rId: string): void {
     const idx = railCollapsed.value.indexOf(rId)
     railCollapsed.value = idx === -1
@@ -444,8 +447,8 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
       : railCollapsed.value.filter((_, i) => i !== idx)
     persistRailCollapsed()
   }
-  // Following Vue2 isRegionCollapsed :386-389: search state overrides collapse — when there's
-  // a search query, never collapse, ensuring matched places are never hidden in a collapsed group.
+  // 照 Vue2 isRegionCollapsed :386-389:搜索态压过折叠——有搜索词时一律不折叠,
+  // 保证匹配到的地点绝不会被藏在一个已折叠的分组里看不见。
   function isRegionCollapsed(rId: string, searchActive: boolean): boolean {
     if (searchActive) return false
     return railCollapsed.value.includes(rId)
@@ -459,19 +462,23 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     loading.value = false
     detail.value = null
     detailLoading.value = false
-    // Intentionally not resetting seq: if a loadDetail request sent before __resetForTest
-    // is still in flight, resetting seq back to 0 would make the next loadDetail after reset
-    // land on the same mine value, creating an alias collision with the old request that
-    // should be discarded (same reason as people.ts __resetForTest). seq only increases, never
-    // decreases, naturally guaranteeing any new request's mine value is strictly greater than
-    // all previously sent requests.
+    // 有意不重置 seq:若此刻还有一个 __resetForTest 之前发出的 loadDetail 请求仍在途,
+    // 把 seq 拨回 0 会让"重置后的下一次 loadDetail"重新落在同一个 mine 值上,与那个
+    // 本该作废的旧请求产生别名冲突——旧响应回来时的 `mine !== seq` 判断会被绕过。
+    // seq 只增不减,天然保证任何新请求的 mine 值都严格大于此前所有已发出的请求。
     coverCandidates.value = { ...EMPTY_COVER_CANDIDATES }
     coverBusy.value = false
     spotBusy.value = false
     albumBusy.value = false
-    // Intentionally not resetting coverSeq: reason same as seq comment above — reset would let
-    // the next fetchCoverCandidates after reset land on the same mine value, creating alias
-    // collision with in-flight old request from before reset.
+    // 有意不重置 coverSeq:理由同上面 seq 的注释——重置会让重置后的下一次
+    // fetchCoverCandidates 落在同一个 mine 值上,与重置前仍在途的旧请求产生别名冲突。
+    // Task 5: flush any not-yet-persisted debounced write before resetting — without this, if the
+    // previous test/caller just called setMapTheme/setCustomColors and immediately called
+    // __resetForTest (without waiting the 250ms), the readThemePrefs() call below would read the
+    // stale pre-flush localStorage content rather than "the last value written before the reset"
+    // (an invariant places.test.ts's own __resetForTest case pins down). This also keeps the
+    // about-to-be-discarded store instance from leaving behind a still-ticking timer.
+    flushThemePersist()
     themePrefs.value = readThemePrefs()
     railCollapsed.value = readRailCollapsed()
   }
@@ -483,6 +490,7 @@ export const usePhotosPlaces = defineStore('photosPlaces', () => {
     fetchPlaces, loadDetail, clearDetail,
     setPlaceCover, resetPlaceCover, setSpotName, resetSpotName, createPlaceAlbum, fetchCoverCandidates,
     setMapTheme, setCustomColors, toggleRegionFold, isRegionCollapsed,
+    flushThemePersist,
     __resetForTest,
   }
 })

@@ -50,9 +50,14 @@ const MIN_Z = 100
 // Each entry: [selector text as it appears in source, files it may be declared in]. Matches the
 // sweep table in acceptance-fix-report.md §F8-r2 exactly -- every sibling-of-`.app` overlay this
 // plan's own pages render.
+// Plan F Task 5: the ".lightbox (component-scoped)" entry that used to live here is retired --
+// PhotoLightbox.vue's own local `.lightbox { ... }` rule (position:fixed + z-index:200) was
+// deleted once the lightbox actually nests inside `.photos-root` (byte-duplicate of the very
+// ".lightbox (parity)" entry below; see PhotoLightbox.vue's scoped-style retirement note). The
+// ">= 100" floor this whole guard protects is unaffected -- parity's own copy still carries it,
+// and it's the only copy left to carry it.
 const OVERLAYS: Array<{ name: string; selector: string; files: string[] }> = [
   { name: '.lightbox (parity)', selector: '.photos-root .lightbox {', files: ['photos/styles/vue2-parity/photos.scss'] },
-  { name: '.lightbox (component-scoped)', selector: '.lightbox {', files: ['photos/lightbox/PhotoLightbox.vue'] },
   { name: '.lb-confirm-scrim', selector: '.photos-root .lb-confirm-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },
   { name: '.sv-modal-scrim', selector: '.photos-root .sv-modal-scrim {', files: ['photos/styles/vue2-parity/photos-smartview.scss'] },
   { name: '.albums-modal-scrim', selector: '.photos-root .albums-modal-scrim {', files: ['photos/styles/vue2-parity/photos.scss'] },

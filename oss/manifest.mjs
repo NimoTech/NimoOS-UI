@@ -140,8 +140,11 @@ export const DELETE = [
   'src/views/__tests__/PhotosMomentDetail.selectionHighlight.test.ts',
   'src/views/__tests__/PhotosPeople.test.ts',
   'src/views/__tests__/PhotosPersonDetail.test.ts',
+  'src/views/__tests__/PhotosPlaceAssets.lightbox.test.ts',
   'src/views/__tests__/PhotosPlaceAssets.test.ts',
+  'src/views/__tests__/PhotosPlaces.lightbox.test.ts',
   'src/views/__tests__/PhotosPlaces.test.ts',
+  'src/views/__tests__/PhotosSearch.lightbox.test.ts',
   'src/views/__tests__/PhotosSearch.test.ts',
   'src/views/__tests__/PhotosSettings.test.ts',
   'src/views/__tests__/PhotosSmartViewDetail.test.ts',
@@ -874,29 +877,31 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-thumb-active: rgba(138, 180, 255, 0.18);
 `,
     replace: '' },
-  // --pin-* 六色 + --pin-cluster-stroke(PlacesMap 图钉)
+  // --pin-* retirement note (PlacesMap 图钉,Fix-5 P6a overturned)
+  // Fix-5 (owner acceptance, 2026-08-17): the seven --pin-* geo-pin token VALUES are long gone
+  // from theme.css (moved to photos.scss during an earlier task, then deleted entirely once
+  // PlacesMap.vue's own shadowing rules were fixed to let parity's already-correct purple rules
+  // govern), but the explanatory comment that used to sit above them is still here, still
+  // mentions "photo(s)" by name, and still needs stripping from the OSS export like every other
+  // Photos-only comment in this file -- re-anchored to that surviving comment's own current text
+  // (it was never updated off its original Review-I3 wording).
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) map pins -- an exact port of Vue2 photos-places.scss:366-411's
-     rgba(var(--accent-rgb), α). Vue2 explicitly marks --accent-rgb theme-invariant
-     (permanently 110,91,255), meaning these alpha layers don't change between the dark and
-     light app themes -- the pins sit on the map preset's own canvas (4 presets plus a
-     custom color, independent of the app theme's light/dark state; custom mode always has
-     a dark backdrop), so alpha can't be lowered to follow the app theme, or a "light app
-     theme + dark custom backdrop" combination would wash the pins out entirely. So both
-     theme blocks share identical alpha; only the RGB follows this repo's dark/light
-     --accent-rgb pair. */
-  --pin-bg: rgba(138, 180, 255, 0.16);
-  --pin-stroke: rgba(138, 180, 255, 0.55);
-  --pin-active-bg: rgba(138, 180, 255, 0.30);
-  --pin-pulse: rgba(138, 180, 255, 0.25);
-  --pin-cluster-hover-bg: rgba(138, 180, 255, 0.42);
-  --pin-glow: rgba(138, 180, 255, 0.7);
-  /* Vue2's original value is a pale-lilac rgba(196,184,255,0.85), lighter than accent, so
-     a cluster reads as "a group" rather than a single point; here the RGB is swapped for
-     this repo's --accent-text (169,198,255) -- its semantics are exactly "an
-     accent-derived hue that's lighter/more readable than accent", with the alpha an exact
-     port of the original 0.85. */
-  --pin-cluster-stroke: rgba(169, 198, 255, 0.85);
+    find: `  /* Review I3 (Plan E final-fix): the seven --pin-* geo-pin tokens that used to live here have
+     moved to \`src/photos/styles/vue2-parity/photos.scss\`'s \`.photos-root { }\`/
+     \`.photos-root.is-light { }\` blocks — see that file for the values and rationale. They were
+     following this app's *global* light/dark theme while the map canvas/dots they sit on top of
+     follow Photos' own *private* theme, a dual-signal split that made "global light + photos
+     dark" (the default for light-app users, since photos defaults to dark) render pins in the
+     wrong palette. Confirmed via \`/usr/bin/grep -rn 'pin-bg\\|pin-stroke\\|pin-active-bg\\|
+     pin-pulse\\|pin-cluster\\|pin-glow' src/\` that nothing outside Photos consumed these tokens,
+     so they were moved wholesale rather than left duplicated here. */
+`,
+    replace: '' },
+  // light:--pin-* retirement note
+  { path: 'src/styles/theme.css',
+    find: `  /* Fix-5: the seven --pin-* geo-pin tokens that used to be redefined here (blue-family
+     light-mode values) are removed — see the dark \`.photos-root\` block's own Fix-5 comment
+     above for the full rationale. */
 `,
     replace: '' },
   // --place-current-trip
@@ -931,19 +936,27 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
 `,
     replace: '' },
   // --map-dot-bg-fallback(PlacesMap 陆地点阵)
+  // Fix-5-adjacent note: Task 6 (Plan E, 2026-08-15, private-side only) bumped this literal
+  // from 0.10 to 0.30 (Vue2 PR #106's contrast raise) and rewrote the comment accordingly --
+  // this anchor tracks the current (0.30) private-side text, not the pre-Task-6 original.
   { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) land-dot-grid base color CSS fallback -- theme-invariant, same
-     value in both theme blocks. An exact port of Vue2 photos-places.scss:347's literal
-     rgba(255,255,255,0.10) (that view deliberately avoids the --ink/text-color family,
-     because this layer sits over the map preset's own dark canvas, independent of the
-     app theme). This can't be swapped for this repo's --fg-faint: dark theme's --fg-faint
-     is rgba(255,255,255,0.52) (0.52 vs 0.10 -- the land dot grid would brighten enough to
-     overpower --map-dot's visited-point markers), and light theme's --fg-faint is worse
-     still, an opaque warm neutral #9a958a (which turns into a solid tinted block when laid
-     over custom mode's plain dark map canvas) -- review I1 re-verified this failure path
-     is genuinely reachable (Vue2's two most common paths, :150/:137, both leave dotBg
-     null, i.e. both fall through to this CSS default -- not a rare branch). */
-  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+    find: `  /* PlacesMap.vue (P6a-T6) land-dot-lattice CSS fallback color — theme-invariant, same value in
+     both theme blocks. Task 6 (Plan E, 2026-08-15) updated the literal from
+     rgba(255,255,255,0.10) to 0.30: Vue2 PR #106 (git show 78cf3335) raised this contrast twice
+     (0.10→0.20→0.30); this had been left stuck at the pre-#106 initial value and is now brought
+     up to the final value, an exact reproduction of Vue2 photos-places.scss:349's literal
+     \`rgba(255,255,255,0.30)\` (this view deliberately doesn't route through the --ink/text-color
+     family here, since this layer sits over the map preset's own dark canvas, independent of the
+     app theme).
+     Can't substitute this repo's --fg-faint: the dark --fg-faint is rgba(255,255,255,0.52)
+     (0.52 vs 0.30 — the land-dot lattice would then be bright enough to wash out --map-dot's
+     already-visited dots, whose dark final value is 0.32; 0.30 vs 0.32 is a deliberately narrow
+     but still-perceptible gap, and 0.52 would swamp it instead), and the light --fg-faint is an
+     opaque warm grey #9a958a (which would turn into an opaque grey block over the custom mode's
+     solid-black map canvas) — review I1 confirmed by hands-on testing that this failure path is
+     actually reachable (Vue2 :150/:137, the two most common paths, both have dotBg === null,
+     i.e. both fall through to this CSS fallback — not a rare branch). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
 `,
     replace: '' },
   // --float-bg(PlacesZoomBar 浮动药丸底)
@@ -1062,27 +1075,6 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-thumb-active: rgba(59, 91, 219, 0.15);
 `,
     replace: '' },
-  // light:--pin-*
-  { path: 'src/styles/theme.css',
-    find: `  /* PlacesMap.vue (P6a-T6) map pins -- see the :root token of the same name's comment:
-     alpha is identical to :root's (theme-invariant, sits on the map preset's own canvas,
-     doesn't lower alpha to follow the app theme), RGB is swapped for this repo's light
-     theme --accent-rgb (59,91,219). */
-  --pin-bg: rgba(59, 91, 219, 0.16);
-  --pin-stroke: rgba(59, 91, 219, 0.55);
-  --pin-active-bg: rgba(59, 91, 219, 0.30);
-  --pin-pulse: rgba(59, 91, 219, 0.25);
-  --pin-cluster-hover-bg: rgba(59, 91, 219, 0.42);
-  --pin-glow: rgba(59, 91, 219, 0.7);
-`,
-    replace: '' },
-  // light:--pin-cluster-stroke
-  { path: 'src/styles/theme.css',
-    find: `  /* RGB is taken from this repo's light theme --accent-text (53,80,196), alpha is an
-     exact port of Vue2's original 0.85 (see the :root token of the same name's comment). */
-  --pin-cluster-stroke: rgba(53, 80, 196, 0.85);
-`,
-    replace: '' },
   // light:--place-current-trip
   { path: 'src/styles/theme.css',
     find: `  /* Same value in both themes, see the :root token of the same name's comment. */
@@ -1099,13 +1091,14 @@ onUnmounted(() => window.removeEventListener('keydown', onKey))
   --place-home-base: #c4b8ff;
 `,
     replace: '' },
-  // light:--map-dot-bg-fallback
+  // light:--map-dot-bg-fallback (Fix-5-adjacent: value/comment bumped to 0.30, see the dark
+  // entry's own note above)
   { path: 'src/styles/theme.css',
-    find: `  /* theme-invariant, same value in both theme blocks -- see the :root token of the same
-     name's comment (same reasoning as above for not using --fg-faint: light theme's
-     --fg-faint is an opaque warm neutral #9a958a, which would likewise turn into a solid
-     tinted block over the map canvas). */
-  --map-dot-bg-fallback: rgba(255, 255, 255, 0.10);
+    find: `  /* theme-invariant, same value in both theme blocks — see the :root token's own comment
+     (Task 6 updated the literal from 0.10 to 0.30; the reasoning against --fg-faint is the same
+     as there — light --fg-faint is an opaque warm grey #9a958a, which would likewise turn into
+     an opaque block over the map canvas). */
+  --map-dot-bg-fallback: rgba(255, 255, 255, 0.30);
 `,
     replace: '' },
   // light:--float-bg

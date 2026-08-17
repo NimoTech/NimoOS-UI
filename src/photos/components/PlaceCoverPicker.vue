@@ -1,31 +1,42 @@
 <script setup lang="ts">
-// P6b-T7: PlaceCoverPicker.vue — 'set cover' full-screen popover for the place detail panel
-// (tabs / search / 8-column candidate grid / pagination / restore default). Ported segment by
-// segment from Vue2 NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1253-1335 (template),
-// :296-312 (watch, activeId switch resets coverTab/coverSearch/coverPage — this reset is part of
-// container state management, handled by T8), :374-377 (coverTabLabel fallback chain),
-// :517-560 (loadCoverCandidates/setCover/resetCover, also in T8); styles from
-// photos-places.scss:1026-1184.
+// P6b-T7: PlaceCoverPicker.vue —— 地点详情面板的"设置封面"全屏弹层(标签页/搜索/
+// 8 列候选网格/分页/恢复默认)。逐段照 Vue2 NimoOS-UI
+// src/views/Photos/PhotosPlacesView.vue:1253-1335(模板)、:296-312(watch,activeId
+// 切换重置 coverTab/coverSearch/coverPage——该重置属于容器状态管理,归 T8)、
+// :374-377(coverTabLabel 回落链)、:517-560(loadCoverCandidates/setCover/resetCover,
+// 同样归 T8)移植;样式照 photos-places.scss:1026-1184。
 //
-// Pure component, no wiring: state and requests are in the container (T8); this component only
-// emits.
+// 纯组件,不接线:状态与请求都在容器(T8),本组件只 emit。
 //
-// Float layer spec (established precedent in this repo: PlacesFilterMenu.vue/PlacesThemeMenu.vue):
-// Escape uses document-level keydown, watch(open) attaches/removes, onUnmounted has fallback
-// cleanup; does not call stopPropagation/stopImmediatePropagation — this page has Filters and
-// map theme popovers active simultaneously; all three listen independently to the same document
-// keydown, and one Esc should reach all three and close them separately (T8 integration assertion).
-// Inside onDocKeydown there is only one early return outside of 'non-Escape direct return'
-// (P5-T10 bug form: two popovers share a single predicate function, miss the second branch,
-// causing Esc to close only one when both are open; this component doesn't share the predicate
-// function so it won't recur, but we still nail down the rule in code).
+// 浮层规范(本仓已确立先例 PlacesFilterMenu.vue/PlacesThemeMenu.vue):Esc 走
+// document 级 keydown,watch(open) 挂/摘,onUnmounted 兜底摘除;不调用
+// stopPropagation/stopImmediatePropagation——本页同时挂着 Filters、地图主题两个弹层,
+// 三者独立监听同一个 document keydown,一次 Esc 要让三个各自都收到、各自都关
+// (T8 集成断言)。onDocKeydown 内部除"非 Escape 直接 return"外没有第二条早退
+// (P5-T10 bug 形态:两个弹层共享一个判定函数、漏检第二个分支导致同开时 Esc 只关一个;
+// 本组件不共享判定函数,不会重现,但仍照铁律钉死写法)。
 //
-// z-index is at the same level (220) as the existing popover precedent in this repo,
-// PhotosPersonDetail.vue:1092 `.pd-scrim`; not using Vue2's places-cover-portal value of 1200
-// (which is Vue2's own hierarchy, not relevant to this repo).
+// Task 2 (Plan E, 2026-08-15): outer wrapper moved off the New-UI-only in-place
+// `.cp-scrim` invention onto Vue2's own body-portal semantics (PhotosPlacesView.vue
+// mounted()/beforeDestroy() appendChild/removeChild, :1338 class binding). `<Teleport
+// to="body">` replaces the manual appendChild/removeChild — behavior-equivalent
+// implementation detail, zero Vue2 code — and the teleported root now carries exactly
+// Vue2's own class combo `places-cover-portal photos-root ${themeClass} ${open ?
+// 'is-open' : ''}` (usePhotosTheme's themeClass; same PhotosToastHost.vue precedent for
+// re-applying `photos-root` to a portal host living outside the normal `.photos-root`
+// DOM ancestry). The z-index/backdrop/token choices this component's own `<style
+// scoped>` used to hand-roll (including the z-index-220 deviation this paragraph used to
+// document) are gone along with that whole style block — parity `photos-places.scss`'s
+// own `.places-cover-portal` family (z-index 1200, Vue2's own value) now governs 100% of
+// this component's visuals; the handful of true New-UI-only survivor rules (hover
+// feedback, busy-disabled states, two inline-Vue2-style-to-CSS-class conversions) were
+// folded into that same file's own "New-UI additions (Task 2 ...)" section.
+// `data-test="cp-scrim"` is kept as a bare test anchor even though the CSS class backing
+// it is now `places-cover-portal`, not the old New-UI-only `cp-scrim` name.
 import { onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
+import { usePhotosTheme } from '../composables/usePhotosTheme'
 import type { CoverCandidates } from '../stores/places'
 
 const props = defineProps<{
@@ -50,10 +61,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
+const { themeClass } = usePhotosTheme()
 
-// Tab label fallback chain (copied from Vue2 :374-377): first check photosPlacesCoverTab{Recent|Top|Fav|All}
-// (mapped by t.id), if not found fall back to t.label, if still not found fall back to t.id. Only
-// consumed here, not extracted to util.
+// 标签文案回落链(照搬 Vue2 :374-377):先查 photosPlacesCoverTab{Recent|Top|Fav|All}
+// (按 t.id 映射),没有则回落 t.label,再没有回落 t.id。只此一处消费,不进 util。
 const TAB_LABEL_KEYS: Record<string, string> = {
   recent: 'photosPlacesCoverTabRecent',
   top: 'photosPlacesCoverTabTop',
@@ -66,7 +77,7 @@ function coverTabLabel(tb: { id: string, label: string }): string {
   return tb.label || tb.id
 }
 
-// Copied from Vue2 :1284.
+// 照搬 Vue2 :1284。
 function tabCountText(count: number): string {
   return count > 999 ? `${Math.round(count / 100) / 10}k` : String(count)
 }
@@ -89,7 +100,7 @@ function onReset(): void {
   if (props.busy) return
   emit('reset')
 }
-// Clamping copied from Vue2 :1322/:1328.
+// 钳制照搬 Vue2 :1322/:1328。
 function onPrevPage(): void {
   emit('update:page', Math.max(0, props.page - 1))
 }
@@ -115,7 +126,11 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="open" class="cp-scrim" data-test="cp-scrim" @click.self="emit('close')">
+  <Teleport to="body">
+    <div
+      v-if="open" class="places-cover-portal photos-root is-open" :class="themeClass"
+      data-test="cp-scrim" @click.self="emit('close')"
+    >
     <div class="cp-shell" data-test="cp-shell">
       <div class="cp-head">
         <div class="cp-head-thumb">
@@ -141,8 +156,8 @@ onUnmounted(() => {
             :class="['cp-tab', { 'is-active': tab === tb.id }]"
             @click="onTabClick(tb.id)"
           >
-            <!-- Icon branches by t.icon (backend contract NimoOS-Photos service/places.go:756-759:
-                 four values clock/sparkles/star/grid); unknown values fall back to generic icon. -->
+            <!-- 图标按 t.icon 分支(后端契约 NimoOS-Photos service/places.go:756-759:
+                 clock/sparkles/star/grid 四值),未知值回落通用图标。 -->
             <svg
               v-if="tb.icon === 'clock'" data-test="cp-tab-ico-clock"
               viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
@@ -193,10 +208,9 @@ onUnmounted(() => {
             @click="onCellClick(assetId)"
           >
             <img :src="service.photos.thumbnailUrl(assetId, 'small')" alt="">
-            <!-- .cp-cell-check background is var(--accent) solid saturated, white checkmark on top —
-                 this is correct use of --on-accent (different from hero foreground color: that sits on
-                 photo + darkening gradient, always pinned to light + theme-exception; here the
-                 background is indeed pure accent). -->
+            <!-- .cp-cell-check 背景为 var(--accent) 饱和实底,白勾压在上面 ——
+                 这是 --on-accent 的正确用法(与 hero 前景色不同:那处压在照片+暗化
+                 渐变上,一律钉死浅色 + theme-exception;这里背景确为 accent 纯色)。 -->
             <span v-if="isCurrentCover(assetId)" class="cp-cell-check">
               <svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5L20 7" /></svg>
             </span>
@@ -222,242 +236,6 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-  </div>
+    </div>
+  </Teleport>
 </template>
-
-<style scoped>
-/* Token mapping (same as T3/T6 established table): --surface-1 → --popup-bg; --line → --card-border;
-   --text-1/2/3 → --fg/--fg-muted/--fg-subtle; Vue2's original three-tier transparent black
-   overlay (shallow/medium/deep opacity levels) → --chip-bg (normal soft bottom, shallow tier) and
-   --chip-bg-hi (hover / .is-active, medium and deep tiers merged into one — this repo only has two
-   chip tokens, no third tier added). */
-.cp-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 220;
-  background: var(--overlay-bg);
-  backdrop-filter: var(--overlay-blur);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-}
-/* P2 hard lesson: panel background must use --popup-bg, not --card-bg (nearly transparent in dark
-   theme shows through). */
-.cp-shell {
-  width: 900px;
-  max-width: 95vw;
-  height: 80vh;
-  background: var(--popup-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  box-shadow: var(--card-shadow-hi);
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  color: var(--fg);
-}
-.cp-head {
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--card-border);
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-.cp-head-thumb {
-  width: 56px;
-  height: 42px;
-  border-radius: 8px;
-  overflow: hidden;
-  flex-shrink: 0;
-  border: 2px solid var(--accent);
-  background: var(--chip-bg);
-}
-.cp-head-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.cp-head-info { flex: 1; min-width: 0; }
-.cp-head-title { font-size: 14.5px; font-weight: 600; color: var(--fg); line-height: 1.3; }
-.cp-head-sub { font-size: 11.5px; color: var(--fg-subtle); margin-top: 3px; }
-.cp-close-btn {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  cursor: pointer;
-}
-.cp-close-btn:hover { background: var(--chip-bg-hi); color: var(--fg); }
-.cp-tabs {
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  border-bottom: 1px solid var(--card-border);
-}
-.cp-tabs-group {
-  display: flex;
-  background: var(--chip-bg);
-  border-radius: 8px;
-  padding: 2px;
-  gap: 2px;
-}
-.cp-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 6px;
-  background: transparent;
-  border: 0;
-  color: var(--fg-subtle);
-  font: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  cursor: pointer;
-}
-/* New-UI addition (no Vue2 equivalent): .cp-tab base class adds a hover feedback, forming the
-   established 'base / variant' pair in this repo — the rule below is the same as
-   PlacesRail.vue :299-308. */
-.cp-tab:hover { background: var(--chip-bg-hi); }
-.cp-tab.is-active {
-  background: var(--chip-bg-hi);
-  color: var(--fg);
-}
-/* Base class hover rule (same as PlacesRail.vue :299-308): .cp-tab:hover and .cp-tab.is-active
-   have equal specificity ((0,2,0) vs (0,2,0)); without this dedicated hover rule, reversing the
-   source order would let base hover background take over the whole state. This selector's
-   specificity (0,3,0) is strictly higher than base hover, wins without depending on source order.
-   Test verification pins this (cssCascade.hoverBackgroundRules). */
-.cp-tab.is-active:hover { background: var(--chip-bg-hi); }
-.cp-tab .cp-tab-count { font-size: 10px; opacity: 0.55; font-variant-numeric: tabular-nums; }
-.cp-search {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 10px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 99px;
-  width: 220px;
-  margin-left: auto;
-}
-.cp-search-ic { color: var(--fg-subtle); flex-shrink: 0; }
-.cp-search input {
-  flex: 1;
-  background: transparent;
-  border: 0;
-  color: var(--fg);
-  font: inherit;
-  font-size: 11.5px;
-  outline: none;
-  min-width: 0;
-}
-.cp-search input::placeholder { color: var(--fg-subtle); }
-.cp-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 14px 20px;
-}
-.cp-empty {
-  padding: 60px 0;
-  text-align: center;
-  color: var(--fg-subtle);
-  font-size: 12.5px;
-}
-.cp-empty-text { margin-top: 12px; }
-.cp-grid {
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  gap: 8px;
-}
-/* Review decision (PlacesRail.vue D3 ruling): placeholder background before image loads changed to
-   --chip-bg (follows theme), not exact copy of Vue2's transparent — surface treatment is New-UI's
-   reshaping, consistent with the established technique in .rail-place .thumb. This tier also adds
-   hover/is-active backgrounds to .cp-cell to satisfy the hover cascade rule below. */
-.cp-cell {
-  aspect-ratio: 1;
-  padding: 0;
-  border: 2px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  overflow: hidden;
-  background: var(--chip-bg);
-  position: relative;
-  transition: transform .15s;
-}
-.cp-cell:hover { background: var(--chip-bg-hi); }
-.cp-cell.is-active { border-color: var(--accent); background: var(--chip-bg-hi); }
-/* Base class hover rule (same as .cp-tab.is-active:hover above and PlacesRail.vue :299-308):
-   .cp-cell:hover and .cp-cell.is-active have equal specificity; this dedicated :hover rule has
-   strictly higher specificity, does not depend on source order. Test verification pins this. */
-.cp-cell.is-active:hover { background: var(--chip-bg-hi); }
-.cp-cell:disabled { opacity: 0.5; cursor: not-allowed; }
-.cp-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.cp-cell-check {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 18px;
-  height: 18px;
-  border-radius: 99px;
-  background: var(--accent);
-  color: var(--on-accent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-foot {
-  padding: 12px 20px;
-  border-top: 1px solid var(--card-border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.cp-reset-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 30px;
-  padding: 0 12px;
-  border-radius: 7px;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  color: var(--fg-muted);
-  font: inherit;
-  font-size: 11.5px;
-  cursor: pointer;
-}
-.cp-reset-btn:hover:not(:disabled) { background: var(--chip-bg-hi); color: var(--fg); }
-.cp-reset-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.cp-foot-info {
-  flex: 1;
-  text-align: center;
-  font-size: 11.5px;
-  color: var(--fg-subtle);
-}
-.cp-pagers { display: inline-flex; gap: 4px; }
-.cp-pagers button {
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--chip-bg);
-  border: 1px solid var(--card-border);
-  color: var(--fg);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.cp-pagers button:hover:not(:disabled) { background: var(--chip-bg-hi); }
-.cp-pagers button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  color: var(--fg-subtle);
-}
-</style>

@@ -107,7 +107,13 @@ watch(() => props.index, () => {
 })
 
 onMounted(() => {
-  centerActiveThumb(false)
+  // Plan F Task 4 (Vue2 param alignment, see task-4-report.md's filmstrip param table): Vue2
+  // mounted() calls `centerActiveThumb()` with no argument -- i.e. the default `smooth = true`
+  // (Vue2 PhotosLightbox.vue mounted():279-282) -- so every lightbox open smooth-scrolls the
+  // strip to the active thumbnail. This previously passed `false` (instant) here with no
+  // documented reason; corrected to match (no arg = same default as the function signature
+  // above, `smooth = true`).
+  centerActiveThumb()
   stripEl.value?.addEventListener('wheel', onStripWheel, { passive: false })
 })
 onBeforeUnmount(() => {
@@ -124,7 +130,7 @@ onBeforeUnmount(() => {
       :key="p.id"
       ref="thumbEls"
       class="lb-thumb"
-      :class="{ active: i === index }"
+      :data-active="i === index"
       @click="onThumbClick(i)"
     >
       <img :src="thumbnailSrc(p.id)" alt="" loading="lazy" />
@@ -137,39 +143,34 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Plan F Task 5: `.lb-strip`'s `grid-area`/`display`/`gap`/`padding`/`background`/`border-top`/
+   `overflow-x` are retired -- Fix round 1 had already brought every one of these to byte-exact
+   parity values (parity photos.scss:648-654 `.photos-root .lb-strip`; `calc(50% - 28px)` is
+   `centerActiveThumb()`'s own load-bearing centering math, unchanged, just no longer duplicated
+   locally), so keeping the local copies was pure duplication once this component actually nests
+   inside `.photos-root` and the `--lb-chrome`/`--line` tokens resolve for real (their fallback
+   literals are dropped along with the rest -- see PhotoLightbox.vue's retirement note for why
+   duplicated properties, not just fallback literals, needed to go: this component's own scoped
+   style registers AFTER parity's stylesheet in every host page's import order, so a surviving
+   duplicate would keep outvoting parity on every tie). Only the two properties parity's own
+   `.lb-strip` doesn't declare survive: `overflow-y: hidden` and `scrollbar-width: none`
+   (Firefox's scrollbar-hiding property; parity's own `::-webkit-scrollbar` rule below only
+   covers WebKit). */
 .lb-strip {
-  display: flex;
-  gap: 8px;
-  padding: 10px 16px;
-  overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
 }
-.lb-strip::-webkit-scrollbar { display: none; }
+/* `::-webkit-scrollbar` retired -- parity's own `.photos-root .lb-strip::-webkit-scrollbar`
+   (`height: 0`) achieves the identical "no visible scrollbar" outcome by a different property;
+   no need for both. */
 
-.lb-thumb {
-  position: relative;
-  flex: none;
-  width: 64px;
-  height: 64px;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  border: 2px solid transparent;
-  opacity: 0.6;
-}
-.lb-thumb:hover { opacity: 0.85; }
-.lb-thumb.active {
-  border-color: var(--accent);
-  opacity: 1;
-}
-.lb-thumb img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  pointer-events: none;
-}
+/* Plan F Task 5: the whole `.lb-thumb` family (base/`:hover`/`[data-active="true"]`/`img`) is
+   retired -- parity's own `.photos-root .lb-thumb` family (photos.scss:656-684) is a full,
+   richer replacement (56px thumbs, not 64px -- `.lb-strip`'s `calc(50% - 28px)` centering math
+   above assumes parity's own 56px/2=28px, so the local 64px size was already stale the moment
+   Fix round 1 byte-matched the strip's own padding; an outline+scale-pop active state instead of
+   a border-color swap; `will-change`/richer transitions). Nothing here survives that parity
+   doesn't already implement more completely. */
 
 .thumb-vid {
   position: absolute;

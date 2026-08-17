@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
@@ -23,6 +23,7 @@ vi.mock('../../composables/useMessageBus', () => ({
 }))
 
 import Photos from '../Photos.vue'
+import PhotosFilterBar from '../../photos/components/PhotosFilterBar.vue'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { usePhotosFavorites } from '../../photos/stores/favorites'
 import { router as appRouter } from '../../router'
@@ -69,6 +70,35 @@ describe('/photos route', () => {
     router.push('/photos'); await router.isReady()
     const w = mount(Photos, { global: { plugins: [i18n, router] } })
     expect(fav.reconcileFavIds).toHaveBeenCalledTimes(1)
+    w.unmount()
+  })
+
+  // Fix-1 item 4 (owner acceptance, 2026-08-16): PlaceDetailPanel.vue's "Open in Library"/
+  // spot "View in Library" jumps now land here with `?libraryPlace=<city>` — this file must
+  // seed the existing `places` EXIF facet from it once on mount, then strip the query key so
+  // a later bare reload doesn't silently resurrect a filter the user may have since cleared.
+  it('?libraryPlace=<city> → 一次性写入 PhotosFilterBar 的 places 筛选,并清掉该 query 键', async () => {
+    const router = makeRouter()
+    router.push('/photos?libraryPlace=Las%20Vegas')
+    await router.isReady()
+    const w = mount(Photos, { global: { plugins: [i18n, router] } })
+    // store.loading gates the toolbar/FilterBar's own v-else branch — flush the real
+    // fetchTimeline() call (onMounted) to completion so it actually renders.
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.findComponent(PhotosFilterBar).props('filter')).toEqual({ years: [], places: ['Las Vegas'], cameras: [] })
+    expect(router.currentRoute.value.query.libraryPlace).toBeUndefined()
+    w.unmount()
+  })
+
+  it('没有 ?libraryPlace= → places 筛选保持空(不无中生有)', async () => {
+    const router = makeRouter()
+    router.push('/photos')
+    await router.isReady()
+    const w = mount(Photos, { global: { plugins: [i18n, router] } })
+    await flushPromises()
+    await w.vm.$nextTick()
+    expect(w.findComponent(PhotosFilterBar).props('filter')).toEqual({ years: [], places: [], cameras: [] })
     w.unmount()
   })
 })

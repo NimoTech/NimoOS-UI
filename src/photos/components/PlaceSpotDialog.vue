@@ -1,36 +1,30 @@
 <script setup lang="ts">
-// P6b-T4: PlaceSpotDialog.vue — "photo spot" dialog inside the place-detail panel. Note it's not
-// a floating layer (no Esc-document listener, no overlay) — it's an embedded card at the top of
-// PlaceDetailPanel.vue `.detail-body`; mount/unmount controlled by the host based on whether
-// activeSpotKey hits the spots list. Ported segment-by-segment from Vue2 NimoOS-UI
-// src/views/Photos/PhotosPlacesView.vue:1109-1150 (template), :290-303 (watch(spotDialog) exit
-// edit mode), :486-516 (startSpotRename/saveSpotName nextTick focus + trim); styles from
-// photos-places.scss:620-654.
+// P6b-T4: PlaceSpotDialog.vue —— 地点详情面板里的「拍摄点」弹窗。注意它不是浮层
+// (无 Esc-document 监听/无遮罩)——是 PlaceDetailPanel.vue `.detail-body` 顶部的一张
+// 内嵌卡片,挂载/卸载由容器据 activeSpotKey 是否命中 spots 列表来控制。逐段照 Vue2
+// NimoOS-UI src/views/Photos/PhotosPlacesView.vue:1109-1150(模板)、:290-303(watch(
+// spotDialog) 退出编辑态)、:486-516(startSpotRename/saveSpotName 的 nextTick focus +
+// trim)移植,样式照 photos-places.scss:620-654。
 //
-// Division of concerns: pure display + emit; does not touch store, does not make requests — host
-// responsible for actually calling store.setSpotName / store.resetSpotName and passing
-// store.spotBusy through as this component's busy prop.
+// 分工:纯展示 + emit,不碰 store、不发请求——容器负责真正调用 store.setSpotName /
+// store.resetSpotName,并把 store.spotBusy 透传成本组件的 busy prop。
 //
-// Deviation registration 7 (brief text): props.spot has no local copy — Vue2 triggers watch(
-// spotDialog) to exit edit mode via "reassigning this.spotDialog = { spot: fresh }" new object;
-// here no wrapper object, only bare spot prop, thus:
-//  · non-edit-mode name/coords/stats all read directly from props.spot.* — after successful
-//    rename, host passes new detail.spots down, immediately shows new value here, no extra
-//    signal needed.
-//  · edit-mode exit handled by two watches, neither does optimistic exit (not exit on "save
-//    click" action itself, only on "data from host actually changed"); "props.spot.key change"
-//    (pins Vue2 watch :303 semantics: switched to different spot) + "props.spot.name change"
-//    (review fix I2: pins Vue2 saveSpotName :495-516 visible behavior of immediate exit on
-//    success and keeping edit mode on failure — name truly rewritten by store to exit, on failure
-//    name unchanged, continues editing, does not lie).
+// 偏离登记 7(brief 原文):props.spot 不持本地副本——Vue2 靠"重新赋值 this.spotDialog
+// = { spot: fresh }"这个新对象来触发 watch(spotDialog) 顺带退出编辑态;这里没有那层
+// 包装对象,只有裸的 spot prop,所以：
+//  · 非编辑态的名字/坐标/统计一律直接读 props.spot.*——改名成功后父级把新
+//    detail.spots 传下来,这里立刻显示新值,不需要任何额外信号。
+//  · 编辑态的退出由两条 watch 负责,都不做乐观退出(不在"点了保存"这个动作本身上退出,
+//    只在"父级传下来的数据真的变了"这件事上退出):"props.spot.key 变化"(钉 Vue2 watch
+//    :303 的语义:换了一个不同的 spot)+ "props.spot.name 变化"(评审修复 I2:钉 Vue2
+//    saveSpotName :495-516 成功后立刻退出编辑态、失败保留编辑态的可见行为——name 真的
+//    被 store 回写了才退,失败时 name 不变、继续编辑,不会撒谎)。
 //
-// Deviation registration 16 (user decision 2026-07-31 pre-flight; brief text): coordinate line
-// no longer copies Vue2's hard-coded `° N`/`° E` (south/west hemisphere displays wrong direction);
-// changed to use T2's formatSpotCoords to output N/S/E/W by sign.
+// 偏离登记 16(用户 2026-07-31 pre-flight 裁定,brief 原文):坐标行不再照抄 Vue2 写死的
+// `° N`/`° E`(南/西半球会显示成错误方向),改用 T2 的 formatSpotCoords 按符号出 N/S/E/W。
 //
-// D8 (user-authorized new addition, net-new — Vue2 has no button/capability at all, only service-
-// layer resetSpotName with zero call sites in the entire repo): "Reset to default name" button,
-// see .spot-dialog-reset below.
+// D8(用户授权新增,net-new——Vue2 完全没有这颗按钮/这条能力,只有服务层 resetSpotName
+// 全仓零调用点):「恢复默认名」按钮,见下面 .spot-dialog-reset。
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { service } from '@nimotech/nimoos-service'
@@ -56,32 +50,30 @@ const editing = ref(false)
 const draftName = ref('')
 const inputRef = ref<HTMLInputElement | null>(null)
 
-// Copy Vue2 watch :303 (`spotDialog() { this.spotEditing = false }`) — that watch triggers on
-// "entire spotDialog object reassigned" in Vue2, covering both "opened different spot" and "after
-// successful rename, loadDetail reconstructed new object with same key". Here no wrapper object,
-// only pin "switched to different spot" (see deviation registration 7 at file head).
+// 照 Vue2 watch :303(`spotDialog() { this.spotEditing = false }`)——那条 watch 在
+// Vue2 里靠"整个 spotDialog 对象被重新赋值"触发,既覆盖"打开了另一个 spot"也覆盖
+// "改名成功后 loadDetail 重建了同 key 的新对象"。这里没有包装对象,只钉住"换了一个
+// 不同的 spot"这一种情形(见文件头偏离登记 7)。
 watch(
   () => props.spot.key,
   () => { editing.value = false },
 )
 
-// Review fix I2 (fix round 1): source Vue2 saveSpotName :495-516 — immediately `spotEditing =
-// false` after `await` success; only on failure (empty catch block, explicitly "keep editing open
-// on failure") does edit mode persist. Here no visibility into network request (container/store
-// knows success/failure), but can't have no exit path on success — reroute to real data: on
-// setSpotName success, store rewrites detail.spots matched item's name in-place; on resetSpotName
-// success, store does `await loadDetail` to re-fetch; both paths make host-passed spot.name
-// change; on failure name unchanged, edit mode persists. Semantics equivalent to Vue2's visible
-// behavior, and doesn't lie on failure. Known edge case (review accepted, no handling): draft
-// becomes identical to current name, then save; name unchanged, edit mode doesn't exit (Vue2
-// would exit — it unconditionally sets spotEditing=false on submit, regardless of actual change).
+// 评审修复 I2(fix round 1):回源 Vue2 saveSpotName :495-516 —— `await` 成功后立刻
+// `spotEditing = false`,只有失败(catch 块空着,显式"keep editing open on failure")
+// 才保留编辑态。这里没有那次网络请求的可见性(容器/store 才知道成不成功),但不能因此
+// 完全没有成功退出路径——改接到真实数据上:setSpotName 成功后 store 会就地回写
+// detail.spots 命中项的 name、resetSpotName 成功后 store 会 await loadDetail 重拉,
+// 两条路径都会让父级传下来的 spot.name 变化;失败时 name 不变,继续保持编辑态。
+// 语义等价 Vue2 的可见行为,且不会在失败时撒谎。
+// 已知边角(评审已认可,不做处理):草稿改成与当前名完全相同再保存,name 不变,编辑态
+// 不退(Vue2 会退——它提交时无条件设 spotEditing=false,不区分是否真的变了)。
 watch(
   () => props.spot.name,
   () => { editing.value = false },
 )
 
-// Copy Vue2 startSpotRename :486-494: draft initial value = current name, focus input after
-// nextTick.
+// 照 Vue2 startSpotRename :486-494:草稿初值 = 当前名,nextTick 后 focus 输入框。
 function startRename(): void {
   draftName.value = props.spot.name
   editing.value = true
@@ -94,15 +86,13 @@ function cancelRename(): void {
 
 const canSubmitRename = computed(() => draftName.value.trim().length > 0 && !props.busy)
 
-// Copy Vue2 saveSpotName :495-496 trim; whether to actually call backend decided after host
-// receives rename event.
+// 照 Vue2 saveSpotName :495-496 的 trim;是否真正调用后端由容器接住 rename 事件后决定。
 function submitRename(): void {
   if (!canSubmitRename.value) return
   emit('rename', draftName.value.trim())
 }
 
-// Deviation registration 16: entire line doesn't render if formatSpotCoords returns empty string
-// (NaN/invalid value → '').
+// 偏离登记 16:整行不渲染由 formatSpotCoords 返回空串驱动(NaN/非法值 → '')。
 const coordsText = computed(() => formatSpotCoords(props.spot.lat, props.spot.lon))
 
 const thumbSrc = computed(() =>
@@ -118,10 +108,14 @@ function onThumbClick(): void {
 <template>
   <div class="spot-dialog">
     <div class="spot-dialog-head">
+      <!-- Fix-1 item 6 (2026-08-16): `--accent-text` (global theme.css token, only follows the
+           app-wide theme) swapped for `--accent-hi` — Vue2's own exact value here
+           (PhotosPlacesView.vue:1194, `<PhotosIcon name="map" :size="13" color="var(--accent-hi)"
+           />`), and already Photos-local/theme-invariant (photos.scss:31). -->
       <svg
         viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
         stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-        style="color: var(--accent-text); flex: none"
+        style="color: var(--accent-hi); flex: none"
       ><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z" /><path d="M9 4v14M15 6v14" /></svg>
       <div style="flex:1;min-width:0">
         <div v-if="!editing" class="spot-dialog-name">
@@ -148,8 +142,8 @@ function onThumbClick(): void {
           <button type="button" class="spot-rename-cancel" @click="cancelRename">
             {{ t('photosCancel') }}
           </button>
-          <!-- D8 (user-authorized new addition 2026-07-31, net-new — Vue2 has no button, only
-               service-layer resetSpotName with zero call sites): reset place to default name. -->
+          <!-- D8(用户 2026-07-31 授权新增,net-new——Vue2 无此按钮,只有服务层
+               resetSpotName 全仓零调用点):恢复地点默认名。 -->
           <button
             type="button" class="spot-dialog-reset" :disabled="busy"
             @click="emit('reset-name')"
@@ -186,97 +180,55 @@ function onThumbClick(): void {
 </template>
 
 <style scoped>
-/* Token mapping (Vue2 → New-UI; same as table in PlaceDetailPanel.vue file head §6): --text-1/2/3
-   → --fg/--fg-muted/--fg-subtle; --surface-2 → --chip-bg; --line → --card-border;
-   --r-sm → --radius-sm. */
-.spot-dialog {
-  margin-bottom: 16px;
-  padding: 14px;
-  background: var(--accent-soft);
-  /* This repo lacks --accent-rgb token: Vue2's border color (accent rgb value with 0.3 opacity)
-     replaced with this repo's established --accent-soft-bd (dark theme .36 / light theme .30,
-     both theme sets already defined). */
-  border: 1px solid var(--accent-soft-bd);
-  border-radius: 12px;
-}
-.spot-dialog-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-.spot-dialog-name { font-size: 13.5px; font-weight: 600; color: var(--fg); display: flex; align-items: center; gap: 6px; }
-/* Review fix I1 (fix round 1): Vue2 `.one-line` is global utility class (NimoOS-UI
-   src/assets/scss/common/_others.scss:55, -webkit-box + line-clamp:1 single-line ellipsis), but
-   each SFC here is scoped island with no corresponding global stylesheet — `.one-line` was an
-   ineffective shell class, long place names wrap/overflow and squeeze close button on right. Add
-   equivalent single-line ellipsis triple, same as existing precedent in files/viewers/ViewerShell
-   .vue `.one-line`(:47) (white-space:nowrap version; visual effect equivalent to Vue2's -webkit-
-   line-clamp:1, simpler syntax). Same root cause as T3's missing backdrop-filter: when rewriting
-   Vue2 inline/global styles to this repo's scoped pattern, easy to miss comparing line-by-line;
-   programmatic assertions see PlaceSpotDialog.test.ts. min-width:0 prerequisite for flex child
-   ellipsis to work (else flex item defaults to min-width:auto, expands instead of clipping). */
+/* Shadowing cleanup (Plan E Task 4, 2026-08-15): most of this file's former scoped rules have
+   been deleted — they duplicated `photos-places.scss:640-672` (`.spot-dialog` family) using
+   *global* New-UI tokens (`--accent-soft-bd`/`--on-accent`/`--accent-text`/`--fg`/`--chip-bg`/
+   `--card-border`) in place of the Photos-local ones (`--accent-rgb`/white literal/`--accent-hi`/
+   `--text-1`/`--surface-2`/`--line`) parity already declares correctly for these exact
+   selectors — same bug pattern as PlacesZoomBar.vue's 2026-08-15 fix (Task 3). `.icon-btn`
+   was a second, distinct bug: its own comment claimed "this SFC has no global `.icon-btn`
+   class to reach it", but `.photos-root .icon-btn` (photos.scss:256-265, 32x32) is a *plain,
+   unscoped* selector — it reaches this component's `<button class="icon-btn">` fine, same as
+   any global stylesheet does. The local 26px override was shadowing parity's correct 32x32
+   Vue2 value; deleted so parity governs. What survives below is only what has no parity
+   counterpart at all (Vue2 inline/global-utility-class origin, or genuine New-UI additions)
+   plus the two hover-lock rules PlaceSpotDialog.test.ts pins to this file's own raw source. */
+
+/* Vue2 `.one-line` is a *global* utility class (NimoOS-UI src/assets/scss/common/_others.scss:55,
+   -webkit-box + line-clamp:1) that this app's vue2-parity port never carries (out of this
+   spec's scope) — no parity selector exists for it, so this stays a genuine local addition.
+   Equivalent single-line ellipsis, white-space:nowrap variant (same precedent as
+   files/viewers/ViewerShell.vue's own `.one-line`:47). min-width:0 is required for the
+   ellipsis to actually clip inside a flex item (otherwise min-width:auto lets it overflow). */
 .spot-dialog-name .one-line {
   min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.spot-dialog-coords {
-  font-size: 11px; color: var(--fg-subtle);
-  /* This repo's monospace uses existing --num-font, does not copy Vue2's ui-monospace, SFMono-
-     Regular, monospace font stack. */
-  font-family: var(--num-font);
-  margin-top: 2px;
-}
-.spot-rename-btn {
-  flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border: none; border-radius: 6px;
-  background: transparent; color: var(--fg-subtle); cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.spot-rename-btn:hover { background: var(--chip-bg); color: var(--fg); }
-.spot-rename { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.spot-rename-input {
-  flex: 1; min-width: 0; height: 26px; padding: 0 8px;
-  /* M1 (review fix round 1, registered while here): Vue2's input border uses an accent semi-
-     transparent token with fallback value (literal fallback when token undefined; same semantic
-     "softer border than accent") — this repo already has exactly matching --accent-soft-bd, use
-     it directly, not just matching nearby color. */
-  border: 1px solid var(--accent-soft-bd);
-  border-radius: 6px; background: var(--chip-bg);
-  color: var(--fg); font: inherit; font-size: 12.5px; outline: none;
-}
-.spot-rename-input:focus { border-color: var(--accent); }
-.spot-rename-save, .spot-rename-cancel, .spot-dialog-reset {
+
+/* D8 net-new (user-authorized 2026-07-31): three buttons now share this row instead of Vue2's
+   two (save/cancel) — parity's `.spot-rename` only ever needed `display:flex;align-items:
+   center;gap:6px` (still governs those), but the third `.spot-dialog-reset` button can push
+   this row past its container width, so New-UI adds a wrap fallback with no Vue2 counterpart. */
+.spot-rename { flex-wrap: wrap; }
+
+/* D8 net-new: "restore default name" button — Vue2 has no such affordance (only a
+   zero-callsite service method), so there is no parity selector to fall back on; styled as a
+   ghost button matching `.spot-rename-cancel`'s geometry (parity :659-663).
+   Fix-1 item 6 (2026-08-16): `border`/`color` corrected from the global `--card-border`/
+   `--fg-muted` (only follow the app-wide theme) to local `--line`/`--text-2` (this file's
+   header comment already made the identical correction for every other selector in this
+   family — these two survivor rules were missed in that earlier pass). */
+.spot-dialog-reset {
   flex: none; height: 26px; padding: 0 10px; border-radius: 6px;
   font: inherit; font-size: 11.5px; font-weight: 500; cursor: pointer;
-  border: 1px solid var(--card-border); background: transparent; color: var(--fg-muted);
+  border: 1px solid var(--line); background: transparent; color: var(--text-2);
 }
-.spot-rename-save { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
-.spot-rename-save:disabled { opacity: 0.4; pointer-events: none; }
-.spot-rename-cancel:hover { color: var(--fg); }
-/* D8 (net-new): styling reuses .spot-rename-cancel ghost form, disabled with same handling when
-   busy. */
-.spot-dialog-reset:hover { color: var(--fg); }
+.spot-dialog-reset:hover { color: var(--text-1); }
 .spot-dialog-reset:disabled { opacity: 0.4; pointer-events: none; }
-.spot-dialog-stat { font-size: 11.5px; color: var(--fg-muted); margin-bottom: 10px; }
-.spot-dialog-stat b { color: var(--fg); font-weight: 600; }
-.spot-dialog-thumbs { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-bottom: 10px; }
-.spot-dialog-thumbs img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 4px; }
-.spot-dialog-btn {
-  width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
-  height: 32px; padding: 0 12px; border-radius: 8px;
-  background: var(--accent); border: 0; color: var(--on-accent);
-  font: inherit; font-size: 12px; font-weight: 500; cursor: pointer;
-}
-/* This repo lacks --accent-hi: hover uses this repo's established pattern (precedent
-   PhotosPersonDetail.vue:1142 .pd-btn-primary:hover). */
-.spot-dialog-btn:hover { background: var(--accent); filter: brightness(1.08); }
 
-/* New-UI added minimal geometry: Vue2's close button relies on global photos.scss
-   `.photos-root .icon-btn` (32x32; see that file :216-224); this component is standalone SFC
-   without that global class layer, define equivalent scoped version per this dialog's other button
-   scale (26px height), not inventing new style language. */
-.icon-btn {
-  flex: none;
-  width: 26px; height: 26px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border: none; border-radius: 6px;
-  background: transparent; color: var(--fg-subtle); cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.icon-btn:hover { background: var(--chip-bg); color: var(--fg); }
+/* Hover-lock survivors (PlaceSpotDialog.test.ts reads this file's own raw `<style>` text via
+   `winningHoverBackground`/regex — these two rules must exist here verbatim, parity coverage
+   of the same selectors is not visible to those assertions). Values corrected to match
+   Vue2/parity exactly (`--accent-hi`, Photos-local purple) instead of the former
+   `filter: brightness(1.08)` approximation. */
+.spot-dialog-btn:hover { background: var(--accent-hi); }
 </style>

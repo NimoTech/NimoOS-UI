@@ -1,7 +1,7 @@
-// P6b-T3: PlaceDetailPanel.vue — place detail panel shell + hero + three stats + two actions.
-// Maps 1:1 to task-3-brief.md "required test checklist", covers structure specs 1-7 and
-// 7 items in cut-code list. Pure display + emit, no store — only mocks @nimotech/nimoos-service's
-// thumbnailUrl (following existing mock technique in PlacesRail.test.ts / PersonHero.test.ts).
+// P6b-T3: PlaceDetailPanel.vue —— 地点详情面板外壳 + hero + 三统计 + 两动作。
+// 逐条对应 task-3-brief.md「必含测试清单」,覆盖结构规格 1-7 与删码清单 7 处。
+// 纯展示 + emit,不碰 store——只 mock @nimotech/nimoos-service 的 thumbnailUrl(照
+// PlacesRail.test.ts / PersonHero.test.ts 的既有 mock 手法)。
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createI18n } from 'vue-i18n'
@@ -16,9 +16,9 @@ vi.mock('@nimotech/nimoos-service', () => ({
 }))
 
 import PlaceDetailPanel from '../PlaceDetailPanel.vue'
-// Raw source text (Vite `?raw`): z-index invariant / hero foreground compliance / hover cascade
-// — all three assertion groups can only read raw <style> text (jsdom doesn't compute cascade,
-// can't enter real hover state, same precedent as ClusterActionDialog.test.ts / PlacesRail.test.ts).
+// 原始源码文本(Vite `?raw`):z-index 不变量 / hero 前景色合规 / hover 级联三组断言
+// 都只能读 <style> 原文判定(jsdom 不做级联样式计算,也进不了真实 hover 态,同
+// ClusterActionDialog.test.ts / PlacesRail.test.ts 的既有先例)。
 import placeDetailPanelRaw from '../PlaceDetailPanel.vue?raw'
 import { extractStyleBlock, hoverBackgroundRules, winningHoverBackground } from './cssCascade'
 
@@ -87,9 +87,9 @@ beforeEach(() => {
   thumbnailUrl.mockImplementation((id: string | number, size: string) => `mock://thumb/${id}/${size}`)
 })
 
-// ── Structure checklist (structure specs 1-4)────────────────────────────────────────────────
-describe('Structure checklist', () => {
-  it('Renders .detail-hero / .detail-hero img / .close / cover-set button', () => {
+// ── 结构清点(结构规格 1-4)────────────────────────────────────────────────
+describe('结构清点', () => {
+  it('渲染 .detail-hero / .detail-hero img / .close / 设置封面按钮', () => {
     const w = mountPanel()
     expect(w.find('.detail-hero').exists()).toBe(true)
     expect(w.find('.detail-hero img').exists()).toBe(true)
@@ -97,29 +97,29 @@ describe('Structure checklist', () => {
     expect(w.find('[data-test="cover-set-btn"]').exists()).toBe(true)
   })
 
-  it('Renders .ttl-region / .ttl-name / .ttl-sub', () => {
+  it('渲染 .ttl-region / .ttl-name / .ttl-sub', () => {
     const w = mountPanel()
     expect(w.find('.ttl-region').exists()).toBe(true)
     expect(w.find('.ttl-name').exists()).toBe(true)
     expect(w.find('.ttl-sub').exists()).toBe(true)
   })
 
-  it('Exactly 3 .detail-stat under .detail-stats', () => {
+  it('.detail-stats 下恰好 3 个 .detail-stat', () => {
     const w = mountPanel()
     expect(w.find('.detail-stats').exists()).toBe(true)
     expect(w.findAll('.detail-stats .detail-stat')).toHaveLength(3)
   })
 
-  it('Exactly 2 .btn under .detail-actions', () => {
+  it('.detail-actions 下恰好 2 个 .btn', () => {
     const w = mountPanel()
     expect(w.find('.detail-actions').exists()).toBe(true)
     expect(w.findAll('.detail-actions .btn')).toHaveLength(2)
   })
 })
 
-// ── currentHero priority (required test cases)───────────────────────────────────────────
-describe('currentHero priority', () => {
-  it('detail.coverAssetId has highest priority', () => {
+// ── currentHero 优先级(必含用例)───────────────────────────────────────────
+describe('currentHero 优先级', () => {
+  it('detail.coverAssetId 最高优先', () => {
     mountPanel({
       place: place({ coverAssetId: 'p-cover', thumbs: ['p-thumb'] }),
       detail: detail({ coverAssetId: 'd-cover', thumbs: ['d-thumb'] }),
@@ -127,7 +127,7 @@ describe('currentHero priority', () => {
     expect(thumbnailUrl).toHaveBeenCalledWith('d-cover', 'large')
   })
 
-  it('When detail.coverAssetId is empty, use detail.thumbs[0]', () => {
+  it('detail.coverAssetId 空时取 detail.thumbs[0]', () => {
     mountPanel({
       place: place({ coverAssetId: 'p-cover', thumbs: ['p-thumb'] }),
       detail: detail({ coverAssetId: '', thumbs: ['d-thumb'] }),
@@ -135,7 +135,7 @@ describe('currentHero priority', () => {
     expect(thumbnailUrl).toHaveBeenCalledWith('d-thumb', 'large')
   })
 
-  it('When detail has no thumbnails, use place.coverAssetId (list item fallback, deviation registry)', () => {
+  it('detail 全无缩略图时取 place.coverAssetId(列表项兜底,偏离登记)', () => {
     mountPanel({
       place: place({ coverAssetId: 'p-cover', thumbs: ['p-thumb'] }),
       detail: detail({ coverAssetId: '', thumbs: [] }),
@@ -143,44 +143,44 @@ describe('currentHero priority', () => {
     expect(thumbnailUrl).toHaveBeenCalledWith('p-cover', 'large')
   })
 
-  it('When detail is null, use place.coverAssetId', () => {
+  it('detail 为 null 时取 place.coverAssetId', () => {
     mountPanel({ place: place({ coverAssetId: 'p-cover', thumbs: ['p-thumb'] }), detail: null })
     expect(thumbnailUrl).toHaveBeenCalledWith('p-cover', 'large')
   })
 
-  it('When place.coverAssetId is empty, use place.thumbs[0]', () => {
+  it('place.coverAssetId 空时取 place.thumbs[0]', () => {
     mountPanel({ place: place({ coverAssetId: '', thumbs: ['p-thumb'] }), detail: null })
     expect(thumbnailUrl).toHaveBeenCalledWith('p-thumb', 'large')
   })
 
-  it('When all empty, img is not rendered (no empty src request sent)', () => {
+  it('全空时 img 不渲染(不发空 src 请求)', () => {
     const w = mountPanel({ place: place({ coverAssetId: '', thumbs: [] }), detail: null })
     expect(w.find('.detail-hero img').exists()).toBe(false)
     expect(thumbnailUrl).not.toHaveBeenCalled()
   })
 })
 
-// ── hero interaction ───────────────────────────────────────────────────────────
-describe('hero and button interaction', () => {
-  it('Click hero → open-photo with (currentHero, [currentHero])(D9)', async () => {
+// ── hero 交互 ───────────────────────────────────────────────────────────
+describe('hero 与按钮交互', () => {
+  it('点 hero → open-photo 带 (currentHero, [currentHero])(D9)', async () => {
     const w = mountPanel({ place: place({ coverAssetId: 'p-cover' }), detail: null })
     await w.find('.detail-hero img').trigger('click')
     expect(w.emitted('open-photo')).toEqual([['p-cover', ['p-cover']]])
   })
 
-  it('Click .close → close', async () => {
+  it('点 .close → close', async () => {
     const w = mountPanel()
     await w.find('.close').trigger('click')
     expect(w.emitted('close')).toHaveLength(1)
   })
 
-  it('Click cover-set button → open-cover-picker', async () => {
+  it('点设置封面按钮 → open-cover-picker', async () => {
     const w = mountPanel()
     await w.find('[data-test="cover-set-btn"]').trigger('click')
     expect(w.emitted('open-cover-picker')).toHaveLength(1)
   })
 
-  it('Click two action buttons → open-library / save-album', async () => {
+  it('点两个动作按钮 → open-library / save-album', async () => {
     const w = mountPanel()
     const btns = w.findAll('.detail-actions .btn')
     await btns[0].trigger('click')
@@ -190,52 +190,52 @@ describe('hero and button interaction', () => {
   })
 })
 
-// ── "current trip" marker same-name-field trap guard ───────────────────────────────────────
-describe('"current trip" marker triggered only by place.recent === true', () => {
-  it('place.recent=true + detail.recent=[] → appears', () => {
+// ── 「本次旅行」同名字段陷阱主守卫 ───────────────────────────────────────
+describe('「本次旅行」标记只由 place.recent === true 触发', () => {
+  it('place.recent=true + detail.recent=[] → 出现', () => {
     const w = mountPanel({ place: place({ recent: true }), detail: detail({ recent: [] }) })
     expect(w.find('[data-test="ttl-current-trip"]').exists()).toBe(true)
   })
 
-  it('place.recent=false + detail.recent=["a","b"](array truthy) → does not appear', () => {
+  it('place.recent=false + detail.recent=["a","b"](数组真值)→ 不出现', () => {
     const w = mountPanel({ place: place({ recent: false }), detail: detail({ recent: ['a', 'b'] }) })
     expect(w.find('[data-test="ttl-current-trip"]').exists()).toBe(false)
   })
 })
 
-// ── "home base" marker ───────────────────────────────────────────────────────
-describe('"home base" marker triggered by place.home (or detail.home)', () => {
-  it('place.home=true → appears', () => {
+// ── 「常驻地」标记 ───────────────────────────────────────────────────────
+describe('「常驻地」标记由 place.home(或 detail.home)触发', () => {
+  it('place.home=true → 出现', () => {
     const w = mountPanel({ place: place({ home: true }), detail: null })
     expect(w.find('[data-test="ttl-home-base"]').exists()).toBe(true)
   })
 
-  it('place.home=false but detail.home=true → appears', () => {
+  it('place.home=false 但 detail.home=true → 出现', () => {
     const w = mountPanel({ place: place({ home: false }), detail: detail({ home: true }) })
     expect(w.find('[data-test="ttl-home-base"]').exists()).toBe(true)
   })
 
-  it('Both false → does not appear', () => {
+  it('两者皆 false → 不出现', () => {
     const w = mountPanel({ place: place({ home: false }), detail: detail({ home: false }) })
     expect(w.find('[data-test="ttl-home-base"]').exists()).toBe(false)
   })
 })
 
-// ── Three stats ──────────────────────────────────────────────────────────────
-describe('Three stats', () => {
-  it('spots is empty array → location count shows —', () => {
+// ── 三统计 ──────────────────────────────────────────────────────────────
+describe('三统计', () => {
+  it('spots 为空数组 → 地点数显示 —', () => {
     const w = mountPanel({ detail: detail({ spots: [] }) })
     const stats = w.findAll('.detail-stats .detail-stat .v')
     expect(stats[1].text()).toBe('—')
   })
 
-  it('detail is null → location count shows —', () => {
+  it('detail 为 null → 地点数显示 —', () => {
     const w = mountPanel({ detail: null })
     const stats = w.findAll('.detail-stats .detail-stat .v')
     expect(stats[1].text()).toBe('—')
   })
 
-  it('spots is non-empty → location count shows count', () => {
+  it('spots 非空 → 地点数显示条数', () => {
     const w = mountPanel({
       detail: detail({ spots: [{ key: 's1', name: 'A', lon: 1, lat: 1, count: 1, thumb: '' }, { key: 's2', name: 'B', lon: 2, lat: 2, count: 1, thumb: '' }] }),
     })
@@ -243,14 +243,14 @@ describe('Three stats', () => {
     expect(stats[1].text()).toBe('2')
   })
 
-  it('Photo count and trip count: detail takes priority, place fallback', () => {
+  it('照片数与旅行数:detail 优先、place 兜底', () => {
     const w = mountPanel({ place: place({ count: 5, trips: 2 }), detail: detail({ count: 42, trips: 9 }) })
     const stats = w.findAll('.detail-stats .detail-stat .v')
     expect(stats[0].text()).toBe('42')
     expect(stats[2].text()).toBe('9')
   })
 
-  it('When detail is null, photo and trip counts fall back to place', () => {
+  it('detail 为 null 时照片数与旅行数回落 place', () => {
     const w = mountPanel({ place: place({ count: 5, trips: 2 }), detail: null })
     const stats = w.findAll('.detail-stats .detail-stat .v')
     expect(stats[0].text()).toBe('5')
@@ -258,144 +258,146 @@ describe('Three stats', () => {
   })
 })
 
-// ── Singular/Plural (trip/trips both "次旅行" in Chinese, need en_us to distinguish)──────────────
-describe('Singular/Plural', () => {
-  it('trips === 1 uses photosPlacesTrip (singular)', () => {
+// ── 单复数(trip/trips 中文同为"次旅行",须切 en_us 才能区分)──────────────
+describe('单复数', () => {
+  it('trips === 1 用 photosPlacesTrip(单数)', () => {
     const w = mountPanel({ place: place({ trips: 1 }), detail: null }, makeI18n('en_us'))
     expect(w.find('.ttl-sub').text()).toContain('1 trip')
     expect(w.find('.ttl-sub').text()).not.toContain('1 trips')
   })
 
-  it('trips === 2 uses photosPlacesTrips (plural)', () => {
+  it('trips === 2 用 photosPlacesTrips(复数)', () => {
     const w = mountPanel({ place: place({ trips: 2 }), detail: null }, makeI18n('en_us'))
     expect(w.find('.ttl-sub').text()).toContain('2 trips')
   })
 })
 
-// ── Date localization ──────────────────────────────────────────────────────────
-describe('Date localization', () => {
-  it('lastDate is non-empty → backend original string does not appear', () => {
+// ── 日期本地化 ──────────────────────────────────────────────────────────
+describe('日期本地化', () => {
+  it('lastDate 非空 → 不出现后端原串', () => {
     const w = mountPanel({ place: place({ last: 'Mar 7, 2026', lastDate: parsePlaceLast('Mar 7, 2026') }) })
     expect(w.find('.ttl-sub').text()).not.toContain('Mar 7, 2026')
   })
 
-  it('lastDate is null → falls back to showing original string', () => {
+  it('lastDate 为 null → 回落显示原串', () => {
     const w = mountPanel({ place: place({ last: 'Mar 7, 2026', lastDate: null }) })
     expect(w.find('.ttl-sub').text()).toContain('Mar 7, 2026')
   })
 })
 
-// ── detailLoading skeleton (New-UI new, Vue2 has no loading state)──────────────────────
-describe('detailLoading skeleton', () => {
-  it('detailLoading and detail is null → skeleton is present', () => {
+// ── detailLoading 骨架(New-UI 新增,Vue2 无加载态)──────────────────────
+describe('detailLoading 骨架', () => {
+  it('detailLoading 且 detail 为 null → 骨架在', () => {
     const w = mountPanel({ detail: null, detailLoading: true })
     expect(w.find('[data-test="detail-body-skeleton"]').exists()).toBe(true)
   })
 
-  it('Skeleton disappears after detail arrives', () => {
+  it('detail 到位后骨架消失', () => {
     const w = mountPanel({ detail: detail(), detailLoading: true })
     expect(w.find('[data-test="detail-body-skeleton"]').exists()).toBe(false)
   })
 
-  it('!detailLoading and detail is null → skeleton is not present (empty state, not loading)', () => {
+  it('!detailLoading 且 detail 为 null → 骨架也不在(非加载中的空态)', () => {
     const w = mountPanel({ detail: null, detailLoading: false })
     expect(w.find('[data-test="detail-body-skeleton"]').exists()).toBe(false)
   })
 })
 
-// ── z-index invariant (P6a gradient: map fixtures 4 < .map-tip 5 < detail panel 6 < .map-toolbar 7)──
-describe('z-index invariant', () => {
-  it('.map-detail z-index is strictly greater than 5(.map-tip) and strictly less than 7(.map-toolbar)', () => {
+// ── z-index 不变量(P6a 梯度:地图家具 4 < .map-tip 5 < 详情面板 6 < .map-toolbar 7)──
+describe('z-index 不变量', () => {
+  it('.map-detail 的 z-index 严格大于 5(.map-tip)且严格小于 7(.map-toolbar)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.map-detail\s*\{[^}]*z-index:\s*(-?\d+)/.exec(style)
-    expect(m, 'z-index declaration not found in .map-detail rule').not.toBeNull()
+    expect(m, '.map-detail 规则里未找到 z-index 声明').not.toBeNull()
     const z = Number(m![1])
     expect(z).toBeGreaterThan(5)
     expect(z).toBeLessThan(7)
   })
 })
 
-// ── Review fix round 1 I1: cover-set button's frosted glass (Vue2 inline backdropFilter:'blur(8px)',
-// PhotosPlacesView.vue:1068) was missed in port, needs programmatic assertion after restore to prevent
-// silent loss if style is re-shaped later (same root cause as this loss).──────────────────────────────────────────
-describe('Cover-set button frosted glass (review I1)', () => {
-  it('.hero-cover-btn rule contains backdrop-filter: blur(8px)', () => {
+// ── 评审 fix round 1 I1:设置封面按钮的毛玻璃(Vue2 内联 backdropFilter:'blur(8px)',
+// PhotosPlacesView.vue:1068)此前漏迁,补回后需要程序化断言钉住,防止后人重塑样式时
+// 静默丢掉(与本次丢失的原因一样)。──────────────────────────────────────────
+describe('设置封面按钮的毛玻璃(评审 I1)', () => {
+  it('.hero-cover-btn 规则含 backdrop-filter: blur(8px)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.hero-cover-btn\s*\{([^}]*)\}/.exec(style)
-    expect(m, '.hero-cover-btn rule not found').not.toBeNull()
+    expect(m, '未找到 .hero-cover-btn 规则').not.toBeNull()
     expect(m![1]).toMatch(/backdrop-filter:\s*blur\(8px\)/)
   })
 })
 
-// ── Review fix round 1 I2: .map-detail entrance handled only by its own transition (plan original text),
-// `.map-detail.is-entering` is dead CSS not ported, but this base transition belongs to the parts to port,
-// was missed before, needs programmatic assertion after restore to prevent silent loss.────────────────────────────────────
-describe('.map-detail entrance transition (review I2)', () => {
-  it('.map-detail rule contains transition (transform + opacity two parts, exact copy of Vue2 :487-489)', () => {
+// ── 评审 fix round 1 I2:.map-detail 进场只由自身 transition 承担(plan 原文),
+// `.map-detail.is-entering` 是死 CSS 不迁,但这条 base transition 属于要迁的部分,
+// 此前漏迁,补回后同样需要程序化断言钉住。────────────────────────────────────
+describe('.map-detail 进场 transition(评审 I2)', () => {
+  it('.map-detail 规则含 transition(transform + opacity 两段,精确复刻 Vue2 :487-489)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.map-detail\s*\{([^}]*)\}/.exec(style)
-    expect(m, '.map-detail rule not found').not.toBeNull()
+    expect(m, '未找到 .map-detail 规则').not.toBeNull()
     expect(m![1]).toMatch(/transition:[^;]*transform[^;]*,[^;]*opacity/)
   })
 })
 
-// ── Panel background fully opaque (device acceptance feedback)────────────────────────────────
-// This panel is absolutely positioned on top of the map canvas; semi-transparent background
-// would let map grid points show through. Guard only this component side: whether the token
-// itself carries no alpha across both theme blocks is not verified here, that data lives in docs/THEMING.md.
+// ── 面板底完全不透明(真机验收反馈)────────────────────────────────
+// 这块面板绝对定位压在地图画布上,半透明底会把地图网格点透上来。只守组件这一头:
+// token 本身在两套主题块里是否真的不带 alpha,本文件不验,取值的记录归 docs/THEMING.md。
 //
-// [SP8-P6 T10 correction — the "guard only component side" **rationale** above no longer holds,
-// but the decision itself stands unchanged]
-// Of the two reasons the original comment gave:
-//   ✅ Still holds: `?raw` / `?inline` glob forms tested on `.css` both return empty string
-//      (vitest's built-in CSSEnablerPlugin replaces the entire style source with empty string, and
-//      **doesn't look at query strings**).
-//   ❌ No longer holds: "we haven't installed `@types/node`, `node:fs` would make `vue-tsc` report
-//      TS2307" — after the merge, `@types/node` is installed (devDependencies `^26.1.2`), `node:fs`
-//      can be imported directly, `vue-tsc --noEmit` exits 0. **The path to reading theme.css text is
-//      open today.**
-//   ❌ No longer holds: "this is exactly why color-guard.test.ts skips styles/theme.css entirely" —
-//      `color-guard.test.ts` now **reads all `.css` files directly using `node:fs`** (`listCss()`),
-//      the real reason it skips `theme.css`/`theme.sp9.css` is written in the source: those are
-//      **token definition files**, "bare literals are their job", has nothing to do with whether we
-//      can read the text.
-// ⇒ "Should this file be changed to use `node:fs` to read theme.css and programmatically assert
-//    that `--panel-bg-solid` carries no alpha across both theme blocks" is now a **pure design
-//    trade-off**, no longer technically blocked. **T10 only changes comments, not implementation**,
-//    this trade-off is registered as technical debt (see VUE2 `docs/vue3-migration-roadmap.md` §SP8
-//    debt ledger I4).
-describe('Panel background fully opaque', () => {
-  it('.map-detail background uses --panel-bg-solid, not semi-transparent --panel-bg', () => {
+// 【SP8-P6 T10 订正 —— 上面这个「只守组件一头」的**理由**已经不成立了,但决定本身本刀不改】
+// 原注释给的两条理由里:
+//   ✅ 仍成立:`?raw` / `?inline` 两种 glob 对 `.css` 实测都返回空串
+//      (vitest 自带的 CSSEnablerPlugin 把样式源整体替换成空串,且**不看查询串**)。
+//   ❌ 已不成立:「本仓也没装 `@types/node`,`node:fs` 会让 `vue-tsc` 报 TS2307」——
+//      合流后 `@types/node` 已装(devDependencies `^26.1.2`),`node:fs` 直接导入即可,
+//      `vue-tsc --noEmit` exit 0。**读 theme.css 文本这条路今天是通的。**
+//   ❌ 已不成立:「这正是 color-guard.test.ts 把 styles/theme.css 整个跳过的原因」——
+//      `color-guard.test.ts` 现在正是**用 `node:fs` 直读全部 `.css`**(`listCss()`),
+//      它跳过 `theme.css`/`theme.sp9.css` 的真实理由写在源码里:那是 **token 定义档**,
+//      「裸字面量是它的本职工作」,与能不能读到文本无关。
+// ⇒ 「本文件要不要改成用 `node:fs` 读 theme.css、程序化断言 `--panel-bg-solid` 两套主题块
+//    下都不带 alpha」现在是一个**纯设计取舍**,不再有技术阻塞。**T10 只动注释,不改实现**,
+//    该取舍已登记为债务(见 VUE2 `docs/vue3-migration-roadmap.md` §SP8 债务台账 I4)。
+//
+// Fix-1 item 6 订正(owner acceptance, 2026-08-16):上面那条"半透会把网格点透上来"的
+// **前提本身**已经证伪——`--surface-1`(本文件改用的 token)在两套 Photos 主题下都是
+// 完全不透明的纯色,从来没有 alpha 通道;`--panel-bg-solid` 反而是个*全局* token,只跟随
+// 全站 `[data-theme]`、不跟随 Photos 私有的 `.photos-root.is-light` 切换——真机验收报告的
+// "右侧详情面板不跟随浅色主题"正是这个后果。已改回 `--surface-1`(parity `photos-places.
+// scss` 自己的 `.map-detail` 规则本就是这个值,本文件这条本地覆盖此前一直在遮盖它,同
+// PlacesZoomBar.vue 等文件已修过的 shadowing 缺陷同一类)。测试断言随之整体反过来。
+describe('面板底完全不透明且跟随 Photos 私有 is-light(Fix-1 item 6 订正)', () => {
+  it('.map-detail 的 background 用本地 --surface-1(完全不透明、随 is-light 切换),不用全局 --panel-bg/--panel-bg-solid', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.map-detail\s*\{([^}]*)\}/.exec(style)
-    expect(m, '.map-detail rule not found').not.toBeNull()
+    expect(m, '未找到 .map-detail 规则').not.toBeNull()
     const decls = m![1].replace(/\/\*[\s\S]*?\*\//g, '')
-    expect(decls).toMatch(/background:\s*var\(--panel-bg-solid\)/)
+    expect(decls).toMatch(/background:\s*var\(--surface-1\)/)
+    expect(decls).not.toMatch(/background:\s*var\(--panel-bg-solid\)/)
     expect(decls).not.toMatch(/background:\s*var\(--panel-bg\)/)
   })
 })
 
-// ── hero foreground color compliance (ban --on-accent + require theme-exception)────────────
-describe('hero foreground color compliance', () => {
-  it('Rules containing .close / .ttl-name / .ttl-region do not contain --on-accent', () => {
+// ── hero 前景色合规(禁用 --on-accent + 必须 theme-exception)────────────
+describe('hero 前景色合规', () => {
+  it('.close / .ttl-name / .ttl-region 所在规则不含 --on-accent', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     for (const selector of ['.close', '.ttl-name', '.ttl-region']) {
       const re = new RegExp(`(?:^|[\\s,{}])${selector.replace('.', '\\.')}[^{]*\\{([^}]*)\\}`)
       const m = re.exec(style)
-      expect(m, `rule not found: ${selector}`).not.toBeNull()
+      expect(m, `未找到规则:${selector}`).not.toBeNull()
       expect(m![1]).not.toContain('--on-accent')
     }
   })
 
-  it('Every bare color declaration has theme-exception comment on same/previous line, comment lacks ; } <style>', () => {
+  it('每条钉死色声明的同行/上一行都有 theme-exception 注释,注释不含 ; } <style>', () => {
     const raw = placeDetailPanelRaw
     const styleMatch = /<style[^>]*>([\s\S]*?)<\/style>/.exec(raw)
     expect(styleMatch).not.toBeNull()
     const lines = styleMatch![1].split('\n')
     const HEX = /#[0-9a-fA-F]{3,8}\b/
     const FUNC = /\b(?:rgba?|hsla?)\s*\(/
-    // Strip var(...) internals to avoid misidentifying token fallback literals (like var(--x, #fff)) —
-    // same technique as color-guard.test.ts's stripVar, this file needs only a minimal version (small scope).
+    // 剥掉 var(...) 内部内容,避免 token fallback 字面量(如 var(--x, #fff))误判——
+    // 与 color-guard.test.ts 的 stripVar 同一手法,这里只需极简版本(本文件规模小)。
     function stripVar(s: string): string {
       let out = ''; let i = 0
       while (i < s.length) {
@@ -415,7 +417,7 @@ describe('hero foreground color compliance', () => {
     lines.forEach((line, idx) => {
       if (line.includes('theme-exception')) {
         exempt = true
-        // Comment text itself must not contain these three (color-guard doesn't strip comments, literals flag same as declarations).
+        // 注释文本本身不得含这三者(color-guard 不剥注释,字面量会像声明一样判红)。
         const commentMatch = /\/\*(.*?)\*\//.exec(line)
         if (commentMatch) {
           expect(commentMatch[1]).not.toContain(';')
@@ -426,61 +428,61 @@ describe('hero foreground color compliance', () => {
       const bare = stripVar(line)
       if (HEX.test(bare) || FUNC.test(bare)) {
         sawAnyBareColor = true
-        expect(exempt, `L${idx + 1} bare color literal missing theme-exception exemption: ${line.trim()}`).toBe(true)
+        expect(exempt, `L${idx + 1} 裸颜色字面量缺 theme-exception 豁免: ${line.trim()}`).toBe(true)
       }
       if (line.includes(';') || line.includes('}')) exempt = false
     })
-    // This component's hero foreground color must use bare literals (brief hard requirement), this guards
-    // against the assertion above falsely passing due to "found no bare colors at all".
+    // 本组件 hero 前景色必然会写钉死字面量(brief 硬性要求),这条防止上面的断言
+    // 因为"根本没扫到任何裸颜色"而假绿。
     expect(sawAnyBareColor).toBe(true)
   })
 })
 
-// ── hover cascade (base class .btn:hover must not override .btn-primary solid background)─────────────
-describe('hover state background not taken by base class rule', () => {
-  it('.detail-actions .btn.btn-primary hover background belongs to variant rule (contains :hover and -primary)', () => {
+// ── hover 级联(基类 .btn:hover 不得压过 .btn-primary 的实底)─────────────
+describe('hover 态背景不被基类规则夺走', () => {
+  it('.detail-actions .btn.btn-primary 的 hover 背景归属变体规则(含 :hover 且含 -primary)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const win = winningHoverBackground(style, ['btn', 'btn-primary'])
     expect(win.selector).toContain(':hover')
     expect(win.selector).toContain('-primary')
   })
 
-  // Back-checked against Vue2 :582 to confirm base class `.btn:hover` only touches border-color, doesn't set background —
-  // unlike PlacesRail.vue `.rail-place:hover` (which does set background, real same-property clash exists),
-  // here there is no real scenario of "two rules fighting over same background property", `hoverBackgroundRules` also
-  // can't find the `.btn:hover` rule (no background declaration). Changed to directly assert that the selector itself
-  // has "write-order-independent" compound-class form (`.btn.btn-primary:hover`, specificity 3, not equal to single-class
-  // `.btn-primary:hover` specificity 2 or base `.btn:hover` tie-like form).
-  it('.btn-primary dedicated :hover rule written as compound-class selector (independent of write order beats base)', () => {
+  // 回源核对 Vue2 :582 后确认基类 `.btn:hover` 本身只碰 border-color、不设 background——
+  // 与 PlacesRail.vue `.rail-place:hover`(它自己就设 background,真实存在同属性клаш)不同,
+  // 这里不存在"两条规则争同一个 background 属性"的真实场景,`hoverBackgroundRules` 也确实
+  // 找不到 `.btn:hover` 这条规则(它没有 background 声明)。改成直接断言选择器写法本身
+  // 具备"不依赖书写顺序"的复合类形态(`.btn.btn-primary:hover`,优先级 3,不等于单类
+  // `.btn-primary:hover` 的优先级 2 与基类 `.btn:hover` 打平的写法)。
+  it('.btn-primary 的专属 :hover 规则写成复合类选择器(不依赖书写顺序抢赢基类)', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     expect(style).toMatch(/\.btn\.btn-primary:hover\s*\{[^}]*background/)
   })
 })
 
-// ── Narrow screen (deviation registry 13)─────────────────────────────────────────────────
-describe('Narrow screen rules', () => {
-  it('Style block contains max-width: 768px and .map-detail width is 100%', () => {
+// ── 窄屏(偏离登记 13)─────────────────────────────────────────────────
+describe('窄屏规则', () => {
+  it('样式块含 max-width: 768px 且其中 .map-detail 的 width 为 100%', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*?)\n {2}\}/.exec(style) ?? /@media\s*\(max-width:\s*768px\)\s*\{([\s\S]*)\}/.exec(style)
-    expect(m, '@media (max-width: 768px) rule block not found').not.toBeNull()
+    expect(m, '未找到 @media (max-width: 768px) 规则块').not.toBeNull()
     expect(m![1]).toMatch(/\.map-detail\s*\{[^}]*width:\s*100%/)
   })
 })
 
-// ── P6b-T4: spots list section ─────────────────────────────────────────────────
-describe('spots list section', () => {
-  it('spots is empty array → entire section not rendered', () => {
+// ── P6b-T4: spots 列表段 ─────────────────────────────────────────────────
+describe('spots 列表段', () => {
+  it('spots 为空数组 → 整段不渲染', () => {
     const w = mountPanel({ detail: detail({ spots: [] }) })
-    // Review required (T5 necessary tightening introduced): when T4 was written, `.detail-section` was the only
-    // consumer in the whole repo and `.detail-section` count 0 was equivalent to "spots section not rendered".
-    // T5 added "recent photos" section (spec §7c-B-4 explicitly requires section always renders, title + possible +N
-    // card shown even if recent is empty) — it also wraps with `.detail-section`, original assertion premise
-    // was overturned by this new spec-required behavior. Tighten to ".spot-list" absent (spots section's unique-only
-    // marker), that's what this test case really needs to pin, behavior not weakened.
+    // 评审必修(T5 引入的必要收紧):T4 写这条时 `.detail-section` 全仓唯一消费方
+    // 是 spots 段,断言"零个 `.detail-section`"等价于"spots 段不渲染"。T5 新增了
+    // 「最近的照片」段(spec §7c-B-4 明确要求段落恒渲染,即使 recent 为空也要显示
+    // 标题 + 可能的 +N 格)——它同样用 `.detail-section` 包壳,原断言的前提已被
+    // 这条新的、规范要求的行为推翻。收紧成 `.spot-list` 缺席(spots 段的唯一独有
+    // 标志),这才是这条用例真正要钉住的东西,行为未被削弱。
     expect(w.find('.spot-list').exists()).toBe(false)
   })
 
-  it('spots is non-empty → section header text contains city name, .spot-row count equals spots length', () => {
+  it('spots 非空 → 段头文案含城市名、.spot-row 条数等于 spots 长度', () => {
     const w = mountPanel({
       place: place({ city: 'Hangzhou' }),
       detail: detail({ city: 'Hangzhou', spots: [spot({ key: 's1' }), spot({ key: 's2' })] }),
@@ -489,69 +491,69 @@ describe('spots list section', () => {
     expect(w.findAll('.spot-row')).toHaveLength(2)
   })
 
-  it('"See all" renders as static text: is span not button, style block .detail-section h4 .more lacks cursor: pointer (spec §7c-9)', () => {
+  it('「查看全部」渲染为静态文本:是 span 不是 button,样式块 .detail-section h4 .more 不含 cursor: pointer(spec §7c-9)', () => {
     const w = mountPanel({ detail: detail({ spots: [spot()] }) })
     const more = w.find('.detail-section h4 .more')
     expect(more.exists()).toBe(true)
     expect(more.element.tagName).toBe('SPAN')
     const style = extractStyleBlock(placeDetailPanelRaw)
     const m = /\.detail-section h4 \.more\s*\{([^}]*)\}/.exec(style)
-    expect(m, '.detail-section h4 .more rule not found').not.toBeNull()
+    expect(m, '未找到 .detail-section h4 .more 规则').not.toBeNull()
     expect(m![1]).not.toMatch(/cursor:\s*pointer/)
   })
 
-  it('Click .spot-row → emit pick-spot with that spot object', async () => {
+  it('点 .spot-row → emit pick-spot 带该 spot 对象', async () => {
     const s1 = spot({ key: 's1' })
     const w = mountPanel({ detail: detail({ spots: [s1] }) })
     await w.find('.spot-row').trigger('click')
     expect(w.emitted('pick-spot')).toEqual([[s1]])
   })
 
-  it('When thumbnail is empty, img is not rendered inside .thumb', () => {
+  it('缩略图为空时 .thumb 里不渲染 img', () => {
     const w = mountPanel({ detail: detail({ spots: [spot({ thumb: '' })] }) })
     expect(w.find('.spot-row .thumb img').exists()).toBe(false)
   })
 })
 
-// ── Review fix I3 (fix round 1): `.spot-row:hover` also needs cssCascade safety net (hard constraint
-// both places named, previously only fixed .spot-dialog-btn:hover). ─────────────────
-describe('hover state background (.spot-row, review fix I3)', () => {
-  it('.spot-row hover background belongs to rule containing :hover', () => {
+// ── 评审修复 I3(fix round 1):`.spot-row:hover` 也要有 cssCascade 安全网(硬约束
+// 点名两处都要,此前只补了 .spot-dialog-btn:hover 这一处)。 ─────────────────
+describe('hover 态背景(.spot-row,评审修复 I3)', () => {
+  it('.spot-row 的 hover 背景归属含 :hover 的规则', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const win = winningHoverBackground(style, ['spot-row'])
     expect(win.selector).toContain(':hover')
   })
 })
 
-// ── P6b-T4: activeSpotKey → spot dialog (String() normalization)─────────────────────
-describe('activeSpotKey matches spots → render PlaceSpotDialog', () => {
-  it('When matched, dialog is rendered', () => {
+// ── P6b-T4: activeSpotKey → spot 弹窗(String() 归一)─────────────────────
+describe('activeSpotKey 命中 spots → 渲染 PlaceSpotDialog', () => {
+  it('命中时渲染弹窗', () => {
     const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: 's1' })
     expect(w.find('.spot-dialog').exists()).toBe(true)
   })
 
-  it('When no match (deep link/spot disappeared after detail refresh), not rendered', () => {
+  it('命中不到(深链/详情刷新后 spot 消失)时不渲染', () => {
     const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: 'does-not-exist' })
     expect(w.find('.spot-dialog').exists()).toBe(false)
   })
 
-  // Law guard: PlaceSpot.key is string in type, but runtime sources (router/deep link) may not obey —
-  // use a runtime-numeric key (force type assertion bypass TS) to pin down that String() normalization is
-  // actually doing its job, not just decoration.
-  it('When spot.key is runtime number and activeSpotKey is string, still matches via String() normalization', () => {
+  // 铁律守卫:PlaceSpot.key 类型上是 string,但运行时来源(路由/深链)未必守规矩——
+  // 用一个运行时是 number 的 key(强制类型断言绕过 TS)钉住 String() 归一确实在做事,
+  // 不是摆设。
+  it('spot.key 运行时是 number、activeSpotKey 是 string 时仍按 String() 归一命中', () => {
     const numericKeySpot = { ...spot(), key: 1 as unknown as string }
     const w = mountPanel({ detail: detail({ spots: [numericKeySpot] }), activeSpotKey: '1' })
     expect(w.find('.spot-dialog').exists()).toBe(true)
   })
 
-  it('When activeSpotKey is null, not rendered', () => {
+  it('activeSpotKey 为 null 时不渲染', () => {
     const w = mountPanel({ detail: detail({ spots: [spot({ key: 's1' })] }), activeSpotKey: null })
     expect(w.find('.spot-dialog').exists()).toBe(false)
   })
 })
 
-// ── P6b-T4: PlaceSpotDialog's five emits pass through unchanged ───────────────────────────
-describe('spot dialog emit pass-through', () => {
+// ── P6b-T4: PlaceSpotDialog 的五个 emit 原样透传 ───────────────────────────
+describe('spot 弹窗 emit 透传', () => {
   function mountWithActiveSpot() {
     return mountPanel({
       detail: detail({ spots: [spot({ key: 's1', thumb: 'thumb-x' })] }),
@@ -566,7 +568,7 @@ describe('spot dialog emit pass-through', () => {
     expect(w.emitted('close-spot')).toHaveLength(1)
   })
 
-  it('rename → rename (pass through with name)', async () => {
+  it('rename → rename(原样带名字)', async () => {
     const w = mountWithActiveSpot()
     await w.find('.spot-rename-btn').trigger('click')
     await w.find('.spot-rename-input').setValue('New Name')
@@ -581,23 +583,23 @@ describe('spot dialog emit pass-through', () => {
     expect(w.emitted('reset-name')).toEqual([[]])
   })
 
-  it('open-library (inside dialog) → panel open-spot-library (distinguish from panel own open-library)', async () => {
+  it('open-library(弹窗内)→ 面板的 open-spot-library(与面板自己的 open-library 区分)', async () => {
     const w = mountWithActiveSpot()
     await w.find('.spot-dialog-btn').trigger('click')
     expect(w.emitted('open-spot-library')).toHaveLength(1)
     expect(w.emitted('open-library')).toBeUndefined()
   })
 
-  it('open-photo (single param assetId) → panel existing open-photo (assetId, [assetId]) signature (not changing T3 emit shape)', async () => {
+  it('open-photo(单参 assetId)→ 面板既有 open-photo(assetId, [assetId]) 签名(不改 T3 emit 形状)', async () => {
     const w = mountWithActiveSpot()
     await w.find('.spot-dialog-thumbs img').trigger('click')
     expect(w.emitted('open-photo')).toEqual([['thumb-x', ['thumb-x']]])
   })
 })
 
-// ── P6b-T5: insights section mounting (rendering delegated to PlaceInsights.vue, panel only passes prop)──
-describe('insights section mounting', () => {
-  it('detail.insights is non-empty → PlaceInsights renders .insight-card', () => {
+// ── P6b-T5: insights 段挂载(渲染委托给 PlaceInsights.vue,面板本身只负责传 prop)──
+describe('insights 段挂载', () => {
+  it('detail.insights 非空 → PlaceInsights 渲染出 .insight-card', () => {
     const w = mountPanel({
       detail: detail({
         insights: [{ ico: 'sparkles', key: 'photos.places.insight.mostPhotographed', params: { count: 9 } }],
@@ -606,25 +608,25 @@ describe('insights section mounting', () => {
     expect(w.find('.insight-card').exists()).toBe(true)
   })
 
-  it('detail is null (insights defaults to empty array) → insights section not rendered', () => {
+  it('detail 为 null(insights 兜底为空数组)→ 不渲染 insights 段', () => {
     const w = mountPanel({ detail: null })
     expect(w.find('.insight-card').exists()).toBe(false)
   })
 })
 
-// ── P6b-T5: recent photos section (follows Vue2 :1186-1202, section always renders)─────────────────────
-describe('Recent photos section', () => {
-  it('recent three photos → 3 .ph, click second → open-photo with (recent[1], recent)(D9 main guard)', async () => {
+// ── P6b-T5: 最近的照片段(照 Vue2 :1186-1202,段落恒渲染)─────────────────────
+describe('最近的照片段', () => {
+  it('recent 三张 → 3 个 .ph,点第二张 → open-photo 带 (recent[1], recent)(D9 主守卫)', async () => {
     const recentList = ['a1', 'a2', 'a3']
     const w = mountPanel({ detail: detail({ count: 3, recent: recentList }) })
     const phs = w.findAll('.detail-grid .ph')
-    // Three real photos + no +N card (count === recent.length).
+    // 三张真实照片 + 无 +N 格(count === recent.length)。
     expect(phs).toHaveLength(3)
     await phs[1].trigger('click')
     expect(w.emitted('open-photo')).toEqual([['a2', recentList]])
   })
 
-  it('count=30, recent.length=6 → .ph.more exists and text is +24', () => {
+  it('count=30、recent.length=6 → .ph.more 存在且文本为 +24', () => {
     const recentList = ['a', 'b', 'c', 'd', 'e', 'f']
     const w = mountPanel({ detail: detail({ count: 30, recent: recentList }) })
     const more = w.find('.detail-grid .ph.more')
@@ -632,13 +634,13 @@ describe('Recent photos section', () => {
     expect(more.text()).toContain('+24')
   })
 
-  it('count=6, recent.length=6 → .ph.more does not exist', () => {
+  it('count=6、recent.length=6 → .ph.more 不存在', () => {
     const recentList = ['a', 'b', 'c', 'd', 'e', 'f']
     const w = mountPanel({ detail: detail({ count: 6, recent: recentList }) })
     expect(w.find('.detail-grid .ph.more').exists()).toBe(false)
   })
 
-  it('Click .ph.more and click "see all" .more both emit open-library; "see all" text contains total count', async () => {
+  it('点 .ph.more 与点「查看全部」的 .more 都 emit open-library;「查看全部」文案含总数', async () => {
     const recentList = ['a', 'b', 'c']
     const w = mountPanel({ detail: detail({ count: 30, recent: recentList }) })
     const seeAll = w.findAll('h4 .more.is-clickable')
@@ -649,60 +651,60 @@ describe('Recent photos section', () => {
     expect(w.emitted('open-library')).toHaveLength(2)
   })
 
-  it('When recent is empty, section still renders (title present, Vue2 this .detail-section has no v-if)', () => {
+  it('recent 为空时段落仍渲染(标题在,Vue2 该 .detail-section 无 v-if)', () => {
     const w = mountPanel({ detail: detail({ count: 0, recent: [] }) })
     expect(w.find('h4 .more.is-clickable').exists()).toBe(true)
     expect(w.findAll('.detail-grid .ph').filter(n => !n.classes().includes('more'))).toHaveLength(0)
   })
 
-  it('detail is null → recent defaults to empty array, count defaults to place.count, section still renders', () => {
+  it('detail 为 null → recent 兜底空数组、count 兜底 place.count,段落仍渲染', () => {
     const w = mountPanel({ place: place({ count: 0 }), detail: null })
     expect(w.find('h4 .more.is-clickable').exists()).toBe(true)
   })
 })
 
-// ── hover cascade (.detail-grid .ph.more, review law — fourth instance of same-type trap assertion)──────────
-describe('hover state background (.detail-grid .ph.more)', () => {
-  it('.detail-grid .ph.more hover background belongs to rule containing :hover', () => {
+// ── hover 级联(.detail-grid .ph.more,评审铁律——第四次踩坑同类断言)──────────
+describe('hover 态背景(.detail-grid .ph.more)', () => {
+  it('.detail-grid .ph.more 的 hover 背景归属含 :hover 的规则', () => {
     const style = extractStyleBlock(placeDetailPanelRaw)
     const win = winningHoverBackground(style, ['detail-grid', 'ph', 'more'])
     expect(win.selector).toContain(':hover')
   })
 })
 
-// ── Final review I1: four icon glyphs must match Vue2 PhotosIcon.vue (previously this file on same branch
-// had wrong glyphs copied — map pin masquerading as "folded map", image icon as "album", grid icon missing
-// rx="1", clock pointer angle wrong). Assert anchored to specific render block, don't keyword-search entire file
-// (avoid loose match passing fake-green like "drew right but in wrong place"), same technique as PlaceCoverPicker.test.ts
-// "high-risk non-color visual properties" section.────────────────────────────────────────
-describe('Icon glyph source check (review I1)', () => {
-  it('.ttl-region icon is folded map (Vue2 PhotosIcon.vue name="map"), not map pin', () => {
+// ── 终审 I1:四处图标 glyph 必须与 Vue2 PhotosIcon.vue 一致(此前本文件同分支内
+// 漏抄成了别的 glyph——地图别针冒充"折叠地图"、image 图标冒充"album"、grid 图标丢
+// rx="1"、clock 指针角度错)。锚定到具体渲染块内再断言,不用全文件关键字搜索
+// (避免宽松匹配放过"画对了但画在别处"这类假绿),同 PlaceCoverPicker.test.ts
+// 「高危非颜色视觉属性」一节的锚定手法。────────────────────────────────────────
+describe('图标 glyph 回源(评审 I1)', () => {
+  it('.ttl-region 的图标是折叠地图(Vue2 PhotosIcon.vue name="map"),不是地图别针', () => {
     const m = /class="ttl-region">\s*<svg[^>]*>([\s\S]*?)<\/svg>/.exec(placeDetailPanelRaw)
-    expect(m, 'svg not found inside .ttl-region').not.toBeNull()
+    expect(m, '未找到 .ttl-region 内的 svg').not.toBeNull()
     expect(m![1]).toContain('M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z')
     expect(m![1]).toContain('M9 4v14M15 6v14')
     expect(m![1]).not.toContain('M12 21s-7-7.5-7-12')
   })
 
-  it('.ttl-sub clock pointer is M12 7v5l3 2 (Vue2 PhotosIcon.vue name="clock"), not l3 3', () => {
+  it('.ttl-sub 的时钟指针是 M12 7v5l3 2(Vue2 PhotosIcon.vue name="clock"),不是 l3 3', () => {
     const m = /class="ttl-sub">\s*<svg[^>]*>([\s\S]*?)<\/svg>/.exec(placeDetailPanelRaw)
-    expect(m, 'svg not found inside .ttl-sub').not.toBeNull()
+    expect(m, '未找到 .ttl-sub 内的 svg').not.toBeNull()
     expect(m![1]).toContain('M12 7v5l3 2')
     expect(m![1]).not.toContain('M12 7v5l3 3')
   })
 
-  it('"Open in library" button grid icon all four rect have rx="1" (Vue2 PhotosIcon.vue name="grid")', () => {
+  it('「在图库中打开」按钮的网格图标四个 rect 都带 rx="1"(Vue2 PhotosIcon.vue name="grid")', () => {
     const m = /@click="emit\('open-library'\)">([\s\S]*?)<\/button>/.exec(placeDetailPanelRaw)
-    expect(m, 'open-library button not found').not.toBeNull()
+    expect(m, '未找到 open-library 按钮').not.toBeNull()
     const rectCount = (m![1].match(/<rect[^>]*>/g) ?? []).length
     const rxCount = (m![1].match(/rx="1"/g) ?? []).length
     expect(rectCount).toBe(4)
     expect(rxCount).toBe(4)
   })
 
-  it('"Save as album" button is album glyph (rect rx="3" + fold line), not image glyph', () => {
+  it('「保存为相册」按钮是 album glyph(rect rx="3" + 折线),不是 image glyph', () => {
     const m = /@click="emit\('save-album'\)">([\s\S]*?)<\/button>/.exec(placeDetailPanelRaw)
-    expect(m, 'save-album button not found').not.toBeNull()
+    expect(m, '未找到 save-album 按钮').not.toBeNull()
     expect(m![1]).toContain('rx="3"')
     expect(m![1]).toContain('M3 14l5-4 4 3 3-2 6 5')
     expect(m![1]).not.toContain('M21 15l-5-5L5 21')
@@ -710,37 +712,37 @@ describe('Icon glyph source check (review I1)', () => {
   })
 })
 
-// ── P6b-T6: visit history section mounting (rendering delegated to PlaceVisitHistory.vue, panel only passes prop + emit)──
-describe('Visit history section mounting', () => {
-  it('detail.visits is non-empty → PlaceVisitHistory renders .visit-card', () => {
+// ── P6b-T6: 到访记录段挂载(渲染委托给 PlaceVisitHistory.vue,面板只负责传 prop + 透传 emit)──
+describe('到访记录段挂载', () => {
+  it('detail.visits 非空 → PlaceVisitHistory 渲染出 .visit-card', () => {
     const w = mountPanel({ detail: detail({ visits: [visit()] }) })
     expect(w.find('.visit-card').exists()).toBe(true)
   })
 
-  it('detail is null → visits defaults to empty array, section still renders (no .visit-card)', () => {
+  it('detail 为 null → visits 兜底空数组,段落仍渲染(无 .visit-card)', () => {
     const w = mountPanel({ detail: null })
     expect(w.find('.visit-history').exists()).toBe(true)
     expect(w.find('.visit-card').exists()).toBe(false)
   })
 
-  it('trips passed to PlaceVisitHistory is panel existing trips derived value (detail.trips takes priority over place.trips)', () => {
+  it('trips 传给 PlaceVisitHistory 的是面板既有的 trips 派生量(detail.trips 优先于 place.trips)', () => {
     const w = mountPanel({
       place: place({ trips: 1 }),
       detail: detail({ trips: 4, visits: [] }),
     })
     const section = w.findAll('.detail-section').find(s => s.find('.visit-history').exists())
-    expect(section, '.detail-section containing .visit-history not found').toBeTruthy()
+    expect(section, '未找到含 .visit-history 的 .detail-section').toBeTruthy()
     expect(section!.find('h4 .more').text()).toContain('4')
   })
 
-  it('save-trip passes through to container unchanged, with visit object', () => {
+  it('save-trip 原样透传给容器,带 visit 对象', () => {
     const v = visit({ when: 'Jul 2026' })
     const w = mountPanel({ detail: detail({ visits: [v] }) })
     w.find('.visit-save-btn').trigger('click')
     expect(w.emitted('save-trip')).toEqual([[v]])
   })
 
-  it('Thumbnail click open-photo passes through to container unchanged (D9: list is that visit own thumbs)', async () => {
+  it('缩略图点击的 open-photo 原样透传给容器(D9:list 是该条 visit 自己的 thumbs)', async () => {
     const v = visit({ thumbs: ['x1', 'x2'] })
     const w = mountPanel({ detail: detail({ visits: [v] }) })
     await w.find('.visit-thumbs img').trigger('click')

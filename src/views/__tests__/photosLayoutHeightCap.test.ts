@@ -1,50 +1,39 @@
-// Bidirectional regression gate for the photos section `.photos-layout` height cap.
+// 相册区 `.photos-layout` 高度封顶的**双向**回归闸。
 //
-// Background: all 13 pages in the photos section each copy-pasted the same `.photos-layout` rule
-// (deliberately "not deduplicated" at the time). During the port, this rule was written as
-// `min-height: 100%` (at least one screen tall, unbounded height) instead of Vue2's
-// `height: 100vh; overflow: hidden` (photos.scss:109) — as a result the photo grid stretched the
-// whole page taller, and the sidebar and the month scrubber on the right scrolled away along with
-// the photos. Measured with 785 photos: the sidebar's Settings button ended up 83580px from the
-// top of the page, and the scrubber was stretched to 83508px tall (all its ticks crammed at the
-// very top — unreachable once you scroll down).
+// 背景:全相册区 13 页各自复制粘贴同一条 `.photos-layout` 规则(当初有意「不抽公共」)。
+// 移植期这条规则写的是 `min-height: 100%`(至少一屏、可无限长高)而不是 Vue2 的
+// `height: 100vh; overflow: hidden`(photos.scss:109)—— 结果照片区把整页撑高,侧栏与
+// 右侧月份刻度尺跟着照片一起滚走。实测 785 张时侧栏「设置」按钮落在距页顶 83580px 处、
+// 刻度尺被拉成 83508px 高(刻度全挤在最顶端,滚下去就点不到)。
 //
-// Why this gate is bidirectional: the SP9-T9 check only did a one-way "everything on the
-// allowlist is present" check, so an entire block of CSS that got missed during the port sailed
-// through with all three gates green. So this file checks both "everything that should be capped
-// is capped" and "no photos page still has the old min-height:100%" — the latter is what actually
-// blocks the real recurrence path of "copy-pasting the old rule into a newly created photos page".
+// 为什么这道闸是**双向**的:SP9-T9 那次只做「白名单里的都在」的单向检查,漏搬的整块
+// CSS 三道门全绿照样溜过去。所以这里既查「该封顶的都封了」,也查「没有任何相册页还留着
+// 旧的 min-height:100%」—— 后者才拦得住「以后新建相册页复制粘贴旧规则」这条真实路径。
 //
-// jsdom can't measure layout height (getBoundingClientRect is always 0), so whether the layout
-// actually works is verified on real devices; this gate only locks down the source text, to guard
-// against regressions. Always read files via node:fs — `?raw` is always empty in this repo's test
-// environment (historical trap: color-guard once spun idle because of this).
+// jsdom 测不到布局高度(getBoundingClientRect 恒 0),所以布局是否真的生效以真机验收为准;
+// 这道闸只锁源文本,防复发。读盘一律 node:fs —— `?raw` 在本仓测试环境恒空(历史坑:
+// color-guard 曾因此空转)。
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 
 const VIEWS_DIR = 'src/views'
 
-// Capped: inner scroll chain is complete (`.photos-main` flex:1 + min-height:0 → a self-contained
-// overflow-y:auto scroll container), so after capping the inner container takes over scrolling.
+// 已封顶:内层滚动链完整(`.photos-main` flex:1 + min-height:0 → 自带 overflow-y:auto 的
+// 滚动容器),封顶后由内层容器接管滚动。
 const CAPPED = [
-  // Since Task 3 (shell + sidebar rebuild), Photos.vue no longer has a `.photos-layout` rule
-  // string — the shell was replaced with a Vue2-structure `.app` CSS Grid
-  // (`height: 100vh; overflow: hidden`, parity scss photos.scss:116-128), and height-cap
-  // responsibility was taken over by that rule, so it's no longer related to the `.photos-layout`
-  // rule string this file locks. The reverse check (the second `it` below) won't false-positive on
-  // it: `allPhotosLayoutViews()` only collects pages whose source still literally contains
-  // `.photos-layout {` — Photos.vue no longer does, so it's automatically excluded and doesn't
-  // need to be moved into EXEMPT.
-  // As of Plan C Task 2 (shared re-shell), five more pages — PhotosAlbums.vue /
-  // PhotosAlbumDetail.vue / PhotosSmartViews.vue (see the EXEMPT removal below) /
-  // PhotosSmartViewDetail.vue / PhotosMomentDetail.vue — switched to the same `.app` grid shell
-  // and likewise no longer contain a literal `.photos-layout {`; the same automatic-exclusion
-  // rule covers them, and they have been dropped from the CAPPED list below (the height cap is
-  // now the `.app` grid's job, not the `.photos-layout` rule string this file locks).
-  // As of Fix-3 item 7 (owner acceptance, 2026-08-13, Plan F pull-forward), PhotosSearch.vue
-  // switched to the `.app` grid shell too and is dropped below for the same reason — it no
-  // longer contains a literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it
-  // automatically and it does not need to move into EXEMPT.
+  // Task 3(壳 + 侧栏重刻)起,Photos.vue 不再有 `.photos-layout` 规则字符串——外壳换成了
+  // Vue2 结构的 `.app` CSS Grid(`height: 100vh; overflow: hidden`,parity scss
+  // photos.scss:116-128),高度封顶职责由那条规则接管,与本文件锁的 `.photos-layout` 规则
+  // 字符串不再相关。反向检查(下面第二条 it)不会误报它:`allPhotosLayoutViews()` 只收录
+  // 源码里还含 `.photos-layout {` 字面量的页面,Photos.vue 已经不含,自动被排除,不需要挪进
+  // EXEMPT。Plan C Task 2(公共换壳)起,PhotosAlbums.vue / PhotosAlbumDetail.vue /
+  // PhotosSmartViews.vue(见下方 EXEMPT 移除) / PhotosSmartViewDetail.vue /
+  // PhotosMomentDetail.vue 五页同样换成 `.app` 网格壳,同样不再含 `.photos-layout {`
+  // 字面量,同一条自动排除规则覆盖——已从下面的 CAPPED 名单摘掉(高度封顶职责转移给
+  // `.app` 网格,不再是本文件锁的 `.photos-layout` 规则字符串)。
+  // Fix-3 item 7(owner acceptance,2026-08-13,Plan F pull-forward)起,PhotosSearch.vue 同样
+  // 换成 `.app` 网格壳,同理从下面摘掉——它已经不含 `.photos-layout {` 字面量,
+  // `allPhotosLayoutViews()` 自动排除,不需要挪进 EXEMPT。
   // As of Plan D Task 2 (People re-shell), PhotosPeople.vue has likewise switched to the `.app`
   // grid shell, so it's dropped from below the same way (`.people-body` still takes over the
   // inner scroll responsibility, unchanged) — it no longer contains a literal `.photos-layout {`,
@@ -54,25 +43,29 @@ const CAPPED = [
   // over the inner scroll responsibility, unchanged) — it no longer contains a literal
   // `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to move it
   // into EXEMPT.
-  'PhotosFavorites.vue',        // .photos-wrap of PhotosGrid
-  'PhotosPlaceAssets.vue',      // .photos-wrap of PhotosGrid
+  // As of Plan E Task 1 (Places re-shell), PhotosPlaceAssets.vue has likewise switched to the
+  // `.app` grid shell, so it's dropped from below the same way (PhotosGrid's own `.photos-wrap`
+  // still takes over the inner scroll responsibility, unchanged) — it no longer contains a
+  // literal `.photos-layout {`, so `allPhotosLayoutViews()` excludes it automatically; no need to
+  // move it into EXEMPT.
+  'PhotosFavorites.vue',        // PhotosGrid 的 .photos-wrap
   'PhotosTrash.vue',            // .trash-scroll
   'PhotosSettings.vue',         // .ps-scroll
 ]
 
-// Exempt: this page has no inner scroll container anywhere, so capping would clip content out of
-// reach — it needs a scroll container built first before it can be capped, already tracked
-// separately. Its staying on min-height:100% is current behavior (the sidebar scrolls along with
-// the content), not a regression, but it IS a known defect; once a scroll container is added,
-// move it from this list to CAPPED.
+// 豁免:这一页整页都没有内层滚动容器,封顶会把内容裁掉够不着 —— 必须先给它建滚动容器
+// 才能封顶,已单独挂账。它留着 min-height:100% 是当前行为(侧栏会跟着滚),不算退步,
+// 但**是已知缺陷**,补完滚动容器后应从本名单移到 CAPPED。
 //
-// PhotosSmartViews.vue got its scroll container in Plan C Task 2 (`.mo-section` promoted to
-// flex:1 + overflow-y:auto) and was capped along with the re-shell, so it is removed from this
-// list (it no longer contains a literal `.photos-layout {` either, so `allPhotosLayoutViews()`
-// already excludes it).
-const EXEMPT: Record<string, string> = {
-  'PhotosPlaces.vue': 'Places map page has no inner scroll container and juggles map canvas sizing; capping is high-risk — pending a separate ticket',
-}
+// PhotosSmartViews.vue 已于 Plan C Task 2 补建滚动容器(`.mo-section` 升格为
+// flex:1+overflow-y:auto)并随换壳一起封顶,从本名单移除(它也不再含 `.photos-layout {`
+// 字面量,`allPhotosLayoutViews()` 已自动排除它)。
+//
+// PhotosPlaces.vue 已于 Plan E Task 1 换壳(`.app` CSS Grid),同样从本名单移除——它也不再含
+// `.photos-layout {` 字面量,`allPhotosLayoutViews()` 已自动排除它。地图画布本身仍没有内层
+// 滚动容器,但换壳后的高度封顶职责已转移给 `.app` 网格(与 PhotosPeople.vue 等页同理),原先
+// 「待单独一票处理」的风险点已经不存在。
+const EXEMPT: Record<string, string> = {}
 
 const CAPPED_RULE = '.photos-layout { display: flex; gap: 16px; align-items: flex-start; height: 100%; }'
 const UNCAPPED_RULE = '.photos-layout { display: flex; gap: 16px; align-items: flex-start; min-height: 100%; }'
@@ -81,7 +74,7 @@ function read(name: string): string {
   return readFileSync(`${VIEWS_DIR}/${name}`, 'utf8')
 }
 
-/** Every photos-section view with a `.photos-layout` shell — found via directory scan rather than a hardcoded list, so new pages are picked up automatically. */
+/** 所有带 `.photos-layout` 外壳的相册区 view —— 用目录扫描而不是写死清单,新增页会自动进来。 */
 function allPhotosLayoutViews(): string[] {
   return readdirSync(VIEWS_DIR)
     .filter((f) => f.endsWith('.vue'))
@@ -89,56 +82,56 @@ function allPhotosLayoutViews(): string[] {
     .sort()
 }
 
-describe('Photos section .photos-layout height cap', () => {
-  it('Forward: every page in the CAPPED list has height: 100% (not min-height)', () => {
+describe('相册区 .photos-layout 高度封顶', () => {
+  it('正向:CAPPED 名单里每一页都写着 height: 100%(而非 min-height)', () => {
     for (const name of CAPPED) {
       const src = read(name)
-      expect(src, `${name} is missing the capped .photos-layout rule`).toContain(CAPPED_RULE)
+      expect(src, `${name} 缺少已封顶的 .photos-layout 规则`).toContain(CAPPED_RULE)
     }
   })
 
-  it('Reverse: no photos page still has the old min-height: 100% (except the exempt list)', () => {
+  it('反向:没有任何相册页还留着旧的 min-height: 100%(豁免名单除外)', () => {
     const offenders = allPhotosLayoutViews()
       .filter((name) => read(name).includes(UNCAPPED_RULE))
       .filter((name) => !(name in EXEMPT))
     expect(
       offenders,
-      `These photos pages still have .photos-layout as min-height:100% — the sidebar and month scrubber will scroll away with the content. ` +
-        `Either change it to height:100% (the inner scroll chain is already complete), or add it to this file's EXEMPT list with a stated reason.`,
+      `这些相册页的 .photos-layout 仍是 min-height:100%,侧栏与月份刻度尺会跟着内容滚走。` +
+        `要么改成 height:100%(内层滚动链已完整),要么加进本文件的 EXEMPT 并写明理由。`,
     ).toEqual([])
   })
 
-  it('Reverse: every page in the directory with .photos-layout is covered by this file (CAPPED ∪ EXEMPT, none slip through)', () => {
+  it('反向:目录里每一个带 .photos-layout 的页都被本文件覆盖(CAPPED ∪ EXEMPT,无漏网)', () => {
     const covered = new Set([...CAPPED, ...Object.keys(EXEMPT)])
     const uncovered = allPhotosLayoutViews().filter((name) => !covered.has(name))
     expect(
       uncovered,
-      `A newly added photos page isn't registered: check whether its inner scroll chain is complete — if so, cap it and add it to CAPPED, otherwise add it to EXEMPT.`,
+      `新增的相册页未登记:请判断内层滚动链是否完整,完整则封顶后加进 CAPPED,否则加进 EXEMPT。`,
     ).toEqual([])
   })
 
-  it('Every entry in the exempt list has a reason and is genuinely not yet capped (once capped, it should move out of exempt)', () => {
+  it('豁免名单每条都带理由,且确实还没封顶(封顶了就该移出豁免)', () => {
     for (const [name, reason] of Object.entries(EXEMPT)) {
-      expect(reason.length, `the exempt reason for ${name} must not be empty`).toBeGreaterThan(10)
-      expect(read(name), `${name} has already been capped and should be moved from EXEMPT to CAPPED`).not.toContain(CAPPED_RULE)
+      expect(reason.length, `${name} 的豁免理由不能为空`).toBeGreaterThan(10)
+      expect(read(name), `${name} 已经封顶了,应从 EXEMPT 移到 CAPPED`).not.toContain(CAPPED_RULE)
     }
   })
 })
 
-describe('PhotosGrid photo grid scrollbar is hidden (Vue2 photos.scss:103 / :301 contract)', () => {
-  // If not hidden, the global 10px scrollbar from theme.css:4-16 would sit right on top of the
-  // .scrubber (a right:0, 56px-wide overlay with tick labels at right:6px) tick labels.
+describe('PhotosGrid 照片区滚动条不可见(Vue2 photos.scss:103 / :301 契约)', () => {
+  // 不隐藏的话,theme.css:4-16 的全局 10px 滚动条会正好压在 .scrubber(right:0 的 56px 浮层,
+  // 刻度文字贴 right:6px)的刻度文字上。
   const grid = readFileSync('src/photos/components/PhotosGrid.vue', 'utf8')
 
-  it('.photos-wrap turns off the Firefox-side scrollbar', () => {
+  it('.photos-wrap 关掉 Firefox 侧滚动条', () => {
     expect(grid).toContain('scrollbar-width: none')
   })
 
-  it('.photos-wrap turns off the WebKit-side scrollbar', () => {
+  it('.photos-wrap 关掉 WebKit 侧滚动条', () => {
     expect(grid).toContain('.photos-wrap::-webkit-scrollbar { display: none; }')
   })
 
-  it('PhotosSearchGrid matches (contract is consistent across both grid components)', () => {
+  it('PhotosSearchGrid 同款(两个网格组件契约一致)', () => {
     const searchGrid = readFileSync('src/photos/components/PhotosSearchGrid.vue', 'utf8')
     expect(searchGrid).toContain('scrollbar-width: none')
   })

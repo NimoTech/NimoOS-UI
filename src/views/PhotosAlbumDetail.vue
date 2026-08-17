@@ -1132,11 +1132,12 @@ watch(gridRef, () => {
        scrims) or don't need viewport-relative sizing (the pickers/lightbox/dialogs), and
        `.photos-root` itself sets no transform/filter/perspective/`contain` that would create a
        new containing block for `position: fixed` (same reasoning F1 item 3 already verified).
-       Correction (Fix-8 round 4, 2026-08-14): the lightbox is no longer part of this "moved
-       inside" group -- see its own dedicated comment further down. Unlike the scrims/pickers
-       here, its own `.lb-*` class family collides with a *future* parity re-skin that describes
-       a different DOM shape, so nesting it inside `.photos-root` re-introduces a different bug
-       than the one this note fixes. -->
+       Correction (Fix-8 round 4, 2026-08-14): the lightbox was temporarily pulled back OUT of
+       this "moved inside" group -- its `.lb-*` class family collided with a *future* parity
+       re-skin describing a different DOM shape at the time, so nesting it re-introduced a
+       different bug than the one this note fixes. Plan F Task 5 (2026-08-15) rejoins it: once
+       the re-skin (Tasks 3-4) actually landed and the local skeleton CSS duplicating parity's
+       rules was retired, that collision was gone -- see the lightbox's own mount further down. -->
 
   <!-- Edit-mode select bar (Vue2 :322-343). This is where the deleted toolbar band's two edit
          buttons live now, plus the hint line the band also carried. Deviation from the plan's
@@ -1251,36 +1252,14 @@ watch(gridRef, () => {
     @update:open="convertOpen = $event"
     @converted="onConverted"
   />
-  </div>
-  <!-- Fix-8 round 4 (owner acceptance, 2026-08-14; correction of this file's own Fix-2 item 5
-       note, which moved `<PhotoLightbox>` inside `.photos-root` alongside the other dialogs and
-       asserted nothing there needed a rendering fix -- that omission turned out to hide a real
-       bug specific to this ONE component, confirmed by real-device evidence: `lb.openAt`'s
-       network calls fired (state opened) but the lightbox never became visible. Root cause:
-       nesting `<PhotoLightbox>` inside `.photos-root` activates parity's own `.photos-root
-       .lightbox`/`.lb-*` rule family (vue2-parity/photos.scss:499-1061+) for the first time --
-       those rules target a *future* Plan-F pixel re-skin of this component (a `display: grid;
-       grid-template-areas: "top top" "main info" "strip info"` container with named-area
-       children) that does not match `PhotoLightbox.vue`'s own current, pre-Plan-F, self-
-       contained implementation (`display: flex; flex-direction: column`, plain nested divs, no
-       grid-area assignments). Every colliding selector (`.lightbox`/`.lb-top`/`.lb-title`/
-       `.lb-media`/`.lb-nav`/`.lb-strip`/`.lb-thumb`/`.lb-info`/`.lb-live-badge`) ties in
-       specificity between the component's own scoped rule and parity's `.photos-root`-scoped
-       one -- a genuine cascade tie settled only by bundler-internal CSS order, not by anything
-       this component controls. Should parity's `display: grid` win that tie for the outer
-       `.lightbox` container, none of this component's actual children carry the grid-area names
-       parity's layout expects, so they fall into unpredictable implicit placement -- exactly
-       matching "state opens, render fails." Un-nested back to a sibling of `.photos-root` (all
-       the OTHER dialogs here -- delete-confirm/library-picker/album-picker/convert -- have no
-       such collision and correctly stay nested per Fix-2 item 5's own reasoning; only the
-       lightbox moves). **Do not re-nest `<PhotoLightbox>` inside `.photos-root` before Plan F's
-       own lightbox re-skin actually ports its DOM/CSS to match parity's rules** -- see
-       acceptance-fix-report.md §F8-r4 for the full collision list and sweep. -->
+
+  <!-- PhotoLightbox re-nested in Plan F: the re-skin (Tasks 3-4) removed the scoped-vs-parity cascade tie that F8-r4 guarded against. -->
   <PhotoLightbox
     @delete="onLightboxDelete"
     @toggle-fav="() => {}"
     @add-to-album="(id) => openAlbumPicker([id])"
   />
+  </div>
   <!-- Fix-10 (owner acceptance, 2026-08-14): photos-private toast queue (Duplicate/etc.) --
        mounted once per photos view, Teleports to <body> and re-applies photos-root + themeClass
        on its own portal target (see PhotosToastHost.vue's own header comment), so its position

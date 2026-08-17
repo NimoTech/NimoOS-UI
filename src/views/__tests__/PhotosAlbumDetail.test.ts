@@ -805,7 +805,7 @@ describe('PhotosAlbumDetail.vue', () => {
 
     await w.find('.lb-delete').trigger('click')
     await w.vm.$nextTick()
-    await w.find('.lb-confirm-ok').trigger('click')
+    await w.find('.trash-btn-cta-danger').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
 
@@ -1139,23 +1139,20 @@ describe('P2c detail skeleton', () => {
     })
   })
 
-  // Fix-8 round 4 (owner acceptance, 2026-08-14): unlike every other element in the "Fix-2 item
-  // 5" block above, `<PhotoLightbox>` is deliberately NOT nested inside `.photos-root` here.
-  // Nesting it (as an earlier fix round on this same file did) activates parity's own
-  // `.photos-root .lightbox`/`.lb-*` rule family (vue2-parity/photos.scss:499-1061+), which
-  // targets a *future* Plan-F re-skin describing a different DOM/CSS shape (a CSS Grid with
-  // named grid-area children) than this component's own current, self-contained flex layout --
-  // every colliding selector ties in specificity between the component's own scoped rule and
-  // parity's, a genuine cascade tie settled only by bundler-internal CSS order. Confirmed by
-  // real-device evidence: `lb.openAt`'s network calls fired (state opened) but the lightbox
-  // never became visible. See acceptance-fix-report.md §F8-r4 for the full collision list.
-  describe('Fix-8 round 4: the lightbox is deliberately NOT nested inside .photos-root', () => {
-    it('the lightbox renders OUTSIDE .photos-root (parity\'s future-re-skin .lightbox/.lb-* rules must not match this component yet)', async () => {
+  // Plan F Task 5 (2026-08-15): unlike Fix-8 round 4's own snapshot of this file (which kept
+  // `<PhotoLightbox>` deliberately OUTSIDE `.photos-root`, unlike every other element in the
+  // "Fix-2 item 5" block above), the lightbox now joins them as a descendant. Plan F Tasks 3-5
+  // re-skinned this component's DOM/CSS onto parity's own grid shape and then retired the local
+  // skeleton CSS that used to duplicate parity's rules (Task 5) -- there is no longer a
+  // same-specificity cascade tie for parity's `.photos-root .lightbox`/`.lb-*` family to lose;
+  // it's now the sole source for those selectors. See task-5-report.md for the full sweep.
+  describe('Plan F Task 5: the lightbox is nested inside .photos-root (the re-skin removed the F8-r4 cascade tie)', () => {
+    it('the lightbox renders INSIDE .photos-root', async () => {
       const w = await mountDetail({ album: { id: 'a1', name: 'A' }, assets: [asset('a')] })
       await w.find('.tile').trigger('click')
       await flushPromises()
       const lightbox = w.get('.lightbox').element
-      expect(lightbox.closest('.photos-root')).toBeNull()
+      expect(lightbox.closest('.photos-root')).not.toBeNull()
     })
   })
 

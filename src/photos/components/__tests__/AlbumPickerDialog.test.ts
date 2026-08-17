@@ -8,6 +8,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { setActivePinia, createPinia } from 'pinia'
 import { createI18n } from 'vue-i18n'
+import fs from 'node:fs'
+import path from 'node:path'
 import zh from '../../../i18n/zh_cn'
 
 const svc = vi.hoisted(() => ({
@@ -300,5 +302,73 @@ describe('AlbumPickerDialog.vue', () => {
     expect(svc.photos.batchAddToAlbum).toHaveBeenCalledTimes(1)
     resolveAdd?.()
     await flushPromises()
+  })
+})
+
+// Fix-2 item 3 (owner acceptance, 2026-08-16): enlarge the dialog + make it viewport-responsive
+// (screenshot showed a small fixed 280px/360px box that no longer fits real cover thumbnails +
+// title/count rows). jsdom doesn't compute cascade/specificity, so this is a raw-source assertion
+// (same idiom as color-guard.test.ts/photosGlassSurfaces.test.ts's own rule-body reads) rather
+// than a rendered-DOM measurement.
+describe('AlbumPickerDialog.vue 尺寸(Fix-2 item 3:放大 + 视口响应)', () => {
+  const SRC = fs.readFileSync(path.resolve(__dirname, '../AlbumPickerDialog.vue'), 'utf8')
+  const PARITY_SRC = fs.readFileSync(
+    path.resolve(__dirname, '../../styles/vue2-parity/photos.scss'),
+    'utf8',
+  )
+
+  function ruleBody(text: string, selector: string): string {
+    const i = text.indexOf(selector)
+    expect(i, `找不到选择器 ${selector}`).toBeGreaterThan(-1)
+    const open = text.indexOf('{', i)
+    const close = text.indexOf('}', open)
+    return text.slice(open + 1, close)
+  }
+
+  it('本地 .album-picker-panel 覆盖为 width: min(520px, 90vw); max-height: min(640px, 80vh)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    const body = ruleBody(styleBlock, '.album-picker-panel')
+    expect(body).toMatch(/width:\s*min\(520px,\s*90vw\)/)
+    expect(body).toMatch(/max-height:\s*min\(640px,\s*80vh\)/)
+  })
+
+  it('parity 自己的 280px/360px 小尺寸原值未被误改(本地覆盖赢在同特异性平局，不是改了共享真源）', () => {
+    const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-panel')
+    expect(body).toMatch(/width:\s*280px/)
+    expect(body).toMatch(/max-height:\s*360px/)
+  })
+
+  it('.album-picker-body 仍是 parity 的内部滚动(overflow-y: auto; flex: 1),放大后长列表不撑破对话框', () => {
+    const body = ruleBody(PARITY_SRC, '.photos-root .album-picker-body')
+    expect(body).toMatch(/overflow-y:\s*auto/)
+    expect(body).toMatch(/flex:\s*1/)
+  })
+
+  // Fix-3 (owner acceptance, 2026-08-17, screenshot image copy 77.png): "Add to album" header
+  // title rendered white-on-light in Photos' private light theme -- invisible. Root cause: this
+  // dialog mounts as a SIBLING of `.app` (not inside it, see e.g. PhotosSearch.vue's template),
+  // and `.photos-root .app` is the only ancestor that explicitly sets `color: var(--text-1)`
+  // (this area's own is-light-aware token, photos.scss:104-116). Mounted outside `.app`, the
+  // title span's inherited `color` instead falls all the way through to the GLOBAL
+  // `src/styles/theme.css` `body { color: var(--fg) }` -- which only follows the app-wide
+  // `[data-theme]` attribute, not Photos' private `.photos-root.is-light` toggle. Same defect
+  // class as Fix-2 item 4 (Places/lightbox), a third independent surfacing of it. jsdom doesn't
+  // compute cross-stylesheet cascade/inheritance, so this is a raw-source assertion (same idiom
+  // as this describe block's own sizing checks above) rather than a computed-style read.
+  it('.album-picker-title-text 有显式局部 color: var(--text-1)(不再靠继承落到全局 --fg)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    // 锚定真正的规则(选择器紧跟 `{`),不是这条规则上方注释里同名的反引号引用
+    // (那条注释本身还提到了 `body { color: var(--fg) }` 这样的字面示例,朴素的
+    // indexOf(selector) 会先命中注释里的类名提及,再抓到注释自己那对花括号里的示例文本)。
+    const body = ruleBody(styleBlock, '.album-picker-title-text {')
+    expect(body).toMatch(/color:\s*var\(--text-1\)/)
+  })
+
+  it('.album-picker-close(✕ 按钮)已是局部 --text-2/--text-1,不受本次修复影响(先行核对未回归)', () => {
+    const styleBlock = /<style[^>]*>([\s\S]*)<\/style>/.exec(SRC)![1]
+    const base = ruleBody(styleBlock, '.album-picker-close {')
+    expect(base).toMatch(/color:\s*var\(--text-2\)/)
+    const hover = ruleBody(styleBlock, '.album-picker-close:hover')
+    expect(hover).toMatch(/color:\s*var\(--text-1\)/)
   })
 })

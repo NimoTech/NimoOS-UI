@@ -253,7 +253,7 @@ describe('PhotosFavorites.vue', () => {
 
     await w.find('.lb-delete').trigger('click')
     await w.vm.$nextTick()
-    await w.find('.lb-confirm-ok').trigger('click')
+    await w.find('.trash-btn-cta-danger').trigger('click')
     await flushPromises()
     await w.vm.$nextTick()
 
