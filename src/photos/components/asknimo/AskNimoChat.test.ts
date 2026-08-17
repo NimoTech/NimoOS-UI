@@ -50,6 +50,61 @@ describe('AskNimoChat', () => {
     expect(wrapper.find('.nimo-md').exists()).toBe(false)
   })
 
+  // Review fix (IMPORTANT #2): the streaming cursor must key off the md BLOCK's own `streaming`
+  // flag (dispatchEvent.ts's message_delta/endMessageStreaming), not the message's -- a message
+  // can hold a finished md block while the message object itself is still marked streaming.
+  it('renders the streaming cursor only when the md block itself is streaming, not the message', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1b', role: 'assistant', streaming: true, blocks: [{ type: 'md', text: 'done', streaming: false }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.msg-cursor').exists()).toBe(false)
+  })
+
+  it('renders the streaming cursor when the md block itself carries streaming:true', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1c', role: 'assistant', blocks: [{ type: 'md', text: 'typing', streaming: true }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.msg-cursor').exists()).toBe(true)
+  })
+
+  // Review fix (IMPORTANT #1, Vue2 wins PhotosAgentChat.vue:27,32): terminal blocks always show
+  // the literal label 'terminal', never `block.name` -- New-UI terminal blocks don't carry `name`
+  // at all (they use `command`, which is not a label).
+  it('terminal blocks always show the literal label "terminal", never block.name', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1d', role: 'assistant', blocks: [{ type: 'terminal', state: 'running', command: 'ls -la', name: 'should-not-show' }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.nimo-tool-line').text()).toContain('terminal')
+    expect(wrapper.find('.nimo-tool-line').text()).not.toContain('should-not-show')
+  })
+
+  it('tool blocks (non-terminal) still show block.name', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1e', role: 'assistant', blocks: [{ type: 'tool', state: 'running', name: 'search_photos' }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.nimo-tool-line').text()).toContain('search_photos')
+  })
+
+  // Review fix (IMPORTANT #1, Vue2 wins PhotosAgentChat.vue:26-29): the error text's code half
+  // comes solely from `sections[0].code` -- no `command` fallback -- and truncate() renders
+  // absent input as ''.
+  it('a terminal error block with no sections renders an empty code half after the separator', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1f', role: 'assistant', blocks: [{ type: 'terminal', state: 'error', command: 'ls -la' }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.nimo-tool-err').text()).toBe('terminal ·')
+  })
+
+  // Review fix (MINOR #4): a photo_grid block persisted without a `photos` field must render an
+  // empty grid, not throw on `.slice`/`.length`.
+  it('a photo_grid block missing the photos field renders an empty grid without throwing', () => {
+    const agent = useAgentStore('photos')
+    agent.messages = [{ id: 'a1g', role: 'assistant', blocks: [{ type: 'photo_grid', query: 'x' }] }] as any
+    const wrapper = mount(AskNimoChat, { props: {} })
+    expect(wrapper.find('.nimo-photo-grid-label').text()).toBe('x')
+    expect(wrapper.findAll('.nimo-photo-tile')).toHaveLength(0)
+  })
+
   // Re-check N-4: >12 photos -- slot 12 (pi===11) becomes the +N badge, N = length - 11.
   it('renders a photo_grid block with 13 photos: 11 real tiles + a +2 badge', () => {
     const agent = useAgentStore('photos')
@@ -59,6 +114,8 @@ describe('AskNimoChat', () => {
     expect(wrapper.find('.nimo-photo-grid-label').text()).toBe('sunset')
     expect(wrapper.findAll('.nimo-photo-tile')).toHaveLength(12) // 11 real + 1 more-badge (itself carries .nimo-photo-tile)
     expect(wrapper.find('.nimo-photo-tile-more').text()).toBe('+2')
+    // Review fix (MINOR #6, Vue2 wins): the img alt is the tile's own name, not empty.
+    expect(wrapper.findAll('.nimo-photo-tile')[0].find('img').attributes('alt')).toBe('p0')
   })
 
   // Re-check N-4: exactly 12 photos -- Vue2's `pi < 11 || length <= 12` renders ALL 12 as real
@@ -134,15 +191,48 @@ describe('AskNimoChat', () => {
     expect(agent.send).toHaveBeenCalledTimes(1)
   })
 
-  it('send button disabled when text empty or no model selected', async () => {
+  // Review fix (IMPORTANT #3, Vue2 wins PhotosAgentChat.vue:207): Enter while busy (streaming)
+  // must not wipe the textarea or consume the context chip -- send() itself would no-op on busy,
+  // but without this guard the UI-side wipe already happened by the time send() checks.
+  it('Enter while busy (streaming) does not send, and does not wipe the text or the context chip', async () => {
     const agent = useAgentStore('photos')
-    agent.selectedModel = null
+    agent.selectedModel = 'local:llama3'
+    agent.busy = true
+    agent.send = vi.fn(async () => {})
+    const wrapper = mount(AskNimoChat, { props: { contextPhoto: { id: 1, name: 'a.jpg', takenAt: null, place: null } } })
+    const textarea = wrapper.find('.nimo-chat-textarea')
+    await textarea.setValue('hi')
+    await textarea.trigger('keydown', { key: 'Enter' })
+    expect(agent.send).not.toHaveBeenCalled()
+    expect((textarea.element as HTMLTextAreaElement).value).toBe('hi')
+    expect(wrapper.emitted('context-consumed')).toBeFalsy()
+  })
+
+  // Review fix (MINOR #6): the original test only exercised the "no model selected" branch even
+  // though its name claimed both. This now exercises empty-text-with-a-model and
+  // model-cleared-with-text as two independent disabling reasons.
+  it('send button disabled when text is empty, or when no model is selected', async () => {
+    const agent = useAgentStore('photos')
     const wrapper = mount(AskNimoChat, { props: {} })
+    // No model selected (store default) and text empty -- disabled.
+    expect(wrapper.find('.nimo-chat-btn-send').attributes('disabled')).toBeDefined()
+
+    agent.selectedModel = 'local:llama3'
+    await wrapper.vm.$nextTick()
+    // Model selected but text still empty -- still disabled.
+    expect(wrapper.find('.nimo-chat-btn-send').attributes('disabled')).toBeDefined()
+
     await wrapper.find('.nimo-chat-textarea').setValue('hi')
+    // Both conditions satisfied -- enabled.
+    expect(wrapper.find('.nimo-chat-btn-send').attributes('disabled')).toBeUndefined()
+
+    agent.selectedModel = null
+    await wrapper.vm.$nextTick()
+    // Text present but model cleared -- disabled again.
     expect(wrapper.find('.nimo-chat-btn-send').attributes('disabled')).toBeDefined()
   })
 
-  it('onSend guards contextPhoto.id != null before building ctx, and consumes the chip', async () => {
+  it('onSend builds contextPhoto from a valid-id prop and consumes the chip', async () => {
     const agent = useAgentStore('photos')
     agent.selectedModel = 'local:llama3'
     agent.send = vi.fn(async () => {})
@@ -151,6 +241,30 @@ describe('AskNimoChat', () => {
     await wrapper.find('.nimo-chat-btn-send').trigger('click')
     expect(agent.send).toHaveBeenCalledWith({ text: 'about this', contextPhoto: { id: '1', name: 'a.jpg', takenAt: 't', place: 'p' }, contextAlbum: null })
     expect(wrapper.emitted('context-consumed')).toBeTruthy()
+  })
+
+  // Review fix (MINOR #6, Vue2 wins :217-218): missing takenAt/place normalize to '', not null.
+  it('onSend normalizes missing takenAt/place to empty strings', async () => {
+    const agent = useAgentStore('photos')
+    agent.selectedModel = 'local:llama3'
+    agent.send = vi.fn(async () => {})
+    const wrapper = mount(AskNimoChat, { props: { contextPhoto: { id: 2, name: 'b.jpg', takenAt: null, place: null } } })
+    await wrapper.find('.nimo-chat-textarea').setValue('about this')
+    await wrapper.find('.nimo-chat-btn-send').trigger('click')
+    expect(agent.send).toHaveBeenCalledWith({ text: 'about this', contextPhoto: { id: '2', name: 'b.jpg', takenAt: '', place: '' }, contextAlbum: null })
+  })
+
+  // Review fix (MINOR #6, Vue2 wins :214/:220): guards contextPhoto.id != null -- an id-less
+  // photo builds to a null contextPhoto and must NOT emit context-consumed (the chip stays).
+  it('onSend guards contextPhoto.id != null: an id-less photo sends null contextPhoto and keeps the chip', async () => {
+    const agent = useAgentStore('photos')
+    agent.selectedModel = 'local:llama3'
+    agent.send = vi.fn(async () => {})
+    const wrapper = mount(AskNimoChat, { props: { contextPhoto: { id: null as any, name: 'a.jpg', takenAt: null, place: null } } })
+    await wrapper.find('.nimo-chat-textarea').setValue('about this')
+    await wrapper.find('.nimo-chat-btn-send').trigger('click')
+    expect(agent.send).toHaveBeenCalledWith({ text: 'about this', contextPhoto: null, contextAlbum: null })
+    expect(wrapper.emitted('context-consumed')).toBeFalsy()
   })
 
   it('busy=true shows the stop button instead of send, onStop calls agent.stop()', async () => {

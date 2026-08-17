@@ -34,7 +34,10 @@ const text = ref('')
 
 interface PhotoGridBlock extends AgentBlock {
   query?: string
-  photos: Array<{ id: string | number; name: string; takenAt: unknown; thumbUrl: string }>
+  // Review fix (MINOR #4): server-persisted history can carry a photo_grid block with no
+  // `photos` field at all (e.g. a malformed/older record) -- optional, every dereference site
+  // below falls back to an empty array rather than throwing on `.slice`/`.length`/`[11]`.
+  photos?: Array<{ id: string | number; name: string; takenAt: unknown; thumbUrl: string }>
 }
 interface ToolLikeBlock extends AgentBlock {
   state?: string
@@ -47,32 +50,57 @@ const RENDERED_TYPES = new Set(['md', 'tool', 'terminal', 'photo_grid', 'confirm
 function isRendered(block: AgentBlock): boolean {
   return RENDERED_TYPES.has(block.type)
 }
-function toolLabel(block: ToolLikeBlock): string {
-  return block.name || block.command || 'tool'
+// Review fix (Vue2 wins, PhotosAgentChat.vue:181-184) -- verbatim truncate(): empty/falsy input
+// renders as '', otherwise cut to `n` chars with a trailing ellipsis.
+function truncate(str: string | undefined, n: number): string {
+  if (!str) return ''
+  return str.length > n ? str.slice(0, n) + '…' : str
 }
+// Review fix (Vue2 wins, PhotosAgentChat.vue:27,32) -- `terminal` blocks always display the
+// literal label 'terminal', never `block.name` (New-UI's terminal blocks don't carry `name` at
+// all, see dispatchEvent.ts/streamMappers.ts -- they use `command`, which is not a label).
+function toolLabel(block: ToolLikeBlock): string {
+  return block.type === 'terminal' ? 'terminal' : (block.name || '')
+}
+// Review fix (Vue2 wins, PhotosAgentChat.vue:26-29) -- error text is `label · truncate(code,120)`;
+// the code half comes solely from `sections[0].code` and renders as '' when absent (Vue2 has no
+// `command` fallback here -- that would show raw shell input in place of the tool's ARGUMENTS/RESULT).
 function toolErrorText(block: ToolLikeBlock): string {
-  const code = block.sections?.[0]?.code || block.command || ''
-  return `${toolLabel(block)} · ${code.slice(0, 120)}`
+  const code = block.sections?.[0]?.code
+  return `${toolLabel(block)} · ${truncate(code, 120)}`
 }
 function hasVisibleContent(blocks: AgentBlock[] | undefined): boolean {
   return !!blocks?.some(isRendered)
 }
 
-function md(block: AgentBlock, streaming: boolean): string {
+// Review fix (MINOR #2) -- the streaming cursor keys off the BLOCK's own `streaming` flag
+// (dispatchEvent.ts:71 sets it on append, :21-25 `endMessageStreaming` clears it), not the
+// message's. A message can hold multiple md blocks across turns; only the block currently being
+// appended to is streaming, not the whole message.
+function md(block: AgentBlock): string {
   const html = renderMarkdown(String((block as { text?: string }).text || ''))
-  return streaming ? html + '<span class="msg-cursor"></span>' : html
+  return (block as { streaming?: boolean }).streaming ? html + '<span class="msg-cursor"></span>' : html
 }
 
-type PhotoGridTile = { id: string | number; name: string; takenAt: unknown; thumbUrl: string }
+type PhotoGridTile = { id: string | number; name: string; takenAt: unknown; thumbUrl: string; isVideo?: boolean }
 
 function toPhotoStub(tile: PhotoGridTile): Photo {
   return {
     id: tile.id, title: tile.name, file: '', date: '', time: '',
     takenAt: (tile.takenAt as string | number | null) ?? null, indexedAt: null, mimeType: '',
-    fileSize: 0, isVideo: false, hasOcr: false, isNew: false, pinned: false, isLivePhoto: false,
+    fileSize: 0,
+    // Review fix (MINOR #5) -- buildPhotoGridBlock (streamMappers.ts) never emits an `isVideo`
+    // field on grid tiles today (photo_grid tiles are id/name/takenAt/thumbUrl only, no per-asset
+    // metadata), so this is always false in practice. Read it defensively in case a future mapper
+    // adds it, rather than hardcoding false, so the lightbox's video controls would light up
+    // without another change here.
+    isVideo: !!tile.isVideo, hasOcr: false, isNew: false, pinned: false, isLivePhoto: false,
     livePhotoVideoId: null, duration: null, durationMs: 0, fav: false, status: undefined,
     filePath: tile.name, width: null, height: null, dim: null, size: '', latitude: null,
     longitude: null, coords: null, place: null, camera: null, iso: null, shutter: null, aperture: null,
+    // Cast covers the remaining optional Photo fields this stub can't populate from a grid tile:
+    // focal/orientation/videoCodec/audioCodec/frameRate/bitRate/rotation/matchScore/matchedBy/
+    // belowCut/tags/scene/faces -- none of these are available from photo_grid's minimal shape.
   } as Photo
 }
 
@@ -80,7 +108,6 @@ function toPhotoStub(tile: PhotoGridTile): Photo {
 // `openPhoto(p, block.photos)` / `openPhoto(block.photos[11], block.photos)`), not just the
 // clicked tile -- this is what gives the lightbox left/right paging across the whole grid result.
 function openPhotoTile(tile: PhotoGridTile, allTiles: PhotoGridTile[]): void {
-  lightbox.searchQuery.value = ''
   const entryList = allTiles.map(toPhotoStub)
   const current = entryList.find((p) => p.id === tile.id) ?? toPhotoStub(tile)
   lightbox.openAt(current, entryList)
@@ -118,14 +145,21 @@ function suggest(s: string): void {
 
 async function onSend(): Promise<void> {
   const value = text.value.trim()
-  if (!value || !agent.selectedModel) return
+  // Review fix (IMPORTANT #3, Vue2 wins PhotosAgentChat.vue:207) -- guard busy too: without this,
+  // pressing Enter mid-stream wipes the textarea and consumes the context chips without actually
+  // sending (send() itself no-ops while busy, but the UI-side wipe already happened).
+  if (!value || agent.busy || !agent.selectedModel) return
   const photo = props.contextPhoto
   const album = props.contextAlbum
-  const contextPhoto = photo && photo.id != null ? { id: String(photo.id), name: photo.name, takenAt: photo.takenAt, place: photo.place } : null
+  // Review fix (MINOR #6, Vue2 wins :217-218) -- normalize missing takenAt/place to '', not undefined/null.
+  const contextPhoto = photo && photo.id != null ? { id: String(photo.id), name: photo.name, takenAt: photo.takenAt || '', place: photo.place || '' } : null
   const contextAlbum = album && album.id != null ? { id: String(album.id), name: album.name } : null
   text.value = ''
-  if (photo) emit('context-consumed')
-  if (album) emit('album-context-consumed')
+  // Review fix (MINOR #6, Vue2 wins :220/:228) -- key the emit on the BUILT ctx, not the raw prop:
+  // an id-less contextPhoto/contextAlbum builds to null and must NOT emit consumed -- the chip
+  // stays visible (Vue2 never clears a chip it couldn't actually attach to the outgoing message).
+  if (contextPhoto) emit('context-consumed')
+  if (contextAlbum) emit('album-context-consumed')
   await agent.send({ text: value, contextPhoto, contextAlbum })
 }
 async function onStop(): Promise<void> {
@@ -146,7 +180,7 @@ function onKey(e: KeyboardEvent): void {
         <div v-if="m.role === 'user'" class="msg msg-u"><span class="msg-content">{{ m.content }}</span></div>
         <div v-else-if="m.role === 'assistant'" class="msg msg-a">
           <template v-for="(block, i) in (m.blocks || []).filter(isRendered)" :key="i">
-            <div v-if="block.type === 'md'" class="nimo-md" v-html="md(block, !!m.streaming)" />
+            <div v-if="block.type === 'md'" class="nimo-md" v-html="md(block)" />
             <div
               v-else-if="block.type === 'tool' || block.type === 'terminal'"
               class="nimo-tool-line"
@@ -160,19 +194,22 @@ function onKey(e: KeyboardEvent): void {
               <div class="nimo-photo-grid-tiles">
                 <!-- Re-check N-4: verbatim Vue2 PhotosAgentChat.vue:36-60 semantics -- always
                      slice(0,12); slot pi===11 (the 12th) only becomes the +N badge when
-                     length > 12, otherwise (<=12 photos) all 12 slots render as real tiles. -->
-                <template v-for="(tile, pi) in (block as PhotoGridBlock).photos.slice(0, 12)" :key="tile.id">
+                     length > 12, otherwise (<=12 photos) all 12 slots render as real tiles.
+                     Review fix (MINOR #4): `|| []` at every `.photos` dereference -- a
+                     persisted photo_grid block missing the `photos` field must render an
+                     empty grid, not throw. -->
+                <template v-for="(tile, pi) in ((block as PhotoGridBlock).photos || []).slice(0, 12)" :key="tile.id">
                   <div
-                    v-if="pi < 11 || (block as PhotoGridBlock).photos.length <= 12" class="nimo-photo-tile"
-                    @click="openPhotoTile(tile, (block as PhotoGridBlock).photos)"
+                    v-if="pi < 11 || ((block as PhotoGridBlock).photos || []).length <= 12" class="nimo-photo-tile"
+                    @click="openPhotoTile(tile, (block as PhotoGridBlock).photos || [])"
                   >
-                    <img :src="tile.thumbUrl" loading="lazy" alt="">
+                    <img :src="tile.thumbUrl" loading="lazy" :alt="tile.name">
                   </div>
                   <div
                     v-else class="nimo-photo-tile nimo-photo-tile-more"
-                    @click="openPhotoTile((block as PhotoGridBlock).photos[11], (block as PhotoGridBlock).photos)"
+                    @click="openPhotoTile(((block as PhotoGridBlock).photos || [])[11], (block as PhotoGridBlock).photos || [])"
                   >
-                    +{{ (block as PhotoGridBlock).photos.length - 11 }}
+                    +{{ ((block as PhotoGridBlock).photos || []).length - 11 }}
                   </div>
                 </template>
               </div>
