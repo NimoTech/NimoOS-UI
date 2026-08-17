@@ -46,6 +46,8 @@ import { usePhotosAlbums } from '../../photos/stores/albums'
 import { useTimelineStore } from '../../photos/stores/timeline'
 import { useToast } from '../../stores/toast'
 import { useLightbox } from '../../photos/lightbox/useLightbox'
+import { useAskNimo } from '../../photos/composables/useAskNimo'
+import { useAgentStore } from '../../ai/stores/agentStore'
 
 const lb = useLightbox()
 
@@ -100,6 +102,10 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   lb.__resetForTest()
+  // useAskNimo() is a module-level singleton (not tied to the per-test Pinia instance) -- reset
+  // it the same way PhotosSearch.test.ts does, so a drawerOpen=true from one test doesn't leak
+  // into the next.
+  useAskNimo().__resetForTests()
 })
 
 describe('PhotosFavorites.vue', () => {
@@ -779,6 +785,18 @@ describe('PhotosFavorites.vue (Task 1 re-shell)', () => {
     const topbar = w.findComponent({ name: 'PhotosTopbar' })
     expect(topbar.props('showAskNimo')).toBe(true)
     expect(w.findComponent({ name: 'AskNimoHost' }).exists()).toBe(true)
+
+    // Opening the drawer triggers NimoModelPicker's own onMounted -> agent.loadAvailableModels()
+    // (fire-and-forget, no .catch) -- stub it the same way AskNimoDrawer.test.ts's beforeEach
+    // does, so the real, un-mocked service.ai (this file's svc mock has no `ai` key) doesn't
+    // throw an unhandled rejection.
+    useAgentStore('photos').loadAvailableModels = vi.fn(async () => {})
+
+    // Fire the real click (PhotosTopbar is a real mount here, not stubbed) and prove the
+    // handler actually reaches useAskNimo().openDrawer() -- following PhotosSearch.test.ts's
+    // own useAskNimo().popupOpen assertion pattern (Plan G Task 18).
+    await w.find('[data-test="topbar-ask-nimo"]').trigger('click')
+    expect(useAskNimo().drawerOpen.value).toBe(true)
   })
 
   // F-16: this button is `:disabled` when there are no loaded favorites -- mock a page first so
@@ -786,6 +804,7 @@ describe('PhotosFavorites.vue (Task 1 re-shell)', () => {
   it('AlbumPickerDialog and the save-as-album modal are both descendants of .photos-root', async () => {
     svc.photos.listFavorites.mockResolvedValueOnce([{ id: '1', mimeType: 'image/jpeg' }])
     const w = await mountView()
+    expect(w.find('.photos-root').findComponent({ name: 'AlbumPickerDialog' }).exists()).toBe(true)
     await w.find('[data-test="fav-save-album-btn"]').trigger('click')
     await w.vm.$nextTick()
     expect(w.find('.photos-root [data-test="fav-savealbum-modal"]').exists()).toBe(true)

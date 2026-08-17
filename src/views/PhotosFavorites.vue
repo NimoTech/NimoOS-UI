@@ -1,9 +1,16 @@
 <script setup lang="ts">
 // Task 8 (SP7-P3): favorites view -- reuses the PhotosGrid base to render favorited items
 // (Task 1's usePhotosFavorites supplies data/actions), wires up zip export + empty state +
-// tab filter + lightbox (P2's useLightbox singleton). The shell structure is copied from
+// tab filter + lightbox (P2's useLightbox singleton). The shell was originally copied from
 // Photos.vue's (timeline view, src/views/Photos.vue) AreaShell/photos-layout/photos-main
 // (see task-8-brief.md). Route registration is left to T10.
+//
+// Plan H Task 1 (re-shell): the transitional AreaShell/.photos-layout shell has been swapped
+// for Photos.vue/PhotosPeople.vue's own `.photos-root > .app[data-collapsed][data-selecting] >
+// PhotosSidebar + main.main > PhotosTopbar + .photos-main` structure (useSidebarCollapse shared
+// singleton). AlbumPickerDialog and the save-as-album modal moved from template-root siblings
+// of the old AreaShell wrapper to inside `.photos-root` (siblings of `.app`), alongside the
+// Plan G AskNimoHost mount. Full detail in task-1-report.md.
 // Task 9 (SP7-P4 albums) adds: selection-toolbar batch "add to album" and lightbox single-item
 // "add to album", following the same pickerOpen/pickerIds + openAlbumPicker(ids) pattern as
 // Photos.vue, wired to AlbumPickerDialog (T5).
@@ -245,7 +252,11 @@ onMounted(() => {
 
 <template>
   <div class="photos-root" :class="themeClass">
-    <div class="app" :data-collapsed="collapsed">
+    <!-- data-selecting mirrors Photos.vue:363's binding verbatim (selected is the same
+         Array<string|number> ref shape there): parity photos.scss:488's tile-checkbox rule
+         (`.app[data-selecting="true"] .tile-checkbox { opacity: 1 }`) needs this to fire once
+         a selection starts. -->
+    <div class="app" :data-collapsed="collapsed" :data-selecting="selected.length > 0">
       <PhotosSidebar :collapsed="collapsed" />
       <main class="main">
         <PhotosTopbar
@@ -519,7 +530,7 @@ onMounted(() => {
    screens look inconsistent. */
 .empty-state .bar-btn { margin-top: 10px; }
 
-/* Task 1: mobile column-collapse, copied from Photos.vue:465-468 specifically (not from
+/* Task 1: mobile column-collapse, copied from Photos.vue:466-468 specifically (not from
    PhotosPeople.vue, which has no .app scoped rule at all) -- a New-UI-only mobile
    enhancement, no Vue2/parity source (F-21). */
 @media (max-width: 768px) {
