@@ -13,6 +13,8 @@ import { createI18n } from 'vue-i18n'
 import { createRouter, createWebHashHistory } from 'vue-router'
 import zh from '../../i18n/zh_cn'
 import en from '../../i18n/en_us'
+import { useAgentStore } from '../../ai/stores/agentStore'
+import { useAskNimo } from '../../photos/composables/useAskNimo'
 
 const svc = vi.hoisted(() => ({
   photos: {
@@ -145,6 +147,12 @@ afterEach(() => {
   usePhotosSearch().__resetForTest()
   usePhotosPeople().__resetForTest()
   usePhotosAlbums().__resetForTest()
+  // Task 18 (Plan G): useAskNimo() is a module-level singleton (not tied to the per-test Pinia
+  // instance), and PhotosSearch.vue mounts <AskNimoHost /> unconditionally -- leaving
+  // popupOpen=true here would leak into every later test in this file, re-mounting
+  // NimoModelPicker (via a fresh, un-stubbed agent store) on their next mountSearch() call and
+  // throwing an unhandled "service.ai.listModels is not a function" rejection.
+  useAskNimo().__resetForTests()
   vi.restoreAllMocks()
   // 见 mountSearch 头部注释:挂进真实 document.body 的实例必须显式 unmount + 移除容器,
   // 否则 document 级监听器与 DOM 节点会跨测试残留、累积到整个文件运行期间。
@@ -912,11 +920,52 @@ describe('空态', () => {
     resolveFn!([])
   })
 
-  it('D1 反向断言:空态里不存在 Ask Nimo 按钮', async () => {
-    svc.photos.smartSearch.mockResolvedValue([])
-    const { w } = await mountSearch('/photos/search?q=nothing')
+  // Task 18 (Plan G): the old D1 ruling ("no Ask Nimo button here") has been reversed by spec §3 --
+  // this test used to assert the button's *absence*; it now asserts its presence and exact wiring
+  // instead of being deleted outright, so the empty state's Ask Nimo affordance stays covered.
+  it('empty-search state shows an Ask Nimo button that opens the popup with the i18n prefix + chips joined by " + " (preflight F-07: not a Chinese comma)', async () => {
+    // Re-check F-13: this it()'s own stub -- openWith() below calls ensureNimoAgentInit(), and this
+    // test file has no beforeEach of Plan G's own to rely on, so the stub goes right here (same
+    // pattern as PersonHero.test.ts/PersonRelationsTab.test.ts).
+    const agent = useAgentStore('photos')
+    agent.loadAvailableModels = vi.fn(async () => {})
+    agent.createSession = vi.fn(async () => { agent.activeSessionId = 's0' })
+    agent.deleteSession = vi.fn(async () => {})
+    agent.setSessionTitle = vi.fn(async () => {})
+    useAskNimo().__resetForTests()
+
+    svc.photos.listPersons.mockResolvedValue({ persons: [{ id: 1, name: 'Sara', count: 3 }], facesIndexedUpTo: null })
+    // Tokyo+Bob only -- selecting place=Tokyo AND people=Sara narrows this to zero matches, driving
+    // the empty state (same place+people combo as the "组合" test above, minus the Sara match).
+    svc.photos.smartSearch.mockResolvedValue([
+      rawAsset('a', { placeName: 'Tokyo, Japan', faces: ['Bob'] }),
+    ])
+    const { w } = await mountSearch('/photos/search?q=abc')
     await flushPromises()
-    expect(w.text()).not.toContain(zh.photosSearchAskNimoSearchDifferently)
+    await w.get('[data-test="chip-place"] .fchip').trigger('click')
+    await w.get('.fpop-item').trigger('click')
+    await w.get('.btn.btn-primary').trigger('click')
+    await w.get('[data-test="chip-people"] .fchip').trigger('click')
+    await w.get('.face-cell').trigger('click')
+    await w.get('[data-test="people-apply-btn"]').trigger('click')
+    await flushPromises()
+    expect(w.find('[data-test="empty-search"]').exists()).toBe(true)
+
+    await w.find('[data-test="empty-search-ask-nimo"]').trigger('click')
+    expect(useAskNimo().popupOpen.value).toBe(true)
+    // PhotosSearch.vue also mounts <AskNimoHost /> unconditionally, so opening the popup here
+    // immediately renders AskNimoChat, whose own prefill watcher consumes useAskNimo().prefill
+    // into its local textarea model within the same tick (emitting prefill-consumed) -- so the
+    // composable's prefill ref is back to '' by the time we can observe it. Assert against the
+    // rendered textarea instead, which is where the consumed text actually lands.
+    await flushPromises()
+    // AskNimoHost Teleports its whole subtree (incl. AskNimoChat's textarea) to document.body --
+    // same query pattern as AskNimoHost.test.ts -- so it must be queried on document.body, not
+    // through `w`, which only sees PhotosSearch.vue's own (non-teleported) render tree.
+    const textarea = document.body.querySelector('.nimo-chat-textarea') as HTMLTextAreaElement | null
+    // activeConditions order is people-then-place (PhotosSearch.vue's own computed), giving
+    // ['Sara', 'Tokyo'] here -- joined with Vue2's exact ' + ' separator, not a Chinese comma.
+    expect(textarea?.value).toBe(zh.photosSearchFindPhotosPrefix + 'Sara + Tokyo')
   })
 })
 

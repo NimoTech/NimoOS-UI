@@ -30,6 +30,7 @@ import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { usePhotosTheme } from '../photos/composables/usePhotosTheme'
 import { useSidebarCollapse } from '../photos/composables/useSidebarCollapse'
+import { useAskNimo } from '../photos/composables/useAskNimo'
 import PhotosSidebar from '../photos/components/PhotosSidebar.vue'
 import PhotosTopbar from '../photos/components/PhotosTopbar.vue'
 import PhotosFilterChip from '../photos/components/PhotosFilterChip.vue'
@@ -531,6 +532,14 @@ const activeConditions = computed<string[]>(() => {
   return out
 })
 
+// Task 18 (Plan G): empty-state "Ask Nimo to search differently" button, entry #5 of the 9 real
+// Ask Nimo entry points (spec §3 reverses the old D1 ruling that this button not be built).
+function onAskNimoSearchDifferently(): void {
+  // Preflight F-07: Vue2's exact separator is ' + ' (PhotosSearchView.vue:234
+  // `activeConditions.join(' + ')`), not a Chinese-comma guess.
+  useAskNimo().openWith(t('photosSearchFindPhotosPrefix') + activeConditions.value.join(' + '))
+}
+
 // ── defaultSaveName(结构规格 17,照搬 Vue2 :550-559)──────────────────────────
 const defaultSaveName = computed(() => {
   const q = (query.value || '').trim().replace(/^['"]|['"]$/g, '')
@@ -882,7 +891,9 @@ onMounted(() => {
             </span>
           </div>
 
-          <!-- 空态(结构规格 15,D1:不建 Ask Nimo 按钮)-->
+          <!-- Plan G Task 18: spec §3 reverses the old D1 ruling ("no Ask Nimo button here") --
+               the button is now built. Inline size/icon transcribed verbatim from Vue2
+               PhotosSearchView.vue:233-236. -->
           <div v-if="filteredResults.length === 0 && !searching" class="empty-search" data-test="empty-search">
             <div class="nimo-orb" />
             <h2>{{ t('photosSearchNoMatches') }}</h2>
@@ -890,6 +901,13 @@ onMounted(() => {
             <div class="conditions">
               <div v-for="c in activeConditions" :key="c" class="fchip" data-on="true">{{ c }}</div>
             </div>
+            <button
+              type="button" class="btn btn-ai" style="height:36px;padding:0 18px"
+              data-test="empty-search-ask-nimo" @click="onAskNimoSearchDifferently"
+            >
+              <span class="nimo-orb" style="width:18px;height:18px" />
+              {{ t('photosSearchAskNimoSearchDifferently') }}
+            </button>
           </div>
 
           <!-- 结果网格 -->
