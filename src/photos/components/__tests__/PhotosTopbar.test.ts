@@ -329,9 +329,15 @@ describe('back=true 时搜索框自动聚焦(Plan F Task 1,对齐 Vue2 searchMod
 
 // Plan G Task 16 (preflight F-06/F-17): additive `showAskNimo` prop (default false, non-breaking
 // for the 5 existing library/albums/smart-views/people/places callers) + `ask-nimo` emit. Vue2
-// truth: the topbar Ask button opens the drawer directly, no prefill (baseline research report
-// §2.1, PhotosTopbar.vue:29 in the Vue2 repo) — this component only emits, the caller (T2's
+// truth: the topbar Ask button is a labeled pill (`class="btn btn-ai"` + 18px `.nimo-orb` +
+// visible "Ask Nimo" text, NimoOS-UI PhotosTopbar.vue:29-32) that opens the drawer directly, no
+// prefill (baseline research report §2.1) — this component only emits, the caller (T2's
 // useAskNimo().openDrawer()) owns that behavior.
+//
+// Review fix (Critical): the first version used a novel `icon-btn btn-ai` combo with no text and
+// a 16px orb — no precedent in either repo, and `.icon-btn` has no border so `.btn-ai`'s
+// border-color was inert. Corrected to match Vue2 byte-for-byte: `btn btn-ai` + 18px orb +
+// visible label, no title tooltip (Vue2 has none there since the label is visible).
 describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
   beforeEach(() => { setActivePinia(createPinia()) })
 
@@ -340,7 +346,16 @@ describe('showAskNimo prop(额外覆盖,Plan G Task 16)', () => {
     expect(w.find('[data-test="topbar-ask-nimo"]').exists()).toBe(false)
   })
 
-  it('renders it when showAskNimo is true, emitting ask-nimo on click', async () => {
+  it('renders it when showAskNimo is true, with Vue2\'s btn/btn-ai classes and visible label', () => {
+    const w = mountTopbar({ title: 'x', showAskNimo: true })
+    const btn = w.get('[data-test="topbar-ask-nimo"]')
+    expect(btn.classes()).toContain('btn')
+    expect(btn.classes()).toContain('btn-ai')
+    expect(btn.text()).toBe(zh.photosAskNimo)
+    expect(btn.get('.nimo-orb')).toBeTruthy()
+  })
+
+  it('emits ask-nimo on click', async () => {
     const w = mountTopbar({ title: 'x', showAskNimo: true })
     await w.find('[data-test="topbar-ask-nimo"]').trigger('click')
     expect(w.emitted('ask-nimo')).toBeTruthy()

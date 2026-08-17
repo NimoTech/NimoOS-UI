@@ -196,10 +196,13 @@ onMounted(() => {
         <span class="kbd">↵</span>
       </div>
     </div>
-    <!-- Plan G Task 16 (preflight F-17): Vue2 PhotosTopbar.vue:29 -- opens the drawer directly,
-         no prefill. This component only emits; the caller wires `useAskNimo().openDrawer()`. -->
-    <button v-if="showAskNimo" type="button" class="icon-btn btn-ai" data-test="topbar-ask-nimo" :title="t('photosAskNimo')" @click="emit('ask-nimo')">
-      <span class="nimo-orb" style="width:16px;height:16px;flex:none" />
+    <!-- Plan G Task 16 (preflight F-17): Vue2 PhotosTopbar.vue:29-32 -- a labeled pill
+         (`class="btn btn-ai"` + 18px `.nimo-orb` + visible "Ask Nimo" text), opens the drawer
+         directly, no prefill, no title tooltip (Vue2 has none there since the label is visible).
+         This component only emits; the caller wires `useAskNimo().openDrawer()`. -->
+    <button v-if="showAskNimo" type="button" class="btn btn-ai" data-test="topbar-ask-nimo" @click="emit('ask-nimo')">
+      <span class="nimo-orb" style="width:18px;height:18px;flex:none" />
+      {{ t('photosAskNimo') }}
     </button>
   </header>
 </template>
