@@ -294,14 +294,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
         <div class="photos-main">
           <!-- Task 8 (Plan H re-shell): hero follows Vue2 PhotosTrashView.vue:4-23's `.lib-hero`
                (parity photos.scss ~1231-1267), matching PhotosFavorites.vue's own `.lib-hero`
-               re-shell precedent. `data-tint="warn"` on the icon selects parity's red-tinted
-               circle background (photos.scss:1248); the icon glyph itself has no parity color
-               rule (same gap as Favorites' `.fav-hero-star-icon`), so `.trash-hero-icon-glyph`
-               below supplies Vue2's own explicit `color="#FF6B5C"` (:6) via the existing
-               `--remove-fg` danger token already used elsewhere in this file. -->
-          <div class="lib-hero" data-tint="warn">
+               re-shell precedent. `data-tint="warn"` only sits on `.lib-hero-icon` (Vue2 :5's
+               only tint usage, selects parity's red-tinted circle background, photos.scss:1248)
+               -- `.lib-hero` itself never carried it in Vue2 or in parity CSS, dead weight,
+               dropped (same cleanup PhotosFavorites.vue already did). The icon glyph itself has
+               no parity color rule (same gap as Favorites' `.fav-hero-star-icon`), so
+               `.trash-danger-icon` below supplies Vue2's own explicit `color="#FF6B5C"` (:6). -->
+          <div class="lib-hero">
             <div class="lib-hero-icon" data-tint="warn">
-              <PhotosIcon name="trash" :size="24" class="trash-hero-icon-glyph" />
+              <PhotosIcon name="trash" :size="22" class="trash-danger-icon" />
             </div>
             <div style="flex:1">
               <h1 class="lib-hero-title">{{ t('photosTrashTitle') }}</h1>
@@ -320,9 +321,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
             <div class="lib-hero-actions">
               <!-- R-6: guard keeps both halves of the expression (not just the length check) so
                    the button isn't a dead click during the paging-in-the-rest step in
-                   restoreAll/emptyTrash below, and so the two bulk actions can't race each other. -->
-              <button type="button" class="btn" data-test="trash-restore-all" :disabled="!trash.items.length || preparingBulkAction" @click="restoreAll">{{ t('photosTrashRestoreAll') }}</button>
-              <button type="button" class="btn trash-btn-danger" data-test="trash-empty-btn" :disabled="!trash.items.length || preparingBulkAction" @click="emptyTrash">{{ t('photosTrashEmpty') }}</button>
+                   restoreAll/emptyTrash below, and so the two bulk actions can't race each other.
+                   Leading icons restored per Vue2 :17/:20 (upload/trash, size 13). -->
+              <button type="button" class="btn" data-test="trash-restore-all" :disabled="!trash.items.length || preparingBulkAction" @click="restoreAll"><PhotosIcon name="upload" :size="13" /> {{ t('photosTrashRestoreAll') }}</button>
+              <button type="button" class="btn trash-btn-danger" data-test="trash-empty-btn" :disabled="!trash.items.length || preparingBulkAction" @click="emptyTrash"><PhotosIcon name="trash" :size="13" class="trash-danger-icon" /> {{ t('photosTrashEmpty') }}</button>
             </div>
           </div>
 
@@ -332,12 +334,15 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
           </div>
 
           <template v-else>
+            <!-- Leading icons restored per Vue2 :37-39 (upload/trash/x, size 11, default
+                 currentColor -- the danger button's red only shows on hover via parity's own
+                 `.trash-bulk-bar button[data-danger="true"]:hover` rule, same as Vue2). -->
             <div v-if="selected.size > 0" class="trash-bulk-bar">
               <span class="ct">{{ t('photosTrashSelectedCount', { count: selected.size }) }}</span>
               <span class="spacer"></span>
-              <button type="button" data-test="trash-bulk-restore" @click="restoreSelected">{{ t('photosTrashRestore') }}</button>
-              <button type="button" data-danger="true" data-test="trash-bulk-delete" @click="deleteSelected">{{ t('photosTrashDeleteForever') }}</button>
-              <button type="button" data-test="trash-bulk-cancel" @click="clearSelection">{{ t('photosCancel') }}</button>
+              <button type="button" data-test="trash-bulk-restore" @click="restoreSelected"><PhotosIcon name="upload" :size="11" /> {{ t('photosTrashRestore') }}</button>
+              <button type="button" data-danger="true" data-test="trash-bulk-delete" @click="deleteSelected"><PhotosIcon name="trash" :size="11" /> {{ t('photosTrashDeleteForever') }}</button>
+              <button type="button" data-test="trash-bulk-cancel" @click="clearSelection"><PhotosIcon name="x" :size="11" /> {{ t('photosCancel') }}</button>
             </div>
 
             <div class="trash-filters">
@@ -387,7 +392,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                       class="trash-tile-check" :data-selected="isSelected(p.id)"
                       @click.stop="toggleSelect(p.id)"
                     >
-                      <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6" /></svg>
+                      <PhotosIcon name="check" :size="12" :stroke-width="2.4" />
                     </div>
                     <div class="lib-tile-meta">
                       <span class="lib-tile-place">{{ t('photosTrashFrom', { source: p.from }) }}{{ p.deletedAt ? ' · ' + p.deletedAt : '' }}</span>
@@ -413,23 +418,31 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
       </main>
     </div>
 
-    <!-- R-1 (F-09 未闭环的另一半): the confirm scrim+transition and AskNimoHost both belong
-         INSIDE .photos-root, as siblings of .app -- NOT after .photos-root's own closing tag.
-         Photos-private tokens (--surface-2/--text-1/--line etc.) are declared on .photos-root
-         with no global fallback (see Photos.vue's same-shaped incident record); anything left
-         outside it renders with blank/unresolved colors, on top of failing the overlay-subtree
-         rule this very task is supposed to honor. -->
+    <!-- R-1 (the other half of F-09, previously left open): the confirm scrim+transition and
+         AskNimoHost both belong INSIDE .photos-root, as siblings of .app -- NOT after
+         .photos-root's own closing tag. Photos-private tokens (--surface-2/--text-1/--line etc.)
+         are declared on .photos-root with no global fallback (see Photos.vue's same-shaped
+         incident record); anything left outside it renders with blank/unresolved colors, on top
+         of failing the overlay-subtree rule this very task is supposed to honor. -->
     <transition name="trash-modal">
       <div v-if="confirm" class="trash-modal-scrim" @click.self="closeConfirm">
         <div class="trash-modal" :data-danger="confirm.danger">
+          <!-- Task 8 review fix: Vue2 :100-102 uses 'upload' (not 'refresh') for the
+               non-danger/restore case, :size="22" (not 20), with explicit state colors
+               (non-danger #5e94ff, danger #FF6B5C) -- fixed via the wrapper's `color`
+               (.trash-modal-icon rule below), inherited by the glyph's `currentColor` stroke. -->
           <div class="trash-modal-icon">
-            <PhotosIcon :name="confirm.danger ? 'trash' : 'refresh'" :size="20" />
+            <PhotosIcon :name="confirm.danger ? 'trash' : 'upload'" :size="22" />
           </div>
           <div class="trash-modal-title">{{ confirm.title }}</div>
           <div class="trash-modal-body">{{ confirm.body }}</div>
           <div class="trash-modal-foot">
             <button type="button" class="trash-btn-ghost" @click="closeConfirm">{{ t('photosCancel') }}</button>
+            <!-- Task 8 review fix: Vue2 :108-111's CTA also carries a leading icon (same
+                 trash/upload pair, :size="12", color="white" -- inherited here from parity's
+                 own `.trash-btn-cta { color: white; }`, no extra class needed). -->
             <button type="button" class="trash-btn-cta" :class="{ 'trash-btn-cta-danger': confirm.danger }" @click="runConfirm">
+              <PhotosIcon :name="confirm.danger ? 'trash' : 'upload'" :size="12" />
               {{ confirm.ctaLabel }}
             </button>
           </div>
@@ -466,15 +479,22 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 /* Icon glyph colors: parity's own `.lib-hero-icon[data-tint]`/`.trash-modal-icon` rules only
    set the background circle, not the glyph itself (same gap as PhotosFavorites.vue's own
    `.fav-hero-star-icon`) -- these two page-local overrides supply Vue2's explicit inline
-   `color` props (PhotosTrashView.vue:6 hero icon always red; :101-102 confirm-modal icon is
-   blue for the informational/restore case, red for the danger/delete case). */
-.trash-hero-icon-glyph { color: var(--remove-fg, #ff8a8a); }
-.trash-modal-icon { color: var(--accent); }
-.trash-modal[data-danger="true"] .trash-modal-icon { color: var(--remove-fg, #ff8a8a); }
+   `color` props. `.trash-danger-icon` is Vue2's always-red icon (PhotosTrashView.vue:6 hero
+   icon, :20 hero "Empty trash" button icon -- both hard-coded `color="#FF6B5C"`); the fallback
+   is Vue2's literal hex, not the softer `--remove-fg` default used elsewhere in this codebase,
+   to stay pixel-exact. `.trash-modal-icon`'s color is dynamic (:101-102: blue `#5e94ff` for the
+   informational/restore case, red `#FF6B5C` for the danger/delete case), inherited by the
+   glyph via `currentColor`. */
+.trash-danger-icon { color: var(--remove-fg, #FF6B5C); }
+.trash-modal-icon { color: var(--accent, #5e94ff); }
+.trash-modal[data-danger="true"] .trash-modal-icon { color: var(--remove-fg, #FF6B5C); }
 
 /* ── Filters / sort (parity has no `.trash-filters`/`.trash-chip`/`.trash-sort` anchors --
-     out of this task's rewrite scope, kept as-is) ── */
-.trash-filters { display: flex; align-items: center; gap: 6px; padding: 8px 4px; flex-wrap: wrap; }
+     out of this task's rewrite scope, kept as-is). Horizontal padding bumped from 4px to 32px
+     (review fix) to line up with `.lib-hero`/`.trash-bulk-bar`'s own 32px side inset (parity
+     photos.scss:1235/:1734) -- vertical padding (8px) is this page's own pre-existing rhythm,
+     untouched. ── */
+.trash-filters { display: flex; align-items: center; gap: 6px; padding: 8px 32px; flex-wrap: wrap; }
 .trash-filters-spacer { flex: 1 1 auto; }
 .trash-chip {
   display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 10px;
@@ -495,8 +515,10 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
 
 /* ── Bucketed grid (parity has no `.trash-bucket*`/`.trash-grid`/`.trash-scroll` anchors --
      out of this task's rewrite scope, kept as-is; the tile itself now carries the parity
-     `.lib-tile`/`.trash-tile` combo, see the header comment above) ── */
-.trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+     `.lib-tile`/`.trash-tile` combo, see the header comment above). Padding mirrors parity's
+     own `.lib-scroll` (photos.scss:1343-1347, `padding: 0 32px 80px`) so this container's side
+     inset lines up with `.lib-hero`/`.trash-filters`/`.trash-bulk-bar` above it (review fix). ── */
+.trash-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 0 32px 80px; }
 .trash-bucket { margin-top: 20px; }
 .trash-bucket:first-child { margin-top: 0; }
 .trash-bucket-head { display: flex; align-items: baseline; gap: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--divider); }

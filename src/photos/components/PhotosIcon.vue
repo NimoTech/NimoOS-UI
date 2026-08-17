@@ -121,7 +121,9 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
     <!-- Plan H: transcribed byte-identical from Vue2 PhotosIcon.vue:114-117 ('pause', the
          slideshow pause button — two filled rects, self-contained :fill, does not go
          through the outer stroke/fill="none" default) and :161-164 ('refresh', a standard
-         stroked circular-arrow icon used by the trash confirm dialog). -->
+         stroked circular-arrow icon -- not currently consumed by any view (Task 8 review fix
+         corrected the trash confirm dialog to use 'upload' per Vue2 pixel truth instead, see
+         below), kept transcribed for whichever future icon need matches it). -->
     <template v-else-if="name === 'pause'">
       <rect x="6" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
       <rect x="14" y="4" width="4" height="16" rx="1" :fill="color || 'currentColor'" />
@@ -135,6 +137,12 @@ const strokeOverride = computed(() => (props.name === 'play' ? 'none' : props.co
          (PhotosFavoritesView.vue:27). -->
     <template v-else-if="name === 'download'">
       <path d="M12 4v12m0 0-4-4m4 4 4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </template>
+    <!-- Task 8 review fix (Plan H): transcribed byte-identical from Vue2 PhotosIcon.vue:42-44 --
+         needed for PhotosTrashView.vue's hero "Restore all" button (:17), bulk-bar "Restore"
+         (:37), and the confirm modal's icon/CTA (:101/:109, the non-danger/restore branch). -->
+    <template v-else-if="name === 'upload'">
+      <path d="M12 16V4m0 0-4 4m4-4 4 4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
     </template>
     <template v-else>
       <g></g>
