@@ -583,6 +583,9 @@ export default {
   photosFavStatInYear: 'in {year}',
   photosFavStatYearsTotal: '{n} years total',
   photosFavNoFaces: 'No faces yet',
+  // ── Task 6 (Plan H): place-filter dropdown — Vue2 PhotosFavoritesView.vue:412-416/353-360.
+  photosFavFilterPlaces: 'Places',
+  photosFavFilterClear: 'Clear filter',
   // ── Final-review Minor 6 / 7: short copy on the hero ────────────────────────
   // M6: Vue2 :38/:41 uses short verbs in the Edit dropdown (`Rename` / `Merge into…`).
   // The original implementation reused photosPersonRename / photosPersonMergeInto, which

@@ -44,6 +44,7 @@ import { useToast } from '../stores/toast'
 import { matchesTab } from '../photos/util/tabFilter'
 import { isConflict } from '../photos/util/httpErrors'
 import { topPersons, topPlaces, byYear as byYearOf } from '../photos/util/peopleView'
+import { groupPhotosByMonth } from '../photos/util/groupPhotosByMonth'
 import type { Photo } from '../photos/util/assetToPhoto'
 
 const { t } = useI18n()
@@ -70,8 +71,53 @@ const selected = ref<Array<string | number>>([])
 
 const isEmpty = computed(() => fav.favoritesLoaded && (fav.favoritesList?.length ?? 0) === 0)
 
+// Task 6 (Plan H): place filter -- follows Vue2 PhotosFavoritesView.vue:412-416's byPlaceAll
+// (group the loaded page by exact `place` string, sort by count desc) + :353-360's filtered
+// (exact string match against `l:<place>`).
+const openFilter = ref<'places' | null>(null)
+const placeFilter = ref('')
+
+const byPlaceAll = computed(() => {
+  const counts = new Map<string, number>()
+  for (const p of fav.favoritesList ?? []) {
+    if (!p.place) continue
+    counts.set(p.place, (counts.get(p.place) ?? 0) + 1)
+  }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])
+})
+const activePlaceLabel = computed(() => (placeFilter.value ? placeFilter.value.split(',')[0] ?? '' : ''))
+
+const filtered = computed(() => {
+  const base = fav.favoritesList ?? []
+  return placeFilter.value ? base.filter((p) => p.place === placeFilter.value) : base
+})
+// F-18: re-group after filtering rather than flatMap-ing `filtered` directly, so the flat
+// order the grid/lightbox/slideshow walk stays identical to the pre-filter month-grouped
+// order -- filtering narrows the set, it does not reorder it.
+const filteredMonths = computed(() => groupPhotosByMonth(filtered.value))
+
+function toggleOpenFilter(name: 'places'): void {
+  openFilter.value = openFilter.value === name ? null : name
+}
+function selectPlace(place: string): void {
+  placeFilter.value = place
+  openFilter.value = null
+}
+function clearPlaceFilter(): void {
+  placeFilter.value = ''
+  openFilter.value = null
+}
+
+const filterBarRef = ref<HTMLElement | null>(null)
+function onFilterDocumentClick(e: MouseEvent): void {
+  if (openFilter.value && filterBarRef.value && !filterBarRef.value.contains(e.target as Node)) {
+    openFilter.value = null
+  }
+}
+onMounted(() => document.addEventListener('mousedown', onFilterDocumentClick))
+
 const filteredCount = computed(() =>
-  fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)).length,
+  filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value)).length,
 )
 
 // Task 15A (SP7-P5, closing out two ledger items): the hero stats' three cards -- follows Vue2
@@ -218,6 +264,7 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onSaveAlbumKeydown)
   stopSlideTimer()
   document.removeEventListener('keydown', onSlideKey)
+  document.removeEventListener('mousedown', onFilterDocumentClick)
 })
 
 // Once PhotosGrid has a non-empty selected, onTileClick internally switches into the "keep
@@ -234,10 +281,10 @@ async function onBatchDelete(ids: Array<string | number>) {
 }
 
 function onOpenTile(photo: Photo, _list: undefined, startMs: number) {
-  // The paging set = the tab-filtered favorites set (matches what's shown, and uses the same
-  // data source/predicate as the PhotosToolbar count below).
-  const filtered = fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
-  lb.openAt(photo, filtered, startMs)
+  // The paging set = the place- and tab-filtered favorites set (matches what's shown, and uses
+  // the same data source/predicate as the PhotosToolbar count below).
+  const list = filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  lb.openAt(photo, list, startMs)
 }
 
 // Task 9 (P8a, closing out a P3 leftover item): when fetchFavorites fails, favoritesLoaded
@@ -281,19 +328,18 @@ onMounted(() => {
   void fav.fetchTopFavorites()
 })
 
-// Task 4 (Plan H): pinned card click opens the lightbox against the SAME tab-filtered paging set as
-// the grid below (not just the 5-card strip) -- matches Vue2's own @click passing the full
-// grouped-by-month favorites list, not top5. Task 6 will narrow this further to the place
-// filter once that lands.
+// Task 4 (Plan H): pinned card click opens the lightbox against the SAME place/tab-filtered
+// paging set as the grid below (not just the 5-card strip) -- matches Vue2's own @click passing
+// the full grouped-by-month favorites list, not top5. Task 6: narrowed to filteredMonths so the
+// paging order matches the visible (possibly place-filtered) grid (F-18).
 function onOpenPinned(photo: Photo): void {
-  const list = fav.favoritesMonths.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
+  const list = filteredMonths.value.flatMap((m) => m.photos).filter((p) => matchesTab(p, tab.value))
   lb.openAt(photo, list, 0)
 }
 
 // Task 5 (Plan H): real slideshow (not the known-dead album-detail Slideshow stub) -- follows
-// Vue2 PhotosFavoritesView.vue:469-501. slidePhotos currently mirrors the page's tab-filtered
-// favorites (same source as the grid below); Task 6 narrows this further to the place filter
-// once that lands.
+// Vue2 PhotosFavoritesView.vue:469-501. Task 6: slidePhotos is now narrowed by the same
+// place+tab-filtered set (filteredMonths) as the grid below, keeping its own fallback.
 const slideOpen = ref(false)
 const slideIdx = ref(0)
 const slidePlaying = ref(true)
@@ -301,15 +347,19 @@ const slideInterval = ref(4000)
 let slideTimer: ReturnType<typeof setTimeout> | undefined
 
 // Review fix (Important 3): restores Vue2 :439's fallback --
-// `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }` (`sorted` is
-// Vue2's tab/facet-filtered set, `favorites` is the full unfiltered loaded set). Without this,
+// `slidePhotos() { return this.sorted.length ? this.sorted : this.favorites }`. Without this,
 // opening the slideshow while the active tab has zero matches (e.g. "Videos" selected but every
 // favorite is a photo) would silently play an empty deck instead of falling back to the whole
-// favorites set, same as Vue2.
+// (place-filtered) favorites set, same as Vue2.
+// Task 6: both `all` and the tab-filtered set are now sourced from filteredMonths (which is
+// itself narrowed by the place filter, per F-18) rather than the unfiltered fav.favoritesMonths
+// -- so the fallback shape (tab-filter, falling back to the wider set) is unchanged, but the
+// "wider set" it falls back to is the place-filtered one, keeping the slideshow in sync with
+// the visible grid/count chip.
 const slidePhotos = computed(() => {
-  const all = fav.favoritesMonths.flatMap((m) => m.photos)
-  const filtered = all.filter((p) => matchesTab(p, tab.value))
-  return filtered.length ? filtered : all
+  const all = filteredMonths.value.flatMap((m) => m.photos)
+  const byTab = all.filter((p) => matchesTab(p, tab.value))
+  return byTab.length ? byTab : all
 })
 const slidePhoto = computed(() => slidePhotos.value[slideIdx.value] ?? null)
 
@@ -517,6 +567,37 @@ function onSlideKey(e: KeyboardEvent): void {
               </div>
             </div>
 
+            <!-- Task 6 (Plan H): place-filter dropdown -- Vue2 PhotosFavoritesView.vue:412-416's
+                 byPlaceAll (group the loaded page by exact `place` string, sort by count desc) +
+                 :353-360's filtered (exact string match against `l:<place>`). Global
+                 mousedown-to-close is wired via filterBarRef + onFilterDocumentClick (onMounted
+                 above). -->
+            <div class="fav-filter-wrap" ref="filterBarRef">
+              <button
+                type="button" class="lib-chip" data-test="fav-filter-places-btn"
+                :data-active="!!placeFilter" :disabled="!byPlaceAll.length"
+                @click.stop="toggleOpenFilter('places')"
+              >
+                <PhotosIcon name="map" :size="11" />
+                {{ activePlaceLabel || t('photosFavFilterPlaces') }}
+                <span class="ct">{{ byPlaceAll.length }}</span>
+              </button>
+              <transition name="fav-menu">
+                <div v-if="openFilter === 'places'" class="fav-filter-menu" @click.stop>
+                  <button v-if="placeFilter" type="button" class="fav-filter-item is-clear" @click="clearPlaceFilter">
+                    {{ t('photosFavFilterClear') }}
+                  </button>
+                  <button
+                    v-for="[place, count] in byPlaceAll" :key="place" type="button"
+                    class="fav-filter-item has-text-full-04" :data-active="placeFilter === place"
+                    @click="selectPlace(place)"
+                  >
+                    <span class="fav-filter-label">{{ place.split(',')[0] }}</span>
+                    <span class="ct">{{ count }}</span>
+                  </button>
+                </div>
+              </transition>
+            </div>
             <PhotosToolbar
               :tab="tab" :density="density" :count="filteredCount"
               @update:tab="tab = $event" @update:density="density = $event"
@@ -535,7 +616,7 @@ function onSlideKey(e: KeyboardEvent): void {
                 @ask-nimo="useAskNimo().openWith(t('photosGridAskNimoRecap', { count: selected.length }))"
               />
               <PhotosGrid
-                :months="fav.favoritesMonths" :tab="tab" :density="density" :selected="selected"
+                :months="filteredMonths" :tab="tab" :density="density" :selected="selected"
                 @open="onOpenTile"
                 @toggle-select="toggleSelect"
               />

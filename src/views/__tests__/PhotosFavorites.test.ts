@@ -778,6 +778,60 @@ describe('PhotosFavorites.vue', () => {
     })
   })
 
+  // Task 6 (Plan H): place-filter dropdown -- follows Vue2 PhotosFavoritesView.vue's
+  // byPlaceAll (:412-416, group the loaded page by exact `place` string, sorted count
+  // desc) + filtered (:353-360, exact string match against `l:<place>`). F-18: the
+  // filtered set is re-grouped by month before being flattened, so narrowing the place
+  // doesn't reorder the grid/lightbox/slideshow -- it only narrows it.
+  describe('place filter dropdown (Task 6)', () => {
+    it('place filter dropdown narrows the grid, the count chip, and the slideshow to the selected place (order preserved, F-18)', async () => {
+      // NOTE: the raw wire field assetToPhoto reads for Photo.place is `placeName`
+      // (assetToPhoto.ts:373), not `place` -- using `placeName` here so the two rows
+      // actually reach byPlaceAll/filtered with a non-null `place`.
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: '1', mimeType: 'image/jpeg', placeName: 'Kyoto, Japan', takenAt: '2026-02-01T00:00:00Z' },
+        { id: '2', mimeType: 'image/jpeg', placeName: 'Osaka, Japan', takenAt: '2026-01-01T00:00:00Z' },
+      ])
+      const w = await mountView()
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      expect(w.find('.fav-filter-menu').exists()).toBe(true)
+      await w.findAll('.fav-filter-item').find((b) => b.text().includes('Kyoto'))!.trigger('click')
+      expect(w.find('[data-test="fav-filter-places-btn"]').text()).toContain('Kyoto')
+
+      // Grid narrows to just the Kyoto photo (PhotosToolbar's count chip + lightbox
+      // paging set + slideshow all read off the same filteredMonths).
+      expect(w.find('.muted-text').text()).toBe(zh.photosItemsCount.replace('{count}', '1'))
+      await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 1')
+      await w.find('.fav-slide-close').trigger('click')
+
+      // Clear filter restores both photos.
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      await w.find('.fav-filter-item.is-clear').trigger('click')
+      expect(w.find('[data-test="fav-filter-places-btn"]').text()).not.toContain('Kyoto')
+      await w.find('[data-test="fav-slideshow-btn"]').trigger('click')
+      expect(w.find('[data-test="fav-slide-count"]').text()).toBe('1 / 2')
+    })
+
+    it('a global mousedown outside the filter bar closes the open dropdown', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([
+        { id: '1', mimeType: 'image/jpeg', placeName: 'Kyoto, Japan', takenAt: '2026-02-01T00:00:00Z' },
+      ])
+      const w = await mountView()
+      await w.find('[data-test="fav-filter-places-btn"]').trigger('click')
+      expect(w.find('.fav-filter-menu').exists()).toBe(true)
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+      await w.vm.$nextTick()
+      expect(w.find('.fav-filter-menu').exists()).toBe(false)
+    })
+
+    it('disabled (no places among the loaded favorites) when every asset has a null place', async () => {
+      svc.photos.listFavorites.mockResolvedValueOnce([{ id: '1', mimeType: 'image/jpeg' }])
+      const w = await mountView()
+      expect(w.find('[data-test="fav-filter-places-btn"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
   // Task 15A (closing out two ledger entries from SP7-P5): hero stats three cards —
   // following Vue2 PhotosFavoritesView.vue :56-84 (template) + :369-385
   // (byPersonAll/byPlaceAll/byYearAll). Each card has its own sort key/slice count,

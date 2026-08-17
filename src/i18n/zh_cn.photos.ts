@@ -582,6 +582,9 @@ export default {
   photosFavStatInYear: '于 {year} 年',
   photosFavStatYearsTotal: '共 {n} 年',
   photosFavNoFaces: '暂无人脸',
+  // ── Task 6 (Plan H):地点筛选下拉 —— Vue2 PhotosFavoritesView.vue:412-416/353-360。
+  photosFavFilterPlaces: '地点',
+  photosFavFilterClear: '清除筛选',
   // ── 终审 Minor 6 / 7:hero 上的短文案 ────────────────────────────────────────
   // M6:Vue2 :38/:41 的 Edit 下拉两项是**短动词**(`Rename` / `Merge into…`),原实现塞的是
   // photosPersonRename / photosPersonMergeInto —— 那两个键同时是弹窗 <h*> 标题(「重命名人物」/
